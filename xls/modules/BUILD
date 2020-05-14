@@ -1,0 +1,105 @@
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Build rules for DSLX modules.
+load("//xls/build:build_defs.bzl", "dslx_test")
+
+package(
+    default_visibility = [
+        "//xls:__subpackages__",
+    ],
+    licenses = ["notice"],  # Apache 2.0
+)
+
+filegroup(
+    name = "ir_examples",
+    srcs = [
+        ":fpadd_2x32_all_ir",
+        ":fpmul_2x32_all_ir",
+    ],
+)
+
+dslx_test(
+    name = "fpadd_2x32",
+    srcs = ["fpadd_2x32.x"],
+    # TODO(b/152546795): Takes too long.
+    prove_unopt_eq_opt = False,
+)
+
+# TODO(rspringer): Takes too long to run in normal testing.
+cc_binary(
+    name = "fpadd_2x32_bounds",
+    srcs = ["fpadd_2x32_bounds.cc"],
+    data = [":fpadd_2x32_all_ir"],
+    deps = [
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/time",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/common/status:statusor",
+        "//xls/ir:ir_parser",
+        "//xls/tools:z3_translator",
+        "@z3//:api",
+    ],
+)
+
+cc_test(
+    name = "fpadd_2x32_test",
+    srcs = ["fpadd_2x32_test.cc"],
+    data = [":fpadd_2x32_all_ir"],
+    tags = ["optonly"],
+    deps = [
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
+        "//xls/common:init_xls",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir:llvm_ir_jit",
+        "//xls/ir:value_helpers",
+        "//xls/ir:value_view_helpers",
+        "//xls/tools:testbench",
+    ],
+)
+
+dslx_test(
+    name = "fpmul_2x32",
+    srcs = ["fpmul_2x32.x"],
+    # TODO(rspringer): Currently takes too long.
+    prove_unopt_eq_opt = False,
+)
+
+cc_test(
+    name = "fpmul_2x32_test",
+    srcs = ["fpmul_2x32_test.cc"],
+    data = [":fpmul_2x32_all_ir"],
+    deps = [
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
+        "//xls/common:init_xls",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir:llvm_ir_jit",
+        "//xls/ir:value_helpers",
+        "//xls/ir:value_view_helpers",
+        "//xls/tools:testbench",
+    ],
+)

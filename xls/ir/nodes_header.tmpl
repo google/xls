@@ -1,0 +1,47 @@
+#ifndef THIRD_PARTY_XLS_IR_NODES_
+#define THIRD_PARTY_XLS_IR_NODES_
+
+#include <string>
+
+#include "xls/common/status/statusor.h"
+#include "xls/ir/lsb_or_msb.h"
+#include "xls/ir/node.h"
+#include "xls/ir/op.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/type.h"
+#include "xls/ir/value.h"
+#include "xls/common/integral_types.h"
+#include "absl/types/span.h"
+
+namespace xls {
+
+struct SliceData {
+  int64 start;
+  int64 width;
+};
+
+{% for op_class in spec.OpClass.kinds.values() -%}
+class {{ op_class.name }} : public Node {
+ public:
+  {{ op_class.name }}({{ op_class.constructor_args_str() }});
+
+  xabsl::StatusOr<Node*> Clone(absl::Span<Node* const> new_operands,
+                              Function* new_function) const override;
+{% for method in op_class.methods() -%}
+{{ method.return_cpp_type }} {{ method.name }}({{ method.params }}) const{% if method.expression %} { return {{ method.expression }}; }{% else %};{% endif %}
+{% endfor -%}
+{%- if op_class.data_members() %}
+  bool IsDefinitelyEqualTo(const Node* other) const override;
+
+ private:
+{% for member in op_class.data_members() -%}
+{{ member.cpp_type }} {{ member.name }};
+{% endfor %}
+{%- endif -%}
+};
+
+{% endfor %}
+
+}  // namespace xls
+
+#endif  // THIRD_PARTY_XLS_IR_NODES_

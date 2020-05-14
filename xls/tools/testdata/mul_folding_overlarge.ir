@@ -1,0 +1,12 @@
+// Originally this failed because of folding together the two literal values
+// that were operands to the dependent muls and making a value that had larger
+// width than the umul's type.
+
+package mul_folding_overlarge
+
+fn known_failing_main(x1102180: bits[25]) -> bits[21] {
+  literal.482: bits[21] = literal(value=2048)
+  bit_slice.483: bits[21] = bit_slice(x1102180, start=0, width=21)
+  umul.484: bits[21] = umul(literal.482, bit_slice.483)
+  ret umul.485: bits[21] = umul(umul.484, literal.482)
+}

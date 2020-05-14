@@ -1,0 +1,203 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package xls.delay_model;
+
+// Enum describing a specialization of the delay model of an operation. A
+// specialization describes a condition under which the delay of the operation
+// is appreciably different then the general case. For example, a synthesized
+// multiply is generally faster if both operands are identical and the delay
+// model may include a specialized delay computation for this case
+// (OPERANDS_IDENTICAL).
+enum SpecializationKind {
+  NO_SPECIALIZATION = 0;
+
+  // All of the operands of the operation are the same.
+  OPERANDS_IDENTICAL = 1;
+
+  // The operation includes a literal operand.
+  HAS_LITERAL_OPERAND = 2;
+}
+
+// Describes an XLS operation (xls::Node) for the purposes of delay modeling.
+message Operation {
+  // XLS Op (e.g., kAdd).
+  string op = 1;
+
+  // Number of bits of the result of the operation (flattened).
+  int64 bit_count = 2;
+
+  // Operands.
+  message Operand {
+    // Number of bits of the operand (flattened).
+    int64 bit_count = 1;
+
+    // If the operand is array-typed, this is the number of elements in the
+    // array.
+    int64 element_count = 2;
+  }
+  repeated Operand operands = 3;
+
+  // The category of specialization of this operation, if any. For example, if
+  // the operands of the xls::Node represented by this proto are all identical,
+  // this field would be OPERANDS_IDENTICAL.
+  SpecializationKind specialization = 4;
+}
+
+// Describes a measured data point of the delay of an operation.
+message DataPoint {
+  Operation operation = 1;
+
+  // The measured delay in ps.
+  int64 delay = 2;
+
+  // An optional offset which should be subtracted from the 'delay' value to
+  // compute the actual delay of the operation. This can be used to account for
+  // overhead such as clock-to-Q and setup time which may included in the
+  // measured delay, but is not a component of the delay of the logic of the
+  // operation. This value is per data point because it may change if underlying
+  // synthesis rules change and a delay model may be built up over a period of
+  // time spanning these rules changes.
+  int64 delay_offset = 3;
+}
+
+// Describes an aspect (bit count, number of operands, etc.) of an XLS operation
+// which may be used as a input in the delay computation for the operation.
+message DelayFactor {
+  enum Source {
+    INVALID_VARIABLE_SOURCE = 0;
+
+    // The bit count of the result of the operation.
+    RESULT_BIT_COUNT = 1;
+
+    // The bit count of a particular operand of the operation. The specific
+    // operand is indicated by the field operand_number.
+    OPERAND_BIT_COUNT = 2;
+
+    // The total number of operands of the operation.
+    OPERAND_COUNT = 3;
+
+    // The number of element of a particular operand of the operation. The
+    // operand must be array-typed. The specific operand is indicated by the
+    // field operand_number.
+    OPERAND_ELEMENT_COUNT = 4;
+  }
+  Source source = 1;
+
+  // If 'source' is one of the OPERAND_* values then this indicates the operand
+  // number to use
+  int64 operand_number = 2;
+}
+
+// Describes a delay estimation model which fits a curve to the measured data
+// points for the operation. The function (curve) includes a constant term and
+// terms which are linear and logarithm functions of the indicated factors. For
+// example, if the factors are the result bit count and the operand count then
+// the function for the estimated delay has the form:
+//
+//   delay_est = P_0 + P_1 * result_bit_count + P_2 * log2(result_bit_count) +
+//                     P_3 * operand_count    + P_4 * log2(operand_count)
+//
+// Where P_i are learned parameters.
+message RegressionEstimator {
+  repeated DelayFactor factors = 1;
+}
+
+// Describes a delay estimation model in which the measured data points define
+// bounding boxes in the space of delay factors. The estimated delay for an
+// operation X is equal to the delay of the first bounding box containing the
+// point defined by the operation. For example, suppose the factors of a
+// bounding box estimator are the result bit count and the operand count, and
+// the measured data points are:
+//
+//   (1) result_bit_count=8, operand_count=3    : 100ps
+//   (2) result_bit_count=5, operand_count=12   : 150ps
+//   (3) result_bit_count=10, operand_count=16  : 200ps
+//
+// Then the delay of an operation with result_bit_count=5 and operand_count=6
+// would be 150ps because the point (result_bit_count=5, operand_count=6) is
+// contained in the bounding box of (result_bit_count=5, operand_count=12).
+//
+// The bounding box model is sensitive to the order in which the data points are
+// listed in the DelayModel proto because the bounding boxes are tested
+// sequentially and the first match is used.
+// TODO(meheff): To avoid this undesirable sensitivity, perhaps take the minimum
+// delay among the enclosing bounding boxes.
+message BoundingBoxEstimator {
+  repeated DelayFactor factors = 1;
+}
+
+// Estimator which uses logical effort computation to approximate
+// delay. Specifically, ops with this estimator are handled by the method
+// DelayEstimator::GetLogicalEffortDelayInPs. Typically only logical operations
+// (AND, OR, etc) and a small number of other simple operations are handled via
+// logical effort.
+message LogicalEffortEstimator {
+  // The delay of a single inverter in ps.
+  int64 tau_in_ps = 1;
+}
+
+// Message describing a delay estimation model.
+message Estimator {
+  oneof estimator {
+    // An estimator which returns a fixed value given by 'fixed'.
+    int64 fixed = 1;
+
+    // An estimator which aliases the model of a different op given by
+    // alias_op. For example, kAdd and kSub have very similar delay
+    // characteristics so the estimator for kSub may be defined as an alias of
+    // kAdd by setting 'alias_op' to 'kAdd'.
+    string alias_op = 2;
+
+    // A curve-fitting model.
+    RegressionEstimator regression = 3;
+
+    // A bounding box model.
+    BoundingBoxEstimator bounding_box = 4;
+
+    // A logical effort estimator.
+    LogicalEffortEstimator logical_effort = 5;
+  }
+}
+
+// Describes a model for computing the delay of a single operation (e.g. kAdd).
+message OpModel {
+  // The xls::Op for this model (e.g., kAdd).
+  string op = 1;
+
+  // The estimator to use to compute delay.
+  Estimator estimator = 2;
+
+  // Zero or more estimators to use under specialized conditions indicated by
+  // 'kind'. For example, the OpModel for 'kUMul' may include a specialization
+  // of kind OPERANDS_IDENTICAL because the delay characteristics are different
+  // for multiplies if both operands are the same.
+  message Specialization {
+    SpecializationKind kind = 1;
+    Estimator estimator = 2;
+  }
+  repeated Specialization specializations = 3;
+}
+
+// Describes a delay model used for estimated the delay of XLS operations.
+message DelayModel {
+  // The delay models for each op.
+  repeated OpModel op_models = 1;
+
+  // Measured delays of XLS operations used as input data for
+  // RegressionEstimator and BoundingBoxEstimator.
+  repeated DataPoint data_points = 2;
+}

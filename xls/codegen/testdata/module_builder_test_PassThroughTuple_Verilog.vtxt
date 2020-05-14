@@ -1,0 +1,6 @@
+module PassThroughTuple_Verilog(
+  input wire [83:0] a,
+  output wire [83:0] out
+);
+  assign out = a;
+endmodule

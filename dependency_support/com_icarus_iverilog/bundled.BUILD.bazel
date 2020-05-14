@@ -1,0 +1,916 @@
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Description:
+#   Icarus Verilog is a Verilog simulation and synthesis tool.
+#   Use :iverilog and :vvp targets in your genrules.
+
+load("@com_google_xls//dependency_support/com_icarus_iverilog:build-plugins.bzl", "vpi_binary", "iverilog_compile")
+load("@com_google_xls//dependency_support:copy.bzl", "copy", "touch")
+load("@com_google_xls//dependency_support:pseudo_configure.bzl", "pseudo_configure")
+load("@com_google_xls//dependency_support/flex:flex.bzl", "genlex")
+load("@com_google_xls//dependency_support/org_gnu_bison:bison.bzl", "genyacc")
+
+# The only two exported labels are iverilog and vvp. They are enough
+# to run simple simulations.
+package(
+    default_visibility = ["//visibility:private"],
+    features = [
+        "-layering_check",
+        "-parse_headers",
+    ],
+)
+
+licenses(["restricted"])  # GPLv2
+
+exports_files([
+    "LICENSE",
+    "build-plugins",
+])
+
+# This wrapper around iverilog compiler is to be used by
+# simulations. A typical genrule will look similar to gen_hello.vvp
+# below.
+sh_binary(
+    name = "iverilog",
+    srcs = ["@com_google_xls//dependency_support/com_icarus_iverilog:iverilog.sh"],
+    data = [
+        "iverilog-bin",
+        "ivl",
+        "ivlpp",
+        "vvp.conf",
+        "vvp.tgt",
+    ],
+    output_licenses = ["unencumbered"],
+    visibility = ["//visibility:public"],
+)
+
+genrule(
+    name = "vvp_conf",
+    srcs = ["tgt-vvp/vvp.conf.in"],
+    outs = ["vvp.conf"],
+    cmd = "echo 'flag:VVP_EXECUTABLE=/unused' | cat $(location :tgt-vvp/vvp.conf.in) - > $@",
+)
+
+# This wrapper around vvp simulator is to be used by simulations. A
+# typical genrule will look similar to run_hello below.
+sh_binary(
+    name = "vvp",
+    srcs = ["@com_google_xls//dependency_support/com_icarus_iverilog:vvp.sh"],
+    data = [
+        "system.vpi",
+        "v2005_math.vpi",
+        "va_math.vpi",
+        "vhdl_table.vpi",
+        "vpi_debug.vpi",
+        "vvp-bin",
+    ],
+    output_licenses = ["unencumbered"],
+    visibility = ["//visibility:public"],
+)
+
+# API for writing VPI extensions.
+cc_library(
+    name = "vpi_user",
+    srcs = ["_pli_types.h"],
+    hdrs = ["vpi_user.h"],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "ivl-misc",
+    srcs = [
+        "libmisc/LineInfo.cc",
+        "libmisc/StringHeap.cc",
+    ],
+    hdrs = [
+        "libmisc/LineInfo.h",
+        "libmisc/StringHeap.h",
+    ],
+)
+
+# A Bazel bug requires full enumeration of symbols to retain. The list comes
+# from ivl.def.
+ivl_def = [
+    "ivl_branch_island",
+    "ivl_branch_terminal",
+    "ivl_design_const",
+    "ivl_design_consts",
+    "ivl_design_discipline",
+    "ivl_design_disciplines",
+    "ivl_design_flag",
+    "ivl_design_process",
+    "ivl_design_root",
+    "ivl_design_roots",
+    "ivl_design_time_precision",
+    "ivl_const_bits",
+    "ivl_const_delay",
+    "ivl_const_real",
+    "ivl_const_signed",
+    "ivl_const_type",
+    "ivl_const_width",
+    "ivl_discipline_domain",
+    "ivl_discipline_flow",
+    "ivl_discipline_name",
+    "ivl_discipline_potential",
+    "ivl_event_any",
+    "ivl_event_basename",
+    "ivl_event_name",
+    "ivl_event_nany",
+    "ivl_event_neg",
+    "ivl_event_nneg",
+    "ivl_event_npos",
+    "ivl_event_pos",
+    "ivl_event_scope",
+    "ivl_expr_type",
+    "ivl_expr_bits",
+    "ivl_expr_branch",
+    "ivl_expr_def",
+    "ivl_expr_delay_val",
+    "ivl_expr_dvalue",
+    "ivl_expr_event",
+    "ivl_expr_file",
+    "ivl_expr_lineno",
+    "ivl_expr_name",
+    "ivl_expr_nature",
+    "ivl_expr_opcode",
+    "ivl_expr_oper1",
+    "ivl_expr_oper2",
+    "ivl_expr_oper3",
+    "ivl_expr_parameter",
+    "ivl_expr_parm",
+    "ivl_expr_parms",
+    "ivl_expr_repeat",
+    "ivl_expr_scope",
+    "ivl_expr_signal",
+    "ivl_expr_signed",
+    "ivl_expr_string",
+    "ivl_expr_uvalue",
+    "ivl_expr_value",
+    "ivl_expr_width",
+    "ivl_file_table_index",
+    "ivl_file_table_item",
+    "ivl_file_table_size",
+    "ivl_island_flag_set",
+    "ivl_island_flag_test",
+    "ivl_logic_attr",
+    "ivl_logic_attr_cnt",
+    "ivl_logic_attr_val",
+    "ivl_logic_basename",
+    "ivl_logic_delay",
+    "ivl_logic_drive0",
+    "ivl_logic_drive1",
+    "ivl_logic_name",
+    "ivl_logic_pin",
+    "ivl_logic_pins",
+    "ivl_logic_scope",
+    "ivl_logic_type",
+    "ivl_logic_udp",
+    "ivl_logic_width",
+    "ivl_lpm_array",
+    "ivl_lpm_aset_value",
+    "ivl_lpm_async_clr",
+    "ivl_lpm_async_set",
+    "ivl_lpm_base",
+    "ivl_lpm_basename",
+    "ivl_lpm_clk",
+    "ivl_lpm_data",
+    "ivl_lpm_datab",
+    "ivl_lpm_define",
+    "ivl_lpm_delay",
+    "ivl_lpm_enable",
+    "ivl_lpm_file",
+    "ivl_lpm_lineno",
+    "ivl_lpm_name",
+    "ivl_lpm_q",
+    "ivl_lpm_scope",
+    "ivl_lpm_select",
+    "ivl_lpm_selects",
+    "ivl_lpm_signed",
+    "ivl_lpm_size",
+    "ivl_lpm_sset_value",
+    "ivl_lpm_string",
+    "ivl_lpm_sync_clr",
+    "ivl_lpm_sync_set",
+    "ivl_lpm_trigger",
+    "ivl_lpm_type",
+    "ivl_lpm_width",
+    "ivl_lval_idx",
+    "ivl_lval_mux",
+    "ivl_lval_part_off",
+    "ivl_lval_sig",
+    "ivl_lval_width",
+    "ivl_nature_name",
+    "ivl_nexus_get_private",
+    "ivl_nexus_name",
+    "ivl_nexus_ptrs",
+    "ivl_nexus_ptr",
+    "ivl_nexus_set_private",
+    "ivl_nexus_ptr_branch",
+    "ivl_nexus_ptr_con",
+    "ivl_nexus_ptr_drive0",
+    "ivl_nexus_ptr_drive1",
+    "ivl_nexus_ptr_pin",
+    "ivl_nexus_ptr_lpm",
+    "ivl_nexus_ptr_log",
+    "ivl_nexus_ptr_sig",
+    "ivl_nexus_ptr_switch",
+    "ivl_parameter_basename",
+    "ivl_parameter_expr",
+    "ivl_parameter_file",
+    "ivl_parameter_lineno",
+    "ivl_path_condit",
+    "ivl_path_delay",
+    "ivl_path_is_condit",
+    "ivl_path_scope",
+    "ivl_path_source",
+    "ivl_path_source_negedge",
+    "ivl_path_source_posedge",
+    "ivl_scope_attr_cnt",
+    "ivl_scope_attr_val",
+    "ivl_scope_basename",
+    "ivl_scope_children",
+    "ivl_scope_def",
+    "ivl_scope_def_file",
+    "ivl_scope_def_lineno",
+    "ivl_scope_event",
+    "ivl_scope_events",
+    "ivl_scope_file",
+    "ivl_scope_is_auto",
+    "ivl_scope_is_cell",
+    "ivl_scope_lineno",
+    "ivl_scope_logs",
+    "ivl_scope_log",
+    "ivl_scope_lpms",
+    "ivl_scope_lpm",
+    "ivl_scope_name",
+    "ivl_scope_param",
+    "ivl_scope_params",
+    "ivl_scope_parent",
+    "ivl_scope_port",
+    "ivl_scope_ports",
+    "ivl_scope_sigs",
+    "ivl_scope_sig",
+    "ivl_scope_switch",
+    "ivl_scope_switches",
+    "ivl_scope_time_precision",
+    "ivl_scope_time_units",
+    "ivl_scope_type",
+    "ivl_scope_tname",
+    "ivl_signal_array_addr_swapped",
+    "ivl_signal_array_base",
+    "ivl_signal_array_count",
+    "ivl_signal_attr",
+    "ivl_signal_attr_cnt",
+    "ivl_signal_attr_val",
+    "ivl_signal_basename",
+    "ivl_signal_data_type",
+    "ivl_signal_dimensions",
+    "ivl_signal_discipline",
+    "ivl_signal_file",
+    "ivl_signal_integer",
+    "ivl_signal_lineno",
+    "ivl_signal_local",
+    "ivl_signal_lsb",
+    "ivl_signal_msb",
+    "ivl_signal_name",
+    "ivl_signal_nex",
+    "ivl_signal_npath",
+    "ivl_signal_path",
+    "ivl_signal_port",
+    "ivl_signal_signed",
+    "ivl_signal_type",
+    "ivl_signal_width",
+    "ivl_path_delay",
+    "ivl_path_source",
+    "ivl_process_analog",
+    "ivl_process_attr_cnt",
+    "ivl_process_attr_val",
+    "ivl_process_file",
+    "ivl_process_lineno",
+    "ivl_process_scope",
+    "ivl_process_stmt",
+    "ivl_process_type",
+    "ivl_statement_type",
+    "ivl_stmt_block_count",
+    "ivl_stmt_block_scope",
+    "ivl_stmt_block_stmt",
+    "ivl_stmt_call",
+    "ivl_stmt_case_count",
+    "ivl_stmt_case_expr",
+    "ivl_stmt_case_stmt",
+    "ivl_stmt_cond_expr",
+    "ivl_stmt_cond_false",
+    "ivl_stmt_cond_true",
+    "ivl_stmt_delay_expr",
+    "ivl_stmt_delay_val",
+    "ivl_stmt_events",
+    "ivl_stmt_file",
+    "ivl_stmt_lineno",
+    "ivl_stmt_lexp",
+    "ivl_stmt_lval",
+    "ivl_stmt_lvals",
+    "ivl_stmt_lwidth",
+    "ivl_stmt_name",
+    "ivl_stmt_nevent",
+    "ivl_stmt_parm",
+    "ivl_stmt_parm_count",
+    "ivl_stmt_rval",
+    "ivl_stmt_sub_stmt",
+    "ivl_switch_a",
+    "ivl_switch_b",
+    "ivl_switch_basename",
+    "ivl_switch_enable",
+    "ivl_switch_file",
+    "ivl_switch_island",
+    "ivl_switch_lineno",
+    "ivl_switch_offset",
+    "ivl_switch_part",
+    "ivl_switch_scope",
+    "ivl_switch_type",
+    "ivl_switch_width",
+    "ivl_udp_init",
+    "ivl_udp_name",
+    "ivl_udp_nin",
+    "ivl_udp_row",
+    "ivl_udp_rows",
+    "ivl_udp_sequ",
+]
+
+cc_binary(
+    name = "ivl",
+    srcs = glob(
+        ["*.cc", "*.h"],
+        exclude = ["elab_anet.cc"],
+    ) + [
+        "syn-rules.cc",
+        "lexor.cc",
+        "lexor_keyword.cc",
+        "parse.cc",
+        "parse.h",
+        "config.h",
+    ],
+    copts = [
+        "-Wno-strict-aliasing",
+        "-Wno-unused-but-set-variable",
+        "-Wno-unused-variable",
+    ],
+    # Do not sort: dot last.
+    includes = [
+        "libmisc",
+        ".",
+    ],
+    linkopts = [
+        "-ldl",
+        "-Wl,-u," + ",-u,".join(ivl_def),
+        "-Wl,--export-dynamic",
+        "-Wl,-no-pie",
+    ],
+    deps = [
+        "ivl-misc",
+        ":shared_headers",
+    ],
+)
+
+genlex(
+    name = "lexor",
+    src = "lexor.lex",
+    out = "lexor.cc",
+)
+
+genyacc(
+    name = "parse_y",
+    src = "parse.y",
+    header_out = "parse.h",
+    prefix = "VL",
+    source_out = "parse.cc",
+)
+
+genyacc(
+    name = "syn-rules_y",
+    src = "syn-rules.y",
+    header_out = "syn-rules.h",
+    prefix = "syn_",
+    source_out = "syn-rules.cc",
+)
+
+cc_library(
+    name = "shared_headers",
+    hdrs = [
+        "config.h",
+        "ivl_alloc.h",
+        "ivl_target.h",
+        "ivl_target_priv.h",
+        "version_base.h",
+        "version_tag.h",
+        "sv_vpi_user.h",
+    ],
+    includes = [
+        ".",
+    ],
+    deps = [
+        ":vpi_user",
+    ],
+)
+
+cc_binary(
+    name = "iverilog-bin",
+    srcs = [
+        "driver/cflexor.c",
+        "driver/cfparse.c",
+        "driver/cfparse.h",
+    ] + glob([
+        "driver/*.h",
+        "driver/*.c",
+    ]),
+    copts = [
+        "-D_GNU_SOURCE",
+        "-std=c11",
+        "-fcommon",
+        "-Wno-format-truncation",
+    ],
+    # Do not sort: dot last.
+    includes = [
+        "driver",
+        "libmisc",
+        ".",
+    ],
+    deps = [":shared_headers"],
+    visibility = ["//visibility:public"],
+)
+
+genlex(
+    name = "cflexor",
+    src = "driver/cflexor.lex",
+    out = "driver/cflexor.c",
+)
+
+genyacc(
+    name = "cfparse_y",
+    src = "driver/cfparse.y",
+    header_out = "driver/cfparse.h",
+    prefix = "cf",
+    source_out = "driver/cfparse.c",
+)
+
+# A Bazel bug requires full enumeration of symbols to retain. The list comes
+# from vvp.def.
+vvp_def = [
+    "vpi_chk_error",
+    "vpi_control",
+    "vpi_flush",
+    "vpi_fopen",
+    "vpi_free_object",
+    "vpi_get",
+    "vpi_get_delays",
+    "vpi_get_file",
+    "vpi_get_str",
+    "vpi_get_time",
+    "vpi_get_userdata",
+    "vpi_get_value",
+    "vpi_get_vlog_info",
+    "vpi_handle",
+    "vpi_handle_by_index",
+    "vpi_handle_by_name",
+    "vpi_iterate",
+    "vpi_mcd_close",
+    "vpi_mcd_flush",
+    "vpi_mcd_name",
+    "vpi_mcd_open",
+    "vpi_mcd_printf",
+    "vpi_mcd_vprintf",
+    "vpi_printf",
+    "vpi_put_delays",
+    "vpi_put_userdata",
+    "vpi_put_value",
+    "vpi_register_cb",
+    "vpi_register_systf",
+    "vpi_remove_cb",
+    "vpi_scan",
+    "vpi_sim_control",
+    "vpi_sim_vcontrol",
+    "vpi_vprintf",
+    "vpip_format_strength",
+    "vpip_set_return_value",
+    "vpip_calc_clog2",
+]
+
+cc_binary(
+    name = "vvp-bin",
+    srcs = glob([
+        "vvp/*.cc",
+        "vvp/*.h",
+    ]) + [
+        "vvp_gen/config.h",
+        "vvp_gen/lexor.cc",
+        "vvp_gen/parse.h",
+        "vvp_gen/parse.cc",
+        "vvp_gen/tables.cc",
+    ],
+    copts = [
+        "-O2",  # Optimized binary regardless of configuration.
+        "-Wno-unused-variable",
+        "-Wno-implicit-fallthrough",
+    ],
+    # Do not sort: dot last.
+    includes = [
+        "vvp_gen",
+        "vvp",
+        ".",
+    ],
+    linkopts = [
+        "-ldl",
+        "-Wl,-u," + ",-u,".join(vvp_def),
+        "-Wl,--export-dynamic",
+    ],
+    deps = [
+        ":shared_headers",
+        ":vpi_user",
+        "@dk_thrysoee_libedit//:pretend_to_be_gnu_readline_system",
+        "@net_invisible_island_ncurses//:ncurses",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+genyacc(
+    name = "vvp_parse_y",
+    src = "vvp/parse.y",
+    header_out = "vvp_gen/parse.h",
+    source_out = "vvp_gen/parse.cc",
+)
+
+genlex(
+    name = "vvp_flexor",
+    src = "vvp/lexor.lex",
+    out = "vvp_gen/lexor.cc",
+)
+
+cc_binary(
+    name = "draw_tt",
+    srcs = ["vvp/draw_tt.c"],
+)
+
+genrule(
+    name = "gen_tables",
+    outs = ["vvp_gen/tables.cc"],
+    cmd = "$(location draw_tt) > $@",
+    tools = ["draw_tt"],
+)
+
+cc_binary(
+    name = "ivlpp",
+    srcs = [
+        "ivlpp_lex/lexor.c",
+        "ivlpp/globals.h",
+        "ivlpp/main.c",
+    ],
+    copts = ["-Wno-unused-variable"],
+    # Do not sort: dot last.
+    includes = [
+        "ivlpp",
+        ".",
+    ],
+    deps = [
+        ":shared_headers",
+    ],
+)
+
+genlex(
+    name = "ivlpp_lexor",
+    src = "ivlpp/lexor.lex",
+    out = "ivlpp_lex/lexor.c",
+)
+
+vpi_binary(
+    name = "system.vpi",
+    srcs = glob(["vpi/*.h"]) + [
+        "config.h",
+        "vpi/fastlz.c",
+        "vpi/fstapi.c",
+        "vpi/lxt2_write.c",
+        "vpi/lxt_write.c",
+        "vpi/lz4.c",
+        "vpi/mt19937int.c",
+        "vpi/sdf_lexor.c",
+        "vpi/sdf_parse.c",
+        "vpi/sdf_parse.h",
+        "vpi/stringheap.c",
+        "vpi/sys_convert.c",
+        "vpi/sys_countdrivers.c",
+        "vpi/sys_darray.c",
+        "vpi/sys_deposit.c",
+        "vpi/sys_display.c",
+        "vpi/sys_fileio.c",
+        "vpi/sys_finish.c",
+        "vpi/sys_fst.c",
+        "vpi/sys_icarus.c",
+        "vpi/sys_lxt.c",
+        "vpi/sys_lxt2.c",
+        "vpi/sys_plusargs.c",
+        "vpi/sys_priv.c",
+        "vpi/sys_queue.c",
+        "vpi/sys_random.c",
+        "vpi/sys_random_mti.c",
+        "vpi/sys_readmem.c",
+        "vpi/sys_readmem_lex.c",
+        "vpi/sys_scanf.c",
+        "vpi/sys_sdf.c",
+        "vpi/sys_table.c",
+        "vpi/sys_time.c",
+        "vpi/sys_vcd.c",
+        "vpi/sys_vcdoff.c",
+        "vpi/table_mod.c",
+        "vpi/table_mod_lexor.c",
+        "vpi/table_mod_parse.c",
+        "vpi/table_mod_parse.h",
+        "vpi/vams_simparam.c",
+        "vpi/vcd_priv.c",
+        "vpi/vcd_priv2.cc",
+        "vpi/vpi_config.h",
+    ],
+    # Optimized binary regardless of configuration.
+    copts = [
+        "$(STACK_FRAME_UNLIMITED)",
+        "-O2",
+    ],
+    linkopts = [
+        "-lpthread",
+    ],
+    includes = [
+        ".",
+        "vpi",
+    ],
+    deps = [
+        ":shared_headers",
+        ":vpi_user",
+        "@org_sourceware_bzip2//:bzip2",
+        "@zlib//:zlib",
+    ],
+)
+
+genyacc(
+    name = "table_mod_parse_y",
+    src = "vpi/table_mod_parse.y",
+    header_out = "vpi/table_mod_parse.h",
+    prefix = "tblmod",
+    source_out = "vpi/table_mod_parse.c",
+)
+
+genlex(
+    name = "table_mod_lexor_lex",
+    src = "vpi/table_mod_lexor.lex",
+    out = "vpi/table_mod_lexor.c",
+)
+
+genyacc(
+    name = "vpi_sdfparse_y",
+    src = "vpi/sdf_parse.y",
+    header_out = "vpi/sdf_parse.h",
+    prefix = "sdf",
+    source_out = "vpi/sdf_parse.c",
+)
+
+genlex(
+    name = "vpi_sdf_lexor",
+    src = "vpi/sdf_lexor.lex",
+    out = "vpi/sdf_lexor.c",
+)
+
+genlex(
+    name = "vpi_sys_readmem_lex",
+    src = "vpi/sys_readmem_lex.lex",
+    out = "vpi/sys_readmem_lex.c",
+)
+
+vpi_binary(
+    name = "va_math.vpi",
+    srcs = [
+        "vpi/va_math.c",
+        "vpi/vpi_config.h",
+    ],
+    copts = ["-O2"],  # Optimized binary regardless of configuration.
+    includes = [
+        ".",
+        "vpi",
+    ],
+    deps = [
+        ":shared_headers",
+        ":vpi_user",
+    ],
+)
+
+vpi_binary(
+    name = "v2005_math.vpi",
+    srcs = [
+        "vpi/sys_clog2.c",
+        "vpi/v2005_math.c",
+        "vpi/vpi_config.h",
+    ],
+    copts = ["-O2"],  # Optimized binary regardless of configuration.
+    includes = [
+        ".",
+        "vpi",
+    ],
+    deps = [
+        ":vpi_user",
+        ":shared_headers",
+    ],
+)
+
+vpi_binary(
+    name = "vhdl_table.vpi",
+    srcs = [
+        "vpi/vhdl_table.c",
+        "vpi/vpi_config.h",
+    ],
+    copts = ["-O2"],
+    includes = [
+        ".",
+        "vpi",
+    ],
+    deps = [
+        ":shared_headers",
+        ":vpi_user",
+    ],
+)
+
+vpi_binary(
+    name = "vpi_debug.vpi",
+    srcs = [
+        "vpi/vpi_debug.c",
+    ],
+    copts = ["-O2"],
+    includes = [
+        ".",
+        "vpi",
+    ],
+    deps = [
+        ":vpi_user",
+    ],
+)
+
+vpi_binary(
+    name = "vvp.tgt",
+    srcs = [
+        "tgt-vvp/draw_class.c",
+        "tgt-vvp/draw_delay.c",
+        "tgt-vvp/draw_enum.c",
+        "tgt-vvp/draw_mux.c",
+        "tgt-vvp/draw_net_input.c",
+        "tgt-vvp/draw_substitute.c",
+        "tgt-vvp/draw_switch.c",
+        "tgt-vvp/draw_ufunc.c",
+        "tgt-vvp/draw_vpi.c",
+        "tgt-vvp/eval_bool.c",
+        "tgt-vvp/eval_condit.c",
+        "tgt-vvp/eval_expr.c",
+        "tgt-vvp/eval_object.c",
+        "tgt-vvp/eval_real.c",
+        "tgt-vvp/eval_string.c",
+        "tgt-vvp/eval_vec4.c",
+        "tgt-vvp/modpath.c",
+        "tgt-vvp/stmt_assign.c",
+        "tgt-vvp/vector.c",
+        "tgt-vvp/vvp.c",
+        "tgt-vvp/vvp_config.h",
+        "tgt-vvp/vvp_priv.h",
+        "tgt-vvp/vvp_process.c",
+        "tgt-vvp/vvp_scope.c",
+    ],
+    copts = [
+        "-Wno-implicit-function-declaration",
+        "-Wno-int-conversion",
+        "-Wno-unused-but-set-variable",
+        "-Wno-unused-variable",
+        "-std=c11",
+    ],
+    includes = [
+        ".",
+        "tgt-vvp",
+    ],
+    deps = [
+        ":shared_headers",
+    ],
+)
+
+genrule(
+    name = "_pli_types_h",
+    srcs = ["_pli_types.h.in"],
+    outs = ["_pli_types.h"],
+    cmd = "cat $(location :_pli_types.h.in) | sed 's/# undef HAVE_INTTYPES_H/# define HAVE_INTTYPES_H 1/' > $@",
+)
+
+genrule(
+    name = "lexor_keyword_cc",
+    srcs = ["lexor_keyword.gperf"],
+    tools = ["@org_gnu_gperf//:gperf"],
+    outs = ["lexor_keyword.cc"],
+    cmd = "$(location @org_gnu_gperf//:gperf) -o -i 7 -C -k 1-4,6,9,$$ -H keyword_hash -N check_identifier -t $(location :lexor_keyword.gperf) > $@",
+    message = "Generating perfect hash function from $(SRCS)",
+)
+
+genrule(
+    name = "vhdlpp_lexor_keyword_cc",
+    srcs = ["vhdlpp/lexor_keyword.gperf"],
+    tools = ["@org_gnu_gperf//:gperf"],
+    outs = ["vhdlpp_lexor_keyword.cc"],
+    cmd = "$(location @org_gnu_gperf//:gperf) -o -i 7 --ignore-case -C -k 1-4,6,9,$$ -H keyword_hash -N check_identifier -t $(location :vhdlpp/lexor_keyword.gperf) > $@",
+    message = "Generating perfect hash function from $(SRCS)",
+)
+
+# In the following genrules we do an extremely crude approximation of a
+# configuration step -- workable now given the limited set of
+# platforms/environments we intend to target.
+
+HAVE_CONFIG_SUFFIXES = 'TIMES|IOSFWD|GETOPT_H|INTTYPES_H|DLFCN_H|LIBREADLINE|LIBZ|LIBBZ2|LROUND|SYS_WAIT_H|ALLOCA_H|FSEEKO|LIBPTHREAD|REALPATH'
+HAVE_CONFIG_RE = "HAVE_(%s)" % HAVE_CONFIG_SUFFIXES
+
+DEFS = ['HAVE_IOSFWD', 'HAVE_DLFCN_H', 'HAVE_GETOPT_H', 'HAVE_LIBREADLINE', 'HAVE_READLINE_READLINE_H', 'HAVE_LIBHISTORY', 'HAVE_READLINE_HISTORY_H', 'HAVE_INTTYPES_H', 'HAVE_LROUND', 'HAVE_LLROUND', 'HAVE_NAN', 'UINT64_T_AND_ULONG_SAME', 'HAVE_SYS_RESOURCE_H', 'LINUX']
+
+pseudo_configure(
+    name = "tgt_vvp__vvp_config_h",
+    src = "tgt-vvp/vvp_config.h.in",
+    out = "tgt-vvp/vvp_config.h",
+    defs = ['HAVE_STDINT_H', 'HAVE_INTTYPES_H', '_LARGEFILE_SOURCE'],
+    mappings = {},
+)
+
+pseudo_configure(
+    name = "config_h",
+    src = "config.h.in",
+    out = "config.h",
+    defs = ['HAVE_TIMES', 'HAVE_IOSFWD', 'HAVE_GETOPT_H', 'HAVE_INTTYPES_H', 'HAVE_DLFCN_H', 'HAVE_LIBREADLINE', 'HAVE_LIBZ', 'HAVE_LIBBZ2', 'HAVE_LROUND', 'HAVE_SYS_WAIT_H', 'HAVE_ALLOCA_H', 'HAVE_FSEEKO', 'HAVE_LIBPTHREAD', 'HAVE_REALPATH'],
+    mappings = {},
+)
+
+genrule(
+    name = "vpi__vpi_config_h",
+    srcs = ["vpi/vpi_config.h.in"],
+    outs = ["vpi/vpi_config.h"],
+    cmd = "perl -p -e 's/# undef (\w+)/#define $$1 1/' $< > $@",
+    message = "Configuring vpi/vpi_config.h.in",
+)
+
+pseudo_configure(
+    name = "vvp_gen__vvp_config_h",
+    src = "vvp/config.h.in",
+    out = "vvp_gen/config.h",
+    defs = DEFS,
+    mappings = {'SIZEOF_UNSIGNED_LONG_LONG': '8', 'SIZEOF_UNSIGNED_LONG': '8', 'SIZEOF_UNSIGNED': '4', 'USE_READLINE': '', 'USE_HISTORY': '', 'MODULE_DIR': '"."', '__STDC_FORMAT_MACROS': '', 'TIME_FMT_O': '"lo"', 'TIME_FMT_U': '"lu"', 'TIME_FMT_X': '"lx"', 'UL_AND_TIME64_SAME': '', 'i64round': 'lround', 'nan(x)': '(NAN)', 'INFINITY': 'HUGE_VAL', 'LU': '""', 'TU': '""'},
+)
+
+touch(
+    name = "version_tag_h",
+    out = "version_tag.h",
+    contents = dict(VERSION_TAG = '"v10_3"'),
+)
+
+# Trivial integration tests to confirm iverilog is minimally functional.
+copy(
+    name = "hello_v",
+    src = "@com_google_xls//dependency_support/com_icarus_iverilog:hello.v",
+    out = "hello.v",
+)
+
+iverilog_compile(
+    srcs = ["hello.v"],
+)
+
+vpi_binary(
+    name = "hello.vpi",
+    srcs = ["@com_google_xls//dependency_support/com_icarus_iverilog:hello_vpi.c"],
+    deps = [":vpi_user"],
+)
+
+genrule(
+    name = "run_hello",
+    srcs = ["hello.vvp"],
+    outs = ["hello.out"],
+    cmd = (
+        "$(location :vvp) " +
+        "-M$$(dirname $(location :hello.vpi)) " +
+        "-mhello $< > $@ "
+    ),
+    tools = [
+        ":hello.vpi",
+        ":vvp",
+    ],
+)
+
+sh_test(
+    name = "hello_verilog_test",
+    srcs = ["@com_google_xls//dependency_support/com_icarus_iverilog:hello_verilog_test.sh"],
+    data = [":hello.out"],
+    args = ["$(location :hello.out)"],
+)

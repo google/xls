@@ -1,0 +1,109 @@
+module ComplexFsm(
+  input wire clk,
+  input wire foo_in,
+  output wire bar_in,
+  output wire qux_in
+);
+  // ComplexFsm FSM:
+  localparam StateBits = 3;
+  localparam
+    StateHungry = 0,
+    StateSad = 1,
+    StateHappy = 2,
+    StateAwake = 3,
+    StateSleepy = 4;
+  reg [StateBits - 1:0] state = StateHungry;
+  reg [StateBits - 1:0] state_next = StateHungry;
+  reg sleep = 0;
+  reg walk = 0;
+  reg run = 1;
+  reg die = 1;
+
+  // FSM state transition logic.
+  always @ (*) begin
+    state_next = state;
+    case (state)
+      StateHungry: begin
+        if (foo_in) begin
+          state_next = StateHappy;
+        end else begin
+          state_next = StateSad;
+        end
+      end
+      StateSad: begin
+        state_next = StateAwake;
+      end
+      StateHappy: begin
+        if (foo_in) begin
+          state_next = StateHungry;
+        end
+      end
+      StateAwake: begin
+        state_next = StateSleepy;
+      end
+      StateSleepy: begin
+        if (bar_in) begin
+          state_next = StateHungry;
+        end else if (qux_in) begin
+          state_next = StateSad;
+        end
+      end
+      default: begin
+        state_next = 3'dx;
+      end
+    endcase
+  end
+
+  // FSM output logic.
+  always @ (*) begin
+    case (state)
+      StateHungry: begin
+        sleep = 0;
+        walk = 0;
+        run = 1;
+        die = 1;
+      end
+      StateSad: begin
+        walk = 0;
+        run = 1;
+        sleep = 0;
+        die = 1;
+      end
+      StateHappy: begin
+        walk = 0;
+        run = 1;
+        if (bar_in) begin
+          die = 0;
+        end else begin
+          die = 1;
+        end
+        if (foo_in) begin
+          sleep = 1;
+        end else begin
+          sleep = 0;
+        end
+      end
+      StateAwake: begin
+        sleep = 0;
+        walk = 0;
+        run = 1;
+        die = 1;
+      end
+      StateSleepy: begin
+        sleep = 0;
+        walk = 0;
+        run = 1;
+        die = 1;
+      end
+      default: begin
+        sleep = 0;
+        walk = 0;
+        run = 1;
+        die = 1;
+      end
+    endcase
+  end
+  always @ (posedge clk) begin
+    state <= state_next;
+  end
+endmodule

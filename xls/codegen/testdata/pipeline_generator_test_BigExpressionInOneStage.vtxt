@@ -1,0 +1,43 @@
+module x_plus_y_plus_z(
+  input wire clk,
+  input wire [31:0] a,
+  input wire [31:0] b,
+  input wire [31:0] c,
+  input wire [31:0] d,
+  output wire [31:0] out
+);
+  // ===== Pipe stage 0:
+
+  // Registers for pipe stage 0:
+  reg [31:0] p0_a;
+  reg [31:0] p0_b;
+  reg [31:0] p0_c;
+  reg [31:0] p0_d;
+  always @ (posedge clk) begin
+    p0_a <= a;
+    p0_b <= b;
+    p0_c <= c;
+    p0_d <= d;
+  end
+
+  // ===== Pipe stage 1:
+  wire [31:0] p1_add_5_comb;
+  wire [31:0] p1_xor_6_comb;
+  wire [31:0] p1_add_8_comb;
+  wire [31:0] p1_sub_9_comb;
+  wire [31:0] p1_add_10_comb;
+  wire [31:0] p1_sub_11_comb;
+  assign p1_add_5_comb = p0_a + p0_b;
+  assign p1_xor_6_comb = p0_a ^ p1_add_5_comb;
+  assign p1_add_8_comb = ~p1_add_5_comb + p0_c;
+  assign p1_sub_9_comb = p1_xor_6_comb - p1_add_8_comb;
+  assign p1_add_10_comb = p0_d + p1_xor_6_comb;
+  assign p1_sub_11_comb = p1_sub_9_comb - p1_add_10_comb;
+
+  // Registers for pipe stage 1:
+  reg [31:0] p1_sub_11;
+  always @ (posedge clk) begin
+    p1_sub_11 <= p1_sub_11_comb;
+  end
+  assign out = p1_sub_11;
+endmodule

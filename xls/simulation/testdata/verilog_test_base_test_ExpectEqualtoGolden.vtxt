@@ -1,0 +1,7 @@
+module test_module(
+  input [1:0] x,
+  input [1:0] y,
+  output [1:0] z
+);
+  assign z = x + y;
+endmodule

@@ -1,0 +1,11 @@
+module NewSections(
+  input wire [31:0] x,
+  input wire [31:0] y,
+  output wire [31:0] out
+);
+  wire [31:0] a;
+  assign a = x + y;
+  wire [31:0] b;
+  assign b = a + y;
+  assign out = -b;
+endmodule

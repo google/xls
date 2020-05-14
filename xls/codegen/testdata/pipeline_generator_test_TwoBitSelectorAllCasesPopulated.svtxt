@@ -1,0 +1,36 @@
+module TwoBitSelectorAllCasesPopulated(
+  input wire clk,
+  input wire [1:0] s,
+  input wire [7:0] x,
+  input wire [7:0] y,
+  input wire [7:0] z,
+  input wire [7:0] a,
+  output wire [7:0] out
+);
+  // ===== Pipe stage 0:
+
+  // Registers for pipe stage 0:
+  reg [1:0] p0_s;
+  reg [7:0] p0_x;
+  reg [7:0] p0_y;
+  reg [7:0] p0_z;
+  reg [7:0] p0_a;
+  always_ff @ (posedge clk) begin
+    p0_s <= s;
+    p0_x <= x;
+    p0_y <= y;
+    p0_z <= z;
+    p0_a <= a;
+  end
+
+  // ===== Pipe stage 1:
+  wire [7:0] p1_sel_6_comb;
+  assign p1_sel_6_comb = p0_s == 2'h0 ? p0_x : (p0_s == 2'h1 ? p0_y : (p0_s == 2'h2 ? p0_z : p0_a));
+
+  // Registers for pipe stage 1:
+  reg [7:0] p1_sel_6;
+  always_ff @ (posedge clk) begin
+    p1_sel_6 <= p1_sel_6_comb;
+  end
+  assign out = p1_sel_6;
+endmodule

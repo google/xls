@@ -1,0 +1,33 @@
+module TwoBitSelector(
+  input wire clk,
+  input wire [1:0] s,
+  input wire [7:0] x,
+  input wire [7:0] y,
+  input wire [7:0] z,
+  output wire [7:0] out
+);
+  // ===== Pipe stage 0:
+
+  // Registers for pipe stage 0:
+  reg [1:0] p0_s;
+  reg [7:0] p0_x;
+  reg [7:0] p0_y;
+  reg [7:0] p0_z;
+  always @ (posedge clk) begin
+    p0_s <= s;
+    p0_x <= x;
+    p0_y <= y;
+    p0_z <= z;
+  end
+
+  // ===== Pipe stage 1:
+  wire [7:0] p1_sel_5_comb;
+  assign p1_sel_5_comb = p0_s == 2'h0 ? p0_x : (p0_s == 2'h1 ? p0_y : p0_z);
+
+  // Registers for pipe stage 1:
+  reg [7:0] p1_sel_5;
+  always @ (posedge clk) begin
+    p1_sel_5 <= p1_sel_5_comb;
+  end
+  assign out = p1_sel_5;
+endmodule

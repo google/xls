@@ -1,0 +1,15 @@
+module RegisterWithLoadEnable_SystemVerilog(
+  input wire [31:0] x,
+  input wire [31:0] y,
+  input wire clk,
+  input wire le,
+  output wire [31:0] out
+);
+  reg [31:0] a;
+  reg [31:0] b;
+  always_ff @ (posedge clk) begin
+    a <= le ? x + y : a;
+    b <= le ? y : b;
+  end
+  assign out = a + b;
+endmodule

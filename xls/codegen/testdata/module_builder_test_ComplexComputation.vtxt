@@ -1,0 +1,15 @@
+module ComplexComputation(
+  input wire [31:0] x,
+  input wire [31:0] y,
+  output wire [15:0] out
+);
+  // Declaration section.
+  wire [31:0] a;
+  wire [15:0] b;
+  wire [15:0] c;
+  // Assignment section.
+  assign a = x >> y;
+  assign b = y[16:0];
+  assign c = b + b;
+  assign out = b + c;
+endmodule

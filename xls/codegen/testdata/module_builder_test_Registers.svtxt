@@ -1,0 +1,14 @@
+module Registers(
+  input wire [31:0] x,
+  input wire [31:0] y,
+  input wire clk,
+  output wire [31:0] out
+);
+  reg [31:0] a;
+  reg [31:0] b;
+  always_ff @ (posedge clk) begin
+    a <= x + y;
+    b <= y;
+  end
+  assign out = a + b;
+endmodule

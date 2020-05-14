@@ -1,0 +1,57 @@
+module CounterFsm(
+  input wire clk,
+  input wire rst
+);
+  // CounterFsm FSM:
+  localparam StateBits = 2;
+  localparam
+    StateFoo = 0,
+    StateBar = 1,
+    StateQux = 2;
+  reg [StateBits - 1:0] state = StateFoo;
+  reg [StateBits - 1:0] state_next = StateFoo;
+  reg [5:0] counter;
+  reg [5:0] counter_next;
+
+  // FSM state transition logic.
+  always_comb begin
+    state_next = state;
+    case (state)
+      StateFoo: begin
+        state_next = StateBar;
+      end
+      StateBar: begin
+        if (counter == 0) begin
+          state_next = StateQux;
+        end
+      end
+      StateQux: begin
+        state_next = StateFoo;
+      end
+      default: begin
+        state_next = 2'dx;
+      end
+    endcase
+  end
+
+  // FSM output logic.
+  always_comb begin
+    counter_next = counter - 1;
+    case (state)
+      StateFoo: begin
+        counter_next = 42;
+      end
+      StateBar: begin end
+      StateQux: begin end
+      default: begin end
+    endcase
+  end
+  always @ (posedge clk or posedge rst) begin
+    if (rst) begin
+      state <= StateFoo;
+    end else begin
+      state <= state_next;
+      counter <= counter_next;
+    end
+  end
+endmodule

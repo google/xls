@@ -1,0 +1,49 @@
+module TupleOfArrays(
+  input wire clk,
+  input wire [55:0] x,
+  output wire [55:0] out
+);
+  // ===== Pipe stage 0:
+
+  // Registers for pipe stage 0:
+  reg [55:0] p0_x;
+  always_ff @ (posedge clk) begin
+    p0_x <= x;
+  end
+
+  // ===== Pipe stage 1:
+
+  // Registers for pipe stage 1:
+  reg [55:0] p1_x;
+  always_ff @ (posedge clk) begin
+    p1_x <= p0_x;
+  end
+
+  // ===== Pipe stage 2:
+  wire [15:0] p2_tuple_index_2_comb[2];
+  wire [7:0] p2_tuple_index_3_comb[3];
+  assign p2_tuple_index_2_comb[0] = p1_x[31:16];
+  assign p2_tuple_index_2_comb[1] = p1_x[15:0];
+  assign p2_tuple_index_3_comb[0] = p1_x[55:48];
+  assign p2_tuple_index_3_comb[1] = p1_x[47:40];
+  assign p2_tuple_index_3_comb[2] = p1_x[39:32];
+
+  // Registers for pipe stage 2:
+  reg [15:0] p2_tuple_index_2[2];
+  reg [7:0] p2_tuple_index_3[3];
+  always_ff @ (posedge clk) begin
+    p2_tuple_index_2 <= p2_tuple_index_2_comb;
+    p2_tuple_index_3 <= p2_tuple_index_3_comb;
+  end
+
+  // ===== Pipe stage 3:
+  wire [55:0] p3_tuple_4_comb;
+  assign p3_tuple_4_comb = {{p2_tuple_index_2[0], p2_tuple_index_2[1]}, {p2_tuple_index_3[0], p2_tuple_index_3[1], p2_tuple_index_3[2]}};
+
+  // Registers for pipe stage 3:
+  reg [55:0] p3_tuple_4;
+  always_ff @ (posedge clk) begin
+    p3_tuple_4 <= p3_tuple_4_comb;
+  end
+  assign out = p3_tuple_4;
+endmodule

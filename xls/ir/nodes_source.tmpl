@@ -1,0 +1,120 @@
+#include "xls/ir/nodes.h"
+
+#include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/statusor.h"
+#include "xls/ir/function.h"
+#include "xls/ir/package.h"
+
+namespace xls {
+
+namespace {
+
+Type* GetTupleType(Package* package, absl::Span<Node* const> operands) {
+  std::vector<Type*> operand_types;
+  for (Node* operand : operands) {
+    operand_types.push_back(operand->GetType());
+  }
+  return package->GetTupleType(operand_types);
+}
+
+Type* GetConcatType(Package* package, absl::Span<Node* const> operands) {
+  int64 width = 0;
+  for (Node* operand : operands) {
+    width += operand->BitCountOrDie();
+  }
+  return package->GetBitsType(width);
+}
+
+Type* GetMapType(Node* operand, Function* to_apply) {
+  return operand->package()->GetArrayType(operand->GetType()->AsArrayOrDie()->size(),
+                                 to_apply->return_value()->GetType());
+}
+
+}  // namespace
+
+{% for op_class in spec.OpClass.kinds.values() -%}
+{{ op_class.name }}::{{ op_class.name }} ({{ op_class.constructor_args_str() }}) :
+  {{ op_class.base_constructor_invocation() }}
+{%- for member in op_class.data_members() -%}
+   , {{ member.name }}({{ member.init }})
+{%- endfor -%}
+{
+{% for op in op_class.operands %}
+   {{ op.add_method }}({{ op.name }});
+{%- endfor %}
+}
+
+{% if not op_class.custom_clone_method %}
+xabsl::StatusOr<Node*> {{ op_class.name }}::Clone(absl::Span<Node* const> new_operands,
+                                    Function* new_function) const {
+  XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
+  return new_function->MakeNode<{{ op_class.name }}>({{ op_class.clone_args_str("new_operands") }});
+}
+{% endif %}
+
+{% if op_class.data_members() %}
+bool {{ op_class.name }}::IsDefinitelyEqualTo(const Node* other) const {
+  if (!Node::IsDefinitelyEqualTo(other)) {
+    return false;
+  }
+
+  return {{ op_class.equal_to_expr() }};
+}
+{% endif %}
+
+{% endfor %}
+
+SliceData Concat::GetOperandSliceData(int64 operandno) const {
+  XLS_CHECK_GE(operandno, 0);
+  int64 start = 0;
+  for (int64 i = operands().size()-1; i > operandno; --i) {
+    Node* operand = this->operand(i);
+    start += operand->BitCountOrDie();
+  }
+  return SliceData{start, this->operand(operandno)->BitCountOrDie()};
+}
+
+xabsl::StatusOr<Node*> CountedFor::Clone(absl::Span<Node* const> new_operands,
+                                        Function* new_function) const {
+  XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
+  return new_function->MakeNode<CountedFor>(loc(), new_operands[0],
+                                            new_operands.subspan(1),
+                                            trip_count(),
+                                            stride(),
+                                            body());
+}
+
+xabsl::StatusOr<Node*> Select::Clone(absl::Span<Node* const> new_operands,
+                                    Function* new_function) const {
+  XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
+  absl::optional<Node*> new_default_value =
+    default_value().has_value()
+    ? absl::optional<Node*>(new_operands.back())
+    : absl::nullopt;
+  return new_function->MakeNode<Select>(loc(), new_operands[0],
+                                        new_operands.subspan(1, cases_size_),
+                                        new_default_value);
+}
+
+xabsl::StatusOr<Node*> OneHotSelect::Clone(absl::Span<Node* const> new_operands,
+                                          Function* new_function) const {
+  return new_function->MakeNode<OneHotSelect>(loc(), new_operands[0],
+                                        new_operands.subspan(1));
+}
+
+bool Select::AllCases(std::function<bool(Node*)> p) const {
+  for (Node* case_ : cases()) {
+    if (!p(case_)) {
+      return false;
+    }
+  }
+  if (default_value().has_value()) {
+    if (!p(default_value().value())) {
+      return false;
+    }
+  }
+  return true;
+}
+
+}  // namespace xls

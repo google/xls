@@ -1,0 +1,45 @@
+module TrivialFsmWithOutputs(
+  input wire clk
+);
+  // TrivialFsm FSM:
+  localparam StateBits = 1;
+  localparam
+    StateFoo = 0,
+    StateBar = 1;
+  reg [StateBits - 1:0] state = StateFoo;
+  reg [StateBits - 1:0] state_next = StateFoo;
+  reg baz = 0;
+  reg [6:0] qux;
+  reg [6:0] qux_next;
+
+  // FSM state transition logic.
+  always @ (*) begin
+    state_next = state;
+    case (state)
+      StateFoo: begin
+        state_next = StateBar;
+      end
+      StateBar: begin
+        state_next = StateFoo;
+      end
+    endcase
+  end
+
+  // FSM output logic.
+  always @ (*) begin
+    qux_next = qux;
+    case (state)
+      StateFoo: begin
+        baz = 1;
+      end
+      StateBar: begin
+        qux_next = qux + 1;
+        baz = 0;
+      end
+    endcase
+  end
+  always @ (posedge clk) begin
+    state <= state_next;
+    qux <= qux_next;
+  end
+endmodule

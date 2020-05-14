@@ -1,0 +1,129 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto2";
+
+package xls.verilog;
+
+import "xls/ir/xls_type.proto";
+
+enum DirectionProto {
+  DIRECTION_INVALID = 0;
+  DIRECTION_INPUT = 1;
+  DIRECTION_OUTPUT = 2;
+}
+
+message PortProto {
+  optional DirectionProto direction = 1;
+  optional string name = 2;
+  // The width of a port may be zero corresponding to zero-width XLS data types
+  // such as empty tuples. These zero-width PortPorts have no corresponding port
+  // in the Verilog module as Verilog does not support zero-width data
+  // types. However, having zero-width PortProtos maintains a one-to-one
+  // correspondence between ports in the signature and parameters in the XLS
+  // function.
+  optional int64 width = 3;
+}
+
+// Module produces its result in a fixed number of cycles without flow control.
+message FixedLatencyInterface {
+  // Latency (in number of cycles) to produce an output after being presented an
+  // input.
+  optional int64 latency = 1;
+}
+
+// Module uses ready/valid flow control on the input and output.
+message ReadyValidInterface {
+  // Port names for input and output ready/valid signaling.
+  optional string input_ready = 1;
+  optional string input_valid = 2;
+  optional string output_ready = 3;
+  optional string output_valid = 4;
+}
+
+// Describes a "valid" signal control scheme of pipeline registers. A single bit
+// "valid" input is added to the module. This signal should be asserted when the
+// data input ports(s) to the module are driven. The valid signal is passed
+// along the pipeline registers and serves as the load enable for the pipeline
+// registers.
+message ValidProto {
+  // Input valid signal name to use on the module interface. Required.
+  optional string input_name = 1;
+
+  // Name for the "valid" output that has been passed through the pipe stages;
+  // i.e. the input_name signal presented at cycle 0 shows up at output_name
+  // after L cycles with a pipeline of latency L. If not specified then the
+  // valid signal is not output from the module.
+  optional string output_name = 2;
+}
+
+// Proto describing manual control scheme of pipeline registers. With this
+// control scheme, the module includes an input with one bit per stage in the
+// pipeline. Bit N of this input controls the load-enable of the pipeline
+// registers of the N-th pipeline stage.
+message ManualPipelineControl {
+  optional string input_name = 1;
+}
+
+// Describes how the pipeline registers are controlled.
+message PipelineControl {
+  oneof interface_oneof {
+    ValidProto valid = 1;
+    ManualPipelineControl manual = 2;
+  }
+}
+
+// Module with a pipelined device function.
+message PipelineInterface {
+  optional int64 latency = 1;
+  optional int64 initiation_interval = 2;
+
+  // Describes how the pipeline registers are controlled (load enables). If not
+  // specified then the registers are loaded every cycle.
+  optional PipelineControl pipeline_control = 3;
+}
+
+// Module with purely combinational logic.
+message CombinationalInterface {}
+
+message ResetProto {
+  optional string name = 1;
+  optional bool asynchronous = 2;
+  optional bool active_low = 3;
+}
+
+message ModuleSignatureProto {
+  // Name of the module.
+  optional string module_name = 1;
+
+  // The data ports of the module. This does not include control ports such as
+  // clk, ready/valid, etc.
+  repeated PortProto data_ports = 2;
+
+  // Name of the clock port (if any).
+  optional string clock_name = 3;
+
+  // Describes the reset signal (if any).
+  optional ResetProto reset = 4;
+
+  oneof interface_oneof {
+    FixedLatencyInterface fixed_latency = 5;
+    ReadyValidInterface ready_valid = 6;
+    PipelineInterface pipeline = 7;
+    CombinationalInterface combinational = 8;
+  }
+
+  // The XLS function type that it generated a module for.
+  optional FunctionTypeProto function_type = 9;
+}

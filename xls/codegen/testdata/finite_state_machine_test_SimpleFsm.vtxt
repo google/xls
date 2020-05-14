@@ -1,0 +1,62 @@
+module SimpleFsm(
+  input wire clk,
+  input wire rst_n,
+  input wire ready_in,
+  output wire done_out
+);
+  reg done;
+  assign done_out = done;
+
+  // SimpleFsm FSM:
+  localparam StateBits = 2;
+  localparam
+    StateIdle = 0,
+    StateBusy = 1,
+    StateDone = 2;
+  reg [StateBits - 1:0] state = StateIdle;
+  reg [StateBits - 1:0] state_next = StateIdle;
+
+  // FSM state transition logic.
+  always @ (*) begin
+    state_next = state;
+    case (state)
+      StateIdle: begin
+        if (ready_in) begin
+          state_next = StateBusy;
+        end
+      end
+      StateBusy: begin
+        state_next = StateDone;
+      end
+      StateDone: begin end
+      default: begin
+        state_next = 2'dx;
+      end
+    endcase
+  end
+
+  // FSM output logic.
+  always @ (*) begin
+    case (state)
+      StateIdle: begin
+        done = 0;
+      end
+      StateBusy: begin
+        done = 0;
+      end
+      StateDone: begin
+        done = 1;
+      end
+      default: begin
+        done = 0;
+      end
+    endcase
+  end
+  always @ (posedge clk) begin
+    if (!rst_n) begin
+      state <= StateIdle;
+    end else begin
+      state <= state_next;
+    end
+  end
+endmodule

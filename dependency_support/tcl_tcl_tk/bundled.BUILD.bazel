@@ -1,0 +1,232 @@
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Description: Tcl scripting language.
+
+licenses(["notice"])
+
+exports_files(["LICENSE"])
+
+# The following settings are taken from the command line build when executing
+# configure :
+TCL_COPTS = [
+    "-DHAVE_ZLIB=",  # Enables ZLIB
+    "-DTCL_DBGX=",
+    "-DHAVE_LIMITS_H=1",
+    "-DHAVE_UNISTD_H=1",
+    "-DHAVE_SYS_PARAM_H=1",
+    "-DUSE_THREAD_ALLOC=1",
+    "-D_REENTRANT=1",
+    "-D_THREAD_SAFE=1",
+    "-DHAVE_PTHREAD_ATTR_SETSTACKSIZE=1",
+    "-DHAVE_PTHREAD_ATFORK=1",
+    "-DTCL_THREADS=1",
+    "-DPEEK_XCLOSEIM=1",
+    "-D_LARGEFILE64_SOURCE=1",
+    "-DTCL_WIDE_INT_TYPE=long\ long",
+    "-DHAVE_STRUCT_STAT64=1",
+    "-DHAVE_OPEN64=1",
+    "-DHAVE_LSEEK64=1",
+    "-DHAVE_TYPE_OFF64_T=1",
+    "-DHAVE_GETCWD=1",
+    "-DHAVE_OPENDIR=1",
+    "-DHAVE_STRSTR=1",
+    "-DHAVE_STRTOL=1",
+    "-DHAVE_STRTOLL=1",
+    "-DHAVE_STRTOULL=1",
+    "-DHAVE_TMPNAM=1",
+    "-DHAVE_WAITPID=1",
+    "-DHAVE_GETPWUID_R_5=1",
+    "-DHAVE_GETPWUID_R=1",
+    "-DHAVE_GETPWNAM_R_5=1",
+    "-DHAVE_GETPWNAM_R=1",
+    "-DHAVE_GETGRGID_R_5=1",
+    "-DHAVE_GETGRGID_R=1",
+    "-DHAVE_GETGRNAM_R_5=1",
+    "-DHAVE_GETGRNAM_R=1",
+    "-DHAVE_GETHOSTBYNAME_R_6=1",
+    "-DHAVE_GETHOSTBYNAME_R=1",
+    "-DHAVE_GETHOSTBYADDR_R_8=1",
+    "-DHAVE_GETHOSTBYADDR_R=1",
+    "-DUSE_TERMIOS=1",
+    "-DTIME_WITH_SYS_TIME=1",
+    "-DHAVE_TM_ZONE=1",
+    "-DHAVE_GMTIME_R=1",
+    "-DHAVE_LOCALTIME_R=1",
+    "-DHAVE_TM_GMTOFF=1",
+    "-DHAVE_SYS_TIME_H=1",
+    "-DHAVE_TIMEZONE_VAR=1",
+    "-DHAVE_ST_BLKSIZE=1",
+    "-DSTDC_HEADERS=1",
+    "-DHAVE_SIGNED_CHAR=1",
+    "-DHAVE_LANGINFO=1",
+    "-DHAVE_SYS_IOCTL_H=1",
+    "-DTCL_SHLIB_EXT=\\\".so\\\"",
+    "-Wno-implicit-int",
+    "-fno-strict-aliasing",
+    "-fPIC",
+]
+
+# tclAlloc uses additional define
+cc_library(
+    name = "tclAlloc",
+    srcs = ["generic/tclAlloc.c"],
+    hdrs = glob([
+        "generic/*.h",
+        "unix/*.h",
+    ]),
+    includes = ["generic", "unix"],
+    copts = TCL_COPTS + [
+        "-DUSE_TCLALLOC=0",
+    ],
+)
+
+# tclUnixInit uses additional define
+cc_library(
+    name = "tclUnixInit",
+    srcs = [
+        "generic/tcl.h",
+        "generic/tclDecls.h",
+        "generic/tclInt.h",
+        "generic/tclIntDecls.h",
+        "generic/tclPort.h",
+        "generic/tclTomMathDecls.h",
+        "unix/tclUnixInit.c",
+    ],
+    hdrs = glob([
+        "generic/*.h",
+        "unix/*.h",
+    ]),
+    copts = TCL_COPTS + [
+        "-DTCL_LIBRARY=\\\"dependency_support/tcl_tk/library\\\"",
+        "-DTCL_PACKAGE_PATH=\\\"dependency_support/tcl_tk/tcl8.6.4\\\"",
+    ],
+    includes = ["generic", "unix"],
+)
+
+# pkg-config
+cc_library(
+    name = "tclPkgConfig",
+    srcs = [
+        "compat/unistd.h",
+        "generic/tclPkgConfig.c",
+    ],
+    hdrs = glob([
+        "generic/*.h",
+        "unix/*.h",
+    ]),
+    copts = [
+        "-DCFG_INSTALL_LIBDIR='\"this_LIBDIR_does_not_exist\"'",
+        "-DCFG_INSTALL_BINDIR='\"this_BINDIR_does_not_exist\"'",
+        "-DCFG_INSTALL_DOCDIR='\"this_DOCDIR_does_not_exist\"'",
+        "-DCFG_INSTALL_INCDIR='\"this_INCDIR_does_not_exist\"'",
+        "-DCFG_INSTALL_SCRDIR='\"this_SCRDIR_does_not_exist\"'",
+        "-DCFG_RUNTIME_LIBDIR='\"this_LIBDIR_does_not_exist\"'",
+        "-DCFG_RUNTIME_BINDIR='\"this_BINDIR_does_not_exist\"'",
+        "-DCFG_RUNTIME_DOCDIR='\"this_DOCDIR_does_not_exist\"'",
+        "-DCFG_RUNTIME_INCDIR='\"this_INCDIR_does_not_exist\"'",
+        "-DCFG_RUNTIME_SCRDIR='\"this_SCRDIR_does_not_exist\"'",
+        "-DTCL_CFGVAL_ENCODING='\"ascii\"'",
+    ],
+    includes = [
+        "generic/",
+        "unix/",
+    ],
+)
+
+# This is the libtcl
+cc_library(
+    name = "tcl",
+    srcs = [
+        "generic/regcomp.c",
+        "generic/regerror.c",
+        "generic/regexec.c",
+        "generic/regfree.c",
+        "unix/tclLoadDl.c",
+    ] + glob(
+        [
+            "generic/tcl*.c",
+            "unix/tcl*.c",
+            "libtommath/*.c",
+        ],
+        exclude = [
+            "generic/tclLoadNone.c",
+            "generic/tclPkgConfig.c",
+            "generic/tclUniData.c",
+            "libtommath/bn_deprecated.c",
+            "libtommath/bn_mp_init_i32.c",
+            "libtommath/bn_mp_init_i64.c",
+            "libtommath/bn_mp_init_u32.c",
+            "libtommath/bn_mp_init_u64.c",
+            "libtommath/bn_mp_init_ul.c",
+            "libtommath/bn_mp_init_l.c",
+            "libtommath/bn_mp_init_ll.c",
+            "libtommath/bn_mp_init_ull.c",
+            "libtommath/bn_mp_iseven.c",
+            "libtommath/bn_mp_set_u64.c",
+            "libtommath/bn_mp_set_ul.c",
+            "libtommath/bn_mp_set_ull.c",
+            "libtommath/bn_s_mp_exptmod.c",
+            "libtommath/bn_s_mp_exptmod_fast.c",
+            "unix/tclAppInit.c",
+            "unix/tclLoad*.c",
+            "unix/tclUnixInit.c",
+            "unix/tclXtNotify.c",
+            "unix/tclXtTest.c",
+        ],
+    ),
+    hdrs = glob([
+        "generic/*.h",
+        "generic/reg*.c",
+        "libtommath/*.h",
+    ]),
+    copts = TCL_COPTS  + [
+        "-w",
+        "$(STACK_FRAME_UNLIMITED)",  # regexec.c
+    ],
+    includes = [
+        "generic/",
+        "libtommath/",
+        "unix/",
+        "xlib/",
+    ],
+    linkopts = ["-ldl", "-lpthread"],
+    textual_hdrs = glob([
+        "generic/*.decls",
+    ]) + [
+        "generic/tclUniData.c",
+    ],
+    deps = [
+        ":tclAlloc",
+        ":tclPkgConfig",
+        ":tclUnixInit",
+        "@zlib//:zlib",
+    ],
+)
+
+# tcl shell
+cc_binary(
+    name = "tclsh",
+    srcs = ["unix/tclAppInit.c"],
+    copts = TCL_COPTS + [
+        "-w",
+    ],
+    includes = ["generic", "unix"],
+    deps = [
+        ":tcl",
+        ":tclAlloc",
+        ":tclPkgConfig",
+        ":tclUnixInit",
+    ],
+)

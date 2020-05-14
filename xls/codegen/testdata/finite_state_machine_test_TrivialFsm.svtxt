@@ -1,0 +1,25 @@
+module TrivialFsm(
+  input wire clk
+);
+  // TrivialFsm FSM:
+  localparam StateBits = 1;
+  localparam
+    StateFoo = 0,
+    StateBar = 1;
+  reg [StateBits - 1:0] state = StateFoo;
+  reg [StateBits - 1:0] state_next = StateFoo;
+
+  // FSM state transition logic.
+  always_comb begin
+    state_next = state;
+    case (state)
+      StateFoo: begin
+        state_next = StateBar;
+      end
+      StateBar: begin end
+    endcase
+  end
+  always @ (posedge clk) begin
+    state <= state_next;
+  end
+endmodule

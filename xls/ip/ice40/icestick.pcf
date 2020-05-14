@@ -1,0 +1,18 @@
+# Physical constraints for the IceStick board.
+#
+# CPLD pin numbers are as reflected in the IceStick board spec.
+
+set_io clk 21
+
+set_io tx_out 8
+set_io rx_in 9
+
+# Indicates the (host) transmitter may send more data when hardware
+# flow control is in use.
+set_io clear_to_send_out_n 4
+
+set_io led_top_out 99
+set_io led_bottom_out 97
+set_io led_left_out 96
+set_io led_right_out 98
+set_io led_center_out 95

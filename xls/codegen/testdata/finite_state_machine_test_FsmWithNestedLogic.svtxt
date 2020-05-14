@@ -1,0 +1,61 @@
+module FsmWithNestedLogic(
+  input wire clk,
+  input wire rst_n,
+  input wire foo,
+  input wire bar,
+  output wire qux_out
+);
+  // NestLogic FSM:
+  localparam StateBits = 1;
+  localparam
+    StateA = 0,
+    StateB = 1;
+  reg [StateBits - 1:0] state = StateA;
+  reg [StateBits - 1:0] state_next = StateA;
+  reg [7:0] qux = 0;
+
+  // FSM state transition logic.
+  always_comb begin
+    state_next = state;
+    case (state)
+      StateA: begin
+        if (foo) begin
+          state_next = StateB;
+        end
+      end
+      StateB: begin
+        if (foo && bar) begin
+          state_next = StateA;
+        end
+      end
+    endcase
+  end
+
+  // FSM output logic.
+  always_comb begin
+    case (state)
+      StateA: begin
+        if (foo) begin
+          if (bar) begin
+            qux = 42;
+          end else begin
+            qux = 123;
+          end
+        end else begin
+          qux = 0;
+        end
+      end
+      StateB: begin
+        qux = 0;
+      end
+    endcase
+  end
+  always @ (posedge clk) begin
+    if (!rst_n) begin
+      state <= StateA;
+    end else begin
+      state <= state_next;
+    end
+  end
+  assign qux_out = qux;
+endmodule

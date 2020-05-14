@@ -1,0 +1,9 @@
+package shll_folding_overlarge
+
+fn candidate_main() -> bits[11] {
+  literal.1305: bits[11] = literal(value=0)
+  literal.1302: bits[11] = literal(value=1024)
+  shll.1303: bits[11] = shll(literal.1305, literal.1302)
+  ret shll.1304: bits[11] = shll(shll.1303, literal.1302)
+}
+

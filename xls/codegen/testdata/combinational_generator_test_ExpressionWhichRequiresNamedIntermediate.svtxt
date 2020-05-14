@@ -1,0 +1,11 @@
+module ExpressionWhichRequiresNamedIntermediate(
+  input wire [7:0] a,
+  input wire [7:0] b,
+  output wire [3:0] out
+);
+  wire [7:0] add_3;
+  wire [3:0] bit_slice_4;
+  assign add_3 = a + b;
+  assign bit_slice_4 = add_3[6:3];
+  assign out = bit_slice_4;
+endmodule

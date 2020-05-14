@@ -1,0 +1,12 @@
+module ReturnConstantArray(
+  output wire [41:0] out
+);
+  wire [6:0] ar[0:1][0:2];
+  assign ar[0][0] = 7'h33;
+  assign ar[0][1] = 7'h12;
+  assign ar[0][2] = 7'h42;
+  assign ar[1][0] = 7'h01;
+  assign ar[1][1] = 7'h02;
+  assign ar[1][2] = 7'h03;
+  assign out = {{ar[0][0], ar[0][1], ar[0][2]}, {ar[1][0], ar[1][1], ar[1][2]}};
+endmodule

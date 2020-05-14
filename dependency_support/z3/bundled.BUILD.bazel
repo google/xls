@@ -1,0 +1,493 @@
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Description:
+#   Z3 is a theorem prover from Microsoft Research.
+
+load("@com_google_xls//dependency_support/z3:build_defs.bzl", "gen_srcs", "GEN_SRCS", "GEN_HDRS")
+
+licenses(["notice"])
+
+exports_files(["LICENSE"])
+
+package(
+    default_visibility = ["//visibility:private"],
+    features = [
+        "-layering_check",
+        "-parse_headers",
+    ],
+)
+
+gen_srcs()
+
+common_copts = [
+    "-fexceptions",
+    "-fsigned-char",
+    "-Wno-unused-variable",
+    "-Wno-non-virtual-dtor",
+    "-Wno-delete-non-virtual-dtor",
+    "-Wno-switch",
+    "-Wno-reorder",
+    "-Wno-string-conversion",
+    "-Wno-overloaded-virtual",
+    # "-Wno-sometimes-uninitialized",
+    "-D_MP_INTERNAL",
+    "-D_AMD64_",
+    "-D_USE_THREAD_LOCAL",
+    "-D_EXTERNAL_RELEASE",
+    "-D_LINUX_",
+    "-D_NO_OMP_",
+]
+
+common_linkopts = [
+    "-lpthread",
+]
+
+cc_library(
+    name = "z3lib",
+    srcs = GEN_SRCS + glob([
+        "src/ackermannization/*.cpp",
+        "src/api/*.cpp",
+        "src/ast/*.cpp",
+        "src/ast/fpa/*.cpp",
+        "src/ast/macros/*.cpp",
+        "src/ast/normal_forms/*.cpp",
+        "src/ast/pattern/*.cpp",
+        "src/ast/proofs/*.cpp",
+        "src/ast/rewriter/*.cpp",
+        "src/ast/rewriter/bit_blaster/*.cpp",
+        "src/ast/substitution/*.cpp",
+        "src/cmd_context/*.cpp",
+        "src/cmd_context/extra_cmds/*.cpp",
+        "src/math/automata/*.cpp",
+        "src/math/dd/*.cpp",
+        "src/math/euclid/*.cpp",
+        "src/math/grobner/*.cpp",
+        "src/math/hilbert/*.cpp",
+        "src/math/interval/*.cpp",
+        "src/math/lp/*.cpp",
+        "src/math/polynomial/*.cpp",
+        "src/math/realclosure/*.cpp",
+        "src/math/simplex/*.cpp",
+        "src/math/subpaving/*.cpp",
+        "src/math/subpaving/tactic/*.cpp",
+        "src/model/*.cpp",
+        "src/muz/base/*.cpp",
+        "src/muz/bmc/*.cpp",
+        "src/muz/clp/*.cpp",
+        "src/muz/dataflow/*.cpp",
+        "src/muz/ddnf/*.cpp",
+        "src/muz/fp/*.cpp",
+        "src/muz/rel/*.cpp",
+        "src/muz/spacer/*.cpp",
+        "src/muz/tab/*.cpp",
+        "src/muz/transforms/*.cpp",
+        "src/nlsat/*.cpp",
+        "src/nlsat/tactic/*.cpp",
+        "src/opt/*.cpp",
+        "src/parsers/smt2/*.cpp",
+        "src/parsers/util/*.cpp",
+        "src/qe/*.cpp",
+        "src/sat/*.cpp",
+        "src/sat/sat_solver/*.cpp",
+        "src/sat/tactic/*.cpp",
+        "src/smt/*.cpp",
+        "src/smt/params/*.cpp",
+        "src/smt/proto_model/*.cpp",
+        "src/smt/tactic/*.cpp",
+        "src/solver/*.cpp",
+        "src/tactic/*.cpp",
+        "src/tactic/aig/*.cpp",
+        "src/tactic/arith/*.cpp",
+        "src/tactic/bv/*.cpp",
+        "src/tactic/core/*.cpp",
+        "src/tactic/fd_solver/*.cpp",
+        "src/tactic/fpa/*.cpp",
+        "src/tactic/portfolio/*.cpp",
+        "src/tactic/sls/*.cpp",
+        "src/tactic/smtlogics/*.cpp",
+        "src/tactic/ufbv/*.cpp",
+        "src/test/fuzzing/*.cpp",
+        "src/util/*.cpp",
+        "src/util/lp/*.cpp",
+    ]),
+    hdrs = GEN_HDRS + glob([
+        "src/ackermannization/*.h",
+        "src/ackermannization/*.hpp",
+        "src/api/*.h",
+        "src/api/*.hpp",
+        "src/ast/*.h",
+        "src/ast/*.hpp",
+        "src/ast/fpa/*.h",
+        "src/ast/fpa/*.hpp",
+        "src/ast/macros/*.h",
+        "src/ast/macros/*.hpp",
+        "src/ast/normal_forms/*.h",
+        "src/ast/normal_forms/*.hpp",
+        "src/ast/pattern/*.h",
+        "src/ast/pattern/*.hpp",
+        "src/ast/proofs/*.h",
+        "src/ast/proofs/*.hpp",
+        "src/ast/rewriter/*.h",
+        "src/ast/rewriter/*.hpp",
+        "src/ast/rewriter/bit_blaster/*.h",
+        "src/ast/rewriter/bit_blaster/*.hpp",
+        "src/ast/substitution/*.h",
+        "src/ast/substitution/*.hpp",
+        "src/cmd_context/*.h",
+        "src/cmd_context/*.hpp",
+        "src/cmd_context/extra_cmds/*.h",
+        "src/cmd_context/extra_cmds/*.hpp",
+        "src/math/automata/*.h",
+        "src/math/automata/*.hpp",
+        "src/math/grobner/*.h",
+        "src/math/grobner/*.hpp",
+        "src/math/hilbert/*.h",
+        "src/math/hilbert/*.hpp",
+        "src/math/interval/*.h",
+        "src/math/interval/*.hpp",
+        "src/math/dd/*.h",
+        "src/math/dd/*.hpp",
+        "src/math/euclid/*.h",
+        "src/math/euclid/*.hpp",
+        "src/math/lp/*.h",
+        "src/math/lp/*.hpp",
+        "src/math/polynomial/*.h",
+        "src/math/polynomial/*.hpp",
+        "src/math/simplex/*.h",
+        "src/math/simplex/*.hpp",
+        "src/math/realclosure/*.h",
+        "src/math/realclosure/*.hpp",
+        "src/math/subpaving/*.h",
+        "src/math/subpaving/*.hpp",
+        "src/math/subpaving/tactic/*.h",
+        "src/math/subpaving/tactic/*.hpp",
+        "src/model/*.h",
+        "src/model/*.hpp",
+        "src/muz/base/*.h",
+        "src/muz/base/*.hpp",
+        "src/muz/bmc/*.h",
+        "src/muz/bmc/*.hpp",
+        "src/muz/clp/*.h",
+        "src/muz/clp/*.hpp",
+        "src/muz/dataflow/*.h",
+        "src/muz/dataflow/*.hpp",
+        "src/muz/ddnf/*.h",
+        "src/muz/ddnf/*.hpp",
+        "src/muz/fp/*.h",
+        "src/muz/fp/*.hpp",
+        "src/muz/rel/*.h",
+        "src/muz/rel/*.hpp",
+        "src/muz/spacer/*.h",
+        "src/muz/spacer/*.hpp",
+        "src/muz/tab/*.h",
+        "src/muz/tab/*.hpp",
+        "src/muz/transforms/*.h",
+        "src/muz/transforms/*.hpp",
+        "src/nlsat/*.h",
+        "src/nlsat/*.hpp",
+        "src/nlsat/tactic/*.h",
+        "src/nlsat/tactic/*.hpp",
+        "src/opt/*.h",
+        "src/opt/*.hpp",
+        "src/parsers/smt2/*.h",
+        "src/parsers/smt2/*.hpp",
+        "src/parsers/util/*.h",
+        "src/parsers/util/*.hpp",
+        "src/qe/*.h",
+        "src/qe/*.hpp",
+        "src/sat/*.h",
+        "src/sat/*.hpp",
+        "src/sat/sat_solver/*.h",
+        "src/sat/sat_solver/*.hpp",
+        "src/sat/tactic/*.h",
+        "src/sat/tactic/*.hpp",
+        "src/smt/*.h",
+        "src/smt/params/*.h",
+        "src/smt/proto_model/*.h",
+        "src/smt/tactic/*.h",
+        "src/smt/tactic/*.hpp",
+        "src/solver/*.h",
+        "src/solver/*.hpp",
+        "src/tactic/*.h",
+        "src/tactic/*.hpp",
+        "src/tactic/aig/*.h",
+        "src/tactic/aig/*.hpp",
+        "src/tactic/arith/*.h",
+        "src/tactic/arith/*.hpp",
+        "src/tactic/core/*.h",
+        "src/tactic/core/*.hpp",
+        "src/tactic/bv/*.h",
+        "src/tactic/bv/*.hpp",
+        "src/tactic/fd_solver/*.h",
+        "src/tactic/fd_solver/*.hpp",
+        "src/tactic/fpa/*.h",
+        "src/tactic/fpa/*.hpp",
+        "src/tactic/portfolio/*.h",
+        "src/tactic/portfolio/*.hpp",
+        "src/tactic/sls/*.h",
+        "src/tactic/sls/*.hpp",
+        "src/tactic/smtlogics/*.h",
+        "src/tactic/smtlogics/*.hpp",
+        "src/tactic/ufbv/*.h",
+        "src/tactic/ufbv/*.hpp",
+        "src/test/fuzzing/*.h",
+        "src/test/fuzzing/*.hpp",
+        "src/util/*.h",
+        "src/util/*.hpp",
+        "src/util/lp/*.h",
+        "src/util/lp/*.hpp",
+    ]),
+    copts = common_copts,
+    #features = ["-use_header_modules"],  # Incompatible with -fexceptions.
+    includes = [
+        "src/util",
+        "src/",
+    ],
+)
+
+cc_library(
+    name = "api",
+    hdrs = glob(
+        [
+            "src/api/z3*.h",
+            "src/api/c++/z3++.h",
+        ],
+    ),
+    deps = [":z3lib"],
+    visibility = ["//visibility:public"],
+)
+
+cc_binary(
+    name = "z3",
+    srcs = glob(
+        [
+            "src/shell/*.cpp",
+            "src/shell/*.h",
+        ],
+        exclude = [
+            "src/shell/gparams_register_modules.cpp",
+            "src/shell/install_tactic.cpp",
+            "src/shell/mem_initializer.cpp",
+        ],
+    ),
+    copts = common_copts,
+    linkopts = common_linkopts,
+    features = ["-use_header_modules"],  # Incompatible with -fexceptions.
+    includes = ["src/shell"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":z3lib",
+    ],
+)
+
+cc_binary(
+    name = "test-z3",
+    srcs = glob(
+        [
+            "src/test/*.cpp",
+            "src/test/*.h",
+        ],
+        exclude = [
+            "src/test/gparams_register_modules.cpp",
+            "src/test/install_tactic.cpp",
+            "src/test/mem_initializer.cpp",
+        ],
+    ),
+    copts = common_copts,
+    linkopts = common_linkopts,
+    features = ["-use_header_modules"],  # Incompatible with -fexceptions.
+    includes = ["src/test"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":z3lib",
+    ],
+)
+
+cc_binary(
+    name = "cpp_example",
+    srcs = glob(
+        [
+            "examples/c++/*.cpp",
+            "examples/c++/*.h",
+        ],
+    ),
+    copts = [
+        "-fexceptions",
+        "-Wno-implicit-function-declaration",
+        "-Wno-sometimes-uninitialized",
+        "-Wno-unused-variable",
+    ],
+    linkopts = common_linkopts,
+    features = ["-use_header_modules"],  # Incompatible with -fexceptions.
+    includes = ["examples/c++"],
+    deps = [":api"],
+)
+
+cc_binary(
+    name = "c_example",
+    srcs = glob(
+        [
+            "examples/c/*.c",
+            "examples/c/*.h",
+        ],
+    ),
+    copts = [
+        "-fexceptions",
+        "-Wno-implicit-function-declaration",
+        "-Wno-sometimes-uninitialized",
+        "-Wno-unused-variable",
+    ],
+    linkopts = common_linkopts,
+    features = ["-use_header_modules"],  # Incompatible with -fexceptions.
+    includes = ["examples/c"],
+    deps = [":api"],
+)
+
+cc_binary(
+    name = "maxsat",
+    srcs = glob(
+        [
+            "examples/maxsat/*.c",
+            "examples/maxsat/*.h",
+        ],
+    ),
+    copts = [
+        "-fexceptions",
+        "-Wno-implicit-function-declaration",
+        "-Wno-sometimes-uninitialized",
+        "-Wno-unused-variable",
+    ],
+    linkopts = common_linkopts,
+    features = ["-use_header_modules"],  # Incompatible with -fexceptions.
+    includes = ["examples/maxsat"],
+    deps = [":api"],
+)
+
+cc_library(
+    name = "z3main",
+    srcs = glob(
+        [
+            "src/shell/*.cpp",
+            "src/shell/*.h",
+        ],
+        exclude = [
+            "src/shell/gparams_register_modules.cpp",
+            "src/shell/install_tactic.cpp",
+            "src/shell/mem_initializer.cpp",
+        ],
+    ),
+    copts = ["-Dmain=z3_main"] + common_copts,
+    features = ["-use_header_modules"],  # Incompatible with -fexceptions.
+    deps = [
+        ":z3lib",
+    ],
+)
+
+modules = [
+    "random",
+    "vector",
+    "symbol_table",
+    "region",
+    "symbol",
+    "heap",
+    "hashtable",
+    "rational",
+    "inf_rational",
+    "ast",
+    "optional",
+    "bit_vector",
+    "string_buffer",
+    "map",
+    "diff_logic",
+    "uint_set",
+    "expr_rand",
+    "list",
+    "small_object_allocator",
+    "timeout",
+    "proof_checker",
+    "simplifier",
+    "bit_blaster",
+    "var_subst",
+    "simple_parser",
+    "api",
+    "old_interval",
+    "get_implied_equalities",
+    "arith_simplifier_plugin",
+    "matcher",
+    "object_allocator",
+    "mpq",
+    "total_order",
+    "dl_table",
+    "dl_context",
+    "dl_util",
+    "dl_product_relation",
+    "dl_relation",
+    "parray",
+    "stack",
+    "escaped",
+    "buffer",
+    "chashtable",
+    "ex",
+    "api_bug",
+    "arith_rewriter",
+    "check_assumptions",
+    "smt_context",
+    "theory_dl",
+    "model_retrieval",
+    "factor_rewriter",
+    "smt2print_parse",
+    "substitution",
+    "polynomial",
+    "upolynomial",
+    "algebraic",
+    "prime_generator",
+    "permutation",
+    "ext_numeral",
+    "interval",
+    "f2n",
+    "hwf",
+    "trigo",
+    "bits",
+    "mpbq",
+    "mpfx",
+    "mpff",
+    "horn_subsume_model_converter",
+    "model2expr",
+    "hilbert_basis",
+    "heap_trie",
+    "karr",
+    "no_overflow",
+    "datalog_parser",
+    "datalog_parser_file",
+    "rcf",
+    "polynorm",
+    "dl_query",
+    "expr_substitution",
+]
+
+failed_modules = [
+    "memory",  # TODO(b/122357007): Fails despite being a NOP on non-Windows platforms
+    "nlarith_util",
+    "nlsat",
+    "quant_solve",
+    "qe_arith",
+    # TODO(b/67053323): Following fail with asan.
+    "mpz",
+    "bv_simplifier_plugin",
+]
+
+medium_modules = [
+    "mpf",
+]

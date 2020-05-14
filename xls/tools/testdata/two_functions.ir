@@ -1,0 +1,9 @@
+package two_functions
+
+fn foo(x: bits[8]) -> bits[8] {
+  ret neg.1: bits[8] = neg(x)
+}
+
+fn bar(x: bits[8]) -> bits[8] {
+  ret not.2: bits[8] = not(x)
+}

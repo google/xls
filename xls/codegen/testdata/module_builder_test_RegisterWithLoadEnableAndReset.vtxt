@@ -1,0 +1,21 @@
+module RegisterWithLoadEnableAndReset(
+  input wire [31:0] x,
+  input wire [31:0] y,
+  input wire clk,
+  input wire rstn,
+  input wire le,
+  output wire [31:0] out
+);
+  reg [31:0] a;
+  reg [31:0] b;
+  always @ (posedge clk or negedge rstn) begin
+    if (!rstn) begin
+      a <= 32'h0000_0000;
+      b <= 32'h0000_0042;
+    end else begin
+      a <= le ? x + y : a;
+      b <= le ? y : b;
+    end
+  end
+  assign out = a + b;
+endmodule

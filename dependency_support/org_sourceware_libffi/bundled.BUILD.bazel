@@ -1,0 +1,350 @@
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+load("@com_google_xls//dependency_support:automake_substitution.bzl", "automake_substitution")
+load("@com_google_xls//dependency_support:copy.bzl", "copy")
+
+AUTOMAKE_SUBSTITUTIONS = {
+    "TARGET": "X86_64",
+    "HAVE_LONG_DOUBLE": "1",
+    "FFI_EXEC_TRAMPOLINE_TABLE": "0",
+}
+
+automake_substitution(
+    name = "ffi_h",
+    src = "include/ffi.h.in",
+    out = "generated/include/ffi.h",
+    substitutions = AUTOMAKE_SUBSTITUTIONS,
+)
+
+genrule(
+    name = "fficonfig_h",
+    srcs = ["fficonfig.h.in"],
+    outs = ["generated/fficonfig.h"],
+    cmd = "sed 's.#undef.//#undef.g' $(location :fficonfig.h.in) > $@",
+)
+
+DEFINES = [
+    "HAVE_ALLOCA=1",
+    "HAVE_ALLOCA_H=1",
+    "HAVE_AS_CFI_PSEUDO_OP=1",
+    "HAVE_AS_X86_64_UNWIND_SECTION_TYPE=1",
+    "HAVE_AS_X86_PCREL=1",
+    "HAVE_HIDDEN_VISIBILITY_ATTRIBUTE=1",
+    "HAVE_INTTYPES_H=1",
+    "HAVE_MEMCPY=1",
+    "HAVE_MKOSTEMP=1",
+    "HAVE_MMAP=1",
+    "HAVE_MMAP_ANON=1",
+    "HAVE_MMAP_DEV_ZERO=1",
+    "HAVE_RO_EH_FRAME=1",
+    "HAVE_STDINT_H=1",
+    "STDC_HEADERS=1",
+]
+
+copy(
+    name = "ffitarget_h",
+    src = "src/x86/ffitarget.h",
+    out = "generated/include/ffitarget.h",
+)
+
+cc_library(
+    name = "libffi",
+    srcs = [
+        "generated/fficonfig.h",
+        "generated/include/ffi.h",
+        "generated/include/ffitarget.h",
+        "include/ffi_cfi.h",
+        "include/ffi_common.h",
+        "src/closures.c",
+        "src/debug.c",
+        "src/java_raw_api.c",
+        "src/prep_cif.c",
+        "src/raw_api.c",
+        "src/types.c",
+        "src/x86/asmnames.h",
+        "src/x86/ffi.c",
+        "src/x86/ffi64.c",
+        "src/x86/ffiw64.c",
+        "src/x86/internal.h",
+        "src/x86/internal64.h",
+        "src/x86/sysv.S",
+        "src/x86/unix64.S",
+        "src/x86/win64.S",
+    ],
+    copts = [
+        "-Wno-deprecated-declarations",
+    ],
+    includes = [
+        "generated",
+        "generated/include",
+        "include",
+    ],
+    defines = DEFINES,
+    textual_hdrs = ["src/dlmalloc.c"],
+    visibility = ["//visibility:public"],
+)
+
+[cc_test(
+    name = "%s_call_test" % call_test,
+    srcs = [
+        "testsuite/libffi.call/ffitest.h",
+        "testsuite/libffi.call/%s.c" % call_test,
+    ],
+    deps = [
+        ":libffi",
+    ],
+) for call_test in [
+    "align_mixed",
+    "align_stdcall",
+    "err_bad_typedef",
+    "float",
+    "float1",
+    "float2",
+    "float3",
+    "float4",
+    "float_va",
+    "many",
+    "many2",
+    "many_double",
+    "many_mixed",
+    "negint",
+    "offsets",
+    "pr1172638",
+    "promotion",
+    "pyobjc-tc",
+    "return_dbl",
+    "return_dbl1",
+    "return_dbl2",
+    "return_fl",
+    "return_fl1",
+    "return_fl2",
+    "return_fl3",
+    "return_ldl",
+    "return_ll",
+    "return_ll1",
+    "return_sc",
+    "return_sl",
+    "return_uc",
+    "return_ul",
+    "strlen",
+    "strlen2",
+    "strlen3",
+    "strlen4",
+    "struct1",
+    "struct10",
+    "struct2",
+    "struct3",
+    "struct4",
+    "struct5",
+    "struct6",
+    "struct7",
+    "struct8",
+    "struct9",
+    "uninitialized",
+    "va_1",
+    "va_struct1",
+    "va_struct2",
+    "va_struct3",
+]]
+
+cc_library(
+    name = "bhaible_test_support",
+    hdrs = [
+        "testsuite/libffi.bhaible/alignof.h",
+    ],
+    textual_hdrs = [
+        "testsuite/libffi.bhaible/testcases.c",
+    ],
+)
+
+[cc_test(
+    name = "%s_bhaible_test" % bhaible_test,
+    srcs = [
+        "testsuite/libffi.bhaible/%s.c" % bhaible_test,
+    ],
+    deps = [
+        ":libffi",
+        ":bhaible_test_support",
+    ],
+) for bhaible_test in [
+    "test-call",
+    "test-callback",
+]]
+
+[cc_test(
+    name = "%s_closures_test" % closures_test,
+    srcs = [
+        "testsuite/libffi.closures/ffitest.h",
+        "testsuite/libffi.closures/%s.c" % closures_test,
+    ],
+    deps = [
+        ":libffi",
+    ],
+) for closures_test in [
+    "closure_fn0",
+    "closure_fn1",
+    "closure_fn2",
+    "closure_fn3",
+    "closure_fn4",
+    "closure_fn5",
+    "closure_fn6",
+    "closure_loc_fn0",
+    "closure_simple",
+    "cls_12byte",
+    "cls_16byte",
+    "cls_18byte",
+    "cls_19byte",
+    "cls_1_1byte",
+    "cls_20byte",
+    "cls_20byte1",
+    "cls_24byte",
+    "cls_2byte",
+    "cls_3_1byte",
+    "cls_3byte1",
+    "cls_3byte2",
+    "cls_3float",
+    "cls_4_1byte",
+    "cls_4byte",
+    "cls_5_1_byte",
+    "cls_5byte",
+    "cls_64byte",
+    "cls_6_1_byte",
+    "cls_6byte",
+    "cls_7_1_byte",
+    "cls_7byte",
+    "cls_8byte",
+    "cls_9byte1",
+    "cls_9byte2",
+    "cls_align_double",
+    "cls_align_float",
+    "cls_align_longdouble",
+    "cls_align_longdouble_split",
+    "cls_align_longdouble_split2",
+    "cls_align_pointer",
+    "cls_align_sint16",
+    "cls_align_sint32",
+    "cls_align_sint64",
+    "cls_align_uint16",
+    "cls_align_uint32",
+    "cls_align_uint64",
+    "cls_dbls_struct",
+    "cls_double",
+    "cls_double_va",
+    "cls_float",
+    "cls_longdouble",
+    "cls_longdouble_va",
+    "cls_many_mixed_args",
+    "cls_many_mixed_float_double",
+    "cls_multi_schar",
+    "cls_multi_sshort",
+    "cls_multi_sshortchar",
+    "cls_multi_uchar",
+    "cls_multi_ushort",
+    "cls_multi_ushortchar",
+    "cls_pointer",
+    "cls_pointer_stack",
+    "cls_schar",
+    "cls_sint",
+    "cls_sshort",
+    "cls_struct_va1",
+    "cls_uchar",
+    "cls_uchar_va",
+    "cls_uint",
+    "cls_uint_va",
+    "cls_ulong_va",
+    "cls_ulonglong",
+    "cls_ushort",
+    "cls_ushort_va",
+    "err_bad_abi",
+    "huge_struct",
+    "nested_struct",
+    "nested_struct1",
+    "nested_struct10",
+    "nested_struct11",
+    "nested_struct2",
+    "nested_struct3",
+    "nested_struct4",
+    "nested_struct5",
+    "nested_struct6",
+    "nested_struct7",
+    "nested_struct8",
+    "nested_struct9",
+    "problem1",
+    "stret_large",
+    "stret_large2",
+    "stret_medium",
+    "stret_medium2",
+    "testclosure",
+]]
+
+[cc_test(
+    name = "%s_complex_test" % complex_test,
+    srcs = glob([
+        "testsuite/libffi.complex/*.inc",
+    ]) + [
+        "testsuite/libffi.call/ffitest.h",
+        "testsuite/libffi.complex/ffitest.h",
+        "testsuite/libffi.complex/%s.c" % complex_test,
+    ],
+    deps = [
+        ":libffi",
+    ],
+) for complex_test in [
+    "cls_align_complex_double",
+    "cls_align_complex_float",
+    "cls_align_complex_longdouble",
+    "cls_complex_double",
+    "cls_complex_float",
+    "cls_complex_longdouble",
+    "cls_complex_struct_double",
+    "cls_complex_struct_float",
+    "cls_complex_struct_longdouble",
+    "cls_complex_va_double",
+    "cls_complex_va_float",
+    "cls_complex_va_longdouble",
+    "complex_double",
+    "complex_float",
+    "complex_int",
+    "complex_longdouble",
+    "many_complex_double",
+    "many_complex_float",
+    "many_complex_longdouble",
+    "return_complex1_double",
+    "return_complex1_float",
+    "return_complex1_longdouble",
+    "return_complex2_double",
+    "return_complex2_float",
+    "return_complex2_longdouble",
+    "return_complex_double",
+    "return_complex_float",
+    "return_complex_longdouble",
+]]
+
+
+[cc_test(
+    name = "%s_go_test" % go_test,
+    srcs = [
+        "testsuite/libffi.call/ffitest.h",
+        "testsuite/libffi.go/ffitest.h",
+        "testsuite/libffi.go/static-chain.h",
+        "testsuite/libffi.go/%s.c" % go_test,
+    ],
+    deps = [
+        ":libffi",
+    ],
+) for go_test in [
+    "aa-direct",
+    "closure1",
+]]

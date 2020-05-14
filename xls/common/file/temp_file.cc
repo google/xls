@@ -1,0 +1,136 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "xls/common/file/temp_file.h"
+
+#include <fcntl.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+#include "absl/strings/str_cat.h"
+#include "xls/common/logging/logging.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/common/strerror.h"
+
+namespace xls {
+namespace {
+
+absl::Status WriteContent(int fd, absl::string_view content) {
+  int bytes_written = 0;
+  while (bytes_written < content.size()) {
+    int bytes_written_this_time =
+        write(fd, static_cast<const void*>(content.data() + bytes_written),
+              content.size() - bytes_written);
+    if (bytes_written_this_time == -1) {
+      if (errno == EINTR) {
+        continue;
+      } else {
+        return absl::UnavailableError(absl::StrCat(
+            "Failed to write content to temporary file: ", Strerror(errno)));
+      }
+    } else {
+      bytes_written += bytes_written_this_time;
+    }
+  }
+  return ::absl::OkStatus();
+}
+
+xabsl::StatusOr<std::filesystem::path> GetGlobalTemporaryDirectory() {
+  std::error_code ec;
+  auto temp_dir = std::filesystem::temp_directory_path(ec);
+  if (ec) {
+    return absl::UnavailableError("Failed to get temporary directory path.");
+  }
+  return temp_dir;
+}
+
+}  // namespace
+
+TempFile::~TempFile() { Cleanup(); }
+
+xabsl::StatusOr<TempFile> TempFile::Create() {
+  XLS_ASSIGN_OR_RETURN(std::filesystem::path temp_dir,
+                       GetGlobalTemporaryDirectory());
+  return Create(temp_dir);
+}
+
+xabsl::StatusOr<TempFile> TempFile::Create(
+    const std::filesystem::path& directory) {
+  int fd;
+  XLS_ASSIGN_OR_RETURN(TempFile temp_file, Create(directory, &fd));
+  close(fd);
+  return temp_file;
+}
+
+xabsl::StatusOr<TempFile> TempFile::CreateWithContent(
+    absl::string_view content) {
+  XLS_ASSIGN_OR_RETURN(std::filesystem::path temp_dir,
+                       GetGlobalTemporaryDirectory());
+  return CreateWithContent(content, temp_dir);
+}
+
+xabsl::StatusOr<TempFile> TempFile::CreateWithContent(
+    absl::string_view content, const std::filesystem::path& directory) {
+  int fd;
+  XLS_ASSIGN_OR_RETURN(TempFile temp_file, Create(directory, &fd));
+  absl::Status write_status = WriteContent(fd, content);
+  close(fd);
+  if (!write_status.ok()) {
+    return write_status;
+  }
+  return temp_file;
+}
+
+std::filesystem::path TempFile::path() const { return path_; }
+
+std::filesystem::path TempFile::Release() && {
+  std::filesystem::path result;
+  std::swap(result, path_);
+  return result;
+}
+
+TempFile::TempFile(TempFile&& other) : path_(std::move(other.path_)) {
+  other.path_.clear();
+}
+
+TempFile& TempFile::operator=(TempFile&& other) {
+  Cleanup();
+  path_ = std::move(other.path_);
+  other.path_.clear();
+  return *this;
+}
+
+TempFile::TempFile(const std::filesystem::path& path) : path_(path) {}
+
+void TempFile::Cleanup() {
+  if (!path_.empty()) {
+    if (unlink(path_.c_str()) != 0) {
+      XLS_LOG(ERROR) << "Failed to delete temporary file " << path_;
+    }
+  }
+}
+
+xabsl::StatusOr<TempFile> TempFile::Create(
+    const std::filesystem::path& directory, int* file_descriptor) {
+  std::string path_template = (directory / "xls_tempfile_XXXXXX").string();
+  *file_descriptor = mkostemp(path_template.data(), O_CLOEXEC);
+  if (*file_descriptor == -1) {
+    return absl::UnavailableError(
+        absl::StrCat("Failed to create temporary file ", path_template, ": ",
+                     Strerror(errno)));
+  }
+  return TempFile(path_template);
+}
+
+}  // namespace xls

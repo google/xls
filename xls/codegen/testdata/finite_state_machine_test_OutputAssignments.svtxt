@@ -1,0 +1,123 @@
+module OutputAssignments(
+  input wire clk,
+  input wire rst_n,
+  input wire a,
+  input wire b
+);
+  // SimpleFsm FSM:
+  localparam StateBits = 3;
+  localparam
+    StateIdle = 0,
+    StateAssignmentToDefaultValue = 1,
+    StateAssignmentToNondefaultValue = 2,
+    StateConditionalAssignToDefaultValue = 3,
+    StateConditionalAssignToNondefaultValue = 4,
+    StateNestedConditionalAssignToNondefaultValue = 5,
+    StateAssignToNondefaultValueAtDifferentDepths = 6;
+  reg [StateBits - 1:0] state = StateIdle;
+  reg [StateBits - 1:0] state_next = StateIdle;
+  reg [7:0] out_42 = 42;
+  reg [7:0] out_123 = 123;
+
+  // FSM state transition logic.
+  always_comb begin
+    state_next = state;
+    case (state)
+      StateIdle: begin
+        state_next = StateIdle;
+      end
+      StateAssignmentToDefaultValue: begin
+        state_next = StateIdle;
+      end
+      StateAssignmentToNondefaultValue: begin
+        state_next = StateIdle;
+      end
+      StateConditionalAssignToDefaultValue: begin
+        state_next = StateIdle;
+      end
+      StateConditionalAssignToNondefaultValue: begin
+        state_next = StateIdle;
+      end
+      StateNestedConditionalAssignToNondefaultValue: begin
+        state_next = StateIdle;
+      end
+      StateAssignToNondefaultValueAtDifferentDepths: begin
+        state_next = StateIdle;
+      end
+      default: begin
+        state_next = 3'dx;
+      end
+    endcase
+  end
+
+  // FSM output logic.
+  always_comb begin
+    case (state)
+      StateIdle: begin
+        out_42 = 42;
+        out_123 = 123;
+      end
+      StateAssignmentToDefaultValue: begin
+        out_42 = 42;
+        out_123 = 123;
+      end
+      StateAssignmentToNondefaultValue: begin
+        out_42 = 33;
+        out_123 = 22;
+      end
+      StateConditionalAssignToDefaultValue: begin
+        out_42 = 42;
+        out_123 = 123;
+      end
+      StateConditionalAssignToNondefaultValue: begin
+        if (a) begin
+          out_42 = 1;
+        end else begin
+          out_42 = 42;
+        end
+        if (b) begin
+          out_123 = 2;
+        end else begin
+          out_123 = 4;
+        end
+      end
+      StateNestedConditionalAssignToNondefaultValue: begin
+        if (a) begin
+          if (b) begin
+            out_42 = 1;
+            out_123 = 123;
+          end else begin
+            out_123 = 7;
+            out_42 = 42;
+          end
+        end else begin
+          out_42 = 42;
+          out_123 = 123;
+        end
+      end
+      StateAssignToNondefaultValueAtDifferentDepths: begin
+        out_123 = 123;
+        if (a) begin
+          out_42 = 1;
+        end else begin
+          if (b) begin
+            out_42 = 77;
+          end else begin
+            out_42 = 42;
+          end
+        end
+      end
+      default: begin
+        out_42 = 42;
+        out_123 = 123;
+      end
+    endcase
+  end
+  always @ (posedge clk) begin
+    if (!rst_n) begin
+      state <= StateIdle;
+    end else begin
+      state <= state_next;
+    end
+  end
+endmodule

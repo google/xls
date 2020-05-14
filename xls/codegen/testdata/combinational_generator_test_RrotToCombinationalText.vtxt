@@ -1,0 +1,11 @@
+module rrot(
+  input wire [31:0] x,
+  input wire [31:0] y,
+  output wire [31:0] out
+);
+  wire [31:0] sub_5;
+  wire [31:0] or_7;
+  assign sub_5 = 32'h0000_0020 - y;
+  assign or_7 = (y >= 32'h0000_0020 ? 32'h0000_0000 : x >> y) | (sub_5 >= 32'h0000_0020 ? 32'h0000_0000 : x << sub_5);
+  assign out = or_7;
+endmodule

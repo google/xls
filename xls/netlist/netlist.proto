@@ -1,0 +1,45 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto2";
+
+package xls.netlist;
+
+enum CellKindProto {
+  INVALID = 0;
+  FLOP = 1;
+  INVERTER = 2;
+  BUFFER = 3;
+  NAND = 4;
+  NOR = 5;
+  MULTIPLEXER = 6;
+  XOR = 7;
+  OTHER = 8;
+}
+
+message OutputPinProto {
+  optional string name = 1;
+  optional string function = 2;
+}
+
+message CellLibraryEntryProto {
+  optional CellKindProto kind = 1;
+  optional string name = 2;
+  repeated string input_names = 3;
+  repeated OutputPinProto output_pins = 4;
+}
+
+message CellLibraryProto {
+  repeated CellLibraryEntryProto entries = 1;
+}

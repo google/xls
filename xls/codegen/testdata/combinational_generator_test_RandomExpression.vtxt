@@ -1,0 +1,21 @@
+module RandomExpression(
+  input wire [7:0] a,
+  input wire [7:0] b,
+  input wire [7:0] c,
+  output wire [7:0] out
+);
+  function automatic reg [7:0] umul8b_8b_x_8b (input reg [7:0] lhs, input reg [7:0] rhs);
+    begin
+      umul8b_8b_x_8b = lhs * rhs;
+    end
+  endfunction
+  wire [7:0] sub_4;
+  wire [7:0] umul_5;
+  wire [7:0] umul_6;
+  wire [7:0] add_7;
+  assign sub_4 = a - b;
+  assign umul_5 = umul8b_8b_x_8b(sub_4, sub_4);
+  assign umul_6 = umul8b_8b_x_8b(c, sub_4);
+  assign add_7 = umul_5 + umul_6;
+  assign out = add_7;
+endmodule

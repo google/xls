@@ -1,0 +1,14 @@
+module main(
+  input wire [122:0] x,
+  output wire [122:0] out
+);
+  wire [368:0] literal_1;
+  assign literal_1 = {123'h000_0000_0000_0000_0000_0000_0001_0000, 123'h000_0000_0000_0000_0000_0000_0000_2000, 123'h000_0000_0000_0000_0000_0000_0000_0300};
+  wire [122:0] add_6;
+  wire [122:0] add_7;
+  wire [122:0] add_8;
+  assign add_6 = literal_1[368:246] + literal_1[245:123];
+  assign add_7 = literal_1[122:0] + x;
+  assign add_8 = add_6 + add_7;
+  assign out = add_8;
+endmodule

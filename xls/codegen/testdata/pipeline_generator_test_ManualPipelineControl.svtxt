@@ -1,0 +1,85 @@
+module ManualPipelineControl(
+  input wire clk,
+  input wire [4:0] load_enable,
+  input wire [1:0] s,
+  input wire [7:0] x,
+  input wire [7:0] y,
+  input wire [7:0] z,
+  input wire [7:0] a,
+  output wire [7:0] out
+);
+  // ===== Pipe stage 0:
+
+  // Registers for pipe stage 0:
+  reg [1:0] p0_s;
+  reg [7:0] p0_x;
+  reg [7:0] p0_y;
+  reg [7:0] p0_z;
+  reg [7:0] p0_a;
+  always_ff @ (posedge clk) begin
+    p0_s <= load_enable[0] ? s : p0_s;
+    p0_x <= load_enable[0] ? x : p0_x;
+    p0_y <= load_enable[0] ? y : p0_y;
+    p0_z <= load_enable[0] ? z : p0_z;
+    p0_a <= load_enable[0] ? a : p0_a;
+  end
+
+  // ===== Pipe stage 1:
+
+  // Registers for pipe stage 1:
+  reg [1:0] p1_s;
+  reg [7:0] p1_x;
+  reg [7:0] p1_y;
+  reg [7:0] p1_z;
+  reg [7:0] p1_a;
+  always_ff @ (posedge clk) begin
+    p1_s <= load_enable[1] ? p0_s : p1_s;
+    p1_x <= load_enable[1] ? p0_x : p1_x;
+    p1_y <= load_enable[1] ? p0_y : p1_y;
+    p1_z <= load_enable[1] ? p0_z : p1_z;
+    p1_a <= load_enable[1] ? p0_a : p1_a;
+  end
+
+  // ===== Pipe stage 2:
+
+  // Registers for pipe stage 2:
+  reg [1:0] p2_s;
+  reg [7:0] p2_x;
+  reg [7:0] p2_y;
+  reg [7:0] p2_z;
+  reg [7:0] p2_a;
+  always_ff @ (posedge clk) begin
+    p2_s <= load_enable[2] ? p1_s : p2_s;
+    p2_x <= load_enable[2] ? p1_x : p2_x;
+    p2_y <= load_enable[2] ? p1_y : p2_y;
+    p2_z <= load_enable[2] ? p1_z : p2_z;
+    p2_a <= load_enable[2] ? p1_a : p2_a;
+  end
+
+  // ===== Pipe stage 3:
+
+  // Registers for pipe stage 3:
+  reg [1:0] p3_s;
+  reg [7:0] p3_x;
+  reg [7:0] p3_y;
+  reg [7:0] p3_z;
+  reg [7:0] p3_a;
+  always_ff @ (posedge clk) begin
+    p3_s <= load_enable[3] ? p2_s : p3_s;
+    p3_x <= load_enable[3] ? p2_x : p3_x;
+    p3_y <= load_enable[3] ? p2_y : p3_y;
+    p3_z <= load_enable[3] ? p2_z : p3_z;
+    p3_a <= load_enable[3] ? p2_a : p3_a;
+  end
+
+  // ===== Pipe stage 4:
+  wire [7:0] p4_sel_6_comb;
+  assign p4_sel_6_comb = p3_s == 2'h0 ? p3_x : (p3_s == 2'h1 ? p3_y : (p3_s == 2'h2 ? p3_z : p3_a));
+
+  // Registers for pipe stage 4:
+  reg [7:0] p4_sel_6;
+  always_ff @ (posedge clk) begin
+    p4_sel_6 <= load_enable[4] ? p4_sel_6_comb : p4_sel_6;
+  end
+  assign out = p4_sel_6;
+endmodule

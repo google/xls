@@ -1,0 +1,226 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "xls/ir/ir_test_base.h"
+
+#include "absl/status/status.h"
+#include "absl/strings/str_format.h"
+#include "xls/codegen/combinational_generator.h"
+#include "xls/codegen/module_signature.h"
+#include "xls/common/logging/logging.h"
+#include "xls/common/status/matchers.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/delay_model/delay_estimator.h"
+#include "xls/delay_model/delay_estimators.h"
+#include "xls/ir/ir_interpreter.h"
+#include "xls/ir/ir_parser.h"
+#include "xls/ir/value_test_util.h"
+#include "xls/ir/verifier.h"
+#include "xls/passes/standard_pipeline.h"
+#include "xls/scheduling/pipeline_schedule.h"
+#include "xls/simulation/module_simulator.h"
+#include "xls/simulation/verilog_simulators.h"
+
+namespace xls {
+
+VerifiedPackage::~VerifiedPackage() {
+  absl::Status status = Verify(this);
+  if (!status.ok()) {
+    ADD_FAILURE() << absl::StrFormat(
+        "IR verifier failed on package %s during destruction: %s", name(),
+        status.message());
+  }
+}
+
+xabsl::StatusOr<std::unique_ptr<VerifiedPackage>> IrTestBase::ParsePackage(
+    absl::string_view text) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<VerifiedPackage> package,
+                       Parser::ParseDerivedPackageNoVerify<VerifiedPackage>(
+                           text, absl::nullopt));
+  XLS_RETURN_IF_ERROR(Verify(package.get()));
+  return std::move(package);
+}
+
+xabsl::StatusOr<std::unique_ptr<Package>> IrTestBase::ParsePackageNoVerify(
+    absl::string_view text) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
+                       Parser::ParsePackageNoVerify(text));
+  return std::move(package);
+}
+
+xabsl::StatusOr<Function*> IrTestBase::ParseFunction(absl::string_view text,
+                                                     Package* package) {
+  return Parser::ParseFunction(text, package);
+}
+
+Node* IrTestBase::FindNode(absl::string_view name, Package* package) {
+  for (auto& function : package->functions()) {
+    for (Node* node : function->nodes()) {
+      if (node->GetName() == name) {
+        return node;
+      }
+    }
+  }
+  XLS_LOG(FATAL) << "No node named " << name << " in package:\n" << *package;
+}
+
+Node* IrTestBase::FindNode(absl::string_view name, Function* function) {
+  for (Node* node : function->nodes()) {
+    if (node->GetName() == name) {
+      return node;
+    }
+  }
+  XLS_LOG(FATAL) << "No node named " << name << " in function:\n" << *function;
+}
+
+Function* IrTestBase::FindFunction(absl::string_view name, Package* package) {
+  for (auto& function : package->functions()) {
+    if (function->name() == name) {
+      return function.get();
+    }
+  }
+  XLS_LOG(FATAL) << "No function named " << name << " in package:\n"
+                 << *package;
+}
+
+void IrTestBase::RunAndExpectEq(
+    const absl::flat_hash_map<std::string, uint64>& args, uint64 expected,
+    absl::string_view package_text, xabsl::SourceLocation loc) {
+  // Emit the filename/line of the test code in any failure message. The
+  // location is captured as a default argument to RunAndExpectEq.
+  testing::ScopedTrace trace(loc.file_name(), loc.line(),
+                             "RunAndExpectEq failed");
+  XLS_VLOG(3) << "Package text:\n" << package_text;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(package_text));
+  absl::flat_hash_map<std::string, Value> arg_values;
+  XLS_ASSERT_OK_AND_ASSIGN(arg_values, UInt64ArgsToValues(args, package.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Value expected_value,
+                           UInt64ResultToValue(expected, package.get()));
+
+  RunAndExpectEq(arg_values, expected_value, std::move(package));
+}
+
+void IrTestBase::RunAndExpectEq(
+    const absl::flat_hash_map<std::string, Bits>& args, Bits expected,
+    absl::string_view package_text, xabsl::SourceLocation loc) {
+  // Emit the filename/line of the test code in any failure message. The
+  // location is captured as a default argument to RunAndExpectEq.
+  testing::ScopedTrace trace(loc.file_name(), loc.line(),
+                             "RunAndExpectEq failed");
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(package_text));
+  absl::flat_hash_map<std::string, Value> args_as_values;
+  for (const auto& pair : args) {
+    args_as_values[pair.first] = Value(pair.second);
+  }
+  RunAndExpectEq(args_as_values, Value(expected), std::move(package));
+}
+
+void IrTestBase::RunAndExpectEq(
+    const absl::flat_hash_map<std::string, Value>& args, Value expected,
+    absl::string_view package_text, xabsl::SourceLocation loc) {
+  // Emit the filename/line of the test code in any failure message. The
+  // location is captured as a default argument to RunAndExpectEq.
+  testing::ScopedTrace trace(loc.file_name(), loc.line(),
+                             "RunAndExpectEq failed");
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(package_text));
+  RunAndExpectEq(args, expected, std::move(package));
+}
+
+xabsl::StatusOr<absl::flat_hash_map<std::string, Value>>
+IrTestBase::UInt64ArgsToValues(
+    const absl::flat_hash_map<std::string, uint64>& args, Package* package) {
+  absl::flat_hash_map<std::string, Value> value_args;
+  for (const auto& pair : args) {
+    const std::string& param_name = pair.first;
+    const uint64 arg_value = pair.second;
+    XLS_ASSIGN_OR_RETURN(Function * entry, package->EntryFunction());
+    XLS_ASSIGN_OR_RETURN(Param * param, entry->GetParamByName(pair.first));
+    Type* type = param->GetType();
+    XLS_RET_CHECK(type->IsBits())
+        << absl::StrFormat("Parameter '%s' is not a bits type: %s",
+                           param->name(), type->ToString());
+    XLS_RET_CHECK_GE(type->AsBitsOrDie()->bit_count(),
+                     Bits::MinBitCountUnsigned(arg_value))
+        << absl::StrFormat(
+               "Argument value %d for parameter '%s' does not fit in type %s",
+               arg_value, param->name(), type->ToString());
+    value_args[param_name] =
+        Value(UBits(arg_value, type->AsBitsOrDie()->bit_count()));
+  }
+
+  return value_args;
+}
+
+xabsl::StatusOr<Value> IrTestBase::UInt64ResultToValue(uint64 value,
+                                                       Package* package) {
+  XLS_ASSIGN_OR_RETURN(Function * entry, package->EntryFunction());
+  Type* return_type = entry->return_value()->GetType();
+  XLS_RET_CHECK(return_type->IsBits()) << absl::StrFormat(
+      "Return value of function not a bits type: %s", return_type->ToString());
+  XLS_RET_CHECK_GE(return_type->AsBitsOrDie()->bit_count(),
+                   Bits::MinBitCountUnsigned(value))
+      << absl::StrFormat("Value %d does not fit in return type %s", value,
+                         return_type->ToString());
+  return Value(UBits(value, return_type->AsBitsOrDie()->bit_count()));
+}
+
+void IrTestBase::RunAndExpectEq(
+    const absl::flat_hash_map<std::string, Value>& args, const Value& expected,
+    std::unique_ptr<Package>&& package) {
+  // Run interpreter on unoptimized IR.
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
+    XLS_ASSERT_OK_AND_ASSIGN(Value actual,
+                             ir_interpreter::RunKwargs(entry, args));
+    ASSERT_TRUE(ValuesEqual(expected, actual))
+        << "(interpreted unoptimized IR)";
+  }
+
+  // Run main pipeline.
+  XLS_ASSERT_OK(RunStandardPassPipeline(package.get()));
+
+  // Run interpreter on optimized IR.
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
+    XLS_ASSERT_OK_AND_ASSIGN(Value actual,
+                             ir_interpreter::RunKwargs(main, args));
+    ASSERT_TRUE(ValuesEqual(expected, actual)) << "(interpreted optimized IR)";
+  }
+
+  // Emit Verilog with combinational generator and run with ModuleSimulator.
+  {
+    ASSERT_EQ(package->functions().size(), 1);
+    XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        verilog::ModuleGeneratorResult result,
+        verilog::ToCombinationalModuleText(main, /*use_system_verilog=*/false));
+
+    absl::flat_hash_map<std::string, Value> arg_set;
+    for (const auto& pair : args) {
+      arg_set.insert(pair);
+    }
+    XLS_VLOG(3) << "Verilog text:\n" << result.verilog_text;
+    verilog::ModuleSimulator simulator(result.signature, result.verilog_text,
+                                       &verilog::GetDefaultVerilogSimulator());
+    XLS_ASSERT_OK_AND_ASSIGN(Value actual, simulator.Run(arg_set));
+    ASSERT_TRUE(ValuesEqual(expected, actual)) << "(Verilog simulation)";
+  }
+}
+
+}  // namespace xls

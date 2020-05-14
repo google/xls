@@ -1,0 +1,403 @@
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# The ncurses C library and unit test.
+
+package(default_visibility = ["//visibility:public"])
+
+load("@com_google_xls//dependency_support:automake_substitution.bzl", "automake_substitution")
+load("@com_google_xls//dependency_support:copy.bzl", "copy")
+load("@com_google_xls//dependency_support:pseudo_configure.bzl", "pseudo_configure")
+
+licenses(["notice"])
+
+exports_files([
+    "LICENSE",
+    "include/Caps",
+])
+
+NCURSES_COPTS = [
+    "-w",
+    "-DTRACE",
+    "-DHAVE_CONFIG_H",
+    "-D_GNU_SOURCE",
+    "-DNDEBUG",
+]
+
+CAPLIST = [
+    "include/Caps",
+    "include/Caps-ncurses",
+]
+
+CAPLIST_LOCATIONS = " ".join(["$(location :" + cap + ")" for cap in CAPLIST])
+
+AUTOMAKE_SUBSTITUTIONS = {
+    "NCURSES_MAJOR": "6",
+    "NCURSES_MINOR": "2",
+    "NCURSES_PATCH": "20200212",
+    "NCURSES_MOUSE_VERSION": "2",
+    "NCURSES_CONST": "const",
+    "NCURSES_INLINE": "inline",
+    "NCURSES_SBOOL": "char",
+    "NCURSES_USE_DATABASE": "1",
+    "NCURSES_USE_TERMCAP": "0",
+    "NCURSES_XNAMES": "1",
+    "HAVE_TERMIOS_H": "1",
+    "HAVE_TCGETATTR": "1",
+    "HAVE_TERMIO_H": "1",
+    "NCURSES_EXT_COLORS": "0",
+    "BROKEN_LINKER": "0",
+    "cf_cv_enable_reentrant": "0",
+    "NCURSES_TPARM_VARARGS": "1",
+    "NCURSES_TPARM_ARG": "intptr_t",
+    "HAVE_STDINT_H": "1",
+    "cf_cv_header_stdbool_h": "1",
+    "NCURSES_OPAQUE": "0",
+    "NCURSES_OPAQUE_FORM": "0",
+    "NCURSES_OPAQUE_MENU": "0",
+    "NCURSES_OPAQUE_PANEL": "0",
+    "NCURSES_WATTR_MACROS": "1",
+    "NCURSES_INTEROP_FUNCS": "1",
+    "NCURSES_SIZE_T": "short",
+    "NCURSES_CH_T": "chtype",
+    "cf_cv_enable_lp64": "1",
+    "cf_cv_type_of_bool": "unsigned char",
+    "USE_CXX_BOOL": "defined(__cplusplus)",
+    "NCURSES_EXT_FUNCS": "1",
+    "NCURSES_LIBUTF8": "0",
+    "NEED_WCHAR_H": "1",
+    "NCURSES_WCHAR_T": "0",
+    "NCURSES_OK_WCHAR_T": "",
+    "NCURSES_CCHARW_MAX": "5",
+    "NCURSES_WCWIDTH_GRAPHICS": "1",
+    "GENERATED_EXT_FUNCS": "generated",
+    "NCURSES_SP_FUNCS": "1",
+    "cf_cv_1UL": "1U",
+    "HAVE_VSSCANF": "1",
+    "NCURSES_WINT_T": "0",
+}
+
+cc_library(
+    name = "ncurses_headers",
+    hdrs = glob(["include/*"]) + [
+        # Generated files are not found by glob.
+        "include/hashsize.h",
+        "include/ncurses_cfg.h",
+        "include/ncurses_def.h",
+        "include/parametrized.h",
+        "include/curses.h",
+        "include/term.h",
+        # Various source files include these, so call them headers.
+        "ncurses/tinfo/doalloc.c",
+        "ncurses/names.c",
+    ],
+    includes = ["include", "ncurses"],
+)
+
+cc_library(
+    name = "ncurses",
+    srcs = glob(
+        [
+            "ncurses/base/*.c",
+            "ncurses/*.c",
+            "ncurses/*.h",
+            "ncurses/tinfo/*.c",
+            "ncurses/trace/*.c",
+            "ncurses/tty/*.c",
+            "build_sources/*.c",
+        ],
+        exclude = glob([
+            "ncurses/base/lib_driver.c",
+            "ncurses/base/sigaction.c",
+            "ncurses/tinfo/make_keys.c",
+            "ncurses/tinfo/tinfo_driver.c",
+            "ncurses/tinfo/make_hash.c",
+            "ncurses/report_offsets.c",
+            "ncurses/*_test.c",
+            "build_sources/*_test.c",
+        ]),
+    ) + [
+        # Generated files are not found by glob.
+        "ncurses/codes.c",
+        "ncurses/comp_captab.c",
+        "ncurses/comp_userdefs.c",
+        "ncurses/fallback.c",
+        "ncurses/init_keytry.h",
+        "ncurses/lib_gen.c",
+        "ncurses/lib_keyname.c",
+        "ncurses/names.c",
+        "ncurses/unctrl.c",
+    ],
+    copts = NCURSES_COPTS,
+    deps = [":ncurses_headers"],
+)
+
+# Common headers between form and menu.
+cc_library(
+    name = "mf_common",
+    hdrs = [
+        "menu/eti.h",
+        "menu/mf_common.h",
+    ],
+    includes = ["menu"],
+)
+
+cc_library(
+    name = "form",
+    srcs = glob(["form/*.c"]) + [
+        "form/form.priv.h",
+        "ncurses/curses.priv.h",
+    ],
+    hdrs = ["form/form.h"],
+    copts = NCURSES_COPTS,
+    deps = [
+        ":mf_common",
+        ":ncurses",
+    ],
+)
+
+cc_library(
+    name = "menu",
+    srcs = glob(["menu/*.c"]) + [
+        "menu/menu.priv.h",
+        "ncurses/curses.priv.h",
+    ],
+    hdrs = ["menu/menu.h"],
+    copts = NCURSES_COPTS,
+    deps = [
+        ":mf_common",
+        ":ncurses",
+    ],
+)
+
+cc_library(
+    name = "panel",
+    srcs = glob(["panel/*.c"]) + [
+        "panel/panel.priv.h",
+        "ncurses/curses.priv.h",
+    ],
+    hdrs = [
+        "panel/panel.h",
+    ],
+    copts = NCURSES_COPTS,
+    deps = [":ncurses"],
+)
+
+genrule(
+    name = "fallback_c",
+    srcs = [
+        "ncurses/tinfo/MKfallback.sh",
+        "misc/terminfo.src",
+    ],
+    outs = ["ncurses/fallback.c"],
+    cmd = "$(location :ncurses/tinfo/MKfallback.sh) /usr/share/terminfo $(location :misc/terminfo.src) $$(which tic) > $@",
+)
+
+cc_binary(
+    name = "make_hash",
+    srcs = [
+        "ncurses/build.priv.h",
+        "ncurses/curses.priv.h",
+        "ncurses/tinfo/make_hash.c",
+    ],
+    deps = [":ncurses_headers"],
+    copts = NCURSES_COPTS,
+)
+
+genrule(
+    name = "comp_captab_c",
+    srcs = [
+        ":make_hash",
+        "ncurses/tinfo/MKcaptab.sh",
+        "ncurses/tinfo/MKcaptab.awk",
+        "include/Caps",
+    ],
+    outs = ["ncurses/comp_captab.c"],
+    cmd = "cp $(location :make_hash) . && $(location :ncurses/tinfo/MKcaptab.sh) $$(which awk) 1 $(location :ncurses/tinfo/MKcaptab.awk) $(location :include/Caps) > $@",
+)
+
+genrule(
+    name = "comp_userdefs_c",
+    srcs = [
+        ":make_hash",
+        "include/hashsize.h",
+        "ncurses/tinfo/MKuserdefs.sh",
+    ] + CAPLIST,
+    outs = ["ncurses/comp_userdefs.c"],
+    cmd = "cp $(location :make_hash) . && $(location ncurses/tinfo/MKuserdefs.sh) $$(which awk) 1 " + CAPLIST_LOCATIONS + " > $@",
+)
+
+genrule(
+    name = "codes_c",
+    srcs = [
+        "ncurses/tinfo/MKcodes.awk",
+        "include/Caps",
+    ],
+    outs = ["ncurses/codes.c"],
+    cmd = "/usr/bin/env awk -f $(location ncurses/tinfo/MKcodes.awk) bigstrings=1 $(location :include/Caps) > $@",
+)
+
+genrule(
+    name = "names_c",
+    srcs = [
+        "ncurses/tinfo/MKnames.awk",
+        "include/Caps",
+    ],
+    outs = ["ncurses/names.c"],
+    cmd = "/usr/bin/env awk -f $(location :ncurses/tinfo/MKnames.awk) bigstrings=1 $(location :include/Caps) > $@",
+)
+
+genrule(
+    name = "unctrl_c",
+    srcs = [
+        "ncurses/base/MKunctrl.awk",
+    ],
+    outs = ["ncurses/unctrl.c"],
+    cmd = "/usr/bin/env awk -f $(location :ncurses/base/MKunctrl.awk) bigstrings=1 > $@",
+)
+
+cc_binary(
+    name = "make_keys",
+    srcs = [
+        "ncurses/build.priv.h",
+        "ncurses/curses.priv.h",
+        "ncurses/tinfo/make_keys.c",
+    ],
+    deps = [":ncurses_headers"],
+    copts = NCURSES_COPTS,
+)
+
+genrule(
+    name = "keys_list",
+    srcs = [
+        "ncurses/tinfo/MKkeys_list.sh",
+        "include/Caps",
+    ],
+    outs = ["keys.list"],
+    cmd = "$(location :ncurses/tinfo/MKkeys_list.sh) $(location :include/Caps) | LC_ALL=C sort > $@",
+)
+
+genrule(
+    name = "lib_keyname_c",
+    srcs = [
+        "ncurses/base/MKkeyname.awk",
+        "keys.list",
+    ],
+    outs = ["ncurses/lib_keyname.c"],
+    cmd = "/usr/bin/env awk -f $(location :ncurses/base/MKkeyname.awk) bigstrings=1 $(location :keys.list) > $@",
+)
+
+automake_substitution(
+    name = "curses_head",
+    src = "include/curses.h.in",
+    out = "include/curses.head",
+    substitutions = AUTOMAKE_SUBSTITUTIONS,
+)
+
+genrule(
+    name = "curses_h",
+    srcs = [
+        "include/curses.head",
+        "include/curses.tail",
+        "include/curses.wide",
+        "include/MKkey_defs.sh",
+    ] + CAPLIST,
+    outs = ["include/curses.h"],
+    cmd = "cat $(location :include/curses.head) > $@ && AWK=$$(which awk) $(location :include/MKkey_defs.sh) " + CAPLIST_LOCATIONS + " >> $@ && cat $(location :include/curses.wide) $(location :include/curses.tail) >> $@",
+)
+
+genrule(
+    name = "lib_gen_c",
+    srcs = [
+        "ncurses/base/MKlib_gen.sh",
+        "include/curses.h",
+        "include/ncurses_cfg.h",
+        "include/ncurses_def.h",
+    ],
+    outs = ["ncurses/lib_gen.c"],
+    cmd = "$(location :ncurses/base/MKlib_gen.sh) \"$$(which cpp) -isystem $$(dirname $(location :include/ncurses_cfg.h))\" $$(which awk) generated < $(location :include/curses.h) > $@",
+)
+
+genrule(
+    name = "hashsize_h",
+    srcs = [
+        "include/MKhashsize.sh",
+        "include/Caps",
+    ],
+    outs = ["include/hashsize.h"],
+    cmd = "$(location :include/MKhashsize.sh) $(location :include/Caps) > $@",
+)
+
+genrule(
+    name = "init_keytry_h",
+    srcs = [
+        ":make_keys",
+        "keys.list",
+    ],
+    outs = ["ncurses/init_keytry.h"],
+    cmd = "$(location :make_keys) $(location :keys.list) > $@",
+)
+
+automake_substitution(
+    name = "mkterm_h_awk",
+    src = "include/MKterm.h.awk.in",
+    out = "include/MKterm.h.awk",
+    substitutions = AUTOMAKE_SUBSTITUTIONS,
+)
+
+genrule(
+    name = "term_h",
+    srcs = [
+        "include/MKterm.h.awk",
+        "include/Caps",
+    ],
+    outs = ["include/term.h"],
+    cmd = "/usr/bin/env awk -f $(location :include/MKterm.h.awk) $(location :include/Caps) > $@",
+)
+
+genrule(
+    name = "parametrized_h",
+    srcs = [
+        "include/MKparametrized.sh",
+        "include/Caps",
+    ],
+    outs = ["include/parametrized.h"],
+    cmd = "(cd $$(dirname $(location :include/MKparametrized.sh)) && ./MKparametrized.sh) > $@",
+)
+
+genrule(
+    name = "ncurses_def_h",
+    srcs = [
+        "include/MKncurses_def.sh",
+        "include/ncurses_defs",
+    ],
+    outs = ["include/ncurses_def.h"],
+    cmd = "(cd $$(dirname $(location :include/MKncurses_def.sh)) && ./MKncurses_def.sh) > $@",
+)
+
+pseudo_configure(
+    name = "ncurses_cfg_h",
+    src = "include/ncurses_cfg.hin",
+    out = "include/ncurses_cfg.h",
+    defs = ['HAVE_LONG_FILE_NAMES', 'MIXEDCASE_FILENAMES', 'HAVE_BIG_CORE', 'PURE_TERMINFO', 'USE_HOME_TERMINFO', 'USE_ROOT_ENVIRON', 'HAVE_UNISTD_H', 'HAVE_REMOVE', 'HAVE_UNLINK', 'HAVE_LINK', 'HAVE_SYMLINK', 'USE_LINKS', 'HAVE_LANGINFO_CODESET', 'HAVE_FSEEKO', 'STDC_HEADERS', 'HAVE_SYS_TYPES_H', 'HAVE_SYS_STAT_H', 'HAVE_STDLIB_H', 'HAVE_STRING_H', 'HAVE_MEMORY_H', 'HAVE_STRINGS_H', 'HAVE_INTTYPES_H', 'HAVE_STDINT_H', 'HAVE_UNISTD_H', 'SIZEOF_SIGNED_CHAR', 'NCURSES_EXT_FUNCS', 'HAVE_ASSUME_DEFAULT_COLORS', 'HAVE_CURSES_VERSION', 'HAVE_HAS_KEY', 'HAVE_RESIZETERM', 'HAVE_RESIZE_TERM', 'HAVE_TERM_ENTRY_H', 'HAVE_USE_DEFAULT_COLORS', 'HAVE_USE_EXTENDED_NAMES', 'HAVE_USE_SCREEN', 'HAVE_USE_WINDOW', 'HAVE_WRESIZE', 'NCURSES_SP_FUNCS', 'HAVE_TPUTS_SP', 'NCURSES_EXT_PUTWIN', 'NCURSES_NO_PADDING', 'USE_SIGWINCH', 'USE_ASSUMED_COLOR', 'USE_HASHMAP', 'GCC_SCANF', 'GCC_PRINTF', 'HAVE_NC_ALLOC_H', 'HAVE_GETTIMEOFDAY', 'STDC_HEADERS', 'HAVE_DIRENT_H', 'TIME_WITH_SYS_TIME', 'HAVE_REGEX_H_FUNCS', 'HAVE_FCNTL_H', 'HAVE_GETOPT_H', 'HAVE_LIMITS_H', 'HAVE_LOCALE_H', 'HAVE_MATH_H', 'HAVE_POLL_H', 'HAVE_SYS_IOCTL_H', 'HAVE_SYS_PARAM_H', 'HAVE_SYS_POLL_H', 'HAVE_SYS_SELECT_H', 'HAVE_SYS_TIME_H', 'HAVE_SYS_TIMES_H', 'HAVE_TTYENT_H', 'HAVE_UNISTD_H', 'HAVE_WCTYPE_H', 'HAVE_UNISTD_H', 'HAVE_GETOPT_H', 'HAVE_GETOPT_HEADER', 'DECL_ENVIRON', 'HAVE_ENVIRON', 'HAVE_PUTENV', 'HAVE_SETENV', 'HAVE_STRDUP', 'HAVE_SYS_TIME_SELECT', 'HAVE_GETCWD', 'HAVE_GETEGID', 'HAVE_GETEUID', 'HAVE_GETOPT', 'HAVE_GETTTYNAM', 'HAVE_LOCALECONV', 'HAVE_POLL', 'HAVE_PUTENV', 'HAVE_REMOVE', 'HAVE_SELECT', 'HAVE_SETBUF', 'HAVE_SETBUFFER', 'HAVE_SETENV', 'HAVE_SETVBUF', 'HAVE_SIGACTION', 'HAVE_STRDUP', 'HAVE_STRSTR', 'HAVE_SYSCONF', 'HAVE_TCGETPGRP', 'HAVE_TIMES', 'HAVE_TSEARCH', 'HAVE_VSNPRINTF', 'HAVE_ISASCII', 'HAVE_NANOSLEEP', 'HAVE_TERMIO_H', 'HAVE_TERMIOS_H', 'HAVE_UNISTD_H', 'HAVE_SYS_IOCTL_H', 'HAVE_TCGETATTR', 'HAVE_VSSCANF', 'HAVE_UNISTD_H', 'HAVE_MKSTEMP', 'HAVE_SIZECHANGE', 'HAVE_WORKING_POLL', 'HAVE_VA_COPY', 'HAVE_UNISTD_H', 'HAVE_FORK', 'HAVE_VFORK', 'HAVE_WORKING_VFORK', 'HAVE_WORKING_FORK', 'USE_FOPEN_BIN_R', 'USE_XTERM_PTY', 'HAVE_TYPEINFO', 'HAVE_IOSTREAM', 'IOSTREAM_NAMESPACE', 'CPP_HAS_STATIC_CAST', 'HAVE_SLK_COLOR', 'HAVE_PANEL_H', 'HAVE_LIBPANEL', 'HAVE_MENU_H', 'HAVE_LIBMENU', 'HAVE_FORM_H', 'HAVE_LIBFORM', 'NCURSES_OSPEED_COMPAT', 'HAVE_CURSES_DATA_BOOLNAMES'],
+    mappings = {'NC_CONFIG_H': '', 'PACKAGE': '"ncurses"', 'NCURSES_VERSION': '"6.2"', 'NCURSES_PATCHDATE': '20200212', 'SYSTEM_NAME': '"linux-gnu"', 'TERMINFO_DIRS': r'"\/usr\/share\/terminfo"', 'TERMINFO': r'"\/usr\/share\/terminfo"', 'RGB_PATH': r'"\/usr\/share\/X11\/rgb.txt"', 'NCURSES_WRAP_PREFIX': '"_nc_"', 'GCC_SCANFLIKE(fmt,var)': '__attribute__((format(scanf,fmt,var)))', 'GCC_PRINTFLIKE(fmt,var)': '__attribute__((format(printf,fmt,var)))', 'GCC_UNUSED': '__attribute__((unused))', 'GCC_NORETURN': '__attribute__((noreturn))', 'SIG_ATOMIC_T': 'volatile sig_atomic_t', 'USE_OPENPTY_HEADER': '<pty.h>', 'NCURSES_PATHSEP': "0x3a", 'NCURSES_VERSION_STRING': '"6.2.20200212"', 'mbstate_t': 'int'},
+)
+
+cc_test(
+    name = "ncurses_test",
+    srcs = ["@com_google_xls//dependency_support/net_invisible_island_ncurses:ncurses_test.cc"],
+    deps = [
+        ":ncurses",
+    ],
+)

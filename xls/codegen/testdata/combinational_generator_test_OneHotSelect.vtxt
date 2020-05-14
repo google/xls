@@ -1,0 +1,10 @@
+module main(
+  input wire [1:0] p,
+  input wire [15:0] x,
+  input wire [15:0] y,
+  output wire [15:0] out
+);
+  wire [15:0] one_hot_sel_1;
+  assign one_hot_sel_1 = x & {16{p[0]}} | y & {16{p[1]}};
+  assign out = one_hot_sel_1;
+endmodule

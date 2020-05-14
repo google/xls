@@ -1,0 +1,166 @@
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Common utilities for filesystem interaction shared among XLA subfolders.
+
+# cc_proto_library is used in this file
+
+package(
+    default_visibility = ["//xls:xls_internal"],
+    licenses = ["notice"],  # Apache 2.0
+)
+
+cc_library(
+    name = "file_descriptor",
+    hdrs = ["file_descriptor.h"],
+)
+
+cc_test(
+    name = "file_descriptor_test",
+    srcs = ["file_descriptor_test.cc"],
+    deps = [
+        ":file_descriptor",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "filesystem",
+    srcs = ["filesystem.cc"],
+    hdrs = ["filesystem.h"],
+    deps = [
+        "@com_google_absl//absl/status",
+        "//xls/common/logging",
+        "//xls/common/status:error_code_to_status",
+        "//xls/common/status:status_macros",
+        "//xls/common/status:statusor",
+        "@com_google_protobuf//:protobuf",
+    ],
+)
+
+cc_test(
+    name = "filesystem_test",
+    srcs = ["filesystem_test.cc"],
+    deps = [
+        ":filesystem",
+        ":filesystem_test_cc_proto",
+        ":temp_directory",
+        ":temp_file",
+        "//xls/common/status:matchers",
+        "//xls/common/status:statusor",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+proto_library(
+    name = "filesystem_test_proto",
+    srcs = ["filesystem_test.proto"],
+)
+
+cc_proto_library(
+    name = "filesystem_test_cc_proto",
+    deps = [":filesystem_test_proto"],
+)
+
+cc_library(
+    name = "get_runfile_path",
+    srcs = ["get_runfile_path.cc"],
+    hdrs = ["get_runfile_path.h"],
+    deps = [
+        "//xls/common:module_initializer",
+        "//xls/common/logging",
+        "@bazel_tools//tools/cpp/runfiles",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+cc_test(
+    name = "get_runfile_path_test",
+    srcs = ["get_runfile_path_test.cc"],
+    data = ["get_runfile_path_test.cc"],
+    deps = [
+        ":filesystem",
+        ":get_runfile_path",
+        "//xls/common/status:matchers",
+        "//xls/common/status:statusor",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "path",
+    srcs = ["path.cc"],
+    hdrs = ["path.h"],
+    deps = [
+        "//xls/common/status:error_code_to_status",
+        "//xls/common/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "path_test",
+    srcs = ["path_test.cc"],
+    deps = [
+        ":path",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "temp_directory",
+    srcs = ["temp_directory.cc"],
+    hdrs = ["temp_directory.h"],
+    deps = [
+        "@com_google_absl//absl/strings",
+        "//xls/common/logging",
+        "//xls/common/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "temp_directory_test",
+    srcs = ["temp_directory_test.cc"],
+    deps = [
+        ":filesystem",
+        ":temp_directory",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "temp_file",
+    srcs = ["temp_file.cc"],
+    hdrs = ["temp_file.h"],
+    deps = [
+        "@com_google_absl//absl/strings",
+        "//xls/common:strerror",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/common/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "temp_file_test",
+    srcs = ["temp_file_test.cc"],
+    deps = [
+        ":filesystem",
+        ":temp_file",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

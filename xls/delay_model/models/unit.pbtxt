@@ -1,0 +1,64 @@
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# proto-file: third_party/xls/delay_model/delay_model.proto
+# proto-message: xls.delay_model.DelayModel
+
+# Dummy "unit" model for testing. All operations have unit latency (1ps).
+op_models { op: "kAdd" estimator { fixed: 1 } }
+op_models { op: "kAnd" estimator { fixed: 1 } }
+op_models { op: "kAndReduce" estimator { fixed: 1 } }
+op_models { op: "kNand" estimator { fixed: 1 } }
+op_models { op: "kNor" estimator { fixed: 1 } }
+op_models { op: "kArray" estimator { fixed: 1 } }
+op_models { op: "kArrayIndex" estimator { fixed: 1 } }
+op_models { op: "kBitSlice" estimator { fixed: 1 } }
+op_models { op: "kConcat" estimator { fixed: 1 } }
+op_models { op: "kDecode" estimator { fixed: 1 } }
+op_models { op: "kEncode" estimator { fixed: 1 } }
+op_models { op: "kEq" estimator { fixed: 1 } }
+op_models { op: "kIdentity" estimator { fixed: 1 } }
+op_models { op: "kLiteral" estimator { fixed: 1 } }
+op_models { op: "kNe" estimator { fixed: 1 } }
+op_models { op: "kNeg" estimator { fixed: 1 } }
+op_models { op: "kNot" estimator { fixed: 1 } }
+op_models { op: "kOneHot" estimator { fixed: 1 } }
+op_models { op: "kOneHotSel" estimator { fixed: 1 } }
+op_models { op: "kOr" estimator { fixed: 1 } }
+op_models { op: "kOrReduce" estimator { fixed: 1 } }
+op_models { op: "kParam" estimator { fixed: 1 } }
+op_models { op: "kReverse" estimator { fixed: 1 } }
+op_models { op: "kSDiv" estimator { fixed: 1 } }
+op_models { op: "kSel" estimator { fixed: 1 } }
+op_models { op: "kSGe" estimator { fixed: 1 } }
+op_models { op: "kSGt" estimator { fixed: 1 } }
+op_models { op: "kShll" estimator { fixed: 1 } }
+op_models { op: "kShrl" estimator { fixed: 1 } }
+op_models { op: "kShra" estimator { fixed: 1 } }
+op_models { op: "kSignExt" estimator { fixed: 1 } }
+op_models { op: "kSLe" estimator { fixed: 1 } }
+op_models { op: "kSLt" estimator { fixed: 1 } }
+op_models { op: "kSMul" estimator { fixed: 1 } }
+op_models { op: "kSub" estimator { fixed: 1 } }
+op_models { op: "kTuple" estimator { fixed: 1 } }
+op_models { op: "kTupleIndex" estimator { fixed: 1 } }
+op_models { op: "kUDiv" estimator { fixed: 1 } }
+op_models { op: "kUGe" estimator { fixed: 1 } }
+op_models { op: "kUGt" estimator { fixed: 1 } }
+op_models { op: "kULe" estimator { fixed: 1 } }
+op_models { op: "kULt" estimator { fixed: 1 } }
+op_models { op: "kUMul" estimator { fixed: 1 } }
+op_models { op: "kXor" estimator { fixed: 1 } }
+op_models { op: "kXorReduce" estimator { fixed: 1 } }
+op_models { op: "kZeroExt" estimator { fixed: 1 } }
