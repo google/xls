@@ -24,6 +24,7 @@ cc_binary(
     srcs = ["src/base/main/main.c"],
     includes = ["src/"],
     deps = [":abc-lib"],
+    visibility = ["//visibility:public"],
 )
 
 cc_library(
@@ -1176,4 +1177,5 @@ cc_library(
     deps = [
         "@dk_thrysoee_libedit//:pretend_to_be_gnu_readline_system",
     ],
+    visibility = ["//visibility:public"],
 )

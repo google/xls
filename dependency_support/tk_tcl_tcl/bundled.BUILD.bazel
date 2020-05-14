@@ -213,6 +213,7 @@ cc_library(
         ":tclUnixInit",
         "@zlib//:zlib",
     ],
+    visibility = ["//visibility:public"],
 )
 
 # tcl shell
@@ -229,4 +230,5 @@ cc_binary(
         ":tclPkgConfig",
         ":tclUnixInit",
     ],
+    visibility = ["//visibility:public"],
 )

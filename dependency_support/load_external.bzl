@@ -27,6 +27,7 @@ load("//dependency_support:org_sourceware_libffi/workspace.bzl", repo_libffi = "
 load("//dependency_support/org_gnu_m4:workspace.bzl", repo_m4 = "repo")
 load("//dependency_support/net_invisible_island_ncurses:workspace.bzl", repo_ncurses = "repo")
 load("//dependency_support:tk_tcl_tcl/workspace.bzl", repo_tcl = "repo")
+load("//dependency_support/at_clifford_yosys:workspace.bzl", repo_yosys = "repo")
 
 def load_external_repositories():
     """Loads external repositories with third-party code."""
@@ -41,6 +42,7 @@ def load_external_repositories():
     repo_m4()
     repo_ncurses()
     repo_tcl()
+    repo_yosys()
 
     http_archive(
         name = "com_google_googletest",
