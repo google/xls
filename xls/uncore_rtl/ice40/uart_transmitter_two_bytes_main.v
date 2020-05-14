@@ -14,7 +14,7 @@
 
 // Writes "ABC" onto the terminal via UART.
 
-`include "xls/ip/ice40/uart_transmitter.v"
+`include "xls/uncore_rtl/ice40/uart_transmitter.v"
 
 module top(
   input wire clk,

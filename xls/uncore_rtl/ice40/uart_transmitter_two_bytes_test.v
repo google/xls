@@ -13,7 +13,7 @@
 // limitations under the License.
 
 `timescale 1 ns / 1 ps
-`include "xls/ip/ice40/uart_transmitter.v"
+`include "xls/uncore_rtl/ice40/uart_transmitter.v"
 
 `ifndef CLOCKS_PER_BAUD
   `define CLOCKS_PER_BAUD 2
@@ -55,7 +55,7 @@ module uart_transmitter_two_bytes_test;
     forever #1 clk = !clk;
   end
 
-  `include "xls/ip/ice40/xls_assertions.inc"
+  `include "xls/uncore_rtl/ice40/xls_assertions.inc"
 
   // Make sure we finish after some reasonable amount of time.
   initial begin

@@ -24,7 +24,7 @@ namespace {
 
 using absl::StrCat;
 
-static const char* const kIce40Dir = "third_party/xls/ip/ice40/";
+static const char* const kIce40Dir = "third_party/xls/uncore_rtl/ice40/";
 
 TEST(VastTest, SanitizeIdentifier) {
   EXPECT_EQ("foo", SanitizeIdentifier("foo"));
@@ -489,8 +489,8 @@ TEST(VastTest, EmitIdent8bMain) {
   af->AddRegister(tx_byte_valid, tx_byte_valid_next);
 
   EXPECT_EQ(f.Emit(),
-            R"(`include "third_party/xls/ip/ice40/uart_receiver.v"
-`include "third_party/xls/ip/ice40/uart_transmitter.v"
+            R"(`include "third_party/xls/uncore_rtl/ice40/uart_receiver.v"
+`include "third_party/xls/uncore_rtl/ice40/uart_transmitter.v"
 module top(
   input wire clk,
   input wire rx_in,

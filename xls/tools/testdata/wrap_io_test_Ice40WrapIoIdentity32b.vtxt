@@ -4,8 +4,8 @@ module device_to_wrap(
 );
   assign out = in;
 endmodule
-`include "third_party/xls/ip/ice40/uart_receiver.v"
-`include "third_party/xls/ip/ice40/uart_transmitter.v"
+`include "third_party/xls/uncore_rtl/ice40/uart_receiver.v"
+`include "third_party/xls/uncore_rtl/ice40/uart_transmitter.v"
 module input_resetter(
   input wire clk,
   input wire [7:0] byte_in,

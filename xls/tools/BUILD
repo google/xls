@@ -163,7 +163,7 @@ cc_library(
     name = "ice40_io_strategy",
     srcs = ["ice40_io_strategy.cc"],
     hdrs = ["ice40_io_strategy.h"],
-    data = ["//xls/ip/ice40:iceprog_includes"],
+    data = ["//xls/uncore_rtl/ice40:iceprog_includes"],
     deps = [
         ":wrap_io",
         "@com_google_absl//absl/status",

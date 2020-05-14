@@ -16,7 +16,7 @@
 // receiver and checks it is properly received / obeying its interface
 // protocol.
 
-`include "xls/ip/ice40/uart_receiver.v"
+`include "xls/uncore_rtl/ice40/uart_receiver.v"
 
 module uart_receiver_test;
   localparam TicksPerClock = 2;
@@ -55,7 +55,7 @@ module uart_receiver_test;
     forever #1 clk = !clk;
   end
 
-  `include "xls/ip/ice40/xls_assertions.inc"
+  `include "xls/uncore_rtl/ice40/xls_assertions.inc"
 
   // Make sure we finish after some reasonable amount of time.
   initial begin

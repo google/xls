@@ -15,7 +15,7 @@
 // Wraps the ICE40 top-level with monitors/ wave dumping for debugging
 // purposes.
 
-`include "xls/ip/ice40/uart_transmitter_two_bytes_main.v"
+`include "xls/uncore_rtl/ice40/uart_transmitter_two_bytes_main.v"
 
 module top_wrapper;
   reg clk = 0;

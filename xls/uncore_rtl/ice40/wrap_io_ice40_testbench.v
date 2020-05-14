@@ -13,7 +13,7 @@
 // limitations under the License.
 
 `define DEFAULT_CLOCKS_PER_BAUD 8
-`include "xls/ip/ice40/wrap_io_ice40_add1_8b.v"
+`include "xls/uncore_rtl/ice40/wrap_io_ice40_add1_8b.v"
 
 module tb;
   integer i;
@@ -22,7 +22,7 @@ module tb;
   wire tx_out;
   wire clear_to_send_out_n;
 
-  `include "xls/ip/ice40/xls_assertions.inc"
+  `include "xls/uncore_rtl/ice40/xls_assertions.inc"
 
   localparam ClocksPerBaud = `DEFAULT_CLOCKS_PER_BAUD;
   localparam TicksPerClock = 2;

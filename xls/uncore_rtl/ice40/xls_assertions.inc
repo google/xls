@@ -1,7 +1,7 @@
 // Assertions to be `included into Verilog testbench modules for testing.
 //
-// TODO(leary): Move to third_party/xls/ip/common/xls_assertions.inc when we
-// have a way to package up verilog modules for iverilog usage.
+// TODO(leary): Move to third_party/xls/uncore_rtl/common/xls_assertions.inc
+// when we have a way to package up verilog modules for iverilog usage.
 
 task automatic xls_assert(
   input want,

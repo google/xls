@@ -141,7 +141,7 @@ genrule(
     ],
     outs = ["wrap_io_ice40_add1_8b.v"],
     cmd = """$(location //xls/tools:wrap_io_main) \\
-        -include xls/ip/ice40/add1_8b.v \\
+        -include xls/uncore_rtl/ice40/add1_8b.v \\
         -signature_proto_path $(location add1_8b.add1_8b.sig) \\
         -wrapped_module_name add1_8b \\
         -target_device ice40 > $(OUTS)
@@ -157,7 +157,7 @@ iverilog_test(
         "uart_transmitter.v",
         "wrap_io_ice40_testbench.v",
         "xls_assertions.inc",
-        "//xls/ip/ice40:wrap_io_ice40_add1_8b",
+        "//xls/uncore_rtl/ice40:wrap_io_ice40_add1_8b",
     ],
     main = "wrap_io_ice40_testbench.v",
     top = "tb",
@@ -173,7 +173,7 @@ genrule(
     ],
     outs = ["wrap_io_ice40_add1_8b_ready_valid.v"],
     cmd = """$(location //xls/tools:wrap_io_main) \\
-        -include $(location //xls/ip/ice40:add1_8b_ready_valid.v) \\
+        -include $(location //xls/uncore_rtl/ice40:add1_8b_ready_valid.v) \\
         -signature_proto_path $(location add1_8b.add1_8b.ready_valid.sig) \\
         -wrapped_module_name add1_8b \\
         -target_device ice40 > $(OUTS)
@@ -189,11 +189,11 @@ iverilog_test(
         "uart_transmitter.v",
         "wrap_io_ice40_add1_8b_ready_valid_testbench.v",
         "xls_assertions.inc",
-        "//xls/ip/ice40:wrap_io_ice40_add1_8b_ready_valid",
+        "//xls/uncore_rtl/ice40:wrap_io_ice40_add1_8b_ready_valid",
     ],
     main = "wrap_io_ice40_add1_8b_ready_valid_testbench.v",
     tick_defines = {
-        "INCLUDE": r"\`include \"xls/ip/ice40/wrap_io_ice40_add1_8b_ready_valid.v\"",
+        "INCLUDE": r"\`include \"xls/uncore_rtl/ice40/wrap_io_ice40_add1_8b_ready_valid.v\"",
     },
     top = "tb",
 )
@@ -208,7 +208,7 @@ genrule(
     ],
     outs = ["wrap_io_ice40_repeat_byte_4.v"],
     cmd = """$(location //xls/tools:wrap_io_main) \\
-        -include xls/ip/ice40/repeat_byte_4.v \\
+        -include xls/uncore_rtl/ice40/repeat_byte_4.v \\
         -signature_proto_path $(location repeat_byte_4.repeat_byte_4.sig) \\
         -wrapped_module_name repeat_byte_4 \\
         -target_device ice40 > $(OUTS)
@@ -224,7 +224,7 @@ iverilog_test(
         "uart_transmitter.v",
         "wrap_io_ice40_repeat_byte_4_testbench.v",
         "xls_assertions.inc",
-        "//xls/ip/ice40:wrap_io_ice40_repeat_byte_4",
+        "//xls/uncore_rtl/ice40:wrap_io_ice40_repeat_byte_4",
     ],
     main = "wrap_io_ice40_repeat_byte_4_testbench.v",
     top = "tb",

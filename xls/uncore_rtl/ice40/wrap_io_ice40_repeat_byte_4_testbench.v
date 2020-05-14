@@ -13,7 +13,7 @@
 // limitations under the License.
 
 `define DEFAULT_CLOCKS_PER_BAUD 8
-`include "xls/ip/ice40/wrap_io_ice40_add1_8b_ready_valid.v"
+`include "xls/uncore_rtl/ice40/wrap_io_ice40_repeat_byte_4.v"
 
 module tb;
   integer i;
@@ -22,7 +22,7 @@ module tb;
   wire tx_out;
   wire clear_to_send_out_n;
 
-  `include "xls/ip/ice40/xls_assertions.inc"
+  `include "xls/uncore_rtl/ice40/xls_assertions.inc"
 
   localparam ClocksPerBaud = `DEFAULT_CLOCKS_PER_BAUD;
   localparam TicksPerClock = 2;
@@ -44,17 +44,17 @@ module tb;
 
   // Make sure we finish after some reasonable amount of time.
   initial begin
-    #1024 begin
+    #2048 begin
       $display("ERROR: timeout, simulation ran too long");
       $finish;
     end
   end
 
   initial begin
-    //$dumpfile("wrap_io_ice40_testbench.vcd");
+    //$dumpfile("/tmp/wrap_io_ice40_repeat_byte_4_testbench.vcd");
     //$dumpvars(0, clk, rx_in, tx_out, clear_to_send_out_n, dut.state,
     //dut.state_next, dut.state_counter, dut.rx_byte, dut.rx_byte_valid,
-    //dut.rx_byte_done, dut.tx_byte, dut.tx_byte_valid, dut.flat_input,
+    //dut.rx_byte_done, dut.tx_byte, dut.tx_byte_valid, dut.tx_byte_ready, dut.flat_input,
     //dut.flat_input_next, dut.flat_output);
     $display("Starting...\n");
     $monitor("%t: rx_byte: %b tx: %b cts_n: %b", $time, dut.rx_byte, tx_out, clear_to_send_out_n);
@@ -72,26 +72,46 @@ module tb;
     end
     rx_in <= 1;
 
+    // Check the first output byte.
+    $display("=== Checking byte 0.");
     wait (!tx_out);
     #(TicksPerClock*ClocksPerBaud+1);  // start bit
     for (i = 0; i < 8; i = i + 1) begin
+      $display("Checking DUT output bit %d", i);
+      xls_assert(((8'h59>>i)&1), tx_out, "receiving from testbench");
+      #(TicksPerClock*ClocksPerBaud);
+    end
+
+    // Check the second output byte.
+    $display("=== Checking byte 1.");
+    wait (!tx_out);
+    #(TicksPerClock*ClocksPerBaud+1);  // start bit
+    for (i = 0; i < 8; i = i + 1) begin
+      $display("Checking DUT output bit %d", i);
+      xls_assert(((8'h58>>i)&1), tx_out, "receiving from testbench");
+      #(TicksPerClock*ClocksPerBaud);
+    end
+
+    // Check the third output byte.
+    $display("=== Checking byte 2.");
+    wait (!tx_out);
+    #(TicksPerClock*ClocksPerBaud+1);  // start bit
+    for (i = 0; i < 8; i = i + 1) begin
+      $display("Checking DUT output bit %d", i);
+      xls_assert(((8'h57>>i)&1), tx_out, "receiving from testbench");
+      #(TicksPerClock*ClocksPerBaud);
+    end
+
+    // Check the fourth output byte.
+    $display("=== Checking byte 3.");
+    wait (!tx_out);
+    #(TicksPerClock*ClocksPerBaud+1);  // start bit
+    for (i = 0; i < 8; i = i + 1) begin
+      $display("Checking DUT output bit %d", i);
       xls_assert(((8'h56>>i)&1), tx_out, "receiving from testbench");
       #(TicksPerClock*ClocksPerBaud);
     end
 
-    rx_in <= 0;
-    $display("Start bit; holding for %d", TicksPerClock*ClocksPerBaud);
-    #(TicksPerClock*ClocksPerBaud);
-    $display("Starting pattern.");
-    for (i = 0; i < 8; i = i + 1) begin
-      xls_assert(clear_to_send_out_n, 1, "transmitting from testbench");
-      rx_in <= ((i+1) % 2 == 0);
-      #(TicksPerClock*ClocksPerBaud);
-    end
-    rx_in <= 1;
-
-    #(TicksPerClock*ClocksPerBaud);
-    xls_assert(clear_to_send_out_n, 0, "clear to send after transmit");
     $finish;
   end
 

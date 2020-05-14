@@ -15,8 +15,8 @@
 // Implements the "identity" (often abbreviated as ident) function for 8-bit
 // inputs. That is, buffers up four bytes and then sends them back.
 
-`include "xls/ip/ice40/uart_receiver.v"
-`include "xls/ip/ice40/uart_transmitter.v"
+`include "xls/uncore_rtl/ice40/uart_receiver.v"
+`include "xls/uncore_rtl/ice40/uart_transmitter.v"
 
 module top(
   input wire clk,
