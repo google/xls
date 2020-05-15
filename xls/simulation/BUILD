@@ -167,7 +167,7 @@ cc_library(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/strings",
         "//xls/common/status:statusor",
-        "//xls/simulation/simulators:iverilog_simulator",  # build_cleaner: keep
+        "//xls/simulation/simulators:iverilog_simulator",
     ],
 )
 

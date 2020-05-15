@@ -159,6 +159,24 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "wrap_io_test",
+    srcs = ["wrap_io_test.cc"],
+    data = glob(["testdata/wrap_io_test_*.vtxt"]),
+    deps = [
+        ":ice40_io_strategy",
+        ":null_io_strategy",
+        ":wrap_io",
+        "//xls/codegen:module_signature",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/simulation:module_testbench",
+        "//xls/simulation:verilog_simulators",
+        "//xls/simulation:verilog_test_base",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
 cc_library(
     name = "ice40_io_strategy",
     srcs = ["ice40_io_strategy.cc"],

@@ -78,10 +78,10 @@ cc_library(
     srcs = ["get_runfile_path.cc"],
     hdrs = ["get_runfile_path.h"],
     deps = [
+        "@com_google_absl//absl/status",
         "//xls/common:module_initializer",
         "//xls/common/logging",
         "@bazel_tools//tools/cpp/runfiles",
-        "@com_google_absl//absl/status",
     ],
 )
 

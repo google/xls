@@ -220,7 +220,7 @@ py_test(
 
 generate_crasher_regression_tests(
     srcs = glob(["crashers/*"]),
-    prefix = "xls/dslx/fuzzer",
+    prefix = package_name(),
 )
 
 py_library(
@@ -268,8 +268,8 @@ py_binary(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":cli_helpers",
         ":ast_generator",
+        ":cli_helpers",
         ":run_fuzz_multiprocess_lib",
         ":sample",
         "@com_google_absl_py//absl:app",
