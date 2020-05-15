@@ -45,7 +45,7 @@ fn main(x: bits[32]) -> bits[32] {
 """
 
 
-class CodeGenMainTest(test_base.XlsTestCase):
+class OptMainTest(test_base.XlsTestCase):
 
   def test_no_options(self):
     ir_file = self.create_tempfile(content=ADD_ZERO_IR)

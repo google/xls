@@ -60,6 +60,9 @@ class XlsTestCase(unittest.TestCase):
       f.flush()
     return f
 
+  def create_tempdir(self) -> str:
+    return tempfile.mkdtemp()
+
 
 def create_named_output_text_file(name: str):
   return tempfile.NamedTemporaryFile(suffix=name, delete=False).name

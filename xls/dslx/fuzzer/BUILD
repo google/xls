@@ -407,3 +407,15 @@ proto_library(
     name = "sample_summary_proto",
     srcs = ["sample_summary.proto"],
 )
+
+py_test(
+    name = "run_fuzz_multiprocess_test",
+    srcs = ["run_fuzz_multiprocess_test.py"],
+    data = [":run_fuzz_multiprocess"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+    ],
+)
