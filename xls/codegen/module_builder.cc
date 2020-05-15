@@ -17,6 +17,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "xls/codegen/flattening.h"
+#include "xls/codegen/lint_annotate.h"
 #include "xls/codegen/node_expressions.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/logging/logging.h"
@@ -521,6 +522,8 @@ VerilogFunction* DefineSmulFunction(Node* node, absl::string_view function_name,
   XLS_CHECK_EQ(node->op(), Op::kSMul);
   VerilogFile* file = section->file();
 
+  ScopedLintDisable lint_disable(section, {Lint::kSignedType, Lint::kMultiply});
+
   VerilogFunction* func =
       section->Add<VerilogFunction>(function_name, node->BitCountOrDie(), file);
   XLS_CHECK_EQ(node->operand_count(), 2);
@@ -557,6 +560,8 @@ VerilogFunction* DefineUmulFunction(Node* node, absl::string_view function_name,
                                     ModuleSection* section) {
   XLS_CHECK_EQ(node->op(), Op::kUMul);
   VerilogFile* file = section->file();
+
+  ScopedLintDisable lint_disable(section, {Lint::kMultiply});
 
   VerilogFunction* func =
       section->Add<VerilogFunction>(function_name, node->BitCountOrDie(), file);

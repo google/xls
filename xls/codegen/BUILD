@@ -232,11 +232,22 @@ cc_library(
 )
 
 cc_library(
+    name = "lint_annotate",
+    srcs = ["lint_annotate.cc"],
+    hdrs = ["lint_annotate.h"],
+    deps = [
+        ":vast",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_library(
     name = "module_builder",
     srcs = ["module_builder.cc"],
     hdrs = ["module_builder.h"],
     deps = [
         ":flattening",
+        ":lint_annotate",
         ":node_expressions",
         ":vast",
         "@com_google_absl//absl/container:flat_hash_map",
