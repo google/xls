@@ -105,7 +105,8 @@ def generate_arguments(arg_types: Sequence[ConcreteType],
   return tuple(args)
 
 
-def generate_codegen_args(rng: Random) -> Tuple[Text, ...]:
+def generate_codegen_args(use_system_verilog: bool,
+                          rng: Random) -> Tuple[Text, ...]:
   """Returns randomly generated arguments for running codegen.
 
   These arguments are flags which are passed to codegen_main for generating
@@ -113,15 +114,24 @@ def generate_codegen_args(rng: Random) -> Tuple[Text, ...]:
   feed-forward pipeline of a randome length.
 
   Args:
+    use_system_verilog: Whether to use SystemVerilog.
     rng: Random number generator.
 
   Returns:
     Tuple of arguments to pass to codegen_main.
   """
+  args = []
+  if use_system_verilog:
+    args.append('--use_system_verilog')
+  else:
+    args.append('--nouse_system_verilog')
   if rng.random() < 0.2:
-    return ('--generator=combinational',)
-  return ('--generator=pipeline',
-          '--pipeline_stages=' + str(rng.randint(1, 10)))
+    args.append('--generator=combinational')
+  else:
+    args.extend([
+        '--generator=pipeline', '--pipeline_stages=' + str(rng.randint(1, 10))
+    ])
+  return tuple(args)
 
 
 def generate_sample(rng: Random, ast_options: ast_generator.AstGeneratorOptions,
@@ -149,6 +159,7 @@ def generate_sample(rng: Random, ast_options: ast_generator.AstGeneratorOptions,
   options = default_options._replace(input_is_dslx=True)
   if options.codegen and not options.codegen_args:
     # Generate codegen args if codegen is given but no codegen args specified.
-    options = options._replace(codegen_args=generate_codegen_args(rng))
+    options = options._replace(
+        codegen_args=generate_codegen_args(options.use_system_verilog, rng))
 
   return sample.Sample(dslx_text, options, args_batch)

@@ -80,6 +80,8 @@ ABSL_FLAG(int64, clock_margin_percent, 0,
           "The percentage of clock period to set aside as a margin to ensure "
           "timing is met. Effectively, this lowers the clock period by this "
           "percentage amount for the purposes of scheduling.");
+ABSL_FLAG(bool, use_system_verilog, true,
+          "If true, emit SystemVerilog otherwise emit Verilog.");
 
 namespace xls {
 namespace {
@@ -131,6 +133,8 @@ absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
     if (!absl::GetFlag(FLAGS_module_name).empty()) {
       pipeline_options.module_name(absl::GetFlag(FLAGS_module_name));
     }
+    pipeline_options.use_system_verilog(
+        absl::GetFlag(FLAGS_use_system_verilog));
     if (!absl::GetFlag(FLAGS_input_valid_signal).empty()) {
       pipeline_options.valid_control(absl::GetFlag(FLAGS_input_valid_signal),
                                      absl::GetFlag(FLAGS_output_valid_signal));
@@ -142,7 +146,9 @@ absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
         result, verilog::ToPipelineModuleText(*scheduling_unit.schedule, main,
                                               pipeline_options));
   } else if (absl::GetFlag(FLAGS_generator) == "combinational") {
-    XLS_ASSIGN_OR_RETURN(result, verilog::ToCombinationalModuleText(main));
+    XLS_ASSIGN_OR_RETURN(result,
+                         verilog::ToCombinationalModuleText(
+                             main, absl::GetFlag(FLAGS_use_system_verilog)));
   } else {
     XLS_LOG(QFATAL) << absl::StreamFormat(
         "Invalid value for --generator: %s. Expected 'pipeline' or "

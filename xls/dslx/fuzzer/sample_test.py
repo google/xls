@@ -14,6 +14,7 @@
 #
 # Lint as: python3
 
+import json
 import textwrap
 
 from xls.dslx.fuzzer import sample
@@ -44,20 +45,23 @@ class SampleTest(absltest.TestCase):
             tuple(Value.make_ubits(8, v) for v in (0x42, 0x43, 0x44))),))
 
   def test_options_to_json(self):
-    self.assertEqual(
+    sample_json = json.loads(
         sample.SampleOptions(
             codegen=True,
             codegen_args=('--generator=pipeline', '--pipeline_stages=2'),
             simulate=True,
-            simulator='iverilog').to_json(),
-        '{"input_is_dslx": true, "convert_to_ir": true, "optimize_ir": true, "use_jit": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=2"], "simulate": true, "simulator": "iverilog"}'
-    )
+            simulator='iverilog').to_json())
+    self.assertEqual(sample_json['input_is_dslx'], True)
+    self.assertEqual(sample_json['codegen'], True)
+    self.assertSequenceEqual(sample_json['codegen_args'],
+                             ('--generator=pipeline', '--pipeline_stages=2'))
+    self.assertEqual(sample_json['simulator'], 'iverilog')
 
   def test_options_from_json(self):
     json_text = ('{"input_is_dslx": true, "convert_to_ir": true, "optimize_ir":'
                  ' true, "use_jit": true, "codegen": true, "codegen_args": '
                  '["--generator=pipeline", "--pipeline_stages=2"], "simulate": '
-                 'false, "simulator": null}')
+                 'false, "simulator": null, "use_system_verilog": true}')
     expected_object = sample.SampleOptions(
         input_is_dslx=True,
         convert_to_ir=True,
@@ -66,7 +70,8 @@ class SampleTest(absltest.TestCase):
         codegen=True,
         codegen_args=('--generator=pipeline', '--pipeline_stages=2'),
         simulate=False,
-        simulator=None)
+        simulator=None,
+        use_system_verilog=True)
     self.assertEqual(sample.SampleOptions.from_json(json_text), expected_object)
     self.assertEqual(
         sample.SampleOptions.from_json(json_text).to_json(), json_text)
@@ -79,13 +84,14 @@ class SampleTest(absltest.TestCase):
             codegen=True,
             codegen_args=('--generator=pipeline', '--pipeline_stages=2'),
             simulate=True,
-            simulator='goat simulator'),
+            simulator='goat simulator',
+            use_system_verilog=True),
         sample.parse_args_batch(
             'bits[8]:42; bits[8]:11\nbits[8]:44; bits[8]:99'))
     self.assertEqual(
         s.to_crasher(),
         textwrap.dedent("""\
-        // options: {"input_is_dslx": true, "convert_to_ir": true, "optimize_ir": true, "use_jit": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=2"], "simulate": true, "simulator": "goat simulator"}
+        // options: {"input_is_dslx": true, "convert_to_ir": true, "optimize_ir": true, "use_jit": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=2"], "simulate": true, "simulator": "goat simulator", "use_system_verilog": true}
         // args: bits[8]:0x2a; bits[8]:0xb
         // args: bits[8]:0x2c; bits[8]:0x63
         fn main(x: u8, y: u8) -> u8 {
@@ -95,7 +101,7 @@ class SampleTest(absltest.TestCase):
 
   def test_from_ir_crasher_with_codegen(self):
     crasher = textwrap.dedent("""\
-    // options: {"input_is_dslx": false, "convert_to_ir": false, "optimize_ir": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=2"], "simulate": true, "simulator": "goat simulator"}
+    // options: {"input_is_dslx": false, "convert_to_ir": false, "optimize_ir": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=2"], "simulate": true, "simulator": "goat simulator", "use_system_verilog": false}
     // args: bits[8]:0x2a; bits[8]:0xb
     // args: bits[8]:0x2c; bits[8]:0x63
     package foo
@@ -118,13 +124,14 @@ class SampleTest(absltest.TestCase):
                 codegen=True,
                 codegen_args=('--generator=pipeline', '--pipeline_stages=2'),
                 simulate=True,
-                simulator='goat simulator'),
+                simulator='goat simulator',
+                use_system_verilog=False),
             sample.parse_args_batch(
                 'bits[8]:0x2a; bits[8]:0xb\nbits[8]:0x2c; bits[8]:0x63')))
 
   def test_from_crasher_without_codegen(self):
     crasher = textwrap.dedent("""\
-      // options: {"input_is_dslx": false, "convert_to_ir": false, "optimize_ir": true, "codegen": true, "codegen_args": null, "simulate": false, "simulator": null}
+      // options: {"input_is_dslx": false, "convert_to_ir": false, "optimize_ir": true, "codegen": true, "codegen_args": null, "simulate": false, "simulator": null, "use_system_verilog": true}
       // args: bits[8]:0x2a; bits[8]:0xb
       // args: bits[8]:0x2c; bits[8]:0x63
       package foo
@@ -145,7 +152,8 @@ class SampleTest(absltest.TestCase):
                 codegen=True,
                 codegen_args=None,
                 simulate=False,
-                simulator=None),
+                simulator=None,
+                use_system_verilog=True),
             sample.parse_args_batch(
                 'bits[8]:0x2a; bits[8]:0xb\nbits[8]:0x2c; bits[8]:0x63')))
 

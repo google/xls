@@ -35,4 +35,5 @@ def remove(path: str) -> None:
 
 
 def make_dirs(path: str) -> None:
-  os.makedirs(path)
+  if not os.path.isdir(path):
+    os.makedirs(path)

@@ -73,14 +73,15 @@ class RunFuzzMultiprocessTest(test_base.XlsTestCase):
     self.assertSequenceEqual(
         sorted(os.listdir(samples_path)), sorted((str(i) for i in range(20))))
 
-  def test_codegenand_and_simulate(self):
+  def test_codegen_and_simulate(self):
     crasher_path = self.create_tempdir()
     samples_path = self.create_tempdir()
 
     subprocess.check_call([
         RUN_FUZZ_MULTIPROCESS_PATH, '--seed=42', '--crash_path=' + crasher_path,
         '--save_temps_path=' + samples_path, '--sample_count=2',
-        '--calls_per_sample=3', '--worker_count=1', '--codegen', '--simulate'
+        '--calls_per_sample=3', '--worker_count=1', '--codegen', '--simulate',
+        '--nouse_system_verilog'
     ])
     # Sanity check sample 1 directory.
     sample1_contents = os.listdir(os.path.join(samples_path, '1'))

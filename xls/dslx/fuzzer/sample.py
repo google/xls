@@ -78,6 +78,7 @@ class SampleOptions(NamedTuple):
     simulate: Run the Verilog simulator on the generated Verilog. Requires
       codegen to be True.
     simulator: The Verilog simulator to use, e.g. "iverilog".
+    use_system_verilog: Whether to use SystemVerilog or Verilog in codegen.
   """
   input_is_dslx: bool = True
   convert_to_ir: bool = True
@@ -87,6 +88,7 @@ class SampleOptions(NamedTuple):
   codegen_args: Optional[Sequence[Text]] = None
   simulate: bool = False
   simulator: Optional[Text] = None
+  use_system_verilog: bool = True
 
   def to_json(self):
     """Returns a JSON-encoded string describing this object."""

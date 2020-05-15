@@ -125,6 +125,32 @@ class CodeGenMainTest(parameterized.TestCase):
     ]).decode('utf-8')
     self.assertIn('module foo_qux_baz(', verilog)
 
+  def test_pipeline_system_verilog(self):
+    verilog_path = test_base.create_named_output_text_file('sha256.sv')
+    subprocess.check_call([
+        CODEGEN_MAIN_PATH, '--use_system_verilog', '--generator=pipeline',
+        '--pipeline_stages=10', '--alsologtostderr',
+        '--output_verilog_path=' + verilog_path, SHA256_IR_PATH
+    ])
+
+    with open(verilog_path, 'r') as f:
+      verilog = f.read()
+      self.assertIn('always_ff', verilog)
+      self.assertNotIn('always @ (*)', verilog)
+
+  def test_pipeline_no_system_verilog(self):
+    verilog_path = test_base.create_named_output_text_file('sha256.v')
+    subprocess.check_call([
+        CODEGEN_MAIN_PATH, '--nouse_system_verilog', '--generator=pipeline',
+        '--pipeline_stages=10', '--alsologtostderr',
+        '--output_verilog_path=' + verilog_path, SHA256_IR_PATH
+    ])
+
+    with open(verilog_path, 'r') as f:
+      verilog = f.read()
+      self.assertNotIn('always_ff', verilog)
+      self.assertIn('always @ (posedge clk)', verilog)
+
 
 if __name__ == '__main__':
   absltest.main()

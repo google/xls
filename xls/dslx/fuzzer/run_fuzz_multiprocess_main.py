@@ -82,6 +82,9 @@ flags.DEFINE_integer(
     'max_width_aggregate_types', 1024,
     'The maximum width of aggregate types (tuples and arrays) in the generated '
     'samples.')
+flags.DEFINE_boolean(
+    'use_system_verilog', True,
+    'If true, emit SystemVerilog during codegen otherwise emit Verilog.')
 FLAGS = flags.FLAGS
 
 QUEUE_MAX_BACKLOG = 16
@@ -106,16 +109,19 @@ def main(argv):
   physical_core_count = psutil.cpu_count(logical=False)
   worker_count = FLAGS.worker_count or (physical_core_count - 1)
   worker_count = max(worker_count, 1)  # Need at least one worker.
-  queues = g3process.get_user_data()[:worker_count]
+  queues = [mp.Queue() for _ in range(worker_count)]
   print('-- Creating pool of {} workers; physical core count {}'.format(
       worker_count, physical_core_count))
   workers = []
   for i in range(worker_count):
     queue = queues[i]
-    worker = g3process.Process(
-        target=run_fuzz_multiprocess.do_worker_task,
-        args=(i, queue, FLAGS.crash_path, FLAGS.summary_path,
-              FLAGS.save_temps_path, FLAGS.minimize_ir))
+
+    target = run_fuzz_multiprocess.do_worker_task
+    args = (i, queue, FLAGS.crash_path, FLAGS.summary_path,
+            FLAGS.save_temps_path, FLAGS.minimize_ir)
+
+    worker = mp.Process(target=target, args=args)
+
     worker.start()
     workers.append(worker)
 
@@ -142,7 +148,8 @@ def main(argv):
       use_jit=FLAGS.use_llvm_jit,
       codegen=FLAGS.codegen,
       simulate=FLAGS.simulate,
-      simulator=FLAGS.simulator)
+      simulator=FLAGS.simulator,
+      use_system_verilog=FLAGS.use_system_verilog)
   sample_count = run_fuzz_multiprocess.do_generator_task(
       queues,
       seed,
@@ -169,7 +176,6 @@ if __name__ == '__main__':
   def real_main():  # Avoid defining things in global scope.
     flags.mark_flag_as_required('crash_path')
     queues = tuple(mp.Queue(QUEUE_MAX_BACKLOG) for _ in range(128))
-    with g3process.main_handler(user_data=(queues)):
-      app.run(main)
+    app.run(main)
 
   real_main()
