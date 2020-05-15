@@ -16,9 +16,7 @@
 
 package_group(
     name = "xls_internal",
-    packages = [
-        "//xls/...",
-    ],
+    packages = ["//xls/..."],
 )
 
 package(
