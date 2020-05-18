@@ -32,18 +32,13 @@ namespace netlist {
 // resulting value.
 class Interpreter {
  public:
-  explicit Interpreter(rtl::Netlist* netlist);
+  explicit Interpreter(rtl::Netlist* netlist,
+                       const absl::flat_hash_set<std::string>& high_cells);
 
-  // Calculates the output value of the given module when run with the specified
-  // inputs.
-  // The Module's inputs are determined at parsing time, and are represented by
-  // a vector of NetRefs. "inputs" should contain a bit for every
-  // corresponding element in module->inputs().
-  xabsl::StatusOr<Bits> InterpretModule(const std::string& module_name,
-                                        const Bits& inputs);
-
-  // Interprets the given module without doing any XLS type conversion (inputs
-  // are given as flat bits, outputs are given as flat bits).
+  // Interprets the given module with the given input mapping.
+  // "inputs" must have the same size as module->inputs().
+  // "high_cells" is a list of cell library entry names whose outputs should all
+  // be considered "1".
   xabsl::StatusOr<absl::flat_hash_map<const rtl::NetRef, bool>> InterpretModule(
       const rtl::Module* module,
       const absl::flat_hash_map<const rtl::NetRef, bool>& inputs);
@@ -61,6 +56,9 @@ class Interpreter {
       const absl::flat_hash_map<const rtl::NetRef, bool>& processed_wires);
 
   rtl::Netlist* netlist_;
+
+  // Any cells which are a priori known to have a output that's always asserted.
+  absl::flat_hash_set<std::string> high_cells_;
 };
 
 }  // namespace netlist

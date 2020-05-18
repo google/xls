@@ -152,7 +152,7 @@ TEST(Z3TranslatorTest, BasicFunctionality) {
       CreateNetList(&bitgen, inputs, kNumCells, cell_library, &module));
 
   XLS_ASSERT_OK_AND_ASSIGN(auto translator, Z3Translator::CreateAndTranslate(
-                                                ctx, &module, {}, inputs));
+                                                ctx, &module, {}, inputs, {}));
 }
 
 // Tests that a simple (single-cell) netlist is translated correctly.
@@ -200,7 +200,7 @@ TEST(Z3TranslatorTest, SimpleNet) {
     pair.second->NoteConnectedCell(cell);
   }
   XLS_ASSERT_OK_AND_ASSIGN(auto translator, Z3Translator::CreateAndTranslate(
-                                                ctx, &module, {}, inputs));
+                                                ctx, &module, {}, inputs, {}));
 
   rtl::NetRef cell_output = cell->outputs().begin()->netref;
   XLS_ASSERT_OK_AND_ASSIGN(Z3_ast z3_output,
@@ -347,9 +347,9 @@ TEST(Z3TranslatorTest, HandlesSubmodules) {
       {"m1", &module_1},
       {"m2", &module_2},
   });
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto translator,
-      Z3Translator::CreateAndTranslate(ctx, &module_3, module_refs, inputs));
+  XLS_ASSERT_OK_AND_ASSIGN(auto translator,
+                           Z3Translator::CreateAndTranslate(
+                               ctx, &module_3, module_refs, inputs, {}));
 
   XLS_ASSERT_OK_AND_ASSIGN(Z3_ast z3_output,
                            translator->GetTranslation(module_3.outputs()[0]));

@@ -182,7 +182,8 @@ class Module {
 class Netlist {
  public:
   void AddModule(std::unique_ptr<Module> module);
-  const Module* GetModule(const std::string& module_name) const;
+  xabsl::StatusOr<const Module*> GetModule(
+      const std::string& module_name) const;
   const absl::Span<const std::unique_ptr<Module>> modules() { return modules_; }
 
  private:

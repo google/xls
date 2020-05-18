@@ -186,13 +186,15 @@ void Netlist::AddModule(std::unique_ptr<Module> module) {
   modules_.emplace_back(std::move(module));
 }
 
-const Module* Netlist::GetModule(const std::string& module_name) const {
+xabsl::StatusOr<const Module*> Netlist::GetModule(
+    const std::string& module_name) const {
   for (const auto& module : modules_) {
     if (module->name() == module_name) {
       return module.get();
     }
   }
-  return nullptr;
+  return absl::NotFoundError(
+      absl::StrFormat("Module %s not found in netlist.", module_name));
 }
 
 }  // namespace rtl

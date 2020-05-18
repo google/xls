@@ -24,13 +24,6 @@
 #include "xls/netlist/netlist.h"
 #include "../z3/src/api/z3_api.h"
 
-// TODO(rspringer): Flags in libraries are evil! ...but sometimes necessary.
-// This one is a hidden temporary flag until we can properly handle cells
-// with state_function attributes (e.g., some latches).
-ABSL_FLAG(std::string, high_cells, "",
-          "Comma-separated list of cells for which to assume \"1\" values on "
-          "all outputs.");
-
 namespace xls {
 namespace netlist {
 
@@ -39,9 +32,10 @@ using function::Ast;
 xabsl::StatusOr<std::unique_ptr<Z3Translator>> Z3Translator::CreateAndTranslate(
     Z3_context ctx, const rtl::Module* module,
     const absl::flat_hash_map<std::string, const rtl::Module*>& module_refs,
-    const absl::flat_hash_map<std::string, Z3_ast>& inputs) {
+    const absl::flat_hash_map<std::string, Z3_ast>& inputs,
+    const absl::flat_hash_set<std::string>& high_cells) {
   auto translator =
-      absl::WrapUnique(new Z3Translator(ctx, module, module_refs));
+      absl::WrapUnique(new Z3Translator(ctx, module, module_refs, high_cells));
   XLS_RETURN_IF_ERROR(translator->Init(inputs));
   XLS_RETURN_IF_ERROR(translator->Translate());
   return translator;
@@ -54,12 +48,12 @@ xabsl::StatusOr<Z3_ast> Z3Translator::GetTranslation(rtl::NetRef ref) {
 
 Z3Translator::Z3Translator(
     Z3_context ctx, const rtl::Module* module,
-    const absl::flat_hash_map<std::string, const rtl::Module*>& module_refs)
-    : ctx_(ctx), module_(module), module_refs_(module_refs) {
-  for (auto cell : absl::StrSplit(absl::GetFlag(FLAGS_high_cells), ',')) {
-    high_cells_.insert(static_cast<std::string>(cell));
-  }
-}
+    const absl::flat_hash_map<std::string, const rtl::Module*>& module_refs,
+    const absl::flat_hash_set<std::string>& high_cells)
+    : ctx_(ctx),
+      module_(module),
+      module_refs_(module_refs),
+      high_cells_(high_cells) {}
 
 absl::Status Z3Translator::Init(
     const absl::flat_hash_map<std::string, Z3_ast>& inputs) {
@@ -180,9 +174,9 @@ absl::Status Z3Translator::TranslateCell(const rtl::Cell& cell) {
     }
 
     const rtl::Module* module_ref = module_refs_.at(entry_name);
-    XLS_ASSIGN_OR_RETURN(auto subtranslator,
-                         Z3Translator::CreateAndTranslate(
-                             ctx_, module_ref, module_refs_, inputs));
+    XLS_ASSIGN_OR_RETURN(auto subtranslator, Z3Translator::CreateAndTranslate(
+                                                 ctx_, module_ref, module_refs_,
+                                                 inputs, high_cells_));
 
     // Now match the module outputs to the corresponding netref in this module's
     // corresponding cell.

@@ -345,9 +345,9 @@ absl::Status Parser::DropKeywordOrError(absl::string_view target) {
 xabsl::StatusOr<const CellLibraryEntry*> Parser::ParseCellModule(
     const Netlist& netlist) {
   XLS_ASSIGN_OR_RETURN(std::string name, PopNameOrError());
-  const Module* module = netlist.GetModule(name);
-  if (module != nullptr) {
-    return module->AsCellLibraryEntry();
+  auto status_or_module = netlist.GetModule(name);
+  if (status_or_module.ok()) {
+    return status_or_module.value()->AsCellLibraryEntry();
   }
   return cell_library_->GetEntry(name);
 }

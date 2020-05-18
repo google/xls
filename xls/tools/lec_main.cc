@@ -17,6 +17,7 @@
 #include "absl/base/internal/sysinfo.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_split.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"
@@ -43,6 +44,12 @@ ABSL_FLAG(std::string, cell_proto_path, "",
 ABSL_FLAG(std::string, entry_function_name, "",
           "Function (in the IR) to compare. If unset, the program will attempt "
           "to find and use an appropriate entry function.");
+// TODO(rspringer): Eliminate the need for this flag.
+// This one is a hidden temporary flag until we can properly handle cells
+// with state_function attributes (e.g., some latches).
+ABSL_FLAG(std::string, high_cells, "",
+          "Comma-separated list of cells for which to assume \"1\" values on "
+          "all outputs.");
 ABSL_FLAG(std::string, netlist_module_name, "",
           "Module name (in the netlist) to compare. If unset, the program will "
           "use the name of the entry function in the IR.");
@@ -118,6 +125,7 @@ absl::Status RealMain(absl::string_view ir_path,
                       absl::string_view netlist_module_name,
                       absl::string_view cell_lib_path,
                       absl::string_view cell_proto_path,
+                      const absl::flat_hash_set<std::string>& high_cells,
                       absl::string_view netlist_path) {
   XLS_ASSIGN_OR_RETURN(IrData ir_data,
                        GetIrTranslator(ir_path, entry_function_name));
@@ -154,8 +162,8 @@ absl::Status RealMain(absl::string_view ir_path,
   XLS_ASSIGN_OR_RETURN(netlist::CellLibrary cell_library,
                        GetCellLibrary(cell_lib_path, cell_proto_path));
   XLS_ASSIGN_OR_RETURN(auto netlist, GetNetlist(netlist_path, &cell_library));
-  const netlist::rtl::Module* netlist_module =
-      netlist.GetModule(std::string{netlist_module_name});
+  XLS_ASSIGN_OR_RETURN(const netlist::rtl::Module* netlist_module,
+                       netlist.GetModule(std::string{netlist_module_name}));
 
   absl::flat_hash_map<std::string, const netlist::rtl::Module*> module_refs;
   for (const std::unique_ptr<netlist::rtl::Module>& module :
@@ -167,9 +175,10 @@ absl::Status RealMain(absl::string_view ir_path,
     }
   }
 
-  XLS_ASSIGN_OR_RETURN(auto netlist_translator,
-                       netlist::Z3Translator::CreateAndTranslate(
-                           ctx, netlist_module, module_refs, inputs));
+  XLS_ASSIGN_OR_RETURN(
+      auto netlist_translator,
+      netlist::Z3Translator::CreateAndTranslate(
+          ctx, netlist_module, module_refs, inputs, high_cells));
 
   // Now do the opposite of the param flattening above - collect the outputs
   // from the netlist translation and unflatten them into [the higher-level]
@@ -230,8 +239,15 @@ int main(int argc, char* argv[]) {
       << "One (and only one) of --cell_lib_path and --cell_proto_path "
          "should be set.";
 
+  std::string high_cells_string = absl::GetFlag(FLAGS_high_cells);
+  absl::flat_hash_set<std::string> high_cells;
+  for (const auto& high_cell : absl::StrSplit(high_cells_string, ',')) {
+    high_cells.insert(std::string(high_cell));
+  }
+
   XLS_QCHECK_OK(xls::RealMain(ir_path, absl::GetFlag(FLAGS_entry_function_name),
                               absl::GetFlag(FLAGS_netlist_module_name),
-                              cell_lib_path, cell_proto_path, netlist_path));
+                              cell_lib_path, cell_proto_path, high_cells,
+                              netlist_path));
   return 0;
 }

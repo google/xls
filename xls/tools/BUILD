@@ -95,6 +95,7 @@ cc_binary(
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
@@ -110,6 +111,30 @@ cc_binary(
         "//xls/netlist:netlist_parser",
         "//xls/netlist:z3_translator",
         "//xls/tools:z3_translator",
+    ],
+)
+
+cc_binary(
+    name = "netlist_interpreter_main",
+    srcs = ["netlist_interpreter_main.cc"],
+    deps = [
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "//xls/codegen:flattening",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/common/status:statusor",
+        "//xls/ir:ir_parser",
+        "//xls/ir:value",
+        "//xls/netlist:cell_library",
+        "//xls/netlist:function_extractor",
+        "//xls/netlist:interpreter",
+        "//xls/netlist:lib_parser",
+        "//xls/netlist:netlist_cc_proto",
+        "//xls/netlist:netlist_parser",
     ],
 )
 

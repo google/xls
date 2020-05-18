@@ -43,7 +43,8 @@ class Z3Translator {
   static xabsl::StatusOr<std::unique_ptr<Z3Translator>> CreateAndTranslate(
       Z3_context ctx, const rtl::Module* module,
       const absl::flat_hash_map<std::string, const rtl::Module*>& module_refs,
-      const absl::flat_hash_map<std::string, Z3_ast>& inputs);
+      const absl::flat_hash_map<std::string, Z3_ast>& inputs,
+      const absl::flat_hash_set<std::string>& high_cells);
 
   // Returns the Z3 equivalent for the specified net.
   xabsl::StatusOr<Z3_ast> GetTranslation(rtl::NetRef ref);
@@ -51,7 +52,8 @@ class Z3Translator {
  private:
   Z3Translator(
       Z3_context ctx, const rtl::Module* module,
-      const absl::flat_hash_map<std::string, const rtl::Module*>& module_refs);
+      const absl::flat_hash_map<std::string, const rtl::Module*>& module_refs,
+      const absl::flat_hash_set<std::string>& high_cells);
   absl::Status Init(const absl::flat_hash_map<std::string, Z3_ast>& inputs);
 
   // Translates the module, cell, or cell function, respectively, into Z3-space.

@@ -13,7 +13,9 @@
 // limitations under the License.
 #include "xls/netlist/interpreter.h"
 
+#include "absl/flags/flag.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_split.h"
 #include "xls/codegen/flattening.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -23,37 +25,9 @@
 namespace xls {
 namespace netlist {
 
-Interpreter::Interpreter(rtl::Netlist* netlist) : netlist_(netlist) {}
-
-xabsl::StatusOr<Bits> Interpreter::InterpretModule(
-    const std::string& module_name, const Bits& inputs) {
-  // Do a topological sort through all cells, evaluating each as its inputs are
-  // fully satisfied, and store those results with each output wire.
-  const rtl::Module* module = netlist_->GetModule(module_name);
-  XLS_RET_CHECK(module != nullptr);
-
-  XLS_RET_CHECK(module->inputs().size() == inputs.bit_count())
-      << absl::StrFormat("Module inputs size: %d, input bit count: %d",
-                         module->inputs().size(), inputs.bit_count());
-
-  // Consider each input as a processed wire.
-  absl::flat_hash_map<const rtl::NetRef, bool> processed_wires;
-  for (int i = 0; i < module->inputs().size(); i++) {
-    processed_wires[module->inputs()[i]] = inputs.Get(i);
-  }
-
-  using OutputsT = absl::flat_hash_map<const rtl::NetRef, bool>;
-  XLS_ASSIGN_OR_RETURN(OutputsT outputs,
-                       InterpretModule(module, processed_wires));
-
-  // Finally, collect up all module outputs.
-  BitsRope rope(module->outputs().size());
-  for (const rtl::NetRef output : module->outputs()) {
-    rope.push_back(outputs[output]);
-  }
-
-  return rope.Build();
-}
+Interpreter::Interpreter(rtl::Netlist* netlist,
+                         const absl::flat_hash_set<std::string>& high_cells)
+    : netlist_(netlist), high_cells_(high_cells) {}
 
 xabsl::StatusOr<absl::flat_hash_map<const rtl::NetRef, bool>>
 Interpreter::InterpretModule(
@@ -62,26 +36,47 @@ Interpreter::InterpretModule(
   // Do a topological sort through all cells, evaluating each as its inputs are
   // fully satisfied, and store those results with each output wire.
 
-  // First, build up the list of "unsatisfied" cells.
+  // The list of "unsatisfied" cells.
   absl::flat_hash_map<rtl::Cell*, absl::flat_hash_set<rtl::NetRef>> cell_inputs;
+
+  // The set of wires that have been "activated" (whose source cells have been
+  // processed) but not yet processed.
+  std::deque<rtl::NetRef> active_wires;
+
+  // Holds the [boolean] value of a wire that's been processed.
+  absl::flat_hash_map<const rtl::NetRef, bool> processed_wires;
+
+  // First, populate the unsatisfied cell list.
   for (const auto& cell : module->cells()) {
-    absl::flat_hash_set<rtl::NetRef> inputs;
-    for (const auto& input : cell->inputs()) {
-      inputs.insert(input.netref);
+    // if a cell has no inputs, it's active, so process it now.
+    if (cell->inputs().empty()) {
+      XLS_RETURN_IF_ERROR(InterpretCell(*cell, &processed_wires));
+      for (const auto& output : cell->outputs()) {
+        active_wires.push_back(output.netref);
+      }
+    } else {
+      absl::flat_hash_set<rtl::NetRef> inputs;
+      for (const auto& input : cell->inputs()) {
+        inputs.insert(input.netref);
+      }
+      cell_inputs[cell.get()] = std::move(inputs);
     }
-    cell_inputs[cell.get()] = std::move(inputs);
   }
 
   // Set all inputs as "active".
-  std::deque<rtl::NetRef> active_wires;
   for (const rtl::NetRef ref : module->inputs()) {
     active_wires.push_back(ref);
   }
+  XLS_ASSIGN_OR_RETURN(rtl::NetRef net_0, module->ResolveNumber(0));
+  XLS_ASSIGN_OR_RETURN(rtl::NetRef net_1, module->ResolveNumber(1));
+  active_wires.push_back(net_0);
+  active_wires.push_back(net_1);
 
-  absl::flat_hash_map<const rtl::NetRef, bool> processed_wires;
   for (const auto& input : inputs) {
     processed_wires[input.first] = input.second;
   }
+  processed_wires[net_0] = false;
+  processed_wires[net_1] = true;
 
   // Process all active wires : see if this wire satisfies all of a cell's
   // inputs. If so, interpret the cell, and place its outputs on the active wire
@@ -102,6 +97,11 @@ Interpreter::InterpretModule(
         XLS_RETURN_IF_ERROR(InterpretCell(*cell, &processed_wires));
         for (const auto& output : cell->outputs()) {
           active_wires.push_back(output.netref);
+        }
+      } else if (XLS_VLOG_IS_ON(2)) {
+        XLS_VLOG(2) << "Cell remaining: " << cell->name();
+        for (const auto& remaining : cell_inputs[cell]) {
+          XLS_VLOG(2) << " - " << remaining->name();
         }
       }
     }
@@ -132,14 +132,15 @@ Interpreter::InterpretModule(
 absl::Status Interpreter::InterpretCell(
     const rtl::Cell& cell,
     absl::flat_hash_map<const rtl::NetRef, bool>* processed_wires) {
-  const rtl::Module* module =
+  xabsl::StatusOr<const rtl::Module*> status_or_module =
       netlist_->GetModule(cell.cell_library_entry()->name());
-  if (module != nullptr) {
+  if (status_or_module.ok()) {
     // If this "cell" is actually a module defined in the netlist,
     // then recursively evaluate it.
     absl::flat_hash_map<const rtl::NetRef, bool> inputs;
     // who's input/output name - needs to be internal
     // need to map cell inputs to module inputs?
+    auto module = status_or_module.value();
     const std::vector<rtl::NetRef>& module_input_refs = module->inputs();
     const absl::Span<const std::string> module_input_names =
         module->AsCellLibraryEntry()->input_names();
@@ -189,6 +190,15 @@ absl::Status Interpreter::InterpretCell(
           child_output.first->name(), cell.name(), module->name());
     }
 
+    return absl::OkStatus();
+  }
+
+  // Handle (as a temporary measure) any fixed-high-output cells.
+  // See comment near top-of-file for more details.
+  if (high_cells_.contains(cell.cell_library_entry()->name())) {
+    for (const auto& output : cell.outputs()) {
+      (*processed_wires)[output.netref] = true;
+    }
     return absl::OkStatus();
   }
 

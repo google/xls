@@ -57,15 +57,18 @@ TEST(InterpreterTest, BasicFunctionality) {
 
   rtl::Netlist netlist;
   netlist.AddModule(std::move(module));
-  Interpreter interpreter(&netlist);
+  XLS_ASSERT_OK_AND_ASSIGN(const rtl::Module* module_ptr,
+                           netlist.GetModule("the_module"));
+  Interpreter interpreter(&netlist, {});
 
-  BitsRope rope(2);
-  rope.push_back(1);
-  rope.push_back(0);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Bits output, interpreter.InterpretModule("the_module", rope.Build()));
-  EXPECT_EQ(output.bit_count(), 1);
-  EXPECT_EQ(output.Get(0), 0);
+  absl::flat_hash_map<const rtl::NetRef, bool> inputs;
+  inputs[module_ptr->inputs()[0]] = true;
+  inputs[module_ptr->inputs()[1]] = false;
+  using OutputT = absl::flat_hash_map<const rtl::NetRef, bool>;
+  XLS_ASSERT_OK_AND_ASSIGN(OutputT outputs,
+                           interpreter.InterpretModule(module_ptr, inputs));
+  EXPECT_EQ(outputs.size(), 1);
+  EXPECT_EQ(outputs[module_ptr->outputs()[0]], 0);
 }
 
 // Verifies that a simple XOR(AND(), OR()) tree is interpreted correctly.
@@ -133,20 +136,25 @@ TEST(InterpreterTest, Tree) {
 
   rtl::Netlist netlist;
   netlist.AddModule(std::move(module));
-  Interpreter interpreter(&netlist);
-  BitsRope rope(4);
+  XLS_ASSERT_OK_AND_ASSIGN(const rtl::Module* module_ptr,
+                           netlist.GetModule("the_module"));
+  Interpreter interpreter(&netlist, {});
+
+  absl::flat_hash_map<const rtl::NetRef, bool> inputs;
   // AND inputs
-  rope.push_back(1);
-  rope.push_back(0);
+  inputs[module_ptr->inputs()[0]] = true;
+  inputs[module_ptr->inputs()[1]] = false;
 
   // OR inputs
-  rope.push_back(1);
-  rope.push_back(0);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Bits output, interpreter.InterpretModule("the_module", rope.Build()));
+  inputs[module_ptr->inputs()[2]] = true;
+  inputs[module_ptr->inputs()[3]] = false;
 
-  EXPECT_EQ(output.bit_count(), 1);
-  EXPECT_EQ(output.Get(0), 1);
+  using OutputT = absl::flat_hash_map<const rtl::NetRef, bool>;
+  XLS_ASSERT_OK_AND_ASSIGN(OutputT outputs,
+                           interpreter.InterpretModule(module_ptr, inputs));
+
+  EXPECT_EQ(outputs.size(), 1);
+  EXPECT_EQ(outputs[module_ptr->outputs()[0]], 1);
 }
 
 TEST(InterpreterTest, Submodules) {
@@ -188,16 +196,22 @@ endmodule
   XLS_ASSERT_OK_AND_ASSIGN(rtl::Netlist netlist,
                            rtl::Parser::ParseNetlist(&cell_library, &scanner));
 
-  Interpreter interpreter(&netlist);
-  BitsRope rope(4);
-  rope.push_back(1);
-  rope.push_back(0);
-  rope.push_back(1);
-  rope.push_back(0);
-  XLS_ASSERT_OK_AND_ASSIGN(Bits output,
-                           interpreter.InterpretModule("main", rope.Build()));
-  EXPECT_EQ(output.bit_count(), 1);
-  EXPECT_EQ(output.Get(0), true);
+  Interpreter interpreter(&netlist, {});
+  XLS_ASSERT_OK_AND_ASSIGN(const rtl::Module* module,
+                           netlist.GetModule("main"));
+
+  absl::flat_hash_map<const rtl::NetRef, bool> inputs;
+  inputs[module->inputs()[0]] = true;
+  inputs[module->inputs()[1]] = false;
+  inputs[module->inputs()[2]] = true;
+  inputs[module->inputs()[3]] = false;
+
+  using OutputT = absl::flat_hash_map<const rtl::NetRef, bool>;
+  XLS_ASSERT_OK_AND_ASSIGN(OutputT outputs,
+                           interpreter.InterpretModule(module, inputs));
+
+  EXPECT_EQ(outputs.size(), 1);
+  EXPECT_EQ(outputs[module->outputs()[0]], 1);
 }
 
 }  // namespace
