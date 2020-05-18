@@ -95,17 +95,25 @@ absl::Status Z3Translator::Translate() {
   // Utility structure so we don't have to iterate through a cell's inputs and
   // outputs every time it's examined.
   absl::flat_hash_map<rtl::Cell*, absl::flat_hash_set<rtl::NetRef>> cell_inputs;
+  std::deque<rtl::NetRef> active_wires;
   for (const auto& cell : module_->cells()) {
-    absl::flat_hash_set<rtl::NetRef> inputs;
-    for (const auto& input : cell->inputs()) {
-      inputs.insert(input.netref);
+    // If any cells have _no_ inputs, then their outputs should be made
+    // immediately available.
+    if (cell->inputs().empty()) {
+      XLS_RETURN_IF_ERROR(TranslateCell(*cell));
+      for (const auto& output : cell->outputs()) {
+        active_wires.push_back(output.netref);
+      }
+    } else {
+      absl::flat_hash_set<rtl::NetRef> inputs;
+      for (const auto& input : cell->inputs()) {
+        inputs.insert(input.netref);
+      }
+      cell_inputs[cell.get()] = std::move(inputs);
     }
-    cell_inputs[cell.get()] = std::move(inputs);
   }
 
-  // Double-buffer the active/next active wire lists.
   // Remember - we pre-populated translated_ with the set of module inputs.
-  std::deque<rtl::NetRef> active_wires;
   for (const auto& pair : translated_) {
     active_wires.push_back(pair.first);
   }
@@ -237,10 +245,10 @@ xabsl::StatusOr<Z3_ast> Z3Translator::TranslateFunction(const rtl::Cell& cell,
       return translated_.at(ref);
     }
     case Ast::Kind::kLiteralOne: {
-      return Z3_mk_true(ctx_);
+      return Z3_mk_int(ctx_, 1, Z3_mk_bv_sort(ctx_, 1));
     }
     case Ast::Kind::kLiteralZero: {
-      return Z3_mk_false(ctx_);
+      return Z3_mk_int(ctx_, 0, Z3_mk_bv_sort(ctx_, 1));
     }
     case Ast::Kind::kNot: {
       XLS_ASSIGN_OR_RETURN(Z3_ast child,

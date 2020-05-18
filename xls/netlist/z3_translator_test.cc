@@ -26,6 +26,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/netlist/fake_cell_library.h"
 #include "xls/netlist/netlist.h"
+#include "xls/netlist/netlist_parser.h"
 #include "../z3/src/api/z3_api.h"
 
 namespace xls {
@@ -130,6 +131,17 @@ absl::Status CreateNetList(
   }
 
   return absl::OkStatus();
+}
+
+absl::flat_hash_map<std::string, Z3_ast> CreateInputs(
+    const Z3_context& ctx, const rtl::Module& module) {
+  absl::flat_hash_map<std::string, Z3_ast> inputs;
+  Z3_sort input_sort = Z3_mk_bv_sort(ctx, 1);
+  for (const auto& input : module.inputs()) {
+    inputs[input->name()] = Z3_mk_const(
+        ctx, Z3_mk_string_symbol(ctx, input->name().c_str()), input_sort);
+  }
+  return inputs;
 }
 
 // Simple test to make sure we can translate anything at all.
@@ -336,12 +348,7 @@ TEST(Z3TranslatorTest, HandlesSubmodules) {
       CreateModule(cell_library, "m3", "INV", {module_2.name()}));
 
   // Create inputs for the top-level cell/module.
-  absl::flat_hash_map<std::string, Z3_ast> inputs;
-  Z3_sort input_sort = Z3_mk_bv_sort(ctx, 1);
-  for (const auto& input : module_3.inputs()) {
-    inputs[input->name()] = Z3_mk_const(
-        ctx, Z3_mk_string_symbol(ctx, input->name().c_str()), input_sort);
-  }
+  absl::flat_hash_map<std::string, Z3_ast> inputs = CreateInputs(ctx, module_3);
   absl::flat_hash_map<std::string, const rtl::Module*> module_refs({
       {"m0", &module_0},
       {"m1", &module_1},
@@ -363,6 +370,38 @@ TEST(Z3TranslatorTest, HandlesSubmodules) {
   EXPECT_NE(or_pos, std::string::npos);
   EXPECT_LT(not_pos, and_pos);
   EXPECT_LT(and_pos, or_pos);
+}
+
+// This test verifies that cells with no inputs immediately fire.
+TEST(Z3TranslatorTest, NoInputCells) {
+  std::string module_text = R"(
+module main (i0, o0);
+  input i0;
+  output o0;
+  wire res0;
+
+  LOGIC_ONE fixed_one( .O(res0) );
+  AND and0( .A(i0), .B(res0), .Z(o0) );
+endmodule)";
+  Z3_config config = Z3_mk_config();
+  Z3_context ctx = Z3_mk_context(config);
+  auto cleanup = xabsl::MakeCleanup([config, ctx] {
+    Z3_del_context(ctx);
+    Z3_del_config(config);
+  });
+
+  CellLibrary cell_library = MakeFakeCellLibrary();
+  rtl::Scanner scanner(module_text);
+  XLS_ASSERT_OK_AND_ASSIGN(rtl::Netlist netlist,
+                           rtl::Parser::ParseNetlist(&cell_library, &scanner));
+  XLS_ASSERT_OK_AND_ASSIGN(const rtl::Module* module,
+                           netlist.GetModule("main"));
+  absl::flat_hash_map<std::string, Z3_ast> inputs = CreateInputs(ctx, *module);
+
+  // If this call succeeds, then we were able to translate the module, which
+  // means that cell fixed_one was correctly activated.
+  XLS_ASSERT_OK(
+      Z3Translator::CreateAndTranslate(ctx, module, {}, inputs, {}).status());
 }
 
 }  // namespace

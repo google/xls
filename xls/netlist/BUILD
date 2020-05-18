@@ -358,6 +358,7 @@ cc_test(
     deps = [
         ":fake_cell_library",
         ":netlist",
+        ":netlist_parser",
         ":z3_translator",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/random",

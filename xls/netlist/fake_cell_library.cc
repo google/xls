@@ -63,6 +63,12 @@ CellLibrary MakeFakeCellLibrary() {
   XLS_CHECK_OK(cell_library.AddEntry(CellLibraryEntry(
       CellKind::kOther, "AOI21", std::vector<std::string>{"A", "B", "C"},
       std::vector<OutputPin>{pin})));
+  // A fixed output-one cell.
+  pin.name = "O";
+  pin.function = "1";
+  XLS_CHECK_OK(cell_library.AddEntry(CellLibraryEntry(
+      CellKind::kOther, "LOGIC_ONE", std::vector<std::string>{},
+      std::vector<OutputPin>{pin})));
   return cell_library;
 }
 

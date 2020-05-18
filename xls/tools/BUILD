@@ -96,6 +96,7 @@ cc_binary(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@z3//:api",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",

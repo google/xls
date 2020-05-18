@@ -32,6 +32,7 @@
 #include "xls/netlist/netlist_parser.h"
 #include "xls/netlist/z3_translator.h"
 #include "xls/tools/z3_translator.h"
+#include "../z3/src/api/z3_api.h"
 
 ABSL_FLAG(std::string, cell_lib_path, "",
           "Path to the cell library. "
@@ -186,10 +187,16 @@ absl::Status RealMain(absl::string_view ir_path,
   std::vector<Z3_ast> z3_outputs;
   z3_outputs.reserve(netlist_module->outputs().size());
   for (const auto& output : netlist_module->outputs()) {
+    // Drop output wires not part of the original signature.
+    if (output->name() == "output_valid") {
+      continue;
+    }
     XLS_ASSIGN_OR_RETURN(Z3_ast z3_output,
                          netlist_translator->GetTranslation(output));
     z3_outputs.push_back(z3_output);
   }
+  std::reverse(z3_outputs.begin(), z3_outputs.end());
+
   Z3_ast netlist_output = ir_data.translator->UnflattenZ3Ast(
       entry_function->GetType()->return_type(), absl::MakeSpan(z3_outputs));
 
