@@ -104,7 +104,7 @@ class PipelineSchedule {
 
   // Constructs a schedule for the given function with the given cycle map. If
   // length is not given, then the length equal to the largest cycle in cycle
-  // map.
+  // map minus one.
   PipelineSchedule(Function* function, ScheduleCycleMap cycle_map,
                    absl::optional<int64> length = absl::nullopt);
 
@@ -128,13 +128,12 @@ class PipelineSchedule {
   // N and has users after cycle N.
   std::vector<Node*> GetLiveOutOfCycle(int64 c) const;
 
-  // Returns the number of stages in the pipeline. This is the maximum cycle in
-  // which any node is scheduled in. Use 'length' instead of 'size' as 'size' is
-  // ambiguous in this context (number of resources? number of nodes? number of
-  // cycles?). Note that if codegen adds flops to the input *and* output of the
-  // pipeline, then this value will be one *less* than the latency of the
-  // pipeline.
-  int64 length() const { return cycle_to_nodes_.size() - 1; }
+  // Returns the number of stages in the pipeline. Use 'length' instead of
+  // 'size' as 'size' is ambiguous in this context (number of resources? number
+  // of nodes? number of cycles?). Note that codegen may add flops to the input
+  // or output of the pipeline so this value may not be the same as the latency
+  // of the pipeline.
+  int64 length() const { return cycle_to_nodes_.size(); }
 
   // Verifies various invariants of the schedule (each node scheduled exactly
   // once, node not scheduled before operands, etc.).

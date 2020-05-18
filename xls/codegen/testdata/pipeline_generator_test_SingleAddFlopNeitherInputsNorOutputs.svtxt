@@ -1,0 +1,11 @@
+module SingleAddFlopNeitherInputsNorOutputs(
+  input wire clk,
+  input wire [7:0] x,
+  input wire [7:0] y,
+  output wire [7:0] out
+);
+  // ===== Pipe stage 0:
+  wire [7:0] p0_add_3_comb;
+  assign p0_add_3_comb = x + y;
+  assign out = p0_add_3_comb;
+endmodule

@@ -125,7 +125,7 @@ cc_library(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/strings",
         "//xls/common/status:statusor",
-        "//xls/delay_model/models",  # build_cleaner: keep
+        "//xls/delay_model/models",
     ],
 )
 

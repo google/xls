@@ -10,5 +10,13 @@ module TrivialFunction(
   always @ (posedge clk) begin
     p0_x <= x;
   end
-  assign out = p0_x;
+
+  // ===== Pipe stage 1:
+
+  // Registers for pipe stage 1:
+  reg [7:0] p1_x;
+  always @ (posedge clk) begin
+    p1_x <= p0_x;
+  end
+  assign out = p1_x;
 endmodule

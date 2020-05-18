@@ -73,6 +73,12 @@ ABSL_FLAG(
     "controlled via an input port of the indicated name. The width of the "
     "input port is equal to the number of pipeline stages. Bit N of the port "
     "is the load-enable signal for the pipeline registers after stage N.");
+ABSL_FLAG(bool, flop_inputs, true,
+          "If true, inputs of the the module are flopped into registers before "
+          "use in generated pipelines. Only used with pipline generator.");
+ABSL_FLAG(bool, flop_outputs, true,
+          "If true, the module outputs are flopped into registers before "
+          "leaving module. Only used with pipline generator.");
 ABSL_FLAG(std::string, module_name, "",
           "Explicit name to use for the generated module; if not provided the "
           "mangled IR function name is used");
@@ -142,6 +148,9 @@ absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
       pipeline_options.manual_control(
           absl::GetFlag(FLAGS_manual_load_enable_signal));
     }
+    pipeline_options.flop_inputs(absl::GetFlag(FLAGS_flop_inputs));
+    pipeline_options.flop_outputs(absl::GetFlag(FLAGS_flop_outputs));
+
     XLS_ASSIGN_OR_RETURN(
         result, verilog::ToPipelineModuleText(*scheduling_unit.schedule, main,
                                               pipeline_options));

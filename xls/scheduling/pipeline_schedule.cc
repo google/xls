@@ -78,6 +78,7 @@ xabsl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegisters(
     Function* f, int64 pipeline_stages, const DelayEstimator& delay_estimator,
     sched::ScheduleBounds* bounds) {
   XLS_VLOG(3) << "ScheduleToMinimizeRegisters()";
+  XLS_VLOG(3) << "  pipeline stages = " << pipeline_stages;
   XLS_VLOG_LINES(4, f->DumpIr());
 
   XLS_VLOG(4) << "Initial bounds:";
@@ -87,15 +88,18 @@ xabsl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegisters(
   // the nodes into those which must be scheduled at or before the cycle and
   // those which must be scheduled after. Upon loop completion each node will
   // have a range of exactly one cycle.
-  for (int64 cycle = 0; cycle < pipeline_stages; ++cycle) {
+  for (int64 cycle = 0; cycle < pipeline_stages - 1; ++cycle) {
     XLS_RETURN_IF_ERROR(SplitAfterCycle(f, cycle, delay_estimator, bounds));
     XLS_RETURN_IF_ERROR(bounds->PropagateLowerBounds());
     XLS_RETURN_IF_ERROR(bounds->PropagateUpperBounds());
+
+    XLS_VLOG(5) << "Bounds after min-cut after cycle: " << cycle;
+    XLS_VLOG_LINES(5, bounds->ToString());
   }
 
   ScheduleCycleMap cycle_map;
   for (Node* node : f->nodes()) {
-    XLS_RET_CHECK_EQ(bounds->lb(node), bounds->ub(node));
+    XLS_RET_CHECK_EQ(bounds->lb(node), bounds->ub(node)) << node->GetName();
     cycle_map[node] = bounds->lb(node);
   }
   return cycle_map;
@@ -124,6 +128,8 @@ xabsl::StatusOr<int64> FunctionCriticalPath(
 // schedule the function into a pipeline with the given number of stages.
 xabsl::StatusOr<int64> FindMinimumClockPeriod(
     Function* f, int64 pipeline_stages, const DelayEstimator& delay_estimator) {
+  XLS_VLOG(4) << "FindMinimumClockPeriod()";
+  XLS_VLOG(4) << "  pipeline stages = " << pipeline_stages;
   auto topo_sort_it = TopoSort(f);
   std::vector<Node*> topo_sort(topo_sort_it.begin(), topo_sort_it.end());
   XLS_ASSIGN_OR_RETURN(int64 function_cp,
@@ -133,22 +139,31 @@ xabsl::StatusOr<int64> FindMinimumClockPeriod(
   // path of the entire function. It's possible this upper bound is the best you
   // can do if there exists a single operation with delay equal to the
   // critical-path delay of the function.
-  return BinarySearchMinTrueWithStatus(
-      /*start=*/(function_cp + pipeline_stages - 1) / pipeline_stages,
-      /*end=*/function_cp, [&](int64 clk_period_ps) -> xabsl::StatusOr<bool> {
-        // If any node does not fit in the clock period, fail outright.
-        for (Node* node : f->nodes()) {
-          XLS_ASSIGN_OR_RETURN(int64 node_delay,
-                               delay_estimator.GetOperationDelayInPs(node));
-          if (node_delay > clk_period_ps) {
-            return false;
-          }
-        }
-        sched::ScheduleBounds bounds(f, topo_sort, clk_period_ps,
-                                     delay_estimator);
-        XLS_RETURN_IF_ERROR(bounds.PropagateLowerBounds());
-        return bounds.max_lower_bound() <= pipeline_stages;
-      });
+  int64 search_start = (function_cp + pipeline_stages - 1) / pipeline_stages;
+  int64 search_end = function_cp;
+  XLS_VLOG(4) << absl::StreamFormat("Binary searching over interval [%d, %d]",
+                                    search_start, search_end);
+  XLS_ASSIGN_OR_RETURN(int64 min_period,
+                       BinarySearchMinTrueWithStatus(
+                           search_start, search_end,
+                           [&](int64 clk_period_ps) -> xabsl::StatusOr<bool> {
+                             // If any node does not fit in the clock period,
+                             // fail outright.
+                             for (Node* node : f->nodes()) {
+                               XLS_ASSIGN_OR_RETURN(
+                                   int64 node_delay,
+                                   delay_estimator.GetOperationDelayInPs(node));
+                               if (node_delay > clk_period_ps) {
+                                 return false;
+                               }
+                             }
+                             sched::ScheduleBounds bounds(
+                                 f, topo_sort, clk_period_ps, delay_estimator);
+                             XLS_RETURN_IF_ERROR(bounds.PropagateLowerBounds());
+                             return bounds.max_lower_bound() < pipeline_stages;
+                           }));
+  XLS_VLOG(4) << "minimum clock period = " << min_period;
+  return min_period;
 }
 
 }  // namespace
@@ -160,8 +175,8 @@ PipelineSchedule::PipelineSchedule(Function* function,
   // Build the mapping from cycle to the vector of nodes in that cycle.
   int64 max_cycle = MaximumCycle(cycle_map_);
   if (length.has_value()) {
-    XLS_CHECK_GE(*length, max_cycle);
-    max_cycle = *length;
+    XLS_CHECK_GT(*length, max_cycle);
+    max_cycle = *length - 1;
   }
   // max_cycle is the latest cycle in which any node is scheduled so add one to
   // get the capacity because cycle numbers start at zero.
@@ -243,7 +258,7 @@ std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64 c) const {
   int64 max_ub;
   if (options.pipeline_stages().has_value()) {
     XLS_RET_CHECK_GE(*options.pipeline_stages(), bounds.max_lower_bound());
-    max_ub = *options.pipeline_stages();
+    max_ub = *options.pipeline_stages() - 1;
   } else {
     max_ub = bounds.max_lower_bound();
   }
@@ -254,8 +269,9 @@ std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64 c) const {
   XLS_RETURN_IF_ERROR(bounds.PropagateUpperBounds());
   ScheduleCycleMap cycle_map;
   if (options.strategy() == SchedulingStrategy::MINIMIZE_REGISTERS) {
-    XLS_ASSIGN_OR_RETURN(cycle_map, ScheduleToMinimizeRegisters(
-                                        f, max_ub, delay_estimator, &bounds));
+    XLS_ASSIGN_OR_RETURN(
+        cycle_map,
+        ScheduleToMinimizeRegisters(f, max_ub + 1, delay_estimator, &bounds));
   } else {
     XLS_RET_CHECK(options.strategy() == SchedulingStrategy::ASAP);
     XLS_RET_CHECK(!options.pipeline_stages().has_value());

@@ -70,7 +70,7 @@ TEST_P(ModuleSimulatorCodegenTest, PassThroughPipeline) {
       ToPipelineModuleText(
           schedule, func,
           PipelineOptions().use_system_verilog(UseSystemVerilog())));
-  ASSERT_EQ(result.signature.proto().pipeline().latency(), 1);
+  ASSERT_EQ(result.signature.proto().pipeline().latency(), 2);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -100,7 +100,7 @@ TEST_P(ModuleSimulatorCodegenTest, PassThroughPipelineBatched) {
       ToPipelineModuleText(
           schedule, func,
           PipelineOptions().use_system_verilog(UseSystemVerilog())));
-  ASSERT_EQ(result.signature.proto().pipeline().latency(), 1);
+  ASSERT_EQ(result.signature.proto().pipeline().latency(), 2);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());

@@ -64,7 +64,7 @@ TEST_F(PipelineScheduleTest, AsapScheduleTrivial) {
           f, TestDelayEstimator(),
           SchedulingOptions(SchedulingStrategy::ASAP).clock_period_ps(2)));
 
-  EXPECT_EQ(schedule.length(), 0);
+  EXPECT_EQ(schedule.length(), 1);
   EXPECT_THAT(schedule.nodes_in_cycle(0), UnorderedElementsAre(m::Param()));
 }
 
@@ -80,7 +80,7 @@ TEST_F(PipelineScheduleTest, AsapScheduleNoParameters) {
           f, TestDelayEstimator(),
           SchedulingOptions(SchedulingStrategy::ASAP).clock_period_ps(1)));
 
-  EXPECT_EQ(schedule.length(), 1);
+  EXPECT_EQ(schedule.length(), 2);
   EXPECT_THAT(schedule.nodes_in_cycle(0),
               UnorderedElementsAre(m::Add(), m::Literal(42), m::Literal(100)));
   EXPECT_THAT(schedule.nodes_in_cycle(1), UnorderedElementsAre(m::Neg()));
@@ -101,12 +101,11 @@ TEST_F(PipelineScheduleTest, AsapScheduleIncrementChain) {
           SchedulingOptions(SchedulingStrategy::ASAP).clock_period_ps(1)));
 
   EXPECT_EQ(schedule.length(), 3);
-  EXPECT_THAT(schedule.nodes_in_cycle(0), UnorderedElementsAre(m::Param("x")));
-  EXPECT_THAT(schedule.nodes_in_cycle(1),
-              UnorderedElementsAre(m::Add(), m::Literal(1), m::Literal(1),
-                                   m::Literal(1)));
+  EXPECT_THAT(schedule.nodes_in_cycle(0),
+              UnorderedElementsAre(m::Param("x"), m::Add(), m::Literal(1),
+                                   m::Literal(1), m::Literal(1)));
+  EXPECT_THAT(schedule.nodes_in_cycle(1), UnorderedElementsAre(m::Add()));
   EXPECT_THAT(schedule.nodes_in_cycle(2), UnorderedElementsAre(m::Add()));
-  EXPECT_THAT(schedule.nodes_in_cycle(3), UnorderedElementsAre(m::Add()));
 }
 
 TEST_F(PipelineScheduleTest, MinimizeRegisterBitslices) {
@@ -132,11 +131,10 @@ TEST_F(PipelineScheduleTest, MinimizeRegisterBitslices) {
 
   EXPECT_EQ(schedule.length(), 2);
   EXPECT_THAT(schedule.nodes_in_cycle(0),
-              UnorderedElementsAre(m::Param("x"), m::Param("y")));
-  EXPECT_THAT(schedule.nodes_in_cycle(1),
-              UnorderedElementsAre(m::BitSlice(m::Param("y")), m::Neg()));
+              UnorderedElementsAre(m::Param("x"), m::Param("y"),
+                                   m::BitSlice(m::Param("y")), m::Neg()));
   EXPECT_THAT(
-      schedule.nodes_in_cycle(2),
+      schedule.nodes_in_cycle(1),
       UnorderedElementsAre(m::BitSlice(m::Param("x")), m::Neg(), m::Concat()));
 }
 
@@ -158,14 +156,12 @@ TEST_F(PipelineScheduleTest, AsapScheduleComplex) {
           SchedulingOptions(SchedulingStrategy::ASAP).clock_period_ps(2)));
 
   EXPECT_EQ(schedule.length(), 3);
-  EXPECT_THAT(
-      schedule.nodes_in_cycle(0),
-      UnorderedElementsAre(m::Param("x"), m::Param("y"), m::Param("z")));
+  EXPECT_THAT(schedule.nodes_in_cycle(0),
+              UnorderedElementsAre(m::Param("x"), m::Param("y"), m::Param("z"),
+                                   m::Or(), m::Not(), m::Add()));
   EXPECT_THAT(schedule.nodes_in_cycle(1),
-              UnorderedElementsAre(m::Or(), m::Not(), m::Add()));
-  EXPECT_THAT(schedule.nodes_in_cycle(2),
               UnorderedElementsAre(m::Concat(), m::Sub(), m::UMul()));
-  EXPECT_THAT(schedule.nodes_in_cycle(3), UnorderedElementsAre(m::Neg()));
+  EXPECT_THAT(schedule.nodes_in_cycle(2), UnorderedElementsAre(m::Neg()));
 }
 
 TEST_F(PipelineScheduleTest, JustClockPeriodGiven) {
@@ -194,12 +190,11 @@ TEST_F(PipelineScheduleTest, JustClockPeriodGiven) {
   };
 
   EXPECT_EQ(schedule.length(), 3);
-  EXPECT_THAT(scheduled_ops(0), UnorderedElementsAre(Op::kParam));
-  EXPECT_THAT(scheduled_ops(1), UnorderedElementsAre(Op::kOr));
-  EXPECT_THAT(scheduled_ops(2), UnorderedElementsAre(Op::kSub, Op::kNot));
-  EXPECT_THAT(scheduled_ops(3),
+  EXPECT_THAT(scheduled_ops(0), UnorderedElementsAre(Op::kParam, Op::kOr));
+  EXPECT_THAT(scheduled_ops(1), UnorderedElementsAre(Op::kSub, Op::kNot));
+  EXPECT_THAT(scheduled_ops(2),
               UnorderedElementsAre(Op::kUMul, Op::kAdd, Op::kNeg, Op::kConcat));
-  EXPECT_THAT(scheduled_ops(4), UnorderedElementsAre());
+  EXPECT_THAT(scheduled_ops(3), UnorderedElementsAre());
 }
 
 TEST_F(PipelineScheduleTest, TestVerifyTiming) {
@@ -257,11 +252,10 @@ TEST_F(PipelineScheduleTest, ClockPeriodAndPipelineLengthGiven) {
   };
 
   EXPECT_EQ(schedule.length(), 4);
-  EXPECT_THAT(scheduled_ops(0), UnorderedElementsAre(Op::kParam));
-  EXPECT_THAT(scheduled_ops(1), UnorderedElementsAre(Op::kOr));
-  EXPECT_THAT(scheduled_ops(2), UnorderedElementsAre(Op::kNeg));
-  EXPECT_THAT(scheduled_ops(3), UnorderedElementsAre(Op::kNot, Op::kSub));
-  EXPECT_THAT(scheduled_ops(4),
+  EXPECT_THAT(scheduled_ops(0), UnorderedElementsAre(Op::kParam, Op::kOr));
+  EXPECT_THAT(scheduled_ops(1), UnorderedElementsAre(Op::kNeg));
+  EXPECT_THAT(scheduled_ops(2), UnorderedElementsAre(Op::kNot, Op::kSub));
+  EXPECT_THAT(scheduled_ops(3),
               UnorderedElementsAre(Op::kConcat, Op::kUMul, Op::kNeg, Op::kAdd));
 }
 
@@ -295,13 +289,12 @@ TEST_F(PipelineScheduleTest, JustPipelineLengthGiven) {
   // The maximum delay of any stage should be minimum feasible value. In this
   // case it is 1ps, which means there should be no dependent instructions in
   // single cycle.
-  EXPECT_THAT(scheduled_ops(0), UnorderedElementsAre(Op::kParam));
-  EXPECT_THAT(scheduled_ops(1), UnorderedElementsAre(Op::kOr));
-  EXPECT_THAT(scheduled_ops(2), UnorderedElementsAre(Op::kNeg));
-  EXPECT_THAT(scheduled_ops(3), UnorderedElementsAre(Op::kNot));
-  EXPECT_THAT(scheduled_ops(4), UnorderedElementsAre(Op::kSub));
-  EXPECT_THAT(scheduled_ops(5), UnorderedElementsAre(Op::kUMul, Op::kAdd));
-  EXPECT_THAT(scheduled_ops(6), UnorderedElementsAre(Op::kConcat, Op::kNeg));
+  EXPECT_THAT(scheduled_ops(0), UnorderedElementsAre(Op::kParam, Op::kOr));
+  EXPECT_THAT(scheduled_ops(1), UnorderedElementsAre(Op::kNeg));
+  EXPECT_THAT(scheduled_ops(2), UnorderedElementsAre(Op::kNot));
+  EXPECT_THAT(scheduled_ops(3), UnorderedElementsAre(Op::kSub));
+  EXPECT_THAT(scheduled_ops(4), UnorderedElementsAre(Op::kUMul, Op::kAdd));
+  EXPECT_THAT(scheduled_ops(5), UnorderedElementsAre(Op::kConcat, Op::kNeg));
 }
 
 TEST_F(PipelineScheduleTest, LongPipelineLength) {
@@ -323,15 +316,14 @@ TEST_F(PipelineScheduleTest, LongPipelineLength) {
 
   EXPECT_EQ(schedule.length(), 100);
   // Most stages should be empty.
-  EXPECT_THAT(schedule.nodes_in_cycle(0), UnorderedElementsAre(x.node()));
-  EXPECT_THAT(schedule.nodes_in_cycle(1),
-              UnorderedElementsAre(bitslice.node()));
+  EXPECT_THAT(schedule.nodes_in_cycle(0),
+              UnorderedElementsAre(x.node(), bitslice.node()));
   // The bitslice is the narrowest among the chain of operations so it should
   // precede the long chain of empty stages.
-  for (int64 i = 2; i <= 99; ++i) {
+  for (int64 i = 1; i < 99; ++i) {
     EXPECT_THAT(schedule.nodes_in_cycle(i), UnorderedElementsAre());
   }
-  EXPECT_THAT(schedule.nodes_in_cycle(100), UnorderedElementsAre(zext.node()));
+  EXPECT_THAT(schedule.nodes_in_cycle(99), UnorderedElementsAre(zext.node()));
 }
 
 TEST_F(PipelineScheduleTest, ClockPeriodMargin) {

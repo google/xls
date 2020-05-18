@@ -82,10 +82,10 @@ TEST_F(ScheduleBoundsTest, SimpleExpressionAsapAndAlap) {
                                /*clock_period_ps=*/1, delay_estimator_));
   EXPECT_THAT(bounds.bounds(x.node()), Pair(0, 0));
   EXPECT_THAT(bounds.bounds(y.node()), Pair(0, 0));
-  EXPECT_THAT(bounds.bounds(not_x.node()), Pair(1, 2));
-  EXPECT_THAT(bounds.bounds(x_plus_y.node()), Pair(1, 1));
-  EXPECT_THAT(bounds.bounds(not_x_plus_y.node()), Pair(2, 2));
-  EXPECT_THAT(bounds.bounds(result.node()), Pair(3, 3));
+  EXPECT_THAT(bounds.bounds(not_x.node()), Pair(0, 1));
+  EXPECT_THAT(bounds.bounds(x_plus_y.node()), Pair(0, 0));
+  EXPECT_THAT(bounds.bounds(not_x_plus_y.node()), Pair(1, 1));
+  EXPECT_THAT(bounds.bounds(result.node()), Pair(2, 2));
 }
 
 TEST_F(ScheduleBoundsTest, SimpleExpressionTightenBounds) {
@@ -102,10 +102,10 @@ TEST_F(ScheduleBoundsTest, SimpleExpressionTightenBounds) {
   ScheduleBounds bounds(f, /*clock_period_ps=*/1, delay_estimator_);
   EXPECT_EQ(bounds.lb(x.node()), 0);
   EXPECT_EQ(bounds.lb(y.node()), 0);
-  EXPECT_EQ(bounds.lb(not_x.node()), 1);
-  EXPECT_EQ(bounds.lb(x_plus_y.node()), 1);
-  EXPECT_EQ(bounds.lb(not_x_plus_y.node()), 1);
-  EXPECT_EQ(bounds.lb(result.node()), 1);
+  EXPECT_EQ(bounds.lb(not_x.node()), 0);
+  EXPECT_EQ(bounds.lb(x_plus_y.node()), 0);
+  EXPECT_EQ(bounds.lb(not_x_plus_y.node()), 0);
+  EXPECT_EQ(bounds.lb(result.node()), 0);
 
   XLS_ASSERT_OK(bounds.PropagateLowerBounds());
 
@@ -113,10 +113,10 @@ TEST_F(ScheduleBoundsTest, SimpleExpressionTightenBounds) {
   // satisfy dependency and clock period constraints.
   EXPECT_EQ(bounds.lb(x.node()), 0);
   EXPECT_EQ(bounds.lb(y.node()), 0);
-  EXPECT_EQ(bounds.lb(not_x.node()), 1);
-  EXPECT_EQ(bounds.lb(x_plus_y.node()), 1);
-  EXPECT_EQ(bounds.lb(not_x_plus_y.node()), 2);
-  EXPECT_EQ(bounds.lb(result.node()), 3);
+  EXPECT_EQ(bounds.lb(not_x.node()), 0);
+  EXPECT_EQ(bounds.lb(x_plus_y.node()), 0);
+  EXPECT_EQ(bounds.lb(not_x_plus_y.node()), 1);
+  EXPECT_EQ(bounds.lb(result.node()), 2);
 
   // Upper bounds should still be all at their limit.
   const int64 kMax = std::numeric_limits<int64>::max();
@@ -154,8 +154,8 @@ TEST_F(ScheduleBoundsTest, SimpleExpressionTightenBounds) {
   EXPECT_EQ(bounds.lb(x.node()), 0);
   EXPECT_EQ(bounds.lb(y.node()), 0);
   EXPECT_EQ(bounds.lb(not_x.node()), 22);
-  EXPECT_EQ(bounds.lb(x_plus_y.node()), 1);
-  EXPECT_EQ(bounds.lb(not_x_plus_y.node()), 2);
+  EXPECT_EQ(bounds.lb(x_plus_y.node()), 0);
+  EXPECT_EQ(bounds.lb(not_x_plus_y.node()), 1);
   EXPECT_EQ(bounds.lb(result.node()), 23);
 }
 

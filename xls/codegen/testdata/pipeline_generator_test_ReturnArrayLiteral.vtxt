@@ -15,7 +15,5 @@ module ReturnArrayLiteral(
   // ===== Pipe stage 3:
 
   // ===== Pipe stage 4:
-
-  // ===== Pipe stage 5:
   assign out = {literal_1[0], literal_1[1]};
 endmodule

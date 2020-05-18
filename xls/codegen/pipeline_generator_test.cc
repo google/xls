@@ -73,7 +73,7 @@ TEST_P(PipelineGeneratorTest, TrivialFunction) {
                                  result.verilog_text);
 
   EXPECT_EQ(result.signature.proto().pipeline().initiation_interval(), 1);
-  EXPECT_EQ(result.signature.proto().pipeline().latency(), 1);
+  EXPECT_EQ(result.signature.proto().pipeline().latency(), 2);
 }
 
 TEST_P(PipelineGeneratorTest, ReturnLiteral) {
@@ -94,7 +94,7 @@ TEST_P(PipelineGeneratorTest, ReturnLiteral) {
           PipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   EXPECT_EQ(result.signature.proto().pipeline().initiation_interval(), 1);
-  EXPECT_EQ(result.signature.proto().pipeline().latency(), 6);
+  EXPECT_EQ(result.signature.proto().pipeline().latency(), 5);
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -788,6 +788,134 @@ TEST_P(PipelineGeneratorTest, CustomModuleName) {
               UseSystemVerilog())));
 
   EXPECT_THAT(result.verilog_text, HasSubstr("module foobar("));
+}
+
+TEST_P(PipelineGeneratorTest, AddNegateFlopInputsAndOutputs) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  auto x = fb.Param("x", package.GetBitsType(8));
+  auto y = fb.Param("y", package.GetBitsType(8));
+  fb.Negate(fb.Add(x, y));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(func, TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(2)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleGeneratorResult result,
+      ToPipelineModuleText(schedule, func,
+                           PipelineOptions()
+                               .use_system_verilog(UseSystemVerilog())
+                               .flop_inputs(true)
+                               .flop_outputs(true)));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+  EXPECT_EQ(result.signature.proto().pipeline().latency(), 3);
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", UBits(123, 8)}, {"y", UBits(42, 8)}}),
+              IsOkAndHolds(UBits(91, 8)));
+}
+
+TEST_P(PipelineGeneratorTest, AddNegateFlopInputsNotOutputs) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  auto x = fb.Param("x", package.GetBitsType(8));
+  auto y = fb.Param("y", package.GetBitsType(8));
+  fb.Negate(fb.Add(x, y));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(func, TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(2)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleGeneratorResult result,
+      ToPipelineModuleText(schedule, func,
+                           PipelineOptions()
+                               .use_system_verilog(UseSystemVerilog())
+                               .flop_inputs(true)
+                               .flop_outputs(false)));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+  EXPECT_EQ(result.signature.proto().pipeline().latency(), 2);
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", UBits(123, 8)}, {"y", UBits(42, 8)}}),
+              IsOkAndHolds(UBits(91, 8)));
+}
+
+TEST_P(PipelineGeneratorTest, AddNegateFlopOutputsNotInputs) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  auto x = fb.Param("x", package.GetBitsType(8));
+  auto y = fb.Param("y", package.GetBitsType(8));
+  fb.Negate(fb.Add(x, y));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(func, TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(2)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleGeneratorResult result,
+      ToPipelineModuleText(schedule, func,
+                           PipelineOptions()
+                               .use_system_verilog(UseSystemVerilog())
+                               .flop_inputs(false)
+                               .flop_outputs(true)));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+  EXPECT_EQ(result.signature.proto().pipeline().latency(), 2);
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", UBits(123, 8)}, {"y", UBits(42, 8)}}),
+              IsOkAndHolds(UBits(91, 8)));
+}
+
+TEST_P(PipelineGeneratorTest, AddNegateFlopNeitherInputsNorOutputs) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  auto x = fb.Param("x", package.GetBitsType(8));
+  auto y = fb.Param("y", package.GetBitsType(8));
+  fb.Negate(fb.Add(x, y));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(func, TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(2)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleGeneratorResult result,
+      ToPipelineModuleText(schedule, func,
+                           PipelineOptions()
+                               .use_system_verilog(UseSystemVerilog())
+                               .flop_inputs(false)
+                               .flop_outputs(false)));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+  EXPECT_EQ(result.signature.proto().pipeline().latency(), 1);
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", UBits(123, 8)}, {"y", UBits(42, 8)}}),
+              IsOkAndHolds(UBits(91, 8)));
 }
 
 INSTANTIATE_TEST_SUITE_P(PipelineGeneratorTestInstantiation,

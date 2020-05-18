@@ -73,22 +73,22 @@ std::vector<Node*> UsersInStage(Node* node, const PipelineSchedule& schedule) {
   return users;
 }
 
-// Builds and returns a module signature for the given function, schedule, and
+// Builds and returns a module signature for the given function, latency, and
 // options.
 xabsl::StatusOr<ModuleSignature> BuildSignature(
-    absl::string_view module_name, const PipelineSchedule& schedule,
+    absl::string_view module_name, Function* function, int64 latency,
     const PipelineOptions& options) {
   ModuleSignatureBuilder sig_builder(module_name);
   sig_builder.WithClock("clk");
-  for (Param* param : schedule.function()->params()) {
+  for (Param* param : function->params()) {
     sig_builder.AddDataInput(param->name(),
                              param->GetType()->GetFlatBitCount());
   }
   sig_builder.AddDataOutput(
-      "out", schedule.function()->return_value()->GetType()->GetFlatBitCount());
-  sig_builder.WithFunctionType(schedule.function()->GetType());
+      "out", function->return_value()->GetType()->GetFlatBitCount());
+  sig_builder.WithFunctionType(function->GetType());
   sig_builder.WithPipelineInterface(
-      /*latency=*/schedule.length() + 1,
+      /*latency=*/latency,
       /*initiation_interval=*/1,
       options.control().has_value()
           ? absl::optional<PipelineControl>(*options.control())
@@ -139,6 +139,71 @@ PipelineOptions& PipelineOptions::use_system_verilog(bool value) {
   use_system_verilog_ = value;
   return *this;
 }
+
+PipelineOptions& PipelineOptions::flop_inputs(bool value) {
+  flop_inputs_ = value;
+  return *this;
+}
+
+PipelineOptions& PipelineOptions::flop_outputs(bool value) {
+  flop_outputs_ = value;
+  return *this;
+}
+
+namespace {
+
+// Adds pipeline registers to the module for the given stage. The registers to
+// define are given as pairs of Node* and the expression to assign to the value
+// corresponding to the node. The registers use the supplied clock and optional
+// load enable (can be null). Returns references corresponding to the defined
+// registers.
+xabsl::StatusOr<std::vector<Expression*>> AddPipelineRegisters(
+    absl::Span<const std::pair<Node*, Expression*>> assignments, int64 stage,
+    LogicRef* clk, Expression* load_enable, ModuleBuilder* mb) {
+  // Add always flop block for the registers.
+  mb->NewDeclarationAndAssignmentSections();
+
+  mb->declaration_section()->Add<BlankLine>();
+  mb->declaration_section()->Add<Comment>(
+      absl::StrFormat("Registers for pipe stage %d:", stage));
+
+  std::vector<ModuleBuilder::Register> registers;
+  std::vector<Expression*> register_refs;
+  for (const auto& pair : assignments) {
+    Node* node = pair.first;
+    Expression* rhs = pair.second;
+    if (node->GetType()->GetFlatBitCount() > 0) {
+      XLS_ASSIGN_OR_RETURN(ModuleBuilder::Register reg,
+                           mb->DeclareRegister(PipelineSignalName(node, stage),
+                                               node->GetType(), rhs));
+      registers.push_back(reg);
+      register_refs.push_back(registers.back().ref);
+    }
+  }
+  XLS_RETURN_IF_ERROR(mb->AssignRegisters(clk, registers, load_enable));
+
+  return register_refs;
+}
+
+// Adds a "valid" signal register for the given stage using the given clock
+// signal. Returns a reference to the defined register.
+xabsl::StatusOr<LogicRef*> AddValidRegister(LogicRef* valid_load_enable,
+                                            int64 stage, LogicRef* clk,
+                                            ModuleBuilder* mb) {
+  // Add always flop block for the valid signal. Add it separately from the
+  // other pipeline register because it does not use a load_enable signal
+  // like the other pipeline registers.
+  mb->NewDeclarationAndAssignmentSections();
+
+  mb->declaration_section()->Add<BlankLine>();
+  XLS_ASSIGN_OR_RETURN(ModuleBuilder::Register valid_load_enable_register,
+                       mb->DeclareRegister(absl::StrFormat("p%d_valid", stage),
+                                           /*bit_count=*/1, valid_load_enable));
+  XLS_RETURN_IF_ERROR(mb->AssignRegisters(clk, {valid_load_enable_register}));
+  return valid_load_enable_register.ref;
+}
+
+}  // namespace
 
 xabsl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     const PipelineSchedule& schedule, Function* func,
@@ -234,8 +299,37 @@ xabsl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
   // The set of nodes which are live out of the previous stage.
   std::vector<Node*> live_out_last_stage;
 
+  int64 stage = 0;
+  if (options.flop_inputs()) {
+    XLS_VLOG(4) << "Flopping inputs.";
+    std::vector<std::pair<Node*, Expression*>> assignments;
+    for (Param* param : func->params()) {
+      if (param->GetType()->GetFlatBitCount() != 0) {
+        assignments.push_back({param, node_expressions[param]});
+      }
+    }
+    if (!assignments.empty()) {
+      mb.declaration_section()->Add<BlankLine>();
+      mb.declaration_section()->Add<Comment>(
+          absl::StrFormat("===== Pipe stage %d:", stage));
+      XLS_ASSIGN_OR_RETURN(std::vector<Expression*> register_refs,
+                           AddPipelineRegisters(assignments, stage, clk,
+                                                get_load_enable(stage), &mb));
+      for (int64 i = 0; i < assignments.size(); ++i) {
+        node_expressions[assignments[i].first] = register_refs[i];
+      }
+      if (valid_load_enable != nullptr) {
+        XLS_ASSIGN_OR_RETURN(
+            valid_load_enable,
+            AddValidRegister(valid_load_enable, stage, clk, &mb));
+      }
+      stage++;
+    }
+  }
+
   // Construct the stages defined by the schedule.
-  for (int64 stage = 0; stage <= schedule.length(); ++stage) {
+  for (int64 schedule_cycle = 0; schedule_cycle < schedule.length();
+       ++schedule_cycle) {
     XLS_VLOG(4) << "Building pipeline stage " << stage;
     if (stage != 0) {
       mb.NewDeclarationAndAssignmentSections();
@@ -254,7 +348,7 @@ xabsl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
         return true;
       }
       for (Node* user : node->users()) {
-        if (schedule.cycle(user) > stage) {
+        if (schedule.cycle(user) > schedule_cycle) {
           return true;
         }
       }
@@ -276,12 +370,12 @@ xabsl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     //
     //   (4) Is live out of the stage.
     absl::flat_hash_set<Node*> named_temps;
-    for (Node* node : schedule.nodes_in_cycle(stage)) {
+    for (Node* node : schedule.nodes_in_cycle(schedule_cycle)) {
       if (node->Is<Param>() || module_constants.contains(node)) {
         continue;
       }
       if (!mb.CanEmitAsInlineExpression(node, UsersInStage(node, schedule)) ||
-          (FanoutInStage(node, schedule, stage) > 1 &&
+          (FanoutInStage(node, schedule, schedule_cycle) > 1 &&
            !ShouldInlineExpressionIntoMultipleUses(node)) ||
           is_live_out_of_stage(node)) {
         named_temps.insert(node);
@@ -289,7 +383,7 @@ xabsl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     }
 
     // Emit expressions/assignments for every node in this stage.
-    for (Node* node : schedule.nodes_in_cycle(stage)) {
+    for (Node* node : schedule.nodes_in_cycle(schedule_cycle)) {
       if (node->Is<Param>() || module_constants.contains(node) ||
           node->GetType()->GetFlatBitCount() == 0) {
         continue;
@@ -320,52 +414,45 @@ xabsl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
         live_out_nodes.push_back(node);
       }
     }
-    for (Node* node : schedule.nodes_in_cycle(stage)) {
+    for (Node* node : schedule.nodes_in_cycle(schedule_cycle)) {
       if (!module_constants.contains(node) && is_live_out_of_stage(node)) {
         live_out_nodes.push_back(node);
       }
     }
 
-    if (!live_out_nodes.empty()) {
+    if (!options.flop_outputs() && schedule_cycle == schedule.length() - 1) {
+      // This is the last stage and the outputs are not flopped so nothing more
+      // to do.
+      break;
+    }
+
+    if (!live_out_nodes.empty() &&
+        (options.flop_outputs() || schedule_cycle != schedule.length() - 1)) {
       // Add always flop block for the registers.
       mb.NewDeclarationAndAssignmentSections();
 
-      mb.declaration_section()->Add<BlankLine>();
-      mb.declaration_section()->Add<Comment>(
-          absl::StrFormat("Registers for pipe stage %d:", stage));
-
-      std::vector<ModuleBuilder::Register> registers;
+      std::vector<std::pair<Node*, Expression*>> assignments;
       for (Node* node : live_out_nodes) {
         if (node->GetType()->GetFlatBitCount() > 0) {
-          XLS_ASSIGN_OR_RETURN(
-              ModuleBuilder::Register reg,
-              mb.DeclareRegister(PipelineSignalName(node, stage),
-                                 node->GetType(), node_expressions.at(node)));
-          registers.push_back(reg);
-          node_expressions[node] = registers.back().ref;
+          assignments.push_back({node, node_expressions.at(node)});
         }
       }
-      XLS_RETURN_IF_ERROR(mb.AssignRegisters(
-          clk, registers, /*load_enable=*/get_load_enable(stage)));
+      XLS_ASSIGN_OR_RETURN(std::vector<Expression*> register_refs,
+                           AddPipelineRegisters(assignments, stage, clk,
+                                                get_load_enable(stage), &mb));
+      for (int64 i = 0; i < assignments.size(); ++i) {
+        node_expressions[assignments[i].first] = register_refs[i];
+      }
     }
 
     if (valid_load_enable != nullptr) {
-      // Add always flop block for the valid signal. Add it separately from the
-      // other pipeline register because it does not use a load_enable signal
-      // like the other pipeline registers.
-      mb.NewDeclarationAndAssignmentSections();
-
-      mb.declaration_section()->Add<BlankLine>();
       XLS_ASSIGN_OR_RETURN(
-          ModuleBuilder::Register valid_load_enable_register,
-          mb.DeclareRegister(absl::StrFormat("p%d_valid", stage),
-                             /*bit_count=*/1, valid_load_enable));
-      XLS_RETURN_IF_ERROR(
-          mb.AssignRegisters(clk, {valid_load_enable_register}));
-      valid_load_enable = valid_load_enable_register.ref;
+          valid_load_enable,
+          AddValidRegister(valid_load_enable, stage, clk, &mb));
     }
 
     live_out_last_stage = std::move(live_out_nodes);
+    stage++;
   }
 
   if (valid_load_enable != nullptr) {
@@ -388,8 +475,9 @@ xabsl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
   XLS_VLOG(2) << "Verilog output:";
   XLS_VLOG_LINES(2, text);
 
-  XLS_ASSIGN_OR_RETURN(ModuleSignature signature,
-                       BuildSignature(mb.module()->name(), schedule, options));
+  XLS_ASSIGN_OR_RETURN(
+      ModuleSignature signature,
+      BuildSignature(mb.module()->name(), func, /*latency=*/stage, options));
   return ModuleGeneratorResult{text, signature};
 }
 

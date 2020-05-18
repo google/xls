@@ -1,6 +1,5 @@
-module BinarySelect(
+module AddNegateFlopInputsNotOutputs(
   input wire clk,
-  input wire s,
   input wire [7:0] x,
   input wire [7:0] y,
   output wire [7:0] out
@@ -8,23 +7,25 @@ module BinarySelect(
   // ===== Pipe stage 0:
 
   // Registers for pipe stage 0:
-  reg p0_s;
   reg [7:0] p0_x;
   reg [7:0] p0_y;
   always_ff @ (posedge clk) begin
-    p0_s <= s;
     p0_x <= x;
     p0_y <= y;
   end
 
   // ===== Pipe stage 1:
-  wire [7:0] p1_sel_4_comb;
-  assign p1_sel_4_comb = p0_s == 1'h0 ? p0_y : p0_x;
+  wire [7:0] p1_add_3_comb;
+  assign p1_add_3_comb = p0_x + p0_y;
 
   // Registers for pipe stage 1:
-  reg [7:0] p1_sel_4;
+  reg [7:0] p1_add_3;
   always_ff @ (posedge clk) begin
-    p1_sel_4 <= p1_sel_4_comb;
+    p1_add_3 <= p1_add_3_comb;
   end
-  assign out = p1_sel_4;
+
+  // ===== Pipe stage 2:
+  wire [7:0] p2_neg_4_comb;
+  assign p2_neg_4_comb = -p1_add_3;
+  assign out = p2_neg_4_comb;
 endmodule

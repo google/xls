@@ -66,11 +66,23 @@ class PipelineOptions {
   PipelineOptions& use_system_verilog(bool value);
   bool use_system_verilog() const { return use_system_verilog_; }
 
+  // Whether to flop inputs into a register at the beginning of the pipeline. If
+  // true, adds a single cycle to the latency of the pipline.
+  PipelineOptions& flop_inputs(bool value);
+  bool flop_inputs() const { return flop_inputs_; }
+
+  // Whether to flop outputs into a register at the end of the pipeline. If
+  // true, adds a single cycle to the latency of the pipline.
+  PipelineOptions& flop_outputs(bool value);
+  bool flop_outputs() const { return flop_outputs_; }
+
  private:
   absl::optional<std::string> module_name_;
   absl::optional<ResetProto> reset_proto_;
   absl::optional<PipelineControl> pipeline_control_;
   bool use_system_verilog_ = true;
+  bool flop_inputs_ = true;
+  bool flop_outputs_ = true;
 };
 
 // Emits the given function as a verilog module which follows the given

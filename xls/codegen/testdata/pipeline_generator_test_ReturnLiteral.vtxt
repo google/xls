@@ -11,15 +11,13 @@ module ReturnLiteral(
   // ===== Pipe stage 3:
 
   // ===== Pipe stage 4:
+  wire [31:0] p4_literal_1_comb;
+  assign p4_literal_1_comb = 32'h0000_002a;
 
-  // ===== Pipe stage 5:
-  wire [31:0] p5_literal_1_comb;
-  assign p5_literal_1_comb = 32'h0000_002a;
-
-  // Registers for pipe stage 5:
-  reg [31:0] p5_literal_1;
+  // Registers for pipe stage 4:
+  reg [31:0] p4_literal_1;
   always @ (posedge clk) begin
-    p5_literal_1 <= p5_literal_1_comb;
+    p4_literal_1 <= p4_literal_1_comb;
   end
-  assign out = p5_literal_1;
+  assign out = p4_literal_1;
 endmodule

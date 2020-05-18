@@ -41,23 +41,15 @@ ScheduleBounds::ScheduleBounds(Function* f, std::vector<Node*> topo_sort,
 }
 
 void ScheduleBounds::Reset() {
-  int64 nonparam_lb =
-      (topo_sort_.empty() || topo_sort_.front()->function()->params().empty())
-          ? 0
-          : 1;
   max_lower_bound_ = 0;
   min_upper_bound_ = 0;
   for (Node* node : topo_sort_) {
     if (node->Is<Param>()) {
-      // TODO(meheff): Remove this special handling of parameters. This was
-      // added so that a pipeline register is automatically on input to the
-      // pipeline. A less hacky way of handling this is to treat Parameters as
-      // any other zero-latency instruction and let codegen optionally add flops
-      // on input (or output).
+      // Always schedule parameters in cycle zero.
       bounds_[node] = {0, 0};
     } else {
-      bounds_[node] = {nonparam_lb, std::numeric_limits<int64>::max()};
-      max_lower_bound_ = nonparam_lb;
+      bounds_[node] = {0, std::numeric_limits<int64>::max()};
+      max_lower_bound_ = 0;
       min_upper_bound_ = std::numeric_limits<int64>::max();
     }
   }
