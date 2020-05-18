@@ -277,6 +277,22 @@ cc_library(
     ],
 )
 
+cc_binary(
+    name = "function_extractor_main",
+    srcs = ["function_extractor_main.cc"],
+    deps = [
+        ":cell_library",
+        ":function_extractor",
+        ":netlist_cc_proto",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+    ],
+)
+
 cc_test(
     name = "function_extractor_test",
     srcs = ["function_extractor_test.cc"],

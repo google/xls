@@ -267,6 +267,12 @@ class Scanner {
       }
       goto restart;
     }
+    if (cs_->TryDropChars('/', '/')) {
+      while (!cs_->AtEof() && !cs_->TryDropChar('\n')) {
+        cs_->DropCharOrDie();
+      }
+      goto restart;
+    }
     if (cs_->TryDropChars('\\', '\n')) {
       goto restart;
     }
