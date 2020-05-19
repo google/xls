@@ -29,7 +29,7 @@
 #include "xls/passes/pass_base.h"
 #include "xls/passes/passes.h"
 #include "xls/passes/unroll_pass.h"
-#include "xls/tools/z3_translator.h"
+#include "xls/solvers/z3_ir_translator.h"
 #include "../z3/src/api/z3.h"
 #include "../z3/src/api/z3_api.h"
 
@@ -50,11 +50,11 @@ ABSL_FLAG(absl::Duration, timeout, absl::InfiniteDuration(),
 
 namespace xls {
 
-using z3_translator::Z3Translator;
+using solvers::z3::IrTranslator;
 
 // To compare, simply take the output nodes of each function and compare them.
 xabsl::StatusOr<Z3_ast> CreateComparisonFunction(
-    absl::Span<std::unique_ptr<Z3Translator>> translators,
+    absl::Span<std::unique_ptr<IrTranslator>> translators,
     const std::vector<Function*>& functions) {
   Z3_context ctx = translators[0]->ctx();
   Z3_ast result1 = translators[0]->GetReturnNode();
@@ -108,10 +108,9 @@ absl::Status RealMain(const std::vector<absl::string_view>& ir_paths,
     }
   }
 
-  std::vector<std::unique_ptr<Z3Translator>> translators;
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<Z3Translator> translator,
-      z3_translator::Z3Translator::CreateAndTranslate(functions[0]));
+  std::vector<std::unique_ptr<IrTranslator>> translators;
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrTranslator> translator,
+                       IrTranslator::CreateAndTranslate(functions[0]));
   translators.push_back(std::move(translator));
 
   // Get the params for the first function, so we can map the second function's
@@ -122,9 +121,9 @@ absl::Status RealMain(const std::vector<absl::string_view>& ir_paths,
     z3_params.push_back(translators[0]->GetTranslation(param));
   }
 
-  XLS_ASSIGN_OR_RETURN(translator,
-                       z3_translator::Z3Translator::CreateAndTranslate(
-                           ctx, functions[1], absl::MakeSpan(z3_params)));
+  XLS_ASSIGN_OR_RETURN(
+      translator, IrTranslator::CreateAndTranslate(ctx, functions[1],
+                                                   absl::MakeSpan(z3_params)));
   translators.push_back(std::move(translator));
 
   XLS_ASSIGN_OR_RETURN(
@@ -151,7 +150,7 @@ absl::Status RealMain(const std::vector<absl::string_view>& ir_paths,
   Z3_solver_assert(ctx, solver, objective);
 
   // Finally, print the output to the terminal in gorgeous two-color ASCII.
-  std::cout << z3_translator::SolverResultToString(ctx, solver) << std::endl;
+  std::cout << solvers::z3::SolverResultToString(ctx, solver) << std::endl;
 
   Z3_params_dec_ref(ctx, params);
   Z3_solver_dec_ref(ctx, solver);

@@ -15,8 +15,8 @@
 // API for turning XLS IR computations into Z3 solver form (so we can
 // compute/query formal properties of nodes in the XLS IR).
 
-#ifndef THIRD_PARTY_XLS_TOOLS_Z3_TRANSLATOR_H_
-#define THIRD_PARTY_XLS_TOOLS_Z3_TRANSLATOR_H_
+#ifndef THIRD_PARTY_XLS_TOOLS_Z3_IR_TRANSLATOR_H_
+#define THIRD_PARTY_XLS_TOOLS_Z3_IR_TRANSLATOR_H_
 
 #include "absl/time/time.h"
 #include "xls/common/logging/logging.h"
@@ -26,7 +26,8 @@
 #include "../z3/src/api/z3.h"
 
 namespace xls {
-namespace z3_translator {
+namespace solvers {
+namespace z3 {
 
 // Kinds of predicates we can compute about a subject node.
 enum class PredicateKind {
@@ -37,11 +38,11 @@ enum class PredicateKind {
 
 // Translates a function into its Z3 equivalent bit-vector circuit for use in
 // theorem proving.
-class Z3Translator : public DfsVisitorWithDefault {
+class IrTranslator : public DfsVisitorWithDefault {
  public:
   // Creates a translator and uses it to translate the given function into a Z3
   // AST.
-  static xabsl::StatusOr<std::unique_ptr<Z3Translator>> CreateAndTranslate(
+  static xabsl::StatusOr<std::unique_ptr<IrTranslator>> CreateAndTranslate(
       Function* function);
 
   // Translates the given function into a Z3 AST using a preexisting context
@@ -49,10 +50,10 @@ class Z3Translator : public DfsVisitorWithDefault {
   // to use the specified (already translated) parameters. This is to enable two
   // versions of the same function to be compared against the same inputs,
   // usually for equivalence checking.
-  static xabsl::StatusOr<std::unique_ptr<Z3Translator>> CreateAndTranslate(
+  static xabsl::StatusOr<std::unique_ptr<IrTranslator>> CreateAndTranslate(
       Z3_context ctx, Function* function,
       absl::Span<const Z3_ast> imported_params);
-  ~Z3Translator() override;
+  ~IrTranslator() override;
 
   // Sets the amount of time to allow Z3 to execute before aborting.
   void SetTimeout(absl::Duration timeout);
@@ -136,9 +137,9 @@ class Z3Translator : public DfsVisitorWithDefault {
   absl::Status HandleZeroExtend(ExtendOp* zero_ext) override;
 
  private:
-  Z3Translator(Z3_config config, Function* xls_function);
+  IrTranslator(Z3_config config, Function* xls_function);
 
-  Z3Translator(Z3_context ctx, Function* xls_function,
+  IrTranslator(Z3_context ctx, Function* xls_function,
                absl::Span<const Z3_ast> imported_params);
 
   // Gets the bit count associated with the bit-vector-sort Z3 node "arg".
@@ -261,7 +262,8 @@ std::string SolverResultToString(Z3_context ctx, Z3_solver solver);
 xabsl::StatusOr<bool> TryProve(Function* f, Node* subject, Predicate p,
                               absl::Duration timeout);
 
-}  // namespace z3_translator
+}  // namespace z3
+}  // namespace solvers
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_TOOLS_Z3_TRANSLATOR_H_
+#endif  // THIRD_PARTY_XLS_TOOLS_Z3_IR_TRANSLATOR_H_

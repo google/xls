@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/tools/z3_translator.h"
+#include "xls/solvers/z3_ir_translator.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -23,11 +23,11 @@
 namespace xls {
 namespace {
 
-using z3_translator::Predicate;
-using z3_translator::TryProve;
-using z3_translator::Z3Translator;
+using solvers::z3::IrTranslator;
+using solvers::z3::Predicate;
+using solvers::z3::TryProve;
 
-TEST(Z3TranslatorTest, ZeroIsZero) {
+TEST(Z3IrTranslatorTest, ZeroIsZero) {
   Package p("test");
   FunctionBuilder b("f", &p);
   auto x = b.Literal(UBits(0, /*bit_count=*/1));
@@ -38,7 +38,7 @@ TEST(Z3TranslatorTest, ZeroIsZero) {
   EXPECT_TRUE(proven);
 }
 
-TEST(Z3TranslatorTest, ZeroTwoBitsIsZero) {
+TEST(Z3IrTranslatorTest, ZeroTwoBitsIsZero) {
   Package p("test");
   FunctionBuilder b("f", &p);
   auto x = b.Literal(UBits(0, /*bit_count=*/2));
@@ -49,7 +49,7 @@ TEST(Z3TranslatorTest, ZeroTwoBitsIsZero) {
   EXPECT_TRUE(proven);
 }
 
-TEST(Z3TranslatorTest, OneIsNotEqualToZero) {
+TEST(Z3IrTranslatorTest, OneIsNotEqualToZero) {
   Package p("test");
   FunctionBuilder b("f", &p);
   auto x = b.Literal(UBits(1, /*bit_count=*/1));
@@ -60,7 +60,7 @@ TEST(Z3TranslatorTest, OneIsNotEqualToZero) {
   EXPECT_FALSE(proven);
 }
 
-TEST(Z3TranslatorTest, OneIsNotEqualToZeroPredicate) {
+TEST(Z3IrTranslatorTest, OneIsNotEqualToZeroPredicate) {
   Package p("test");
   FunctionBuilder b("f", &p);
   auto x = b.Literal(UBits(1, /*bit_count=*/1));
@@ -71,7 +71,7 @@ TEST(Z3TranslatorTest, OneIsNotEqualToZeroPredicate) {
   EXPECT_TRUE(proven);
 }
 
-TEST(Z3TranslatorTest, ParamMinusSelfIsZero) {
+TEST(Z3IrTranslatorTest, ParamMinusSelfIsZero) {
   Package p("test");
   Type* u32 = p.GetBitsType(32);
   FunctionBuilder b("f", &p);
@@ -84,7 +84,7 @@ TEST(Z3TranslatorTest, ParamMinusSelfIsZero) {
   EXPECT_TRUE(proven);
 }
 
-TEST(Z3TranslatorTest, XPlusYMinusYIsX) {
+TEST(Z3IrTranslatorTest, XPlusYMinusYIsX) {
   const std::string program = R"(
 fn f(x: bits[32], y: bits[32]) -> bits[32] {
   add.1: bits[32] = add(x, y)
@@ -100,7 +100,7 @@ fn f(x: bits[32], y: bits[32]) -> bits[32] {
   EXPECT_TRUE(proven);
 }
 
-TEST(Z3TranslatorTest, TupleIndexMinusSelf) {
+TEST(Z3IrTranslatorTest, TupleIndexMinusSelf) {
   const std::string program = R"(
 fn f(p: (bits[1], bits[32])) -> bits[32] {
   x: bits[32] = tuple_index(p, index=1)
@@ -115,7 +115,7 @@ fn f(p: (bits[1], bits[32])) -> bits[32] {
   EXPECT_TRUE(proven);
 }
 
-TEST(Z3TranslatorTest, ConcatThenSliceIsSelf) {
+TEST(Z3IrTranslatorTest, ConcatThenSliceIsSelf) {
   const std::string program = R"(
 fn f(x: bits[4], y: bits[4], z: bits[4]) -> bits[1] {
   a: bits[12] = concat(x, y, z)
@@ -131,7 +131,7 @@ fn f(x: bits[4], y: bits[4], z: bits[4]) -> bits[1] {
   EXPECT_TRUE(proven);
 }
 
-TEST(Z3TranslatorTest, ValueUgtSelf) {
+TEST(Z3IrTranslatorTest, ValueUgtSelf) {
   const std::string program = R"(
 fn f(p: bits[4]) -> bits[1] {
   ret result: bits[1] = ugt(p, p)
@@ -145,7 +145,7 @@ fn f(p: bits[4]) -> bits[1] {
   EXPECT_TRUE(proven);
 }
 
-TEST(Z3TranslatorTest, ValueUltSelf) {
+TEST(Z3IrTranslatorTest, ValueUltSelf) {
   const std::string program = R"(
 fn f(p: bits[4]) -> bits[1] {
   ret result: bits[1] = ult(p, p)
@@ -159,7 +159,7 @@ fn f(p: bits[4]) -> bits[1] {
   EXPECT_TRUE(proven);
 }
 
-TEST(Z3TranslatorTest, ZeroExtBitAlwaysZero) {
+TEST(Z3IrTranslatorTest, ZeroExtBitAlwaysZero) {
   const std::string program = R"(
 fn f(p: bits[4]) -> bits[1] {
   x: bits[5] = zero_ext(p, new_bit_count=5)
@@ -174,7 +174,7 @@ fn f(p: bits[4]) -> bits[1] {
   EXPECT_TRUE(proven);
 }
 
-TEST(Z3TranslatorTest, ZeroMinusParamHighBit) {
+TEST(Z3IrTranslatorTest, ZeroMinusParamHighBit) {
   const std::string program = R"(
 fn f(p: bits[4]) -> bits[1] {
   one: bits[4] = literal(value=1)
@@ -197,7 +197,7 @@ fn f(p: bits[4]) -> bits[1] {
 
 // Since the value can wrap around, we should not be able to prove that adding
 // one to a value is unsigned-greater-than itself.
-TEST(Z3TranslatorTest, BumpByOneUgtSelf) {
+TEST(Z3IrTranslatorTest, BumpByOneUgtSelf) {
   const std::string program = R"(
 fn f(p: bits[4]) -> bits[1] {
   one: bits[4] = literal(value=1)
@@ -218,7 +218,7 @@ fn f(p: bits[4]) -> bits[1] {
   EXPECT_FALSE(proven_nez);
 }
 
-TEST(Z3TranslatorTest, MaskAndReverse) {
+TEST(Z3IrTranslatorTest, MaskAndReverse) {
   const std::string program = R"(
 fn f(p: bits[2]) -> bits[1] {
   one: bits[2] = literal(value=1)
@@ -235,7 +235,7 @@ fn f(p: bits[2]) -> bits[1] {
   EXPECT_TRUE(proven_ez);
 }
 
-TEST(Z3TranslatorTest, ReverseSlicesEq) {
+TEST(Z3IrTranslatorTest, ReverseSlicesEq) {
   const std::string program = R"(
 fn f(p: bits[2]) -> bits[1] {
   p0: bits[1] = bit_slice(p, start=0, width=1)
@@ -252,7 +252,7 @@ fn f(p: bits[2]) -> bits[1] {
   EXPECT_TRUE(proven_nez);
 }
 
-TEST(Z3TranslatorTest, ShiftRightLogicalFillsZero) {
+TEST(Z3IrTranslatorTest, ShiftRightLogicalFillsZero) {
   const std::string program = R"(
 fn f(p: bits[2]) -> bits[1] {
   one: bits[2] = literal(value=1)
@@ -268,7 +268,7 @@ fn f(p: bits[2]) -> bits[1] {
   EXPECT_TRUE(proven_ez);
 }
 
-TEST(Z3TranslatorTest, ShiftLeftLogicalFillsZero) {
+TEST(Z3IrTranslatorTest, ShiftLeftLogicalFillsZero) {
   const std::string program = R"(
 fn f(p: bits[2]) -> bits[1] {
   one: bits[2] = literal(value=1)
@@ -284,7 +284,7 @@ fn f(p: bits[2]) -> bits[1] {
   EXPECT_TRUE(proven_ez);
 }
 
-TEST(Z3TranslatorTest, ShiftLeftLogicalDifferentSize) {
+TEST(Z3IrTranslatorTest, ShiftLeftLogicalDifferentSize) {
   const std::string program = R"(
 fn f(p: bits[2]) -> bits[1] {
   one: bits[1] = literal(value=1)
@@ -300,7 +300,7 @@ fn f(p: bits[2]) -> bits[1] {
   EXPECT_TRUE(proven_ez);
 }
 
-TEST(Z3TranslatorTest, XAndNotXIsZero) {
+TEST(Z3IrTranslatorTest, XAndNotXIsZero) {
   const std::string program = R"(
 fn f(p: bits[1]) -> bits[1] {
   np: bits[1] = not(p)
@@ -315,7 +315,7 @@ fn f(p: bits[1]) -> bits[1] {
   EXPECT_TRUE(proven_ez);
 }
 
-TEST(Z3TranslatorTest, XNandNotXIsZero) {
+TEST(Z3IrTranslatorTest, XNandNotXIsZero) {
   const std::string program = R"(
 fn f(p: bits[1]) -> bits[1] {
   np: bits[1] = not(p)
@@ -330,7 +330,7 @@ fn f(p: bits[1]) -> bits[1] {
   EXPECT_TRUE(proven_nez);
 }
 
-TEST(Z3TranslatorTest, XOrNotXIsNotZero) {
+TEST(Z3IrTranslatorTest, XOrNotXIsNotZero) {
   const std::string program = R"(
 fn f(p: bits[1]) -> bits[1] {
   np: bits[1] = not(p)
@@ -345,7 +345,7 @@ fn f(p: bits[1]) -> bits[1] {
   EXPECT_TRUE(proven_nez);
 }
 
-TEST(Z3TranslatorTest, SignExtendBitsAreEqual) {
+TEST(Z3IrTranslatorTest, SignExtendBitsAreEqual) {
   const std::string program = R"(
 fn f(p: bits[1]) -> bits[1] {
   p2: bits[2] = sign_ext(p, new_bit_count=2)
@@ -362,7 +362,7 @@ fn f(p: bits[1]) -> bits[1] {
   EXPECT_TRUE(proven_nez);
 }
 
-TEST(Z3TranslatorTest, XPlusNegX) {
+TEST(Z3IrTranslatorTest, XPlusNegX) {
   const std::string program = R"(
 fn f(p: bits[4]) -> bits[4] {
   np: bits[4] = neg(p)
@@ -377,7 +377,7 @@ fn f(p: bits[4]) -> bits[4] {
   EXPECT_TRUE(proven_ez);
 }
 
-TEST(Z3TranslatorTest, XNeX) {
+TEST(Z3IrTranslatorTest, XNeX) {
   const std::string program = R"(
 fn f(p: bits[4]) -> bits[1] {
   ret result: bits[1] = ne(p, p)
@@ -391,7 +391,7 @@ fn f(p: bits[4]) -> bits[1] {
   EXPECT_TRUE(proven_ez);
 }
 
-TEST(Z3TranslatorTest, OneHot) {
+TEST(Z3IrTranslatorTest, OneHot) {
   const std::string program = R"(
 fn f(p: bits[1]) -> bits[2] {
   ret result: bits[2] = one_hot(p, lsb_prio=true)
@@ -405,7 +405,7 @@ fn f(p: bits[1]) -> bits[2] {
   EXPECT_TRUE(proven_nez);
 }
 
-TEST(Z3TranslatorTest, EncodeZeroIsZero) {
+TEST(Z3IrTranslatorTest, EncodeZeroIsZero) {
   const std::string program = R"(
 fn f(x: bits[2]) -> bits[1] {
   z: bits[2] = xor(x, x)
@@ -420,7 +420,7 @@ fn f(x: bits[2]) -> bits[1] {
   EXPECT_TRUE(proven_ez);
 }
 
-TEST(Z3TranslatorTest, EncodeWithIndex1SetIsNotZero) {
+TEST(Z3IrTranslatorTest, EncodeWithIndex1SetIsNotZero) {
   const std::string program = R"(
 fn f(x: bits[2]) -> bits[1] {
   literal.1: bits[2] = literal(value=0b10)
@@ -436,7 +436,7 @@ fn f(x: bits[2]) -> bits[1] {
   EXPECT_TRUE(proven_nez);
 }
 
-TEST(Z3TranslatorTest, SelWithDefault) {
+TEST(Z3IrTranslatorTest, SelWithDefault) {
   const std::string program = R"(
 fn f(x: bits[2]) -> bits[1] {
   literal.1: bits[1] = literal(value=0b1)
@@ -456,7 +456,7 @@ fn f(x: bits[2]) -> bits[1] {
   EXPECT_FALSE(proven_ez);
 }
 
-TEST(Z3TranslatorTest, SgeVsSlt) {
+TEST(Z3IrTranslatorTest, SgeVsSlt) {
   const std::string program = R"(
 fn f(x: bits[2], y: bits[2]) -> bits[1] {
   sge: bits[1] = sge(x, y)
@@ -474,7 +474,7 @@ fn f(x: bits[2], y: bits[2]) -> bits[1] {
 
 // TODO(b/153195241): Re-enable these.
 #ifdef NDEBUG
-TEST(Z3TranslatorTest, AddToMostNegativeSge) {
+TEST(Z3IrTranslatorTest, AddToMostNegativeSge) {
   const std::string program = R"(
 fn f(x: bits[2]) -> bits[1] {
   most_negative: bits[2] = literal(value=0b10)
@@ -490,7 +490,7 @@ fn f(x: bits[2]) -> bits[1] {
   EXPECT_TRUE(proven_nez);
 }
 
-TEST(Z3TranslatorTest, SltVsMaxPositive) {
+TEST(Z3IrTranslatorTest, SltVsMaxPositive) {
   const std::string program = R"(
 fn f(x: bits[3]) -> bits[1] {
   most_positive: bits[3] = literal(value=0b011)
@@ -509,7 +509,7 @@ fn f(x: bits[3]) -> bits[1] {
 }
 #endif
 
-TEST(Z3TranslatorTest, TupleAndAccess) {
+TEST(Z3IrTranslatorTest, TupleAndAccess) {
   const std::string program = R"(
 fn f(x: bits[2]) -> bits[1] {
   t: (bits[2], bits[2]) = tuple(x, x)
@@ -529,7 +529,7 @@ fn f(x: bits[2]) -> bits[1] {
 }
 
 // This test verifies that selects with tuple values can be translated.
-TEST(Z3TranslatorTest, TupleSelect) {
+TEST(Z3IrTranslatorTest, TupleSelect) {
   const std::string program = R"(
 package p
 
@@ -557,7 +557,7 @@ fn f() -> bits[1] {
   EXPECT_TRUE(proven_eq);
 }
 
-TEST(Z3TranslatorTest, TupleSelectsMore) {
+TEST(Z3IrTranslatorTest, TupleSelectsMore) {
   const std::string program = R"(
 package p
 
@@ -596,7 +596,7 @@ fn f() -> bits[4] {
 }
 
 // Array test 1: Can we properly handle arrays of bits!
-TEST(Z3TranslatorTest, ArrayOfBits) {
+TEST(Z3IrTranslatorTest, ArrayOfBits) {
   const std::string program = R"(
 package p
 
@@ -628,7 +628,7 @@ fn f() -> bits[32] {
 }
 
 // Array test 2: Can we properly handle arrays...OF ARRAYS?
-TEST(Z3TranslatorTest, ArrayOfArrays) {
+TEST(Z3IrTranslatorTest, ArrayOfArrays) {
   const std::string program = R"(
 package p
 
@@ -666,7 +666,7 @@ fn f() -> bits[32] {
 }
 
 // Array test 3! Arrays...OF TUPLES
-TEST(Z3TranslatorTest, ArrayOfTuples) {
+TEST(Z3IrTranslatorTest, ArrayOfTuples) {
   const std::string program = R"(
 package p
 
@@ -703,7 +703,7 @@ fn f() -> bits[32] {
   EXPECT_TRUE(proven_eq);
 }
 
-TEST(Z3TranslatorTest, ArrayOfTuplesOfArrays) {
+TEST(Z3IrTranslatorTest, ArrayOfTuplesOfArrays) {
   const std::string program = R"(
 package p
 
@@ -746,7 +746,7 @@ fn f() -> bits[32] {
   EXPECT_TRUE(proven_eq);
 }
 
-TEST(Z3TranslatorTest, OverflowingArrayIndex) {
+TEST(Z3IrTranslatorTest, OverflowingArrayIndex) {
   const std::string program = R"(
 package p
 
@@ -777,7 +777,7 @@ fn f() -> bits[32] {
   EXPECT_TRUE(proven_eq);
 }
 
-TEST(Z3TranslatorTest, ParamReuse) {
+TEST(Z3IrTranslatorTest, ParamReuse) {
   // Have the two programs do slightly different things, just to avoid paranoia
   // over potential evaluation short-circuits.
   const std::string program_1 = R"(
@@ -801,7 +801,7 @@ fn f(x: bits[32], y: bits[16], z: bits[8]) -> bits[16] {
                            Parser::ParsePackage(program_1));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f1, p1->GetFunction("f"));
   XLS_ASSERT_OK_AND_ASSIGN(auto translator_1,
-                           Z3Translator::CreateAndTranslate(f1));
+                           IrTranslator::CreateAndTranslate(f1));
   std::vector<Z3_ast> imported_params;
   for (auto* param : f1->params()) {
     imported_params.push_back(translator_1->GetTranslation(param));
@@ -814,7 +814,7 @@ fn f(x: bits[32], y: bits[16], z: bits[8]) -> bits[16] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f2, p2->GetFunction("f"));
   XLS_ASSERT_OK_AND_ASSIGN(
       auto translator_2,
-      Z3Translator::CreateAndTranslate(translator_1->ctx(), f2,
+      IrTranslator::CreateAndTranslate(translator_1->ctx(), f2,
                                        absl::MakeSpan(imported_params)));
 
   Z3_ast return_1 = translator_1->GetReturnNode();

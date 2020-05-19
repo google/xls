@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/tools/z3_translator.h"
+#include "xls/solvers/z3_ir_translator.h"
 
 #include "absl/debugging/leak_check.h"
 #include "absl/status/status.h"
@@ -27,7 +27,8 @@
 #include "../z3/src/api/z3_fpa.h"
 
 namespace xls {
-namespace z3_translator {
+namespace solvers {
+namespace z3 {
 
 std::string Predicate::ToString() const {
   switch (kind_) {
@@ -83,7 +84,7 @@ class ScopedErrorHandler {
 
 }  // namespace
 
-// Helpers for Z3 translation that don't need to be part of Z3Translator's
+// Helpers for Z3 translation that don't need to be part of IrTranslator's
 // public interface.
 class Z3OpTranslator {
  public:
@@ -213,67 +214,67 @@ class Z3AbstractEvaluator : public AbstractEvaluator<Z3_ast> {
 
 }  // namespace
 
-xabsl::StatusOr<std::unique_ptr<Z3Translator>> Z3Translator::CreateAndTranslate(
+xabsl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
     Function* function) {
   Z3_config config = Z3_mk_config();
   Z3_set_param_value(config, "proof", "true");
-  auto translator = absl::WrapUnique(new Z3Translator(config, function));
+  auto translator = absl::WrapUnique(new IrTranslator(config, function));
   XLS_RETURN_IF_ERROR(function->Accept(translator.get()));
   return translator;
 }
 
-xabsl::StatusOr<std::unique_ptr<Z3Translator>> Z3Translator::CreateAndTranslate(
+xabsl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
     Z3_context ctx, Function* function,
     absl::Span<const Z3_ast> imported_params) {
   auto translator =
-      absl::WrapUnique(new Z3Translator(ctx, function, imported_params));
+      absl::WrapUnique(new IrTranslator(ctx, function, imported_params));
   XLS_RETURN_IF_ERROR(function->Accept(translator.get()));
   return translator;
 }
 
-Z3Translator::Z3Translator(Z3_config config, Function* xls_function)
+IrTranslator::IrTranslator(Z3_config config, Function* xls_function)
     : config_(config),
       ctx_(Z3_mk_context(config_)),
       borrowed_context_(false),
       xls_function_(xls_function) {}
 
-Z3Translator::Z3Translator(Z3_context ctx, Function* xls_function,
+IrTranslator::IrTranslator(Z3_context ctx, Function* xls_function,
                            absl::Span<const Z3_ast> imported_params)
     : ctx_(ctx),
       borrowed_context_(true),
       imported_params_(imported_params),
       xls_function_(xls_function) {}
 
-Z3Translator::~Z3Translator() {
+IrTranslator::~IrTranslator() {
   if (!borrowed_context_) {
     Z3_del_context(ctx_);
     Z3_del_config(config_);
   }
 }
 
-Z3_ast Z3Translator::GetTranslation(const Node* source) {
+Z3_ast IrTranslator::GetTranslation(const Node* source) {
   return translations_.at(source);
 }
 
-Z3_ast Z3Translator::GetReturnNode() {
+Z3_ast IrTranslator::GetReturnNode() {
   return GetTranslation(xls_function_->return_value());
 }
 
-Z3_sort_kind Z3Translator::GetValueKind(Z3_ast value) {
+Z3_sort_kind IrTranslator::GetValueKind(Z3_ast value) {
   Z3_sort sort = Z3_get_sort(ctx_, value);
   return Z3_get_sort_kind(ctx_, sort);
 }
 
-void Z3Translator::SetTimeout(absl::Duration timeout) {
+void IrTranslator::SetTimeout(absl::Duration timeout) {
   std::string timeout_str = absl::StrCat(absl::ToInt64Milliseconds(timeout));
   Z3_update_param_value(ctx_, "timeout", timeout_str.c_str());
 }
 
-Z3_ast Z3Translator::FloatZero(Z3_sort sort) {
+Z3_ast IrTranslator::FloatZero(Z3_sort sort) {
   return Z3_mk_fpa_zero(ctx_, sort, /*negative=*/false);
 }
 
-xabsl::StatusOr<Z3_ast> Z3Translator::FloatFlushSubnormal(Z3_ast value) {
+xabsl::StatusOr<Z3_ast> IrTranslator::FloatFlushSubnormal(Z3_ast value) {
   Z3_sort sort = Z3_get_sort(ctx_, value);
   Z3_sort_kind sort_kind = Z3_get_sort_kind(ctx_, sort);
   if (sort_kind != Z3_FLOATING_POINT_SORT) {
@@ -285,7 +286,7 @@ xabsl::StatusOr<Z3_ast> Z3Translator::FloatFlushSubnormal(Z3_ast value) {
   return Z3_mk_ite(ctx_, is_subnormal, FloatZero(sort), value);
 }
 
-xabsl::StatusOr<Z3_ast> Z3Translator::ToFloat32(absl::Span<Z3_ast> nodes) {
+xabsl::StatusOr<Z3_ast> IrTranslator::ToFloat32(absl::Span<Z3_ast> nodes) {
   if (nodes.size() != 3) {
     return absl::InvalidArgumentError(absl::StrCat(
         "Incorrect number of arguments - need 3, got ", nodes.size()));
@@ -319,7 +320,7 @@ xabsl::StatusOr<Z3_ast> Z3Translator::ToFloat32(absl::Span<Z3_ast> nodes) {
   return Z3_mk_fpa_fp(ctx_, sign, exponent, significand);
 }
 
-xabsl::StatusOr<Z3_ast> Z3Translator::ToFloat32(Z3_ast tuple) {
+xabsl::StatusOr<Z3_ast> IrTranslator::ToFloat32(Z3_ast tuple) {
   std::vector<Z3_ast> components;
   Z3_sort tuple_sort = Z3_get_sort(ctx_, tuple);
   for (int i = 0; i < 3; i++) {
@@ -331,21 +332,21 @@ xabsl::StatusOr<Z3_ast> Z3Translator::ToFloat32(Z3_ast tuple) {
 }
 
 template <typename OpT, typename FnT>
-absl::Status Z3Translator::HandleBinary(OpT* op, FnT f) {
+absl::Status IrTranslator::HandleBinary(OpT* op, FnT f) {
   ScopedErrorHandler seh(ctx_);
   Z3_ast result = f(ctx_, GetBitVec(op->operand(0)), GetBitVec(op->operand(1)));
   NoteTranslation(op, result);
   return seh.status();
 }
 
-absl::Status Z3Translator::HandleAdd(BinOp* add) {
+absl::Status IrTranslator::HandleAdd(BinOp* add) {
   return HandleBinary(add, Z3_mk_bvadd);
 }
-absl::Status Z3Translator::HandleSub(BinOp* sub) {
+absl::Status IrTranslator::HandleSub(BinOp* sub) {
   return HandleBinary(sub, Z3_mk_bvsub);
 }
 
-absl::Status Z3Translator::HandleULe(CompareOp* ule) {
+absl::Status IrTranslator::HandleULe(CompareOp* ule) {
   auto f = [](Z3_context ctx, Z3_ast lhs, Z3_ast rhs) {
     Z3OpTranslator op_translator(ctx);
     std::vector<Z3_ast> args;
@@ -357,14 +358,14 @@ absl::Status Z3Translator::HandleULe(CompareOp* ule) {
   return HandleBinary(ule, f);
 }
 
-absl::Status Z3Translator::HandleULt(CompareOp* lt) {
+absl::Status IrTranslator::HandleULt(CompareOp* lt) {
   auto f = [this](Z3_context ctx, Z3_ast lhs, Z3_ast rhs) {
     return Z3OpTranslator(ctx_).ULt(lhs, rhs);
   };
   return HandleBinary(lt, f);
 }
 
-absl::Status Z3Translator::HandleUGe(CompareOp* uge) {
+absl::Status IrTranslator::HandleUGe(CompareOp* uge) {
   auto f = [](Z3_context ctx, Z3_ast lhs, Z3_ast rhs) {
     Z3OpTranslator t(ctx);
     return t.Not(t.ULt(lhs, rhs));
@@ -372,7 +373,7 @@ absl::Status Z3Translator::HandleUGe(CompareOp* uge) {
   return HandleBinary(uge, f);
 }
 
-absl::Status Z3Translator::HandleUGt(CompareOp* gt) {
+absl::Status IrTranslator::HandleUGt(CompareOp* gt) {
   auto f = [this](Z3_context ctx, Z3_ast lhs, Z3_ast rhs) {
     // If the msb of the subtraction result is set, that means we underflowed,
     // so RHS is > LHS (that is LHS < RHS)
@@ -387,7 +388,7 @@ absl::Status Z3Translator::HandleUGt(CompareOp* gt) {
   return HandleBinary(gt, f);
 }
 
-absl::Status Z3Translator::HandleSGt(CompareOp* sgt) {
+absl::Status IrTranslator::HandleSGt(CompareOp* sgt) {
   auto f = [](Z3_context ctx, Z3_ast lhs, Z3_ast rhs) {
     Z3OpTranslator op_translator(ctx);
     Z3_ast slt = op_translator.SLt(lhs, rhs);
@@ -400,7 +401,7 @@ absl::Status Z3Translator::HandleSGt(CompareOp* sgt) {
   return HandleBinary(sgt, f);
 }
 
-absl::Status Z3Translator::HandleSLe(CompareOp* sle) {
+absl::Status IrTranslator::HandleSLe(CompareOp* sle) {
   auto f = [](Z3_context ctx, Z3_ast lhs, Z3_ast rhs) {
     Z3OpTranslator op_translator(ctx);
     std::vector<Z3_ast> args;
@@ -412,14 +413,14 @@ absl::Status Z3Translator::HandleSLe(CompareOp* sle) {
   return HandleBinary(sle, f);
 }
 
-absl::Status Z3Translator::HandleSLt(CompareOp* slt) {
+absl::Status IrTranslator::HandleSLt(CompareOp* slt) {
   auto f = [](Z3_context ctx, Z3_ast lhs, Z3_ast rhs) {
     return Z3OpTranslator(ctx).SLt(lhs, rhs);
   };
   return HandleBinary(slt, f);
 }
 
-absl::Status Z3Translator::HandleSGe(CompareOp* sge) {
+absl::Status IrTranslator::HandleSGe(CompareOp* sge) {
   auto f = [](Z3_context ctx, Z3_ast lhs, Z3_ast rhs) {
     Z3OpTranslator t(ctx);
     return t.Not(t.SLt(lhs, rhs));
@@ -427,7 +428,7 @@ absl::Status Z3Translator::HandleSGe(CompareOp* sge) {
   return HandleBinary(sge, f);
 }
 
-absl::Status Z3Translator::HandleEq(CompareOp* eq) {
+absl::Status IrTranslator::HandleEq(CompareOp* eq) {
   auto f = [](Z3_context ctx, Z3_ast lhs, Z3_ast rhs) {
     Z3OpTranslator t(ctx);
     return t.Not(t.ReduceOr(t.Xor(lhs, rhs)));
@@ -435,7 +436,7 @@ absl::Status Z3Translator::HandleEq(CompareOp* eq) {
   return HandleBinary(eq, f);
 }
 
-absl::Status Z3Translator::HandleNe(CompareOp* ne) {
+absl::Status IrTranslator::HandleNe(CompareOp* ne) {
   auto f = [](Z3_context ctx, Z3_ast a, Z3_ast b) {
     Z3OpTranslator t(ctx);
     return t.ReduceOr(t.Xor(a, b));
@@ -444,7 +445,7 @@ absl::Status Z3Translator::HandleNe(CompareOp* ne) {
 }
 
 template <typename FnT>
-absl::Status Z3Translator::HandleShift(BinOp* shift, FnT fshift) {
+absl::Status IrTranslator::HandleShift(BinOp* shift, FnT fshift) {
   auto f = [shift, fshift](Z3_context ctx, Z3_ast lhs, Z3_ast rhs) {
     int64 lhs_bit_count = shift->operand(0)->BitCountOrDie();
     int64 rhs_bit_count = shift->operand(1)->BitCountOrDie();
@@ -457,20 +458,20 @@ absl::Status Z3Translator::HandleShift(BinOp* shift, FnT fshift) {
   return HandleBinary(shift, f);
 }
 
-absl::Status Z3Translator::HandleShra(BinOp* shra) {
+absl::Status IrTranslator::HandleShra(BinOp* shra) {
   return HandleShift(shra, Z3_mk_bvashr);
 }
 
-absl::Status Z3Translator::HandleShrl(BinOp* shrl) {
+absl::Status IrTranslator::HandleShrl(BinOp* shrl) {
   return HandleShift(shrl, Z3_mk_bvlshr);
 }
 
-absl::Status Z3Translator::HandleShll(BinOp* shll) {
+absl::Status IrTranslator::HandleShll(BinOp* shll) {
   return HandleShift(shll, Z3_mk_bvshl);
 }
 
 template <typename OpT, typename FnT>
-absl::Status Z3Translator::HandleNary(OpT* op, FnT f, bool invert_result) {
+absl::Status IrTranslator::HandleNary(OpT* op, FnT f, bool invert_result) {
   ScopedErrorHandler seh(ctx_);
   int64 operands = op->operands().size();
   Z3_ast accum = GetBitVec(op->operand(0));
@@ -484,31 +485,31 @@ absl::Status Z3Translator::HandleNary(OpT* op, FnT f, bool invert_result) {
   return seh.status();
 }
 
-absl::Status Z3Translator::HandleNaryAnd(NaryOp* and_op) {
+absl::Status IrTranslator::HandleNaryAnd(NaryOp* and_op) {
   return HandleNary(and_op, Z3_mk_bvand, /*invert_result=*/false);
 }
 
-absl::Status Z3Translator::HandleNaryNand(NaryOp* nand_op) {
+absl::Status IrTranslator::HandleNaryNand(NaryOp* nand_op) {
   return HandleNary(nand_op, Z3_mk_bvand, /*invert_result=*/true);
 }
 
-absl::Status Z3Translator::HandleNaryNor(NaryOp* nor_op) {
+absl::Status IrTranslator::HandleNaryNor(NaryOp* nor_op) {
   return HandleNary(nor_op, Z3_mk_bvor, /*invert_result=*/true);
 }
 
-absl::Status Z3Translator::HandleNaryOr(NaryOp* or_op) {
+absl::Status IrTranslator::HandleNaryOr(NaryOp* or_op) {
   return HandleNary(or_op, Z3_mk_bvor, /*invert_result=*/false);
 }
 
-absl::Status Z3Translator::HandleNaryXor(NaryOp* op) {
+absl::Status IrTranslator::HandleNaryXor(NaryOp* op) {
   return HandleNary(op, Z3_mk_bvxor, /*invert_result=*/false);
 }
 
-absl::Status Z3Translator::HandleConcat(Concat* concat) {
+absl::Status IrTranslator::HandleConcat(Concat* concat) {
   return HandleNary(concat, Z3_mk_concat, /*invert_result=*/false);
 }
 
-Z3_sort Z3Translator::CreateTupleSort(Type* type) {
+Z3_sort IrTranslator::CreateTupleSort(Type* type) {
   TupleType* tuple_type = type->AsTupleOrDie();
   Z3_func_decl mk_tuple_decl;
   std::string tuple_type_str = tuple_type->ToString();
@@ -535,27 +536,27 @@ Z3_sort Z3Translator::CreateTupleSort(Type* type) {
                           &mk_tuple_decl, proj_decls.data());
 }
 
-Z3_ast Z3Translator::CreateTuple(Z3_sort tuple_sort,
+Z3_ast IrTranslator::CreateTuple(Z3_sort tuple_sort,
                                  absl::Span<Z3_ast> elements) {
   Z3_func_decl mk_tuple_decl = Z3_get_tuple_sort_mk_decl(ctx_, tuple_sort);
   return Z3_mk_app(ctx_, mk_tuple_decl, elements.size(), elements.data());
 }
 
-Z3_ast Z3Translator::CreateTuple(Type* tuple_type,
+Z3_ast IrTranslator::CreateTuple(Type* tuple_type,
                                  absl::Span<Z3_ast> elements) {
   Z3_sort tuple_sort = TypeToSort(tuple_type);
   Z3_func_decl mk_tuple_decl = Z3_get_tuple_sort_mk_decl(ctx_, tuple_sort);
   return Z3_mk_app(ctx_, mk_tuple_decl, elements.size(), elements.data());
 }
 
-xabsl::StatusOr<Z3_ast> Z3Translator::CreateZ3Param(
+xabsl::StatusOr<Z3_ast> IrTranslator::CreateZ3Param(
     Type* type, absl::string_view param_name) {
   return Z3_mk_const(ctx_,
                      Z3_mk_string_symbol(ctx_, std::string(param_name).c_str()),
                      TypeToSort(type));
 }
 
-Z3_sort Z3Translator::TypeToSort(Type* type) {
+Z3_sort IrTranslator::TypeToSort(Type* type) {
   switch (type->kind()) {
     case TypeKind::kBits:
       return Z3_mk_bv_sort(ctx_, type->GetFlatBitCount());
@@ -574,7 +575,7 @@ Z3_sort Z3Translator::TypeToSort(Type* type) {
   }
 }
 
-absl::Status Z3Translator::HandleParam(Param* param) {
+absl::Status IrTranslator::HandleParam(Param* param) {
   ScopedErrorHandler seh(ctx_);
   Type* type = param->GetType();
 
@@ -594,7 +595,7 @@ absl::Status Z3Translator::HandleParam(Param* param) {
   return seh.status();
 }
 
-Z3_ast Z3Translator::ZeroOfSort(Z3_sort sort) {
+Z3_ast IrTranslator::ZeroOfSort(Z3_sort sort) {
   // We represent tuples as bit vectors.
   Z3_sort_kind sort_kind = Z3_get_sort_kind(ctx_, sort);
   switch (sort_kind) {
@@ -622,7 +623,7 @@ Z3_ast Z3Translator::ZeroOfSort(Z3_sort sort) {
   }
 }
 
-Z3_ast Z3Translator::CreateArray(ArrayType* type, absl::Span<Z3_ast> elements) {
+Z3_ast IrTranslator::CreateArray(ArrayType* type, absl::Span<Z3_ast> elements) {
   Z3_sort element_sort = TypeToSort(type->element_type());
 
   // Zero-element arrays are A Thing, so we need to synthesize a Z3 zero value
@@ -640,7 +641,7 @@ Z3_ast Z3Translator::CreateArray(ArrayType* type, absl::Span<Z3_ast> elements) {
   return z3_array;
 }
 
-absl::Status Z3Translator::HandleArray(Array* array) {
+absl::Status IrTranslator::HandleArray(Array* array) {
   ScopedErrorHandler seh(ctx_);
   std::vector<Z3_ast> elements;
   elements.reserve(array->size());
@@ -653,7 +654,7 @@ absl::Status Z3Translator::HandleArray(Array* array) {
   return seh.status();
 }
 
-absl::Status Z3Translator::HandleTuple(Tuple* tuple) {
+absl::Status IrTranslator::HandleTuple(Tuple* tuple) {
   std::vector<Z3_ast> elements;
   elements.reserve(tuple->operand_count());
   for (int i = 0; i < tuple->operand_count(); i++) {
@@ -665,7 +666,7 @@ absl::Status Z3Translator::HandleTuple(Tuple* tuple) {
   return absl::OkStatus();
 }
 
-Z3_ast Z3Translator::GetArrayElement(ArrayType* array_type, Z3_ast array,
+Z3_ast IrTranslator::GetArrayElement(ArrayType* array_type, Z3_ast array,
                                      Z3_ast index) {
   // In XLS, array indices can be of any sort, whereas in Z3, index types need
   // to be declared w/the array (the "domain" argument - we declare that to be
@@ -690,7 +691,7 @@ Z3_ast Z3Translator::GetArrayElement(ArrayType* array_type, Z3_ast array,
   return Z3_mk_select(ctx_, array, index);
 }
 
-absl::Status Z3Translator::HandleArrayIndex(ArrayIndex* array_index) {
+absl::Status IrTranslator::HandleArrayIndex(ArrayIndex* array_index) {
   ScopedErrorHandler seh(ctx_);
   ArrayType* array_type = array_index->operand(0)->GetType()->AsArrayOrDie();
   Z3_ast element =
@@ -700,7 +701,7 @@ absl::Status Z3Translator::HandleArrayIndex(ArrayIndex* array_index) {
   return seh.status();
 }
 
-absl::Status Z3Translator::HandleTupleIndex(TupleIndex* tuple_index) {
+absl::Status IrTranslator::HandleTupleIndex(TupleIndex* tuple_index) {
   ScopedErrorHandler seh(ctx_);
   Z3_ast tuple = GetValue(tuple_index->operand(0));
   Z3_sort tuple_sort = Z3_get_sort(ctx_, tuple);
@@ -714,7 +715,7 @@ absl::Status Z3Translator::HandleTupleIndex(TupleIndex* tuple_index) {
 
 // Handles the translation of unary node "op" by using the abstract node
 // evaluator.
-absl::Status Z3Translator::HandleUnaryViaAbstractEval(Node* op) {
+absl::Status IrTranslator::HandleUnaryViaAbstractEval(Node* op) {
   XLS_CHECK_EQ(op->operand_count(), 1);
   ScopedErrorHandler seh(ctx_);
   Z3AbstractEvaluator evaluator(ctx_);
@@ -738,39 +739,39 @@ absl::Status Z3Translator::HandleUnaryViaAbstractEval(Node* op) {
 }
 
 template <typename FnT>
-absl::Status Z3Translator::HandleUnary(UnOp* op, FnT f) {
+absl::Status IrTranslator::HandleUnary(UnOp* op, FnT f) {
   ScopedErrorHandler seh(ctx_);
   Z3_ast result = f(ctx_, GetBitVec(op->operand(0)));
   NoteTranslation(op, result);
   return seh.status();
 }
 
-absl::Status Z3Translator::HandleEncode(Encode* encode) {
+absl::Status IrTranslator::HandleEncode(Encode* encode) {
   return HandleUnaryViaAbstractEval(encode);
 }
 
-absl::Status Z3Translator::HandleOneHot(OneHot* one_hot) {
+absl::Status IrTranslator::HandleOneHot(OneHot* one_hot) {
   return HandleUnaryViaAbstractEval(one_hot);
 }
 
-absl::Status Z3Translator::HandleNeg(UnOp* neg) {
+absl::Status IrTranslator::HandleNeg(UnOp* neg) {
   return HandleUnary(neg, Z3_mk_bvneg);
 }
 
-absl::Status Z3Translator::HandleNot(UnOp* not_op) {
+absl::Status IrTranslator::HandleNot(UnOp* not_op) {
   return HandleUnary(not_op, Z3_mk_bvnot);
 }
 
-absl::Status Z3Translator::HandleReverse(UnOp* reverse) {
+absl::Status IrTranslator::HandleReverse(UnOp* reverse) {
   return HandleUnaryViaAbstractEval(reverse);
 }
 
-absl::Status Z3Translator::HandleIdentity(UnOp* identity) {
+absl::Status IrTranslator::HandleIdentity(UnOp* identity) {
   NoteTranslation(identity, GetValue(identity->operand(0)));
   return absl::OkStatus();
 }
 
-absl::Status Z3Translator::HandleSignExtend(ExtendOp* sign_ext) {
+absl::Status IrTranslator::HandleSignExtend(ExtendOp* sign_ext) {
   ScopedErrorHandler seh(ctx_);
   int64 input_bit_count = sign_ext->operand(0)->BitCountOrDie();
   Z3_ast result =
@@ -780,7 +781,7 @@ absl::Status Z3Translator::HandleSignExtend(ExtendOp* sign_ext) {
   return seh.status();
 }
 
-absl::Status Z3Translator::HandleZeroExtend(ExtendOp* zero_ext) {
+absl::Status IrTranslator::HandleZeroExtend(ExtendOp* zero_ext) {
   ScopedErrorHandler seh(ctx_);
   int64 input_bit_count = zero_ext->operand(0)->BitCountOrDie();
   Z3_ast result =
@@ -790,7 +791,7 @@ absl::Status Z3Translator::HandleZeroExtend(ExtendOp* zero_ext) {
   return seh.status();
 }
 
-absl::Status Z3Translator::HandleBitSlice(BitSlice* bit_slice) {
+absl::Status IrTranslator::HandleBitSlice(BitSlice* bit_slice) {
   ScopedErrorHandler seh(ctx_);
   int64 low = bit_slice->start();
   int64 high = low + bit_slice->width() - 1;
@@ -800,7 +801,7 @@ absl::Status Z3Translator::HandleBitSlice(BitSlice* bit_slice) {
   return seh.status();
 }
 
-xabsl::StatusOr<Z3_ast> Z3Translator::TranslateLiteralValue(
+xabsl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(
     Type* value_type, const Value& value) {
   if (value.IsBits()) {
     const Bits& bits = value.bits();
@@ -842,7 +843,7 @@ xabsl::StatusOr<Z3_ast> Z3Translator::TranslateLiteralValue(
   return CreateTuple(tuple_type, absl::MakeSpan(elements));
 }
 
-absl::Status Z3Translator::HandleLiteral(Literal* literal) {
+absl::Status IrTranslator::HandleLiteral(Literal* literal) {
   ScopedErrorHandler seh(ctx_);
   XLS_ASSIGN_OR_RETURN(Z3_ast result, TranslateLiteralValue(literal->GetType(),
                                                             literal->value()));
@@ -850,7 +851,7 @@ absl::Status Z3Translator::HandleLiteral(Literal* literal) {
   return seh.status();
 }
 
-std::vector<Z3_ast> Z3Translator::FlattenValue(Type* type, Z3_ast value) {
+std::vector<Z3_ast> IrTranslator::FlattenValue(Type* type, Z3_ast value) {
   Z3OpTranslator op_translator(ctx_);
 
   switch (type->kind()) {
@@ -890,7 +891,7 @@ std::vector<Z3_ast> Z3Translator::FlattenValue(Type* type, Z3_ast value) {
   }
 }
 
-Z3_ast Z3Translator::UnflattenZ3Ast(Type* type, absl::Span<Z3_ast> flat) {
+Z3_ast IrTranslator::UnflattenZ3Ast(Type* type, absl::Span<Z3_ast> flat) {
   Z3OpTranslator op_translator(ctx_);
   switch (type->kind()) {
     case TypeKind::kBits:
@@ -935,7 +936,7 @@ Z3_ast Z3Translator::UnflattenZ3Ast(Type* type, absl::Span<Z3_ast> flat) {
 }
 
 template <typename NodeT>
-absl::Status Z3Translator::HandleSelect(
+absl::Status IrTranslator::HandleSelect(
     NodeT* node, std::function<FlatValue(const FlatValue& selector,
                                          const std::vector<FlatValue>& cases)>
                      evaluator) {
@@ -962,7 +963,7 @@ absl::Status Z3Translator::HandleSelect(
   return seh.status();
 }
 
-absl::Status Z3Translator::HandleOneHotSel(OneHotSelect* one_hot) {
+absl::Status IrTranslator::HandleOneHotSel(OneHotSelect* one_hot) {
   Z3AbstractEvaluator evaluator(ctx_);
   return HandleSelect(
       one_hot, [&evaluator](const std::vector<Z3_ast>& selector,
@@ -972,7 +973,7 @@ absl::Status Z3Translator::HandleOneHotSel(OneHotSelect* one_hot) {
       });
 }
 
-absl::Status Z3Translator::HandleSel(Select* sel) {
+absl::Status IrTranslator::HandleSel(Select* sel) {
   Z3AbstractEvaluator evaluator(ctx_);
   Z3OpTranslator op_translator(ctx_);
   return HandleSelect(sel, [this, sel, &evaluator, &op_translator](
@@ -988,7 +989,7 @@ absl::Status Z3Translator::HandleSel(Select* sel) {
   });
 }
 
-void Z3Translator::HandleMul(ArithOp* mul, bool is_signed) {
+void IrTranslator::HandleMul(ArithOp* mul, bool is_signed) {
   // In XLS IR, multiply operands can potentially be of different widths. In Z3,
   // they can't, so we need to zext (for a umul) the operands to the size of the
   // result.
@@ -1027,31 +1028,31 @@ void Z3Translator::HandleMul(ArithOp* mul, bool is_signed) {
   NoteTranslation(mul, result);
 }
 
-absl::Status Z3Translator::HandleSMul(ArithOp* mul) {
+absl::Status IrTranslator::HandleSMul(ArithOp* mul) {
   ScopedErrorHandler seh(ctx_);
   HandleMul(mul, /*is_signed=*/true);
   return seh.status();
 }
 
-absl::Status Z3Translator::HandleUMul(ArithOp* mul) {
+absl::Status IrTranslator::HandleUMul(ArithOp* mul) {
   ScopedErrorHandler seh(ctx_);
   HandleMul(mul, /*is_signed=*/false);
   return seh.status();
 }
 
-absl::Status Z3Translator::DefaultHandler(Node* node) {
+absl::Status IrTranslator::DefaultHandler(Node* node) {
   return absl::UnimplementedError("Unhandled node for conversion: " +
                                   node->ToString());
 }
 
-Z3_ast Z3Translator::GetValue(const Node* node) {
+Z3_ast IrTranslator::GetValue(const Node* node) {
   auto it = translations_.find(node);
   XLS_CHECK(it != translations_.end()) << "Node not translated: " << node;
   return it->second;
 }
 
 // Wrapper around the above that verifies we're accessing a Bits value.
-Z3_ast Z3Translator::GetBitVec(Node* node) {
+Z3_ast IrTranslator::GetBitVec(Node* node) {
   Z3_ast value = GetValue(node);
   Z3_sort value_sort = Z3_get_sort(ctx_, value);
   XLS_CHECK_EQ(Z3_get_sort_kind(ctx_, value_sort), Z3_BV_SORT);
@@ -1060,7 +1061,7 @@ Z3_ast Z3Translator::GetBitVec(Node* node) {
   return value;
 }
 
-void Z3Translator::NoteTranslation(Node* node, Z3_ast translated) {
+void IrTranslator::NoteTranslation(Node* node, Z3_ast translated) {
   translations_[node] = translated;
 }
 
@@ -1097,7 +1098,7 @@ std::string SolverResultToString(Z3_context ctx, Z3_solver solver) {
 }
 
 xabsl::StatusOr<Z3_ast> PredicateToObjective(Predicate p, Z3_ast a,
-                                            Z3Translator* translator) {
+                                             IrTranslator* translator) {
   ScopedErrorHandler seh(translator->ctx());
   Z3_ast objective;
   // Note that if the predicate we want to prove is "equal to zero" we return
@@ -1141,7 +1142,7 @@ absl::string_view LBoolToString(Z3_lbool x) {
 
 xabsl::StatusOr<bool> TryProve(Function* f, Node* subject, Predicate p,
                               absl::Duration timeout) {
-  XLS_ASSIGN_OR_RETURN(auto translator, Z3Translator::CreateAndTranslate(f));
+  XLS_ASSIGN_OR_RETURN(auto translator, IrTranslator::CreateAndTranslate(f));
   translator->SetTimeout(timeout);
   Z3_ast value = translator->GetTranslation(subject);
   if (translator->GetValueKind(value) != Z3_BV_SORT) {
@@ -1172,5 +1173,6 @@ xabsl::StatusOr<bool> TryProve(Function* f, Node* subject, Predicate p,
   return false;
 }
 
-}  // namespace z3_translator
+}  // namespace z3
+}  // namespace solvers
 }  // namespace xls

@@ -22,7 +22,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
-#include "xls/tools/z3_translator.h"
+#include "xls/solvers/z3_ir_translator.h"
 
 ABSL_FLAG(std::string, subject, "",
           "Node that is subject of the proof; default: return value");
@@ -51,7 +51,7 @@ Prove that node and.1234 is equivalent to and.2345:
 namespace xls {
 namespace {
 
-using z3_translator::Predicate;
+using solvers::z3::Predicate;
 
 absl::Status RealMain(absl::string_view ir_path,
                       absl::string_view subject_node_name,
@@ -76,7 +76,7 @@ absl::Status RealMain(absl::string_view ir_path,
 
   XLS_ASSIGN_OR_RETURN(
       bool proved,
-      z3_translator::TryProve(f, subject, predicate.value(), timeout));
+      solvers::z3::TryProve(f, subject, predicate.value(), timeout));
   std::cout << "Proved " << subject_node_name << " " << predicate->ToString()
             << " holds for all input?"
             << ": " << (proved ? "true" : "false") << std::endl;

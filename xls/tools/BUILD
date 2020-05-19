@@ -61,7 +61,6 @@ cc_binary(
     name = "check_ir_equivalence_main",
     srcs = ["check_ir_equivalence_main.cc"],
     deps = [
-        ":z3_translator",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
@@ -80,6 +79,7 @@ cc_binary(
         "//xls/passes:map_inlining_pass",
         "//xls/passes:pass_base",
         "//xls/passes:unroll_pass",
+        "//xls/solvers:z3_ir_translator",
     ],
 )
 
@@ -111,7 +111,7 @@ cc_binary(
         "//xls/netlist:netlist_cc_proto",
         "//xls/netlist:netlist_parser",
         "//xls/netlist:z3_translator",
-        "//xls/tools:z3_translator",
+        "//xls/solvers:z3_ir_translator",
     ],
 )
 
@@ -666,45 +666,10 @@ py_test(
     ],
 )
 
-cc_library(
-    name = "z3_translator",
-    srcs = ["z3_translator.cc"],
-    hdrs = ["z3_translator.h"],
-    deps = [
-        "@com_google_absl//absl/debugging:leak_check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/time",
-        "@z3//:api",
-        "//xls/common/logging",
-        "//xls/common/logging:vlog_is_on",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:statusor",
-        "//xls/data_structures:leaf_type_tree",
-        "//xls/ir",
-        "//xls/ir:abstract_evaluator",
-        "//xls/ir:abstract_node_evaluator",
-    ],
-)
-
-cc_test(
-    name = "z3_translator_test",
-    srcs = ["z3_translator_test.cc"],
-    tags = ["debug_tap"],
-    deps = [
-        ":z3_translator",
-        "//xls/common/status:matchers",
-        "//xls/ir:function_builder",
-        "//xls/ir:ir_parser",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
 cc_binary(
     name = "solver",
     srcs = ["solver.cc"],
     deps = [
-        ":z3_translator",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "//xls/common:init_xls",
@@ -713,6 +678,7 @@ cc_binary(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:ir_parser",
+        "//xls/solvers:z3_ir_translator",
     ],
 )
 

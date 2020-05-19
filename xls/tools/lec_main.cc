@@ -31,7 +31,7 @@
 #include "xls/netlist/netlist.pb.h"
 #include "xls/netlist/netlist_parser.h"
 #include "xls/netlist/z3_translator.h"
-#include "xls/tools/z3_translator.h"
+#include "xls/solvers/z3_ir_translator.h"
 #include "../z3/src/api/z3_api.h"
 
 ABSL_FLAG(std::string, cell_lib_path, "",
@@ -69,7 +69,7 @@ struct IrData {
   Function* function;
 
   // The translator for a given function in the package.
-  std::unique_ptr<z3_translator::Z3Translator> translator;
+  std::unique_ptr<solvers::z3::IrTranslator> translator;
 };
 
 // Reads in XLS IR and returns a Z3Translator for the desired function.
@@ -87,7 +87,7 @@ xabsl::StatusOr<IrData> GetIrTranslator(absl::string_view ir_path,
 
   XLS_ASSIGN_OR_RETURN(
       ir_data.translator,
-      z3_translator::Z3Translator::CreateAndTranslate(ir_data.function));
+      solvers::z3::IrTranslator::CreateAndTranslate(ir_data.function));
   return ir_data;
 }
 
@@ -221,7 +221,7 @@ absl::Status RealMain(absl::string_view ir_path,
   Z3_solver_set_params(ctx, solver, params);
   Z3_solver_assert(ctx, solver, eq_node);
 
-  std::cout << z3_translator::SolverResultToString(ctx, solver) << std::endl;
+  std::cout << solvers::z3::SolverResultToString(ctx, solver) << std::endl;
 
   Z3_solver_dec_ref(ctx, solver);
   Z3_params_dec_ref(ctx, params);

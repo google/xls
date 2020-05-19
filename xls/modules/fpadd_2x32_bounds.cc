@@ -33,7 +33,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor.h"
 #include "xls/ir/ir_parser.h"
-#include "xls/tools/z3_translator.h"
+#include "xls/solvers/z3_ir_translator.h"
 #include "../z3/src/api/z3_api.h"
 #include "../z3/src/api/z3_fpa.h"
 
@@ -59,7 +59,7 @@ constexpr const char kIrPath[] = "xls/modules/fpadd_2x32.ir";
 constexpr const char kOptIrPath[] = "xls/modules/fpadd_2x32.opt.ir";
 constexpr const char kFunctionName[] = "__fpadd_2x32__fpadd_2x32";
 
-using z3_translator::Z3Translator;
+using solvers::z3::IrTranslator;
 
 // Adds an error comparsion to the translated XLS function. To do so:
 //  - We convert the input arguments into Z3 floating-point types.
@@ -74,7 +74,7 @@ using z3_translator::Z3Translator;
 // Returns "actual" vs. "expected" nodes (via reference) to query (via
 // QueryNode) on failure.
 xabsl::StatusOr<Z3_ast> CreateReferenceComparisonFunction(
-    Function* function, Z3Translator* translator, bool flush_subnormals,
+    Function* function, IrTranslator* translator, bool flush_subnormals,
     Z3_ast* expected, Z3_ast* actual) {
   // Get the translated XLS function, and create its return value.
   Z3_context ctx = translator->ctx();
@@ -139,9 +139,8 @@ absl::Status CompareToReference(bool use_opt_ir, uint32 error_bound,
   XLS_ASSIGN_OR_RETURN(auto function, package->GetFunction(kFunctionName));
 
   // Translate our IR into a matching Z3 AST.
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<Z3Translator> translator,
-      z3_translator::Z3Translator::CreateAndTranslate(function));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrTranslator> translator,
+                       IrTranslator::CreateAndTranslate(function));
   // "Wrap" that computation with another (also in Z3) to independently compute
   // the sum and calculate the difference between the two results (the error).
   Z3_ast expected;
@@ -172,7 +171,7 @@ absl::Status CompareToReference(bool use_opt_ir, uint32 error_bound,
   Z3_solver_assert(ctx, solver, objective);
 
   // Finally, print the output to the terminal in gorgeous two-color ASCII.
-  std::cout << z3_translator::SolverResultToString(ctx, solver) << std::endl;
+  std::cout << solvers::z3::SolverResultToString(ctx, solver) << std::endl;
 
   Z3_solver_dec_ref(ctx, solver);
   Z3_params_dec_ref(ctx, params);
