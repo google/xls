@@ -32,6 +32,7 @@
 #include "xls/netlist/netlist_parser.h"
 #include "xls/netlist/z3_translator.h"
 #include "xls/solvers/z3_ir_translator.h"
+#include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3_api.h"
 
 ABSL_FLAG(std::string, cell_lib_path, "",
@@ -206,25 +207,14 @@ absl::Status RealMain(absl::string_view ir_path,
       Z3_mk_eq(ctx, ir_data.translator->GetReturnNode(), netlist_output);
   eq_node = Z3_mk_not(ctx, eq_node);
 
-  // TODO(rspringer): This code below _really_needs_ to be commonized. It's used
-  // ~verbatim in quite a few places by now.
   // Push all that work into z3, and have the solver do its work.
-  Z3_params params = Z3_mk_params(ctx);
-  Z3_params_inc_ref(ctx, params);
-  Z3_params_set_uint(ctx, params, Z3_mk_string_symbol(ctx, "sat.threads"),
-                     absl::base_internal::NumCPUs());
-  Z3_params_set_uint(ctx, params, Z3_mk_string_symbol(ctx, "threads"),
-                     absl::base_internal::NumCPUs());
-
-  Z3_solver solver = Z3_mk_solver(ctx);
-  Z3_solver_inc_ref(ctx, solver);
-  Z3_solver_set_params(ctx, solver, params);
+  Z3_solver solver =
+      solvers::z3::CreateSolver(ctx, absl::base_internal::NumCPUs());
   Z3_solver_assert(ctx, solver, eq_node);
 
   std::cout << solvers::z3::SolverResultToString(ctx, solver) << std::endl;
 
   Z3_solver_dec_ref(ctx, solver);
-  Z3_params_dec_ref(ctx, params);
 
   return absl::OkStatus();
 }

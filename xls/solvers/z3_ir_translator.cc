@@ -23,6 +23,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/abstract_evaluator.h"
 #include "xls/ir/abstract_node_evaluator.h"
+#include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3_api.h"
 #include "../z3/src/api/z3_fpa.h"
 
@@ -1065,38 +1066,6 @@ void IrTranslator::NoteTranslation(Node* node, Z3_ast translated) {
   translations_[node] = translated;
 }
 
-std::string QueryNode(Z3_context ctx, Z3_model model, Z3_ast node) {
-  Z3_ast node_eval;
-  Z3_model_eval(ctx, model, node, true, &node_eval);
-  return Z3_ast_to_string(ctx, node_eval);
-}
-
-std::string SolverResultToString(Z3_context ctx, Z3_solver solver) {
-  Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
-  std::string result_str;
-  switch (satisfiable) {
-    case Z3_L_TRUE:
-      result_str = "true";
-      break;
-    case Z3_L_FALSE:
-      result_str = "false";
-      break;
-    case Z3_L_UNDEF:
-      result_str = "undef";
-      break;
-    default:
-      result_str = "invalid";
-  }
-
-  std::string result =
-      absl::StrFormat("Solver result; satisfiable: %s\n", result_str);
-  if (satisfiable == Z3_L_TRUE) {
-    Z3_model model = Z3_solver_get_model(ctx, solver);
-    absl::StrAppend(&result, "\n  Model:\n", Z3_model_to_string(ctx, model));
-  }
-  return result;
-}
-
 xabsl::StatusOr<Z3_ast> PredicateToObjective(Predicate p, Z3_ast a,
                                              IrTranslator* translator) {
   ScopedErrorHandler seh(translator->ctx());
@@ -1128,18 +1097,6 @@ xabsl::StatusOr<Z3_ast> PredicateToObjective(Predicate p, Z3_ast a,
   return objective;
 }
 
-absl::string_view LBoolToString(Z3_lbool x) {
-  switch (x) {
-    case Z3_L_FALSE:
-      return "false";
-    case Z3_L_UNDEF:
-      return "undef";
-    case Z3_L_TRUE:
-      return "true";
-  }
-  return "invalid";
-}
-
 xabsl::StatusOr<bool> TryProve(Function* f, Node* subject, Predicate p,
                               absl::Duration timeout) {
   XLS_ASSIGN_OR_RETURN(auto translator, IrTranslator::CreateAndTranslate(f));
@@ -1150,20 +1107,16 @@ xabsl::StatusOr<bool> TryProve(Function* f, Node* subject, Predicate p,
         "Cannot prove properties of non-bits-typed node: " +
         subject->ToString());
   }
-  Z3_ast a = translator->GetTranslation(subject);
   XLS_ASSIGN_OR_RETURN(Z3_ast objective,
-                       PredicateToObjective(p, a, translator.get()));
+                       PredicateToObjective(p, value, translator.get()));
   Z3_context ctx = translator->ctx();
   XLS_VLOG(2) << "objective:\n" << Z3_ast_to_string(ctx, objective);
-  Z3_solver solver = Z3_mk_solver(translator->ctx());
-  Z3_solver_assert(translator->ctx(), solver, objective);
-  Z3_lbool satisfiable = Z3_solver_check(translator->ctx(), solver);
-  XLS_VLOG(2) << "solver result; satisfiable: " << LBoolToString(satisfiable);
-  Z3_model model = Z3_solver_get_model(translator->ctx(), solver);
+  Z3_solver solver = solvers::z3::CreateSolver(ctx, 1);
+  Z3_solver_assert(ctx, solver, objective);
+  XLS_VLOG(2) << solvers::z3::SolverResultToString(ctx, solver) << std::endl;
+  Z3_solver_dec_ref(ctx, solver);
 
-  XLS_VLOG(1) << "model:\n" << Z3_model_to_string(ctx, model);
-
-  if (satisfiable == Z3_L_FALSE) {
+  if (Z3_solver_check(ctx, solver) == Z3_L_FALSE) {
     // We posit the inverse of the predicate we want to check -- when that is
     // unsatisfiable, the predicate has been proven (there was no way found that
     // we could not satisfy its inverse).

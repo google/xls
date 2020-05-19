@@ -251,12 +251,6 @@ class Predicate {
   absl::optional<Node*> node_;
 };
 
-// Returns the value of the specified Z3 node when running under the model.
-std::string QueryNode(Z3_context ctx, Z3_model model, Z3_ast node);
-
-// Returns the string representation of an executed solver's result.
-std::string SolverResultToString(Z3_context ctx, Z3_solver solver);
-
 // Attempts to prove node "subject" in function "f" satisfies the given
 // predicate (over all possible inputs) within the duration "timeout".
 xabsl::StatusOr<bool> TryProve(Function* f, Node* subject, Predicate p,

@@ -30,6 +30,7 @@
 #include "xls/passes/passes.h"
 #include "xls/passes/unroll_pass.h"
 #include "xls/solvers/z3_ir_translator.h"
+#include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3.h"
 #include "../z3/src/api/z3_api.h"
 
@@ -131,17 +132,8 @@ absl::Status RealMain(const std::vector<absl::string_view>& ir_paths,
       CreateComparisonFunction(absl::MakeSpan(translators), functions));
   translators[0]->SetTimeout(timeout);
 
-  // Solvers and params need explicit references to be taken, or they'll be very
-  // eagerly destroyed.
-  Z3_solver solver = Z3_mk_solver(ctx);
-  Z3_solver_inc_ref(ctx, solver);
-  Z3_params params = Z3_mk_params(ctx);
-  Z3_params_inc_ref(ctx, params);
-  Z3_params_set_uint(ctx, params, Z3_mk_string_symbol(ctx, "sat.threads"),
-                     absl::base_internal::NumCPUs());
-  Z3_params_set_uint(ctx, params, Z3_mk_string_symbol(ctx, "threads"),
-                     absl::base_internal::NumCPUs());
-  Z3_solver_set_params(ctx, solver, params);
+  Z3_solver solver =
+      solvers::z3::CreateSolver(ctx, absl::base_internal::NumCPUs());
 
   // Remember: we try to prove the condition by searching for a model that
   // produces the opposite result. Thus, we want to find a model where the
@@ -152,7 +144,6 @@ absl::Status RealMain(const std::vector<absl::string_view>& ir_paths,
   // Finally, print the output to the terminal in gorgeous two-color ASCII.
   std::cout << solvers::z3::SolverResultToString(ctx, solver) << std::endl;
 
-  Z3_params_dec_ref(ctx, params);
   Z3_solver_dec_ref(ctx, solver);
 
   return absl::OkStatus();

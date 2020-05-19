@@ -56,6 +56,7 @@ cc_binary(
         "//xls/common/status:statusor",
         "//xls/ir:ir_parser",
         "//xls/solvers:z3_ir_translator",
+        "//xls/solvers:z3_utils",
         "@z3//:api",
     ],
 )

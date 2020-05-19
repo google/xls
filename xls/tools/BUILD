@@ -80,6 +80,7 @@ cc_binary(
         "//xls/passes:pass_base",
         "//xls/passes:unroll_pass",
         "//xls/solvers:z3_ir_translator",
+        "//xls/solvers:z3_utils",
     ],
 )
 
@@ -112,6 +113,7 @@ cc_binary(
         "//xls/netlist:netlist_parser",
         "//xls/netlist:z3_translator",
         "//xls/solvers:z3_ir_translator",
+        "//xls/solvers:z3_utils",
     ],
 )
 

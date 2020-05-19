@@ -34,6 +34,7 @@
 #include "xls/common/status/statusor.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/solvers/z3_ir_translator.h"
+#include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3_api.h"
 #include "../z3/src/api/z3_fpa.h"
 
@@ -157,16 +158,8 @@ absl::Status CompareToReference(bool use_opt_ir, uint32 error_bound,
   // Push all that work into z3, and have the solver do its work.
   translator->SetTimeout(timeout);
 
-  Z3_params params = Z3_mk_params(ctx);
-  Z3_params_inc_ref(ctx, params);
-  Z3_params_set_uint(ctx, params, Z3_mk_string_symbol(ctx, "sat.threads"),
-                     absl::base_internal::NumCPUs());
-  Z3_params_set_uint(ctx, params, Z3_mk_string_symbol(ctx, "threads"),
-                     absl::base_internal::NumCPUs());
-
-  Z3_solver solver = Z3_mk_solver(ctx);
-  Z3_solver_inc_ref(ctx, solver);
-  Z3_solver_set_params(ctx, solver, params);
+  Z3_solver solver =
+      solvers::z3::CreateSolver(ctx, absl::base_internal::NumCPUs());
   Z3_ast objective = Z3_mk_fpa_gt(ctx, error, bounds);
   Z3_solver_assert(ctx, solver, objective);
 
@@ -174,7 +167,6 @@ absl::Status CompareToReference(bool use_opt_ir, uint32 error_bound,
   std::cout << solvers::z3::SolverResultToString(ctx, solver) << std::endl;
 
   Z3_solver_dec_ref(ctx, solver);
-  Z3_params_dec_ref(ctx, params);
   return absl::OkStatus();
 }
 

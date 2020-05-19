@@ -19,6 +19,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/solvers/z3_utils.h"
 
 namespace xls {
 namespace {
@@ -822,7 +823,7 @@ fn f(x: bits[32], y: bits[16], z: bits[8]) -> bits[16] {
 
   // Solvers and params need explicit references to be taken, or they'll be very
   // eagerly destroyed.
-  Z3_solver solver = Z3_mk_solver(ctx);
+  Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
 
   // Remember: we try to prove the condition by searching for a model that
   // produces the opposite result. Thus, we want to find a model where the
@@ -832,6 +833,7 @@ fn f(x: bits[32], y: bits[16], z: bits[8]) -> bits[16] {
 
   Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
   EXPECT_EQ(satisfiable, Z3_L_FALSE);
+  Z3_solver_dec_ref(ctx, solver);
 }
 
 }  // namespace
