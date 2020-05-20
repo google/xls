@@ -246,8 +246,19 @@ xabsl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
             "register"
             "control");
       }
+      // Compute the number of pipeline registers. Unconditionally, there is one
+      // register between each stage in the schedule, and optionally one at the
+      // inputs and outputs.
+      XLS_RET_CHECK_GT(schedule.length(), 0);
+      int64 reg_count = schedule.length() - 1;
+      if (options.flop_inputs()) {
+        ++reg_count;
+      }
+      if (options.flop_outputs()) {
+        ++reg_count;
+      }
       manual_load_enable = mb.AddInputPort(manual.input_name(),
-                                           /*bit_count=*/schedule.length() + 1);
+                                           /*bit_count=*/reg_count);
     }
   }
 

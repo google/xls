@@ -769,6 +769,38 @@ TEST_P(PipelineGeneratorTest, ManualPipelineControl) {
                                  result.verilog_text);
 }
 
+TEST_P(PipelineGeneratorTest, ManualPipelineControlNoInputFlops) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  auto s = fb.Param("s", package.GetBitsType(2));
+  auto x = fb.Param("x", package.GetBitsType(8));
+  auto y = fb.Param("y", package.GetBitsType(8));
+  auto z = fb.Param("z", package.GetBitsType(8));
+  auto a = fb.Param("a", package.GetBitsType(8));
+  fb.Select(s, {x, y, z, a}, /*default_value=*/absl::nullopt);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  // Choose a large clock period such that all nodes are scheduled in the same
+  // stage.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(func, TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(4)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleGeneratorResult result,
+      ToPipelineModuleText(schedule, func,
+                           PipelineOptions()
+                               .manual_control("load_enable")
+                               .use_system_verilog(UseSystemVerilog())
+                               .flop_inputs(false)
+                               .flop_outputs(true)));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
 TEST_P(PipelineGeneratorTest, CustomModuleName) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
