@@ -1,3 +1,4 @@
+# Lint as: python3
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """Fuzzer generate-and-compare loop."""
 
 import os
@@ -27,11 +27,11 @@ from typing import Tuple, Text, Optional
 from absl import logging
 import termcolor
 
+from xls.common import runfiles
 from xls.dslx.fuzzer import ast_generator
 from xls.dslx.fuzzer import sample
 from xls.dslx.fuzzer import sample_generator
 from xls.dslx.fuzzer import sample_runner
-from xls.common import runfiles
 
 SAMPLE_RUNNER_MAIN_PATH = runfiles.get_path(
     'xls/dslx/fuzzer/sample_runner_main')
@@ -62,7 +62,7 @@ def _write_ir_summaries(run_dir, summary_path):
     if os.path.exists(path):
       subprocess.run(
           (SUMMARIZE_IR_MAIN_PATH, '--logtostderr', '--minloglevel=2',
-           '--tag=' + tag, '--summary_file=' + summary_path, path))
+           '--tag=' + tag, '--summary_file=' + summary_path, path), check=False)
 
   maybe_generate_summary('sample.ir', 'before-opt')
   maybe_generate_summary('sample.opt.ir', 'after-opt')
@@ -155,7 +155,8 @@ def minimize_ir(smp: sample.Sample,
     ],
                           cwd=run_dir,
                           stdout=subprocess.PIPE,
-                          stderr=subprocess.PIPE)
+                          stderr=subprocess.PIPE,
+                          check=False)
     if comp.returncode == 0:
       minimized_ir_path = os.path.join(run_dir, 'minimized.ir')
       with open(minimized_ir_path, 'wb') as f:
@@ -175,7 +176,8 @@ def minimize_ir(smp: sample.Sample,
           extra_args,
           cwd=run_dir,
           stdout=subprocess.PIPE,
-          stderr=subprocess.PIPE)
+          stderr=subprocess.PIPE,
+          check=False)
       if comp.returncode == 0:
         # A failing input for JIT vs interpreter was found
         failed_input = comp.stdout.decode('utf-8')
@@ -187,7 +189,8 @@ def minimize_ir(smp: sample.Sample,
             ] + extra_args,
             cwd=run_dir,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE)
+            stderr=subprocess.PIPE,
+            check=False)
         if comp.returncode == 0:
           minimized_ir_path = os.path.join(run_dir, 'minimized.ir')
           with open(minimized_ir_path, 'wb') as f:

@@ -14,7 +14,7 @@
 
 # Common utilities shared among XLA subfolders.
 
-# pytype library
+# pytype test and library
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -251,8 +251,23 @@ cc_library(
 py_library(
     name = "runfiles",
     srcs = ["runfiles.py"],
+    srcs_version = "PY3",
     deps = [
         "@rules_python//python/runfiles",
+    ],
+)
+
+py_test(
+    name = "runfiles_test",
+    srcs = ["runfiles_test.py"],
+    data = [
+        "testdata/bar.txt",
+        "testdata/foo.txt",
+    ],
+    python_version = "PY3",
+    deps = [
+        ":runfiles",
+        "@com_google_absl_py//absl/testing:absltest",
     ],
 )
 
