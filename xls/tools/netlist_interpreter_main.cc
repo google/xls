@@ -24,6 +24,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value.h"
 #include "xls/netlist/cell_library.h"
@@ -40,6 +41,9 @@ ABSL_FLAG(std::string, cell_library_proto, "",
 // TODO(rspringer): Eliminate the need for this flag.
 // This one is a hidden temporary flag until we can properly handle cells
 // with state_function attributes (e.g., some latches).
+ABSL_FLAG(std::string, dump_cells, "",
+          "Comma-separated list of cells (not cell library entries!) whose "
+          "values to dump.");
 ABSL_FLAG(std::string, high_cells, "",
           "Comma-separated list of cells for which to assume \"1\" values on "
           "all outputs.");
@@ -81,8 +85,9 @@ absl::Status RealMain(const std::string& netlist_path,
                       const std::string& cell_library_proto_path,
                       const absl::flat_hash_set<std::string>& high_cells,
                       const std::string& module_name,
-                      const std::string& input_string,
-                      const std::string& output_type_string) {
+                      absl::Span<const std::string> inputs,
+                      const std::string& output_type_string,
+                      absl::Span<const std::string> dump_cells) {
   XLS_ASSIGN_OR_RETURN(
       netlist::CellLibrary cell_library,
       GetCellLibrary(cell_library_path, cell_library_proto_path));
@@ -95,24 +100,31 @@ absl::Status RealMain(const std::string& netlist_path,
 
   // Input values are listed in the same order as inputs are declared by
   // Module::inputs().
-  XLS_ASSIGN_OR_RETURN(Value input, Parser::ParseTypedValue(input_string));
-  Bits flat_value = FlattenValueToBits(input);
+  Bits input_bits;
+  for (const auto& input_string : inputs) {
+    XLS_ASSIGN_OR_RETURN(Value input, Parser::ParseTypedValue(input_string));
+    Bits flat_value = FlattenValueToBits(input);
+    input_bits = bits_ops::Concat({input_bits, flat_value});
+  }
+  input_bits = bits_ops::Reverse(input_bits);
+
   absl::flat_hash_map<const netlist::rtl::NetRef, bool> input_nets;
   const std::vector<netlist::rtl::NetRef>& module_inputs = module->inputs();
-  XLS_RET_CHECK(module_inputs.size() == flat_value.bit_count());
+  XLS_RET_CHECK(module_inputs.size() == input_bits.bit_count());
 
   for (int i = 0; i < module->inputs().size(); i++) {
-    input_nets[module_inputs[i]] = flat_value.Get(i);
+    input_nets[module_inputs[i]] = input_bits.Get(i);
   }
 
   netlist::Interpreter interpreter(&netlist, high_cells);
-  XLS_ASSIGN_OR_RETURN(auto output_nets,
-                       interpreter.InterpretModule(module, input_nets));
+  XLS_ASSIGN_OR_RETURN(auto output_nets, interpreter.InterpretModule(
+                                             module, input_nets, dump_cells));
 
   BitsRope rope(output_nets.size());
   for (const netlist::rtl::NetRef ref : module->outputs()) {
     rope.push_back(output_nets[ref]);
   }
+  Bits output_bits = bits_ops::Reverse(rope.Build());
 
   Value output;
   if (!output_type_string.empty()) {
@@ -121,9 +133,9 @@ absl::Status RealMain(const std::string& netlist_path,
     XLS_ASSIGN_OR_RETURN(Type * output_type,
                          Parser::ParseType(output_type_string, &package));
     XLS_ASSIGN_OR_RETURN(output,
-                         UnflattenBitsToValue(rope.Build(), output_type));
+                         UnflattenBitsToValue(output_bits, output_type));
   } else {
-    output = Value(rope.Build());
+    output = Value(output_bits);
   }
 
   std::cout << "Results: " << output.ToString(FormatPreference::kHex)
@@ -156,12 +168,16 @@ int main(int argc, char* argv[]) {
 
   std::string input = absl::GetFlag(FLAGS_input);
   XLS_QCHECK(!input.empty()) << "--input must be specified.";
+  std::vector<std::string> inputs = absl::StrSplit(input, ';');
+
+  std::string dump_cells_str = absl::GetFlag(FLAGS_dump_cells);
+  std::vector<std::string> dump_cells = absl::StrSplit(dump_cells_str, ',');
 
   std::string output_type = absl::GetFlag(FLAGS_output_type);
 
   XLS_QCHECK_OK(xls::RealMain(netlist_path, cell_library_path,
                               cell_library_proto_path, high_cells, module_name,
-                              input, output_type));
+                              inputs, output_type, dump_cells));
 
   return 0;
 }

@@ -96,7 +96,7 @@ std::string HexifyOutput(const std::string& input) {
   // that's not the expected use case.
   while (RE2::PartialMatch(text, "(#b[01]+)", &match)) {
     BitsRope rope(match.size() - 2);
-    for (int i = 2; i < match.size(); i++) {
+    for (int i = match.size() - 1; i >= 2; i--) {
       rope.push_back(match[i] == '1');
     }
 

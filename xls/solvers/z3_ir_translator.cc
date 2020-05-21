@@ -852,12 +852,18 @@ absl::Status IrTranslator::HandleLiteral(Literal* literal) {
   return seh.status();
 }
 
-std::vector<Z3_ast> IrTranslator::FlattenValue(Type* type, Z3_ast value) {
+std::vector<Z3_ast> IrTranslator::FlattenValue(Type* type, Z3_ast value,
+                                               bool little_endian) {
   Z3OpTranslator op_translator(ctx_);
 
   switch (type->kind()) {
-    case TypeKind::kBits:
-      return op_translator.ExplodeBits(value);
+    case TypeKind::kBits: {
+      std::vector<Z3_ast> boom = op_translator.ExplodeBits(value);
+      if (little_endian) {
+        std::reverse(boom.begin(), boom.end());
+      }
+      return boom;
+    }
     case TypeKind::kArray: {
       ArrayType* array_type = type->AsArrayOrDie();
       std::vector<Z3_ast> flattened;
@@ -867,21 +873,22 @@ std::vector<Z3_ast> IrTranslator::FlattenValue(Type* type, Z3_ast value) {
         Z3_ast index = Z3_mk_int64(ctx_, i, index_sort);
         Z3_ast element = GetArrayElement(array_type, value, index);
         std::vector<Z3_ast> flat_child =
-            FlattenValue(array_type->element_type(), element);
+            FlattenValue(array_type->element_type(), element, little_endian);
         flattened.insert(flattened.end(), flat_child.begin(), flat_child.end());
       }
       return flattened;
     }
     case TypeKind::kTuple: {
       TupleType* tuple_type = type->AsTupleOrDie();
+      Z3_sort tuple_sort = Z3_get_sort(ctx_, value);
+
       std::vector<Z3_ast> flattened;
       for (int i = 0; i < tuple_type->size(); i++) {
-        Z3_sort tuple_sort = Z3_get_sort(ctx_, value);
         Z3_func_decl child_accessor =
             Z3_get_tuple_sort_field_decl(ctx_, tuple_sort, i);
         Z3_ast child = Z3_mk_app(ctx_, child_accessor, 1, &value);
         std::vector<Z3_ast> flat_child =
-            FlattenValue(tuple_type->element_type(i), child);
+            FlattenValue(tuple_type->element_type(i), child, little_endian);
         flattened.insert(flattened.end(), flat_child.begin(), flat_child.end());
       }
       return flattened;
@@ -892,10 +899,14 @@ std::vector<Z3_ast> IrTranslator::FlattenValue(Type* type, Z3_ast value) {
   }
 }
 
-Z3_ast IrTranslator::UnflattenZ3Ast(Type* type, absl::Span<Z3_ast> flat) {
+Z3_ast IrTranslator::UnflattenZ3Ast(Type* type, absl::Span<Z3_ast> flat,
+                                    bool little_endian) {
   Z3OpTranslator op_translator(ctx_);
   switch (type->kind()) {
     case TypeKind::kBits:
+      if (little_endian) {
+        std::reverse(flat.begin(), flat.end());
+      }
       return op_translator.ConcatN(flat);
     case TypeKind::kArray: {
       ArrayType* array_type = type->AsArrayOrDie();
@@ -910,7 +921,8 @@ Z3_ast IrTranslator::UnflattenZ3Ast(Type* type, absl::Span<Z3_ast> flat) {
       for (int i = 0; i < num_elements; i++) {
         absl::Span<Z3_ast> subspan =
             flat.subspan(high - element_bits, element_bits);
-        elements.push_back(UnflattenZ3Ast(element_type, subspan));
+        elements.push_back(
+            UnflattenZ3Ast(element_type, subspan, little_endian));
         high -= element_bits;
       }
       return CreateArray(array_type, absl::MakeSpan(elements));
@@ -925,7 +937,8 @@ Z3_ast IrTranslator::UnflattenZ3Ast(Type* type, absl::Span<Z3_ast> flat) {
         int64 element_bits = element_type->GetFlatBitCount();
         absl::Span<Z3_ast> subspan =
             flat.subspan(high - element_bits, element_bits);
-        elements.push_back(UnflattenZ3Ast(element_type, subspan));
+        elements.push_back(
+            UnflattenZ3Ast(element_type, subspan, little_endian));
         high -= element_bits;
       }
       return CreateTuple(tuple_type, absl::MakeSpan(elements));
@@ -970,7 +983,7 @@ absl::Status IrTranslator::HandleOneHotSel(OneHotSelect* one_hot) {
       one_hot, [&evaluator](const std::vector<Z3_ast>& selector,
                             const std::vector<std::vector<Z3_ast>>& cases) {
         return evaluator.OneHotSelect(selector, cases,
-                                      /*selector_can_be_zero=*/false);
+                                      /*selector_can_be_zero=*/true);
       });
 }
 

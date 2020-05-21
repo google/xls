@@ -32,7 +32,8 @@ Interpreter::Interpreter(rtl::Netlist* netlist,
 xabsl::StatusOr<absl::flat_hash_map<const rtl::NetRef, bool>>
 Interpreter::InterpretModule(
     const rtl::Module* module,
-    const absl::flat_hash_map<const rtl::NetRef, bool>& inputs) {
+    const absl::flat_hash_map<const rtl::NetRef, bool>& inputs,
+    absl::Span<const std::string> dump_cells) {
   // Do a topological sort through all cells, evaluating each as its inputs are
   // fully satisfied, and store those results with each output wire.
 
@@ -63,6 +64,9 @@ Interpreter::InterpretModule(
     }
   }
 
+  absl::flat_hash_set<std::string> dump_cell_set(dump_cells.begin(),
+                                                 dump_cells.end());
+
   // Set all inputs as "active".
   for (const rtl::NetRef ref : module->inputs()) {
     active_wires.push_back(ref);
@@ -74,6 +78,8 @@ Interpreter::InterpretModule(
 
   for (const auto& input : inputs) {
     processed_wires[input.first] = input.second;
+    XLS_VLOG(2) << "Input : " << input.first->name() << " : "
+                << static_cast<int>(input.second);
   }
   processed_wires[net_0] = false;
   processed_wires[net_1] = true;
@@ -97,6 +103,20 @@ Interpreter::InterpretModule(
         XLS_RETURN_IF_ERROR(InterpretCell(*cell, &processed_wires));
         for (const auto& output : cell->outputs()) {
           active_wires.push_back(output.netref);
+        }
+
+        if (dump_cell_set.contains(cell->name())) {
+          XLS_LOG(INFO) << "Cell " << cell->name() << " inputs:";
+          for (const auto& input : cell->inputs()) {
+            XLS_LOG(INFO) << "   " << input.netref->name() << " : "
+                          << static_cast<int>(processed_wires[input.netref]);
+          }
+
+          XLS_LOG(INFO) << "Cell " << cell->name() << " outputs:";
+          for (const auto& output : cell->outputs()) {
+            XLS_LOG(INFO) << "   " << output.netref->name() << " : "
+                          << static_cast<int>(processed_wires[output.netref]);
+          }
         }
       } else if (XLS_VLOG_IS_ON(2)) {
         XLS_VLOG(2) << "Cell remaining: " << cell->name();
@@ -202,14 +222,14 @@ absl::Status Interpreter::InterpretCell(
     return absl::OkStatus();
   }
 
-  for (const rtl::Cell::Output& output : cell.outputs()) {
+  for (int i = 0; i < cell.outputs().size(); i++) {
     XLS_ASSIGN_OR_RETURN(
         function::Ast ast,
         function::Parser::ParseFunction(
-            cell.cell_library_entry()->output_pins()[0].function));
+            cell.cell_library_entry()->output_pins()[i].function));
     XLS_ASSIGN_OR_RETURN(bool result,
                          InterpretFunction(cell, ast, *processed_wires));
-    (*processed_wires)[output.netref] = result;
+    (*processed_wires)[cell.outputs()[i].netref] = result;
   }
 
   return absl::OkStatus();

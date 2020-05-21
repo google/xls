@@ -70,11 +70,17 @@ class IrTranslator : public DfsVisitorWithDefault {
   // "Flattens" the given value to individual bits and returns the associated
   // array. For example, flattening a tuple of two 5-bit values will return a
   // 10-entry span.
-  std::vector<Z3_ast> FlattenValue(Type* type, Z3_ast value);
+  // If little-endian is true, then for each leaf "Bits"-type element, the
+  // output will have its least-significant element in the lowest index.
+  std::vector<Z3_ast> FlattenValue(Type* type, Z3_ast value,
+                                   bool little_endian = false);
 
   // Does the opposite of flattening a value - takes a span of flat bits, and
   // reconstructs them into a single value of the specified type.
-  Z3_ast UnflattenZ3Ast(Type* type, absl::Span<Z3_ast> flat);
+  // If little-endian is true, then for each leaf "Bits"-type element, the input
+  // will be assumed to have the least-significant element in the lowest index.
+  Z3_ast UnflattenZ3Ast(Type* type, absl::Span<Z3_ast> flat,
+                        bool little_endian = false);
 
   // Floating-point routines.
   // Returns a zero-valued [positive] floating-point value of the specified
@@ -135,6 +141,8 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::Status HandleULt(CompareOp* lt) override;
   absl::Status HandleUMul(ArithOp* mul) override;
   absl::Status HandleZeroExtend(ExtendOp* zero_ext) override;
+
+  Function* xls_function() { return xls_function_; }
 
  private:
   IrTranslator(Z3_config config, Function* xls_function);

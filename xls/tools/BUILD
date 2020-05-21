@@ -130,6 +130,7 @@ cc_binary(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor",
+        "//xls/ir:bits_ops",
         "//xls/ir:ir_parser",
         "//xls/ir:value",
         "//xls/netlist:cell_library",

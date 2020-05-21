@@ -17,6 +17,7 @@
 #include "absl/base/internal/sysinfo.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
@@ -120,6 +121,30 @@ xabsl::StatusOr<netlist::rtl::Netlist> GetNetlist(
   return netlist::rtl::Parser::ParseNetlist(cell_library, &scanner);
 }
 
+// Dumps all Z3 values corresponding to IR nodes in the input function.
+void DumpTree(Z3_context ctx, Z3_model model,
+              solvers::z3::IrTranslator* translator) {
+  std::deque<const Node*> to_process;
+  to_process.push_back(translator->xls_function()->return_value());
+
+  absl::flat_hash_set<const Node*> seen;
+  while (!to_process.empty()) {
+    const Node* node = to_process.front();
+    to_process.pop_front();
+    Z3_ast translation = translator->GetTranslation(node);
+    std::cout << "IR: " << node->ToString() << std::endl;
+    std::cout << "Z3: " << solvers::z3::QueryNode(ctx, model, translation)
+              << std::endl
+              << std::endl;
+    seen.insert(node);
+    for (const Node* operand : node->operands()) {
+      if (!seen.contains(operand)) {
+        to_process.push_back(operand);
+      }
+    }
+  }
+}
+
 }  // namespace
 
 absl::Status RealMain(absl::string_view ir_path,
@@ -146,14 +171,25 @@ absl::Status RealMain(absl::string_view ir_path,
   // translations.
   absl::flat_hash_map<std::string, Z3_ast> inputs;
   for (const Param* param : entry_function->params()) {
-    // Explode each param into individual bits.
+    // Explode each param into individual bits. XLS IR and parsed netlist data
+    // layouts are different in that:
+    //  1) Netlists list input values from high-to-low bit, i.e.,
+    //  input_value_31_, input_value_30_, ... input_value_0, for a 32-bit input.
+    //  2) Netlists interpret their input values as "little-endian", i.e.,
+    //  input_value_7_ for an 8-bit input will be the MSB and
+    //  input_value_0_ will be the LSB.
+    // These two factors are why we need to reverse elements here. Item 1 is why
+    // we reverse the entire bits vector, and item 2 is why we pass
+    // little_endian as true to FlattenValue.
     std::vector<Z3_ast> bits = ir_data.translator->FlattenValue(
-        param->GetType(), ir_data.translator->GetTranslation(param));
+        param->GetType(), ir_data.translator->GetTranslation(param),
+        /*little_endian=*/true);
+    std::reverse(bits.begin(), bits.end());
     if (bits.size() > 1) {
       for (int i = 0; i < bits.size(); i++) {
         // Param names are formatted by the parser as
         // <param_name>[<bit_index>] or <param_name> (for single-bit)
-        std::string name = absl::StrCat(param->name(), "[", i, "]");
+        std::string name = absl::StrCat(param->name(), "_", i, "_");
         inputs[name] = bits[i];
       }
     } else {
@@ -192,14 +228,17 @@ absl::Status RealMain(absl::string_view ir_path,
     if (output->name() == "output_valid") {
       continue;
     }
+
     XLS_ASSIGN_OR_RETURN(Z3_ast z3_output,
                          netlist_translator->GetTranslation(output));
     z3_outputs.push_back(z3_output);
   }
   std::reverse(z3_outputs.begin(), z3_outputs.end());
 
+  // Specify little endian here as with FlattenValue() above.
   Z3_ast netlist_output = ir_data.translator->UnflattenZ3Ast(
-      entry_function->GetType()->return_type(), absl::MakeSpan(z3_outputs));
+      entry_function->GetType()->return_type(), absl::MakeSpan(z3_outputs),
+      /*little_endian=*/true);
 
   // Create the final equality checks. Since we're trying to prove the opposite,
   // we're aiming for NOT(EQ(ir, netlist))
@@ -213,6 +252,26 @@ absl::Status RealMain(absl::string_view ir_path,
   Z3_solver_assert(ctx, solver, eq_node);
 
   std::cout << solvers::z3::SolverResultToString(ctx, solver) << std::endl;
+
+  // If the condition was satisifiable, display sample inputs.
+  if (Z3_solver_check(ctx, solver) == Z3_L_TRUE) {
+    Z3_model model = Z3_solver_get_model(ctx, solver);
+    Z3_model_inc_ref(ctx, model);
+
+    std::cout << "IR result: "
+              << solvers::z3::QueryNode(ctx, model,
+                                        ir_data.translator->GetReturnNode())
+              << std::endl;
+    std::cout << "Netlist result: "
+              << solvers::z3::QueryNode(ctx, model, netlist_output)
+              << std::endl;
+
+    if (XLS_VLOG_IS_ON(2)) {
+      DumpTree(ctx, model, ir_data.translator.get());
+    }
+
+    Z3_model_dec_ref(ctx, model);
+  }
 
   Z3_solver_dec_ref(ctx, solver);
 

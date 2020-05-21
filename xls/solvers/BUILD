@@ -49,6 +49,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
+        "@z3//:api",
         "@com_google_googletest//:gtest_main",
     ],
 )

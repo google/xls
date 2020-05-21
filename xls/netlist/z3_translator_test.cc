@@ -112,9 +112,9 @@ absl::Status CreateNetList(
       available_inputs.push_back(output_net_name);
     }
 
-    XLS_ASSIGN_OR_RETURN(
-        rtl::Cell cell,
-        rtl::Cell::Create(entry, cell_name, param_assignments, clk));
+    XLS_ASSIGN_OR_RETURN(rtl::Cell cell,
+                         rtl::Cell::Create(entry, cell_name, param_assignments,
+                                           clk, /*dummy_net=*/nullptr));
     XLS_ASSIGN_OR_RETURN(rtl::Cell * module_cell, module->AddCell(cell));
     XLS_VLOG(2) << "Added cell: " << module_cell->name();
     XLS_VLOG(2) << " - Inputs";
@@ -204,9 +204,9 @@ TEST(Z3TranslatorTest, SimpleNet) {
   XLS_ASSERT_OK(module.AddNetDecl(rtl::NetDeclKind::kWire, clk_name));
   XLS_ASSERT_OK_AND_ASSIGN(rtl::NetRef clk, module.ResolveNet(clk_name));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      rtl::Cell tmp_cell,
-      rtl::Cell::Create(and_entry, "Rob's magic cell", param_assignments, clk));
+  XLS_ASSERT_OK_AND_ASSIGN(rtl::Cell tmp_cell,
+                           rtl::Cell::Create(and_entry, "Rob's magic cell",
+                                             param_assignments, clk, nullptr));
   XLS_ASSERT_OK_AND_ASSIGN(rtl::Cell * cell, module.AddCell(tmp_cell));
   for (auto& pair : param_assignments) {
     pair.second->NoteConnectedCell(cell);
@@ -268,7 +268,7 @@ xabsl::StatusOr<rtl::Module> CreateModule(
     XLS_ASSIGN_OR_RETURN(
         rtl::Cell temp_cell,
         rtl::Cell::Create(entry, absl::StrCat(module_name, "_", i),
-                          child_params, absl::nullopt));
+                          child_params, absl::nullopt, /*dummy_net=*/nullptr));
     XLS_ASSIGN_OR_RETURN(rtl::Cell * cell, module.AddCell(temp_cell));
     for (auto& pair : child_params) {
       pair.second->NoteConnectedCell(cell);
@@ -308,7 +308,7 @@ xabsl::StatusOr<rtl::Module> CreateModule(
   XLS_ASSIGN_OR_RETURN(
       rtl::Cell temp_cell,
       rtl::Cell::Create(entry, absl::StrCat(module_name, "_", cell_name),
-                        parent_params, absl::nullopt));
+                        parent_params, absl::nullopt, /*dummy_net=*/nullptr));
   XLS_ASSIGN_OR_RETURN(rtl::Cell * cell, module.AddCell(temp_cell));
   for (auto& pair : parent_params) {
     pair.second->NoteConnectedCell(cell);

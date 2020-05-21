@@ -20,6 +20,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/solvers/z3_utils.h"
+#include "../z3/src/api/z3.h"
 
 namespace xls {
 namespace {
@@ -821,8 +822,6 @@ fn f(x: bits[32], y: bits[16], z: bits[8]) -> bits[16] {
   Z3_ast return_1 = translator_1->GetReturnNode();
   Z3_ast return_2 = translator_2->GetReturnNode();
 
-  // Solvers and params need explicit references to be taken, or they'll be very
-  // eagerly destroyed.
   Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
 
   // Remember: we try to prove the condition by searching for a model that
@@ -833,6 +832,33 @@ fn f(x: bits[32], y: bits[16], z: bits[8]) -> bits[16] {
 
   Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
   EXPECT_EQ(satisfiable, Z3_L_FALSE);
+  Z3_solver_dec_ref(ctx, solver);
+}
+
+TEST(Z3IrTranslatorTest, HandlesZeroOneHotSelector) {
+  const std::string program = R"(
+package p
+
+fn f(selector: bits[2]) -> bits[4] {
+  literal.1: bits[4] = literal(value=0xf)
+  literal.2: bits[4] = literal(value=0x5)
+  ret one_hot_sel.3: bits[4] = one_hot_sel(selector, cases=[literal.1, literal.2])
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+  XLS_ASSERT_OK_AND_ASSIGN(auto translator,
+                           IrTranslator::CreateAndTranslate(f));
+  Z3_context ctx = translator->ctx();
+  Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
+  // We want to prove that the result can be 0x0 - without the fix for this case
+  // (selector_can_be_zero=false -> true), that can not be the case.
+  Z3_ast z3_zero = Z3_mk_int(ctx, 0, Z3_mk_bv_sort(ctx, 4));
+  Z3_ast objective = Z3_mk_eq(ctx, translator->GetReturnNode(), z3_zero);
+  Z3_solver_assert(ctx, solver, objective);
+  Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
+  EXPECT_EQ(satisfiable, Z3_L_TRUE);
   Z3_solver_dec_ref(ctx, solver);
 }
 

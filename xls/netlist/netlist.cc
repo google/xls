@@ -137,7 +137,7 @@ xabsl::StatusOr<std::vector<Cell*>> NetDef::GetConnectedCellsSans(
 /* static */ xabsl::StatusOr<Cell> Cell::Create(
     const CellLibraryEntry* cell_library_entry, absl::string_view name,
     const absl::flat_hash_map<std::string, NetRef>& named_parameter_assignments,
-    absl::optional<NetRef> clock) {
+    absl::optional<NetRef> clock, const NetRef dummy_net) {
   auto sorted_key_str = [named_parameter_assignments]() -> std::string {
     std::vector<std::string> keys;
     for (const auto& item : named_parameter_assignments) {
@@ -164,7 +164,17 @@ xabsl::StatusOr<std::vector<Cell*>> NetDef::GetConnectedCellsSans(
   std::vector<Output> cell_outputs;
   for (const OutputPin& output : cell_library_entry->output_pins()) {
     auto it = named_parameter_assignments.find(output.name);
-    if (it != named_parameter_assignments.end()) {
+    // Even if there's no named assignment, we still need to create an output so
+    // that we keep order correspondence between the cell and the library
+    // entry's pins.
+    // TODO(rspringer): This implicit correspondance has repeatedly shown itself
+    // to be fragile. We need to do something different.
+    if (it == named_parameter_assignments.end()) {
+      Output cell_output;
+      cell_output.pin = output;
+      cell_output.netref = dummy_net;
+      cell_outputs.push_back(cell_output);
+    } else {
       Output cell_output;
       cell_output.pin = output;
       cell_output.netref = it->second;

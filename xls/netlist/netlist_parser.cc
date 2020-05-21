@@ -405,11 +405,17 @@ absl::Status Parser::ParseInstance(Module* module, const Netlist& netlist) {
     named_parameter_assignments.erase(it);
   }
   XLS_ASSIGN_OR_RETURN(Cell cell,
-                   Cell::Create(cle, name, named_parameter_assignments, clock),
-                   _ << " @ " << pos.ToHumanString());
+                       Cell::Create(cle, name, named_parameter_assignments,
+                                    clock, module->GetDummyRef()),
+                       _ << " @ " << pos.ToHumanString());
   XLS_ASSIGN_OR_RETURN(Cell * cell_ptr, module->AddCell(std::move(cell)));
+  absl::flat_hash_set<NetRef> connected_wires;
   for (auto& item : named_parameter_assignments) {
+    if (connected_wires.contains(item.second)) {
+      continue;
+    }
     item.second->NoteConnectedCell(cell_ptr);
+    connected_wires.insert(item.second);
   }
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCloseParen));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemicolon));

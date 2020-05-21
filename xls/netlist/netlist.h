@@ -65,11 +65,13 @@ class Cell {
   // pin name to the NetDef/Ref used as that input in a given instance.
   // For outputs, if a pin isn't used, then it won't be present in the provided
   // map.
+  // "dummy_net" is a ref to the "dummy" cell used by the containing module for
+  // output wires that aren't connected to any cells.
   static xabsl::StatusOr<Cell> Create(
       const CellLibraryEntry* cell_library_entry, absl::string_view name,
       const absl::flat_hash_map<std::string, NetRef>&
           named_parameter_assignments,
-      absl::optional<NetRef> clock);
+      absl::optional<NetRef> clock, NetRef dummy_net);
 
   const CellLibraryEntry* cell_library_entry() const {
     return cell_library_entry_;
@@ -139,6 +141,16 @@ class Module {
     // wires here.
     zero_ = AddOrResolveNumber(0).value();
     one_ = AddOrResolveNumber(1).value();
+
+    // We need a "dummy" wire to serve as the sink for any unused cell outputs.
+    // Even if a cell output is unused, we need some dummy value there to
+    // maintain the correspondance between a CellLibraryEntry's pinout and that
+    // of a Cell [object].
+    // TODO(rspringer): Improve APIs so we don't have to match array indexes
+    // between these types.
+    constexpr const char kDummyName[] = "__dummy__net_decl__";
+    XLS_CHECK_OK(AddNetDecl(NetDeclKind::kWire, kDummyName));
+    dummy_ = ResolveNet(kDummyName).value();
   }
 
   const std::string& name() const { return name_; }
@@ -157,6 +169,10 @@ class Module {
 
   xabsl::StatusOr<NetRef> ResolveNet(absl::string_view name) const;
 
+  // Returns a reference to a "dummy" net - this is needed for cases where one
+  // of a cell's output pins isn't actually used.
+  NetRef GetDummyRef() const { return dummy_; }
+
   xabsl::StatusOr<Cell*> ResolveCell(absl::string_view name);
 
   absl::Span<const std::unique_ptr<NetDef>> nets() const { return nets_; }
@@ -174,6 +190,7 @@ class Module {
   std::vector<std::unique_ptr<Cell>> cells_;
   NetRef zero_;
   NetRef one_;
+  NetRef dummy_;
 
   mutable absl::optional<CellLibraryEntry> cell_library_entry_;
 };
