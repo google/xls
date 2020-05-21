@@ -47,8 +47,7 @@ Z3_solver CreateSolver(Z3_context ctx, int num_threads) {
 }
 
 std::string SolverResultToString(Z3_context ctx, Z3_solver solver,
-                                 bool hexify) {
-  Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
+                                 Z3_lbool satisfiable, bool hexify) {
   std::string result_str;
   switch (satisfiable) {
     case Z3_L_TRUE:

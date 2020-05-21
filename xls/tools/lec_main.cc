@@ -20,10 +20,12 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/file/filesystem.h"
+#include "xls/common/file/get_runfile_path.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor.h"
+#include "xls/common/subprocess.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/netlist/cell_library.h"
 #include "xls/netlist/function_extractor.h"
@@ -44,6 +46,21 @@ ABSL_FLAG(std::string, cell_proto_path, "",
           "This is a whole bunch faster than specifiying an unprocessed "
           "cell library and should be favored.\n"
           "Either this or --cell_lib_path should be set.");
+ABSL_FLAG(std::string, constraints_file, "",
+          "Optional path to a DSLX file containing a input parameter "
+          "constraint function. This function must have the same signature as "
+          "the function being compared and must be called either \"main\" or "
+          "have the same name as its containing package or else "
+          "be the only function in the file. The "
+          "function must return 1 for cases where all constraints are "
+          "satisfied, and 0 otherwise.\n"
+          "For example, a constraint function to restrict arg 0 to be == 5 "
+          "and arg 1, tuple element 0 to be > 6 would be as follows:\n"
+          "  fn constraints(a: bits[3], b: (bits[8], bits[16])) -> bits[1] {\n"
+          "    let x0 = a == 5;\n"
+          "    let x1 = b[0] > 6;\n"
+          "    x0 & x1;\n"
+          "  }");
 ABSL_FLAG(std::string, entry_function_name, "",
           "Function (in the IR) to compare. If unset, the program will attempt "
           "to find and use an appropriate entry function.");
@@ -62,6 +79,10 @@ ABSL_FLAG(std::string, netlist_path, "", "Path to the netlist.");
 namespace xls {
 namespace {
 
+using solvers::z3::IrTranslator;
+
+constexpr const char kIrConverterPath[] = "xls/dslx/ir_converter_main";
+
 // Convenience struct for IR translation data.
 struct IrData {
   // The package holding all IR data.
@@ -71,7 +92,7 @@ struct IrData {
   Function* function;
 
   // The translator for a given function in the package.
-  std::unique_ptr<solvers::z3::IrTranslator> translator;
+  std::unique_ptr<IrTranslator> translator;
 };
 
 // Reads in XLS IR and returns a Z3Translator for the desired function.
@@ -87,9 +108,8 @@ xabsl::StatusOr<IrData> GetIrTranslator(absl::string_view ir_path,
                          ir_data.package->GetFunction(entry_function_name));
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      ir_data.translator,
-      solvers::z3::IrTranslator::CreateAndTranslate(ir_data.function));
+  XLS_ASSIGN_OR_RETURN(ir_data.translator,
+                       IrTranslator::CreateAndTranslate(ir_data.function));
   return ir_data;
 }
 
@@ -122,8 +142,7 @@ xabsl::StatusOr<netlist::rtl::Netlist> GetNetlist(
 }
 
 // Dumps all Z3 values corresponding to IR nodes in the input function.
-void DumpTree(Z3_context ctx, Z3_model model,
-              solvers::z3::IrTranslator* translator) {
+void DumpTree(Z3_context ctx, Z3_model model, IrTranslator* translator) {
   std::deque<const Node*> to_process;
   to_process.push_back(translator->xls_function()->return_value());
 
@@ -145,6 +164,41 @@ void DumpTree(Z3_context ctx, Z3_model model,
   }
 }
 
+// Applies the constraints in the specified constraint file to the solver, using
+// the parameters in the main translator.
+absl::Status ApplyConstraints(Z3_solver solver, IrTranslator* main_translator,
+                              absl::string_view constraints_file) {
+  if (constraints_file.empty()) {
+    return absl::OkStatus();
+  }
+
+  // Convert the input DSLX to XLS IR.
+  std::filesystem::path ir_converter_path = GetXlsRunfilePath(kIrConverterPath);
+  std::vector<std::string> args;
+  args.push_back(ir_converter_path);
+  args.push_back(std::string(constraints_file));
+  XLS_ASSIGN_OR_RETURN(auto stdout_and_stderr, InvokeSubprocess(args));
+
+  XLS_ASSIGN_OR_RETURN(auto package,
+                       Parser::ParsePackage(stdout_and_stderr.first));
+  XLS_ASSIGN_OR_RETURN(Function * function, package->EntryFunction());
+  std::vector<Z3_ast> params;
+  for (const auto& param : main_translator->xls_function()->params()) {
+    params.push_back(main_translator->GetTranslation(param));
+  }
+
+  // Assert that the constraint function's outputs are 1, and slap that into the
+  // solver.
+  Z3_context ctx = main_translator->ctx();
+  XLS_ASSIGN_OR_RETURN(auto constraint_translator,
+                       IrTranslator::CreateAndTranslate(ctx, function, params));
+  Z3_ast eq_node = Z3_mk_eq(ctx, constraint_translator->GetReturnNode(),
+                            Z3_mk_int(ctx, 1, Z3_mk_bv_sort(ctx, 1)));
+  Z3_solver_assert(ctx, solver, eq_node);
+
+  return absl::OkStatus();
+}
+
 }  // namespace
 
 absl::Status RealMain(absl::string_view ir_path,
@@ -153,7 +207,8 @@ absl::Status RealMain(absl::string_view ir_path,
                       absl::string_view cell_lib_path,
                       absl::string_view cell_proto_path,
                       const absl::flat_hash_set<std::string>& high_cells,
-                      absl::string_view netlist_path) {
+                      absl::string_view netlist_path,
+                      absl::string_view constraints_file) {
   XLS_ASSIGN_OR_RETURN(IrData ir_data,
                        GetIrTranslator(ir_path, entry_function_name));
   if (entry_function_name.empty()) {
@@ -250,11 +305,15 @@ absl::Status RealMain(absl::string_view ir_path,
   Z3_solver solver =
       solvers::z3::CreateSolver(ctx, absl::base_internal::NumCPUs());
   Z3_solver_assert(ctx, solver, eq_node);
+  XLS_RETURN_IF_ERROR(
+      ApplyConstraints(solver, ir_data.translator.get(), constraints_file));
 
-  std::cout << solvers::z3::SolverResultToString(ctx, solver) << std::endl;
+  Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
+  std::cout << solvers::z3::SolverResultToString(ctx, solver, satisfiable)
+            << std::endl;
 
   // If the condition was satisifiable, display sample inputs.
-  if (Z3_solver_check(ctx, solver) == Z3_L_TRUE) {
+  if (satisfiable == Z3_L_TRUE) {
     Z3_model model = Z3_solver_get_model(ctx, solver);
     Z3_model_inc_ref(ctx, model);
 
@@ -301,9 +360,9 @@ int main(int argc, char* argv[]) {
     high_cells.insert(std::string(high_cell));
   }
 
-  XLS_QCHECK_OK(xls::RealMain(ir_path, absl::GetFlag(FLAGS_entry_function_name),
-                              absl::GetFlag(FLAGS_netlist_module_name),
-                              cell_lib_path, cell_proto_path, high_cells,
-                              netlist_path));
+  XLS_QCHECK_OK(xls::RealMain(
+      ir_path, absl::GetFlag(FLAGS_entry_function_name),
+      absl::GetFlag(FLAGS_netlist_module_name), cell_lib_path, cell_proto_path,
+      high_cells, netlist_path, absl::GetFlag(FLAGS_constraints_file)));
   return 0;
 }

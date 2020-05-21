@@ -34,7 +34,7 @@ Z3_solver CreateSolver(Z3_context ctx, int num_threads);
 // If "hexify" is true, then all output values will be converted from boolean or
 // decimal to hex.
 std::string SolverResultToString(Z3_context ctx, Z3_solver solver,
-                                 bool hexify = true);
+                                 Z3_lbool satisfiable, bool hexify = true);
 
 // Returns a string representation of the given node interpreted under the given
 // model.

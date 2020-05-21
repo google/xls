@@ -92,6 +92,9 @@ filegroup(
 cc_binary(
     name = "lec_main",
     srcs = ["lec_main.cc"],
+    data = [
+        "//xls/dslx:ir_converter_main",
+    ],
     deps = [
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
@@ -99,7 +102,9 @@ cc_binary(
         "@com_google_absl//absl/strings",
         "@z3//:api",
         "//xls/common:init_xls",
+        "//xls/common:subprocess",
         "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor",
