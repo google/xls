@@ -200,6 +200,7 @@ bool ShouldEvaluate(Node* node) {
     // Weirdo ops.
     case Op::kArray:
     case Op::kArrayIndex:
+    case Op::kArrayUpdate:
     case Op::kCountedFor:
     case Op::kInvoke:
     case Op::kMap:

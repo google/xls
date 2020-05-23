@@ -406,6 +406,9 @@ xabsl::StatusOr<Expression*> NodeToExpression(
       }
       return file->Index(inputs[0]->AsIndexableExpressionOrDie(), inputs[1]);
     }
+    case Op::kArrayUpdate: {
+      return absl::UnimplementedError("ArrayUpdate not yet implemented");
+    }
     case Op::kBitSlice: {
       BitSlice* slice = node->As<BitSlice>();
       if (slice->width() == 1) {

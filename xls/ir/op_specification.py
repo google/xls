@@ -364,6 +364,16 @@ OpClass.kinds['ARRAY_INDEX'] = OpClass(
     xls_type_expression='arg->GetType()->AsArrayOrDie()->element_type()',
 )
 
+OpClass.kinds['ARRAY_UPDATE'] = OpClass(
+    name='ArrayUpdate',
+    op='Op::kArrayUpdate',
+    operands=[Operand('arg'), Operand('index'), Operand('update_value')],
+    xls_type_expression='arg->GetType()',
+    extra_methods=[Method(name='size',
+                          return_cpp_type='int64',
+                          expression='GetType()->AsArrayOrDie()->size()')]
+)
+
 OpClass.kinds['BIN_OP'] = OpClass(
     name='BinOp',
     op='op',
@@ -650,6 +660,12 @@ OPS = [
         enum_name='kArrayIndex',
         name='array_index',
         op_class=OpClass.kinds['ARRAY_INDEX'],
+        properties=[],
+    ),
+    Op(
+        enum_name='kArrayUpdate',
+        name='array_update',
+        op_class=OpClass.kinds['ARRAY_UPDATE'],
         properties=[],
     ),
     Op(

@@ -214,6 +214,10 @@ class NodeChecker : public DfsVisitor {
                           "array operand element type");
   }
 
+  absl::Status HandleArrayUpdate(ArrayUpdate* update) override {
+    return absl::UnimplementedError("ArrayUpdate not yet implemented");
+  }
+
   absl::Status HandleInvoke(Invoke* invoke) override {
     // Verify the signature (inputs and output) of the invoked function matches
     // the Invoke node.

@@ -258,6 +258,10 @@ class InterpreterVisitor : public DfsVisitor {
     return SetValueResult(index, input_array.elements().at(i));
   }
 
+  absl::Status HandleArrayUpdate(ArrayUpdate* update) override {
+    return absl::UnimplementedError("ArrayUpdate not yet implemented");
+  }
+
   absl::Status HandleInvoke(Invoke* invoke) override {
     Function* to_apply = invoke->to_apply();
     std::vector<Value> args;

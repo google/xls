@@ -63,6 +63,10 @@ absl::Status DfsVisitorWithDefault::HandleArrayIndex(ArrayIndex* index) {
   return DefaultHandler(index);
 }
 
+absl::Status DfsVisitorWithDefault::HandleArrayUpdate(ArrayUpdate* update) {
+  return DefaultHandler(update);
+}
+
 absl::Status DfsVisitorWithDefault::HandleBitSlice(BitSlice* bit_slice) {
   return DefaultHandler(bit_slice);
 }
