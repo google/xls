@@ -86,6 +86,7 @@ AUTOMAKE_SUBSTITUTIONS = {
     "cf_cv_1UL": "1U",
     "HAVE_VSSCANF": "1",
     "NCURSES_WINT_T": "0",
+    "NCURSES_OSPEED": "short",
 }
 
 cc_library(
@@ -98,6 +99,9 @@ cc_library(
         "include/parametrized.h",
         "include/curses.h",
         "include/term.h",
+        "include/ncurses_dll.h",
+        "include/unctrl.h",
+        "include/termcap.h",
         # Various source files include these, so call them headers.
         "ncurses/tinfo/doalloc.c",
         "ncurses/names.c",
@@ -201,7 +205,7 @@ genrule(
         "misc/terminfo.src",
     ],
     outs = ["ncurses/fallback.c"],
-    cmd = "$(location :ncurses/tinfo/MKfallback.sh) /usr/share/terminfo $(location :misc/terminfo.src) $$(which tic) > $@",
+    cmd = "$(location :ncurses/tinfo/MKfallback.sh) /usr/share/terminfo $(location :misc/terminfo.src) $$(which tic) $$(which infocmp) > $@",
 )
 
 cc_binary(
@@ -302,6 +306,27 @@ automake_substitution(
     name = "curses_head",
     src = "include/curses.h.in",
     out = "include/curses.head",
+    substitutions = AUTOMAKE_SUBSTITUTIONS,
+)
+
+automake_substitution(
+    name = "curses_dll",
+    src = "include/ncurses_dll.h.in",
+    out = "include/ncurses_dll.h",
+    substitutions = AUTOMAKE_SUBSTITUTIONS,
+)
+
+automake_substitution(
+    name = "unctrl_h",
+    src = "include/unctrl.h.in",
+    out = "include/unctrl.h",
+    substitutions = AUTOMAKE_SUBSTITUTIONS,
+)
+
+automake_substitution(
+    name = "termcap_h",
+    src = "include/termcap.h.in",
+    out = "include/termcap.h",
     substitutions = AUTOMAKE_SUBSTITUTIONS,
 )
 
