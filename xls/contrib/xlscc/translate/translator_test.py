@@ -50,7 +50,7 @@ class TranslatorTest(absltest.TestCase):
 
   def one_in_one_out(self, source, a_input, b_input, expected_output):
     f = self.parse_and_get_function("""
-      int test(int a, int b){
+      int test(sai32 a, sai32 b) {
         """ + source + """
       }
     """)
@@ -157,6 +157,18 @@ class TranslatorTest(absltest.TestCase):
     self.one_in_one_out("return a ? 3 : b;", 0, 11, 11)
     self.one_in_one_out("return a ? 3 : b;", 1, 11, 3)
 
+  def test_simple_inc(self):
+    self.one_in_one_out("int x = ++a; return x+a;", 5, 0, 12)
+
+  def test_simple_post_inc(self):
+    self.one_in_one_out("int x = a++; return x+a;", 5, 0, 11)
+
+  def test_simple_dec(self):
+    self.one_in_one_out("int x = --a; return x+a;", 5, 0, 8)
+
+  def test_simple_post_dec(self):
+    self.one_in_one_out("int x = a--; return x+a;", 5, 0, 9)
+
   def test_simple_bool(self):
     self.one_in_one_out("return (a==55) && (b==60);", 55, 60, 1)
     self.one_in_one_out("return bool(a) == bool(b);", 0, 60, 0)
@@ -164,6 +176,9 @@ class TranslatorTest(absltest.TestCase):
   def test_simple_slc(self):
     # Sign extension
     self.one_in_one_out("return a.slc<3>(2);", 0b1001011001, 0, -2)
+
+  def test_simple_set_slc(self):
+    self.one_in_one_out("a.set_slc(1, uai2(3));return a;", 0b0001011001, 0, 95)
 
   def test_simple_cpp_cast(self):
     self.one_in_one_out("return uai5(a);", 55, 0, 23)
@@ -232,10 +247,10 @@ class TranslatorTest(absltest.TestCase):
     hls_types_by_name = {"SomeStruct": somestructtype}
 
     f = self.parse_and_get_function("""
-      void struct_update(SomeStruct &o, int x) {
-        o.x = x;
+      void struct_update(SomeStruct &o, sai18 x) {
+        o.x.set_slc(0, x);
       }
-      int test(int a, int b) {
+      int test(sai32 a, int b) {
         SomeStruct s;
         s.x = 0;
         s.y = b;

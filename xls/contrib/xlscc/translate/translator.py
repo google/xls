@@ -567,6 +567,34 @@ class Translator(object):
           bits_mod.UBits(value=0, bit_count=in_type.bit_width), loc)
       return self.fb.add_ne(in_expr, const0, loc)
 
+  def _generic_assign(self, lvalue_expr, rvalue, rvalue_type, condition, loc):
+    """Assigns to either a raw C Var or a compound (struct, array) reference.
+
+    Args:
+      lvalue_expr: Pycparser expression for LValue
+      rvalue: XLS function builder RValue
+      rvalue_type: C type of RValue
+      condition: Condition of assignment
+      loc: XLS function builder source location
+    """
+
+    is_struct = isinstance(lvalue_expr, c_ast.StructRef)
+    is_array = isinstance(lvalue_expr, c_ast.ArrayRef)
+    if isinstance(lvalue_expr, c_ast.ID):
+      self.assign(lvalue_expr.name,
+                  rvalue,
+                  rvalue_type,
+                  condition,
+                  loc)
+    elif is_struct or is_array:
+      self.assign_compound(lvalue_expr,
+                           rvalue,
+                           rvalue_type,
+                           condition,
+                           loc)
+    else:
+      raise NotImplementedError("Assigning non-lvalue", str(type(lvalue_expr)))
+
   def gen_expr_ir(self, stmt_ast, condition):
     """Generates XLS IR value for C expression.
 
@@ -585,6 +613,21 @@ class Translator(object):
         assert isinstance(operand_type, IntType)
         assert operand_type.signed
         return self.fb.add_neg(operand, loc), operand_type
+      elif (stmt_ast.op == "++" or
+            stmt_ast.op == "--" or
+            stmt_ast.op == "p++" or
+            stmt_ast.op == "p--"):    # p prefix means post
+        assert isinstance(operand_type, IntType)
+        synth_literal = c_ast.Constant("int", "1", stmt_ast.coord)
+        synth_op = c_ast.BinaryOp(stmt_ast.op[1],
+                                  stmt_ast.expr,
+                                  synth_literal, stmt_ast.coord)
+        r_value, r_type = self.gen_expr_ir(synth_op, condition)
+        self._generic_assign(stmt_ast.expr, r_value, r_type, condition, loc)
+        if stmt_ast.op[0] == "p":
+          return operand, operand_type
+        else:
+          return r_value, r_type
       elif stmt_ast.op == "~":
         return self.fb.add_not(operand, loc), operand_type
       elif stmt_ast.op == "!":
@@ -825,23 +868,12 @@ class Translator(object):
           for ref_idx in range(len(unpacked_returns)):
             param_idx = ref_params[ref_idx]
             expr = stmt_ast.args.exprs[param_idx]
-            is_struct = isinstance(expr, c_ast.StructRef)
-            is_array = isinstance(expr, c_ast.ArrayRef)
-            if isinstance(expr, c_ast.ID):
-              self.assign(expr.name,
-                          unpacked_returns[ref_idx],
-                          unpacked_return_types[ref_idx],
-                          condition,
-                          translate_loc(stmt_ast))
-            elif is_struct or is_array:
-              self.assign_compound(expr,
-                                   unpacked_returns[ref_idx],
-                                   unpacked_return_types[ref_idx],
-                                   condition,
-                                   translate_loc(stmt_ast))
-            else:
-              raise NotImplementedError("Reference parameter assigning",
-                                        type(expr))
+
+            self._generic_assign(expr,
+                                 unpacked_returns[ref_idx],
+                                 unpacked_return_types[ref_idx],
+                                 condition,
+                                 translate_loc(stmt_ast))
 
           return ret_val, func.return_type
         else:
@@ -884,38 +916,34 @@ class Translator(object):
           assert isinstance(offset_type, IntType)
           value_expr, value_type = self.gen_expr_ir(stmt_ast.args.exprs[1],
                                                     condition)
-          assert isinstance(left_var, c_ast.ID)
-          assert left_var.name in self.cvars
 
           # Check rvalue type
           assert isinstance(value_type, IntType)
           assert not value_type.native
 
-          # Check lvalue type
-          lcvar = self.cvars[left_var.name]
-          assert isinstance(lcvar.ctype, IntType)
-          assert not value_type.native
+          l_o_value, l_o_type = self.gen_expr_ir(left_var, condition)
+          assert isinstance(l_o_type, IntType)
 
           concat_list = [value_expr]
 
           if offset > 0:
             concat_list.append(
-                self.fb.add_bit_slice(lcvar.fb_expr, 0, offset, loc))
+                self.fb.add_bit_slice(l_o_value, 0, offset, loc))
 
-          right_hand_bits = lcvar.ctype.bit_width - (
+          right_hand_bits = l_o_type.bit_width - (
               offset + value_type.bit_width)
           if right_hand_bits > 0:
             concat_list.insert(
                 0,
-                self.fb.add_bit_slice(lcvar.fb_expr,
+                self.fb.add_bit_slice(l_o_value,
                                       offset + value_type.bit_width,
                                       right_hand_bits, loc))
 
           r_expr = self.fb.add_concat(concat_list, loc)
-          r_type = IntType(lcvar.ctype.bit_width, lcvar.ctype.signed, False)
+          r_type = IntType(l_o_type.bit_width, l_o_type.signed, False)
 
-          self.assign(left_var.name, r_expr, r_type, condition, left_var)
-
+          self._generic_assign(left_var, r_expr, r_type, condition,
+                               translate_loc(stmt_ast))
         else:
           raise NotImplementedError("Unsupported template function",
                                     template_ast)
@@ -1317,15 +1345,7 @@ class Translator(object):
 
           r_expr, r_type = self.gen_expr_ir(synth_op, condition)
 
-          if isinstance(stmt.lvalue, c_ast.ID):
-            name = stmt.lvalue.name
-            self.assign(name, r_expr, r_type, condition, loc)
-          elif isinstance(stmt.lvalue, c_ast.StructRef) or \
-               isinstance(stmt.lvalue, c_ast.ArrayRef):
-            self.assign_compound(stmt.lvalue, r_expr, r_type, condition, loc)
-          else:
-            raise NotImplementedError("Should be variable name or struct/array"
-                                      " reference to the left of assignment")
+          self._generic_assign(stmt.lvalue, r_expr, r_type, condition, loc)
       elif isinstance(stmt, c_ast.Pragma):
         next_line_pragma = stmt
       elif isinstance(stmt, c_ast.For):
@@ -1465,10 +1485,12 @@ class Translator(object):
               next_is_default = True
       elif isinstance(stmt, c_ast.EmptyStatement):
         pass
+      elif isinstance(stmt, c_ast.UnaryOp):
+        self.gen_expr_ir(stmt, condition)
       else:
         stmt.show()
-        raise NotImplementedError("Unsupported construct in function body "+
-                                  type(stmt))
+        raise NotImplementedError("Unsupported construct in function body " +
+                                  str(type(stmt)))
 
     # Restore context (variables etc)
     updated_cvars = self.cvars
