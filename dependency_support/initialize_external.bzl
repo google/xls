@@ -17,9 +17,15 @@
 load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
 load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
 load("@pybind11_bazel//:python_configure.bzl", "python_configure")
+load("@rules_python//python:pip.bzl", "pip_import")
 
 def initialize_external_repositories():
     """Calls set-up methods for external repositories that require that."""
     bazel_skylib_workspace()
     protobuf_deps()
     python_configure(name = "local_config_python")
+    pip_import(
+        name = "xls_pip_deps",
+        requirements = "//dependency_support:pip_requirements.txt",
+        python_interpreter = "python3",
+    )
