@@ -632,8 +632,9 @@ class Translator(object):
         return self.fb.add_not(operand, loc), operand_type
       elif stmt_ast.op == "!":
         const0 = self.fb.add_literal_bits(
-            bits_mod.UBits(value=0, bit_count=1), loc)
-        return self.fb.add_ne(operand, const0, loc), BoolType()
+            bits_mod.UBits(value=0, bit_count=operand_type.bit_width), loc)
+        eq = self.fb.add_eq(operand, const0, loc)
+        return eq, BoolType()
       else:
         raise NotImplementedError("Unimplemented unary operator", stmt_ast.op)
     elif isinstance(stmt_ast, c_ast.BinaryOp):

@@ -115,6 +115,12 @@ class TranslatorTest(absltest.TestCase):
   def test_simple_bnot(self):
     self.one_in_one_out("return ~a;", 5, 0, -6)
 
+  def test_simple_not_p(self):
+    self.one_in_one_out("return !a;", 5, 0, 0)
+
+  def test_simple_not_n(self):
+    self.one_in_one_out("return !a;", 0, 0, 1)
+
   def test_simple_minus(self):
     self.one_in_one_out("return -a;", 5, 0, -5)
 
@@ -141,9 +147,6 @@ class TranslatorTest(absltest.TestCase):
   def test_simple_neq(self):
     self.one_in_one_out("return a!=b;", 5, 4, 1)
     self.one_in_one_out("return a!=b;", 5, 5, 0)
-
-  def test_simple_lnot(self):
-    self.one_in_one_out("return !a;", 5, 0, 1)
 
   def test_simple_lor(self):
     self.one_in_one_out("return a||b;", 5, 0, 1)
