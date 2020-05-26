@@ -183,8 +183,8 @@ absl::Status Lec::CreateNetlistTranslator(
 
   XLS_ASSIGN_OR_RETURN(
       netlist_translator_,
-      netlist::Z3Translator::CreateAndTranslate(
-          ir_translator_->ctx(), module, module_refs, inputs, high_cells));
+      NetlistTranslator::CreateAndTranslate(ir_translator_->ctx(), module,
+                                            module_refs, inputs, high_cells));
 
   return absl::OkStatus();
 }

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/netlist/z3_translator.h"
+#include "xls/solvers/z3_netlist_translator.h"
 
 #include "absl/flags/flag.h"
 #include "absl/strings/str_format.h"
@@ -25,42 +25,47 @@
 #include "../z3/src/api/z3_api.h"
 
 namespace xls {
-namespace netlist {
+namespace solvers {
+namespace z3 {
 
-using function::Ast;
+using netlist::function::Ast;
+using netlist::rtl::Cell;
+using netlist::rtl::Module;
+using netlist::rtl::NetRef;
 
-xabsl::StatusOr<std::unique_ptr<Z3Translator>> Z3Translator::CreateAndTranslate(
-    Z3_context ctx, const rtl::Module* module,
-    const absl::flat_hash_map<std::string, const rtl::Module*>& module_refs,
+xabsl::StatusOr<std::unique_ptr<NetlistTranslator>>
+NetlistTranslator::CreateAndTranslate(
+    Z3_context ctx, const Module* module,
+    const absl::flat_hash_map<std::string, const Module*>& module_refs,
     const absl::flat_hash_map<std::string, Z3_ast>& inputs,
     const absl::flat_hash_set<std::string>& high_cells) {
-  auto translator =
-      absl::WrapUnique(new Z3Translator(ctx, module, module_refs, high_cells));
+  auto translator = absl::WrapUnique(
+      new NetlistTranslator(ctx, module, module_refs, high_cells));
   XLS_RETURN_IF_ERROR(translator->Init(inputs));
   XLS_RETURN_IF_ERROR(translator->Translate());
   return translator;
 }
 
-xabsl::StatusOr<Z3_ast> Z3Translator::GetTranslation(rtl::NetRef ref) {
+xabsl::StatusOr<Z3_ast> NetlistTranslator::GetTranslation(NetRef ref) {
   XLS_RET_CHECK(translated_.contains(ref));
   return translated_.at(ref);
 }
 
-Z3Translator::Z3Translator(
-    Z3_context ctx, const rtl::Module* module,
-    const absl::flat_hash_map<std::string, const rtl::Module*>& module_refs,
+NetlistTranslator::NetlistTranslator(
+    Z3_context ctx, const Module* module,
+    const absl::flat_hash_map<std::string, const Module*>& module_refs,
     const absl::flat_hash_set<std::string>& high_cells)
     : ctx_(ctx),
       module_(module),
       module_refs_(module_refs),
       high_cells_(high_cells) {}
 
-absl::Status Z3Translator::Init(
+absl::Status NetlistTranslator::Init(
     const absl::flat_hash_map<std::string, Z3_ast>& inputs) {
   // Associate each input with its NetRef and make it available for lookup.
   for (const auto& pair : inputs) {
     XLS_VLOG(2) << "Processing input : " << pair.first;
-    XLS_ASSIGN_OR_RETURN(rtl::NetRef ref, module_->ResolveNet(pair.first));
+    XLS_ASSIGN_OR_RETURN(NetRef ref, module_->ResolveNet(pair.first));
     translated_[ref] = pair.second;
   }
 
@@ -91,11 +96,11 @@ absl::Status Z3Translator::Init(
 //     translate that cell into Z3 space, and move its output wires
 //     (the resulting Z3 nodes) onto the back of the active wire list.
 //  4. Repeat until the active wire list is empty.
-absl::Status Z3Translator::Translate() {
+absl::Status NetlistTranslator::Translate() {
   // Utility structure so we don't have to iterate through a cell's inputs and
   // outputs every time it's examined.
-  absl::flat_hash_map<rtl::Cell*, absl::flat_hash_set<rtl::NetRef>> cell_inputs;
-  std::deque<rtl::NetRef> active_wires;
+  absl::flat_hash_map<Cell*, absl::flat_hash_set<NetRef>> cell_inputs;
+  std::deque<NetRef> active_wires;
   for (const auto& cell : module_->cells()) {
     // If any cells have _no_ inputs, then their outputs should be made
     // immediately available.
@@ -105,7 +110,7 @@ absl::Status Z3Translator::Translate() {
         active_wires.push_back(output.netref);
       }
     } else {
-      absl::flat_hash_set<rtl::NetRef> inputs;
+      absl::flat_hash_set<NetRef> inputs;
       for (const auto& input : cell->inputs()) {
         inputs.insert(input.netref);
       }
@@ -122,7 +127,7 @@ absl::Status Z3Translator::Translate() {
   // If so, then that cell's outputs are now active and should be considered
   // newly active on the next pass.
   while (!active_wires.empty()) {
-    rtl::NetRef ref = active_wires.front();
+    NetRef ref = active_wires.front();
     active_wires.pop_front();
     XLS_VLOG(2) << "Processing wire " << ref->name();
 
@@ -169,8 +174,8 @@ absl::Status Z3Translator::Translate() {
   return absl::Status();
 }
 
-absl::Status Z3Translator::TranslateCell(const rtl::Cell& cell) {
-  using function::Ast;
+absl::Status NetlistTranslator::TranslateCell(const Cell& cell) {
+  using netlist::function::Ast;
 
   // If this cell is actually a reference to a module defined in this netlist,
   // then translate it into Z3-space here and grab its output nodes.
@@ -181,10 +186,11 @@ absl::Status Z3Translator::TranslateCell(const rtl::Cell& cell) {
       inputs[input.pin_name] = translated_[input.netref];
     }
 
-    const rtl::Module* module_ref = module_refs_.at(entry_name);
-    XLS_ASSIGN_OR_RETURN(auto subtranslator, Z3Translator::CreateAndTranslate(
-                                                 ctx_, module_ref, module_refs_,
-                                                 inputs, high_cells_));
+    const Module* module_ref = module_refs_.at(entry_name);
+    XLS_ASSIGN_OR_RETURN(
+        auto subtranslator,
+        NetlistTranslator::CreateAndTranslate(ctx_, module_ref, module_refs_,
+                                              inputs, high_cells_));
 
     // Now match the module outputs to the corresponding netref in this module's
     // corresponding cell.
@@ -208,8 +214,8 @@ absl::Status Z3Translator::TranslateCell(const rtl::Cell& cell) {
     }
   } else {
     for (const auto& output : cell.outputs()) {
-      XLS_ASSIGN_OR_RETURN(function::Ast ast, function::Parser::ParseFunction(
-                                                  output.pin.function));
+      XLS_ASSIGN_OR_RETURN(Ast ast, netlist::function::Parser::ParseFunction(
+                                        output.pin.function));
       XLS_ASSIGN_OR_RETURN(Z3_ast result, TranslateFunction(cell, ast));
       translated_[output.netref] = result;
     }
@@ -219,8 +225,8 @@ absl::Status Z3Translator::TranslateCell(const rtl::Cell& cell) {
 }
 
 // After all the above, this is the spot where any _ACTUAL_ translation happens.
-xabsl::StatusOr<Z3_ast> Z3Translator::TranslateFunction(const rtl::Cell& cell,
-                                                        function::Ast ast) {
+xabsl::StatusOr<Z3_ast> NetlistTranslator::TranslateFunction(
+    const Cell& cell, netlist::function::Ast ast) {
   switch (ast.kind()) {
     case Ast::Kind::kAnd: {
       XLS_ASSIGN_OR_RETURN(Z3_ast lhs,
@@ -230,7 +236,7 @@ xabsl::StatusOr<Z3_ast> Z3Translator::TranslateFunction(const rtl::Cell& cell,
       return Z3_mk_bvand(ctx_, lhs, rhs);
     }
     case Ast::Kind::kIdentifier: {
-      rtl::NetRef ref = nullptr;
+      NetRef ref = nullptr;
       for (const auto& input : cell.inputs()) {
         if (input.pin_name == ast.name()) {
           ref = input.netref;
@@ -275,5 +281,6 @@ xabsl::StatusOr<Z3_ast> Z3Translator::TranslateFunction(const rtl::Cell& cell,
   }
 }
 
-}  // namespace netlist
+}  // namespace z3
+}  // namespace solvers
 }  // namespace xls

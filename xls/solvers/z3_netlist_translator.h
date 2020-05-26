@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_NETLIST_Z3_TRANSLATOR_H_
-#define THIRD_PARTY_XLS_NETLIST_Z3_TRANSLATOR_H_
+#ifndef THIRD_PARTY_XLS_SOLVERS_Z3_NETLIST_TRANSLATOR_H_
+#define THIRD_PARTY_XLS_SOLVERS_Z3_NETLIST_TRANSLATOR_H_
 
 #include <memory>
 
@@ -24,14 +24,15 @@
 #include "../z3/src/api/z3.h"
 
 namespace xls {
-namespace netlist {
+namespace solvers {
+namespace z3 {
 
 // Z3Translator converts a netlist into a Z3 AST suitable for use in Z3 proofs
 // (correctness, equality, etc.).
 // It does this by converting the logical ops described in a Cell's "function"
 // attribute into trees Z3 operations, then combining those trees, as described
 // in the Module's nets, into one comprehensive tree.
-class Z3Translator {
+class NetlistTranslator {
  public:
   // Inputs must be provided here so that the same "values" can be used for
   // other trees, e.g., in an equivalence check (we need the same input nodes to
@@ -40,35 +41,38 @@ class Z3Translator {
   //    references in the module being processed.
   //  - inputs is a map of wire/net name to Z3 one-bit vectors; this requires
   //    "exploding" values, such as a bits[8] into 8 single-bit inputs.
-  static xabsl::StatusOr<std::unique_ptr<Z3Translator>> CreateAndTranslate(
-      Z3_context ctx, const rtl::Module* module,
-      const absl::flat_hash_map<std::string, const rtl::Module*>& module_refs,
+  static xabsl::StatusOr<std::unique_ptr<NetlistTranslator>> CreateAndTranslate(
+      Z3_context ctx, const netlist::rtl::Module* module,
+      const absl::flat_hash_map<std::string, const netlist::rtl::Module*>&
+          module_refs,
       const absl::flat_hash_map<std::string, Z3_ast>& inputs,
       const absl::flat_hash_set<std::string>& high_cells);
 
   // Returns the Z3 equivalent for the specified net.
-  xabsl::StatusOr<Z3_ast> GetTranslation(rtl::NetRef ref);
+  xabsl::StatusOr<Z3_ast> GetTranslation(netlist::rtl::NetRef ref);
 
  private:
-  Z3Translator(
-      Z3_context ctx, const rtl::Module* module,
-      const absl::flat_hash_map<std::string, const rtl::Module*>& module_refs,
+  NetlistTranslator(
+      Z3_context ctx, const netlist::rtl::Module* module,
+      const absl::flat_hash_map<std::string, const netlist::rtl::Module*>&
+          module_refs,
       const absl::flat_hash_set<std::string>& high_cells);
   absl::Status Init(const absl::flat_hash_map<std::string, Z3_ast>& inputs);
 
   // Translates the module, cell, or cell function, respectively, into Z3-space.
   absl::Status Translate();
-  absl::Status TranslateCell(const rtl::Cell& cell);
-  xabsl::StatusOr<Z3_ast> TranslateFunction(const rtl::Cell& cell,
-                                            const function::Ast ast);
+  absl::Status TranslateCell(const netlist::rtl::Cell& cell);
+  xabsl::StatusOr<Z3_ast> TranslateFunction(const netlist::rtl::Cell& cell,
+                                            const netlist::function::Ast ast);
 
   Z3_context ctx_;
-  const rtl::Module* module_;
+  const netlist::rtl::Module* module_;
 
   // Maps a NetDef to a Z3 entity.
-  absl::flat_hash_map<rtl::NetRef, Z3_ast> translated_;
+  absl::flat_hash_map<netlist::rtl::NetRef, Z3_ast> translated_;
 
-  const absl::flat_hash_map<std::string, const rtl::Module*>& module_refs_;
+  const absl::flat_hash_map<std::string, const netlist::rtl::Module*>&
+      module_refs_;
 
   // TODO(rspringer): Eliminate the need for this by properly handling cells
   // with state_function attributes.
@@ -76,7 +80,8 @@ class Z3Translator {
   absl::flat_hash_set<std::string> high_cells_;
 };
 
-}  // namespace netlist
+}  // namespace z3
+}  // namespace solvers
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_NETLIST_Z3_TRANSLATOR_H_
+#endif  // THIRD_PARTY_XLS_SOLVERS_Z3_NETLIST_TRANSLATOR_H_

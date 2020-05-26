@@ -60,6 +60,7 @@ cc_library(
     hdrs = ["z3_lec.h"],
     deps = [
         ":z3_ir_translator",
+        ":z3_netlist_translator",
         ":z3_utils",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/status",
@@ -69,8 +70,50 @@ cc_library(
         "//xls/common/status:statusor",
         "//xls/ir",
         "//xls/netlist",
-        "//xls/netlist:z3_translator",
         "@z3//:api",
+    ],
+)
+
+cc_library(
+    name = "z3_netlist_translator",
+    srcs = ["z3_netlist_translator.cc"],
+    hdrs = ["z3_netlist_translator.h"],
+    deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/common/status:statusor",
+        "//xls/ir",
+        "//xls/netlist",
+        "//xls/netlist:function_parser",
+        "@z3//:api",
+    ],
+)
+
+cc_test(
+    name = "z3_netlist_translator_test",
+    srcs = ["z3_netlist_translator_test.cc"],
+    deps = [
+        ":z3_netlist_translator",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
+        "//xls/common:cleanup",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/netlist",
+        "//xls/netlist:fake_cell_library",
+        "//xls/netlist:netlist_parser",
+        "@z3//:api",
+        "@com_google_googletest//:gtest_main",
     ],
 )
 

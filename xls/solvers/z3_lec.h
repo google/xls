@@ -21,8 +21,8 @@
 #include "absl/status/status.h"
 #include "xls/ir/package.h"
 #include "xls/netlist/netlist.h"
-#include "xls/netlist/z3_translator.h"
 #include "xls/solvers/z3_ir_translator.h"
+#include "xls/solvers/z3_netlist_translator.h"
 
 namespace xls {
 namespace solvers {
@@ -98,11 +98,11 @@ class Lec {
 
   Package* ir_package_;
   Function* ir_function_;
-  std::unique_ptr<solvers::z3::IrTranslator> ir_translator_;
+  std::unique_ptr<IrTranslator> ir_translator_;
 
   netlist::rtl::Netlist* netlist_;
   std::string netlist_module_name_;
-  std::unique_ptr<netlist::Z3Translator> netlist_translator_;
+  std::unique_ptr<NetlistTranslator> netlist_translator_;
 
   // Z3 elements are, under the hood, void pointers, but let's respect the
   // interface and use absl::optional to determine live-ness.

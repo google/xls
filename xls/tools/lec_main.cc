@@ -33,8 +33,6 @@
 #include "xls/netlist/netlist.h"
 #include "xls/netlist/netlist.pb.h"
 #include "xls/netlist/netlist_parser.h"
-#include "xls/netlist/z3_translator.h"
-#include "xls/solvers/z3_ir_translator.h"
 #include "xls/solvers/z3_lec.h"
 #include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3_api.h"
