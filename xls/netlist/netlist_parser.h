@@ -103,8 +103,8 @@ class Parser {
   static xabsl::StatusOr<std::unique_ptr<Module>> ParseModule(
       CellLibrary* cell_library, Scanner* scanner);
 
-  static xabsl::StatusOr<Netlist> ParseNetlist(CellLibrary* cell_library,
-                                               Scanner* scanner);
+  static xabsl::StatusOr<std::unique_ptr<Netlist>> ParseNetlist(
+      CellLibrary* cell_library, Scanner* scanner);
 
  private:
   explicit Parser(CellLibrary* cell_library, Scanner* scanner)

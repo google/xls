@@ -392,10 +392,10 @@ endmodule)";
 
   CellLibrary cell_library = MakeFakeCellLibrary();
   rtl::Scanner scanner(module_text);
-  XLS_ASSERT_OK_AND_ASSIGN(rtl::Netlist netlist,
+  XLS_ASSERT_OK_AND_ASSIGN(auto netlist,
                            rtl::Parser::ParseNetlist(&cell_library, &scanner));
   XLS_ASSERT_OK_AND_ASSIGN(const rtl::Module* module,
-                           netlist.GetModule("main"));
+                           netlist->GetModule("main"));
   absl::flat_hash_map<std::string, Z3_ast> inputs = CreateInputs(ctx, *module);
 
   // If this call succeeds, then we were able to translate the module, which

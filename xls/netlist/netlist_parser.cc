@@ -530,14 +530,14 @@ xabsl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
   return module;
 }
 
-xabsl::StatusOr<Netlist> Parser::ParseNetlist(CellLibrary* cell_library,
-                                              Scanner* scanner) {
-  Netlist netlist;
+xabsl::StatusOr<std::unique_ptr<Netlist>> Parser::ParseNetlist(
+    CellLibrary* cell_library, Scanner* scanner) {
+  auto netlist = std::make_unique<Netlist>();
   Parser p(cell_library, scanner);
   while (!scanner->AtEof()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
-                         p.ParseModule(netlist));
-    netlist.AddModule(std::move(module));
+                         p.ParseModule(*netlist));
+    netlist->AddModule(std::move(module));
   }
   return std::move(netlist);
 }

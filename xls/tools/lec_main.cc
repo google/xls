@@ -35,6 +35,7 @@
 #include "xls/netlist/netlist_parser.h"
 #include "xls/netlist/z3_translator.h"
 #include "xls/solvers/z3_ir_translator.h"
+#include "xls/solvers/z3_lec.h"
 #include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3_api.h"
 
@@ -83,36 +84,6 @@ using solvers::z3::IrTranslator;
 
 constexpr const char kIrConverterPath[] = "xls/dslx/ir_converter_main";
 
-// Convenience struct for IR translation data.
-struct IrData {
-  // The package holding all IR data.
-  std::unique_ptr<Package> package;
-
-  // The function translated by the below translator.
-  Function* function;
-
-  // The translator for a given function in the package.
-  std::unique_ptr<IrTranslator> translator;
-};
-
-// Reads in XLS IR and returns a Z3Translator for the desired function.
-xabsl::StatusOr<IrData> GetIrTranslator(absl::string_view ir_path,
-                                        absl::string_view entry_function_name) {
-  IrData ir_data;
-  XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));
-  XLS_ASSIGN_OR_RETURN(ir_data.package, Parser::ParsePackage(ir_text));
-  if (entry_function_name.empty()) {
-    XLS_ASSIGN_OR_RETURN(ir_data.function, ir_data.package->EntryFunction());
-  } else {
-    XLS_ASSIGN_OR_RETURN(ir_data.function,
-                         ir_data.package->GetFunction(entry_function_name));
-  }
-
-  XLS_ASSIGN_OR_RETURN(ir_data.translator,
-                       IrTranslator::CreateAndTranslate(ir_data.function));
-  return ir_data;
-}
-
 // Loads a cell library, either from a raw Liberty file or a preprocessed
 // CellLibraryProto proto.
 xabsl::StatusOr<netlist::CellLibrary> GetCellLibrary(
@@ -134,7 +105,7 @@ xabsl::StatusOr<netlist::CellLibrary> GetCellLibrary(
 }
 
 // Loads and parses a netlist from a file.
-xabsl::StatusOr<netlist::rtl::Netlist> GetNetlist(
+xabsl::StatusOr<std::unique_ptr<netlist::rtl::Netlist>> GetNetlist(
     absl::string_view netlist_path, netlist::CellLibrary* cell_library) {
   XLS_ASSIGN_OR_RETURN(std::string netlist_text, GetFileContents(netlist_path));
   netlist::rtl::Scanner scanner(netlist_text);
@@ -164,41 +135,6 @@ void DumpTree(Z3_context ctx, Z3_model model, IrTranslator* translator) {
   }
 }
 
-// Applies the constraints in the specified constraint file to the solver, using
-// the parameters in the main translator.
-absl::Status ApplyConstraints(Z3_solver solver, IrTranslator* main_translator,
-                              absl::string_view constraints_file) {
-  if (constraints_file.empty()) {
-    return absl::OkStatus();
-  }
-
-  // Convert the input DSLX to XLS IR.
-  std::filesystem::path ir_converter_path = GetXlsRunfilePath(kIrConverterPath);
-  std::vector<std::string> args;
-  args.push_back(ir_converter_path);
-  args.push_back(std::string(constraints_file));
-  XLS_ASSIGN_OR_RETURN(auto stdout_and_stderr, InvokeSubprocess(args));
-
-  XLS_ASSIGN_OR_RETURN(auto package,
-                       Parser::ParsePackage(stdout_and_stderr.first));
-  XLS_ASSIGN_OR_RETURN(Function * function, package->EntryFunction());
-  std::vector<Z3_ast> params;
-  for (const auto& param : main_translator->xls_function()->params()) {
-    params.push_back(main_translator->GetTranslation(param));
-  }
-
-  // Assert that the constraint function's outputs are 1, and slap that into the
-  // solver.
-  Z3_context ctx = main_translator->ctx();
-  XLS_ASSIGN_OR_RETURN(auto constraint_translator,
-                       IrTranslator::CreateAndTranslate(ctx, function, params));
-  Z3_ast eq_node = Z3_mk_eq(ctx, constraint_translator->GetReturnNode(),
-                            Z3_mk_int(ctx, 1, Z3_mk_bv_sort(ctx, 1)));
-  Z3_solver_assert(ctx, solver, eq_node);
-
-  return absl::OkStatus();
-}
-
 }  // namespace
 
 absl::Status RealMain(absl::string_view ir_path,
@@ -209,130 +145,46 @@ absl::Status RealMain(absl::string_view ir_path,
                       const absl::flat_hash_set<std::string>& high_cells,
                       absl::string_view netlist_path,
                       absl::string_view constraints_file) {
-  XLS_ASSIGN_OR_RETURN(IrData ir_data,
-                       GetIrTranslator(ir_path, entry_function_name));
+  solvers::z3::LecParams lec_params;
+  XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));
+  XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(ir_text));
+  lec_params.ir_package = package.get();
   if (entry_function_name.empty()) {
-    entry_function_name = ir_data.function->name();
+    XLS_ASSIGN_OR_RETURN(lec_params.ir_function,
+                         lec_params.ir_package->EntryFunction());
+  } else {
+    XLS_ASSIGN_OR_RETURN(
+        lec_params.ir_function,
+        lec_params.ir_package->GetFunction(entry_function_name));
   }
-  if (netlist_module_name.empty()) {
-    netlist_module_name = entry_function_name;
-  }
-
-  Z3_context ctx = ir_data.translator->ctx();
-  Function* entry_function = ir_data.function;
-
-  // Get the inputs to the IR function, and flatten them into values as
-  // expected by the netlist function (to "tie together" the inputs to the two
-  // translations.
-  absl::flat_hash_map<std::string, Z3_ast> inputs;
-  for (const Param* param : entry_function->params()) {
-    // Explode each param into individual bits. XLS IR and parsed netlist data
-    // layouts are different in that:
-    //  1) Netlists list input values from high-to-low bit, i.e.,
-    //  input_value_31_, input_value_30_, ... input_value_0, for a 32-bit input.
-    //  2) Netlists interpret their input values as "little-endian", i.e.,
-    //  input_value_7_ for an 8-bit input will be the MSB and
-    //  input_value_0_ will be the LSB.
-    // These two factors are why we need to reverse elements here. Item 1 is why
-    // we reverse the entire bits vector, and item 2 is why we pass
-    // little_endian as true to FlattenValue.
-    std::vector<Z3_ast> bits = ir_data.translator->FlattenValue(
-        param->GetType(), ir_data.translator->GetTranslation(param),
-        /*little_endian=*/true);
-    std::reverse(bits.begin(), bits.end());
-    if (bits.size() > 1) {
-      for (int i = 0; i < bits.size(); i++) {
-        // Param names are formatted by the parser as
-        // <param_name>[<bit_index>] or <param_name> (for single-bit)
-        std::string name = absl::StrCat(param->name(), "_", i, "_");
-        inputs[name] = bits[i];
-      }
-    } else {
-      inputs[param->name()] = bits[0];
-    }
-  }
-
-  XLS_ASSIGN_OR_RETURN(netlist::CellLibrary cell_library,
+  XLS_ASSIGN_OR_RETURN(auto cell_library,
                        GetCellLibrary(cell_lib_path, cell_proto_path));
   XLS_ASSIGN_OR_RETURN(auto netlist, GetNetlist(netlist_path, &cell_library));
-  XLS_ASSIGN_OR_RETURN(const netlist::rtl::Module* netlist_module,
-                       netlist.GetModule(std::string{netlist_module_name}));
+  lec_params.netlist = netlist.get();
+  lec_params.netlist_module_name = netlist_module_name;
+  lec_params.high_cells = high_cells;
 
-  absl::flat_hash_map<std::string, const netlist::rtl::Module*> module_refs;
-  for (const std::unique_ptr<netlist::rtl::Module>& module :
-       netlist.modules()) {
-    if (module->name() == netlist_module_name) {
-      netlist_module = module.get();
-    } else {
-      module_refs[module->name()] = module.get();
-    }
+  XLS_ASSIGN_OR_RETURN(auto lec,
+                       solvers::z3::Lec::Create(std::move(lec_params)));
+
+  std::unique_ptr<Package> constraints_pkg;
+  if (!constraints_file.empty()) {
+    std::filesystem::path ir_converter_path =
+        GetXlsRunfilePath(kIrConverterPath);
+    std::vector<std::string> args;
+    args.push_back(ir_converter_path);
+    args.push_back(std::string(constraints_file));
+    XLS_ASSIGN_OR_RETURN(auto stdout_and_stderr, InvokeSubprocess(args));
+
+    XLS_ASSIGN_OR_RETURN(constraints_pkg,
+                         Parser::ParsePackage(stdout_and_stderr.first));
+    XLS_ASSIGN_OR_RETURN(Function * function, constraints_pkg->EntryFunction());
+    XLS_RETURN_IF_ERROR(lec->AddConstraints(function));
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      auto netlist_translator,
-      netlist::Z3Translator::CreateAndTranslate(
-          ctx, netlist_module, module_refs, inputs, high_cells));
-
-  // Now do the opposite of the param flattening above - collect the outputs
-  // from the netlist translation and unflatten them into [the higher-level]
-  // IR types.
-  std::vector<Z3_ast> z3_outputs;
-  z3_outputs.reserve(netlist_module->outputs().size());
-  for (const auto& output : netlist_module->outputs()) {
-    // Drop output wires not part of the original signature.
-    if (output->name() == "output_valid") {
-      continue;
-    }
-
-    XLS_ASSIGN_OR_RETURN(Z3_ast z3_output,
-                         netlist_translator->GetTranslation(output));
-    z3_outputs.push_back(z3_output);
-  }
-  std::reverse(z3_outputs.begin(), z3_outputs.end());
-
-  // Specify little endian here as with FlattenValue() above.
-  Z3_ast netlist_output = ir_data.translator->UnflattenZ3Ast(
-      entry_function->GetType()->return_type(), absl::MakeSpan(z3_outputs),
-      /*little_endian=*/true);
-
-  // Create the final equality checks. Since we're trying to prove the opposite,
-  // we're aiming for NOT(EQ(ir, netlist))
-  Z3_ast eq_node =
-      Z3_mk_eq(ctx, ir_data.translator->GetReturnNode(), netlist_output);
-  eq_node = Z3_mk_not(ctx, eq_node);
-
-  // Push all that work into z3, and have the solver do its work.
-  Z3_solver solver =
-      solvers::z3::CreateSolver(ctx, absl::base_internal::NumCPUs());
-  Z3_solver_assert(ctx, solver, eq_node);
-  XLS_RETURN_IF_ERROR(
-      ApplyConstraints(solver, ir_data.translator.get(), constraints_file));
-
-  Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
-  std::cout << solvers::z3::SolverResultToString(ctx, solver, satisfiable)
-            << std::endl;
-
-  // If the condition was satisifiable, display sample inputs.
-  if (satisfiable == Z3_L_TRUE) {
-    Z3_model model = Z3_solver_get_model(ctx, solver);
-    Z3_model_inc_ref(ctx, model);
-
-    std::cout << "IR result: "
-              << solvers::z3::QueryNode(ctx, model,
-                                        ir_data.translator->GetReturnNode())
-              << std::endl;
-    std::cout << "Netlist result: "
-              << solvers::z3::QueryNode(ctx, model, netlist_output)
-              << std::endl;
-
-    if (XLS_VLOG_IS_ON(2)) {
-      DumpTree(ctx, model, ir_data.translator.get());
-    }
-
-    Z3_model_dec_ref(ctx, model);
-  }
-
-  Z3_solver_dec_ref(ctx, solver);
+  lec->Run();
+  XLS_ASSIGN_OR_RETURN(std::string output, lec->ResultToString());
+  std::cout << output << std::endl;
 
   return absl::OkStatus();
 }

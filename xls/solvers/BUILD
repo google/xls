@@ -55,6 +55,26 @@ cc_test(
 )
 
 cc_library(
+    name = "z3_lec",
+    srcs = ["z3_lec.cc"],
+    hdrs = ["z3_lec.h"],
+    deps = [
+        ":z3_ir_translator",
+        ":z3_utils",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/common/status:statusor",
+        "//xls/ir",
+        "//xls/netlist",
+        "//xls/netlist:z3_translator",
+        "@z3//:api",
+    ],
+)
+
+cc_library(
     name = "z3_utils",
     srcs = ["z3_utils.cc"],
     hdrs = ["z3_utils.h"],

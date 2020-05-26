@@ -96,7 +96,7 @@ absl::Status RealMain(const std::string& netlist_path,
   netlist::rtl::Scanner scanner(netlist_text);
   XLS_ASSIGN_OR_RETURN(auto netlist, netlist::rtl::Parser::ParseNetlist(
                                          &cell_library, &scanner));
-  XLS_ASSIGN_OR_RETURN(const auto* module, netlist.GetModule(module_name));
+  XLS_ASSIGN_OR_RETURN(const auto* module, netlist->GetModule(module_name));
 
   // Input values are listed in the same order as inputs are declared by
   // Module::inputs().
@@ -116,7 +116,7 @@ absl::Status RealMain(const std::string& netlist_path,
     input_nets[module_inputs[i]] = input_bits.Get(i);
   }
 
-  netlist::Interpreter interpreter(&netlist, high_cells);
+  netlist::Interpreter interpreter(netlist.get(), high_cells);
   XLS_ASSIGN_OR_RETURN(auto output_nets, interpreter.InterpretModule(
                                              module, input_nets, dump_cells));
 

@@ -195,12 +195,12 @@ endmodule
 
   CellLibrary cell_library = MakeFakeCellLibrary();
   rtl::Scanner scanner(module_text);
-  XLS_ASSERT_OK_AND_ASSIGN(rtl::Netlist netlist,
+  XLS_ASSERT_OK_AND_ASSIGN(auto netlist,
                            rtl::Parser::ParseNetlist(&cell_library, &scanner));
 
-  Interpreter interpreter(&netlist, {});
+  Interpreter interpreter(netlist.get(), {});
   XLS_ASSERT_OK_AND_ASSIGN(const rtl::Module* module,
-                           netlist.GetModule("main"));
+                           netlist->GetModule("main"));
 
   absl::flat_hash_map<const rtl::NetRef, bool> inputs;
   inputs[module->inputs()[0]] = true;
