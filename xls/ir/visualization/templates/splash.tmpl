@@ -1,0 +1,224 @@
+<html>
+  <link rel="stylesheet" href="https://www.gstatic.com/external_hosted/twitter_bootstrap_css/v4/bootstrap.css">
+  <style>
+    body {
+      height: 100vh;
+      overflow: auto;
+    }
+    #outer {
+      margin-top: 1em;
+    }
+    .source-text {
+      font-family: monospace;
+      width: 100%;
+      height: 65vh;
+      border: 1px solid #dee2e6;
+      white-space: pre-wrap;
+      display: inline-block;
+      overflow: auto;
+      padding: 10px;
+      cursor: text;
+      margin-top: 10px;
+    }
+    .node-metadata-text {
+      font-family: monospace;
+      font-size: large;
+      width: 100%;
+      height: 65vh;
+      border: 1px solid #dee2e6;
+      white-space: pre-wrap;
+      display: inline-block;
+      overflow: auto;
+      cursor: text;
+    }
+    #bottom-pane {
+      padding: 5px;
+    }
+    #bottom-pane button {
+      margin-right: 5px;
+    }
+    #ir pre {
+      white-space: pre-wrap;
+    }
+    #lhs {
+      width: 50em;
+      max-width: 50em;
+      margin-top: 5px;
+    }
+    #source-status.alert-danger {
+      font-family: monospace;
+    }
+    #node-metadata {
+      height: 7.5em;
+    }
+    #graph {
+      height: 75vh;
+      margin-top: 5px;
+      margin-bottom: 0px;
+    }
+  </style>
+  <link rel="stylesheet" href="/static/ir_graph.css">
+  <title>XLS IR Visualization</title>
+  <body>
+    <nav class="navbar navbar-light bg-light">
+      <span class="navbar-brand mb-0 h1">XLS IR Visualization</span>
+    </nav>
+    <div id="outer" class="container-fluid">
+      <div id="top-panes" class="row">
+        <div id="lhs" class="col">
+          <ul class='nav nav-tabs' role='tablist'>
+            <li class="nav-item">
+              <a class="nav-link active" id="ir-source-tab" data-toggle="tab" href="#ir-source" role="tab" aria-controls="ir-source" aria-selected="true">IR</a>
+
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" id="json-response-tab" data-toggle="tab" href="#json-response" role="tab" aria-controls="json-response" aria-selected="false">JSON</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" id="cytoscape-graph-tab" data-toggle="tab" href="#cytoscape-graph" role="tab" aria-controls="cytoscape-graph" aria-selected="false">Cytoscape graph</a>
+            </li>
+          </ul>
+          <div class="tab-content" id="lhs-tab-content">
+            <div id="ir-source" class="tab-pane show active" role="tabpanel" aria-labelledby="ir-source-tab">
+
+              <div class="row">
+                <div class="col">
+
+              <div class="input-group mb-3">
+                <div class="input-group-prepend">
+                  <span class="input-group-text">Upload</span>
+                </div>
+                <div class="custom-file">
+                  <input type="file" class="custom-file-input" id="ir-upload">
+                  <label class="custom-file-label" for="ir-upload">Choose file</label>
+                </div>
+              </div>
+
+            </div>
+            <div class="col col-md-auto">
+              <div class="dropdown show">
+                <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenu2" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  Benchmarks
+                </button>
+                <div class="dropdown-menu" aria-labelledby="dropdownMenu2">
+                  {% for benchmark in benchmarks %}
+                  <button class="dropdown-item" id="{{ benchmark.replace('/', '_')  }}-load-btn" type="button">{{ benchmark }}</button>
+                  {% endfor %}
+                </div>
+              </div>
+
+            </div>
+            </div>
+
+              <div contenteditable="true" spellcheck="false" id="ir-source-text" class="source-text"></div>
+            </div>
+            <div id="json-response" class="tab-pane" role="tabpanel" aria-labelledby="json-response-tab">
+              <div contenteditable="false" spellcheck="false" id="json-response-text" class="source-text"></div>
+            </div>
+            <div id="cytoscape-graph" class="tab-pane" role="tabpanel" aria-labelledby="cytoscape-graph-tab">
+              <div contenteditable="true" spellcheck="false" id="cytoscape-graph-text" class="source-text"></div>
+            </div>
+          </div>
+          <div id="source-status" class="alert alert-dark" role="alert"></div>
+          <div id="bottom-pane">
+            <div class="row">
+              <div class="col">
+                <button id="view-graph-btn" type="button" class="btn btn-primary" disabled>View Graph</button>
+                <button id="view-critical-path-btn" type="button" class="btn btn-primary" disabled>Critical Path</button>
+              </div>
+              <div class="col">
+                <div class="custom-control custom-switch">
+                  <input type="checkbox" class="custom-control-input" id="only-selected-checkbox">
+                  <label class="custom-control-label" for="only-selected-checkbox">Show only selected nodes</label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div><!-- lhs -->
+        <div id="rhs" class="col">
+          <div id="node-metadata-alert" class="alert alert-secondary" role="alert">
+            <div id="node-metadata" class="node-metadata-text"></div>
+          </div>
+          <div id="graph">
+          </div>
+        </div><!-- rhs -->
+      </div><!-- top-panes -->
+    </div>
+  </body>
+  {% for url in third_party_scripts %}
+  <script src="{{ url }}"></script>
+  {% endfor %}
+  <script src="/static/js_compiled.js"></script>
+  <script>
+    $(document).ready(function() {
+      function loadBenchmark(name, cb) {
+        $.get(`/benchmarks/${name}`, function(data) {
+          $('#ir-source-text').text(data);
+          inputChangeHandler(cb);
+        });
+      }
+      {% for benchmark in benchmarks %}
+      $('#{{ benchmark.replace('/', '_') }}-load-btn').click(loadBenchmark.bind(null, '{{ benchmark }}', undefined));
+      {% endfor %}
+
+      $('#ir-upload').change(function() {
+        if (this.files.length > 0) {
+          this.files[0].text().then(function (text) {
+            $('#ir-source-text').text(text);
+          });
+        }
+      });
+
+      var visualizer = new xls.IrVisualizer($('#graph'),
+                              $('#ir-source-text'),
+                              $('#node-metadata'),
+                              $('#json-response-text'),
+                              $('#cytoscape-graph-text'));
+      visualizer.setSourceOkHandler(function() {
+        $('#source-status').removeClass('alert-danger')
+          .removeClass('alert-dark')
+          .addClass('alert-success')
+          .text('OK');
+        $('#view-graph-btn').prop('disabled', false);
+        $('#view-critical-path-btn').prop('disabled', false);
+      });
+      visualizer.setSourceErrorHandler(function(errorText) {
+        $('#source-status').removeClass('alert-dark')
+          .removeClass('alert-success')
+          .addClass('alert-danger')
+          .text(errorText);
+        $('#view-graph-btn').prop('disabled', true);
+        $('#view-critical-path-btn').prop('disabled', true);
+      });
+
+      function inputChangeHandler(cb) {
+         $('#view-graph-btn').prop('disabled', true);
+         $('#view-critical-path-btn').prop('disabled', true);
+         visualizer.parseAndHighlightIr(cb);
+      }
+
+      $('#ir-source-text').on('input', (e) => inputChangeHandler());
+
+      function showOnlySelectedState() {
+        return $('#only-selected-checkbox').prop('checked');
+      }
+      $('#view-graph-btn').click(function() {
+        visualizer.draw(showOnlySelectedState());
+      });
+      $('#view-critical-path-btn').click(function() {
+        visualizer.selectCriticalPath();
+      });
+
+      {% if load_default %}
+      loadBenchmark('default', function() {
+        visualizer.selectCriticalPath();
+        visualizer.draw(/*showOnlySelected=*/true);
+      });
+      {% endif %}
+
+      $('#only-selected-checkbox').change(function() {
+        visualizer.setShowOnlySelected(showOnlySelectedState());
+      })
+    });
+  </script>
+</html>

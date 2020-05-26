@@ -1,0 +1,6 @@
+https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js
+https://unpkg.com/popper.js@1.16.1/dist/umd/popper.min.js
+https://unpkg.com/cytoscape@3.15.0/dist/cytoscape.min.js
+https://unpkg.com/dagre@0.8.5/dist/dagre.min.js
+https://unpkg.com/cytoscape-dagre@2.2.2/cytoscape-dagre.js
+https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js
