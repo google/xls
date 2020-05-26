@@ -308,6 +308,33 @@ BValue FunctionBuilder::ArrayIndex(BValue arg, BValue idx,
   return AddNode<xls::ArrayIndex>(loc, arg.node(), idx.node());
 }
 
+BValue FunctionBuilder::ArrayUpdate(BValue arg, BValue idx, BValue update_value,
+                                    absl::optional<SourceLocation> loc) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!arg.node()->GetType()->IsArray()) {
+    return SetError(
+        absl::StrFormat(
+            "Cannot array-update the node %s because it has non-array type %s",
+            arg.node()->ToString(), arg.node()->GetType()->ToString()),
+        loc);
+  }
+  if (arg.node()->GetType()->AsArrayOrDie()->element_type() !=
+      update_value.node()->GetType()) {
+    return SetError(
+        absl::StrFormat(
+            "Cannot array-update the node %s because array elements have type "
+            "%s but the update value is of type %s",
+            arg.node()->ToString(),
+            arg.node()->GetType()->AsArrayOrDie()->element_type()->ToString(),
+            update_value.node()->GetType()->ToString()),
+        loc);
+  }
+  return AddNode<xls::ArrayUpdate>(loc, arg.node(), idx.node(),
+                                   update_value.node());
+}
+
 BValue FunctionBuilder::Reverse(BValue arg,
                                 absl::optional<SourceLocation> loc) {
   if (ErrorPending()) {

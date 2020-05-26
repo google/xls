@@ -332,6 +332,10 @@ class FunctionBuilder {
   BValue ArrayIndex(BValue arg, BValue idx,
                     absl::optional<SourceLocation> loc = absl::nullopt);
 
+  // Updates the array element at index "idx" to update_value.
+  BValue ArrayUpdate(BValue arg, BValue idx, BValue update_value,
+                     absl::optional<SourceLocation> loc = absl::nullopt);
+
   // Reverses the order of the bits of the argument.
   BValue Reverse(BValue arg,
                  absl::optional<SourceLocation> loc = absl::nullopt);

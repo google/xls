@@ -221,6 +221,44 @@ TEST(FunctionBuilderTest, ArrayIndexBits) {
                   testing::HasSubstr("it has non-array type bits[32]")));
 }
 
+TEST(FunctionBuilderTest, ArrayUpdate) {
+  Package p("p");
+  FunctionBuilder b("f", &p);
+  b.ArrayUpdate(
+      b.Literal(Value::ArrayOrDie({Value(UBits(1, 32)), Value(UBits(2, 32))})),
+      b.Literal(Value(UBits(0, 32))), b.Literal(Value(UBits(99, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+  EXPECT_THAT(f->return_value(), m::Type("bits[32][2]"));
+  EXPECT_THAT(
+      f->return_value(),
+      m::ArrayUpdate(m::Literal("[bits[32]: 1, bits[32]: 2]"),
+                     m::Literal("bits[32]: 0"), m::Literal("bits[32]: 99")));
+}
+
+TEST(FunctionBuilderTest, ArrayUpdateOnNonArray) {
+  Package p("p");
+  FunctionBuilder b("f", &p);
+  b.ArrayUpdate(b.Literal(Value(UBits(1, 32))), b.Literal(Value(UBits(1, 32))),
+                b.Literal(Value(UBits(99, 32))));
+  EXPECT_THAT(b.Build(),
+              status_testing::StatusIs(
+                  absl::StatusCode::kInvalidArgument,
+                  testing::HasSubstr("it has non-array type bits[32]")));
+}
+
+TEST(FunctionBuilderTest, ArrayUpdateIncompatibleUpdateValue) {
+  Package p("p");
+  FunctionBuilder b("f", &p);
+  b.ArrayUpdate(
+      b.Literal(Value::ArrayOrDie({Value(UBits(1, 32)), Value(UBits(2, 32))})),
+      b.Literal(Value(UBits(1, 32))), b.Literal(Value(UBits(99, 64))));
+  EXPECT_THAT(b.Build(),
+              status_testing::StatusIs(
+                  absl::StatusCode::kInvalidArgument,
+                  testing::HasSubstr("array elements have type bits[32] but "
+                                     "the update value is of type bits[64]")));
+}
+
 TEST(FunctionBuilderTest, FullWidthDecode) {
   Package p("p");
   FunctionBuilder b("f", &p);

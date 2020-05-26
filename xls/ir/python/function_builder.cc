@@ -174,6 +174,9 @@ PYBIND11_MODULE(function_builder, m) {
 
       .def("add_array_index", PyWrap(&FunctionBuilder::ArrayIndex),
            py::arg("arg"), py::arg("idx"), py::arg("loc") = absl::nullopt)
+      .def("add_array_update", PyWrap(&FunctionBuilder::ArrayUpdate),
+           py::arg("arg"), py::arg("idx"), py::arg("update_value"),
+           py::arg("loc") = absl::nullopt)
       .def("add_reverse", PyWrap(&FunctionBuilder::Reverse), py::arg("arg"),
            py::arg("loc") = absl::nullopt)
       .def("add_identity", PyWrap(&FunctionBuilder::Identity), py::arg("arg"),
