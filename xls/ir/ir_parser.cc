@@ -630,6 +630,26 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
         bvalue = fb->ArrayIndex(operands[0], operands[1], *loc);
         break;
       }
+      case Op::kArrayUpdate: {
+        XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/3));
+        if (!operands[0].GetType()->IsArray()) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "array_update operand is not an array; got %s @ %s",
+              operands[0].GetType()->ToString(),
+              op_token.pos().ToHumanString()));
+        }
+        Type* element_type =
+            operands[0].GetType()->AsArrayOrDie()->element_type();
+        if (operands[2].GetType() != element_type) {
+          return absl::InvalidArgumentError(
+              absl::StrFormat("array_update update value is not the same type "
+                              "as the array elements; got %s @ %s",
+                              operands[2].GetType()->ToString(),
+                              op_token.pos().ToHumanString()));
+        }
+        bvalue = fb->ArrayUpdate(operands[0], operands[1], operands[2], *loc);
+        break;
+      }
       case Op::kInvoke: {
         std::string* to_apply_name =
             arg_parser.AddKeywordArg<std::string>("to_apply");

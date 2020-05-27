@@ -215,7 +215,18 @@ class NodeChecker : public DfsVisitor {
   }
 
   absl::Status HandleArrayUpdate(ArrayUpdate* update) override {
-    return absl::UnimplementedError("ArrayUpdate not yet implemented");
+    XLS_RETURN_IF_ERROR(ExpectOperandCount(update, 3));
+    XLS_RETURN_IF_ERROR(ExpectHasArrayType(update));
+    XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(update, 1));
+    XLS_RETURN_IF_ERROR(
+        ExpectSameType(update, update->GetType(), update->operand(0),
+                       update->operand(0)->GetType(), "array update operation",
+                       "input array"));
+    XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(update, 1));
+    Type* element_type = update->GetType()->AsArrayOrDie()->element_type();
+    return ExpectSameType(update, element_type, update->operand(2),
+                          update->operand(2)->GetType(),
+                          "array update operation elements", "update value");
   }
 
   absl::Status HandleInvoke(Invoke* invoke) override {

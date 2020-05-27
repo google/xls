@@ -690,6 +690,40 @@ fn foo(x: bits[32][6]) -> bits[32] {
   ParseFunctionAndCheckDump(input);
 }
 
+TEST(IrParserTest, ParseArrayUpdate) {
+  const std::string input = R"(
+fn foo(array: bits[32][3], idx: bits[32], newval: bits[32]) -> bits[32][3] {
+  ret array_update.4: bits[32][3] = array_update(array, idx, newval)
+}
+)";
+  ParseFunctionAndCheckDump(input);
+}
+
+TEST(IrParserTest, ParseArrayUpdateNonArary) {
+  const std::string input = R"(
+fn foo(array: bits[32], idx: bits[32], newval: bits[32]) -> bits[32][3] {
+  ret array_update.4: bits[32][3] = array_update(array, idx, newval)
+}
+)";
+  Package p("my_package");
+  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("array_update operand is not an array")));
+}
+
+TEST(IrParserTest, ParseArrayUpdateIncompatibleTypes) {
+  const std::string input = R"(
+fn foo(array: bits[32][3], idx: bits[32], newval: bits[64]) -> bits[32][3] {
+  ret array_update.4: bits[32][3] = array_update(array, idx, newval)
+}
+)";
+  Package p("my_package");
+  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("array_update update value is not the same "
+                                 "type as the array elements")));
+}
+
 TEST(IrParserTest, ParseTupleIndex) {
   const std::string input = R"(
 fn foo(x: bits[42]) -> bits[33] {
