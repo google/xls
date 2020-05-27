@@ -76,6 +76,8 @@ def _codegen(
         "output_valid_signal",
         "module_name",
         "clock_margin_percent",
+        "flop_inputs",
+        "flop_outputs",
     )
     for flag_name in CODEGEN_FLAGS:
         if flag_name in codegen_params:
