@@ -98,11 +98,8 @@ class Scanner {
 
 class Parser {
  public:
-  // Parses a netlist module with the given cell library and token scanner.
+  // Parses a netlist with the given cell library and token scanner.
   // Returns a status on parse error.
-  static xabsl::StatusOr<std::unique_ptr<Module>> ParseModule(
-      CellLibrary* cell_library, Scanner* scanner);
-
   static xabsl::StatusOr<std::unique_ptr<Netlist>> ParseNetlist(
       CellLibrary* cell_library, Scanner* scanner);
 
@@ -111,22 +108,20 @@ class Parser {
       : cell_library_(cell_library), scanner_(scanner) {}
 
   // Parses a cell instantiation (e.g. in module scope).
-  absl::Status ParseInstance(Module* module, const Netlist& netlist);
+  absl::Status ParseInstance(Module* module, Netlist& netlist);
 
   // Parses a cell module name out of the token stream and returns the
   // corresponding CellLibraryEntry for that module name.
-  xabsl::StatusOr<const CellLibraryEntry*> ParseCellModule(
-      const Netlist& netlist);
+  xabsl::StatusOr<const CellLibraryEntry*> ParseCellModule(Netlist& netlist);
 
   // Parses a wire declaration at the module scope.
   absl::Status ParseNetDecl(Module* module, NetDeclKind kind);
 
   // Parses a module-level statement (e.g. wire decl or cell instantiation).
-  absl::Status ParseModuleStatement(Module* module, const Netlist& netlist);
+  absl::Status ParseModuleStatement(Module* module, Netlist& netlist);
 
   // Parses a module definition (e.g. at the top of the file).
-  xabsl::StatusOr<std::unique_ptr<Module>> ParseModule(
-      const Netlist& netlist = {});
+  xabsl::StatusOr<std::unique_ptr<Module>> ParseModule(Netlist& netlist);
 
   // Parses a reference to an already- declared net.
   xabsl::StatusOr<NetRef> ParseNetRef(Module* module);

@@ -37,11 +37,10 @@ xabsl::StatusOr<std::unique_ptr<NetlistTranslator>>
 NetlistTranslator::CreateAndTranslate(
     Z3_context ctx, const Module* module,
     const absl::flat_hash_map<std::string, const Module*>& module_refs,
-    const absl::flat_hash_map<std::string, Z3_ast>& inputs,
     const absl::flat_hash_set<std::string>& high_cells) {
   auto translator = absl::WrapUnique(
       new NetlistTranslator(ctx, module, module_refs, high_cells));
-  XLS_RETURN_IF_ERROR(translator->Init(inputs));
+  XLS_RETURN_IF_ERROR(translator->Init());
   XLS_RETURN_IF_ERROR(translator->Translate());
   return translator;
 }
@@ -60,13 +59,13 @@ NetlistTranslator::NetlistTranslator(
       module_refs_(module_refs),
       high_cells_(high_cells) {}
 
-absl::Status NetlistTranslator::Init(
-    const absl::flat_hash_map<std::string, Z3_ast>& inputs) {
-  // Associate each input with its NetRef and make it available for lookup.
-  for (const auto& pair : inputs) {
-    XLS_VLOG(2) << "Processing input : " << pair.first;
-    XLS_ASSIGN_OR_RETURN(NetRef ref, module_->ResolveNet(pair.first));
-    translated_[ref] = pair.second;
+absl::Status NetlistTranslator::Init() {
+  // Create a symbolic constant for each module input and make it available for
+  // downstream nodes.
+  for (const NetRef& input : module_->inputs()) {
+    translated_[input] =
+        Z3_mk_const(ctx_, Z3_mk_string_symbol(ctx_, input->name().c_str()),
+                    Z3_mk_bv_sort(ctx_, 1));
   }
 
   // We only have to syntheize "clk" and "input_valid" symbols for XLS-generated
@@ -84,6 +83,45 @@ absl::Status NetlistTranslator::Init(
 
   translated_[module_->ResolveNumber(0).value()] = Z3_mk_int(ctx_, 0, sort);
   translated_[module_->ResolveNumber(1).value()] = Z3_mk_int(ctx_, 1, sort);
+
+  return absl::OkStatus();
+}
+
+absl::Status NetlistTranslator::RebindInputNet(
+    const std::string& ref_name, Z3_ast dst,
+    absl::flat_hash_set<Cell*> cells_to_consider) {
+  // Overall approach:
+  //  1. Find the NetRef/Def matching "src".
+  //  2. For every cell with that as an input, replace that input with "dst".
+  //  3. Fame & fortune.
+  XLS_ASSIGN_OR_RETURN(netlist::rtl::NetRef src_ref,
+                       module_->ResolveNet(ref_name));
+  Z3_ast src = translated_[src_ref];
+  translated_[src_ref] = dst;
+
+  // For every cell that uses src_ref as an input, update its output wires to
+  // use the new dst_ref and Z3 node instead.
+  for (Cell* cell : src_ref->connected_cells()) {
+    bool is_input = false;
+    for (const auto& input : cell->inputs()) {
+      if (input.netref == src_ref) {
+        is_input = true;
+      }
+    }
+
+    if (!is_input) {
+      continue;
+    }
+
+    if (!cells_to_consider.empty() && !cells_to_consider.contains(cell)) {
+      continue;
+    }
+
+    for (const auto& output : cell->outputs()) {
+      translated_[output.netref] =
+          Z3_substitute(ctx_, translated_[output.netref], 1, &src, &dst);
+    }
+  }
 
   return absl::OkStatus();
 }
@@ -187,10 +225,9 @@ absl::Status NetlistTranslator::TranslateCell(const Cell& cell) {
     }
 
     const Module* module_ref = module_refs_.at(entry_name);
-    XLS_ASSIGN_OR_RETURN(
-        auto subtranslator,
-        NetlistTranslator::CreateAndTranslate(ctx_, module_ref, module_refs_,
-                                              inputs, high_cells_));
+    XLS_ASSIGN_OR_RETURN(auto subtranslator,
+                         NetlistTranslator::CreateAndTranslate(
+                             ctx_, module_ref, module_refs_, high_cells_));
 
     // Now match the module outputs to the corresponding netref in this module's
     // corresponding cell.

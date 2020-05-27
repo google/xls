@@ -32,8 +32,9 @@ TEST(NetlistParserTest, EmptyModule) {
   std::string netlist = R"(module main(); endmodule)";
   Scanner scanner(netlist);
   CellLibrary cell_library = MakeFakeCellLibrary();
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           Parser::ParseModule(&cell_library, &scanner));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Netlist> n,
+                           Parser::ParseNetlist(&cell_library, &scanner));
+  XLS_ASSERT_OK_AND_ASSIGN(const Module* m, n->GetModule("main"));
   EXPECT_EQ("main", m->name());
 }
 
@@ -45,8 +46,9 @@ module main();
 endmodule)";
   Scanner scanner(netlist);
   CellLibrary cell_library = MakeFakeCellLibrary();
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           Parser::ParseModule(&cell_library, &scanner));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Netlist> n,
+                           Parser::ParseNetlist(&cell_library, &scanner));
+  XLS_ASSERT_OK_AND_ASSIGN(const Module* m, n->GetModule("main"));
   EXPECT_EQ("main", m->name());
 }
 
@@ -56,9 +58,9 @@ TEST(NetlistParserTest, WireMultiDecl) {
 endmodule)";
   Scanner scanner(netlist);
   CellLibrary cell_library = MakeFakeCellLibrary();
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           Parser::ParseModule(&cell_library, &scanner));
-  EXPECT_EQ("main", m->name());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Netlist> n,
+                           Parser::ParseNetlist(&cell_library, &scanner));
+  XLS_ASSERT_OK_AND_ASSIGN(const Module* m, n->GetModule("main"));
 
   XLS_ASSERT_OK_AND_ASSIGN(NetRef foo, m->ResolveNet("foo"));
   EXPECT_EQ("foo", foo->name());
@@ -76,8 +78,9 @@ TEST(NetlistParserTest, InverterModule) {
 endmodule)";
   Scanner scanner(netlist);
   CellLibrary cell_library = MakeFakeCellLibrary();
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           Parser::ParseModule(&cell_library, &scanner));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Netlist> n,
+                           Parser::ParseNetlist(&cell_library, &scanner));
+  XLS_ASSERT_OK_AND_ASSIGN(const Module* m, n->GetModule("main"));
   EXPECT_EQ("main", m->name());
   XLS_ASSERT_OK_AND_ASSIGN(NetRef a, m->ResolveNet("a"));
   EXPECT_EQ("a", a->name());
@@ -97,8 +100,9 @@ TEST(NetlistParserTest, AOI21WithMultiBitInput) {
 endmodule)";
   Scanner scanner(netlist);
   CellLibrary cell_library = MakeFakeCellLibrary();
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           Parser::ParseModule(&cell_library, &scanner));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Netlist> n,
+                           Parser::ParseNetlist(&cell_library, &scanner));
+  XLS_ASSERT_OK_AND_ASSIGN(const Module* m, n->GetModule("main"));
   EXPECT_EQ("main", m->name());
   XLS_ASSERT_OK_AND_ASSIGN(NetRef i0, m->ResolveNet("i[0]"));
   EXPECT_EQ("i[0]", i0->name());
@@ -136,8 +140,9 @@ endmodule)";
   Scanner scanner(netlist);
   CellLibrary cell_library = MakeFakeCellLibrary();
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           Parser::ParseModule(&cell_library, &scanner));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Netlist> n,
+                           Parser::ParseNetlist(&cell_library, &scanner));
+  XLS_ASSERT_OK_AND_ASSIGN(const Module* m, n->GetModule("main"));
   EXPECT_EQ("main", m->name());
 }
 
@@ -165,8 +170,9 @@ endmodule)";
     std::string module_text = make_module(test_case.first);
     Scanner scanner(module_text);
     CellLibrary cell_library = MakeFakeCellLibrary();
-    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                             Parser::ParseModule(&cell_library, &scanner));
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Netlist> n,
+                             Parser::ParseNetlist(&cell_library, &scanner));
+    XLS_ASSERT_OK_AND_ASSIGN(const Module* m, n->GetModule("main"));
     XLS_ASSERT_OK(m->ResolveNumber(test_case.second).status());
   }
 }

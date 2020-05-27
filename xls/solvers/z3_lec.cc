@@ -179,12 +179,15 @@ absl::Status Lec::CreateNetlistTranslator(
     }
   }
 
-  absl::flat_hash_map<std::string, Z3_ast> inputs = FlattenNetlistInputs();
-
   XLS_ASSIGN_OR_RETURN(
       netlist_translator_,
       NetlistTranslator::CreateAndTranslate(ir_translator_->ctx(), module,
-                                            module_refs, inputs, high_cells));
+                                            module_refs, high_cells));
+  absl::flat_hash_map<std::string, Z3_ast> inputs = FlattenNetlistInputs();
+  for (auto& input : module->inputs()) {
+    XLS_RETURN_IF_ERROR(netlist_translator_->RebindInputNet(
+        input->name(), inputs[input->name()]));
+  }
 
   return absl::OkStatus();
 }

@@ -27,6 +27,7 @@
 #include "xls/netlist/fake_cell_library.h"
 #include "xls/netlist/netlist.h"
 #include "xls/netlist/netlist_parser.h"
+#include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3_api.h"
 
 namespace xls {
@@ -173,7 +174,7 @@ TEST(NetlistTranslatorTest, BasicFunctionality) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       auto translator,
-      NetlistTranslator::CreateAndTranslate(ctx, &module, {}, inputs, {}));
+      NetlistTranslator::CreateAndTranslate(ctx, &module, {}, {}));
 }
 
 // Tests that a simple (single-cell) netlist is translated correctly.
@@ -191,16 +192,10 @@ TEST(NetlistTranslatorTest, SimpleNet) {
   XLS_ASSERT_OK_AND_ASSIGN(const CellLibraryEntry* and_entry,
                            cell_library.GetEntry("AND"));
   absl::flat_hash_map<std::string, NetRef> param_assignments;
-  absl::flat_hash_map<std::string, Z3_ast> inputs;
-  Z3_sort input_sort = Z3_mk_bv_sort(ctx, /*sz=*/1);
   for (const auto& input_name : and_entry->input_names()) {
     XLS_ASSERT_OK(module.AddNetDecl(NetDeclKind::kInput, input_name));
     XLS_ASSERT_OK_AND_ASSIGN(NetRef ref, module.ResolveNet(input_name));
     param_assignments[input_name] = ref;
-
-    Z3_ast z3_input = Z3_mk_const(
-        ctx, Z3_mk_string_symbol(ctx, input_name.c_str()), input_sort);
-    inputs[input_name] = z3_input;
   }
 
   std::string output_name = and_entry->output_pins().begin()->name;
@@ -219,9 +214,10 @@ TEST(NetlistTranslatorTest, SimpleNet) {
   for (auto& pair : param_assignments) {
     pair.second->NoteConnectedCell(cell);
   }
+
   XLS_ASSERT_OK_AND_ASSIGN(
       auto translator,
-      NetlistTranslator::CreateAndTranslate(ctx, &module, {}, inputs, {}));
+      NetlistTranslator::CreateAndTranslate(ctx, &module, {}, {}));
 
   NetRef cell_output = cell->outputs().begin()->netref;
   XLS_ASSERT_OK_AND_ASSIGN(Z3_ast z3_output,
@@ -353,16 +349,14 @@ TEST(NetlistTranslatorTest, HandlesSubmodules) {
       Module module_3,
       CreateModule(cell_library, "m3", "INV", {module_2.name()}));
 
-  // Create inputs for the top-level cell/module.
-  absl::flat_hash_map<std::string, Z3_ast> inputs = CreateInputs(ctx, module_3);
   absl::flat_hash_map<std::string, const Module*> module_refs({
       {"m0", &module_0},
       {"m1", &module_1},
       {"m2", &module_2},
   });
-  XLS_ASSERT_OK_AND_ASSIGN(auto translator,
-                           NetlistTranslator::CreateAndTranslate(
-                               ctx, &module_3, module_refs, inputs, {}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto translator,
+      NetlistTranslator::CreateAndTranslate(ctx, &module_3, module_refs, {}));
 
   XLS_ASSERT_OK_AND_ASSIGN(Z3_ast z3_output,
                            translator->GetTranslation(module_3.outputs()[0]));
@@ -402,13 +396,83 @@ endmodule)";
                                              &cell_library, &scanner));
   XLS_ASSERT_OK_AND_ASSIGN(const netlist::rtl::Module* module,
                            netlist->GetModule("main"));
-  absl::flat_hash_map<std::string, Z3_ast> inputs = CreateInputs(ctx, *module);
 
   // If this call succeeds, then we were able to translate the module, which
   // means that cell fixed_one was correctly activated.
   XLS_ASSERT_OK(
-      NetlistTranslator::CreateAndTranslate(ctx, module, {}, inputs, {})
-          .status());
+      NetlistTranslator::CreateAndTranslate(ctx, module, {}, {}).status());
+}
+
+// This test verifies that nodes can be "swapped out" for other Z3 nodes.
+TEST(NetlistTranslatorTest, CanRebindNets) {
+  std::string module_text = R"(
+module main (i0, o0);
+  input i0;
+  output o0;
+  wire res0;
+
+  LOGIC_ONE fixed_one( .O(res0) );
+  AND and0( .A(i0), .B(res0), .Z(o0) );
+endmodule)";
+
+  CellLibrary cell_library = netlist::MakeFakeCellLibrary();
+  netlist::rtl::Scanner scanner(module_text);
+  XLS_ASSERT_OK_AND_ASSIGN(auto netlist, netlist::rtl::Parser::ParseNetlist(
+                                             &cell_library, &scanner));
+  XLS_ASSERT_OK_AND_ASSIGN(const netlist::rtl::Module* module,
+                           netlist->GetModule("main"));
+
+  // Verify that the input node i0 is a constant [but not w/a fixed value].
+  Z3_config config = Z3_mk_config();
+  Z3_context ctx = Z3_mk_context(config);
+  auto cleanup = xabsl::MakeCleanup([config, ctx] {
+    Z3_del_context(ctx);
+    Z3_del_config(config);
+  });
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto translator,
+      NetlistTranslator::CreateAndTranslate(ctx, module, {}, {}));
+
+  // First, verify that the initial module can have a value of one.
+  XLS_ASSERT_OK_AND_ASSIGN(Z3_ast module_output,
+                           translator->GetTranslation(module->outputs()[0]));
+  Z3_ast value_0 = Z3_mk_int(ctx, 0, Z3_mk_bv_sort(ctx, 1));
+  Z3_ast value_1 = Z3_mk_int(ctx, 1, Z3_mk_bv_sort(ctx, 1));
+
+  Z3_solver solver = CreateSolver(ctx, 1);
+  Z3_ast eq_1 = Z3_mk_eq(ctx, module_output, value_1);
+  Z3_solver_assert(ctx, solver, eq_1);
+  Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
+  Z3_solver_dec_ref(ctx, solver);
+  ASSERT_EQ(satisfiable, Z3_L_TRUE);
+
+  // Next, bind a fixed 0 to the input of the module. This will result in a
+  // solver being unable to find a 1-valued output.
+  std::string src_ref_name = module->inputs()[0]->name();
+  XLS_ASSERT_OK(translator->RebindInputNet(src_ref_name, value_0));
+  XLS_ASSERT_OK_AND_ASSIGN(module_output,
+                           translator->GetTranslation(module->outputs()[0]));
+
+  solver = CreateSolver(ctx, 1);
+  eq_1 = Z3_mk_eq(ctx, module_output, value_1);
+  Z3_solver_assert(ctx, solver, eq_1);
+  satisfiable = Z3_solver_check(ctx, solver);
+  Z3_solver_dec_ref(ctx, solver);
+  ASSERT_EQ(satisfiable, Z3_L_FALSE);
+
+  // Now, replace that fixed 0 with a fixed one. This time, the solver WILL be
+  // able to find a 1-valued output.
+  XLS_ASSERT_OK(translator->RebindInputNet(src_ref_name, value_1));
+  XLS_ASSERT_OK_AND_ASSIGN(module_output,
+                           translator->GetTranslation(module->outputs()[0]));
+
+  solver = CreateSolver(ctx, 1);
+  eq_1 = Z3_mk_eq(ctx, module_output, value_1);
+  Z3_solver_assert(ctx, solver, eq_1);
+  satisfiable = Z3_solver_check(ctx, solver);
+  Z3_solver_dec_ref(ctx, solver);
+  ASSERT_EQ(satisfiable, Z3_L_TRUE);
 }
 
 }  // namespace

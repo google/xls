@@ -70,7 +70,7 @@ xabsl::StatusOr<NetRef> Module::ResolveNet(absl::string_view name) const {
   return absl::NotFoundError(absl::StrCat("Could not find net: ", name));
 }
 
-xabsl::StatusOr<Cell*> Module::ResolveCell(absl::string_view name) {
+xabsl::StatusOr<Cell*> Module::ResolveCell(absl::string_view name) const {
   for (const auto& cell : cells_) {
     if (cell->name() == name) {
       return cell.get();

@@ -100,6 +100,7 @@ cc_test(
     srcs = ["z3_netlist_translator_test.cc"],
     deps = [
         ":z3_netlist_translator",
+        ":z3_utils",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/strings",

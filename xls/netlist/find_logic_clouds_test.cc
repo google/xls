@@ -40,8 +40,9 @@ TEST(ClusterTest, TwoSimpleClusters) {
 endmodule)";
   Scanner scanner(netlist);
   CellLibrary cell_library = MakeFakeCellLibrary();
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           Parser::ParseModule(&cell_library, &scanner));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Netlist> n,
+                           Parser::ParseNetlist(&cell_library, &scanner));
+  XLS_ASSERT_OK_AND_ASSIGN(const Module* m, n->GetModule("main"));
   std::vector<Cluster> clusters = FindLogicClouds(*m, /*include_vacuous=*/true);
   EXPECT_EQ(2, clusters.size());
   EXPECT_EQ(R"(cluster {
@@ -69,8 +70,9 @@ TEST(ClusterTest, InputAndOutputGatesOnTwoFlops) {
 endmodule)";
   Scanner scanner(netlist);
   CellLibrary cell_library = MakeFakeCellLibrary();
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           Parser::ParseModule(&cell_library, &scanner));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Netlist> n,
+                           Parser::ParseNetlist(&cell_library, &scanner));
+  XLS_ASSERT_OK_AND_ASSIGN(const Module* m, n->GetModule("main"));
   std::vector<Cluster> clusters = FindLogicClouds(*m, /*include_vacuous=*/true);
   EXPECT_EQ(3, clusters.size());
   EXPECT_EQ(R"(cluster {
@@ -108,8 +110,9 @@ TEST(ClusterTest, TwoStagesWithMergeCloudInMiddle) {
 endmodule)";
   Scanner scanner(netlist);
   CellLibrary cell_library = MakeFakeCellLibrary();
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           Parser::ParseModule(&cell_library, &scanner));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Netlist> n,
+                           Parser::ParseNetlist(&cell_library, &scanner));
+  XLS_ASSERT_OK_AND_ASSIGN(const Module* m, n->GetModule("main"));
   std::vector<Cluster> clusters = FindLogicClouds(*m, /*include_vacuous=*/true);
   EXPECT_EQ(3, clusters.size());
   EXPECT_EQ(R"(cluster {

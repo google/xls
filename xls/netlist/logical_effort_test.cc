@@ -42,8 +42,9 @@ TEST(LogicalEffortTest, FO4Delay) {
 endmodule)";
   rtl::Scanner scanner(netlist);
   CellLibrary cell_library = MakeFakeCellLibrary();
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<rtl::Module> m,
-                           rtl::Parser::ParseModule(&cell_library, &scanner));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<rtl::Netlist> n,
+                           rtl::Parser::ParseNetlist(&cell_library, &scanner));
+  XLS_ASSERT_OK_AND_ASSIGN(auto m, n->GetModule("fo4"));
   XLS_ASSERT_OK_AND_ASSIGN(rtl::Cell * inv_0, m->ResolveCell("inv_0"));
   XLS_ASSERT_OK_AND_ASSIGN(double delay, logical_effort::ComputeDelay(inv_0));
   // Per Logical Effort book example 1.2.
@@ -75,8 +76,9 @@ TEST(LogicalEffortTest, FourInputNorDriving10Identical) {
 endmodule)";
   rtl::Scanner scanner(netlist);
   CellLibrary cell_library = MakeFakeCellLibrary();
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<rtl::Module> m,
-                           rtl::Parser::ParseModule(&cell_library, &scanner));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<rtl::Netlist> n,
+                           rtl::Parser::ParseNetlist(&cell_library, &scanner));
+  XLS_ASSERT_OK_AND_ASSIGN(auto m, n->GetModule("test"));
   XLS_ASSERT_OK_AND_ASSIGN(rtl::Cell * nor_with_fo,
                            m->ResolveCell("nor_with_fo"));
   XLS_ASSERT_OK_AND_ASSIGN(double delay,
@@ -96,8 +98,9 @@ TEST(LogicalEffortTest, PathDelay) {
 endmodule)";
   rtl::Scanner scanner(netlist);
   CellLibrary cell_library = MakeFakeCellLibrary();
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<rtl::Module> m,
-                           rtl::Parser::ParseModule(&cell_library, &scanner));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<rtl::Netlist> n,
+                           rtl::Parser::ParseNetlist(&cell_library, &scanner));
+  XLS_ASSERT_OK_AND_ASSIGN(auto m, n->GetModule("test"));
   std::vector<rtl::Cell*> path = {
       m->ResolveCell("nand_0").value(),
       m->ResolveCell("nand_1").value(),

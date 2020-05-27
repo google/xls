@@ -343,7 +343,7 @@ absl::Status Parser::DropKeywordOrError(absl::string_view target) {
 }
 
 xabsl::StatusOr<const CellLibraryEntry*> Parser::ParseCellModule(
-    const Netlist& netlist) {
+    Netlist& netlist) {
   XLS_ASSIGN_OR_RETURN(std::string name, PopNameOrError());
   auto status_or_module = netlist.GetModule(name);
   if (status_or_module.ok()) {
@@ -369,7 +369,7 @@ xabsl::StatusOr<NetRef> Parser::ParseNetRef(Module* module) {
   return module->ResolveNet(name);
 }
 
-absl::Status Parser::ParseInstance(Module* module, const Netlist& netlist) {
+absl::Status Parser::ParseInstance(Module* module, Netlist& netlist) {
   XLS_ASSIGN_OR_RETURN(Token peek, scanner_->Peek());
   const Pos pos = peek.pos;
 
@@ -489,8 +489,7 @@ absl::Status Parser::ParseNetDecl(Module* module, NetDeclKind kind) {
   return absl::OkStatus();
 }
 
-absl::Status Parser::ParseModuleStatement(Module* module,
-                                          const Netlist& netlist) {
+absl::Status Parser::ParseModuleStatement(Module* module, Netlist& netlist) {
   if (TryDropKeyword("input")) {
     return ParseNetDecl(module, NetDeclKind::kInput);
   }
@@ -503,8 +502,7 @@ absl::Status Parser::ParseModuleStatement(Module* module,
   return ParseInstance(module, netlist);
 }
 
-xabsl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
-    const Netlist& netlist) {
+xabsl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(Netlist& netlist) {
   XLS_RETURN_IF_ERROR(DropKeywordOrError("module"));
   XLS_ASSIGN_OR_RETURN(std::string module_name, PopNameOrError());
   auto module = std::make_unique<Module>(module_name);
@@ -516,16 +514,6 @@ xabsl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
       break;
     }
     XLS_RETURN_IF_ERROR(ParseModuleStatement(module.get(), netlist));
-  }
-  return module;
-}
-
-/* static */ xabsl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
-    CellLibrary* cell_library, Scanner* scanner) {
-  Parser p(cell_library, scanner);
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module, p.ParseModule());
-  if (!scanner->AtEof()) {
-    return absl::InvalidArgumentError("Unexpected characters at end of file.");
   }
   return module;
 }

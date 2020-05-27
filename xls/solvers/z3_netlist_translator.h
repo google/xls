@@ -45,11 +45,26 @@ class NetlistTranslator {
       Z3_context ctx, const netlist::rtl::Module* module,
       const absl::flat_hash_map<std::string, const netlist::rtl::Module*>&
           module_refs,
-      const absl::flat_hash_map<std::string, Z3_ast>& inputs,
       const absl::flat_hash_set<std::string>& high_cells);
 
   // Returns the Z3 equivalent for the specified net.
   xabsl::StatusOr<Z3_ast> GetTranslation(netlist::rtl::NetRef ref);
+
+  // Replaces instances of a net as cell input with a different net, both
+  // represented as Z3_ast nodes. This is useful for re-writing a graph to,
+  // e.g., prove logical equivalence of two graphs.
+  // To do that, the inputs of one (or both) graphs can be replaced by another
+  // set of input nodes that are common to the two graphs.
+  // A more advanced case would be to "split out" a pipeline stage of a
+  // computation by replacing all register inputs to one stage with a set of
+  // constants (rather than depending on the full computation from earlier
+  // stages); the outputs would be similarly replaced.
+  // To un-do this operation, the Z3_ast for ref_name must be stored and
+  // passed as an argument to a later call.
+  // There is no way to replace only the n'th use of src by a given cell.
+  absl::Status RebindInputNet(
+      const std::string& ref_name, Z3_ast dst,
+      absl::flat_hash_set<netlist::rtl::Cell*> cells_to_consider = {});
 
  private:
   NetlistTranslator(
@@ -57,7 +72,7 @@ class NetlistTranslator {
       const absl::flat_hash_map<std::string, const netlist::rtl::Module*>&
           module_refs,
       const absl::flat_hash_set<std::string>& high_cells);
-  absl::Status Init(const absl::flat_hash_map<std::string, Z3_ast>& inputs);
+  absl::Status Init();
 
   // Translates the module, cell, or cell function, respectively, into Z3-space.
   absl::Status Translate();
@@ -71,7 +86,7 @@ class NetlistTranslator {
   // Maps a NetDef to a Z3 entity.
   absl::flat_hash_map<netlist::rtl::NetRef, Z3_ast> translated_;
 
-  const absl::flat_hash_map<std::string, const netlist::rtl::Module*>&
+  const absl::flat_hash_map<std::string, const netlist::rtl::Module*>
       module_refs_;
 
   // TODO(rspringer): Eliminate the need for this by properly handling cells

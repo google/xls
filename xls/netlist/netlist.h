@@ -173,7 +173,7 @@ class Module {
   // of a cell's output pins isn't actually used.
   NetRef GetDummyRef() const { return dummy_; }
 
-  xabsl::StatusOr<Cell*> ResolveCell(absl::string_view name);
+  xabsl::StatusOr<Cell*> ResolveCell(absl::string_view name) const;
 
   absl::Span<const std::unique_ptr<NetDef>> nets() const { return nets_; }
   absl::Span<const std::unique_ptr<Cell>> cells() const { return cells_; }

@@ -29,16 +29,17 @@ namespace {
 
 absl::Status RealMain(absl::string_view netlist_path,
                       absl::string_view cell_library_path) {
-  XLS_ASSIGN_OR_RETURN(std::string netlist, GetFileContents(netlist_path));
+  XLS_ASSIGN_OR_RETURN(std::string netlist_text, GetFileContents(netlist_path));
   XLS_ASSIGN_OR_RETURN(
       netlist::CellLibraryProto cell_library_proto,
       ParseTextProtoFile<netlist::CellLibraryProto>(cell_library_path));
   XLS_ASSIGN_OR_RETURN(auto cell_library,
                        netlist::CellLibrary::FromProto(cell_library_proto));
-  netlist::rtl::Scanner scanner(netlist);
+  netlist::rtl::Scanner scanner(netlist_text);
   XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<netlist::rtl::Module> module,
-      netlist::rtl::Parser::ParseModule(&cell_library, &scanner));
+      std::unique_ptr<netlist::rtl::Netlist> netlist,
+      netlist::rtl::Parser::ParseNetlist(&cell_library, &scanner));
+  netlist::rtl::Module* module = netlist->modules()[0].get();
   std::cout << "nets:  " << module->nets().size() << std::endl;
   std::cout << "cells: " << module->cells().size() << std::endl;
   absl::flat_hash_map<netlist::CellKind, int64> cell_kind_to_count;
