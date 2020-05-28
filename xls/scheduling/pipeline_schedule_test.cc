@@ -33,6 +33,7 @@ namespace m = ::xls::op_matchers;
 namespace xls {
 namespace {
 
+using ::testing::ElementsAre;
 using ::testing::UnorderedElementsAre;
 
 class TestDelayEstimator : public DelayEstimator {
@@ -190,10 +191,11 @@ TEST_F(PipelineScheduleTest, JustClockPeriodGiven) {
   };
 
   EXPECT_EQ(schedule.length(), 3);
-  EXPECT_THAT(scheduled_ops(0), UnorderedElementsAre(Op::kParam, Op::kOr));
-  EXPECT_THAT(scheduled_ops(1), UnorderedElementsAre(Op::kSub, Op::kNot));
+  EXPECT_THAT(scheduled_ops(0),
+              UnorderedElementsAre(Op::kParam, Op::kOr, Op::kNot));
+  EXPECT_THAT(scheduled_ops(1), UnorderedElementsAre(Op::kUMul, Op::kSub));
   EXPECT_THAT(scheduled_ops(2),
-              UnorderedElementsAre(Op::kUMul, Op::kAdd, Op::kNeg, Op::kConcat));
+              UnorderedElementsAre(Op::kAdd, Op::kNeg, Op::kConcat));
   EXPECT_THAT(scheduled_ops(3), UnorderedElementsAre());
 }
 
@@ -252,11 +254,12 @@ TEST_F(PipelineScheduleTest, ClockPeriodAndPipelineLengthGiven) {
   };
 
   EXPECT_EQ(schedule.length(), 4);
-  EXPECT_THAT(scheduled_ops(0), UnorderedElementsAre(Op::kParam, Op::kOr));
-  EXPECT_THAT(scheduled_ops(1), UnorderedElementsAre(Op::kNeg));
-  EXPECT_THAT(scheduled_ops(2), UnorderedElementsAre(Op::kNot, Op::kSub));
+  EXPECT_THAT(scheduled_ops(0),
+              UnorderedElementsAre(Op::kParam, Op::kOr, Op::kNeg));
+  EXPECT_THAT(scheduled_ops(1), UnorderedElementsAre(Op::kNot, Op::kSub));
+  EXPECT_THAT(scheduled_ops(2), UnorderedElementsAre(Op::kUMul));
   EXPECT_THAT(scheduled_ops(3),
-              UnorderedElementsAre(Op::kConcat, Op::kUMul, Op::kNeg, Op::kAdd));
+              UnorderedElementsAre(Op::kConcat, Op::kNeg, Op::kAdd));
 }
 
 TEST_F(PipelineScheduleTest, JustPipelineLengthGiven) {
@@ -376,6 +379,29 @@ TEST_F(PipelineScheduleTest, ClockPeriodMargin) {
           ::testing::HasSubstr(
               "Clock period non-positive (-3ps) after adjusting for margin. "
               "Original clock period: 3ps, clock margin: 200%")));
+}
+
+TEST_F(PipelineScheduleTest, MinCutCycleOrders) {
+  EXPECT_THAT(GetMinCutCycleOrders(0), ElementsAre(std::vector<int64>()));
+  EXPECT_THAT(GetMinCutCycleOrders(1), ElementsAre(std::vector<int64>({0})));
+  EXPECT_THAT(GetMinCutCycleOrders(2), ElementsAre(std::vector<int64>({0, 1}),
+                                                   std::vector<int64>({1, 0})));
+  EXPECT_THAT(
+      GetMinCutCycleOrders(3),
+      ElementsAre(std::vector<int64>({0, 1, 2}), std::vector<int64>({2, 1, 0}),
+                  std::vector<int64>({1, 0, 2})));
+  EXPECT_THAT(GetMinCutCycleOrders(4),
+              ElementsAre(std::vector<int64>({0, 1, 2, 3}),
+                          std::vector<int64>({3, 2, 1, 0}),
+                          std::vector<int64>({1, 0, 2, 3})));
+  EXPECT_THAT(GetMinCutCycleOrders(5),
+              ElementsAre(std::vector<int64>({0, 1, 2, 3, 4}),
+                          std::vector<int64>({4, 3, 2, 1, 0}),
+                          std::vector<int64>({2, 0, 1, 3, 4})));
+  EXPECT_THAT(GetMinCutCycleOrders(8),
+              ElementsAre(std::vector<int64>({0, 1, 2, 3, 4, 5, 6, 7}),
+                          std::vector<int64>({7, 6, 5, 4, 3, 2, 1, 0}),
+                          std::vector<int64>({3, 1, 0, 2, 5, 4, 6, 7})));
 }
 
 }  // namespace

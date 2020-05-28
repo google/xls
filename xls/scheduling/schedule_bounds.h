@@ -58,6 +58,8 @@ class ScheduleBounds {
 
   ScheduleBounds(const ScheduleBounds& other) = default;
   ScheduleBounds(ScheduleBounds&& other) = default;
+  ScheduleBounds& operator=(const ScheduleBounds& other) = default;
+  ScheduleBounds& operator=(ScheduleBounds&& other) = default;
 
   // Resets node bounds to their initial unconstrained values.
   void Reset();
@@ -112,7 +114,7 @@ class ScheduleBounds {
   std::vector<Node*> topo_sort_;
 
   int64 clock_period_ps_;
-  const DelayEstimator& delay_estimator_;
+  const DelayEstimator* delay_estimator_;
 
   // The bounds of each node stored as a {lower, upper} pair.
   absl::flat_hash_map<Node*, std::pair<int64, int64>> bounds_;

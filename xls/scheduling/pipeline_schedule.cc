@@ -70,6 +70,23 @@ absl::Status SplitAfterCycle(Function* f, int64 cycle,
   return absl::OkStatus();
 }
 
+// Returns the number of pipeline registers (flops) on the interior of the
+// pipeline not counting the input and output flops (if any).
+xabsl::StatusOr<int64> CountInteriorPipelineRegisters(
+    Function* f, const sched::ScheduleBounds& bounds) {
+  int64 registers = 0;
+  for (Node* node : f->nodes()) {
+    XLS_RET_CHECK_EQ(bounds.lb(node), bounds.ub(node));
+    int64 latest_use = bounds.lb(node);
+    for (Node* user : node->users()) {
+      latest_use = std::max(latest_use, bounds.lb(user));
+    }
+    registers +=
+        node->GetType()->GetFlatBitCount() * (latest_use - bounds.lb(node));
+  }
+  return registers;
+}
+
 // Schedules the given function into a pipeline with the given clock
 // period. Attempts to split nodes into stages such that the total number of
 // flops in the pipeline stages is minimized without violating the target clock
@@ -84,18 +101,34 @@ xabsl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegisters(
   XLS_VLOG(4) << "Initial bounds:";
   XLS_VLOG_LINES(4, bounds->ToString());
 
-  // Partition the nodes at each cycle boundary. For each iteration, this splits
-  // the nodes into those which must be scheduled at or before the cycle and
-  // those which must be scheduled after. Upon loop completion each node will
-  // have a range of exactly one cycle.
-  for (int64 cycle = 0; cycle < pipeline_stages - 1; ++cycle) {
-    XLS_RETURN_IF_ERROR(SplitAfterCycle(f, cycle, delay_estimator, bounds));
-    XLS_RETURN_IF_ERROR(bounds->PropagateLowerBounds());
-    XLS_RETURN_IF_ERROR(bounds->PropagateUpperBounds());
-
-    XLS_VLOG(5) << "Bounds after min-cut after cycle: " << cycle;
-    XLS_VLOG_LINES(5, bounds->ToString());
+  // Try a number of different orderings of cycle boundary at which the min-cut
+  // is performed and keep the best one.
+  int64 best_register_count;
+  absl::optional<sched::ScheduleBounds> best_bounds;
+  for (const std::vector<int64>& cut_order :
+       GetMinCutCycleOrders(pipeline_stages - 1)) {
+    XLS_VLOG(3) << absl::StreamFormat("Trying cycle order: {%s}",
+                                      absl::StrJoin(cut_order, ", "));
+    sched::ScheduleBounds trial_bounds = *bounds;
+    // Partition the nodes at each cycle boundary. For each iteration, this
+    // splits the nodes into those which must be scheduled at or before the
+    // cycle and those which must be scheduled after. Upon loop completion each
+    // node will have a range of exactly one cycle.
+    for (int64 cycle : cut_order) {
+      XLS_RETURN_IF_ERROR(
+          SplitAfterCycle(f, cycle, delay_estimator, &trial_bounds));
+      XLS_RETURN_IF_ERROR(trial_bounds.PropagateLowerBounds());
+      XLS_RETURN_IF_ERROR(trial_bounds.PropagateUpperBounds());
+    }
+    XLS_ASSIGN_OR_RETURN(int64 trial_register_count,
+                         CountInteriorPipelineRegisters(f, trial_bounds));
+    if (!best_bounds.has_value() ||
+        best_register_count > trial_register_count) {
+      best_bounds = std::move(trial_bounds);
+      best_register_count = trial_register_count;
+    }
   }
+  *bounds = std::move(*best_bounds);
 
   ScheduleCycleMap cycle_map;
   for (Node* node : f->nodes()) {
@@ -166,7 +199,56 @@ xabsl::StatusOr<int64> FindMinimumClockPeriod(
   return min_period;
 }
 
+// Returns a sequence of numbers from first to last where the zeroth element of
+// the sequence is the middle element between first and last. Subsequent
+// elements are selected recursively out of the two intervals before and after
+// the middle element.
+std::vector<int64> MiddleFirstOrder(int64 first, int64 last) {
+  if (first == last) {
+    return {first};
+  }
+  if (first == last - 1) {
+    return {first, last};
+  }
+
+  int64 middle = (first + last) / 2;
+  std::vector<int64> head = MiddleFirstOrder(first, middle - 1);
+  std::vector<int64> tail = MiddleFirstOrder(middle + 1, last);
+
+  std::vector<int64> ret;
+  ret.push_back(middle);
+  ret.insert(ret.end(), head.begin(), head.end());
+  ret.insert(ret.end(), tail.begin(), tail.end());
+  return ret;
+}
+
 }  // namespace
+
+std::vector<std::vector<int64>> GetMinCutCycleOrders(int64 length) {
+  if (length == 0) {
+    return {{}};
+  }
+  if (length == 1) {
+    return {{0}};
+  }
+  if (length == 2) {
+    return {{0, 1}, {1, 0}};
+  }
+  // For lengths greater than 2, return forward, reverse and middle first
+  // orderings.
+  std::vector<std::vector<int64>> orders;
+  std::vector<int64> forward(length);
+  std::iota(forward.begin(), forward.end(), 0);
+  orders.push_back(forward);
+
+  std::vector<int64> reverse(length);
+  std::iota(reverse.begin(), reverse.end(), 0);
+  std::reverse(reverse.begin(), reverse.end());
+  orders.push_back(reverse);
+
+  orders.push_back(MiddleFirstOrder(0, length - 1));
+  return orders;
+}
 
 PipelineSchedule::PipelineSchedule(Function* function,
                                    ScheduleCycleMap cycle_map,
