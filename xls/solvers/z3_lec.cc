@@ -185,6 +185,10 @@ absl::Status Lec::CreateNetlistTranslator(
                                             module_refs, high_cells));
   absl::flat_hash_map<std::string, Z3_ast> inputs = FlattenNetlistInputs();
   for (auto& input : module->inputs()) {
+    // Skip synthesized inputs.
+    if (input->name() == "clk" || input->name() == "input_valid") {
+      continue;
+    }
     XLS_RETURN_IF_ERROR(netlist_translator_->RebindInputNet(
         input->name(), inputs[input->name()]));
   }
