@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,8 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# Lint as: python3
 
 """Tests for xls.ir.visualization.python.ir_to_json."""
 
@@ -38,7 +38,7 @@ class IrToJsonTest(absltest.TestCase):
 
 fn main(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.1: bits[32] = add(x, y)
-}""", 'e')
+}""", 'unit')
     json_dict = json.loads(json_str)
     self.assertIn('edges', json_dict)
     self.assertLen(json_dict['edges'], 2)
@@ -52,7 +52,7 @@ fn main(x: bits[32], y: bits[32]) -> bits[32] {
 fn main(x: bits[32], y: bits[32]) -> bits[32] {
   add.1: bits[32] = add(x, y)
   ret neg.2: bits[32] = neg(add.1)
-}""", 'e', 2)
+}""", 'unit', 2)
     json_dict = json.loads(json_str)
     self.assertIn('edges', json_dict)
     self.assertLen(json_dict['edges'], 3)

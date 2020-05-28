@@ -45,7 +45,7 @@ fn main(x: bits[32], y: bits[32]) -> bits[32] {
 )"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * entry, p->EntryFunction());
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,
-                           GetDelayEstimator("e"));
+                           GetDelayEstimator("unit"));
   XLS_ASSERT_OK_AND_ASSIGN(std::string json, IrToJson(entry, *delay_estimator));
   XLS_VLOG(1) << json;
   // Match several substrings in the JSON. Avoid a full string match because
@@ -81,7 +81,7 @@ TEST_F(IrToJsonTest, SimpleFunctionWithSchedule) {
   cycle_map[negate.node()] = 2;
   PipelineSchedule schedule(f, cycle_map);
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,
-                           GetDelayEstimator("e"));
+                           GetDelayEstimator("unit"));
   XLS_ASSERT_OK_AND_ASSIGN(std::string json,
                            IrToJson(f, *delay_estimator, &schedule));
 
