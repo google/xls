@@ -19,6 +19,7 @@
 #include "xls/common/math_util.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/keyword_args.h"
 
 namespace xls {
@@ -1668,6 +1669,258 @@ TEST_P(IrEvaluatorTest, InterpretArrayOfArrayIndex) {
 
   EXPECT_THAT(GetParam().evaluator(function, /*args=*/{}),
               IsOkAndHolds(Value(UBits(4, 32))));
+}
+
+TEST_P(IrEvaluatorTest, InterpretArrayUpdateInBounds) {
+  auto make_array = [](absl::Span<const int64> values) {
+    std::vector<Value> elements;
+    for (auto v : values) {
+      elements.push_back(Value(UBits(v, 32)));
+    }
+    xabsl::StatusOr<Value> array = Value::Array(elements);
+    EXPECT_TRUE(array.ok());
+    return array.value();
+  };
+
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn array_update(array: bits[32][3], idx: bits[32], new_value: bits[32]) -> bits[32][3] {
+    ret array_update.4: bits[32][3] = array_update(array, idx, new_value)
+  }
+  )"));
+
+  // Index 0
+  EXPECT_THAT(GetParam().kwargs_evaluator(
+                  function,
+                  /*args=*/{{"array", make_array({1, 2, 3})},
+                            {"idx", Value(UBits(0, 32))},
+                            {"new_value", Value(UBits(99, 32))}}),
+              IsOkAndHolds(make_array({99, 2, 3})));
+  // Index 1
+  EXPECT_THAT(GetParam().kwargs_evaluator(
+                  function,
+                  /*args=*/{{"array", make_array({1, 2, 3})},
+                            {"idx", Value(UBits(1, 32))},
+                            {"new_value", Value(UBits(99, 32))}}),
+              IsOkAndHolds(make_array({1, 99, 3})));
+  // Index 2
+  EXPECT_THAT(GetParam().kwargs_evaluator(
+                  function,
+                  /*args=*/{{"array", make_array({1, 2, 3})},
+                            {"idx", Value(UBits(2, 32))},
+                            {"new_value", Value(UBits(99, 32))}}),
+              IsOkAndHolds(make_array({1, 2, 99})));
+}
+
+TEST_P(IrEvaluatorTest, InterpretArrayUpdateOutOfBounds) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn array_update() -> bits[32][3] {
+    literal.1: bits[32][3] = literal(value=[1, 2, 3])
+    literal.2: bits[2] = literal(value=3)
+    literal.3: bits[32] = literal(value=99)
+    ret array_update.4: bits[32][3] = array_update(literal.1, literal.2, literal.3)
+  }
+  )"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Value array_value, Value::Array({
+                                                  Value(UBits(1, 32)),
+                                                  Value(UBits(2, 32)),
+                                                  Value(UBits(3, 32)),
+                                              }));
+  EXPECT_THAT(GetParam().evaluator(function, /*args=*/{}),
+              IsOkAndHolds(array_value));
+}
+
+TEST_P(IrEvaluatorTest, InterpretArrayOfArraysUpdate) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn array_update() -> bits[32][2][2] {
+    literal.1: bits[32][2][2] = literal(value=[[1, 2], [3, 4]])
+    literal.2: bits[2] = literal(value=1)
+    literal.3: bits[32][2] = literal(value=[98,99])
+    ret array_update.4: bits[32][2][2] = array_update(literal.1, literal.2, literal.3)
+  }
+  )"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Value index_0, Value::Array({
+                                              Value(UBits(1, 32)),
+                                              Value(UBits(2, 32)),
+                                          }));
+  XLS_ASSERT_OK_AND_ASSIGN(Value index_1, Value::Array({
+                                              Value(UBits(98, 32)),
+                                              Value(UBits(99, 32)),
+                                          }));
+  XLS_ASSERT_OK_AND_ASSIGN(Value array_value, Value::Array({
+                                                  index_0,
+                                                  index_1,
+                                              }));
+  EXPECT_THAT(GetParam().evaluator(function, /*args=*/{}),
+              IsOkAndHolds(array_value));
+}
+
+TEST_P(IrEvaluatorTest, InterpretArrayOfTuplesUpdate) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn array_update() -> (bits[2], bits[32])[2] {
+    literal.1: (bits[2], bits[32])[2] = literal(value=[(1, 20), (3, 40)])
+    literal.2: bits[2] = literal(value=1)
+    literal.3: (bits[2], bits[32]) = literal(value=(0,99))
+    ret array_update.4: (bits[2], bits[32])[2] = array_update(literal.1, literal.2, literal.3)
+  }
+  )"));
+
+  Value index_0 = Value::Tuple({
+      Value(UBits(1, 2)),
+      Value(UBits(20, 32)),
+  });
+  Value index_1 = Value::Tuple({
+      Value(UBits(0, 2)),
+      Value(UBits(99, 32)),
+  });
+  XLS_ASSERT_OK_AND_ASSIGN(Value array_value, Value::Array({
+                                                  index_0,
+                                                  index_1,
+                                              }));
+  EXPECT_THAT(GetParam().evaluator(function, /*args=*/{}),
+              IsOkAndHolds(array_value));
+}
+
+TEST_P(IrEvaluatorTest, InterpretArrayUpdateOriginalNotMutated) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn array_update() -> (bits[32][3], bits[32][3]) {
+    literal.1: bits[32][3] = literal(value=[1, 2, 3])
+    literal.2: bits[2] = literal(value=0)
+    literal.3: bits[32] = literal(value=99)
+    array_update.4: bits[32][3] = array_update(literal.1, literal.2, literal.3)
+    ret tuple.5: (bits[32][3], bits[32][3]) =  tuple(literal.1, array_update.4)
+  }
+  )"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Value array_value_original, Value::Array({
+                                                           Value(UBits(1, 32)),
+                                                           Value(UBits(2, 32)),
+                                                           Value(UBits(3, 32)),
+                                                       }));
+  XLS_ASSERT_OK_AND_ASSIGN(Value array_value_updated, Value::Array({
+                                                          Value(UBits(99, 32)),
+                                                          Value(UBits(2, 32)),
+                                                          Value(UBits(3, 32)),
+                                                      }));
+  EXPECT_THAT(
+      GetParam().evaluator(function, /*args=*/{}),
+      IsOkAndHolds(Value::Tuple({array_value_original, array_value_updated})));
+}
+
+TEST_P(IrEvaluatorTest, InterpretArrayUpdateIndex) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn array_update() -> bits[32] {
+    literal.1: bits[32][3] = literal(value=[1, 2, 3])
+    literal.2: bits[2] = literal(value=0)
+    literal.3: bits[32] = literal(value=99)
+    array_update.4: bits[32][3] = array_update(literal.1, literal.2, literal.3)
+    ret array_index.5: bits[32] = array_index(array_update.4, literal.2)
+  }
+  )"));
+
+  EXPECT_THAT(GetParam().evaluator(function, /*args=*/{}),
+              IsOkAndHolds(Value(UBits(99, 32))));
+}
+
+TEST_P(IrEvaluatorTest, InterpretArrayUpdateUpdate) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn array_update() -> bits[32][3] {
+    literal.1: bits[32][3] = literal(value=[1, 2, 3])
+    literal.2: bits[2] = literal(value=0)
+    literal.3: bits[32] = literal(value=99)
+    array_update.4: bits[32][3] = array_update(literal.1, literal.2, literal.3)
+    literal.5: bits[2] = literal(value=2)
+    ret array_update.6: bits[32][3] = array_update(array_update.4, literal.5, literal.3)
+  }
+  )"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Value array_value, Value::Array({
+                                                  Value(UBits(99, 32)),
+                                                  Value(UBits(2, 32)),
+                                                  Value(UBits(99, 32)),
+                                              }));
+  EXPECT_THAT(GetParam().evaluator(function, /*args=*/{}),
+              IsOkAndHolds(array_value));
+}
+
+TEST_P(IrEvaluatorTest, InterpretArrayUpdateWideElements) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn array_update() -> bits[1000][3] {
+    literal.1: bits[1000][3] = literal(value=[1, 2, 3])
+    literal.2: bits[2] = literal(value=0)
+    literal.3: bits[1000] = literal(value=99)
+    ret array_update.4: bits[1000][3] = array_update(literal.1, literal.2, literal.3)
+  }
+  )"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Value array_value, Value::Array({
+                                                  Value(UBits(99, 1000)),
+                                                  Value(UBits(2, 1000)),
+                                                  Value(UBits(3, 1000)),
+                                              }));
+  EXPECT_THAT(GetParam().evaluator(function, /*args=*/{}),
+              IsOkAndHolds(array_value));
+}
+
+TEST_P(IrEvaluatorTest, InterpretArrayUpdateWideIndexInbounds) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn array_update(index: bits[1000]) -> bits[32][3] {
+    literal.1: bits[32][3] = literal(value=[1, 2, 3])
+    literal.2: bits[32] = literal(value=99)
+    ret array_update.3: bits[32][3] = array_update(literal.1, index, literal.2)
+  }
+  )"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Value array_value, Value::Array({
+                                                  Value(UBits(1, 32)),
+                                                  Value(UBits(99, 32)),
+                                                  Value(UBits(3, 32)),
+                                              }));
+  Value index = Value(UBits(1, 1000));
+  EXPECT_THAT(GetParam().kwargs_evaluator(function,
+                                          /*args=*/{{"index", index}}),
+              IsOkAndHolds(array_value));
+}
+
+TEST_P(IrEvaluatorTest, InterpretArrayUpdateWideIndexOutOfBounds) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn array_update(index: bits[1000]) -> bits[32][3] {
+    literal.1: bits[32][3] = literal(value=[1, 2, 3])
+    literal.2: bits[32] = literal(value=99)
+    ret array_update.3: bits[32][3] = array_update(literal.1, index, literal.2)
+  }
+  )"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Value array_value, Value::Array({
+                                                  Value(UBits(1, 32)),
+                                                  Value(UBits(2, 32)),
+                                                  Value(UBits(3, 32)),
+                                              }));
+  Value index = Value(Bits::PowerOfTwo(900, 1000));
+  EXPECT_THAT(GetParam().kwargs_evaluator(function,
+                                          /*args=*/{{"index", index}}),
+              IsOkAndHolds(array_value));
 }
 
 TEST_P(IrEvaluatorTest, InterpretInvokeZeroArgs) {

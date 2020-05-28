@@ -364,6 +364,31 @@ Returns the element at the index given by operand `index` from the array `data`.
 
 TODO: Define out of bounds semantics for array_index.
 
+#### **`array_update`**
+
+Returns a modified copy of an array.
+
+**Syntax**
+
+```
+result = array_update(array, index, value)
+```
+
+**Types**
+
+Value    | Type
+-------- | -----------------------------
+`array`  | Array of elements of type `T`
+`index`  | `bits[M]`*
+`value`  | `T`
+`result` | Array of elements of type `T`
+
+\* M is arbitrary.
+
+Returns a copy of the input array with the element at the index replaced with
+the given value. If index is out of bounds, the returned array is identical to
+the input array.
+
 #### **`bit_slice`**
 
 Slices a a contiguous range of bits from a bits-typed operand.

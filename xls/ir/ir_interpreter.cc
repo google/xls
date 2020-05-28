@@ -259,7 +259,17 @@ class InterpreterVisitor : public DfsVisitor {
   }
 
   absl::Status HandleArrayUpdate(ArrayUpdate* update) override {
-    return absl::UnimplementedError("ArrayUpdate not yet implemented");
+    XLS_ASSIGN_OR_RETURN(std::vector<Value> array_elements,
+                         ResolveAsValue(update->operand(0)).GetElements());
+    uint64 index =
+        ResolveAsBoundedUint64(update->operand(1), array_elements.size());
+    const Value& update_value = ResolveAsValue(update->operand(2));
+    // Out-of-bounds accesses have no effect.
+    if (index < array_elements.size()) {
+      array_elements[index] = update_value;
+    }
+    XLS_ASSIGN_OR_RETURN(Value result, Value::Array(array_elements));
+    return SetValueResult(update, result);
   }
 
   absl::Status HandleInvoke(Invoke* invoke) override {

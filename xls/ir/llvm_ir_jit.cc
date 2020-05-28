@@ -19,6 +19,7 @@
 
 #include "absl/flags/flag.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
@@ -35,12 +36,14 @@
 #include "llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h"
 #include "llvm/ExecutionEngine/Orc/ThreadSafeModule.h"
 #include "llvm/ExecutionEngine/SectionMemoryManager.h"
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Value.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/raw_ostream.h"
@@ -127,7 +130,7 @@ class BuilderVisitor : public DfsVisitorWithDefault {
     // Get the pointer to the element of interest, then load it. Easy peasy.
     llvm::Value* array = node_map_.at(index->operand(0));
     llvm::Value* index_value = node_map_.at(index->operand(1));
-    int index_width = index_value->getType()->getIntegerBitWidth();
+    int64 index_width = index_value->getType()->getIntegerBitWidth();
 
     // Our IR does not use negative indices, so we add a
     // zero MSb to prevent LLVM from interpreting this as such.
@@ -151,6 +154,58 @@ class BuilderVisitor : public DfsVisitorWithDefault {
 
     llvm::Value* gep = builder_->CreateGEP(alloca, gep_indices);
     return StoreResult(index, builder_->CreateLoad(gep));
+  }
+
+  absl::Status HandleArrayUpdate(ArrayUpdate* update) override {
+    llvm::Value* original_array = node_map_.at(update->operand(0));
+    llvm::Type* array_type = original_array->getType();
+    llvm::Value* index_value = node_map_.at(update->operand(1));
+    llvm::Value* update_value = node_map_.at(update->operand(2));
+    llvm::AllocaInst* alloca = builder_->CreateAlloca(array_type);
+    builder_->CreateStore(original_array, alloca);
+
+    // We must compare the index to the size of the array. Both arguments
+    // for this comparison must have the same bitwidth, so we will cast the
+    // arguments using the maximum bitwidth of the two. Value::size()  - used
+    // to get the array size  - returns an int64, so the bitwidth of the array
+    // size can be no larger than 64 bits. The index could have an arbitrarily
+    // large bitwidth.
+    int64 index_bitwidth = index_value->getType()->getIntegerBitWidth();
+    int64 comparison_bitwidth = std::max(index_bitwidth, (int64)64);
+    llvm::Value* array_size_comparison_bitwidth = llvm::ConstantInt::get(
+        llvm::Type::getIntNTy(*context_, comparison_bitwidth), update->size());
+    llvm::Value* index_value_comparison_bitwidth = builder_->CreateZExt(
+        index_value, llvm::Type::getIntNTy(*context_, comparison_bitwidth));
+    llvm::Value* index_inbounds = builder_->CreateICmpULT(
+        index_value_comparison_bitwidth, array_size_comparison_bitwidth);
+
+    // Update array.
+    llvm::Value* bounds_safe_index_value = builder_->CreateSelect(
+        index_inbounds, index_value,
+        llvm::ConstantInt::get(index_value->getType(), 0));
+    // Our IR does not use negative indices, so we add a
+    // zero MSb to prevent LLVM from interpreting this as such.
+    std::vector<llvm::Value*> gep_indices = {
+        llvm::ConstantInt::get(llvm::Type::getInt64Ty(*context_), 0),
+        builder_->CreateZExt(
+            bounds_safe_index_value,
+            llvm::IntegerType::get(*context_, index_bitwidth + 1))};
+    llvm::Value* gep = builder_->CreateGEP(alloca, gep_indices);
+    llvm::Value* original_element_value = builder_->CreateLoad(gep);
+    llvm::Value* bounds_safe_update_value = builder_->CreateSelect(
+        index_inbounds, update_value, original_element_value);
+    builder_->CreateStore(bounds_safe_update_value, gep);
+
+    llvm::Value* update_array = builder_->CreateLoad(array_type, alloca);
+    // Record allocated memory for updated array.
+    if (array_storage_.contains(update_array)) {
+      return absl::InternalError(absl::StrFormat(
+          "Newly created update array %s was already allocated memory somehow.",
+          update->ToString()));
+    }
+    array_storage_[update_array] = alloca;
+
+    return StoreResult(update, update_array);
   }
 
   absl::Status HandleBitSlice(BitSlice* bit_slice) override {
