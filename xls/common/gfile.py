@@ -13,6 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 """Adapter for file APIs (internal cluster filesystem vs local Python API)."""
 
 import builtins
@@ -24,9 +25,11 @@ def open(path: str, mode: str):  # pylint: disable=redefined-builtin
   return builtins.open(path, mode)
 
 
-def recursively_copy_dir(oldpath: str,
-                         newpath: str,
-                         preserve_file_mask: bool = True) -> None:
+def recursively_copy_dir(
+    oldpath: str,
+    newpath: str,
+    preserve_file_mask: bool = True,  # pylint: disable=unused-argument
+) -> None:
   return shutil.copytree(oldpath, newpath)
 
 
