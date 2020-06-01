@@ -285,7 +285,7 @@ xabsl::StatusOr<Value> Ice40DeviceRpcStrategy::CallUnnamed(
   }
 
   int64 output_bits = function_type.return_type()->GetFlatBitCount();
-  std::vector<uint8> result(CeilOfRatio(output_bits, 8LL));
+  std::vector<uint8> result(CeilOfRatio(output_bits, int64{8}));
 
   XLS_VLOG(3) << "Reading device response; expecting " << result.size()
               << " bytes.";
