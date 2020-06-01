@@ -516,6 +516,7 @@ py_test(
         ":extract_conversion_order",
         ":fakefs_util",
         ":parse_and_typecheck",
+        "@com_google_absl_py//absl/testing:absltest",
         "@com_google_absl_py//absl/logging",
         "//xls/common:test_base",
     ],

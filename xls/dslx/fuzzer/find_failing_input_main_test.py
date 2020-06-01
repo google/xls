@@ -32,7 +32,7 @@ fn foo(x: bits[32], y: bits[32]) -> bits[32] {
 """
 
 
-class EvalMainTest(test_base.XlsTestCase):
+class EvalMainTest(test_base.TestCase):
 
   def test_input_file_no_failure(self):
     ir_file = self.create_tempfile(content=ADD_IR)

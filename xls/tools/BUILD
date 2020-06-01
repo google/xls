@@ -599,6 +599,7 @@ py_test(
         "//xls/examples:sha256.opt.ir",
     ],
     python_version = "PY3",
+    shard_count = 50,
     srcs_version = "PY3",
     deps = [
         "@com_google_absl_py//absl/testing:absltest",
@@ -670,6 +671,7 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
+        "@com_google_absl_py//absl/testing:absltest",
         "//xls/common:runfiles",
         "//xls/common:test_base",
     ],
