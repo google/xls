@@ -40,6 +40,13 @@ cc_binary(
 )
 
 dslx_test(
+    name = "riscv_simple",
+    srcs = ["riscv_simple.x"],
+    generate_benchmark = False,
+    prove_unopt_eq_opt = False,
+)
+
+dslx_test(
     name = "sha256",
     srcs = ["sha256.x"],
     # TODO(rspringer): OOMs on some machines.
