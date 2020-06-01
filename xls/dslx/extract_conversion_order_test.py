@@ -20,6 +20,7 @@ from typing import Text
 
 from absl import logging
 
+from absl.testing import absltest
 from xls.common import test_base
 from xls.dslx import ast
 from xls.dslx import extract_conversion_order
@@ -27,7 +28,7 @@ from xls.dslx import fakefs_util
 from xls.dslx import parse_and_typecheck
 
 
-class ExtractConversionOrderTest(test_base.XlsTestCase):
+class ExtractConversionOrderTest(absltest.TestCase):
 
   def _get_module(self, program: Text) -> ast.Module:
     filename = '/fake/test_program.x'

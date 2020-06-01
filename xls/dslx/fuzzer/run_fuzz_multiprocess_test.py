@@ -25,11 +25,11 @@ RUN_FUZZ_MULTIPROCESS_PATH = runfiles.get_path(
     'xls/dslx/fuzzer/run_fuzz_multiprocess')
 
 
-class RunFuzzMultiprocessTest(test_base.XlsTestCase):
+class RunFuzzMultiprocessTest(test_base.TestCase):
 
   def test_two_samples(self):
-    crasher_path = self.create_tempdir()
-    samples_path = self.create_tempdir()
+    crasher_path = self.create_tempdir().full_path
+    samples_path = self.create_tempdir().full_path
 
     subprocess.check_call([
         RUN_FUZZ_MULTIPROCESS_PATH, '--seed=42', '--crash_path=' + crasher_path,
@@ -60,8 +60,8 @@ class RunFuzzMultiprocessTest(test_base.XlsTestCase):
       self.assertEqual(len(f.read().strip().splitlines()), 3)
 
   def test_multiple_workers(self):
-    crasher_path = self.create_tempdir()
-    samples_path = self.create_tempdir()
+    crasher_path = self.create_tempdir().full_path
+    samples_path = self.create_tempdir().full_path
 
     subprocess.check_call([
         RUN_FUZZ_MULTIPROCESS_PATH, '--seed=42', '--crash_path=' + crasher_path,
@@ -74,8 +74,8 @@ class RunFuzzMultiprocessTest(test_base.XlsTestCase):
         sorted(os.listdir(samples_path)), sorted((str(i) for i in range(20))))
 
   def test_codegen_and_simulate(self):
-    crasher_path = self.create_tempdir()
-    samples_path = self.create_tempdir()
+    crasher_path = self.create_tempdir().full_path
+    samples_path = self.create_tempdir().full_path
 
     subprocess.check_call([
         RUN_FUZZ_MULTIPROCESS_PATH, '--seed=42', '--crash_path=' + crasher_path,
