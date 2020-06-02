@@ -284,3 +284,13 @@ py_library(
     name = "gfile",
     srcs = ["gfile.py"],
 )
+
+py_library(
+    name = "check_simulator",
+    srcs = ["check_simulator.py"],
+)
+
+py_library(
+    name = "revision",
+    srcs = ["revision.py"],
+)

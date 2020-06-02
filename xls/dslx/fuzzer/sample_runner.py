@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """Library for operating on a generated code sample in the fuzzer."""
 
 import collections
@@ -23,8 +24,10 @@ from typing import Text, Tuple, Optional, Dict, Sequence
 
 from absl import logging
 
-from xls.common.xls_error import XlsError
+from xls.common import check_simulator
+from xls.common import revision
 from xls.common import runfiles
+from xls.common.xls_error import XlsError
 from xls.dslx import ast
 from xls.dslx import concrete_type as concrete_type_mod
 from xls.dslx import deduce
@@ -435,6 +438,8 @@ class SampleRunner:
     if simulator:
       simulator_args.append('--verilog_simulator=' + simulator)
     simulator_args.append(verilog_filename)
+
+    check_simulator.check_simulator(simulator)
 
     results_text = self._run_command(f'Simulating Verilog {verilog_filename}',
                                      simulator_args)
