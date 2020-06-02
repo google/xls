@@ -118,7 +118,9 @@ def delay_factor_description(factor: delay_model_pb2.DelayFactor) -> Text:
       e.OPERAND_COUNT:
           'Operand count',
       e.OPERAND_ELEMENT_COUNT:
-          'Operand %d element count' % factor.operand_number
+          'Operand %d element count' % factor.operand_number,
+      e.OPERAND_ELEMENT_BIT_COUNT:
+          'Operand %d element bit count' % factor.operand_number
   }[factor.source]
 
 
@@ -135,6 +137,8 @@ def _operation_delay_factor(factor: delay_model_pb2.DelayFactor,
           lambda: len(operation.operands),
       e.OPERAND_ELEMENT_COUNT:
           lambda: operation.operands[factor.operand_number].element_count,
+      e.OPERAND_ELEMENT_BIT_COUNT:
+          lambda: operation.operands[factor.operand_number].bit_count,
   }[factor.source]()
 
 
@@ -164,6 +168,10 @@ def _delay_factor_cpp_expression(factor: delay_model_pb2.DelayFactor,
       e.OPERAND_ELEMENT_COUNT:
           lambda: '{}->operand({})->GetType()->AsArrayOrDie()->size()'.format(
               node_identifier, factor.operand_number),
+      e.OPERAND_ELEMENT_BIT_COUNT:
+          lambda:
+          '{}->operand({})->GetType()->AsArrayOrDie()->element_type()->GetFlatBitCount()'
+          .format(node_identifier, factor.operand_number),
   }[factor.source]()
 
 
