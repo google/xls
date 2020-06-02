@@ -1065,6 +1065,43 @@ class IrConverterTest(absltest.TestCase):
         }
         """)
 
+  def test_nested_tuple_signature(self):
+    m = self.parse_dsl_text("""
+    type Foo = u3;
+
+    type MyTup = (u6, u1);
+
+    type TupOfThings = (u1, MyTup, Foo);
+
+    type MoreStructured = (
+      TupOfThings[3],
+      u3,
+      u1,
+    );
+
+    type Data = (u64, u1);
+
+    fn main(r: u9, l: u10, input: MoreStructured) -> (u9, u10, Data) {
+      (u9:0, u10:0, (u64:0, u1:0))
+    }
+    """)
+    node_to_type = typecheck.check_module(m, f_import=None)
+    converted = ir_converter.convert_module(
+        m, node_to_type, emit_positions=False)
+    self.assert_ir_equals_and_parses(
+        converted, """\
+        package test_module
+
+        fn __test_module__main(r: bits[9], l: bits[10], input: ((bits[1], (bits[6], bits[1]), bits[3])[3], bits[3], bits[1])) -> (bits[9], bits[10], (bits[64], bits[1])) {
+          literal.6: bits[64] = literal(value=0)
+          literal.7: bits[1] = literal(value=0)
+          literal.4: bits[9] = literal(value=0)
+          literal.5: bits[10] = literal(value=0)
+          tuple.8: (bits[64], bits[1]) = tuple(literal.6, literal.7)
+          ret tuple.9: (bits[9], bits[10], (bits[64], bits[1])) = tuple(literal.4, literal.5, tuple.8)
+        }
+        """)
+
   def test_array_update(self):
     m = self.parse_dsl_text("""
     fn main(input: u8[2]) -> u8[2] {
