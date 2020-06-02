@@ -186,6 +186,8 @@ py_library(
     deps = [
         ":sample",
         "@com_google_absl_py//absl/logging",
+        "//xls/common:check_simulator",
+        "//xls/common:revision",
         "//xls/common:runfiles",
         "//xls/common:xls_error",
         "//xls/dslx:ast",
