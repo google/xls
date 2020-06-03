@@ -197,20 +197,6 @@ def load_external_repositories():
     )
 
     http_archive(
-        name = "termcolor_archive",
-        build_file_content = """py_library(
-            name = "termcolor",
-            visibility = ["//visibility:public"],
-            srcs = glob(["termcolor/*.py"]),
-        )""",
-        sha256 = "1d6d69ce66211143803fbc56652b41d73b4a400a2891d7bf7a1cdf4c02de613b",
-        strip_prefix = "termcolor-1.1.0",
-        urls = [
-            "https://pypi.python.org/packages/8a/48/a76be51647d0eb9f10e2a4511bf3ffb8cc1e6b14e9e4fab46173aa79f981/termcolor-1.1.0.tar.gz",
-        ],
-    )
-
-    http_archive(
         name = "z3",
         urls = ["https://github.com/Z3Prover/z3/archive/z3-4.8.7.tar.gz"],
         sha256 = "8c1c49a1eccf5d8b952dadadba3552b0eac67482b8a29eaad62aa7343a0732c3",

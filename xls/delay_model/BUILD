@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@xls_pip_deps//:requirements.bzl", "requirement")
 # pytype binary, test, library
 load("//xls/build:py_proto_library.bzl", "xls_py_proto_library")
 
@@ -161,7 +162,11 @@ py_library(
     name = "delay_model",
     srcs = ["delay_model.py"],
     srcs_version = "PY3ONLY",
-    deps = [":delay_model_py_pb2"],
+    deps = [
+        ":delay_model_py_pb2",
+        requirement("numpy"),
+        requirement("scipy"),
+    ],
 )
 
 py_test(
