@@ -104,6 +104,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::Status HandleAdd(BinOp* add) override;
   absl::Status HandleArray(Array* array) override;
   absl::Status HandleArrayIndex(ArrayIndex* array_index) override;
+  absl::Status HandleArrayUpdate(ArrayUpdate* array_update) override;
   absl::Status HandleBitSlice(BitSlice* bit_slice) override;
   absl::Status HandleConcat(Concat* concat) override;
   absl::Status HandleEncode(Encode* encode) override;
@@ -149,6 +150,9 @@ class IrTranslator : public DfsVisitorWithDefault {
 
   IrTranslator(Z3_context ctx, Function* xls_function,
                absl::Span<const Z3_ast> imported_params);
+
+  // Returns the index with the proper bitwidth for the given array_type.
+  Z3_ast GetAsFormattedArrayIndex(Z3_ast index, ArrayType* array_type);
 
   // Gets the bit count associated with the bit-vector-sort Z3 node "arg".
   // (Arg must be known to be of bit-vector sort.)
