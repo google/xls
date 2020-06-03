@@ -14,6 +14,7 @@
 
 # Frontend syntax.
 
+load("@xls_pip_deps//:requirements.bzl", "requirement")
 # pytype binary, test, library
 
 package(
@@ -227,7 +228,7 @@ py_library(
         ":scanner",
         ":span",
         "@com_google_absl_py//absl/logging",
-        "@termcolor_archive//:termcolor",
+        requirement("termcolor"),
     ],
 )
 
@@ -471,7 +472,7 @@ py_binary(
         ":scanner",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
-        "@termcolor_archive//:termcolor",
+        requirement("termcolor"),
     ],
 )
 

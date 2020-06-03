@@ -14,6 +14,7 @@
 
 # Reference interpreter executor for XLS syntax.
 
+load("@xls_pip_deps//:requirements.bzl", "requirement")
 # pytype binary, test, library
 
 package(
@@ -137,7 +138,7 @@ py_library(
         ":errors",
         ":value",
         "@com_google_absl_py//absl/logging",
-        "@termcolor_archive//:termcolor",
+        requirement("termcolor"),
         "//xls/dslx:ast",
         "//xls/dslx:bit_helpers",
         "//xls/dslx:concrete_type",

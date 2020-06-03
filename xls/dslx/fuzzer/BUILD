@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@xls_pip_deps//:requirements.bzl", "requirement")
 # pytype binary, test, library
 load("//xls/dslx/fuzzer:build_defs.bzl", "generate_crasher_regression_tests")
 # cc_proto_library is used in this file
@@ -72,7 +73,7 @@ py_library(
         ":sample_generator",
         ":sample_runner",
         "@com_google_absl_py//absl/logging",
-        "@termcolor_archive//:termcolor",
+        requirement("termcolor"),
         "//xls/common:runfiles",
     ],
 )
@@ -236,7 +237,7 @@ py_library(
         ":sample",
         ":sample_generator",
         ":sample_runner",
-        "@termcolor_archive//:termcolor",
+        requirement("termcolor"),
         "//xls/common:gfile",
     ],
 )
