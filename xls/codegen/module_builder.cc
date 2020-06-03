@@ -343,6 +343,45 @@ xabsl::StatusOr<Expression*> ModuleBuilder::EmitAsInlineExpression(
   return NodeToExpression(node, inputs, file_);
 }
 
+absl::Status ModuleBuilder::EmitArrayUpdateElement(Expression* lhs,
+                                                   BinaryInfix* condition,
+                                                   Expression* new_value,
+                                                   Expression* original_value,
+                                                   Type* element_type) {
+  if (element_type->IsArray()) {
+    ArrayType* array_type = element_type->AsArrayOrDie();
+    for (int64 idx = 0; idx < array_type->size(); ++idx) {
+      XLS_RETURN_IF_ERROR(EmitArrayUpdateElement(
+          /*lhs=*/file_->Index(lhs->AsIndexableExpressionOrDie(), idx),
+          /*condition=*/condition,
+          /*new_value=*/
+          file_->Index(new_value->AsIndexableExpressionOrDie(), idx),
+          /*original_value=*/
+          file_->Index(original_value->AsIndexableExpressionOrDie(), idx),
+          /*element_type=*/array_type->element_type()));
+    }
+    return absl::OkStatus();
+  }
+
+  if (!element_type->IsBits() && !element_type->IsTuple()) {
+    return absl::UnimplementedError(absl::StrFormat(
+        "EmitArrayUpdateHelper cannot handle elements of type %s",
+        element_type->ToString()));
+  }
+
+  XLS_RETURN_IF_ERROR(AddAssignment(
+      /*lhs=*/lhs,
+      /*rhs=*/
+      file_->Ternary(condition, new_value, original_value),
+      /*xls_type=*/element_type,
+      /*add_assignment_statement=*/
+      [&](Expression* lhs, Expression* rhs) {
+        assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
+      }));
+
+  return absl::OkStatus();
+}
+
 xabsl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
     absl::string_view name, Node* node, absl::Span<Expression* const> inputs) {
   LogicRef* ref = DeclareVariable(name, node->GetType());
@@ -370,6 +409,17 @@ xabsl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
             array_type, [&](Expression* lhs, Expression* rhs) {
               assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
             }));
+        break;
+      case Op::kArrayUpdate:
+        for (int64 i = 0; i < array_type->size(); ++i) {
+          XLS_RETURN_IF_ERROR(EmitArrayUpdateElement(
+              /*lhs=*/file_->Index(ref, i),
+              /*condition=*/file_->Equals(inputs[1], file_->PlainLiteral(i)),
+              /*new_value=*/inputs[2],
+              /*original_value=*/
+              file_->Index(inputs[0]->AsIndexableExpressionOrDie(), i),
+              /*element_type=*/array_type->element_type()));
+        }
         break;
       case Op::kTupleIndex:
         XLS_RETURN_IF_ERROR(AssignFromSlice(

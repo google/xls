@@ -791,18 +791,8 @@ class _IrConverterFb(ast.AstVisitor):
   def _visit_update(self, node: ast.Invocation, args: Tuple[BValue,
                                                             ...]) -> BValue:
     array, target_index, update_value = args
-    array_type = array.get_type()
-    index_type = target_index.get_type()
-    index_bit_count = index_type.get_bit_count()
-    elements = []
-    for i in range(array_type.get_size()):
-      index = self.fb.add_literal_bits(
-          bits_mod.UBits(i, bit_count=index_bit_count))
-      e = self.fb.add_array_index(array, index)
-      p = self.fb.add_eq(index, target_index)
-      elements.append(self.fb.add_sel(p, update_value, e))
-    return self._def(node, self.fb.add_array, elements,
-                     array_type.get_element_type())
+    return self._def(node, self.fb.add_array_update, array, target_index,
+                     update_value)
 
   def _visit_bitwise_reduction(self, node: ast.Invocation, args: Tuple[BValue,
                                                                        ...],
