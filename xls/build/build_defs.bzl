@@ -216,8 +216,7 @@ def dslx_test(
         args = [native.package_name() + "/" + src] + args,
         data = [
             _INTERPRETER_MAIN,
-            src,
-        ] + deps,
+        ] + srcs + deps,
         tags = tags,
     )
 
@@ -229,13 +228,12 @@ def dslx_test(
             args = [native.package_name() + "/" + src] + args,
             data = [
                 "//xls/dslx:ir_converter_main",
-                src,
-            ] + deps,
+            ] + srcs + deps,
             tags = tags,
         )
         native.genrule(
             name = name + "_ir",
-            srcs = [src] + deps,
+            srcs = srcs + deps,
             outs = [name + ".ir"],
             cmd = "$(location //xls/dslx:ir_converter_main) $(SRCS) > $@",
             exec_tools = ["//xls/dslx:ir_converter_main"],
@@ -243,7 +241,7 @@ def dslx_test(
         )
         native.genrule(
             name = name + "_opt_ir",
-            srcs = [src] + deps,
+            srcs = srcs + deps,
             outs = [name + ".opt.ir"],
             cmd = "$(location //xls/dslx:ir_converter_main) $(SRCS) | $(location //xls/tools:opt_main) --entry=%s - > $@" % (entry or ""),
             exec_tools = [
