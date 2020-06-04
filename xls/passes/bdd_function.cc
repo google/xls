@@ -154,6 +154,7 @@ bool ShouldEvaluate(Node* node) {
 
     // Bit moving ops.
     case Op::kBitSlice:
+    case Op::kDynamicBitSlice:
     case Op::kConcat:
     case Op::kReverse:
     case Op::kIdentity:
