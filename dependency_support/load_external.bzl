@@ -28,6 +28,7 @@ load("//dependency_support/dk_thrysoee_libedit:workspace.bzl", repo_libedit = "r
 load("//dependency_support:org_sourceware_libffi/workspace.bzl", repo_libffi = "repo")
 load("//dependency_support/org_gnu_m4:workspace.bzl", repo_m4 = "repo")
 load("//dependency_support/net_invisible_island_ncurses:workspace.bzl", repo_ncurses = "repo")
+load("//dependency_support/prjtrellis_db:workspace.bzl", repo_prjtrellis_db = "repo")
 load("//dependency_support:tk_tcl_tcl/workspace.bzl", repo_tcl = "repo")
 load("//dependency_support/at_clifford_yosys:workspace.bzl", repo_yosys = "repo")
 
@@ -45,6 +46,7 @@ def load_external_repositories():
     repo_libffi()
     repo_m4()
     repo_ncurses()
+    repo_prjtrellis_db()
     repo_tcl()
     repo_yosys()
 
@@ -191,20 +193,6 @@ def load_external_repositories():
         sha256 = "c415e1c737e3aa72b92af41832a7e0a2c325eb8d3a72a210750714e00fcaeace",
         urls = [
             "https://pypi.python.org/packages/68/5f/e5501a707958443e0c0f2706a64b0199deb62a0f1d14bc4ee401ed96ef2a/pyfakefs-4.0.2.tar.gz",
-        ],
-    )
-
-    http_archive(
-        name = "termcolor_archive",
-        build_file_content = """py_library(
-            name = "termcolor",
-            visibility = ["//visibility:public"],
-            srcs = glob(["termcolor/*.py"]),
-        )""",
-        sha256 = "1d6d69ce66211143803fbc56652b41d73b4a400a2891d7bf7a1cdf4c02de613b",
-        strip_prefix = "termcolor-1.1.0",
-        urls = [
-            "https://pypi.python.org/packages/8a/48/a76be51647d0eb9f10e2a4511bf3ffb8cc1e6b14e9e4fab46173aa79f981/termcolor-1.1.0.tar.gz",
         ],
     )
 

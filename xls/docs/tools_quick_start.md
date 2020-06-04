@@ -66,3 +66,14 @@ To generate RTL from the optimized IR, use the codegen tool:
 ```
 $ ./bazel-bin/xls/tools/codegen_main --pipeline_stages=1 /tmp/simple_add.opt.ir > /tmp/simple_add.v
 ```
+
+## IR visualizer
+
+To get a graphical view of the IR files, use the IR visualization tool:
+
+```
+$ ./bazel-bin/xls/ir/visualization/app --delay_model=unit --ir_path=/tmp/simple_add.ir
+```
+
+This starts a server on the local host port 5000 by default, so you can access
+it from your machine as `http://localhost:5000` in a web browser.

@@ -667,8 +667,8 @@ absl::Status IrTranslator::HandleTuple(Tuple* tuple) {
   return absl::OkStatus();
 }
 
-Z3_ast IrTranslator::GetArrayElement(ArrayType* array_type, Z3_ast array,
-                                     Z3_ast index) {
+Z3_ast IrTranslator::GetAsFormattedArrayIndex(Z3_ast index,
+                                              ArrayType* array_type) {
   // In XLS, array indices can be of any sort, whereas in Z3, index types need
   // to be declared w/the array (the "domain" argument - we declare that to be
   // the smallest bit vector that covers all indices. Thus, we need to "cast"
@@ -683,6 +683,12 @@ Z3_ast IrTranslator::GetArrayElement(ArrayType* array_type, Z3_ast array,
                       /*low=*/0, index);
   }
 
+  return index;
+}
+
+Z3_ast IrTranslator::GetArrayElement(ArrayType* array_type, Z3_ast array,
+                                     Z3_ast index) {
+  index = GetAsFormattedArrayIndex(index, array_type);
   // To follow XLS semantics, if the index exceeds the array size, then return
   // the element at the max index.
   Z3OpTranslator t(ctx_);
@@ -699,6 +705,36 @@ absl::Status IrTranslator::HandleArrayIndex(ArrayIndex* array_index) {
       GetArrayElement(array_type, GetValue(array_index->operand(0)),
                       GetValue(array_index->operand(1)));
   NoteTranslation(array_index, element);
+  return seh.status();
+}
+
+absl::Status IrTranslator::HandleArrayUpdate(ArrayUpdate* array_update) {
+  ScopedErrorHandler seh(ctx_);
+
+  // Grab input arguments.
+  ArrayType* array_type = array_update->GetType()->AsArrayOrDie();
+  Z3_sort index_sort =
+      Z3_mk_bv_sort(ctx_, Bits::MinBitCountUnsigned(array_type->size()));
+  Z3_ast update_index =
+      GetAsFormattedArrayIndex(GetValue(array_update->operand(1)), array_type);
+  Z3_ast new_value = GetValue(array_update->operand(2));
+
+  // Compute updated array elements.
+  std::vector<Z3_ast> elements;
+  elements.reserve(array_type->size());
+  for (int idx = 0; idx < array_type->size(); ++idx) {
+    Z3_ast current_index = Z3_mk_int64(ctx_, idx, index_sort);
+    Z3_ast original_value = GetArrayElement(
+        array_type, GetValue(array_update->operand(0)), current_index);
+    Z3_ast array_entry =
+        Z3_mk_ite(ctx_, Z3_mk_eq(ctx_, current_index, update_index), new_value,
+                  original_value);
+    elements.push_back(array_entry);
+  }
+
+  // Finalize.
+  Z3_ast new_array = CreateArray(array_type, absl::MakeSpan(elements));
+  NoteTranslation(array_update, new_array);
   return seh.status();
 }
 

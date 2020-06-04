@@ -24,8 +24,7 @@ The following instructions are for the Ubuntu 20.04 (Focal) Linux distribution:
 $ bazel --version
 bazel 3.2.0
 
-$ sudo apt install python3-dev python3-distutils python3-dev libtinfo5 \
-    python3-numpy python3-scipy python3-termcolor python3-psutil
+$ sudo apt install python3-dev python3-distutils python3-dev libtinfo5
 
 # py_binary currently assume they can refer to /usr/bin/env python
 # even though Ubuntu 20.04 has no `python`, only `python3`.
