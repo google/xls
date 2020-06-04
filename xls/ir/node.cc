@@ -102,6 +102,10 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
     case Op::kBitSlice:
       XLS_RETURN_IF_ERROR(visitor->HandleBitSlice(down_cast<BitSlice*>(this)));
       break;
+    case Op::kDynamicBitSlice:
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleDynamicBitSlice(down_cast<DynamicBitSlice*>(this)));
+      break;
     case Op::kConcat:
       XLS_RETURN_IF_ERROR(visitor->HandleConcat(down_cast<Concat*>(this)));
       break;

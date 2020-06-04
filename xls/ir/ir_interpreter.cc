@@ -145,6 +145,11 @@ class InterpreterVisitor : public DfsVisitor {
                              .Slice(bit_slice->start(), bit_slice->width()));
   }
 
+  absl::Status HandleDynamicBitSlice(
+      DynamicBitSlice* dynamic_bit_slice) override {
+    return absl::UnimplementedError("DynamicBitSlice not yet implemented");
+  }
+
   absl::Status HandleConcat(Concat* concat) override {
     std::vector<Bits> operand_values;
     for (Node* operand : concat->operands()) {

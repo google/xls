@@ -424,6 +424,14 @@ OpClass.kinds['BIT_SLICE'] = OpClass(
                 Int64Attribute('width')],
 )
 
+OpClass.kinds['DYNAMIC_BIT_SLICE'] = OpClass(
+    name='DynamicBitSlice',
+    op='Op::kDynamicBitSlice',
+    operands=[OperandSpan('args')],
+    xls_type_expression='function->package()->GetBitsType(width)',
+    attributes=[Int64Attribute('width')],
+)
+
 OpClass.kinds['COMPARE_OP'] = OpClass(
     name='CompareOp',
     op='op',
@@ -672,6 +680,12 @@ OPS = [
         enum_name='kBitSlice',
         name='bit_slice',
         op_class=OpClass.kinds['BIT_SLICE'],
+        properties=[],
+    ),
+    Op(
+        enum_name='kDynamicBitSlice',
+        name='dynamic_bit_slice',
+        op_class=OpClass.kinds['DYNAMIC_BIT_SLICE'],
         properties=[],
     ),
     Op(
