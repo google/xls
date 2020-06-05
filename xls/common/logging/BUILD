@@ -123,7 +123,10 @@ cc_test(
 
 cc_library(
     name = "log_flags",
-    srcs = ["log_flags.cc"],
+    srcs = [
+        "log_flags.cc",
+        "log_flags.inc",
+    ],
     hdrs = ["log_flags.h"],
     deps = [
         "@com_google_absl//absl/base:log_severity",
