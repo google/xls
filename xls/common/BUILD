@@ -23,6 +23,7 @@ package(
 
 cc_library(
     name = "integral_types",
+    srcs = ["integral_types.inc"],
     hdrs = ["integral_types.h"],
 )
 
