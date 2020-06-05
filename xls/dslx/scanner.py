@@ -71,9 +71,10 @@ class TokenKind(enum.Enum):
   ARROW = '->'
   SEMI = ';'
   AMPERSAND = '&'
+  DOUBLE_AMPERSAND = '&&'
   BAR = '|'
+  DOUBLE_BAR = '||'
   HAT = '^'
-  TILDE = '~'
   FAT_ARROW = '=>'
   ELLIPSIS = '...'
   HASH = '#'
@@ -93,7 +94,6 @@ TYPE_KEYWORD_TUPS = [(type_keyword_string.upper(), type_keyword_string)
                      for type_keyword_string in TYPE_KEYWORD_STRINGS]
 
 NON_TYPE_KEYWORD_STRINGS = [
-    'and',
     'as',
     'carry',
     'const',
@@ -108,8 +108,6 @@ NON_TYPE_KEYWORD_STRINGS = [
     'let',
     'match',
     'next',
-    'not',
-    'or',
     'pub',
     'proc',
     'struct',
@@ -117,7 +115,6 @@ NON_TYPE_KEYWORD_STRINGS = [
     'true',
     'type',
     'while',
-    'xor',
 ]
 NON_TYPE_KEYWORD_TUPS = [
     (non_type_keyword_string.upper(), non_type_keyword_string)
@@ -154,8 +151,8 @@ TYPE_KEYWORDS = tuple(
     getattr(Keyword, type_keyword_string.upper())
     for type_keyword_string in TYPE_KEYWORD_STRINGS)
 
-SIMPLE_TOKEN_KINDS = '(){}[],"*/%;&|^~'
-DOUBLED_SIMPLE_TOKEN_KINDS = ':'
+SIMPLE_TOKEN_KINDS = '(){}[],"*/%;^'
+DOUBLED_SIMPLE_TOKEN_KINDS = ':&|'
 
 
 class ScanError(PositionalError):
