@@ -695,7 +695,7 @@ class Parser(token_parser.TokenParser):
 
   def _parse_logical_not_expression(self, bindings: Bindings) -> ast.Expr:
     if self._peekt_is_keyword(Keyword.NOT):
-      return ast.Unop(self._popt(), self._parse_or_expression(bindings))
+      return ast.Unop(self._popt(), self._parse_comparison_expression(bindings))
     return self._parse_comparison_expression(bindings)
 
   def _parse_logical_and_expression(self, bindings: Bindings) -> ast.Expr:
