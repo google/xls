@@ -125,7 +125,7 @@ class PipelineSchedule {
 
   // Returns the cycle in which the node is placed. Dies if node has not
   // been placed in this schedule.
-  int64 cycle(Node* node) const { return cycle_map_.at(node); }
+  int64 cycle(const Node* node) const { return cycle_map_.at(node); }
 
   // Returns the nodes scheduled in the given cycle. The node order is
   // guaranteed to be topological.
