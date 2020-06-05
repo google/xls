@@ -97,6 +97,7 @@ cc_test(
 
 cc_library(
     name = "module_initializer",
+    srcs = ["module_initializer.inc"],
     hdrs = ["module_initializer.h"],
 )
 
