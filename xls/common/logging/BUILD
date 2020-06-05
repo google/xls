@@ -314,7 +314,10 @@ cc_library(
 
 cc_library(
     name = "vlog_is_on",
-    srcs = ["vlog_is_on.cc"],
+    srcs = [
+        "vlog_is_on.cc",
+        "vlog_is_on.inc",
+    ],
     hdrs = ["vlog_is_on.h"],
     deps = [
         ":errno_saver",
