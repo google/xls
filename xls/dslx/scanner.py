@@ -257,6 +257,9 @@ class Token(object):
       return self.value
     return self.kind
 
+  def is_kind(self, target: TokenKind) -> bool:
+    return self.kind == target
+
   def is_keyword(self, target: Keyword) -> bool:
     return self.kind == TokenKind.KEYWORD and self.value == target
 

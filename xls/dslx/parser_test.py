@@ -25,6 +25,7 @@ from xls.dslx import parser
 from xls.dslx import parser_helpers
 from xls.dslx import scanner
 from xls.dslx.scanner import Keyword
+from xls.dslx.scanner import TokenKind
 from xls.dslx.span import Pos
 from xls.dslx.span import Span
 from absl.testing import absltest
@@ -117,7 +118,7 @@ proc simple(addend: u32) {
     f = self.parse_function('fn concat(x: bits, y: bits) { x >>> y }')
     self.assertIsInstance(f, ast.Function)
     self.assertIsInstance(f.body, ast.Binop)
-    self.assertEqual(f.body.operator.kind, scanner.TokenKind.TRIPLE_CANGLE)
+    self.assertTrue(f.body.operator.is_kind(TokenKind.TRIPLE_CANGLE))
 
   def test_trailing_param_comma(self):
     program = textwrap.dedent("""\
@@ -283,7 +284,7 @@ proc simple(addend: u32) {
   def test_logical_not(self):
     b = parser.Bindings(None)
     b.add('f', ast.BuiltinNameDef('f'))
-    e = self.parse_expression('not f()', bindings=b)
+    e = self.parse_expression('! f()', bindings=b)
     self.assertIsInstance(e, ast.Unop)
     self.assertIsInstance(e.operand, ast.Invocation)
     self.assertIsInstance(e.operand.callee, ast.NameRef)
@@ -292,7 +293,7 @@ proc simple(addend: u32) {
   def test_double_negation(self):
     b = parser.Bindings(None)
     b.add('x', ast.BuiltinNameDef('x'))
-    e = self.parse_expression('not not x', bindings=b)
+    e = self.parse_expression('!!x', bindings=b)
     self.assertIsInstance(e, ast.Unop)
     self.assertIsInstance(e.operand, ast.Unop)
     self.assertIsInstance(e.operand.operand, ast.NameRef)
@@ -303,13 +304,13 @@ proc simple(addend: u32) {
     b.add('a', ast.BuiltinNameDef('a'))
     b.add('b', ast.BuiltinNameDef('b'))
     b.add('c', ast.BuiltinNameDef('c'))
-    e = self.parse_expression('not a or not b and c', bindings=b)
+    e = self.parse_expression('!a || !b && c', bindings=b)
     # This should group as:
-    #   ((not a) or ((not b) and c))
-    self.assertTrue(e.operator.is_keyword(Keyword.OR), msg=e.operator)
-    self.assertTrue(e.lhs.operator.is_keyword(Keyword.NOT))
-    self.assertTrue(e.rhs.operator.is_keyword(Keyword.AND))
-    self.assertTrue(e.rhs.lhs.operator.is_keyword(Keyword.NOT))
+    #   ((!a) || ((!b) && c))
+    self.assertTrue(e.operator.is_kind(TokenKind.DOUBLE_BAR), msg=e.operator)
+    self.assertTrue(e.lhs.operator.is_kind(TokenKind.BANG))
+    self.assertTrue(e.rhs.operator.is_kind(TokenKind.DOUBLE_AMPERSAND))
+    self.assertTrue(e.rhs.lhs.operator.is_kind(TokenKind.BANG))
     self.assertIsInstance(e.rhs.rhs, ast.NameRef)
     self.assertEqual(e.rhs.rhs.identifier, 'c')
 
