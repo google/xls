@@ -69,7 +69,7 @@ cc_library(
 
 cc_library(
     name = "init_xls",
-    srcs = ["init_google.cc"],
+    srcs = ["init_xls.cc"],
     hdrs = ["init_xls.h"],
     deps = [
         "@com_google_absl//absl/strings",
