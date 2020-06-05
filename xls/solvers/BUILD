@@ -23,6 +23,7 @@ cc_library(
     srcs = ["z3_ir_translator.cc"],
     hdrs = ["z3_ir_translator.h"],
     deps = [
+        ":z3_propagate_updates",
         ":z3_utils",
         "@com_google_absl//absl/debugging:leak_check",
         "@com_google_absl//absl/status",
@@ -65,12 +66,29 @@ cc_library(
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor",
         "//xls/ir",
         "//xls/netlist",
+        "//xls/scheduling:pipeline_schedule",
         "@z3//:api",
+    ],
+)
+
+cc_test(
+    name = "z3_lec_test",
+    srcs = ["z3_lec_test.cc"],
+    deps = [
+        ":z3_lec",
+        "//xls/common/status:matchers",
+        "//xls/ir:ir_parser",
+        "//xls/netlist",
+        "//xls/netlist:cell_library",
+        "//xls/netlist:fake_cell_library",
+        "//xls/netlist:netlist_parser",
+        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -79,6 +97,7 @@ cc_library(
     srcs = ["z3_netlist_translator.cc"],
     hdrs = ["z3_netlist_translator.h"],
     deps = [
+        ":z3_propagate_updates",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/flags:flag",
@@ -119,6 +138,17 @@ cc_test(
 )
 
 cc_library(
+    name = "z3_propagate_updates",
+    hdrs = ["z3_propagate_updates.h"],
+    deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/types:span",
+        "@z3//:api",
+    ],
+)
+
+cc_library(
     name = "z3_utils",
     srcs = ["z3_utils.cc"],
     hdrs = ["z3_utils.h"],
@@ -128,6 +158,7 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
         "//xls/ir:bits",
+        "//xls/ir:type",
         "@z3//:api",
         "@com_google_re2//:re2",
     ],
