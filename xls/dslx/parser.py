@@ -62,7 +62,6 @@ _BITWISE_KINDS = (
     TokenKind.DOUBLE_CANGLE,
     TokenKind.TRIPLE_CANGLE,
 )  # type: Tuple[TokenKind]
-_LOGICAL_OR_KINDS = (TokenKind.DOUBLE_BAR, TokenKind.HAT)  # type: Tuple[TokenKind]
 
 
 @dataclasses.dataclass
@@ -697,7 +696,7 @@ class Parser(token_parser.TokenParser):
 
   def _parse_logical_or_expression(self, bindings: Bindings) -> ast.Expr:
     return self._parse_binop_chain(self._parse_logical_and_expression,
-                                   _LOGICAL_OR_KINDS, bindings)
+                                   (TokenKind.DOUBLE_BAR,), bindings)
 
   def _parse_ternary_expression(self, bindings: Bindings) -> ast.Expr:
     """Parses a ternary expression or expr of higher precedence.
