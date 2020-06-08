@@ -240,6 +240,7 @@ py_library(
         ":sample_runner",
         requirement("termcolor"),
         "//xls/common:gfile",
+        "//xls/common:multiprocess",
     ],
 )
 
@@ -281,6 +282,7 @@ py_binary(
         "@com_google_absl_py//absl/flags",
         requirement("psutil"),
         "//xls/common:gfile",
+        "//xls/common:multiprocess",
     ],
 )
 
