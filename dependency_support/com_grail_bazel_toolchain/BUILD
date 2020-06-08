@@ -12,11 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@bazel_skylib//rules:native_binary.bzl", "native_binary")
-
-native_binary(
-    name = "clang_format",
-    src = "bin/clang-format",
-    out = "clang_format",
-    visibility = ["//visibility:public"],
-)
+# Needed to make this a package.
