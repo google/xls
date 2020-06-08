@@ -214,6 +214,7 @@ py_test(
         ":sample",
         ":sample_runner",
         "@com_google_absl_py//absl/testing:absltest",
+        "//xls/common:check_simulator",
         "//xls/dslx:concrete_type",
         "//xls/dslx:fakefs_util",
         "//xls/dslx:parser_helpers",
