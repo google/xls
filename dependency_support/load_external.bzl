@@ -17,6 +17,7 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 load("//dependency_support:edu_berkeley_abc/workspace.bzl", repo_abc = "repo")
+load("//dependency_support/boost:workspace.bzl", repo_boost = "repo")
 load("//dependency_support/org_gnu_bison:workspace.bzl", repo_bison = "repo")
 load("//dependency_support:org_sourceware_bzip2/workspace.bzl", repo_bzip2 = "repo")
 load("//dependency_support/org_tuxfamily_eigen:workspace.bzl", repo_eigen = "repo")
@@ -36,6 +37,7 @@ def load_external_repositories():
     """Loads external repositories with third-party code."""
     repo_abc()
     repo_bison()
+    repo_boost()
     repo_bzip2()
     repo_eigen()
     repo_flex()
