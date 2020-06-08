@@ -326,7 +326,9 @@ cc_library(
         "libs/json11/json11.cpp",
     ],
     hdrs = ["libs/json11/json11.hpp"],
+    includes = ["libs/json11"],
     licenses = ["notice"],
+    visibility = ["//visibility:public"],
 )
 
 cc_library(
