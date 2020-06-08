@@ -259,6 +259,13 @@ py_library(
     ],
 )
 
+py_library(
+    name = "multiprocess",
+    srcs = ["multiprocess.py"],
+    srcs_version = "PY3",
+    deps = ["@com_google_absl_py//absl:app"],
+)
+
 py_test(
     name = "runfiles_test",
     srcs = ["runfiles_test.py"],
