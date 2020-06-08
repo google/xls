@@ -298,7 +298,8 @@ extern "C" void __gcov_flush() ABSL_ATTRIBUTE_WEAK;
 #endif
 
 void LogMessage::FailWithoutStackTrace() {
-   // Internal: repeated trace logging suppressed here.#if defined _DEBUG && defined COMPILER_MSVC
+   // Internal: repeated trace logging suppressed here.
+#if defined _DEBUG && defined COMPILER_MSVC
   // When debugging on windows, avoid the obnoxious dialog.
   __debugbreak();
 #endif
