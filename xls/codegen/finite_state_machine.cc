@@ -430,7 +430,7 @@ absl::Status FsmBuilder::BuildOutputLogic(LogicRef* state) {
   }
 
   // Construct an always block encapsulating the combinational logic for
-  // determining state transitions.
+  // determining output values, next counter values, and next assignment values.
   module_->Add<BlankLine>();
   module_->Add<Comment>("FSM output logic.");
 
