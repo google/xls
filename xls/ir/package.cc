@@ -327,7 +327,7 @@ std::ostream& operator<<(std::ostream& os, const Package& package) {
   return os;
 }
 
-#define UnorderedMap std::unordered_map
+#include "xls/ir/container_hack.inc"
 
 UnorderedMap<std::string, Function*> Package::GetFunctionByName() {
   UnorderedMap<std::string, Function*> name_to_function;

@@ -123,6 +123,7 @@ cc_library(
 cc_library(
     name = "ir",
     srcs = [
+        "container_hack.inc",
         "dfs_visitor.cc",
         "function.cc",
         "node.cc",
