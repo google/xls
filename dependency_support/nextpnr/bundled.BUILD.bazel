@@ -1,0 +1,298 @@
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# BUILD file for nextpnr. Does currently not include the GUI.
+
+package(
+    features = [
+        "-use_header_modules",  # For exceptions.
+    ],
+)
+
+licenses(["notice"])
+
+exports_files(["LICENSE"])
+
+# List of families to build
+FAMILIES = [
+    "generic",
+    "ice40",
+    "ecp5",
+]
+
+DEPS = [
+    "@at_clifford_yosys//:json11",
+    "@boost//:filesystem",
+    "@boost//:iostreams",
+    "@boost//:program_options",
+    "@boost//:python",
+    "@boost//:system",
+    "@boost//:thread",
+    "@local_config_python//:python_headers",
+    "@org_tuxfamily_eigen//:eigen",
+]
+
+DEFINES = [
+    "NO_GUI",
+    "WITH_HEAP",
+]
+
+COPTS = [
+    "-fexceptions",
+    "-Wno-unused-variable",
+    "-Wno-implicit-conversion-floating-point-to-bool",
+    "-Wno-implicit-fallthrough",
+]
+
+genrule(
+    name = "version_h",
+    srcs = ["common/version.h.in"],
+    outs = ["common/version.h"],
+    cmd = "cat $(SRCS) | sed 's/@CURRENT_GIT_VERSION@/UNSPECIFIED_VERSION/g' > $@",
+)
+
+AUX_DIRECTORIES = [
+    "common",
+    "json",
+    "frontend",
+]
+
+TEXTUAL_HDRS = [
+    "common/arch_pybindings_shared.h",
+    "ecp5/arch.h",
+    "ecp5/archdefs.h",
+    "ecp5/dcu_bitstream.h",
+    "ecp5/constids.inc",
+    "ecp5/iotypes.inc",
+    "generic/arch.h",
+    "generic/archdefs.h",
+    "ice40/arch.h",
+    "ice40/archdefs.h",
+    "ice40/constids.inc",
+]
+
+COMMON_SRCS = glob(
+    ["%s/*.cc" % dir for dir in AUX_DIRECTORIES] +
+    ["%s/*.h" % dir for dir in AUX_DIRECTORIES],
+    exclude = TEXTUAL_HDRS,
+) + [
+    "common/version.h",
+]
+
+cc_library(
+    name = "common",
+    textual_hdrs = TEXTUAL_HDRS,
+)
+
+cc_binary(
+    name = "bbasm",
+    srcs = ["bba/main.cc"],
+    copts = COPTS,
+    deps = [
+        "@boost//:filesystem",
+        "@boost//:program_options",
+    ],
+)
+
+# The CLI binary target, one for each architecture.
+[cc_binary(
+    name = "nextpnr-%s" % family,
+    srcs = COMMON_SRCS + glob(
+        [
+            "%s/*.cc" % family,
+            "%s/*.h" % family,
+        ],
+        exclude = TEXTUAL_HDRS,
+    ),
+    copts = COPTS,
+    defines = DEFINES + [
+        "NEXTPNR_NAMESPACE=nextpnr_%s" % family,
+        "ARCH_%s" % family.upper(),
+        "ARCHNAME=%s" % family,
+        "MAIN_EXECUTABLE",
+    ],
+    includes = AUX_DIRECTORIES + [family],
+    linkopts = ["-lpthread"],
+    visibility = ["//visibility:public"],
+    deps = DEPS + [
+        "@com_google_xls//dependency_support/embedded_python_interpreter",
+        ":common",
+        ":%s_chipdb" % family,
+    ],
+) for family in FAMILIES]
+
+[cc_test(
+    name = "nextpnr-%s_test" % family,
+    srcs = COMMON_SRCS + glob(
+        [
+            "%s/*.cc" % family,
+            "%s/*.h" % family,
+            "tests/%s/*.cc" % family,
+            "tests/%s/*.h" % family,
+        ],
+        exclude = TEXTUAL_HDRS,
+    ),
+    copts = COPTS,
+    defines = DEFINES + [
+        "NEXTPNR_NAMESPACE=nextpnr_%s" % family,
+        "ARCH_%s" % family.upper(),
+        "ARCHNAME=%s" % family,
+    ],
+    includes = AUX_DIRECTORIES + [family],
+    linkopts = ["-lpthread"],
+    deps = DEPS + [
+        ":common",
+        ":%s_chipdb" % family,
+        "@com_google_googletest//:gtest_main",
+        "@com_google_xls//dependency_support/embedded_python_interpreter",
+    ],
+) for family in [
+    # There are no unit tests for ECP5 under tests/ecp5.
+    "generic",
+    "ice40",
+]]
+
+# Dummy target, the "generic" family has no chip DB.
+cc_library(
+    name = "generic_chipdb",
+)
+
+BBASM_ENDIAN_FLAG = "--le"
+
+# ECP5
+ECP5_DEVICES = [
+    "25k",
+    "45k",
+    "85k",
+]
+
+py_binary(
+    name = "trellis_import",
+    srcs = ["ecp5/trellis_import.py"],
+    python_version = "PY3",
+    deps = [
+        "@prjtrellis//:prjtrellis",
+    ],
+)
+
+[genrule(
+    name = "ecp5_chipdb_%s_bba" % device,
+    srcs = [
+        "ecp5/constids.inc",
+        "ecp5/gfx.h",
+        "@prjtrellis_db//:devices.json",
+        "@prjtrellis_db//:files",
+    ],
+    outs = ["generated/ecp5_chipdb_%s.bba" % device],
+    cmd = "PRJTRELLIS_DB=$$(dirname '$(location @prjtrellis_db//:devices.json)') $(location :trellis_import) -p $(location ecp5/constids.inc) -g $(location ecp5/gfx.h) %s > $@" % device,
+    exec_tools = [":trellis_import"],
+) for device in ECP5_DEVICES]
+
+[genrule(
+    name = "ecp5_chipdb_%s_cc" % device,
+    srcs = ["generated/ecp5_chipdb_%s.bba" % device],
+    outs = ["generated/ecp5_chipdb_%s.cc" % device],
+    cmd = "$(location :bbasm) --c %s $(SRCS) $@" % BBASM_ENDIAN_FLAG,
+    exec_tools = [":bbasm"],
+) for device in ECP5_DEVICES]
+
+cc_library(
+    name = "ecp5_chipdb",
+    srcs = ["generated/ecp5_chipdb_%s.cc" % device for device in ECP5_DEVICES],
+    hdrs = ["common/nextpnr.h"],
+    copts = COPTS,
+    defines = ["NEXTPNR_NAMESPACE=nextpnr_ecp5"],
+    includes = [
+        "common",
+        "ecp5",
+    ],
+    deps = [
+        ":common",
+        "@boost//:functional",
+        "@boost//:lexical_cast",
+        "@boost//:thread",
+    ],
+)
+
+# ICE40
+ICE40_DEVICES = [
+    "384",
+    "1k",
+    "5k",
+    "u4k",
+    "8k",
+]
+
+ICE40_CHIPDB_OPTS = {
+    "384": "--slow $(location @at_clifford_icestorm//:icefuzz/timings_lp384.txt)",
+    "1k": "--fast $(location @at_clifford_icestorm//:icefuzz/timings_hx1k.txt) --slow $(location @at_clifford_icestorm//:icefuzz/timings_lp1k.txt)",
+    "5k": "--slow $(location @at_clifford_icestorm//:icefuzz/timings_up5k.txt)",
+    "u4k": "--slow $(location @at_clifford_icestorm//:icefuzz/timings_u4k.txt)",
+    "8k": "--fast $(location @at_clifford_icestorm//:icefuzz/timings_hx8k.txt) --slow $(location @at_clifford_icestorm//:icefuzz/timings_lp8k.txt)",
+}
+
+py_binary(
+    name = "ice40_chipdb_py",
+    srcs = ["ice40/chipdb.py"],
+    main = "ice40/chipdb.py",
+    python_version = "PY3",
+)
+
+[genrule(
+    name = "ice40_chipdb_%s_bba" % device,
+    srcs = [
+        "ice40/constids.inc",
+        "ice40/gfx.h",
+        "@at_clifford_icestorm//:chipdb-%s.txt" % device,
+        "@at_clifford_icestorm//:icefuzz/timings_lp384.txt",
+        "@at_clifford_icestorm//:icefuzz/timings_hx1k.txt",
+        "@at_clifford_icestorm//:icefuzz/timings_lp1k.txt",
+        "@at_clifford_icestorm//:icefuzz/timings_up5k.txt",
+        "@at_clifford_icestorm//:icefuzz/timings_u4k.txt",
+        "@at_clifford_icestorm//:icefuzz/timings_hx8k.txt",
+        "@at_clifford_icestorm//:icefuzz/timings_lp8k.txt",
+    ],
+    outs = ["generated/ice40_chipdb_%s.bba" % device],
+    cmd = "$(location :ice40_chipdb_py) -p $(location ice40/constids.inc) -g $(location ice40/gfx.h) %s $(location @at_clifford_icestorm//:chipdb-%s.txt) > $@" % (
+        ICE40_CHIPDB_OPTS[device],
+        device,
+    ),
+    exec_tools = [":ice40_chipdb_py"],
+) for device in ICE40_DEVICES]
+
+[genrule(
+    name = "ice40_chipdb_%s_cc" % device,
+    srcs = ["generated/ice40_chipdb_%s.bba" % device],
+    outs = ["generated/ice40_chipdb_%s.cc" % device],
+    cmd = "$(location :bbasm) --c %s $(SRCS) $@" % BBASM_ENDIAN_FLAG,
+    exec_tools = [":bbasm"],
+) for device in ICE40_DEVICES]
+
+cc_library(
+    name = "ice40_chipdb",
+    srcs = ["generated/ice40_chipdb_%s.cc" % device for device in ICE40_DEVICES],
+    hdrs = ["common/nextpnr.h"],
+    copts = COPTS,
+    defines = ["NEXTPNR_NAMESPACE=nextpnr_ice40"],
+    includes = [
+        "common",
+        "ice40",
+    ],
+    deps = [
+        ":common",
+        "@boost//:functional",
+        "@boost//:lexical_cast",
+        "@boost//:thread",
+    ],
+)
