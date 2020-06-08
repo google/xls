@@ -507,14 +507,14 @@ don't match up.
 For example, instead of writing:
 
 ```
-let ch: u32 = (e & f) ^ ((~e) & g) in
+let ch: u32 = (e & f) ^ ((!e) & g) in
 let (h, g, f): (u32, u32, u32) = (g, f, e) in
 ```
 
 one can write the following, as long as the types can be properly inferred:
 
 ```
-let ch = (e & f) ^ ((~e) & g) in
+let ch = (e & f) ^ ((!e) & g) in
 let (h, g, f) = (g, f, e) in
 ```
 
@@ -639,7 +639,7 @@ which can be combined with a mapping from AST node to its deduced type
 
 DSLX supports three types of unary expressions:
 
-*   bit-wise not (the `~` operator)
+*   bit-wise not (the `!` operator)
 *   negate (the `-` operator, computes the two's complement negation)
 
 ### Binary Expressions
@@ -657,18 +657,20 @@ operators.
 *   subtract (`-`)
 *   xor (`^`)
 *   multiply (`*`)
+*   logical or (`||`)
+*   logical and (`&&`)
 
 ### Comparison Expressions
 
 For comparison expressions the types of both operands must match. However these
 operations return a result of type `bits[1]`, aka `bool`.
 
-*   equal ('==')
+*   equal (`==`)
 *   not-equal (`!=`)
-*   greater-equal ('>=')
-*   greater ('>')
-*   less-equal ('<=')
-*   less ('<')
+*   greater-equal (`>=`)
+*   greater (`>`)
+*   less-equal (`<=`)
+*   less (`<`)
 
 ### Concat Expression
 
@@ -794,7 +796,7 @@ for (i, accum): (u32, u32) in range(u32:0, u32:4) {
 Go.
 
 In the example below, the loop will iterate 8 times, following the array
-dimenion of `x`. Each iteration produces a tuple with the current index
+dimension of `x`. Each iteration produces a tuple with the current index
 (`i` ranging from 0 to 7) and the value at the index (`e = x[i]`).
 
 ```
@@ -1022,7 +1024,7 @@ import xls.dslx.interpreter.tests.mod_imported
 import xls.dslx.interpreter.tests.mod_imported as mi
 
 fn main(x: u3) -> u1 {
-  mod_imported::my_lsb(x) or mi::my_lsb(x)
+  mod_imported::my_lsb(x) || mi::my_lsb(x)
 }
 
 test main {
@@ -1049,7 +1051,7 @@ import xls.dslx.interpreter.tests.mod_imported
 import xls.dslx.interpreter.tests.mod_imported as mi
 
 fn main(x: u3) -> u1 {
-  mod_imported::my_lsb(x) or mi::my_lsb(x)
+  mod_imported::my_lsb(x) || mi::my_lsb(x)
 }
 
 test main {
@@ -1257,8 +1259,8 @@ functions:
   let x0 = u32:0x0FFFFFF8 in
   let x1 = clz(x0) in
   let x2 = ctz(x0) in
-  let _ : assert_eq(u32:4, clz) in
-  assert_eq(u32:3, ctz)
+  let _ = assert_eq(u32:4, x1) in
+  assert_eq(u32:3, x2)
 ```
 
 ### signex
