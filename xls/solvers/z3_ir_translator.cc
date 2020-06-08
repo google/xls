@@ -258,7 +258,7 @@ Z3_ast IrTranslator::GetTranslation(const Node* source) {
   return translations_.at(source);
 }
 
-void IrTranslator::SetTranslation(Node* node, Z3_ast dst) {
+void IrTranslator::SetTranslation(const Node* node, Z3_ast dst) {
   Z3_ast old = translations_.at(node);
   translations_[node] = dst;
 
@@ -274,21 +274,12 @@ void IrTranslator::SetTranslation(Node* node, Z3_ast dst) {
   }
 
   auto get_inputs = [](const Node* node) {
-    std::vector<const Node*> operands;
-    operands.reserve(node->operands().size());
-    for (Node* operand : node->operands()) {
-      operands.push_back(operand);
-    }
-    return operands;
+    return std::vector<const Node*>(node->operands().begin(),
+                                    node->operands().end());
   };
 
   auto get_outputs = [](const Node* node) {
-    std::vector<const Node*> children;
-    children.reserve(node->users().size());
-    for (Node* child : node->users()) {
-      children.push_back(child);
-    }
-    return children;
+    return std::vector<const Node*>(node->users().begin(), node->users().end());
   };
 
   PropagateAstUpdates<const Node*>(ctx_, translations_, get_inputs, get_outputs,

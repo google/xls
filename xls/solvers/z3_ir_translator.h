@@ -64,7 +64,7 @@ class IrTranslator : public DfsVisitorWithDefault {
 
   // Sets the translation of a node to the given Z3_ast, for example to set the
   // input to a particular node as a constant value.
-  void SetTranslation(Node* node, Z3_ast dst);
+  void SetTranslation(const Node* node, Z3_ast dst);
 
   // Convenience version for the above for the function return Node.
   Z3_ast GetReturnNode();

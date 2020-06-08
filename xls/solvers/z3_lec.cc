@@ -30,6 +30,18 @@ using netlist::rtl::Module;
 using netlist::rtl::Netlist;
 using netlist::rtl::NetRef;
 
+namespace {
+
+std::vector<const Node*> SetToIdSortedVector(
+    const absl::flat_hash_set<const Node*> set) {
+  std::vector<const Node*> nodes(set.begin(), set.end());
+  std::sort(nodes.begin(), nodes.end(),
+            [](const Node* a, const Node* b) { return a->id() < b->id(); });
+  return nodes;
+}
+
+}  // namespace
+
 xabsl::StatusOr<std::unique_ptr<Lec>> Lec::Create(const LecParams& params) {
   auto lec = absl::WrapUnique<Lec>(
       new Lec(params.ir_package, params.ir_function, params.netlist,
@@ -103,7 +115,7 @@ std::vector<const Node*> Lec::GetIrInputs() {
   if (schedule_ && (stage_ != 0)) {
     // If we're evaluating a single stage, then we need to create "fake"
     // Z3 nodes for the stage inputs.
-    absl::flat_hash_set<Node*> stage_inputs;
+    absl::flat_hash_set<const Node*> stage_inputs;
     for (const Node* node : schedule_->nodes_in_cycle(stage_)) {
       for (Node* operand : node->operands()) {
         if (schedule_->cycle(operand) != stage_) {
@@ -113,7 +125,9 @@ std::vector<const Node*> Lec::GetIrInputs() {
     }
 
     // Create new Z3 [free] constants to replace those out-of-stage inputs.
-    for (Node* stage_input : stage_inputs) {
+    // Plop the inputs into a vector & sort it for deterministic iteration
+    // order.
+    for (const Node* stage_input : SetToIdSortedVector(stage_inputs)) {
       Z3_ast foo = Z3_mk_const(
           ctx(), Z3_mk_string_symbol(ctx(), stage_input->GetName().c_str()),
           TypeToSort(ctx(), *stage_input->GetType()));
@@ -137,8 +151,9 @@ std::vector<const Node*> Lec::GetIrOutputs() {
     return {ir_function_->return_value()};
   }
 
-  // First, collect all stage inputs - those input nodes not present in this
-  // cycle - along with all stage outputs.
+  // Collect all stage outputs - those nodes using a node within this stage
+  // but that aren't present in this cycle. Use a set to uniqify the output
+  // nodes.
   absl::flat_hash_set<const Node*> stage_outputs;
   for (const Node* node : schedule_->nodes_in_cycle(stage_)) {
     for (const Node* user : node->users()) {
@@ -148,13 +163,8 @@ std::vector<const Node*> Lec::GetIrOutputs() {
     }
   }
 
-  std::vector<const Node*> ir_output_nodes;
-  ir_output_nodes.reserve(stage_outputs.size());
-  for (const Node* node : stage_outputs) {
-    ir_output_nodes.push_back(node);
-  }
-
-  return ir_output_nodes;
+  // Ensure a deterministic output order.
+  return SetToIdSortedVector(stage_outputs);
 }
 
 xabsl::StatusOr<std::vector<NetRef>> Lec::GetIrNetrefs(const Node* node) {
@@ -239,6 +249,9 @@ absl::Status Lec::BindNetlistInputs(absl::Span<const Node*> ir_inputs) {
       FlattenNetlistInputs(ir_inputs);
   for (auto& input : inputs) {
     // Skip synthesized inputs.
+    // TODO(rspringer): These special wires aren't necessarily fixed - they're
+    // specified by codegen, and could change in the future. These need to be
+    // properly handled (i.e., not hardcoded).
     if (input.first == "clk" || input.first == "input_valid") {
       continue;
     }
@@ -285,6 +298,9 @@ xabsl::StatusOr<std::vector<Z3_ast>> Lec::GetNetlistOutputs(
     z3_outputs.reserve(netrefs.size());
     for (const auto& netref : netrefs) {
       // Drop output wires not part of the original signature.
+      // TODO(rspringer): These special wires aren't necessarily fixed - they're
+      // specified by codegen, and could change in the future. These need to be
+      // properly handled (i.e., not hardcoded).
       if (netref->name() == "output_valid") {
         continue;
       }

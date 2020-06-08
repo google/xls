@@ -54,7 +54,13 @@ struct LecParams {
 // in XLS IR (perhaps converted from DSLX) and a netlist.
 class Lec {
  public:
+  // Creates a LEC object for checking across the entire specified function and
+  // module.
   static xabsl::StatusOr<std::unique_ptr<Lec>> Create(const LecParams& params);
+
+  // Creates a LEC object for a particular pipeline stage. The schedule only
+  // directly applies to the specified XLS Function; the mapping of Netlist
+  // cell/wire to stage is derived from there.
   static xabsl::StatusOr<std::unique_ptr<Lec>> CreateForStage(
       const LecParams& params, const PipelineSchedule& schedule, int stage);
   ~Lec();
