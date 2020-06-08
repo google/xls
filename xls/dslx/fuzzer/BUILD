@@ -278,6 +278,7 @@ py_binary(
         ":sample",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
+        requirement("psutil"),
         "//xls/common:gfile",
     ],
 )
