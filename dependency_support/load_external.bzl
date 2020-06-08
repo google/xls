@@ -211,14 +211,6 @@ def load_external_repositories():
     )
 
     http_archive(
-        name = "clang_binaries",
-        urls = ["https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.0/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz"],
-        sha256 = "b25f592a0c00686f03e3b7db68ca6dc87418f681f4ead4df4745a01d9be63843",
-        strip_prefix = "clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04",
-        build_file = "@//dependency_support/clang_binaries:bundled.BUILD.bazel",
-    )
-
-    http_archive(
         name = "io_bazel_rules_closure",
         sha256 = "7d206c2383811f378a5ef03f4aacbcf5f47fd8650f6abbc3fa89f3a27dd8b176",
         strip_prefix = "rules_closure-0.10.0",
