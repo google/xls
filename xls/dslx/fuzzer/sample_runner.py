@@ -203,6 +203,8 @@ class SampleRunner:
     if args_filename:
       args_batch = sample.parse_args_batch(self._read_file(args_filename))
 
+    self._write_file('revision.txt', revision.get_revision())
+
     # Gather results in an OrderedDict because the first entered result is used
     # as a reference.
     results = collections.OrderedDict()  # type: Dict[Text, Sequence[Value]]
@@ -298,6 +300,7 @@ class SampleRunner:
           stdout=subprocess.PIPE,
           stderr=f_stderr,
           check=False)
+
     if logging.vlog_is_on(4):
       logging.vlog(4, '{} stdout:'.format(basename))
       # stdout and stderr can be long so split them by line to avoid clipping.
