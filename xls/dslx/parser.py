@@ -655,8 +655,15 @@ class Parser(token_parser.TokenParser):
 
     return lhs
 
+  def _parse_cast_as_expression(self, bindings: Bindings) -> ast.Expr:
+    lhs = self._parse_term(bindings)
+    while self._try_pop_keyword(Keyword.AS):
+      type_ = self._parse_type_annotation(bindings)
+      lhs = ast.Cast(type_, lhs)
+    return lhs
+
   def _parse_strong_arithmetic_expression(self, bindings: Bindings) -> ast.Expr:
-    return self._parse_binop_chain(self._parse_term, _STRONG_ARITHMETIC_KINDS,
+    return self._parse_binop_chain(self._parse_cast_as_expression, _STRONG_ARITHMETIC_KINDS,
                                    bindings)
 
   def _parse_weak_arithmetic_expression(self, bindings: Bindings) -> ast.Expr:
@@ -679,15 +686,8 @@ class Parser(token_parser.TokenParser):
     return self._parse_binop_chain(self._parse_xor_expression, (TokenKind.BAR,),
                                    bindings)
 
-  def _parse_cast_as_expression(self, bindings: Bindings) -> ast.Expr:
-    lhs = self._parse_or_expression(bindings)
-    while self._try_pop_keyword(Keyword.AS):
-      type_ = self._parse_type_annotation(bindings)
-      lhs = ast.Cast(type_, lhs)
-    return lhs
-
   def _parse_comparison_expression(self, bindings: Bindings) -> ast.Expr:
-    return self._parse_binop_chain(self._parse_cast_as_expression,
+    return self._parse_binop_chain(self._parse_or_expression,
                                    tuple(ast.Binop.COMPARISON_KINDS), bindings)
 
   def _parse_logical_and_expression(self, bindings: Bindings) -> ast.Expr:
