@@ -193,9 +193,7 @@ class Package {
   UnorderedMap<Fileno, std::string> fileno_to_filename_;
   UnorderedMap<std::string, Fileno> filename_to_fileno_;
 
-#undef StableMap
-#undef UnorderedMap
-#undef UnorderedSet
+#include "xls/ir/container_hack_undef.inc"
 };
 
 std::ostream& operator<<(std::ostream& os, const Package& package);

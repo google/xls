@@ -228,8 +228,10 @@ class Node {
 
   absl::optional<SourceLocation> loc_;
   std::vector<Node*> operands_;
-  using UnorderedNodeSet = std::unordered_set<Node*>;
-  UnorderedNodeSet users_set_;
+
+#include "xls/ir/container_hack.inc"
+  UnorderedSet<Node*> users_set_;
+#include "xls/ir/container_hack_undef.inc"
   std::vector<Node*> users_;
 };
 
