@@ -36,7 +36,7 @@ class InterpreterTest(unittest.TestCase):
   def _parse_and_test(self, program: Text, trace_all: bool = False) -> None:
     with ffu.Patcher() as patcher:
       filename = '/fake/test_module.x'
-      patcher.fs.CreateFile(filename, contents=program)
+      patcher.fs.create_file(filename, contents=program)
       self.assertFalse(
           parse_and_interpret.parse_and_test(
               program, 'test_module', trace_all=trace_all, filename=filename))
