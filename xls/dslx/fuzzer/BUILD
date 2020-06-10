@@ -214,6 +214,7 @@ py_test(
         ":sample",
         ":sample_runner",
         "@com_google_absl_py//absl/testing:absltest",
+        "//xls/common:check_simulator",
         "//xls/dslx:concrete_type",
         "//xls/dslx:fakefs_util",
         "//xls/dslx:parser_helpers",
@@ -239,6 +240,7 @@ py_library(
         ":sample_runner",
         requirement("termcolor"),
         "//xls/common:gfile",
+        "//xls/common:multiprocess",
     ],
 )
 
@@ -278,7 +280,9 @@ py_binary(
         ":sample",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
+        requirement("psutil"),
         "//xls/common:gfile",
+        "//xls/common:multiprocess",
     ],
 )
 

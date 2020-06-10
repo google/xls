@@ -107,7 +107,7 @@ TEST_F(BddFunctionTest, Parity) {
 
 TEST_F(BddFunctionTest, BenchmarkTest) {
   // Run samples through various bechmarks and verify against the interpreter.
-    for (std::string benchmark : {"crc32", "sha256"}) {
+  for (std::string benchmark : {"crc32", "sha256"}) {
     XLS_ASSERT_OK_AND_ASSIGN(
         std::unique_ptr<Package> p,
         sample_packages::GetBenchmark(benchmark, /*optimized=*/true));

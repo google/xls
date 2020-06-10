@@ -830,8 +830,8 @@ in range(u32:0, u32:4) { accum + i }(u32:0)
 To add up values from 7 to 11 (exclusive), one would write:
 
 ```
-for (i, accum):
-(u32, u32) in range(u32:0, u32:4) { accum + i }(u32:7)`
+let base: u32 = u32:7 in
+for (i, accum): (u32, u32) in range(u32:0, u32:4) { accum + base + i }(u32:0)
 ```
 
 Invariants can be used in the loop body, for example:

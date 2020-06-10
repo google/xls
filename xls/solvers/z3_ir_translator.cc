@@ -23,6 +23,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/abstract_evaluator.h"
 #include "xls/ir/abstract_node_evaluator.h"
+#include "xls/solvers/z3_propagate_updates.h"
 #include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3_api.h"
 #include "../z3/src/api/z3_fpa.h"
@@ -255,6 +256,34 @@ IrTranslator::~IrTranslator() {
 
 Z3_ast IrTranslator::GetTranslation(const Node* source) {
   return translations_.at(source);
+}
+
+void IrTranslator::SetTranslation(const Node* node, Z3_ast dst) {
+  Z3_ast old = translations_.at(node);
+  translations_[node] = dst;
+
+  std::vector<UpdatedNode<const Node*>> updated_nodes;
+  for (Node* user : node->users()) {
+    UpdatedNode<const Node*> updated_node;
+    updated_node.node = user;
+    updated_node.old_ast = translations_[user];
+    translations_[user] =
+        Z3_substitute(ctx_, translations_[user], 1, &old, &dst);
+    updated_node.new_ast = translations_[user];
+    updated_nodes.push_back(updated_node);
+  }
+
+  auto get_inputs = [](const Node* node) {
+    return std::vector<const Node*>(node->operands().begin(),
+                                    node->operands().end());
+  };
+
+  auto get_outputs = [](const Node* node) {
+    return std::vector<const Node*>(node->users().begin(), node->users().end());
+  };
+
+  PropagateAstUpdates<const Node*>(ctx_, translations_, get_inputs, get_outputs,
+                                   updated_nodes);
 }
 
 Z3_ast IrTranslator::GetReturnNode() {
@@ -510,33 +539,6 @@ absl::Status IrTranslator::HandleConcat(Concat* concat) {
   return HandleNary(concat, Z3_mk_concat, /*invert_result=*/false);
 }
 
-Z3_sort IrTranslator::CreateTupleSort(Type* type) {
-  TupleType* tuple_type = type->AsTupleOrDie();
-  Z3_func_decl mk_tuple_decl;
-  std::string tuple_type_str = tuple_type->ToString();
-  Z3_symbol tuple_sort_name = Z3_mk_string_symbol(ctx_, tuple_type_str.c_str());
-
-  absl::Span<Type* const> element_types = tuple_type->element_types();
-  int64 num_elements = element_types.size();
-  std::vector<Z3_symbol> field_names;
-  std::vector<Z3_sort> field_sorts;
-  field_names.reserve(num_elements);
-  field_sorts.reserve(num_elements);
-
-  for (int i = 0; i < num_elements; i++) {
-    field_names.push_back(Z3_mk_string_symbol(
-        ctx_, absl::StrCat(tuple_type_str, "_", i).c_str()));
-    field_sorts.push_back(TypeToSort(element_types[i]));
-  }
-
-  // Populated in Z3_mk_tuple_sort.
-  std::vector<Z3_func_decl> proj_decls;
-  proj_decls.resize(num_elements);
-  return Z3_mk_tuple_sort(ctx_, tuple_sort_name, num_elements,
-                          field_names.data(), field_sorts.data(),
-                          &mk_tuple_decl, proj_decls.data());
-}
-
 Z3_ast IrTranslator::CreateTuple(Z3_sort tuple_sort,
                                  absl::Span<Z3_ast> elements) {
   Z3_func_decl mk_tuple_decl = Z3_get_tuple_sort_mk_decl(ctx_, tuple_sort);
@@ -545,7 +547,7 @@ Z3_ast IrTranslator::CreateTuple(Z3_sort tuple_sort,
 
 Z3_ast IrTranslator::CreateTuple(Type* tuple_type,
                                  absl::Span<Z3_ast> elements) {
-  Z3_sort tuple_sort = TypeToSort(tuple_type);
+  Z3_sort tuple_sort = TypeToSort(ctx_, *tuple_type);
   Z3_func_decl mk_tuple_decl = Z3_get_tuple_sort_mk_decl(ctx_, tuple_sort);
   return Z3_mk_app(ctx_, mk_tuple_decl, elements.size(), elements.data());
 }
@@ -554,26 +556,7 @@ xabsl::StatusOr<Z3_ast> IrTranslator::CreateZ3Param(
     Type* type, absl::string_view param_name) {
   return Z3_mk_const(ctx_,
                      Z3_mk_string_symbol(ctx_, std::string(param_name).c_str()),
-                     TypeToSort(type));
-}
-
-Z3_sort IrTranslator::TypeToSort(Type* type) {
-  switch (type->kind()) {
-    case TypeKind::kBits:
-      return Z3_mk_bv_sort(ctx_, type->GetFlatBitCount());
-    case TypeKind::kTuple:
-      return CreateTupleSort(type);
-    case TypeKind::kArray: {
-      ArrayType* array_type = type->AsArrayOrDie();
-      Z3_sort element_sort = TypeToSort(array_type->element_type());
-      Z3_sort index_sort =
-          Z3_mk_bv_sort(ctx_, Bits::MinBitCountUnsigned(array_type->size()));
-      return Z3_mk_array_sort(ctx_, index_sort, element_sort);
-    }
-    default:
-      XLS_LOG(FATAL) << "Unsupported type kind: "
-                     << TypeKindToString(type->kind());
-  }
+                     TypeToSort(ctx_, *type));
 }
 
 absl::Status IrTranslator::HandleParam(Param* param) {
@@ -625,7 +608,7 @@ Z3_ast IrTranslator::ZeroOfSort(Z3_sort sort) {
 }
 
 Z3_ast IrTranslator::CreateArray(ArrayType* type, absl::Span<Z3_ast> elements) {
-  Z3_sort element_sort = TypeToSort(type->element_type());
+  Z3_sort element_sort = TypeToSort(ctx_, *type->element_type());
 
   // Zero-element arrays are A Thing, so we need to synthesize a Z3 zero value
   // for all our array element types.

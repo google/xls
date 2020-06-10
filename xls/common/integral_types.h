@@ -15,16 +15,6 @@
 #ifndef THIRD_PARTY_XLS_COMMON_INTEGRAL_TYPES_H_
 #define THIRD_PARTY_XLS_COMMON_INTEGRAL_TYPES_H_
 
-typedef signed char int8;
-typedef short int16;
-typedef int int32;
-typedef long long int64;
-typedef unsigned char uint8;
-typedef unsigned short uint16;
-typedef unsigned int uint32;
-typedef unsigned long long uint64;
-typedef unsigned long  uword_t;
-
-static const  int16 kint16min  = (( int16) ~0x7FFF);
+#include "xls/common/integral_types.inc"
 
 #endif  // THIRD_PARTY_XLS_COMMON_INTEGRAL_TYPES_H_

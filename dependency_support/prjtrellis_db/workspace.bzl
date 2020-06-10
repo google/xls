@@ -26,5 +26,5 @@ def repo():
         ],
         strip_prefix = "prjtrellis-db-c137076fdd8bfca3d2bf9cdacda9983dbbec599a",
         sha256 = "01d3d3906a7f690bd05f97b87bf196f602c659e0dadc77ebbccdd1acf1e362ca",
-        build_file = Label("//dependency_support:prjtrellis_db/bundled.BUILD.bazel"),
+        build_file = Label("//dependency_support/prjtrellis_db:bundled.BUILD.bazel"),
     )

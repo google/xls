@@ -29,8 +29,11 @@ def main(argv):
                          '<generate_vvp_runner> <path_of_iverilog_output>')
 
   path = argv[1]
-  genfiles = 'bin/'
-  path = path[path.index(genfiles) + len(genfiles):]
+  # Strip off the leading portion of the path that's used in genrules; i.e. the
+  # first three elements of:
+  #
+  # bazel-out/k8-fastbuild/bin/xls/[...]
+  path = '/'.join(path.split('/')[3:])
 
   print("""#!/bin/bash
 

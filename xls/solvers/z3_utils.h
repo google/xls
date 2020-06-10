@@ -18,6 +18,8 @@
 
 #include <string>
 
+#include "absl/strings/string_view.h"
+#include "xls/ir/type.h"
 #include "../z3/src/api/z3.h"
 
 namespace xls {
@@ -47,6 +49,9 @@ std::string QueryNode(Z3_context ctx, Z3_model model, Z3_ast node,
 // pattern "#b[01]+" will be converted to "#x[0-9a-f]+", where the values are
 // converted accordingly.
 std::string HexifyOutput(const std::string& input);
+
+// Converts a XLS IR Type to the corresponding Z3 sort.
+Z3_sort TypeToSort(Z3_context ctx, const Type& type);
 
 }  // namespace z3
 }  // namespace solvers

@@ -210,6 +210,13 @@ class ModuleBuilder {
       Expression* lhs, Expression* rhs, Type* xls_type,
       std::function<void(Expression*, Expression*)> add_assignment_statement);
 
+  // For ArrayUpdate operations, emits the necessary assignments for an element
+  // of the array.
+  absl::Status EmitArrayUpdateElement(Expression* lhs, BinaryInfix* condition,
+                                      Expression* new_value,
+                                      Expression* original_value,
+                                      Type* element_type);
+
   // Assigns the arbitrarily-typed Value 'value' to 'lhs'. Depending upon the
   // type this may require multiple assignment statements. The function
   // add_assignment_statement should add a single assignment statement.

@@ -18,3 +18,10 @@
 
 def check_simulator(simulator: str) -> None:  # pylint: disable=unused-argument
   return None
+
+
+# TODO(leary): 2020-06-06 Turn this into a sample program run against the
+# simulator as a capability check.
+def runs_system_verilog() -> bool:
+  """Returns whether the default simulator runs SystemVerilog programs."""
+  return False

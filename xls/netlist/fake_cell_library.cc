@@ -28,7 +28,7 @@ CellLibrary MakeFakeCellLibrary() {
       CellKind::kInverter, "INV", std::vector<std::string>{"A"},
       std::vector<OutputPin>{pin})));
   pin.name = "Q";
-  pin.function = "?";
+  pin.function = "D";
   XLS_CHECK_OK(cell_library.AddEntry(
       CellLibraryEntry(CellKind::kFlop, "DFF", std::vector<std::string>{"D"},
                        std::vector<OutputPin>{pin}, "CLK")));

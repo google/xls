@@ -76,7 +76,7 @@ class CodeGenMainTest(parameterized.TestCase):
     verilog_path = test_base.create_named_output_text_file(
         f'sha256.{pipeline_stages}_stage.v')
     subprocess.check_call([
-        CODEGEN_MAIN_PATH, '--generator=pipeline',
+        CODEGEN_MAIN_PATH, '--generator=pipeline', '--delay_model=unit',
         '--pipeline_stages=' + str(pipeline_stages), '--alsologtostderr',
         '--output_signature_path=' + signature_path,
         '--output_verilog_path=' + verilog_path, SHA256_IR_PATH
@@ -98,7 +98,7 @@ class CodeGenMainTest(parameterized.TestCase):
     verilog_path = test_base.create_named_output_text_file(
         f'sha256.clock_{clock_period_ps}_ps.v')
     subprocess.check_call([
-        CODEGEN_MAIN_PATH, '--generator=pipeline',
+        CODEGEN_MAIN_PATH, '--generator=pipeline', '--delay_model=unit',
         '--clock_period_ps=' + str(clock_period_ps), '--alsologtostderr',
         '--output_verilog_path=' + verilog_path, SHA256_IR_PATH
     ])
@@ -110,7 +110,7 @@ class CodeGenMainTest(parameterized.TestCase):
         f'sha256.clock_{clock_period_ps}_ps_pipeline_stages_{pipeline_stages}.v'
     )
     subprocess.check_call([
-        CODEGEN_MAIN_PATH, '--generator=pipeline',
+        CODEGEN_MAIN_PATH, '--generator=pipeline', '--delay_model=unit',
         '--pipeline_stages=' + str(pipeline_stages),
         '--clock_period_ps=' + str(clock_period_ps), '--alsologtostderr',
         '--output_verilog_path=' + verilog_path, SHA256_IR_PATH
@@ -119,9 +119,9 @@ class CodeGenMainTest(parameterized.TestCase):
   def test_custom_module_name(self):
     ir_file = self.create_tempfile(content=NOT_ADD_IR)
     verilog = subprocess.check_output([
-        CODEGEN_MAIN_PATH, '--generator=pipeline', '--pipeline_stages=3',
-        '--clock_period_ps=1500', '--alsologtostderr', '--entry=not_add',
-        '--module_name=foo_qux_baz', ir_file.full_path
+        CODEGEN_MAIN_PATH, '--generator=pipeline', '--delay_model=unit',
+        '--pipeline_stages=3', '--clock_period_ps=1500', '--alsologtostderr',
+        '--entry=not_add', '--module_name=foo_qux_baz', ir_file.full_path
     ]).decode('utf-8')
     self.assertIn('module foo_qux_baz(', verilog)
 
@@ -129,7 +129,7 @@ class CodeGenMainTest(parameterized.TestCase):
     verilog_path = test_base.create_named_output_text_file('sha256.sv')
     subprocess.check_call([
         CODEGEN_MAIN_PATH, '--use_system_verilog', '--generator=pipeline',
-        '--pipeline_stages=10', '--alsologtostderr',
+        '--delay_model=unit', '--pipeline_stages=10', '--alsologtostderr',
         '--output_verilog_path=' + verilog_path, SHA256_IR_PATH
     ])
 
@@ -142,7 +142,7 @@ class CodeGenMainTest(parameterized.TestCase):
     verilog_path = test_base.create_named_output_text_file('sha256.v')
     subprocess.check_call([
         CODEGEN_MAIN_PATH, '--nouse_system_verilog', '--generator=pipeline',
-        '--pipeline_stages=10', '--alsologtostderr',
+        '--delay_model=unit', '--pipeline_stages=10', '--alsologtostderr',
         '--output_verilog_path=' + verilog_path, SHA256_IR_PATH
     ])
 

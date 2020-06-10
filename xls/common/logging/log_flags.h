@@ -17,11 +17,6 @@
 
 #include "absl/base/log_severity.h"
 #include "absl/flags/flag.h"
-
-ABSL_DECLARE_FLAG(int, minloglevel);
-ABSL_DECLARE_FLAG(bool, logtostderr);
-ABSL_DECLARE_FLAG(bool, alsologtostderr);
-ABSL_DECLARE_FLAG(int, stderrthreshold);
-ABSL_DECLARE_FLAG(bool, log_prefix);
+#include "xls/common/logging/log_flags.inc"
 
 #endif  // THIRD_PARTY_XLS_COMMON_LOGGING_LOG_FLAGS_H_

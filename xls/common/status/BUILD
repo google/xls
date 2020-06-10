@@ -167,7 +167,10 @@ cc_test(
 
 cc_library(
     name = "statusor_pybind_caster",
-    hdrs = ["statusor_pybind_caster.h"],
+    hdrs = [
+        "statusor_pybind_caster.h",
+        "statusor_pybind_caster.inc",
+    ],
     copts = [
         "-fexceptions",
     ],

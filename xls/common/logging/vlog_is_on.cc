@@ -18,34 +18,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/strip.h"
 #include "xls/common/logging/errno_saver.h"
-
-ABSL_FLAG(int32, v, 0,
-          "Show all XLS_VLOG(m) messages for m <= this. Overridable by "
-          "--vmodule.");
-
-ABSL_FLAG(
-    std::string, vmodule, "",
-    "per-module verbose level."
-    " Argument is a comma-separated list of <module name>=<log level>."
-    " <module name> is a glob pattern, matched against the filename base"
-    " (that is, name ignoring .cc/.h./-inl.h)."
-    " A pattern without slashes matches just the file name portion, otherwise"
-    " the whole file path (still without .cc/.h./-inl.h) is "
-    "matched."
-    " ? and * in the glob pattern match any single or sequence of characters"
-    " respectively including slashes."
-    " <log level> overrides any value given by --v.")
-    .OnUpdate([] {
-      for (absl::string_view glob_level :
-           absl::StrSplit(absl::GetFlag(FLAGS_vmodule), ',')) {
-        const size_t eq = glob_level.rfind('=');
-        if (eq == glob_level.npos) continue;
-        const absl::string_view glob = glob_level.substr(0, eq);
-        int level;
-        if (!absl::SimpleAtoi(glob_level.substr(eq + 1), &level)) continue;
-        xls::SetVLOGLevel(glob, level);
-      }
-    });
+#include "xls/common/logging/vlog_is_on.inc"
 
 // Construct a logging site from a logging level and epoch.
 inline int32 Site(int level, int epoch) {
@@ -106,15 +79,8 @@ struct VModuleInfo {
 
 // Pointer to head of the VModuleInfo list.
 // It's a map from module pattern to logging level for those module(s).
+// Protected by vmodule_loc in the associated .inc file.
 static std::atomic<VModuleInfo*> vmodule_list;
-// This protects only writes to vmodule_list variable itself:
-// Reads may be done without the lock if Acquire_Load() is used.
-// Writes must use Release_Store().
-// TODO(leary): 2020-05-03 ABSL_CONST_INIT doesn't work as an annotation on
-// this in OSS clang build. Need to determine why. Notably API is in
-// transition.
-static absl::base_internal::SpinLock vmodule_lock(
-   absl::base_internal::kLinkerInitialized);
 
 // Logging sites initialize their epochs to zero.  We initialize the
 // global epoch to 1, so that all logging sites are initially stale.
@@ -125,7 +91,7 @@ int SetVLOGLevel(absl::string_view module_pattern, int log_level) {
   int result = absl::GetFlag(FLAGS_v);
   bool found = false;
   absl::base_internal::SpinLockHolder l(
-      &vmodule_lock);  // protect whole read-modify-write
+      &logging_internal::vmodule_lock);  // protect whole read-modify-write
   for (const VModuleInfo* info = vmodule_list.load(std::memory_order_relaxed);
        info != nullptr; info = info->next) {
     if (info->module_pattern == module_pattern) {

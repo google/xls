@@ -1,0 +1,29 @@
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+This patch is a workaround that makes the OS detection code work on Google
+workstations. For other computers this change doesn't do anything. This patch is
+not upstreamed because it fixes an issue that only happens to Google engineers.
+
+--- toolchain/tools/llvm_release_name.py
++++ toolchain/tools/llvm_release_name.py
+@@ -76,7 +76,7 @@ def _linux(llvm_version):
+         os_name = "linux-gnu-ubuntu-18.04"
+     elif distname in ["arch", "ubuntu", "manjaro"] or (distname == "linuxmint" and version.startswith("18")):
+         os_name = "linux-gnu-ubuntu-16.04"
+-    elif distname == "debian" and (version is None or int(version) == 10):
++    elif distname == "debian" and (version is None or version == "rodete" or int(version) == 10):
+         os_name = "linux-gnu-ubuntu-18.04"
+     elif distname == "debian" and int(version) == 9 and major_llvm_version >= 7:
+         os_name = "linux-gnu-ubuntu-16.04"
