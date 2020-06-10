@@ -22,6 +22,7 @@
 #include "absl/status/status.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/error_code_to_status.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 
 namespace xls {
@@ -213,6 +214,13 @@ xabsl::StatusOr<std::vector<std::filesystem::path>> GetDirectoryEntries(
     }
   }
   return std::move(result);
+}
+
+xabsl::StatusOr<std::filesystem::path> ReadLink(const std::string& path) {
+  char buf[PATH_MAX];
+  XLS_RET_CHECK(readlink(path.c_str(), buf, PATH_MAX - 1) != -1)
+      << strerror(errno);
+  return buf;
 }
 
 }  // namespace xls
