@@ -16,9 +16,6 @@
 
 #include "absl/flags/flag.h"
 
-// TODO(leary): 2019-11-19 Remove this flag in favor of dependency injection.
-ABSL_FLAG(std::string, delay_model, "unit", "Which delay model to use.");
-
 namespace xls {
 
 xabsl::StatusOr<DelayEstimator*> GetDelayEstimator(absl::string_view name) {
@@ -26,7 +23,9 @@ xabsl::StatusOr<DelayEstimator*> GetDelayEstimator(absl::string_view name) {
 }
 
 const DelayEstimator& GetStandardDelayEstimator() {
-  return *GetDelayEstimator(absl::GetFlag(FLAGS_delay_model)).value();
+  return *GetDelayEstimatorManagerSingleton()
+              .GetDefaultDelayEstimator()
+              .value();
 }
 
 }  // namespace xls
