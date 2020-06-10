@@ -25,7 +25,7 @@ xabsl::StatusOr<VerilogSimulator*> GetVerilogSimulator(absl::string_view name) {
 
 // TODO(meheff): Remove this function.
 const VerilogSimulator& GetDefaultVerilogSimulator() {
-  const char* kDefaultSimulator = "iverilog";
+  const char kDefaultSimulator[] = "iverilog";
   return *GetVerilogSimulator(kDefaultSimulator).value();
 }
 
