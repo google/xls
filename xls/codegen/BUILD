@@ -78,6 +78,32 @@ cc_test(
 )
 
 cc_library(
+    name = "sequential_generator",
+    srcs = ["sequential_generator.cc"],
+    hdrs = ["sequential_generator.h"],
+    deps = [
+        ":module_signature",
+        "@com_google_absl//absl/status",
+        "//xls/common/status:statusor",
+        "//xls/ir",
+    ],
+)
+
+cc_test(
+    name = "sequential_generator_test",
+    srcs = ["sequential_generator_test.cc"],
+    data = glob([
+        "testdata/sequential_generator_test_*",
+    ]),
+    shard_count = 10,
+    deps = [
+        ":sequential_generator",
+        "//xls/simulation:verilog_test_base",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "vast",
     srcs = ["vast.cc"],
     hdrs = ["vast.h"],
