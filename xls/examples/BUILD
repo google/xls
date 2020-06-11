@@ -70,7 +70,10 @@ list_filegroup_files(
 
 cc_library(
     name = "sample_packages",
-    srcs = ["sample_packages.cc"],
+    srcs = [
+        "sample_packages.cc",
+        "sample_packages.inc.h",
+    ],
     hdrs = ["sample_packages.h"],
     data = [
         ":ir_example_file_list.txt",
