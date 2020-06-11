@@ -27,13 +27,12 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/statusor.h"
+#include "xls/simulation/update_golden_files.inc"
 #include "xls/simulation/verilog_simulators.h"
 
 ABSL_FLAG(std::string, xls_source_dir, "",
           "Absolute path to the root of XLS source directory to modify "
           "when --test_update_golden_files is given.");
-ABSL_FLAG(bool, test_update_golden_files, false,
-          "Whether to update golden files in this test run.");
 
 namespace xls {
 namespace verilog {
