@@ -163,8 +163,9 @@ xabsl::StatusOr<std::filesystem::path> GetCurrentDirectory();
 xabsl::StatusOr<std::vector<std::filesystem::path>> GetDirectoryEntries(
     const std::filesystem::path& path);
 
-// Returns the path pointed to by the given link, as the readlink() POSIX call.
-xabsl::StatusOr<std::filesystem::path> ReadLink(const std::string& path);
+// Returns the path pointed to by the file, if it's a link, or the given path
+// otherwise.
+xabsl::StatusOr<std::filesystem::path> GetRealPath(const std::string& path);
 
 }  // namespace xls
 
