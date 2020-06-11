@@ -37,10 +37,8 @@ xabsl::StatusOr<Runfiles*> GetRunfiles(
     const std::string& argv0 = "/proc/self/exe") {
   absl::MutexLock lock(&mutex);
   if (runfiles == nullptr) {
-    // If we get here, that means we started executing real code before calling
-    // InitXls(); likely we're in a test. Thus, just do our best to access our
-    // runfiles dir based on our executable.
-    XLS_ASSIGN_OR_RETURN(auto path, ReadLink(argv0));
+    // Need to dereference the path, in case it's a link (as with the default).
+    XLS_ASSIGN_OR_RETURN(auto path, GetRealPath(argv0));
 
     std::string error;
     runfiles = Runfiles::Create(path.string(), &error);
