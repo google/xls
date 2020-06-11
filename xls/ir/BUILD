@@ -323,15 +323,15 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "@llvm//:Analysis",
+        "@llvm//:Core",
         "@llvm//:ExecutionEngine",
+        "@llvm//:IPO",
+        "@llvm//:JITLink",  # build_cleaner: keep
+        "@llvm//:OrcJIT",
         "@llvm//:Support",
-        "@llvm//:core",
-        "@llvm//:ipo",
-        "@llvm//:jit_link",  # build_cleaner: keep
-        "@llvm//:orc_jit",
-        "@llvm//:target",
-        "@llvm//:x86_asm_parser",  # build_cleaner: keep
-        "@llvm//:x86_code_gen",  # build_cleaner: keep
+        "@llvm//:Target",
+        "@llvm//:X86AsmParser",  # build_cleaner: keep
+        "@llvm//:X86CodeGen",  # build_cleaner: keep
     ],
 )
 
@@ -349,12 +349,12 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "//xls/common:integral_types",
+        "@llvm//:Core",
+        "@llvm//:OrcJIT",
         "@llvm//:Support",
-        "@llvm//:core",
-        "@llvm//:orc_jit",
-        "@llvm//:target",
-        "@llvm//:x86_asm_parser",  # build_cleaner: keep
-        "@llvm//:x86_code_gen",  # build_cleaner: keep
+        "@llvm//:Target",
+        "@llvm//:X86AsmParser",  # build_cleaner: keep
+        "@llvm//:X86CodeGen",  # build_cleaner: keep
     ],
 )
 
@@ -373,7 +373,7 @@ cc_library(
         "//xls/common:integral_types",
         "//xls/common/logging",
         "//xls/common/status:statusor",
-        "@llvm//:core",
+        "@llvm//:Core",
     ],
 )
 
