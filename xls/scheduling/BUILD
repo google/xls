@@ -12,9 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# cc_proto_library is used in this file
+
 package(
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
+)
+
+proto_library(
+    name = "pipeline_schedule_proto",
+    srcs = ["pipeline_schedule.proto"],
+)
+
+cc_proto_library(
+    name = "pipeline_schedule_cc_proto",
+    deps = [":pipeline_schedule_proto"],
 )
 
 cc_library(
