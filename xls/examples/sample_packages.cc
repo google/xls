@@ -223,12 +223,10 @@ xabsl::StatusOr<std::unique_ptr<Package>> GetBenchmark(absl::string_view name,
 }
 
 xabsl::StatusOr<std::vector<std::string>> GetBenchmarkNames() {
+  XLS_ASSIGN_OR_RETURN(std::vector<std::string> example_paths,
+                       GetExamplePaths());
   std::filesystem::path example_file_list_path =
       GetXlsRunfilePath("xls/examples/ir_example_file_list.txt");
-  XLS_ASSIGN_OR_RETURN(std::string example_paths_string,
-                       GetFileContents(example_file_list_path));
-  std::vector<std::string> example_paths =
-      absl::StrSplit(example_paths_string, '\n');
 
   std::vector<std::string> names;
   for (auto& example_path : example_paths) {
