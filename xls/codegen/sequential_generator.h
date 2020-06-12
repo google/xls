@@ -16,11 +16,23 @@
 #define THIRD_PARTY_XLS_CODEGEN_SEQUENTIAL_GENERATOR_H_
 
 #include "xls/codegen/module_signature.h"
+#include "xls/codegen/pipeline_generator.h"
+#include "xls/codegen/vast.h"
+#include "xls/common/integral_types.h"
 #include "xls/common/status/statusor.h"
+#include "xls/delay_model/delay_estimator.h"
+#include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/function.h"
+#include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls {
 namespace verilog {
+
+// Generate a pipeline module that implements the loop's body.
+xabsl::StatusOr<std::unique_ptr<ModuleGeneratorResult>>
+GenerateLoopBodyPipeline(CountedFor* loop, bool use_system_verilog,
+                         SchedulingOptions& scheduling_options,
+                         const DelayEstimator& = GetStandardDelayEstimator());
 
 // Emits the given function as a verilog module which reuses the same hardware
 // over time to executed loop iterations.
