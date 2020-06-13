@@ -42,11 +42,11 @@ def delay_model(
         outs = ["{}.cc".format(name)],
         cmd = "$(location //xls/delay_model:generate_delay_lookup) " +
               "--model_name=" + model_name + " $< " +
-              "| $(location @clang_binaries//:clang_format)" +
+              "| $(location @llvm_toolchain//:bin/clang-format)" +
               " > $(OUTS)",
         exec_tools = [
             "//xls/delay_model:generate_delay_lookup",
-            "@clang_binaries//:clang_format",
+            "@llvm_toolchain//:bin/clang-format",
         ],
     )
     native.cc_library(

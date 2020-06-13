@@ -19,6 +19,7 @@
 #include <streambuf>
 #include <vector>
 
+// Internal: logging header included here.
 #include "absl/base/attributes.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/hash/hash.h"
@@ -297,6 +298,7 @@ extern "C" void __gcov_flush() ABSL_ATTRIBUTE_WEAK;
 #endif
 
 void LogMessage::FailWithoutStackTrace() {
+   // Internal: repeated trace logging suppressed here.
 #if defined _DEBUG && defined COMPILER_MSVC
   // When debugging on windows, avoid the obnoxious dialog.
   __debugbreak();

@@ -12,11 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@bazel_skylib//rules:native_binary.bzl", "native_binary")
+"""Prints the path to the libpython shared library."""
 
-native_binary(
-    name = "clang_format",
-    src = "bin/clang-format",
-    out = "clang_format",
-    visibility = ["//visibility:public"],
-)
+from distutils import sysconfig
+import os
+
+config_vars = sysconfig.get_config_vars()
+file_paths = [
+    os.path.join(config_vars[pv], config_vars['LDLIBRARY'])
+    for pv in ('LIBDIR', 'LIBPL')
+]
+
+print(list(filter(os.path.exists, file_paths))[0])

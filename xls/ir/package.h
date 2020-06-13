@@ -148,9 +148,7 @@ class Package {
 
   absl::optional<std::string> entry_;
 
-  #define UnorderedSet std::unordered_set
-  #define UnorderedMap std::unordered_map
-  #define StableMap std::map
+#include "xls/ir/container_hack.inc"
 
   // Helper that returns a map from the names of functions inside this package
   // to the functions themselves.
@@ -195,9 +193,7 @@ class Package {
   UnorderedMap<Fileno, std::string> fileno_to_filename_;
   UnorderedMap<std::string, Fileno> filename_to_fileno_;
 
-#undef StableMap
-#undef UnorderedMap
-#undef UnorderedSet
+#include "xls/ir/container_hack_undef.inc"
 };
 
 std::ostream& operator<<(std::ostream& os, const Package& package);

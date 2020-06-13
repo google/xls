@@ -22,6 +22,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/netlist/function_parser.h"
 #include "xls/netlist/netlist.h"
+#include "xls/solvers/z3_propagate_updates.h"
 #include "../z3/src/api/z3_api.h"
 
 namespace xls {
@@ -87,8 +88,17 @@ absl::Status NetlistTranslator::Init() {
   return absl::OkStatus();
 }
 
-bool IsCellInput(const netlist::rtl::NetRef netref, const Cell* cell) {
+bool IsInputToCell(const NetRef netref, const Cell* cell) {
   for (const auto& input : cell->inputs()) {
+    if (input.netref == netref) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool IsOutputFromCell(const NetRef netref, const Cell* cell) {
+  for (const auto& input : cell->outputs()) {
     if (input.netref == netref) {
       return true;
     }
@@ -103,16 +113,15 @@ absl::Status NetlistTranslator::RebindInputNet(
   //  1. Find the NetRef/Def matching "src".
   //  2. For every cell with that as an input, replace that input with "dst".
   //  3. Fame & fortune.
-  XLS_ASSIGN_OR_RETURN(netlist::rtl::NetRef src_ref,
-                       module_->ResolveNet(ref_name));
+  XLS_ASSIGN_OR_RETURN(NetRef src_ref, module_->ResolveNet(ref_name));
   Z3_ast src = translated_[src_ref];
   translated_[src_ref] = dst;
 
   // For every cell that uses src_ref as an input, update its output wires to
   // use the new Z3 node instead.
-  std::vector<UpdatedRef> updated_refs;
+  std::vector<UpdatedNode<NetRef>> updated_refs;
   for (Cell* cell : src_ref->connected_cells()) {
-    if (!IsCellInput(src_ref, cell)) {
+    if (!IsInputToCell(src_ref, cell)) {
       continue;
     }
 
@@ -130,96 +139,44 @@ absl::Status NetlistTranslator::RebindInputNet(
     }
   }
 
-  PropagateAstUpdate(updated_refs);
+  auto get_inputs = [](NetRef ref) {
+    // Find the parent cell of this ref, and collect its inputs as the
+    // "inputs" to this ref.
+    std::vector<NetRef> inputs;
+    for (Cell* cell : ref->connected_cells()) {
+      if (!IsOutputFromCell(ref, cell)) {
+        continue;
+      }
+
+      inputs.reserve(cell->inputs().size());
+      for (auto& input : cell->inputs()) {
+        inputs.push_back(input.netref);
+      }
+    }
+    return inputs;
+  };
+
+  auto get_outputs = [](NetRef ref) {
+    // Find all cells that use this node as an output, and collect their
+    // outputs.
+    std::vector<NetRef> outputs;
+    for (Cell* cell : ref->connected_cells()) {
+      if (!IsInputToCell(ref, cell)) {
+        continue;
+      }
+
+      // This cell depends on this ref. Collect all its outputs.
+      for (auto& output : cell->outputs()) {
+        outputs.push_back(output.netref);
+      }
+    }
+    return outputs;
+  };
+
+  PropagateAstUpdates<NetRef>(ctx_, translated_, get_inputs, get_outputs,
+                              updated_refs);
 
   return absl::OkStatus();
-}
-
-NetlistTranslator::AffectedCells NetlistTranslator::GetAffectedCells(
-    const std::vector<UpdatedRef>& input_refs) {
-  AffectedCells affected_cells;
-
-  // The NetRefs that need to be updated - those downstream of the input refs.
-  std::deque<netlist::rtl::NetRef> affected_refs;
-  for (const auto& ref : input_refs) {
-    affected_refs.push_back(ref.netref);
-  }
-
-  absl::flat_hash_set<const Cell*> seen_cells;
-  while (!affected_refs.empty()) {
-    netlist::rtl::NetRef ref = affected_refs.front();
-    affected_refs.pop_front();
-
-    // Each cell with an updated ref as its input will need all of its outputs
-    // to be updated.
-    for (const Cell* cell : ref->connected_cells()) {
-      if (!IsCellInput(ref, cell)) {
-        continue;
-      }
-
-      affected_cells[cell].insert(ref);
-      if (!seen_cells.contains(cell)) {
-        seen_cells.insert(cell);
-        for (const auto& output : cell->outputs()) {
-          affected_refs.push_back(output.netref);
-        }
-      }
-    }
-  }
-
-  return affected_cells;
-}
-
-void NetlistTranslator::PropagateAstUpdate(
-    const std::vector<UpdatedRef>& input_refs) {
-  // Get the list of affected cells and the refs that need to be updated.
-  AffectedCells affected_cells = GetAffectedCells(input_refs);
-
-  // At this point, we have the list of cells needing updating, along with the
-  // updated refs they're waiting on. Now "activate" the top-level updated refs,
-  // and let the updates propagate.
-  // We can't combine this with the loop in GetAffectedCells() because we don't
-  // know, in any particular iteration, the entire set of affected wires.
-  std::deque<netlist::rtl::NetRef> active_refs;
-  absl::flat_hash_map<netlist::rtl::NetRef, UpdatedRef> updated_refs;
-  for (UpdatedRef input_ref : input_refs) {
-    active_refs.push_back(input_ref.netref);
-    updated_refs.insert({input_ref.netref, {input_ref}});
-  }
-
-  while (!active_refs.empty()) {
-    netlist::rtl::NetRef ref = active_refs.front();
-    active_refs.pop_front();
-    for (auto& pair : affected_cells) {
-      if (!pair.second.contains(ref)) {
-        continue;
-      }
-
-      const Cell* cell = pair.first;
-      pair.second.erase(ref);
-      if (pair.second.empty()) {
-        // We replace all updated references at once - that means we need to
-        // collect all old/new Z3_ast pairs.
-        std::vector<Z3_ast> old_inputs;
-        std::vector<Z3_ast> new_inputs;
-        for (const auto& input : cell->inputs()) {
-          if (updated_refs.contains(input.netref)) {
-            old_inputs.push_back(updated_refs[input.netref].old_ast);
-            new_inputs.push_back(updated_refs[input.netref].new_ast);
-          }
-        }
-
-        for (const auto& output : cell->outputs()) {
-          Z3_ast old_ast = translated_[output.netref];
-          Z3_ast new_ast = Z3_substitute(ctx_, old_ast, old_inputs.size(),
-                                         old_inputs.data(), new_inputs.data());
-          updated_refs[output.netref] = {output.netref, old_ast, new_ast};
-          translated_[output.netref] = new_ast;
-          active_refs.push_back(output.netref);
-        }
-      }
-    }
-  }
 }
 
 // General idea: construct an AST by iterating over all the Cells in the module.

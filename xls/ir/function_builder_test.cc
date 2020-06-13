@@ -259,6 +259,20 @@ TEST(FunctionBuilderTest, ArrayUpdateIncompatibleUpdateValue) {
                                      "the update value is of type bits[64]")));
 }
 
+TEST(FunctionBuilderTest, DynamicBitSlice) {
+  Package p("p");
+  FunctionBuilder b("f", &p);
+  BitsType* value_type = p.GetBitsType(32);
+  BValue x = b.Param("x", value_type);
+  BValue start = b.Param("start", value_type);
+  b.DynamicBitSlice(x, start, 4);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, b.Build());
+  Node* lt = func->return_value();
+  EXPECT_EQ(lt->op(), Op::kDynamicBitSlice);
+  EXPECT_EQ(lt->GetType(), p.GetBitsType(4));
+
+}
+
 TEST(FunctionBuilderTest, FullWidthDecode) {
   Package p("p");
   FunctionBuilder b("f", &p);

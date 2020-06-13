@@ -357,6 +357,10 @@ class FunctionBuilder {
   BValue BitSlice(BValue arg, int64 start, int64 width,
                   absl::optional<SourceLocation> loc = absl::nullopt);
 
+  // Same as BitSlice, but allows for dynamic 'start' offsets
+  BValue DynamicBitSlice(BValue arg, BValue start, int64 width,
+                         absl::optional<SourceLocation> loc = absl::nullopt);
+
   // Binary encodes the n-bit input to a log_2(n) bit output.
   BValue Encode(BValue arg, absl::optional<SourceLocation> loc = absl::nullopt);
 

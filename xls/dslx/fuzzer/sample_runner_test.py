@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,12 +13,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# Lint as: python3
 
 import os
 from typing import Tuple, Text
 
+from xls.common import check_simulator
 from xls.dslx import fakefs_util
 from xls.dslx import parser_helpers
 from xls.dslx.concrete_type import ArrayType
@@ -272,6 +273,27 @@ class SampleRunnerTest(absltest.TestCase):
               [[Value.make_ubits(8, 42),
                 Value.make_ubits(8, 100)]]))
     self.assertIn('Result miscompare for sample 0', str(e.exception))
+
+  @absltest.unittest.skipIf(not check_simulator.runs_system_verilog(),
+                              'uses SystemVerilog')
+  def test_codegen_pipeline(self):
+    sample_dir = self._make_sample_dir()
+    print('sample_dir = ' + sample_dir)
+    runner = sample_runner.SampleRunner(sample_dir)
+    dslx_text = 'fn main(x: u8, y: u8) -> u8 { x + y }'
+    runner.run(
+        sample.Sample(
+            dslx_text,
+            sample.SampleOptions(
+                codegen=True,
+                codegen_args=('--generator=pipeline', '--pipeline_stages=2'),
+                simulate=True),
+            [[Value.make_ubits(8, 42),
+              Value.make_ubits(8, 100)]]))
+    # A pipelined block should have a blocking assignment.
+    self.assertIn('<=', _read_file(sample_dir, 'sample.v'))
+    self.assertSequenceEqual(
+        _split_nonempty_lines(sample_dir, 'sample.v.results'), ['bits[8]:0x8e'])
 
   def test_ir_input(self):
     sample_dir = self._make_sample_dir()

@@ -187,6 +187,10 @@ PYBIND11_MODULE(function_builder, m) {
            py::arg("new_bit_count"), py::arg("loc") = absl::nullopt)
       .def("add_bit_slice", PyWrap(&FunctionBuilder::BitSlice), py::arg("arg"),
            py::arg("start"), py::arg("width"), py::arg("loc") = absl::nullopt)
+      .def("add_dynamic_bit_slice", PyWrap(&FunctionBuilder::DynamicBitSlice),
+           py::arg("arg"), py::arg("start"), py::arg("width"),
+           py::arg("loc") = absl::nullopt)
+
 
       .def("add_and_reduce", PyWrap(&FunctionBuilder::AndReduce),
            py::arg("operand"), py::arg("loc") = absl::nullopt)

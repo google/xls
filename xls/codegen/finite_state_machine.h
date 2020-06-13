@@ -233,7 +233,7 @@ class UnconditionalFsmBlock : public FsmBlock<UnconditionalFsmBlock> {
       : FsmBlock<UnconditionalFsmBlock>(debug_name, file) {}
 };
 
-// An unconditional block of logic within an FSM state.
+// A conditional block of logic within an FSM state.
 class ConditionalFsmBlock : public FsmBlock<ConditionalFsmBlock> {
  public:
   explicit ConditionalFsmBlock(absl::string_view debug_name, VerilogFile* file,

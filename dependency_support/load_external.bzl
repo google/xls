@@ -17,6 +17,7 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 load("//dependency_support:edu_berkeley_abc/workspace.bzl", repo_abc = "repo")
+load("//dependency_support/boost:workspace.bzl", repo_boost = "repo")
 load("//dependency_support/org_gnu_bison:workspace.bzl", repo_bison = "repo")
 load("//dependency_support:org_sourceware_bzip2/workspace.bzl", repo_bzip2 = "repo")
 load("//dependency_support/org_tuxfamily_eigen:workspace.bzl", repo_eigen = "repo")
@@ -28,6 +29,8 @@ load("//dependency_support/dk_thrysoee_libedit:workspace.bzl", repo_libedit = "r
 load("//dependency_support:org_sourceware_libffi/workspace.bzl", repo_libffi = "repo")
 load("//dependency_support/org_gnu_m4:workspace.bzl", repo_m4 = "repo")
 load("//dependency_support/net_invisible_island_ncurses:workspace.bzl", repo_ncurses = "repo")
+load("//dependency_support/nextpnr:workspace.bzl", repo_nextpnr = "repo")
+load("//dependency_support/prjtrellis:workspace.bzl", repo_prjtrellis = "repo")
 load("//dependency_support/prjtrellis_db:workspace.bzl", repo_prjtrellis_db = "repo")
 load("//dependency_support:tk_tcl_tcl/workspace.bzl", repo_tcl = "repo")
 load("//dependency_support/at_clifford_yosys:workspace.bzl", repo_yosys = "repo")
@@ -36,6 +39,7 @@ def load_external_repositories():
     """Loads external repositories with third-party code."""
     repo_abc()
     repo_bison()
+    repo_boost()
     repo_bzip2()
     repo_eigen()
     repo_flex()
@@ -46,6 +50,8 @@ def load_external_repositories():
     repo_libffi()
     repo_m4()
     repo_ncurses()
+    repo_nextpnr()
+    repo_prjtrellis()
     repo_prjtrellis_db()
     repo_tcl()
     repo_yosys()
@@ -202,14 +208,6 @@ def load_external_repositories():
         sha256 = "8c1c49a1eccf5d8b952dadadba3552b0eac67482b8a29eaad62aa7343a0732c3",
         strip_prefix = "z3-z3-4.8.7",
         build_file = "@//dependency_support/z3:bundled.BUILD.bazel",
-    )
-
-    http_archive(
-        name = "clang_binaries",
-        urls = ["https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.0/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz"],
-        sha256 = "b25f592a0c00686f03e3b7db68ca6dc87418f681f4ead4df4745a01d9be63843",
-        strip_prefix = "clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04",
-        build_file = "@//dependency_support/clang_binaries:bundled.BUILD.bazel",
     )
 
     http_archive(
