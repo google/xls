@@ -427,7 +427,7 @@ OpClass.kinds['BIT_SLICE'] = OpClass(
 OpClass.kinds['DYNAMIC_BIT_SLICE'] = OpClass(
     name='DynamicBitSlice',
     op='Op::kDynamicBitSlice',
-    operands=[OperandSpan('args')],
+    operands=[Operand('arg'), Operand('start')],
     xls_type_expression='function->package()->GetBitsType(width)',
     attributes=[Int64Attribute('width')],
 )
