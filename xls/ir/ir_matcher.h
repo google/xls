@@ -215,7 +215,7 @@ inline ::testing::Matcher<const ::xls::Node*> BitSlice(int64 start,
 //   EXPECT_THAT(foo, op::DynamicBitSlice(op::Param(), op::Param()));
 //   EXPECT_THAT(foo, op::DynamicBitSlice(/*width=*/8));
 //   EXPECT_THAT(foo, op::DynamicBitSlice(/*operand=*/op::Param(),
-//                                 /*start=*/op::Param(), /*width=*/8));
+//                                        /*start=*/op::Param(), /*width=*/8));
 class DynamicBitSliceMatcher : public NodeMatcher {
  public:
   DynamicBitSliceMatcher(::testing::Matcher<const Node*> operand,
