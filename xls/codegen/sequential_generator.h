@@ -12,20 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/delay_model/delay_estimators.h"
+#ifndef THIRD_PARTY_XLS_CODEGEN_SEQUENTIAL_GENERATOR_H_
+#define THIRD_PARTY_XLS_CODEGEN_SEQUENTIAL_GENERATOR_H_
 
-#include "absl/flags/flag.h"
+#include "xls/codegen/module_signature.h"
+#include "xls/common/status/statusor.h"
+#include "xls/ir/function.h"
 
 namespace xls {
+namespace verilog {
 
-xabsl::StatusOr<DelayEstimator*> GetDelayEstimator(absl::string_view name) {
-  return GetDelayEstimatorManagerSingleton().GetDelayEstimator(name);
-}
+// Emits the given function as a verilog module which reuses the same hardware
+// over time to executed loop iterations.
+xabsl::StatusOr<ModuleGeneratorResult> ToSequentialModuleText(Function* func);
 
-const DelayEstimator& GetStandardDelayEstimator() {
-  return *GetDelayEstimatorManagerSingleton()
-              .GetDefaultDelayEstimator()
-              .value();
-}
-
+}  // namespace verilog
 }  // namespace xls
+
+#endif  // THIRD_PARTY_XLS_CODEGEN_SEQUENTIAL_GENERATOR_H_

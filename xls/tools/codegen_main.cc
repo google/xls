@@ -47,6 +47,8 @@ Emit a feed-forward pipelined module:
 ABSL_FLAG(int64, clock_period_ps, 0, "Target clock period, in picoseconds.");
 ABSL_FLAG(int64, pipeline_stages, 0,
           "The number of stages in the generated pipeline.");
+ABSL_FLAG(std::string, delay_model, "",
+          "Delay model name to use from registry.");
 ABSL_FLAG(
     std::string, output_verilog_path, "",
     "Specific output path for the Verilog generated. If not specified then "
@@ -124,7 +126,8 @@ absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
       sched_options.scheduling_options.clock_margin_percent(
           absl::GetFlag(FLAGS_clock_margin_percent));
     }
-    sched_options.delay_estimator = &GetStandardDelayEstimator();
+    XLS_ASSIGN_OR_RETURN(sched_options.delay_estimator,
+                         GetDelayEstimator(absl::GetFlag(FLAGS_delay_model)));
     std::unique_ptr<SchedulingCompoundPass> scheduling_pipeline =
         CreateStandardSchedulingPassPipeline();
     SchedulingPassResults results;

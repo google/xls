@@ -35,4 +35,5 @@ delay_model(
     name = "model_unit",
     srcs = ["unit.pbtxt"],
     model_name = "unit",
+    precedence = "kLow",
 )
