@@ -38,8 +38,8 @@ class Ice40IoStrategy : public IoStrategy {
  private:
   // The files tick-included by the IO strategy.
   constexpr static const char* kIncludes[] = {
-       "xls/uncore_rtl/ice40/uart_receiver.v",
-       "xls/uncore_rtl/ice40/uart_transmitter.v"
+      "xls/uncore_rtl/ice40/uart_receiver.v",
+      "xls/uncore_rtl/ice40/uart_transmitter.v"
   };
 
   VerilogFile* f_;

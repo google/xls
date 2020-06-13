@@ -23,6 +23,7 @@ package(
 
 cc_library(
     name = "integral_types",
+    srcs = ["integral_types.inc"],
     hdrs = ["integral_types.h"],
 )
 
@@ -97,6 +98,7 @@ cc_test(
 
 cc_library(
     name = "module_initializer",
+    srcs = ["module_initializer.inc"],
     hdrs = ["module_initializer.h"],
 )
 
@@ -255,6 +257,13 @@ py_library(
     deps = [
         "@rules_python//python/runfiles",
     ],
+)
+
+py_library(
+    name = "multiprocess",
+    srcs = ["multiprocess.py"],
+    srcs_version = "PY3",
+    deps = ["@com_google_absl_py//absl:app"],
 )
 
 py_test(

@@ -1116,17 +1116,9 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__main(input: bits[8][2]) -> bits[8][2] {
-          literal.4: bits[32] = literal(value=0)
           literal.2: bits[32] = literal(value=1)
-          literal.8: bits[32] = literal(value=1)
-          eq.6: bits[1] = eq(literal.4, literal.2)
-          array_index.5: bits[8] = array_index(input, literal.4)
           literal.3: bits[8] = literal(value=66)
-          eq.10: bits[1] = eq(literal.8, literal.2)
-          array_index.9: bits[8] = array_index(input, literal.8)
-          sel.7: bits[8] = sel(eq.6, cases=[array_index.5, literal.3])
-          sel.11: bits[8] = sel(eq.10, cases=[array_index.9, literal.3])
-          ret array.12: bits[8][2] = array(sel.7, sel.11)
+          ret array_update.4: bits[8][2] = array_update(input, literal.2, literal.3)
         }
         """)
 
@@ -1146,16 +1138,8 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn ____test_module__main_counted_for_0_body(i: bits[32], accum: bits[8][2]) -> bits[8][2] {
-          literal.8: bits[32] = literal(value=0)
-          literal.12: bits[32] = literal(value=1)
-          eq.10: bits[1] = eq(literal.8, i)
-          array_index.9: bits[8] = array_index(accum, literal.8)
           bit_slice.7: bits[8] = bit_slice(i, start=0, width=8)
-          eq.14: bits[1] = eq(literal.12, i)
-          array_index.13: bits[8] = array_index(accum, literal.12)
-          sel.11: bits[8] = sel(eq.10, cases=[array_index.9, bit_slice.7])
-          sel.15: bits[8] = sel(eq.14, cases=[array_index.13, bit_slice.7])
-          ret array.16: bits[8][2] = array(sel.11, sel.15)
+          ret array_update.8: bits[8][2] = array_update(accum, i, bit_slice.7)
         }
 
         fn __test_module__main() -> bits[8][2] {
@@ -1163,7 +1147,7 @@ class IrConverterTest(absltest.TestCase):
           literal.1: bits[8] = literal(value=0)
           literal.2: bits[8] = literal(value=0)
           literal.4: bits[32] = literal(value=2)
-          ret counted_for.17: bits[8][2] = counted_for(literal.3, trip_count=2, stride=1, body=____test_module__main_counted_for_0_body)
+          ret counted_for.9: bits[8][2] = counted_for(literal.3, trip_count=2, stride=1, body=____test_module__main_counted_for_0_body)
         }
         """)
 

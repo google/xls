@@ -27,7 +27,6 @@ namespace xls {
 //
 // If the file does not exist as a runfile, this method may return an empty
 // path.
-//
 std::filesystem::path GetXlsRunfilePath(const std::filesystem::path& path);
 
 // Called by InitXls; don't call this directly. Sets up global state for the

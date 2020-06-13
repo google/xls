@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """Performs an import, as in the 'import' keyword."""
 
 import functools
@@ -57,6 +56,16 @@ def do_import(
   fully_qualified_name = '.'.join(subject)
 
   if os.path.exists(path):
+    with open(path, mode='rb') as f:
+      contents = f.read().decode('utf-8')
+  elif os.path.exists(os.path.join(os.path.pardir, path)):
+    # Genrules in-house execute inside a subdirectory, so we also search
+    # starting from the parent directory for now.
+    #
+    # An alternative would be to explicitly note the DSLX_PATH when invoking the
+    # tool in this special genrule context, but since we expect module paths to
+    # be fully qualified at the moment, we opt for this kluge.
+    path = os.path.join(os.path.pardir, path)
     with open(path, mode='rb') as f:
       contents = f.read().decode('utf-8')
   else:
