@@ -211,10 +211,10 @@ inline ::testing::Matcher<const ::xls::Node*> BitSlice(int64 start,
 
 // DynamicBitSlice matcher. Supported forms:
 //
-//   EXPECT_THAT(foo, op::BitSlice());
+//   EXPECT_THAT(foo, op::DynamicBitSlice());
 //   EXPECT_THAT(foo, op::DynamicBitSlice(op::Param(), op::Param()));
-//   EXPECT_THAT(foo, op::BitSlice(/*width=*/8));
-//   EXPECT_THAT(foo, op::BitSlice(/*operand=*/op::Param(),
+//   EXPECT_THAT(foo, op::DynamicBitSlice(/*width=*/8));
+//   EXPECT_THAT(foo, op::DynamicBitSlice(/*operand=*/op::Param(),
 //                                 /*start=*/op::Param(), /*width=*/8));
 class DynamicBitSliceMatcher : public NodeMatcher {
  public:
