@@ -180,6 +180,10 @@ class TranslatorTest(absltest.TestCase):
     # Sign extension
     self.one_in_one_out("return a.slc<3>(2);", 0b1001011001, 0, -2)
 
+  def test_var_slc(self):
+    # Sign extension
+    self.one_in_one_out("int x = 2;return a.slc<3>(x);", 0b1001011001, 0, -2)
+
   def test_simple_set_slc(self):
     self.one_in_one_out("a.set_slc(1, uai2(3));return a;", 0b0001011001, 0, 95)
 

@@ -907,14 +907,21 @@ class Translator(object):
             width = int(width_expr.value)
             assert isinstance(stmt_ast.args, c_ast.ExprList)
             assert len(stmt_ast.args.exprs) == 1
-            # TODO(seanhaskell): Allow variable offset.
-            # TODO(seanhaskell): Need function_builder support
             offset_expr = stmt_ast.args.exprs[0]
-            assert isinstance(offset_expr, c_ast.Constant)
-            ret_fb = self.fb.add_bit_slice(left_fb,
-                                           int(offset_expr.value),
-                                           width,
-                                           loc)
+            if isinstance(offset_expr, c_ast.Constant):
+              ret_fb = self.fb.add_bit_slice(left_fb,
+                                             int(offset_expr.value),
+                                             width,
+                                             loc)
+            else:
+              offset_val, offset_type = self.gen_expr_ir(offset_expr, condition)
+              assert isinstance(offset_type, IntType)
+              shift_fb = self.fb.add_shrl(left_fb, offset_val)
+              ret_fb = self.fb.add_bit_slice(shift_fb,
+                                             0,   # Already shifted
+                                             width,
+                                             loc)
+
             return ret_fb, IntType(width, left_type.signed, False)
           else:
             raise NotImplementedError("Unknown non-template function on int",
