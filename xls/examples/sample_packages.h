@@ -15,8 +15,8 @@
 // Sample package definitions, generally used for testing aspects of the
 // compiler.
 
-#ifndef THIRD_PARTY_XLS_EXAMPLES_SAMPLE_PACKAGES_H_
-#define THIRD_PARTY_XLS_EXAMPLES_SAMPLE_PACKAGES_H_
+#ifndef XLS_EXAMPLES_SAMPLE_PACKAGES_H_
+#define XLS_EXAMPLES_SAMPLE_PACKAGES_H_
 
 #include <utility>
 
@@ -96,4 +96,4 @@ xabsl::StatusOr<std::vector<std::string>> GetBenchmarkNames();
 }  // namespace sample_packages
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_EXAMPLES_SAMPLE_PACKAGES_H_
+#endif  // XLS_EXAMPLES_SAMPLE_PACKAGES_H_

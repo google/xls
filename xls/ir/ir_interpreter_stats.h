@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_IR_IR_INTERPRETER_STATS_H_
-#define THIRD_PARTY_XLS_IR_IR_INTERPRETER_STATS_H_
+#ifndef XLS_IR_IR_INTERPRETER_STATS_H_
+#define XLS_IR_IR_INTERPRETER_STATS_H_
 
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
@@ -90,4 +90,4 @@ class InterpreterStats {
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_IR_IR_INTERPRETER_STATS_H_
+#endif  // XLS_IR_IR_INTERPRETER_STATS_H_

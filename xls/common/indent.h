@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_COMMON_INDENT_H_
-#define THIRD_PARTY_XLS_COMMON_INDENT_H_
+#ifndef XLS_COMMON_INDENT_H_
+#define XLS_COMMON_INDENT_H_
 
 #include <string>
 
@@ -27,4 +27,4 @@ std::string Indent(absl::string_view text, int64 spaces = 2);
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_COMMON_INDENT_H_
+#endif  // XLS_COMMON_INDENT_H_

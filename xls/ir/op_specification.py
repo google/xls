@@ -81,7 +81,7 @@ class Method(object):
   def __init__(self,
                name: Text,
                return_cpp_type: Text,
-               expression: Text,
+               expression: Optional[Text],
                params: Text = ''):
     self.name = name
     self.return_cpp_type = return_cpp_type
@@ -439,7 +439,10 @@ OpClass.kinds['CONCAT'] = OpClass(
     op='Op::kConcat',
     operands=[OperandSpan('args')],
     xls_type_expression='GetConcatType(function->package(), args)',
-    extra_methods=[Method(name='GetOperandSliceData', return_cpp_type='SliceData', expression=None, params='int64 operandno')]
+    extra_methods=[
+        Method(name='GetOperandSliceData', return_cpp_type='SliceData',
+               expression=None, params='int64 operandno'),
+    ],
 )
 
 OpClass.kinds['COUNTED_FOR'] = OpClass(

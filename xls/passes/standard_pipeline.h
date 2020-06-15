@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_PASSES_STANDARD_PIPELINE_H_
-#define THIRD_PARTY_XLS_PASSES_STANDARD_PIPELINE_H_
+#ifndef XLS_PASSES_STANDARD_PIPELINE_H_
+#define XLS_PASSES_STANDARD_PIPELINE_H_
 
 #include "xls/common/status/statusor.h"
 #include "xls/passes/passes.h"
@@ -34,4 +34,4 @@ std::unique_ptr<SchedulingCompoundPass> CreateStandardSchedulingPassPipeline();
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_PASSES_STANDARD_PIPELINE_H_
+#endif  // XLS_PASSES_STANDARD_PIPELINE_H_

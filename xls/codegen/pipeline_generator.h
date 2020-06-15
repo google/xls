@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_CODEGEN_PIPELINE_GENERATOR_H_
-#define THIRD_PARTY_XLS_CODEGEN_PIPELINE_GENERATOR_H_
+#ifndef XLS_CODEGEN_PIPELINE_GENERATOR_H_
+#define XLS_CODEGEN_PIPELINE_GENERATOR_H_
 
 #include <string>
 
@@ -104,4 +104,4 @@ xabsl::StatusOr<ModuleGeneratorResult> ScheduleAndGeneratePipelinedModule(
 }  // namespace verilog
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_CODEGEN_PIPELINE_GENERATOR_H_
+#endif  // XLS_CODEGEN_PIPELINE_GENERATOR_H_

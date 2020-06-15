@@ -3,6 +3,8 @@ module SmulAsFunction_SystemVerilog(
   input wire [31:0] y,
   input wire [31:0] z
 );
+  // lint_off SIGNED_TYPE
+  // lint_off MULTIPLY
   function automatic reg [31:0] smul32b_32b_x_32b (input reg [31:0] lhs, input reg [31:0] rhs);
     reg signed  [31:0] signed_lhs;
     reg signed  [31:0] signed_rhs;
@@ -12,6 +14,8 @@ module SmulAsFunction_SystemVerilog(
     signed_result = signed_lhs * signed_rhs;
     smul32b_32b_x_32b = $unsigned(signed_result);
   endfunction
+  // lint_on MULTIPLY
+  // lint_on SIGNED_TYPE
   wire [31:0] x_smul_y;
   wire [31:0] z_smul_z;
   assign x_smul_y = smul32b_32b_x_32b(x, y);

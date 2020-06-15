@@ -124,7 +124,7 @@ class Sample(NamedTuple):
 
     A crasher is a text serialialization of the sample which enables easy
     reproduction from a single text file. Crashers may be checked in as tests in
-    third_party/xls/dslx/fuzzer/crashers.
+    xls/dslx/fuzzer/crashers.
 
     A crasher has the following format:
       // options: <JSON-serialized SampleOptions>

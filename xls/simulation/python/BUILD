@@ -28,11 +28,11 @@ xls_pybind_extension(
     ],
     deps = [
         "@com_google_absl//absl/types:span",
+        "//xls/common/python:absl_casters",
         "//xls/common/status:statusor",
         "//xls/common/status:statusor_pybind_caster",
         "//xls/ir:value",
         "//xls/simulation:module_simulator",
         "//xls/simulation:verilog_simulators",
-        "//xls/common/python:absl_casters",
     ],
 )

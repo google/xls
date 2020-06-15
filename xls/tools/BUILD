@@ -64,7 +64,6 @@ cc_binary(
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
-        "@z3//:api",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
@@ -81,6 +80,7 @@ cc_binary(
         "//xls/passes:unroll_pass",
         "//xls/solvers:z3_ir_translator",
         "//xls/solvers:z3_utils",
+        "@z3//:api",
     ],
 )
 
@@ -100,7 +100,6 @@ cc_binary(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-        "@z3//:api",
         "//xls/common:init_xls",
         "//xls/common:subprocess",
         "//xls/common/file:filesystem",
@@ -120,6 +119,7 @@ cc_binary(
         "//xls/solvers:z3_lec",
         "//xls/solvers:z3_netlist_translator",
         "//xls/solvers:z3_utils",
+        "@z3//:api",
     ],
 )
 

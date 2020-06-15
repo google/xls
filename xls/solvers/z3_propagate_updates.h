@@ -14,8 +14,8 @@
 
 // Defines routines for propagating a Z3 AST change down through any
 // affected/downstream nodes.
-#ifndef THIRD_PARTY_XLS_SOLVERS_Z3_PROPAGATE_UPDATES_H_
-#define THIRD_PARTY_XLS_SOLVERS_Z3_PROPAGATE_UPDATES_H_
+#ifndef XLS_SOLVERS_Z3_PROPAGATE_UPDATES_H_
+#define XLS_SOLVERS_Z3_PROPAGATE_UPDATES_H_
 
 #include <string>
 
@@ -159,4 +159,4 @@ DownstreamNodes<T> GetDownstreamNodes(
 }  // namespace solvers
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_SOLVERS_Z3_PROPAGATE_UPDATES_H_
+#endif  // XLS_SOLVERS_Z3_PROPAGATE_UPDATES_H_

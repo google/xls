@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_NETLIST_NETLIST_PARSER_H_
-#define THIRD_PARTY_XLS_NETLIST_NETLIST_PARSER_H_
+#ifndef XLS_NETLIST_NETLIST_PARSER_H_
+#define XLS_NETLIST_NETLIST_PARSER_H_
 
 #include "absl/status/status.h"
 #include "xls/common/status/statusor.h"
@@ -171,4 +171,4 @@ class Parser {
 }  // namespace netlist
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_NETLIST_NETLIST_PARSER_H_
+#endif  // XLS_NETLIST_NETLIST_PARSER_H_

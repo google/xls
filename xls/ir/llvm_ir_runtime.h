@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_IR_LLVM_IR_RUNTIME_H_
-#define THIRD_PARTY_XLS_IR_LLVM_IR_RUNTIME_H_
+#ifndef XLS_IR_LLVM_IR_RUNTIME_H_
+#define XLS_IR_LLVM_IR_RUNTIME_H_
 
 #include "absl/status/status.h"
 #include "absl/types/span.h"
@@ -93,4 +93,4 @@ int UnpackAndPrintBuffer(const char* output_type_string, int arg_count,
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_IR_LLVM_IR_RUNTIME_H_
+#endif  // XLS_IR_LLVM_IR_RUNTIME_H_

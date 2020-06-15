@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_SIMULATION_MODULE_SIMULATOR_H_
-#define THIRD_PARTY_XLS_SIMULATION_MODULE_SIMULATOR_H_
+#ifndef XLS_SIMULATION_MODULE_SIMULATOR_H_
+#define XLS_SIMULATION_MODULE_SIMULATOR_H_
 
 #include "absl/container/flat_hash_map.h"
 #include "xls/codegen/module_signature.h"
@@ -75,4 +75,4 @@ class ModuleSimulator {
 }  // namespace verilog
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_SIMULATION_MODULE_SIMULATOR_H_
+#endif  // XLS_SIMULATION_MODULE_SIMULATOR_H_

@@ -70,6 +70,7 @@ cc_test(
     srcs = ["passes_test.cc"],
     deps = [
         ":passes",
+        "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:casts",
         "//xls/common/logging",
@@ -81,7 +82,6 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
         "//xls/ir:type",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -91,13 +91,13 @@ cc_test(
     deps = [
         ":dce_pass",
         ":identity_removal_pass",
+        "@com_google_googletest//:gtest_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -106,12 +106,12 @@ cc_test(
     srcs = ["arith_simplification_pass_test.cc"],
     deps = [
         ":arith_simplification_pass",
+        "@com_google_googletest//:gtest_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -123,6 +123,7 @@ cc_test(
         ":dce_pass",
         ":dump_pass",
         ":standard_pipeline",
+        "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:matchers",
         "//xls/examples:sample_packages",
@@ -133,7 +134,6 @@ cc_test(
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
         "//xls/ir:type",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -142,12 +142,12 @@ cc_test(
     srcs = ["canonicalization_pass_test.cc"],
     deps = [
         ":canonicalization_pass",
+        "@com_google_googletest//:gtest_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -170,9 +170,9 @@ cc_test(
     deps = [
         ":dce_pass",
         ":unroll_pass",
+        "@com_google_googletest//:gtest_main",
         "//xls/common/status:matchers",
         "//xls/ir:ir_parser",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -226,11 +226,11 @@ cc_test(
     srcs = ["map_inlining_pass_test.cc"],
     deps = [
         ":map_inlining_pass",
+        "@com_google_googletest//:gtest_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_parser",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -651,9 +651,9 @@ cc_test(
     deps = [
         ":dce_pass",
         ":inlining_pass",
+        "@com_google_googletest//:gtest_main",
         "//xls/common/status:matchers",
         "//xls/ir:ir_parser",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -662,11 +662,11 @@ cc_test(
     srcs = ["literal_uncommoning_pass_test.cc"],
     deps = [
         ":literal_uncommoning_pass",
+        "@com_google_googletest//:gtest_main",
         "//xls/common/status:matchers",
         "//xls/common/status:statusor",
         "//xls/ir",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -676,12 +676,12 @@ cc_test(
     deps = [
         ":cse_pass",
         ":dce_pass",
+        "@com_google_googletest//:gtest_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor",
         "//xls/ir",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -691,13 +691,13 @@ cc_test(
     deps = [
         ":constant_folding_pass",
         ":dce_pass",
+        "@com_google_googletest//:gtest_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor",
         "//xls/ir",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -707,6 +707,7 @@ cc_test(
     deps = [
         ":bit_slice_simplification_pass",
         ":dce_pass",
+        "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/strings",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -717,7 +718,6 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -727,12 +727,12 @@ cc_test(
     deps = [
         ":boolean_simplification_pass",
         ":dce_pass",
+        "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/memory",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/ir:bits_ops",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -742,6 +742,7 @@ cc_test(
     deps = [
         ":concat_simplification_pass",
         ":dce_pass",
+        "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/strings",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -751,7 +752,6 @@ cc_test(
         "//xls/ir:ir_interpreter",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -761,12 +761,12 @@ cc_test(
     deps = [
         ":dce_pass",
         ":tuple_simplification_pass",
+        "@com_google_googletest//:gtest_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor",
         "//xls/ir",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -775,12 +775,12 @@ cc_test(
     srcs = ["strength_reduction_pass_test.cc"],
     deps = [
         ":strength_reduction_pass",
+        "@com_google_googletest//:gtest_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -790,6 +790,7 @@ cc_test(
     deps = [
         ":ternary_logic",
         ":ternary_query_engine",
+        "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/strings",
         "//xls/common/logging",
@@ -800,7 +801,6 @@ cc_test(
         "//xls/ir:bits_ops",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -809,6 +809,7 @@ cc_test(
     srcs = ["select_simplification_pass_test.cc"],
     deps = [
         ":select_simplification_pass",
+        "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/strings",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -816,7 +817,6 @@ cc_test(
         "//xls/ir",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -825,12 +825,12 @@ cc_test(
     srcs = ["ternary_logic_test.cc"],
     deps = [
         ":ternary_logic",
+        "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -839,11 +839,11 @@ cc_test(
     srcs = ["dce_pass_test.cc"],
     deps = [
         ":dce_pass",
+        "@com_google_googletest//:gtest_main",
         "//xls/common/status:matchers",
         "//xls/common/status:statusor",
         "//xls/ir",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -853,6 +853,7 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":bdd_function",
+        "@com_google_googletest//:gtest_main",
         "//xls/common/status:matchers",
         "//xls/examples:sample_packages",
         "//xls/ir",
@@ -860,7 +861,6 @@ cc_test(
         "//xls/ir:ir_interpreter",
         "//xls/ir:ir_test_base",
         "//xls/ir:value_helpers",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -869,12 +869,12 @@ cc_test(
     srcs = ["bdd_query_engine_test.cc"],
     deps = [
         ":bdd_query_engine",
+        "@com_google_googletest//:gtest_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -886,6 +886,7 @@ cc_test(
         ":query_engine",
         ":ternary_logic",
         ":ternary_query_engine",
+        "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/strings",
         "//xls/common/logging",
@@ -895,7 +896,6 @@ cc_test(
         "//xls/ir:bits_ops",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -904,6 +904,7 @@ cc_test(
     srcs = ["bdd_simplification_pass_test.cc"],
     deps = [
         ":bdd_simplification_pass",
+        "@com_google_googletest//:gtest_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor",
@@ -911,7 +912,6 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -921,11 +921,11 @@ cc_test(
     deps = [
         ":narrowing_pass",
         ":pass_base",
+        "@com_google_googletest//:gtest_main",
         "//xls/common/status:matchers",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -935,13 +935,13 @@ cc_test(
     deps = [
         ":dfe_pass",
         ":pass_base",
+        "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/strings",
         "//xls/common/status:matchers",
         "//xls/common/status:statusor",
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -951,13 +951,13 @@ cc_test(
     deps = [
         ":bdd_cse_pass",
         ":pass_base",
+        "@com_google_googletest//:gtest_main",
         "//xls/common/status:matchers",
         "//xls/common/status:statusor",
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -966,11 +966,11 @@ cc_test(
     srcs = ["reassociation_pass_test.cc"],
     deps = [
         ":reassociation_pass",
+        "@com_google_googletest//:gtest_main",
         "//xls/common/status:matchers",
         "//xls/common/status:statusor",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
     ],
 )

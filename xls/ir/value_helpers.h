@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_IR_VALUE_HELPERS_H_
-#define THIRD_PARTY_XLS_IR_VALUE_HELPERS_H_
+#ifndef XLS_IR_VALUE_HELPERS_H_
+#define XLS_IR_VALUE_HELPERS_H_
 
 #include <random>
 
@@ -92,4 +92,4 @@ xabsl::StatusOr<float> TupleToF32(const Value& v);
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_IR_VALUE_HELPERS_H_
+#endif  // XLS_IR_VALUE_HELPERS_H_

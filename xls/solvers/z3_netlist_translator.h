@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_SOLVERS_Z3_NETLIST_TRANSLATOR_H_
-#define THIRD_PARTY_XLS_SOLVERS_Z3_NETLIST_TRANSLATOR_H_
+#ifndef XLS_SOLVERS_Z3_NETLIST_TRANSLATOR_H_
+#define XLS_SOLVERS_Z3_NETLIST_TRANSLATOR_H_
 
 #include <memory>
 
@@ -99,4 +99,4 @@ class NetlistTranslator {
 }  // namespace solvers
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_SOLVERS_Z3_NETLIST_TRANSLATOR_H_
+#endif  // XLS_SOLVERS_Z3_NETLIST_TRANSLATOR_H_

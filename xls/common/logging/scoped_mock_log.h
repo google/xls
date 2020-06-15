@@ -15,8 +15,8 @@
 // Defines the ScopedMockLog class (using gMock), which is convenient
 // for testing code that uses XLS_LOG().
 
-#ifndef THIRD_PARTY_XLS_COMMON_LOGGING_SCOPED_MOCK_LOG_H_
-#define THIRD_PARTY_XLS_COMMON_LOGGING_SCOPED_MOCK_LOG_H_
+#ifndef XLS_COMMON_LOGGING_SCOPED_MOCK_LOG_H_
+#define XLS_COMMON_LOGGING_SCOPED_MOCK_LOG_H_
 
 #include <string>
 
@@ -188,4 +188,4 @@ class ScopedMockLog : public LogSink {
 }  // namespace testing
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_COMMON_LOGGING_SCOPED_MOCK_LOG_H_
+#endif  // XLS_COMMON_LOGGING_SCOPED_MOCK_LOG_H_

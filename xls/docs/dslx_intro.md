@@ -19,11 +19,11 @@ perusing it and learning about the language features, we recommend exploring the
 following, detailed examples to learn how the language features are put to
 action:
 
-1.  [CRC32](g3doc/dslx_intro_example1.md)
+1.  [CRC32](./g3doc/dslx_intro_example1.md)
 
-2.  [Floating-point addition](g3doc/fpadd_example.md)
+2.  [Floating-point addition](./g3doc/fpadd_example.md)
 
-3.  [Prefix Sum Computation](g3doc/dslx_intro_example3.md)
+3.  [Prefix Sum Computation](./g3doc/dslx_intro_example3.md)
 
 In this document we use the function to compute a CRC32 checksum to describe
 language feature. The full code is in `examples/dslx_intro/crc32_one_byte.x`.
@@ -221,7 +221,7 @@ fn next_in_sequence(x: Opcode, y: Opcode) -> bool {
 As mentioned above casting of enum-values works with the same casting/extension
 rules that apply to the underlying enum type definition. For example, this cast
 will sign extend because the source type for the enum is signed. (See
-[numerical conversions](http://g3doc/third_party/xls/g3doc/dslx_intro.md#numerical-conversions)
+[numerical conversions](./g3doc/dslx_intro.md#numerical-conversions)
 for the full description of extension/truncation behavior.)
 
 ```

@@ -133,8 +133,8 @@
 //     Status s = ...;
 //     EXPECT_THAT(s, IsOk());
 
-#ifndef THIRD_PARTY_XLS_COMMON_STATUS_MATCHERS_H_
-#define THIRD_PARTY_XLS_COMMON_STATUS_MATCHERS_H_
+#ifndef XLS_COMMON_STATUS_MATCHERS_H_
+#define XLS_COMMON_STATUS_MATCHERS_H_
 
 #include <ostream>  // NOLINT
 #include <string>
@@ -571,4 +571,4 @@ IsOkAndHolds(InnerMatcher&& inner_matcher) {
 }  // namespace status_testing
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_COMMON_STATUS_MATCHERS_H_
+#endif  // XLS_COMMON_STATUS_MATCHERS_H_

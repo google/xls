@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_NETLIST_FUNCTION_EXTRACTOR_H_
-#define THIRD_PARTY_XLS_NETLIST_FUNCTION_EXTRACTOR_H_
+#ifndef XLS_NETLIST_FUNCTION_EXTRACTOR_H_
+#define XLS_NETLIST_FUNCTION_EXTRACTOR_H_
 
 #include <string>
 
@@ -36,4 +36,4 @@ xabsl::StatusOr<CellLibraryProto> ExtractFunctions(
 }  // namespace netlist
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_NETLIST_FUNCTION_EXTRACTOR_H_
+#endif  // XLS_NETLIST_FUNCTION_EXTRACTOR_H_

@@ -18,8 +18,8 @@
 // Note that these types are unordered, so stabilizing sorts must be performed
 // on their keys if reproducible traversals are required.
 
-#ifndef THIRD_PARTY_XLS_CODEGEN_NAME_TO_BIT_COUNT_H_
-#define THIRD_PARTY_XLS_CODEGEN_NAME_TO_BIT_COUNT_H_
+#ifndef XLS_CODEGEN_NAME_TO_BIT_COUNT_H_
+#define XLS_CODEGEN_NAME_TO_BIT_COUNT_H_
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/string_view.h"
@@ -34,4 +34,4 @@ using NameToBits = absl::flat_hash_map<std::string, Bits>;
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_CODEGEN_NAME_TO_BIT_COUNT_H_
+#endif  // XLS_CODEGEN_NAME_TO_BIT_COUNT_H_

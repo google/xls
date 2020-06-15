@@ -16,9 +16,7 @@
 load("//xls/build:build_defs.bzl", "dslx_test")
 
 package(
-    default_visibility = [
-        "//xls:__subpackages__",
-    ],
+    default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )
 

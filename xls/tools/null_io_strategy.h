@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_TOOLS_NULL_IO_STRATEGY_H_
-#define THIRD_PARTY_XLS_TOOLS_NULL_IO_STRATEGY_H_
+#ifndef XLS_TOOLS_NULL_IO_STRATEGY_H_
+#define XLS_TOOLS_NULL_IO_STRATEGY_H_
 
 #include "absl/status/status.h"
 #include "xls/codegen/vast.h"
@@ -53,4 +53,4 @@ class NullIoStrategy : public IoStrategy {
 }  // namespace verilog
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_TOOLS_NULL_IO_STRATEGY_H_
+#endif  // XLS_TOOLS_NULL_IO_STRATEGY_H_

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_IR_TERNARY_H_
-#define THIRD_PARTY_XLS_IR_TERNARY_H_
+#ifndef XLS_IR_TERNARY_H_
+#define XLS_IR_TERNARY_H_
 
 #include <vector>
 
@@ -133,4 +133,4 @@ inline TernaryVector BitsToTernary(const Bits& bits) {
 }  // namespace ternary_ops
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_IR_TERNARY_H_
+#endif  // XLS_IR_TERNARY_H_

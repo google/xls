@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_PASSES_TERNARY_LOGIC_H_
-#define THIRD_PARTY_XLS_PASSES_TERNARY_LOGIC_H_
+#ifndef XLS_PASSES_TERNARY_LOGIC_H_
+#define XLS_PASSES_TERNARY_LOGIC_H_
 
 #include <iosfwd>
 #include <vector>
@@ -55,4 +55,4 @@ class TernaryEvaluator : public AbstractEvaluator<TernaryValue> {
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_PASSES_TERNARY_LOGIC_H_
+#endif  // XLS_PASSES_TERNARY_LOGIC_H_

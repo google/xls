@@ -13,6 +13,7 @@
 # limitations under the License.
 
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+
 # pytype binary, test, library
 load("//xls/build:py_proto_library.bzl", "xls_py_proto_library")
 
@@ -26,16 +27,16 @@ cc_library(
     srcs = ["delay_estimator.cc"],
     hdrs = ["delay_estimator.h"],
     deps = [
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
         "//xls/common:integral_types",
         "//xls/common/status:status_builder",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor",
         "//xls/ir",
         "//xls/netlist:logical_effort",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -45,10 +46,10 @@ cc_test(
     deps = [
         ":delay_estimator",
         ":delay_estimators",
-        "@com_google_absl//absl/memory",
         "//xls/common/status:matchers",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "@com_google_absl//absl/memory",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -60,7 +61,6 @@ cc_test(
         ":analyze_critical_path",
         ":delay_estimator",
         ":delay_heap",
-        "@com_google_absl//absl/status",
         "//xls/common/status:matchers",
         "//xls/common/status:statusor",
         "//xls/examples:sample_packages",
@@ -71,6 +71,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
         "//xls/ir:type",
+        "@com_google_absl//absl/status",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -108,13 +109,13 @@ cc_library(
     hdrs = ["delay_heap.h"],
     deps = [
         ":delay_estimator",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/types:span",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor",
         "//xls/ir",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -124,10 +125,10 @@ cc_library(
     hdrs = ["delay_estimators.h"],
     deps = [
         ":delay_estimator",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/strings",
         "//xls/common/status:statusor",
         "//xls/delay_model/models",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -151,11 +152,11 @@ py_binary(
     deps = [
         ":delay_model",
         ":delay_model_py_pb2",
+        "//xls/common:runfiles",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
-        "@jinja_archive//:jinja2",
-        "//xls/common:runfiles",
         "@com_google_protobuf//:protobuf_python",
+        "@jinja_archive//:jinja2",
     ],
 )
 

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_COMMON_VISITOR_H_
-#define THIRD_PARTY_XLS_COMMON_VISITOR_H_
+#ifndef XLS_COMMON_VISITOR_H_
+#define XLS_COMMON_VISITOR_H_
 
 namespace xls {
 
@@ -39,4 +39,4 @@ Visitor(Ts...) -> Visitor<Ts...>;
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_COMMON_VISITOR_H_
+#endif  // XLS_COMMON_VISITOR_H_
