@@ -62,9 +62,8 @@ class NetlistTranslator {
   // To un-do this operation, the Z3_ast for ref_name must be stored and
   // passed as an argument to a later call.
   // There is no way to replace only the n'th use of src by a given cell.
-  absl::Status RebindInputNet(
-      const std::string& ref_name, Z3_ast dst,
-      absl::flat_hash_set<netlist::rtl::Cell*> cells_to_consider = {});
+  absl::Status RebindInputNets(
+      const absl::flat_hash_map<std::string, Z3_ast>& inputs);
 
  private:
   NetlistTranslator(

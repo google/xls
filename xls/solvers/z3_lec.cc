@@ -247,17 +247,7 @@ absl::Status Lec::CreateIrTranslator() {
 absl::Status Lec::BindNetlistInputs(absl::Span<const Node*> ir_inputs) {
   absl::flat_hash_map<std::string, Z3_ast> inputs =
       FlattenNetlistInputs(ir_inputs);
-  for (auto& input : inputs) {
-    // Skip synthesized inputs.
-    // TODO(rspringer): These special wires aren't necessarily fixed - they're
-    // specified by codegen, and could change in the future. These need to be
-    // properly handled (i.e., not hardcoded).
-    if (input.first == "clk" || input.first == "input_valid") {
-      continue;
-    }
-    XLS_RETURN_IF_ERROR(
-        netlist_translator_->RebindInputNet(input.first, input.second));
-  }
+  XLS_RETURN_IF_ERROR(netlist_translator_->RebindInputNets(inputs));
 
   return absl::OkStatus();
 }
