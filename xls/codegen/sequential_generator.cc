@@ -33,13 +33,56 @@
 namespace xls {
 namespace verilog {
 
+// Generate the signature for the top-level module.
+xabsl::StatusOr<ModuleSignature> GenerateModuleSignature(
+    const CountedFor* loop, const SequentialOptions& sequential_options) {
+  std::string module_name = sequential_options.module_name().has_value()
+                                ? sequential_options.module_name().value()
+                                : loop->GetName() + "_sequential_module";
+  ModuleSignatureBuilder sig_builder(module_name);
+
+  // Default Inputs.
+  sig_builder.WithClock("clk");
+  for (const Node* op_in : loop->operands()) {
+    sig_builder.AddDataInput(op_in->GetName() + "_in",
+                             op_in->GetType()->GetFlatBitCount());
+  }
+
+  // Default Outputs.
+  sig_builder.AddDataOutput(loop->GetName() + "_out",
+                            loop->GetType()->GetFlatBitCount());
+
+  // Reset.
+  if (sequential_options.reset().has_value()) {
+    sig_builder.WithReset(sequential_options.reset()->name(),
+                          sequential_options.reset()->asynchronous(),
+                          sequential_options.reset()->active_low());
+  }
+
+  // TODO(jbaileyhandle): Add options for other interfaces.
+  std::string ready_in_name = "ready_in";
+  std::string valid_in_name = "valid_in";
+  std::string ready_out_name = "ready_out";
+  std::string valid_out_name = "valid_out";
+  sig_builder.WithReadyValidInterface(ready_in_name, valid_in_name,
+                                      ready_out_name, valid_out_name);
+
+  return sig_builder.Build();
+}
+
+// Generate a pipeline module that implements the loop's body.
 xabsl::StatusOr<std::unique_ptr<ModuleGeneratorResult>>
-GenerateLoopBodyPipeline(CountedFor* loop, bool use_system_verilog,
-                         SchedulingOptions& scheduling_options,
+GenerateLoopBodyPipeline(const CountedFor* loop,
+                         const SequentialOptions& sequential_options,
+                         const SchedulingOptions& scheduling_options,
                          const DelayEstimator& delay_estimator) {
+  // Set pipeline options.
   PipelineOptions pipeline_options;
   pipeline_options.flop_inputs(false).flop_outputs(false).use_system_verilog(
-      use_system_verilog);
+      sequential_options.use_system_verilog());
+  if (sequential_options.reset().has_value()) {
+    pipeline_options.reset(sequential_options.reset().value());
+  }
 
   // Get schedule.
   std::unique_ptr<ModuleGeneratorResult> result =

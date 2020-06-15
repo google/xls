@@ -107,6 +107,7 @@ cc_test(
     shard_count = 10,
     deps = [
         ":module_signature",
+        ":module_signature_cc_proto",
         ":pipeline_generator",
         ":sequential_generator",
         "//xls/common/status:matchers",
