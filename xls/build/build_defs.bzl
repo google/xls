@@ -87,16 +87,19 @@ def _codegen(
             ))
     verilog_file = name + ".v"
     module_sig_file = name + ".sig.pbtxt"
+    schedule_file = name + ".schedule.textproto"
     native.genrule(
         name = name,
         srcs = srcs,
-        outs = [verilog_file, module_sig_file],
+        outs = [verilog_file, module_sig_file, schedule_file],
         cmd = ("$(location %s) %s --output_signature_path=$(@D)/%s " +
-               "--output_verilog_path=$(@D)/%s $<") % (
+               "--output_verilog_path=$(@D)/%s " +
+               "--output_schedule_path=$(@D)/%s $<") % (
             _CODEGEN_MAIN,
             " ".join(codegen_flags),
             module_sig_file,
             verilog_file,
+            schedule_file,
         ),
         exec_tools = [_CODEGEN_MAIN],
         tags = tags,

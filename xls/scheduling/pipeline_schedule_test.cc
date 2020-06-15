@@ -404,5 +404,27 @@ TEST_F(PipelineScheduleTest, MinCutCycleOrders) {
                           std::vector<int64>({3, 1, 0, 2, 5, 4, 6, 7})));
 }
 
+TEST_F(PipelineScheduleTest, SerializeAndDeserialize) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  auto x = fb.Param("x", u32);
+  auto y = fb.Param("y", u32);
+  auto z = fb.Param("z", u32);
+  fb.Negate(fb.Concat({(fb.Not(fb.Negate(x | y)) - z) * x, z + z}));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(func, TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(3)));
+
+  PipelineScheduleProto proto = schedule.ToProto();
+  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule clone,
+                           PipelineSchedule::FromProto(func, proto));
+  for (const Node* node : func->nodes()) {
+    EXPECT_EQ(schedule.cycle(node), clone.cycle(node));
+  }
+}
+
 }  // namespace
 }  // namespace xls

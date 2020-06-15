@@ -62,6 +62,7 @@ cc_library(
     hdrs = ["pipeline_schedule.h"],
     deps = [
         ":function_partition",
+        ":pipeline_schedule_cc_proto",
         ":schedule_bounds",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",

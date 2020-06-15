@@ -15,6 +15,7 @@
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
 #include "xls/codegen/combinational_generator.h"
 #include "xls/codegen/pipeline_generator.h"
 #include "xls/common/file/filesystem.h"
@@ -53,6 +54,9 @@ ABSL_FLAG(
     std::string, output_verilog_path, "",
     "Specific output path for the Verilog generated. If not specified then "
     "Verilog is written to stdout.");
+ABSL_FLAG(string, output_schedule_path, "",
+          "Specific output path for the generated pipeline schedule. "
+          "If not specified, then no schedule is output.");
 ABSL_FLAG(
     std::string, output_signature_path, "",
     "Specific output path for the module signature. If not specified then "
@@ -95,7 +99,8 @@ namespace xls {
 namespace {
 
 absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
-                      absl::string_view signature_path) {
+                      absl::string_view signature_path,
+                      absl::string_view schedule_path) {
   XLS_ASSIGN_OR_RETURN(std::string ir_contents, GetFileContents(ir_path));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> p,
                        Parser::ParsePackage(ir_contents, ir_path));
@@ -157,6 +162,10 @@ absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
     XLS_ASSIGN_OR_RETURN(
         result, verilog::ToPipelineModuleText(*scheduling_unit.schedule, main,
                                               pipeline_options));
+    if (!schedule_path.empty()) {
+      XLS_RETURN_IF_ERROR(
+          SetTextProtoFile(schedule_path, scheduling_unit.schedule->ToProto()));
+    }
   } else if (absl::GetFlag(FLAGS_generator) == "combinational") {
     XLS_ASSIGN_OR_RETURN(result,
                          verilog::ToCombinationalModuleText(
@@ -192,7 +201,8 @@ int main(int argc, char** argv) {
   }
   absl::string_view ir_path = positional_arguments[0];
   XLS_QCHECK_OK(xls::RealMain(ir_path, absl::GetFlag(FLAGS_output_verilog_path),
-                              absl::GetFlag(FLAGS_output_signature_path)));
+                              absl::GetFlag(FLAGS_output_signature_path),
+                              absl::GetFlag(FLAGS_output_schedule_path)));
 
   return EXIT_SUCCESS;
 }
