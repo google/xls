@@ -663,8 +663,8 @@ class Parser(token_parser.TokenParser):
     return lhs
 
   def _parse_strong_arithmetic_expression(self, bindings: Bindings) -> ast.Expr:
-    return self._parse_binop_chain(self._parse_cast_as_expression, _STRONG_ARITHMETIC_KINDS,
-                                   bindings)
+    return self._parse_binop_chain(self._parse_cast_as_expression,
+                                   _STRONG_ARITHMETIC_KINDS, bindings)
 
   def _parse_weak_arithmetic_expression(self, bindings: Bindings) -> ast.Expr:
     return self._parse_binop_chain(self._parse_strong_arithmetic_expression,

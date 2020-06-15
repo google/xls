@@ -24,7 +24,6 @@ from xls.dslx import fakefs_util
 from xls.dslx import parser
 from xls.dslx import parser_helpers
 from xls.dslx import scanner
-from xls.dslx.scanner import Keyword
 from xls.dslx.scanner import TokenKind
 from xls.dslx.span import Pos
 from xls.dslx.span import Span

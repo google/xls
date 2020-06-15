@@ -40,7 +40,6 @@ from xls.dslx.core_ast_nodes import TypeAnnotation
 from xls.dslx.core_ast_nodes import TypeDef
 from xls.dslx.core_ast_nodes import WildcardPattern
 from xls.dslx.free_variables import FreeVariables
-from xls.dslx.scanner import Keyword
 from xls.dslx.scanner import Pos
 from xls.dslx.scanner import Token
 from xls.dslx.scanner import TokenKind
