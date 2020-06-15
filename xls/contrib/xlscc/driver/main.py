@@ -17,8 +17,10 @@
 
 import argparse
 
+import sys
 import pycparser
 
+from google.protobuf import text_format
 from xls.contrib.xlscc.parse import ext_c_parser
 from xls.contrib.xlscc.translate import hls_types_pb2
 import xls.contrib.xlscc.translate.translator as xlscc_translator
@@ -45,7 +47,15 @@ def main():
     with open(args.types_proto, mode="rb") as proto_file:
       file_content = proto_file.read()
       hls_types = hls_types_pb2.HLSTypes()
-      hls_types.ParseFromString(file_content)
+      if args.types_proto.endswith("pb"):
+        hls_types.ParseFromString(file_content)
+      elif args.types_proto.endswith("pbtext"):
+        text_format.Parse(file_content, hls_types)
+      else:
+        print("Unknown extension for protobuf: {args.types_proto}",
+              file=sys.stderr)
+        sys.exit(1)
+
       for named_type in hls_types.hls_types:
         hls_types_by_name[named_type.name] = named_type.hls_type
 
