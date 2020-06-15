@@ -114,9 +114,7 @@ void PropagateAstUpdates(Z3_context ctx,
         updated_nodes[downstream_node] = {downstream_node, old_ast, new_ast};
         translations[downstream_node] = new_ast;
 
-        for (const auto& user : get_users(downstream_node)) {
-          active_nodes.push_back(user);
-        }
+        active_nodes.push_back(downstream_node);
       }
     }
   }
@@ -126,9 +124,9 @@ template <typename T>
 DownstreamNodes<T> GetDownstreamNodes(
     absl::Span<const UpdatedNode<T>> updated_nodes,
     std::function<std::vector<T>(T parent)> get_users) {
+  // The NetRefs that need to be updated - those downstream of the input refs.
   DownstreamNodes<T> affected_nodes;
 
-  // The NetRefs that need to be updated - those downstream of the input refs.
   std::deque<T> live_nodes;
   for (const auto& updated_node : updated_nodes) {
     live_nodes.push_back(updated_node.node);
@@ -144,10 +142,7 @@ DownstreamNodes<T> GetDownstreamNodes(
     for (T user : get_users(node)) {
       affected_nodes[user].insert(node);
       if (!seen_nodes.contains(user)) {
-        seen_nodes.insert(user);
-        for (const auto& subuser : get_users(user)) {
-          live_nodes.push_back(subuser);
-        }
+        live_nodes.push_back(user);
       }
     }
   }
