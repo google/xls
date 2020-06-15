@@ -20,6 +20,7 @@
 #include "xls/common/status/statusor.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/function.h"
+#include "xls/scheduling/pipeline_schedule.pb.h"
 
 namespace xls {
 
@@ -112,6 +113,10 @@ class PipelineSchedule {
       Function* f, const DelayEstimator& delay_estimator,
       const SchedulingOptions& options);
 
+  // Reconstructs a PipelineSchedule object from a proto representation.
+  static xabsl::StatusOr<PipelineSchedule> FromProto(
+      Function* function, const PipelineScheduleProto& proto);
+
   // Constructs a schedule for the given function with the given cycle map. If
   // length is not given, then the length equal to the largest cycle in cycle
   // map minus one.
@@ -153,6 +158,9 @@ class PipelineSchedule {
   // given clock period.
   absl::Status VerifyTiming(int64 clock_period_ps,
                             const DelayEstimator& delay_estimator) const;
+
+  // Returns a protobuf holding this object's scheduling info.
+  PipelineScheduleProto ToProto();
 
  private:
   Function* function_;

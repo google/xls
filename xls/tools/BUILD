@@ -536,6 +536,7 @@ cc_binary(
     deps = [
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "//xls/codegen:combinational_generator",
         "//xls/codegen:pipeline_generator",
