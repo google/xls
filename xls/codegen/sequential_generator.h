@@ -28,11 +28,49 @@
 namespace xls {
 namespace verilog {
 
+class SequentialOptions {
+ public:
+  // Reset logic to use.
+  SequentialOptions& reset(const ResetProto& reset_proto) {
+    reset_proto_ = reset_proto;
+    return *this;
+  }
+  const absl::optional<ResetProto>& reset() const { return reset_proto_; }
+
+  // Name to use for the generated module. If not given, the name is derived
+  // from the CountedFor node.
+  SequentialOptions& module_name(absl::string_view name) {
+    module_name_ = name;
+    return *this;
+  }
+  const absl::optional<std::string> module_name() const { return module_name_; }
+
+  // Whether to use SystemVerilog in the generated code, otherwise Verilog is
+  // used. The default is to use SystemVerilog.
+  SequentialOptions& use_system_verilog(bool value) {
+    use_system_verilog_ = value;
+    return *this;
+  }
+  bool use_system_verilog() const { return use_system_verilog_; }
+
+ private:
+  absl::optional<std::string> module_name_;
+  absl::optional<ResetProto> reset_proto_;
+  bool use_system_verilog_ = true;
+  // TODO(jbaileyhandle): Flop ouptut option?
+  // TODO(jbaileyhandle): Interface options.
+};
+
 // Generate a pipeline module that implements the loop's body.
 xabsl::StatusOr<std::unique_ptr<ModuleGeneratorResult>>
-GenerateLoopBodyPipeline(CountedFor* loop, bool use_system_verilog,
-                         SchedulingOptions& scheduling_options,
+GenerateLoopBodyPipeline(const CountedFor* loop,
+                         const SequentialOptions& options,
+                         const SchedulingOptions& scheduling_options,
                          const DelayEstimator& = GetStandardDelayEstimator());
+
+// Generate the signature for the top-level module.
+xabsl::StatusOr<ModuleSignature> GenerateModuleSignature(
+    const CountedFor* loop, const SequentialOptions& sequential_options);
 
 // Emits the given function as a verilog module which reuses the same hardware
 // over time to executed loop iterations.
