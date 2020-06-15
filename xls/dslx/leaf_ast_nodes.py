@@ -747,7 +747,7 @@ class Unop(Expr):
   # (T) -> T operators.
   SAME_TYPE_KIND_LIST = [
       INV,
-      NEG,
+      NEG
   ]
 
   OPERATORS = set(SAME_TYPE_KIND_LIST)

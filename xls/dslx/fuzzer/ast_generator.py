@@ -307,7 +307,7 @@ class AstGenerator(object):
     rhs = ast.Binop(ne_token, make_rhs(), self._make_number(0, rhs_type))
     # Pick some operation to do.
     op = self.rng.choice(
-        [ast.Binop.LOGICAL_AND, ast.Binop.LOGICAL_OR, ast.Binop.LOGICAL_XOR])
+        [ast.Binop.LOGICAL_AND, ast.Binop.LOGICAL_OR, ast.Binop.XOR])
     op_token = scanner.Token(op, self.fake_span, op.value)
     return ast.Binop(op_token, lhs, rhs), self._make_type_annotation('u1')
 
