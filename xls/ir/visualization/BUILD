@@ -13,6 +13,7 @@
 # limitations under the License.
 
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+
 # pytype binary and test
 load("//xls/examples:list_filegroup_files.bzl", "list_filegroup_files")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
@@ -54,8 +55,6 @@ py_binary(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
         requirement("Flask"),
         requirement("Jinja2"),
         requirement("Werkzeug"),
@@ -64,6 +63,8 @@ py_binary(
         "//xls/common:runfiles",
         "//xls/common/python:init_xls",
         "//xls/ir/visualization/python:ir_to_json",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
     ],
 )
 
@@ -90,9 +91,6 @@ cc_library(
     hdrs = ["ir_to_json.h"],
     deps = [
         ":ir_for_visualization_cc_proto",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:optional",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor",
@@ -104,6 +102,9 @@ cc_library(
         "//xls/ir:op",
         "//xls/passes:bdd_query_engine",
         "//xls/scheduling:pipeline_schedule",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
         "@com_google_protobuf//:protobuf",
     ],
 )
@@ -113,7 +114,6 @@ cc_test(
     srcs = ["ir_to_json_test.cc"],
     deps = [
         ":ir_to_json",
-        "@com_google_absl//absl/memory",
         "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/delay_model:delay_estimator",
@@ -121,6 +121,7 @@ cc_test(
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "@com_google_absl//absl/memory",
         "@com_google_googletest//:gtest_main",
     ],
 )

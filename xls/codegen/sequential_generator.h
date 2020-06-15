@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_CODEGEN_SEQUENTIAL_GENERATOR_H_
-#define THIRD_PARTY_XLS_CODEGEN_SEQUENTIAL_GENERATOR_H_
+#ifndef XLS_CODEGEN_SEQUENTIAL_GENERATOR_H_
+#define XLS_CODEGEN_SEQUENTIAL_GENERATOR_H_
 
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/pipeline_generator.h"
@@ -79,4 +79,4 @@ xabsl::StatusOr<ModuleGeneratorResult> ToSequentialModuleText(Function* func);
 }  // namespace verilog
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_CODEGEN_SEQUENTIAL_GENERATOR_H_
+#endif  // XLS_CODEGEN_SEQUENTIAL_GENERATOR_H_

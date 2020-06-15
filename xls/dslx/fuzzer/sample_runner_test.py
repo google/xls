@@ -18,6 +18,7 @@ import os
 from typing import Tuple, Text
 
 from xls.common import check_simulator
+from xls.common import test_base
 from xls.dslx import fakefs_util
 from xls.dslx import parser_helpers
 from xls.dslx.concrete_type import ArrayType
@@ -26,7 +27,6 @@ from xls.dslx.concrete_type import TupleType
 from xls.dslx.fuzzer import sample
 from xls.dslx.fuzzer import sample_runner
 from xls.dslx.interpreter.value import Value
-from absl.testing import absltest
 
 
 def _read_file(dirname: Text, filename: Text) -> Text:
@@ -41,13 +41,13 @@ def _split_nonempty_lines(dirname: Text, filename: Text) -> Tuple[Text]:
       l.strip() for l in _read_file(dirname, filename).splitlines() if l)
 
 
-class SampleRunnerTest(absltest.TestCase):
+class SampleRunnerTest(test_base.TestCase):
 
   def _make_sample_dir(self):
     # Keep the directory around (no cleanup) if the test fails for easier
     # debugging.
-    return self.create_tempdir(
-        cleanup=absltest.TempFileCleanup.SUCCESS).full_path
+    success = test_base.TempFileCleanup.SUCCESS  # type: test_base.TempFileCleanup
+    return self.create_tempdir(cleanup=success).full_path
 
   def test_interpret_dslx_single_value(self):
     sample_dir = self._make_sample_dir()
@@ -274,8 +274,8 @@ class SampleRunnerTest(absltest.TestCase):
                 Value.make_ubits(8, 100)]]))
     self.assertIn('Result miscompare for sample 0', str(e.exception))
 
-  @absltest.unittest.skipIf(not check_simulator.runs_system_verilog(),
-                              'uses SystemVerilog')
+  @test_base.skipIf(not check_simulator.runs_system_verilog(),
+                    'uses SystemVerilog')
   def test_codegen_pipeline(self):
     sample_dir = self._make_sample_dir()
     print('sample_dir = ' + sample_dir)
@@ -375,4 +375,4 @@ class SampleRunnerTest(absltest.TestCase):
 
 
 if __name__ == '__main__':
-  absltest.main()
+  test_base.main()

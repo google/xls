@@ -28,10 +28,10 @@ from xls.dslx.concrete_type import ArrayType
 from xls.dslx.interpreter import interpreter
 from xls.dslx.interpreter import parse_and_interpret
 from xls.dslx.xls_type_error import XlsTypeError
-from absl.testing import absltest as unittest
+from absl.testing import absltest
 
 
-class InterpreterTest(unittest.TestCase):
+class InterpreterTest(absltest.TestCase):
 
   def _parse_and_test(self, program: Text, trace_all: bool = False) -> None:
     with ffu.Patcher() as patcher:
@@ -514,4 +514,4 @@ class InterpreterTest(unittest.TestCase):
 
 
 if __name__ == '__main__':
-  unittest.main()
+  absltest.main()

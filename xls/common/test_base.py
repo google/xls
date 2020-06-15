@@ -24,9 +24,11 @@ import sys
 import tempfile
 
 from xls.common.python import init_xls
-from absl.testing import absltest as absltest
+from absl.testing import absltest
 
 TestCase = absltest.TestCase
+TempFileCleanup = absltest.TempFileCleanup
+skipIf = absltest.unittest.skipIf
 
 
 def create_named_output_text_file(name: str) -> str:

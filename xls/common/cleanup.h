@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_COMMON_CLEANUP_H_
-#define THIRD_PARTY_XLS_COMMON_CLEANUP_H_
+#ifndef XLS_COMMON_CLEANUP_H_
+#define XLS_COMMON_CLEANUP_H_
 
 #include <utility>
 
@@ -51,4 +51,4 @@ xabsl::Cleanup<absl::decay_t<CallbackT>> MakeCleanup(CallbackT&& callback) {
 
 }  // namespace xabsl
 
-#endif  // THIRD_PARTY_XLS_COMMON_CLEANUP_H_
+#endif  // XLS_COMMON_CLEANUP_H_

@@ -15,8 +15,8 @@
 // Helpers for calculating "method of logical effort" based delay, as reflected
 // in the blue Logical Effort book by Ivan Sutherland, et al.
 
-#ifndef THIRD_PARTY_XLS_NETLIST_LOGICAL_EFFORT_H_
-#define THIRD_PARTY_XLS_NETLIST_LOGICAL_EFFORT_H_
+#ifndef XLS_NETLIST_LOGICAL_EFFORT_H_
+#define XLS_NETLIST_LOGICAL_EFFORT_H_
 
 #include "xls/common/integral_types.h"
 #include "xls/common/status/statusor.h"
@@ -71,4 +71,4 @@ xabsl::StatusOr<double> ComputePathLeastDelayAchievable(
 }  // namespace netlist
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_NETLIST_LOGICAL_EFFORT_H_
+#endif  // XLS_NETLIST_LOGICAL_EFFORT_H_

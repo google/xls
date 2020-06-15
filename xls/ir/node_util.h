@@ -14,8 +14,8 @@
 
 // Helper predicate functions for interrogating a Node*.
 
-#ifndef THIRD_PARTY_XLS_IR_NODE_UTIL_H_
-#define THIRD_PARTY_XLS_IR_NODE_UTIL_H_
+#ifndef XLS_IR_NODE_UTIL_H_
+#define XLS_IR_NODE_UTIL_H_
 
 #include "absl/functional/function_ref.h"
 #include "absl/types/span.h"
@@ -135,4 +135,4 @@ bool IsSignedCompare(Node* node);
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_IR_NODE_UTIL_H_
+#endif  // XLS_IR_NODE_UTIL_H_

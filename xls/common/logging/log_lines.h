@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_COMMON_LOGGING_LOG_LINES_H_
-#define THIRD_PARTY_XLS_COMMON_LOGGING_LOG_LINES_H_
+#ifndef XLS_COMMON_LOGGING_LOG_LINES_H_
+#define XLS_COMMON_LOGGING_LOG_LINES_H_
 
 #include <string>
 #include <vector>
@@ -58,4 +58,4 @@ void LogLines(absl::LogSeverity severity, absl::string_view text,
     if (XLS_VLOG_IS_ON(LEVEL)) XLS_LOG_LINES(INFO, STRING); \
   } while (false)
 
-#endif  // THIRD_PARTY_XLS_COMMON_LOGGING_LOG_LINES_H_
+#endif  // XLS_COMMON_LOGGING_LOG_LINES_H_

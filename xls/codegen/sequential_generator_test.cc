@@ -46,7 +46,6 @@ namespace verilog {
 namespace {
 
 using status_testing::IsOkAndHolds;
-using testing::EqualsProto;
 
 constexpr char kTestName[] = "sequential_generator_test";
 constexpr char kTestdataPath[] = "xls/codegen/testdata";
@@ -165,7 +164,8 @@ fn __LoopBodyPipelineTest__main() -> bits[32] {
                                          "valid_out");
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature expected, oracle_builder.Build());
 
-  EXPECT_THAT(signature.proto(), EqualsProto(expected.proto()));
+  EXPECT_EQ(signature.proto().ShortDebugString(),
+            expected.proto().ShortDebugString());
 }
 
 TEST_P(SequentialGeneratorTest, ModuleSignatureTestCustomModuleName) {
@@ -210,7 +210,8 @@ fn __LoopBodyPipelineTest__main() -> bits[32] {
                                          "valid_out");
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature expected, oracle_builder.Build());
 
-  EXPECT_THAT(signature.proto(), EqualsProto(expected.proto()));
+  EXPECT_EQ(signature.proto().ShortDebugString(),
+            expected.proto().ShortDebugString());
 }
 
 TEST_P(SequentialGeneratorTest, ModuleSignatureTestInvariants) {
@@ -258,7 +259,8 @@ fn __ModuleSignatureTestInvariants__main() -> bits[32] {
                                          "valid_out");
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature expected, oracle_builder.Build());
 
-  EXPECT_THAT(signature.proto(), EqualsProto(expected.proto()));
+  EXPECT_EQ(signature.proto().ShortDebugString(),
+            expected.proto().ShortDebugString());
 }
 
 TEST_P(SequentialGeneratorTest, ModuleSignatureSynchronousResetActiveHigh) {
@@ -309,7 +311,8 @@ fn __LoopBodyPipelineTest__main() -> bits[32] {
                            reset.active_low());
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature expected, oracle_builder.Build());
 
-  EXPECT_THAT(signature.proto(), EqualsProto(expected.proto()));
+  EXPECT_EQ(signature.proto().ShortDebugString(),
+            expected.proto().ShortDebugString());
 }
 
 TEST_P(SequentialGeneratorTest, ModuleSignatureAsynchronousActiveLowReset) {
@@ -360,7 +363,8 @@ fn __LoopBodyPipelineTest__main() -> bits[32] {
                            reset.active_low());
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature expected, oracle_builder.Build());
 
-  EXPECT_THAT(signature.proto(), EqualsProto(expected.proto()));
+  EXPECT_EQ(signature.proto().ShortDebugString(),
+            expected.proto().ShortDebugString());
 }
 
 // TODO(jbaileyhandle): Test module reset (active high and active low).

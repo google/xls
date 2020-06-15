@@ -14,8 +14,8 @@
 
 // Define strong_ints used by source locators.
 
-#ifndef THIRD_PARTY_XLS_IR_FILENO_H_
-#define THIRD_PARTY_XLS_IR_FILENO_H_
+#ifndef XLS_IR_FILENO_H_
+#define XLS_IR_FILENO_H_
 
 #include "absl/strings/string_view.h"
 #include "xls/common/integral_types.h"
@@ -29,4 +29,4 @@ DEFINE_STRONG_INT_TYPE(Colno, int32);
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_IR_FILENO_H_
+#endif  // XLS_IR_FILENO_H_

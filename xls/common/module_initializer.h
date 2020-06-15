@@ -34,8 +34,8 @@
 // This also helps the compiler to accurately attribute compilation errors to
 // pieces of your initialization code.
 
-#ifndef THIRD_PARTY_XLS_COMMON_MODULE_INITIALIZER_H_
-#define THIRD_PARTY_XLS_COMMON_MODULE_INITIALIZER_H_
+#ifndef XLS_COMMON_MODULE_INITIALIZER_H_
+#define XLS_COMMON_MODULE_INITIALIZER_H_
 
 namespace xls {
 namespace module_initializer_internal {
@@ -51,4 +51,4 @@ class ModuleInitializer {
 
 #include "xls/common/module_initializer.inc"
 
-#endif  // THIRD_PARTY_XLS_COMMON_MODULE_INITIALIZER_H_
+#endif  // XLS_COMMON_MODULE_INITIALIZER_H_

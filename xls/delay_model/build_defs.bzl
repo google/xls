@@ -41,7 +41,7 @@ def delay_model(
     if precedence not in ("kLow", "kMedium", "kHigh"):
         fail("Invalid precedence for delay model: " + precedence)
 
-    native.genrule(
+    native.genrule(  # generated_file
         name = "{}_source".format(name),
         srcs = srcs,
         outs = ["{}.cc".format(name)],

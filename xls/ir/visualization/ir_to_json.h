@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_IR_VISUALIZATION_IR_TO_JSON_H_
-#define THIRD_PARTY_XLS_IR_VISUALIZATION_IR_TO_JSON_H_
+#ifndef XLS_IR_VISUALIZATION_IR_TO_JSON_H_
+#define XLS_IR_VISUALIZATION_IR_TO_JSON_H_
 
 #include <string>
 
@@ -33,4 +33,4 @@ xabsl::StatusOr<std::string> IrToJson(
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_IR_VISUALIZATION_IR_TO_JSON_H_
+#endif  // XLS_IR_VISUALIZATION_IR_TO_JSON_H_

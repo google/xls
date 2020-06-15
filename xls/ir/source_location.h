@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_IR_SOURCE_LOCATION_H_
-#define THIRD_PARTY_XLS_IR_SOURCE_LOCATION_H_
+#ifndef XLS_IR_SOURCE_LOCATION_H_
+#define XLS_IR_SOURCE_LOCATION_H_
 
 #include "absl/strings/str_format.h"
 #include "absl/types/optional.h"
@@ -48,4 +48,4 @@ class SourceLocation {
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_IR_SOURCE_LOCATION_H_
+#endif  // XLS_IR_SOURCE_LOCATION_H_

@@ -13,8 +13,8 @@
 // limitations under the License.
 
 // Helper routines for commonly-encountered patterns when working with Z3.
-#ifndef THIRD_PARTY_XLS_SOLVERS_Z3_UTILS_H_
-#define THIRD_PARTY_XLS_SOLVERS_Z3_UTILS_H_
+#ifndef XLS_SOLVERS_Z3_UTILS_H_
+#define XLS_SOLVERS_Z3_UTILS_H_
 
 #include <string>
 
@@ -57,4 +57,4 @@ Z3_sort TypeToSort(Z3_context ctx, const Type& type);
 }  // namespace solvers
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_SOLVERS_Z3_UTILS_H_
+#endif  // XLS_SOLVERS_Z3_UTILS_H_

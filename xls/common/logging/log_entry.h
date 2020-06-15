@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_COMMON_LOGGING_LOG_ENTRY_H_
-#define THIRD_PARTY_XLS_COMMON_LOGGING_LOG_ENTRY_H_
+#ifndef XLS_COMMON_LOGGING_LOG_ENTRY_H_
+#define XLS_COMMON_LOGGING_LOG_ENTRY_H_
 
 #include "absl/base/log_severity.h"
 #include "absl/strings/string_view.h"
@@ -121,4 +121,4 @@ class LogEntry {
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_COMMON_LOGGING_LOG_ENTRY_H_
+#endif  // XLS_COMMON_LOGGING_LOG_ENTRY_H_

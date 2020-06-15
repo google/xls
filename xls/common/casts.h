@@ -14,8 +14,8 @@
 //
 // Various Google-specific casting templates.
 
-#ifndef THIRD_PARTY_XLS_COMMON_CASTS_H_
-#define THIRD_PARTY_XLS_COMMON_CASTS_H_
+#ifndef XLS_COMMON_CASTS_H_
+#define XLS_COMMON_CASTS_H_
 
 #include <assert.h>
 
@@ -90,4 +90,4 @@ inline To down_cast(From& f) {
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_COMMON_CASTS_H_
+#endif  // XLS_COMMON_CASTS_H_

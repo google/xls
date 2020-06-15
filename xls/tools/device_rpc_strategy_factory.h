@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_TOOLS_DEVICE_RPC_STRATEGY_FACTORY_H_
-#define THIRD_PARTY_XLS_TOOLS_DEVICE_RPC_STRATEGY_FACTORY_H_
+#ifndef XLS_TOOLS_DEVICE_RPC_STRATEGY_FACTORY_H_
+#define XLS_TOOLS_DEVICE_RPC_STRATEGY_FACTORY_H_
 
 #include <functional>
 #include <memory>
@@ -51,4 +51,4 @@ class DeviceRpcStrategyFactory {
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_TOOLS_DEVICE_RPC_STRATEGY_FACTORY_H_
+#endif  // XLS_TOOLS_DEVICE_RPC_STRATEGY_FACTORY_H_

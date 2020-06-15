@@ -14,8 +14,8 @@
 
 // Dead Function Elimination.
 //
-#ifndef THIRD_PARTY_XLS_PASSES_DFE_PASS_H_
-#define THIRD_PARTY_XLS_PASSES_DFE_PASS_H_
+#ifndef XLS_PASSES_DFE_PASS_H_
+#define XLS_PASSES_DFE_PASS_H_
 
 #include "xls/common/status/statusor.h"
 #include "xls/ir/function.h"
@@ -39,4 +39,4 @@ class DeadFunctionEliminationPass : public Pass {
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_PASSES_DFE_PASS_H_
+#endif  // XLS_PASSES_DFE_PASS_H_

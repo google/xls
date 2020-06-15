@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_DATA_STRUCTURES_UNION_FIND_H_
-#define THIRD_PARTY_XLS_DATA_STRUCTURES_UNION_FIND_H_
+#ifndef XLS_DATA_STRUCTURES_UNION_FIND_H_
+#define XLS_DATA_STRUCTURES_UNION_FIND_H_
 
 #include "xls/common/integral_types.h"
 
@@ -85,4 +85,4 @@ UnionFind<T>* UnionFind<T>::FindRoot() {
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_DATA_STRUCTURES_UNION_FIND_H_
+#endif  // XLS_DATA_STRUCTURES_UNION_FIND_H_

@@ -16,8 +16,8 @@
 // into a range type. This should be used to build range views that work well
 // with range based for loops and range based constructors.
 
-#ifndef THIRD_PARTY_XLS_COMMON_ITERATOR_RANGE_H_
-#define THIRD_PARTY_XLS_COMMON_ITERATOR_RANGE_H_
+#ifndef XLS_COMMON_ITERATOR_RANGE_H_
+#define XLS_COMMON_ITERATOR_RANGE_H_
 
 #include <iterator>
 #include <utility>
@@ -67,4 +67,4 @@ iterator_range<T> make_range(std::pair<T, T> p) {
 
 }  // namespace xabsl
 
-#endif  // THIRD_PARTY_XLS_COMMON_ITERATOR_RANGE_H_
+#endif  // XLS_COMMON_ITERATOR_RANGE_H_

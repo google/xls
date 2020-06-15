@@ -105,10 +105,10 @@ xls_pybind_extension(
     ],
     deps = [
         ":wrapper_types",
+        "//xls/common/python:absl_casters",
         "//xls/common/status:statusor_pybind_caster",
         "//xls/ir",
         "//xls/ir:function_builder",
-        "//xls/common/python:absl_casters",
     ],
 )
 
@@ -122,9 +122,9 @@ xls_pybind_extension(
     ],
     deps = [
         ":wrapper_types",
+        "//xls/common/python:absl_casters",
         "//xls/common/status:statusor_pybind_caster",
         "//xls/ir:ir_interpreter",
-        "//xls/common/python:absl_casters",
     ],
 )
 
@@ -150,11 +150,11 @@ xls_pybind_extension(
     ],
     deps = [
         ":wrapper_types",
+        "//xls/common/python:absl_casters",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor",
         "//xls/common/status:statusor_pybind_caster",
         "//xls/ir:ir_parser",
-        "//xls/common/python:absl_casters",
     ],
 )
 
@@ -235,9 +235,9 @@ xls_pybind_extension(
     ],
     deps = [
         ":wrapper_types",
+        "//xls/common/python:absl_casters",
         "//xls/common/status:statusor_pybind_caster",
         "//xls/ir",
-        "//xls/common/python:absl_casters",
     ],
 )
 
@@ -317,9 +317,9 @@ xls_pybind_extension(
         ":format_preference",  # build_cleaner: keep
     ],
     deps = [
+        "//xls/common/python:absl_casters",
         "//xls/common/status:statusor_pybind_caster",
         "//xls/ir:value",
-        "//xls/common/python:absl_casters",
     ],
 )
 

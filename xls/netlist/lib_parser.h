@@ -17,8 +17,8 @@
 // Note that these files can be quite large (on the order of gigabytes) so we
 // performance optimize this a bit.
 
-#ifndef THIRD_PARTY_XLS_NETLIST_LIB_PARSER_H_
-#define THIRD_PARTY_XLS_NETLIST_LIB_PARSER_H_
+#ifndef XLS_NETLIST_LIB_PARSER_H_
+#define XLS_NETLIST_LIB_PARSER_H_
 
 #include <fstream>
 #include <string>
@@ -415,4 +415,4 @@ class Parser {
 }  // namespace netlist
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_NETLIST_LIB_PARSER_H_
+#endif  // XLS_NETLIST_LIB_PARSER_H_

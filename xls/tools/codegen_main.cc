@@ -54,7 +54,7 @@ ABSL_FLAG(
     std::string, output_verilog_path, "",
     "Specific output path for the Verilog generated. If not specified then "
     "Verilog is written to stdout.");
-ABSL_FLAG(string, output_schedule_path, "",
+ABSL_FLAG(std::string, output_schedule_path, "",
           "Specific output path for the generated pipeline schedule. "
           "If not specified, then no schedule is output.");
 ABSL_FLAG(

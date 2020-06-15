@@ -88,7 +88,7 @@ def _codegen(
     verilog_file = name + ".v"
     module_sig_file = name + ".sig.pbtxt"
     schedule_file = name + ".schedule.textproto"
-    native.genrule(
+    native.genrule(  # generated_file
         name = name,
         srcs = srcs,
         outs = [verilog_file, module_sig_file, schedule_file],
@@ -234,7 +234,7 @@ def dslx_test(
             ] + srcs + deps,
             tags = tags,
         )
-        native.genrule(
+        native.genrule(  # generated_file
             name = name + "_ir",
             srcs = srcs + deps,
             outs = [name + ".ir"],
@@ -242,7 +242,7 @@ def dslx_test(
             exec_tools = ["//xls/dslx:ir_converter_main"],
             tags = tags,
         )
-        native.genrule(
+        native.genrule(  # generated_file
             name = name + "_opt_ir",
             srcs = srcs + deps,
             outs = [name + ".opt.ir"],
@@ -338,7 +338,7 @@ def dslx_generated_rtl(
         fail("More than one source not currently supported.")
     src = srcs[0]
 
-    native.genrule(
+    native.genrule(  # generated_file
         name = name + "_ir",
         srcs = [src] + deps,
         outs = [name + ".ir"],
@@ -347,7 +347,7 @@ def dslx_generated_rtl(
         tags = tags,
     )
 
-    native.genrule(
+    native.genrule(  # generated_file
         name = name + "_opt_ir",
         srcs = [":{}_ir".format(name)],
         outs = [name + ".opt.ir"],

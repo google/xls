@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_CODEGEN_LINT_ANNOTATE_H_
-#define THIRD_PARTY_XLS_CODEGEN_LINT_ANNOTATE_H_
+#ifndef XLS_CODEGEN_LINT_ANNOTATE_H_
+#define XLS_CODEGEN_LINT_ANNOTATE_H_
 
 #include "xls/codegen/vast.h"
 
@@ -47,6 +47,16 @@ class ScopedLintDisable {
   const std::vector<Lint> flags_;
 };
 
+inline std::string LintToString(Lint flag) {
+  switch (flag) {
+    case Lint::kSignedType:
+      return "SIGNED_TYPE";
+    case Lint::kMultiply:
+      return "MULTIPLY";
+  }
+  return absl::StrFormat("<invalid Lint(%d)>", static_cast<int>(flag));
+}
+
 }  // namespace xls::verilog
 
-#endif  // THIRD_PARTY_XLS_CODEGEN_LINT_ANNOTATE_H_
+#endif  // XLS_CODEGEN_LINT_ANNOTATE_H_

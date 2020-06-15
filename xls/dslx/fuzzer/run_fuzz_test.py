@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,8 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# Lint as: python3
 
 """Tests for xls.dslx.fuzzer.run_fuzz."""
 
@@ -27,7 +27,7 @@ from xls.dslx.fuzzer import run_fuzz
 from xls.dslx.fuzzer import sample
 from xls.dslx.fuzzer import sample_runner
 from xls.common import runfiles
-from absl.testing import absltest
+from xls.common import test_base
 from absl.testing import parameterized
 
 flags.DEFINE_boolean('codegen', True,
@@ -103,8 +103,8 @@ class RunFuzzTest(parameterized.TestCase):
         'fn main(x: u8) -> u8 { -x }',
         sample.SampleOptions(codegen=True, codegen_args=('--invalid_flag!!!',)),
         sample.parse_args_batch('bits[8]:7\nbits[8]:100'))
-    run_dir = self.create_tempdir(
-        cleanup=absltest.TempFileCleanup.SUCCESS).full_path
+    success = test_base.TempFileCleanup.SUCCESS  # type: test_base.TempFileCleanup
+    run_dir = self.create_tempdir(cleanup=success).full_path
     with self.assertRaises(sample_runner.SampleError):
       run_fuzz.run_sample(s, run_dir=run_dir)
     minimized_ir_path = run_fuzz.minimize_ir(s, run_dir)
@@ -127,8 +127,8 @@ class RunFuzzTest(parameterized.TestCase):
     # sample.
     s = sample.Sample('fn main(x: u8) -> u8 { -x }', sample.SampleOptions(),
                       sample.parse_args_batch('bits[8]:7\nbits[8]:100'))
-    run_dir = self.create_tempdir(
-        cleanup=absltest.TempFileCleanup.SUCCESS).full_path
+    success = test_base.TempFileCleanup.SUCCESS  # type: test_base.TempFileCleanup
+    run_dir = self.create_tempdir(cleanup=success).full_path
     run_fuzz.run_sample(s, run_dir=run_dir)
     self.assertIsNone(run_fuzz.minimize_ir(s, run_dir))
     dir_contents = os.listdir(run_dir)
@@ -137,8 +137,8 @@ class RunFuzzTest(parameterized.TestCase):
   def test_minimize_jit_interpreter_mismatch(self):
     s = sample.Sample('fn main(x: u8) -> u8 { ~x }', sample.SampleOptions(),
                       sample.parse_args_batch('bits[8]:0xff\nbits[8]:0x42'))
-    run_dir = self.create_tempdir(
-        cleanup=absltest.TempFileCleanup.SUCCESS).full_path
+    success = test_base.TempFileCleanup.SUCCESS  # type: test_base.TempFileCleanup
+    run_dir = self.create_tempdir(cleanup=success).full_path
     run_fuzz.run_sample(s, run_dir=run_dir)
     minimized_ir_path = run_fuzz.minimize_ir(
         s, run_dir, inject_jit_result='bits[32]:0x0')
@@ -154,4 +154,4 @@ class RunFuzzTest(parameterized.TestCase):
 
 
 if __name__ == '__main__':
-  absltest.main()
+  test_base.main()

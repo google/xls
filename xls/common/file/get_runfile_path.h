@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_COMMON_FILE_GET_RUNFILE_PATH_H_
-#define THIRD_PARTY_XLS_COMMON_FILE_GET_RUNFILE_PATH_H_
+#ifndef XLS_COMMON_FILE_GET_RUNFILE_PATH_H_
+#define XLS_COMMON_FILE_GET_RUNFILE_PATH_H_
 
 #include <filesystem>
 
@@ -35,4 +35,4 @@ absl::Status InitRunfilesDir(const std::string& argv0);
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_COMMON_FILE_GET_RUNFILE_PATH_H_
+#endif  // XLS_COMMON_FILE_GET_RUNFILE_PATH_H_
