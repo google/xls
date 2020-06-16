@@ -143,6 +143,7 @@ DownstreamNodes<T> GetDownstreamNodes(
       affected_nodes[user].insert(node);
       if (!seen_nodes.contains(user)) {
         live_nodes.push_back(user);
+        seen_nodes.insert(user);
       }
     }
   }
