@@ -71,6 +71,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor",
         "//xls/ir",
+        "//xls/ir:node_util",
         "//xls/netlist",
         "//xls/scheduling:pipeline_schedule",
         "@z3//:api",

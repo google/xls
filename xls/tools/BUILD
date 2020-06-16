@@ -115,6 +115,7 @@ cc_binary(
         "//xls/netlist:lib_parser",
         "//xls/netlist:netlist_cc_proto",
         "//xls/netlist:netlist_parser",
+        "//xls/scheduling:pipeline_schedule_cc_proto",
         "//xls/solvers:z3_ir_translator",
         "//xls/solvers:z3_lec",
         "//xls/solvers:z3_netlist_translator",
