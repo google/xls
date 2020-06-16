@@ -258,21 +258,28 @@ TEST(BitsOpsTest, SDiv) {
             "0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_fff0_0000");
 }
 
-TEST(BitsOpsTest, Comparisons) {
+TEST(BitsOpsTest, UnsignedComparisons) {
   Bits b42 = UBits(42, 64);
   Bits b77 = UBits(77, 64);
+  Bits b123 = UBits(123, 444);
 
   EXPECT_TRUE(bits_ops::UGreaterThanOrEqual(b42, b42));
   EXPECT_FALSE(bits_ops::UGreaterThanOrEqual(b42, b77));
   EXPECT_TRUE(bits_ops::UGreaterThanOrEqual(b77, b42));
+  EXPECT_TRUE(bits_ops::UGreaterThanOrEqual(b123, b42));
 
   EXPECT_FALSE(bits_ops::UGreaterThan(b42, b42));
   EXPECT_FALSE(bits_ops::UGreaterThan(b42, b77));
   EXPECT_TRUE(bits_ops::UGreaterThan(b77, b42));
+  EXPECT_FALSE(bits_ops::UGreaterThanOrEqual(b42, b123));
 
   EXPECT_TRUE(bits_ops::ULessThanOrEqual(b42, b42));
   EXPECT_TRUE(bits_ops::ULessThanOrEqual(b42, b77));
   EXPECT_FALSE(bits_ops::ULessThanOrEqual(b77, b42));
+  EXPECT_TRUE(bits_ops::UGreaterThanOrEqual(b123, b77));
+  EXPECT_FALSE(bits_ops::UGreaterThanOrEqual(b77, b123));
+  EXPECT_TRUE(bits_ops::ULessThanOrEqual(b77, b123));
+  EXPECT_TRUE(bits_ops::ULessThanOrEqual(b77, b77));
 
   EXPECT_FALSE(bits_ops::ULessThan(b42, b42));
   EXPECT_TRUE(bits_ops::ULessThan(b42, b77));
@@ -287,8 +294,109 @@ TEST(BitsOpsTest, Comparisons) {
       ParseNumber(
           "0x3234_ffff_ffff_ffff_ffff_0000_0000_0000_0000_0000_1111_3333"));
   EXPECT_TRUE(bits_ops::UGreaterThanOrEqual(huger, huge));
+  EXPECT_TRUE(
+      bits_ops::UGreaterThanOrEqual(bits_ops::ZeroExtend(huger, 1234), huge));
   EXPECT_FALSE(bits_ops::ULessThan(huger, huge));
   EXPECT_TRUE(bits_ops::ULessThan(huge, huger));
+  EXPECT_TRUE(bits_ops::ULessThan(bits_ops::ZeroExtend(huge, 10000), huger));
+}
+
+TEST(BitsOpsTest, UnsignedEqualComparisons) {
+  EXPECT_TRUE(bits_ops::UEqual(Bits(), UBits(0, 42)));
+  EXPECT_TRUE(bits_ops::UEqual(UBits(0, 42), UBits(0, 42)));
+  EXPECT_FALSE(bits_ops::UEqual(UBits(0, 42), UBits(1, 42)));
+  EXPECT_FALSE(bits_ops::UEqual(UBits(0, 42000), UBits(1, 42000)));
+  EXPECT_TRUE(bits_ops::UEqual(UBits(333, 256), UBits(333, 512)));
+  EXPECT_FALSE(bits_ops::UEqual(UBits(333, 256), UBits(444, 256)));
+
+  EXPECT_TRUE(bits_ops::UEqual(Bits(), 0));
+  EXPECT_TRUE(bits_ops::UEqual(UBits(0, 32), 0));
+  EXPECT_TRUE(bits_ops::UEqual(UBits(44, 14), 44));
+  EXPECT_TRUE(bits_ops::UEqual(Bits::AllOnes(32), 0xffffffffL));
+  EXPECT_TRUE(bits_ops::UEqual(UBits(333, 256), 333));
+  EXPECT_FALSE(bits_ops::UEqual(UBits(333, 256), 334));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Bits huge,
+      ParseNumber(
+          "0x2fff_ffff_ffff_ffff_ffff_0000_0000_0000_0000_0000_1234_5555"));
+  EXPECT_TRUE(bits_ops::UEqual(huge, huge));
+  EXPECT_TRUE(bits_ops::UEqual(huge, bits_ops::ZeroExtend(huge, 10000)));
+}
+
+TEST(BitsOpsTest, SignedComparisons) {
+  Bits b42 = UBits(42, 100);
+  Bits bminus_77 = SBits(-77, 64);
+  Bits b123 = UBits(123, 16);
+
+  EXPECT_TRUE(bits_ops::SGreaterThanOrEqual(b42, b42));
+  EXPECT_TRUE(bits_ops::SGreaterThanOrEqual(b42, bminus_77));
+  EXPECT_FALSE(bits_ops::SGreaterThanOrEqual(bminus_77, b42));
+  EXPECT_TRUE(bits_ops::SGreaterThanOrEqual(b123, b42));
+
+  EXPECT_FALSE(bits_ops::SGreaterThan(b42, b42));
+  EXPECT_TRUE(bits_ops::SGreaterThan(b42, bminus_77));
+  EXPECT_FALSE(bits_ops::SGreaterThan(bminus_77, b42));
+  EXPECT_FALSE(bits_ops::SGreaterThanOrEqual(b42, b123));
+
+  EXPECT_TRUE(bits_ops::SLessThanOrEqual(b42, b42));
+  EXPECT_FALSE(bits_ops::SLessThanOrEqual(b42, bminus_77));
+  EXPECT_TRUE(bits_ops::SLessThanOrEqual(bminus_77, b42));
+  EXPECT_TRUE(bits_ops::SGreaterThanOrEqual(b123, bminus_77));
+  EXPECT_FALSE(bits_ops::SGreaterThanOrEqual(bminus_77, b123));
+  EXPECT_TRUE(bits_ops::SLessThanOrEqual(bminus_77, b123));
+  EXPECT_TRUE(bits_ops::SLessThanOrEqual(bminus_77, bminus_77));
+
+  EXPECT_FALSE(bits_ops::SLessThan(b42, b42));
+  EXPECT_FALSE(bits_ops::SLessThan(b42, bminus_77));
+  EXPECT_TRUE(bits_ops::SLessThan(bminus_77, b42));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Bits wide_negative,
+      ParseNumber(
+          "-0x2fff_ffff_ffff_ffff_ffff_0000_0000_0000_0000_0000_1234_5555"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Bits wide_positive,
+      ParseNumber(
+          "0x3234_ffff_ffff_ffff_ffff_0000_0000_0000_0000_0000_1111_3333"));
+  EXPECT_TRUE(bits_ops::SGreaterThanOrEqual(wide_positive, wide_negative));
+  EXPECT_TRUE(bits_ops::SGreaterThanOrEqual(
+      bits_ops::ZeroExtend(wide_positive, 1234), wide_negative));
+  EXPECT_FALSE(bits_ops::SLessThan(wide_positive, wide_negative));
+  EXPECT_TRUE(bits_ops::SLessThan(wide_negative, wide_positive));
+  EXPECT_TRUE(bits_ops::SLessThan(bits_ops::SignExtend(wide_negative, 10000),
+                                  wide_positive));
+  EXPECT_FALSE(bits_ops::SLessThan(bits_ops::ZeroExtend(wide_negative, 10000),
+                                   wide_positive));
+}
+
+TEST(BitsOpsTest, SignedEqualComparisons) {
+  EXPECT_TRUE(bits_ops::SEqual(Bits(), SBits(0, 42)));
+  EXPECT_TRUE(bits_ops::SEqual(SBits(0, 42), SBits(0, 42)));
+  EXPECT_FALSE(bits_ops::SEqual(SBits(0, 42), SBits(1, 42)));
+  EXPECT_TRUE(bits_ops::SEqual(SBits(-1000, 42), SBits(-1000, 42)));
+  EXPECT_TRUE(bits_ops::SEqual(SBits(-1000, 42), SBits(-1000, 555)));
+  EXPECT_TRUE(bits_ops::SEqual(UBits(10000, 42000), UBits(10000, 42000)));
+  EXPECT_TRUE(bits_ops::SEqual(UBits(10000, 42000), UBits(10000, 123456)));
+  EXPECT_TRUE(bits_ops::SEqual(UBits(-10000, 42000), UBits(-10000, 42000)));
+  EXPECT_TRUE(bits_ops::SEqual(UBits(-10000, 42000), UBits(-10000, 100)));
+  EXPECT_FALSE(bits_ops::SEqual(UBits(10000, 42000), UBits(-10000, 42000)));
+  EXPECT_TRUE(bits_ops::SEqual(SBits(-1, 256), SBits(-1, 4)));
+
+  EXPECT_TRUE(bits_ops::SEqual(Bits(), 0));
+  EXPECT_TRUE(bits_ops::SEqual(UBits(0, 32), 0));
+  EXPECT_TRUE(bits_ops::SEqual(UBits(44, 14), 44));
+  EXPECT_TRUE(bits_ops::SEqual(Bits::AllOnes(1), -1));
+  EXPECT_TRUE(bits_ops::SEqual(Bits::AllOnes(32), -1));
+  EXPECT_TRUE(bits_ops::SEqual(Bits::AllOnes(3200), -1));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Bits huge,
+      ParseNumber(
+          "-0x2fff_ffff_ffff_ffff_ffff_0000_0000_0000_0000_0000_1234_5555"));
+  EXPECT_TRUE(bits_ops::SEqual(huge, huge));
+  EXPECT_FALSE(bits_ops::SEqual(huge, bits_ops::ZeroExtend(huge, 10000)));
+  EXPECT_TRUE(bits_ops::SEqual(huge, bits_ops::SignExtend(huge, 10000)));
 }
 
 TEST(BitsOpsTest, Int64UnsignedComparisons) {
@@ -309,6 +417,10 @@ TEST(BitsOpsTest, Int64UnsignedComparisons) {
   EXPECT_TRUE(bits_ops::ULessThan(b42, 77));
   EXPECT_FALSE(bits_ops::ULessThan(b42, 2));
 
+  EXPECT_TRUE(bits_ops::ULessThan(Bits(), 200));
+  EXPECT_FALSE(bits_ops::UGreaterThan(Bits(), 200));
+  EXPECT_FALSE(bits_ops::UGreaterThanOrEqual(UBits(42, 6), 200));
+
   XLS_ASSERT_OK_AND_ASSIGN(
       Bits huge,
       ParseNumber(
@@ -323,8 +435,8 @@ TEST(BitsOpsTest, Int64UnsignedComparisons) {
 }
 
 TEST(BitsOpsTest, Int64SignedComparisons) {
-  Bits b42 = UBits(42, 64);
-  Bits minus42 = SBits(-42, 64);
+  Bits b42 = UBits(42, 10);
+  Bits minus42 = SBits(-42, 20);
   EXPECT_TRUE(bits_ops::SGreaterThanOrEqual(b42, 42));
   EXPECT_TRUE(bits_ops::SGreaterThanOrEqual(minus42, -42));
   EXPECT_TRUE(bits_ops::SGreaterThanOrEqual(b42, minus42));
@@ -346,27 +458,30 @@ TEST(BitsOpsTest, Int64SignedComparisons) {
   EXPECT_FALSE(bits_ops::SLessThan(b42, -10000));
   EXPECT_TRUE(bits_ops::SLessThan(minus42, -10));
 
+  EXPECT_TRUE(bits_ops::SLessThan(minus42, std::numeric_limits<int64>::max()));
+  EXPECT_FALSE(bits_ops::SLessThan(minus42, std::numeric_limits<int64>::min()));
+
   XLS_ASSERT_OK_AND_ASSIGN(
-      Bits huge_minus2,
+      Bits wide_minus2,
       ParseNumber("0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_fffe"));
   XLS_ASSERT_OK_AND_ASSIGN(
       Bits tmp,
       ParseNumber("0x2fff_ffff_ffff_ffff_ffff_0000_0000_0000_0000_0000_1234"));
-  Bits huge = bits_ops::ZeroExtend(tmp, huge_minus2.bit_count());
+  Bits huge = bits_ops::ZeroExtend(tmp, wide_minus2.bit_count());
 
   EXPECT_TRUE(bits_ops::SGreaterThanOrEqual(huge, 0));
-  EXPECT_FALSE(bits_ops::SGreaterThanOrEqual(huge_minus2, 0));
-  EXPECT_TRUE(bits_ops::SGreaterThanOrEqual(huge, huge_minus2));
+  EXPECT_FALSE(bits_ops::SGreaterThanOrEqual(wide_minus2, 0));
+  EXPECT_TRUE(bits_ops::SGreaterThanOrEqual(huge, wide_minus2));
   EXPECT_TRUE(
       bits_ops::SGreaterThanOrEqual(huge, std::numeric_limits<int64>::max()));
   EXPECT_TRUE(bits_ops::SGreaterThan(huge, 1234567));
-  EXPECT_FALSE(bits_ops::SGreaterThan(huge_minus2, 1234567));
+  EXPECT_FALSE(bits_ops::SGreaterThan(wide_minus2, 1234567));
   EXPECT_FALSE(
       bits_ops::SLessThanOrEqual(huge, std::numeric_limits<int64>::max()));
-  EXPECT_TRUE(bits_ops::SLessThanOrEqual(huge_minus2,
-                                         std::numeric_limits<int64>::min()));
+  EXPECT_FALSE(bits_ops::SLessThanOrEqual(wide_minus2,
+                                          std::numeric_limits<int64>::min()));
   EXPECT_FALSE(bits_ops::SLessThanOrEqual(huge, 33));
-  EXPECT_TRUE(bits_ops::SLessThanOrEqual(huge_minus2, 33));
+  EXPECT_TRUE(bits_ops::SLessThanOrEqual(wide_minus2, 33));
 }
 
 TEST(BitsOpsTest, ZeroAndSignExtend) {
