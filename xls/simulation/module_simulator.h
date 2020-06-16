@@ -20,6 +20,7 @@
 #include "xls/codegen/vast.h"
 #include "xls/common/status/statusor.h"
 #include "xls/ir/value.h"
+#include "xls/simulation/module_testbench.h"
 #include "xls/simulation/verilog_simulator.h"
 
 namespace xls {
@@ -67,6 +68,12 @@ class ModuleSimulator {
   xabsl::StatusOr<Value> Run(absl::Span<const Value> inputs) const;
 
  private:
+  // Deassert all control inputs on the module.
+  absl::Status DeassertControlSignals(ModuleTestbench* tb) const;
+
+  // Resets the module.
+  absl::Status ResetModule(ModuleTestbench* tb) const;
+
   ModuleSignature signature_;
   std::string verilog_text_;
   const VerilogSimulator* simulator_;
