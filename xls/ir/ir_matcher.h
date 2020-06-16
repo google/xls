@@ -209,6 +209,53 @@ inline ::testing::Matcher<const ::xls::Node*> BitSlice(int64 start,
       new ::xls::op_matchers::BitSliceMatcher(start, width));
 }
 
+// DynamicBitSlice matcher. Supported forms:
+//
+//   EXPECT_THAT(foo, op::BitSlice());
+//   EXPECT_THAT(foo, op::DynamicBitSlice(op::Param(), op::Param()));
+//   EXPECT_THAT(foo, op::BitSlice(/*width=*/8));
+//   EXPECT_THAT(foo, op::BitSlice(/*operand=*/op::Param(),
+//                                 /*start=*/op::Param(), /*width=*/8));
+class DynamicBitSliceMatcher : public NodeMatcher {
+ public:
+  DynamicBitSliceMatcher(::testing::Matcher<const Node*> operand,
+                         ::testing::Matcher<const Node*> start,
+                         absl::optional<int64> width)
+      : NodeMatcher(Op::kDynamicBitSlice, {operand, start}), width_(width) {}
+  DynamicBitSliceMatcher(absl::optional<int64> width)
+      : NodeMatcher(Op::kDynamicBitSlice, {}), width_(width) {}
+
+  bool MatchAndExplain(const Node* node,
+                       ::testing::MatchResultListener* listener) const override;
+
+ private:
+  absl::optional<int64> width_;
+};
+
+inline ::testing::Matcher<const ::xls::Node*> DynamicBitSlice() {
+  return ::testing::MakeMatcher(
+      new ::xls::op_matchers::DynamicBitSliceMatcher(absl::nullopt));
+}
+
+inline ::testing::Matcher<const ::xls::Node*> DynamicBitSlice(
+    ::testing::Matcher<const Node*> operand,
+    ::testing::Matcher<const Node*> start) {
+  return ::testing::MakeMatcher(new ::xls::op_matchers::DynamicBitSliceMatcher(
+      operand, start, absl::nullopt));
+}
+
+inline ::testing::Matcher<const ::xls::Node*> DynamicBitSlice(
+    ::testing::Matcher<const Node*> operand,
+    ::testing::Matcher<const Node*> start, int64 width) {
+  return ::testing::MakeMatcher(
+      new ::xls::op_matchers::DynamicBitSliceMatcher(operand, start, width));
+}
+
+inline ::testing::Matcher<const ::xls::Node*> DynamicBitSlice(int64 width) {
+  return ::testing::MakeMatcher(
+      new ::xls::op_matchers::DynamicBitSliceMatcher(width));
+}
+
 // Literal matcher. Supported forms:
 //
 //   EXPECT_THAT(foo, op::Literal());

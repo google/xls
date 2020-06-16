@@ -110,6 +110,28 @@ TEST(IrMatchersTest, BitSlice) {
          "start, expected: 123"));
 }
 
+TEST(IrMatchersTest, DynamicBitSlice) {
+  Package p("p");
+  FunctionBuilder fb("f", &p);
+
+  auto x = fb.Param("x", p.GetBitsType(32));
+  auto start = fb.Param("y", p.GetBitsType(32));
+  fb.DynamicBitSlice(x, start, /*width=*/5);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(f->return_value(), m::DynamicBitSlice());
+  EXPECT_THAT(f->return_value(), m::DynamicBitSlice(/*width=*/5));
+  EXPECT_THAT(f->return_value(),
+              m::DynamicBitSlice(m::Param(), m::Param(), /*width=*/5));
+  EXPECT_THAT(f->return_value(),
+              m::DynamicBitSlice(m::Param("x"), m::Param("y"), /*width=*/5));
+
+  EXPECT_THAT(
+      Explain(f->return_value(), m::DynamicBitSlice(/*width=*/42)),
+      Eq("dynamic_bit_slice.3: bits[5] = dynamic_bit_slice(x, y, width=5) has incorrect "
+         "width, expected: 42"));
+}
+
 TEST(IrMatchersTest, Literal) {
   Package p("p");
   FunctionBuilder fb("f", &p);
