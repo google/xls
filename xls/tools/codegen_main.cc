@@ -17,6 +17,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "xls/codegen/combinational_generator.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/pipeline_generator.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
@@ -92,6 +93,15 @@ ABSL_FLAG(int64, clock_margin_percent, 0,
           "The percentage of clock period to set aside as a margin to ensure "
           "timing is met. Effectively, this lowers the clock period by this "
           "percentage amount for the purposes of scheduling.");
+// TODO(meheff): Rather than specify all reset (or codegen options in general)
+// as a multitude of flags, these can be specified via a separate file (like a
+// options proto).
+ABSL_FLAG(std::string, reset, "",
+          "Name of the reset signal. If empty, no reset signal is used.");
+ABSL_FLAG(bool, reset_active_low, false,
+          "Whether the reset signal is active low.");
+ABSL_FLAG(bool, reset_asynchronous, false,
+          "Whether the reset signal is asynchronous.");
 ABSL_FLAG(bool, use_system_verilog, true,
           "If true, emit SystemVerilog otherwise emit Verilog.");
 
@@ -158,6 +168,14 @@ absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
     }
     pipeline_options.flop_inputs(absl::GetFlag(FLAGS_flop_inputs));
     pipeline_options.flop_outputs(absl::GetFlag(FLAGS_flop_outputs));
+
+    if (!absl::GetFlag(FLAGS_reset).empty()) {
+      verilog::ResetProto reset_proto;
+      reset_proto.set_name(absl::GetFlag(FLAGS_reset));
+      reset_proto.set_asynchronous(absl::GetFlag(FLAGS_reset_asynchronous));
+      reset_proto.set_active_low(absl::GetFlag(FLAGS_reset_active_low));
+      pipeline_options.reset(reset_proto);
+    }
 
     XLS_ASSIGN_OR_RETURN(
         result, verilog::ToPipelineModuleText(*scheduling_unit.schedule, main,

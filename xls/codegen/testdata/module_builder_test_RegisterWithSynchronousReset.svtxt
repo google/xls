@@ -1,4 +1,4 @@
-module RegisterWithReset_SystemVerilog(
+module RegisterWithSynchronousReset(
   input wire [31:0] x,
   input wire [31:0] y,
   input wire clk,
@@ -7,7 +7,7 @@ module RegisterWithReset_SystemVerilog(
 );
   reg [31:0] a;
   reg [31:0] b;
-  always_ff @ (posedge clk or posedge rst) begin
+  always_ff @ (posedge clk) begin
     if (rst) begin
       a <= 32'h0000_0000;
       b <= 32'h0000_0042;

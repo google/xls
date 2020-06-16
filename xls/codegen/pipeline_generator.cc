@@ -43,59 +43,6 @@ std::string PipelineSignalName(Node* node, int64 stage) {
   return absl::StrFormat("p%d_%s", stage, SanitizeIdentifier(node->GetName()));
 }
 
-// Returns number of uses of the node's value in this stage. This includes the
-// pipeline register if the node's value is used in a later stage.
-int64 FanoutInStage(Node* node, const PipelineSchedule& schedule, int64 stage) {
-  XLS_CHECK_EQ(schedule.cycle(node), stage);
-  int64 fanout = 0;
-  if (absl::c_any_of(node->users(),
-                     [&](Node* n) { return schedule.cycle(n) > stage; })) {
-    fanout = 1;
-  }
-  for (Node* user : node->users()) {
-    if (schedule.cycle(user) == stage) {
-      // Count each operand separately in case the node appears in multiple
-      // operand slots.
-      fanout += user->OperandInstanceCount(node);
-    }
-  }
-  return fanout;
-}
-
-// Returns the users of the given node which are scheduled in the same stage.
-std::vector<Node*> UsersInStage(Node* node, const PipelineSchedule& schedule) {
-  std::vector<Node*> users;
-  for (Node* user : node->users()) {
-    if (schedule.cycle(user) == schedule.cycle(node)) {
-      users.push_back(user);
-    }
-  }
-  return users;
-}
-
-// Builds and returns a module signature for the given function, latency, and
-// options.
-xabsl::StatusOr<ModuleSignature> BuildSignature(
-    absl::string_view module_name, Function* function, int64 latency,
-    const PipelineOptions& options) {
-  ModuleSignatureBuilder sig_builder(module_name);
-  sig_builder.WithClock("clk");
-  for (Param* param : function->params()) {
-    sig_builder.AddDataInput(param->name(),
-                             param->GetType()->GetFlatBitCount());
-  }
-  sig_builder.AddDataOutput(
-      "out", function->return_value()->GetType()->GetFlatBitCount());
-  sig_builder.WithFunctionType(function->GetType());
-  sig_builder.WithPipelineInterface(
-      /*latency=*/latency,
-      /*initiation_interval=*/1,
-      options.control().has_value()
-          ? absl::optional<PipelineControl>(*options.control())
-          : absl::nullopt);
-  return sig_builder.Build();
-}
-
 }  // namespace
 
 PipelineOptions& PipelineOptions::manual_control(absl::string_view input_name) {
@@ -152,56 +99,429 @@ PipelineOptions& PipelineOptions::flop_outputs(bool value) {
 
 namespace {
 
-// Adds pipeline registers to the module for the given stage. The registers to
-// define are given as pairs of Node* and the expression to assign to the value
-// corresponding to the node. The registers use the supplied clock and optional
-// load enable (can be null). Returns references corresponding to the defined
-// registers.
-xabsl::StatusOr<std::vector<Expression*>> AddPipelineRegisters(
-    absl::Span<const std::pair<Node*, Expression*>> assignments, int64 stage,
-    LogicRef* clk, Expression* load_enable, ModuleBuilder* mb) {
-  // Add always flop block for the registers.
-  mb->NewDeclarationAndAssignmentSections();
+// Class for constructing a pipeline. An abstraction containing the various
+// inputs and options and temporary state used in the process.
+class PipelineGenerator {
+ public:
+  PipelineGenerator(Function* func, const PipelineSchedule& schedule,
+                    const PipelineOptions& options, VerilogFile* file)
+      : func_(func),
+        schedule_(schedule),
+        options_(options),
+        file_(file),
+        mb_(options.module_name().has_value() ? options.module_name().value()
+                                              : func->name(),
+            file,
+            /*use_system_verilog=*/options.use_system_verilog()) {}
 
-  mb->declaration_section()->Add<BlankLine>();
-  mb->declaration_section()->Add<Comment>(
-      absl::StrFormat("Registers for pipe stage %d:", stage));
+  xabsl::StatusOr<ModuleGeneratorResult> Run() {
+    clk_ = mb_.AddInputPort("clk", /*bit_count=*/1);
 
-  std::vector<ModuleBuilder::Register> registers;
-  std::vector<Expression*> register_refs;
-  for (const auto& pair : assignments) {
-    Node* node = pair.first;
-    Expression* rhs = pair.second;
-    if (node->GetType()->GetFlatBitCount() > 0) {
-      XLS_ASSIGN_OR_RETURN(ModuleBuilder::Register reg,
-                           mb->DeclareRegister(PipelineSignalName(node, stage),
-                                               node->GetType(), rhs));
-      registers.push_back(reg);
-      register_refs.push_back(registers.back().ref);
+    if (options_.reset().has_value()) {
+      const ResetProto& reset_proto = options_.reset().value();
+      rst_ = Reset();
+      rst_->signal = mb_.AddInputPort(reset_proto.name(),
+                                      /*bit_count=*/1)
+                         ->AsLogicRefNOrDie<1>();
+      rst_->asynchronous = reset_proto.asynchronous();
+      rst_->active_low = reset_proto.active_low();
     }
+
+    LogicRef* valid_load_enable = nullptr;
+    LogicRef* manual_load_enable = nullptr;
+    if (options_.control().has_value()) {
+      if (options_.control()->has_valid()) {
+        const ValidProto& valid_proto = options_.control()->valid();
+        if (valid_proto.input_name().empty()) {
+          return absl::InvalidArgumentError(
+              "Must specify valid input signal name with valid pipeline "
+              "register "
+              "control");
+        }
+        valid_load_enable =
+            mb_.AddInputPort(valid_proto.input_name(), /*bit_count=*/1);
+      } else if (options_.control()->has_manual()) {
+        const ManualPipelineControl& manual = options_.control()->manual();
+        if (manual.input_name().empty()) {
+          return absl::InvalidArgumentError(
+              "Must specify manual control signal name with manual pipeline "
+              "register"
+              "control");
+        }
+        // Compute the number of pipeline registers. Unconditionally, there is
+        // one register between each stage in the schedule, and optionally one
+        // at the inputs and outputs.
+        XLS_RET_CHECK_GT(schedule_.length(), 0);
+        int64 reg_count = schedule_.length() - 1;
+        if (options_.flop_inputs()) {
+          ++reg_count;
+        }
+        if (options_.flop_outputs()) {
+          ++reg_count;
+        }
+        manual_load_enable = mb_.AddInputPort(manual.input_name(),
+                                              /*bit_count=*/reg_count);
+      }
+    }
+
+    // Returns the load enable signal for the pipeline registers at the end of
+    // the given stage.
+    auto get_load_enable = [&](int64 stage) -> Expression* {
+      if (valid_load_enable != nullptr) {
+        // 'valid_load_enable' is updated to the latest flopped value in
+        // each iteration of the loop.
+        return valid_load_enable;
+      }
+      if (manual_load_enable != nullptr) {
+        return file_->Make<Index>(manual_load_enable,
+                                  file_->PlainLiteral(stage));
+      }
+      return nullptr;
+    };
+
+    // Map containing the VAST expression for each node. Values may be updated
+    // as the pipeline is emitted. For example, a nodes value may be held in a
+    // combinational expression, or a pipeline register depending upon the point
+    // of the pipeline.
+    absl::flat_hash_map<Node*, Expression*> node_expressions;
+
+    // Create the input data ports.
+    for (Param* param : func_->params()) {
+      if (param->GetType()->GetFlatBitCount() == 0) {
+        XLS_RET_CHECK_EQ(param->users().size(), 0);
+        continue;
+      }
+      XLS_ASSIGN_OR_RETURN(
+          node_expressions[param],
+          mb_.AddInputPort(param->As<Param>()->name(), param->GetType()));
+    }
+
+    // Emit non-bits-typed literals separately as module-scoped constants.
+    absl::flat_hash_set<Node*> module_constants;
+    XLS_VLOG(4) << "Module constants:";
+    for (Node* node : func_->nodes()) {
+      if (node->Is<xls::Literal>() && !node->GetType()->IsBits() &&
+          node->GetType()->GetFlatBitCount() > 0) {
+        XLS_VLOG(4) << "  " << node->GetName();
+        XLS_ASSIGN_OR_RETURN(
+            node_expressions[node],
+            mb_.DeclareModuleConstant(node->GetName(),
+                                      node->As<xls::Literal>()->value()));
+        module_constants.insert(node);
+      }
+    }
+    // The set of nodes which are live out of the previous stage.
+    std::vector<Node*> live_out_last_stage;
+
+    int64 stage = 0;
+    if (options_.flop_inputs()) {
+      XLS_VLOG(4) << "Flopping inputs.";
+      std::vector<std::pair<Node*, Expression*>> assignments;
+      for (Param* param : func_->params()) {
+        if (param->GetType()->GetFlatBitCount() != 0) {
+          assignments.push_back({param, node_expressions[param]});
+        }
+      }
+      if (!assignments.empty()) {
+        mb_.declaration_section()->Add<BlankLine>();
+        mb_.declaration_section()->Add<Comment>(
+            absl::StrFormat("===== Pipe stage %d:", stage));
+        XLS_ASSIGN_OR_RETURN(
+            std::vector<Expression*> register_refs,
+            AddPipelineRegisters(assignments, stage, get_load_enable(stage)));
+        for (int64 i = 0; i < assignments.size(); ++i) {
+          node_expressions[assignments[i].first] = register_refs[i];
+        }
+        if (valid_load_enable != nullptr) {
+          XLS_ASSIGN_OR_RETURN(valid_load_enable,
+                               AddValidRegister(valid_load_enable, stage));
+        }
+        stage++;
+      }
+    }
+
+    // Construct the stages defined by the schedule.
+    for (int64 schedule_cycle = 0; schedule_cycle < schedule_.length();
+         ++schedule_cycle) {
+      XLS_VLOG(4) << "Building pipeline stage " << stage;
+      if (stage != 0) {
+        mb_.NewDeclarationAndAssignmentSections();
+      }
+
+      mb_.declaration_section()->Add<BlankLine>();
+      mb_.declaration_section()->Add<Comment>(
+          absl::StrFormat("===== Pipe stage %d:", stage));
+
+      // Returns whether the given node is live out of this stage.
+      auto is_live_out_of_stage = [&](Node* node) {
+        if (module_constants.contains(node)) {
+          return false;
+        }
+        if (node == func_->return_value()) {
+          return true;
+        }
+        for (Node* user : node->users()) {
+          if (schedule_.cycle(user) > schedule_cycle) {
+            return true;
+          }
+        }
+        return false;
+      };
+
+      // Identify nodes in this stage which must be named temporaries.
+      // Conditions:
+      //
+      //   (0) Is not a module constant or parameter, AND one of the following
+      //       is true:
+      //
+      //   (1) Is array-shaped, OR
+      //
+      //   (2) Has multiple in-stage uses and is not trivially inlinable (e.g.,
+      //       unary negation), OR
+      //
+      //   (3) Has an in-stage use that needs a named reference, OR
+      //
+      //   (4) Is live out of the stage.
+      absl::flat_hash_set<Node*> named_temps;
+      for (Node* node : schedule_.nodes_in_cycle(schedule_cycle)) {
+        if (node->Is<Param>() || module_constants.contains(node)) {
+          continue;
+        }
+        if (!mb_.CanEmitAsInlineExpression(node, UsersInStage(node)) ||
+            (FanoutInStage(node, schedule_cycle) > 1 &&
+             !ShouldInlineExpressionIntoMultipleUses(node)) ||
+            is_live_out_of_stage(node)) {
+          named_temps.insert(node);
+        }
+      }
+
+      // Emit expressions/assignments for every node in this stage.
+      for (Node* node : schedule_.nodes_in_cycle(schedule_cycle)) {
+        if (node->Is<Param>() || module_constants.contains(node) ||
+            node->GetType()->GetFlatBitCount() == 0) {
+          continue;
+        }
+
+        std::vector<Expression*> inputs;
+        for (Node* operand : node->operands()) {
+          inputs.push_back(node_expressions.at(operand));
+        }
+
+        if (named_temps.contains(node)) {
+          XLS_ASSIGN_OR_RETURN(
+              node_expressions[node],
+              mb_.EmitAsAssignment(PipelineSignalName(node, stage) + "_comb",
+                                   node, inputs));
+        } else {
+          XLS_ASSIGN_OR_RETURN(node_expressions[node],
+                               mb_.EmitAsInlineExpression(node, inputs));
+        }
+      }
+
+      // Generate the set of pipeline registers at the end of this stage. These
+      // includes all live-out values from this stage including those nodes
+      // scheduled in earlier stages.
+      std::vector<Node*> live_out_nodes;
+      for (Node* node : live_out_last_stage) {
+        if (is_live_out_of_stage(node)) {
+          live_out_nodes.push_back(node);
+        }
+      }
+      for (Node* node : schedule_.nodes_in_cycle(schedule_cycle)) {
+        if (!module_constants.contains(node) && is_live_out_of_stage(node)) {
+          live_out_nodes.push_back(node);
+        }
+      }
+
+      if (!options_.flop_outputs() &&
+          schedule_cycle == schedule_.length() - 1) {
+        // This is the last stage and the outputs are not flopped so nothing
+        // more to do.
+        break;
+      }
+
+      if (!live_out_nodes.empty() &&
+          (options_.flop_outputs() ||
+           schedule_cycle != schedule_.length() - 1)) {
+        // Add always flop block for the registers.
+        mb_.NewDeclarationAndAssignmentSections();
+
+        std::vector<std::pair<Node*, Expression*>> assignments;
+        for (Node* node : live_out_nodes) {
+          if (node->GetType()->GetFlatBitCount() > 0) {
+            assignments.push_back({node, node_expressions.at(node)});
+          }
+        }
+        XLS_ASSIGN_OR_RETURN(
+            std::vector<Expression*> register_refs,
+            AddPipelineRegisters(assignments, stage, get_load_enable(stage)));
+        for (int64 i = 0; i < assignments.size(); ++i) {
+          node_expressions[assignments[i].first] = register_refs[i];
+        }
+      }
+
+      if (valid_load_enable != nullptr) {
+        XLS_ASSIGN_OR_RETURN(valid_load_enable,
+                             AddValidRegister(valid_load_enable, stage));
+      }
+
+      live_out_last_stage = std::move(live_out_nodes);
+      stage++;
+    }
+
+    if (valid_load_enable != nullptr) {
+      XLS_CHECK(options_.control().has_value());
+      if (!options_.control()->valid().output_name().empty()) {
+        XLS_RETURN_IF_ERROR(
+            mb_.AddOutputPort(options_.control()->valid().output_name(),
+                              /*bit_count=*/1, valid_load_enable));
+      }
+    }
+
+    // Assign the output wire to the pipeline-registered output value.
+    if (func_->return_value()->GetType()->GetFlatBitCount() > 0) {
+      XLS_RETURN_IF_ERROR(
+          mb_.AddOutputPort("out", func_->return_value()->GetType(),
+                            node_expressions.at(func_->return_value())));
+    }
+
+    std::string text = file_->Emit();
+    XLS_ASSIGN_OR_RETURN(ModuleSignature signature,
+                         BuildSignature(/*latency=*/stage));
+    return ModuleGeneratorResult{text, signature};
   }
-  XLS_RETURN_IF_ERROR(mb->AssignRegisters(clk, registers, load_enable));
 
-  return register_refs;
-}
+  // Builds and returns a module signature for the given latency.
+  xabsl::StatusOr<ModuleSignature> BuildSignature(int64 latency) {
+    ModuleSignatureBuilder sig_builder(mb_.module()->name());
+    sig_builder.WithClock("clk");
+    for (Param* param : func_->params()) {
+      sig_builder.AddDataInput(param->name(),
+                               param->GetType()->GetFlatBitCount());
+    }
+    sig_builder.AddDataOutput(
+        "out", func_->return_value()->GetType()->GetFlatBitCount());
+    sig_builder.WithFunctionType(func_->GetType());
+    sig_builder.WithPipelineInterface(
+        /*latency=*/latency,
+        /*initiation_interval=*/1,
+        options_.control().has_value()
+            ? absl::optional<PipelineControl>(options_.control().value())
+            : absl::nullopt);
 
-// Adds a "valid" signal register for the given stage using the given clock
-// signal. Returns a reference to the defined register.
-xabsl::StatusOr<LogicRef*> AddValidRegister(LogicRef* valid_load_enable,
-                                            int64 stage, LogicRef* clk,
-                                            ModuleBuilder* mb) {
-  // Add always flop block for the valid signal. Add it separately from the
-  // other pipeline register because it does not use a load_enable signal
-  // like the other pipeline registers.
-  mb->NewDeclarationAndAssignmentSections();
+    if (options_.reset().has_value()) {
+      sig_builder.WithReset(options_.reset()->name(),
+                            options_.reset()->asynchronous(),
+                            options_.reset()->active_low());
+    }
+    return sig_builder.Build();
+  }
 
-  mb->declaration_section()->Add<BlankLine>();
-  XLS_ASSIGN_OR_RETURN(ModuleBuilder::Register valid_load_enable_register,
-                       mb->DeclareRegister(absl::StrFormat("p%d_valid", stage),
-                                           /*bit_count=*/1, valid_load_enable));
-  XLS_RETURN_IF_ERROR(mb->AssignRegisters(clk, {valid_load_enable_register}));
-  return valid_load_enable_register.ref;
-}
+  // Returns number of uses of the node's value in this stage. This includes the
+  // pipeline register if the node's value is used in a later stage.
+  int64 FanoutInStage(Node* node, int64 stage) {
+    XLS_CHECK_EQ(schedule_.cycle(node), stage);
+    int64 fanout = 0;
+    if (absl::c_any_of(node->users(),
+                       [&](Node* n) { return schedule_.cycle(n) > stage; })) {
+      fanout = 1;
+    }
+    for (Node* user : node->users()) {
+      if (schedule_.cycle(user) == stage) {
+        // Count each operand separately in case the node appears in multiple
+        // operand slots.
+        fanout += user->OperandInstanceCount(node);
+      }
+    }
+    return fanout;
+  }
+
+  // Returns the users of the given node which are scheduled in the same stage.
+  std::vector<Node*> UsersInStage(Node* node) {
+    std::vector<Node*> users;
+    for (Node* user : node->users()) {
+      if (schedule_.cycle(user) == schedule_.cycle(node)) {
+        users.push_back(user);
+      }
+    }
+    return users;
+  }
+
+  // Adds pipeline registers to the module for the given stage. The registers to
+  // define are given as pairs of Node* and the expression to assign to the
+  // value corresponding to the node. The registers use the supplied clock and
+  // optional load enable (can be null). Returns references corresponding to the
+  // defined registers.
+  xabsl::StatusOr<std::vector<Expression*>> AddPipelineRegisters(
+      absl::Span<const std::pair<Node*, Expression*>> assignments, int64 stage,
+      Expression* load_enable) {
+    // Add always flop block for the registers.
+    mb_.NewDeclarationAndAssignmentSections();
+
+    mb_.declaration_section()->Add<BlankLine>();
+    mb_.declaration_section()->Add<Comment>(
+        absl::StrFormat("Registers for pipe stage %d:", stage));
+
+    std::vector<ModuleBuilder::Register> registers;
+    std::vector<Expression*> register_refs;
+    for (const auto& pair : assignments) {
+      Node* node = pair.first;
+      Expression* rhs = pair.second;
+      if (node->GetType()->GetFlatBitCount() > 0) {
+        if (options_.reset().has_value() &&
+            options_.reset()->reset_data_path()) {
+          return absl::UnimplementedError(
+              "Reset of data path not supported for pipeline generator.");
+        }
+        XLS_ASSIGN_OR_RETURN(
+            ModuleBuilder::Register reg,
+            mb_.DeclareRegister(PipelineSignalName(node, stage),
+                                node->GetType(), rhs));
+        registers.push_back(reg);
+        register_refs.push_back(registers.back().ref);
+      }
+    }
+    XLS_RETURN_IF_ERROR(mb_.AssignRegisters(clk_, registers, load_enable));
+
+    return register_refs;
+  }
+
+  // Adds a "valid" signal register for the given stage using the given clock
+  // signal. Returns a reference to the defined register.
+  xabsl::StatusOr<LogicRef*> AddValidRegister(LogicRef* valid_load_enable,
+                                              int64 stage) {
+    // Add always flop block for the valid signal. Add it separately from the
+    // other pipeline register because it does not use a load_enable signal
+    // like the other pipeline registers.
+    mb_.NewDeclarationAndAssignmentSections();
+
+    mb_.declaration_section()->Add<BlankLine>();
+
+    absl::optional<Expression*> reset_value;
+    if (rst_.has_value()) {
+      reset_value = file_->PlainLiteral(0);
+    }
+
+    XLS_ASSIGN_OR_RETURN(
+        ModuleBuilder::Register valid_load_enable_register,
+        mb_.DeclareRegister(absl::StrFormat("p%d_valid", stage),
+                            /*bit_count=*/1, valid_load_enable, reset_value));
+    XLS_RETURN_IF_ERROR(mb_.AssignRegisters(clk_, {valid_load_enable_register},
+                                            /*load_enable=*/nullptr, rst_));
+    return valid_load_enable_register.ref;
+  }
+
+ private:
+  Function* func_;
+  const PipelineSchedule& schedule_;
+  const PipelineOptions& options_;
+  VerilogFile* file_;
+
+  ModuleBuilder mb_;
+
+  LogicRef* clk_ = nullptr;
+  absl::optional<Reset> rst_;
+};
 
 }  // namespace
 
@@ -213,283 +533,14 @@ xabsl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
   XLS_VLOG_LINES(2, schedule.ToString());
 
   VerilogFile file;
+  PipelineGenerator generator(func, schedule, options, &file);
+  XLS_ASSIGN_OR_RETURN(ModuleGeneratorResult result, generator.Run());
 
-  // TODO(meheff): Implement reset.
-  if (options.reset().has_value()) {
-    return absl::UnimplementedError(
-        "Reset not supported for pipeline generator.");
-  }
-
-  // Create a module implementing the Function.
-  ModuleBuilder mb(
-      options.module_name().has_value() ? *options.module_name() : func->name(),
-      &file,
-      /*use_system_verilog=*/options.use_system_verilog());
-  LogicRef* clk = mb.AddInputPort("clk", /*bit_count=*/1);
-  LogicRef* valid_load_enable = nullptr;
-  LogicRef* manual_load_enable = nullptr;
-  if (options.control().has_value()) {
-    if (options.control()->has_valid()) {
-      const ValidProto& valid_proto = options.control()->valid();
-      if (valid_proto.input_name().empty()) {
-        return absl::InvalidArgumentError(
-            "Must specify valid input signal name with valid pipeline register "
-            "control");
-      }
-      valid_load_enable =
-          mb.AddInputPort(valid_proto.input_name(), /*bit_count=*/1);
-    } else if (options.control()->has_manual()) {
-      const ManualPipelineControl& manual = options.control()->manual();
-      if (manual.input_name().empty()) {
-        return absl::InvalidArgumentError(
-            "Must specify manual control signal name with manual pipeline "
-            "register"
-            "control");
-      }
-      // Compute the number of pipeline registers. Unconditionally, there is one
-      // register between each stage in the schedule, and optionally one at the
-      // inputs and outputs.
-      XLS_RET_CHECK_GT(schedule.length(), 0);
-      int64 reg_count = schedule.length() - 1;
-      if (options.flop_inputs()) {
-        ++reg_count;
-      }
-      if (options.flop_outputs()) {
-        ++reg_count;
-      }
-      manual_load_enable = mb.AddInputPort(manual.input_name(),
-                                           /*bit_count=*/reg_count);
-    }
-  }
-
-  // Returns the load enable signal for the pipeline registers at the end of the
-  // given stage.
-  auto get_load_enable = [&](int64 stage) -> Expression* {
-    if (valid_load_enable != nullptr) {
-      // 'valid_load_enable' is updated to the latest flopped value in
-      // each iteration of the loop.
-      return valid_load_enable;
-    }
-    if (manual_load_enable != nullptr) {
-      return file.Make<Index>(manual_load_enable, file.PlainLiteral(stage));
-    }
-    return nullptr;
-  };
-
-  // Map containing the VAST expression for each node. Values may be updated as
-  // the pipeline is emitted. For example, a nodes value may be held in a
-  // combinational expression, or a pipeline register depending upon the point
-  // of the pipeline.
-  absl::flat_hash_map<Node*, Expression*> node_expressions;
-
-  // Create the input data ports.
-  for (Param* param : func->params()) {
-    if (param->GetType()->GetFlatBitCount() == 0) {
-      XLS_RET_CHECK_EQ(param->users().size(), 0);
-      continue;
-    }
-    XLS_ASSIGN_OR_RETURN(
-        node_expressions[param],
-        mb.AddInputPort(param->As<Param>()->name(), param->GetType()));
-  }
-
-  // Emit non-bits-typed literals separately as module-scoped constants.
-  absl::flat_hash_set<Node*> module_constants;
-  XLS_VLOG(4) << "Module constants:";
-  for (Node* node : func->nodes()) {
-    if (node->Is<xls::Literal>() && !node->GetType()->IsBits() &&
-        node->GetType()->GetFlatBitCount() > 0) {
-      XLS_VLOG(4) << "  " << node->GetName();
-      XLS_ASSIGN_OR_RETURN(
-          node_expressions[node],
-          mb.DeclareModuleConstant(node->GetName(),
-                                   node->As<xls::Literal>()->value()));
-      module_constants.insert(node);
-    }
-  }
-  // The set of nodes which are live out of the previous stage.
-  std::vector<Node*> live_out_last_stage;
-
-  int64 stage = 0;
-  if (options.flop_inputs()) {
-    XLS_VLOG(4) << "Flopping inputs.";
-    std::vector<std::pair<Node*, Expression*>> assignments;
-    for (Param* param : func->params()) {
-      if (param->GetType()->GetFlatBitCount() != 0) {
-        assignments.push_back({param, node_expressions[param]});
-      }
-    }
-    if (!assignments.empty()) {
-      mb.declaration_section()->Add<BlankLine>();
-      mb.declaration_section()->Add<Comment>(
-          absl::StrFormat("===== Pipe stage %d:", stage));
-      XLS_ASSIGN_OR_RETURN(std::vector<Expression*> register_refs,
-                           AddPipelineRegisters(assignments, stage, clk,
-                                                get_load_enable(stage), &mb));
-      for (int64 i = 0; i < assignments.size(); ++i) {
-        node_expressions[assignments[i].first] = register_refs[i];
-      }
-      if (valid_load_enable != nullptr) {
-        XLS_ASSIGN_OR_RETURN(
-            valid_load_enable,
-            AddValidRegister(valid_load_enable, stage, clk, &mb));
-      }
-      stage++;
-    }
-  }
-
-  // Construct the stages defined by the schedule.
-  for (int64 schedule_cycle = 0; schedule_cycle < schedule.length();
-       ++schedule_cycle) {
-    XLS_VLOG(4) << "Building pipeline stage " << stage;
-    if (stage != 0) {
-      mb.NewDeclarationAndAssignmentSections();
-    }
-
-    mb.declaration_section()->Add<BlankLine>();
-    mb.declaration_section()->Add<Comment>(
-        absl::StrFormat("===== Pipe stage %d:", stage));
-
-    // Returns whether the given node is live out of this stage.
-    auto is_live_out_of_stage = [&](Node* node) {
-      if (module_constants.contains(node)) {
-        return false;
-      }
-      if (node == func->return_value()) {
-        return true;
-      }
-      for (Node* user : node->users()) {
-        if (schedule.cycle(user) > schedule_cycle) {
-          return true;
-        }
-      }
-      return false;
-    };
-
-    // Identify nodes in this stage which must be named temporaries.
-    // Conditions:
-    //
-    //   (0) Is not a module constant or parameter, AND one of the following
-    //       is true:
-    //
-    //   (1) Is array-shaped, OR
-    //
-    //   (2) Has multiple in-stage uses and is not trivially inlinable (e.g.,
-    //       unary negation), OR
-    //
-    //   (3) Has an in-stage use that needs a named reference, OR
-    //
-    //   (4) Is live out of the stage.
-    absl::flat_hash_set<Node*> named_temps;
-    for (Node* node : schedule.nodes_in_cycle(schedule_cycle)) {
-      if (node->Is<Param>() || module_constants.contains(node)) {
-        continue;
-      }
-      if (!mb.CanEmitAsInlineExpression(node, UsersInStage(node, schedule)) ||
-          (FanoutInStage(node, schedule, schedule_cycle) > 1 &&
-           !ShouldInlineExpressionIntoMultipleUses(node)) ||
-          is_live_out_of_stage(node)) {
-        named_temps.insert(node);
-      }
-    }
-
-    // Emit expressions/assignments for every node in this stage.
-    for (Node* node : schedule.nodes_in_cycle(schedule_cycle)) {
-      if (node->Is<Param>() || module_constants.contains(node) ||
-          node->GetType()->GetFlatBitCount() == 0) {
-        continue;
-      }
-
-      std::vector<Expression*> inputs;
-      for (Node* operand : node->operands()) {
-        inputs.push_back(node_expressions.at(operand));
-      }
-
-      if (named_temps.contains(node)) {
-        XLS_ASSIGN_OR_RETURN(
-            node_expressions[node],
-            mb.EmitAsAssignment(PipelineSignalName(node, stage) + "_comb", node,
-                                inputs));
-      } else {
-        XLS_ASSIGN_OR_RETURN(node_expressions[node],
-                             mb.EmitAsInlineExpression(node, inputs));
-      }
-    }
-
-    // Generate the set of pipeline registers at the end of this stage. These
-    // includes all live-out values from this stage including those nodes
-    // scheduled in earlier stages.
-    std::vector<Node*> live_out_nodes;
-    for (Node* node : live_out_last_stage) {
-      if (is_live_out_of_stage(node)) {
-        live_out_nodes.push_back(node);
-      }
-    }
-    for (Node* node : schedule.nodes_in_cycle(schedule_cycle)) {
-      if (!module_constants.contains(node) && is_live_out_of_stage(node)) {
-        live_out_nodes.push_back(node);
-      }
-    }
-
-    if (!options.flop_outputs() && schedule_cycle == schedule.length() - 1) {
-      // This is the last stage and the outputs are not flopped so nothing more
-      // to do.
-      break;
-    }
-
-    if (!live_out_nodes.empty() &&
-        (options.flop_outputs() || schedule_cycle != schedule.length() - 1)) {
-      // Add always flop block for the registers.
-      mb.NewDeclarationAndAssignmentSections();
-
-      std::vector<std::pair<Node*, Expression*>> assignments;
-      for (Node* node : live_out_nodes) {
-        if (node->GetType()->GetFlatBitCount() > 0) {
-          assignments.push_back({node, node_expressions.at(node)});
-        }
-      }
-      XLS_ASSIGN_OR_RETURN(std::vector<Expression*> register_refs,
-                           AddPipelineRegisters(assignments, stage, clk,
-                                                get_load_enable(stage), &mb));
-      for (int64 i = 0; i < assignments.size(); ++i) {
-        node_expressions[assignments[i].first] = register_refs[i];
-      }
-    }
-
-    if (valid_load_enable != nullptr) {
-      XLS_ASSIGN_OR_RETURN(
-          valid_load_enable,
-          AddValidRegister(valid_load_enable, stage, clk, &mb));
-    }
-
-    live_out_last_stage = std::move(live_out_nodes);
-    stage++;
-  }
-
-  if (valid_load_enable != nullptr) {
-    XLS_CHECK(options.control().has_value());
-    if (!options.control()->valid().output_name().empty()) {
-      XLS_RETURN_IF_ERROR(
-          mb.AddOutputPort(options.control()->valid().output_name(),
-                           /*bit_count=*/1, valid_load_enable));
-    }
-  }
-
-  // Assign the output wire to the pipeline-registered output value.
-  if (func->return_value()->GetType()->GetFlatBitCount() > 0) {
-    XLS_RETURN_IF_ERROR(
-        mb.AddOutputPort("out", func->return_value()->GetType(),
-                         node_expressions.at(func->return_value())));
-  }
-
-  std::string text = file.Emit();
+  XLS_VLOG(2) << "Signature:";
+  XLS_VLOG_LINES(2, result.signature.ToString());
   XLS_VLOG(2) << "Verilog output:";
-  XLS_VLOG_LINES(2, text);
-
-  XLS_ASSIGN_OR_RETURN(
-      ModuleSignature signature,
-      BuildSignature(mb.module()->name(), func, /*latency=*/stage, options));
-  return ModuleGeneratorResult{text, signature};
+  XLS_VLOG_LINES(2, result.verilog_text);
+  return result;
 }
 
 xabsl::StatusOr<ModuleGeneratorResult> ScheduleAndGeneratePipelinedModule(

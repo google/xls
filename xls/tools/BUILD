@@ -539,6 +539,7 @@ cc_binary(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "//xls/codegen:combinational_generator",
+        "//xls/codegen:module_signature_cc_proto",
         "//xls/codegen:pipeline_generator",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
