@@ -25,6 +25,7 @@ cc_library(
     hdrs = ["standard_pipeline.h"],
     deps = [
         ":arith_simplification_pass",
+        ":array_simplification_pass",
         ":bdd_cse_pass",
         ":bdd_simplification_pass",
         ":bit_slice_simplification_pass",
@@ -645,6 +646,21 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "array_simplification_pass",
+    srcs = ["array_simplification_pass.cc"],
+    hdrs = ["array_simplification_pass.h"],
+    deps = [
+        ":passes",
+        ":ternary_query_engine",
+        "//xls/common/status:statusor",
+        "//xls/ir",
+        "//xls/ir:bits_ops",
+        "//xls/ir:type",
+        "//xls/ir:value_helpers",
+    ],
+)
+
 cc_test(
     name = "inlining_pass_test",
     srcs = ["inlining_pass_test.cc"],
@@ -971,6 +987,23 @@ cc_test(
         "//xls/common/status:statusor",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+    ],
+)
+
+cc_test(
+    name = "array_simplification_pass_test",
+    srcs = ["array_simplification_pass_test.cc"],
+    deps = [
+        ":array_simplification_pass",
+        "@com_google_googletest//:gtest_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/common/status:statusor",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
     ],
 )

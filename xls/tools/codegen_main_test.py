@@ -104,7 +104,7 @@ class CodeGenMainTest(parameterized.TestCase):
     ])
 
   def test_clock_period_and_pipeline_stages(self):
-    pipeline_stages = 20
+    pipeline_stages = 5
     clock_period_ps = 5000
     verilog_path = test_base.create_named_output_text_file(
         f'sha256.clock_{clock_period_ps}_ps_pipeline_stages_{pipeline_stages}.v'

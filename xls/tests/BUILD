@@ -43,3 +43,21 @@ cc_test(
         "//xls/ir:ir_test_base",
     ],
 )
+
+cc_test(
+    name = "dslx_optimization_test",
+    srcs = ["dslx_optimization_test.cc"],
+    data = ["//xls/dslx:ir_converter_main"],
+    deps = [
+        "@com_google_googletest//:gtest_main",
+        "//xls/common:subprocess",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/file:temp_file",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:op",
+        "//xls/passes:standard_pipeline",
+    ],
+)
