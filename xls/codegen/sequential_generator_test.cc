@@ -12,22 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/simulation/verilog_simulators.h"
+#include "xls/codegen/sequential_generator.h"
 
-#include "absl/flags/flag.h"
+#include "gtest/gtest.h"
+#include "xls/simulation/verilog_test_base.h"
 
 namespace xls {
 namespace verilog {
+namespace {
 
-xabsl::StatusOr<VerilogSimulator*> GetVerilogSimulator(absl::string_view name) {
-  return GetVerilogSimulatorManagerSingleton().GetVerilogSimulator(name);
-}
+class SequentialGeneratorTest : public VerilogTestBase {};
 
-// TODO(meheff): Remove this function.
-const VerilogSimulator& GetDefaultVerilogSimulator() {
-  const char kDefaultSimulator[] = "iverilog";
-  return *GetVerilogSimulator(kDefaultSimulator).value();
-}
+// TODO(jbaileyhandle):  Delete once we have some real tests
+TEST_P(SequentialGeneratorTest, StubTest) { EXPECT_TRUE(true); }
 
+INSTANTIATE_TEST_SUITE_P(SequentialGeneratorTestInstantiation,
+                         SequentialGeneratorTest,
+                         testing::ValuesIn(kDefaultSimulationTargets),
+                         ParameterizedTestName<SequentialGeneratorTest>);
+
+}  // namespace
 }  // namespace verilog
 }  // namespace xls

@@ -421,7 +421,10 @@ class SampleRunner:
 
   def _codegen(self, ir_filename: Text, codegen_args: Sequence[Text]) -> Text:
     """Generates Verilog from the IR file and return the Verilog filename."""
-    args = [CODEGEN_MAIN_PATH, '--output_signature_path=module_sig.pbtxt']
+    args = [
+        CODEGEN_MAIN_PATH, '--output_signature_path=module_sig.pbtxt',
+        '--delay_model=unit'
+    ]
     args.extend(codegen_args)
     args.append(ir_filename)
     verilog_text = self._run_command('Generating Verilog', args)

@@ -16,6 +16,7 @@
 
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "xls/common/status/status_builder.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/nodes.h"
 #include "xls/netlist/logical_effort.h"
@@ -41,16 +42,37 @@ xabsl::StatusOr<DelayEstimator*> DelayEstimatorManager::GetDelayEstimator(
           name, absl::StrJoin(estimator_names_, ", ")));
     }
   }
-  return estimators_.at(name).get();
+  return estimators_.at(name).second.get();
+}
+
+xabsl::StatusOr<DelayEstimator*>
+DelayEstimatorManager::GetDefaultDelayEstimator() const {
+  if (estimators_.empty()) {
+    return absl::NotFoundError(
+        "No delay estimator has been registered. Did the build "
+        "target forget to link a plugin?");
+  }
+  int highest_precedence = 0;
+  DelayEstimator* highest = nullptr;
+  for (auto& item : estimators_) {
+    DelayEstimatorPrecedence precedence = item.second.first;
+    int precedence_value = static_cast<int>(precedence);
+    if (precedence_value > highest_precedence) {
+      highest_precedence = precedence_value;
+      highest = item.second.second.get();
+    }
+  }
+  return highest;
 }
 
 absl::Status DelayEstimatorManager::RegisterDelayEstimator(
-    absl::string_view name, std::unique_ptr<DelayEstimator> delay_estimator) {
+    absl::string_view name, std::unique_ptr<DelayEstimator> delay_estimator,
+    DelayEstimatorPrecedence precedence) {
   if (estimators_.contains(name)) {
     return absl::InternalError(
         absl::StrFormat("Delay estimator named %s already exists", name));
   }
-  estimators_[name] = std::move(delay_estimator);
+  estimators_[name] = {precedence, std::move(delay_estimator)};
   estimator_names_.push_back(std::string(name));
   std::sort(estimator_names_.begin(), estimator_names_.end());
 

@@ -16,61 +16,50 @@
 
 #include <cstdlib>
 
+#include "absl/base/const_init.h"
+#include "absl/status/status.h"
+#include "absl/synchronization/mutex.h"
+#include "xls/common/file/filesystem.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/module_initializer.h"
+#include "xls/common/status/ret_check.h"
 #include "tools/cpp/runfiles/runfiles.h"
-#include "absl/status/status.h"
 
 namespace xls {
 namespace {
 
 using ::bazel::tools::cpp::runfiles::Runfiles;
 
+static absl::Mutex mutex(absl::kConstInit);
 static Runfiles* runfiles;
 
-// Returns true if the environment variables indicate that the program is run by
-// the Bazel test runner. See
-// https://docs.bazel.build/versions/master/test-encyclopedia.html
-bool IsTest() {
-  return std::getenv("TEST_SRCDIR") != nullptr &&
-         std::getenv("TEST_TMPDIR") != nullptr;
-}
+xabsl::StatusOr<Runfiles*> GetRunfiles(
+    const std::string& argv0 = "/proc/self/exe") {
+  absl::MutexLock lock(&mutex);
+  if (runfiles == nullptr) {
+    // If we get here, that means we started executing real code before calling
+    // InitXls(); likely we're in a test. Thus, just do our best to access our
+    // runfiles dir based on our executable.
+    XLS_ASSIGN_OR_RETURN(auto path, ReadLink(argv0));
 
-XLS_REGISTER_MODULE_INITIALIZER(xls_runfiles_initializer, {
-  // Because Runfiles::CreateForTest does not need the executable path (unlike
-  // Runfiles::Create), it's possible to initialize runfiles statically in
-  // tests. Doing that is good because it makes tests work even though they
-  // don't call InitXls().
-  if (IsTest()) {
     std::string error;
-    runfiles = Runfiles::CreateForTest(&error);
-    XLS_CHECK(runfiles != nullptr)
+    runfiles = Runfiles::Create(path.string(), &error);
+    XLS_RET_CHECK(runfiles != nullptr)
         << "Failed to initialize Runfiles: " << error;
   }
-});
+
+  return runfiles;
+}
 
 }  // namespace
 
 std::filesystem::path GetXlsRunfilePath(const std::filesystem::path& path) {
-  XLS_CHECK(runfiles != nullptr)
-      << "GetXlsRunfilePath called before InitRunfilesDir()";
+  Runfiles* runfiles = GetRunfiles().value();
   return runfiles->Rlocation("com_google_xls" / path);
 }
 
 absl::Status InitRunfilesDir(const std::string& argv0) {
-  if (runfiles != nullptr && !IsTest()) {
-    // No need to initialize runfiles if it's already initialized or for tests
-    // (that is handled by a static module initializer above).
-    return absl::OkStatus();
-  }
-
-  std::string error;
-  runfiles = Runfiles::Create(argv0, &error);
-  if (runfiles == nullptr) {
-    return absl::UnknownError(error);
-  } else {
-    return absl::OkStatus();
-  }
+  return GetRunfiles(argv0).status();
 }
 
 }  // namespace xls
