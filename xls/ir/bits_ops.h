@@ -59,7 +59,8 @@ Bits UMul(const Bits& lhs, const Bits& rhs);
 Bits SDiv(const Bits& lhs, const Bits& rhs);
 Bits UDiv(const Bits& lhs, const Bits& rhs);
 
-// Various unsigned comparison operations.
+// Various unsigned comparison operations. lhs and rhs can be different widths.
+bool UEqual(const Bits& lhs, const Bits& rhs);
 bool UGreaterThanOrEqual(const Bits& lhs, const Bits& rhs);
 bool UGreaterThan(const Bits& lhs, const Bits& rhs);
 bool ULessThanOrEqual(const Bits& lhs, const Bits& rhs);
@@ -69,17 +70,20 @@ bool ULessThan(const Bits& lhs, const Bits& rhs);
 // negative because this is an unsigned comparison. We do not use an uint64 to
 // avoid surprising conversions. For example, with an uint64 argument, the
 // following would be true: LessThan(Ubits(42, 16), -1).
+bool UEqual(const Bits& lhs, int64 rhs);
 bool UGreaterThanOrEqual(const Bits& lhs, int64 rhs);
 bool UGreaterThan(const Bits& lhs, int64 rhs);
 bool ULessThanOrEqual(const Bits& lhs, int64 rhs);
 bool ULessThan(const Bits& lhs, int64 rhs);
 
-// Various signed comparison operations.
+// Various signed comparison operations.  lhs and rhs can be different widths.
+bool SEqual(const Bits& lhs, const Bits& rhs);
 bool SGreaterThanOrEqual(const Bits& lhs, const Bits& rhs);
 bool SGreaterThan(const Bits& lhs, const Bits& rhs);
 bool SLessThanOrEqual(const Bits& lhs, const Bits& rhs);
 bool SLessThan(const Bits& lhs, const Bits& rhs);
 
+bool SEqual(const Bits& lhs, int64 rhs);
 bool SGreaterThanOrEqual(const Bits& lhs, int64 rhs);
 bool SGreaterThan(const Bits& lhs, int64 rhs);
 bool SLessThanOrEqual(const Bits& lhs, int64 rhs);
