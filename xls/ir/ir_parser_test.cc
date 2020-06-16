@@ -393,6 +393,15 @@ fn bitslice(x: bits[32]) -> bits[14] {
   ParseFunctionAndCheckDump(input);
 }
 
+TEST(IrParserTest, ParseDynamicBitSlice) {
+  std::string input = R"(
+fn dynamicbitslice(x: bits[32], y: bits[32]) -> bits[14] {
+  ret dynamic_bit_slice.1: bits[14] = dynamic_bit_slice(x, y, width=14)
+}
+)";
+  ParseFunctionAndCheckDump(input);
+}
+
 TEST(IrParserTest, ParseArray) {
   std::string input = R"(
 fn array_and_array(x: bits[32], y: bits[32], z: bits[32]) -> bits[32][3] {
