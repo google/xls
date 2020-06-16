@@ -489,10 +489,12 @@ absl::Status ModuleBuilder::AssignRegisters(
   std::vector<SensitivityListElement> sensitivity_list;
   sensitivity_list.push_back(file_->Make<PosEdge>(clk));
   if (rst.has_value()) {
-    if (rst->active_low) {
-      sensitivity_list.push_back(file_->Make<NegEdge>(rst->signal));
-    } else {
-      sensitivity_list.push_back(file_->Make<PosEdge>(rst->signal));
+    if (rst->asynchronous) {
+      if (rst->active_low) {
+        sensitivity_list.push_back(file_->Make<NegEdge>(rst->signal));
+      } else {
+        sensitivity_list.push_back(file_->Make<PosEdge>(rst->signal));
+      }
     }
   }
   AlwaysBase* always;

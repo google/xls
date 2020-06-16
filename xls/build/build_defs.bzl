@@ -69,15 +69,18 @@ def _codegen(
                          codegen_params.get("delay_model", DEFAULT_DELAY_MODEL))
 
     CODEGEN_FLAGS = (
-        "clock_period_ps",
-        "pipeline_stages",
-        "entry",
-        "input_valid_signal",
-        "output_valid_signal",
-        "module_name",
         "clock_margin_percent",
+        "clock_period_ps",
+        "entry",
         "flop_inputs",
         "flop_outputs",
+        "input_valid_signal",
+        "module_name",
+        "output_valid_signal",
+        "pipeline_stages",
+        "reset",
+        "reset_active_low",
+        "reset_asynchronous",
     )
     for flag_name in CODEGEN_FLAGS:
         if flag_name in codegen_params:
