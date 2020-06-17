@@ -158,7 +158,7 @@ py_library(
     deps = [
         "//xls/dslx:ast",
         "//xls/dslx:deduce",
-	":interpreter"
+        ":interpreter"
     ],
 )
 

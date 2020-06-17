@@ -15,18 +15,18 @@
 # limitations under the License.
 
 """Helper utilities for use with the interpreter.Interpreter."""
-
+from typing import Sequence, Tuple
 from xls.dslx import ast
 from xls.dslx import deduce
 from xls.dslx.interpreter import interpreter
 
 def interpret_expr(module: ast.Module, node_to_type: deduce.NodeToType,
-                   env: Sequence[[str, interpreter.Value]],
+                   env: Sequence[Tuple[str, interpreter.Value]],
                    expr: ast.Expr) -> int:
   """Creates an Interpreter on-the-fly to evaluate expr with env"""
   interp = interpreter.Interpreter(module, node_to_type, f_import=None)
   bindings = interpreter.Bindings()
-  for ident, val in env:
+  for ident, val in env.items():
     bindings.add_value(ident, interpreter.Value.make_ubits(value=val,
                                                            bit_count=32))
   return interp.evaluate_expr(expr, bindings).bits_payload.value
