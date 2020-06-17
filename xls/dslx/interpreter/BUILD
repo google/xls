@@ -156,6 +156,8 @@ py_library(
     srcs = ["interpreter_helpers.py"],
     srcs_version = "PY3",
     deps = [
+        "//xls/dslx:ast",
+        "//xls/dslx:deduce",
 	":interpreter"
     ],
 )
