@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_COMMON_STATUS_STATUSOR_INTERNALS_H_
-#define THIRD_PARTY_XLS_COMMON_STATUS_STATUSOR_INTERNALS_H_
+#ifndef XLS_COMMON_STATUS_STATUSOR_INTERNALS_H_
+#define XLS_COMMON_STATUS_STATUSOR_INTERNALS_H_
 
 #include <type_traits>
 #include <utility>
@@ -369,4 +369,4 @@ void CrashBecauseOfBadAccess(absl::Status status);
 }  // namespace internal_statusor
 }  // namespace xabsl
 
-#endif  // THIRD_PARTY_XLS_COMMON_STATUS_STATUSOR_INTERNALS_H_
+#endif  // XLS_COMMON_STATUS_STATUSOR_INTERNALS_H_

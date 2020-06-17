@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_COMMON_LOGGING_ERRNO_SAVER_H_
-#define THIRD_PARTY_XLS_COMMON_LOGGING_ERRNO_SAVER_H_
+#ifndef XLS_COMMON_LOGGING_ERRNO_SAVER_H_
+#define XLS_COMMON_LOGGING_ERRNO_SAVER_H_
 
 #include <cerrno>
 
@@ -36,4 +36,4 @@ class ErrnoSaver {
 }  // namespace logging_internal
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_COMMON_LOGGING_ERRNO_SAVER_H_
+#endif  // XLS_COMMON_LOGGING_ERRNO_SAVER_H_

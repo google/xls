@@ -332,5 +332,13 @@ TEST(FilesystemTest, GetDirectoryEntriesGivesRelativePathsWhenPathIsRelative) {
             chdir(initial_cwd->c_str()));  // Change back to the original path.
 }
 
+TEST(FilesystemTest, GetRealPath) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path link_path,
+                           GetRealPath("/proc/self/exe"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path real_path,
+                           GetRealPath(link_path));
+  ASSERT_EQ(link_path, real_path);
+}
+
 }  // namespace
 }  // namespace xls

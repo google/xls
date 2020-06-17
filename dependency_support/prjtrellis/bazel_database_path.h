@@ -15,8 +15,8 @@
 // This file is spliced in as a replacement of
 // libtrellis/include/DatabasePath.hpp when building libtrellis with Bazel.
 
-#ifndef THIRD_PARTY_XLS_OSS_DEPENDENCY_SUPPORT_PRJTRELLIS_BAZEL_DATABASE_PATH_H_
-#define THIRD_PARTY_XLS_OSS_DEPENDENCY_SUPPORT_PRJTRELLIS_BAZEL_DATABASE_PATH_H_
+#ifndef XLS_OSS_DEPENDENCY_SUPPORT_PRJTRELLIS_BAZEL_DATABASE_PATH_H_
+#define XLS_OSS_DEPENDENCY_SUPPORT_PRJTRELLIS_BAZEL_DATABASE_PATH_H_
 
 #include <unistd.h>
 
@@ -43,4 +43,4 @@ inline std::string get_database_path() {
   return runfiles->Rlocation("prjtrellis_db");
 }
 
-#endif  // THIRD_PARTY_XLS_OSS_DEPENDENCY_SUPPORT_PRJTRELLIS_BAZEL_DATABASE_PATH_H_
+#endif  // XLS_OSS_DEPENDENCY_SUPPORT_PRJTRELLIS_BAZEL_DATABASE_PATH_H_

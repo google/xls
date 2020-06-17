@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_SIMULATION_VERILOG_SIMULATORS_H_
-#define THIRD_PARTY_XLS_SIMULATION_VERILOG_SIMULATORS_H_
+#ifndef XLS_SIMULATION_VERILOG_SIMULATORS_H_
+#define XLS_SIMULATION_VERILOG_SIMULATORS_H_
 
 #include <memory>
 #include <string>
@@ -35,4 +35,4 @@ const VerilogSimulator& GetDefaultVerilogSimulator();
 }  // namespace verilog
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_SIMULATION_VERILOG_SIMULATORS_H_
+#endif  // XLS_SIMULATION_VERILOG_SIMULATORS_H_

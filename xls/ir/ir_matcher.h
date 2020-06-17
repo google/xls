@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_IR_IR_MATCHER_H_
-#define THIRD_PARTY_XLS_IR_IR_MATCHER_H_
+#ifndef XLS_IR_IR_MATCHER_H_
+#define XLS_IR_IR_MATCHER_H_
 
 #include "gtest/gtest.h"
 #include "absl/strings/string_view.h"
@@ -207,6 +207,46 @@ inline ::testing::Matcher<const ::xls::Node*> BitSlice(int64 start,
                                                        int64 width) {
   return ::testing::MakeMatcher(
       new ::xls::op_matchers::BitSliceMatcher(start, width));
+}
+
+// DynamicBitSlice matcher. Supported forms:
+//
+//   EXPECT_THAT(foo, op::DynamicBitSlice());
+//   EXPECT_THAT(foo, op::DynamicBitSlice(op::Param(), op::Param()));
+//   EXPECT_THAT(foo, op::DynamicBitSlice(/*operand=*/op::Param(),
+//                                        /*start=*/op::Param(), /*width=*/8));
+class DynamicBitSliceMatcher : public NodeMatcher {
+ public:
+  DynamicBitSliceMatcher(::testing::Matcher<const Node*> operand,
+                         ::testing::Matcher<const Node*> start,
+                         absl::optional<int64> width)
+      : NodeMatcher(Op::kDynamicBitSlice, {operand, start}), width_(width) {}
+  DynamicBitSliceMatcher() : NodeMatcher(Op::kDynamicBitSlice, {}) {}
+
+  bool MatchAndExplain(const Node* node,
+                       ::testing::MatchResultListener* listener) const override;
+
+ private:
+  absl::optional<int64> width_;
+};
+
+inline ::testing::Matcher<const ::xls::Node*> DynamicBitSlice() {
+  return ::testing::MakeMatcher(
+      new ::xls::op_matchers::DynamicBitSliceMatcher());
+}
+
+inline ::testing::Matcher<const ::xls::Node*> DynamicBitSlice(
+    ::testing::Matcher<const Node*> operand,
+    ::testing::Matcher<const Node*> start) {
+  return ::testing::MakeMatcher(new ::xls::op_matchers::DynamicBitSliceMatcher(
+      operand, start, absl::nullopt));
+}
+
+inline ::testing::Matcher<const ::xls::Node*> DynamicBitSlice(
+    ::testing::Matcher<const Node*> operand,
+    ::testing::Matcher<const Node*> start, int64 width) {
+  return ::testing::MakeMatcher(
+      new ::xls::op_matchers::DynamicBitSliceMatcher(operand, start, width));
 }
 
 // Literal matcher. Supported forms:
@@ -403,4 +443,4 @@ inline ::testing::Matcher<const ::xls::Node*> TupleIndex(
 }  // namespace op_matchers
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_IR_IR_MATCHER_H_
+#endif  // XLS_IR_IR_MATCHER_H_

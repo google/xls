@@ -17,7 +17,8 @@
 namespace xls::verilog {
 
 void ScopedLintDisable::ToggleCheck(Lint flag, bool on) {
-  // Do nothing.
+  section_->Add<Comment>(
+      absl::StrFormat("lint_%s %s", on ? "on" : "off", LintToString(flag)));
 }
 
 }  // namespace xls::verilog

@@ -2,7 +2,7 @@
 // args: bits[14]:0x3295
 fn main(x81: u14) -> (u22, u14, u5, u22, u5, u5, u5, u5, u5, u14) {
     let x82: u5 = (u5:0x15) in
-    let x83: u5 = ~(x82) in
+    let x83: u5 = !(x82) in
     let x84: u5 = ((x81) as u5) + (x82) in
     let x85: u5 = (x84) - (x82) in
     let x86: u5 = -(x83) in

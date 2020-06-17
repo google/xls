@@ -65,7 +65,8 @@ class RunFuzzShllTest(parameterized.TestCase):
           with open(path, 'w') as f:
             f.write(samples[i].input_text)
         else:
-          expected = runfiles.get_contents_as_text(path)
+          # rstrip to avoid miscompares from trailing newline at EOF.
+          expected = runfiles.get_contents_as_text(path).rstrip()
           self.assertMultiLineEqual(expected, samples[i].input_text)
 
 

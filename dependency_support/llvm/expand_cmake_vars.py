@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+
 """Expands CMake variables in a text file."""
 
 from __future__ import absolute_import
@@ -45,12 +46,10 @@ def _expand_variables(input_str, cmake_vars):
   Returns:
     The expanded string.
   """
-
   def replace(match):
     if match.group(1) in cmake_vars:
       return cmake_vars[match.group(1)]
     return ""
-
   return _CMAKE_VAR_REGEX.sub(replace, input_str)
 
 

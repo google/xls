@@ -17,10 +17,10 @@
 """Tests for xls.dslx.interpreter.bits."""
 
 from xls.dslx.interpreter.bits import Bits
-from absl.testing import absltest as unittest
+from absl.testing import absltest
 
 
-class BitsTest(unittest.TestCase):
+class BitsTest(absltest.TestCase):
 
   def test_sign_ext(self):
     a = Bits(bit_count=0, value=0b0)
@@ -39,4 +39,4 @@ class BitsTest(unittest.TestCase):
 
 
 if __name__ == '__main__':
-  unittest.main()
+  absltest.main()

@@ -14,7 +14,7 @@
 
 # Build rules for XLS-used logic solvers.
 package(
-    default_visibility = ["//xls:__subpackages__"],
+    default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )
 
@@ -47,11 +47,11 @@ cc_test(
     deps = [
         ":z3_ir_translator",
         ":z3_utils",
+        "@com_google_googletest//:gtest_main",
         "//xls/common/status:matchers",
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
         "@z3//:api",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -71,6 +71,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor",
         "//xls/ir",
+        "//xls/ir:node_util",
         "//xls/netlist",
         "//xls/scheduling:pipeline_schedule",
         "@z3//:api",
@@ -82,13 +83,13 @@ cc_test(
     srcs = ["z3_lec_test.cc"],
     deps = [
         ":z3_lec",
+        "@com_google_googletest//:gtest_main",
         "//xls/common/status:matchers",
         "//xls/ir:ir_parser",
         "//xls/netlist",
         "//xls/netlist:cell_library",
         "//xls/netlist:fake_cell_library",
         "//xls/netlist:netlist_parser",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -120,6 +121,7 @@ cc_test(
     deps = [
         ":z3_netlist_translator",
         ":z3_utils",
+        "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/strings",
@@ -133,7 +135,6 @@ cc_test(
         "//xls/netlist:fake_cell_library",
         "//xls/netlist:netlist_parser",
         "@z3//:api",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 

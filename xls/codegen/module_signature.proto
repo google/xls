@@ -101,6 +101,9 @@ message ResetProto {
   optional string name = 1;
   optional bool asynchronous = 2;
   optional bool active_low = 3;
+  // Whether flops in the data path are reset by this reset signal. If false,
+  // only flops in the control path are reset (e.g., pipelined "valid" signal).
+  optional bool reset_data_path = 4;
 }
 
 message ModuleSignatureProto {

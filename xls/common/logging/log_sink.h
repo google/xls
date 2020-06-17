@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_COMMON_LOGGING_LOG_SINK_H_
-#define THIRD_PARTY_XLS_COMMON_LOGGING_LOG_SINK_H_
+#ifndef XLS_COMMON_LOGGING_LOG_SINK_H_
+#define XLS_COMMON_LOGGING_LOG_SINK_H_
 
 #include "xls/common/logging/log_entry.h"
 
@@ -57,4 +57,4 @@ class LogSink {
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_COMMON_LOGGING_LOG_SINK_H_
+#endif  // XLS_COMMON_LOGGING_LOG_SINK_H_

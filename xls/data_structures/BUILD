@@ -32,8 +32,8 @@ cc_test(
     srcs = ["union_find_test.cc"],
     deps = [
         ":union_find",
-        "@com_google_absl//absl/memory",
         "@com_google_googletest//:gtest_main",
+        "@com_google_absl//absl/memory",
     ],
 )
 
@@ -123,8 +123,8 @@ cc_test(
     srcs = ["inline_bitmap_test.cc"],
     deps = [
         ":inline_bitmap",
-        "@com_google_absl//absl/memory",
         "@com_google_googletest//:gtest_main",
+        "@com_google_absl//absl/memory",
     ],
 )
 
@@ -133,11 +133,11 @@ cc_test(
     srcs = ["leaf_type_tree_test.cc"],
     deps = [
         ":leaf_type_tree",
+        "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/strings",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:ir_parser",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -146,12 +146,12 @@ cc_test(
     srcs = ["algorithm_test.cc"],
     deps = [
         ":algorithm",
+        "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings:str_format",
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -160,12 +160,12 @@ cc_test(
     srcs = ["binary_decision_diagram_test.cc"],
     deps = [
         ":binary_decision_diagram",
+        "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/container:inlined_vector",
         "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/ir:bits",
         "//xls/ir:format_preference",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -174,6 +174,7 @@ cc_test(
     srcs = ["min_cut_test.cc"],
     deps = [
         ":min_cut",
+        "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/random",
@@ -181,7 +182,6 @@ cc_test(
         "@com_google_absl//absl/random:mocking_bit_gen",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -190,7 +190,7 @@ cc_test(
     srcs = ["binary_search_test.cc"],
     deps = [
         ":binary_search",
-        "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
+        "//xls/common/status:matchers",
     ],
 )

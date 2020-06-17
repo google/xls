@@ -57,8 +57,8 @@
 //    return Foo(arg);
 //  }
 
-#ifndef THIRD_PARTY_XLS_COMMON_STATUS_STATUSOR_H_
-#define THIRD_PARTY_XLS_COMMON_STATUS_STATUSOR_H_
+#ifndef XLS_COMMON_STATUS_STATUSOR_H_
+#define XLS_COMMON_STATUS_STATUSOR_H_
 
 #include <exception>
 #include <initializer_list>
@@ -588,4 +588,4 @@ const absl::Status& GetStatus(const xabsl::StatusOr<T>& status) {
 
 }  // namespace xabsl
 
-#endif  // THIRD_PARTY_XLS_COMMON_STATUS_STATUSOR_H_
+#endif  // XLS_COMMON_STATUS_STATUSOR_H_

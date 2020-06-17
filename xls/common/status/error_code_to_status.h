@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_COMMON_STATUS_ERROR_CODE_TO_STATUS_H_
-#define THIRD_PARTY_XLS_COMMON_STATUS_ERROR_CODE_TO_STATUS_H_
+#ifndef XLS_COMMON_STATUS_ERROR_CODE_TO_STATUS_H_
+#define XLS_COMMON_STATUS_ERROR_CODE_TO_STATUS_H_
 
 #include <system_error>  // NOLINT(build/c++11)
 
@@ -31,4 +31,4 @@ xabsl::StatusBuilder ErrnoToStatus(int errno_value);
 
 }
 
-#endif  // THIRD_PARTY_XLS_COMMON_STATUS_ERROR_CODE_TO_STATUS_H_
+#endif  // XLS_COMMON_STATUS_ERROR_CODE_TO_STATUS_H_

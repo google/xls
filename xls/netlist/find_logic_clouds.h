@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_NETLIST_FIND_LOGIC_CLOUDS_H_
-#define THIRD_PARTY_XLS_NETLIST_FIND_LOGIC_CLOUDS_H_
+#ifndef XLS_NETLIST_FIND_LOGIC_CLOUDS_H_
+#define XLS_NETLIST_FIND_LOGIC_CLOUDS_H_
 
 #include <vector>
 
@@ -61,4 +61,4 @@ std::string ClustersToString(absl::Span<const Cluster> clusters);
 }  // namespace netlist
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_NETLIST_FIND_LOGIC_CLOUDS_H_
+#endif  // XLS_NETLIST_FIND_LOGIC_CLOUDS_H_

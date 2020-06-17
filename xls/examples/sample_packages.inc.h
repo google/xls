@@ -11,8 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#ifndef THIRD_PARTY_XLS_EXAMPLES_SAMPLE_PACKAGES_INC_H_
-#define THIRD_PARTY_XLS_EXAMPLES_SAMPLE_PACKAGES_INC_H_
+#ifndef XLS_EXAMPLES_SAMPLE_PACKAGES_INC_H_
+#define XLS_EXAMPLES_SAMPLE_PACKAGES_INC_H_
 
 #include <filesystem>
 #include <string>
@@ -34,4 +34,5 @@ inline xabsl::StatusOr<std::vector<std::string>> GetExamplePaths() {
 }
 
 }  // namespace xls
-#endif  // THIRD_PARTY_XLS_EXAMPLES_SAMPLE_PACKAGES_INC_H_
+
+#endif  // XLS_EXAMPLES_SAMPLE_PACKAGES_INC_H_

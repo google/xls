@@ -18,6 +18,7 @@
 #include "absl/strings/str_join.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/node_util.h"
 #include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3_api.h"
 
@@ -31,6 +32,12 @@ using netlist::rtl::Netlist;
 using netlist::rtl::NetRef;
 
 namespace {
+
+// Returns true if we're checking a single pipeline stage.
+bool CheckingSingleStage(absl::optional<PipelineSchedule> schedule,
+                         int32 stage) {
+  return schedule && stage != -1;
+}
 
 std::vector<const Node*> SetToIdSortedVector(
     const absl::flat_hash_set<const Node*> set) {
@@ -112,9 +119,9 @@ absl::Status Lec::Init(const absl::flat_hash_set<std::string>& high_cells) {
 
 std::vector<const Node*> Lec::GetIrInputs() {
   std::vector<const Node*> ir_inputs;
-  if (schedule_ && (stage_ != 0)) {
-    // If we're evaluating a single stage, then we need to create "fake"
-    // Z3 nodes for the stage inputs.
+  if (CheckingSingleStage(schedule_, stage_) && stage_ != 0) {
+    // If we're evaluating a single stage (aside from the first), then we need
+    // to create "fake" Z3 nodes for the stage inputs.
     absl::flat_hash_set<const Node*> stage_inputs;
     for (const Node* node : schedule_->nodes_in_cycle(stage_)) {
       for (Node* operand : node->operands()) {
@@ -147,7 +154,7 @@ std::vector<const Node*> Lec::GetIrInputs() {
 std::vector<const Node*> Lec::GetIrOutputs() {
   // Easy case first! If we're working on the whole function, then we just need
   // the output node & its corresponding wires.
-  if (!schedule_) {
+  if (!CheckingSingleStage(schedule_, stage_)) {
     return {ir_function_->return_value()};
   }
 
@@ -179,7 +186,9 @@ xabsl::StatusOr<std::vector<NetRef>> Lec::GetIrNetrefs(const Node* node) {
     }
     std::string name = NodeToWireName(node, bit_index);
 
-    XLS_ASSIGN_OR_RETURN(const Cell* cell, module_->ResolveCell(name));
+    XLS_ASSIGN_OR_RETURN(
+        const Cell* cell, module_->ResolveCell(name),
+        _ << "If this is a multi-stage module, was a schedule specified?");
     for (const auto& output : cell->outputs()) {
       refs.push_back(output.netref);
     }
@@ -189,7 +198,7 @@ xabsl::StatusOr<std::vector<NetRef>> Lec::GetIrNetrefs(const Node* node) {
 }
 
 absl::Status Lec::AddConstraints(Function* constraints) {
-  XLS_RET_CHECK(!schedule_)
+  XLS_RET_CHECK(!CheckingSingleStage(schedule_, stage_))
       << "Constraints cannot be specified with per-stage LEC.";
   XLS_RET_CHECK(constraints->params().size() == ir_function_->params().size());
 
@@ -247,17 +256,7 @@ absl::Status Lec::CreateIrTranslator() {
 absl::Status Lec::BindNetlistInputs(absl::Span<const Node*> ir_inputs) {
   absl::flat_hash_map<std::string, Z3_ast> inputs =
       FlattenNetlistInputs(ir_inputs);
-  for (auto& input : inputs) {
-    // Skip synthesized inputs.
-    // TODO(rspringer): These special wires aren't necessarily fixed - they're
-    // specified by codegen, and could change in the future. These need to be
-    // properly handled (i.e., not hardcoded).
-    if (input.first == "clk" || input.first == "input_valid") {
-      continue;
-    }
-    XLS_RETURN_IF_ERROR(
-        netlist_translator_->RebindInputNet(input.first, input.second));
-  }
+  XLS_RETURN_IF_ERROR(netlist_translator_->RebindInputNets(inputs));
 
   return absl::OkStatus();
 }
@@ -369,13 +368,16 @@ std::string Lec::NodeToWireName(const Node* node,
     }
   }
 
-  int stage = -1;
-  if (schedule_) {
-    stage = stage_;
+  bool is_input = node->Is<Param>() && node->function() == ir_function_;
+  bool is_output = node == node->function()->return_value();
+  int stage = schedule_ ? schedule_.value().cycle(node) + 1 : 0;
+  if (schedule_ && is_input) {
+    name = absl::StrCat("p0_", name);
+  } else if (schedule_ && is_output) {
+    name = absl::StrCat("p", stage, "_", name, "_reg");
+  } else {
+    name = absl::StrCat("p", stage, "_", name);
   }
-
-  // If we're doing staged blah blah blah
-  name = absl::StrCat("p", stage + 1, "_", name);
 
   // Each IR gate can only have one [multi-bit] output.
   if (bit_index) {

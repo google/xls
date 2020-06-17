@@ -1,4 +1,4 @@
-module RegisterWithReset(
+module RegisterWithAsynchronousActiveLowReset(
   input wire [31:0] x,
   input wire [31:0] y,
   input wire clk,
@@ -7,8 +7,8 @@ module RegisterWithReset(
 );
   reg [31:0] a;
   reg [31:0] b;
-  always_ff @ (posedge clk or posedge rst) begin
-    if (rst) begin
+  always @ (posedge clk or negedge rst) begin
+    if (!rst) begin
       a <= 32'h0000_0000;
       b <= 32'h0000_0042;
     end else begin

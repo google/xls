@@ -113,8 +113,8 @@
 //   NullStrongIntValidator: Do no validation.  This should be entirely
 //       optimized away by the compiler.
 
-#ifndef THIRD_PARTY_XLS_COMMON_STRONG_INT_H_
-#define THIRD_PARTY_XLS_COMMON_STRONG_INT_H_
+#ifndef XLS_COMMON_STRONG_INT_H_
+#define XLS_COMMON_STRONG_INT_H_
 
 #include <functional>
 #include <iosfwd>
@@ -591,4 +591,4 @@ struct hash<::xls::StrongInt<Tag, Value, Validator>>
 
 }  // namespace std
 
-#endif  // THIRD_PARTY_XLS_COMMON_STRONG_INT_H_
+#endif  // XLS_COMMON_STRONG_INT_H_

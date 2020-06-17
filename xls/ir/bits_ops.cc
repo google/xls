@@ -283,6 +283,15 @@ Bits SDiv(const Bits& lhs, const Bits& rhs) {
   return TruncateOrSignExtend(quotient.ToSignedBits(), lhs.bit_count());
 }
 
+bool UEqual(const Bits& lhs, const Bits& rhs) {
+  return BigInt::MakeUnsigned(lhs) == BigInt::MakeUnsigned(rhs);
+}
+
+bool UEqual(const Bits& lhs, int64 rhs) {
+  XLS_CHECK_GE(rhs, 0);
+  return UEqual(lhs, UBits(rhs, 64));
+}
+
 bool UGreaterThanOrEqual(const Bits& lhs, const Bits& rhs) {
   return !ULessThan(lhs, rhs);
 }
@@ -292,7 +301,8 @@ bool UGreaterThan(const Bits& lhs, const Bits& rhs) {
 }
 
 bool ULessThanOrEqual(const Bits& lhs, const Bits& rhs) {
-  return (lhs == rhs) || ULessThan(lhs, rhs);
+  return UEqual(lhs, rhs) ||
+         BigInt::LessThan(BigInt::MakeUnsigned(lhs), BigInt::MakeUnsigned(rhs));
 }
 
 bool ULessThan(const Bits& lhs, const Bits& rhs) {
@@ -301,43 +311,29 @@ bool ULessThan(const Bits& lhs, const Bits& rhs) {
 
 bool UGreaterThanOrEqual(const Bits& lhs, int64 rhs) {
   XLS_CHECK_GE(rhs, 0);
-  if (lhs.bit_count() < Bits::MinBitCountUnsigned(rhs)) {
-    // The number of bits in lhs can't hold the rhs. Trying to create bits
-    // object with the rhs value and lhs bit count below will CHECK fail.
-    return false;
-  }
-  return UGreaterThanOrEqual(lhs, UBits(rhs, lhs.bit_count()));
+  return UGreaterThanOrEqual(lhs, UBits(rhs, 64));
 }
 
 bool UGreaterThan(const Bits& lhs, int64 rhs) {
   XLS_CHECK_GE(rhs, 0);
-  if (lhs.bit_count() < Bits::MinBitCountUnsigned(rhs)) {
-    // The number of bits in lhs can't hold the rhs. Trying to create bits
-    // object with the rhs value and lhs bit count below will CHECK fail.
-    return false;
-  }
-  return UGreaterThan(lhs, UBits(rhs, lhs.bit_count()));
+  return UGreaterThan(lhs, UBits(rhs, 64));
 }
 
 bool ULessThanOrEqual(const Bits& lhs, int64 rhs) {
   XLS_CHECK_GE(rhs, 0);
-  if (lhs.bit_count() < Bits::MinBitCountUnsigned(rhs)) {
-    // The number of bits in lhs can't hold the rhs. Trying to create bits
-    // object with the rhs value and lhs bit count below will CHECK fail.
-    return true;
-  }
-  return ULessThanOrEqual(lhs, UBits(rhs, lhs.bit_count()));
+  return ULessThanOrEqual(lhs, UBits(rhs, 64));
 }
 
 bool ULessThan(const Bits& lhs, int64 rhs) {
   XLS_CHECK_GE(rhs, 0);
-  if (lhs.bit_count() < Bits::MinBitCountUnsigned(rhs)) {
-    // The number of bits in lhs can't hold the rhs. Trying to create bits
-    // object with the rhs value and lhs bit count below will CHECK fail.
-    return true;
-  }
-  return ULessThan(lhs, UBits(rhs, lhs.bit_count()));
+  return ULessThan(lhs, UBits(rhs, 64));
 }
+
+bool SEqual(const Bits& lhs, const Bits& rhs) {
+  return BigInt::MakeSigned(lhs) == BigInt::MakeSigned(rhs);
+}
+
+bool SEqual(const Bits& lhs, int64 rhs) { return SEqual(lhs, SBits(rhs, 64)); }
 
 bool SGreaterThanOrEqual(const Bits& lhs, const Bits& rhs) {
   return !SLessThan(lhs, rhs);
@@ -348,31 +344,30 @@ bool SGreaterThan(const Bits& lhs, const Bits& rhs) {
 }
 
 bool SLessThanOrEqual(const Bits& lhs, const Bits& rhs) {
-  return (lhs == rhs) || SLessThan(lhs, rhs);
+  return SEqual(lhs, rhs) || SLessThan(lhs, rhs);
 }
 
 bool SLessThan(const Bits& lhs, const Bits& rhs) {
-  if (lhs.bit_count() <= 64) {
-    XLS_CHECK_EQ(rhs.bit_count(), lhs.bit_count());
+  if (lhs.bit_count() <= 64 && rhs.bit_count() <= 64) {
     return lhs.ToInt64().value() < rhs.ToInt64().value();
   }
   return BigInt::LessThan(BigInt::MakeSigned(lhs), BigInt::MakeSigned(rhs));
 }
 
 bool SGreaterThanOrEqual(const Bits& lhs, int64 rhs) {
-  return SGreaterThanOrEqual(lhs, UBits(rhs, lhs.bit_count()));
+  return SGreaterThanOrEqual(lhs, SBits(rhs, 64));
 }
 
 bool SGreaterThan(const Bits& lhs, int64 rhs) {
-  return SGreaterThan(lhs, UBits(rhs, lhs.bit_count()));
+  return SGreaterThan(lhs, SBits(rhs, 64));
 }
 
 bool SLessThanOrEqual(const Bits& lhs, int64 rhs) {
-  return SLessThanOrEqual(lhs, UBits(rhs, lhs.bit_count()));
+  return SLessThanOrEqual(lhs, SBits(rhs, 64));
 }
 
 bool SLessThan(const Bits& lhs, int64 rhs) {
-  return SLessThan(lhs, UBits(rhs, lhs.bit_count()));
+  return SLessThan(lhs, SBits(rhs, 64));
 }
 
 Bits ZeroExtend(const Bits& bits, int64 new_bit_count) {

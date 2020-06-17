@@ -35,8 +35,8 @@
 // safer way for this situation because it just logs the input condition as a
 // string literal on failure.
 
-#ifndef THIRD_PARTY_XLS_COMMON_STATUS_RET_CHECK_H_
-#define THIRD_PARTY_XLS_COMMON_STATUS_RET_CHECK_H_
+#ifndef XLS_COMMON_STATUS_RET_CHECK_H_
+#define XLS_COMMON_STATUS_RET_CHECK_H_
 
 #include <cstddef>
 #include <ostream>
@@ -263,4 +263,4 @@ inline unsigned long long GetReferenceableValue(  // NOLINT: runtime/int
 #define XLS_RET_CHECK_GT(lhs, rhs) \
   XLS_COMMON_MACROS_INTERNAL_RET_CHECK_OP(GT, >, lhs, rhs)
 
-#endif  // THIRD_PARTY_XLS_COMMON_STATUS_RET_CHECK_H_
+#endif  // XLS_COMMON_STATUS_RET_CHECK_H_

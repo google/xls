@@ -25,13 +25,13 @@ xls_pybind_extension(
     srcs = ["ir_to_json.cc"],
     deps = [
         "@com_google_absl//absl/strings",
+        "//xls/common/python:absl_casters",
         "//xls/common/status:statusor_pybind_caster",
         "//xls/delay_model:delay_estimator",
         "//xls/delay_model:delay_estimators",
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir/visualization:ir_to_json",
-        "//xls/common/python:absl_casters",
     ],
 )
 

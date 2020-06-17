@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_COMMON_LOGGING_LOGGING_INTERNAL_H_
-#define THIRD_PARTY_XLS_COMMON_LOGGING_LOGGING_INTERNAL_H_
+#ifndef XLS_COMMON_LOGGING_LOGGING_INTERNAL_H_
+#define XLS_COMMON_LOGGING_LOGGING_INTERNAL_H_
 
 #include "absl/base/log_severity.h"
 #include "xls/common/logging/log_message.h"
@@ -88,4 +88,4 @@ ABSL_MUST_USE_RESULT T DieIfNull(const char* file, int line,
 }  // namespace logging_internal
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_COMMON_LOGGING_LOGGING_INTERNAL_H_
+#endif  // XLS_COMMON_LOGGING_LOGGING_INTERNAL_H_

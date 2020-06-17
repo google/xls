@@ -14,8 +14,9 @@
 
 # Reference interpreter executor for XLS syntax.
 
-load("@xls_pip_deps//:requirements.bzl", "requirement")
 # pytype binary, test, library
+
+load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -94,6 +95,7 @@ py_test(
     name = "value_parser_test",
     srcs = ["value_parser_test.py"],
     python_version = "PY3",
+    srcs_version = "PY3",
     deps = [
         ":value",
         ":value_parser",
@@ -119,12 +121,12 @@ py_library(
     deps = [
         ":errors",
         ":value",
-        "@com_google_absl_py//absl/logging",
         "//xls/dslx:ast",
         "//xls/dslx:bit_helpers",
         "//xls/dslx:concrete_type",
         "//xls/dslx:scanner",
         "//xls/dslx:span",
+        "@com_google_absl_py//absl/logging",
     ],
 )
 
@@ -137,7 +139,6 @@ py_library(
         ":concrete_type_helpers",
         ":errors",
         ":value",
-        "@com_google_absl_py//absl/logging",
         requirement("termcolor"),
         "//xls/dslx:ast",
         "//xls/dslx:bit_helpers",
@@ -146,6 +147,7 @@ py_library(
         "//xls/dslx:parametric_expression",
         "//xls/dslx:scanner",
         "//xls/dslx:span",
+        "@com_google_absl_py//absl/logging",
     ],
 )
 
@@ -172,10 +174,10 @@ py_test(
     deps = [
         ":interpreter",
         ":parse_and_interpret",
-        "@com_google_absl_py//absl/testing:absltest",
-        "@pyfakefs_archive//:pyfakefs",
         "//xls/dslx:concrete_type",
         "//xls/dslx:xls_type_error",
+        "@com_google_absl_py//absl/testing:absltest",
+        "@pyfakefs_archive//:pyfakefs",  # fake_filesystem_unittest
     ],
 )
 
@@ -198,8 +200,6 @@ py_binary(
     srcs_version = "PY3",
     deps = [
         ":interpreter",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
         "//xls/dslx:ast",
         "//xls/dslx:bindings",
         "//xls/dslx:concrete_type",
@@ -210,6 +210,8 @@ py_binary(
         "//xls/dslx:scanner",
         "//xls/dslx:span",
         "//xls/dslx:typecheck",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
     ],
 )
 

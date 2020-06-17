@@ -14,8 +14,8 @@
 
 // Parse routines for turning numerical strings into Bits and integral values.
 
-#ifndef THIRD_PARTY_XLS_IR_NUMBER_PARSER_H_
-#define THIRD_PARTY_XLS_IR_NUMBER_PARSER_H_
+#ifndef XLS_IR_NUMBER_PARSER_H_
+#define XLS_IR_NUMBER_PARSER_H_
 
 #include "absl/strings/string_view.h"
 #include "xls/common/integral_types.h"
@@ -71,4 +71,4 @@ xabsl::StatusOr<Bits> ParseUnsignedNumberWithoutPrefix(
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_IR_NUMBER_PARSER_H_
+#endif  // XLS_IR_NUMBER_PARSER_H_

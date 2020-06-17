@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_IR_TYPE_H_
-#define THIRD_PARTY_XLS_IR_TYPE_H_
+#ifndef XLS_IR_TYPE_H_
+#define XLS_IR_TYPE_H_
 
 #include <memory>
 #include <ostream>
@@ -242,4 +242,4 @@ inline ArrayType* Type::AsArrayOrDie() {
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_IR_TYPE_H_
+#endif  // XLS_IR_TYPE_H_

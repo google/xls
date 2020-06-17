@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_DELAY_MODEL_DELAY_ESTIMATOR_H_
-#define THIRD_PARTY_XLS_DELAY_MODEL_DELAY_ESTIMATOR_H_
+#ifndef XLS_DELAY_MODEL_DELAY_ESTIMATOR_H_
+#define XLS_DELAY_MODEL_DELAY_ESTIMATOR_H_
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/types/span.h"
@@ -77,4 +77,4 @@ DelayEstimatorManager& GetDelayEstimatorManagerSingleton();
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_DELAY_MODEL_DELAY_ESTIMATOR_H_
+#endif  // XLS_DELAY_MODEL_DELAY_ESTIMATOR_H_

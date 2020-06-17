@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_DATA_STRUCTURES_MIN_CUT_H_
-#define THIRD_PARTY_XLS_DATA_STRUCTURES_MIN_CUT_H_
+#ifndef XLS_DATA_STRUCTURES_MIN_CUT_H_
+#define XLS_DATA_STRUCTURES_MIN_CUT_H_
 
 #include <utility>
 #include <vector>
@@ -104,4 +104,4 @@ GraphCut MinCutBetweenNodes(const Graph& graph, NodeId source, NodeId sink);
 }  // namespace min_cut
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_DATA_STRUCTURES_MIN_CUT_H_
+#endif  // XLS_DATA_STRUCTURES_MIN_CUT_H_

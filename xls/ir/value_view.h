@@ -20,8 +20,8 @@
 //
 // TODO(rspringer): It probably makes sense to have functions to copy a view to
 // a real corresponding type.
-#ifndef THIRD_PARTY_XLS_IR_VALUE_VIEW_H_
-#define THIRD_PARTY_XLS_IR_VALUE_VIEW_H_
+#ifndef XLS_IR_VALUE_VIEW_H_
+#define XLS_IR_VALUE_VIEW_H_
 
 #include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
@@ -178,4 +178,4 @@ class TupleView {
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_IR_VALUE_VIEW_H_
+#endif  // XLS_IR_VALUE_VIEW_H_

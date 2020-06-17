@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_COMMON_STATUS_STATUSOR_PYBIND_CASTER_H_
-#define THIRD_PARTY_XLS_COMMON_STATUS_STATUSOR_PYBIND_CASTER_H_
+#ifndef XLS_COMMON_STATUS_STATUSOR_PYBIND_CASTER_H_
+#define XLS_COMMON_STATUS_STATUSOR_PYBIND_CASTER_H_
 
 #include <pybind11/cast.h>
 #include <pybind11/pybind11.h>
@@ -53,4 +53,4 @@ struct type_caster<xabsl::StatusOr<PayloadType>> {
 }  // namespace detail
 }  // namespace pybind11
 
-#endif  // THIRD_PARTY_XLS_COMMON_STATUS_STATUSOR_PYBIND_CASTER_H_
+#endif  // XLS_COMMON_STATUS_STATUSOR_PYBIND_CASTER_H_

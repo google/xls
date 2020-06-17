@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_SOLVERS_Z3_NETLIST_TRANSLATOR_H_
-#define THIRD_PARTY_XLS_SOLVERS_Z3_NETLIST_TRANSLATOR_H_
+#ifndef XLS_SOLVERS_Z3_NETLIST_TRANSLATOR_H_
+#define XLS_SOLVERS_Z3_NETLIST_TRANSLATOR_H_
 
 #include <memory>
 
@@ -62,9 +62,8 @@ class NetlistTranslator {
   // To un-do this operation, the Z3_ast for ref_name must be stored and
   // passed as an argument to a later call.
   // There is no way to replace only the n'th use of src by a given cell.
-  absl::Status RebindInputNet(
-      const std::string& ref_name, Z3_ast dst,
-      absl::flat_hash_set<netlist::rtl::Cell*> cells_to_consider = {});
+  absl::Status RebindInputNets(
+      const absl::flat_hash_map<std::string, Z3_ast>& inputs);
 
  private:
   NetlistTranslator(
@@ -99,4 +98,4 @@ class NetlistTranslator {
 }  // namespace solvers
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_SOLVERS_Z3_NETLIST_TRANSLATOR_H_
+#endif  // XLS_SOLVERS_Z3_NETLIST_TRANSLATOR_H_

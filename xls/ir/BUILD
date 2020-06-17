@@ -17,6 +17,7 @@
 
 # cc_proto_library is used in this file
 load("//xls/build:py_proto_library.bzl", "xls_py_proto_library")
+# pytype binary only
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -322,16 +323,16 @@ cc_library(
         "//xls/common/logging:vlog_is_on",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "@llvm//:analysis",
-        "@llvm//:core",
-        "@llvm//:execution_engine",
-        "@llvm//:ipo",
-        "@llvm//:jit_link",  # build_cleaner: keep
-        "@llvm//:orc_jit",
-        "@llvm//:support",
-        "@llvm//:target",
-        "@llvm//:x86_asm_parser",  # build_cleaner: keep
-        "@llvm//:x86_code_gen",  # build_cleaner: keep
+        "@llvm//:Analysis",
+        "@llvm//:Core",
+        "@llvm//:ExecutionEngine",
+        "@llvm//:IPO",
+        "@llvm//:JITLink",  # build_cleaner: keep
+        "@llvm//:OrcJIT",
+        "@llvm//:Support",
+        "@llvm//:Target",
+        "@llvm//:X86AsmParser",  # build_cleaner: keep
+        "@llvm//:X86CodeGen",  # build_cleaner: keep
     ],
 )
 
@@ -349,12 +350,12 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "//xls/common:integral_types",
-        "@llvm//:core",
-        "@llvm//:orc_jit",
-        "@llvm//:support",
-        "@llvm//:target",
-        "@llvm//:x86_asm_parser",  # build_cleaner: keep
-        "@llvm//:x86_code_gen",  # build_cleaner: keep
+        "@llvm//:Core",
+        "@llvm//:OrcJIT",
+        "@llvm//:Support",
+        "@llvm//:Target",
+        "@llvm//:X86AsmParser",  # build_cleaner: keep
+        "@llvm//:X86CodeGen",  # build_cleaner: keep
     ],
 )
 
@@ -373,7 +374,7 @@ cc_library(
         "//xls/common:integral_types",
         "//xls/common/logging",
         "//xls/common/status:statusor",
-        "@llvm//:core",
+        "@llvm//:Core",
     ],
 )
 

@@ -14,8 +14,8 @@
 
 // Helper macros and methods to return and propagate errors with `absl::Status`.
 
-#ifndef THIRD_PARTY_XLS_COMMON_STATUS_STATUS_MACROS_H_
-#define THIRD_PARTY_XLS_COMMON_STATUS_STATUS_MACROS_H_
+#ifndef XLS_COMMON_STATUS_STATUS_MACROS_H_
+#define XLS_COMMON_STATUS_STATUS_MACROS_H_
 
 #include "absl/base/optimization.h"
 #include "xls/common/source_location.h"
@@ -259,4 +259,4 @@ class StatusAdaptorForMacros {
 }  // namespace status_macro_internal
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_COMMON_STATUS_STATUS_MACROS_H_
+#endif  // XLS_COMMON_STATUS_STATUS_MACROS_H_

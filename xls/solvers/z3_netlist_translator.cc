@@ -106,37 +106,15 @@ bool IsOutputFromCell(const NetRef netref, const Cell* cell) {
   return false;
 }
 
-absl::Status NetlistTranslator::RebindInputNet(
-    const std::string& ref_name, Z3_ast dst,
-    absl::flat_hash_set<Cell*> cells_to_consider) {
-  // Overall approach:
-  //  1. Find the NetRef/Def matching "src".
-  //  2. For every cell with that as an input, replace that input with "dst".
-  //  3. Fame & fortune.
-  XLS_ASSIGN_OR_RETURN(NetRef src_ref, module_->ResolveNet(ref_name));
-  Z3_ast src = translated_[src_ref];
-  translated_[src_ref] = dst;
-
-  // For every cell that uses src_ref as an input, update its output wires to
-  // use the new Z3 node instead.
+absl::Status NetlistTranslator::RebindInputNets(
+    const absl::flat_hash_map<std::string, Z3_ast>& inputs) {
   std::vector<UpdatedNode<NetRef>> updated_refs;
-  for (Cell* cell : src_ref->connected_cells()) {
-    if (!IsInputToCell(src_ref, cell)) {
-      continue;
-    }
-
-    if (!cells_to_consider.empty() && !cells_to_consider.contains(cell)) {
-      continue;
-    }
-
-    // With a new input, we now need to update all using cells. We need to hold
-    // the result of that update (in updated_refs), so we can propagate that
-    // change down the rest of the tree.
-    for (const auto& output : cell->outputs()) {
-      translated_[output.netref] =
-          Z3_substitute(ctx_, translated_[output.netref], 1, &src, &dst);
-      updated_refs.push_back({output.netref, src, dst});
-    }
+  for (const auto& input : inputs) {
+    XLS_ASSIGN_OR_RETURN(NetRef ref, module_->ResolveNet(input.first));
+    Z3_ast new_ast = input.second;
+    Z3_ast old_ast = translated_[ref];
+    updated_refs.push_back({ref, old_ast, new_ast});
+    translated_[ref] = new_ast;
   }
 
   auto get_inputs = [](NetRef ref) {
