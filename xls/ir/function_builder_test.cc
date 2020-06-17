@@ -267,10 +267,7 @@ TEST(FunctionBuilderTest, DynamicBitSlice) {
   BValue start = b.Param("start", value_type);
   b.DynamicBitSlice(x, start, 4);
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, b.Build());
-  Node* lt = func->return_value();
-  EXPECT_EQ(lt->op(), Op::kDynamicBitSlice);
-  EXPECT_EQ(lt->GetType(), p.GetBitsType(4));
-
+  EXPECT_THAT(func->return_value(), AllOf(m::DynamicBitSlice(), m::Type("bits[4]")));
 }
 
 TEST(FunctionBuilderTest, FullWidthDecode) {
