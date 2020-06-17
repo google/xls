@@ -152,6 +152,15 @@ py_library(
 )
 
 py_library(
+    name = "interpreter_helpers",
+    srcs = ["interpreter_helpers.py"],
+    srcs_version = "PY3",
+    deps = [
+	":interpreter"
+    ],
+)
+
+py_library(
     name = "parse_and_interpret",
     srcs = ["parse_and_interpret.py"],
     srcs_version = "PY3",
