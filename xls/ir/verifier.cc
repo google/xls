@@ -110,6 +110,11 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleDynamicBitSlice(
+      DynamicBitSlice* dynamic_bit_slice) override {
+    return absl::UnimplementedError("DynamicBitSlice not yet implemented");
+  }
+
   absl::Status HandleConcat(Concat* concat) override {
     // All operands should be bits types.
     int64 total_bits = 0;

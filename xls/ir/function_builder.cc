@@ -375,6 +375,14 @@ BValue FunctionBuilder::BitSlice(BValue arg, int64 start, int64 width,
   return AddNode<xls::BitSlice>(loc, arg.node(), start, width);
 }
 
+BValue FunctionBuilder::DynamicBitSlice(BValue arg, BValue start, int64 width,
+                                        absl::optional<SourceLocation> loc) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  return AddNode<xls::DynamicBitSlice>(loc, arg.node(), start.node(), width);
+}
+
 BValue FunctionBuilder::Encode(BValue arg, absl::optional<SourceLocation> loc) {
   if (ErrorPending()) {
     return BValue();
