@@ -221,12 +221,7 @@ class DynamicBitSliceMatcher : public NodeMatcher {
                          ::testing::Matcher<const Node*> start,
                          absl::optional<int64> width)
       : NodeMatcher(Op::kDynamicBitSlice, {operand, start}), width_(width) {}
-<<<<<<< HEAD
   DynamicBitSliceMatcher() : NodeMatcher(Op::kDynamicBitSlice, {}) {}
-=======
-  DynamicBitSliceMatcher(absl::optional<int64> width)
-      : NodeMatcher(Op::kDynamicBitSlice, {}), width_(width) {}
->>>>>>> 807c7f7c876c52e9818e506b1c7208ff1bb17d40
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
@@ -254,14 +249,6 @@ inline ::testing::Matcher<const ::xls::Node*> DynamicBitSlice(
       new ::xls::op_matchers::DynamicBitSliceMatcher(operand, start, width));
 }
 
-<<<<<<< HEAD
-=======
-inline ::testing::Matcher<const ::xls::Node*> DynamicBitSlice(int64 width) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::DynamicBitSliceMatcher(width));
-}
-
->>>>>>> 807c7f7c876c52e9818e506b1c7208ff1bb17d40
 // Literal matcher. Supported forms:
 //
 //   EXPECT_THAT(foo, op::Literal());
