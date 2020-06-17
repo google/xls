@@ -15,6 +15,11 @@
 #ifndef XLS_CODEGEN_SEQUENTIAL_GENERATOR_H_
 #define XLS_CODEGEN_SEQUENTIAL_GENERATOR_H_
 
+#include <functional>
+#include <memory>
+
+#include "absl/container/flat_hash_map.h"
+#include "xls/codegen/module_builder.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/pipeline_generator.h"
 #include "xls/codegen/vast.h"
@@ -28,6 +33,7 @@
 namespace xls {
 namespace verilog {
 
+// Configuration options for a sequential module.
 class SequentialOptions {
  public:
   // Reset logic to use.
@@ -61,16 +67,55 @@ class SequentialOptions {
   // TODO(jbaileyhandle): Interface options.
 };
 
-// Generate a pipeline module that implements the loop's body.
-xabsl::StatusOr<std::unique_ptr<ModuleGeneratorResult>>
-GenerateLoopBodyPipeline(const CountedFor* loop,
-                         const SequentialOptions& options,
-                         const SchedulingOptions& scheduling_options,
-                         const DelayEstimator& = GetStandardDelayEstimator());
+class SequentialModuleBuilder {
+ public:
+  SequentialModuleBuilder(const SequentialOptions& options,
+                          const CountedFor* loop)
+      : loop_(loop), sequential_options_(options) {}
 
-// Generate the signature for the top-level module.
-xabsl::StatusOr<ModuleSignature> GenerateModuleSignature(
-    const CountedFor* loop, const SequentialOptions& sequential_options);
+  // Container for logical references to the ports of the sequential module.
+  struct PortReferences {
+    LogicRef* clk;
+    std::vector<LogicRef*> data_in;
+    std::vector<LogicRef*> data_out;
+    absl::optional<LogicRef*> reset;
+    absl::optional<LogicRef*> ready_in;
+    absl::optional<LogicRef*> valid_in;
+    absl::optional<LogicRef*> ready_out;
+    absl::optional<LogicRef*> valid_out;
+  };
+
+  // Generates a pipeline module that implements the loop's body.
+  xabsl::StatusOr<std::unique_ptr<ModuleGeneratorResult>>
+  GenerateLoopBodyPipeline(const SchedulingOptions& scheduling_options,
+                           const DelayEstimator& = GetStandardDelayEstimator());
+
+  // Generates the signature for the top-level module.
+  xabsl::StatusOr<std::unique_ptr<ModuleSignature>> GenerateModuleSignature();
+
+  // Initializes the module builder according to the signature.
+  absl::Status InitializeModuleBuilder(const ModuleSignature& signature);
+
+  // Accessor methods.
+  const VerilogFile* file() const { return &file_; }
+  const ModuleGeneratorResult* loop_result() const {
+    return loop_body_pipeline_result_.get();
+  }
+  const Module* module() const { return module_builder_->module(); }
+  const ModuleSignature* module_signature() const {
+    return module_signature_.get();
+  }
+  const PortReferences* port_references() const { return &port_references_; }
+
+ private:
+  VerilogFile file_;
+  const CountedFor* loop_;
+  std::unique_ptr<ModuleGeneratorResult> loop_body_pipeline_result_;
+  std::unique_ptr<ModuleBuilder> module_builder_;
+  std::unique_ptr<ModuleSignature> module_signature_;
+  PortReferences port_references_;
+  const SequentialOptions sequential_options_;
+};
 
 // Emits the given function as a verilog module which reuses the same hardware
 // over time to executed loop iterations.

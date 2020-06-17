@@ -125,7 +125,7 @@ std::string Port::ToString() const {
                          verilog::ToString(direction), name());
 }
 
-xabsl::StatusOr<PortProto> Port::ToProto() {
+xabsl::StatusOr<PortProto> Port::ToProto() const {
   if (!wire->width()->IsLiteral()) {
     return absl::FailedPreconditionError(
         "Width of port is not a literal, cannot convert to proto: " +
