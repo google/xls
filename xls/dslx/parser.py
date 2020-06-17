@@ -62,7 +62,6 @@ _BITWISE_KINDS = (
     TokenKind.DOUBLE_CANGLE,
     TokenKind.TRIPLE_CANGLE,
 )  # type: Tuple[TokenKind]
-_LOGICAL_OR_KINDS = (Keyword.OR, Keyword.XOR)  # type: Tuple[Keyword]
 
 
 @dataclasses.dataclass
@@ -542,10 +541,8 @@ class Parser(token_parser.TokenParser):
           lhs = self._parse_tuple_remainder(oparen.span.start, lhs, bindings)
         else:
           self._dropt_or_error(TokenKind.CPAREN, start=tok)
-    elif tok.kind in (TokenKind.TILDE, TokenKind.MINUS):
+    elif tok.kind in (TokenKind.BANG, TokenKind.MINUS):
       return ast.Unop(self._popt(), self._parse_term(bindings))
-    elif tok.is_keyword(Keyword.NOT):
-      return ast.Unop(self._popt(), self._parse_or_expression(bindings))
     elif tok.is_keyword(Keyword.MATCH):
       return self._parse_match(bindings)
     elif tok.kind == TokenKind.OBRACK:
@@ -658,9 +655,16 @@ class Parser(token_parser.TokenParser):
 
     return lhs
 
+  def _parse_cast_as_expression(self, bindings: Bindings) -> ast.Expr:
+    lhs = self._parse_term(bindings)
+    while self._try_pop_keyword(Keyword.AS):
+      type_ = self._parse_type_annotation(bindings)
+      lhs = ast.Cast(type_, lhs)
+    return lhs
+
   def _parse_strong_arithmetic_expression(self, bindings: Bindings) -> ast.Expr:
-    return self._parse_binop_chain(self._parse_term, _STRONG_ARITHMETIC_KINDS,
-                                   bindings)
+    return self._parse_binop_chain(self._parse_cast_as_expression,
+                                   _STRONG_ARITHMETIC_KINDS, bindings)
 
   def _parse_weak_arithmetic_expression(self, bindings: Bindings) -> ast.Expr:
     return self._parse_binop_chain(self._parse_strong_arithmetic_expression,
@@ -682,29 +686,17 @@ class Parser(token_parser.TokenParser):
     return self._parse_binop_chain(self._parse_xor_expression, (TokenKind.BAR,),
                                    bindings)
 
-  def _parse_cast_as_expression(self, bindings: Bindings) -> ast.Expr:
-    lhs = self._parse_or_expression(bindings)
-    while self._try_pop_keyword(Keyword.AS):
-      type_ = self._parse_type_annotation(bindings)
-      lhs = ast.Cast(type_, lhs)
-    return lhs
-
   def _parse_comparison_expression(self, bindings: Bindings) -> ast.Expr:
-    return self._parse_binop_chain(self._parse_cast_as_expression,
+    return self._parse_binop_chain(self._parse_or_expression,
                                    tuple(ast.Binop.COMPARISON_KINDS), bindings)
 
-  def _parse_logical_not_expression(self, bindings: Bindings) -> ast.Expr:
-    if self._peekt_is_keyword(Keyword.NOT):
-      return ast.Unop(self._popt(), self._parse_or_expression(bindings))
-    return self._parse_comparison_expression(bindings)
-
   def _parse_logical_and_expression(self, bindings: Bindings) -> ast.Expr:
-    return self._parse_binop_chain(self._parse_logical_not_expression,
-                                   (Keyword.AND,), bindings)
+    return self._parse_binop_chain(self._parse_comparison_expression,
+                                   (TokenKind.DOUBLE_AMPERSAND,), bindings)
 
   def _parse_logical_or_expression(self, bindings: Bindings) -> ast.Expr:
     return self._parse_binop_chain(self._parse_logical_and_expression,
-                                   _LOGICAL_OR_KINDS, bindings)
+                                   (TokenKind.DOUBLE_BAR,), bindings)
 
   def _parse_ternary_expression(self, bindings: Bindings) -> ast.Expr:
     """Parses a ternary expression or expr of higher precedence.

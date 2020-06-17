@@ -500,8 +500,6 @@ class Interpreter(object):
     operand_value = self._evaluate(expr.operand, bindings)
     if expr.operator.kind == ast.Unop.INV:
       return operand_value.bitwise_negate()
-    if expr.operator.is_keyword(Keyword.NOT):
-      return operand_value.logical_negate()
     if expr.operator.kind == ast.Unop.NEG:
       return operand_value.arithmetic_negate()
     raise NotImplementedError('Unimplemented unop.', expr.operator)
@@ -528,8 +526,7 @@ class Interpreter(object):
     elif expr.operator.get_kind_or_keyword() in (ast.Binop.AND,
                                                  ast.Binop.LOGICAL_AND):
       result = lhs_value.bitwise_and(rhs_value)
-    elif expr.operator.get_kind_or_keyword() in (ast.Binop.XOR,
-                                                 ast.Binop.LOGICAL_XOR):
+    elif expr.operator.get_kind_or_keyword() == ast.Binop.XOR:
       result = lhs_value.bitwise_xor(rhs_value)
     elif expr.operator.kind == ast.Binop.SHLL:  # <<
       result = lhs_value.shll(rhs_value)

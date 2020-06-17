@@ -155,13 +155,13 @@ class ScannerTest(absltest.TestCase):
     self.assertEqual(tokens[4].kind, TokenKind.COMMENT)
 
   def test_peek_pop_drop_try_drop(self):
-    text = '[!](~)'
+    text = '[!](-)'
     expected = [
         TokenKind.OBRACK,
         TokenKind.BANG,
         TokenKind.CBRACK,
         TokenKind.OPAREN,
-        TokenKind.TILDE,
+        TokenKind.MINUS,
         TokenKind.CPAREN,
     ]
     s = self.make_scanner(text)

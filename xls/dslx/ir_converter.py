@@ -284,7 +284,6 @@ class _IrConverterFb(ast.AstVisitor):
         # Logical.
         ast.Binop.LOGICAL_AND: self.fb.add_and,
         ast.Binop.LOGICAL_OR: self.fb.add_or,
-        ast.Binop.LOGICAL_XOR: self.fb.add_xor,
     }
     f = operator_to_f.get(node.operator.get_kind_or_keyword())
     if f:
@@ -389,7 +388,7 @@ class _IrConverterFb(ast.AstVisitor):
     kind = node.operator.get_kind_or_keyword()
     if kind == ast.Unop.NEG:
       self._def(node, self.fb.add_neg, self._use(node.operand))
-    elif kind in (ast.Unop.INV, ast.Unop.NOT):
+    elif kind == ast.Unop.INV:
       self._def(node, self.fb.add_not, self._use(node.operand))
     else:
       raise NotImplementedError(kind)

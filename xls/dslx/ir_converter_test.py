@@ -1208,7 +1208,7 @@ class IrConverterTest(absltest.TestCase):
   def test_signed_comparisons(self):
     m = self.parse_dsl_text("""
     fn main(x: u32, y: u32) -> bool {
-      sgt(x, y) and slt(x, y) and sge(x, y) and sle(x, y)
+      sgt(x, y) && slt(x, y) && sge(x, y) && sle(x, y)
     }
     """)
     node_to_type = typecheck.check_module(m, f_import=None)
@@ -1232,7 +1232,7 @@ class IrConverterTest(absltest.TestCase):
   def test_signed_comparisons_via_signed_numbers(self):
     m = self.parse_dsl_text("""
     fn main(x: s32, y: s32) -> bool {
-      x > y and x < y and x >= y and x <= y
+      x > y && x < y && x >= y && x <= y
     }
     """)
     node_to_type = typecheck.check_module(m, f_import=None)

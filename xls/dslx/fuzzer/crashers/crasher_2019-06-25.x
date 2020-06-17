@@ -5,7 +5,7 @@ fn main(x79: u10) -> (u5, u5, u5, u5, u5, u5, u5) {
     let x81: u5 = (x80) << (x80) in
     let x82: u5 = ((x79) as u5) + (x80) in
     let x83: u5 = (x82) - (x80) in
-    let x84: u5 = ~(x80) in
+    let x84: u5 = !(x80) in
     let x85: u5 = (x82) ^ (x82) in
     (x84, x83, x81, x83, x83, x82, x80)
 }
