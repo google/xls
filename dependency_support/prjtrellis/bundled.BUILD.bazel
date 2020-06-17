@@ -131,7 +131,6 @@ cc_library(
     copts = COPTS,
     data = ["@prjtrellis_db//:files"],
     includes = INCLUDES,
-    visibility = ["//visibility:public"],
     deps = DEPS,
 )
 
