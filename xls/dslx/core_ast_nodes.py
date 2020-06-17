@@ -844,9 +844,8 @@ class Binop(Expr):
   XOR = TokenKind.HAT  # ^
   DIV = TokenKind.SLASH  # /
 
-  LOGICAL_AND = Keyword.AND  # and
-  LOGICAL_OR = Keyword.OR  # or
-  LOGICAL_XOR = Keyword.XOR  # xor
+  LOGICAL_AND = TokenKind.DOUBLE_AMPERSAND  # and
+  LOGICAL_OR = TokenKind.DOUBLE_BAR  # or
   CONCAT = TokenKind.DOUBLE_PLUS  # ++
 
   # (T, T) -> T operators.
@@ -868,9 +867,9 @@ class Binop(Expr):
   ]
   # (bool, bool) -> bool operators.
   LOGICAL_KIND_LIST = [
-      Keyword.AND,
-      Keyword.OR,
-      Keyword.XOR,
+      LOGICAL_AND,
+      LOGICAL_OR,
+      XOR,
   ]
   # (T, T) -> bool operators.
   COMPARISON_KIND_LIST = [

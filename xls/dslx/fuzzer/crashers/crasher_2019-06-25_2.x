@@ -4,7 +4,7 @@ fn main(x17: u30, x18: u15, x19: u32, x20: u17) -> (u6, u6, u6, u6, u6, u6, u30,
     let x21: u6 = (u6:0x2) in
     let x22: u6 = (x21) * (x21) in
     let x23: u9 = (u9:0x2) in
-    let x24: u6 = ~(x22) in
+    let x24: u6 = !(x22) in
     let x25: u6 = (x21) >>> (x21) in
     let x26: u6 = (x24) >> (x24) in
     let x27: u6 = (x21) * (x22) in

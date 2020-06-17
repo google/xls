@@ -236,7 +236,7 @@ class InterpreterTest(absltest.TestCase):
   def test_conflicting_parametric_bindings(self):
     program = textwrap.dedent("""\
     fn [N: u32] parametric(x: bits[N], y: bits[N]) -> bits[1] {
-      x == bits[N]:1 and y == bits[N]:2
+      x == bits[N]:1 && y == bits[N]:2
     }
     test parametric_conflict {
       let a: bits[2] = bits[2]:0b10 in
@@ -286,7 +286,7 @@ class InterpreterTest(absltest.TestCase):
   def test_bool_not(self):
     program = """
     fn bool_not(x: bool) -> bool {
-      not x
+      !x
     }
     test bool_not {
       let _: () = assert_eq(true, bool_not(false)) in

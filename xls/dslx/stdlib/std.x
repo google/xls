@@ -51,7 +51,7 @@ pub fn [BITS: u32] abs(x: sN[BITS]) -> sN[BITS] {
 // Converts an array of N bools to a bits[N] value.
 pub fn [N: u32] convert_to_bits(x: bool[N]) -> uN[N] {
   for (i, accum): (u32, uN[N]) in range(u32:0, N) {
-   accum | (x[i] as uN[N]) << (N-i-u32:1 as uN[N])
+   accum | (x[i] as uN[N]) << ((N-i-u32:1) as uN[N])
   }(uN[N]:0)
 }
 

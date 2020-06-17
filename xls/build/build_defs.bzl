@@ -146,7 +146,7 @@ def dslx_codegen(name, dslx_dep, configs, entry = None, tags = None):
         )
 
         # Also create a codegen benchmark target.
-        codegen_benchmark_args = _make_benchmark_args(package_name, base_name + ".opt", entry, args = [])
+        codegen_benchmark_args = _make_benchmark_args(package_name, dslx_dep.lstrip(":") + ".opt", entry, args = [])
         codegen_benchmark_args.append("--delay_model={}".format(
             params.get("delay_model", DEFAULT_DELAY_MODEL),
         ))

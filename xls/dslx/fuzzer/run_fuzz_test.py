@@ -92,8 +92,13 @@ class RunFuzzTest(parameterized.TestCase):
           with open(path, 'w') as f:
             f.write(samples[i].input_text)
         else:
-          expected = runfiles.get_contents_as_text(path)
-          self.assertMultiLineEqual(expected, samples[i].input_text)
+          # rstrip to avoid miscompares from trailing newline at EOF.
+          expected = runfiles.get_contents_as_text(path).rstrip()
+          self.assertMultiLineEqual(
+              expected,
+              samples[i].input_text,
+              msg=f'want: {expected!r}\n'
+              f'got:  {samples[i].input_text!r}')
 
   def test_minimize_ir_minimization_possible(self):
     # Add an invalid codegen flag to inject an error into the running of the
@@ -135,7 +140,7 @@ class RunFuzzTest(parameterized.TestCase):
     self.assertIn('ir_minimizer_test.sh', dir_contents)
 
   def test_minimize_jit_interpreter_mismatch(self):
-    s = sample.Sample('fn main(x: u8) -> u8 { ~x }', sample.SampleOptions(),
+    s = sample.Sample('fn main(x: u8) -> u8 { !x }', sample.SampleOptions(),
                       sample.parse_args_batch('bits[8]:0xff\nbits[8]:0x42'))
     success = test_base.TempFileCleanup.SUCCESS  # type: test_base.TempFileCleanup
     run_dir = self.create_tempdir(cleanup=success).full_path
