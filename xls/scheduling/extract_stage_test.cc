@@ -22,7 +22,6 @@
 #include "xls/ir/ir_test_base.h"
 
 namespace xls {
-namespace scheduling {
 namespace {
 
 namespace m = xls::op_matchers;
@@ -140,5 +139,4 @@ fn main(i0: bits[3], i1: bits[1], i2: bits[8], i3: bits[23]) -> (bits[1], bits[8
 }
 
 }  // namespace
-}  // namespace scheduling
 }  // namespace xls

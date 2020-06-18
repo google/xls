@@ -25,7 +25,6 @@
 #include "xls/ir/nodes.h"
 
 namespace xls {
-namespace scheduling {
 
 xabsl::StatusOr<Function*> ExtractStage(Function* src,
                                         const PipelineSchedule& schedule,
@@ -46,10 +45,8 @@ xabsl::StatusOr<Function*> ExtractStage(Function* src,
         } else {
           XLS_ASSIGN_OR_RETURN(
               Node * new_param,
-              new_f->MakeNode<Param>(
-                  operand->loc(),
-                  absl::StrFormat("p%d", new_f->params().size()),
-                  operand->GetType()));
+              new_f->MakeNode<Param>(operand->loc(), operand->GetName(),
+                                     operand->GetType()));
           node_map[operand] = new_param;
           new_operands.push_back(new_param);
         }
@@ -78,5 +75,4 @@ xabsl::StatusOr<Function*> ExtractStage(Function* src,
   return package->AddFunction(std::move(new_f));
 }
 
-}  // namespace scheduling
 }  // namespace xls
