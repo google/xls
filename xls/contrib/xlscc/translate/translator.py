@@ -748,6 +748,10 @@ class Translator(object):
         if left_signed != right_signed:
           print("WARNING: Sign mismatch in comparison at " +
                 str(stmt_ast.coord))
+        if not isinstance(left_type, type(right_type)):
+          raise ValueError("WARNING: Type mismatch in comparison at" +
+                "({a} vs {b})".format(a=left_type, b=right_type) +
+                str(stmt_ast.coord))
         result_width = left_width
         left_conv = self.gen_convert_ir(left,
                                         left_type,
