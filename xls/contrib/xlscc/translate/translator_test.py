@@ -288,7 +288,7 @@ class TranslatorTest(absltest.TestCase):
 
       source = """
       enum states{State_TX=1};
-      int compare(){
+      int test(){
         int ret = 0;
         State state;
         if (state == State_TX){
@@ -298,12 +298,9 @@ class TranslatorTest(absltest.TestCase):
       }
       """
       try:
-          f = self.parse_and_get_function(source, hls_types_by_name)
+        f = self.parse_and_get_function(source, hls_types_by_name)
       except ValueError as error:
-          print(error)
-          pass
-
-
+        print(error)
 
   def test_arrayref(self):
     f = self.parse_and_get_function("""
