@@ -1002,15 +1002,8 @@ class _IrConverterFb(ast.AstVisitor):
       for parametric_binding in node.parametric_bindings:
         logging.vlog(4, 'Resolving parametric binding %s', parametric_binding)
 
-        try:
-          value = self.symbolic_bindings[parametric_binding.name.identifier]
-        except KeyError:
-          value = self._evaluate_parametric_binding_expr(
-              node.get_parametric_binding(
-                  parametric_binding.name.identifier).expr,
-              self.symbolic_bindings)
-          self.symbolic_bindings[parametric_binding.name.identifier] = value
-        value = self._resolve_dim(value)
+        sb_value = self.symbolic_bindings[parametric_binding.name.identifier]
+        value = self._resolve_dim(sb_value)
         assert isinstance(value, int), \
             'Expect integral parametric binding; got {!r}'.format(value)
         self._def_const(
