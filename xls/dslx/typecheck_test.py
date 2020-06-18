@@ -247,6 +247,14 @@ fn f(x: u32) -> (u32, u8) {
     """,
         error='Annotated type of derived parametric value did not match')
 
+  def test_parametric_derived_expr_constraint_violation(self):
+    self._typecheck(
+        """
+    fn [X: u32, Y: u32 = X+X] p(x: bits[X], y: bits[Y]) -> bits[X] { x }
+    fn f() -> u5 { p(u5:3, u15:7) }
+    """,
+        error='Parametric value Y was bound to different values')
+
   def test_let_binding_inferred_does_not_match_annotation(self):
     self._typecheck(
         """

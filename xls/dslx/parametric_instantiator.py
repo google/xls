@@ -68,25 +68,29 @@ class _ParametricInstantiator(object):
 
   def _verify_constraints(self) -> None:
     """Verifies that all bindings adhere to the specified constraints."""
-    #from xls.dslx.interpreter import interpreter
-    """
-    interp = self.make_interpreter(self.node_to_type.module,
-                                          self.node_to_type)
-    for k, v in self.symbolic_bindings.items():
-      interp.add_binding(k, v)
-    """
     for binding, constraint in self.constraints.items():
       if constraint is None:
+        # e.g. [X: u32].. although maybe we should check if bitwidths are OK
         continue
 
-      result = self.interp_expr(self.node_to_type.module, self.node_to_type, self.symbolic_bindings, constraint)
+      try:
+        result = self.interp_expr(self.node_to_type.module, self.node_to_type,
+                                  self.symbolic_bindings, constraint)
+      except KeyError as e:
+        # We haven't seen enough bindings to evaluate this constraint
+        continue
+
       if binding in self.symbolic_bindings.keys():
         if result != self.symbolic_bindings[binding]:
-          #print("BAD. got {} expected {}".format(result, self.symbolic_bindings[binding]))
-          pass
+          raise XlsTypeError(
+              self.span,
+              BitsType(signed=False, size=self.symbolic_bindings[binding]),
+              BitsType(signed=False, size=result),
+              suffix= "Constraint evaluation of {}={} resolved to {}, "
+                       "previously got {}".format(binding, constraint, result,
+                                                 self.symbolic_bindings[binding]))
       else:
         self.symbolic_bindings[binding] = result
-      #print(result)
 
   def _symbolic_bind_dims(self, param_type: ConcreteType,
                           arg_type: ConcreteType) -> None:
@@ -110,8 +114,6 @@ class _ParametricInstantiator(object):
               self.symbolic_bindings[param_dim.identifier], arg_dim))
     logging.vlog(2, 'Binding %r to %s', param_dim.identifier, arg_dim)
     self.symbolic_bindings[param_dim.identifier] = arg_dim
-    if self.constraints:
-      self._verify_constraints()
 
   def _symbolic_bind_bits(self, param_type: ConcreteType,
                           arg_type: ConcreteType) -> None:
@@ -210,6 +212,9 @@ class _ParametricInstantiator(object):
 
   def _resolve(self, annotated: ConcreteType) -> ConcreteType:
     """Resolves a parametric type via symbolic_bindings."""
+
+    if self.constraints:
+      self._verify_constraints()
 
     def resolver(dim):
       if isinstance(dim, parametric_expression.ParametricExpression):
