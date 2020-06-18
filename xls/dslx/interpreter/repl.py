@@ -32,6 +32,7 @@ from xls.dslx import scanner
 from xls.dslx import span
 from xls.dslx import typecheck
 from xls.dslx.interpreter import interpreter as interpreter_mod
+from xls.dslx.interpreter import interpreter_helpers
 
 FLAGS = flags.FLAGS
 FILENAME = '/fake/repl.x'
@@ -61,6 +62,7 @@ def main(argv):
 
   bindings = bindings_mod.Bindings()
   fake_module = ast.Module(name='repl', top=())
+  interp_callback = interpreter_helpers.interpret_expr
 
   prompt = 'dslx> ' if sys.stdin.isatty() else ''
 
@@ -81,7 +83,9 @@ def main(argv):
       continue
 
     try:
-      result_type = deduce.deduce(expr, deduce.NodeToType())
+      node_to_type = deduce.NodeToType()
+      ctx = deduce.DeduceCtx(node_to_type, fake_module, interp_callback)
+      result_type = deduce.deduce(expr, ctx)
     except span.PositionalError as e:
       with fakefs_util.scoped_fakefs(FILENAME, line):
         parser_helpers.pprint_positional_error(e)

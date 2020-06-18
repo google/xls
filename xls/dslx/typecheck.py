@@ -26,32 +26,31 @@ from xls.dslx import deduce
 from xls.dslx import dslx_builtins
 from xls.dslx.ast import Function
 from xls.dslx.ast import Module
+from xls.dslx.interpreter import interpreter_helpers
 from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.concrete_type import FunctionType
 from xls.dslx.xls_type_error import XlsTypeError
 
 
-def _check_function(f: Function,
-                    node_to_type: Optional[deduce.NodeToType] = None):
+def _check_function(f: Function, ctx: deduce.DeduceCtx):
   """Validates type annotations on parameters/return type of f are consistent.
 
   Args:
     f: The function to type check.
-    node_to_type: Mapping of AST node to its deduced type; (free-variable)
-      references are resolved via this dictionary.
+    ctx: Wraps a node_to_type, a mapping of AST node to its deduced type;
+      (free-variable) references are resolved via this dictionary.
 
   Raises:
     XlsTypeError: When the return type deduced is inconsistent with the return
       type annotation on "f".
   """
   logging.vlog(1, 'Type-checking function: %s', f)
-  node_to_type = node_to_type or deduce.NodeToType()
 
   for parametric in f.parametric_bindings:
-    parametric_binding_type = deduce.deduce(parametric.type_, node_to_type)
+    parametric_binding_type = deduce.deduce(parametric.type_, ctx)
     assert isinstance(parametric_binding_type, ConcreteType)
     if parametric.expr:
-      expr_type = deduce.deduce(parametric.expr, node_to_type)
+      expr_type = deduce.deduce(parametric.expr, ctx)
       if expr_type != parametric_binding_type:
         raise XlsTypeError(
             parametric.span,
@@ -59,17 +58,17 @@ def _check_function(f: Function,
             expr_type,
             suffix='Annotated type of derived parametric '
             'value did not match inferred type.')
-    node_to_type[parametric.name] = parametric_binding_type
+    ctx.node_to_type[parametric.name] = parametric_binding_type
 
   param_types = []
   for param in f.params:
     logging.vlog(2, 'Checking param: %s', param)
-    param_type = deduce.deduce(param, node_to_type)
+    param_type = deduce.deduce(param, ctx)
     assert isinstance(param_type, ConcreteType), param_type
     param_types.append(param_type)
-    node_to_type[param.name] = param_type
+    ctx.node_to_type[param.name] = param_type
 
-  body_return_type = deduce.deduce(f.body, node_to_type)
+  body_return_type = deduce.deduce(f.body, ctx)
   if f.return_type is None:
     if body_return_type.is_nil():
       # When body return type is nil and no return type is annotated, everything
@@ -84,7 +83,7 @@ def _check_function(f: Function,
           suffix='No return type was annotated, but a non-nil return type was '
           'found.')
   else:
-    annotated_return_type = deduce.deduce(f.return_type, node_to_type)
+    annotated_return_type = deduce.deduce(f.return_type, ctx)
     if body_return_type != annotated_return_type:
       raise XlsTypeError(
           f.body.span,
@@ -93,20 +92,20 @@ def _check_function(f: Function,
           suffix='Return type of function body for "{}" did not match the '
           'annotated return type.'.format(f.name.identifier))
 
-  node_to_type[f.name] = node_to_type[f] = FunctionType(
+  ctx.node_to_type[f.name] = ctx.node_to_type[f] = FunctionType(
       tuple(param_types), body_return_type)
 
 
-def check_test(t: ast.Test, node_to_type: deduce.NodeToType) -> None:
+def check_test(t: ast.Test, ctx: deduce.DeduceCtx) -> None:
   """Typechecks a test (body) within a module."""
   while True:
     try:
-      body_return_type = deduce.deduce(t.body, node_to_type)
+      body_return_type = deduce.deduce(t.body, ctx)
     except deduce.TypeMissingError as e:
       if (isinstance(e.node, ast.BuiltinNameDef) and
           e.node.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES):
         if isinstance(e.user, ast.Invocation) and _instantiate(
-            e.node, e.user, node_to_type):
+            e.node, e.user, ctx):
           continue
       raise
     else:
@@ -122,30 +121,30 @@ def check_test(t: ast.Test, node_to_type: deduce.NodeToType) -> None:
 
 
 def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
-                 node_to_type: deduce.NodeToType) -> bool:
+                 ctx: deduce.DeduceCtx) -> bool:
   """Instantiates a builtin parametric invocation; e.g. 'update'."""
-  arg_types = tuple(node_to_type[arg] for arg in invocation.args)
+  arg_types = tuple(ctx.node_to_type[arg] for arg in invocation.args)
   if builtin_name.identifier not in dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
     return False
 
+  #print(ctx.node_to_type.module.get_function(builtin_name.identifier))
   fsignature = dslx_builtins.get_fsignature(builtin_name.identifier)
   fn_type, symbolic_bindings = fsignature(arg_types, builtin_name.identifier,
                                           invocation.span)
   invocation.symbolic_bindings = symbolic_bindings
-  node_to_type[invocation.callee] = fn_type
-  node_to_type[invocation] = fn_type.return_type
+  ctx.node_to_type[invocation.callee] = fn_type
+  ctx.node_to_type[invocation] = fn_type.return_type
   return True
 
 
 def _check_function_or_test_in_module(f: Union[Function, ast.Test],
-                                      node_to_type: deduce.NodeToType,
-                                      module: Module):
+                                      ctx: deduce.DeduceCtx):
   """Type-checks function f in the given module.
 
   Args:
     f: Function to type-check.
-    node_to_type: Mapping being populated with the inferred type for AST nodes.
-    module: The module to evaluate.
+    ctx: Wraps a node_to_type, a mapping being populated with the
+      inferred type for AST nodes. Also contains a module.
 
   Raises:
     TypeMissingError: When we attempt to resolve an AST node to a type that a)
@@ -160,16 +159,16 @@ def _check_function_or_test_in_module(f: Union[Function, ast.Test],
   }  # type: Dict[Tuple[Text, bool], Tuple[Union[Function, ast.Test], bool]]
   stack = [(f.name.identifier, isinstance(f, ast.Test))]
 
-  function_map = {f.name.identifier: f for f in module.get_functions()}
+  function_map = {f.name.identifier: f for f in ctx.module.get_functions()}
   while stack:
     try:
       f = seen[stack[-1]][0]
       if isinstance(f, ast.Function):
-        _check_function(f, node_to_type)
-        assert isinstance(f.name, ast.NameDef) and f.name in node_to_type
+        _check_function(f, ctx)
+        assert isinstance(f.name, ast.NameDef) and f.name in ctx.node_to_type
       else:
         assert isinstance(f, ast.Test)
-        check_test(f, node_to_type)
+        check_test(f, ctx)
       seen[(f.name.identifier, isinstance(f, ast.Test))] = (f, False
                                                            )  # Mark as done.
       stack.pop()
@@ -190,7 +189,7 @@ def _check_function_or_test_in_module(f: Union[Function, ast.Test],
         logging.vlog(2, 'node: %r; identifier: %r, exception user: %r', e.node,
                      e.node.identifier, e.user)
         if isinstance(e.user, ast.Invocation) and _instantiate(
-            e.node, e.user, node_to_type):
+            e.node, e.user, ctx):
           continue
       raise
 
@@ -217,29 +216,31 @@ def check_module(
     XlsTypeError: If any of the function in f have typecheck errors.
   """
   node_to_type = deduce.NodeToType()
+  interp_callback = interpreter_helpers.interpret_expr
+  ctx = deduce.DeduceCtx(node_to_type, module, interp_callback)
 
   # First populate node_to_type with constants, enums, and resolved imports.
-  for member in module.top:
+  for member in ctx.module.top:
     if isinstance(member, ast.Import):
       imported_module, imported_node_to_type = f_import(member.name)
-      node_to_type.add_import(member, (imported_module, imported_node_to_type))
+      ctx.node_to_type.add_import(member, (imported_module, imported_node_to_type))
     elif isinstance(member, (ast.Constant, ast.Enum, ast.Struct, ast.TypeDef)):
-      deduce.deduce(member, node_to_type)
+      deduce.deduce(member, ctx)
     else:
       assert isinstance(member, (ast.Function, ast.Test)), member
 
-  function_map = {f.name.identifier: f for f in module.get_functions()}
+  function_map = {f.name.identifier: f for f in ctx.module.get_functions()}
   for f in function_map.values():
     assert isinstance(f, ast.Function), f
     logging.vlog(2, 'Typechecking function: %s', f)
-    _check_function_or_test_in_module(f, node_to_type, module)
+    _check_function_or_test_in_module(f, ctx)
     logging.vlog(2, 'Finished typechecking function: %s', f)
 
-  test_map = {t.name.identifier: t for t in module.get_tests()}
+  test_map = {t.name.identifier: t for t in ctx.module.get_tests()}
   for t in test_map.values():
     assert isinstance(t, ast.Test), t
     logging.vlog(2, 'Typechecking test: %s', t)
-    _check_function_or_test_in_module(t, node_to_type, module)
+    _check_function_or_test_in_module(t, ctx)
     logging.vlog(2, 'Finished typechecking test: %s', t)
 
-  return node_to_type
+  return ctx.node_to_type

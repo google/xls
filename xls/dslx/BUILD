@@ -330,6 +330,7 @@ py_library(
         ":span",
         ":xls_type_error",
         "//xls/common:xls_error",
+	"//xls/dslx/interpreter:interpreter_helpers",
         "@com_google_absl_py//absl/logging",
     ],
 )

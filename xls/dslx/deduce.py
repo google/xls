@@ -19,7 +19,8 @@
 """Type system deduction rules for AST nodes."""
 
 import typing
-from typing import Text, Dict, Union, Callable, Type, Tuple
+from typing import Text, Dict, Union, Callable, Type, Tuple, Sequence
+from dataclasses import dataclass
 
 from absl import logging
 from xls.dslx import ast
@@ -43,7 +44,7 @@ from xls.dslx.xls_type_error import XlsTypeError
 RULES = {}
 
 
-RuleFunction = Callable[[ast.AstNode, 'NodeToType'], ConcreteType]
+RuleFunction = Callable[[ast.AstNode, 'DeduceCtx'], ConcreteType]
 
 
 def _rule(cls: Type[ast.AstNode]):
@@ -90,10 +91,11 @@ class NodeToType(object):
   way versus a KeyError.
   """
 
-  def __init__(self):
+  def __init__(self, module=None):
     self._dict = {}  # type: Dict[ast.AstNode, ConcreteType]
     self._imports = {}  # type: Dict[ast.Import, ImportedInfo]
     self._name_to_const = {}  # type: Dict[ast.NameDef, ast.Constant]
+    self.module = module
 
   def update(self, other: 'NodeToType') -> None:
     self._dict.update(other._dict)  # pylint: disable=protected-access
@@ -150,22 +152,32 @@ class NodeToType(object):
     return k in self._dict
 
 
+CallbackType = Callable[[ast.Module, NodeToType,
+                        Sequence[Tuple[Text, int]], ast.Expr], int]
+
+@dataclass
+class DeduceCtx:
+  """A simple wrapper over useful objects to facilitate dependency injection"""
+  node_to_type: NodeToType
+  module: ast.Module
+  interp_callback: CallbackType
+
 @_rule(ast.Param)
-def _deduce_Param(self: ast.Param, node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  return deduce(self.type_, node_to_type)
+def _deduce_Param(self: ast.Param, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
+  return deduce(self.type_, ctx)
 
 
 @_rule(ast.Constant)
 def _deduce_Constant(self: ast.Constant,
-                     node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  result = node_to_type[self.name] = deduce(self.value, node_to_type)
-  node_to_type.note_constant(self.name, self)
+                     ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
+  result = ctx.node_to_type[self.name] = deduce(self.value, ctx)
+  ctx.node_to_type.note_constant(self.name, self)
   return result
 
 
 @_rule(ast.ConstantArray)
 def _deduce_ConstantArray(self: ast.ConstantArray,
-                          node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
+                          ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of a ConstantArray AST node."""
   # We permit constant arrays to drop annotations for numbers as a convenience
   # (before we have unifying type inference) by allowing constant arrays to have
@@ -173,19 +185,19 @@ def _deduce_ConstantArray(self: ast.ConstantArray,
   # just fall back to normal array type inference, if we encounter a number
   # without a type annotation we'll flag an error per usual.
   if self.type_ is None:
-    return _deduce_Array(self, node_to_type)
+    return _deduce_Array(self, ctx)
 
   # Determine the element type that corresponds to the annotation and go mark
   # any un-typed numbers in the constant array as having that type.
-  concrete_type = deduce(self.type_, node_to_type)
+  concrete_type = deduce(self.type_, ctx)
   element_type = concrete_type.get_element_type()
   for member in self.members:
     assert ast.Constant.is_constant(member)
     if isinstance(member, ast.Number) and not member.type_:
-      node_to_type[member] = element_type
+      ctx.node_to_type[member] = element_type
       member.check_bitwidth(element_type)
   # Use the base class to check all members are compatible.
-  _deduce_Array(self, node_to_type)
+  _deduce_Array(self, ctx)
   return concrete_type
 
 
@@ -223,13 +235,14 @@ def _create_element_invocation(span_: span.Span, callee: Union[ast.NameRef,
 
 @_rule(ast.Invocation)
 def _deduce_Invocation(self: ast.Invocation,
-                       node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
+                       ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of an Invocation AST node."""
+  global make_interp
   logging.vlog(5, 'Deducing type for invocation: %s', self)
   arg_types = []
   for arg in self.args:
     try:
-      arg_types.append(deduce(arg, node_to_type))
+      arg_types.append(deduce(arg, ctx))
     except TypeMissingError as e:
       # These nodes could be ModRefs or NameRefs.
       callee_is_map = isinstance(
@@ -239,12 +252,12 @@ def _deduce_Invocation(self: ast.Invocation,
       ) and arg.name_def.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES
       if callee_is_map and arg_is_builtin:
         invocation = _create_element_invocation(self.span, arg, self.args[0])
-        arg_types.append(deduce(invocation, node_to_type))
+        arg_types.append(deduce(invocation, ctx))
       else:
         raise
 
   try:
-    callee_type = deduce(self.callee, node_to_type)
+    callee_type = deduce(self.callee, ctx)
   except TypeMissingError as e:
     e.span = self.span
     e.user = self
@@ -253,13 +266,24 @@ def _deduce_Invocation(self: ast.Invocation,
   if not isinstance(callee_type, FunctionType):
     raise XlsTypeError(self.callee.span, callee_type, None,
                        'Callee does not have a function type.')
+  if isinstance(self.callee, ast.ModRef):
+    imported_mod = ctx.node_to_type.get_imported(self.callee.mod)
+    ident = self.callee.value_tok.value
+    function_def = imported_mod[0].get_function(ident)
+  elif isinstance(self.callee, ast.NameRef):
+    ident = self.callee.tok.value
+    function_def = ctx.module.get_function(ident)
+  else:
+    ident = self.callee.identifer
+    function_def = ctx.module.get_function(ident)
+
   self_type, symbolic_bindings = parametric_instantiator.instantiate(
-      self.span, callee_type, tuple(arg_types))
+      self.span, callee_type, tuple(arg_types), ctx, function_def.parametric_bindings)
   self.symbolic_bindings = symbolic_bindings
   return self_type
 
 
-def _deduce_slice_type(self: ast.Index, node_to_type: NodeToType,
+def _deduce_slice_type(self: ast.Index, ctx: DeduceCtx,
                        lhs_type: ConcreteType) -> ConcreteType:
   """Deduces the concrete type of an Index AST node with a slice spec."""
   index_slice = self.index
@@ -282,9 +306,9 @@ def _deduce_slice_type(self: ast.Index, node_to_type: NodeToType,
         raise TypeInferenceError(
             start.span, start_type,
             'Cannot fit {} value in {} bits (inferred from bits to slice).')
-      node_to_type[start] = start_type
+      ctx.node_to_type[start] = start_type
     else:
-      start_type = deduce(start, node_to_type)
+      start_type = deduce(start, ctx)
 
     # Check the start is unsigned.
     if start_type.signed:
@@ -293,7 +317,7 @@ def _deduce_slice_type(self: ast.Index, node_to_type: NodeToType,
           type_=start_type,
           suffix='Start index for width-based slice must be unsigned.')
 
-    width_type = deduce(index_slice.width, node_to_type)
+    width_type = deduce(index_slice.width, ctx)
     if isinstance(width_type.get_total_bit_count(), int) and isinstance(
         lhs_type.get_total_bit_count(), int
     ) and width_type.get_total_bit_count() > lhs_type.get_total_bit_count():
@@ -327,15 +351,15 @@ def _deduce_slice_type(self: ast.Index, node_to_type: NodeToType,
 
 
 @_rule(ast.Index)
-def _deduce_Index(self: ast.Index, node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
+def _deduce_Index(self: ast.Index, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of an Index AST node."""
-  lhs_type = deduce(self.lhs, node_to_type)
+  lhs_type = deduce(self.lhs, ctx)
 
   # Check whether this is a slice-based indexing operations.
   if isinstance(self.index, (ast.Slice, ast.WidthSlice)):
-    return _deduce_slice_type(self, node_to_type, lhs_type)
+    return _deduce_slice_type(self, ctx, lhs_type)
 
-  index_type = deduce(self.index, node_to_type)
+  index_type = deduce(self.index, ctx)
   if isinstance(lhs_type, TupleType):
     if not isinstance(self.index, ast.Number):
       raise XlsTypeError(self.index.span, index_type, None,
@@ -362,17 +386,17 @@ def _deduce_Index(self: ast.Index, node_to_type: NodeToType) -> ConcreteType:  #
 
 @_rule(ast.XlsTuple)
 def _deduce_XlsTuple(self: ast.XlsTuple,
-                     node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  members = tuple(deduce(m, node_to_type) for m in self.members)
+                     ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
+  members = tuple(deduce(m, ctx) for m in self.members)
   return TupleType(members)
 
 
 def _bind_names(name_def_tree: ast.NameDefTree, type_: ConcreteType,
-                node_to_type: NodeToType) -> None:
+                ctx: DeduceCtx) -> None:
   """Binds names in name_def_tree to corresponding type given in type_."""
   if name_def_tree.is_leaf():
     name_def = name_def_tree.get_leaf()
-    node_to_type[name_def] = type_
+    ctx.node_to_type[name_def] = type_
     return
 
   if not isinstance(type_, TupleType):
@@ -391,54 +415,54 @@ def _bind_names(name_def_tree: ast.NameDefTree, type_: ConcreteType,
             len(name_def_tree.tree), type_.get_tuple_length()))
 
   for subtree, subtype in zip(name_def_tree.tree, type_.get_unnamed_members()):
-    node_to_type[subtree] = subtype
-    _bind_names(subtree, subtype, node_to_type)
+    ctx.node_to_type[subtree] = subtype
+    _bind_names(subtree, subtype, ctx)
 
 
 @_rule(ast.Let)
-def _deduce_Let(self: ast.Let, node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
+def _deduce_Let(self: ast.Let, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of a Let AST node."""
-  rhs_type = deduce(self.rhs, node_to_type)
+  rhs_type = deduce(self.rhs, ctx)
 
   if self.type_ is not None:
-    concrete_type = deduce(self.type_, node_to_type)
+    concrete_type = deduce(self.type_, ctx)
     if rhs_type != concrete_type:
       raise XlsTypeError(
           self.rhs.span, concrete_type, rhs_type,
           'Annotated type did not match inferred type of right hand side.')
 
-  _bind_names(self.name_def_tree, rhs_type, node_to_type)
+  _bind_names(self.name_def_tree, rhs_type, ctx)
 
   if self.const:
-    deduce(self.const, node_to_type)
+    deduce(self.const, ctx)
 
-  return deduce(self.body, node_to_type)
+  return deduce(self.body, ctx)
 
 
 def _unify_WildcardPattern(_self: ast.WildcardPattern, _type: ConcreteType,
-                           _node_to_type: NodeToType) -> None:
+                           _ctx: DeduceCtx) -> None:
   pass  # Wildcard matches any type.
 
 
 def _unify_NameDefTree(self: ast.NameDefTree, type_: ConcreteType,
-                       node_to_type: NodeToType) -> None:
+                       ctx: DeduceCtx) -> None:
   """Unifies the NameDefTree AST node with the observed RHS type type_."""
   if self.is_leaf():
     leaf = self.get_leaf()
     if isinstance(leaf, ast.NameDef):
-      node_to_type[leaf] = type_
+      ctx.node_to_type[leaf] = type_
     elif isinstance(leaf, ast.WildcardPattern):
       pass
     elif isinstance(leaf, (ast.Number, ast.EnumRef)):
-      if deduce(leaf, node_to_type) != type_:
+      if deduce(leaf, ctx) != type_:
         raise TypeInferenceError(
             span=self.span,
             type_=type_,
             suffix='Conflicting types; pattern expects {} but got {} from value'
-            .format(type_, deduce(leaf, node_to_type)))
+            .format(type_, deduce(leaf, ctx)))
     else:
       assert isinstance(leaf, ast.NameRef), repr(leaf)
-      ref_type = node_to_type[leaf.name_def]
+      ref_type = ctx.node_to_type[leaf.name_def]
       if ref_type != type_:
         raise TypeInferenceError(
             span=self.span,
@@ -450,25 +474,25 @@ def _unify_NameDefTree(self: ast.NameDefTree, type_: ConcreteType,
     if isinstance(type_, TupleType) and type_.get_tuple_length() == len(
         self.tree):
       for subtype, subtree in zip(type_.get_unnamed_members(), self.tree):
-        _unify(subtree, subtype, node_to_type)
+        _unify(subtree, subtype, ctx)
 
 
 def _unify(n: ast.AstNode, other: ConcreteType,
-           node_to_type: NodeToType) -> None:
+           ctx: DeduceCtx) -> None:
   f = globals()['_unify_{}'.format(n.__class__.__name__)]
-  f(n, other, node_to_type)
+  f(n, other, ctx)
 
 
 @_rule(ast.Match)
-def _deduce_Match(self: ast.Match, node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
+def _deduce_Match(self: ast.Match, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of a Match AST node."""
-  matched = deduce(self.matched, node_to_type)
+  matched = deduce(self.matched, ctx)
 
   for arm in self.arms:
     for pattern in arm.patterns:
-      _unify(pattern, matched, node_to_type)
+      _unify(pattern, matched, ctx)
 
-  arm_types = tuple(deduce(arm, node_to_type) for arm in self.arms)
+  arm_types = tuple(deduce(arm, ctx) for arm in self.arms)
   for i, arm_type in enumerate(arm_types[1:], 1):
     if arm_type != arm_types[0]:
       raise XlsTypeError(
@@ -479,18 +503,18 @@ def _deduce_Match(self: ast.Match, node_to_type: NodeToType) -> ConcreteType:  #
 
 @_rule(ast.MatchArm)
 def _deduce_MatchArm(self: ast.MatchArm,
-                     node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  return deduce(self.expr, node_to_type)
+                     ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
+  return deduce(self.expr, ctx)
 
 
 @_rule(ast.For)
-def _deduce_For(self: ast.For, node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
+def _deduce_For(self: ast.For, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of a For AST node."""
-  init_type = deduce(self.init, node_to_type)
-  annotated_type = deduce(self.type_, node_to_type)
-  _bind_names(self.names, annotated_type, node_to_type)
-  body_type = deduce(self.body, node_to_type)
-  deduce(self.iterable, node_to_type)
+  init_type = deduce(self.init, ctx)
+  annotated_type = deduce(self.type_, ctx)
+  _bind_names(self.names, annotated_type, ctx)
+  body_type = deduce(self.body, ctx)
+  deduce(self.iterable, ctx)
   if init_type != body_type:
     raise XlsTypeError(
         self.span, init_type, body_type,
@@ -502,14 +526,14 @@ def _deduce_For(self: ast.For, node_to_type: NodeToType) -> ConcreteType:  # pyt
 
 
 @_rule(ast.While)
-def _deduce_While(self: ast.While, node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
+def _deduce_While(self: ast.While, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of a While AST node."""
-  init_type = deduce(self.init, node_to_type)
-  test_type = deduce(self.test, node_to_type)
+  init_type = deduce(self.init, ctx)
+  test_type = deduce(self.test, ctx)
   if test_type != ConcreteType.U1:
     raise XlsTypeError(self.test.span, test_type, ConcreteType.U1,
                        'Expect while-loop test to be a bool value.')
-  body_type = deduce(self.body, node_to_type)
+  body_type = deduce(self.body, ctx)
   if init_type != body_type:
     raise XlsTypeError(
         self.span, init_type, body_type,
@@ -519,8 +543,8 @@ def _deduce_While(self: ast.While, node_to_type: NodeToType) -> ConcreteType:  #
 
 
 @_rule(ast.Carry)
-def _deduce_Carry(self: ast.Carry, node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  return deduce(self.loop.init, node_to_type)
+def _deduce_Carry(self: ast.Carry, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
+  return deduce(self.loop.init, ctx)
 
 
 def _is_acceptable_cast(from_: ConcreteType, to: ConcreteType) -> bool:
@@ -530,9 +554,9 @@ def _is_acceptable_cast(from_: ConcreteType, to: ConcreteType) -> bool:
 
 
 @_rule(ast.Cast)
-def _deduce_Cast(self: ast.Cast, node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  type_result = deduce(self.type_, node_to_type)
-  expr_type = deduce(self.expr, node_to_type)
+def _deduce_Cast(self: ast.Cast, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
+  type_result = deduce(self.type_, ctx)
+  expr_type = deduce(self.expr, ctx)
   if not _is_acceptable_cast(from_=expr_type, to=type_result):
     raise XlsTypeError(
         self.span, expr_type, type_result,
@@ -542,14 +566,14 @@ def _deduce_Cast(self: ast.Cast, node_to_type: NodeToType) -> ConcreteType:  # p
 
 
 @_rule(ast.Unop)
-def _deduce_Unop(self: ast.Unop, node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  return deduce(self.operand, node_to_type)
+def _deduce_Unop(self: ast.Unop, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
+  return deduce(self.operand, ctx)
 
 
 @_rule(ast.Array)
-def _deduce_Array(self: ast.Array, node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
+def _deduce_Array(self: ast.Array, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of an Array AST node."""
-  member_types = [deduce(m, node_to_type) for m in self.members]
+  member_types = [deduce(m, ctx) for m in self.members]
   for i, x in enumerate(member_types[1:], 1):
     logging.vlog(5, 'array member type %d: %s', i, x)
     if x != member_types[0]:
@@ -562,7 +586,7 @@ def _deduce_Array(self: ast.Array, node_to_type: NodeToType) -> ConcreteType:  #
   if not self.type_:
     return inferred
 
-  annotated = deduce(self.type_, node_to_type)
+  annotated = deduce(self.type_, ctx)
   if not isinstance(annotated, ArrayType):
     raise XlsTypeError(self.span, annotated, None,
                        'Array was not annotated with an array type.')
@@ -586,17 +610,17 @@ def _deduce_Array(self: ast.Array, node_to_type: NodeToType) -> ConcreteType:  #
 
 @_rule(ast.TypeRef)
 def _deduce_TypeRef(self: ast.TypeRef,
-                    node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  return deduce(self.type_def, node_to_type)
+                    ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
+  return deduce(self.type_def, ctx)
 
 
 @_rule(ast.ConstRef)
 @_rule(ast.NameRef)
 def _deduce_NameRef(self: ast.NameRef,
-                    node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
+                    ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of a NameDef AST node."""
   try:
-    result = node_to_type[self.name_def]
+    result = ctx.node_to_type[self.name_def]
   except TypeMissingError as e:
     logging.vlog(3, 'Could not resolve name def: %s', self.name_def)
     e.span = self.span
@@ -607,10 +631,10 @@ def _deduce_NameRef(self: ast.NameRef,
 
 @_rule(ast.EnumRef)
 def _deduce_EnumRef(self: ast.EnumRef,
-                    node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
+                    ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of an EnumRef AST node."""
   try:
-    result = node_to_type[self.enum]
+    result = ctx.node_to_type[self.enum]
   except TypeMissingError as e:
     logging.vlog(3, 'Could not resolve enum to type: %s', self.enum)
     e.span = self.span
@@ -632,7 +656,7 @@ def _deduce_EnumRef(self: ast.EnumRef,
 
 
 @_rule(ast.Number)
-def _deduce_Number(self: ast.Number, node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
+def _deduce_Number(self: ast.Number, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of a Number AST node."""
   if not self.type_:
     if self.tok.is_keyword_in((scanner.Keyword.TRUE, scanner.Keyword.FALSE)):
@@ -644,16 +668,16 @@ def _deduce_Number(self: ast.Number, node_to_type: NodeToType) -> ConcreteType: 
         type_=None,
         suffix='Could not infer a type for this number, please annotate a type.'
     )
-  concrete_type = deduce(self.type_, node_to_type)
+  concrete_type = deduce(self.type_, ctx)
   self.check_bitwidth(concrete_type)
   return concrete_type
 
 
 @_rule(ast.TypeDef)
 def _deduce_TypeDef(self: ast.TypeDef,
-                    node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  concrete_type = deduce(self.type_, node_to_type)
-  node_to_type[self.name] = concrete_type
+                    ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
+  concrete_type = deduce(self.type_, ctx)
+  ctx.node_to_type[self.name] = concrete_type
   return concrete_type
 
 
@@ -674,12 +698,12 @@ def _dim_to_parametric(self: ast.TypeAnnotation,
 
 def _concretize_TypeAnnotation(
     self: ast.TypeAnnotation,
-    node_to_type: NodeToType) -> ConcreteType[Union[int, ParametricExpression]]:
+    ctx: DeduceCtx) -> ConcreteType[Union[int, ParametricExpression]]:
   """Converts this AST-level type definition into a concrete type."""
   if self.is_tuple():
     return TupleType(
         tuple(
-            _concretize_TypeAnnotation(e, node_to_type)
+            _concretize_TypeAnnotation(e, ctx)
             for e in self.tuple_members))
 
   def resolve_dim(i: int) -> Union[int, ParametricExpression]:
@@ -689,13 +713,13 @@ def _concretize_TypeAnnotation(
       return dim.get_value_as_int()
     else:  # It's not a number, so convert it to parametric AST nodes.
       if isinstance(dim, ast.ConstRef):
-        return node_to_type.get_const_int(dim.name_def, dim.span)
+        return ctx.node_to_type.get_const_int(dim.name_def, dim.span)
       if isinstance(dim, ast.NameRef):
-        node_to_type[dim] = node_to_type[dim.name_def]
+        ctx.node_to_type[dim] = ctx.node_to_type[dim.name_def]
       return _dim_to_parametric(self, dim)
 
   if self.is_typeref():
-    base_type = deduce(self.get_typeref(), node_to_type)
+    base_type = deduce(self.get_typeref(), ctx)
     logging.vlog(5, 'base type for typeref: %s', base_type)
     if not self.has_dims():
       return base_type
@@ -723,14 +747,14 @@ def _concretize_TypeAnnotation(
 @_rule(ast.TypeAnnotation)
 def _deduce_TypeAnnotation(
     self: ast.TypeAnnotation,  # pytype: disable=wrong-arg-types
-    node_to_type: NodeToType) -> ConcreteType:
-  return _concretize_TypeAnnotation(self, node_to_type)
+    ctx: DeduceCtx) -> ConcreteType:
+  return _concretize_TypeAnnotation(self, ctx)
 
 
 @_rule(ast.ModRef)
-def _deduce_ModRef(self: ast.ModRef, node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
+def _deduce_ModRef(self: ast.ModRef, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the type of an entity referenced via module reference."""
-  imported_module, imported_node_to_type = node_to_type.get_imported(self.mod)
+  imported_module, imported_node_to_type = ctx.node_to_type.get_imported(self.mod)
   leaf_name = self.value_tok.value
 
   # May be a type definition reference.
@@ -763,31 +787,31 @@ def _deduce_ModRef(self: ast.ModRef, node_to_type: NodeToType) -> ConcreteType: 
 
 
 @_rule(ast.Enum)
-def _deduce_Enum(self: ast.Enum, node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
+def _deduce_Enum(self: ast.Enum, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of a Enum AST node."""
-  deduce(self.type_, node_to_type)
+  deduce(self.type_, ctx)
   # Grab the bit count of the Enum's underlying type.
-  bit_count = node_to_type[self.type_].get_total_bit_count()
+  bit_count = ctx.node_to_type[self.type_].get_total_bit_count()
   result = EnumType(self, bit_count)
   for name, value in self.values:
     # Note: the parser places the type_ from the enum on the value when it is
     # a number, so this deduction flags inappropriate numbers.
-    deduce(value, node_to_type)
-    node_to_type[name] = node_to_type[value] = result
-  node_to_type[self.name] = node_to_type[self] = result
+    deduce(value, ctx)
+    ctx.node_to_type[name] = ctx.node_to_type[value] = result
+  ctx.node_to_type[self.name] = ctx.node_to_type[self] = result
   return result
 
 
 @_rule(ast.Ternary)
 def _deduce_Ternary(self: ast.Ternary,
-                    node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
+                    ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of a Ternary AST node."""
-  test_type = deduce(self.test, node_to_type)
+  test_type = deduce(self.test, ctx)
   if test_type != ConcreteType.U1:
     raise XlsTypeError(self.span, test_type, ConcreteType.U1,
                        'Test type for conditional expression is not "bool"')
-  cons_type = deduce(self.consequent, node_to_type)
-  alt_type = deduce(self.alternate, node_to_type)
+  cons_type = deduce(self.consequent, ctx)
+  alt_type = deduce(self.alternate, ctx)
   if cons_type != alt_type:
     raise XlsTypeError(
         self.span, cons_type, alt_type,
@@ -796,10 +820,10 @@ def _deduce_Ternary(self: ast.Ternary,
   return cons_type
 
 
-def _deduce_Concat(self: ast.Binop, node_to_type: NodeToType) -> ConcreteType:
+def _deduce_Concat(self: ast.Binop, ctx: DeduceCtx) -> ConcreteType:
   """Deduces the concrete type of a concatenate Binop AST node."""
-  lhs_type = deduce(self.lhs, node_to_type)
-  rhs_type = deduce(self.rhs, node_to_type)
+  lhs_type = deduce(self.lhs, ctx)
+  rhs_type = deduce(self.rhs, ctx)
 
   # Array-ness must be the same on both sides.
   if isinstance(lhs_type, ArrayType) != isinstance(rhs_type, ArrayType):
@@ -821,14 +845,14 @@ def _deduce_Concat(self: ast.Binop, node_to_type: NodeToType) -> ConcreteType:
 
 
 @_rule(ast.Binop)
-def _deduce_Binop(self: ast.Binop, node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
+def _deduce_Binop(self: ast.Binop, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of a Binop AST node."""
   # Concatenation is handled differently from other binary operations.
   if self.operator.kind == scanner.TokenKind.DOUBLE_PLUS:
-    return _deduce_Concat(self, node_to_type)
+    return _deduce_Concat(self, ctx)
 
-  lhs_type = deduce(self.lhs, node_to_type)
-  rhs_type = deduce(self.rhs, node_to_type)
+  lhs_type = deduce(self.lhs, ctx)
+  rhs_type = deduce(self.rhs, ctx)
 
   if lhs_type != rhs_type:
     raise XlsTypeError(
@@ -851,21 +875,21 @@ def _deduce_Binop(self: ast.Binop, node_to_type: NodeToType) -> ConcreteType:  #
 
 
 @_rule(ast.Struct)
-def _deduce_Struct(self: ast.Struct, node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
+def _deduce_Struct(self: ast.Struct, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   members = tuple(
-      (k.identifier, deduce(m, node_to_type)) for k, m in self.members)
-  result = node_to_type[self.name] = TupleType(members, self)
+      (k.identifier, deduce(m, ctx)) for k, m in self.members)
+  result = ctx.node_to_type[self.name] = TupleType(members, self)
   logging.vlog(5, 'Deduced type for struct %s => %s; node_to_type: %r', self,
-               result, node_to_type)
+               result, ctx.node_to_type)
   return result
 
 
 @_rule(ast.StructInstance)
 def _deduce_StructInstance(self: ast.StructInstance,
-                           node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
+                           ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the type of the struct instantiation expression and its members."""
   logging.vlog(5, 'Deducing type for struct instance: %s', self)
-  named_tuple = deduce(self.struct, node_to_type)
+  named_tuple = deduce(self.struct, ctx)
   seen_names = set()
   for k, v in self.unordered_members:
     if k in seen_names:
@@ -875,7 +899,7 @@ def _deduce_StructInstance(self: ast.StructInstance,
           suffix='Duplicate value seen for {!r} in this {!r} struct instance.'
           .format(k, self.struct_text))
     seen_names.add(k)
-    expr_type = deduce(v, node_to_type)
+    expr_type = deduce(v, ctx)
     try:
       member_type = named_tuple.get_member_type_by_name(k)
     except KeyError:
@@ -901,9 +925,9 @@ def _deduce_StructInstance(self: ast.StructInstance,
 
 
 @_rule(ast.Attr)
-def _deduce_Attr(self: ast.Attr, node_to_type: NodeToType) -> ConcreteType:  # pytype: disable=wrong-arg-types
+def _deduce_Attr(self: ast.Attr, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the type of a struct attribute access expression."""
-  struct = deduce(self.lhs, node_to_type)
+  struct = deduce(self.lhs, ctx)
   if not struct.has_named_member(self.attr.identifier):
     raise TypeInferenceError(
         span=self.span,
@@ -914,22 +938,22 @@ def _deduce_Attr(self: ast.Attr, node_to_type: NodeToType) -> ConcreteType:  # p
   return struct.get_named_member_type(self.attr.identifier)
 
 
-def _deduce(n: ast.AstNode, node_to_type: NodeToType) -> ConcreteType:
+def _deduce(n: ast.AstNode, ctx: DeduceCtx) -> ConcreteType:
   f = RULES[n.__class__]
   f = typing.cast(Callable[[ast.AstNode, NodeToType], ConcreteType], f)
-  result = f(n, node_to_type)
-  node_to_type[n] = result
+  result = f(n, ctx)
+  ctx.node_to_type[n] = result
   return result
 
 
-def deduce(n: ast.AstNode, node_to_type: NodeToType) -> ConcreteType:
+def deduce(n: ast.AstNode, ctx: DeduceCtx) -> ConcreteType:
   """Deduces and returns the type of value produced by this expr.
 
-  Also adds n to node_to_type memoization dictionary.
+  Also adds n to ctx.node_to_type memoization dictionary.
 
   Args:
     n: The AST node to deduce the type for.
-    node_to_type: Dictionary mapping nodes to their types.
+    ctx: Wraps a node_to_type, a dictionary mapping nodes to their types.
 
   Returns:
     The type of this expression.
@@ -938,12 +962,13 @@ def deduce(n: ast.AstNode, node_to_type: NodeToType) -> ConcreteType:
   that were necessary to determine (deduce) the resulting type of n.
   """
   assert isinstance(n, ast.AstNode), n
-  if n in node_to_type:
-    result = node_to_type[n]
+  if n in ctx.node_to_type:
+    result = ctx.node_to_type[n]
     assert isinstance(result, ConcreteType), result
   else:
-    result = node_to_type[n] = _deduce(n, node_to_type)
+    result = ctx.node_to_type[n] = _deduce(n, ctx)
     logging.vlog(5, 'Deduced type of %s => %s', n, result)
     assert isinstance(result, ConcreteType), \
         '_deduce did not return a ConcreteType; got: {!r}'.format(result)
   return result
+

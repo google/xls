@@ -48,17 +48,45 @@ class _ParametricInstantiator(object):
   """
 
   def __init__(self, span: Span, function_type: ConcreteType,
-               arg_types: Tuple[ConcreteType, ...]):
+               arg_types: Tuple[ConcreteType, ...], ctx, parametric_bindings):
     self.span = span
     self.function_type = function_type
     self.arg_types = arg_types
-    self.symbolic_bindings = {}  # type: Dict[Text, Union[Text,int]]
+    self.symbolic_bindings = {}  # type: Dict[Text, int]
+    self.constraints = {}  # type: Dict[Text, Optional[ast.Expr]]
+    self.node_to_type = ctx.node_to_type if ctx else None
+    self.interp_expr = ctx.interp_callback if ctx else None
 
     param_types = self.function_type.get_function_params()
     if len(self.arg_types) != len(param_types):
       raise ArgCountMismatchError(self.span, arg_types, len(param_types),
                                   param_types,
                                   'Invocation of parametric function.')
+    if parametric_bindings:
+      for pb in parametric_bindings:
+        self.constraints[pb.name.identifier] = pb.expr
+
+  def _verify_constraints(self) -> None:
+    """Verifies that all bindings adhere to the specified constraints."""
+    #from xls.dslx.interpreter import interpreter
+    """
+    interp = self.make_interpreter(self.node_to_type.module,
+                                          self.node_to_type)
+    for k, v in self.symbolic_bindings.items():
+      interp.add_binding(k, v)
+    """
+    for binding, constraint in self.constraints.items():
+      if constraint is None:
+        continue
+
+      result = self.interp_expr(self.node_to_type.module, self.node_to_type, self.symbolic_bindings, constraint)
+      if binding in self.symbolic_bindings.keys():
+        if result != self.symbolic_bindings[binding]:
+          #print("BAD. got {} expected {}".format(result, self.symbolic_bindings[binding]))
+          pass
+      else:
+        self.symbolic_bindings[binding] = result
+      #print(result)
 
   def _symbolic_bind_dims(self, param_type: ConcreteType,
                           arg_type: ConcreteType) -> None:
@@ -82,6 +110,8 @@ class _ParametricInstantiator(object):
               self.symbolic_bindings[param_dim.identifier], arg_dim))
     logging.vlog(2, 'Binding %r to %s', param_dim.identifier, arg_dim)
     self.symbolic_bindings[param_dim.identifier] = arg_dim
+    if self.constraints:
+      self._verify_constraints()
 
   def _symbolic_bind_bits(self, param_type: ConcreteType,
                           arg_type: ConcreteType) -> None:
@@ -221,6 +251,6 @@ class _ParametricInstantiator(object):
 
 def instantiate(
     span: Span, callee_type: ConcreteType,
-    arg_types: Tuple[ConcreteType,
-                     ...]) -> Tuple[ConcreteType, SymbolicBindings]:
-  return _ParametricInstantiator(span, callee_type, arg_types).instantiate()
+    arg_types: Tuple[ConcreteType, ...],
+    ctx= None, parametric_bindings=None) -> Tuple[ConcreteType, SymbolicBindings]:
+  return _ParametricInstantiator(span, callee_type, arg_types, ctx, parametric_bindings).instantiate()
