@@ -692,7 +692,9 @@ class Translator(object):
           binary_op = add_mul
         else:
           raise NotImplementedError("Unsupported binary operator", stmt_ast.op)
-
+        if not (isinstance(left_type, IntType) and isinstance(right_type, IntType)):
+          raise ValueError("WARNING: Invalid binary operand at " +
+                                    str(stmt_ast.coord))
         return binary_op(
             self.gen_convert_ir(left, left_type,
                                 IntType(result_width,
