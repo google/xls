@@ -652,7 +652,9 @@ class Translator(object):
       result_signed = left_signed
       result_native = left_type.native if isinstance(left_type,
                                                      IntType) else True
-
+      
+     
+      
       add_cmp_fn = None
       if stmt_ast.op == "<":
         add_cmp_fn = self.fb.add_slt if left_signed else self.fb.add_ult
@@ -666,7 +668,7 @@ class Translator(object):
         add_cmp_fn = self.fb.add_eq
       elif stmt_ast.op == "!=":
         add_cmp_fn = self.fb.add_ne
-
+            
       add_logical_fn = None
       if stmt_ast.op == "||":
         add_logical_fn = self.fb.add_or
@@ -748,6 +750,14 @@ class Translator(object):
         if left_signed != right_signed:
           print("WARNING: Sign mismatch in comparison at " +
                 str(stmt_ast.coord))
+
+# This is where the change for struct comparison handling is
+        if not isinstance(left_type, type(right_type)):
+          raise ValueError("WARNING: Type mismatch in comparison at " +
+                "({a} vs {b}) ".format(a=left_type, b=right_type) +
+                str(stmt_ast.coord))
+# End of change in code
+
         result_width = left_width
         left_conv = self.gen_convert_ir(left,
                                         left_type,
