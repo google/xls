@@ -1167,6 +1167,7 @@ class Interpreter(object):
       type_ = self._evaluate_TypeAnnotation(parametric.type_, bindings)
       value = self._evaluate(parametric.expr, bindings, type_)
       bindings.add_value(parametric.name.identifier, value)
+      bound_dims[parametric.name.identifier] = value.get_bits_value()
 
   def _evaluate_fn(self,
                    fn: ast.Function,

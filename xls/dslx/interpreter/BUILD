@@ -211,6 +211,7 @@ py_binary(
     srcs_version = "PY3",
     deps = [
         ":interpreter",
+        ":interpreter_helpers",
         "//xls/dslx:ast",
         "//xls/dslx:bindings",
         "//xls/dslx:concrete_type",
