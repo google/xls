@@ -20,7 +20,6 @@
 #include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls {
-namespace scheduling {
 
 // Creates a new function containing only the nodes within the specified
 // pipeline stage and new params/output nodes.
@@ -28,7 +27,6 @@ xabsl::StatusOr<Function*> ExtractStage(Function* src,
                                         const PipelineSchedule& schedule,
                                         int stage);
 
-}  // namespace scheduling
 }  // namespace xls
 
 #endif  // XLS_SCHEDULING_EXTRACT_STAGE_H_
