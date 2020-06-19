@@ -2230,8 +2230,6 @@ absl::Status RunDynamicBitSliceTest(const IrEvaluatorTestParam& param,
   }
 
   absl::StrAppend(&start_bytes_str, absl::Hex(slice_start, absl::kZeroPad2));
-  //std::cout << start_bytes_str << std::endl;
-  //std::cout << bytes_str << std::endl;
   std::string formatted_ir = absl::Substitute(
       ir_text, slice_width, literal_width, bytes_str, start_width,
       start_bytes_str);
@@ -2246,12 +2244,12 @@ absl::Status RunDynamicBitSliceTest(const IrEvaluatorTestParam& param,
 }
 
 TEST_P(IrEvaluatorTest, DynamicBitSlice) {
-  XLS_ASSERT_OK(RunDynamicBitSliceTest(GetParam(), 27, 9, 32, 3));
-  XLS_ASSERT_OK(RunDynamicBitSliceTest(GetParam(), 32, 9, 32, 3));
+  XLS_ASSERT_OK(RunDynamicBitSliceTest(GetParam(), 27, 9, 8, 3));
+  XLS_ASSERT_OK(RunDynamicBitSliceTest(GetParam(), 32, 9, 16, 3));
   XLS_ASSERT_OK(RunDynamicBitSliceTest(GetParam(), 64, 15, 32, 27));
   XLS_ASSERT_OK(RunDynamicBitSliceTest(GetParam(), 128, 24, 32, 50));
   XLS_ASSERT_OK(RunDynamicBitSliceTest(GetParam(), 1024, 747, 32, 32));
-  XLS_ASSERT_OK(RunDynamicBitSliceTest(GetParam(), 65536, 8192, 32, 32768));
+  XLS_ASSERT_OK(RunDynamicBitSliceTest(GetParam(), 65536, 8192, 64, 32768));
 }
 // Test driven by b/148608161.
 TEST_P(IrEvaluatorTest, FunnyShapedArrays) {
