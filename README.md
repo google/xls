@@ -1,6 +1,6 @@
 # XLS: Accelerated HW Synthesis
 
-**Note**: This is not an officially supported Google product. Expect bugs and
+Note: This is not an officially supported Google product. Expect bugs and
 sharp edges. Please help by trying it out, reporting bugs, and letting us know
 what you think!
 
