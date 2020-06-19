@@ -49,7 +49,7 @@ flags.DEFINE_string(
     'separate numerically-named subdirectory is created for each sample')
 flags.DEFINE_integer('worker_count', None,
                      'Number of workers to use for execution')
-flags.DEFINE_boolean('blacklist_divide', True,
+flags.DEFINE_boolean('disallow_divide', True,
                      'Exclude generation of divide operator')
 flags.DEFINE_boolean('emit_loops', True, 'Emit loops in generator')
 flags.DEFINE_boolean(
@@ -139,7 +139,7 @@ def main(argv):
     sys.stdout.flush()
 
   generator_options = ast_generator.AstGeneratorOptions(
-      blacklist_divide=FLAGS.blacklist_divide,
+      disallow_divide=FLAGS.disallow_divide,
       emit_loops=FLAGS.emit_loops,
       short_samples=FLAGS.short_samples,
       max_width_bits_types=FLAGS.max_width_bits_types,

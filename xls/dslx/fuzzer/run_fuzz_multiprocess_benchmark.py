@@ -42,14 +42,14 @@ flags.DEFINE_boolean('execute', True, 'Whether to run DSLX/IR interpretation.')
 FLAGS = flags.FLAGS
 
 CALLS_PER_SAMPLE = 1024
-BLACKLIST_DIVIDE = True
+DISALLOW_DIVIDE = True
 
 
 def setup_worker():
   """Creates arguments to repeatedly pass to benchmark_worker."""
   rng = random.Random(0)
   smp = sample_generator.generate_sample(
-      rng, ast_generator.AstGeneratorOptions(blacklist_divide=BLACKLIST_DIVIDE),
+      rng, ast_generator.AstGeneratorOptions(disallow_divide=DISALLOW_DIVIDE),
       CALLS_PER_SAMPLE,
       sample.SampleOptions(
           convert_to_ir=True,
@@ -83,7 +83,7 @@ def setup_generator():
       queues=(_DummyQueue(),),
       seed=0,
       ast_generator_options=ast_generator.AstGeneratorOptions(
-          blacklist_divide=BLACKLIST_DIVIDE),
+          disallow_divide=DISALLOW_DIVIDE),
       sample_count=16,
       duration=None,
       calls_per_sample=CALLS_PER_SAMPLE,
