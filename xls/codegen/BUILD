@@ -82,6 +82,7 @@ cc_library(
     srcs = ["sequential_generator.cc"],
     hdrs = ["sequential_generator.h"],
     deps = [
+        ":finite_state_machine",
         ":module_builder",
         ":module_signature",
         ":module_signature_cc_proto",
@@ -100,6 +101,8 @@ cc_library(
         "//xls/delay_model:delay_estimator",
         "//xls/delay_model:delay_estimators",
         "//xls/ir",
+        "//xls/ir:type",
+        "//xls/passes",
         "//xls/scheduling:pipeline_schedule",
     ],
 )
@@ -128,6 +131,7 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
+        "//xls/ir:type",
         "//xls/ir:value",
         "//xls/scheduling:pipeline_schedule",
         "//xls/simulation:module_simulator",

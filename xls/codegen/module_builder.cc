@@ -302,6 +302,12 @@ LogicRef* ModuleBuilder::DeclareVariable(absl::string_view name, Type* type) {
                           declaration_section());
 }
 
+LogicRef* ModuleBuilder::DeclareVariable(absl::string_view name,
+                                         int64 bit_count) {
+  return module_->AddWire(SanitizeIdentifier(name), bit_count,
+                          declaration_section());
+}
+
 bool ModuleBuilder::CanEmitAsInlineExpression(
     Node* node, absl::optional<absl::Span<Node* const>> users_of_expression) {
   if (node->GetType()->IsArray()) {

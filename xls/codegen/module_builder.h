@@ -90,6 +90,10 @@ class ModuleBuilder {
   // to the variable.
   LogicRef* DeclareVariable(absl::string_view name, Type* type);
 
+  // Declares a flat variable with the given name and number of bits. Returns a
+  // reference to the variable.
+  LogicRef* DeclareVariable(absl::string_view name, int64 bit_count);
+
   // Assigns the rhs to the lhs using continuous assignment where both sides
   // have the given XLS type. The emitted verilog may require multiple
   // assignment statements for compound types such as arrays.

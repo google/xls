@@ -14,13 +14,17 @@
 
 #include "xls/codegen/sequential_generator.h"
 
+#include <cstdio>
+#include <cstdlib>
 #include <memory>
 #include <utility>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "xls/codegen/finite_state_machine.h"
 #include "xls/codegen/module_builder.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/module_signature.pb.h"
@@ -34,10 +38,80 @@
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/function.h"
+#include "xls/ir/type.h"
+#include "xls/passes/passes.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls {
 namespace verilog {
+
+xabsl::StatusOr<SequentialModuleBuilder::StridedCounterReferences>
+SequentialModuleBuilder::AddStaticStridedCounter(std::string name, int64 stride,
+                                                 int64 value_limit_exclusive,
+                                                 LogicRef* clk,
+                                                 LogicRef* set_zero_arg,
+                                                 LogicRef* increment_arg) {
+  // Create references.
+  StridedCounterReferences refs;
+  refs.set_zero = set_zero_arg;
+  refs.increment = increment_arg;
+
+  // Check if specification is valid.
+  if (value_limit_exclusive <= 0) {
+    return absl::UnimplementedError(
+        "Tried to generate static strided counter with non-positive "
+        "value_limit_exlusive - not currently supported.");
+  }
+  if (stride <= 0) {
+    return absl::UnimplementedError(
+        "Tried to generate static strided counter with non-positive stride - "
+        "not currently supported.");
+  }
+
+  // Pretty print verilog.
+  module_builder_->declaration_section()->Add<BlankLine>();
+  module_builder_->declaration_section()->Add<Comment>(
+      "Declarations for counter " + name);
+  module_builder_->assignment_section()->Add<BlankLine>();
+  module_builder_->assignment_section()->Add<Comment>(
+      "Assignments for counter " + name);
+
+  // Determine counter value limit and the number of bits needed to represent
+  // this number.
+  int64 value_limit_exclusive_minus = value_limit_exclusive - 1;
+  int64 max_inclusive_value =
+      value_limit_exclusive_minus - ((value_limit_exclusive_minus) % stride);
+  int64 num_counter_bits = Bits::MinBitCountUnsigned(max_inclusive_value);
+  XLS_CHECK_GT(num_counter_bits, 0);
+
+  // Create the counter.
+  // Note: Need to "forward-declare" counter_wire so that we can compute
+  // counter + stride before calling DeclareRegister, which gives us the counter
+  // register.
+  LogicRef* counter_wire =
+      module_builder_->DeclareVariable(name + "_wire", num_counter_bits);
+  Expression* counter_next =
+      file_.Ternary(refs.set_zero, file_.PlainLiteral(0),
+                    file_.Add(counter_wire, file_.PlainLiteral(stride)));
+  XLS_ASSIGN_OR_RETURN(
+      ModuleBuilder::Register counter_register,
+      module_builder_->DeclareRegister(name, num_counter_bits, counter_next));
+  AddContinuousAssignment(counter_wire, counter_register.ref);
+  refs.value = counter_register.ref;
+
+  // Add counter always-block.
+  Expression* load_enable = file_.BitwiseOr(refs.increment, refs.set_zero);
+  XLS_RETURN_IF_ERROR(
+      module_builder_->AssignRegisters(clk, {counter_register}, load_enable));
+
+  // Compare counter value to maximum value.
+  refs.holds_max_inclusive_value = DeclareVariableAndAssign(
+      name + "_holds_max_inclusive_value",
+      file_.Equals(refs.value, file_.PlainLiteral(max_inclusive_value)),
+      num_counter_bits);
+
+  return refs;
+}
 
 // Generates the signature for the top-level module.
 xabsl::StatusOr<std::unique_ptr<ModuleSignature>>
