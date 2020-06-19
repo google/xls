@@ -147,7 +147,10 @@ class InterpreterVisitor : public DfsVisitor {
 
   absl::Status HandleDynamicBitSlice(
       DynamicBitSlice* dynamic_bit_slice) override {
-    return absl::UnimplementedError("DynamicBitSlice not yet implemented");
+    int64 start = ResolveAsBits(dynamic_bit_slice->operand(1)).ToInt64().value();
+    return SetBitsResult(dynamic_bit_slice,
+                         ResolveAsBits(dynamic_bit_slice->operand(0))
+                         .Slice(start, dynamic_bit_slice->width()));
   }
 
   absl::Status HandleConcat(Concat* concat) override {

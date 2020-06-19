@@ -2205,6 +2205,54 @@ TEST_P(IrEvaluatorTest, BitSlice) {
   XLS_ASSERT_OK(RunBitSliceTest(GetParam(), 65536, 8192, 32768));
 }
 
+absl::Status RunDynamicBitSliceTest(const IrEvaluatorTestParam& param,
+                                    int64 literal_width, int64 slice_start,
+                                    int64 start_width, int64 slice_width) {
+  constexpr absl::string_view ir_text = R"(
+  package test
+
+  fn main() -> bits[$0] {
+    literal.1: bits[$1] = literal(value=$2)
+    literal.2: bits[$3] = literal(value=$4)
+    ret dynamic_bit_slice.3: bits[$0] = dynamic_bit_slice(literal.1,
+                                                          literal.2, width=$0)
+  }
+  )";
+
+  std::string bytes_str = "0x";
+  std::string start_bytes_str = "0x";
+  std::vector<uint8> bytes;
+
+  for (int i = 0; i < CeilOfRatio(literal_width, static_cast<int64>(CHAR_BIT));
+       i++) {
+    absl::StrAppend(&bytes_str, absl::Hex(i % 256, absl::kZeroPad2));
+    bytes.push_back(i % 256);
+  }
+
+  absl::StrAppend(&start_bytes_str, absl::Hex(slice_start, absl::kZeroPad2));
+  //std::cout << start_bytes_str << std::endl;
+  //std::cout << bytes_str << std::endl;
+  std::string formatted_ir = absl::Substitute(
+      ir_text, slice_width, literal_width, bytes_str, start_width,
+      start_bytes_str);
+  XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(formatted_ir));
+  XLS_ASSIGN_OR_RETURN(Function * function, package->EntryFunction());
+
+  Value expected(
+      Bits::FromBytes(bytes, literal_width).Slice(slice_start, slice_width));
+  EXPECT_THAT(param.evaluator(function, {}), IsOkAndHolds(expected));
+
+  return absl::OkStatus();
+}
+
+TEST_P(IrEvaluatorTest, DynamicBitSlice) {
+  XLS_ASSERT_OK(RunDynamicBitSliceTest(GetParam(), 27, 9, 32, 3));
+  XLS_ASSERT_OK(RunDynamicBitSliceTest(GetParam(), 32, 9, 32, 3));
+  XLS_ASSERT_OK(RunDynamicBitSliceTest(GetParam(), 64, 15, 32, 27));
+  XLS_ASSERT_OK(RunDynamicBitSliceTest(GetParam(), 128, 24, 32, 50));
+  XLS_ASSERT_OK(RunDynamicBitSliceTest(GetParam(), 1024, 747, 32, 32));
+  XLS_ASSERT_OK(RunDynamicBitSliceTest(GetParam(), 65536, 8192, 32, 32768));
+}
 // Test driven by b/148608161.
 TEST_P(IrEvaluatorTest, FunnyShapedArrays) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(

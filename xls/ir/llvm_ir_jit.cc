@@ -223,6 +223,18 @@ class BuilderVisitor : public DfsVisitorWithDefault {
     return StoreResult(bit_slice, truncated_value);
   }
 
+  absl::Status HandleDynamicBitSlice(
+      DynamicBitSlice* dynamic_bit_slice) override {
+    llvm::Value* value = node_map_.at(dynamic_bit_slice->operand(0));
+    llvm::Value* start = node_map_.at(dynamic_bit_slice->operand(1));
+
+    // Then shift and "mask" (by casting) the input value.
+    llvm::Value* shifted_value = builder_->CreateLShr(value, start);
+    llvm::Value* truncated_value = builder_->CreateTrunc(
+        shifted_value, llvm::IntegerType::get(*context_, dynamic_bit_slice->width()));
+    return StoreResult(dynamic_bit_slice, truncated_value);
+  }
+
   absl::Status HandleConcat(Concat* concat) override {
     llvm::Type* dest_type =
         type_converter_->ConvertToLlvmType(*concat->GetType());
