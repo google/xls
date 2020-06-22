@@ -270,11 +270,8 @@ def _deduce_Invocation(self: ast.Invocation,
     imported_mod = ctx.node_to_type.get_imported(self.callee.mod)
     ident = self.callee.value_tok.value
     function_def = imported_mod[0].get_function(ident)
-  elif isinstance(self.callee, ast.NameRef):
-    ident = self.callee.tok.value
-    function_def = ctx.module.get_function(ident)
   else:
-    ident = self.callee.identifer
+    ident = self.callee.tok.value
     function_def = ctx.module.get_function(ident)
 
   self_type, symbolic_bindings = parametric_instantiator.instantiate(
