@@ -217,7 +217,8 @@ def check_module(
   """
   node_to_type = deduce.NodeToType()
   interp_callback = interpreter_helpers.interpret_expr
-  ctx = deduce.DeduceCtx(node_to_type, module, interp_callback)
+  ctx = deduce.DeduceCtx(node_to_type, module, interp_callback,
+                         _check_function_or_test_in_module)
 
   # First populate node_to_type with constants, enums, and resolved imports.
   for member in ctx.module.top:
@@ -232,6 +233,10 @@ def check_module(
   function_map = {f.name.identifier: f for f in ctx.module.get_functions()}
   for f in function_map.values():
     assert isinstance(f, ast.Function), f
+    if f.parametric_bindings:
+      # Let's typecheck parametric functions per instantiation
+      continue
+
     logging.vlog(2, 'Typechecking function: %s', f)
     _check_function_or_test_in_module(f, ctx)
     logging.vlog(2, 'Finished typechecking function: %s', f)

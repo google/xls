@@ -152,15 +152,16 @@ class NodeToType(object):
     return k in self._dict
 
 
-CallbackType = Callable[[ast.Module, NodeToType,
-                        Sequence[Tuple[Text, int]], ast.Expr], int]
+InterpCallbackType = Callable[[ast.Module, NodeToType,
+                               Sequence[Tuple[Text, int]], ast.Expr], int]
 
 @dataclass
 class DeduceCtx:
   """A simple wrapper over useful objects to facilitate dependency injection"""
   node_to_type: NodeToType
   module: ast.Module
-  interp_callback: CallbackType
+  interp_callback: InterpCallbackType
+  typecheck_callback: Callable[[ast.Function], None]
 
 @_rule(ast.Param)
 def _deduce_Param(self: ast.Param, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
@@ -237,7 +238,6 @@ def _create_element_invocation(span_: span.Span, callee: Union[ast.NameRef,
 def _deduce_Invocation(self: ast.Invocation,
                        ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of an Invocation AST node."""
-  global make_interp
   logging.vlog(5, 'Deducing type for invocation: %s', self)
   arg_types = []
   for arg in self.args:
@@ -279,6 +279,7 @@ def _deduce_Invocation(self: ast.Invocation,
 
   self_type, symbolic_bindings = parametric_instantiator.instantiate(
       self.span, callee_type, tuple(arg_types), ctx, function_def.parametric_bindings)
+
   self.symbolic_bindings = symbolic_bindings
   return self_type
 
@@ -783,6 +784,13 @@ def _deduce_ModRef(self: ast.ModRef, ctx: DeduceCtx) -> ConcreteType:  # pytype:
         type_=None,
         suffix='Attempted to refer to module {!r} function {!r} that is not public.'
         .format(imported_module.name, f.name))
+  if f.name not in imported_node_to_type:
+    # We don't type check parametric functions until invocations
+    # Let's type check this imported parametric function with respect to its module
+    importCtx = DeduceCtx(imported_node_to_type, imported_module, ctx.interp_callback, ctx.typecheck_callback)
+    ctx.typecheck_callback(f, importCtx)
+    ctx.node_to_type.update(importCtx.node_to_type)
+    imported_node_to_type = importCtx.node_to_type
   return imported_node_to_type[f.name]
 
 

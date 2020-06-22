@@ -369,8 +369,10 @@ fn f(x: u32) -> (u1, u32) {
         error='match arm did not have the same type')
 
   def test_unsupported_parametric_expression(self):
-    self._typecheck(
-        'fn [N: u32, M: u32] f(x: u8) -> bits[N-M] { x }',
+    self._typecheck("""\
+        fn [N: u32, M: u32] f(x: u8) -> bits[N-M] { x }
+        fn main () -> u8 { f(u8: 5) }
+        """,
         error_type=TypeInferenceError,
         error='Could not concretize type with dimension: (N) - (M)')
 

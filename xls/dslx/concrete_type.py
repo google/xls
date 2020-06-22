@@ -289,11 +289,16 @@ class FunctionType(ConcreteType[DimsT]):
   """Represents a function type."""
 
   def __init__(self, params: Tuple[ConcreteType[DimsT], ...],
-               return_type: ConcreteType[DimsT]):
+               return_type: ConcreteType[DimsT],
+               body_type: Optional[ConcreteType[DimsT]] = None):
+    """We optionally track the body_type in case we want to check it later
+    (e.g. in the case of parametric function instantiation)
+    """
     assert params is not None
     assert return_type is not None
     self.params = params
     self.return_type = return_type
+    self.body_type = body_type if body_type else return_type
 
   def __str__(self) -> str:
     return '({}) -> {}'.format(', '.join(str(p) for p in self.params),
@@ -316,6 +321,9 @@ class FunctionType(ConcreteType[DimsT]):
 
   def get_function_return_type(self) -> ConcreteType[DimsT]:
     return self.return_type
+
+  def get_function_body_type(self) -> ConcreteType[DimsT]:
+    return self.body_type
 
   def get_all_dims(self) -> Tuple[DimsT, ...]:
     return sum(p.get_all_dims()
