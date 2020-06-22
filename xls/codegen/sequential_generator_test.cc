@@ -72,6 +72,7 @@ class TestDelayEstimator : public DelayEstimator {
 };
 
 class SequentialGeneratorTest : public VerilogTestBase {};
+class PipelinedSequentialGeneratorTest : public SequentialGeneratorTest {};
 
 TEST_P(SequentialGeneratorTest, LoopBodyPipelineTest) {
   std::string text = R"(
@@ -970,6 +971,590 @@ TEST_P(SequentialGeneratorTest, StaticStridedCounterClearValue) {
   tb.Set("set_zero", 1);
   tb.NextCycle().ExpectEq("value", 0).ExpectEq("holds_max_inclusive_value", 0);
   XLS_ASSERT_OK(tb.Run());
+}
+
+TEST_P(SequentialGeneratorTest, FsmSimple) {
+  // Make counter signature.
+  ModuleSignatureBuilder signature_builder("fsm_signature");
+  signature_builder.AddDataInput("index_holds_max_inclusive_value_port", 1);
+  signature_builder.AddDataOutput("last_pipeline_cycle_port", 1);
+  signature_builder.WithClock("clk");
+  signature_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
+                                            "valid_out");
+  ResetProto reset;
+  reset.set_name("reset");
+  reset.set_asynchronous(false);
+  reset.set_active_low(false);
+  signature_builder.WithReset(reset.name(), reset.asynchronous(),
+                              reset.active_low());
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature,
+                           signature_builder.Build());
+
+  // Would be better to do this as a parameterized test, but this
+  // conflicts with paramterizing based on the simulation target
+  // defined by VerilogTestBase.
+  for (int64 latency = 0; latency < 3; ++latency) {
+    // Build the builder.
+    SequentialOptions sequential_options;
+    sequential_options.use_system_verilog(UseSystemVerilog());
+    sequential_options.reset(reset);
+    SequentialModuleBuilder builder(sequential_options, nullptr);
+    XLS_ASSERT_OK(builder.InitializeModuleBuilder(signature));
+    const SequentialModuleBuilder::PortReferences* ports = builder.ports();
+
+    // Add FSM.
+    LogicRef* index_holds_max_inclusive_value = ports->data_in[0];
+    LogicRef* last_pipeline_cycle = ports->data_out[0];
+    XLS_ASSERT_OK(builder.AddFsm(/*pipeline_latency=*/latency,
+                                 index_holds_max_inclusive_value,
+                                 last_pipeline_cycle));
+
+    ModuleTestbench tb(builder.module(), GetSimulator(), "clk");
+    // Reset.
+    tb.Set("reset", 1)
+        .Set("valid_in", 0)
+        .Set("ready_out", 0)
+        .Set("index_holds_max_inclusive_value_port", 0);
+    tb.NextCycle();
+
+    // Ready.
+    tb.ExpectEq("ready_in", 1)
+        .ExpectEq("valid_out", 0)
+        .ExpectEq("last_pipeline_cycle_port", 0);
+    tb.Set("reset", 0)
+        .Set("valid_in", 0)
+        .Set("ready_out", 0)
+        .Set("index_holds_max_inclusive_value_port", 0);
+
+    // Hold ready.
+    for (int i = 0; i < 4 * latency; ++i) {
+      tb.NextCycle();
+      tb.ExpectEq("ready_in", 1)
+          .ExpectEq("valid_out", 0)
+          .ExpectEq("last_pipeline_cycle_port", 0);
+      tb.Set("reset", 0)
+          .Set("valid_in", 0)
+          .Set("ready_out", 0)
+          .Set("index_holds_max_inclusive_value_port", 0);
+    }
+
+    // Valid in, transition to running state.
+    tb.Set("reset", 0)
+        .Set("valid_in", 1)
+        .Set("ready_out", 0)
+        .Set("index_holds_max_inclusive_value_port", 0);
+
+    // Iterate a few pipeline iterations.
+    for (int i = 0; i < 3; ++i) {
+      for (int cycle = 0; cycle < latency + 1; ++cycle) {
+        tb.NextCycle();
+        tb.ExpectEq("ready_in", 0).ExpectEq("valid_out", 0);
+        // Set "last_pipeline_cycle_port" high for the
+        // last cycle.
+        if (cycle == latency) {
+          tb.ExpectEq("last_pipeline_cycle_port", 1);
+        } else {
+          tb.ExpectEq("last_pipeline_cycle_port", 0);
+        }
+        tb.Set("reset", 0)
+            .Set("valid_in", 0)
+            .Set("ready_out", 0)
+            .Set("index_holds_max_inclusive_value_port", 0);
+      }
+    }
+
+    // "index_holds_max_inclusive_value_port" set externally, final pipeline
+    // iteration.
+    for (int cycle = 0; cycle < latency + 1; ++cycle) {
+      tb.NextCycle();
+      tb.ExpectEq("ready_in", 0).ExpectEq("valid_out", 0);
+      // Set "last_pipeline_cycle_port" high for the
+      // last cycle.
+      if (cycle == latency) {
+        tb.ExpectEq("last_pipeline_cycle_port", 1);
+      } else {
+        tb.ExpectEq("last_pipeline_cycle_port", 0);
+      }
+      tb.Set("reset", 0)
+          .Set("valid_in", 0)
+          .Set("ready_out", 0)
+          .Set("index_holds_max_inclusive_value_port", 1);
+    }
+
+    // Done state.
+    tb.NextCycle();
+    tb.ExpectEq("ready_in", 0)
+        .ExpectEq("valid_out", 1)
+        .ExpectEq("last_pipeline_cycle_port", 0);
+    tb.Set("reset", 0)
+        .Set("valid_in", 0)
+        .Set("ready_out", 0)
+        .Set("index_holds_max_inclusive_value_port", 1);
+
+    // Wait for ready out, hold done state.
+    for (int i = 0; i < 4 * latency; ++i) {
+      tb.NextCycle();
+      tb.ExpectEq("ready_in", 0)
+          .ExpectEq("valid_out", 1)
+          .ExpectEq("last_pipeline_cycle_port", 0);
+      tb.Set("reset", 0)
+          .Set("valid_in", 0)
+          .Set("ready_out", 0)
+          .Set("index_holds_max_inclusive_value_port", 1);
+    }
+
+    // Ready out set, transition to ready state again.
+    tb.Set("reset", 0)
+        .Set("valid_in", 0)
+        .Set("ready_out", 1)
+        .Set("index_holds_max_inclusive_value_port", 1);
+    tb.NextCycle();
+    tb.ExpectEq("ready_in", 1)
+        .ExpectEq("valid_out", 0)
+        .ExpectEq("last_pipeline_cycle_port", 0);
+
+    XLS_ASSERT_OK(tb.Run());
+  }
+}
+
+TEST_P(SequentialGeneratorTest, FsmActiveLowReset) {
+  // Make counter signature.
+  ModuleSignatureBuilder signature_builder("fsm_signature");
+  signature_builder.AddDataInput("index_holds_max_inclusive_value_port", 1);
+  signature_builder.AddDataOutput("last_pipeline_cycle_port", 1);
+  signature_builder.WithClock("clk");
+  signature_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
+                                            "valid_out");
+  ResetProto reset;
+  reset.set_name("reset");
+  reset.set_asynchronous(false);
+  reset.set_active_low(true);
+  signature_builder.WithReset(reset.name(), reset.asynchronous(),
+                              reset.active_low());
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature,
+                           signature_builder.Build());
+
+  // Would be better to do this as a parameterized test, but this
+  // conflicts with paramterizing based on the simulation target
+  // defined by VerilogTestBase.
+  for (int64 latency = 0; latency < 3; ++latency) {
+    // Build the builder.
+    SequentialOptions sequential_options;
+    sequential_options.use_system_verilog(UseSystemVerilog());
+    sequential_options.reset(reset);
+    SequentialModuleBuilder builder(sequential_options, nullptr);
+    XLS_ASSERT_OK(builder.InitializeModuleBuilder(signature));
+    const SequentialModuleBuilder::PortReferences* ports = builder.ports();
+
+    // Add FSM.
+    LogicRef* index_holds_max_inclusive_value = ports->data_in[0];
+    LogicRef* last_pipeline_cycle = ports->data_out[0];
+    XLS_ASSERT_OK(builder.AddFsm(/*pipeline_latency=*/latency,
+                                 index_holds_max_inclusive_value,
+                                 last_pipeline_cycle));
+
+    ModuleTestbench tb(builder.module(), GetSimulator(), "clk");
+    // Reset.
+    tb.Set("reset", 0)
+        .Set("valid_in", 0)
+        .Set("ready_out", 0)
+        .Set("index_holds_max_inclusive_value_port", 0);
+    tb.NextCycle();
+
+    // Ready.
+    tb.ExpectEq("ready_in", 1)
+        .ExpectEq("valid_out", 0)
+        .ExpectEq("last_pipeline_cycle_port", 0);
+    tb.Set("reset", 1)
+        .Set("valid_in", 0)
+        .Set("ready_out", 0)
+        .Set("index_holds_max_inclusive_value_port", 0);
+
+    // Hold ready.
+    for (int i = 0; i < 4 * latency; ++i) {
+      tb.NextCycle();
+      tb.ExpectEq("ready_in", 1)
+          .ExpectEq("valid_out", 0)
+          .ExpectEq("last_pipeline_cycle_port", 0);
+      tb.Set("reset", 1)
+          .Set("valid_in", 0)
+          .Set("ready_out", 0)
+          .Set("index_holds_max_inclusive_value_port", 0);
+    }
+
+    // Valid in, transition to running state.
+    tb.Set("reset", 1)
+        .Set("valid_in", 1)
+        .Set("ready_out", 0)
+        .Set("index_holds_max_inclusive_value_port", 0);
+
+    // Iterate a few pipeline iterations.
+    for (int i = 0; i < 3; ++i) {
+      for (int cycle = 0; cycle < latency + 1; ++cycle) {
+        tb.NextCycle();
+        tb.ExpectEq("ready_in", 0).ExpectEq("valid_out", 0);
+        // Set "last_pipeline_cycle_port" high for the
+        // last cycle.
+        if (cycle == latency) {
+          tb.ExpectEq("last_pipeline_cycle_port", 1);
+        } else {
+          tb.ExpectEq("last_pipeline_cycle_port", 0);
+        }
+        tb.Set("reset", 1)
+            .Set("valid_in", 0)
+            .Set("ready_out", 0)
+            .Set("index_holds_max_inclusive_value_port", 0);
+      }
+    }
+
+    // "index_holds_max_inclusive_value_port" set externally, final pipeline
+    // iteration.
+    for (int cycle = 0; cycle < latency + 1; ++cycle) {
+      tb.NextCycle();
+      tb.ExpectEq("ready_in", 0).ExpectEq("valid_out", 0);
+      // Set "last_pipeline_cycle_port" high for the
+      // last cycle.
+      if (cycle == latency) {
+        tb.ExpectEq("last_pipeline_cycle_port", 1);
+      } else {
+        tb.ExpectEq("last_pipeline_cycle_port", 0);
+      }
+      tb.Set("reset", 1)
+          .Set("valid_in", 0)
+          .Set("ready_out", 0)
+          .Set("index_holds_max_inclusive_value_port", 1);
+    }
+
+    // Done state.
+    tb.NextCycle();
+    tb.ExpectEq("ready_in", 0)
+        .ExpectEq("valid_out", 1)
+        .ExpectEq("last_pipeline_cycle_port", 0);
+    tb.Set("reset", 1)
+        .Set("valid_in", 0)
+        .Set("ready_out", 0)
+        .Set("index_holds_max_inclusive_value_port", 1);
+
+    // Wait for ready out, hold done state.
+    for (int i = 0; i < 4 * latency; ++i) {
+      tb.NextCycle();
+      tb.ExpectEq("ready_in", 0)
+          .ExpectEq("valid_out", 1)
+          .ExpectEq("last_pipeline_cycle_port", 0);
+      tb.Set("reset", 1)
+          .Set("valid_in", 0)
+          .Set("ready_out", 0)
+          .Set("index_holds_max_inclusive_value_port", 1);
+    }
+
+    // Ready out set, transition to ready state again.
+    tb.Set("reset", 1)
+        .Set("valid_in", 0)
+        .Set("ready_out", 1)
+        .Set("index_holds_max_inclusive_value_port", 1);
+    tb.NextCycle();
+    tb.ExpectEq("ready_in", 1)
+        .ExpectEq("valid_out", 0)
+        .ExpectEq("last_pipeline_cycle_port", 0);
+
+    XLS_ASSERT_OK(tb.Run());
+  }
+}
+
+TEST_P(SequentialGeneratorTest, FsmIgnoreMaxValueUnlessRunning) {
+  // Make counter signature.
+  ModuleSignatureBuilder signature_builder("fsm_signature");
+  signature_builder.AddDataInput("index_holds_max_inclusive_value_port", 1);
+  signature_builder.AddDataOutput("last_pipeline_cycle_port", 1);
+  signature_builder.WithClock("clk");
+  signature_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
+                                            "valid_out");
+  ResetProto reset;
+  reset.set_name("reset");
+  reset.set_asynchronous(false);
+  reset.set_active_low(false);
+  signature_builder.WithReset(reset.name(), reset.asynchronous(),
+                              reset.active_low());
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature,
+                           signature_builder.Build());
+
+  // Would be better to do this as a parameterized test, but this
+  // conflicts with paramterizing based on the simulation target
+  // defined by VerilogTestBase.
+  for (int64 latency = 0; latency < 3; ++latency) {
+    // Build the builder.
+    SequentialOptions sequential_options;
+    sequential_options.use_system_verilog(UseSystemVerilog());
+    sequential_options.reset(reset);
+    SequentialModuleBuilder builder(sequential_options, nullptr);
+    XLS_ASSERT_OK(builder.InitializeModuleBuilder(signature));
+    const SequentialModuleBuilder::PortReferences* ports = builder.ports();
+
+    // Add FSM.
+    LogicRef* index_holds_max_inclusive_value = ports->data_in[0];
+    LogicRef* last_pipeline_cycle = ports->data_out[0];
+    XLS_ASSERT_OK(builder.AddFsm(/*pipeline_latency=*/latency,
+                                 index_holds_max_inclusive_value,
+                                 last_pipeline_cycle));
+
+    ModuleTestbench tb(builder.module(), GetSimulator(), "clk");
+    // Reset.
+    tb.Set("reset", 1)
+        .Set("valid_in", 0)
+        .Set("ready_out", 0)
+        .Set("index_holds_max_inclusive_value_port", 1);
+    tb.NextCycle();
+
+    // Ready.
+    tb.ExpectEq("ready_in", 1)
+        .ExpectEq("valid_out", 0)
+        .ExpectEq("last_pipeline_cycle_port", 0);
+    tb.Set("reset", 0)
+        .Set("valid_in", 0)
+        .Set("ready_out", 0)
+        .Set("index_holds_max_inclusive_value_port", 1);
+
+    // Hold ready.
+    for (int i = 0; i < 4 * latency; ++i) {
+      tb.NextCycle();
+      tb.ExpectEq("ready_in", 1)
+          .ExpectEq("valid_out", 0)
+          .ExpectEq("last_pipeline_cycle_port", 0);
+      tb.Set("reset", 0)
+          .Set("valid_in", 0)
+          .Set("ready_out", 0)
+          .Set("index_holds_max_inclusive_value_port", 1);
+    }
+
+    // Valid in, transition to running state.
+    tb.Set("reset", 0)
+        .Set("valid_in", 1)
+        .Set("ready_out", 0)
+        .Set("index_holds_max_inclusive_value_port", 1);
+
+    // Iterate a few pipeline iterations.
+    for (int i = 0; i < 3; ++i) {
+      for (int cycle = 0; cycle < latency + 1; ++cycle) {
+        tb.NextCycle();
+        tb.ExpectEq("ready_in", 0).ExpectEq("valid_out", 0);
+        // Set "last_pipeline_cycle_port" high for the
+        // last cycle.
+        if (cycle == latency) {
+          tb.ExpectEq("last_pipeline_cycle_port", 1);
+        } else {
+          tb.ExpectEq("last_pipeline_cycle_port", 0);
+        }
+        tb.Set("reset", 0)
+            .Set("valid_in", 0)
+            .Set("ready_out", 0)
+            .Set("index_holds_max_inclusive_value_port", 0);
+      }
+    }
+
+    // "index_holds_max_inclusive_value_port" set externally, final pipeline
+    // iteration.
+    for (int cycle = 0; cycle < latency + 1; ++cycle) {
+      tb.NextCycle();
+      tb.ExpectEq("ready_in", 0).ExpectEq("valid_out", 0);
+      // Set "last_pipeline_cycle_port" high for the
+      // last cycle.
+      if (cycle == latency) {
+        tb.ExpectEq("last_pipeline_cycle_port", 1);
+      } else {
+        tb.ExpectEq("last_pipeline_cycle_port", 0);
+      }
+      tb.Set("reset", 0)
+          .Set("valid_in", 0)
+          .Set("ready_out", 0)
+          .Set("index_holds_max_inclusive_value_port", 1);
+    }
+
+    // Done state.
+    tb.NextCycle();
+    tb.ExpectEq("ready_in", 0)
+        .ExpectEq("valid_out", 1)
+        .ExpectEq("last_pipeline_cycle_port", 0);
+    tb.Set("reset", 0)
+        .Set("valid_in", 0)
+        .Set("ready_out", 0)
+        .Set("index_holds_max_inclusive_value_port", 1);
+
+    XLS_ASSERT_OK(tb.Run());
+  }
+}
+
+TEST_P(SequentialGeneratorTest, FsmIgnoreValidInUnlessReady) {
+  // Make counter signature.
+  ModuleSignatureBuilder signature_builder("fsm_signature");
+  signature_builder.AddDataInput("index_holds_max_inclusive_value_port", 1);
+  signature_builder.AddDataOutput("last_pipeline_cycle_port", 1);
+  signature_builder.WithClock("clk");
+  signature_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
+                                            "valid_out");
+  ResetProto reset;
+  reset.set_name("reset");
+  reset.set_asynchronous(false);
+  reset.set_active_low(false);
+  signature_builder.WithReset(reset.name(), reset.asynchronous(),
+                              reset.active_low());
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature,
+                           signature_builder.Build());
+
+  // Would be better to do this as a parameterized test, but this
+  // conflicts with paramterizing based on the simulation target
+  // defined by VerilogTestBase.
+  for (int64 latency = 0; latency < 3; ++latency) {
+    // Build the builder.
+    SequentialOptions sequential_options;
+    sequential_options.use_system_verilog(UseSystemVerilog());
+    sequential_options.reset(reset);
+    SequentialModuleBuilder builder(sequential_options, nullptr);
+    XLS_ASSERT_OK(builder.InitializeModuleBuilder(signature));
+    const SequentialModuleBuilder::PortReferences* ports = builder.ports();
+
+    // Add FSM.
+    LogicRef* index_holds_max_inclusive_value = ports->data_in[0];
+    LogicRef* last_pipeline_cycle = ports->data_out[0];
+    XLS_ASSERT_OK(builder.AddFsm(/*pipeline_latency=*/latency,
+                                 index_holds_max_inclusive_value,
+                                 last_pipeline_cycle));
+
+    ModuleTestbench tb(builder.module(), GetSimulator(), "clk");
+    // Reset.
+    tb.Set("reset", 1)
+        .Set("valid_in", 1)
+        .Set("ready_out", 0)
+        .Set("index_holds_max_inclusive_value_port", 0);
+    tb.NextCycle();
+
+    // Ready.
+    tb.ExpectEq("ready_in", 1)
+        .ExpectEq("valid_out", 0)
+        .ExpectEq("last_pipeline_cycle_port", 0);
+    tb.Set("reset", 0)
+        .Set("valid_in", 1)
+        .Set("ready_out", 0)
+        .Set("index_holds_max_inclusive_value_port", 0);
+
+    // Valid in, transition to running state.
+    tb.Set("reset", 0)
+        .Set("valid_in", 1)
+        .Set("ready_out", 0)
+        .Set("index_holds_max_inclusive_value_port", 0);
+
+    // Iterate a few pipeline iterations.
+    for (int i = 0; i < 3; ++i) {
+      for (int cycle = 0; cycle < latency + 1; ++cycle) {
+        tb.NextCycle();
+        tb.ExpectEq("ready_in", 0).ExpectEq("valid_out", 0);
+        // Set "last_pipeline_cycle_port" high for the
+        // last cycle.
+        if (cycle == latency) {
+          tb.ExpectEq("last_pipeline_cycle_port", 1);
+        } else {
+          tb.ExpectEq("last_pipeline_cycle_port", 0);
+        }
+        tb.Set("reset", 0)
+            .Set("valid_in", 1)
+            .Set("ready_out", 0)
+            .Set("index_holds_max_inclusive_value_port", 0);
+      }
+    }
+
+    // "index_holds_max_inclusive_value_port" set externally, final pipeline
+    // iteration.
+    for (int cycle = 0; cycle < latency + 1; ++cycle) {
+      tb.NextCycle();
+      tb.ExpectEq("ready_in", 0).ExpectEq("valid_out", 0);
+      // Set "last_pipeline_cycle_port" high for the
+      // last cycle.
+      if (cycle == latency) {
+        tb.ExpectEq("last_pipeline_cycle_port", 1);
+      } else {
+        tb.ExpectEq("last_pipeline_cycle_port", 0);
+      }
+      tb.Set("reset", 0)
+          .Set("valid_in", 1)
+          .Set("ready_out", 0)
+          .Set("index_holds_max_inclusive_value_port", 1);
+    }
+
+    // Done state.
+    tb.NextCycle();
+    tb.ExpectEq("ready_in", 0)
+        .ExpectEq("valid_out", 1)
+        .ExpectEq("last_pipeline_cycle_port", 0);
+    tb.Set("reset", 0)
+        .Set("valid_in", 1)
+        .Set("ready_out", 0)
+        .Set("index_holds_max_inclusive_value_port", 1);
+
+    // Wait for ready out, hold done state.
+    for (int i = 0; i < 4 * latency; ++i) {
+      tb.NextCycle();
+      tb.ExpectEq("ready_in", 0)
+          .ExpectEq("valid_out", 1)
+          .ExpectEq("last_pipeline_cycle_port", 0);
+      tb.Set("reset", 0)
+          .Set("valid_in", 1)
+          .Set("ready_out", 0)
+          .Set("index_holds_max_inclusive_value_port", 1);
+    }
+
+    // Ready out set, transition to ready state again.
+    tb.Set("reset", 0)
+        .Set("valid_in", 1)
+        .Set("ready_out", 1)
+        .Set("index_holds_max_inclusive_value_port", 1);
+    tb.NextCycle();
+    tb.ExpectEq("ready_in", 1)
+        .ExpectEq("valid_out", 0)
+        .ExpectEq("last_pipeline_cycle_port", 0);
+
+    // Transition to running.
+    tb.Set("reset", 0)
+        .Set("valid_in", 1)
+        .Set("ready_out", 0)
+        .Set("index_holds_max_inclusive_value_port", 0);
+    tb.NextCycle();
+    tb.ExpectEq("ready_in", 0).ExpectEq("valid_out", 0);
+
+    XLS_ASSERT_OK(tb.Run());
+  }
+}
+
+TEST_P(SequentialGeneratorTest, FsmNoReset) {
+  // Make counter signature.
+  ModuleSignatureBuilder signature_builder("fsm_signature");
+  signature_builder.AddDataInput("index_holds_max_inclusive_value_port", 1);
+  signature_builder.AddDataOutput("last_pipeline_cycle_port", 1);
+  signature_builder.WithClock("clk");
+  signature_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
+                                            "valid_out");
+  ResetProto reset;
+  reset.set_name("reset");
+  reset.set_asynchronous(false);
+  reset.set_active_low(false);
+  signature_builder.WithReset(reset.name(), reset.asynchronous(),
+                              reset.active_low());
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature,
+                           signature_builder.Build());
+
+  // Build the builder.
+  SequentialOptions sequential_options;
+  sequential_options.use_system_verilog(UseSystemVerilog());
+  SequentialModuleBuilder builder(sequential_options, nullptr);
+  XLS_ASSERT_OK(builder.InitializeModuleBuilder(signature));
+  const SequentialModuleBuilder::PortReferences* ports = builder.ports();
+
+  // Add FSM.
+  LogicRef* index_holds_max_inclusive_value = ports->data_in[0];
+  LogicRef* last_pipeline_cycle = ports->data_out[0];
+  EXPECT_EQ(
+      builder.AddFsm(/*pipeline_latency=*/1, index_holds_max_inclusive_value,
+                     last_pipeline_cycle),
+      absl::InvalidArgumentError("Tried to create FSM without specifying reset "
+                                 "in SequentialOptions."));
 }
 
 // TODO(jbaileyhandle): Test module reset (active high and active low).

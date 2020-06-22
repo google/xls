@@ -19,12 +19,15 @@
 #include <memory>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "xls/codegen/module_builder.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/pipeline_generator.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/integral_types.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/statusor.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
@@ -103,6 +106,12 @@ class SequentialModuleBuilder {
     LogicRef* holds_max_inclusive_value;
   };
 
+  // Adds the FSM that orchestrates the sequential module's execution. Returns
+  // a logical reference that is set to 1 when the FSM is in the ready state.
+  absl::Status AddFsm(int64 pipeline_latency,
+                      LogicRef* index_holds_max_inclusive_value,
+                      LogicRef* last_pipeline_cycle);
+
   // Adds a strided counter with statically determined value_limit_exclusive to
   // the module. Note that this is not a saturating counter.
   xabsl::StatusOr<StridedCounterReferences> AddStaticStridedCounter(
@@ -152,6 +161,7 @@ class SequentialModuleBuilder {
   std::unique_ptr<ModuleGeneratorResult> loop_body_pipeline_result_;
   std::unique_ptr<ModuleBuilder> module_builder_;
   std::unique_ptr<ModuleSignature> module_signature_;
+  absl::flat_hash_map<LogicRef*, Expression*> output_reg_to_assignment_;
   PortReferences port_references_;
   const SequentialOptions sequential_options_;
 };
