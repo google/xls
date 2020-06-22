@@ -305,7 +305,40 @@ class TranslatorTest(absltest.TestCase):
     result = ir_interpreter.run_function_kwargs(f, args)
     result_int = int(ctypes.c_int32(int(str(result))).value)
     self.assertEqual(32, result_int)
+<<<<<<< HEAD
   
+=======
+
+  def test_invalidcomparison(self):
+      statestruct = hls_types_pb2.HLSStructType()
+
+      int_type = hls_types_pb2.HLSIntType()
+      int_type.signed = True
+      int_type.width = 18
+
+      translated_hls_type = hls_types_pb2.HLSType()
+      translated_hls_type.as_int.CopyFrom(int_type)
+
+      statestructtype = hls_types_pb2.HLSType()
+      statestructtype.as_struct.CopyFrom(statestruct)
+      hls_types_by_name = {"State": statestructtype}
+
+      source = """
+      enum states{State_TX=1};
+      int test(){
+        int ret = 0;
+        State state;
+        if (state == State_TX){
+            return State_TX;
+        }
+        return ret;
+      }
+      """
+      try:
+        f = self.parse_and_get_function(source, hls_types_by_name)
+      except ValueError as error:
+        print(error)
+>>>>>>> 4d8c577... Updated fix for issue #6 and updated test
 
   def test_arrayref(self):
     f = self.parse_and_get_function("""

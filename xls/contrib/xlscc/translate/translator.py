@@ -317,6 +317,7 @@ class RetVal(object):
 class Translator(object):
   """Converts from C++ to XLS IR. Usage is first parse(ast), then gen_ir().
   """
+  
 
   def __init__(self, package_name, hls_types_by_name=None):
     self.functions_ = {}
@@ -393,7 +394,7 @@ class Translator(object):
                                     str(child.coord))
       else:
         raise NotImplementedError("ERROR: Unknown construct at " + \
-                                  str(child.coord))
+                                  str(child.coord)) 
 
   def parse_type(self, ast_in):
     """Parses a C type's AST.
@@ -594,7 +595,9 @@ class Translator(object):
                            loc)
     else:
       raise NotImplementedError("Assigning non-lvalue", str(type(lvalue_expr)))
+  
 
+  
   def gen_expr_ir(self, stmt_ast, condition):
     """Generates XLS IR value for C expression.
 
@@ -750,6 +753,7 @@ class Translator(object):
         if left_signed != right_signed:
           print("WARNING: Sign mismatch in comparison at " +
                 str(stmt_ast.coord))
+<<<<<<< HEAD
 
 # This is where the change for struct comparison handling is
         if not isinstance(left_type, type(right_type)):
@@ -757,6 +761,15 @@ class Translator(object):
                 "({a} vs {b}) ".format(a=left_type, b=right_type) +
                 str(stmt_ast.coord))
 # End of change in code
+=======
+        if not (isinstance(left_type, BoolType) or isinstance(left_type, IntType)):
+          raise ValueError("WARNING: Invalid operand at " +
+                                    str(stmt_ast.coord))
+        if not (isinstance(right_type, BoolType) or isinstance(right_type, IntType)):
+          raise ValueError("WARNING: Invalid operand at " +
+                                    str(stmt_ast.coord))
+
+>>>>>>> 4d8c577... Updated fix for issue #6 and updated test
 
         result_width = left_width
         left_conv = self.gen_convert_ir(left,
