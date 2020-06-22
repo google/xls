@@ -76,6 +76,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "//xls/common/file:get_runfile_path",
         "//xls/common/logging",
+        "//xls/common/logging:vlog_is_on",
         "@com_google_absl//absl/flags:parse",
     ],
 )
