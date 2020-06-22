@@ -694,7 +694,9 @@ class Translator(object):
           binary_op = add_mul
         else:
           raise NotImplementedError("Unsupported binary operator", stmt_ast.op)
-
+        if not (isinstance(left_type, IntType) and isinstance(right_type, IntType)):
+          raise ValueError("WARNING: Invalid binary operand at " +
+                                    str(stmt_ast.coord))
         return binary_op(
             self.gen_convert_ir(left, left_type,
                                 IntType(result_width,
@@ -754,6 +756,7 @@ class Translator(object):
           print("WARNING: Sign mismatch in comparison at " +
                 str(stmt_ast.coord))
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 # This is where the change for struct comparison handling is
         if not isinstance(left_type, type(right_type)):
@@ -762,6 +765,8 @@ class Translator(object):
                 str(stmt_ast.coord))
 # End of change in code
 =======
+=======
+>>>>>>> cfa3d1fb3a62eea6db32a8b7b751f7226a8172f5
         if not (isinstance(left_type, BoolType) or isinstance(left_type, IntType)):
           raise ValueError("WARNING: Invalid operand at " +
                                     str(stmt_ast.coord))
@@ -769,7 +774,10 @@ class Translator(object):
           raise ValueError("WARNING: Invalid operand at " +
                                     str(stmt_ast.coord))
 
+<<<<<<< HEAD
 >>>>>>> 4d8c577... Updated fix for issue #6 and updated test
+=======
+>>>>>>> cfa3d1fb3a62eea6db32a8b7b751f7226a8172f5
 
         result_width = left_width
         left_conv = self.gen_convert_ir(left,
