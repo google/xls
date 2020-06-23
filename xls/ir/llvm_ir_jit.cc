@@ -239,7 +239,7 @@ class BuilderVisitor : public DfsVisitorWithDefault {
         llvm::Constant * bit_width,
         type_converter_->ToLlvmConstant(max_width_type, operand_width));
 
-    // out_of_bounds indicates whether slice is completely out of bounds
+    // "out_of_bounds" indicates whether slice is completely out of bounds
     llvm::Value* out_of_bounds = builder_->CreateICmpUGE(start_ext, bit_width);
     llvm::IntegerType* return_type = llvm::IntegerType::get(*context_, dynamic_bit_slice->width());
     XLS_ASSIGN_OR_RETURN(
