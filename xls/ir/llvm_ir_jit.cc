@@ -230,10 +230,8 @@ class BuilderVisitor : public DfsVisitorWithDefault {
     int64 value_width = value->getType()->getIntegerBitWidth();
     int64 start_width = start->getType()->getIntegerBitWidth();
     int64 max_width = std::max(start_width, value_width);
-
-    auto max_width_type = builder_->getIntNTy(max_width);
+    llvm::IntegerType* max_width_type = builder_->getIntNTy(max_width);
     llvm::Value* start_ext = builder_->CreateZExt(start, max_width_type);
-    // llvm::Value* value_ext = builder_->CreateZExt(value, max_width_type);
 
     Value operand_width(
         UBits(value_width, max_width));
@@ -241,7 +239,7 @@ class BuilderVisitor : public DfsVisitorWithDefault {
         llvm::Constant * bit_width,
         type_converter_->ToLlvmConstant(max_width_type, operand_width));
 
-    // Indicates whether slice is completely out of bounds
+    // out_of_bounds indicates whether slice is completely out of bounds
     llvm::Value* out_of_bounds = builder_->CreateICmpUGE(start_ext, bit_width);
     llvm::IntegerType* return_type = llvm::IntegerType::get(*context_, dynamic_bit_slice->width());
     XLS_ASSIGN_OR_RETURN(

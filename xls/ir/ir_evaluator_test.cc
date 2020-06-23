@@ -2239,8 +2239,7 @@ absl::Status RunDynamicBitSliceTest(const IrEvaluatorTestParam& param,
   Value expected;
   if (slice_start > literal_width) {
     expected = Value(Bits(slice_width));
-  }
-  else {
+  } else {
     const Bits& operand = Bits::FromBytes(bytes, literal_width);
     const Bits& shifted = bits_ops::ShiftRightLogical(operand, slice_start);
     const Bits& truncated = shifted.Slice(0, slice_width);
