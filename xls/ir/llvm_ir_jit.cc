@@ -227,12 +227,31 @@ class BuilderVisitor : public DfsVisitorWithDefault {
       DynamicBitSlice* dynamic_bit_slice) override {
     llvm::Value* value = node_map_.at(dynamic_bit_slice->operand(0));
     llvm::Value* start = node_map_.at(dynamic_bit_slice->operand(1));
+    int64 value_width = value->getType()->getIntegerBitWidth();
+    int64 start_width = start->getType()->getIntegerBitWidth();
+    int64 max_width = std::max(start_width, value_width);
 
+    auto max_width_type = builder_->getIntNTy(max_width);
+    llvm::Value* start_ext = builder_->CreateZExt(start, max_width_type);
+    // llvm::Value* value_ext = builder_->CreateZExt(value, max_width_type);
+
+    Value operand_width(
+        UBits(value_width, max_width));
+    XLS_ASSIGN_OR_RETURN(
+        llvm::Constant * bit_width,
+        type_converter_->ToLlvmConstant(max_width_type, operand_width));
+
+    // Indicates whether slice is completely out of bounds
+    llvm::Value* out_of_bounds = builder_->CreateICmpUGE(start_ext, bit_width);
+    llvm::IntegerType* return_type = llvm::IntegerType::get(*context_, dynamic_bit_slice->width());
+    XLS_ASSIGN_OR_RETURN(
+        llvm::Constant * zeros,
+        type_converter_->ToLlvmConstant(return_type, Value(Bits(dynamic_bit_slice->width()))));
     // Then shift and "mask" (by casting) the input value.
-    llvm::Value* shifted_value = builder_->CreateLShr(value, start);
-    llvm::Value* truncated_value = builder_->CreateTrunc(
-        shifted_value, llvm::IntegerType::get(*context_, dynamic_bit_slice->width()));
-    return StoreResult(dynamic_bit_slice, truncated_value);
+    llvm::Value* shifted_value = builder_->CreateLShr(value, start_ext);
+    llvm::Value* truncated_value = builder_->CreateTrunc(shifted_value, return_type);
+    llvm::Value* result = builder_->CreateSelect(out_of_bounds, zeros, truncated_value);
+    return StoreResult(dynamic_bit_slice, result);
   }
 
   absl::Status HandleConcat(Concat* concat) override {

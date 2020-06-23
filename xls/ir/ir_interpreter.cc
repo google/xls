@@ -147,10 +147,17 @@ class InterpreterVisitor : public DfsVisitor {
 
   absl::Status HandleDynamicBitSlice(
       DynamicBitSlice* dynamic_bit_slice) override {
-    int64 start = ResolveAsBits(dynamic_bit_slice->operand(1)).ToInt64().value();
-    return SetBitsResult(dynamic_bit_slice,
-                         ResolveAsBits(dynamic_bit_slice->operand(0))
-                         .Slice(start, dynamic_bit_slice->width()));
+    int64 operand_width = dynamic_bit_slice->operand(0)->BitCountOrDie();
+    const Bits& start_bits = ResolveAsBits(dynamic_bit_slice->operand(1));
+    if (bits_ops::UGreaterThanOrEqual(start_bits, operand_width)) {
+      // Slice is entirely out-of-bounds. Return value should be all zero bits.
+      return SetBitsResult(dynamic_bit_slice, Bits(dynamic_bit_slice->width()));
+    }
+    uint64 start = start_bits.ToUint64().value();
+    const Bits& operand = ResolveAsBits(dynamic_bit_slice->operand(0));
+    Bits shifted_value = bits_ops::ShiftRightLogical(operand, start);
+    Bits truncated_value = shifted_value.Slice(0, dynamic_bit_slice->width());
+    return SetBitsResult(dynamic_bit_slice, truncated_value);
   }
 
   absl::Status HandleConcat(Concat* concat) override {
