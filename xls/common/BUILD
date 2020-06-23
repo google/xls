@@ -14,6 +14,7 @@
 
 # Common utilities shared among XLA subfolders.
 
+load("//tools/build_defs/cc:cc_fake_binary.bzl", "cc_fake_binary")
 # pytype test and library
 
 package(
