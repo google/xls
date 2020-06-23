@@ -14,6 +14,7 @@
 
 # Common utilities shared among XLA subfolders.
 
+load("//tools/build_defs/cc:cc_fake_binary.bzl", "cc_fake_binary")
 # pytype test and library
 
 package(
@@ -76,6 +77,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "//xls/common/file:get_runfile_path",
         "//xls/common/logging",
+        "//xls/common/logging:vlog_is_on",
         "@com_google_absl//absl/flags:parse",
     ],
 )

@@ -66,7 +66,7 @@ class RunFuzzTest(parameterized.TestCase):
     self.KWARGS['codegen'] = FLAGS.codegen
 
   def _get_ast_options(self) -> ast_generator.AstGeneratorOptions:
-    return ast_generator.AstGeneratorOptions(blacklist_divide=True)
+    return ast_generator.AstGeneratorOptions(disallow_divide=True)
 
   def test_repeatable_within_process(self):
     samples0 = run_fuzz.run_fuzz(

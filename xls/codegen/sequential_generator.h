@@ -19,11 +19,15 @@
 #include <memory>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
+#include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "xls/codegen/module_builder.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/pipeline_generator.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/integral_types.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/statusor.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
@@ -36,12 +40,12 @@ namespace verilog {
 // Configuration options for a sequential module.
 class SequentialOptions {
  public:
-  // Reset logic to use.
-  SequentialOptions& reset(const ResetProto& reset_proto) {
-    reset_proto_ = reset_proto;
+  // Delay estimator to use for loop body pipeline generation.
+  SequentialOptions& delay_estimator(const DelayEstimator* delay_estimator) {
+    delay_estimator_ = delay_estimator;
     return *this;
   }
-  const absl::optional<ResetProto>& reset() const { return reset_proto_; }
+  const DelayEstimator* delay_estimator() const { return delay_estimator_; }
 
   // Name to use for the generated module. If not given, the name is derived
   // from the CountedFor node.
@@ -50,6 +54,26 @@ class SequentialOptions {
     return *this;
   }
   const absl::optional<std::string> module_name() const { return module_name_; }
+
+  // Reset logic to use.
+  SequentialOptions& reset(const ResetProto& reset_proto) {
+    reset_proto_ = reset_proto;
+    return *this;
+  }
+  const absl::optional<ResetProto>& reset() const { return reset_proto_; }
+
+  // Scheduling options for the loop body pipeline.
+  SequentialOptions& pipeline_scheduling_options(
+      const SchedulingOptions& sched_options) {
+    pipeline_scheduling_options_ = sched_options;
+    return *this;
+  }
+  SchedulingOptions& pipeline_scheduling_options() {
+    return pipeline_scheduling_options_;
+  }
+  const SchedulingOptions& pipeline_scheduling_options() const {
+    return pipeline_scheduling_options_;
+  }
 
   // Whether to use SystemVerilog in the generated code, otherwise Verilog is
   // used. The default is to use SystemVerilog.
@@ -60,10 +84,11 @@ class SequentialOptions {
   bool use_system_verilog() const { return use_system_verilog_; }
 
  private:
+  const DelayEstimator* delay_estimator_ = &GetStandardDelayEstimator();
   absl::optional<std::string> module_name_;
   absl::optional<ResetProto> reset_proto_;
+  SchedulingOptions pipeline_scheduling_options_;
   bool use_system_verilog_ = true;
-  // TODO(jbaileyhandle): Flop ouptut option?
   // TODO(jbaileyhandle): Interface options.
 };
 
@@ -85,10 +110,46 @@ class SequentialModuleBuilder {
     absl::optional<LogicRef*> valid_out;
   };
 
+  // Container for logical references to strided counter I/O.
+  struct StridedCounterReferences {
+    // Inputs.
+    // When set high, synchronosly sets the counter value to 0.
+    LogicRef* set_zero;
+    // When set high and set_zero is not high, synchronously adds 'stride' to
+    // the counter value.
+    LogicRef* increment;
+
+    // Outputs.
+    // Holds the current value of the counter.
+    LogicRef* value;
+    // Driven high iff the counter currently holds the largest allowed value
+    // (inclusive).
+    LogicRef* holds_max_inclusive_value;
+  };
+
+  // Adds the FSM that orchestrates the sequential module's execution. Returns
+  // a logical reference that is set to 1 when the FSM is in the ready state.
+  absl::Status AddFsm(int64 pipeline_latency,
+                      LogicRef* index_holds_max_inclusive_value,
+                      LogicRef* last_pipeline_cycle);
+
+  // Adds a strided counter with statically determined value_limit_exclusive to
+  // the module. Note that this is not a saturating counter.
+  xabsl::StatusOr<StridedCounterReferences> AddStaticStridedCounter(
+      std::string name, int64 stride, int64 value_limit_exclusive,
+      LogicRef* clk, LogicRef* set_zero_arg, LogicRef* increment_arg);
+
+  // Assign lhs to rhs (flat bit types only).
+  void AddContinuousAssignment(LogicRef* lhs, Expression* rhs) {
+    module_builder()->assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
+  }
+
+  // Constructs the sequential module.
+  xabsl::StatusOr<ModuleGeneratorResult> Build();
+
   // Generates a pipeline module that implements the loop's body.
   xabsl::StatusOr<std::unique_ptr<ModuleGeneratorResult>>
-  GenerateLoopBodyPipeline(const SchedulingOptions& scheduling_options,
-                           const DelayEstimator& = GetStandardDelayEstimator());
+  GenerateLoopBodyPipeline();
 
   // Generates the signature for the top-level module.
   xabsl::StatusOr<std::unique_ptr<ModuleSignature>> GenerateModuleSignature();
@@ -101,18 +162,37 @@ class SequentialModuleBuilder {
   const ModuleGeneratorResult* loop_result() const {
     return loop_body_pipeline_result_.get();
   }
-  const Module* module() const { return module_builder_->module(); }
+  Module* module() { return module_builder_->module(); }
+  ModuleBuilder* module_builder() { return module_builder_.get(); }
   const ModuleSignature* module_signature() const {
     return module_signature_.get();
   }
-  const PortReferences* port_references() const { return &port_references_; }
+  const PortReferences* ports() const { return &port_references_; }
 
  private:
+  // Adds all interal logic to the sequential module.
+  absl::Status AddSequentialLogic();
+
+  // Declares and assigns a wire, returning a logical reference to the wire.
+  LogicRef* DeclareVariableAndAssign(absl::string_view name, Expression* rhs,
+                                     int64 bit_count) {
+    LogicRef* wire = module_builder_->DeclareVariable(name, bit_count);
+    AddContinuousAssignment(wire, rhs);
+    return wire;
+  }
+
+  // Instantiates the loop body.
+  absl::Status InstantiateLoopBody(
+      LogicRef* index_value, const ModuleBuilder::Register& accumulator_reg,
+      absl::Span<const ModuleBuilder::Register> invariant_registers,
+      LogicRef* pipeline_output);
+
   VerilogFile file_;
   const CountedFor* loop_;
   std::unique_ptr<ModuleGeneratorResult> loop_body_pipeline_result_;
   std::unique_ptr<ModuleBuilder> module_builder_;
   std::unique_ptr<ModuleSignature> module_signature_;
+  absl::flat_hash_map<LogicRef*, Expression*> output_reg_to_assignment_;
   PortReferences port_references_;
   const SequentialOptions sequential_options_;
 };
@@ -120,6 +200,11 @@ class SequentialModuleBuilder {
 // Emits the given function as a verilog module which reuses the same hardware
 // over time to executed loop iterations.
 xabsl::StatusOr<ModuleGeneratorResult> ToSequentialModuleText(Function* func);
+
+// Emits the given CountedFor as a verilog module which reuses the same hardware
+// over time to executed loop iterations.
+xabsl::StatusOr<ModuleGeneratorResult> ToSequentialModuleText(
+    const SequentialOptions& options, const CountedFor* loop);
 
 }  // namespace verilog
 }  // namespace xls

@@ -379,6 +379,9 @@ class FsmBuilder {
   // Builds the FSM in the module.
   absl::Status Build();
 
+  // Configures FSM so that on reset, the state will be set to reset_state.
+  void SetResetState(FsmState* reset_state) { reset_state_ = reset_state; }
+
  private:
   // Creates a RegDef of the given name, width and optional initial
   // value. Returns a LogicRef referring to it. The RegDef is added to the
@@ -417,6 +420,7 @@ class FsmBuilder {
   // method may only be called once.
   bool is_built_ = false;
 
+  FsmState* reset_state_ = nullptr;
   std::list<FsmState> states_;
   std::list<FsmCounter> counters_;
   std::list<FsmOutput> outputs_;

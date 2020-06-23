@@ -517,7 +517,10 @@ absl::Status FsmBuilder::Build() {
 
   AlwaysFlop* af = module_->Add<AlwaysFlop>(file_, clk_, reset_);
   if (reset_.has_value()) {
-    af->AddRegister(state, state_next, /*reset_value=*/initial_state_value);
+    Expression* rstate = (reset_state_ == nullptr)
+                             ? initial_state_value
+                             : reset_state_->state_value();
+    af->AddRegister(state, state_next, /*reset_value=*/rstate);
   } else {
     af->AddRegister(state, state_next);
   }

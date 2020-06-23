@@ -33,7 +33,7 @@ class RunFuzzSanityTest(absltest.TestCase):
   }
 
   def _get_options(self) -> ast_generator.AstGeneratorOptions:
-    return ast_generator.AstGeneratorOptions(blacklist_divide=True)
+    return ast_generator.AstGeneratorOptions(disallow_divide=True)
 
   def test_a_few_samples(self):
     run_fuzz.run_fuzz(random.Random(0), self._get_options(), **self.KWARGS)

@@ -341,9 +341,10 @@ xabsl::StatusOr<std::unique_ptr<Block>> Parser::ParseBlock(
   auto block = absl::make_unique<Block>();
   block->kind = std::move(identifier);
 
-  // Once we've seen the block kind we know whether it's whitelisted or not.
-  bool kind_whitelisted =
-      !kind_whitelist_.has_value() || kind_whitelist_->contains(block->kind);
+  // Once we've seen the block kind we know whether it's in the allowlist or
+  // not.
+  bool kind_allowed =
+      !kind_allowlist_.has_value() || kind_allowlist_->contains(block->kind);
 
   Pos last_pos;
   XLS_ASSIGN_OR_RETURN(block->args, ParseValues(&last_pos));
@@ -365,8 +366,8 @@ xabsl::StatusOr<std::unique_ptr<Block>> Parser::ParseBlock(
   }
 
   XLS_ASSIGN_OR_RETURN(block->entries, ParseEntries());
-  if (!kind_whitelisted) {
-    // Save memory on non-whitelisted blocks by clearing out its entries.
+  if (!kind_allowed) {
+    // Save memory on disallowed blocks by clearing out its entries.
     block->entries.clear();
   }
   return block;
