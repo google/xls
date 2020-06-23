@@ -45,6 +45,8 @@
 namespace xls {
 namespace verilog {
 
+using Register = ModuleBuilder::Register;
+
 absl::Status SequentialModuleBuilder::AddFsm(
     int64 pipeline_latency, LogicRef* index_holds_max_inclusive_value,
     LogicRef* last_pipeline_cycle_wire) {
@@ -154,6 +156,70 @@ absl::Status SequentialModuleBuilder::AddFsm(
   return absl::OkStatus();
 }
 
+absl::Status SequentialModuleBuilder::AddSequentialLogic() {
+  // Declare variables / wires.
+  LogicRef* last_pipeline_cycle =
+      module_builder_->DeclareVariable("last_pipeline_cycle", 1);
+  XLS_CHECK_EQ(port_references_.data_out.size(), 1);
+  LogicRef* pipeline_output = module_builder_->DeclareVariable(
+      "pipeline_output", module_signature()->data_outputs().at(0).width());
+
+  // Add index counter.
+  LogicRef* ready_in = port_references_.ready_in.value();
+  XLS_ASSIGN_OR_RETURN(
+      StridedCounterReferences index_references,
+      AddStaticStridedCounter("index_counter", loop_->stride(),
+                              loop_->stride() * loop_->trip_count(),
+                              port_references_.clk, ready_in,
+                              last_pipeline_cycle));
+
+  // Add FSM.
+  int64 pipeline_latency =
+      loop_body_pipeline_result_->signature.proto().pipeline().latency();
+  XLS_RETURN_IF_ERROR(AddFsm(pipeline_latency,
+                             index_references.holds_max_inclusive_value,
+                             last_pipeline_cycle));
+
+  auto make_register = [&](Expression* next, const PortProto* port_proto) {
+    return module_builder_->DeclareRegister(port_proto->name() + "_register",
+                                            port_proto->width(), next);
+  };
+  // Add accumulator register.
+  XLS_RET_CHECK(port_references_.ready_in.has_value());
+  XLS_ASSIGN_OR_RETURN(
+      Register accumulator_register,
+      make_register(file_.Ternary(ready_in, port_references_.data_in.at(0),
+                                  pipeline_output),
+                    &module_signature_->data_outputs().at(0)));
+  XLS_RETURN_IF_ERROR(module_builder_->AssignRegisters(
+      port_references_.clk, {accumulator_register},
+      file_.BitwiseOr(ready_in, last_pipeline_cycle)));
+
+  // Add registers for invariants.
+  int64 num_inputs = port_references_.data_in.size();
+  std::vector<Register> invariant_registers;
+  invariant_registers.resize(num_inputs - 1);
+  for (int64 input_idx = 1; input_idx < num_inputs; ++input_idx) {
+    XLS_ASSIGN_OR_RETURN(
+        invariant_registers.at(input_idx - 1),
+        make_register(port_references_.data_in.at(input_idx),
+                      &module_signature_->data_inputs().at(input_idx)));
+  }
+  XLS_RETURN_IF_ERROR(module_builder_->AssignRegisters(
+      port_references_.clk, invariant_registers, ready_in));
+
+  // Add loop body pipeline.
+  XLS_RETURN_IF_ERROR(
+      InstantiateLoopBody(index_references.value, accumulator_register,
+                          invariant_registers, pipeline_output));
+
+  // Drive output.
+  AddContinuousAssignment(port_references_.data_out.at(0),
+                          accumulator_register.ref);
+
+  return absl::OkStatus();
+}
+
 xabsl::StatusOr<SequentialModuleBuilder::StridedCounterReferences>
 SequentialModuleBuilder::AddStaticStridedCounter(std::string name, int64 stride,
                                                  int64 value_limit_exclusive,
@@ -222,7 +288,40 @@ SequentialModuleBuilder::AddStaticStridedCounter(std::string name, int64 stride,
   return refs;
 }
 
-// Generates the signature for the top-level module.
+xabsl::StatusOr<ModuleGeneratorResult> SequentialModuleBuilder::Build() {
+  // Generate the loop body module.
+  xabsl::StatusOr<std::unique_ptr<ModuleGeneratorResult>> loop_body_status =
+      GenerateLoopBodyPipeline();
+  XLS_RETURN_IF_ERROR(loop_body_status.status());
+  loop_body_pipeline_result_ = std::move(loop_body_status.value());
+  XLS_RET_CHECK(loop_body_pipeline_result_->signature.proto().has_pipeline());
+  XLS_CHECK_EQ(loop_body_pipeline_result_->signature.proto()
+                   .pipeline()
+                   .initiation_interval(),
+               1);
+
+  // Get the module signature.
+  xabsl::StatusOr<std::unique_ptr<ModuleSignature>> signature_result =
+      GenerateModuleSignature();
+  XLS_RETURN_IF_ERROR(signature_result.status());
+  module_signature_ = std::move(signature_result.value());
+
+  // Initialize module builder.
+  XLS_RETURN_IF_ERROR(InitializeModuleBuilder(*module_signature_.get()));
+
+  // Add internal logic.
+  XLS_RETURN_IF_ERROR(AddSequentialLogic());
+
+  // Create result.
+  ModuleGeneratorResult result;
+  result.signature = *module_signature();
+  result.verilog_text.append(loop_body_pipeline_result_->verilog_text);
+  result.verilog_text.append("\n");
+  result.verilog_text.append(module_builder_->module()->Emit());
+
+  return result;
+}
+
 xabsl::StatusOr<std::unique_ptr<ModuleSignature>>
 SequentialModuleBuilder::GenerateModuleSignature() {
   std::string module_name = sequential_options_.module_name().has_value()
@@ -251,6 +350,12 @@ SequentialModuleBuilder::GenerateModuleSignature() {
         sequential_options_.reset()->active_low());
   }
 
+  // Function type.
+  FunctionType* body_type = loop_->body()->GetType();
+  FunctionType module_function_type(body_type->parameters().subspan(1),
+                                    body_type->return_type());
+  sig_builder.WithFunctionType(&module_function_type);
+
   // TODO(jbaileyhandle): Add options for other interfaces.
   std::string ready_in_name = SanitizeIdentifier("ready_in");
   std::string valid_in_name = SanitizeIdentifier("valid_in");
@@ -266,11 +371,8 @@ SequentialModuleBuilder::GenerateModuleSignature() {
   return std::move(signature);
 }
 
-// Generates a pipeline module that implements the loop's body.
 xabsl::StatusOr<std::unique_ptr<ModuleGeneratorResult>>
-SequentialModuleBuilder::GenerateLoopBodyPipeline(
-    const SchedulingOptions& scheduling_options,
-    const DelayEstimator& delay_estimator) {
+SequentialModuleBuilder::GenerateLoopBodyPipeline() {
   // Set pipeline options.
   PipelineOptions pipeline_options;
   pipeline_options.flop_inputs(false).flop_outputs(false).use_system_verilog(
@@ -283,8 +385,9 @@ SequentialModuleBuilder::GenerateLoopBodyPipeline(
   Function* loop_body_function = loop_->body();
   XLS_ASSIGN_OR_RETURN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(loop_body_function, delay_estimator,
-                            scheduling_options));
+      PipelineSchedule::Run(loop_body_function,
+                            *sequential_options_.delay_estimator(),
+                            sequential_options_.pipeline_scheduling_options()));
   XLS_RETURN_IF_ERROR(schedule.Verify());
 
   std::unique_ptr<ModuleGeneratorResult> result =
@@ -295,7 +398,6 @@ SequentialModuleBuilder::GenerateLoopBodyPipeline(
   return std::move(result);
 }
 
-// Initializes the module builder according to the signature.
 absl::Status SequentialModuleBuilder::InitializeModuleBuilder(
     const ModuleSignature& signature) {
   // Make builder.
@@ -358,8 +460,65 @@ absl::Status SequentialModuleBuilder::InitializeModuleBuilder(
   return absl::OkStatus();
 }
 
+absl::Status SequentialModuleBuilder::InstantiateLoopBody(
+    LogicRef* index_value, const ModuleBuilder::Register& accumulator_reg,
+    absl::Span<const ModuleBuilder::Register> invariant_registers,
+    LogicRef* pipeline_output) {
+  // Collect input names.
+  std::vector<std::string> loop_in_names;
+  for (const auto& input_port :
+       loop_body_pipeline_result_->signature.data_inputs()) {
+    loop_in_names.push_back(input_port.name());
+  }
+
+  // Collect connections.
+  std::vector<Connection> loop_connections;
+  // Index
+  XLS_RET_CHECK_GE(loop_in_names.size(), 2);
+  loop_connections.push_back({loop_in_names.at(0), index_value});
+  // Accumulator
+  loop_connections.push_back({loop_in_names.at(1), accumulator_reg.ref});
+  // Invariants
+  for (int64 input_idx = 2; input_idx < loop_in_names.size(); ++input_idx) {
+    loop_connections.push_back({loop_in_names.at(input_idx),
+                                invariant_registers.at(input_idx - 2).ref});
+  }
+  // Reset
+  XLS_RET_CHECK(sequential_options_.reset().has_value());
+  XLS_RET_CHECK(loop_body_pipeline_result_->signature.proto().has_reset());
+  loop_connections.push_back(
+      {loop_body_pipeline_result_->signature.proto().reset().name(),
+       port_references_.reset.value()});
+  // Clk
+  loop_connections.push_back(
+      {loop_body_pipeline_result_->signature.proto().clock_name(),
+       port_references_.clk});
+  // Output
+  loop_connections.push_back(
+      {loop_body_pipeline_result_->signature.data_outputs().at(0).name(),
+       pipeline_output});
+
+  // Instantiate loop body.
+  module_builder_->assignment_section()->Add<Instantiation>(
+      /*module_name=*/loop_body_pipeline_result_->signature.module_name(),
+      /*instance_name=*/"loop_body",
+      /*parameters=*/std::vector<Connection>(),
+      /*connections=*/loop_connections);
+
+  return absl::OkStatus();
+}
+
 xabsl::StatusOr<ModuleGeneratorResult> ToSequentialModuleText(Function* func) {
-  return absl::UnimplementedError("Sequential generator not supported yet.");
+  return absl::UnimplementedError(
+      "Sequential generator does not yet support arbitrary functions.");
+}
+
+// Emits the given CountedFor as a verilog module which reuses the same hardware
+// over time to executed loop iterations.
+xabsl::StatusOr<ModuleGeneratorResult> ToSequentialModuleText(
+    const SequentialOptions& options, const CountedFor* loop) {
+  SequentialModuleBuilder builder(options, loop);
+  return builder.Build();
 }
 
 }  // namespace verilog

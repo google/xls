@@ -40,12 +40,12 @@ namespace verilog {
 // Configuration options for a sequential module.
 class SequentialOptions {
  public:
-  // Reset logic to use.
-  SequentialOptions& reset(const ResetProto& reset_proto) {
-    reset_proto_ = reset_proto;
+  // Delay estimator to use for loop body pipeline generation.
+  SequentialOptions& delay_estimator(const DelayEstimator* delay_estimator) {
+    delay_estimator_ = delay_estimator;
     return *this;
   }
-  const absl::optional<ResetProto>& reset() const { return reset_proto_; }
+  const DelayEstimator* delay_estimator() const { return delay_estimator_; }
 
   // Name to use for the generated module. If not given, the name is derived
   // from the CountedFor node.
@@ -54,6 +54,26 @@ class SequentialOptions {
     return *this;
   }
   const absl::optional<std::string> module_name() const { return module_name_; }
+
+  // Reset logic to use.
+  SequentialOptions& reset(const ResetProto& reset_proto) {
+    reset_proto_ = reset_proto;
+    return *this;
+  }
+  const absl::optional<ResetProto>& reset() const { return reset_proto_; }
+
+  // Scheduling options for the loop body pipeline.
+  SequentialOptions& pipeline_scheduling_options(
+      const SchedulingOptions& sched_options) {
+    pipeline_scheduling_options_ = sched_options;
+    return *this;
+  }
+  SchedulingOptions& pipeline_scheduling_options() {
+    return pipeline_scheduling_options_;
+  }
+  const SchedulingOptions& pipeline_scheduling_options() const {
+    return pipeline_scheduling_options_;
+  }
 
   // Whether to use SystemVerilog in the generated code, otherwise Verilog is
   // used. The default is to use SystemVerilog.
@@ -64,10 +84,11 @@ class SequentialOptions {
   bool use_system_verilog() const { return use_system_verilog_; }
 
  private:
+  const DelayEstimator* delay_estimator_ = &GetStandardDelayEstimator();
   absl::optional<std::string> module_name_;
   absl::optional<ResetProto> reset_proto_;
+  SchedulingOptions pipeline_scheduling_options_;
   bool use_system_verilog_ = true;
-  // TODO(jbaileyhandle): Flop ouptut option?
   // TODO(jbaileyhandle): Interface options.
 };
 
@@ -123,11 +144,12 @@ class SequentialModuleBuilder {
     module_builder()->assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
   }
 
+  // Constructs the sequential module.
+  xabsl::StatusOr<ModuleGeneratorResult> Build();
+
   // Generates a pipeline module that implements the loop's body.
   xabsl::StatusOr<std::unique_ptr<ModuleGeneratorResult>>
-  GenerateLoopBodyPipeline(
-      const SchedulingOptions& scheduling_options,
-      const DelayEstimator& delay_estimator = GetStandardDelayEstimator());
+  GenerateLoopBodyPipeline();
 
   // Generates the signature for the top-level module.
   xabsl::StatusOr<std::unique_ptr<ModuleSignature>> GenerateModuleSignature();
@@ -148,6 +170,9 @@ class SequentialModuleBuilder {
   const PortReferences* ports() const { return &port_references_; }
 
  private:
+  // Adds all interal logic to the sequential module.
+  absl::Status AddSequentialLogic();
+
   // Declares and assigns a wire, returning a logical reference to the wire.
   LogicRef* DeclareVariableAndAssign(absl::string_view name, Expression* rhs,
                                      int64 bit_count) {
@@ -155,6 +180,12 @@ class SequentialModuleBuilder {
     AddContinuousAssignment(wire, rhs);
     return wire;
   }
+
+  // Instantiates the loop body.
+  absl::Status InstantiateLoopBody(
+      LogicRef* index_value, const ModuleBuilder::Register& accumulator_reg,
+      absl::Span<const ModuleBuilder::Register> invariant_registers,
+      LogicRef* pipeline_output);
 
   VerilogFile file_;
   const CountedFor* loop_;
@@ -169,6 +200,11 @@ class SequentialModuleBuilder {
 // Emits the given function as a verilog module which reuses the same hardware
 // over time to executed loop iterations.
 xabsl::StatusOr<ModuleGeneratorResult> ToSequentialModuleText(Function* func);
+
+// Emits the given CountedFor as a verilog module which reuses the same hardware
+// over time to executed loop iterations.
+xabsl::StatusOr<ModuleGeneratorResult> ToSequentialModuleText(
+    const SequentialOptions& options, const CountedFor* loop);
 
 }  // namespace verilog
 }  // namespace xls
