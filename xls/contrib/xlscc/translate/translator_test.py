@@ -224,6 +224,66 @@ class TranslatorTest(absltest.TestCase):
 #  def test_simple_structref_cast(self):
 #    self.one_in_one_out("return uai32(a).slc<3>(2);", -5, 0, -11)
 #    self.one_in_one_out("return ((uai32)a).slc<3>(2);", -5, 0, 6)
+  
+  def test_invalidStructOperation(self):
+      statestruct = hls_types_pb2.HLSStructType()
+
+      int_type = hls_types_pb2.HLSIntType()
+      int_type.signed = True
+      int_type.width = 18
+
+      translated_hls_type = hls_types_pb2.HLSType()
+      translated_hls_type.as_int.CopyFrom(int_type)
+
+      statestructtype = hls_types_pb2.HLSType()
+      statestructtype.as_struct.CopyFrom(statestruct)
+      hls_types_by_name = {"State": statestructtype}
+
+      source = """
+      enum states{State_TX=1};
+      int test(){
+        int ret = 0;
+        State state;
+        ret = state - 1;
+        return ret;
+      }
+      """
+      try:
+        f = self.parse_and_get_function(source, hls_types_by_name)
+      except ValueError as error:
+        print(error)
+
+
+  def test_invalidcomparison(self):
+      statestruct = hls_types_pb2.HLSStructType()
+
+      int_type = hls_types_pb2.HLSIntType()
+      int_type.signed = True
+      int_type.width = 18
+
+      translated_hls_type = hls_types_pb2.HLSType()
+      translated_hls_type.as_int.CopyFrom(int_type)
+
+      statestructtype = hls_types_pb2.HLSType()
+      statestructtype.as_struct.CopyFrom(statestruct)
+      hls_types_by_name = {"State": statestructtype}
+
+      source = """
+      enum states{State_TX=1};
+      int test(){
+        int ret = 0;
+        State state;
+        if (state == State_TX){
+            return State_TX;
+        }
+        return ret;
+      }
+      """
+      try:
+        f = self.parse_and_get_function(source, hls_types_by_name)
+      except ValueError as error:
+        print(error)
+
 
   def test_structref(self):
     somestruct = hls_types_pb2.HLSStructType()

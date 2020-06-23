@@ -689,6 +689,8 @@ class Translator(object):
           binary_op = add_mul
         else:
           raise NotImplementedError("Unsupported binary operator", stmt_ast.op)
+        if not (isinstance(left_type, IntType) and isinstance(right_type, IntType)):
+          raise ValueError("WARNING: Invalid binary operand at " + str(stmt_ast.coord))  
 
         return binary_op(
             self.gen_convert_ir(left, left_type,
@@ -745,6 +747,12 @@ class Translator(object):
             self.gen_convert_ir(right, right_type, result_type, stmt_ast.right),
             loc), result_type
       elif add_cmp_fn is not None:
+        if not (isinstance(left_type, BoolType) or isinstance(left_type, IntType)):
+          raise ValueError("WARNING: Invalid operand at " +
+                                    str(stmt_ast.coord))
+        if not (isinstance(right_type, BoolType) or isinstance(right_type, IntType)):
+          raise ValueError("WARNING: Invalid operand at " +
+                                    str(stmt_ast.coord))
         if left_signed != right_signed:
           print("WARNING: Sign mismatch in comparison at " +
                 str(stmt_ast.coord))
