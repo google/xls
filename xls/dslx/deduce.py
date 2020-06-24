@@ -19,8 +19,8 @@
 """Type system deduction rules for AST nodes."""
 
 import typing
-from typing import Text, Dict, Union, Callable, Type, Tuple, Sequence
-from dataclasses import dataclass
+from typing import Optional, Text, Dict, Union, Callable, Type, Tuple, Sequence
+from dataclasses import dataclass, field
 
 from absl import logging
 from xls.dslx import ast
@@ -91,11 +91,10 @@ class NodeToType(object):
   way versus a KeyError.
   """
 
-  def __init__(self, module=None):
+  def __init__(self):
     self._dict = {}  # type: Dict[ast.AstNode, ConcreteType]
     self._imports = {}  # type: Dict[ast.Import, ImportedInfo]
     self._name_to_const = {}  # type: Dict[ast.NameDef, ast.Constant]
-    self.module = module
 
   def update(self, other: 'NodeToType') -> None:
     self._dict.update(other._dict)  # pylint: disable=protected-access
@@ -154,6 +153,7 @@ class NodeToType(object):
 
 InterpCallbackType = Callable[[ast.Module, NodeToType,
                                Sequence[Tuple[Text, int]], ast.Expr], int]
+ImportFn = Callable[[Tuple[Text, ...]], Tuple[ast.Module, NodeToType]]
 
 @dataclass
 class DeduceCtx:
@@ -162,6 +162,17 @@ class DeduceCtx:
   module: ast.Module
   interp_callback: InterpCallbackType
   typecheck_callback: Callable[[ast.Function], None]
+  fn_symbolic_bindings: Dict[Text, int] = field(default_factory=dict)
+  f_import: Optional[ImportFn] = None
+
+def mk_resolver(symbolic_bindings: Dict[Text, int]):
+  """Closure hack"""
+  def resolver(dim):
+    if isinstance(dim, ParametricExpression):
+      return dim.evaluate(symbolic_bindings)
+    return dim
+
+  return resolver
 
 @_rule(ast.Param)
 def _deduce_Param(self: ast.Param, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
@@ -240,9 +251,10 @@ def _deduce_Invocation(self: ast.Invocation,
   """Deduces the concrete type of an Invocation AST node."""
   logging.vlog(5, 'Deducing type for invocation: %s', self)
   arg_types = []
+
   for arg in self.args:
     try:
-      arg_types.append(deduce(arg, ctx))
+      arg_types.append(deduce(arg, ctx).map_size(mk_resolver(ctx.fn_symbolic_bindings)))
     except TypeMissingError as e:
       # These nodes could be ModRefs or NameRefs.
       callee_is_map = isinstance(
@@ -252,11 +264,12 @@ def _deduce_Invocation(self: ast.Invocation,
       ) and arg.name_def.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES
       if callee_is_map and arg_is_builtin:
         invocation = _create_element_invocation(self.span, arg, self.args[0])
-        arg_types.append(deduce(invocation, ctx))
+        arg_types.append(deduce(invocation, ctx).map_size(mk_resolver(ctx.fn_symbolic_bindings)))
       else:
         raise
 
   try:
+    print("need type for {}".format(self.callee))
     callee_type = deduce(self.callee, ctx)
   except TypeMissingError as e:
     e.span = self.span
@@ -267,17 +280,47 @@ def _deduce_Invocation(self: ast.Invocation,
     raise XlsTypeError(self.callee.span, callee_type, None,
                        'Callee does not have a function type.')
   if isinstance(self.callee, ast.ModRef):
-    imported_mod = ctx.node_to_type.get_imported(self.callee.mod)
+    imported_module, imported_node_to_type  = ctx.node_to_type.get_imported(self.callee.mod)
     ident = self.callee.value_tok.value
-    function_def = imported_mod[0].get_function(ident)
+    function_def = imported_module.get_function(ident)
   else:
     ident = self.callee.tok.value
     function_def = ctx.module.get_function(ident)
 
   self_type, symbolic_bindings = parametric_instantiator.instantiate(
       self.span, callee_type, tuple(arg_types), ctx, function_def.parametric_bindings)
+  print("just instantiated {}".format(function_def))
 
   self.symbolic_bindings = symbolic_bindings
+
+  if function_def.parametric_bindings:
+    # Finish typechecking the body
+
+    if isinstance(self.callee, ast.ModRef):
+      print("i am {}".format(self.callee))
+      importedCtx = DeduceCtx(imported_node_to_type, imported_module, ctx.interp_callback,
+                             ctx.typecheck_callback, dict(symbolic_bindings), f_import=ctx.f_import)
+      body_return_type = deduce(function_def.body, importedCtx)
+      ctx.node_to_type.update(importedCtx.node_to_type)
+      print("{} is done".format(self.callee))
+    else:
+      print("let's evaluate body of {}".format(function_def))
+      old_sb = ctx.fn_symbolic_bindings
+      ctx.fn_symbolic_bindings = dict(symbolic_bindings)
+      body_return_type = deduce(function_def.body, ctx)
+      ctx.fn_symbolic_bindings = old_sb
+
+    # self_type is the resolved return type and is computed in parametric_instantiator.py
+    resolved_body_type = body_return_type.map_size(mk_resolver(dict(symbolic_bindings)))
+    if resolved_body_type != self_type:
+      raise XlsTypeError(
+          function_def.body.span,
+          resolved_body_type,
+          self_type,
+          suffix='Return type of function body for "{}" did not match the '
+          'annotated return type.'.format(function_def.name.identifier))
+
+
   return self_type
 
 
@@ -422,11 +465,17 @@ def _deduce_Let(self: ast.Let, ctx: DeduceCtx) -> ConcreteType:  # pytype: disab
   """Deduces the concrete type of a Let AST node."""
   rhs_type = deduce(self.rhs, ctx)
 
+  resolver = mk_resolver(ctx.fn_symbolic_bindings)
+
   if self.type_ is not None:
     concrete_type = deduce(self.type_, ctx)
-    if rhs_type != concrete_type:
+
+    resolved_rhs_type = rhs_type.map_size(resolver)
+    resolved_concrete_type = concrete_type.map_size(resolver)
+
+    if resolved_rhs_type != resolved_concrete_type:
       raise XlsTypeError(
-          self.rhs.span, concrete_type, rhs_type,
+          self.rhs.span, resolved_concrete_type, resolved_rhs_type,
           'Annotated type did not match inferred type of right hand side.')
 
   _bind_names(self.name_def_tree, rhs_type, ctx)
@@ -490,9 +539,11 @@ def _deduce_Match(self: ast.Match, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
     for pattern in arm.patterns:
       _unify(pattern, matched, ctx)
 
+  resolver = mk_resolver(ctx.fn_symbolic_bindings)
+
   arm_types = tuple(deduce(arm, ctx) for arm in self.arms)
   for i, arm_type in enumerate(arm_types[1:], 1):
-    if arm_type != arm_types[0]:
+    if arm_type.map_size(resolver) != arm_types[0].map_size(resolver):
       raise XlsTypeError(
           self.arms[i].span, arm_type, arm_types[0],
           'This match arm did not have the same type as preceding match arms.')
@@ -513,7 +564,10 @@ def _deduce_For(self: ast.For, ctx: DeduceCtx) -> ConcreteType:  # pytype: disab
   _bind_names(self.names, annotated_type, ctx)
   body_type = deduce(self.body, ctx)
   deduce(self.iterable, ctx)
-  if init_type != body_type:
+
+  resolver = mk_resolver(ctx.fn_symbolic_bindings)
+
+  if init_type.map_size(resolver) != body_type.map_size(resolver):
     raise XlsTypeError(
         self.span, init_type, body_type,
         "For-loop init value type did not match for-loop body's result type.")
@@ -531,8 +585,11 @@ def _deduce_While(self: ast.While, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
   if test_type != ConcreteType.U1:
     raise XlsTypeError(self.test.span, test_type, ConcreteType.U1,
                        'Expect while-loop test to be a bool value.')
+
+  resolver = mk_resolver(ctx.fn_symbolic_bindings)
+
   body_type = deduce(self.body, ctx)
-  if init_type != body_type:
+  if init_type.map_size(resolver) != body_type.map_size(resolver):
     raise XlsTypeError(
         self.span, init_type, body_type,
         "While-loop init value type did not match while-loop body's "
@@ -555,11 +612,17 @@ def _is_acceptable_cast(from_: ConcreteType, to: ConcreteType) -> bool:
 def _deduce_Cast(self: ast.Cast, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   type_result = deduce(self.type_, ctx)
   expr_type = deduce(self.expr, ctx)
-  if not _is_acceptable_cast(from_=expr_type, to=type_result):
+
+  resolver = mk_resolver(ctx.fn_symbolic_bindings)
+  resolved_type_result = type_result.map_size(resolver)
+  resolved_expr_type = expr_type.map_size(resolver)
+
+  if not _is_acceptable_cast(from_=resolved_type_result,
+                             to=resolved_expr_type):
     raise XlsTypeError(
         self.span, expr_type, type_result,
         'Cannot cast from expression type {} to {}.'.format(
-            expr_type, type_result))
+            resolved_expr_type, resolved_type_result))
   return type_result
 
 
@@ -572,11 +635,12 @@ def _deduce_Unop(self: ast.Unop, ctx: DeduceCtx) -> ConcreteType:  # pytype: dis
 def _deduce_Array(self: ast.Array, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of an Array AST node."""
   member_types = [deduce(m, ctx) for m in self.members]
+  resolver = mk_resolver(ctx.fn_symbolic_bindings)
   for i, x in enumerate(member_types[1:], 1):
     logging.vlog(5, 'array member type %d: %s', i, x)
-    if x != member_types[0]:
+    if x.map_size(resolver) != member_types[0].map_size(resolver):
       raise XlsTypeError(
-          self.members[i].span, member_types[0], x,
+          self.members[i].span, member_types[0].map_size(resolver), x.map_size(resolver),
           'Array member did not have same type as other members.')
 
   inferred = ArrayType(member_types[0], len(member_types))
@@ -782,9 +846,11 @@ def _deduce_ModRef(self: ast.ModRef, ctx: DeduceCtx) -> ConcreteType:  # pytype:
         suffix='Attempted to refer to module {!r} function {!r} that is not public.'
         .format(imported_module.name, f.name))
   if f.name not in imported_node_to_type:
+    assert f.parametric_bindings
+    print("we need to figure out {}".format(f.name))
     # We don't type check parametric functions until invocations
     # Let's type check this imported parametric function with respect to its module
-    importCtx = DeduceCtx(imported_node_to_type, imported_module, ctx.interp_callback, ctx.typecheck_callback)
+    importCtx = DeduceCtx(imported_node_to_type, imported_module, ctx.interp_callback, ctx.typecheck_callback, f_import=ctx.f_import)
     ctx.typecheck_callback(f, importCtx)
     ctx.node_to_type.update(importCtx.node_to_type)
     imported_node_to_type = importCtx.node_to_type
@@ -811,15 +877,20 @@ def _deduce_Enum(self: ast.Enum, ctx: DeduceCtx) -> ConcreteType:  # pytype: dis
 def _deduce_Ternary(self: ast.Ternary,
                     ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of a Ternary AST node."""
+  resolver = mk_resolver(ctx.fn_symbolic_bindings)
+
   test_type = deduce(self.test, ctx)
-  if test_type != ConcreteType.U1:
-    raise XlsTypeError(self.span, test_type, ConcreteType.U1,
+  resolved_test_type = test_type.map_size(resolver)
+  if resolved_test_type != ConcreteType.U1:
+    raise XlsTypeError(self.span, resolved_test_type, ConcreteType.U1,
                        'Test type for conditional expression is not "bool"')
   cons_type = deduce(self.consequent, ctx)
+  resolved_cons_type = cons_type.map_size(resolver)
   alt_type = deduce(self.alternate, ctx)
-  if cons_type != alt_type:
+  resolved_alt_type = alt_type.map_size(resolver)
+  if resolved_cons_type != resolved_alt_type:
     raise XlsTypeError(
-        self.span, cons_type, alt_type,
+        self.span, resolved_cons_type, resolved_alt_type,
         'Ternary consequent type (in the "then" clause) did not match '
         'alternate type (in the "else" clause)')
   return cons_type
@@ -859,9 +930,14 @@ def _deduce_Binop(self: ast.Binop, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
   lhs_type = deduce(self.lhs, ctx)
   rhs_type = deduce(self.rhs, ctx)
 
-  if lhs_type != rhs_type:
+  resolver = mk_resolver(ctx.fn_symbolic_bindings)
+
+  resolved_lhs_type = lhs_type.map_size(resolver)
+  resolved_rhs_type = rhs_type.map_size(resolver)
+
+  if resolved_lhs_type != resolved_rhs_type:
     raise XlsTypeError(
-        self.span, lhs_type, rhs_type,
+        self.span, resolved_lhs_type, resolved_rhs_type,
         'Could not deduce type for binary operation {0} ({0!r}).'.format(
             self.operator))
 
@@ -972,6 +1048,8 @@ def deduce(n: ast.AstNode, ctx: DeduceCtx) -> ConcreteType:
     assert isinstance(result, ConcreteType), result
   else:
     result = ctx.node_to_type[n] = _deduce(n, ctx)
+    if str(n) == "accum":
+      print(ctx.node_to_type)
     logging.vlog(5, 'Deduced type of %s => %s', n, result)
     assert isinstance(result, ConcreteType), \
         '_deduce did not return a ConcreteType; got: {!r}'.format(result)

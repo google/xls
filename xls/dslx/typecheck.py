@@ -68,6 +68,15 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx):
     param_types.append(param_type)
     ctx.node_to_type[param.name] = param_type
 
+  if f.parametric_bindings:
+    # Let's deduce the body at instantiation
+    annotated_return_type = deduce.deduce(f.return_type, ctx)
+    ctx.node_to_type[f.name] = ctx.node_to_type[f] = FunctionType(
+         tuple(param_types), annotated_return_type)
+    return
+
+
+  print("deducing body for {}".format(f))
   body_return_type = deduce.deduce(f.body, ctx)
   if f.return_type is None:
     if body_return_type.is_nil():
@@ -84,11 +93,16 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx):
           'found.')
   else:
     annotated_return_type = deduce.deduce(f.return_type, ctx)
-    if body_return_type != annotated_return_type:
+
+    resolver = deduce.mk_resolver(dict()) # No symbolic bindings
+    resolved_return_type =  annotated_return_type.map_size(resolver)
+    resolved_body_type = body_return_type.map_size(resolver)
+
+    if resolved_return_type != resolved_body_type:
       raise XlsTypeError(
           f.body.span,
-          body_return_type,
-          annotated_return_type,
+          resolved_body_type,
+          resolved_return_type,
           suffix='Return type of function body for "{}" did not match the '
           'annotated return type.'.format(f.name.identifier))
 
@@ -123,17 +137,44 @@ def check_test(t: ast.Test, ctx: deduce.DeduceCtx) -> None:
 def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
                  ctx: deduce.DeduceCtx) -> bool:
   """Instantiates a builtin parametric invocation; e.g. 'update'."""
-  arg_types = tuple(ctx.node_to_type[arg] for arg in invocation.args)
+  resolver = deduce.mk_resolver(ctx.fn_symbolic_bindings)
+  print(ctx.node_to_type)
+  arg_types = tuple(ctx.node_to_type[arg].map_size(resolver) for arg in invocation.args)
+
   if builtin_name.identifier not in dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
     return False
 
-  #print(ctx.node_to_type.module.get_function(builtin_name.identifier))
   fsignature = dslx_builtins.get_fsignature(builtin_name.identifier)
   fn_type, symbolic_bindings = fsignature(arg_types, builtin_name.identifier,
                                           invocation.span)
   invocation.symbolic_bindings = symbolic_bindings
   ctx.node_to_type[invocation.callee] = fn_type
   ctx.node_to_type[invocation] = fn_type.return_type
+
+
+  if builtin_name.identifier == "map":
+    map_fn = invocation.args[1]
+    if isinstance(map_fn, ast.ModRef):
+      imported_module, imported_node_to_type  = ctx.node_to_type.get_imported(map_fn.mod)
+      ident = map_fn.value_tok.value
+      function_def = imported_module.get_function(ident)
+
+      importedCtx = deduce.DeduceCtx(imported_node_to_type, imported_module, ctx.interp_callback,
+                             ctx.typecheck_callback, dict(symbolic_bindings), f_import=ctx.f_import)
+      body_return_type = deduce.deduce(function_def.body, importedCtx)
+      ctx.node_to_type.update(importedCtx.node_to_type)
+    else:
+      if (map_fn.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES):
+        return True
+
+      ident = map_fn.tok.value
+      function_def = ctx.module.get_function(ident)
+
+      old_sb = ctx.fn_symbolic_bindings
+      ctx.fn_symbolic_bindings = dict(symbolic_bindings)
+      body_return_type = deduce.deduce(function_def.body, ctx)
+      ctx.fn_symbolic_bindings = old_sb
+
   return True
 
 
@@ -188,6 +229,7 @@ def _check_function_or_test_in_module(f: Union[Function, ast.Test],
           e.node.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES):
         logging.vlog(2, 'node: %r; identifier: %r, exception user: %r', e.node,
                      e.node.identifier, e.user)
+
         if isinstance(e.user, ast.Invocation) and _instantiate(
             e.node, e.user, ctx):
           continue
@@ -218,7 +260,8 @@ def check_module(
   node_to_type = deduce.NodeToType()
   interp_callback = interpreter_helpers.interpret_expr
   ctx = deduce.DeduceCtx(node_to_type, module, interp_callback,
-                         _check_function_or_test_in_module)
+                         _check_function_or_test_in_module,
+                         f_import=f_import)
 
   # First populate node_to_type with constants, enums, and resolved imports.
   for member in ctx.module.top:
