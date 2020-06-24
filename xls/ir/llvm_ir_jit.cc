@@ -229,8 +229,12 @@ class BuilderVisitor : public DfsVisitorWithDefault {
     llvm::Value* start = node_map_.at(dynamic_bit_slice->operand(1));
     int64 value_width = value->getType()->getIntegerBitWidth();
     int64 start_width = start->getType()->getIntegerBitWidth();
+    // Either value or start may be wider, so we use the widest of both
+    // since LLVM requires both arguments to be of the same type for
+    // comparison and shifting.
     int64 max_width = std::max(start_width, value_width);
     llvm::IntegerType* max_width_type = builder_->getIntNTy(max_width);
+    llvm::Value* value_ext = builder_->CreateZExt(value, max_width_type);
     llvm::Value* start_ext = builder_->CreateZExt(start, max_width_type);
 
     Value operand_width(
@@ -245,8 +249,8 @@ class BuilderVisitor : public DfsVisitorWithDefault {
     XLS_ASSIGN_OR_RETURN(
         llvm::Constant * zeros,
         type_converter_->ToLlvmConstant(return_type, Value(Bits(dynamic_bit_slice->width()))));
-    // Then shift and "mask" (by casting) the input value.
-    llvm::Value* shifted_value = builder_->CreateLShr(value, start_ext);
+    // Then shift and truncate the input value.
+    llvm::Value* shifted_value = builder_->CreateLShr(value_ext, start_ext);
     llvm::Value* truncated_value = builder_->CreateTrunc(shifted_value, return_type);
     llvm::Value* result = builder_->CreateSelect(out_of_bounds, zeros, truncated_value);
     return StoreResult(dynamic_bit_slice, result);
