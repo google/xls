@@ -225,7 +225,7 @@ class TranslatorTest(absltest.TestCase):
 #    self.one_in_one_out("return uai32(a).slc<3>(2);", -5, 0, -11)
 #    self.one_in_one_out("return ((uai32)a).slc<3>(2);", -5, 0, 6)
   
-  def test_invalidStructOperation(self):
+  def test_invalid_struct_operation(self):
       statestruct = hls_types_pb2.HLSStructType()
 
       int_type = hls_types_pb2.HLSIntType()
@@ -248,13 +248,10 @@ class TranslatorTest(absltest.TestCase):
         return ret;
       }
       """
-      try:
-        f = self.parse_and_get_function(source, hls_types_by_name)
-      except ValueError as error:
-        print(error)
+      with self.assertRaisesRegex(ValueError, 'WARNING: Invalid binary operand at'):
+          f = self.parse_and_get_function(source, hls_types_by_name)
 
-
-  def test_invalidcomparison(self):
+  def test_invalid_comparison(self):
       statestruct = hls_types_pb2.HLSStructType()
 
       int_type = hls_types_pb2.HLSIntType()
@@ -279,11 +276,8 @@ class TranslatorTest(absltest.TestCase):
         return ret;
       }
       """
-      try:
-        f = self.parse_and_get_function(source, hls_types_by_name)
-      except ValueError as error:
-        print(error)
-
+      with self.assertRaisesRegex(ValueError, 'WARNING: Invalid operand at'):
+          f = self.parse_and_get_function(source, hls_types_by_name)
 
   def test_structref(self):
     somestruct = hls_types_pb2.HLSStructType()

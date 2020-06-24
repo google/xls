@@ -688,7 +688,7 @@ class Translator(object):
           add_mul = self.fb.add_smul if left_signed else self.fb.add_umul
           binary_op = add_mul
         else:
-          raise NotImplementedError("Unsupported binary operator", stmt_ast.op)
+          raise NotImplementedError("WARNING: Unsupported binary operator", stmt_ast.op)
         if not (isinstance(left_type, IntType) and isinstance(right_type, IntType)):
           raise ValueError("WARNING: Invalid binary operand at " + str(stmt_ast.coord))  
 
