@@ -14,9 +14,6 @@
 
 # Common utilities shared among XLA subfolders.
 
-load("//tools/build_defs/cc:cc_fake_binary.bzl", "cc_fake_binary")
-# pytype test and library
-
 package(
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
