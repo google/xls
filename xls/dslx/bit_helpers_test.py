@@ -103,6 +103,19 @@ class BitHelpersTest(absltest.TestCase):
     self.assertEqual(15,
                      bit_helpers.from_twos_complement(value=0xf, bit_count=5))
 
+  def test_to_bits_string(self):
+    for want, input_ in [
+        ('0b0', 0b0),
+        ('0b1', 0b1),
+        ('0b10', 0b10),
+        ('0b1010', 0b1010),
+        ('0b1_0000', 0b1_0000),
+        ('0b10_0000', 0b10_0000),
+        ('0b1010_0101', 0b1010_0101),
+        ('0b1_1010_0101', 0b1_1010_0101),
+    ]:
+      self.assertEqual(want, bit_helpers.to_bits_string(input_))
+
 
 if __name__ == '__main__':
   absltest.main()

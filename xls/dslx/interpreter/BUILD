@@ -144,6 +144,7 @@ py_library(
         "//xls/dslx:bit_helpers",
         "//xls/dslx:concrete_type",
         "//xls/dslx:deduce",
+        "//xls/dslx:import_fn",
         "//xls/dslx:parametric_expression",
         "//xls/dslx:scanner",
         "//xls/dslx:span",
@@ -200,18 +201,35 @@ py_binary(
     srcs_version = "PY3",
     deps = [
         ":interpreter",
+        ":value",
         "//xls/dslx:ast",
         "//xls/dslx:bindings",
+        "//xls/dslx:bit_helpers",
         "//xls/dslx:concrete_type",
         "//xls/dslx:deduce",
-        "//xls/dslx:fakefs_util",
+        "//xls/dslx:import_routines",
         "//xls/dslx:parser",
         "//xls/dslx:parser_helpers",
         "//xls/dslx:scanner",
         "//xls/dslx:span",
         "//xls/dslx:typecheck",
+        "//xls/dslx:xls_type_error",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
+        "@pyfakefs_archive//:pyfakefs",
+    ],
+)
+
+py_test(
+    name = "repl_test",
+    srcs = ["repl_test.py"],
+    data = [":repl"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        ":repl@pytype@lib",
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
     ],
 )
 

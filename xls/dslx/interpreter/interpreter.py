@@ -32,6 +32,7 @@ import termcolor
 from xls.dslx import ast
 from xls.dslx import bit_helpers
 from xls.dslx import deduce
+from xls.dslx import import_fn
 from xls.dslx.concrete_type import ArrayType
 from xls.dslx.concrete_type import BitsType
 from xls.dslx.concrete_type import ConcreteType
@@ -1228,6 +1229,16 @@ class Interpreter(object):
 
     return result
 
+  def _do_import(self, subject: import_fn.ImportTokens,
+                 span: Span) -> ast.Module:
+    """Handles an import as specified by a top level module statement."""
+    if self._f_import is None:
+      raise EvaluateError(span,
+                          'Cannot import, no import capability was provided.')
+    imported_module, imported_node_to_type = self._f_import(subject)
+    self._node_to_type.update(imported_node_to_type)
+    return imported_module
+
   def _make_top_level_bindings(self, m: ast.Module) -> Bindings:
     """Creates a fresh set of bindings for use in module-level evaluation.
 
@@ -1292,12 +1303,7 @@ class Interpreter(object):
       elif isinstance(member, ast.Enum):
         b.add_enum(member.identifier, member)
       elif isinstance(member, ast.Import):
-        if self._f_import is None:
-          raise EvaluateError(
-              member.span, 'Cannot import, no import capability was provided.')
-        subject = member.name
-        imported_module, imported_node_to_type = self._f_import(subject)
-        self._node_to_type.update(imported_node_to_type)
+        imported_module = self._do_import(member.name, member.span)
         b.add_mod(member.identifier, imported_module)
     return b
 
