@@ -227,7 +227,6 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":repl@pytype@lib",
         "//xls/common:runfiles",
         "//xls/common:test_base",
     ],
