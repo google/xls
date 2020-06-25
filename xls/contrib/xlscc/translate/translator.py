@@ -688,9 +688,9 @@ class Translator(object):
           add_mul = self.fb.add_smul if left_signed else self.fb.add_umul
           binary_op = add_mul
         else:
-          raise NotImplementedError("WARNING: Unsupported binary operator", stmt_ast.op)
+          raise NotImplementedError("Unsupported binary operator", stmt_ast.op)
         if not (isinstance(left_type, IntType) and isinstance(right_type, IntType)):
-          raise ValueError("WARNING: Invalid binary operand at " + str(stmt_ast.coord))  
+          raise ValueError("Invalid binary operand at " + str(stmt_ast.coord))  
 
         return binary_op(
             self.gen_convert_ir(left, left_type,
@@ -748,10 +748,10 @@ class Translator(object):
             loc), result_type
       elif add_cmp_fn is not None:
         if not (isinstance(left_type, BoolType) or isinstance(left_type, IntType)):
-          raise ValueError("WARNING: Invalid operand at " +
+          raise ValueError("Invalid operand at " +
                                     str(stmt_ast.coord))
         if not (isinstance(right_type, BoolType) or isinstance(right_type, IntType)):
-          raise ValueError("WARNING: Invalid operand at " +
+          raise ValueError("Invalid operand at " +
                                     str(stmt_ast.coord))
         if left_signed != right_signed:
           print("WARNING: Sign mismatch in comparison at " +
@@ -1459,7 +1459,7 @@ class Translator(object):
         if not isinstance(cond_type, IntType):
           raise ValueError("Switch must be on integer")
         assert isinstance(stmt.stmt, c_ast.Compound)
-        next_is_default = False
+        next_is_default = False 
         for item in stmt.stmt.block_items:
           if isinstance(item, c_ast.Case):
             case_expr, case_type = self.gen_expr_ir(item.expr, condition)
@@ -1479,7 +1479,7 @@ class Translator(object):
 
             ret_vals += self.gen_ir_block_compound_or_single(
                 item.stmts, compound_condition, None, True)
-
+            
             if next_is_default:
               ret_vals += self.gen_ir_block_compound_or_single(
                   item.stmts, condition, None, True)

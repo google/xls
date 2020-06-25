@@ -248,7 +248,7 @@ class TranslatorTest(absltest.TestCase):
         return ret;
       }
       """
-      with self.assertRaisesRegex(ValueError, 'WARNING: Invalid binary operand at'):
+      with self.assertRaisesRegex(ValueError, 'Invalid binary operand at'):
           f = self.parse_and_get_function(source, hls_types_by_name)
 
   def test_invalid_comparison(self):
@@ -276,7 +276,7 @@ class TranslatorTest(absltest.TestCase):
         return ret;
       }
       """
-      with self.assertRaisesRegex(ValueError, 'WARNING: Invalid operand at'):
+      with self.assertRaisesRegex(ValueError, 'Invalid operand at'):
           f = self.parse_and_get_function(source, hls_types_by_name)
 
   def test_structref(self):
