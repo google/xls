@@ -324,6 +324,8 @@ def _deduce_Invocation(self: ast.Invocation,
       ctx.fn_symbolic_bindings = old[1]
       ctx.fn_name = old[0]
 
+      # HACK: force the typecheck of this body again
+      ctx.node_to_type._dict.pop(function_def.body)
 
   return self_type
 

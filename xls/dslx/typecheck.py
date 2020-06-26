@@ -110,7 +110,7 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx):
   else:
     annotated_return_type = deduce.deduce(f.return_type, ctx)
 
-    resolver = deduce.mk_resolver(ctx.fn_symbolic_bindings) # No symbolic bindings
+    resolver = deduce.mk_resolver(ctx.fn_symbolic_bindings)
     resolved_return_type =  annotated_return_type.map_size(resolver)
     resolved_body_type = body_return_type.map_size(resolver)
 
@@ -188,7 +188,7 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
       ctx.sym_stack.append((ctx.fn_name, ctx.fn_symbolic_bindings))
       ctx.fn_name = ident
       #print("in {}, need to check {}'s body".format(ctx.sym_stack[-1][0], ident))
-      ctx.fn_symbolic_binodings = dict(symbolic_bindings)
+      ctx.fn_symbolic_bindings = dict(symbolic_bindings)
       # Force typecheck.py to deduce the body of this parametric function
       # Using our newly derived symbolic bindings
       _check_function_or_test_in_module(function_def, ctx)
@@ -276,6 +276,11 @@ def _check_function_or_test_in_module(f: Union[Function, ast.Test],
           continue
       raise
 
+  # Add back the bodies of parametric fns for completeness
+  for f_name in function_map:
+    f = ctx.module.get_function(f_name)
+    if f.parametric_bindings and f_name in ctx.parametric_fn_cache:
+      ctx.node_to_type[f.body] = ctx.parametric_fn_cache[f_name][f.body]
 
 ImportFn = Callable[[Tuple[Text, ...]], Tuple[ast.Module, deduce.NodeToType]]
 
