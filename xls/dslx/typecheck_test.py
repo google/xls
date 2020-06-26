@@ -258,7 +258,7 @@ fn f(x: u32) -> (u32, u8) {
     self._typecheck(
         """
     fn [X: u32 = u32: 5] foo(x: bits[X]) -> bits[X] { x }
-    fn bar() -> bits[10] { foo(u10: 1) }
+    fn bar() -> bits[10] { foo(u5: 1) + foo(u10: 1) }
         """,
           error='Parametric constraint violated')
 
@@ -402,6 +402,19 @@ fn f(x: u32) -> (u32, u8) {
     fn bar() -> bits[10] { foo(u5: 1) }
         """,
           error='Return type of function body for "double" did not match')
+
+  def test_parametric_fn_not_always_polymorphic(self):
+    self._typecheck(
+        """
+    fn [X: u32] foo(x: bits[X]) -> u1 {
+        let non_polymorphic  =  x + u5: 1 in
+        u1: 0
+    }
+    fn bar() -> bits[1] {
+        foo(u5: 5) ^ foo(u10: 5)
+    }
+        """,
+          error='Types are not compatible: uN[10] vs uN[5]')
 
   def test_let_binding_inferred_does_not_match_annotation(self):
     self._typecheck(

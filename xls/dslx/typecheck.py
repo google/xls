@@ -17,6 +17,7 @@
 """Implementation of type checking functionality on a parsed AST object."""
 
 from typing import Dict, Optional, Text, Tuple, Union, Callable
+import copy
 
 from absl import logging
 
@@ -27,10 +28,9 @@ from xls.dslx import dslx_builtins
 from xls.dslx.ast import Function
 from xls.dslx.ast import Module
 from xls.dslx.interpreter import interpreter_helpers
-from xls.dslx.concrete_type import ConcreteType
+from xls.dslx.concrete_type import ConcreteType, TupleType
 from xls.dslx.concrete_type import FunctionType
 from xls.dslx.xls_type_error import XlsTypeError
-
 
 def _check_function(f: Function, ctx: deduce.DeduceCtx):
   """Validates type annotations on parameters/return type of f are consistent.
@@ -44,40 +44,56 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx):
     XlsTypeError: When the return type deduced is inconsistent with the return
       type annotation on "f".
   """
-  logging.vlog(1, 'Type-checking function: %s', f)
+  if f.parametric_bindings and ctx.fn_name == f.name.identifier:
+    annotated_return_type = ctx.node_to_type[f].return_type
+    param_types = list(ctx.node_to_type[f].params)
+  else:
+    logging.vlog(1, 'Type-checking sig for function: %s', f)
 
-  for parametric in f.parametric_bindings:
-    parametric_binding_type = deduce.deduce(parametric.type_, ctx)
-    assert isinstance(parametric_binding_type, ConcreteType)
-    if parametric.expr:
-      expr_type = deduce.deduce(parametric.expr, ctx)
-      if expr_type != parametric_binding_type:
-        raise XlsTypeError(
-            parametric.span,
-            parametric_binding_type,
-            expr_type,
-            suffix='Annotated type of derived parametric '
-            'value did not match inferred type.')
-    ctx.node_to_type[parametric.name] = parametric_binding_type
+    for parametric in f.parametric_bindings:
+      parametric_binding_type = deduce.deduce(parametric.type_, ctx)
+      assert isinstance(parametric_binding_type, ConcreteType)
+      if parametric.expr:
+        expr_type = deduce.deduce(parametric.expr, ctx)
+        if expr_type != parametric_binding_type:
+          raise XlsTypeError(
+              parametric.span,
+              parametric_binding_type,
+              expr_type,
+              suffix='Annotated type of derived parametric '
+              'value did not match inferred type.')
+      ctx.node_to_type[parametric.name] = parametric_binding_type
 
-  param_types = []
-  for param in f.params:
-    logging.vlog(2, 'Checking param: %s', param)
-    param_type = deduce.deduce(param, ctx)
-    assert isinstance(param_type, ConcreteType), param_type
-    param_types.append(param_type)
-    ctx.node_to_type[param.name] = param_type
+    param_types = []
+    for param in f.params:
+      logging.vlog(2, 'Checking param: %s', param)
+      param_type = deduce.deduce(param, ctx)
+      assert isinstance(param_type, ConcreteType), param_type
+      param_types.append(param_type)
+      ctx.node_to_type[param.name] = param_type
+
+    if f.parametric_bindings:
+      annotated_return_type = deduce.deduce(f.return_type, ctx) if f.return_type else TupleType(None)
+      ctx.node_to_type[f.name] = ctx.node_to_type[f] = FunctionType(
+           tuple(param_types), annotated_return_type)
+      return
+
+  logging.vlog(1, 'Type-checking body for function: %s', f)
 
   if f.parametric_bindings:
-    # Let's deduce the body at instantiation
-    annotated_return_type = deduce.deduce(f.return_type, ctx)
-    ctx.node_to_type[f.name] = ctx.node_to_type[f] = FunctionType(
-         tuple(param_types), annotated_return_type)
-    return
+    if f in ctx.parametric_fn_cache:
+      cached_types = ctx.parametric_fn_cache[f]
+      without_f_dict = { node : ctx.node_to_type[node] for node in ctx.node_to_type._dict if not node in cached_types }
+      ctx.node_to_type._dict = without_f_dict
+      body_return_type = deduce.deduce(f.body, ctx)
+    else:
+      og_dict = copy.copy(ctx.node_to_type._dict)
+      body_return_type = deduce.deduce(f.body, ctx)
+      diff = { node : ctx.node_to_type[node] for node in set(ctx.node_to_type._dict) - set(og_dict) }
+      ctx.parametric_fn_cache[f] = diff
+  else:
+    body_return_type = deduce.deduce(f.body, ctx)
 
-
-  print("deducing body for {}".format(f))
-  body_return_type = deduce.deduce(f.body, ctx)
   if f.return_type is None:
     if body_return_type.is_nil():
       # When body return type is nil and no return type is annotated, everything
@@ -94,7 +110,7 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx):
   else:
     annotated_return_type = deduce.deduce(f.return_type, ctx)
 
-    resolver = deduce.mk_resolver(dict()) # No symbolic bindings
+    resolver = deduce.mk_resolver(ctx.fn_symbolic_bindings) # No symbolic bindings
     resolved_return_type =  annotated_return_type.map_size(resolver)
     resolved_body_type = body_return_type.map_size(resolver)
 
@@ -138,7 +154,6 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
                  ctx: deduce.DeduceCtx) -> bool:
   """Instantiates a builtin parametric invocation; e.g. 'update'."""
   resolver = deduce.mk_resolver(ctx.fn_symbolic_bindings)
-  print(ctx.node_to_type)
   arg_types = tuple(ctx.node_to_type[arg].map_size(resolver) for arg in invocation.args)
 
   if builtin_name.identifier not in dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
@@ -202,18 +217,41 @@ def _check_function_or_test_in_module(f: Union[Function, ast.Test],
 
   function_map = {f.name.identifier: f for f in ctx.module.get_functions()}
   while stack:
+    print("#####", ctx.fn_name,"###########", stack, "#######################")
     try:
       f = seen[stack[-1]][0]
       if isinstance(f, ast.Function):
+        """
+        if not f.parametric_bindings:
+          ret_type = _check_function_sig(f, ctx)
+          _check_function_body(f, ctx, fn_type)
+          assert isinstance(f.name, ast.NameDef) and f.name in ctx.node_to_type
+        else:
+          _check_function_sig(f, ctx)
+        """
         _check_function(f, ctx)
-        assert isinstance(f.name, ast.NameDef) and f.name in ctx.node_to_type
+        """
+        if f.parametric_bindings:
+          if f.name.identifier != ctx.fn_name:
+            seen[(f.name.identifier, isinstance(f, ast.Test))] = (f, False
+                                                           )  # Mark as done.
+            stack.pop()
+          continue
+        """
       else:
         assert isinstance(f, ast.Test)
         check_test(f, ctx)
       seen[(f.name.identifier, isinstance(f, ast.Test))] = (f, False
                                                            )  # Mark as done.
       stack.pop()
+
+      if len(ctx.sym_stack):
+        old = ctx.sym_stack.pop()
+        ctx.fn_symbolic_bindings = old[1]
+        ctx.fn_name = old[0]
+
     except deduce.TypeMissingError as e:
+      #print("##### picked up {}, currently in {}  #######".format(e.node, ctx.fn_name))
       if isinstance(e.node, ast.NameDef) and e.node.identifier in function_map:
         # If it's seen and not-done, we're recursing.
         if seen.get((e.node.identifier, False), (None, False))[1]:
@@ -281,10 +319,12 @@ def check_module(
       continue
 
     logging.vlog(2, 'Typechecking function: %s', f)
+    ctx.fn_name = f.name.identifier
     _check_function_or_test_in_module(f, ctx)
     logging.vlog(2, 'Finished typechecking function: %s', f)
 
   test_map = {t.name.identifier: t for t in ctx.module.get_tests()}
+  ctx.fn_name = "test_"
   for t in test_map.values():
     assert isinstance(t, ast.Test), t
     logging.vlog(2, 'Typechecking test: %s', t)

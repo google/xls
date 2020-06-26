@@ -19,7 +19,7 @@
 """Type system deduction rules for AST nodes."""
 
 import typing
-from typing import Optional, Text, Dict, Union, Callable, Type, Tuple, Sequence
+from typing import Optional, Text, Dict, Union, Callable, Type, Tuple, Sequence, List
 from dataclasses import dataclass, field
 
 from absl import logging
@@ -162,8 +162,11 @@ class DeduceCtx:
   module: ast.Module
   interp_callback: InterpCallbackType
   typecheck_callback: Callable[[ast.Function], None]
+  fn_name: Optional[Text] = None
   fn_symbolic_bindings: Dict[Text, int] = field(default_factory=dict)
   f_import: Optional[ImportFn] = None
+  sym_stack: List[Tuple] = field(default_factory=list)
+  parametric_fn_cache: Dict = field(default_factory=dict)
 
 def mk_resolver(symbolic_bindings: Dict[Text, int]):
   """Closure hack"""
@@ -269,7 +272,6 @@ def _deduce_Invocation(self: ast.Invocation,
         raise
 
   try:
-    print("need type for {}".format(self.callee))
     callee_type = deduce(self.callee, ctx)
   except TypeMissingError as e:
     e.span = self.span
@@ -289,37 +291,40 @@ def _deduce_Invocation(self: ast.Invocation,
 
   self_type, symbolic_bindings = parametric_instantiator.instantiate(
       self.span, callee_type, tuple(arg_types), ctx, function_def.parametric_bindings)
-  print("just instantiated {}".format(function_def))
 
   self.symbolic_bindings = symbolic_bindings
 
   if function_def.parametric_bindings:
-    # Finish typechecking the body
+    # Finish typechecking the body of the parametric function we're calling
 
     if isinstance(self.callee, ast.ModRef):
-      print("i am {}".format(self.callee))
       importedCtx = DeduceCtx(imported_node_to_type, imported_module, ctx.interp_callback,
                              ctx.typecheck_callback, dict(symbolic_bindings), f_import=ctx.f_import)
-      body_return_type = deduce(function_def.body, importedCtx)
+      importedCtx.fn_name = ident
+      importedCtx.fn_symbolic_bindings = dict(symbolic_bindings)
+      #body_return_type = deduce(function_def.body, importedCtx)
+      ctx.typecheck_callback(function_def, importedCtx)
+      #importedCtx.node_to_type._dict.pop(function_def.body, None)
       ctx.node_to_type.update(importedCtx.node_to_type)
-      print("{} is done".format(self.callee))
     else:
-      print("let's evaluate body of {}".format(function_def))
-      old_sb = ctx.fn_symbolic_bindings
+      ctx.sym_stack.append((ctx.fn_name, ctx.fn_symbolic_bindings))
+      ctx.fn_name = ident
+      #print("in {}, need to check {}'s body".format(ctx.sym_stack[-1][0], ident))
       ctx.fn_symbolic_bindings = dict(symbolic_bindings)
-      body_return_type = deduce(function_def.body, ctx)
-      ctx.fn_symbolic_bindings = old_sb
 
-    # self_type is the resolved return type and is computed in parametric_instantiator.py
-    resolved_body_type = body_return_type.map_size(mk_resolver(dict(symbolic_bindings)))
-    if resolved_body_type != self_type:
-      raise XlsTypeError(
-          function_def.body.span,
-          resolved_body_type,
-          self_type,
-          suffix='Return type of function body for "{}" did not match the '
-          'annotated return type.'.format(function_def.name.identifier))
+      # Force typecheck.py to deduce the body of this parametric function
+      # Using our newly derived symbolic bindings
+      try:
+        body_return_type = ctx.node_to_type[function_def.body]
+      except TypeMissingError as e:
+          e.node = self.callee.name_def
+          raise
 
+      old = ctx.sym_stack.pop()
+      ctx.fn_symbolic_bindings = old[1]
+      ctx.fn_name = old[0]
+
+      ctx.node_to_type._dict.pop(function_def.body)
 
   return self_type
 
@@ -847,10 +852,11 @@ def _deduce_ModRef(self: ast.ModRef, ctx: DeduceCtx) -> ConcreteType:  # pytype:
         .format(imported_module.name, f.name))
   if f.name not in imported_node_to_type:
     assert f.parametric_bindings
-    print("we need to figure out {}".format(f.name))
     # We don't type check parametric functions until invocations
     # Let's type check this imported parametric function with respect to its module
     importCtx = DeduceCtx(imported_node_to_type, imported_module, ctx.interp_callback, ctx.typecheck_callback, f_import=ctx.f_import)
+    importCtx.fn_name = ctx.fn_name
+    importCtx.fn_symbolic_bindings = ctx.fn_symbolic_bindings
     ctx.typecheck_callback(f, importCtx)
     ctx.node_to_type.update(importCtx.node_to_type)
     imported_node_to_type = importCtx.node_to_type
@@ -1043,13 +1049,12 @@ def deduce(n: ast.AstNode, ctx: DeduceCtx) -> ConcreteType:
   that were necessary to determine (deduce) the resulting type of n.
   """
   assert isinstance(n, ast.AstNode), n
-  if n in ctx.node_to_type:
+  if n in ctx.node_to_type: #and (not ctx.fn_symbolic_bindings or not isinstance(n, ast.NameRef)):
     result = ctx.node_to_type[n]
     assert isinstance(result, ConcreteType), result
   else:
+    #print("checking {}".format(n))
     result = ctx.node_to_type[n] = _deduce(n, ctx)
-    if str(n) == "accum":
-      print(ctx.node_to_type)
     logging.vlog(5, 'Deduced type of %s => %s', n, result)
     assert isinstance(result, ConcreteType), \
         '_deduce did not return a ConcreteType; got: {!r}'.format(result)
