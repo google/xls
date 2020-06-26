@@ -207,8 +207,10 @@ class TranslatorTest(absltest.TestCase):
       default:
       case 0:
         return b;
+      case 6:
       case 1:
         return a;
+      case 4:
       case 5:
         return a+b;
     }
@@ -217,6 +219,8 @@ class TranslatorTest(absltest.TestCase):
     self.one_in_one_out(source, 1, 222, 1)
     self.one_in_one_out(source, 2, 222, 222)
     self.one_in_one_out(source, 5, 222, 227)
+    self.one_in_one_out(source, 4, 222, 226)
+    self.one_in_one_out(source, 6, 222, 6)
 
   def test_simple_unrolled_loop(self):
     source = """

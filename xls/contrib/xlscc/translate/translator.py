@@ -1463,7 +1463,9 @@ class Translator(object):
         if not isinstance(cond_type, IntType):
           raise ValueError("Switch must be on integer")
         assert isinstance(stmt.stmt, c_ast.Compound)
-        next_is_default = False 
+        next_is_default = False
+        case_falls_thr = False
+        fall_thr_cond = None
         for item in stmt.stmt.block_items:
           if isinstance(item, c_ast.Case):
             case_expr, case_type = self.gen_expr_ir(item.expr, condition)
@@ -1474,20 +1476,24 @@ class Translator(object):
                 item)
             case_loc = translate_loc(item.expr)
             case_condition = self.fb.add_eq(cond_expr, conv_case, case_loc)
-
+            if case_falls_thr:
+                case_condition = self.fb.add_or(fall_thr_cond, case_condition, case_loc)
+                case_falls_thr = False
+            else:
+                fall_thr_cond = case_condition 
             if condition is None:
               compound_condition = case_condition
             else:
               compound_condition = self.fb.add_and(condition, case_condition,
                                                    case_loc)
-
-            ret_vals += self.gen_ir_block_compound_or_single(
+            ret_stmt = self.gen_ir_block_compound_or_single(
                 item.stmts, compound_condition, None, True)
-            
+            if not (ret_stmt):
+                case_falls_thr = True
+            ret_vals += ret_stmt
             if next_is_default:
               ret_vals += self.gen_ir_block_compound_or_single(
                   item.stmts, condition, None, True)
-
             next_is_default = False
           else:
             assert isinstance(item, c_ast.Default)
