@@ -175,8 +175,8 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
       function_def = imported_module.get_function(ident)
 
       importedCtx = deduce.DeduceCtx(imported_node_to_type, imported_module, ctx.interp_callback,
-                             ctx.typecheck_callback, dict(symbolic_bindings), f_import=ctx.f_import)
-      body_return_type = deduce.deduce(function_def.body, importedCtx)
+                             ctx.typecheck_callback,f_import=ctx.f_import, fn_name=ident, fn_symbolic_bindings=dict(symbolic_bindings), parametric_fn_cache=ctx.parametric_fn_cache)
+      ctx.typecheck_callback(function_def, importedCtx)
       ctx.node_to_type.update(importedCtx.node_to_type)
     else:
       if (map_fn.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES):
@@ -185,10 +185,13 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
       ident = map_fn.tok.value
       function_def = ctx.module.get_function(ident)
 
-      old_sb = ctx.fn_symbolic_bindings
-      ctx.fn_symbolic_bindings = dict(symbolic_bindings)
-      body_return_type = deduce.deduce(function_def.body, ctx)
-      ctx.fn_symbolic_bindings = old_sb
+      ctx.sym_stack.append((ctx.fn_name, ctx.fn_symbolic_bindings))
+      ctx.fn_name = ident
+      #print("in {}, need to check {}'s body".format(ctx.sym_stack[-1][0], ident))
+      ctx.fn_symbolic_binodings = dict(symbolic_bindings)
+      # Force typecheck.py to deduce the body of this parametric function
+      # Using our newly derived symbolic bindings
+      _check_function_or_test_in_module(function_def, ctx)
 
   return True
 
@@ -217,7 +220,7 @@ def _check_function_or_test_in_module(f: Union[Function, ast.Test],
 
   function_map = {f.name.identifier: f for f in ctx.module.get_functions()}
   while stack:
-    print("#####", ctx.fn_name,"###########", stack, "#######################")
+    #print("#####", ctx.fn_name,"###########", stack, "#######################")
     try:
       f = seen[stack[-1]][0]
       if isinstance(f, ast.Function):

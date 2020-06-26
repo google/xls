@@ -299,7 +299,7 @@ def _deduce_Invocation(self: ast.Invocation,
 
     if isinstance(self.callee, ast.ModRef):
       importedCtx = DeduceCtx(imported_node_to_type, imported_module, ctx.interp_callback,
-                             ctx.typecheck_callback, dict(symbolic_bindings), f_import=ctx.f_import)
+                             ctx.typecheck_callback, dict(symbolic_bindings), f_import=ctx.f_import, parametric_fn_cache=ctx.parametric_fn_cache)
       importedCtx.fn_name = ident
       importedCtx.fn_symbolic_bindings = dict(symbolic_bindings)
       #body_return_type = deduce(function_def.body, importedCtx)
@@ -324,7 +324,6 @@ def _deduce_Invocation(self: ast.Invocation,
       ctx.fn_symbolic_bindings = old[1]
       ctx.fn_name = old[0]
 
-      ctx.node_to_type._dict.pop(function_def.body)
 
   return self_type
 
@@ -853,8 +852,8 @@ def _deduce_ModRef(self: ast.ModRef, ctx: DeduceCtx) -> ConcreteType:  # pytype:
   if f.name not in imported_node_to_type:
     assert f.parametric_bindings
     # We don't type check parametric functions until invocations
-    # Let's type check this imported parametric function with respect to its module
-    importCtx = DeduceCtx(imported_node_to_type, imported_module, ctx.interp_callback, ctx.typecheck_callback, f_import=ctx.f_import)
+    # Let's type check this imported parametric function with respect to its module (only getting sig)
+    importCtx = DeduceCtx(imported_node_to_type, imported_module, ctx.interp_callback, ctx.typecheck_callback, f_import=ctx.f_import, parametric_fn_cache=ctx.parametric_fn_cache)
     importCtx.fn_name = ctx.fn_name
     importCtx.fn_symbolic_bindings = ctx.fn_symbolic_bindings
     ctx.typecheck_callback(f, importCtx)
