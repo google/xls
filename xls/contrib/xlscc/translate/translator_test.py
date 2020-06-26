@@ -186,6 +186,21 @@ class TranslatorTest(absltest.TestCase):
   def test_simple_cpp_cast(self):
     self.one_in_one_out("return uai5(a);", 55, 0, 23)
 
+  def test_enum_autocount(self):
+    source = """
+    enum states{w, x, y=5, z};
+    int test(int a, int b){
+        return a+z+b+x;
+    }
+    """
+    f = self.parse_and_get_function(source)
+    aval = ir_value.Value(bits_mod.SBits(value=int(2), bit_count=32))
+    bval = ir_value.Value(bits_mod.SBits(value=int(3), bit_count=32))
+    args = dict(a=aval, b=bval)
+    result = ir_interpreter.run_function_kwargs(f, args)
+    result_int = int(ctypes.c_int32(int(str(result))).value)
+    self.assertEqual(12, result_int)
+
   def test_simple_switch(self):
     source = """
     switch(a) {

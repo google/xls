@@ -378,16 +378,20 @@ class Translator(object):
           enum_ast = child.type
           enum_list = enum_ast.values
           assert isinstance(enum_list, c_ast.EnumeratorList)
+          enum_curr_val = 0
           for val in enum_list.enumerators:
             assert isinstance(val, c_ast.Enumerator)
-            # TODO(seanhaskell): Count values up automatically
-            assert val.value is not None
-            const_val, const_type = parse_constant(val.value)
             assert val.name not in self.global_decls_
+            if val.value is not None:
+                const_val, const_type = parse_constant(val.value)
+                enum_curr_val = int (const_val)
+            else:
+                const_type = IntType(32, True, True)
             const_expr = ir_value.Value(
                 bits_mod.UBits(
-                    value=int(const_val), bit_count=const_type.bit_width))
+                    value= enum_curr_val, bit_count=const_type.bit_width))
             self.global_decls_[val.name] = CVar(const_expr, const_type)
+            enum_curr_val += 1
         else:
           raise NotImplementedError("ERROR: Unknown declaration at " +\
                                     str(child.coord))
