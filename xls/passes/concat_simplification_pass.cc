@@ -145,6 +145,45 @@ xabsl::StatusOr<bool> SimplifyConcat(Concat* concat,
     return true;
   }
 
+  // If we concatenate bits and then reverse the concatenation,
+  // hoist the reverse above the concatenation.  In the modified IR,
+  // concatenation input operands are reversed and then concatenated in reverse
+  // order:
+  //   reverse(concat(a, b, c)) => concat(reverse(c), reverse(b), reverse(a))
+  if (concat->users().size() == 1 &&
+      concat->users().at(0)->op() == Op::kReverse) {
+    Function* func = concat->function();
+
+    // Get reversed operands in reverse order.
+    // BDD common subexpression elimination should eliminate any
+    // reversals of single-bit inputs that we produce here,
+    // so we do not check for this case.
+    std::vector<Node*> new_operands;
+    new_operands.reserve(concat->operands().size());
+    for (absl::Span<Node* const>::reverse_iterator riter =
+             concat->operands().rbegin();
+         riter != concat->operands().rend(); ++riter) {
+      XLS_ASSIGN_OR_RETURN(Node * hoisted_rev,
+                           func->MakeNode<UnOp>(concat->users().at(0)->loc(),
+                                                *riter, Op::kReverse));
+      new_operands.push_back(hoisted_rev);
+    }
+
+    // Add new concat to function, replace uses of original reverse.
+    XLS_ASSIGN_OR_RETURN(Concat * new_concat,
+                         concat->ReplaceUsesWithNew<Concat>(new_operands));
+    XLS_ASSIGN_OR_RETURN(
+        bool function_changed,
+        new_concat->users().at(0)->ReplaceUsesWith(new_concat));
+    if (!function_changed) {
+      return absl::InternalError(
+          "Replacing reverse operation with reversed-input concatenation did "
+          "not change function");
+    }
+    worklist->push_back(new_concat);
+    return true;
+  }
+
   return false;
 }
 

@@ -766,6 +766,7 @@ cc_test(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:ir_interpreter",
+        "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
     ],

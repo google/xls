@@ -25,9 +25,12 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_interpreter.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/value.h"
 #include "xls/passes/dce_pass.h"
+
+namespace m = ::xls::op_matchers;
 
 namespace xls {
 namespace {
@@ -317,6 +320,40 @@ fn f(x: bits[5], y: bits[10]) -> bits[1] {
   ret and.10: bits[1] = and(eq.7, eq.9)
 }
 )");
+}
+
+TEST_F(ConcatSimplificationPassTest, ReverseConcatenationOfBits) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+fn f(x: bits[1], y: bits[1], z: bits[1]) -> bits[4] {
+  concat.1: bits[3] = concat(x, y, z)
+  reverse.2: bits[3] = reverse(concat.1)
+  ret one_hot.3: bits[4] = one_hot(reverse.2, lsb_prio=true)
+}
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::OneHot(m::Concat(m::Reverse(m::Param("z")), m::Reverse(m::Param("y")),
+                          m::Reverse(m::Param("x")))));
+}
+
+TEST_F(ConcatSimplificationPassTest, ReverseConcatenationOfMultiBits) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+fn f(x: bits[2], y: bits[2], z: bits[2]) -> bits[7] {
+  concat.1: bits[6] = concat(x, y, z)
+  reverse.2: bits[6] = reverse(concat.1)
+  ret one_hot.3: bits[7] = one_hot(reverse.2, lsb_prio=true)
+}
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::OneHot(m::Concat(m::Reverse(m::Param("z")), m::Reverse(m::Param("y")),
+                          m::Reverse(m::Param("x")))));
 }
 
 }  // namespace
