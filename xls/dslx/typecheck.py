@@ -151,13 +151,13 @@ def check_test(t: ast.Test, ctx: deduce.DeduceCtx) -> None:
 
 
 def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
-                 ctx: deduce.DeduceCtx) -> bool:
+                 ctx: deduce.DeduceCtx) -> Tuple[bool, Optional[ast.NameDef]]:
   """Instantiates a builtin parametric invocation; e.g. 'update'."""
   resolver = deduce.mk_resolver(ctx.fn_symbolic_bindings)
   arg_types = tuple(ctx.node_to_type[arg].map_size(resolver) for arg in invocation.args)
 
   if builtin_name.identifier not in dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
-    return False
+    return (False, None)
 
   fsignature = dslx_builtins.get_fsignature(builtin_name.identifier)
   fn_type, symbolic_bindings = fsignature(arg_types, builtin_name.identifier,
@@ -180,7 +180,7 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
       ctx.node_to_type.update(importedCtx.node_to_type)
     else:
       if (map_fn.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES):
-        return True
+        return (True, None)
 
       ident = map_fn.tok.value
       function_def = ctx.module.get_function(ident)
@@ -191,9 +191,10 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
       ctx.fn_symbolic_bindings = dict(symbolic_bindings)
       # Force typecheck.py to deduce the body of this parametric function
       # Using our newly derived symbolic bindings
-      _check_function_or_test_in_module(function_def, ctx)
+      #_check_function_or_test_in_module(function_def, ctx)
+      return (True, map_fn.name_def)
 
-  return True
+  return (True, None)
 
 
 def _check_function_or_test_in_module(f: Union[Function, ast.Test],
@@ -254,27 +255,39 @@ def _check_function_or_test_in_module(f: Union[Function, ast.Test],
         ctx.fn_name = old[0]
 
     except deduce.TypeMissingError as e:
-      #print("##### picked up {}, currently in {}  #######".format(e.node, ctx.fn_name))
-      if isinstance(e.node, ast.NameDef) and e.node.identifier in function_map:
-        # If it's seen and not-done, we're recursing.
-        if seen.get((e.node.identifier, False), (None, False))[1]:
-          raise XlsError(
-              'Recursion detected while typechecking; name: {}'.format(
-                  e.node.identifier))
-        callee = function_map[e.node.identifier]
-        assert isinstance(callee, ast.Function), callee
-        seen[(e.node.identifier, False)] = (callee, True)
-        stack.append((e.node.identifier, False))
-        continue
-      if (isinstance(e.node, ast.BuiltinNameDef) and
-          e.node.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES):
-        logging.vlog(2, 'node: %r; identifier: %r, exception user: %r', e.node,
-                     e.node.identifier, e.user)
+      while True:
+        # print("##### picked up {}, {}, currently in {}  #######".format(e.node, type(e.node), ctx.fn_name))
+        if isinstance(e.node, ast.NameDef) and e.node.identifier in function_map:
+          # If it's seen and not-done, we're recursing.
+          # print('in here!')
+          if seen.get((e.node.identifier, False), (None, False))[1]:
+            raise XlsError(
+                'Recursion detected while typechecking; name: {}'.format(
+                    e.node.identifier))
+          callee = function_map[e.node.identifier]
+          assert isinstance(callee, ast.Function), callee
+          seen[(e.node.identifier, False)] = (callee, True)
+          stack.append((e.node.identifier, False))
+          break
+        if (isinstance(e.node, ast.BuiltinNameDef) and
+            e.node.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES):
+          # print("here")
+          logging.vlog(2, 'node: %r; identifier: %r, exception user: %r', e.node,
+                       e.node.identifier, e.user)
 
-        if isinstance(e.user, ast.Invocation) and _instantiate(
-            e.node, e.user, ctx):
-          continue
-      raise
+          if isinstance(e.user, ast.Invocation):
+            ok_inst, func = _instantiate(e.node, e.user, ctx)
+            # print(ok_inst, func)
+            if ok_inst:
+              if func:
+                e.node = func
+                continue
+              else:
+                # print("broke")
+                break
+
+        # print("raise time")
+        raise
 
   # Add back the bodies of parametric fns for completeness
   for f_name in function_map:

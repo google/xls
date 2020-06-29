@@ -166,6 +166,27 @@ class TypecheckTest(absltest.TestCase):
         error='Recursion detected while typechecking',
         error_type=XlsError)
 
+  def test_typecheck_parametric_recursion_causes_error(self):
+    self._typecheck(
+        """
+    fn [X: u32] f(x: bits[X]) -> u32 { f(x) }
+    fn g() -> u32 { f(u32: 5) }
+    """,
+        error='Recursion detected while typechecking',
+        error_type=XlsError)
+
+  def test_typecheck_higher_order_recursion_causes_error(self):
+    self._typecheck(
+        """
+    fn [Y: u32] h(y: bits[Y]) -> bits[Y] { h(y) }
+    fn g() -> u32[3] {
+        let x0 = u32[3]:[0, 1, 2] in
+        map(x0, h)
+    }
+    """,
+        error='Recursion detected while typechecking',
+        error_type=XlsError)
+
   def test_invoke_wrong_arg(self):
     self._typecheck(
         """
