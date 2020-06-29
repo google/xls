@@ -424,6 +424,14 @@ fn f(x: u32) -> (u32, u8) {
         """,
           error='Return type of function body for "double" did not match')
 
+  def test_parametric_derived_instantiation_via_fn_call(self):
+    self._typecheck(
+        """
+    fn double(n: u32) -> u32 { n * u32: 2 }
+    fn [W: u32, Z: u32 = double(W)] foo(w: bits[W]) -> bits[Z] { w++w }
+    fn bar() -> bits[10] { foo(u5: 1) }
+        """)
+
   def test_parametric_fn_not_always_polymorphic(self):
     self._typecheck(
         """
