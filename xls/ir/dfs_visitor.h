@@ -95,6 +95,17 @@ class DfsVisitor {
   void SetTraversing(Node* node) { traversing_.insert(node); }
   void UnsetTraversing(Node* node) { traversing_.erase(node); }
 
+  // Resets traversal state.
+  // This is for cases where creating a new DfsVisitor is not feasible or
+  // convenient, e.g., during Z3 LEC. There, we need to replace certain IR
+  // translations with constant Z3 nodes, and creating a new object would
+  // destroy the replacements. By enabling re-traversal, the process is much
+  // cleaner.
+  void ResetVisitedState() {
+    visited_.clear();
+    traversing_.clear();
+  }
+
  private:
   // Set of nodes which have been visited.
   absl::flat_hash_set<Node*> visited_;
