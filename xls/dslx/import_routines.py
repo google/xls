@@ -79,7 +79,8 @@ def do_import(
       f_import=f_import,
       filename=path,
       print_on_error=True,
-      do_typecheck=True)
+      do_typecheck=True,
+      is_import=True)
   logging.vlog(3, 'Parsing and typechecking %r: done', fully_qualified_name)
 
   assert node_to_type is not None

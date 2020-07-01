@@ -406,7 +406,7 @@ class Invocation(Expr):
     self.callee = callee
     self.args = args
     # Note: this attribute is populated by type inference.
-    self.symbolic_bindings = None  # type: Optional[parametric_instantiator.SymbolicBindings]
+    self.symbolic_bindings = dict()  # type: Dict[(name, symbds), parametric_instantiator.SymbolicBindings]
 
   def __str__(self) -> Text:
     return '{}({})'.format(self.callee, self.format_args())

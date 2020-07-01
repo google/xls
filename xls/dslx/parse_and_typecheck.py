@@ -31,9 +31,9 @@ from xls.dslx.xls_type_error import XlsTypeError
 
 
 def _run_typecheck(module: ast.Module, print_on_error: bool, f_import: ImportFn,
-                   fs_open: Callable[[Text], io.IOBase]) -> deduce.NodeToType:
+      fs_open: Callable[[Text], io.IOBase], is_import: bool = False) -> deduce.NodeToType:
   try:
-    return typecheck.check_module(module, f_import)
+    return typecheck.check_module(module, f_import, is_import=is_import)
   except XlsTypeError as e:
     if print_on_error:
       # If the typecheck fails, pretty-print the error.
@@ -50,6 +50,7 @@ def parse_text(
     filename: Text,
     do_typecheck: bool = True,
     fs_open: Callable[[Text], io.IOBase] = None,
+    is_import = False
 ) -> Tuple[ast.Module, Optional[deduce.NodeToType]]:
   """Parses text into a module with name "name", optionally typechecks it."""
   module = parser_helpers.parse_text(
@@ -62,7 +63,7 @@ def parse_text(
   node_to_type = None
   if do_typecheck:
     node_to_type = _run_typecheck(
-        module, print_on_error, f_import, fs_open=fs_open)
+        module, print_on_error, f_import, fs_open=fs_open, is_import=is_import)
 
   return module, node_to_type
 
@@ -74,7 +75,8 @@ def parse_text_fakefs(
     *,
     f_import: Optional[Callable],
     filename: Text,
-    do_typecheck: bool = True
+    do_typecheck: bool = True,
+    is_import: bool = False
 ) -> Tuple[ast.Module, Optional[deduce.NodeToType]]:
   """Wraps parse_text with a *fake filesystem* holding "text" in "filename".
 
@@ -105,4 +107,5 @@ def parse_text_fakefs(
       f_import=f_import,
       filename=filename,
       do_typecheck=do_typecheck,
-      fs_open=fake_open)
+      fs_open=fake_open,
+      is_import=is_import)

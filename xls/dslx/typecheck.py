@@ -306,7 +306,7 @@ ImportFn = Callable[[Tuple[Text, ...]], Tuple[ast.Module, deduce.NodeToType]]
 
 def check_module(
     module: Module,
-    f_import: Optional[ImportFn],
+    f_import: Optional[ImportFn], is_import: bool = False
 ) -> deduce.NodeToType:
   """Validates type annotations on all functions within "module".
 
@@ -359,8 +359,14 @@ def check_module(
     logging.vlog(2, 'Finished typechecking test: %s', t)
 
   # Add back the bodies of parametric fns for completeness
-  for f in ctx.parametric_fn_cache:
-    if f.body in ctx.parametric_fn_cache[f]:
-      ctx.node_to_type[f.body] = ctx.parametric_fn_cache[f][f.body]
+  if is_import:
+    for f in ctx.parametric_fn_cache:
+      cached_types = ctx.parametric_fn_cache[f]
+      without_f_dict = { node : node_to_type[node] for node in node_to_type._dict if not node in cached_types }
+      node_to_type._dict = without_f_dict
+  else:
+    for f in ctx.parametric_fn_cache:
+      if f.body in ctx.parametric_fn_cache[f]:
+        ctx.node_to_type[f.body] = ctx.parametric_fn_cache[f][f.body]
 
   return ctx.node_to_type
