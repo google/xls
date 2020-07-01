@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """Library for operating on a generated code sample in the fuzzer."""
 
 import collections
@@ -23,8 +24,10 @@ from typing import Text, Tuple, Optional, Dict, Sequence
 
 from absl import logging
 
-from xls.common.xls_error import XlsError
+from xls.common import check_simulator
+from xls.common import revision
 from xls.common import runfiles
+from xls.common.xls_error import XlsError
 from xls.dslx import ast
 from xls.dslx import concrete_type as concrete_type_mod
 from xls.dslx import deduce
@@ -200,6 +203,8 @@ class SampleRunner:
     if args_filename:
       args_batch = sample.parse_args_batch(self._read_file(args_filename))
 
+    self._write_file('revision.txt', revision.get_revision())
+
     # Gather results in an OrderedDict because the first entered result is used
     # as a reference.
     results = collections.OrderedDict()  # type: Dict[Text, Sequence[Value]]
@@ -295,6 +300,7 @@ class SampleRunner:
           stdout=subprocess.PIPE,
           stderr=f_stderr,
           check=False)
+
     if logging.vlog_is_on(4):
       logging.vlog(4, '{} stdout:'.format(basename))
       # stdout and stderr can be long so split them by line to avoid clipping.
@@ -415,7 +421,10 @@ class SampleRunner:
 
   def _codegen(self, ir_filename: Text, codegen_args: Sequence[Text]) -> Text:
     """Generates Verilog from the IR file and return the Verilog filename."""
-    args = [CODEGEN_MAIN_PATH, '--output_signature_path=module_sig.pbtxt']
+    args = [
+        CODEGEN_MAIN_PATH, '--output_signature_path=module_sig.pbtxt',
+        '--delay_model=unit'
+    ]
     args.extend(codegen_args)
     args.append(ir_filename)
     verilog_text = self._run_command('Generating Verilog', args)
@@ -435,6 +444,8 @@ class SampleRunner:
     if simulator:
       simulator_args.append('--verilog_simulator=' + simulator)
     simulator_args.append(verilog_filename)
+
+    check_simulator.check_simulator(simulator)
 
     results_text = self._run_command(f'Simulating Verilog {verilog_filename}',
                                      simulator_args)

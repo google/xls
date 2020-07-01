@@ -19,8 +19,8 @@
 // construction of small test cases, it can be used by other
 // front-ends to target XLS without having to fully link to it.
 
-#ifndef THIRD_PARTY_XLS_IR_IR_PARSER_H_
-#define THIRD_PARTY_XLS_IR_IR_PARSER_H_
+#ifndef XLS_IR_IR_PARSER_H_
+#define XLS_IR_IR_PARSER_H_
 
 #include <string>
 #include <utility>
@@ -228,4 +228,4 @@ xabsl::StatusOr<std::unique_ptr<PackageT>> Parser::ParseDerivedPackageNoVerify(
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_IR_IR_PARSER_H_
+#endif  // XLS_IR_IR_PARSER_H_

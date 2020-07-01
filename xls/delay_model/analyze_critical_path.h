@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_DELAY_MODEL_ANALYZE_CRITICAL_PATH_H_
-#define THIRD_PARTY_XLS_DELAY_MODEL_ANALYZE_CRITICAL_PATH_H_
+#ifndef XLS_DELAY_MODEL_ANALYZE_CRITICAL_PATH_H_
+#define XLS_DELAY_MODEL_ANALYZE_CRITICAL_PATH_H_
 
 #include <vector>
 
@@ -58,4 +58,4 @@ xabsl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_DELAY_MODEL_ANALYZE_CRITICAL_PATH_H_
+#endif  // XLS_DELAY_MODEL_ANALYZE_CRITICAL_PATH_H_

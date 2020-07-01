@@ -18,6 +18,7 @@ import subprocess
 
 from xls.common import runfiles
 from xls.common import test_base
+from absl.testing import absltest
 
 EVAL_IR_MAIN_PATH = runfiles.get_path('xls/tools/eval_ir_main')
 
@@ -36,7 +37,7 @@ fn foo(x: (bits[8], bits[32])) -> ((bits[8], bits[32])) {
 """
 
 
-class EvalMainTest(test_base.XlsTestCase):
+class EvalMainTest(absltest.TestCase):
 
   def test_one_input_jit(self):
     ir_file = self.create_tempfile(content=ADD_IR)

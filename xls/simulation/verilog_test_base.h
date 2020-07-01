@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_CODEGEN_VERILOG_TEST_BASE_H_
-#define THIRD_PARTY_XLS_CODEGEN_VERILOG_TEST_BASE_H_
+#ifndef XLS_CODEGEN_VERILOG_TEST_BASE_H_
+#define XLS_CODEGEN_VERILOG_TEST_BASE_H_
 
 #include <filesystem>
 
@@ -70,27 +70,7 @@ inline std::ostream& operator<<(std::ostream& os, SimulationTarget t) {
   return os;
 }
 
-// The default list of parameterizations of the test. Use with testing::ValuesIn
-// in the INSTANTIATE_TEST_SUITE_P invocation.
-const SimulationTarget kDefaultSimulationTargets[] = {
-#if !defined(ADDRESS_SANITIZER)
-    // iverilog crashes with ASAN.
-    SimulationTarget{"iverilog",
-                     /*use_system_verilog=*/false}
-#endif
-};
-
-// Test parametameterization which fixes use_system_verilog to false, and is
-// only parameterized on Verilog simulator. Use with testing::ValuesIn in the
-// INSTANTIATE_TEST_SUITE_P invocation.
-// TODO(meheff): Add iverilog to the list of simulators to test with.
-const SimulationTarget kVerilogOnlySimulationTargets[] = {
-#if !defined(ADDRESS_SANITIZER)
-    // iverilog crashes with ASAN.
-    SimulationTarget{"iverilog",
-                     /*use_system_verilog=*/false}
-#endif
-};
+#include "xls/simulation/simulation_targets.inc"
 
 // Returns the name of the parameterized test from the Paramtype info. Use in
 // INSTANTIATE_TEST_SUITE_P invocation so tests have meaningful names (e.g.,
@@ -184,4 +164,4 @@ class VerilogTestBase : public testing::TestWithParam<SimulationTarget> {
 }  // namespace verilog
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_CODEGEN_VERILOG_TEST_BASE_H_
+#endif  // XLS_CODEGEN_VERILOG_TEST_BASE_H_

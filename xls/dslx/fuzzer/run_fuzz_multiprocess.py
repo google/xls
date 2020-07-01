@@ -33,6 +33,7 @@ from typing import Text, Optional, Tuple
 import termcolor
 
 from xls.common import gfile
+from xls.common import multiprocess
 from xls.dslx.fuzzer import ast_generator
 from xls.dslx.fuzzer import run_fuzz
 from xls.dslx.fuzzer import sample_generator
@@ -92,6 +93,7 @@ def do_worker_task(workerno: int,
                    save_temps_path: Optional[Text] = None,
                    minimize_ir: bool = True) -> None:
   """Runs worker task, receiving commands from generator and executing them."""
+  queue = queue or multiprocess.get_user_data()[workerno]
   crashers = 0
   calls = 0
   print('---- Started worker {}'.format(workerno))

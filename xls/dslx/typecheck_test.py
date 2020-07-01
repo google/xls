@@ -1,4 +1,5 @@
 # Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,8 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# Lint as: python3
 
 """Tests for xls.dslx.typecheck."""
 
@@ -81,7 +80,7 @@ class TypecheckTest(absltest.TestCase):
         'fn [N: u32] f(x: bits[N], y: bits[N]) -> bits[N] { x + y }')
 
   def test_typecheck_unary(self):
-    self._typecheck('fn f(x: u32) -> u32 { ~x }')
+    self._typecheck('fn f(x: u32) -> u32 { !x }')
     self._typecheck('fn f(x: u32) -> u32 { -x }')
 
   def test_typecheck_let(self):
@@ -191,7 +190,7 @@ fn f() -> u32 {
     fn f(a: u8, b: u8) -> bool { a == b }
     """)
     self._typecheck("""
-    fn f(a: u8, b: u8, c: u32, d: u32) -> bool { a == b and c == d }
+    fn f(a: u8, b: u8, c: u32, d: u32) -> bool { a == b && c == d }
     """)
 
   def test_typedef(self):

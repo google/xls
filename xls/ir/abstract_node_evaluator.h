@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_IR_ABSTRACT_NODE_EVALUATOR_H_
-#define THIRD_PARTY_XLS_IR_ABSTRACT_NODE_EVALUATOR_H_
+#ifndef XLS_IR_ABSTRACT_NODE_EVALUATOR_H_
+#define XLS_IR_ABSTRACT_NODE_EVALUATOR_H_
 
 #include "absl/status/status.h"
 #include "absl/types/optional.h"
@@ -73,6 +73,9 @@ xabsl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
       BitSlice* bit_slice = node->As<BitSlice>();
       return evaluator->BitSlice(operands[0], bit_slice->start(),
                                  bit_slice->width());
+    }
+    case Op::kDynamicBitSlice: {
+      return default_handler(node);
     }
     case Op::kConcat:
       return evaluator->Concat(operands);
@@ -211,4 +214,4 @@ xabsl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_IR_ABSTRACT_NODE_EVALUATOR_H_
+#endif  // XLS_IR_ABSTRACT_NODE_EVALUATOR_H_

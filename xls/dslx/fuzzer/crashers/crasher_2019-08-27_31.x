@@ -513,9 +513,9 @@
 // args: bits[19]:0x1; bits[37]:0x1bf0e46b56; bits[4]:0xa
 fn main(x776: u19, x777: u37, x778: u4) -> bool {
     let x779: u19 = (x776) - (x776) in
-    let x780: u37 = ~(x777) in
+    let x780: u37 = !(x777) in
     let x781: (u4, u37, u4, u19, u4) = (x778, x777, x778, x776, x778) in
-    let x782: u4 = ~(x778) in
+    let x782: u4 = !(x778) in
     let x783: (u4, u37, u4, u19, u4) = for (i, x): (u4, (u4, u37, u4, u19, u4)) in range(u4:0, (u4:0x1)) {
     x
   }(x781)
@@ -523,14 +523,14 @@ fn main(x776: u19, x777: u37, x778: u4) -> bool {
     let x784: u64 = (((x776) ++ (x782)) ++ (x782)) ++ (x780) in
     let x785: u37 = -(x777) in
     let x786: u37 = ((x779 as u37)) + (x785) in
-    let x787: u37 = ~(x785) in
+    let x787: u37 = !(x785) in
     let x788: u19 = x776 in
     let x789: u19 = (x783)[(u32:0x3)] in
-    let x790: u37 = ~(x777) in
+    let x790: u37 = !(x777) in
     let x791: (u19, (u4, u37, u4, u19, u4), u37, (u4, u37, u4, u19, u4), u37, u37, u4, u4, u37, (u4, u37, u4, u19, u4), u37, u37, u37, u37, u37) = (x788, x783, x785, x783, x786, x780, x778, x778, x786, x783, x785, x785, x790, x777, x785) in
     let x792: u37 = -(x777) in
     let x793: u37 = (x790) - ((x784 as u37)) in
-    let x794: u4 = ~(x778) in
+    let x794: u4 = !(x778) in
     let x795: (u19, (u4, u37, u4, u19, u4), u37, (u4, u37, u4, u19, u4), u37, u37, u4, u4, u37, (u4, u37, u4, u19, u4), u37, u37, u37, u37, u37) = for (i, x): (u4, (u19, (u4, u37, u4, u19, u4), u37, (u4, u37, u4, u19, u4), u37, u37, u4, u4, u37, (u4, u37, u4, u19, u4), u37, u37, u37, u37, u37)) in range(u4:0, (u4:0x6)) {
     x
   }(x791)

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_CODEGEN_FINITE_STATE_MACHINE_H_
-#define THIRD_PARTY_XLS_CODEGEN_FINITE_STATE_MACHINE_H_
+#ifndef XLS_CODEGEN_FINITE_STATE_MACHINE_H_
+#define XLS_CODEGEN_FINITE_STATE_MACHINE_H_
 
 #include <vector>
 
@@ -233,7 +233,7 @@ class UnconditionalFsmBlock : public FsmBlock<UnconditionalFsmBlock> {
       : FsmBlock<UnconditionalFsmBlock>(debug_name, file) {}
 };
 
-// An unconditional block of logic within an FSM state.
+// A conditional block of logic within an FSM state.
 class ConditionalFsmBlock : public FsmBlock<ConditionalFsmBlock> {
  public:
   explicit ConditionalFsmBlock(absl::string_view debug_name, VerilogFile* file,
@@ -379,6 +379,9 @@ class FsmBuilder {
   // Builds the FSM in the module.
   absl::Status Build();
 
+  // Configures FSM so that on reset, the state will be set to reset_state.
+  void SetResetState(FsmState* reset_state) { reset_state_ = reset_state; }
+
  private:
   // Creates a RegDef of the given name, width and optional initial
   // value. Returns a LogicRef referring to it. The RegDef is added to the
@@ -417,6 +420,7 @@ class FsmBuilder {
   // method may only be called once.
   bool is_built_ = false;
 
+  FsmState* reset_state_ = nullptr;
   std::list<FsmState> states_;
   std::list<FsmCounter> counters_;
   std::list<FsmOutput> outputs_;
@@ -426,4 +430,4 @@ class FsmBuilder {
 }  // namespace verilog
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_CODEGEN_FINITE_STATE_MACHINE_H_
+#endif  // XLS_CODEGEN_FINITE_STATE_MACHINE_H_

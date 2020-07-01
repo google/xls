@@ -70,9 +70,9 @@ py_test(
     shard_count = 30,
     deps = [
         ":translator",
-        "@com_google_absl_py//absl/testing:absltest",
         "//xls/contrib/xlscc/parse:ext_c_ast",
         "//xls/contrib/xlscc/parse:ext_c_parser",
         "//xls/ir/python:ir_interpreter",
+        "@com_google_absl_py//absl/testing:absltest",
     ],
 )

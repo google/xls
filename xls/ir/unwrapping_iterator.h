@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_IR_UNWRAPPING_ITERATOR_H_
-#define THIRD_PARTY_XLS_IR_UNWRAPPING_ITERATOR_H_
+#ifndef XLS_IR_UNWRAPPING_ITERATOR_H_
+#define XLS_IR_UNWRAPPING_ITERATOR_H_
 
 #include <iterator>
 #include <utility>
@@ -24,7 +24,7 @@ namespace xls {
 // elements it returns.
 //
 // Shamelessly copied from jlebar's
-// third_party/tensorflow/compiler/xla/iterator_util.h.
+// tensorflow/compiler/xla/iterator_util.h.
 //
 // Together with absl::iterator_range, this lets classes which contain a
 // collection of std::unique_ptrs expose a view of raw pointers to consumers.
@@ -97,4 +97,4 @@ UnwrappingIterator<NestedIter> MakeUnwrappingIterator(NestedIter iter) {
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_IR_UNWRAPPING_ITERATOR_H_
+#endif  // XLS_IR_UNWRAPPING_ITERATOR_H_

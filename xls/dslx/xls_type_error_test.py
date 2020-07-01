@@ -22,7 +22,7 @@ from xls.dslx.concrete_type import BitsType
 from xls.dslx.xls_type_error import XlsTypeError
 
 
-class XlsTypeErrorTest(test_base.XlsTestCase):
+class XlsTypeErrorTest(test_base.TestCase):
 
   def test_stringify(self):
     # Test without a suffix.

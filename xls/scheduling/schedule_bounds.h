@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_SCHEDULING_SCHEDULE_BOUNDS_H_
-#define THIRD_PARTY_XLS_SCHEDULING_SCHEDULE_BOUNDS_H_
+#ifndef XLS_SCHEDULING_SCHEDULE_BOUNDS_H_
+#define XLS_SCHEDULING_SCHEDULE_BOUNDS_H_
 
 #include <limits>
 #include <utility>
@@ -126,4 +126,4 @@ class ScheduleBounds {
 }  // namespace sched
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_SCHEDULING_SCHEDULE_BOUNDS_H_
+#endif  // XLS_SCHEDULING_SCHEDULE_BOUNDS_H_

@@ -28,10 +28,10 @@ from xls.dslx.concrete_type import ArrayType
 from xls.dslx.interpreter import interpreter
 from xls.dslx.interpreter import parse_and_interpret
 from xls.dslx.xls_type_error import XlsTypeError
-from absl.testing import absltest as unittest
+from absl.testing import absltest
 
 
-class InterpreterTest(unittest.TestCase):
+class InterpreterTest(absltest.TestCase):
 
   def _parse_and_test(self, program: Text, trace_all: bool = False) -> None:
     with ffu.Patcher() as patcher:
@@ -236,7 +236,7 @@ class InterpreterTest(unittest.TestCase):
   def test_conflicting_parametric_bindings(self):
     program = textwrap.dedent("""\
     fn [N: u32] parametric(x: bits[N], y: bits[N]) -> bits[1] {
-      x == bits[N]:1 and y == bits[N]:2
+      x == bits[N]:1 && y == bits[N]:2
     }
     test parametric_conflict {
       let a: bits[2] = bits[2]:0b10 in
@@ -286,7 +286,7 @@ class InterpreterTest(unittest.TestCase):
   def test_bool_not(self):
     program = """
     fn bool_not(x: bool) -> bool {
-      not x
+      !x
     }
     test bool_not {
       let _: () = assert_eq(true, bool_not(false)) in
@@ -514,4 +514,4 @@ class InterpreterTest(unittest.TestCase):
 
 
 if __name__ == '__main__':
-  unittest.main()
+  absltest.main()

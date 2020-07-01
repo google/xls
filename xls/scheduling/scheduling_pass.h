@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_SCHEDULING_SCHEDULING_PASS_H_
-#define THIRD_PARTY_XLS_SCHEDULING_SCHEDULING_PASS_H_
+#ifndef XLS_SCHEDULING_SCHEDULING_PASS_H_
+#define XLS_SCHEDULING_SCHEDULING_PASS_H_
 
 #include "absl/types/optional.h"
 #include "xls/delay_model/delay_estimator.h"
@@ -56,4 +56,4 @@ using SchedulingInvariantChecker = SchedulingCompoundPass::InvariantChecker;
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_SCHEDULING_SCHEDULING_PASS_H_
+#endif  // XLS_SCHEDULING_SCHEDULING_PASS_H_

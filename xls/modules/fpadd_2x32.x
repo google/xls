@@ -49,7 +49,7 @@ fn fpadd_2x32(x: F32, y: F32) -> F32 {
   let sfd_is_zero = sfd == s29:0 in
   let result_sign = match (sfd_is_zero, sfd < s29:0) {
     (true, _) => u1:0;
-    (false, true) => ~greater_exp.sign;
+    (false, true) => !greater_exp.sign;
     _ => greater_exp.sign;
   } in
 
@@ -127,7 +127,7 @@ fn fpadd_2x32(x: F32, y: F32) -> F32 {
   // Result infinity is negative iff all infinite operands are neg.
   let has_pos_inf = (float32::is_inf(x) & (x.sign == u1:0)) |
                     (float32::is_inf(y) & (y.sign == u1:0)) in
-  let result_sign = ~has_pos_inf if is_operand_inf else result_sign in
+  let result_sign = !has_pos_inf if is_operand_inf else result_sign in
 
   // Handle NaN; NaN trumps infinities, so we handle it last.
   // -inf + inf = NaN, i.e., if we have both positive and negative inf.

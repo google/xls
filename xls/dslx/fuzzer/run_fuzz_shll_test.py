@@ -56,7 +56,7 @@ class RunFuzzShllTest(parameterized.TestCase):
     samples = run_fuzz.run_fuzz(
         rng,
         ast_generator.AstGeneratorOptions(
-            blacklist_divide=True, binop_whitelist=[ast.Binop.SHLL]),
+            disallow_divide=True, binop_allowlist=[ast.Binop.SHLL]),
         **self.KWARGS)
     for i in range(self.KWARGS['sample_count']):
       if seed < self.SEED_TO_CHECK_LIMIT and i < self.SAMPLE_TO_CHECK_LIMIT:
@@ -65,7 +65,8 @@ class RunFuzzShllTest(parameterized.TestCase):
           with open(path, 'w') as f:
             f.write(samples[i].input_text)
         else:
-          expected = runfiles.get_contents_as_text(path)
+          # rstrip to avoid miscompares from trailing newline at EOF.
+          expected = runfiles.get_contents_as_text(path).rstrip()
           self.assertMultiLineEqual(expected, samples[i].input_text)
 
 

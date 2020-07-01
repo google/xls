@@ -16,6 +16,7 @@
 #include <utility>
 
 #include "absl/strings/string_view.h"
+#include "absl/strings/strip.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/module_initializer.h"
@@ -31,11 +32,12 @@ namespace {
 xabsl::StatusOr<std::pair<std::string, std::string>> InvokeIverilog(
     absl::Span<const std::string> args) {
   std::vector<std::string> args_vec;
-  std::filesystem::path iverilog_path =
-    GetXlsRunfilePath("external/com_icarus_iverilog");
-  args_vec.push_back((iverilog_path / "iverilog-bin").string());
-  args_vec.push_back("-B");
+  std::string iverilog_path =
+      GetXlsRunfilePath("external/com_icarus_iverilog/iverilog-bin").string();
   args_vec.push_back(iverilog_path);
+  args_vec.push_back("-B");
+  args_vec.push_back(
+      std::string(absl::StripSuffix(iverilog_path, "iverilog-bin")));
   args_vec.insert(args_vec.end(), args.begin(), args.end());
   return InvokeSubprocess(args_vec);
 }
@@ -43,11 +45,11 @@ xabsl::StatusOr<std::pair<std::string, std::string>> InvokeIverilog(
 xabsl::StatusOr<std::pair<std::string, std::string>> InvokeVvp(
     absl::Span<const std::string> args) {
   std::vector<std::string> args_vec;
-  std::filesystem::path iverilog_path =
-    GetXlsRunfilePath("external/com_icarus_iverilog");
-  args_vec.push_back((iverilog_path / "vvp-bin").string());
-  args_vec.push_back("-M");
+  std::string iverilog_path =
+      GetXlsRunfilePath("external/com_icarus_iverilog/vvp-bin").string();
   args_vec.push_back(iverilog_path);
+  args_vec.push_back("-M");
+  args_vec.push_back(std::string(absl::StripSuffix(iverilog_path, "vvp-bin")));
   args_vec.insert(args_vec.end(), args.begin(), args.end());
   return InvokeSubprocess(args_vec);
 }

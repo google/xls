@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_IR_PYTHON_WRAPPER_TYPES_H_
-#define THIRD_PARTY_XLS_IR_PYTHON_WRAPPER_TYPES_H_
+#ifndef XLS_IR_PYTHON_WRAPPER_TYPES_H_
+#define XLS_IR_PYTHON_WRAPPER_TYPES_H_
 
 #include <memory>
 #include <type_traits>
@@ -478,4 +478,4 @@ struct polymorphic_type_hook<xls::TypeHolder> {
 };
 }  // namespace pybind11
 
-#endif  // THIRD_PARTY_XLS_IR_PYTHON_WRAPPER_TYPES_H_
+#endif  // XLS_IR_PYTHON_WRAPPER_TYPES_H_

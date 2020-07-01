@@ -43,6 +43,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "//xls/common/logging",
         "//xls/common/status:error_code_to_status",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor",
         "@com_google_protobuf//:protobuf",
@@ -78,9 +79,12 @@ cc_library(
     srcs = ["get_runfile_path.cc"],
     hdrs = ["get_runfile_path.h"],
     deps = [
+        ":filesystem",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/synchronization",
         "//xls/common:module_initializer",
         "//xls/common/logging",
+        "//xls/common/status:ret_check",
         "@bazel_tools//tools/cpp/runfiles",
     ],
 )

@@ -14,8 +14,8 @@
 
 // Library defining how arrays and tuples are lowered into vectors of bits by
 // the generators.
-#ifndef THIRD_PARTY_XLS_CODEGEN_FLATTENING_H_
-#define THIRD_PARTY_XLS_CODEGEN_FLATTENING_H_
+#ifndef XLS_CODEGEN_FLATTENING_H_
+#define XLS_CODEGEN_FLATTENING_H_
 
 #include "absl/types/span.h"
 #include "xls/codegen/vast.h"
@@ -69,4 +69,4 @@ verilog::Expression* UnflattenArrayShapedTupleElement(
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_CODEGEN_FLATTENING_H_
+#endif  // XLS_CODEGEN_FLATTENING_H_

@@ -16,12 +16,16 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "google/protobuf/io/tokenizer.h"
 #include "google/protobuf/text_format.h"
 #include "absl/status/status.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/error_code_to_status.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 
 namespace xls {
@@ -213,6 +217,21 @@ xabsl::StatusOr<std::vector<std::filesystem::path>> GetDirectoryEntries(
     }
   }
   return std::move(result);
+}
+
+xabsl::StatusOr<std::filesystem::path> GetRealPath(const std::string& path) {
+  struct stat statbuf;
+  XLS_RET_CHECK(lstat(path.c_str(), &statbuf) != -1) << strerror(errno);
+  // If the file is a link, then dereference it.
+  if ((statbuf.st_mode & S_IFMT) == S_IFLNK) {
+    char buf[PATH_MAX];
+    ssize_t len = readlink(path.c_str(), buf, PATH_MAX - 1);
+    XLS_RET_CHECK(len != -1) << strerror(errno);
+    buf[len] = '\0';
+    return buf;
+  }
+
+  return path;
 }
 
 }  // namespace xls

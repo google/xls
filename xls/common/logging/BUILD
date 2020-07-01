@@ -14,6 +14,8 @@
 
 # Logging library that provides logging and assertion helpers and macros.
 
+# pytype tests are present in this file
+
 package(
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
@@ -123,7 +125,10 @@ cc_test(
 
 cc_library(
     name = "log_flags",
-    srcs = ["log_flags.cc"],
+    srcs = [
+        "log_flags.cc",
+        "log_flags.inc",
+    ],
     hdrs = ["log_flags.h"],
     deps = [
         "@com_google_absl//absl/base:log_severity",
@@ -311,7 +316,10 @@ cc_library(
 
 cc_library(
     name = "vlog_is_on",
-    srcs = ["vlog_is_on.cc"],
+    srcs = [
+        "vlog_is_on.cc",
+        "vlog_is_on.inc",
+    ],
     hdrs = ["vlog_is_on.h"],
     deps = [
         ":errno_saver",
@@ -329,5 +337,26 @@ cc_test(
     deps = [
         ":vlog_is_on",
         "@com_google_googletest//:gtest_main",
+    ],
+)
+
+py_test(
+    name = "logging_flags_test",
+    srcs = ["logging_flags_test.py"],
+    data = [":logger"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+    ],
+)
+
+cc_binary(
+    name = "logger",
+    srcs = ["logger.cc"],
+    deps = [
+        ":logging",
+        "//xls/common:init_xls",
     ],
 )

@@ -90,7 +90,7 @@ pub fn fixed_fraction(input_float: F32) -> u23 {
 
   let input_fraction_part_magnitude: u24 = input_fixed_magnitude as u23 as u24 in
   let fixed_fraction: u24 = (u24:1<<u24:23) - input_fraction_part_magnitude
-    if input_float.sign and input_fraction_part_magnitude != u24:0
+    if input_float.sign && input_fraction_part_magnitude != u24:0
     else input_fraction_part_magnitude
   in
   fixed_fraction as u23

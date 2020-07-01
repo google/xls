@@ -60,6 +60,8 @@ ABSL_FLAG(bool, show_known_bits, false,
           "Show known bits as determined via the query engine.");
 ABSL_FLAG(std::string, entry, "",
           "Entry function to use in lieu of the default.");
+ABSL_FLAG(std::string, delay_model, "",
+          "Delay model name to use from registry.");
 
 namespace xls {
 namespace {
@@ -366,7 +368,14 @@ absl::Status RealMain(absl::string_view path,
           (*clock_period_ps * *clock_margin_percent + 50) / 100;
     }
   }
-  const auto& delay_estimator = GetStandardDelayEstimator();
+  const DelayEstimator* pdelay_estimator;
+  if (absl::GetFlag(FLAGS_delay_model).empty()) {
+    pdelay_estimator = &GetStandardDelayEstimator();
+  } else {
+    XLS_ASSIGN_OR_RETURN(pdelay_estimator,
+                         GetDelayEstimator(absl::GetFlag(FLAGS_delay_model)));
+  }
+  const auto& delay_estimator = *pdelay_estimator;
   XLS_RETURN_IF_ERROR(PrintCriticalPath(f, *query_engine, delay_estimator,
                                         effective_clock_period_ps));
 

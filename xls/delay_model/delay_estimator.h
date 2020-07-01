@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_DELAY_MODEL_DELAY_ESTIMATOR_H_
-#define THIRD_PARTY_XLS_DELAY_MODEL_DELAY_ESTIMATOR_H_
+#ifndef XLS_DELAY_MODEL_DELAY_ESTIMATOR_H_
+#define XLS_DELAY_MODEL_DELAY_ESTIMATOR_H_
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/types/span.h"
@@ -39,6 +39,12 @@ class DelayEstimator {
                                                           int64 tau_in_ps);
 };
 
+enum class DelayEstimatorPrecedence {
+  kLow = 1,
+  kMedium = 2,
+  kHigh = 3,
+};
+
 // An abstraction which holds multiple DelayEstimator objects organized by name.
 class DelayEstimatorManager {
  public:
@@ -47,9 +53,12 @@ class DelayEstimatorManager {
   xabsl::StatusOr<DelayEstimator*> GetDelayEstimator(
       absl::string_view name) const;
 
+  xabsl::StatusOr<DelayEstimator*> GetDefaultDelayEstimator() const;
+
   // Adds a DelayEstimator to the manager and associates it with the given name.
   absl::Status RegisterDelayEstimator(
-      absl::string_view name, std::unique_ptr<DelayEstimator> delay_estimator);
+      absl::string_view name, std::unique_ptr<DelayEstimator> delay_estimator,
+      DelayEstimatorPrecedence precedence);
 
   // Returns a list of the names of available models in this manager.
   absl::Span<const std::string> estimator_names() const {
@@ -57,7 +66,9 @@ class DelayEstimatorManager {
   }
 
  private:
-  absl::flat_hash_map<std::string, std::unique_ptr<DelayEstimator>> estimators_;
+  absl::flat_hash_map<std::string, std::pair<DelayEstimatorPrecedence,
+                                             std::unique_ptr<DelayEstimator>>>
+      estimators_;
   std::vector<std::string> estimator_names_;
 };
 
@@ -66,4 +77,4 @@ DelayEstimatorManager& GetDelayEstimatorManagerSingleton();
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_DELAY_MODEL_DELAY_ESTIMATOR_H_
+#endif  // XLS_DELAY_MODEL_DELAY_ESTIMATOR_H_

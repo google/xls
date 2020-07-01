@@ -18,6 +18,7 @@
 #include "xls/passes/standard_pipeline.h"
 
 #include "xls/passes/arith_simplification_pass.h"
+#include "xls/passes/array_simplification_pass.h"
 #include "xls/passes/bdd_cse_pass.h"
 #include "xls/passes/bdd_simplification_pass.h"
 #include "xls/passes/bit_slice_simplification_pass.h"
@@ -67,6 +68,8 @@ class SimplificationPass : public FixedPointCompoundPass {
     Add<TupleSimplificationPass>();
     Add<DeadCodeEliminationPass>();
     Add<StrengthReductionPass>(split_ops);
+    Add<DeadCodeEliminationPass>();
+    Add<ArraySimplificationPass>();
     Add<DeadCodeEliminationPass>();
     Add<NarrowingPass>();
     Add<DeadCodeEliminationPass>();

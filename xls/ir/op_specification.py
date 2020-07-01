@@ -81,7 +81,7 @@ class Method(object):
   def __init__(self,
                name: Text,
                return_cpp_type: Text,
-               expression: Text,
+               expression: Optional[Text],
                params: Text = ''):
     self.name = name
     self.return_cpp_type = return_cpp_type
@@ -424,6 +424,14 @@ OpClass.kinds['BIT_SLICE'] = OpClass(
                 Int64Attribute('width')],
 )
 
+OpClass.kinds['DYNAMIC_BIT_SLICE'] = OpClass(
+    name='DynamicBitSlice',
+    op='Op::kDynamicBitSlice',
+    operands=[Operand('arg'), Operand('start')],
+    xls_type_expression='function->package()->GetBitsType(width)',
+    attributes=[Int64Attribute('width')],
+)
+
 OpClass.kinds['COMPARE_OP'] = OpClass(
     name='CompareOp',
     op='op',
@@ -439,7 +447,10 @@ OpClass.kinds['CONCAT'] = OpClass(
     op='Op::kConcat',
     operands=[OperandSpan('args')],
     xls_type_expression='GetConcatType(function->package(), args)',
-    extra_methods=[Method(name='GetOperandSliceData', return_cpp_type='SliceData', expression=None, params='int64 operandno')]
+    extra_methods=[
+        Method(name='GetOperandSliceData', return_cpp_type='SliceData',
+               expression=None, params='int64 operandno'),
+    ],
 )
 
 OpClass.kinds['COUNTED_FOR'] = OpClass(
@@ -672,6 +683,12 @@ OPS = [
         enum_name='kBitSlice',
         name='bit_slice',
         op_class=OpClass.kinds['BIT_SLICE'],
+        properties=[],
+    ),
+    Op(
+        enum_name='kDynamicBitSlice',
+        name='dynamic_bit_slice',
+        op_class=OpClass.kinds['DYNAMIC_BIT_SLICE'],
         properties=[],
     ),
     Op(

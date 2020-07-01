@@ -14,6 +14,7 @@
 
 # Common utilities shared among XLA subfolders.
 
+
 # pytype test and library
 
 package(
@@ -23,6 +24,7 @@ package(
 
 cc_library(
     name = "integral_types",
+    srcs = ["integral_types.inc"],
     hdrs = ["integral_types.h"],
 )
 
@@ -75,6 +77,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "//xls/common/file:get_runfile_path",
         "//xls/common/logging",
+        "//xls/common/logging:vlog_is_on",
         "@com_google_absl//absl/flags:parse",
     ],
 )
@@ -97,6 +100,7 @@ cc_test(
 
 cc_library(
     name = "module_initializer",
+    srcs = ["module_initializer.inc"],
     hdrs = ["module_initializer.h"],
 )
 
@@ -257,6 +261,13 @@ py_library(
     ],
 )
 
+py_library(
+    name = "multiprocess",
+    srcs = ["multiprocess.py"],
+    srcs_version = "PY3",
+    deps = ["@com_google_absl_py//absl:app"],
+)
+
 py_test(
     name = "runfiles_test",
     srcs = ["runfiles_test.py"],
@@ -283,4 +294,14 @@ py_library(
 py_library(
     name = "gfile",
     srcs = ["gfile.py"],
+)
+
+py_library(
+    name = "check_simulator",
+    srcs = ["check_simulator.py"],
+)
+
+py_library(
+    name = "revision",
+    srcs = ["revision.py"],
 )

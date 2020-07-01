@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_COMMON_STATUS_STATUS_BUILDER_H_
-#define THIRD_PARTY_XLS_COMMON_STATUS_STATUS_BUILDER_H_
+#ifndef XLS_COMMON_STATUS_STATUS_BUILDER_H_
+#define XLS_COMMON_STATUS_STATUS_BUILDER_H_
 
 #include <limits>
 #include <memory>
@@ -339,7 +339,7 @@ class ABSL_MUST_USE_RESULT StatusBuilder {
   //
   //   absl::Status s = GetFileContents(...);
   //   if (!s.ok()) {
-  //     return Annotate(s, "loading blacklist");
+  //     return Annotate(s, "loading summary statistics data");
   //   }
   //
   // Annotate() adds the appropriate separators, so callers should not include a
@@ -631,4 +631,4 @@ inline xabsl::SourceLocation StatusBuilder::source_location() const {
 
 }  // namespace xabsl
 
-#endif  // THIRD_PARTY_XLS_COMMON_STATUS_STATUS_BUILDER_H_
+#endif  // XLS_COMMON_STATUS_STATUS_BUILDER_H_

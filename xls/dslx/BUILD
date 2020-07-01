@@ -16,6 +16,8 @@
 
 # pytype binary, test, library
 
+load("@xls_pip_deps//:requirements.bzl", "requirement")
+
 package(
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
@@ -226,8 +228,8 @@ py_library(
         ":parser",
         ":scanner",
         ":span",
+        requirement("termcolor"),
         "@com_google_absl_py//absl/logging",
-        "@termcolor_archive//:termcolor",
     ],
 )
 
@@ -327,8 +329,8 @@ py_library(
         ":scanner",
         ":span",
         ":xls_type_error",
-        "@com_google_absl_py//absl/logging",
         "//xls/common:xls_error",
+        "@com_google_absl_py//absl/logging",
     ],
 )
 
@@ -343,9 +345,9 @@ py_test(
         ":span",
         ":typecheck",
         ":xls_type_error",
-        "@com_google_absl_py//absl/testing:absltest",
-        "@com_google_absl_py//absl/logging",
         "//xls/common:xls_error",
+        "@com_google_absl_py//absl/logging",
+        "@com_google_absl_py//absl/testing:absltest",
     ],
 )
 
@@ -409,7 +411,6 @@ py_library(
         ":parametric_expression",
         ":parametric_instantiator",
         ":span",
-        "@com_google_absl_py//absl/logging",
         "//xls/common:xls_error",
         "//xls/dslx/interpreter",
         "//xls/ir/python:bits",
@@ -423,6 +424,7 @@ py_library(
         "//xls/ir/python:type",
         "//xls/ir/python:value",
         "//xls/ir/python:verifier",
+        "@com_google_absl_py//absl/logging",
     ],
 )
 
@@ -439,8 +441,8 @@ py_test(
         ":ir_converter",
         ":parser_helpers",
         ":typecheck",
-        "@com_google_absl_py//absl/testing:absltest",
         "//xls/common:runfiles",
+        "@com_google_absl_py//absl/testing:absltest",
     ],
 )
 
@@ -469,9 +471,9 @@ py_binary(
     srcs_version = "PY3",
     deps = [
         ":scanner",
+        requirement("termcolor"),
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
-        "@termcolor_archive//:termcolor",
     ],
 )
 
@@ -516,8 +518,9 @@ py_test(
         ":extract_conversion_order",
         ":fakefs_util",
         ":parse_and_typecheck",
-        "@com_google_absl_py//absl/logging",
         "//xls/common:test_base",
+        "@com_google_absl_py//absl/logging",
+        "@com_google_absl_py//absl/testing:absltest",
     ],
 )
 
@@ -557,8 +560,8 @@ py_library(
         ":deduce",
         ":import_fn",
         ":parse_and_typecheck",
-        "@com_google_absl_py//absl/logging",
         "//xls/common:runfiles",
+        "@com_google_absl_py//absl/logging",
     ],
 )
 
@@ -567,7 +570,7 @@ py_library(
     srcs = ["fakefs_util.py"],
     srcs_version = "PY3",
     deps = [
-        "@pyfakefs_archive//:pyfakefs",
+        "@pyfakefs_archive//:pyfakefs",  # fake_filesystem_unittest
     ],
 )
 

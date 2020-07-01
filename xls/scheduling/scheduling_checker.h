@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_SCHEDULING_SCHEDULING_CHECKER_H_
-#define THIRD_PARTY_XLS_SCHEDULING_SCHEDULING_CHECKER_H_
+#ifndef XLS_SCHEDULING_SCHEDULING_CHECKER_H_
+#define XLS_SCHEDULING_SCHEDULING_CHECKER_H_
 
 #include "xls/passes/passes.h"
 #include "xls/scheduling/scheduling_pass.h"
@@ -30,4 +30,4 @@ class SchedulingChecker : public SchedulingInvariantChecker {
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_SCHEDULING_SCHEDULING_CHECKER_H_
+#endif  // XLS_SCHEDULING_SCHEDULING_CHECKER_H_

@@ -284,7 +284,6 @@ class _IrConverterFb(ast.AstVisitor):
         # Logical.
         ast.Binop.LOGICAL_AND: self.fb.add_and,
         ast.Binop.LOGICAL_OR: self.fb.add_or,
-        ast.Binop.LOGICAL_XOR: self.fb.add_xor,
     }
     f = operator_to_f.get(node.operator.get_kind_or_keyword())
     if f:
@@ -389,7 +388,7 @@ class _IrConverterFb(ast.AstVisitor):
     kind = node.operator.get_kind_or_keyword()
     if kind == ast.Unop.NEG:
       self._def(node, self.fb.add_neg, self._use(node.operand))
-    elif kind in (ast.Unop.INV, ast.Unop.NOT):
+    elif kind == ast.Unop.INV:
       self._def(node, self.fb.add_not, self._use(node.operand))
     else:
       raise NotImplementedError(kind)
@@ -791,18 +790,8 @@ class _IrConverterFb(ast.AstVisitor):
   def _visit_update(self, node: ast.Invocation, args: Tuple[BValue,
                                                             ...]) -> BValue:
     array, target_index, update_value = args
-    array_type = array.get_type()
-    index_type = target_index.get_type()
-    index_bit_count = index_type.get_bit_count()
-    elements = []
-    for i in range(array_type.get_size()):
-      index = self.fb.add_literal_bits(
-          bits_mod.UBits(i, bit_count=index_bit_count))
-      e = self.fb.add_array_index(array, index)
-      p = self.fb.add_eq(index, target_index)
-      elements.append(self.fb.add_sel(p, update_value, e))
-    return self._def(node, self.fb.add_array, elements,
-                     array_type.get_element_type())
+    return self._def(node, self.fb.add_array_update, array, target_index,
+                     update_value)
 
   def _visit_bitwise_reduction(self, node: ast.Invocation, args: Tuple[BValue,
                                                                        ...],

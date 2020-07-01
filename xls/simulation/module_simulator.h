@@ -12,14 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_SIMULATION_MODULE_SIMULATOR_H_
-#define THIRD_PARTY_XLS_SIMULATION_MODULE_SIMULATOR_H_
+#ifndef XLS_SIMULATION_MODULE_SIMULATOR_H_
+#define XLS_SIMULATION_MODULE_SIMULATOR_H_
 
 #include "absl/container/flat_hash_map.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/status/statusor.h"
 #include "xls/ir/value.h"
+#include "xls/simulation/module_testbench.h"
 #include "xls/simulation/verilog_simulator.h"
 
 namespace xls {
@@ -67,6 +68,12 @@ class ModuleSimulator {
   xabsl::StatusOr<Value> Run(absl::Span<const Value> inputs) const;
 
  private:
+  // Deassert all control inputs on the module.
+  absl::Status DeassertControlSignals(ModuleTestbench* tb) const;
+
+  // Resets the module.
+  absl::Status ResetModule(ModuleTestbench* tb) const;
+
   ModuleSignature signature_;
   std::string verilog_text_;
   const VerilogSimulator* simulator_;
@@ -75,4 +82,4 @@ class ModuleSimulator {
 }  // namespace verilog
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_SIMULATION_MODULE_SIMULATOR_H_
+#endif  // XLS_SIMULATION_MODULE_SIMULATOR_H_

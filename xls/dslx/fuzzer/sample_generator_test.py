@@ -26,7 +26,7 @@ from xls.dslx.fuzzer import sample_generator
 from xls.dslx.fuzzer.sample import SampleOptions
 
 
-class SampleGeneratorTest(test_base.XlsTestCase):
+class SampleGeneratorTest(test_base.TestCase):
 
   def test_randrange_biased_towards_zero(self):
     rng = random.Random(0)

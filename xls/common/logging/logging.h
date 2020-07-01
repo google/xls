@@ -94,8 +94,8 @@
 //   XLS_LOG(INFO) << std::hex << 0xdeadbeef;  // logs "0xdeadbeef"
 //   XLS_LOG(INFO) << 0xdeadbeef;              // logs "3735928559"
 
-#ifndef THIRD_PARTY_XLS_COMMON_LOGGING_LOGGING_H_
-#define THIRD_PARTY_XLS_COMMON_LOGGING_LOGGING_H_
+#ifndef XLS_COMMON_LOGGING_LOGGING_H_
+#define XLS_COMMON_LOGGING_LOGGING_H_
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
@@ -336,4 +336,4 @@ void RemoveLogSink(LogSink* sink);
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_COMMON_LOGGING_LOGGING_H_
+#endif  // XLS_COMMON_LOGGING_LOGGING_H_

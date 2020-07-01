@@ -37,12 +37,14 @@ message Operation {
   // XLS Op (e.g., kAdd).
   string op = 1;
 
-  // Number of bits of the result of the operation (flattened).
+  // Number of bits of the result of the operation. For array-types this is the
+  // number of bits in each element.
   int64 bit_count = 2;
 
   // Operands.
   message Operand {
-    // Number of bits of the operand (flattened).
+    // Number of bits of the operand. For array types this is the number of bits
+    // in each element.
     int64 bit_count = 1;
 
     // If the operand is array-typed, this is the number of elements in the
@@ -94,6 +96,10 @@ message DelayFactor {
     // operand must be array-typed. The specific operand is indicated by the
     // field operand_number.
     OPERAND_ELEMENT_COUNT = 4;
+
+    // The width of an element number in a particular array-typed operand of the
+    // operation. The specific operand is indicated by the field operand_number.
+    OPERAND_ELEMENT_BIT_COUNT = 5;
   }
   Source source = 1;
 

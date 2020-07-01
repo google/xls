@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,8 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# Lint as: python3
+
 """Tests for xls.dslx.scanner."""
 
 import pprint
@@ -154,13 +155,13 @@ class ScannerTest(absltest.TestCase):
     self.assertEqual(tokens[4].kind, TokenKind.COMMENT)
 
   def test_peek_pop_drop_try_drop(self):
-    text = '[!](~)'
+    text = '[!](-)'
     expected = [
         TokenKind.OBRACK,
         TokenKind.BANG,
         TokenKind.CBRACK,
         TokenKind.OPAREN,
-        TokenKind.TILDE,
+        TokenKind.MINUS,
         TokenKind.CPAREN,
     ]
     s = self.make_scanner(text)

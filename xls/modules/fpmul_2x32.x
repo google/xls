@@ -44,7 +44,7 @@ fn fpmul_2x32(x: F32, y: F32) -> F32 {
   // to capture that "extra" exponent.
   // Since we just flush subnormals, we don't have to do any of that.
   // Instead, if we're multiplying by 0, the result is 0.
-  let exp = s10:0 if is_zero(x) or is_zero(y) else exp in
+  let exp = s10:0 if is_zero(x) || is_zero(y) else exp in
 
   // 4. Normalize. Adjust the significand until our leading 1 is in
   // bit 47 (the first past the 46 bits of actual significand).
@@ -84,7 +84,7 @@ fn fpmul_2x32(x: F32, y: F32) -> F32 {
   //   we round up if bit 25 is set.
   let is_half_way = sfd[22:23] & (sfd[0:22] == u22:0) in
   let greater_than_half_way = sfd[22:23] & (sfd[0:22] != u22:0) in
-  let do_round_up = greater_than_half_way or (is_half_way & sfd[23:24]) in
+  let do_round_up = greater_than_half_way || (is_half_way & sfd[23:24]) in
 
   // We're done with the extra precision bits now, so shift the
   // significand into its almost-final width, adding one extra
@@ -113,16 +113,16 @@ fn fpmul_2x32(x: F32, y: F32) -> F32 {
   let result_exp = result_exp as u8 if result_exp < u9:0xff else u8:0xff in
 
   // - Arg infinites. Any arg is infinite == result is infinite.
-  let is_operand_inf = float32::is_inf(x) or float32::is_inf(y) in
+  let is_operand_inf = float32::is_inf(x) || float32::is_inf(y) in
   let result_exp = u8:0xff if is_operand_inf else result_exp in
   let result_sfd = u23:0 if is_operand_inf else result_sfd in
 
   // - NaNs. NaN trumps infinities, so we handle it last.
   //   inf * 0 = NaN, i.e.,
-  let has_0_arg = is_zero(x) or is_zero(y) in
-  let has_nan_arg = float32::is_nan(x) or float32::is_nan(y) in
-  let has_inf_arg = float32::is_inf(x) or float32::is_inf(y) in
-  let is_result_nan = has_nan_arg or (has_0_arg and has_inf_arg) in
+  let has_0_arg = is_zero(x) || is_zero(y) in
+  let has_nan_arg = float32::is_nan(x) || float32::is_nan(y) in
+  let has_inf_arg = float32::is_inf(x) || float32::is_inf(y) in
+  let is_result_nan = has_nan_arg || (has_0_arg && has_inf_arg) in
   let result_exp = u8:0xff if is_result_nan else result_exp in
   let result_sfd = u23:0x40_0000 if is_result_nan else result_sfd in
   let result_sign = u1:0 if is_result_nan else result_sign in

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_IR_NODE_H_
-#define THIRD_PARTY_XLS_IR_NODE_H_
+#ifndef XLS_IR_NODE_H_
+#define XLS_IR_NODE_H_
 
 #include <string>
 #include <utility>
@@ -228,8 +228,10 @@ class Node {
 
   absl::optional<SourceLocation> loc_;
   std::vector<Node*> operands_;
-  using UnorderedNodeSet = std::unordered_set<Node*>;
-  UnorderedNodeSet users_set_;
+
+#include "xls/ir/container_hack.inc"
+  UnorderedSet<Node*> users_set_;
+#include "xls/ir/container_hack_undef.inc"
   std::vector<Node*> users_;
 };
 
@@ -248,4 +250,4 @@ inline void NodeAppend(std::string* out, const Node* n) {
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_IR_NODE_H_
+#endif  // XLS_IR_NODE_H_

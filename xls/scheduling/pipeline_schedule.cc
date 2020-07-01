@@ -284,6 +284,18 @@ PipelineSchedule::PipelineSchedule(Function* function,
   }
 }
 
+xabsl::StatusOr<PipelineSchedule> PipelineSchedule::FromProto(
+    Function* function, const PipelineScheduleProto& proto) {
+  ScheduleCycleMap cycle_map;
+  for (const auto& stage : proto.stages()) {
+    for (const auto& node_name : stage.nodes()) {
+      XLS_ASSIGN_OR_RETURN(Node * node, function->GetNode(node_name));
+      cycle_map[node] = stage.stage();
+    }
+  }
+  return PipelineSchedule(function, cycle_map);
+}
+
 absl::Span<Node* const> PipelineSchedule::nodes_in_cycle(int64 cycle) const {
   if (cycle < cycle_to_nodes_.size()) {
     return cycle_to_nodes_[cycle];
@@ -456,6 +468,19 @@ absl::Status PipelineSchedule::VerifyTiming(
         })));
   }
   return absl::OkStatus();
+}
+
+PipelineScheduleProto PipelineSchedule::ToProto() {
+  PipelineScheduleProto proto;
+  proto.set_function(function_->name());
+  for (int i = 0; i < cycle_to_nodes_.size(); i++) {
+    StageProto* stage = proto.add_stages();
+    stage->set_stage(i);
+    for (const Node* node : cycle_to_nodes_[i]) {
+      stage->add_nodes(node->GetName());
+    }
+  }
+  return proto;
 }
 
 }  // namespace xls

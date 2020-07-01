@@ -140,7 +140,7 @@ int main(int argc, char** argv) {
   std::vector<absl::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
 
-  if (positional_arguments.empty() || absl::GetFlag(FLAGS_benchmarks).empty()) {
+  if (positional_arguments.empty() && absl::GetFlag(FLAGS_benchmarks).empty()) {
     XLS_LOG(QFATAL) << absl::StreamFormat(
         "Expected invocation:\n  %s <path>\n  %s "
         "--benchmarks=<benchmark-names>",

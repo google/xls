@@ -15,14 +15,15 @@
 // API for turning XLS IR computations into Z3 solver form (so we can
 // compute/query formal properties of nodes in the XLS IR).
 
-#ifndef THIRD_PARTY_XLS_TOOLS_Z3_IR_TRANSLATOR_H_
-#define THIRD_PARTY_XLS_TOOLS_Z3_IR_TRANSLATOR_H_
+#ifndef XLS_TOOLS_Z3_IR_TRANSLATOR_H_
+#define XLS_TOOLS_Z3_IR_TRANSLATOR_H_
 
 #include "absl/time/time.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/statusor.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/function.h"
+#include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3.h"
 
 namespace xls {
@@ -60,6 +61,10 @@ class IrTranslator : public DfsVisitorWithDefault {
 
   // Returns the Z3 value (or set of values) corresponding to the given Node.
   Z3_ast GetTranslation(const Node* source);
+
+  // Sets the translation of a node to the given Z3_ast, for example to set the
+  // input to a particular node as a constant value.
+  void SetTranslation(const Node* node, Z3_ast dst);
 
   // Convenience version for the above for the function return Node.
   Z3_ast GetReturnNode();
@@ -104,6 +109,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::Status HandleAdd(BinOp* add) override;
   absl::Status HandleArray(Array* array) override;
   absl::Status HandleArrayIndex(ArrayIndex* array_index) override;
+  absl::Status HandleArrayUpdate(ArrayUpdate* array_update) override;
   absl::Status HandleBitSlice(BitSlice* bit_slice) override;
   absl::Status HandleConcat(Concat* concat) override;
   absl::Status HandleEncode(Encode* encode) override;
@@ -149,6 +155,9 @@ class IrTranslator : public DfsVisitorWithDefault {
 
   IrTranslator(Z3_context ctx, Function* xls_function,
                absl::Span<const Z3_ast> imported_params);
+
+  // Returns the index with the proper bitwidth for the given array_type.
+  Z3_ast GetAsFormattedArrayIndex(Z3_ast index, ArrayType* array_type);
 
   // Gets the bit count associated with the bit-vector-sort Z3 node "arg".
   // (Arg must be known to be of bit-vector sort.)
@@ -199,10 +208,6 @@ class IrTranslator : public DfsVisitorWithDefault {
   // Records the mapping of the specified XLS IR node to Z3 value.
   void NoteTranslation(Node* node, Z3_ast translated);
 
-  // Converts an XLS type to the matching Z3 sort.
-  Z3_sort TypeToSort(Type* type);
-  Z3_sort CreateTupleSort(Type* type);
-
   // Creates a Z3 tuple from the given XLS type or Z3 sort and Z3 elements.
   Z3_ast CreateTuple(Type* tuple_type, absl::Span<Z3_ast> elements);
   Z3_ast CreateTuple(Z3_sort tuple_sort, absl::Span<Z3_ast> elements);
@@ -222,7 +227,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   // True if this is translating a function called from another, in which case
   // we shouldn't delete our context, etc.!
   bool borrowed_context_;
-  absl::flat_hash_map<Node*, Z3_ast> translations_;
+  absl::flat_hash_map<const Node*, Z3_ast> translations_;
   // Params specified in the context-borrowing CreateAndTranslate() builder.
   // Parameters already translated in a separate function traversal that should
   // be used as this translation's parameter set.
@@ -268,4 +273,4 @@ xabsl::StatusOr<bool> TryProve(Function* f, Node* subject, Predicate p,
 }  // namespace solvers
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_TOOLS_Z3_IR_TRANSLATOR_H_
+#endif  // XLS_TOOLS_Z3_IR_TRANSLATOR_H_

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_COMMON_LOGGING_CONDITION_H_
-#define THIRD_PARTY_XLS_COMMON_LOGGING_CONDITION_H_
+#ifndef XLS_COMMON_LOGGING_CONDITION_H_
+#define XLS_COMMON_LOGGING_CONDITION_H_
 
 #include "xls/common/logging/log_message.h"
 #include "xls/common/logging/null_stream.h"
@@ -79,4 +79,4 @@ class LogMessageVoidify {
 }  // namespace logging_internal
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_COMMON_LOGGING_CONDITION_H_
+#endif  // XLS_COMMON_LOGGING_CONDITION_H_

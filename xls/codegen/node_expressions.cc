@@ -419,6 +419,9 @@ xabsl::StatusOr<Expression*> NodeToExpression(
                            slice->start() + slice->width() - 1, slice->start());
       }
     }
+    case Op::kDynamicBitSlice: {
+      return absl::UnimplementedError("DynamicBitSlice not yet implemented");
+    }
     case Op::kConcat:
       return file->Concat(inputs);
     case Op::kUDiv:
