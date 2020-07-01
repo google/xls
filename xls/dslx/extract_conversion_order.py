@@ -89,13 +89,13 @@ def _evaluate_bindings(outer_bindings: SymbolicBindings,
   return tuple(new_bindings)
 
 
-def get_callees(f: ast.Function, m: ast.Module, imports: Dict[ast.Import,
+def get_callees(func: ast.Function, m: ast.Module, imports: Dict[ast.Import,
                                                               ImportedInfo],
-                bindings: SymbolicBindings) -> Tuple[Callee, ...]:
+            bindings: SymbolicBindings) -> Tuple[Callee, ...]:
   """Traverses the definition of f to find callees.
 
   Args:
-    f: Function to inspect for calls.
+    func: Function to inspect for calls.
     m: Module that f resides in.
     imports: Mapping of modules imported by m.
     bindings: Bindings used in instantiation of f.
@@ -113,6 +113,7 @@ def get_callees(f: ast.Function, m: ast.Module, imports: Dict[ast.Import,
       if isinstance(node.callee, ast.ModRef):
         this_m, _ = imports[node.callee.mod]
         f = this_m.get_function(node.callee.value_tok.value)
+        fn_identifier = f.name.identifier
       elif isinstance(node.callee, ast.NameRef):
         this_m = m
         fn_identifier = node.callee.identifier
@@ -134,12 +135,14 @@ def get_callees(f: ast.Function, m: ast.Module, imports: Dict[ast.Import,
         raise NotImplementedError(
             'Only calls to named functions are currently supported, got callee: {!r}'
             .format(node.callee))
+      print("currently in {} with {}, inspecting {} with {}".format(func.name.identifier, bindings, fn_identifier, node.symbolic_bindings))
+      node_symbolic_bindings = node.symbolic_bindings.get((func.name.identifier, bindings), ())
       callees.append(
           Callee(f, this_m, _evaluate_bindings(bindings,
-                                               node.symbolic_bindings)))
+                                               node_symbolic_bindings)))
 
-  f.accept(InvocationVisitor())
-  logging.vlog(3, 'Callees for %s: %s', f, [cr.f.identifier for cr in callees])
+  func.accept(InvocationVisitor())
+  logging.vlog(3, 'Callees for %s: %s', func, [(cr.f.identifier, cr.sym_bindings) for cr in callees])
   return tuple(callees)
 
 
@@ -158,6 +161,7 @@ def _add_to_ready(ready: List[ConversionRecord],
 
   # Remember the original callees value because we're gonna knock them out
   # from a list.
+  print("getting callees for {}".format(f.name.identifier))
   orig_callees = tuple(get_callees(f, m, imports, bindings))
 
   # Knock out all callees that are already in the order.
@@ -171,7 +175,7 @@ def _add_to_ready(ready: List[ConversionRecord],
   for callee in callees:
     _add_to_ready(ready, imports, callee.f, callee.m, callee.sym_bindings)
 
-  assert not _is_ready(ready, f, m, bindings)
+  #assert not _is_ready(ready, f, m, bindings)
   logging.vlog(3, 'Adding to ready sequence: %s', f.name.identifier)
   ready.append(ConversionRecord(f, m, bindings, callees=orig_callees))
 
@@ -194,5 +198,7 @@ def get_order(
       continue
 
     _add_to_ready(ready, imports, function, module, bindings=())
+
+  print([(c.f.name.identifier, c.bindings) for c in ready])
 
   return ready

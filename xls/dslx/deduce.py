@@ -292,7 +292,9 @@ def _deduce_Invocation(self: ast.Invocation,
   self_type, symbolic_bindings = parametric_instantiator.instantiate(
       self.span, callee_type, tuple(arg_types), ctx, function_def.parametric_bindings)
 
-  self.symbolic_bindings = symbolic_bindings
+  print("before : {} | {}".format(self.symbolic_bindings, ctx.fn_symbolic_bindings))
+  self.symbolic_bindings[(ctx.fn_name, tuple(ctx.fn_symbolic_bindings.items()))] = symbolic_bindings
+  print("after : {}".format(self.symbolic_bindings))
 
   if function_def.parametric_bindings:
     # Finish typechecking the body of the parametric function we're calling
@@ -478,7 +480,6 @@ def _deduce_Let(self: ast.Let, ctx: DeduceCtx) -> ConcreteType:  # pytype: disab
 
   resolver = mk_resolver(ctx.fn_symbolic_bindings)
   rhs_type = deduce(self.rhs, ctx)
-  print(rhs_type)
 
   if self.type_ is not None:
     concrete_type = deduce(self.type_, ctx)
