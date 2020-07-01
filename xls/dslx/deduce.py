@@ -303,9 +303,11 @@ def _deduce_Invocation(self: ast.Invocation,
       importedCtx.fn_name = ident
       importedCtx.fn_symbolic_bindings = dict(symbolic_bindings)
       #body_return_type = deduce(function_def.body, importedCtx)
+      print("mod need {}".format(ident))
       ctx.typecheck_callback(function_def, importedCtx)
       #importedCtx.node_to_type._dict.pop(function_def.body, None)
       ctx.node_to_type.update(importedCtx.node_to_type)
+      ctx.parametric_fn_cache.update(importedCtx.parametric_fn_cache)
     else:
       ctx.sym_stack.append((ctx.fn_name, ctx.fn_symbolic_bindings))
       ctx.fn_name = ident
@@ -314,10 +316,13 @@ def _deduce_Invocation(self: ast.Invocation,
 
       # Force typecheck.py to deduce the body of this parametric function
       # Using our newly derived symbolic bindings
+
+      print("need {}".format(ident))
       try:
         body_return_type = ctx.node_to_type[function_def.body]
       except TypeMissingError as e:
           e.node = self.callee.name_def
+          print("missing {}".format(e.node))
           raise
 
       old = ctx.sym_stack.pop()
@@ -326,6 +331,7 @@ def _deduce_Invocation(self: ast.Invocation,
 
       # HACK: force the typecheck of this body again
       ctx.node_to_type._dict.pop(function_def.body)
+      print("popped {}".format(ident))
 
   return self_type
 
@@ -469,9 +475,10 @@ def _bind_names(name_def_tree: ast.NameDefTree, type_: ConcreteType,
 @_rule(ast.Let)
 def _deduce_Let(self: ast.Let, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of a Let AST node."""
-  rhs_type = deduce(self.rhs, ctx)
 
   resolver = mk_resolver(ctx.fn_symbolic_bindings)
+  rhs_type = deduce(self.rhs, ctx)
+  print(rhs_type)
 
   if self.type_ is not None:
     concrete_type = deduce(self.type_, ctx)
@@ -480,6 +487,7 @@ def _deduce_Let(self: ast.Let, ctx: DeduceCtx) -> ConcreteType:  # pytype: disab
     resolved_concrete_type = concrete_type.map_size(resolver)
 
     if resolved_rhs_type != resolved_concrete_type:
+      print(ctx.fn_name, ctx.fn_symbolic_bindings, resolved_concrete_type)
       raise XlsTypeError(
           self.rhs.span, resolved_concrete_type, resolved_rhs_type,
           'Annotated type did not match inferred type of right hand side.')
@@ -580,6 +588,7 @@ def _deduce_For(self: ast.For, ctx: DeduceCtx) -> ConcreteType:  # pytype: disab
   # TODO(leary): 2019-02-19 Type check annotated_type (the bound names each
   # iteration) against init_type/body_type -- this requires us to understand
   # how iterables turn into induction values.
+  # print("!!! {} !!!".format(ctx.fn_name), init_type)
   return init_type
 
 
@@ -1051,6 +1060,7 @@ def deduce(n: ast.AstNode, ctx: DeduceCtx) -> ConcreteType:
   """
   assert isinstance(n, ast.AstNode), n
   if n in ctx.node_to_type: #and (not ctx.fn_symbolic_bindings or not isinstance(n, ast.NameRef)):
+    # print("hit", n)
     result = ctx.node_to_type[n]
     assert isinstance(result, ConcreteType), result
   else:

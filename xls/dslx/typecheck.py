@@ -80,19 +80,18 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx):
 
   logging.vlog(1, 'Type-checking body for function: %s', f)
 
-  if f.parametric_bindings:
-    if f in ctx.parametric_fn_cache:
-      cached_types = ctx.parametric_fn_cache[f]
-      without_f_dict = { node : ctx.node_to_type[node] for node in ctx.node_to_type._dict if not node in cached_types }
-      ctx.node_to_type._dict = without_f_dict
-      body_return_type = deduce.deduce(f.body, ctx)
-    else:
-      og_dict = copy.copy(ctx.node_to_type._dict)
-      body_return_type = deduce.deduce(f.body, ctx)
-      diff = { node : ctx.node_to_type[node] for node in set(ctx.node_to_type._dict) - set(og_dict) }
-      ctx.parametric_fn_cache[f] = diff
-  else:
-    body_return_type = deduce.deduce(f.body, ctx)
+
+#   if f.parametric_bindings:
+#     if f in ctx.parametric_fn_cache:
+#       print("cached")
+#       cached_types = ctx.parametric_fn_cache[f]
+#       without_f_dict = { node : ctx.node_to_type[node] for node in ctx.node_to_type._dict if not node in cached_types }
+#       assert not f.body in without_f_dict
+#       ctx.node_to_type._dict = without_f_dict
+#     body_return_type = deduce.deduce(f.body, ctx)
+#   else:
+#     body_return_type = deduce.deduce(f.body, ctx)
+  body_return_type = deduce.deduce(f.body, ctx)
 
   if f.return_type is None:
     if body_return_type.is_nil():
@@ -217,37 +216,39 @@ def _check_function_or_test_in_module(f: Union[Function, ast.Test],
   seen = {
       (f.name.identifier, isinstance(f, ast.Test)): (f, True)
   }  # type: Dict[Tuple[Text, bool], Tuple[Union[Function, ast.Test], bool]]
-  stack = [(f.name.identifier, isinstance(f, ast.Test))]
+
+  if isinstance(f, ast.Function) and f.parametric_bindings and f not in ctx.parametric_fn_cache and ctx.fn_name == f.name.identifier:
+    og_dict = copy.copy(ctx.node_to_type._dict)
+    rec = (f.name.identifier, isinstance(f, ast.Test), og_dict)
+  elif isinstance(f, ast.Function) and  f.parametric_bindings and f in ctx.parametric_fn_cache and ctx.fn_name == f.name.identifier:
+    cached_types = ctx.parametric_fn_cache[f]
+    without_f_dict = { node : ctx.node_to_type[node] for node in ctx.node_to_type._dict if not node in cached_types }
+    assert not f.body in without_f_dict
+    ctx.node_to_type._dict = without_f_dict
+    rec = (f.name.identifier, False, None)
+  else:
+    rec = (f.name.identifier, isinstance(f, ast.Test), None)
+
+  stack = [rec]
 
   function_map = {f.name.identifier: f for f in ctx.module.get_functions()}
   while stack:
-    #print("#####", ctx.fn_name,"###########", stack, "#######################")
+    # print("#####", ctx.fn_name,"###########", [r[:2] for r in stack], "#######################")
     try:
-      f = seen[stack[-1]][0]
+      f = seen[stack[-1][:2]][0]
       if isinstance(f, ast.Function):
-        """
-        if not f.parametric_bindings:
-          ret_type = _check_function_sig(f, ctx)
-          _check_function_body(f, ctx, fn_type)
-          assert isinstance(f.name, ast.NameDef) and f.name in ctx.node_to_type
-        else:
-          _check_function_sig(f, ctx)
-        """
         _check_function(f, ctx)
-        """
-        if f.parametric_bindings:
-          if f.name.identifier != ctx.fn_name:
-            seen[(f.name.identifier, isinstance(f, ast.Test))] = (f, False
-                                                           )  # Mark as done.
-            stack.pop()
-          continue
-        """
       else:
         assert isinstance(f, ast.Test)
         check_test(f, ctx)
       seen[(f.name.identifier, isinstance(f, ast.Test))] = (f, False
                                                            )  # Mark as done.
-      stack.pop()
+      rec = stack.pop()
+      if isinstance(f, ast.Function) and f.parametric_bindings and f not in ctx.parametric_fn_cache and ctx.fn_name == f.name.identifier:
+        # print("##### registered {}".format(f.name))
+        og_dict = rec[2]
+        diff = { node : ctx.node_to_type[node] for node in set(ctx.node_to_type._dict) - set(og_dict) }
+        ctx.parametric_fn_cache[f] = diff
 
       if len(ctx.sym_stack):
         old = ctx.sym_stack.pop()
@@ -255,45 +256,50 @@ def _check_function_or_test_in_module(f: Union[Function, ast.Test],
         ctx.fn_name = old[0]
 
     except deduce.TypeMissingError as e:
+      # print("##### caught {}".format(e))
       while True:
-        # print("##### picked up {}, {}, currently in {}  #######".format(e.node, type(e.node), ctx.fn_name))
         if isinstance(e.node, ast.NameDef) and e.node.identifier in function_map:
           # If it's seen and not-done, we're recursing.
-          # print('in here!')
           if seen.get((e.node.identifier, False), (None, False))[1]:
             raise XlsError(
                 'Recursion detected while typechecking; name: {}'.format(
                     e.node.identifier))
           callee = function_map[e.node.identifier]
           assert isinstance(callee, ast.Function), callee
+
+          if callee.parametric_bindings and callee not in ctx.parametric_fn_cache and ctx.fn_name == e.node.identifier:
+            og_dict = copy.copy(ctx.node_to_type._dict)
+            rec = (e.node.identifier, False, og_dict)
+          elif callee.parametric_bindings and callee in ctx.parametric_fn_cache and ctx.fn_name == e.node.identifier:
+            cached_types = ctx.parametric_fn_cache[callee]
+            without_f_dict = { node : ctx.node_to_type[node] for node in ctx.node_to_type._dict if not node in cached_types }
+            assert not callee.body in without_f_dict
+            ctx.node_to_type._dict = without_f_dict
+            rec = (e.node.identifier, False, None)
+          else:
+            rec = (e.node.identifier, False, None)
+
+
           seen[(e.node.identifier, False)] = (callee, True)
-          stack.append((e.node.identifier, False))
+          stack.append(rec)
           break
         if (isinstance(e.node, ast.BuiltinNameDef) and
             e.node.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES):
-          # print("here")
           logging.vlog(2, 'node: %r; identifier: %r, exception user: %r', e.node,
                        e.node.identifier, e.user)
 
           if isinstance(e.user, ast.Invocation):
             ok_inst, func = _instantiate(e.node, e.user, ctx)
-            # print(ok_inst, func)
             if ok_inst:
               if func:
                 e.node = func
                 continue
               else:
-                # print("broke")
                 break
 
-        # print("raise time")
         raise
 
-  # Add back the bodies of parametric fns for completeness
-  for f_name in function_map:
-    f = ctx.module.get_function(f_name)
-    if f.parametric_bindings and f_name in ctx.parametric_fn_cache:
-      ctx.node_to_type[f.body] = ctx.parametric_fn_cache[f_name][f.body]
+
 
 ImportFn = Callable[[Tuple[Text, ...]], Tuple[ast.Module, deduce.NodeToType]]
 
@@ -351,5 +357,10 @@ def check_module(
     logging.vlog(2, 'Typechecking test: %s', t)
     _check_function_or_test_in_module(t, ctx)
     logging.vlog(2, 'Finished typechecking test: %s', t)
+
+  # Add back the bodies of parametric fns for completeness
+  for f in ctx.parametric_fn_cache:
+    if f.body in ctx.parametric_fn_cache[f]:
+      ctx.node_to_type[f.body] = ctx.parametric_fn_cache[f][f.body]
 
   return ctx.node_to_type
