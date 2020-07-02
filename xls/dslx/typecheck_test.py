@@ -74,6 +74,10 @@ class TypecheckTest(absltest.TestCase):
   def test_typecheck_arithmetic(self):
     self._typecheck('fn f(x: u32, y: u32) -> u32 { x + y }')
     self._typecheck('fn f(x: u32, y: u32) { x + y }', error='<none> vs uN[32]')
+    self._typecheck("""
+      fn [N: u32] f(x: bits[N], y: bits[N]) { x + y }
+      fn g() -> u64 { f(u64: 5, u64: 5) }
+        """, error='<none> vs uN[64]')
     self._typecheck(
         'fn f(x: u32, y: bits[4]) { x + y }', error='uN[32] vs uN[4]')
     self._typecheck(

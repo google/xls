@@ -28,7 +28,7 @@ from xls.dslx import dslx_builtins
 from xls.dslx.ast import Function
 from xls.dslx.ast import Module
 from xls.dslx.interpreter import interpreter_helpers
-from xls.dslx.concrete_type import ConcreteType, TupleType
+from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.concrete_type import FunctionType
 from xls.dslx.xls_type_error import XlsTypeError
 
@@ -73,7 +73,7 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx):
       ctx.node_to_type[param.name] = param_type
 
     if f.parametric_bindings:
-      annotated_return_type = deduce.deduce(f.return_type, ctx) if f.return_type else TupleType(None)
+      annotated_return_type = deduce.deduce(f.return_type, ctx) if f.return_type else ConcreteType.NIL
       ctx.node_to_type[f.name] = ctx.node_to_type[f] = FunctionType(
            tuple(param_types), annotated_return_type)
       return
@@ -92,6 +92,8 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx):
 #   else:
 #     body_return_type = deduce.deduce(f.body, ctx)
   body_return_type = deduce.deduce(f.body, ctx)
+  resolver = deduce.mk_resolver(ctx.fn_symbolic_bindings)
+  resolved_body_type = body_return_type.map_size(resolver)
 
   if f.return_type is None:
     if body_return_type.is_nil():
@@ -103,15 +105,13 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx):
       raise XlsTypeError(
           f.span,
           None,
-          body_return_type,
+          resolved_body_type,
           suffix='No return type was annotated, but a non-nil return type was '
           'found.')
   else:
     annotated_return_type = deduce.deduce(f.return_type, ctx)
 
-    resolver = deduce.mk_resolver(ctx.fn_symbolic_bindings)
     resolved_return_type =  annotated_return_type.map_size(resolver)
-    resolved_body_type = body_return_type.map_size(resolver)
 
     if resolved_return_type != resolved_body_type:
       raise XlsTypeError(
