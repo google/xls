@@ -300,15 +300,11 @@ def _deduce_Invocation(self: ast.Invocation,
       importedCtx = DeduceCtx(imported_node_to_type, imported_module, ctx.interp_callback,
                              ctx.typecheck_callback, f_import=ctx.f_import, parametric_fn_cache=ctx.parametric_fn_cache)
       importedCtx.fn_stack.append((ident, dict(symbolic_bindings)))
-      #body_return_type = deduce(function_def.body, importedCtx)
-      # print("[[[[[[need {}".format(ident))
       ctx.typecheck_callback(function_def, importedCtx)
-      # importedCtx.node_to_type._dict.pop(function_def.body, None)
       ctx.node_to_type.update(importedCtx.node_to_type)
       ctx.parametric_fn_cache.update(importedCtx.parametric_fn_cache)
     else:
       ctx.fn_stack.append((ident, dict(symbolic_bindings)))
-      #print("in {}, need to check {}'s body".format(ctx.fn_stack[-1][0], ident))
 
       # Force typecheck.py to deduce the body of this parametric function
       # Using our newly derived symbolic bindings
@@ -467,12 +463,12 @@ def _bind_names(name_def_tree: ast.NameDefTree, type_: ConcreteType,
 def _deduce_Let(self: ast.Let, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of a Let AST node."""
 
-  resolver = make_resolver(ctx)
   rhs_type = deduce(self.rhs, ctx)
 
   if self.type_ is not None:
     concrete_type = deduce(self.type_, ctx)
 
+    resolver = make_resolver(ctx)
     resolved_rhs_type = rhs_type.map_size(resolver)
     resolved_concrete_type = concrete_type.map_size(resolver)
 
@@ -497,6 +493,8 @@ def _unify_WildcardPattern(_self: ast.WildcardPattern, _type: ConcreteType,
 def _unify_NameDefTree(self: ast.NameDefTree, type_: ConcreteType,
                        ctx: DeduceCtx) -> None:
   """Unifies the NameDefTree AST node with the observed RHS type type_."""
+  resolver = make_resolver(ctx)
+  resolved_rhs_type = type_.map_size(resolver)
   if self.is_leaf():
     leaf = self.get_leaf()
     if isinstance(leaf, ast.NameDef):
@@ -504,21 +502,23 @@ def _unify_NameDefTree(self: ast.NameDefTree, type_: ConcreteType,
     elif isinstance(leaf, ast.WildcardPattern):
       pass
     elif isinstance(leaf, (ast.Number, ast.EnumRef)):
-      if deduce(leaf, ctx) != type_:
+      resolved_leaf_type = deduce(leaf, ctx).map_size(resolver)
+      if resolved_leaf_type != resolved_rhs_type:
         raise TypeInferenceError(
             span=self.span,
-            type_=type_,
+            type_=resolved_rhs_type,
             suffix='Conflicting types; pattern expects {} but got {} from value'
-            .format(type_, deduce(leaf, ctx)))
+            .format(resolved_rhs_type, resolved_leaf_type))
     else:
       assert isinstance(leaf, ast.NameRef), repr(leaf)
       ref_type = ctx.node_to_type[leaf.name_def]
-      if ref_type != type_:
+      resolved_ref_type = ref_type.map_size(resolver)
+      if resolved_ref_type != resolved_rhs_type:
         raise TypeInferenceError(
             span=self.span,
-            type_=type_,
+            type_=resolved_rhs_type,
             suffix='Conflicting types; pattern expects {} but got {} from reference'
-            .format(type_, ref_type))
+            .format(resolved_rhs_type, resolved_ref_type))
   else:
     assert isinstance(self.tree, tuple)
     if isinstance(type_, TupleType) and type_.get_tuple_length() == len(
@@ -542,13 +542,16 @@ def _deduce_Match(self: ast.Match, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
     for pattern in arm.patterns:
       _unify(pattern, matched, ctx)
 
-  resolver = make_resolver(ctx)
-
   arm_types = tuple(deduce(arm, ctx) for arm in self.arms)
+
+  resolver = make_resolver(ctx)
+  resolved_arm0_type = arm_types[0].map_size(resolver)
+
   for i, arm_type in enumerate(arm_types[1:], 1):
-    if arm_type.map_size(resolver) != arm_types[0].map_size(resolver):
+    resolved_arm_type = arm_type.map_size(resolver)
+    if resolved_arm_type != resolved_arm0_type:
       raise XlsTypeError(
-          self.arms[i].span, arm_type, arm_types[0],
+          self.arms[i].span, resolved_arm_type, resolved_arm0_type,
           'This match arm did not have the same type as preceding match arms.')
   return arm_types[0]
 
@@ -569,15 +572,16 @@ def _deduce_For(self: ast.For, ctx: DeduceCtx) -> ConcreteType:  # pytype: disab
   deduce(self.iterable, ctx)
 
   resolver = make_resolver(ctx)
+  resolved_init_type = init_type.map_size(resolver)
+  resolved_body_type = body_type.map_size(resolver)
 
-  if init_type.map_size(resolver) != body_type.map_size(resolver):
+  if resolved_init_type != resolved_body_type:
     raise XlsTypeError(
-        self.span, init_type, body_type,
+        self.span, resolved_nit_type, resolved_body_type,
         "For-loop init value type did not match for-loop body's result type.")
   # TODO(leary): 2019-02-19 Type check annotated_type (the bound names each
   # iteration) against init_type/body_type -- this requires us to understand
   # how iterables turn into induction values.
-  # print("!!! {} !!!".format(ctx.fn_name), init_type)
   return init_type
 
 
@@ -586,14 +590,20 @@ def _deduce_While(self: ast.While, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
   """Deduces the concrete type of a While AST node."""
   init_type = deduce(self.init, ctx)
   test_type = deduce(self.test, ctx)
-  if test_type != ConcreteType.U1:
+
+  resolver = make_resolver(ctx)
+  resolved_init_type = init_type.map_size(resolver)
+  resolved_test_type = test_type.map_size(resolver)
+
+  if resolved_test_type != ConcreteType.U1:
     raise XlsTypeError(self.test.span, test_type, ConcreteType.U1,
                        'Expect while-loop test to be a bool value.')
 
-  resolver = make_resolver(ctx)
 
   body_type = deduce(self.body, ctx)
-  if init_type.map_size(resolver) != body_type.map_size(resolver):
+  resolved_body_type = body_type.map_size(resolver)
+
+  if resolved_init_type != resolved_body_type:
     raise XlsTypeError(
         self.span, init_type, body_type,
         "While-loop init value type did not match while-loop body's "
@@ -1047,12 +1057,10 @@ def deduce(n: ast.AstNode, ctx: DeduceCtx) -> ConcreteType:
   that were necessary to determine (deduce) the resulting type of n.
   """
   assert isinstance(n, ast.AstNode), n
-  if n in ctx.node_to_type: #and (not ctx.fn_symbolic_bindings or not isinstance(n, ast.NameRef)):
-    # print("hit", n)
+  if n in ctx.node_to_type:
     result = ctx.node_to_type[n]
     assert isinstance(result, ConcreteType), result
   else:
-    #print("checking {}".format(n))
     result = ctx.node_to_type[n] = _deduce(n, ctx)
     logging.vlog(5, 'Deduced type of %s => %s', n, result)
     assert isinstance(result, ConcreteType), \

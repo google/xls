@@ -99,7 +99,6 @@ def get_callees(func: ast.Function, m: ast.Module, imports: Dict[ast.Import,
             this_m = imports[fn_node.mod][0]
           else:
             fn_identifier = fn_node.name_def.identifier
-          # print("!!!",node.symbolic_bindings)
         try:
           f = this_m.get_function(fn_identifier)
         except KeyError:
@@ -110,7 +109,7 @@ def get_callees(func: ast.Function, m: ast.Module, imports: Dict[ast.Import,
         raise NotImplementedError(
             'Only calls to named functions are currently supported, got callee: {!r}'
             .format(node.callee))
-      # print("currently in {} with {}, inspecting {} with {}".format(func.name.identifier, bindings, fn_identifier, node.symbolic_bindings))
+
       node_symbolic_bindings = node.symbolic_bindings.get((func.name.identifier, bindings), ())
       callees.append(Callee(f, this_m, node_symbolic_bindings))
   func.accept(InvocationVisitor())
@@ -133,7 +132,6 @@ def _add_to_ready(ready: List[ConversionRecord],
 
   # Remember the original callees value because we're gonna knock them out
   # from a list.
-  # print("getting callees for {}".format(f.name.identifier))
   orig_callees = tuple(get_callees(f, m, imports, bindings))
 
   # Knock out all callees that are already in the order.

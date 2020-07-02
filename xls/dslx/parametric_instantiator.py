@@ -31,7 +31,7 @@ from xls.dslx.xls_type_error import ArgCountMismatchError
 from xls.dslx.xls_type_error import XlsTypeError
 
 Invocation = Any  # pylint: disable=invalid-name
-SymbolicBindings = Tuple[Tuple[Text, Union[Text, int]], ...]
+SymbolicBindings = Tuple[Tuple[Text, int], ...]
 
 
 class _ParametricInstantiator(object):
