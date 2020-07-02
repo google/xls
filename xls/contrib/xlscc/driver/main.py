@@ -82,5 +82,11 @@ def main():
   with open(args.output_filename, "w") as text_file:
     text_file.write(translator.gen_ir().dump_ir())
 
+
+  if args.wrapper is not None:
+    with open(args.wrapper, "w") as text_file:
+      text_file.write(translator.gen_wrapper(args.package_name))
+
+
 if __name__ == "__main__":
   main()

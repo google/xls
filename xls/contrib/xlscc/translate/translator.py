@@ -1070,13 +1070,6 @@ class Translator(object):
           self.assign(out_ch_name + "_lz", self.cvars[in_ch_name+"_vz"].fb_expr, self.cvars[in_ch_name+"_vz"].ctype, condition, loc)
           # out vz -> in lz
           self.assign(in_ch_name + "_lz", self.cvars[out_ch_name+"_vz"].fb_expr, self.cvars[out_ch_name+"_vz"].ctype, condition, loc)
-
-          # vz_name = right_name + "_vz"
-          # lz_name = right_name + "_lz"
-
-          # self.assign(right_name + "_lz", self.cvars[lz_name].fb_expr, self.cvars[lz_name].ctype, condition, loc)
-          # self.assign(left_var.name + "_lz", self.cvars[vz_name].fb_expr, self.cvars[vz_name].ctype, condition, loc)
-          # self.assign(left_var.name, obj_expr, obj_type, condition, loc)
           return None, VoidType()
         else:
           raise NotImplementedError("Unsupported method",
@@ -1264,6 +1257,57 @@ class Translator(object):
       func.set_fb_expr(self.fb.build())
 
     return p
+
+  def gen_wrapper(self, name):
+    s = """module {p} (
+  input wire clk,
+  input wire rst_n,
+  output wire idle
+""".format(p=name)
+
+    if "SwRegisters" in self.hls_types_by_name_:
+      hls_struct = self.hls_types_by_name_["SwRegisters"]
+      swregs_struct = StructType("SwRegisters", hls_struct.as_struct) 
+      for fname, ftype in swregs_struct.element_types.items():
+        s = s + ", input wire [{w}:0] swregs_{n}\n".format(w=ftype.bit_width-1, n=fname)
+
+    def rscname(n):
+      if n.endswith("_z"):
+        return n[:-2] + "_rsc_z"
+      elif n.endswith("_vz"):
+        return n[:-3] + "_rsc_vz"
+      elif n.endswith("_lz"):
+        return n[:-3] + "_rsc_lz"
+      else:
+        assert(False)
+
+    for c in self.channel_params:
+      s = s + ",  input [{w}:0] {c}\n".format(c=rscname(c[0]), w=c[1]-1)
+    for c in self.channel_returns:
+      s = s + ",  output [{w}:0] {c}\n".format(c=rscname(c[0]), w=c[1]-1)
+
+    s = s + ");\n"
+
+    s = s + """
+assign idle = 0;
+
+{p}Impl__Run {p}(\n""".format(p=name)
+
+    if "SwRegisters" in self.hls_types_by_name_:
+      s = s + "  .swregs({" + ",".join(["swregs_"+c for c in swregs_struct.element_types.keys()]) + "}),\n"
+
+    for c in self.channel_params:
+      s = s + "  .{rn}({n}),\n".format(rn=c[0],n=rscname(c[0]))
+
+    s = s + "  .out({" + ",".join([rscname(n[0]) for n in self.channel_returns]) + "})\n"
+
+    s = s + """);
+
+endmodule
+
+"""
+
+    return s
 
   def gen_ir_block_compound_or_single(self,
                                       ast,
