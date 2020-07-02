@@ -292,9 +292,7 @@ def _deduce_Invocation(self: ast.Invocation,
   self_type, symbolic_bindings = parametric_instantiator.instantiate(
       self.span, callee_type, tuple(arg_types), ctx, function_def.parametric_bindings)
 
-  print("before : {} | {}".format(self.symbolic_bindings, ctx.fn_symbolic_bindings))
   self.symbolic_bindings[(ctx.fn_name, tuple(ctx.fn_symbolic_bindings.items()))] = symbolic_bindings
-  print("after : {}".format(self.symbolic_bindings))
 
   if function_def.parametric_bindings:
     # Finish typechecking the body of the parametric function we're calling
@@ -305,9 +303,9 @@ def _deduce_Invocation(self: ast.Invocation,
       importedCtx.fn_name = ident
       importedCtx.fn_symbolic_bindings = dict(symbolic_bindings)
       #body_return_type = deduce(function_def.body, importedCtx)
-      print("mod need {}".format(ident))
+      # print("[[[[[[need {}".format(ident))
       ctx.typecheck_callback(function_def, importedCtx)
-      #importedCtx.node_to_type._dict.pop(function_def.body, None)
+      # importedCtx.node_to_type._dict.pop(function_def.body, None)
       ctx.node_to_type.update(importedCtx.node_to_type)
       ctx.parametric_fn_cache.update(importedCtx.parametric_fn_cache)
     else:
@@ -319,12 +317,10 @@ def _deduce_Invocation(self: ast.Invocation,
       # Force typecheck.py to deduce the body of this parametric function
       # Using our newly derived symbolic bindings
 
-      print("need {}".format(ident))
       try:
         body_return_type = ctx.node_to_type[function_def.body]
       except TypeMissingError as e:
           e.node = self.callee.name_def
-          print("missing {}".format(e.node))
           raise
 
       old = ctx.sym_stack.pop()
@@ -333,7 +329,6 @@ def _deduce_Invocation(self: ast.Invocation,
 
       # HACK: force the typecheck of this body again
       ctx.node_to_type._dict.pop(function_def.body)
-      print("popped {}".format(ident))
 
   return self_type
 
@@ -488,7 +483,6 @@ def _deduce_Let(self: ast.Let, ctx: DeduceCtx) -> ConcreteType:  # pytype: disab
     resolved_concrete_type = concrete_type.map_size(resolver)
 
     if resolved_rhs_type != resolved_concrete_type:
-      print(ctx.fn_name, ctx.fn_symbolic_bindings, resolved_concrete_type)
       raise XlsTypeError(
           self.rhs.span, resolved_concrete_type, resolved_rhs_type,
           'Annotated type did not match inferred type of right hand side.')

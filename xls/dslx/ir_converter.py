@@ -90,7 +90,7 @@ class _IrConverterFb(ast.AstVisitor):
   """
 
   def __init__(self, package: ir_package.Package, module: ast.Module,
-               node_to_type: deduce.NodeToType, emit_positions: bool):
+          node_to_type: deduce.NodeToType, emit_positions: bool, dslx_name: Text = None):
     self.module = module
     self.node_to_type = node_to_type
     self.emit_positions = emit_positions
@@ -105,6 +105,7 @@ class _IrConverterFb(ast.AstVisitor):
     # Number of "counted for" nodes we've observed in this function.
     self.counted_for_count = 0
     self.last_expression = None  # Optional[ast.Expr]
+    self.dslx_name = dslx_name
 
   def _extract_module_level_constants(self, m: ast.Module):
     """Populates `self.symbolic_bindings` with module-level constant values."""
@@ -604,7 +605,8 @@ class _IrConverterFb(ast.AstVisitor):
         self.package,
         self.module,
         self.node_to_type,
-        emit_positions=self.emit_positions)
+        emit_positions=self.emit_positions,
+        dslx_name=self.dslx_name)
     body_converter.symbolic_bindings = dict(self.symbolic_bindings)
     body_fn_name = ('__' + self.fb.name + '_counted_for_{}_body').format(
         self._next_counted_for_ordinal()).replace('.', '_')
@@ -726,12 +728,14 @@ class _IrConverterFb(ast.AstVisitor):
       return self._get_mangled_name(function.name.identifier,
                                     function.get_free_parametric_keys(), m,
                                     None)
+    # print("node sb: {}, name: {}".format(node.symbolic_bindings, self.dslx_name))
+    node_sym_bindings = node.symbolic_bindings.get((self.dslx_name, tuple(self.symbolic_bindings.items())), ())
 
     logging.vlog(2, 'Node %s @ %s symbolic bindings %r', node, node.span,
-                 node.symbolic_bindings)
-    assert node.symbolic_bindings is not None, node
+                 node_sym_bindings)
+    assert node_sym_bindings is not None, node
     resolved_symbolic_bindings = self._resolve_symbolic_bindings(
-        node.symbolic_bindings)
+        node_sym_bindings)
     return self._get_mangled_name(function.name.identifier,
                                   function.get_free_parametric_keys(), m,
                                   resolved_symbolic_bindings)
@@ -767,7 +771,8 @@ class _IrConverterFb(ast.AstVisitor):
       map_fn_name = fn_node.name_def.identifier
       if map_fn_name in dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
         return self._def_map_with_builtin(node, fn_node, node.args[0],
-                                          node.symbolic_bindings)
+                                          node.symbolic_bindings.get((self.dslx_name, tuple(self.symbolic_bindings.items())), ()))
+
       else:
         lookup_module = self.module
         fn = lookup_module.get_function(map_fn_name)
@@ -780,9 +785,10 @@ class _IrConverterFb(ast.AstVisitor):
       raise NotImplementedError(
           'Unhandled function mapping: {!r}'.format(fn_node))
 
+    node_sym_bindings = node.symbolic_bindings.get((self.dslx_name, tuple(self.symbolic_bindings.items())), ())
     mangled_name = self._get_mangled_name(fn.name,
                                           fn.get_free_parametric_keys(),
-                                          lookup_module, node.symbolic_bindings)
+                                          lookup_module, node_sym_bindings)
 
     return self._def(node, self.fb.add_map, arg,
                      self.package.get_function(mangled_name))
@@ -1068,6 +1074,7 @@ def _convert_one_function(package: ir_package.Package,
       module,
       node_to_type,
       emit_positions=emit_positions,
+      dslx_name=function.name.identifier
   )
 
   freevars = function.body.get_free_variables(
@@ -1135,6 +1142,12 @@ def convert_module(module: ast.Module,
   return convert_module_to_package(module, node_to_type,
                                    emit_positions).dump_ir()
 
+def convert_module_nodump(module: ast.Module,
+                   node_to_type: deduce.NodeToType,
+                   emit_positions: bool = True) -> Text:
+  """Same as convert_module_to_package, but converts to IR text."""
+  return convert_module_to_package(module, node_to_type,
+                                   emit_positions)
 
 def convert_one_function(module: ast.Module,
                          entry_function_name: Text,

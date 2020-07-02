@@ -161,7 +161,7 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
   fsignature = dslx_builtins.get_fsignature(builtin_name.identifier)
   fn_type, symbolic_bindings = fsignature(arg_types, builtin_name.identifier,
                                           invocation.span)
-  invocation.symbolic_bindings = symbolic_bindings
+  invocation.symbolic_bindings[(ctx.fn_name, tuple(ctx.fn_symbolic_bindings.items()))] = symbolic_bindings
   ctx.node_to_type[invocation.callee] = fn_type
   ctx.node_to_type[invocation] = fn_type.return_type
 
@@ -361,9 +361,10 @@ def check_module(
   # Add back the bodies of parametric fns for completeness
   if is_import:
     for f in ctx.parametric_fn_cache:
-      cached_types = ctx.parametric_fn_cache[f]
-      without_f_dict = { node : node_to_type[node] for node in node_to_type._dict if not node in cached_types }
-      node_to_type._dict = without_f_dict
+      if f.name.identifier in function_map:
+        cached_types = ctx.parametric_fn_cache[f]
+        without_f_dict = { node : ctx.node_to_type[node] for node in ctx.node_to_type._dict if not node in cached_types }
+        ctx.node_to_type._dict = without_f_dict
   else:
     for f in ctx.parametric_fn_cache:
       if f.body in ctx.parametric_fn_cache[f]:
