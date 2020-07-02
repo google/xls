@@ -63,32 +63,6 @@ class ConversionRecord(object):
     return 'ConversionRecord(f={!r}, m={!r}, bindings={!r}, callees={!r})'.format(
         self.f.identifier, self.m, self.bindings, self.callees)
 
-
-def _evaluate_bindings(outer_bindings: SymbolicBindings,
-                       inner_bindings: SymbolicBindings) -> SymbolicBindings:
-  """Returns inner parametric bindings evaluated according to outer bindings.
-
-  Args:
-    outer_bindings: Parametric bindings in the caller.
-    inner_bindings: Parametric bindings for the callee.
-  For example:
-    fn [N: u32] g(x: bits[N]) { f(x) }
-    fn [M: u32] f(x: bits[M]) { g(x) }
-    fn main() { f(bits[2]:0) }  Even though in the typecheck of f we see that g
-      is invoked with a bits[M], we need to resolve that to a "2" when it is
-      instantiated for IR conversion.
-  """
-  if not outer_bindings or not inner_bindings:
-    return inner_bindings
-
-  new_bindings = []
-  for k, v in inner_bindings:
-    if isinstance(v, parametric_expression.ParametricExpression):
-      v = v.evaluate(dict(outer_bindings))
-    new_bindings.append((k, v))
-  return tuple(new_bindings)
-
-
 def get_callees(func: ast.Function, m: ast.Module, imports: Dict[ast.Import,
                                                               ImportedInfo],
             bindings: SymbolicBindings) -> Tuple[Callee, ...]:
@@ -138,10 +112,7 @@ def get_callees(func: ast.Function, m: ast.Module, imports: Dict[ast.Import,
             .format(node.callee))
       # print("currently in {} with {}, inspecting {} with {}".format(func.name.identifier, bindings, fn_identifier, node.symbolic_bindings))
       node_symbolic_bindings = node.symbolic_bindings.get((func.name.identifier, bindings), ())
-      callees.append(
-          Callee(f, this_m, _evaluate_bindings(bindings,
-                                               node_symbolic_bindings)))
-
+      callees.append(Callee(f, this_m, node_symbolic_bindings))
   func.accept(InvocationVisitor())
   logging.vlog(3, 'Callees for %s: %s', func, [(cr.f.identifier, cr.sym_bindings) for cr in callees])
   return tuple(callees)
