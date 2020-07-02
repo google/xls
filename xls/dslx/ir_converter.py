@@ -33,7 +33,6 @@ from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.concrete_type import EnumType
 from xls.dslx.concrete_type import FunctionType
 from xls.dslx.concrete_type import TupleType
-from xls.dslx.interpreter import interpreter
 from xls.dslx.parametric_expression import ParametricExpression
 from xls.dslx.parametric_instantiator import SymbolicBindings
 from xls.dslx.span import PositionalError
@@ -661,37 +660,6 @@ class _IrConverterFb(ast.AstVisitor):
     self._def(node, self.fb.add_counted_for, self._use(node.init), trip_count,
               stride, body_function, invariant_args)
 
-  def _resolve_symbolic_bindings(
-      self, symbolic_bindings: SymbolicBindings) -> SymbolicBindings:
-    """Fill parametric invocation values with current symbolic_bindings.
-
-    For example, consider the following:
-
-        fn [M: u32] callee(x: bits[M]) -> bits[M] { x }
-        fn [N: u32] caller() -> bits[N] { callee(bits[N]:0) }
-
-    When we invoke caller[N=32], we see that the invocation of callee has
-    bindings `{M: N}`, meaning that M in the invocation takes on the value of N
-    in the caller. However, once we convert caller with N=32 we must fill in
-    that M is concretely M=32 in the callee, which is what we do here.
-
-    Args:
-      symbolic_bindings: The symbolic bindings for the invocation node contained
-        within this function. There may be symbols in the values.
-
-    Returns:
-      A version of symbolic_bindings where the values have been resolved via the
-      current function's self.symbolic_bindings.
-    """
-    results = []
-    for k, v in symbolic_bindings:
-      if isinstance(v, ParametricExpression):
-        results.append((k, v.evaluate(self.symbolic_bindings)))
-      else:
-        assert isinstance(v, int), v
-        results.append((k, v))
-    return tuple(results)
-
   def _get_mangled_name(self, function_name: Text, free_keys: Set[Text],
                         m: ast.Module,
                         symbolic_bindings: Optional[SymbolicBindings]) -> Text:
@@ -729,13 +697,11 @@ class _IrConverterFb(ast.AstVisitor):
                                     function.get_free_parametric_keys(), m,
                                     None)
     # print("node sb: {}, name: {}".format(node.symbolic_bindings, self.dslx_name))
-    node_sym_bindings = node.symbolic_bindings.get((self.dslx_name, tuple(self.symbolic_bindings.items())), ())
+    resolved_symbolic_bindings = node.symbolic_bindings.get((self.dslx_name, tuple(self.symbolic_bindings.items())), ())
 
     logging.vlog(2, 'Node %s @ %s symbolic bindings %r', node, node.span,
-                 node_sym_bindings)
-    assert node_sym_bindings is not None, node
-    resolved_symbolic_bindings = self._resolve_symbolic_bindings(
-        node_sym_bindings)
+                 resolved_symbolic_bindings)
+    assert len(resolved_symbolic_bindings), node
     return self._get_mangled_name(function.name.identifier,
                                   function.get_free_parametric_keys(), m,
                                   resolved_symbolic_bindings)
@@ -976,17 +942,6 @@ class _IrConverterFb(ast.AstVisitor):
   def visit_Param(self, node: ast.Param):
     self._def(node.name, self.fb.add_param, node.name.identifier,
               self._resolve_type_to_ir(node.type_))
-
-  def _evaluate_parametric_binding_expr(
-      self, expr: ast.Expr, symbolic_bindings: Dict[Text, int]) -> int:
-    interp = interpreter.Interpreter(
-        self.module, self.node_to_type, f_import=None)
-    bindings = interpreter.Bindings()
-    for k, v in symbolic_bindings.items():
-      # HACK have to look up the real number of bits via the name def.
-      bindings.add_value(k, interpreter.Value.make_ubits(value=v, bit_count=32))
-    result = interp.evaluate_expr(expr, bindings)
-    return result.bits_payload.value
 
   def _visit_Function(
       self, node: ast.Function,
