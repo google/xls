@@ -145,7 +145,8 @@ class XLSccParser(CParserBase):
 
   def p_template_inst(self, p):
     """template_inst  : ID LT template_val_list GT"""
-    p[0] = c_ast.TemplateInst(p[1], p[3])
+    # TODO: Use IdentifierType here too?
+    p[0] = c_ast.TemplateInst(p[1], p[3], coord=self._token_coord(p, 1))
 
   def p_postfix_expression_4(self, p):
     """postfix_expression  : postfix_expression PERIOD ID
@@ -158,11 +159,29 @@ class XLSccParser(CParserBase):
     field = c_ast.ID(p[3], self._token_coord(p, 3))
     p[0] = c_ast.StructRef(p[1], p[2], field, p[1].coord)
 
+
+  def p_direct_id_declarator_7(self, p):
+      """ direct_id_declarator   : id_declarator DBLCOLON id_declarator
+      """
+      # Special case for FuncDecls
+      # TODO: Expand to generic support as in original XLS[cc]
+      assert isinstance(p[1], c_ast.TypeDecl)
+      assert isinstance(p[3], c_ast.FuncDecl)
+      assert isinstance(p[3].type, c_ast.TypeDecl)
+      f = p[3]
+      f.type.declname = p[1].declname + "__" + f.type.declname
+      p[0] = f
+
+
   def p_typedef_name(self, p):
     """typedef_name : TYPEID
                     | TYPEID LT template_val_list GT
       """
-    p[0] = c_ast.IdentifierType([p[1]], coord=self._token_coord(p, 1))
+    id = c_ast.IdentifierType([p[1]], coord=self._token_coord(p, 1))
+    if len(p) == 2:
+      p[0] = id
+    else:
+      p[0] = c_ast.TemplateInst(id, p[3], coord=self._token_coord(p, 1))
 
   def p_type_specifier_no_typeid(self, p):
     """type_specifier_no_typeid  : VOID

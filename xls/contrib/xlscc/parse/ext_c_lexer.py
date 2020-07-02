@@ -26,9 +26,7 @@ class XLSccLexer(CLexerBase):
   """
   tokens = CLexerBase.tokens + ('DBLCOLON',)
 
-  def t_DBLCOLON(self, t):
-    r'::'
-
+  t_DBLCOLON = r'::'
 
 def add_lexer_keywords(cls, keywords):
   cls.keywords = cls.keywords + tuple(kw.upper() for kw in keywords)
