@@ -162,17 +162,16 @@ class DeduceCtx:
   module: ast.Module
   interp_callback: InterpCallbackType
   typecheck_callback: Callable[[ast.Function], None]
-  fn_name: Optional[Text] = None
-  fn_symbolic_bindings: Dict[Text, int] = field(default_factory=dict)
   f_import: Optional[ImportFn] = None
-  sym_stack: List[Tuple] = field(default_factory=list)
+  fn_stack: List[Tuple] = field(default_factory=list)
   parametric_fn_cache: Dict = field(default_factory=dict)
 
-def mk_resolver(symbolic_bindings: Dict[Text, int]):
+def make_resolver(ctx: DeduceCtx):
+  _, fn_symbolic_bindings = ctx.fn_stack[-1]
   """Closure hack"""
   def resolver(dim):
     if isinstance(dim, ParametricExpression):
-      return dim.evaluate(symbolic_bindings)
+      return dim.evaluate(fn_symbolic_bindings)
     return dim
 
   return resolver
@@ -254,10 +253,10 @@ def _deduce_Invocation(self: ast.Invocation,
   """Deduces the concrete type of an Invocation AST node."""
   logging.vlog(5, 'Deducing type for invocation: %s', self)
   arg_types = []
-
+  fn_name, fn_symbolic_bindings = ctx.fn_stack[-1]
   for arg in self.args:
     try:
-      arg_types.append(deduce(arg, ctx).map_size(mk_resolver(ctx.fn_symbolic_bindings)))
+      arg_types.append(deduce(arg, ctx).map_size(make_resolver(ctx)))
     except TypeMissingError as e:
       # These nodes could be ModRefs or NameRefs.
       callee_is_map = isinstance(
@@ -267,7 +266,7 @@ def _deduce_Invocation(self: ast.Invocation,
       ) and arg.name_def.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES
       if callee_is_map and arg_is_builtin:
         invocation = _create_element_invocation(self.span, arg, self.args[0])
-        arg_types.append(deduce(invocation, ctx).map_size(mk_resolver(ctx.fn_symbolic_bindings)))
+        arg_types.append(deduce(invocation, ctx).map_size(make_resolver(ctx)))
       else:
         raise
 
@@ -292,16 +291,15 @@ def _deduce_Invocation(self: ast.Invocation,
   self_type, symbolic_bindings = parametric_instantiator.instantiate(
       self.span, callee_type, tuple(arg_types), ctx, function_def.parametric_bindings)
 
-  self.symbolic_bindings[(ctx.fn_name, tuple(ctx.fn_symbolic_bindings.items()))] = symbolic_bindings
+  self.symbolic_bindings[(fn_name, tuple(fn_symbolic_bindings.items()))] = symbolic_bindings
 
-  if function_def.parametric_bindings:
+  if function_def.is_parametric():
     # Finish typechecking the body of the parametric function we're calling
 
     if isinstance(self.callee, ast.ModRef):
       importedCtx = DeduceCtx(imported_node_to_type, imported_module, ctx.interp_callback,
-                             ctx.typecheck_callback, dict(symbolic_bindings), f_import=ctx.f_import, parametric_fn_cache=ctx.parametric_fn_cache)
-      importedCtx.fn_name = ident
-      importedCtx.fn_symbolic_bindings = dict(symbolic_bindings)
+                             ctx.typecheck_callback, f_import=ctx.f_import, parametric_fn_cache=ctx.parametric_fn_cache)
+      importedCtx.fn_stack.append((ident, dict(symbolic_bindings)))
       #body_return_type = deduce(function_def.body, importedCtx)
       # print("[[[[[[need {}".format(ident))
       ctx.typecheck_callback(function_def, importedCtx)
@@ -309,10 +307,8 @@ def _deduce_Invocation(self: ast.Invocation,
       ctx.node_to_type.update(importedCtx.node_to_type)
       ctx.parametric_fn_cache.update(importedCtx.parametric_fn_cache)
     else:
-      ctx.sym_stack.append((ctx.fn_name, ctx.fn_symbolic_bindings))
-      ctx.fn_name = ident
-      #print("in {}, need to check {}'s body".format(ctx.sym_stack[-1][0], ident))
-      ctx.fn_symbolic_bindings = dict(symbolic_bindings)
+      ctx.fn_stack.append((ident, dict(symbolic_bindings)))
+      #print("in {}, need to check {}'s body".format(ctx.fn_stack[-1][0], ident))
 
       # Force typecheck.py to deduce the body of this parametric function
       # Using our newly derived symbolic bindings
@@ -323,9 +319,7 @@ def _deduce_Invocation(self: ast.Invocation,
           e.node = self.callee.name_def
           raise
 
-      old = ctx.sym_stack.pop()
-      ctx.fn_symbolic_bindings = old[1]
-      ctx.fn_name = old[0]
+      ctx.fn_stack.pop()
 
       # HACK: force the typecheck of this body again
       ctx.node_to_type._dict.pop(function_def.body)
@@ -473,7 +467,7 @@ def _bind_names(name_def_tree: ast.NameDefTree, type_: ConcreteType,
 def _deduce_Let(self: ast.Let, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of a Let AST node."""
 
-  resolver = mk_resolver(ctx.fn_symbolic_bindings)
+  resolver = make_resolver(ctx)
   rhs_type = deduce(self.rhs, ctx)
 
   if self.type_ is not None:
@@ -548,7 +542,7 @@ def _deduce_Match(self: ast.Match, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
     for pattern in arm.patterns:
       _unify(pattern, matched, ctx)
 
-  resolver = mk_resolver(ctx.fn_symbolic_bindings)
+  resolver = make_resolver(ctx)
 
   arm_types = tuple(deduce(arm, ctx) for arm in self.arms)
   for i, arm_type in enumerate(arm_types[1:], 1):
@@ -574,7 +568,7 @@ def _deduce_For(self: ast.For, ctx: DeduceCtx) -> ConcreteType:  # pytype: disab
   body_type = deduce(self.body, ctx)
   deduce(self.iterable, ctx)
 
-  resolver = mk_resolver(ctx.fn_symbolic_bindings)
+  resolver = make_resolver(ctx)
 
   if init_type.map_size(resolver) != body_type.map_size(resolver):
     raise XlsTypeError(
@@ -596,7 +590,7 @@ def _deduce_While(self: ast.While, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
     raise XlsTypeError(self.test.span, test_type, ConcreteType.U1,
                        'Expect while-loop test to be a bool value.')
 
-  resolver = mk_resolver(ctx.fn_symbolic_bindings)
+  resolver = make_resolver(ctx)
 
   body_type = deduce(self.body, ctx)
   if init_type.map_size(resolver) != body_type.map_size(resolver):
@@ -623,7 +617,7 @@ def _deduce_Cast(self: ast.Cast, ctx: DeduceCtx) -> ConcreteType:  # pytype: dis
   type_result = deduce(self.type_, ctx)
   expr_type = deduce(self.expr, ctx)
 
-  resolver = mk_resolver(ctx.fn_symbolic_bindings)
+  resolver = make_resolver(ctx)
   resolved_type_result = type_result.map_size(resolver)
   resolved_expr_type = expr_type.map_size(resolver)
 
@@ -645,7 +639,7 @@ def _deduce_Unop(self: ast.Unop, ctx: DeduceCtx) -> ConcreteType:  # pytype: dis
 def _deduce_Array(self: ast.Array, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of an Array AST node."""
   member_types = [deduce(m, ctx) for m in self.members]
-  resolver = mk_resolver(ctx.fn_symbolic_bindings)
+  resolver = make_resolver(ctx)
   for i, x in enumerate(member_types[1:], 1):
     logging.vlog(5, 'array member type %d: %s', i, x)
     if x.map_size(resolver) != member_types[0].map_size(resolver):
@@ -860,8 +854,7 @@ def _deduce_ModRef(self: ast.ModRef, ctx: DeduceCtx) -> ConcreteType:  # pytype:
     # We don't type check parametric functions until invocations
     # Let's type check this imported parametric function with respect to its module (only getting sig)
     importCtx = DeduceCtx(imported_node_to_type, imported_module, ctx.interp_callback, ctx.typecheck_callback, f_import=ctx.f_import, parametric_fn_cache=ctx.parametric_fn_cache)
-    importCtx.fn_name = ctx.fn_name
-    importCtx.fn_symbolic_bindings = ctx.fn_symbolic_bindings
+    importCtx.fn_stack.append(ctx.fn_stack[-1])
     ctx.typecheck_callback(f, importCtx)
     ctx.node_to_type.update(importCtx.node_to_type)
     imported_node_to_type = importCtx.node_to_type
@@ -888,7 +881,7 @@ def _deduce_Enum(self: ast.Enum, ctx: DeduceCtx) -> ConcreteType:  # pytype: dis
 def _deduce_Ternary(self: ast.Ternary,
                     ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of a Ternary AST node."""
-  resolver = mk_resolver(ctx.fn_symbolic_bindings)
+  resolver = make_resolver(ctx)
 
   test_type = deduce(self.test, ctx)
   resolved_test_type = test_type.map_size(resolver)
@@ -941,7 +934,7 @@ def _deduce_Binop(self: ast.Binop, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
   lhs_type = deduce(self.lhs, ctx)
   rhs_type = deduce(self.rhs, ctx)
 
-  resolver = mk_resolver(ctx.fn_symbolic_bindings)
+  resolver = make_resolver(ctx)
 
   resolved_lhs_type = lhs_type.map_size(resolver)
   resolved_rhs_type = rhs_type.map_size(resolver)
