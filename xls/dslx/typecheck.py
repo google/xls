@@ -93,8 +93,7 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx):
 #   else:
 #     body_return_type = deduce.deduce(f.body, ctx)
   body_return_type = deduce.deduce(f.body, ctx)
-  resolver = deduce.make_resolver(ctx)
-  resolved_body_type = body_return_type.map_size(resolver)
+  resolved_body_type = deduce.resolve(body_return_type, ctx)
 
   if f.return_type is None:
     if body_return_type.is_nil():
@@ -111,8 +110,7 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx):
           'found.')
   else:
     annotated_return_type = deduce.deduce(f.return_type, ctx)
-
-    resolved_return_type =  annotated_return_type.map_size(resolver)
+    resolved_return_type =  deduce.resolve(annotated_return_type, ctx)
 
     if resolved_return_type != resolved_body_type:
       raise XlsTypeError(
@@ -153,8 +151,7 @@ def check_test(t: ast.Test, ctx: deduce.DeduceCtx) -> None:
 def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
                  ctx: deduce.DeduceCtx) -> Tuple[bool, Optional[ast.NameDef]]:
   """Instantiates a builtin parametric invocation; e.g. 'update'."""
-  resolver = deduce.make_resolver(ctx)
-  arg_types = tuple(ctx.node_to_type[arg].map_size(resolver) for arg in invocation.args)
+  arg_types = tuple(deduce.resolve(ctx.node_to_type[arg], ctx) for arg in invocation.args)
 
   if builtin_name.identifier not in dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
     return (False, None)
