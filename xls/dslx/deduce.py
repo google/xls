@@ -179,8 +179,9 @@ class DeduceCtx:
   module: ast.Module
   interp_callback: InterpCallbackType
   typecheck_callback: Callable[[ast.Function, 'DeduceCtx'], None]
-  fn_stack: List[Tuple[Text, Dict[Text, int]]] = field(default_factory=list)
-  parametric_fn_cache: ParametricFnCache = field(default_factory=dict)
+  fn_stack: Optional[List[Tuple[Text, Dict[Text, int]]]] = field(
+                                                           default_factory=list)
+  parametric_fn_cache: Optional[ParametricFnCache] = field(default_factory=dict)
 
 def resolve(type_: ConcreteType, ctx: DeduceCtx) -> ConcreteType:
   """Resolves type_ via provided symbolic bindings

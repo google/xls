@@ -15,7 +15,7 @@
 # limitations under the License.
 
 """Helper utilities for use with the interpreter.Interpreter."""
-from typing import Sequence, Tuple, Text
+from typing import Sequence, Tuple, Text, Optional
 from xls.dslx import ast
 from xls.dslx import deduce
 from xls.dslx.interpreter import interpreter
@@ -23,7 +23,7 @@ from xls.dslx.interpreter import interpreter
 def interpret_expr(module: ast.Module, node_to_type: deduce.NodeToType,
                    env: Sequence[Tuple[Text, int]],
                    expr: ast.Expr,
-                   f_import: deduce.ImportFn = None) -> int:
+                   f_import: Optional[deduce.ImportFn] = None) -> int:
   """Creates an Interpreter on-the-fly to evaluate expr with env"""
   interp = interpreter.Interpreter(module, node_to_type, f_import=f_import)
   bindings = interp._make_top_level_bindings(module)

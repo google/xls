@@ -72,7 +72,7 @@ class Interpreter(object):
 
   def __init__(self,
                module: ast.Module,
-               node_to_type: Optional[deduce.NodeToType],
+               node_to_type: deduce.NodeToType,
                f_import: Optional[Callable[[ImportSubject], ImportInfo]],
                trace_all: bool = False):
     self._module = module
@@ -330,14 +330,13 @@ class Interpreter(object):
     # TODO(leary): 2019-12-03 We don't have a way to check enum compatibility
     # with the corresponding bits-type value -- we should be using enum-based
     # ConcreteTypes in the interpreter instead of their bits equivalents.
-    if self._node_to_type:
-      deduced = self._node_to_type[type_]
-      deduced = deduced.map_size(
-          functools.partial(self._resolve_dim, bindings=bindings))
-      if not deduced.has_enum():
-        assert deduced.compatible_with(result), \
-            ('Deduced type {0} incompatible w/interp-determined type {1} ({0!r}'
-             ' vs {1!r})').format(deduced, result)
+    deduced = self._node_to_type[type_]
+    deduced = deduced.map_size(
+        functools.partial(self._resolve_dim, bindings=bindings))
+    if not deduced.has_enum():
+      assert deduced.compatible_with(result), \
+          ('Deduced type {0} incompatible w/interp-determined type {1} ({0!r}'
+           ' vs {1!r})').format(deduced, result)
 
     return result
 
@@ -1062,12 +1061,7 @@ class Interpreter(object):
         # Otherwise note what we've seen.
         bound_dims[dim.identifier] = dim_extent
 
-        if self._node_to_type is None:
-          # Just a hack to enable programs that don't typecheck to still run in
-          # the interpreter.
-          bit_count = 32
-        else:
-          bit_count = self._node_to_type[dim].get_total_bit_count()
+        bit_count = self._node_to_type[dim].get_total_bit_count()
         bindings.add_value(dim.identifier,
                            Value.make_ubits(bit_count, dim_extent))
         dims.append(dim_extent)

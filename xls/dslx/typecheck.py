@@ -239,7 +239,7 @@ def _make_record(f: Union[Function, ast.Test], ctx: deduce.DeduceCtx) \
 
   return rec
 
-def _check_function_or_test_in_module(f: Union[Function, ast.Test],
+def check_function_or_test_in_module(f: Union[Function, ast.Test],
                                       ctx: deduce.DeduceCtx):
   """Type-checks function f in the given module.
 
@@ -353,7 +353,7 @@ def check_module(
   node_to_type = deduce.NodeToType()
   interpreter_callback = functools.partial(interpret_expr, f_import=f_import)
   ctx = deduce.DeduceCtx(node_to_type, module, interpreter_callback,
-                         _check_function_or_test_in_module)
+                         check_function_or_test_in_module)
 
   # First populate node_to_type with constants, enums, and resolved imports.
   ctx.fn_stack.append(('top', dict()))  # No sym bindings in the global scope
@@ -377,7 +377,7 @@ def check_module(
 
     logging.vlog(2, 'Typechecking function: %s', f)
     ctx.fn_stack.append((f.name.identifier, dict())) # No symbolic bindings
-    _check_function_or_test_in_module(f, ctx)
+    check_function_or_test_in_module(f, ctx)
     logging.vlog(2, 'Finished typechecking function: %s', f)
 
   test_map = {t.name.identifier: t for t in ctx.module.get_tests()}
@@ -386,7 +386,7 @@ def check_module(
     # No symbolic bindings inside of a test construct
     ctx.fn_stack.append(("{}_test".format(t.name.identifier), dict()))
     logging.vlog(2, 'Typechecking test: %s', t)
-    _check_function_or_test_in_module(t, ctx)
+    check_function_or_test_in_module(t, ctx)
     logging.vlog(2, 'Finished typechecking test: %s', t)
 
   if is_import:

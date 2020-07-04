@@ -29,13 +29,12 @@ from absl import flags
 from xls.dslx.interpreter import parse_and_interpret
 
 FLAGS = flags.FLAGS
-flags.DEFINE_boolean('typecheck', True, help='Typecheck the code being run.')
 flags.DEFINE_boolean('trace_all', False, help='Trace every expression.')
 
 
 def main(argv):
   if len(argv) > 2:
-    raise app.UsageError('Too many command-line arguments.')
+    raise app.UsageError('Too many command-line arguments. {}'.format(argv))
 
   path = argv[1]
 
@@ -43,7 +42,6 @@ def main(argv):
   sys.exit(
       parse_and_interpret.parse_and_test_path(
           path,
-          do_typecheck=FLAGS.typecheck,
           raise_on_error=False,
           test_filter=test_only,
           trace_all=FLAGS.trace_all))

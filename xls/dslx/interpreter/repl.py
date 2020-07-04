@@ -63,6 +63,7 @@ def main(argv):
   bindings = bindings_mod.Bindings()
   fake_module = ast.Module(name='repl', top=())
   interp_callback = interpreter_helpers.interpret_expr
+  typecheck_callback = typecheck.check_function_or_test_in_module
 
   prompt = 'dslx> ' if sys.stdin.isatty() else ''
 
@@ -84,7 +85,8 @@ def main(argv):
 
     try:
       node_to_type = deduce.NodeToType()
-      ctx = deduce.DeduceCtx(node_to_type, fake_module, interp_callback)
+      ctx = deduce.DeduceCtx(node_to_type, fake_module, interp_callback,
+                             typecheck_callback)
       result_type = deduce.deduce(expr, ctx)
     except span.PositionalError as e:
       with fakefs_util.scoped_fakefs(FILENAME, line):
