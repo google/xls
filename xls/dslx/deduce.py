@@ -115,7 +115,8 @@ class NodeToType(object):
     raise TypeInferenceError(
         span=user_span,
         type_=None,
-        suffix='Expected to find a constant integral value with the name {}; got: {}'
+        suffix='Expected to find a constant integral value with the name {};'
+               'got: {}'
         .format(name_def, constant.value))
 
   def get_imports(self) -> Dict[ast.Import, ImportedInfo]:
@@ -151,20 +152,34 @@ class NodeToType(object):
     return k in self._dict
 
 
-InterpCallbackType = Callable[[ast.Module, NodeToType,
-                               Sequence[Tuple[Text, int]], ast.Expr], int]
 ImportFn = Callable[[Tuple[Text, ...]], Tuple[ast.Module, NodeToType]]
+InterpCallbackType = Callable[[ast.Module, NodeToType,
+                      Sequence[Tuple[Text, int]], ast.Expr, ImportFn], int]
+ParametricFnCache = Dict[ast.Function, Dict[ast.AstNode, ConcreteType]]
 
 @dataclass
 class DeduceCtx:
-  """A simple wrapper over useful objects to facilitate dependency injection"""
+  """A wrapper over useful objects for typechecking
+
+  Attributes:
+    node_to_type: Maps an AST node to its deduced type
+    module: The primary module we are typechecking
+    interp_callback: An Interpreter wrapper that parametric_instantiator uses
+      to evaluate bindings with complex expressions (eg. function calls)
+    typecheck_callback: A callback to typecheck parametric functions that are
+      not in this module
+    fn_stack: Keeps track of the function we're currently typechecking and
+      the symbolic bindings we should be using
+    parametric_fn_cache: Maps a parametric fn to all the nodes that it is
+      dependent on. Used in typecheck.py to trick the typechecker into
+      checking the body of a parametric fn again (per instantiation)
+  """
   node_to_type: NodeToType
   module: ast.Module
   interp_callback: InterpCallbackType
-  typecheck_callback: Callable[[ast.Function], None]
-  f_import: Optional[ImportFn] = None
-  fn_stack: List[Tuple] = field(default_factory=list)
-  parametric_fn_cache: Dict = field(default_factory=dict)
+  typecheck_callback: Callable[[ast.Function, 'DeduceCtx'], None]
+  fn_stack: List[Tuple[Text, Dict[Text, int]]] = field(default_factory=list)
+  parametric_fn_cache: ParametricFnCache = field(default_factory=dict)
 
 def resolve(type_: ConcreteType, ctx: DeduceCtx) -> ConcreteType:
   """Resolves type_ via provided symbolic bindings
@@ -275,6 +290,9 @@ def _deduce_Invocation(self: ast.Invocation,
         raise
 
   try:
+    # This will get us the type signature of the function.
+    # If the function is parametric, we won't check its body
+    # until after we have symbolic bindings for it
     callee_type = deduce(self.callee, ctx)
   except TypeMissingError as e:
     e.span = self.span
@@ -284,45 +302,59 @@ def _deduce_Invocation(self: ast.Invocation,
   if not isinstance(callee_type, FunctionType):
     raise XlsTypeError(self.callee.span, callee_type, None,
                        'Callee does not have a function type.')
+
   if isinstance(self.callee, ast.ModRef):
-    imported_module, imported_node_to_type  = ctx.node_to_type.get_imported(self.callee.mod)
-    ident = self.callee.value_tok.value
-    function_def = imported_module.get_function(ident)
+    imported_module, imported_node_to_type = \
+                                ctx.node_to_type.get_imported(self.callee.mod)
+    callee_name = self.callee.value_tok.value
+    callee_fn = imported_module.get_function(callee_name)
   else:
-    ident = self.callee.tok.value
-    function_def = ctx.module.get_function(ident)
+    callee_name = self.callee.tok.value
+    callee_fn  = ctx.module.get_function(callee_name)
 
-  self_type, symbolic_bindings = parametric_instantiator.instantiate(
-      self.span, callee_type, tuple(arg_types), ctx, function_def.parametric_bindings)
+  self_type, callee_sym_bindings = parametric_instantiator.instantiate(
+      self.span, callee_type, tuple(arg_types), ctx,
+      callee_fn.parametric_bindings)
 
-  self.symbolic_bindings[(fn_name, tuple(fn_symbolic_bindings.items()))] = symbolic_bindings
+  # Within the context of (fn_name, fn_sym_bindings), this invocation of callee will have
+  # bindings with values specified by callee_sym_bindings
+  self.symbolic_bindings[(fn_name, tuple(fn_symbolic_bindings.items()))] = \
+                                                            callee_sym_bindings
 
-  if function_def.is_parametric():
-    # Finish typechecking the body of the parametric function we're calling
+  if callee_fn.is_parametric():
+    # Now that we have callee_sym_bindings, let's use them to typecheck the body of
+    # callee_fn to make sure these values actually work
 
     if isinstance(self.callee, ast.ModRef):
-      importedCtx = DeduceCtx(imported_node_to_type, imported_module, ctx.interp_callback,
-                             ctx.typecheck_callback, f_import=ctx.f_import, parametric_fn_cache=ctx.parametric_fn_cache)
-      importedCtx.fn_stack.append((ident, dict(symbolic_bindings)))
-      ctx.typecheck_callback(function_def, importedCtx)
+      # We need to typecheck this function with respect to its own module.
+      # Let's use typecheck._check_function_or_test_in_module() to do this
+      # in case we run into more dependencies in that module
+      importedCtx = DeduceCtx(imported_node_to_type, imported_module,
+                              ctx.interp_callback, ctx.typecheck_callback,
+                              parametric_fn_cache=ctx.parametric_fn_cache)
+      importedCtx.fn_stack.append((callee_name, dict(callee_sym_bindings)))
+      ctx.typecheck_callback(callee_fn, importedCtx)
       ctx.node_to_type.update(importedCtx.node_to_type)
       ctx.parametric_fn_cache.update(importedCtx.parametric_fn_cache)
     else:
-      ctx.fn_stack.append((ident, dict(symbolic_bindings)))
+      # We need to typecheck this function with respect to its own module
+      # Let's take advantage of the existing try-catch mechanism in
+      # typecheck._check_function_or_test_in_module()
+      ctx.fn_stack.append((callee_name, dict(callee_sym_bindings)))
 
-      # Force typecheck.py to deduce the body of this parametric function
-      # Using our newly derived symbolic bindings
-
+      # If the body of this function hasn't been typechecked, let's
+      # tell typecheck.py's handler to check it
       try:
-        body_return_type = ctx.node_to_type[function_def.body]
+        body_return_type = ctx.node_to_type[callee_fn.body]
       except TypeMissingError as e:
           e.node = self.callee.name_def
           raise
 
       ctx.fn_stack.pop()
 
-      # HACK: force the typecheck of this body again
-      ctx.node_to_type._dict.pop(function_def.body)
+      # HACK: We remove the type of the body to so that
+      # we re-typecheck it if we see this invocation again
+      ctx.node_to_type._dict.pop(callee_fn.body)
 
   return self_type
 
@@ -830,7 +862,8 @@ def _deduce_TypeAnnotation(
 @_rule(ast.ModRef)
 def _deduce_ModRef(self: ast.ModRef, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the type of an entity referenced via module reference."""
-  imported_module, imported_node_to_type = ctx.node_to_type.get_imported(self.mod)
+  imported_module, imported_node_to_type = \
+                                      ctx.node_to_type.get_imported(self.mod)
   leaf_name = self.value_tok.value
 
   # May be a type definition reference.
@@ -860,10 +893,14 @@ def _deduce_ModRef(self: ast.ModRef, ctx: DeduceCtx) -> ConcreteType:  # pytype:
         suffix='Attempted to refer to module {!r} function {!r} that is not public.'
         .format(imported_module.name, f.name))
   if f.name not in imported_node_to_type:
-    assert f.parametric_bindings
-    # We don't type check parametric functions until invocations
-    # Let's type check this imported parametric function with respect to its module (only getting sig)
-    importCtx = DeduceCtx(imported_node_to_type, imported_module, ctx.interp_callback, ctx.typecheck_callback, f_import=ctx.f_import, parametric_fn_cache=ctx.parametric_fn_cache)
+    assert f.is_parametric()
+    # We don't type check parametric functions until invocations.
+    # Let's typecheck this imported parametric function with respect to its
+    # module (this will only get the type signature, body gets typechecked 
+    # after parametric instantiation).
+    importCtx = DeduceCtx(imported_node_to_type, imported_module,
+                          ctx.interp_callback, ctx.typecheck_callback,
+                          parametric_fn_cache=ctx.parametric_fn_cache)
     importCtx.fn_stack.append(ctx.fn_stack[-1])
     ctx.typecheck_callback(f, importCtx)
     ctx.node_to_type.update(importCtx.node_to_type)

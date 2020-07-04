@@ -110,10 +110,12 @@ def get_callees(func: ast.Function, m: ast.Module, imports: Dict[ast.Import,
             'Only calls to named functions are currently supported, got callee: {!r}'
             .format(node.callee))
 
-      node_symbolic_bindings = node.symbolic_bindings.get((func.name.identifier, bindings), ())
+      node_symbolic_bindings = node.symbolic_bindings.get((func.name.identifier,
+                                                           bindings), ())
       callees.append(Callee(f, this_m, node_symbolic_bindings))
   func.accept(InvocationVisitor())
-  logging.vlog(3, 'Callees for %s: %s', func, [(cr.f.identifier, cr.sym_bindings) for cr in callees])
+  logging.vlog(3, 'Callees for %s: %s', func,
+                      [(cr.f.identifier, cr.sym_bindings) for cr in callees])
   return tuple(callees)
 
 

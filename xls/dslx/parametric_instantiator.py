@@ -15,7 +15,7 @@
 # Lint as: python3
 """Contains the algorithm for instantiating parametric invocation nodes."""
 
-from typing import Any, Text, Dict, Union, Tuple
+from typing import Any, Text, Dict, Tuple, Optional
 
 from absl import logging
 
@@ -48,7 +48,8 @@ class _ParametricInstantiator(object):
   """
 
   def __init__(self, span: Span, function_type: ConcreteType,
-               arg_types: Tuple[ConcreteType, ...], ctx, parametric_bindings):
+               arg_types: Tuple[ConcreteType, ...], ctx: Optional['DeduceCtx'],
+               parametric_constraints: Optional[Tuple['ParametricBinding']]):
     self.span = span
     self.function_type = function_type
     self.arg_types = arg_types
@@ -61,20 +62,20 @@ class _ParametricInstantiator(object):
       raise ArgCountMismatchError(self.span, arg_types, len(param_types),
                                   param_types,
                                   'Invocation of parametric function.')
-    if parametric_bindings:
-      for pb in parametric_bindings:
-        self.constraints[pb.name.identifier] = pb.expr
+    if parametric_constraints:
+      for b in parametric_constraints:
+        self.constraints[b.name.identifier] = b.expr
 
   def _verify_constraints(self) -> None:
     """Verifies that all bindings adhere to the specified constraints."""
-    #print(self.constraints, self.symbolic_bindings)
     for binding, constraint in self.constraints.items():
       if constraint is None:
-        # e.g. [X: u32].. although maybe we should check if bitwidths are OK
+        # e.g. [X: u32]
         continue
       try:
-        result = self.ctx.interp_callback(self.ctx.module, self.ctx.node_to_type,
-                                  self.symbolic_bindings, constraint, self.ctx.f_import)
+        result = self.ctx.interp_callback(self.ctx.module,
+                                          self.ctx.node_to_type,
+                                          self.symbolic_bindings, constraint)
       except KeyError as e:
         # We haven't seen enough bindings to evaluate this constraint
         continue
@@ -85,9 +86,9 @@ class _ParametricInstantiator(object):
               self.span,
               BitsType(signed=False, size=self.symbolic_bindings[binding]),
               BitsType(signed=False, size=result),
-              suffix= "Parametric constraint violated, saw {} = {} = {}; "
-                       "then {} = {}".format(binding, constraint, result,
-                                     binding, self.symbolic_bindings[binding]))
+              suffix="Parametric constraint violated, saw {} = {} = {}; "
+              "then {} = {}".format(binding, constraint, result,
+                                    binding, self.symbolic_bindings[binding]))
       else:
         self.symbolic_bindings[binding] = result
 
@@ -102,19 +103,20 @@ class _ParametricInstantiator(object):
       return
 
     pdim_name = param_dim.identifier
-    # Error on conflicting definitions.
     if (pdim_name in self.symbolic_bindings and
-        self.symbolic_bindings[pdim_name] != arg_dim):
+            self.symbolic_bindings[pdim_name] != arg_dim):
       if self.constraints[pdim_name]:
+        # Violated constraint
         raise XlsTypeError(
-              self.span,
-              BitsType(signed=False, size=self.symbolic_bindings[pdim_name]),
-              arg_type,
-              suffix="Parametric constraint violated, saw {} = {} = {}; "
-              "then {} = {}".format(pdim_name, self.constraints[pdim_name],
-                                self.symbolic_bindings[pdim_name],
-                                pdim_name, arg_dim))
+            self.span,
+            BitsType(signed=False, size=self.symbolic_bindings[pdim_name]),
+            arg_type,
+            suffix="Parametric constraint violated, saw {} = {} = {}; "
+            "then {} = {}".format(pdim_name, self.constraints[pdim_name],
+                                  self.symbolic_bindings[pdim_name],
+                                  pdim_name, arg_dim))
       else:
+        # Conflicting argument types
         raise XlsTypeError(
             self.span,
             param_type,
@@ -268,5 +270,8 @@ class _ParametricInstantiator(object):
 def instantiate(
     span: Span, callee_type: ConcreteType,
     arg_types: Tuple[ConcreteType, ...],
-    ctx=None, parametric_bindings=None) -> Tuple[ConcreteType, SymbolicBindings]:
-  return _ParametricInstantiator(span, callee_type, arg_types, ctx, parametric_bindings).instantiate()
+    ctx: 'DeduceCtx' = None,
+    parametric_bindings: Tuple['ParametricBinding'] = None) \
+      -> Tuple[ConcreteType, SymbolicBindings]:
+  return _ParametricInstantiator(span, callee_type, arg_types, ctx,
+                                 parametric_bindings).instantiate()

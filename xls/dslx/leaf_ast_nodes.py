@@ -406,7 +406,10 @@ class Invocation(Expr):
     self.callee = callee
     self.args = args
     # Note: this attribute is populated by type inference.
-    self.symbolic_bindings = dict()  # type: Dict[(name, symbds), parametric_instantiator.SymbolicBindings]
+    # It maps the (name, symbolic_bindings) of the function this
+    # invocation is inside of to the resulting symbolic bindings
+    # in the callee.
+    self.symbolic_bindings = dict()  # type: Dict[(Text, Dict[Text, int]), parametric_instantiator.SymbolicBindings]
 
   def __str__(self) -> Text:
     return '{}({})'.format(self.callee, self.format_args())

@@ -18,6 +18,7 @@
 
 from typing import Dict, Optional, Text, Tuple, Union, Callable
 import copy
+import functools
 
 from absl import logging
 
@@ -27,7 +28,7 @@ from xls.dslx import deduce
 from xls.dslx import dslx_builtins
 from xls.dslx.ast import Function
 from xls.dslx.ast import Module
-from xls.dslx.interpreter import interpreter_helpers
+from xls.dslx.interpreter.interpreter_helpers import interpret_expr
 from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.concrete_type import FunctionType
 from xls.dslx.xls_type_error import XlsTypeError
@@ -45,7 +46,11 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx):
       type annotation on "f".
   """
   fn_name, fn_symbolic_bindings = ctx.fn_stack[-1]
-  if f.parametric_bindings and fn_name == f.name.identifier:
+  if f.is_parametric() and f.name.identifier == fn_name:
+    # Parametric functions are evaluated per invocation. If we're currently
+    # inside of this function, it must mean that we already have the type
+    # signature and now we just need to evaluate the body.
+    assert f in ctx.node_to_type
     annotated_return_type = ctx.node_to_type[f].return_type
     param_types = list(ctx.node_to_type[f].params)
   else:
@@ -74,24 +79,17 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx):
       ctx.node_to_type[param.name] = param_type
 
     if f.is_parametric():
-      annotated_return_type = deduce.deduce(f.return_type, ctx) if f.return_type else ConcreteType.NIL
+      # We just needed the type signature so that we can instantiate this
+      # invocation. Let's return this for now and typecheck the body once we
+      # have symbolic bindings.
+      annotated_return_type = deduce.deduce(f.return_type, ctx) \
+                              if f.return_type else ConcreteType.NIL
       ctx.node_to_type[f.name] = ctx.node_to_type[f] = FunctionType(
            tuple(param_types), annotated_return_type)
       return
 
   logging.vlog(1, 'Type-checking body for function: %s', f)
 
-
-#   if f.parametric_bindings:
-#     if f in ctx.parametric_fn_cache:
-#       print("cached")
-#       cached_types = ctx.parametric_fn_cache[f]
-#       without_f_dict = { node : ctx.node_to_type[node] for node in ctx.node_to_type._dict if not node in cached_types }
-#       assert not f.body in without_f_dict
-#       ctx.node_to_type._dict = without_f_dict
-#     body_return_type = deduce.deduce(f.body, ctx)
-#   else:
-#     body_return_type = deduce.deduce(f.body, ctx)
   body_return_type = deduce.deduce(f.body, ctx)
   resolved_body_type = deduce.resolve(body_return_type, ctx)
 
@@ -151,7 +149,8 @@ def check_test(t: ast.Test, ctx: deduce.DeduceCtx) -> None:
 def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
                  ctx: deduce.DeduceCtx) -> Tuple[bool, Optional[ast.NameDef]]:
   """Instantiates a builtin parametric invocation; e.g. 'update'."""
-  arg_types = tuple(deduce.resolve(ctx.node_to_type[arg], ctx) for arg in invocation.args)
+  arg_types = tuple(deduce.resolve(
+                        ctx.node_to_type[arg], ctx) for arg in invocation.args)
 
   if builtin_name.identifier not in dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
     return (False, None)
@@ -161,39 +160,84 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
                                           invocation.span)
 
   fn_name, fn_symbolic_bindings = ctx.fn_stack[-1]
-  invocation.symbolic_bindings[(fn_name, tuple(fn_symbolic_bindings.items()))] = symbolic_bindings
+  invocation.symbolic_bindings[(fn_name,
+                      tuple(fn_symbolic_bindings.items()))] = symbolic_bindings
   ctx.node_to_type[invocation.callee] = fn_type
   ctx.node_to_type[invocation] = fn_type.return_type
 
 
   if builtin_name.identifier == "map":
-    map_fn = invocation.args[1]
-    if isinstance(map_fn, ast.ModRef):
-      imported_module, imported_node_to_type  = ctx.node_to_type.get_imported(map_fn.mod)
-      ident = map_fn.value_tok.value
-      function_def = imported_module.get_function(ident)
-
-      importedCtx = deduce.DeduceCtx(imported_node_to_type, imported_module, ctx.interp_callback,
-                             ctx.typecheck_callback,f_import=ctx.f_import, parametric_fn_cache=ctx.parametric_fn_cache)
-      importedCtx.fn_stack.append((ident, dict(symbolic_bindings)))
-      ctx.typecheck_callback(function_def, importedCtx)
-      ctx.node_to_type.update(importedCtx.node_to_type)
-    else:
-      if (map_fn.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES):
+    map_fn_ref = invocation.args[1]
+    # If the higher order function is parametric, we need to typecheck its body
+    # with the symbolic bindings we just computed.
+    if isinstance(map_fn_ref, ast.ModRef):
+      imported_module, imported_node_to_type = \
+                                  ctx.node_to_type.get_imported(map_fn_ref.mod)
+      map_fn_name = map_fn_ref.value_tok.value
+      map_fn = imported_module.get_function(map_fn_name)
+      if not map_fn.is_parametric():
         return (True, None)
 
-      ident = map_fn.tok.value
-      function_def = ctx.module.get_function(ident)
+      importedCtx = deduce.DeduceCtx(imported_node_to_type, imported_module,
+                                     ctx.interp_callback,
+                                    ctx.typecheck_callback,
+                                    parametric_fn_cache=ctx.parametric_fn_cache)
+      importedCtx.fn_stack.append((map_fn_name, dict(symbolic_bindings)))
+      # We need to typecheck this imported function with respect to its module
+      ctx.typecheck_callback(map_fn, importedCtx)
+      ctx.node_to_type.update(importedCtx.node_to_type)
+    else:
+      if (map_fn_ref.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES):
+        # Already typechecked when we were typechecking the arguments of this
+        # invocation
+        return (True, None)
 
-      #print("in {}, need to check {}'s body".format(ctx.fn_stack[-1][0], ident))
-      ctx.fn_stack.append((ident, dict(symbolic_bindings)))
-      # Force typecheck.py to deduce the body of this parametric function
-      # Using our newly derived symbolic bindings
-      #_check_function_or_test_in_module(function_def, ctx)
-      return (True, map_fn.name_def)
+      map_fn_name = map_fn_ref.tok.value
+      map_fn = ctx.module.get_function(map_fn_name)
+      if not map_fn.is_parametric():
+        return (True, None)
+
+      ctx.fn_stack.append((map_fn_name, dict(symbolic_bindings)))
+      return (True, map_fn_ref.name_def)
 
   return (True, None)
 
+def _make_record(f: Union[Function, ast.Test], ctx: deduce.DeduceCtx) \
+      -> Tuple[Text, bool, Optional[Dict[ast.AstNode, ConcreteType]]]:
+  """Creates a tuple with information for typechecking functions/tests
+
+  The third item in the tuple will optionally carry the contents of
+  ctx.node_to_type._dict at the time of record creation. If this record is
+  for typechecking the body of a parametric function for the first time,
+  we'll use the before-version of ctx.node_to_type._dict to determine the
+  dependencies of the parametric function when this record is popped.
+  """
+  fn_name, fn_symbolic_bindings = ctx.fn_stack[-1]
+  if isinstance(f, ast.Function):
+    if f.is_parametric() and fn_name == f.name.identifier:
+      if f not in ctx.parametric_fn_cache:
+        # This is our first time evaluating the body of this parametric fn.
+        # Let's store what ctx.node_to_type looked like before so we know
+        # what this function's dependencies are.
+        before_ntt_dict = copy.copy(ctx.node_to_type._dict)
+        rec = (f.name.identifier, False, before_ntt_dict)
+      else:
+        # We've previously evaluated the body of this parametric fn.
+        # Let's remove the types we found so that they are reevaluated
+        # with the current symbolic bindings.
+        cached_types = ctx.parametric_fn_cache[f]
+        without_deps_dict = { n: ctx.node_to_type[n] for n in \
+                              ctx.node_to_type._dict if not n in cached_types } 
+        # Assert that the body will be reevaluated
+        assert not f.body in without_deps_dict
+        ctx.node_to_type._dict = without_deps_dict
+        rec = (f.name.identifier, False, None)
+    else:
+      rec = (f.name.identifier, False, None)
+  else:
+    rec = (f.name.identifier, True, None)
+
+  return rec
 
 def _check_function_or_test_in_module(f: Union[Function, ast.Test],
                                       ctx: deduce.DeduceCtx):
@@ -215,20 +259,8 @@ def _check_function_or_test_in_module(f: Union[Function, ast.Test],
   seen = {
       (f.name.identifier, isinstance(f, ast.Test)): (f, True)
   }  # type: Dict[Tuple[Text, bool], Tuple[Union[Function, ast.Test], bool]]
-  fn_name, fn_symbolic_bindings = ctx.fn_stack[-1]
-  if isinstance(f, ast.Function) and f.is_parametric() and f not in ctx.parametric_fn_cache and fn_name == f.name.identifier:
-    og_dict = copy.copy(ctx.node_to_type._dict)
-    rec = (f.name.identifier, isinstance(f, ast.Test), og_dict)
-  elif isinstance(f, ast.Function) and  f.is_parametric() and f in ctx.parametric_fn_cache and fn_name == f.name.identifier:
-    cached_types = ctx.parametric_fn_cache[f]
-    without_f_dict = { node : ctx.node_to_type[node] for node in ctx.node_to_type._dict if not node in cached_types }
-    assert not f.body in without_f_dict
-    ctx.node_to_type._dict = without_f_dict
-    rec = (f.name.identifier, False, None)
-  else:
-    rec = (f.name.identifier, isinstance(f, ast.Test), None)
 
-  stack = [rec]
+  stack = [_make_record(f, ctx)]
 
   function_map = {f.name.identifier: f for f in ctx.module.get_functions()}
   while stack:
@@ -243,20 +275,29 @@ def _check_function_or_test_in_module(f: Union[Function, ast.Test],
       seen[(f.name.identifier, isinstance(f, ast.Test))] = (f, False
                                                            )  # Mark as done.
       rec = stack.pop()
-      if isinstance(f, ast.Function) and f.parametric_bindings and f not in ctx.parametric_fn_cache and fn_name == f.name.identifier:
-        # print("##### registered {}".format(f.name))
-        og_dict = rec[2]
-        diff = { node : ctx.node_to_type[node] for node in set(ctx.node_to_type._dict) - set(og_dict) }
-        ctx.parametric_fn_cache[f] = diff
+      fn_name, _ = ctx.fn_stack[-1]
+      if isinstance(f, ast.Function) and f.is_parametric() \
+          and fn_name == f.name.identifier and f not in ctx.parametric_fn_cache:
+        # We just evaluated the body of a parametric function for the first
+        # time. Let's compute its dependencies so that we know which nodes to
+        # recheck if we see another invocation of this parametric function.
+        before_ntt_dict = rec[2]
+        assert before_ntt_dict
+        deps = { n : ctx.node_to_type[n] for n in \
+                 set(ctx.node_to_type._dict) - set(before_ntt_dict) }
+        ctx.parametric_fn_cache[f] = deps
 
       if rec[0] == fn_name:
+        # ie. we just finished typechecking the body of the function we're
+        # currently inside of
         ctx.fn_stack.pop()
 
     except deduce.TypeMissingError as e:
       # print("##### caught {}".format(e))
       while True:
         fn_name, fn_symbolic_bindings = ctx.fn_stack[-1]
-        if isinstance(e.node, ast.NameDef) and e.node.identifier in function_map:
+        if isinstance(e.node, ast.NameDef) and \
+                e.node.identifier in function_map:
           # If it's seen and not-done, we're recursing.
           if seen.get((e.node.identifier, False), (None, False))[1]:
             raise XlsError(
@@ -264,33 +305,20 @@ def _check_function_or_test_in_module(f: Union[Function, ast.Test],
                     e.node.identifier))
           callee = function_map[e.node.identifier]
           assert isinstance(callee, ast.Function), callee
-
-
-          if callee.parametric_bindings and callee not in ctx.parametric_fn_cache and fn_name == e.node.identifier:
-            og_dict = copy.copy(ctx.node_to_type._dict)
-            rec = (e.node.identifier, False, og_dict)
-          elif callee.parametric_bindings and callee in ctx.parametric_fn_cache and fn_name == e.node.identifier:
-            cached_types = ctx.parametric_fn_cache[callee]
-            without_f_dict = { node : ctx.node_to_type[node] for node in ctx.node_to_type._dict if not node in cached_types }
-            assert not callee.body in without_f_dict
-            ctx.node_to_type._dict = without_f_dict
-            rec = (e.node.identifier, False, None)
-          else:
-            rec = (e.node.identifier, False, None)
-
-
           seen[(e.node.identifier, False)] = (callee, True)
-          stack.append(rec)
+          stack.append(_make_record(callee, ctx))
           break
         if (isinstance(e.node, ast.BuiltinNameDef) and
             e.node.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES):
-          logging.vlog(2, 'node: %r; identifier: %r, exception user: %r', e.node,
-                       e.node.identifier, e.user)
+          logging.vlog(2, 'node: %r; identifier: %r, exception user: %r',
+                       e.node, e.node.identifier, e.user)
 
           if isinstance(e.user, ast.Invocation):
             ok_inst, func = _instantiate(e.node, e.user, ctx)
             if ok_inst:
               if func:
+                # We need to figure out what to do with this higher order
+                # parametric function
                 e.node = func
                 continue
               else:
@@ -322,17 +350,17 @@ def check_module(
     XlsTypeError: If any of the function in f have typecheck errors.
   """
   node_to_type = deduce.NodeToType()
-  interp_callback = interpreter_helpers.interpret_expr
-  ctx = deduce.DeduceCtx(node_to_type, module, interp_callback,
-                         _check_function_or_test_in_module,
-                         f_import=f_import)
+  interpreter_callback = functools.partial(interpret_expr, f_import=f_import)
+  ctx = deduce.DeduceCtx(node_to_type, module, interpreter_callback,
+                         _check_function_or_test_in_module)
 
   # First populate node_to_type with constants, enums, and resolved imports.
-  ctx.fn_stack.append(('top', dict())) # No symbolic bindings in the global scope
+  ctx.fn_stack.append(('top', dict()))  # No sym bindings in the global scope
   for member in ctx.module.top:
     if isinstance(member, ast.Import):
       imported_module, imported_node_to_type = f_import(member.name)
-      ctx.node_to_type.add_import(member, (imported_module, imported_node_to_type))
+      ctx.node_to_type.add_import(member,
+                                  (imported_module, imported_node_to_type))
     elif isinstance(member, (ast.Constant, ast.Enum, ast.Struct, ast.TypeDef)):
       deduce.deduce(member, ctx)
     else:
@@ -343,7 +371,7 @@ def check_module(
   for f in function_map.values():
     assert isinstance(f, ast.Function), f
     if f.is_parametric():
-      # Let's typecheck parametric functions per instantiation
+      # Let's typecheck parametric functions per invocation
       continue
 
     logging.vlog(2, 'Typechecking function: %s', f)
@@ -354,19 +382,25 @@ def check_module(
   test_map = {t.name.identifier: t for t in ctx.module.get_tests()}
   for t in test_map.values():
     assert isinstance(t, ast.Test), t
-    ctx.fn_stack.append(("{}_test".format(t.name.identifier), dict())) # No symbolic bindings
+    # No symbolic bindings inside of a test construct
+    ctx.fn_stack.append(("{}_test".format(t.name.identifier), dict()))
     logging.vlog(2, 'Typechecking test: %s', t)
     _check_function_or_test_in_module(t, ctx)
     logging.vlog(2, 'Finished typechecking test: %s', t)
 
-  # Add back the bodies of parametric fns for completeness
   if is_import:
+    # If we just typechecked an imported module, lets discard all
+    # of the parametric fns' dependencies so that they are rechecked on
+    # invocation in the main module
     for f in ctx.parametric_fn_cache:
       if f.name.identifier in function_map:
-        cached_types = ctx.parametric_fn_cache[f]
-        without_f_dict = { node : ctx.node_to_type[node] for node in ctx.node_to_type._dict if not node in cached_types }
-        ctx.node_to_type._dict = without_f_dict
+        deps = ctx.parametric_fn_cache[f]
+        without_deps_dict = { n: ctx.node_to_type[n] for n in \
+                              ctx.node_to_type._dict if not n in deps }
+        ctx.node_to_type._dict = without_deps_dict
   else:
+    # Add back the bodies of parametric fns for completeness, as they are
+    # removed in deduce._deduce_Invocation()
     for f in ctx.parametric_fn_cache:
       if f.body in ctx.parametric_fn_cache[f]:
         ctx.node_to_type[f.body] = ctx.parametric_fn_cache[f][f.body]
