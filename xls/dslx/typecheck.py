@@ -215,7 +215,7 @@ def _make_record(f: Union[Function, ast.Test], ctx: deduce.DeduceCtx) \
   fn_name, fn_symbolic_bindings = ctx.fn_stack[-1]
   if isinstance(f, ast.Function):
     if f.is_parametric() and fn_name == f.name.identifier:
-      if f not in ctx.parametric_fn_cache:
+      if (ctx.module.name, f) not in ctx.parametric_fn_cache:
         # This is our first time evaluating the body of this parametric fn.
         # Let's store what ctx.node_to_type looked like before so we know
         # what this function's dependencies are.
@@ -225,7 +225,7 @@ def _make_record(f: Union[Function, ast.Test], ctx: deduce.DeduceCtx) \
         # We've previously evaluated the body of this parametric fn.
         # Let's remove the types we found so that they are reevaluated
         # with the current symbolic bindings.
-        cached_types = ctx.parametric_fn_cache[f]
+        cached_types = ctx.parametric_fn_cache[(ctx.module.name, f)]
         without_deps_dict = { n: ctx.node_to_type[n] for n in \
                               ctx.node_to_type._dict if not n in cached_types } 
         # Assert that the body will be reevaluated
@@ -277,7 +277,8 @@ def _check_function_or_test_in_module(f: Union[Function, ast.Test],
       rec = stack.pop()
       fn_name, _ = ctx.fn_stack[-1]
       if isinstance(f, ast.Function) and f.is_parametric() \
-          and fn_name == f.name.identifier and f not in ctx.parametric_fn_cache:
+          and fn_name == f.name.identifier and \
+                            (ctx.module.name, f) not in ctx.parametric_fn_cache:
         # We just evaluated the body of a parametric function for the first
         # time. Let's compute its dependencies so that we know which nodes to
         # recheck if we see another invocation of this parametric function.
@@ -285,7 +286,7 @@ def _check_function_or_test_in_module(f: Union[Function, ast.Test],
         assert before_ntt_dict
         deps = { n : ctx.node_to_type[n] for n in \
                  set(ctx.node_to_type._dict) - set(before_ntt_dict) }
-        ctx.parametric_fn_cache[f] = deps
+        ctx.parametric_fn_cache[(ctx.module.name, f)] = deps
 
       if rec[0] == fn_name:
         # ie. we just finished typechecking the body of the function we're
@@ -392,17 +393,16 @@ def check_module(
     # If we just typechecked an imported module, lets discard all
     # of the parametric fns' dependencies so that they are rechecked on
     # invocation in the main module
-    for f in ctx.parametric_fn_cache:
-      if f.name.identifier in function_map:
-        deps = ctx.parametric_fn_cache[f]
+    for mod_name, f in ctx.parametric_fn_cache:
+      if ctx.module.name == mod_name:
+        deps = ctx.parametric_fn_cache[(ctx.module.name, f)]
         without_deps_dict = { n: ctx.node_to_type[n] for n in \
                               ctx.node_to_type._dict if not n in deps }
         ctx.node_to_type._dict = without_deps_dict
   else:
     # Add back the bodies of parametric fns for completeness, as they are
     # removed in deduce._deduce_Invocation()
-    for f in ctx.parametric_fn_cache:
-      if f.body in ctx.parametric_fn_cache[f]:
-        ctx.node_to_type[f.body] = ctx.parametric_fn_cache[f][f.body]
+    for mod_name, f in ctx.parametric_fn_cache:
+      ctx.node_to_type[f.body] = ctx.parametric_fn_cache[(mod_name, f)][f.body]
 
   return ctx.node_to_type

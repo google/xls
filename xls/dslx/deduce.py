@@ -155,7 +155,8 @@ class NodeToType(object):
 ImportFn = Callable[[Tuple[Text, ...]], Tuple[ast.Module, NodeToType]]
 InterpCallbackType = Callable[[ast.Module, NodeToType,
                       Sequence[Tuple[Text, int]], ast.Expr, ImportFn], int]
-ParametricFnCache = Dict[ast.Function, Dict[ast.AstNode, ConcreteType]]
+ParametricFnCache = Dict[Tuple[Text, ast.Function], Dict[ast.AstNode,
+                                                         ConcreteType]]
 
 @dataclass
 class DeduceCtx:
