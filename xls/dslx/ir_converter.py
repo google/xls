@@ -696,8 +696,11 @@ class _IrConverterFb(ast.AstVisitor):
       return self._get_mangled_name(function.name.identifier,
                                     function.get_free_parametric_keys(), m,
                                     None)
-    # print("node sb: {}, name: {}".format(node.symbolic_bindings, self.dslx_name))
-    resolved_symbolic_bindings = node.symbolic_bindings.get((self.dslx_name, tuple(self.symbolic_bindings.items())), ())
+    #print("node sb: {}, name: {}".format(node.symbolic_bindings, self.dslx_name))
+    resolved_symbolic_bindings = node.symbolic_bindings.get((self.module.name,
+                                        self.dslx_name,
+                                        tuple(self.symbolic_bindings.items())),
+                                        ())
 
     logging.vlog(2, 'Node %s @ %s symbolic bindings %r', node, node.span,
                  resolved_symbolic_bindings)
@@ -737,7 +740,8 @@ class _IrConverterFb(ast.AstVisitor):
       map_fn_name = fn_node.name_def.identifier
       if map_fn_name in dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
         return self._def_map_with_builtin(node, fn_node, node.args[0],
-                                          node.symbolic_bindings.get((self.dslx_name, tuple(self.symbolic_bindings.items())), ()))
+            node.symbolic_bindings.get((self.module.name, self.dslx_name,
+                        tuple(self.symbolic_bindings.items())), ()))
 
       else:
         lookup_module = self.module
@@ -751,7 +755,9 @@ class _IrConverterFb(ast.AstVisitor):
       raise NotImplementedError(
           'Unhandled function mapping: {!r}'.format(fn_node))
 
-    node_sym_bindings = node.symbolic_bindings.get((self.dslx_name, tuple(self.symbolic_bindings.items())), ())
+    node_sym_bindings = node.symbolic_bindings.get((
+          self.module.name, self.dslx_name,
+          tuple(self.symbolic_bindings.items())), ())
     mangled_name = self._get_mangled_name(fn.name,
                                           fn.get_free_parametric_keys(),
                                           lookup_module, node_sym_bindings)

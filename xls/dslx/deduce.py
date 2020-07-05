@@ -320,7 +320,8 @@ def _deduce_Invocation(self: ast.Invocation,
 
   # Within the context of (fn_name, fn_sym_bindings), this invocation of callee will have
   # bindings with values specified by callee_sym_bindings
-  self.symbolic_bindings[(fn_name, tuple(fn_symbolic_bindings.items()))] = \
+  self.symbolic_bindings[(ctx.module.name, fn_name,
+                          tuple(fn_symbolic_bindings.items()))] = \
                                                             callee_sym_bindings
 
   if callee_fn.is_parametric():

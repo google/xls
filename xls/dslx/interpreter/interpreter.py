@@ -1168,7 +1168,7 @@ class Interpreter(object):
                    m: ast.Module,
                    args: Sequence[Value],
                    span: Span,
-                   _: Optional[ast.Invocation] = None) -> Value:
+                   invocation: Optional[ast.Invocation] = None) -> Value:
     """Evaluates the user defined function fn as an invocation against args.
 
     Args:

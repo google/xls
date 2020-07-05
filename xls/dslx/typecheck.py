@@ -160,7 +160,7 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
                                           invocation.span)
 
   fn_name, fn_symbolic_bindings = ctx.fn_stack[-1]
-  invocation.symbolic_bindings[(fn_name,
+  invocation.symbolic_bindings[(ctx.module.name, fn_name,
                       tuple(fn_symbolic_bindings.items()))] = symbolic_bindings
   ctx.node_to_type[invocation.callee] = fn_type
   ctx.node_to_type[invocation] = fn_type.return_type
