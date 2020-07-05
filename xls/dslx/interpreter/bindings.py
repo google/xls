@@ -39,6 +39,7 @@ class Bindings(object):
   def __init__(self, parent: Optional['Bindings'] = None):
     self._parent = parent
     self._map = {}  # type: Dict[Text, BindingEntry]
+    self.fn_ctx = None # type: Optional[Tuple]
 
   def add_value(self, identifier: Text, value: Value):
     self._map[identifier] = value
@@ -170,4 +171,5 @@ class Bindings(object):
                  value: Value) -> 'Bindings':
     new_bindings = Bindings(self)
     new_bindings.add_value_tree(name_def_tree, value)
+    new_bindings.fn_ctx = self.fn_ctx
     return new_bindings

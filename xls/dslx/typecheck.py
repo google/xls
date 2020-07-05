@@ -124,26 +124,15 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx):
 
 def check_test(t: ast.Test, ctx: deduce.DeduceCtx) -> None:
   """Typechecks a test (body) within a module."""
-  while True:
-    try:
-      body_return_type = deduce.deduce(t.body, ctx)
-    except deduce.TypeMissingError as e:
-      if (isinstance(e.node, ast.BuiltinNameDef) and
-          e.node.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES):
-        if isinstance(e.user, ast.Invocation) and _instantiate(
-            e.node, e.user, ctx):
-          continue
-      raise
-    else:
-      nil = ConcreteType.NIL
-      if body_return_type != nil:
-        raise XlsTypeError(
-            t.body.span,
-            body_return_type,
-            nil,
-            suffix='Return type of test body for "{}" did not match the '
-            'expected test return type (nil).'.format(t.name.identifier))
-      return  # Ok!
+  body_return_type = deduce.deduce(t.body, ctx)
+  nil = ConcreteType.NIL
+  if body_return_type != nil:
+    raise XlsTypeError(
+        t.body.span,
+        body_return_type,
+        nil,
+        suffix='Return type of test body for "{}" did not match the '
+        'expected test return type (nil).'.format(t.name.identifier))
 
 
 def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
@@ -160,6 +149,8 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
                                           invocation.span)
 
   fn_name, fn_symbolic_bindings = ctx.fn_stack[-1]
+  # if ctx.module.name == 'map':
+  #   print(invocation.callee, "---", symbolic_bindings)
   invocation.symbolic_bindings[(ctx.module.name, fn_name,
                       tuple(fn_symbolic_bindings.items()))] = symbolic_bindings
   ctx.node_to_type[invocation.callee] = fn_type
@@ -296,9 +287,13 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
     except deduce.TypeMissingError as e:
       # print("##### caught {}".format(e))
       while True:
+        # if ctx.module.name == "map":
+        #   print(e.node, e.user)
         fn_name, fn_symbolic_bindings = ctx.fn_stack[-1]
         if isinstance(e.node, ast.NameDef) and \
                 e.node.identifier in function_map:
+          # if ctx.module.name == "map":
+          #   print("here")
           # If it's seen and not-done, we're recursing.
           if seen.get((e.node.identifier, False), (None, False))[1]:
             raise XlsError(
@@ -308,6 +303,7 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
           assert isinstance(callee, ast.Function), callee
           seen[(e.node.identifier, False)] = (callee, True)
           stack.append(_make_record(callee, ctx))
+          # print("breaking")
           break
         if (isinstance(e.node, ast.BuiltinNameDef) and
             e.node.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES):
