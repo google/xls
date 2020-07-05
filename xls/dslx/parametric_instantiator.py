@@ -75,7 +75,7 @@ class _ParametricInstantiator(object):
       try:
         fn_name, fn_symbolic_bindings = self.ctx.fn_stack[-1]
         fn_ctx = (self.ctx.module.name, fn_name, tuple(fn_symbolic_bindings.items()))
-        print(constraint, "--->", self.ctx.node_to_type[constraint])
+        #print(constraint, "--->", self.ctx.node_to_type[constraint])
         result = self.ctx.interp_callback(self.ctx.module,
                                           self.ctx.node_to_type,
                                           self.symbolic_bindings, constraint,
@@ -230,7 +230,7 @@ class _ParametricInstantiator(object):
   def _resolve(self, annotated: ConcreteType) -> ConcreteType:
     """Resolves a parametric type via symbolic_bindings."""
 
-    if self.ctx:
+    if self.constraints:
       self._verify_constraints()
 
     def resolver(dim):

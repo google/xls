@@ -198,50 +198,50 @@ def register_fsignature(signature: Text):
 
 
 @register_fsignature('(uN[T], uN[T]) -> (u1, uN[T])')
-def fsig(arg_types: ArgTypes, name: Text, span: Span) -> ConcreteType:
+def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx, _) -> ConcreteType:
   _Checker(arg_types, name, span).len(2).is_uN(0).is_same(0, 1)
   return_type = TupleType((ConcreteType.U1, arg_types[0]))
   return FunctionType(arg_types, return_type)
 
 
 @register_fsignature('(u1, T, T) -> T')
-def fsig(arg_types: ArgTypes, name: Text, span: Span) -> ConcreteType:
+def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx, _) -> ConcreteType:
   _Checker(arg_types, name, span).len(3).is_u1(0).is_same(1, 2)
   return FunctionType(arg_types, arg_types[1])
 
 
 @register_fsignature('(T) -> T')
-def fsig(arg_types: ArgTypes, name: Text, span: Span) -> ConcreteType:
+def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx, _) -> ConcreteType:
   _Checker(arg_types, name, span).len(1)
   return FunctionType(arg_types, arg_types[0])
 
 
 @register_fsignature('(T, T) -> ()')
-def fsig(arg_types: ArgTypes, name: Text, span: Span) -> ConcreteType:
+def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx, _) -> ConcreteType:
   _Checker(arg_types, name, span).len(2).is_same(0, 1)
   return FunctionType(arg_types, ConcreteType.NIL)
 
 
 @register_fsignature('(uN[N]) -> u1')
-def fsig(arg_types: ArgTypes, name: Text, span: Span) -> ConcreteType:
+def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx, _) -> ConcreteType:
   _Checker(arg_types, name, span).len(1).is_uN(0)
   return FunctionType(arg_types, ConcreteType.U1)
 
 
 @register_fsignature('(uN[N]) -> uN[N]')
-def fsig(arg_types: ArgTypes, name: Text, span: Span) -> ConcreteType:
+def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx, _) -> ConcreteType:
   _Checker(arg_types, name, span).len(1).is_uN(0)
   return FunctionType(arg_types, arg_types[0])
 
 
 @register_fsignature('(uN[N], uN[N]) -> ()')
-def fsig(arg_types: ArgTypes, name: Text, span: Span) -> ConcreteType:
+def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx, _) -> ConcreteType:
   _Checker(arg_types, name, span).len(2).is_uN((0, 1)).is_same(0, 1)
   return FunctionType(arg_types, ConcreteType.NIL)
 
 
 @register_fsignature('(xN[N], xN[M][N]) -> xN[M]')
-def fsig(arg_types: ArgTypes, name: Text, span: Span) -> ConcreteType:
+def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx, _) -> ConcreteType:
   checker = _Checker(arg_types, name, span).len(2).is_bits(0).is_array(1)
   return_type = arg_types[1].get_element_type()
   checker.check_is_bits(return_type,
@@ -250,7 +250,7 @@ def fsig(arg_types: ArgTypes, name: Text, span: Span) -> ConcreteType:
 
 
 @register_fsignature('(T[N], uN[M], T) -> T[N]')
-def fsig(arg_types: ArgTypes, name: Text, span: Span) -> ConcreteType:
+def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx, _) -> ConcreteType:
   checker = _Checker(arg_types, name, span).len(3).is_array(0).is_uN(1)
   checker.check_is_same(
       arg_types[0].get_element_type(), arg_types[2],
@@ -259,7 +259,7 @@ def fsig(arg_types: ArgTypes, name: Text, span: Span) -> ConcreteType:
 
 
 @register_fsignature('(T[N]) -> (u32, T)[N]')
-def fsig(arg_types: ArgTypes, name: Text, span: Span) -> ConcreteType:
+def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx, _) -> ConcreteType:
   _Checker(arg_types, name, span).len(1).is_array(0)
   t = arg_types[0].get_element_type()
   e = TupleType((ConcreteType.U32, t))
@@ -268,19 +268,19 @@ def fsig(arg_types: ArgTypes, name: Text, span: Span) -> ConcreteType:
 
 
 @register_fsignature('(xN[N], xN[N]) -> u1')
-def fsig(arg_types: ArgTypes, name: Text, span: Span) -> ConcreteType:
+def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx, _) -> ConcreteType:
   _Checker(arg_types, name, span).len(2).is_bits(0).is_same(0, 1)
   return FunctionType(arg_types, ConcreteType.U1)
 
 
 @register_fsignature('(xN[M], xN[N]) -> xN[N]')
-def fsig(arg_types: ArgTypes, name: Text, span: Span) -> ConcreteType:
+def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx, _) -> ConcreteType:
   _Checker(arg_types, name, span).len(2).is_bits((0, 1))
   return FunctionType(arg_types, arg_types[1])
 
 
 @register_fsignature('(T[M], uN[N], T[P]) -> T[P]')
-def fsig(arg_types: ArgTypes, name: Text, span: Span) -> ConcreteType:
+def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx, _) -> ConcreteType:
   checker = _Checker(arg_types, name,
                      span).len(3).is_array(0).is_uN(1).is_array(2)
   checker.eq(
@@ -291,7 +291,7 @@ def fsig(arg_types: ArgTypes, name: Text, span: Span) -> ConcreteType:
 
 
 @register_fsignature('(uN[N], u1) -> uN[N+1]')
-def fsig(arg_types: ArgTypes, name: Text, span: Span) -> ConcreteType:
+def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx, _) -> ConcreteType:
   _Checker(arg_types, name, span).len(2).is_uN(0).is_u1(1)
   return_type = BitsType(
       signed=False, size=arg_types[0].get_total_bit_count() + 1)
@@ -299,13 +299,13 @@ def fsig(arg_types: ArgTypes, name: Text, span: Span) -> ConcreteType:
 
 
 @register_fsignature('(uN[N], uN[N]) -> ()')
-def fsig(arg_types: ArgTypes, name: Text, span: Span) -> ConcreteType:
+def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx, _) -> ConcreteType:
   _Checker(arg_types, name, span).len(2).is_uN((0, 1))
   return FunctionType(arg_types, ConcreteType.NIL)
 
 
 @register_fsignature('(uN[M], uN[N]) -> uN[M+N]')
-def fsig(arg_types: ArgTypes, name: Text, span: Span) -> ConcreteType:
+def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx, _) -> ConcreteType:
   _Checker(arg_types, name, span).len(2).is_uN((0, 1))
   return_type = BitsType(
       signed=False,
@@ -315,21 +315,21 @@ def fsig(arg_types: ArgTypes, name: Text, span: Span) -> ConcreteType:
 
 
 @register_fsignature('(uN[T], uN[U], uN[V]) -> uN[V]')
-def fsig(arg_types: ArgTypes, name: Text, span: Span) -> ConcreteType:
+def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx, _) -> ConcreteType:
   _Checker(arg_types, name, span).len(3).is_uN((0, 1, 2))
   return FunctionType(arg_types, arg_types[2])
 
 
 @register_fsignature('(T[N], (T) -> U) -> U[N]')
 def fsig(
-    arg_types: ArgTypes, name: Text, span: Span
+    arg_types: ArgTypes, name: Text, span: Span, ctx, parametric_bindings
 ) -> Tuple[ConcreteType, parametric_instantiator.SymbolicBindings]:
   """Returns the inferred/checked return type for a map-style signature."""
   logging.vlog(5, 'Instantiating for builtin %r @ %s', name, span)
   _Checker(arg_types, name, span).len(2).is_array(0).is_fn(1, argc=1)
   t = arg_types[0].get_element_type()
   u, symbolic_bindings = parametric_instantiator.instantiate(
-      span, arg_types[1], (t,))
+      span, arg_types[1], (t,), ctx, parametric_bindings)
   return_type = ArrayType(u, arg_types[0].size)
   return FunctionType(arg_types, return_type), symbolic_bindings
 
@@ -368,9 +368,9 @@ def get_fsignature(builtin_name: Text) -> SignatureFn:
   # a little wrapper that provides trivially empty ones to alleviate the typing
   # burden.
   def wrapper(
-      arg_types: ArgTypes, name: Text, span: Span
+      arg_types: ArgTypes, name: Text, span: Span, ctx, parametric_bindings
   ) -> Tuple[ConcreteType, parametric_instantiator.SymbolicBindings]:
-    result = f(arg_types, name, span)
+    result = f(arg_types, name, span, ctx, parametric_bindings)
     if isinstance(result, tuple):
       return result
     assert isinstance(result, ConcreteType), result

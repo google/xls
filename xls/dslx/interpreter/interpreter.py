@@ -645,7 +645,7 @@ class Interpreter(object):
       # print("key: {}, dict: {}".format(bindings.fn_ctx, expr.symbolic_bindings))
       # # sb = expr.symbolic_bindings[bindings.fn_ctx]
       sb = expr.symbolic_bindings.get(bindings.fn_ctx, ())
-      print("invocation: {} key: {}, dict: {}, fnname: {}".format(expr, bindings.fn_ctx, expr.symbolic_bindings, expr.callee))
+      # print("invocation: {} key: {}, dict: {}, fnname: {}".format(expr, bindings.fn_ctx, expr.symbolic_bindings, expr.callee))
       # print("====")
     return callee_value.function_payload(arg_values, expr.span, expr, sym_bindings=sb)
 
@@ -1205,7 +1205,7 @@ class Interpreter(object):
         type do not match with the values presented as arguments / the value
         resulting from the function evaluation.
     """
-    print("evaluating {} with {}".format(fn.name.identifier, sym_bindings))
+    # print("evaluating {} with {}".format(fn.name.identifier, sym_bindings))
     if len(args) != len(fn.params):
       raise EvaluateError(
           span,

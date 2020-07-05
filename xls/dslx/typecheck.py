@@ -110,6 +110,7 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx):
     annotated_return_type = deduce.deduce(f.return_type, ctx)
     resolved_return_type =  deduce.resolve(annotated_return_type, ctx)
 
+    # print(ctx.fn_stack[-1])
     if resolved_return_type != resolved_body_type:
       raise XlsTypeError(
           f.body.span,
@@ -144,9 +145,24 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
   if builtin_name.identifier not in dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
     return (False, None)
 
+  higher_order_parametric_bindings = None
+  if builtin_name.identifier == "map":
+    map_fn_ref = invocation.args[1]
+    if isinstance(map_fn_ref, ast.ModRef):
+      imported_module, imported_node_to_type = \
+                                  ctx.node_to_type.get_imported(map_fn_ref.mod)
+      map_fn_name = map_fn_ref.value_tok.value
+      map_fn = imported_module.get_function(map_fn_name)
+      higher_order_parametric_bindings = map_fn.parametric_bindings
+    elif not map_fn_ref.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
+      map_fn_name = map_fn_ref.tok.value
+      map_fn = ctx.module.get_function(map_fn_name)
+      higher_order_parametric_bindings = map_fn.parametric_bindings
+
+
   fsignature = dslx_builtins.get_fsignature(builtin_name.identifier)
   fn_type, symbolic_bindings = fsignature(arg_types, builtin_name.identifier,
-                                          invocation.span)
+                                          invocation.span, ctx, higher_order_parametric_bindings)
 
   fn_name, fn_symbolic_bindings = ctx.fn_stack[-1]
   # if ctx.module.name == 'map':
@@ -158,14 +174,9 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
 
 
   if builtin_name.identifier == "map":
-    map_fn_ref = invocation.args[1]
     # If the higher order function is parametric, we need to typecheck its body
     # with the symbolic bindings we just computed.
     if isinstance(map_fn_ref, ast.ModRef):
-      imported_module, imported_node_to_type = \
-                                  ctx.node_to_type.get_imported(map_fn_ref.mod)
-      map_fn_name = map_fn_ref.value_tok.value
-      map_fn = imported_module.get_function(map_fn_name)
       if not map_fn.is_parametric():
         return (True, None)
 
@@ -183,8 +194,6 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
         # invocation
         return (True, None)
 
-      map_fn_name = map_fn_ref.tok.value
-      map_fn = ctx.module.get_function(map_fn_name)
       if not map_fn.is_parametric():
         return (True, None)
 
