@@ -73,9 +73,13 @@ class _ParametricInstantiator(object):
         # e.g. [X: u32]
         continue
       try:
+        fn_name, fn_symbolic_bindings = self.ctx.fn_stack[-1]
+        fn_ctx = (self.ctx.module.name, fn_name, tuple(fn_symbolic_bindings.items()))
+        print(constraint, "--->", self.ctx.node_to_type[constraint])
         result = self.ctx.interp_callback(self.ctx.module,
                                           self.ctx.node_to_type,
-                                          self.symbolic_bindings, constraint)
+                                          self.symbolic_bindings, constraint,
+                                          fn_ctx=fn_ctx)
       except KeyError as e:
         # We haven't seen enough bindings to evaluate this constraint
         continue
