@@ -1169,10 +1169,8 @@ class Interpreter(object):
       # We already evaluated derived parametrics in parametric_instantiator.py
       type_ = self._evaluate_TypeAnnotation(parametric.type_, bindings)
       raw_value = bound_dims[parametric.name.identifier]
-      print(type_.get_total_bit_count())
       wrapped_value = Value.make_ubits(type_.get_total_bit_count(), raw_value)
       bindings.add_value(parametric.name.identifier, wrapped_value)
-      print(parametric.name.identifier, wrapped_value)
 
       """
       if not parametric.expr:
@@ -1189,7 +1187,7 @@ class Interpreter(object):
                    m: ast.Module,
                    args: Sequence[Value],
                    span: Span,
-                   expr: Optional[ast.Invocation],
+                   expr: Optional[ast.Invocation] = None,
                    sym_bindings = None) -> Value:
     """Evaluates the user defined function fn as an invocation against args.
 
@@ -1230,7 +1228,7 @@ class Interpreter(object):
     self._evaluate_derived_parametrics(fn, bindings, bound_dims)
     bindings.fn_ctx = (m.name, fn.name.identifier, sym_bindings)
     concrete_return_type = self._evaluate_TypeAnnotation(
-        fn.return_type, bindings)
+        fn.return_type, bindings) if fn.return_type else ConcreteType.NIL
     for param, concrete_type, arg in zip(fn.params, param_types, args):
       if not concrete_type_accepts_value(concrete_type, arg):
         raise EvaluateError(
@@ -1333,6 +1331,7 @@ class Interpreter(object):
 
   def run_function(self, name: Text, args: Sequence[Value]) -> Value:
     f = self._module.get_function(name)
+    assert not f.is_parametric()
     fake_pos = Pos('<fake>', 0, 0)
     fake_span = Span(fake_pos, fake_pos)
-    return self._evaluate_fn(f, self._module, args, fake_span)
+    return self._evaluate_fn(f, self._module, args, fake_span, sym_bindings = ())
