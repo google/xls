@@ -171,17 +171,16 @@ class DeduceCtx:
       not in this module
     fn_stack: Keeps track of the function we're currently typechecking and
       the symbolic bindings we should be using
-    parametric_fn_cache: Maps a parametric fn to all the nodes that it is
-      dependent on. Used in typecheck.py to trick the typechecker into
+    parametric_fn_cache: Maps a (mod_name, parametric_fn) to all the nodes that
+      it is dependent on. Used in typecheck.py to trick the typechecker into
       checking the body of a parametric fn again (per instantiation)
   """
   node_to_type: NodeToType
   module: ast.Module
   interp_callback: InterpCallbackType
   typecheck_callback: Callable[[ast.Function, 'DeduceCtx'], None]
-  fn_stack: Optional[List[Tuple[Text, Dict[Text, int]]]] = field(
-                                                           default_factory=list)
-  parametric_fn_cache: Optional[ParametricFnCache] = field(default_factory=dict)
+  fn_stack: List[Tuple[Text, Dict[Text, int]]] = field(default_factory=list)
+  parametric_fn_cache: ParametricFnCache = field(default_factory=dict)
 
 def resolve(type_: ConcreteType, ctx: DeduceCtx) -> ConcreteType:
   """Resolves type_ via provided symbolic bindings
@@ -318,8 +317,9 @@ def _deduce_Invocation(self: ast.Invocation,
       self.span, callee_type, tuple(arg_types), ctx,
       callee_fn.parametric_bindings)
 
-  # Within the context of (fn_name, fn_sym_bindings), this invocation of callee will have
-  # bindings with values specified by callee_sym_bindings
+  # Within the context of (mod_name, fn_name, fn_sym_bindings),
+  # this invocation of callee will have bindings with values specified by
+  # callee_sym_bindings
   self.symbolic_bindings[(ctx.module.name, fn_name,
                           tuple(fn_symbolic_bindings.items()))] = \
                                                             callee_sym_bindings

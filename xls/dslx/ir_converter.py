@@ -696,7 +696,6 @@ class _IrConverterFb(ast.AstVisitor):
       return self._get_mangled_name(function.name.identifier,
                                     function.get_free_parametric_keys(), m,
                                     None)
-    #print("node sb: {}, name: {}".format(node.symbolic_bindings, self.dslx_name))
     resolved_symbolic_bindings = node.symbolic_bindings.get((self.module.name,
                                         self.dslx_name,
                                         tuple(self.symbolic_bindings.items())),
@@ -1103,12 +1102,6 @@ def convert_module(module: ast.Module,
   return convert_module_to_package(module, node_to_type,
                                    emit_positions).dump_ir()
 
-def convert_module_nodump(module: ast.Module,
-                   node_to_type: deduce.NodeToType,
-                   emit_positions: bool = True) -> Text:
-  """Same as convert_module_to_package, but converts to IR text."""
-  return convert_module_to_package(module, node_to_type,
-                                   emit_positions)
 
 def convert_one_function(module: ast.Module,
                          entry_function_name: Text,

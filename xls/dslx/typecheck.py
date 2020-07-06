@@ -60,6 +60,8 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx):
       parametric_binding_type = deduce.deduce(parametric.type_, ctx)
       assert isinstance(parametric_binding_type, ConcreteType)
       if parametric.expr:
+        # TODO(hans): 2020-07-06 Either throw a more descriptive error if
+        # there's a parametric fn in this expr or add support for it
         expr_type = deduce.deduce(parametric.expr, ctx)
         if expr_type != parametric_binding_type:
           raise XlsTypeError(
@@ -110,7 +112,6 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx):
     annotated_return_type = deduce.deduce(f.return_type, ctx)
     resolved_return_type =  deduce.resolve(annotated_return_type, ctx)
 
-    # print(ctx.fn_stack[-1])
     if resolved_return_type != resolved_body_type:
       raise XlsTypeError(
           f.body.span,
@@ -154,19 +155,19 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
       map_fn_name = map_fn_ref.value_tok.value
       map_fn = imported_module.get_function(map_fn_name)
       higher_order_parametric_bindings = map_fn.parametric_bindings
-    elif not map_fn_ref.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
+    else:
       map_fn_name = map_fn_ref.tok.value
-      map_fn = ctx.module.get_function(map_fn_name)
-      higher_order_parametric_bindings = map_fn.parametric_bindings
+      if not map_fn_ref.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
+        map_fn = ctx.module.get_function(map_fn_name)
+        higher_order_parametric_bindings = map_fn.parametric_bindings
 
 
   fsignature = dslx_builtins.get_fsignature(builtin_name.identifier)
   fn_type, symbolic_bindings = fsignature(arg_types, builtin_name.identifier,
-                                          invocation.span, ctx, higher_order_parametric_bindings)
+                                          invocation.span, ctx,
+                                          higher_order_parametric_bindings)
 
   fn_name, fn_symbolic_bindings = ctx.fn_stack[-1]
-  # if ctx.module.name == 'map':
-  #   print(invocation.callee, "---", symbolic_bindings)
   invocation.symbolic_bindings[(ctx.module.name, fn_name,
                       tuple(fn_symbolic_bindings.items()))] = symbolic_bindings
   ctx.node_to_type[invocation.callee] = fn_type
@@ -174,12 +175,17 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
 
 
   if builtin_name.identifier == "map":
+    if map_fn_name in dslx_builtins.PARAMETRIC_BUILTIN_NAMES or \
+        not map_fn.is_parametric():
+      # A builtin higher-order parametric fn would've been typechecked when we
+      # were going through the arguments of this invocation.
+      # If the function wasn't parametric, then we're good to go.
+      # invocation
+      return (True, None)
+
     # If the higher order function is parametric, we need to typecheck its body
     # with the symbolic bindings we just computed.
     if isinstance(map_fn_ref, ast.ModRef):
-      if not map_fn.is_parametric():
-        return (True, None)
-
       importedCtx = deduce.DeduceCtx(imported_node_to_type, imported_module,
                                      ctx.interp_callback,
                                     ctx.typecheck_callback,
@@ -189,14 +195,8 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
       ctx.typecheck_callback(map_fn, importedCtx)
       ctx.node_to_type.update(importedCtx.node_to_type)
     else:
-      if (map_fn_ref.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES):
-        # Already typechecked when we were typechecking the arguments of this
-        # invocation
-        return (True, None)
-
-      if not map_fn.is_parametric():
-        return (True, None)
-
+      # If the higher-order parametric fn is in this module, let's try to push
+      # it onto the typechecking stack
       ctx.fn_stack.append((map_fn_name, dict(symbolic_bindings)))
       return (True, map_fn_ref.name_def)
 
@@ -264,7 +264,6 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
 
   function_map = {f.name.identifier: f for f in ctx.module.get_functions()}
   while stack:
-    # print("#####", ctx.fn_stack[-1][0],"###########", [r[:2] for r in stack], "#######################")
     try:
       f = seen[stack[-1][:2]][0]
       if isinstance(f, ast.Function):
@@ -294,15 +293,10 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
         ctx.fn_stack.pop()
 
     except deduce.TypeMissingError as e:
-      # print("##### caught {}".format(e))
       while True:
-        # if ctx.module.name == "map":
-        #   print(e.node, e.user)
         fn_name, fn_symbolic_bindings = ctx.fn_stack[-1]
         if isinstance(e.node, ast.NameDef) and \
                 e.node.identifier in function_map:
-          # if ctx.module.name == "map":
-          #   print("here")
           # If it's seen and not-done, we're recursing.
           if seen.get((e.node.identifier, False), (None, False))[1]:
             raise XlsError(
@@ -312,7 +306,6 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
           assert isinstance(callee, ast.Function), callee
           seen[(e.node.identifier, False)] = (callee, True)
           stack.append(_make_record(callee, ctx))
-          # print("breaking")
           break
         if (isinstance(e.node, ast.BuiltinNameDef) and
             e.node.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES):

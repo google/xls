@@ -32,6 +32,7 @@ from xls.dslx.xls_type_error import XlsTypeError
 
 Invocation = Any  # pylint: disable=invalid-name
 SymbolicBindings = Tuple[Tuple[Text, int], ...]
+ParametricBindings = Tuple['ParametricBinding']
 
 
 class _ParametricInstantiator(object):
@@ -48,8 +49,8 @@ class _ParametricInstantiator(object):
   """
 
   def __init__(self, span: Span, function_type: ConcreteType,
-               arg_types: Tuple[ConcreteType, ...], ctx: Optional['DeduceCtx'],
-               parametric_constraints: Optional[Tuple['ParametricBinding']]):
+               arg_types: Tuple[ConcreteType, ...], ctx: 'DeduceCtx',
+               parametric_constraints: Optional[ParametricBindings]):
     self.span = span
     self.function_type = function_type
     self.arg_types = arg_types
@@ -274,8 +275,8 @@ class _ParametricInstantiator(object):
 def instantiate(
     span: Span, callee_type: ConcreteType,
     arg_types: Tuple[ConcreteType, ...],
-    ctx: 'DeduceCtx' = None,
-    parametric_bindings: Tuple['ParametricBinding'] = None) \
+    ctx: 'DeduceCtx',
+    parametric_bindings: Optional[ParametricBindings]) \
       -> Tuple[ConcreteType, SymbolicBindings]:
   return _ParametricInstantiator(span, callee_type, arg_types, ctx,
                                  parametric_bindings).instantiate()

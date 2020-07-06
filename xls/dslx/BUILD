@@ -326,8 +326,6 @@ py_library(
         ":dslx_builtins",
         ":parametric_expression",
         ":parametric_instantiator",
-        ":scanner",
-        ":span",
         ":xls_type_error",
         "//xls/common:xls_error",
 	"//xls/dslx/interpreter:interpreter_helpers",
