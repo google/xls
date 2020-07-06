@@ -249,6 +249,21 @@ TEST_P(ModuleBuilderTest, ComplexComputation) {
                                  file.Emit());
 }
 
+TEST_P(ModuleBuilderTest, DynamicBitSlice) {
+  VerilogFile file;
+  Package p(TestBaseName());
+  Type* u32 = p.GetBitsType(32);
+  Type* u16 = p.GetBitsType(16);
+  ModuleBuilder mb(TestBaseName(), &file,
+                   /*use_system_verilog=*/UseSystemVerilog());
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u32));
+  XLS_ASSERT_OK(mb.AddOutputPort("out", u16, file.DynamicSlice(x, y, 16)));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 file.Emit());
+}
+
 TEST_P(ModuleBuilderTest, ReturnConstantArray) {
   VerilogFile file;
   // The XLS IR package is just used for type management.
