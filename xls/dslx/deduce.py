@@ -612,7 +612,7 @@ def _deduce_For(self: ast.For, ctx: DeduceCtx) -> ConcreteType:  # pytype: disab
 
   if resolved_init_type != resolved_body_type:
     raise XlsTypeError(
-        self.span, resolved_nit_type, resolved_body_type,
+        self.span, resolved_init_type, resolved_body_type,
         "For-loop init value type did not match for-loop body's result type.")
   # TODO(leary): 2019-02-19 Type check annotated_type (the bound names each
   # iteration) against init_type/body_type -- this requires us to understand
