@@ -71,6 +71,11 @@ absl::Status DfsVisitorWithDefault::HandleBitSlice(BitSlice* bit_slice) {
   return DefaultHandler(bit_slice);
 }
 
+absl::Status DfsVisitorWithDefault::HandleDynamicBitSlice(
+    DynamicBitSlice* dynamic_bit_slice) {
+  return DefaultHandler(dynamic_bit_slice);
+}
+
 absl::Status DfsVisitorWithDefault::HandleConcat(Concat* concat) {
   return DefaultHandler(concat);
 }

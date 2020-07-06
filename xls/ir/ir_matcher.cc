@@ -116,6 +116,19 @@ bool BitSliceMatcher::MatchAndExplain(
   return true;
 }
 
+bool DynamicBitSliceMatcher::MatchAndExplain(
+    const Node* node, ::testing::MatchResultListener* listener) const {
+  if (!NodeMatcher::MatchAndExplain(node, listener)) {
+    return false;
+  }
+  if (width_.has_value() &&
+      node->As<::xls::DynamicBitSlice>()->width() != *width_) {
+    *listener << " has incorrect width, expected: " << *width_;
+    return false;
+  }
+  return true;
+}
+
 bool LiteralMatcher::MatchAndExplain(
     const Node* node, ::testing::MatchResultListener* listener) const {
   if (!NodeMatcher::MatchAndExplain(node, listener)) {

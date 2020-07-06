@@ -202,9 +202,12 @@ absl::Status RealMain(absl::string_view ir_path,
     XLS_RETURN_IF_ERROR(lec->AddConstraints(function));
   }
 
-  lec->Run();
-  XLS_ASSIGN_OR_RETURN(std::string output, lec->ResultToString());
-  std::cout << output << std::endl;
+  bool equal = lec->Run();
+  std::cout << lec->ResultToString() << std::endl;
+  if (!equal) {
+    std::cout << std::endl << "IR/netlist value dump:" << std::endl;
+    lec->DumpIrTree();
+  }
 
   return absl::OkStatus();
 }

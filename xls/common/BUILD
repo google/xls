@@ -14,8 +14,6 @@
 
 # Common utilities shared among XLA subfolders.
 
-# pytype test and library
-
 package(
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
@@ -76,6 +74,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "//xls/common/file:get_runfile_path",
         "//xls/common/logging",
+        "//xls/common/logging:vlog_is_on",
         "@com_google_absl//absl/flags:parse",
     ],
 )

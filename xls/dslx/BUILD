@@ -566,6 +566,10 @@ py_library(
 
 py_library(
     name = "fakefs_util",
+    # If we don't mark this as testonly we can get warnings (when the modified
+    # third party version drags in googletest as a dependency and the test
+    # main is not called).
+    testonly = True,
     srcs = ["fakefs_util.py"],
     srcs_version = "PY3",
     deps = [

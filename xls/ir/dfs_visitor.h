@@ -34,6 +34,8 @@ class DfsVisitor {
   virtual absl::Status HandleArrayIndex(ArrayIndex* index) = 0;
   virtual absl::Status HandleArrayUpdate(ArrayUpdate* update) = 0;
   virtual absl::Status HandleBitSlice(BitSlice* bit_slice) = 0;
+  virtual absl::Status HandleDynamicBitSlice(
+      DynamicBitSlice* dynamic_bit_slice) = 0;
   virtual absl::Status HandleConcat(Concat* concat) = 0;
   virtual absl::Status HandleCountedFor(CountedFor* counted_for) = 0;
   virtual absl::Status HandleDecode(Decode* decode) = 0;
@@ -93,6 +95,17 @@ class DfsVisitor {
   void SetTraversing(Node* node) { traversing_.insert(node); }
   void UnsetTraversing(Node* node) { traversing_.erase(node); }
 
+  // Resets traversal state.
+  // This is for cases where creating a new DfsVisitor is not feasible or
+  // convenient, e.g., during Z3 LEC. There, we need to replace certain IR
+  // translations with constant Z3 nodes, and creating a new object would
+  // destroy the replacements. By enabling re-traversal, the process is much
+  // cleaner.
+  void ResetVisitedState() {
+    visited_.clear();
+    traversing_.clear();
+  }
+
  private:
   // Set of nodes which have been visited.
   absl::flat_hash_set<Node*> visited_;
@@ -114,6 +127,8 @@ class DfsVisitorWithDefault : public DfsVisitor {
   absl::Status HandleArrayIndex(ArrayIndex* index) override;
   absl::Status HandleArrayUpdate(ArrayUpdate* update) override;
   absl::Status HandleBitSlice(BitSlice* bit_slice) override;
+  absl::Status HandleDynamicBitSlice(
+      DynamicBitSlice* dynamic_bit_slice) override;
   absl::Status HandleConcat(Concat* concat) override;
   absl::Status HandleCountedFor(CountedFor* counted_for) override;
   absl::Status HandleDecode(Decode* decode) override;

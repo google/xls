@@ -44,11 +44,11 @@ TEST(LibParserTest, ScanSimple) {
 // block structure.
 xabsl::StatusOr<std::unique_ptr<Block>> Parse(
     std::string text,
-    absl::optional<absl::flat_hash_set<std::string>> whitelist =
+    absl::optional<absl::flat_hash_set<std::string>> allowlist =
         absl::nullopt) {
   XLS_ASSIGN_OR_RETURN(auto cs, CharStream::FromText(text));
   Scanner scanner(&cs);
-  Parser parser(&scanner, std::move(whitelist));
+  Parser parser(&scanner, std::move(allowlist));
   return parser.ParseLibrary();
 }
 
@@ -133,7 +133,7 @@ library (foo) {
   EXPECT_EQ(2, Parse(text).value()->GetSubBlocks("my_block").size());
 }
 
-TEST(LibParserTest, WhitelistKind) {
+TEST(LibParserTest, AllowlistKind) {
   std::string text = R"(
 library (foo) {
   foo () {

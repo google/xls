@@ -76,9 +76,9 @@ absl::Status RealMain(absl::string_view path, absl::string_view cell_name,
 
   XLS_ASSIGN_OR_RETURN(CharStream cs, make_cs());
   Scanner scanner(&cs);
-  auto whitelist = absl::flat_hash_set<std::string>{"library", "cell", "pin",
+  auto allowlist = absl::flat_hash_set<std::string>{"library", "cell", "pin",
                                                     "function", "direction"};
-  Parser parser(&scanner, whitelist);
+  Parser parser(&scanner, allowlist);
 
   // Actually do the parse.
   auto start = absl::Now();

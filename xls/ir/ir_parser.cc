@@ -512,6 +512,12 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
         bvalue = fb->BitSlice(operands[0], *start, *width, *loc);
         break;
       }
+      case Op::kDynamicBitSlice: {
+        int64* width = arg_parser.AddKeywordArg<int64>("width");
+        XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
+        bvalue = fb->DynamicBitSlice(operands[0], operands[1], *width, *loc);
+        break;
+      }
       case Op::kConcat: {
         XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(ArgParser::kVariadic));
         bvalue = fb->Concat(operands, *loc);

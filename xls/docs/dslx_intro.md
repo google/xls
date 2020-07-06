@@ -1478,9 +1478,18 @@ TODO(leary): Document the fail() expression.
 
 DSLX's operator precedence matches Rust's. Listed below are DSLX's operators in
 descending precedence order. Binary operators at the same level share the same
-associativity and will be grouped accordingly. | Operator | Associativity |
-| --- | --- | | Unary `-` `!` | n/a | | `as` | Left to right | | `*` `/` `%` |
-Left to right | | `+` `-` | Left to right | | `<<` `>>` `>>>` | Left to right |
-| `&` | Left to right | | `^` | Left to right | | `\|` | Left to right | | `==`
-`!=` `<` `>` `<=` `>=` | Left to right | | `&&` | Left to right | | `\|\|` |
-Left to right |
+associativity and will be grouped accordingly.
+
+Operator                    | Associativity
+--------------------------- | -------------
+Unary `-` `!`               | n/a
+`as`                        | Left to right
+`*` `/` `%`                 | Left to right
+`+` `-`                     | Left to right
+`<<` `>>` `>>>`             | Left to right
+`&`                         | Left to right
+`^`                         | Left to right
+`\|`                        | Left to right
+`==` `!=` `<` `>` `<=` `>=` | Left to right
+`&&`                        | Left to right
+`\|\|`                      | Left to right

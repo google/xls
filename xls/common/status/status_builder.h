@@ -339,7 +339,7 @@ class ABSL_MUST_USE_RESULT StatusBuilder {
   //
   //   absl::Status s = GetFileContents(...);
   //   if (!s.ok()) {
-  //     return Annotate(s, "loading blacklist");
+  //     return Annotate(s, "loading summary statistics data");
   //   }
   //
   // Annotate() adds the appropriate separators, so callers should not include a

@@ -90,6 +90,24 @@ filegroup(
 )
 
 cc_binary(
+    name = "extract_stage_main",
+    srcs = ["extract_stage_main.cc"],
+    deps = [
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "//xls/scheduling:extract_stage",
+        "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:pipeline_schedule_cc_proto",
+    ],
+)
+
+cc_binary(
     name = "lec_main",
     srcs = ["lec_main.cc"],
     data = [

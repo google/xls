@@ -942,6 +942,16 @@ cc_library(
 )
 
 cc_test(
+    name = "abstract_evaluator_test",
+    srcs = ["abstract_evaluator_test.cc"],
+    deps = [
+        ":abstract_evaluator",
+        ":bits",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
     name = "ir_matcher_test",
     srcs = ["ir_matcher_test.cc"],
     deps = [

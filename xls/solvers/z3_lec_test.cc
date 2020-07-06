@@ -31,7 +31,8 @@ namespace {
 using netlist::rtl::Netlist;
 
 xabsl::StatusOr<bool> Match(const std::string& ir_text,
-                            const std::string& netlist_text) {
+                            const std::string& netlist_text,
+                            bool expect_equal) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(ir_text));
   XLS_ASSIGN_OR_RETURN(Function * entry_function, package->EntryFunction());
@@ -67,22 +68,29 @@ fn main(input: bits[4]) -> bits[4] {
 module main ( clk, input_3_, input_2_, input_1_, input_0_, out_3_, out_2_, out_1_, out_0_);
   input clk, input_3_, input_2_, input_1_, input_0_;
   output out_3_, out_2_, out_1_, out_0_;
-  wire p0_input_3_, p0_input_2_, p0_input_1_, p0_input_0_;
+  wire p0_input_3_, p0_input_2_, p0_input_1_, p0_input_0_,
+       p0_not_2_comb_3_, p0_not_2_comb_2_, p0_not_2_comb_1_, p0_not_2_comb_0_;
 
   // Inputs are always latched, so this is representative.
-  DFF p0_input_3_reg ( .D(input_3_), .CLK(clk), .Q(p0_input_3_) );
-  DFF p0_input_2_reg ( .D(input_2_), .CLK(clk), .Q(p0_input_2_) );
-  DFF p0_input_1_reg ( .D(input_1_), .CLK(clk), .Q(p0_input_1_) );
-  DFF p0_input_0_reg ( .D(input_0_), .CLK(clk), .Q(p0_input_0_) );
+  DFF p0_input_reg_3_ ( .D(input_3_), .CLK(clk), .Q(p0_input_3_) );
+  DFF p0_input_reg_2_ ( .D(input_2_), .CLK(clk), .Q(p0_input_2_) );
+  DFF p0_input_reg_1_ ( .D(input_1_), .CLK(clk), .Q(p0_input_1_) );
+  DFF p0_input_reg_0_ ( .D(input_0_), .CLK(clk), .Q(p0_input_0_) );
 
-  INV p0_not_2_3_ ( .A(p0_input_3_), .ZN(out_3_) );
-  INV p0_not_2_2_ ( .A(p0_input_2_), .ZN(out_2_) );
-  INV p0_not_2_1_ ( .A(p0_input_1_), .ZN(out_1_) );
-  INV p0_not_2_0_ ( .A(p0_input_0_), .ZN(out_0_) );
+  INV p0_not_2_3_ ( .A(p0_input_3_), .ZN(p0_not_2_comb_3_) );
+  INV p0_not_2_2_ ( .A(p0_input_2_), .ZN(p0_not_2_comb_2_) );
+  INV p0_not_2_1_ ( .A(p0_input_1_), .ZN(p0_not_2_comb_1_) );
+  INV p0_not_2_0_ ( .A(p0_input_0_), .ZN(p0_not_2_comb_0_) );
+
+  DFF p0_not_2_reg_3_ (.D(p0_not_2_comb_3_), .CLK(clk), .Q(out_3_));
+  DFF p0_not_2_reg_2_ (.D(p0_not_2_comb_2_), .CLK(clk), .Q(out_2_));
+  DFF p0_not_2_reg_1_ (.D(p0_not_2_comb_1_), .CLK(clk), .Q(out_1_));
+  DFF p0_not_2_reg_0_ (.D(p0_not_2_comb_0_), .CLK(clk), .Q(out_0_));
 endmodule
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(bool match, Match(ir_text, netlist_text));
+  XLS_ASSERT_OK_AND_ASSIGN(bool match,
+                           Match(ir_text, netlist_text, /*expect_equal=*/true));
   ASSERT_TRUE(match);
 }
 
@@ -101,21 +109,28 @@ fn main(input: bits[4]) -> bits[4] {
 module main ( clk, input_3_, input_2_, input_1_, input_0_, out_3_, out_2_, out_1_, out_0_);
   input clk, input_3_, input_2_, input_1_, input_0_;
   output out_3_, out_2_, out_1_, out_0_;
-  wire p0_input_3_, p0_input_2_, p0_input_1_, p0_input_0_;
+  wire p0_input_3_, p0_input_2_, p0_input_1_, p0_input_0_,
+       p0_not_2_comb_3_, p0_not_2_comb_2_, p0_not_2_comb_1_, p0_not_2_comb_0_;
 
   // Inputs are always latched, so this is representative.
-  DFF p0_input_3_reg ( .D(input_3_), .CLK(clk), .Q(p0_input_3_) );
-  DFF p0_input_2_reg ( .D(input_2_), .CLK(clk), .Q(p0_input_2_) );
-  DFF p0_input_1_reg ( .D(input_1_), .CLK(clk), .Q(p0_input_1_) );
-  DFF p0_input_0_reg ( .D(input_0_), .CLK(clk), .Q(p0_input_0_) );
+  DFF p0_input_reg_3_ ( .D(input_3_), .CLK(clk), .Q(p0_input_3_) );
+  DFF p0_input_reg_2_ ( .D(input_2_), .CLK(clk), .Q(p0_input_2_) );
+  DFF p0_input_reg_1_ ( .D(input_1_), .CLK(clk), .Q(p0_input_1_) );
+  DFF p0_input_reg_0_ ( .D(input_0_), .CLK(clk), .Q(p0_input_0_) );
 
-  INV p0_not_2_3_ ( .A(p0_input_3_), .ZN(out_3_) );
-  INV p0_not_2_2_ ( .A(p0_input_2_), .ZN(out_2_) );
-  OR p0_not_2_1_ ( .A(p0_input_1_), .B(p0_input_1_), .ZN(out_1_) );
-  INV p0_not_2_0_ ( .A(p0_input_0_), .ZN(out_0_) );
+  INV p0_not_2_3_ ( .A(p0_input_3_), .ZN(p0_not_2_comb_3_) );
+  INV p0_not_2_2_ ( .A(p0_input_2_), .ZN(p0_not_2_comb_2_) );
+  OR  p0_not_2_1_ ( .A(p0_input_1_), .B(p0_input_1_), .Z(p0_not_2_comb_1_) );
+  INV p0_not_2_0_ ( .A(p0_input_0_), .ZN(p0_not_2_comb_0_) );
+
+  DFF p0_not_2_reg_3_ (.D(p0_not_2_comb_3_), .CLK(clk), .Q(out_3_));
+  DFF p0_not_2_reg_2_ (.D(p0_not_2_comb_2_), .CLK(clk), .Q(out_2_));
+  DFF p0_not_2_reg_1_ (.D(p0_not_2_comb_1_), .CLK(clk), .Q(out_1_));
+  DFF p0_not_2_reg_0_ (.D(p0_not_2_comb_0_), .CLK(clk), .Q(out_0_));
 endmodule
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(bool match, Match(ir_text, netlist_text));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool match, Match(ir_text, netlist_text, /*expect_equal=*/false));
   ASSERT_FALSE(match);
 }
 
@@ -332,67 +347,73 @@ module main ( clk,
        p0_i2_3_, p0_i2_2_, p0_i2_1_, p0_i2_0_,
        p0_i1_3_, p0_i1_2_, p0_i1_1_, p0_i1_0_,
        p0_i0_3_, p0_i0_2_, p0_i0_1_, p0_i0_0_,
-       p1_and_1_3_comb, p1_and_1_2_comb, p1_and_1_1_comb, p1_and_1_0_comb,
-       p1_and_2_3_comb, p1_and_2_2_comb, p1_and_2_1_comb, p1_and_2_0_comb,
+       p1_and_1_comb_3_, p1_and_1_comb_2_, p1_and_1_comb_1_, p1_and_1_comb_0_,
+       p1_and_2_comb_3_, p1_and_2_comb_2_, p1_and_2_comb_1_, p1_and_2_comb_0_,
        p1_and_1_3_, p1_and_1_2_, p1_and_1_1_, p1_and_1_0_,
        p1_and_2_3_, p1_and_2_2_, p1_and_2_1_, p1_and_2_0_,
-       p2_or_3_3_comb, p2_or_3_2_comb, p2_or_3_1_comb, p2_or_3_0_comb,
-       p2_or_3_3_, p2_or_3_2_, p2_or_3_1_, p2_or_3_0_;
+       p2_or_3_comb_3_, p2_or_3_comb_2_, p2_or_3_comb_1_, p2_or_3_comb_0_,
+       p2_or_3_3_, p2_or_3_2_, p2_or_3_1_, p2_or_3_0_,
+       p3_not_4_comb_3_, p3_not_4_comb_2_, p3_not_4_comb_1_, p3_not_4_comb_0_;
 
-  DFF p0_i3_3_reg ( .D(i3_3_), .CLK(clk), .Q(p0_i3_3_) );
-  DFF p0_i3_2_reg ( .D(i3_2_), .CLK(clk), .Q(p0_i3_2_) );
-  DFF p0_i3_1_reg ( .D(i3_1_), .CLK(clk), .Q(p0_i3_1_) );
-  DFF p0_i3_0_reg ( .D(i3_0_), .CLK(clk), .Q(p0_i3_0_) );
+  DFF p0_i3_reg_3_ ( .D(i3_3_), .CLK(clk), .Q(p0_i3_3_) );
+  DFF p0_i3_reg_2_ ( .D(i3_2_), .CLK(clk), .Q(p0_i3_2_) );
+  DFF p0_i3_reg_1_ ( .D(i3_1_), .CLK(clk), .Q(p0_i3_1_) );
+  DFF p0_i3_reg_0_ ( .D(i3_0_), .CLK(clk), .Q(p0_i3_0_) );
 
-  DFF p0_i2_3_reg ( .D(i2_3_), .CLK(clk), .Q(p0_i2_3_) );
-  DFF p0_i2_2_reg ( .D(i2_2_), .CLK(clk), .Q(p0_i2_2_) );
-  DFF p0_i2_1_reg ( .D(i2_1_), .CLK(clk), .Q(p0_i2_1_) );
-  DFF p0_i2_0_reg ( .D(i2_0_), .CLK(clk), .Q(p0_i2_0_) );
+  DFF p0_i2_reg_3_ ( .D(i2_3_), .CLK(clk), .Q(p0_i2_3_) );
+  DFF p0_i2_reg_2_ ( .D(i2_2_), .CLK(clk), .Q(p0_i2_2_) );
+  DFF p0_i2_reg_1_ ( .D(i2_1_), .CLK(clk), .Q(p0_i2_1_) );
+  DFF p0_i2_reg_0_ ( .D(i2_0_), .CLK(clk), .Q(p0_i2_0_) );
 
-  DFF p0_i1_3_reg ( .D(i1_3_), .CLK(clk), .Q(p0_i1_3_) );
-  DFF p0_i1_2_reg ( .D(i1_2_), .CLK(clk), .Q(p0_i1_2_) );
-  DFF p0_i1_1_reg ( .D(i1_1_), .CLK(clk), .Q(p0_i1_1_) );
-  DFF p0_i1_0_reg ( .D(i1_0_), .CLK(clk), .Q(p0_i1_0_) );
+  DFF p0_i1_reg_3_ ( .D(i1_3_), .CLK(clk), .Q(p0_i1_3_) );
+  DFF p0_i1_reg_2_ ( .D(i1_2_), .CLK(clk), .Q(p0_i1_2_) );
+  DFF p0_i1_reg_1_ ( .D(i1_1_), .CLK(clk), .Q(p0_i1_1_) );
+  DFF p0_i1_reg_0_ ( .D(i1_0_), .CLK(clk), .Q(p0_i1_0_) );
 
-  DFF p0_i0_3_reg ( .D(i0_3_), .CLK(clk), .Q(p0_i0_3_) );
-  DFF p0_i0_2_reg ( .D(i0_2_), .CLK(clk), .Q(p0_i0_2_) );
-  DFF p0_i0_1_reg ( .D(i0_1_), .CLK(clk), .Q(p0_i0_1_) );
-  DFF p0_i0_0_reg ( .D(i0_0_), .CLK(clk), .Q(p0_i0_0_) );
+  DFF p0_i0_reg_3_ ( .D(i0_3_), .CLK(clk), .Q(p0_i0_3_) );
+  DFF p0_i0_reg_2_ ( .D(i0_2_), .CLK(clk), .Q(p0_i0_2_) );
+  DFF p0_i0_reg_1_ ( .D(i0_1_), .CLK(clk), .Q(p0_i0_1_) );
+  DFF p0_i0_reg_0_ ( .D(i0_0_), .CLK(clk), .Q(p0_i0_0_) );
 
-  AND p1_and_1_3_ ( .A(p0_i0_3_), .B(p0_i1_3_), .Z(p1_and_1_3_comb) );
-  AND p1_and_1_2_ ( .A(p0_i0_2_), .B(p0_i1_2_), .Z(p1_and_1_2_comb) );
-  AND p1_and_1_1_ ( .A(p0_i0_1_), .B(p0_i1_1_), .Z(p1_and_1_1_comb) );
-  AND p1_and_1_0_ ( .A(p0_i0_0_), .B(p0_i1_0_), .Z(p1_and_1_0_comb) );
+  AND p1_and_1_3_ ( .A(p0_i0_3_), .B(p0_i1_3_), .Z(p1_and_1_comb_3_) );
+  AND p1_and_1_2_ ( .A(p0_i0_2_), .B(p0_i1_2_), .Z(p1_and_1_comb_2_) );
+  AND p1_and_1_1_ ( .A(p0_i0_1_), .B(p0_i1_1_), .Z(p1_and_1_comb_1_) );
+  AND p1_and_1_0_ ( .A(p0_i0_0_), .B(p0_i1_0_), .Z(p1_and_1_comb_0_) );
 
-  AND p1_and_2_3_ ( .A(p0_i2_3_), .B(p0_i3_3_), .Z(p1_and_2_3_comb) );
-  AND p1_and_2_2_ ( .A(p0_i2_2_), .B(p0_i3_2_), .Z(p1_and_2_2_comb) );
-  AND p1_and_2_1_ ( .A(p0_i2_1_), .B(p0_i3_1_), .Z(p1_and_2_1_comb) );
-  AND p1_and_2_0_ ( .A(p0_i2_0_), .B(p0_i3_0_), .Z(p1_and_2_0_comb) );
+  AND p1_and_2_3_ ( .A(p0_i2_3_), .B(p0_i3_3_), .Z(p1_and_2_comb_3_) );
+  AND p1_and_2_2_ ( .A(p0_i2_2_), .B(p0_i3_2_), .Z(p1_and_2_comb_2_) );
+  AND p1_and_2_1_ ( .A(p0_i2_1_), .B(p0_i3_1_), .Z(p1_and_2_comb_1_) );
+  AND p1_and_2_0_ ( .A(p0_i2_0_), .B(p0_i3_0_), .Z(p1_and_2_comb_0_) );
 
-  DFF p1_and_1_3_reg ( .D(p1_and_1_3_comb), .CLK(clk), .Q(p1_and_1_3_) );
-  DFF p1_and_1_2_reg ( .D(p1_and_1_2_comb), .CLK(clk), .Q(p1_and_1_2_) );
-  DFF p1_and_1_1_reg ( .D(p1_and_1_1_comb), .CLK(clk), .Q(p1_and_1_1_) );
-  DFF p1_and_1_0_reg ( .D(p1_and_1_0_comb), .CLK(clk), .Q(p1_and_1_0_) );
+  DFF p1_and_1_reg_3_ ( .D(p1_and_1_comb_3_), .CLK(clk), .Q(p1_and_1_3_) );
+  DFF p1_and_1_reg_2_ ( .D(p1_and_1_comb_2_), .CLK(clk), .Q(p1_and_1_2_) );
+  DFF p1_and_1_reg_1_ ( .D(p1_and_1_comb_1_), .CLK(clk), .Q(p1_and_1_1_) );
+  DFF p1_and_1_reg_0_ ( .D(p1_and_1_comb_0_), .CLK(clk), .Q(p1_and_1_0_) );
 
-  DFF p1_and_2_3_reg ( .D(p1_and_2_3_comb), .CLK(clk), .Q(p1_and_2_3_) );
-  DFF p1_and_2_2_reg ( .D(p1_and_2_2_comb), .CLK(clk), .Q(p1_and_2_2_) );
-  DFF p1_and_2_1_reg ( .D(p1_and_2_1_comb), .CLK(clk), .Q(p1_and_2_1_) );
-  DFF p1_and_2_0_reg ( .D(p1_and_2_0_comb), .CLK(clk), .Q(p1_and_2_0_) );
+  DFF p1_and_2_reg_3_ ( .D(p1_and_2_comb_3_), .CLK(clk), .Q(p1_and_2_3_) );
+  DFF p1_and_2_reg_2_ ( .D(p1_and_2_comb_2_), .CLK(clk), .Q(p1_and_2_2_) );
+  DFF p1_and_2_reg_1_ ( .D(p1_and_2_comb_1_), .CLK(clk), .Q(p1_and_2_1_) );
+  DFF p1_and_2_reg_0_ ( .D(p1_and_2_comb_0_), .CLK(clk), .Q(p1_and_2_0_) );
 
-  OR p2_or_3_3_ ( .A(p1_and_1_3_), .B(p1_and_2_3_), .Z(p2_or_3_3_comb) );
-  OR p2_or_3_2_ ( .A(p1_and_1_2_), .B(p1_and_2_2_), .Z(p2_or_3_2_comb) );
-  OR p2_or_3_1_ ( .A(p1_and_1_1_), .B(p1_and_2_1_), .Z(p2_or_3_1_comb) );
-  OR p2_or_3_0_ ( .A(p1_and_1_0_), .B(p1_and_2_0_), .Z(p2_or_3_0_comb) );
+  OR p2_or_3_3_ ( .A(p1_and_1_3_), .B(p1_and_2_3_), .Z(p2_or_3_comb_3_) );
+  OR p2_or_3_2_ ( .A(p1_and_1_2_), .B(p1_and_2_2_), .Z(p2_or_3_comb_2_) );
+  OR p2_or_3_1_ ( .A(p1_and_1_1_), .B(p1_and_2_1_), .Z(p2_or_3_comb_1_) );
+  OR p2_or_3_0_ ( .A(p1_and_1_0_), .B(p1_and_2_0_), .Z(p2_or_3_comb_0_) );
 
-  DFF p2_or_2_3_reg ( .D(p2_or_3_3_comb), .CLK(clk), .Q(p2_or_3_3_) );
-  DFF p2_or_2_2_reg ( .D(p2_or_3_2_comb), .CLK(clk), .Q(p2_or_3_2_) );
-  DFF p2_or_2_1_reg ( .D(p2_or_3_1_comb), .CLK(clk), .Q(p2_or_3_1_) );
-  DFF p2_or_2_0_reg ( .D(p2_or_3_0_comb), .CLK(clk), .Q(p2_or_3_0_) );
+  DFF p2_or_2_reg_3_ ( .D(p2_or_3_comb_3_), .CLK(clk), .Q(p2_or_3_3_) );
+  DFF p2_or_2_reg_2_ ( .D(p2_or_3_comb_2_), .CLK(clk), .Q(p2_or_3_2_) );
+  DFF p2_or_2_reg_1_ ( .D(p2_or_3_comb_1_), .CLK(clk), .Q(p2_or_3_1_) );
+  DFF p2_or_2_reg_0_ ( .D(p2_or_3_comb_0_), .CLK(clk), .Q(p2_or_3_0_) );
 
-  INV p3_not_4_3_ ( .A(p2_or_3_3_), .ZN(out_3_) );
-  INV p3_not_4_2_ ( .A(p2_or_3_2_), .ZN(out_2_) );
-  INV p3_not_4_1_ ( .A(p2_or_3_1_), .ZN(out_1_) );
-  INV p3_not_4_0_ ( .A(p2_or_3_0_), .ZN(out_0_) );
+  INV p3_not_4_3_ ( .A(p2_or_3_3_), .ZN(p3_not_4_comb_3_) );
+  INV p3_not_4_2_ ( .A(p2_or_3_2_), .ZN(p3_not_4_comb_2_) );
+  INV p3_not_4_1_ ( .A(p2_or_3_1_), .ZN(p3_not_4_comb_1_) );
+  INV p3_not_4_0_ ( .A(p2_or_3_0_), .ZN(p3_not_4_comb_0_) );
+
+  DFF p3_not_4_reg_3_ ( .D(p3_not_4_comb_3_), .CLK(clk), .Q(out_3_) );
+  DFF p3_not_4_reg_2_ ( .D(p3_not_4_comb_2_), .CLK(clk), .Q(out_2_) );
+  DFF p3_not_4_reg_1_ ( .D(p3_not_4_comb_1_), .CLK(clk), .Q(out_1_) );
+  DFF p3_not_4_reg_0_ ( .D(p3_not_4_comb_0_), .CLK(clk), .Q(out_0_) );
 endmodule
 )";
 
@@ -431,7 +452,7 @@ endmodule
                              Lec::CreateForStage(params, schedule, i));
     bool foo = lec->Run();
     if (!foo) {
-      XLS_LOG(INFO) << lec->ResultToString().value();
+      XLS_LOG(INFO) << lec->ResultToString();
     }
     ASSERT_TRUE(foo);
     XLS_LOG(INFO) << "Pass stage " << i;

@@ -15,9 +15,13 @@
 #include "xls/solvers/z3_lec.h"
 
 #include "absl/base/internal/sysinfo.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/strip.h"
+#include "xls/codegen/vast.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/node_util.h"
 #include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3_api.h"
@@ -26,7 +30,6 @@ namespace xls {
 namespace solvers {
 namespace z3 {
 
-using netlist::rtl::Cell;
 using netlist::rtl::Module;
 using netlist::rtl::Netlist;
 using netlist::rtl::NetRef;
@@ -92,24 +95,49 @@ absl::Status Lec::Init(const absl::flat_hash_set<std::string>& high_cells) {
   XLS_RETURN_IF_ERROR(CreateIrTranslator());
   XLS_RETURN_IF_ERROR(CreateNetlistTranslator(high_cells));
 
-  std::vector<const Node*> ir_inputs = GetIrInputs();
-  XLS_RETURN_IF_ERROR(BindNetlistInputs(absl::MakeSpan(ir_inputs)));
-
-  std::vector<const Node*> ir_output_nodes = GetIrOutputs();
-  ir_outputs_.reserve(ir_output_nodes.size());
-  for (const Node* node : ir_output_nodes) {
-    ir_outputs_.push_back(ir_translator_->GetTranslation(node));
+  XLS_RETURN_IF_ERROR(CollectIrInputs());
+  if (XLS_VLOG_IS_ON(2)) {
+    for (const auto& pair : input_mapping_) {
+      XLS_LOG(INFO) << "Stage input [IR] node: " << pair.first;
+    }
   }
+  XLS_RETURN_IF_ERROR(BindNetlistInputs());
 
-  XLS_ASSIGN_OR_RETURN(netlist_outputs_,
-                       GetNetlistOutputs(absl::MakeSpan(ir_output_nodes)));
-
+  CollectIrOutputNodes();
+  // "Filler" value for unused output bits (those not present in the netlist).
+  // Helpful for reading result output.
+  Z3_ast x = Z3_mk_const(ctx(), Z3_mk_string_symbol(ctx(), "X"),
+                         Z3_mk_bv_sort(ctx(), 1));
   std::vector<Z3_ast> eq_nodes;
-  eq_nodes.reserve(ir_outputs_.size());
-  for (int i = 0; i < ir_outputs_.size(); i++) {
-    eq_nodes.push_back(Z3_mk_eq(ctx(), ir_outputs_[i], netlist_outputs_[i]));
+  for (const Node* node : ir_output_nodes_) {
+    // Extract the individual bits out of each IR output node, and match those
+    // up the corresponding netlist bits. The netlist outputs do not contain
+    // references to bits that are actually unused, instead having nullptr in
+    // those indices.
+    XLS_VLOG(3) << "Stage output [IR] node: " << node->GetName()
+                << " : width: " << node->GetType()->GetFlatBitCount();
+    std::vector<Z3_ast> ir_bits = ir_translator_->FlattenValue(
+        node->GetType(), ir_translator_->GetTranslation(node),
+        /*little_endian=*/true);
+    XLS_ASSIGN_OR_RETURN(std::vector<Z3_ast> netlist_bits,
+                         GetNetlistZ3ForIr(node));
+    XLS_RET_CHECK(ir_bits.size() == netlist_bits.size());
+
+    for (int i = 0; i < ir_bits.size(); i++) {
+      if (netlist_bits[i] == nullptr) {
+        XLS_VLOG(3) << "  Skipping " << node->GetName() << " IR output bit "
+                    << i;
+        ir_outputs_.push_back(x);
+        netlist_outputs_.push_back(x);
+      } else {
+        ir_outputs_.push_back(ir_bits[i]);
+        netlist_outputs_.push_back(netlist_bits[i]);
+        eq_nodes.push_back(Z3_mk_eq(ctx(), ir_bits[i], netlist_bits[i]));
+      }
+    }
   }
-  Z3_ast eval_node = Z3_mk_and(ctx(), ir_outputs_.size(), eq_nodes.data());
+
+  Z3_ast eval_node = Z3_mk_and(ctx(), eq_nodes.size(), eq_nodes.data());
   eval_node = Z3_mk_not(ctx(), eval_node);
   solver_ = CreateSolver(ctx(), absl::base_internal::NumCPUs());
   Z3_solver_assert(ctx(), solver_.value(), eval_node);
@@ -117,8 +145,7 @@ absl::Status Lec::Init(const absl::flat_hash_set<std::string>& high_cells) {
   return absl::OkStatus();
 }
 
-std::vector<const Node*> Lec::GetIrInputs() {
-  std::vector<const Node*> ir_inputs;
+absl::Status Lec::CollectIrInputs() {
   if (CheckingSingleStage(schedule_, stage_) && stage_ != 0) {
     // If we're evaluating a single stage (aside from the first), then we need
     // to create "fake" Z3 nodes for the stage inputs.
@@ -135,27 +162,28 @@ std::vector<const Node*> Lec::GetIrInputs() {
     // Plop the inputs into a vector & sort it for deterministic iteration
     // order.
     for (const Node* stage_input : SetToIdSortedVector(stage_inputs)) {
-      Z3_ast foo = Z3_mk_const(
+      Z3_ast new_input = Z3_mk_const(
           ctx(), Z3_mk_string_symbol(ctx(), stage_input->GetName().c_str()),
           TypeToSort(ctx(), *stage_input->GetType()));
       // Update the translator to use this new input for later references.
-      ir_translator_->SetTranslation(stage_input, foo);
-      ir_inputs.push_back(stage_input);
+      input_mapping_[stage_input] = new_input;
     }
+    XLS_RETURN_IF_ERROR(ir_translator_->Retranslate(input_mapping_));
   } else {
     // Otherwise, just collect the function inputs.
     for (const Param* param : ir_function_->params()) {
-      ir_inputs.push_back(param);
+      input_mapping_[param] = ir_translator_->GetTranslation(param);
     }
   }
-  return ir_inputs;
+  return absl::OkStatus();
 }
 
-std::vector<const Node*> Lec::GetIrOutputs() {
+void Lec::CollectIrOutputNodes() {
   // Easy case first! If we're working on the whole function, then we just need
   // the output node & its corresponding wires.
   if (!CheckingSingleStage(schedule_, stage_)) {
-    return {ir_function_->return_value()};
+    ir_output_nodes_ = {ir_function_->return_value()};
+    return;
   }
 
   // Collect all stage outputs - those nodes using a node within this stage
@@ -171,7 +199,7 @@ std::vector<const Node*> Lec::GetIrOutputs() {
   }
 
   // Ensure a deterministic output order.
-  return SetToIdSortedVector(stage_outputs);
+  ir_output_nodes_ = SetToIdSortedVector(stage_outputs);
 }
 
 xabsl::StatusOr<std::vector<NetRef>> Lec::GetIrNetrefs(const Node* node) {
@@ -184,13 +212,29 @@ xabsl::StatusOr<std::vector<NetRef>> Lec::GetIrNetrefs(const Node* node) {
     if (node->GetType()->GetFlatBitCount() > 1) {
       bit_index = i;
     }
-    std::string name = NodeToWireName(node, bit_index);
 
-    XLS_ASSIGN_OR_RETURN(
-        const Cell* cell, module_->ResolveCell(name),
-        _ << "If this is a multi-stage module, was a schedule specified?");
-    for (const auto& output : cell->outputs()) {
-      refs.push_back(output.netref);
+    std::string name = NodeToNetlistName(node, bit_index);
+
+    auto status_or_cell = module_->ResolveCell(name);
+    if (!status_or_cell.ok()) {
+      // There are netrefs that aren't present as registers but _are_ present as
+      // combinational wires (those w/a "comb" suffix) - these are values used
+      // within a stage, but not as input or output. Knowing their values is
+      // useful for debugging, so we make an attempt to find them here.
+      name = NodeToNetlistName(node, bit_index, /*is_cell=*/false);
+      auto status_or_ref = module_->ResolveNet(name);
+      if (status_or_ref.ok()) {
+        refs.push_back(status_or_ref.value());
+      } else {
+        // This line is assuming that the "unused" cell only has a single
+        // output. In cases we've tested so far, this has always been the case,
+        // but we should keep it in mind if we encounter problems in the future.
+        refs.push_back(nullptr);
+      }
+    } else {
+      for (const auto& output : status_or_cell.value()->outputs()) {
+        refs.push_back(output.netref);
+      }
     }
   }
 
@@ -198,8 +242,9 @@ xabsl::StatusOr<std::vector<NetRef>> Lec::GetIrNetrefs(const Node* node) {
 }
 
 absl::Status Lec::AddConstraints(Function* constraints) {
-  XLS_RET_CHECK(!CheckingSingleStage(schedule_, stage_))
-      << "Constraints cannot be specified with per-stage LEC.";
+  XLS_RET_CHECK(!CheckingSingleStage(schedule_, stage_) || stage_ == 0)
+      << "Constraints cannot be specified with per-stage LEC, "
+      << "except on the first stage.";
   XLS_RET_CHECK(constraints->params().size() == ir_function_->params().size());
 
   std::vector<Z3_ast> params;
@@ -219,6 +264,7 @@ absl::Status Lec::AddConstraints(Function* constraints) {
 }
 
 bool Lec::Run() {
+  XLS_LOG(INFO) << "Beginning execution";
   satisfiable_ = Z3_solver_check(ctx(), solver_.value()) == Z3_L_TRUE;
   if (satisfiable_) {
     model_ = Z3_solver_get_model(ctx(), solver_.value());
@@ -227,20 +273,39 @@ bool Lec::Run() {
   return !satisfiable_;
 }
 
-xabsl::StatusOr<std::string> Lec::ResultToString() {
+std::string Lec::ResultToString() {
   std::vector<std::string> output;
   output.push_back(SolverResultToString(ctx(), solver_.value(),
                                         satisfiable_ ? Z3_L_TRUE : Z3_L_FALSE,
                                         /*hexify=*/true));
   if (satisfiable_) {
-    output.push_back("IR result:");
-    for (Z3_ast node : ir_outputs_) {
-      output.push_back(QueryNode(ctx(), model_.value(), node));
-    }
+    for (const Node* node : ir_output_nodes_) {
+      std::pair<std::string, std::string> outputs = GetComparisonStrings(node);
+      std::string ir_string = outputs.first;
+      std::string nl_string = outputs.second;
 
-    output.push_back("Netlist result:");
-    for (Z3_ast node : netlist_outputs_) {
-      output.push_back(QueryNode(ctx(), model_.value(), node));
+      // Only for printing model outputs do we mask "don't cares" in IR bits.
+      std::vector<Z3_ast> nl_bits = GetNetlistZ3ForIr(node).value();
+      MarkDontCareBits(nl_bits, ir_string);
+
+      BitsRope ir_rope(node->BitCountOrDie());
+      BitsRope nl_rope(node->BitCountOrDie());
+      for (int i = ir_string.size() - 1; i >= 2; i--) {
+        if (ir_string[i] == '_') {
+          continue;
+        }
+        ir_rope.push_back(ir_string[i] == '1');
+        nl_rope.push_back(nl_string[i] == '1');
+      }
+
+      output.push_back(
+          absl::StrCat("\nOutput IR node ", node->ToString(), ":"));
+      output.push_back(
+          absl::StrCat("  IR: ", ir_string, " (",
+                       ir_rope.Build().ToString(FormatPreference::kHex), ")"));
+      output.push_back(
+          absl::StrCat("  NL: ", outputs.second, " (",
+                       nl_rope.Build().ToString(FormatPreference::kHex), ")"));
     }
   }
 
@@ -253,70 +318,72 @@ absl::Status Lec::CreateIrTranslator() {
   return absl::OkStatus();
 }
 
-absl::Status Lec::BindNetlistInputs(absl::Span<const Node*> ir_inputs) {
-  absl::flat_hash_map<std::string, Z3_ast> inputs =
-      FlattenNetlistInputs(ir_inputs);
-  XLS_RETURN_IF_ERROR(netlist_translator_->RebindInputNets(inputs));
-
-  return absl::OkStatus();
+absl::Status Lec::BindNetlistInputs() {
+  absl::flat_hash_map<std::string, Z3_ast> nl_inputs = FlattenNetlistInputs();
+  return netlist_translator_->Retranslate(nl_inputs);
 }
 
-absl::flat_hash_map<std::string, Z3_ast> Lec::FlattenNetlistInputs(
-    absl::Span<const Node*> ir_inputs) {
+absl::flat_hash_map<std::string, Z3_ast> Lec::FlattenNetlistInputs() {
   absl::flat_hash_map<std::string, Z3_ast> netlist_inputs;
-  for (const Node* node : ir_inputs) {
+  for (const auto& pair : input_mapping_) {
     // We need to reverse the entire bits vector, per item 1 in the header
     // description, and we need to pass true as little_endian to FlattenValue
     // per item 2.
-    Z3_ast translation = ir_translator_->GetTranslation(node);
+    const Node* node = pair.first;
+    Z3_ast translation = pair.second;
     std::vector<Z3_ast> bits = ir_translator_->FlattenValue(
         node->GetType(), translation, /*little_endian=*/true);
     std::reverse(bits.begin(), bits.end());
-    if (bits.size() > 1) {
-      for (int i = 0; i < bits.size(); i++) {
-        std::string name = NodeToWireName(node, i);
-        netlist_inputs[name] = bits[i];
+    for (int i = 0; i < bits.size(); i++) {
+      // We have a flat IR node that's our input; we need to find the matching
+      // cells and use their outputs.
+      std::string name;
+      if (bits.size() == 1) {
+        name = NodeToNetlistName(node, absl::nullopt);
+      } else {
+        name = NodeToNetlistName(node, i);
       }
-    } else {
-      std::string name = NodeToWireName(node, std::nullopt);
-      netlist_inputs[name] = bits[0];
+
+      // Get the cell...
+      auto status_or_cell = module_->ResolveCell(name);
+      if (!status_or_cell.ok()) {
+        XLS_VLOG(3) << "Could not resolve input cell: " << name << "; skipping";
+        XLS_LOG(INFO) << "Could not resolve input cell: " << name
+                      << "; skipping";
+        continue;
+      }
+
+      // Then plop its output in.
+      for (const auto& output : status_or_cell.value()->outputs()) {
+        netlist_inputs[output.netref->name()] = bits[i];
+      }
     }
   }
 
   return netlist_inputs;
 }
 
-xabsl::StatusOr<std::vector<Z3_ast>> Lec::GetNetlistOutputs(
-    absl::Span<const Node*> ir_outputs) {
-  std::vector<Z3_ast> unflattened_outputs;
+xabsl::StatusOr<std::vector<Z3_ast>> Lec::GetNetlistZ3ForIr(const Node* node) {
+  std::vector<Z3_ast> netlist_output;
 
-  for (const Node* node : ir_outputs) {
-    XLS_ASSIGN_OR_RETURN(std::vector<NetRef> netrefs, GetIrNetrefs(node));
-
-    std::vector<Z3_ast> z3_outputs;
-    z3_outputs.reserve(netrefs.size());
-    for (const auto& netref : netrefs) {
+  XLS_ASSIGN_OR_RETURN(std::vector<NetRef> netrefs, GetIrNetrefs(node));
+  netlist_output.reserve(netrefs.size());
+  for (const auto& netref : netrefs) {
+    if (netref == nullptr) {
+      netlist_output.push_back(nullptr);
+    } else if (netref->name() == "output_valid") {
       // Drop output wires not part of the original signature.
       // TODO(rspringer): These special wires aren't necessarily fixed - they're
       // specified by codegen, and could change in the future. These need to be
       // properly handled (i.e., not hardcoded).
-      if (netref->name() == "output_valid") {
-        continue;
-      }
-
+      continue;
+    } else {
       XLS_ASSIGN_OR_RETURN(Z3_ast z3_output,
                            netlist_translator_->GetTranslation(netref));
-      z3_outputs.push_back(z3_output);
+      netlist_output.push_back(z3_output);
     }
-    std::reverse(z3_outputs.begin(), z3_outputs.end());
-
-    // Specify little endian here as with FlattenValue() above.
-    Z3_ast unflattened_output = ir_translator_->UnflattenZ3Ast(
-        node->GetType(), absl::MakeSpan(z3_outputs),
-        /*little_endian=*/true);
-    unflattened_outputs.push_back(unflattened_output);
   }
-  return unflattened_outputs;
+  return netlist_output;
 }
 
 absl::Status Lec::CreateNetlistTranslator(
@@ -338,45 +405,95 @@ absl::Status Lec::CreateNetlistTranslator(
 
 void Lec::DumpIrTree() {
   std::deque<const Node*> to_process;
-  to_process.push_back(ir_translator_->xls_function()->return_value());
-
   absl::flat_hash_set<const Node*> seen;
+  for (const Node* node : ir_output_nodes_) {
+    to_process.push_back(node);
+    seen.insert(node);
+  }
+
+  for (const auto& pair : input_mapping_) {
+    to_process.push_back(pair.first);
+    seen.insert(pair.first);
+  }
+
   while (!to_process.empty()) {
     const Node* node = to_process.front();
     to_process.pop_front();
-    Z3_ast translation = ir_translator_->GetTranslation(node);
-    std::cout << "IR: " << node->ToString() << std::endl;
-    std::cout << "Z3: " << QueryNode(ctx(), model_.value(), translation)
-              << std::endl
-              << std::endl;
-    seen.insert(node);
+
+    std::cout << "Node: " << node->ToString() << std::endl;
+    std::pair<std::string, std::string> outputs = GetComparisonStrings(node);
+    std::cout << "  IR: " << outputs.first << std::endl;
+    std::cout << "  NL: " << outputs.second << std::endl << std::endl;
+
     for (const Node* operand : node->operands()) {
-      if (!seen.contains(operand)) {
+      if (!seen.contains(operand) && schedule_->cycle(operand) == stage_) {
         to_process.push_back(operand);
+        seen.insert(operand);
       }
     }
   }
 }
 
+std::pair<std::string, std::string> Lec::GetComparisonStrings(
+    const Node* node) {
+  std::vector<Z3_ast> ir_bits;
+  if (input_mapping_.contains(node)) {
+    ir_bits =
+        ir_translator_->FlattenValue(node->GetType(), input_mapping_[node]);
+  } else {
+    ir_bits = ir_translator_->FlattenValue(
+        node->GetType(), ir_translator_->GetTranslation(node));
+  }
+  std::reverse(ir_bits.begin(), ir_bits.end());
+
+  auto status_or_nl_bits = GetNetlistZ3ForIr(node);
+  if (!status_or_nl_bits.ok()) {
+    XLS_VLOG(2) << "Node " << node->GetName() << " not present in netlist.";
+    return std::make_pair("", "");
+  }
+  std::vector<Z3_ast> nl_bits = status_or_nl_bits.value();
+  std::string ir_string = BitVectorToString(ctx(), ir_bits, model_.value());
+  std::string nl_string = BitVectorToString(ctx(), nl_bits, model_.value());
+  MarkDontCareBits(nl_bits, nl_string);
+  return std::make_pair(ir_string, nl_string);
+}
+
+void Lec::MarkDontCareBits(const std::vector<Z3_ast>& nl_bits,
+                           std::string& nl_string) {
+  int bit_count = nl_bits.size();
+  int skip_pos = bit_count % 4;
+  int output_pos = 2;
+  for (int i = 0; i < bit_count; i++) {
+    if (nl_bits[i] == nullptr) {
+      nl_string[output_pos] = 'X';
+    }
+
+    output_pos++;
+    skip_pos--;
+    if (skip_pos == 0) {
+      output_pos++;
+      skip_pos = 4;
+    }
+  }
+}
+
 // Bit 1 of the 3-bit IR node foo.123 in stage 3 is present as p3_foo_123_1_.
-std::string Lec::NodeToWireName(const Node* node,
-                                absl::optional<int> bit_index) {
-  std::string name = node->GetName();
+std::string Lec::NodeToNetlistName(const Node* node,
+                                   absl::optional<int> bit_index,
+                                   bool is_cell) {
+  std::string name = verilog::SanitizeIdentifier(node->GetName());
   for (char& c : name) {
     if (c == '.') {
       c = '_';
     }
   }
 
-  bool is_input = node->Is<Param>() && node->function() == ir_function_;
-  bool is_output = node == node->function()->return_value();
+  bool is_input = node->Is<Param>();
   int stage = schedule_ ? schedule_.value().cycle(node) + 1 : 0;
   if (schedule_ && is_input) {
-    name = absl::StrCat("p0_", name);
-  } else if (schedule_ && is_output) {
-    name = absl::StrCat("p", stage, "_", name, "_reg");
+    name = absl::StrCat("p0_", name, is_cell ? "_reg" : "_comb");
   } else {
-    name = absl::StrCat("p", stage, "_", name);
+    name = absl::StrCat("p", stage, "_", name, is_cell ? "_reg" : "_comb");
   }
 
   // Each IR gate can only have one [multi-bit] output.

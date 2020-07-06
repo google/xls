@@ -1153,7 +1153,7 @@ class ModuleSection : public VastNode {
 struct Port {
   static Port FromProto(const PortProto& proto, VerilogFile* f);
 
-  xabsl::StatusOr<PortProto> ToProto();
+  xabsl::StatusOr<PortProto> ToProto() const;
   const std::string& name() const { return wire->name(); }
   std::string ToString() const;
 

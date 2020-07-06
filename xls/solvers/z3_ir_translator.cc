@@ -234,6 +234,13 @@ xabsl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
   return translator;
 }
 
+absl::Status IrTranslator::Retranslate(
+    const absl::flat_hash_map<const Node*, Z3_ast>& replacements) {
+  ResetVisitedState();
+  translations_ = replacements;
+  return xls_function_->Accept(this);
+}
+
 IrTranslator::IrTranslator(Z3_config config, Function* xls_function)
     : config_(config),
       ctx_(Z3_mk_context(config_)),
@@ -256,34 +263,6 @@ IrTranslator::~IrTranslator() {
 
 Z3_ast IrTranslator::GetTranslation(const Node* source) {
   return translations_.at(source);
-}
-
-void IrTranslator::SetTranslation(const Node* node, Z3_ast dst) {
-  Z3_ast old = translations_.at(node);
-  translations_[node] = dst;
-
-  std::vector<UpdatedNode<const Node*>> updated_nodes;
-  for (Node* user : node->users()) {
-    UpdatedNode<const Node*> updated_node;
-    updated_node.node = user;
-    updated_node.old_ast = translations_[user];
-    translations_[user] =
-        Z3_substitute(ctx_, translations_[user], 1, &old, &dst);
-    updated_node.new_ast = translations_[user];
-    updated_nodes.push_back(updated_node);
-  }
-
-  auto get_inputs = [](const Node* node) {
-    return std::vector<const Node*>(node->operands().begin(),
-                                    node->operands().end());
-  };
-
-  auto get_outputs = [](const Node* node) {
-    return std::vector<const Node*>(node->users().begin(), node->users().end());
-  };
-
-  PropagateAstUpdates<const Node*>(ctx_, translations_, get_inputs, get_outputs,
-                                   updated_nodes);
 }
 
 Z3_ast IrTranslator::GetReturnNode() {
@@ -973,14 +952,13 @@ absl::Status IrTranslator::HandleSelect(
     NodeT* node, std::function<FlatValue(const FlatValue& selector,
                                          const std::vector<FlatValue>& cases)>
                      evaluator) {
-  // HandleSelect could be implemented on its own terms (and not in the same way
+  // HandleSel could be implemented on its own terms (and not in the same way
   // as one-hot), if there's concern that flattening to bitwise Z3_asts loses
   // any semantic info.
   ScopedErrorHandler seh(ctx_);
   Z3OpTranslator op_translator(ctx_);
   std::vector<Z3_ast> selector =
       Z3OpTranslator(ctx_).ExplodeBits(GetBitVec(node->selector()));
-  std::vector<std::vector<Z3_ast>> selected_elements;
 
   std::vector<std::vector<Z3_ast>> case_elements;
   for (Node* element : node->cases()) {
@@ -1033,29 +1011,30 @@ void IrTranslator::HandleMul(ArithOp* mul, bool is_signed) {
 
   int result_size = mul->BitCountOrDie();
   int operand_size = std::max(lhs_size, rhs_size);
-  operand_size = std::max(operand_size, result_size);
   if (is_signed) {
-    if (lhs_size != operand_size) {
+    if (lhs_size < operand_size) {
       lhs = Z3_mk_sign_ext(ctx_, operand_size - lhs_size, lhs);
     }
-    if (rhs_size != operand_size) {
+    if (rhs_size < operand_size) {
       rhs = Z3_mk_sign_ext(ctx_, operand_size - rhs_size, rhs);
     }
   } else {
     // If we're doing unsigned multiplication, add an extra 0 MSb to make sure
     // Z3 knows that.
     operand_size += 1;
-    if (lhs_size != operand_size) {
-      lhs = Z3_mk_zero_ext(ctx_, operand_size - lhs_size, lhs);
-    }
-    if (rhs_size != operand_size) {
-      rhs = Z3_mk_zero_ext(ctx_, operand_size - rhs_size, rhs);
-    }
+    lhs = Z3_mk_zero_ext(ctx_, operand_size - lhs_size, lhs);
+    rhs = Z3_mk_zero_ext(ctx_, operand_size - rhs_size, rhs);
   }
 
   Z3_ast result = Z3_mk_bvmul(ctx_, lhs, rhs);
-  if (operand_size != result_size) {
+  if (operand_size > result_size) {
     result = Z3_mk_extract(ctx_, result_size - 1, 0, result);
+  } else if (operand_size < result_size) {
+    if (is_signed) {
+      result = Z3_mk_sign_ext(ctx_, result_size - operand_size, result);
+    } else {
+      result = Z3_mk_zero_ext(ctx_, result_size - operand_size, result);
+    }
   }
 
   NoteTranslation(mul, result);
@@ -1095,6 +1074,12 @@ Z3_ast IrTranslator::GetBitVec(Node* node) {
 }
 
 void IrTranslator::NoteTranslation(Node* node, Z3_ast translated) {
+  if (translations_.contains(node)) {
+    XLS_VLOG(2) << "Skipping translation of " << node->GetName()
+                << ", as it's already been recorded "
+                << "(expected if we're retranslating).";
+    return;
+  }
   translations_[node] = translated;
 }
 

@@ -145,6 +145,105 @@ xabsl::StatusOr<bool> SimplifyConcat(Concat* concat,
     return true;
   }
 
+  // If we concatenate bits and then reverse the concatenation,
+  // hoist the reverse above the concatenation.  In the modified IR,
+  // concatenation input operands are reversed and then concatenated in reverse
+  // order:
+  //   reverse(concat(a, b, c)) => concat(reverse(c), reverse(b), reverse(a))
+  if (concat->users().size() == 1 &&
+      concat->users().at(0)->op() == Op::kReverse) {
+    Function* func = concat->function();
+
+    // Get reversed operands in reverse order.
+    // BDD common subexpression elimination should eliminate any
+    // reversals of single-bit inputs that we produce here,
+    // so we do not check for this case.
+    std::vector<Node*> new_operands;
+    new_operands.reserve(concat->operands().size());
+    for (absl::Span<Node* const>::reverse_iterator riter =
+             concat->operands().rbegin();
+         riter != concat->operands().rend(); ++riter) {
+      XLS_ASSIGN_OR_RETURN(Node * hoisted_rev,
+                           func->MakeNode<UnOp>(concat->users().at(0)->loc(),
+                                                *riter, Op::kReverse));
+      new_operands.push_back(hoisted_rev);
+    }
+
+    // Add new concat to function, replace uses of original reverse.
+    XLS_ASSIGN_OR_RETURN(Concat * new_concat,
+                         concat->ReplaceUsesWithNew<Concat>(new_operands));
+    XLS_ASSIGN_OR_RETURN(
+        bool function_changed,
+        new_concat->users().at(0)->ReplaceUsesWith(new_concat));
+    if (!function_changed) {
+      return absl::InternalError(
+          "Replacing reverse operation with reversed-input concatenation did "
+          "not change function");
+    }
+    worklist->push_back(new_concat);
+    return true;
+  }
+
+  // If consecutive concat inputs are consectuive bit slices, create a new,
+  // merged bit slice and a new concat that consumees the merged bit slice.
+  for (int64 idx = 0; idx < concat->operands().size() - 1; ++idx) {
+    // Check if consecutive operands are bit slices.
+    const Node* higher_op = concat->operands().at(idx);
+    const Node* lower_op = concat->operands().at(idx + 1);
+    if (!higher_op->Is<BitSlice>() || !lower_op->Is<BitSlice>()) {
+      continue;
+    }
+    const BitSlice* higher_slice = higher_op->As<BitSlice>();
+    const BitSlice* lower_slice = lower_op->As<BitSlice>();
+
+    // Note: May want to do some checks for use cases of the slices.
+    // If the original slices will not be removed by dead-code elimination,
+    // making another merged slice may not be useful. This is complicated
+    // by the fact that the number of uses of slice may change during
+    // optimization.
+
+    // Check if bit slices have the same input operand.
+    if (higher_slice->operand(0) != lower_op->operand(0)) {
+      continue;
+    }
+
+    // Check if bit slices slice consecutive bits.
+    if (lower_slice->start() + lower_slice->width() != higher_slice->start()) {
+      continue;
+    }
+
+    // Create merged slice node.
+    Function* func = concat->function();
+    XLS_ASSIGN_OR_RETURN(
+        Node * merged_slice,
+        func->MakeNode<BitSlice>(concat->loc(), higher_slice->operand(0),
+                                 lower_slice->start(),
+                                 lower_slice->width() + higher_slice->width()));
+
+    // Collect operands for new concat.
+    std::vector<Node*> new_operands;
+    new_operands.reserve(concat->operands().size() - 1);
+    for (int64 copy_idx = 0; copy_idx < concat->operands().size(); ++copy_idx) {
+      if (copy_idx == idx) {
+        new_operands.push_back(merged_slice);
+        continue;
+      }
+      if (copy_idx == idx + 1) {
+        continue;
+      }
+      new_operands.push_back(concat->operand(copy_idx));
+    }
+
+    // Add new concat to function, replace uses of original concat.
+    // Note: We only merge one pair of slices at a time for simplicity /
+    // clarity. If there are mulitple consecutive slices, they will be merged
+    // over multiple calls to SimplifyConcat.
+    XLS_ASSIGN_OR_RETURN(Concat * new_concat,
+                         concat->ReplaceUsesWithNew<Concat>(new_operands));
+    worklist->push_back(new_concat);
+    return true;
+  }
+
   return false;
 }
 
@@ -185,6 +284,7 @@ xabsl::StatusOr<bool> TryHoistBitWiseOperation(Node* node) {
   std::vector<Node*> new_concat_operands;
   for (int64 i = 0; i < concat_0->operand_count(); ++i) {
     std::vector<Node*> bitwise_operands;
+    bitwise_operands.reserve(node->operand_count());
     for (int64 j = 0; j < node->operand_count(); ++j) {
       bitwise_operands.push_back(node->operand(j)->operand(i));
     }
