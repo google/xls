@@ -37,6 +37,7 @@ from xls.dslx.concrete_type import BitsType
 from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.concrete_type import EnumType
 from xls.dslx.concrete_type import TupleType
+from xls.dslx.parametric_instantiator import SymbolicBindings
 from xls.dslx.interpreter.bindings import Bindings
 from xls.dslx.interpreter.concrete_type_helpers import concrete_type_accepts_value
 from xls.dslx.interpreter.concrete_type_helpers import concrete_type_convert_value
@@ -624,7 +625,6 @@ class Interpreter(object):
       self, expr: ast.Invocation, bindings: Bindings,
       _: Optional[ConcreteType]) -> Optional[Value]:
     """Evaluates an 'Invocation' AST node to a value."""
-    # print("invocation: {} available bindings: {}".format(expr, expr.symbolic_bindings))
     if self._trace_all and isinstance(
         expr.callee,
         ast.NameRef) and expr.callee.name_def.identifier == 'trace':
@@ -640,14 +640,11 @@ class Interpreter(object):
           .format(callee_value))
     sb = ()
     if bindings.fn_ctx:
-      # print("====")
-      # print(expr.symbolic_bindings)
-      # print("key: {}, dict: {}".format(bindings.fn_ctx, expr.symbolic_bindings))
-      # # sb = expr.symbolic_bindings[bindings.fn_ctx]
+      # The symbolic bindings of this invocation were already computed during
+      # typechecking. 
       sb = expr.symbolic_bindings.get(bindings.fn_ctx, ())
-      # print("invocation: {} key: {}, dict: {}, fnname: {}".format(expr, bindings.fn_ctx, expr.symbolic_bindings, expr.callee))
-      # print("====")
-    return callee_value.function_payload(arg_values, expr.span, expr, sym_bindings=sb)
+    return callee_value.function_payload(arg_values, expr.span, expr,
+                                         symbolic_bindings=sb)
 
   def _perform_trace(self, lhs: Text, span: Span, value: Value) -> None:
     """Actually writes the tracing output to stderr."""
@@ -720,15 +717,16 @@ class Interpreter(object):
     """Evaluates a stand-alone expression with the given bindings."""
     return self._evaluate(expr, bindings)
 
-  def _builtin_fail(self, args: Sequence[Value], span: Span,
-                    expr: ast.Invocation, sym_bindings) -> Value:
+  def _builtin_fail(
+      self, args: Sequence[Value], span: Span, expr: ast.Invocation,
+      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     raise FailureError(
         span, 'The program being interpreted failed! {}'.format(args[0]))
 
-  def _builtin_assert_eq(self, args: Sequence[Value], span: Span,
-                         expr: ast.Invocation, sym_bindings=None) -> Value:
+  def _builtin_assert_eq(
+      self, args: Sequence[Value], span: Span, expr: ast.Invocation,
+      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     """Implements 'assert_eq' builtin'."""
-    # print("doing assert")
     if len(args) != 2:
       raise ValueError(
           'Invalid number of arguments to assert_eq; got {} want 2'.format(
@@ -747,8 +745,9 @@ class Interpreter(object):
 
     return self._fail_unless(pred, msg, span, expr)
 
-  def _builtin_assert_lt(self, args: Sequence[Value], span: Span,
-                         expr: ast.Invocation, sym_bindings) -> Value:
+  def _builtin_assert_lt(
+      self, args: Sequence[Value], span: Span, expr: ast.Invocation,
+      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     """Implements 'assert_lt' builtin'."""
     if len(args) != 2:
       raise ValueError(
@@ -761,21 +760,24 @@ class Interpreter(object):
 
     return self._fail_unless(pred, msg, span, expr)
 
-  def _builtin_and_reduce(self, args: Sequence[Value], span: Span,
-                          expr: ast.Invocation, sym_bindings) -> Value:
+  def _builtin_and_reduce(
+      self, args: Sequence[Value], span: Span, expr: ast.Invocation,
+      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     # AND: every bit is set, i.e., no bit is unset, i.e., a XOR 0xF...F == 0
     bits = args[0].bits_payload
     result = 1 if (bits.value ^ bits.get_mask()) == 0 else 0
     return Value.make_ubits(1, result)
 
-  def _builtin_or_reduce(self, args: Sequence[Value], span: Span,
-                         expr: ast.Invocation, sym_bindings) -> Value:
+  def _builtin_or_reduce(
+      self, args: Sequence[Value], span: Span, expr: ast.Invocation,
+      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     # OR: Is any bit set, i.e., is the value nonzero?
     bits = args[0].bits_payload
     return Value.make_ubits(1, bits.value != 0)
 
-  def _builtin_xor_reduce(self, args: Sequence[Value], span: Span,
-                          expr: ast.Invocation, sym_bindings) -> Value:
+  def _builtin_xor_reduce(
+      self, args: Sequence[Value], span: Span, expr: ast.Invocation,
+      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     # XOR: Is the number of set bits even (0) or odd (1)?
     # Convert the number to a binary _string_, then count the ones. That's
     # Python popcount, apparently!
@@ -783,8 +785,9 @@ class Interpreter(object):
     pop_count = format(bits.value, 'b').count('1')
     return Value.make_ubits(1, pop_count & 1)
 
-  def _builtin_map(self, args: Sequence[Value], span: Span,
-                   expr: ast.Invocation, sym_bindings=None) -> Value:
+  def _builtin_map(
+      self, args: Sequence[Value], span: Span, expr: ast.Invocation,
+      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     """Implements the 'map' builtin."""
     if len(args) != 2:
       raise EvaluateError(
@@ -794,12 +797,13 @@ class Interpreter(object):
     outputs = []
     input_array = inputs.array_payload
     for input_ in input_array.elements:
-      outputs.append(map_fn.function_payload([input_], span, expr, sym_bindings))
+      outputs.append(map_fn.function_payload([input_], span, expr, symbolic_bindings))
 
     return Value.make_array(tuple(outputs))
 
-  def _builtin_trace(self, args: Sequence[Value], span: Span,
-                     expr: ast.Invocation, sym_bindings) -> Value:
+  def _builtin_trace(
+      self, args: Sequence[Value], span: Span,
+      expr: ast.Invocation, symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     """Implements the 'trace' builtin."""
     if len(args) != 1:
       raise ValueError(
@@ -809,8 +813,9 @@ class Interpreter(object):
     self._perform_trace(expr.format_args(), span, args[0])
     return args[0]
 
-  def _builtin_select(self, args: Sequence[Value], span: Span,
-                      expr: ast.Invocation, sym_bindings) -> Value:
+  def _builtin_select(
+      self, args: Sequence[Value], span: Span, expr: ast.Invocation,
+      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     """Implements 'select' builtin.
 
     Forwards either the true or false argument based on the value of the
@@ -837,16 +842,18 @@ class Interpreter(object):
     else:
       return on_false
 
-  def _builtin_rev(self, args: Sequence[Value], span: Span,
-                   expr: ast.Invocation, sym_bindings) -> Value:
+  def _builtin_rev(
+      self, args: Sequence[Value], span: Span, expr: ast.Invocation,
+      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     if len(args) != 1:
       raise EvaluateError(
           span,
           'Invalid number of arguments to rev; got {} want 1'.format(len(args)))
     return Value(Tag.UBITS, args[0].bits_payload.reverse())
 
-  def _builtin_bit_slice(self, args: Sequence[Value], span: Span,
-                         expr: ast.Invocation, sym_bindings) -> Value:
+  def _builtin_bit_slice(
+      self, args: Sequence[Value], span: Span, expr: ast.Invocation,
+      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     """Implements 'bit_slice' builtin."""
     if len(args) != 3:
       raise EvaluateError(
@@ -861,8 +868,9 @@ class Interpreter(object):
             start.bits_payload.value + width.bits_payload.bit_count,
             lsb_is_0=True))
 
-  def _builtin_enumerate(self, args: Sequence[Value], span: Span,
-                         expr: ast.Invocation, sym_bindings) -> Value:
+  def _builtin_enumerate(
+      self, args: Sequence[Value], span: Span, expr: ast.Invocation,
+      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     """Implements 'enumerate' builtin; decorates array with range of indices."""
     if len(args) != 1:
       raise EvaluateError(
@@ -880,8 +888,9 @@ class Interpreter(object):
           Value.make_tuple((Value.make_ubits(bit_count=32, value=i), v)))
     return Value.make_array(tuple(elements))
 
-  def _builtin_range(self, args: Sequence[Value], span: Span,
-                     expr: ast.Invocation, sym_bindings) -> Value:
+  def _builtin_range(
+      self, args: Sequence[Value], span: Span, expr: ast.Invocation,
+      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     """Implements 'range' builtin; populates an array with a range of values."""
     if len(args) == 1:
       rhs, = args
@@ -899,8 +908,9 @@ class Interpreter(object):
           Value.make_ubits(bit_count=rhs.bits_payload.bit_count, value=1))
     return Value.make_array(tuple(elements))
 
-  def _builtin_update(self, args: Sequence[Value], span: Span,
-                      expr: ast.Invocation, sym_bindings) -> Value:
+  def _builtin_update(
+      self, args: Sequence[Value], span: Span, expr: ast.Invocation,
+      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     """Implements 'update' builtin."""
     if len(args) != 3:
       raise EvaluateError(
@@ -909,8 +919,9 @@ class Interpreter(object):
     original, index, value = args
     return original.update(index, value, span)
 
-  def _builtin_slice(self, args: Sequence[Value], span: Span,
-                     expr: ast.Invocation, sym_bindings) -> Value:
+  def _builtin_slice(
+      self, args: Sequence[Value], span: Span, expr: ast.Invocation,
+      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     """Implements 'slice' builtin."""
     if len(args) != 3:
       raise EvaluateError(
@@ -919,8 +930,9 @@ class Interpreter(object):
     array, start, length = args
     return array.slice(start, length, span)
 
-  def _builtin_add_with_carry(self, args: Sequence[Value], span: Span,
-                              expr: ast.Invocation, sym_bindings) -> Value:
+  def _builtin_add_with_carry(
+      self, args: Sequence[Value], span: Span, expr: ast.Invocation,
+      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     """Implements 'add_with_carry' builtin."""
     if len(args) != 2:
       raise EvaluateError(
@@ -929,8 +941,9 @@ class Interpreter(object):
     lhs, rhs = args
     return lhs.add_with_carry(rhs)
 
-  def _builtin_clz(self, args: Sequence[Value], span: Span,
-                   expr: ast.Invocation, sym_bindings) -> Value:
+  def _builtin_clz(
+      self, args: Sequence[Value], span: Span, expr: ast.Invocation,
+      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     """Implements 'clz' builtin."""
     if len(args) != 1:
       raise EvaluateError(
@@ -947,18 +960,21 @@ class Interpreter(object):
 
     return Value(Tag.UBITS, Bits(arg.bits_payload.bit_count, value=count))
 
-  def _builtin_ctz(self, args: Sequence[Value], span: Span,
-                   expr: ast.Invocation, sym_bindings) -> Value:
+  def _builtin_ctz(
+      self, args: Sequence[Value], span: Span, expr: ast.Invocation,
+      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     """Implements 'ctz' builtin."""
     if len(args) != 1:
       raise EvaluateError(
           span,
           'Invalid number of arguments to ctz; got {} want 1'.format(len(args)))
     return self._builtin_clz(
-        [Value(args[0].tag, args[0].bits_payload.reverse())], span, expr, sym_bindings)
+        [Value(args[0].tag, args[0].bits_payload.reverse())],
+        span, expr, symbolic_bindings)
 
-  def _builtin_one_hot(self, args: Sequence[Value], span: Span,
-                       expr: ast.Invocation, sym_bindings) -> Value:
+  def _builtin_one_hot(
+      self, args: Sequence[Value], span: Span, expr: ast.Invocation,
+      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     """Implements 'one_hot' builtin."""
     if len(args) != 2:
       raise EvaluateError(
@@ -987,8 +1003,9 @@ class Interpreter(object):
     return Value(Tag.UBITS,
                  Bits(arg.bits_payload.bit_count + 1, value=1 << shamt))
 
-  def _builtin_one_hot_sel(self, args: Sequence[Value], span: Span,
-                           expr: ast.Invocation, sym_bindings) -> Value:
+  def _builtin_one_hot_sel(
+      self, args: Sequence[Value], span: Span, expr: ast.Invocation,
+      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     """Interprets 'one_hot_sel' builtin."""
     if len(args) != 2:
       raise EvaluateError(
@@ -1006,8 +1023,9 @@ class Interpreter(object):
     logging.vlog(3, 'one_hot_sel(%s, %s) -> %s', selector, cases, result)
     return result
 
-  def _builtin_signex(self, args: Sequence[Value], span: Span,
-                      expr: ast.Invocation, sym_bindings) -> Value:
+  def _builtin_signex(
+      self, args: Sequence[Value], span: Span, expr: ast.Invocation,
+      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     """Implements 'smul' builtin."""
     if len(args) != 2:
       raise EvaluateError(
@@ -1027,7 +1045,8 @@ class Interpreter(object):
       method: Text) -> Callable[[Sequence[Value], Span, ast.Invocation], Value]:
     """Returns a signed-comparison function for use as a builtin."""
 
-    def scmp(args: Sequence[Value], span: Span, expr: ast.Invocation, sym_bindings) -> Value:
+    def scmp(args: Sequence[Value], span: Span, expr: ast.Invocation,
+             symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
       if len(args) != 2:
         raise EvaluateError(
             span, 'Invalid number of arguments to {}; got {} want 2'.format(
@@ -1093,7 +1112,7 @@ class Interpreter(object):
     of the type (like the dimensions) for the implementation of the function to
     use; e.g.
 
-      fn get_num_bits(x: bits[N]) -> u32 { N }
+      fn [N: u32] get_num_bits(x: bits[N]) -> u32 { N }
 
     Dimensions are bound as U32s in the lexical environment.
 
@@ -1146,41 +1165,34 @@ class Interpreter(object):
                                     bound_dims: Dict[Text, int]):
     """Evaluates the parametric values derived from other parametric values.
 
-    Populates the "bindings" mapping with the results of the evaluation.
+    Populates the "bindings" mapping with results computed by the typechecker.
 
     For example, in:
 
       fn [X: u32, Y: u32 = X+X] f(x: bits[X]) { ... }
 
-    X is bound when we observe the formal parameter in _evaluate_param_type(),
-    but Y must be subsequently bound since it doesn't have a form
+    We add X to our bindings when we observe the formal parameter in
+    _evaluate_param_type(), but Y must be subsequently bound since it is a
+    derived parametric with no corresponding parameter.
+
     Args:
       fn: Function to evaluate parametric bindings for.
       bindings: Bindings mapping to populate with newly evaluated parametric
         binding names.
-      bound_dims: Existing parametric bindings, we don't evaluate parametric
-        bindings that already have bound_dims present.
+      bound_dims: Parametric bindings computed by the typechecker.
     """
+    # All symbolic bindings should have been computed by the typechecker
     assert len(bound_dims) == len(fn.parametric_bindings)
     for parametric in fn.parametric_bindings:
       if parametric.name.identifier in bindings.keys():
         # Already bound in _evaluate_param_type()
         continue
-      # We already evaluated derived parametrics in parametric_instantiator.py
       type_ = self._evaluate_TypeAnnotation(parametric.type_, bindings)
+      # We already computed derived parametrics in parametric_instantiator.py
+      # All that's left is to add it to the current Bindings
       raw_value = bound_dims[parametric.name.identifier]
       wrapped_value = Value.make_ubits(type_.get_total_bit_count(), raw_value)
       bindings.add_value(parametric.name.identifier, wrapped_value)
-
-      """
-      if not parametric.expr:
-        raise EvaluateError(parametric.span,
-                            'Unbound parametric with no expression.')
-      type_ = self._evaluate_TypeAnnotation(parametric.type_, bindings)
-      value = self._evaluate(parametric.expr, bindings, type_)
-      bindings.add_value(parametric.name.identifier, value)
-      bound_dims[parametric.name.identifier] = value.get_bits_value()
-      """
 
   def _evaluate_fn(self,
                    fn: ast.Function,
@@ -1188,7 +1200,7 @@ class Interpreter(object):
                    args: Sequence[Value],
                    span: Span,
                    expr: Optional[ast.Invocation] = None,
-                   sym_bindings = None) -> Value:
+                   symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     """Evaluates the user defined function fn as an invocation against args.
 
     Args:
@@ -1196,6 +1208,9 @@ class Interpreter(object):
       m: The module containing fn.
       args: The argument with which the user-defined function is being invoked.
       span: The source span of the invocation.
+      expr: The invocation node
+      symbolic_bindings: Tuple containing the symbolic bindings to use in
+        the evaluation of this function body (computed by the typechecker)
 
     Returns:
       The value that results from evaluating the function on the arguments.
@@ -1205,7 +1220,6 @@ class Interpreter(object):
         type do not match with the values presented as arguments / the value
         resulting from the function evaluation.
     """
-    # print("evaluating {} with {}".format(fn.name.identifier, sym_bindings))
     if len(args) != len(fn.params):
       raise EvaluateError(
           span,
@@ -1214,11 +1228,10 @@ class Interpreter(object):
 
     bindings = self._make_top_level_bindings(m)
 
-
     # Bind all args to the parameter identifiers.
     #
     # Check that the argument values conform to the parameter-annotated type.
-    bound_dims = {} if not sym_bindings else dict(sym_bindings)  # type: Dict[Text, int]
+    bound_dims = {} if not symbolic_bindings else dict(symbolic_bindings)  # type: Dict[Text, int]
     param_types = []
     for param, arg in zip(fn.params, args):
       param_type = self._evaluate_param_type(param.type_, arg, bindings,
@@ -1226,7 +1239,7 @@ class Interpreter(object):
       param_types.append(param_type)
 
     self._evaluate_derived_parametrics(fn, bindings, bound_dims)
-    bindings.fn_ctx = (m.name, fn.name.identifier, sym_bindings)
+    bindings.fn_ctx = (m.name, fn.name.identifier, symbolic_bindings)
     concrete_return_type = self._evaluate_TypeAnnotation(
         fn.return_type, bindings) if fn.return_type else ConcreteType.NIL
     for param, concrete_type, arg in zip(fn.params, param_types, args):
@@ -1322,7 +1335,7 @@ class Interpreter(object):
   def run_test(self, name: Text) -> None:
     bindings = self._make_top_level_bindings(self._module)
     test = self._module.get_test(name)
-    bindings.fn_ctx = (self._module.name, "{}_test".format(name), ()) 
+    bindings.fn_ctx = (self._module.name, "{}_test".format(name), ())
     result = self._evaluate(test.body, bindings)
     if not result.is_nil_tuple():
       raise EvaluateError(
@@ -1334,4 +1347,4 @@ class Interpreter(object):
     assert not f.is_parametric()
     fake_pos = Pos('<fake>', 0, 0)
     fake_span = Span(fake_pos, fake_pos)
-    return self._evaluate_fn(f, self._module, args, fake_span, sym_bindings = ())
+    return self._evaluate_fn(f, self._module, args, fake_span, symbolic_bindings=())
