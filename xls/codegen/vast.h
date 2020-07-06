@@ -887,6 +887,22 @@ class Slice : public Expression {
   Expression* lo_;
 };
 
+// Represents a Verilog slice expression; e.g.
+//
+//    subject[start +: width]
+class DynamicSlice : public Expression {
+  public:
+   DynamicSlice(IndexableExpression* subject, Expression* start,
+                Expression* width)
+       : subject_(subject), start_(start), width_(width) {}
+
+   std::string Emit() override;
+  private:
+   IndexableExpression* subject_;
+   Expression* start_;
+   Expression* width_;
+};
+
 // Represents a Verilog indexing operation; e.g.
 //
 //    subject[index]
@@ -1305,6 +1321,17 @@ class VerilogFile {
     XLS_CHECK_GE(lo, 0);
     return Make<verilog::Slice>(subject, MaybePlainLiteral(hi),
                                 MaybePlainLiteral(lo));
+  }
+
+  verilog::DynamicSlice* DynamicSlice(IndexableExpression* subject,
+                                      Expression* start, Expression* width) {
+    return Make<verilog::DynamicSlice>(subject, start, width);
+  }
+  verilog::DynamicSlice* DynamicSlice(IndexableExpression* subject,
+                                      Expression* start, int64 width) {
+    XLS_CHECK_GE(width, 0);
+    return Make<verilog::DynamicSlice>(subject, start,
+                                       MaybePlainLiteral(width));
   }
 
   verilog::Index* Index(IndexableExpression* subject, Expression* index) {

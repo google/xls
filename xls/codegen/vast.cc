@@ -549,6 +549,11 @@ std::string Slice::Emit() {
                          lo_->Emit());
 }
 
+std::string DynamicSlice::Emit() {
+  return absl::StrFormat("%s[%s +: %s]", subject_->Emit(), start_->Emit(),
+                         width_->Emit());
+}
+
 std::string Index::Emit() {
   if (subject_->IsScalarReg()) {
     XLS_CHECK(index_->IsLiteralWithValue(0)) << index_->Emit();
