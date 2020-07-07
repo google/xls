@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/ir/visualization/ir_to_json.h"
+#include "xls/visualization/ir_viz/ir_to_json.h"
 
 #include "google/protobuf/util/json_util.h"
 #include "absl/status/status.h"
@@ -28,8 +28,8 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
-#include "xls/ir/visualization/ir_for_visualization.pb.h"
 #include "xls/passes/bdd_query_engine.h"
+#include "xls/visualization/ir_viz/ir_for_visualization.pb.h"
 
 namespace xls {
 namespace {
