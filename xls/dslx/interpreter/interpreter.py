@@ -639,13 +639,13 @@ class Interpreter(object):
           expr.callee.span,
           'Callee value is not a function (should have been determined during type inference); got: {}'
           .format(callee_value))
-    sb = ()
+    fn_symbolic_bindings = ()
     if bindings.fn_ctx:
       # The symbolic bindings of this invocation were already computed during
       # typechecking. 
-      sb = expr.symbolic_bindings.get(bindings.fn_ctx, ())
+      fn_symbolic_bindings = expr.symbolic_bindings.get(bindings.fn_ctx, ())
     return callee_value.function_payload(arg_values, expr.span, expr,
-                                         symbolic_bindings=sb)
+                                         symbolic_bindings=fn_symbolic_bindings)
 
   def _perform_trace(self, lhs: Text, span: Span, value: Value) -> None:
     """Actually writes the tracing output to stderr."""

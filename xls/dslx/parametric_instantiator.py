@@ -46,6 +46,9 @@ class _ParametricInstantiator(object):
     symbolic_bindings: Mapping from name to bound value as encountered in the
       instantiation process; e.g. instantiating `fn [N: u32] id(bits[N]) ->
       bits[N]` with a u32 would lead to `{'N': 32}` as the symbolic bindings.
+    constraints: Mapping from parametric to its derived expression.
+      e.g. For [X: u32, Y: u32 = X + X], we'd have X -> None and Y -> (X + X).
+    ctx: Wrapper over useful typechecking objects (see deduce.DeduceCtx).
   """
 
   def __init__(self, span: Span, function_type: ConcreteType,
@@ -54,9 +57,9 @@ class _ParametricInstantiator(object):
     self.span = span
     self.function_type = function_type
     self.arg_types = arg_types
+    self.ctx = ctx
     self.symbolic_bindings = {}  # type: Dict[Text, int]
     self.constraints = {}  # type: Dict[Text, Optional[ast.Expr]]
-    self.ctx = ctx
 
     param_types = self.function_type.get_function_params()
     if len(self.arg_types) != len(param_types):
@@ -68,7 +71,17 @@ class _ParametricInstantiator(object):
         self.constraints[b.name.identifier] = b.expr
 
   def _verify_constraints(self) -> None:
-    """Verifies that all bindings adhere to the specified constraints."""
+    """Verifies that all parametrics adhere to signature constraints.
+
+    Take the following function signature for example:
+      fn [X: u32, Y: u32 = X + X] f(x: bits[X], y: bits[Y]) -> bits[Y]
+
+    The parametric Y has two constraints based only off the signature:
+    it must match the bitwidth of the argument y and it must be equal to
+    X + X. This function is responsible for computing any derived parametrics
+    and asserting that their values are consistent with other constraints
+    (arg types).
+    """
     for binding, constraint in self.constraints.items():
       if constraint is None:
         # e.g. [X: u32]

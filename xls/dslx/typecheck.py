@@ -84,8 +84,8 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx):
       # We just needed the type signature so that we can instantiate this
       # invocation. Let's return this for now and typecheck the body once we
       # have symbolic bindings.
-      annotated_return_type = deduce.deduce(f.return_type, ctx) \
-                              if f.return_type else ConcreteType.NIL
+      annotated_return_type = (deduce.deduce(f.return_type, ctx)
+                              if f.return_type else ConcreteType.NIL)
       ctx.node_to_type[f.name] = ctx.node_to_type[f] = FunctionType(
            tuple(param_types), annotated_return_type)
       return
@@ -150,8 +150,8 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
   if builtin_name.identifier == "map":
     map_fn_ref = invocation.args[1]
     if isinstance(map_fn_ref, ast.ModRef):
-      imported_module, imported_node_to_type = \
-                                  ctx.node_to_type.get_imported(map_fn_ref.mod)
+      imported_module, imported_node_to_type = ctx.node_to_type.get_imported(
+                                                                 map_fn_ref.mod)
       map_fn_name = map_fn_ref.value_tok.value
       map_fn = imported_module.get_function(map_fn_name)
       higher_order_parametric_bindings = map_fn.parametric_bindings
@@ -175,8 +175,8 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
 
 
   if builtin_name.identifier == "map":
-    if map_fn_name in dslx_builtins.PARAMETRIC_BUILTIN_NAMES or \
-        not map_fn.is_parametric():
+    if (map_fn_name in dslx_builtins.PARAMETRIC_BUILTIN_NAMES or
+        not map_fn.is_parametric()):
       # A builtin higher-order parametric fn would've been typechecked when we
       # were going through the arguments of this invocation.
       # If the function wasn't parametric, then we're good to go.
@@ -186,14 +186,14 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
     # If the higher order function is parametric, we need to typecheck its body
     # with the symbolic bindings we just computed.
     if isinstance(map_fn_ref, ast.ModRef):
-      importedCtx = deduce.DeduceCtx(imported_node_to_type, imported_module,
+      imported_ctx = deduce.DeduceCtx(imported_node_to_type, imported_module,
                                      ctx.interp_callback,
                                     ctx.typecheck_callback,
                                     parametric_fn_cache=ctx.parametric_fn_cache)
-      importedCtx.fn_stack.append((map_fn_name, dict(symbolic_bindings)))
+      imported_ctx.fn_stack.append((map_fn_name, dict(symbolic_bindings)))
       # We need to typecheck this imported function with respect to its module
-      ctx.typecheck_callback(map_fn, importedCtx)
-      ctx.node_to_type.update(importedCtx.node_to_type)
+      ctx.typecheck_callback(map_fn, imported_ctx)
+      ctx.node_to_type.update(imported_ctx.node_to_type)
     else:
       # If the higher-order parametric fn is in this module, let's try to push
       # it onto the typechecking stack
@@ -202,8 +202,11 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
 
   return (True, None)
 
-def _make_record(f: Union[Function, ast.Test], ctx: deduce.DeduceCtx) \
-      -> Tuple[Text, bool, Optional[Dict[ast.AstNode, ConcreteType]]]:
+# (fn/test name, isinstance(ast.Test), node->type)
+StackRecordType = Tuple[Text, bool, Optional[Dict[ast.AstNode, ConcreteType]]]
+
+def _make_record(f: Union[Function, ast.Test],
+                 ctx: deduce.DeduceCtx) -> StackRecordType:
   """Creates a tuple with information for typechecking functions/tests
 
   The third item in the tuple will optionally carry the contents of
@@ -219,15 +222,15 @@ def _make_record(f: Union[Function, ast.Test], ctx: deduce.DeduceCtx) \
         # This is our first time evaluating the body of this parametric fn.
         # Let's store what ctx.node_to_type looked like before so we know
         # what this function's dependencies are.
-        before_ntt_dict = copy.copy(ctx.node_to_type._dict)
-        rec = (f.name.identifier, False, before_ntt_dict)
+        previous_node_types = copy.copy(ctx.node_to_type._dict)
+        rec = (f.name.identifier, False, previous_node_types)
       else:
         # We've previously evaluated the body of this parametric fn.
         # Let's remove the types we found so that they are reevaluated
         # with the current symbolic bindings.
         cached_types = ctx.parametric_fn_cache[(ctx.module.name, f)]
-        without_deps_dict = { n: ctx.node_to_type[n] for n in \
-                              ctx.node_to_type._dict if not n in cached_types } 
+        without_deps_dict = {n:ctx.node_to_type[n] for n in
+                             ctx.node_to_type._dict if not n in cached_types}
         # Assert that the body will be reevaluated
         assert not f.body in without_deps_dict
         ctx.node_to_type._dict = without_deps_dict
@@ -273,21 +276,21 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
         check_test(f, ctx)
       seen[(f.name.identifier, isinstance(f, ast.Test))] = (f, False
                                                            )  # Mark as done.
-      rec = stack.pop()
+      stack_record = stack.pop()
       fn_name, _ = ctx.fn_stack[-1]
-      if isinstance(f, ast.Function) and f.is_parametric() \
-          and fn_name == f.name.identifier and \
-                            (ctx.module.name, f) not in ctx.parametric_fn_cache:
+      if (isinstance(f, ast.Function) and f.is_parametric()
+          and fn_name == f.name.identifier
+          and (ctx.module.name, f) not in ctx.parametric_fn_cache):
         # We just evaluated the body of a parametric function for the first
         # time. Let's compute its dependencies so that we know which nodes to
         # recheck if we see another invocation of this parametric function.
-        before_ntt_dict = rec[2]
-        assert before_ntt_dict
-        deps = { n : ctx.node_to_type[n] for n in \
-                 set(ctx.node_to_type._dict) - set(before_ntt_dict) }
+        previous_node_types = stack_record[2]
+        assert previous_node_types
+        deps = {n:ctx.node_to_type[n] for n in
+                set(ctx.node_to_type._dict) - set(previous_node_types)}
         ctx.parametric_fn_cache[(ctx.module.name, f)] = deps
 
-      if rec[0] == fn_name:
+      if stack_record[0] == fn_name:
         # ie. we just finished typechecking the body of the function we're
         # currently inside of
         ctx.fn_stack.pop()
@@ -295,8 +298,8 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
     except deduce.TypeMissingError as e:
       while True:
         fn_name, fn_symbolic_bindings = ctx.fn_stack[-1]
-        if isinstance(e.node, ast.NameDef) and \
-                e.node.identifier in function_map:
+        if (isinstance(e.node, ast.NameDef) and
+            e.node.identifier in function_map):
           # If it's seen and not-done, we're recursing.
           if seen.get((e.node.identifier, False), (None, False))[1]:
             raise XlsError(
@@ -341,6 +344,7 @@ def check_module(
     f_import: Callback to import a module (a la a import statement). This may be
       None e.g. in unit testing situations where it's guaranteed there will be
       no import statements.
+    is_import: Flag that indicates whether or not this module is an import.
 
   Returns:
     Mapping from AST node to its deduced/checked type.
@@ -394,8 +398,8 @@ def check_module(
     for mod_name, f in ctx.parametric_fn_cache:
       if ctx.module.name == mod_name:
         deps = ctx.parametric_fn_cache[(ctx.module.name, f)]
-        without_deps_dict = { n: ctx.node_to_type[n] for n in \
-                              ctx.node_to_type._dict if not n in deps }
+        without_deps_dict = {n:ctx.node_to_type[n] for n in
+                             ctx.node_to_type._dict if not n in deps}
         ctx.node_to_type._dict = without_deps_dict
   else:
     # Add back the bodies of parametric fns for completeness, as they are

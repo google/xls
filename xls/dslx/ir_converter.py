@@ -89,7 +89,8 @@ class _IrConverterFb(ast.AstVisitor):
   """
 
   def __init__(self, package: ir_package.Package, module: ast.Module,
-          node_to_type: deduce.NodeToType, emit_positions: bool, dslx_name: Text = None):
+          node_to_type: deduce.NodeToType, emit_positions: bool,
+          dslx_name: Optional[Text] = None):
     self.module = module
     self.node_to_type = node_to_type
     self.emit_positions = emit_positions

@@ -272,7 +272,7 @@ fn f(x: u32) -> (u32, u8) {
     """,
         error='Annotated type of derived parametric value did not match')
 
-  def test_parametric_instantiation_vs_arg_OK(self):
+  def test_parametric_instantiation_vs_arg_ok(self):
     self._typecheck(
         """
     fn [X: u32 = u32: 5] foo(x: bits[X]) -> bits[X] { x }
@@ -287,7 +287,7 @@ fn f(x: u32) -> (u32, u8) {
         """,
           error='Parametric constraint violated')
 
-  def test_parametric_instantiation_vs_body_OK(self):
+  def test_parametric_instantiation_vs_body_ok(self):
     self._typecheck(
         """
     fn [X: u32 = u32: 5] foo() -> bits[5] { bits[X]: 1 + bits[5]: 1 }
@@ -302,7 +302,7 @@ fn f(x: u32) -> (u32, u8) {
         """,
           error='Types are not compatible: uN[5] vs uN[10]')
 
-  def test_parametric_instantiation_vs_return_OK(self):
+  def test_parametric_instantiation_vs_return_ok(self):
     self._typecheck(
         """
     fn [X: u32 = u32: 5] foo() -> bits[5] { bits[X]: 1 }
@@ -317,7 +317,7 @@ fn f(x: u32) -> (u32, u8) {
         """,
           error='Return type of function body for "foo" did not match')
 
-  def test_parametric_indirect_instantiation_vs_arg_OK(self):
+  def test_parametric_indirect_instantiation_vs_arg_ok(self):
     self._typecheck(
         """
     fn [X: u32] foo(x1: bits[X], x2: bits[X]) -> bits[X] { x1 + x2 }
@@ -335,7 +335,7 @@ fn f(x: u32) -> (u32, u8) {
         """,
           error='Parametric value X was bound to different values')
 
-  def test_parametric_indirect_instantiation_vs_body_OK(self):
+  def test_parametric_indirect_instantiation_vs_body_ok(self):
     self._typecheck(
         """
     fn [X: u32] foo(x: bits[X]) -> bits[X + X] {
@@ -358,7 +358,7 @@ fn f(x: u32) -> (u32, u8) {
         """,
           error='Types are not compatible: uN[5] vs uN[10]')
 
-  def test_parametric_indirect_instantiation_vs_return_OK(self):
+  def test_parametric_indirect_instantiation_vs_return_ok(self):
     self._typecheck(
         """
     fn [X: u32] foo(x: bits[X]) -> bits[X + X] { x++x }
@@ -375,7 +375,7 @@ fn f(x: u32) -> (u32, u8) {
         """,
           error='Return type of function body for "foo" did not match')
 
-  def test_parametric_derived_instantiation_vs_arg_OK(self):
+  def test_parametric_derived_instantiation_vs_arg_ok(self):
     self._typecheck(
         """
     fn [X: u32, Y: u32 = X + X] foo(x: bits[X], y: bits[Y]) -> bits[X] { x }
@@ -390,7 +390,7 @@ fn f(x: u32) -> (u32, u8) {
         """,
           error='Parametric constraint violated')
 
-  def test_parametric_derived_instantiation_vs_body_OK(self):
+  def test_parametric_derived_instantiation_vs_body_ok(self):
     self._typecheck(
         """
     fn [W: u32, Z: u32 = W + W] foo(w: bits[W]) -> bits[1] {
@@ -411,7 +411,7 @@ fn f(x: u32) -> (u32, u8) {
         """,
         error='Types are not compatible: uN[10] vs uN[5]')
 
-  def test_parametric_derived_instantiation_vs_return_OK(self):
+  def test_parametric_derived_instantiation_vs_return_ok(self):
     self._typecheck(
         """
     fn [X: u32, Y: u32 = X + X] double(x: bits[X]) -> bits[Y] { x++x }
