@@ -128,10 +128,10 @@ class _ParametricInstantiator(object):
             self.span,
             BitsType(signed=False, size=self.symbolic_bindings[pdim_name]),
             arg_type,
-            suffix="Parametric constraint violated, saw {} = {} = {}; "
-            "then {} = {}".format(pdim_name, self.constraints[pdim_name],
-                                  self.symbolic_bindings[pdim_name],
-                                  pdim_name, arg_dim))
+            suffix=(f"Parametric constraint violated, saw {pdim_name} "
+                    f"= {self.constraints[pdim_name]} "
+                    f"= {self.symbolic_bindings[pdim_name]}; "
+                    f"then {pdim_name} = {arg_dim}"))
       else:
         # Conflicting argument types
         raise XlsTypeError(

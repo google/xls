@@ -16,7 +16,7 @@
 
 """Implementation of type checking functionality on a parsed AST object."""
 
-from typing import Dict, Optional, Text, Tuple, Union, Callable
+from typing import Dict, Optional, Text, Tuple, Union, Callable, List
 import copy
 import functools
 
@@ -33,6 +33,35 @@ from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.concrete_type import FunctionType
 from xls.dslx.xls_type_error import XlsTypeError
 
+def _check_function_params(f: Function,
+                           ctx: deduce.DeduceCtx) -> List[ConcreteType]:
+  """Checks the function's parametrics' and arguments' types"""
+  for parametric in f.parametric_bindings:
+    parametric_binding_type = deduce.deduce(parametric.type_, ctx)
+    assert isinstance(parametric_binding_type, ConcreteType)
+    if parametric.expr:
+      # TODO(hans): 2020-07-06 Either throw a more descriptive error if
+      # there's a parametric fn in this expr or add support for it
+      expr_type = deduce.deduce(parametric.expr, ctx)
+      if expr_type != parametric_binding_type:
+        raise XlsTypeError(
+            parametric.span,
+            parametric_binding_type,
+            expr_type,
+            suffix='Annotated type of derived parametric '
+            'value did not match inferred type.')
+    ctx.node_to_type[parametric.name] = parametric_binding_type
+
+  param_types = []
+  for param in f.params:
+    logging.vlog(2, 'Checking param: %s', param)
+    param_type = deduce.deduce(param, ctx)
+    assert isinstance(param_type, ConcreteType), param_type
+    param_types.append(param_type)
+    ctx.node_to_type[param.name] = param_type
+
+  return param_types
+
 def _check_function(f: Function, ctx: deduce.DeduceCtx):
   """Validates type annotations on parameters/return type of f are consistent.
 
@@ -46,6 +75,7 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx):
       type annotation on "f".
   """
   fn_name, fn_symbolic_bindings = ctx.fn_stack[-1]
+  # First, get the types of the function's parametrics, args, and return type
   if f.is_parametric() and f.name.identifier == fn_name:
     # Parametric functions are evaluated per invocation. If we're currently
     # inside of this function, it must mean that we already have the type
@@ -55,31 +85,7 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx):
     param_types = list(ctx.node_to_type[f].params)
   else:
     logging.vlog(1, 'Type-checking sig for function: %s', f)
-
-    for parametric in f.parametric_bindings:
-      parametric_binding_type = deduce.deduce(parametric.type_, ctx)
-      assert isinstance(parametric_binding_type, ConcreteType)
-      if parametric.expr:
-        # TODO(hans): 2020-07-06 Either throw a more descriptive error if
-        # there's a parametric fn in this expr or add support for it
-        expr_type = deduce.deduce(parametric.expr, ctx)
-        if expr_type != parametric_binding_type:
-          raise XlsTypeError(
-              parametric.span,
-              parametric_binding_type,
-              expr_type,
-              suffix='Annotated type of derived parametric '
-              'value did not match inferred type.')
-      ctx.node_to_type[parametric.name] = parametric_binding_type
-
-    param_types = []
-    for param in f.params:
-      logging.vlog(2, 'Checking param: %s', param)
-      param_type = deduce.deduce(param, ctx)
-      assert isinstance(param_type, ConcreteType), param_type
-      param_types.append(param_type)
-      ctx.node_to_type[param.name] = param_type
-
+    param_types = _check_function_params(f, ctx)
     if f.is_parametric():
       # We just needed the type signature so that we can instantiate this
       # invocation. Let's return this for now and typecheck the body once we
@@ -92,9 +98,12 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx):
 
   logging.vlog(1, 'Type-checking body for function: %s', f)
 
+  # Second, typecheck the body of the function
   body_return_type = deduce.deduce(f.body, ctx)
   resolved_body_type = deduce.resolve(body_return_type, ctx)
 
+  # Third, assert that the annotated return type matches the body return type
+  # (after resolving any parametric symbols)
   if f.return_type is None:
     if body_return_type.is_nil():
       # When body return type is nil and no return type is annotated, everything
@@ -138,13 +147,10 @@ def check_test(t: ast.Test, ctx: deduce.DeduceCtx) -> None:
 
 
 def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
-                 ctx: deduce.DeduceCtx) -> Tuple[bool, Optional[ast.NameDef]]:
+                 ctx: deduce.DeduceCtx) -> Optional[ast.NameDef]:
   """Instantiates a builtin parametric invocation; e.g. 'update'."""
   arg_types = tuple(deduce.resolve(
                         ctx.node_to_type[arg], ctx) for arg in invocation.args)
-
-  if builtin_name.identifier not in dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
-    return (False, None)
 
   higher_order_parametric_bindings = None
   if builtin_name.identifier == "map":
@@ -181,26 +187,26 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
       # were going through the arguments of this invocation.
       # If the function wasn't parametric, then we're good to go.
       # invocation
-      return (True, None)
+      return None
 
     # If the higher order function is parametric, we need to typecheck its body
     # with the symbolic bindings we just computed.
     if isinstance(map_fn_ref, ast.ModRef):
       imported_ctx = deduce.DeduceCtx(imported_node_to_type, imported_module,
-                                     ctx.interp_callback,
-                                    ctx.typecheck_callback,
-                                    parametric_fn_cache=ctx.parametric_fn_cache)
+                                      ctx.interp_callback,
+                                      ctx.check_function_in_module,
+                                      parametric_fn_cache=ctx.parametric_fn_cache)
       imported_ctx.fn_stack.append((map_fn_name, dict(symbolic_bindings)))
       # We need to typecheck this imported function with respect to its module
-      ctx.typecheck_callback(map_fn, imported_ctx)
+      ctx.check_function_in_module(map_fn, imported_ctx)
       ctx.node_to_type.update(imported_ctx.node_to_type)
     else:
       # If the higher-order parametric fn is in this module, let's try to push
       # it onto the typechecking stack
       ctx.fn_stack.append((map_fn_name, dict(symbolic_bindings)))
-      return (True, map_fn_ref.name_def)
+      return map_fn_ref.name_def
 
-  return (True, None)
+  return None
 
 # (fn/test name, isinstance(ast.Test), node->type)
 StackRecordType = Tuple[Text, bool, Optional[Dict[ast.AstNode, ConcreteType]]]
@@ -291,8 +297,8 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
         ctx.parametric_fn_cache[(ctx.module.name, f)] = deps
 
       if stack_record[0] == fn_name:
-        # ie. we just finished typechecking the body of the function we're
-        # currently inside of
+        # i.e. we just finished typechecking the body of the function we're
+        # currently inside of.
         ctx.fn_stack.pop()
 
     except deduce.TypeMissingError as e:
@@ -316,16 +322,15 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
                        e.node, e.node.identifier, e.user)
 
           if isinstance(e.user, ast.Invocation):
-            ok_inst, func = _instantiate(e.node, e.user, ctx)
-            if ok_inst:
-              if func:
-                # We need to figure out what to do with this higher order
-                # parametric function
-                e.node = func
-                continue
-              else:
-                break
+            func = _instantiate(e.node, e.user, ctx)
+            if func:
+              # We need to figure out what to do with this higher order
+              # parametric function.
+              e.node = func
+              continue
+            break
 
+        # Raise if this wasn't a function in this module or a builtin.
         raise
 
 
