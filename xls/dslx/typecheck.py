@@ -338,10 +338,10 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
 ImportFn = Callable[[Tuple[Text, ...]], Tuple[ast.Module, deduce.NodeToType]]
 
 
-def check_module(
+def check_module_helper(
     module: Module,
-    f_import: Optional[ImportFn], is_import: bool = False
-) -> deduce.NodeToType:
+    f_import: Optional[ImportFn]
+) -> Tuple[deduce.NodeToType, deduce.ParametricFnCache]:
   """Validates type annotations on all functions within "module".
 
   Args:
@@ -349,10 +349,11 @@ def check_module(
     f_import: Callback to import a module (a la a import statement). This may be
       None e.g. in unit testing situations where it's guaranteed there will be
       no import statements.
-    is_import: Flag that indicates whether or not this module is an import.
 
   Returns:
-    Mapping from AST node to its deduced/checked type.
+    A tuple containing a node_to_type (mapping from AST node to its
+    deduced/checked type and a parametric_fn_cache (mapping from parametric
+    function to all dependency nodes (body, other functions, etc.)).
 
   Raises:
     XlsTypeError: If any of the function in f have typecheck errors.
@@ -396,20 +397,31 @@ def check_module(
     check_function_or_test_in_module(t, ctx)
     logging.vlog(2, 'Finished typechecking test: %s', t)
 
-  if is_import:
-    # If we just typechecked an imported module, lets discard all
-    # of the parametric fns' dependencies so that they are rechecked on
-    # invocation in the main module
-    for mod_name, f in ctx.parametric_fn_cache:
-      if ctx.module.name == mod_name:
-        deps = ctx.parametric_fn_cache[(ctx.module.name, f)]
-        without_deps_dict = {n:ctx.node_to_type[n] for n in
-                             ctx.node_to_type._dict if not n in deps}
-        ctx.node_to_type._dict = without_deps_dict
-  else:
-    # Add back the bodies of parametric fns for completeness, as they are
-    # removed in deduce._deduce_Invocation()
-    for mod_name, f in ctx.parametric_fn_cache:
-      ctx.node_to_type[f.body] = ctx.parametric_fn_cache[(mod_name, f)][f.body]
+  # Let's discard all of the parametric fns' dependencies so that they are
+  # rechecked on invocation in the importer module
+  for mod_name, f in ctx.parametric_fn_cache:
+    if ctx.module.name == mod_name:
+      deps = ctx.parametric_fn_cache[(ctx.module.name, f)]
+      without_deps_dict = {n:ctx.node_to_type[n] for n in
+                           ctx.node_to_type._dict if not n in deps}
+      ctx.node_to_type._dict = without_deps_dict
 
-  return ctx.node_to_type
+  return (ctx.node_to_type, ctx.parametric_fn_cache)
+
+def check_module(
+    module: Module,
+    f_import: Optional[ImportFn]) -> deduce.NodeToType:
+  """Wrapper around check_module_helper for external use"""
+
+  node_to_type, parametric_fn_cache = check_module_helper(module, f_import)
+
+  # At this point, we know module is our entrypoint and we need to add back
+  # in all the parametric fns' dependencies. They were removed in
+  # check_module_helper so that parametric fns would be retypechecked in
+  # other modules that imported them.
+  for mod_name, f in parametric_fn_cache:
+    if module.name == mod_name:
+      deps = parametric_fn_cache[(module.name, f)]
+      node_to_type._dict.update(deps)
+
+  return node_to_type

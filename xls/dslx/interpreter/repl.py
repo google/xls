@@ -87,7 +87,8 @@ def handle_line(line: str, stmt_index: int):
     # around and we'll substitute the real return type we observe.
     try:
       import_cache = {}
-      f_import = functools.partial(import_routines.do_import, cache=import_cache)
+      f_import = functools.partial(import_routines.do_import,
+                                   cache=import_cache)
       node_to_type = typecheck.check_module(fake_module, f_import=f_import)
     except xls_type_error.XlsTypeError as e:
       # We use nil as a placeholder, and swap it with the type that was expected
