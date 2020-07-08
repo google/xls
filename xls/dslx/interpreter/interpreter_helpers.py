@@ -40,6 +40,12 @@ def interpret_expr(module: ast.Module, node_to_type: deduce.NodeToType,
     f_import: Import routine callback for the interpreter to use.
     fn_ctx: The (module name, function name, symbolic bindings) we are
       currently using.
+
+  Returns:
+    The integer value of the interpreted expression.
+
+  Raises:
+    KeyError: Occurs when the interpreter encounters a symbol that isn't in env.
   """
   interp = interpreter.Interpreter(module, node_to_type, f_import=f_import)
   bindings = interp._make_top_level_bindings(module)

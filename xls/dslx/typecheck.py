@@ -411,7 +411,7 @@ def check_module_helper(
 def check_module(
     module: Module,
     f_import: Optional[ImportFn]) -> deduce.NodeToType:
-  """Wrapper around check_module_helper for external use"""
+  """Wrapper around check_module_helper for external use."""
 
   node_to_type, parametric_fn_cache = check_module_helper(module, f_import)
 
