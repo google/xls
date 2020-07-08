@@ -155,7 +155,8 @@ class NodeToType(object):
 
 ImportFn = Callable[[Tuple[Text, ...]], Tuple[ast.Module, NodeToType]]
 InterpCallbackType = Callable[[ast.Module, NodeToType,
-                      Sequence[Tuple[Text, int]], ast.Expr, ImportFn], int]
+                     Dict[Text, int], Dict[Text, int],
+                     ast.Expr, ImportFn], int]
 
 # Maps (module_name, parametric function node) to (node -> type)
 ParametricFnCache = Dict[Tuple[Text, ast.Function], Dict[ast.AstNode,
@@ -168,7 +169,7 @@ class DeduceCtx:
   Attributes:
     node_to_type: Maps an AST node to its deduced type.
     module: The primary module we are typechecking.
-    interp_callback: An Interpreter wrapper that parametric_instantiator uses
+    interpret_expr: An Interpreter wrapper that parametric_instantiator uses
       to evaluate bindings with complex expressions (eg. function calls).
     check_function_in_module: A callback to typecheck parametric functions that
       are not in this module.
@@ -180,7 +181,7 @@ class DeduceCtx:
   """
   node_to_type: NodeToType
   module: ast.Module
-  interp_callback: InterpCallbackType
+  interpret_expr: InterpCallbackType
   check_function_in_module: Callable[[ast.Function, 'DeduceCtx'], None]
   fn_stack: List[Tuple[Text, Dict[Text, int]]] = field(default_factory=list)
   parametric_fn_cache: ParametricFnCache = field(default_factory=dict)
@@ -281,7 +282,7 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
     imported_module, imported_node_to_type = ctx.node_to_type.get_imported(
                                                invocation.callee.mod)
     imported_ctx = DeduceCtx(imported_node_to_type, imported_module,
-                            ctx.interp_callback, ctx.check_function_in_module,
+                            ctx.interpret_expr, ctx.check_function_in_module,
                             parametric_fn_cache=ctx.parametric_fn_cache)
     imported_ctx.fn_stack.append((parametric_fn.name.identifier,
                                   dict(symbolic_bindings)))
@@ -913,7 +914,7 @@ def _deduce_ModRef(self: ast.ModRef, ctx: DeduceCtx) -> ConcreteType:  # pytype:
     # module (this will only get the type signature, body gets typechecked 
     # after parametric instantiation).
     imported_ctx = DeduceCtx(imported_node_to_type, imported_module,
-                          ctx.interp_callback, ctx.check_function_in_module,
+                          ctx.interpret_expr, ctx.check_function_in_module,
                           parametric_fn_cache=ctx.parametric_fn_cache)
     imported_ctx.fn_stack.append(ctx.fn_stack[-1])
     ctx.check_function_in_module(f, imported_ctx)

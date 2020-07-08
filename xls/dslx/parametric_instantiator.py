@@ -46,8 +46,12 @@ class _ParametricInstantiator(object):
     symbolic_bindings: Mapping from name to bound value as encountered in the
       instantiation process; e.g. instantiating `fn [N: u32] id(bits[N]) ->
       bits[N]` with a u32 would lead to `{'N': 32}` as the symbolic bindings.
-    constraints: Mapping from parametric to its derived expression.
-      e.g. For [X: u32, Y: u32 = X + X], we'd have X -> None and Y -> (X + X).
+    constraints: Mapping from parametric to its expression.
+      e.g. For [X: u32, Y: u32 = X + X], we'd have X -> (32, None) and
+      Y -> (32, (X + X)).
+    bit_widths: Mapping from parametric to its bit count
+      e.g. From above, X -> 32 and Y -> 32
+
     ctx: Wrapper over useful typechecking objects (see deduce.DeduceCtx).
   """
 
@@ -59,7 +63,8 @@ class _ParametricInstantiator(object):
     self.arg_types = arg_types
     self.ctx = ctx
     self.symbolic_bindings = {}  # type: Dict[Text, int]
-    self.constraints = {}  # type: Dict[Text, Optional[ast.Expr]]
+    self.constraints = {}  # type: Dict[Text, (Optional[ast.Expr])]
+    self.bit_widths = {}  # type: Dict[Text, int]
 
     param_types = self.function_type.get_function_params()
     if len(self.arg_types) != len(param_types):
@@ -68,6 +73,8 @@ class _ParametricInstantiator(object):
                                   'Invocation of parametric function.')
     if parametric_constraints:
       for b in parametric_constraints:
+        bit_count = b.type_.primitive_to_bits()
+        self.bit_widths[b.name.identifier] = bit_count
         self.constraints[b.name.identifier] = b.expr
 
   def _verify_constraints(self) -> None:
@@ -89,9 +96,11 @@ class _ParametricInstantiator(object):
       try:
         fn_name, fn_symbolic_bindings = self.ctx.fn_stack[-1]
         fn_ctx = (self.ctx.module.name, fn_name, tuple(fn_symbolic_bindings.items()))
-        result = self.ctx.interp_callback(self.ctx.module,
+        result = self.ctx.interpret_expr(self.ctx.module,
                                           self.ctx.node_to_type,
-                                          self.symbolic_bindings, constraint,
+                                          self.symbolic_bindings,
+                                          self.bit_widths,
+                                          constraint,
                                           fn_ctx=fn_ctx)
       except KeyError as e:
         # We haven't seen enough bindings to evaluate this constraint

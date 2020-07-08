@@ -193,7 +193,7 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
     # with the symbolic bindings we just computed.
     if isinstance(map_fn_ref, ast.ModRef):
       imported_ctx = deduce.DeduceCtx(imported_node_to_type, imported_module,
-                                      ctx.interp_callback,
+                                      ctx.interpret_expr,
                                       ctx.check_function_in_module,
                                       parametric_fn_cache=ctx.parametric_fn_cache)
       imported_ctx.fn_stack.append((map_fn_name, dict(symbolic_bindings)))

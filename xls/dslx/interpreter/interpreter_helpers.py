@@ -15,22 +15,38 @@
 # limitations under the License.
 
 """Helper utilities for use with the interpreter.Interpreter."""
-from typing import Sequence, Tuple, Text, Optional
+from typing import Sequence, Tuple, Text, Optional, Dict
 from xls.dslx import ast
 from xls.dslx import deduce
 from xls.dslx.interpreter import interpreter
 
+SymbolicBindings = Tuple[Tuple[Text, int], ...]
+
 def interpret_expr(module: ast.Module, node_to_type: deduce.NodeToType,
-                   env: Sequence[Tuple[Text, int]],
+                   env: Dict[Text, int],
+                   bit_widths: Dict[Text, int],
                    expr: ast.Expr,
-                   f_import: Optional[deduce.ImportFn] = None,
-                   fn_ctx = None) -> int:
-  """Creates an Interpreter on-the-fly to evaluate expr with env"""
+                   f_import: Optional[deduce.ImportFn],
+                   fn_ctx = Tuple[Text, Text, SymbolicBindings]) -> int:
+  """Creates an Interpreter on-the-fly to evaluate expr.
+
+  Args:
+    module: The module that this expression is inside of.
+    node_to_type: Mapping from AST node to its deduced/checked type.
+    env: Mapping from symbols to their integer values.
+    bit_widths: Mapping from symbols to their bitwidths.
+    expr: Expression to evaluate using the values from env and top level
+      bindings (e.g. constants, other functions).
+    f_import: Import routine callback for the interpreter to use.
+    fn_ctx: The (module name, function name, symbolic bindings) we are
+      currently using.
+  """
   interp = interpreter.Interpreter(module, node_to_type, f_import=f_import)
   bindings = interp._make_top_level_bindings(module)
   bindings.fn_ctx = fn_ctx
   for ident, val in env.items():
-    bindings.add_value(ident, interpreter.Value.make_ubits(value=val,
-                                                           bit_count=32))
+    bindings.add_value(
+        ident,
+        interpreter.Value.make_ubits(value=val,bit_count=bit_widths[ident]))
   return interp.evaluate_expr(expr, bindings).bits_payload.value
 
