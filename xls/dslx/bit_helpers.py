@@ -17,6 +17,7 @@
 """Helper routines dealing with bits (in arbitrary-width integers)."""
 
 from typing import Iterable, Text, Optional, Tuple
+from xls.dslx.parametric_expression import ParametricExpression
 
 
 def to_zext_str(value: int, bit_count: int) -> Text:
@@ -181,22 +182,45 @@ def from_twos_complement(value: int, bit_count: int) -> int:
 
 
 def resolve_bit_slice_indices(bit_count: int, start: Optional[int],
-                              limit: Optional[int]) -> Tuple[int, int]:
+                              limit: Optional[int], resolved=None) -> Tuple[int, int]:
   """Returns (start, width), resolving indices via DSLX bit slice semantics."""
-  assert bit_count >= 0, bit_count
-  if start is None:
-    start = 0
-  if limit is None:
-    limit = bit_count
-  if start < 0:
-    start += bit_count
-  if limit < 0:
-    limit += bit_count
-  limit = min(max(limit, 0), bit_count)
-  start = min(max(start, 0), bit_count, limit)
-  assert start >= 0
-  assert limit >= start, (start, limit)
-  return (start, limit - start)
+  if isinstance(bit_count, ParametricExpression):
+    assert resolved >= 0, resolved
+    symbolic_start = None
+    symbolic_limit = None
+    if start is None:
+      start = symbolic_start = 0
+    if limit is None:
+      limit = resolved
+      symbolic_limit = bit_count
+    if start < 0:
+      start = start + resolved
+      symbolic_start = symbolic_start + bit_count
+    if limit < 0:
+      limit += resolved
+      symbolic_limit = symbolic_limit + bit_count
+    limit = min(max(limit, 0), resolved)
+    start = min(max(start, 0), resolved, limit)
+    assert start >= 0
+    assert limit >= start, (start, limit)
+    return (start, limit - start)
+
+    #print(start, limit, resolved, symbolic_start, symbolic_limit, bit_count)
+  else:
+    assert bit_count >= 0, bit_count
+    if start is None:
+      start = 0
+    if limit is None:
+      limit = bit_count
+    if start < 0:
+      start += bit_count
+    if limit < 0:
+      limit += bit_count
+    limit = min(max(limit, 0), bit_count)
+    start = min(max(start, 0), bit_count, limit)
+    assert start >= 0
+    assert limit >= start, (start, limit)
+    return (start, limit - start)
 
 
 def resolve_width_slice(bit_count: int, start: int,
