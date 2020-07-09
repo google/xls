@@ -899,6 +899,24 @@ proc simple(addend: u32) {
     self.assertIsInstance(attr.attr, ast.NameDef)
     self.assertEqual(attr.attr.identifier, 'x')
 
+  def test_struct_splat(self):
+    program = """
+    struct Point {
+      x: u32,
+      y: u32,
+    }
+    fn f(p: Point) -> Point {
+      Point { x: u32:42, ...p }
+    }
+    """
+    m = self.parse_module(program)
+    c = m.get_typedef_by_name()['Point']
+    self.assertIsInstance(c, ast.Struct)
+    attr = m.get_function_by_name()['f'].body
+    self.assertIsInstance(attr, ast.SplatStructInstance)
+    self.assertIsInstance(attr.splatted, ast.NameRef)
+    self.assertEqual(attr.splatted.identifier, 'p')
+
   def test_enum_with_type_on_value(self):
     program = """
     enum MyEnum : u2 {

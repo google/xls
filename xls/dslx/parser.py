@@ -275,10 +275,26 @@ class Parser(token_parser.TokenParser):
       e = self.parse_expression(bindings)
       return (tok.value, e)
 
-    members = self._parse_comma_seq(parse_struct_member, TokenKind.CBRACE)
-    limit_pos = self._get_pos()
-    span = Span(type_.span.start, limit_pos)
-    return ast.StructInstance(span, struct, members)
+    def get_span() -> Span:
+      limit_pos = self._get_pos()
+      return Span(type_.span.start, limit_pos)
+
+    members = []
+    must_end = False
+    while True:
+      if self._try_popt(TokenKind.CBRACE):
+        break
+      if must_end:
+        self._dropt_or_error(TokenKind.CBRACE, context='Closing brace for struct instance.')
+        break
+      if self._try_popt(TokenKind.ELLIPSIS):
+        splatted = self.parse_expression(bindings)
+        self._dropt_or_error(TokenKind.CBRACE, context='Closing brace after struct instance "splat" (ellipsis) expression.')
+        return ast.SplatStructInstance(get_span(), struct, members, splatted)
+      members.append(parse_struct_member())
+      must_end = not self._try_popt(TokenKind.COMMA)
+
+    return ast.StructInstance(get_span(), struct, members)
 
   def _parse_cast_or_struct_instance(self, bindings: Bindings) -> ast.Expr:
     logging.vlog(5, 'Parsing cast-or-struct-instance')

@@ -181,6 +181,11 @@ class Value:
         self.payload)
     return self.payload
 
+  def tuple_replace(self, i: int, v: 'Value') -> 'Value':
+    assert isinstance(v, Value), repr(v)
+    assert i < len(self.tuple_members), (i, len(self.tuple_members))
+    return Value.make_tuple(tuple(v if index == i else e for index, e in enumerate(self.tuple_members)))
+
   def is_tuple(self) -> bool:
     return self.tag == Tag.TUPLE
 

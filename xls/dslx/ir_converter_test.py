@@ -1475,6 +1475,30 @@ class IrConverterTest(absltest.TestCase):
         }
         """)
 
+  def test_splat_struct_instance(self):
+    m = self.parse_dsl_text("""\
+    struct Point {
+      x: u32,
+      y: u32,
+    }
+
+    fn f(p: Point, new_y: u32) -> Point {
+      Point { y: new_y, ...p }
+    }
+    """)
+    node_to_type = typecheck.check_module(m, f_import=None)
+    converted = ir_converter.convert_module(
+        m, node_to_type, emit_positions=False)
+    self.assert_ir_equals_and_parses(
+        converted, """\
+        package test_module
+
+        fn __test_module__f(p: (bits[32], bits[32]), new_y: bits[32]) -> (bits[32], bits[32]) {
+          tuple_index.3: bits[32] = tuple_index(p, index=0)
+          ret tuple.4: (bits[32], bits[32]) = tuple(tuple_index.3, new_y)
+        }
+        """)
+
 
 if __name__ == '__main__':
   absltest.main()

@@ -45,6 +45,7 @@ from xls.dslx.leaf_ast_nodes import Carry
 from xls.dslx.leaf_ast_nodes import Cast
 from xls.dslx.leaf_ast_nodes import Constant
 from xls.dslx.leaf_ast_nodes import ConstantArray
+from xls.dslx.leaf_ast_nodes import SplatStructInstance
 from xls.dslx.leaf_ast_nodes import For
 from xls.dslx.leaf_ast_nodes import Function
 from xls.dslx.leaf_ast_nodes import Index
@@ -61,6 +62,7 @@ from xls.dslx.leaf_ast_nodes import Proc
 from xls.dslx.leaf_ast_nodes import Slice
 from xls.dslx.leaf_ast_nodes import Struct
 from xls.dslx.leaf_ast_nodes import StructInstance
+from xls.dslx.leaf_ast_nodes import StructInstanceMembers
 from xls.dslx.leaf_ast_nodes import Test
 from xls.dslx.leaf_ast_nodes import Unop
 from xls.dslx.leaf_ast_nodes import While
