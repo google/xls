@@ -421,11 +421,6 @@ class _IrConverterFb(ast.AstVisitor):
         return self._visit_width_slice(node, index_slice, lhs_type)
       assert isinstance(index_slice, ast.Slice), index_slice
 
-      def extract_maybe_number(n: Optional[ast.Number]) -> Optional[int]:
-        if n is None:
-          return None
-        return n.get_value_as_int()
-
       # print(node, self.node_to_type[node])
       bit_count = self._resolve_dim(lhs_type.get_total_bit_count())
       # start = extract_maybe_number(index_slice.start)
@@ -433,8 +428,12 @@ class _IrConverterFb(ast.AstVisitor):
       # start, width = bit_helpers.resolve_bit_slice_indices(
       #     bit_count, start, limit)
       start = node.index.computed_start
+      if isinstance(start, ParametricExpression):
+        start = start.evaluate(self.symbolic_bindings)
       assert start is not None
       width = node.index.computed_width
+      if isinstance(width, ParametricExpression):
+        width = width.evaluate(self.symbolic_bindings)
       assert width
       self._def(node, self.fb.add_bit_slice, self._use(node.lhs), start, width)
     else:

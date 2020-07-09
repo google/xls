@@ -55,6 +55,10 @@ class ParametricExpression(object):  # pytype: disable=ignored-metaclass
       assert isinstance(other, ParametricExpression), other
       return ParametricAdd(self, other)
 
+  def __sub__(self, other: 'ParametricExpression') -> 'ParametricAdd':
+    assert isinstance(other, ParametricExpression), other
+    return ParametricSub(self, other)
+
   @abc.abstractmethod
   def __eq__(self, other: 'ParametricExpression'):
     raise NotImplementedError

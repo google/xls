@@ -182,12 +182,14 @@ def from_twos_complement(value: int, bit_count: int) -> int:
 
 
 def resolve_bit_slice_indices(bit_count: int, start: Optional[int],
-                              limit: Optional[int], resolved=None) -> Tuple[int, int]:
+                              limit: Optional[int], bindings=None) -> Tuple[int, int]:
   """Returns (start, width), resolving indices via DSLX bit slice semantics."""
   if isinstance(bit_count, ParametricExpression):
+    print(bindings)
+    resolved = bit_count.evaluate(bindings)
     assert resolved >= 0, resolved
-    symbolic_start = None
-    symbolic_limit = None
+    symbolic_start = start
+    symbolic_limit = limit
     if start is None:
       start = symbolic_start = 0
     if limit is None:
@@ -200,10 +202,22 @@ def resolve_bit_slice_indices(bit_count: int, start: Optional[int],
       limit += resolved
       symbolic_limit = symbolic_limit + bit_count
     limit = min(max(limit, 0), resolved)
+    if limit == resolved:
+      symbolic_limit = bit_count
+    elif limit == 0:
+      symbolic_limit = 0
     start = min(max(start, 0), resolved, limit)
+    if start == resolved:
+      symbolic_start = bit_count
+    elif start == limit:
+      symbolic_start = symbolic_limit
+    elif start == 0:
+      symbolic_start = 0
+
     assert start >= 0
     assert limit >= start, (start, limit)
-    return (start, limit - start)
+    print("[",symbolic_start,":", symbolic_limit, "]")
+    return (symbolic_start, symbolic_limit - symbolic_start)
 
     #print(start, limit, resolved, symbolic_start, symbolic_limit, bit_count)
   else:
