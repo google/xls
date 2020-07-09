@@ -428,10 +428,14 @@ class _IrConverterFb(ast.AstVisitor):
 
       # print(node, self.node_to_type[node])
       bit_count = self._resolve_dim(lhs_type.get_total_bit_count())
-      start = extract_maybe_number(index_slice.start)
-      limit = extract_maybe_number(index_slice.limit)
-      start, width = bit_helpers.resolve_bit_slice_indices(
-          bit_count, start, limit)
+      # start = extract_maybe_number(index_slice.start)
+      # limit = extract_maybe_number(index_slice.limit)
+      # start, width = bit_helpers.resolve_bit_slice_indices(
+      #     bit_count, start, limit)
+      start = node.index.computed_start
+      assert start is not None
+      width = node.index.computed_width
+      assert width
       self._def(node, self.fb.add_bit_slice, self._use(node.lhs), start, width)
     else:
       self._def(node, self.fb.add_array_index, self._use(node.lhs),

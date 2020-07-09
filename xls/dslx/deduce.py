@@ -467,6 +467,8 @@ def _deduce_slice_type(self: ast.Index, ctx: DeduceCtx,
 
   # print(self, bit_count, start, limit)
   start, width = bit_helpers.resolve_bit_slice_indices(bit_count, start, limit, resolve(lhs_type, ctx).get_total_bit_count())
+  index_slice.computed_start = start
+  index_slice.computed_width = width
   return BitsType(signed=False, size=width)
 
 

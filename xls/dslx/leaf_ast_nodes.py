@@ -482,6 +482,8 @@ class Slice(AstNode):
     self.span = span
     self.start = start
     self.limit = limit
+    self.computed_start = None
+    self.computed_width = None
 
   def __str__(self) -> Text:
     if self.start and self.limit:
