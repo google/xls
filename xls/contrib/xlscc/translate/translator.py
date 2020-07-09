@@ -903,15 +903,10 @@ class Translator(object):
                                              int(offset_expr.value),
                                              width,
                                              loc)
-            else:
+            else :
               offset_val, offset_type = self.gen_expr_ir(offset_expr, condition)
               assert isinstance(offset_type, IntType)
-              shift_fb = self.fb.add_shrl(left_fb, offset_val)
-              ret_fb = self.fb.add_bit_slice(shift_fb,
-                                             0,   # Already shifted
-                                             width,
-                                             loc)
-
+              ret_fb = self.fb.add_dynamic_bit_slice(left_fb, offset_val, width, loc)
             return ret_fb, IntType(width, left_type.signed, False)
           else:
             raise NotImplementedError("Unknown non-template function on int",
@@ -919,12 +914,14 @@ class Translator(object):
         elif template_ast == "set_slc":
           assert len(stmt_ast.args.exprs) == 2
           offset_ast = stmt_ast.args.exprs[0]
-          assert isinstance(offset_ast, c_ast.Constant)
-          offset, offset_type = parse_constant(offset_ast)
+          if isinstance(offset_ast, c_ast.Constant):
+            offset, offset_type = parse_constant(offset_ast)
+          else:
+            offset, offset_type = self.gen_expr_ir(offset_ast, condition)
+
           assert isinstance(offset_type, IntType)
           value_expr, value_type = self.gen_expr_ir(stmt_ast.args.exprs[1],
                                                     condition)
-
           # Check rvalue type
           assert isinstance(value_type, IntType)
           assert not value_type.native
@@ -934,18 +931,30 @@ class Translator(object):
 
           concat_list = [value_expr]
 
-          if offset > 0:
-            concat_list.append(
-                self.fb.add_bit_slice(l_o_value, 0, offset, loc))
-
-          right_hand_bits = l_o_type.bit_width - (
-              offset + value_type.bit_width)
-          if right_hand_bits > 0:
-            concat_list.insert(
-                0,
-                self.fb.add_bit_slice(l_o_value,
-                                      offset + value_type.bit_width,
-                                      right_hand_bits, loc))
+          if isinstance(offset, int):
+            if offset > 0:
+               concat_list.append(
+                   self.fb.add_bit_slice(l_o_value, 0, offset,  loc))
+            right_hand_bits = l_o_type.bit_width - (
+                  offset + value_type.bit_width)
+            if right_hand_bits > 0:
+              concat_list.insert(
+                    0,
+                    self.fb.add_bit_slice(l_o_value,
+                                  offset + value_type.bit_width,
+                                  right_hand_bits, loc))
+          else:
+            ext_slice = self.fb.add_zeroext(value_expr, l_o_type.bit_width, loc)
+            shift_slice = self.fb.add_shll(ext_slice, offset, loc)
+            mask = self.fb.add_literal_bits(
+                bits_mod.UBits(value=0, bit_count=value_type.bit_width), loc)
+            mask = self.fb.add_not(mask, loc)
+            ext_mask = self.fb.add_zeroext(mask, l_o_type.bit_width, loc)
+            shift_mask = self.fb.add_shll(ext_mask, offset, loc)
+            shift_zero_mask = self.fb.add_not(shift_mask, loc)
+            mask_l_o_val = self.fb.add_and(l_o_value, shift_zero_mask, loc)
+            slice_l_o_val = self.fb.add_or(mask_l_o_val, shift_slice, loc)
+            concat_list = [slice_l_o_val]
 
           r_expr = self.fb.add_concat(concat_list, loc)
           r_type = IntType(l_o_type.bit_width, l_o_type.signed, False)
