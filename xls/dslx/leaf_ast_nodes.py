@@ -313,7 +313,7 @@ class SplatStructInstance(Expr):
   Attributes:
     struct: The struct being instantiated.
     members: Sequence of members being changed from the splatted original; e.g.
-      in `Point { y: new_y, ...orig_p }` this is `[('y', new_y)]`.
+      in `Point { y: new_y, ..orig_p }` this is `[('y', new_y)]`.
     splatted: Expression that's used as the original struct instance (that
       we're instantiating a delta from); e.g. `orig_p` in the example above.
   """
