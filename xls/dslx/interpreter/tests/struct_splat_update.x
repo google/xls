@@ -5,7 +5,7 @@ struct Point3 {
 }
 
 fn update_y(p: Point3, new_y: u32) -> Point3 {
-  Point3 { y: new_y, ...p }
+  Point3 { y: new_y, ..p }
 }
 
 fn main() -> Point3 {

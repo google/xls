@@ -906,7 +906,7 @@ proc simple(addend: u32) {
       y: u32,
     }
     fn f(p: Point) -> Point {
-      Point { x: u32:42, ...p }
+      Point { x: u32:42, ..p }
     }
     """
     m = self.parse_module(program)

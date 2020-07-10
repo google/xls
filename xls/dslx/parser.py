@@ -287,9 +287,9 @@ class Parser(token_parser.TokenParser):
       if must_end:
         self._dropt_or_error(TokenKind.CBRACE, context='Closing brace for struct instance.')
         break
-      if self._try_popt(TokenKind.ELLIPSIS):
+      if self._try_popt(TokenKind.DOUBLE_DOT):
         splatted = self.parse_expression(bindings)
-        self._dropt_or_error(TokenKind.CBRACE, context='Closing brace after struct instance "splat" (ellipsis) expression.')
+        self._dropt_or_error(TokenKind.CBRACE, context='Closing brace after struct instance "splat" (..) expression.')
         return ast.SplatStructInstance(get_span(), struct, members, splatted)
       members.append(parse_struct_member())
       must_end = not self._try_popt(TokenKind.COMMA)

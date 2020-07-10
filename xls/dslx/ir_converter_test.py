@@ -1483,7 +1483,7 @@ class IrConverterTest(absltest.TestCase):
     }
 
     fn f(p: Point, new_y: u32) -> Point {
-      Point { y: new_y, ...p }
+      Point { y: new_y, ..p }
     }
     """)
     node_to_type = typecheck.check_module(m, f_import=None)
