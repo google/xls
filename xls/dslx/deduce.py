@@ -420,8 +420,10 @@ def _deduce_slice_type(self: ast.Index, ctx: DeduceCtx,
     start = index_slice.start
     if isinstance(start, ast.Number) and start.type_ is None:
       start_type = lhs_type.to_ubits()
+      resolved_start_type = resolve(start_type, ctx)
+      print("start_type:", resolved_start_type, "start", start)
       if not bit_helpers.fits_in_bits(start.get_value_as_int(),
-                                      start_type.get_total_bit_count()):
+                                      resolved_start_type.get_total_bit_count()):
         raise TypeInferenceError(
             start.span, start_type,
             'Cannot fit {} value in {} bits (inferred from bits to slice).')
