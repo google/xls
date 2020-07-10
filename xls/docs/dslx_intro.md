@@ -368,9 +368,19 @@ test main {
 }
 ```
 
-Syntax for conveniently producing a new value with a single field updated to
-"feel" like the convenience of mutation is in development. TODO(leary)
-2019-12-02
+The DSL has syntax for conveniently producing a new value with a subset of
+fields updated to "feel" like the convenience of mutation. The "struct update"
+syntax is:
+
+```
+fn update_y(p: Point3) -> Point3 {
+  Point3 { y: u32:42, ..p }
+}
+
+fn update_x_and_y(p: Point3) -> Point3 {
+  Point3 { x: u32:42, y: u32:42, ..p }
+}
+```
 
 Note that structs are not compatible with other structs that happen to have the
 same definition (this is called "nominal typing"). For example:
