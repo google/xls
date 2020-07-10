@@ -95,7 +95,8 @@ class _ParametricInstantiator(object):
         continue
       try:
         fn_name, fn_symbolic_bindings = self.ctx.fn_stack[-1]
-        fn_ctx = (self.ctx.module.name, fn_name, tuple(fn_symbolic_bindings.items()))
+        fn_ctx = (self.ctx.module.name, fn_name,
+                  tuple(fn_symbolic_bindings.items()))
         result = self.ctx.interpret_expr(self.ctx.module,
                                           self.ctx.node_to_type,
                                           self.symbolic_bindings,
@@ -103,7 +104,7 @@ class _ParametricInstantiator(object):
                                           constraint,
                                           fn_ctx=fn_ctx)
       except KeyError as e:
-        # We haven't seen enough bindings to evaluate this constraint
+        # We haven't seen enough bindings to evaluate this constraint.
         continue
 
       if binding in self.symbolic_bindings.keys():
@@ -132,17 +133,17 @@ class _ParametricInstantiator(object):
     if (pdim_name in self.symbolic_bindings and
             self.symbolic_bindings[pdim_name] != arg_dim):
       if self.constraints[pdim_name]:
-        # Violated constraint
+        # Error on violated constraint.
         raise XlsTypeError(
             self.span,
             BitsType(signed=False, size=self.symbolic_bindings[pdim_name]),
             arg_type,
-            suffix=(f"Parametric constraint violated, saw {pdim_name} "
-                    f"= {self.constraints[pdim_name]} "
-                    f"= {self.symbolic_bindings[pdim_name]}; "
-                    f"then {pdim_name} = {arg_dim}"))
+            suffix=f"Parametric constraint violated, saw {pdim_name} "
+                   f"= {self.constraints[pdim_name]} "
+                   f"= {self.symbolic_bindings[pdim_name]}; "
+                   f"then {pdim_name} = {arg_dim}")
       else:
-        # Conflicting argument types
+        # Error on conflicting argument types.
         raise XlsTypeError(
             self.span,
             param_type,

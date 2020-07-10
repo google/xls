@@ -21,6 +21,7 @@ from typing import Text, Callable, List, Union, Optional, Dict, Set, cast
 from xls.dslx import ast
 from xls.dslx.interpreter.value import Value
 from xls.dslx.span import Span
+from xls.dslx.parametric_instantiator import SymbolicBindings
 
 InterpreterFn = Callable[[List[Value], Span, ast.Invocation], Value]
 BindingEntry = Union[Value, InterpreterFn, ast.TypeDef, ast.Enum, ast.Struct,
@@ -34,12 +35,18 @@ class Bindings(object):
   of bindings when you enter a new binding scope; e.g. new bindings may be
   created in a loop body that you want to discard when you proceed past the loop
   body.
+
+  Attributes:
+    _parent: Bindings from the outer scope (see description for example).
+    _map: Maps an identifier to its Value
+    fn_ctx: The current (module name, function name, symbolic bindings) that
+      these Bindings are being used with.
   """
 
   def __init__(self, parent: Optional['Bindings'] = None):
     self._parent = parent
     self._map = {}  # type: Dict[Text, BindingEntry]
-    self.fn_ctx = None # type: Optional[Tuple]
+    self.fn_ctx = None # type: Optional[Tuple[Text, Text, SymbolicBindings]]
 
   def add_value(self, identifier: Text, value: Value):
     self._map[identifier] = value

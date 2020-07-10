@@ -172,5 +172,4 @@ def get_order(
 
     _add_to_ready(ready, imports, function, module, bindings=())
 
-
   return ready

@@ -111,6 +111,7 @@ py_library(
         ":value",
         "//xls/dslx:ast",
         "//xls/dslx:span",
+	"//xls/dslx:parametric_instantiator"
     ],
 )
 

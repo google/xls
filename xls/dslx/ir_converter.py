@@ -86,6 +86,7 @@ class _IrConverterFb(ast.AstVisitor):
       has (as free variables); noted via add_constant_dep().
     emit_positions: Whether or not we should emit position data based on the AST
       node source positions.
+    dslx_name: The name of the DSLX function that's currently being translated.
   """
 
   def __init__(self, package: ir_package.Package, module: ast.Module,
@@ -676,6 +677,19 @@ class _IrConverterFb(ast.AstVisitor):
     suffix = '_'.join(str(self._resolve_dim(v)) for _, v in symbolic_bindings)
     return '__{}__{}__{}'.format(mod_name, function_name, suffix)
 
+  def _get_invocation_bindings(self,
+                               invocation: ast.Invocation) -> SymbolicBindings:
+    """Returns the symbolic bindings of the invocation.
+
+    We must provide the current evaluation context (module name, function name,
+    symbolic bindings) in order to retrieve the correct symbolic bindings to use
+    in the invocation.
+    """
+
+    key = (self.module.name, self.dslx_name,
+           tuple(self.symbolic_bindings.items()))
+    return invocation.symbolic_bindings.get(key, ())
+
   def _get_callee_identifier(self, node: ast.Invocation) -> Text:
     logging.vlog(3, 'Getting callee identifier for invocation: %s', node)
     if isinstance(node.callee, ast.NameRef):
@@ -697,14 +711,10 @@ class _IrConverterFb(ast.AstVisitor):
       return self._get_mangled_name(function.name.identifier,
                                     function.get_free_parametric_keys(), m,
                                     None)
-    resolved_symbolic_bindings = node.symbolic_bindings.get((self.module.name,
-                                        self.dslx_name,
-                                        tuple(self.symbolic_bindings.items())),
-                                        ())
-
+    resolved_symbolic_bindings = self._get_invocation_bindings(node)
     logging.vlog(2, 'Node %s @ %s symbolic bindings %r', node, node.span,
                  resolved_symbolic_bindings)
-    assert len(resolved_symbolic_bindings), node
+    assert resolved_symbolic_bindings, node
     return self._get_mangled_name(function.name.identifier,
                                   function.get_free_parametric_keys(), m,
                                   resolved_symbolic_bindings)
@@ -740,9 +750,7 @@ class _IrConverterFb(ast.AstVisitor):
       map_fn_name = fn_node.name_def.identifier
       if map_fn_name in dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
         return self._def_map_with_builtin(node, fn_node, node.args[0],
-            node.symbolic_bindings.get((self.module.name, self.dslx_name,
-                        tuple(self.symbolic_bindings.items())), ()))
-
+                                          self._get_invocation_bindings(node))
       else:
         lookup_module = self.module
         fn = lookup_module.get_function(map_fn_name)
@@ -755,9 +763,7 @@ class _IrConverterFb(ast.AstVisitor):
       raise NotImplementedError(
           'Unhandled function mapping: {!r}'.format(fn_node))
 
-    node_sym_bindings = node.symbolic_bindings.get((
-          self.module.name, self.dslx_name,
-          tuple(self.symbolic_bindings.items())), ())
+    node_sym_bindings = self._get_invocation_bindings(node)
     mangled_name = self._get_mangled_name(fn.name,
                                           fn.get_free_parametric_keys(),
                                           lookup_module, node_sym_bindings)

@@ -28,7 +28,7 @@ def interpret_expr(module: ast.Module, node_to_type: deduce.NodeToType,
                    expr: ast.Expr,
                    f_import: Optional[deduce.ImportFn],
                    fn_ctx = Tuple[Text, Text, SymbolicBindings]) -> int:
-  """Creates an Interpreter on-the-fly to evaluate expr.
+  """Interprets expr using env and module's top level bindings.
 
   Args:
     module: The module that this expression is inside of.

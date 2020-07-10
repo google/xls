@@ -18,6 +18,7 @@
 
 from typing import Dict, Optional, Text, Tuple, Union, Callable, List
 import copy
+from dataclasses import dataclass
 import functools
 
 from absl import logging
@@ -62,7 +63,7 @@ def _check_function_params(f: Function,
 
   return param_types
 
-def _check_function(f: Function, ctx: deduce.DeduceCtx):
+def _check_function(f: Function, ctx: deduce.DeduceCtx) -> None:
   """Validates type annotations on parameters/return type of f are consistent.
 
   Args:
@@ -208,14 +209,26 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
 
   return None
 
-# (fn/test name, isinstance(ast.Test), node->type)
-StackRecordType = Tuple[Text, bool, Optional[Dict[ast.AstNode, ConcreteType]]]
+@dataclass
+class _TypecheckStackRecord:
+  """A wrapper over information used to typecheck a test/function.
+
+  Attributes:
+    name: The name of this test/function.
+    is_test: Flag indicating whether or not this record is for a test.
+    node_types: Maps a node to its deduced type. Used to store a 'before'
+      image of deduced nodes to use as a comparison after a parametric function
+      body is typechecked (see _make_record for more details).
+  """
+  name: Text
+  is_test: bool
+  node_types: Optional[Dict[ast.AstNode, ConcreteType]] = None
 
 def _make_record(f: Union[Function, ast.Test],
-                 ctx: deduce.DeduceCtx) -> StackRecordType:
-  """Creates a tuple with information for typechecking functions/tests
+                 ctx: deduce.DeduceCtx) -> _TypecheckStackRecord:
+  """Creates a _TypecheckStackRecord for typechecking functions/tests.
 
-  The third item in the tuple will optionally carry the contents of
+  The optional third field in the record will carry the contents of
   ctx.node_to_type._dict at the time of record creation. If this record is
   for typechecking the body of a parametric function for the first time,
   we'll use the before-version of ctx.node_to_type._dict to determine the
@@ -229,7 +242,8 @@ def _make_record(f: Union[Function, ast.Test],
         # Let's store what ctx.node_to_type looked like before so we know
         # what this function's dependencies are.
         previous_node_types = copy.copy(ctx.node_to_type._dict)
-        rec = (f.name.identifier, False, previous_node_types)
+        rec = _TypecheckStackRecord(f.name.identifier, False,
+                                    previous_node_types)
       else:
         # We've previously evaluated the body of this parametric fn.
         # Let's remove the types we found so that they are reevaluated
@@ -240,11 +254,11 @@ def _make_record(f: Union[Function, ast.Test],
         # Assert that the body will be reevaluated
         assert not f.body in without_deps_dict
         ctx.node_to_type._dict = without_deps_dict
-        rec = (f.name.identifier, False, None)
+        rec = _TypecheckStackRecord(f.name.identifier, False)
     else:
-      rec = (f.name.identifier, False, None)
+      rec = _TypecheckStackRecord(f.name.identifier, False)
   else:
-    rec = (f.name.identifier, True, None)
+    rec = _TypecheckStackRecord(f.name.identifier, True)
 
   return rec
 
@@ -269,12 +283,12 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
       (f.name.identifier, isinstance(f, ast.Test)): (f, True)
   }  # type: Dict[Tuple[Text, bool], Tuple[Union[Function, ast.Test], bool]]
 
-  stack = [_make_record(f, ctx)]
+  stack = [_make_record(f, ctx)]  # type: List[_TypecheckStackRecord]
 
   function_map = {f.name.identifier: f for f in ctx.module.get_functions()}
   while stack:
     try:
-      f = seen[stack[-1][:2]][0]
+      f = seen[(stack[-1].name, stack[-1].is_test)][0]
       if isinstance(f, ast.Function):
         _check_function(f, ctx)
       else:
@@ -290,13 +304,13 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
         # We just evaluated the body of a parametric function for the first
         # time. Let's compute its dependencies so that we know which nodes to
         # recheck if we see another invocation of this parametric function.
-        previous_node_types = stack_record[2]
+        previous_node_types = stack_record.node_types
         assert previous_node_types
         deps = {n:ctx.node_to_type[n] for n in
                 set(ctx.node_to_type._dict) - set(previous_node_types)}
         ctx.parametric_fn_cache[(ctx.module.name, f)] = deps
 
-      if stack_record[0] == fn_name:
+      if stack_record.name == fn_name:
         # i.e. we just finished typechecking the body of the function we're
         # currently inside of.
         ctx.fn_stack.pop()
