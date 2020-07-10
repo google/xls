@@ -99,8 +99,8 @@ xabsl::StatusOr<bool> ReassociationPass::RunOnFunction(
     // Only reassociate arithmetic operations. Logical operations can
     // theoretically be reassociated, but they are better handled by collapsing
     // into a single operation as logical operations are n-ary.
-    if (node->op() != Op::kAdd && node->op() != Op::kUMul &&
-        node->op() != Op::kSMul) {
+    if (node->op() != OP_ADD && node->op() != OP_UMUL &&
+        node->op() != OP_SMUL) {
       continue;
     }
     std::vector<Node*> leaves;

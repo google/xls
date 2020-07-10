@@ -177,7 +177,7 @@ class AbstractEvaluator {
                         /*selector_can_be_zero=*/false);
   }
 
-  // Performs an operation equivalent to the XLS IR Op::kOneHot
+  // Performs an operation equivalent to the XLS IR OP_ONE_HOT
   // operation. OneHotMsbToLsb uses priority LsbOrMsb::kLsb, OneHotMsbToLsb uses
   // priority LsbOrMsb::kMsb
   Vector OneHotMsbToLsb(const Vector& input) {

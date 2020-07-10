@@ -35,19 +35,19 @@ namespace {
 std::string SelectorToString(Node* node) {
   std::string op;
   switch (node->op()) {
-    case (Op::kEq):
+    case (OP_EQ):
       op = "==";
       break;
-    case (Op::kULt):
+    case (OP_ULT):
       op = "<";
       break;
-    case (Op::kUGt):
+    case (OP_UGT):
       op = ">";
       break;
-    case (Op::kULe):
+    case (OP_ULE):
       op = "<=";
       break;
-    case (Op::kUGe):
+    case (OP_UGE):
       op = ">=";
       break;
     default:
@@ -141,7 +141,7 @@ xabsl::StatusOr<bool> CollapseSelectChains(Function* f,
       XLS_VLOG(4) << "All selectors may be false.";
       XLS_ASSIGN_OR_RETURN(Node * nor_of_selectors,
                            node->function()->MakeNode<NaryOp>(
-                               node->loc(), std::vector{selectors}, Op::kNor));
+                               node->loc(), std::vector{selectors}, OP_NOR));
       selectors.push_back(nor_of_selectors);
       cases.push_back(select_chain.back()->cases()[0]);
     }
@@ -295,7 +295,7 @@ xabsl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
             Value(UBits(0, /*bit_count=*/node->operand(0)->BitCountOrDie()))));
     XLS_ASSIGN_OR_RETURN(Node * operand_eq_zero,
                          node->function()->MakeNode<CompareOp>(
-                             node->loc(), node->operand(0), zero, Op::kEq));
+                             node->loc(), node->operand(0), zero, OP_EQ));
     XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<Concat>(
                                 std::vector{operand_eq_zero, node->operand(0)})
                             .status());

@@ -40,7 +40,7 @@ ret add.3: bits[32] = add(x, y)
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_clone, func->Clone("foobar"));
   EXPECT_EQ(func_clone->name(), "foobar");
   EXPECT_EQ(func_clone->node_count(), 3);
-  EXPECT_EQ(func_clone->return_value()->op(), Op::kAdd);
+  EXPECT_EQ(func_clone->return_value()->op(), OP_ADD);
 }
 
 TEST_F(FunctionTest, DumpIrWhenParamIsRetval) {
@@ -160,7 +160,7 @@ fn id(x: bits[16], y: bits[32]) -> bits[16] {
   EXPECT_THAT(
       func->MakeNode<NaryOp>(
           FindNode("x", &p)->loc(),
-          std::vector<Node*>{FindNode("x", &p), FindNode("y", &p)}, Op::kXor),
+          std::vector<Node*>{FindNode("x", &p), FindNode("y", &p)}, OP_XOR),
       StatusIs(absl::StatusCode::kInternal,
                HasSubstr("Type of operand 1 (bits[32] via y) does not "
                          "match type of xor")));

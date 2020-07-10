@@ -60,7 +60,7 @@ class StandardPipelineTest : public IrTestBase {
     XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(xls_func, p.get()));
     ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
     EXPECT_EQ(f->return_value()->op(), op);
-    EXPECT_EQ(f->return_value()->operand(1)->op(), Op::kLiteral);
+    EXPECT_EQ(f->return_value()->operand(1)->op(), OP_LITERAL);
     EXPECT_EQ(f->return_value()->operand(1)->As<Literal>()->value().bits(),
               UBits(value, 8));
   }
@@ -81,7 +81,7 @@ class StandardPipelineTest : public IrTestBase {
     XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(xls_func, p.get()));
     ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
     EXPECT_EQ(f->return_value()->op(), op1);
-    EXPECT_EQ(f->return_value()->operand(1)->op(), Op::kLiteral);
+    EXPECT_EQ(f->return_value()->operand(1)->op(), OP_LITERAL);
     EXPECT_EQ(f->return_value()->operand(1)->As<Literal>()->value().bits(),
               SBits(value, 8));
   }
@@ -177,23 +177,23 @@ TEST_F(StandardPipelineTest, DoubleNeg) {
 }
 
 TEST_F(StandardPipelineTest, AssociateAdd) {
-  TestAssociativeWithConstants("add", Op::kAdd, 7 + 12);
+  TestAssociativeWithConstants("add", OP_ADD, 7 + 12);
 }
 
 TEST_F(StandardPipelineTest, AssociateXor) {
-  TestAssociativeWithConstants("xor", Op::kXor, 7 ^ 12);
+  TestAssociativeWithConstants("xor", OP_XOR, 7 ^ 12);
 }
 
 TEST_F(StandardPipelineTest, SubSubTest) {
-  TestAddSubWithConstants("sub", Op::kAdd, "sub", -7 - 12);
+  TestAddSubWithConstants("sub", OP_ADD, "sub", -7 - 12);
 }
 
 TEST_F(StandardPipelineTest, SubAddTest) {
-  TestAddSubWithConstants("sub", Op::kAdd, "add", 12 - 7);
+  TestAddSubWithConstants("sub", OP_ADD, "add", 12 - 7);
 }
 
 TEST_F(StandardPipelineTest, AddSubTest) {
-  TestAddSubWithConstants("add", Op::kAdd, "sub", 7 - 12);
+  TestAddSubWithConstants("add", OP_ADD, "sub", 7 - 12);
 }
 
 TEST_F(StandardPipelineTest, IdentityRemovalFromParam) {
@@ -236,7 +236,7 @@ TEST_F(StandardPipelineTest, MultiplyBy16StrengthReduction) {
      }
   )",
                                                        p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kUMul);
+  EXPECT_EQ(f->return_value()->op(), OP_UMUL);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Concat());
 }

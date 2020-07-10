@@ -297,7 +297,7 @@ TEST_F(SelectSimplificationPassTest, OneBitMux) {
      }
   )",
                                                        p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kSel);
+  EXPECT_EQ(f->return_value()->op(), OP_SEL);
 
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
@@ -315,7 +315,7 @@ TEST_F(SelectSimplificationPassTest, SignExtMux) {
      }
   )",
                                                        p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kSel);
+  EXPECT_EQ(f->return_value()->op(), OP_SEL);
 
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
@@ -333,7 +333,7 @@ TEST_F(SelectSimplificationPassTest, SignExtMuxNegated) {
      }
   )",
                                                        p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kSel);
+  EXPECT_EQ(f->return_value()->op(), OP_SEL);
 
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),

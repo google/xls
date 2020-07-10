@@ -40,10 +40,10 @@ class TestDelayEstimator : public DelayEstimator {
  public:
   xabsl::StatusOr<int64> GetOperationDelayInPs(Node* node) const override {
     switch (node->op()) {
-      case Op::kParam:
-      case Op::kLiteral:
-      case Op::kBitSlice:
-      case Op::kConcat:
+      case OP_PARAM:
+      case OP_LITERAL:
+      case OP_BIT_SLICE:
+      case OP_CONCAT:
         return 0;
       default:
         return 1;
@@ -192,10 +192,10 @@ TEST_F(PipelineScheduleTest, JustClockPeriodGiven) {
 
   EXPECT_EQ(schedule.length(), 3);
   EXPECT_THAT(scheduled_ops(0),
-              UnorderedElementsAre(Op::kParam, Op::kOr, Op::kNot));
-  EXPECT_THAT(scheduled_ops(1), UnorderedElementsAre(Op::kUMul, Op::kSub));
+              UnorderedElementsAre(OP_PARAM, OP_OR, OP_NOT));
+  EXPECT_THAT(scheduled_ops(1), UnorderedElementsAre(OP_UMUL, OP_SUB));
   EXPECT_THAT(scheduled_ops(2),
-              UnorderedElementsAre(Op::kAdd, Op::kNeg, Op::kConcat));
+              UnorderedElementsAre(OP_ADD, OP_NEG, OP_CONCAT));
   EXPECT_THAT(scheduled_ops(3), UnorderedElementsAre());
 }
 
@@ -255,11 +255,11 @@ TEST_F(PipelineScheduleTest, ClockPeriodAndPipelineLengthGiven) {
 
   EXPECT_EQ(schedule.length(), 4);
   EXPECT_THAT(scheduled_ops(0),
-              UnorderedElementsAre(Op::kParam, Op::kOr, Op::kNeg));
-  EXPECT_THAT(scheduled_ops(1), UnorderedElementsAre(Op::kNot, Op::kSub));
-  EXPECT_THAT(scheduled_ops(2), UnorderedElementsAre(Op::kUMul));
+              UnorderedElementsAre(OP_PARAM, OP_OR, OP_NEG));
+  EXPECT_THAT(scheduled_ops(1), UnorderedElementsAre(OP_NOT, OP_SUB));
+  EXPECT_THAT(scheduled_ops(2), UnorderedElementsAre(OP_UMUL));
   EXPECT_THAT(scheduled_ops(3),
-              UnorderedElementsAre(Op::kConcat, Op::kNeg, Op::kAdd));
+              UnorderedElementsAre(OP_CONCAT, OP_NEG, OP_ADD));
 }
 
 TEST_F(PipelineScheduleTest, JustPipelineLengthGiven) {
@@ -292,12 +292,12 @@ TEST_F(PipelineScheduleTest, JustPipelineLengthGiven) {
   // The maximum delay of any stage should be minimum feasible value. In this
   // case it is 1ps, which means there should be no dependent instructions in
   // single cycle.
-  EXPECT_THAT(scheduled_ops(0), UnorderedElementsAre(Op::kParam, Op::kOr));
-  EXPECT_THAT(scheduled_ops(1), UnorderedElementsAre(Op::kNeg));
-  EXPECT_THAT(scheduled_ops(2), UnorderedElementsAre(Op::kNot));
-  EXPECT_THAT(scheduled_ops(3), UnorderedElementsAre(Op::kSub));
-  EXPECT_THAT(scheduled_ops(4), UnorderedElementsAre(Op::kUMul, Op::kAdd));
-  EXPECT_THAT(scheduled_ops(5), UnorderedElementsAre(Op::kConcat, Op::kNeg));
+  EXPECT_THAT(scheduled_ops(0), UnorderedElementsAre(OP_PARAM, OP_OR));
+  EXPECT_THAT(scheduled_ops(1), UnorderedElementsAre(OP_NEG));
+  EXPECT_THAT(scheduled_ops(2), UnorderedElementsAre(OP_NOT));
+  EXPECT_THAT(scheduled_ops(3), UnorderedElementsAre(OP_SUB));
+  EXPECT_THAT(scheduled_ops(4), UnorderedElementsAre(OP_UMUL, OP_ADD));
+  EXPECT_THAT(scheduled_ops(5), UnorderedElementsAre(OP_CONCAT, OP_NEG));
 }
 
 TEST_F(PipelineScheduleTest, LongPipelineLength) {

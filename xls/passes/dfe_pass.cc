@@ -27,13 +27,13 @@ void MarkReachedFunctions(Function* func,
   // iterate over statements and find invocations or references.
   for (Node* node : TopoSort(func)) {
     switch (node->op()) {
-      case Op::kCountedFor:
+      case OP_COUNTED_FOR:
         MarkReachedFunctions(node->As<CountedFor>()->body(), reached);
         break;
-      case Op::kInvoke:
+      case OP_INVOKE:
         MarkReachedFunctions(node->As<Invoke>()->to_apply(), reached);
         break;
-      case Op::kMap:
+      case OP_MAP:
         MarkReachedFunctions(node->As<Map>()->to_apply(), reached);
         break;
       default:

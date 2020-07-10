@@ -26,15 +26,15 @@ xabsl::StatusOr<bool> IdentityRemovalPass::RunOnFunction(
   bool changed = false;
   absl::flat_hash_map<Node*, Node*> identity_map;
   auto get_src_value = [&](Node* n) {
-    return n->op() == Op::kIdentity ? identity_map.at(n) : n;
+    return n->op() == OP_IDENTITY ? identity_map.at(n) : n;
   };
   for (Node* node : TopoSort(f)) {
-    if (node->op() == Op::kIdentity) {
+    if (node->op() == OP_IDENTITY) {
       identity_map[node] = node->operand(0);
     }
   }
   for (Node* node : TopoSort(f)) {
-    if (node->op() == Op::kIdentity) {
+    if (node->op() == OP_IDENTITY) {
       identity_map[node] = get_src_value(node->operand(0));
       XLS_ASSIGN_OR_RETURN(bool node_changed,
                            node->ReplaceUsesWith(identity_map.at(node)));

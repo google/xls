@@ -29,25 +29,25 @@ namespace {
 //   op(x, y) == op_commuted(y, x)
 Op CompareOpCommuted(Op op) {
   switch (op) {
-    case Op::kEq:
-    case Op::kNe:
+    case OP_EQ:
+    case OP_NE:
       return op;
-    case Op::kSGe:
-      return Op::kSLe;
-    case Op::kUGe:
-      return Op::kULe;
-    case Op::kSGt:
-      return Op::kSLt;
-    case Op::kUGt:
-      return Op::kULt;
-    case Op::kSLe:
-      return Op::kSGe;
-    case Op::kULe:
-      return Op::kUGe;
-    case Op::kSLt:
-      return Op::kSGt;
-    case Op::kULt:
-      return Op::kUGt;
+    case OP_SGE:
+      return OP_SLE;
+    case OP_UGE:
+      return OP_ULE;
+    case OP_SGT:
+      return OP_SLT;
+    case OP_UGT:
+      return OP_ULT;
+    case OP_SLE:
+      return OP_SGE;
+    case OP_ULE:
+      return OP_UGE;
+    case OP_SLT:
+      return OP_SGT;
+    case OP_ULT:
+      return OP_UGT;
     default:
       XLS_LOG(FATAL) << "Op is not comparison: " << OpToString(op);
   }
@@ -85,11 +85,11 @@ xabsl::StatusOr<bool> CanonicalizeNodes(Node* n, Function* f) {
   }
 
   // Replace (x - lit) with x + (-literal)
-  if (n->op() == Op::kSub && n->operand(1)->Is<Literal>()) {
+  if (n->op() == OP_SUB && n->operand(1)->Is<Literal>()) {
     XLS_ASSIGN_OR_RETURN(Node * neg_rhs,
-                         f->MakeNode<UnOp>(n->loc(), n->operand(1), Op::kNeg));
+                         f->MakeNode<UnOp>(n->loc(), n->operand(1), OP_NEG));
     XLS_RETURN_IF_ERROR(
-        n->ReplaceUsesWithNew<BinOp>(n->operand(0), neg_rhs, Op::kAdd)
+        n->ReplaceUsesWithNew<BinOp>(n->operand(0), neg_rhs, OP_ADD)
             .status());
     XLS_VLOG(2) << "Replaced 'sub(lhs, rhs)' with 'add(lhs, neg(rhs))'";
     return true;
@@ -101,7 +101,7 @@ xabsl::StatusOr<bool> CanonicalizeNodes(Node* n, Function* f) {
   }
 
   // Replace zero-extend operations with concat with zero.
-  if (n->op() == Op::kZeroExt) {
+  if (n->op() == OP_ZERO_EXT) {
     const int64 operand_bit_count = n->operand(0)->BitCountOrDie();
     const int64 bit_count = n->BitCountOrDie();
     // The optimization above should have caught any degenerate non-extending

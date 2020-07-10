@@ -42,7 +42,7 @@ ret add.3: bits[32] = add(x, y)
                                                           p.get()));
 
   Node* add = func->return_value();
-  ASSERT_EQ(add->op(), Op::kAdd);
+  ASSERT_EQ(add->op(), OP_ADD);
   XLS_ASSERT_OK_AND_ASSIGN(Node * add_clone,
                            add->Clone({func->param(1), func->param(0)}, func));
 
@@ -392,10 +392,10 @@ fn ReplaceUses(x: bits[8], y: bits[8]) -> bits[16] {
 }
 )",
                                                        p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kConcat);
+  EXPECT_EQ(f->return_value()->op(), OP_CONCAT);
   XLS_ASSERT_OK(FindNode("concat.2", f)
                     ->ReplaceUsesWithNew<Literal>(Value(UBits(123, 16))));
-  EXPECT_EQ(f->return_value()->op(), Op::kLiteral);
+  EXPECT_EQ(f->return_value()->op(), OP_LITERAL);
 }
 
 TEST_F(NodeTest, ReplaceUsesWithInvalidNewNode) {
@@ -410,7 +410,7 @@ fn ReplaceUses(x: bits[8], y: bits[16]) -> bits[16] {
   EXPECT_THAT(
       FindNode("and.1", f)
           ->ReplaceUsesWithNew<NaryOp>(
-              std::vector<Node*>{FindNode("x", f), FindNode("y", f)}, Op::kXor),
+              std::vector<Node*>{FindNode("x", f), FindNode("y", f)}, OP_XOR),
       StatusIs(absl::StatusCode::kInternal,
                HasSubstr("Type of operand 1 (bits[16] via y) does not "
                          "match type of xor.5 (bits[8] via xor.5)")));
@@ -424,7 +424,7 @@ fn f(x: bits[3], y: bits[2], z: bits[1]) -> bits[6] {
 }
 )",
                                                        p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kConcat);
+  EXPECT_EQ(f->return_value()->op(), OP_CONCAT);
   Concat* concat = FindNode("concat.4", f)->As<Concat>();
   // z operand
   EXPECT_EQ(0, concat->GetOperandSliceData(2).start);

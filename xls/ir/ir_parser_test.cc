@@ -551,7 +551,7 @@ fn concat_wrapper(x: bits[31], y: bits[1]) -> bits[32] {
                            Parser::ParsePackage(input));
   ASSERT_EQ(1, p->functions().size());
   std::unique_ptr<Function>& f = p->functions()[0];
-  EXPECT_EQ(f->return_value()->op(), Op::kConcat);
+  EXPECT_EQ(f->return_value()->op(), OP_CONCAT);
   EXPECT_FALSE(f->return_value()->Is<BinOp>());
   EXPECT_TRUE(f->return_value()->Is<Concat>());
   EXPECT_EQ(p->GetBitsType(32), f->return_value()->GetType());
@@ -567,7 +567,7 @@ fn concat_wrapper(x: bits[31], y: bits[1]) -> bits[95] {
                            Parser::ParsePackage(input));
   ASSERT_EQ(1, p->functions().size());
   std::unique_ptr<Function>& f = p->functions()[0];
-  EXPECT_EQ(f->return_value()->op(), Op::kConcat);
+  EXPECT_EQ(f->return_value()->op(), OP_CONCAT);
   EXPECT_TRUE(f->return_value()->Is<Concat>());
   EXPECT_EQ(p->GetBitsType(95), f->return_value()->GetType());
 }
@@ -600,7 +600,7 @@ fn sel_wrapper(x: bits[1], y: bits[32], z: bits[32]) -> bits[32] {
                            Parser::ParsePackage(input));
   ASSERT_EQ(pkg->functions().size(), 1);
   Function& f = *(pkg->functions()[0]);
-  EXPECT_EQ(f.return_value()->op(), Op::kSel);
+  EXPECT_EQ(f.return_value()->op(), OP_SEL);
   EXPECT_FALSE(f.return_value()->Is<BinOp>());
   EXPECT_TRUE(f.return_value()->Is<Select>());
   EXPECT_EQ(f.return_value()->GetType(), pkg->GetBitsType(32));
@@ -621,7 +621,7 @@ fn sel_wrapper(p: bits[2], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
                            Parser::ParsePackage(input));
   ASSERT_EQ(pkg->functions().size(), 1);
   Function& f = *(pkg->functions()[0]);
-  EXPECT_EQ(f.return_value()->op(), Op::kSel);
+  EXPECT_EQ(f.return_value()->op(), OP_SEL);
   EXPECT_FALSE(f.return_value()->Is<BinOp>());
   EXPECT_TRUE(f.return_value()->Is<Select>());
   EXPECT_EQ(f.return_value()->GetType(), pkg->GetBitsType(32));

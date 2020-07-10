@@ -58,7 +58,7 @@ TEST_F(BooleanSimplificationPassTest, TruthTableTestSingleVariableNegated) {
 
 TEST_F(BooleanSimplificationPassTest, TruthTableTestAndOfNxAndNz) {
   internal::TruthTable table(UBits(0b101, /*bit_count=*/3),
-                             UBits(0b101, /*bit_count=*/3), Op::kAnd);
+                             UBits(0b101, /*bit_count=*/3), OP_AND);
   EXPECT_EQ(table.ComputeTruthTable(),
             bits_ops::And(bits_ops::Not(table.GetInitialVector(0)),
                           bits_ops::Not(table.GetInitialVector(2))));
@@ -66,7 +66,7 @@ TEST_F(BooleanSimplificationPassTest, TruthTableTestAndOfNxAndNz) {
 
 TEST_F(BooleanSimplificationPassTest, TruthTableMatchesAndOfNxAndNy) {
   internal::TruthTable table(UBits(0b110, /*bit_count=*/3),
-                             UBits(0b110, /*bit_count=*/3), Op::kAnd);
+                             UBits(0b110, /*bit_count=*/3), OP_AND);
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
 fn f(x: bits[42], y: bits[42]) -> bits[42] {

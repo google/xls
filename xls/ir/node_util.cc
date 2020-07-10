@@ -97,7 +97,7 @@ xabsl::StatusOr<Node*> AndReduceTrailing(Node* node, int64 bit_count) {
         f->MakeNode<BitSlice>(node->loc(), node, /*start=*/i, /*width=*/1));
     bits.push_back(bit);
   }
-  return f->MakeNode<NaryOp>(node->loc(), bits, Op::kAnd);
+  return f->MakeNode<NaryOp>(node->loc(), bits, OP_AND);
 }
 
 xabsl::StatusOr<Node*> OrReduceLeading(Node* node, int64 bit_count) {
@@ -116,15 +116,15 @@ xabsl::StatusOr<Node*> OrReduceLeading(Node* node, int64 bit_count) {
                               /*start=*/width - bit_count + i, /*width=*/1));
     bits.push_back(bit);
   }
-  return f->MakeNode<NaryOp>(node->loc(), bits, Op::kOr);
+  return f->MakeNode<NaryOp>(node->loc(), bits, OP_OR);
 }
 
 bool IsUnsignedCompare(Node* node) {
   switch (node->op()) {
-    case Op::kULe:
-    case Op::kULt:
-    case Op::kUGe:
-    case Op::kUGt:
+    case OP_ULE:
+    case OP_ULT:
+    case OP_UGE:
+    case OP_UGT:
       return true;
     default:
       return false;
@@ -133,10 +133,10 @@ bool IsUnsignedCompare(Node* node) {
 
 bool IsSignedCompare(Node* node) {
   switch (node->op()) {
-    case Op::kSLe:
-    case Op::kSLt:
-    case Op::kSGe:
-    case Op::kSGt:
+    case OP_SLE:
+    case OP_SLT:
+    case OP_SGE:
+    case OP_SGT:
       return true;
     default:
       return false;

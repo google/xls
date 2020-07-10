@@ -33,7 +33,7 @@ TEST(NodeIteratorTest, ReordersViaDependencies) {
   XLS_ASSERT_OK_AND_ASSIGN(Node * literal,
                            f.MakeNode<Literal>(loc, Value(UBits(3, 2))));
   XLS_ASSERT_OK_AND_ASSIGN(Node * neg,
-                           f.MakeNode<UnOp>(loc, literal, Op::kNeg));
+                           f.MakeNode<UnOp>(loc, literal, OP_NEG));
 
   f.set_return_value(neg);
 
@@ -88,8 +88,8 @@ TEST(NodeIteratorTest, PostOrderNotPreOrder) {
   absl::optional<SourceLocation> loc = absl::nullopt;
   XLS_ASSERT_OK_AND_ASSIGN(Node * a,
                            f.MakeNode<Literal>(loc, Value(UBits(0, 2))));
-  XLS_ASSERT_OK_AND_ASSIGN(Node * b, f.MakeNode<BinOp>(loc, a, a, Op::kAdd));
-  XLS_ASSERT_OK_AND_ASSIGN(Node * c, f.MakeNode<BinOp>(loc, a, b, Op::kAdd));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * b, f.MakeNode<BinOp>(loc, a, a, OP_ADD));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * c, f.MakeNode<BinOp>(loc, a, b, OP_ADD));
 
   f.set_return_value(c);
 

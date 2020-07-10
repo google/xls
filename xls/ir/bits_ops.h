@@ -111,7 +111,7 @@ Bits Negate(const Bits& bits);
 // span becomes the most significant bits in the returned Bits object.
 Bits Concat(absl::Span<const Bits> inputs);
 
-// Performs an operation equivalent to the XLS IR Op::kOneHot operation.
+// Performs an operation equivalent to the XLS IR OP_ONE_HOT operation.
 Bits OneHotLsbToMsb(const Bits& bits);
 Bits OneHotMsbToLsb(const Bits& bits);
 
@@ -129,10 +129,10 @@ Bits Reverse(const Bits& bits);
 }  // namespace bits_ops
 
 // Returns the identity value of the given width for the given logical Op (e.g.,
-// Op::kAnd).
+// OP_AND).
 Bits LogicalOpIdentity(Op op, int64 width);
 
-// Returns the result of applying the given logical Op (e.g., Op::kAnd) to the
+// Returns the result of applying the given logical Op (e.g., OP_AND) to the
 // operands. Must have at least one operand.
 Bits DoLogicalOp(Op op, absl::Span<const Bits> operands);
 

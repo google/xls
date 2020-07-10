@@ -81,56 +81,56 @@ inline ::testing::Matcher<const ::xls::Node*> Type(const char* type_str) {
 }
 
 // Node* matchers for ops which have no metadata beyond Op, type, and operands.
-#define NODE_MATCHER(op)                                                       \
+#define NODE_MATCHER(op_name, op)                                                       \
   template <typename... M>                                                     \
-  ::testing::Matcher<const ::xls::Node*> op(M... operands) {                   \
+  ::testing::Matcher<const ::xls::Node*> op_name(M... operands) {                   \
     return ::testing::MakeMatcher(                                             \
-        new ::xls::op_matchers::NodeMatcher(::xls::Op::k##op, {operands...})); \
+        new ::xls::op_matchers::NodeMatcher(OP_##op, {operands...})); \
   }
-NODE_MATCHER(Add);
-NODE_MATCHER(And);
-NODE_MATCHER(Array);
-NODE_MATCHER(ArrayIndex);
-NODE_MATCHER(ArrayUpdate);
-NODE_MATCHER(Concat);
-NODE_MATCHER(Decode);
-NODE_MATCHER(Encode);
-NODE_MATCHER(Eq);
-NODE_MATCHER(Identity);
-NODE_MATCHER(Nand);
-NODE_MATCHER(Ne);
-NODE_MATCHER(Neg);
-NODE_MATCHER(Nor);
-NODE_MATCHER(Not);
-NODE_MATCHER(Or);
-NODE_MATCHER(Reverse);
-NODE_MATCHER(SDiv);
-NODE_MATCHER(SGe);
-NODE_MATCHER(SGt);
-NODE_MATCHER(SLe);
-NODE_MATCHER(SLt);
-NODE_MATCHER(SMul);
-NODE_MATCHER(Sel);
-NODE_MATCHER(Shll);
-NODE_MATCHER(Shra);
-NODE_MATCHER(Shrl);
-NODE_MATCHER(SignExt);
-NODE_MATCHER(Sub);
-NODE_MATCHER(Tuple);
-NODE_MATCHER(UDiv);
-NODE_MATCHER(UGe);
-NODE_MATCHER(UGt);
-NODE_MATCHER(ULe);
-NODE_MATCHER(ULt);
-NODE_MATCHER(UMul);
-NODE_MATCHER(Xor);
-NODE_MATCHER(ZeroExt);
+NODE_MATCHER(Add, ADD);
+NODE_MATCHER(And, AND);
+NODE_MATCHER(Array, ARRAY);
+NODE_MATCHER(ArrayIndex, ARRAY_INDEX);
+NODE_MATCHER(ArrayUpdate, ARRAY_UPDATE);
+NODE_MATCHER(Concat, CONCAT);
+NODE_MATCHER(Decode, DECODE)
+NODE_MATCHER(Encode, ENCODE);
+NODE_MATCHER(Eq, EQ);
+NODE_MATCHER(Identity, IDENTITY);
+NODE_MATCHER(Nand, NAND);
+NODE_MATCHER(Ne, NE);
+NODE_MATCHER(Neg, NEG);
+NODE_MATCHER(Nor, NOR);
+NODE_MATCHER(Not, NOT);
+NODE_MATCHER(Or, OR);
+NODE_MATCHER(Reverse, REVERSE);
+NODE_MATCHER(SDiv, SDIV);
+NODE_MATCHER(SGe, SGE);
+NODE_MATCHER(SGt, SGT);
+NODE_MATCHER(SLe, SLE);
+NODE_MATCHER(SLt, SLT);
+NODE_MATCHER(SMul, SMUL);
+NODE_MATCHER(Sel, SEL);
+NODE_MATCHER(Shll, SHLL);
+NODE_MATCHER(Shra, SHRA);
+NODE_MATCHER(Shrl, SHRL);
+NODE_MATCHER(SignExt, SIGN_EXT);
+NODE_MATCHER(Sub, SUB);
+NODE_MATCHER(Tuple, TUPLE);
+NODE_MATCHER(UDiv, UDIV);
+NODE_MATCHER(UGe, UGE);
+NODE_MATCHER(UGt, UGT);
+NODE_MATCHER(ULe, ULE);
+NODE_MATCHER(ULt, ULT);
+NODE_MATCHER(UMul, UMUL);
+NODE_MATCHER(Xor, XOR);
+NODE_MATCHER(ZeroExt, ZERO_EXT);
 
 // TODO(meheff): The following ops should have custom matchers defined as they
 // have additional metadata.
-NODE_MATCHER(CountedFor);
-NODE_MATCHER(Invoke);
-NODE_MATCHER(Map);
+NODE_MATCHER(CountedFor, COUNTED_FOR);
+NODE_MATCHER(Invoke, INVOKE);
+NODE_MATCHER(Map, MAP);
 #undef NODE_MATCHER
 
 // Ops which have metadata beyond the Op, type, and the operands (e.g., Literals
@@ -144,7 +144,7 @@ NODE_MATCHER(Map);
 class ParamMatcher : public NodeMatcher {
  public:
   explicit ParamMatcher(absl::optional<std::string> name)
-      : NodeMatcher(Op::kParam, /*operands=*/{}), name_(name) {}
+      : NodeMatcher(OP_PARAM, /*operands=*/{}), name_(name) {}
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
@@ -160,7 +160,7 @@ inline ::testing::Matcher<const ::xls::Node*> Param(
 
 inline ::testing::Matcher<const ::xls::Node*> Param() {
   return ::testing::MakeMatcher(
-      new ::xls::op_matchers::NodeMatcher(Op::kParam, {}));
+      new ::xls::op_matchers::NodeMatcher(OP_PARAM, {}));
 }
 
 // BitSlice matcher. Supported forms:
@@ -174,9 +174,9 @@ class BitSliceMatcher : public NodeMatcher {
  public:
   BitSliceMatcher(::testing::Matcher<const Node*> operand,
                   absl::optional<int64> start, absl::optional<int64> width)
-      : NodeMatcher(Op::kBitSlice, {operand}), start_(start), width_(width) {}
+      : NodeMatcher(OP_BIT_SLICE, {operand}), start_(start), width_(width) {}
   BitSliceMatcher(absl::optional<int64> start, absl::optional<int64> width)
-      : NodeMatcher(Op::kBitSlice, {}), start_(start), width_(width) {}
+      : NodeMatcher(OP_BIT_SLICE, {}), start_(start), width_(width) {}
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
@@ -220,8 +220,8 @@ class DynamicBitSliceMatcher : public NodeMatcher {
   DynamicBitSliceMatcher(::testing::Matcher<const Node*> operand,
                          ::testing::Matcher<const Node*> start,
                          absl::optional<int64> width)
-      : NodeMatcher(Op::kDynamicBitSlice, {operand, start}), width_(width) {}
-  DynamicBitSliceMatcher() : NodeMatcher(Op::kDynamicBitSlice, {}) {}
+      : NodeMatcher(OP_DYNAMIC_BIT_SLICE, {operand, start}), width_(width) {}
+  DynamicBitSliceMatcher() : NodeMatcher(OP_DYNAMIC_BIT_SLICE, {}) {}
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
@@ -261,13 +261,13 @@ inline ::testing::Matcher<const ::xls::Node*> DynamicBitSlice(
 class LiteralMatcher : public NodeMatcher {
  public:
   explicit LiteralMatcher(FormatPreference format = FormatPreference::kDefault)
-      : NodeMatcher(Op::kLiteral, {}), format_(format) {}
+      : NodeMatcher(OP_LITERAL, {}), format_(format) {}
   explicit LiteralMatcher(absl::optional<Value> value,
                           FormatPreference format = FormatPreference::kDefault)
-      : NodeMatcher(Op::kLiteral, {}), value_(value), format_(format) {}
+      : NodeMatcher(OP_LITERAL, {}), value_(value), format_(format) {}
   explicit LiteralMatcher(absl::optional<int64> value,
                           FormatPreference format = FormatPreference::kDefault)
-      : NodeMatcher(Op::kLiteral, {}), uint64_value_(value), format_(format) {}
+      : NodeMatcher(OP_LITERAL, {}), uint64_value_(value), format_(format) {}
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
@@ -318,9 +318,9 @@ class OneHotMatcher : public NodeMatcher {
  public:
   explicit OneHotMatcher(::testing::Matcher<const Node*> operand,
                          absl::optional<LsbOrMsb> priority = absl::nullopt)
-      : NodeMatcher(Op::kOneHot, {operand}), priority_(priority) {}
+      : NodeMatcher(OP_ONE_HOT, {operand}), priority_(priority) {}
   explicit OneHotMatcher(absl::optional<LsbOrMsb> priority = absl::nullopt)
-      : NodeMatcher(Op::kOneHot, {}), priority_(priority) {}
+      : NodeMatcher(OP_ONE_HOT, {}), priority_(priority) {}
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
@@ -354,7 +354,7 @@ class SelectMatcher : public NodeMatcher {
   SelectMatcher(::testing::Matcher<const Node*> selector,
                 std::vector<::testing::Matcher<const Node*>> cases,
                 absl::optional<::testing::Matcher<const Node*>> default_value)
-      : NodeMatcher(Op::kSel,
+      : NodeMatcher(OP_SEL,
                     [&]() {
                       std::vector<::testing::Matcher<const Node*>> operands;
                       operands.push_back(selector);
@@ -385,7 +385,7 @@ inline ::testing::Matcher<const ::xls::Node*> Select(
 
 inline ::testing::Matcher<const ::xls::Node*> Select() {
   return ::testing::MakeMatcher(
-      new ::xls::op_matchers::NodeMatcher(Op::kSel, {}));
+      new ::xls::op_matchers::NodeMatcher(OP_SEL, {}));
 }
 
 // OneHotSelect matcher. Supported forms:
@@ -400,12 +400,12 @@ inline ::testing::Matcher<const ::xls::Node*> OneHotSelect(
   operands.push_back(selector);
   operands.insert(operands.end(), cases.begin(), cases.end());
   return ::testing::MakeMatcher(
-      new ::xls::op_matchers::NodeMatcher(Op::kOneHotSel, operands));
+      new ::xls::op_matchers::NodeMatcher(OP_ONE_HOT_SEL, operands));
 }
 
 inline ::testing::Matcher<const ::xls::Node*> OneHotSelect() {
   return ::testing::MakeMatcher(
-      new ::xls::op_matchers::NodeMatcher(Op::kOneHotSel, {}));
+      new ::xls::op_matchers::NodeMatcher(OP_ONE_HOT_SEL, {}));
 }
 
 // TupleIndex matcher. Supported forms:
@@ -416,9 +416,9 @@ class TupleIndexMatcher : public NodeMatcher {
  public:
   explicit TupleIndexMatcher(::testing::Matcher<const Node*> operand,
                              absl::optional<int64> index = absl::nullopt)
-      : NodeMatcher(Op::kTupleIndex, {operand}), index_(index) {}
+      : NodeMatcher(OP_TUPLE_INDEX, {operand}), index_(index) {}
   explicit TupleIndexMatcher(absl::optional<int64> index = absl::nullopt)
-      : NodeMatcher(Op::kTupleIndex, {}), index_(index) {}
+      : NodeMatcher(OP_TUPLE_INDEX, {}), index_(index) {}
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;

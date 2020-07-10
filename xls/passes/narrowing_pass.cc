@@ -107,8 +107,8 @@ xabsl::StatusOr<bool> MaybeNarrowCompare(CompareOp* compare,
   int64 matched_trailing_bits = matched_trailing_operand_bits(compare);
   bool all_bits_match =
       matched_leading_bits == compare->operand(0)->BitCountOrDie();
-  if ((IsUnsignedCompare(compare) || compare->op() == Op::kEq ||
-       compare->op() == Op::kNe) &&
+  if ((IsUnsignedCompare(compare) || compare->op() == OP_EQ ||
+       compare->op() == OP_NE) &&
       (matched_leading_bits > 0 || matched_trailing_bits > 0) &&
       !all_bits_match) {
     XLS_RETURN_IF_ERROR(narrow_compare_operands(
@@ -137,8 +137,8 @@ xabsl::StatusOr<bool> MaybeNarrowCompare(CompareOp* compare,
 
   // If both operands of a signed compare are sign-extensions we can narrow
   // the compare to wider of the two operands *before* sign_extension.
-  if (IsSignedCompare(compare) && compare->operand(0)->op() == Op::kSignExt &&
-      compare->operand(1)->op() == Op::kSignExt) {
+  if (IsSignedCompare(compare) && compare->operand(0)->op() == OP_SIGN_EXT &&
+      compare->operand(1)->op() == OP_SIGN_EXT) {
     int64 max_unextended_width =
         std::max(compare->operand(0)->operand(0)->BitCountOrDie(),
                  compare->operand(1)->operand(0)->BitCountOrDie());
@@ -154,8 +154,8 @@ xabsl::StatusOr<bool> MaybeNarrowCompare(CompareOp* compare,
 // Try to narrow the shift amount of a shift node.
 xabsl::StatusOr<bool> MaybeNarrowShiftAmount(Node* shift,
                                              const QueryEngine& query_engine) {
-  XLS_RET_CHECK(shift->op() == Op::kShll || shift->op() == Op::kShrl ||
-                shift->op() == Op::kShra);
+  XLS_RET_CHECK(shift->op() == OP_SHLL || shift->op() == OP_SHRL ||
+                shift->op() == OP_SHRA);
   int64 leading_zeros = CountLeadingKnownZeros(shift->operand(1), query_engine);
   if (leading_zeros == shift->operand(1)->BitCountOrDie()) {
     // Shift amount is zero. Replace with (slice of) input operand of shift.
@@ -226,7 +226,7 @@ xabsl::StatusOr<bool> MaybeNarrowAdd(Node* add,
                                      const QueryEngine& query_engine) {
   XLS_VLOG(3) << "Trying to narrow add: " << add->ToString();
 
-  XLS_RET_CHECK_EQ(add->op(), Op::kAdd);
+  XLS_RET_CHECK_EQ(add->op(), OP_ADD);
 
   Node* lhs = add->operand(0);
   Node* rhs = add->operand(1);
@@ -261,9 +261,9 @@ xabsl::StatusOr<bool> MaybeNarrowAdd(Node* add,
                                             /*width=*/narrowed_bit_count));
     XLS_ASSIGN_OR_RETURN(Node * narrowed_add,
                          add->function()->MakeNode<BinOp>(
-                             add->loc(), narrowed_lhs, narrowed_rhs, Op::kAdd));
+                             add->loc(), narrowed_lhs, narrowed_rhs, OP_ADD));
     XLS_RETURN_IF_ERROR(
-        add->ReplaceUsesWithNew<ExtendOp>(narrowed_add, bit_count, Op::kZeroExt)
+        add->ReplaceUsesWithNew<ExtendOp>(narrowed_add, bit_count, OP_ZERO_EXT)
             .status());
     return true;
   }
@@ -276,7 +276,7 @@ xabsl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
                                           const QueryEngine& query_engine) {
   XLS_VLOG(3) << "Trying to narrow multiply: " << mul->ToString();
 
-  XLS_RET_CHECK(mul->op() == Op::kSMul || mul->op() == Op::kUMul);
+  XLS_RET_CHECK(mul->op() == OP_SMUL || mul->op() == OP_UMUL);
 
   Node* lhs = mul->operand(0);
   Node* rhs = mul->operand(1);
@@ -287,8 +287,8 @@ xabsl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
       "  result_bit_count = %d, lhs_bit_count = %d, rhs_bit_count = %d",
       result_bit_count, lhs_bit_count, rhs_bit_count);
 
-  // Return the given node sign-extended (if 'mul' is Op::kSMul) or
-  // zero-extended (if 'mul' is Op::kUMul) to the given bit count. If the node
+  // Return the given node sign-extended (if 'mul' is OP_SMUL) or
+  // zero-extended (if 'mul' is OP_UMUL) to the given bit count. If the node
   // is already of the given width, then the node is returned.
   auto maybe_extend = [&](Node* node,
                           int64 bit_count) -> xabsl::StatusOr<Node*> {
@@ -299,7 +299,7 @@ xabsl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
     return node->function()->MakeNode<ExtendOp>(
         node->loc(), node,
         /*new_bit_count=*/bit_count,
-        /*op=*/mul->op() == Op::kSMul ? Op::kSignExt : Op::kZeroExt);
+        /*op=*/mul->op() == OP_SMUL ? OP_SIGN_EXT : OP_ZERO_EXT);
   };
 
   // Return the given node narrowed to the given bit count. If the node
@@ -351,7 +351,7 @@ xabsl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
       result_bit_count == lhs_bit_count && result_bit_count == rhs_bit_count;
 
   // Zero-extended operands of unsigned multiplies can be narrowed.
-  if (mul->op() == Op::kUMul || is_sign_agnostic) {
+  if (mul->op() == OP_UMUL || is_sign_agnostic) {
     bool operand_narrowed = false;
     auto maybe_narrow_operand = [&](Node* operand) -> xabsl::StatusOr<Node*> {
       int64 leading_zeros = CountLeadingKnownZeros(operand, query_engine);
@@ -370,7 +370,7 @@ xabsl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
     if (operand_narrowed) {
       XLS_RETURN_IF_ERROR(mul->ReplaceUsesWithNew<ArithOp>(operand0, operand1,
                                                            result_bit_count,
-                                                           Op::kUMul)
+                                                           OP_UMUL)
                               .status());
       return true;
     }
@@ -378,10 +378,10 @@ xabsl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
 
   // Sign-extended operands of signed multiplies can be narrowed by replacing
   // the operand of the multiply with the value before sign-extension.
-  if (mul->op() == Op::kSMul || is_sign_agnostic) {
+  if (mul->op() == OP_SMUL || is_sign_agnostic) {
     bool operand_narrowed = false;
     auto maybe_narrow_operand = [&](Node* operand) -> xabsl::StatusOr<Node*> {
-      if (operand->op() == Op::kSignExt) {
+      if (operand->op() == OP_SIGN_EXT) {
         // Operand is a sign-extended value. Just use the value before
         // sign-extension.
         operand_narrowed = true;
@@ -407,7 +407,7 @@ xabsl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
     if (operand_narrowed) {
       XLS_RETURN_IF_ERROR(mul->ReplaceUsesWithNew<ArithOp>(operand0, operand1,
                                                            result_bit_count,
-                                                           Op::kSMul)
+                                                           OP_SMUL)
                               .status());
       return true;
     }
@@ -433,42 +433,42 @@ xabsl::StatusOr<bool> NarrowingPass::RunOnFunction(Function* f,
     // has leading zeros.
     bool node_modified = false;
     switch (node->op()) {
-      case Op::kShll:
-      case Op::kShrl:
-      case Op::kShra: {
+      case OP_SHLL:
+      case OP_SHRL:
+      case OP_SHRA: {
         XLS_ASSIGN_OR_RETURN(node_modified,
                              MaybeNarrowShiftAmount(node, *query_engine));
         break;
       }
-      case Op::kArrayIndex: {
+      case OP_ARRAY_INDEX: {
         XLS_ASSIGN_OR_RETURN(
             node_modified,
             MaybeNarrowArrayIndex(node->As<ArrayIndex>(), *query_engine));
         break;
       }
-      case Op::kSMul:
-      case Op::kUMul: {
+      case OP_SMUL:
+      case OP_UMUL: {
         XLS_ASSIGN_OR_RETURN(
             node_modified,
             MaybeNarrowMultiply(node->As<ArithOp>(), *query_engine));
         break;
       }
-      case Op::kULe:
-      case Op::kULt:
-      case Op::kUGe:
-      case Op::kUGt:
-      case Op::kSLe:
-      case Op::kSLt:
-      case Op::kSGe:
-      case Op::kSGt:
-      case Op::kEq:
-      case Op::kNe: {
+      case OP_ULE:
+      case OP_ULT:
+      case OP_UGE:
+      case OP_UGT:
+      case OP_SLE:
+      case OP_SLT:
+      case OP_SGE:
+      case OP_SGT:
+      case OP_EQ:
+      case OP_NE: {
         XLS_ASSIGN_OR_RETURN(
             node_modified,
             MaybeNarrowCompare(node->As<CompareOp>(), *query_engine));
         break;
       }
-      case Op::kAdd: {
+      case OP_ADD: {
         XLS_ASSIGN_OR_RETURN(node_modified,
                              MaybeNarrowAdd(node, *query_engine));
         break;

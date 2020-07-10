@@ -81,7 +81,7 @@ TEST(FunctionBuilderTest, LessThanTest) {
   b.ULt(b.Param("a", type), b.Param("b", type));
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, b.Build());
   Node* lt = func->return_value();
-  EXPECT_EQ(lt->op(), Op::kULt);
+  EXPECT_EQ(lt->op(), OP_ULT);
   EXPECT_EQ(lt->GetType(), p.GetBitsType(1));
 }
 
@@ -93,7 +93,7 @@ TEST(FunctionBuilderTest, NonRootReturnValue) {
   b.Negate(and_node);
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, b.BuildWithReturnValue(and_node));
   Node* return_value = func->return_value();
-  EXPECT_EQ(return_value->op(), Op::kAnd);
+  EXPECT_EQ(return_value->op(), OP_AND);
 }
 
 TEST(FunctionBuilderTest, LiteralTupleTest) {
@@ -135,7 +135,7 @@ TEST(FunctionBuilderTest, MapTest) {
     XLS_ASSERT_OK_AND_ASSIGN(top, b.Build());
   }
   Node* map = top->return_value();
-  EXPECT_EQ(map->op(), Op::kMap);
+  EXPECT_EQ(map->op(), OP_MAP);
   EXPECT_EQ(to_apply->return_value()->GetType(), p.GetBitsType(1));
   EXPECT_EQ(map->GetType(),
             p.GetArrayType(kElementCount, to_apply->return_value()->GetType()));

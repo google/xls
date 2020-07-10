@@ -43,10 +43,10 @@ class TestDelayEstimator : public DelayEstimator {
  public:
   xabsl::StatusOr<int64> GetOperationDelayInPs(Node* node) const override {
     switch (node->op()) {
-      case Op::kParam:
-      case Op::kLiteral:
-      case Op::kBitSlice:
-      case Op::kConcat:
+      case OP_PARAM:
+      case OP_LITERAL:
+      case OP_BIT_SLICE:
+      case OP_CONCAT:
         return 0;
       default:
         return 1;

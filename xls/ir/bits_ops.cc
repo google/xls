@@ -457,12 +457,12 @@ Bits Reverse(const Bits& bits) {
 
 Bits LogicalOpIdentity(Op op, int64 width) {
   switch (op) {
-    case Op::kAnd:
-    case Op::kNand:
+    case OP_AND:
+    case OP_NAND:
       return Bits::AllOnes(width);
-    case Op::kOr:
-    case Op::kNor:
-    case Op::kXor:
+    case OP_OR:
+    case OP_NOR:
+    case OP_XOR:
       return Bits(width);
     default:
       XLS_LOG(FATAL) << "NaryOpIdentity got non-nary op:" << OpToString(op);
@@ -472,15 +472,15 @@ Bits LogicalOpIdentity(Op op, int64 width) {
 Bits DoLogicalOp(Op op, absl::Span<const Bits> operands) {
   XLS_CHECK_GT(operands.size(), 0);
   switch (op) {
-    case Op::kAnd:
+    case OP_AND:
       return bits_ops::NaryAnd(operands);
-    case Op::kOr:
+    case OP_OR:
       return bits_ops::NaryOr(operands);
-    case Op::kXor:
+    case OP_XOR:
       return bits_ops::NaryXor(operands);
-    case Op::kNand:
+    case OP_NAND:
       return bits_ops::NaryNand(operands);
-    case Op::kNor:
+    case OP_NOR:
       return bits_ops::NaryNor(operands);
     default:
       XLS_LOG(FATAL) << "DoNaryBitOp got non-nary op: " << OpToString(op);

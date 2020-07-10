@@ -38,7 +38,7 @@ xabsl::StatusOr<absl::flat_hash_set<Node*>> FindReducibleAdds(
   for (Node* node : f->nodes()) {
     // An add can be reduced to an OR if there is at least one zero in every bit
     // position amongst the operands of the add.
-    if (node->op() == Op::kAdd) {
+    if (node->op() == OP_ADD) {
       bool reducible = true;
       for (int64 i = 0; i < node->BitCountOrDie(); ++i) {
         if (!query_engine.IsZero(BitLocation(node->operand(0), i)) &&
@@ -74,10 +74,10 @@ xabsl::StatusOr<bool> StrengthReduceNode(
   }
 
   if (reducible_adds.contains(node)) {
-    XLS_RET_CHECK_EQ(node->op(), Op::kAdd);
+    XLS_RET_CHECK_EQ(node->op(), OP_ADD);
     XLS_RETURN_IF_ERROR(
         node->ReplaceUsesWithNew<NaryOp>(
-                std::vector<Node*>{node->operand(0), node->operand(1)}, Op::kOr)
+                std::vector<Node*>{node->operand(0), node->operand(1)}, OP_OR)
             .status());
     return true;
   }
@@ -86,7 +86,7 @@ xabsl::StatusOr<bool> StrengthReduceNode(
   // canonicalization to place the literal on the RHS.
   // TODO(meheff): 2019/8/6 There are many other possibilities of replacing
   // multiplication by a constant with shifts and adds.
-  if ((node->op() == Op::kSMul || node->op() == Op::kUMul) &&
+  if ((node->op() == OP_SMUL || node->op() == OP_UMUL) &&
       node->operand(1)->Is<Literal>() &&
       node->BitCountOrDie() >= node->operand(0)->BitCountOrDie()) {
     const Bits& multiplicand = node->operand(1)->As<Literal>()->value().bits();
@@ -94,7 +94,7 @@ xabsl::StatusOr<bool> StrengthReduceNode(
     // operand as an unsigned number, so if the operation is a SMul verify that
     // the multiplicand is non-negative (sign bit is zero).
     if (multiplicand.IsPowerOfTwo() &&
-        (node->op() == Op::kUMul || !multiplicand.msb())) {
+        (node->op() == OP_UMUL || !multiplicand.msb())) {
       const int64 result_bit_count = node->BitCountOrDie();
       Node* to_shift = node->operand(0);
       if (result_bit_count > node->operand(0)->BitCountOrDie()) {
@@ -104,7 +104,7 @@ xabsl::StatusOr<bool> StrengthReduceNode(
             node->function()->MakeNode<ExtendOp>(
                 node->loc(), node->operand(0),
                 /*new_bit_count=*/result_bit_count,
-                /*op=*/node->op() == Op::kSMul ? Op::kSignExt : Op::kZeroExt));
+                /*op=*/node->op() == OP_SMUL ? OP_SIGN_EXT : OP_ZERO_EXT));
       }
       const int64 shift_amount =
           multiplicand.bit_count() - multiplicand.CountLeadingZeros() - 1;
@@ -113,7 +113,7 @@ xabsl::StatusOr<bool> StrengthReduceNode(
           node->function()->MakeNode<Literal>(
               node->loc(), Value(UBits(shift_amount, result_bit_count))));
       XLS_RETURN_IF_ERROR(
-          node->ReplaceUsesWithNew<BinOp>(to_shift, literal, Op::kShll)
+          node->ReplaceUsesWithNew<BinOp>(to_shift, literal, OP_SHLL)
               .status());
       return true;
     }
@@ -127,7 +127,7 @@ xabsl::StatusOr<bool> StrengthReduceNode(
   int64 leading_zeros, selected_bits, trailing_zeros;
   auto is_bitslice_and = [&](int64* leading_zeros, int64* selected_bits,
                              int64* trailing_zeros) -> bool {
-    if (node->op() != Op::kAnd || node->operand_count() != 2) {
+    if (node->op() != OP_AND || node->operand_count() != 2) {
       return false;
     }
     if (IsLiteralWithRunOfSetBits(node->operand(1), leading_zeros,
@@ -188,16 +188,16 @@ xabsl::StatusOr<bool> StrengthReduceNode(
     XLS_ASSIGN_OR_RETURN(
         Node * lhs,
         f->MakeNode<NaryOp>(select->loc(), std::vector<Node*>{s, on_true},
-                            Op::kAnd));
+                            OP_AND));
     XLS_ASSIGN_OR_RETURN(Node * s_not,
-                         f->MakeNode<UnOp>(select->loc(), s, Op::kNot));
+                         f->MakeNode<UnOp>(select->loc(), s, OP_NOT));
     XLS_ASSIGN_OR_RETURN(
         Node * rhs,
         f->MakeNode<NaryOp>(select->loc(), std::vector<Node*>{s_not, on_false},
-                            Op::kAnd));
+                            OP_AND));
     XLS_RETURN_IF_ERROR(
         select
-            ->ReplaceUsesWithNew<NaryOp>(std::vector<Node*>{lhs, rhs}, Op::kOr)
+            ->ReplaceUsesWithNew<NaryOp>(std::vector<Node*>{lhs, rhs}, OP_OR)
             .status());
     return true;
   }
@@ -207,7 +207,7 @@ xabsl::StatusOr<bool> StrengthReduceNode(
   // yields all ones when the selector is 1 and all zeros when the selector is
   // 0.
   auto is_signext_mux = [&](bool* invert_selector) {
-    bool ok = node->op() == Op::kSel && node->GetType()->IsBits() &&
+    bool ok = node->op() == OP_SEL && node->GetType()->IsBits() &&
               node->operand(0)->BitCountOrDie() == 1;
     if (!ok) {
       return false;
@@ -228,21 +228,21 @@ xabsl::StatusOr<bool> StrengthReduceNode(
     Node* selector = node->operand(0);
     if (invert_selector) {
       XLS_ASSIGN_OR_RETURN(selector,
-                           f->MakeNode<UnOp>(node->loc(), selector, Op::kNot));
+                           f->MakeNode<UnOp>(node->loc(), selector, OP_NOT));
     }
     XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<ExtendOp>(
-                                selector, node->BitCountOrDie(), Op::kSignExt)
+                                selector, node->BitCountOrDie(), OP_SIGN_EXT)
                             .status());
     return true;
   }
 
   // If we know the MSb of the operand is zero, strength reduce from signext to
   // zeroext.
-  if (node->op() == Op::kSignExt && query_engine.IsMsbKnown(node->operand(0)) &&
+  if (node->op() == OP_SIGN_EXT && query_engine.IsMsbKnown(node->operand(0)) &&
       query_engine.GetKnownMsb(node->operand(0)) == 0) {
     XLS_RETURN_IF_ERROR(
         node->ReplaceUsesWithNew<ExtendOp>(node->operand(0),
-                                           node->BitCountOrDie(), Op::kZeroExt)
+                                           node->BitCountOrDie(), OP_ZERO_EXT)
             .status());
     return true;
   }
@@ -255,12 +255,12 @@ xabsl::StatusOr<bool> StrengthReduceNode(
   //       -------
   //    0 | 0   1
   //  x 1 | 1   0
-  if ((node->op() == Op::kAdd || node->op() == Op::kNe) &&
+  if ((node->op() == OP_ADD || node->op() == OP_NE) &&
       node->operand(0)->BitCountOrDie() == 1) {
     XLS_RETURN_IF_ERROR(
         node->ReplaceUsesWithNew<NaryOp>(
                 std::vector<Node*>{node->operand(0), node->operand(1)},
-                Op::kXor)
+                OP_XOR)
             .status());
     return true;
   }
@@ -276,7 +276,7 @@ xabsl::StatusOr<bool> StrengthReduceNode(
   // leading bits, but please note the comparison operators. Eg.:
   //   x:10 >= 256:10  ->  bit_slice(x, 9, 2) != 0b00  or
   //   x:10 <  256:10  ->  bit_slice(x, 9, 2) == 0b00
-  if ((node->op() == Op::kUGe || node->op() == Op::kULt) &&
+  if ((node->op() == OP_UGE || node->op() == OP_ULT) &&
       node->operand(1)->Is<Literal>()) {
     const Bits& op1_literal_bits =
       node->operand(1)->As<Literal>()->value().bits();
@@ -284,7 +284,7 @@ xabsl::StatusOr<bool> StrengthReduceNode(
       int64 one_position = op1_literal_bits.bit_count() -
                            op1_literal_bits.CountLeadingZeros() - 1;
       int64 width = op1_literal_bits.bit_count() - one_position;
-      Op new_op = node->op() == Op::kUGe ? Op::kNe : Op::kEq;
+      Op new_op = node->op() == OP_UGE ? OP_NE : OP_EQ;
       XLS_ASSIGN_OR_RETURN(Node * slice, node->function()->MakeNode<BitSlice>(
                                              node->loc(), node->operand(0),
                                              /*start=*/one_position,
@@ -301,7 +301,7 @@ xabsl::StatusOr<bool> StrengthReduceNode(
 
   // Eq(x, 0b00) => x_0 == 0 & x_1 == 0 => ~x_0 & ~x_1 => ~(x_0 | x_1)
   //  where bits(x) <= 2
-  if (node->op() == Op::kEq && node->operand(0)->BitCountOrDie() == 2 &&
+  if (node->op() == OP_EQ && node->operand(0)->BitCountOrDie() == 2 &&
       IsLiteralZero(node->operand(1))) {
     Function* f = node->function();
     XLS_ASSIGN_OR_RETURN(
@@ -311,15 +311,15 @@ xabsl::StatusOr<bool> StrengthReduceNode(
     XLS_ASSIGN_OR_RETURN(
         NaryOp * nary_or,
         f->MakeNode<NaryOp>(node->loc(), std::vector<Node*>{x_0, x_1},
-                            Op::kOr));
+                            OP_OR));
     XLS_RETURN_IF_ERROR(
-        node->ReplaceUsesWithNew<UnOp>(nary_or, Op::kNot).status());
+        node->ReplaceUsesWithNew<UnOp>(nary_or, OP_NOT).status());
     return true;
   }
 
   // If a string of least-significant bits of an operand of an add is zero the
   // add can be narrowed.
-  if (split_ops && node->op() == Op::kAdd) {
+  if (split_ops && node->op() == OP_ADD) {
     auto lsb_known_zero_count = [&](Node* n) {
       for (int64 i = 0; i < n->BitCountOrDie(); ++i) {
         if (!query_engine.IsZero(BitLocation(n, i))) {
@@ -344,7 +344,7 @@ xabsl::StatusOr<bool> StrengthReduceNode(
       XLS_ASSIGN_OR_RETURN(
           Node * narrowed_add,
           node->function()->MakeNode<BinOp>(node->loc(), op0_narrowed,
-                                            op1_narrowed, Op::kAdd));
+                                            op1_narrowed, OP_ADD));
       XLS_ASSIGN_OR_RETURN(Node * lsb, node->function()->MakeNode<BitSlice>(
                                            node->loc(), nonzero_operand,
                                            /*start=*/0, /*width=*/narrow_amt));

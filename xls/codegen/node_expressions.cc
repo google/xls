@@ -41,8 +41,8 @@ bool OperandMustBeNamedReference(Node* node, int64 operand_no) {
   // In this case, no need to make bar[42] a named temporary.
   auto operand_is_indexable = [&]() {
     switch (node->operand(operand_no)->op()) {
-      case Op::kArrayIndex:
-      case Op::kParam:
+      case OP_ARRAY_INDEX:
+      case OP_PARAM:
         // These operations are emitted as VAST Index operations which
         // can be indexed.
         return true;
@@ -51,24 +51,24 @@ bool OperandMustBeNamedReference(Node* node, int64 operand_no) {
     }
   };
   switch (node->op()) {
-    case Op::kBitSlice:
+    case OP_BIT_SLICE:
       XLS_CHECK_EQ(operand_no, 0);
       return !operand_is_indexable();
-    case Op::kArrayIndex:
+    case OP_ARRAY_INDEX:
       return operand_no == 0 && !operand_is_indexable();
-    case Op::kOneHot:
-    case Op::kOneHotSel:
+    case OP_ONE_HOT:
+    case OP_ONE_HOT_SEL:
       return operand_no == 0 && !operand_is_indexable();
-    case Op::kTupleIndex:
+    case OP_TUPLE_INDEX:
       // Tuples are represented as flat vectors and kTupleIndex operation is a
       // slice out of the flat vector. The exception is if the element is an
       // Array. In this case, the element must be unflattened into an unpacked
       // array which requires that it be a named reference.
       return node->GetType()->IsArray() || !operand_is_indexable();
-    case Op::kShra:
+    case OP_SHRA:
       // Shra indexes the sign bit of the zero-th operand.
       return operand_no == 0;
-    case Op::kSignExt:
+    case OP_SIGN_EXT:
       // For operands wider than one bit, sign extend slices out the sign bit of
       // the operand so its operand needs to be a reference.
       // TODO(meheff): It might be better to have a unified place to hold both
@@ -77,11 +77,11 @@ bool OperandMustBeNamedReference(Node* node, int64 operand_no) {
       XLS_CHECK_EQ(operand_no, 0);
       return node->operand(operand_no)->BitCountOrDie() > 1 &&
              !operand_is_indexable();
-    case Op::kEncode:
+    case OP_ENCODE:
       // The expression of the encode operation indexes individual bits of the
       // operand.
       return true;
-    case Op::kReverse:
+    case OP_REVERSE:
       return true;
     default:
       return false;
@@ -267,7 +267,7 @@ xabsl::StatusOr<Expression*> EmitShift(Node* shift, Expression* operand,
                                        Expression* shift_amount,
                                        VerilogFile* file) {
   Expression* shifted_operand;
-  if (shift->op() == Op::kShra) {
+  if (shift->op() == OP_SHRA) {
     // To perform an arithmetic shift right the left operand must be cast to a
     // signed value, ie:
     //
@@ -284,10 +284,10 @@ xabsl::StatusOr<Expression*> EmitShift(Node* shift, Expression* operand,
     // appears in a ternary expression because of Verilog type rules.
     shifted_operand = file->Make<UnsignedCast>(
         file->Shra(file->Make<SignedCast>(operand), shift_amount));
-  } else if (shift->op() == Op::kShrl) {
+  } else if (shift->op() == OP_SHRL) {
     shifted_operand = file->Shrl(operand, shift_amount);
   } else {
-    XLS_CHECK_EQ(shift->op(), Op::kShll);
+    XLS_CHECK_EQ(shift->op(), OP_SHLL);
     shifted_operand = file->Shll(operand, shift_amount);
   }
 
@@ -303,7 +303,7 @@ xabsl::StatusOr<Expression*> EmitShift(Node* shift, Expression* operand,
   Expression* width_expr =
       file->Literal(width, /*bit_count=*/shift->operand(1)->BitCountOrDie());
   Expression* overshift_value;
-  if (shift->op() == Op::kShra) {
+  if (shift->op() == OP_SHRA) {
     // Shrl: overshift value is all sign bits.
     overshift_value = file->Concat(
         /*replication=*/width,
@@ -347,8 +347,8 @@ xabsl::StatusOr<Expression*> EmitMultiply(Node* mul, Expression* lhs,
   // some how.
   XLS_RET_CHECK_EQ(mul->BitCountOrDie(), mul->operand(0)->BitCountOrDie());
   XLS_RET_CHECK_EQ(mul->BitCountOrDie(), mul->operand(1)->BitCountOrDie());
-  XLS_RET_CHECK(mul->op() == Op::kUMul || mul->op() == Op::kSMul);
-  if (mul->op() == Op::kSMul) {
+  XLS_RET_CHECK(mul->op() == OP_UMUL || mul->op() == OP_SMUL);
+  if (mul->op() == OP_SMUL) {
     return file->Make<UnsignedCast>(
         file->Mul(file->Make<SignedCast>(lhs), file->Make<SignedCast>(rhs)));
   } else {
@@ -374,29 +374,29 @@ xabsl::StatusOr<Expression*> NodeToExpression(
         return accum;
       };
   switch (node->op()) {
-    case Op::kAdd:
+    case OP_ADD:
       return file->Add(inputs[0], inputs[1]);
-    case Op::kAnd:
+    case OP_AND:
       return do_nary_op([file](Expression* lhs, Expression* rhs) {
         return file->BitwiseAnd(lhs, rhs);
       });
-    case Op::kAndReduce:
+    case OP_AND_REDUCE:
       return file->AndReduce(inputs[0]);
-    case Op::kNand:
+    case OP_NAND:
       return file->BitwiseNot(
           do_nary_op([file](Expression* lhs, Expression* rhs) {
             return file->BitwiseAnd(lhs, rhs);
           }));
-    case Op::kNor:
+    case OP_NOR:
       return file->BitwiseNot(
           do_nary_op([file](Expression* lhs, Expression* rhs) {
             return file->BitwiseOr(lhs, rhs);
           }));
-    case Op::kArray: {
+    case OP_ARRAY: {
       std::vector<Expression*> elements(inputs.begin(), inputs.end());
       return file->ArrayAssignmentPattern(elements);
     }
-    case Op::kArrayIndex: {
+    case OP_ARRAY_INDEX: {
       // Hack to avoid indexing scalar registers, this can be removed when we
       // support querying types of definitions in the VAST AST.
       if (node->operand(1)->Is<xls::Literal>() &&
@@ -406,10 +406,10 @@ xabsl::StatusOr<Expression*> NodeToExpression(
       }
       return file->Index(inputs[0]->AsIndexableExpressionOrDie(), inputs[1]);
     }
-    case Op::kArrayUpdate: {
+    case OP_ARRAY_UPDATE: {
       return absl::UnimplementedError("ArrayUpdate not yet implemented");
     }
-    case Op::kBitSlice: {
+    case OP_BIT_SLICE: {
       BitSlice* slice = node->As<BitSlice>();
       if (slice->width() == 1) {
         return file->Index(inputs[0]->AsIndexableExpressionOrDie(),
@@ -419,75 +419,75 @@ xabsl::StatusOr<Expression*> NodeToExpression(
                            slice->start() + slice->width() - 1, slice->start());
       }
     }
-    case Op::kDynamicBitSlice: {
+    case OP_DYNAMIC_BIT_SLICE: {
       return absl::UnimplementedError("DynamicBitSlice not yet implemented");
     }
-    case Op::kConcat:
+    case OP_CONCAT:
       return file->Concat(inputs);
-    case Op::kUDiv:
+    case OP_UDIV:
       return file->Div(inputs[0], inputs[1]);
-    case Op::kEq:
+    case OP_EQ:
       return file->Equals(inputs[0], inputs[1]);
-    case Op::kUGe:
+    case OP_UGE:
       return file->GreaterThanEquals(inputs[0], inputs[1]);
-    case Op::kUGt:
+    case OP_UGT:
       return file->GreaterThan(inputs[0], inputs[1]);
-    case Op::kDecode:
+    case OP_DECODE:
       return EmitDecode(node->As<Decode>(), inputs[0], file);
-    case Op::kEncode:
+    case OP_ENCODE:
       return EmitEncode(node->As<Encode>(),
                         inputs[0]->AsIndexableExpressionOrDie(), file);
-    case Op::kIdentity:
+    case OP_IDENTITY:
       return inputs[0];
-    case Op::kInvoke:
+    case OP_INVOKE:
       return unimplemented();
-    case Op::kCountedFor:
+    case OP_COUNTED_FOR:
       return unimplemented();
-    case Op::kLiteral:
+    case OP_LITERAL:
       return ValueToVastLiteral(node->As<xls::Literal>()->value(), file);
-    case Op::kULe:
+    case OP_ULE:
       return file->LessThanEquals(inputs[0], inputs[1]);
-    case Op::kULt:
+    case OP_ULT:
       return file->LessThan(inputs[0], inputs[1]);
-    case Op::kMap:
+    case OP_MAP:
       return unimplemented();
-    case Op::kUMul:
-    case Op::kSMul:
+    case OP_UMUL:
+    case OP_SMUL:
       return EmitMultiply(node, inputs[0], inputs[1], file);
-    case Op::kNe:
+    case OP_NE:
       return file->NotEquals(inputs[0], inputs[1]);
-    case Op::kNeg:
+    case OP_NEG:
       return file->Negate(inputs[0]);
-    case Op::kNot:
+    case OP_NOT:
       return file->BitwiseNot(inputs[0]);
-    case Op::kOneHot:
+    case OP_ONE_HOT:
       return EmitOneHot(node->As<OneHot>(),
                         inputs[0]->AsIndexableExpressionOrDie(), file);
-    case Op::kOneHotSel:
+    case OP_ONE_HOT_SEL:
       return EmitOneHotSelect(node->As<OneHotSelect>(),
                               inputs[0]->AsIndexableExpressionOrDie(),
                               inputs.subspan(1), file);
-    case Op::kOr:
+    case OP_OR:
       return do_nary_op([file](Expression* lhs, Expression* rhs) {
         return file->BitwiseOr(lhs, rhs);
       });
-    case Op::kOrReduce:
+    case OP_OR_REDUCE:
       return file->OrReduce(inputs[0]);
-    case Op::kParam:
+    case OP_PARAM:
       return unimplemented();
-    case Op::kReverse:
+    case OP_REVERSE:
       return EmitReverse(node, inputs[0]->AsIndexableExpressionOrDie(), file);
-    case Op::kSel: {
+    case OP_SEL: {
       Select* sel = node->As<Select>();
       auto cases = inputs;
       cases.remove_prefix(1);
       return EmitSel(sel, inputs[0], cases, /*caseno=*/0, file);
     }
-    case Op::kShll:
-    case Op::kShra:
-    case Op::kShrl:
+    case OP_SHLL:
+    case OP_SHRA:
+    case OP_SHRL:
       return EmitShift(node, inputs[0], inputs[1], file);
-    case Op::kSignExt: {
+    case OP_SIGN_EXT: {
       if (node->operand(0)->BitCountOrDie() == 1) {
         // A sign extension of a single-bit value is just replication.
         return file->Concat(
@@ -503,27 +503,27 @@ xabsl::StatusOr<Expression*> NodeToExpression(
              inputs[0]});
       }
     }
-    case Op::kSDiv:
+    case OP_SDIV:
       // Wrap the expression in $unsigned to prevent the signed property from
       // leaking out into the rest of the expression.
       return file->Make<UnsignedCast>(
           file->Div(file->Make<SignedCast>(inputs[0]),
                     file->Make<SignedCast>(inputs[1])));
-    case Op::kSGt:
+    case OP_SGT:
       return file->GreaterThan(file->Make<SignedCast>(inputs[0]),
                                file->Make<SignedCast>(inputs[1]));
-    case Op::kSGe:
+    case OP_SGE:
       return file->GreaterThanEquals(file->Make<SignedCast>(inputs[0]),
                                      file->Make<SignedCast>(inputs[1]));
-    case Op::kSLe:
+    case OP_SLE:
       return file->LessThanEquals(file->Make<SignedCast>(inputs[0]),
                                   file->Make<SignedCast>(inputs[1]));
-    case Op::kSLt:
+    case OP_SLT:
       return file->LessThan(file->Make<SignedCast>(inputs[0]),
                             file->Make<SignedCast>(inputs[1]));
-    case Op::kSub:
+    case OP_SUB:
       return file->Sub(inputs[0], inputs[1]);
-    case Op::kTupleIndex: {
+    case OP_TUPLE_INDEX: {
       if (node->GetType()->IsArray()) {
         return UnflattenArrayShapedTupleElement(
             inputs[0]->AsIndexableExpressionOrDie(),
@@ -537,7 +537,7 @@ xabsl::StatusOr<Expression*> NodeToExpression(
       return file->Slice(inputs[0]->AsIndexableExpressionOrDie(),
                          start + width - 1, start);
     }
-    case Op::kTuple: {
+    case OP_TUPLE: {
       std::vector<Expression*> flattened_inputs;
       // Tuples are represented as a flat vector of bits. Flatten and
       // concatenate all operands.
@@ -553,13 +553,13 @@ xabsl::StatusOr<Expression*> NodeToExpression(
       }
       return file->Concat(flattened_inputs);
     }
-    case Op::kXor:
+    case OP_XOR:
       return do_nary_op([file](Expression* lhs, Expression* rhs) {
         return file->BitwiseXor(lhs, rhs);
       });
-    case Op::kXorReduce:
+    case OP_XOR_REDUCE:
       return file->XorReduce(inputs[0]);
-    case Op::kZeroExt: {
+    case OP_ZERO_EXT: {
       int64 bits_added =
           node->BitCountOrDie() - node->operand(0)->BitCountOrDie();
 
@@ -569,8 +569,8 @@ xabsl::StatusOr<Expression*> NodeToExpression(
 }
 
 bool ShouldInlineExpressionIntoMultipleUses(Node* node) {
-  return node->Is<BitSlice>() || node->op() == Op::kNot ||
-         node->op() == Op::kNeg;
+  return node->Is<BitSlice>() || node->op() == OP_NOT ||
+         node->op() == OP_NEG;
 }
 
 }  // namespace verilog

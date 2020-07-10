@@ -369,12 +369,12 @@ bool ModuleBuilder::CanEmitAsInlineExpression(
   // expressions as assignments. This gives the results of these expression
   // explicit bit-widths.
   switch (node->op()) {
-    case Op::kAdd:
-    case Op::kSub:
-    case Op::kSMul:
-    case Op::kUMul:
-    case Op::kSDiv:
-    case Op::kUDiv:
+    case OP_ADD:
+    case OP_SUB:
+    case OP_SMUL:
+    case OP_UMUL:
+    case OP_SDIV:
+    case OP_UDIV:
       return false;
     default:
       break;
@@ -439,7 +439,7 @@ xabsl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
     // assigned element-by-element in Verilog.
     ArrayType* array_type = node->GetType()->AsArrayOrDie();
     switch (node->op()) {
-      case Op::kArray: {
+      case OP_ARRAY: {
         for (int64 i = 0; i < inputs.size(); ++i) {
           XLS_RETURN_IF_ERROR(AddAssignment(
               file_->Index(ref, file_->PlainLiteral(i)), inputs[i],
@@ -450,7 +450,7 @@ xabsl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
         }
         break;
       }
-      case Op::kArrayIndex:
+      case OP_ARRAY_INDEX:
         XLS_RETURN_IF_ERROR(AddAssignment(
             ref,
             file_->Index(inputs[0]->AsIndexableExpressionOrDie(), inputs[1]),
@@ -458,7 +458,7 @@ xabsl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
               assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
             }));
         break;
-      case Op::kArrayUpdate:
+      case OP_ARRAY_UPDATE:
         for (int64 i = 0; i < array_type->size(); ++i) {
           XLS_RETURN_IF_ERROR(EmitArrayUpdateElement(
               /*lhs=*/file_->Index(ref, i),
@@ -469,7 +469,7 @@ xabsl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
               /*element_type=*/array_type->element_type()));
         }
         break;
-      case Op::kTupleIndex:
+      case OP_TUPLE_INDEX:
         XLS_RETURN_IF_ERROR(AssignFromSlice(
             ref, inputs[0], array_type,
             GetFlatBitIndexOfElement(
@@ -479,7 +479,7 @@ xabsl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
               assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
             }));
         break;
-      case Op::kSel: {
+      case OP_SEL: {
         Select* sel = node->As<Select>();
         Expression* selector = inputs[0];
         std::vector<Expression*> cases(sel->cases().size());
@@ -610,8 +610,8 @@ absl::Status ModuleBuilder::AssignRegisters(
 
 bool ModuleBuilder::MustEmitAsFunction(Node* node) {
   switch (node->op()) {
-    case Op::kSMul:
-    case Op::kUMul:
+    case OP_SMUL:
+    case OP_UMUL:
       return true;
     default:
       return false;
@@ -620,8 +620,8 @@ bool ModuleBuilder::MustEmitAsFunction(Node* node) {
 
 std::string ModuleBuilder::VerilogFunctionName(Node* node) {
   switch (node->op()) {
-    case Op::kSMul:
-    case Op::kUMul:
+    case OP_SMUL:
+    case OP_UMUL:
       // Multiplies may be mixed width so include result and operand widths in
       // the name.
       return absl::StrFormat(
@@ -637,7 +637,7 @@ namespace {
 // Defines and returns a function which implements the given SMul node.
 VerilogFunction* DefineSmulFunction(Node* node, absl::string_view function_name,
                                     ModuleSection* section) {
-  XLS_CHECK_EQ(node->op(), Op::kSMul);
+  XLS_CHECK_EQ(node->op(), OP_SMUL);
   VerilogFile* file = section->file();
 
   ScopedLintDisable lint_disable(section, {Lint::kSignedType, Lint::kMultiply});
@@ -676,7 +676,7 @@ VerilogFunction* DefineSmulFunction(Node* node, absl::string_view function_name,
 // Defines and returns a function which implements the given UMul node.
 VerilogFunction* DefineUmulFunction(Node* node, absl::string_view function_name,
                                     ModuleSection* section) {
-  XLS_CHECK_EQ(node->op(), Op::kUMul);
+  XLS_CHECK_EQ(node->op(), OP_UMUL);
   VerilogFile* file = section->file();
 
   ScopedLintDisable lint_disable(section, {Lint::kMultiply});
@@ -701,10 +701,10 @@ xabsl::StatusOr<VerilogFunction*> ModuleBuilder::DefineFunction(Node* node) {
   }
   VerilogFunction* func;
   switch (node->op()) {
-    case Op::kSMul:
+    case OP_SMUL:
       func = DefineSmulFunction(node, function_name, functions_section_);
       break;
-    case Op::kUMul:
+    case OP_UMUL:
       func = DefineUmulFunction(node, function_name, functions_section_);
       break;
     default:

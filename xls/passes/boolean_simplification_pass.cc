@@ -68,15 +68,15 @@ TruthTable::TruthTable(const Bits& xyz_present, const Bits& xyz_negated,
 /* static */ Bits TruthTable::RunNaryOp(Op op,
                                         absl::Span<const Bits> operands) {
   switch (op) {
-    case Op::kAnd:
+    case OP_AND:
       return bits_ops::NaryAnd(operands);
-    case Op::kOr:
+    case OP_OR:
       return bits_ops::NaryOr(operands);
-    case Op::kNand:
+    case OP_NAND:
       return bits_ops::NaryNand(operands);
-    case Op::kNor:
+    case OP_NOR:
       return bits_ops::NaryNor(operands);
-    case Op::kXor:
+    case OP_XOR:
       return bits_ops::NaryXor(operands);
     default:
       XLS_LOG(FATAL) << "Unhandled nary logical operation: " << op;
@@ -161,7 +161,7 @@ xabsl::StatusOr<Node*> TruthTable::CreateReplacement(
     Node* operand = operands[i];
     if (xyz_negated_.GetFromMsb(i)) {
       XLS_ASSIGN_OR_RETURN(operand,
-                           f->MakeNode<UnOp>(original_loc, operand, Op::kNot));
+                           f->MakeNode<UnOp>(original_loc, operand, OP_NOT));
     }
     this_operands.push_back(operand);
   }
@@ -294,7 +294,7 @@ class BooleanFlowTracker : public DfsVisitorWithDefault {
     };
 
     // Approximately in cheapest-to-more-expensive order.
-    const auto kLogicOps = {Op::kNand, Op::kNor, Op::kXor, Op::kAnd, Op::kOr};
+    const auto kLogicOps = {OP_NAND, OP_NOR, OP_XOR, OP_AND, OP_OR};
 
     // First populate the truth tables for single values and their negations.
     for (int64 presence = 0b0001; presence < 0b1000; presence <<= 1) {
@@ -405,17 +405,17 @@ class BooleanFlowTracker : public DfsVisitorWithDefault {
       operands.push_back(result);
     }
     switch (node->op()) {
-      case Op::kAnd:
+      case OP_AND:
         return bits_ops::NaryAnd(operands);
-      case Op::kOr:
+      case OP_OR:
         return bits_ops::NaryOr(operands);
-      case Op::kXor:
+      case OP_XOR:
         return bits_ops::NaryXor(operands);
-      case Op::kNand:
+      case OP_NAND:
         return bits_ops::NaryNand(operands);
-      case Op::kNor:
+      case OP_NOR:
         return bits_ops::NaryNor(operands);
-      case Op::kNot:
+      case OP_NOT:
         XLS_RET_CHECK(operands.size() == 1);
         return bits_ops::Not(operands[0]);
       default:

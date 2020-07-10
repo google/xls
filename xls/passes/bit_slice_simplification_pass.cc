@@ -142,8 +142,8 @@ xabsl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice,
     // if we sliced the "y" value.
     bool low_bits_of_arith_output =
         bit_slice->start() == 0 &&
-        (operand->op() == Op::kAdd || operand->op() == Op::kSub ||
-         operand->op() == Op::kNeg);
+        (operand->op() == OP_ADD || operand->op() == OP_SUB ||
+         operand->op() == OP_NEG);
     if (OpIsBitWise(operand->op()) || low_bits_of_arith_output) {
       std::vector<Node*> sliced_operands;
       Function* f = bit_slice->function();
@@ -197,7 +197,7 @@ xabsl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice,
   //
   // To avoid introducing an additional sign-extension cases (2) and (3) should
   // only be performed if the bit-slice is the only user of the sign-extend.
-  if (bit_slice->operand(0)->op() == Op::kSignExt) {
+  if (bit_slice->operand(0)->op() == OP_SIGN_EXT) {
     ExtendOp* ext = bit_slice->operand(0)->As<ExtendOp>();
     Node* x = ext->operand(0);
     int64 x_bit_count = x->BitCountOrDie();
@@ -220,7 +220,7 @@ xabsl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice,
             bit_slice
                 ->ReplaceUsesWithNew<ExtendOp>(
                     x_slice,
-                    /*new_bit_count=*/bit_slice->BitCountOrDie(), Op::kSignExt)
+                    /*new_bit_count=*/bit_slice->BitCountOrDie(), OP_SIGN_EXT)
                 .status());
       } else {
         // Case (3), slice includes only the extended bits.
@@ -232,7 +232,7 @@ xabsl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice,
             bit_slice
                 ->ReplaceUsesWithNew<ExtendOp>(
                     x_sign_bit,
-                    /*new_bit_count=*/bit_slice->BitCountOrDie(), Op::kSignExt)
+                    /*new_bit_count=*/bit_slice->BitCountOrDie(), OP_SIGN_EXT)
                 .status());
       }
       return true;

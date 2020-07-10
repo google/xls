@@ -80,167 +80,167 @@ void Node::RemoveUser(Node* user) {
 
 absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
   switch (op()) {
-    case Op::kAdd:
+    case OP_ADD:
       XLS_RETURN_IF_ERROR(visitor->HandleAdd(down_cast<BinOp*>(this)));
       break;
-    case Op::kAnd:
+    case OP_AND:
       XLS_RETURN_IF_ERROR(visitor->HandleNaryAnd(down_cast<NaryOp*>(this)));
       break;
-    case Op::kAndReduce:
+    case OP_AND_REDUCE:
       XLS_RETURN_IF_ERROR(
           visitor->HandleAndReduce(down_cast<BitwiseReductionOp*>(this)));
       break;
-    case Op::kNand:
+    case OP_NAND:
       XLS_RETURN_IF_ERROR(visitor->HandleNaryNand(down_cast<NaryOp*>(this)));
       break;
-    case Op::kNor:
+    case OP_NOR:
       XLS_RETURN_IF_ERROR(visitor->HandleNaryNor(down_cast<NaryOp*>(this)));
       break;
-    case Op::kArray:
+    case OP_ARRAY:
       XLS_RETURN_IF_ERROR(visitor->HandleArray(down_cast<Array*>(this)));
       break;
-    case Op::kBitSlice:
+    case OP_BIT_SLICE:
       XLS_RETURN_IF_ERROR(visitor->HandleBitSlice(down_cast<BitSlice*>(this)));
       break;
-    case Op::kDynamicBitSlice:
+    case OP_DYNAMIC_BIT_SLICE:
       XLS_RETURN_IF_ERROR(
           visitor->HandleDynamicBitSlice(down_cast<DynamicBitSlice*>(this)));
       break;
-    case Op::kConcat:
+    case OP_CONCAT:
       XLS_RETURN_IF_ERROR(visitor->HandleConcat(down_cast<Concat*>(this)));
       break;
-    case Op::kDecode:
+    case OP_DECODE:
       XLS_RETURN_IF_ERROR(visitor->HandleDecode(down_cast<Decode*>(this)));
       break;
-    case Op::kEncode:
+    case OP_ENCODE:
       XLS_RETURN_IF_ERROR(visitor->HandleEncode(down_cast<Encode*>(this)));
       break;
-    case Op::kEq:
+    case OP_EQ:
       XLS_RETURN_IF_ERROR(visitor->HandleEq(down_cast<CompareOp*>(this)));
       break;
-    case Op::kIdentity:
+    case OP_IDENTITY:
       XLS_RETURN_IF_ERROR(visitor->HandleIdentity(down_cast<UnOp*>(this)));
       break;
-    case Op::kArrayIndex:
+    case OP_ARRAY_INDEX:
       XLS_RETURN_IF_ERROR(
           visitor->HandleArrayIndex(down_cast<ArrayIndex*>(this)));
       break;
-    case Op::kArrayUpdate:
+    case OP_ARRAY_UPDATE:
       XLS_RETURN_IF_ERROR(
           visitor->HandleArrayUpdate(down_cast<ArrayUpdate*>(this)));
       break;
-    case Op::kInvoke:
+    case OP_INVOKE:
       XLS_RETURN_IF_ERROR(visitor->HandleInvoke(down_cast<Invoke*>(this)));
       break;
-    case Op::kCountedFor:
+    case OP_COUNTED_FOR:
       XLS_RETURN_IF_ERROR(
           visitor->HandleCountedFor(down_cast<CountedFor*>(this)));
       break;
-    case Op::kLiteral:
+    case OP_LITERAL:
       XLS_RETURN_IF_ERROR(visitor->HandleLiteral(down_cast<Literal*>(this)));
       break;
-    case Op::kMap:
+    case OP_MAP:
       XLS_RETURN_IF_ERROR(visitor->HandleMap(down_cast<Map*>(this)));
       break;
-    case Op::kNe:
+    case OP_NE:
       XLS_RETURN_IF_ERROR(visitor->HandleNe(down_cast<CompareOp*>(this)));
       break;
-    case Op::kNeg:
+    case OP_NEG:
       XLS_RETURN_IF_ERROR(visitor->HandleNeg(down_cast<UnOp*>(this)));
       break;
-    case Op::kNot:
+    case OP_NOT:
       XLS_RETURN_IF_ERROR(visitor->HandleNot(down_cast<UnOp*>(this)));
       break;
-    case Op::kOneHot:
+    case OP_ONE_HOT:
       XLS_RETURN_IF_ERROR(visitor->HandleOneHot(down_cast<OneHot*>(this)));
       break;
-    case Op::kOneHotSel:
+    case OP_ONE_HOT_SEL:
       XLS_RETURN_IF_ERROR(
           visitor->HandleOneHotSel(down_cast<OneHotSelect*>(this)));
       break;
-    case Op::kOr:
+    case OP_OR:
       XLS_RETURN_IF_ERROR(visitor->HandleNaryOr(down_cast<NaryOp*>(this)));
       break;
-    case Op::kOrReduce:
+    case OP_OR_REDUCE:
       XLS_RETURN_IF_ERROR(
           visitor->HandleOrReduce(down_cast<BitwiseReductionOp*>(this)));
       break;
-    case Op::kParam:
+    case OP_PARAM:
       XLS_RETURN_IF_ERROR(visitor->HandleParam(down_cast<Param*>(this)));
       break;
-    case Op::kReverse:
+    case OP_REVERSE:
       XLS_RETURN_IF_ERROR(visitor->HandleReverse(down_cast<UnOp*>(this)));
       break;
-    case Op::kSDiv:
+    case OP_SDIV:
       XLS_RETURN_IF_ERROR(visitor->HandleSDiv(down_cast<BinOp*>(this)));
       break;
-    case Op::kSel:
+    case OP_SEL:
       XLS_RETURN_IF_ERROR(visitor->HandleSel(down_cast<Select*>(this)));
       break;
-    case Op::kSGt:
+    case OP_SGT:
       XLS_RETURN_IF_ERROR(visitor->HandleSGt(down_cast<CompareOp*>(this)));
       break;
-    case Op::kSGe:
+    case OP_SGE:
       XLS_RETURN_IF_ERROR(visitor->HandleSGe(down_cast<CompareOp*>(this)));
       break;
-    case Op::kShll:
+    case OP_SHLL:
       XLS_RETURN_IF_ERROR(visitor->HandleShll(down_cast<BinOp*>(this)));
       break;
-    case Op::kShra:
+    case OP_SHRA:
       XLS_RETURN_IF_ERROR(visitor->HandleShra(down_cast<BinOp*>(this)));
       break;
-    case Op::kShrl:
+    case OP_SHRL:
       XLS_RETURN_IF_ERROR(visitor->HandleShrl(down_cast<BinOp*>(this)));
       break;
-    case Op::kSLe:
+    case OP_SLE:
       XLS_RETURN_IF_ERROR(visitor->HandleSLe(down_cast<CompareOp*>(this)));
       break;
-    case Op::kSLt:
+    case OP_SLT:
       XLS_RETURN_IF_ERROR(visitor->HandleSLt(down_cast<CompareOp*>(this)));
       break;
-    case Op::kSMul:
+    case OP_SMUL:
       XLS_RETURN_IF_ERROR(visitor->HandleSMul(down_cast<ArithOp*>(this)));
       break;
-    case Op::kSub:
+    case OP_SUB:
       XLS_RETURN_IF_ERROR(visitor->HandleSub(down_cast<BinOp*>(this)));
       break;
-    case Op::kTupleIndex:
+    case OP_TUPLE_INDEX:
       XLS_RETURN_IF_ERROR(
           visitor->HandleTupleIndex(down_cast<TupleIndex*>(this)));
       break;
-    case Op::kTuple:
+    case OP_TUPLE:
       XLS_RETURN_IF_ERROR(visitor->HandleTuple(down_cast<Tuple*>(this)));
       break;
-    case Op::kUDiv:
+    case OP_UDIV:
       XLS_RETURN_IF_ERROR(visitor->HandleUDiv(down_cast<BinOp*>(this)));
       break;
-    case Op::kUGe:
+    case OP_UGE:
       XLS_RETURN_IF_ERROR(visitor->HandleUGe(down_cast<CompareOp*>(this)));
       break;
-    case Op::kUGt:
+    case OP_UGT:
       XLS_RETURN_IF_ERROR(visitor->HandleUGt(down_cast<CompareOp*>(this)));
       break;
-    case Op::kULe:
+    case OP_ULE:
       XLS_RETURN_IF_ERROR(visitor->HandleULe(down_cast<CompareOp*>(this)));
       break;
-    case Op::kULt:
+    case OP_ULT:
       XLS_RETURN_IF_ERROR(visitor->HandleULt(down_cast<CompareOp*>(this)));
       break;
-    case Op::kUMul:
+    case OP_UMUL:
       XLS_RETURN_IF_ERROR(visitor->HandleUMul(down_cast<ArithOp*>(this)));
       break;
-    case Op::kXor:
+    case OP_XOR:
       XLS_RETURN_IF_ERROR(visitor->HandleNaryXor(down_cast<NaryOp*>(this)));
       break;
-    case Op::kXorReduce:
+    case OP_XOR_REDUCE:
       XLS_RETURN_IF_ERROR(
           visitor->HandleXorReduce(down_cast<BitwiseReductionOp*>(this)));
       break;
-    case Op::kSignExt:
+    case OP_SIGN_EXT:
       XLS_RETURN_IF_ERROR(
           visitor->HandleSignExtend(down_cast<ExtendOp*>(this)));
       break;
-    case Op::kZeroExt:
+    case OP_ZERO_EXT:
       XLS_RETURN_IF_ERROR(
           visitor->HandleZeroExtend(down_cast<ExtendOp*>(this)));
       break;
@@ -310,14 +310,14 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
     args.push_back(node_to_name(operand, include_operand_types));
   }
   switch (op_) {
-    case Op::kParam:
+    case OP_PARAM:
       args.push_back(GetName());
       break;
-    case Op::kLiteral:
+    case OP_LITERAL:
       args.push_back(
           absl::StrFormat("value=%s", As<Literal>()->value().ToHumanString()));
       break;
-    case Op::kCountedFor:
+    case OP_COUNTED_FOR:
       for (int64 i = 0; i < As<CountedFor>()->invariant_args().size(); ++i) {
         args.pop_back();
       }
@@ -335,23 +335,23 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
                           })));
       }
       break;
-    case Op::kMap:
+    case OP_MAP:
       args.push_back(
           absl::StrFormat("to_apply=%s", As<Map>()->to_apply()->name()));
       break;
-    case Op::kInvoke:
+    case OP_INVOKE:
       args.push_back(
           absl::StrFormat("to_apply=%s", As<Invoke>()->to_apply()->name()));
       break;
-    case Op::kTupleIndex:
+    case OP_TUPLE_INDEX:
       args.push_back(absl::StrFormat("index=%d", As<TupleIndex>()->index()));
       break;
-    case Op::kOneHot:
+    case OP_ONE_HOT:
       args.push_back(absl::StrFormat(
           "lsb_prio=%s",
           As<OneHot>()->priority() == LsbOrMsb::kLsb ? "true" : "false"));
       break;
-    case Op::kOneHotSel: {
+    case OP_ONE_HOT_SEL: {
       const OneHotSelect* sel = As<OneHotSelect>();
       args = {operand(0)->GetName()};
       args.push_back(absl::StrFormat(
@@ -361,7 +361,7 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
                                       })));
       break;
     }
-    case Op::kSel: {
+    case OP_SEL: {
       const Select* sel = As<Select>();
       args = {operand(0)->GetName()};
       args.push_back(absl::StrFormat(
@@ -375,20 +375,20 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       }
       break;
     }
-    case Op::kSignExt:
-    case Op::kZeroExt:
+    case OP_SIGN_EXT:
+    case OP_ZERO_EXT:
       args.push_back(
           absl::StrFormat("new_bit_count=%d", As<ExtendOp>()->new_bit_count()));
       break;
-    case Op::kBitSlice:
+    case OP_BIT_SLICE:
       args.push_back(absl::StrFormat("start=%d", As<BitSlice>()->start()));
       args.push_back(absl::StrFormat("width=%d", As<BitSlice>()->width()));
       break;
-    case Op::kDynamicBitSlice:
+    case OP_DYNAMIC_BIT_SLICE:
       args.push_back(
           absl::StrFormat("width=%d", As<DynamicBitSlice>()->width()));
       break;
-    case Op::kDecode:
+    case OP_DECODE:
       args.push_back(absl::StrFormat("width=%d", As<Decode>()->width()));
       break;
     default:
@@ -448,7 +448,7 @@ bool Node::ReplaceOperand(Node* old_operand, Node* new_operand) {
   // another node 'neg' that has as an operand the node sub. With function
   // builder, this would be:
   //    Node *neg = f->AddNode(absl::make_unique<UnOp>(
-  //      Op::kNeg, n->loc(), n, n->package()));
+  //      OP_NEG, n->loc(), n, n->package()));
   //    f->ReplaceSingleNode(n, neg);
   // At the time of ReplaceSingleNode, neg is a user of n, and so replacing it
   // would create a cycle, with 'neg' getting a user 'neg'.

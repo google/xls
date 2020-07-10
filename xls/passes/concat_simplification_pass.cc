@@ -151,7 +151,7 @@ xabsl::StatusOr<bool> SimplifyConcat(Concat* concat,
   // order:
   //   reverse(concat(a, b, c)) => concat(reverse(c), reverse(b), reverse(a))
   if (concat->users().size() == 1 &&
-      concat->users().at(0)->op() == Op::kReverse) {
+      concat->users().at(0)->op() == OP_REVERSE) {
     Function* func = concat->function();
 
     // Get reversed operands in reverse order.
@@ -165,7 +165,7 @@ xabsl::StatusOr<bool> SimplifyConcat(Concat* concat,
          riter != concat->operands().rend(); ++riter) {
       XLS_ASSIGN_OR_RETURN(Node * hoisted_rev,
                            func->MakeNode<UnOp>(concat->users().at(0)->loc(),
-                                                *riter, Op::kReverse));
+                                                *riter, OP_REVERSE));
       new_operands.push_back(hoisted_rev);
     }
 
@@ -311,7 +311,7 @@ xabsl::StatusOr<bool> TryHoistBitWiseOperation(Node* node) {
 //    Eq(Concat(bits[7]:0, x), 0) => And(Eq(bits[7], 0), Eq(x, 0)) => Eq(x, 0)
 xabsl::StatusOr<bool> TryDistributeReducibleOperation(Node* node) {
   // For now we only handle eq and ne operations.
-  if (node->op() != Op::kEq && node->op() != Op::kNe) {
+  if (node->op() != OP_EQ && node->op() != OP_NE) {
     return false;
   }
 
@@ -337,7 +337,7 @@ xabsl::StatusOr<bool> TryDistributeReducibleOperation(Node* node) {
 
   // For eq, the reduction is that all the sub-slices are equal (AND).
   // For ne, the reduction is that any one of the sub-slices is not-equal (OR).
-  Op reducer = node->op() == Op::kEq ? Op::kAnd : Op::kOr;
+  Op reducer = node->op() == OP_EQ ? OP_AND : OP_OR;
 
   // Walk through the concat operands and grab the corresponding slice out of
   // the "other" node, and distribute the operation to occur on those

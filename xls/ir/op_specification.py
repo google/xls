@@ -20,6 +20,7 @@ The contents of this file is used to generate op.h and op.cc.
 
 import collections
 import enum
+import re
 from typing import List, Optional, Text
 
 
@@ -243,7 +244,7 @@ class OpClass(object):
     Args:
       name: The name of the class.
       op: The expression for the Op associated with this class (e.g.,
-        'Op::kParam').
+        'OP_PARAM').
       operands: The list of operands.
       xls_type_expression: The expression evaluated in the constructor member
         initialization list which produces the xls::Type* of this node.
@@ -348,7 +349,7 @@ class Op(object):
 # pyformat: disable
 OpClass.kinds['ARRAY'] = OpClass(
     name='Array',
-    op='Op::kArray',
+    op='OP_ARRAY',
     operands=[OperandSpan('elements')],
     xls_type_expression='function->package()->GetArrayType(elements.size(), element_type)',
     attributes=[TypeAttribute('element_type')],
@@ -359,14 +360,14 @@ OpClass.kinds['ARRAY'] = OpClass(
 
 OpClass.kinds['ARRAY_INDEX'] = OpClass(
     name='ArrayIndex',
-    op='Op::kArrayIndex',
+    op='OP_ARRAY_INDEX',
     operands=[Operand('arg'), Operand('index')],
     xls_type_expression='arg->GetType()->AsArrayOrDie()->element_type()',
 )
 
 OpClass.kinds['ARRAY_UPDATE'] = OpClass(
     name='ArrayUpdate',
-    op='Op::kArrayUpdate',
+    op='OP_ARRAY_UPDATE',
     operands=[Operand('arg'), Operand('index'), Operand('update_value')],
     xls_type_expression='arg->GetType()',
     extra_methods=[Method(name='size',
@@ -417,7 +418,7 @@ OpClass.kinds['NARY_OP'] = OpClass(
 
 OpClass.kinds['BIT_SLICE'] = OpClass(
     name='BitSlice',
-    op='Op::kBitSlice',
+    op='OP_BIT_SLICE',
     operands=[Operand('arg')],
     xls_type_expression='function->package()->GetBitsType(width)',
     attributes=[Int64Attribute('start'),
@@ -426,7 +427,7 @@ OpClass.kinds['BIT_SLICE'] = OpClass(
 
 OpClass.kinds['DYNAMIC_BIT_SLICE'] = OpClass(
     name='DynamicBitSlice',
-    op='Op::kDynamicBitSlice',
+    op='OP_DYNAMIC_BIT_SLICE',
     operands=[Operand('arg'), Operand('start')],
     xls_type_expression='function->package()->GetBitsType(width)',
     attributes=[Int64Attribute('width')],
@@ -444,7 +445,7 @@ OpClass.kinds['COMPARE_OP'] = OpClass(
 
 OpClass.kinds['CONCAT'] = OpClass(
     name='Concat',
-    op='Op::kConcat',
+    op='OP_CONCAT',
     operands=[OperandSpan('args')],
     xls_type_expression='GetConcatType(function->package(), args)',
     extra_methods=[
@@ -455,7 +456,7 @@ OpClass.kinds['CONCAT'] = OpClass(
 
 OpClass.kinds['COUNTED_FOR'] = OpClass(
     name='CountedFor',
-    op='Op::kCountedFor',
+    op='OP_COUNTED_FOR',
     operands=[Operand('initial_value'),
               OperandSpan('invariant_args')],
     xls_type_expression='initial_value->GetType()',
@@ -484,7 +485,7 @@ OpClass.kinds['EXTEND_OP'] = OpClass(
 
 OpClass.kinds['INVOKE'] = OpClass(
     name='Invoke',
-    op='Op::kInvoke',
+    op='OP_INVOKE',
     operands=[OperandSpan('args')],
     xls_type_expression='to_apply->return_value()->GetType()',
     attributes=[FunctionAttribute('to_apply')],
@@ -492,7 +493,7 @@ OpClass.kinds['INVOKE'] = OpClass(
 
 OpClass.kinds['LITERAL'] = OpClass(
     name='Literal',
-    op='Op::kLiteral',
+    op='OP_LITERAL',
     operands=[],
     xls_type_expression='function->package()->GetTypeForValue(value)',
     attributes=[ValueAttribute('value')],
@@ -502,7 +503,7 @@ OpClass.kinds['LITERAL'] = OpClass(
 
 OpClass.kinds['MAP'] = OpClass(
     name='Map',
-    op='Op::kMap',
+    op='OP_MAP',
     operands=[Operand('arg')],
     xls_type_expression='GetMapType(arg, to_apply)',
     attributes=[FunctionAttribute('to_apply')],
@@ -510,7 +511,7 @@ OpClass.kinds['MAP'] = OpClass(
 
 OpClass.kinds['ONE_HOT'] = OpClass(
     name='OneHot',
-    op='Op::kOneHot',
+    op='OP_ONE_HOT',
     attributes=[LsbOrMsbAttribute('priority')],
     operands=[Operand('input')],
     xls_type_expression='function->package()->GetBitsType('
@@ -519,7 +520,7 @@ OpClass.kinds['ONE_HOT'] = OpClass(
 
 OpClass.kinds['ONE_HOT_SELECT'] = OpClass(
     name='OneHotSelect',
-    op='Op::kOneHotSel',
+    op='OP_ONE_HOT_SEL',
     operands=[Operand('selector'),
               OperandSpan('cases')],
     xls_type_expression='cases[0]->GetType()',
@@ -534,7 +535,7 @@ OpClass.kinds['ONE_HOT_SELECT'] = OpClass(
 
 OpClass.kinds['PARAM'] = OpClass(
     name='Param',
-    op='Op::kParam',
+    op='OP_PARAM',
     operands=[],
     xls_type_expression='type',
     attributes=[StringAttribute('name')],
@@ -545,7 +546,7 @@ OpClass.kinds['PARAM'] = OpClass(
 
 OpClass.kinds['SELECT'] = OpClass(
     name='Select',
-    op='Op::kSel',
+    op='OP_SEL',
     operands=[Operand('selector'),
               OperandSpan('cases'),
               OptionalOperand('default_value')],
@@ -580,7 +581,7 @@ OpClass.kinds['SELECT'] = OpClass(
 
 OpClass.kinds['TUPLE'] = OpClass(
     name='Tuple',
-    op='Op::kTuple',
+    op='OP_TUPLE',
     operands=[OperandSpan('elements')],
     xls_type_expression='GetTupleType(function->package(), elements)',
     extra_methods=[Method(name='size',
@@ -590,7 +591,7 @@ OpClass.kinds['TUPLE'] = OpClass(
 
 OpClass.kinds['TUPLE_INDEX'] = OpClass(
     name='TupleIndex',
-    op='Op::kTupleIndex',
+    op='OP_TUPLE_INDEX',
     operands=[Operand('arg')],
     xls_type_expression='arg->GetType()->AsTupleOrDie()->element_type(index)',
     attributes=[Int64Attribute('index')],
@@ -608,7 +609,7 @@ OpClass.kinds['UN_OP'] = OpClass(
 
 OpClass.kinds['DECODE'] = OpClass(
     name='Decode',
-    op='Op::kDecode',
+    op='OP_DECODE',
     operands=[Operand('arg')],
     xls_type_expression='function->package()->GetBitsType(width)',
     attributes=[Int64Attribute('width')],
@@ -616,7 +617,7 @@ OpClass.kinds['DECODE'] = OpClass(
 
 OpClass.kinds['ENCODE'] = OpClass(
     name='Encode',
-    op='Op::kEncode',
+    op='OP_ENCODE',
     operands=[Operand('arg')],
     # Subtract one from the width expression to account for zero-based
     # numbering.

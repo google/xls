@@ -111,7 +111,7 @@ fn main(i0: bits[3], i1: bits[1], i2: bits[8], i3: bits[23]) -> (bits[1], bits[8
   ScheduleCycleMap cycle_map;
   for (Node* node : function->nodes()) {
     int stage = 0;
-    if (node->Is<Param>() || (node->Is<ArithOp>() && node->op() == Op::kUMul)) {
+    if (node->Is<Param>() || (node->Is<ArithOp>() && node->op() == OP_UMUL)) {
       stage = 0;
     } else {
       stage = 1;

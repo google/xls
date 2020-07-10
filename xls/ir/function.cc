@@ -44,22 +44,22 @@ std::string Function::DumpIr(bool recursive) const {
   StrAppend(&res, " {\n");
 
   for (Node* node : TopoSort(const_cast<Function*>(this))) {
-    if (node->op() == Op::kParam && node == return_value()) {
+    if (node->op() == OP_PARAM && node == return_value()) {
       absl::StrAppendFormat(&res, "  ret param.%d: %s = param(name=%s)\n",
                             node->id(), node->GetType()->ToString(),
                             node->As<Param>()->name());
       continue;
     }
-    if (node->op() == Op::kParam) {
+    if (node->op() == OP_PARAM) {
       continue;  // Already accounted for in the signature.
     }
-    if (recursive && (node->op() == Op::kCountedFor)) {
+    if (recursive && (node->op() == OP_COUNTED_FOR)) {
       nested_funcs += node->As<CountedFor>()->body()->DumpIr() + "\n";
     }
-    if (recursive && (node->op() == Op::kMap)) {
+    if (recursive && (node->op() == OP_MAP)) {
       nested_funcs += node->As<Map>()->to_apply()->DumpIr() + "\n";
     }
-    if (recursive && (node->op() == Op::kInvoke)) {
+    if (recursive && (node->op() == OP_INVOKE)) {
       nested_funcs += node->As<Invoke>()->to_apply()->DumpIr() + "\n";
     }
     StrAppend(&res, "  ", node == return_value() ? "ret " : "",

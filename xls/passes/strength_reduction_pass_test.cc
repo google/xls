@@ -58,7 +58,7 @@ TEST_F(StrengthReductionPassTest, UMulBy16) {
      }
   )",
                                                        p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kUMul);
+  EXPECT_EQ(f->return_value()->op(), OP_UMUL);
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Shll(m::Param(), m::Literal(4)));
 }
@@ -72,7 +72,7 @@ TEST_F(StrengthReductionPassTest, SMulBy16) {
      }
   )",
                                                        p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kSMul);
+  EXPECT_EQ(f->return_value()->op(), OP_SMUL);
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Shll(m::Param(), m::Literal(4)));
 }
@@ -86,7 +86,7 @@ TEST_F(StrengthReductionPassTest, SMulByMaxNegativeNumber) {
      }
   )",
                                                        p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kSMul);
+  EXPECT_EQ(f->return_value()->op(), OP_SMUL);
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
@@ -99,7 +99,7 @@ TEST_F(StrengthReductionPassTest, UMulByMaxPowerOfTwo) {
      }
   )",
                                                        p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kUMul);
+  EXPECT_EQ(f->return_value()->op(), OP_UMUL);
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Shll(m::Param(), m::Literal(3)));
 }
@@ -113,7 +113,7 @@ TEST_F(StrengthReductionPassTest, MixedWidthMultiply) {
      }
   )",
                                                        p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kSMul);
+  EXPECT_EQ(f->return_value()->op(), OP_SMUL);
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Shll(m::SignExt(m::Param()), m::Literal(1)));
@@ -128,7 +128,7 @@ TEST_F(StrengthReductionPassTest, MultiplyBy1) {
      }
   )",
                                                        p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kUMul);
+  EXPECT_EQ(f->return_value()->op(), OP_UMUL);
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Shll(m::Param(), m::Literal(0)));
 }
@@ -142,7 +142,7 @@ TEST_F(StrengthReductionPassTest, MultiplyBy42) {
      }
   )",
                                                        p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kUMul);
+  EXPECT_EQ(f->return_value()->op(), OP_UMUL);
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
   EXPECT_THAT(f->return_value(), m::UMul());
 }
@@ -155,7 +155,7 @@ TEST_F(StrengthReductionPassTest, MultiplyByParam) {
      }
   )",
                                                        p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kUMul);
+  EXPECT_EQ(f->return_value()->op(), OP_UMUL);
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
   EXPECT_THAT(f->return_value(), m::UMul());
 }
@@ -171,7 +171,7 @@ TEST_F(StrengthReductionPassTest, ReducibleAdd) {
      }
   )",
                                                        p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kAdd);
+  EXPECT_EQ(f->return_value()->op(), OP_ADD);
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Or(m::Concat(m::Param("x"), m::Literal(0)),
@@ -191,7 +191,7 @@ TEST_F(StrengthReductionPassTest, NotReducibleAdd) {
      }
   )",
                                                        p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kAdd);
+  EXPECT_EQ(f->return_value()->op(), OP_ADD);
   // The Add is narrowed, but cannot be completely replaced by an Or.
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Concat(m::Add(), m::BitSlice()));
@@ -205,7 +205,7 @@ TEST_F(StrengthReductionPassTest, OneBitAddToXor) {
      }
   )",
                                                        p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kAdd);
+  EXPECT_EQ(f->return_value()->op(), OP_ADD);
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Xor(m::Param("x"), m::Param("y")));
 }
@@ -220,7 +220,7 @@ TEST_F(StrengthReductionPassTest, ConcatZeroThenSignExt) {
      }
   )",
                                                        p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kSignExt);
+  EXPECT_EQ(f->return_value()->op(), OP_SIGN_EXT);
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::ZeroExt(m::Concat(m::Literal(0), m::Param())));
@@ -235,7 +235,7 @@ TEST_F(StrengthReductionPassTest, AndWithMask) {
      }
   )",
                                                        p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kAnd);
+  EXPECT_EQ(f->return_value()->op(), OP_AND);
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Concat(m::Literal(0),
@@ -254,7 +254,7 @@ TEST_F(StrengthReductionPassTest, AndWithEffectiveMaskToBitSliceConcat) {
      }
   )",
                                                        p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kAnd);
+  EXPECT_EQ(f->return_value()->op(), OP_AND);
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Concat(m::Literal(0),
@@ -271,7 +271,7 @@ TEST_F(StrengthReductionPassTest, UGeWithMsbSet) {
      }
   )",
                                                        p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kUGe);
+  EXPECT_EQ(f->return_value()->op(), OP_UGE);
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -287,7 +287,7 @@ TEST_F(StrengthReductionPassTest, ULtWithMsbSet) {
      }
   )",
                                                        p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kULt);
+  EXPECT_EQ(f->return_value()->op(), OP_ULT);
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -303,7 +303,7 @@ TEST_F(StrengthReductionPassTest, UGeWithLeadingBits) {
      }
   )",
                                                        p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kUGe);
+  EXPECT_EQ(f->return_value()->op(), OP_UGE);
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -319,7 +319,7 @@ TEST_F(StrengthReductionPassTest, ULtWithLeadingBits) {
      }
   )",
                                                        p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kULt);
+  EXPECT_EQ(f->return_value()->op(), OP_ULT);
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),

@@ -26,7 +26,7 @@ namespace xls {
 
 // An abstract evaluator for XLS Nodes. The function takes an AbstractEvaluator
 // and calls the appropriate method (e.g., AbstractEvaluator::BitSlice)
-// depending upon the Op of the Node (e.g., Op::kBitSlice) using the given
+// depending upon the Op of the Node (e.g., OP_BIT_SLICE) using the given
 // operand values. For unsupported operations the given function
 // 'default_handler' is called to generate the return value.
 template <typename AbstractEvaluatorT>
@@ -56,103 +56,103 @@ xabsl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
   }
 
   switch (node->op()) {
-    case Op::kAdd:
+    case OP_ADD:
       return default_handler(node);
-    case Op::kAnd:
+    case OP_AND:
       return evaluator->BitwiseAnd(operands);
-    case Op::kAndReduce:
+    case OP_AND_REDUCE:
       return evaluator->AndReduce(operands[0]);
-    case Op::kArray:
+    case OP_ARRAY:
       return default_handler(node);
-    case Op::kArrayIndex:
+    case OP_ARRAY_INDEX:
       return default_handler(node);
-    case Op::kArrayUpdate:
+    case OP_ARRAY_UPDATE:
       return default_handler(node);
-    case Op::kBitSlice: {
+    case OP_BIT_SLICE: {
       XLS_RETURN_IF_ERROR(check_operand_count(1));
       BitSlice* bit_slice = node->As<BitSlice>();
       return evaluator->BitSlice(operands[0], bit_slice->start(),
                                  bit_slice->width());
     }
-    case Op::kDynamicBitSlice: {
+    case OP_DYNAMIC_BIT_SLICE: {
       return default_handler(node);
     }
-    case Op::kConcat:
+    case OP_CONCAT:
       return evaluator->Concat(operands);
-    case Op::kCountedFor:
+    case OP_COUNTED_FOR:
       return default_handler(node);
-    case Op::kDecode: {
+    case OP_DECODE: {
       XLS_RETURN_IF_ERROR(check_operand_count(1));
       Decode* decode = node->As<Decode>();
       return evaluator->Decode(operands[0], decode->width());
     }
-    case Op::kEncode:
+    case OP_ENCODE:
       XLS_RETURN_IF_ERROR(check_operand_count(1));
       return evaluator->Encode(operands[0]);
-    case Op::kEq:
+    case OP_EQ:
       XLS_RETURN_IF_ERROR(check_operand_count(2));
       return Vector({evaluator->Equals(operands[0], operands[1])});
-    case Op::kIdentity:
+    case OP_IDENTITY:
       XLS_RETURN_IF_ERROR(check_operand_count(1));
       return operands[0];
-    case Op::kInvoke:
+    case OP_INVOKE:
       return default_handler(node);
-    case Op::kLiteral: {
+    case OP_LITERAL: {
       XLS_RETURN_IF_ERROR(check_operand_count(0));
       Literal* literal = node->As<Literal>();
       return evaluator->BitsToVector(literal->value().bits());
     }
-    case Op::kMap:
+    case OP_MAP:
       return default_handler(node);
-    case Op::kNand:
+    case OP_NAND:
       return evaluator->BitwiseNot(evaluator->BitwiseAnd(operands));
-    case Op::kNe:
+    case OP_NE:
       XLS_RETURN_IF_ERROR(check_operand_count(2));
       return Vector(
           {evaluator->Not(evaluator->Equals(operands[0], operands[1]))});
-    case Op::kNeg:
+    case OP_NEG:
       return default_handler(node);
-    case Op::kNor:
+    case OP_NOR:
       return evaluator->BitwiseNot(evaluator->BitwiseOr(operands));
-    case Op::kNot:
+    case OP_NOT:
       XLS_RETURN_IF_ERROR(check_operand_count(1));
       return evaluator->BitwiseNot(operands[0]);
-    case Op::kOneHot: {
+    case OP_ONE_HOT: {
       XLS_RETURN_IF_ERROR(check_operand_count(1));
       OneHot* one_hot = node->As<OneHot>();
       return one_hot->priority() == LsbOrMsb::kLsb
                  ? evaluator->OneHotLsbToMsb(operands[0])
                  : evaluator->OneHotMsbToLsb(operands[0]);
     }
-    case Op::kOneHotSel: {
+    case OP_ONE_HOT_SEL: {
       OneHotSelect* sel = node->As<OneHotSelect>();
       return evaluator->OneHotSelect(
           operands[0], operands.subspan(1), /*selector_can_be_zero=*/
           !sel->selector()->Is<OneHot>());
     }
-    case Op::kOr:
+    case OP_OR:
       return evaluator->BitwiseOr(operands);
-    case Op::kOrReduce:
+    case OP_OR_REDUCE:
       return evaluator->OrReduce(operands[0]);
-    case Op::kParam:
+    case OP_PARAM:
       return default_handler(node);
-    case Op::kReverse: {
+    case OP_REVERSE: {
       XLS_RETURN_IF_ERROR(check_operand_count(1));
       Vector result(operands[0].begin(), operands[0].end());
       std::reverse(result.begin(), result.end());
       return result;
     }
-    case Op::kSDiv:
+    case OP_SDIV:
       return default_handler(node);
-    case Op::kSGe:
+    case OP_SGE:
       return default_handler(node);
-    case Op::kSGt:
+    case OP_SGT:
       return default_handler(node);
-    case Op::kSLe:
+    case OP_SLE:
       return default_handler(node);
-    case Op::kSLt:
+    case OP_SLT:
       return default_handler(node);
-    case Op::kSel: {
+    case OP_SEL: {
       Select* sel = node->As<Select>();
       absl::Span<const Vector> cases =
           sel->default_value().has_value()
@@ -164,49 +164,49 @@ xabsl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
               : absl::nullopt;
       return evaluator->Select(operands[0], cases, default_value);
     }
-    case Op::kShll:
+    case OP_SHLL:
       XLS_RETURN_IF_ERROR(check_operand_count(2));
       return evaluator->ShiftLeftLogical(operands[0], operands[1]);
-    case Op::kShra:
+    case OP_SHRA:
       XLS_RETURN_IF_ERROR(check_operand_count(2));
       return evaluator->ShiftRightArith(operands[0], operands[1]);
-    case Op::kShrl:
+    case OP_SHRL:
       XLS_RETURN_IF_ERROR(check_operand_count(2));
       return evaluator->ShiftRightLogical(operands[0], operands[1]);
-    case Op::kSignExt:
+    case OP_SIGN_EXT:
       XLS_RETURN_IF_ERROR(check_operand_count(1));
       return evaluator->SignExtend(operands[0], node->BitCountOrDie());
-    case Op::kSMul:
+    case OP_SMUL:
       return default_handler(node);
-    case Op::kSub:
+    case OP_SUB:
       return default_handler(node);
-    case Op::kTuple:
+    case OP_TUPLE:
       return default_handler(node);
-    case Op::kTupleIndex:
+    case OP_TUPLE_INDEX:
       return default_handler(node);
-    case Op::kUDiv:
+    case OP_UDIV:
       return default_handler(node);
-    case Op::kUGe:
+    case OP_UGE:
       XLS_RETURN_IF_ERROR(check_operand_count(2));
       return Vector(
           {evaluator->Not(evaluator->ULessThan(operands[0], operands[1]))});
-    case Op::kUGt:
+    case OP_UGT:
       XLS_RETURN_IF_ERROR(check_operand_count(2));
       return Vector({evaluator->ULessThan(operands[1], operands[0])});
-    case Op::kULe:
+    case OP_ULE:
       XLS_RETURN_IF_ERROR(check_operand_count(2));
       return Vector(
           {evaluator->Not(evaluator->ULessThan(operands[1], operands[0]))});
-    case Op::kULt:
+    case OP_ULT:
       XLS_RETURN_IF_ERROR(check_operand_count(2));
       return Vector({evaluator->ULessThan(operands[0], operands[1])});
-    case Op::kUMul:
+    case OP_UMUL:
       return default_handler(node);
-    case Op::kXor:
+    case OP_XOR:
       return evaluator->BitwiseXor(operands);
-    case Op::kXorReduce:
+    case OP_XOR_REDUCE:
       return evaluator->XorReduce(operands[0]);
-    case Op::kZeroExt:
+    case OP_ZERO_EXT:
       XLS_RETURN_IF_ERROR(check_operand_count(1));
       return evaluator->ZeroExtend(operands[0], node->BitCountOrDie());
   }

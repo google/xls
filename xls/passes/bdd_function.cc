@@ -136,94 +136,94 @@ bool ShouldEvaluate(Node* node) {
   }
   switch (node->op()) {
     // Logical ops.
-    case Op::kAnd:
-    case Op::kNand:
-    case Op::kNor:
-    case Op::kNot:
-    case Op::kOr:
-    case Op::kXor:
+    case OP_AND:
+    case OP_NAND:
+    case OP_NOR:
+    case OP_NOT:
+    case OP_OR:
+    case OP_XOR:
       return true;
 
     // Extension ops.
-    case Op::kSignExt:
-    case Op::kZeroExt:
+    case OP_SIGN_EXT:
+    case OP_ZERO_EXT:
       return true;
 
-    case Op::kLiteral:
+    case OP_LITERAL:
       return true;
 
     // Bit moving ops.
-    case Op::kBitSlice:
-    case Op::kDynamicBitSlice:
-    case Op::kConcat:
-    case Op::kReverse:
-    case Op::kIdentity:
+    case OP_BIT_SLICE:
+    case OP_DYNAMIC_BIT_SLICE:
+    case OP_CONCAT:
+    case OP_REVERSE:
+    case OP_IDENTITY:
       return true;
 
     // Select operations.
-    case Op::kOneHot:
-    case Op::kOneHotSel:
-    case Op::kSel:
+    case OP_ONE_HOT:
+    case OP_ONE_HOT_SEL:
+    case OP_SEL:
       return true;
 
     // Encode/decode operations:
-    case Op::kDecode:
-    case Op::kEncode:
+    case OP_DECODE:
+    case OP_ENCODE:
       return true;
 
     // Comparison operation are only expressed if at least one of the operands
     // is a literal. This avoids the potential exponential explosion of BDD
     // nodes which can occur with pathological variable ordering.
-    case Op::kUGe:
-    case Op::kUGt:
-    case Op::kULe:
-    case Op::kULt:
-    case Op::kEq:
-    case Op::kNe:
+    case OP_UGE:
+    case OP_UGT:
+    case OP_ULE:
+    case OP_ULT:
+    case OP_EQ:
+    case OP_NE:
       return node->operand(0)->Is<Literal>() || node->operand(1)->Is<Literal>();
 
     // Arithmetic ops
-    case Op::kAdd:
-    case Op::kSMul:
-    case Op::kUMul:
-    case Op::kNeg:
-    case Op::kSDiv:
-    case Op::kSub:
-    case Op::kUDiv:
+    case OP_ADD:
+    case OP_SMUL:
+    case OP_UMUL:
+    case OP_NEG:
+    case OP_SDIV:
+    case OP_SUB:
+    case OP_UDIV:
       return false;
 
     // Reduction ops.
-    case Op::kAndReduce:
-    case Op::kOrReduce:
-    case Op::kXorReduce:
+    case OP_AND_REDUCE:
+    case OP_OR_REDUCE:
+    case OP_XOR_REDUCE:
       return true;
 
     // Weirdo ops.
-    case Op::kArray:
-    case Op::kArrayIndex:
-    case Op::kArrayUpdate:
-    case Op::kCountedFor:
-    case Op::kInvoke:
-    case Op::kMap:
-    case Op::kParam:
-    case Op::kTuple:
-    case Op::kTupleIndex:
+    case OP_ARRAY:
+    case OP_ARRAY_INDEX:
+    case OP_ARRAY_UPDATE:
+    case OP_COUNTED_FOR:
+    case OP_INVOKE:
+    case OP_MAP:
+    case OP_PARAM:
+    case OP_TUPLE:
+    case OP_TUPLE_INDEX:
       return false;
 
     // Unsupported comparison operations.
-    case Op::kSGt:
-    case Op::kSGe:
-    case Op::kSLe:
-    case Op::kSLt:
+    case OP_SGT:
+    case OP_SGE:
+    case OP_SLE:
+    case OP_SLT:
       return false;
 
     // Shift operations.
     // Shifts are very intensive to compute because they decompose into many,
     // many gates and they don't seem to provide much benefit. Turn-off for now.
     // TODO(meheff): Consider enabling shifts.
-    case Op::kShll:
-    case Op::kShra:
-    case Op::kShrl:
+    case OP_SHLL:
+    case OP_SHRA:
+    case OP_SHRL:
       return false;
   }
 }

@@ -8,25 +8,19 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "xls/common/status/statusor.h"
+#include "xls/ir/op.pb.h"
 
 namespace xls {
-
-// Enumerates the operator for nodes in the IR.
-enum class Op {
-  {% for op in spec.OPS -%}
-  {{ op.enum_name }},
-  {% endfor -%}
-};
 
 inline std::vector<Op> AllOps() {
   return {
   {% for op in spec.OPS -%}
-  Op::{{ op.enum_name }},
+  OP_{{ op.name.upper() }},
   {% endfor -%}
   };
 }
 
-const int64 kOpLimit = static_cast<int64>(Op::{{ spec.OPS[-1].enum_name }})+1;
+const int64 kOpLimit = static_cast<int64>(OP_{{ spec.OPS[-1].name.upper() }})+1;
 
 // Converts the "op" enumeration to a human readable string.
 std::string OpToString(Op op);

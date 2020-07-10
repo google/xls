@@ -189,15 +189,15 @@ TEST_F(ConcatSimplificationPassTest, NotOfConcat) {
   EXPECT_TRUE(f->return_value()->Is<Concat>());
   ASSERT_EQ(f->return_value()->operand_count(), 3);
 
-  ASSERT_EQ(f->return_value()->operand(0)->op(), Op::kNot);
+  ASSERT_EQ(f->return_value()->operand(0)->op(), OP_NOT);
   EXPECT_TRUE(f->return_value()->operand(0)->operand(0)->Is<Param>());
   EXPECT_EQ(f->return_value()->operand(0)->operand(0)->GetName(), "a");
 
-  ASSERT_EQ(f->return_value()->operand(1)->op(), Op::kNot);
+  ASSERT_EQ(f->return_value()->operand(1)->op(), OP_NOT);
   EXPECT_TRUE(f->return_value()->operand(1)->operand(0)->Is<Param>());
   EXPECT_EQ(f->return_value()->operand(1)->operand(0)->GetName(), "b");
 
-  ASSERT_EQ(f->return_value()->operand(2)->op(), Op::kNot);
+  ASSERT_EQ(f->return_value()->operand(2)->op(), OP_NOT);
   EXPECT_TRUE(f->return_value()->operand(2)->operand(0)->Is<Param>());
   EXPECT_EQ(f->return_value()->operand(2)->operand(0)->GetName(), "c");
 }
@@ -218,13 +218,13 @@ TEST_F(ConcatSimplificationPassTest, XorOfConcat) {
   EXPECT_TRUE(f->return_value()->Is<Concat>());
   ASSERT_EQ(f->return_value()->operand_count(), 2);
 
-  ASSERT_EQ(f->return_value()->operand(0)->op(), Op::kXor);
+  ASSERT_EQ(f->return_value()->operand(0)->op(), OP_XOR);
   EXPECT_TRUE(f->return_value()->operand(0)->operand(0)->Is<Param>());
   EXPECT_EQ(f->return_value()->operand(0)->operand(0)->GetName(), "a");
   EXPECT_TRUE(f->return_value()->operand(0)->operand(1)->Is<Param>());
   EXPECT_EQ(f->return_value()->operand(0)->operand(1)->GetName(), "c");
 
-  ASSERT_EQ(f->return_value()->operand(1)->op(), Op::kXor);
+  ASSERT_EQ(f->return_value()->operand(1)->op(), OP_XOR);
   EXPECT_TRUE(f->return_value()->operand(1)->operand(0)->Is<Param>());
   EXPECT_EQ(f->return_value()->operand(1)->operand(0)->GetName(), "b");
   EXPECT_TRUE(f->return_value()->operand(1)->operand(1)->Is<Param>());

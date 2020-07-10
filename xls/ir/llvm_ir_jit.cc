@@ -721,10 +721,10 @@ class BuilderVisitor : public DfsVisitorWithDefault {
   absl::Status HandleArithOp(ArithOp* arith_op) {
     bool is_signed;
     switch (arith_op->op()) {
-      case Op::kSMul:
+      case OP_SMUL:
         is_signed = true;
         break;
-      case Op::kUMul:
+      case OP_UMUL:
         is_signed = false;
         break;
       default:
@@ -740,8 +740,8 @@ class BuilderVisitor : public DfsVisitorWithDefault {
 
     llvm::Value* result;
     switch (arith_op->op()) {
-      case Op::kUMul:
-      case Op::kSMul:
+      case OP_UMUL:
+      case OP_SMUL:
         result = builder_->CreateMul(lhs, rhs);
         break;
       default:
@@ -762,21 +762,21 @@ class BuilderVisitor : public DfsVisitorWithDefault {
     llvm::Value* rhs = node_map_.at(binop->operands()[1]);
     llvm::Value* result;
     switch (binop->op()) {
-      case Op::kAdd:
+      case OP_ADD:
         result = builder_->CreateAdd(lhs, rhs);
         break;
-      case Op::kShll:
-      case Op::kShra:
-      case Op::kShrl:
+      case OP_SHLL:
+      case OP_SHRA:
+      case OP_SHRL:
         result = EmitShiftOp(binop->op(), lhs, rhs);
         break;
-      case Op::kSub:
+      case OP_SUB:
         result = builder_->CreateSub(lhs, rhs);
         break;
-      case Op::kUDiv:
+      case OP_UDIV:
         result = EmitDiv(lhs, rhs, /*is_signed=*/false);
         break;
-      case Op::kSDiv:
+      case OP_SDIV:
         result = EmitDiv(lhs, rhs, /*is_signed=*/true);
         break;
       default:
@@ -803,9 +803,9 @@ class BuilderVisitor : public DfsVisitorWithDefault {
     llvm::Value* inst;
     llvm::Value* zero = llvm::ConstantInt::get(dest_type, 0);
     llvm::Value* overflow_value = zero;
-    if (op == Op::kShll) {
+    if (op == OP_SHLL) {
       inst = builder_->CreateShl(lhs, rhs);
-    } else if (op == Op::kShra) {
+    } else if (op == OP_SHRA) {
       llvm::Value* high_bit = builder_->CreateLShr(
           lhs, llvm::ConstantInt::get(
                    dest_type, lhs->getType()->getIntegerBitWidth() - 1));

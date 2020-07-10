@@ -103,7 +103,7 @@ inline bool SoleUserSatisfies(Node* node,
 }
 
 inline bool IsNotOf(const Node* node, const Node* inverted) {
-  return node->op() == Op::kNot && node->operand(0) == inverted;
+  return node->op() == OP_NOT && node->operand(0) == inverted;
 }
 
 // For use in e.g. absl::StrJoin.

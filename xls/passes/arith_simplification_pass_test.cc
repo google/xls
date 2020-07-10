@@ -435,7 +435,7 @@ TEST_F(ArithSimplificationPassTest, NandWithLiteralAllOnesOperands) {
 TEST_F(ArithSimplificationPassTest, SingleOperandNand) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
-  fb.AddNaryOp(Op::kNand, {fb.Param("x", p->GetBitsType(32))});
+  fb.AddNaryOp(OP_NAND, {fb.Param("x", p->GetBitsType(32))});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Not(m::Param("x")));
@@ -444,7 +444,7 @@ TEST_F(ArithSimplificationPassTest, SingleOperandNand) {
 TEST_F(ArithSimplificationPassTest, SingleOperandOr) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
-  fb.AddNaryOp(Op::kOr, {fb.Param("x", p->GetBitsType(32))});
+  fb.AddNaryOp(OP_OR, {fb.Param("x", p->GetBitsType(32))});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Param("x"));

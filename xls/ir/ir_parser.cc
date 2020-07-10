@@ -505,31 +505,31 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
 
     std::vector<BValue> operands;
     switch (op) {
-      case Op::kBitSlice: {
+      case OP_BIT_SLICE: {
         int64* start = arg_parser.AddKeywordArg<int64>("start");
         int64* width = arg_parser.AddKeywordArg<int64>("width");
         XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
         bvalue = fb->BitSlice(operands[0], *start, *width, *loc);
         break;
       }
-      case Op::kDynamicBitSlice: {
+      case OP_DYNAMIC_BIT_SLICE: {
         int64* width = arg_parser.AddKeywordArg<int64>("width");
         XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
         bvalue = fb->DynamicBitSlice(operands[0], operands[1], *width, *loc);
         break;
       }
-      case Op::kConcat: {
+      case OP_CONCAT: {
         XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(ArgParser::kVariadic));
         bvalue = fb->Concat(operands, *loc);
         break;
       }
-      case Op::kLiteral: {
+      case OP_LITERAL: {
         Value* value = arg_parser.AddKeywordArg<Value>("value");
         XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/0));
         bvalue = fb->Literal(*value, *loc);
         break;
       }
-      case Op::kMap: {
+      case OP_MAP: {
         std::string* to_apply_name =
             arg_parser.AddKeywordArg<std::string>("to_apply");
         XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
@@ -538,7 +538,7 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
         bvalue = fb->Map(operands[0], to_apply, *loc);
         break;
       }
-      case Op::kParam: {
+      case OP_PARAM: {
         // TODO(meheff): Params should not appear in the body of the
         // function. This is currently required because we have no way of
         // returning a param value otherwise.
@@ -554,7 +554,7 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
         bvalue = it->second;
         break;
       }
-      case Op::kCountedFor: {
+      case OP_COUNTED_FOR: {
         int64* trip_count = arg_parser.AddKeywordArg<int64>("trip_count");
         int64* stride = arg_parser.AddOptionalKeywordArg<int64>("stride", 1);
         std::string* body_name = arg_parser.AddKeywordArg<std::string>("body");
@@ -567,14 +567,14 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
                                 *invariant_args, *loc);
         break;
       }
-      case Op::kOneHot: {
+      case OP_ONE_HOT: {
         bool* lsb_prio = arg_parser.AddKeywordArg<bool>("lsb_prio");
         XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
         bvalue = fb->OneHot(operands[0],
                             *lsb_prio ? LsbOrMsb::kLsb : LsbOrMsb::kMsb, *loc);
         break;
       }
-      case Op::kOneHotSel: {
+      case OP_ONE_HOT_SEL: {
         std::vector<BValue>* case_args =
             arg_parser.AddKeywordArg<std::vector<BValue>>("cases");
         XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
@@ -585,7 +585,7 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
         bvalue = fb->OneHotSelect(operands[0], *case_args, *loc);
         break;
       }
-      case Op::kSel: {
+      case OP_SEL: {
         std::vector<BValue>* case_args =
             arg_parser.AddKeywordArg<std::vector<BValue>>("cases");
         std::optional<BValue>* default_value =
@@ -598,12 +598,12 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
         bvalue = fb->Select(operands[0], *case_args, *default_value, *loc);
         break;
       }
-      case Op::kTuple: {
+      case OP_TUPLE: {
         XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(ArgParser::kVariadic));
         bvalue = fb->Tuple(operands, *loc);
         break;
       }
-      case Op::kArray: {
+      case OP_ARRAY: {
         if (!type->IsArray()) {
           return absl::InvalidArgumentError(absl::StrFormat(
               "Expected array type @ %s", op_token.pos().ToHumanString()));
@@ -613,7 +613,7 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
             fb->Array(operands, type->AsArrayOrDie()->element_type(), *loc);
         break;
       }
-      case Op::kTupleIndex: {
+      case OP_TUPLE_INDEX: {
         int64* index = arg_parser.AddKeywordArg<int64>("index");
         XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
         if (!operands[0].GetType()->IsTuple()) {
@@ -625,7 +625,7 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
         bvalue = fb->TupleIndex(operands[0], *index, *loc);
         break;
       }
-      case Op::kArrayIndex: {
+      case OP_ARRAY_INDEX: {
         XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
         if (!operands[0].GetType()->IsArray()) {
           return absl::InvalidArgumentError(absl::StrFormat(
@@ -636,7 +636,7 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
         bvalue = fb->ArrayIndex(operands[0], operands[1], *loc);
         break;
       }
-      case Op::kArrayUpdate: {
+      case OP_ARRAY_UPDATE: {
         XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/3));
         if (!operands[0].GetType()->IsArray()) {
           return absl::InvalidArgumentError(absl::StrFormat(
@@ -656,7 +656,7 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
         bvalue = fb->ArrayUpdate(operands[0], operands[1], operands[2], *loc);
         break;
       }
-      case Op::kInvoke: {
+      case OP_INVOKE: {
         std::string* to_apply_name =
             arg_parser.AddKeywordArg<std::string>("to_apply");
         XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(ArgParser::kVariadic));
@@ -665,8 +665,8 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
         bvalue = fb->Invoke(operands, to_apply, *loc);
         break;
       }
-      case Op::kZeroExt:
-      case Op::kSignExt: {
+      case OP_ZERO_EXT:
+      case OP_SIGN_EXT: {
         int64* new_bit_count = arg_parser.AddKeywordArg<int64>("new_bit_count");
         XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
         if (type->IsBits() &&
@@ -676,17 +676,17 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
                               "from its new_bit_count annotation %d.",
                               type->ToString(), *new_bit_count));
         }
-        bvalue = op == Op::kZeroExt
+        bvalue = op == OP_ZERO_EXT
                      ? fb->ZeroExtend(operands[0], *new_bit_count, *loc)
                      : fb->SignExtend(operands[0], *new_bit_count, *loc);
         break;
       }
-      case Op::kEncode: {
+      case OP_ENCODE: {
         XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
         bvalue = fb->Encode(operands[0], *loc);
         break;
       }
-      case Op::kDecode: {
+      case OP_DECODE: {
         int64* width = arg_parser.AddKeywordArg<int64>("width");
         XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
         if (type->IsBits() && type->AsBitsOrDie()->bit_count() != *width) {
@@ -698,8 +698,8 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
         bvalue = fb->Decode(operands[0], *width, *loc);
         break;
       }
-      case Op::kSMul:
-      case Op::kUMul: {
+      case OP_SMUL:
+      case OP_UMUL: {
         XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
         bvalue = fb->AddArithOp(op, operands[0], operands[1],
                                 type->AsBitsOrDie()->bit_count(), *loc);

@@ -63,7 +63,7 @@ class ModuleBuilder {
   // Returns whether the given node can be emitted as an inline expression in
   // Verilog (the alternative is to assign the expression of node to a temporary
   // variable). Generally operations on bits-typed values can be emitted inline
-  // (for example, Op::kAnd). Operations on compound types such as arrays and
+  // (for example, OP_AND). Operations on compound types such as arrays and
   // tuples may require declaration of temporary variables and one or more
   // assignment statements. Also, the users of a node may also force the node to
   // be emitted as a temporary variable, if, for example, the emitted code for

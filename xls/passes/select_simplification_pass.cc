@@ -307,7 +307,7 @@ xabsl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   //   sel = sel(p, case=[b, a])
   if (node->Is<Select>() &&
       node->As<Select>()->selector()->BitCountOrDie() == 1 &&
-      node->As<Select>()->selector()->op() == Op::kNot &&
+      node->As<Select>()->selector()->op() == OP_NOT &&
       node->As<Select>()->cases().size() == 2) {
     Select* sel = node->As<Select>();
     XLS_RETURN_IF_ERROR(
@@ -336,7 +336,7 @@ xabsl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
               replacement,
               node->function()->MakeNode<NaryOp>(
                   node->loc(), std::vector<Node*>{replacement, sel->cases()[i]},
-                  Op::kOr));
+                  OP_OR));
         }
       }
     }
@@ -373,7 +373,7 @@ xabsl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
               node->loc(), Value(UBits(0, sel->selector()->BitCountOrDie()))));
       XLS_ASSIGN_OR_RETURN(Node * is_zero,
                            f->MakeNode<CompareOp>(node->loc(), sel->selector(),
-                                                  selector_zero, Op::kEq));
+                                                  selector_zero, OP_EQ));
       XLS_ASSIGN_OR_RETURN(
           Node * selected_zero,
           f->MakeNode<Literal>(node->loc(),
@@ -477,7 +477,7 @@ xabsl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
               f->MakeNode<NaryOp>(
                   node->loc(),
                   std::vector<Node*>{new_selectors[index], old_selector},
-                  Op::kOr));
+                  OP_OR));
         }
       }
       std::reverse(new_selectors.begin(), new_selectors.end());
@@ -548,16 +548,16 @@ xabsl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     XLS_ASSIGN_OR_RETURN(
         Node * lhs,
         f->MakeNode<NaryOp>(select->loc(), std::vector<Node*>{s, on_true},
-                            Op::kAnd));
+                            OP_AND));
     XLS_ASSIGN_OR_RETURN(Node * s_not,
-                         f->MakeNode<UnOp>(select->loc(), s, Op::kNot));
+                         f->MakeNode<UnOp>(select->loc(), s, OP_NOT));
     XLS_ASSIGN_OR_RETURN(
         Node * rhs,
         f->MakeNode<NaryOp>(select->loc(), std::vector<Node*>{s_not, on_false},
-                            Op::kAnd));
+                            OP_AND));
     XLS_RETURN_IF_ERROR(
         select
-            ->ReplaceUsesWithNew<NaryOp>(std::vector<Node*>{lhs, rhs}, Op::kOr)
+            ->ReplaceUsesWithNew<NaryOp>(std::vector<Node*>{lhs, rhs}, OP_OR)
             .status());
     return true;
   }
@@ -593,10 +593,10 @@ xabsl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       Node* selector = node->operand(0);
       if (invert_selector) {
         XLS_ASSIGN_OR_RETURN(selector, node->function()->MakeNode<UnOp>(
-                                           node->loc(), selector, Op::kNot));
+                                           node->loc(), selector, OP_NOT));
       }
       XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<ExtendOp>(
-                                  selector, node->BitCountOrDie(), Op::kSignExt)
+                                  selector, node->BitCountOrDie(), OP_SIGN_EXT)
                               .status());
       return true;
     }
@@ -664,13 +664,13 @@ xabsl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
               Node * selector_bit_mask,
               node->function()->MakeNode<ExtendOp>(
                   select->loc(), selector_bit,
-                  /*new_bit_count=*/ohs_operand->cases().size(), Op::kSignExt));
+                  /*new_bit_count=*/ohs_operand->cases().size(), OP_SIGN_EXT));
           XLS_ASSIGN_OR_RETURN(Node * masked_selector,
                                node->function()->MakeNode<NaryOp>(
                                    select->loc(),
                                    std::vector<Node*>{selector_bit_mask,
                                                       ohs_operand->selector()},
-                                   Op::kAnd));
+                                   OP_AND));
           new_selector_parts.push_back(masked_selector);
           for (Node* subcase : ohs_operand->cases()) {
             new_cases.push_back(subcase);
@@ -735,18 +735,18 @@ xabsl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     Node* selector = sel->selector();
     if (nonzero_case_no == 0) {
       XLS_ASSIGN_OR_RETURN(selector, sel->function()->MakeNode<UnOp>(
-                                         sel->loc(), selector, Op::kNot));
+                                         sel->loc(), selector, OP_NOT));
     }
     XLS_ASSIGN_OR_RETURN(
         Node * sign_ext_selector,
         node->function()->MakeNode<ExtendOp>(
             node->loc(), selector,
-            /*new_bit_count=*/sel->BitCountOrDie(), Op::kSignExt));
+            /*new_bit_count=*/sel->BitCountOrDie(), OP_SIGN_EXT));
     XLS_RETURN_IF_ERROR(
         node->ReplaceUsesWithNew<NaryOp>(
                 std::vector<Node*>{sel->cases()[nonzero_case_no],
                                    sign_ext_selector},
-                Op::kAnd)
+                OP_AND)
             .status());
     return true;
   }
@@ -845,10 +845,10 @@ xabsl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
         x = sel0->cases()[1];
         y = sel1->cases()[1];
         XLS_ASSIGN_OR_RETURN(Node * not_p1, sel0->function()->MakeNode<UnOp>(
-                                                sel0->loc(), p1, Op::kNot));
+                                                sel0->loc(), p1, OP_NOT));
         XLS_ASSIGN_OR_RETURN(
             p_x, sel0->function()->MakeNode<NaryOp>(
-                     sel0->loc(), std::vector<Node*>{p0, not_p1}, Op::kOr));
+                     sel0->loc(), std::vector<Node*>{p0, not_p1}, OP_OR));
       } else if (sel0->cases()[1] == sel1->cases()[1]) {
         //         y   x
         //          \ /
@@ -861,7 +861,7 @@ xabsl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
         y = sel1->cases()[0];
         XLS_ASSIGN_OR_RETURN(
             p_x, sel0->function()->MakeNode<NaryOp>(
-                     sel0->loc(), std::vector<Node*>{p0, p1}, Op::kOr));
+                     sel0->loc(), std::vector<Node*>{p0, p1}, OP_OR));
       }
     } else if (is_2way_select(sel0->cases()[1])) {
       Select* sel1 = sel0->cases()[1]->As<Select>();
@@ -878,7 +878,7 @@ xabsl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
         y = sel1->cases()[1];
         XLS_ASSIGN_OR_RETURN(
             p_x, sel0->function()->MakeNode<NaryOp>(
-                     sel0->loc(), std::vector<Node*>{p0, p1}, Op::kNand));
+                     sel0->loc(), std::vector<Node*>{p0, p1}, OP_NAND));
       } else if (sel0->cases()[0] == sel1->cases()[1]) {
         //  x    y   x
         //   \    \ /
@@ -890,10 +890,10 @@ xabsl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
         x = sel0->cases()[0];
         y = sel1->cases()[0];
         XLS_ASSIGN_OR_RETURN(Node * not_p0, sel0->function()->MakeNode<UnOp>(
-                                                sel0->loc(), p0, Op::kNot));
+                                                sel0->loc(), p0, OP_NOT));
         XLS_ASSIGN_OR_RETURN(
             p_x, sel0->function()->MakeNode<NaryOp>(
-                     sel0->loc(), std::vector<Node*>{not_p0, p1}, Op::kOr));
+                     sel0->loc(), std::vector<Node*>{not_p0, p1}, OP_OR));
       }
     }
     if (x != nullptr) {
@@ -920,13 +920,13 @@ xabsl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     XLS_ASSIGN_OR_RETURN(
         Node * and0,
         node->function()->MakeNode<NaryOp>(
-            node->loc(), std::vector<Node*>{sel0, ohs->cases()[0]}, Op::kAnd));
+            node->loc(), std::vector<Node*>{sel0, ohs->cases()[0]}, OP_AND));
     XLS_ASSIGN_OR_RETURN(
         Node * and1,
         node->function()->MakeNode<NaryOp>(
-            node->loc(), std::vector<Node*>{sel1, ohs->cases()[1]}, Op::kAnd));
+            node->loc(), std::vector<Node*>{sel1, ohs->cases()[1]}, OP_AND));
     XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<NaryOp>(
-                                std::vector<Node*>{and0, and1}, Op::kOr)
+                                std::vector<Node*>{and0, and1}, OP_OR)
                             .status());
     return true;
   }
@@ -936,7 +936,7 @@ xabsl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   if (node->Is<OneHot>() && node->BitCountOrDie() == 2) {
     XLS_ASSIGN_OR_RETURN(Node * inv_operand,
                          node->function()->MakeNode<UnOp>(
-                             node->loc(), node->operand(0), Op::kNot));
+                             node->loc(), node->operand(0), OP_NOT));
     XLS_RETURN_IF_ERROR(
         node->ReplaceUsesWithNew<Concat>(
                 std::vector<Node*>{inv_operand, node->operand(0)})
@@ -955,7 +955,7 @@ xabsl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                   UBits(0, /*bit_count=*/node->operand(0)->BitCountOrDie()))));
       XLS_ASSIGN_OR_RETURN(Node * operand_eq_zero,
                            node->function()->MakeNode<CompareOp>(
-                               node->loc(), node->operand(0), zero, Op::kEq));
+                               node->loc(), node->operand(0), zero, OP_EQ));
       XLS_RETURN_IF_ERROR(
           node->ReplaceUsesWithNew<Concat>(
                   std::vector{operand_eq_zero, node->operand(0)})

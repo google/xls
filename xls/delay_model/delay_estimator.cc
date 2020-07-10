@@ -104,28 +104,28 @@ namespace {
   };
   switch (node->op()) {
     // TODO(leary): 2019-09-24 Collect real numbers for these.
-    case Op::kAnd:
+    case OP_AND:
       return get_logical_effort(netlist::CellKind::kNand, /*invert=*/true);
-    case Op::kNand:
+    case OP_NAND:
       return get_logical_effort(netlist::CellKind::kNand, /*invert=*/false);
-    case Op::kNor:
+    case OP_NOR:
       return get_logical_effort(netlist::CellKind::kNor, /*invert=*/false);
-    case Op::kOr:
+    case OP_OR:
       return get_logical_effort(netlist::CellKind::kNor, /*invert=*/true);
-    case Op::kXor:
+    case OP_XOR:
       return get_logical_effort(netlist::CellKind::kXor, /*invert=*/false);
-    case Op::kNot:
+    case OP_NOT:
       return get_logical_effort(netlist::CellKind::kInverter, /*invert=*/false);
-    case Op::kAndReduce:
+    case OP_AND_REDUCE:
       return get_reduction_logical_effort(netlist::CellKind::kNand,
                                           /*invert=*/true);
-    case Op::kOrReduce:
+    case OP_OR_REDUCE:
       return get_reduction_logical_effort(netlist::CellKind::kNor,
                                           /*invert=*/true);
-    case Op::kXorReduce:
+    case OP_XOR_REDUCE:
       return get_reduction_logical_effort(netlist::CellKind::kXor,
                                           /*invert=*/false);
-    case Op::kEncode: {
+    case OP_ENCODE: {
       // Each output bit is the OR reduction of half of the input
       // bits. Equivalently the NOR reduction delay plus an inverter delay.
       // TODO(meheff): Characterize this properly.
