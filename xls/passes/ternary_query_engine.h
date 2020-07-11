@@ -15,6 +15,7 @@
 #ifndef XLS_PASSES_TERNARY_QUERY_ENGINE_H_
 #define XLS_PASSES_TERNARY_QUERY_ENGINE_H_
 
+#include "absl/types/optional.h"
 #include "xls/common/status/statusor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
@@ -52,6 +53,11 @@ class TernaryQueryEngine : public QueryEngine {
   // Ternary logic provides little information about bit implications.
   bool Implies(const BitLocation& a, const BitLocation& b) const override {
     return false;
+  }
+  absl::optional<Bits> ImpliedNodeValue(
+      absl::Span<const std::pair<BitLocation, bool>> predicate_bit_values,
+      Node* node) const override {
+    return absl::nullopt;
   }
 
  private:

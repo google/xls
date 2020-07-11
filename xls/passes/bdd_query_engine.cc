@@ -14,8 +14,12 @@
 
 #include "xls/passes/bdd_query_engine.h"
 
+#include "absl/types/optional.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/binary_decision_diagram.h"
+#include "xls/ir/bits.h"
+#include "xls/passes/query_engine.h"
 
 namespace xls {
 
@@ -93,12 +97,58 @@ bool BddQueryEngine::AtLeastOneTrue(absl::Span<BitLocation const> bits) const {
   return result == bdd().one();
 }
 
+bool BddQueryEngine::Implies(const BddNodeIndex& a,
+                             const BddNodeIndex& b) const {
+  // A implies B  <=>  !(A && !B)
+  return bdd().And(a, bdd().Not(b)) == bdd().zero();
+}
+
 bool BddQueryEngine::Implies(const BitLocation& a, const BitLocation& b) const {
   if (!IsTracked(a.node) || !IsTracked(b.node)) {
     return false;
   }
-  // A implies B  <=>  !(A && !B)
-  return bdd().And(GetBddNode(a), bdd().Not(GetBddNode(b))) == bdd().zero();
+  return Implies(GetBddNode(a), GetBddNode(b));
+}
+
+absl::optional<Bits> BddQueryEngine::ImpliedNodeValue(
+    absl::Span<const std::pair<BitLocation, bool>> predicate_bit_values,
+    Node* node) const {
+  if (!IsTracked(node)) {
+    return absl::nullopt;
+  }
+
+  // Create a Bdd node for the predicate_bit_values.
+  BddNodeIndex bdd_predicate_bit = bdd().one();
+  for (const auto& [conjuction_bit_location, conjunction_value] :
+       predicate_bit_values) {
+    BddNodeIndex conjuction_bit = GetBddNode(conjuction_bit_location);
+    conjuction_bit =
+        conjunction_value ? conjuction_bit : bdd().Not(conjuction_bit);
+    bdd_predicate_bit = bdd().And(bdd_predicate_bit, conjuction_bit);
+  }
+
+  auto implied_true_or_false = [&](int node_idx, bool node_bit_true) {
+    BddNodeIndex bdd_node_bit = GetBddNode({node, node_idx});
+    BddNodeIndex qualified_bdd_node_bit =
+        node_bit_true ? bdd_node_bit : bdd().Not(bdd_node_bit);
+    return Implies(bdd_predicate_bit, qualified_bdd_node_bit);
+  };
+
+  // Check if bdd_predicate_bit implies that node has a particular value for
+  // all bits.
+  XLS_CHECK(node->GetType()->IsBits());
+  BitsRope bit_rope(node->BitCountOrDie());
+  for (int node_idx = 0; node_idx < node->BitCountOrDie(); ++node_idx) {
+    if (implied_true_or_false(node_idx, true)) {
+      bit_rope.push_back(true);
+    } else if (implied_true_or_false(node_idx, false)) {
+      bit_rope.push_back(false);
+    } else {
+      return absl::nullopt;
+    }
+  }
+
+  return bit_rope.Build();
 }
 
 bool BddQueryEngine::KnownEquals(const BitLocation& a,

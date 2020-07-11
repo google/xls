@@ -14,9 +14,13 @@
 
 #include "xls/passes/bdd_query_engine.h"
 
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/inlined_vector.h"
 #include "xls/common/status/matchers.h"
+#include "xls/data_structures/binary_decision_diagram.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -103,6 +107,133 @@ TEST_F(BddQueryEngineTest, VariousComparisonPredicates) {
 
   EXPECT_TRUE(Implies(*query_engine, x_eq_7.node(), x_lt_42.node()));
   EXPECT_FALSE(Implies(*query_engine, x_lt_42.node(), x_eq_7.node()));
+}
+
+TEST_F(BddQueryEngineTest, BitValuesImplyNodeValueSimple) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(1));
+  BValue x_not = fb.Not(x);
+  BValue concat = fb.Concat({x, x_not});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto query_engine, BddQueryEngine::Run(f));
+
+  auto result =
+      query_engine->ImpliedNodeValue({{{x.node(), 0}, true}}, concat.node());
+  EXPECT_TRUE(result.has_value());
+  EXPECT_THAT(result.value().ToBitVector(), testing::ElementsAre(false, true));
+}
+
+TEST_F(BddQueryEngineTest, BitValuesImplyNodeValueComplex) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(1));
+  BValue b = fb.Param("b", p->GetBitsType(1));
+  BValue c = fb.Param("c", p->GetBitsType(1));
+  BValue d = fb.Param("d", p->GetBitsType(1));
+  BValue a_or_b = fb.Or(a, b);
+  BValue a_and_b = fb.And(a, b);
+  BValue c_and_d = fb.And(c, d);
+  BValue c_xor_d = fb.Xor(c, d);
+  BValue concat = fb.Concat({a_or_b, c_and_d});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto query_engine, BddQueryEngine::Run(f));
+
+  auto result = query_engine->ImpliedNodeValue(
+      {{{a_and_b.node(), 0}, true}, {{c_xor_d.node(), 0}, true}},
+      concat.node());
+  EXPECT_TRUE(result.has_value());
+  EXPECT_THAT(result.value().ToBitVector(), testing::ElementsAre(false, true));
+}
+
+TEST_F(BddQueryEngineTest, BitValuesImplyNodeValueFalsePredice) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(1));
+  BValue b = fb.Param("b", p->GetBitsType(1));
+  BValue a_or_b = fb.Or(a, b);
+  BValue a_and_b = fb.And(a, b);
+  BValue a_xor_b = fb.Xor(a, b);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto query_engine, BddQueryEngine::Run(f));
+
+  auto result = query_engine->ImpliedNodeValue(
+      {{{a_and_b.node(), 0}, false}, {{a_or_b.node(), 0}, true}},
+      a_xor_b.node());
+  EXPECT_TRUE(result.has_value());
+  EXPECT_THAT(result.value().ToBitVector(), testing::ElementsAre(true));
+}
+
+TEST_F(BddQueryEngineTest, BitValuesImplyNodeValueNoValueImpliedLogical) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(1));
+  BValue b = fb.Param("b", p->GetBitsType(1));
+  BValue a_or_b = fb.Or(a, b);
+  BValue a_and_b = fb.And(a, b);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto query_engine, BddQueryEngine::Run(f));
+
+  auto result = query_engine->ImpliedNodeValue({{{a_or_b.node(), 0}, true}},
+                                               a_and_b.node());
+  EXPECT_FALSE(result.has_value());
+}
+
+TEST_F(BddQueryEngineTest, BitValuesImplyNodeValueNotImpliedUnrelated) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(1));
+  BValue b = fb.Param("b", p->GetBitsType(1));
+  BValue c = fb.Param("c", p->GetBitsType(1));
+  BValue d = fb.Param("d", p->GetBitsType(1));
+  BValue a_or_b = fb.Or(a, b);
+  BValue a_and_b = fb.And(a, b);
+  BValue c_and_d = fb.And(c, d);
+  BValue c_xor_d = fb.Xor(c, d);
+
+  BValue q = fb.Param("q", p->GetBitsType(1));
+  BValue concat = fb.Concat({a_or_b, c_and_d, q});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto query_engine, BddQueryEngine::Run(f));
+
+  auto result = query_engine->ImpliedNodeValue(
+      {{{a_and_b.node(), 0}, true}, {{c_xor_d.node(), 0}, true}},
+      concat.node());
+  EXPECT_FALSE(result.has_value());
+}
+
+TEST_F(BddQueryEngineTest, BitValuesImplyNodeValueNoValueImpliedNonBit) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(1));
+  BValue b = fb.Param("b", p->GetBitsType(1));
+  BValue a_and_b = fb.And(a, b);
+  BValue array = fb.Array({a, b}, a.node()->GetType());
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto query_engine, BddQueryEngine::Run(f));
+
+  auto result = query_engine->ImpliedNodeValue({{{a_and_b.node(), 0}, true}},
+                                               array.node());
+  EXPECT_FALSE(result.has_value());
+}
+
+TEST_F(BddQueryEngineTest,
+       BitValuesImplyNodeValueNoValueImpliedEmptyPredicate) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(1));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto query_engine, BddQueryEngine::Run(f));
+
+  auto result = query_engine->ImpliedNodeValue({}, a.node());
+  EXPECT_FALSE(result.has_value());
 }
 
 }  // namespace
