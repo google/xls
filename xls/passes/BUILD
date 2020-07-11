@@ -759,6 +759,7 @@ cc_test(
     name = "concat_simplification_pass_test",
     srcs = ["concat_simplification_pass_test.cc"],
     deps = [
+        ":bit_slice_simplification_pass",
         ":concat_simplification_pass",
         ":dce_pass",
         "@com_google_googletest//:gtest_main",
