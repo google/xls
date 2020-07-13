@@ -137,8 +137,14 @@ cc_test(
 cc_library(
     name = "verilog_test_base",
     testonly = True,
-    srcs = ["verilog_test_base.cc"],
-    hdrs = ["verilog_test_base.h"],
+    srcs = [
+        "update_golden_files.inc",
+        "verilog_test_base.cc",
+    ],
+    hdrs = [
+        "simulation_targets.inc",
+        "verilog_test_base.h",
+    ],
     deps = [
         ":verilog_simulator",
         ":verilog_simulators",

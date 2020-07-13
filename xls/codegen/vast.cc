@@ -125,7 +125,7 @@ std::string Port::ToString() const {
                          verilog::ToString(direction), name());
 }
 
-xabsl::StatusOr<PortProto> Port::ToProto() {
+xabsl::StatusOr<PortProto> Port::ToProto() const {
   if (!wire->width()->IsLiteral()) {
     return absl::FailedPreconditionError(
         "Width of port is not a literal, cannot convert to proto: " +
@@ -346,6 +346,9 @@ std::string ToString(const RegInit& init) {
 static std::string WidthToString(Expression* e) {
   if (e->IsLiteral()) {
     uint64 value = e->AsLiteralOrDie()->bits().ToUint64().value();
+    // Elide the width if it is one.
+    // TODO(https://github.com/google/xls/issues/43): Avoid this special case
+    // and perform the equivalent logic at a higher abstraction level than VAST.
     return value == 1 ? ""
                       : absl::StrFormat(" [%s:0]", absl::StrCat(value - 1));
   }
@@ -545,12 +548,25 @@ bool Literal::IsLiteralWithValue(int64 target) const {
 std::string QuotedString::Emit() { return absl::StrFormat("\"%s\"", str_); }
 
 std::string Slice::Emit() {
+  if (subject_->IsScalarReg()) {
+    // If subject is scalar (no width given in declaration) then avoid slicing
+    // as this is invalid Verilog. The only valid hi/lo values are zero.
+    // TODO(https://github.com/google/xls/issues/43): Avoid this special case
+    // and perform the equivalent logic at a higher abstraction level than VAST.
+    XLS_CHECK(hi_->IsLiteralWithValue(0)) << hi_->Emit();
+    XLS_CHECK(lo_->IsLiteralWithValue(0)) << lo_->Emit();
+    return subject_->Emit();
+  }
   return absl::StrFormat("%s[%s:%s]", subject_->Emit(), hi_->Emit(),
                          lo_->Emit());
 }
 
 std::string Index::Emit() {
   if (subject_->IsScalarReg()) {
+    // If subject is scalar (no width given in declaration) then avoid indexing
+    // as this is invalid Verilog. The only valid index values are zero.
+    // TODO(https://github.com/google/xls/issues/43): Avoid this special case
+    // and perform the equivalent logic at a higher abstraction level than VAST.
     XLS_CHECK(index_->IsLiteralWithValue(0)) << index_->Emit();
     return subject_->Emit();
   }

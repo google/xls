@@ -2,11 +2,11 @@
 // args: bits[1]:0x0
 // args: bits[1]:0x1
 fn main(x165545: bool) -> (u57, u13, u22, u13, bool, bool, u1, u2, u13, u37) {
-    let x165546: bool = ~(x165545) in
-    let x165547: bool = ~(x165546) in
+    let x165546: bool = !(x165545) in
+    let x165547: bool = !(x165546) in
     let x165548: u2 = one_hot(x165546, (u1:0)) in
     let x165549: (u2, u2) = (x165548, x165548) in
-    let x165550: bool = ~(x165547) in
+    let x165550: bool = !(x165547) in
     let x165551: (bool) = (x165547,) in
     let x165552: bool = clz(x165546) in
     let x165553: u22 = (u22:0x200) in
@@ -29,7 +29,7 @@ fn main(x165545: bool) -> (u57, u13, u22, u13, bool, bool, u1, u2, u13, u37) {
     let x165570: u21 = (u21:0x0) in
     let x165571: bool = (x165556) & ((x165557 as bool)) in
     let x165572: u38 = one_hot(x165560, (u1:0)) in
-    let x165573: u1 = ((x165555) != ((u13:0x0))) and ((x165550) != ((bool:0x0))) in
+    let x165573: u1 = ((x165555) != ((u13:0x0))) && ((x165550) != ((bool:0x0))) in
     let x165574: u14 = -(x165566) in
     let x165575: u21 = x165570 in
     let x165576: bool = (x165551)[(u32:0x0)] in

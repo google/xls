@@ -32,7 +32,7 @@ fn add(x: bits[32], y: bits[32]) -> bits[32] {
 """
 
 
-class SimulateModuleMainTest(test_base.XlsTestCase):
+class SimulateModuleMainTest(test_base.TestCase):
 
   def test_single_arg_inline(self):
     ir_file = self.create_tempfile(content=ADD_IR)

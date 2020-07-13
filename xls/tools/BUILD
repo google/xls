@@ -64,7 +64,6 @@ cc_binary(
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
-        "@z3//:api",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
@@ -81,12 +80,31 @@ cc_binary(
         "//xls/passes:unroll_pass",
         "//xls/solvers:z3_ir_translator",
         "//xls/solvers:z3_utils",
+        "@z3//:api",
     ],
 )
 
 filegroup(
     name = "check_ir_equivalence_sh",
     srcs = ["check_ir_equivalence.sh"],
+)
+
+cc_binary(
+    name = "extract_stage_main",
+    srcs = ["extract_stage_main.cc"],
+    deps = [
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "//xls/scheduling:extract_stage",
+        "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:pipeline_schedule_cc_proto",
+    ],
 )
 
 cc_binary(
@@ -100,7 +118,6 @@ cc_binary(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-        "@z3//:api",
         "//xls/common:init_xls",
         "//xls/common:subprocess",
         "//xls/common/file:filesystem",
@@ -116,10 +133,12 @@ cc_binary(
         "//xls/netlist:lib_parser",
         "//xls/netlist:netlist_cc_proto",
         "//xls/netlist:netlist_parser",
+        "//xls/scheduling:pipeline_schedule_cc_proto",
         "//xls/solvers:z3_ir_translator",
         "//xls/solvers:z3_lec",
         "//xls/solvers:z3_netlist_translator",
         "//xls/solvers:z3_utils",
+        "@z3//:api",
     ],
 )
 
@@ -454,9 +473,9 @@ cc_binary(
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/ir:llvm_ir_runtime",
-        "@llvm//:core",
-        "@llvm//:ir_reader",
-        "@llvm//:support",
+        "@llvm//:Core",
+        "@llvm//:IRReader",
+        "@llvm//:Support",
     ],
 )
 
@@ -536,8 +555,10 @@ cc_binary(
     deps = [
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "//xls/codegen:combinational_generator",
+        "//xls/codegen:module_signature_cc_proto",
         "//xls/codegen:pipeline_generator",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
@@ -599,6 +620,7 @@ py_test(
         "//xls/examples:sha256.opt.ir",
     ],
     python_version = "PY3",
+    shard_count = 50,
     srcs_version = "PY3",
     deps = [
         "@com_google_absl_py//absl/testing:absltest",
@@ -670,6 +692,7 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
+        "@com_google_absl_py//absl/testing:absltest",
         "//xls/common:runfiles",
         "//xls/common:test_base",
     ],

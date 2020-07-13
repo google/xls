@@ -23,12 +23,44 @@
 #include "absl/strings/string_view.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 #include "../z3/src/api/z3_api.h"
 #include "re2/re2.h"
 
 namespace xls {
 namespace solvers {
 namespace z3 {
+namespace {
+
+// Helper for TypeToSort below.
+Z3_sort CreateTupleSort(Z3_context ctx, const Type& type) {
+  const TupleType* tuple_type = type.AsTupleOrDie();
+  Z3_func_decl mk_tuple_decl;
+  std::string tuple_type_str = tuple_type->ToString();
+  Z3_symbol tuple_sort_name = Z3_mk_string_symbol(ctx, tuple_type_str.c_str());
+
+  absl::Span<Type* const> element_types = tuple_type->element_types();
+  int64 num_elements = element_types.size();
+  std::vector<Z3_symbol> field_names;
+  std::vector<Z3_sort> field_sorts;
+  field_names.reserve(num_elements);
+  field_sorts.reserve(num_elements);
+
+  for (int i = 0; i < num_elements; i++) {
+    field_names.push_back(
+        Z3_mk_string_symbol(ctx, absl::StrCat(tuple_type_str, "_", i).c_str()));
+    field_sorts.push_back(TypeToSort(ctx, *element_types[i]));
+  }
+
+  // Populated in Z3_mk_tuple_sort.
+  std::vector<Z3_func_decl> proj_decls;
+  proj_decls.resize(num_elements);
+  return Z3_mk_tuple_sort(ctx, tuple_sort_name, num_elements,
+                          field_names.data(), field_sorts.data(),
+                          &mk_tuple_decl, proj_decls.data());
+}
+
+}  // namespace
 
 Z3_solver CreateSolver(Z3_context ctx, int num_threads) {
   Z3_params params = Z3_mk_params(ctx);
@@ -105,6 +137,39 @@ std::string HexifyOutput(const std::string& input) {
   }
 
   return text;
+}
+
+std::string BitVectorToString(Z3_context ctx,
+                              const std::vector<Z3_ast>& z3_bits,
+                              Z3_model model) {
+  constexpr const char kZ3One[] = "#x1";
+  BitsRope rope(z3_bits.size());
+
+  for (int i = 0; i < z3_bits.size(); i++) {
+    rope.push_back(QueryNode(ctx, model, z3_bits.at(i)) == kZ3One);
+  }
+  Bits bits = bits_ops::Reverse(rope.Build());
+  return absl::StrCat("0b", bits.ToRawDigits(FormatPreference::kBinary,
+                                             /*emit_leading_zeros=*/true));
+}
+
+Z3_sort TypeToSort(Z3_context ctx, const Type& type) {
+  switch (type.kind()) {
+    case TypeKind::kBits:
+      return Z3_mk_bv_sort(ctx, type.GetFlatBitCount());
+    case TypeKind::kTuple:
+      return CreateTupleSort(ctx, type);
+    case TypeKind::kArray: {
+      const ArrayType* array_type = type.AsArrayOrDie();
+      Z3_sort element_sort = TypeToSort(ctx, *array_type->element_type());
+      Z3_sort index_sort =
+          Z3_mk_bv_sort(ctx, Bits::MinBitCountUnsigned(array_type->size()));
+      return Z3_mk_array_sort(ctx, index_sort, element_sort);
+    }
+    default:
+      XLS_LOG(FATAL) << "Unsupported type kind: "
+                     << TypeKindToString(type.kind());
+  }
 }
 
 }  // namespace z3

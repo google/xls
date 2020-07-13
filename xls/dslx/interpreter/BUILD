@@ -16,6 +16,8 @@
 
 # pytype binary, test, library
 
+load("@xls_pip_deps//:requirements.bzl", "requirement")
+
 package(
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
@@ -93,6 +95,7 @@ py_test(
     name = "value_parser_test",
     srcs = ["value_parser_test.py"],
     python_version = "PY3",
+    srcs_version = "PY3",
     deps = [
         ":value",
         ":value_parser",
@@ -118,12 +121,12 @@ py_library(
     deps = [
         ":errors",
         ":value",
-        "@com_google_absl_py//absl/logging",
         "//xls/dslx:ast",
         "//xls/dslx:bit_helpers",
         "//xls/dslx:concrete_type",
         "//xls/dslx:scanner",
         "//xls/dslx:span",
+        "@com_google_absl_py//absl/logging",
     ],
 )
 
@@ -136,15 +139,16 @@ py_library(
         ":concrete_type_helpers",
         ":errors",
         ":value",
-        "@com_google_absl_py//absl/logging",
-        "@termcolor_archive//:termcolor",
+        requirement("termcolor"),
         "//xls/dslx:ast",
         "//xls/dslx:bit_helpers",
         "//xls/dslx:concrete_type",
         "//xls/dslx:deduce",
+        "//xls/dslx:import_fn",
         "//xls/dslx:parametric_expression",
         "//xls/dslx:scanner",
         "//xls/dslx:span",
+        "@com_google_absl_py//absl/logging",
     ],
 )
 
@@ -171,10 +175,10 @@ py_test(
     deps = [
         ":interpreter",
         ":parse_and_interpret",
-        "@com_google_absl_py//absl/testing:absltest",
-        "@pyfakefs_archive//:pyfakefs",
         "//xls/dslx:concrete_type",
         "//xls/dslx:xls_type_error",
+        "@com_google_absl_py//absl/testing:absltest",
+        "@pyfakefs_archive//:pyfakefs",  # fake_filesystem_unittest
     ],
 )
 
@@ -197,18 +201,34 @@ py_binary(
     srcs_version = "PY3",
     deps = [
         ":interpreter",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
+        ":value",
         "//xls/dslx:ast",
         "//xls/dslx:bindings",
+        "//xls/dslx:bit_helpers",
         "//xls/dslx:concrete_type",
         "//xls/dslx:deduce",
-        "//xls/dslx:fakefs_util",
+        "//xls/dslx:import_routines",
         "//xls/dslx:parser",
         "//xls/dslx:parser_helpers",
         "//xls/dslx:scanner",
         "//xls/dslx:span",
         "//xls/dslx:typecheck",
+        "//xls/dslx:xls_type_error",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "@pyfakefs_archive//:pyfakefs",
+    ],
+)
+
+py_test(
+    name = "repl_test",
+    srcs = ["repl_test.py"],
+    data = [":repl"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
     ],
 )
 

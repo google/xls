@@ -33,6 +33,7 @@
 #include "xls/netlist/netlist.h"
 #include "xls/netlist/netlist.pb.h"
 #include "xls/netlist/netlist_parser.h"
+#include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/solvers/z3_lec.h"
 #include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3_api.h"
@@ -74,6 +75,15 @@ ABSL_FLAG(std::string, netlist_module_name, "",
           "use the name of the entry function in the IR.");
 ABSL_FLAG(std::string, ir_path, "", "Path to the XLS IR to compare against.");
 ABSL_FLAG(std::string, netlist_path, "", "Path to the netlist.");
+ABSL_FLAG(std::string, schedule_path, "",
+          "Path to a PipelineSchedule textproto containing the schedule.\n"
+          "!IMPORTANT! If the netlist spans multiple stages, a schedule MUST "
+          "be specified. Otherwise, mapping IR nodes to netlist cells is "
+          "impossible.");
+ABSL_FLAG(int32, stage, -1,
+          "Pipeline stage to evaluate. Requires --schedule.\n"
+          "If \"schedule\" is set, but this is not, then the entire module "
+          "will be evaluated.");
 
 namespace xls {
 namespace {
@@ -142,7 +152,8 @@ absl::Status RealMain(absl::string_view ir_path,
                       absl::string_view cell_proto_path,
                       const absl::flat_hash_set<std::string>& high_cells,
                       absl::string_view netlist_path,
-                      absl::string_view constraints_file) {
+                      absl::string_view constraints_file,
+                      absl::string_view schedule_path, int stage) {
   solvers::z3::LecParams lec_params;
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(ir_text));
@@ -162,8 +173,19 @@ absl::Status RealMain(absl::string_view ir_path,
   lec_params.netlist_module_name = netlist_module_name;
   lec_params.high_cells = high_cells;
 
-  XLS_ASSIGN_OR_RETURN(auto lec,
-                       solvers::z3::Lec::Create(std::move(lec_params)));
+  std::unique_ptr<solvers::z3::Lec> lec;
+  if (!schedule_path.empty()) {
+    XLS_ASSIGN_OR_RETURN(
+        PipelineScheduleProto proto,
+        ParseTextProtoFile<PipelineScheduleProto>(schedule_path));
+    XLS_ASSIGN_OR_RETURN(
+        PipelineSchedule schedule,
+        PipelineSchedule::FromProto(lec_params.ir_function, proto));
+    XLS_ASSIGN_OR_RETURN(lec, solvers::z3::Lec::CreateForStage(
+                                  std::move(lec_params), schedule, stage));
+  } else {
+    XLS_ASSIGN_OR_RETURN(lec, solvers::z3::Lec::Create(std::move(lec_params)));
+  }
 
   std::unique_ptr<Package> constraints_pkg;
   if (!constraints_file.empty()) {
@@ -180,9 +202,12 @@ absl::Status RealMain(absl::string_view ir_path,
     XLS_RETURN_IF_ERROR(lec->AddConstraints(function));
   }
 
-  lec->Run();
-  XLS_ASSIGN_OR_RETURN(std::string output, lec->ResultToString());
-  std::cout << output << std::endl;
+  bool equal = lec->Run();
+  std::cout << lec->ResultToString() << std::endl;
+  if (!equal) {
+    std::cout << std::endl << "IR/netlist value dump:" << std::endl;
+    lec->DumpIrTree();
+  }
 
   return absl::OkStatus();
 }
@@ -210,9 +235,15 @@ int main(int argc, char* argv[]) {
     high_cells.insert(std::string(high_cell));
   }
 
+  std::string schedule_path = absl::GetFlag(FLAGS_schedule_path);
+  int stage = absl::GetFlag(FLAGS_stage);
+  XLS_QCHECK(stage == -1 || !schedule_path.empty())
+      << "--schedule_path must be specified with --stage.";
+
   XLS_QCHECK_OK(xls::RealMain(
       ir_path, absl::GetFlag(FLAGS_entry_function_name),
       absl::GetFlag(FLAGS_netlist_module_name), cell_lib_path, cell_proto_path,
-      high_cells, netlist_path, absl::GetFlag(FLAGS_constraints_file)));
+      high_cells, netlist_path, absl::GetFlag(FLAGS_constraints_file),
+      schedule_path, stage));
   return 0;
 }

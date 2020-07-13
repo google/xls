@@ -17,6 +17,7 @@
 
 # cc_proto_library is used in this file
 load("//xls/build:py_proto_library.bzl", "xls_py_proto_library")
+# pytype binary only
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -123,6 +124,8 @@ cc_library(
 cc_library(
     name = "ir",
     srcs = [
+        "container_hack.inc",
+        "container_hack_undef.inc",
         "dfs_visitor.cc",
         "function.cc",
         "node.cc",
@@ -320,16 +323,16 @@ cc_library(
         "//xls/common/logging:vlog_is_on",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "@llvm//:analysis",
-        "@llvm//:core",
-        "@llvm//:execution_engine",
-        "@llvm//:ipo",
-        "@llvm//:jit_link",  # build_cleaner: keep
-        "@llvm//:orc_jit",
-        "@llvm//:support",
-        "@llvm//:target",
-        "@llvm//:x86_asm_parser",  # build_cleaner: keep
-        "@llvm//:x86_code_gen",  # build_cleaner: keep
+        "@llvm//:Analysis",
+        "@llvm//:Core",
+        "@llvm//:ExecutionEngine",
+        "@llvm//:IPO",
+        "@llvm//:JITLink",  # build_cleaner: keep
+        "@llvm//:OrcJIT",
+        "@llvm//:Support",
+        "@llvm//:Target",
+        "@llvm//:X86AsmParser",  # build_cleaner: keep
+        "@llvm//:X86CodeGen",  # build_cleaner: keep
     ],
 )
 
@@ -347,12 +350,12 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "//xls/common:integral_types",
-        "@llvm//:core",
-        "@llvm//:orc_jit",
-        "@llvm//:support",
-        "@llvm//:target",
-        "@llvm//:x86_asm_parser",  # build_cleaner: keep
-        "@llvm//:x86_code_gen",  # build_cleaner: keep
+        "@llvm//:Core",
+        "@llvm//:OrcJIT",
+        "@llvm//:Support",
+        "@llvm//:Target",
+        "@llvm//:X86AsmParser",  # build_cleaner: keep
+        "@llvm//:X86CodeGen",  # build_cleaner: keep
     ],
 )
 
@@ -371,7 +374,7 @@ cc_library(
         "//xls/common:integral_types",
         "//xls/common/logging",
         "//xls/common/status:statusor",
-        "@llvm//:core",
+        "@llvm//:Core",
     ],
 )
 
@@ -701,11 +704,11 @@ genrule(
     name = "op_header",
     outs = ["op.h"],
     cmd = "$(location :render_specification_against_template) xls/ir/op_header.tmpl" +
-          " | $(location @clang_binaries//:clang_format)" +
+          " | $(location @llvm_toolchain//:bin/clang-format)" +
           " > $(OUTS)",
     exec_tools = [
         ":render_specification_against_template",
-        "@clang_binaries//:clang_format",
+        "@llvm_toolchain//:bin/clang-format",
     ],
 )
 
@@ -713,11 +716,11 @@ genrule(
     name = "op_source",
     outs = ["op.cc"],
     cmd = "$(location :render_specification_against_template) xls/ir/op_source.tmpl" +
-          " | $(location @clang_binaries//:clang_format)" +
+          " | $(location @llvm_toolchain//:bin/clang-format)" +
           " > $(OUTS)",
     exec_tools = [
         ":render_specification_against_template",
-        "@clang_binaries//:clang_format",
+        "@llvm_toolchain//:bin/clang-format",
     ],
 )
 
@@ -725,11 +728,11 @@ genrule(
     name = "nodes_header",
     outs = ["nodes.h"],
     cmd = "$(location :render_specification_against_template) xls/ir/nodes_header.tmpl" +
-          " | $(location @clang_binaries//:clang_format)" +
+          " | $(location @llvm_toolchain//:bin/clang-format)" +
           " > $(OUTS)",
     exec_tools = [
         ":render_specification_against_template",
-        "@clang_binaries//:clang_format",
+        "@llvm_toolchain//:bin/clang-format",
     ],
 )
 
@@ -737,11 +740,11 @@ genrule(
     name = "nodes_source",
     outs = ["nodes.cc"],
     cmd = "$(location :render_specification_against_template) xls/ir/nodes_source.tmpl" +
-          " | $(location @clang_binaries//:clang_format)" +
+          " | $(location @llvm_toolchain//:bin/clang-format)" +
           " > $(OUTS)",
     exec_tools = [
         ":render_specification_against_template",
-        "@clang_binaries//:clang_format",
+        "@llvm_toolchain//:bin/clang-format",
     ],
 )
 
@@ -935,6 +938,16 @@ cc_library(
     deps = [
         ":value_view",
         "@com_google_absl//absl/base",
+    ],
+)
+
+cc_test(
+    name = "abstract_evaluator_test",
+    srcs = ["abstract_evaluator_test.cc"],
+    deps = [
+        ":abstract_evaluator",
+        ":bits",
+        "@com_google_googletest//:gtest_main",
     ],
 )
 

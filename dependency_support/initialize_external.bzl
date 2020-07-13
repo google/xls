@@ -19,6 +19,7 @@ load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
 load("@pybind11_bazel//:python_configure.bzl", "python_configure")
 load("@io_bazel_rules_closure//closure:repositories.bzl", "rules_closure_dependencies", "rules_closure_toolchains")
 load("@rules_python//python:pip.bzl", "pip_import")
+load("//dependency_support/boost:initialize.bzl", initialize_boost = "initialize")
 
 def initialize_external_repositories():
     """Calls set-up methods for external repositories that require that."""
@@ -32,3 +33,4 @@ def initialize_external_repositories():
         requirements = "//dependency_support:pip_requirements.txt",
         python_interpreter = "python3",
     )
+    initialize_boost()

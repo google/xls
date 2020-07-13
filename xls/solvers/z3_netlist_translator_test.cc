@@ -461,14 +461,14 @@ endmodule)";
   // Next, bind a fixed 0 to the input of the module. This will result in a
   // solver being unable to find a 1-valued output.
   std::string src_ref_name = module_->inputs()[0]->name();
-  XLS_ASSERT_OK(translator_->RebindInputNet(src_ref_name, value_0));
+  XLS_ASSERT_OK(translator_->RebindInputNets({{src_ref_name, value_0}}));
   XLS_ASSERT_OK_AND_ASSIGN(module_output,
                            translator_->GetTranslation(module_->outputs()[0]));
   ASSERT_FALSE(IsSatisfiable(Z3_mk_eq(ctx_, module_output, value_1)));
 
   // Now, replace that fixed 0 with a fixed one. This time, the solver WILL be
   // able to find a 1-valued output.
-  XLS_ASSERT_OK(translator_->RebindInputNet(src_ref_name, value_1));
+  XLS_ASSERT_OK(translator_->RebindInputNets({{src_ref_name, value_1}}));
   XLS_ASSERT_OK_AND_ASSIGN(module_output,
                            translator_->GetTranslation(module_->outputs()[0]));
   ASSERT_TRUE(IsSatisfiable(Z3_mk_eq(ctx_, module_output, value_1)));
@@ -503,7 +503,7 @@ endmodule)";
 
   // Next, replace i0 with 0 and verify that the net can NOT have a value of
   // one, but can have a value of zero.
-  XLS_ASSERT_OK(translator_->RebindInputNet(src_ref_name, value_0));
+  XLS_ASSERT_OK(translator_->RebindInputNets({{src_ref_name, value_0}}));
   XLS_ASSERT_OK_AND_ASSIGN(module_output,
                            translator_->GetTranslation(module_->outputs()[0]));
   ASSERT_TRUE(IsSatisfiable(Z3_mk_eq(ctx_, module_output, value_0)));
@@ -511,7 +511,7 @@ endmodule)";
 
   // Now replace i0 with 1 and verify that the net can have a value of zero, but
   // not one.
-  XLS_ASSERT_OK(translator_->RebindInputNet(src_ref_name, value_1));
+  XLS_ASSERT_OK(translator_->RebindInputNets({{src_ref_name, value_1}}));
   XLS_ASSERT_OK_AND_ASSIGN(module_output,
                            translator_->GetTranslation(module_->outputs()[0]));
   ASSERT_FALSE(IsSatisfiable(Z3_mk_eq(ctx_, module_output, value_0)));
@@ -519,7 +519,7 @@ endmodule)";
 
   // Finally, replace i0 with a constant, and verify we're back to one or zero
   // being possible.
-  XLS_ASSERT_OK(translator_->RebindInputNet(src_ref_name, free_constant));
+  XLS_ASSERT_OK(translator_->RebindInputNets({{src_ref_name, free_constant}}));
   XLS_ASSERT_OK_AND_ASSIGN(module_output,
                            translator_->GetTranslation(module_->outputs()[0]));
   ASSERT_TRUE(IsSatisfiable(Z3_mk_eq(ctx_, module_output, value_0)));

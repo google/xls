@@ -16,11 +16,13 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3.h"
+#include "../z3/src/api/z3_api.h"
 
 namespace xls {
 namespace {
@@ -779,6 +781,372 @@ fn f() -> bits[32] {
   EXPECT_TRUE(proven_eq);
 }
 
+// UpdateArray test 1: Array of bits
+TEST(Z3IrTranslatorTest, UpdateArrayOfBits) {
+  const std::string program = R"(
+package p
+
+fn f() -> bits[32] {
+  literal.1: bits[32] = literal(value=0)
+  literal.2: bits[32] = literal(value=1)
+  array.6: bits[32][2] = array(literal.1, literal.1)
+  array_update.8: bits[32][2] = array_update(array.6, literal.1, literal.2)
+  array_index.9: bits[32] = array_index(array_update.8, literal.1)
+  array_index.10: bits[32] = array_index(array_update.8, literal.2)
+  ret literal.2
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+
+  auto assign_nodes = [f](std::vector<std::string>& m_string,
+                          std::vector<Node*>& m_nodes) {
+    m_nodes.reserve(m_string.size());
+    for (int idx = 0; idx < m_string.size(); ++idx) {
+      m_nodes.push_back(nullptr);
+    }
+    for (Node* func_node : f->nodes()) {
+      for (int idx = 0; idx < m_nodes.size(); ++idx) {
+        if (m_nodes[idx] == nullptr &&
+            func_node->ToString().find(m_string[idx]) != std::string::npos) {
+          m_nodes[idx] = func_node;
+        }
+      }
+    }
+    for (auto node : m_nodes) {
+      EXPECT_NE(node, nullptr);
+    }
+  };
+  std::vector<Node*> expect_node;
+  std::vector<std::string> expect_str = {"literal.2", "literal.1"};
+  std::vector<Node*> observe_node;
+  std::vector<std::string> observe_str = {"array_index.9", "array_index.10"};
+  assign_nodes(expect_str, expect_node);
+  assign_nodes(observe_str, observe_node);
+
+  for (int idx = 0; idx < expect_node.size(); ++idx) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        bool proven_eq,
+        TryProve(f, expect_node[idx], Predicate::EqualTo(observe_node[idx]),
+                 absl::Seconds(10)));
+    EXPECT_TRUE(proven_eq);
+  }
+}
+
+// UpdateArray test 2: Array of Arrays
+TEST(Z3IrTranslatorTest, UpdateArrayOfArrays) {
+  const std::string program = R"(
+package p
+
+fn f() -> bits[32] {
+  literal.1: bits[32] = literal(value=0)
+  literal.2: bits[32] = literal(value=1)
+  array.3: bits[32][2] = array(literal.1, literal.1)
+  array.4: bits[32][2] = array(literal.2, literal.2)
+  array.6: bits[32][2][2] = array(array.3, array.3)
+  array_update.8: bits[32][2][2] = array_update(array.6, literal.2, array.4)
+  array_index.9: bits[32][2] = array_index(array_update.8, literal.1)
+  array_index.10: bits[32] = array_index(array_index.9, literal.1)
+  array_index.11: bits[32] = array_index(array_index.9, literal.2)
+  array_index.12: bits[32][2] = array_index(array_update.8, literal.2)
+  array_index.13: bits[32] = array_index(array_index.12, literal.1)
+  array_index.14: bits[32] = array_index(array_index.12, literal.2)
+  ret literal.2
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+
+  auto assign_nodes = [f](std::vector<std::string>& m_string,
+                          std::vector<Node*>& m_nodes) {
+    m_nodes.reserve(m_string.size());
+    for (int idx = 0; idx < m_string.size(); ++idx) {
+      m_nodes.push_back(nullptr);
+    }
+    for (Node* func_node : f->nodes()) {
+      for (int idx = 0; idx < m_nodes.size(); ++idx) {
+        if (m_nodes[idx] == nullptr &&
+            func_node->ToString().find(m_string[idx]) != std::string::npos) {
+          m_nodes[idx] = func_node;
+        }
+      }
+    }
+    for (auto node : m_nodes) {
+      EXPECT_NE(node, nullptr);
+    }
+  };
+  std::vector<Node*> expect_node;
+  std::vector<std::string> expect_str = {"literal.1", "literal.1", "literal.2",
+                                         "literal.2"};
+  std::vector<Node*> observe_node;
+  std::vector<std::string> observe_str = {"array_index.10", "array_index.11",
+                                          "array_index.13", "array_index.14"};
+  assign_nodes(expect_str, expect_node);
+  assign_nodes(observe_str, observe_node);
+
+  for (int idx = 0; idx < expect_node.size(); ++idx) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        bool proven_eq,
+        TryProve(f, expect_node[idx], Predicate::EqualTo(observe_node[idx]),
+                 absl::Seconds(10)));
+    EXPECT_TRUE(proven_eq);
+  }
+}
+
+// UpdateArray test 3: Array of Tuples
+TEST(Z3IrTranslatorTest, UpdateArrayOfTuples) {
+  const std::string program = R"(
+package p
+
+fn f() -> bits[32] {
+  literal.1: bits[32] = literal(value=0)
+  literal.2: bits[32] = literal(value=1)
+  tuple.3: (bits[32], bits[32]) = tuple(literal.1, literal.2)
+  tuple.4: (bits[32], bits[32]) = tuple(literal.2, literal.1)
+  array.6: (bits[32], bits[32])[2] = array(tuple.3, tuple.3)
+  array_update.8:(bits[32], bits[32])[2] = array_update(array.6, literal.2, tuple.4)
+  array_index.9: (bits[32], bits[32]) = array_index(array_update.8, literal.1)
+  tuple_index.10: bits[32] = tuple_index(array_index.9, index=0)
+  tuple_index.11: bits[32] = tuple_index(array_index.9, index=1)
+  array_index.12: (bits[32], bits[32]) = array_index(array_update.8, literal.2)
+  tuple_index.13: bits[32] = tuple_index(array_index.12, index=0)
+  tuple_index.14: bits[32] = tuple_index(array_index.12, index=1)
+  ret literal.2
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+
+  auto assign_nodes = [f](std::vector<std::string>& m_string,
+                          std::vector<Node*>& m_nodes) {
+    m_nodes.reserve(m_string.size());
+    for (int idx = 0; idx < m_string.size(); ++idx) {
+      m_nodes.push_back(nullptr);
+    }
+    for (Node* func_node : f->nodes()) {
+      for (int idx = 0; idx < m_nodes.size(); ++idx) {
+        if (m_nodes[idx] == nullptr &&
+            func_node->ToString().find(m_string[idx]) != std::string::npos) {
+          m_nodes[idx] = func_node;
+        }
+      }
+    }
+    for (auto node : m_nodes) {
+      EXPECT_NE(node, nullptr);
+    }
+  };
+  std::vector<Node*> expect_node;
+  std::vector<std::string> expect_str = {"literal.1", "literal.2", "literal.2",
+                                         "literal.1"};
+  std::vector<Node*> observe_node;
+  std::vector<std::string> observe_str = {"tuple_index.10", "tuple_index.11",
+                                          "tuple_index.13", "tuple_index.14"};
+  assign_nodes(expect_str, expect_node);
+  assign_nodes(observe_str, observe_node);
+
+  for (int idx = 0; idx < expect_node.size(); ++idx) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        bool proven_eq,
+        TryProve(f, expect_node[idx], Predicate::EqualTo(observe_node[idx]),
+                 absl::Seconds(10)));
+    EXPECT_TRUE(proven_eq);
+  }
+}
+
+// UpdateArray test 4: Array of Tuples of Arrays
+TEST(Z3IrTranslatorTest, UpdateArrayOfTuplesOfArrays) {
+  const std::string program = R"(
+package p
+
+fn f() -> bits[32] {
+  literal.1: bits[32] = literal(value=0)
+  literal.2: bits[32] = literal(value=1)
+  array.3: bits[32][2] = array(literal.1, literal.2)
+  array.4: bits[32][2] = array(literal.2, literal.1)
+  tuple.5: (bits[32][2], bits[32][2]) = tuple(array.3, array.4)
+  tuple.6: (bits[32][2], bits[32][2]) = tuple(array.4, array.3)
+  array.7: (bits[32][2], bits[32][2])[2] = array(tuple.5, tuple.5)
+  array_update.8: (bits[32][2], bits[32][2])[2] = array_update(array.7, literal.2, tuple.6)
+  array_index.9: (bits[32][2], bits[32][2]) = array_index(array_update.8, literal.1)
+  tuple_index.10: bits[32][2] = tuple_index(array_index.9, index=0)
+  tuple_index.11: bits[32][2] = tuple_index(array_index.9, index=1)
+  array_index.12: bits[32] = array_index(tuple_index.10, literal.1)
+  array_index.13: bits[32] = array_index(tuple_index.10, literal.2)
+  array_index.14: bits[32] = array_index(tuple_index.11, literal.1)
+  array_index.15: bits[32] = array_index(tuple_index.11, literal.2)
+  array_index.16: (bits[32][2], bits[32][2]) = array_index(array_update.8, literal.2)
+  tuple_index.17: bits[32][2] = tuple_index(array_index.16, index=0)
+  tuple_index.18: bits[32][2] = tuple_index(array_index.16, index=1)
+  array_index.19: bits[32] = array_index(tuple_index.17, literal.1)
+  array_index.20: bits[32] = array_index(tuple_index.17, literal.2)
+  array_index.21: bits[32] = array_index(tuple_index.18, literal.1)
+  array_index.22: bits[32] = array_index(tuple_index.18, literal.2)
+  ret literal.2
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+
+  auto assign_nodes = [f](std::vector<std::string>& m_string,
+                          std::vector<Node*>& m_nodes) {
+    m_nodes.reserve(m_string.size());
+    for (int idx = 0; idx < m_string.size(); ++idx) {
+      m_nodes.push_back(nullptr);
+    }
+    for (Node* func_node : f->nodes()) {
+      for (int idx = 0; idx < m_nodes.size(); ++idx) {
+        if (m_nodes[idx] == nullptr &&
+            func_node->ToString().find(m_string[idx]) != std::string::npos) {
+          m_nodes[idx] = func_node;
+        }
+      }
+    }
+    for (auto node : m_nodes) {
+      EXPECT_NE(node, nullptr);
+    }
+  };
+  std::vector<Node*> expect_node;
+  std::vector<std::string> expect_str = {"literal.1", "literal.2", "literal.2",
+                                         "literal.1", "literal.2", "literal.1",
+                                         "literal.1", "literal.2"};
+  std::vector<Node*> observe_node;
+  std::vector<std::string> observe_str = {
+      "array_index.12", "array_index.13", "array_index.14", "array_index.15",
+      "array_index.19", "array_index.20", "array_index.21", "array_index.22"};
+  assign_nodes(expect_str, expect_node);
+  assign_nodes(observe_str, observe_node);
+
+  for (int idx = 0; idx < expect_node.size(); ++idx) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        bool proven_eq,
+        TryProve(f, expect_node[idx], Predicate::EqualTo(observe_node[idx]),
+                 absl::Seconds(10)));
+    EXPECT_TRUE(proven_eq);
+  }
+}
+
+// UpdateArray test 4: Out of bounds index
+TEST(Z3IrTranslatorTest, UpdateArrayOutOfBoundsIndex) {
+  const std::string program = R"(
+package p
+
+fn f() -> bits[32] {
+  literal.1: bits[32] = literal(value=0)
+  literal.2: bits[32] = literal(value=1)
+  literal.3: bits[32] = literal(value=99)
+  array.6: bits[32][2] = array(literal.1, literal.1)
+  array_update.8: bits[32][2] = array_update(array.6, literal.3, literal.2)
+  array_index.9: bits[32] = array_index(array_update.8, literal.1)
+  array_index.10: bits[32] = array_index(array_update.8, literal.2)
+  ret literal.2
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+
+  auto assign_nodes = [f](std::vector<std::string>& m_string,
+                          std::vector<Node*>& m_nodes) {
+    m_nodes.reserve(m_string.size());
+    for (int idx = 0; idx < m_string.size(); ++idx) {
+      m_nodes.push_back(nullptr);
+    }
+    for (Node* func_node : f->nodes()) {
+      for (int idx = 0; idx < m_nodes.size(); ++idx) {
+        if (m_nodes[idx] == nullptr &&
+            func_node->ToString().find(m_string[idx]) != std::string::npos) {
+          m_nodes[idx] = func_node;
+        }
+      }
+    }
+    for (auto node : m_nodes) {
+      EXPECT_NE(node, nullptr);
+    }
+  };
+  std::vector<Node*> expect_node;
+  std::vector<std::string> expect_str = {"literal.1", "literal.1"};
+  std::vector<Node*> observe_node;
+  std::vector<std::string> observe_str = {"array_index.9", "array_index.10"};
+  assign_nodes(expect_str, expect_node);
+  assign_nodes(observe_str, observe_node);
+
+  for (int idx = 0; idx < expect_node.size(); ++idx) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        bool proven_eq,
+        TryProve(f, expect_node[idx], Predicate::EqualTo(observe_node[idx]),
+                 absl::Seconds(10)));
+    EXPECT_TRUE(proven_eq);
+  }
+}
+
+// UpdateArray test 5: Unknown index
+TEST(Z3IrTranslatorTest, UpdateArrayUnknownIndex) {
+  const std::string program = R"(
+package p
+
+fn f(index: bits[32]) -> bits[32] {
+  literal.1: bits[32] = literal(value=0)
+  literal.2: bits[32] = literal(value=1)
+  literal.3: bits[32] = literal(value=99)
+  array.6: bits[32][2] = array(literal.1, literal.1)
+  array_update.8: bits[32][2] = array_update(array.6, index, literal.2)
+  array_index.9: bits[32] = array_index(array_update.8, literal.1)
+  array_index.10: bits[32] = array_index(array_update.8, literal.2)
+  ret literal.2
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+
+  auto assign_nodes = [f](std::vector<std::string>& m_string,
+                          std::vector<Node*>& m_nodes) {
+    m_nodes.reserve(m_string.size());
+    for (int idx = 0; idx < m_string.size(); ++idx) {
+      m_nodes.push_back(nullptr);
+    }
+    for (Node* func_node : f->nodes()) {
+      for (int idx = 0; idx < m_nodes.size(); ++idx) {
+        if (m_nodes[idx] == nullptr &&
+            func_node->ToString().find(m_string[idx]) != std::string::npos) {
+          m_nodes[idx] = func_node;
+        }
+      }
+    }
+    for (auto node : m_nodes) {
+      EXPECT_NE(node, nullptr);
+    }
+  };
+  std::vector<Node*> in_node;
+  std::vector<std::string> in_str = {"literal.1", "literal.2", "literal.1",
+                                     "literal.2"};
+  std::vector<Node*> out_node;
+  std::vector<std::string> out_str = {"array_index.9", "array_index.9",
+                                      "array_index.10", "array_index.10"};
+  assign_nodes(in_str, in_node);
+  assign_nodes(out_str, out_node);
+
+  // If we don't know the update index, we don't know if the final
+  // value at an index is 0 or 1.
+  for (int idx = 0; idx < in_node.size(); ++idx) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        bool proven_eq,
+        TryProve(f, in_node[idx], Predicate::EqualTo(out_node[idx]),
+                 absl::Seconds(10)));
+    EXPECT_FALSE(proven_eq);
+  }
+}
+
 TEST(Z3IrTranslatorTest, ParamReuse) {
   // Have the two programs do slightly different things, just to avoid paranoia
   // over potential evaluation short-circuits.
@@ -860,6 +1228,92 @@ fn f(selector: bits[2]) -> bits[4] {
   Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
   EXPECT_EQ(satisfiable, Z3_L_TRUE);
   Z3_solver_dec_ref(ctx, solver);
+}
+
+TEST(Z3IrTranslatorTest, HandlesUMul) {
+  const std::string tmpl = R"(
+package p
+
+fn f() -> bits[6] {
+  literal.1: bits[4] = literal(value=$0)
+  literal.2: bits[8] = literal(value=$1)
+  ret umul.3: bits[6] = umul(literal.1, literal.2)
+}
+)";
+
+  std::vector<std::pair<int, int>> test_cases({
+      {0x0, 0x5},
+      {0x1, 0x5},
+      {0xf, 0x4},
+      {0x3, 0x7f},
+      {0xf, 0xff},
+  });
+
+  for (std::pair<int, int> test_case : test_cases) {
+    std::string program =
+        absl::Substitute(tmpl, test_case.first, test_case.second);
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                             Parser::ParsePackage(program));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+    XLS_ASSERT_OK_AND_ASSIGN(auto translator,
+                             IrTranslator::CreateAndTranslate(f));
+    Z3_context ctx = translator->ctx();
+    Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
+    uint32 mask = 127;
+    Z3_ast expected =
+        Z3_mk_int(ctx, (test_case.first * test_case.second) & mask,
+                  Z3_mk_bv_sort(ctx, 6));
+    Z3_ast objective = Z3_mk_eq(ctx, translator->GetReturnNode(), expected);
+    Z3_solver_assert(ctx, solver, objective);
+    Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
+    EXPECT_EQ(satisfiable, Z3_L_TRUE);
+    Z3_solver_dec_ref(ctx, solver);
+  }
+}
+
+TEST(Z3IrTranslatorTest, HandlesSMul) {
+  const std::string tmpl = R"(
+package p
+
+fn f() -> bits[6] {
+  literal.1: bits[4] = literal(value=$0)
+  literal.2: bits[8] = literal(value=$1)
+  ret smul.3: bits[6] = smul(literal.1, literal.2)
+}
+)";
+
+  std::vector<std::pair<int, int>> test_cases({
+      {0, 5},
+      {1, 5},
+      {-1, 5},
+      {1, -5},
+      {-1, -5},
+      {6, -5},
+      {-5, 7},
+  });
+
+  for (std::pair<int, int> test_case : test_cases) {
+    std::string program =
+        absl::Substitute(tmpl, test_case.first, test_case.second);
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                             Parser::ParsePackage(program));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+    XLS_ASSERT_OK_AND_ASSIGN(auto translator,
+                             IrTranslator::CreateAndTranslate(f));
+    Z3_context ctx = translator->ctx();
+    Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
+    // To avoid boom in the last case (-35 requires 7 bits to represent), put
+    // everything in a 7-bit Bits and truncate by one.
+    Bits expected_bits = SBits(test_case.first * test_case.second, 7);
+    expected_bits = expected_bits.Slice(0, 6);
+    Z3_ast expected =
+        Z3_mk_int(ctx, expected_bits.ToInt64().value(), Z3_mk_bv_sort(ctx, 6));
+    Z3_ast objective = Z3_mk_eq(ctx, translator->GetReturnNode(), expected);
+    Z3_solver_assert(ctx, solver, objective);
+    Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
+    EXPECT_EQ(satisfiable, Z3_L_TRUE);
+    Z3_solver_dec_ref(ctx, solver);
+  }
 }
 
 }  // namespace

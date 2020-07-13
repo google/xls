@@ -30,7 +30,9 @@ namespace verilog {
 namespace {
 
 using status_testing::IsOkAndHolds;
+using ::testing::ContainsRegex;
 using ::testing::HasSubstr;
+using ::testing::Not;
 
 constexpr char kTestName[] = "pipeline_generator_test";
 constexpr char kTestdataPath[] = "xls/codegen/testdata";
@@ -674,6 +676,99 @@ TEST_P(PipelineGeneratorTest, ValidPipelineControlWithSimulation) {
   }
 
   XLS_ASSERT_OK(tb.Run());
+}
+
+TEST_P(PipelineGeneratorTest, ValidSignalWithReset) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  auto x = fb.Param("x", package.GetBitsType(64));
+  auto y = fb.Param("y", package.GetBitsType(64));
+  auto z = fb.Param("z", package.GetBitsType(64));
+  auto a = fb.UMul(x, y);
+  fb.UMul(a, z);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  // Choose a large clock period such that all nodes are scheduled in the same
+  // stage.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(func, TestDelayEstimator(),
+                            SchedulingOptions().clock_period_ps(400)));
+
+  // Test with both active low and active high signals.
+  for (bool active_low : {false, true}) {
+    const int64 kAssertReset = active_low ? 0 : 1;
+    const int64 kDeassertReset = active_low ? 1 : 0;
+    const std::string kResetSignal = active_low ? "the_rst_n" : "the_rst";
+
+    ResetProto reset;
+    reset.set_name(kResetSignal);
+    reset.set_asynchronous(false);
+    reset.set_active_low(active_low);
+    reset.set_reset_data_path(false);
+    XLS_ASSERT_OK_AND_ASSIGN(
+        ModuleGeneratorResult result,
+        ToPipelineModuleText(schedule, func,
+                             PipelineOptions()
+                                 .valid_control("in_valid", "out_valid")
+                                 .use_system_verilog(UseSystemVerilog())
+                                 .reset(reset)));
+    // The reset signal is synchronous so the edge sensitivity ("posedge foo" or
+    // "negedge foo" should only contain the clock, i.e. "posedge clk").
+    EXPECT_THAT(result.verilog_text, ContainsRegex(R"(edge\s+clk)"));
+    EXPECT_THAT(
+        result.verilog_text,
+        Not(ContainsRegex(absl::StrFormat(R"(edge\s+%s)", kResetSignal))));
+    // Verilog should have an "if (rst)" of "if (!rst_n)"  conditional.
+    EXPECT_THAT(result.verilog_text,
+                HasSubstr(absl::StrFormat("if (%s%s)", active_low ? "!" : "",
+                                          kResetSignal)));
+
+    EXPECT_EQ(result.signature.proto().reset().name(), kResetSignal);
+    EXPECT_FALSE(result.signature.proto().reset().asynchronous());
+    EXPECT_EQ(result.signature.proto().reset().active_low(), active_low);
+    EXPECT_FALSE(result.signature.proto().reset().reset_data_path());
+
+    ModuleTestbench tb(result.verilog_text, result.signature, GetSimulator());
+    // One cycle after reset the output control signal should be zero.
+    tb.Set(kResetSignal, kAssertReset);
+    tb.NextCycle().ExpectEq("out_valid", 0);
+
+    // Even with in_valid one, out_valid should never be one because reset is
+    // asserted.
+    tb.Set("in_valid", 1);
+    tb.AdvanceNCycles(100).ExpectEq("out_valid", 0);
+
+    // Deassert rst and set inputs.
+    tb.Set(kResetSignal, kDeassertReset).Set("x", 2).Set("y", 3).Set("z", 4);
+
+    // Wait until the output goes valid.
+    const int kExpected = 2 * 3 * 4;
+    tb.WaitFor("out_valid").ExpectEq("out_valid", 1).ExpectEq("out", kExpected);
+
+    // Output will remain valid in subsequent cycles.
+    tb.NextCycle().ExpectEq("out_valid", 1);
+    tb.NextCycle().ExpectEq("out_valid", 1);
+
+    // Assert reset and verify out_valid is always zero.
+    tb.Set(kResetSignal, kAssertReset);
+    tb.NextCycle().ExpectEq("out_valid", 0);
+    tb.NextCycle().ExpectEq("out_valid", 0);
+
+    // Deassert reset and in_valid and change the input and observe that the
+    // output never changes (because we don't correspondingly set input_valid).
+    tb.Set("z", 7).Set(kResetSignal, kDeassertReset).Set("in_valid", 0);
+    int64 latency = result.signature.proto().pipeline().latency();
+    ASSERT_GT(latency, 0);
+    for (int64 i = 0; i < 2 * latency; ++i) {
+      tb.ExpectEq("out", kExpected);
+      tb.ExpectEq("out_valid", 0);
+      tb.NextCycle();
+    }
+
+    XLS_ASSERT_OK(tb.Run());
+  }
 }
 
 TEST_P(PipelineGeneratorTest, ManualPipelineControlWithSimulation) {

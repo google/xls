@@ -452,6 +452,222 @@ TEST_P(CombinationalGeneratorTest, ReturnTwoDArray) {
       })));
 }
 
+TEST_P(CombinationalGeneratorTest, ArrayUpdateBitElements) {
+  std::string text = R"(
+package ArrayUpdate
+
+fn main(idx: bits[2]) -> bits[32][3] {
+  literal.5: bits[32][3] = literal(value=[1, 2, 3])
+  literal.6: bits[32] = literal(value=99)
+  ret array_update.7: bits[32][3] = array_update(literal.5, idx, literal.6)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, ToCombinationalModuleText(entry, UseSystemVerilog()));
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+
+  auto make_array = [](absl::Span<const int64> values) {
+    std::vector<Value> elements;
+    for (auto v : values) {
+      elements.push_back(Value(UBits(v, 32)));
+    }
+    xabsl::StatusOr<Value> array = Value::Array(elements);
+    EXPECT_TRUE(array.ok());
+    return array.value();
+  };
+
+  EXPECT_THAT(simulator.Run({{"idx", Value(UBits(0b00, 2))}}),
+              IsOkAndHolds(make_array({99, 2, 3})));
+  EXPECT_THAT(simulator.Run({{"idx", Value(UBits(0b01, 2))}}),
+              IsOkAndHolds(make_array({1, 99, 3})));
+  EXPECT_THAT(simulator.Run({{"idx", Value(UBits(0b10, 2))}}),
+              IsOkAndHolds(make_array({1, 2, 99})));
+  EXPECT_THAT(simulator.Run({{"idx", Value(UBits(0b11, 2))}}),
+              IsOkAndHolds(make_array({1, 2, 3})));
+}
+
+TEST_P(CombinationalGeneratorTest, ArrayUpdateArrayElements) {
+  std::string text = R"(
+package ArrayUpdate
+
+fn main(idx: bits[2]) -> bits[32][2][3] {
+  literal.17: bits[32][2][3] = literal(value=[[1, 2], [3, 4], [5, 6]])
+  literal.14: bits[32][2] = literal(value=[98, 99])
+  ret array_update.15: bits[32][2][3] = array_update(literal.17, idx, literal.14)
+}
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, ToCombinationalModuleText(entry, UseSystemVerilog()));
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+
+  auto make_array = [](absl::Span<const int64> values) {
+    std::vector<Value> elements;
+    for (auto v : values) {
+      elements.push_back(Value(UBits(v, 32)));
+    }
+    xabsl::StatusOr<Value> array = Value::Array(elements);
+    EXPECT_TRUE(array.ok());
+    return array.value();
+  };
+
+  auto make_array_of_values = [&](absl::Span<const Value> values) {
+    std::vector<Value> elements;
+    for (auto array : values) {
+      elements.push_back(array);
+    }
+    xabsl::StatusOr<Value> array_of_values = Value::Array(elements);
+    EXPECT_TRUE(array_of_values.ok());
+    return array_of_values.value();
+  };
+
+  EXPECT_THAT(
+      simulator.Run({{"idx", Value(UBits(0b00, 2))}}),
+      IsOkAndHolds(make_array_of_values(
+          {make_array({98, 99}), make_array({3, 4}), make_array({5, 6})})));
+  EXPECT_THAT(
+      simulator.Run({{"idx", Value(UBits(0b01, 2))}}),
+      IsOkAndHolds(make_array_of_values(
+          {make_array({1, 2}), make_array({98, 99}), make_array({5, 6})})));
+  EXPECT_THAT(
+      simulator.Run({{"idx", Value(UBits(0b10, 2))}}),
+      IsOkAndHolds(make_array_of_values(
+          {make_array({1, 2}), make_array({3, 4}), make_array({98, 99})})));
+  EXPECT_THAT(
+      simulator.Run({{"idx", Value(UBits(0b11, 2))}}),
+      IsOkAndHolds(make_array_of_values(
+          {make_array({1, 2}), make_array({3, 4}), make_array({5, 6})})));
+}
+
+TEST_P(CombinationalGeneratorTest, ArrayUpdateTupleElements) {
+  std::string text = R"(
+package ArrayUpdate
+
+fn main(idx: bits[2]) -> (bits[32], bits[32])[3] {
+  literal.17: (bits[32], bits[32])[3] = literal(value=[(1,2),(3,4),(5,6)])
+  literal.14: (bits[32], bits[32]) = literal(value=(98, 99))
+  ret array_update.15: (bits[32], bits[32])[3] = array_update(literal.17, idx, literal.14)
+}
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, ToCombinationalModuleText(entry, UseSystemVerilog()));
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+
+  auto make_tuple = [](absl::Span<const int64> values) {
+    std::vector<Value> elements;
+    for (auto v : values) {
+      elements.push_back(Value(UBits(v, 32)));
+    }
+    xabsl::StatusOr<Value> tuple = Value::Tuple(elements);
+    EXPECT_TRUE(tuple.ok());
+    return tuple.value();
+  };
+
+  auto make_array_of_values = [&](absl::Span<const Value> values) {
+    std::vector<Value> elements;
+    for (auto array : values) {
+      elements.push_back(array);
+    }
+    xabsl::StatusOr<Value> array_of_values = Value::Array(elements);
+    EXPECT_TRUE(array_of_values.ok());
+    return array_of_values.value();
+  };
+
+  EXPECT_THAT(
+      simulator.Run({{"idx", Value(UBits(0b00, 2))}}),
+      IsOkAndHolds(make_array_of_values(
+          {make_tuple({98, 99}), make_tuple({3, 4}), make_tuple({5, 6})})));
+  EXPECT_THAT(
+      simulator.Run({{"idx", Value(UBits(0b01, 2))}}),
+      IsOkAndHolds(make_array_of_values(
+          {make_tuple({1, 2}), make_tuple({98, 99}), make_tuple({5, 6})})));
+  EXPECT_THAT(
+      simulator.Run({{"idx", Value(UBits(0b10, 2))}}),
+      IsOkAndHolds(make_array_of_values(
+          {make_tuple({1, 2}), make_tuple({3, 4}), make_tuple({98, 99})})));
+  EXPECT_THAT(
+      simulator.Run({{"idx", Value(UBits(0b11, 2))}}),
+      IsOkAndHolds(make_array_of_values(
+          {make_tuple({1, 2}), make_tuple({3, 4}), make_tuple({5, 6})})));
+}
+
+TEST_P(CombinationalGeneratorTest, ArrayUpdateTupleWithArrayElements) {
+  std::string text = R"(
+package ArrayUpdate
+
+fn main(idx: bits[2]) -> (bits[32], bits[8][2])[2] {
+  literal.17: (bits[32], bits[8][2])[2] = literal(value=[(1,[2,3]),(4,[5,6])])
+  literal.14: (bits[32], bits[8][2]) = literal(value=(98, [99, 100]))
+  ret array_update.15: (bits[32], bits[8][2])[2] = array_update(literal.17, idx, literal.14)
+}
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, ToCombinationalModuleText(entry, UseSystemVerilog()));
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+
+  auto make_array = [](absl::Span<const int64> values) {
+    std::vector<Value> elements;
+    for (auto v : values) {
+      elements.push_back(Value(UBits(v, 8)));
+    }
+    xabsl::StatusOr<Value> array = Value::Array(elements);
+    EXPECT_TRUE(array.ok());
+    return array.value();
+  };
+
+  auto make_tuple = [](absl::Span<const Value> values) {
+    std::vector<Value> elements;
+    for (auto v : values) {
+      elements.push_back(v);
+    }
+    xabsl::StatusOr<Value> tuple = Value::Tuple(elements);
+    EXPECT_TRUE(tuple.ok());
+    return tuple.value();
+  };
+
+  auto make_array_of_values = [&](absl::Span<const Value> values) {
+    std::vector<Value> elements;
+    for (auto array : values) {
+      elements.push_back(array);
+    }
+    xabsl::StatusOr<Value> array_of_values = Value::Array(elements);
+    EXPECT_TRUE(array_of_values.ok());
+    return array_of_values.value();
+  };
+
+  EXPECT_THAT(
+      simulator.Run({{"idx", Value(UBits(0b01, 2))}}),
+      IsOkAndHolds(make_array_of_values(
+          {make_tuple({Value(UBits(1, 32)), make_array({2, 3})}),
+           make_tuple({Value(UBits(98, 32)), make_array({99, 100})})})));
+}
+
 TEST_P(CombinationalGeneratorTest, BuildComplicatedType) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
@@ -476,6 +692,94 @@ TEST_P(CombinationalGeneratorTest, BuildComplicatedType) {
                              {"b", Value(UBits(42, 8))},
                              {"c", Value(UBits(1, 8))}}),
               IsOkAndHolds(Value(UBits(42, 8))));
+}
+
+TEST_P(CombinationalGeneratorTest, ArrayShapedSel) {
+  VerilogFile file;
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  BValue p = fb.Param("p", package.GetBitsType(8));
+  BValue x = fb.Param("x", package.GetArrayType(3, package.GetBitsType(8)));
+  BValue y = fb.Param("y", package.GetArrayType(3, package.GetBitsType(8)));
+  BValue z = fb.Param("z", package.GetArrayType(3, package.GetBitsType(8)));
+  BValue d = fb.Param("d", package.GetArrayType(3, package.GetBitsType(8)));
+  fb.Select(p, {x, y, z}, /*default_value=*/d);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           ToCombinationalModuleText(f, UseSystemVerilog()));
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value x_in,
+      Parser::ParseTypedValue("[bits[8]:0xa, bits[8]:0xb, bits[8]:0xc]"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value y_in,
+      Parser::ParseTypedValue("[bits[8]:0x1, bits[8]:0x2, bits[8]:0x3]"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value z_in,
+      Parser::ParseTypedValue("[bits[8]:0x4, bits[8]:0x5, bits[8]:0x6]"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value d_in,
+      Parser::ParseTypedValue("[bits[8]:0x7, bits[8]:0x8, bits[8]:0x9]"));
+  EXPECT_THAT(simulator.Run({{"p", Value(UBits(0, 8))},
+                             {"x", x_in},
+                             {"y", y_in},
+                             {"z", z_in},
+                             {"d", d_in}}),
+              IsOkAndHolds(x_in));
+  EXPECT_THAT(simulator.Run({{"p", Value(UBits(1, 8))},
+                             {"x", x_in},
+                             {"y", y_in},
+                             {"z", z_in},
+                             {"d", d_in}}),
+              IsOkAndHolds(y_in));
+  EXPECT_THAT(simulator.Run({{"p", Value(UBits(2, 8))},
+                             {"x", x_in},
+                             {"y", y_in},
+                             {"z", z_in},
+                             {"d", d_in}}),
+              IsOkAndHolds(z_in));
+  EXPECT_THAT(simulator.Run({{"p", Value(UBits(3, 8))},
+                             {"x", x_in},
+                             {"y", y_in},
+                             {"z", z_in},
+                             {"d", d_in}}),
+              IsOkAndHolds(d_in));
+  EXPECT_THAT(simulator.Run({{"p", Value(UBits(100, 8))},
+                             {"x", x_in},
+                             {"y", y_in},
+                             {"z", z_in},
+                             {"d", d_in}}),
+              IsOkAndHolds(d_in));
+}
+
+TEST_P(CombinationalGeneratorTest, ArrayShapedSelNoDefault) {
+  VerilogFile file;
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  BValue p = fb.Param("p", package.GetBitsType(1));
+  BValue x = fb.Param("x", package.GetArrayType(3, package.GetBitsType(8)));
+  BValue y = fb.Param("y", package.GetArrayType(3, package.GetBitsType(8)));
+  fb.Select(p, {x, y});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           ToCombinationalModuleText(f, UseSystemVerilog()));
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value x_in,
+      Parser::ParseTypedValue("[bits[8]:0xa, bits[8]:0xb, bits[8]:0xc]"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value y_in,
+      Parser::ParseTypedValue("[bits[8]:0x1, bits[8]:0x2, bits[8]:0x3]"));
+  EXPECT_THAT(
+      simulator.Run({{"p", Value(UBits(0, 1))}, {"x", x_in}, {"y", y_in}}),
+      IsOkAndHolds(x_in));
+  EXPECT_THAT(
+      simulator.Run({{"p", Value(UBits(1, 1))}, {"x", x_in}, {"y", y_in}}),
+      IsOkAndHolds(y_in));
 }
 
 INSTANTIATE_TEST_SUITE_P(CombinationalGeneratorTestInstantiation,

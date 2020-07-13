@@ -16,8 +16,8 @@
 // "cell" groups.
 // Specifications taken from the liberty reference:
 // https://people.eecs.berkeley.edu/~alanmi/publications/other/liberty07_03.pdf
-#ifndef THIRD_PARTY_XLS_NETLIST_FUNCTION_PARSER_H_
-#define THIRD_PARTY_XLS_NETLIST_FUNCTION_PARSER_H_
+#ifndef XLS_NETLIST_FUNCTION_PARSER_H_
+#define XLS_NETLIST_FUNCTION_PARSER_H_
 
 #include <string>
 
@@ -173,4 +173,4 @@ class Parser {
 }  // namespace netlist
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_NETLIST_FUNCTION_PARSER_H_
+#endif  // XLS_NETLIST_FUNCTION_PARSER_H_

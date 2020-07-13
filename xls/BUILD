@@ -14,8 +14,18 @@
 
 # XLS: Accelerator Synthesis
 
+# TODO(leary): 2020-06-29 This structure is a work-around to publically expose
+# XLS APIs. Once the public XLS API is determined, those packages should be
+# explicitly marked with 'xls_public' visibility, and this should be changed so
+# that 'xls_public' includes 'xls_internal' and not vice versa.
+package_group(
+    name = "xls_public",
+    packages = ["//..."],
+)
+
 package_group(
     name = "xls_internal",
+    includes = [":xls_public"],
     packages = ["//xls/..."],
 )
 

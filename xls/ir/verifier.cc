@@ -88,7 +88,7 @@ class NodeChecker : public DfsVisitor {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(bit_slice, 1));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(bit_slice, 0));
     BitsType* operand_type = bit_slice->operand(0)->GetType()->AsBitsOrDie();
-    if (operand_type->bit_count() < 0) {
+    if (bit_slice->start() < 0) {
       return absl::InternalError(
           StrFormat("Start index of bit slice must be non-negative: %s",
                     bit_slice->ToString()));
@@ -106,6 +106,31 @@ class NodeChecker : public DfsVisitor {
                     bit_slice->GetName(), bits_required, bit_slice->start(),
                     bit_slice->width(), operand_type->bit_count(),
                     bit_slice->ToString()));
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleDynamicBitSlice(
+      DynamicBitSlice* dynamic_bit_slice) override {
+    XLS_RETURN_IF_ERROR(
+        ExpectHasBitsType(dynamic_bit_slice, dynamic_bit_slice->width()));
+    XLS_RETURN_IF_ERROR(ExpectOperandCount(dynamic_bit_slice, 2));
+    XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(dynamic_bit_slice, 0));
+    XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(dynamic_bit_slice, 1));
+    BitsType* operand_type =
+        dynamic_bit_slice->operand(0)->GetType()->AsBitsOrDie();
+    if (dynamic_bit_slice->width() < 0) {
+      return absl::InternalError(
+          StrFormat("Width of bit slice must be non-negative: %s",
+                    dynamic_bit_slice->ToString()));
+    }
+    if (operand_type->bit_count() < dynamic_bit_slice->width()) {
+      return absl::InternalError(
+          StrFormat("Expected operand 0 of %s to have at least %d bits (width"
+                    " %d), has only %d: %s",
+                    dynamic_bit_slice->GetName(), dynamic_bit_slice->width(),
+                    dynamic_bit_slice->width(), operand_type->bit_count(),
+                    dynamic_bit_slice->ToString()));
     }
     return absl::OkStatus();
   }

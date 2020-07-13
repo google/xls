@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_COMMON_MATH_UTIL_H_
-#define THIRD_PARTY_XLS_COMMON_MATH_UTIL_H_
+#ifndef XLS_COMMON_MATH_UTIL_H_
+#define XLS_COMMON_MATH_UTIL_H_
 
 #include <limits>
 
@@ -114,4 +114,4 @@ int64 FloorOfLog2(uint64 value);
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_COMMON_MATH_UTIL_H_
+#endif  // XLS_COMMON_MATH_UTIL_H_

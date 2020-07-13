@@ -22,6 +22,7 @@ namespace {
 
 using ::testing::HasSubstr;
 
+#ifndef NDEBUG  // Symbols are not available in optimized builds.
 TEST(SymbolizedStacktraceTest, StacktraceContainsTestMethodName) {
   std::string trace = GetSymbolizedStackTraceAsString();
 
@@ -33,6 +34,7 @@ TEST(SymbolizedStacktraceTest, StacktraceDoesNotContainHelperMethodName) {
 
   EXPECT_THAT(trace, Not(HasSubstr("GetSymbolizedStackTraceAsString")));
 }
+#endif
 
 }  // namespace
 }  // namespace xls

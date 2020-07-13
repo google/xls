@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,8 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# Lint as: python3
+
 """Tests for xls.dslx.bit_helpers."""
 
 from xls.dslx import bit_helpers
@@ -101,6 +102,19 @@ class BitHelpersTest(absltest.TestCase):
                      bit_helpers.from_twos_complement(value=0x1e, bit_count=5))
     self.assertEqual(15,
                      bit_helpers.from_twos_complement(value=0xf, bit_count=5))
+
+  def test_to_bits_string(self):
+    for want, input_ in [
+        ('0b0', 0b0),
+        ('0b1', 0b1),
+        ('0b10', 0b10),
+        ('0b1010', 0b1010),
+        ('0b1_0000', 0b1_0000),
+        ('0b10_0000', 0b10_0000),
+        ('0b1010_0101', 0b1010_0101),
+        ('0b1_1010_0101', 0b1_1010_0101),
+    ]:
+      self.assertEqual(want, bit_helpers.to_bits_string(input_))
 
 
 if __name__ == '__main__':

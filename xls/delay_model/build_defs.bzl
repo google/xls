@@ -19,6 +19,7 @@
 def delay_model(
         name,
         model_name,
+        precedence,
         srcs,
         **kwargs):
     """Generates a delay model cc_library from a DelayModel protobuf.
@@ -28,6 +29,7 @@ def delay_model(
       name: Name of the cc_library target to generate.
       model_name: Name of the model. This is the string that is used to access
         the model when calling xls::GetDelayEstimator.
+      precedence: Precedence for the model in the delay model registry.
       srcs: The pbtext file containing the DelayModel proto. There should only
         be a single source file.
       **kwargs: Keyword args to pass to cc_library rule.
@@ -36,17 +38,20 @@ def delay_model(
     if len(srcs) != 1:
         fail("More than one source not currently supported.")
 
-    native.genrule(
+    if precedence not in ("kLow", "kMedium", "kHigh"):
+        fail("Invalid precedence for delay model: " + precedence)
+
+    native.genrule(  # generated_file
         name = "{}_source".format(name),
         srcs = srcs,
         outs = ["{}.cc".format(name)],
-        cmd = "$(location //xls/delay_model:generate_delay_lookup) " +
-              "--model_name=" + model_name + " $< " +
-              "| $(location @clang_binaries//:clang_format)" +
-              " > $(OUTS)",
+        cmd = ("$(location //xls/delay_model:generate_delay_lookup) " +
+               "--model_name={model_name} --precedence={precedence} $< " +
+               "| $(location @llvm_toolchain//:bin/clang-format)" +
+               " > $(OUTS)").format(model_name = model_name, precedence = precedence),
         exec_tools = [
             "//xls/delay_model:generate_delay_lookup",
-            "@clang_binaries//:clang_format",
+            "@llvm_toolchain//:bin/clang-format",
         ],
     )
     native.cc_library(

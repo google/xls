@@ -180,6 +180,10 @@ class TranslatorTest(absltest.TestCase):
     # Sign extension
     self.one_in_one_out("return a.slc<3>(2);", 0b1001011001, 0, -2)
 
+  def test_var_slc(self):
+    # Sign extension
+    self.one_in_one_out("int x = 2;return a.slc<3>(x);", 0b1001011001, 0, -2)
+
   def test_simple_set_slc(self):
     self.one_in_one_out("a.set_slc(1, uai2(3));return a;", 0b0001011001, 0, 95)
 
@@ -204,10 +208,10 @@ class TranslatorTest(absltest.TestCase):
   def test_simple_switch(self):
     source = """
     switch(a) {
-      default:
       case 0:
         return b;
       case 6:
+      default:
       case 1:
         return a;
       case 4:
@@ -217,11 +221,11 @@ class TranslatorTest(absltest.TestCase):
     """
     self.one_in_one_out(source, 0, 222, 222)
     self.one_in_one_out(source, 1, 222, 1)
-    self.one_in_one_out(source, 2, 222, 222)
+    self.one_in_one_out(source, 2, 222, 2)
     self.one_in_one_out(source, 5, 222, 227)
     self.one_in_one_out(source, 4, 222, 226)
     self.one_in_one_out(source, 6, 222, 6)
-
+    
   def test_simple_unrolled_loop(self):
     source = """
     int ret = 0;
@@ -243,22 +247,22 @@ class TranslatorTest(absltest.TestCase):
 #  def test_simple_structref_cast(self):
 #    self.one_in_one_out("return uai32(a).slc<3>(2);", -5, 0, -11)
 #    self.one_in_one_out("return ((uai32)a).slc<3>(2);", -5, 0, 6)
-  
+
   def test_invalid_struct_operation(self):
-      statestruct = hls_types_pb2.HLSStructType()
+    statestruct = hls_types_pb2.HLSStructType()
 
-      int_type = hls_types_pb2.HLSIntType()
-      int_type.signed = True
-      int_type.width = 18
+    int_type = hls_types_pb2.HLSIntType()
+    int_type.signed = True
+    int_type.width = 18
 
-      translated_hls_type = hls_types_pb2.HLSType()
-      translated_hls_type.as_int.CopyFrom(int_type)
+    translated_hls_type = hls_types_pb2.HLSType()
+    translated_hls_type.as_int.CopyFrom(int_type)
 
-      statestructtype = hls_types_pb2.HLSType()
-      statestructtype.as_struct.CopyFrom(statestruct)
-      hls_types_by_name = {"State": statestructtype}
+    statestructtype = hls_types_pb2.HLSType()
+    statestructtype.as_struct.CopyFrom(statestruct)
+    hls_types_by_name = {"State": statestructtype}
 
-      source = """
+    source = """
       enum states{State_TX=1};
       int test(){
         int ret = 0;
@@ -267,24 +271,24 @@ class TranslatorTest(absltest.TestCase):
         return ret;
       }
       """
-      with self.assertRaisesRegex(ValueError, 'Invalid binary operand at'):
-          f = self.parse_and_get_function(source, hls_types_by_name)
+    with self.assertRaisesRegex(ValueError, "Invalid binary operand at"):
+      self.parse_and_get_function(source, hls_types_by_name)
 
   def test_invalid_comparison(self):
-      statestruct = hls_types_pb2.HLSStructType()
+    statestruct = hls_types_pb2.HLSStructType()
 
-      int_type = hls_types_pb2.HLSIntType()
-      int_type.signed = True
-      int_type.width = 18
+    int_type = hls_types_pb2.HLSIntType()
+    int_type.signed = True
+    int_type.width = 18
 
-      translated_hls_type = hls_types_pb2.HLSType()
-      translated_hls_type.as_int.CopyFrom(int_type)
+    translated_hls_type = hls_types_pb2.HLSType()
+    translated_hls_type.as_int.CopyFrom(int_type)
 
-      statestructtype = hls_types_pb2.HLSType()
-      statestructtype.as_struct.CopyFrom(statestruct)
-      hls_types_by_name = {"State": statestructtype}
+    statestructtype = hls_types_pb2.HLSType()
+    statestructtype.as_struct.CopyFrom(statestruct)
+    hls_types_by_name = {"State": statestructtype}
 
-      source = """
+    source = """
       enum states{State_TX=1};
       int test(){
         int ret = 0;
@@ -295,8 +299,8 @@ class TranslatorTest(absltest.TestCase):
         return ret;
       }
       """
-      with self.assertRaisesRegex(ValueError, 'Invalid operand at'):
-          f = self.parse_and_get_function(source, hls_types_by_name)
+    with self.assertRaisesRegex(ValueError, "Invalid operand at"):
+      self.parse_and_get_function(source, hls_types_by_name)
 
   def test_structref(self):
     somestruct = hls_types_pb2.HLSStructType()

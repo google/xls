@@ -12,14 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_SCHEDULING_PIPELINE_SCHEDULE_H_
-#define THIRD_PARTY_XLS_SCHEDULING_PIPELINE_SCHEDULE_H_
+#ifndef XLS_SCHEDULING_PIPELINE_SCHEDULE_H_
+#define XLS_SCHEDULING_PIPELINE_SCHEDULE_H_
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "xls/common/status/statusor.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/function.h"
+#include "xls/scheduling/pipeline_schedule.pb.h"
 
 namespace xls {
 
@@ -112,6 +113,10 @@ class PipelineSchedule {
       Function* f, const DelayEstimator& delay_estimator,
       const SchedulingOptions& options);
 
+  // Reconstructs a PipelineSchedule object from a proto representation.
+  static xabsl::StatusOr<PipelineSchedule> FromProto(
+      Function* function, const PipelineScheduleProto& proto);
+
   // Constructs a schedule for the given function with the given cycle map. If
   // length is not given, then the length equal to the largest cycle in cycle
   // map minus one.
@@ -125,7 +130,7 @@ class PipelineSchedule {
 
   // Returns the cycle in which the node is placed. Dies if node has not
   // been placed in this schedule.
-  int64 cycle(Node* node) const { return cycle_map_.at(node); }
+  int64 cycle(const Node* node) const { return cycle_map_.at(node); }
 
   // Returns the nodes scheduled in the given cycle. The node order is
   // guaranteed to be topological.
@@ -154,6 +159,9 @@ class PipelineSchedule {
   absl::Status VerifyTiming(int64 clock_period_ps,
                             const DelayEstimator& delay_estimator) const;
 
+  // Returns a protobuf holding this object's scheduling info.
+  PipelineScheduleProto ToProto();
+
  private:
   Function* function_;
 
@@ -166,4 +174,4 @@ class PipelineSchedule {
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_SCHEDULING_PIPELINE_SCHEDULE_H_
+#endif  // XLS_SCHEDULING_PIPELINE_SCHEDULE_H_

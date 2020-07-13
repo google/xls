@@ -15,8 +15,8 @@
 // Data structure that represents netlists (e.g. ones that have been parsed in
 // from the synthesis flow).
 
-#ifndef THIRD_PARTY_XLS_NETLIST_NETLIST_H_
-#define THIRD_PARTY_XLS_NETLIST_NETLIST_H_
+#ifndef XLS_NETLIST_NETLIST_H_
+#define XLS_NETLIST_NETLIST_H_
 
 #include <string>
 #include <vector>
@@ -211,4 +211,4 @@ class Netlist {
 }  // namespace netlist
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_NETLIST_NETLIST_H_
+#endif  // XLS_NETLIST_NETLIST_H_

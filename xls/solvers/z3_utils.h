@@ -13,11 +13,13 @@
 // limitations under the License.
 
 // Helper routines for commonly-encountered patterns when working with Z3.
-#ifndef THIRD_PARTY_XLS_SOLVERS_Z3_UTILS_H_
-#define THIRD_PARTY_XLS_SOLVERS_Z3_UTILS_H_
+#ifndef XLS_SOLVERS_Z3_UTILS_H_
+#define XLS_SOLVERS_Z3_UTILS_H_
 
 #include <string>
 
+#include "absl/strings/string_view.h"
+#include "xls/ir/type.h"
 #include "../z3/src/api/z3.h"
 
 namespace xls {
@@ -29,6 +31,7 @@ namespace z3 {
 // needed.
 Z3_solver CreateSolver(Z3_context ctx, int num_threads);
 
+// Printing / output functions ------------------------------------------------
 // Prints the solver's result, and, if satisfiable, prints a model demonstrating
 // such a case.
 // If "hexify" is true, then all output values will be converted from boolean or
@@ -48,8 +51,17 @@ std::string QueryNode(Z3_context ctx, Z3_model model, Z3_ast node,
 // converted accordingly.
 std::string HexifyOutput(const std::string& input);
 
+// Returns a string containing a binary-formatted version of the given bits
+// interpreted under "model".
+std::string BitVectorToString(Z3_context ctx,
+                              const std::vector<Z3_ast>& z3_bits,
+                              Z3_model model);
+
+// Converts a XLS IR Type to the corresponding Z3 sort.
+Z3_sort TypeToSort(Z3_context ctx, const Type& type);
+
 }  // namespace z3
 }  // namespace solvers
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_SOLVERS_Z3_UTILS_H_
+#endif  // XLS_SOLVERS_Z3_UTILS_H_

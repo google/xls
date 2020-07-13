@@ -64,7 +64,7 @@ fn sha256_chunk(chunk: bits[512], digest_init: Digest) -> Digest {
   let (a, b, c, d, e, f, g, h): Digest =
   for (i, (a, b, c, d, e, f, g, h)): (u32, Digest) in range(u32:0, u32:64) {
     let S1 = std::rrot(e, u32:6) ^ std::rrot(e, u32:11) ^ std::rrot(e, u32:25);
-    let ch = (e & f) ^ ((~e) & g);
+    let ch = (e & f) ^ ((!e) & g);
     let temp1 = h + S1 + ch + K[i] + w[i];
     let S0 = std::rrot(a, u32:2) ^ std::rrot(a, u32:13) ^ std::rrot(a, u32:22);
     let maj = (a & b) ^ (a & c) ^ (b & c);

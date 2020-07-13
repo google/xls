@@ -19,10 +19,10 @@
 from xls.dslx.interpreter.value import Value
 from xls.dslx.interpreter.value_parser import value_from_string
 from xls.dslx.interpreter.value_parser import ValueParseError
-from absl.testing import absltest as unittest
+from absl.testing import absltest
 
 
-class ValueParserTest(unittest.TestCase):
+class ValueParserTest(absltest.TestCase):
 
   def test_bits_value_hex(self):
     self.assertEqual(
@@ -76,4 +76,4 @@ class ValueParserTest(unittest.TestCase):
 
 
 if __name__ == '__main__':
-  unittest.main()
+  absltest.main()

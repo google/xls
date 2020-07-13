@@ -32,6 +32,7 @@ import termcolor
 from xls.dslx import ast
 from xls.dslx import bit_helpers
 from xls.dslx import deduce
+from xls.dslx import import_fn
 from xls.dslx.concrete_type import ArrayType
 from xls.dslx.concrete_type import BitsType
 from xls.dslx.concrete_type import ConcreteType
@@ -500,8 +501,6 @@ class Interpreter(object):
     operand_value = self._evaluate(expr.operand, bindings)
     if expr.operator.kind == ast.Unop.INV:
       return operand_value.bitwise_negate()
-    if expr.operator.is_keyword(Keyword.NOT):
-      return operand_value.logical_negate()
     if expr.operator.kind == ast.Unop.NEG:
       return operand_value.arithmetic_negate()
     raise NotImplementedError('Unimplemented unop.', expr.operator)
@@ -528,8 +527,7 @@ class Interpreter(object):
     elif expr.operator.get_kind_or_keyword() in (ast.Binop.AND,
                                                  ast.Binop.LOGICAL_AND):
       result = lhs_value.bitwise_and(rhs_value)
-    elif expr.operator.get_kind_or_keyword() in (ast.Binop.XOR,
-                                                 ast.Binop.LOGICAL_XOR):
+    elif expr.operator.get_kind_or_keyword() == ast.Binop.XOR:
       result = lhs_value.bitwise_xor(rhs_value)
     elif expr.operator.kind == ast.Binop.SHLL:  # <<
       result = lhs_value.shll(rhs_value)
@@ -1231,6 +1229,16 @@ class Interpreter(object):
 
     return result
 
+  def _do_import(self, subject: import_fn.ImportTokens,
+                 span: Span) -> ast.Module:
+    """Handles an import as specified by a top level module statement."""
+    if self._f_import is None:
+      raise EvaluateError(span,
+                          'Cannot import, no import capability was provided.')
+    imported_module, imported_node_to_type = self._f_import(subject)
+    self._node_to_type.update(imported_node_to_type)
+    return imported_module
+
   def _make_top_level_bindings(self, m: ast.Module) -> Bindings:
     """Creates a fresh set of bindings for use in module-level evaluation.
 
@@ -1295,12 +1303,7 @@ class Interpreter(object):
       elif isinstance(member, ast.Enum):
         b.add_enum(member.identifier, member)
       elif isinstance(member, ast.Import):
-        if self._f_import is None:
-          raise EvaluateError(
-              member.span, 'Cannot import, no import capability was provided.')
-        subject = member.name
-        imported_module, imported_node_to_type = self._f_import(subject)
-        self._node_to_type.update(imported_node_to_type)
+        imported_module = self._do_import(member.name, member.span)
         b.add_mod(member.identifier, imported_module)
     return b
 

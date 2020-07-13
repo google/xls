@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,8 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# Lint as: python3
 
 """Tests for xls.dslx.fuzzer.run_fuzz."""
 
@@ -27,7 +27,7 @@ from xls.dslx.fuzzer import run_fuzz
 from xls.dslx.fuzzer import sample
 from xls.dslx.fuzzer import sample_runner
 from xls.common import runfiles
-from absl.testing import absltest
+from xls.common import test_base
 from absl.testing import parameterized
 
 flags.DEFINE_boolean('codegen', True,
@@ -66,7 +66,7 @@ class RunFuzzTest(parameterized.TestCase):
     self.KWARGS['codegen'] = FLAGS.codegen
 
   def _get_ast_options(self) -> ast_generator.AstGeneratorOptions:
-    return ast_generator.AstGeneratorOptions(blacklist_divide=True)
+    return ast_generator.AstGeneratorOptions(disallow_divide=True)
 
   def test_repeatable_within_process(self):
     samples0 = run_fuzz.run_fuzz(
@@ -92,8 +92,13 @@ class RunFuzzTest(parameterized.TestCase):
           with open(path, 'w') as f:
             f.write(samples[i].input_text)
         else:
-          expected = runfiles.get_contents_as_text(path)
-          self.assertMultiLineEqual(expected, samples[i].input_text)
+          # rstrip to avoid miscompares from trailing newline at EOF.
+          expected = runfiles.get_contents_as_text(path).rstrip()
+          self.assertMultiLineEqual(
+              expected,
+              samples[i].input_text,
+              msg=f'want: {expected!r}\n'
+              f'got:  {samples[i].input_text!r}')
 
   def test_minimize_ir_minimization_possible(self):
     # Add an invalid codegen flag to inject an error into the running of the
@@ -103,8 +108,8 @@ class RunFuzzTest(parameterized.TestCase):
         'fn main(x: u8) -> u8 { -x }',
         sample.SampleOptions(codegen=True, codegen_args=('--invalid_flag!!!',)),
         sample.parse_args_batch('bits[8]:7\nbits[8]:100'))
-    run_dir = self.create_tempdir(
-        cleanup=absltest.TempFileCleanup.SUCCESS).full_path
+    success = test_base.TempFileCleanup.SUCCESS  # type: test_base.TempFileCleanup
+    run_dir = self.create_tempdir(cleanup=success).full_path
     with self.assertRaises(sample_runner.SampleError):
       run_fuzz.run_sample(s, run_dir=run_dir)
     minimized_ir_path = run_fuzz.minimize_ir(s, run_dir)
@@ -127,18 +132,18 @@ class RunFuzzTest(parameterized.TestCase):
     # sample.
     s = sample.Sample('fn main(x: u8) -> u8 { -x }', sample.SampleOptions(),
                       sample.parse_args_batch('bits[8]:7\nbits[8]:100'))
-    run_dir = self.create_tempdir(
-        cleanup=absltest.TempFileCleanup.SUCCESS).full_path
+    success = test_base.TempFileCleanup.SUCCESS  # type: test_base.TempFileCleanup
+    run_dir = self.create_tempdir(cleanup=success).full_path
     run_fuzz.run_sample(s, run_dir=run_dir)
     self.assertIsNone(run_fuzz.minimize_ir(s, run_dir))
     dir_contents = os.listdir(run_dir)
     self.assertIn('ir_minimizer_test.sh', dir_contents)
 
   def test_minimize_jit_interpreter_mismatch(self):
-    s = sample.Sample('fn main(x: u8) -> u8 { ~x }', sample.SampleOptions(),
+    s = sample.Sample('fn main(x: u8) -> u8 { !x }', sample.SampleOptions(),
                       sample.parse_args_batch('bits[8]:0xff\nbits[8]:0x42'))
-    run_dir = self.create_tempdir(
-        cleanup=absltest.TempFileCleanup.SUCCESS).full_path
+    success = test_base.TempFileCleanup.SUCCESS  # type: test_base.TempFileCleanup
+    run_dir = self.create_tempdir(cleanup=success).full_path
     run_fuzz.run_sample(s, run_dir=run_dir)
     minimized_ir_path = run_fuzz.minimize_ir(
         s, run_dir, inject_jit_result='bits[32]:0x0')
@@ -154,4 +159,4 @@ class RunFuzzTest(parameterized.TestCase):
 
 
 if __name__ == '__main__':
-  absltest.main()
+  test_base.main()

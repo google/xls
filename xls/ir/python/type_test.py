@@ -24,7 +24,7 @@ from xls.ir.python import type as ir_type
 from xls.ir.python import value as ir_value
 
 
-class TypeTest(test_base.XlsTestCase):
+class TypeTest(test_base.TestCase):
 
   def test_type(self):
     pkg = package.Package('pkg')

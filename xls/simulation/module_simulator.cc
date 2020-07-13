@@ -41,6 +41,36 @@ ModuleSimulator::BitsMap ValueMapToBitsMap(
 
 }  // namespace
 
+absl::Status ModuleSimulator::DeassertControlSignals(
+    ModuleTestbench* tb) const {
+  if (signature_.proto().has_ready_valid()) {
+    const ReadyValidInterface& interface = signature_.proto().ready_valid();
+    tb->Set(interface.input_valid(), 0);
+    tb->Set(interface.output_ready(), 0);
+  }
+
+  if (signature_.proto().has_pipeline() &&
+      signature_.proto().pipeline().has_pipeline_control()) {
+    const PipelineControl& pipeline_control =
+        signature_.proto().pipeline().pipeline_control();
+    if (pipeline_control.has_valid()) {
+      tb->Set(pipeline_control.valid().input_name(), 0);
+    }
+  }
+  return absl::OkStatus();
+}
+
+absl::Status ModuleSimulator::ResetModule(ModuleTestbench* tb) const {
+  if (signature_.proto().has_reset()) {
+    const ResetProto& reset = signature_.proto().reset();
+    tb->Set(reset.name(), reset.active_low() ? 0 : 1);
+    tb->AdvanceNCycles(5);
+    tb->Set(reset.name(), reset.active_low() ? 1 : 0);
+    tb->NextCycle();
+  }
+  return absl::OkStatus();
+}
+
 xabsl::StatusOr<ModuleSimulator::BitsMap> ModuleSimulator::Run(
     const ModuleSimulator::BitsMap& inputs) const {
   XLS_ASSIGN_OR_RETURN(auto outputs, RunBatched({inputs}));
@@ -92,19 +122,10 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
 
   // Drive any control signals to an unasserted state so the all control inputs
   // are non-X when the device comes out of reset.
-  if (signature_.proto().has_ready_valid()) {
-    const ReadyValidInterface& interface = signature_.proto().ready_valid();
-    tb.Set(interface.input_valid(), 0);
-    tb.Set(interface.output_ready(), 0);
-  }
+  XLS_RETURN_IF_ERROR(DeassertControlSignals(&tb));
 
-  if (signature_.proto().has_reset()) {
-    const ResetProto& reset = signature_.proto().reset();
-    tb.Set(reset.name(), reset.active_low() ? 0 : 1);
-    tb.AdvanceNCycles(5);
-    tb.Set(reset.name(), reset.active_low() ? 1 : 0);
-    tb.NextCycle();
-  }
+  // Reset module (if the module has a reset signal).
+  XLS_RETURN_IF_ERROR(ResetModule(&tb));
 
   // Drive data inputs. Values are flattened before using.
   auto drive_data = [&](int64 index) {
@@ -198,8 +219,10 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
         captured_outputs++;
       } else {
         // The initial inputs have not yet reached the end of the pipeline. The
-        // output_valid signal (if it exists) should still be X.
-        maybe_expect_output_valid(/*expect_x=*/true, /*expected_value=*/false);
+        // output_valid signal (if it exists) should still be X if there is no
+        // reset signal.
+        maybe_expect_output_valid(/*expect_x=*/!signature_.proto().has_reset(),
+                                  /*expected_value=*/false);
       }
     }
     for (const PortProto& input : signature_.data_inputs()) {

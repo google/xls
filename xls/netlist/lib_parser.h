@@ -17,8 +17,8 @@
 // Note that these files can be quite large (on the order of gigabytes) so we
 // performance optimize this a bit.
 
-#ifndef THIRD_PARTY_XLS_NETLIST_LIB_PARSER_H_
-#define THIRD_PARTY_XLS_NETLIST_LIB_PARSER_H_
+#ifndef XLS_NETLIST_LIB_PARSER_H_
+#define XLS_NETLIST_LIB_PARSER_H_
 
 #include <fstream>
 #include <string>
@@ -359,11 +359,11 @@ struct Block {
 
 class Parser {
  public:
-  // See comment on kind_whitelist_ member below for details.
+  // See comment on kind_allowlist_ member below for details.
   explicit Parser(Scanner* scanner,
                   absl::optional<absl::flat_hash_set<std::string>>
-                      kind_whitelist = absl::nullopt)
-      : scanner_(scanner), kind_whitelist_(std::move(kind_whitelist)) {}
+                      kind_allowlist = absl::nullopt)
+      : scanner_(scanner), kind_allowlist_(std::move(kind_allowlist)) {}
 
   xabsl::StatusOr<std::unique_ptr<Block>> ParseLibrary() {
     XLS_RETURN_IF_ERROR(DropIdentifierOrError("library"));
@@ -401,18 +401,18 @@ class Parser {
 
   Scanner* scanner_;
 
-  // Optional whitelist of keys (including block kinds) that we're interested in
-  // keeping in the result data structure. Non-whitelist block kinds are still
-  // parsed properly, but then may have incomplete data (or not be present at
-  // all) in the resulting data structure.
+  // Optional allowlist of keys (including block kinds) that we're interested in
+  // keeping in the result data structure. "Denied" (non-allowed) block kinds
+  // are still parsed properly, but then may have incomplete data (or not be
+  // present at all) in the resulting data structure.
   //
   // This is very useful for minimizing memory usage when we're interested in
   // just a subset of particular fields, e.g. as part of a query.
-  absl::optional<absl::flat_hash_set<std::string>> kind_whitelist_;
+  absl::optional<absl::flat_hash_set<std::string>> kind_allowlist_;
 };
 
 }  // namespace cell_lib
 }  // namespace netlist
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_NETLIST_LIB_PARSER_H_
+#endif  // XLS_NETLIST_LIB_PARSER_H_

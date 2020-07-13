@@ -139,6 +139,48 @@ absl::Status ModuleBuilder::AddAssignment(
   return absl::OkStatus();
 }
 
+absl::Status ModuleBuilder::AddSelectAssignment(
+    Expression* lhs, Type* xls_type, Expression* selector, int64 selector_width,
+    absl::Span<Expression* const> cases, Expression* default_value,
+    std::function<void(Expression*, Expression*)> add_assignment_statement) {
+  // Array assignment is only supported in SystemVerilog. In Verilog, arrays
+  // must be assigned element-by-element.
+  if (!use_system_verilog_ && xls_type != nullptr && xls_type->IsArray()) {
+    ArrayType* array_type = xls_type->AsArrayOrDie();
+    for (int64 i = 0; i < array_type->size(); ++i) {
+      // Extract element 'i' from each case and the default value and pass
+      // recursively to AddSelectAssignment.
+      std::vector<Expression*> case_elements;
+      for (Expression* cas : cases) {
+        case_elements.push_back(
+            file_->Index(cas->AsIndexableExpressionOrDie(), i));
+      }
+      Expression* default_value_element =
+          default_value == nullptr
+              ? nullptr
+              : file_->Index(default_value->AsIndexableExpressionOrDie(), i);
+      XLS_RETURN_IF_ERROR(AddSelectAssignment(
+          file_->Index(lhs->AsIndexableExpressionOrDie(), i),
+          array_type->element_type(), selector, selector_width, case_elements,
+          default_value_element, add_assignment_statement));
+    }
+  } else {
+    Expression* rhs = default_value;
+    for (int64 i = cases.size() - 1; i >= 0; --i) {
+      if (rhs == nullptr) {
+        rhs = cases[i];
+      } else {
+        rhs = file_->Ternary(
+            file_->Equals(selector,
+                          file_->Literal(i, /*bit_count=*/selector_width)),
+            cases[i], rhs);
+      }
+    }
+    add_assignment_statement(lhs, rhs);
+  }
+  return absl::OkStatus();
+}
+
 absl::Status ModuleBuilder::AddAssignmentFromValue(
     Expression* lhs, const Value& value,
     std::function<void(Expression*, Expression*)> add_assignment_statement) {
@@ -302,6 +344,12 @@ LogicRef* ModuleBuilder::DeclareVariable(absl::string_view name, Type* type) {
                           declaration_section());
 }
 
+LogicRef* ModuleBuilder::DeclareVariable(absl::string_view name,
+                                         int64 bit_count) {
+  return module_->AddWire(SanitizeIdentifier(name), bit_count,
+                          declaration_section());
+}
+
 bool ModuleBuilder::CanEmitAsInlineExpression(
     Node* node, absl::optional<absl::Span<Node* const>> users_of_expression) {
   if (node->GetType()->IsArray()) {
@@ -343,6 +391,45 @@ xabsl::StatusOr<Expression*> ModuleBuilder::EmitAsInlineExpression(
   return NodeToExpression(node, inputs, file_);
 }
 
+absl::Status ModuleBuilder::EmitArrayUpdateElement(Expression* lhs,
+                                                   BinaryInfix* condition,
+                                                   Expression* new_value,
+                                                   Expression* original_value,
+                                                   Type* element_type) {
+  if (element_type->IsArray()) {
+    ArrayType* array_type = element_type->AsArrayOrDie();
+    for (int64 idx = 0; idx < array_type->size(); ++idx) {
+      XLS_RETURN_IF_ERROR(EmitArrayUpdateElement(
+          /*lhs=*/file_->Index(lhs->AsIndexableExpressionOrDie(), idx),
+          /*condition=*/condition,
+          /*new_value=*/
+          file_->Index(new_value->AsIndexableExpressionOrDie(), idx),
+          /*original_value=*/
+          file_->Index(original_value->AsIndexableExpressionOrDie(), idx),
+          /*element_type=*/array_type->element_type()));
+    }
+    return absl::OkStatus();
+  }
+
+  if (!element_type->IsBits() && !element_type->IsTuple()) {
+    return absl::UnimplementedError(absl::StrFormat(
+        "EmitArrayUpdateHelper cannot handle elements of type %s",
+        element_type->ToString()));
+  }
+
+  XLS_RETURN_IF_ERROR(AddAssignment(
+      /*lhs=*/lhs,
+      /*rhs=*/
+      file_->Ternary(condition, new_value, original_value),
+      /*xls_type=*/element_type,
+      /*add_assignment_statement=*/
+      [&](Expression* lhs, Expression* rhs) {
+        assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
+      }));
+
+  return absl::OkStatus();
+}
+
 xabsl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
     absl::string_view name, Node* node, absl::Span<Expression* const> inputs) {
   LogicRef* ref = DeclareVariable(name, node->GetType());
@@ -371,6 +458,17 @@ xabsl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
               assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
             }));
         break;
+      case Op::kArrayUpdate:
+        for (int64 i = 0; i < array_type->size(); ++i) {
+          XLS_RETURN_IF_ERROR(EmitArrayUpdateElement(
+              /*lhs=*/file_->Index(ref, i),
+              /*condition=*/file_->Equals(inputs[1], file_->PlainLiteral(i)),
+              /*new_value=*/inputs[2],
+              /*original_value=*/
+              file_->Index(inputs[0]->AsIndexableExpressionOrDie(), i),
+              /*element_type=*/array_type->element_type()));
+        }
+        break;
       case Op::kTupleIndex:
         XLS_RETURN_IF_ERROR(AssignFromSlice(
             ref, inputs[0], array_type,
@@ -381,6 +479,24 @@ xabsl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
               assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
             }));
         break;
+      case Op::kSel: {
+        Select* sel = node->As<Select>();
+        Expression* selector = inputs[0];
+        std::vector<Expression*> cases(sel->cases().size());
+        // Cases start at operand 1.
+        for (int64 i = 0; i < sel->cases().size(); ++i) {
+          cases[i] = inputs[i + 1];
+        }
+        // Default value (if any) is the last operand.
+        Expression* default_value =
+            sel->default_value().has_value() ? inputs.back() : nullptr;
+        XLS_RETURN_IF_ERROR(AddSelectAssignment(
+            ref, array_type, selector, sel->selector()->BitCountOrDie(), cases,
+            default_value, [&](Expression* lhs, Expression* rhs) {
+              assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
+            }));
+        break;
+      }
       default:
         return absl::UnimplementedError(
             absl::StrCat("Unsupported array-shaped op: ", node->ToString()));
@@ -439,10 +555,12 @@ absl::Status ModuleBuilder::AssignRegisters(
   std::vector<SensitivityListElement> sensitivity_list;
   sensitivity_list.push_back(file_->Make<PosEdge>(clk));
   if (rst.has_value()) {
-    if (rst->active_low) {
-      sensitivity_list.push_back(file_->Make<NegEdge>(rst->signal));
-    } else {
-      sensitivity_list.push_back(file_->Make<PosEdge>(rst->signal));
+    if (rst->asynchronous) {
+      if (rst->active_low) {
+        sensitivity_list.push_back(file_->Make<NegEdge>(rst->signal));
+      } else {
+        sensitivity_list.push_back(file_->Make<PosEdge>(rst->signal));
+      }
     }
   }
   AlwaysBase* always;

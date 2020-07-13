@@ -102,6 +102,10 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
     case Op::kBitSlice:
       XLS_RETURN_IF_ERROR(visitor->HandleBitSlice(down_cast<BitSlice*>(this)));
       break;
+    case Op::kDynamicBitSlice:
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleDynamicBitSlice(down_cast<DynamicBitSlice*>(this)));
+      break;
     case Op::kConcat:
       XLS_RETURN_IF_ERROR(visitor->HandleConcat(down_cast<Concat*>(this)));
       break;
@@ -379,6 +383,10 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
     case Op::kBitSlice:
       args.push_back(absl::StrFormat("start=%d", As<BitSlice>()->start()));
       args.push_back(absl::StrFormat("width=%d", As<BitSlice>()->width()));
+      break;
+    case Op::kDynamicBitSlice:
+      args.push_back(
+          absl::StrFormat("width=%d", As<DynamicBitSlice>()->width()));
       break;
     case Op::kDecode:
       args.push_back(absl::StrFormat("width=%d", As<Decode>()->width()));

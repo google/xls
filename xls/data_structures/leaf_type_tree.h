@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_DATA_STRUCTURES_LEAF_TYPE_TREE_H_
-#define THIRD_PARTY_XLS_DATA_STRUCTURES_LEAF_TYPE_TREE_H_
+#ifndef XLS_DATA_STRUCTURES_LEAF_TYPE_TREE_H_
+#define XLS_DATA_STRUCTURES_LEAF_TYPE_TREE_H_
 
 #include <vector>
 
@@ -204,4 +204,4 @@ class LeafTypeTree {
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_DATA_STRUCTURES_LEAF_TYPE_TREE_H_
+#endif  // XLS_DATA_STRUCTURES_LEAF_TYPE_TREE_H_

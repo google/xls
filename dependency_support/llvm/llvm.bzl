@@ -16,9 +16,6 @@
 
 See http://llvm.org/cmds/tblgen.html for more information on the TableGen
 tool.
-TODO: Currently this expresses include-based dependencies as
-"sources", and has no transitive understanding due to these files not being
-correctly understood by the build system.
 """
 
 def _dict_add(*dictionaries):
@@ -125,8 +122,6 @@ def cmake_var_string(cmake_vars):
     Ideally we would jist stringify in the expand_cmake_vars() rule, but select()
     interacts badly with genrules.
 
-    TODO: replace the genrule() with native rule and delete this rule.
-
     Args:
       cmake_vars: a dictionary with string keys and values that are convertable to
         strings.
@@ -158,9 +153,6 @@ def expand_cmake_vars(name, src, dst, cmake_vars):
         cmd = ("$(location {}) ".format(expand_cmake_vars_tool) + cmake_vars +
                "< $< > $@"),
     )
-
-# TODO: the set of CMake variables was hardcoded for expediency.
-# However, we should really detect many of these via configure-time tests.
 
 # The set of CMake variables common to all targets.
 cmake_vars = {
@@ -313,8 +305,6 @@ win32_cmake_vars = {
 }
 
 # Select a set of CMake variables based on the platform.
-# TODO: use a better method to select the right host triple, rather
-# than hardcoding x86_64.
 llvm_all_cmake_vars = select({
     "//conditions:default": cmake_var_string(
         _dict_add(

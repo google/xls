@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@xls_pip_deps//:requirements.bzl", "requirement")
+
 # pytype binary, test, library
 load("//xls/dslx/fuzzer:build_defs.bzl", "generate_crasher_regression_tests")
 # cc_proto_library is used in this file
@@ -47,11 +49,11 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":ast_generator",
-        "@com_google_absl_py//absl/testing:absltest",
         "//xls/dslx:fakefs_util",
         "//xls/dslx:parser_helpers",
         "//xls/dslx:span",
         "//xls/dslx:typecheck",
+        "@com_google_absl_py//absl/testing:absltest",
     ],
 )
 
@@ -71,9 +73,9 @@ py_library(
         ":sample",
         ":sample_generator",
         ":sample_runner",
-        "@com_google_absl_py//absl/logging",
-        "@termcolor_archive//:termcolor",
+        requirement("termcolor"),
         "//xls/common:runfiles",
+        "@com_google_absl_py//absl/logging",
     ],
 )
 
@@ -104,10 +106,10 @@ py_test(
         ":run_fuzz",
         ":sample",
         ":sample_runner",
-        "@com_google_absl_py//absl/testing:absltest",
-        "@com_google_absl_py//absl/testing:parameterized",
-        "@com_google_absl_py//absl/flags",
         "//xls/common:runfiles",
+        "//xls/common:test_base",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_absl_py//absl/testing:parameterized",
     ],
 )
 
@@ -127,10 +129,11 @@ py_test(
         ":run_fuzz",
         ":sample",
         ":sample_runner",
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+        "@com_google_absl_py//absl/flags",
         "@com_google_absl_py//absl/testing:absltest",
         "@com_google_absl_py//absl/testing:parameterized",
-        "@com_google_absl_py//absl/flags",
-        "//xls/common:runfiles",
     ],
 )
 
@@ -144,11 +147,11 @@ py_test(
     deps = [
         ":ast_generator",
         ":run_fuzz",
-        "@com_google_absl_py//absl/testing:absltest",
-        "@com_google_absl_py//absl/testing:parameterized",
-        "@com_google_absl_py//absl/flags",
         "//xls/common:runfiles",
         "//xls/dslx:ast",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_absl_py//absl/testing:absltest",
+        "@com_google_absl_py//absl/testing:parameterized",
     ],
 )
 
@@ -161,9 +164,9 @@ py_binary(
         ":run_fuzz",
         ":sample",
         ":sample_runner",
+        "//xls/common:gfile",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
-        "//xls/common:gfile",
     ],
 )
 
@@ -185,7 +188,8 @@ py_library(
     srcs_version = "PY3ONLY",
     deps = [
         ":sample",
-        "@com_google_absl_py//absl/logging",
+        "//xls/common:check_simulator",
+        "//xls/common:revision",
         "//xls/common:runfiles",
         "//xls/common:xls_error",
         "//xls/dslx:ast",
@@ -199,6 +203,7 @@ py_library(
         "//xls/ir/python:format_preference",
         "//xls/ir/python:ir_parser",
         "//xls/ir/python:value",
+        "@com_google_absl_py//absl/logging",
     ],
 )
 
@@ -210,7 +215,8 @@ py_test(
     deps = [
         ":sample",
         ":sample_runner",
-        "@com_google_absl_py//absl/testing:absltest",
+        "//xls/common:check_simulator",
+        "//xls/common:test_base",
         "//xls/dslx:concrete_type",
         "//xls/dslx:fakefs_util",
         "//xls/dslx:parser_helpers",
@@ -219,6 +225,7 @@ py_test(
 )
 
 generate_crasher_regression_tests(
+    name = "regression_tests",
     srcs = glob(["crashers/*"]),
     prefix = package_name(),
 )
@@ -233,8 +240,9 @@ py_library(
         ":sample",
         ":sample_generator",
         ":sample_runner",
-        "@termcolor_archive//:termcolor",
+        requirement("termcolor"),
         "//xls/common:gfile",
+        "//xls/common:multiprocess",
     ],
 )
 
@@ -272,9 +280,11 @@ py_binary(
         ":cli_helpers",
         ":run_fuzz_multiprocess_lib",
         ":sample",
+        requirement("psutil"),
+        "//xls/common:gfile",
+        "//xls/common:multiprocess",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
-        "//xls/common:gfile",
     ],
 )
 
@@ -313,8 +323,8 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":sample",
-        "@com_google_absl_py//absl/testing:absltest",
         "//xls/dslx/interpreter:value",
+        "@com_google_absl_py//absl/testing:absltest",
     ],
 )
 
@@ -352,16 +362,16 @@ cc_binary(
     srcs = ["read_summary_main.cc"],
     deps = [
         ":sample_summary_cc_proto",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/ir:op",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -369,10 +379,6 @@ cc_binary(
     name = "find_failing_input_main",
     srcs = ["find_failing_input_main.cc"],
     deps = [
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -381,6 +387,10 @@ cc_binary(
         "//xls/ir:ir_parser",
         "//xls/ir:llvm_ir_jit",
         "//xls/ir:value",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 

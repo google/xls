@@ -63,16 +63,16 @@ class AstGeneratorOptions(object):
 
   def __init__(self,
                emit_signed_types: bool = True,
-               blacklist_divide: bool = False,
+               disallow_divide: bool = False,
                max_width_bits_types: int = 64,
                max_width_aggregate_types: int = 1024,
                emit_loops: bool = True,
-               binop_whitelist: Optional[Sequence[scanner.TokenKind]] = None,
+               binop_allowlist: Optional[Sequence[scanner.TokenKind]] = None,
                short_samples: bool = False):
-    self.blacklist_divide = blacklist_divide
+    self.disallow_divide = disallow_divide
     self.max_width_bits_types = max_width_bits_types
     self.max_width_aggregate_types = max_width_aggregate_types
-    self.binop_whitelist = binop_whitelist
+    self.binop_allowlist = binop_allowlist
     self.emit_loops = emit_loops
     self.short_samples = short_samples
     self.emit_signed_types = emit_signed_types
@@ -92,16 +92,16 @@ class AstGenerator(object):
     self.fake_pos = Pos('<fake>', 0, 0)
     self.fake_span = Span(self.fake_pos, self.fake_pos)
     self.name_generator = self._name_generator()
-    if options.binop_whitelist:
+    if options.binop_allowlist:
       assert all(
           binop in ast.Binop.SAME_TYPE_KIND_LIST
-          for binop in options.binop_whitelist
-      ), 'Contains invalid TokenKinds for same-type binop whitelist: {}'.format(
-          options.binop_whitelist)
-      self._binops = options.binop_whitelist
+          for binop in options.binop_allowlist
+      ), 'Contains invalid TokenKinds for same-type binop allowlist: {}'.format(
+          options.binop_allowlist)
+      self._binops = options.binop_allowlist
     else:
       self._binops = list(ast.Binop.SAME_TYPE_KIND_LIST)
-      if options.blacklist_divide:
+      if options.disallow_divide:
         self._binops.remove(scanner.TokenKind.SLASH)
 
     type_kws = set(scanner.TYPE_KEYWORD_STRINGS) - set(['bits', 'uN', 'sN'])
@@ -306,8 +306,7 @@ class AstGenerator(object):
     lhs = ast.Binop(ne_token, make_lhs(), self._make_number(0, lhs_type))
     rhs = ast.Binop(ne_token, make_rhs(), self._make_number(0, rhs_type))
     # Pick some operation to do.
-    op = self.rng.choice(
-        [ast.Binop.LOGICAL_AND, ast.Binop.LOGICAL_OR, ast.Binop.LOGICAL_XOR])
+    op = self.rng.choice([ast.Binop.LOGICAL_AND, ast.Binop.LOGICAL_OR])
     op_token = scanner.Token(op, self.fake_span, op.value)
     return ast.Binop(op_token, lhs, rhs), self._make_type_annotation('u1')
 

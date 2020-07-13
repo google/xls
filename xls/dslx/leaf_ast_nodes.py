@@ -40,7 +40,6 @@ from xls.dslx.core_ast_nodes import TypeAnnotation
 from xls.dslx.core_ast_nodes import TypeDef
 from xls.dslx.core_ast_nodes import WildcardPattern
 from xls.dslx.free_variables import FreeVariables
-from xls.dslx.scanner import Keyword
 from xls.dslx.scanner import Pos
 from xls.dslx.scanner import Token
 from xls.dslx.scanner import TokenKind
@@ -740,22 +739,18 @@ class Cast(Expr):
 
 
 class Unop(Expr):
-  """Represents a unary operation expression; e.g. "~"."""
+  """Represents a unary operation expression; e.g. "!"."""
 
-  INV = TokenKind.TILDE
+  INV = TokenKind.BANG
   NEG = TokenKind.MINUS
-  NOT = Keyword.NOT
 
   # (T) -> T operators.
   SAME_TYPE_KIND_LIST = [
       INV,
       NEG,
   ]
-  # (bool) -> bool operators.
-  BOOL_KIND_LIST = [
-      NOT,
-  ]
-  OPERATORS = set(SAME_TYPE_KIND_LIST + BOOL_KIND_LIST)
+
+  OPERATORS = set(SAME_TYPE_KIND_LIST)
 
   def __init__(self, operator: Token, operand: Expr):
     assert operator.is_kind_or_keyword(self.OPERATORS), operator

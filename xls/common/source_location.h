@@ -26,8 +26,8 @@
 // omit that argument, and the default will automatically capture the location
 // of the callsite.
 
-#ifndef THIRD_PARTY_XLS_COMMON_SOURCE_LOCATION_H_
-#define THIRD_PARTY_XLS_COMMON_SOURCE_LOCATION_H_
+#ifndef XLS_COMMON_SOURCE_LOCATION_H_
+#define XLS_COMMON_SOURCE_LOCATION_H_
 
 #include <cstdint>
 
@@ -151,4 +151,4 @@ class SourceLocation {
 #define XABSL_LOC_CURRENT_DEFAULT_ARG
 #endif
 
-#endif  // THIRD_PARTY_XLS_COMMON_SOURCE_LOCATION_H_
+#endif  // XLS_COMMON_SOURCE_LOCATION_H_

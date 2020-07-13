@@ -22,6 +22,8 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/netlist/function_parser.h"
 #include "xls/netlist/netlist.h"
+#include "xls/solvers/z3_propagate_updates.h"
+#include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3_api.h"
 
 namespace xls {
@@ -46,7 +48,7 @@ NetlistTranslator::CreateAndTranslate(
 }
 
 xabsl::StatusOr<Z3_ast> NetlistTranslator::GetTranslation(NetRef ref) {
-  XLS_RET_CHECK(translated_.contains(ref));
+  XLS_RET_CHECK(translated_.contains(ref)) << ref->name();
   return translated_.at(ref);
 }
 
@@ -87,7 +89,7 @@ absl::Status NetlistTranslator::Init() {
   return absl::OkStatus();
 }
 
-bool IsCellInput(const netlist::rtl::NetRef netref, const Cell* cell) {
+bool IsInputToCell(const NetRef netref, const Cell* cell) {
   for (const auto& input : cell->inputs()) {
     if (input.netref == netref) {
       return true;
@@ -96,130 +98,85 @@ bool IsCellInput(const netlist::rtl::NetRef netref, const Cell* cell) {
   return false;
 }
 
-absl::Status NetlistTranslator::RebindInputNet(
-    const std::string& ref_name, Z3_ast dst,
-    absl::flat_hash_set<Cell*> cells_to_consider) {
-  // Overall approach:
-  //  1. Find the NetRef/Def matching "src".
-  //  2. For every cell with that as an input, replace that input with "dst".
-  //  3. Fame & fortune.
-  XLS_ASSIGN_OR_RETURN(netlist::rtl::NetRef src_ref,
-                       module_->ResolveNet(ref_name));
-  Z3_ast src = translated_[src_ref];
-  translated_[src_ref] = dst;
-
-  // For every cell that uses src_ref as an input, update its output wires to
-  // use the new Z3 node instead.
-  std::vector<UpdatedRef> updated_refs;
-  for (Cell* cell : src_ref->connected_cells()) {
-    if (!IsCellInput(src_ref, cell)) {
-      continue;
-    }
-
-    if (!cells_to_consider.empty() && !cells_to_consider.contains(cell)) {
-      continue;
-    }
-
-    // With a new input, we now need to update all using cells. We need to hold
-    // the result of that update (in updated_refs), so we can propagate that
-    // change down the rest of the tree.
-    for (const auto& output : cell->outputs()) {
-      translated_[output.netref] =
-          Z3_substitute(ctx_, translated_[output.netref], 1, &src, &dst);
-      updated_refs.push_back({output.netref, src, dst});
+bool IsOutputFromCell(const NetRef netref, const Cell* cell) {
+  for (const auto& input : cell->outputs()) {
+    if (input.netref == netref) {
+      return true;
     }
   }
+  return false;
+}
 
-  PropagateAstUpdate(updated_refs);
+absl::Status NetlistTranslator::RebindInputNets(
+    const absl::flat_hash_map<std::string, Z3_ast>& inputs) {
+  std::vector<UpdatedNode<NetRef>> updated_refs;
+  for (const auto& input : inputs) {
+    XLS_ASSIGN_OR_RETURN(NetRef ref, module_->ResolveNet(input.first));
+    Z3_ast old_ast = translated_[ref];
+    Z3_ast new_ast = input.second;
+    updated_refs.push_back({ref, old_ast, new_ast});
+    translated_[ref] = new_ast;
+  }
+
+  auto get_inputs = [](NetRef ref) {
+    // Find the parent cell of this ref, and collect its inputs as the
+    // "inputs" to this ref.
+    std::vector<NetRef> inputs;
+    for (Cell* cell : ref->connected_cells()) {
+      if (!IsOutputFromCell(ref, cell)) {
+        continue;
+      }
+
+      inputs.reserve(cell->inputs().size());
+      for (auto& input : cell->inputs()) {
+        inputs.push_back(input.netref);
+      }
+    }
+    return inputs;
+  };
+
+  auto get_outputs = [](NetRef ref) {
+    // Find all cells that use this node as an output, and collect their
+    // outputs.
+    std::vector<NetRef> outputs;
+    for (Cell* cell : ref->connected_cells()) {
+      if (!IsInputToCell(ref, cell)) {
+        continue;
+      }
+
+      // This cell depends on this ref. Collect all its outputs.
+      for (auto& output : cell->outputs()) {
+        outputs.push_back(output.netref);
+      }
+    }
+    return outputs;
+  };
+
+  PropagateAstUpdates<NetRef>(ctx_, translated_, get_inputs, get_outputs,
+                              updated_refs);
 
   return absl::OkStatus();
 }
 
-NetlistTranslator::AffectedCells NetlistTranslator::GetAffectedCells(
-    const std::vector<UpdatedRef>& input_refs) {
-  AffectedCells affected_cells;
-
-  // The NetRefs that need to be updated - those downstream of the input refs.
-  std::deque<netlist::rtl::NetRef> affected_refs;
-  for (const auto& ref : input_refs) {
-    affected_refs.push_back(ref.netref);
+absl::Status NetlistTranslator::Retranslate(
+    const absl::flat_hash_map<std::string, Z3_ast>& new_inputs) {
+  translated_.clear();
+  for (const auto& pair : new_inputs) {
+    XLS_ASSIGN_OR_RETURN(const NetRef ref, module_->ResolveNet(pair.first));
+    translated_[ref] = pair.second;
   }
-
-  absl::flat_hash_set<const Cell*> seen_cells;
-  while (!affected_refs.empty()) {
-    netlist::rtl::NetRef ref = affected_refs.front();
-    affected_refs.pop_front();
-
-    // Each cell with an updated ref as its input will need all of its outputs
-    // to be updated.
-    for (const Cell* cell : ref->connected_cells()) {
-      if (!IsCellInput(ref, cell)) {
-        continue;
-      }
-
-      affected_cells[cell].insert(ref);
-      if (!seen_cells.contains(cell)) {
-        seen_cells.insert(cell);
-        for (const auto& output : cell->outputs()) {
-          affected_refs.push_back(output.netref);
-        }
-      }
-    }
+  Z3_sort bit_sort = Z3_mk_bv_sort(ctx_, 1);
+  auto status_or_clk = module_->ResolveNet("clk");
+  if (status_or_clk.ok()) {
+    translated_[status_or_clk.value()] = Z3_mk_int(ctx_, 1, bit_sort);
   }
-
-  return affected_cells;
-}
-
-void NetlistTranslator::PropagateAstUpdate(
-    const std::vector<UpdatedRef>& input_refs) {
-  // Get the list of affected cells and the refs that need to be updated.
-  AffectedCells affected_cells = GetAffectedCells(input_refs);
-
-  // At this point, we have the list of cells needing updating, along with the
-  // updated refs they're waiting on. Now "activate" the top-level updated refs,
-  // and let the updates propagate.
-  // We can't combine this with the loop in GetAffectedCells() because we don't
-  // know, in any particular iteration, the entire set of affected wires.
-  std::deque<netlist::rtl::NetRef> active_refs;
-  absl::flat_hash_map<netlist::rtl::NetRef, UpdatedRef> updated_refs;
-  for (UpdatedRef input_ref : input_refs) {
-    active_refs.push_back(input_ref.netref);
-    updated_refs.insert({input_ref.netref, {input_ref}});
+  auto status_or_input_valid = module_->ResolveNet("input_valid");
+  if (status_or_input_valid.ok()) {
+    translated_[status_or_input_valid.value()] = Z3_mk_int(ctx_, 1, bit_sort);
   }
-
-  while (!active_refs.empty()) {
-    netlist::rtl::NetRef ref = active_refs.front();
-    active_refs.pop_front();
-    for (auto& pair : affected_cells) {
-      if (!pair.second.contains(ref)) {
-        continue;
-      }
-
-      const Cell* cell = pair.first;
-      pair.second.erase(ref);
-      if (pair.second.empty()) {
-        // We replace all updated references at once - that means we need to
-        // collect all old/new Z3_ast pairs.
-        std::vector<Z3_ast> old_inputs;
-        std::vector<Z3_ast> new_inputs;
-        for (const auto& input : cell->inputs()) {
-          if (updated_refs.contains(input.netref)) {
-            old_inputs.push_back(updated_refs[input.netref].old_ast);
-            new_inputs.push_back(updated_refs[input.netref].new_ast);
-          }
-        }
-
-        for (const auto& output : cell->outputs()) {
-          Z3_ast old_ast = translated_[output.netref];
-          Z3_ast new_ast = Z3_substitute(ctx_, old_ast, old_inputs.size(),
-                                         old_inputs.data(), new_inputs.data());
-          updated_refs[output.netref] = {output.netref, old_ast, new_ast};
-          translated_[output.netref] = new_ast;
-          active_refs.push_back(output.netref);
-        }
-      }
-    }
-  }
+  translated_[module_->ResolveNumber(0).value()] = Z3_mk_int(ctx_, 0, bit_sort);
+  translated_[module_->ResolveNumber(1).value()] = Z3_mk_int(ctx_, 1, bit_sort);
+  return Translate();
 }
 
 // General idea: construct an AST by iterating over all the Cells in the module.
@@ -292,19 +249,6 @@ absl::Status NetlistTranslator::Translate() {
     }
   }
 
-  // Sanity check that we've processed all cells (i.e., that there aren't
-  // unsatisfiable cells).
-  for (const auto& cell : module_->cells()) {
-    for (const auto& output : cell->outputs()) {
-      if (!translated_.contains(output.netref)) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Netlist contains unconnected subgraphs and cannot be translated. "
-            "Example: cell %s, output %s.",
-            cell->name(), output.netref->name()));
-      }
-    }
-  }
-
   return absl::Status();
 }
 
@@ -332,7 +276,14 @@ absl::Status NetlistTranslator::TranslateCell(const Cell& cell) {
                            subtranslator->GetTranslation(module_output));
       for (const auto& cell_output : cell.outputs()) {
         if (cell_output.pin.name == module_output->name()) {
-          translated_[cell_output.netref] = translation;
+          if (translated_.contains(cell_output.netref)) {
+            // TODO REMOVE
+            XLS_LOG(INFO) << "Skipping translation of "
+                          << cell_output.netref->name()
+                          << "; already translated.";
+          } else {
+            translated_[cell_output.netref] = translation;
+          }
           break;
         }
       }
@@ -411,6 +362,62 @@ xabsl::StatusOr<Z3_ast> NetlistTranslator::TranslateFunction(
     default:
       return absl::InvalidArgumentError(absl::StrFormat(
           "Unknown AST kind: %d", static_cast<int>(ast.kind())));
+  }
+}
+
+NetlistTranslator::ValueCone NetlistTranslator::GetValueCone(
+    NetRef ref, const absl::flat_hash_set<Z3_ast>& terminals) {
+  // Could also check for strings?
+  if (terminals.contains(translated_[ref])) {
+    return {translated_[ref], ref, {}};
+  }
+
+  const Cell* parent_cell = nullptr;
+  for (const Cell* cell : ref->connected_cells()) {
+    for (const auto& output : cell->outputs()) {
+      if (output.netref == ref) {
+        parent_cell = cell;
+        break;
+      }
+    }
+    if (parent_cell != nullptr) {
+      break;
+    }
+  }
+
+  ValueCone value_cone;
+  value_cone.node = translated_[ref];
+  value_cone.ref = ref;
+  value_cone.parent_cell = parent_cell;
+  XLS_CHECK(parent_cell != nullptr) << ref->name() << " has no parent?!";
+  for (const auto& input : parent_cell->inputs()) {
+    // Ick
+    if (input.netref->name() == "input_valid" ||
+        input.netref->name() == "clk" ||
+        input.netref->name() == "<constant_0>" ||
+        input.netref->name() == "<constant_1>") {
+      continue;
+    }
+
+    value_cone.parents.push_back(GetValueCone(input.netref, terminals));
+  }
+
+  return value_cone;
+}
+
+void NetlistTranslator::PrintValueCone(const ValueCone& value_cone,
+                                       Z3_model model, int level) {
+  std::string prefix(level * 2, ' ');
+  std::cerr << prefix << value_cone.ref->name() << ": " << std::endl;
+  std::cerr << prefix << "Parent: "
+            << (value_cone.parent_cell == nullptr
+                    ? "<null>"
+                    : value_cone.parent_cell->name())
+            << std::endl;
+  std::cerr << prefix << QueryNode(ctx_, model, value_cone.node, true)
+            << std::endl;
+  for (const NetlistTranslator::ValueCone& parent : value_cone.parents) {
+    PrintValueCone(parent, model, level + 1);
   }
 }
 

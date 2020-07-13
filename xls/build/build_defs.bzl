@@ -69,15 +69,18 @@ def _codegen(
                          codegen_params.get("delay_model", DEFAULT_DELAY_MODEL))
 
     CODEGEN_FLAGS = (
-        "clock_period_ps",
-        "pipeline_stages",
-        "entry",
-        "input_valid_signal",
-        "output_valid_signal",
-        "module_name",
         "clock_margin_percent",
+        "clock_period_ps",
+        "entry",
         "flop_inputs",
         "flop_outputs",
+        "input_valid_signal",
+        "module_name",
+        "output_valid_signal",
+        "pipeline_stages",
+        "reset",
+        "reset_active_low",
+        "reset_asynchronous",
     )
     for flag_name in CODEGEN_FLAGS:
         if flag_name in codegen_params:
@@ -87,16 +90,19 @@ def _codegen(
             ))
     verilog_file = name + ".v"
     module_sig_file = name + ".sig.pbtxt"
-    native.genrule(
+    schedule_file = name + ".schedule.textproto"
+    native.genrule(  # generated_file
         name = name,
         srcs = srcs,
-        outs = [verilog_file, module_sig_file],
+        outs = [verilog_file, module_sig_file, schedule_file],
         cmd = ("$(location %s) %s --output_signature_path=$(@D)/%s " +
-               "--output_verilog_path=$(@D)/%s $<") % (
+               "--output_verilog_path=$(@D)/%s " +
+               "--output_schedule_path=$(@D)/%s $<") % (
             _CODEGEN_MAIN,
             " ".join(codegen_flags),
             module_sig_file,
             verilog_file,
+            schedule_file,
         ),
         exec_tools = [_CODEGEN_MAIN],
         tags = tags,
@@ -140,7 +146,7 @@ def dslx_codegen(name, dslx_dep, configs, entry = None, tags = None):
         )
 
         # Also create a codegen benchmark target.
-        codegen_benchmark_args = _make_benchmark_args(package_name, base_name + ".opt", entry, args = [])
+        codegen_benchmark_args = _make_benchmark_args(package_name, dslx_dep.lstrip(":") + ".opt", entry, args = [])
         codegen_benchmark_args.append("--delay_model={}".format(
             params.get("delay_model", DEFAULT_DELAY_MODEL),
         ))
@@ -216,8 +222,7 @@ def dslx_test(
         args = [native.package_name() + "/" + src] + args,
         data = [
             _INTERPRETER_MAIN,
-            src,
-        ] + deps,
+        ] + srcs + deps,
         tags = tags,
     )
 
@@ -229,21 +234,20 @@ def dslx_test(
             args = [native.package_name() + "/" + src] + args,
             data = [
                 "//xls/dslx:ir_converter_main",
-                src,
-            ] + deps,
+            ] + srcs + deps,
             tags = tags,
         )
-        native.genrule(
+        native.genrule(  # generated_file
             name = name + "_ir",
-            srcs = [src] + deps,
+            srcs = srcs + deps,
             outs = [name + ".ir"],
             cmd = "$(location //xls/dslx:ir_converter_main) $(SRCS) > $@",
             exec_tools = ["//xls/dslx:ir_converter_main"],
             tags = tags,
         )
-        native.genrule(
+        native.genrule(  # generated_file
             name = name + "_opt_ir",
-            srcs = [src] + deps,
+            srcs = srcs + deps,
             outs = [name + ".opt.ir"],
             cmd = "$(location //xls/dslx:ir_converter_main) $(SRCS) | $(location //xls/tools:opt_main) --entry=%s - > $@" % (entry or ""),
             exec_tools = [
@@ -337,7 +341,7 @@ def dslx_generated_rtl(
         fail("More than one source not currently supported.")
     src = srcs[0]
 
-    native.genrule(
+    native.genrule(  # generated_file
         name = name + "_ir",
         srcs = [src] + deps,
         outs = [name + ".ir"],
@@ -346,7 +350,7 @@ def dslx_generated_rtl(
         tags = tags,
     )
 
-    native.genrule(
+    native.genrule(  # generated_file
         name = name + "_opt_ir",
         srcs = [":{}_ir".format(name)],
         outs = [name + ".opt.ir"],

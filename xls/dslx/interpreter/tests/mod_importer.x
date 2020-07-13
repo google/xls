@@ -2,7 +2,7 @@ import xls.dslx.interpreter.tests.mod_imported
 import xls.dslx.interpreter.tests.mod_imported as mi
 
 fn main(x: u3) -> u1 {
-  mod_imported::my_lsb(x) or mi::my_lsb(x)
+  mod_imported::my_lsb(x) || mi::my_lsb(x)
 }
 
 test main {

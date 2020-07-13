@@ -23,6 +23,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/abstract_evaluator.h"
 #include "xls/ir/abstract_node_evaluator.h"
+#include "xls/solvers/z3_propagate_updates.h"
 #include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3_api.h"
 #include "../z3/src/api/z3_fpa.h"
@@ -231,6 +232,13 @@ xabsl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
       absl::WrapUnique(new IrTranslator(ctx, function, imported_params));
   XLS_RETURN_IF_ERROR(function->Accept(translator.get()));
   return translator;
+}
+
+absl::Status IrTranslator::Retranslate(
+    const absl::flat_hash_map<const Node*, Z3_ast>& replacements) {
+  ResetVisitedState();
+  translations_ = replacements;
+  return xls_function_->Accept(this);
 }
 
 IrTranslator::IrTranslator(Z3_config config, Function* xls_function)
@@ -510,33 +518,6 @@ absl::Status IrTranslator::HandleConcat(Concat* concat) {
   return HandleNary(concat, Z3_mk_concat, /*invert_result=*/false);
 }
 
-Z3_sort IrTranslator::CreateTupleSort(Type* type) {
-  TupleType* tuple_type = type->AsTupleOrDie();
-  Z3_func_decl mk_tuple_decl;
-  std::string tuple_type_str = tuple_type->ToString();
-  Z3_symbol tuple_sort_name = Z3_mk_string_symbol(ctx_, tuple_type_str.c_str());
-
-  absl::Span<Type* const> element_types = tuple_type->element_types();
-  int64 num_elements = element_types.size();
-  std::vector<Z3_symbol> field_names;
-  std::vector<Z3_sort> field_sorts;
-  field_names.reserve(num_elements);
-  field_sorts.reserve(num_elements);
-
-  for (int i = 0; i < num_elements; i++) {
-    field_names.push_back(Z3_mk_string_symbol(
-        ctx_, absl::StrCat(tuple_type_str, "_", i).c_str()));
-    field_sorts.push_back(TypeToSort(element_types[i]));
-  }
-
-  // Populated in Z3_mk_tuple_sort.
-  std::vector<Z3_func_decl> proj_decls;
-  proj_decls.resize(num_elements);
-  return Z3_mk_tuple_sort(ctx_, tuple_sort_name, num_elements,
-                          field_names.data(), field_sorts.data(),
-                          &mk_tuple_decl, proj_decls.data());
-}
-
 Z3_ast IrTranslator::CreateTuple(Z3_sort tuple_sort,
                                  absl::Span<Z3_ast> elements) {
   Z3_func_decl mk_tuple_decl = Z3_get_tuple_sort_mk_decl(ctx_, tuple_sort);
@@ -545,7 +526,7 @@ Z3_ast IrTranslator::CreateTuple(Z3_sort tuple_sort,
 
 Z3_ast IrTranslator::CreateTuple(Type* tuple_type,
                                  absl::Span<Z3_ast> elements) {
-  Z3_sort tuple_sort = TypeToSort(tuple_type);
+  Z3_sort tuple_sort = TypeToSort(ctx_, *tuple_type);
   Z3_func_decl mk_tuple_decl = Z3_get_tuple_sort_mk_decl(ctx_, tuple_sort);
   return Z3_mk_app(ctx_, mk_tuple_decl, elements.size(), elements.data());
 }
@@ -554,26 +535,7 @@ xabsl::StatusOr<Z3_ast> IrTranslator::CreateZ3Param(
     Type* type, absl::string_view param_name) {
   return Z3_mk_const(ctx_,
                      Z3_mk_string_symbol(ctx_, std::string(param_name).c_str()),
-                     TypeToSort(type));
-}
-
-Z3_sort IrTranslator::TypeToSort(Type* type) {
-  switch (type->kind()) {
-    case TypeKind::kBits:
-      return Z3_mk_bv_sort(ctx_, type->GetFlatBitCount());
-    case TypeKind::kTuple:
-      return CreateTupleSort(type);
-    case TypeKind::kArray: {
-      ArrayType* array_type = type->AsArrayOrDie();
-      Z3_sort element_sort = TypeToSort(array_type->element_type());
-      Z3_sort index_sort =
-          Z3_mk_bv_sort(ctx_, Bits::MinBitCountUnsigned(array_type->size()));
-      return Z3_mk_array_sort(ctx_, index_sort, element_sort);
-    }
-    default:
-      XLS_LOG(FATAL) << "Unsupported type kind: "
-                     << TypeKindToString(type->kind());
-  }
+                     TypeToSort(ctx_, *type));
 }
 
 absl::Status IrTranslator::HandleParam(Param* param) {
@@ -625,7 +587,7 @@ Z3_ast IrTranslator::ZeroOfSort(Z3_sort sort) {
 }
 
 Z3_ast IrTranslator::CreateArray(ArrayType* type, absl::Span<Z3_ast> elements) {
-  Z3_sort element_sort = TypeToSort(type->element_type());
+  Z3_sort element_sort = TypeToSort(ctx_, *type->element_type());
 
   // Zero-element arrays are A Thing, so we need to synthesize a Z3 zero value
   // for all our array element types.
@@ -667,8 +629,8 @@ absl::Status IrTranslator::HandleTuple(Tuple* tuple) {
   return absl::OkStatus();
 }
 
-Z3_ast IrTranslator::GetArrayElement(ArrayType* array_type, Z3_ast array,
-                                     Z3_ast index) {
+Z3_ast IrTranslator::GetAsFormattedArrayIndex(Z3_ast index,
+                                              ArrayType* array_type) {
   // In XLS, array indices can be of any sort, whereas in Z3, index types need
   // to be declared w/the array (the "domain" argument - we declare that to be
   // the smallest bit vector that covers all indices. Thus, we need to "cast"
@@ -683,6 +645,12 @@ Z3_ast IrTranslator::GetArrayElement(ArrayType* array_type, Z3_ast array,
                       /*low=*/0, index);
   }
 
+  return index;
+}
+
+Z3_ast IrTranslator::GetArrayElement(ArrayType* array_type, Z3_ast array,
+                                     Z3_ast index) {
+  index = GetAsFormattedArrayIndex(index, array_type);
   // To follow XLS semantics, if the index exceeds the array size, then return
   // the element at the max index.
   Z3OpTranslator t(ctx_);
@@ -699,6 +667,36 @@ absl::Status IrTranslator::HandleArrayIndex(ArrayIndex* array_index) {
       GetArrayElement(array_type, GetValue(array_index->operand(0)),
                       GetValue(array_index->operand(1)));
   NoteTranslation(array_index, element);
+  return seh.status();
+}
+
+absl::Status IrTranslator::HandleArrayUpdate(ArrayUpdate* array_update) {
+  ScopedErrorHandler seh(ctx_);
+
+  // Grab input arguments.
+  ArrayType* array_type = array_update->GetType()->AsArrayOrDie();
+  Z3_sort index_sort =
+      Z3_mk_bv_sort(ctx_, Bits::MinBitCountUnsigned(array_type->size()));
+  Z3_ast update_index =
+      GetAsFormattedArrayIndex(GetValue(array_update->operand(1)), array_type);
+  Z3_ast new_value = GetValue(array_update->operand(2));
+
+  // Compute updated array elements.
+  std::vector<Z3_ast> elements;
+  elements.reserve(array_type->size());
+  for (int idx = 0; idx < array_type->size(); ++idx) {
+    Z3_ast current_index = Z3_mk_int64(ctx_, idx, index_sort);
+    Z3_ast original_value = GetArrayElement(
+        array_type, GetValue(array_update->operand(0)), current_index);
+    Z3_ast array_entry =
+        Z3_mk_ite(ctx_, Z3_mk_eq(ctx_, current_index, update_index), new_value,
+                  original_value);
+    elements.push_back(array_entry);
+  }
+
+  // Finalize.
+  Z3_ast new_array = CreateArray(array_type, absl::MakeSpan(elements));
+  NoteTranslation(array_update, new_array);
   return seh.status();
 }
 
@@ -954,14 +952,13 @@ absl::Status IrTranslator::HandleSelect(
     NodeT* node, std::function<FlatValue(const FlatValue& selector,
                                          const std::vector<FlatValue>& cases)>
                      evaluator) {
-  // HandleSelect could be implemented on its own terms (and not in the same way
+  // HandleSel could be implemented on its own terms (and not in the same way
   // as one-hot), if there's concern that flattening to bitwise Z3_asts loses
   // any semantic info.
   ScopedErrorHandler seh(ctx_);
   Z3OpTranslator op_translator(ctx_);
   std::vector<Z3_ast> selector =
       Z3OpTranslator(ctx_).ExplodeBits(GetBitVec(node->selector()));
-  std::vector<std::vector<Z3_ast>> selected_elements;
 
   std::vector<std::vector<Z3_ast>> case_elements;
   for (Node* element : node->cases()) {
@@ -1014,29 +1011,30 @@ void IrTranslator::HandleMul(ArithOp* mul, bool is_signed) {
 
   int result_size = mul->BitCountOrDie();
   int operand_size = std::max(lhs_size, rhs_size);
-  operand_size = std::max(operand_size, result_size);
   if (is_signed) {
-    if (lhs_size != operand_size) {
+    if (lhs_size < operand_size) {
       lhs = Z3_mk_sign_ext(ctx_, operand_size - lhs_size, lhs);
     }
-    if (rhs_size != operand_size) {
+    if (rhs_size < operand_size) {
       rhs = Z3_mk_sign_ext(ctx_, operand_size - rhs_size, rhs);
     }
   } else {
     // If we're doing unsigned multiplication, add an extra 0 MSb to make sure
     // Z3 knows that.
     operand_size += 1;
-    if (lhs_size != operand_size) {
-      lhs = Z3_mk_zero_ext(ctx_, operand_size - lhs_size, lhs);
-    }
-    if (rhs_size != operand_size) {
-      rhs = Z3_mk_zero_ext(ctx_, operand_size - rhs_size, rhs);
-    }
+    lhs = Z3_mk_zero_ext(ctx_, operand_size - lhs_size, lhs);
+    rhs = Z3_mk_zero_ext(ctx_, operand_size - rhs_size, rhs);
   }
 
   Z3_ast result = Z3_mk_bvmul(ctx_, lhs, rhs);
-  if (operand_size != result_size) {
+  if (operand_size > result_size) {
     result = Z3_mk_extract(ctx_, result_size - 1, 0, result);
+  } else if (operand_size < result_size) {
+    if (is_signed) {
+      result = Z3_mk_sign_ext(ctx_, result_size - operand_size, result);
+    } else {
+      result = Z3_mk_zero_ext(ctx_, result_size - operand_size, result);
+    }
   }
 
   NoteTranslation(mul, result);
@@ -1076,6 +1074,12 @@ Z3_ast IrTranslator::GetBitVec(Node* node) {
 }
 
 void IrTranslator::NoteTranslation(Node* node, Z3_ast translated) {
+  if (translations_.contains(node)) {
+    XLS_VLOG(2) << "Skipping translation of " << node->GetName()
+                << ", as it's already been recorded "
+                << "(expected if we're retranslating).";
+    return;
+  }
   translations_[node] = translated;
 }
 

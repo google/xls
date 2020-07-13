@@ -47,7 +47,7 @@ class _Collector(ast.AstVisitor):
     self.collected.append(node)
 
 
-class AstTest(test_base.XlsTestCase):
+class AstTest(test_base.TestCase):
 
   @property
   def fake_pos(self) -> Pos:

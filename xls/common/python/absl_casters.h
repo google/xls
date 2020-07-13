@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_COMMON_PYTHON_ABSL_CASTERS_H_
-#define THIRD_PARTY_XLS_COMMON_PYTHON_ABSL_CASTERS_H_
+#ifndef XLS_COMMON_PYTHON_ABSL_CASTERS_H_
+#define XLS_COMMON_PYTHON_ABSL_CASTERS_H_
 
 #include <pybind11/cast.h>
 #include <pybind11/pybind11.h>
@@ -127,4 +127,4 @@ struct type_caster<absl::nullopt_t> : public void_caster<absl::nullopt_t> {};
 }  // namespace detail
 }  // namespace pybind11
 
-#endif  // THIRD_PARTY_XLS_COMMON_PYTHON_ABSL_CASTERS_H_
+#endif  // XLS_COMMON_PYTHON_ABSL_CASTERS_H_

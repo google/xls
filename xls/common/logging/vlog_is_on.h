@@ -38,8 +38,8 @@
 //                    "bar" in their path ("-inl" suffixes are also disregarded
 //                    for this matching).
 
-#ifndef THIRD_PARTY_XLS_COMMON_LOGGING_VLOG_IS_ON_H_
-#define THIRD_PARTY_XLS_COMMON_LOGGING_VLOG_IS_ON_H_
+#ifndef XLS_COMMON_LOGGING_VLOG_IS_ON_H_
+#define XLS_COMMON_LOGGING_VLOG_IS_ON_H_
 
 #include <atomic>
 #include <string>
@@ -187,4 +187,4 @@ bool SafeFNMatch(absl::string_view pattern, absl::string_view str);
 }  // namespace logging_internal
 }  // namespace base_logging
 
-#endif  // THIRD_PARTY_XLS_COMMON_LOGGING_VLOG_IS_ON_H_
+#endif  // XLS_COMMON_LOGGING_VLOG_IS_ON_H_

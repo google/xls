@@ -51,7 +51,7 @@ pub fn [BITS: u32] abs(x: sN[BITS]) -> sN[BITS] {
 // Converts an array of N bools to a bits[N] value.
 pub fn [N: u32] convert_to_bits(x: bool[N]) -> uN[N] {
   for (i, accum): (u32, uN[N]) in range(u32:0, N) {
-   accum | (x[i] as uN[N]) << (N-i-u32:1 as uN[N])
+   accum | (x[i] as uN[N]) << ((N-i-u32:1) as uN[N])
   }(uN[N]:0)
 }
 
@@ -144,7 +144,7 @@ test umin {
   ()
 }
 
-fn [N: u32] clog2(x: bits[N]) -> bits[N] {
+pub fn [N: u32] clog2(x: bits[N]) -> bits[N] {
   (N as bits[N]) - clz(x-bits[N]:1) if x >= bits[N]:1 else bits[N]:0
 }
 
@@ -161,3 +161,30 @@ test clog2 {
   let _ = assert_eq(u32:4, clog2(u32:9));
   ()
 }
+
+// Returns x % y where y must be a non-zero power-of-two.
+pub fn [N: u32] mod_pow2(x: bits[N], y: bits[N]) -> bits[N] {
+  // TODO(leary): 2020-06-11 Add assertion y is a power of two and non-zero.
+  x & (y-bits[N]:1)
+}
+
+test mod_pow2 {
+  let _ = assert_eq(u32:1, mod_pow2(u32:5, u32:4));
+  let _ = assert_eq(u32:0, mod_pow2(u32:4, u32:4));
+  let _ = assert_eq(u32:3, mod_pow2(u32:3, u32:4));
+  ()
+}
+
+// Returns x / y where y must be a non-zero power-of-two.
+pub fn [N: u32] div_pow2(x: bits[N], y: bits[N]) -> bits[N] {
+  // TODO(leary): 2020-06-11 Add assertion y is a power of two and non-zero.
+  x >> clog2(y)
+}
+
+test div_pow2 {
+  let _ = assert_eq(u32:1, div_pow2(u32:5, u32:4));
+  let _ = assert_eq(u32:1, div_pow2(u32:4, u32:4));
+  let _ = assert_eq(u32:0, div_pow2(u32:3, u32:4));
+  ()
+}
+

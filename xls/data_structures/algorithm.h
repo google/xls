@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_DATA_STRUCTURES_ALGORITHM_H_
-#define THIRD_PARTY_XLS_DATA_STRUCTURES_ALGORITHM_H_
+#ifndef XLS_DATA_STRUCTURES_ALGORITHM_H_
+#define XLS_DATA_STRUCTURES_ALGORITHM_H_
 
 #include <vector>
 
@@ -64,4 +64,4 @@ std::vector<T> GatherFromSequence(absl::Span<const T> sequence,
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_DATA_STRUCTURES_ALGORITHM_H_
+#endif  // XLS_DATA_STRUCTURES_ALGORITHM_H_

@@ -30,6 +30,7 @@ from absl import flags
 import psutil
 
 from xls.common import gfile
+from xls.common import multiprocess
 from xls.dslx.fuzzer import ast_generator
 from xls.dslx.fuzzer import cli_helpers
 from xls.dslx.fuzzer import run_fuzz_multiprocess
@@ -48,7 +49,7 @@ flags.DEFINE_string(
     'separate numerically-named subdirectory is created for each sample')
 flags.DEFINE_integer('worker_count', None,
                      'Number of workers to use for execution')
-flags.DEFINE_boolean('blacklist_divide', True,
+flags.DEFINE_boolean('disallow_divide', True,
                      'Exclude generation of divide operator')
 flags.DEFINE_boolean('emit_loops', True, 'Emit loops in generator')
 flags.DEFINE_boolean(
@@ -109,18 +110,20 @@ def main(argv):
   physical_core_count = psutil.cpu_count(logical=False)
   worker_count = FLAGS.worker_count or (physical_core_count - 1)
   worker_count = max(worker_count, 1)  # Need at least one worker.
-  queues = [mp.Queue() for _ in range(worker_count)]
+  queues = (multiprocess.get_user_data() or
+            [mp.Queue() for _ in range(worker_count)])
+  queues = queues[:worker_count]
   print('-- Creating pool of {} workers; physical core count {}'.format(
       worker_count, physical_core_count))
   workers = []
   for i in range(worker_count):
-    queue = queues[i]
+    queue = None if multiprocess.has_user_data_support() else queues[i]
 
     target = run_fuzz_multiprocess.do_worker_task
     args = (i, queue, FLAGS.crash_path, FLAGS.summary_path,
             FLAGS.save_temps_path, FLAGS.minimize_ir)
 
-    worker = mp.Process(target=target, args=args)
+    worker = multiprocess.Process(target=target, args=args)
 
     worker.start()
     workers.append(worker)
@@ -136,7 +139,7 @@ def main(argv):
     sys.stdout.flush()
 
   generator_options = ast_generator.AstGeneratorOptions(
-      blacklist_divide=FLAGS.blacklist_divide,
+      disallow_divide=FLAGS.disallow_divide,
       emit_loops=FLAGS.emit_loops,
       short_samples=FLAGS.short_samples,
       max_width_bits_types=FLAGS.max_width_bits_types,
@@ -176,6 +179,6 @@ if __name__ == '__main__':
   def real_main():  # Avoid defining things in global scope.
     flags.mark_flag_as_required('crash_path')
     queues = tuple(mp.Queue(QUEUE_MAX_BACKLOG) for _ in range(128))
-    app.run(main)
+    multiprocess.run_main(main, queues)
 
   real_main()

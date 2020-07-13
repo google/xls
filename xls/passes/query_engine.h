@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_PASSES_QUERY_ENGINE_H_
-#define THIRD_PARTY_XLS_PASSES_QUERY_ENGINE_H_
+#ifndef XLS_PASSES_QUERY_ENGINE_H_
+#define XLS_PASSES_QUERY_ENGINE_H_
 
 #include "absl/types/variant.h"
 #include "xls/common/status/statusor.h"
@@ -120,4 +120,4 @@ class QueryEngine {
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_PASSES_QUERY_ENGINE_H_
+#endif  // XLS_PASSES_QUERY_ENGINE_H_

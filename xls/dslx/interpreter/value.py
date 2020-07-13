@@ -42,7 +42,7 @@ class Tag(enum_mod.Enum):
   FUNCTION = 'function'
 
 
-class Value(object):
+class Value:
   """Represents a value in the interpreter evaluation.
 
   The value type is capable of representing all expression evaluation results.
@@ -295,11 +295,6 @@ class Value(object):
     if self.tag in (Tag.UBITS, Tag.SBITS):
       return Value(self.tag, self.bits_payload.bitwise_negate())
     raise TypeError('Cannot bitwise-negate values with tag:', self.tag)
-
-  def logical_negate(self) -> 'Value':
-    if self.tag in (Tag.UBITS, Tag.SBITS):
-      return Value.make_bool(self.get_bits_value() == 0)
-    raise TypeError('Cannot logical-negate values with tag:', self.tag)
 
   def arithmetic_negate(self) -> 'Value':
     if self.tag in (Tag.UBITS, Tag.SBITS):

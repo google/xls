@@ -1065,6 +1065,43 @@ class IrConverterTest(absltest.TestCase):
         }
         """)
 
+  def test_nested_tuple_signature(self):
+    m = self.parse_dsl_text("""
+    type Foo = u3;
+
+    type MyTup = (u6, u1);
+
+    type TupOfThings = (u1, MyTup, Foo);
+
+    type MoreStructured = (
+      TupOfThings[3],
+      u3,
+      u1,
+    );
+
+    type Data = (u64, u1);
+
+    fn main(r: u9, l: u10, input: MoreStructured) -> (u9, u10, Data) {
+      (u9:0, u10:0, (u64:0, u1:0))
+    }
+    """)
+    node_to_type = typecheck.check_module(m, f_import=None)
+    converted = ir_converter.convert_module(
+        m, node_to_type, emit_positions=False)
+    self.assert_ir_equals_and_parses(
+        converted, """\
+        package test_module
+
+        fn __test_module__main(r: bits[9], l: bits[10], input: ((bits[1], (bits[6], bits[1]), bits[3])[3], bits[3], bits[1])) -> (bits[9], bits[10], (bits[64], bits[1])) {
+          literal.6: bits[64] = literal(value=0)
+          literal.7: bits[1] = literal(value=0)
+          literal.4: bits[9] = literal(value=0)
+          literal.5: bits[10] = literal(value=0)
+          tuple.8: (bits[64], bits[1]) = tuple(literal.6, literal.7)
+          ret tuple.9: (bits[9], bits[10], (bits[64], bits[1])) = tuple(literal.4, literal.5, tuple.8)
+        }
+        """)
+
   def test_array_update(self):
     m = self.parse_dsl_text("""
     fn main(input: u8[2]) -> u8[2] {
@@ -1079,17 +1116,9 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__main(input: bits[8][2]) -> bits[8][2] {
-          literal.4: bits[32] = literal(value=0)
           literal.2: bits[32] = literal(value=1)
-          literal.8: bits[32] = literal(value=1)
-          eq.6: bits[1] = eq(literal.4, literal.2)
-          array_index.5: bits[8] = array_index(input, literal.4)
           literal.3: bits[8] = literal(value=66)
-          eq.10: bits[1] = eq(literal.8, literal.2)
-          array_index.9: bits[8] = array_index(input, literal.8)
-          sel.7: bits[8] = sel(eq.6, cases=[array_index.5, literal.3])
-          sel.11: bits[8] = sel(eq.10, cases=[array_index.9, literal.3])
-          ret array.12: bits[8][2] = array(sel.7, sel.11)
+          ret array_update.4: bits[8][2] = array_update(input, literal.2, literal.3)
         }
         """)
 
@@ -1109,16 +1138,8 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn ____test_module__main_counted_for_0_body(i: bits[32], accum: bits[8][2]) -> bits[8][2] {
-          literal.8: bits[32] = literal(value=0)
-          literal.12: bits[32] = literal(value=1)
-          eq.10: bits[1] = eq(literal.8, i)
-          array_index.9: bits[8] = array_index(accum, literal.8)
           bit_slice.7: bits[8] = bit_slice(i, start=0, width=8)
-          eq.14: bits[1] = eq(literal.12, i)
-          array_index.13: bits[8] = array_index(accum, literal.12)
-          sel.11: bits[8] = sel(eq.10, cases=[array_index.9, bit_slice.7])
-          sel.15: bits[8] = sel(eq.14, cases=[array_index.13, bit_slice.7])
-          ret array.16: bits[8][2] = array(sel.11, sel.15)
+          ret array_update.8: bits[8][2] = array_update(accum, i, bit_slice.7)
         }
 
         fn __test_module__main() -> bits[8][2] {
@@ -1126,7 +1147,7 @@ class IrConverterTest(absltest.TestCase):
           literal.1: bits[8] = literal(value=0)
           literal.2: bits[8] = literal(value=0)
           literal.4: bits[32] = literal(value=2)
-          ret counted_for.17: bits[8][2] = counted_for(literal.3, trip_count=2, stride=1, body=____test_module__main_counted_for_0_body)
+          ret counted_for.9: bits[8][2] = counted_for(literal.3, trip_count=2, stride=1, body=____test_module__main_counted_for_0_body)
         }
         """)
 
@@ -1187,7 +1208,7 @@ class IrConverterTest(absltest.TestCase):
   def test_signed_comparisons(self):
     m = self.parse_dsl_text("""
     fn main(x: u32, y: u32) -> bool {
-      sgt(x, y) and slt(x, y) and sge(x, y) and sle(x, y)
+      sgt(x, y) && slt(x, y) && sge(x, y) && sle(x, y)
     }
     """)
     node_to_type = typecheck.check_module(m, f_import=None)
@@ -1211,7 +1232,7 @@ class IrConverterTest(absltest.TestCase):
   def test_signed_comparisons_via_signed_numbers(self):
     m = self.parse_dsl_text("""
     fn main(x: s32, y: s32) -> bool {
-      x > y and x < y and x >= y and x <= y
+      x > y && x < y && x >= y && x <= y
     }
     """)
     node_to_type = typecheck.check_module(m, f_import=None)

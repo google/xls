@@ -13,8 +13,8 @@
 // limitations under the License.
 
 // Library to assist the lowering of IR Nodes down to Verilog.
-#ifndef THIRD_PARTY_XLS_CODEGEN_NODE_EXPRESSIONS_H_
-#define THIRD_PARTY_XLS_CODEGEN_NODE_EXPRESSIONS_H_
+#ifndef XLS_CODEGEN_NODE_EXPRESSIONS_H_
+#define XLS_CODEGEN_NODE_EXPRESSIONS_H_
 
 #include "absl/types/span.h"
 #include "xls/codegen/vast.h"
@@ -65,4 +65,4 @@ bool ShouldInlineExpressionIntoMultipleUses(Node* node);
 }  // namespace verilog
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_CODEGEN_NODE_EXPRESSIONS_H_
+#endif  // XLS_CODEGEN_NODE_EXPRESSIONS_H_

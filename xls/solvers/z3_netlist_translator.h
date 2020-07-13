@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_SOLVERS_Z3_NETLIST_TRANSLATOR_H_
-#define THIRD_PARTY_XLS_SOLVERS_Z3_NETLIST_TRANSLATOR_H_
+#ifndef XLS_SOLVERS_Z3_NETLIST_TRANSLATOR_H_
+#define XLS_SOLVERS_Z3_NETLIST_TRANSLATOR_H_
 
 #include <memory>
 
@@ -62,9 +62,32 @@ class NetlistTranslator {
   // To un-do this operation, the Z3_ast for ref_name must be stored and
   // passed as an argument to a later call.
   // There is no way to replace only the n'th use of src by a given cell.
-  absl::Status RebindInputNet(
-      const std::string& ref_name, Z3_ast dst,
-      absl::flat_hash_set<netlist::rtl::Cell*> cells_to_consider = {});
+  absl::Status RebindInputNets(
+      const absl::flat_hash_map<std::string, Z3_ast>& inputs);
+
+  absl::Status Retranslate(
+      const absl::flat_hash_map<std::string, Z3_ast>& inputs);
+
+  // An individual node in a "value cone": the transitive set of nodes on which
+  // one particular node depends to determine its value.
+  struct ValueCone {
+    Z3_ast node;
+    netlist::rtl::NetRef ref;
+    const netlist::rtl::Cell* parent_cell;
+    std::vector<ValueCone> parents;
+  };
+
+  // Calculates the value cone for the given NetRef. "terminals" is the set of
+  // nodes at which to stop processing, e.g., a set of fixed inputs or other
+  // values past which the cone is unnecessary.
+  ValueCone GetValueCone(netlist::rtl::NetRef ref,
+                         const absl::flat_hash_set<Z3_ast>& terminals);
+
+  // Prints the given value cone, when evaluated with the given model, to the
+  // terminal. Assumes (generally safely) that the associated Z3_context is that
+  // held by this object.
+  void PrintValueCone(const ValueCone& value_cone, Z3_model model,
+                      int level = 0);
 
  private:
   NetlistTranslator(
@@ -79,26 +102,6 @@ class NetlistTranslator {
   absl::Status TranslateCell(const netlist::rtl::Cell& cell);
   xabsl::StatusOr<Z3_ast> TranslateFunction(const netlist::rtl::Cell& cell,
                                             const netlist::function::Ast ast);
-
-  // Simple utility struct to hold the details of a NetRef that has been updated
-  // by a call to RebindInputNet.
-  struct UpdatedRef {
-    netlist::rtl::NetRef netref;
-    Z3_ast old_ast;
-    Z3_ast new_ast;
-  };
-
-  // When an input is rebound, the new cell outputs need to be propagated down
-  // the entire tree.
-  void PropagateAstUpdate(const std::vector<UpdatedRef>& input_refs);
-
-  // Create the list of all refs "downstream" of the input refs, and create
-  // a list of cells using those refs, along with their inputs in the
-  // downstream set.
-  using AffectedCells =
-      absl::flat_hash_map<const netlist::rtl::Cell*,
-                          absl::flat_hash_set<netlist::rtl::NetRef>>;
-  AffectedCells GetAffectedCells(const std::vector<UpdatedRef>& input_refs);
 
   Z3_context ctx_;
   const netlist::rtl::Module* module_;
@@ -119,4 +122,4 @@ class NetlistTranslator {
 }  // namespace solvers
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_SOLVERS_Z3_NETLIST_TRANSLATOR_H_
+#endif  // XLS_SOLVERS_Z3_NETLIST_TRANSLATOR_H_

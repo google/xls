@@ -17,10 +17,10 @@
 """Tests for xls.dslx.interpreter.value."""
 
 from xls.dslx.interpreter import value
-from absl.testing import absltest as unittest
+from absl.testing import absltest
 
 
-class ValueTest(unittest.TestCase):
+class ValueTest(absltest.TestCase):
 
   def test_bits_equivalence(self):
     a = value.Bits(value=4, bit_count=4)
@@ -87,4 +87,4 @@ class ValueTest(unittest.TestCase):
 
 
 if __name__ == '__main__':
-  unittest.main()
+  absltest.main()

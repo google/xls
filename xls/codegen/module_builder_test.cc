@@ -110,7 +110,7 @@ TEST_P(ModuleBuilderTest, Registers) {
                                  file.Emit());
 }
 
-TEST_P(ModuleBuilderTest, RegisterWithReset) {
+TEST_P(ModuleBuilderTest, RegisterWithSynchronousReset) {
   VerilogFile file;
   Package p(TestBaseName());
   Type* u32 = p.GetBitsType(32);
@@ -134,6 +134,37 @@ TEST_P(ModuleBuilderTest, RegisterWithReset) {
                                    Reset{.signal = rst->AsLogicRefNOrDie<1>(),
                                          .asynchronous = false,
                                          .active_low = false}));
+
+  XLS_ASSERT_OK(mb.AddOutputPort("out", u32, file.Add(a.ref, b.ref)));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 file.Emit());
+}
+
+TEST_P(ModuleBuilderTest, RegisterWithAsynchronousActiveLowReset) {
+  VerilogFile file;
+  Package p(TestBaseName());
+  Type* u32 = p.GetBitsType(32);
+  ModuleBuilder mb(TestBaseName(), &file,
+                   /*use_system_verilog=*/UseSystemVerilog());
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u32));
+  LogicRef* clk = mb.AddInputPort("clk", 1);
+  LogicRef* rst = mb.AddInputPort("rst", 1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleBuilder::Register a,
+      mb.DeclareRegister("a", u32, file.Add(x, y),
+                         /*reset_value=*/file.Literal(UBits(0, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleBuilder::Register b,
+      mb.DeclareRegister("b", u32, y,
+                         /*reset_value=*/file.Literal(UBits(0x42, 32))));
+  XLS_ASSERT_OK(mb.AssignRegisters(clk, {a, b},
+                                   /*load_enable=*/nullptr,
+                                   Reset{.signal = rst->AsLogicRefNOrDie<1>(),
+                                         .asynchronous = true,
+                                         .active_low = true}));
 
   XLS_ASSERT_OK(mb.AddOutputPort("out", u32, file.Add(a.ref, b.ref)));
 

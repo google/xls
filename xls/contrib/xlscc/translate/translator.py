@@ -382,11 +382,11 @@ class Translator(object):
           for val in enum_list.enumerators:
             assert isinstance(val, c_ast.Enumerator)
             assert val.name not in self.global_decls_
-            if val.value is not None:
-                const_val, const_type = parse_constant(val.value)
-                enum_curr_val = int (const_val)
-            else:
+            if val.value is None:
                 const_type = IntType(32, True, True)
+            else:
+                const_val, const_type = parse_constant(val.value)
+                enum_curr_val = int (const_val) 
             const_expr = ir_value.Value(
                 bits_mod.UBits(
                     value= enum_curr_val, bit_count=const_type.bit_width))
@@ -693,8 +693,9 @@ class Translator(object):
           binary_op = add_mul
         else:
           raise NotImplementedError("Unsupported binary operator", stmt_ast.op)
-        if not (isinstance(left_type, IntType) and isinstance(right_type, IntType)):
-          raise ValueError("Invalid binary operand at " + str(stmt_ast.coord))  
+        if not (isinstance(left_type, IntType) and
+                isinstance(right_type, IntType)):
+          raise ValueError("Invalid binary operand at " + str(stmt_ast.coord))
 
         return binary_op(
             self.gen_convert_ir(left, left_type,
@@ -751,12 +752,12 @@ class Translator(object):
             self.gen_convert_ir(right, right_type, result_type, stmt_ast.right),
             loc), result_type
       elif add_cmp_fn is not None:
-        if not (isinstance(left_type, BoolType) or isinstance(left_type, IntType)):
-          raise ValueError("Invalid operand at " +
-                                    str(stmt_ast.coord))
-        if not (isinstance(right_type, BoolType) or isinstance(right_type, IntType)):
-          raise ValueError("Invalid operand at " +
-                                    str(stmt_ast.coord))
+        if not (isinstance(left_type, BoolType) or
+                isinstance(left_type, IntType)):
+          raise ValueError("Invalid operand at " + str(stmt_ast.coord))
+        if not (isinstance(right_type, BoolType) or
+                isinstance(right_type, IntType)):
+          raise ValueError("Invalid operand at " + str(stmt_ast.coord))
         if left_signed != right_signed:
           print("WARNING: Sign mismatch in comparison at " +
                 str(stmt_ast.coord))
@@ -909,14 +910,21 @@ class Translator(object):
             width = int(width_expr.value)
             assert isinstance(stmt_ast.args, c_ast.ExprList)
             assert len(stmt_ast.args.exprs) == 1
-            # TODO(seanhaskell): Allow variable offset.
-            # TODO(seanhaskell): Need function_builder support
             offset_expr = stmt_ast.args.exprs[0]
-            assert isinstance(offset_expr, c_ast.Constant)
-            ret_fb = self.fb.add_bit_slice(left_fb,
-                                           int(offset_expr.value),
-                                           width,
-                                           loc)
+            if isinstance(offset_expr, c_ast.Constant):
+              ret_fb = self.fb.add_bit_slice(left_fb,
+                                             int(offset_expr.value),
+                                             width,
+                                             loc)
+            else:
+              offset_val, offset_type = self.gen_expr_ir(offset_expr, condition)
+              assert isinstance(offset_type, IntType)
+              shift_fb = self.fb.add_shrl(left_fb, offset_val)
+              ret_fb = self.fb.add_bit_slice(shift_fb,
+                                             0,   # Already shifted
+                                             width,
+                                             loc)
+
             return ret_fb, IntType(width, left_type.signed, False)
           else:
             raise NotImplementedError("Unknown non-template function on int",
@@ -1464,8 +1472,8 @@ class Translator(object):
           raise ValueError("Switch must be on integer")
         assert isinstance(stmt.stmt, c_ast.Compound)
         next_is_default = False
-        case_falls_thr = False
-        fall_thr_cond = None
+        case_falls_thru = False
+        fall_thru_cond = None
         for item in stmt.stmt.block_items:
           if isinstance(item, c_ast.Case):
             case_expr, case_type = self.gen_expr_ir(item.expr, condition)
@@ -1476,11 +1484,12 @@ class Translator(object):
                 item)
             case_loc = translate_loc(item.expr)
             case_condition = self.fb.add_eq(cond_expr, conv_case, case_loc)
-            if case_falls_thr:
-                case_condition = self.fb.add_or(fall_thr_cond, case_condition, case_loc)
-                case_falls_thr = False
+            
+            if case_falls_thru:
+                case_condition = self.fb.add_or(fall_thru_cond, case_condition, case_loc)
+                case_falls_thru = False
             else:
-                fall_thr_cond = case_condition 
+                fall_thru_cond = case_condition                         
             if condition is None:
               compound_condition = case_condition
             else:
@@ -1488,20 +1497,23 @@ class Translator(object):
                                                    case_loc)
             ret_stmt = self.gen_ir_block_compound_or_single(
                 item.stmts, compound_condition, None, True)
-            if not (ret_stmt):
-                case_falls_thr = True
-            ret_vals += ret_stmt
+            if not ret_stmt:
+              case_falls_thru = True
             if next_is_default:
               ret_vals += self.gen_ir_block_compound_or_single(
                   item.stmts, condition, None, True)
+            ret_vals += ret_stmt
             next_is_default = False
           else:
             assert isinstance(item, c_ast.Default)
-            ret_vals += self.gen_ir_block_compound_or_single(
+            ret_stmt = self.gen_ir_block_compound_or_single(
                 item.stmts, condition, None, True)
             # TODO(seanhaskell): Also break
-            if not ret_vals:
+            if not ret_stmt:
               next_is_default = True
+            else:
+              case_falls_thru = False
+            ret_vals += ret_stmt
       elif isinstance(stmt, c_ast.EmptyStatement):
         pass
       elif isinstance(stmt, c_ast.UnaryOp):

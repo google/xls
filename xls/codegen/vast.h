@@ -15,8 +15,8 @@
 // Subset-of-verilog AST, suitable for combining as datastructures before
 // emission.
 
-#ifndef THIRD_PARTY_XLS_CODEGEN_VAST_H_
-#define THIRD_PARTY_XLS_CODEGEN_VAST_H_
+#ifndef XLS_CODEGEN_VAST_H_
+#define XLS_CODEGEN_VAST_H_
 
 #include <limits>
 #include <memory>
@@ -1153,7 +1153,7 @@ class ModuleSection : public VastNode {
 struct Port {
   static Port FromProto(const PortProto& proto, VerilogFile* f);
 
-  xabsl::StatusOr<PortProto> ToProto();
+  xabsl::StatusOr<PortProto> ToProto() const;
   const std::string& name() const { return wire->name(); }
   std::string ToString() const;
 
@@ -1501,4 +1501,4 @@ inline T* ModuleSection::Add(Args&&... args) {
 }  // namespace verilog
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_CODEGEN_VAST_H_
+#endif  // XLS_CODEGEN_VAST_H_

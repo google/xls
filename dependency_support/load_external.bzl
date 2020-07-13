@@ -17,15 +17,21 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 load("//dependency_support:edu_berkeley_abc/workspace.bzl", repo_abc = "repo")
+load("//dependency_support/boost:workspace.bzl", repo_boost = "repo")
 load("//dependency_support/org_gnu_bison:workspace.bzl", repo_bison = "repo")
 load("//dependency_support:org_sourceware_bzip2/workspace.bzl", repo_bzip2 = "repo")
+load("//dependency_support/org_tuxfamily_eigen:workspace.bzl", repo_eigen = "repo")
 load("//dependency_support/flex:workspace.bzl", repo_flex = "repo")
 load("//dependency_support/org_gnu_gperf:workspace.bzl", repo_gperf = "repo")
+load("//dependency_support/at_clifford_icestorm:workspace.bzl", repo_icestorm = "repo")
 load("//dependency_support/com_icarus_iverilog:workspace.bzl", repo_iverilog = "repo")
 load("//dependency_support/dk_thrysoee_libedit:workspace.bzl", repo_libedit = "repo")
 load("//dependency_support:org_sourceware_libffi/workspace.bzl", repo_libffi = "repo")
 load("//dependency_support/org_gnu_m4:workspace.bzl", repo_m4 = "repo")
 load("//dependency_support/net_invisible_island_ncurses:workspace.bzl", repo_ncurses = "repo")
+load("//dependency_support/nextpnr:workspace.bzl", repo_nextpnr = "repo")
+load("//dependency_support/prjtrellis:workspace.bzl", repo_prjtrellis = "repo")
+load("//dependency_support/prjtrellis_db:workspace.bzl", repo_prjtrellis_db = "repo")
 load("//dependency_support:tk_tcl_tcl/workspace.bzl", repo_tcl = "repo")
 load("//dependency_support/at_clifford_yosys:workspace.bzl", repo_yosys = "repo")
 
@@ -33,14 +39,20 @@ def load_external_repositories():
     """Loads external repositories with third-party code."""
     repo_abc()
     repo_bison()
+    repo_boost()
     repo_bzip2()
+    repo_eigen()
     repo_flex()
     repo_gperf()
+    repo_icestorm()
     repo_iverilog()
     repo_libedit()
     repo_libffi()
     repo_m4()
     repo_ncurses()
+    repo_nextpnr()
+    repo_prjtrellis()
+    repo_prjtrellis_db()
     repo_tcl()
     repo_yosys()
 
@@ -100,9 +112,9 @@ def load_external_repositories():
 
     http_archive(
         name = "llvm",
-        urls = ["https://github.com/llvm/llvm-project/archive/307cfdf5338641e3a895857ef02dc9da35cd0eb6.tar.gz"],
-        sha256 = "5e75125ecadee4f91e07c20bf6612d740913a677348fd33c7264ee8fe7d12b17",
-        strip_prefix = "llvm-project-307cfdf5338641e3a895857ef02dc9da35cd0eb6/llvm",
+        urls = ["https://github.com/llvm/llvm-project/archive/52cae05e087b3d4fd02849fc37c387c720055ffb.tar.gz"],
+        sha256 = "84af24a605a9e20d999e65f87a36baeed56773d74ccc0287517f5fdcf44e737a",
+        strip_prefix = "llvm-project-52cae05e087b3d4fd02849fc37c387c720055ffb/llvm",
         build_file = "@//dependency_support/llvm:bundled.BUILD.bazel",
     )
 
@@ -191,33 +203,11 @@ def load_external_repositories():
     )
 
     http_archive(
-        name = "termcolor_archive",
-        build_file_content = """py_library(
-            name = "termcolor",
-            visibility = ["//visibility:public"],
-            srcs = glob(["termcolor/*.py"]),
-        )""",
-        sha256 = "1d6d69ce66211143803fbc56652b41d73b4a400a2891d7bf7a1cdf4c02de613b",
-        strip_prefix = "termcolor-1.1.0",
-        urls = [
-            "https://pypi.python.org/packages/8a/48/a76be51647d0eb9f10e2a4511bf3ffb8cc1e6b14e9e4fab46173aa79f981/termcolor-1.1.0.tar.gz",
-        ],
-    )
-
-    http_archive(
         name = "z3",
         urls = ["https://github.com/Z3Prover/z3/archive/z3-4.8.7.tar.gz"],
         sha256 = "8c1c49a1eccf5d8b952dadadba3552b0eac67482b8a29eaad62aa7343a0732c3",
         strip_prefix = "z3-z3-4.8.7",
         build_file = "@//dependency_support/z3:bundled.BUILD.bazel",
-    )
-
-    http_archive(
-        name = "clang_binaries",
-        urls = ["https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.0/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz"],
-        sha256 = "b25f592a0c00686f03e3b7db68ca6dc87418f681f4ead4df4745a01d9be63843",
-        strip_prefix = "clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04",
-        build_file = "@//dependency_support/clang_binaries:bundled.BUILD.bazel",
     )
 
     http_archive(

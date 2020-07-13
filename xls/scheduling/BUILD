@@ -12,9 +12,48 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# cc_proto_library is used in this file
+
 package(
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
+)
+
+proto_library(
+    name = "pipeline_schedule_proto",
+    srcs = ["pipeline_schedule.proto"],
+)
+
+cc_proto_library(
+    name = "pipeline_schedule_cc_proto",
+    deps = [":pipeline_schedule_proto"],
+)
+
+cc_library(
+    name = "extract_stage",
+    srcs = ["extract_stage.cc"],
+    hdrs = ["extract_stage.h"],
+    deps = [
+        ":pipeline_schedule",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/status:status_macros",
+        "//xls/common/status:statusor",
+        "//xls/ir",
+    ],
+)
+
+cc_test(
+    name = "extract_stage_test",
+    srcs = ["extract_stage_test.cc"],
+    deps = [
+        ":extract_stage",
+        "//xls/common/status:matchers",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_parser",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest_main",
+    ],
 )
 
 cc_library(
@@ -23,6 +62,7 @@ cc_library(
     hdrs = ["pipeline_schedule.h"],
     deps = [
         ":function_partition",
+        ":pipeline_schedule_cc_proto",
         ":schedule_bounds",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",

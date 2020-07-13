@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_CODEGEN_MODULE_BUILDER_H_
-#define THIRD_PARTY_XLS_CODEGEN_MODULE_BUILDER_H_
+#ifndef XLS_CODEGEN_MODULE_BUILDER_H_
+#define XLS_CODEGEN_MODULE_BUILDER_H_
 
 #include <utility>
 
@@ -89,6 +89,10 @@ class ModuleBuilder {
   // Declares a variable with the given name and XLS type. Returns a reference
   // to the variable.
   LogicRef* DeclareVariable(absl::string_view name, Type* type);
+
+  // Declares a flat variable with the given name and number of bits. Returns a
+  // reference to the variable.
+  LogicRef* DeclareVariable(absl::string_view name, int64 bit_count);
 
   // Assigns the rhs to the lhs using continuous assignment where both sides
   // have the given XLS type. The emitted verilog may require multiple
@@ -210,6 +214,27 @@ class ModuleBuilder {
       Expression* lhs, Expression* rhs, Type* xls_type,
       std::function<void(Expression*, Expression*)> add_assignment_statement);
 
+  // Assigns the select operation of 'selector' among 'cases' to the 'rhs' as in
+  // the Op kSelect. 'default_value' is selected if the value of selector is
+  // greater than or equal to the size of 'cases'. Depending upon the type this
+  // may require multiple assignments (e.g., for array assignments in
+  // Verilog). The function add_assignment_statement should add a single
+  // assignment statement. This function argument enables customization of the
+  // type of assignment (continuous, blocking, or non-blocking) as well as the
+  // location where the assignment statements are added.
+  absl::Status AddSelectAssignment(
+      Expression* lhs, Type* xls_type, Expression* selector,
+      int64 selector_width, absl::Span<Expression* const> cases,
+      Expression* default_value,
+      std::function<void(Expression*, Expression*)> add_assignment_statement);
+
+  // For ArrayUpdate operations, emits the necessary assignments for an element
+  // of the array.
+  absl::Status EmitArrayUpdateElement(Expression* lhs, BinaryInfix* condition,
+                                      Expression* new_value,
+                                      Expression* original_value,
+                                      Type* element_type);
+
   // Assigns the arbitrarily-typed Value 'value' to 'lhs'. Depending upon the
   // type this may require multiple assignment statements. The function
   // add_assignment_statement should add a single assignment statement.
@@ -263,4 +288,4 @@ class ModuleBuilder {
 }  // namespace verilog
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_CODEGEN_MODULE_BUILDER_H_
+#endif  // XLS_CODEGEN_MODULE_BUILDER_H_
