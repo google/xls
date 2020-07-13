@@ -4,10 +4,11 @@
 #include <string>
 #include <vector>
 
-#include "xls/common/integral_types.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+#include "xls/common/integral_types.h"
 #include "xls/common/status/statusor.h"
+#include "xls/ir/op.pb.h"
 
 namespace xls {
 
@@ -27,6 +28,12 @@ inline std::vector<Op> AllOps() {
 }
 
 const int64 kOpLimit = static_cast<int64>(Op::{{ spec.OPS[-1].enum_name }})+1;
+
+// Converts an OpProto into an Op.
+xabsl::StatusOr<Op> FromOpProto(OpProto op_proto);
+
+// Converts an Op into an OpProto.
+xabsl::StatusOr<OpProto> ToOpProto(Op op);
 
 // Converts the "op" enumeration to a human readable string.
 std::string OpToString(Op op);

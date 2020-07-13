@@ -110,6 +110,7 @@ cc_library(
     srcs = ["op.cc"],
     hdrs = ["op.h"],
     deps = [
+        ":op_cc_proto",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/strings",
@@ -119,6 +120,16 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/status:statusor",
     ],
+)
+
+proto_library(
+    name = "op_proto",
+    srcs = ["op.proto"],
+)
+
+cc_proto_library(
+    name = "op_cc_proto",
+    deps = [":op_proto"]
 )
 
 cc_library(
@@ -704,6 +715,18 @@ genrule(
     name = "op_header",
     outs = ["op.h"],
     cmd = "$(location :render_specification_against_template) xls/ir/op_header.tmpl" +
+          " | $(location @llvm_toolchain//:bin/clang-format)" +
+          " > $(OUTS)",
+    exec_tools = [
+        ":render_specification_against_template",
+        "@llvm_toolchain//:bin/clang-format",
+    ],
+)
+
+genrule(
+    name = "gen_op_proto",
+    outs = ["op.proto"],
+    cmd = "$(location :render_specification_against_template) xls/ir/op_proto.tmpl" +
           " | $(location @llvm_toolchain//:bin/clang-format)" +
           " > $(OUTS)",
     exec_tools = [

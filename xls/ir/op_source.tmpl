@@ -6,6 +6,25 @@
 
 namespace xls {
 
+xabsl::StatusOr<Op> FromOpProto(OpProto op_proto) {
+  switch (op_proto) {
+{% for op in spec.OPS -%}
+    case OP_{{ op.name.upper() }}: return Op::{{ op.enum_name }};
+{% endfor -%}
+    default: return absl::InvalidArgumentError("Unknown op.");
+  }
+}
+
+xabsl::StatusOr<OpProto> ToOpProto(Op op) {
+  switch (op) {
+{% for op in spec.OPS -%}
+    case Op::{{ op.enum_name }}: return OP_{{ op.name.upper() }};
+{% endfor -%}
+
+    default: return absl::InvalidArgumentError("Unknown op.");
+  }
+}
+
 std::string OpToString(Op op) {
   static const absl::flat_hash_map<Op, std::string>* op_map =
       new absl::flat_hash_map<Op, std::string>({
