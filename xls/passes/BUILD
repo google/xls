@@ -503,6 +503,24 @@ cc_library(
 )
 
 cc_library(
+    name = "post_dominator_analysis",
+    srcs = ["post_dominator_analysis.cc"],
+    hdrs = ["post_dominator_analysis.h"],
+    deps = [
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:statusor",
+        "//xls/ir",
+    ],
+)
+
+cc_library(
     name = "bdd_function",
     srcs = ["bdd_function.cc"],
     hdrs = ["bdd_function.h"],
@@ -864,6 +882,18 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:statusor",
         "//xls/ir",
+        "//xls/ir:ir_test_base",
+    ],
+)
+
+cc_test(
+    name = "post_dominator_analysis_test",
+    srcs = ["post_dominator_analysis_test.cc"],
+    deps = [
+        ":post_dominator_analysis",
+        "@com_google_googletest//:gtest_main",
+        "//xls/common/status:matchers",
+        "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
     ],
 )
