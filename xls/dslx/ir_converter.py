@@ -421,12 +421,7 @@ class _IrConverterFb(ast.AstVisitor):
         return self._visit_width_slice(node, index_slice, lhs_type)
       assert isinstance(index_slice, ast.Slice), index_slice
 
-      # print(node, self.node_to_type[node])
       bit_count = self._resolve_dim(lhs_type.get_total_bit_count())
-      # start = extract_maybe_number(index_slice.start)
-      # limit = extract_maybe_number(index_slice.limit)
-      # start, width = bit_helpers.resolve_bit_slice_indices(
-      #     bit_count, start, limit)
       start = node.index.computed_start
       if isinstance(start, ParametricExpression):
         start = start.evaluate(self.symbolic_bindings)
