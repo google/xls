@@ -31,7 +31,7 @@ xls_pybind_extension(
         "//xls/delay_model:delay_estimators",
         "//xls/ir",
         "//xls/ir:ir_parser",
-        "//xls/ir/visualization:ir_to_json",
+        "//xls/visualization/ir_viz:ir_to_json",
     ],
 )
 

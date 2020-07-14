@@ -92,15 +92,6 @@ xabsl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     const PipelineSchedule& schedule, Function* func,
     const PipelineOptions& options = PipelineOptions());
 
-// Schedules and emits the entry function of given package and emits as a
-// pipelined verilog module. Uses standard delay estimator model (returned by
-// GetStandardDelayEstimator).
-xabsl::StatusOr<ModuleGeneratorResult> ScheduleAndGeneratePipelinedModule(
-    Package* package, int64 clock_period_ps,
-    absl::optional<ResetProto> reset_proto = absl::nullopt,
-    absl::optional<ValidProto> valid_proto = absl::nullopt,
-    absl::optional<absl::string_view> module_name = absl::nullopt);
-
 }  // namespace verilog
 }  // namespace xls
 

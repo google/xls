@@ -455,6 +455,7 @@ cc_library(
         ":ternary_logic",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor",
         "//xls/data_structures:leaf_type_tree",
@@ -544,9 +545,11 @@ cc_library(
     deps = [
         ":bdd_function",
         ":query_engine",
+        "@com_google_absl//absl/types:optional",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor",
+        "//xls/data_structures:binary_decision_diagram",
         "//xls/ir",
         "//xls/ir:bits",
     ],
@@ -756,6 +759,7 @@ cc_test(
     name = "concat_simplification_pass_test",
     srcs = ["concat_simplification_pass_test.cc"],
     deps = [
+        ":bit_slice_simplification_pass",
         ":concat_simplification_pass",
         ":dce_pass",
         "@com_google_googletest//:gtest_main",
@@ -887,7 +891,9 @@ cc_test(
     deps = [
         ":bdd_query_engine",
         "@com_google_googletest//:gtest_main",
+        "@com_google_absl//absl/container:inlined_vector",
         "//xls/common/status:matchers",
+        "//xls/data_structures:binary_decision_diagram",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:function_builder",

@@ -62,7 +62,7 @@ py_binary(
         requirement("itsdangerous"),
         "//xls/common:runfiles",
         "//xls/common/python:init_xls",
-        "//xls/ir/visualization/python:ir_to_json",
+        "//xls/visualization/ir_viz/python:ir_to_json",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
     ],

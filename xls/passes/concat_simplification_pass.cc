@@ -14,7 +14,10 @@
 
 #include "xls/passes/concat_simplification_pass.h"
 
+#include <algorithm>
 #include <deque>
+#include <iterator>
+#include <map>
 
 #include "absl/status/status.h"
 #include "absl/types/span.h"
@@ -247,6 +250,50 @@ xabsl::StatusOr<bool> SimplifyConcat(Concat* concat,
   return false;
 }
 
+// Returns the union of the bit ranges of the
+// inputs to the concatentation operations that are inputs
+// to 'node'.  e.g. for node = {A: u2, B:u3} OR {C: u3, B: u2},
+// we get begin_end_bits_inclusive = {{0,1},{2,2},{3, 4}}.
+xabsl::StatusOr<std::map<int64, int64>> GetBitRangeUnionOfInputConcats(
+    Node* node) {
+  std::map<int64, int64> begin_end_bits_inclusive;
+  // Record the beginning of all bit-ranges.
+  for (int64 i = 0; i < node->operand_count(); ++i) {
+    Concat* concat_i = node->operand(i)->As<Concat>();
+    XLS_RET_CHECK(!concat_i->operands().empty());
+
+    int64 bit_lower_idx = 0;
+    for (auto cat_itr = concat_i->operands().rbegin();
+         cat_itr != concat_i->operands().rend();
+         bit_lower_idx += (*cat_itr)->BitCountOrDie(), ++cat_itr) {
+      if ((*cat_itr)->BitCountOrDie() == 0) {
+        return absl::InternalError(
+            "Zero-bit concat operands should have been optimized away before "
+            "calling GetBitRangeUnionOfInputConcats");
+      }
+
+      // Record lower index. We don't know the upper index of a range
+      // until all bit-ranges are accounted for, so we will calculate the upper
+      // index later.
+      begin_end_bits_inclusive.insert({bit_lower_idx, 0});
+    }
+  }
+
+  // Fill in upper indexes of ranges.
+  XLS_RET_CHECK(!begin_end_bits_inclusive.empty());
+  for (auto current_range_itr = begin_end_bits_inclusive.begin(),
+            next_range_itr = std::next(current_range_itr);
+       next_range_itr != begin_end_bits_inclusive.end();
+       current_range_itr = next_range_itr,
+            next_range_itr = std::next(next_range_itr)) {
+    current_range_itr->second = next_range_itr->first - 1;
+    XLS_RET_CHECK_LE(current_range_itr->first, current_range_itr->second);
+  }
+  begin_end_bits_inclusive.rbegin()->second = node->BitCountOrDie() - 1;
+
+  return begin_end_bits_inclusive;
+}
+
 // Tries to hoist the given bitwise operation above it's concat
 // operations. Example:
 //
@@ -254,11 +301,13 @@ xabsl::StatusOr<bool> SimplifyConcat(Concat* concat,
 //
 // Hosting the bitwise operations presents more opportunity for optimization and
 // simplification.
+// Note: The hoisted bitwise operations have operands that are bitslices
+// of the original concatenations. This pass, bit slice simplification,
+// constant folding, and dead code elimination will often simplify or eliminate
+// these bit slices and dependencies on the original concatenations.
 //
 // Preconditions:
 //   * All operands of the bitwise operation are concats.
-//   * The concats each have the same number of operands, and they are the same
-//     size.
 xabsl::StatusOr<bool> TryHoistBitWiseOperation(Node* node) {
   XLS_RET_CHECK(OpIsBitWise(node->op()));
   if (node->operand_count() == 0 ||
@@ -267,34 +316,36 @@ xabsl::StatusOr<bool> TryHoistBitWiseOperation(Node* node) {
     return false;
   }
 
-  Concat* concat_0 = node->operand(0)->As<Concat>();
-  for (int i = 1; i < node->operand_count(); ++i) {
-    Concat* concat_i = node->operand(i)->As<Concat>();
-    if (concat_0->operand_count() != concat_i->operand_count()) {
-      return false;
+  // Collect bit ranges.
+  // Note: XLS_ASSIGN_OR_RETURN doesn't seem to handle std::map correclty
+  // (probably due to comma).
+  auto union_result = GetBitRangeUnionOfInputConcats(node);
+  if (!union_result.ok()) {
+    return union_result.status();
+  }
+  std::map<int64, int64> begin_end_bits_inclusive = union_result.value();
+
+  // Make bitwise operations.
+  Function* func = node->function();
+  std::vector<Node*> bitwise_ops;
+  for (const auto& [start, end] : begin_end_bits_inclusive) {
+    std::vector<Node*> slices;
+    for (Node* concat : node->operands()) {
+      XLS_ASSIGN_OR_RETURN(Node * new_slice,
+                           func->MakeNode<BitSlice>(
+                               /*loc=*/node->loc(), /*arg=*/concat,
+                               /*start=*/start,
+                               /*width=*/end - start + 1));
+      slices.push_back(new_slice);
     }
-    for (int j = 0; j < concat_0->operand_count(); ++j) {
-      if (concat_0->operand(j)->BitCountOrDie() !=
-          concat_i->operand(j)->BitCountOrDie()) {
-        return false;
-      }
-    }
+    XLS_ASSIGN_OR_RETURN(Node * new_bitwise, node->Clone(slices, func));
+    bitwise_ops.push_back(new_bitwise);
   }
 
-  std::vector<Node*> new_concat_operands;
-  for (int64 i = 0; i < concat_0->operand_count(); ++i) {
-    std::vector<Node*> bitwise_operands;
-    bitwise_operands.reserve(node->operand_count());
-    for (int64 j = 0; j < node->operand_count(); ++j) {
-      bitwise_operands.push_back(node->operand(j)->operand(i));
-    }
-    XLS_ASSIGN_OR_RETURN(Node * new_bitwise,
-                         node->Clone(bitwise_operands, node->function()));
-    new_concat_operands.push_back(new_bitwise);
-  }
+  // Concatenate bitwise operations.
+  std::reverse(bitwise_ops.begin(), bitwise_ops.end());
+  XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<Concat>(bitwise_ops).status());
 
-  XLS_RETURN_IF_ERROR(
-      node->ReplaceUsesWithNew<Concat>(new_concat_operands).status());
   return true;
 }
 

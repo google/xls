@@ -139,6 +139,48 @@ absl::Status ModuleBuilder::AddAssignment(
   return absl::OkStatus();
 }
 
+absl::Status ModuleBuilder::AddSelectAssignment(
+    Expression* lhs, Type* xls_type, Expression* selector, int64 selector_width,
+    absl::Span<Expression* const> cases, Expression* default_value,
+    std::function<void(Expression*, Expression*)> add_assignment_statement) {
+  // Array assignment is only supported in SystemVerilog. In Verilog, arrays
+  // must be assigned element-by-element.
+  if (!use_system_verilog_ && xls_type != nullptr && xls_type->IsArray()) {
+    ArrayType* array_type = xls_type->AsArrayOrDie();
+    for (int64 i = 0; i < array_type->size(); ++i) {
+      // Extract element 'i' from each case and the default value and pass
+      // recursively to AddSelectAssignment.
+      std::vector<Expression*> case_elements;
+      for (Expression* cas : cases) {
+        case_elements.push_back(
+            file_->Index(cas->AsIndexableExpressionOrDie(), i));
+      }
+      Expression* default_value_element =
+          default_value == nullptr
+              ? nullptr
+              : file_->Index(default_value->AsIndexableExpressionOrDie(), i);
+      XLS_RETURN_IF_ERROR(AddSelectAssignment(
+          file_->Index(lhs->AsIndexableExpressionOrDie(), i),
+          array_type->element_type(), selector, selector_width, case_elements,
+          default_value_element, add_assignment_statement));
+    }
+  } else {
+    Expression* rhs = default_value;
+    for (int64 i = cases.size() - 1; i >= 0; --i) {
+      if (rhs == nullptr) {
+        rhs = cases[i];
+      } else {
+        rhs = file_->Ternary(
+            file_->Equals(selector,
+                          file_->Literal(i, /*bit_count=*/selector_width)),
+            cases[i], rhs);
+      }
+    }
+    add_assignment_statement(lhs, rhs);
+  }
+  return absl::OkStatus();
+}
+
 absl::Status ModuleBuilder::AddAssignmentFromValue(
     Expression* lhs, const Value& value,
     std::function<void(Expression*, Expression*)> add_assignment_statement) {
@@ -437,6 +479,24 @@ xabsl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
               assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
             }));
         break;
+      case Op::kSel: {
+        Select* sel = node->As<Select>();
+        Expression* selector = inputs[0];
+        std::vector<Expression*> cases(sel->cases().size());
+        // Cases start at operand 1.
+        for (int64 i = 0; i < sel->cases().size(); ++i) {
+          cases[i] = inputs[i + 1];
+        }
+        // Default value (if any) is the last operand.
+        Expression* default_value =
+            sel->default_value().has_value() ? inputs.back() : nullptr;
+        XLS_RETURN_IF_ERROR(AddSelectAssignment(
+            ref, array_type, selector, sel->selector()->BitCountOrDie(), cases,
+            default_value, [&](Expression* lhs, Expression* rhs) {
+              assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
+            }));
+        break;
+      }
       default:
         return absl::UnimplementedError(
             absl::StrCat("Unsupported array-shaped op: ", node->ToString()));

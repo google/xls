@@ -27,7 +27,7 @@ import flask
 
 from xls.common import runfiles
 from xls.common.python import init_xls
-from xls.ir.visualization.python import ir_to_json
+from xls.visualization.ir_viz.python import ir_to_json
 
 FLAGS = flags.FLAGS
 flags.DEFINE_bool('use_ipv6', False, 'Whether to use IPv6.')
@@ -46,7 +46,7 @@ flags.DEFINE_string(
     'read from stdin.')
 flags.mark_flag_as_required('delay_model')
 
-IR_EXAMPLES_FILE_LIST = 'xls/ir/visualization/ir_examples_file_list.txt'
+IR_EXAMPLES_FILE_LIST = 'xls/visualization/ir_viz/ir_examples_file_list.txt'
 
 webapp = flask.Flask('XLS UI')
 webapp.debug = True
@@ -83,7 +83,7 @@ def load_benchmarks():
 def get_third_party_js():
   """Returns the URLS of the third-party JS to load."""
   urls = runfiles.get_contents_as_text(
-      'xls/ir/visualization/third_party_js.txt').split()
+      'xls/visualization/ir_viz/third_party_js.txt').split()
   return [u.strip() for u in urls if u.strip()]
 
 
@@ -91,7 +91,7 @@ def get_third_party_js():
 def splash():
   return flask.render_template_string(
       runfiles.get_contents_as_text(
-          'xls/ir/visualization/templates/splash.tmpl'),
+          'xls/visualization/ir_viz/templates/splash.tmpl'),
       benchmarks=[name for name, _ in benchmarks],
       third_party_scripts=get_third_party_js(),
       load_default=FLAGS.ir_path is not None)
@@ -103,7 +103,7 @@ def static_handler(filename):
 
   Args:
     filename: The name of the file. The file is loaded from the data deps under
-      xls/ir/visualization.
+      `xls/visualization/ir_viz`.
 
   Returns:
     Flask response.
@@ -111,7 +111,7 @@ def static_handler(filename):
 
   try:
     content = runfiles.get_contents_as_text(
-        flask.safe_join('xls/ir/visualization', filename))
+        flask.safe_join('xls/visualization/ir_viz', filename))
   except FileNotFoundError:
     flask.abort(404)
   if filename.endswith('.js'):

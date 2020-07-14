@@ -19,7 +19,7 @@
 """Type system deduction rules for AST nodes."""
 
 import typing
-from typing import Optional, Text, Dict, Union, Callable, Type, Tuple, Sequence, List
+from typing import Optional, Text, Dict, Union, Callable, Type, Tuple, Sequence, List, Set
 from dataclasses import dataclass, field
 
 from absl import logging
@@ -1028,36 +1028,58 @@ def _deduce_Struct(self: ast.Struct, ctx: DeduceCtx) -> ConcreteType:  # pytype:
   return result
 
 
-@_rule(ast.StructInstance)
-def _deduce_StructInstance(self: ast.StructInstance,
-                           ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  """Deduces the type of the struct instantiation expression and its members."""
-  logging.vlog(5, 'Deducing type for struct instance: %s', self)
-  named_tuple = deduce(self.struct, ctx)
+def _typecheck_struct_members_subset(members: ast.StructInstanceMembers,
+                                     struct_type: ConcreteType,
+                                     struct_text: str,
+                                     ctx: DeduceCtx) -> Set[str]:
+  """Validates a struct instantiation is a subset of members with no dups.
+
+  Args:
+    members: Sequence of members used in instantiation. Note this may be a
+      subset; e.g. in the case of splat instantiation.
+    struct_type: The deduced type for the struct (instantiation).
+    struct_text: Display name to use for the struct in case of an error.
+    ctx: Wrapper containing node to type mapping context.
+
+  Returns:
+    The set of struct member names that were instantiated.
+  """
   seen_names = set()
-  for k, v in self.unordered_members:
+  for k, v in members:
     if k in seen_names:
       raise TypeInferenceError(
           v.span,
           type_=None,
           suffix='Duplicate value seen for {!r} in this {!r} struct instance.'
-          .format(k, self.struct_text))
+          .format(k, struct_text))
     seen_names.add(k)
     expr_type = deduce(v, ctx)
     try:
-      member_type = named_tuple.get_member_type_by_name(k)
+      member_type = struct_type.get_member_type_by_name(k)
     except KeyError:
       raise TypeInferenceError(
-          self.span,
+          v.span,
           None,
           suffix='Struct {!r} has no member {!r}, but it was provided by this instance.'
-          .format(self.struct_text, k))
+          .format(struct_text, k))
     if member_type != expr_type:
       raise XlsTypeError(
           v.span, member_type, expr_type,
           'Member type for {!r} ({}) does not match expression type {}.'.format(
               k, member_type, expr_type))
-  expected_names = set(named_tuple.tuple_names)
+  return seen_names
+
+
+@_rule(ast.StructInstance)
+def _deduce_StructInstance(
+    self: ast.StructInstance, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
+  """Deduces the type of the struct instantiation expression and its members."""
+  logging.vlog(5, 'Deducing type for struct instance: %s', self)
+  struct_type = deduce(self.struct, ctx)
+  expected_names = set(struct_type.tuple_names)
+  seen_names = _typecheck_struct_members_subset(self.unordered_members,
+                                                struct_type, self.struct_text,
+                                                ctx)
   if seen_names != expected_names:
     missing = ', '.join(
         repr(s) for s in sorted(list(expected_names - seen_names)))
@@ -1065,7 +1087,23 @@ def _deduce_StructInstance(self: ast.StructInstance,
         self.span,
         None,
         suffix='Struct instance is missing member(s): {}'.format(missing))
-  return named_tuple
+  return struct_type
+
+
+@_rule(ast.SplatStructInstance)
+def _deduce_SplatStructInstance(
+    self: ast.SplatStructInstance, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
+  """Deduces the type of the struct instantiation expression and its members."""
+  struct_type = deduce(self.struct, ctx)
+  splatted_type = deduce(self.splatted, ctx)
+  if splatted_type != struct_type:
+    raise XlsTypeError(
+        self.splatted.span, struct_type, splatted_type,
+        'Splatted expression must have the same type as the struct being instantiated.'
+    )
+  _typecheck_struct_members_subset(self.members, struct_type, self.struct_text,
+                                   ctx)
+  return struct_type
 
 
 @_rule(ast.Attr)
