@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """AST nodes that layer on top of the 'core' AST nodes in core_ast_nodes.
 
 These generally do not circularly reference each other.
@@ -259,6 +260,15 @@ StructInstanceMember = Tuple[Text, Expr]
 StructInstanceMembers = Tuple[StructInstanceMember, ...]
 
 
+def _struct_to_text(struct: Union[Struct, ModRef]) -> str:
+  """Returns "error display name" of a struct from a struct instance."""
+  if isinstance(struct, Struct):
+    return struct.identifier
+  else:
+    assert isinstance(struct, ModRef)
+    return str(struct)
+
+
 class StructInstance(Expr):
   """Represents instantiation of a struct via member expressions."""
 
@@ -273,6 +283,10 @@ class StructInstance(Expr):
     """Returns instance members in their syntactic order."""
     return self._members
 
+  @property
+  def struct_text(self) -> str:
+    return _struct_to_text(self.struct)
+
   def get_ordered_members(self, struct: Struct) -> StructInstanceMembers:
     """Returns instance members ordered according to the struct definition."""
     struct_names = struct.member_names
@@ -282,23 +296,49 @@ class StructInstance(Expr):
     for member in self._members:
       member[1].accept(visitor)
 
-  @property
-  def struct_text(self) -> Text:
-    if isinstance(self.struct, Struct):
-      return self.struct.identifier
-    elif isinstance(self.struct, ModRef):
-      return str(self.struct)
-    else:
-      raise NotImplementedError
-
   def __repr__(self) -> Text:
     members_str = ', '.join('{}: {}'.format(k, v) for k, v in self._members)
     return '{} {{ {} }}'.format(self.struct_text, members_str)
 
   def get_free_variables(self, start_pos: Pos) -> FreeVariables:
     accum = FreeVariables()
-    for member in self._members:
-      accum = accum.union(member[1].get_free_variables(start_pos))
+    for _, member in self._members:
+      accum = accum.union(member.get_free_variables(start_pos))
+    return accum
+
+
+class SplatStructInstance(Expr):
+  """Rerepresents struct instantiation as delta from a 'splatted' original.
+
+  Attributes:
+    struct: The struct being instantiated.
+    members: Sequence of members being changed from the splatted original; e.g.
+      in `Point { y: new_y, ..orig_p }` this is `[('y', new_y)]`.
+    splatted: Expression that's used as the original struct instance (that we're
+      instantiating a delta from); e.g. `orig_p` in the example above.
+  """
+
+  def __init__(self, span: Span, struct: Union[ModRef, Struct],
+               members: StructInstanceMembers, splatted: Expr):
+    super().__init__(span)
+    self.struct = struct
+    self.members = tuple(members)
+    self.splatted = splatted
+
+  def _accept_children(self, visitor: AstVisitor) -> None:
+    for _, member in self.members:
+      member.accept(visitor)
+    self.splatted.accept(visitor)
+
+  @property
+  def struct_text(self) -> str:
+    return _struct_to_text(self.struct)
+
+  def get_free_variables(self, start_pos: Pos) -> FreeVariables:
+    accum = FreeVariables()
+    for _, member in self.members:
+      accum = accum.union(member.get_free_variables(start_pos))
+    accum = accum.union(self.splatted.get_free_variables(start_pos))
     return accum
 
 

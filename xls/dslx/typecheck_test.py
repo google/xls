@@ -451,7 +451,6 @@ fn f() -> Foo {
     self._typecheck(program, *args, **kwargs)
 
   def test_struct_instance(self):
-
     # Wrong type.
     self._typecheck_si(
         'fn f() -> Point { Point { y: u8:42, x: s8:255 } }',
@@ -489,6 +488,16 @@ fn f() -> Foo {
         }
         """,
         error='argument type name: \'Point\'')
+
+  def test_splat_struct_instance(self):
+    self._typecheck_si(
+        'fn f(p: Point) -> Point { Point { x: s8:42, x: s8:64, ..p } }',
+        error='Duplicate value seen for \'x\'',
+        error_type=TypeInferenceError)
+    self._typecheck_si(
+        'fn f(p: Point) -> Point { Point { q: u32:42, ..p } }',
+        error='Struct \'Point\' has no member \'q\'',
+        error_type=TypeInferenceError)
 
   def test_nominal_typing(self):
     # Nominal typing not structural, e.g. OtherPoint cannot be passed where we

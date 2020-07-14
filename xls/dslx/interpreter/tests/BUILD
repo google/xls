@@ -206,6 +206,16 @@ dslx_test(
 )
 
 dslx_test(
+    name = "struct_splat_update",
+    srcs = ["struct_splat_update.x"],
+)
+
+dslx_test(
+    name = "empty_struct_splat_update",
+    srcs = ["empty_struct_splat_update.x"],
+)
+
+dslx_test(
     name = "basic_struct_array",
     srcs = ["basic_struct_array.x"],
 )

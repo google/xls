@@ -446,6 +446,30 @@ class Interpreter(object):
             for _, e in expr.get_ordered_members(struct)))
     return result
 
+  def _evaluate_SplatStructInstance(  # pylint: disable=invalid-name
+      self,
+      expr: ast.SplatStructInstance,
+      bindings: Bindings,
+      type_context: Optional[ConcreteType]  # pylint: disable=unused-argument
+  ) -> Value:
+    """Evaluates a 'splat' struct instance AST node to a value."""
+    named_tuple = self._evaluate(expr.splatted, bindings)
+    struct = self._evaluate_to_struct(expr.struct, bindings)
+    for k, v in expr.members:
+      new_value = self._evaluate(v, bindings)
+      i = struct.member_names.index(k)
+      current_type = concrete_type_from_value(named_tuple.tuple_members[i])
+      new_type = concrete_type_from_value(new_value)
+      if new_type != current_type:
+        raise EvaluateError(
+            v.span,
+            f'type error found at interpreter runtime! struct member {k} changing from type {current_type} to {new_type}'
+        )
+      named_tuple = named_tuple.tuple_replace(i, new_value)
+
+    assert isinstance(named_tuple, Value), named_tuple
+    return named_tuple
+
   def _evaluate_Attr(  # pylint: disable=invalid-name
       self,
       expr: ast.Attr,

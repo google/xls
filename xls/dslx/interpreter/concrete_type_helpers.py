@@ -124,6 +124,8 @@ def concrete_type_from_dims(primitive: Token,
 
 def _value_compatible_with_type(type_: ConcreteType, value: Value) -> bool:
   """Returns whether value is compatible with type_ (recursively)."""
+  assert isinstance(value, Value), value
+
   if isinstance(type_, TupleType) and value.is_tuple():
     return all(
         _value_compatible_with_type(ct, m)
