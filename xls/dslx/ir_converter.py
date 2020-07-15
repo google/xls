@@ -704,8 +704,15 @@ class _IrConverterFb(ast.AstVisitor):
     in the invocation.
     """
 
-    key = (self.module.name, self.dslx_name,
-           tuple(self.symbolic_bindings.items()))
+    # We only consider function symbolic bindings for invocations.
+    # The typechecker doesn't care about module-level constants.
+    module_level_constants = {c.name.identifier for c in
+                              self.module.get_constants()
+                              if isinstance(c.value, ast.Number)}
+    relevant_symbolic_bindings = tuple((k,v) for k, v in
+                                       self.symbolic_bindings.items()
+                                       if k not in module_level_constants)
+    key = (self.module.name, self.dslx_name, relevant_symbolic_bindings)
     return invocation.symbolic_bindings.get(key, ())
 
   def _get_callee_identifier(self, node: ast.Invocation) -> Text:
