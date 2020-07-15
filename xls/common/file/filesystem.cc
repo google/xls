@@ -37,7 +37,7 @@ absl::Status ErrNoToStatusWithFilename(int errno_value,
                                        const std::filesystem::path& file_name) {
   xabsl::StatusBuilder builder = ErrnoToStatus(errno);
   builder << file_name.string();
-  return builder;
+  return std::move(builder);
 }
 
 // For use in reading serialized protos from files.
