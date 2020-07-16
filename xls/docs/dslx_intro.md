@@ -112,6 +112,32 @@ Examples:
    t: (u32, (u8, (u16,), u8))
 ```
 
+### Parametric Functions
+
+DSLX functions can be parameterized in terms of the types of its arguments and
+in terms of types derived from other parametric values. For instance:
+
+```
+fn double(n: bits[32]) -> bits[32] {
+  n * bits[32]:2
+}
+
+fn [A: u32, B: u32 = double(A)] self_append(x: bits[A]) -> bits[B] {
+  x++x
+}
+
+fn main() -> bits[10] { self_append(bits[5]:1) }
+```
+
+In `self_append(bits[5]:1)`, we see that `A = 5` based off of formal argument
+instantiation. Using that value, we can evaluate `B = double(A=5)`. This derived
+expression is analogous to C++'s constexpr – a simple expression that can be
+evaluated at that point in compilation.
+
+See
+[advanced understanding](#advanced-understanding-parametricity-constraints-and-unification)
+for more information on parametricity.
+
 ### Function Calls
 
 Function calls are expressions and look and feel just like one would expect from
@@ -974,6 +1000,12 @@ the constraint is added that `T` and `U` are the same type is referred to as
 "unification", as what was previously two entities with potentially different
 constraints now has a single set of constraints that comes from the union of its
 operand types.
+
+DSLX's typechecker will go through the body of parametric functions per
+invocation. As such, the typechecker will always have the invocation's
+parametric values for use in asserting type consistency against "constraints"
+such as derived parametric expressions, body vs. annotated return type equality,
+and expression inference rules.
 
 ## Statements
 

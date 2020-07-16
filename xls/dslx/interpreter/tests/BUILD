@@ -294,3 +294,8 @@ dslx_test(
     srcs = ["parametric_multidim_array.x"],
     entry = "__parametric_multidim_array__id_6_3_2",
 )
+
+dslx_test(
+    name = "derived_parametrics",
+    srcs = ["derived_parametrics.x"],
+)

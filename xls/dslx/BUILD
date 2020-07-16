@@ -126,6 +126,7 @@ py_library(
         ":scanner",
         ":span",
         ":xls_type_error",
+        "@com_google_absl_py//absl/logging",
     ],
 )
 
@@ -291,13 +292,13 @@ py_library(
         ":ast",
         ":bit_helpers",
         ":concrete_type",
-        ":debug_utils",
         ":dslx_builtins",
         ":parametric_expression",
         ":parametric_instantiator",
         ":scanner",
         ":span",
         ":xls_type_error",
+        "//third_party/py/dataclasses",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -324,12 +325,10 @@ py_library(
         ":concrete_type",
         ":deduce",
         ":dslx_builtins",
-        ":parametric_expression",
-        ":parametric_instantiator",
-        ":scanner",
-        ":span",
         ":xls_type_error",
+        "//third_party/py/dataclasses",
         "//xls/common:xls_error",
+        "//xls/dslx/interpreter:interpreter_helpers",
         "@com_google_absl_py//absl/logging",
     ],
 )

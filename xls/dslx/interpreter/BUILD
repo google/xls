@@ -110,6 +110,7 @@ py_library(
     deps = [
         ":value",
         "//xls/dslx:ast",
+        "//xls/dslx:parametric_instantiator",
         "//xls/dslx:span",
     ],
 )
@@ -146,9 +147,21 @@ py_library(
         "//xls/dslx:deduce",
         "//xls/dslx:import_fn",
         "//xls/dslx:parametric_expression",
+        "//xls/dslx:parametric_instantiator",
         "//xls/dslx:scanner",
         "//xls/dslx:span",
         "@com_google_absl_py//absl/logging",
+    ],
+)
+
+py_library(
+    name = "interpreter_helpers",
+    srcs = ["interpreter_helpers.py"],
+    srcs_version = "PY3",
+    deps = [
+        ":interpreter",
+        "//xls/dslx:ast",
+        "//xls/dslx:deduce",
     ],
 )
 

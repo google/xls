@@ -75,6 +75,12 @@ class TypecheckTest(absltest.TestCase):
     self._typecheck('fn f(x: u32, y: u32) -> u32 { x + y }')
     self._typecheck('fn f(x: u32, y: u32) { x + y }', error='<none> vs uN[32]')
     self._typecheck(
+        """
+      fn [N: u32] f(x: bits[N], y: bits[N]) { x + y }
+      fn g() -> u64 { f(u64: 5, u64: 5) }
+        """,
+        error='<none> vs uN[64]')
+    self._typecheck(
         'fn f(x: u32, y: bits[4]) { x + y }', error='uN[32] vs uN[4]')
     self._typecheck(
         'fn [N: u32] f(x: bits[N], y: bits[N]) -> bits[N] { x + y }')
@@ -166,6 +172,27 @@ class TypecheckTest(absltest.TestCase):
         error='Recursion detected while typechecking',
         error_type=XlsError)
 
+  def test_typecheck_parametric_recursion_causes_error(self):
+    self._typecheck(
+        """
+    fn [X: u32] f(x: bits[X]) -> u32 { f(x) }
+    fn g() -> u32 { f(u32: 5) }
+    """,
+        error='Recursion detected while typechecking',
+        error_type=XlsError)
+
+  def test_typecheck_higher_order_recursion_causes_error(self):
+    self._typecheck(
+        """
+    fn [Y: u32] h(y: bits[Y]) -> bits[Y] { h(y) }
+    fn g() -> u32[3] {
+        let x0 = u32[3]:[0, 1, 2] in
+        map(x0, h)
+    }
+    """,
+        error='Recursion detected while typechecking',
+        error_type=XlsError)
+
   def test_invoke_wrong_arg(self):
     self._typecheck(
         """
@@ -246,6 +273,172 @@ fn f(x: u32) -> (u32, u8) {
     fn f() -> u32 { p(u32:3) }
     """,
         error='Annotated type of derived parametric value did not match')
+
+  def test_parametric_instantiation_vs_arg_ok(self):
+    self._typecheck("""
+    fn [X: u32 = u32: 5] foo(x: bits[X]) -> bits[X] { x }
+    fn bar() -> bits[5] { foo(u5: 1) }
+        """)
+
+  def test_parametric_instantiation_vs_arg_error(self):
+    self._typecheck(
+        """
+    fn [X: u32 = u32: 5] foo(x: bits[X]) -> bits[X] { x }
+    fn bar() -> bits[10] { foo(u5: 1) + foo(u10: 1) }
+        """,
+        error='Parametric constraint violated')
+
+  def test_parametric_instantiation_vs_body_ok(self):
+    self._typecheck("""
+    fn [X: u32 = u32: 5] foo() -> bits[5] { bits[X]: 1 + bits[5]: 1 }
+    fn bar() -> bits[5] { foo() }
+        """)
+
+  def test_parametric_instantiation_vs_body_error(self):
+    self._typecheck(
+        """
+    fn [X: u32 = u32: 5] foo() -> bits[10] { bits[X]: 1 + bits[10]: 1 }
+    fn bar() -> bits[10] { foo() }
+        """,
+        error='Types are not compatible: uN[5] vs uN[10]')
+
+  def test_parametric_instantiation_vs_return_ok(self):
+    self._typecheck("""
+    fn [X: u32 = u32: 5] foo() -> bits[5] { bits[X]: 1 }
+    fn bar() -> bits[5] { foo() }
+        """)
+
+  def test_parametric_instantiation_vs_return_error(self):
+    self._typecheck(
+        """
+    fn [X: u32 = u32: 5] foo() -> bits[10] { bits[X]: 1 }
+    fn bar() -> bits[10] { foo() }
+        """,
+        error='Return type of function body for "foo" did not match')
+
+  def test_parametric_indirect_instantiation_vs_arg_ok(self):
+    self._typecheck("""
+    fn [X: u32] foo(x1: bits[X], x2: bits[X]) -> bits[X] { x1 + x2 }
+    fn [Y: u32] fazz(y: bits[Y]) -> bits[Y] { foo(y, y + bits[Y]: 1) }
+    fn bar() -> bits[10] { fazz(u10: 1) }
+        """)
+
+  def test_parametric_indirect_instantiation_vs_arg_error(self):
+    self._typecheck(
+        """
+    fn [X: u32] foo(x1: bits[X], x2: bits[X]) -> bits[X] { x1 + x2 }
+    fn [Y: u32] fazz(y: bits[Y]) -> bits[Y] { foo(y, y++y) }
+    fn bar() -> bits[10] { fazz(u10: 1) }
+        """,
+        error='Parametric value X was bound to different values')
+
+  def test_parametric_indirect_instantiation_vs_body_ok(self):
+    self._typecheck("""
+    fn [X: u32] foo(x: bits[X]) -> bits[X + X] {
+      let a = bits[X + X]: 5 in
+      x++x + a
+    }
+    fn [Y: u32] fazz(y: bits[Y]) -> bits[Y + Y] { foo(y) }
+    fn bar() -> bits[10] { fazz(u5: 1) }
+        """)
+
+  def test_parametric_indirect_instantiation_vs_body_error(self):
+    self._typecheck(
+        """
+    fn [X: u32] foo(x: bits[X]) -> bits[X] {
+      let a = bits[X + X]: 5 in
+      x + a
+    }
+    fn [Y: u32] fazz(y: bits[Y]) -> bits[Y] { foo(y) }
+    fn bar() -> bits[5] { fazz(u5: 1) }
+        """,
+        error='Types are not compatible: uN[5] vs uN[10]')
+
+  def test_parametric_indirect_instantiation_vs_return_ok(self):
+    self._typecheck("""
+    fn [X: u32] foo(x: bits[X]) -> bits[X + X] { x++x }
+    fn [Y: u32] fazz(y: bits[Y]) -> bits[Y + Y] { foo(y) }
+    fn bar() -> bits[10] { fazz(u5: 1) }
+        """)
+
+  def test_parametric_indirect_instantiation_vs_return_error(self):
+    self._typecheck(
+        """
+    fn [X: u32] foo(x: bits[X]) -> bits[X + X] { x * x }
+    fn [Y: u32] fazz(y: bits[Y]) -> bits[Y + Y] { foo(y) }
+    fn bar() -> bits[10] { fazz(u5: 1) }
+        """,
+        error='Return type of function body for "foo" did not match')
+
+  def test_parametric_derived_instantiation_vs_arg_ok(self):
+    self._typecheck("""
+    fn [X: u32, Y: u32 = X + X] foo(x: bits[X], y: bits[Y]) -> bits[X] { x }
+    fn bar() -> bits[5] { foo(u5: 1, u10: 2) }
+        """)
+
+  def test_parametric_derived_instantiation_vs_arg_error(self):
+    self._typecheck(
+        """
+    fn [X: u32, Y: u32 = X + X] foo(x: bits[X], y: bits[Y]) -> bits[X] { x }
+    fn bar() -> bits[5] { foo(u5: 1, u11: 2) }
+        """,
+        error='Parametric constraint violated')
+
+  def test_parametric_derived_instantiation_vs_body_ok(self):
+    self._typecheck("""
+    fn [W: u32, Z: u32 = W + W] foo(w: bits[W]) -> bits[1] {
+        let val: bits[Z] = w++w + bits[Z]: 5 in
+        and_reduce(val)
+    }
+    fn bar() -> bits[1] { foo(u5: 5) + foo(u10: 10) }
+        """)
+
+  def test_parametric_derived_instantiation_vs_body_error(self):
+    self._typecheck(
+        """
+    fn [W: u32, Z: u32 = W + W] foo(w: bits[W]) -> bits[1] {
+        let val: bits[Z] = w + w in
+        and_reduce(val)
+    }
+    fn bar() -> bits[1] { foo(u5: 5) }
+        """,
+        error='Types are not compatible: uN[10] vs uN[5]')
+
+  def test_parametric_derived_instantiation_vs_return_ok(self):
+    self._typecheck("""
+    fn [X: u32, Y: u32 = X + X] double(x: bits[X]) -> bits[Y] { x++x }
+    fn [W: u32, Z: u32 = W + W] foo(w: bits[W]) -> bits[Z] { double(w) }
+    fn bar() -> bits[10] { foo(u5: 1) }
+        """)
+
+  def test_parametric_derived_instantiation_vs_return_error(self):
+    self._typecheck(
+        """
+    fn [X: u32, Y: u32 = X + X] double(x: bits[X]) -> bits[Y] { x + x }
+    fn [W: u32, Z: u32 = W + W] foo(w: bits[W]) -> bits[Z] { double(w) }
+    fn bar() -> bits[10] { foo(u5: 1) }
+        """,
+        error='Return type of function body for "double" did not match')
+
+  def test_parametric_derived_instantiation_via_fn_call(self):
+    self._typecheck("""
+    fn double(n: u32) -> u32 { n * u32: 2 }
+    fn [W: u32, Z: u32 = double(W)] foo(w: bits[W]) -> bits[Z] { w++w }
+    fn bar() -> bits[10] { foo(u5: 1) }
+        """)
+
+  def test_parametric_fn_not_always_polymorphic(self):
+    self._typecheck(
+        """
+    fn [X: u32] foo(x: bits[X]) -> u1 {
+        let non_polymorphic  =  x + u5: 1 in
+        u1: 0
+    }
+    fn bar() -> bits[1] {
+        foo(u5: 5) ^ foo(u10: 5)
+    }
+        """,
+        error='Types are not compatible: uN[10] vs uN[5]')
 
   def test_let_binding_inferred_does_not_match_annotation(self):
     self._typecheck(
@@ -362,7 +555,10 @@ fn f(x: u32) -> (u1, u32) {
 
   def test_unsupported_parametric_expression(self):
     self._typecheck(
-        'fn [N: u32, M: u32] f(x: u8) -> bits[N-M] { x }',
+        """\
+        fn [N: u32, M: u32] f(x: u8) -> bits[N-M] { x }
+        fn main () -> u8 { f(u8: 5) }
+        """,
         error_type=TypeInferenceError,
         error='Could not concretize type with dimension: (N) - (M)')
 
@@ -535,6 +731,18 @@ fn f() -> Foo {
         program,
         error_type=TypeInferenceError,
         error="Name 'C' is not defined by the enum MyEnum")
+
+  def test_parametric_with_constant_array_ellipsis(self):
+    program = """
+    fn [N: u32] p(_: bits[N]) -> u8[2] {
+      u8[2]:[0, ...]
+    }
+
+    fn main() -> u8[2] {
+      p(false)
+    }
+    """
+    self._typecheck(program)
 
 
 if __name__ == '__main__':

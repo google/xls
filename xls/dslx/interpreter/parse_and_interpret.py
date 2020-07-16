@@ -41,7 +41,6 @@ def parse_and_test(program: Text,
                    name: Text,
                    *,
                    filename: Text,
-                   do_typecheck: bool = True,
                    raise_on_error: bool = True,
                    test_filter: Optional[Text] = None,
                    trace_all: bool = False) -> bool:
@@ -51,7 +50,6 @@ def parse_and_test(program: Text,
     program: The program text to parse.
     name: Name for the module.
     filename: The filename from which "program" text originates.
-    do_typecheck: Whether or not to typecheck the program before execution.
     raise_on_error: When true, raises exceptions that happen in tests;
       otherwise, simply returns a boolean to the caller when all test have run.
     test_filter: Test filter specification (e.g. as passed from bazel test
@@ -73,8 +71,7 @@ def parse_and_test(program: Text,
   try:
     module = Parser(Scanner(filename, program)).parse_module(name)
     node_to_type = None
-    if do_typecheck:
-      node_to_type = typecheck.check_module(module, f_import)
+    node_to_type = typecheck.check_module(module, f_import)
     interpreter = Interpreter(
         module, node_to_type, f_import, trace_all=trace_all)
     for test_name in module.get_test_names():
@@ -94,7 +91,6 @@ def parse_and_test(program: Text,
 
 
 def parse_and_test_path(path: Text,
-                        do_typecheck: bool = True,
                         raise_on_error: bool = True,
                         test_filter: Optional[Text] = None,
                         trace_all: bool = False) -> bool:
@@ -109,7 +105,6 @@ def parse_and_test_path(path: Text,
       text,
       name,
       filename=path,
-      do_typecheck=do_typecheck,
       raise_on_error=raise_on_error,
       test_filter=test_filter,
       trace_all=trace_all,

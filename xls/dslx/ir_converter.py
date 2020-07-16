@@ -33,7 +33,6 @@ from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.concrete_type import EnumType
 from xls.dslx.concrete_type import FunctionType
 from xls.dslx.concrete_type import TupleType
-from xls.dslx.interpreter import interpreter
 from xls.dslx.parametric_expression import ParametricExpression
 from xls.dslx.parametric_instantiator import SymbolicBindings
 from xls.dslx.span import PositionalError
@@ -87,10 +86,15 @@ class _IrConverterFb(ast.AstVisitor):
       has (as free variables); noted via add_constant_dep().
     emit_positions: Whether or not we should emit position data based on the AST
       node source positions.
+    dslx_name: The name of the DSLX function that's currently being translated.
   """
 
-  def __init__(self, package: ir_package.Package, module: ast.Module,
-               node_to_type: deduce.NodeToType, emit_positions: bool):
+  def __init__(self,
+               package: ir_package.Package,
+               module: ast.Module,
+               node_to_type: deduce.NodeToType,
+               emit_positions: bool,
+               dslx_name: Optional[Text] = None):
     self.module = module
     self.node_to_type = node_to_type
     self.emit_positions = emit_positions
@@ -105,6 +109,7 @@ class _IrConverterFb(ast.AstVisitor):
     # Number of "counted for" nodes we've observed in this function.
     self.counted_for_count = 0
     self.last_expression = None  # Optional[ast.Expr]
+    self.dslx_name = dslx_name
 
   def _extract_module_level_constants(self, m: ast.Module):
     """Populates `self.symbolic_bindings` with module-level constant values."""
@@ -240,8 +245,8 @@ class _IrConverterFb(ast.AstVisitor):
       concrete_type = self.node_to_type[node]
     except deduce.TypeMissingError:
       raise ConversionError(
-          'Failed to convert to IR because type was missing for AST node: {}'
-          .format(node), node.get_span_or_fake())
+          f'Failed to convert to IR because type was missing for AST node: '
+          f'{node} :: {node!r}', node.get_span_or_fake())
 
     assert isinstance(concrete_type, ConcreteType), concrete_type
     result = concrete_type.map_size(self._resolve_dim)
@@ -447,6 +452,7 @@ class _IrConverterFb(ast.AstVisitor):
       members.append(self._use(member))
     self._def(node, self.fb.add_array, members, members[0].get_type())
 
+  # Note: need to traverse to define constants for members.
   def visit_ConstantArray(self, node: ast.ConstantArray) -> None:
     array_type = self._resolve_type(node)
     e_type = array_type.get_element_type()
@@ -622,7 +628,8 @@ class _IrConverterFb(ast.AstVisitor):
         self.package,
         self.module,
         self.node_to_type,
-        emit_positions=self.emit_positions)
+        emit_positions=self.emit_positions,
+        dslx_name=self.dslx_name)
     body_converter.symbolic_bindings = dict(self.symbolic_bindings)
     body_fn_name = ('__' + self.fb.name + '_counted_for_{}_body').format(
         self._next_counted_for_ordinal()).replace('.', '_')
@@ -677,37 +684,6 @@ class _IrConverterFb(ast.AstVisitor):
     self._def(node, self.fb.add_counted_for, self._use(node.init), trip_count,
               stride, body_function, invariant_args)
 
-  def _resolve_symbolic_bindings(
-      self, symbolic_bindings: SymbolicBindings) -> SymbolicBindings:
-    """Fill parametric invocation values with current symbolic_bindings.
-
-    For example, consider the following:
-
-        fn [M: u32] callee(x: bits[M]) -> bits[M] { x }
-        fn [N: u32] caller() -> bits[N] { callee(bits[N]:0) }
-
-    When we invoke caller[N=32], we see that the invocation of callee has
-    bindings `{M: N}`, meaning that M in the invocation takes on the value of N
-    in the caller. However, once we convert caller with N=32 we must fill in
-    that M is concretely M=32 in the callee, which is what we do here.
-
-    Args:
-      symbolic_bindings: The symbolic bindings for the invocation node contained
-        within this function. There may be symbols in the values.
-
-    Returns:
-      A version of symbolic_bindings where the values have been resolved via the
-      current function's self.symbolic_bindings.
-    """
-    results = []
-    for k, v in symbolic_bindings:
-      if isinstance(v, ParametricExpression):
-        results.append((k, v.evaluate(self.symbolic_bindings)))
-      else:
-        assert isinstance(v, int), v
-        results.append((k, v))
-    return tuple(results)
-
   def _get_mangled_name(self, function_name: Text, free_keys: Set[Text],
                         m: ast.Module,
                         symbolic_bindings: Optional[SymbolicBindings]) -> Text:
@@ -722,6 +698,36 @@ class _IrConverterFb(ast.AstVisitor):
       return '__{}__{}'.format(mod_name, function_name)
     suffix = '_'.join(str(self._resolve_dim(v)) for _, v in symbolic_bindings)
     return '__{}__{}__{}'.format(mod_name, function_name, suffix)
+
+  def _get_invocation_bindings(self,
+                               invocation: ast.Invocation) -> SymbolicBindings:
+    """Returns the symbolic bindings of the invocation.
+
+    We must provide the current evaluation context (module name, function name,
+    symbolic bindings) in order to retrieve the correct symbolic bindings to use
+    in the invocation.
+
+    Args:
+      invocation: Invocation that the bindings are being retrieved for.
+
+    Returns:
+      The symbolic bindings for the given invocation.
+    """
+    # We only consider function symbolic bindings for invocations.
+    # The typechecker doesn't care about module-level constants.
+    module_level_constants = {
+        c.name.identifier
+        for c in self.module.get_constants()
+        if isinstance(c.value, ast.Number)
+    }
+    relevant_symbolic_bindings = tuple(
+        (k, v)
+        for k, v in self.symbolic_bindings.items()
+        if k not in module_level_constants)
+    key = (self.module.name, self.dslx_name, relevant_symbolic_bindings)
+    logging.vlog(2, 'Invocation %s symbolic bindings: %r key: %r', invocation,
+                 invocation.symbolic_bindings, key)
+    return invocation.symbolic_bindings.get(key, ())
 
   def _get_callee_identifier(self, node: ast.Invocation) -> Text:
     logging.vlog(3, 'Getting callee identifier for invocation: %s', node)
@@ -744,12 +750,10 @@ class _IrConverterFb(ast.AstVisitor):
       return self._get_mangled_name(function.name.identifier,
                                     function.get_free_parametric_keys(), m,
                                     None)
-
+    resolved_symbolic_bindings = self._get_invocation_bindings(node)
     logging.vlog(2, 'Node %s @ %s symbolic bindings %r', node, node.span,
-                 node.symbolic_bindings)
-    assert node.symbolic_bindings is not None, node
-    resolved_symbolic_bindings = self._resolve_symbolic_bindings(
-        node.symbolic_bindings)
+                 resolved_symbolic_bindings)
+    assert resolved_symbolic_bindings, node
     return self._get_mangled_name(function.name.identifier,
                                   function.get_free_parametric_keys(), m,
                                   resolved_symbolic_bindings)
@@ -785,7 +789,7 @@ class _IrConverterFb(ast.AstVisitor):
       map_fn_name = fn_node.name_def.identifier
       if map_fn_name in dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
         return self._def_map_with_builtin(node, fn_node, node.args[0],
-                                          node.symbolic_bindings)
+                                          self._get_invocation_bindings(node))
       else:
         lookup_module = self.module
         fn = lookup_module.get_function(map_fn_name)
@@ -798,9 +802,10 @@ class _IrConverterFb(ast.AstVisitor):
       raise NotImplementedError(
           'Unhandled function mapping: {!r}'.format(fn_node))
 
+    node_sym_bindings = self._get_invocation_bindings(node)
     mangled_name = self._get_mangled_name(fn.name,
                                           fn.get_free_parametric_keys(),
-                                          lookup_module, node.symbolic_bindings)
+                                          lookup_module, node_sym_bindings)
 
     return self._def(node, self.fb.add_map, arg,
                      self.package.get_function(mangled_name))
@@ -989,17 +994,6 @@ class _IrConverterFb(ast.AstVisitor):
     self._def(node.name, self.fb.add_param, node.name.identifier,
               self._resolve_type_to_ir(node.type_))
 
-  def _evaluate_parametric_binding_expr(
-      self, expr: ast.Expr, symbolic_bindings: Dict[Text, int]) -> int:
-    interp = interpreter.Interpreter(
-        self.module, self.node_to_type, f_import=None)
-    bindings = interpreter.Bindings()
-    for k, v in symbolic_bindings.items():
-      # HACK have to look up the real number of bits via the name def.
-      bindings.add_value(k, interpreter.Value.make_ubits(value=v, bit_count=32))
-    result = interp.evaluate_expr(expr, bindings)
-    return result.bits_payload.value
-
   def _visit_Function(
       self, node: ast.Function,
       symbolic_bindings: Optional[SymbolicBindings]) -> ir_function.Function:
@@ -1019,14 +1013,9 @@ class _IrConverterFb(ast.AstVisitor):
 
       for parametric_binding in node.parametric_bindings:
         logging.vlog(4, 'Resolving parametric binding %s', parametric_binding)
-        try:
-          value = self.symbolic_bindings[parametric_binding.name.identifier]
-        except KeyError:
-          value = self._evaluate_parametric_binding_expr(
-              node.get_parametric_binding(
-                  parametric_binding.name.identifier).expr,
-              self.symbolic_bindings)
-        value = self._resolve_dim(value)
+
+        sb_value = self.symbolic_bindings[parametric_binding.name.identifier]
+        value = self._resolve_dim(sb_value)
         assert isinstance(value, int), \
             'Expect integral parametric binding; got {!r}'.format(value)
         self._def_const(
@@ -1044,7 +1033,6 @@ class _IrConverterFb(ast.AstVisitor):
       if isinstance(last_expression, ast.NameRef):
         self._def(last_expression, self.fb.add_identity,
                   self._use(last_expression))
-
       f = self.fb.build()
       logging.vlog(3, 'Built function: %s', f.name)
       verifier_mod.verify_function(f)
@@ -1092,7 +1080,7 @@ def _convert_one_function(package: ir_package.Package,
       module,
       node_to_type,
       emit_positions=emit_positions,
-  )
+      dslx_name=function.name.identifier)
 
   freevars = function.body.get_free_variables(
       function.span.start).get_name_def_tups()

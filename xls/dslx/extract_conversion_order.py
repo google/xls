@@ -23,7 +23,6 @@ from absl import logging
 from xls.dslx import ast
 from xls.dslx import deduce
 from xls.dslx import dslx_builtins
-from xls.dslx import parametric_expression
 from xls.dslx.parametric_instantiator import SymbolicBindings
 
 Callee = NamedTuple(
@@ -64,38 +63,13 @@ class ConversionRecord(object):
         self.f.identifier, self.m, self.bindings, self.callees)
 
 
-def _evaluate_bindings(outer_bindings: SymbolicBindings,
-                       inner_bindings: SymbolicBindings) -> SymbolicBindings:
-  """Returns inner parametric bindings evaluated according to outer bindings.
-
-  Args:
-    outer_bindings: Parametric bindings in the caller.
-    inner_bindings: Parametric bindings for the callee.
-  For example:
-    fn [N: u32] g(x: bits[N]) { f(x) }
-    fn [M: u32] f(x: bits[M]) { g(x) }
-    fn main() { f(bits[2]:0) }  Even though in the typecheck of f we see that g
-      is invoked with a bits[M], we need to resolve that to a "2" when it is
-      instantiated for IR conversion.
-  """
-  if not outer_bindings or not inner_bindings:
-    return inner_bindings
-
-  new_bindings = []
-  for k, v in inner_bindings:
-    if isinstance(v, parametric_expression.ParametricExpression):
-      v = v.evaluate(dict(outer_bindings))
-    new_bindings.append((k, v))
-  return tuple(new_bindings)
-
-
-def get_callees(f: ast.Function, m: ast.Module, imports: Dict[ast.Import,
-                                                              ImportedInfo],
+def get_callees(func: ast.Function, m: ast.Module, imports: Dict[ast.Import,
+                                                                 ImportedInfo],
                 bindings: SymbolicBindings) -> Tuple[Callee, ...]:
   """Traverses the definition of f to find callees.
 
   Args:
-    f: Function to inspect for calls.
+    func: Function to inspect for calls.
     m: Module that f resides in.
     imports: Mapping of modules imported by m.
     bindings: Bindings used in instantiation of f.
@@ -113,6 +87,7 @@ def get_callees(f: ast.Function, m: ast.Module, imports: Dict[ast.Import,
       if isinstance(node.callee, ast.ModRef):
         this_m, _ = imports[node.callee.mod]
         f = this_m.get_function(node.callee.value_tok.value)
+        fn_identifier = f.name.identifier
       elif isinstance(node.callee, ast.NameRef):
         this_m = m
         fn_identifier = node.callee.identifier
@@ -134,12 +109,14 @@ def get_callees(f: ast.Function, m: ast.Module, imports: Dict[ast.Import,
         raise NotImplementedError(
             'Only calls to named functions are currently supported, got callee: {!r}'
             .format(node.callee))
-      callees.append(
-          Callee(f, this_m, _evaluate_bindings(bindings,
-                                               node.symbolic_bindings)))
 
-  f.accept(InvocationVisitor())
-  logging.vlog(3, 'Callees for %s: %s', f, [cr.f.identifier for cr in callees])
+      node_symbolic_bindings = node.symbolic_bindings.get(
+          (m.name, func.name.identifier, bindings), ())
+      callees.append(Callee(f, this_m, node_symbolic_bindings))
+
+  func.accept(InvocationVisitor())
+  logging.vlog(3, 'Callees for %s: %s', func,
+               [(cr.f.identifier, cr.sym_bindings) for cr in callees])
   return tuple(callees)
 
 
