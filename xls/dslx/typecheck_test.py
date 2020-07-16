@@ -440,6 +440,32 @@ fn f(x: u32) -> (u32, u8) {
         """,
         error='Types are not compatible: uN[10] vs uN[5]')
 
+  def test_parametric_width_slice_start_error(self):
+    self._typecheck(
+        """
+    fn [N: u32] make_u1(x: bits[N]) -> u1 {
+        x[4 +: bits[1]]
+    }
+    fn bar() -> bits[1] {
+        make_u1(u10: 5) ^ make_u1(u2: 1)
+    }
+        """,
+          error='Cannot fit 4 in 2 bits',
+          error_type=TypeInferenceError)
+
+  def test_bit_slice_on_parametric_width(self):
+    self._typecheck(
+        """
+  fn [N: u32, R: u32 = N - u32:2] get_middle_bits(x: bits[N]) -> bits[R] {
+      x[1:-1]
+  }
+
+  fn caller() {
+      let x1: u2 = get_middle_bits(u4:15) in
+      let x2: u4 = get_middle_bits(u6:63) in
+      ()
+  }""")
+
   def test_let_binding_inferred_does_not_match_annotation(self):
     self._typecheck(
         """
@@ -552,15 +578,6 @@ fn f(x: u32) -> (u1, u32) {
     self._typecheck(
         'fn f(x: u8) -> u8 { match x { u8:0 => u8:3; _ => u3:3 } }',
         error='match arm did not have the same type')
-
-  def test_unsupported_parametric_expression(self):
-    self._typecheck(
-        """\
-        fn [N: u32, M: u32] f(x: u8) -> bits[N-M] { x }
-        fn main () -> u8 { f(u8: 5) }
-        """,
-        error_type=TypeInferenceError,
-        error='Could not concretize type with dimension: (N) - (M)')
 
   def test_array_inconsistency(self):
     self._typecheck(
