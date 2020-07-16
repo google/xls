@@ -425,11 +425,12 @@ class _IrConverterFb(ast.AstVisitor):
       start = node.index.computed_start
       if isinstance(start, ParametricExpression):
         start = start.evaluate(self.symbolic_bindings)
-      assert start is not None
+      assert isinstance(start, int)
       width = node.index.computed_width
       if isinstance(width, ParametricExpression):
         width = width.evaluate(self.symbolic_bindings)
-      assert width
+      assert isinstance(width, int)
+
       self._def(node, self.fb.add_bit_slice, self._use(node.lhs), start, width)
     else:
       self._def(node, self.fb.add_array_index, self._use(node.lhs),

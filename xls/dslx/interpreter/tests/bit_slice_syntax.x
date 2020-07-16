@@ -1,7 +1,16 @@
 // Identity function helper.
 fn [N: u32] id(x: bits[N]) -> bits[N] { x }
 
+// Slice wrapper to test parametric widths.
+fn [N: u32, R: u32 = N - u32:2] get_middle_bits(x: bits[N]) -> bits[R] {
+  // Slice middle bits out of parametric width.
+  x[1:-1]
+}
+
 test bit_slice_syntax {
+  let _ = assert_eq(u2:0b11, get_middle_bits(u4:0b0110)) in
+  let _ = assert_eq(u3:0b101, get_middle_bits(u5:0b01010)) in
+
   let x = u6:0b100111 in
   // Slice out two bits.
   let _ = assert_eq(u2:0b11, x[0:2]) in
