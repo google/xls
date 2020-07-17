@@ -41,6 +41,7 @@ from xls.dslx.core_ast_nodes import TypeAnnotation
 from xls.dslx.core_ast_nodes import TypeDef
 from xls.dslx.core_ast_nodes import WildcardPattern
 from xls.dslx.free_variables import FreeVariables
+from xls.dslx.parametric_expression import ParametricExpression
 from xls.dslx.scanner import Pos
 from xls.dslx.scanner import Token
 from xls.dslx.scanner import TokenKind
@@ -480,8 +481,8 @@ class Slice(AstNode):
 
   Attributes:
     span: The span of the slice expression.
-    start: The annotated start of the slice (-4 above)
-    limit: The annotated limit of the slice (-2 above)
+    start: The annotated start of the slice (-4 above).
+    limit: The annotated limit of the slice (-2 above).
     computed_start: The computed start index of the slice
       (N - 4 above).
     computed_width: The computed width of the slice
@@ -497,8 +498,8 @@ class Slice(AstNode):
     self.limit = limit
 
     # These attributes are populated by type inference.
-    self.computed_start = None
-    self.computed_width = None
+    self.computed_start = None  # type: Union[ParametricExpression, int]
+    self.computed_width = None  # type: Union[ParametricExpression, int]
 
   def __str__(self) -> Text:
     if self.start and self.limit:
