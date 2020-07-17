@@ -468,6 +468,19 @@ fn f(x: u32) -> (u32, u8) {
       ()
   }""")
 
+  def test_parametric_map_non_polymorphic(self):
+    self._typecheck(
+        """
+  fn [N: u32] add_one(x: bits[N]) -> bits[N] { x + bits[5]:1 }
+
+  fn main() {
+      let arr = [u5:1, u5:2, u5:3] in
+      let mapped_arr = map(arr, add_one) in
+      let type_error = add_one(u6:1) in
+      ()
+  }""",
+    error='Types are not compatible: uN[6] vs uN[5]')
+
   def test_let_binding_inferred_does_not_match_annotation(self):
     self._typecheck(
         """
