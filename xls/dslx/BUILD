@@ -298,7 +298,6 @@ py_library(
         ":scanner",
         ":span",
         ":xls_type_error",
-        "//third_party/py/dataclasses",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -326,7 +325,6 @@ py_library(
         ":deduce",
         ":dslx_builtins",
         ":xls_type_error",
-        "//third_party/py/dataclasses",
         "//xls/common:xls_error",
         "//xls/dslx/interpreter:interpreter_helpers",
         "@com_google_absl_py//absl/logging",
