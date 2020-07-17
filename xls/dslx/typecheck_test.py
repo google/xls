@@ -333,20 +333,21 @@ fn f(x: u32) -> (u32, u8) {
         error='Parametric value X was bound to different values')
 
   def test_parametric_indirect_instantiation_vs_body_ok(self):
-    self._typecheck("""
-    fn [X: u32] foo(x: bits[X]) -> bits[X + X] {
-      let a = bits[X + X]: 5 in
+    self._typecheck(
+        """
+    fn [X: u32, R: u32 = X + X] foo(x: bits[X]) -> bits[R] {
+      let a = bits[R]: 5 in
       x++x + a
     }
-    fn [Y: u32] fazz(y: bits[Y]) -> bits[Y + Y] { foo(y) }
+    fn [Y: u32, T: u32 = Y + Y] fazz(y: bits[Y]) -> bits[T] { foo(y) }
     fn bar() -> bits[10] { fazz(u5: 1) }
         """)
 
   def test_parametric_indirect_instantiation_vs_body_error(self):
     self._typecheck(
         """
-    fn [X: u32] foo(x: bits[X]) -> bits[X] {
-      let a = bits[X + X]: 5 in
+    fn [X: u32, D: u32 = X + X] foo(x: bits[X]) -> bits[X] {
+      let a = bits[D]: 5 in
       x + a
     }
     fn [Y: u32] fazz(y: bits[Y]) -> bits[Y] { foo(y) }
@@ -355,17 +356,18 @@ fn f(x: u32) -> (u32, u8) {
         error='Types are not compatible: uN[5] vs uN[10]')
 
   def test_parametric_indirect_instantiation_vs_return_ok(self):
-    self._typecheck("""
-    fn [X: u32] foo(x: bits[X]) -> bits[X + X] { x++x }
-    fn [Y: u32] fazz(y: bits[Y]) -> bits[Y + Y] { foo(y) }
+    self._typecheck(
+        """
+    fn [X: u32, R: u32 = X + X] foo(x: bits[X]) -> bits[R] { x++x }
+    fn [Y: u32, T: u32 = Y + Y] fazz(y: bits[Y]) -> bits[T] { foo(y) }
     fn bar() -> bits[10] { fazz(u5: 1) }
         """)
 
   def test_parametric_indirect_instantiation_vs_return_error(self):
     self._typecheck(
         """
-    fn [X: u32] foo(x: bits[X]) -> bits[X + X] { x * x }
-    fn [Y: u32] fazz(y: bits[Y]) -> bits[Y + Y] { foo(y) }
+    fn [X: u32, R: u32 = X + X] foo(x: bits[X]) -> bits[R] { x * x }
+    fn [Y: u32, T: u32 = Y + Y] fazz(y: bits[Y]) -> bits[T] { foo(y) }
     fn bar() -> bits[10] { fazz(u5: 1) }
         """,
         error='Return type of function body for "foo" did not match')

@@ -872,7 +872,7 @@ class IrConverterTest(absltest.TestCase):
 
   def test_invocation_multi_symbol(self):
     m = self.parse_dsl_text("""\
-    fn [M: u32, N: u32] parametric(x: bits[M], y: bits[N]) -> bits[M+N] {
+    fn [M: u32, N: u32, R: u32 = M + N] parametric(x: bits[M], y: bits[N]) -> bits[R] {
       x ++ y
     }
     fn main() -> u8 {
@@ -884,16 +884,17 @@ class IrConverterTest(absltest.TestCase):
         converted, """\
         package test_module
 
-        fn __test_module__parametric__3_5(x: bits[3], y: bits[5]) -> bits[8] {
+        fn __test_module__parametric__3_5_8(x: bits[3], y: bits[5]) -> bits[8] {
           literal.3: bits[32] = literal(value=3, pos=0,0,4)
           literal.4: bits[32] = literal(value=5, pos=0,0,12)
-          ret concat.5: bits[8] = concat(x, y, pos=0,1,4)
+          literal.5: bits[32] = literal(value=8, pos=0,0,20)
+          ret concat.6: bits[8] = concat(x, y, pos=0,1,4)
         }
 
         fn __test_module__main() -> bits[8] {
-          literal.6: bits[3] = literal(value=0, pos=0,4,21)
-          literal.7: bits[5] = literal(value=1, pos=0,4,32)
-          ret invoke.8: bits[8] = invoke(literal.6, literal.7, to_apply=__test_module__parametric__3_5, pos=0,4,12)
+          literal.7: bits[3] = literal(value=0, pos=0,4,21)
+          literal.8: bits[5] = literal(value=1, pos=0,4,32)
+          ret invoke.9: bits[8] = invoke(literal.7, literal.8, to_apply=__test_module__parametric__3_5_8, pos=0,4,12)
         }
         """)
 

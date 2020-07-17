@@ -1,5 +1,5 @@
-fn [M: u32, N: u32] smul_generic(x: sN[M], y: sN[N]) -> sN[M+N] {
-  (x as sN[M+N]) * (y as sN[M+N])
+fn [M: u32, N: u32, R: u32 = M + N] smul_generic(x: sN[M], y: sN[N]) -> sN[R] {
+  (x as sN[R]) * (y as sN[R])
 }
 
 fn smul_s2_s3(x: s2, y: s3) -> s5 {

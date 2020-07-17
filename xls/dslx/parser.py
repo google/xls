@@ -122,16 +122,27 @@ class Parser(token_parser.TokenParser):
       must_end = not self._try_popt(TokenKind.COMMA)
     return tuple(parsed)
 
+  def _parse_dim(self, bindings: Bindings) -> ast.Expr:
+    """Parses one dimension -- either a number or identifier."""
+    tok = self._peekt()
+    if tok.kind == TokenKind.IDENTIFIER:
+      return self._parse_name_ref(bindings, tok=self._popt())
+    elif tok.kind == TokenKind.NUMBER:
+      return ast.Number(self._popt())
+    else:
+      raise ParseError(tok.span,
+                       "Expected number/identifier; got {}".format(tok.kind))
+
   def _parse_dims(self, bindings: Bindings) -> Tuple[ast.Expr, ...]:
     """Parses dimensions on a type; e.g. u32[3] => (3,); uN[2][3] => (3, 2)."""
     dims = []
     self._dropt_or_error(TokenKind.OBRACK)
-    dims.append(self.parse_expression(bindings))
+    dims.append(self._parse_dim(bindings))
     self._dropt_or_error(TokenKind.CBRACK)
     # See if there are more dims like "bar" and "baz" in a T[foo][bar][baz] sort
     # of fashion.
     while self._try_popt(TokenKind.OBRACK):
-      dims.append(self.parse_expression(bindings))
+      dims.append(self._parse_dim(bindings))
       self._dropt_or_error(TokenKind.CBRACK)
     # Reversed to emulate the old [major,minor] style of syntax.
     return tuple(reversed(dims))
