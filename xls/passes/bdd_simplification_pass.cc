@@ -14,16 +14,27 @@
 
 #include "xls/passes/bdd_simplification_pass.h"
 
+#include <algorithm>
+#include <memory>
+#include <utility>
+#include <vector>
+
 #include "absl/container/inlined_vector.h"
+#include "absl/types/optional.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/logging/vlog_is_on.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/function.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
 #include "xls/passes/bdd_query_engine.h"
+#include "xls/passes/post_dominator_analysis.h"
+#include "xls/passes/query_engine.h"
 
 namespace xls {
 
@@ -305,6 +316,112 @@ xabsl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   return false;
 }
 
+xabsl::StatusOr<bool> SimplifyOneHotMsb(Function* f) {
+  bool changed = false;
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<PostDominatorAnalysis> post_dominator_analysis,
+      PostDominatorAnalysis::Run(f));
+  // We prevent bdd analysis from analyzing OneHot nodes. This is because
+  // we will check if a OneHot's MSB = 0 and LSBs = {0,...} implies the same
+  // value for another node as MSB = 1 and LSBs = {0,...}.  However, MSB = 0 and
+  // LSBs = {0,...} will never occur (MSB == 1 iff LSBs = {0,...}), so the BDD
+  // query engine will always evaluate MSB = 0 and LSBs = {0,...} as false.
+  // This prevents implication analysis from telling us anything useful. By
+  // forcing BDD to treat OneHots as variables, we can assume any values for the
+  // bits of OneHot nodes and perform the implicaiton analysis.
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<BddQueryEngine> bdd_query_engine,
+      BddQueryEngine::Run(f, /*minterm_limit=*/4096, {Op::kOneHot}));
+
+  for (Node* node : f->nodes()) {
+    // Check if one-hot's MSB affect the function's output.
+    if (node->Is<OneHot>()) {
+      // Build predicates.
+      int64 msb_idx = node->BitCountOrDie() - 1;
+      std::vector<std::pair<BitLocation, bool>> msb_one_predicate;
+      std::vector<std::pair<BitLocation, bool>> msb_zero_predicate;
+      for (int64 bit_idx = 0; bit_idx < msb_idx; ++bit_idx) {
+        msb_one_predicate.push_back({{node, bit_idx}, false});
+        msb_zero_predicate.push_back({{node, bit_idx}, false});
+      }
+      msb_one_predicate.push_back({{node, msb_idx}, true});
+      msb_zero_predicate.push_back({{node, msb_idx}, false});
+
+      // Don't apply the optimization recursively.
+      if (node->users().size() == 1 &&
+          (*node->users().begin())->Is<BitSlice>()) {
+        const BitSlice* slice = (*node->users().begin())->As<BitSlice>();
+        if (slice->start() + slice->width() <= msb_idx) {
+          continue;
+        }
+      }
+
+      // Check if the predicates imply the same value for any of the node's
+      // postdominators.
+      for (Node* post_dominator :
+           post_dominator_analysis->GetPostDominatorsOfNode(node)) {
+        if (post_dominator == node) {
+          continue;
+        }
+
+        absl::optional<Bits> msb_one_implied =
+            bdd_query_engine->ImpliedNodeValue(msb_one_predicate,
+                                               post_dominator);
+        if (!msb_one_implied.has_value()) {
+          continue;
+        }
+        absl::optional<Bits> msb_zero_implied =
+            bdd_query_engine->ImpliedNodeValue(msb_zero_predicate,
+                                               post_dominator);
+        if (!msb_zero_implied.has_value()) {
+          continue;
+        }
+
+        // Predicates imply the same value for the postdominator. Therefore,
+        // we know that the OneHot's MSB cannot possibly affect the function's
+        // output. We replace the MSB with a 0 bit to enable other
+        // optimizations.
+        // Note: This anlysis assumes that XLS IR is data-flow only / side
+        // effect free. If/when memory or other nodes with side affects are
+        // added, either this anlysis
+        // or post-dominator anlysis will need to be updated to account for
+        // this.
+        if (msb_one_implied.value().ToBitVector() ==
+            msb_zero_implied.value().ToBitVector()) {
+          XLS_ASSIGN_OR_RETURN(
+              Node * zero_bit,
+              f->MakeNode<Literal>(node->loc(), Value(UBits(0, 1))));
+          XLS_ASSIGN_OR_RETURN(
+              Node * lsb_slice,
+              f->MakeNode<BitSlice>(node->loc(), node, /*start=*/0,
+                                    /*width=*/msb_idx));
+          XLS_ASSIGN_OR_RETURN(
+              Node * concat,
+              f->MakeNode<Concat>(node->loc(),
+                                  std::vector<Node*>({zero_bit, lsb_slice})));
+
+          // Not safe to iterate over users() span while modifying underlying
+          // users, so postpone modification.
+          XLS_CHECK_NE(f->return_value(), node);
+          std::vector<Node*> users_to_modify;
+          for (Node* user : node->users()) {
+            if (user != lsb_slice) {
+              users_to_modify.push_back(user);
+            }
+          }
+          for (Node* user : users_to_modify) {
+            XLS_RET_CHECK(user->ReplaceOperand(node, concat));
+          }
+          changed = true;
+          break;
+        }
+      }
+    }
+  }
+
+  return changed;
+}
+
 }  // namespace
 
 xabsl::StatusOr<bool> BddSimplificationPass::RunOnFunction(
@@ -322,13 +439,19 @@ xabsl::StatusOr<bool> BddSimplificationPass::RunOnFunction(
                          SimplifyNode(node, *query_engine, split_ops_));
     modified |= node_modified;
   }
+
+  bool one_hot_modified = false;
+  if (split_ops_) {
+    XLS_ASSIGN_OR_RETURN(one_hot_modified, SimplifyOneHotMsb(f));
+  }
+
   XLS_ASSIGN_OR_RETURN(bool selects_collapsed,
                        CollapseSelectChains(f, *query_engine));
 
   XLS_VLOG(3) << "After:";
   XLS_VLOG_LINES(3, f->DumpIr());
 
-  return modified || selects_collapsed;
+  return modified || one_hot_modified || selects_collapsed;
 }
 
 }  // namespace xls

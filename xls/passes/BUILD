@@ -526,6 +526,7 @@ cc_library(
     hdrs = ["bdd_function.h"],
     deps = [
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
@@ -540,6 +541,7 @@ cc_library(
         "//xls/ir:abstract_evaluator",
         "//xls/ir:abstract_node_evaluator",
         "//xls/ir:ir_interpreter",
+        "//xls/ir:op",
     ],
 )
 
@@ -563,7 +565,9 @@ cc_library(
     deps = [
         ":bdd_function",
         ":query_engine",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/types:optional",
+        "@com_google_absl//absl/types:span",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor",
@@ -580,14 +584,19 @@ cc_library(
     deps = [
         ":bdd_query_engine",
         ":passes",
+        ":post_dominator_analysis",
+        ":query_engine",
         "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/types:optional",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/logging:vlog_is_on",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:function_builder",
     ],
 )
 
@@ -956,12 +965,18 @@ cc_test(
     name = "bdd_simplification_pass_test",
     srcs = ["bdd_simplification_pass_test.cc"],
     deps = [
+        ":bdd_cse_pass",
         ":bdd_simplification_pass",
+        ":bit_slice_simplification_pass",
+        ":concat_simplification_pass",
+        ":dce_pass",
+        ":select_simplification_pass",
         "@com_google_googletest//:gtest_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor",
         "//xls/ir",
+        "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
