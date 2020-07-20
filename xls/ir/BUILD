@@ -976,6 +976,7 @@ cc_test(
     name = "ir_matcher_test",
     srcs = ["ir_matcher_test.cc"],
     deps = [
+        ":bits",
         ":function_builder",
         ":ir",
         ":ir_matcher",

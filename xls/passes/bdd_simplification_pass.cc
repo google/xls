@@ -298,19 +298,25 @@ xabsl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   }
 
   // Remove kOneHot operations with an input that is already one-hot.
-  if (node->Is<OneHot>() && query_engine.AtMostOneBitTrue(node->operand(0))) {
-    XLS_ASSIGN_OR_RETURN(
-        Node * zero,
-        node->function()->MakeNode<Literal>(
-            node->loc(),
-            Value(UBits(0, /*bit_count=*/node->operand(0)->BitCountOrDie()))));
-    XLS_ASSIGN_OR_RETURN(Node * operand_eq_zero,
-                         node->function()->MakeNode<CompareOp>(
-                             node->loc(), node->operand(0), zero, Op::kEq));
-    XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<Concat>(
-                                std::vector{operand_eq_zero, node->operand(0)})
-                            .status());
-    return true;
+  // Require split ops to ensure this optimizations isn't applied before
+  // SimplifyOneHotMsb.
+  if (split_ops) {
+    if (node->Is<OneHot>() && query_engine.AtMostOneBitTrue(node->operand(0))) {
+      XLS_ASSIGN_OR_RETURN(
+          Node * zero,
+          node->function()->MakeNode<Literal>(
+              node->loc(),
+              Value(
+                  UBits(0, /*bit_count=*/node->operand(0)->BitCountOrDie()))));
+      XLS_ASSIGN_OR_RETURN(Node * operand_eq_zero,
+                           node->function()->MakeNode<CompareOp>(
+                               node->loc(), node->operand(0), zero, Op::kEq));
+      XLS_RETURN_IF_ERROR(
+          node->ReplaceUsesWithNew<Concat>(
+                  std::vector{operand_eq_zero, node->operand(0)})
+              .status());
+      return true;
+    }
   }
 
   return false;
@@ -321,17 +327,22 @@ xabsl::StatusOr<bool> SimplifyOneHotMsb(Function* f) {
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<PostDominatorAnalysis> post_dominator_analysis,
       PostDominatorAnalysis::Run(f));
-  // We prevent bdd analysis from analyzing OneHot nodes. This is because
-  // we will check if a OneHot's MSB = 0 and LSBs = {0,...} implies the same
-  // value for another node as MSB = 1 and LSBs = {0,...}.  However, MSB = 0 and
-  // LSBs = {0,...} will never occur (MSB == 1 iff LSBs = {0,...}), so the BDD
-  // query engine will always evaluate MSB = 0 and LSBs = {0,...} as false.
-  // This prevents implication analysis from telling us anything useful. By
-  // forcing BDD to treat OneHots as variables, we can assume any values for the
-  // bits of OneHot nodes and perform the implicaiton analysis.
+  // We performa a variant of bdd analysis without analyzing OneHot nodes. This
+  // is because we will check if a OneHot's MSB = 0 and LSBs = {0,...} implies
+  // the same value for another node as MSB = 1 and LSBs = {0,...}.  However,
+  // MSB = 0 and LSBs = {0,...} will never occur (MSB == 1 iff LSBs = {0,...}),
+  // so the BDD query engine will always evaluate MSB = 0 and LSBs = {0,...} as
+  // false. This prevents implication analysis from telling us anything useful.
+  // By forcing BDD to treat OneHots as variables, we can assume any values for
+  // the bits of OneHot nodes and perform the implicaiton analysis. Note that
+  // this is not necessary for the case MSB = 1. Performing BDD analysis
+  // including OneHots in this case gives more information / opens up more
+  // optimization opportunities.
   XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<BddQueryEngine> bdd_query_engine,
+      std::unique_ptr<BddQueryEngine> bdd_query_engine_minus_one_hot,
       BddQueryEngine::Run(f, /*minterm_limit=*/4096, {Op::kOneHot}));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BddQueryEngine> bdd_query_engine_default,
+                       BddQueryEngine::Run(f, /*minterm_limit=*/4096));
 
   for (Node* node : f->nodes()) {
     // Check if one-hot's MSB affect the function's output.
@@ -365,14 +376,14 @@ xabsl::StatusOr<bool> SimplifyOneHotMsb(Function* f) {
         }
 
         absl::optional<Bits> msb_one_implied =
-            bdd_query_engine->ImpliedNodeValue(msb_one_predicate,
-                                               post_dominator);
+            bdd_query_engine_default->ImpliedNodeValue(msb_one_predicate,
+                                                       post_dominator);
         if (!msb_one_implied.has_value()) {
           continue;
         }
         absl::optional<Bits> msb_zero_implied =
-            bdd_query_engine->ImpliedNodeValue(msb_zero_predicate,
-                                               post_dominator);
+            bdd_query_engine_minus_one_hot->ImpliedNodeValue(msb_zero_predicate,
+                                                             post_dominator);
         if (!msb_zero_implied.has_value()) {
           continue;
         }
@@ -433,16 +444,17 @@ xabsl::StatusOr<bool> BddSimplificationPass::RunOnFunction(
   // TODO(meheff): Try tuning the minterm limit.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<BddQueryEngine> query_engine,
                        BddQueryEngine::Run(f, /*minterm_limit=*/4096));
+
+  bool one_hot_modified = false;
+  if (split_ops_) {
+    XLS_ASSIGN_OR_RETURN(one_hot_modified, SimplifyOneHotMsb(f));
+  }
+
   bool modified = false;
   for (Node* node : TopoSort(f)) {
     XLS_ASSIGN_OR_RETURN(bool node_modified,
                          SimplifyNode(node, *query_engine, split_ops_));
     modified |= node_modified;
-  }
-
-  bool one_hot_modified = false;
-  if (split_ops_) {
-    XLS_ASSIGN_OR_RETURN(one_hot_modified, SimplifyOneHotMsb(f));
   }
 
   XLS_ASSIGN_OR_RETURN(bool selects_collapsed,

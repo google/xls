@@ -786,6 +786,8 @@ cc_test(
     name = "concat_simplification_pass_test",
     srcs = ["concat_simplification_pass_test.cc"],
     deps = [
+        ":bdd_cse_pass",
+        ":bdd_simplification_pass",
         ":bit_slice_simplification_pass",
         ":concat_simplification_pass",
         ":dce_pass",

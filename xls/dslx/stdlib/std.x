@@ -77,7 +77,7 @@ pub fn [BITS: u32, ELEMS: u32] find_index(
 
   let x: uN[ELEMS] = convert_to_bits(bools);
   let index = clz(x);
-  let found: bool = index != (ELEMS as uN[ELEMS]);
+  let found: bool = or_reduce(x);
   (found, index as u32 if found else u32:0)
 }
 

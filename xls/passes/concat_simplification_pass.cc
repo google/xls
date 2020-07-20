@@ -153,8 +153,26 @@ xabsl::StatusOr<bool> SimplifyConcat(Concat* concat,
   // concatenation input operands are reversed and then concatenated in reverse
   // order:
   //   reverse(concat(a, b, c)) => concat(reverse(c), reverse(b), reverse(a))
-  if (concat->users().size() == 1 &&
-      concat->users().at(0)->op() == Op::kReverse) {
+  int64 num_reverse_users = 0;
+  Node* reverse_user;
+  bool concat_has_nonreversible_user = false;
+  for (Node* user : concat->users()) {
+    switch (user->op()) {
+      case Op::kReverse:
+        ++num_reverse_users;
+        reverse_user = user;
+        break;
+      case Op::kAndReduce:
+      case Op::kOrReduce:
+      case Op::kXorReduce:
+        break;
+      default:
+        concat_has_nonreversible_user = true;
+    }
+  }
+  // If there are multiple reverse users, common-subexpression elimination
+  // should combine them later. We can apply the optimization after this.
+  if (num_reverse_users == 1 && !concat_has_nonreversible_user) {
     Function* func = concat->function();
 
     // Get reversed operands in reverse order.
@@ -175,9 +193,8 @@ xabsl::StatusOr<bool> SimplifyConcat(Concat* concat,
     // Add new concat to function, replace uses of original reverse.
     XLS_ASSIGN_OR_RETURN(Concat * new_concat,
                          concat->ReplaceUsesWithNew<Concat>(new_operands));
-    XLS_ASSIGN_OR_RETURN(
-        bool function_changed,
-        new_concat->users().at(0)->ReplaceUsesWith(new_concat));
+    XLS_ASSIGN_OR_RETURN(bool function_changed,
+                         reverse_user->ReplaceUsesWith(new_concat));
     if (!function_changed) {
       return absl::InternalError(
           "Replacing reverse operation with reversed-input concatenation did "

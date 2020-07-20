@@ -14,7 +14,6 @@
 
 #include "xls/passes/concat_simplification_pass.h"
 
-#include <cstdio>
 #include <memory>
 #include <vector>
 
@@ -30,6 +29,8 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/value.h"
+#include "xls/passes/bdd_cse_pass.h"
+#include "xls/passes/bdd_simplification_pass.h"
 #include "xls/passes/bit_slice_simplification_pass.h"
 #include "xls/passes/dce_pass.h"
 
@@ -58,13 +59,16 @@ class ConcatSimplificationPassTest : public IrTestBase {
 
       // Run other passes to clean things up.
       XLS_ASSIGN_OR_RETURN(
-          bool cse_changed,
+          bool dce_changed,
           DeadCodeEliminationPass().RunOnFunction(f, PassOptions(), &results));
-      changed |= cse_changed;
+      changed |= dce_changed;
       XLS_ASSIGN_OR_RETURN(bool slice_changed,
                            BitSliceSimplificationPass().RunOnFunction(
                                f, PassOptions(), &results));
       changed |= slice_changed;
+      XLS_ASSIGN_OR_RETURN(bool cse_changed, BddCsePass().RunOnFunction(
+                                                 f, PassOptions(), &results));
+      changed |= cse_changed;
     }
 
     // Return whether concat simplification changed anything.
@@ -210,8 +214,6 @@ TEST_F(ConcatSimplificationPassTest, NotOfConcat) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  printf("%s\n", f->DumpIr().c_str());
-  fflush(stdout);
   EXPECT_THAT(f->return_value(),
               m::Concat(m::Not(m::Param("a_var1")), m::Not(m::Param("a_var2")),
                         m::Not(m::Param("a_var3"))));
@@ -451,8 +453,84 @@ fn f(x: bits[1], y: bits[1], z: bits[1]) -> bits[4] {
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
-      m::OneHot(m::Concat(m::Reverse(m::Param("z")), m::Reverse(m::Param("y")),
-                          m::Reverse(m::Param("x")))));
+      m::OneHot(m::Concat(m::Param("z"), m::Param("y"), m::Param("x"))));
+}
+
+TEST_F(ConcatSimplificationPassTest,
+       ReverseConcatenationOfBitsWithOtherUnreversibleUser) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(1));
+  BValue y = fb.Param("y", p->GetBitsType(1));
+  BValue z = fb.Param("z", p->GetBitsType(1));
+  BValue cat = fb.Concat({x, y, z});
+  BValue reverse = fb.Reverse(cat);
+  fb.Xor(reverse, cat);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_F(ConcatSimplificationPassTest, ReverseConcatenationOfBitsWithReduction) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(1));
+  BValue y = fb.Param("y", p->GetBitsType(1));
+  BValue z = fb.Param("z", p->GetBitsType(1));
+  BValue cat = fb.Concat({x, y, z});
+  BValue reduce = fb.OrReduce(cat);
+  BValue reverse = fb.Reverse(cat);
+  BValue extend = fb.SignExtend(reduce, 3);
+  fb.Xor(reverse, extend);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(),
+              m::Xor(m::Concat(m::Param("z"), m::Param("y"), m::Param("x")),
+                     m::SignExt(m::OrReduce(m::Concat(
+                         m::Param("z"), m::Param("y"), m::Param("x"))))));
+}
+
+TEST_F(ConcatSimplificationPassTest,
+       ReverseConcatenationOfBitsWithReductionDifferentOrderOfUsers) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(1));
+  BValue y = fb.Param("y", p->GetBitsType(1));
+  BValue z = fb.Param("z", p->GetBitsType(1));
+  BValue cat = fb.Concat({x, y, z});
+  BValue reverse = fb.Reverse(cat);
+  BValue reduce = fb.OrReduce(cat);
+  BValue extend = fb.SignExtend(reduce, 3);
+  fb.Xor(reverse, extend);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(),
+              m::Xor(m::Concat(m::Param("z"), m::Param("y"), m::Param("x")),
+                     m::SignExt(m::OrReduce(m::Concat(
+                         m::Param("z"), m::Param("y"), m::Param("x"))))));
+}
+
+TEST_F(ConcatSimplificationPassTest, ReverseConcatenationMultiReverse) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(1));
+  BValue y = fb.Param("y", p->GetBitsType(1));
+  BValue z = fb.Param("z", p->GetBitsType(1));
+  BValue cat = fb.Concat({x, y, z});
+  BValue reverse_a = fb.Reverse(cat);
+  BValue reverse_b = fb.Reverse(cat);
+  fb.Concat({reverse_a, reverse_b});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Param("z"), m::Param("y"), m::Param("x"),
+                        m::Param("z"), m::Param("y"), m::Param("x")));
 }
 
 TEST_F(ConcatSimplificationPassTest, ReverseConcatenationOfMultiBits) {

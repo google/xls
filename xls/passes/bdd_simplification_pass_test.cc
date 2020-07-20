@@ -40,16 +40,17 @@ using status_testing::IsOkAndHolds;
 
 class BddSimplificationPassTest : public IrTestBase {
  protected:
-  xabsl::StatusOr<bool> Run(Function* f, bool run_cleanup_passes = false) {
+  xabsl::StatusOr<bool> Run(Function* f, bool run_cleanup_passes = false,
+                            bool split_opts = true) {
     PassResults results;
     XLS_ASSIGN_OR_RETURN(bool changed,
-                         BddSimplificationPass(/*split_ops=*/true)
+                         BddSimplificationPass(/*split_ops=*/split_opts)
                              .RunOnFunction(f, PassOptions(), &results));
     if (run_cleanup_passes) {
       XLS_RETURN_IF_ERROR(BitSliceSimplificationPass()
                               .RunOnFunction(f, PassOptions(), &results)
                               .status());
-      XLS_RETURN_IF_ERROR(SelectSimplificationPass(/*split_ops=*/true)
+      XLS_RETURN_IF_ERROR(SelectSimplificationPass(/*split_ops=*/split_opts)
                               .RunOnFunction(f, PassOptions(), &results)
                               .status());
       XLS_RETURN_IF_ERROR(
@@ -242,6 +243,22 @@ TEST_F(BddSimplificationPassTest, OneHotMsbAlternateForm) {
                             m::BitSlice(m::OneHot(m::Param("input")), 0, 7)))));
 }
 
+TEST_F(BddSimplificationPassTest, OneHotMsbRequireFullBddToAnalyzeOneMsbCase) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue input = fb.Param("input", p->GetBitsType(7));
+  BValue hot = fb.OneHot(input, LsbOrMsb::kLsb);
+  BValue reduce = fb.OrReduce(input);
+  BValue extend = fb.SignExtend(reduce, 8);
+  fb.And(hot, extend);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Literal(UBits(0, 1)),
+                        m::BitSlice(m::OneHot(m::Param("input")), 0, 7)));
+}
+
 TEST_F(BddSimplificationPassTest, OneHotMsbMsbLeaks) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -356,6 +373,36 @@ TEST_F(BddSimplificationPassTest,
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   EXPECT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(false));
+}
+
+TEST_F(BddSimplificationPassTest,
+       OneHotMsbPostponeOneHotNativeOneHotDetectionUntilAfterOneHotMsb) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue input = fb.Param("input", p->GetBitsType(2));
+  BValue one_val = fb.Literal(UBits(1, 2));
+  BValue three_val = fb.Literal(UBits(3, 2));
+  BValue one_eq = fb.Eq(one_val, input);
+  BValue three_eq = fb.Eq(three_val, input);
+  BValue cat = fb.Concat({one_eq, three_eq});
+  BValue hot = fb.OneHot(cat, LsbOrMsb::kLsb);
+  BValue encode = fb.Encode(hot);
+  BValue literal_zero2 = fb.Literal(UBits(0, 2));
+  BValue literal_comp = fb.Literal(UBits(2, 2));
+  BValue eq_test = fb.Eq(encode, literal_comp);
+  fb.Select(eq_test, literal_zero2, encode);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f, /*run_cleanup_passes=*/false, /*split_opts=*/false),
+              IsOkAndHolds(true));
+  ASSERT_THAT(Run(f, /*run_cleanup_passes=*/true, /*split_opts=*/true),
+              IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Encode(m::Concat(
+          m::Literal(UBits(0, 1)),
+          m::Concat(m::Eq(m::Literal(UBits(1, 2)), m::Param("input")),
+                    m::Eq(m::Literal(UBits(3, 2)), m::Param("input"))))));
 }
 
 }  // namespace

@@ -75,6 +75,8 @@ fn main(i: u32) -> (bool, u32) {
   EXPECT_FALSE(FunctionHasOp(entry, Op::kArrayUpdate));
   EXPECT_FALSE(FunctionHasOp(entry, Op::kReverse));
   EXPECT_FALSE(FunctionHasOp(entry, Op::kOr));
+  EXPECT_FALSE(FunctionHasOp(entry, Op::kSignExt));
+  EXPECT_FALSE(FunctionHasOp(entry, Op::kAnd));
 }
 
 }  // namespace
