@@ -99,25 +99,53 @@ class StructType(Type):
   """
 
   def __init__(self, name, struct):
+    
     super(StructType, self).__init__()
     self.name = name
-    self.struct = struct
-    self.field_indices = {}
-    self.element_types = {}
-    for named_field in self.struct.fields:
-      name = named_field.name
-      field = named_field.hls_type
-      self.field_indices[name] = len(self.field_indices)
-      if field.HasField("as_int"):
-        self.element_types[name] = IntType(field.as_int.width,
+    if isinstance(struct, c_ast.Struct):
+      self.is_const = False
+      self.struct = struct 
+      self.as_struct = False
+      self.field_indices = {}
+      self.element_types = {}
+      for decl in struct.decls:
+        name = decl.name
+        field = decl.type
+        #print("Field is " + str(field))
+        self.field_indices[name] = len(self.field_indices)
+        if isinstance(field, c_ast.TypeDecl):
+          if field.type.names is 'int':
+              self.element_types[name] = IntType(32, True, True)
+          elif field.type.names is 'struct':
+              self.element_types[name] = StructType(field.type.names)
+          assert isinstance(field.type, c_ast.IdentifierType)
+        elif isinstance(field, c_ast.IdentifierType):
+          print(field)
+        else:
+          raise NotImplementedError("Unsupported field type for field", name,
+                                  ":", type(field))
+    #print("Self struct is " + str(self.field_indices))
+
+    else:
+      self.struct = struct
+      self.field_indices = {}
+      self.element_types = {}
+      for named_field in self.struct.fields:
+        name = named_field.name
+        field = named_field.hls_type
+        self.field_indices[name] = len(self.field_indices)
+        if field.HasField("as_int"):
+          self.element_types[name] = IntType(field.as_int.width,
                                            field.as_int.signed,
                                            False)
-      elif field.HasField("as_struct"):
-        self.element_types[name] = StructType(name, field.as_struct)
-      else:
-        raise NotImplementedError("Unsupported field type for field", name,
+        elif field.HasField("as_struct"):
+          self.element_types[name] = StructType(name, field.as_struct)
+        else:
+          raise NotImplementedError("Unsupported field type for field", name,
                                   ":", type(field))
 
+ 
+   
   def get_xls_type(self, p):
     """Get XLS IR type for struct.
 
@@ -398,6 +426,8 @@ class Translator(object):
       else:
         raise NotImplementedError("ERROR: Unknown construct at " + \
                                   str(child.coord))
+  
+
 
   def parse_type(self, ast_in):
     """Parses a C type's AST.
@@ -419,7 +449,7 @@ class Translator(object):
     is_const = ("const" in ast.quals) if isinstance(ast,
                                                     c_ast.TypeDecl) else False
     array_type = None
-
+    #print("Ast is " + str(ast))
     if isinstance(ast, c_ast.TypeDecl):
       ident = ast.type
       assert isinstance(ident, c_ast.IdentifierType)
@@ -433,6 +463,11 @@ class Translator(object):
       # Arrays are always passed by reference
       ret_type.is_ref = True
       ret_type.is_const = is_const
+      return ret_type
+    elif isinstance(ast, c_ast.Struct):
+      ret_type = StructType(ast.name, ast)
+      self.hls_types_by_name_[ret_type.name] = ret_type
+      print("HLS types are : " + str(self.hls_types_by_name_))
       return ret_type
     else:
       print(ast)
@@ -1322,8 +1357,7 @@ class Translator(object):
                            "' already declared in this scope")
 
         decl_type = self.parse_type(stmt.type)
-        self.cvars[stmt.name] = CVar(None, decl_type)
-
+        self.cvars[stmt.name] = CVar(None, decl_type) 
         self.lvalues[stmt.name] = not decl_type.is_const
         if stmt.init is not None:
           if isinstance(stmt.init, c_ast.InitList):
