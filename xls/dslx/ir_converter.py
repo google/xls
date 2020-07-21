@@ -688,20 +688,6 @@ class _IrConverterFb(ast.AstVisitor):
     self._def(node, self.fb.add_counted_for, self._use(node.init), trip_count,
               stride, body_function, invariant_args)
 
-  def _get_mangled_name(self, function_name: Text, free_keys: Set[Text],
-                        m: ast.Module,
-                        symbolic_bindings: Optional[SymbolicBindings]) -> Text:
-    """Returns mangled name of function 'name' w/ given parametric bindings."""
-    symbolic_binding_keys = set(k for k, _ in symbolic_bindings or ())
-    if free_keys > symbolic_binding_keys:
-      raise ValueError(
-          'Not enough symbolic bindings to convert function {!r}; need {!r} got {!r}'
-          .format(function_name, free_keys, symbolic_binding_keys))
-    mod_name = m.name.replace('.', '_')
-    if not symbolic_bindings:
-      return '__{}__{}'.format(mod_name, function_name)
-    suffix = '_'.join(str(self._resolve_dim(v)) for _, v in symbolic_bindings)
-    return '__{}__{}__{}'.format(mod_name, function_name, suffix)
 
   def _get_invocation_bindings(self,
                                invocation: ast.Invocation) -> SymbolicBindings:
@@ -751,23 +737,22 @@ class _IrConverterFb(ast.AstVisitor):
       # directly.
       return callee_name
     if not function.is_parametric():
-      return self._get_mangled_name(function.name.identifier,
-                                    function.get_free_parametric_keys(), m,
-                                    None)
+      return mangle_dslx_name(function.name.identifier,
+                              function.get_free_parametric_keys(), m, None)
     resolved_symbolic_bindings = self._get_invocation_bindings(node)
     logging.vlog(2, 'Node %s @ %s symbolic bindings %r', node, node.span,
                  resolved_symbolic_bindings)
     assert resolved_symbolic_bindings, node
-    return self._get_mangled_name(function.name.identifier,
-                                  function.get_free_parametric_keys(), m,
-                                  resolved_symbolic_bindings)
+    return mangle_dslx_name(function.name.identifier,
+                            function.get_free_parametric_keys(), m,
+                            resolved_symbolic_bindings)
 
   def _def_map_with_builtin(self, parent_node: ast.Invocation,
                             node: ast.NameRef, arg: ast.AstNode,
                             symbolic_bindings: SymbolicBindings) -> BValue:
     """Makes the specified builtin available to the package."""
-    mangled_name = self._get_mangled_name(node.name_def.identifier, set(),
-                                          self.module, symbolic_bindings)
+    mangled_name = mangle_dslx_name(node.name_def.identifier, set(),
+                                    self.module, symbolic_bindings)
 
     arg = self._use(arg)
     if mangled_name not in self.package.get_function_names():
@@ -807,9 +792,8 @@ class _IrConverterFb(ast.AstVisitor):
           'Unhandled function mapping: {!r}'.format(fn_node))
 
     node_sym_bindings = self._get_invocation_bindings(node)
-    mangled_name = self._get_mangled_name(fn.name,
-                                          fn.get_free_parametric_keys(),
-                                          lookup_module, node_sym_bindings)
+    mangled_name = mangle_dslx_name(fn.name, fn.get_free_parametric_keys(),
+                                    lookup_module, node_sym_bindings)
 
     return self._def(node, self.fb.add_map, arg,
                      self.package.get_function(mangled_name))
@@ -1008,9 +992,8 @@ class _IrConverterFb(ast.AstVisitor):
     # ast.Function. When it's done being built, we drop the reference to it (by
     # setting self.fb to None).
     self.fb = function_builder.FunctionBuilder(
-        self._get_mangled_name(node.name.identifier,
-                               node.get_free_parametric_keys(), self.module,
-                               symbolic_bindings), self.package)
+        mangle_dslx_name(node.name.identifier, node.get_free_parametric_keys(),
+                         self.module, symbolic_bindings), self.package)
     try:
       for param in node.params:
         param.accept(self)
@@ -1055,6 +1038,20 @@ class _IrConverterFb(ast.AstVisitor):
   def get_text(self) -> Text:
     return self.package.dump_ir()
 
+def mangle_dslx_name(function_name: Text, free_keys: Set[Text], m: ast.Module,
+                     symbolic_bindings: Optional[SymbolicBindings]) -> Text:
+    """Returns mangled name of function 'name' w/ given parametric bindings."""
+    symbolic_binding_keys = set(k for k, _ in symbolic_bindings or ())
+    if free_keys > symbolic_binding_keys:
+      raise ValueError(
+          'Not enough symbolic bindings to convert function {!r}; '
+          'need {!r} got {!r}'
+          .format(function_name, free_keys, symbolic_binding_keys))
+    mod_name = m.name.replace('.', '_')
+    if not symbolic_bindings:
+      return '__{}__{}'.format(mod_name, function_name)
+    suffix = '_'.join(str(v) for _, v in symbolic_bindings)
+    return '__{}__{}__{}'.format(mod_name, function_name, suffix)
 
 def _convert_one_function(package: ir_package.Package,
                           module: ast.Module,
