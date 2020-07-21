@@ -110,6 +110,8 @@ class LlvmIrJit {
   void (*invoker_)(uint8** inputs, uint8* outputs);
 };
 
+xabsl::StatusOr<Value> CreateandRun(Function *xls_function, absl::Span<const Value> args);
+
 }  // namespace xls
 
 #endif  // XLS_IR_LLVM_IR_JIT_H_

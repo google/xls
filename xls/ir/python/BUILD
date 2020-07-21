@@ -113,6 +113,21 @@ xls_pybind_extension(
 )
 
 xls_pybind_extension(
+    name = "llvm_ir_jit",
+    srcs = ["llvm_ir_jit.cc"],
+    py_deps = [
+        ":function",  # build_cleaner: keep
+        ":value",  # build_cleaner: keep
+    ],
+    deps = [
+        ":wrapper_types",
+        "//xls/common/python:absl_casters",
+        "//xls/common/status:statusor_pybind_caster",
+        "//xls/ir:llvm_ir_jit",
+    ],
+)
+
+xls_pybind_extension(
     name = "ir_interpreter",
     srcs = ["ir_interpreter.cc"],
     py_deps = [

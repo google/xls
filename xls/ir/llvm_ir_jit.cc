@@ -61,7 +61,6 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
-
 namespace xls {
 namespace {
 
@@ -1330,5 +1329,11 @@ absl::Status LlvmIrJit::RunToBuffer(absl::Span<const Value> args,
   invoker_(arg_buffers.data(), result_buffer.data());
   return absl::OkStatus();
 }
+xabsl::StatusOr<Value> CreateandRun(Function *xls_function,
+		                    absl::Span<const Value> args) {
+    XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(xls_function));
+    XLS_ASSIGN_OR_RETURN(auto result, jit->Run(args));
+    return result;
 
+}
 }  // namespace xls
