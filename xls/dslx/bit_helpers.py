@@ -191,7 +191,11 @@ def _resolve_parametric_bit_slice_indices(
   """Like resolve_bit_slice_indices(), but handles parametric bit_count."""
 
   assert isinstance(bit_count, ParametricExpression), bit_count
-  assert bindings, bindings
+
+  # Since bit_count is parametric, we'll need bindings to resolve the
+  # ParametricExpression.
+  assert bindings, (f"Expected non-falsy bindings to use in evaluation, "
+                    f"got {bindngs}.")
 
   resolved_bit_count = bit_count.evaluate(bindings)
   assert resolved_bit_count >= 0, resolved_bit_count
@@ -201,7 +205,7 @@ def _resolve_parametric_bit_slice_indices(
   if limit is None:
     limit = bit_count
 
-  # start is guaranteed to be an int here.
+  assert isinstance(start, int), start
   resolved_start = start
   # limit is either an int or we assigned it to bit_count (parametric) above.
   resolved_limit = (limit.evaluate(bindings)
