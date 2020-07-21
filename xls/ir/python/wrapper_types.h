@@ -258,14 +258,14 @@ auto WrapInPyHolderIfHolderExists(T&& value, ...) {
 
 // Tells PyWrap how to wrap BValue return values, see
 // WrapInPyHolderIfHolderExists.
-static BValueHolder WrapInPyHolder(const BValue& value,
+static inline BValueHolder WrapInPyHolder(const BValue& value,
                                    FunctionBuilderHolder* holder) {
   return BValueHolder(value, holder->package(), holder->builder());
 }
 
 // Tells PyWrap how to wrap FunctionBuilder return values from BValue methods,
 // see WrapInPyHolderIfHolderExists.
-static FunctionBuilderHolder WrapInPyHolder(FunctionBuilder* builder,
+static inline FunctionBuilderHolder WrapInPyHolder(FunctionBuilder* builder,
                                             BValueHolder* holder) {
   return FunctionBuilderHolder(holder->package(), holder->builder());
 }

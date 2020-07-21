@@ -27,11 +27,8 @@ PYBIND11_MODULE(llvm_ir_jit, m) {
   py::module::import("xls.ir.python.function");
   py::module::import("xls.ir.python.value");
 
-  m.def("llvm_ir_jit_run", PyWrap(&CreateandRun), py::arg("f"), py::arg("args"));
-  /* py::class_<LlvmIrJit>(m, "LlvmIrJit") */
-  /*   /1* .def("run", PyWrap(&LlvmIrJit::Run), py::arg("args")) *1/ */
-  /*   .def_static("create", PyWrap(&LlvmIrJit::Create), */
-		/* py::arg("f"), ); */
+  m.def("llvm_ir_jit_run", PyWrap(&CreateandRun),
+        py::arg("f"), py::arg("args"));
 }
 
 }  // namespace xls
