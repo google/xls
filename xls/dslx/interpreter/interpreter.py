@@ -31,6 +31,7 @@ import termcolor
 
 from xls.dslx import ast
 from xls.dslx import bit_helpers
+from xls.dslx import ir_name_mangler
 from xls.dslx import deduce
 from xls.dslx import import_fn
 from xls.dslx.concrete_type import ArrayType

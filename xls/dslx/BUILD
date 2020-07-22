@@ -406,6 +406,7 @@ py_library(
         ":bit_helpers",
         ":concrete_type",
         ":deduce",
+        ":ir_name_mangler",
         ":dslx_builtins",
         ":extract_conversion_order",
         ":parametric_expression",
@@ -425,6 +426,15 @@ py_library(
         "//xls/ir/python:value",
         "//xls/ir/python:verifier",
         "@com_google_absl_py//absl/logging",
+    ],
+)
+
+py_library(
+    name = "ir_name_mangler",
+    srcs = ["ir_name_mangler.py"],
+    srcs_version = "PY3",
+    deps = [
+        ":ast",
     ],
 )
 

@@ -27,6 +27,7 @@ from xls.dslx import bit_helpers
 from xls.dslx import deduce
 from xls.dslx import dslx_builtins
 from xls.dslx import extract_conversion_order
+from xls.dslx.ir_name_mangler import mangle_dslx_name
 from xls.dslx.concrete_type import ArrayType
 from xls.dslx.concrete_type import BitsType
 from xls.dslx.concrete_type import ConcreteType
@@ -1038,20 +1039,6 @@ class _IrConverterFb(ast.AstVisitor):
   def get_text(self) -> Text:
     return self.package.dump_ir()
 
-def mangle_dslx_name(function_name: Text, free_keys: Set[Text], m: ast.Module,
-                     symbolic_bindings: Optional[SymbolicBindings]) -> Text:
-    """Returns mangled name of function 'name' w/ given parametric bindings."""
-    symbolic_binding_keys = set(k for k, _ in symbolic_bindings or ())
-    if free_keys > symbolic_binding_keys:
-      raise ValueError(
-          'Not enough symbolic bindings to convert function {!r}; '
-          'need {!r} got {!r}'
-          .format(function_name, free_keys, symbolic_binding_keys))
-    mod_name = m.name.replace('.', '_')
-    if not symbolic_bindings:
-      return '__{}__{}'.format(mod_name, function_name)
-    suffix = '_'.join(str(v) for _, v in symbolic_bindings)
-    return '__{}__{}__{}'.format(mod_name, function_name, suffix)
 
 def _convert_one_function(package: ir_package.Package,
                           module: ast.Module,

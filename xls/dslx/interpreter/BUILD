@@ -143,6 +143,7 @@ py_library(
         requirement("termcolor"),
         "//xls/dslx:ast",
         "//xls/dslx:bit_helpers",
+        "//xls/dslx:ir_name_mangler",
         "//xls/dslx:concrete_type",
         "//xls/dslx:deduce",
         "//xls/dslx:import_fn",
