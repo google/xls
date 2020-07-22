@@ -112,8 +112,9 @@ TEST_P(IrEvaluatorTest, InterpretNegMaxMinValue) {
   // Max minimum 2s-complement value that fits in four bits.
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, get_neg_function(&package));
-  EXPECT_THAT(GetParam().evaluator(function, {Value(SBits(-8, 4))}),
-              IsOkAndHolds(Value(UBits(0b1000, 4))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value result, GetParam().evaluator(function, {Value(SBits(-8, 4))}));
+  EXPECT_EQ(result, Value(UBits(0b1000, 4))) << "Actual: " << result;
 }
 
 TEST_P(IrEvaluatorTest, InterpretNot) {
@@ -673,11 +674,13 @@ TEST_P(IrEvaluatorTest, MixedWidthMultiplicationExhaustive) {
             Bits expected = bits_ops::ZeroExtend(bits_ops::UMul(x_bits, y_bits),
                                                  2 * kMaxWidth)
                                 .Slice(0, result_width);
-            EXPECT_THAT(RunBits(function, {x_bits, y_bits}),
-                        IsOkAndHolds(expected))
+            XLS_ASSERT_OK_AND_ASSIGN(Bits actual,
+                                     RunBits(function, {x_bits, y_bits}));
+            EXPECT_EQ(expected, actual)
                 << absl::StreamFormat("umul(bits[%d]: %s, bits[%d]: %s)",
                                       x_width, x_bits.ToString(), y_width,
-                                      y_bits.ToString());
+                                      y_bits.ToString())
+                << "Expected: " << expected << "Actual: " << actual;
           }
         }
       }
@@ -694,14 +697,18 @@ TEST_P(IrEvaluatorTest, MixedWidthSignedMultiplication) {
   }
   )"));
 
-  EXPECT_THAT(RunBits(function, {SBits(0, 7), SBits(0, 3)}),
-              IsOkAndHolds(SBits(0, 6)));
-  EXPECT_THAT(RunBits(function, {SBits(-5, 7), SBits(-2, 3)}),
-              IsOkAndHolds(SBits(10, 6)));
-  EXPECT_THAT(RunBits(function, {SBits(10, 7), SBits(-2, 3)}),
-              IsOkAndHolds(SBits(-20, 6)));
-  EXPECT_THAT(RunBits(function, {SBits(-50, 7), SBits(-2, 3)}),
-              IsOkAndHolds(SBits(-28, 6)));
+  XLS_ASSERT_OK_AND_ASSIGN(Bits actual,
+                           RunBits(function, {SBits(0, 7), SBits(0, 3)}));
+  EXPECT_EQ(actual, SBits(0, 6));
+  XLS_ASSERT_OK_AND_ASSIGN(actual,
+                           RunBits(function, {SBits(-5, 7), SBits(-2, 3)}));
+  EXPECT_EQ(actual, SBits(10, 6));
+  XLS_ASSERT_OK_AND_ASSIGN(actual,
+                           RunBits(function, {SBits(10, 7), SBits(-2, 3)}));
+  EXPECT_EQ(actual, SBits(-20, 6));
+  XLS_ASSERT_OK_AND_ASSIGN(actual,
+                           RunBits(function, {SBits(-50, 7), SBits(-2, 3)}));
+  EXPECT_EQ(actual, SBits(-28, 6));
 }
 
 TEST_P(IrEvaluatorTest, MixedWidthSignedMultiplicationExhaustive) {

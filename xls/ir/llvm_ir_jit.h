@@ -102,16 +102,12 @@ class LlvmIrJit {
   int64 return_type_bytes_;
   // Cache for XLS type => LLVM type conversions.
   absl::flat_hash_map<const Type*, llvm::Type*> xls_to_llvm_type_;
-  // Offsets for  arguments to the function.
-  absl::InlinedVector<int64, 4> arg_sizes_;
-  // Size of packed arg buffer.
-  int64 args_size_ = 0;
 
   std::unique_ptr<LlvmTypeConverter> type_converter_;
   std::unique_ptr<LlvmIrRuntime> ir_runtime_;
 
   // When initialized, this points to the compiled output.
-  void (*invoker_)(uint8* inputs, uint8* outputs);
+  void (*invoker_)(uint8** inputs, uint8* outputs);
 };
 
 }  // namespace xls
