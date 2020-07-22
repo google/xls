@@ -224,14 +224,18 @@ class _TypecheckStackRecord:
     node_types: Maps a node to its deduced type. Used to store a 'before' image
       of deduced nodes to use as a comparison after a parametric function body
       is typechecked (see _make_record for more details).
+    user: The node in this module that needs 'name' to be typechecked. Used to
+    detect the typechecking of the higher order function in map invocations.
   """
   name: Text
   is_test: bool
   node_types: Optional[Dict[ast.AstNode, ConcreteType]] = None
+  user: Optional[ast.AstNode] = None
 
 
 def _make_record(f: Union[Function, ast.Test],
-                 ctx: deduce.DeduceCtx) -> _TypecheckStackRecord:
+                 ctx: deduce.DeduceCtx,
+                 user: Optional[ast.AstNode] = None) -> _TypecheckStackRecord:
   """Creates a _TypecheckStackRecord for typechecking functions/tests.
 
   The optional third field in the record will carry the contents of
@@ -243,6 +247,7 @@ def _make_record(f: Union[Function, ast.Test],
   Args:
     f: Function-or-test to make the record for.
     ctx: Typecheck deduction context.
+    user: Invocation node in this module that needs f to be typechecked.
 
   Returns:
     A record of f to put into the typechecking-stack.
@@ -262,7 +267,10 @@ def _make_record(f: Union[Function, ast.Test],
       assert f.body not in ctx.node_to_type, repr(f.body)
       previous_node_types = copy.copy(ctx.node_to_type._dict)  # pylint: disable=protected-access
       return _TypecheckStackRecord(
-          f.name.identifier, is_test=False, node_types=previous_node_types)
+          f.name.identifier,
+          is_test=False,
+          node_types=previous_node_types,
+          user=user)
 
     # We've previously evaluated the body of this parametric fn.
     # Let's remove the types we found so that they are reevaluated
@@ -278,7 +286,7 @@ def _make_record(f: Union[Function, ast.Test],
     ctx.node_to_type._dict = without_deps_dict  # pylint: disable=protected-access
 
   # Function stack record.
-  return _TypecheckStackRecord(f.name.identifier, is_test=False)
+  return _TypecheckStackRecord(f.name.identifier, is_test=False, user=user)
 
 
 def check_function_or_test_in_module(f: Union[Function, ast.Test],
@@ -332,6 +340,18 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
         key = f
         ctx.node_to_type.parametric_fn_cache[key] = deps
 
+      def is_callee_map(n: Optional[ast.AstNode]) -> bool:
+        return (n and isinstance(n, ast.Invocation) and
+                isinstance(n.callee, ast.NameRef) and
+                n.callee.tok.value == 'map')
+
+      if is_callee_map(stack_record.user):
+        # We need to remove the body of this higher order parametric function
+        # in case we need to recheck it later in this module. See
+        # deduce._check_parametric_invocation() for more information.
+        assert isinstance(f, ast.Function) and f.is_parametric()
+        ctx.node_to_type._dict.pop(f.body)  # pylint: disable=protected-access
+
       if stack_record.name == fn_name:
         # i.e. we just finished typechecking the body of the function we're
         # currently inside of.
@@ -339,7 +359,7 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
 
     except deduce.TypeMissingError as e:
       while True:
-        fn_name, fn_symbolic_bindings = ctx.fn_stack[-1]
+        fn_name, _ = ctx.fn_stack[-1]
         if (isinstance(e.node, ast.NameDef) and
             e.node.identifier in function_map):
           # If it's seen and not-done, we're recursing.
@@ -350,7 +370,7 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
           callee = function_map[e.node.identifier]
           assert isinstance(callee, ast.Function), callee
           seen[(e.node.identifier, False)] = (callee, True)
-          stack.append(_make_record(callee, ctx))
+          stack.append(_make_record(callee, ctx, user=e.user))
           break
         if (isinstance(e.node, ast.BuiltinNameDef) and
             e.node.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES):

@@ -151,18 +151,17 @@ class Interpreter(object):
     """Evaluates a slice expression on a bits value."""
     index_slice = expr.index
     assert isinstance(index_slice, ast.Slice), index_slice
-    if index_slice.start:
-      start = self._evaluate_Number(index_slice.start, bindings,
-                                    ConcreteType.S64).get_bits_value_signed()
-    else:
-      start = None
-    if index_slice.limit:
-      limit = self._evaluate_Number(index_slice.limit, bindings,
-                                    ConcreteType.S64).get_bits_value_signed()
-    else:
-      limit = None
-    start, width = bit_helpers.resolve_bit_slice_indices(
-        bits.bit_count, start, limit)
+
+    symbolic_bindings = dict(bindings.fn_ctx[2]) if bindings.fn_ctx else {}
+    start = index_slice.computed_start
+    if isinstance(start, ParametricExpression):
+      start = start.evaluate(symbolic_bindings)
+    assert isinstance(start, int)
+    width = index_slice.computed_width
+    if isinstance(width, ParametricExpression):
+      width = width.evaluate(symbolic_bindings)
+    assert isinstance(width, int)
+
     return Value(Tag.UBITS, bits.slice(start, start + width, lsb_is_0=True))
 
   def _evaluate_Index(  # pylint: disable=invalid-name

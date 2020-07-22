@@ -100,18 +100,10 @@ test compute_pad_bits {
 // trailing "stop" bit, padding out with zeros, and appending the length as a
 // 64-bit quantity such that the resulting number of bits is a multiple of 512.
 //
-// TODO(leary): 2019-03-06 Commenting this out to avoid working on the type
-// system handling symbolic dimensions for now, to make more forward progress
-// on end-to-end flow.
-//
-//fn [I: u32, P: u32 = compute_pad_bits(I+u32:65)] pad_to_512b_chunk(x: bits[I]) -> bits[I+u32:65+P] {
-//  let stop_bit: bits[1] = bits[1]:1;
-//  x ++ stop_bit ++ bits[P]:0 ++ bits[64]:I
-//}
-
-fn pad_to_512b_chunk(x: u24) -> bits[512] {
-  let stop_bit = u1:1;
-  x ++ stop_bit ++ bits[423]:0 ++ u64:24
+fn [I: u32, P: u32 = compute_pad_bits(I+u32:65),
+    R: u32 = I+u32:65+P] pad_to_512b_chunk(x: bits[I]) -> bits[R] {
+  let stop_bit: bits[1] = bits[1]:1;
+  x ++ stop_bit ++ bits[P]:0 ++ I as bits[64]
 }
 
 fn sha256(message: bits[512]) -> Digest {

@@ -334,19 +334,19 @@ fn f(x: u32) -> (u32, u8) {
 
   def test_parametric_indirect_instantiation_vs_body_ok(self):
     self._typecheck("""
-    fn [X: u32] foo(x: bits[X]) -> bits[X + X] {
-      let a = bits[X + X]: 5 in
+    fn [X: u32, R: u32 = X + X] foo(x: bits[X]) -> bits[R] {
+      let a = bits[R]: 5 in
       x++x + a
     }
-    fn [Y: u32] fazz(y: bits[Y]) -> bits[Y + Y] { foo(y) }
+    fn [Y: u32, T: u32 = Y + Y] fazz(y: bits[Y]) -> bits[T] { foo(y) }
     fn bar() -> bits[10] { fazz(u5: 1) }
         """)
 
   def test_parametric_indirect_instantiation_vs_body_error(self):
     self._typecheck(
         """
-    fn [X: u32] foo(x: bits[X]) -> bits[X] {
-      let a = bits[X + X]: 5 in
+    fn [X: u32, D: u32 = X + X] foo(x: bits[X]) -> bits[X] {
+      let a = bits[D]: 5 in
       x + a
     }
     fn [Y: u32] fazz(y: bits[Y]) -> bits[Y] { foo(y) }
@@ -356,16 +356,16 @@ fn f(x: u32) -> (u32, u8) {
 
   def test_parametric_indirect_instantiation_vs_return_ok(self):
     self._typecheck("""
-    fn [X: u32] foo(x: bits[X]) -> bits[X + X] { x++x }
-    fn [Y: u32] fazz(y: bits[Y]) -> bits[Y + Y] { foo(y) }
+    fn [X: u32, R: u32 = X + X] foo(x: bits[X]) -> bits[R] { x++x }
+    fn [Y: u32, T: u32 = Y + Y] fazz(y: bits[Y]) -> bits[T] { foo(y) }
     fn bar() -> bits[10] { fazz(u5: 1) }
         """)
 
   def test_parametric_indirect_instantiation_vs_return_error(self):
     self._typecheck(
         """
-    fn [X: u32] foo(x: bits[X]) -> bits[X + X] { x * x }
-    fn [Y: u32] fazz(y: bits[Y]) -> bits[Y + Y] { foo(y) }
+    fn [X: u32, R: u32 = X + X] foo(x: bits[X]) -> bits[R] { x * x }
+    fn [Y: u32, T: u32 = Y + Y] fazz(y: bits[Y]) -> bits[T] { foo(y) }
     fn bar() -> bits[10] { fazz(u5: 1) }
         """,
         error='Return type of function body for "foo" did not match')
@@ -439,6 +439,44 @@ fn f(x: u32) -> (u32, u8) {
     }
         """,
         error='Types are not compatible: uN[10] vs uN[5]')
+
+  def test_parametric_width_slice_start_error(self):
+    self._typecheck(
+        """
+    fn [N: u32] make_u1(x: bits[N]) -> u1 {
+        x[4 +: bits[1]]
+    }
+    fn bar() -> bits[1] {
+        make_u1(u10: 5) ^ make_u1(u2: 1)
+    }
+        """,
+        error='Cannot fit 4 in 2 bits',
+        error_type=TypeInferenceError)
+
+  def test_bit_slice_on_parametric_width(self):
+    self._typecheck("""
+  fn [N: u32, R: u32 = N - u32:2] get_middle_bits(x: bits[N]) -> bits[R] {
+      x[1:-1]
+  }
+
+  fn caller() {
+      let x1: u2 = get_middle_bits(u4:15) in
+      let x2: u4 = get_middle_bits(u6:63) in
+      ()
+  }""")
+
+  def test_parametric_map_non_polymorphic(self):
+    self._typecheck(
+        """
+  fn [N: u32] add_one(x: bits[N]) -> bits[N] { x + bits[5]:1 }
+
+  fn main() {
+      let arr = [u5:1, u5:2, u5:3] in
+      let mapped_arr = map(arr, add_one) in
+      let type_error = add_one(u6:1) in
+      ()
+  }""",
+        error='Types are not compatible: uN[6] vs uN[5]')
 
   def test_let_binding_inferred_does_not_match_annotation(self):
     self._typecheck(
@@ -552,15 +590,6 @@ fn f(x: u32) -> (u1, u32) {
     self._typecheck(
         'fn f(x: u8) -> u8 { match x { u8:0 => u8:3; _ => u3:3 } }',
         error='match arm did not have the same type')
-
-  def test_unsupported_parametric_expression(self):
-    self._typecheck(
-        """\
-        fn [N: u32, M: u32] f(x: u8) -> bits[N-M] { x }
-        fn main () -> u8 { f(u8: 5) }
-        """,
-        error_type=TypeInferenceError,
-        error='Could not concretize type with dimension: (N) - (M)')
 
   def test_array_inconsistency(self):
     self._typecheck(

@@ -420,11 +420,14 @@ def _deduce_slice_type(self: ast.Index, ctx: DeduceCtx,
     start = index_slice.start
     if isinstance(start, ast.Number) and start.type_ is None:
       start_type = lhs_type.to_ubits()
-      if not bit_helpers.fits_in_bits(start.get_value_as_int(),
-                                      start_type.get_total_bit_count()):
+      resolved_start_type = resolve(start_type, ctx)
+      if not bit_helpers.fits_in_bits(
+          start.get_value_as_int(), resolved_start_type.get_total_bit_count()):
         raise TypeInferenceError(
-            start.span, start_type,
-            'Cannot fit {} value in {} bits (inferred from bits to slice).')
+            start.span, resolved_start_type,
+            'Cannot fit {} in {} bits (inferred from bits to slice).'.format(
+                start.get_value_as_int(),
+                resolved_start_type.get_total_bit_count()))
       ctx.node_to_type[start] = start_type
     else:
       start_type = deduce(start, ctx)
@@ -465,7 +468,11 @@ def _deduce_slice_type(self: ast.Index, ctx: DeduceCtx,
   assert isinstance(start, (ast.Number, type(None)))
   start = start.get_value_as_int() if start else None
 
-  start, width = bit_helpers.resolve_bit_slice_indices(bit_count, start, limit)
+  _, fn_symbolic_bindings = ctx.fn_stack[-1]
+  start, width = bit_helpers.resolve_bit_slice_indices(bit_count, start, limit,
+                                                       fn_symbolic_bindings)
+  index_slice.computed_start = start
+  index_slice.computed_width = width
   return BitsType(signed=False, size=width)
 
 

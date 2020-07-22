@@ -48,9 +48,21 @@ class ParametricExpression(object):  # pytype: disable=ignored-metaclass
 
   __metaclass__ = abc.ABCMeta
 
-  def __add__(self, other: 'ParametricExpression') -> 'ParametricAdd':
+  def __add__(self, other: Union[int,
+                                 'ParametricExpression']) -> 'ParametricAdd':
+    if isinstance(other, int):
+      return ParametricAdd(self, ParametricConstant(other))
+
     assert isinstance(other, ParametricExpression), other
     return ParametricAdd(self, other)
+
+  def __sub__(self, other: Union[int,
+                                 'ParametricExpression']) -> 'ParametricSub':
+    if isinstance(other, int):
+      return ParametricSub(self, ParametricConstant(other))
+
+    assert isinstance(other, ParametricExpression), other
+    return ParametricSub(self, other)
 
   @abc.abstractmethod
   def __eq__(self, other: 'ParametricExpression'):

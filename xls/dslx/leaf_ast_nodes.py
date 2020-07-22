@@ -41,6 +41,7 @@ from xls.dslx.core_ast_nodes import TypeAnnotation
 from xls.dslx.core_ast_nodes import TypeDef
 from xls.dslx.core_ast_nodes import WildcardPattern
 from xls.dslx.free_variables import FreeVariables
+from xls.dslx.parametric_expression import ParametricExpression
 from xls.dslx.scanner import Pos
 from xls.dslx.scanner import Token
 from xls.dslx.scanner import TokenKind
@@ -474,7 +475,18 @@ class Invocation(Expr):
 
 
 class Slice(AstNode):
-  """Represents a slice in the AST; e.g. `-4:-2`."""
+  """Represents a slice in the AST.
+
+  For example, we can have  x[-4:-2], where x is of bit width N.
+
+  Attributes:
+    span: The span of the slice expression.
+    start: The annotated start of the slice (-4 above).
+    limit: The annotated limit of the slice (-2 above).
+    computed_start: The computed start index of the slice (N - 4 above).
+    computed_width: The computed width of the slice ((N - 2) - (N - 4) = 2
+      above).
+  """
 
   def __init__(self, span: Span, start: Optional[Number],
                limit: Optional[Number]):
@@ -482,6 +494,10 @@ class Slice(AstNode):
     self.span = span
     self.start = start
     self.limit = limit
+
+    # These attributes are populated by type inference.
+    self.computed_start = None  # type: Union[ParametricExpression, int]
+    self.computed_width = None  # type: Union[ParametricExpression, int]
 
   def __str__(self) -> Text:
     if self.start and self.limit:
