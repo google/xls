@@ -107,7 +107,7 @@ class StructType(Type):
     self.element_types = {}
     if isinstance(struct, c_ast.Struct):
       self.is_const = False
-      self.as_struct = False
+      self.as_struct = None
       for decl in struct.decls:
         name = decl.name
         field = decl.type
@@ -359,7 +359,7 @@ class Translator(object):
     if name not in self.hls_types_by_name_:
       return None
     if not self.hls_types_by_name_[name].as_struct:
-      if not self.hls_types_by_name_[name].is_const:
+      if isinstance(self.hls_types_by_name_[name].struct, c_ast.Struct):
         return self.hls_types_by_name_[name]
       else:
         return None
