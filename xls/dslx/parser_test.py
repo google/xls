@@ -561,6 +561,30 @@ proc simple(addend: u32) {
             print_on_error=True,
             filename=self.fake_filename)
 
+  def test_bad_dim(self):
+    with self.assertRaises(parser.ParseError):
+      program = """
+        fn foo(x: bits[+]) -> bits[5] { u5:5 }
+      """
+      with fakefs_util.scoped_fakefs(self.fake_filename, program):
+        parser_helpers.parse_text(
+            program,
+            name=self.fake_filename,
+            print_on_error=True,
+            filename=self.fake_filename)
+
+  def test_bad_dim_expression(self):
+    with self.assertRaises(parser.ParseError):
+      program = """
+        fn [X: u32, Y: u32] foo(x: bits[X + Y]) -> bits[5] { u5:5 }
+      """
+      with fakefs_util.scoped_fakefs(self.fake_filename, program):
+        parser_helpers.parse_text(
+            program,
+            name=self.fake_filename,
+            print_on_error=True,
+            filename=self.fake_filename)
+
   def test_co_recursion(self):
     with self.assertRaises(parser.ParseError) as cm:
       program = """
