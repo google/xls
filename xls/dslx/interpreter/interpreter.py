@@ -1346,14 +1346,7 @@ class Interpreter(object):
             param.span,
             'Argument of type {} does not conform to annotated parameter type {}; argument: {}'
             .format(concrete_type_from_value(arg), concrete_type, arg))
-      # print(arg)
       bindings.add_value(param.name.identifier, arg)
-
-    # ir_name = ir_name_mangler.mangle_dslx_name(
-    #     fn.name.identifier, fn.get_free_parametric_keys(), m, symbolic_bindings)
-    # if self._ir_package:
-    #  ir_function = self._ir_package.get_function(ir_name)
-    #  print(ir_function)
 
     result = self._evaluate(fn.body, bindings)
     if not concrete_type_accepts_value(concrete_return_type, result):
@@ -1373,8 +1366,17 @@ class Interpreter(object):
       expr: Optional[ast.Invocation] = None,
       symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
 
-    return self._evaluate_fn_with_interpreter(fn, m, args, span, expr,
+    ir_name = ir_name_mangler.mangle_dslx_name(
+        fn.name.identifier, fn.get_free_parametric_keys(), m, symbolic_bindings)
+
+    # NOTE: not all functions are currently translated to IR (e.g. functions
+    # that are only called in test constructs.
+    if self._ir_package and ir_name in self._ir_package.get_function_names():
+      ir_function = self._ir_package.get_function(ir_name)
+
+    ret =  self._evaluate_fn_with_interpreter(fn, m, args, span, expr,
                                               symbolic_bindings)
+    return ret
 
   def _do_import(self, subject: import_fn.ImportTokens,
                  span: Span) -> ast.Module:
