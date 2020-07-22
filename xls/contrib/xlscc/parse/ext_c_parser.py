@@ -119,9 +119,10 @@ class XLSccParser(CParserBase):
       p[0] = klass(
             name=p[2],
             decls=p[4],
-            coord=self._token_coord(p, 2)) 
+            coord=self._token_coord(p, 2))
     self._add_typedef_name(p[2], self._token_coord(p,2))
-  # No K&R
+    # No K&R
+  
   def p_function_definition_base(self, p):
     """function_definition_base : declaration_specifiers id_declarator declaration_list_opt compound_statement"""
     spec = p[1]
