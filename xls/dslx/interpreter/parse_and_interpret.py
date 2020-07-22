@@ -22,6 +22,7 @@ import sys
 from typing import Text, Optional
 
 from xls.dslx import import_routines
+from xls.dslx import ir_converter
 from xls.dslx import parser_helpers
 from xls.dslx import typecheck
 from xls.dslx.interpreter.interpreter import Interpreter
@@ -72,8 +73,17 @@ def parse_and_test(program: Text,
     module = Parser(Scanner(filename, program)).parse_module(name)
     node_to_type = None
     node_to_type = typecheck.check_module(module, f_import)
+
+    ir_package = None
+    try:
+      ir_package = ir_converter.convert_module_to_package(module, node_to_type)
+    except Exception as _:
+      # Not all DSLX tests are IR-convertable
+      pass
+
     interpreter = Interpreter(
-        module, node_to_type, f_import, trace_all=trace_all)
+        module, node_to_type, f_import, trace_all=trace_all,
+        ir_package=ir_package)
     for test_name in module.get_test_names():
       if not _matches(test_name, test_filter):
         continue

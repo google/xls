@@ -77,13 +77,15 @@ class Interpreter(object):
                module: ast.Module,
                node_to_type: deduce.NodeToType,
                f_import: Optional[Callable[[ImportSubject], ImportInfo]],
-               trace_all: bool = False):
+               trace_all: bool = False,
+               ir_package = None):
     self._module = module
     self._node_to_type = node_to_type
     self._top_level_members = {}
     self._started_top_level_index = None
     self._f_import = f_import
     self._trace_all = trace_all
+    self._ir_package = ir_package
 
   def _evaluate_NameRef(  # pylint: disable=invalid-name
       self, expr: ast.NameRef, bindings: Bindings,
@@ -1288,14 +1290,14 @@ class Interpreter(object):
       wrapped_value = Value.make_ubits(type_.get_total_bit_count(), raw_value)
       bindings.add_value(parametric.name.identifier, wrapped_value)
 
-  def _evaluate_fn(
+  def _evaluate_fn_with_interpreter(
       self,
       fn: ast.Function,
       m: ast.Module,
       args: Sequence[Value],
       span: Span,
-      expr: Optional[ast.Invocation] = None,
-      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
+      expr: Optional[ast.Invocation],
+      symbolic_bindings: Optional[SymbolicBindings]) -> Value:
     """Evaluates the user defined function fn as an invocation against args.
 
     Args:
@@ -1344,7 +1346,14 @@ class Interpreter(object):
             param.span,
             'Argument of type {} does not conform to annotated parameter type {}; argument: {}'
             .format(concrete_type_from_value(arg), concrete_type, arg))
+      # print(arg)
       bindings.add_value(param.name.identifier, arg)
+
+    # ir_name = ir_name_mangler.mangle_dslx_name(
+    #     fn.name.identifier, fn.get_free_parametric_keys(), m, symbolic_bindings)
+    # if self._ir_package:
+    #  ir_function = self._ir_package.get_function(ir_name)
+    #  print(ir_function)
 
     result = self._evaluate(fn.body, bindings)
     if not concrete_type_accepts_value(concrete_return_type, result):
@@ -1354,6 +1363,18 @@ class Interpreter(object):
           'want: {}; got: {} @ {}'.format(concrete_return_type, result, span))
 
     return result
+
+  def _evaluate_fn(
+      self,
+      fn: ast.Function,
+      m: ast.Module,
+      args: Sequence[Value],
+      span: Span,
+      expr: Optional[ast.Invocation] = None,
+      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
+
+    return self._evaluate_fn_with_interpreter(fn, m, args, span, expr,
+                                              symbolic_bindings)
 
   def _do_import(self, subject: import_fn.ImportTokens,
                  span: Span) -> ast.Module:

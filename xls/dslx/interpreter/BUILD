@@ -173,6 +173,7 @@ py_library(
     deps = [
         ":interpreter",
         "//xls/dslx:import_routines",
+        "//xls/dslx:ir_converter",
         "//xls/dslx:parser",
         "//xls/dslx:parser_helpers",
         "//xls/dslx:scanner",
