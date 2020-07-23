@@ -34,6 +34,8 @@ from xls.dslx import bit_helpers
 from xls.dslx import ir_name_mangler
 from xls.dslx import deduce
 from xls.dslx import import_fn
+from xls.ir.python import llvm_ir_jit
+from xls.dslx.interpreter import llvm_ir_jit_helpers as jit_helpers
 from xls.dslx.concrete_type import ArrayType
 from xls.dslx.concrete_type import BitsType
 from xls.dslx.concrete_type import ConcreteType
@@ -1297,7 +1299,8 @@ class Interpreter(object):
       args: Sequence[Value],
       span: Span,
       expr: Optional[ast.Invocation],
-      symbolic_bindings: Optional[SymbolicBindings]) -> Value:
+      symbolic_bindings: Optional[SymbolicBindings]
+  ) -> Tuple[ConcreteType, Value]:
     """Evaluates the user defined function fn as an invocation against args.
 
     Args:
@@ -1355,7 +1358,7 @@ class Interpreter(object):
           'Type error found at interpreter runtime! Result did not conform to annotated return type; '
           'want: {}; got: {} @ {}'.format(concrete_return_type, result, span))
 
-    return result
+    return concrete_return_type, result
 
   def _evaluate_fn(
       self,
@@ -1366,17 +1369,48 @@ class Interpreter(object):
       expr: Optional[ast.Invocation] = None,
       symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
 
+    ret_type, ret_val =  self._evaluate_fn_with_interpreter(fn, m, args, span, expr,
+                                              symbolic_bindings)
+
     ir_name = ir_name_mangler.mangle_dslx_name(
         fn.name.identifier, fn.get_free_parametric_keys(), m, symbolic_bindings)
 
     # NOTE: not all functions are currently translated to IR (e.g. functions
     # that are only called in test constructs.
     if self._ir_package and ir_name in self._ir_package.get_function_names():
-      ir_function = self._ir_package.get_function(ir_name)
+      try:
+        ir_function = self._ir_package.get_function(ir_name)
+        # convertable = True
+        # for arg in args:
+        #   if arg.is_bits():
+        #     ir_args.append(
+        #         ir_value.Value(_int_to_bits(arg.get_bits_value_check_sign(),
+        #                                     arg.get_bit_count())))
+        #   else:
+        #     convertable = False
+        # if convertable and isinstance(ret_type, BitsType):
+        #   llvm_ret = llvm_ir_jit.llvm_ir_jit_run(ir_function, ir_args)
+        #   assert llvm_ret.is_bits()
+        #   llvm_ret = llvm_ret.get_bits()
+        #   if not ret_type.get_signedness():
 
-    ret =  self._evaluate_fn_with_interpreter(fn, m, args, span, expr,
-                                              symbolic_bindings)
-    return ret
+        #     print(ret_val.get_bit_count())
+        #     interpreter_ret_ubits = ret_val.get_bits_value()
+        #     llvm_ret_ubits = llvm_ret.to_uint()
+        #     assert llvm_ret_ubits == interpreter_ret_ubits
+        #   else:
+        #     llvm_ret_sbits = llvm_ret.to_int()
+        #     interpreter_ret_sbits = ret_val.get_bits_value_signed()
+        #     assert llvm_ret_sbits == interpreter_ret_sbits
+        ir_args = jit_helpers.convert_args_to_ir(args)
+        jit_value = llvm_ir_jit.llvm_ir_jit_run(ir_function, ir_args)
+        jit_helpers.compare_return_values(ret_val, jit_value)
+      except Exception as _:
+        pass
+
+
+
+    return ret_val
 
   def _do_import(self, subject: import_fn.ImportTokens,
                  span: Span) -> ast.Module:

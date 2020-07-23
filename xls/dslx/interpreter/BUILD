@@ -151,10 +151,27 @@ py_library(
         "//xls/dslx:parametric_instantiator",
         "//xls/dslx:scanner",
         "//xls/dslx:span",
+        "//xls/dslx/interpreter:llvm_ir_jit_helpers",
+	"//xls/ir/python:llvm_ir_jit",
+	"//xls/ir/python:number_parser",
+	"//xls/ir/python:bits",
         "@com_google_absl_py//absl/logging",
     ],
 )
 
+py_library(
+    name = "llvm_ir_jit_helpers",
+    srcs = ["llvm_ir_jit_helpers.py"],
+    srcs_version = "PY3",
+    deps = [
+        "//xls/dslx:ast",
+        "//xls/dslx:bit_helpers",
+        "//xls/dslx:concrete_type",
+	"//xls/ir/python:number_parser",
+	"//xls/ir/python:bits",
+	"//xls/ir/python:llvm_ir_jit",
+    ],
+)
 py_library(
     name = "interpreter_helpers",
     srcs = ["interpreter_helpers.py"],

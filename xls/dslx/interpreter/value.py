@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Representation / functionality for  a value in the syntax interpreter."""
+"""Representation / functionality for a value in the syntax interpreter."""
 
 import enum as enum_mod
 from typing import Callable, Text, Union, Tuple, Any, Optional
@@ -222,6 +222,12 @@ class Value:
 
   def get_bits_value_signed(self) -> int:
     return self.bits_payload.signed_value
+
+  def get_bits_value_check_sign(self) -> int:
+    if self.tag not in (Tag.UBITS, Tag.SBITS, Tag.ENUM):
+      raise TypeError('Value is not "bits" or "enum" typed.')
+    return (self.get_bits_value_signed() if self.is_sbits()
+            else self.get_bits_value())
 
   def get_bit_count(self) -> int:
     assert self.tag in (Tag.UBITS, Tag.SBITS, Tag.ENUM)

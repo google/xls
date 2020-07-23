@@ -413,7 +413,6 @@ py_library(
         ":parametric_instantiator",
         ":span",
         "//xls/common:xls_error",
-        "//xls/dslx/interpreter",
         "//xls/ir/python:bits",
         "//xls/ir/python:fileno",
         "//xls/ir/python:function",
