@@ -425,6 +425,7 @@ cc_test(
         ":ir",
         ":ir_test_base",
         ":node_util",
+        ":op",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:matchers",

@@ -25,6 +25,7 @@
 #include "xls/common/status/statusor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/ir_interpreter.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
@@ -66,6 +67,7 @@ class ConcatSimplificationPassTest : public IrTestBase {
                            BitSliceSimplificationPass().RunOnFunction(
                                f, PassOptions(), &results));
       changed |= slice_changed;
+
       XLS_ASSIGN_OR_RETURN(bool cse_changed, BddCsePass().RunOnFunction(
                                                  f, PassOptions(), &results));
       changed |= cse_changed;
@@ -486,10 +488,10 @@ TEST_F(ConcatSimplificationPassTest, ReverseConcatenationOfBitsWithReduction) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
-  EXPECT_THAT(f->return_value(),
-              m::Xor(m::Concat(m::Param("z"), m::Param("y"), m::Param("x")),
-                     m::SignExt(m::OrReduce(m::Concat(
-                         m::Param("z"), m::Param("y"), m::Param("x"))))));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Xor(m::Concat(m::Param("z"), m::Param("y"), m::Param("x")),
+             m::SignExt(m::Or(m::Param("z"), m::Param("y"), m::Param("x")))));
 }
 
 TEST_F(ConcatSimplificationPassTest,
@@ -508,10 +510,10 @@ TEST_F(ConcatSimplificationPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
-  EXPECT_THAT(f->return_value(),
-              m::Xor(m::Concat(m::Param("z"), m::Param("y"), m::Param("x")),
-                     m::SignExt(m::OrReduce(m::Concat(
-                         m::Param("z"), m::Param("y"), m::Param("x"))))));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Xor(m::Concat(m::Param("z"), m::Param("y"), m::Param("x")),
+             m::SignExt(m::Or(m::Param("z"), m::Param("y"), m::Param("x")))));
 }
 
 TEST_F(ConcatSimplificationPassTest, ReverseConcatenationMultiReverse) {
@@ -711,6 +713,59 @@ TEST_F(ConcatSimplificationPassTest,
   )",
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_F(ConcatSimplificationPassTest, BypassConcatReductionOr) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a_var = fb.Param("a_var", p->GetBitsType(1));
+  BValue b_var = fb.Param("b_var", p->GetBitsType(1));
+  BValue cat = fb.Concat({a_var, b_var});
+  fb.OrReduce(cat);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Or(m::Param("a_var"), m::Param("b_var")));
+}
+
+TEST_F(ConcatSimplificationPassTest, BypassConcatReductionXor) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a_var = fb.Param("a_var", p->GetBitsType(1));
+  BValue b_var = fb.Param("b_var", p->GetBitsType(1));
+  BValue cat = fb.Concat({a_var, b_var});
+  fb.XorReduce(cat);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Xor(m::Param("a_var"), m::Param("b_var")));
+}
+
+TEST_F(ConcatSimplificationPassTest, BypassConcatReductionAnd) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a_var = fb.Param("a_var", p->GetBitsType(1));
+  BValue b_var = fb.Param("b_var", p->GetBitsType(1));
+  BValue cat = fb.Concat({a_var, b_var});
+  fb.AndReduce(cat);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::And(m::Param("a_var"), m::Param("b_var")));
+}
+
+TEST_F(ConcatSimplificationPassTest, BypassConcatReductionMultibit) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a_var = fb.Param("a_var", p->GetBitsType(8));
+  BValue b_var = fb.Param("b_var", p->GetBitsType(8));
+  BValue cat = fb.Concat({a_var, b_var});
+  fb.OrReduce(cat);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Or(m::OrReduce(m::Param("a_var")),
+                                       m::OrReduce(m::Param("b_var"))));
 }
 
 }  // namespace

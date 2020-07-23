@@ -292,6 +292,7 @@ cc_library(
         "//xls/common/status:statusor",
         "//xls/ir",
         "//xls/ir:bits_ops",
+        "//xls/ir:node_util",
         "//xls/ir:op",
     ],
 )
@@ -798,6 +799,7 @@ cc_test(
         "//xls/common/status:statusor",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:function_builder",
         "//xls/ir:ir_interpreter",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",

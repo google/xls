@@ -27,6 +27,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 
@@ -366,6 +367,30 @@ xabsl::StatusOr<bool> TryHoistBitWiseOperation(Node* node) {
   return true;
 }
 
+// Transform a reduction of a concat to a reduction of the concat's operands.
+// e.g. OrReduce(Concat(a,b)) ==> Or(OrReduce(a), OrReduce(b))
+xabsl::StatusOr<bool> TryBypassReductionOfConcatenation(Node* node) {
+  if (!node->Is<BitwiseReductionOp>() || !node->operand(0)->Is<Concat>()) {
+    return false;
+  }
+
+  // Create reductions of concat operands.
+  Function* f = node->function();
+  Concat* concat = node->operand(0)->As<Concat>();
+  std::vector<Node*> new_reductions;
+  for (Node* cat_operand : concat->operands()) {
+    XLS_ASSIGN_OR_RETURN(Node * reduce, node->Clone({cat_operand}, f));
+    new_reductions.push_back(reduce);
+  }
+
+  XLS_ASSIGN_OR_RETURN(Op non_reductive_op,
+                       OpToNonReductionOp(node->op()));
+  XLS_RETURN_IF_ERROR(
+      node->ReplaceUsesWithNew<NaryOp>(new_reductions, non_reductive_op)
+          .status());
+  return true;
+}
+
 // Attempts to distribute a reducible operation into the operands (sub-slices)
 // of a concat -- this helps the optimizer because the concat could otherwise
 // act as something that's hard to "see through"; e.g. imagine you concatenate
@@ -463,13 +488,19 @@ xabsl::StatusOr<bool> ConcatSimplificationPass::RunOnFunction(
   // For optimizations which optimize around concats, just iterate through once
   // and find all opportunities.
   for (Node* node : TopoSort(f)) {
-    bool node_changed = false;
     if (OpIsBitWise(node->op())) {
-      XLS_ASSIGN_OR_RETURN(node_changed, TryHoistBitWiseOperation(node));
+      XLS_ASSIGN_OR_RETURN(bool bitwise_changed,
+                           TryHoistBitWiseOperation(node));
+      changed |= bitwise_changed;
     } else {
-      XLS_ASSIGN_OR_RETURN(node_changed, TryDistributeReducibleOperation(node));
+      XLS_ASSIGN_OR_RETURN(bool distribute_changed,
+                           TryDistributeReducibleOperation(node));
+      changed |= distribute_changed;
+
+      XLS_ASSIGN_OR_RETURN(bool reduction_changed,
+                           TryBypassReductionOfConcatenation(node));
+      changed |= reduction_changed;
     }
-    changed = changed || node_changed;
   }
 
   XLS_VLOG(3) << "After:";
