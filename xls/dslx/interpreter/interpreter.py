@@ -1380,32 +1380,12 @@ class Interpreter(object):
     if self._ir_package and ir_name in self._ir_package.get_function_names():
       try:
         ir_function = self._ir_package.get_function(ir_name)
-        # convertable = True
-        # for arg in args:
-        #   if arg.is_bits():
-        #     ir_args.append(
-        #         ir_value.Value(_int_to_bits(arg.get_bits_value_check_sign(),
-        #                                     arg.get_bit_count())))
-        #   else:
-        #     convertable = False
-        # if convertable and isinstance(ret_type, BitsType):
-        #   llvm_ret = llvm_ir_jit.llvm_ir_jit_run(ir_function, ir_args)
-        #   assert llvm_ret.is_bits()
-        #   llvm_ret = llvm_ret.get_bits()
-        #   if not ret_type.get_signedness():
-
-        #     print(ret_val.get_bit_count())
-        #     interpreter_ret_ubits = ret_val.get_bits_value()
-        #     llvm_ret_ubits = llvm_ret.to_uint()
-        #     assert llvm_ret_ubits == interpreter_ret_ubits
-        #   else:
-        #     llvm_ret_sbits = llvm_ret.to_int()
-        #     interpreter_ret_sbits = ret_val.get_bits_value_signed()
-        #     assert llvm_ret_sbits == interpreter_ret_sbits
         ir_args = jit_helpers.convert_args_to_ir(args)
+
         jit_value = llvm_ir_jit.llvm_ir_jit_run(ir_function, ir_args)
-        jit_helpers.compare_return_values(ret_val, jit_value)
-      except Exception as _:
+        jit_helpers.compare_return_values(ret_type, ret_val, jit_value)
+      except jit_helpers.UnsupportedConversionError as _:
+        # Not all DSLX is convertable to IR/JIT
         pass
 
 
