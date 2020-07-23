@@ -1060,8 +1060,11 @@ class Translator(object):
 
           obj_expr, obj_type = self.gen_expr_ir(obj, condition)
 
+          obj_id = id(obj_expr)
+          if obj_id not in self.read_tokens:
+            raise NotImplementedError("Rvalue is not from a channel read(). A type conversion may have occurred, which is unimplemented.")
 
-          in_ch_name = self.read_tokens[id(obj_expr)]
+          in_ch_name = self.read_tokens[obj_id]
           out_ch_name = left_var.name
 
           # z
