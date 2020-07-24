@@ -446,10 +446,14 @@ class _IrConverterFb(ast.AstVisitor):
 
   @ast.AstVisitor.no_auto_traverse
   def visit_Array(self, node: ast.Array) -> None:
+    array_type = self._resolve_type(node)
     members = []
     for member in node.members:
       member.accept(self)
       members.append(self._use(member))
+    if node.has_ellipsis:
+      while len(members) < array_type.size:
+        members.append(members[-1])
     self._def(node, self.fb.add_array, members, members[0].get_type())
 
   # Note: need to traverse to define constants for members.

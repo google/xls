@@ -1171,6 +1171,25 @@ class IrConverterTest(absltest.TestCase):
         }
         """)
 
+  def test_non_const_array_ellipsis(self):
+    m = self.parse_dsl_text("""
+    fn main(x: bits[8]) -> u8[4] {
+      u8[4]:[u8:0, x, ...]
+    }
+    """)
+    node_to_type = typecheck.check_module(m, f_import=None)
+    converted = ir_converter.convert_module(
+        m, node_to_type, emit_positions=False)
+    self.assert_ir_equals_and_parses(
+        converted, """\
+        package test_module
+
+        fn __test_module__main(x: bits[8]) -> bits[8][4] {
+          literal.2: bits[8] = literal(value=0)
+          ret array.3: bits[8][4] = array(literal.2, x, x, x)
+        }
+        """)
+
   def test_counted_for_parametric_ref_in_body(self):
     m = self.parse_dsl_text("""\
     fn [N: u32] f(init: bits[N]) -> bits[N] {
