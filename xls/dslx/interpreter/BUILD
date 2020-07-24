@@ -153,8 +153,6 @@ py_library(
         "//xls/dslx:span",
         "//xls/dslx/interpreter:llvm_ir_jit_helpers",
 	"//xls/ir/python:llvm_ir_jit",
-	"//xls/ir/python:number_parser",
-	"//xls/ir/python:bits",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -166,6 +164,7 @@ py_library(
     deps = [
         "//xls/dslx:ast",
         "//xls/dslx:bit_helpers",
+        "//xls/dslx/interpreter:value",
         "//xls/dslx:concrete_type",
 	"//xls/ir/python:number_parser",
 	"//xls/ir/python:bits",

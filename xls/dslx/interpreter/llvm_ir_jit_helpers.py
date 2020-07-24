@@ -27,40 +27,75 @@ from xls.dslx.concrete_type import BitsType
 from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.concrete_type import EnumType
 from xls.dslx.concrete_type import TupleType
+from xls.dslx.interpreter import value as interpreter_value
 
 class UnsupportedConversionError(Exception):
   pass
 
+def convert_interpreter_value_to_ir(interpreter_value):
+  if interpreter_value.is_bits():
+    return ir_value.Value(
+        int_to_bits(interpreter_value.get_bits_value_check_sign(),
+                    interpreter_value.get_bit_count()))
+  elif interpreter_value.is_array():
+    ir_arr = []
+    for e in interpreter_value.array_payload.elements:
+        ir_arr.append(convert_interpreter_value_to_ir(e))
+    return ir_value.Value.make_array(ir_arr)
+  elif interpreter_value.is_tuple():
+    ir_tuple = []
+    for e in interpreter_value.tuple_members:
+      ir_tuple.append(convert_interpreter_value_to_ir(e))
+    return ir_value.Value.make_tuple(ir_tuple)
+  else:
+    print(interpreter_value.tag)
+    raise UnsupportedConversionError
+
+
+
 def convert_args_to_ir(args):
   ir_args = []
   for arg in args:
-    if arg.is_bits():
-      ir_args.append(
-              ir_value.Value(int_to_bits(arg.get_bits_value_check_sign(),
-                                         arg.get_bit_count())))
-    else:
-      raise UnsupportedConversionError
+    ir_args.append(convert_interpreter_value_to_ir(arg))
 
   return ir_args
 
-def compare_return_values(return_type, interpreter_value, jit_value):
-  if not isinstance(return_type, BitsType):
-    raise UnsupportedConversionError
+def compare_values(interpreter_value, jit_value):
+  if interpreter_value.is_bits():
+    assert jit_value.is_bits()
+    jit_value = jit_value.get_bits()
+    try:
+      if interpreter_value.is_ubits():
+        interpreter_bits_value = interpreter_value.get_bits_value()
+        jit_bits_value = jit_value.to_uint()
+      else:
+        interpreter_bits_value = interpreter_value.get_bits_value_signed()
+        jit_bits_value = jit_value.to_int()
+    except RuntimeError as e:
+      print(e)
+      raise UnsupportedConversionError
 
-  assert jit_value.is_bits()
-  jit_value = jit_value.get_bits()
-  try:
-    if not return_type.get_signedness():
-      # print(ret_val.get_bit_count())
-      interpreter_bits_value = interpreter_value.get_bits_value()
-      jit_bits_value = jit_value.to_uint()
-    else:
-      interpreter_bits_value = interpreter_value.get_bits_value_signed()
-      jit_bits_value = jit_value.to_int()
-  except RuntimeError as _:
+    assert interpreter_bits_value == jit_bits_value
+  elif interpreter_value.is_array():
+    assert jit_value.is_array()
+    interpreter_values = interpreter_value.array_payload.elements
+    jit_values = jit_value.get_elements()
+    if len(interpreter_values) != len(jit_values):
+      print("int", interpreter_values)
+      print("jit", jit_values)
+      assert False
+    for interpreter_element, jit_element in zip(interpreter_values, jit_values):
+      compare_values(interpreter_element, jit_element)
+  elif interpreter_value.is_tuple():
+    assert jit_value.is_tuple()
+    interpreter_values = interpreter_value.tuple_members
+    jit_values = jit_value.get_elements()
+    assert len(interpreter_values) == len(jit_values)
+    for interpreter_element, jit_element in zip(interpreter_values, jit_values):
+      compare_values(interpreter_element, jit_element)
+  else:
+    print("unsupported: ", interpreter_value.tag)
     raise UnsupportedConversionError
-
-  assert interpreter_bits_value == jit_bits_value
 
 def int_to_bits(value: int, bit_count: int) -> bits_mod.Bits:
   """Converts a Python arbitrary precision int to a Bits type."""

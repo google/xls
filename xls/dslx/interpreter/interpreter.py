@@ -1299,8 +1299,7 @@ class Interpreter(object):
       args: Sequence[Value],
       span: Span,
       expr: Optional[ast.Invocation],
-      symbolic_bindings: Optional[SymbolicBindings]
-  ) -> Tuple[ConcreteType, Value]:
+      symbolic_bindings: Optional[SymbolicBindings]) -> Value:
     """Evaluates the user defined function fn as an invocation against args.
 
     Args:
@@ -1358,7 +1357,7 @@ class Interpreter(object):
           'Type error found at interpreter runtime! Result did not conform to annotated return type; '
           'want: {}; got: {} @ {}'.format(concrete_return_type, result, span))
 
-    return concrete_return_type, result
+    return result
 
   def _evaluate_fn(
       self,
@@ -1369,7 +1368,7 @@ class Interpreter(object):
       expr: Optional[ast.Invocation] = None,
       symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
 
-    ret_type, ret_val =  self._evaluate_fn_with_interpreter(fn, m, args, span, expr,
+    ret_val = self._evaluate_fn_with_interpreter(fn, m, args, span, expr,
                                               symbolic_bindings)
 
     ir_name = ir_name_mangler.mangle_dslx_name(
@@ -1383,7 +1382,7 @@ class Interpreter(object):
         ir_args = jit_helpers.convert_args_to_ir(args)
 
         jit_value = llvm_ir_jit.llvm_ir_jit_run(ir_function, ir_args)
-        jit_helpers.compare_return_values(ret_type, ret_val, jit_value)
+        jit_helpers.compare_values(ret_val, jit_value)
       except jit_helpers.UnsupportedConversionError as _:
         # Not all DSLX is convertable to IR/JIT
         pass
