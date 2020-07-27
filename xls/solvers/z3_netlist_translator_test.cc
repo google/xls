@@ -167,7 +167,8 @@ TEST(NetlistTranslatorTest_Standalone, BasicFunctionality) {
     Z3_del_config(config);
   });
   Module module("the_module");
-  CellLibrary cell_library = netlist::MakeFakeCellLibrary();
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibrary cell_library,
+                           netlist::MakeFakeCellLibrary());
   absl::BitGen bitgen;
   absl::flat_hash_map<std::string, Z3_ast> inputs =
       CreateInputs(ctx, kNumInputs);
@@ -192,7 +193,8 @@ TEST(NetlistTranslatorTest_Standalone, SimpleNet) {
 
   Module module("the_module");
 
-  CellLibrary cell_library = netlist::MakeFakeCellLibrary();
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibrary cell_library,
+                           netlist::MakeFakeCellLibrary());
   XLS_ASSERT_OK_AND_ASSIGN(const CellLibraryEntry* and_entry,
                            cell_library.GetEntry("AND"));
   absl::flat_hash_map<std::string, NetRef> param_assignments;
@@ -338,7 +340,8 @@ TEST(NetlistTranslatorTest_Standalone, HandlesSubmodules) {
     Z3_del_config(config);
   });
 
-  CellLibrary cell_library = netlist::MakeFakeCellLibrary();
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibrary cell_library,
+                           netlist::MakeFakeCellLibrary());
   XLS_ASSERT_OK_AND_ASSIGN(Module module_0,
                            CreateModule(cell_library, "m0", "AND", {}));
   XLS_ASSERT_OK_AND_ASSIGN(Module module_1,
@@ -391,7 +394,8 @@ class NetlistTranslatorTest : public ::testing::Test {
     }
   }
   absl::Status Init(const std::string& module_text) {
-    CellLibrary cell_library = netlist::MakeFakeCellLibrary();
+    XLS_ASSIGN_OR_RETURN(CellLibrary cell_library,
+                         netlist::MakeFakeCellLibrary());
     netlist::rtl::Scanner scanner(module_text);
     XLS_ASSIGN_OR_RETURN(
         netlist_, netlist::rtl::Parser::ParseNetlist(&cell_library, &scanner));

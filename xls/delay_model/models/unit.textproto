@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# proto-file: third_party/xls/delay_model/delay_model.proto
+# proto-file: xls/delay_model/delay_model.proto
 # proto-message: xls.delay_model.DelayModel
 
 # Dummy "unit" model for testing. All operations have unit latency (1ps).

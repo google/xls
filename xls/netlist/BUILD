@@ -42,9 +42,15 @@ cc_library(
     testonly = True,
     srcs = ["fake_cell_library.cc"],
     hdrs = ["fake_cell_library.h"],
+    data = [":fake_cell_library.textproto"],
     deps = [
         ":netlist",
+        ":netlist_cc_proto",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
         "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/common/status:statusor",
     ],
 )
 

@@ -31,7 +31,7 @@ namespace {
 TEST(NetlistParserTest, EmptyModule) {
   std::string netlist = R"(module main(); endmodule)";
   Scanner scanner(netlist);
-  CellLibrary cell_library = MakeFakeCellLibrary();
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibrary cell_library, MakeFakeCellLibrary());
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Netlist> n,
                            Parser::ParseNetlist(&cell_library, &scanner));
   XLS_ASSERT_OK_AND_ASSIGN(const Module* m, n->GetModule("main"));
@@ -45,7 +45,7 @@ module main();
   // This area left intentionally blank.
 endmodule)";
   Scanner scanner(netlist);
-  CellLibrary cell_library = MakeFakeCellLibrary();
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibrary cell_library, MakeFakeCellLibrary());
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Netlist> n,
                            Parser::ParseNetlist(&cell_library, &scanner));
   XLS_ASSERT_OK_AND_ASSIGN(const Module* m, n->GetModule("main"));
@@ -57,7 +57,7 @@ TEST(NetlistParserTest, WireMultiDecl) {
   wire foo, bar, baz;
 endmodule)";
   Scanner scanner(netlist);
-  CellLibrary cell_library = MakeFakeCellLibrary();
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibrary cell_library, MakeFakeCellLibrary());
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Netlist> n,
                            Parser::ParseNetlist(&cell_library, &scanner));
   XLS_ASSERT_OK_AND_ASSIGN(const Module* m, n->GetModule("main"));
@@ -77,7 +77,7 @@ TEST(NetlistParserTest, InverterModule) {
   INV inv_0(.A(a), .ZN(z));
 endmodule)";
   Scanner scanner(netlist);
-  CellLibrary cell_library = MakeFakeCellLibrary();
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibrary cell_library, MakeFakeCellLibrary());
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Netlist> n,
                            Parser::ParseNetlist(&cell_library, &scanner));
   XLS_ASSERT_OK_AND_ASSIGN(const Module* m, n->GetModule("main"));
@@ -99,7 +99,7 @@ TEST(NetlistParserTest, AOI21WithMultiBitInput) {
   AOI21 aoi21_0(.A(i[2]), .B(i[1]), .C(i[0]), .ZN(o));
 endmodule)";
   Scanner scanner(netlist);
-  CellLibrary cell_library = MakeFakeCellLibrary();
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibrary cell_library, MakeFakeCellLibrary());
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Netlist> n,
                            Parser::ParseNetlist(&cell_library, &scanner));
   XLS_ASSERT_OK_AND_ASSIGN(const Module* m, n->GetModule("main"));
@@ -138,8 +138,7 @@ TEST(NetlistParserTest, NumberFormats) {
 endmodule)";
 
   Scanner scanner(netlist);
-  CellLibrary cell_library = MakeFakeCellLibrary();
-
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibrary cell_library, MakeFakeCellLibrary());
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Netlist> n,
                            Parser::ParseNetlist(&cell_library, &scanner));
   XLS_ASSERT_OK_AND_ASSIGN(const Module* m, n->GetModule("main"));
@@ -169,7 +168,7 @@ endmodule)";
   for (const auto& test_case : test_cases) {
     std::string module_text = make_module(test_case.first);
     Scanner scanner(module_text);
-    CellLibrary cell_library = MakeFakeCellLibrary();
+    XLS_ASSERT_OK_AND_ASSIGN(CellLibrary cell_library, MakeFakeCellLibrary());
     XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Netlist> n,
                              Parser::ParseNetlist(&cell_library, &scanner));
     XLS_ASSERT_OK_AND_ASSIGN(const Module* m, n->GetModule("main"));
