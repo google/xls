@@ -1385,6 +1385,7 @@ class Interpreter(object):
         jit_helpers.compare_values(ret_val, jit_value)
       except jit_helpers.UnsupportedConversionError as _:
         # Not all DSLX is convertable to IR/JIT
+        print(fn)
         pass
 
 

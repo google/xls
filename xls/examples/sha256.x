@@ -138,6 +138,12 @@ test sha256_empty_payload {
              u32:0x7852b855), digest)
 }
 
+fn tester_main() {
+  let message = u8[3]:['a', 'b', 'c'];
+  let chunk = pad_to_512b_chunk(message as u24);
+  ()
+}
+
 test sha256_abc {
   let message = u8[3]:['a', 'b', 'c'];
   let chunk = pad_to_512b_chunk(message as u24);

@@ -29,6 +29,8 @@ from xls.dslx.concrete_type import EnumType
 from xls.dslx.concrete_type import TupleType
 from xls.dslx.interpreter import value as interpreter_value
 
+WORD_SIZE = 64
+
 class UnsupportedConversionError(Exception):
   pass
 
@@ -51,8 +53,6 @@ def convert_interpreter_value_to_ir(interpreter_value):
     print(interpreter_value.tag)
     raise UnsupportedConversionError
 
-
-
 def convert_args_to_ir(args):
   ir_args = []
   for arg in args:
@@ -60,34 +60,33 @@ def convert_args_to_ir(args):
 
   return ir_args
 
-def get_bits(jit_bits, signed=False):
-  if signed:
-    pass
-  else:
-    bit_count = jit_bits.bit_count()
-    bits_value = 0
-    word = 0
-    while (word * 64) < bit_count:
-      print(word, bit_count)
-      word_value = jit_bits.word_to_uint(word)
-      bits_value = (word_value << (word * 64)) | bits_value
-      word += 1
+def get_bits(jit_bits, signed):
+  bit_count = jit_bits.bit_count()
+  bits_value = 0
+  word_number = 0
+  while (word_number * 64) < bit_count:
+    word_value = jit_bits.word_to_uint(word_number)
+    bits_value = (word_value << (word_number * WORD_SIZE)) | bits_value
+    word_number += 1
 
-    return bits_value
+  return (bits_value if not signed
+          else bit_helpers.from_twos_complement(bits_value, bit_count))
 
 def compare_values(interpreter_value, jit_value):
   if interpreter_value.is_bits():
     assert jit_value.is_bits()
     jit_value = jit_value.get_bits()
+    bit_count = interpreter_value.get_bit_count()
+    assert bit_count == jit_value.bit_count()
     try:
       if interpreter_value.is_ubits():
-        bc = interpreter_value.get_bit_count()
         interpreter_bits_value = interpreter_value.get_bits_value()
-        jit_bits_value = jit_value.to_uint() if bc <= 64 else get_bits(jit_value, signed=False)
+        jit_bits_value = get_bits(jit_value, signed=False)
       else:
         interpreter_bits_value = interpreter_value.get_bits_value_signed()
-        jit_bits_value = jit_value.to_int()
+        jit_bits_value = get_bits(jit_value, signed=True)
     except RuntimeError as e:
+      print(e)
       raise UnsupportedConversionError
     assert interpreter_bits_value == jit_bits_value
 
@@ -95,10 +94,7 @@ def compare_values(interpreter_value, jit_value):
     assert jit_value.is_array()
     interpreter_values = interpreter_value.array_payload.elements
     jit_values = jit_value.get_elements()
-    if len(interpreter_values) != len(jit_values):
-      print("int", interpreter_values)
-      print("jit", jit_values)
-      assert False
+    assert len(interpreter_values) == len(jit_values)
     for interpreter_element, jit_element in zip(interpreter_values, jit_values):
       compare_values(interpreter_element, jit_element)
 
@@ -116,7 +112,7 @@ def compare_values(interpreter_value, jit_value):
 
 def int_to_bits(value: int, bit_count: int) -> bits_mod.Bits:
   """Converts a Python arbitrary precision int to a Bits type."""
-  if bit_count <= 64:
+  if bit_count <= WORD_SIZE:
     return bits_mod.UBits(value, bit_count) if value >= 0 else bits_mod.SBits(
         value, bit_count)
   return number_parser.bits_from_string(
