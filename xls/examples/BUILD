@@ -44,6 +44,8 @@ dslx_test(
     srcs = ["riscv_simple.x"],
     generate_benchmark = False,
     prove_unopt_eq_opt = False,
+    # TODO(hjmontero): run_instruction segfaults.
+    compare_jit = False,
 )
 
 dslx_test(

@@ -44,7 +44,8 @@ def parse_and_test(program: Text,
                    filename: Text,
                    raise_on_error: bool = True,
                    test_filter: Optional[Text] = None,
-                   trace_all: bool = False) -> bool:
+                   trace_all: bool = False,
+                   compare_jit: bool = True) -> bool:
   """Parses program and run all tests contained inside.
 
   Args:
@@ -74,12 +75,8 @@ def parse_and_test(program: Text,
     node_to_type = None
     node_to_type = typecheck.check_module(module, f_import)
 
-    ir_package = None
-    try:
-      ir_package = ir_converter.convert_module_to_package(module, node_to_type)
-    except Exception as _:
-      # Not all DSLX tests are IR-convertable
-      pass
+    ir_package = (ir_converter.convert_module_to_package(module, node_to_type)
+                  if compare_jit else None)
 
     interpreter = Interpreter(
         module, node_to_type, f_import, trace_all=trace_all,
@@ -103,7 +100,8 @@ def parse_and_test(program: Text,
 def parse_and_test_path(path: Text,
                         raise_on_error: bool = True,
                         test_filter: Optional[Text] = None,
-                        trace_all: bool = False) -> bool:
+                        trace_all: bool = False,
+                        compare_jit: bool = True) -> bool:
   """Wrapper around parse_and_test that reads the file contents at "path"."""
   with open(path) as f:
     text = f.read()
@@ -118,4 +116,5 @@ def parse_and_test_path(path: Text,
       raise_on_error=raise_on_error,
       test_filter=test_filter,
       trace_all=trace_all,
+      compare_jit=compare_jit
   )

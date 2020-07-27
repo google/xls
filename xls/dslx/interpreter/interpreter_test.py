@@ -33,13 +33,15 @@ from absl.testing import absltest
 
 class InterpreterTest(absltest.TestCase):
 
-  def _parse_and_test(self, program: Text, trace_all: bool = False) -> None:
+  def _parse_and_test(self, program: Text, trace_all: bool = False,
+                      compare_jit: bool = True) -> None:
     with ffu.Patcher() as patcher:
       filename = '/fake/test_module.x'
       patcher.fs.CreateFile(filename, contents=program)
       self.assertFalse(
           parse_and_interpret.parse_and_test(
-              program, 'test_module', trace_all=trace_all, filename=filename))
+              program, 'test_module', trace_all=trace_all, filename=filename,
+              compare_jit=compare_jit))
 
   def test_two_plus_two_module_test(self):
     program = textwrap.dedent("""\
@@ -344,7 +346,7 @@ class InterpreterTest(absltest.TestCase):
     """
     mock_stderr = io.StringIO()
     with mock.patch('sys.stderr', mock_stderr):
-      self._parse_and_test(program)
+      self._parse_and_test(program, compare_jit=False)
 
     self.assertIn('4:14-4:29: bits[32]:0x1', mock_stderr.getvalue())
     self.assertIn('4:14-4:29: bits[32]:0x2', mock_stderr.getvalue())
@@ -363,7 +365,7 @@ class InterpreterTest(absltest.TestCase):
       ()
     }
     """
-    self._parse_and_test(program)
+    self._parse_and_test(program, compare_jit=False)
 
   def test_array_literal_ellipsis(self):
     program = """
@@ -378,7 +380,7 @@ class InterpreterTest(absltest.TestCase):
       ()
     }
     """
-    self._parse_and_test(program)
+    self._parse_and_test(program, compare_jit=False)
 
   def test_destructure(self):
     program = """
@@ -500,7 +502,7 @@ class InterpreterTest(absltest.TestCase):
     # Capture stderr.
     old_stderr = sys.stderr
     sys.stderr = captured_stderr = io.StringIO()
-    self._parse_and_test(program, trace_all=True)
+    self._parse_and_test(program, trace_all=True, compare_jit=False)
     sys.stderr = old_stderr
 
     # Verify x0, x1, and x2 are traced.
