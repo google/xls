@@ -35,7 +35,7 @@ class UnsupportedConversionError(Exception):
   pass
 
 def convert_interpreter_value_to_ir(interpreter_value):
-  if interpreter_value.is_bits():
+  if interpreter_value.is_bits() or interpreter_value.is_enum():
     return ir_value.Value(
         int_to_bits(interpreter_value.get_bits_value_check_sign(),
                     interpreter_value.get_bit_count()))
@@ -50,7 +50,7 @@ def convert_interpreter_value_to_ir(interpreter_value):
       ir_tuple.append(convert_interpreter_value_to_ir(e))
     return ir_value.Value.make_tuple(ir_tuple)
   else:
-    print(interpreter_value.tag)
+    print("unsupported: ", interpreter_value.tag)
     raise UnsupportedConversionError
 
 def convert_args_to_ir(args):
@@ -73,21 +73,19 @@ def get_bits(jit_bits, signed):
           else bit_helpers.from_twos_complement(bits_value, bit_count))
 
 def compare_values(interpreter_value, jit_value):
-  if interpreter_value.is_bits():
+  if interpreter_value.is_bits() or interpreter_value.is_enum():
     assert jit_value.is_bits()
     jit_value = jit_value.get_bits()
     bit_count = interpreter_value.get_bit_count()
     assert bit_count == jit_value.bit_count()
-    try:
-      if interpreter_value.is_ubits():
-        interpreter_bits_value = interpreter_value.get_bits_value()
-        jit_bits_value = get_bits(jit_value, signed=False)
-      else:
-        interpreter_bits_value = interpreter_value.get_bits_value_signed()
-        jit_bits_value = get_bits(jit_value, signed=True)
-    except RuntimeError as e:
-      print(e)
-      raise UnsupportedConversionError
+
+    if interpreter_value.is_ubits():
+      interpreter_bits_value = interpreter_value.get_bits_value()
+      jit_bits_value = get_bits(jit_value, signed=False)
+    else:
+      interpreter_bits_value = interpreter_value.get_bits_value_signed()
+      jit_bits_value = get_bits(jit_value, signed=True)
+
     assert interpreter_bits_value == jit_bits_value
 
   elif interpreter_value.is_array():

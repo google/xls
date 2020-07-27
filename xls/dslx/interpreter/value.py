@@ -206,6 +206,9 @@ class Value:
   def is_sbits(self) -> bool:
     return self.tag == Tag.SBITS
 
+  def is_enum(self) -> bool:
+    return self.tag == Tag.ENUM
+
   def is_signed_enum(self) -> bool:
     return self.tag == Tag.ENUM and self.type_.get_signedness()
 
@@ -226,7 +229,8 @@ class Value:
   def get_bits_value_check_sign(self) -> int:
     if self.tag not in (Tag.UBITS, Tag.SBITS, Tag.ENUM):
       raise TypeError('Value is not "bits" or "enum" typed.')
-    return (self.get_bits_value_signed() if self.is_sbits()
+    return (self.get_bits_value_signed()
+            if self.is_sbits() or self.is_signed_enum()
             else self.get_bits_value())
 
   def get_bit_count(self) -> int:
