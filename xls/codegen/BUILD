@@ -360,6 +360,7 @@ cc_test(
     ]),
     shard_count = 10,
     deps = [
+        ":flattening",
         ":pipeline_generator",
         "//xls/common/status:matchers",
         "//xls/delay_model:delay_estimator",
