@@ -448,7 +448,7 @@ Invokes a fixed-trip count loop.
 **Syntax**
 
 ```
-result = counted_for(init, trip_count=<trip_count>, stride=<stride>, invariant_args=<inv_args>, body=<body>)
+result = counted_for(init, trip_count=<trip_count>, stride=<stride>, body=<body>, invariant_args=<inv_args>)
 ```
 
 **Types**
