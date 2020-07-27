@@ -28,6 +28,8 @@ std::string TypeKindToString(TypeKind type_kind) {
       return "bits";
     case TypeKind::kArray:
       return "array";
+    case TypeKind::kToken:
+      return "token";
   }
   return absl::StrFormat("<invalid TypeKind %d>", static_cast<int>(type_kind));
 }
@@ -113,6 +115,19 @@ bool ArrayType::IsEqualTo(const Type* other) const {
          element_type()->IsEqualTo(other_array->element_type());
 }
 
+TypeProto TokenType::ToProto() const {
+  TypeProto proto;
+  proto.set_type_enum(TypeProto::TOKEN);
+  return proto;
+}
+
+bool TokenType::IsEqualTo(const Type* other) const {
+  if (this == other) {
+    return true;
+  }
+  return other->IsToken();
+}
+
 std::ostream& operator<<(std::ostream& os, const Type& type) {
   os << type.ToString();
   return os;
@@ -138,6 +153,8 @@ std::string BitsType::ToString() const {
 std::string ArrayType::ToString() const {
   return absl::StrFormat("%s[%d]", element_type()->ToString(), size());
 }
+
+std::string TokenType::ToString() const { return absl::StrFormat("token"); }
 
 FunctionTypeProto FunctionType::ToProto() const {
   FunctionTypeProto proto;

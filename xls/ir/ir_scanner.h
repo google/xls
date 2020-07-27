@@ -26,7 +26,7 @@
 
 namespace xls {
 
-enum class TokenType {
+enum class LexicalTokenType {
   kIdent,
   kKeyword,
   kLiteral,
@@ -47,7 +47,7 @@ enum class TokenType {
   kEquals,
 };
 
-std::string TokenTypeToString(TokenType token_type);
+std::string LexicalTokenTypeToString(LexicalTokenType token_type);
 
 struct TokenPos {
   int64 lineno;
@@ -70,21 +70,23 @@ class Token {
   // string, and a token of kIdent type otherwise.
   static Token MakeIdentOrKeyword(absl::string_view value, int64 lineno,
                                   int64 colno) {
-    TokenType type =
-        GetKeywords().contains(value) ? TokenType::kKeyword : TokenType::kIdent;
+    LexicalTokenType type = GetKeywords().contains(value)
+                                ? LexicalTokenType::kKeyword
+                                : LexicalTokenType::kIdent;
     if (value == "true" || value == "false") {
-      type = TokenType::kLiteral;
+      type = LexicalTokenType::kLiteral;
     }
     return Token(type, value, lineno, colno);
   }
 
-  Token(TokenType type, int64 lineno, int64 colno)
+  Token(LexicalTokenType type, int64 lineno, int64 colno)
       : type_(type), pos_({lineno, colno}) {}
 
-  Token(TokenType type, absl::string_view value, int64 lineno, int64 colno)
+  Token(LexicalTokenType type, absl::string_view value, int64 lineno,
+        int64 colno)
       : type_(type), value_(value), pos_({lineno, colno}) {}
 
-  TokenType type() const { return type_; }
+  LexicalTokenType type() const { return type_; }
   const std::string& value() const { return value_; }
   const TokenPos& pos() const { return pos_; }
 
@@ -108,7 +110,7 @@ class Token {
   std::string ToString() const;
 
  private:
-  TokenType type_;
+  LexicalTokenType type_;
   std::string value_;
   TokenPos pos_;
 };
@@ -139,7 +141,7 @@ class Scanner {
   }
 
   // Helper that makes sure we don't peek past EOF.
-  bool PeekTokenIs(TokenType target) const {
+  bool PeekTokenIs(LexicalTokenType target) const {
     return !AtEof() && PeekTokenOrDie().type() == target;
   }
 
@@ -161,10 +163,11 @@ class Scanner {
   // returns true if it is possible to do so; otherwise, returns false.
   //
   // Note: This function is "EOF safe": trying to drop a token at EOF is ok.
-  bool TryDropToken(TokenType target);
+  bool TryDropToken(LexicalTokenType target);
 
   bool TryDropKeyword(absl::string_view which) {
-    if (PeekTokenIs(TokenType::kKeyword) && PeekTokenOrDie().value() == which) {
+    if (PeekTokenIs(LexicalTokenType::kKeyword) &&
+        PeekTokenOrDie().value() == which) {
       DropTokenOrDie();
       return true;
     }
@@ -173,12 +176,12 @@ class Scanner {
 
   // As with PopTokenOrError, but also supplies an error if the token is not of
   // type "target".
-  xabsl::StatusOr<Token> PopTokenOrError(TokenType target,
+  xabsl::StatusOr<Token> PopTokenOrError(LexicalTokenType target,
                                          absl::string_view context = "");
 
   // Wrapper around PopTokenOrError(target) above that can be used with
   // XLS_RETURN_IF_ERROR.
-  absl::Status DropTokenOrError(TokenType target,
+  absl::Status DropTokenOrError(LexicalTokenType target,
                                 absl::string_view context = "");
 
   // Pop a keyword token with keyword (payload) "keyword".
