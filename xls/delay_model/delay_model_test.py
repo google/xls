@@ -26,12 +26,12 @@ from absl.testing import absltest
 
 
 def _parse_data_point(s: Text) -> delay_model_pb2.DataPoint:
-  """Parses a pbtxt representation of a DataPoint."""
+  """Parses a text proto representation of a DataPoint."""
   return text_format.Parse(s, delay_model_pb2.DataPoint())
 
 
 def _parse_operation(s: Text) -> delay_model_pb2.Operation:
-  """Parses a pbtxt representation of an Operation."""
+  """Parses a text proto representation of an Operation."""
   return text_format.Parse(s, delay_model_pb2.Operation())
 
 

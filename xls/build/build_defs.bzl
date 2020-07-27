@@ -89,7 +89,7 @@ def _codegen(
                 codegen_params[flag_name],
             ))
     verilog_file = name + ".v"
-    module_sig_file = name + ".sig.pbtxt"
+    module_sig_file = name + ".sig.textproto"
     schedule_file = name + ".schedule.textproto"
     native.genrule(  # generated_file
         name = name,
