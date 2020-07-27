@@ -216,6 +216,8 @@ class Bits {
   xabsl::StatusOr<uint64> ToUint64() const;
   xabsl::StatusOr<int64> ToInt64() const;
 
+  xabsl::StatusOr<uint64> WordToUint64(int64 word_number) const;
+
   // Returns whether this "bits" object is identical to the other in both
   // bit_count() and held value.
   bool operator==(const Bits& other) const { return bitmap_ == other.bitmap_; }

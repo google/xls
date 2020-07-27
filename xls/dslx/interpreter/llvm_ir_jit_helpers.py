@@ -60,22 +60,37 @@ def convert_args_to_ir(args):
 
   return ir_args
 
+def get_bits(jit_bits, signed=False):
+  if signed:
+    pass
+  else:
+    bit_count = jit_bits.bit_count()
+    bits_value = 0
+    word = 0
+    while (word * 64) < bit_count:
+      print(word, bit_count)
+      word_value = jit_bits.word_to_uint(word)
+      bits_value = (word_value << (word * 64)) | bits_value
+      word += 1
+
+    return bits_value
+
 def compare_values(interpreter_value, jit_value):
   if interpreter_value.is_bits():
     assert jit_value.is_bits()
     jit_value = jit_value.get_bits()
     try:
       if interpreter_value.is_ubits():
+        bc = interpreter_value.get_bit_count()
         interpreter_bits_value = interpreter_value.get_bits_value()
-        jit_bits_value = jit_value.to_uint()
+        jit_bits_value = jit_value.to_uint() if bc <= 64 else get_bits(jit_value, signed=False)
       else:
         interpreter_bits_value = interpreter_value.get_bits_value_signed()
         jit_bits_value = jit_value.to_int()
     except RuntimeError as e:
-      print(e)
       raise UnsupportedConversionError
-
     assert interpreter_bits_value == jit_bits_value
+
   elif interpreter_value.is_array():
     assert jit_value.is_array()
     interpreter_values = interpreter_value.array_payload.elements
@@ -86,6 +101,7 @@ def compare_values(interpreter_value, jit_value):
       assert False
     for interpreter_element, jit_element in zip(interpreter_values, jit_values):
       compare_values(interpreter_element, jit_element)
+
   elif interpreter_value.is_tuple():
     assert jit_value.is_tuple()
     interpreter_values = interpreter_value.tuple_members
@@ -93,6 +109,7 @@ def compare_values(interpreter_value, jit_value):
     assert len(interpreter_values) == len(jit_values)
     for interpreter_element, jit_element in zip(interpreter_values, jit_values):
       compare_values(interpreter_element, jit_element)
+
   else:
     print("unsupported: ", interpreter_value.tag)
     raise UnsupportedConversionError

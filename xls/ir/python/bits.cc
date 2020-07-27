@@ -26,6 +26,7 @@ PYBIND11_MODULE(bits, m) {
       .def(py::init<int64>())
       .def("bit_count", &Bits::bit_count)
       .def("to_uint", &Bits::ToUint64)
+      .def("word_to_uint", &Bits::WordToUint64, py::arg("word_number") = 0)
       .def("to_int", &Bits::ToInt64);
 
   m.def("UBits", &UBitsWithStatus, py::arg("value"), py::arg("bit_count"));
