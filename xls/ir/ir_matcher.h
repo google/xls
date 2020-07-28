@@ -88,6 +88,7 @@ inline ::testing::Matcher<const ::xls::Node*> Type(const char* type_str) {
         new ::xls::op_matchers::NodeMatcher(::xls::Op::k##op, {operands...})); \
   }
 NODE_MATCHER(Add);
+NODE_MATCHER(AfterAll);
 NODE_MATCHER(And);
 NODE_MATCHER(AndReduce);
 NODE_MATCHER(Array);
