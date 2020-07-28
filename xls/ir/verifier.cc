@@ -70,6 +70,10 @@ class NodeChecker : public DfsVisitor {
     return ExpectAllSameBitsType(nor_op);
   }
 
+  absl::Status HandleAfterAll(AfterAll* after_all) override {
+    return absl::UnimplementedError("AfterAll not yet implemented");
+  }
+
   absl::Status HandleArray(Array* array) override {
     XLS_RETURN_IF_ERROR(ExpectHasArrayType(array));
     ArrayType* array_type = array->GetType()->AsArrayOrDie();

@@ -59,6 +59,7 @@ class Package {
   BitsType* GetBitsType(int64 bit_count);
   ArrayType* GetArrayType(int64 size, Type* element_type);
   TupleType* GetTupleType(absl::Span<Type* const> element_types);
+  TokenType* GetTokenType();
   FunctionType* GetFunctionType(absl::Span<Type* const> args_types,
                                 Type* return_type);
 
@@ -182,6 +183,9 @@ class Package {
   // Uses node_hash_map for pointer stability.
   using TypeVec = absl::InlinedVector<const Type*, 4>;
   StableMap<TypeVec, TupleType> tuple_types_;
+
+  // Owned token type.
+  TokenType token_type_;
 
   // Mapping from Type:ToString to the owned function type. Use
   // node_hash_map for pointer stability.

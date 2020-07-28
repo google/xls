@@ -31,7 +31,9 @@ constexpr char kMain[] = "main";
 
 Package::Package(absl::string_view name,
                  absl::optional<absl::string_view> entry)
-    : entry_(entry), name_(name) {}
+    : entry_(entry), name_(name) {
+  owned_types_.insert(&token_type_);
+}
 
 Package::~Package() {}
 
@@ -183,6 +185,8 @@ TupleType* Package::GetTupleType(absl::Span<Type* const> element_types) {
   owned_types_.insert(new_type);
   return new_type;
 }
+
+TokenType* Package::GetTokenType() { return &token_type_; }
 
 FunctionType* Package::GetFunctionType(absl::Span<Type* const> args_types,
                                        Type* return_type) {

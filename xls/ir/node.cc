@@ -96,6 +96,9 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
     case Op::kNor:
       XLS_RETURN_IF_ERROR(visitor->HandleNaryNor(down_cast<NaryOp*>(this)));
       break;
+    case Op::kAfterAll:
+      XLS_RETURN_IF_ERROR(visitor->HandleAfterAll(down_cast<AfterAll*>(this)));
+      break;
     case Op::kArray:
       XLS_RETURN_IF_ERROR(visitor->HandleArray(down_cast<Array*>(this)));
       break;

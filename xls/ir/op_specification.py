@@ -345,6 +345,13 @@ class Op(object):
     self.properties = properties
 
 # pyformat: disable
+OpClass.kinds['AFTER_ALL'] = OpClass(
+    name='AfterAll',
+    op='Op::kAfterAll',
+    operands=[OperandSpan('dependencies')],
+    xls_type_expression='function->package()->GetTokenType()',
+)
+
 OpClass.kinds['ARRAY'] = OpClass(
     name='Array',
     op='Op::kArray',
@@ -658,6 +665,13 @@ OPS = [
         op_class=OpClass.kinds['NARY_OP'],
         # Note: not associative, because of the inversion.
         properties=[Property.BITWISE,
+                    Property.COMMUTATIVE],
+    ),
+    Op(
+        enum_name='kAfterAll',
+        name='after_all',
+        op_class=OpClass.kinds['AFTER_ALL'],
+        properties=[Property.ASSOCIATIVE,
                     Property.COMMUTATIVE],
     ),
     Op(
