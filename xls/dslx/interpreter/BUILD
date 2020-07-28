@@ -169,6 +169,7 @@ py_library(
 	"//xls/ir/python:number_parser",
 	"//xls/ir/python:bits",
 	"//xls/ir/python:llvm_ir_jit",
+        "@com_google_absl_py//absl/logging",
     ],
 )
 py_library(

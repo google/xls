@@ -69,7 +69,7 @@ def get_callees(func: Union[ast.Function, ast.Test],
   """Traverses the definition of f to find callees.
 
   Args:
-    func: Function to inspect for calls.
+    func: Function/test construct to inspect for calls.
     m: Module that f resides in.
     imports: Mapping of modules imported by m.
     bindings: Bindings used in instantiation of f.
@@ -153,6 +153,7 @@ def _add_to_ready(ready: List[ConversionRecord],
 
   assert not _is_ready(ready, f, m, bindings)
 
+  # We don't convert the bodies of test constructs to IR
   if not isinstance(f, ast.Test):
     logging.vlog(3, 'Adding to ready sequence: %s', f.name.identifier)
     ready.append(ConversionRecord(f, m, bindings, callees=orig_callees))
@@ -160,14 +161,13 @@ def _add_to_ready(ready: List[ConversionRecord],
 
 def get_order(
     module: ast.Module, imports: Dict[ast.Import, ImportedInfo],
-    traverse_tests=True) -> List[ConversionRecord]:
+    traverse_tests=False) -> List[ConversionRecord]:
   """Returns (topological) order for functions to be converted to IR.
 
   Args:
     module: Module to convert the (non-parametric) functions for.
     imports: Transitive imports that are required by "module".
-    traverse_tests: Flag indicating whether or not DSLX test constructs should
-      be traversed.
+    traverse_tests: Whether to traverse DSLX test constructs
   """
   ready = []  # type: List[ConversionRecord]
 

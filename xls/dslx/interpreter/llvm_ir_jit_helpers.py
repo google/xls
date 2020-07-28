@@ -15,11 +15,14 @@
 # limitations under the License.
 """Helper utilities for asserting DSLX interpreter/LLVM IR JIT equivalence."""
 
-from typing import Tuple, Text, Optional, Dict
+from typing import Tuple, Text, Optional, Dict, List
+
+from absl import logging
+
 from xls.dslx import ast
 from xls.ir.python import llvm_ir_jit
 from xls.ir.python import value as ir_value
-from xls.ir.python import bits as bits_mod
+from xls.ir.python import bits as ir_bits
 from xls.ir.python import number_parser
 from xls.dslx import bit_helpers
 from xls.dslx.concrete_type import ArrayType
@@ -27,18 +30,24 @@ from xls.dslx.concrete_type import BitsType
 from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.concrete_type import EnumType
 from xls.dslx.concrete_type import TupleType
-from xls.dslx.interpreter import value as interpreter_value
+from xls.dslx.interpreter import value as dslx_value
 
-WORD_SIZE = 64
+WORD_SIZE = 64  # type: int
 
 class UnsupportedConversionError(Exception):
-  pass
+  """Raised when the JIT bindings throw an exception.
 
-def convert_interpreter_value_to_ir(interpreter_value):
+  This exception is caught in interpreter.evaluate_fn() and means
+  that the function in question isn't JIT convertable (yet).
+  """
+
+def convert_interpreter_value_to_ir(
+    interpreter_value: dslx_value.Value) -> ir_value.Value:
+  """Recursively translates a DSLX Value into an IR Value."""
   if interpreter_value.is_bits() or interpreter_value.is_enum():
     return ir_value.Value(
-        int_to_bits(interpreter_value.get_bits_value_check_sign(),
-                    interpreter_value.get_bit_count()))
+        _int_to_bits(interpreter_value.get_bits_value_check_sign(),
+                     interpreter_value.get_bit_count()))
   elif interpreter_value.is_array():
     ir_arr = []
     for e in interpreter_value.array_payload.elements:
@@ -50,17 +59,18 @@ def convert_interpreter_value_to_ir(interpreter_value):
       ir_tuple.append(convert_interpreter_value_to_ir(e))
     return ir_value.Value.make_tuple(ir_tuple)
   else:
-    print("unsupported: ", interpreter_value.tag)
+    logging.vlog(3, "Can't convert to JIT value: %s", interpreter_value)
     raise UnsupportedConversionError
 
-def convert_args_to_ir(args):
+def convert_args_to_ir(args: List[dslx_value.Value]) -> List[ir_value.Value]:
   ir_args = []
   for arg in args:
     ir_args.append(convert_interpreter_value_to_ir(arg))
 
   return ir_args
 
-def get_bits(jit_bits, signed):
+def get_bits(jit_bits: ir_bits.Bits, signed: bool) -> int:
+  """Constructs the complete ir bits value by reading in a word at a time."""
   bit_count = jit_bits.bit_count()
   bits_value = 0
   word_number = 0
@@ -72,9 +82,16 @@ def get_bits(jit_bits, signed):
   return (bits_value if not signed
           else bit_helpers.from_twos_complement(bits_value, bit_count))
 
-def compare_values(interpreter_value, jit_value):
+def compare_values(interpreter_value: dslx_value.Value,
+                   jit_value: ir_value.Value):
+  """Asserts equality between a DSLX Value and an IR Value.
+
+  Recursively traverses the values (for arrays/tuples) and makes assertions
+  about value and length properties.
+  """
   if interpreter_value.is_bits() or interpreter_value.is_enum():
     assert jit_value.is_bits()
+
     jit_value = jit_value.get_bits()
     bit_count = interpreter_value.get_bit_count()
     assert bit_count == jit_value.bit_count()
@@ -85,33 +102,36 @@ def compare_values(interpreter_value, jit_value):
     else:
       interpreter_bits_value = interpreter_value.get_bits_value_signed()
       jit_bits_value = get_bits(jit_value, signed=True)
-
     assert interpreter_bits_value == jit_bits_value
 
   elif interpreter_value.is_array():
     assert jit_value.is_array()
+
     interpreter_values = interpreter_value.array_payload.elements
     jit_values = jit_value.get_elements()
     assert len(interpreter_values) == len(jit_values)
+
     for interpreter_element, jit_element in zip(interpreter_values, jit_values):
       compare_values(interpreter_element, jit_element)
 
   elif interpreter_value.is_tuple():
     assert jit_value.is_tuple()
+
     interpreter_values = interpreter_value.tuple_members
     jit_values = jit_value.get_elements()
     assert len(interpreter_values) == len(jit_values)
+
     for interpreter_element, jit_element in zip(interpreter_values, jit_values):
       compare_values(interpreter_element, jit_element)
 
   else:
-    print("unsupported: ", interpreter_value.tag)
+    logging.vlog(3, "No JIT-supported type equivalent: %s", interpreter_value)
     raise UnsupportedConversionError
 
-def int_to_bits(value: int, bit_count: int) -> bits_mod.Bits:
+def _int_to_bits(value: int, bit_count: int) -> ir_bits.Bits:
   """Converts a Python arbitrary precision int to a Bits type."""
   if bit_count <= WORD_SIZE:
-    return bits_mod.UBits(value, bit_count) if value >= 0 else bits_mod.SBits(
+    return ir_bits.UBits(value, bit_count) if value >= 0 else ir_bits.SBits(
         value, bit_count)
   return number_parser.bits_from_string(
       bit_helpers.to_hex_string(value, bit_count), bit_count=bit_count)

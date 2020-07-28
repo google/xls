@@ -1367,30 +1367,36 @@ class Interpreter(object):
       span: Span,
       expr: Optional[ast.Invocation] = None,
       symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
+    """Wraps _eval_fn_with_interpreter() to compare with JIT execution.
 
-    ret_val = self._evaluate_fn_with_interpreter(fn, m, args, span, expr,
-                                              symbolic_bindings)
+    Unless this Interpreter was created with an ir_package, this does nothing
+    more than call _eval_fn_with_interpreter(). Otherwise, fn is executed with
+    the LLVM IR JIT and its return value is compared against the intepreted
+    value as a consistency check.
+    """
+
+    interpreter_value = self._evaluate_fn_with_interpreter(fn, m, args, span,
+                                                           expr,
+                                                           symbolic_bindings)
 
     ir_name = ir_name_mangler.mangle_dslx_name(
         fn.name.identifier, fn.get_free_parametric_keys(), m, symbolic_bindings)
 
-    # NOTE: not all functions are currently translated to IR (e.g. functions
-    # that are only called in test constructs.
-    if self._ir_package and ir_name in self._ir_package.get_function_names():
+    if self._ir_package:
       try:
+        # TODO(hjmontero): 2020-07-28 Cache JIT function so we don't have to
+        # create it every time. This requires us to figure out how to wrap
+        # LlvmIrJit::Create().
         ir_function = self._ir_package.get_function(ir_name)
         ir_args = jit_helpers.convert_args_to_ir(args)
 
         jit_value = llvm_ir_jit.llvm_ir_jit_run(ir_function, ir_args)
-        jit_helpers.compare_values(ret_val, jit_value)
+        jit_helpers.compare_values(interpreter_value, jit_value)
       except jit_helpers.UnsupportedConversionError as _:
-        # Not all DSLX is convertable to IR/JIT
-        print(fn)
+        # Not all DSLX is convertable to IR/JIT.
         pass
 
-
-
-    return ret_val
+    return interpreter_value
 
   def _do_import(self, subject: import_fn.ImportTokens,
                  span: Span) -> ast.Module:

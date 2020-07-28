@@ -1099,20 +1099,24 @@ def _convert_one_function(package: ir_package.Package,
 def convert_module_to_package(
     module: ast.Module,
     node_to_type: deduce.NodeToType,
-    emit_positions: bool = True) -> ir_package.Package:
+    emit_positions: bool = True,
+    traverse_tests: bool = False) -> ir_package.Package:
   """Converts the contents of a module to IR form.
 
   Args:
     module: Module to convert.
     node_to_type: Concrete type information used in conversion.
     emit_positions: Whether to emit positional metadata into the output IR.
+    traverse_tests: Whether to convert functions called in DSLX test constructs.
+      NOTE: This does NOT convert the test constructs themselves.
 
   Returns:
     The IR package that corresponds to this module.
   """
   emitted = []  # type: List[Text]
   package = ir_package.Package(module.name)
-  order = extract_conversion_order.get_order(module, node_to_type.get_imports())
+  order = extract_conversion_order.get_order(module, node_to_type.get_imports(),
+                                             traverse_tests)
   logging.vlog(3, 'Convert order: %s', pprint.pformat(order))
   for record in order:
     emitted.append(

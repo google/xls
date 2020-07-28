@@ -57,6 +57,8 @@ def parse_and_test(program: Text,
     test_filter: Test filter specification (e.g. as passed from bazel test
       environment).
     trace_all: Whether or not to trace all expressions.
+    compare_jit: Whether or not to assert equality between interpreted and
+      JIT'd function return values.
 
   Returns:
     Whether or not an error occurred during parsing/testing.
@@ -75,7 +77,8 @@ def parse_and_test(program: Text,
     node_to_type = None
     node_to_type = typecheck.check_module(module, f_import)
 
-    ir_package = (ir_converter.convert_module_to_package(module, node_to_type)
+    ir_package = (ir_converter.convert_module_to_package(module, node_to_type,
+                                                         traverse_tests=True)
                   if compare_jit else None)
 
     interpreter = Interpreter(
