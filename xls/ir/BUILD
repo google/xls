@@ -122,14 +122,20 @@ cc_library(
     ],
 )
 
+cc_proto_library(
+    name = "op_cc_proto",
+    deps = [":op_proto"],
+)
+
 proto_library(
     name = "op_proto",
     srcs = ["op.proto"],
 )
 
-cc_proto_library(
-    name = "op_cc_proto",
-    deps = [":op_proto"],
+xls_py_proto_library(
+    name = "op_py_pb2",
+    srcs = ["op.proto"],
+    internal_deps = [":op_proto"],
 )
 
 cc_library(

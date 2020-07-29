@@ -111,32 +111,24 @@ fn main(op1: bits[3], op2: bits[17]) -> bits[17][4] {
           operand_types=('bits[123]', 'bits[17]'))
 
   def test_8_bit_add_verilog(self):
-    verilog_text = opgen.generate_verilog_module(
-        'add_module',
-        'add',
-        output_type='bits[8]',
-        operand_types=('bits[8]', 'bits[8]')).verilog_text
+    ir_text = opgen.generate_ir_package(
+        'add', output_type='bits[8]', operand_types=('bits[8]', 'bits[8]'))
+    verilog_text = opgen.generate_verilog_module('add_module',
+                                                 ir_text).verilog_text
     self.assertIn('module add_module', verilog_text)
     self.assertIn('p0_op0 + p0_op1', verilog_text)
 
   def test_parallel_add_verilog(self):
-    modules = (
-        opgen.generate_verilog_module(
-            'add8_module',
-            'add',
-            output_type='bits[8]',
-            operand_types=('bits[8]', 'bits[8]')),
-        opgen.generate_verilog_module(
-            'add16_module',
-            'add',
-            output_type='bits[16]',
-            operand_types=('bits[16]', 'bits[16]')),
-        opgen.generate_verilog_module(
-            'add24_module',
-            'add',
-            output_type='bits[24]',
-            operand_types=('bits[24]', 'bits[24]')),
-    )
+    add8_ir = opgen.generate_ir_package(
+        'add', output_type='bits[8]', operand_types=('bits[8]', 'bits[8]'))
+    add16_ir = opgen.generate_ir_package(
+        'add', output_type='bits[16]', operand_types=('bits[16]', 'bits[16]'))
+    add24_ir = opgen.generate_ir_package(
+        'add', output_type='bits[24]', operand_types=('bits[24]', 'bits[24]'))
+
+    modules = (opgen.generate_verilog_module('add8_module', add8_ir),
+               opgen.generate_verilog_module('add16_module', add16_ir),
+               opgen.generate_verilog_module('add24_module', add24_ir))
     parallel_module = opgen.generate_parallel_module(modules, 'foo')
     self.assertEqual(
         parallel_module,

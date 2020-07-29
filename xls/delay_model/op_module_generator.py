@@ -127,11 +127,7 @@ def generate_ir_package(op: str,
 
 def generate_verilog_module(
     module_name: str,
-    op: str,
-    output_type: str,
-    operand_types: Sequence[str],
-    attributes: Sequence[Tuple[str, str]] = (),
-    literal_operand: Optional[int] = None
+    ir_text: str,
 ) -> module_signature_mod.ModuleGeneratorResult:
   """Generates a verilog module with the given properties.
 
@@ -139,22 +135,11 @@ def generate_verilog_module(
 
   Arguments:
     module_name: The name of the generated Verilog module.
-    op: The op of the operation. For example: "add".
-    output_type: The type of the output of the operation. For example:
-      "bits[32]".
-    operand_types: The types of the output of the operation. For example:
-      ("bits[32]", "bits[16]").
-    attributes: Attributes to include in the operation mnemonic. For example,
-      "new_bit_count" in extend operatoins.
-    literal_operand: Optionally specifies that the given operand number should
-      be substituted with a randomly generated literal instead of a function
-      parameter.
+    ir_text: The XLS IR from which to generate Verilog.
 
   Returns:
-    The module signature and text of the Verilog module.
+    The module signature and Verilog text (as ModuleGeneratorResult).
   """
-  ir_text = generate_ir_package(op, output_type, operand_types, attributes,
-                                literal_operand)
   package = ir_parser_mod.Parser.parse_package(ir_text)
   module_generator_result = pipeline_generator_mod.generate_pipelined_module_with_n_stages(
       package, 1, module_name)
