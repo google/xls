@@ -1136,8 +1136,9 @@ class Parser(token_parser.TokenParser):
     bindings.add(name_def.identifier, import_)
     return import_
 
-  def parse_test(self, outer_bindings: Bindings) -> ast.Test:
-    self._drop_keyword_or_error(Keyword.TEST)
+  def parse_test(self, outer_bindings: Bindings, directive=False) -> ast.Test:
+    if not directive:
+      self._drop_keyword_or_error(Keyword.TEST)
     fake_bindings = Bindings()
     name_def = self._parse_name_def(fake_bindings)
     bindings = Bindings(outer_bindings)
@@ -1171,14 +1172,7 @@ class Parser(token_parser.TokenParser):
     bindings.add(name_def.identifier, result)
     return result
 
-  def _parse_directive(self) -> None:
-    self._dropt_or_error(TokenKind.HASH)
-    self._dropt_or_error(TokenKind.BANG)
-    self._dropt_or_error(TokenKind.OBRACK)
-    identifier = self._popt_or_error(TokenKind.IDENTIFIER)
-    if identifier.value != 'cfg':
-      raise ParseError(identifier.span,
-                       'Unknown directive: {!r}'.format(identifier.value))
+  def _parse_config(self, directive_span: Span) -> None:
     self._dropt_or_error(TokenKind.OPAREN)
     config_name = self._popt_or_error(TokenKind.IDENTIFIER)
     self._dropt_or_error(TokenKind.EQUALS)
@@ -1194,11 +1188,27 @@ class Parser(token_parser.TokenParser):
           let_terminator_is_semi=config_value.value == Keyword.TRUE)
     else:
       raise ParseError(
-          identifier.span,
+          directive_span,
           'Unknown configuration key in directive: {!r}'.format(
               config_name.value))
     self._dropt_or_error(TokenKind.CPAREN)
-    self._dropt_or_error(TokenKind.CBRACK)
+
+  def _parse_directive(self, bindings: Bindings) -> Optional[ast.Test]:
+    self._dropt_or_error(TokenKind.HASH)
+    self._dropt_or_error(TokenKind.BANG)
+    self._dropt_or_error(TokenKind.OBRACK)
+    identifier = self._popt_or_error(TokenKind.IDENTIFIER)
+    node = None
+    if identifier.value == 'cfg':
+      self._parse_config(identifier.span)
+      self._dropt_or_error(TokenKind.CBRACK)
+    elif identifier.value == 'unittest':
+      self._dropt_or_error(TokenKind.CBRACK)
+      node = self.parse_test(bindings, directive=True)
+    else:
+      raise ParseError(identifier.span,
+                       'Unknown directive: {!r}'.format(identifier.value))
+    return node
 
   def parse_module(self,
                    name: Text,
@@ -1260,7 +1270,9 @@ class Parser(token_parser.TokenParser):
               Span(self._get_pos(), self._get_pos()),
               'Expect function or struct after "pub" keyword.')
       elif self._peekt_is(TokenKind.HASH):
-        self._parse_directive()
+        test_node = self._parse_directive(bindings)
+        if test_node:
+          top.append(test_node)
       elif self._peekt_is_keyword(Keyword.FN):
         parse_function(public=False)
       elif self._peekt_is_keyword(Keyword.TEST):
