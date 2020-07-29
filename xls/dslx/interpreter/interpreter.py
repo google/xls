@@ -35,7 +35,7 @@ from xls.dslx import ir_name_mangler
 from xls.dslx import deduce
 from xls.dslx import import_fn
 from xls.ir.python import llvm_ir_jit
-from xls.dslx.interpreter import llvm_ir_jit_helpers as jit_helpers
+from xls.dslx.interpreter import jit_comparison
 from xls.dslx.concrete_type import ArrayType
 from xls.dslx.concrete_type import BitsType
 from xls.dslx.concrete_type import ConcreteType
@@ -1388,11 +1388,11 @@ class Interpreter(object):
         # create it every time. This requires us to figure out how to wrap
         # LlvmIrJit::Create().
         ir_function = self._ir_package.get_function(ir_name)
-        ir_args = jit_helpers.convert_args_to_ir(args)
+        ir_args = jit_comparison.convert_args_to_ir(args)
 
         jit_value = llvm_ir_jit.llvm_ir_jit_run(ir_function, ir_args)
-        jit_helpers.compare_values(interpreter_value, jit_value)
-      except jit_helpers.UnsupportedConversionError as _:
+        jit_comparison.compare_values(interpreter_value, jit_value)
+      except jit_comparison.UnsupportedConversionError as _:
         # Not all DSLX is convertable to IR/JIT.
         pass
 
