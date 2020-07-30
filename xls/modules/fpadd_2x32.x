@@ -12,7 +12,7 @@ type F32 = float32::F32;
 
 fn fpadd_2x32(x: F32, y: F32) -> F32 {
   // Step 1: align the significands.
-  //  - Bit widths: Base significant: u23.
+  //  - Bit widths: Base significand: u23.
   //  - Add the implied/leading 1 bit: u23 -> u24
   //  - Add a sign bit: u24 -> u25
   let wide_x = ((x.sfd as u28) | u28:0x800000) << u28:3 in
