@@ -1485,6 +1485,9 @@ class Interpreter(object):
         b.add_mod(member.identifier, imported_module)
     return b
 
+  def run_quickcheck(self, quickcheck: ast.QuickCheck) -> None:
+    pass
+
   def run_test(self, name: Text) -> None:
     bindings = self._make_top_level_bindings(self._module)
     test = self._module.get_test(name)
