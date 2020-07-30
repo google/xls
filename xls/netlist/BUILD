@@ -19,6 +19,8 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
+exports_files(["fake_cell_library.textproto"])
+
 cc_library(
     name = "netlist",
     srcs = ["netlist.cc"],

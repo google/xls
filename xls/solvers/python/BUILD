@@ -16,47 +16,37 @@
 load("//dependency_support/pybind11:pybind11.bzl", "xls_pybind_extension")
 
 package(
-    default_visibility = ["//xls:xls_internal"],
+    default_visibility = ["//visibility:private"],
     licenses = ["notice"],  # Apache 2.0
 )
 
 xls_pybind_extension(
-    name = "module_signature",
-    srcs = ["module_signature.cc"],
+    name = "z3_lec",
+    srcs = ["z3_lec.cc"],
     deps = [
-        "//xls/codegen:module_signature",
-    ],
-)
-
-xls_pybind_extension(
-    name = "pipeline_generator",
-    srcs = ["pipeline_generator.cc"],
-    py_deps = [
-        ":module_signature",  # build_cleaner: keep
-        "//xls/ir/python:package",  # build_cleaner: keep
-    ],
-    deps = [
-        "//xls/codegen:module_signature",
-        "//xls/codegen:pipeline_generator",
+        "//xls/common/file:filesystem",
         "//xls/common/python:absl_casters",
-        "//xls/common/status:statusor",
         "//xls/common/status:statusor_pybind_caster",
-        "//xls/delay_model:delay_estimators",
-        "//xls/ir",
-        "//xls/ir/python:wrapper_types",
-        "//xls/scheduling:pipeline_schedule",
+        "//xls/ir:bits",
+        "//xls/ir:ir_parser",
+        "//xls/netlist",
+        "//xls/netlist:cell_library",
+        "//xls/netlist:netlist_cc_proto",
+        "//xls/netlist:netlist_parser",
+        "//xls/solvers:z3_lec",
+        "@com_google_protobuf//:protobuf",
     ],
 )
 
 py_test(
-    name = "pipeline_generator_test",
-    srcs = ["pipeline_generator_test.py"],
+    name = "z3_lec_test",
+    srcs = ["z3_lec_test.py"],
+    data = ["//xls/netlist:fake_cell_library.textproto"],
     python_version = "PY3",
     deps = [
-        ":pipeline_generator",
+        ":z3_lec",
         "@com_google_absl_py//absl/testing:absltest",
+        "//xls/common:runfiles",
         "//xls/common/python:init_xls",
-        "//xls/ir/python:function_builder",
-        "//xls/ir/python:package",
     ],
 )

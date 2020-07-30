@@ -22,7 +22,6 @@ cc_test(
     srcs = ["basic_ir_ops_test.cc"],
     shard_count = 2,
     deps = [
-        "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/strings",
         "//xls/common/logging",
         "//xls/common/status:matchers",
@@ -31,6 +30,7 @@ cc_test(
         "//xls/ir:bits_ops",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -38,9 +38,9 @@ cc_test(
     name = "ir_types_test",
     srcs = ["ir_types_test.cc"],
     deps = [
-        "@com_google_googletest//:gtest_main",
         "//xls/ir",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -49,7 +49,6 @@ cc_test(
     srcs = ["dslx_optimization_test.cc"],
     data = ["//xls/dslx:ir_converter_main"],
     deps = [
-        "@com_google_googletest//:gtest_main",
         "//xls/common:subprocess",
         "//xls/common/file:get_runfile_path",
         "//xls/common/file:temp_file",
@@ -59,5 +58,6 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
         "//xls/passes:standard_pipeline",
+        "@com_google_googletest//:gtest_main",
     ],
 )

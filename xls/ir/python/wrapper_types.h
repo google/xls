@@ -156,7 +156,7 @@ class BValueHolder : public PyHolder {
 
 // Wrapper for FunctionBuilder objects.
 //
-// A FunctionBuilder has unowned pointers to the beloning package. To keep the
+// A FunctionBuilder has unowned pointers to the belonging package. To keep the
 // Package alive for as long as the Python reference exists, it is held by
 // shared_ptr here. Furthermore, since FunctionBuilder can be referred to by
 // other BValue objects, it itself is kept in a shared_ptr too.
