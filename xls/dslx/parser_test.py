@@ -59,7 +59,7 @@ class ParserTest(absltest.TestCase):
         len(sequence),)
 
   def parse_function(self, program, bindings=None):
-    fparse = lambda p, b: p.parse_function(public=False, outer_bindings=b)
+    fparse = lambda p, b: p._parse_function(public=False, outer_bindings=b)
     return self._parse_internal(program, bindings, fparse)
 
   def parse_proc(self, program, bindings=None):

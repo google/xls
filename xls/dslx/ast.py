@@ -47,6 +47,7 @@ from xls.dslx.leaf_ast_nodes import Constant
 from xls.dslx.leaf_ast_nodes import ConstantArray
 from xls.dslx.leaf_ast_nodes import For
 from xls.dslx.leaf_ast_nodes import Function
+from xls.dslx.leaf_ast_nodes import QuickCheck
 from xls.dslx.leaf_ast_nodes import Index
 from xls.dslx.leaf_ast_nodes import Invocation
 from xls.dslx.leaf_ast_nodes import Let

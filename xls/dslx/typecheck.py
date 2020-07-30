@@ -33,6 +33,7 @@ from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.concrete_type import FunctionType
 from xls.dslx.interpreter.interpreter_helpers import interpret_expr
 from xls.dslx.xls_type_error import XlsTypeError
+from xls.dslx.span import PositionalError
 
 
 def _check_function_params(f: Function,
@@ -426,8 +427,26 @@ def _check_module_helper(module: Module,
     elif isinstance(member, (ast.Constant, ast.Enum, ast.Struct, ast.TypeDef)):
       deduce.deduce(member, ctx)
     else:
-      assert isinstance(member, (ast.Function, ast.Test)), member
+      assert isinstance(member,
+                        (ast.Function, ast.Test, ast.QuickCheck)), member
   ctx.fn_stack.pop()
+
+  quickcheck_map = {qc.f.name.identifier: qc
+                    for qc in ctx.module.get_quickchecks()}
+  for qc in quickcheck_map.values():
+    assert isinstance(qc, ast.QuickCheck), qc
+
+    f = qc.f
+    assert isinstance(f, ast.Function), f
+    if f.is_parametric():
+      print(f.span)
+      raise PositionalError("Quickchecking parametric "
+                            "functions is unsupported.", f.span)
+
+    logging.vlog(2, 'Typechecking function: %s', f)
+    ctx.fn_stack.append((f.name.identifier, dict()))  # No symbolic bindings
+    check_function_or_test_in_module(f, ctx)
+    logging.vlog(2, 'Finished typechecking function: %s', f)
 
   function_map = {f.name.identifier: f for f in ctx.module.get_functions()}
   for f in function_map.values():

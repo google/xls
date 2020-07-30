@@ -1070,7 +1070,7 @@ class Parser(token_parser.TokenParser):
         Span(start_pos, self._get_pos()), name_def, proc_params, iter_params,
         body, public)
 
-  def parse_function(self, public: bool,
+  def _parse_function(self, public: bool,
                      outer_bindings: Bindings) -> ast.Function:
     """Parses a function out of the token stream.
 
@@ -1193,7 +1193,10 @@ class Parser(token_parser.TokenParser):
               config_name.value))
     self._dropt_or_error(TokenKind.CPAREN)
 
-  def _parse_directive(self, bindings: Bindings) -> Optional[ast.Test]:
+  def _parse_directive(
+      self,
+      function_name_to_node: Dict[Text, ast.Function],
+      bindings: Bindings) -> Union[ast.Test, ast.QuickCheck, None]:
     self._dropt_or_error(TokenKind.HASH)
     self._dropt_or_error(TokenKind.BANG)
     self._dropt_or_error(TokenKind.OBRACK)
@@ -1204,11 +1207,34 @@ class Parser(token_parser.TokenParser):
       self._dropt_or_error(TokenKind.CBRACK)
     elif identifier.value == 'unittest':
       self._dropt_or_error(TokenKind.CBRACK)
+      self._peekt()  # HACK: Move pos forward for accurate span.
       node = self.parse_test(bindings, directive=True)
+    elif identifier.value == 'quickcheck':
+      self._dropt_or_error(TokenKind.CBRACK)
+      self._peekt()
+      fn = self.parse_function(function_name_to_node, bindings, public=False)
+      node = ast.QuickCheck(fn.span, fn)
     else:
       raise ParseError(identifier.span,
                        'Unknown directive: {!r}'.format(identifier.value))
     return node
+
+  def parse_function(self,
+                     function_name_to_node: Dict[Text, ast.Function],
+                     bindings: Bindings,
+                     public: bool) -> ast.Function:
+      """Parses function w/given "public" visibility."""
+      # Need this because pytype gets confused about whether it can be none.
+      assert isinstance(bindings, Bindings), bindings
+      f = self._parse_function(public, bindings)
+      prior_node = function_name_to_node.get(f.identifier, None)
+      if prior_node:
+        raise ParseError(
+            f.name.span,
+            'Function {!r} is defined in this package multiple times;'
+            'previously @ {}'.format(f.identifier, prior_node.name.span))
+      function_name_to_node[f.identifier] = f
+      return f
 
   def parse_module(self,
                    name: Text,
@@ -1239,26 +1265,14 @@ class Parser(token_parser.TokenParser):
 
     function_name_to_node = {}  # type: Dict[Text, ast.Function]
 
-    def parse_function(public: bool) -> None:
-      """Parses function w/given "public" visibility and appends it to top."""
-      # Need this because pytype gets confused about whether it can be none.
-      assert isinstance(bindings, Bindings), bindings
-      f = self.parse_function(public, bindings)
-      prior_node = function_name_to_node.get(f.identifier, None)
-      if prior_node:
-        raise ParseError(
-            f.name.span,
-            'Function {!r} is defined in this package multiple times;'
-            'previously @ {}'.format(f.identifier, prior_node.name.span))
-      function_name_to_node[f.identifier] = f
-      top.append(f)
 
     while not self._at_eof():
       if self._peekt_is(TokenKind.EOF):
         break
       elif self._try_pop_keyword(Keyword.PUB):
         if self._peekt_is_keyword(Keyword.FN):
-          parse_function(public=True)
+          top.append(self.parse_function(function_name_to_node,
+                                         bindings, public=True))
         elif self._peekt_is_keyword(Keyword.STRUCT):
           top.append(self._parse_struct(True, bindings))
         elif self._peekt_is_keyword(Keyword.ENUM):
@@ -1270,11 +1284,13 @@ class Parser(token_parser.TokenParser):
               Span(self._get_pos(), self._get_pos()),
               'Expect function or struct after "pub" keyword.')
       elif self._peekt_is(TokenKind.HASH):
-        test_node = self._parse_directive(bindings)
-        if test_node:
-          top.append(test_node)
+        quickcheck_or_test = self._parse_directive(function_name_to_node,
+                                                   bindings)
+        if quickcheck_or_test:
+          top.append(quickcheck_or_test)
       elif self._peekt_is_keyword(Keyword.FN):
-        parse_function(public=False)
+        top.append(self.parse_function(function_name_to_node,
+                                       bindings, public=False))
       elif self._peekt_is_keyword(Keyword.TEST):
         top.append(self.parse_test(bindings))
       elif self._peekt_is_keyword(Keyword.IMPORT):

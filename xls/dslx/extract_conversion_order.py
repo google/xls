@@ -176,6 +176,13 @@ def get_order(module: ast.Module,
 
   # Functions in the module should become ready in dependency order (they
   # referred to each other's names).
+
+  for quickcheck in module.get_quickchecks():
+    function = quickcheck.f
+    assert not function.is_parametric()
+
+    _add_to_ready(ready, imports, function, module, bindings=())
+
   for function in module.get_functions():
     if function.is_parametric():
       continue
