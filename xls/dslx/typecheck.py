@@ -439,13 +439,21 @@ def _check_module_helper(module: Module,
     f = qc.f
     assert isinstance(f, ast.Function), f
     if f.is_parametric():
-      print(f.span)
       raise PositionalError("Quickchecking parametric "
                             "functions is unsupported.", f.span)
 
     logging.vlog(2, 'Typechecking function: %s', f)
     ctx.fn_stack.append((f.name.identifier, dict()))  # No symbolic bindings
     check_function_or_test_in_module(f, ctx)
+
+    quickcheck_f_body_type = ctx.node_to_type[f.body]
+    if quickcheck_f_body_type != ConcreteType.U1:
+      raise XlsTypeError(
+        f.span,
+        quickcheck_f_body_type,
+        ConcreteType.U1,
+        suffix='QuickCheck functions must return a bool.')
+
     logging.vlog(2, 'Finished typechecking function: %s', f)
 
   function_map = {f.name.identifier: f for f in ctx.module.get_functions()}

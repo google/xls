@@ -1486,7 +1486,15 @@ class Interpreter(object):
     return b
 
   def run_quickcheck(self, quickcheck: ast.QuickCheck) -> None:
-    pass
+    assert self._ir_package
+    fn = quickcheck.f
+    ir_name = ir_name_mangler.mangle_dslx_name(
+        fn.name.identifier, fn.get_free_parametric_keys(), self._module, ())
+
+    ir_function = self._ir_package.get_function(ir_name)
+    ir_results = llvm_ir_jit.quickcheck_jit(ir_function)
+    dslx_results = [r.get_bits().to_uint() for r in ir_results]
+    print(dslx_results)
 
   def run_test(self, name: Text) -> None:
     bindings = self._make_top_level_bindings(self._module)

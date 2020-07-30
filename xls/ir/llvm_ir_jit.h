@@ -120,6 +120,7 @@ class LlvmIrJit {
 xabsl::StatusOr<Value> CreateAndRun(Function* xls_function,
                                     absl::Span<const Value> args);
 
+xabsl::StatusOr<std::vector<Value>> CreateandQuickCheck(Function *xls_function);
 }  // namespace xls
 
 #endif  // XLS_IR_LLVM_IR_JIT_H_
