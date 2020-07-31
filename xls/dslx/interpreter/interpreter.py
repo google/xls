@@ -1495,16 +1495,11 @@ class Interpreter(object):
     argsets, results = llvm_ir_jit.quickcheck_jit(ir_function)
     last_result = results[-1].get_bits().to_uint()
     if not last_result:
-      raise FailureError(fn.span, f"Found falsifying example after {len(results)} tests: {argsets[-1][0].get_bits().to_uint()}")
-    # unique_args = set()
-    # for args, result in zip(argsets, results):
-    #    converted_args = [arg.get_bits().to_uint() for arg in args]
-    #    unique_args |= set(converted_args)
-    #    converted_result = result.get_bits().to_uint()
-    #    print(f"{converted_args} -> {converted_result}")
-    # dslx_results = [r.get_bits().to_uint() for r in ir_results]
-    # # print(len(ir_results))
-    # print(len(unique_args))
+      last_argset = argsets[-1]
+      dslx_argset = []
+      for arg, arg_type in zip(last_argset, self._node_to_type[fn].params):
+        dslx_argset.append(str(jit_comparison.ir_value_to_interpreter_value(arg, arg_type)))
+      raise FailureError(fn.span, f"Found falsifying example after {len(results)} tests: {dslx_argset}")
 
   def run_test(self, name: Text) -> None:
     bindings = self._make_top_level_bindings(self._module)

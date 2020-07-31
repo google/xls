@@ -136,6 +136,24 @@ def compare_values(interpreter_value: dslx_value.Value,
     logging.vlog(3, "No JIT-supported type equivalent: %s", interpreter_value)
     raise UnsupportedConversionError
 
+def ir_value_to_interpreter_value(value: ir_value.Value, dslx_type: ConcreteType=None) -> dslx_value.Value:
+  """Converts an IR Value to an interpreter Value."""
+  if value.is_bits():
+    assert isinstance(dslx_type, BitsType)
+    ir_bits = value.get_bits()
+    if dslx_type.get_signedness():
+      return dslx_value.Value.make_sbits(ir_bits.bit_count(), get_bits(ir_bits,
+                                                            signed=True))
+    return dslx_value.Value.make_ubits(ir_bits.bit_count(), get_bits(ir_bits,
+                                                          signed=False))
+  elif value.is_array():
+    return dslx_value.Value.make_array(
+        tuple(ir_value_to_interpreter_value(e, dslx_type.element_type) for e in value.get_elements()))
+  else:
+    assert value.is_tuple()
+    tuple_types = [t if not isinstance(t, tuple) else t[1] for t in dslx_type._members]
+    return dslx_value.Value.make_tuple(
+        tuple(ir_value_to_interpreter_value(e, t) for e, t in zip(value.get_elements(), tuple_types)))
 
 def int_to_bits(value: int, bit_count: int) -> ir_bits.Bits:
   """Converts a Python arbitrary precision int to a Bits type."""
