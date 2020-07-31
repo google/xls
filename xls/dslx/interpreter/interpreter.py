@@ -1492,9 +1492,19 @@ class Interpreter(object):
         fn.name.identifier, fn.get_free_parametric_keys(), self._module, ())
 
     ir_function = self._ir_package.get_function(ir_name)
-    ir_results = llvm_ir_jit.quickcheck_jit(ir_function)
-    dslx_results = [r.get_bits().to_uint() for r in ir_results]
-    print(dslx_results)
+    argsets, results = llvm_ir_jit.quickcheck_jit(ir_function)
+    last_result = results[-1].get_bits().to_uint()
+    if not last_result:
+      raise FailureError(fn.span, f"Found falsifying example after {len(results)} tests: {argsets[-1][0].get_bits().to_uint()}")
+    # unique_args = set()
+    # for args, result in zip(argsets, results):
+    #    converted_args = [arg.get_bits().to_uint() for arg in args]
+    #    unique_args |= set(converted_args)
+    #    converted_result = result.get_bits().to_uint()
+    #    print(f"{converted_args} -> {converted_result}")
+    # dslx_results = [r.get_bits().to_uint() for r in ir_results]
+    # # print(len(ir_results))
+    # print(len(unique_args))
 
   def run_test(self, name: Text) -> None:
     bindings = self._make_top_level_bindings(self._module)

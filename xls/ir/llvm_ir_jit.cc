@@ -1332,20 +1332,23 @@ xabsl::StatusOr<Value> CreateAndRun(Function* xls_function,
   return result;
 }
 
-xabsl::StatusOr<std::vector<Value>> CreateandQuickCheck(Function *xls_function) {
+xabsl::StatusOr<  std::pair< std::vector<std::vector<Value>> , std::vector<Value> >> CreateandQuickCheck(Function *xls_function) {
     XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(xls_function));
     std::vector<Value> results;
     std::vector<std::vector<Value> > argsets;
-    std::minstd_rand rng_engine;
+    auto seed = time(nullptr);
+    std::minstd_rand rng_engine(seed);
     int64 NUM_TESTS = 1000;
 
     for (int i = 0; i < NUM_TESTS; i++) {
       argsets.push_back(RandomFunctionArguments(xls_function, &rng_engine));
       XLS_ASSIGN_OR_RETURN(auto result, jit->Run(argsets[i]));
       results.push_back(result);
+      if (result.IsAllZeros())
+        break;
     }
 
-    return results;
+    return std::make_pair(argsets, results);
 
 }
 }  // namespace xls
