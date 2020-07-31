@@ -172,7 +172,6 @@ class XLSccParser(CParserBase):
 
   def p_typedef_name(self, p):
     """typedef_name : TYPEID
-
                     | TYPEID LT template_val_list GT
       """
     id_ = c_ast.IdentifierType([p[1]], coord=self._token_coord(p, 1))

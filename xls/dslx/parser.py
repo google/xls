@@ -14,9 +14,7 @@
 # limitations under the License.
 
 """Recursive descent parser and AST nodes for XLS syntax.
-
 The parser consumes token streams and produces AST output.
-
 See sha256_sample.xls for an example of a sizable function that is parsed by
 this grammar.
 """
@@ -82,19 +80,15 @@ class Parser(token_parser.TokenParser):
                        terminator: Union[TokenKind, Keyword],
                        args: Tuple[Any, ...] = ()) -> Tuple[TypeVar('T'), ...]:
     """Helper that parses a comma-delimited sequence of grammatical productions.
-
     Expects the caller to have popped the "initiator" token; however, this
     (callee) pops the terminator token so the caller does not need to.
-
     Permits a trailing comma.
-
     Args:
       fparse: Parses the grammatical production (i.e. the thing after each
         comma).
       terminator: Token that terminates the sequence; e.g. ')' or ']' or similar
         (may be a keyword).
       args: Arguments to be passed to fparse on each invocation as "*args".
-
     Returns:
       Tuple of the parsed things yielded by fparse.
     """
@@ -343,17 +337,12 @@ class Parser(token_parser.TokenParser):
 
   def _parse_name_def_tree(self, bindings: Bindings) -> ast.NameDefTree:
     """Parses tree of name defs and return it.
-
     For example, the left hand side of:
-
       let (a, (b, (c)), d) = ...
-
     This is used for tuple-like (sometimes known as "destructuring") let
     binding.
-
     Args:
       bindings: Bindings to populate with NameDefs from the tree.
-
     Returns:
       The parsed tree of name-defs.
     """
@@ -440,18 +429,15 @@ class Parser(token_parser.TokenParser):
   def _parse_tuple_remainder(self, start_pos: Pos, first: ast.Expr,
                              bindings: Bindings) -> ast.XlsTuple:
     """Parses the remainder of a tuple expression.
-
     We can't tell until we've parsed the first expression whether we're parsing
     a parenthesized expression; e.g. '(x)' or a tuple expression '(x, y)' -- as
     a result we use this helper routine once we discover we're parsing a tuple
     instead of a parenthesized expression, which is why "first" is passed from
     the caller.
-
     Args:
       start_pos: The position of the '(' token that started this tuple.
       first: The parse expression in the tuple as already parsed by the caller.
       bindings: Bindings to use in the parsing of the tuple expression.
-
     Returns:
       The tuple-expression with all of its sub-expressions contained inside,
       including "first".
@@ -521,15 +507,11 @@ class Parser(token_parser.TokenParser):
 
   def _parse_term(self, bindings: Bindings) -> ast.Expr:
     """Parses a term as a component of an expression and returns it.
-
     Terms are more atomic than arithmetic expressions.
-
     Args:
       bindings: Bindings to use in the parsing of the term.
-
     Returns:
       The parsed term as an expression AST node.
-
     Raises:
       ParseError: When the current token is not a valid start of an expression
         term.
@@ -646,18 +628,13 @@ class Parser(token_parser.TokenParser):
                          target_tokens: Union[Tuple[TokenKind], Tuple[Keyword]],
                          *args) -> ast.Expr:
     """Parses a chain of binary operations at a given precedence level.
-
     For example, a sequence like "x + y + z" is left associative, so we form a
     left-leaning AST like:
-
       add(add(x, y), z)
-
     Generally a grammar production will join together two stronger production
     rules; e.g.
-
       WEAK_ARITHMETIC_EXPR ::=
         STRONG_ARITHMETIC_EXPR [+-] STRONG_ARITHMETIC_EXPR
-
     So that expressions like a*b + c*d work as expected, so the sub_production
     gives the more tightly binding production for this to call. After we call it
     for the "left hand side" we see if the token is in the target_token set
@@ -665,14 +642,12 @@ class Parser(token_parser.TokenParser):
     side" to create a binary operation. If not, we simply return the result of
     the "left hand side" production (since we don't see the target token that
     indicates the kind of expression we're interested in).
-
     Args:
       sub_production: Parse method to delegate to that is more tightly binding
         (see explanation above).
       target_tokens: Tokens that form a binary operation at this level of the
         grammar (see explanation/example above).
       *args: Arguments to pass to the sub_production.
-
     Returns:
       An expression AST node.
     """
@@ -732,14 +707,10 @@ class Parser(token_parser.TokenParser):
 
   def _parse_ternary_expression(self, bindings: Bindings) -> ast.Expr:
     """Parses a ternary expression or expr of higher precedence.
-
     Example:
-
         foo if bar else baz
-
     Args:
       bindings: Current bindings for parsing this expression.
-
     Returns:
       An expression of ternary or higher precedence.
     """
@@ -763,13 +734,10 @@ class Parser(token_parser.TokenParser):
 
   def _parse_params(self, bindings: Bindings) -> Tuple[ast.Param, ...]:
     """Parses a sequence of parameters, starting with '(' ending after ')'.
-
     Permits trailing commas.
-
     Args:
       bindings: Bindings to populate with parameter name definitions / to
         resolve types against.
-
     Returns:
       The parsed sequence of parameter AST nodes.
     """
@@ -873,17 +841,13 @@ class Parser(token_parser.TokenParser):
 
   def _parse_for(self, bindings: Bindings) -> ast.For:
     """Parses a for loop construct; e.g.
-
       for (i, accum) in range(3) {
         accum + i
       }(0)
-
     The init value is passed to the loop and the body updates the value;
     ultimately the loop terminates and the final accum value is returned.
-
     Args:
       bindings: Bindings from the outer (function) scope.
-
     Returns:
       The parsed 'for' AST construct.
     """
@@ -983,10 +947,8 @@ class Parser(token_parser.TokenParser):
 
   def parse_expression(self, bindings: Bindings) -> ast.Expr:
     """Parses an expression out of the token stream.
-
     Args:
       bindings: Bindings to use for resolution in parsing the expression.
-
     Returns:
       The parsed expression as an AST node.
     """
@@ -1016,18 +978,13 @@ class Parser(token_parser.TokenParser):
   def _parse_parametric_bindings(self, bindings: Bindings
                                 ) -> Tuple[ast.ParametricBinding, ...]:
     """Parses parametric bindings that lead a function.
-
     For example:
-
       fn [X: u32, Y: u32 = X+X] f(x: bits[X]) { ... }
           ^-------------------^
-
     Note that some bindings have expressions and other do not, because they
     assume a value presented by the type of a formal parameter.
-
     Args:
       bindings: Bindings to populate with the parametric names.
-
     Returns:
       A tuple of the parsed parametric bindings.
     """
@@ -1073,12 +1030,10 @@ class Parser(token_parser.TokenParser):
   def parse_function(self, public: bool,
                      outer_bindings: Bindings) -> ast.Function:
     """Parses a function out of the token stream.
-
     Args:
       public: Whether this function should be marked as public.
       outer_bindings: Bindings from the enclosing scope (containing this
         function being parsed).
-
     Returns:
       The parsed function as an AST node.
     """
@@ -1204,17 +1159,13 @@ class Parser(token_parser.TokenParser):
                    name: Text,
                    bindings: Optional[Bindings] = None) -> ast.Module:
     """Parses a module out of the token stream.
-
     This is the entry point that is generally called when parsing the text of an
     entire input syntax file.
-
     Args:
       name: Name that should be given to the parsed module.
       bindings: Optional initial bindings object (e.g. for use in testing).
-
     Returns:
       The parsed module as an AST node.
-
     Raises:
       ParseError: When an unexpected construct is enountered at module scope.
     """

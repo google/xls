@@ -67,10 +67,8 @@ def parse_text_fakefs(text: Text, name: Text, print_on_error: bool, *,
                       f_import: Optional[Callable],
                       filename: Text) -> Tuple[ast.Module, deduce.NodeToType]:
   """Wraps parse_text with a *fake filesystem* holding "text" in "filename".
-
   This primarily exists for use from testing infrastructure! For binaries and
   libraries one would expect things to be in runfiles instead of text.
-
   Args:
     text: Text to put in the fake file.
     name: Name to use for the module.
@@ -80,7 +78,6 @@ def parse_text_fakefs(text: Text, name: Text, print_on_error: bool, *,
       upon.
     filename: Path to use in the fake filesystem for the contexts of the fake
       file (with DSLX text).
-
   Returns:
     The DSLX module and the type information.
   """

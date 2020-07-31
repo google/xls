@@ -17,6 +17,6 @@ type x22 = uN[0xa];fn main(x0: u48, x1: s18, x2: u10, x3: u63, x4: u44, x5: u20,
     let x23: u33 = (u33:0x100000000) in
     let x24: uN[11] = one_hot_sel(x17, [x15]) in
     let x25: uN[61] = (x14)[(u32:0x0)] in
-    let x26: uN[1] = (x9)[0x0+:uN[1]] in
+    let x26: uN[1] = (x9)[-0x2:] in
     x16
 }

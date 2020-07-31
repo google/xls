@@ -800,6 +800,38 @@ absl::Status IrTranslator::HandleBitSlice(BitSlice* bit_slice) {
   return seh.status();
 }
 
+absl::Status IrTranslator::HandleDynamicBitSlice(
+    DynamicBitSlice* dynamic_bit_slice) {
+  ScopedErrorHandler seh(ctx_);
+  Z3_ast value = GetBitVec(dynamic_bit_slice->operand(0));
+  Z3_ast start = GetBitVec(dynamic_bit_slice->operand(1));
+  int64 value_width = dynamic_bit_slice->operand(0)->BitCountOrDie();
+  int64 start_width = dynamic_bit_slice->operand(1)->BitCountOrDie();
+
+  int64 max_width = std::max(value_width, start_width);
+  Z3_ast value_ext = Z3_mk_zero_ext(ctx_, max_width - value_width, value);
+  Z3_ast start_ext = Z3_mk_zero_ext(ctx_, max_width - start_width, start);
+
+  Value operand_width(UBits(value_width, max_width));
+  BitsType max_width_type(max_width);
+  XLS_ASSIGN_OR_RETURN(Z3_ast bit_width,
+                       TranslateLiteralValue(&max_width_type, operand_width));
+
+  // Indicates whether slice is completely out of bounds.
+  Z3_ast out_of_bounds = Z3_mk_bvuge(ctx_, start_ext, bit_width);
+  BitsType return_type(dynamic_bit_slice->width());
+  XLS_ASSIGN_OR_RETURN(Z3_ast zeros,
+                       TranslateLiteralValue(
+                           &return_type,
+                           Value(Bits(dynamic_bit_slice->width()))));
+  Z3_ast shifted_value = Z3_mk_bvlshr(ctx_, value_ext, start_ext);
+  Z3_ast truncated_value =
+      Z3_mk_extract(ctx_, dynamic_bit_slice->width() - 1, 0, shifted_value);
+  Z3_ast result = Z3_mk_ite(ctx_, out_of_bounds, zeros, truncated_value);
+  NoteTranslation(dynamic_bit_slice, result);
+  return seh.status();
+}
+
 xabsl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(
     Type* value_type, const Value& value) {
   if (value.IsBits()) {

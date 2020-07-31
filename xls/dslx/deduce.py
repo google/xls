@@ -64,7 +64,6 @@ def _rule(cls: Type[ast.AstNode]):
 
 class TypeMissingError(span.PositionalError):
   """Raised when there is no binding from an AST node to its corresponding type.
-
   This is useful to raise in order to flag free variables that are dependencies
   for type inference; e.g. functions within a module that invoke other top-level
   functions. The type inference system can catch the error, infer the
@@ -89,7 +88,6 @@ ImportedInfo = Tuple[ast.Module, 'NodeToType']
 
 class NodeToType(object):
   """Helper type that checks the types of {AstNode: ConcreteType} mappings.
-
   Also raises a TypeMissingError instead of a KeyError when we encounter a node
   that does not have a type known, so that it can be handled in a more specific
   way versus a KeyError.
@@ -135,13 +133,10 @@ class NodeToType(object):
 
   def __getitem__(self, k: ast.AstNode) -> ConcreteType:
     """Attempts to resolve AST node 'k' in the node-to-type dictionary.
-
     Args:
       k: The AST node to resolve to a concrete type.
-
     Raises:
       TypeMissingError: When the node is not found.
-
     Returns:
       The previously-determined type of the AST node 'k'.
     """
@@ -182,7 +177,6 @@ FnStack = List[Tuple[Text, Dict[Text, int]]]
 @dataclasses.dataclass
 class DeduceCtx:
   """A wrapper over useful objects for typechecking.
-
   Attributes:
     node_to_type: Maps an AST node to its deduced type.
     module: The (entry point) module we are typechecking.
@@ -205,14 +199,11 @@ class DeduceCtx:
 
 def resolve(type_: ConcreteType, ctx: DeduceCtx) -> ConcreteType:
   """Resolves "type_" via provided symbolic bindings.
-
   Uses the symbolic bindings of the function we're currently inside of to
   resolve parametric types.
-
   Args:
     type_: Type to resolve any contained dims for.
     ctx: Deduction context to use in resolving the dims.
-
   Returns:
     "type_" with dimensions resolved according to bindings in "ctx".
   """
@@ -273,21 +264,17 @@ def _create_element_invocation(span_: span.Span, callee: Union[ast.NameRef,
                                                                ast.ModRef],
                                arg_array: ast.Expr) -> ast.Invocation:
   """Creates a function invocation on the first element of the given array.
-
   We need to create a fake invocation to deduce the type of a function
   in the case where map is called with a builtin as the map function. Normally,
   map functions (including parametric ones) have their types deduced when their
   ast.Function nodes are encountered (where a similar fake ast.Invocation node
   is created).
-
   Builtins don't have ast.Function nodes, so that inference can't occur, so we
   essentually perform that synthesis and deduction here.
-
   Args:
     span_: The location in the code where analysis is occurring.
     callee: The function to be invoked.
     arg_array: The array of arguments (at least one) to the function.
-
   Returns:
     An invocation node for the given function when called with an element in the
     argument array.
@@ -1063,14 +1050,12 @@ def _typecheck_struct_members_subset(members: ast.StructInstanceMembers,
                                      struct_text: str,
                                      ctx: DeduceCtx) -> Set[str]:
   """Validates a struct instantiation is a subset of members with no dups.
-
   Args:
     members: Sequence of members used in instantiation. Note this may be a
       subset; e.g. in the case of splat instantiation.
     struct_type: The deduced type for the struct (instantiation).
     struct_text: Display name to use for the struct in case of an error.
     ctx: Wrapper containing node to type mapping context.
-
   Returns:
     The set of struct member names that were instantiated.
   """
@@ -1160,16 +1145,12 @@ def _deduce(n: ast.AstNode, ctx: DeduceCtx) -> ConcreteType:
 
 def deduce(n: ast.AstNode, ctx: DeduceCtx) -> ConcreteType:
   """Deduces and returns the type of value produced by this expr.
-
   Also adds n to ctx.node_to_type memoization dictionary.
-
   Args:
     n: The AST node to deduce the type for.
     ctx: Wraps a node_to_type, a dictionary mapping nodes to their types.
-
   Returns:
     The type of this expression.
-
   As a side effect the node_to_type mapping is filled with all the deductions
   that were necessary to determine (deduce) the resulting type of n.
   """

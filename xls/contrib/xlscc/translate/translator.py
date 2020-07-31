@@ -103,10 +103,8 @@ class ChannelType(Type):
 
   def get_xls_type(self, p):
     """Get XLS IR type for channel.
-
     Args:
       p: XLS IR package
-
     Returns:
       XLS IR tuple of field types
     """
@@ -143,7 +141,6 @@ class ChannelReadType(Type):
 
 class StructType(Type):
   """Class for C++ HLS Struct Types.
-
     Args:
       name: Name of the struct type
       struct: HLSStructType protobuf
@@ -181,7 +178,6 @@ class StructType(Type):
 
   def get_xls_type(self, p):
     """Get XLS IR type for struct.
-
     Args:
       p: XLS IR package
     Returns:
@@ -242,7 +238,6 @@ class ArrayType(Type):
 
 class CVar(object):
   """Represents a C RValue.
-
      Binds together the function builder value and C Type.
   """
 
@@ -253,13 +248,11 @@ class CVar(object):
 
 class Function(object):
   """Represents a C function.
-
      Binds together the XLS function builder value and C Type.
   """
 
   def parse_function(self, translator, ast):
     """Parses the function from C Ast.
-
     Args:
       translator: Translator object
       ast: pycparser ast
@@ -339,7 +332,6 @@ class Function(object):
 
 def parse_constant(stmt_ast):
   """Parses a constant from the C++ AST.
-
   Args:
     stmt_ast: pycparser AST
   Returns:
@@ -366,7 +358,6 @@ def parse_constant(stmt_ast):
 
 def translate_loc(stmt_ast):
   """Translates a C source location from AST to XLS IR source location.
-
   Args:
     stmt_ast: pycparser AST
   Returns:
@@ -385,7 +376,6 @@ def translate_loc(stmt_ast):
 
 class RetVal(object):
   """Represents a possible return value from a function.
-
   Combines RValue, type, and condition for returning this value.
   """
 
@@ -431,7 +421,6 @@ class Translator(object):
 
   def parse(self, ast):
     """Parses a C source file's AST.
-
     Args:
       ast: pycparser AST
     """
@@ -488,7 +477,6 @@ class Translator(object):
 
   def parse_type(self, ast_in):
     """Parses a C type's AST.
-
     Args:
       ast_in: pycparser type AST
     Returns:
@@ -588,7 +576,6 @@ class Translator(object):
 
   def gen_default_init(self, decl_type, loc_ast):
     """Generates default RValue for C Type.
-
     Args:
       decl_type: pycparser AST type
       loc_ast: pycparser AST location
@@ -622,7 +609,6 @@ class Translator(object):
 
   def gen_convert_ir(self, in_expr, in_type, to_type, loc_ast):
     """Generates XLS IR value conversion to C Type.
-
     Args:
       in_expr: XLS function builder value
       in_type: C type of input
@@ -668,7 +654,6 @@ class Translator(object):
 
   def _generic_assign(self, lvalue_expr, rvalue, rvalue_type, condition, loc):
     """Assigns to either a raw C Var or a compound (struct, array) reference.
-
     Args:
       lvalue_expr: Pycparser expression for LValue
       rvalue: XLS function builder RValue
@@ -696,7 +681,6 @@ class Translator(object):
 
   def gen_expr_ir(self, stmt_ast, condition):
     """Generates XLS IR value for C expression.
-
     Args:
       stmt_ast: pycparser C AST for input expression
       condition: XLS IR function builder value for condition of assignment
@@ -1154,7 +1138,6 @@ class Translator(object):
 
   def gen_ir(self):
     """Generates XLS IR value for C source file, once parse()'d.
-
     Returns:
       A string containing the resulting XLS IR
     """
@@ -1293,7 +1276,6 @@ class Translator(object):
                                       inject_local_vars,
                                       switch_case_block=False):
     """Generate XLS IR for either a single ASR expression or a compound.
-
     Args:
       ast: C AST root
       condition: Condition for assignments
@@ -1317,7 +1299,6 @@ class Translator(object):
 
   def assign(self, name, r_expr, r_type, condition, loc):
     """Generate an assignment (LValue).
-
     Args:
       name: Variable name
       r_expr: XLS function builder RValue
@@ -1352,7 +1333,6 @@ class Translator(object):
 
   def assign_compound(self, lvalue_ast, r_expr, r_type, condition, loc):
     """Generate an assignment to a compound type (Struct, Array).
-
     Args:
       lvalue_ast: Variable C AST
       r_expr: XLS function builder RValue
@@ -1446,7 +1426,6 @@ class Translator(object):
                    inject_local_vars,
                    switch_case_block=False):
     """Generate an XLS IR block from a C AST block.
-
     Args:
       stmt_list: List of pycparser C AST nodes
       condition: Condition of assignments

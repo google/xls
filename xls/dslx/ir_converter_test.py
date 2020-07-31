@@ -1472,6 +1472,27 @@ class IrConverterTest(absltest.TestCase):
         }
         """), converted)
 
+  def test_width_slice(self):
+    m = self.parse_dsl_text("""\
+    fn f(x: u32, y: u32) -> u8 {
+      x[2+:u8]+x[y+:u8]
+    }
+    """)
+    node_to_type = typecheck.check_module(m, f_import=None)
+    converted = ir_converter.convert_module(
+        m, node_to_type, emit_positions=False)
+    self.assert_ir_equals_and_parses(
+        textwrap.dedent("""\
+        package test_module
+
+        fn __test_module__f(x: bits[32], y: bits[32]) -> bits[8] {
+          literal.3: bits[32] = literal(value=2)
+          dynamic_bit_slice.4: bits[8] = dynamic_bit_slice(x, literal.3, width=8)
+          dynamic_bit_slice.5: bits[8] = dynamic_bit_slice(x, y, width=8)
+          ret add.6: bits[8] = add(dynamic_bit_slice.4, dynamic_bit_slice.5)
+        }
+        """), converted)
+
   def test_basic_struct(self):
     m = self.parse_dsl_text("""\
     struct Point {

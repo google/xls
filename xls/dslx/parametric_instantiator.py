@@ -257,7 +257,7 @@ class _ParametricInstantiator(object):
   def _resolve(self, annotated: ConcreteType) -> ConcreteType:
     """Resolves a parametric type via symbolic_bindings."""
 
-    if self.constraints:
+    if self.ctx:
       self._verify_constraints()
 
     def resolver(dim):

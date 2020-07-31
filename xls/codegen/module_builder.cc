@@ -612,6 +612,7 @@ bool ModuleBuilder::MustEmitAsFunction(Node* node) {
   switch (node->op()) {
     case Op::kSMul:
     case Op::kUMul:
+    case Op::kDynamicBitSlice:
       return true;
     default:
       return false;
@@ -627,6 +628,10 @@ std::string ModuleBuilder::VerilogFunctionName(Node* node) {
       return absl::StrFormat(
           "%s%db_%db_x_%db", OpToString(node->op()), node->BitCountOrDie(),
           node->operand(0)->BitCountOrDie(), node->operand(1)->BitCountOrDie());
+    case Op::kDynamicBitSlice:
+      return absl::StrFormat(
+          "%s%db_%db", OpToString(node->op()), node->BitCountOrDie(),
+          node->operand(0)->BitCountOrDie());
     default:
       XLS_LOG(FATAL) << "Cannot emit node as function: " << node->ToString();
   }
@@ -634,6 +639,46 @@ std::string ModuleBuilder::VerilogFunctionName(Node* node) {
 
 namespace {
 
+// Defines and returns a function which implements the given DynamicBitSlice
+// node.
+VerilogFunction* DefineDynamicBitSliceFunction(Node* node,
+                                               absl::string_view function_name,
+                                               ModuleSection* section) {
+  XLS_CHECK_EQ(node->op(), Op::kDynamicBitSlice);
+  VerilogFile* file = section->file();
+  VerilogFunction* func =
+      section->Add<VerilogFunction>(function_name, node->BitCountOrDie(), file);
+  XLS_CHECK_EQ(node->operand_count(), 2);
+  DynamicBitSlice* slice = node->As<DynamicBitSlice>();
+  Expression* operand = func->AddArgument("operand", node->operand(0)->BitCountOrDie());
+  Expression* start = func->AddArgument("start", node->operand(1)->BitCountOrDie());
+  int64 width = slice->width();
+
+  LogicRef* zexted_operand = func->AddRegDef(
+      "zexted_operand", file->PlainLiteral(node->operand(0)->BitCountOrDie() + width),
+      /*init=*/UninitializedSentinel(), /*is_signed=*/false);
+
+  Expression* zeros = file->Literal(0, width);
+  Expression* width_expr = file->Literal(width,
+                                         Bits::MinBitCountUnsigned(width));
+  Expression* op_width = file->Literal(slice->operand(0)->BitCountOrDie(),
+                                       Bits::MinBitCountUnsigned(
+                                           slice->operand(0)->BitCountOrDie()));
+  // If start of slice is greater than or equal to operand width, result is
+  // completely out of bounds and set to all zeros.
+  Expression* out_of_bounds = file->GreaterThanEquals(start, op_width);
+  // If start + width exceeds operand width, need to extend the operand before
+  // slicing.
+  Expression* need_extend = file->GreaterThan(file->Add(start, width_expr),
+                                              op_width);
+  // Pad with width zeros
+  func->AddStatement<BlockingAssignment>(zexted_operand, file->Concat({zeros, operand}));
+  Expression* sliced_operand = file->DynamicSlice(zexted_operand, start, width);
+  func->AddStatement<BlockingAssignment>(
+      func->return_value_ref(),
+      file->Ternary(out_of_bounds, zeros, sliced_operand));
+  return func;
+}
 // Defines and returns a function which implements the given SMul node.
 VerilogFunction* DefineSmulFunction(Node* node, absl::string_view function_name,
                                     ModuleSection* section) {
@@ -706,6 +751,9 @@ xabsl::StatusOr<VerilogFunction*> ModuleBuilder::DefineFunction(Node* node) {
       break;
     case Op::kUMul:
       func = DefineUmulFunction(node, function_name, functions_section_);
+      break;
+    case Op::kDynamicBitSlice:
+      func = DefineDynamicBitSliceFunction(node, function_name, functions_section_);
       break;
     default:
       XLS_LOG(FATAL) << "Cannot define node as function: " << node->ToString();

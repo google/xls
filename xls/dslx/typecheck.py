@@ -67,12 +67,10 @@ def _check_function_params(f: Function,
 
 def _check_function(f: Function, ctx: deduce.DeduceCtx) -> None:
   """Validates type annotations on parameters/return type of f are consistent.
-
   Args:
     f: The function to type check.
     ctx: Wraps a node_to_type, a mapping of AST node to its deduced type;
       (free-variable) references are resolved via this dictionary.
-
   Raises:
     XlsTypeError: When the return type deduced is inconsistent with the return
       type annotation on "f".
@@ -217,7 +215,6 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
 @dataclasses.dataclass
 class _TypecheckStackRecord:
   """A wrapper over information used to typecheck a test/function.
-
   Attributes:
     name: The name of this test/function.
     is_test: Flag indicating whether or not this record is for a test.
@@ -237,18 +234,15 @@ def _make_record(f: Union[Function, ast.Test],
                  ctx: deduce.DeduceCtx,
                  user: Optional[ast.AstNode] = None) -> _TypecheckStackRecord:
   """Creates a _TypecheckStackRecord for typechecking functions/tests.
-
   The optional third field in the record will carry the contents of
   ctx.node_to_type._dict at the time of record creation. If this record is
   for typechecking the body of a parametric function for the first time,
   we'll use the before-version of ctx.node_to_type._dict to determine the
   dependencies of the parametric function when this record is popped.
-
   Args:
     f: Function-or-test to make the record for.
     ctx: Typecheck deduction context.
     user: Invocation node in this module that needs f to be typechecked.
-
   Returns:
     A record of f to put into the typechecking-stack.
   """
@@ -292,12 +286,10 @@ def _make_record(f: Union[Function, ast.Test],
 def check_function_or_test_in_module(f: Union[Function, ast.Test],
                                      ctx: deduce.DeduceCtx):
   """Type-checks function f in the given module.
-
   Args:
     f: Function to type-check.
     ctx: Wraps a node_to_type, a mapping being populated with the
       inferred type for AST nodes. Also contains a module.
-
   Raises:
     TypeMissingError: When we attempt to resolve an AST node to a type that a)
       cannot be resolved via the node_to_type mapping and b) the AST node
@@ -396,18 +388,15 @@ ImportFn = Callable[[Tuple[Text, ...]], Tuple[ast.Module, deduce.NodeToType]]
 def _check_module_helper(module: Module,
                          f_import: Optional[ImportFn]) -> deduce.NodeToType:
   """Validates type annotations on all functions within "module".
-
   Args:
     module: The module to type check functions for.
     f_import: Callback to import a module (a la a import statement). This may be
       None e.g. in unit testing situations where it's guaranteed there will be
       no import statements.
-
   Returns:
     A tuple containing a node_to_type (mapping from AST node to its
     deduced/checked type and a parametric_fn_cache (mapping from parametric
     function to all dependency nodes (body, other functions, etc.)).
-
   Raises:
     XlsTypeError: If any of the function in f have typecheck errors.
   """

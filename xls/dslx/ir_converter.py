@@ -429,8 +429,8 @@ class _IrConverterFb(ast.AstVisitor):
   def _visit_width_slice(self, node: ast.Index, width_slice: ast.WidthSlice,
                          lhs_type: ConcreteType) -> None:
     width_slice.start.accept(self)
-    x = self.fb.add_shrl(self._use(node.lhs), self._use(width_slice.start))
-    self._def(node, self.fb.add_bit_slice, x, 0,
+    self._def(node, self.fb.add_dynamic_bit_slice, self._use(node.lhs),
+              self._use(width_slice.start),
               self._resolve_type(node).get_total_bit_count())
 
   def visit_Attr(self, node: ast.Attr) -> None:
