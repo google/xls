@@ -1496,10 +1496,13 @@ class Interpreter(object):
     last_result = results[-1].get_bits().to_uint()
     if not last_result:
       last_argset = argsets[-1]
-      dslx_argset = []
-      for arg, arg_type in zip(last_argset, self._node_to_type[fn].params):
-        dslx_argset.append(str(jit_comparison.ir_value_to_interpreter_value(arg, arg_type)))
-      raise FailureError(fn.span, f"Found falsifying example after {len(results)} tests: {dslx_argset}")
+      fn_param_types = self._node_to_type[fn].params
+      dslx_argset = [
+          str(jit_comparison.ir_value_to_interpreter_value(arg, arg_type))
+          for arg, arg_type in zip(last_argset, fn_param_types)
+      ]
+      raise FailureError(fn.span, f"Found falsifying example after "
+                                  f"{len(results)} tests: {dslx_argset}")
 
   def run_test(self, name: Text) -> None:
     bindings = self._make_top_level_bindings(self._module)

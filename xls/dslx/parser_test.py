@@ -650,6 +650,30 @@ proc simple(addend: u32) {
     self.assertIn('Cannot have multiple patterns that bind names.',
                   str(cm.exception))
 
+  def test_unittest_directive(self):
+    m = self.parse_module( """
+        #![unittest]
+        example {
+          ()
+        }
+        """)
+
+    test_names = m.get_test_names()
+    self.assertLen(test_names, 1)
+    self.assertIn("example", test_names)
+
+  def test_quickcheck_directive(self):
+    m = self.parse_module( """
+        #![quickcheck]
+        fn foo(x: u5) -> bool { true }
+        """)
+
+    quickchecks = m.get_quickchecks()
+    self.assertLen(quickchecks, 1)
+    foo_test = quickchecks[0]
+    self.assertIsInstance(foo_test.f, ast.Function)
+    self.assertEqual("foo", foo_test.f.name.identifier)
+
   def test_ternary(self):
     b = parser.Bindings(None)
     e = self.parse_expression('u32:42 if true else u32:24', bindings=b)
