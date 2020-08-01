@@ -8,9 +8,9 @@ import argparse
 
 NUM_OPCODES = 8
 MAX_OP_COUNT = 8
-HIDDEN_LAYER1 = 200
+HIDDEN_LAYER1 = 250
 HIDDEN_LAYER2 = 200
-NUM_EPOCHS = 40
+NUM_EPOCHS = 1
 EPSILON = 0.2
 NUM_EPS = 5
 
@@ -20,12 +20,12 @@ class Net(nn.Module):
     super(Net, self).__init__()
     # Dense, 1 hidden layer
     self.fc1 = nn.Linear(NUM_OPCODES * MAX_OP_COUNT, HIDDEN_LAYER1)
-    self.fc2 = nn.Linear(HIDDEN_LAYER1, HIDDEN_LAYER2)
-    self.out = nn.Linear(HIDDEN_LAYER2, 1)
+    #self.fc2 = nn.Linear(HIDDEN_LAYER1, HIDDEN_LAYER2)
+    self.out = nn.Linear(HIDDEN_LAYER1, 1)
 
   def forward(self, x):
     x = F.relu(self.fc1(x))
-    x = F.relu(self.fc2(x))
+    #x = F.relu(self.fc2(x))
     x = self.out(x)
     return x
 
@@ -64,7 +64,7 @@ def test(data, log_misses=False):
   total = 0
   ep = [0 for i in range(NUM_EPS)]
   logfile = open("./data/data_{}_{}.log".format(NUM_OPCODES, MAX_OP_COUNT), "w+")
-
+  errors = []
   for i in range(len(data)):
     x = data[i][:-1]
     y = data[i][-1]
@@ -80,9 +80,11 @@ def test(data, log_misses=False):
         ep[j] += 1
     total += loss
     if log_misses:
-      print("X: ", data[i][:-1], file=logfile)
-      print("y: ", data[i][-1], file=logfile)
-      print("y_pred: ", y_pred, file=logfile)
+      errors.append((data[i][:-1], data[i][-1], y_pred, abs_error))
+  if log_misses:
+    errors.sort(key=lambda x: x[3], reverse=True)
+    for ent in errors:
+      print(ent, file=logfile)
   mse = total / len(data)
   accuracy = [x / len(data) for x in ep]
   print("Validation MSE Loss: {}".format(mse))
