@@ -117,10 +117,11 @@ class LlvmIrJit {
 // resulting return value. Note that this will cause the overhead of creating a
 // LlvmIrJit object each time, so external caching strategies are generally
 // preferred.
-xabsl::StatusOr<Value> CreateAndRun(Function* xls_function,
+xabsl::StatusOr<Value> CreateandRun(Function *xls_function,
                                     absl::Span<const Value> args);
 
-xabsl::StatusOr<std::pair<std::vector<std::vector<Value>> , std::vector<Value> >> CreateandQuickCheck(Function *xls_function);
+xabsl::StatusOr<std::pair<std::vector<std::vector<Value>>, std::vector<Value>>>
+CreateandQuickCheck(Function *xls_function);
 }  // namespace xls
 
 #endif  // XLS_IR_LLVM_IR_JIT_H_

@@ -58,5 +58,58 @@ TEST(LlvmIrJitTest, ReuseTest) {
   EXPECT_THAT(jit->Run({Value(UBits(7, 8))}), IsOkAndHolds(Value(UBits(7, 8))));
 }
 
+// These tests verify that the QuickCheck mechanism can find counter-examples
+// for  simple erroneous functions.
+TEST(LlvmIrJitTest, QuickCheckBits) {
+  Package package("bad_bits_property");
+  std::string ir_text = R"(
+  fn adjacent_bits(x: bits[8]) -> bits[1] {
+    first_bit: bits[1] = bit_slice(x, start=0, width=1)
+    second_bit: bits[1] = bit_slice(x, start=7, width=1)
+    ret eq_value: bits[1] = eq(first_bit, second_bit)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function *function,
+                           Parser::ParseFunction(ir_text, &package));
+  XLS_ASSERT_OK_AND_ASSIGN(auto quickcheck_info, CreateandQuickCheck(function));
+  std::vector<Value> results = quickcheck_info.second;
+  // If a counter-example was found, the last result will be 0.
+  EXPECT_EQ(results.back().ToHumanString(), "0");
+}
+
+TEST(LlvmIrJitTest, QuickCheckArray) {
+  Package package("bad_array_property");
+  std::string ir_text = R"(
+  fn adjacent_elements(x: bits[8][5]) -> bits[1] {
+    index.0: bits[32] = literal(value=0)
+    index.1: bits[32] = literal(value=1)
+    first_element: bits[8] = array_index(x, index.0)
+    second_element: bits[8] = array_index(x, index.1)
+    ret eq_value: bits[1] = eq(first_element, second_element)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function *function,
+                           Parser::ParseFunction(ir_text, &package));
+  XLS_ASSERT_OK_AND_ASSIGN(auto quickcheck_info, CreateandQuickCheck(function));
+  std::vector<Value> results = quickcheck_info.second;
+  EXPECT_EQ(results.back().ToHumanString(), "0");
+}
+
+TEST(LlvmIrJitTest, QuickCheckTuple) {
+  Package package("bad_tuple_property");
+  std::string ir_text = R"(
+  fn adjacent_elements(x: (bits[8], bits[8])) -> bits[1] {
+    first_member: bits[8] = tuple_index(x, index=0)
+    second_member: bits[8] = tuple_index(x, index=1)
+    ret eq_value: bits[1] = eq(first_member, second_member)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function *function,
+                           Parser::ParseFunction(ir_text, &package));
+  XLS_ASSERT_OK_AND_ASSIGN(auto quickcheck_info, CreateandQuickCheck(function));
+  std::vector<Value> results = quickcheck_info.second;
+  EXPECT_EQ(results.back().ToHumanString(), "0");
+}
+
 }  // namespace
 }  // namespace xls
