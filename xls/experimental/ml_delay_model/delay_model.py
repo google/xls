@@ -4,13 +4,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 import random
 import matplotlib.pyplot as plt
+import argparse
 
 NUM_OPCODES = 8
-MAX_OP_COUNT = 16
+MAX_OP_COUNT = 8
 HIDDEN_LAYER1 = 200
 HIDDEN_LAYER2 = 200
-NUM_EPOCHS = 50
-EPSILON = 0.1
+NUM_EPOCHS = 40
+EPSILON = 0.2
+NUM_EPS = 5
 
 class Net(nn.Module):
 
@@ -30,6 +32,7 @@ class Net(nn.Module):
 
 model = Net()
 criterion = nn.MSELoss()
+l1 = nn.L1Loss()
 model.train()
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-5)
 
@@ -56,10 +59,12 @@ def train(data):
     train_loss += loss
   return train_loss / len(data)
 
-
-def test(data):
+def test(data, log_misses=False):
   model.eval()
   total = 0
+  ep = [0 for i in range(NUM_EPS)]
+  logfile = open("./data/data_{}_{}.log".format(NUM_OPCODES, MAX_OP_COUNT), "w+")
+
   for i in range(len(data)):
     x = data[i][:-1]
     y = data[i][-1]
@@ -69,23 +74,38 @@ def test(data):
     y_pred = model(x_tensor)
 
     loss = criterion(y_pred, y_tensor)
+    abs_error = l1(y_pred, y_tensor)
+    for j in range(NUM_EPS):
+      if abs_error < EPSILON * (j+1):
+        ep[j] += 1
     total += loss
+    if log_misses:
+      print("X: ", data[i][:-1], file=logfile)
+      print("y: ", data[i][-1], file=logfile)
+      print("y_pred: ", y_pred, file=logfile)
   mse = total / len(data)
+  accuracy = [x / len(data) for x in ep]
   print("Validation MSE Loss: {}".format(mse))
+  print("Accuracy:", accuracy)
+  logfile.close()
   return mse
 
 
-def main():
+def main(log_misses):
+  #data = np.genfromtxt('./sample_data.csv'.format(NUM_OPCODES, MAX_OP_COUNT), delimiter=',')
   data = np.genfromtxt('./data/data_{}_{}.csv'.format(NUM_OPCODES, MAX_OP_COUNT), delimiter=',')
   train_size = int(.8*len(data))
   train_data, test_data = torch.utils.data.random_split(data, [train_size, len(data)-train_size])
   epochs = [i+1 for i in range(NUM_EPOCHS)]
   training = []
   validation = []
+  log_flag = False
   for i in range(NUM_EPOCHS):
+    if i == (NUM_EPOCHS - 1) and log_misses:
+      log_flag = True
     print("Epoch {}".format(i))
     train_loss = train(train_data)
-    valid_loss = test(test_data)
+    valid_loss = test(test_data, log_flag)
     training.append(train_loss)
     validation.append(valid_loss)
   plt.plot(epochs, training, label='training')
@@ -96,4 +116,7 @@ def main():
   plt.savefig('./data/loss_{}_{}'.format(NUM_OPCODES, MAX_OP_COUNT))
 
 if __name__ == "__main__":
-  main()
+  parser = argparse.ArgumentParser()
+  parser.add_argument('log_misses', type=bool)
+  args = parser.parse_args()
+  main(args.log_misses)
