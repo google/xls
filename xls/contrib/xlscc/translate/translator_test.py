@@ -246,7 +246,37 @@ class TranslatorTest(absltest.TestCase):
     check.second.p = 2;
     return check.x + check.in.z + check.second.p;
     """
-    self.one_in_one_out(source, 1, 2, 5)
+    self.one_in_one_out(source, 2, 2, 6)
+
+  def test_class_declarations(self):
+    source = """
+    class Rectangle {
+      int width;
+      int height;
+      void set_values (int,int);
+      int area();
+    };
+
+    void Rectangle::set_values (int &x, int y) {
+      width = x;
+      height = y;
+    }
+
+    int test(int a, int b) {
+      Rectangle rect;
+      int w = a;
+      rect.width = b;
+      rect.set_values(w, 5);
+      return rect.width;
+    }
+    """
+    f = self.parse_and_get_function(source)
+    aval = ir_value.Value(bits_mod.SBits(value=int(2), bit_count=32))
+    bval = ir_value.Value(bits_mod.SBits(value=int(3), bit_count=32))
+    args = dict(a=aval, b=bval)
+    result = ir_interpreter.run_function_kwargs(f, args)
+    result_int = int(ctypes.c_int32(int(str(result))).value)
+    self.assertEqual(5, result_int)
 
   def test_simple_switch(self):
     source = """

@@ -26,9 +26,7 @@ class XLSccLexer(CLexerBase):
   """
   tokens = CLexerBase.tokens + ('DBLCOLON',)
 
-  def t_DBLCOLON(self, t):
-    r'::'
-
+  t_DBLCOLON = r'::'
 
 def add_lexer_keywords(cls, keywords):
   cls.keywords = cls.keywords + tuple(kw.upper() for kw in keywords)
@@ -39,5 +37,5 @@ def add_lexer_keywords(cls, keywords):
   cls.tokens = cls.tokens + tuple(kw.upper() for kw in keywords)
 
 
-_CL_KEYWORDS = ['BOOL', 'TRUE', 'FALSE', 'TEMPLATE']
+_CL_KEYWORDS = ['BOOL', 'TRUE', 'FALSE', 'TEMPLATE', 'CLASS']
 add_lexer_keywords(XLSccLexer, [str.lower(kw) for kw in _CL_KEYWORDS])

@@ -109,10 +109,16 @@ class StructType(Type):
       self.is_const = False
       self.as_struct = None
       for decl in struct.decls:
+        #print("Field is : " + str(decl))
         name = decl.name
         field = decl.type
         self.field_indices[name] = len(self.field_indices)
-        if isinstance(field, c_ast.TypeDecl):
+        if isinstance(field, (c_ast.FuncDecl, c_ast.FuncDef)):
+          func = Function()
+          func.parse_function(translator, field)
+          func_name = self.name + "::" + func.name
+          translator.functions_[func_name] = func
+        elif isinstance(field, c_ast.TypeDecl):
           if isinstance(field.type, c_ast.Struct):
             self.element_types[field.declname] = translator.parse_type(field.type)
           else:
@@ -136,8 +142,6 @@ class StructType(Type):
         else:
           raise NotImplementedError("Unsupported field type for field", name,
                                   ":", type(field))
-
- 
    
   def get_xls_type(self, p):
     """Get XLS IR type for struct.
@@ -161,6 +165,13 @@ class StructType(Type):
                                   type(field))
 
     return p.get_tuple_type(element_xls_types)
+
+  def get_local_vars(self):
+    local_vars = {}
+    for name,elem in self.element_types.items():
+      if not isinstance(elem, Function):
+        local_vars[name] = CVar(None, elem)
+    return local_vars
 
   def get_field_indices(self):
     return self.field_indices
@@ -221,31 +232,45 @@ class Function(object):
       translator: Translator object
       ast: pycparser ast
     """
-    assert isinstance(ast, c_ast.FuncDef)
-    decl = ast.decl
-    self.name = decl.name
-
+    
+    assert isinstance(ast, (c_ast.FuncDecl, c_ast.FuncDef))
+    self.is_class_func = False
     self.loc = translate_loc(ast)
 
-    func_decl = decl.type
-    assert isinstance(func_decl, c_ast.FuncDecl)
+    if isinstance(ast, c_ast.FuncDef):
+      decl = ast.decl
+      self.name = decl.name
+      func_decl = decl.type
+      assert isinstance(func_decl, c_ast.FuncDecl)
+      self.body_ast = ast.body
+    else:
+      func_decl = ast
+      self.name = ast.type.declname
+      self.body_ast = None
 
     param_list = func_decl.args
     type_decl = func_decl.type
-
-    # parse return type
+    
     self.return_type = translator.parse_type(type_decl)
     # parse parameters
     self.params = collections.OrderedDict()
     if param_list is not None: 
-      for name, child in param_list.children():
-        assert isinstance(child, c_ast.Decl) 
-        name = child.name 
-        self.params[name] = translator.parse_type(child.type)
-
-    # parse body
-    self.body_ast = ast.body
-
+      for name, child in param_list.children():  
+        assert isinstance(child, (c_ast.Typename, c_ast.Decl))
+        if isinstance(child, c_ast.Decl): 
+          name = child.name 
+          self.params[name] = translator.parse_type(child.type)
+    #check if class function
+    if '::' in self.name:
+      self.is_class_func = True
+      full_name = ast.decl.name
+      self.class_name = full_name[:full_name.index('::')]
+      self.func_name = full_name[full_name.index('::')+2:]
+      class_struct = translator.get_struct_type(self.class_name)
+      if not class_struct:
+          raise ValueError("Function call to unknown class " 
+                            + self.class_name)           
+ 
   def set_fb_expr(self, fb_expr):
     self.fb_expr = fb_expr
 
@@ -372,10 +397,13 @@ class Translator(object):
       ast: pycparser AST
     """
     for name, child in ast.children():
-      if isinstance(child, c_ast.FuncDef):
+      if isinstance(child, (c_ast.FuncDef, c_ast.FuncDecl)):
         func = Function()
         func.parse_function(self, child)
         self.functions_[func.name] = func
+      elif isinstance(child.type, c_ast.Struct):
+        struct = StructType(child.type.name, child.type, self)
+        self.hls_types_by_name_[child.type.name] = struct
       elif isinstance(child, c_ast.Decl):
         name = child.name
         assert name not in self.global_decls_
@@ -551,10 +579,11 @@ class Translator(object):
     elif isinstance(decl_type, StructType):
       elements = []
       for elem_type in decl_type.get_element_types():
-        elements.append(self.gen_default_init(elem_type, loc_ast))
-      return self.fb.add_tuple(elements, loc)
+        if not isinstance(elem_type, Function):
+          elements.append(self.gen_default_init(elem_type, loc_ast))
+        return self.fb.add_tuple(elements, loc) 
     else:
-      raise NotImplementedError("Cannot generate default for type ", elem_type)
+      raise NotImplementedError("Cannot generate default for type ", decl_type)
 
   def gen_convert_ir(self, in_expr, in_type, to_type, loc_ast):
     """Generates XLS IR value conversion to C Type.
@@ -960,6 +989,7 @@ class Translator(object):
           else:
             raise NotImplementedError("Unknown non-template function on int",
                                       template_ast.expr)
+
         elif template_ast == "set_slc":
           assert len(stmt_ast.args.exprs) == 2
           offset_ast = stmt_ast.args.exprs[0]
@@ -996,6 +1026,26 @@ class Translator(object):
 
           self._generic_assign(left_var, r_expr, r_type, condition,
                                translate_loc(stmt_ast))
+        elif isinstance(stmt_ast, c_ast.FuncCall):
+          struct_id_ast = struct_ast.name
+          struct_id_name = struct_id_ast.name
+          struct_func_name = struct_ast.field.name
+          if struct_id_ast:
+            struct_type = self.cvars[struct_id_name].ctype
+            struct_class = self.hls_types_by_name_[struct_type.name]
+            if struct_class:
+              full_func_name = str(struct_class) + "::" + struct_func_name
+              struct_func = self.functions_[full_func_name]
+              print("Stmt_ast is : " + str(stmt_ast))
+              if struct_func:
+                print("Struct func is " + str(struct_func))
+                #return self.gen_expr_ir(stmt_ast, None)
+              else:
+                raise ValueError("Undeclared function called: " + stmt_ast.coord)
+            else:
+              raise ValueError("Unsupported object class" + stmt_ast.coord)
+          else:
+              raise ValueError("Uninitialized object " + stmt_ast.coord)
         else:
           raise NotImplementedError("Unsupported template function",
                                     template_ast)
@@ -1050,6 +1100,9 @@ class Translator(object):
       assert right_name in field_indices
       field_index = field_indices[right_name]
 
+      print("add tuple stuff " + str(left_type))
+      print("get right _name " + str(right_name))
+      print("Element types is " + str(left_type.element_types) + "\n")
       return self.fb.add_tuple_index(
           left_expr, field_index, loc), left_type.get_element_type(right_name)
     else:
@@ -1065,8 +1118,7 @@ class Translator(object):
 
     p = ir_package.Package(self.package_name_)
 
-    for f_name, func in self.functions_.items():
-
+    for f_name, func in self.functions_.items(): 
       self.fb = function_builder.FunctionBuilder(f_name, p)
       self.p = p
 
@@ -1087,9 +1139,17 @@ class Translator(object):
             self.fb.add_param(p_name, ptype.get_xls_type(p), func.loc), ptype)
         self.lvalues[p_name] = not ptype.is_const
 
+      cvars = None 
       # Function body
-      ret_vals = self.gen_ir_block(func.body_ast.children(), None, None)
-
+      if func.is_class_func: 
+        func_class = self.hls_types_by_name_[func.class_name]
+        cvars = func_class.get_local_vars()
+        # Add appropriate variables to lvalues
+        for var in cvars: 
+          self.lvalues[var] = not cvars[var].ctype.is_const
+      if not func.body_ast:
+        continue
+      ret_vals = self.gen_ir_block(func.body_ast.children(), None, cvars)
       # Add in reference params
       reference_param_names = func.get_ref_param_names()
 
@@ -1245,7 +1305,6 @@ class Translator(object):
 
       # Build up expression
       if isinstance(compound_lval, c_ast.StructRef):
-
         element_values = []
 
         field_indices = left_type.get_field_indices()

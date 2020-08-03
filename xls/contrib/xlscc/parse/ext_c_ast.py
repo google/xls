@@ -57,6 +57,7 @@ from pycparser.c_ast import StructRef
 from pycparser.c_ast import Switch
 from pycparser.c_ast import TernaryOp
 from pycparser.c_ast import TypeDecl
+from pycparser.c_ast import Typename
 from pycparser.c_ast import UnaryOp
 
 
