@@ -28,6 +28,60 @@ enum CellKindProto {
   OTHER = 8;
 }
 
+// Proto definition of the "statetable" Group, defined in section 2.1.4 of the
+// Liberty file standard (2007.03).
+// A statetable captures internal state transitions for potentially
+// sequential cells (as opposed to combinational). Low/high/dontcare are
+// potential input values, while low/high and the rest are potential results.
+// An example state table with one row:
+//  A B : C : C
+//  L - : L : H
+//  - - : - : -:
+// This indicates that if A is low and C is low, on the next clock, C will be
+// high, and for all other inputs, C will be low (obviously, this table isn't
+// particularly useful, but illustrates the general idea).
+enum StateTableSignal {
+  STATE_TABLE_SIGNAL_INVALID = 0;
+  STATE_TABLE_SIGNAL_LOW = 1;
+  STATE_TABLE_SIGNAL_HIGH = 2;
+  STATE_TABLE_SIGNAL_DONTCARE = 3;
+  STATE_TABLE_SIGNAL_NOCHANGE = 4;
+  STATE_TABLE_SIGNAL_TOGGLE = 5;
+  STATE_TABLE_SIGNAL_X = 6;
+  // There's an 'F' signal referenced but not defined in the standard.
+  // It's possible we'll have to add that in the future.
+}
+
+message StateTableRow {
+  // The values of the external inputs into this cell.
+  repeated StateTableSignal input_signals = 1;
+
+  // The current internal signal values of this cell.
+  repeated StateTableSignal internal_signals = 2;
+
+  // The resulting value of the internal signals when presented with the above
+  // inputs.
+  repeated StateTableSignal output_signals = 3;
+}
+
+message StateTable {
+  // The names of the input signals to this table - this will be the
+  // bit-ordering of the values in the table rows themselves. For example, if
+  // inputs are [i0, i1], in that order, then if a table entry has the key value
+  // of "LH", that indicates that i1, the second entry, is high and i0 is low.
+  repeated string input_names = 1;
+
+  // The name of the internal signal controlled by this table.
+  repeated string internal_names = 2;
+
+  // Valid entries to the table. Example (using the inputs above)
+  // LH -> true: output_name will be high if i0 is low and i1 is high.
+  // HH -> false: output_name will be low if i0 is high and i1 is high.
+  // Any unspecified entries are invalid - should not be encountered in current
+  // models.
+  repeated StateTableRow rows = 3;
+}
+
 message OutputPinProto {
   optional string name = 1;
   optional string function = 2;
@@ -38,6 +92,10 @@ message CellLibraryEntryProto {
   optional string name = 2;
   repeated string input_names = 3;
   repeated OutputPinProto output_pins = 4;
+
+  // The liberty standard doesn't mention cardinality of statetable, but it
+  // seems wrong for there to be > 1.
+  optional StateTable state_table = 5;
 }
 
 message CellLibraryProto {

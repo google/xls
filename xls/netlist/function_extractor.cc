@@ -16,6 +16,8 @@
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "absl/strings/ascii.h"
+#include "absl/strings/str_split.h"
 #include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
@@ -31,10 +33,116 @@ namespace {
 constexpr const char kDirectionKey[] = "direction";
 constexpr const char kFunctionKey[] = "function";
 constexpr const char kNextStateKey[] = "next_state";
+constexpr const char kStateFunctionKey[] = "state_function";
 constexpr const char kInputValue[] = "input";
 constexpr const char kOutputValue[] = "output";
 constexpr const char kPinKind[] = "pin";
 constexpr const char kFfKind[] = "ff";
+constexpr const char kStateTableKind[] = "statetable";
+
+// Translates an individual signal value char to the protobuf equivalent.
+xabsl::StatusOr<StateTableSignal> LibertyToTableSignal(
+    const std::string& input) {
+  XLS_RET_CHECK(input.size() == 1) << input;
+
+  char signal = input[0];
+  XLS_RET_CHECK(signal == '-' || signal == 'H' || signal == 'L' ||
+                signal == 'N' || signal == 'T' || signal == 'X');
+  switch (signal) {
+    case '-':
+      return STATE_TABLE_SIGNAL_DONTCARE;
+    case 'H':
+      return STATE_TABLE_SIGNAL_HIGH;
+    case 'L':
+      return STATE_TABLE_SIGNAL_LOW;
+    case 'N':
+      return STATE_TABLE_SIGNAL_NOCHANGE;
+    case 'T':
+      return STATE_TABLE_SIGNAL_TOGGLE;
+    case 'X':
+      return STATE_TABLE_SIGNAL_X;
+    default:
+      XLS_LOG(FATAL) << "Invalid input signal!";
+  }
+}
+
+absl::string_view SanitizeRow(const absl::string_view& row) {
+  // Remove newlines, whitespace, and occasional extraneous slash characters
+  // from a row in the state table: there are rows that appear as, for example:
+  //  X X X : Y : Z  ,\
+  // It makes life a lot easier if we can just deal with the range from X to Z.
+  absl::string_view result = absl::StripAsciiWhitespace(row);
+  if (result[0] == '\\') {
+    result.remove_prefix(1);
+  }
+  result = absl::StripAsciiWhitespace(result);
+  return result;
+}
+
+// Parses a textual Liberty statetable entry to a proto.
+// This doesn't attempt to _validate_ the specified state table; it only
+// proto-izes it.
+// Returns a map of internal signal to state table defining its behavior.
+absl::Status ProcessStateTable(const cell_lib::Block& table_def,
+                               CellLibraryEntryProto* proto) {
+  StateTable* table = proto->mutable_state_table();
+  for (absl::string_view name : absl::StrSplit(table_def.args[0], ' ')) {
+    table->add_input_names(name);
+  }
+
+  for (absl::string_view name : absl::StrSplit(table_def.args[1], ' ')) {
+    table->add_internal_names(name);
+  }
+
+  XLS_RET_CHECK(table_def.entries.size() == 1);
+  XLS_RET_CHECK(
+      absl::holds_alternative<cell_lib::KVEntry>(table_def.entries[0]));
+  const cell_lib::KVEntry& table_entry =
+      absl::get<cell_lib::KVEntry>(table_def.entries[0]);
+
+  // Table entries are, sadly, strings, such as:
+  // " L H L : - : H,
+  //   H L H : - : L,
+  //   ... "
+  // So we gotta comma separate then colon separate them to get the important
+  // bits. The first column is the input signals, ordered as in the first arg.
+  std::vector<std::string> rows =
+      absl::StrSplit(table_entry.value, ',', absl::SkipWhitespace());
+  for (const std::string& raw_row : rows) {
+    absl::string_view source_row = SanitizeRow(raw_row);
+    std::vector<std::string> fields =
+        absl::StrSplit(source_row, ':', absl::SkipWhitespace());
+    XLS_RET_CHECK(fields.size() == 3)
+        << "Improperly formatted row: " << source_row;
+    std::vector<std::string> inputs =
+        absl::StrSplit(fields[0], ' ', absl::SkipWhitespace());
+    std::vector<std::string> internal_inputs =
+        absl::StrSplit(fields[1], ' ', absl::SkipWhitespace());
+    std::vector<std::string> internal_outputs =
+        absl::StrSplit(fields[2], ' ', absl::SkipWhitespace());
+
+    StateTableRow* row = table->add_rows();
+    for (const std::string& input : inputs) {
+      XLS_ASSIGN_OR_RETURN(StateTableSignal signal,
+                           LibertyToTableSignal(input));
+      row->add_input_signals(signal);
+    }
+
+    for (const std::string& input : internal_inputs) {
+      XLS_ASSIGN_OR_RETURN(StateTableSignal signal,
+                           LibertyToTableSignal(input));
+      row->add_internal_signals(signal);
+    }
+
+    for (const std::string& input : internal_outputs) {
+      XLS_ASSIGN_OR_RETURN(StateTableSignal signal,
+                           LibertyToTableSignal(input));
+      row->add_output_signals(signal);
+    }
+  }
+
+  return absl::OkStatus();
+}
 
 // Gets input and output pin names and output pin functions and adds them to the
 // entry proto.
@@ -58,7 +166,12 @@ absl::Status ExtractFromPin(const cell_lib::Block& pin,
           // We don't care about such pins.
           return absl::OkStatus();
         }
-      } else if (kv_entry->key == kFunctionKey) {
+      } else if (kv_entry->key == kFunctionKey ||
+                 kv_entry->key == kStateFunctionKey) {
+        // "function" and "state_function" seem to be handlable in the same way:
+        // state_function can deal with special cases that function can't (such
+        // as use of internal ports)...but the internal logic appears to be the
+        // same.
         function = kv_entry->value;
       }
     }
@@ -121,8 +234,10 @@ absl::Status ExtractFromCell(const cell_lib::Block& cell,
         XLS_RETURN_IF_ERROR(ExtractFromPin(*block_entry.get(), entry_proto));
       } else if (block_entry->kind == kFfKind) {
         // If it's a flip-flop, we need to replace the pin's output function
-        // with it's next_state function.
+        // with its next_state function.
         XLS_RETURN_IF_ERROR(ExtractFromFf(*block_entry.get(), entry_proto));
+      } else if (block_entry->kind == kStateTableKind) {
+        XLS_RETURN_IF_ERROR(ProcessStateTable(*block_entry.get(), entry_proto));
       }
     }
   }
@@ -136,7 +251,8 @@ xabsl::StatusOr<CellLibraryProto> ExtractFunctions(
     cell_lib::CharStream* stream) {
   cell_lib::Scanner scanner(stream);
   absl::flat_hash_set<std::string> kind_allowlist(
-      {"library", "cell", "pin", "direction", "function", "ff", "next_state"});
+      {"library", "cell", "pin", "direction", "function", "ff", "next_state",
+       "statetable"});
   cell_lib::Parser parser(&scanner);
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<cell_lib::Block> block,

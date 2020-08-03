@@ -279,6 +279,7 @@ cc_library(
         ":netlist_cc_proto",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:variant",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
