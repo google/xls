@@ -87,11 +87,11 @@ absl::Status ProcessStateTable(const cell_lib::Block& table_def,
                                CellLibraryEntryProto* proto) {
   StateTableProto* table = proto->mutable_state_table();
   for (absl::string_view name : absl::StrSplit(table_def.args[0], ' ')) {
-    table->add_input_names(name);
+    table->add_input_names(std::string(name));
   }
 
   for (absl::string_view name : absl::StrSplit(table_def.args[1], ' ')) {
-    table->add_internal_names(name);
+    table->add_internal_names(std::string(name));
   }
 
   XLS_RET_CHECK(table_def.entries.size() == 1);
