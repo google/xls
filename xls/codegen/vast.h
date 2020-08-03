@@ -588,8 +588,7 @@ class IndexableExpression : public Expression {
   bool IsIndexableExpression() const override { return true; }
 
   // Returns whether this is a scalar register reference that should be referred
-  // to by name instead of trivially sliced (which e.g. Design Compiler does not
-  // support).
+  // to by name because indexing a scalar is invalid (System)Verilog.
   virtual bool IsScalarReg() const { return false; }
 };
 
