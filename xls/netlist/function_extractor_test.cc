@@ -139,7 +139,7 @@ library (blah) {
   const CellLibraryEntryProto entry = proto.entries(0);
   EXPECT_EQ(entry.name(), "cell_1");
   ASSERT_TRUE(entry.has_state_table());
-  StateTable table = entry.state_table();
+  StateTableProto table = entry.state_table();
   absl::flat_hash_set<std::string> input_names({"i0", "i1"});
   for (const auto& input_name : table.input_names()) {
     ASSERT_TRUE(input_names.contains(input_name));
@@ -150,14 +150,16 @@ library (blah) {
   // Just validate a single row instead of going through all of them.
   StateTableRow row = table.rows(2);
   ASSERT_EQ(row.input_signals_size(), 2);
-  EXPECT_EQ(row.input_signals(0), STATE_TABLE_SIGNAL_HIGH);
-  EXPECT_EQ(row.input_signals(1), STATE_TABLE_SIGNAL_LOW);
+  EXPECT_EQ(row.input_signals().at("i0"), STATE_TABLE_SIGNAL_HIGH);
+  EXPECT_EQ(row.input_signals().at("i1"), STATE_TABLE_SIGNAL_LOW);
 
   ASSERT_EQ(row.internal_signals_size(), 1);
-  EXPECT_EQ(row.internal_signals(0), STATE_TABLE_SIGNAL_TOGGLE);
+  EXPECT_EQ(row.internal_signals().at("ham_sandwich"),
+            STATE_TABLE_SIGNAL_TOGGLE);
 
   ASSERT_EQ(row.output_signals_size(), 1);
-  EXPECT_EQ(row.output_signals(0), STATE_TABLE_SIGNAL_NOCHANGE);
+  EXPECT_EQ(row.output_signals().at("ham_sandwich"),
+            STATE_TABLE_SIGNAL_NOCHANGE);
 }
 
 }  // namespace

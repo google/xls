@@ -54,17 +54,17 @@ enum StateTableSignal {
 
 message StateTableRow {
   // The values of the external inputs into this cell.
-  repeated StateTableSignal input_signals = 1;
+  map<string, StateTableSignal> input_signals = 1;
 
   // The current internal signal values of this cell.
-  repeated StateTableSignal internal_signals = 2;
+  map<string, StateTableSignal> internal_signals = 2;
 
   // The resulting value of the internal signals when presented with the above
   // inputs.
-  repeated StateTableSignal output_signals = 3;
+  map<string, StateTableSignal> output_signals = 3;
 }
 
-message StateTable {
+message StateTableProto {
   // The names of the input signals to this table - this will be the
   // bit-ordering of the values in the table rows themselves. For example, if
   // inputs are [i0, i1], in that order, then if a table entry has the key value
@@ -95,7 +95,7 @@ message CellLibraryEntryProto {
 
   // The liberty standard doesn't mention cardinality of statetable, but it
   // seems wrong for there to be > 1.
-  optional StateTable state_table = 5;
+  optional StateTableProto state_table = 5;
 }
 
 message CellLibraryProto {

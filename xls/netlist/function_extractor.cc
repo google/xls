@@ -85,7 +85,7 @@ absl::string_view SanitizeRow(const absl::string_view& row) {
 // Returns a map of internal signal to state table defining its behavior.
 absl::Status ProcessStateTable(const cell_lib::Block& table_def,
                                CellLibraryEntryProto* proto) {
-  StateTable* table = proto->mutable_state_table();
+  StateTableProto* table = proto->mutable_state_table();
   for (absl::string_view name : absl::StrSplit(table_def.args[0], ' ')) {
     table->add_input_names(name);
   }
@@ -122,22 +122,22 @@ absl::Status ProcessStateTable(const cell_lib::Block& table_def,
         absl::StrSplit(fields[2], ' ', absl::SkipWhitespace());
 
     StateTableRow* row = table->add_rows();
-    for (const std::string& input : inputs) {
+    for (int i = 0; i < inputs.size(); i++) {
       XLS_ASSIGN_OR_RETURN(StateTableSignal signal,
-                           LibertyToTableSignal(input));
-      row->add_input_signals(signal);
+                           LibertyToTableSignal(inputs[i]));
+      (*row->mutable_input_signals())[table->input_names()[i]] = signal;
     }
 
-    for (const std::string& input : internal_inputs) {
+    for (int i = 0; i < internal_inputs.size(); i++) {
       XLS_ASSIGN_OR_RETURN(StateTableSignal signal,
-                           LibertyToTableSignal(input));
-      row->add_internal_signals(signal);
+                           LibertyToTableSignal(internal_inputs[i]));
+      (*row->mutable_internal_signals())[table->internal_names()[i]] = signal;
     }
 
-    for (const std::string& input : internal_outputs) {
+    for (int i = 0; i < internal_inputs.size(); i++) {
       XLS_ASSIGN_OR_RETURN(StateTableSignal signal,
-                           LibertyToTableSignal(input));
-      row->add_output_signals(signal);
+                           LibertyToTableSignal(internal_outputs[i]));
+      (*row->mutable_output_signals())[table->internal_names()[i]] = signal;
     }
   }
 
