@@ -45,8 +45,8 @@ PYBIND11_MODULE(z3_lec, m) {
 
         netlist::rtl::Scanner scanner(netlist_text);
         netlist::CellLibraryProto proto;
-        google::protobuf::TextFormat::ParseFromStringPiece(cell_library_textproto,
-                                                 &proto);
+        google::protobuf::TextFormat::ParseFromString(
+          std::string(cell_library_textproto), &proto);
         XLS_ASSIGN_OR_RETURN(auto cell_library,
                              netlist::CellLibrary::FromProto(proto));
         XLS_ASSIGN_OR_RETURN(auto netlist, netlist::rtl::Parser::ParseNetlist(
