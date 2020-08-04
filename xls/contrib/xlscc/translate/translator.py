@@ -111,6 +111,12 @@ class StructType(Type):
       for decl in struct.decls:
         name = decl.name
         field = decl.type
+        if isinstance (field, (c_ast.FuncDecl, c_ast.FuncDef)):
+          func = Function()
+          func.parse_function(translator, field)
+          func_name = self.name + "::" + func.name
+          translator.functions_[func_name] = func
+          continue
         self.field_indices[name] = len(self.field_indices)
         if isinstance(field, c_ast.TypeDecl):
           if isinstance(field.type, c_ast.Struct):
@@ -241,7 +247,6 @@ class Function(object):
       func_decl = ast
       self.name = ast.type.declname
       self.body_ast = None
-    func_decl = decl.type
     
     param_list = func_decl.args
     type_decl = func_decl.type
@@ -252,9 +257,10 @@ class Function(object):
     self.params = collections.OrderedDict()
     if param_list is not None: 
       for name, child in param_list.children():
-        assert isinstance(child, c_ast.Decl) 
-        name = child.name 
-        self.params[name] = translator.parse_type(child.type)
+        assert isinstance(child, (c_ast.Typename, c_ast.Decl)) 
+        if isinstance(child, c_ast.Decl):
+          name = child.name 
+          self.params[name] = translator.parse_type(child.type)
     if '::' in self.name:
       self.is_class_func = True
       full_name = ast.decl.name
@@ -576,7 +582,7 @@ class Translator(object):
         elements.append(self.gen_default_init(elem_type, loc_ast))
       return self.fb.add_tuple(elements, loc)
     else:
-      raise NotImplementedError("Cannot generate default for type ", elem_type)
+      raise NotImplementedError("Cannot generate default for type ", decl_type)
 
   def gen_convert_ir(self, in_expr, in_type, to_type, loc_ast):
     """Generates XLS IR value conversion to C Type.
@@ -1109,6 +1115,15 @@ class Translator(object):
             self.fb.add_param(p_name, ptype.get_xls_type(p), func.loc), ptype)
         self.lvalues[p_name] = not ptype.is_const
 
+      # Add local vars for class functions
+      cvars = None
+      if func.is_class_func:
+        func_class = self.hls_types_by_name_[func.class_name]
+        cvars = func_class.get_local_vars()
+        for var in cvars:
+          self.lvalues[var] = not cvars[var].ctype.is_const
+      if not func.body_ast:
+        continue
       # Function body
       ret_vals = self.gen_ir_block(func.body_ast.children(), None, None)
 
