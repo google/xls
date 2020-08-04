@@ -299,3 +299,8 @@ dslx_test(
     name = "derived_parametrics",
     srcs = ["derived_parametrics.x"],
 )
+
+dslx_test(
+    name = "array_concat",
+    srcs = ["array_concat.x"],
+)
