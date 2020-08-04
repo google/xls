@@ -52,23 +52,23 @@ class LlvmIrJit {
   xabsl::StatusOr<Value> Run(
       const absl::flat_hash_map<std::string, Value>& kwargs);
 
-  // Executes the compiled function with the specified arguments, but does not
-  // unpack the result into a Value, instead populating the argument buffer with
-  // the computation results. The caller can then overlay a View type
-  // (from value_view.h) to consume the results.
+  // Executes the compiled function with the arguments and results specified as
+  // "views" - flat buffers onto which structures layouts can be applied (see
+  // value_view.h).
   //
   // Argument packing and unpacking into and out of LLVM-space can consume a
   // surprisingly large amount of execution time. Deferring such transformations
   // (and applying views) can eliminate this overhead and still give access tor
   // result data. Users needing less performance can still use the
   // Value-returning methods above for code simplicity.
-  absl::Status RunToBuffer(absl::Span<const Value> args,
-                           absl::Span<uint8> result_buffer);
+  absl::Status RunWithViews(absl::Span<const uint8*> args,
+                            absl::Span<uint8> result_buffer);
 
   // Returns the function that the JIT executes.
   Function* function() { return xls_function_; }
 
-  // Gets the size of the compiled function's return type in bytes.
+  // Gets the size of the compiled function's args or return type in bytes.
+  int64 GetArgTypeSize(int arg_index) { return arg_type_bytes_[arg_index]; }
   int64 GetReturnTypeSize() { return return_type_bytes_; }
 
  private:
@@ -98,8 +98,10 @@ class LlvmIrJit {
   FunctionType* xls_function_type_;
   int64 opt_level_;
 
-  // Size of the function's return type as flat bytes.
+  // Size of the function's args or return type as flat bytes.
+  std::vector<int64> arg_type_bytes_;
   int64 return_type_bytes_;
+
   // Cache for XLS type => LLVM type conversions.
   absl::flat_hash_map<const Type*, llvm::Type*> xls_to_llvm_type_;
 
@@ -107,7 +109,8 @@ class LlvmIrJit {
   std::unique_ptr<LlvmIrRuntime> ir_runtime_;
 
   // When initialized, this points to the compiled output.
-  void (*invoker_)(uint8** inputs, uint8* outputs);
+  using JitFunctionType = void (*)(const uint8* const* inputs, uint8* outputs);
+  JitFunctionType invoker_;
 };
 
 }  // namespace xls

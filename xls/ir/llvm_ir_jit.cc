@@ -1171,6 +1171,10 @@ absl::Status LlvmIrJit::CompileFunction() {
           xls_function_type_->parameter_count()),
       /*AddressSpace=*/0));
 
+  for (const Type* type : xls_function_type_->parameters()) {
+    arg_type_bytes_.push_back(type_converter_->GetTypeByteSize(*type));
+  }
+
   // Since we only pass around concrete values (i.e., not functions), we can
   // use the flat byte count of the XLS type to size our result array.
   Type* return_type = xls_function_type_->return_type();
@@ -1240,8 +1244,7 @@ absl::Status LlvmIrJit::CompileFunction() {
   }
 
   llvm::JITTargetAddress invoker = symbol->getAddress();
-  invoker_ =
-      reinterpret_cast<void (*)(uint8 * *inputs, uint8 * outputs)>(invoker);
+  invoker_ = reinterpret_cast<JitFunctionType>(invoker);
 
   ir_runtime_ =
       std::make_unique<LlvmIrRuntime>(data_layout_, type_converter_.get());
@@ -1292,21 +1295,13 @@ xabsl::StatusOr<Value> LlvmIrJit::Run(
   return Run(positional_args);
 }
 
-absl::Status LlvmIrJit::RunToBuffer(absl::Span<const Value> args,
-                                    absl::Span<uint8> result_buffer) {
+absl::Status LlvmIrJit::RunWithViews(absl::Span<const uint8*> args,
+                                     absl::Span<uint8> result_buffer) {
   absl::Span<Param* const> params = xls_function_->params();
   if (args.size() != params.size()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Arg list has the wrong size: %d vs expected %d.",
                         args.size(), xls_function_->params().size()));
-  }
-
-  for (int i = 0; i < params.size(); i++) {
-    if (!ValueConformsToType(args[i], params[i]->GetType())) {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Got argument %s for parameter %d which is not of type %s",
-          args[i].ToString(), i, params[i]->GetType()->ToString()));
-    }
   }
 
   if (result_buffer.size() < return_type_bytes_) {
@@ -1315,19 +1310,7 @@ absl::Status LlvmIrJit::RunToBuffer(absl::Span<const Value> args,
                      return_type_bytes_));
   }
 
-  std::vector<std::unique_ptr<uint8[]>> unique_arg_buffers;
-  std::vector<uint8*> arg_buffers;
-  unique_arg_buffers.reserve(xls_function_type_->parameters().size());
-  arg_buffers.reserve(unique_arg_buffers.size());
-  for (const Type* type : xls_function_type_->parameters()) {
-    unique_arg_buffers.push_back(
-        std::make_unique<uint8[]>(type_converter_->GetTypeByteSize(*type)));
-    arg_buffers.push_back(unique_arg_buffers.back().get());
-  }
-
-  XLS_RETURN_IF_ERROR(ir_runtime_->PackArgs(
-      args, xls_function_type_->parameters(), absl::MakeSpan(arg_buffers)));
-  invoker_(arg_buffers.data(), result_buffer.data());
+  invoker_(args.data(), result_buffer.data());
   return absl::OkStatus();
 }
 

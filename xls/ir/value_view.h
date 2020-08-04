@@ -35,7 +35,8 @@ template <typename ElementT, uint64 kNumElements>
 class ArrayView {
  public:
   explicit ArrayView(absl::Span<const uint8> buffer) : buffer_(buffer) {
-    XLS_DCHECK(buffer_.size() == GetTypeSize())
+    XLS_CHECK(buffer_.data() == nullptr);
+    XLS_CHECK(buffer_.size() == GetTypeSize())
         << "Span isn't sized to this array's type!";
   }
 
@@ -69,6 +70,7 @@ inline uint64 MakeMask<0>() {
 template <uint64 kNumBits>
 class BitsView {
  public:
+  BitsView() : buffer_(nullptr) { XLS_CHECK(buffer_ == nullptr); }
   explicit BitsView(const uint8* buffer) : buffer_(buffer) {}
 
   // Gets the storage size of this type.
@@ -111,6 +113,7 @@ class BitsView {
 template <typename... Types>
 class TupleView {
  public:
+  TupleView() : buffer_(nullptr) { XLS_CHECK(buffer_ == nullptr); }
   explicit TupleView(const uint8* buffer) : buffer_(buffer) {}
   const uint8* buffer() { return buffer_; }
 
@@ -127,15 +130,17 @@ class TupleView {
   }
 
   // Gets the size of this tuple type (as represented in the buffer).
-  template <typename FrontT, typename... Rest>
+  template <typename FrontT, typename NextT, typename... Rest>
   static constexpr uint64 GetTypeSize() {
-    return FrontT::GetTypeSize() + GetTypeSize<Rest...>();
+    return FrontT::GetTypeSize() + GetTypeSize<NextT, Rest...>();
   }
 
   template <typename LastT>
   static constexpr uint64 GetTypeSize() {
     return LastT::GetTypeSize();
   }
+
+  static constexpr uint64 GetTypeSize() { return GetTypeSize<Types...>(); }
 
   // ---- Element access.
   // Recursive case for element access. Simply walks down the type list.
@@ -174,6 +179,68 @@ class TupleView {
 
  private:
   const uint8* buffer_;
+};
+
+// Mutable versions of the types above. As much as possible, these definitions
+// depend on their parent types for their implementations - only operations
+// touching "buffer_" need to be overridden.
+template <typename ElementT, uint64 kNumElements>
+class MutableArrayView {
+ public:
+  explicit MutableArrayView(absl::Span<uint8> buffer) : buffer_(buffer) {
+    int64 type_size = ArrayView<ElementT, kNumElements>::GetTypeSize();
+    XLS_DCHECK(buffer_.size() == type_size)
+        << "Span isn't sized to this array's type!";
+  }
+
+  // Gets the N'th element in the array.
+  ElementT Get(int index) {
+    return ElementT(buffer_ + (ElementT::GetTypeSize() * index));
+  }
+
+ private:
+  absl::Span<uint8> buffer_;
+};
+
+template <uint64 kNumBits>
+class MutableBitsView : public BitsView<kNumBits> {
+ public:
+  explicit MutableBitsView(uint8* buffer) : buffer_(buffer) {}
+
+  typename BitsView<kNumBits>::ReturnT GetValue() {
+    return *reinterpret_cast<const typename BitsView<kNumBits>::ReturnT*>(
+               buffer_) &
+           MakeMask<kNumBits - 1>();
+  }
+
+  void SetValue(typename BitsView<kNumBits>::ReturnT value) {
+    *reinterpret_cast<typename BitsView<kNumBits>::ReturnT*>(buffer_) =
+        value & MakeMask<kNumBits - 1>();
+  }
+
+ private:
+  uint8* buffer_;
+};
+
+template <typename... Types>
+class MutableTupleView : public TupleView<Types...> {
+ public:
+  explicit MutableTupleView(uint8* buffer) : buffer_(buffer) {}
+
+  // Gets the N'th element in the tuple.
+  template <int kElementIndex>
+  typename TupleView<Types...>::template element_accessor<kElementIndex,
+                                                          Types...>::type
+  Get() {
+    return typename TupleView<Types...>::
+        template element_accessor<kElementIndex, Types...>::type(
+            buffer_ +
+            TupleView<Types...>::template GetOffset<kElementIndex, Types...>(
+                0));
+  }
+
+ private:
+  uint8* buffer_;
 };
 
 }  // namespace xls
