@@ -773,6 +773,16 @@ fn f() -> Foo {
     """
     self._typecheck(program)
 
+  def test_bad_array_literal_type(self):
+    program = """
+    fn main() -> s32[2] {
+      s32:[1, 2]
+    }
+    """
+    self._typecheck(program,
+            error_type=TypeInferenceError,
+            error='Annotated type for array literal must be an array type; got sbits s32')
+
 
 if __name__ == '__main__':
   absltest.main()

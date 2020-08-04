@@ -253,6 +253,8 @@ def _deduce_ConstantArray(
   # Determine the element type that corresponds to the annotation and go mark
   # any un-typed numbers in the constant array as having that type.
   concrete_type = deduce(self.type_, ctx)
+  if not isinstance(concrete_type, ArrayType):
+    raise TypeInferenceError(self.type_.span, concrete_type, f'Annotated type for array literal must be an array type; got {concrete_type.get_debug_type_name()} {self.type_}')
   element_type = concrete_type.get_element_type()
   for member in self.members:
     assert ast.Constant.is_constant(member)
