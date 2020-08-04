@@ -22,6 +22,34 @@ package(
     licenses = ["notice"],
 )
 
+filegroup(
+    name = "ir_examples",
+    srcs = [
+        ":adler32_all_ir",
+        ":crc32_all_ir",
+        ":sha256_all_ir",
+    ],
+)
+
+dslx_test(
+    name = "adler32",
+    srcs = ["adler32.x"],
+    # TODO(rspringer): OOMs.
+    prove_unopt_eq_opt = False,
+)
+
+cc_binary(
+    name = "adler32_reference",
+    srcs = ["adler32_reference.cc"],
+    deps = [
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/types:span",
+        "//xls/common:init_xls",
+        "//xls/common:integral_types",
+        "//xls/common/logging",
+    ],
+)
+
 dslx_test(
     name = "crc32",
     srcs = ["crc32.x"],
@@ -52,14 +80,6 @@ dslx_test(
     # TODO(rspringer): OOMs on some machines.
     prove_unopt_eq_opt = False,
     tags = ["optonly"],
-)
-
-filegroup(
-    name = "ir_examples",
-    srcs = [
-        ":crc32_all_ir",
-        ":sha256_all_ir",
-    ],
 )
 
 list_filegroup_files(
