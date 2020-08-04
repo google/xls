@@ -161,13 +161,15 @@ def _add_to_ready(ready: List[ConversionRecord],
 
 def get_order(
     module: ast.Module, imports: Dict[ast.Import, ImportedInfo],
-    traverse_tests=False) -> List[ConversionRecord]:
+    traverse_tests: bool = False) -> List[ConversionRecord]:
   """Returns (topological) order for functions to be converted to IR.
 
   Args:
     module: Module to convert the (non-parametric) functions for.
     imports: Transitive imports that are required by "module".
-    traverse_tests: Whether to traverse DSLX test constructs
+    traverse_tests: Whether to traverse DSLX test constructs. This flag should
+      be set if we intend to run functions only called from test constructs
+      through the JIT.
   """
   ready = []  # type: List[ConversionRecord]
 

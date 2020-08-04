@@ -80,7 +80,7 @@ class Interpreter(object):
                node_to_type: deduce.NodeToType,
                f_import: Optional[Callable[[ImportSubject], ImportInfo]],
                trace_all: bool = False,
-               ir_package = None):
+               ir_package: Optional['Package'] = None):
     self._module = module
     self._node_to_type = node_to_type
     self._top_level_members = {}
@@ -1373,6 +1373,10 @@ class Interpreter(object):
     more than call _eval_fn_with_interpreter(). Otherwise, fn is executed with
     the LLVM IR JIT and its return value is compared against the intepreted
     value as a consistency check.
+
+    TODO(hjmontero): 2020-8-4 This OK because there are no side effects. We
+    should investigate what happens when there are side effects (e.g. DSLX fatal
+    errors).
     """
 
     interpreter_value = self._evaluate_fn_with_interpreter(fn, m, args, span,
@@ -1392,8 +1396,9 @@ class Interpreter(object):
 
         jit_value = llvm_ir_jit.llvm_ir_jit_run(ir_function, ir_args)
         jit_comparison.compare_values(interpreter_value, jit_value)
-      except jit_comparison.UnsupportedConversionError as _:
-        # Not all DSLX is convertable to IR/JIT.
+      except jit_comparison.UnsupportedConversionError:
+        # Not all DSLX is convertable to IR/JIT (e.g. DSLX value types that have
+        # no equivalent IR value type).
         pass
 
     return interpreter_value

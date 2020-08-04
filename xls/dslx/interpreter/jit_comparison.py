@@ -15,7 +15,7 @@
 # limitations under the License.
 """Helper utilities for asserting DSLX interpreter/LLVM IR JIT equivalence."""
 
-from typing import Tuple, Text, Optional, Dict, List
+from typing import Tuple, Text, Optional, Dict, Iterable
 
 from absl import logging
 
@@ -62,7 +62,8 @@ def convert_interpreter_value_to_ir(
     logging.vlog(3, "Can't convert to JIT value: %s", interpreter_value)
     raise UnsupportedConversionError
 
-def convert_args_to_ir(args: List[dslx_value.Value]) -> List[ir_value.Value]:
+def convert_args_to_ir(
+    args: Iterable[dslx_value.Value]) -> Iterable[ir_value.Value]:
   ir_args = []
   for arg in args:
     ir_args.append(convert_interpreter_value_to_ir(arg))
@@ -70,7 +71,7 @@ def convert_args_to_ir(args: List[dslx_value.Value]) -> List[ir_value.Value]:
   return ir_args
 
 def get_bits(jit_bits: ir_bits.Bits, signed: bool) -> int:
-  """Constructs the complete ir bits value by reading in a word at a time."""
+  """Constructs the ir bits value by reading in a 64-bit value at a time."""
   bit_count = jit_bits.bit_count()
   bits_value = 0
   word_number = 0
