@@ -402,6 +402,40 @@ fn dynamicbitslice(x: bits[32], y: bits[32]) -> bits[14] {
   ParseFunctionAndCheckDump(input);
 }
 
+TEST(IrParserTest, ParseAfterAllEmpty) {
+  std::string input = R"(
+fn after_all_func() -> token {
+  ret after_all.1: token = after_all()
+}
+)";
+  ParseFunctionAndCheckDump(input);
+}
+
+TEST(IrParserTest, ParseAfterAllMany) {
+  std::string input = R"(
+fn after_all_func() -> token {
+  after_all.1: token = after_all()
+  after_all.2: token = after_all()
+  ret after_all.3: token = after_all(after_all.1, after_all.2)
+}
+)";
+  ParseFunctionAndCheckDump(input);
+}
+
+TEST(IrParserTest, ParseAfterAllNonToken) {
+  Package p("my_package");
+  std::string input = R"(
+fn after_all_func() -> token {
+  after_all.1: token = after_all()
+  after_all.2: token = after_all()
+  ret after_all.3: bits[2] = after_all(after_all.1, after_all.2)
+}
+)";
+  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected token type @")));
+}
+
 TEST(IrParserTest, ParseArray) {
   std::string input = R"(
 fn array_and_array(x: bits[32], y: bits[32], z: bits[32]) -> bits[32][3] {

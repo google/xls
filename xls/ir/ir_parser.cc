@@ -53,6 +53,8 @@ xabsl::StatusOr<Type*> Parser::ParseType(Package* package) {
   Type* type;
   if (scanner_.PeekTokenIs(LexicalTokenType::kParenOpen)) {
     XLS_ASSIGN_OR_RETURN(type, ParseTupleType(package));
+  } else if (scanner_.TryDropKeyword("token")) {
+    return package->GetTokenType();
   } else {
     XLS_ASSIGN_OR_RETURN(type, ParseBitsType(package));
   }
@@ -612,6 +614,15 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
         bvalue = fb->Tuple(operands, *loc);
         break;
       }
+      case Op::kAfterAll: {
+        if (!type->IsToken()) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Expected token type @ %s", op_token.pos().ToHumanString()));
+        }
+        XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(ArgParser::kVariadic));
+        bvalue = fb->AfterAll(operands, *loc);
+        break;
+      }
       case Op::kArray: {
         if (!type->IsArray()) {
           return absl::InvalidArgumentError(absl::StrFormat(
@@ -729,7 +740,7 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
 
     // Verify that the type of the newly constructed node matches the parsed
     // type.
-    if (type != bvalue.node()->GetType()) {
+    if (bvalue.valid() && type != bvalue.node()->GetType()) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Declared type %s does not match expected type %s @ %s",
           type->ToString(), bvalue.GetType()->ToString(),
@@ -752,9 +763,11 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
       return absl::nullopt;
     };
 
-    if (absl::optional<int64> suggested_id =
-            get_suggested_id(output_name.value())) {
-      last_created.node()->set_id(suggested_id.value());
+    if (last_created.valid()) {
+      if (absl::optional<int64> suggested_id =
+              get_suggested_id(output_name.value())) {
+        last_created.node()->set_id(suggested_id.value());
+      }
     }
 
     if (saw_ret) {
@@ -845,7 +858,8 @@ xabsl::StatusOr<Function*> Parser::ParseFunction(Package* package) {
   XLS_ASSIGN_OR_RETURN(BValue return_value,
                        ParseFunctionBody(fb, &name_to_value, package));
 
-  if (return_value.node()->GetType() != function_data.second) {
+  if (return_value.valid() &&
+      return_value.node()->GetType() != function_data.second) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Type of return value %s does not match declared function return type "
         "%s",
