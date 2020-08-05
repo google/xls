@@ -46,8 +46,8 @@ def convert_interpreter_value_to_ir(
   """Recursively translates a DSLX Value into an IR Value."""
   if interpreter_value.is_bits() or interpreter_value.is_enum():
     return ir_value.Value(
-        _int_to_bits(interpreter_value.get_bits_value_check_sign(),
-                     interpreter_value.get_bit_count()))
+        int_to_bits(interpreter_value.get_bits_value_check_sign(),
+                    interpreter_value.get_bit_count()))
   elif interpreter_value.is_array():
     ir_arr = []
     for e in interpreter_value.array_payload.elements:
@@ -70,7 +70,7 @@ def convert_args_to_ir(
 
   return ir_args
 
-def get_bits(jit_bits: ir_bits.Bits, signed: bool) -> int:
+def bits_to_int(jit_bits: ir_bits.Bits, signed: bool) -> int:
   """Constructs the ir bits value by reading in a 64-bit value at a time."""
   bit_count = jit_bits.bit_count()
   bits_value = 0
@@ -99,10 +99,10 @@ def compare_values(interpreter_value: dslx_value.Value,
 
     if interpreter_value.is_ubits():
       interpreter_bits_value = interpreter_value.get_bits_value()
-      jit_bits_value = get_bits(jit_value, signed=False)
+      jit_bits_value = bits_to_int(jit_value, signed=False)
     else:
       interpreter_bits_value = interpreter_value.get_bits_value_signed()
-      jit_bits_value = get_bits(jit_value, signed=True)
+      jit_bits_value = bits_to_int(jit_value, signed=True)
     assert interpreter_bits_value == jit_bits_value
 
   elif interpreter_value.is_array():
@@ -129,7 +129,7 @@ def compare_values(interpreter_value: dslx_value.Value,
     logging.vlog(3, "No JIT-supported type equivalent: %s", interpreter_value)
     raise UnsupportedConversionError
 
-def _int_to_bits(value: int, bit_count: int) -> ir_bits.Bits:
+def int_to_bits(value: int, bit_count: int) -> ir_bits.Bits:
   """Converts a Python arbitrary precision int to a Bits type."""
   if bit_count <= WORD_SIZE:
     return ir_bits.UBits(value, bit_count) if value >= 0 else ir_bits.SBits(

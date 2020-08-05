@@ -29,28 +29,20 @@ class JitComparisonTest(absltest.TestCase):
     dslx_bits = dslx_value.Value.make_ubits(bit_count=4, value=4)
     ir_bits = jit_comparison.convert_interpreter_value_to_ir(dslx_bits)
 
-    try:
-      jit_comparison.compare_values(dslx_bits, ir_bits)
-    except (AssertionError, jit_comparison.UnsupportedConversionError) as e:
-      self.fail("Unexpected error raised: %s", e)
+    jit_comparison.compare_values(dslx_bits, ir_bits)
 
   def test_bits_equivalence_fail(self):
     dslx_bits = dslx_value.Value.make_ubits(bit_count=4, value=4)
     ir_bits_wrong_bit_count = ir_value.Value(ir_bits.UBits(value=4,
                                                            bit_count=5))
 
-    try:
+    with self.assertRaises(AssertionError):
       jit_comparison.compare_values(dslx_bits, ir_bits_wrong_bit_count)
-      self.fail("Expected equality assertion failure on bit count!")
-    except AssertionError as _:
-      pass
 
     ir_bits_wrong_value = ir_value.Value(ir_bits.UBits(value=3, bit_count=4))
-    try:
+
+    with self.assertRaises(AssertionError):
       jit_comparison.compare_values(dslx_bits, ir_bits_wrong_value)
-      self.fail("Expected equality assertion failure on value!")
-    except AssertionError as _:
-      pass
 
   def test_array_equivalence_ok(self):
     elements = []
@@ -59,10 +51,7 @@ class JitComparisonTest(absltest.TestCase):
     dslx_array = dslx_value.Value.make_array(elements)
     ir_array = jit_comparison.convert_interpreter_value_to_ir(dslx_array)
 
-    try:
-      jit_comparison.compare_values(dslx_array, ir_array)
-    except (AssertionError, jit_comparison.UnsupportedConversionError) as e:
-      self.fail("Unexpected error raised: %s", e)
+    jit_comparison.compare_values(dslx_array, ir_array)
 
   def test_array_equivalence_fail(self):
     dslx_elements = []
@@ -78,11 +67,8 @@ class JitComparisonTest(absltest.TestCase):
                                                          bit_count=4))])
     ir_array_different_size = ir_value.Value.make_array(ir_elements_extra)
 
-    try:
+    with self.assertRaises(AssertionError):
       jit_comparison.compare_values(dslx_array, ir_array_different_size)
-      self.fail("Expected equality assertion failure on length!")
-    except AssertionError as e:
-      pass
 
     ir_elements_wrong = (ir_elements[:2]
                          + [ir_value.Value(ir_bits.UBits(value=5, bit_count=4))]
@@ -90,11 +76,8 @@ class JitComparisonTest(absltest.TestCase):
 
     ir_array_different_element = ir_value.Value.make_array(ir_elements_wrong)
 
-    try:
+    with self.assertRaises(AssertionError):
       jit_comparison.compare_values(dslx_array, ir_array_different_element)
-      self.fail("Expected equality assertion failure on value!")
-    except AssertionError as e:
-      pass
 
   def test_tuple_equivalence_ok(self):
     members = []
@@ -103,10 +86,7 @@ class JitComparisonTest(absltest.TestCase):
     dslx_tuple = dslx_value.Value.make_tuple(tuple(members))
     ir_tuple = jit_comparison.convert_interpreter_value_to_ir(dslx_tuple)
 
-    try:
-      jit_comparison.compare_values(dslx_tuple, ir_tuple)
-    except (AssertionError, jit_comparison.UnsupportedConversionError) as e:
-      self.fail("Unexpected error raised: %s", e)
+    jit_comparison.compare_values(dslx_tuple, ir_tuple)
 
   def test_tuple_equivalence_fail(self):
     dslx_members = []
@@ -122,11 +102,8 @@ class JitComparisonTest(absltest.TestCase):
                                                         bit_count=4))])
     ir_tuple_different_size = ir_value.Value.make_tuple(ir_members_extra)
 
-    try:
+    with self.assertRaises(AssertionError):
       jit_comparison.compare_values(dslx_tuple, ir_tuple_different_size)
-      self.fail("Expected equality assertion failure on length!")
-    except AssertionError as e:
-      pass
 
     ir_members_wrong = (ir_members[:2]
                         + [ir_value.Value(ir_bits.UBits(value=5, bit_count=4))]
@@ -134,30 +111,58 @@ class JitComparisonTest(absltest.TestCase):
 
     ir_tuple_different_member = ir_value.Value.make_tuple(ir_members_wrong)
 
-    try:
+    with self.assertRaises(AssertionError):
       jit_comparison.compare_values(dslx_tuple, ir_tuple_different_member)
-      self.fail("Expected equality assertion failure on value!")
-    except AssertionError as e:
-      pass
 
   def test_large_bit_equivalence(self):
     dslx_ubits = dslx_value.Value.make_ubits(bit_count=512, value=(2**512 - 1))
     ir_ubits = jit_comparison.convert_interpreter_value_to_ir(dslx_ubits)
 
-    try:
-      jit_comparison.compare_values(dslx_ubits, ir_ubits)
-    except (AssertionError, jit_comparison.UnsupportedConversionError) as e:
-      self.fail("Unexpected error raised: %s", e)
-
+    jit_comparison.compare_values(dslx_ubits, ir_ubits)
 
     dslx_sbits = dslx_value.Value.make_sbits(bit_count=512,
                                              value=((2**512) // 2 - 1))
     ir_sbits = jit_comparison.convert_interpreter_value_to_ir(dslx_sbits)
 
-    try:
-      jit_comparison.compare_values(dslx_sbits, ir_sbits)
-    except (AssertionError, jit_comparison.UnsupportedConversionError) as e:
-      self.fail("Unexpected error raised: %s", e)
+    jit_comparison.compare_values(dslx_sbits, ir_sbits)
+
+  def test_bits_to_int(self):
+    """Tests IR bit-value retrieval done at one 64-bit word at a time."""
+    bit_count_0 = jit_comparison.int_to_bits(value=0, bit_count=0)
+    self.assertEqual(0, jit_comparison.bits_to_int(bit_count_0, signed=False))
+
+    bit_count_1 = jit_comparison.int_to_bits(value=0, bit_count=1)
+    self.assertEqual(0, jit_comparison.bits_to_int(bit_count_1, signed=False))
+
+    bit_count_63 = jit_comparison.int_to_bits(value=(2**63 - 1), bit_count=63)
+    self.assertEqual((2**63 - 1), jit_comparison.bits_to_int(bit_count_63,
+                                                             signed=False))
+    bit_count_63_signed = jit_comparison.int_to_bits(value=-1, bit_count=63)
+    self.assertEqual(-1, jit_comparison.bits_to_int(bit_count_63_signed,
+                                                    signed=True))
+
+    bit_count_64 = jit_comparison.int_to_bits(value=(2**64 - 1), bit_count=64)
+    self.assertEqual((2**64 - 1), jit_comparison.bits_to_int(bit_count_64,
+                                                             signed=False))
+    bit_count_64_signed = jit_comparison.int_to_bits(value=-1, bit_count=64)
+    self.assertEqual(-1, jit_comparison.bits_to_int(bit_count_64_signed,
+                                                    signed=True))
+
+    bit_count_127 = jit_comparison.int_to_bits(value=(2**127 - 1),
+                                               bit_count=127)
+    self.assertEqual((2**127 - 1), jit_comparison.bits_to_int(bit_count_127,
+                                                          signed=False))
+    bit_count_127_signed = jit_comparison.int_to_bits(value=-1, bit_count=127)
+    self.assertEqual(-1, jit_comparison.bits_to_int(bit_count_127_signed,
+                                                    signed=True))
+
+    bit_count_128 = jit_comparison.int_to_bits(value=(2**128 - 1),
+                                               bit_count=128)
+    self.assertEqual((2**128 - 1), jit_comparison.bits_to_int(bit_count_128,
+                                                              signed=False))
+    bit_count_128_signed = jit_comparison.int_to_bits(value=-1, bit_count=128)
+    self.assertEqual(-1, jit_comparison.bits_to_int(bit_count_128_signed,
+                                                    signed=True))
 
 if __name__ == '__main__':
   absltest.main()
