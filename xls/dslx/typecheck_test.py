@@ -806,7 +806,7 @@ fn f() -> Foo {
     self._typecheck(
         program,
         error_type=span.PositionalError,
-        error="unsupported")
+        error="Quickchecking parametric functions is unsupported")
 
 if __name__ == '__main__':
   absltest.main()

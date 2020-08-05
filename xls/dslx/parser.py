@@ -1136,7 +1136,8 @@ class Parser(token_parser.TokenParser):
     bindings.add(name_def.identifier, import_)
     return import_
 
-  def parse_test(self, outer_bindings: Bindings, directive=False) -> ast.Test:
+  def parse_test(self, outer_bindings: Bindings,
+                 directive: bool = False) -> ast.Test:
     if not directive:
       self._drop_keyword_or_error(Keyword.TEST)
     fake_bindings = Bindings()
@@ -1197,6 +1198,11 @@ class Parser(token_parser.TokenParser):
       self,
       function_name_to_node: Dict[Text, ast.Function],
       bindings: Bindings) -> Union[ast.Test, ast.QuickCheck, None]:
+    """Parses DSLX directives (analogous to Rust's attributes).
+
+    These may preceed unit-test/QuickCheck constructs or they may define
+    compiler behavior.
+    """
     self._dropt_or_error(TokenKind.HASH)
     self._dropt_or_error(TokenKind.BANG)
     self._dropt_or_error(TokenKind.OBRACK)
