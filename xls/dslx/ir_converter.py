@@ -269,16 +269,20 @@ class _IrConverterFb(ast.AstVisitor):
       self._def(node, self.fb.add_concat, (lhs, rhs))
       return
 
-    # Array concat case.
+    # Array concat case: since we don't currently have an array_concat
+    # operation (see https://github.com/google/xls/issues/72) in the IR we
+    # gather up all the lhs and rhs elements and form an array from them.
     assert isinstance(output_type, ArrayType), output_type
     element_type = output_type.get_element_type()
     lhs_type = self._resolve_type(node.lhs)
     rhs_type = self._resolve_type(node.rhs)
     vals = []
     for i in range(lhs_type.size):
-      vals.append(self.fb.add_array_index(lhs, self.fb.add_literal_bits(bits_mod.UBits(value=i, bit_count=32))))
+      vals.append(self.fb.add_array_index(
+        lhs, self.fb.add_literal_bits(bits_mod.UBits(value=i, bit_count=32))))
     for i in range(rhs_type.size):
-      vals.append(self.fb.add_array_index(rhs, self.fb.add_literal_bits(bits_mod.UBits(value=i, bit_count=32))))
+      vals.append(self.fb.add_array_index(
+        rhs, self.fb.add_literal_bits(bits_mod.UBits(value=i, bit_count=32))))
     self._def(node, self.fb.add_array, vals, self._type_to_ir(element_type))
 
   def visit_Binop(self, node: ast.Binop):
