@@ -763,7 +763,8 @@ class Interpreter(object):
               len(args)))
     lhs, rhs = args
     pred = lhs.eq(rhs)
-    msg = '\n  want: {}\n  got:  {}'.format(lhs, rhs)
+    msg = '\n  want: {}\n  got:  {}'.format(lhs.to_human_str(),
+                                            rhs.to_human_str())
 
     if pred.get_bits_value() == 0 and lhs.tag == rhs.tag == Tag.ARRAY:
       lhs_a = lhs.array_payload

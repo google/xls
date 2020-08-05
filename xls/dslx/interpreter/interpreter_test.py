@@ -512,6 +512,16 @@ class InterpreterTest(absltest.TestCase):
     self.assertNotIn('Tag.FUNCTION', captured_stderr.getvalue())
     self.assertNotIn('trace of trace', captured_stderr.getvalue())
 
+  def test_assert_eq_failure_arrays(self):
+    program = """
+    test t {
+      assert_eq(s32[2]:[1, 2], s32[2]:[3, 4])
+    }
+    """
+    with self.assertRaises(interpreter.FailureError) as cm:
+      self._parse_and_test(program)
+    self.assertIn('want: [1, 2]\n', str(cm.exception))
+
 
 if __name__ == '__main__':
   absltest.main()

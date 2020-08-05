@@ -128,13 +128,13 @@ class Value:
   def to_human_str(self) -> Text:
     if self.tag == Tag.ARRAY:
       return self.array_payload.to_human_str()
-    elif self.tag == Tag.UBITS or self.tag == Tag.SBITS:
+    elif self.tag in (Tag.UBITS, Tag.SBITS, Tag.ENUM):
       return self.bits_payload.to_human_str()
     elif self.tag == Tag.TUPLE:
       return '({})'.format(', '.join(
           m.to_human_str() for m in self.tuple_members))
     else:
-      raise NotImplementedError
+      raise NotImplementedError(self.tag)
 
   def __iter__(self):
     if self.tag == Tag.ARRAY:
