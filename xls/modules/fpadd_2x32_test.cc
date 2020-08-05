@@ -74,13 +74,15 @@ float ComputeExpected(Float2x32 input) {
 float ComputeActual(LlvmIrJit* jit, absl::Span<uint8> result_buffer,
                     Float2x32 input) {
   // Meyers-singleton-esque static buffers.
-  thread_local uint8* x_buffer = new uint8[jit->GetArgTypeSize(0)];
-  thread_local uint8* y_buffer = new uint8[jit->GetArgTypeSize(1)];
+  thread_local std::unique_ptr<uint8[]> x_buffer =
+      std::make_unique<uint8[]>(jit->GetArgTypeSize(0));
+  thread_local std::unique_ptr<uint8[]> y_buffer =
+      std::make_unique<uint8[]>(jit->GetArgTypeSize(1));
 
-  PopulateAsF32TupleView(std::get<0>(input), x_buffer);
-  PopulateAsF32TupleView(std::get<1>(input), y_buffer);
+  PopulateAsF32TupleView(std::get<0>(input), x_buffer.get());
+  PopulateAsF32TupleView(std::get<1>(input), y_buffer.get());
 
-  const uint8* args[2] = {x_buffer, y_buffer};
+  const uint8* args[2] = {x_buffer.get(), y_buffer.get()};
   memset(result_buffer.data(), 0, result_buffer.size());
   XLS_CHECK_OK(jit->RunWithViews(args, result_buffer));
 

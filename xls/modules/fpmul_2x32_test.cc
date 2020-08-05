@@ -74,7 +74,6 @@ float ComputeExpected(Float2x32 input) {
 float ComputeActual(LlvmIrJit* jit, absl::Span<uint8> result_buffer,
                     Float2x32 input) {
   // Meyers-singleton-esque static buffers.
-  // thread_local uint8* x_buffer = new uint8[jit->GetArgTypeSize(0)];
   thread_local std::unique_ptr<uint8[]> x_buffer =
       std::make_unique<uint8[]>(jit->GetArgTypeSize(0));
   thread_local std::unique_ptr<uint8[]> y_buffer =
