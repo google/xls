@@ -19,7 +19,7 @@ import argparse
 
 
 NUMOPS = 8
-MAXLEN = 16
+MAXLEN = 8
 NUM_PROCESSES = 16
 
 class Op(Enum):
