@@ -143,7 +143,7 @@ class Interpreter(object):
     width_type = self._evaluate_TypeAnnotation(index_slice.width, bindings)
     result = (bits >> start.get_bits_value()).slice(
         0, width_type.get_total_bit_count(), lsb_is_0=True)
-    return Value(Tag.SBITS if width_type.get_signedness() else Tag.UBITS,
+    return Value(Tag.SBITS if width_type.get_signedness() else Tag.UBITS,  # pytype: disable=attribute-error
                  result)
 
   def _evaluate_index_bitslice(self, expr: ast.Index, bindings: Bindings,
@@ -382,7 +382,7 @@ class Interpreter(object):
           expr.span, 'Type context for number is a tuple type {} @ {}'.format(
               type_context, expr.span))
     bit_count = type_context.get_total_bit_count()
-    signed = type_context.signed
+    signed = type_context.signed  # pytype: disable=attribute-error
     constructor = Value.make_sbits if signed else Value.make_ubits
     return constructor(bit_count, expr.get_value_as_int())
 
@@ -478,7 +478,7 @@ class Interpreter(object):
     """Evaluates an attribute-accessing AST node to a value."""
     lhs_value = self._evaluate(expr.lhs, bindings)
     index = next(
-        i for i, name in enumerate(self._node_to_type[expr.lhs].tuple_names)
+        i for i, name in enumerate(self._node_to_type[expr.lhs].tuple_names)  # pytype: disable=attribute-error
         if name == expr.attr.identifier)
     return lhs_value.tuple_members[index]
 
@@ -499,7 +499,7 @@ class Interpreter(object):
       """
       if type_context is None:
         return None
-      return type_context.get_tuple_member(i)
+      return type_context.get_tuple_member(i)  # pytype: disable=attribute-error
 
     result = Value.make_tuple(
         tuple(
@@ -621,14 +621,14 @@ class Interpreter(object):
     if type_context is None and expr.type_:
       type_context = self._evaluate_TypeAnnotation(expr.type_, bindings)
     if type_context is not None:
-      element_type = type_context.get_element_type()
+      element_type = type_context.get_element_type()  # pytype: disable=attribute-error
       logging.vlog(3, 'element type for array members: %s @ %s', element_type,
                    expr.span)
     elements = tuple(
         self._evaluate(e, bindings, element_type) for e in expr.members)
     if expr.has_ellipsis:
       assert type_context is not None, type_context
-      elements = elements + elements[-1:] * (type_context.size - len(elements))
+      elements = elements + elements[-1:] * (type_context.size - len(elements))  # pytype: disable=attribute-error
     return Value.make_array(elements)
 
   def _evaluate_ConstantArray(  # pylint: disable=invalid-name

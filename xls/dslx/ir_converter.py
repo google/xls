@@ -334,7 +334,7 @@ class _IrConverterFb(ast.AstVisitor):
     else:
       ok = self.fb.add_literal_bits(bits_mod.UBits(value=1, bit_count=1))
       for i, (element, element_type) in enumerate(
-          zip(matcher.tree, matched_type.get_unnamed_members())):
+          zip(matcher.tree, matched_type.get_unnamed_members())):  # pytype: disable=attribute-error
         # Extract the element.
         member = self.fb.add_tuple_index(matched_value, i)
         cond = self._visit_matcher(element, index + (i,), member, element_type)
@@ -407,7 +407,7 @@ class _IrConverterFb(ast.AstVisitor):
 
   def visit_Attr(self, node: ast.Attr) -> None:
     lhs_type = self.node_to_type[node.lhs]
-    index = lhs_type.tuple_names.index(node.attr.identifier)
+    index = lhs_type.tuple_names.index(node.attr.identifier)  # pytype: disable=attribute-error
     self._def(node, self.fb.add_tuple_index, self._use(node.lhs), index)
 
   def visit_Index(self, node: ast.Index) -> None:
@@ -452,21 +452,21 @@ class _IrConverterFb(ast.AstVisitor):
       member.accept(self)
       members.append(self._use(member))
     if node.has_ellipsis:
-      while len(members) < array_type.size:
+      while len(members) < array_type.size:  # pytype: disable=attribute-error
         members.append(members[-1])
     self._def(node, self.fb.add_array, members, members[0].get_type())
 
   # Note: need to traverse to define constants for members.
   def visit_ConstantArray(self, node: ast.ConstantArray) -> None:
     array_type = self._resolve_type(node)
-    e_type = array_type.get_element_type()
+    e_type = array_type.get_element_type()  # pytype: disable=attribute-error
     values = []
     for n in node.members:
       e = self._get_const(n)
       values.append(
           ir_value.Value(_int_to_bits(e, e_type.get_total_bit_count())))
     if node.has_ellipsis:
-      while len(values) < array_type.size:
+      while len(values) < array_type.size:  # pytype: disable=attribute-error
         values.append(values[-1])
     self._def(node, self.fb.add_literal_value,
               ir_value.Value.make_array(values))
@@ -474,7 +474,7 @@ class _IrConverterFb(ast.AstVisitor):
   def _cast_to_array(self, node: ast.Cast, output_type: ConcreteType) -> None:
     bits = self._use(node.expr)
     slices = []
-    element_bit_count = output_type.get_element_type().get_total_bit_count()
+    element_bit_count = output_type.get_element_type().get_total_bit_count()  # pytype: disable=attribute-error
     # MSb becomes lowest-indexed array element.
     for i in range(0, output_type.get_total_bit_count(), element_bit_count):
       slices.append(self.fb.add_bit_slice(bits, i, element_bit_count))

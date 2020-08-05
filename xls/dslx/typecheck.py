@@ -84,8 +84,8 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx) -> None:
     # inside of this function, it must mean that we already have the type
     # signature and now we just need to evaluate the body.
     assert f in ctx.node_to_type
-    annotated_return_type = ctx.node_to_type[f].return_type
-    param_types = list(ctx.node_to_type[f].params)
+    annotated_return_type = ctx.node_to_type[f].return_type  # pytype: disable=attribute-error
+    param_types = list(ctx.node_to_type[f].params)  # pytype: disable=attribute-error
   else:
     logging.vlog(1, 'Type-checking sig for function: %s', f)
     param_types = _check_function_params(f, ctx)
@@ -183,7 +183,7 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
       ctx.module.name, fn_name,
       tuple(fn_symbolic_bindings.items()))] = symbolic_bindings
   ctx.node_to_type[invocation.callee] = fn_type
-  ctx.node_to_type[invocation] = fn_type.return_type
+  ctx.node_to_type[invocation] = fn_type.return_type  # pytype: disable=attribute-error
 
   if builtin_name.identifier == 'map':
     assert isinstance(map_fn_name, str), map_fn_name

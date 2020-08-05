@@ -70,7 +70,7 @@ class _ParametricInstantiator(object):
     self.constraints = {}  # type: Dict[Text, Optional[Expr]]
     self.bit_widths = {}  # type: Dict[Text, int]
 
-    param_types = self.function_type.get_function_params()
+    param_types = self.function_type.get_function_params()  # pytype: disable=attribute-error
     if len(self.arg_types) != len(param_types):
       raise ArgCountMismatchError(self.span, arg_types, len(param_types),
                                   param_types,
@@ -128,8 +128,8 @@ class _ParametricInstantiator(object):
     """Binds parametric symbols in param_type according to arg_type."""
     # Create bindings for symbolic parameter dimensions based on argument
     # values passed.
-    param_dim = param_type.size
-    arg_dim = arg_type.size
+    param_dim = param_type.size  # pytype: disable=attribute-error
+    arg_dim = arg_type.size  # pytype: disable=attribute-error
     if not isinstance(param_dim, parametric_expression.ParametricSymbol):
       return
 
@@ -280,7 +280,7 @@ class _ParametricInstantiator(object):
     """
     # Walk through all the params/args to collect symbolic bindings.
     for i, (param_type, arg_type) in enumerate(
-        zip(self.function_type.get_function_params(), self.arg_types)):
+        zip(self.function_type.get_function_params(), self.arg_types)):  # pytype: disable=attribute-error
       param_type = self._instantiate_one_arg(i, param_type, arg_type)
       logging.vlog(
           3, 'Post-instantiation; paramno: %d; param_type: %s; arg_type: %s', i,
@@ -292,7 +292,7 @@ class _ParametricInstantiator(object):
         raise XlsTypeError(self.span, param_type, arg_type, suffix=message)
 
     # Resolve the return type according to the bindings we collected.
-    orig = self.function_type.get_function_return_type()
+    orig = self.function_type.get_function_return_type()  # pytype: disable=attribute-error
     resolved = self._resolve(orig)
     logging.vlog(2, 'Resolved return type from %s to %s', orig, resolved)
     return resolved, tuple(sorted(self.symbolic_bindings.items()))

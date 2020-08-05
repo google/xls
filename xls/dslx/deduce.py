@@ -1009,7 +1009,7 @@ def _deduce_Concat(self: ast.Binop, ctx: DeduceCtx) -> ConcreteType:
         self.span, lhs_type, rhs_type,
         'Array concatenation requires element types to be the same.')
 
-  new_size = lhs_type.size + rhs_type.size
+  new_size = lhs_type.size + rhs_type.size  # pytype: disable=attribute-error
   if isinstance(lhs_type, ArrayType):
     return ArrayType(lhs_type.get_element_type(), new_size)
 
@@ -1085,7 +1085,7 @@ def _typecheck_struct_members_subset(members: ast.StructInstanceMembers,
     seen_names.add(k)
     expr_type = deduce(v, ctx)
     try:
-      member_type = struct_type.get_member_type_by_name(k)
+      member_type = struct_type.get_member_type_by_name(k)  # pytype: disable=attribute-error
     except KeyError:
       raise TypeInferenceError(
           v.span,
@@ -1106,7 +1106,7 @@ def _deduce_StructInstance(
   """Deduces the type of the struct instantiation expression and its members."""
   logging.vlog(5, 'Deducing type for struct instance: %s', self)
   struct_type = deduce(self.struct, ctx)
-  expected_names = set(struct_type.tuple_names)
+  expected_names = set(struct_type.tuple_names)  # pytype: disable=attribute-error
   seen_names = _typecheck_struct_members_subset(self.unordered_members,
                                                 struct_type, self.struct_text,
                                                 ctx)
@@ -1140,14 +1140,14 @@ def _deduce_SplatStructInstance(
 def _deduce_Attr(self: ast.Attr, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the type of a struct attribute access expression."""
   struct = deduce(self.lhs, ctx)
-  if not struct.has_named_member(self.attr.identifier):
+  if not struct.has_named_member(self.attr.identifier):  # pytype: disable=attribute-error
     raise TypeInferenceError(
         span=self.span,
         type_=None,
         suffix='Struct does not have a member with name {!r}.'.format(
             self.attr))
 
-  return struct.get_named_member_type(self.attr.identifier)
+  return struct.get_named_member_type(self.attr.identifier)  # pytype: disable=attribute-error
 
 
 def _deduce(n: ast.AstNode, ctx: DeduceCtx) -> ConcreteType:
