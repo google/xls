@@ -1024,6 +1024,111 @@ class Translator(object):
 
           self._generic_assign(left_var, r_expr, r_type, condition,
                                translate_loc(stmt_ast))
+        elif isinstance(stmt_ast, c_ast.FuncCall):
+          struct_id_ast = struct_ast.name
+          struct_id_name = struct_id_ast.name
+          struct_func_name = struct_ast.field.name
+
+          if struct_id_ast:
+            struct = self.cvars[struct_id_name]
+            struct_type = struct.ctype
+            fb_expr = self.cvars[struct_id_name].fb_expr
+            struct_cvars = struct_type.get_struct_members()
+            field_indices = struct_type.get_field_indices()
+
+            if struct_cvars:
+              for name, cvar in struct_cvars.items():
+                self.cvars[name] = cvar
+                var_idx = field_indices[name]
+                self.cvars[name].fb_expr = self.fb.add_tuple_index(
+                                        fb_expr, var_idx, loc) 
+            
+            struct_class = self.hls_types_by_name_[struct_type.name]
+
+            if struct_class:
+              full_func_name = str(struct_class) + "::" + struct_func_name
+              struct_func = self.functions_[full_func_name]
+                           
+              if struct_func:
+                args_bvalues = []
+                
+                assert isinstance(stmt_ast.args, c_ast.ExprList)
+                  
+                if len(stmt_ast.args.exprs) != len(struct_func.params):
+                  raise ValueError("Wrong number of args for function call")
+
+                param_types_array = []
+
+                for name_and_type in struct_func.params.items():
+                  param_types_array.append(name_and_type)
+                  
+                for arg_idx in range(0, len(stmt_ast.args.exprs)):
+                  stmt = stmt_ast.args.exprs[arg_idx]
+                  arg_expr, arg_expr_type = self.gen_expr_ir(stmt, condition)
+                  _, arg_type = param_types_array[arg_idx]
+                  conv_arg = self.gen_convert_ir(arg_expr,
+                                                   arg_expr_type,
+                                                   arg_type,
+                                                   stmt)
+                  args_bvalues.append(conv_arg)
+
+                invoke_returned = self.fb.add_invoke(args_bvalues, struct_func.fb_expr, loc)
+
+                #Handling for references
+                void_return = isinstance(struct_func.return_type, VoidType)
+                unpacked_returns = []
+                unpacked_return_types = []
+
+                params_by_index = []
+
+                for name in struct_func.params:
+                  params_by_index.append(struct_func.params[name])
+
+                if struct_func.count_returns() == 1:
+                  unpacked_returns.append(invoke_returned)
+                  if not void_return:
+                    unpacked_return_types.append(struct_func.return_type)
+                  else:
+                    ref_idx = struct_func.get_ref_param_indices()[0]
+                    unpacked_return_types.append(params_by_index[ref_idx])
+
+                elif struct_func.count_returns() > 1:
+                  for idx in range(0, struct.count_returns()):
+                    unpacked_returns.append(
+                        self.fb.add_tuple_index(invoke_return, idx, loc))
+                    if idx == 0 and not void_return:
+                      unpacked_return_types.append(struct_func.return_type)
+                    else:
+                      unpacked_return_types.append(
+                            params_by_index[struct_func.get_ref_param_indices()[idx-1]])
+                ret_val = None
+                if not void_return:
+                  ret_val = unpacked_returns[0]
+                  del unpacked_returns[0]
+                  del unpacked_return_types[0]
+
+                ref_params = struct_func.get_ref_param_indices()
+                for ref_idx in range(len(unpacked_returns)):
+                  param_idx = ref_params[ref_idx]
+                  expr = stmt_ast.args.exprs[param_idx]
+
+                  self._generic_assign(expr, 
+                                       unpacked_returns[ref_idx],
+                                       unpacked_return_types[ref_idx],
+                                       condition,
+                                       translate_loc(stmt_ast))
+                
+                return ret_val, struct_func.return_type
+                                       
+
+
+                #End of struct function
+              else:
+                raise ValueError("Undeclared function called: " + stmt_ast.coord)
+            else:
+              raise ValueError("Unsupported object class" + stmt_ast.coord)
+          else:
+              raise ValueError("Uninitialized object " + stmt_ast.coord)
         else:
           raise NotImplementedError("Unsupported template function",
                                     template_ast)
@@ -1119,13 +1224,13 @@ class Translator(object):
       cvars = None
       if func.is_class_func:
         func_class = self.hls_types_by_name_[func.class_name]
-        cvars = func_class.get_local_vars()
+        cvars = func_class.get_struct_members()
         for var in cvars:
           self.lvalues[var] = not cvars[var].ctype.is_const
       if not func.body_ast:
         continue
       # Function body
-      ret_vals = self.gen_ir_block(func.body_ast.children(), None, None)
+      ret_vals = self.gen_ir_block(func.body_ast.children(), None, cvars)
 
       # Add in reference params
       reference_param_names = func.get_ref_param_names()
@@ -1152,7 +1257,7 @@ class Translator(object):
                               value=0, bit_count=func.return_type.bit_width)),
                       func.loc), func.return_type))
           default_return_index = len(ret_vals) - 1
-
+ 
         assert default_return_index >= 0
         ret_expr = self.gen_convert_ir(ret_vals[default_return_index].fb_expr,
                                        ret_vals[default_return_index]\
