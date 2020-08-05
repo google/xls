@@ -68,11 +68,12 @@ endmodule
 
 binary_ops = [Op.ADD2, Op.XOR2, Op.MUL2, Op.AND2, Op.OR2]
 
+
+def gen() -> Tuple[Type[Op], Type[str]]:
 """
 Generates a random sequence of operations in Reverse Polish Notation, and
 corresponding verilog.
 """
-def gen() -> Tuple[Type[Op], Type[str]]:
   oplist = list(Op)
   while True:
     ops = [Op.PARAM1, Op.PARAM2]
@@ -104,6 +105,7 @@ def gen() -> Tuple[Type[Op], Type[str]]:
         continue
       return ops, stack[0]
 
+
 def parse_log(filename: str) -> str:
   with open(filename, "r") as log_file:
     info = log_file.read()
@@ -121,10 +123,10 @@ def parse_log(filename: str) -> str:
     return info[idx:end]
 
 
-"""
-Runs Yosys and nextpnr tools to get delay estimate
-"""
 def yosys_and_nextpnr(expr: str) -> float:
+"""
+Runs Yosys and nextpnr tools to get delay estimate.
+"""
   with tempfile.TemporaryDirectory() as tempdir:
     with open("{}/sample.v".format(tempdir), "w+") as verilog_file, \
         open("{}/sample.json".format(tempdir), "w+") as json_file, \
@@ -156,7 +158,7 @@ def main(num_samples):
   start = time.time()
   processes = []
   for i in range(NUM_PROCESSES):
-    processes.append(Process(target=gen_csv, \
+    processes.append(Process(target=gen_csv, 
                              args=[num_samples//NUM_PROCESSES,
                                    "./data/data_{}_{}_{}.csv".format(
                                        NUMOPS, MAXLEN, i)]))
