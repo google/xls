@@ -408,6 +408,33 @@ cc_test(
     ],
 )
 
+cc_library(
+    name = "jit_wrapper_generator",
+    srcs = ["jit_wrapper_generator.cc"],
+    hdrs = ["jit_wrapper_generator.h"],
+    deps = [
+        ":ir",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_binary(
+    name = "jit_wrapper_generator_main",
+    srcs = ["jit_wrapper_generator_main.cc"],
+    deps = [
+        ":ir_parser",
+        ":jit_wrapper_generator",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+    ],
+)
+
 cc_test(
     name = "package_test",
     size = "small",

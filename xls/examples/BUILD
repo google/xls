@@ -14,7 +14,7 @@
 
 # Build rules for XLS examples.
 
-load("//xls/build:build_defs.bzl", "dslx_test")
+load("//xls/build:build_defs.bzl", "dslx_jit_wrapper", "dslx_test")
 load("//xls/examples:list_filegroup_files.bzl", "list_filegroup_files")
 
 package(
@@ -55,6 +55,12 @@ dslx_test(
     srcs = ["crc32.x"],
 )
 
+dslx_jit_wrapper(
+    name = "crc32_jit_wrapper",
+    dslx_name = "crc32",
+    deps = [":crc32_opt_ir"],
+)
+
 cc_binary(
     name = "crc32_reference",
     srcs = ["crc32_reference.cc"],
@@ -80,6 +86,13 @@ dslx_test(
     # TODO(rspringer): OOMs on some machines.
     prove_unopt_eq_opt = False,
     tags = ["optonly"],
+)
+
+dslx_jit_wrapper(
+    name = "sha256_jit_wrapper",
+    dslx_name = "sha256",
+    entry_function = "main",
+    deps = [":sha256_opt_ir"],
 )
 
 list_filegroup_files(

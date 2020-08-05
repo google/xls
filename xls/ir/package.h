@@ -94,7 +94,7 @@ class Package {
   //   function_builder.SomeNodeType(node_args, loc);
   //
   // An alternative front-end could instead call AddSourceLocation with the
-  // appropriate metada annotated on the front-end AST.
+  // appropriate metadata annotated on the front-end AST.
   //
   // If the file "filename" has been seen before, the Fileno is retrieved from
   // an internal lookup table, otherwise a new Fileno id is generated and added
