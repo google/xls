@@ -114,18 +114,6 @@ class JitComparisonTest(absltest.TestCase):
     with self.assertRaises(AssertionError):
       jit_comparison.compare_values(dslx_tuple, ir_tuple_different_member)
 
-  def test_large_bit_equivalence(self):
-    dslx_ubits = dslx_value.Value.make_ubits(bit_count=512, value=(2**512 - 1))
-    ir_ubits = jit_comparison.convert_interpreter_value_to_ir(dslx_ubits)
-
-    jit_comparison.compare_values(dslx_ubits, ir_ubits)
-
-    dslx_sbits = dslx_value.Value.make_sbits(bit_count=512,
-                                             value=((2**512) // 2 - 1))
-    ir_sbits = jit_comparison.convert_interpreter_value_to_ir(dslx_sbits)
-
-    jit_comparison.compare_values(dslx_sbits, ir_sbits)
-
   def test_bits_to_int(self):
     """Tests IR bit-value retrieval done at one 64-bit word at a time."""
     bit_count_0 = jit_comparison.int_to_bits(value=0, bit_count=0)
