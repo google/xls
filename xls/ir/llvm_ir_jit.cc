@@ -68,8 +68,6 @@ namespace {
 // Convenience alias for XLS type => LLVM type mapping used as a cache.
 using TypeCache = absl::flat_hash_map<const Type*, llvm::Type*>;
 
-constexpr int64 kCharBit = CHAR_BIT;
-
 // Visitor to construct LLVM IR for each encountered XLS IR node. Based on
 // DfsVisitorWithDefault to highlight any unhandled IR nodes.
 class BuilderVisitor : public DfsVisitorWithDefault {

@@ -23,6 +23,7 @@
 #ifndef XLS_IR_VALUE_VIEW_H_
 #define XLS_IR_VALUE_VIEW_H_
 
+#include "xls/common/bits_util.h"
 #include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
@@ -57,12 +58,12 @@ class ArrayView {
 // Statically generates a value for masking off high bits in a value.
 template <int kBitCount>
 inline uint64 MakeMask() {
-  return (1 << kBitCount) | (MakeMask<kBitCount - 1>());
+  return (1ull << (kBitCount - 1)) | (MakeMask<kBitCount - 1>());
 }
 
 template <>
 inline uint64 MakeMask<0>() {
-  return 1;
+  return 0;
 }
 
 // BitsView provides some Bits-type functionality on top of a flat character
@@ -75,8 +76,6 @@ class BitsView {
 
   // Gets the storage size of this type.
   static constexpr uint64 GetTypeSize() {
-    constexpr uint64 kCharBit = 8;
-
     // Constexpr ceiling division.
     return CeilOfRatio(kNumBits, kCharBit);
   }
@@ -96,8 +95,7 @@ class BitsView {
   // Values larger than 64 bits should be converted to proper Bits type before
   // usage.
   ReturnT GetValue() {
-    return *reinterpret_cast<const ReturnT*>(buffer_) &
-           MakeMask<kNumBits - 1>();
+    return *reinterpret_cast<const ReturnT*>(buffer_) & MakeMask<kNumBits>();
   }
 
  private:
@@ -210,12 +208,12 @@ class MutableBitsView : public BitsView<kNumBits> {
   typename BitsView<kNumBits>::ReturnT GetValue() {
     return *reinterpret_cast<const typename BitsView<kNumBits>::ReturnT*>(
                buffer_) &
-           MakeMask<kNumBits - 1>();
+           MakeMask<kNumBits>();
   }
 
   void SetValue(typename BitsView<kNumBits>::ReturnT value) {
     *reinterpret_cast<typename BitsView<kNumBits>::ReturnT*>(buffer_) =
-        value & MakeMask<kNumBits - 1>();
+        value & MakeMask<kNumBits>();
   }
 
  private:
@@ -237,6 +235,92 @@ class MutableTupleView : public TupleView<Types...> {
             buffer_ +
             TupleView<Types...>::template GetOffset<kElementIndex, Types...>(
                 0));
+  }
+
+ private:
+  uint8* buffer_;
+};
+
+// Specialization of BitsView for non-byte-aligned bit vectors inside a larger
+// buffer, e.g., for a bit vector inside an enclosing PackedTuple.
+// Template args:
+//   kNumBits: the bit width of this element.
+//   kBufferOffset: the start bit of this element inside the provided buffer.
+//     This value must be in the range [0, 7] (if this would be >= 8, then
+//     advance the "buffer" pointer instead).
+template <uint64 kNumBits, uint64 kBufferOffset>
+class PackedBitsView {
+ public:
+  static_assert(kBufferOffset < 8);
+
+  explicit PackedBitsView(uint8* buffer) : buffer_(buffer) {}
+
+  // Accessor: Populates the specified buffer with the data from this element,
+  // shifting it if necessary. Even if kBufferOffset is non-0, return_buffer
+  // will be written starting at bit 0.
+  // Note: this call trusts that return_buffer is adequately sized (i.e., is
+  // at least ceil((kNumBits + kBufferOffset) / kCharBit) bytes).
+  // TODO(rspringer): Worth defining value-returning accessors for widths < 64b?
+  void Get(uint8* return_buffer) {
+    uint64 bits_left = kNumBits;
+    // The byte at which the next read should occur. All reads, except for the
+    // first, are byte-aligned.
+    uint64 source_byte = 0;
+
+    // The bit and byte at which the next write should occur.
+    uint64 dest_byte = 0;
+
+    // Do a write of the initial "overhanging" source bits to align future
+    // reads.
+    if (kBufferOffset != 0) {
+      // The initial source bits are kBufferOffset into the first byte of the
+      // buffer, so we have kCharBit - kBufferOffset bits to read and shift.
+      // Since buffer_ is unsigned, it will be a logical shift - no mask is
+      // needed.
+      uint64 num_initial_bits = std::min(bits_left, kCharBit - kBufferOffset);
+      uint8 first_source_bits = buffer_[source_byte] >> kBufferOffset;
+      return_buffer[dest_byte] = first_source_bits & Mask(num_initial_bits);
+
+      bits_left -= num_initial_bits;
+      source_byte++;
+    }
+
+    // TODO(rspringer): Optimize to use larger load types?
+    // TODO(rspringer): For-loop-ize this to make it more constexpr? Or can we
+    // rely on the compiler to do it for us?
+    while (bits_left) {
+      uint8 byte = buffer_[source_byte];
+      source_byte++;
+
+      // Easy case: dest_bit == 0; this is an aligned full-byte write.
+      if (kBufferOffset == 0) {
+        if (bits_left < kCharBit) {
+          constexpr int kLeftover = (kNumBits % kCharBit);
+          return_buffer[dest_byte] = byte & MakeMask<kLeftover>();
+        } else {
+          return_buffer[dest_byte] = byte;
+        }
+        dest_byte++;
+        bits_left -= std::min(bits_left, kCharBit);
+        continue;
+      }
+
+      // Hard case. Write a low and high chunk.
+      // Write the low chunk.
+      uint64 num_low_bits = std::min(bits_left, kBufferOffset);
+      uint8 low_bits = byte & Mask(num_low_bits);
+      return_buffer[dest_byte] |= low_bits << (kCharBit - kBufferOffset);
+      dest_byte++;
+      bits_left -= num_low_bits;
+
+      // And, if necessary, the high chunk in the next byte.
+      if (bits_left) {
+        uint64 num_high_bits = std::min(bits_left, kCharBit - num_low_bits);
+        uint8 high_bits = (byte >> kBufferOffset) & Mask(num_high_bits);
+        return_buffer[dest_byte] = high_bits;
+        bits_left -= num_high_bits;
+      }
+    }
   }
 
  private:

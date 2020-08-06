@@ -981,6 +981,7 @@ cc_library(
     name = "value_view",
     hdrs = ["value_view.h"],
     deps = [
+        "//xls/common:bits_util",
         "//xls/common:integral_types",
         "//xls/common:math_util",
         "//xls/common/logging",
@@ -993,6 +994,22 @@ cc_library(
     deps = [
         ":value_view",
         "@com_google_absl//absl/base",
+    ],
+)
+
+cc_test(
+    name = "value_view_test",
+    srcs = ["value_view_test.cc"],
+    deps = [
+        ":bits",
+        ":bits_ops",
+        ":value_view",
+        "@com_google_absl//absl/status",
+        "//xls/common:bits_util",
+        "//xls/common/status:matchers",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "@com_google_googletest//:gtest_main",
     ],
 )
 
