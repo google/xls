@@ -289,6 +289,10 @@ class _IrConverterFb(ast.AstVisitor):
     lhs_type = self.node_to_type[node.lhs]
     signed_input = isinstance(lhs_type, BitsType) and lhs_type.signed
     kind_or_keyword = node.operator.get_kind_or_keyword()
+
+    # Concat is handled specially since the array-typed operation has no
+    # directly corresponding IR operation.
+    # See https://github.com/google/xls/issues/72
     if kind_or_keyword == ast.Binop.CONCAT:
       return self._visit_concat(node)
 
