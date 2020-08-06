@@ -128,14 +128,24 @@ class XLSccParser(CParserBase):
       p[0] = klass(
             name=p[2],
             decls=p[4],
-            coord=self._token_coord(p, 2))
+            coord=self._token_coord(p, 2)) 
     self._add_typedef_name(p[2], self._token_coord(p,2))
-    # No K&R
+    
+  def p_struct_declaration_list_2(self, p):
+    """ struct_declaration_list     : access_modifier COLON struct_declaration_list
+    """
+    p[0] = p[3]
   
   def p_struct_or_union_2(self, p):
-        """ struct_or_union : CLASS
-        """
-        p[0] = p[1]
+    """ struct_or_union : CLASS
+    """
+    p[0] = p[1]
+
+  def p_access_modifier(self, p):
+    """access_modifier : PUBLIC
+                             | PRIVATE
+    """
+    p[0] = p[1]
   
   def p_function_definition_base(self, p):
     """function_definition_base : declaration_specifiers id_declarator declaration_list_opt compound_statement"""
@@ -152,17 +162,13 @@ class XLSccParser(CParserBase):
     """function_definition : TEMPLATE LT template_decl_list GT function_definition_base"""
     p[0] = p[5]
 
-#start of code change
   def p_function_definition_base_2(self, p):
     """function_definition : declaration_specifiers TYPEID DBLCOLON id_declarator declaration_list_opt compound_statement
     """
     spec = p[1]  
     p[4].type.declname = p[2] + p[3] + p[4].type.declname
-    #print("Declname is " + p[4].type.declname)
     p[0] = self._build_function_definition(
         spec=spec, decl=p[4], param_decls=p[5], body=p[6])
-    #print("P[0] is " + str(p[0]))
-#end of code change
 
   def p_template_val_expression(self, p):
     """template_val_expression   : typedef_name
