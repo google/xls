@@ -1,9 +1,17 @@
 """
-This file receives numbers from argv[1:], and for each number n, creates an smt2 
-file containing an n-bit multiplier equivalence proof. Instructions for using a solver
-on an smt2 file can be found in solvers.md. Once a file is created, we can run:
+This file receives numbers from the --N flag, and for each number n, creates an smt2 
+file containing an n-bit multiplier equivalence proof. For example, to create an smt2 
+file for 2-bit multiplication and an smt2 file for 4-bit multiplication, we can run
+(after building):
 
-$ <solver_command> <filename>
+$ bazel-bin/xls/experimental/smtlib/n_bit_mul_generator --N=2,4
+
+Once these files are created, we can use an SMT solver to check the proof's 
+satisfiability. Instructions for using a solver
+on an smt2 file can be found in solvers.md. If we wanted to use Z3, for example, on
+the 2-bit multiplication file, we can run
+
+$ z3 mul_2x2.smt2
 
 The created smt2 file asserts that the multiplier and the builtin addition DO NOT 
 produce the same result, so the output we expect to see is:
