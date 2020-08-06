@@ -135,6 +135,11 @@ class XLSccParser(CParserBase):
     """ struct_declaration  : access_modifier COLON struct_declaration
     """
     p[0] = p[3]
+
+  def p_struct_declaration_5(self, p):
+    """ struct_declaration  : external_declaration
+    """
+    p[0] = p[1]
   
   def p_struct_or_union_2(self, p):
     """ struct_or_union : CLASS

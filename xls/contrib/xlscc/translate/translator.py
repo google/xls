@@ -109,9 +109,15 @@ class StructType(Type):
       self.is_const = False
       self.as_struct = None
       for decl in struct.decls:
+        if isinstance(decl, c_ast.FuncDef):
+          func = Function()
+          func.parse_function(translator, field)
+          func_name = self.name + "::" + func.name
+          translator.functions_[func_name] = func
+          continue
         name = decl.name
         field = decl.type
-        if isinstance (field, (c_ast.FuncDecl, c_ast.FuncDef)):
+        if isinstance (field, c_ast.FuncDecl):
           func = Function()
           func.parse_function(translator, field)
           func_name = self.name + "::" + func.name
