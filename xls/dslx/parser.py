@@ -1083,8 +1083,8 @@ class Parser(token_parser.TokenParser):
       The parsed function as an AST node.
     """
     start_pos = self._get_pos()
-    self._drop_keyword_or_error(Keyword.FN)
-
+    fn_tok = self._pop_keyword_or_error(Keyword.FN)
+    start_pos = fn_tok.span.start
     # Create bindings internal to this function we're parsing, based off of the
     # symbols available in the outer bindings.
     bindings = Bindings(outer_bindings)
@@ -1108,11 +1108,11 @@ class Parser(token_parser.TokenParser):
     self._dropt_or_error(TokenKind.OBRACE)
     body = self.parse_expression(bindings)
     logging.vlog(5, 'Function body: %r', body)
-    self._dropt_or_error(
+    end_brace = self._popt_or_error(
         TokenKind.CBRACE, context='Expected \'}\' at end of function body.')
     return ast.Function(
-        Span(start_pos, self._get_pos()), name_def, parametric_bindings, params,
-        return_type, body, public)
+        Span(start_pos, end_brace.span.limit), name_def, parametric_bindings,
+        params, return_type, body, public)
 
   def _parse_import(self, bindings: Bindings) -> ast.Import:
     """Parses an import statement into an Import AST node."""
@@ -1213,11 +1213,9 @@ class Parser(token_parser.TokenParser):
       self._dropt_or_error(TokenKind.CBRACK)
     elif identifier.value == 'unittest':
       self._dropt_or_error(TokenKind.CBRACK)
-      self._peekt()  # HACK: Move pos forward for accurate span.
       node = self.parse_test(bindings, directive=True)
     elif identifier.value == 'quickcheck':
       self._dropt_or_error(TokenKind.CBRACK)
-      self._peekt()
       fn = self.parse_function(function_name_to_node, bindings, public=False)
       node = ast.QuickCheck(fn.span, fn)
     else:
