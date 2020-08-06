@@ -263,10 +263,45 @@ class _IrConverterFb(ast.AstVisitor):
     self._def(node, self.fb.add_sel, self._use(node.test),
               self._use(node.consequent), self._use(node.alternate))
 
+  def _visit_concat(self, node: ast.Binop):
+    output_type = self._resolve_type(node)
+    lhs, rhs = self._use(node.lhs), self._use(node.rhs)
+    if isinstance(output_type, BitsType):
+      self._def(node, self.fb.add_concat, (lhs, rhs))
+      return
+
+    # Array concat case: since we don't currently have an array_concat
+    # operation (see https://github.com/google/xls/issues/72) in the IR we
+    # gather up all the lhs and rhs elements and form an array from them.
+    assert isinstance(output_type, ArrayType), output_type
+    element_type = output_type.get_element_type()
+    lhs_type = self._resolve_type(node.lhs)
+    rhs_type = self._resolve_type(node.rhs)
+    vals = []
+    for i in range(lhs_type.size):
+      vals.append(
+          self.fb.add_array_index(
+              lhs,
+              self.fb.add_literal_bits(bits_mod.UBits(value=i, bit_count=32))))
+    for i in range(rhs_type.size):
+      vals.append(
+          self.fb.add_array_index(
+              rhs,
+              self.fb.add_literal_bits(bits_mod.UBits(value=i, bit_count=32))))
+    self._def(node, self.fb.add_array, vals, self._type_to_ir(element_type))
+
   def visit_Binop(self, node: ast.Binop):
     lhs_type = self.node_to_type[node.lhs]
     signed_input = isinstance(lhs_type, BitsType) and lhs_type.signed
-    operator_to_f = {
+    kind_or_keyword = node.operator.get_kind_or_keyword()
+
+    # Concat is handled specially since the array-typed operation has no
+    # directly corresponding IR operation.
+    # See https://github.com/google/xls/issues/72
+    if kind_or_keyword == ast.Binop.CONCAT:
+      return self._visit_concat(node)
+
+    f = {
         # Arithmetic.
         ast.Binop.ADD: self.fb.add_add,
         ast.Binop.SUB: self.fb.add_sub,
@@ -290,15 +325,7 @@ class _IrConverterFb(ast.AstVisitor):
         # Logical.
         ast.Binop.LOGICAL_AND: self.fb.add_and,
         ast.Binop.LOGICAL_OR: self.fb.add_or,
-    }
-    f = operator_to_f.get(node.operator.get_kind_or_keyword())
-    if f:
-      pass
-    elif node.operator.kind == ast.Binop.CONCAT:
-      # pylint: disable=g-long-lambda
-      f = lambda x, y, loc: self.fb.add_concat([x, y], loc=loc)
-    else:
-      raise NotImplementedError(node.operator)
+    }[kind_or_keyword]
 
     self._def(node, f, self._use(node.lhs), self._use(node.rhs))
 

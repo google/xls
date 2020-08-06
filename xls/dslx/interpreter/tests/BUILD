@@ -305,3 +305,8 @@ dslx_test(
     srcs = ["test_f_calls_parametric_f.x"],
     entry = "__test_f_calls_parametric_f__f",
 )
+
+dslx_test(
+    name = "array_concat",
+    srcs = ["array_concat.x"],
+)

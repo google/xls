@@ -1,6 +1,4 @@
-type x7 = uN[0x1];
-type x13 = uN[0x3];
-type x16 = uN[0x1];fn main(x0: s23) -> x16[0x1] {
+type x7 = uN[0x1];fn main(x0: s23) -> uN[5] {
     let x1: s23 = !(x0) in
     let x2: bool = (bool:0x1) in
     let x3: uN[5] = ((((x2) ++ (x2)) ++ (x2)) ++ (x2)) ++ (x2) in
@@ -13,19 +11,17 @@ type x16 = uN[0x1];fn main(x0: s23) -> x16[0x1] {
     let x8: uN[51] = ((((x5) ++ (x3)) ++ (x4)) ++ (x4)) ++ (x5) in
     let x9: uN[5] = one_hot_sel(x3, [x4, x4, x3, x4, x3]) in
     let x10: s23 = (x0) - ((x9 as s23)) in
-    let x11: uN[56] = (x3) ++ (x8) in
-    let x12: x13[0x6] = (x5 as x13[0x6]) in
-    let x14: uN[51] = clz(x8) in
-    let x15: x16[0x1] = (x2 as x16[0x1]) in
-    let x17: uN[51] = (x8)[0x0+:uN[51]] in
-    let x18: uN[5] = for (i, x): (u4, uN[5]) in range((u4:0x0), (u4:0x5)) {
+    let x11: x7[0x2] = (x6) ++ (x6) in
+    let x12: uN[4] = (x4)[0x1:] in
+    let x13: uN[6] = one_hot(x4, (u1:0)) in
+    let x14: bool = one_hot_sel(x4, [x2, x2, x2, x2, x2]) in
+    let x15: s23 = for (i, x): (u4, s23) in range((u4:0x0), (u4:0x4)) {
     x
-  }(x3)
+  }(x0)
    in
-    let x19: uN[5] = one_hot_sel(x9, [x4, x3, x18, x4, x18]) in
-    let x20: uN[5] = for (i, x): (u4, uN[5]) in range((u4:0x0), (u4:0x0)) {
+    let x16: bool = for (i, x): (u4, bool) in range((u4:0x0), (u4:0x0)) {
     x
-  }(x19)
+  }(x2)
    in
-    x15
+    x3
 }
