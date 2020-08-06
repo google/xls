@@ -244,16 +244,19 @@ class MutableTupleView : public TupleView<Types...> {
 // Specialization of BitsView for non-byte-aligned bit vectors inside a larger
 // buffer, e.g., for a bit vector inside an enclosing PackedTuple.
 // Template args:
-//   kNumBits: the bit width of this element.
-//   kBufferOffset: the start bit of this element inside the provided buffer.
-//     This value must be in the range [0, 7] (if this would be >= 8, then
-//     advance the "buffer" pointer instead).
-template <int64 kNumBits, int64 kBufferOffset>
+//   kElementBits: the bit width of this element.
+template <int64 kElementBits>
 class PackedBitsView {
  public:
-  static_assert(kBufferOffset < 8);
+  // buffer_offset is the number of bits into "buffer" at which the actual
+  // element data begins. This value must be [0-7] (if >= 8, then "buffer"
+  // should be incremented).
+  explicit PackedBitsView(uint8* buffer, int buffer_offset)
+      : buffer_(buffer), buffer_offset_(buffer_offset) {
+    XLS_DCHECK(buffer_offset >= 0 && buffer_offset <= 7);
+  }
 
-  explicit PackedBitsView(uint8* buffer) : buffer_(buffer) {}
+  static constexpr int64 kBitCount = kElementBits;
 
   // Accessor: Populates the specified buffer with the data from this element,
   // shifting it if necessary. Even if kBufferOffset is non-0, return_buffer
@@ -262,7 +265,7 @@ class PackedBitsView {
   // at least ceil((kNumBits + kBufferOffset) / kCharBit) bytes).
   // TODO(rspringer): Worth defining value-returning accessors for widths < 64b?
   void Get(uint8* return_buffer) {
-    int64 bits_left = kNumBits;
+    int64 bits_left = kElementBits;
     // The byte at which the next read should occur. All reads, except for the
     // first, are byte-aligned.
     int64 source_byte = 0;
@@ -272,13 +275,14 @@ class PackedBitsView {
 
     // Do a write of the initial "overhanging" source bits to align future
     // reads.
-    if (kBufferOffset != 0) {
-      // The initial source bits are kBufferOffset into the first byte of the
-      // buffer, so we have kCharBit - kBufferOffset bits to read and shift.
+    if (buffer_offset_ != 0) {
+      // The initial source bits are buffer_offset_ bits into the first byte of
+      // the buffer, so we have kCharBit - buffer_offset_ bits to read and
+      // shift.
       // Since buffer_ is unsigned, it will be a logical shift - no mask is
       // needed.
-      uint64 num_initial_bits = std::min(bits_left, kCharBit - kBufferOffset);
-      uint8 first_source_bits = buffer_[source_byte] >> kBufferOffset;
+      int64 num_initial_bits = std::min(bits_left, kCharBit - buffer_offset_);
+      uint8 first_source_bits = buffer_[source_byte] >> buffer_offset_;
       return_buffer[dest_byte] = first_source_bits & Mask(num_initial_bits);
 
       bits_left -= num_initial_bits;
@@ -293,9 +297,9 @@ class PackedBitsView {
       source_byte++;
 
       // Easy case: dest_bit == 0; this is an aligned full-byte write.
-      if (kBufferOffset == 0) {
+      if (buffer_offset_ == 0) {
         if (bits_left < kCharBit) {
-          constexpr int kLeftover = (kNumBits % kCharBit);
+          constexpr int kLeftover = (kElementBits % kCharBit);
           return_buffer[dest_byte] = byte & MakeMask<kLeftover>();
         } else {
           return_buffer[dest_byte] = byte;
@@ -307,16 +311,16 @@ class PackedBitsView {
 
       // Hard case. Write a low and high chunk.
       // Write the low chunk.
-      int64 num_low_bits = std::min(bits_left, kBufferOffset);
+      int64 num_low_bits = std::min(bits_left, buffer_offset_);
       uint8 low_bits = byte & Mask(num_low_bits);
-      return_buffer[dest_byte] |= low_bits << (kCharBit - kBufferOffset);
+      return_buffer[dest_byte] |= low_bits << (kCharBit - buffer_offset_);
       dest_byte++;
       bits_left -= num_low_bits;
 
       // And, if necessary, the high chunk in the next byte.
       if (bits_left) {
-        uint64 num_high_bits = std::min(bits_left, kCharBit - num_low_bits);
-        uint8 high_bits = (byte >> kBufferOffset) & Mask(num_high_bits);
+        int64 num_high_bits = std::min(bits_left, kCharBit - num_low_bits);
+        uint8 high_bits = (byte >> buffer_offset_) & Mask(num_high_bits);
         return_buffer[dest_byte] = high_bits;
         bits_left -= num_high_bits;
       }
@@ -325,6 +329,29 @@ class PackedBitsView {
 
  private:
   uint8* buffer_;
+  const int64 buffer_offset_;
+};
+
+// Specialization of ArrayView for packed elements, similar to PackedBitsView
+// above.
+template <typename ElementT, int64 kNumElements>
+class PackedArrayView {
+ public:
+  PackedArrayView(uint8* buffer, int64 buffer_offset)
+      : buffer_(buffer), buffer_offset_(buffer_offset) {}
+
+  // Returns the element at the given index in the array.
+  ElementT Get(int index) {
+    assert(index < kNumElements);
+    int64 bit_increment = index * ElementT::kBitCount + buffer_offset_;
+    int64 byte_offset = bit_increment / kCharBit;
+    int64 bit_offset = bit_increment % kCharBit;
+    return ElementT(buffer_ + byte_offset, bit_offset);
+  }
+
+ private:
+  uint8* buffer_;
+  int64 buffer_offset_;
 };
 
 }  // namespace xls

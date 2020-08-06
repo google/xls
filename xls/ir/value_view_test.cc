@@ -53,7 +53,7 @@ TEST(PackedBitViewTest, ExtractsSimpleBytes) {
 
   uint8 buffer = 0x13;
 
-  auto aligned_view = PackedBitsView<kElementWidth, kBitOffset>(&buffer);
+  auto aligned_view = PackedBitsView<kElementWidth>(&buffer, kBitOffset);
   uint8 return_buffer;
   aligned_view.Get(&return_buffer);
   EXPECT_EQ(return_buffer, 0x13);
@@ -65,8 +65,8 @@ TEST(PackedBitViewTest, ExtractsSimpleBigs) {
 
   uint64 buffer = 0xbeefbeefbeef;
 
-  auto aligned_view = PackedBitsView<kElementWidth, kBitOffset>(
-      reinterpret_cast<uint8*>(&buffer));
+  auto aligned_view = PackedBitsView<kElementWidth>(
+      reinterpret_cast<uint8*>(&buffer), kBitOffset);
   uint64 return_buffer;
   aligned_view.Get(reinterpret_cast<uint8*>(&return_buffer));
   EXPECT_EQ(return_buffer, 0xbeefbeefbeef);
@@ -80,7 +80,7 @@ TEST(PackedBitViewTest, ExtractsUnalignedBytes) {
   buffer[0] = 0xA5;
   buffer[1] = 0x5A;
 
-  auto view = PackedBitsView<kElementWidth, kBitOffset>(buffer);
+  auto view = PackedBitsView<kElementWidth>(buffer, kBitOffset);
   uint8 return_buffer;
   view.Get(reinterpret_cast<uint8*>(&return_buffer));
   EXPECT_EQ(return_buffer, 0xAA);
@@ -94,8 +94,8 @@ TEST(PackedBitViewTest, ExtractsUnalignedBigs) {
   buffer[0] = 0xBEEFBEEFF00DF00D;
   buffer[1] = 0xF00DF00DBEEFBEEF;
 
-  auto view = PackedBitsView<kElementWidth, kBitOffset>(
-      reinterpret_cast<uint8*>(buffer));
+  auto view = PackedBitsView<kElementWidth>(reinterpret_cast<uint8*>(buffer),
+                                            kBitOffset);
   uint64 return_buffer;
   view.Get(reinterpret_cast<uint8*>(&return_buffer));
   EXPECT_EQ(return_buffer, 0xFBEEFBEEFF00DF00);
@@ -120,13 +120,11 @@ TEST(PackedBitViewTest, ExtractsUnalignedReallyBigs) {
   }
   Bits bits = rope.Build();
   std::vector<uint8> buffer = bits.ToBytes();
-  std::reverse(buffer.begin(), buffer.end());
 
   std::vector<uint8> expected =
       bits_ops::ShiftRightLogical(bits, kBitOffset).ToBytes();
-  std::reverse(expected.begin(), expected.end());
 
-  auto view = PackedBitsView<kElementWidth, kBitOffset>(buffer.data());
+  auto view = PackedBitsView<kElementWidth>(buffer.data(), kBitOffset);
   auto return_buffer = std::make_unique<uint8[]>(
       CeilOfRatio(kElementWidth + kBitOffset, kCharBit));
   view.Get(reinterpret_cast<uint8*>(return_buffer.get()));
@@ -135,11 +133,10 @@ TEST(PackedBitViewTest, ExtractsUnalignedReallyBigs) {
   }
 }
 
-template <int kBitWidth, int kBitOffset>
-absl::Status TestWidthAndOffset() {
-  constexpr uint64 kBufferBytes = ((kBitWidth + kBitOffset) / kCharBit) + 1;
-  BitsRope rope(kBitWidth + kBitOffset);
-  for (int i = 0; i < kBitOffset; i++) {
+template <int64 kBitWidth>
+absl::Status TestWidthAndOffset(int bit_offset) {
+  BitsRope rope(kBitWidth + bit_offset);
+  for (int i = 0; i < bit_offset; i++) {
     rope.push_back(0);
   }
   int current_bit = 0;
@@ -156,13 +153,14 @@ absl::Status TestWidthAndOffset() {
   std::reverse(buffer.begin(), buffer.end());
 
   std::vector<uint8> expected =
-      bits_ops::ShiftRightLogical(bits, kBitOffset).ToBytes();
+      bits_ops::ShiftRightLogical(bits, bit_offset).ToBytes();
   std::reverse(expected.begin(), expected.end());
 
-  auto view = PackedBitsView<kBitWidth, kBitOffset>(buffer.data());
-  uint8 return_buffer[kBufferBytes];
-  bzero(return_buffer, kBufferBytes);
-  view.Get(reinterpret_cast<uint8*>(&return_buffer));
+  auto view = PackedBitsView<kBitWidth>(buffer.data(), bit_offset);
+  int64 buffer_bytes = CeilOfRatio(kBitWidth + bit_offset, kCharBit);
+  auto return_buffer = std::make_unique<uint8[]>(buffer_bytes);
+  bzero(return_buffer.get(), buffer_bytes);
+  view.Get(reinterpret_cast<uint8*>(return_buffer.get()));
   for (int i = 0; i < buffer.size(); i++) {
     XLS_RET_CHECK(return_buffer[i] == expected[i]);
   }
@@ -171,15 +169,10 @@ absl::Status TestWidthAndOffset() {
 
 template <int kBitWidth>
 absl::Status TestAllBitOffsets() {
-  // We COULD use a recursive template, but...why?
-  XLS_RETURN_IF_ERROR((TestWidthAndOffset<kBitWidth, 0>()));
-  XLS_RETURN_IF_ERROR((TestWidthAndOffset<kBitWidth, 1>()));
-  XLS_RETURN_IF_ERROR((TestWidthAndOffset<kBitWidth, 2>()));
-  XLS_RETURN_IF_ERROR((TestWidthAndOffset<kBitWidth, 3>()));
-  XLS_RETURN_IF_ERROR((TestWidthAndOffset<kBitWidth, 4>()));
-  XLS_RETURN_IF_ERROR((TestWidthAndOffset<kBitWidth, 5>()));
-  XLS_RETURN_IF_ERROR((TestWidthAndOffset<kBitWidth, 6>()));
-  return TestWidthAndOffset<kBitWidth, 7>();
+  for (int i = 0; i < kCharBit; i++) {
+    XLS_RETURN_IF_ERROR((TestWidthAndOffset<kBitWidth>(i)));
+  }
+  return absl::OkStatus();
 }
 
 // Just iterates through all bit widths <= the given value.
@@ -206,6 +199,35 @@ TEST(PackedBitViewTest, OffsetTests) {
   XLS_ASSERT_OK((TestAllBitOffsets<750>()));
   XLS_ASSERT_OK((TestAllBitOffsets<1023>()));
   XLS_ASSERT_OK((TestAllBitOffsets<2049>()));
+}
+
+TEST(PackedArrayViewTest, ExtractsUnaligned) {
+  constexpr int kBitOffset = 7;
+  constexpr int kElementBits = 13;
+  constexpr int kNumElements = 23;
+
+  BitsRope rope(kElementBits * kNumElements + kBitOffset);
+  for (int i = 0; i < kBitOffset; i++) {
+    rope.push_back(0);
+  }
+
+  // Fill the n'th element with n (for each element).
+  for (int i = 0; i < kNumElements; i++) {
+    for (int j = 0; j < kElementBits; j++) {
+      rope.push_back(i & (1 << j));
+    }
+  }
+  std::vector<uint8> buffer = rope.Build().ToBytes();
+  std::reverse(buffer.begin(), buffer.end());
+
+  PackedArrayView<PackedBitsView<kElementBits>, kNumElements> array_view(
+      buffer.data(), kBitOffset);
+  for (int i = 0; i < kNumElements; i++) {
+    PackedBitsView<kElementBits> bits_view = array_view.Get(i);
+    uint32 result = 0;
+    bits_view.Get(reinterpret_cast<uint8*>(&result));
+    EXPECT_EQ(result, i);
+  }
 }
 
 }  // namespace
