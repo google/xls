@@ -21,6 +21,9 @@ from absl import logging
 
 from xls.dslx import bit_helpers
 from xls.dslx.concrete_type import ConcreteType
+from xls.dslx.concrete_type import BitsType
+from xls.dslx.concrete_type import ArrayType
+from xls.dslx.concrete_type import TupleType
 from xls.dslx.interpreter import value as dslx_value
 from xls.ir.python import bits as ir_bits
 from xls.ir.python import number_parser
@@ -144,16 +147,18 @@ def ir_value_to_interpreter_value(value: ir_value.Value,
     assert isinstance(dslx_type, BitsType)
     ir_bits = value.get_bits()
     if dslx_type.get_signedness():
-      return dslx_value.Value.make_sbits(ir_bits.bit_count(), get_bits(ir_bits,
-                                                            signed=True))
-    return dslx_value.Value.make_ubits(ir_bits.bit_count(), get_bits(ir_bits,
-                                                          signed=False))
+      return dslx_value.Value.make_sbits(ir_bits.bit_count(),
+                                         bits_to_int(ir_bits, signed=True))
+    return dslx_value.Value.make_ubits(ir_bits.bit_count(),
+                                       bits_to_int(ir_bits, signed=False))
   elif value.is_array():
+    assert isinstance(dslx_type, ArrayType)
     return dslx_value.Value.make_array(
         tuple(ir_value_to_interpreter_value(e, dslx_type.element_type)
               for e in value.get_elements()))
   else:
     assert value.is_tuple()
+    assert isinstance(dslx_type, TupleType)
     tuple_types = [t if not isinstance(t, tuple) else t[1]
                    for t in dslx_type._members]
     return dslx_value.Value.make_tuple(
