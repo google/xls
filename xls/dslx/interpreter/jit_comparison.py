@@ -20,6 +20,7 @@ from typing import Iterable
 from absl import logging
 
 from xls.dslx import bit_helpers
+from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.interpreter import value as dslx_value
 from xls.ir.python import bits as ir_bits
 from xls.ir.python import number_parser

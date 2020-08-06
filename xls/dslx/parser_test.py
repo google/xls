@@ -652,7 +652,7 @@ proc simple(addend: u32) {
 
   def test_unittest_directive(self):
     m = self.parse_module( """
-        #![unittest]
+        #![test]
         example {
           ()
         }

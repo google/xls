@@ -1325,7 +1325,7 @@ absl::Status LlvmIrJit::RunWithViews(absl::Span<const uint8*> args,
   return absl::OkStatus();
 }
 
-xabsl::StatusOr<Value> CreateAndRun(Function* xls_function,
+xabsl::StatusOr<Value> CreateandRun(Function* xls_function,
                                     absl::Span<const Value> args) {
   XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(xls_function));
   XLS_ASSIGN_OR_RETURN(auto result, jit->Run(args));

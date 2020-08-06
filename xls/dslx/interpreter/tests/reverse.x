@@ -9,7 +9,7 @@ fn main(x: u3) -> u3 {
 }
 
 // Reverse examples.
-#![unittest]
+#![test]
 reverse {
   let _ = assert_eq(u3:0b100, main(u3:0b001)) in
   let _ = assert_eq(u3:0b001, main(u3:0b100)) in

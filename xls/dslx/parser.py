@@ -1200,18 +1200,20 @@ class Parser(token_parser.TokenParser):
       bindings: Bindings) -> Union[ast.Test, ast.QuickCheck, None]:
     """Parses DSLX directives (analogous to Rust's attributes).
 
-    These may preceed unit-test/QuickCheck constructs or they may define
-    compiler behavior.
+    These may preceed unit-test/QuickCheck constructs or they may set compiler
+    configs (e.g. expect semi-colons instead of 'in').
     """
     self._dropt_or_error(TokenKind.HASH)
     self._dropt_or_error(TokenKind.BANG)
     self._dropt_or_error(TokenKind.OBRACK)
-    identifier = self._popt_or_error(TokenKind.IDENTIFIER)
+    identifier = (self._popt_or_error(TokenKind.IDENTIFIER)
+                 if self._peekt_is(TokenKind.IDENTIFIER)
+                 else self._pop_keyword_or_error(Keyword.TEST).value)
     node = None
     if identifier.value == 'cfg':
       self._parse_config(identifier.span)
       self._dropt_or_error(TokenKind.CBRACK)
-    elif identifier.value == 'unittest':
+    elif identifier.value == 'test':
       self._dropt_or_error(TokenKind.CBRACK)
       node = self.parse_test(bindings, directive=True)
     elif identifier.value == 'quickcheck':
