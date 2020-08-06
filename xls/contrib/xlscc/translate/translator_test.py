@@ -295,7 +295,7 @@ class TranslatorTest(absltest.TestCase):
     args = dict(a=aval, b=bval)
     result = ir_interpreter.run_function_kwargs(f, args)
     result_int = int(ctypes.c_int32(int(str(result))).value)
-    self.assertEqual(5, result_int)
+    self.assertEqual(3, result_int)
 
   def test_simple_unrolled_loop(self):
     source = """

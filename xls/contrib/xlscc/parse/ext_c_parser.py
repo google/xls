@@ -131,8 +131,8 @@ class XLSccParser(CParserBase):
             coord=self._token_coord(p, 2)) 
     self._add_typedef_name(p[2], self._token_coord(p,2))
     
-  def p_struct_declaration_list_2(self, p):
-    """ struct_declaration_list     : access_modifier COLON struct_declaration_list
+  def p_struct_declaration_4(self, p):
+    """ struct_declaration  : access_modifier COLON struct_declaration
     """
     p[0] = p[3]
   
@@ -143,7 +143,7 @@ class XLSccParser(CParserBase):
 
   def p_access_modifier(self, p):
     """access_modifier : PUBLIC
-                             | PRIVATE
+                       | PRIVATE
     """
     p[0] = p[1]
   
