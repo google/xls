@@ -299,3 +299,9 @@ dslx_test(
     name = "derived_parametrics",
     srcs = ["derived_parametrics.x"],
 )
+
+dslx_test(
+    name = "test_f_calls_parametric_f",
+    srcs = ["test_f_calls_parametric_f.x"],
+    entry = "__test_f_calls_parametric_f__f",
+)

@@ -139,6 +139,7 @@ py_library(
         ":bindings",
         ":concrete_type_helpers",
         ":errors",
+        ":jit_comparison",
         ":value",
         requirement("termcolor"),
         "//xls/dslx:ast",
@@ -146,11 +147,45 @@ py_library(
         "//xls/dslx:concrete_type",
         "//xls/dslx:deduce",
         "//xls/dslx:import_fn",
+        "//xls/dslx:ir_name_mangler",
         "//xls/dslx:parametric_expression",
         "//xls/dslx:parametric_instantiator",
         "//xls/dslx:scanner",
         "//xls/dslx:span",
+        "//xls/ir/python:llvm_ir_jit",
+        "//xls/ir/python:package",
         "@com_google_absl_py//absl/logging",
+    ],
+)
+
+py_library(
+    name = "jit_comparison",
+    srcs = ["jit_comparison.py"],
+    srcs_version = "PY3",
+    deps = [
+        "//xls/dslx:ast",
+        "//xls/dslx:bit_helpers",
+        "//xls/dslx:concrete_type",
+        "//xls/dslx/interpreter:value",
+        "//xls/ir/python:bits",
+        "//xls/ir/python:llvm_ir_jit",
+        "//xls/ir/python:number_parser",
+        "//xls/ir/python:value",
+        "@com_google_absl_py//absl/logging",
+    ],
+)
+
+py_test(
+    name = "jit_comparison_test",
+    srcs = ["jit_comparison_test.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        ":jit_comparison",
+        ":value",
+        "//xls/ir/python:bits",
+        "//xls/ir/python:value",
+        "@com_google_absl_py//absl/testing:absltest",
     ],
 )
 
@@ -172,6 +207,7 @@ py_library(
     deps = [
         ":interpreter",
         "//xls/dslx:import_routines",
+        "//xls/dslx:ir_converter",
         "//xls/dslx:parser",
         "//xls/dslx:parser_helpers",
         "//xls/dslx:scanner",

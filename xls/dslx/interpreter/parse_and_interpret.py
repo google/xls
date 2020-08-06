@@ -22,6 +22,7 @@ import sys
 from typing import Text, Optional
 
 from xls.dslx import import_routines
+from xls.dslx import ir_converter
 from xls.dslx import parser_helpers
 from xls.dslx import typecheck
 from xls.dslx.interpreter.interpreter import Interpreter
@@ -43,7 +44,8 @@ def parse_and_test(program: Text,
                    filename: Text,
                    raise_on_error: bool = True,
                    test_filter: Optional[Text] = None,
-                   trace_all: bool = False) -> bool:
+                   trace_all: bool = False,
+                   compare_jit: bool = True) -> bool:
   """Parses program and run all tests contained inside.
 
   Args:
@@ -55,6 +57,8 @@ def parse_and_test(program: Text,
     test_filter: Test filter specification (e.g. as passed from bazel test
       environment).
     trace_all: Whether or not to trace all expressions.
+    compare_jit: Whether or not to assert equality between interpreted and
+      JIT'd function return values.
 
   Returns:
     Whether or not an error occurred during parsing/testing.
@@ -72,8 +76,17 @@ def parse_and_test(program: Text,
     module = Parser(Scanner(filename, program)).parse_module(name)
     node_to_type = None
     node_to_type = typecheck.check_module(module, f_import)
+
+    ir_package = (
+        ir_converter.convert_module_to_package(
+            module, node_to_type, traverse_tests=True) if compare_jit else None)
+
     interpreter = Interpreter(
-        module, node_to_type, f_import, trace_all=trace_all)
+        module,
+        node_to_type,
+        f_import,
+        trace_all=trace_all,
+        ir_package=ir_package)
     for test_name in module.get_test_names():
       if not _matches(test_name, test_filter):
         continue
@@ -93,7 +106,8 @@ def parse_and_test(program: Text,
 def parse_and_test_path(path: Text,
                         raise_on_error: bool = True,
                         test_filter: Optional[Text] = None,
-                        trace_all: bool = False) -> bool:
+                        trace_all: bool = False,
+                        compare_jit: bool = True) -> bool:
   """Wrapper around parse_and_test that reads the file contents at "path"."""
   with open(path) as f:
     text = f.read()
@@ -108,4 +122,4 @@ def parse_and_test_path(path: Text,
       raise_on_error=raise_on_error,
       test_filter=test_filter,
       trace_all=trace_all,
-  )
+      compare_jit=compare_jit)

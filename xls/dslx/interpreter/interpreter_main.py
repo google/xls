@@ -30,10 +30,11 @@ from xls.dslx.interpreter import parse_and_interpret
 
 FLAGS = flags.FLAGS
 flags.DEFINE_boolean('trace_all', False, help='Trace every expression.')
+flags.DEFINE_boolean('compare_jit', True, help='Run functions alongside JIT.')
 
 
 def main(argv):
-  if len(argv) > 2:
+  if len(argv) > 3:
     raise app.UsageError('Too many command-line arguments. {}'.format(argv))
 
   path = argv[1]
@@ -44,7 +45,8 @@ def main(argv):
           path,
           raise_on_error=False,
           test_filter=test_only,
-          trace_all=FLAGS.trace_all))
+          trace_all=FLAGS.trace_all,
+          compare_jit=FLAGS.compare_jit))
 
 
 if __name__ == '__main__':

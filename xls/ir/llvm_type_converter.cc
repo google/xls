@@ -31,8 +31,13 @@ llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type& xls_type) {
   }
   llvm::Type* llvm_type;
   if (xls_type.IsBits()) {
-    llvm_type =
-        llvm::IntegerType::get(context_, xls_type.AsBitsOrDie()->bit_count());
+    int64 bit_count = xls_type.AsBitsOrDie()->bit_count();
+    XLS_CHECK_GE(bit_count, 0);
+    // LLVM does not accept 0-bit types, and we want to be able to JIT-compile
+    // unoptimized IR, so for the time being we make a dummy 1-bit value.
+    // See https://github.com/google/xls/issues/76
+    bit_count = std::max(bit_count, static_cast<int64>(1));
+    llvm_type = llvm::IntegerType::get(context_, bit_count);
   } else if (xls_type.IsTuple()) {
     std::vector<llvm::Type*> tuple_types;
 

@@ -198,6 +198,9 @@ class Test(AstNode):
     self.name = name
     self.body = body
 
+  def _accept_children(self, visitor: AstVisitor) -> None:
+    self.body.accept(visitor)
+
   def __str__(self) -> Text:
     return 'test {} {{ ... }}'.format(self.name)
 

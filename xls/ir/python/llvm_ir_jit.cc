@@ -12,25 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/ir/bits.h"
+#include "xls/ir/llvm_ir_jit.h"
 
 #include "pybind11/pybind11.h"
+#include "xls/common/python/absl_casters.h"
 #include "xls/common/status/statusor_pybind_caster.h"
+#include "xls/ir/python/wrapper_types.h"
 
 namespace py = pybind11;
 
 namespace xls {
 
-PYBIND11_MODULE(bits, m) {
-  py::class_<Bits>(m, "Bits")
-      .def(py::init<int64>())
-      .def("bit_count", &Bits::bit_count)
-      .def("to_uint", &Bits::ToUint64)
-      .def("word_to_uint", &Bits::WordToUint64, py::arg("word_number") = 0)
-      .def("to_int", &Bits::ToInt64);
+PYBIND11_MODULE(llvm_ir_jit, m) {
+  py::module::import("xls.ir.python.function");
+  py::module::import("xls.ir.python.value");
 
-  m.def("UBits", &UBitsWithStatus, py::arg("value"), py::arg("bit_count"));
-  m.def("SBits", &SBitsWithStatus, py::arg("value"), py::arg("bit_count"));
+  m.def("llvm_ir_jit_run", PyWrap(&CreateAndRun), py::arg("f"),
+        py::arg("args"));
 }
 
 }  // namespace xls

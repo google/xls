@@ -76,6 +76,8 @@ cc_binary(
 dslx_test(
     name = "riscv_simple",
     srcs = ["riscv_simple.x"],
+    # TODO(hjmontero): run_instruction segfaults.
+    compare_jit = False,
     generate_benchmark = False,
     prove_unopt_eq_opt = False,
 )

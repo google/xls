@@ -16,7 +16,7 @@
 
 """Determines the order in which functions should be converted to IR."""
 
-from typing import Tuple, Text, List, Dict, NamedTuple
+from typing import Tuple, Text, List, Dict, NamedTuple, Union
 
 from absl import logging
 
@@ -63,13 +63,13 @@ class ConversionRecord(object):
         self.f.identifier, self.m, self.bindings, self.callees)
 
 
-def get_callees(func: ast.Function, m: ast.Module, imports: Dict[ast.Import,
-                                                                 ImportedInfo],
+def get_callees(func: Union[ast.Function, ast.Test], m: ast.Module,
+                imports: Dict[ast.Import, ImportedInfo],
                 bindings: SymbolicBindings) -> Tuple[Callee, ...]:
   """Traverses the definition of f to find callees.
 
   Args:
-    func: Function to inspect for calls.
+    func: Function/test construct to inspect for calls.
     m: Module that f resides in.
     imports: Mapping of modules imported by m.
     bindings: Bindings used in instantiation of f.
@@ -110,8 +110,11 @@ def get_callees(func: ast.Function, m: ast.Module, imports: Dict[ast.Import,
             'Only calls to named functions are currently supported, got callee: {!r}'
             .format(node.callee))
 
+      func_name = (
+          func.name.identifier if isinstance(func, ast.Function) else
+          '{}_test'.format(func.name.identifier))
       node_symbolic_bindings = node.symbolic_bindings.get(
-          (m.name, func.name.identifier, bindings), ())
+          (m.name, func_name, bindings), ())
       callees.append(Callee(f, this_m, node_symbolic_bindings))
 
   func.accept(InvocationVisitor())
@@ -126,9 +129,10 @@ def _is_ready(ready: List[ConversionRecord], f: ast.Function, m: ast.Module,
       cr.f == f and cr.m == m and cr.bindings == bindings for cr in ready)
 
 
-def _add_to_ready(ready: List[ConversionRecord],
-                  imports: Dict[ast.Import, ImportedInfo], f: ast.Function,
-                  m: ast.Module, bindings: SymbolicBindings) -> None:
+def _add_to_ready(ready: List[ConversionRecord], imports: Dict[ast.Import,
+                                                               ImportedInfo],
+                  f: Union[ast.Function, ast.Test], m: ast.Module,
+                  bindings: SymbolicBindings) -> None:
   """Adds (f, bindings) to conversion order after deps have been added."""
   if _is_ready(ready, f, m, bindings):
     return
@@ -149,18 +153,24 @@ def _add_to_ready(ready: List[ConversionRecord],
     _add_to_ready(ready, imports, callee.f, callee.m, callee.sym_bindings)
 
   assert not _is_ready(ready, f, m, bindings)
-  logging.vlog(3, 'Adding to ready sequence: %s', f.name.identifier)
-  ready.append(ConversionRecord(f, m, bindings, callees=orig_callees))
+
+  # We don't convert the bodies of test constructs to IR
+  if not isinstance(f, ast.Test):
+    logging.vlog(3, 'Adding to ready sequence: %s', f.name.identifier)
+    ready.append(ConversionRecord(f, m, bindings, callees=orig_callees))
 
 
-def get_order(
-    module: ast.Module, imports: Dict[ast.Import,
-                                      ImportedInfo]) -> List[ConversionRecord]:
+def get_order(module: ast.Module,
+              imports: Dict[ast.Import, ImportedInfo],
+              traverse_tests: bool = False) -> List[ConversionRecord]:
   """Returns (topological) order for functions to be converted to IR.
 
   Args:
     module: Module to convert the (non-parametric) functions for.
     imports: Transitive imports that are required by "module".
+    traverse_tests: Whether to traverse DSLX test constructs. This flag should
+      be set if we intend to run functions only called from test constructs
+      through the JIT.
   """
   ready = []  # type: List[ConversionRecord]
 
@@ -171,5 +181,9 @@ def get_order(
       continue
 
     _add_to_ready(ready, imports, function, module, bindings=())
+
+  if traverse_tests:
+    for test in module.get_tests():
+      _add_to_ready(ready, imports, test, module, bindings=())
 
   return ready

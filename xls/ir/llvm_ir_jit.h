@@ -113,6 +113,13 @@ class LlvmIrJit {
   JitFunctionType invoker_;
 };
 
+// JIT-compiles the given xls_function and invokes it with args, returning the
+// resulting return value. Note that this will cause the overhead of creating a
+// LlvmIrJit object each time, so external caching strategies are generally
+// preferred.
+xabsl::StatusOr<Value> CreateAndRun(Function* xls_function,
+                                    absl::Span<const Value> args);
+
 }  // namespace xls
 
 #endif  // XLS_IR_LLVM_IR_JIT_H_

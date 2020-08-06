@@ -33,11 +33,13 @@ from xls.dslx import ast
 from xls.dslx import bit_helpers
 from xls.dslx import deduce
 from xls.dslx import import_fn
+from xls.dslx import ir_name_mangler
 from xls.dslx.concrete_type import ArrayType
 from xls.dslx.concrete_type import BitsType
 from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.concrete_type import EnumType
 from xls.dslx.concrete_type import TupleType
+from xls.dslx.interpreter import jit_comparison
 from xls.dslx.interpreter.bindings import Bindings
 from xls.dslx.interpreter.concrete_type_helpers import concrete_type_accepts_value
 from xls.dslx.interpreter.concrete_type_helpers import concrete_type_convert_value
@@ -59,6 +61,8 @@ from xls.dslx.scanner import Keyword
 from xls.dslx.scanner import TokenKind
 from xls.dslx.span import Pos
 from xls.dslx.span import Span
+from xls.ir.python import llvm_ir_jit
+from xls.ir.python import package as ir_package_mod
 
 
 class _WipSentinel(object):
@@ -76,13 +80,15 @@ class Interpreter(object):
                module: ast.Module,
                node_to_type: deduce.NodeToType,
                f_import: Optional[Callable[[ImportSubject], ImportInfo]],
-               trace_all: bool = False):
+               trace_all: bool = False,
+               ir_package: Optional[ir_package_mod.Package] = None):
     self._module = module
     self._node_to_type = node_to_type
     self._top_level_members = {}
     self._started_top_level_index = None
     self._f_import = f_import
     self._trace_all = trace_all
+    self._ir_package = ir_package
 
   def _evaluate_NameRef(  # pylint: disable=invalid-name
       self, expr: ast.NameRef, bindings: Bindings,
@@ -1288,14 +1294,10 @@ class Interpreter(object):
       wrapped_value = Value.make_ubits(type_.get_total_bit_count(), raw_value)
       bindings.add_value(parametric.name.identifier, wrapped_value)
 
-  def _evaluate_fn(
-      self,
-      fn: ast.Function,
-      m: ast.Module,
-      args: Sequence[Value],
-      span: Span,
-      expr: Optional[ast.Invocation] = None,
-      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
+  def _evaluate_fn_with_interpreter(
+      self, fn: ast.Function, m: ast.Module, args: Sequence[Value], span: Span,
+      expr: Optional[ast.Invocation],
+      symbolic_bindings: Optional[SymbolicBindings]) -> Value:
     """Evaluates the user defined function fn as an invocation against args.
 
     Args:
@@ -1354,6 +1356,56 @@ class Interpreter(object):
           'want: {}; got: {} @ {}'.format(concrete_return_type, result, span))
 
     return result
+
+  def _evaluate_fn(
+      self,
+      fn: ast.Function,
+      m: ast.Module,
+      args: Sequence[Value],
+      span: Span,
+      expr: Optional[ast.Invocation] = None,
+      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
+    """Wraps _eval_fn_with_interpreter() to compare with JIT execution.
+
+    Unless this Interpreter was created with an ir_package, this does nothing
+    more than call _eval_fn_with_interpreter(). Otherwise, fn is executed with
+    the LLVM IR JIT and its return value is compared against the interpreted
+    value as a consistency check.
+
+    TODO(hjmontero): 2020-8-4 This OK because there are no side effects. We
+    should investigate what happens when there are side effects (e.g. DSLX fatal
+    errors).
+
+    Args:
+      fn: Function to evaluate.
+      m: Module the function is contained within.
+      args: Actual arguments used to invoke the function.
+      span: Span of the invocation causing this evaluation.
+      expr: Invocation AST node causing this evaluation.
+      symbolic_bindings: Symbolic bindings to be used for this function
+        evaluation present (if the function is parameteric).
+
+    Returns:
+      The value that results from DSL interpretation.
+    """
+    interpreter_value = self._evaluate_fn_with_interpreter(
+        fn, m, args, span, expr, symbolic_bindings)
+
+    ir_name = ir_name_mangler.mangle_dslx_name(fn.name.identifier,
+                                               fn.get_free_parametric_keys(), m,
+                                               symbolic_bindings)
+
+    if self._ir_package:
+      # TODO(hjmontero): 2020-07-28 Cache JIT function so we don't have to
+      # create it every time. This requires us to figure out how to wrap
+      # LlvmIrJit::Create().
+      ir_function = self._ir_package.get_function(ir_name)
+      ir_args = jit_comparison.convert_args_to_ir(args)
+
+      jit_value = llvm_ir_jit.llvm_ir_jit_run(ir_function, ir_args)
+      jit_comparison.compare_values(interpreter_value, jit_value)
+
+    return interpreter_value
 
   def _do_import(self, subject: import_fn.ImportTokens,
                  span: Span) -> ast.Module:
