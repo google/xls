@@ -123,6 +123,20 @@ absl::Status RecursivelyCreateDir(const std::filesystem::path& path) {
   return ErrorCodeToStatus(ec);
 }
 
+absl::Status RecursivelyDeletePath(const std::filesystem::path& path) {
+  std::error_code ec;
+  if (!std::filesystem::remove_all(path, ec)) {
+    return absl::NotFoundError("File or directory does not exist: " +
+                               path.string());
+  }
+
+  if (ec) {
+    return absl::InternalError(
+        absl::StrCat("Failed to recursively delete path ", path.c_str()));
+  }
+  return absl::OkStatus();
+}
+
 xabsl::StatusOr<std::string> GetFileContents(
     const std::filesystem::path& file_name) {
   // Use POSIX C APIs instead of C++ iostreams to avoid exceptions.
