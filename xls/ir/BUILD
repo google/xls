@@ -1007,6 +1007,8 @@ cc_test(
         ":value_view",
         "@com_google_absl//absl/status",
         "//xls/common:bits_util",
+        "//xls/common:integral_types",
+        "//xls/common:math_util",
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

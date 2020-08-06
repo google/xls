@@ -68,7 +68,7 @@ inline uint64 MakeMask<0>() {
 
 // BitsView provides some Bits-type functionality on top of a flat character
 // buffer.
-template <uint64 kNumBits>
+template <int64 kNumBits>
 class BitsView {
  public:
   BitsView() : buffer_(nullptr) { XLS_CHECK(buffer_ == nullptr); }
@@ -248,7 +248,7 @@ class MutableTupleView : public TupleView<Types...> {
 //   kBufferOffset: the start bit of this element inside the provided buffer.
 //     This value must be in the range [0, 7] (if this would be >= 8, then
 //     advance the "buffer" pointer instead).
-template <uint64 kNumBits, uint64 kBufferOffset>
+template <int64 kNumBits, int64 kBufferOffset>
 class PackedBitsView {
  public:
   static_assert(kBufferOffset < 8);
@@ -262,13 +262,13 @@ class PackedBitsView {
   // at least ceil((kNumBits + kBufferOffset) / kCharBit) bytes).
   // TODO(rspringer): Worth defining value-returning accessors for widths < 64b?
   void Get(uint8* return_buffer) {
-    uint64 bits_left = kNumBits;
+    int64 bits_left = kNumBits;
     // The byte at which the next read should occur. All reads, except for the
     // first, are byte-aligned.
-    uint64 source_byte = 0;
+    int64 source_byte = 0;
 
     // The bit and byte at which the next write should occur.
-    uint64 dest_byte = 0;
+    int64 dest_byte = 0;
 
     // Do a write of the initial "overhanging" source bits to align future
     // reads.
@@ -307,7 +307,7 @@ class PackedBitsView {
 
       // Hard case. Write a low and high chunk.
       // Write the low chunk.
-      uint64 num_low_bits = std::min(bits_left, kBufferOffset);
+      int64 num_low_bits = std::min(bits_left, kBufferOffset);
       uint8 low_bits = byte & Mask(num_low_bits);
       return_buffer[dest_byte] |= low_bits << (kCharBit - kBufferOffset);
       dest_byte++;

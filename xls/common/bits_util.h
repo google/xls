@@ -20,7 +20,7 @@
 namespace xls {
 
 // Bits in a byte. Large-typed version of CHAR_BIT.
-constexpr uint64 kCharBit = 8;
+constexpr int64 kCharBit = 8;
 
 // Helper that generates an (unsigned) mask with "bit_count" low bits set.
 inline uint64 Mask(int64 bit_count) {

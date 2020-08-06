@@ -17,6 +17,8 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "xls/common/bits_util.h"
+#include "xls/common/integral_types.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -100,8 +102,8 @@ TEST(PackedBitViewTest, ExtractsUnalignedBigs) {
 }
 
 TEST(PackedBitViewTest, ExtractsUnalignedReallyBigs) {
-  constexpr int kElementWidth = 237;
-  constexpr int kBitOffset = 5;
+  constexpr int64 kElementWidth = 237;
+  constexpr int64 kBitOffset = 5;
 
   BitsRope rope(kElementWidth + kBitOffset);
   for (int i = 0; i < kBitOffset; i++) {
@@ -125,8 +127,9 @@ TEST(PackedBitViewTest, ExtractsUnalignedReallyBigs) {
   std::reverse(expected.begin(), expected.end());
 
   auto view = PackedBitsView<kElementWidth, kBitOffset>(buffer.data());
-  uint8 return_buffer[kElementWidth + 1];
-  view.Get(reinterpret_cast<uint8*>(&return_buffer));
+  auto return_buffer = std::make_unique<uint8[]>(
+      CeilOfRatio(kElementWidth + kBitOffset, kCharBit));
+  view.Get(reinterpret_cast<uint8*>(return_buffer.get()));
   for (int i = 0; i < buffer.size(); i++) {
     ASSERT_EQ(return_buffer[i], expected[i]);
   }
