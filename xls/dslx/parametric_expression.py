@@ -15,6 +15,7 @@
 # limitations under the License.
 
 """Parametric dimension "sub-AST".
+
 After we resolve type references in the AST we get "concrete types" where we
 can "see through" all typerefs and there's a clear distinction between bits and
 tuples. However, parametric functions are still symbolic at this point. As a
@@ -33,11 +34,15 @@ from xls.dslx.span import Span
 
 class ParametricExpression(object):  # pytype: disable=ignored-metaclass
   """Abstract base class for a parametric dimension expression.
+
   Parametric dimension expressions can be evaluated with an environment. For
   example, with the parametric type:
+
     bits[M+N]
+
   If we evalute the parametric expression M+N with an environment {M: 3, N; 7}
   we get:
+
     bits[10]
   """
 
@@ -93,11 +98,17 @@ class ParametricExpression(object):  # pytype: disable=ignored-metaclass
 
 class ParametricConstant(ParametricExpression):
   """Represents a constant value in a parametric dimension expression.
+
   For example, when you do:
+
     bits[1]:0 ++ bits[N]:x
+
   It produces a parametric expression for the type:
+
     bits[1+N]
+
   Where the '1' is a parametric constant.
+
   Attributes:
     value: The constant value.
   """
@@ -195,9 +206,13 @@ class ParametricSub(ParametricExpression):
 
 class ParametricSymbol(ParametricExpression):
   """Represents a symbol in a parametric dimension expression.
+
   For example, in the expression:
+
     bits[M+N+1]
+
   Both M and N are parametric symbols.
+
   Attributes:
     identifier: The text identifier for the parametric symbol.
     span: Span in the source text where this parametric symbol resides.

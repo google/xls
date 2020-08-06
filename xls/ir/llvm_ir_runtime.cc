@@ -54,7 +54,7 @@ Value LlvmIrRuntime::UnpackBuffer(const uint8* buffer,
   switch (result_type->kind()) {
     case TypeKind::kBits: {
       const BitsType* bits_type = result_type->AsBitsOrDie();
-      uint64 bit_count = bits_type->bit_count();
+      int64 bit_count = bits_type->bit_count();
       int64 byte_count = CeilOfRatio(bit_count, kCharBit);
       absl::InlinedVector<uint8, 8> data;
       data.reserve(byte_count);
@@ -121,8 +121,7 @@ void LlvmIrRuntime::BlitValueToBuffer(const Value& value, const Type& type,
                                       absl::Span<uint8> buffer) {
   if (value.IsBits()) {
     const Bits& bits = value.bits();
-    int64 byte_count =
-        CeilOfRatio(static_cast<uint64>(bits.bit_count()), kCharBit);
+    int64 byte_count = CeilOfRatio(bits.bit_count(), kCharBit);
     bits.ToBytes(absl::MakeSpan(buffer.data(), byte_count),
                  data_layout_.isBigEndian());
 

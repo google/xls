@@ -31,6 +31,7 @@ def interpret_expr(module: ast.Module,
                    f_import: Optional[deduce.ImportFn],
                    fn_ctx=Tuple[Text, Text, SymbolicBindings]) -> int:
   """Interprets expr using env and module's top level bindings.
+
   Args:
     module: The module that this expression is inside of.
     node_to_type: Mapping from AST node to its deduced/checked type.
@@ -41,8 +42,10 @@ def interpret_expr(module: ast.Module,
     f_import: Import routine callback for the interpreter to use.
     fn_ctx: The (module name, function name, symbolic bindings) we are currently
       using.
+
   Returns:
     The integer value of the interpreted expression.
+
   Raises:
     KeyError: Occurs when the interpreter encounters a symbol that isn't in env.
   """
@@ -53,4 +56,4 @@ def interpret_expr(module: ast.Module,
     bindings.add_value(
         ident,
         interpreter.Value.make_ubits(value=val, bit_count=bit_widths[ident]))
-  return interp.evaluate_expr(expr, bindings).bits_payload
+  return interp.evaluate_expr(expr, bindings).bits_payload.value

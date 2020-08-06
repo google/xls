@@ -39,6 +39,7 @@ class TypecheckTest(absltest.TestCase):
                  error: Optional[Text] = None,
                  error_type=XlsTypeError):
     """Checks the first function in "text" for type errors.
+
     Args:
       text: Text to parse.
       error: Whether it is expected that the text will cause a type error.
@@ -457,6 +458,7 @@ fn f(x: u32) -> (u32, u8) {
   fn [N: u32, R: u32 = N - u32:2] get_middle_bits(x: bits[N]) -> bits[R] {
       x[1:-1]
   }
+
   fn caller() {
       let x1: u2 = get_middle_bits(u4:15) in
       let x2: u4 = get_middle_bits(u6:63) in
@@ -467,6 +469,7 @@ fn f(x: u32) -> (u32, u8) {
     self._typecheck(
         """
   fn [N: u32] add_one(x: bits[N]) -> bits[N] { x + bits[5]:1 }
+
   fn main() {
       let arr = [u5:1, u5:2, u5:3] in
       let mapped_arr = map(arr, add_one) in
@@ -748,6 +751,7 @@ fn f() -> Foo {
       A = 0,
       B = 1,
     }
+
     fn f() -> MyEnum {
       MyEnum::C
     }
@@ -762,6 +766,7 @@ fn f() -> Foo {
     fn [N: u32] p(_: bits[N]) -> u8[2] {
       u8[2]:[0, ...]
     }
+
     fn main() -> u8[2] {
       p(false)
     }
