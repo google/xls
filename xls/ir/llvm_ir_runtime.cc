@@ -110,6 +110,8 @@ Value LlvmIrRuntime::UnpackBuffer(const uint8* buffer,
 
       return Value::ArrayOrDie(values);
     }
+    case TypeKind::kToken:
+      return Value::Token();
     default:
       XLS_LOG(FATAL) << "Unsupported XLS Value kind: " << result_type->kind();
   }
@@ -154,6 +156,8 @@ void LlvmIrRuntime::BlitValueToBuffer(const Value& value, const Type& type,
       BlitValueToBuffer(value.element(i), *tuple_type->element_type(i),
                         buffer.subspan(layout->getElementOffset(i)));
     }
+  } else if (value.IsToken()) {
+    // Tokens contain no data.
   } else {
     XLS_LOG(FATAL) << "Unsupported XLS Value kind: " << value.kind();
   }

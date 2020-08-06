@@ -14,6 +14,7 @@
 
 #include "xls/ir/llvm_type_converter.h"
 
+#include "llvm/IR/DerivedTypes.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/ir_parser.h"
 
@@ -46,6 +47,11 @@ llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type& xls_type) {
     const ArrayType* array_type = xls_type.AsArrayOrDie();
     llvm::Type* element_type = ConvertToLlvmType(*array_type->element_type());
     llvm_type = llvm::ArrayType::get(element_type, array_type->size());
+  } else if (xls_type.IsToken()) {
+    // Token types don't contain any data. A 0-element array is a convenient and
+    // low-overhead way to let the rest of the llvm infrastructure treat token
+    // like a normal data-type.
+    llvm_type = llvm::ArrayType::get(llvm::IntegerType::get(context_, 1), 0);
   } else {
     XLS_LOG(FATAL) << absl::StrCat("Type not supported for LLVM conversion: %s",
                                    xls_type.ToString());

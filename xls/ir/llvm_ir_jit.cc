@@ -37,6 +37,7 @@
 #include "llvm/ExecutionEngine/Orc/ThreadSafeModule.h"
 #include "llvm/ExecutionEngine/SectionMemoryManager.h"
 #include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Intrinsics.h"
@@ -109,6 +110,18 @@ class BuilderVisitor : public DfsVisitorWithDefault {
     llvm::Value* eq = builder_->CreateICmpEQ(
         operand, llvm::ConstantInt::get(operand_type, operand_type->getMask()));
     return StoreResult(op, eq);
+  }
+
+  absl::Status HandleAfterAll(AfterAll* after_all) override {
+    // AfterAll is only meaningful to the compiler and does not actually perform
+    // any computation. Furter, token types don't contain any data. A 0-element
+    // array is convenient and low-overhead way to let the rest of the llvm
+    // infrastructure treat token like a normal data-type.
+    return StoreResult(
+        after_all,
+        llvm::ConstantArray::get(
+            llvm::ArrayType::get(llvm::IntegerType::get(*context_, 1), 0),
+            llvm::ArrayRef<llvm::Constant*>()));
   }
 
   absl::Status HandleArray(Array* array) override {

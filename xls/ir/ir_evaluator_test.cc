@@ -2066,6 +2066,54 @@ TEST_P(IrEvaluatorTest, OptimizedParamReturn) {
   EXPECT_EQ(result.bits().ToString(FormatPreference::kBinary), "0b1");
 }
 
+TEST_P(IrEvaluatorTest, AfterAllWithOtherOps) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
+  package test
+
+  fn main() -> bits[8] {
+    after_all.1: token = after_all()
+    literal.2: bits[8] = literal(value=6)
+    after_all.3: token = after_all()
+    literal.4: bits[8] = literal(value=3)
+    after_all.5: token = after_all()
+    literal.6: bits[8] = literal(value=2)
+    after_all.7: token = after_all()
+    ret and.8: bits[8] = nand(literal.2, literal.4, literal.6)
+  }
+  )"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  EXPECT_THAT(GetParam().evaluator(function, /*args=*/{}),
+              IsOkAndHolds(Value(UBits(0b11111101, 8))));
+}
+
+TEST_P(IrEvaluatorTest, AfterAllReturnToken) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
+  package test
+
+  fn main() -> token {
+    ret after_all.1: token = after_all()
+  }
+  )"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  EXPECT_THAT(GetParam().evaluator(function, /*args=*/{}),
+              IsOkAndHolds(Value::Token()));
+}
+
+TEST_P(IrEvaluatorTest, AfterAllTokenArgs) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
+  package test
+
+  fn main(t1: token, t2: token) -> token {
+    ret after_all.1: token = after_all(t1, t2)
+  }
+  )"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  EXPECT_THAT(
+      GetParam().kwargs_evaluator(
+          function, /*args=*/{{"t1", Value::Token()}, {"t2", Value::Token()}}),
+      IsOkAndHolds(Value::Token()));
+}
+
 TEST_P(IrEvaluatorTest, ArrayOperation) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package test

@@ -36,6 +36,8 @@ enum class ValueKind {
   // more efficient storage mechanism as a result. For now we always used the
   // boxed Value type, though.
   kArray,
+
+  kToken
 };
 
 std::string ValueKindToString(ValueKind kind);
@@ -70,6 +72,10 @@ class Value {
     return Array(elements).value();
   }
 
+  static Value Token() {
+    return Value(ValueKind::kToken, std::vector<Value>({}));
+  }
+
   Value() : kind_(ValueKind::kInvalid), payload_(nullptr) {}
 
   explicit Value(Bits bits)
@@ -82,6 +88,7 @@ class Value {
   bool IsTuple() const { return kind_ == ValueKind::kTuple; }
   bool IsArray() const { return kind_ == ValueKind::kArray; }
   bool IsBits() const { return absl::holds_alternative<Bits>(payload_); }
+  bool IsToken() const { return kind_ == ValueKind::kToken; }
   const Bits& bits() const { return absl::get<Bits>(payload_); }
   xabsl::StatusOr<Bits> GetBitsWithStatus() const;
 

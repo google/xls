@@ -24,6 +24,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/number_parser.h"
 #include "xls/ir/op.h"
+#include "xls/ir/type.h"
 #include "xls/ir/verifier.h"
 
 namespace xls {
@@ -312,9 +313,14 @@ xabsl::StatusOr<Value> Parser::ParseValueInternal(absl::optional<Type*> type) {
         type.value()->IsBits() ? type.value()->AsBitsOrDie()->bit_count() : 0;
   } else {
     if (scanner_.PeekTokenIs(LexicalTokenType::kKeyword)) {
-      type_kind = TypeKind::kBits;
-      XLS_ASSIGN_OR_RETURN(bit_count, ParseBitsTypeAndReturnWidth());
-      XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kColon));
+      if (scanner_.TryDropKeyword("token")) {
+        type_kind = TypeKind::kToken;
+      } else {
+        type_kind = TypeKind::kBits;
+        XLS_ASSIGN_OR_RETURN(bit_count, ParseBitsTypeAndReturnWidth());
+        XLS_RETURN_IF_ERROR(
+            scanner_.DropTokenOrError(LexicalTokenType::kColon));
+      }
     } else if (scanner_.PeekTokenIs(LexicalTokenType::kBracketOpen)) {
       type_kind = TypeKind::kArray;
     } else {
@@ -387,6 +393,9 @@ xabsl::StatusOr<Value> Parser::ParseValueInternal(absl::optional<Type*> type) {
       values.push_back(std::move(element_value));
     }
     return Value::Tuple(values);
+  }
+  if (type_kind == TypeKind::kToken) {
+    return Value::Token();
   }
   return absl::InvalidArgumentError(
       absl::StrFormat("Unsupported type %s", TypeKindToString(type_kind)));

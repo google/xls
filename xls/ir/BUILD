@@ -289,6 +289,7 @@ cc_library(
         ":number_parser",
         ":op",
         ":source_location",
+        ":type",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "//xls/common:visitor",

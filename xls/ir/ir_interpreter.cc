@@ -131,7 +131,9 @@ class InterpreterVisitor : public DfsVisitor {
   }
 
   absl::Status HandleAfterAll(AfterAll* after_all) override {
-    return absl::UnimplementedError("AfterAll not yet implemented");
+    // AfterAll is only meaningful to the compiler and does not actually perform
+    // any computation.
+    return SetValueResult(after_all, Value::Token());
   }
 
   absl::Status HandleArray(Array* array) override {

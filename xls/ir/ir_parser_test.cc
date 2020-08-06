@@ -1141,6 +1141,31 @@ TEST(IrParserTest, ParsesComplexValueWithEmbeddedTypes) {
   EXPECT_EQ(expected, v);
 }
 
+TEST(IrParserTest, ParsesTokenType) {
+  const std::string input = "token";
+  XLS_ASSERT_OK_AND_ASSIGN(Value v, Parser::ParseTypedValue(input));
+  Value expected = Value::Token();
+  EXPECT_EQ(expected, v);
+}
+
+TEST(IrParserTest, ParsesComplexValueWithEmbeddedTokens) {
+  const std::string input =
+      "(bits[32]:0xf00, [bits[12]:0xba5, bits[12]:0xba7], [token, token], "
+      "[bits[1]:0], token)";
+  XLS_ASSERT_OK_AND_ASSIGN(Value v, Parser::ParseTypedValue(input));
+  Value expected = Value::Tuple({
+      Value(UBits(0xf00, /*bit_count=*/32)),
+      Value::ArrayOrDie({
+          Value(UBits(0xba5, /*bit_count=*/12)),
+          Value(UBits(0xba7, /*bit_count=*/12)),
+      }),
+      Value::ArrayOrDie({Value::Token(), Value::Token()}),
+      Value::ArrayOrDie({Value(UBits(0, /*bit_count=*/1))}),
+      Value::Token(),
+  });
+  EXPECT_EQ(expected, v);
+}
+
 // TODO(leary): 2019-08-01 Figure out if we want to reify the type into the
 // empty array Value.
 TEST(IrParserTest, DISABLED_ParsesEmptyArray) {
