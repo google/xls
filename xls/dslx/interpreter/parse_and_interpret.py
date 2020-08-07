@@ -19,6 +19,7 @@
 import functools
 import os
 import sys
+import time
 from typing import Text, Optional
 
 from xls.dslx import import_routines
@@ -46,7 +47,7 @@ def parse_and_test(program: Text,
                    test_filter: Optional[Text] = None,
                    trace_all: bool = False,
                    compare_jit: bool = True,
-                   seed: int = 0) -> bool:
+                   seed: Optional[int] = None) -> bool:
   """Parses program and run all tests contained inside.
 
   Args:
@@ -96,6 +97,10 @@ def parse_and_test(program: Text,
       print('[               OK ]', test_name, file=sys.stderr)
 
     if ir_package:
+      if seed is None:
+        # We want to guarantee non-determinism by default.
+        seed = int(os.getpid() * time.time())
+      print(f"SEED: {seed}")
       for quickcheck in module.get_quickchecks():
         test_name = quickcheck.f.name.identifier
         print('[ RUN QUICKCHECK   ]', test_name, file=sys.stderr)
@@ -121,7 +126,7 @@ def parse_and_test_path(path: Text,
                         test_filter: Optional[Text] = None,
                         trace_all: bool = False,
                         compare_jit: bool = True,
-                        seed: int = 0) -> bool:
+                        seed: Optional[int] = None) -> bool:
   """Wrapper around parse_and_test that reads the file contents at "path"."""
   with open(path) as f:
     text = f.read()

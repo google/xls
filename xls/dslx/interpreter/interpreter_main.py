@@ -31,7 +31,7 @@ from xls.dslx.interpreter import parse_and_interpret
 FLAGS = flags.FLAGS
 flags.DEFINE_boolean('trace_all', False, help='Trace every expression.')
 flags.DEFINE_boolean('compare_jit', True, help='Run functions alongside JIT.')
-flags.DEFINE_integer('seed', 0, help='Seed for QuickCheck random stimulus.' )
+flags.DEFINE_integer('seed', None, help='Seed for QuickCheck random stimulus.')
 
 
 def main(argv):
