@@ -318,28 +318,6 @@ xabsl::StatusOr<Expression*> EmitShift(Node* shift, Expression* operand,
                        overshift_value, shifted_operand);
 }
 
-// Emits a dynamic_bit_slice instruction.
-/*
-xabsl::StatusOr<Expression*> EmitDynamicBitSlice(DynamicBitSlice* slice,
-                                                 Expression* operand,
-                                                 Expression* start,
-                                                 int64 width,
-                                                 VerilogFile* file) {
-  Expression* zeros = file->Literal(0, width);
-  Expression* width_expr = file->Literal(width, Bits::MinBitCountUnsigned(width));
-  Expression* op_width = file->Literal(slice->operand(0)->BitCountOrDie(), Bits::MinBitCountUnsigned(slice->operand(0)->BitCountOrDie()));
-  Expression* out_of_bounds = file->GreaterThanEquals(op_width, start);
-  // If start of slice is greater than or equal to operand width, result is
-  // completely out of bounds and set to all zeros.
-  Expression* need_extend = file->GreaterThan(file->Add(start, width_expr), op_width);
-  // Pad with width zeros
-  Expression* extended = file->Concat({operand, zeros});
-  Expression* adjusted_operand = file->Ternary(need_extend, extended, operand);
-  Expression* sliced_operand = file->DynamicSlice(extended->AsIndexableExpressionOrDie(), start, width);
-  return file->Ternary(out_of_bounds, zeros, sliced_operand);
-}
-*/
-
 // Emits a decode instruction.
 xabsl::StatusOr<Expression*> EmitDecode(Decode* decode, Expression* operand,
                                         VerilogFile* file) {
@@ -446,11 +424,8 @@ xabsl::StatusOr<Expression*> NodeToExpression(
                            slice->start() + slice->width() - 1, slice->start());
       }
     }
-    case Op::kDynamicBitSlice: {
-      DynamicBitSlice* slice = node->As<DynamicBitSlice>();
-      return file->DynamicSlice(inputs[0]->AsIndexableExpressionOrDie(),
-                                inputs[1], slice->width());
-    }
+    case Op::kDynamicBitSlice:
+      return unimplemented();
     case Op::kConcat:
       return file->Concat(inputs);
     case Op::kUDiv:
