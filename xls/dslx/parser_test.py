@@ -227,7 +227,7 @@ proc simple(addend: u32) {
     self.assertIsInstance(e, ast.For)
     self.assertEqual(e.span.start, Pos(self.fake_filename, lineno=0, colno=3))
     freevars = e.get_free_variables(e.span.start)
-    self.assertLen(freevars, 1)
+    self.assertCountEqual(freevars.keys(), ['j', 'range'])
 
   def test_typedef(self):
     program = 'type MyType = u32;'

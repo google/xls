@@ -24,6 +24,7 @@ These are broken out largely to reduce pytype runtime on a monolithic AST file.
 from typing import Union, Text, List, Dict, Tuple, Optional, Set, Sequence
 from absl import logging
 
+from xls.dslx import free_variables
 from xls.dslx import parametric_instantiator
 from xls.dslx.ast_node import AstNode
 from xls.dslx.ast_node import AstVisitor
@@ -708,8 +709,11 @@ class For(Expr):
     self.body.accept(visitor)
 
   def get_free_variables(self, start_pos: Pos) -> FreeVariables:
-    return self.body.get_free_variables(start_pos).union(
-        self.init.get_free_variables(start_pos))
+    free_vars = [
+        getattr(self, attr).get_free_variables(start_pos)
+        for attr in 'names iterable body init'.split()
+    ]
+    return free_variables.union_all(free_vars)
 
 
 class While(Expr):
