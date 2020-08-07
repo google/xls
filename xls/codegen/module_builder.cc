@@ -630,8 +630,8 @@ std::string ModuleBuilder::VerilogFunctionName(Node* node) {
           node->operand(0)->BitCountOrDie(), node->operand(1)->BitCountOrDie());
     case Op::kDynamicBitSlice:
       return absl::StrFormat(
-          "%s%db_%db", OpToString(node->op()), node->BitCountOrDie(),
-          node->operand(0)->BitCountOrDie());
+          "%s_w%d_%db_%db", OpToString(node->op()), node->BitCountOrDie(),
+          node->operand(0)->BitCountOrDie(), node->operand(1)->BitCountOrDie());
     default:
       XLS_LOG(FATAL) << "Cannot emit node as function: " << node->ToString();
   }
