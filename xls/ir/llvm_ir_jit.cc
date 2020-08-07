@@ -114,7 +114,7 @@ class BuilderVisitor : public DfsVisitorWithDefault {
   absl::Status HandleAfterAll(AfterAll* after_all) override {
     // AfterAll is only meaningful to the compiler and does not actually perform
     // any computation. Furter, token types don't contain any data. A 0-element
-    // array is convenient and low-overhead way to let the rest of the llvm
+    // array is a convenient and low-overhead way to let the rest of the llvm
     // infrastructure treat token like a normal data-type.
     return StoreResult(
         after_all,
