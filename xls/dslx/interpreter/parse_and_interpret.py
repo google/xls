@@ -45,7 +45,8 @@ def parse_and_test(program: Text,
                    raise_on_error: bool = True,
                    test_filter: Optional[Text] = None,
                    trace_all: bool = False,
-                   compare_jit: bool = True) -> bool:
+                   compare_jit: bool = True,
+                   seed: int = 0) -> bool:
   """Parses program and run all tests contained inside.
 
   Args:
@@ -98,7 +99,7 @@ def parse_and_test(program: Text,
       for quickcheck in module.get_quickchecks():
         test_name = quickcheck.f.name.identifier
         print('[ RUN QUICKCHECK   ]', test_name, file=sys.stderr)
-        interpreter.run_quickcheck(quickcheck)
+        interpreter.run_quickcheck(quickcheck, seed=seed)
         print('[               OK ]', test_name, file=sys.stderr)
 
   except PositionalError as e:
@@ -119,7 +120,8 @@ def parse_and_test_path(path: Text,
                         raise_on_error: bool = True,
                         test_filter: Optional[Text] = None,
                         trace_all: bool = False,
-                        compare_jit: bool = True) -> bool:
+                        compare_jit: bool = True,
+                        seed: int = 0) -> bool:
   """Wrapper around parse_and_test that reads the file contents at "path"."""
   with open(path) as f:
     text = f.read()
@@ -134,4 +136,5 @@ def parse_and_test_path(path: Text,
       raise_on_error=raise_on_error,
       test_filter=test_filter,
       trace_all=trace_all,
-      compare_jit=compare_jit)
+      compare_jit=compare_jit,
+      seed=seed)
