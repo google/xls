@@ -84,7 +84,6 @@ def bits_to_int(jit_bits: ir_bits.Bits, signed: bool) -> int:
   return (bits_value if not signed else bit_helpers.from_twos_complement(
       bits_value, bit_count))
 
-
 def compare_values(interpreter_value: dslx_value.Value,
                    jit_value: ir_value.Value) -> None:
   """Asserts equality between a DSLX Value and an IR Value.
@@ -101,11 +100,13 @@ def compare_values(interpreter_value: dslx_value.Value,
       for the interpreter value.
   """
   if interpreter_value.is_bits() or interpreter_value.is_enum():
-    assert jit_value.is_bits()
+    assert jit_value.is_bits(), "Expected bits value: {!r}".format(jit_value)
 
     jit_value = jit_value.get_bits()
     bit_count = interpreter_value.get_bit_count()
-    assert bit_count == jit_value.bit_count()
+    assert bit_count == jit_value.bit_count(), (f"Inconsistent bit counts -- "
+                                                f"interp: {bit_count}, jit: "
+                                                f"{jit_value.bit_count()}")
 
     if interpreter_value.is_ubits():
       interpreter_bits_value = interpreter_value.get_bits_value()
@@ -113,25 +114,35 @@ def compare_values(interpreter_value: dslx_value.Value,
     else:
       interpreter_bits_value = interpreter_value.get_bits_value_signed()
       jit_bits_value = bits_to_int(jit_value, signed=True)
-    assert interpreter_bits_value == jit_bits_value, "interp: {!r} jit: {!r}".format(
-        interpreter_bits_value, jit_bits_value)
+    assert interpreter_bits_value == jit_bits_value, ("Inconsistent bit values"
+                                                      " -- interp: {!r}, "
+                                                      " jit: {!r}".format(
+                                                        interpreter_bits_value,
+                                                        jit_bits_value))
 
   elif interpreter_value.is_array():
-    assert jit_value.is_array()
+    assert jit_value.is_array(), "Expected array value: {!r}".format(jit_value)
 
     interpreter_values = interpreter_value.array_payload.elements
     jit_values = jit_value.get_elements()
-    assert len(interpreter_values) == len(jit_values)
+    interp_len = len(interpreter_values)
+    jit_len = len(jit_values)
+    assert interp_len == jit_len, ("Inconsistent lengths -- interp: {}, "
+                                   "jit: {}".format(interp_len, jit_len))
 
     for interpreter_element, jit_element in zip(interpreter_values, jit_values):
       compare_values(interpreter_element, jit_element)
 
   elif interpreter_value.is_tuple():
-    assert jit_value.is_tuple()
+    assert jit_value.is_tuple(), "Expected tuple value: {!r}".format(jit_value)
 
     interpreter_values = interpreter_value.tuple_members
     jit_values = jit_value.get_elements()
-    assert len(interpreter_values) == len(jit_values)
+    interp_len = len(interpreter_values)
+    jit_len = len(jit_values)
+    assert interp_len == jit_len, ("Inconsistent lengths -- interp: {}, "
+                                   "jit: {}".format(interp_len, jit_len))
+
 
     for interpreter_element, jit_element in zip(interpreter_values, jit_values):
       compare_values(interpreter_element, jit_element)
@@ -144,7 +155,7 @@ def ir_value_to_interpreter_value(value: ir_value.Value,
                                   dslx_type: ConcreteType) -> dslx_value.Value:
   """Converts an IR Value to an interpreter Value."""
   if value.is_bits():
-    assert isinstance(dslx_type, BitsType)
+    assert isinstance(dslx_type, BitsType), dslx_type
     ir_bits = value.get_bits()
     if dslx_type.get_signedness():
       return dslx_value.Value.make_sbits(ir_bits.bit_count(),
@@ -152,13 +163,13 @@ def ir_value_to_interpreter_value(value: ir_value.Value,
     return dslx_value.Value.make_ubits(ir_bits.bit_count(),
                                        bits_to_int(ir_bits, signed=False))
   elif value.is_array():
-    assert isinstance(dslx_type, ArrayType)
+    assert isinstance(dslx_type, ArrayType), dslx_type
     return dslx_value.Value.make_array(
         tuple(ir_value_to_interpreter_value(e, dslx_type.element_type)
               for e in value.get_elements()))
   else:
     assert value.is_tuple()
-    assert isinstance(dslx_type, TupleType)
+    assert isinstance(dslx_type, TupleType), dslx_type
     tuple_types = [t if not isinstance(t, tuple) else t[1]
                    for t in dslx_type._members]
     return dslx_value.Value.make_tuple(

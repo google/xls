@@ -179,7 +179,7 @@ def get_order(module: ast.Module,
 
   for quickcheck in module.get_quickchecks():
     function = quickcheck.f
-    assert not function.is_parametric()
+    assert not function.is_parametric(), function
 
     _add_to_ready(ready, imports, function, module, bindings=())
 
