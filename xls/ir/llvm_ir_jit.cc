@@ -1325,7 +1325,7 @@ absl::Status LlvmIrJit::RunWithViews(absl::Span<const uint8*> args,
   return absl::OkStatus();
 }
 
-xabsl::StatusOr<Value> CreateandRun(Function* xls_function,
+xabsl::StatusOr<Value> CreateAndRun(Function* xls_function,
                                     absl::Span<const Value> args) {
   XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(xls_function));
   XLS_ASSIGN_OR_RETURN(auto result, jit->Run(args));
@@ -1333,15 +1333,15 @@ xabsl::StatusOr<Value> CreateandRun(Function* xls_function,
 }
 
 xabsl::StatusOr<std::pair<std::vector<std::vector<Value>>, std::vector<Value>>>
-CreateandQuickCheck(Function *xls_function) {
+CreateAndQuickCheck(Function* xls_function) {
     XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(xls_function));
     std::vector<Value> results;
-    std::vector<std::vector<Value> > argsets;
+    std::vector<std::vector<Value>> argsets;
     auto seed = time(nullptr);
     std::minstd_rand rng_engine(seed);
-    int64 NUM_TESTS = 1000;
+    int64 kNumTests = 1000;
 
-    for (int i = 0; i < NUM_TESTS; i++) {
+    for (int i = 0; i < kNumTests; i++) {
       argsets.push_back(RandomFunctionArguments(xls_function, &rng_engine));
       XLS_ASSIGN_OR_RETURN(auto result, jit->Run(argsets[i]));
       results.push_back(result);
