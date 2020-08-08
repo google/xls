@@ -72,10 +72,11 @@ TEST(LlvmIrJitTest, QuickCheckBits) {
   }
   )";
   int64 seed = 0;
+  int64 num_tests = 100;
   XLS_ASSERT_OK_AND_ASSIGN(Function *function,
                            Parser::ParseFunction(ir_text, &package));
   XLS_ASSERT_OK_AND_ASSIGN(auto quickcheck_info,
-                           CreateandQuickCheck(function, seed));
+                           CreateandQuickCheck(function, seed, num_tests));
   std::vector<Value> results = quickcheck_info.second;
   // If a counter-example was found, the last result will be 0.
   EXPECT_EQ(results.back(), Value(UBits(0, 1)));
@@ -94,10 +95,11 @@ TEST(LlvmIrJitTest, QuickCheckArray) {
   }
   )";
   int64 seed = 0;
+  int64 num_tests = 100;
   XLS_ASSERT_OK_AND_ASSIGN(Function *function,
                            Parser::ParseFunction(ir_text, &package));
   XLS_ASSERT_OK_AND_ASSIGN(auto quickcheck_info,
-                           CreateandQuickCheck(function, seed));
+                           CreateandQuickCheck(function, seed, num_tests));
   std::vector<Value> results = quickcheck_info.second;
   EXPECT_EQ(results.back(), Value(UBits(0, 1)));
 }
@@ -113,10 +115,11 @@ TEST(LlvmIrJitTest, QuickCheckTuple) {
   }
   )";
   int64 seed = 0;
+  int64 num_tests = 100;
   XLS_ASSERT_OK_AND_ASSIGN(Function *function,
                            Parser::ParseFunction(ir_text, &package));
   XLS_ASSERT_OK_AND_ASSIGN(auto quickcheck_info,
-                           CreateandQuickCheck(function, seed));
+                           CreateandQuickCheck(function, seed, num_tests));
   std::vector<Value> results = quickcheck_info.second;
   EXPECT_EQ(results.back(), Value(UBits(0, 1)));
 }

@@ -131,7 +131,7 @@ xabsl::StatusOr<Value> CreateAndRun(Function* xls_function,
 // TODO(hjmontero): 2020-08-09 Make RNG seeding possible.
 // TODO(leary): 2020-08-09 Factor out into its own module with Python bindings.
 xabsl::StatusOr<std::pair<std::vector<std::vector<Value>>, std::vector<Value>>>
-CreateandQuickCheck(Function *xls_function, int64 seed);
+CreateandQuickCheck(Function *xls_function, int64 seed, int64 num_tests);
 }  // namespace xls
 
 #endif  // XLS_IR_LLVM_IR_JIT_H_

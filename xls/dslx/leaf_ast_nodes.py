@@ -173,9 +173,14 @@ class Function(AstNode):
 class QuickCheck(AstNode):
   """Represents a function to be QuickChecked."""
 
-  def __init__(self, span: Span, f: Function):
+  def __init__(self, span: Span, f: Function, num_tests: Optional[int]):
     self.span = span
     self.f = f
+
+    if num_tests is None:
+      num_tests = 1000
+
+    self.num_tests = num_tests
 
   def __str__(self) -> Text:
     return f'QC: {self.f}'

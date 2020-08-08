@@ -1195,6 +1195,37 @@ class Parser(token_parser.TokenParser):
               config_name.value))
     self._dropt_or_error(TokenKind.CPAREN)
 
+  def _parse_quickcheck(
+      self,
+      function_name_to_node: Dict[Text, ast.Function],
+      bindings: Bindings,
+      directive_span: Span) -> ast.QuickCheck:
+
+    num_tests = None
+    if self._peekt_is(TokenKind.OPAREN):
+      # Config specified
+      self._dropt()
+      config_name = self._popt_or_error(TokenKind.IDENTIFIER)
+      self._dropt_or_error(TokenKind.EQUALS)
+      if config_name.value == "num_tests":
+        num_token = self._popt_or_error(TokenKind.NUMBER)
+        num_tests = int(num_token.value)
+        if num_tests <= 0:
+          raise ParseError(
+              num_token.span,
+              f'Number of tests should be > 0, got {num_tests}')
+      else:
+        raise ParseError(
+            directive_span,
+            'Unknown configuration key in directive: {!r}'.format(
+                config_name.value))
+
+      self._dropt_or_error(TokenKind.CPAREN)
+
+    self._dropt_or_error(TokenKind.CBRACK)
+    fn = self.parse_function(function_name_to_node, bindings, public=False)
+    return ast.QuickCheck(fn.span, fn, num_tests)
+
   def _parse_directive(
       self, function_name_to_node: Dict[Text, ast.Function],
       bindings: Bindings) -> Union[ast.Test, ast.QuickCheck, None]:
@@ -1226,9 +1257,8 @@ class Parser(token_parser.TokenParser):
       self._dropt_or_error(TokenKind.CBRACK)
       node = self.parse_test(bindings, directive=True)
     elif identifier.value == 'quickcheck':
-      self._dropt_or_error(TokenKind.CBRACK)
-      fn = self.parse_function(function_name_to_node, bindings, public=False)
-      node = ast.QuickCheck(fn.span, fn)
+      node = self._parse_quickcheck(function_name_to_node, bindings,
+                                    identifier.span)
     else:
       raise ParseError(identifier.span,
                        'Unknown directive: {!r}'.format(identifier.value))

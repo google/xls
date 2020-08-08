@@ -1486,7 +1486,7 @@ class Interpreter(object):
         b.add_mod(member.identifier, imported_module)
     return b
 
-  def run_quickcheck(self, quickcheck: ast.QuickCheck, seed: int = 0) -> None:
+  def run_quickcheck(self, quickcheck: ast.QuickCheck, seed: int) -> None:
     """Runs a quickcheck AST node (via the LLVM JIT)."""
     assert self._ir_package
     fn = quickcheck.f
@@ -1495,7 +1495,8 @@ class Interpreter(object):
                                                self._module, ())
 
     ir_function = self._ir_package.get_function(ir_name)
-    argsets, results = llvm_ir_jit.quickcheck_jit(ir_function, seed)
+    argsets, results = llvm_ir_jit.quickcheck_jit(ir_function, seed,
+                                                  quickcheck.num_tests)
     last_result = results[-1].get_bits().to_uint()
     if not last_result:
       last_argset = argsets[-1]

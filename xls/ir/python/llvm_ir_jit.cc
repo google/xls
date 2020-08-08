@@ -30,7 +30,7 @@ PYBIND11_MODULE(llvm_ir_jit, m) {
   m.def("llvm_ir_jit_run", PyWrap(&CreateandRun),
         py::arg("f"), py::arg("args"));
   m.def("quickcheck_jit", PyWrap(&CreateandQuickCheck), py::arg("f"),
-                          py::arg("seed"));
+        py::arg("seed"), py::arg("num_tests"));
 }
 
 }  // namespace xls
