@@ -161,20 +161,16 @@ class StructType(Type):
     """
 
     element_xls_types = []
-    if isinstance(self.struct, c_ast.Struct):
-      for name in self.element_types:
+    for named_field in self.struct.fields:
+      name = named_field.name
+      field = named_field.hls_type
+      if field.HasField("as_int"):
+        element_xls_types.append(p.get_bits_type(field.as_int.width))
+      elif field.HasField("as_struct"):
         element_xls_types.append(self.element_types[name].get_xls_type(p))
-    else:
-      for named_field in self.struct.fields:
-        name = named_field.name
-        field = named_field.hls_type
-        if field.HasField("as_int"):
-          element_xls_types.append(p.get_bits_type(field.as_int.width))
-        elif field.HasField("as_struct"):
-          element_xls_types.append(self.element_types[name].get_xls_type(p))
-        else:
-          raise NotImplementedError("Unsupported struct field type in C AST",
-                                    type(field))
+      else:
+        raise NotImplementedError("Unsupported struct field type in C AST",
+                                  type(field))
 
     return p.get_tuple_type(element_xls_types)
 
@@ -279,9 +275,7 @@ class Function(object):
       class_struct = translator.get_struct_type(self.class_name)
       if not class_struct:
           raise ValueError("Function call to unknown class " 
-                            + self.class_name)
-      class_struct.is_ref = True
-      self.params["this"] = class_struct
+                            + self.class_name)  
     
   def set_fb_expr(self, fb_expr):
     self.fb_expr = fb_expr
@@ -499,7 +493,6 @@ class Translator(object):
       ret_type.is_const = is_const
       return ret_type
     elif isinstance(ast, c_ast.Struct):
-      print("Struct is " + str(ast))
       ret_type= StructType(ast.name, ast, self)
       self.hls_types_by_name_[ret_type.name] = ret_type
       return ret_type
@@ -1064,28 +1057,28 @@ class Translator(object):
                            
               if struct_func:
                 args_bvalues = []
-                #args_bvalues.append(struct.fb_expr)
-                                        
+                
+                assert isinstance(stmt_ast.args, c_ast.ExprList)
+                  
+                if len(stmt_ast.args.exprs) != len(struct_func.params):
+                  raise ValueError("Wrong number of args for function call")
+
                 param_types_array = []
 
                 for name_and_type in struct_func.params.items():
                   param_types_array.append(name_and_type)
-
-                if isinstance(stmt_ast.args, c_ast.ExprList):
-                  if len(stmt_ast.args.exprs)+1 != len(struct_func.params):
-                    raise ValueError("Wrong number of args for function call")
-                  for arg_idx in range(0, len(stmt_ast.args.exprs)):
-                    stmt = stmt_ast.args.exprs[arg_idx]
-                    arg_expr, arg_expr_type = self.gen_expr_ir(stmt, condition)
-                    _, arg_type = param_types_array[arg_idx]
-                    conv_arg = self.gen_convert_ir(arg_expr,
+                  
+                for arg_idx in range(0, len(stmt_ast.args.exprs)):
+                  stmt = stmt_ast.args.exprs[arg_idx]
+                  arg_expr, arg_expr_type = self.gen_expr_ir(stmt, condition)
+                  _, arg_type = param_types_array[arg_idx]
+                  conv_arg = self.gen_convert_ir(arg_expr,
                                                    arg_expr_type,
                                                    arg_type,
                                                    stmt)
-                    args_bvalues.append(conv_arg)
-                
+                  args_bvalues.append(conv_arg)
+
                 invoke_returned = self.fb.add_invoke(args_bvalues, struct_func.fb_expr, loc)
-                print("Invoked returns " + str(invoke_returned))
 
                 #Handling for references
                 void_return = isinstance(struct_func.return_type, VoidType)
@@ -1242,7 +1235,6 @@ class Translator(object):
           self.lvalues[var] = not cvars[var].ctype.is_const
       if not func.body_ast:
         continue
-
       # Function body
       ret_vals = self.gen_ir_block(func.body_ast.children(), None, cvars)
 
