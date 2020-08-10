@@ -280,8 +280,10 @@ class Function(object):
       if not class_struct:
           raise ValueError("Function call to unknown class " 
                             + self.class_name)
-      class_struct.is_ref = True
+      class_struct.is_ref = False
       self.params["this"] = class_struct
+ 
+
     
   def set_fb_expr(self, fb_expr):
     self.fb_expr = fb_expr
@@ -413,7 +415,7 @@ class Translator(object):
         func = Function()
         func.parse_function(self, child)
         self.functions_[func.name] = func
-      elif isinstance(child.type, c_ast.Struct):
+      elif isinstance(child.type, c_ast.Struct): 
         struct = StructType(child.type.name, child.type, self)
         self.hls_types_by_name_[child.type.name] = struct
       elif isinstance(child, c_ast.Decl):
@@ -498,13 +500,11 @@ class Translator(object):
       ret_type.is_ref = True
       ret_type.is_const = is_const
       return ret_type
-    elif isinstance(ast, c_ast.Struct):
-      print("Struct is " + str(ast))
+    elif isinstance(ast, c_ast.Struct):  
       ret_type= StructType(ast.name, ast, self)
       self.hls_types_by_name_[ret_type.name] = ret_type
       return ret_type
     else:
-      print(ast)
       raise NotImplementedError("Unimplemented construct ", type(ast))
 
     assert ident is not None
@@ -1057,14 +1057,13 @@ class Translator(object):
                                         fb_expr, var_idx, loc) 
             
             struct_class = self.hls_types_by_name_[struct_type.name]
-
             if struct_class:
               full_func_name = str(struct_class) + "::" + struct_func_name
               struct_func = self.functions_[full_func_name]
                            
               if struct_func:
                 args_bvalues = []
-                #args_bvalues.append(struct.fb_expr)
+                args_bvalues.append(struct.fb_expr)
                                         
                 param_types_array = []
 
@@ -1083,9 +1082,7 @@ class Translator(object):
                                                    arg_type,
                                                    stmt)
                     args_bvalues.append(conv_arg)
-                
                 invoke_returned = self.fb.add_invoke(args_bvalues, struct_func.fb_expr, loc)
-                print("Invoked returns " + str(invoke_returned))
 
                 #Handling for references
                 void_return = isinstance(struct_func.return_type, VoidType)
@@ -1232,19 +1229,25 @@ class Translator(object):
         self.cvars[p_name] = CVar(
             self.fb.add_param(p_name, ptype.get_xls_type(p), func.loc), ptype)
         self.lvalues[p_name] = not ptype.is_const
+        #if (p_name == 'this'):
+        #  print("Generating default this ")
+        #  self.cvars[p_name].fb_expr = self.gen_default_init(ptype, func.loc)
+
+
 
       # Add local vars for class functions
-      cvars = None
+      local_cvars = None
       if func.is_class_func:
         func_class = self.hls_types_by_name_[func.class_name]
         cvars = func_class.get_struct_members()
         for var in cvars:
           self.lvalues[var] = not cvars[var].ctype.is_const
-      if not func.body_ast:
+      if not func.body_ast: 
         continue
 
       # Function body
-      ret_vals = self.gen_ir_block(func.body_ast.children(), None, cvars)
+
+      ret_vals = self.gen_ir_block(func.body_ast.children(), None, local_cvars)
 
       # Add in reference params
       reference_param_names = func.get_ref_param_names()
@@ -1292,7 +1295,6 @@ class Translator(object):
 
         assert ret_expr is not None
         returns.append(ret_expr)
-
       if reference_param_names:
         returns = returns + list(
             [self.cvars[name].fb_expr for name in reference_param_names])
@@ -1489,16 +1491,13 @@ class Translator(object):
           raise ValueError("Variable '", name,
                            "' already declared in this scope")
         self.cvars[name] = cvar
-
     ret_vals = []
-
+    
     next_line_pragma = None
     for _, stmt in stmt_list:
       loc = translate_loc(stmt)
-
       this_line_pragma = next_line_pragma
       next_line_pragma = None
-
       if isinstance(stmt, c_ast.Return):
         ret_val, ret_type = self.gen_expr_ir(stmt.expr, condition)
         ret_vals.append(RetVal(condition, ret_val, ret_type))
