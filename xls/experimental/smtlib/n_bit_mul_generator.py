@@ -1,15 +1,12 @@
 """
 This file receives numbers from the --N flag, and for each number n, creates an smt2 
-file containing an n-bit multiplier equivalence proof. For example, to create an smt2 
+file containing an n-bit multiplier equivalence proof. For example, to create and smt2
 file for 2-bit multiplication and an smt2 file for 4-bit multiplication, we can run
-(after building):
 
-$ bazel-bin/xls/experimental/smtlib/n_bit_mul_generator --N=2,4
+$ bazel-bin/xls/experimental/smtlib/n_bit_add_generator --N=2,4
 
 Once these files are created, we can use an SMT solver to check the proof's 
-satisfiability. Instructions for using a solver
-on an smt2 file can be found in solvers.md. If we wanted to use Z3, for example, on
-the 2-bit multiplication file, we can run
+satisfiability. Instructions for using a solver on an smt2 file can be found in solvers.md. If we wanted to use Z3, for example, on the 2-bit multiplication file, we can run:
 
 $ z3 mul_2x2.smt2
 
@@ -18,8 +15,8 @@ produce the same result, so the output we expect to see is:
 
 $ unsat
 
-meaning the multiplier and the builtin multiplication never produce different
-results. They are logically equivalent. 
+meaning the multiplier and the builtin multiplication never produce different results. 
+They are logically equivalent. 
 """
 
 import sys
@@ -73,21 +70,27 @@ f"""(set-logic QF_BV)
       print(f"(define-fun {var}{i} () (_ BitVec 1) ((_ extract {i} {i}) {var}))", file=f)
   print("", file=f)
 
-def get_mul_level_bits(i, n):
+def get_concat_level_bits(i, n):
   """
   Input: integers i, n
-  Output: a string representing the n bits of a bitvector, with (i) 0's 
-  	  as the least significant bits
-  Example: 
-  >> get_mul_level_bits(2, 5)
-  >> m2_4 m2_3 m2_1 #b00
+  Output: string containing smt2 concat operation combining the bits of the 
+          multiplication of the current variable by the i-th index of the 
+          previous variable. 
+  Example:
+  >> get_concat_level_bits(1, 4)
+  >> (concat m1_3 (concat m1_2 (concat m1_1 #b0)))
   """
-  bits = []
-  for j in range(n - 1, i - 1, -1):
-    bits.append(f"m{i}_{j}")
+  concats = [] 
   if i > 0:
-    bits.append("#b" + ("0" * i))
-  return " ".join(bits)
+    concats.append(f"(concat m{i}_{i} #b{'0' * i})")
+  else:
+    concats.append(f"m0_0")
+  if i < (n - 1):
+    for j in range(i + 1, n):
+      rhs = concats[j - i - 1]
+      concat = ["(concat", f"m{i}_{j}", rhs + ")"]
+      concats.append(" ".join(concat))
+  return concats[-1]
 
 def mul_level(i, n, f):
   """
@@ -98,14 +101,14 @@ def mul_level(i, n, f):
   print(f"; Multiply x by y{i}, shifting x bits accordingly", file=f)
   for j in range(i, n):
     print(f"(define-fun m{i}_{j} () (_ BitVec 1) (bvand x{j - i} y{i}))", file=f)
-  print(f"(define-fun m{i} () (_ BitVec {n}) (concat {get_mul_level_bits(i, n)}))\n", file=f)
+  print(f"(define-fun m{i} () (_ BitVec {n}) {get_concat_level_bits(i, n)})\n", file=f)
 
 def get_result_bits(n):
   """
   Input: integer n
   Output: a string representing the n bits of the final multiplication result
   Example:
-  >> get_result_bits(4)
+  >> get_result_bits(5)
   >> m4 m3 m2 m1 m0
   """
   bits = []

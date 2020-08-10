@@ -25,6 +25,19 @@ package(
 )
 
 py_binary(
+    name = "n_bit_add_generator",
+    srcs = [
+        "n_bit_add_generator.py",
+    ],
+    python_version = "PY3",
+    deps = [
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "//xls/common:gfile",
+    ],
+)
+
+py_binary(
     name = "n_bit_mul_generator",
     srcs = [
         "n_bit_mul_generator.py",
