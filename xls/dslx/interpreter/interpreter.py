@@ -1492,6 +1492,9 @@ class Interpreter(object):
         fn.name.identifier, fn.get_free_parametric_keys(), self._module, ())
 
     ir_function = self._ir_package.get_function(ir_name)
+    # NOTE: argsets and results are large lists. Assuming all tests pass, we
+    # expect these lists to have a (default) length of 1000. QuickCheck will
+    # terminate early if it finds one falsifying example, however.
     argsets, results = llvm_ir_jit.quickcheck_jit(ir_function)
     last_result = results[-1].get_bits().to_uint()
     if not last_result:
