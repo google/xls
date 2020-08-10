@@ -49,3 +49,103 @@ py_binary(
         "//xls/common:gfile",
     ],
 )
+
+py_binary(
+    name = "n_bit_nested_mul_generator",
+    srcs = [
+        "n_bit_nested_mul_generator.py",
+    ],
+    python_version = "PY3",
+    deps = [
+        "//xls/common:gfile",
+    ],
+)
+
+py_binary(
+    name = "n_bit_nested_add_generator",
+    srcs = [
+        "n_bit_nested_add_generator.py",
+    ],
+    python_version = "PY3",
+    deps = [
+        "//xls/common:gfile",
+    ],
+)
+
+py_binary(
+    name = "n_bit_nested_shift_generator",
+    srcs = [
+        "n_bit_nested_shift_generator.py",
+    ],
+    python_version = "PY3",
+    deps = [
+        "//xls/common:gfile",
+    ],
+)
+
+py_binary(
+    name = "solvers_op_comparison_functions",
+    srcs = [
+        "solvers_op_comparison_functions.py",
+    ],
+    python_version = "PY3",
+)
+
+py_binary(
+    name = "flags_checks",
+    srcs = [
+        "flags_checks.py",
+    ],
+    python_version = "PY3",
+)
+
+py_binary(
+    name = "solvers_op_comparison_bits_list",
+    srcs = [
+        "solvers_op_comparison_bits_list.py",
+    ],
+    python_version = "PY3",
+    deps = [
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "//xls/common:gfile",
+        "solvers_op_comparison_functions",
+        "flags_checks",
+        "n_bit_nested_add_generator",
+        "n_bit_nested_mul_generator",
+        "n_bit_nested_shift_generator",
+    ],
+)
+
+py_binary(
+    name = "solvers_op_comparison_nests_list",
+    srcs = [
+        "solvers_op_comparison_nests_list.py",
+    ],
+    python_version = "PY3",
+    deps = [
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "//xls/common:gfile",
+        "solvers_op_comparison_functions",
+        "flags_checks",
+        "n_bit_nested_add_generator",
+        "n_bit_nested_mul_generator",
+        "n_bit_nested_shift_generator",
+    ],
+)
+
+py_binary(
+    name = "plot_csv_solver_speed_data",
+    srcs = [
+        "plot_csv_solver_speed_data.py",
+    ],
+    python_version = "PY3",
+    deps = [
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "//xls/common:gfile",
+    ],
+)
+
+
