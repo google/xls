@@ -120,6 +120,19 @@ class LlvmIrJit {
 xabsl::StatusOr<Value> CreateAndRun(Function* xls_function,
                                     absl::Span<const Value> args);
 
+// JIT-compiles the given xls_function and invokes it with 1000 randomly
+// generated arguments -- returns `([argset, ...], [results, ...])` (i.e. in
+// structure-of-array style).
+//
+// xls_function is a predicate we're trying to find evidence to falsify, so if
+// this finds an example that falsifies the predicate, we early-return (i.e. the
+// length of the returned vectors may be < 1000).
+//
+// TODO(hjmontero): 2020-08-09 Make RNG seeding possible.
+// TODO(leary): 2020-08-09 Factor out into its own module with Python bindings.
+xabsl::StatusOr<std::pair<std::vector<std::vector<Value>>, std::vector<Value>>>
+CreateAndQuickCheck(Function* xls_function);
+
 }  // namespace xls
 
 #endif  // XLS_IR_LLVM_IR_JIT_H_

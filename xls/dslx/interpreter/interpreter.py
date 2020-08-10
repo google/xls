@@ -38,6 +38,7 @@ from xls.dslx.concrete_type import ArrayType
 from xls.dslx.concrete_type import BitsType
 from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.concrete_type import EnumType
+from xls.dslx.concrete_type import FunctionType
 from xls.dslx.concrete_type import TupleType
 from xls.dslx.interpreter import jit_comparison
 from xls.dslx.interpreter.bindings import Bindings
@@ -1484,6 +1485,30 @@ class Interpreter(object):
         imported_module = self._do_import(member.name, member.span)
         b.add_mod(member.identifier, imported_module)
     return b
+
+  def run_quickcheck(self, quickcheck: ast.QuickCheck) -> None:
+    """Runs a quickcheck AST node (via the LLVM JIT)."""
+    assert self._ir_package
+    fn = quickcheck.f
+    ir_name = ir_name_mangler.mangle_dslx_name(fn.name.identifier,
+                                               fn.get_free_parametric_keys(),
+                                               self._module, ())
+
+    ir_function = self._ir_package.get_function(ir_name)
+    argsets, results = llvm_ir_jit.quickcheck_jit(ir_function)
+    last_result = results[-1].get_bits().to_uint()
+    if not last_result:
+      last_argset = argsets[-1]
+      fn_type = self._node_to_type[fn]
+      assert isinstance(fn_type, FunctionType), fn_type
+      fn_param_types = fn_type.params
+      dslx_argset = [
+          str(jit_comparison.ir_value_to_interpreter_value(arg, arg_type))
+          for arg, arg_type in zip(last_argset, fn_param_types)
+      ]
+      raise FailureError(
+          fn.span, f'Found falsifying example after '
+          f'{len(results)} tests: {dslx_argset}')
 
   def run_test(self, name: Text) -> None:
     bindings = self._make_top_level_bindings(self._module)

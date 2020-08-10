@@ -327,6 +327,7 @@ py_library(
         ":concrete_type",
         ":deduce",
         ":dslx_builtins",
+        ":span",
         ":xls_type_error",
         "//xls/common:xls_error",
         "//xls/dslx/interpreter:interpreter_helpers",

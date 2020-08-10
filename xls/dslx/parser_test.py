@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,8 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# Lint as: python3
+
 """Tests for xls.dslx.parser."""
 
 import io
@@ -59,7 +60,7 @@ class ParserTest(absltest.TestCase):
         len(sequence),)
 
   def parse_function(self, program, bindings=None):
-    fparse = lambda p, b: p.parse_function(public=False, outer_bindings=b)
+    fparse = lambda p, b: p._parse_function(public=False, outer_bindings=b)
     return self._parse_internal(program, bindings, fparse)
 
   def parse_proc(self, program, bindings=None):
@@ -649,6 +650,30 @@ proc simple(addend: u32) {
       self.parse_function(program)
     self.assertIn('Cannot have multiple patterns that bind names.',
                   str(cm.exception))
+
+  def test_unittest_directive(self):
+    m = self.parse_module("""
+        #![test]
+        example {
+          ()
+        }
+        """)
+
+    test_names = m.get_test_names()
+    self.assertLen(test_names, 1)
+    self.assertIn('example', test_names)
+
+  def test_quickcheck_directive(self):
+    m = self.parse_module("""
+        #![quickcheck]
+        fn foo(x: u5) -> bool { true }
+        """)
+
+    quickchecks = m.get_quickchecks()
+    self.assertLen(quickchecks, 1)
+    foo_test = quickchecks[0]
+    self.assertIsInstance(foo_test.f, ast.Function)
+    self.assertEqual('foo', foo_test.f.name.identifier)
 
   def test_ternary(self):
     b = parser.Bindings(None)

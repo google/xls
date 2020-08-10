@@ -1070,8 +1070,8 @@ class Parser(token_parser.TokenParser):
         Span(start_pos, self._get_pos()), name_def, proc_params, iter_params,
         body, public)
 
-  def parse_function(self, public: bool,
-                     outer_bindings: Bindings) -> ast.Function:
+  def _parse_function(self, public: bool,
+                      outer_bindings: Bindings) -> ast.Function:
     """Parses a function out of the token stream.
 
     Args:
@@ -1083,8 +1083,8 @@ class Parser(token_parser.TokenParser):
       The parsed function as an AST node.
     """
     start_pos = self._get_pos()
-    self._drop_keyword_or_error(Keyword.FN)
-
+    fn_tok = self._pop_keyword_or_error(Keyword.FN)
+    start_pos = fn_tok.span.start
     # Create bindings internal to this function we're parsing, based off of the
     # symbols available in the outer bindings.
     bindings = Bindings(outer_bindings)
@@ -1108,11 +1108,11 @@ class Parser(token_parser.TokenParser):
     self._dropt_or_error(TokenKind.OBRACE)
     body = self.parse_expression(bindings)
     logging.vlog(5, 'Function body: %r', body)
-    self._dropt_or_error(
+    end_brace = self._popt_or_error(
         TokenKind.CBRACE, context='Expected \'}\' at end of function body.')
     return ast.Function(
-        Span(start_pos, self._get_pos()), name_def, parametric_bindings, params,
-        return_type, body, public)
+        Span(start_pos, end_brace.span.limit), name_def, parametric_bindings,
+        params, return_type, body, public)
 
   def _parse_import(self, bindings: Bindings) -> ast.Import:
     """Parses an import statement into an Import AST node."""
@@ -1136,8 +1136,11 @@ class Parser(token_parser.TokenParser):
     bindings.add(name_def.identifier, import_)
     return import_
 
-  def parse_test(self, outer_bindings: Bindings) -> ast.Test:
-    self._drop_keyword_or_error(Keyword.TEST)
+  def parse_test(self,
+                 outer_bindings: Bindings,
+                 directive: bool = False) -> ast.Test:
+    if not directive:
+      self._drop_keyword_or_error(Keyword.TEST)
     fake_bindings = Bindings()
     name_def = self._parse_name_def(fake_bindings)
     bindings = Bindings(outer_bindings)
@@ -1171,14 +1174,7 @@ class Parser(token_parser.TokenParser):
     bindings.add(name_def.identifier, result)
     return result
 
-  def _parse_directive(self) -> None:
-    self._dropt_or_error(TokenKind.HASH)
-    self._dropt_or_error(TokenKind.BANG)
-    self._dropt_or_error(TokenKind.OBRACK)
-    identifier = self._popt_or_error(TokenKind.IDENTIFIER)
-    if identifier.value != 'cfg':
-      raise ParseError(identifier.span,
-                       'Unknown directive: {!r}'.format(identifier.value))
+  def _parse_config(self, directive_span: Span) -> None:
     self._dropt_or_error(TokenKind.OPAREN)
     config_name = self._popt_or_error(TokenKind.IDENTIFIER)
     self._dropt_or_error(TokenKind.EQUALS)
@@ -1194,11 +1190,63 @@ class Parser(token_parser.TokenParser):
           let_terminator_is_semi=config_value.value == Keyword.TRUE)
     else:
       raise ParseError(
-          identifier.span,
-          'Unknown configuration key in directive: {!r}'.format(
+          directive_span, 'Unknown configuration key in directive: {!r}'.format(
               config_name.value))
     self._dropt_or_error(TokenKind.CPAREN)
-    self._dropt_or_error(TokenKind.CBRACK)
+
+  def _parse_directive(
+      self, function_name_to_node: Dict[Text, ast.Function],
+      bindings: Bindings) -> Union[ast.Test, ast.QuickCheck, None]:
+    """Parses DSLX directives (analogous to Rust's attributes).
+
+    These may preceed unit-test/QuickCheck constructs or they may set compiler
+    configs (e.g. expect semi-colons instead of 'in').
+
+    Args:
+      function_name_to_node: Current mapping for function name to node for this
+        module; used to check if names are redefined.
+      bindings: Current top-level bindings where this directive is encountered.
+
+    Returns:
+      Either a test AST node or quickcheck AST node.
+    """
+    self._dropt_or_error(TokenKind.HASH)
+    self._dropt_or_error(TokenKind.BANG)
+    self._dropt_or_error(TokenKind.OBRACK)
+    identifier = (
+        self._popt_or_error(TokenKind.IDENTIFIER)
+        if self._peekt_is(TokenKind.IDENTIFIER) else self._pop_keyword_or_error(
+            Keyword.TEST).value)
+    node = None
+    if identifier.value == 'cfg':
+      self._parse_config(identifier.span)
+      self._dropt_or_error(TokenKind.CBRACK)
+    elif identifier.value == 'test':
+      self._dropt_or_error(TokenKind.CBRACK)
+      node = self.parse_test(bindings, directive=True)
+    elif identifier.value == 'quickcheck':
+      self._dropt_or_error(TokenKind.CBRACK)
+      fn = self.parse_function(function_name_to_node, bindings, public=False)
+      node = ast.QuickCheck(fn.span, fn)
+    else:
+      raise ParseError(identifier.span,
+                       'Unknown directive: {!r}'.format(identifier.value))
+    return node
+
+  def parse_function(self, function_name_to_node: Dict[Text, ast.Function],
+                     bindings: Bindings, public: bool) -> ast.Function:
+    """Parses function w/given "public" visibility."""
+    # Need this because pytype gets confused about whether it can be none.
+    assert isinstance(bindings, Bindings), bindings
+    f = self._parse_function(public, bindings)
+    prior_node = function_name_to_node.get(f.identifier, None)
+    if prior_node:
+      raise ParseError(
+          f.name.span,
+          'Function {!r} is defined in this package multiple times;'
+          'previously @ {}'.format(f.identifier, prior_node.name.span))
+    function_name_to_node[f.identifier] = f
+    return f
 
   def parse_module(self,
                    name: Text,
@@ -1229,26 +1277,13 @@ class Parser(token_parser.TokenParser):
 
     function_name_to_node = {}  # type: Dict[Text, ast.Function]
 
-    def parse_function(public: bool) -> None:
-      """Parses function w/given "public" visibility and appends it to top."""
-      # Need this because pytype gets confused about whether it can be none.
-      assert isinstance(bindings, Bindings), bindings
-      f = self.parse_function(public, bindings)
-      prior_node = function_name_to_node.get(f.identifier, None)
-      if prior_node:
-        raise ParseError(
-            f.name.span,
-            'Function {!r} is defined in this package multiple times;'
-            'previously @ {}'.format(f.identifier, prior_node.name.span))
-      function_name_to_node[f.identifier] = f
-      top.append(f)
-
     while not self._at_eof():
       if self._peekt_is(TokenKind.EOF):
         break
       elif self._try_pop_keyword(Keyword.PUB):
         if self._peekt_is_keyword(Keyword.FN):
-          parse_function(public=True)
+          top.append(
+              self.parse_function(function_name_to_node, bindings, public=True))
         elif self._peekt_is_keyword(Keyword.STRUCT):
           top.append(self._parse_struct(True, bindings))
         elif self._peekt_is_keyword(Keyword.ENUM):
@@ -1260,9 +1295,13 @@ class Parser(token_parser.TokenParser):
               Span(self._get_pos(), self._get_pos()),
               'Expect function or struct after "pub" keyword.')
       elif self._peekt_is(TokenKind.HASH):
-        self._parse_directive()
+        quickcheck_or_test = self._parse_directive(function_name_to_node,
+                                                   bindings)
+        if quickcheck_or_test:
+          top.append(quickcheck_or_test)
       elif self._peekt_is_keyword(Keyword.FN):
-        parse_function(public=False)
+        top.append(
+            self.parse_function(function_name_to_node, bindings, public=False))
       elif self._peekt_is_keyword(Keyword.TEST):
         top.append(self.parse_test(bindings))
       elif self._peekt_is_keyword(Keyword.IMPORT):

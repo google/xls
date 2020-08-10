@@ -785,6 +785,27 @@ fn f() -> Foo {
         error='Annotated type for array literal must be an array type; got sbits s32'
     )
 
+  def test_bad_quickcheck_function_ret(self):
+    program = """
+    #![quickcheck]
+    fn f() -> u5 {
+      u5:1
+    }
+    """
+    self._typecheck(program, error='must return a bool')
+
+  def test_bad_quickcheck_function_parametrics(self):
+    program = """
+    #![quickcheck]
+    fn [N: u32] f() -> bool {
+      true
+    }
+    """
+    self._typecheck(
+        program,
+        error_type=span.PositionalError,
+        error='Quickchecking parametric functions is unsupported')
+
 
 if __name__ == '__main__':
   absltest.main()

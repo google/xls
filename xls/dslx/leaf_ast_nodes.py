@@ -170,6 +170,17 @@ class Function(AstNode):
             'public={0.public!r})').format(self)
 
 
+class QuickCheck(AstNode):
+  """Represents a function to be QuickChecked."""
+
+  def __init__(self, span: Span, f: Function):
+    self.span = span
+    self.f = f
+
+  def __str__(self) -> Text:
+    return f'QC: {self.f}'
+
+
 class Proc(AstNode):
   """Represents a parsed 'process' specification in the DSL."""
 
@@ -347,7 +358,8 @@ class SplatStructInstance(Expr):
     return accum
 
 
-ModuleMember = Union[Function, Test, TypeDef, Struct, Constant, Enum, Import]
+ModuleMember = Union[Function, Test, QuickCheck, TypeDef, Struct, Constant,
+                     Enum, Import]
 
 
 class Module(AstNode):
@@ -375,6 +387,9 @@ class Module(AstNode):
 
   def get_tests(self) -> List['Test']:
     return [member for member in self.top if isinstance(member, Test)]
+
+  def get_quickchecks(self) -> List['QuickCheck']:
+    return [member for member in self.top if isinstance(member, QuickCheck)]
 
   def get_constants(self) -> List[Constant]:
     return [member for member in self.top if isinstance(member, Constant)]
