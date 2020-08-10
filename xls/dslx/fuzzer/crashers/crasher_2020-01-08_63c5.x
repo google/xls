@@ -1,3 +1,17 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // options: {"input_is_dslx": true, "convert_to_ir": true, "optimize_ir": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=9"], "simulate": false, "simulator": null}
 // args: bits[7]:0x4; bits[5]:0x1; bits[59]:0x3ffffffffffffff; bits[60]:0x4000; bits[23]:0x2aaaaa; bits[13]:0x1000
 // args: bits[7]:0x1; bits[5]:0x3; bits[59]:0x2c3846000000c4a; bits[60]:0x40000; bits[23]:0x61a4b0; bits[13]:0xb00

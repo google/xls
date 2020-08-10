@@ -1,3 +1,17 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // options: {"input_is_dslx": true, "convert_to_ir": true, "optimize_ir": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=3"], "simulate": false, "simulator": null}
 // args: bits[6]:0x0; bits[19]:0x398dd; bits[25]:0x3fc4fe; bits[28]:0x9b743d6
 fn main(x56: u6, x57: u19, x58: u25, x59: u28) -> (u22, u25, u19, u22, u6, u25, u19, u6, u25, u22, u28, u20, u6) {
