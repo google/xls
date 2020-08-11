@@ -24,7 +24,7 @@ fn main(x: u3) -> u3 {
 
 // Reverse examples.
 #![test]
-reverse {
+fn prop_reverse() {
   let _ = assert_eq(u3:0b100, main(u3:0b001));
   let _ = assert_eq(u3:0b001, main(u3:0b100));
   let _ = assert_eq(bits[0]:0, rev(bits[0]:0));

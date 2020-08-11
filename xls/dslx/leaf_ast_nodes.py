@@ -221,6 +221,19 @@ class Test(AstNode):
   def __str__(self) -> Text:
     return 'test {} {{ ... }}'.format(self.name)
 
+class TestFunction(Test):
+  """Represents a new-style unit test construct.
+
+  These are specified as follows:
+    #![test]
+    fn test_foo() { ... }
+
+  We keep Test for backwards compatibility with old-style test constructs.
+  """
+
+  def __init__(self, fn: Function):
+    super().__init__(fn.name, fn.body)
+    self.fn = fn
 
 class Constant(AstNode):
   """Represents a constant definition."""

@@ -1137,9 +1137,35 @@ class Parser(token_parser.TokenParser):
     bindings.add(name_def.identifier, import_)
     return import_
 
-  def parse_test(self,
-                 outer_bindings: Bindings,
-                 directive: bool = False) -> ast.Test:
+  def parse_test_function(
+      self,
+      function_name_to_node: Dict[Text, ast.Function],
+      bindings: Bindings,
+      directive_span: Span) -> ast.TestFunction:
+    """Parses new-style unit test constructs.
+
+    These are specified in the following form:
+      #![test]
+      fn test_foo() { ... }
+    """
+    fn = self.parse_function(function_name_to_node, bindings, public=False)
+    return ast.TestFunction(fn)
+
+  def parse_test_construct(
+      self,
+      outer_bindings: Bindings,
+      directive: bool = False) -> ast.Test:
+    """Parses old-style unit test constructs.
+
+    These may specified in either of the following forms:
+
+    1. Using the test directive (parsed in parse_directive()).
+      #![test]
+      foo { ... }
+
+    2. Using the test keyword.
+      test foo { ... }
+    """
     if not directive:
       self._drop_keyword_or_error(Keyword.TEST)
     fake_bindings = Bindings()
@@ -1245,23 +1271,29 @@ class Parser(token_parser.TokenParser):
     self._dropt_or_error(TokenKind.HASH)
     self._dropt_or_error(TokenKind.BANG)
     self._dropt_or_error(TokenKind.OBRACK)
-    identifier = (
-        self._popt_or_error(TokenKind.IDENTIFIER)
-        if self._peekt_is(TokenKind.IDENTIFIER) else self._pop_keyword_or_error(
-            Keyword.TEST).value)
+    directive_token = (self._popt_or_error(TokenKind.IDENTIFIER)
+                       if self._peekt_is(TokenKind.IDENTIFIER)
+                       else self._pop_keyword_or_error(Keyword.TEST))
+    directive_name = (directive_token.value.value
+                      if isinstance(directive_token.value, Keyword)
+                      else directive_token.value)
     node = None
-    if identifier.value == 'cfg':
-      self._parse_config(identifier.span)
+    if directive_name == 'cfg':
+      self._parse_config(directive_token.span)
       self._dropt_or_error(TokenKind.CBRACK)
-    elif identifier.value == 'test':
+    elif directive_name == 'test':
       self._dropt_or_error(TokenKind.CBRACK)
-      node = self.parse_test(bindings, directive=True)
-    elif identifier.value == 'quickcheck':
+      if self._peekt_is_keyword(Keyword.FN):
+        node = self.parse_test_function(function_name_to_node, bindings,
+                                        directive_token.span)
+      else:
+        node = self.parse_test_construct(bindings, directive=True)
+    elif directive_name == 'quickcheck':
       node = self._parse_quickcheck(function_name_to_node, bindings,
-                                    identifier.span)
+                                    directive_token.span)
     else:
-      raise ParseError(identifier.span,
-                       'Unknown directive: {!r}'.format(identifier.value))
+      raise ParseError(directive_token.span,
+                       'Unknown directive: {!r}'.format(directive_name))
     return node
 
   def parse_function(self, function_name_to_node: Dict[Text, ast.Function],
@@ -1334,7 +1366,7 @@ class Parser(token_parser.TokenParser):
         top.append(
             self.parse_function(function_name_to_node, bindings, public=False))
       elif self._peekt_is_keyword(Keyword.TEST):
-        top.append(self.parse_test(bindings))
+        top.append(self.parse_test_construct(bindings))
       elif self._peekt_is_keyword(Keyword.IMPORT):
         top.append(self._parse_import(bindings))
       elif self._peekt_is_keyword(Keyword.TYPE):
