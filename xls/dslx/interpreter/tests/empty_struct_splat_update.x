@@ -15,7 +15,7 @@
 struct Empty {}
 
 fn main() -> Empty {
-  let orig = Empty{} in
+  let orig = Empty{};
   Empty{..orig}
 }
 

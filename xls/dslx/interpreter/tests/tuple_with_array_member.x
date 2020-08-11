@@ -26,7 +26,7 @@ fn add_members(x: Foo) -> u32 {
 }
 
 test add_members {
-  let x: Foo = (u32:0xdeadbeef, u8[4]:[0, 0, 0, 1]) in
+  let x: Foo = (u32:0xdeadbeef, u8[4]:[0, 0, 0, 1]);
   assert_eq(u32:0xdeadbef0, add_members(x))
 }
 

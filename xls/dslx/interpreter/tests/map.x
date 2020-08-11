@@ -27,20 +27,20 @@ fn [N: u4] umul_2_parametric(x: uN[N]) -> uN[N] {
 }
 
 fn main() -> u4[8] {
-  let x0 = u4[8]:[0, 1, 2, 3, 4, 5, 6, 7] in
-  let result_0 = map(x0, std::bounded_minus_1) in
-  let result_1 = map(x0, umul_2) in
-  let result_2 = map(x0, umul_2_parametric) in
-  let result_3 = map(x0, clz) in
+  let x0 = u4[8]:[0, 1, 2, 3, 4, 5, 6, 7];
+  let result_0 = map(x0, std::bounded_minus_1);
+  let result_1 = map(x0, umul_2);
+  let result_2 = map(x0, umul_2_parametric);
+  let result_3 = map(x0, clz);
   map(map(map(x0, std::bounded_minus_1), umul_2), clz)
 }
 
 test maps {
-  let x0 = u4[8]:[0, 1, 2, 3, 4, 5, 6, 7] in
-  let expected = u4[8]:[0, 2, 4, 6, 8, 10, 12, 14] in
-  let expected_u6 = u6[8]:[0, 2, 4, 6, 8, 10, 12, 14] in
-  let _: () = assert_eq(expected, map(x0, umul_2)) in
-  let _: () = assert_eq(expected_u6, map(x0, umul_2_widening)) in
-  let _: () = assert_eq(expected, map(x0, umul_2_parametric)) in
+  let x0 = u4[8]:[0, 1, 2, 3, 4, 5, 6, 7];
+  let expected = u4[8]:[0, 2, 4, 6, 8, 10, 12, 14];
+  let expected_u6 = u6[8]:[0, 2, 4, 6, 8, 10, 12, 14];
+  let _: () = assert_eq(expected, map(x0, umul_2));
+  let _: () = assert_eq(expected_u6, map(x0, umul_2_widening));
+  let _: () = assert_eq(expected, map(x0, umul_2_parametric));
   ()
 }

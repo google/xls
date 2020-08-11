@@ -27,9 +27,9 @@ fn main(x: u32) -> PointAlias {
 }
 
 test main {
-  let p: PointAlias = fully_qualified(u32:42) in
-  let _ = assert_eq(u32:42, p.x) in
-  let _ = assert_eq(u32:64, p.y) in
-  let _ = assert_eq(main(u32:128), fully_qualified(u32:128)) in
+  let p: PointAlias = fully_qualified(u32:42);
+  let _ = assert_eq(u32:42, p.x);
+  let _ = assert_eq(u32:64, p.y);
+  let _ = assert_eq(main(u32:128), fully_qualified(u32:128));
   ()
 }

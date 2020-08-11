@@ -670,7 +670,7 @@ class Let(Expr):
       self.const.accept(visitor)
 
   def format(self) -> Text:
-    return '{} {}{} = {} in\n  {}'.format(
+    return '{} {}{} = {};\n  {}'.format(
         'const' if self.const else 'let', self.name_def_tree,
         ': ' + str(self.type_) if self.type_ else '', self.rhs, self.body)
 

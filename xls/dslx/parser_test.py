@@ -76,7 +76,7 @@ class ParserTest(absltest.TestCase):
     return self._parse_internal(program, bindings=None, fparse=fparse)
 
   def test_let_expression(self):
-    e = self.parse_expression('let x: u32 = 2 in x')
+    e = self.parse_expression('let x: u32 = 2; x')
     self.assertIsInstance(e, ast.Let)
     self.assertEqual(e.name_def_tree.tree.identifier, 'x')
     self.assertIsInstance(e.type_, ast.TypeAnnotation)
@@ -144,12 +144,12 @@ proc simple(addend: u32) {
     self.assertEqual(f.parametric_bindings[1].name.identifier, 'Y')
 
   def test_let_destructure_flat(self):
-    e = self.parse_expression('let (x, y, z): (u32,u32,u32) = (1, 2, 3) in y')
+    e = self.parse_expression('let (x, y, z): (u32,u32,u32) = (1, 2, 3); y')
     self.assertIsInstance(e.rhs, ast.XlsTuple)
     self.assertLen(e.rhs.members, 3)
 
   def test_let_destructure_wildcard(self):
-    e = self.parse_expression('let (x, y, _): (u32,u32,u32) = (1, 2, 3) in y')
+    e = self.parse_expression('let (x, y, _): (u32,u32,u32) = (1, 2, 3); y')
     self.assertIsInstance(e.rhs, ast.XlsTuple)
     self.assertLen(e.rhs.members, 3)
     self.assertIsInstance(e.name_def_tree.tree[2].get_leaf(),
@@ -157,7 +157,7 @@ proc simple(addend: u32) {
 
   def test_let_destructure_nested(self):
     e = self.parse_expression(
-        'let (w, (x, (y)), z): (u32,(u32,(u32)),u32) = (1, (2, (3,)), 4) in y')
+        'let (w, (x, (y)), z): (u32,(u32,(u32)),u32) = (1, (2, (3,)), 4); y')
     self.assertIsInstance(e.rhs, ast.XlsTuple)
     # Three top-level members.
     self.assertLen(e.rhs.members, 3)
@@ -198,11 +198,11 @@ proc simple(addend: u32) {
 
   def test_for(self):
     program = textwrap.dedent("""
-    let accum: u32 = 0 in
+    let accum: u32 = 0;
     let accum: u32 = for (i, accum): (u32, u32) in range(4) {
-      let new_accum: u32 = accum + i in
+      let new_accum: u32 = accum + i;
       new_accum
-    }(accum) in
+    }(accum);
     accum
     """)
     b = parser.Bindings(None)
@@ -218,7 +218,7 @@ proc simple(addend: u32) {
 
   def test_for_freevars(self):
     program = """for (i, accum): (u32, u32) in range(4) {
-      let new_accum: u32 = accum + i + j in
+      let new_accum: u32 = accum + i + j;
       new_accum
     }(u32:0)"""
     b = parser.Bindings(None)
@@ -397,7 +397,7 @@ proc simple(addend: u32) {
     // optionally?
     //
     fn param_redefine(x: u32) -> u32 {
-      let x: u32 = 3 in
+      let x: u32 = 3;
         x * x
     }
 
@@ -407,8 +407,8 @@ proc simple(addend: u32) {
     // We should emit a warning, perhaps optionally.
     //
     fn dead_code(x: u32) -> u32 {
-      let y: u32 = 3 in
-      let y: u32 = 4 in
+      let y: u32 = 3;
+      let y: u32 = 4;
       x * y
     }
 
@@ -417,9 +417,9 @@ proc simple(addend: u32) {
     // The following code is legal, but contains an unused expression.
     // Languages like Go warn on unused variables.
     fn unused_code(x: u32) -> u32 {
-      let y: u32 = 3 in
-      let z: u32 = 4 in
-        x * y
+      let y: u32 = 3;
+      let z: u32 = 4;
+      x * y
     }
 
     // Unclear semantics in tuple assignments
@@ -435,8 +435,8 @@ proc simple(addend: u32) {
     type Tuple2 = (u32, u32);
 
     fn tuple_assign(x: u32, y: u32) -> (u32) {
-      let (i, i): Tuple2 = (x, y) in
-        i
+      let (i, i): Tuple2 = (x, y);
+      i
     }
 
     // Invalid init expression size
@@ -445,18 +445,16 @@ proc simple(addend: u32) {
     // or whether some other semantic applies, eg., non-initialized variables
     // are auto-initialized to the zero element of a given type.
     fn invalid_init_size() {
-      const K: u32[2] = [
-         0x428a2f98
-      ] in K[1]
+      const K: u32[2] = [0x428a2f98];
+      K[1]
     }
 
     // Invalid init expression type
     //
     // This should probably be an error
     fn invalid_init_type() {
-      const K: u32[2] = [
-         'a', 'b'
-      ] in K[1]
+      const K: u32[2] = ['a', 'b'];
+      K[1]
     }
 
     // Unused parameter
@@ -484,8 +482,8 @@ proc simple(addend: u32) {
     // are.
     //
     fn invalid_index(x: u32) -> u32 {
-      let K: u32[10] = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9) in
-         let v: u32 = 10 in
+      let K: u32[10] = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
+         let v: u32 = 10;
            K[10]  // static violation with constant. Should be an error.
            + K[v] // static violation. Should be found via copy prop.
            + K[x] // dynamic violation. Can only be found at runtime or via
@@ -507,9 +505,9 @@ proc simple(addend: u32) {
     // Is also illegal.
     //
     fn regular_recursion(x: u32) -> u32 {
-       let y: u32 = 7 in
-          let z: u32 = regular_recursion(x - 1) in
-             y + z
+       let y: u32 = 7;
+       let z: u32 = regular_recursion(x - 1);
+       y + z
     }
     """
     with fakefs_util.scoped_fakefs(self.fake_filename, program):
@@ -594,13 +592,13 @@ proc simple(addend: u32) {
         // Also illegal. Can be found by finding cycles in the call graph.
         //
         fn foo(x: u32) -> u32 {
-          let y: u32 = 7 in
-             bar(x - 1, y)
+          let y: u32 = 7;
+          bar(x - 1, y)
         }
 
         fn bar(x: u32, y: u32) -> u32 {
-          let z: u32 = 11 in
-             foo(x - 1 + y + z)
+          let z: u32 = 11;
+          foo(x - 1 + y + z)
         }
         """
       with fakefs_util.scoped_fakefs(self.fake_filename, program):

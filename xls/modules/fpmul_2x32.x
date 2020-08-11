@@ -33,15 +33,15 @@ fn is_zero(x: F32) -> u1 {
 
 fn fpmul_2x32(x: F32, y: F32) -> F32 {
   // 1. Get and expand mantissas.
-  let x_sfd = (x.sfd as u48) | u48:0x80_0000 in
-  let y_sfd = (y.sfd as u48) | u48:0x80_0000 in
+  let x_sfd = (x.sfd as u48) | u48:0x80_0000;
+  let y_sfd = (y.sfd as u48) | u48:0x80_0000;
 
   // 1a. Flush subnorms to 0.
-  let x_sfd = u48:0 if x.bexp == u8:0 else x_sfd in
-  let y_sfd = u48:0 if y.bexp == u8:0 else y_sfd in
+  let x_sfd = u48:0 if x.bexp == u8:0 else x_sfd;
+  let y_sfd = u48:0 if y.bexp == u8:0 else y_sfd;
 
   // 2. Multiply integer mantissas.
-  let sfd: u48 = x_sfd * y_sfd in
+  let sfd: u48 = x_sfd * y_sfd;
 
   // 3. Add non-biased exponents.
   //  - Remove the bias from the exponents, add them, then restore the bias.
@@ -49,7 +49,7 @@ fn fpmul_2x32(x: F32, y: F32) -> F32 {
   //      (A - 127) + (B - 127) + 127 = exp
   //    to
   //      A + B - 127 = exp
-  let exp = (x.bexp as s10) + (y.bexp as s10) - s10:0x7f in
+  let exp = (x.bexp as s10) + (y.bexp as s10) - s10:0x7f;
 
   // Here is where we'd handle subnormals if we cared to.
   // If the exponent remains < 0, even after reapplying the bias,
@@ -58,23 +58,23 @@ fn fpmul_2x32(x: F32, y: F32) -> F32 {
   // to capture that "extra" exponent.
   // Since we just flush subnormals, we don't have to do any of that.
   // Instead, if we're multiplying by 0, the result is 0.
-  let exp = s10:0 if is_zero(x) || is_zero(y) else exp in
+  let exp = s10:0 if is_zero(x) || is_zero(y) else exp;
 
-  // 4. Normalize. Adjust the significand until our leading 1 is in
+  // 4. Normalize. Adjust the significand until our leading 1 is;
   // bit 47 (the first past the 46 bits of actual significand).
   // That'll be a shift of 1 or 0 places (since we're multiplying
   // two values with leading 1s in bit 24).
-  let sfd_shift = sfd[-1:] as u48 in
+  let sfd_shift = sfd[-1:] as u48;
 
   // If there is a leading 1, then we need to shift to the right one place -
   // that means we gained a new significant digit at the top.
   // Dont forget to maintain the sticky bit!
-  let sticky = sfd[0:1] as u48 in
-  let sfd = sfd >> sfd_shift in
-  let sfd = sfd | sticky in
+  let sticky = sfd[0:1] as u48;
+  let sfd = sfd >> sfd_shift;
+  let sfd = sfd | sticky;
 
   // Update the exponent if we shifted.
-  let exp = exp + (sfd_shift as s10) in
+  let exp = exp + (sfd_shift as s10);
   // If the value is currently subnormal, then we need to shift right by one
   // space: a subnormal value doesn't have the leading 1, and thus has one
   // fewer significant digits than normal numbers - in a sense, the -1th bit
@@ -84,62 +84,62 @@ fn fpmul_2x32(x: F32, y: F32) -> F32 {
   // Again, track the sticky bit. This could be combined with the shift
   // above, but it's easier to understand (and comment) if separated, and the
   // optimizer will clean it up anyway.
-  let sticky = sfd[0:1] as u48 in
-  let sfd = sfd >> u48:1 if exp <= s10:0 else sfd in
-  let sfd = sfd | sticky in
+  let sticky = sfd[0:1] as u48;
+  let sfd = sfd >> u48:1 if exp <= s10:0 else sfd;
+  let sfd = sfd | sticky;
 
   // 5. Round - we use nearest, half to even rounding.
   // - We round down if less than 1/2 way between values, i.e.
   //   if bit 23 is 0. Rounding down is equivalent to doing nothing.
   // - We round up if we're more than 1/2 way, i.e., if bit 23
   //   is set along with any bit lower than 23.
-  // - If halfway (bit 23 set and no bit lower), then we round in
+  // - If halfway (bit 23 set and no bit lower), then we round;
   //   whichever direction makes the result even. In other words,
   //   we round up if bit 25 is set.
-  let is_half_way = sfd[22:23] & (sfd[0:22] == u22:0) in
-  let greater_than_half_way = sfd[22:23] & (sfd[0:22] != u22:0) in
-  let do_round_up = greater_than_half_way || (is_half_way & sfd[23:24]) in
+  let is_half_way = sfd[22:23] & (sfd[0:22] == u22:0);
+  let greater_than_half_way = sfd[22:23] & (sfd[0:22] != u22:0);
+  let do_round_up = greater_than_half_way || (is_half_way & sfd[23:24]);
 
   // We're done with the extra precision bits now, so shift the
   // significand into its almost-final width, adding one extra
   // bit for potential rounding overflow.
-  let sfd = (sfd >> u48:23) as u23 in
-  let sfd = sfd as u24 in
-  let sfd = sfd + u24:1 if do_round_up else sfd in
+  let sfd = (sfd >> u48:23) as u23;
+  let sfd = sfd as u24;
+  let sfd = sfd + u24:1 if do_round_up else sfd;
 
   // Adjust the exponent if we overflowed during rounding.
   // After checking for subnormals, we don't need the sign bit anymore.
-  let exp = exp + s10:1 if sfd[-1:] else exp in
-  let is_subnormal = exp <= s10:0 in
+  let exp = exp + s10:1 if sfd[-1:] else exp;
+  let is_subnormal = exp <= s10:0;
 
   // We're done - except for special cases...
-  let result_sign = x.sign != y.sign in
-  let result_exp = exp as u9 in
-  let result_sfd = sfd as u23 in
+  let result_sign = x.sign != y.sign;
+  let result_exp = exp as u9;
+  let result_sfd = sfd as u23;
 
   // 6. Special cases!
   // - Subnormals: flush to 0.
-  let result_exp = u9:0 if is_subnormal else result_exp in
-  let result_sfd = u23:0 if is_subnormal else result_sfd in
+  let result_exp = u9:0 if is_subnormal else result_exp;
+  let result_sfd = u23:0 if is_subnormal else result_sfd;
 
   // - Overflow infinites. Exp to 255, clear sfd.
-  let result_sfd = result_sfd if result_exp < u9:0xff else u23:0 in
-  let result_exp = result_exp as u8 if result_exp < u9:0xff else u8:0xff in
+  let result_sfd = result_sfd if result_exp < u9:0xff else u23:0;
+  let result_exp = result_exp as u8 if result_exp < u9:0xff else u8:0xff;
 
   // - Arg infinites. Any arg is infinite == result is infinite.
-  let is_operand_inf = float32::is_inf(x) || float32::is_inf(y) in
-  let result_exp = u8:0xff if is_operand_inf else result_exp in
-  let result_sfd = u23:0 if is_operand_inf else result_sfd in
+  let is_operand_inf = float32::is_inf(x) || float32::is_inf(y);
+  let result_exp = u8:0xff if is_operand_inf else result_exp;
+  let result_sfd = u23:0 if is_operand_inf else result_sfd;
 
   // - NaNs. NaN trumps infinities, so we handle it last.
   //   inf * 0 = NaN, i.e.,
-  let has_0_arg = is_zero(x) || is_zero(y) in
-  let has_nan_arg = float32::is_nan(x) || float32::is_nan(y) in
-  let has_inf_arg = float32::is_inf(x) || float32::is_inf(y) in
-  let is_result_nan = has_nan_arg || (has_0_arg && has_inf_arg) in
-  let result_exp = u8:0xff if is_result_nan else result_exp in
-  let result_sfd = u23:0x40_0000 if is_result_nan else result_sfd in
-  let result_sign = u1:0 if is_result_nan else result_sign in
+  let has_0_arg = is_zero(x) || is_zero(y);
+  let has_nan_arg = float32::is_nan(x) || float32::is_nan(y);
+  let has_inf_arg = float32::is_inf(x) || float32::is_inf(y);
+  let is_result_nan = has_nan_arg || (has_0_arg && has_inf_arg);
+  let result_exp = u8:0xff if is_result_nan else result_exp;
+  let result_sfd = u23:0x40_0000 if is_result_nan else result_sfd;
+  let result_sign = u1:0 if is_result_nan else result_sign;
 
   F32 { sign: result_sign, bexp: result_exp, sfd: result_sfd }
 }

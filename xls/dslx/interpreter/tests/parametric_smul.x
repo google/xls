@@ -25,9 +25,9 @@ fn smul_s3_s4(x: s3, y: s4) -> s7 {
 }
 
 test parametric_smul {
-  let _ = assert_eq(s5:2, smul_s2_s3(s2:-1, s3:-2)) in
-  let _ = assert_eq(s5:6, smul_s2_s3(s2:-2, s3:-3)) in
-  let _ = assert_eq(s5:-6, smul_s2_s3(s2:-2, s3:3)) in
-  let _ = assert_eq(s7:-7, smul_s3_s4(s3:-1, s4:7)) in
+  let _ = assert_eq(s5:2, smul_s2_s3(s2:-1, s3:-2));
+  let _ = assert_eq(s5:6, smul_s2_s3(s2:-2, s3:-3));
+  let _ = assert_eq(s5:-6, smul_s2_s3(s2:-2, s3:3));
+  let _ = assert_eq(s7:-7, smul_s3_s4(s3:-1, s4:7));
   ()
 }

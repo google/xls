@@ -78,12 +78,12 @@
 // args: bits[5]:0x0
 // args: bits[5]:0x1
 fn main(x65: u5) -> (u27, u5, u27, bool, u5) {
-    let x66: u27 = (u27:0x200000) in
-    let x67: u27 = (x66) * (x66) in
-    let x68: u27 = (x66) * (x67) in
-    let x69: u5 = (x65) >> (x65) in
-    let x70: bool = (x68) <= (x67) in
-    let x71: bool = (x70) - (x70) in
+    let x66: u27 = (u27:0x200000);
+    let x67: u27 = (x66) * (x66);
+    let x68: u27 = (x66) * (x67);
+    let x69: u5 = (x65) >> (x65);
+    let x70: bool = (x68) <= (x67);
+    let x71: bool = (x70) - (x70);
     (x68, x65, x67, x70, x69)
 }
 

@@ -78,14 +78,14 @@
 // args: bits[32]:0xbb031f9b
 // args: bits[32]:0xcd6ceba6
 fn main(x42: u32) -> (u32, u13, u13, u32, u13, u32, u32, u13, u32) {
-    let x43: u13 = (u13:0x8) in
-    let x44: u32 = (x42) - (x42) in
-    let x45: u32 = (x44) << (x42) in
-    let x46: u13 = !(x43) in
-    let x47: bool = (x46) >= ((x45) as u13) in
-    let x48: u32 = -(x42) in
-    let x49: u32 = !(x44) in
-    let x50: u13 = (x43) - (x46) in
+    let x43: u13 = (u13:0x8);
+    let x44: u32 = (x42) - (x42);
+    let x45: u32 = (x44) << (x42);
+    let x46: u13 = !(x43);
+    let x47: bool = (x46) >= ((x45) as u13);
+    let x48: u32 = -(x42);
+    let x49: u32 = !(x44);
+    let x50: u13 = (x43) - (x46);
     (x44, x46, x46, x49, x50, x42, x45, x46, x49)
 }
 

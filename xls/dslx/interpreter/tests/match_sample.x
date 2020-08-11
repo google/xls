@@ -20,9 +20,9 @@ fn match_sample(s: bool, x: u32, y: u32) -> u32 {
   }
 }
 test match_wildcard {
-  let _ = assert_eq(u32:7, match_sample(true, u32:7, u32:-1)) in
-  let _ = assert_eq(u32:-1, match_sample(false, u32:7, u32:-1)) in
-  let _ = assert_eq(u32:42, match_sample(false, u32:8, u32:-1)) in
+  let _ = assert_eq(u32:7, match_sample(true, u32:7, u32:-1));
+  let _ = assert_eq(u32:-1, match_sample(false, u32:7, u32:-1));
+  let _ = assert_eq(u32:42, match_sample(false, u32:8, u32:-1));
   ()
 }
 
@@ -36,9 +36,9 @@ fn match_wrapper(x: u32) -> u8 {
 }
 
 test match_wrapper {
-  let _: () = assert_eq(u8:1, match_wrapper(u32:42)) in
-  let _: () = assert_eq(u8:2, match_wrapper(u32:64)) in
-  let _: () = assert_eq(u8:3, match_wrapper(u32:77)) in
-  let _: () = assert_eq(u8:4, match_wrapper(u32:128)) in
+  let _: () = assert_eq(u8:1, match_wrapper(u32:42));
+  let _: () = assert_eq(u8:2, match_wrapper(u32:64));
+  let _: () = assert_eq(u8:3, match_wrapper(u32:77));
+  let _: () = assert_eq(u8:4, match_wrapper(u32:128));
   ()
 }

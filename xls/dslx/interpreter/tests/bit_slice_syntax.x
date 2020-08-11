@@ -22,61 +22,61 @@ fn [N: u32, R: u32 = N - u32:2] get_middle_bits(x: bits[N]) -> bits[R] {
 }
 
 test bit_slice_syntax {
-  let _ = assert_eq(u2:0b11, get_middle_bits(u4:0b0110)) in
-  let _ = assert_eq(u3:0b101, get_middle_bits(u5:0b01010)) in
+  let _ = assert_eq(u2:0b11, get_middle_bits(u4:0b0110));
+  let _ = assert_eq(u3:0b101, get_middle_bits(u5:0b01010));
 
-  let x = u6:0b100111 in
+  let x = u6:0b100111;
   // Slice out two bits.
-  let _ = assert_eq(u2:0b11, x[0:2]) in
-  let _ = assert_eq(u2:0b11, x[1:3]) in
-  let _ = assert_eq(u2:0b01, x[2:4]) in
-  let _ = assert_eq(u2:0b00, x[3:5]) in
+  let _ = assert_eq(u2:0b11, x[0:2]);
+  let _ = assert_eq(u2:0b11, x[1:3]);
+  let _ = assert_eq(u2:0b01, x[2:4]);
+  let _ = assert_eq(u2:0b00, x[3:5]);
 
   // Slice out three bits.
-  let _ = assert_eq(u3:0b111, x[0:3]) in
-  let _ = assert_eq(u3:0b011, x[1:4]) in
-  let _ = assert_eq(u3:0b001, x[2:5]) in
-  let _ = assert_eq(u3:0b100, x[3:6]) in
+  let _ = assert_eq(u3:0b111, x[0:3]);
+  let _ = assert_eq(u3:0b011, x[1:4]);
+  let _ = assert_eq(u3:0b001, x[2:5]);
+  let _ = assert_eq(u3:0b100, x[3:6]);
 
   // Slice out from the end.
-  let _ = assert_eq(u1:0b1, x[-1:]) in
-  let _ = assert_eq(u1:0b1, x[-1:6]) in
-  let _ = assert_eq(u2:0b10, x[-2:]) in
-  let _ = assert_eq(u2:0b10, x[-2:6]) in
-  let _ = assert_eq(u3:0b100, x[-3:]) in
-  let _ = assert_eq(u3:0b100, x[-3:6]) in
-  let _ = assert_eq(u4:0b1001, x[-4:]) in
-  let _ = assert_eq(u4:0b1001, x[-4:6]) in
+  let _ = assert_eq(u1:0b1, x[-1:]);
+  let _ = assert_eq(u1:0b1, x[-1:6]);
+  let _ = assert_eq(u2:0b10, x[-2:]);
+  let _ = assert_eq(u2:0b10, x[-2:6]);
+  let _ = assert_eq(u3:0b100, x[-3:]);
+  let _ = assert_eq(u3:0b100, x[-3:6]);
+  let _ = assert_eq(u4:0b1001, x[-4:]);
+  let _ = assert_eq(u4:0b1001, x[-4:6]);
 
   // Slice both relative to the end (MSb).
-  let _ = assert_eq(u2:0b01, x[-4:-2]) in
-  let _ = assert_eq(u2:0b11, x[-6:-4]) in
+  let _ = assert_eq(u2:0b01, x[-4:-2]);
+  let _ = assert_eq(u2:0b11, x[-6:-4]);
 
   // Slice out from the beginning (LSb).
-  let _ = assert_eq(u5:0b00111, x[:-1]) in
-  let _ = assert_eq(u4:0b0111, x[:-2]) in
-  let _ = assert_eq(u3:0b111, x[:-3]) in
-  let _ = assert_eq(u2:0b11, x[:-4]) in
-  let _ = assert_eq(u1:0b1, x[:-5]) in
+  let _ = assert_eq(u5:0b00111, x[:-1]);
+  let _ = assert_eq(u4:0b0111, x[:-2]);
+  let _ = assert_eq(u3:0b111, x[:-3]);
+  let _ = assert_eq(u2:0b11, x[:-4]);
+  let _ = assert_eq(u1:0b1, x[:-5]);
 
   // Slicing past the end just means we hit the end (as in Python).
-  let _ = assert_eq(u1:0b1, x[5:7]) in
-  let _ = assert_eq(u1:0b1, x[-7:1]) in
-  let _ = assert_eq(bits[0]:0, x[-7:-6]) in
-  let _ = assert_eq(bits[0]:0, x[-6:-6]) in
-  let _ = assert_eq(bits[0]:0, x[6:6]) in
-  let _ = assert_eq(bits[0]:0, x[6:7]) in
-  let _ = assert_eq(u1:1, x[-6:-5]) in
+  let _ = assert_eq(u1:0b1, x[5:7]);
+  let _ = assert_eq(u1:0b1, x[-7:1]);
+  let _ = assert_eq(bits[0]:0, x[-7:-6]);
+  let _ = assert_eq(bits[0]:0, x[-6:-6]);
+  let _ = assert_eq(bits[0]:0, x[6:6]);
+  let _ = assert_eq(bits[0]:0, x[6:7]);
+  let _ = assert_eq(u1:1, x[-6:-5]);
 
   // Slice of a slice.
-  let _ = assert_eq(u2:0b11, x[:4][1:3]) in
+  let _ = assert_eq(u2:0b11, x[:4][1:3]);
 
   // Slice of an invocation.
-  let _ = assert_eq(u2:0b01, id(x)[2:4]) in
+  let _ = assert_eq(u2:0b01, id(x)[2:4]);
 
   // Explicit-width slices.
-  let _ = assert_eq(u2:0b01, x[2+:u2]) in
-  let _ = assert_eq(s3:0b100, x[3+:s3]) in
-  let _ = assert_eq(u3:0b001, x[5+:u3]) in
+  let _ = assert_eq(u2:0b01, x[2+:u2]);
+  let _ = assert_eq(s3:0b100, x[3+:s3]);
+  let _ = assert_eq(u3:0b001, x[5+:u3]);
   ()
 }

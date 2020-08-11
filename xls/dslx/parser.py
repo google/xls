@@ -75,7 +75,7 @@ class Parser(token_parser.TokenParser):
   def __init__(self, scanner: Scanner):
     super(Parser, self).__init__(scanner)
     self._loop_stack = []
-    self._options = _ParserOptions(let_terminator_is_semi=False)
+    self._options = _ParserOptions(let_terminator_is_semi=True)
 
   def _parse_comma_seq(self,
                        fparse: Callable[..., TypeVar('T')],

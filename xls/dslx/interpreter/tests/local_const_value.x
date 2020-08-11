@@ -13,7 +13,7 @@
 // limitations under the License.
 
 fn f() -> u32[4] {
-  const FOO = u32:4 in
+  const FOO = u32:4;
   u32[FOO]:[0, ...]
 }
 

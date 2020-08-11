@@ -28,14 +28,14 @@ fn main(x: u3, y: u3) -> s6 {
 }
 
 test multiplies {
-  let _ = assert_eq(u4:0b1001, umul_2(u2:0b11, u2:0b11)) in
-  let _ = assert_eq(u4:0b0001, umul_2(u2:0b01, u2:0b01)) in
-  let _ = assert_eq(s4:0b1111, std::smul(s2:0b11, s2:0b01)) in
-  let _ = assert_eq(s6:6,  smul_3(s3:-3, s3:-2)) in
-  let _ = assert_eq(s6:-6, smul_3(s3:-3, s3:2)) in
-  let _ = assert_eq(s6:-6, smul_3(s3:3,  s3:-2)) in
-  let _ = assert_eq(s6:6,  smul_3(s3:3,  s3:2)) in
-  let _ = assert_eq(s6:1,  smul_3(s3:-1, s3:-1)) in
-  let _ = assert_eq(u6:49, std::umul(u3:-1, u3:-1)) in
+  let _ = assert_eq(u4:0b1001, umul_2(u2:0b11, u2:0b11));
+  let _ = assert_eq(u4:0b0001, umul_2(u2:0b01, u2:0b01));
+  let _ = assert_eq(s4:0b1111, std::smul(s2:0b11, s2:0b01));
+  let _ = assert_eq(s6:6,  smul_3(s3:-3, s3:-2));
+  let _ = assert_eq(s6:-6, smul_3(s3:-3, s3:2));
+  let _ = assert_eq(s6:-6, smul_3(s3:3,  s3:-2));
+  let _ = assert_eq(s6:6,  smul_3(s3:3,  s3:2));
+  let _ = assert_eq(s6:1,  smul_3(s3:-1, s3:-1));
+  let _ = assert_eq(u6:49, std::umul(u3:-1, u3:-1));
   ()
 }

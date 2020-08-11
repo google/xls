@@ -23,11 +23,11 @@ fn update_yz(p: Point3, new_y: u32, new_z: u32) -> Point3 {
 }
 
 fn main() -> Point3 {
-  let p = Point3 { x: u32:42, y: u32:0, z: u32:0 } in
+  let p = Point3 { x: u32:42, y: u32:0, z: u32:0 };
   update_yz(p, u32:128, u32:256)
 }
 
 test main {
-  let want = Point3 { x: u32:42, y: u32:128, z: u32:256 } in
+  let want = Point3 { x: u32:42, y: u32:128, z: u32:256 };
   assert_eq(want, main())
 }

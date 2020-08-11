@@ -26,7 +26,7 @@ fn main(x: Point) -> Point {
 }
 
 test id {
-  let x = Point { x: u32:42, y: u32:64 } in
-  let y = main(x) in
+  let x = Point { x: u32:42, y: u32:64 };
+  let y = main(x);
   assert_eq(x, y)
 }

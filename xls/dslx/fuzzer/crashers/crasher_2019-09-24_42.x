@@ -526,8 +526,8 @@
 // args: bits[18]:0x800; bits[41]:0x40000000; bits[55]:0x80000
 // args: bits[18]:0x3ffff; bits[41]:0x20000; bits[55]:0x8000
 fn main(x331: u18, x332: u41, x333: u55) -> u55 {
-    let x334: u55 = one_hot_sel((u4:0xf), [x333, x333, x333, x333]) in
-    let x335: u55 = (x334) | ((x331 as u55)) in
+    let x334: u55 = one_hot_sel((u4:0xf), [x333, x333, x333, x333]);
+    let x335: u55 = (x334) | ((x331 as u55));
     x335
 }
 

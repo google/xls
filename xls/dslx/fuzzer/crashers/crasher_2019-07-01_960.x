@@ -526,13 +526,13 @@
 // args: bits[1]:0x0; bits[19]:0x8; bits[29]:0x75e8488
 // args: bits[1]:0x1; bits[19]:0x76f91; bits[29]:0x8f05d7
 fn main(x10288: u1, x10289: u19, x10290: u29) -> (bool, u1, bool, bool, u29, u19) {
-    let x10291: bool = ((x10289 as u29)) >= (x10290) in
-    let x10292: u19 = (x10290 as u19) * (x10289) in
-    let x10293: u1 = (x10291 as u1) ^ (x10288) in
-    let x10294: u19 = (x10289) * ((x10293 as u19)) in
-    let x10295: u29 = !(x10290) in
-    let x10296: u20 = (u20:0x100) in
-    let x10297: bool = (x10291) - (x10291) in
+    let x10291: bool = ((x10289 as u29)) >= (x10290);
+    let x10292: u19 = (x10290 as u19) * (x10289);
+    let x10293: u1 = (x10291 as u1) ^ (x10288);
+    let x10294: u19 = (x10289) * ((x10293 as u19));
+    let x10295: u29 = !(x10290);
+    let x10296: u20 = (u20:0x100);
+    let x10297: bool = (x10291) - (x10291);
     (x10291, x10293, x10291, x10297, x10295, x10292)
 }
 

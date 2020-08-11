@@ -23,7 +23,7 @@ fn main(x: u8) -> MyTuple {
 }
 
 test main {
-  let (ms, me) = main(u8:64) in
-  let _ = assert_eq(MyEnum::BAR, ms.me) in
+  let (ms, me) = main(u8:64);
+  let _ = assert_eq(MyEnum::BAR, ms.me);
   assert_eq(MyEnum::FOO, me)
 }
