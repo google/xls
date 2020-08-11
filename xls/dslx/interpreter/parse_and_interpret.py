@@ -61,13 +61,14 @@ def parse_and_test(program: Text,
     trace_all: Whether or not to trace all expressions.
     compare_jit: Whether or not to assert equality between interpreted and
       JIT'd function return values.
+    seed: Seed for QuickCheck random input stimulus.
 
   Returns:
     Whether or not an error occurred during parsing/testing.
 
   Raises:
     ScanError, ParseError: In case of front-end errors.
-    TypeInferenceError, TypeError: In case of type errors (when do_typecheck).
+    TypeInferenceError, TypeError: In case of type errors.
     EvaluateError: In case of a runtime failure.
   """
   did_fail = False

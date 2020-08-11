@@ -35,12 +35,12 @@ class JitComparisonTest(absltest.TestCase):
     ir_bits_wrong_bit_count = ir_value.Value(
         ir_bits.UBits(value=4, bit_count=5))
 
-    with self.assertRaises(AssertionError):
+    with self.assertRaises(jit_comparison.JitMiscompareError):
       jit_comparison.compare_values(dslx_bits, ir_bits_wrong_bit_count)
 
     ir_bits_wrong_value = ir_value.Value(ir_bits.UBits(value=3, bit_count=4))
 
-    with self.assertRaises(AssertionError):
+    with self.assertRaises(jit_comparison.JitMiscompareError):
       jit_comparison.compare_values(dslx_bits, ir_bits_wrong_value)
 
   def test_array_equivalence_ok(self):
@@ -66,7 +66,7 @@ class JitComparisonTest(absltest.TestCase):
     ir_array_different_size = ir_value.Value.make_array(
         tuple(ir_elements_extra))
 
-    with self.assertRaises(AssertionError):
+    with self.assertRaises(jit_comparison.JitMiscompareError):
       jit_comparison.compare_values(dslx_array, ir_array_different_size)
 
     ir_elements_wrong = (
@@ -75,7 +75,7 @@ class JitComparisonTest(absltest.TestCase):
 
     ir_array_different_element = ir_value.Value.make_array(ir_elements_wrong)
 
-    with self.assertRaises(AssertionError):
+    with self.assertRaises(jit_comparison.JitMiscompareError):
       jit_comparison.compare_values(dslx_array, ir_array_different_element)
 
   def test_tuple_equivalence_ok(self):
@@ -100,7 +100,7 @@ class JitComparisonTest(absltest.TestCase):
         ir_members + [ir_value.Value(ir_bits.UBits(value=5, bit_count=4))])
     ir_tuple_different_size = ir_value.Value.make_tuple(ir_members_extra)
 
-    with self.assertRaises(AssertionError):
+    with self.assertRaises(jit_comparison.JitMiscompareError):
       jit_comparison.compare_values(dslx_tuple, ir_tuple_different_size)
 
     ir_members_wrong = (
@@ -109,7 +109,7 @@ class JitComparisonTest(absltest.TestCase):
 
     ir_tuple_different_member = ir_value.Value.make_tuple(ir_members_wrong)
 
-    with self.assertRaises(AssertionError):
+    with self.assertRaises(jit_comparison.JitMiscompareError):
       jit_comparison.compare_values(dslx_tuple, ir_tuple_different_member)
 
   def test_bits_to_int(self):

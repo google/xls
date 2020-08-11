@@ -1401,10 +1401,14 @@ class Interpreter(object):
       # create it every time. This requires us to figure out how to wrap
       # LlvmIrJit::Create().
       ir_function = self._ir_package.get_function(ir_name)
-      ir_args = jit_comparison.convert_args_to_ir(args)
+      try:
+        ir_args = jit_comparison.convert_args_to_ir(args)
 
-      jit_value = llvm_ir_jit.llvm_ir_jit_run(ir_function, ir_args)
-      jit_comparison.compare_values(interpreter_value, jit_value)
+        jit_value = llvm_ir_jit.llvm_ir_jit_run(ir_function, ir_args)
+        jit_comparison.compare_values(interpreter_value, jit_value)
+      except (jit_comparison.UnsupportedJitConversionError,
+              jit_comparison.JitMiscompareError) as e:
+        raise FailureError(expr.span if expr else fn.span, str(e))
 
     return interpreter_value
 
