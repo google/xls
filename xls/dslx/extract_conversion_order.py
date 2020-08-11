@@ -28,7 +28,7 @@ from xls.dslx.parametric_instantiator import SymbolicBindings
 Callee = NamedTuple(
     'Callee',
     [('f', ast.Function), ('m', ast.Module),
-     ('sym_bindings', SymbolicBindings)],
+     ('sym_bindings', SymbolicBindings), ('node_to_type', deduce.NodeToType)],
 )
 ImportedInfo = Tuple[ast.Module, deduce.NodeToType]
 
@@ -52,11 +52,13 @@ class ConversionRecord(object):
                f: ast.Function,
                m: ast.Module,
                bindings: SymbolicBindings,
+               node_to_type,
                callees: Tuple[Callee, ...] = ()):
     self.f = f
     self.m = m
     self.bindings = bindings
     self.callees = callees
+    self.node_to_type = node_to_type
 
   def __repr__(self) -> Text:
     return 'ConversionRecord(f={!r}, m={!r}, bindings={!r}, callees={!r})'.format(
@@ -115,7 +117,8 @@ def get_callees(func: Union[ast.Function, ast.Test], m: ast.Module,
           '{}_test'.format(func.name.identifier))
       node_symbolic_bindings = node.symbolic_bindings.get(
           (m.name, func_name, bindings), ())
-      callees.append(Callee(f, this_m, node_symbolic_bindings))
+      invocation_node_to_type = node.bindings_to_ntt.get(node_symbolic_bindings, None)
+      callees.append(Callee(f, this_m, node_symbolic_bindings, invocation_node_to_type))
 
   func.accept(InvocationVisitor())
   logging.vlog(3, 'Callees for %s: %s', func,
@@ -132,7 +135,8 @@ def _is_ready(ready: List[ConversionRecord], f: ast.Function, m: ast.Module,
 def _add_to_ready(ready: List[ConversionRecord], imports: Dict[ast.Import,
                                                                ImportedInfo],
                   f: Union[ast.Function, ast.Test], m: ast.Module,
-                  bindings: SymbolicBindings) -> None:
+                  bindings: SymbolicBindings,
+                  node_to_type = None) -> None:
   """Adds (f, bindings) to conversion order after deps have been added."""
   if _is_ready(ready, f, m, bindings):
     return
@@ -150,14 +154,14 @@ def _add_to_ready(ready: List[ConversionRecord], imports: Dict[ast.Import,
   # For all of the remaining callees (that were not ready), add them to the
   # list before us, since we depend upon them.
   for callee in callees:
-    _add_to_ready(ready, imports, callee.f, callee.m, callee.sym_bindings)
+    _add_to_ready(ready, imports, callee.f, callee.m, callee.sym_bindings, callee.node_to_type)
 
   assert not _is_ready(ready, f, m, bindings)
 
   # We don't convert the bodies of test constructs to IR
   if not isinstance(f, ast.Test):
     logging.vlog(3, 'Adding to ready sequence: %s', f.name.identifier)
-    ready.append(ConversionRecord(f, m, bindings, callees=orig_callees))
+    ready.append(ConversionRecord(f, m, bindings, node_to_type, callees=orig_callees))
 
 
 def get_order(module: ast.Module,

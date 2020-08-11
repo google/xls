@@ -19,7 +19,7 @@
 """Type system deduction rules for AST nodes."""
 
 import typing
-from typing import Text, Dict, Union, Callable, Type, Tuple, List, Set
+from typing import Text, Dict, Union, Callable, Type, Tuple, List, Set, Optional
 
 from absl import logging
 import dataclasses
@@ -90,15 +90,20 @@ ImportedInfo = Tuple[ast.Module, 'NodeToType']
 class NodeToType(object):
   """Helper type that checks the types of {AstNode: ConcreteType} mappings.
 
+  Easily "chains" onto an existing mapping of node types when entering a scope
+  with parametric bindings; e.g. a new node_to_type mapping is created for
+  a parametric function's body after parametric instantiation.
+
   Also raises a TypeMissingError instead of a KeyError when we encounter a node
   that does not have a type known, so that it can be handled in a more specific
   way versus a KeyError.
   """
 
-  def __init__(self):
+  def __init__(self, parent: Optional['NodeToType'] = None):
     self._dict = {}  # type: Dict[ast.AstNode, ConcreteType]
     self._imports = {}  # type: Dict[ast.Import, ImportedInfo]
     self._name_to_const = {}  # type: Dict[ast.NameDef, ast.Constant]
+    self._parent = parent
     self.parametric_fn_cache = {}
 
   def update(self, other: 'NodeToType') -> None:
@@ -147,14 +152,24 @@ class NodeToType(object):
     """
     assert isinstance(k, ast.AstNode), repr(k)
     try:
-      return self._dict[k]
+      if k in self._dict:
+        return self._dict[k]
+      if self._parent:
+        return self._parent.__getitem__(k)
     except KeyError:
       span_suffix = ' @ {}'.format(k.span) if hasattr(k, 'span') else ''
       raise TypeMissingError(
           k, suffix='resolving type of node{}'.format(span_suffix))
+    else:
+      span_suffix = ' @ {}'.format(k.span) if hasattr(k, 'span') else ''
+      raise TypeMissingError(
+          k, suffix='resolving type of node{}'.format(span_suffix))
+
 
   def __contains__(self, k: ast.AstNode) -> bool:
-    return k in self._dict
+    return (k in self._dict or k in self._parent._dict
+            if self._parent
+            else k in self._dict)
 
 
 # Type signature for the import function callback:
@@ -334,13 +349,17 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
       body_return_type = ctx.node_to_type[parametric_fn.body]
     except TypeMissingError as e:
       e.node = invocation.callee.name_def
+      invocation_node_to_type = NodeToType(parent=ctx.node_to_type)
+      ctx.node_to_type = invocation_node_to_type
       raise
 
     ctx.fn_stack.pop()
+    invocation.bindings_to_ntt[symbolic_bindings] = ctx.node_to_type
+    ctx.node_to_type = ctx.node_to_type._parent
 
     # TODO(hjmontero): 2020-07-13 HACK: We remove the type of the body to so
     # that we re-typecheck it if we see this invocation again.
-    ctx.node_to_type._dict.pop(parametric_fn.body)  # pylint: disable=protected-access
+    # ctx.node_to_type._dict.pop(parametric_fn.body)  # pylint: disable=protected-access
 
 
 @_rule(ast.Invocation)

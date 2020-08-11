@@ -311,12 +311,13 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
       (f.name.identifier, isinstance(f, ast.Test)): (f, True)
   }  # type: Dict[Tuple[Text, bool], Tuple[Union[Function, ast.Test], bool]]
 
-  stack = [_make_record(f, ctx)]  # type: List[_TypecheckStackRecord]
+  # stack = [_make_record(f, ctx)]  # type: List[_TypecheckStackRecord]
+  stack = [(f.name.identifier, isinstance(f, ast.Test))]
 
   function_map = {f.name.identifier: f for f in ctx.module.get_functions()}
   while stack:
     try:
-      f = seen[(stack[-1].name, stack[-1].is_test)][0]
+      f = seen[stack[-1]][0]
       if isinstance(f, ast.Function):
         _check_function(f, ctx)
       else:
@@ -326,34 +327,34 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
                                                            )  # Mark as done.
       stack_record = stack.pop()
       fn_name, _ = ctx.fn_stack[-1]
-      if (isinstance(f, ast.Function) and f.is_parametric() and
-          fn_name == f.name.identifier and
-          f not in ctx.node_to_type.parametric_fn_cache):
-        # We just evaluated the body of a parametric function for the first
-        # time. Let's compute its dependencies so that we know which nodes to
-        # recheck if we see another invocation of this parametric function.
-        previous_node_types = stack_record.node_types
-        assert previous_node_types, previous_node_types
-        deps = {
-            n: ctx.node_to_type[n]
-            for n in set(ctx.node_to_type._dict) - set(previous_node_types)  # pylint: disable=protected-access
-        }
-        key = f
-        ctx.node_to_type.parametric_fn_cache[key] = deps
+      # if (isinstance(f, ast.Function) and f.is_parametric() and
+      #     fn_name == f.name.identifier and
+      #     f not in ctx.node_to_type.parametric_fn_cache):
+      #   # We just evaluated the body of a parametric function for the first
+      #   # time. Let's compute its dependencies so that we know which nodes to
+      #   # recheck if we see another invocation of this parametric function.
+      #   previous_node_types = stack_record.node_types
+      #   assert previous_node_types, previous_node_types
+      #   deps = {
+      #       n: ctx.node_to_type[n]
+      #       for n in set(ctx.node_to_type._dict) - set(previous_node_types)  # pylint: disable=protected-access
+      #   }
+      #   key = f
+      #   ctx.node_to_type.parametric_fn_cache[key] = deps
 
-      def is_callee_map(n: Optional[ast.AstNode]) -> bool:
-        return (n and isinstance(n, ast.Invocation) and
-                isinstance(n.callee, ast.NameRef) and
-                n.callee.tok.value == 'map')
+      # def is_callee_map(n: Optional[ast.AstNode]) -> bool:
+      #   return (n and isinstance(n, ast.Invocation) and
+      #           isinstance(n.callee, ast.NameRef) and
+      #           n.callee.tok.value == 'map')
 
-      if is_callee_map(stack_record.user):
-        # We need to remove the body of this higher order parametric function
-        # in case we need to recheck it later in this module. See
-        # deduce._check_parametric_invocation() for more information.
-        assert isinstance(f, ast.Function) and f.is_parametric()
-        ctx.node_to_type._dict.pop(f.body)  # pylint: disable=protected-access
+      # if is_callee_map(stack_record.user):
+      #   # We need to remove the body of this higher order parametric function
+      #   # in case we need to recheck it later in this module. See
+      #   # deduce._check_parametric_invocation() for more information.
+      #   assert isinstance(f, ast.Function) and f.is_parametric()
+      #   ctx.node_to_type._dict.pop(f.body)  # pylint: disable=protected-access
 
-      if stack_record.name == fn_name:
+      if stack_record[0] == fn_name:
         # i.e. we just finished typechecking the body of the function we're
         # currently inside of.
         ctx.fn_stack.pop()
@@ -371,7 +372,8 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
           callee = function_map[e.node.identifier]
           assert isinstance(callee, ast.Function), callee
           seen[(e.node.identifier, False)] = (callee, True)
-          stack.append(_make_record(callee, ctx, user=e.user))
+          # stack.append(_make_record(callee, ctx, user=e.user))
+          stack.append((callee.name.identifier, isinstance(callee, ast.Test)))
           break
         if (isinstance(e.node, ast.BuiltinNameDef) and
             e.node.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES):
@@ -498,16 +500,16 @@ def _check_module_helper(module: Module,
       check_function_or_test_in_module(t, ctx)
     logging.vlog(2, 'Finished typechecking test: %s', t)
 
-  # Let's discard all of the parametric fns' dependencies so that they are
-  # rechecked on invocation in the importer module
-  for f in ctx.node_to_type.parametric_fn_cache:
-    deps = ctx.node_to_type.parametric_fn_cache[f]
-    without_deps_dict = {
-        n: ctx.node_to_type[n]
-        for n in ctx.node_to_type._dict  # pylint: disable=protected-access
-        if n not in deps
-    }
-    ctx.node_to_type._dict = without_deps_dict  # pylint: disable=protected-access
+  # # Let's discard all of the parametric fns' dependencies so that they are
+  # # rechecked on invocation in the importer module
+  # for f in ctx.node_to_type.parametric_fn_cache:
+  #   deps = ctx.node_to_type.parametric_fn_cache[f]
+  #   without_deps_dict = {
+  #       n: ctx.node_to_type[n]
+  #       for n in ctx.node_to_type._dict  # pylint: disable=protected-access
+  #       if n not in deps
+  #   }
+  #   ctx.node_to_type._dict = without_deps_dict  # pylint: disable=protected-access
 
   return ctx.node_to_type
 
@@ -522,8 +524,8 @@ def check_module(module: Module,
   # in all the parametric fns' dependencies. They were removed in
   # check_module_helper so that parametric fns would be retypechecked in
   # other modules that imported them.
-  for f in node_to_type.parametric_fn_cache:
-    deps = node_to_type.parametric_fn_cache[f]
-    node_to_type._dict.update(deps)  # pylint: disable=protected-access
+  # for f in node_to_type.parametric_fn_cache:
+  #   deps = node_to_type.parametric_fn_cache[f]
+  #   node_to_type._dict.update(deps)  # pylint: disable=protected-access
 
   return node_to_type

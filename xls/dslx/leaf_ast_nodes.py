@@ -491,6 +491,7 @@ class Invocation(Expr):
     # in the callee.
     self.symbolic_bindings = dict(
     )  # type: Dict[Tuple[Text, Text, Tuple[Text, int]], parametric_instantiator.SymbolicBindings]
+    self.bindings_to_ntt = dict()
 
   def __str__(self) -> Text:
     return '{}({})'.format(self.callee, self.format_args())

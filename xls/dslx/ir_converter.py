@@ -1146,12 +1146,13 @@ def convert_module_to_package(
                                              traverse_tests)
   logging.vlog(3, 'Convert order: %s', pprint.pformat(order))
   for record in order:
+    # print(record.f, record.node_to_type)
     emitted.append(
         _convert_one_function(
             package,
             record.m,
             record.f,
-            node_to_type,
+            node_to_type if not record.node_to_type else record.node_to_type,
             symbolic_bindings=record.bindings,
             emit_positions=emit_positions))
 
