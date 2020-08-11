@@ -24,6 +24,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/value_helpers.h"
 
 namespace xls {
 namespace {
@@ -228,6 +229,44 @@ TEST(PackedArrayViewTest, ExtractsUnaligned) {
     bits_view.Get(reinterpret_cast<uint8*>(&result));
     EXPECT_EQ(result, i);
   }
+}
+
+TEST(PackedTupleViewTest, ExtractsSimpleUnaligned) {
+  constexpr int kBitOffset = 5;
+
+  uint32 int_value = 0xa5a5a5a5;
+  Value value = F32ToTuple(absl::bit_cast<float>(int_value));
+
+  using SignT = PackedBitsView<1>;
+  using ExpT = PackedBitsView<8>;
+  using SfdT = PackedBitsView<23>;
+  using TupleT = PackedTupleView<SignT, ExpT, SfdT>;
+  BitsRope rope(TupleT::kBitCount + kBitOffset);
+  for (int i = 0; i < kBitOffset; i++) {
+    rope.push_back(0);
+  }
+
+  for (const Value& element : value.elements()) {
+    for (bool bit : element.bits().ToBitVector()) {
+      rope.push_back(bit);
+    }
+  }
+
+  std::vector<uint8> buffer = rope.Build().ToBytes();
+  std::reverse(buffer.begin(), buffer.end());
+
+  TupleT tuple_view(buffer.data(), kBitOffset);
+  uint8 sign_data = 0;
+  tuple_view.Get<0>().Get(&sign_data);
+  EXPECT_EQ(sign_data, value.element(0).bits().ToUint64().value());
+
+  uint8 exp_data = 0;
+  tuple_view.Get<1>().Get(&exp_data);
+  EXPECT_EQ(exp_data, value.element(1).bits().ToUint64().value());
+
+  uint32 sfd_data = 0;
+  tuple_view.Get<2>().Get(reinterpret_cast<uint8*>(&sfd_data));
+  EXPECT_EQ(sfd_data, value.element(2).bits().ToUint64().value());
 }
 
 }  // namespace
