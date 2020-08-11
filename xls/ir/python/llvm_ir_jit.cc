@@ -27,9 +27,9 @@ PYBIND11_MODULE(llvm_ir_jit, m) {
   py::module::import("xls.ir.python.function");
   py::module::import("xls.ir.python.value");
 
-  m.def("llvm_ir_jit_run", PyWrap(&CreateandRun),
+  m.def("llvm_ir_jit_run", PyWrap(&CreateAndRun),
         py::arg("f"), py::arg("args"));
-  m.def("quickcheck_jit", PyWrap(&CreateandQuickCheck), py::arg("f"),
+  m.def("quickcheck_jit", PyWrap(&CreateAndQuickCheck), py::arg("f"),
         py::arg("seed"), py::arg("num_tests"));
 }
 

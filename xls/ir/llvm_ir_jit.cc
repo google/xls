@@ -1333,7 +1333,7 @@ xabsl::StatusOr<Value> CreateAndRun(Function* xls_function,
 }
 
 xabsl::StatusOr<std::pair<std::vector<std::vector<Value>>, std::vector<Value>>>
-CreateandQuickCheck(Function *xls_function, int64 seed, int64 num_tests) {
+CreateAndQuickCheck(Function *xls_function, int64 seed, int64 num_tests) {
     XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(xls_function));
     std::vector<Value> results;
     std::vector<std::vector<Value>> argsets;
@@ -1348,7 +1348,6 @@ CreateandQuickCheck(Function *xls_function, int64 seed, int64 num_tests) {
         // and present this evidence.
         break;
     }
-  }
 
   return std::make_pair(argsets, results);
 }
