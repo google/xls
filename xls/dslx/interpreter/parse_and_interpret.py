@@ -96,11 +96,11 @@ def parse_and_test(program: Text,
       interpreter.run_test(test_name)
       print('[               OK ]', test_name, file=sys.stderr)
 
-    if ir_package:
+    if ir_package and module.get_quickchecks():
       if seed is None:
         # We want to guarantee non-determinism by default.
         seed = int(os.getpid() * time.time())
-      print(f"SEED: {seed}")
+      print(f"[ SEED: {seed} ]")
       for quickcheck in module.get_quickchecks():
         test_name = quickcheck.f.name.identifier
         print('[ RUN QUICKCHECK   ]', test_name, file=sys.stderr)
