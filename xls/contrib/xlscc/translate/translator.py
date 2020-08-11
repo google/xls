@@ -407,11 +407,14 @@ class Translator(object):
           enum_list = enum_ast.values
           assert isinstance(enum_list, c_ast.EnumeratorList)
           enum_curr_val = 0
+          width = 32
+          is_signed = True
+          is_native = True
           for val in enum_list.enumerators:
             assert isinstance(val, c_ast.Enumerator)
             assert val.name not in self.global_decls_
             if val.value is None:
-                const_type = IntType(32, True, True)
+                const_type = IntType(width, is_signed, is_native)
             else:
                 const_val, const_type = parse_constant(val.value)
                 enum_curr_val = int (const_val) 
