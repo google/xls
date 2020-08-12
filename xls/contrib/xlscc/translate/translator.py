@@ -650,11 +650,16 @@ class Translator(object):
       condition: Condition of assignment
       loc: XLS function builder source location
     """
-
+          
     is_struct = isinstance(lvalue_expr, c_ast.StructRef)
     is_array = isinstance(lvalue_expr, c_ast.ArrayRef)
-    if isinstance(lvalue_expr, c_ast.ID):
-      self.assign(lvalue_expr.name,
+    impl_ref = "this"
+    is_impl_ref = False
+    if impl_ref in self.cvars and isinstance(lvalue_expr, c_ast.ID):
+      if lvalue_expr.name in self.cvars[impl_ref].ctype.field_indices:
+        is_impl_ref = True;
+    if is_impl_ref:
+      self.assign_compound(lvalue_expr,
                   rvalue,
                   rvalue_type,
                   condition,
@@ -665,6 +670,12 @@ class Translator(object):
                            rvalue_type,
                            condition,
                            loc)
+    elif isinstance(lvalue_expr, c_ast.ID):
+      self.assign(lvalue_expr.name,
+                  rvalue,
+                  rvalue_type,
+                  condition,
+                  loc)
     else:
       raise NotImplementedError("Assigning non-lvalue", str(type(lvalue_expr)))
 
@@ -1043,29 +1054,22 @@ class Translator(object):
             struct_type = struct.ctype
             fb_expr = self.cvars[struct_id_name].fb_expr
             struct_cvars = struct_type.get_struct_members()
-            field_indices = struct_type.get_field_indices()
+            field_indices = struct_type.get_field_indices() 
 
-            if struct_cvars:
-              for name, cvar in struct_cvars.items():
-                self.cvars[name] = cvar
-                var_idx = field_indices[name]
-                self.cvars[name].fb_expr = self.fb.add_tuple_index(
-                                        fb_expr, var_idx, loc) 
-            
             struct_class = self.hls_types_by_name_[struct_type.name]
             if struct_class:
               full_func_name = str(struct_class) + "::" + struct_func_name
               struct_func = self.functions_[full_func_name]
-                           
+         
               if struct_func:
                 args_bvalues = []
                 args_bvalues.append(struct.fb_expr)
-                                        
+                   
                 param_types_array = []
 
                 for name_and_type in struct_func.params.items():
                   param_types_array.append(name_and_type)
-                print("Params are " + str(param_types_array))
+
                 if isinstance(stmt_ast.args, c_ast.ExprList):
                   if len(stmt_ast.args.exprs)+1 != len(struct_func.params):
                     raise ValueError("Wrong number of args for function call")
@@ -1233,14 +1237,21 @@ class Translator(object):
         self.lvalues[p_name] = not ptype.is_const
 
       # Add local vars for class functions
-      local_cvars = None
-      #if func.is_class_func:
-      #  func_class = self.hls_types_by_name_[func.class_name]
-      #  cvars = func_class.get_struct_members()
-      #  for var in cvars:
-      #    self.lvalues[var] = not cvars[var].ctype.is_const
-      #if not func.body_ast: 
-      #  continue
+
+      local_cvars = {}
+      if func.is_class_func:
+        func_class = self.hls_types_by_name_[func.class_name]
+        cvars = func_class.get_struct_members()
+        impl_ref = self.cvars["this"]
+        field_indices = impl_ref.ctype.get_field_indices();
+        for name, cvar in cvars.items():
+          self.cvars[name] = cvar
+          var_idx = field_indices[name]
+          self.cvars[name].fb_expr = self.fb.add_tuple_index(
+                                        impl_ref.fb_expr, var_idx, func.loc) 
+          self.lvalues[name] = not cvar.ctype.is_const
+      if not func.body_ast:
+        continue
 
       # Function body
       
@@ -1384,71 +1395,89 @@ class Translator(object):
 
     compound_node = lvalue_ast
     compound_lvals = [compound_node]
-    while isinstance(compound_node.name, c_ast.StructRef) or \
-        isinstance(compound_node.name, c_ast.ArrayRef):
-      compound_node = compound_node.name
-      compound_lvals = compound_lvals + [compound_node]
+    if isinstance(lvalue_ast, c_ast.ID):
+      print("Lvalue is " + str(lvalue_ast))
+      field_name = lvalue_ast.name
+      assign_name = "this"
+      impl_ref = self.cvars[assign_name]
+      left_expr, left_type = impl_ref.fb_expr, impl_ref.ctype
+      print("Func builder expr " + str(left_expr))
+      element_values = []
+      field_indices = impl_ref.ctype.get_field_indices()
+      field_index = field_indices[field_name]
+      element_type = left_type.get_element_type(field_name)
+      r_expr = self.gen_convert_ir(r_expr, r_type, element_type, lvalue_ast)
+      for _, index in field_indices.items():
+        if index == field_index:
+          element_values.append(r_expr)
+        else:
+          element_values.append(
+              self.fb.add_tuple_index(left_expr, index, loc))
 
-    assert isinstance(compound_lvals[-1].name, c_ast.ID)
-    assign_name = compound_lvals[-1].name.name
-    if assign_name not in self.cvars:
-      raise ValueError("ERROR: Assignment to unknown variable", assign_name)
+      r_expr = self.fb.add_tuple(element_values, loc)
+      r_type = left_type
+    else:
+      while isinstance(compound_node.name, c_ast.StructRef) or \
+          isinstance(compound_node.name, c_ast.ArrayRef):
+        compound_node = compound_node.name
+        compound_lvals = compound_lvals + [compound_node]
+      assert isinstance(compound_lvals[-1].name, c_ast.ID)
+      assign_name = compound_lvals[-1].name.name
+      if assign_name not in self.cvars:
+        raise ValueError("ERROR: Assignment to unknown variable", assign_name)
+    
+      for compound_lval in compound_lvals:
+        left_expr, left_type = self.gen_expr_ir(compound_lval.name, condition)
+        if isinstance(compound_lval, c_ast.StructRef):
 
-    for compound_lval in compound_lvals:
-      left_expr, left_type = self.gen_expr_ir(compound_lval.name, condition)
+          element_values = []
 
-      # Build up expression
-      if isinstance(compound_lval, c_ast.StructRef):
+          field_indices = left_type.get_field_indices()
+          field_index = field_indices[compound_lval.field.name]
+          element_type = left_type.get_element_type(compound_lval.field.name)
+          r_expr = self.gen_convert_ir(r_expr, r_type, element_type, lvalue_ast)
+          for _, index in field_indices.items():
+            if index == field_index:
+              element_values.append(r_expr)
+            else:
+              element_values.append(
+                  self.fb.add_tuple_index(left_expr, index, loc))
 
-        element_values = []
+          r_expr = self.fb.add_tuple(element_values, loc)
+          r_type = left_type
+        elif isinstance(compound_lval, c_ast.ArrayRef):
+          if not isinstance(compound_lval.subscript, c_ast.Constant):
+            raise NotImplementedError("Variable array indexing")
+          elem_index, elem_type = parse_constant(compound_lval.subscript)
+          if not isinstance(elem_type, IntType):
+            raise ValueError("Array index must be integer")
 
-        field_indices = left_type.get_field_indices()
-        field_index = field_indices[compound_lval.field.name]
-        element_type = left_type.get_element_type(compound_lval.field.name)
-        r_expr = self.gen_convert_ir(r_expr, r_type, element_type, lvalue_ast)
-        for _, index in field_indices.items():
-          if index == field_index:
-            element_values.append(r_expr)
-          else:
-            element_values.append(
-                self.fb.add_tuple_index(left_expr, index, loc))
+          element_values = []
 
-        r_expr = self.fb.add_tuple(element_values, loc)
-        r_type = left_type
-      elif isinstance(compound_lval, c_ast.ArrayRef):
-        if not isinstance(compound_lval.subscript, c_ast.Constant):
-          raise NotImplementedError("Variable array indexing")
-        elem_index, elem_type = parse_constant(compound_lval.subscript)
-        if not isinstance(elem_type, IntType):
-          raise ValueError("Array index must be integer")
-
-        element_values = []
-
-        r_expr = self.gen_convert_ir(r_expr,
+          r_expr = self.gen_convert_ir(r_expr,
                                      r_type,
                                      left_type.get_element_type(),
                                      lvalue_ast)
 
-        for index in range(0, left_type.get_size()):
-          if index == elem_index:
-            element_values.append(r_expr)
-          else:
-            element_values.append(
-                self.fb.add_array_index(
-                    left_expr,
-                    self.fb.add_literal_bits(
-                        bits_mod.UBits(value=index,
-                                       bit_count=elem_type.bit_width),
-                        loc), loc))
+          for index in range(0, left_type.get_size()):
+            if index == elem_index:
+              element_values.append(r_expr)
+            else:
+              element_values.append(
+                  self.fb.add_array_index(
+                      left_expr,
+                      self.fb.add_literal_bits(
+                          bits_mod.UBits(value=index,
+                                         bit_count=elem_type.bit_width),
+                          loc), loc))
 
-        r_expr = self.fb.add_array(
-            element_values,
-            left_type.get_element_type().get_xls_type(self.p), loc)
-        r_type = left_type
-      else:
-        raise NotImplementedError("Unknown compound in assignment",
+          r_expr = self.fb.add_array(
+              element_values,
+              left_type.get_element_type().get_xls_type(self.p), loc)
+          r_type = left_type
+        else:
+          raise NotImplementedError("Unknown compound in assignment",
                                   type(compound_lval))
-
     self.assign(assign_name, r_expr, r_type, condition, loc)
 
   def combine_condition_can_be_none(self, acond, bcond, use_and, loc):

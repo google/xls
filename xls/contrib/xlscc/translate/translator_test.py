@@ -269,22 +269,28 @@ class TranslatorTest(absltest.TestCase):
     self.one_in_one_out(source, 4, 222, 226)
     self.one_in_one_out(source, 6, 222, 6)
   
-  def test_class_declarations(self): 
+  def test_class_methods(self): 
     source = """
     class Rectangle {
       int width;
       int height;
     };
     void Rectangle::set_values(int w, int h) {
-      this.width = w;
-      this.height = h;
+      width = w;
+      height = h;
+    }
+    int Rectangle::get_width(){
+      return width;
+    }
+    int Rectangle::get_height(){
+      return height;
     }
     int test(int a, int b) {
       Rectangle rect;
       rect.width = 0;
       rect.height = 0;
       rect.set_values(a, b);
-      return rect.width + rect.height;
+      return rect.get_width() + rect.get_height();
     }
     """
     f = self.parse_and_get_function(source)
