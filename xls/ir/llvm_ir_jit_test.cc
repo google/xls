@@ -72,7 +72,7 @@ TEST(LlvmIrJitTest, QuickCheckBits) {
   }
   )";
   int64 seed = 0;
-  int64 num_tests = 100;
+  int64 num_tests = 1000;
   XLS_ASSERT_OK_AND_ASSIGN(Function *function,
                            Parser::ParseFunction(ir_text, &package));
   XLS_ASSERT_OK_AND_ASSIGN(auto quickcheck_info,
@@ -95,7 +95,7 @@ TEST(LlvmIrJitTest, QuickCheckArray) {
   }
   )";
   int64 seed = 0;
-  int64 num_tests = 100;
+  int64 num_tests = 1000;
   XLS_ASSERT_OK_AND_ASSIGN(Function *function,
                            Parser::ParseFunction(ir_text, &package));
   XLS_ASSERT_OK_AND_ASSIGN(auto quickcheck_info,
@@ -115,7 +115,7 @@ TEST(LlvmIrJitTest, QuickCheckTuple) {
   }
   )";
   int64 seed = 0;
-  int64 num_tests = 100;
+  int64 num_tests = 1000;
   XLS_ASSERT_OK_AND_ASSIGN(Function *function,
                            Parser::ParseFunction(ir_text, &package));
   XLS_ASSERT_OK_AND_ASSIGN(auto quickcheck_info,
@@ -148,11 +148,13 @@ TEST(LlvmIrJitTest, NumTests) {
 
 // Given a constant seed, we expect the same argsets and results vectors from
 // two runs through the QuickCheck mechanism.
+//
+// We expect this test to fail with a probability of (1/128)^1000.
 TEST(LlvmIrJitTest, Seeding) {
   Package package("sometimes_false");
   std::string ir_text = R"(
-  fn gt_one(x: bits[64]) -> bits[1] {
-    literal.2: bits[64] = literal(value=1)
+  fn gt_one(x: bits[8]) -> bits[1] {
+    literal.2: bits[8] = literal(value=1)
     ret ugt.3: bits[1] = ugt(x, literal.2)
   }
   )";
