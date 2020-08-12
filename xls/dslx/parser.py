@@ -1227,19 +1227,19 @@ class Parser(token_parser.TokenParser):
       bindings: Bindings,
       directive_span: Span) -> ast.QuickCheck:
 
-    num_tests = None
+    test_count = None
     if self._peekt_is(TokenKind.OPAREN):
       # Config specified
       self._dropt()
       config_name = self._popt_or_error(TokenKind.IDENTIFIER)
       self._dropt_or_error(TokenKind.EQUALS)
-      if config_name.value == "num_tests":
+      if config_name.value == "test_count":
         num_token = self._popt_or_error(TokenKind.NUMBER)
-        num_tests = int(num_token.value)
-        if num_tests <= 0:
+        test_count = int(num_token.value)
+        if test_count <= 0:
           raise ParseError(
               num_token.span,
-              f'Number of tests should be > 0, got {num_tests}')
+              f'Number of tests should be > 0, got {test_count}')
       else:
         raise ParseError(
             directive_span,
@@ -1250,7 +1250,7 @@ class Parser(token_parser.TokenParser):
 
     self._dropt_or_error(TokenKind.CBRACK)
     fn = self.parse_function(function_name_to_node, bindings, public=False)
-    return ast.QuickCheck(fn.span, fn, num_tests)
+    return ast.QuickCheck(fn.span, fn, test_count)
 
   def _parse_directive(
       self, function_name_to_node: Dict[Text, ast.Function],

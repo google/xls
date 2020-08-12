@@ -1500,7 +1500,7 @@ class Interpreter(object):
 
     ir_function = self._ir_package.get_function(ir_name)
     argsets, results = llvm_ir_jit.quickcheck_jit(ir_function, seed,
-                                                  quickcheck.num_tests)
+                                                  quickcheck.test_count)
     last_result = results[-1].get_bits().to_uint()
     if not last_result:
       last_argset = argsets[-1]
