@@ -264,12 +264,6 @@ class Function(object):
     self.return_type = translator.parse_type(type_decl)
     # parse parameters
     self.params = collections.OrderedDict()
-    if param_list is not None: 
-      for name, child in param_list.children():
-        assert isinstance(child, (c_ast.Typename, c_ast.Decl)) 
-        if isinstance(child, c_ast.Decl):
-          name = child.name 
-          self.params[name] = translator.parse_type(child.type)
     if '::' in self.name:
       self.is_class_func = True
       full_name = ast.decl.name
@@ -281,6 +275,13 @@ class Function(object):
                             + self.class_name)
       class_struct.is_ref = True 
       self.params["this"] = class_struct
+    if param_list is not None: 
+      for name, child in param_list.children():
+        assert isinstance(child, (c_ast.Typename, c_ast.Decl)) 
+        if isinstance(child, c_ast.Decl):
+          name = child.name 
+          self.params[name] = translator.parse_type(child.type)
+    
     
   def set_fb_expr(self, fb_expr):
     self.fb_expr = fb_expr
@@ -1064,7 +1065,7 @@ class Translator(object):
 
                 for name_and_type in struct_func.params.items():
                   param_types_array.append(name_and_type)
-
+                print("Params are " + str(param_types_array))
                 if isinstance(stmt_ast.args, c_ast.ExprList):
                   if len(stmt_ast.args.exprs)+1 != len(struct_func.params):
                     raise ValueError("Wrong number of args for function call")
