@@ -817,8 +817,6 @@ absl::Status IrTranslator::HandleDynamicBitSlice(
   XLS_ASSIGN_OR_RETURN(Z3_ast bit_width,
                        TranslateLiteralValue(&max_width_type, operand_width));
 
-  // Indicates whether slice is completely out of bounds.
-  Z3_ast out_of_bounds = Z3_mk_bvuge(ctx_, start_ext, bit_width);
   BitsType return_type(dynamic_bit_slice->width());
   XLS_ASSIGN_OR_RETURN(Z3_ast zeros,
                        TranslateLiteralValue(
@@ -827,6 +825,8 @@ absl::Status IrTranslator::HandleDynamicBitSlice(
   Z3_ast shifted_value = Z3_mk_bvlshr(ctx_, value_ext, start_ext);
   Z3_ast truncated_value =
       Z3_mk_extract(ctx_, dynamic_bit_slice->width() - 1, 0, shifted_value);
+  // Indicates whether slice is completely out of bounds.
+  Z3_ast out_of_bounds = Z3_mk_bvuge(ctx_, start_ext, bit_width);
   Z3_ast result = Z3_mk_ite(ctx_, out_of_bounds, zeros, truncated_value);
   NoteTranslation(dynamic_bit_slice, result);
   return seh.status();

@@ -659,18 +659,12 @@ VerilogFunction* DefineDynamicBitSliceFunction(Node* node,
       /*init=*/UninitializedSentinel(), /*is_signed=*/false);
 
   Expression* zeros = file->Literal(0, width);
-  Expression* width_expr = file->Literal(width,
-                                         Bits::MinBitCountUnsigned(width));
   Expression* op_width = file->Literal(slice->operand(0)->BitCountOrDie(),
                                        Bits::MinBitCountUnsigned(
                                            slice->operand(0)->BitCountOrDie()));
   // If start of slice is greater than or equal to operand width, result is
   // completely out of bounds and set to all zeros.
   Expression* out_of_bounds = file->GreaterThanEquals(start, op_width);
-  // If start + width exceeds operand width, need to extend the operand before
-  // slicing.
-  Expression* need_extend = file->GreaterThan(file->Add(start, width_expr),
-                                              op_width);
   // Pad with width zeros
   func->AddStatement<BlockingAssignment>(zexted_operand, file->Concat({zeros, operand}));
   Expression* sliced_operand = file->DynamicSlice(zexted_operand, start, width);
