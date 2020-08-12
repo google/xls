@@ -107,7 +107,6 @@ class StructType(Type):
     self.element_types = {}
     if isinstance(struct, c_ast.Struct):
       self.is_const = False
-      self.as_struct = None
       for decl in struct.decls:
         if isinstance(decl, c_ast.FuncDef):
           func = Function()
@@ -280,16 +279,13 @@ class Function(object):
       if not class_struct:
           raise ValueError("Function call to unknown class " 
                             + self.class_name)
-      class_struct.is_ref = False
+      class_struct.is_ref = True 
       self.params["this"] = class_struct
- 
-
     
   def set_fb_expr(self, fb_expr):
     self.fb_expr = fb_expr
 
   def get_ref_param_names(self):
-
     def ref_name(name):
       param_type = self.params[name]
       return param_type.is_ref and (not param_type.is_const)
@@ -396,12 +392,11 @@ class Translator(object):
   def get_struct_type(self, name):
     
     if name not in self.hls_types_by_name_:
-      return None
+      return None 
+    if isinstance(self.hls_types_by_name_[name], StructType):
+      return self.hls_types_by_name_[name]
     if not self.hls_types_by_name_[name].as_struct:
-      if isinstance(self.hls_types_by_name_[name].struct, c_ast.Struct):
-        return self.hls_types_by_name_[name]
-      else:
-        return None
+      return None
     return self.hls_types_by_name_[name].as_struct
 
   def parse(self, ast):
@@ -482,7 +477,7 @@ class Translator(object):
     if isinstance(ast, c_ast.RefDecl):
       ast = ast.type
       is_ref = True
-
+      
     is_const = ("const" in ast.quals) if isinstance(ast,
                                                     c_ast.TypeDecl) else False
     array_type = None
@@ -506,7 +501,8 @@ class Translator(object):
       return ret_type
     else:
       raise NotImplementedError("Unimplemented construct ", type(ast))
-
+    
+    
     assert ident is not None
     is_unsigned = False
 
@@ -521,7 +517,7 @@ class Translator(object):
                                   ident.names[0])
     else:
       raise NotImplementedError("Unsupported qualifiers for type", ident.names)
-
+    
     m_unsigned = re.search("uai([0-9]+)", name)
     m_signed = re.search("sai([0-9]+)", name)
 
@@ -545,16 +541,16 @@ class Translator(object):
       ptype = IntType(int(m_signed.group(1)), True, False)
     elif struct_type is not None:
       assert isinstance(struct_type, (StructType, hls_types_pb2.HLSStructType))
-      if isinstance(struct_type, hls_types_pb2.HLSStructType):
-        ptype = StructType(name, struct_type)
+      if isinstance(struct_type, StructType):
+        ptype = copy.copy(struct_type)
       else:
-        ptype = struct_type
+        ptype = StructType(name, struct_type) 
     else:
       raise NotImplementedError("Unsupported type:", ast_in)
-
+    
     ptype.is_ref = is_ref
     ptype.is_const = is_const
-
+    
     return ptype
 
   def get_global_constant(self, name, loc):
@@ -900,10 +896,10 @@ class Translator(object):
             raise ValueError("Wrong number of args for function call")
 
           param_types_array = []
-
+          
           for name_and_type in func.params.items():
             param_types_array.append(name_and_type)
-
+      
           for arg_idx in range(0, len(stmt_ast.args.exprs)):
             stmt = stmt_ast.args.exprs[arg_idx]
             arg_expr, arg_expr_type = self.gen_expr_ir(stmt, condition)
@@ -913,7 +909,7 @@ class Translator(object):
                                            arg_type,
                                            stmt)
             args_bvalues.append(conv_arg)
-
+          
           invoke_returned = self.fb.add_invoke(args_bvalues, func.fb_expr, loc)
 
           # Handle references
@@ -925,7 +921,6 @@ class Translator(object):
 
           for name in func.params:
             params_by_index.append(func.params[name])
-
           if func.count_returns() == 1:
             unpacked_returns.append(invoke_returned)
             if not void_return:
@@ -933,7 +928,7 @@ class Translator(object):
             else:
               ref_idx = func.get_ref_param_indices()[0]
               unpacked_return_types.append(params_by_index[ref_idx])
-
+           
           elif func.count_returns() > 1:
             for idx in range(0, func.count_returns()):
               unpacked_returns.append(
@@ -1103,9 +1098,9 @@ class Translator(object):
                     unpacked_return_types.append(params_by_index[ref_idx])
 
                 elif struct_func.count_returns() > 1:
-                  for idx in range(0, struct.count_returns()):
+                  for idx in range(0, struct_func.count_returns()):
                     unpacked_returns.append(
-                        self.fb.add_tuple_index(invoke_return, idx, loc))
+                        self.fb.add_tuple_index(invoke_returned, idx, loc))
                     if idx == 0 and not void_return:
                       unpacked_return_types.append(struct_func.return_type)
                     else:
@@ -1118,15 +1113,21 @@ class Translator(object):
                   del unpacked_return_types[0]
 
                 ref_params = struct_func.get_ref_param_indices()
-                for ref_idx in range(len(unpacked_returns)):
-                  param_idx = ref_params[ref_idx]
-                  expr = stmt_ast.args.exprs[param_idx]
+                #assign implicit ref to struct and del
+                struct.fb_expr = unpacked_returns[0]
+                del unpacked_returns[0]
+                del unpacked_return_types[0]
+                
+                if stmt_ast.args:
+                  for ref_idx in range(len(unpacked_returns)):
+                    param_idx = ref_params[ref_idx]
+                    expr = stmt_ast.args.exprs[param_idx]
 
-                  self._generic_assign(expr, 
-                                       unpacked_returns[ref_idx],
-                                       unpacked_return_types[ref_idx],
-                                       condition,
-                                       translate_loc(stmt_ast))
+                    self._generic_assign(expr, 
+                                         unpacked_returns[ref_idx],
+                                         unpacked_return_types[ref_idx],
+                                         condition,
+                                         translate_loc(stmt_ast))
                 
                 return ret_val, struct_func.return_type
                                        
@@ -1229,29 +1230,23 @@ class Translator(object):
         self.cvars[p_name] = CVar(
             self.fb.add_param(p_name, ptype.get_xls_type(p), func.loc), ptype)
         self.lvalues[p_name] = not ptype.is_const
-        #if (p_name == 'this'):
-        #  print("Generating default this ")
-        #  self.cvars[p_name].fb_expr = self.gen_default_init(ptype, func.loc)
-
-
 
       # Add local vars for class functions
       local_cvars = None
-      if func.is_class_func:
-        func_class = self.hls_types_by_name_[func.class_name]
-        cvars = func_class.get_struct_members()
-        for var in cvars:
-          self.lvalues[var] = not cvars[var].ctype.is_const
-      if not func.body_ast: 
-        continue
+      #if func.is_class_func:
+      #  func_class = self.hls_types_by_name_[func.class_name]
+      #  cvars = func_class.get_struct_members()
+      #  for var in cvars:
+      #    self.lvalues[var] = not cvars[var].ctype.is_const
+      #if not func.body_ast: 
+      #  continue
 
       # Function body
-
+      
       ret_vals = self.gen_ir_block(func.body_ast.children(), None, local_cvars)
-
       # Add in reference params
       reference_param_names = func.get_ref_param_names()
-
+      
       returns = []
 
       # Combine returns
@@ -1492,7 +1487,6 @@ class Translator(object):
                            "' already declared in this scope")
         self.cvars[name] = cvar
     ret_vals = []
-    
     next_line_pragma = None
     for _, stmt in stmt_list:
       loc = translate_loc(stmt)
@@ -1502,9 +1496,10 @@ class Translator(object):
         ret_val, ret_type = self.gen_expr_ir(stmt.expr, condition)
         ret_vals.append(RetVal(condition, ret_val, ret_type))
         break  # Ignore the rest of the block
-      elif isinstance(stmt, c_ast.Decl):
+      elif isinstance(stmt, c_ast.Decl): 
         if stmt.name is None:
           stmt.name = stmt.type.name + "decl"
+
         if stmt.name in self.cvars:
           raise ValueError("Variable '", stmt.name,
                            "' already declared in this scope")
@@ -1539,7 +1534,7 @@ class Translator(object):
           self.cvars[stmt.name].fb_expr = self.gen_default_init(decl_type, stmt)
       elif isinstance(stmt, c_ast.Assignment) or isinstance(
           stmt, c_ast.FuncCall):
-        if isinstance(stmt, c_ast.FuncCall):
+        if isinstance(stmt, c_ast.FuncCall): 
           self.gen_expr_ir(stmt, condition)
         else:
           synth_op = None

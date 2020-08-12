@@ -269,31 +269,30 @@ class TranslatorTest(absltest.TestCase):
     self.one_in_one_out(source, 4, 222, 226)
     self.one_in_one_out(source, 6, 222, 6)
   
-  def test_class_declarations(self):
+  def test_class_declarations(self): 
     source = """
     class Rectangle {
       int width;
       int height;
-      int get_width();
     };
-    int Rectangle::get_width() {
-      return this.width;
+    void Rectangle::set_width(int w) {
+      this.width = w;
     }
     int test(int a, int b) {
       Rectangle rect;
-      rect.width = a;
+      rect.width = 0;
       rect.height = b;
-      int ret_width = rect.get_width();
-      return ret_width;
+      rect.set_width(a);
+      return rect.width;
     }
     """
     f = self.parse_and_get_function(source)
-    aval = ir_value.Value(bits_mod.SBits(value=int(4), bit_count=32))
+    aval = ir_value.Value(bits_mod.SBits(value=int(6), bit_count=32))
     bval = ir_value.Value(bits_mod.SBits(value=int(3), bit_count=32))
     args = dict(a=aval, b=bval)
     result = ir_interpreter.run_function_kwargs(f, args)
     result_int = int(ctypes.c_int32(int(str(result))).value)
-    self.assertEqual(4, result_int)
+    self.assertEqual(6, result_int)
 
   def test_simple_unrolled_loop(self):
     source = """
