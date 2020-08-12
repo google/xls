@@ -90,23 +90,22 @@ class TypecheckTest(absltest.TestCase):
     self._typecheck('fn f(x: u32) -> u32 { -x }')
 
   def test_typecheck_let(self):
-    self._typecheck('fn f() -> u32 { let x: u32 = u32:2 in x }')
+    self._typecheck('fn f() -> u32 { let x: u32 = u32:2; x }')
     self._typecheck(
         """fn f() -> u32 {
-          let x: u32 = u32:2 in
-          let y: bits[4] = bits[4]:3 in
+          let x: u32 = u32:2;
+          let y: bits[4] = bits[4]:3;
           y
         }
         """,
         error='uN[4] vs uN[32]')
     self._typecheck(
-        'fn f() -> u32 { let (x, y): (u32, bits[4]) = (u32:2, bits[4]:3) in x }'
-    )
+        'fn f() -> u32 { let (x, y): (u32, bits[4]) = (u32:2, bits[4]:3); x }')
 
   def test_typecheck_let_bad_rhs(self):
     self._typecheck(
         """fn f() -> bits[2] {
-          let (x, (y, (z,))): (u32, (bits[4], (bits[2],))) = (u32:2, bits[4]:3) in
+          let (x, (y, (z,))): (u32, (bits[4], (bits[2],))) = (u32:2, bits[4]:3);
           z
         }
         """,
@@ -186,7 +185,7 @@ class TypecheckTest(absltest.TestCase):
         """
     fn [Y: u32] h(y: bits[Y]) -> bits[Y] { h(y) }
     fn g() -> u32[3] {
-        let x0 = u32[3]:[0, 1, 2] in
+        let x0 = u32[3]:[0, 1, 2];
         map(x0, h)
     }
     """,
@@ -205,7 +204,7 @@ class TypecheckTest(absltest.TestCase):
     self._typecheck(
         """\
 fn f() -> u32 {
-  let (a, b, c): (u32, u32) = (u32:1, u32:2, u32:3) in
+  let (a, b, c): (u32, u32) = (u32:1, u32:2, u32:3);
   a
 }
 """,
@@ -231,7 +230,7 @@ fn f() -> u32 {
     self._typecheck("""\
 fn f() -> u32 {
   for (i, accum): (u32, u32) in range(u32:0, u32:3) {
-    let new_accum: u32 = accum + i in
+    let new_accum: u32 = accum + i;
     new_accum
   }(u32:0)
 }
@@ -335,7 +334,7 @@ fn f(x: u32) -> (u32, u8) {
   def test_parametric_indirect_instantiation_vs_body_ok(self):
     self._typecheck("""
     fn [X: u32, R: u32 = X + X] foo(x: bits[X]) -> bits[R] {
-      let a = bits[R]: 5 in
+      let a = bits[R]: 5;
       x++x + a
     }
     fn [Y: u32, T: u32 = Y + Y] fazz(y: bits[Y]) -> bits[T] { foo(y) }
@@ -346,7 +345,7 @@ fn f(x: u32) -> (u32, u8) {
     self._typecheck(
         """
     fn [X: u32, D: u32 = X + X] foo(x: bits[X]) -> bits[X] {
-      let a = bits[D]: 5 in
+      let a = bits[D]: 5;
       x + a
     }
     fn [Y: u32] fazz(y: bits[Y]) -> bits[Y] { foo(y) }
@@ -387,7 +386,7 @@ fn f(x: u32) -> (u32, u8) {
   def test_parametric_derived_instantiation_vs_body_ok(self):
     self._typecheck("""
     fn [W: u32, Z: u32 = W + W] foo(w: bits[W]) -> bits[1] {
-        let val: bits[Z] = w++w + bits[Z]: 5 in
+        let val: bits[Z] = w++w + bits[Z]: 5;
         and_reduce(val)
     }
     fn bar() -> bits[1] { foo(u5: 5) + foo(u10: 10) }
@@ -397,7 +396,7 @@ fn f(x: u32) -> (u32, u8) {
     self._typecheck(
         """
     fn [W: u32, Z: u32 = W + W] foo(w: bits[W]) -> bits[1] {
-        let val: bits[Z] = w + w in
+        let val: bits[Z] = w + w;
         and_reduce(val)
     }
     fn bar() -> bits[1] { foo(u5: 5) }
@@ -431,7 +430,7 @@ fn f(x: u32) -> (u32, u8) {
     self._typecheck(
         """
     fn [X: u32] foo(x: bits[X]) -> u1 {
-        let non_polymorphic  =  x + u5: 1 in
+        let non_polymorphic  =  x + u5: 1;
         u1: 0
     }
     fn bar() -> bits[1] {
@@ -460,8 +459,8 @@ fn f(x: u32) -> (u32, u8) {
   }
 
   fn caller() {
-      let x1: u2 = get_middle_bits(u4:15) in
-      let x2: u4 = get_middle_bits(u6:63) in
+      let x1: u2 = get_middle_bits(u4:15);
+      let x2: u4 = get_middle_bits(u6:63);
       ()
   }""")
 
@@ -471,9 +470,9 @@ fn f(x: u32) -> (u32, u8) {
   fn [N: u32] add_one(x: bits[N]) -> bits[N] { x + bits[5]:1 }
 
   fn main() {
-      let arr = [u5:1, u5:2, u5:3] in
-      let mapped_arr = map(arr, add_one) in
-      let type_error = add_one(u6:1) in
+      let arr = [u5:1, u5:2, u5:3];
+      let mapped_arr = map(arr, add_one);
+      let type_error = add_one(u6:1);
       ()
   }""",
         error='Types are not compatible: uN[6] vs uN[5]')
@@ -482,7 +481,7 @@ fn f(x: u32) -> (u32, u8) {
     self._typecheck(
         """
     fn f() -> u32 {
-      let x: u32 = bits[4]:7 in
+      let x: u32 = bits[4]:7;
       x
     }
     """,
@@ -491,7 +490,7 @@ fn f(x: u32) -> (u32, u8) {
   def test_update_builtin(self):
     self._typecheck("""\
 fn f() -> u32[3] {
-  let x: u32[3] = u32[3]:[0, 1, 2] in
+  let x: u32[3] = u32[3]:[0, 1, 2];
   update(x, u32:1, u32:3)
 }
 """)
@@ -499,7 +498,7 @@ fn f() -> u32[3] {
   def test_slice_builtin(self):
     self._typecheck("""\
 fn f() -> u32[3] {
-  let x: u32[2] = u32[2]:[0, 1] in
+  let x: u32[2] = u32[2]:[0, 1];
   slice(x, u32:0, u32[3]:[0, 0, 0])
 }
 """)
@@ -582,7 +581,7 @@ fn f(x: u32) -> (u1, u32) {
     self._typecheck(
         textwrap.dedent("""\
         fn f() -> u32 {
-          let x = u32:2 in
+          let x = u32:2;
           x+x
         }"""))
 
@@ -596,7 +595,7 @@ fn f(x: u32) -> (u1, u32) {
         """
 type Foo = (u8, u32);
 fn f() -> Foo {
-  let xs = Foo[2]:[(u8:0, u32:1), u32:2] in
+  let xs = Foo[2]:[(u8:0, u32:1), u32:2];
   xs[u32:1]
 }""",
         error='vs uN[32]: Array member did not have same type as other members.'
@@ -605,8 +604,8 @@ fn f() -> Foo {
   def test_array_of_consts(self):
     self._typecheck("""
 fn f() -> u4 {
-  let a: u4 = u4:1 in
-  let my_array = [a] in
+  let a: u4 = u4:1;
+  let my_array = [a];
   a
 }
 """)
@@ -614,9 +613,9 @@ fn f() -> u4 {
   def test_one_hot_sel_of_signed(self):
     self._typecheck("""
 fn f() -> s4 {
-  let a: s4 = s4:1 in
-  let b: s4 = s4:2 in
-  let s: u2 = u2:0b01 in
+  let a: s4 = s4:1;
+  let b: s4 = s4:2;
+  let s: u2 = u2:0b01;
   one_hot_sel(s, [a, b])
 }
 """)
@@ -708,7 +707,7 @@ fn f() -> Foo {
         """
         fn f(x: (s8, u32)) -> (s8, u32) { x }
         fn g() -> (s8, u32) {
-          let p = Point { x: s8:255, y: u32:1024 } in
+          let p = Point { x: s8:255, y: u32:1024 };
           f(p)
         }
         """,
@@ -739,7 +738,7 @@ fn f() -> Foo {
         }
         fn f(x: Point) -> Point { x }
         fn g() -> Point {
-          let shp = OtherPoint { x: s8:255, y: u32:1024 } in
+          let shp = OtherPoint { x: s8:255, y: u32:1024 };
           f(shp)
         }
         """,
@@ -784,6 +783,27 @@ fn f() -> Foo {
         error_type=TypeInferenceError,
         error='Annotated type for array literal must be an array type; got sbits s32'
     )
+
+  def test_bad_quickcheck_function_ret(self):
+    program = """
+    #![quickcheck]
+    fn f() -> u5 {
+      u5:1
+    }
+    """
+    self._typecheck(program, error='must return a bool')
+
+  def test_bad_quickcheck_function_parametrics(self):
+    program = """
+    #![quickcheck]
+    fn [N: u32] f() -> bool {
+      true
+    }
+    """
+    self._typecheck(
+        program,
+        error_type=span.PositionalError,
+        error='Quickchecking parametric functions is unsupported')
 
 
 if __name__ == '__main__':

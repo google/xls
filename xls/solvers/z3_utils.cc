@@ -24,6 +24,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/type.h"
 #include "../z3/src/api/z3_api.h"
 #include "re2/re2.h"
 
@@ -165,6 +166,12 @@ Z3_sort TypeToSort(Z3_context ctx, const Type& type) {
       Z3_sort index_sort =
           Z3_mk_bv_sort(ctx, Bits::MinBitCountUnsigned(array_type->size()));
       return Z3_mk_array_sort(ctx, index_sort, element_sort);
+    }
+    case TypeKind::kToken: {
+      // Token types don't contain any data. A 0-field tuple is a convenient
+      // way to let (most of) the rest of the z3 infrastructure treat
+      // token like a normal data-type.
+      return CreateTupleSort(ctx, TupleType(/*members=*/{}));
     }
     default:
       XLS_LOG(FATAL) << "Unsupported type kind: "

@@ -1004,6 +1004,7 @@ cc_test(
     deps = [
         ":bits",
         ":bits_ops",
+        ":value_helpers",
         ":value_view",
         "@com_google_absl//absl/status",
         "//xls/common:bits_util",

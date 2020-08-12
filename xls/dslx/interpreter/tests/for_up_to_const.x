@@ -12,12 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn main(x: u32, y: u32) -> u32 {
-  x-y
+// Contains a for loop that iterates up to a CONST value.
+
+const FOO = u32:3;
+
+fn f() -> u32 {
+  for (i, accum): (u32, u32) in range(u32:0, FOO) {
+    accum+i
+  }(u32:0)
 }
 
-test subtract_to_negative {
-  let x: u32 = u32:5;
-  let y: u32 = u32:6;
-  assert_eq(u32:-1, main(x, y))
+test f {
+  assert_eq(f(), u32:3)
 }

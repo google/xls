@@ -251,7 +251,7 @@ class PackedBitsView {
   // buffer_offset is the number of bits into "buffer" at which the actual
   // element data begins. This value must be [0-7] (if >= 8, then "buffer"
   // should be incremented).
-  explicit PackedBitsView(uint8* buffer, int buffer_offset)
+  PackedBitsView(uint8* buffer, int buffer_offset)
       : buffer_(buffer), buffer_offset_(buffer_offset) {
     XLS_DCHECK(buffer_offset >= 0 && buffer_offset <= 7);
   }
@@ -337,6 +337,8 @@ class PackedBitsView {
 template <typename ElementT, int64 kNumElements>
 class PackedArrayView {
  public:
+  static constexpr int64 kBitCount = ElementT::kBitCount * kNumElements;
+
   PackedArrayView(uint8* buffer, int64 buffer_offset)
       : buffer_(buffer), buffer_offset_(buffer_offset) {}
 
@@ -352,6 +354,85 @@ class PackedArrayView {
  private:
   uint8* buffer_;
   int64 buffer_offset_;
+};
+
+// Specialization of TupleView for packed elements, similar to PackedArrayView
+// above.
+template <typename... Types>
+class PackedTupleView {
+ public:
+  // buffer_offset is the number of bits into "buffer" at which the actual
+  // element data begins. This value must be [0-7] (if >= 8, then "buffer"
+  // should be incremented).
+  PackedTupleView(uint8* buffer, int64 buffer_offset)
+      : buffer_(buffer), buffer_offset_(buffer_offset) {}
+
+  // Recursive templates - determine the size (in bits) of this packed tuple.
+  template <typename FrontT, typename... ElemTypes>
+  struct TupleBitSizer {
+    static constexpr int64 value =
+        FrontT::kBitCount + TupleBitSizer<ElemTypes...>::value;
+  };
+
+  // Base case!
+  template <typename LastT>
+  struct TupleBitSizer<LastT> {
+    static constexpr int64 value = LastT::kBitCount;
+  };
+
+  static constexpr int64 kBitCount = TupleBitSizer<Types...>::value;
+
+ private:
+  // Forward declaration of the element-type-accessing template. The definition
+  // is way below for readability.
+  template <int kElementIndex, typename... Rest>
+  struct element_accessor;
+
+ public:
+  // Gets the N'th element in the tuple.
+  template <int kElementIndex>
+  typename element_accessor<kElementIndex, Types...>::type Get() {
+    static_assert(kElementIndex < sizeof...(Types));
+
+    constexpr int64 kStartBitOffset =
+        GetStartBitOffset<kElementIndex, Types...>(0);
+    return typename element_accessor<kElementIndex, Types...>::type(
+        buffer_ + (kStartBitOffset / kCharBit),
+        (buffer_offset_ + kStartBitOffset % kCharBit));
+  }
+
+ private:
+  uint8* buffer_;
+  int64 buffer_offset_;
+
+  // ---- Element offset calculation.
+  template <int kElementIndex, typename FrontT, typename... Rest>
+  static constexpr int64 GetStartBitOffset(
+      int64 offset,
+      typename std::enable_if<(kElementIndex > 0)>::type* dummy = nullptr) {
+    return GetStartBitOffset<kElementIndex - 1, Rest...>(offset +
+                                                         FrontT::kBitCount);
+  }
+
+  template <int kElementIndex, typename FrontT, typename... Rest>
+  static constexpr int64 GetStartBitOffset(
+      int64 offset,
+      typename std::enable_if<(kElementIndex == 0)>::type* dummy = nullptr) {
+    return offset;
+  }
+
+  // ---- Element type access.
+  // Metaprogramming horrors to get the type of the N'th element.
+  // Recursive case - keep drilling down until the element of interst.
+  template <int kElementIndex, typename FrontT, typename... Rest>
+  struct element_accessor<kElementIndex, FrontT, Rest...>
+      : element_accessor<kElementIndex - 1, Rest...> {};
+
+  // Base case - we've arrived at the type of interest.
+  template <typename FrontT, typename... Rest>
+  struct element_accessor<0, FrontT, Rest...> {
+    typedef FrontT type;
+  };
 };
 
 }  // namespace xls

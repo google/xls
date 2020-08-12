@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <random>
 
 #include "absl/flags/flag.h"
 #include "absl/memory/memory.h"
@@ -114,7 +115,7 @@ class BuilderVisitor : public DfsVisitorWithDefault {
   absl::Status HandleAfterAll(AfterAll* after_all) override {
     // AfterAll is only meaningful to the compiler and does not actually perform
     // any computation. Furter, token types don't contain any data. A 0-element
-    // array is convenient and low-overhead way to let the rest of the llvm
+    // array is a convenient and low-overhead way to let the rest of the llvm
     // infrastructure treat token like a normal data-type.
     return StoreResult(
         after_all,
@@ -1329,6 +1330,29 @@ xabsl::StatusOr<Value> CreateAndRun(Function* xls_function,
   XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(xls_function));
   XLS_ASSIGN_OR_RETURN(auto result, jit->Run(args));
   return result;
+}
+
+xabsl::StatusOr<std::pair<std::vector<std::vector<Value>>, std::vector<Value>>>
+CreateAndQuickCheck(Function* xls_function) {
+  XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(xls_function));
+  std::vector<Value> results;
+  std::vector<std::vector<Value>> argsets;
+  auto seed = time(nullptr);
+  std::minstd_rand rng_engine(seed);
+  int64 kNumTests = 1000;
+
+  for (int i = 0; i < kNumTests; i++) {
+    argsets.push_back(RandomFunctionArguments(xls_function, &rng_engine));
+    XLS_ASSIGN_OR_RETURN(auto result, jit->Run(argsets[i]));
+    results.push_back(result);
+    if (result.IsAllZeros()) {
+      // We were able to falsify the xls_function (predicate), bail out early
+      // and present this evidence.
+      break;
+    }
+  }
+
+  return std::make_pair(argsets, results);
 }
 
 }  // namespace xls

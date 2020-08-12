@@ -1,7 +1,7 @@
 type x7 = uN[0x1];fn main(x0: s23) -> uN[5] {
-    let x1: s23 = !(x0) in
-    let x2: bool = (bool:0x1) in
-    let x3: uN[5] = ((((x2) ++ (x2)) ++ (x2)) ++ (x2)) ++ (x2) in
+    let x1: s23 = !(x0);
+    let x2: bool = (bool:0x1);
+    let x3: uN[5] = ((((x2) ++ (x2)) ++ (x2)) ++ (x2)) ++ (x2);
     let x4: uN[5] = for (i, x): (u4, uN[5]) in range((u4:0x0), (u4:0x3)) {
     x
   }(x3)
@@ -18,10 +18,10 @@ type x7 = uN[0x1];fn main(x0: s23) -> uN[5] {
     let x15: s23 = for (i, x): (u4, s23) in range((u4:0x0), (u4:0x4)) {
     x
   }(x0)
-   in
+  ;
     let x16: bool = for (i, x): (u4, bool) in range((u4:0x0), (u4:0x0)) {
     x
   }(x2)
-   in
+  ;
     x3
 }

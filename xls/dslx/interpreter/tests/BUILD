@@ -310,3 +310,9 @@ dslx_test(
     name = "array_concat",
     srcs = ["array_concat.x"],
 )
+
+dslx_test(
+    name = "for_up_to_const",
+    srcs = ["for_up_to_const.x"],
+    entry = "__for_up_to_const__f",
+)

@@ -1,3 +1,17 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // options: {"input_is_dslx": true, "convert_to_ir": true, "optimize_ir": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=3"], "simulate": false, "simulator": null}
 // args: bits[5]:0xf; bits[18]:0x150fd; bits[10]:0x28b; bits[30]:0x3cff79e0; bits[9]:0x1c4; bits[17]:0x116fc; bits[29]:0x762b910; bits[27]:0x63c9150; bits[30]:0x2148877a; bits[20]:0x2f476; bits[22]:0x54be6; bits[7]:0xf
 // args: bits[5]:0xa; bits[18]:0x3d907; bits[10]:0x3fc; bits[30]:0x2aaaaaaa; bits[9]:0x53; bits[17]:0x1d962; bits[29]:0x1cbe5c98; bits[27]:0x4170a47; bits[30]:0x12475f3; bits[20]:0x1; bits[22]:0x309ceb; bits[7]:0xe
@@ -64,13 +78,13 @@
 // args: bits[5]:0xf; bits[18]:0x800; bits[10]:0x142; bits[30]:0x335f2233; bits[9]:0x157; bits[17]:0xd82e; bits[29]:0x10ce5927; bits[27]:0x74a3959; bits[30]:0x24d98014; bits[20]:0xc1d9f; bits[22]:0x18f42b; bits[7]:0xe
 // args: bits[5]:0x11; bits[18]:0x1ad6e; bits[10]:0x3af; bits[30]:0x2e0589ef; bits[9]:0x96; bits[17]:0x126e5; bits[29]:0x80; bits[27]:0x414416f; bits[30]:0x330602b4; bits[20]:0x14c0d; bits[22]:0x231493; bits[7]:0x28
 fn main(x0: u5, x1: u18, x2: u10, x3: u30, x4: u9, x5: u17, x6: u29, x7: u27, x8: u30, x9: u20, x10: u22, x11: u7) -> u1 {
-    let x12: u30 = (x3) - (x3) in
-    let x13: u30 = -(x3) in
-    let x14: u30 = -(x12) in
-    let x15: u27 = -(x7) in
-    let x16: u5 = (x0) & ((x6) as u5) in
-    let x17: u1 = (u1:0x1) in
-    let x18: u1 = -(x17) in
+    let x12: u30 = (x3) - (x3);
+    let x13: u30 = -(x3);
+    let x14: u30 = -(x12);
+    let x15: u27 = -(x7);
+    let x16: u5 = (x0) & ((x6) as u5);
+    let x17: u1 = (u1:0x1);
+    let x18: u1 = -(x17);
     x18
 }
 

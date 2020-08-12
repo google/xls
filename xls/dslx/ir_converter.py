@@ -199,6 +199,7 @@ class _IrConverterFb(ast.AstVisitor):
 
   def _def_alias(self, from_: ast.AstNode, to: ast.AstNode) -> BValue:
     self.node_to_ir[to] = self.node_to_ir[from_]
+    logging.vlog(4, 'Alias node "%s" to be same as %s', to, from_)
     return self._use(to)
 
   def _def_const(self, node: ast.AstNode, value: int, bit_count: int) -> BValue:

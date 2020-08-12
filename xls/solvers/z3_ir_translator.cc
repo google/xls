@@ -604,6 +604,17 @@ Z3_ast IrTranslator::CreateArray(ArrayType* type, absl::Span<Z3_ast> elements) {
   return z3_array;
 }
 
+absl::Status IrTranslator::HandleAfterAll(AfterAll* after_all) {
+  ScopedErrorHandler seh(ctx_);
+  // Token types don't contain any data. A 0-field tuple is a convenient
+  // way to let (most of) the rest of the z3 infrastructure treat a
+  // token like a normal data-type.
+  NoteTranslation(after_all,
+                  CreateTuple(TypeToSort(ctx_, *after_all->GetType()),
+                              /*elements=*/{}));
+  return seh.status();
+}
+
 absl::Status IrTranslator::HandleArray(Array* array) {
   ScopedErrorHandler seh(ctx_);
   std::vector<Z3_ast> elements;
@@ -1151,6 +1162,13 @@ xabsl::StatusOr<bool> TryProve(Function* f, Node* subject, Predicate p,
   XLS_ASSIGN_OR_RETURN(auto translator, IrTranslator::CreateAndTranslate(f));
   translator->SetTimeout(timeout);
   Z3_ast value = translator->GetTranslation(subject);
+
+  // All token types are equal.
+  if (subject->GetType()->IsToken() &&
+      p.kind() == PredicateKind::kEqualToNode &&
+      p.node()->GetType()->IsToken()) {
+    return true;
+  }
   if (translator->GetValueKind(value) != Z3_BV_SORT) {
     return absl::InvalidArgumentError(
         "Cannot prove properties of non-bits-typed node: " +

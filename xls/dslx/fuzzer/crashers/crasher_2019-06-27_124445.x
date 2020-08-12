@@ -1,3 +1,17 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // options: {"input_is_dslx": true, "convert_to_ir": true, "optimize_ir": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=3"], "simulate": false, "simulator": null}
 // args: bits[22]:0x389849; bits[4]:0xe
 // args: bits[22]:0x4cc3a; bits[4]:0x2
@@ -512,14 +526,14 @@
 // args: bits[22]:0x102e10; bits[4]:0x1
 // args: bits[22]:0x1a7aca; bits[4]:0xc
 fn main(x1348850: u22, x1348851: u4) -> (u20, u20, u4, u4, u20) {
-    let x1348852: u4 = (u4:0x1) in
-    let x1348853: u20 = (u20:0x40) in
-    let x1348854: u4 = !(x1348852) in
-    let x1348855: u22 = (x1348850) | ((x1348853 as u22)) in
-    let x1348856: u22 = !(x1348850) in
-    let x1348857: u20 = (x1348853) + ((x1348856 as u20)) in
-    let x1348858: u20 = (x1348857) - ((x1348854 as u20)) in
-    let x1348859: u20 = ((x1348855 as u20)) >>> (x1348853) in
+    let x1348852: u4 = (u4:0x1);
+    let x1348853: u20 = (u20:0x40);
+    let x1348854: u4 = !(x1348852);
+    let x1348855: u22 = (x1348850) | ((x1348853 as u22));
+    let x1348856: u22 = !(x1348850);
+    let x1348857: u20 = (x1348853) + ((x1348856 as u20));
+    let x1348858: u20 = (x1348857) - ((x1348854 as u20));
+    let x1348859: u20 = ((x1348855 as u20)) >>> (x1348853);
     (x1348858, x1348858, x1348852, x1348851, x1348857)
 }
 

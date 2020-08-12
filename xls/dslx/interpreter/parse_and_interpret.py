@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,8 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# Lint as: python3
 
 """Helpers that parse-then-interpret some text with error handler."""
 
@@ -90,14 +90,26 @@ def parse_and_test(program: Text,
     for test_name in module.get_test_names():
       if not _matches(test_name, test_filter):
         continue
-      print('[ RUN      ]', test_name, file=sys.stderr)
+      print('[ RUN UNITTEST     ]', test_name, file=sys.stderr)
       interpreter.run_test(test_name)
-      print('[       OK ]', test_name, file=sys.stderr)
+      print('[               OK ]', test_name, file=sys.stderr)
+
+    if ir_package:
+      for quickcheck in module.get_quickchecks():
+        test_name = quickcheck.f.name.identifier
+        print('[ RUN QUICKCHECK   ]', test_name, file=sys.stderr)
+        interpreter.run_quickcheck(quickcheck)
+        print('[               OK ]', test_name, file=sys.stderr)
+
   except PositionalError as e:
     did_fail = True
     parser_helpers.pprint_positional_error(e)
     if test_name:
-      print('[   FAILED ]', test_name, e.__class__.__name__, file=sys.stderr)
+      print(
+          '[           FAILED ]',
+          test_name,
+          e.__class__.__name__,
+          file=sys.stderr)
     if raise_on_error:
       raise
   return did_fail

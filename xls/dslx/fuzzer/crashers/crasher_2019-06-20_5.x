@@ -1,3 +1,17 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // options: {"input_is_dslx": true, "convert_to_ir": true, "optimize_ir": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=3"], "simulate": false, "simulator": null}
 // args: bits[5]:0x10
 // args: bits[5]:0x2
@@ -64,12 +78,12 @@
 // args: bits[5]:0x0
 // args: bits[5]:0x1
 fn main(x65: u5) -> (u27, u5, u27, bool, u5) {
-    let x66: u27 = (u27:0x200000) in
-    let x67: u27 = (x66) * (x66) in
-    let x68: u27 = (x66) * (x67) in
-    let x69: u5 = (x65) >> (x65) in
-    let x70: bool = (x68) <= (x67) in
-    let x71: bool = (x70) - (x70) in
+    let x66: u27 = (u27:0x200000);
+    let x67: u27 = (x66) * (x66);
+    let x68: u27 = (x66) * (x67);
+    let x69: u5 = (x65) >> (x65);
+    let x70: bool = (x68) <= (x67);
+    let x71: bool = (x70) - (x70);
     (x68, x65, x67, x70, x69)
 }
 
