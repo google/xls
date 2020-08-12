@@ -34,7 +34,10 @@ py_library(
     name = "bits",
     srcs = ["bits.py"],
     srcs_version = "PY3",
-    deps = ["//xls/dslx:bit_helpers"],
+    deps = [
+        "//xls/dslx:bit_helpers",
+        "@com_google_absl_py//absl/logging",
+    ],
 )
 
 py_test(

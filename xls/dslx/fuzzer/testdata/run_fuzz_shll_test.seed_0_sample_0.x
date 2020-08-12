@@ -19,7 +19,7 @@ fn main(x0: u48, x1: s18, x2: u10, x3: u63, x4: u44, x5: u20, x6: u61) -> bool {
     let x21: u33 = (u33:0x100000000);
     let x22: uN[2] = one_hot_sel(x17, [x15]);
     let x23: u1 = (x14)[(u32:0x0)];
-    let x24: uN[1] = (x9)[0x0+:uN[1]];
+    let x24: uN[1] = (x9)[-0x2:];
     let x25: (u1,) = (x13,);
     let x26: s22 = (s22:0x20);
     x17

@@ -136,6 +136,58 @@ fn f(x: bits[4], y: bits[4], z: bits[4]) -> bits[1] {
   EXPECT_TRUE(proven);
 }
 
+TEST(Z3IrTranslatorTest, InBoundsDynamicSlice) {
+  const std::string program = R"(
+fn f(p: bits[4]) -> bits[1] {
+  start: bits[4] = literal(value=1)
+  dynamic_slice: bits[3] = dynamic_bit_slice(p, start, width=3)
+  slice: bits[3] = bit_slice(p, start=1, width=3)
+  ret result: bits[1] = eq(slice, dynamic_slice)
+}
+)";
+  Package p("test");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, Parser::ParseFunction(program, &p));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven, TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+                            absl::Seconds(1)));
+  EXPECT_TRUE(proven);
+}
+
+TEST(Z3IrTranslatorTest, PartialOutOfBoundsDynamicSlice) {
+  const std::string program = R"(
+fn f(p: bits[4]) -> bits[1] {
+  start: bits[4] = literal(value=2)
+  slice: bits[3] = dynamic_bit_slice(p, start, width=3)
+  out_of_bounds: bits[1] = bit_slice(slice, start=2, width=1)
+  zero: bits[1] = literal(value=0)
+  ret result: bits[1] = eq(out_of_bounds, zero)
+}
+)";
+  Package p("test");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, Parser::ParseFunction(program, &p));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven, TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+                            absl::Seconds(1)));
+  EXPECT_TRUE(proven);
+}
+
+TEST(Z3IrTranslatorTest, CompletelyOutOfBoundsDynamicSlice) {
+  const std::string program = R"(
+fn f(p: bits[4]) -> bits[1] {
+  start: bits[4] = literal(value=7)
+  slice: bits[3] = dynamic_bit_slice(p, start, width=3)
+  zero: bits[3] = literal(value=0)
+  ret result: bits[1] = eq(slice, zero)
+}
+)";
+  Package p("test");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, Parser::ParseFunction(program, &p));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven, TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+                            absl::Seconds(1)));
+  EXPECT_TRUE(proven);
+}
+
 TEST(Z3IrTranslatorTest, ValueUgtSelf) {
   const std::string program = R"(
 fn f(p: bits[4]) -> bits[1] {

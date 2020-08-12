@@ -484,9 +484,9 @@ class AstGenerator(object):
     make_arg, arg_type = self._choose_env_value(
         env, lambda t: not t.is_tuple() and not t.is_array())
     bit_count = arg_type.primitive_to_bits()
-    width_slice = self.rng.choice([True, False])
+    slice_type = self.rng.choice(['bit_slice', 'width_slice', 'dynamic_slice'])
     while True:
-      start_low = 0 if width_slice else -bit_count - 1
+      start_low = 0 if slice_type == 'width_slice' else -bit_count - 1
       start = (
           self.rng.randrange(start_low, bit_count + 1) if self.rng.choice(
               (True, False)) else None)
@@ -498,15 +498,22 @@ class AstGenerator(object):
         continue
       else:
         break
-    if width_slice:
+    if slice_type == 'width_slice':
       index_slice = ast.WidthSlice(
           self.fake_span, self._make_number(start or 0, None),
           self._make_large_type_annotation('UN', width))
-    else:
+    elif slice_type == 'bit_slice':
       index_slice = ast.Slice(
           self.fake_span,
           None if start is None else self._make_number(start, None),
           None if limit is None else self._make_number(limit, None))
+    else:
+      start_arg, _ = self._choose_env_value(
+          env, lambda t: not t.is_tuple() and not t.is_array() and not t.
+          primitive_to_signedness())
+      index_slice = ast.WidthSlice(
+          self.fake_span, start_arg(),
+          self._make_large_type_annotation('UN', width))
     type_ = self._make_large_type_annotation('UN', width)
     return (ast.Index(self.fake_span, make_arg(), index_slice), type_)
 
