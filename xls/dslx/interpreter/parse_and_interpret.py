@@ -99,7 +99,9 @@ def parse_and_test(program: Text,
 
     if ir_package and module.get_quickchecks():
       if seed is None:
-        # We want to guarantee non-determinism by default.
+        # We want to guarantee non-determinism by default. See
+        # https://abseil.io/docs/cpp/guides/random#stability-of-generated-sequences
+        # for rationale.
         seed = int(os.getpid() * time.time())
       print(f"[ SEED: {seed} ]")
       for quickcheck in module.get_quickchecks():
