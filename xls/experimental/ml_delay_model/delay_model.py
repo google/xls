@@ -74,6 +74,7 @@ def test(data, log_misses=False):
   ep = [0 for i in range(NUM_EPS)]
   improve_cnt = 0
   improvement = 0
+  percent_improvement = 0
   with open("./data/data_{}_{}.log".format(NUM_OPCODES, MAX_OP_COUNT), "w+") as logfile:
     errors = []
     for i in range(len(data)):
@@ -91,6 +92,7 @@ def test(data, log_misses=False):
       if orig_error > abs_error:
         improve_cnt += 1
       improvement += (orig_error - abs_error)
+      percent_improvement.append((orig_error - abs_error) / orig_error)
       for j in range(NUM_EPS):
         if abs_error < EPSILON * (j+1):
           ep[j] += 1
@@ -107,6 +109,7 @@ def test(data, log_misses=False):
     print("Accuracy:", accuracy)
     print("Improved on {} of test cases".format(improve_cnt / len(data)))
     print("Average improvement: {}".format(improvement / len(data)))
+    print("Median percentage improvement: {}".format(sorted(percent_improvement)[len(data)//2])
   return mse
 
 
