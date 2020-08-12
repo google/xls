@@ -47,7 +47,7 @@ class ExtractConversionOrderTest(absltest.TestCase):
     fn main() -> u32 { f() }
     """
     m = self._get_module(program)
-    self.assertEqual(((m.get_function('f'), m, ()),),
+    self.assertEqual(((m.get_function('f'), m, (), None),),
                      extract_conversion_order.get_callees(
                          m.get_function('main'), m, imports={}, bindings=()))
 
@@ -80,7 +80,7 @@ class ExtractConversionOrderTest(absltest.TestCase):
     self.assertEqual(order[1].f.identifier, 'main')
     self.assertEqual(order[1].bindings, ())
     f = m.get_function('f')
-    self.assertEqual(order[1].callees, ((f, m, (('N', 2),)),))
+    self.assertEqual(tuple((c.f, c.m, c.sym_bindings) for c in order[1].callees), ((f, m, (('N', 2),)),))
 
   def test_transitive_parametric(self):
     program = """

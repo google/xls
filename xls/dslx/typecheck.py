@@ -84,7 +84,7 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx) -> None:
     # Parametric functions are evaluated per invocation. If we're currently
     # inside of this function, it must mean that we already have the type
     # signature and now we just need to evaluate the body.
-    assert f in ctx.node_to_type
+    assert f in ctx.node_to_type, f
     annotated_return_type = ctx.node_to_type[f].return_type  # pytype: disable=attribute-error
     param_types = list(ctx.node_to_type[f].params)  # pytype: disable=attribute-error
   else:
@@ -199,17 +199,24 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
     # If the higher order function is parametric, we need to typecheck its body
     # with the symbolic bindings we just computed.
     if isinstance(map_fn_ref, ast.ModRef):
-      imported_ctx = deduce.DeduceCtx(imported_node_to_type, imported_module,
+      invocation_imported_node_to_type = deduce.NodeToType(parent=imported_node_to_type)
+      imported_ctx = deduce.DeduceCtx(invocation_imported_node_to_type, imported_module,
                                       ctx.interpret_expr,
                                       ctx.check_function_in_module)
       imported_ctx.fn_stack.append((map_fn_name, dict(symbolic_bindings)))
       # We need to typecheck this imported function with respect to its module
       ctx.check_function_in_module(map_fn, imported_ctx)
-      ctx.node_to_type.update(imported_ctx.node_to_type)
+
+      invocation_node_to_type = deduce.NodeToType(parent=ctx.node_to_type)
+      invocation_node_to_type.update(imported_ctx.node_to_type)
+      invocation.bindings_to_ntt[symbolic_bindings] = invocation_node_to_type
     else:
       # If the higher-order parametric fn is in this module, let's try to push
       # it onto the typechecking stack
       ctx.fn_stack.append((map_fn_name, dict(symbolic_bindings)))
+      invocation_node_to_type = deduce.NodeToType(parent=ctx.node_to_type)
+      invocation.bindings_to_ntt[symbolic_bindings] = invocation_node_to_type
+      ctx.node_to_type = invocation_node_to_type
       return map_fn_ref.name_def
 
   return None
@@ -222,15 +229,11 @@ class _TypecheckStackRecord:
   Attributes:
     name: The name of this test/function.
     is_test: Flag indicating whether or not this record is for a test.
-    node_types: Maps a node to its deduced type. Used to store a 'before' image
-      of deduced nodes to use as a comparison after a parametric function body
-      is typechecked (see _make_record for more details).
     user: The node in this module that needs 'name' to be typechecked. Used to
-    detect the typechecking of the higher order function in map invocations.
+      detect the typechecking of the higher order function in map invocations.
   """
   name: Text
   is_test: bool
-  node_types: Optional[Dict[ast.AstNode, ConcreteType]] = None
   user: Optional[ast.AstNode] = None
 
 
@@ -312,12 +315,19 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
   }  # type: Dict[Tuple[Text, bool], Tuple[Union[Function, ast.Test], bool]]
 
   # stack = [_make_record(f, ctx)]  # type: List[_TypecheckStackRecord]
-  stack = [(f.name.identifier, isinstance(f, ast.Test))]
+  stack = [_TypecheckStackRecord(f.name.identifier, isinstance(f, ast.Test))]
 
   function_map = {f.name.identifier: f for f in ctx.module.get_functions()}
   while stack:
+    parent_count = 0
+    p = ctx.node_to_type._parent
+    while p:
+      parent_count += 1
+      p = p._parent
+    # print(f'parent count {parent_count}')
+    # print(len(stack), stack[-1], ctx.fn_stack[-1])
     try:
-      f = seen[stack[-1]][0]
+      f = seen[(stack[-1].name, stack[-1].is_test)][0]
       if isinstance(f, ast.Function):
         _check_function(f, ctx)
       else:
@@ -342,26 +352,30 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
       #   key = f
       #   ctx.node_to_type.parametric_fn_cache[key] = deps
 
-      # def is_callee_map(n: Optional[ast.AstNode]) -> bool:
-      #   return (n and isinstance(n, ast.Invocation) and
-      #           isinstance(n.callee, ast.NameRef) and
-      #           n.callee.tok.value == 'map')
+      def is_callee_map(n: Optional[ast.AstNode]) -> bool:
+        return (n and isinstance(n, ast.Invocation) and
+                isinstance(n.callee, ast.NameRef) and
+                n.callee.tok.value == 'map')
 
-      # if is_callee_map(stack_record.user):
-      #   # We need to remove the body of this higher order parametric function
-      #   # in case we need to recheck it later in this module. See
-      #   # deduce._check_parametric_invocation() for more information.
-      #   assert isinstance(f, ast.Function) and f.is_parametric()
-      #   ctx.node_to_type._dict.pop(f.body)  # pylint: disable=protected-access
+      if is_callee_map(stack_record.user):
+        # We need to remove the body of this higher order parametric function
+        # in case we need to recheck it later in this module. See
+        # deduce._check_parametric_invocation() for more information.
+        assert isinstance(f, ast.Function) and f.is_parametric()
+        # ctx.node_to_type._dict.pop(f.body)  # pylint: disable=protected-access
+        ctx.node_to_type = ctx.node_to_type._parent
 
-      if stack_record[0] == fn_name:
+      if stack_record.name == fn_name:
         # i.e. we just finished typechecking the body of the function we're
         # currently inside of.
         ctx.fn_stack.pop()
+        # if ctx.node_to_type._parent:
+        #   ctx.node_to_type = ctx.node_to_type._parent
 
     except deduce.TypeMissingError as e:
       while True:
         fn_name, _ = ctx.fn_stack[-1]
+        # print("got ", e.node)
         if (isinstance(e.node, ast.NameDef) and
             e.node.identifier in function_map):
           # If it's seen and not-done, we're recursing.
@@ -373,7 +387,10 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
           assert isinstance(callee, ast.Function), callee
           seen[(e.node.identifier, False)] = (callee, True)
           # stack.append(_make_record(callee, ctx, user=e.user))
-          stack.append((callee.name.identifier, isinstance(callee, ast.Test)))
+          stack.append(
+              _TypecheckStackRecord(callee.name.identifier,
+                                    isinstance(callee, ast.Test),
+                                    e.user))
           break
         if (isinstance(e.node, ast.BuiltinNameDef) and
             e.node.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES):

@@ -130,9 +130,15 @@ class NodeToType(object):
         'got: {}'.format(name_def, constant.value))
 
   def get_imports(self) -> Dict[ast.Import, ImportedInfo]:
-    return self._imports
+    return self._imports if not self._parent else {**self._imports, **self._parent._imports}
 
   def get_imported(self, import_node: ast.Import) -> ImportedInfo:
+    if self._parent:
+      if import_node in self._imports:
+        return self._imports[import_node]
+
+      return self._parent._imports[import_node]
+
     return self._imports[import_node]
 
   def __setitem__(self, k: ast.AstNode, v: ConcreteType) -> None:
@@ -167,7 +173,7 @@ class NodeToType(object):
 
 
   def __contains__(self, k: ast.AstNode) -> bool:
-    return (k in self._dict or k in self._parent._dict
+    return (k in self._dict or self._parent.__contains__(k)
             if self._parent
             else k in self._dict)
 
@@ -327,14 +333,18 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
     # in case we run into more dependencies in that module
     imported_module, imported_node_to_type = ctx.node_to_type.get_imported(
         invocation.callee.mod)
-    imported_ctx = DeduceCtx(imported_node_to_type, imported_module,
+    invocation_imported_node_to_type = NodeToType(parent=imported_node_to_type)
+    imported_ctx = DeduceCtx(invocation_imported_node_to_type, imported_module,
                              ctx.interpret_expr, ctx.check_function_in_module)
     imported_ctx.fn_stack.append(
         (parametric_fn.name.identifier, dict(symbolic_bindings)))
     ctx.check_function_in_module(parametric_fn, imported_ctx)
-    ctx.node_to_type.update(imported_ctx.node_to_type)
-    ctx.node_to_type.parametric_fn_cache.update(
-        imported_ctx.node_to_type.parametric_fn_cache)
+
+    invocation_node_to_type = NodeToType(parent=ctx.node_to_type)
+    invocation_node_to_type.update(imported_ctx.node_to_type)
+    invocation.bindings_to_ntt[symbolic_bindings] = invocation_node_to_type
+    # ctx.node_to_type.parametric_fn_cache.update(
+    #     imported_ctx.node_to_type.parametric_fn_cache)
   else:
     assert isinstance(invocation.callee, ast.NameRef), invocation.callee
     # We need to typecheck this function with respect to its own module
@@ -343,18 +353,28 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
     ctx.fn_stack.append(
         (parametric_fn.name.identifier, dict(symbolic_bindings)))
 
+
+    # print("bindings in inv: ", symbolic_bindings in invocation.bindings_to_ntt)
+    # print('f typechecked', parametric_fn in ctx.node_to_type)
+    if symbolic_bindings in invocation.bindings_to_ntt:
+      invocation.bindings_to_ntt[symbolic_bindings].update(ctx.node_to_type)
+
+    invocation_node_to_type = (NodeToType(parent=ctx.node_to_type)
+                               if symbolic_bindings not in invocation.bindings_to_ntt
+                               else invocation.bindings_to_ntt[symbolic_bindings])
+
+    invocation.bindings_to_ntt[symbolic_bindings] = invocation_node_to_type
+    ctx.node_to_type = invocation_node_to_type
+
     # If the body of this function hasn't been typechecked, let's
     # tell typecheck.py's handler to check it.
     try:
       body_return_type = ctx.node_to_type[parametric_fn.body]
     except TypeMissingError as e:
       e.node = invocation.callee.name_def
-      invocation_node_to_type = NodeToType(parent=ctx.node_to_type)
-      ctx.node_to_type = invocation_node_to_type
       raise
 
     ctx.fn_stack.pop()
-    invocation.bindings_to_ntt[symbolic_bindings] = ctx.node_to_type
     ctx.node_to_type = ctx.node_to_type._parent
 
     # TODO(hjmontero): 2020-07-13 HACK: We remove the type of the body to so
