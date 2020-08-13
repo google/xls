@@ -473,6 +473,9 @@ Value     | Type
 `start`   | `bits[M]`
 `result`  | `bits[<width>]`
 
+`start` can be of arbitrary bit width. It will be interpreted
+as an unsigned integer.
+
 **Keyword arguments**
 
 | Keyword | Type    | Required | Default | Description       |
