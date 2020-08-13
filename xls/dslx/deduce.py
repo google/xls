@@ -434,9 +434,8 @@ def _deduce_Invocation(self: ast.Invocation, ctx: DeduceCtx) -> ConcreteType:  #
   # Within the context of (mod_name, fn_name, fn_sym_bindings),
   # this invocation of callee will have bindings with values specified by
   # callee_sym_bindings
-  self.symbolic_bindings[(
-      ctx.module.name, fn_name,
-      tuple(fn_symbolic_bindings.items()))] = callee_sym_bindings
+  self.symbolic_bindings[
+      tuple(fn_symbolic_bindings.items())] = callee_sym_bindings
 
   if callee_fn.is_parametric():
     # Now that we have callee_sym_bindings, let's use them to typecheck the body

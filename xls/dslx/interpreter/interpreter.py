@@ -669,7 +669,7 @@ class Interpreter(object):
     if bindings.fn_ctx:
       # The symbolic bindings of this invocation were already computed during
       # typechecking.
-      fn_symbolic_bindings = expr.symbolic_bindings.get(bindings.fn_ctx, ())
+      fn_symbolic_bindings = expr.symbolic_bindings.get(bindings.fn_ctx[2], ())
     return callee_value.function_payload(
         arg_values, expr.span, expr, symbolic_bindings=fn_symbolic_bindings)
 

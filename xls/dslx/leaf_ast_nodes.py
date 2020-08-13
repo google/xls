@@ -486,11 +486,11 @@ class Invocation(Expr):
     self.callee = callee
     self.args = args
     # Note: this attribute is populated by type inference.
-    # Maps the (mod_name, fm_name, symbolic_bindings) of the function this
+    # Maps the (symbolic_bindings) of the function this
     # invocation is inside of to the resulting symbolic bindings
     # in the callee.
     self.symbolic_bindings = dict(
-    )  # type: Dict[Tuple[Text, Text, Tuple[Text, int]], parametric_instantiator.SymbolicBindings]
+    )  # type: Dict[Tuple[Text, int], parametric_instantiator.SymbolicBindings]
     self.bindings_to_ntt = dict()
 
   def __str__(self) -> Text:
@@ -537,8 +537,6 @@ class Slice(AstNode):
 
     # These attributes are populated by type inference.
     self.bindings_to_start_width = dict()
-    # self.computed_start = None  # type: Union[ParametricExpression, int]
-    # self.computed_width = None  # type: Union[ParametricExpression, int]
 
   def __str__(self) -> Text:
     if self.start and self.limit:

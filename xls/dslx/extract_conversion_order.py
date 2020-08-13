@@ -115,8 +115,7 @@ def get_callees(func: Union[ast.Function, ast.Test], m: ast.Module,
       func_name = (
           func.name.identifier if isinstance(func, ast.Function) else
           '{}_test'.format(func.name.identifier))
-      node_symbolic_bindings = node.symbolic_bindings.get(
-          (m.name, func_name, bindings), ())
+      node_symbolic_bindings = node.symbolic_bindings.get(bindings, ())
       invocation_node_to_type = node.bindings_to_ntt.get(node_symbolic_bindings, None)
       callees.append(Callee(f, this_m, node_symbolic_bindings, invocation_node_to_type))
 

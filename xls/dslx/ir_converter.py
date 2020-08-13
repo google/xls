@@ -741,7 +741,7 @@ class _IrConverterFb(ast.AstVisitor):
       The symbolic bindings for the given invocation.
     """
 
-    key = (self.module.name, self.dslx_name, self._get_symbolic_bindings_tuple())
+    key = self._get_symbolic_bindings_tuple()
     logging.vlog(2, 'Invocation %s symbolic bindings: %r key: %r', invocation,
                  invocation.symbolic_bindings, key)
     return invocation.symbolic_bindings.get(key, ())
