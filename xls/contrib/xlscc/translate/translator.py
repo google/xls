@@ -90,6 +90,57 @@ class VoidType(Type):
     return "void"
 
 
+class ChannelType(Type):
+  """Class for C++ HLS channel Type."""
+
+  def __init__(self, channel_type):
+    super(ChannelType, self).__init__()
+    self.channel_type = channel_type
+    self.is_input = None
+
+  def set_is_input(self, is_input):
+    self.is_input = is_input
+
+  def get_xls_type(self, p):
+    """Get XLS IR type for channel.
+
+    Args:
+      p: XLS IR package
+
+    Returns:
+      XLS IR tuple of field types
+    """
+    assert self.is_input is not None
+    if self.is_input:
+      return p.get_tuple_type(
+          [p.get_bits_type(1),
+           self.channel_type.get_xls_type(p)])
+    else:
+      return p.get_bits_type(1)
+
+  def __str__(self):
+    return "channel<{t}>".format(t=self.channel_type)
+
+
+class ChannelReadType(Type):
+  """Class for C++ HLS channel Type."""
+
+  def __init__(self, channel_type):
+    super().__init__()
+    self.channel_type = channel_type
+    self.is_input = None
+
+  def set_is_input(self, is_input):
+    self.is_input = is_input
+
+  def get_xls_type(self, p):  # pylint: disable=unused-argument
+    # Use channel_type
+    return None
+
+  def __str__(self):
+    return "channel<{t}>".format(t=self.channel_type)
+
+
 class StructType(Type):
   """Class for C++ HLS Struct Types.
 
@@ -104,6 +155,7 @@ class StructType(Type):
     self.struct = struct
     self.field_indices = {}
     self.element_types = {}
+    self.bit_width = 0
     for named_field in self.struct.fields:
       name = named_field.name
       field = named_field.hls_type
@@ -114,9 +166,18 @@ class StructType(Type):
                                            False)
       elif field.HasField("as_struct"):
         self.element_types[name] = StructType(name, field.as_struct)
+      elif field.HasField("as_array"):
+        if not field.as_array.HasField("int_element_type"):
+          raise NotImplementedError("Unsupported element type for array")
+
+        elem_type = IntType(field.as_array.int_element_type.width,
+                            field.as_array.int_element_type.signed, False)
+
+        self.element_types[name] = ArrayType(elem_type, field.as_array.count)
       else:
         raise NotImplementedError("Unsupported field type for field", name,
                                   ":", type(field))
+      self.bit_width = self.bit_width + self.element_types[name].bit_width
 
   def get_xls_type(self, p):
     """Get XLS IR type for struct.
@@ -134,6 +195,8 @@ class StructType(Type):
       if field.HasField("as_int"):
         element_xls_types.append(p.get_bits_type(field.as_int.width))
       elif field.HasField("as_struct"):
+        element_xls_types.append(self.element_types[name].get_xls_type(p))
+      elif field.HasField("as_array"):
         element_xls_types.append(self.element_types[name].get_xls_type(p))
       else:
         raise NotImplementedError("Unsupported struct field type in C AST",
@@ -162,6 +225,7 @@ class ArrayType(Type):
     super(ArrayType, self).__init__()
     self.element_type = element_type
     self.size = size
+    self.bit_width = self.element_type.bit_width * self.size
 
   def get_element_type(self):
     return self.element_type
@@ -222,7 +286,16 @@ class Function(object):
         assert isinstance(child, c_ast.Decl)
 
         name = child.name
-        self.params[name] = translator.parse_type(child.type)
+
+        t = translator.parse_type(child.type)
+        if isinstance(t, ChannelType):
+          # Only valid for the main function
+          # TODO(seanhaskell): Support passing to helper functions
+          assert (name in translator.channels_in) or (
+              name in translator.channels_out)
+          t.set_is_input(name in translator.channels_in)
+
+        self.params[name] = t
 
     # parse body
     self.body_ast = ast.body
@@ -234,7 +307,8 @@ class Function(object):
 
     def ref_name(name):
       param_type = self.params[name]
-      return param_type.is_ref and (not param_type.is_const)
+      return param_type.is_ref and (not param_type.is_const) and (
+          not isinstance(param_type, ChannelType))
 
     return list(filter(ref_name, self.params))
 
@@ -249,11 +323,18 @@ class Function(object):
     return ret
 
   def count_returns(self):
+    """Returns # of vals effectively returned (refparams, channels, retval)."""
     reference_param_names = self.get_ref_param_names()
+    n_channel_returns = 0
+    for _, ptype in self.params.items():
+      if isinstance(ptype, ChannelType):
+        n_channel_returns = n_channel_returns + 1
+        if not ptype.is_input:
+          n_channel_returns = n_channel_returns + 1
     if not isinstance(self.return_type, VoidType):
-      return len(reference_param_names) + 1
+      return len(reference_param_names) + n_channel_returns + 1
     else:
-      return len(reference_param_names)
+      return len(reference_param_names) + n_channel_returns
 
 
 def parse_constant(stmt_ast):
@@ -318,11 +399,17 @@ class Translator(object):
   """Converts from C++ to XLS IR. Usage is first parse(ast), then gen_ir().
   """
 
-  def __init__(self, package_name, hls_types_by_name=None):
+  def __init__(self,
+               package_name,
+               hls_types_by_name=None,
+               channels_in=None,
+               channels_out=None):
     self.functions_ = {}
     self.global_decls_ = {}
     self.package_name_ = package_name
     self.hls_types_by_name_ = hls_types_by_name if hls_types_by_name else {}
+    self.channels_in = channels_in
+    self.channels_out = channels_out
 
   def is_intrinsic_type(self, name):
     if name.startswith("uai") or name.startswith("sai"):
@@ -422,7 +509,10 @@ class Translator(object):
 
     if isinstance(ast, c_ast.TypeDecl):
       ident = ast.type
-      assert isinstance(ident, c_ast.IdentifierType)
+      assert isinstance(ident, c_ast.IdentifierType) or isinstance(
+          ident, c_ast.TemplateInst)
+      if isinstance(ident, c_ast.TemplateInst):
+        ident = ident.expr
     elif isinstance(ast, c_ast.IdentifierType):
       ident = ast
     elif isinstance(ast, c_ast.ArrayDecl):
@@ -477,6 +567,11 @@ class Translator(object):
     elif struct_type is not None:
       assert isinstance(struct_type, hls_types_pb2.HLSStructType)
       ptype = StructType(name, struct_type)
+    elif name == "ac_channel":
+      assert len(ast.type.params_list.exprs) == 1
+      channel_type = self.parse_type(ast.type.params_list.exprs[0])
+      ptype = ChannelType(channel_type)
+      assert is_ref and not is_const
     else:
       raise NotImplementedError("Unsupported type:", ast_in)
 
@@ -896,13 +991,13 @@ class Translator(object):
         struct_ast = stmt_ast.name
         left_var = struct_ast.name
         assert struct_ast.type == "."
-        left_fb, left_type = self.gen_expr_ir(left_var, condition)
         template_ast = struct_ast.field
         # TODO(seanhaskell): What's going on here? Strange C AST form
         if isinstance(template_ast, c_ast.ID):
           template_ast = template_ast.name
         if isinstance(template_ast, c_ast.TemplateInst):
           if template_ast.expr == "slc":
+            left_fb, left_type = self.gen_expr_ir(left_var, condition)
             assert len(template_ast.params_list.exprs) == 1
             width_expr = template_ast.params_list.exprs[0]
             # TODO(seanhaskell): Allow const expressions to specify width
@@ -965,9 +1060,41 @@ class Translator(object):
 
           self._generic_assign(left_var, r_expr, r_type, condition,
                                translate_loc(stmt_ast))
+        elif template_ast == "read":
+          assert isinstance(left_var, c_ast.ID)
+          assert stmt_ast.args is None
+          left_fb, left_type = self.gen_expr_ir(left_var, condition)
+          assert isinstance(left_type, ChannelType)
+          assert left_type.is_input
+          self.read_tokens[id(left_fb)] = left_var.name
+          return left_fb, left_type.channel_type
+        elif template_ast == "write":
+          assert len(stmt_ast.args.exprs) == 1
+          obj = stmt_ast.args.exprs[0]
+          assert isinstance(left_var, c_ast.ID)
+
+          obj_expr, obj_type = self.gen_expr_ir(obj, condition)
+
+          in_ch_name = self.read_tokens[id(obj_expr)]
+          out_ch_name = left_var.name
+
+          # z
+          self.assign(out_ch_name, obj_expr, obj_type, condition, loc)
+          # in vz -> out lz
+          self.assign(out_ch_name + "_lz",
+                      self.cvars[in_ch_name + "_vz"].fb_expr,
+                      self.cvars[in_ch_name + "_vz"].ctype, condition, loc)
+          # out vz -> in lz
+          self.assign(in_ch_name + "_lz",
+                      self.cvars[out_ch_name + "_vz"].fb_expr,
+                      self.cvars[out_ch_name + "_vz"].ctype, condition, loc)
+
+          # vz_name = right_name + "_vz"
+          # lz_name = right_name + "_lz"
+
+          return None, VoidType()
         else:
-          raise NotImplementedError("Unsupported template function",
-                                    template_ast)
+          raise NotImplementedError("Unsupported method", template_ast)
       else:
         raise NotImplementedError("Unsupported construct", type(stmt_ast.name))
     elif isinstance(stmt_ast, c_ast.Cast):
@@ -1050,11 +1177,37 @@ class Translator(object):
       # For break/continue
       self.continue_condition = None
       self.break_condition = None
+      # Input read tokens
+      self.read_tokens = {}
+
+      self.channel_params = []
 
       for p_name, ptype in func.params.items():
-        self.cvars[p_name] = CVar(
-            self.fb.add_param(p_name, ptype.get_xls_type(p), func.loc), ptype)
-        self.lvalues[p_name] = not ptype.is_const
+        if not isinstance(ptype, ChannelType):
+          self.cvars[p_name] = CVar(
+              self.fb.add_param(p_name, ptype.get_xls_type(p), func.loc), ptype)
+          self.lvalues[p_name] = not ptype.is_const
+        else:
+          bit_type = BoolType()
+          self.cvars[p_name + "_vz"] = CVar(
+              self.fb.add_param(p_name + "_vz", p.get_bits_type(1), func.loc),
+              bit_type)
+          self.channel_params.append((p_name + "_vz", 1))
+          self.cvars[p_name + "_lz"] = CVar(
+              self.gen_default_init(bit_type, func.loc), bit_type)
+          self.lvalues[p_name + "_lz"] = True
+          if ptype.is_input:
+            self.cvars[p_name] = CVar(
+                self.fb.add_param(p_name + "_z",
+                                  ptype.channel_type.get_xls_type(p), func.loc),
+                ptype)
+            self.channel_params.append(
+                (p_name + "_z", ptype.channel_type.bit_width))
+          else:
+            self.cvars[p_name] = CVar(
+                self.gen_default_init(ptype.channel_type, func.loc),
+                ptype.channel_type)
+            self.lvalues[p_name] = True
 
       # Function body
       ret_vals = self.gen_ir_block(func.body_ast.children(), None, None)
@@ -1109,6 +1262,17 @@ class Translator(object):
       if reference_param_names:
         returns = returns + list(
             [self.cvars[name].fb_expr for name in reference_param_names])
+
+      # Add channel returns
+      self.channel_returns = []
+      for pname, ptype in func.params.items():
+        if isinstance(ptype, ChannelType):
+          returns.append(self.cvars[pname + "_lz"].fb_expr)
+          self.channel_returns.append((pname + "_lz", 1))
+          if not ptype.is_input:
+            returns.append(self.cvars[pname].fb_expr)
+            self.channel_returns.append(
+                (pname + "_z", ptype.channel_type.bit_width))
 
       if func.count_returns() > 1:
         self.fb.add_tuple(returns, func.loc)

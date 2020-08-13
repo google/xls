@@ -24,6 +24,7 @@ These are broken out largely to reduce pytype runtime on a monolithic AST file.
 from typing import Union, Text, List, Dict, Tuple, Optional, Set, Sequence
 from absl import logging
 
+from xls.dslx import free_variables
 from xls.dslx import parametric_instantiator
 from xls.dslx.ast_node import AstNode
 from xls.dslx.ast_node import AstVisitor
@@ -169,6 +170,17 @@ class Function(AstNode):
             'public={0.public!r})').format(self)
 
 
+class QuickCheck(AstNode):
+  """Represents a function to be QuickChecked."""
+
+  def __init__(self, span: Span, f: Function):
+    self.span = span
+    self.f = f
+
+  def __str__(self) -> Text:
+    return f'QC: {self.f}'
+
+
 class Proc(AstNode):
   """Represents a parsed 'process' specification in the DSL."""
 
@@ -197,6 +209,9 @@ class Test(AstNode):
   def __init__(self, name: NameDef, body: Expr):
     self.name = name
     self.body = body
+
+  def _accept_children(self, visitor: AstVisitor) -> None:
+    self.body.accept(visitor)
 
   def __str__(self) -> Text:
     return 'test {} {{ ... }}'.format(self.name)
@@ -343,7 +358,8 @@ class SplatStructInstance(Expr):
     return accum
 
 
-ModuleMember = Union[Function, Test, TypeDef, Struct, Constant, Enum, Import]
+ModuleMember = Union[Function, Test, QuickCheck, TypeDef, Struct, Constant,
+                     Enum, Import]
 
 
 class Module(AstNode):
@@ -371,6 +387,9 @@ class Module(AstNode):
 
   def get_tests(self) -> List['Test']:
     return [member for member in self.top if isinstance(member, Test)]
+
+  def get_quickchecks(self) -> List['QuickCheck']:
+    return [member for member in self.top if isinstance(member, QuickCheck)]
 
   def get_constants(self) -> List[Constant]:
     return [member for member in self.top if isinstance(member, Constant)]
@@ -651,7 +670,7 @@ class Let(Expr):
       self.const.accept(visitor)
 
   def format(self) -> Text:
-    return '{} {}{} = {} in\n  {}'.format(
+    return '{} {}{} = {};\n  {}'.format(
         'const' if self.const else 'let', self.name_def_tree,
         ': ' + str(self.type_) if self.type_ else '', self.rhs, self.body)
 
@@ -705,8 +724,11 @@ class For(Expr):
     self.body.accept(visitor)
 
   def get_free_variables(self, start_pos: Pos) -> FreeVariables:
-    return self.body.get_free_variables(start_pos).union(
-        self.init.get_free_variables(start_pos))
+    free_vars = [
+        getattr(self, attr).get_free_variables(start_pos)
+        for attr in 'names iterable body init'.split()
+    ]
+    return free_variables.union_all(free_vars)
 
 
 class While(Expr):

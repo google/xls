@@ -17,8 +17,9 @@
 """Representation of a (immutable) bits object."""
 
 import operator
-
 from typing import Text, Callable, Iterable, Union, Tuple
+
+from absl import logging
 
 from xls.dslx import bit_helpers
 from xls.dslx.bit_helpers import bit_slice
@@ -76,7 +77,12 @@ class Bits(object):
     return not self.__eq__(other)
 
   def __rshift__(self, other: int) -> 'Bits':
-    return Bits(bit_count=self.bit_count, value=self.value >> other)
+    shift_amount = min(other, self.bit_count)
+    try:
+      return Bits(bit_count=self.bit_count, value=self.value >> shift_amount)
+    except OverflowError:
+      logging.exception('bit_count %r other %r', self.bit_count, other)
+      raise
 
   def __and__(self, other: int) -> 'Bits':
     return Bits(bit_count=self.bit_count, value=self.value & other)

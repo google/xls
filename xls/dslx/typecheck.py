@@ -32,6 +32,7 @@ from xls.dslx.ast import Module
 from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.concrete_type import FunctionType
 from xls.dslx.interpreter.interpreter_helpers import interpret_expr
+from xls.dslx.span import PositionalError
 from xls.dslx.xls_type_error import XlsTypeError
 
 
@@ -84,8 +85,8 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx) -> None:
     # inside of this function, it must mean that we already have the type
     # signature and now we just need to evaluate the body.
     assert f in ctx.node_to_type
-    annotated_return_type = ctx.node_to_type[f].return_type
-    param_types = list(ctx.node_to_type[f].params)
+    annotated_return_type = ctx.node_to_type[f].return_type  # pytype: disable=attribute-error
+    param_types = list(ctx.node_to_type[f].params)  # pytype: disable=attribute-error
   else:
     logging.vlog(1, 'Type-checking sig for function: %s', f)
     param_types = _check_function_params(f, ctx)
@@ -183,7 +184,7 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
       ctx.module.name, fn_name,
       tuple(fn_symbolic_bindings.items()))] = symbolic_bindings
   ctx.node_to_type[invocation.callee] = fn_type
-  ctx.node_to_type[invocation] = fn_type.return_type
+  ctx.node_to_type[invocation] = fn_type.return_type  # pytype: disable=attribute-error
 
   if builtin_name.identifier == 'map':
     assert isinstance(map_fn_name, str), map_fn_name
@@ -426,8 +427,37 @@ def _check_module_helper(module: Module,
     elif isinstance(member, (ast.Constant, ast.Enum, ast.Struct, ast.TypeDef)):
       deduce.deduce(member, ctx)
     else:
-      assert isinstance(member, (ast.Function, ast.Test)), member
+      assert isinstance(member,
+                        (ast.Function, ast.Test, ast.QuickCheck)), member
   ctx.fn_stack.pop()
+
+  quickcheck_map = {
+      qc.f.name.identifier: qc for qc in ctx.module.get_quickchecks()
+  }
+  for qc in quickcheck_map.values():
+    assert isinstance(qc, ast.QuickCheck), qc
+
+    f = qc.f
+    assert isinstance(f, ast.Function), f
+    if f.is_parametric():
+      # TODO(cdleary): 2020-08-09 See https://github.com/google/xls/issues/81
+      raise PositionalError(
+          'Quickchecking parametric '
+          'functions is unsupported.', f.span)
+
+    logging.vlog(2, 'Typechecking function: %s', f)
+    ctx.fn_stack.append((f.name.identifier, dict()))  # No symbolic bindings
+    check_function_or_test_in_module(f, ctx)
+
+    quickcheck_f_body_type = ctx.node_to_type[f.body]
+    if quickcheck_f_body_type != ConcreteType.U1:
+      raise XlsTypeError(
+          f.span,
+          quickcheck_f_body_type,
+          ConcreteType.U1,
+          suffix='QuickCheck functions must return a bool.')
+
+    logging.vlog(2, 'Finished typechecking function: %s', f)
 
   function_map = {f.name.identifier: f for f in ctx.module.get_functions()}
   for f in function_map.values():

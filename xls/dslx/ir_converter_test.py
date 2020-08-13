@@ -97,7 +97,7 @@ class IrConverterTest(absltest.TestCase):
   def test_let_binding(self):
     m = self.parse_dsl_text("""\
     fn f() -> u32 {
-      let x: u32 = u32:2 in
+      let x: u32 = u32:2;
       x+x
     }""")
     node_to_type = typecheck.check_module(m, f_import=None)
@@ -115,8 +115,8 @@ class IrConverterTest(absltest.TestCase):
   def test_let_tuple_binding(self):
     m = self.parse_dsl_text("""\
     fn f() -> u32 {
-      let t = (u32:2, u32:3) in
-      let (x, y) = t in
+      let t = (u32:2, u32:3);
+      let (x, y) = t;
       x+y
     }""")
     node_to_type = typecheck.check_module(m, f_import=None)
@@ -138,8 +138,8 @@ class IrConverterTest(absltest.TestCase):
   def test_let_tuple_binding_nested(self):
     m = self.parse_dsl_text("""\
     fn f() -> u32 {
-      let t = (u32:2, (u32:3, (u32:4,), u32:5)) in
-      let (x, (y, (z,), a)) = t in
+      let t = (u32:2, (u32:3, (u32:4,), u32:5));
+      let (x, (y, (z,), a)) = t;
       x+y+z+a
     }""")
     node_to_type = typecheck.check_module(m, f_import=None)
@@ -250,7 +250,7 @@ class IrConverterTest(absltest.TestCase):
     fn f() -> u32 {
       let t = for (i, (x, y)): (u32, (u32, u8)) in range(u32:0, u32:4) {
         (x + i, y)
-      }((u32:0, u8:0)) in
+      }((u32:0, u8:0));
       t[u32:0]
     }""")
     node_to_type = typecheck.check_module(m, f_import=None)
@@ -351,8 +351,8 @@ class IrConverterTest(absltest.TestCase):
   def test_counted_for_with_loop_invariants(self):
     m = self.parse_dsl_text("""\
     fn f() -> u32 {
-      let outer_thing: u32 = u32:42 in
-      let other_outer_thing: u32 = u32:24 in
+      let outer_thing: u32 = u32:42;
+      let other_outer_thing: u32 = u32:24;
       for (i, accum): (u32, u32) in range(u32:0, u32:4) {
         accum + i + outer_thing + other_outer_thing
       }(u32:0)
@@ -702,9 +702,9 @@ class IrConverterTest(absltest.TestCase):
     m = self.parse_dsl_text("""\
     fn f(x: u8) -> u2 {
       match x {
-        u8:42 => let x = u2:0 in x;
-        u8:64 => let x = u2:1 in x;
-        _ => let x = u2:2 in x
+        u8:42 => let x = u2:0; x;
+        u8:64 => let x = u2:1; x;
+        _ => let x = u2:2; x
       }
     }
     """)
@@ -901,8 +901,8 @@ class IrConverterTest(absltest.TestCase):
   def test_identity_final_arg(self):
     m = self.parse_dsl_text("""
     fn main(x0: u19, x3: u29) -> u29 {
-        let x15: u29 = u29:0 in
-        let x17: u19 = (x0) + (x15 as u19) in
+        let x15: u29 = u29:0;
+        let x17: u19 = (x0) + (x15 as u19);
         x3
     }
     """)
@@ -942,7 +942,7 @@ class IrConverterTest(absltest.TestCase):
   def test_tuple_index(self):
     m = self.parse_dsl_text("""
     fn main() -> u8 {
-      let t = (u32:3, u8:4) in
+      let t = (u32:3, u8:4);
       t[u32:1]
     }
     """)
@@ -968,7 +968,7 @@ class IrConverterTest(absltest.TestCase):
       let t = match x {
         u8:42 => u8:0xff;
         _ => x
-      } in
+      };
       t
     }
     """)
@@ -1365,7 +1365,7 @@ class IrConverterTest(absltest.TestCase):
       u32[THING_COUNT]
     );
     fn get_thing(x: Foo, i: u32) -> u32 {
-      let things: u32[THING_COUNT] = x[u32:0] in
+      let things: u32[THING_COUNT] = x[u32:0];
       things[i]
     }
     """)
@@ -1469,6 +1469,27 @@ class IrConverterTest(absltest.TestCase):
           add.8: bits[2] = add(add.6, bit_slice.7)
           bit_slice.9: bits[2] = bit_slice(x, start=0, width=2)
           ret add.10: bits[2] = add(add.8, bit_slice.9)
+        }
+        """), converted)
+
+  def test_width_slice(self):
+    m = self.parse_dsl_text("""\
+    fn f(x: u32, y: u32) -> u8 {
+      x[2+:u8]+x[y+:u8]
+    }
+    """)
+    node_to_type = typecheck.check_module(m, f_import=None)
+    converted = ir_converter.convert_module(
+        m, node_to_type, emit_positions=False)
+    self.assert_ir_equals_and_parses(
+        textwrap.dedent("""\
+        package test_module
+
+        fn __test_module__f(x: bits[32], y: bits[32]) -> bits[8] {
+          literal.3: bits[32] = literal(value=2)
+          dynamic_bit_slice.4: bits[8] = dynamic_bit_slice(x, literal.3, width=8)
+          dynamic_bit_slice.5: bits[8] = dynamic_bit_slice(x, y, width=8)
+          ret add.6: bits[8] = add(dynamic_bit_slice.4, dynamic_bit_slice.5)
         }
         """), converted)
 

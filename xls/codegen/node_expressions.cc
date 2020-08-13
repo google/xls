@@ -54,6 +54,8 @@ bool OperandMustBeNamedReference(Node* node, int64 operand_no) {
     case Op::kBitSlice:
       XLS_CHECK_EQ(operand_no, 0);
       return !operand_is_indexable();
+    case Op::kDynamicBitSlice:
+      return operand_no == 0 && !operand_is_indexable();
     case Op::kArrayIndex:
       return operand_no == 0 && !operand_is_indexable();
     case Op::kOneHot:
@@ -422,9 +424,8 @@ xabsl::StatusOr<Expression*> NodeToExpression(
                            slice->start() + slice->width() - 1, slice->start());
       }
     }
-    case Op::kDynamicBitSlice: {
-      return absl::UnimplementedError("DynamicBitSlice not yet implemented");
-    }
+    case Op::kDynamicBitSlice:
+      return unimplemented();
     case Op::kConcat:
       return file->Concat(inputs);
     case Op::kUDiv:

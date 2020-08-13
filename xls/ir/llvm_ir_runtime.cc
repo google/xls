@@ -24,11 +24,6 @@
 #include "xls/ir/value.h"
 
 namespace xls {
-namespace {
-
-constexpr int64 kCharBit = 8;
-
-}  // namespace
 
 LlvmIrRuntime::LlvmIrRuntime(const llvm::DataLayout& data_layout,
                              LlvmTypeConverter* type_converter)
@@ -115,6 +110,8 @@ Value LlvmIrRuntime::UnpackBuffer(const uint8* buffer,
 
       return Value::ArrayOrDie(values);
     }
+    case TypeKind::kToken:
+      return Value::Token();
     default:
       XLS_LOG(FATAL) << "Unsupported XLS Value kind: " << result_type->kind();
   }
@@ -158,6 +155,8 @@ void LlvmIrRuntime::BlitValueToBuffer(const Value& value, const Type& type,
       BlitValueToBuffer(value.element(i), *tuple_type->element_type(i),
                         buffer.subspan(layout->getElementOffset(i)));
     }
+  } else if (value.IsToken()) {
+    // Tokens contain no data.
   } else {
     XLS_LOG(FATAL) << "Unsupported XLS Value kind: " << value.kind();
   }

@@ -71,7 +71,11 @@ class NodeChecker : public DfsVisitor {
   }
 
   absl::Status HandleAfterAll(AfterAll* after_all) override {
-    return absl::UnimplementedError("AfterAll not yet implemented");
+    XLS_RETURN_IF_ERROR(ExpectHasTokenType(after_all));
+    for (int64 i = 0; i < after_all->operand_count(); ++i) {
+      XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(after_all, i));
+    }
+    return absl::OkStatus();
   }
 
   absl::Status HandleArray(Array* array) override {
@@ -557,6 +561,15 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status ExpectHasTokenType(Node* node) const {
+    if (!node->GetType()->IsToken()) {
+      return absl::InternalError(
+          StrFormat("Expected %s to have token type, has type %s",
+                    node->GetName(), node->GetType()->ToString()));
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status ExpectHasArrayType(Node* node) const {
     if (!node->GetType()->IsArray()) {
       return absl::InternalError(
@@ -605,6 +618,17 @@ class NodeChecker : public DfsVisitor {
       return absl::InternalError(StrFormat(
           "Expected operand %d of %s to have bit count %d: %s", operand_no,
           node->GetName(), expected_bit_count, node->ToString()));
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status ExpectOperandHasTokenType(Node* node, int64 operand_no) const {
+    Node* operand = node->operand(operand_no);
+    if (!operand->GetType()->IsToken()) {
+      return absl::InternalError(StrFormat(
+          "Expected operand %d of %s to have Token type, has type %s: %s",
+          operand_no, node->GetName(), operand->GetType()->ToString(),
+          node->ToString()));
     }
     return absl::OkStatus();
   }

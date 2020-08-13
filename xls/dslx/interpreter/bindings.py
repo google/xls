@@ -46,7 +46,7 @@ class Bindings(object):
   def __init__(self, parent: Optional['Bindings'] = None):
     self._parent = parent
     self._map = {}  # type: Dict[Text, BindingEntry]
-    self.fn_ctx = None  # type: Optional[Tuple[Text, Text, SymbolicBindings]]
+    self.fn_ctx = None if parent is None else parent.fn_ctx  # type: Optional[Tuple[Text, Text, SymbolicBindings]]
 
   def add_value(self, identifier: Text, value: Value):
     self._map[identifier] = value

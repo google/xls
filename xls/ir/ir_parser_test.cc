@@ -402,6 +402,40 @@ fn dynamicbitslice(x: bits[32], y: bits[32]) -> bits[14] {
   ParseFunctionAndCheckDump(input);
 }
 
+TEST(IrParserTest, ParseAfterAllEmpty) {
+  std::string input = R"(
+fn after_all_func() -> token {
+  ret after_all.1: token = after_all()
+}
+)";
+  ParseFunctionAndCheckDump(input);
+}
+
+TEST(IrParserTest, ParseAfterAllMany) {
+  std::string input = R"(
+fn after_all_func() -> token {
+  after_all.1: token = after_all()
+  after_all.2: token = after_all()
+  ret after_all.3: token = after_all(after_all.1, after_all.2)
+}
+)";
+  ParseFunctionAndCheckDump(input);
+}
+
+TEST(IrParserTest, ParseAfterAllNonToken) {
+  Package p("my_package");
+  std::string input = R"(
+fn after_all_func() -> token {
+  after_all.1: token = after_all()
+  after_all.2: token = after_all()
+  ret after_all.3: bits[2] = after_all(after_all.1, after_all.2)
+}
+)";
+  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected token type @")));
+}
+
 TEST(IrParserTest, ParseArray) {
   std::string input = R"(
 fn array_and_array(x: bits[32], y: bits[32], z: bits[32]) -> bits[32][3] {
@@ -1103,6 +1137,31 @@ TEST(IrParserTest, ParsesComplexValueWithEmbeddedTypes) {
           Value(UBits(0xba7, /*bit_count=*/12)),
       }),
       Value::ArrayOrDie({Value(UBits(0, /*bit_count=*/1))}),
+  });
+  EXPECT_EQ(expected, v);
+}
+
+TEST(IrParserTest, ParsesTokenType) {
+  const std::string input = "token";
+  XLS_ASSERT_OK_AND_ASSIGN(Value v, Parser::ParseTypedValue(input));
+  Value expected = Value::Token();
+  EXPECT_EQ(expected, v);
+}
+
+TEST(IrParserTest, ParsesComplexValueWithEmbeddedTokens) {
+  const std::string input =
+      "(bits[32]:0xf00, [bits[12]:0xba5, bits[12]:0xba7], [token, token], "
+      "[bits[1]:0], token)";
+  XLS_ASSERT_OK_AND_ASSIGN(Value v, Parser::ParseTypedValue(input));
+  Value expected = Value::Tuple({
+      Value(UBits(0xf00, /*bit_count=*/32)),
+      Value::ArrayOrDie({
+          Value(UBits(0xba5, /*bit_count=*/12)),
+          Value(UBits(0xba7, /*bit_count=*/12)),
+      }),
+      Value::ArrayOrDie({Value::Token(), Value::Token()}),
+      Value::ArrayOrDie({Value(UBits(0, /*bit_count=*/1))}),
+      Value::Token(),
   });
   EXPECT_EQ(expected, v);
 }

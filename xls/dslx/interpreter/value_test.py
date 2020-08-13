@@ -85,6 +85,12 @@ class ValueTest(absltest.TestCase):
     szero = value.Value.make_sbits(4, value=1)
     self.assertEqual(szero, self._sample_ops(sone))
 
+  def test_array_of_u32_human_str(self):
+    elements = (value.Value.make_u32(2), value.Value.make_u32(3),
+                value.Value.make_u32(4))
+    array = value.Value.make_array(elements)
+    self.assertEqual(array.to_human_str(), '[2, 3, 4]')
+
 
 if __name__ == '__main__':
   absltest.main()

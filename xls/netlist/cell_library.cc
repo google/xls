@@ -14,9 +14,12 @@
 
 #include "xls/netlist/cell_library.h"
 
+#include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/integral_types.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/netlist/netlist.pb.h"
 
 namespace xls {
 namespace netlist {
@@ -69,6 +72,97 @@ std::string CellKindToString(CellKind kind) {
       return "other";
   }
   return absl::StrFormat("<invalid CellKind(%d)>", static_cast<int64>(kind));
+}
+
+/* static */ xabsl::StatusOr<StateTable> StateTable::FromProto(
+    const StateTableProto& proto) {
+  std::vector<Row> rows;
+  absl::flat_hash_set<std::string> signals;
+  for (const auto& row : proto.rows()) {
+    RowStimulus stimulus;
+    for (const auto& kv : row.input_signals()) {
+      stimulus[kv.first] = kv.second;
+      signals.insert(kv.first);
+    }
+    for (const auto& kv : row.internal_signals()) {
+      stimulus[kv.first] = kv.second;
+      signals.insert(kv.first);
+    }
+
+    RowResponse response;
+    for (const auto& kv : row.output_signals()) {
+      response[kv.first] = kv.second;
+    }
+
+    rows.push_back({stimulus, response});
+  }
+
+  return StateTable(rows, signals, proto);
+}
+
+StateTable::StateTable(const std::vector<Row>& rows,
+                       const absl::flat_hash_set<std::string>& signals,
+                       const StateTableProto& proto)
+    : signals_(signals), rows_(rows), proto_(proto) {}
+
+bool StateTable::SignalMismatch(absl::string_view name, bool value,
+                                const RowStimulus& stimulus) {
+  // Input signals can be either high or low - we don't manage persistent state
+  // inside this class; we just represent the table.
+  StateTableSignal value_signal =
+      value ? STATE_TABLE_SIGNAL_HIGH : STATE_TABLE_SIGNAL_LOW;
+  if (stimulus.contains(name) && value_signal != stimulus.at(name)) {
+    return true;
+  }
+
+  return false;
+}
+
+xabsl::StatusOr<bool> StateTable::MatchRow(
+    const Row& row, const InputStimulus& input_stimulus) {
+  absl::flat_hash_set<std::string> unspecified_inputs = signals_;
+  const RowStimulus& row_stimulus = row.first;
+  for (const auto& kv : input_stimulus) {
+    const std::string& name = kv.first;
+    bool value = kv.second;
+
+    XLS_RET_CHECK(signals_.contains(name));
+    // Check that, for every stimulus signal, that there's not a mismatch
+    // (i.e., the row has "don't care" or a matching value for the input.
+    if (SignalMismatch(name, value, row_stimulus)) {
+      return false;
+    }
+
+    // We've matched this input!
+    unspecified_inputs.erase(name);
+  }
+
+  // We've matched all inputs - now we have to verify that all unspecified
+  // inputs are "don't care".
+  for (const std::string& name : unspecified_inputs) {
+    if (row_stimulus.at(name) != STATE_TABLE_SIGNAL_DONTCARE) {
+      return false;
+    }
+  }
+  return true;
+}
+
+xabsl::StatusOr<bool> StateTable::GetSignalValue(
+    const InputStimulus& input_stimulus, absl::string_view signal) {
+  // Find a row matching the stimulus or return error.
+  XLS_RET_CHECK(std::find(proto_.internal_names().begin(),
+                          proto_.internal_names().end(),
+                          signal) != proto_.internal_names().end())
+      << "Can't find internal signal \"" << signal << "\"";
+
+  for (const Row& row : rows_) {
+    XLS_ASSIGN_OR_RETURN(bool match, MatchRow(row, input_stimulus));
+    if (match) {
+      return row.second.at(signal) == STATE_TABLE_SIGNAL_HIGH;
+    }
+  }
+
+  return absl::NotFoundError("No matching row found in the table.");
 }
 
 /* static */ xabsl::StatusOr<CellLibraryEntry> CellLibraryEntry::FromProto(

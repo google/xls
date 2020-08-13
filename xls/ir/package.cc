@@ -23,6 +23,7 @@
 #include "xls/common/strong_int.h"
 #include "xls/ir/function.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 namespace {
@@ -274,6 +275,8 @@ Type* Package::GetTypeForValue(const Value& value) {
       }
       return GetArrayType(value.size(), GetTypeForValue(value.elements()[0]));
     }
+    case ValueKind::kToken:
+      return GetTokenType();
     case ValueKind::kInvalid:
       break;
   }

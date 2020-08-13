@@ -561,6 +561,11 @@ std::string Slice::Emit() {
                          lo_->Emit());
 }
 
+std::string DynamicSlice::Emit() {
+  return absl::StrFormat("%s[%s +: %s]", subject_->Emit(), start_->Emit(),
+                         width_->Emit());
+}
+
 std::string Index::Emit() {
   if (subject_->IsScalarReg()) {
     // If subject is scalar (no width given in declaration) then avoid indexing

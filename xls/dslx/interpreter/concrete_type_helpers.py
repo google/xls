@@ -209,7 +209,7 @@ def concrete_type_convert_value(type_: ConcreteType, value: Value, span: Span,
 
   if (value.tag == Tag.ENUM and isinstance(type_, BitsType) and
       type_.get_total_bit_count() == value.get_bit_count()):
-    constructor = Value.make_sbits if type_.signed else Value.make_ubits
+    constructor = Value.make_sbits if type_.signed else Value.make_ubits  # pytype: disable=attribute-error
     bit_count = type_.get_total_bit_count()
     return constructor(bit_count, value.bits_payload.value)
 

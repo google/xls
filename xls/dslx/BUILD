@@ -327,6 +327,7 @@ py_library(
         ":concrete_type",
         ":deduce",
         ":dslx_builtins",
+        ":span",
         ":xls_type_error",
         "//xls/common:xls_error",
         "//xls/dslx/interpreter:interpreter_helpers",
@@ -408,11 +409,11 @@ py_library(
         ":deduce",
         ":dslx_builtins",
         ":extract_conversion_order",
+        ":ir_name_mangler",
         ":parametric_expression",
         ":parametric_instantiator",
         ":span",
         "//xls/common:xls_error",
-        "//xls/dslx/interpreter",
         "//xls/ir/python:bits",
         "//xls/ir/python:fileno",
         "//xls/ir/python:function",
@@ -425,6 +426,15 @@ py_library(
         "//xls/ir/python:value",
         "//xls/ir/python:verifier",
         "@com_google_absl_py//absl/logging",
+    ],
+)
+
+py_library(
+    name = "ir_name_mangler",
+    srcs = ["ir_name_mangler.py"],
+    srcs_version = "PY3",
+    deps = [
+        ":ast",
     ],
 )
 

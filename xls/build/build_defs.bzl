@@ -178,6 +178,55 @@ def dslx_codegen(name, dslx_dep, configs, entry = None, tags = None):
             tags = tags,
         )
 
+# TODO(2020-08-05): The dslx_test macro is a bit packed, which makes declaring
+# dslx_jit_wrapper rules a bit torturous - one needs to depend on an IR target
+# instead of a testonly (!) dslx_test target. When that's done, we can stop
+# depending on an explicit _opt_ir target in invocations.
+def dslx_jit_wrapper(
+        name,
+        dslx_name = None,
+        entry_function = None,
+        deps = []):
+    """Generates sources and rules for JIT invocation wrappers.
+
+    Args:
+      name: The name of the dslx target being wrapped.
+      dslx_name: Name of the generated class. If unspecified, the
+        entry function name will be used (see 'entry function' below).
+      entry_function: The name of the function being wrapped. If
+        unspecified, the standard entry function lookup will be performed (
+        searches for functions w/the package name or "main" or some variations
+        thereof).
+      deps: Dependencies of this wrapper - likely only the source IR.
+    """
+    entry_arg = ("--function=" + entry_function) if entry_function else ""
+    native.genrule(  # generated_file
+        name = "gen_" + name,
+        srcs = deps,
+        outs = [
+            name + ".h",
+            name + ".cc",
+        ],
+        cmd = "$(location //xls/ir:jit_wrapper_generator_main) -ir_path $(SRCS) %s -class_name %s -output_name %s -output_dir $(@D)" % (entry_arg, dslx_name, name),
+        exec_tools = [
+            "//xls/ir:jit_wrapper_generator_main",
+        ],
+    )
+
+    native.cc_library(
+        name = name,
+        srcs = [name + ".cc"],
+        hdrs = [name + ".h"],
+        deps = [
+            "@com_google_absl//absl/status",
+            "//xls/common/status:statusor",
+            "//xls/ir",
+            "//xls/ir:llvm_ir_jit",
+            "//xls/ir:ir_parser",
+            "//xls/ir:value",
+        ],
+    )
+
 # TODO(meheff): dslx_test includes a bunch of XLS internal specific stuff such
 # as generating benchmarks and convert IR. These should be factored out so we
 # have a clean macro for end-user use.
@@ -188,6 +237,7 @@ def dslx_test(
         entry = None,
         args = None,
         convert_ir = True,
+        compare_jit = True,
         prove_unopt_eq_opt = True,
         generate_benchmark = True,
         tags = []):
@@ -202,6 +252,8 @@ def dslx_test(
       args: Additional arguments to pass to the DSLX interpreter and IR
         converter.
       convert_ir: Whether or not to convert the DSLX code to IR.
+      compare_jit: Whether or not to perform an equivalence check between the
+      	interpreted DSLX and the IR executed with the JIT.
       generate_benchmark: Whether or not to create a benchmark target (that
         analyses XLS scheduled critical path).
       prove_unopt_eq_opt: Whether or not to generate a test to compare semantics
@@ -216,10 +268,11 @@ def dslx_test(
         fail("Entry argument must be a string.")
     src = srcs[0]
 
+    interpreter_args = ["--compare_jit={}".format(convert_ir and compare_jit)]
     native.sh_test(
         name = name + "_dslx_test",
         srcs = [_DSLX_TEST],
-        args = [native.package_name() + "/" + src] + args,
+        args = [native.package_name() + "/" + src] + args + interpreter_args,
         data = [
             _INTERPRETER_MAIN,
         ] + srcs + deps,

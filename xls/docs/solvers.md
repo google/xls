@@ -56,7 +56,7 @@ If the solver can not satisfy that criterion, then that means the error is
 _never_ greater than that bound, i.e., that the implementations are equivalent
 (with our 0.0f bound).
 
-### Transform validity
+### IR Transform validity
 
 It's usually not possible (or is merely extremely difficult) to write tests to
 prove that an optimization/transform is safe across all input IR. By comparing
@@ -68,15 +68,88 @@ optimized and unoptimized IR need to be fed into the same Z3Translator (the
 second via `Z3Translator::AddFunction()`) and the result nodes each are used in
 the error comparison.
 
+### IR to netlist Logical Equivalence Checking (LEC)
+
+After a user design has been lowered to IR, it is optimized (see the previous
+section), then Verilog is generated for that optimized IR. That Verilog is then
+compiled by an external tool, which, if successful, will output a "netlist" - a
+set of standard cells (think AND, OR, NOT, flops, etc.) and wires connecting
+them that realizes the design.
+
+Between the IR level and that netlist, many, many transformations are applied to
+the design. Before processing the netlist further - and certainly before sending
+the final design to fabrication - it's a very good idea to ensure that the
+netlist describes the correct logic!
+
+Demonstrating initial design correctness is up to the user, via unit tests or
+integration tests at the DSLX level. At all stages below that, though, ensuring
+logical equivalence between forms is XLS' responsibility. To prove equivalence
+between the IR and netlist forms of a design, XLS uses formal verification via
+solvers - currently only Z3, above.
+
+Performing IR-to-netlist LEC is very similar to the checking above - the source
+IR is one half of the comparison. Here, the second half is the netlist
+translated into IR, which only requires a small amount of extra work. Consider
+the snippet below:
+
+```
+FOO p1_and_1 ( .A(p0_i0), .B(p0_i1), .Z(p1_and_1_comb) );
+BAR p1_and_2 ( .A(p0_i2), .B(p0_i3), .Z(p1_and_2_comb) );
+```
+
+These lines describe, in order:
+
+-   One cell, called `AND`, that takes two inputs, .A and .B, provided by the
+    wires `p0_i0` and `p0_i1`, respectively, and one output, .Z, which will be
+    assigned to the wire `p1_and_1_comb.
+-   One cell, called `OR`, that takes two inputs, .A and .B, provided by the
+    wires `p0_i2` and `p0_i2`, respectively, and one output, .Z, which will be
+    assigned to the wire `p1_and_2_comb.
+
+Note that the _values_ computed by the cells wasn't mentioned - that's because
+`FOO` and `BAR` are defined in the "cell library", the list of standard cells
+used to generate the netlist. Thus, to be able to model these gates in a solver,
+we need to take that cell library as input to the LEC tool. The netlist
+describes how cells are laid out, and the cell library indicates what cells
+actually `do`. With both of these in hand, preparing the netlist half of a LEC
+is a [relatively] straightforward matter of parsing a netlist and cell library
+and converting those together into a description of logic. See
+[z3_netlist_translator.cc](https://github.com/google/xls/tree/main/xls/solvers/z3_netlist_translator.cc)
+for full details.
+
+### Utilities
+
+-   [tools/lec_main.cc](http://cs/google/third_party/xls/tools/lec_main.cc):
+    Driver function for performing IR-to-netlist LEC.
+-   [solvers/python/z3_lec.cc](http://cs/google/third_party/xls/solvers/python/z3_lec.cc):
+    Wrapper to perform IR-to-netlist LEC from Python.
+
 ## Current Limitations
+
+### Time-to-result
+
+Under the hood, Z3 (and many other tools in this space) is an (SMT
+solver)[https://en.wikipedia.org/wiki/Satisfiability_modulo_theories]. At a high
+level, think of an SMT solver as a SAT solver that has special handling for
+certain classes of data (bit vectors, floating-point numbers). Many sufficiently
+complicated problems will reduce to raw SAT solving (especially those involving
+netlists, which have to implement complex logic at the gate level. Consider what
+that means for a multiply, for example!). Since SAT scales exponentially with
+the size of its inputs, execution time can quickly grow past a point of utility
+for complex operations, notably multiplication. Fortunately, for most designs
+(without such complex ops), proving equivalence of a single pipeline stage can
+complete in a small amount of time (O(minutes)).
+
+### Predicate coverage
 
 Hypothetically, any XLS function that computes a predicate (bool) can be fed to
 Z3 for satisfiability testing. Currently a more limited set of predicates are
 exposed that can be easily expressed on the command line; however, it should be
 possible to provide:
 
-a) an XLS IR file b) a set of nodes in the entry function c) a DSLX function
-that computes a predicate on those nodes
+-   an XLS IR file
+-   a set of nodes in the entry function
+-   a DSLX function that computes a predicate on those nodes
 
 Which would allow the user to compute arbitrary properties of nodes in the
 function with the concise DSL syntax.

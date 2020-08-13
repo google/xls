@@ -295,16 +295,16 @@ at 0 (Member access by field names is work in progress). For example, to
 access the 2nd element of a tuple (index 1):
 
 ```
-let t = (u32:2, u8:3) in
+let t = (u32:2, u8:3);
 assert_eq(u8:3, t[u32:1])
 ```
 
 Another way to "destructure" a tuple into names is to use tuple assignment:
 
 ```
-let t = (u32:2, u8:3) in
-let (a, b) = t in
-let _ = assert_eq(u32:2, a) in
+let t = (u32:2, u8:3);
+let (a, b) = t;
+let _ = assert_eq(u32:2, a);
 assert_eq(u8:3, b)
 ```
 
@@ -312,8 +312,8 @@ Just as values can be discarded in a `let` by using the "black hole identifier"
 `_`, don't care values can also be discarded when destructuring a tuple:
 
 ```
-let t = (u32:2, u8:3, true) in
-let (_, _, v) = t in
+let t = (u32:2, u8:3, true);
+let (_, _, v) = t;
 assert_eq(v, true)
 ```
 
@@ -341,8 +341,8 @@ struct Point {
 }
 
 test struct_equality {
-  let p0 = Point { x: u32:42, y: u32:64 } in
-  let p1 = Point { y: u32:64, x: u32:42 } in
+  let p0 = Point { x: u32:42, y: u32:64 };
+  let p1 = Point { y: u32:64, x: u32:42 };
   assert_eq(p0, p1)
 }
 ```
@@ -384,12 +384,12 @@ fn update_y(p: Point3, new_y: u32) -> Point3 {
 }
 
 fn main() -> Point3 {
-  let p = Point3 { x: u32:42, y: u32:64, z: u32:256 } in
+  let p = Point3 { x: u32:42, y: u32:64, z: u32:256 };
   update_y(p, u32:128)
 }
 
 test main {
-  let want = Point3 { x: u32:42, y: u32:128, z: u32:256 } in
+  let want = Point3 { x: u32:42, y: u32:128, z: u32:256 };
   assert_eq(want, main())
 }
 ```
@@ -427,7 +427,7 @@ same definition (this is called "nominal typing"). For example:
         }
         fn f(x: Point) -> Point { x }
         fn g() -> Point {
-          let shp = OtherPoint { x: s8:255, y: u32:1024 } in
+          let shp = OtherPoint { x: s8:255, y: u32:1024 };
           f(shp)
         }
         """,
@@ -449,12 +449,12 @@ fn main(a: u32[2], i: u1) -> u32 {
 }
 
 test main {
-  let x = u32:42 in
-  let y = u32:64 in
+  let x = u32:42;
+  let y = u32:64;
   // Make an array with "bracket notation".
-  let my_array: u32[2] = [x, y] in
-  let _ = assert_eq(main(my_array, u1:0), x) in
-  let _ = assert_eq(main(my_array, u1:1), y) in
+  let my_array: u32[2] = [x, y];
+  let _ = assert_eq(main(my_array, u1:0), x);
+  let _ = assert_eq(main(my_array, u1:1), y);
   ()
 }
 ```
@@ -471,8 +471,8 @@ fn make_array(x: u32) -> u32[3] {
 }
 
 test make_array {
-  let _ = assert_eq(u32[3]:[u32:42, u32:42, u32:42], make_array(u32:42)) in
-  let _ = assert_eq(u32[3]:[u32:42, u32:64, u32:64], make_array(u32:64)) in
+  let _ = assert_eq(u32[3]:[u32:42, u32:42, u32:42], make_array(u32:42));
+  let _ = assert_eq(u32[3]:[u32:42, u32:64, u32:64], make_array(u32:64));
   ()
 }
 ```
@@ -518,7 +518,7 @@ by a `:`. In this example:
 
 ```
 fn add_with_carry(x: bits[24], y: bits[24]) -> (u1, bits[24]) {
-  let result = (u1:0 ++ x) + (u1:0 ++ y) in
+  let result = (u1:0 ++ x) + (u1:0 ++ y);
   (u1:(result >> bits[25]:24), bits[24]:result)
 }
 ```
@@ -543,15 +543,15 @@ don't match up.
 For example, instead of writing:
 
 ```
-let ch: u32 = (e & f) ^ ((!e) & g) in
-let (h, g, f): (u32, u32, u32) = (g, f, e) in
+let ch: u32 = (e & f) ^ ((!e) & g);
+let (h, g, f): (u32, u32, u32) = (g, f, e);
 ```
 
 one can write the following, as long as the types can be properly inferred:
 
 ```
-let ch = (e & f) ^ ((!e) & g) in
-let (h, g, f) = (g, f, e) in
+let ch = (e & f) ^ ((!e) & g);
+let (h, g, f) = (g, f, e);
 ```
 
 Note that type annotations can still be added and be used for program
@@ -770,8 +770,8 @@ nested, lexically-scoped, list of declarations. The scope of the declaration is
 the expression and the right hand side of the declaration. For example,
 
 ```
-let a: u32 = u32:1 + u32:2 in
-let b: u32 = a + u32:3 in
+let a: u32 = u32:1 + u32:2;
+let b: u32 = a + u32:3;
 b
 ```
 
@@ -810,8 +810,8 @@ the following:
 
 ```
 [...]
-let result_sfd = result_sfd if wide_exponent < u9:255 else u23:0 in
-let result_exponent = wide_exponent as u8 if wide_exponent < u9:255 else u8:255 in
+let result_sfd = result_sfd if wide_exponent < u9:255 else u23:0;
+let result_exponent = wide_exponent as u8 if wide_exponent < u9:255 else u8:255;
 ```
 
 ### Iterable Expression
@@ -868,14 +868,14 @@ in range(u32:0, u32:4) { accum + i }(u32:0)
 To add up values from 7 to 11 (exclusive), one would write:
 
 ```
-let base: u32 = u32:7 in
+let base: u32 = u32:7;
 for (i, accum): (u32, u32) in range(u32:0, u32:4) { accum + base + i }(u32:0)
 ```
 
 Invariants can be used in the loop body, for example:
 
 ```
-let outer_thing: u32 = u32:42 in
+let outer_thing: u32 = u32:42;
 for (i, accum): (u32, u32) in range(u32:0, u32:4) {
     accum + i + outer_thing
 }(u32:0)
@@ -904,21 +904,21 @@ for semantics of numeric casts:
 
 ```
 test numerical_conversions {
-  let s8_m2 = s8:-2 in
-  let u8_m2 = u8:-2 in
+  let s8_m2 = s8:-2;
+  let u8_m2 = u8:-2;
   // Sign extension (source type is signed).
-  let _ = assert_eq(s32:-2, s8_m2 as s32) in
-  let _ = assert_eq(u32:-2, s8_m2 as u32) in
-  let _ = assert_eq(s16:-2, s8_m2 as s16) in
-  let _ = assert_eq(u16:-2, s8_m2 as u16) in
+  let _ = assert_eq(s32:-2, s8_m2 as s32);
+  let _ = assert_eq(u32:-2, s8_m2 as u32);
+  let _ = assert_eq(s16:-2, s8_m2 as s16);
+  let _ = assert_eq(u16:-2, s8_m2 as u16);
   // Zero extension (source type is unsigned).
-  let _ = assert_eq(u32:0xfe, u8_m2 as u32) in
-  let _ = assert_eq(s32:0xfe, u8_m2 as s32) in
+  let _ = assert_eq(u32:0xfe, u8_m2 as u32);
+  let _ = assert_eq(s32:0xfe, u8_m2 as s32);
   // Nop (bitwidth is unchanged).
-  let _ = assert_eq(s8:-2, s8_m2 as s8) in
-  let _ = assert_eq(s8:-2, u8_m2 as s8) in
-  let _ = assert_eq(u8:-2, u8_m2 as u8) in
-  let _ = assert_eq(s8:-2, u8_m2 as s8) in
+  let _ = assert_eq(s8:-2, s8_m2 as s8);
+  let _ = assert_eq(s8:-2, u8_m2 as s8);
+  let _ = assert_eq(u8:-2, u8_m2 as u8);
+  let _ = assert_eq(s8:-2, u8_m2 as s8);
   ()
 }
 ```
@@ -948,32 +948,32 @@ fn concat_arrays(a: u2[3], b: u2[3]) -> u2[6] {
 }
 
 test cast_to_array {
-  let a_value: u6 = u6:0b011011 in
-  let a: u2[3] = cast_to_array(a_value) in
-  let a_array = u2[3]:[1, 2, 3] in
-  let _ = assert_eq(a, a_array) in
+  let a_value: u6 = u6:0b011011;
+  let a: u2[3] = cast_to_array(a_value);
+  let a_array = u2[3]:[1, 2, 3];
+  let _ = assert_eq(a, a_array);
   // Note: converting back from array to bits gives the original value.
-  let _ = assert_eq(a_value, cast_from_array(a)) in
+  let _ = assert_eq(a_value, cast_from_array(a));
 
-  let b_value: u6 = u6:0b111001 in
-  let b_array: u2[3] = u2[3]:[3, 2, 1] in
-  let b: u2[3] = cast_to_array(b_value) in
-  let _ = assert_eq(b, b_array) in
-  let _ = assert_eq(b_value, cast_from_array(b)) in
+  let b_value: u6 = u6:0b111001;
+  let b_array: u2[3] = u2[3]:[3, 2, 1];
+  let b: u2[3] = cast_to_array(b_value);
+  let _ = assert_eq(b, b_array);
+  let _ = assert_eq(b_value, cast_from_array(b));
 
   // Concatenation of bits is analogous to concatenation of their converted
   // arrays. That is:
   //
   //  convert(concat(a, b)) == concat(convert(a), convert(b))
-  let concat_value: u12 = a_value ++ b_value in
-  let concat_array: u2[6] = concat_value as u2[6] in
-  let _ = assert_eq(concat_array, concat_arrays(a_array, b_array)) in
+  let concat_value: u12 = a_value ++ b_value;
+  let concat_array: u2[6] = concat_value as u2[6];
+  let _ = assert_eq(concat_array, concat_arrays(a_array, b_array));
 
   // Show a few classic "endianness" example using 8-bit array values.
-  let x = u32:0xdeadbeef in
-  let _ = assert_eq(x as u8[4], u8[4]:[0xde, 0xad, 0xbe, 0xef]) in
-  let y = u16:0xbeef in
-  let _ = assert_eq(y as u8[2], u8[2]:[0xbe, 0xef]) in
+  let x = u32:0xdeadbeef;
+  let _ = assert_eq(x as u8[4], u8[4]:[0xde, 0xad, 0xbe, 0xef]);
+  let y = u16:0xbeef;
+  let _ = assert_eq(y as u8[2], u8[2]:[0xbe, 0xef]);
 
   ()
 }
@@ -1117,8 +1117,8 @@ fn main(x: u8) -> MyEnum {
 }
 
 test main {
-  let _ = assert_eq(main(u8:42), MyEnum::FOO) in
-  let _ = assert_eq(main(u8:64), MyEnum::BAR) in
+  let _ = assert_eq(main(u8:42), MyEnum::FOO);
+  let _ = assert_eq(main(u8:64), MyEnum::BAR);
   ()
 }
 ```
@@ -1139,9 +1139,9 @@ fn match_const(x: u8) -> u8 {
 }
 
 test match_const_not_binding {
-  let _ = assert_eq(u8:42, match_const(u8:0)) in
-  let _ = assert_eq(u8:42, match_const(u8:1)) in
-  let _ = assert_eq(u8:0, match_const(u8:42)) in
+  let _ = assert_eq(u8:42, match_const(u8:0));
+  let _ = assert_eq(u8:42, match_const(u8:1));
+  let _ = assert_eq(u8:0, match_const(u8:42));
   ()
 }
 
@@ -1154,9 +1154,9 @@ fn h(t: (u8, (u16, u32))) -> u32 {
 }
 
 test match_nested {
-  let _ = assert_eq(u32:3, h((u8:42, (u16:1, u32:2)))) in
-  let _ = assert_eq(u32:1, h((u8:0, (u16:1, u32:42)))) in
-  let _ = assert_eq(u32:7, h((u8:0, (u16:1, u32:0)))) in
+  let _ = assert_eq(u32:3, h((u8:42, (u16:1, u32:2))));
+  let _ = assert_eq(u32:1, h((u8:0, (u16:1, u32:42))));
+  let _ = assert_eq(u32:7, h((u8:0, (u16:1, u32:0))));
   ()
 }
 ```
@@ -1235,59 +1235,59 @@ Here are many more examples:
 fn [N: u32] id(x: bits[N]) -> bits[N] { x }
 
 test bit_slice_syntax {
-  let x = u6:0b100111 in
+  let x = u6:0b100111;
   // Slice out two bits.
-  let _ = assert_eq(u2:0b11, x[0:2]) in
-  let _ = assert_eq(u2:0b11, x[1:3]) in
-  let _ = assert_eq(u2:0b01, x[2:4]) in
-  let _ = assert_eq(u2:0b00, x[3:5]) in
+  let _ = assert_eq(u2:0b11, x[0:2]);
+  let _ = assert_eq(u2:0b11, x[1:3]);
+  let _ = assert_eq(u2:0b01, x[2:4]);
+  let _ = assert_eq(u2:0b00, x[3:5]);
 
   // Slice out three bits.
-  let _ = assert_eq(u3:0b111, x[0:3]) in
-  let _ = assert_eq(u3:0b011, x[1:4]) in
-  let _ = assert_eq(u3:0b001, x[2:5]) in
-  let _ = assert_eq(u3:0b100, x[3:6]) in
+  let _ = assert_eq(u3:0b111, x[0:3]);
+  let _ = assert_eq(u3:0b011, x[1:4]);
+  let _ = assert_eq(u3:0b001, x[2:5]);
+  let _ = assert_eq(u3:0b100, x[3:6]);
 
   // Slice out from the end.
-  let _ = assert_eq(u1:0b1, x[-1:]) in
-  let _ = assert_eq(u1:0b1, x[-1:6]) in
-  let _ = assert_eq(u2:0b10, x[-2:]) in
-  let _ = assert_eq(u2:0b10, x[-2:6]) in
-  let _ = assert_eq(u3:0b100, x[-3:]) in
-  let _ = assert_eq(u3:0b100, x[-3:6]) in
-  let _ = assert_eq(u4:0b1001, x[-4:]) in
-  let _ = assert_eq(u4:0b1001, x[-4:6]) in
+  let _ = assert_eq(u1:0b1, x[-1:]);
+  let _ = assert_eq(u1:0b1, x[-1:6]);
+  let _ = assert_eq(u2:0b10, x[-2:]);
+  let _ = assert_eq(u2:0b10, x[-2:6]);
+  let _ = assert_eq(u3:0b100, x[-3:]);
+  let _ = assert_eq(u3:0b100, x[-3:6]);
+  let _ = assert_eq(u4:0b1001, x[-4:]);
+  let _ = assert_eq(u4:0b1001, x[-4:6]);
 
   // Slice both relative to the end (MSb).
-  let _ = assert_eq(u2:0b01, x[-4:-2]) in
-  let _ = assert_eq(u2:0b11, x[-6:-4]) in
+  let _ = assert_eq(u2:0b01, x[-4:-2]);
+  let _ = assert_eq(u2:0b11, x[-6:-4]);
 
   // Slice out from the beginning (LSb).
-  let _ = assert_eq(u5:0b00111, x[:-1]) in
-  let _ = assert_eq(u4:0b0111, x[:-2]) in
-  let _ = assert_eq(u3:0b111, x[:-3]) in
-  let _ = assert_eq(u2:0b11, x[:-4]) in
-  let _ = assert_eq(u1:0b1, x[:-5]) in
+  let _ = assert_eq(u5:0b00111, x[:-1]);
+  let _ = assert_eq(u4:0b0111, x[:-2]);
+  let _ = assert_eq(u3:0b111, x[:-3]);
+  let _ = assert_eq(u2:0b11, x[:-4]);
+  let _ = assert_eq(u1:0b1, x[:-5]);
 
   // Slicing past the end just means we hit the end (as in Python).
-  let _ = assert_eq(u1:0b1, x[5:7]) in
-  let _ = assert_eq(u1:0b1, x[-7:1]) in
-  let _ = assert_eq(bits[0]:0, x[-7:-6]) in
-  let _ = assert_eq(bits[0]:0, x[-6:-6]) in
-  let _ = assert_eq(bits[0]:0, x[6:6]) in
-  let _ = assert_eq(bits[0]:0, x[6:7]) in
-  let _ = assert_eq(u1:1, x[-6:-5]) in
+  let _ = assert_eq(u1:0b1, x[5:7]);
+  let _ = assert_eq(u1:0b1, x[-7:1]);
+  let _ = assert_eq(bits[0]:0, x[-7:-6]);
+  let _ = assert_eq(bits[0]:0, x[-6:-6]);
+  let _ = assert_eq(bits[0]:0, x[6:6]);
+  let _ = assert_eq(bits[0]:0, x[6:7]);
+  let _ = assert_eq(u1:1, x[-6:-5]);
 
   // Slice of a slice.
-  let _ = assert_eq(u2:0b11, x[:4][1:3]) in
+  let _ = assert_eq(u2:0b11, x[:4][1:3]);
 
   // Slice of an invocation.
-  let _ = assert_eq(u2:0b01, id(x)[2:4]) in
+  let _ = assert_eq(u2:0b01, id(x)[2:4]);
 
   // Explicit-width slices.
-  let _ = assert_eq(u2:0b01, x[2+:u2]) in
-  let _ = assert_eq(s3:0b100, x[3+:s3]) in
-  let _ = assert_eq(u3:0b001, x[5+:u3]) in
+  let _ = assert_eq(u2:0b01, x[2+:u2]);
+  let _ = assert_eq(s3:0b100, x[3+:s3]);
+  let _ = assert_eq(u3:0b001, x[5+:u3]);
   ()
 }
 ```
@@ -1298,10 +1298,10 @@ DSLX provides the common "count leading zeroes" and "count trailing zeroes"
 functions:
 
 ```
-  let x0 = u32:0x0FFFFFF8 in
-  let x1 = clz(x0) in
-  let x2 = ctz(x0) in
-  let _ = assert_eq(u32:4, x1) in
+  let x0 = u32:0x0FFFFFF8;
+  let x1 = clz(x0);
+  let x2 = ctz(x0);
+  let _ = assert_eq(u32:4, x1);
   assert_eq(u32:3, x2)
 ```
 
@@ -1317,9 +1317,9 @@ signed or unsigned. Note that the *value* of the right hand side is ignored,
 only its type is used to determine the result type of the sign extension.
 
 ```
-  let x = u8:-1 in
-  let s: s32 = signex(x, s32:0) in
-  let u: u32 = signex(x, u32:0) in
+  let x = u8:-1;
+  let s: s32 = signex(x, s32:0);
+  let u: u32 = signex(x, u32:0);
   assert_eq(u32:s, u)
 ```
 
@@ -1344,12 +1344,12 @@ fn main(x: u3) -> u3 {
 
 // Reverse examples.
 test reverse {
-  let _ = assert_eq(u3:0b100, main(u3:0b001)) in
-  let _ = assert_eq(u3:0b001, main(u3:0b100)) in
-  let _ = assert_eq(bits[0]:0, rev(bits[0]:0)) in
-  let _ = assert_eq(u1:1, rev(u1:1)) in
-  let _ = assert_eq(u2:0b10, rev(u2:0b01)) in
-  let _ = assert_eq(u2:0b00, rev(u2:0b00)) in
+  let _ = assert_eq(u3:0b100, main(u3:0b001));
+  let _ = assert_eq(u3:0b001, main(u3:0b100));
+  let _ = assert_eq(bits[0]:0, rev(bits[0]:0));
+  let _ = assert_eq(u1:1, rev(u1:1));
+  let _ = assert_eq(u2:0b10, rev(u2:0b01));
+  let _ = assert_eq(u2:0b00, rev(u2:0b00));
   ()
 }
 ```
@@ -1396,10 +1396,10 @@ fn divceil(x: u32, y: u32) -> u32 {
 }
 
 test divceil {
-  let _ = assert_eq(u32:3, divceil(u32:5, u32:2)) in
-  let _ = assert_eq(u32:2, divceil(u32:4, u32:2)) in
-  let _ = assert_eq(u32:2, divceil(u32:3, u32:2)) in
-  let _ = assert_eq(u32:1, divceil(u32:2, u32:2)) in
+  let _ = assert_eq(u32:3, divceil(u32:5, u32:2));
+  let _ = assert_eq(u32:2, divceil(u32:4, u32:2));
+  let _ = assert_eq(u32:2, divceil(u32:3, u32:2));
+  let _ = assert_eq(u32:1, divceil(u32:2, u32:2));
   _
 }
 
@@ -1418,14 +1418,14 @@ dumping of current values to stdout. For example:
 
 ```
 fn decode_s_instruction(ins: u32) -> (u12, u5, u5, u3, u7) {
-   let imm_11_5 = (ins >> u32:25) in
-   let rs2 = (ins >> u32:20) & u32:0x1F in
-   let rs1 = (ins >> u32:15) & u32:0x1F in
-   let funct3 = (ins >> u32:12) & u32:0x07 in
-   let imm_4_0 = (ins >> u32:7) & u32:0x1F in
-   let opcode = ins & u32:0x7F in
-   let _ = trace(imm_11_5) in
-   let _ = trace(imm_4_0) in
+   let imm_11_5 = (ins >> u32:25);
+   let rs2 = (ins >> u32:20) & u32:0x1F;
+   let rs1 = (ins >> u32:15) & u32:0x1F;
+   let funct3 = (ins >> u32:12) & u32:0x07;
+   let imm_4_0 = (ins >> u32:7) & u32:0x1F;
+   let opcode = ins & u32:0x7F;
+   let _ = trace(imm_11_5);
+   let _ = trace(imm_4_0);
    (u12:(u7:imm_11_5 ++ u5:imm_4_0), u5:rs2, u5:rs1, u3:funct3, u7:opcode)
 }
 

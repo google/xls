@@ -257,7 +257,7 @@ def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx: DeduceCtx,
 def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx: DeduceCtx,
          _: Optional[ParametricBindings]) -> ConcreteType:
   checker = _Checker(arg_types, name, span).len(2).is_bits(0).is_array(1)
-  return_type = arg_types[1].get_element_type()
+  return_type = arg_types[1].get_element_type()  # pytype: disable=attribute-error
   checker.check_is_bits(return_type,
                         'Want arg 1 element type to be bits; got {0}')
   return FunctionType(arg_types, return_type)
@@ -268,7 +268,7 @@ def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx: DeduceCtx,
          _: Optional[ParametricBindings]) -> ConcreteType:
   checker = _Checker(arg_types, name, span).len(3).is_array(0).is_uN(1)
   checker.check_is_same(
-      arg_types[0].get_element_type(), arg_types[2],
+      arg_types[0].get_element_type(), arg_types[2],  # pytype: disable=attribute-error
       'Want argument 0 element type {0} to match argument 2 type {1}')
   return FunctionType(arg_types, arg_types[0])
 
@@ -277,9 +277,9 @@ def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx: DeduceCtx,
 def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx: DeduceCtx,
          _: Optional[ParametricBindings]) -> ConcreteType:
   _Checker(arg_types, name, span).len(1).is_array(0)
-  t = arg_types[0].get_element_type()
+  t = arg_types[0].get_element_type()  # pytype: disable=attribute-error
   e = TupleType((ConcreteType.U32, t))
-  return_type = ArrayType(e, arg_types[0].size)
+  return_type = ArrayType(e, arg_types[0].size)  # pytype: disable=attribute-error
   return FunctionType(arg_types, return_type)
 
 
@@ -303,7 +303,7 @@ def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx: DeduceCtx,
   checker = _Checker(arg_types, name,
                      span).len(3).is_array(0).is_uN(1).is_array(2)
   checker.eq(
-      arg_types[0].get_element_type(), arg_types[2].get_element_type(),
+      arg_types[0].get_element_type(), arg_types[2].get_element_type(),  # pytype: disable=attribute-error
       'Element type of argument 0 {0} should match element type of argument 2 {1}'
   )
   return FunctionType(arg_types, arg_types[2])
@@ -351,10 +351,10 @@ def fsig(
   """Returns the inferred/checked return type for a map-style signature."""
   logging.vlog(5, 'Instantiating for builtin %r @ %s', name, span)
   _Checker(arg_types, name, span).len(2).is_array(0).is_fn(1, argc=1)
-  t = arg_types[0].get_element_type()
+  t = arg_types[0].get_element_type()  # pytype: disable=attribute-error
   u, symbolic_bindings = parametric_instantiator.instantiate(
       span, arg_types[1], (t,), ctx, parametric_bindings)
-  return_type = ArrayType(u, arg_types[0].size)
+  return_type = ArrayType(u, arg_types[0].size)  # pytype: disable=attribute-error
   return FunctionType(arg_types, return_type), symbolic_bindings
 
 

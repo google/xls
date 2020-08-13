@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """'Concrete' types are fully instantiated / known types.
 
 Types with parameters are not 'concrete', they're parametric -- when they

@@ -33,11 +33,14 @@ from xls.dslx import ast
 from xls.dslx import bit_helpers
 from xls.dslx import deduce
 from xls.dslx import import_fn
+from xls.dslx import ir_name_mangler
 from xls.dslx.concrete_type import ArrayType
 from xls.dslx.concrete_type import BitsType
 from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.concrete_type import EnumType
+from xls.dslx.concrete_type import FunctionType
 from xls.dslx.concrete_type import TupleType
+from xls.dslx.interpreter import jit_comparison
 from xls.dslx.interpreter.bindings import Bindings
 from xls.dslx.interpreter.concrete_type_helpers import concrete_type_accepts_value
 from xls.dslx.interpreter.concrete_type_helpers import concrete_type_convert_value
@@ -59,6 +62,8 @@ from xls.dslx.scanner import Keyword
 from xls.dslx.scanner import TokenKind
 from xls.dslx.span import Pos
 from xls.dslx.span import Span
+from xls.ir.python import llvm_ir_jit
+from xls.ir.python import package as ir_package_mod
 
 
 class _WipSentinel(object):
@@ -76,13 +81,15 @@ class Interpreter(object):
                module: ast.Module,
                node_to_type: deduce.NodeToType,
                f_import: Optional[Callable[[ImportSubject], ImportInfo]],
-               trace_all: bool = False):
+               trace_all: bool = False,
+               ir_package: Optional[ir_package_mod.Package] = None):
     self._module = module
     self._node_to_type = node_to_type
     self._top_level_members = {}
     self._started_top_level_index = None
     self._f_import = f_import
     self._trace_all = trace_all
+    self._ir_package = ir_package
 
   def _evaluate_NameRef(  # pylint: disable=invalid-name
       self, expr: ast.NameRef, bindings: Bindings,
@@ -143,7 +150,7 @@ class Interpreter(object):
     width_type = self._evaluate_TypeAnnotation(index_slice.width, bindings)
     result = (bits >> start.get_bits_value()).slice(
         0, width_type.get_total_bit_count(), lsb_is_0=True)
-    return Value(Tag.SBITS if width_type.get_signedness() else Tag.UBITS,
+    return Value(Tag.SBITS if width_type.get_signedness() else Tag.UBITS,  # pytype: disable=attribute-error
                  result)
 
   def _evaluate_index_bitslice(self, expr: ast.Index, bindings: Bindings,
@@ -382,7 +389,7 @@ class Interpreter(object):
           expr.span, 'Type context for number is a tuple type {} @ {}'.format(
               type_context, expr.span))
     bit_count = type_context.get_total_bit_count()
-    signed = type_context.signed
+    signed = type_context.signed  # pytype: disable=attribute-error
     constructor = Value.make_sbits if signed else Value.make_ubits
     return constructor(bit_count, expr.get_value_as_int())
 
@@ -478,7 +485,7 @@ class Interpreter(object):
     """Evaluates an attribute-accessing AST node to a value."""
     lhs_value = self._evaluate(expr.lhs, bindings)
     index = next(
-        i for i, name in enumerate(self._node_to_type[expr.lhs].tuple_names)
+        i for i, name in enumerate(self._node_to_type[expr.lhs].tuple_names)  # pytype: disable=attribute-error
         if name == expr.attr.identifier)
     return lhs_value.tuple_members[index]
 
@@ -499,7 +506,7 @@ class Interpreter(object):
       """
       if type_context is None:
         return None
-      return type_context.get_tuple_member(i)
+      return type_context.get_tuple_member(i)  # pytype: disable=attribute-error
 
     result = Value.make_tuple(
         tuple(
@@ -621,14 +628,14 @@ class Interpreter(object):
     if type_context is None and expr.type_:
       type_context = self._evaluate_TypeAnnotation(expr.type_, bindings)
     if type_context is not None:
-      element_type = type_context.get_element_type()
+      element_type = type_context.get_element_type()  # pytype: disable=attribute-error
       logging.vlog(3, 'element type for array members: %s @ %s', element_type,
                    expr.span)
     elements = tuple(
         self._evaluate(e, bindings, element_type) for e in expr.members)
     if expr.has_ellipsis:
       assert type_context is not None, type_context
-      elements = elements + elements[-1:] * (type_context.size - len(elements))
+      elements = elements + elements[-1:] * (type_context.size - len(elements))  # pytype: disable=attribute-error
     return Value.make_array(elements)
 
   def _evaluate_ConstantArray(  # pylint: disable=invalid-name
@@ -763,7 +770,8 @@ class Interpreter(object):
               len(args)))
     lhs, rhs = args
     pred = lhs.eq(rhs)
-    msg = '\n  want: {}\n  got:  {}'.format(lhs, rhs)
+    msg = '\n  want: {}\n  got:  {}'.format(lhs.to_human_str(),
+                                            rhs.to_human_str())
 
     if pred.get_bits_value() == 0 and lhs.tag == rhs.tag == Tag.ARRAY:
       lhs_a = lhs.array_payload
@@ -1287,14 +1295,10 @@ class Interpreter(object):
       wrapped_value = Value.make_ubits(type_.get_total_bit_count(), raw_value)
       bindings.add_value(parametric.name.identifier, wrapped_value)
 
-  def _evaluate_fn(
-      self,
-      fn: ast.Function,
-      m: ast.Module,
-      args: Sequence[Value],
-      span: Span,
-      expr: Optional[ast.Invocation] = None,
-      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
+  def _evaluate_fn_with_interpreter(
+      self, fn: ast.Function, m: ast.Module, args: Sequence[Value], span: Span,
+      expr: Optional[ast.Invocation],
+      symbolic_bindings: Optional[SymbolicBindings]) -> Value:
     """Evaluates the user defined function fn as an invocation against args.
 
     Args:
@@ -1353,6 +1357,56 @@ class Interpreter(object):
           'want: {}; got: {} @ {}'.format(concrete_return_type, result, span))
 
     return result
+
+  def _evaluate_fn(
+      self,
+      fn: ast.Function,
+      m: ast.Module,
+      args: Sequence[Value],
+      span: Span,
+      expr: Optional[ast.Invocation] = None,
+      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
+    """Wraps _eval_fn_with_interpreter() to compare with JIT execution.
+
+    Unless this Interpreter was created with an ir_package, this does nothing
+    more than call _eval_fn_with_interpreter(). Otherwise, fn is executed with
+    the LLVM IR JIT and its return value is compared against the interpreted
+    value as a consistency check.
+
+    TODO(hjmontero): 2020-8-4 This OK because there are no side effects. We
+    should investigate what happens when there are side effects (e.g. DSLX fatal
+    errors).
+
+    Args:
+      fn: Function to evaluate.
+      m: Module the function is contained within.
+      args: Actual arguments used to invoke the function.
+      span: Span of the invocation causing this evaluation.
+      expr: Invocation AST node causing this evaluation.
+      symbolic_bindings: Symbolic bindings to be used for this function
+        evaluation present (if the function is parameteric).
+
+    Returns:
+      The value that results from DSL interpretation.
+    """
+    interpreter_value = self._evaluate_fn_with_interpreter(
+        fn, m, args, span, expr, symbolic_bindings)
+
+    ir_name = ir_name_mangler.mangle_dslx_name(fn.name.identifier,
+                                               fn.get_free_parametric_keys(), m,
+                                               symbolic_bindings)
+
+    if self._ir_package:
+      # TODO(hjmontero): 2020-07-28 Cache JIT function so we don't have to
+      # create it every time. This requires us to figure out how to wrap
+      # LlvmIrJit::Create().
+      ir_function = self._ir_package.get_function(ir_name)
+      ir_args = jit_comparison.convert_args_to_ir(args)
+
+      jit_value = llvm_ir_jit.llvm_ir_jit_run(ir_function, ir_args)
+      jit_comparison.compare_values(interpreter_value, jit_value)
+
+    return interpreter_value
 
   def _do_import(self, subject: import_fn.ImportTokens,
                  span: Span) -> ast.Module:
@@ -1431,6 +1485,30 @@ class Interpreter(object):
         imported_module = self._do_import(member.name, member.span)
         b.add_mod(member.identifier, imported_module)
     return b
+
+  def run_quickcheck(self, quickcheck: ast.QuickCheck) -> None:
+    """Runs a quickcheck AST node (via the LLVM JIT)."""
+    assert self._ir_package
+    fn = quickcheck.f
+    ir_name = ir_name_mangler.mangle_dslx_name(fn.name.identifier,
+                                               fn.get_free_parametric_keys(),
+                                               self._module, ())
+
+    ir_function = self._ir_package.get_function(ir_name)
+    argsets, results = llvm_ir_jit.quickcheck_jit(ir_function)
+    last_result = results[-1].get_bits().to_uint()
+    if not last_result:
+      last_argset = argsets[-1]
+      fn_type = self._node_to_type[fn]
+      assert isinstance(fn_type, FunctionType), fn_type
+      fn_param_types = fn_type.params
+      dslx_argset = [
+          str(jit_comparison.ir_value_to_interpreter_value(arg, arg_type))
+          for arg, arg_type in zip(last_argset, fn_param_types)
+      ]
+      raise FailureError(
+          fn.span, f'Found falsifying example after '
+          f'{len(results)} tests: {dslx_argset}')
 
   def run_test(self, name: Text) -> None:
     bindings = self._make_top_level_bindings(self._module)
