@@ -133,7 +133,7 @@ def parse_log(filename: str) -> str:
     delay_statement = 'Max delay <async> -> <async>: '
     locs = [m.start() for m in re.finditer(delay_statement, info)]
     # If there is no delay statement, we know it has been optimized
-    # to a constant.
+    # to a constant value, which has no delay.
     if len(locs) == 0:
       return "0.0"
     # Want to extract the final delay
@@ -165,7 +165,7 @@ def yosys_and_nextpnr(expr: str) -> float:
   return delay
 
 
-def parse_benchmark_output(filename: str) -> str:
+def parse_benchmark_output(filename: str) -> float:
   with open(filename, "r") as out_file:
     info = out_file.read()
     delay_statement = "Return value delay: "
@@ -174,10 +174,10 @@ def parse_benchmark_output(filename: str) -> str:
       print("No delay")
     else:
       idx += len(delay_statement)
-      # Delay is actually returned in ps, so we need to convert it
       end = idx
       while info[end].isdigit():
         end += 1
+      # Delay is actually returned in ps, so we need to convert it
       return float(info[idx:end]) / 1000
 
 def get_curr_estimate(expr: str) -> float:
