@@ -35,7 +35,7 @@ flags.mark_flag_as_required("N")
 
 def description_comments(n, f):
   """
-  Write comments at the top of the file describing what it does. 
+  Write comments to the top of the file describing what it does. 
  
   Write comments to the top of the smt2 file describing the proof it contains:
   the operation, how many bits in the arguments, and how many operations. 
