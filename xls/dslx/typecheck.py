@@ -236,63 +236,6 @@ class _TypecheckStackRecord:
   is_test: bool
   user: Optional[ast.AstNode] = None
 
-
-def _make_record(f: Union[Function, ast.Test],
-                 ctx: deduce.DeduceCtx,
-                 user: Optional[ast.AstNode] = None) -> _TypecheckStackRecord:
-  """Creates a _TypecheckStackRecord for typechecking functions/tests.
-
-  The optional third field in the record will carry the contents of
-  ctx.node_to_type._dict at the time of record creation. If this record is
-  for typechecking the body of a parametric function for the first time,
-  we'll use the before-version of ctx.node_to_type._dict to determine the
-  dependencies of the parametric function when this record is popped.
-
-  Args:
-    f: Function-or-test to make the record for.
-    ctx: Typecheck deduction context.
-    user: Invocation node in this module that needs f to be typechecked.
-
-  Returns:
-    A record of f to put into the typechecking-stack.
-  """
-  fn_name, _ = ctx.fn_stack[-1]
-
-  if isinstance(f, ast.Test):
-    return _TypecheckStackRecord(f.name.identifier, is_test=True)
-
-  assert isinstance(f, ast.Function)
-  if f.is_parametric() and fn_name == f.name.identifier:
-    # Do extra accounting for parametric functions we're currently translating.
-    if f not in ctx.node_to_type.parametric_fn_cache:
-      # This is our first time evaluating the body of this parametric fn.
-      # Let's store what ctx.node_to_type looked like before so we know
-      # what this function's dependencies are.
-      assert f.body not in ctx.node_to_type, repr(f.body)
-      previous_node_types = copy.copy(ctx.node_to_type._dict)  # pylint: disable=protected-access
-      return _TypecheckStackRecord(
-          f.name.identifier,
-          is_test=False,
-          node_types=previous_node_types,
-          user=user)
-
-    # We've previously evaluated the body of this parametric fn.
-    # Let's remove the types we found so that they are reevaluated
-    # with the current symbolic bindings.
-    cached_types = ctx.node_to_type.parametric_fn_cache[f]
-    without_deps_dict = {
-        n: ctx.node_to_type[n]
-        for n in ctx.node_to_type._dict  # pylint: disable=protected-access
-        if n not in cached_types
-    }
-    # Assert that the body will be reevaluated
-    assert f.body not in without_deps_dict, (f, ctx.fn_stack, f.body.span)
-    ctx.node_to_type._dict = without_deps_dict  # pylint: disable=protected-access
-
-  # Function stack record.
-  return _TypecheckStackRecord(f.name.identifier, is_test=False, user=user)
-
-
 def check_function_or_test_in_module(f: Union[Function, ast.Test],
                                      ctx: deduce.DeduceCtx):
   """Type-checks function f in the given module.
@@ -314,8 +257,7 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
       (f.name.identifier, isinstance(f, ast.Test)): (f, True)
   }  # type: Dict[Tuple[Text, bool], Tuple[Union[Function, ast.Test], bool]]
 
-  # stack = [_make_record(f, ctx)]  # type: List[_TypecheckStackRecord]
-  stack = [_TypecheckStackRecord(f.name.identifier, isinstance(f, ast.Test))]
+  stack = [_TypecheckStackRecord(f.name.identifier, isinstance(f, ast.Test))]  # type: List[_TypecheckStackRecord]
 
   function_map = {f.name.identifier: f for f in ctx.module.get_functions()}
   while stack:
@@ -324,8 +266,6 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
     while p:
       parent_count += 1
       p = p._parent
-    # print(f'parent count {parent_count}')
-    # print(len(stack), stack[-1], ctx.fn_stack[-1])
     try:
       f = seen[(stack[-1].name, stack[-1].is_test)][0]
       if isinstance(f, ast.Function):
@@ -337,20 +277,6 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
                                                            )  # Mark as done.
       stack_record = stack.pop()
       fn_name, _ = ctx.fn_stack[-1]
-      # if (isinstance(f, ast.Function) and f.is_parametric() and
-      #     fn_name == f.name.identifier and
-      #     f not in ctx.node_to_type.parametric_fn_cache):
-      #   # We just evaluated the body of a parametric function for the first
-      #   # time. Let's compute its dependencies so that we know which nodes to
-      #   # recheck if we see another invocation of this parametric function.
-      #   previous_node_types = stack_record.node_types
-      #   assert previous_node_types, previous_node_types
-      #   deps = {
-      #       n: ctx.node_to_type[n]
-      #       for n in set(ctx.node_to_type._dict) - set(previous_node_types)  # pylint: disable=protected-access
-      #   }
-      #   key = f
-      #   ctx.node_to_type.parametric_fn_cache[key] = deps
 
       def is_callee_map(n: Optional[ast.AstNode]) -> bool:
         return (n and isinstance(n, ast.Invocation) and
@@ -369,8 +295,6 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
         # i.e. we just finished typechecking the body of the function we're
         # currently inside of.
         ctx.fn_stack.pop()
-        # if ctx.node_to_type._parent:
-        #   ctx.node_to_type = ctx.node_to_type._parent
 
     except deduce.TypeMissingError as e:
       while True:
@@ -413,8 +337,8 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
 ImportFn = Callable[[Tuple[Text, ...]], Tuple[ast.Module, deduce.NodeToType]]
 
 
-def _check_module_helper(module: Module,
-                         f_import: Optional[ImportFn]) -> deduce.NodeToType:
+def check_module(module: Module,
+                 f_import: Optional[ImportFn]) -> deduce.NodeToType:
   """Validates type annotations on all functions within "module".
 
   Args:
@@ -424,10 +348,7 @@ def _check_module_helper(module: Module,
       no import statements.
 
   Returns:
-    A tuple containing a node_to_type (mapping from AST node to its
-    deduced/checked type and a parametric_fn_cache (mapping from parametric
-    function to all dependency nodes (body, other functions, etc.)).
-
+    Mapping from AST node to its deduced/checked type.
   Raises:
     XlsTypeError: If any of the function in f have typecheck errors.
   """
@@ -437,7 +358,7 @@ def _check_module_helper(module: Module,
                          check_function_or_test_in_module)
 
   # First populate node_to_type with constants, enums, and resolved imports.
-  ctx.fn_stack.append(('top', dict()))  # No sym bindings in the global scope
+  ctx.fn_stack.append(('top', dict()))  # No sym bindings in the global scope.
   for member in ctx.module.top:
     if isinstance(member, ast.Import):
       imported_module, imported_node_to_type = f_import(member.name)
@@ -465,7 +386,7 @@ def _check_module_helper(module: Module,
           'functions is unsupported.', f.span)
 
     logging.vlog(2, 'Typechecking function: %s', f)
-    ctx.fn_stack.append((f.name.identifier, dict()))  # No symbolic bindings
+    ctx.fn_stack.append((f.name.identifier, dict()))  # No symbolic bindings.
     check_function_or_test_in_module(f, ctx)
 
     quickcheck_f_body_type = ctx.node_to_type[f.body]
@@ -482,11 +403,11 @@ def _check_module_helper(module: Module,
   for f in function_map.values():
     assert isinstance(f, ast.Function), f
     if f.is_parametric():
-      # Let's typecheck parametric functions per invocation
+      # Let's typecheck parametric functions per invocation.
       continue
 
     logging.vlog(2, 'Typechecking function: %s', f)
-    ctx.fn_stack.append((f.name.identifier, dict()))  # No symbolic bindings
+    ctx.fn_stack.append((f.name.identifier, dict()))  # No symbolic bindings.
     check_function_or_test_in_module(f, ctx)
     logging.vlog(2, 'Finished typechecking function: %s', f)
 
@@ -517,32 +438,5 @@ def _check_module_helper(module: Module,
       check_function_or_test_in_module(t, ctx)
     logging.vlog(2, 'Finished typechecking test: %s', t)
 
-  # # Let's discard all of the parametric fns' dependencies so that they are
-  # # rechecked on invocation in the importer module
-  # for f in ctx.node_to_type.parametric_fn_cache:
-  #   deps = ctx.node_to_type.parametric_fn_cache[f]
-  #   without_deps_dict = {
-  #       n: ctx.node_to_type[n]
-  #       for n in ctx.node_to_type._dict  # pylint: disable=protected-access
-  #       if n not in deps
-  #   }
-  #   ctx.node_to_type._dict = without_deps_dict  # pylint: disable=protected-access
-
   return ctx.node_to_type
 
-
-def check_module(module: Module,
-                 f_import: Optional[ImportFn]) -> deduce.NodeToType:
-  """Wrapper around check_module_helper for external use."""
-
-  node_to_type = _check_module_helper(module, f_import)
-
-  # At this point, we know module is our entrypoint and we need to add back
-  # in all the parametric fns' dependencies. They were removed in
-  # check_module_helper so that parametric fns would be retypechecked in
-  # other modules that imported them.
-  # for f in node_to_type.parametric_fn_cache:
-  #   deps = node_to_type.parametric_fn_cache[f]
-  #   node_to_type._dict.update(deps)  # pylint: disable=protected-access
-
-  return node_to_type
