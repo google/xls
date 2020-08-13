@@ -199,18 +199,20 @@ class StructType(Type):
     """
 
     element_xls_types = []
-    for named_field in self.struct.fields:
-      name = named_field.name
-      field = named_field.hls_type
-      if field.HasField("as_int"):
-        element_xls_types.append(p.get_bits_type(field.as_int.width))
-      elif field.HasField("as_struct"):
+    if isinstance(self.struct, c_ast.Struct):
+      for name in self.element_types:
         element_xls_types.append(self.element_types[name].get_xls_type(p))
-      elif field.HasField("as_array"):
-        element_xls_types.append(self.element_types[name].get_xls_type(p))
-      else:
-        raise NotImplementedError("Unsupported struct field type in C AST",
-                                  type(field))
+    else:
+      for named_field in self.struct.fields:
+        name = named_field.name
+        field = named_field.hls_type
+        if field.HasField("as_int"):
+          element_xls_types.append(p.get_bits_type(field.as_int.width))
+        elif field.HasField("as_struct"):
+          element_xls_types.append(self.element_types[name].get_xls_type(p))
+        else:
+          raise NotImplementedError("Unsupported struct field type in C AST",
+                                    type(field))
 
     return p.get_tuple_type(element_xls_types)
 
@@ -452,6 +454,9 @@ class Translator(object):
         func = Function()
         func.parse_function(self, child)
         self.functions_[func.name] = func
+      elif isinstance(child.type, c_ast.Struct):
+        struct = StructType(child.type.name, child.type, self)
+        self.hls_types_by_name_[child.type.name] = struct
       elif isinstance(child, c_ast.Decl):
         name = child.name
         assert name not in self.global_decls_
