@@ -38,6 +38,9 @@ TEST(ValueTest, ToHumanString) {
   Value tuple_value = Value::Tuple(
       {array_value, Value(UBits(42, 8)), Value(UBits(123, 8))});
   EXPECT_EQ(tuple_value.ToHumanString(), "([3, 4, 5], 42, 123)");
+
+  Value token_value = Value::Token();
+  EXPECT_EQ(token_value.ToHumanString(), "token");
 }
 
 TEST(ValueTest, ToString) {
@@ -59,6 +62,9 @@ TEST(ValueTest, ToString) {
       Value::Tuple({array_value, Value(UBits(42, 17)), Value(UBits(123, 33))});
   EXPECT_EQ(tuple_value.ToString(),
             "([bits[8]:3, bits[8]:4, bits[8]:5], bits[17]:42, bits[33]:123)");
+
+  Value token_value = Value::Token();
+  EXPECT_EQ(token_value.ToHumanString(), "token");
 }
 
 TEST(ValueTest, SameTypeAs) {
@@ -83,8 +89,13 @@ TEST(ValueTest, SameTypeAs) {
   EXPECT_TRUE(array1.SameTypeAs(array2));
   EXPECT_FALSE(array1.SameTypeAs(array3));
 
+  Value token_a = Value::Token();
+  Value token_b = Value::Token();
+  EXPECT_TRUE(token_a.SameTypeAs(token_b));
+
   EXPECT_FALSE(b1.SameTypeAs(tuple1));
   EXPECT_FALSE(b1.SameTypeAs(array1));
+  EXPECT_FALSE(b1.SameTypeAs(token_a));
 }
 
 TEST(ValueTest, IsAllZeroOnes) {

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Build rules for DSLX modules.
-load("//xls/build:build_defs.bzl", "dslx_test")
+load("//xls/build:build_defs.bzl", "dslx_jit_wrapper", "dslx_test")
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -33,6 +33,12 @@ dslx_test(
     srcs = ["fpadd_2x32.x"],
     # TODO(b/152546795): Takes too long.
     prove_unopt_eq_opt = False,
+)
+
+dslx_jit_wrapper(
+    name = "fpadd_2x32_jit_wrapper",
+    dslx_name = "fpadd_2x32",
+    deps = [":fpadd_2x32_opt_ir"],
 )
 
 # TODO(rspringer): Takes too long to run in normal testing.
@@ -85,6 +91,12 @@ dslx_test(
     prove_unopt_eq_opt = False,
 )
 
+dslx_jit_wrapper(
+    name = "fpmul_2x32_jit_wrapper",
+    dslx_name = "fpmul_2x32",
+    deps = [":fpmul_2x32_opt_ir"],
+)
+
 cc_test(
     name = "fpmul_2x32_test",
     srcs = ["fpmul_2x32_test.cc"],
@@ -100,5 +112,18 @@ cc_test(
         "//xls/ir:value_helpers",
         "//xls/ir:value_view_helpers",
         "//xls/tools:testbench",
+    ],
+)
+
+cc_test(
+    name = "fpadd_2x32_jit_wrapper_test",
+    srcs = ["fpadd_2x32_jit_wrapper_test.cc"],
+    deps = [
+        ":fpadd_2x32_jit_wrapper",
+        "//xls/common/status:matchers",
+        "//xls/ir:bits",
+        "//xls/ir:value",
+        "//xls/ir:value_helpers",
+        "@com_google_googletest//:gtest_main",
     ],
 )

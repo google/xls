@@ -14,7 +14,7 @@
 
 # Build rules for XLS examples.
 
-load("//xls/build:build_defs.bzl", "dslx_test")
+load("//xls/build:build_defs.bzl", "dslx_jit_wrapper", "dslx_test")
 load("//xls/examples:list_filegroup_files.bzl", "list_filegroup_files")
 
 package(
@@ -22,9 +22,43 @@ package(
     licenses = ["notice"],
 )
 
+filegroup(
+    name = "ir_examples",
+    srcs = [
+        ":adler32_all_ir",
+        ":crc32_all_ir",
+        ":sha256_all_ir",
+    ],
+)
+
+dslx_test(
+    name = "adler32",
+    srcs = ["adler32.x"],
+    # TODO(rspringer): OOMs.
+    prove_unopt_eq_opt = False,
+)
+
+cc_binary(
+    name = "adler32_reference",
+    srcs = ["adler32_reference.cc"],
+    deps = [
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/types:span",
+        "//xls/common:init_xls",
+        "//xls/common:integral_types",
+        "//xls/common/logging",
+    ],
+)
+
 dslx_test(
     name = "crc32",
     srcs = ["crc32.x"],
+)
+
+dslx_jit_wrapper(
+    name = "crc32_jit_wrapper",
+    dslx_name = "crc32",
+    deps = [":crc32_opt_ir"],
 )
 
 cc_binary(
@@ -42,6 +76,8 @@ cc_binary(
 dslx_test(
     name = "riscv_simple",
     srcs = ["riscv_simple.x"],
+    # TODO(hjmontero): run_instruction segfaults.
+    compare_jit = False,
     generate_benchmark = False,
     prove_unopt_eq_opt = False,
 )
@@ -54,12 +90,11 @@ dslx_test(
     tags = ["optonly"],
 )
 
-filegroup(
-    name = "ir_examples",
-    srcs = [
-        ":crc32_all_ir",
-        ":sha256_all_ir",
-    ],
+dslx_jit_wrapper(
+    name = "sha256_jit_wrapper",
+    dslx_name = "sha256",
+    entry_function = "main",
+    deps = [":sha256_opt_ir"],
 )
 
 list_filegroup_files(

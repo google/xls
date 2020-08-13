@@ -1,15 +1,29 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #![cfg(let_terminator_is_semi = true)]
 
 // DSLX standard library routines.
 
 // Returns unsigned mul of x (N bits) and y (M bits) as an N+M bit value.
-pub fn [N: u32, M: u32] umul(x: uN[N], y: uN[M]) -> uN[N+M] {
-  (x as uN[N+M]) * (y as uN[N+M])
+pub fn [N: u32, M: u32, R: u32 = N + M] umul(x: uN[N], y: uN[M]) -> uN[R] {
+  (x as uN[R]) * (y as uN[R])
 }
 
 // Returns signed mul of x (N bits) and y (M bits) as an N+M bit value.
-pub fn [N: u32, M: u32] smul(x: sN[N], y: sN[M]) -> sN[N+M] {
-  (x as sN[N+M]) * (y as sN[N+M])
+pub fn [N: u32, M: u32, R: u32 = N + M] smul(x: sN[N], y: sN[M]) -> sN[R] {
+  (x as sN[R]) * (y as sN[R])
 }
 
 test smul {
@@ -77,7 +91,7 @@ pub fn [BITS: u32, ELEMS: u32] find_index(
 
   let x: uN[ELEMS] = convert_to_bits(bools);
   let index = clz(x);
-  let found: bool = index != (ELEMS as uN[ELEMS]);
+  let found: bool = or_reduce(x);
   (found, index as u32 if found else u32:0)
 }
 
@@ -90,8 +104,8 @@ test find_index {
 }
 
 // Concatenates 3 values of potentially different bitwidths to a single value.
-pub fn [X: u32, Y: u32, Z: u32] concat3(
-    x: bits[X], y: bits[Y], z: bits[Z]) -> bits[X+Y+Z] {
+pub fn [X: u32, Y: u32, Z: u32, R: u32 = X + Y + Z] concat3(
+    x: bits[X], y: bits[Y], z: bits[Z]) -> bits[R] {
   x ++ y ++ z
 }
 

@@ -1,3 +1,17 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // options: {"input_is_dslx": true, "convert_to_ir": true, "optimize_ir": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=3"], "simulate": false, "simulator": null}
 // args: bits[27]:0x6baaccb; bits[20]:0x907c2; bits[1]:0x1; bits[7]:0xa; bits[27]:0x1eaedb5
 // args: bits[27]:0x0; bits[20]:0x6b5e0; bits[1]:0x1; bits[7]:0x57; bits[27]:0x5f3c152
@@ -127,12 +141,12 @@
 // args: bits[27]:0x41444d4; bits[20]:0x2026; bits[1]:0x0; bits[7]:0xa; bits[27]:0x6dd9d
 // args: bits[27]:0x4aef726; bits[20]:0xbe670; bits[1]:0x0; bits[7]:0x2; bits[27]:0x5f93f48
 // args: bits[27]:0x6576466; bits[20]:0x4a973; bits[1]:0x1; bits[7]:0x15; bits[27]:0x3cf2eb6
-fn main(x15127: u27, x15128: u20, x15129: u1, x15130: u7, x15131: u27) -> (u11, u10, u2, u27, u10, u2, u11) {                                                                    
-    let x15132: u2 = (u2:0x2) in
-    let x15133: u2 = (x15132) + (x15132) in
-    let x15134: u7 = -(x15130) in
-    let x15135: u10 = (u10:0x3ff) in
-    let x15136: u11 = (u11:0x1) in
+fn main(x15127: u27, x15128: u20, x15129: u1, x15130: u7, x15131: u27) -> (u11, u10, u2, u27, u10, u2, u11) {
+    let x15132: u2 = (u2:0x2);
+    let x15133: u2 = (x15132) + (x15132);
+    let x15134: u7 = -(x15130);
+    let x15135: u10 = (u10:0x3ff);
+    let x15136: u11 = (u11:0x1);
     (x15136, x15135, x15132, x15131, x15135, x15133, x15136)
 }
 

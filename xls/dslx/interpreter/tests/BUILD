@@ -206,6 +206,16 @@ dslx_test(
 )
 
 dslx_test(
+    name = "struct_splat_update",
+    srcs = ["struct_splat_update.x"],
+)
+
+dslx_test(
+    name = "empty_struct_splat_update",
+    srcs = ["empty_struct_splat_update.x"],
+)
+
+dslx_test(
     name = "basic_struct_array",
     srcs = ["basic_struct_array.x"],
 )
@@ -283,4 +293,26 @@ dslx_test(
     name = "parametric_multidim_array",
     srcs = ["parametric_multidim_array.x"],
     entry = "__parametric_multidim_array__id_6_3_2",
+)
+
+dslx_test(
+    name = "derived_parametrics",
+    srcs = ["derived_parametrics.x"],
+)
+
+dslx_test(
+    name = "test_f_calls_parametric_f",
+    srcs = ["test_f_calls_parametric_f.x"],
+    entry = "__test_f_calls_parametric_f__f",
+)
+
+dslx_test(
+    name = "array_concat",
+    srcs = ["array_concat.x"],
+)
+
+dslx_test(
+    name = "for_up_to_const",
+    srcs = ["for_up_to_const.x"],
+    entry = "__for_up_to_const__f",
 )

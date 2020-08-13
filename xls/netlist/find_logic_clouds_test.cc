@@ -39,7 +39,7 @@ TEST(ClusterTest, TwoSimpleClusters) {
   DFF dff_1(.D(a1), .Q(ao), .CLK(clk));
 endmodule)";
   Scanner scanner(netlist);
-  CellLibrary cell_library = MakeFakeCellLibrary();
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibrary cell_library, MakeFakeCellLibrary());
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Netlist> n,
                            Parser::ParseNetlist(&cell_library, &scanner));
   XLS_ASSERT_OK_AND_ASSIGN(const Module* m, n->GetModule("main"));
@@ -69,7 +69,7 @@ TEST(ClusterTest, InputAndOutputGatesOnTwoFlops) {
   INV inv_c(.A(a2), .ZN(ao));
 endmodule)";
   Scanner scanner(netlist);
-  CellLibrary cell_library = MakeFakeCellLibrary();
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibrary cell_library, MakeFakeCellLibrary());
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Netlist> n,
                            Parser::ParseNetlist(&cell_library, &scanner));
   XLS_ASSERT_OK_AND_ASSIGN(const Module* m, n->GetModule("main"));
@@ -109,7 +109,7 @@ TEST(ClusterTest, TwoStagesWithMergeCloudInMiddle) {
   DFF dff_ab1_bo(.D(ab1), .Q(bo), .CLK(clk));
 endmodule)";
   Scanner scanner(netlist);
-  CellLibrary cell_library = MakeFakeCellLibrary();
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibrary cell_library, MakeFakeCellLibrary());
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Netlist> n,
                            Parser::ParseNetlist(&cell_library, &scanner));
   XLS_ASSERT_OK_AND_ASSIGN(const Module* m, n->GetModule("main"));

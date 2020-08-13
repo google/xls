@@ -55,6 +55,10 @@ absl::Status DfsVisitorWithDefault::HandleNaryXor(NaryOp* xor_op) {
   return DefaultHandler(xor_op);
 }
 
+absl::Status DfsVisitorWithDefault::HandleAfterAll(AfterAll* after_all) {
+  return DefaultHandler(after_all);
+}
+
 absl::Status DfsVisitorWithDefault::HandleArray(Array* array) {
   return DefaultHandler(array);
 }

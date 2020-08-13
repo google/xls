@@ -88,7 +88,9 @@ inline ::testing::Matcher<const ::xls::Node*> Type(const char* type_str) {
         new ::xls::op_matchers::NodeMatcher(::xls::Op::k##op, {operands...})); \
   }
 NODE_MATCHER(Add);
+NODE_MATCHER(AfterAll);
 NODE_MATCHER(And);
+NODE_MATCHER(AndReduce);
 NODE_MATCHER(Array);
 NODE_MATCHER(ArrayIndex);
 NODE_MATCHER(ArrayUpdate);
@@ -103,6 +105,7 @@ NODE_MATCHER(Neg);
 NODE_MATCHER(Nor);
 NODE_MATCHER(Not);
 NODE_MATCHER(Or);
+NODE_MATCHER(OrReduce);
 NODE_MATCHER(Reverse);
 NODE_MATCHER(SDiv);
 NODE_MATCHER(SGe);
@@ -124,6 +127,7 @@ NODE_MATCHER(ULe);
 NODE_MATCHER(ULt);
 NODE_MATCHER(UMul);
 NODE_MATCHER(Xor);
+NODE_MATCHER(XorReduce);
 NODE_MATCHER(ZeroExt);
 
 // TODO(meheff): The following ops should have custom matchers defined as they

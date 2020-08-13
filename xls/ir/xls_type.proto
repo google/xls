@@ -22,6 +22,7 @@ message TypeProto {
     BITS = 1;
     TUPLE = 2;
     ARRAY = 3;
+    TOKEN = 4;
   }
   optional TypeEnum type_enum = 1;
 

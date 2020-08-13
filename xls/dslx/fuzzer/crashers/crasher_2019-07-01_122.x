@@ -1,3 +1,17 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // options: {"input_is_dslx": true, "convert_to_ir": true, "optimize_ir": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=3"], "simulate": false, "simulator": null}
 // args: bits[1]:0x0; bits[1]:0x0; bits[20]:0x9892c; bits[16]:0xbe
 // args: bits[1]:0x0; bits[1]:0x1; bits[20]:0xb8a2d; bits[16]:0xc270
@@ -512,13 +526,13 @@
 // args: bits[1]:0x0; bits[1]:0x0; bits[20]:0xc3b6; bits[16]:0xf5e3
 // args: bits[1]:0x1; bits[1]:0x0; bits[20]:0x6d540; bits[16]:0x2f9c
 fn main(x1337: bool, x1338: u1, x1339: u20, x1340: u16) -> (bool, bool, u16, u16, u20, u1, bool, bool, u20, u20, u20) {
-    let x1341: u16 = (x1340) >>> (((u16:0x8)) if ((x1340) >= ((u16:0x8))) else (x1340)) in
-    let x1342: u1 = !(x1338) in
-    let x1343: bool = -(x1337) in
-    let x1344: bool = ((x1338 as bool)) >> (((bool:0x0)) if ((x1343) >= ((bool:0x0))) else (x1343)) in
-    let x1345: u20 = -(x1339) in
-    let x1346: u20 = !(x1339) in
-    let x1347: bool = (x1337) >>> (((bool:0x0)) if (((x1346 as bool)) >= ((bool:0x0))) else ((x1346 as bool))) in
+    let x1341: u16 = (x1340) >>> (((u16:0x8)) if ((x1340) >= ((u16:0x8))) else (x1340));
+    let x1342: u1 = !(x1338);
+    let x1343: bool = -(x1337);
+    let x1344: bool = ((x1338 as bool)) >> (((bool:0x0)) if ((x1343) >= ((bool:0x0))) else (x1343));
+    let x1345: u20 = -(x1339);
+    let x1346: u20 = !(x1339);
+    let x1347: bool = (x1337) >>> (((bool:0x0)) if (((x1346 as bool)) >= ((bool:0x0))) else ((x1346 as bool)));
     (x1347, x1347, x1340, x1340, x1346, x1342, x1337, x1344, x1345, x1346, x1339)
 }
 

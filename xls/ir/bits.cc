@@ -215,6 +215,15 @@ xabsl::StatusOr<uint64> Bits::ToUint64() const {
   return bitmap_.GetWord(0);
 }
 
+xabsl::StatusOr<uint64> Bits::WordToUint64(int64 word_number) const {
+  if (bit_count() == 0) {
+    // By convention, an empty Bits has a numeric value of zero.
+    return 0;
+  }
+
+  return bitmap_.GetWord(word_number);
+}
+
 xabsl::StatusOr<int64> Bits::ToInt64() const {
   if (!FitsInInt64()) {
     return absl::InvalidArgumentError(absl::StrCat(

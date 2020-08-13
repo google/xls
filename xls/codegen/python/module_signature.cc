@@ -22,7 +22,10 @@ namespace xls {
 namespace verilog {
 
 PYBIND11_MODULE(module_signature, m) {
-  py::class_<ModuleSignature>(m, "ModuleSignature");  // NOLINT
+  py::class_<ModuleSignatureProto>(m, "ModuleSignatureProto");  // NOLINT
+
+  py::class_<ModuleSignature>(m, "ModuleSignature")
+      .def("as_text_proto", &ModuleSignature::AsTextProto);
 
   py::class_<ModuleGeneratorResult>(m, "ModuleGeneratorResult")
       .def_readonly("verilog_text", &ModuleGeneratorResult::verilog_text)

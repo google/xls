@@ -1,3 +1,17 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // options: {"input_is_dslx": true, "convert_to_ir": true, "optimize_ir": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=3"], "simulate": false, "simulator": null}
 // args: bits[1]:0x1; bits[19]:0x767d0; bits[29]:0xa8679fb
 // args: bits[1]:0x0; bits[19]:0x32f56; bits[29]:0x6c44113
@@ -512,13 +526,13 @@
 // args: bits[1]:0x0; bits[19]:0x8; bits[29]:0x75e8488
 // args: bits[1]:0x1; bits[19]:0x76f91; bits[29]:0x8f05d7
 fn main(x10288: u1, x10289: u19, x10290: u29) -> (bool, u1, bool, bool, u29, u19) {
-    let x10291: bool = ((x10289 as u29)) >= (x10290) in
-    let x10292: u19 = (x10290 as u19) * (x10289) in
-    let x10293: u1 = (x10291 as u1) ^ (x10288) in
-    let x10294: u19 = (x10289) * ((x10293 as u19)) in
-    let x10295: u29 = !(x10290) in
-    let x10296: u20 = (u20:0x100) in
-    let x10297: bool = (x10291) - (x10291) in
+    let x10291: bool = ((x10289 as u29)) >= (x10290);
+    let x10292: u19 = (x10290 as u19) * (x10289);
+    let x10293: u1 = (x10291 as u1) ^ (x10288);
+    let x10294: u19 = (x10289) * ((x10293 as u19));
+    let x10295: u29 = !(x10290);
+    let x10296: u20 = (u20:0x100);
+    let x10297: bool = (x10291) - (x10291);
     (x10291, x10293, x10291, x10297, x10295, x10292)
 }
 

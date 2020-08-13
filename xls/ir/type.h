@@ -33,9 +33,10 @@ namespace xls {
 class BitsType;
 class TupleType;
 class ArrayType;
+class TokenType;
 class FunctionType;
 
-enum class TypeKind { kTuple, kBits, kArray };
+enum class TypeKind { kTuple, kBits, kArray, kToken };
 
 std::string TypeKindToString(TypeKind kind);
 std::ostream& operator<<(std::ostream& os, TypeKind type_kind);
@@ -73,6 +74,10 @@ class Type {
   ArrayType* AsArrayOrDie();
   const ArrayType* AsArrayOrDie() const;
   xabsl::StatusOr<ArrayType*> AsArray();
+
+  bool IsToken() const { return kind_ == TypeKind::kToken; }
+  TokenType* AsTokenOrDie();
+  const TokenType* AsTokenOrDie() const;
 
   // Returns the count of bits required to represent the underlying type; e.g.
   // for tuples this will be the sum of the bit count from all its members, for
@@ -186,6 +191,21 @@ class ArrayType : public Type {
   Type* element_type_;
 };
 
+// Represents a token type used for ordering channel accesses.
+class TokenType : public Type {
+ public:
+  explicit TokenType() : Type(TypeKind::kToken) {}
+  ~TokenType() override {}
+  std::string ToString() const override;
+
+  TypeProto ToProto() const override;
+  bool IsEqualTo(const Type* other) const override;
+
+  // Tokens contain no bits.
+  int64 GetFlatBitCount() const override { return 0; }
+  int64 leaf_count() const override { return 0; }
+};
+
 // Represents a type that is a function with parameters and return type.
 class FunctionType {
  public:
@@ -238,6 +258,16 @@ inline const ArrayType* Type::AsArrayOrDie() const {
 inline ArrayType* Type::AsArrayOrDie() {
   XLS_CHECK_EQ(kind(), TypeKind::kArray);
   return down_cast<ArrayType*>(this);
+}
+
+inline const TokenType* Type::AsTokenOrDie() const {
+  XLS_CHECK_EQ(kind(), TypeKind::kToken);
+  return down_cast<const TokenType*>(this);
+}
+
+inline TokenType* Type::AsTokenOrDie() {
+  XLS_CHECK_EQ(kind(), TypeKind::kToken);
+  return down_cast<TokenType*>(this);
 }
 
 }  // namespace xls

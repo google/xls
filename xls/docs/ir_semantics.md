@@ -74,6 +74,16 @@ element. Examples:
 *   Tuple containing two bits elements: `(0b100, 0b101)`
 *   A nested tuple containing various element types: `((1, 2), 42, [5, 6])`
 
+### Token
+
+A type used to enforce ordering between channel operations. The token type has
+no value and all tokens are identical. A token is purely symbolic / semantic and
+has no correlate in hardware.
+
+**Type syntax:**
+
+`token`
+
 ## Operations
 
 Operations share a common syntax and have both positional and keyword arguments
@@ -322,6 +332,25 @@ filling in the most significant bits (MSbs) with the following policy:
 *   ones in the MSbs if the MSb of the original value was set, or
 *   zeros in the MSbs if the MSb of the original value was unset.
 
+### Channel operations
+
+#### **`after_all`**
+
+Used to construct partial orderings among channel operations.
+
+```
+result = after_all(operand_{0}, ..., operand_{N-1})
+```
+
+**Types**
+
+Value         | Type
+------------- | -------
+`operand_{i}` | `token`
+`result`      | `token`
+
+`after_all` can consume an arbitrary number of token operands including zero.
+
 ### Miscellaneous operations
 
 #### **`array`**
@@ -339,8 +368,8 @@ Value         | Type
 `operand_{i}` | `T`
 `result`      | `T[N]`
 
-Array can take and arbitrary number of operands including zero (which produces
-an empty array).
+Array can take an arbitrary number of operands including zero (which produces an
+empty array).
 
 #### **`array_index`**
 
@@ -448,7 +477,7 @@ Invokes a fixed-trip count loop.
 **Syntax**
 
 ```
-result = counted_for(init, trip_count=<trip_count>, stride=<stride>, invariant_args=<inv_args>, body=<body>)
+result = counted_for(init, trip_count=<trip_count>, stride=<stride>, body=<body>, invariant_args=<inv_args>)
 ```
 
 **Types**

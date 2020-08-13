@@ -110,6 +110,7 @@ cc_library(
     srcs = ["op.cc"],
     hdrs = ["op.h"],
     deps = [
+        ":op_cc_proto",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/strings",
@@ -119,6 +120,22 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/status:statusor",
     ],
+)
+
+cc_proto_library(
+    name = "op_cc_proto",
+    deps = [":op_proto"],
+)
+
+proto_library(
+    name = "op_proto",
+    srcs = ["op.proto"],
+)
+
+xls_py_proto_library(
+    name = "op_py_pb2",
+    srcs = ["op.proto"],
+    internal_deps = [":op_proto"],
 )
 
 cc_library(
@@ -272,6 +289,7 @@ cc_library(
         ":number_parser",
         ":op",
         ":source_location",
+        ":type",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "//xls/common:visitor",
@@ -391,6 +409,33 @@ cc_test(
     ],
 )
 
+cc_library(
+    name = "jit_wrapper_generator",
+    srcs = ["jit_wrapper_generator.cc"],
+    hdrs = ["jit_wrapper_generator.h"],
+    deps = [
+        ":ir",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_binary(
+    name = "jit_wrapper_generator_main",
+    srcs = ["jit_wrapper_generator_main.cc"],
+    deps = [
+        ":ir_parser",
+        ":jit_wrapper_generator",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+    ],
+)
+
 cc_test(
     name = "package_test",
     size = "small",
@@ -414,6 +459,7 @@ cc_test(
         ":ir",
         ":ir_test_base",
         ":node_util",
+        ":op",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:matchers",
@@ -713,6 +759,16 @@ genrule(
 )
 
 genrule(
+    name = "gen_op_proto",
+    outs = ["op.proto"],
+    cmd = "$(location :render_specification_against_template) xls/ir/op_proto.tmpl > $(OUTS)",
+    exec_tools = [
+        ":render_specification_against_template",
+        "@llvm_toolchain//:bin/clang-format",
+    ],
+)
+
+genrule(
     name = "op_source",
     outs = ["op.cc"],
     cmd = "$(location :render_specification_against_template) xls/ir/op_source.tmpl" +
@@ -926,6 +982,7 @@ cc_library(
     name = "value_view",
     hdrs = ["value_view.h"],
     deps = [
+        "//xls/common:bits_util",
         "//xls/common:integral_types",
         "//xls/common:math_util",
         "//xls/common/logging",
@@ -938,6 +995,25 @@ cc_library(
     deps = [
         ":value_view",
         "@com_google_absl//absl/base",
+    ],
+)
+
+cc_test(
+    name = "value_view_test",
+    srcs = ["value_view_test.cc"],
+    deps = [
+        ":bits",
+        ":bits_ops",
+        ":value_helpers",
+        ":value_view",
+        "@com_google_absl//absl/status",
+        "//xls/common:bits_util",
+        "//xls/common:integral_types",
+        "//xls/common:math_util",
+        "//xls/common/status:matchers",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -955,6 +1031,7 @@ cc_test(
     name = "ir_matcher_test",
     srcs = ["ir_matcher_test.cc"],
     deps = [
+        ":bits",
         ":function_builder",
         ":ir",
         ":ir_matcher",

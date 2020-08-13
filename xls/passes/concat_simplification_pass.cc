@@ -14,7 +14,10 @@
 
 #include "xls/passes/concat_simplification_pass.h"
 
+#include <algorithm>
 #include <deque>
+#include <iterator>
+#include <map>
 
 #include "absl/status/status.h"
 #include "absl/types/span.h"
@@ -24,6 +27,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 
@@ -150,8 +154,26 @@ xabsl::StatusOr<bool> SimplifyConcat(Concat* concat,
   // concatenation input operands are reversed and then concatenated in reverse
   // order:
   //   reverse(concat(a, b, c)) => concat(reverse(c), reverse(b), reverse(a))
-  if (concat->users().size() == 1 &&
-      concat->users().at(0)->op() == Op::kReverse) {
+  int64 num_reverse_users = 0;
+  Node* reverse_user;
+  bool concat_has_nonreversible_user = false;
+  for (Node* user : concat->users()) {
+    switch (user->op()) {
+      case Op::kReverse:
+        ++num_reverse_users;
+        reverse_user = user;
+        break;
+      case Op::kAndReduce:
+      case Op::kOrReduce:
+      case Op::kXorReduce:
+        break;
+      default:
+        concat_has_nonreversible_user = true;
+    }
+  }
+  // If there are multiple reverse users, common-subexpression elimination
+  // should combine them later. We can apply the optimization after this.
+  if (num_reverse_users == 1 && !concat_has_nonreversible_user) {
     Function* func = concat->function();
 
     // Get reversed operands in reverse order.
@@ -172,9 +194,8 @@ xabsl::StatusOr<bool> SimplifyConcat(Concat* concat,
     // Add new concat to function, replace uses of original reverse.
     XLS_ASSIGN_OR_RETURN(Concat * new_concat,
                          concat->ReplaceUsesWithNew<Concat>(new_operands));
-    XLS_ASSIGN_OR_RETURN(
-        bool function_changed,
-        new_concat->users().at(0)->ReplaceUsesWith(new_concat));
+    XLS_ASSIGN_OR_RETURN(bool function_changed,
+                         reverse_user->ReplaceUsesWith(new_concat));
     if (!function_changed) {
       return absl::InternalError(
           "Replacing reverse operation with reversed-input concatenation did "
@@ -247,6 +268,50 @@ xabsl::StatusOr<bool> SimplifyConcat(Concat* concat,
   return false;
 }
 
+// Returns the union of the bit ranges of the
+// inputs to the concatentation operations that are inputs
+// to 'node'.  e.g. for node = {A: u2, B:u3} OR {C: u3, B: u2},
+// we get begin_end_bits_inclusive = {{0,1},{2,2},{3, 4}}.
+xabsl::StatusOr<std::map<int64, int64>> GetBitRangeUnionOfInputConcats(
+    Node* node) {
+  std::map<int64, int64> begin_end_bits_inclusive;
+  // Record the beginning of all bit-ranges.
+  for (int64 i = 0; i < node->operand_count(); ++i) {
+    Concat* concat_i = node->operand(i)->As<Concat>();
+    XLS_RET_CHECK(!concat_i->operands().empty());
+
+    int64 bit_lower_idx = 0;
+    for (auto cat_itr = concat_i->operands().rbegin();
+         cat_itr != concat_i->operands().rend();
+         bit_lower_idx += (*cat_itr)->BitCountOrDie(), ++cat_itr) {
+      if ((*cat_itr)->BitCountOrDie() == 0) {
+        return absl::InternalError(
+            "Zero-bit concat operands should have been optimized away before "
+            "calling GetBitRangeUnionOfInputConcats");
+      }
+
+      // Record lower index. We don't know the upper index of a range
+      // until all bit-ranges are accounted for, so we will calculate the upper
+      // index later.
+      begin_end_bits_inclusive.insert({bit_lower_idx, 0});
+    }
+  }
+
+  // Fill in upper indexes of ranges.
+  XLS_RET_CHECK(!begin_end_bits_inclusive.empty());
+  for (auto current_range_itr = begin_end_bits_inclusive.begin(),
+            next_range_itr = std::next(current_range_itr);
+       next_range_itr != begin_end_bits_inclusive.end();
+       current_range_itr = next_range_itr,
+            next_range_itr = std::next(next_range_itr)) {
+    current_range_itr->second = next_range_itr->first - 1;
+    XLS_RET_CHECK_LE(current_range_itr->first, current_range_itr->second);
+  }
+  begin_end_bits_inclusive.rbegin()->second = node->BitCountOrDie() - 1;
+
+  return begin_end_bits_inclusive;
+}
+
 // Tries to hoist the given bitwise operation above it's concat
 // operations. Example:
 //
@@ -254,11 +319,13 @@ xabsl::StatusOr<bool> SimplifyConcat(Concat* concat,
 //
 // Hosting the bitwise operations presents more opportunity for optimization and
 // simplification.
+// Note: The hoisted bitwise operations have operands that are bitslices
+// of the original concatenations. This pass, bit slice simplification,
+// constant folding, and dead code elimination will often simplify or eliminate
+// these bit slices and dependencies on the original concatenations.
 //
 // Preconditions:
 //   * All operands of the bitwise operation are concats.
-//   * The concats each have the same number of operands, and they are the same
-//     size.
 xabsl::StatusOr<bool> TryHoistBitWiseOperation(Node* node) {
   XLS_RET_CHECK(OpIsBitWise(node->op()));
   if (node->operand_count() == 0 ||
@@ -267,34 +334,60 @@ xabsl::StatusOr<bool> TryHoistBitWiseOperation(Node* node) {
     return false;
   }
 
-  Concat* concat_0 = node->operand(0)->As<Concat>();
-  for (int i = 1; i < node->operand_count(); ++i) {
-    Concat* concat_i = node->operand(i)->As<Concat>();
-    if (concat_0->operand_count() != concat_i->operand_count()) {
-      return false;
+  // Collect bit ranges.
+  // Note: XLS_ASSIGN_OR_RETURN doesn't seem to handle std::map correclty
+  // (probably due to comma).
+  auto union_result = GetBitRangeUnionOfInputConcats(node);
+  if (!union_result.ok()) {
+    return union_result.status();
+  }
+  std::map<int64, int64> begin_end_bits_inclusive = union_result.value();
+
+  // Make bitwise operations.
+  Function* func = node->function();
+  std::vector<Node*> bitwise_ops;
+  for (const auto& [start, end] : begin_end_bits_inclusive) {
+    std::vector<Node*> slices;
+    for (Node* concat : node->operands()) {
+      XLS_ASSIGN_OR_RETURN(Node * new_slice,
+                           func->MakeNode<BitSlice>(
+                               /*loc=*/node->loc(), /*arg=*/concat,
+                               /*start=*/start,
+                               /*width=*/end - start + 1));
+      slices.push_back(new_slice);
     }
-    for (int j = 0; j < concat_0->operand_count(); ++j) {
-      if (concat_0->operand(j)->BitCountOrDie() !=
-          concat_i->operand(j)->BitCountOrDie()) {
-        return false;
-      }
-    }
+    XLS_ASSIGN_OR_RETURN(Node * new_bitwise, node->Clone(slices, func));
+    bitwise_ops.push_back(new_bitwise);
   }
 
-  std::vector<Node*> new_concat_operands;
-  for (int64 i = 0; i < concat_0->operand_count(); ++i) {
-    std::vector<Node*> bitwise_operands;
-    bitwise_operands.reserve(node->operand_count());
-    for (int64 j = 0; j < node->operand_count(); ++j) {
-      bitwise_operands.push_back(node->operand(j)->operand(i));
-    }
-    XLS_ASSIGN_OR_RETURN(Node * new_bitwise,
-                         node->Clone(bitwise_operands, node->function()));
-    new_concat_operands.push_back(new_bitwise);
+  // Concatenate bitwise operations.
+  std::reverse(bitwise_ops.begin(), bitwise_ops.end());
+  XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<Concat>(bitwise_ops).status());
+
+  return true;
+}
+
+// Transform a reduction of a concat to a reduction of the concat's operands.
+// e.g. OrReduce(Concat(a,b)) ==> Or(OrReduce(a), OrReduce(b))
+xabsl::StatusOr<bool> TryBypassReductionOfConcatenation(Node* node) {
+  if (!node->Is<BitwiseReductionOp>() || !node->operand(0)->Is<Concat>()) {
+    return false;
   }
 
+  // Create reductions of concat operands.
+  Function* f = node->function();
+  Concat* concat = node->operand(0)->As<Concat>();
+  std::vector<Node*> new_reductions;
+  for (Node* cat_operand : concat->operands()) {
+    XLS_ASSIGN_OR_RETURN(Node * reduce, node->Clone({cat_operand}, f));
+    new_reductions.push_back(reduce);
+  }
+
+  XLS_ASSIGN_OR_RETURN(Op non_reductive_op,
+                       OpToNonReductionOp(node->op()));
   XLS_RETURN_IF_ERROR(
-      node->ReplaceUsesWithNew<Concat>(new_concat_operands).status());
+      node->ReplaceUsesWithNew<NaryOp>(new_reductions, non_reductive_op)
+          .status());
   return true;
 }
 
@@ -395,13 +488,19 @@ xabsl::StatusOr<bool> ConcatSimplificationPass::RunOnFunction(
   // For optimizations which optimize around concats, just iterate through once
   // and find all opportunities.
   for (Node* node : TopoSort(f)) {
-    bool node_changed = false;
     if (OpIsBitWise(node->op())) {
-      XLS_ASSIGN_OR_RETURN(node_changed, TryHoistBitWiseOperation(node));
+      XLS_ASSIGN_OR_RETURN(bool bitwise_changed,
+                           TryHoistBitWiseOperation(node));
+      changed |= bitwise_changed;
     } else {
-      XLS_ASSIGN_OR_RETURN(node_changed, TryDistributeReducibleOperation(node));
+      XLS_ASSIGN_OR_RETURN(bool distribute_changed,
+                           TryDistributeReducibleOperation(node));
+      changed |= distribute_changed;
+
+      XLS_ASSIGN_OR_RETURN(bool reduction_changed,
+                           TryBypassReductionOfConcatenation(node));
+      changed |= reduction_changed;
     }
-    changed = changed || node_changed;
   }
 
   XLS_VLOG(3) << "After:";
