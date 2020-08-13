@@ -21,21 +21,10 @@ They are logically equivalent.
 
 import sys
 from xls.common.gfile import open as gopen
+from flags_checks import *
 
 from absl import app
 from absl import flags
-
-def list_contains_only_integers(L):
-  """
-  Input: list L
-  Output: True if all of the elements of the list are strings that contain
-          digits between 0-9, False otherwise. 
-  Used to check that the list of numbers given by user contains only integer strings.
-  """
-  for elm in L:
-    if not elm.isdigit():
-      return False
-  return True
 
 FLAGS = flags.FLAGS
 flags.DEFINE_list("N", None, "List of n values for each n-bit multiplication proof.")
@@ -46,19 +35,31 @@ flags.mark_flag_as_required("N")
 
 def description_comments(n, f):
   """
+  Write comments at top of file describing what it does. 
+
   Write comments to the top of the smt2 file describing the proof it contains:
   the operation, how many bits in the arguments, and how many operations. 
+  
+  Args:
+  n: An integer, the number of bits in each input bitvector.
+  f: The file to write into.
   """
   print(
 f"""; The following SMT-LIB verifies that a {n}-bit multiplier is equivalent
-; to CVC4's built in bit-vector multiplication.
+; to SMTLIB's built in bit-vector multiplication.
 """, file=f)
 
 def logic_and_variables(n, f):
   """
+  Set the logic for the smt2 file, and declare/define variables. 
+
   Write the set-logic for the proof (QF_BV is the bitvector logic), declare the input
   bitvector variables, and define variables for their indices. Note that x_i or y_i 
   corresponds to index i of that input bitvector. 
+
+  Args:
+  n: An integer, the number of bits in each bitvector. 
+  f: The file to write into.
   """
   print(
 f"""(set-logic QF_BV)
@@ -72,13 +73,15 @@ f"""(set-logic QF_BV)
 
 def get_concat_level_bits(i, n):
   """
-  Input: integers i, n
-  Output: string containing smt2 concat operation combining the bits of the 
-          multiplication of the current variable by the i-th index of the 
-          previous variable. 
-  Example:
-  >> get_concat_level_bits(1, 4)
-  >> (concat m1_3 (concat m1_2 (concat m1_1 #b0)))
+  Return the bits of multiplying the current variable by the i-th index of the previous one. 
+
+  Take in integers i and n, returns a string containing the smt2 concat operation 
+  combining the bits of the multiplication of the current variable by the i-th index 
+  of the previous variable. 
+  
+  Args:
+  i: An integer, the index of the previous variable
+  n: An integer, the number of bits in each bitvector
   """
   concats = [] 
   if i > 0:
@@ -94,9 +97,16 @@ def get_concat_level_bits(i, n):
 
 def mul_level(i, n, f):
   """
+  Write the result of multiplying the current variable by index i of the previous variable. 
+
   Mutiply the current variable by the i-th index of the previous variable. This 
   is done by evaluating each of the output bits with a boolean expression and 
   then concatenating them together. 
+
+  Args:
+  i: An integer, the index of the previous variable
+  n: An integer, the number of bits in each bitvector
+  f: The file to be written into. 
   """
   print(f"; Multiply x by y{i}, shifting x bits accordingly", file=f)
   for j in range(i, n):
@@ -105,11 +115,13 @@ def mul_level(i, n, f):
 
 def get_result_bits(n):
   """
-  Input: integer n
-  Output: a string representing the n bits of the final multiplication result
-  Example:
-  >> get_result_bits(5)
-  >> m4 m3 m2 m1 m0
+  Return a string of the bitvectors to be added to produce the final output. 
+  
+  Take in an integer n, and return a string representing the bitvectors to be 
+  added together to produce the final multiplication result. 
+
+  Args:
+  n: An integer, the number of bits in each bitvector
   """
   bits = []
   for i in range(n-1, -1, -1):
@@ -118,8 +130,14 @@ def get_result_bits(n):
 
 def make_mul(n, f):
   """
+  Write the final multiplication output.
+
   Create the output of the multiplication. Get the bitvectors for the 
   multiplication at each index using get_result_bits, and add them all together.
+  
+  Args:
+  n: An integer, the number of bits in the output bitvector.
+  f: The file to write into. 
   """
   print(
 f"""; Add all m bit-vectors to create mul
@@ -128,9 +146,14 @@ f"""; Add all m bit-vectors to create mul
 
 def assert_and_check_sat(f):
   """
+  Write an (unsatisfiable) assertion and tell the solver to check it. 
+
   Write the assertion that the output of the 'by-hand' multiplication (called 
   mul), does not equal the output of the builtin bvmul operation, and tell the
   solver to check the satisfiability. 
+  
+  Args:
+  f: The file to write into. 
   """
   print(
 """; Assert and solve
@@ -140,6 +163,10 @@ def assert_and_check_sat(f):
 def n_bit_mul_existing_file(n, f):
   """
   Given a file, write a multiplication proof into it with n-bit arguments.
+  
+  Args:
+  n: An integer, the number of bits for the input and output bitvectors. 
+  f: The file to write the proof into. 
   """
   description_comments(n, f)
   logic_and_variables(n, f)
@@ -150,17 +177,15 @@ def n_bit_mul_existing_file(n, f):
 
 def n_bit_mul_new_file(n):
   """
-  Create a new file, and in it, write a multiplication proof with
-  n-bit arguments. 
+  Create a new file, and write a multiplication proof with n-bit arguments. 
+  
+  Args:
+  n: An integer, the number of bits for the input and output bitvectors. 
   """
   with gopen(f"mul_2x{n}.smt2", "w+") as f:
     n_bit_mul_existing_file(n, f)
 
 def main(argv):
-  """
-  Run the file. Take the list of integers from FLAGS.N, and for each integer
-  n in N, make an smt2 file containing an n-bit-multiplication proof.
-  """
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
   else:
