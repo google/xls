@@ -198,6 +198,8 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
     # If the higher order function is parametric, we need to typecheck its body
     # with the symbolic bindings we just computed.
     if isinstance(map_fn_ref, ast.ModRef):
+      if symbolic_bindings in invocation.bindings_to_ntt:
+        return None
       invocation_imported_node_to_type = deduce.NodeToType(parent=imported_node_to_type)
       imported_ctx = deduce.DeduceCtx(invocation_imported_node_to_type, imported_module,
                                       ctx.interpret_expr,
@@ -212,6 +214,9 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
     else:
       # If the higher-order parametric fn is in this module, let's try to push
       # it onto the typechecking stack
+      if symbolic_bindings in invocation.bindings_to_ntt:
+        return None
+
       ctx.fn_stack.append((map_fn_name, dict(symbolic_bindings)))
       invocation_node_to_type = deduce.NodeToType(parent=ctx.node_to_type)
       invocation.bindings_to_ntt[symbolic_bindings] = invocation_node_to_type
@@ -260,11 +265,6 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
 
   function_map = {f.name.identifier: f for f in ctx.module.get_functions()}
   while stack:
-    parent_count = 0
-    p = ctx.node_to_type._parent
-    while p:
-      parent_count += 1
-      p = p._parent
     try:
       f = seen[(stack[-1].name, stack[-1].is_test)][0]
       if isinstance(f, ast.Function):
@@ -288,7 +288,7 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
         # deduce._check_parametric_invocation() for more information.
         assert isinstance(f, ast.Function) and f.is_parametric()
         # ctx.node_to_type._dict.pop(f.body)  # pylint: disable=protected-access
-        ctx.node_to_type = ctx.node_to_type._parent
+        ctx.node_to_type = ctx.node_to_type.parent
 
       if stack_record.name == fn_name:
         # i.e. we just finished typechecking the body of the function we're

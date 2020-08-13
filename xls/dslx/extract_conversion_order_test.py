@@ -33,23 +33,24 @@ class ExtractConversionOrderTest(absltest.TestCase):
   def _get_module(self, program: Text) -> ast.Module:
     filename = '/fake/test_program.x'
     with fakefs_util.scoped_fakefs(filename, program):
-      m, _ = parse_and_typecheck.parse_text(
+      m, node_to_type = parse_and_typecheck.parse_text(
           program,
           'test_program',
           print_on_error=True,
           f_import=None,
           filename=filename)
-      return m
+      return m, node_to_type
 
   def test_get_callees(self):
     program = """
     fn f() -> u32 { u32:42 }
     fn main() -> u32 { f() }
     """
-    m = self._get_module(program)
-    self.assertEqual(((m.get_function('f'), m, (), None),),
+    m, node_to_type  = self._get_module(program)
+    self.assertEqual(((m.get_function('f'), m, node_to_type, ()),),
                      extract_conversion_order.get_callees(
-                         m.get_function('main'), m, imports={}, bindings=()))
+                         m.get_function('main'), m, node_to_type,
+                         imports={}, bindings=()))
 
   def test_simple_linear_callgraph(self):
     program = """
@@ -57,8 +58,8 @@ class ExtractConversionOrderTest(absltest.TestCase):
     fn f() -> u32 { g() }
     fn main() -> u32 { f() }
     """
-    m = self._get_module(program)
-    order = extract_conversion_order.get_order(m, imports={})
+    m, node_to_type = self._get_module(program)
+    order = extract_conversion_order.get_order(m, node_to_type, imports={})
     logging.info('order: %s', order)
     self.assertLen(order, 3)
     self.assertEqual(order[0].f.identifier, 'g')
@@ -70,8 +71,8 @@ class ExtractConversionOrderTest(absltest.TestCase):
     fn [N: u32] f(x: bits[N]) -> u32 { N }
     fn main() -> u32 { f(u2:0) }
     """
-    m = self._get_module(program)
-    order = extract_conversion_order.get_order(m, imports={})
+    m, node_to_type = self._get_module(program)
+    order = extract_conversion_order.get_order(m, node_to_type, imports={})
     logging.info('order: %s', order)
     self.assertLen(order, 2)
     self.assertEqual(order[0].f.identifier, 'f')
@@ -88,8 +89,8 @@ class ExtractConversionOrderTest(absltest.TestCase):
     fn [N: u32] f(x: bits[N]) -> u32 { g(x) }
     fn main() -> u32 { f(u2:0) }
     """
-    m = self._get_module(program)
-    order = extract_conversion_order.get_order(m, imports={})
+    m, node_to_type = self._get_module(program)
+    order = extract_conversion_order.get_order(m, node_to_type, imports={})
     logging.info('order: %s', order)
     self.assertLen(order, 3)
     self.assertEqual(order[0].f.identifier, 'g')
@@ -103,8 +104,8 @@ class ExtractConversionOrderTest(absltest.TestCase):
     program = """
     fn main() -> u32 { fail!(u32:0) }
     """
-    m = self._get_module(program)
-    order = extract_conversion_order.get_order(m, imports={})
+    m, node_to_type = self._get_module(program)
+    order = extract_conversion_order.get_order(m, node_to_type, imports={})
     logging.info('order: %s', order)
     self.assertLen(order, 1)
     self.assertEqual(order[0].f.identifier, 'main')

@@ -1136,7 +1136,8 @@ def convert_module_to_package(
   """
   emitted = []  # type: List[Text]
   package = ir_package.Package(module.name)
-  order = extract_conversion_order.get_order(module, node_to_type.get_imports(),
+  order = extract_conversion_order.get_order(module, node_to_type,
+                                             node_to_type.get_imports(),
                                              traverse_tests)
   logging.vlog(3, 'Convert order: %s', pprint.pformat(order))
   for record in order:
@@ -1145,7 +1146,7 @@ def convert_module_to_package(
             package,
             record.m,
             record.f,
-            node_to_type if not record.node_to_type else record.node_to_type,
+            record.node_to_type,
             symbolic_bindings=record.bindings,
             emit_positions=emit_positions))
 

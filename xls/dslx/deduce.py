@@ -103,13 +103,11 @@ class NodeToType(object):
     self._dict = {}  # type: Dict[ast.AstNode, ConcreteType]
     self._imports = {}  # type: Dict[ast.Import, ImportedInfo]
     self._name_to_const = {}  # type: Dict[ast.NameDef, ast.Constant]
-    self._parent = parent
-    self.parametric_fn_cache = {}
+    self.parent = parent  # type: NodeToType
 
   def update(self, other: 'NodeToType') -> None:
     self._dict.update(other._dict)  # pylint: disable=protected-access
     self._imports.update(other._imports)  # pylint: disable=protected-access
-    self.parametric_fn_cache.update(other.parametric_fn_cache)
 
   def add_import(self, import_node: ast.Import, info: ImportedInfo) -> None:
     assert import_node not in self._imports, import_node
@@ -120,7 +118,10 @@ class NodeToType(object):
     self._name_to_const[name_def] = constant
 
   def get_const_int(self, name_def: ast.NameDef, user_span: span.Span) -> int:
-    constant = self._name_to_const[name_def]
+    if name_def not in self._name_to_const and self.parent:
+      constant = self.parent._name_to_const[name_def]
+    else:
+      constant = self._name_to_const[name_def]
     if isinstance(constant.value, ast.Number):
       return constant.value.get_value_as_int()
     raise TypeInferenceError(
@@ -130,14 +131,15 @@ class NodeToType(object):
         'got: {}'.format(name_def, constant.value))
 
   def get_imports(self) -> Dict[ast.Import, ImportedInfo]:
-    return self._imports if not self._parent else {**self._imports, **self._parent._imports}
+    return self._imports if not self.parent else {**self._imports,
+                                                   **self.parent._imports}
 
   def get_imported(self, import_node: ast.Import) -> ImportedInfo:
-    if self._parent:
+    if self.parent:
       if import_node in self._imports:
         return self._imports[import_node]
 
-      return self._parent._imports[import_node]
+      return self.parent._imports[import_node]
 
     return self._imports[import_node]
 
@@ -160,8 +162,8 @@ class NodeToType(object):
     try:
       if k in self._dict:
         return self._dict[k]
-      if self._parent:
-        return self._parent.__getitem__(k)
+      if self.parent:
+        return self.parent.__getitem__(k)
     except KeyError:
       span_suffix = ' @ {}'.format(k.span) if hasattr(k, 'span') else ''
       raise TypeMissingError(
@@ -173,8 +175,8 @@ class NodeToType(object):
 
 
   def __contains__(self, k: ast.AstNode) -> bool:
-    return (k in self._dict or self._parent.__contains__(k)
-            if self._parent
+    return (k in self._dict or self.parent.__contains__(k)
+            if self.parent
             else k in self._dict)
 
 
@@ -331,6 +333,9 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
     # We need to typecheck this function with respect to its own module.
     # Let's use typecheck._check_function_or_test_in_module() to do this
     # in case we run into more dependencies in that module
+    if symbolic_bindings in invocation.bindings_to_ntt:
+      return
+
     imported_module, imported_node_to_type = ctx.node_to_type.get_imported(
         invocation.callee.mod)
     invocation_imported_node_to_type = NodeToType(parent=imported_node_to_type)
@@ -375,12 +380,7 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
       raise
 
     ctx.fn_stack.pop()
-    ctx.node_to_type = ctx.node_to_type._parent
-
-    # TODO(hjmontero): 2020-07-13 HACK: We remove the type of the body to so
-    # that we re-typecheck it if we see this invocation again.
-    # ctx.node_to_type._dict.pop(parametric_fn.body)  # pylint: disable=protected-access
-
+    ctx.node_to_type = ctx.node_to_type.parent
 
 @_rule(ast.Invocation)
 def _deduce_Invocation(self: ast.Invocation, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types

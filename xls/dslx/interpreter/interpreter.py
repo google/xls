@@ -1386,13 +1386,19 @@ class Interpreter(object):
     Returns:
       The value that results from DSL interpretation.
     """
-    invocation_ntt = expr.bindings_to_ntt[symbolic_bindings] if expr and symbolic_bindings in expr.bindings_to_ntt else self._node_to_type
-    self._node_to_type = invocation_ntt
+    has_child_node_to_type = expr and symbolic_bindings in expr.bindings_to_ntt
+    previous_node_to_type = self._node_to_type
+    invocation_node_to_type = (expr.bindings_to_ntt[symbolic_bindings]
+                               if has_child_node_to_type
+                               else self._node_to_type)
+    self._node_to_type = invocation_node_to_type
 
     interpreter_value = self._evaluate_fn_with_interpreter(
         fn, m, args, span, expr, symbolic_bindings)
 
-    self._node_to_type = invocation_ntt._parent if expr and symbolic_bindings in expr.bindings_to_ntt else self._node_to_type
+    self._node_to_type = (invocation_node_to_type.parent
+                          if has_child_node_to_type
+                          else self._node_to_type)
     ir_name = ir_name_mangler.mangle_dslx_name(fn.name.identifier,
                                                fn.get_free_parametric_keys(), m,
                                                symbolic_bindings)
