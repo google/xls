@@ -74,17 +74,6 @@ to_str = {
     Op.OR2: '|'
 }
 
-"""
-get_ir_fn = {
-  Op.ADD2: fb.add_or,
-  Op.NEG: fb.add_not,
-  Op.XOR2: fb.add_xor,
-  Op.MUL2: fb.add_umul,
-  Op.AND2: fb.add_and,
-  Op.OR2: fb.add_or
-}
-"""
-
 VERILOG_TEMPLATE = """
 module my_module(
         input wire [3:0] x1,
