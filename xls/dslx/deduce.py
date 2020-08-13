@@ -593,11 +593,10 @@ def _deduce_Let(self: ast.Let, ctx: DeduceCtx) -> ConcreteType:  # pytype: disab
   """Deduces the concrete type of a Let AST node."""
 
   rhs_type = deduce(self.rhs, ctx)
+  resolved_rhs_type = resolve(rhs_type, ctx)
 
   if self.type_ is not None:
     concrete_type = deduce(self.type_, ctx)
-
-    resolved_rhs_type = resolve(rhs_type, ctx)
     resolved_concrete_type = resolve(concrete_type, ctx)
 
     if resolved_rhs_type != resolved_concrete_type:
@@ -605,7 +604,7 @@ def _deduce_Let(self: ast.Let, ctx: DeduceCtx) -> ConcreteType:  # pytype: disab
           self.rhs.span, resolved_concrete_type, resolved_rhs_type,
           'Annotated type did not match inferred type of right hand side.')
 
-  _bind_names(self.name_def_tree, rhs_type, ctx)
+  _bind_names(self.name_def_tree, resolved_rhs_type, ctx)
 
   if self.const:
     deduce(self.const, ctx)
@@ -625,7 +624,7 @@ def _unify_NameDefTree(self: ast.NameDefTree, type_: ConcreteType,
   if self.is_leaf():
     leaf = self.get_leaf()
     if isinstance(leaf, ast.NameDef):
-      ctx.node_to_type[leaf] = type_
+      ctx.node_to_type[leaf] = resolved_rhs_type
     elif isinstance(leaf, ast.WildcardPattern):
       pass
     elif isinstance(leaf, (ast.Number, ast.EnumRef)):
@@ -678,7 +677,7 @@ def _deduce_Match(self: ast.Match, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
       raise XlsTypeError(
           self.arms[i].span, resolved_arm_type, resolved_arm0_type,
           'This match arm did not have the same type as preceding match arms.')
-  return arm_types[0]
+  return resolved_arm0_type
 
 
 @_rule(ast.MatchArm)
@@ -705,7 +704,7 @@ def _deduce_For(self: ast.For, ctx: DeduceCtx) -> ConcreteType:  # pytype: disab
   # TODO(leary): 2019-02-19 Type check annotated_type (the bound names each
   # iteration) against init_type/body_type -- this requires us to understand
   # how iterables turn into induction values.
-  return init_type
+  return resolved_init_type
 
 
 @_rule(ast.While)
@@ -729,7 +728,7 @@ def _deduce_While(self: ast.While, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
         self.span, init_type, body_type,
         "While-loop init value type did not match while-loop body's "
         'result type.')
-  return init_type
+  return resolved_init_type
 
 
 @_rule(ast.Carry)
@@ -757,7 +756,7 @@ def _deduce_Cast(self: ast.Cast, ctx: DeduceCtx) -> ConcreteType:  # pytype: dis
         self.span, expr_type, type_result,
         'Cannot cast from expression type {} to {}.'.format(
             resolved_expr_type, resolved_type_result))
-  return type_result
+  return resolved_type_result
 
 
 @_rule(ast.Unop)
@@ -778,7 +777,7 @@ def _deduce_Array(self: ast.Array, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
           self.members[i].span, resolved_type0, resolved_x,
           'Array member did not have same type as other members.')
 
-  inferred = ArrayType(member_types[0], len(member_types))
+  inferred = ArrayType(resolved_type0, len(member_types))
 
   if not self.type_:
     return inferred
@@ -863,7 +862,7 @@ def _deduce_Number(self: ast.Number, ctx: DeduceCtx) -> ConcreteType:  # pytype:
         type_=None,
         suffix='Could not infer a type for this number, please annotate a type.'
     )
-  concrete_type = deduce(self.type_, ctx)
+  concrete_type = resolve(deduce(self.type_, ctx), ctx)
   self.check_bitwidth(concrete_type)
   return concrete_type
 
@@ -997,9 +996,9 @@ def _deduce_ModRef(self: ast.ModRef, ctx: DeduceCtx) -> ConcreteType:  # pytype:
 @_rule(ast.Enum)
 def _deduce_Enum(self: ast.Enum, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of a Enum AST node."""
-  deduce(self.type_, ctx)
+  resolved_type = resolve(deduce(self.type_, ctx), ctx)
   # Grab the bit count of the Enum's underlying type.
-  bit_count = ctx.node_to_type[self.type_].get_total_bit_count()
+  bit_count = resolved_type.get_total_bit_count()
   result = EnumType(self, bit_count)
   for name, value in self.values:
     # Note: the parser places the type_ from the enum on the value when it is
@@ -1028,29 +1027,33 @@ def _deduce_Ternary(self: ast.Ternary, ctx: DeduceCtx) -> ConcreteType:  # pytyp
         self.span, resolved_cons_type, resolved_alt_type,
         'Ternary consequent type (in the "then" clause) did not match '
         'alternate type (in the "else" clause)')
-  return cons_type
+  return resolved_cons_type
 
 
 def _deduce_Concat(self: ast.Binop, ctx: DeduceCtx) -> ConcreteType:
   """Deduces the concrete type of a concatenate Binop AST node."""
   lhs_type = deduce(self.lhs, ctx)
+  resolved_lhs_type = resolve(lhs_type, ctx)
   rhs_type = deduce(self.rhs, ctx)
+  resolved_rhs_type = resolve(rhs_type, ctx)
 
   # Array-ness must be the same on both sides.
-  if isinstance(lhs_type, ArrayType) != isinstance(rhs_type, ArrayType):
+  if (isinstance(resolved_lhs_type, ArrayType)
+      != isinstance(resolved_rhs_type, ArrayType)):
     raise XlsTypeError(
-        self.span, lhs_type, rhs_type,
+        self.span, resolved_lhs_type, resolved_rrhs_type,
         'Attempting to concatenate array/non-array values together.')
 
-  if (isinstance(lhs_type, ArrayType) and
-      lhs_type.get_element_type() != rhs_type.get_element_type()):
+  if (isinstance(resolved_lhs_type, ArrayType) and
+      resolved_lhs_type.get_element_type()
+      != resolved_rhs_type.get_element_type()):
     raise XlsTypeError(
-        self.span, lhs_type, rhs_type,
+        self.span, resolved_lhs_type, resolved_rhs_type,
         'Array concatenation requires element types to be the same.')
 
-  new_size = lhs_type.size + rhs_type.size  # pytype: disable=attribute-error
-  if isinstance(lhs_type, ArrayType):
-    return ArrayType(lhs_type.get_element_type(), new_size)
+  new_size = resolved_lhs_type.size + resolved_rhs_type.size  # pytype: disable=attribute-error
+  if isinstance(resolved_lhs_type, ArrayType):
+    return ArrayType(resolved_lhs_type.get_element_type(), new_size)
 
   return BitsType(signed=False, size=new_size)
 
@@ -1078,19 +1081,21 @@ def _deduce_Binop(self: ast.Binop, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
   if isinstance(lhs_type,
                 EnumType) and self.operator.kind not in self.ENUM_OK_KINDS:
     raise XlsTypeError(
-        self.span, lhs_type, None,
+        self.span, resolved_lhs_type, None,
         "Cannot use '{}' on values with enum type {}".format(
             self.operator.kind.value, lhs_type.nominal_type.identifier))
 
   if self.operator.kind in self.COMPARISON_KINDS:
     return ConcreteType.U1
 
-  return lhs_type
+  return resolved_lhs_type
 
 
 @_rule(ast.Struct)
 def _deduce_Struct(self: ast.Struct, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  members = tuple((k.identifier, deduce(m, ctx)) for k, m in self.members)
+  members = tuple(
+      (k.identifier, resolve(deduce(m, ctx), ctx))
+      for k, m in self.members)
   result = ctx.node_to_type[self.name] = TupleType(members, self)
   logging.vlog(5, 'Deduced type for struct %s => %s; node_to_type: %r', self,
                result, ctx.node_to_type)
