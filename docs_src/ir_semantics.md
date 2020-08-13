@@ -418,7 +418,7 @@ the input array.
 
 #### **`bit_slice`**
 
-Slices a a contiguous range of bits from a bits-typed operand.
+Slices a contiguous range of bits from a bits-typed operand.
 
 **Syntax**
 
@@ -450,6 +450,36 @@ Value     | Type
 
 The bit-width of `operand` must be greater than or equal to `<start>` plus
 `<width>`.
+
+#### **`dynamic_bit_slice`**
+
+Slices a contiguous range of bits from a bits-typed operand, with variable
+starting index but fixed width. Out-of-bounds slicing is supported by
+treating all out-of-bounds bits as having value 0.
+
+**Syntax**
+
+```
+result = dynamic_bit_slice(operand, start, width=<width>)
+```
+
+**Types**
+
+Value     | Type
+--------- | ---------------
+`operand` | `bits[N]`
+`start`   | `bits[M]`
+`result`  | `bits[<width>]`
+
+`start` can be of arbitrary bit width. It will be interpreted
+as an unsigned integer.
+
+**Keyword arguments**
+
+| Keyword | Type    | Required | Default | Description       |
+| ------- | ------- | -------- | ------- | ----------------- |
+| `width` | `int64` | yes      |         | The width of the  |
+:         :         :          :         : slice.            :
 
 #### **`concat`**
 
