@@ -183,3 +183,30 @@ py_test(
         "@com_google_protobuf//:protobuf_python",
     ],
 )
+
+py_library(
+    name = "op_module_generator",
+    srcs = ["op_module_generator.py"],
+    srcs_version = "PY3",
+    deps = [
+        "//xls/codegen:module_signature_py_pb2",
+        "//xls/codegen/python:module_signature",
+        "//xls/codegen/python:pipeline_generator",
+        "//xls/ir/python:ir_parser",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
+py_test(
+    name = "op_module_generator_test",
+    srcs = ["op_module_generator_test.py"],
+    data = glob(["testdata/*"]),
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        ":op_module_generator",
+        "//xls/common:runfiles",
+        "//xls/common/python:init_xls",
+        "@com_google_absl_py//absl/testing:absltest",
+    ],
+)

@@ -203,6 +203,20 @@ class AstGenerator(object):
         array_type)] = self._get_type_bit_count(element_type) * array_size
     return array_type
 
+  def _get_array_size(self, array_type: ast.TypeAnnotation) -> int:
+    """Returns the (constant) size of an array type.
+
+    Since those are the only array types the generator currently produces, this
+    can be used to determine the length of array types in the environment.
+
+    Args:
+      array_type: The type to extract the array size/length from.
+    """
+    assert array_type.is_array() and len(array_type.dims) == 1, array_type
+    dim = array_type.dims[0]
+    assert isinstance(dim, ast.Number), dim
+    return dim.get_value_as_int()
+
   def _generate_primitive_type(self) -> ast.TypeAnnotation:
     """Generates a random primitive-based type (no extra dims or tuples)."""
     primitive_token = self._generate_type_primitive()
@@ -293,6 +307,9 @@ class AstGenerator(object):
 
   def _env_contains_tuple(self, env: Env) -> bool:
     return any(type_.is_tuple() for (_, type_, _) in env.values())
+
+  def _env_contains_array(self, env: Env) -> bool:
+    return any(type_.is_array() for (_, type_, _) in env.values())
 
   def _generate_logical_binop(self,
                               env: Env) -> Tuple[ast.Binop, ast.TypeAnnotation]:
@@ -467,9 +484,9 @@ class AstGenerator(object):
     make_arg, arg_type = self._choose_env_value(
         env, lambda t: not t.is_tuple() and not t.is_array())
     bit_count = arg_type.primitive_to_bits()
-    width_slice = self.rng.choice([True, False])
+    slice_type = self.rng.choice(['bit_slice', 'width_slice', 'dynamic_slice'])
     while True:
-      start_low = 0 if width_slice else -bit_count - 1
+      start_low = 0 if slice_type == 'width_slice' else -bit_count - 1
       start = (
           self.rng.randrange(start_low, bit_count + 1) if self.rng.choice(
               (True, False)) else None)
@@ -481,15 +498,22 @@ class AstGenerator(object):
         continue
       else:
         break
-    if width_slice:
+    if slice_type == 'width_slice':
       index_slice = ast.WidthSlice(
           self.fake_span, self._make_number(start or 0, None),
           self._make_large_type_annotation('UN', width))
-    else:
+    elif slice_type == 'bit_slice':
       index_slice = ast.Slice(
           self.fake_span,
           None if start is None else self._make_number(start, None),
           None if limit is None else self._make_number(limit, None))
+    else:
+      start_arg, _ = self._choose_env_value(
+          env, lambda t: not t.is_tuple() and not t.is_array() and not t.
+          primitive_to_signedness())
+      index_slice = ast.WidthSlice(
+          self.fake_span, start_arg(),
+          self._make_large_type_annotation('UN', width))
     type_ = self._make_large_type_annotation('UN', width)
     return (ast.Index(self.fake_span, make_arg(), index_slice), type_)
 
@@ -525,7 +549,7 @@ class AstGenerator(object):
       if bit_count % i == 0:
         factors.append((i, bit_count // i))
 
-    (element_size, array_size) = self.rng.choice(factors)
+    element_size, array_size = self.rng.choice(factors)
     element_type = ast.TypeAnnotation(
         self.fake_span,
         scanner.Token(
@@ -537,6 +561,32 @@ class AstGenerator(object):
 
     return (ast.Cast(outer_array_type, make_arg()), outer_array_type)
 
+  def _generate_array_concat(self,
+                             env: Env) -> Tuple[ast.Expr, ast.TypeAnnotation]:
+    """Returns a binary concatenation of two arrays in env.
+
+    The two arrays to concatenate in env will have the same element type.
+
+    Args:
+      env: Environment of values that can be selected from for array
+        concatenation.
+    Precondition: There must be an array value present in env.
+    """
+    make_lhs, lhs_type = self._choose_env_value(env, lambda t: t.is_array())
+    make_rhs, rhs_type = self._choose_env_value(
+        env, lambda t: t.is_array() and t.primitive == lhs_type.primitive)
+    token = scanner.Token(ast.Binop.CONCAT, self.fake_span,
+                          ast.Binop.CONCAT.value)
+    result = ast.Binop(token, make_lhs(), make_rhs())
+    lhs_size = self._get_array_size(lhs_type)
+    bits_per_elem = self._get_type_bit_count(lhs_type) // lhs_size
+    result_size = lhs_size + self._get_array_size(rhs_type)
+    dims = (self._make_number(result_size, None),)
+    result_type = ast.TypeAnnotation.make_array(self.fake_span,
+                                                lhs_type.primitive, dims)
+    self._type_bit_counts[str(result_type)] = bits_per_elem * result_size
+    return (result, result_type)
+
   def _generate_concat(self, env: Env) -> Tuple[ast.Expr, ast.TypeAnnotation]:
     """Returns a (potentially vacuous) concatenate operation of values in `env`.
 
@@ -545,6 +595,9 @@ class AstGenerator(object):
     Note: the concat operation will not exceed the maximum bit width so the
       concat may end up being a nop.
     """
+    if self._env_contains_array(env) and self.rng.choice([True, False]):
+      return self._generate_array_concat(env)
+
     count = self._generate_nary_operand_count(env) + 2
     operands = []
     operand_types = []

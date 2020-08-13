@@ -14,6 +14,7 @@
 
 #include "xls/ir/llvm_type_converter.h"
 
+#include "llvm/IR/DerivedTypes.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/ir_parser.h"
 
@@ -30,8 +31,13 @@ llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type& xls_type) {
   }
   llvm::Type* llvm_type;
   if (xls_type.IsBits()) {
-    llvm_type =
-        llvm::IntegerType::get(context_, xls_type.AsBitsOrDie()->bit_count());
+    int64 bit_count = xls_type.AsBitsOrDie()->bit_count();
+    XLS_CHECK_GE(bit_count, 0);
+    // LLVM does not accept 0-bit types, and we want to be able to JIT-compile
+    // unoptimized IR, so for the time being we make a dummy 1-bit value.
+    // See https://github.com/google/xls/issues/76
+    bit_count = std::max(bit_count, static_cast<int64>(1));
+    llvm_type = llvm::IntegerType::get(context_, bit_count);
   } else if (xls_type.IsTuple()) {
     std::vector<llvm::Type*> tuple_types;
 
@@ -46,6 +52,11 @@ llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type& xls_type) {
     const ArrayType* array_type = xls_type.AsArrayOrDie();
     llvm::Type* element_type = ConvertToLlvmType(*array_type->element_type());
     llvm_type = llvm::ArrayType::get(element_type, array_type->size());
+  } else if (xls_type.IsToken()) {
+    // Token types don't contain any data. A 0-element array is a convenient and
+    // low-overhead way to let the rest of the llvm infrastructure treat token
+    // like a normal data-type.
+    llvm_type = llvm::ArrayType::get(llvm::IntegerType::get(context_, 1), 0);
   } else {
     XLS_LOG(FATAL) << absl::StrCat("Type not supported for LLVM conversion: %s",
                                    xls_type.ToString());

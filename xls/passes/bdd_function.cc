@@ -16,6 +16,7 @@
 
 #include <vector>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -199,6 +200,7 @@ bool ShouldEvaluate(Node* node) {
       return true;
 
     // Weirdo ops.
+    case Op::kAfterAll:
     case Op::kArray:
     case Op::kArrayIndex:
     case Op::kArrayUpdate:
@@ -231,12 +233,17 @@ bool ShouldEvaluate(Node* node) {
 }  // namespace
 
 /* static */ xabsl::StatusOr<std::unique_ptr<BddFunction>> BddFunction::Run(
-    Function* f, int64 minterm_limit) {
+    Function* f, int64 minterm_limit,
+    absl::Span<const Op> do_not_evaluate_ops) {
   XLS_VLOG(1) << absl::StreamFormat("BddFunction::Run(%s):", f->name());
   XLS_VLOG_LINES(5, f->DumpIr());
 
   auto bdd_function = absl::WrapUnique(new BddFunction(f));
   SaturatingBddEvaluator evaluator(minterm_limit, &bdd_function->bdd());
+  absl::flat_hash_set<Op> do_not_evaluate_ops_set;
+  for (Op op : do_not_evaluate_ops) {
+    do_not_evaluate_ops_set.insert(op);
+  }
 
   // Create and return a vector containing newly defined BDD variables.
   auto create_new_node_vector = [&](Node* n) {
@@ -254,10 +261,10 @@ bool ShouldEvaluate(Node* node) {
     if (!node->GetType()->IsBits()) {
       continue;
     }
-    // If we shouldn't evaluate this node or the node includes some
-    // non-bits-typed operands, then just create a vector of new BDD variables
-    // for this node.
-    if (!ShouldEvaluate(node) ||
+    // If we shouldn't evaluate this node, the node is to be modeled as
+    // variables, or the node includes some non-bits-typed operands, then just
+    // create a vector of new BDD variables for this node.
+    if (!ShouldEvaluate(node) || do_not_evaluate_ops_set.contains(node->op()) ||
         std::any_of(node->operands().begin(), node->operands().end(),
                     [](Node* o) { return !o->GetType()->IsBits(); })) {
       values[node] = create_new_node_vector(node);

@@ -37,7 +37,8 @@ xabsl::StatusOr<bool> Match(const std::string& ir_text,
                        Parser::ParsePackage(ir_text));
   XLS_ASSIGN_OR_RETURN(Function * entry_function, package->EntryFunction());
 
-  netlist::CellLibrary cell_library = netlist::MakeFakeCellLibrary();
+  XLS_ASSIGN_OR_RETURN(netlist::CellLibrary cell_library,
+                       netlist::MakeFakeCellLibrary());
   netlist::rtl::Scanner scanner(netlist_text);
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<Netlist> netlist,
@@ -182,7 +183,8 @@ endmodule
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(ir_text));
   XLS_ASSERT_OK_AND_ASSIGN(Function * entry_function, package->EntryFunction());
-  netlist::CellLibrary cell_library = netlist::MakeFakeCellLibrary();
+  XLS_ASSERT_OK_AND_ASSIGN(netlist::CellLibrary cell_library,
+                           netlist::MakeFakeCellLibrary());
   netlist::rtl::Scanner scanner(netlist_text);
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<Netlist> netlist,
@@ -269,7 +271,8 @@ endmodule
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(ir_text));
   XLS_ASSERT_OK_AND_ASSIGN(Function * entry_function, package->EntryFunction());
-  netlist::CellLibrary cell_library = netlist::MakeFakeCellLibrary();
+  XLS_ASSERT_OK_AND_ASSIGN(netlist::CellLibrary cell_library,
+                           netlist::MakeFakeCellLibrary());
   netlist::rtl::Scanner scanner(netlist_text);
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<Netlist> netlist,
@@ -420,7 +423,8 @@ endmodule
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(ir_text));
   XLS_ASSERT_OK_AND_ASSIGN(Function * entry_function, package->EntryFunction());
-  netlist::CellLibrary cell_library = netlist::MakeFakeCellLibrary();
+  XLS_ASSERT_OK_AND_ASSIGN(netlist::CellLibrary cell_library,
+                           netlist::MakeFakeCellLibrary());
   netlist::rtl::Scanner scanner(netlist_text);
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<Netlist> netlist,

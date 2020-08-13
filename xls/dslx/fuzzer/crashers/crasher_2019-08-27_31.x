@@ -1,3 +1,17 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // options: {"input_is_dslx": true, "convert_to_ir": true, "optimize_ir": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=3"], "simulate": false, "simulator": null}
 // args: bits[19]:0x5fd6d; bits[37]:0x80000000; bits[4]:0x7
 // args: bits[19]:0x80; bits[37]:0x1000000; bits[4]:0x2
@@ -512,40 +526,40 @@
 // args: bits[19]:0x8; bits[37]:0x200000000; bits[4]:0x1
 // args: bits[19]:0x1; bits[37]:0x1bf0e46b56; bits[4]:0xa
 fn main(x776: u19, x777: u37, x778: u4) -> bool {
-    let x779: u19 = (x776) - (x776) in
-    let x780: u37 = !(x777) in
-    let x781: (u4, u37, u4, u19, u4) = (x778, x777, x778, x776, x778) in
-    let x782: u4 = !(x778) in
+    let x779: u19 = (x776) - (x776);
+    let x780: u37 = !(x777);
+    let x781: (u4, u37, u4, u19, u4) = (x778, x777, x778, x776, x778);
+    let x782: u4 = !(x778);
     let x783: (u4, u37, u4, u19, u4) = for (i, x): (u4, (u4, u37, u4, u19, u4)) in range(u4:0, (u4:0x1)) {
     x
   }(x781)
-   in
-    let x784: u64 = (((x776) ++ (x782)) ++ (x782)) ++ (x780) in
-    let x785: u37 = -(x777) in
-    let x786: u37 = ((x779 as u37)) + (x785) in
-    let x787: u37 = !(x785) in
-    let x788: u19 = x776 in
-    let x789: u19 = (x783)[(u32:0x3)] in
-    let x790: u37 = !(x777) in
-    let x791: (u19, (u4, u37, u4, u19, u4), u37, (u4, u37, u4, u19, u4), u37, u37, u4, u4, u37, (u4, u37, u4, u19, u4), u37, u37, u37, u37, u37) = (x788, x783, x785, x783, x786, x780, x778, x778, x786, x783, x785, x785, x790, x777, x785) in
-    let x792: u37 = -(x777) in
-    let x793: u37 = (x790) - ((x784 as u37)) in
-    let x794: u4 = !(x778) in
+  ;
+    let x784: u64 = (((x776) ++ (x782)) ++ (x782)) ++ (x780);
+    let x785: u37 = -(x777);
+    let x786: u37 = ((x779 as u37)) + (x785);
+    let x787: u37 = !(x785);
+    let x788: u19 = x776;
+    let x789: u19 = (x783)[(u32:0x3)];
+    let x790: u37 = !(x777);
+    let x791: (u19, (u4, u37, u4, u19, u4), u37, (u4, u37, u4, u19, u4), u37, u37, u4, u4, u37, (u4, u37, u4, u19, u4), u37, u37, u37, u37, u37) = (x788, x783, x785, x783, x786, x780, x778, x778, x786, x783, x785, x785, x790, x777, x785);
+    let x792: u37 = -(x777);
+    let x793: u37 = (x790) - ((x784 as u37));
+    let x794: u4 = !(x778);
     let x795: (u19, (u4, u37, u4, u19, u4), u37, (u4, u37, u4, u19, u4), u37, u37, u4, u4, u37, (u4, u37, u4, u19, u4), u37, u37, u37, u37, u37) = for (i, x): (u4, (u19, (u4, u37, u4, u19, u4), u37, (u4, u37, u4, u19, u4), u37, u37, u4, u4, u37, (u4, u37, u4, u19, u4), u37, u37, u37, u37, u37)) in range(u4:0, (u4:0x6)) {
     x
   }(x791)
-   in
-    let x796: u37 = ((x794 as u37)) << (((u37:0x8)) if ((x790) >= ((u37:0x8))) else (x790)) in
-    let x797: u1 = (u1:0x1) in
-    let x798: u27 = (u27:0x1000000) in
-    let x799: (u19, u27, (u19, (u4, u37, u4, u19, u4), u37, (u4, u37, u4, u19, u4), u37, u37, u4, u4, u37, (u4, u37, u4, u19, u4), u37, u37, u37, u37, u37), u19, u4, u37, u19, (u19, (u4, u37, u4, u19, u4), u37, (u4, u37, u4, u19, u4), u37, u37, u4, u4, u37, (u4, u37, u4, u19, u4), u37, u37, u37, u37, u37), u4, u37, u37, u1, u19, (u4, u37, u4, u19, u4), u37, u37) = (x788, x798, x791, x779, x778, x777, x779, x791, x794, x785, x785, x797, x789, x783, x786, x785) in
-    let x800: u5 = (u5:0x2) in
-    let x801: u37 = (x795)[(u32:0xc)] in
-    let x802: (u5, (u19, (u4, u37, u4, u19, u4), u37, (u4, u37, u4, u19, u4), u37, u37, u4, u4, u37, (u4, u37, u4, u19, u4), u37, u37, u37, u37, u37), u27, u37, (u19, u27, (u19, (u4, u37, u4, u19, u4), u37, (u4, u37, u4, u19, u4), u37, u37, u4, u4, u37, (u4, u37, u4, u19, u4), u37, u37, u37, u37, u37), u19, u4, u37, u19, (u19, (u4, u37, u4, u19, u4), u37, (u4, u37, u4, u19, u4), u37, u37, u4, u4, u37, (u4, u37, u4, u19, u4), u37, u37, u37, u37, u37), u4, u37, u37, u1, u19, (u4, u37, u4, u19, u4), u37, u37), (u4, u37, u4, u19, u4), u37) = (x800, x795, x798, x790, x799, x781, x801) in
-    let x803: u40 = (u40:0x8000000000) in
-    let x804: u47 = (u47:0x40) in
-    let x805: bool = (x797) == ((x796 as u1)) in
-    let x806: (u37) = (x801,) in
+  ;
+    let x796: u37 = ((x794 as u37)) << (((u37:0x8)) if ((x790) >= ((u37:0x8))) else (x790));
+    let x797: u1 = (u1:0x1);
+    let x798: u27 = (u27:0x1000000);
+    let x799: (u19, u27, (u19, (u4, u37, u4, u19, u4), u37, (u4, u37, u4, u19, u4), u37, u37, u4, u4, u37, (u4, u37, u4, u19, u4), u37, u37, u37, u37, u37), u19, u4, u37, u19, (u19, (u4, u37, u4, u19, u4), u37, (u4, u37, u4, u19, u4), u37, u37, u4, u4, u37, (u4, u37, u4, u19, u4), u37, u37, u37, u37, u37), u4, u37, u37, u1, u19, (u4, u37, u4, u19, u4), u37, u37) = (x788, x798, x791, x779, x778, x777, x779, x791, x794, x785, x785, x797, x789, x783, x786, x785);
+    let x800: u5 = (u5:0x2);
+    let x801: u37 = (x795)[(u32:0xc)];
+    let x802: (u5, (u19, (u4, u37, u4, u19, u4), u37, (u4, u37, u4, u19, u4), u37, u37, u4, u4, u37, (u4, u37, u4, u19, u4), u37, u37, u37, u37, u37), u27, u37, (u19, u27, (u19, (u4, u37, u4, u19, u4), u37, (u4, u37, u4, u19, u4), u37, u37, u4, u4, u37, (u4, u37, u4, u19, u4), u37, u37, u37, u37, u37), u19, u4, u37, u19, (u19, (u4, u37, u4, u19, u4), u37, (u4, u37, u4, u19, u4), u37, u37, u4, u4, u37, (u4, u37, u4, u19, u4), u37, u37, u37, u37, u37), u4, u37, u37, u1, u19, (u4, u37, u4, u19, u4), u37, u37), (u4, u37, u4, u19, u4), u37) = (x800, x795, x798, x790, x799, x781, x801);
+    let x803: u40 = (u40:0x8000000000);
+    let x804: u47 = (u47:0x40);
+    let x805: bool = (x797) == ((x796 as u1));
+    let x806: (u37) = (x801,);
     x805
 }
 

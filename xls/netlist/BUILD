@@ -19,6 +19,8 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
+exports_files(["fake_cell_library.textproto"])
+
 cc_library(
     name = "netlist",
     srcs = ["netlist.cc"],
@@ -42,9 +44,15 @@ cc_library(
     testonly = True,
     srcs = ["fake_cell_library.cc"],
     hdrs = ["fake_cell_library.h"],
+    data = [":fake_cell_library.textproto"],
     deps = [
         ":netlist",
+        ":netlist_cc_proto",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
         "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/common/status:statusor",
     ],
 )
 
@@ -138,9 +146,11 @@ cc_library(
     deps = [
         ":netlist_cc_proto",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:integral_types",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor",
     ],
@@ -151,9 +161,11 @@ cc_test(
     srcs = ["cell_library_test.cc"],
     deps = [
         ":cell_library",
+        ":netlist_cc_proto",
         "@com_google_absl//absl/memory",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
+        "@com_google_protobuf//:protobuf",
     ],
 )
 
@@ -271,6 +283,7 @@ cc_library(
         ":netlist_cc_proto",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:variant",
         "//xls/common/logging",
         "//xls/common/status:ret_check",

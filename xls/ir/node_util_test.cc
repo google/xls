@@ -25,6 +25,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 
 namespace xls {
@@ -188,6 +189,19 @@ TEST_F(NodeUtilTest, IsLiteralMask) {
 
   EXPECT_FALSE(IsLiteralMask(zero_1b.node(), &leading_zeros, &trailing_ones));
   EXPECT_FALSE(IsLiteralMask(zero_0b.node(), &leading_zeros, &trailing_ones));
+}
+
+TEST_F(NodeUtilTest, NonReductiveEquivalents) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Op and_op, OpToNonReductionOp(Op::kAndReduce));
+  EXPECT_EQ(and_op, Op::kAnd);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Op or_op, OpToNonReductionOp(Op::kOrReduce));
+  EXPECT_EQ(or_op, Op::kOr);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Op xor_op, OpToNonReductionOp(Op::kXorReduce));
+  EXPECT_EQ(xor_op, Op::kXor);
+  EXPECT_FALSE(OpToNonReductionOp(Op::kBitSlice).ok());
 }
 
 }  // namespace

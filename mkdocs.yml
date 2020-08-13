@@ -1,0 +1,6 @@
+site_name: "XLS: Accelerated HW Synthesis"
+repo_url: "https://github.com/google/xls/"
+docs_dir: "xls/docs/"
+site_dir: "gendocs/"
+theme:
+  name: "material"

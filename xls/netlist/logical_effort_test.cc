@@ -41,7 +41,7 @@ TEST(LogicalEffortTest, FO4Delay) {
   INV inv_fo3(.A(i_n), .ZN(o[3]));
 endmodule)";
   rtl::Scanner scanner(netlist);
-  CellLibrary cell_library = MakeFakeCellLibrary();
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibrary cell_library, MakeFakeCellLibrary());
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<rtl::Netlist> n,
                            rtl::Parser::ParseNetlist(&cell_library, &scanner));
   XLS_ASSERT_OK_AND_ASSIGN(auto m, n->GetModule("fo4"));
@@ -75,7 +75,7 @@ TEST(LogicalEffortTest, FourInputNorDriving10Identical) {
   NOR4 fo9(.A(fo), .B(i_aux), .C(i_aux), .D(i_aux), .ZN(o[9]));
 endmodule)";
   rtl::Scanner scanner(netlist);
-  CellLibrary cell_library = MakeFakeCellLibrary();
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibrary cell_library, MakeFakeCellLibrary());
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<rtl::Netlist> n,
                            rtl::Parser::ParseNetlist(&cell_library, &scanner));
   XLS_ASSERT_OK_AND_ASSIGN(auto m, n->GetModule("test"));
@@ -97,7 +97,7 @@ TEST(LogicalEffortTest, PathDelay) {
   NAND nand_2(.A(z), .B(i_aux), .ZN(bo));
 endmodule)";
   rtl::Scanner scanner(netlist);
-  CellLibrary cell_library = MakeFakeCellLibrary();
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibrary cell_library, MakeFakeCellLibrary());
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<rtl::Netlist> n,
                            rtl::Parser::ParseNetlist(&cell_library, &scanner));
   XLS_ASSERT_OK_AND_ASSIGN(auto m, n->GetModule("test"));

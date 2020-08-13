@@ -588,8 +588,7 @@ class IndexableExpression : public Expression {
   bool IsIndexableExpression() const override { return true; }
 
   // Returns whether this is a scalar register reference that should be referred
-  // to by name instead of trivially sliced (which e.g. Design Compiler does not
-  // support).
+  // to by name because indexing a scalar is invalid (System)Verilog.
   virtual bool IsScalarReg() const { return false; }
 };
 
@@ -885,6 +884,23 @@ class Slice : public Expression {
   IndexableExpression* subject_;
   Expression* hi_;
   Expression* lo_;
+};
+
+// Represents a Verilog indexed part-select expression; e.g.
+//
+//    subject[start +: width]
+class DynamicSlice : public Expression {
+ public:
+  DynamicSlice(IndexableExpression* subject, Expression* start,
+               Expression* width)
+      : subject_(subject), start_(start), width_(width) {}
+
+  std::string Emit() override;
+
+ private:
+  IndexableExpression* subject_;
+  Expression* start_;
+  Expression* width_;
 };
 
 // Represents a Verilog indexing operation; e.g.
@@ -1305,6 +1321,17 @@ class VerilogFile {
     XLS_CHECK_GE(lo, 0);
     return Make<verilog::Slice>(subject, MaybePlainLiteral(hi),
                                 MaybePlainLiteral(lo));
+  }
+
+  verilog::DynamicSlice* DynamicSlice(IndexableExpression* subject,
+                                      Expression* start, Expression* width) {
+    return Make<verilog::DynamicSlice>(subject, start, width);
+  }
+  verilog::DynamicSlice* DynamicSlice(IndexableExpression* subject,
+                                      Expression* start, int64 width) {
+    XLS_CHECK_GT(width, 0);
+    return Make<verilog::DynamicSlice>(subject, start,
+                                       MaybePlainLiteral(width));
   }
 
   verilog::Index* Index(IndexableExpression* subject, Expression* index) {

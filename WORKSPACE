@@ -24,12 +24,21 @@ llvm_toolchain(
 load("@llvm_toolchain//:toolchains.bzl", "llvm_register_toolchains")
 llvm_register_toolchains()
 
-
 load("//dependency_support:load_external.bzl", "load_external_repositories")
 load_external_repositories()
 
+# gRPC deps should be loaded before initializing other repos. Otherwise, various
+# errors occur during repo loading and initialization.
+load("@com_github_grpc_grpc//bazel:grpc_deps.bzl", "grpc_deps")
+grpc_deps()
+
 load("//dependency_support:initialize_external.bzl", "initialize_external_repositories")
 initialize_external_repositories()
+
+# Loading the extra deps must be called after initialize_eternal_repositories or
+# the call to pip_install fails.
+load("@com_github_grpc_grpc//bazel:grpc_extra_deps.bzl", "grpc_extra_deps")
+grpc_extra_deps()
 
 load("@xls_pip_deps//:requirements.bzl", "pip_install")
 pip_install()

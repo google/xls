@@ -156,7 +156,7 @@ class BValueHolder : public PyHolder {
 
 // Wrapper for FunctionBuilder objects.
 //
-// A FunctionBuilder has unowned pointers to the beloning package. To keep the
+// A FunctionBuilder has unowned pointers to the belonging package. To keep the
 // Package alive for as long as the Python reference exists, it is held by
 // shared_ptr here. Furthermore, since FunctionBuilder can be referred to by
 // other BValue objects, it itself is kept in a shared_ptr too.
@@ -258,15 +258,15 @@ auto WrapInPyHolderIfHolderExists(T&& value, ...) {
 
 // Tells PyWrap how to wrap BValue return values, see
 // WrapInPyHolderIfHolderExists.
-static BValueHolder WrapInPyHolder(const BValue& value,
-                                   FunctionBuilderHolder* holder) {
+static inline BValueHolder WrapInPyHolder(const BValue& value,
+                                          FunctionBuilderHolder* holder) {
   return BValueHolder(value, holder->package(), holder->builder());
 }
 
 // Tells PyWrap how to wrap FunctionBuilder return values from BValue methods,
 // see WrapInPyHolderIfHolderExists.
-static FunctionBuilderHolder WrapInPyHolder(FunctionBuilder* builder,
-                                            BValueHolder* holder) {
+static inline FunctionBuilderHolder WrapInPyHolder(FunctionBuilder* builder,
+                                                   BValueHolder* holder) {
   return FunctionBuilderHolder(holder->package(), holder->builder());
 }
 

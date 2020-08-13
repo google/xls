@@ -15,10 +15,10 @@
 
 
 # Find input files
-echo 'entries: { kind: INVERTER, name: "INV" input_names: "A" output_pins { name: "ZN" function: "F" } }' > "${TEST_TMPDIR}/fake_cell_library.pbtxt"
+echo 'entries: { kind: INVERTER, name: "INV" input_names: "A" output_pins { name: "ZN" function: "F" } }' > "${TEST_TMPDIR}/fake_cell_library.textproto"
 echo 'module main(i, o); input i; output o; INV inv_0(.A(i), .ZN(o)); endmodule' > "${TEST_TMPDIR}/netlist.v"
 
 BINPATH=./xls/netlist/parse_netlist_main
-$BINPATH "${TEST_TMPDIR}/netlist.v" "${TEST_TMPDIR}/fake_cell_library.pbtxt" || exit -1
+$BINPATH "${TEST_TMPDIR}/netlist.v" "${TEST_TMPDIR}/fake_cell_library.textproto" || exit -1
 
 echo "PASS"

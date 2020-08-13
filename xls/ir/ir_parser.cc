@@ -24,6 +24,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/number_parser.h"
 #include "xls/ir/op.h"
+#include "xls/ir/type.h"
 #include "xls/ir/verifier.h"
 
 namespace xls {
@@ -31,14 +32,16 @@ namespace xls {
 xabsl::StatusOr<int64> Parser::ParseBitsTypeAndReturnWidth() {
   XLS_ASSIGN_OR_RETURN(Token peek, scanner_.PeekToken());
   XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("bits"));
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(TokenType::kBracketOpen));
+  XLS_RETURN_IF_ERROR(
+      scanner_.DropTokenOrError(LexicalTokenType::kBracketOpen));
   XLS_ASSIGN_OR_RETURN(int64 bit_count, ParseInt64());
   if (bit_count < 0) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Only positive bit counts are permitted for bits types; found %d @ %s",
         bit_count, peek.pos().ToHumanString()));
   }
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(TokenType::kBracketClose));
+  XLS_RETURN_IF_ERROR(
+      scanner_.DropTokenOrError(LexicalTokenType::kBracketClose));
   return bit_count;
 }
 
@@ -49,15 +52,18 @@ xabsl::StatusOr<Type*> Parser::ParseBitsType(Package* package) {
 
 xabsl::StatusOr<Type*> Parser::ParseType(Package* package) {
   Type* type;
-  if (scanner_.PeekTokenIs(TokenType::kParenOpen)) {
+  if (scanner_.PeekTokenIs(LexicalTokenType::kParenOpen)) {
     XLS_ASSIGN_OR_RETURN(type, ParseTupleType(package));
+  } else if (scanner_.TryDropKeyword("token")) {
+    return package->GetTokenType();
   } else {
     XLS_ASSIGN_OR_RETURN(type, ParseBitsType(package));
   }
-  while (scanner_.TryDropToken(TokenType::kBracketOpen)) {
+  while (scanner_.TryDropToken(LexicalTokenType::kBracketOpen)) {
     // Array type.
     XLS_ASSIGN_OR_RETURN(int64 size, ParseInt64());
-    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(TokenType::kBracketClose));
+    XLS_RETURN_IF_ERROR(
+        scanner_.DropTokenOrError(LexicalTokenType::kBracketClose));
     type = package->GetArrayType(size, type);
   }
   return type;
@@ -160,21 +166,22 @@ class ArgParser {
     absl::flat_hash_set<std::string> seen_keywords;
     std::vector<BValue> operands;
     XLS_ASSIGN_OR_RETURN(Token open_paren, parser_->scanner_.PopTokenOrError(
-                                               TokenType::kParenOpen));
-    if (!parser_->scanner_.PeekTokenIs(TokenType::kParenClose)) {
+                                               LexicalTokenType::kParenOpen));
+    if (!parser_->scanner_.PeekTokenIs(LexicalTokenType::kParenClose)) {
       // Variable indicating whether we are parsing the keywords or still
       // parsing the positional arguments.
       bool parsing_keywords = false;
       do {
-        XLS_ASSIGN_OR_RETURN(Token name, parser_->scanner_.PopTokenOrError(
-                                             TokenType::kIdent, "argument"));
+        XLS_ASSIGN_OR_RETURN(Token name,
+                             parser_->scanner_.PopTokenOrError(
+                                 LexicalTokenType::kIdent, "argument"));
         if (!parsing_keywords &&
-            parser_->scanner_.PeekTokenIs(TokenType::kEquals)) {
+            parser_->scanner_.PeekTokenIs(LexicalTokenType::kEquals)) {
           parsing_keywords = true;
         }
         if (parsing_keywords) {
           XLS_RETURN_IF_ERROR(
-              parser_->scanner_.DropTokenOrError(TokenType::kEquals));
+              parser_->scanner_.DropTokenOrError(LexicalTokenType::kEquals));
           if (seen_keywords.contains(name.value())) {
             return absl::InvalidArgumentError(
                 absl::StrFormat("Duplicate keyword argument '%s' @ %s",
@@ -196,10 +203,10 @@ class ArgParser {
           }
           operands.push_back(name_to_bvalue_.at(name.value()));
         }
-      } while (parser_->scanner_.TryDropToken(TokenType::kComma));
+      } while (parser_->scanner_.TryDropToken(LexicalTokenType::kComma));
     }
     XLS_RETURN_IF_ERROR(
-        parser_->scanner_.DropTokenOrError(TokenType::kParenClose));
+        parser_->scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
 
     // Verify all mandatory keywords are present.
     for (const std::string& key : mandatory_keywords_) {
@@ -262,19 +269,19 @@ class ArgParser {
 
 xabsl::StatusOr<int64> Parser::ParseInt64() {
   XLS_ASSIGN_OR_RETURN(Token literal,
-                       scanner_.PopTokenOrError(TokenType::kLiteral));
+                       scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
   return literal.GetValueInt64();
 }
 
 xabsl::StatusOr<bool> Parser::ParseBool() {
   XLS_ASSIGN_OR_RETURN(Token literal,
-                       scanner_.PopTokenOrError(TokenType::kLiteral));
+                       scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
   return literal.GetValueBool();
 }
 
 xabsl::StatusOr<std::string> Parser::ParseIdentifierString(TokenPos* pos) {
   XLS_ASSIGN_OR_RETURN(Token token,
-                       scanner_.PopTokenOrError(TokenType::kIdent));
+                       scanner_.PopTokenOrError(LexicalTokenType::kIdent));
   if (pos != nullptr) {
     *pos = token.pos();
   }
@@ -305,11 +312,16 @@ xabsl::StatusOr<Value> Parser::ParseValueInternal(absl::optional<Type*> type) {
     bit_count =
         type.value()->IsBits() ? type.value()->AsBitsOrDie()->bit_count() : 0;
   } else {
-    if (scanner_.PeekTokenIs(TokenType::kKeyword)) {
-      type_kind = TypeKind::kBits;
-      XLS_ASSIGN_OR_RETURN(bit_count, ParseBitsTypeAndReturnWidth());
-      XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(TokenType::kColon));
-    } else if (scanner_.PeekTokenIs(TokenType::kBracketOpen)) {
+    if (scanner_.PeekTokenIs(LexicalTokenType::kKeyword)) {
+      if (scanner_.TryDropKeyword("token")) {
+        type_kind = TypeKind::kToken;
+      } else {
+        type_kind = TypeKind::kBits;
+        XLS_ASSIGN_OR_RETURN(bit_count, ParseBitsTypeAndReturnWidth());
+        XLS_RETURN_IF_ERROR(
+            scanner_.DropTokenOrError(LexicalTokenType::kColon));
+      }
+    } else if (scanner_.PeekTokenIs(LexicalTokenType::kBracketOpen)) {
       type_kind = TypeKind::kArray;
     } else {
       type_kind = TypeKind::kTuple;
@@ -323,7 +335,7 @@ xabsl::StatusOr<Value> Parser::ParseValueInternal(absl::optional<Type*> type) {
 
   if (type_kind == TypeKind::kBits) {
     XLS_ASSIGN_OR_RETURN(Token literal,
-                         scanner_.PopTokenOrError(TokenType::kLiteral));
+                         scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
     XLS_ASSIGN_OR_RETURN(Bits bits_value, literal.GetValueBits());
     if (bits_value.bit_count() > bit_count) {
       return absl::InvalidArgumentError(absl::StrFormat(
@@ -338,14 +350,15 @@ xabsl::StatusOr<Value> Parser::ParseValueInternal(absl::optional<Type*> type) {
     }
   }
   if (type_kind == TypeKind::kArray) {
-    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(TokenType::kBracketOpen));
+    XLS_RETURN_IF_ERROR(
+        scanner_.DropTokenOrError(LexicalTokenType::kBracketOpen));
     std::vector<Value> values;
     while (true) {
-      if (scanner_.TryDropToken(TokenType::kBracketClose)) {
+      if (scanner_.TryDropToken(LexicalTokenType::kBracketClose)) {
         break;
       }
       if (!values.empty()) {
-        XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(TokenType::kComma,
+        XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma,
                                                       "',' in array literal"));
       }
       absl::optional<Type*> element_type = absl::nullopt;
@@ -359,14 +372,15 @@ xabsl::StatusOr<Value> Parser::ParseValueInternal(absl::optional<Type*> type) {
     return Value::Array(values);
   }
   if (type_kind == TypeKind::kTuple) {
-    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(TokenType::kParenOpen));
+    XLS_RETURN_IF_ERROR(
+        scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
     std::vector<Value> values;
     while (true) {
-      if (scanner_.TryDropToken(TokenType::kParenClose)) {
+      if (scanner_.TryDropToken(LexicalTokenType::kParenClose)) {
         break;
       }
       if (!values.empty()) {
-        XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(TokenType::kComma,
+        XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma,
                                                       "',' in tuple literal"));
       }
       absl::optional<Type*> element_type = absl::nullopt;
@@ -380,39 +394,44 @@ xabsl::StatusOr<Value> Parser::ParseValueInternal(absl::optional<Type*> type) {
     }
     return Value::Tuple(values);
   }
+  if (type_kind == TypeKind::kToken) {
+    return Value::Token();
+  }
   return absl::InvalidArgumentError(
       absl::StrFormat("Unsupported type %s", TypeKindToString(type_kind)));
 }
 
 xabsl::StatusOr<std::vector<BValue>> Parser::ParseNameList(
     const absl::flat_hash_map<std::string, BValue>& name_to_value) {
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(TokenType::kBracketOpen));
+  XLS_RETURN_IF_ERROR(
+      scanner_.DropTokenOrError(LexicalTokenType::kBracketOpen));
   std::vector<BValue> result;
   bool must_end = false;
   while (true) {
     if (must_end) {
-      XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(TokenType::kBracketClose));
+      XLS_RETURN_IF_ERROR(
+          scanner_.DropTokenOrError(LexicalTokenType::kBracketClose));
       break;
     }
-    if (scanner_.TryDropToken(TokenType::kBracketClose)) {
+    if (scanner_.TryDropToken(LexicalTokenType::kBracketClose)) {
       break;
     }
     XLS_ASSIGN_OR_RETURN(BValue value, ParseIdentifierValue(name_to_value));
     result.push_back(value);
-    must_end = !scanner_.TryDropToken(TokenType::kComma);
+    must_end = !scanner_.TryDropToken(LexicalTokenType::kComma);
   }
   return result;
 }
 
 xabsl::StatusOr<SourceLocation> Parser::ParseSourceLocation() {
   XLS_ASSIGN_OR_RETURN(Token fileno,
-                       scanner_.PopTokenOrError(TokenType::kLiteral));
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(TokenType::kComma));
+                       scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma));
   XLS_ASSIGN_OR_RETURN(Token lineno,
-                       scanner_.PopTokenOrError(TokenType::kLiteral));
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(TokenType::kComma));
+                       scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma));
   XLS_ASSIGN_OR_RETURN(Token colno,
-                       scanner_.PopTokenOrError(TokenType::kLiteral));
+                       scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
   XLS_ASSIGN_OR_RETURN(int64 fileno_value, fileno.GetValueInt64());
   XLS_ASSIGN_OR_RETURN(int64 lineno_value, lineno.GetValueInt64());
   XLS_ASSIGN_OR_RETURN(int64 colno_value, colno.GetValueInt64());
@@ -474,27 +493,28 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
     absl::flat_hash_map<std::string, BValue>* name_to_value, Package* package) {
   BValue last_created;
   BValue return_value;
-  while (!scanner_.PeekTokenIs(TokenType::kCurlClose)) {
+  while (!scanner_.PeekTokenIs(LexicalTokenType::kCurlClose)) {
     bool saw_ret = scanner_.TryDropKeyword("ret");
 
     // <output_name>: <type> = op(...)
     XLS_ASSIGN_OR_RETURN(
         Token output_name,
-        scanner_.PopTokenOrError(TokenType::kIdent, "node output name"));
-    if (saw_ret && !scanner_.PeekTokenIs(TokenType::kColon)) {
+        scanner_.PopTokenOrError(LexicalTokenType::kIdent, "node output name"));
+    if (saw_ret && !scanner_.PeekTokenIs(LexicalTokenType::kColon)) {
       XLS_ASSIGN_OR_RETURN(Node * ret,
                            GetLocalNode(output_name.value(), name_to_value));
       fb->function()->set_return_value(ret);
       XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(
-          TokenType::kCurlClose, "'}' at end of function body"));
+          LexicalTokenType::kCurlClose, "'}' at end of function body"));
       return BValue(ret, fb);
     }
 
-    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(TokenType::kColon));
+    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kColon));
     XLS_ASSIGN_OR_RETURN(Type * type, ParseType(package));
-    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(TokenType::kEquals));
-    XLS_ASSIGN_OR_RETURN(Token op_token, scanner_.PopTokenOrError(
-                                             TokenType::kIdent, "operator"));
+    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kEquals));
+    XLS_ASSIGN_OR_RETURN(
+        Token op_token,
+        scanner_.PopTokenOrError(LexicalTokenType::kIdent, "operator"));
 
     XLS_ASSIGN_OR_RETURN(Op op, StringToOp(op_token.value()));
 
@@ -601,6 +621,15 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
       case Op::kTuple: {
         XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(ArgParser::kVariadic));
         bvalue = fb->Tuple(operands, *loc);
+        break;
+      }
+      case Op::kAfterAll: {
+        if (!type->IsToken()) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Expected token type @ %s", op_token.pos().ToHumanString()));
+        }
+        XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(ArgParser::kVariadic));
+        bvalue = fb->AfterAll(operands, *loc);
         break;
       }
       case Op::kArray: {
@@ -720,7 +749,7 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
 
     // Verify that the type of the newly constructed node matches the parsed
     // type.
-    if (type != bvalue.node()->GetType()) {
+    if (bvalue.valid() && type != bvalue.node()->GetType()) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Declared type %s does not match expected type %s @ %s",
           type->ToString(), bvalue.GetType()->ToString(),
@@ -743,9 +772,11 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
       return absl::nullopt;
     };
 
-    if (absl::optional<int64> suggested_id =
-            get_suggested_id(output_name.value())) {
-      last_created.node()->set_id(suggested_id.value());
+    if (last_created.valid()) {
+      if (absl::optional<int64> suggested_id =
+              get_suggested_id(output_name.value())) {
+        last_created.node()->set_id(suggested_id.value());
+      }
     }
 
     if (saw_ret) {
@@ -757,7 +788,7 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
     return_value = last_created;
   }
 
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(TokenType::kCurlClose,
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlClose,
                                                 "'}' at end of function body"));
   return return_value;
 }
@@ -765,13 +796,13 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
 xabsl::StatusOr<Type*> Parser::ParseTupleType(Package* package) {
   std::vector<Type*> types;
   scanner_.PopToken();
-  if (!scanner_.PeekTokenIs(TokenType::kParenClose)) {
+  if (!scanner_.PeekTokenIs(LexicalTokenType::kParenClose)) {
     do {
       XLS_ASSIGN_OR_RETURN(Type * type, ParseType(package));
       types.push_back(type);
-    } while (scanner_.TryDropToken(TokenType::kComma));
+    } while (scanner_.TryDropToken(LexicalTokenType::kComma));
   }
-  if (!scanner_.PeekTokenIs(TokenType::kParenClose)) {
+  if (!scanner_.PeekTokenIs(LexicalTokenType::kParenClose)) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Expected ')' to terminate tuple type; found %s",
                         scanner_.PopToken().value()));
@@ -784,30 +815,31 @@ xabsl::StatusOr<std::pair<std::unique_ptr<FunctionBuilder>, Type*>>
 Parser::ParseSignature(absl::flat_hash_map<std::string, BValue>* name_to_value,
                        Package* package) {
   XLS_ASSIGN_OR_RETURN(
-      Token name, scanner_.PopTokenOrError(TokenType::kIdent, "function name"));
+      Token name,
+      scanner_.PopTokenOrError(LexicalTokenType::kIdent, "function name"));
   auto fb = absl::make_unique<FunctionBuilder>(name.value(), package);
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(TokenType::kParenOpen,
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenOpen,
                                                 "'(' in function parameters"));
 
   bool must_end = false;
   while (true) {
-    if (must_end || scanner_.PeekTokenIs(TokenType::kParenClose)) {
+    if (must_end || scanner_.PeekTokenIs(LexicalTokenType::kParenClose)) {
       XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(
-          TokenType::kParenClose, "')' in function parameters"));
+          LexicalTokenType::kParenClose, "')' in function parameters"));
       break;
     }
     XLS_ASSIGN_OR_RETURN(Token param_name,
-                         scanner_.PopTokenOrError(TokenType::kIdent));
-    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(TokenType::kColon));
+                         scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kColon));
     XLS_ASSIGN_OR_RETURN(Type * type, ParseType(package));
     (*name_to_value)[param_name.value()] = fb->Param(param_name.value(), type);
-    must_end = !scanner_.TryDropToken(TokenType::kComma);
+    must_end = !scanner_.TryDropToken(LexicalTokenType::kComma);
   }
 
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(TokenType::kRightArrow,
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kRightArrow,
                                                 "'->' in function signature"));
   XLS_ASSIGN_OR_RETURN(Type * return_type, ParseType(package));
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(TokenType::kCurlOpen,
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlOpen,
                                                 "start of function body"));
   return std::pair<std::unique_ptr<FunctionBuilder>, Type*>{std::move(fb),
                                                             return_type};
@@ -817,7 +849,7 @@ xabsl::StatusOr<std::string> Parser::ParsePackageName() {
   XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("package"));
   XLS_ASSIGN_OR_RETURN(
       Token package_name,
-      scanner_.PopTokenOrError(TokenType::kIdent, "package name"));
+      scanner_.PopTokenOrError(LexicalTokenType::kIdent, "package name"));
   return package_name.value();
 }
 
@@ -835,7 +867,8 @@ xabsl::StatusOr<Function*> Parser::ParseFunction(Package* package) {
   XLS_ASSIGN_OR_RETURN(BValue return_value,
                        ParseFunctionBody(fb, &name_to_value, package));
 
-  if (return_value.node()->GetType() != function_data.second) {
+  if (return_value.valid() &&
+      return_value.node()->GetType() != function_data.second) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Type of return value %s does not match declared function return type "
         "%s",
@@ -850,25 +883,25 @@ xabsl::StatusOr<Function*> Parser::ParseFunction(Package* package) {
 }
 
 xabsl::StatusOr<FunctionType*> Parser::ParseFunctionType(Package* package) {
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(TokenType::kParenOpen));
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
   std::vector<Type*> parameter_types;
   bool must_end = false;
   while (true) {
     if (must_end) {
       XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(
-          TokenType::kParenClose,
+          LexicalTokenType::kParenClose,
           "expected end of function-type parameter list"));
       break;
     }
-    if (scanner_.TryDropToken(TokenType::kParenClose)) {
+    if (scanner_.TryDropToken(LexicalTokenType::kParenClose)) {
       break;
     }
     XLS_ASSIGN_OR_RETURN(Type * type, ParseType(package));
     parameter_types.push_back(type);
-    must_end = !scanner_.TryDropToken(TokenType::kComma);
+    must_end = !scanner_.TryDropToken(LexicalTokenType::kComma);
   }
 
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(TokenType::kRightArrow));
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kRightArrow));
   XLS_ASSIGN_OR_RETURN(Type * return_type, ParseType(package));
 
   return package->GetFunctionType(parameter_types, return_type);

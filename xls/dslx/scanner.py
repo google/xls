@@ -76,6 +76,7 @@ class TokenKind(enum.Enum):
   DOUBLE_BAR = '||'
   HAT = '^'
   FAT_ARROW = '=>'
+  DOUBLE_DOT = '..'
   ELLIPSIS = '...'
   HASH = '#'
   # When in whitespace/comment mode; e.g. for syntax highlighting.
@@ -623,11 +624,11 @@ class Scanner(object):
         lookahead = Token(TokenKind.MINUS, mk_span())
     elif startc == '.':
       self._dropc()
-      if self._peekc_is(lambda c: c == '.'):
-        ok = self._try_dropc('.') and self._try_dropc('.')
-        if not ok:
-          raise ScanError(start_pos, "Expected '...' token, due to leading '.'")
-        lookahead = Token(TokenKind.ELLIPSIS, mk_span())
+      if self._try_dropc('.'):
+        if self._try_dropc('.'):
+          lookahead = Token(TokenKind.ELLIPSIS, mk_span())
+        else:
+          lookahead = Token(TokenKind.DOUBLE_DOT, mk_span())
       else:
         lookahead = Token(TokenKind.DOT, mk_span())
     else:

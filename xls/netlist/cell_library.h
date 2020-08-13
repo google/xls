@@ -18,6 +18,7 @@
 #include <string>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "xls/common/status/statusor.h"
 #include "xls/netlist/netlist.pb.h"
@@ -51,6 +52,55 @@ template <typename H>
 H AbslHashValue(H state, const OutputPin& p) {
   return H::combine(std::move(state), p.name, p.function);
 }
+
+// StateTable provides methods for querying Liberty "statetable" attributes, as
+// captured by the StateTableProto structure.
+// This table does not currently handle stateful operations, i.e., those that
+// require information outside a given row of the table. Consider the row:
+// "A B C : D : D"
+// "H - - : - : N"; this indicates that the value of the internal signal ("D")
+// is unchanged by that stimulus...but the output value depends on state not
+// captured here. To model that, a StateTable should be wrapped in a stateful
+// class (not implemented here).
+class StateTable {
+ public:
+  // InputStimulus provides one input for evaluation to the table.
+  using InputStimulus = absl::flat_hash_map<std::string, bool>;
+
+  // Constructs a StateTable object from the matching proto.
+  static xabsl::StatusOr<StateTable> FromProto(const StateTableProto& proto);
+
+  // Gets the value of the given signal when the table is presented with the
+  // specified stimulus.
+  // return true/false
+  xabsl::StatusOr<bool> GetSignalValue(const InputStimulus& stimulus,
+                                       absl::string_view signal);
+
+ private:
+  using RowStimulus = absl::flat_hash_map<std::string, StateTableSignal>;
+  using RowResponse = absl::flat_hash_map<std::string, StateTableSignal>;
+  using Row = std::pair<RowStimulus, RowResponse>;
+
+  StateTable(const std::vector<Row>& rows,
+             const absl::flat_hash_set<std::string>& signals,
+             const StateTableProto& proto);
+
+  // Returns true if the given input stimulus matches the given table row.
+  xabsl::StatusOr<bool> MatchRow(const Row& row,
+                                 const InputStimulus& input_stimulus);
+
+  // True if the value of "name" in stimulus matches the given bool value or is
+  // "don't care".
+  bool SignalMismatch(absl::string_view name, bool value,
+                      const RowStimulus& stimulus);
+
+  absl::flat_hash_set<std::string> signals_;
+
+  // We preprocess the proto to combine input signals (both true inputs and
+  // internal state signals) for ease-of-lookup.
+  std::vector<Row> rows_;
+  StateTableProto proto_;
+};
 
 // Represents an entry in the cell library, listing inputs/outputs an the name
 // of the cell module.

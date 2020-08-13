@@ -74,8 +74,8 @@ int main(int argc, char** argv) {
       xls::InitXls(argv[0], argc, argv);
 
   if (positional_arguments.size() < 2) {
-    std::cerr << "Usage: " << argv[0] << " <netlist.gv> <cell_library.pbtxt>"
-              << std::endl;
+    std::cerr << "Usage: " << argv[0]
+              << " <netlist.gv> <cell_library.textproto>" << std::endl;
     return EXIT_FAILURE;
   }
 

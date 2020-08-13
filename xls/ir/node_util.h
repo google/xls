@@ -133,6 +133,9 @@ xabsl::StatusOr<Node*> OrReduceLeading(Node* node, int64 bit_count);
 bool IsUnsignedCompare(Node* node);
 bool IsSignedCompare(Node* node);
 
+// For <AndReduce, OrReduce, XorReduce>, returns <And, Or, Xor>.
+xabsl::StatusOr<Op> OpToNonReductionOp(Op reduce_op);
+
 }  // namespace xls
 
 #endif  // XLS_IR_NODE_UTIL_H_

@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Extracts delay model data from pbtxt, constructs lookup code used in C++."""
+"""Extracts delay model from a text proto, constructs C++ lookup code."""
 
 from absl import app
 from absl import flags

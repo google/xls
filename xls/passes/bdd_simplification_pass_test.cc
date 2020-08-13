@@ -19,11 +19,17 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/passes/bdd_cse_pass.h"
+#include "xls/passes/bit_slice_simplification_pass.h"
+#include "xls/passes/concat_simplification_pass.h"
+#include "xls/passes/dce_pass.h"
+#include "xls/passes/select_simplification_pass.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -34,11 +40,25 @@ using status_testing::IsOkAndHolds;
 
 class BddSimplificationPassTest : public IrTestBase {
  protected:
-  xabsl::StatusOr<bool> Run(Function* f) {
+  xabsl::StatusOr<bool> Run(Function* f, bool run_cleanup_passes = false,
+                            bool split_opts = true) {
     PassResults results;
     XLS_ASSIGN_OR_RETURN(bool changed,
-                         BddSimplificationPass(/*split_ops=*/true)
+                         BddSimplificationPass(/*split_ops=*/split_opts)
                              .RunOnFunction(f, PassOptions(), &results));
+    if (run_cleanup_passes) {
+      XLS_RETURN_IF_ERROR(BitSliceSimplificationPass()
+                              .RunOnFunction(f, PassOptions(), &results)
+                              .status());
+      XLS_RETURN_IF_ERROR(SelectSimplificationPass(/*split_ops=*/split_opts)
+                              .RunOnFunction(f, PassOptions(), &results)
+                              .status());
+      XLS_RETURN_IF_ERROR(
+          BddCsePass().RunOnFunction(f, PassOptions(), &results).status());
+      XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
+                              .RunOnFunction(f, PassOptions(), &results)
+                              .status());
+    }
     return changed;
   }
 };
@@ -178,6 +198,211 @@ TEST_F(BddSimplificationPassTest, SelectChainOneHotOrZeroSelectors) {
                                         m::Nor(m::ULt(), m::Eq(), m::UGt())),
                               {m::Param("y"), m::Param("x0"), m::Param("x1"),
                                m::Param("x2")}));
+}
+
+TEST_F(BddSimplificationPassTest, OneHotMsbTypical) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue input = fb.Param("input", p->GetBitsType(7));
+  BValue hot = fb.OneHot(input, LsbOrMsb::kLsb);
+  BValue encode = fb.Encode(hot);
+  BValue literal_zero3 = fb.Literal(UBits(0, 3));
+  BValue literal_comp = fb.Literal(UBits(7, 3));
+  BValue eq_test = fb.Eq(encode, literal_comp);
+  BValue select = fb.Select(eq_test, literal_zero3, encode);
+  // Extra instruction just to add another post-dominator.
+  fb.Not(select);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Not(m::Encode(
+                  m::Concat(m::Literal(UBits(0, 1)),
+                            m::BitSlice(m::OneHot(m::Param("input")), 0, 7)))));
+}
+
+TEST_F(BddSimplificationPassTest, OneHotMsbAlternateForm) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue input = fb.Param("input", p->GetBitsType(7));
+  BValue hot = fb.OneHot(input, LsbOrMsb::kLsb);
+  BValue hot_msb = fb.BitSlice(hot, hot.node()->BitCountOrDie() - 1, 1);
+  BValue encode = fb.Encode(hot);
+  BValue literal_zero3 = fb.Literal(UBits(0, 3));
+  BValue literal_comp = fb.Literal(UBits(1, 1));
+  BValue eq_test = fb.Eq(hot_msb, literal_comp);
+  BValue select = fb.Select(eq_test, literal_zero3, encode);
+  // Extra instruction just to add another post-dominator.
+  fb.Not(select);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Not(m::Encode(
+                  m::Concat(m::Literal(UBits(0, 1)),
+                            m::BitSlice(m::OneHot(m::Param("input")), 0, 7)))));
+}
+
+TEST_F(BddSimplificationPassTest, OneHotMsbRequireFullBddToAnalyzeOneMsbCase) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue input = fb.Param("input", p->GetBitsType(7));
+  BValue hot = fb.OneHot(input, LsbOrMsb::kLsb);
+  BValue reduce = fb.OrReduce(input);
+  BValue extend = fb.SignExtend(reduce, 8);
+  fb.And(hot, extend);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Literal(UBits(0, 1)),
+                        m::BitSlice(m::OneHot(m::Param("input")), 0, 7)));
+}
+
+TEST_F(BddSimplificationPassTest, OneHotMsbMsbLeaks) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue input = fb.Param("input", p->GetBitsType(7));
+  BValue hot = fb.OneHot(input, LsbOrMsb::kLsb);
+  BValue hot_msb = fb.BitSlice(hot, hot.node()->BitCountOrDie() - 1, 1);
+  BValue encode = fb.Encode(hot);
+  BValue literal_zero3 = fb.Literal(UBits(0, 3));
+  BValue literal_comp = fb.Literal(UBits(1, 1));
+  BValue eq_test = fb.Eq(hot_msb, literal_comp);
+  BValue select = fb.Select(eq_test, literal_zero3, encode);
+  fb.Concat({hot_msb, select});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  EXPECT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(false));
+}
+
+TEST_F(BddSimplificationPassTest, OneHotMsbNonMsbOneComparison) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue input = fb.Param("input", p->GetBitsType(7));
+  BValue hot = fb.OneHot(input, LsbOrMsb::kLsb);
+  BValue encode = fb.Encode(hot);
+  BValue literal_zero3 = fb.Literal(UBits(0, 3));
+  BValue literal_comp = fb.Literal(UBits(4, 3));
+  BValue eq_test = fb.Eq(encode, literal_comp);
+  BValue select = fb.Select(eq_test, literal_zero3, encode);
+  // Extra instruction just to add another post-dominator.
+  fb.Not(select);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  EXPECT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(false));
+}
+
+TEST_F(BddSimplificationPassTest, OneHotMsbNonZeroReplacementValue) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue input = fb.Param("input", p->GetBitsType(7));
+  BValue hot = fb.OneHot(input, LsbOrMsb::kLsb);
+  BValue encode = fb.Encode(hot);
+  BValue literal_zero3 = fb.Literal(UBits(4, 3));
+  BValue literal_comp = fb.Literal(UBits(7, 3));
+  BValue eq_test = fb.Eq(encode, literal_comp);
+  BValue select = fb.Select(eq_test, literal_zero3, encode);
+  // Extra instruction just to add another post-dominator.
+  fb.Not(select);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  EXPECT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(false));
+}
+
+TEST_F(BddSimplificationPassTest, OneHotMsbNoRecursion) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue input = fb.Param("input", p->GetBitsType(7));
+  BValue hot = fb.OneHot(input, LsbOrMsb::kLsb);
+  BValue encode = fb.Encode(hot);
+  BValue literal_zero3 = fb.Literal(UBits(0, 3));
+  BValue literal_comp = fb.Literal(UBits(7, 3));
+  BValue eq_test = fb.Eq(encode, literal_comp);
+  BValue select = fb.Select(eq_test, literal_zero3, encode);
+  // Extra instruction just to add another post-dominator.
+  fb.Not(select);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Not(m::Encode(
+                  m::Concat(m::Literal(UBits(0, 1)),
+                            m::BitSlice(m::OneHot(m::Param("input")), 0, 7)))));
+  EXPECT_THAT(Run(f, /*run_cleanup_passes=*/false), IsOkAndHolds(false));
+}
+
+TEST_F(BddSimplificationPassTest,
+       OneHotMsbNoRecursionExistingSliceIncludesMsb) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue input = fb.Param("input", p->GetBitsType(7));
+  BValue hot = fb.OneHot(input, LsbOrMsb::kLsb);
+  BValue hot_slice = fb.BitSlice(hot, 4, 4);
+  BValue encode = fb.Encode(hot_slice);
+  BValue literal_zero2 = fb.Literal(UBits(0, 2));
+  BValue literal_comp = fb.Literal(UBits(3, 2));
+  BValue eq_test = fb.Eq(encode, literal_comp);
+  BValue select = fb.Select(eq_test, literal_zero2, encode);
+  // Extra instruction just to add another post-dominator.
+  fb.Not(select);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Not(m::Encode(
+                  m::Concat(m::Literal(UBits(0, 1)),
+                            m::BitSlice(m::OneHot(m::Param("input")), 4, 3)))));
+  EXPECT_THAT(Run(f, /*run_cleanup_passes=*/false), IsOkAndHolds(false));
+}
+
+TEST_F(BddSimplificationPassTest,
+       OneHotMsbNoRecursionExistingSliceExcludesMsb) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue input = fb.Param("input", p->GetBitsType(7));
+  BValue hot = fb.OneHot(input, LsbOrMsb::kLsb);
+  BValue hot_slice = fb.BitSlice(hot, 0, 4);
+  BValue encode = fb.Encode(hot_slice);
+  BValue literal_zero2 = fb.Literal(UBits(0, 2));
+  BValue literal_comp = fb.Literal(UBits(3, 2));
+  BValue eq_test = fb.Eq(encode, literal_comp);
+  BValue select = fb.Select(eq_test, literal_zero2, encode);
+  // Extra instruction just to add another post-dominator.
+  fb.Not(select);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  EXPECT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(false));
+}
+
+TEST_F(BddSimplificationPassTest,
+       OneHotMsbPostponeOneHotNativeOneHotDetectionUntilAfterOneHotMsb) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue input = fb.Param("input", p->GetBitsType(2));
+  BValue one_val = fb.Literal(UBits(1, 2));
+  BValue three_val = fb.Literal(UBits(3, 2));
+  BValue one_eq = fb.Eq(one_val, input);
+  BValue three_eq = fb.Eq(three_val, input);
+  BValue cat = fb.Concat({one_eq, three_eq});
+  BValue hot = fb.OneHot(cat, LsbOrMsb::kLsb);
+  BValue encode = fb.Encode(hot);
+  BValue literal_zero2 = fb.Literal(UBits(0, 2));
+  BValue literal_comp = fb.Literal(UBits(2, 2));
+  BValue eq_test = fb.Eq(encode, literal_comp);
+  fb.Select(eq_test, literal_zero2, encode);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f, /*run_cleanup_passes=*/false, /*split_opts=*/false),
+              IsOkAndHolds(true));
+  ASSERT_THAT(Run(f, /*run_cleanup_passes=*/true, /*split_opts=*/true),
+              IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Encode(m::Concat(
+          m::Literal(UBits(0, 1)),
+          m::Concat(m::Eq(m::Literal(UBits(1, 2)), m::Param("input")),
+                    m::Eq(m::Literal(UBits(3, 2)), m::Param("input"))))));
 }
 
 }  // namespace

@@ -73,10 +73,18 @@ float ComputeExpected(Float2x32 input) {
 // Computes FP addition via DSLX & the JIT.
 float ComputeActual(LlvmIrJit* jit, absl::Span<uint8> result_buffer,
                     Float2x32 input) {
-  auto x = F32ToTuple(std::get<0>(input));
-  auto y = F32ToTuple(std::get<1>(input));
+  // Meyers-singleton-esque static buffers.
+  thread_local std::unique_ptr<uint8[]> x_buffer =
+      std::make_unique<uint8[]>(jit->GetArgTypeSize(0));
+  thread_local std::unique_ptr<uint8[]> y_buffer =
+      std::make_unique<uint8[]>(jit->GetArgTypeSize(1));
+
+  PopulateAsF32TupleView(std::get<0>(input), x_buffer.get());
+  PopulateAsF32TupleView(std::get<1>(input), y_buffer.get());
+
+  const uint8* args[2] = {x_buffer.get(), y_buffer.get()};
   memset(result_buffer.data(), 0, result_buffer.size());
-  XLS_CHECK_OK(jit->RunToBuffer({x, y}, result_buffer));
+  XLS_CHECK_OK(jit->RunWithViews(args, result_buffer));
 
   F32TupleView result(result_buffer.data());
   return F32TupleViewToFloat(result);

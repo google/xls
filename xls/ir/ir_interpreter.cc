@@ -130,6 +130,12 @@ class InterpreterVisitor : public DfsVisitor {
     return SetBitsResult(xor_op, accum);
   }
 
+  absl::Status HandleAfterAll(AfterAll* after_all) override {
+    // AfterAll is only meaningful to the compiler and does not actually perform
+    // any computation.
+    return SetValueResult(after_all, Value::Token());
+  }
+
   absl::Status HandleArray(Array* array) override {
     std::vector<Value> operand_values;
     for (Node* operand : array->operands()) {

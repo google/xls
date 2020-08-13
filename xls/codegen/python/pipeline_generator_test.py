@@ -21,7 +21,6 @@ import sys
 from xls.codegen.python import pipeline_generator
 from xls.common.python import init_xls
 from absl.testing import absltest
-from xls.ir.python import bits as bits_mod
 from xls.ir.python import function_builder
 from xls.ir.python import package
 
@@ -34,16 +33,34 @@ def setUpModule():
 
 class PipelineGeneratorTest(absltest.TestCase):
 
-  def test_pipeline_generator(self):
+  def test_pipeline_generator_with_n_stages(self):
     pkg = package.Package('pname')
     fb = function_builder.FunctionBuilder('main', pkg)
-    fb.add_literal_bits(bits_mod.UBits(value=2, bit_count=32))
+    fb.add_param('x', pkg.get_bits_type(32))
     fb.build()
 
-    module_signature = pipeline_generator.schedule_and_generate_pipelined_module(
-        pkg, 10)
+    module_signature = pipeline_generator.generate_pipelined_module_with_n_stages(
+        pkg, 5, 'foo')
 
-    self.assertIn('module main', module_signature.verilog_text)
+    self.assertIn('module foo', module_signature.verilog_text)
+    self.assertIn('p0_x', module_signature.verilog_text)
+    self.assertIn('p1_x', module_signature.verilog_text)
+    self.assertIn('p2_x', module_signature.verilog_text)
+    self.assertIn('p3_x', module_signature.verilog_text)
+    self.assertIn('p4_x', module_signature.verilog_text)
+
+  def test_pipeline_generator_with_clock_period(self):
+    pkg = package.Package('pname')
+    fb = function_builder.FunctionBuilder('main', pkg)
+    fb.add_param('x', pkg.get_bits_type(32))
+    fb.build()
+
+    module_signature = pipeline_generator.generate_pipelined_module_with_clock_period(
+        pkg, 100, 'bar')
+
+    self.assertIn('module bar', module_signature.verilog_text)
+    self.assertIn('p0_x', module_signature.verilog_text)
+    self.assertIn('p1_x', module_signature.verilog_text)
 
 
 if __name__ == '__main__':

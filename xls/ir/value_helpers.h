@@ -78,6 +78,8 @@ inline bool ValueConformsToType(const Value& value, const Type* type) {
       }
       return true;
     }
+    case ValueKind::kToken:
+      return type->IsToken();
     default:
       XLS_LOG(FATAL) << "Invalid value kind: " << value.kind();
   }

@@ -1,3 +1,17 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // options: {"input_is_dslx": true, "convert_to_ir": true, "optimize_ir": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=3"], "simulate": false, "simulator": null}
 // args: bits[22]:0x1000
 // args: bits[22]:0x155555
@@ -512,37 +526,37 @@
 // args: bits[22]:0x1
 // args: bits[22]:0x0
 fn main(x9043: u22) -> (u22, u45, u3, u1, u12, u22, u22, u3, u1, u3, u23, u22, u5, u3, u5, u22, u1, u1, u22, u45, u22, u22, u3, (u3), u22, u22, u3, (u12, u22, u3, u3, (u3), u3, u50, u3, u27, u1, u3), u22, u22, u12, u22) {
-    let x9044: u22 = x9043 in
-    let x9045: u3 = (u3:0x5) in
-    let x9046: (u3) = (x9045,) in
-    let x9047: u50 = (((x9045) ++ (x9043)) ++ (x9044)) ++ (x9045) in
-    let x9048: u3 = (x9046)[(u32:0x0)] in
-    let x9049: u22 = clz(x9044) in
-    let x9050: u22 = (x9043) * ((x9048 as u22)) in
-    let x9051: u3 = (x9046)[(u32:0x0)] in
-    let x9052: u22 = -(x9044) in
-    let x9053: u22 = ((x9048 as u22)) & (x9052) in
-    let x9054: u22 = x9044 in
-    let x9055: u1 = ((x9047) != ((u50:0x0))) && ((x9048) != ((u3:0x0))) in
-    let x9056: u45 = ((x9050) ++ (x9055)) ++ (x9044) in
-    let x9057: u23 = one_hot(x9054, (u1:1)) in
-    let x9058: u22 = clz(x9044) in
-    let x9059: u12 = (u12:0x0) in
-    let x9060: u45 = clz(x9056) in
-    let x9061: u23 = one_hot_sel(x9048, [x9057, x9057, x9057]) in
-    let x9062: u3 = (x9046)[(u32:0x0)] in
-    let x9063: u12 = -(x9059) in
-    let x9064: u3 = one_hot_sel(x9062, [x9062, x9045, x9051]) in
-    let x9065: u1 = ((x9051) != ((u3:0x0))) ^ ((x9057) != ((u23:0x0))) in
-    let x9066: u3 = !(x9064) in
-    let x9067: u37 = (u37:0x8000) in
-    let x9068: u27 = (u27:0x400) in
-    let x9069: u58 = (((x9065) ++ (x9058)) ++ (x9059)) ++ (x9057) in
-    let x9070: u5 = (u5:0x0) in
-    let x9071: u3 = !(x9045) in
-    let x9072: u43 = ((x9067) ++ (x9051)) ++ (x9062) in
-    let x9073: (u12, u22, u3, u3, (u3), u3, u50, u3, u27, u1, u3) = (x9059, x9049, x9071, x9066, x9046, x9045, x9047, x9066, x9068, x9055, x9045) in
-    let x9074: u26 = ((x9062) ++ (x9055)) ++ (x9044) in
+    let x9044: u22 = x9043;
+    let x9045: u3 = (u3:0x5);
+    let x9046: (u3) = (x9045,);
+    let x9047: u50 = (((x9045) ++ (x9043)) ++ (x9044)) ++ (x9045);
+    let x9048: u3 = (x9046)[(u32:0x0)];
+    let x9049: u22 = clz(x9044);
+    let x9050: u22 = (x9043) * ((x9048 as u22));
+    let x9051: u3 = (x9046)[(u32:0x0)];
+    let x9052: u22 = -(x9044);
+    let x9053: u22 = ((x9048 as u22)) & (x9052);
+    let x9054: u22 = x9044;
+    let x9055: u1 = ((x9047) != ((u50:0x0))) && ((x9048) != ((u3:0x0)));
+    let x9056: u45 = ((x9050) ++ (x9055)) ++ (x9044);
+    let x9057: u23 = one_hot(x9054, (u1:1));
+    let x9058: u22 = clz(x9044);
+    let x9059: u12 = (u12:0x0);
+    let x9060: u45 = clz(x9056);
+    let x9061: u23 = one_hot_sel(x9048, [x9057, x9057, x9057]);
+    let x9062: u3 = (x9046)[(u32:0x0)];
+    let x9063: u12 = -(x9059);
+    let x9064: u3 = one_hot_sel(x9062, [x9062, x9045, x9051]);
+    let x9065: u1 = ((x9051) != ((u3:0x0))) ^ ((x9057) != ((u23:0x0)));
+    let x9066: u3 = !(x9064);
+    let x9067: u37 = (u37:0x8000);
+    let x9068: u27 = (u27:0x400);
+    let x9069: u58 = (((x9065) ++ (x9058)) ++ (x9059)) ++ (x9057);
+    let x9070: u5 = (u5:0x0);
+    let x9071: u3 = !(x9045);
+    let x9072: u43 = ((x9067) ++ (x9051)) ++ (x9062);
+    let x9073: (u12, u22, u3, u3, (u3), u3, u50, u3, u27, u1, u3) = (x9059, x9049, x9071, x9066, x9046, x9045, x9047, x9066, x9068, x9055, x9045);
+    let x9074: u26 = ((x9062) ++ (x9055)) ++ (x9044);
     (x9053, x9056, x9051, x9055, x9063, x9054, x9052, x9045, x9055, x9045, x9057, x9043, x9070, x9071, x9070, x9058, x9065, x9055, x9043, x9056, x9052, x9043, x9048, x9046, x9043, x9058, x9062, x9073, x9053, x9058, x9063, x9044)
 }
 

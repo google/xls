@@ -1,0 +1,10 @@
+syntax = "proto2";
+
+package xls;
+
+// Listing of all XLS IR operations.
+enum OpProto {
+  {% for op in spec.OPS -%}
+  OP_{{ op.name.upper() }} = {{ loop.index }};
+  {% endfor -%}
+}

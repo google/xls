@@ -8,3 +8,4 @@ numpy==1.18.4
 scipy==1.4.1
 termcolor==1.1.0
 psutil==5.7.0
+portpicker==1.3.1
