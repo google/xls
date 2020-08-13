@@ -165,7 +165,7 @@ class StructType(Type):
         field = decl.type
         self.field_indices[name] = len(self.field_indices)
         if isinstance(field, c_ast.TypeDecl):
-          if isinstance(field.type, c_ast.Struct):
+          if isinstance(field.type, Struct):
             self.element_types[field.declname] = translator.parse_type(field.type)
           else:
             self.element_types[field.declname] = translator.parse_type(field)
