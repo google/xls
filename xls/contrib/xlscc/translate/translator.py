@@ -106,6 +106,7 @@ class StructType(Type):
     self.field_indices = {}
     self.element_types = {}
     if isinstance(struct, c_ast.Struct):
+    # Parse c_ast.Struct and make StructType object
       self.is_const = False
       self.as_struct = None
       for decl in struct.decls:
@@ -120,7 +121,7 @@ class StructType(Type):
         elif isinstance(field, c_ast.Struct):
           self.element_types[field.name] = translator.parse_type(field)
         else:
-            raise NotImplementedError("Unsupported field type for field", name,
+          raise NotImplementedError("Unsupported field type for field", name,
                                   ":", type(field))
     else: 
       for named_field in self.struct.fields:
@@ -135,9 +136,7 @@ class StructType(Type):
           self.element_types[name] = StructType(name, field.as_struct)
         else:
           raise NotImplementedError("Unsupported field type for field", name,
-                                  ":", type(field))
-
- 
+                                  ":", type(field)) 
    
   def get_xls_type(self, p):
     """Get XLS IR type for struct.
@@ -237,12 +236,11 @@ class Function(object):
     self.return_type = translator.parse_type(type_decl)
     # parse parameters
     self.params = collections.OrderedDict()
-    if param_list is not None: 
+    if param_list is not None:
       for name, child in param_list.children():
         assert isinstance(child, c_ast.Decl) 
         name = child.name 
         self.params[name] = translator.parse_type(child.type)
-
     # parse body
     self.body_ast = ast.body
 
@@ -355,14 +353,13 @@ class Translator(object):
     return False
 
   def get_struct_type(self, name):
-    
+    # May return StructType or hls_type struct    
     if name not in self.hls_types_by_name_:
       return None
+    if isinstance(self.hls_types_by_name_[name], c_ast.StructType):
+      return self.hls_types_by_name_[name]
     if not self.hls_types_by_name_[name].as_struct:
-      if isinstance(self.hls_types_by_name_[name].struct, c_ast.Struct):
-        return self.hls_types_by_name_[name]
-      else:
-        return None
+      return None
     return self.hls_types_by_name_[name].as_struct
 
   def parse(self, ast):
@@ -412,7 +409,7 @@ class Translator(object):
                 enum_curr_val = int (const_val) 
             const_expr = ir_value.Value(
                 bits_mod.UBits(
-                    value= enum_curr_val, bit_count=const_type.bit_width))
+                    value = enum_curr_val, bit_count=const_type.bit_width))
             self.global_decls_[val.name] = CVar(const_expr, const_type)
             enum_curr_val += 1
         else:
@@ -463,7 +460,6 @@ class Translator(object):
       self.hls_types_by_name_[ret_type.name] = ret_type
       return ret_type
     else:
-      print(ast)
       raise NotImplementedError("Unimplemented construct ", type(ast))
 
     assert ident is not None
@@ -1349,6 +1345,7 @@ class Translator(object):
         break  # Ignore the rest of the block
       elif isinstance(stmt, c_ast.Decl):
         if stmt.name is None:
+          # Structs declared without object_names after saved as None type declaration
           stmt.name = stmt.type.name + "decl"
         if stmt.name in self.cvars:
           raise ValueError("Variable '", stmt.name,
@@ -1361,7 +1358,6 @@ class Translator(object):
             if not isinstance(decl_type, ArrayType):
               raise NotImplementedError("Initializer list for non-array")
             if len(stmt.init.exprs) != decl_type.get_size():
-
               raise ValueError("Number of initializers doesn't match"
                                " array size")
             elements = []
