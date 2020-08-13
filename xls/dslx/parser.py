@@ -927,14 +927,13 @@ class Parser(token_parser.TokenParser):
     )
     type_ = self._parse_type_annotation(bindings)
     self._dropt_or_error(TokenKind.OBRACE)
-    enum_bindings = Bindings(parent=bindings)
 
     def parse_enum_entry(
     ) -> Tuple[ast.NameDef, Union[ast.Number, ast.NameRef]]:
       """Parses a single entry in an enum definition."""
-      name_def = self._parse_name_def(enum_bindings)
+      name_def = self._parse_name_def(bindings)
       self._dropt_or_error(TokenKind.EQUALS)
-      value = self._parse_num_or_const_ref(enum_bindings)
+      value = self._parse_num_or_const_ref(bindings)
       if isinstance(value, ast.Number):
         if value.type_ is not None:
           raise ParseError(

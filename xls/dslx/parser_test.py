@@ -1000,23 +1000,6 @@ proc simple(addend: u32) {
     self.assertIsInstance(bindings.resolve_node('other', fake_span), ast.Import)
     self.assertIsNone(bindings.resolve_node_or_none('thing'), None)
 
-  def test_bad_enum_ref(self):
-    program = """
-    enum MyEnum : u1 {
-      FOO = 0
-    }
-
-    fn my_fun() -> MyEnum {
-      FOO  // Should be qualified as MyEnum::FOO!
-    }
-    """
-    bindings = parser.Bindings(None)
-    fparse = lambda p, bindings: p.parse_module('test_module', bindings)
-    with self.assertRaises(parser.ParseError) as cm:
-      self._parse_internal(program, bindings, fparse)
-    self.assertIn('Cannot find a definition for name: \'FOO\'',
-                  str(cm.exception))
-
 
 if __name__ == '__main__':
   absltest.main()
