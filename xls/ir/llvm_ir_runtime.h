@@ -37,10 +37,11 @@ class LlvmIrRuntime {
 
   // Packs the specified values into a flat buffer with the data layout
   // expected by LLVM.
+  // "arg_buffers" must contain an entry corresponding to each element in
+  // "args", with a matching amount of space allocated.
   absl::Status PackArgs(absl::Span<const Value> args,
                         absl::Span<Type* const> arg_types,
-                        absl::Span<const int64> arg_sizes,
-                        int64 total_args_size, absl::Span<uint8> buffer);
+                        absl::Span<uint8*> arg_buffers);
 
   // Returns a Value constructed from the data inside "buffer" whose
   // contents are laid out according to the LLVM interpretation of the passed-in
@@ -81,8 +82,7 @@ int64 GetArgBufferSize(int arg_count, const char** input_args);
 // Packs the set of args (as above) into the specified buffer. This buffer must
 // be large enough to contain the LLVM Value representation of these values.
 // On failure, a negative value will be returned, otherwise this returns 0.
-int64 PackArgs(int arg_count, const char** input_args, uint8* buffer,
-               int buffer_size);
+int64 PackArgs(int arg_count, const char** input_args, uint8** buffer);
 
 // Takes in a buffer containing LLVM-packed data and converts into an XLS Value,
 // which is then printed to stdout.

@@ -20,7 +20,7 @@ Dumps a graph (as an image) of each XLS op delay model in a specified directory.
 
 Usage:
   delay_model_visualizer --output_dir=/tmp/images \
-    xls/delay_model/models/unit.pbtxt
+    xls/delay_model/models/unit.textproto
 """
 
 import os.path

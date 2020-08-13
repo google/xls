@@ -21,6 +21,8 @@ These are broken out largely to reduce pytype runtime on a monolithic AST file.
 import abc
 from typing import Text, Optional, Union, Sequence, Tuple, List, cast
 
+from absl import logging
+
 from xls.dslx import bit_helpers
 from xls.dslx.ast_node import AstNode
 from xls.dslx.ast_node import AstVisitor
@@ -434,6 +436,7 @@ class Number(TokenAstNode, Expr):
 
   def _set_type_(self, value: 'TypeAnnotation') -> None:
     assert isinstance(value, TypeAnnotation), value
+    logging.vlog(1, 'setting type for number to: %s', value)
     self._type = value
 
   type_ = property(_get_type_, _set_type_)

@@ -1,3 +1,17 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // options: {"input_is_dslx": true, "convert_to_ir": true, "optimize_ir": true, "codegen": true, "codegen_args": ["--generator=combinational"], "simulate": false, "simulator": null}
 // args: bits[57]:0x400000000; bits[36]:0x40; bits[24]:0x80000; bits[12]:0xc34
 // args: bits[57]:0x20000; bits[36]:0x800; bits[24]:0x80; bits[12]:0x0
@@ -20,38 +34,38 @@
 // args: bits[57]:0x8000; bits[36]:0x800000; bits[24]:0x800; bits[12]:0x100
 // args: bits[57]:0x8; bits[36]:0x10000; bits[24]:0x82c9c4; bits[12]:0x310
 fn main(x0: s57, x1: s36, x2: s24, x3: u12) -> (u62, u45, u62) {
-    let x4: uN[6] = (x2)[0x12+:uN[6]] in
-    let x5: uN[84] = ((((((x3) ++ (x3)) ++ (x3)) ++ (x3)) ++ (x3)) ++ (x3)) ++ (x3) in
-    let x6: u62 = (u62:0x400000) in
-    let x7: uN[6] = (x3)[:0x6] in
+    let x4: uN[6] = (x2)[0x12+:uN[6]];
+    let x5: uN[84] = ((((((x3) ++ (x3)) ++ (x3)) ++ (x3)) ++ (x3)) ++ (x3)) ++ (x3);
+    let x6: u62 = (u62:0x400000);
+    let x7: uN[6] = (x3)[:0x6];
     let x8: s24 = for (i, x): (u4, s24) in range((u4:0x0), (u4:0x5)) {
     x
   }(x2)
-   in
-    let x9: uN[136] = ((x3) ++ (x6)) ++ (x6) in
-    let x10: u62 = clz(x6) in
-    let x11: uN[4] = (x1)[0x14+:uN[4]] in
-    let x12: uN[62] = (x6)[:] in
-    let x13: s36 = (x1) + ((x10 as s36)) in
-    let x14: uN[260] = ((((x6) ++ (x3)) ++ (x6)) ++ (x6)) ++ (x10) in
+  ;
+    let x9: uN[136] = ((x3) ++ (x6)) ++ (x6);
+    let x10: u62 = clz(x6);
+    let x11: uN[4] = (x1)[0x14+:uN[4]];
+    let x12: uN[62] = (x6)[:];
+    let x13: s36 = (x1) + ((x10 as s36));
+    let x14: uN[260] = ((((x6) ++ (x3)) ++ (x6)) ++ (x6)) ++ (x10);
     let x15: s24 = for (i, x): (u4, s24) in range((u4:0x0), (u4:0x3)) {
     x
   }(x8)
-   in
-    let x16: uN[186] = ((x10) ++ (x6)) ++ (x6) in
-    let x17: uN[13] = one_hot(x3, (u1:0)) in
-    let x18: u45 = (u45:0x8000000) in
+  ;
+    let x16: uN[186] = ((x10) ++ (x6)) ++ (x6);
+    let x17: uN[13] = one_hot(x3, (u1:0));
+    let x18: u45 = (u45:0x8000000);
     let x19: u62 = for (i, x): (u4, u62) in range((u4:0x0), (u4:0x3)) {
     x
   }(x10)
-   in
-    let x20: s29 = (s29:0x40000) in
-    let x21: uN[57] = (x0)[:] in
-    let x22: uN[1320] = (((((((((((((((((((((((x10) ++ (x18)) ++ (x10)) ++ (x10)) ++ (x18)) ++ (x10)) ++ (x19)) ++ (x6)) ++ (x10)) ++ (x6)) ++ (x18)) ++ (x10)) ++ (x19)) ++ (x19)) ++ (x6)) ++ (x6)) ++ (x10)) ++ (x19)) ++ (x18)) ++ (x6)) ++ (x3)) ++ (x3)) ++ (x10)) ++ (x6) in
+  ;
+    let x20: s29 = (s29:0x40000);
+    let x21: uN[57] = (x0)[:];
+    let x22: uN[1320] = (((((((((((((((((((((((x10) ++ (x18)) ++ (x10)) ++ (x10)) ++ (x18)) ++ (x10)) ++ (x19)) ++ (x6)) ++ (x10)) ++ (x6)) ++ (x18)) ++ (x10)) ++ (x19)) ++ (x19)) ++ (x6)) ++ (x6)) ++ (x10)) ++ (x19)) ++ (x18)) ++ (x6)) ++ (x3)) ++ (x3)) ++ (x10)) ++ (x6);
     let x23: s24 = for (i, x): (u4, s24) in range((u4:0x0), (u4:0x7)) {
     x
   }(x15)
-   in
-    let x24: uN[169] = ((x19) ++ (x18)) ++ (x10) in
+  ;
+    let x24: uN[169] = ((x19) ++ (x18)) ++ (x10);
     (x6, x18, x6)
 }

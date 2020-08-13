@@ -35,7 +35,7 @@ TEST(InterpreterTest, BasicFunctionality) {
   XLS_ASSERT_OK(module->AddNetDecl(rtl::NetDeclKind::kInput, "B"));
   XLS_ASSERT_OK(module->AddNetDecl(rtl::NetDeclKind::kOutput, "O"));
 
-  CellLibrary library = MakeFakeCellLibrary();
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibrary library, MakeFakeCellLibrary());
   XLS_ASSERT_OK_AND_ASSIGN(const CellLibraryEntry* entry,
                            library.GetEntry("AND"));
   XLS_ASSERT_OK_AND_ASSIGN(rtl::NetRef a_ref, module->ResolveNet("A"));
@@ -83,7 +83,7 @@ TEST(InterpreterTest, Tree) {
   XLS_ASSERT_OK(module->AddNetDecl(rtl::NetDeclKind::kWire, "or_o"));
   XLS_ASSERT_OK(module->AddNetDecl(rtl::NetDeclKind::kOutput, "xor_o"));
 
-  CellLibrary library = MakeFakeCellLibrary();
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibrary library, MakeFakeCellLibrary());
   XLS_ASSERT_OK_AND_ASSIGN(const CellLibraryEntry* and_entry,
                            library.GetEntry("AND"));
   XLS_ASSERT_OK_AND_ASSIGN(const CellLibraryEntry* or_entry,
@@ -193,7 +193,7 @@ module main (i0, i1, i2, i3, o0);
 endmodule
 )";
 
-  CellLibrary cell_library = MakeFakeCellLibrary();
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibrary cell_library, MakeFakeCellLibrary());
   rtl::Scanner scanner(module_text);
   XLS_ASSERT_OK_AND_ASSIGN(auto netlist,
                            rtl::Parser::ParseNetlist(&cell_library, &scanner));

@@ -24,46 +24,46 @@
 
 namespace xls {
 
-std::string TokenTypeToString(TokenType token_type) {
+std::string LexicalTokenTypeToString(LexicalTokenType token_type) {
   switch (token_type) {
-    case TokenType::kIdent:
+    case LexicalTokenType::kIdent:
       return "ident";
-    case TokenType::kKeyword:
+    case LexicalTokenType::kKeyword:
       return "keyword";
-    case TokenType::kLiteral:
+    case LexicalTokenType::kLiteral:
       return "literal";
-    case TokenType::kMinus:
+    case LexicalTokenType::kMinus:
       return "-";
-    case TokenType::kAdd:
+    case LexicalTokenType::kAdd:
       return "+";
-    case TokenType::kColon:
+    case LexicalTokenType::kColon:
       return ":";
-    case TokenType::kGt:
+    case LexicalTokenType::kGt:
       return ">";
-    case TokenType::kLt:
+    case LexicalTokenType::kLt:
       return "<";
-    case TokenType::kDot:
+    case LexicalTokenType::kDot:
       return ".";
-    case TokenType::kComma:
+    case LexicalTokenType::kComma:
       return ",";
-    case TokenType::kEquals:
+    case LexicalTokenType::kEquals:
       return "=";
-    case TokenType::kCurlOpen:
+    case LexicalTokenType::kCurlOpen:
       return "{";
-    case TokenType::kCurlClose:
+    case LexicalTokenType::kCurlClose:
       return "}";
-    case TokenType::kBracketOpen:
+    case LexicalTokenType::kBracketOpen:
       return "[";
-    case TokenType::kBracketClose:
+    case LexicalTokenType::kBracketClose:
       return "]";
-    case TokenType::kParenOpen:
+    case LexicalTokenType::kParenOpen:
       return "(";
-    case TokenType::kParenClose:
+    case LexicalTokenType::kParenClose:
       return ")";
-    case TokenType::kRightArrow:
+    case LexicalTokenType::kRightArrow:
       return "->";
   }
-  return absl::StrCat("TokenType(", static_cast<int>(token_type), ")");
+  return absl::StrCat("LexicalTokenType(", static_cast<int>(token_type), ")");
 }
 
 std::string TokenPos::ToHumanString() const {
@@ -71,7 +71,7 @@ std::string TokenPos::ToHumanString() const {
 }
 
 xabsl::StatusOr<bool> Token::IsNegative() const {
-  if (type() != TokenType::kLiteral) {
+  if (type() != LexicalTokenType::kLiteral) {
     return absl::InternalError("Can only get sign for literal tokens.");
   }
   std::pair<bool, Bits> pair;
@@ -80,7 +80,7 @@ xabsl::StatusOr<bool> Token::IsNegative() const {
 }
 
 xabsl::StatusOr<Bits> Token::GetValueBits() const {
-  if (type() != TokenType::kLiteral) {
+  if (type() != LexicalTokenType::kLiteral) {
     return absl::InternalError(
         "Can only get value as integer for literal tokens.");
   }
@@ -88,7 +88,7 @@ xabsl::StatusOr<Bits> Token::GetValueBits() const {
 }
 
 xabsl::StatusOr<int64> Token::GetValueInt64() const {
-  if (type() != TokenType::kLiteral) {
+  if (type() != LexicalTokenType::kLiteral) {
     return absl::InternalError(
         "Can only get value as integer for literal tokens.");
   }
@@ -96,7 +96,7 @@ xabsl::StatusOr<int64> Token::GetValueInt64() const {
 }
 
 xabsl::StatusOr<bool> Token::GetValueBool() const {
-  if (type() != TokenType::kLiteral) {
+  if (type() != LexicalTokenType::kLiteral) {
     return absl::InternalError(
         "Can only get value as integer for literal tokens.");
   }
@@ -105,7 +105,7 @@ xabsl::StatusOr<bool> Token::GetValueBool() const {
 
 std::string Token::ToString() const {
   return absl::StrFormat("Token(\"%s\", value=\"%s\") @ %s",
-                         TokenTypeToString(type_), value_,
+                         LexicalTokenTypeToString(type_), value_,
                          pos_.ToHumanString());
 }
 
@@ -182,7 +182,7 @@ xabsl::StatusOr<std::vector<Token>> TokenizeString(absl::string_view str) {
       }
       const int64 token_len = index - token_start_index;
       absl::string_view value = str.substr(token_start_index, token_len);
-      tokens.push_back(Token(TokenType::kLiteral, value, lineno, colno));
+      tokens.push_back(Token(LexicalTokenType::kLiteral, value, lineno, colno));
       colno += token_len;
       continue;
     }
@@ -199,57 +199,58 @@ xabsl::StatusOr<std::vector<Token>> TokenizeString(absl::string_view str) {
 
     // Look for multi-character tokens.
     if (str[index] == '-' && in_bounds(index + 1) && str[index + 1] == '>') {
-      tokens.push_back(Token(TokenType::kRightArrow, "->", lineno, colno));
+      tokens.push_back(
+          Token(LexicalTokenType::kRightArrow, "->", lineno, colno));
       index += 2;
       colno += 2;
       continue;
     }
 
     // Handle single-character tokens.
-    TokenType token_type;
+    LexicalTokenType token_type;
     const char c = str[index];
     switch (c) {
       case '-':
-        token_type = TokenType::kMinus;
+        token_type = LexicalTokenType::kMinus;
         break;
       case '+':
-        token_type = TokenType::kAdd;
+        token_type = LexicalTokenType::kAdd;
         break;
       case '.':
-        token_type = TokenType::kDot;
+        token_type = LexicalTokenType::kDot;
         break;
       case ':':
-        token_type = TokenType::kColon;
+        token_type = LexicalTokenType::kColon;
         break;
       case ',':
-        token_type = TokenType::kComma;
+        token_type = LexicalTokenType::kComma;
         break;
       case '=':
-        token_type = TokenType::kEquals;
+        token_type = LexicalTokenType::kEquals;
         break;
       case '[':
-        token_type = TokenType::kBracketOpen;
+        token_type = LexicalTokenType::kBracketOpen;
         break;
       case ']':
-        token_type = TokenType::kBracketClose;
+        token_type = LexicalTokenType::kBracketClose;
         break;
       case '{':
-        token_type = TokenType::kCurlOpen;
+        token_type = LexicalTokenType::kCurlOpen;
         break;
       case '}':
-        token_type = TokenType::kCurlClose;
+        token_type = LexicalTokenType::kCurlClose;
         break;
       case '(':
-        token_type = TokenType::kParenOpen;
+        token_type = LexicalTokenType::kParenOpen;
         break;
       case ')':
-        token_type = TokenType::kParenClose;
+        token_type = LexicalTokenType::kParenClose;
         break;
       case '>':
-        token_type = TokenType::kGt;
+        token_type = LexicalTokenType::kGt;
         break;
       case '<':
-        token_type = TokenType::kLt;
+        token_type = LexicalTokenType::kLt;
         break;
       default:
         std::string char_str = absl::ascii_iscntrl(c)
@@ -289,7 +290,7 @@ xabsl::StatusOr<Token> Scanner::PopTokenOrError(absl::string_view context) {
   return PopToken();
 }
 
-bool Scanner::TryDropToken(TokenType target) {
+bool Scanner::TryDropToken(LexicalTokenType target) {
   if (PeekTokenIs(target)) {
     PopToken();
     return true;
@@ -297,21 +298,21 @@ bool Scanner::TryDropToken(TokenType target) {
   return false;
 }
 
-absl::Status Scanner::DropTokenOrError(TokenType target,
+absl::Status Scanner::DropTokenOrError(LexicalTokenType target,
                                        absl::string_view context) {
   if (AtEof()) {
     std::string context_str =
         context.empty() ? std::string("") : absl::StrCat(" in ", context);
     return absl::InvalidArgumentError(
         absl::StrFormat("Expected token of type %s%s; found EOF.",
-                        TokenTypeToString(target), context_str));
+                        LexicalTokenTypeToString(target), context_str));
   }
   XLS_ASSIGN_OR_RETURN(Token dropped, PopTokenOrError(target, context));
   (void)dropped;
   return absl::OkStatus();
 }
 
-xabsl::StatusOr<Token> Scanner::PopTokenOrError(TokenType target,
+xabsl::StatusOr<Token> Scanner::PopTokenOrError(LexicalTokenType target,
                                                 absl::string_view context) {
   XLS_ASSIGN_OR_RETURN(Token token, PopTokenOrError());
   if (token.type() != target) {
@@ -319,7 +320,7 @@ xabsl::StatusOr<Token> Scanner::PopTokenOrError(TokenType target,
         context.empty() ? std::string("") : absl::StrCat(" in ", context);
     return absl::InvalidArgumentError(
         absl::StrFormat("Expected token of type \"%s\"%s @ %s, but found: %s",
-                        TokenTypeToString(target), context_str,
+                        LexicalTokenTypeToString(target), context_str,
                         token.pos().ToHumanString(), token.ToString()));
   }
   return token;
@@ -333,7 +334,8 @@ absl::Status Scanner::DropKeywordOrError(absl::string_view keyword) {
                         popped_status.status().message()));
   }
   XLS_ASSIGN_OR_RETURN(Token popped, popped_status);
-  if (popped.type() == TokenType::kKeyword && keyword == popped.value()) {
+  if (popped.type() == LexicalTokenType::kKeyword &&
+      keyword == popped.value()) {
     return absl::OkStatus();
   }
   return absl::InvalidArgumentError(

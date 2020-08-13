@@ -77,6 +77,48 @@ TEST(FilesystemTest, RecursivelyCreateDirWhereAFileIsFails) {
                             StatusIs(absl::StatusCode::kFailedPrecondition)));
 }
 
+TEST(FilesystemTest, RecursivelyDeleteDirectory) {
+  XLS_ASSERT_OK_AND_ASSIGN(TempDirectory temp_dir, TempDirectory::Create());
+  auto path = temp_dir.path() / "my_dir";
+  XLS_ASSERT_OK(RecursivelyCreateDir(path));
+  XLS_ASSERT_OK(SetFileContents(path / "foo.txt", "foo"));
+  XLS_ASSERT_OK(SetFileContents(path / "bar.txt", "bar"));
+  XLS_ASSERT_OK(RecursivelyCreateDir(path / "blah" / "something" / "qux"));
+
+  std::error_code ec;
+  EXPECT_TRUE(std::filesystem::exists(path, ec));
+
+  XLS_EXPECT_OK(RecursivelyDeletePath(path));
+  EXPECT_FALSE(std::filesystem::exists(path, ec));
+}
+
+TEST(FilesystemTest, RecursivelyDeleteFile) {
+  XLS_ASSERT_OK_AND_ASSIGN(TempDirectory temp_dir, TempDirectory::Create());
+  auto dir_path = temp_dir.path() / "my_dir";
+  XLS_ASSERT_OK(RecursivelyCreateDir(dir_path));
+  auto file_path = dir_path / "foo.txt";
+  XLS_ASSERT_OK(SetFileContents(file_path, "foo"));
+
+  std::error_code ec;
+  EXPECT_TRUE(std::filesystem::exists(dir_path, ec));
+  EXPECT_TRUE(std::filesystem::exists(file_path, ec));
+
+  XLS_EXPECT_OK(RecursivelyDeletePath(file_path));
+  EXPECT_TRUE(std::filesystem::exists(dir_path, ec));
+  EXPECT_FALSE(std::filesystem::exists(file_path, ec));
+}
+
+TEST(FilesystemTest, RecursivelyDeleteNonexistentFile) {
+  XLS_ASSERT_OK_AND_ASSIGN(TempDirectory temp_dir, TempDirectory::Create());
+  auto dir_path = temp_dir.path() / "my_dir";
+  XLS_ASSERT_OK(RecursivelyCreateDir(dir_path));
+  auto file_path = dir_path / "does_not_exist";
+
+  EXPECT_THAT(RecursivelyDeletePath(file_path),
+              StatusIs(absl::StatusCode::kNotFound,
+                       HasSubstr("File or directory does not exist")));
+}
+
 TEST(FilesystemTest, GetFileContentsReadsFile) {
   static constexpr char kContents[] = "h\ne\0y!";
   // Make sure to include the \0 in the string, to verify that binary data can

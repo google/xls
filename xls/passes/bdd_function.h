@@ -21,6 +21,7 @@
 #include "xls/data_structures/binary_decision_diagram.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/function.h"
+#include "xls/ir/op.h"
 
 namespace xls {
 
@@ -44,9 +45,12 @@ class BddFunction {
   // upper bound on the number of minterms in an expression. If a BDD node
   // associated with a particular bit in the function ({Node*, bit index} pair)
   // exceeds this value the bit's representation in the BDD is replaced with a
-  // new BDD variable.
+  // new BDD variable. If a node's op is in 'do_not_evaluate_ops', its
+  // bits are modeled as BDD variables. Otherwise, bits are represented as BDD
+  // nodes whose values are determined by the values of other BDD nodes.
   static xabsl::StatusOr<std::unique_ptr<BddFunction>> Run(
-      Function* f, int64 minterm_limit = 0);
+      Function* f, int64 minterm_limit = 0,
+      absl::Span<const Op> do_not_evaluate_ops = {});
 
   // Returns the underlying BDD.
   const BinaryDecisionDiagram& bdd() const { return bdd_; }

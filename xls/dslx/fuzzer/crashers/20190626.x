@@ -1,3 +1,17 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // options: {"input_is_dslx": true, "convert_to_ir": true, "optimize_ir": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=3"], "simulate": false, "simulator": null}
 // args: bits[27]:0x61cccac; bits[4]:0x4
 // args: bits[27]:0x6962a1d; bits[4]:0x0
@@ -512,14 +526,14 @@
 // args: bits[27]:0x2c1258b; bits[4]:0x0
 // args: bits[27]:0xc8176e; bits[4]:0x1
 fn main(x42406: u27, x42407: u4) -> (u4, u27, u24, u4, u11, bool, u24, u11, u11, u24) {
-    let x42408: bool = (x42406) == (x42406) in
-    let x42409: u24 = (u24:0x10000) in
-    let x42410: u24 = ((x42408) as u24) - (x42409) in
-    let x42411: u11 = (u11:0x20) in
-    let x42412: u4 = !(x42407) in
-    let x42413: u24 = (x42410) - (x42409) in
-    let x42414: u11 = (x42411) & (x42411) in
-    let x42415: u24 = (x42409) - (x42410) in
+    let x42408: bool = (x42406) == (x42406);
+    let x42409: u24 = (u24:0x10000);
+    let x42410: u24 = ((x42408) as u24) - (x42409);
+    let x42411: u11 = (u11:0x20);
+    let x42412: u4 = !(x42407);
+    let x42413: u24 = (x42410) - (x42409);
+    let x42414: u11 = (x42411) & (x42411);
+    let x42415: u24 = (x42409) - (x42410);
     (x42412, x42406, x42413, x42407, x42414, x42408, x42410, x42411, x42414, x42415)
 }
 

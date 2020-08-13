@@ -127,8 +127,7 @@ class SequentialModuleBuilder {
     LogicRef* holds_max_inclusive_value;
   };
 
-  // Adds the FSM that orchestrates the sequential module's execution. Returns
-  // a logical reference that is set to 1 when the FSM is in the ready state.
+  // Adds the FSM that orchestrates the sequential module's execution.
   absl::Status AddFsm(int64 pipeline_latency,
                       LogicRef* index_holds_max_inclusive_value,
                       LogicRef* last_pipeline_cycle);

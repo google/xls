@@ -18,6 +18,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/symbolized_stacktrace.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 
 namespace xls {
@@ -212,6 +213,24 @@ BValue FunctionBuilder::MatchTrue(absl::Span<const Case> cases,
   BValue one_hot = OneHot(concat, /*priority=*/LsbOrMsb::kLsb, loc);
 
   return OneHotSelect(one_hot, case_values, loc);
+}
+
+BValue FunctionBuilder::AfterAll(absl::Span<const BValue> dependencies,
+                                 absl::optional<SourceLocation> loc) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  std::vector<Node*> nodes;
+  nodes.reserve(dependencies.size());
+  for (const BValue& value : dependencies) {
+    nodes.push_back(value.node());
+    if (!GetType(value)->IsToken()) {
+      return SetError(StrFormat("Dependency type %s is not a token.",
+                                GetType(value)->ToString()),
+                      loc);
+    }
+  }
+  return AddNode<xls::AfterAll>(loc, nodes);
 }
 
 BValue FunctionBuilder::Tuple(absl::Span<const BValue> elements,

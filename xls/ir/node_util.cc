@@ -143,4 +143,20 @@ bool IsSignedCompare(Node* node) {
   }
 }
 
+xabsl::StatusOr<Op> OpToNonReductionOp(Op reduce_op) {
+  switch (reduce_op) {
+    case Op::kAndReduce:
+      return Op::kAnd;
+      break;
+    case Op::kOrReduce:
+      return Op::kOr;
+      break;
+    case Op::kXorReduce:
+      return Op::kXor;
+      break;
+    default:
+      return absl::InternalError("Unexpected bitwise reduction op");
+  }
+}
+
 }  // namespace xls

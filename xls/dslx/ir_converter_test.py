@@ -97,7 +97,7 @@ class IrConverterTest(absltest.TestCase):
   def test_let_binding(self):
     m = self.parse_dsl_text("""\
     fn f() -> u32 {
-      let x: u32 = u32:2 in
+      let x: u32 = u32:2;
       x+x
     }""")
     node_to_type = typecheck.check_module(m, f_import=None)
@@ -115,8 +115,8 @@ class IrConverterTest(absltest.TestCase):
   def test_let_tuple_binding(self):
     m = self.parse_dsl_text("""\
     fn f() -> u32 {
-      let t = (u32:2, u32:3) in
-      let (x, y) = t in
+      let t = (u32:2, u32:3);
+      let (x, y) = t;
       x+y
     }""")
     node_to_type = typecheck.check_module(m, f_import=None)
@@ -138,8 +138,8 @@ class IrConverterTest(absltest.TestCase):
   def test_let_tuple_binding_nested(self):
     m = self.parse_dsl_text("""\
     fn f() -> u32 {
-      let t = (u32:2, (u32:3, (u32:4,), u32:5)) in
-      let (x, (y, (z,), a)) = t in
+      let t = (u32:2, (u32:3, (u32:4,), u32:5));
+      let (x, (y, (z,), a)) = t;
       x+y+z+a
     }""")
     node_to_type = typecheck.check_module(m, f_import=None)
@@ -250,7 +250,7 @@ class IrConverterTest(absltest.TestCase):
     fn f() -> u32 {
       let t = for (i, (x, y)): (u32, (u32, u8)) in range(u32:0, u32:4) {
         (x + i, y)
-      }((u32:0, u8:0)) in
+      }((u32:0, u8:0));
       t[u32:0]
     }""")
     node_to_type = typecheck.check_module(m, f_import=None)
@@ -351,8 +351,8 @@ class IrConverterTest(absltest.TestCase):
   def test_counted_for_with_loop_invariants(self):
     m = self.parse_dsl_text("""\
     fn f() -> u32 {
-      let outer_thing: u32 = u32:42 in
-      let other_outer_thing: u32 = u32:24 in
+      let outer_thing: u32 = u32:42;
+      let other_outer_thing: u32 = u32:24;
       for (i, accum): (u32, u32) in range(u32:0, u32:4) {
         accum + i + outer_thing + other_outer_thing
       }(u32:0)
@@ -702,9 +702,9 @@ class IrConverterTest(absltest.TestCase):
     m = self.parse_dsl_text("""\
     fn f(x: u8) -> u2 {
       match x {
-        u8:42 => let x = u2:0 in x;
-        u8:64 => let x = u2:1 in x;
-        _ => let x = u2:2 in x
+        u8:42 => let x = u2:0; x;
+        u8:64 => let x = u2:1; x;
+        _ => let x = u2:2; x
       }
     }
     """)
@@ -872,7 +872,7 @@ class IrConverterTest(absltest.TestCase):
 
   def test_invocation_multi_symbol(self):
     m = self.parse_dsl_text("""\
-    fn [M: u32, N: u32] parametric(x: bits[M], y: bits[N]) -> bits[M+N] {
+    fn [M: u32, N: u32, R: u32 = M + N] parametric(x: bits[M], y: bits[N]) -> bits[R] {
       x ++ y
     }
     fn main() -> u8 {
@@ -884,24 +884,25 @@ class IrConverterTest(absltest.TestCase):
         converted, """\
         package test_module
 
-        fn __test_module__parametric__3_5(x: bits[3], y: bits[5]) -> bits[8] {
+        fn __test_module__parametric__3_5_8(x: bits[3], y: bits[5]) -> bits[8] {
           literal.3: bits[32] = literal(value=3, pos=0,0,4)
           literal.4: bits[32] = literal(value=5, pos=0,0,12)
-          ret concat.5: bits[8] = concat(x, y, pos=0,1,4)
+          literal.5: bits[32] = literal(value=8, pos=0,0,20)
+          ret concat.6: bits[8] = concat(x, y, pos=0,1,4)
         }
 
         fn __test_module__main() -> bits[8] {
-          literal.6: bits[3] = literal(value=0, pos=0,4,21)
-          literal.7: bits[5] = literal(value=1, pos=0,4,32)
-          ret invoke.8: bits[8] = invoke(literal.6, literal.7, to_apply=__test_module__parametric__3_5, pos=0,4,12)
+          literal.7: bits[3] = literal(value=0, pos=0,4,21)
+          literal.8: bits[5] = literal(value=1, pos=0,4,32)
+          ret invoke.9: bits[8] = invoke(literal.7, literal.8, to_apply=__test_module__parametric__3_5_8, pos=0,4,12)
         }
         """)
 
   def test_identity_final_arg(self):
     m = self.parse_dsl_text("""
     fn main(x0: u19, x3: u29) -> u29 {
-        let x15: u29 = u29:0 in
-        let x17: u19 = (x0) + (x15 as u19) in
+        let x15: u29 = u29:0;
+        let x17: u19 = (x0) + (x15 as u19);
         x3
     }
     """)
@@ -941,7 +942,7 @@ class IrConverterTest(absltest.TestCase):
   def test_tuple_index(self):
     m = self.parse_dsl_text("""
     fn main() -> u8 {
-      let t = (u32:3, u8:4) in
+      let t = (u32:3, u8:4);
       t[u32:1]
     }
     """)
@@ -967,7 +968,7 @@ class IrConverterTest(absltest.TestCase):
       let t = match x {
         u8:42 => u8:0xff;
         _ => x
-      } in
+      };
       t
     }
     """)
@@ -1170,6 +1171,25 @@ class IrConverterTest(absltest.TestCase):
         }
         """)
 
+  def test_non_const_array_ellipsis(self):
+    m = self.parse_dsl_text("""
+    fn main(x: bits[8]) -> u8[4] {
+      u8[4]:[u8:0, x, ...]
+    }
+    """)
+    node_to_type = typecheck.check_module(m, f_import=None)
+    converted = ir_converter.convert_module(
+        m, node_to_type, emit_positions=False)
+    self.assert_ir_equals_and_parses(
+        converted, """\
+        package test_module
+
+        fn __test_module__main(x: bits[8]) -> bits[8][4] {
+          literal.2: bits[8] = literal(value=0)
+          ret array.3: bits[8][4] = array(literal.2, x, x, x)
+        }
+        """)
+
   def test_counted_for_parametric_ref_in_body(self):
     m = self.parse_dsl_text("""\
     fn [N: u32] f(init: bits[N]) -> bits[N] {
@@ -1345,7 +1365,7 @@ class IrConverterTest(absltest.TestCase):
       u32[THING_COUNT]
     );
     fn get_thing(x: Foo, i: u32) -> u32 {
-      let things: u32[THING_COUNT] = x[u32:0] in
+      let things: u32[THING_COUNT] = x[u32:0];
       things[i]
     }
     """)
@@ -1452,6 +1472,27 @@ class IrConverterTest(absltest.TestCase):
         }
         """), converted)
 
+  def test_width_slice(self):
+    m = self.parse_dsl_text("""\
+    fn f(x: u32, y: u32) -> u8 {
+      x[2+:u8]+x[y+:u8]
+    }
+    """)
+    node_to_type = typecheck.check_module(m, f_import=None)
+    converted = ir_converter.convert_module(
+        m, node_to_type, emit_positions=False)
+    self.assert_ir_equals_and_parses(
+        textwrap.dedent("""\
+        package test_module
+
+        fn __test_module__f(x: bits[32], y: bits[32]) -> bits[8] {
+          literal.3: bits[32] = literal(value=2)
+          dynamic_bit_slice.4: bits[8] = dynamic_bit_slice(x, literal.3, width=8)
+          dynamic_bit_slice.5: bits[8] = dynamic_bit_slice(x, y, width=8)
+          ret add.6: bits[8] = add(dynamic_bit_slice.4, dynamic_bit_slice.5)
+        }
+        """), converted)
+
   def test_basic_struct(self):
     m = self.parse_dsl_text("""\
     struct Point {
@@ -1472,6 +1513,30 @@ class IrConverterTest(absltest.TestCase):
 
         fn __test_module__f(xy: bits[32]) -> (bits[32], bits[32]) {
           ret tuple.2: (bits[32], bits[32]) = tuple(xy, xy)
+        }
+        """)
+
+  def test_splat_struct_instance(self):
+    m = self.parse_dsl_text("""\
+    struct Point {
+      x: u32,
+      y: u32,
+    }
+
+    fn f(p: Point, new_y: u32) -> Point {
+      Point { y: new_y, ..p }
+    }
+    """)
+    node_to_type = typecheck.check_module(m, f_import=None)
+    converted = ir_converter.convert_module(
+        m, node_to_type, emit_positions=False)
+    self.assert_ir_equals_and_parses(
+        converted, """\
+        package test_module
+
+        fn __test_module__f(p: (bits[32], bits[32]), new_y: bits[32]) -> (bits[32], bits[32]) {
+          tuple_index.3: bits[32] = tuple_index(p, index=0)
+          ret tuple.4: (bits[32], bits[32]) = tuple(tuple_index.3, new_y)
         }
         """)
 

@@ -1,0 +1,92 @@
+# proto-file: xls/netlist/netlist.proto
+# proto-message: CellLibraryProto
+
+entries {
+  kind: OTHER
+  name: "AND"
+  input_names: "A"
+  input_names: "B"
+  output_pins {
+    name: "Z"
+    function: "A&B"
+  }
+}
+entries {
+  kind: OTHER
+  name: "AOI21"
+  input_names: "A"
+  input_names: "B"
+  input_names: "C"
+  output_pins {
+    name: "ZN"
+    function: "!((A*B)|C)"
+  }
+}
+entries {
+  kind: FLOP
+  name: "DFF"
+  input_names: "D"
+  output_pins {
+    name: "Q"
+    function: "D"
+  }
+}
+entries {
+  kind: INVERTER
+  name: "INV"
+  input_names: "A"
+  output_pins {
+    name: "ZN"
+    function: "!A"
+  }
+}
+entries {
+  kind: OTHER
+  name: "LOGIC_ONE"
+  output_pins {
+    name: "O"
+    function: "1"
+  }
+}
+entries {
+  kind: NAND
+  name: "NAND"
+  input_names: "A"
+  input_names: "B"
+  output_pins {
+    name: "ZN"
+    function: "!(A&B)"
+  }
+}
+entries {
+  kind: NOR
+  name: "NOR4"
+  input_names: "A"
+  input_names: "B"
+  input_names: "C"
+  input_names: "D"
+  output_pins {
+    name: "ZN"
+    function: "!(A|B|C|D)"
+  }
+}
+entries {
+  kind: OTHER
+  name: "OR"
+  input_names: "A"
+  input_names: "B"
+  output_pins {
+    name: "Z"
+    function: "A|B"
+  }
+}
+entries {
+  kind: XOR
+  name: "XOR"
+  input_names: "A"
+  input_names: "B"
+  output_pins {
+    name: "Z"
+    function: "A^B"
+  }
+}

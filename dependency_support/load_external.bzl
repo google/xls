@@ -37,6 +37,7 @@ load("//dependency_support/at_clifford_yosys:workspace.bzl", repo_yosys = "repo"
 
 def load_external_repositories():
     """Loads external repositories with third-party code."""
+
     repo_abc()
     repo_bison()
     repo_boost()
@@ -68,13 +69,6 @@ def load_external_repositories():
         strip_prefix = "abseil-cpp-a1d6689907864974118e592ef2ac7d716c576aad",
         urls = ["https://github.com/abseil/abseil-cpp/archive/a1d6689907864974118e592ef2ac7d716c576aad.zip"],
         sha256 = "53b78ffe87db3c737feddda52fa10dcdb75e2d85eed1cb1c5bfd77ca22e53e53",
-    )
-
-    http_archive(
-        name = "com_google_protobuf",
-        strip_prefix = "protobuf-d0bfd5221182da1a7cc280f3337b5e41a89539cf",  # this is 3.11.4, 2020-02-14
-        sha256 = "c5fd8f99f0d30c6f9f050bf008e021ccc70d7645ac1f64679c6038e07583b2f3",
-        urls = ["https://github.com/protocolbuffers/protobuf/archive/d0bfd5221182da1a7cc280f3337b5e41a89539cf.zip"],
     )
 
     # Protobuf depends on Skylib
@@ -217,4 +211,25 @@ def load_external_repositories():
         urls = [
             "https://github.com/bazelbuild/rules_closure/archive/0.10.0.tar.gz",
         ],
+    )
+
+    # zlib is added automatically by gRPC, but the zlib BUILD file used by gRPC
+    # does not include all the source code (e.g., gzread is missing) which
+    # breaks other users of zlib like iverilog. So add zlib explicitly here with
+    # a working BUILD file.
+    http_archive(
+        name = "zlib",
+        sha256 = "f5cc4ab910db99b2bdbba39ebbdc225ffc2aa04b4057bc2817f1b94b6978cfc3",
+        strip_prefix = "zlib-1.2.11",
+        urls = [
+            "https://github.com/madler/zlib/archive/v1.2.11.zip",
+        ],
+        build_file = "@//dependency_support/zlib:bundled.BUILD.bazel",
+    )
+
+    http_archive(
+        name = "com_github_grpc_grpc",
+        urls = ["https://github.com/grpc/grpc/archive/v1.30.1.tar.gz"],
+        sha256 = "d6a10be7e803cc7ba73b3a03d34f6d18c046b562e4b08752c17aa978464baea3",
+        strip_prefix = "grpc-1.30.1",
     )

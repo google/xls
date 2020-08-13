@@ -48,7 +48,7 @@ class ConcreteTypeTest(absltest.TestCase):
     self.assertEqual(str(a), 'uN[5][7]')
     self.assertEqual(7 * 5, a.get_total_bit_count())
     self.assertEqual(7, a.size)
-    self.assertEqual(5, a.get_element_type().size)
+    self.assertEqual(5, a.get_element_type().size)  # pytype: disable=attribute-error
     self.assertEqual((7, 5), a.get_all_dims())
 
     self.assertEqual((), TupleType(()).get_all_dims())
