@@ -41,7 +41,7 @@ from xls.dslx.concrete_type import EnumType
 from xls.dslx.concrete_type import FunctionType
 from xls.dslx.concrete_type import TupleType
 from xls.dslx.interpreter import jit_comparison
-from xls.dslx.interpreter.bindings import Bindings
+from xls.dslx.interpreter.bindings import Bindings, FnCtx
 from xls.dslx.interpreter.concrete_type_helpers import concrete_type_accepts_value
 from xls.dslx.interpreter.concrete_type_helpers import concrete_type_convert_value
 from xls.dslx.interpreter.concrete_type_helpers import concrete_type_from_dims
@@ -159,7 +159,7 @@ class Interpreter(object):
     index_slice = expr.index
     assert isinstance(index_slice, ast.Slice), index_slice
 
-    symbolic_bindings = bindings.fn_ctx[2]
+    symbolic_bindings = bindings.fn_ctx.sym_bindings
 
     start, width = index_slice.bindings_to_start_width[symbolic_bindings]
     assert isinstance(start, int)
@@ -669,7 +669,8 @@ class Interpreter(object):
     if bindings.fn_ctx:
       # The symbolic bindings of this invocation were already computed during
       # typechecking.
-      fn_symbolic_bindings = expr.symbolic_bindings.get(bindings.fn_ctx[2], ())
+      fn_symbolic_bindings = expr.symbolic_bindings.get(
+          bindings.fn_ctx.sym_bindings, ())
     return callee_value.function_payload(
         arg_values, expr.span, expr, symbolic_bindings=fn_symbolic_bindings)
 
@@ -1334,7 +1335,7 @@ class Interpreter(object):
       param_types.append(param_type)
 
     self._evaluate_derived_parametrics(fn, bindings, bound_dims)
-    bindings.fn_ctx = (m.name, fn.name.identifier, symbolic_bindings)
+    bindings.fn_ctx = FnCtx(m.name, fn.name.identifier, symbolic_bindings)
     concrete_return_type = self._evaluate_TypeAnnotation(
         fn.return_type, bindings) if fn.return_type else ConcreteType.NIL
     for param, concrete_type, arg in zip(fn.params, param_types, args):
@@ -1518,7 +1519,7 @@ class Interpreter(object):
   def run_test(self, name: Text) -> None:
     bindings = self._make_top_level_bindings(self._module)
     test = self._module.get_test(name)
-    bindings.fn_ctx = (self._module.name, '{}_test'.format(name), ())
+    bindings.fn_ctx = FnCtx(self._module.name, '{}_test'.format(name), ())
     result = self._evaluate(test.body, bindings)
     if not result.is_nil_tuple():
       raise EvaluateError(

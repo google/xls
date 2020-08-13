@@ -87,15 +87,13 @@ class _IrConverterFb(ast.AstVisitor):
       has (as free variables); noted via add_constant_dep().
     emit_positions: Whether or not we should emit position data based on the AST
       node source positions.
-    dslx_name: The name of the DSLX function that's currently being translated.
   """
 
   def __init__(self,
                package: ir_package.Package,
                module: ast.Module,
                node_to_type: deduce.NodeToType,
-               emit_positions: bool,
-               dslx_name: Optional[Text] = None):
+               emit_positions: bool):
     self.module = module
     self.node_to_type = node_to_type
     self.emit_positions = emit_positions
@@ -110,7 +108,6 @@ class _IrConverterFb(ast.AstVisitor):
     # Number of "counted for" nodes we've observed in this function.
     self.counted_for_count = 0
     self.last_expression = None  # Optional[ast.Expr]
-    self.dslx_name = dslx_name
 
   def _extract_module_level_constants(self, m: ast.Module):
     """Populates `self.symbolic_bindings` with module-level constant values."""
@@ -656,8 +653,7 @@ class _IrConverterFb(ast.AstVisitor):
         self.package,
         self.module,
         self.node_to_type,
-        emit_positions=self.emit_positions,
-        dslx_name=self.dslx_name)
+        emit_positions=self.emit_positions)
     body_converter.symbolic_bindings = dict(self.symbolic_bindings)
     body_fn_name = ('__' + self.fb.name + '_counted_for_{}_body').format(
         self._next_counted_for_ordinal()).replace('.', '_')
@@ -1093,8 +1089,7 @@ def _convert_one_function(package: ir_package.Package,
       package,
       module,
       node_to_type,
-      emit_positions=emit_positions,
-      dslx_name=function.name.identifier)
+      emit_positions=emit_positions)
 
   freevars = function.body.get_free_variables(
       function.span.start).get_name_def_tups()

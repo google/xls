@@ -209,6 +209,7 @@ py_library(
     srcs_version = "PY3",
     deps = [
         ":interpreter",
+        ":bindings",
         "//xls/dslx:import_routines",
         "//xls/dslx:ir_converter",
         "//xls/dslx:parser",

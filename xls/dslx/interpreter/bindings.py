@@ -16,7 +16,7 @@
 
 """Datatype for binding of identifiers to interpreter value."""
 
-from typing import Text, Callable, List, Tuple, Union, Optional, Dict, Set, cast
+from typing import Text, Callable, List, Tuple, Union, Optional, Dict, Set, NamedTuple, cast
 
 from xls.dslx import ast
 from xls.dslx.interpreter.value import Value
@@ -26,6 +26,10 @@ from xls.dslx.span import Span
 InterpreterFn = Callable[[List[Value], Span, ast.Invocation], Value]
 BindingEntry = Union[Value, InterpreterFn, ast.TypeDef, ast.Enum, ast.Struct,
                      ast.Module]
+FnCtx = NamedTuple('FnCtx',
+    [('module_name', Text),
+     ('fn_name', Text),
+     ('sym_bindings', 'SymbolicBindings')])
 
 
 class Bindings(object):
@@ -46,7 +50,7 @@ class Bindings(object):
   def __init__(self, parent: Optional['Bindings'] = None):
     self._parent = parent
     self._map = {}  # type: Dict[Text, BindingEntry]
-    self.fn_ctx = None if parent is None else parent.fn_ctx  # type: Optional[Tuple[Text, Text, SymbolicBindings]]
+    self.fn_ctx = None if parent is None else parent.fn_ctx  # type: Optional[FnCtx]
 
   def add_value(self, identifier: Text, value: Value):
     self._map[identifier] = value

@@ -27,7 +27,6 @@ BoundNode = Union[ast.Enum, ast.TypeDef, ast.Constant, ast.NameDef,
                   ast.BuiltinNameDef, ast.Struct, ast.Import]
 NameDefNode = Union[ast.NameDef, ast.BuiltinNameDef]
 
-
 class Bindings(object):
   """Maps identifiers to the AST node that bound that identifier.
 

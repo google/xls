@@ -19,6 +19,7 @@ from typing import Tuple, Text, Optional, Dict
 from xls.dslx import ast
 from xls.dslx import deduce
 from xls.dslx.interpreter import interpreter
+from xls.dslx.interpreter.bindings import FnCtx
 
 SymbolicBindings = Tuple[Tuple[Text, int], ...]
 
@@ -51,7 +52,7 @@ def interpret_expr(module: ast.Module,
   """
   interp = interpreter.Interpreter(module, node_to_type, f_import=f_import)
   bindings = interp._make_top_level_bindings(module)  # pylint: disable=protected-access
-  bindings.fn_ctx = fn_ctx
+  bindings.fn_ctx = FnCtx(*fn_ctx)
   for ident, val in env.items():
     bindings.add_value(
         ident,
