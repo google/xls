@@ -356,7 +356,7 @@ class Translator(object):
     # May return StructType or hls_type struct    
     if name not in self.hls_types_by_name_:
       return None
-    if isinstance(self.hls_types_by_name_[name], c_ast.StructType):
+    if isinstance(self.hls_types_by_name_[name], StructType):
       return self.hls_types_by_name_[name]
     if not self.hls_types_by_name_[name].as_struct:
       return None
