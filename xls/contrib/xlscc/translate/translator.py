@@ -94,7 +94,7 @@ class StructType(Type):
   """Class for C++ HLS Struct Types.
 
     Args:
-      name: Name of the struct type
+      name: Name of the struct type or c_ast Struct
       struct: HLSStructType protobuf
   """
 
@@ -111,6 +111,7 @@ class StructType(Type):
         if isinstance(decl, c_ast.FuncDef):
           func = Function()
           func.parse_function(translator, field)
+          # Add scope to indicate class function
           func_name = self.name + "::" + func.name
           translator.functions_[func_name] = func
           continue
@@ -264,6 +265,7 @@ class Function(object):
     self.return_type = translator.parse_type(type_decl)
     # parse parameters
     self.params = collections.OrderedDict()
+    # add implicit param for class functions
     if '::' in self.name:
       self.is_class_func = True
       full_name = ast.decl.name
@@ -585,7 +587,6 @@ class Translator(object):
                                decl_type.get_element_type().get_xls_type(self.p)
                                ,
                                loc)
-
     elif isinstance(decl_type, StructType):
       elements = []
       for elem_type in decl_type.get_element_types():
@@ -1052,9 +1053,6 @@ class Translator(object):
           if struct_id_ast:
             struct = self.cvars[struct_id_name]
             struct_type = struct.ctype
-            fb_expr = self.cvars[struct_id_name].fb_expr
-            struct_cvars = struct_type.get_struct_members()
-            field_indices = struct_type.get_field_indices() 
 
             struct_class = self.hls_types_by_name_[struct_type.name]
             if struct_class:
@@ -1135,12 +1133,6 @@ class Translator(object):
                                          translate_loc(stmt_ast))
                 
                 return ret_val, struct_func.return_type
-                                       
-
-
-                #End of struct function
-              else:
-                raise ValueError("Undeclared function called: " + stmt_ast.coord)
             else:
               raise ValueError("Unsupported object class" + stmt_ast.coord)
           else:
@@ -1237,7 +1229,6 @@ class Translator(object):
         self.lvalues[p_name] = not ptype.is_const
 
       # Add local vars for class functions
-
       local_cvars = {}
       if func.is_class_func:
         func_class = self.hls_types_by_name_[func.class_name]
@@ -1395,13 +1386,12 @@ class Translator(object):
 
     compound_node = lvalue_ast
     compound_lvals = [compound_node]
+    # assign for class members
     if isinstance(lvalue_ast, c_ast.ID):
-      print("Lvalue is " + str(lvalue_ast))
       field_name = lvalue_ast.name
       assign_name = "this"
       impl_ref = self.cvars[assign_name]
       left_expr, left_type = impl_ref.fb_expr, impl_ref.ctype
-      print("Func builder expr " + str(left_expr))
       element_values = []
       field_indices = impl_ref.ctype.get_field_indices()
       field_index = field_indices[field_name]
@@ -1529,7 +1519,6 @@ class Translator(object):
       elif isinstance(stmt, c_ast.Decl): 
         if stmt.name is None:
           stmt.name = stmt.type.name + "decl"
-
         if stmt.name in self.cvars:
           raise ValueError("Variable '", stmt.name,
                            "' already declared in this scope")
