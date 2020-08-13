@@ -22,21 +22,10 @@ logically equivalent.
 
 import sys
 from xls.common.gfile import open as gopen
+from flags_checks import *
 
 from absl import app
 from absl import flags
-
-def list_contains_only_integers(L):
-  """
-  Input: list L
-  Output: True if all of the elements of the list are strings that contain
-          digits between 0-9, False otherwise.
-  Used to check that the list of numbers given by user contains only integer strings.
-  """
-  for elm in L:
-    if not elm.isdigit():
-      return False
-  return True
 
 FLAGS = flags.FLAGS
 flags.DEFINE_list("N", None, "List of n values for each n-bit addition proof.")
@@ -47,8 +36,14 @@ flags.mark_flag_as_required("N")
 
 def description_comments(n, f):
   """
+  Write comments to the top of the file describing what it does.
+
   Write comments to the top of the smt2 file describing the proof it contains:
-  the operation, how many bits in the arguments, and how many operations.
+  the operations, how many bits in the arguments, and how many operations. 
+
+  Args:
+  n: An integer, the number of bits in each input bitvector. 
+  f: The file to write into. 
   """
   print(
 f"""; The following SMT-LIB verifies that a {n}-bit adder is equivalent
@@ -57,9 +52,15 @@ f"""; The following SMT-LIB verifies that a {n}-bit adder is equivalent
 
 def logic_and_variables(n, f):
   """
+  Set the logic for the smt2 file, and declare/define variables. 
+
   Write the set-logic for the proof (QF_BV is the bitvector logic), declare the input
-  bitvector variables, and define the variables for their indices. Note that x_i or y_i
+  bitvector variables, and define variables for their indices. Note that x_i or y_i 
   corresponds to index i of that input bitvector. 
+
+  Args:
+  n: An integer, the number of bits in each bitvector. 
+  f: The file to write into.
   """
   print(
 f"""(set-logic QF_BV)
@@ -74,6 +75,10 @@ f"""(set-logic QF_BV)
 def half_adder(n, f):
   """
   Define the sum and carry bits for a half adder.
+  
+  Args:
+  n: An integer, the number of bits for each bitvector.
+  f: The file to write into. 
   """
   print(
 f"""; Half adder for bit {n}
@@ -84,6 +89,10 @@ f"""; Half adder for bit {n}
 def full_adder(n, f):
   """
   Define the sum and carry bits for a full adder.
+
+  Args:
+  n: An integer, the number of bits for each bitvector.
+  f: The file to write into. 
   """
   print(
 f"""; Full adder for bit {n}
@@ -93,12 +102,10 @@ f"""; Full adder for bit {n}
 
 def get_concat_result_bits(n):
   """
-  Input: integer n
-  Output: string containing smt2 concat operation combining the bits of the 
-          addition result.
-  Example:
-  >> get_concat_level_bits(4)
-  >> (concat s3 (concat s2 (concat s1 s0)))
+  Create a string of smt2 concat operations to combine the bits of the output sum. 
+  
+  Args:
+  n: An integer, the number of bits in the output bitvector. 
   """
   concats = []
   for i in range(n):
@@ -112,10 +119,12 @@ def get_concat_result_bits(n):
 
 def make_sum(n, f):
   """
-  Create the output of the addition. Get the bitvectors for the 
-  addition at each index using get_result_bits, and concatenate them
-  all together. 
-  """
+  Write the final addition output by concatenating all of the output bits. 
+  
+  Args:
+  n: An integer, the number of bits in the output bitvector.
+  f: The file to write into. 
+  """  
   print(
 f"""; Concatenate s bits to create sum
 (define-fun sum () (_ BitVec {n}) {get_concat_result_bits(n)})
@@ -123,9 +132,14 @@ f"""; Concatenate s bits to create sum
 
 def assert_and_check_sat(n, f):
   """
-  Write the assertion that the output of the 'by-hand' addition (called sum)
-  does not equal the output of the builtin bvadd operation, and tell the solver
-  to check the satisfiability. 
+  Write an (unsatisfiable) assertion and tell the solver to check it. 
+
+  Write the assertion that the output of the 'by-hand' addition (called 
+  sum), does not equal the output of the builtin bvadd operation, and tell the
+  solver to check the satisfiability. 
+  
+  Args:
+  f: The file to write into. 
   """
   print(
 f"""; Compare {n}-bit adder result and internal addition and solve
@@ -134,7 +148,11 @@ f"""; Compare {n}-bit adder result and internal addition and solve
 
 def n_bit_add_existing_file(n, f):
   """
-  Given a file, write an addition proof into it with n-bit arguments. 
+  Given a file, write a multiplication proof into it with n-bit arguments.
+  
+  Args:
+  n: An integer, the number of bits for the input and output bitvectors. 
+  f: The file to write the proof into. 
   """
   description_comments(n, f)
   logic_and_variables(n, f)
@@ -146,16 +164,15 @@ def n_bit_add_existing_file(n, f):
 
 def n_bit_add_new_file(n):
   """
-  Create a new file, and in it, write an addition proof with n-bit arguments. 
+  Create a new file, and write a multiplication proof with n-bit arguments. 
+  
+  Args:
+  n: An integer, the number of bits for the input and output bitvectors. 
   """
   with gopen(f"add_2x{n}.smt2", "w+") as f:
     n_bit_add_existing_file(n, f)
 
 def main(argv):
-  """
-  Run the file. Take the list of integers from FLAGS.N, and for each integer
-  n in N, make an smt2 file containing an n-bit-addition proof.
-  """
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
   else:
