@@ -15,9 +15,10 @@
 # proto-file: xls/delay_model/delay_model.proto
 # proto-message: xls.delay_model.DelayModel
 
-# Dummy "unit" model for testing. All operations have unit latency (1ps).
-op_models { op: "kAdd" estimator { fixed: 1 } }
-op_models { op: "kAnd" estimator { fixed: 1 } }
+# Experimental model used for comparison with ML delay model.
+# Based on data collected from Yosys and nextpnr.
+op_models { op: "kAdd" estimator { fixed: 11900 } }
+op_models { op: "kAnd" estimator { fixed: 7970 } }
 op_models { op: "kAndReduce" estimator { fixed: 1 } }
 op_models { op: "kNand" estimator { fixed: 1 } }
 op_models { op: "kNor" estimator { fixed: 1 } }
@@ -33,10 +34,10 @@ op_models { op: "kIdentity" estimator { fixed: 1 } }
 op_models { op: "kLiteral" estimator { fixed: 1 } }
 op_models { op: "kNe" estimator { fixed: 1 } }
 op_models { op: "kNeg" estimator { fixed: 1 } }
-op_models { op: "kNot" estimator { fixed: 1 } }
+op_models { op: "kNot" estimator { fixed: 6080 } }
 op_models { op: "kOneHot" estimator { fixed: 1 } }
 op_models { op: "kOneHotSel" estimator { fixed: 1 } }
-op_models { op: "kOr" estimator { fixed: 1 } }
+op_models { op: "kOr" estimator { fixed: 7970 } }
 op_models { op: "kOrReduce" estimator { fixed: 1 } }
 op_models { op: "kParam" estimator { fixed: 1 } }
 op_models { op: "kReverse" estimator { fixed: 1 } }
@@ -59,7 +60,7 @@ op_models { op: "kUGe" estimator { fixed: 1 } }
 op_models { op: "kUGt" estimator { fixed: 1 } }
 op_models { op: "kULe" estimator { fixed: 1 } }
 op_models { op: "kULt" estimator { fixed: 1 } }
-op_models { op: "kUMul" estimator { fixed: 1 } }
-op_models { op: "kXor" estimator { fixed: 1 } }
+op_models { op: "kUMul" estimator { fixed: 13930 } }
+op_models { op: "kXor" estimator { fixed: 7970 } }
 op_models { op: "kXorReduce" estimator { fixed: 1 } }
 op_models { op: "kZeroExt" estimator { fixed: 1 } }
