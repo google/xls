@@ -536,8 +536,9 @@ class Slice(AstNode):
     self.limit = limit
 
     # These attributes are populated by type inference.
-    self.computed_start = None  # type: Union[ParametricExpression, int]
-    self.computed_width = None  # type: Union[ParametricExpression, int]
+    self.bindings_to_start_width = dict()
+    # self.computed_start = None  # type: Union[ParametricExpression, int]
+    # self.computed_width = None  # type: Union[ParametricExpression, int]
 
   def __str__(self) -> Text:
     if self.start and self.limit:

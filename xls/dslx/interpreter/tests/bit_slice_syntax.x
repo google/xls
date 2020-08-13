@@ -21,6 +21,10 @@ fn [N: u32, R: u32 = N - u32:2] get_middle_bits(x: bits[N]) -> bits[R] {
   x[1:-1]
 }
 
+fn foo() -> u6 {
+  get_middle_bits(u8:5)
+}
+
 test bit_slice_syntax {
   let _ = assert_eq(u2:0b11, get_middle_bits(u4:0b0110));
   let _ = assert_eq(u3:0b101, get_middle_bits(u5:0b01010));

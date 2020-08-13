@@ -159,14 +159,10 @@ class Interpreter(object):
     index_slice = expr.index
     assert isinstance(index_slice, ast.Slice), index_slice
 
-    symbolic_bindings = dict(bindings.fn_ctx[2]) if bindings.fn_ctx else {}
-    start = index_slice.computed_start
-    if isinstance(start, ParametricExpression):
-      start = start.evaluate(symbolic_bindings)
+    symbolic_bindings = bindings.fn_ctx[2]
+
+    start, width = index_slice.bindings_to_start_width[symbolic_bindings]
     assert isinstance(start, int)
-    width = index_slice.computed_width
-    if isinstance(width, ParametricExpression):
-      width = width.evaluate(symbolic_bindings)
     assert isinstance(width, int)
 
     return Value(Tag.UBITS, bits.slice(start, start + width, lsb_is_0=True))

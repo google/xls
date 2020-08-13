@@ -450,13 +450,8 @@ class _IrConverterFb(ast.AstVisitor):
         return self._visit_width_slice(node, index_slice, lhs_type)
       assert isinstance(index_slice, ast.Slice), index_slice
 
-      start = node.index.computed_start
-      if isinstance(start, ParametricExpression):
-        start = start.evaluate(self.symbolic_bindings)
+      start, width = node.index.bindings_to_start_width[self._get_symbolic_bindings_tuple()]
       assert isinstance(start, int)
-      width = node.index.computed_width
-      if isinstance(width, ParametricExpression):
-        width = width.evaluate(self.symbolic_bindings)
       assert isinstance(width, int)
 
       self._def(node, self.fb.add_bit_slice, self._use(node.lhs), start, width)
@@ -717,6 +712,20 @@ class _IrConverterFb(ast.AstVisitor):
     self._def(node, self.fb.add_counted_for, self._use(node.init), trip_count,
               stride, body_function, invariant_args)
 
+  def _get_symbolic_bindings_tuple(self) -> SymbolicBindings:
+    # We only consider function symbolic bindings for invocations.
+    # The typechecker doesn't care about module-level constants.
+    module_level_constants = {
+        c.name.identifier
+        for c in self.module.get_constants()
+        if isinstance(c.value, ast.Number)
+    }
+    return tuple(
+        (k, v)
+        for k, v in self.symbolic_bindings.items()
+        if k not in module_level_constants)
+
+
   def _get_invocation_bindings(self,
                                invocation: ast.Invocation) -> SymbolicBindings:
     """Returns the symbolic bindings of the invocation.
@@ -731,18 +740,8 @@ class _IrConverterFb(ast.AstVisitor):
     Returns:
       The symbolic bindings for the given invocation.
     """
-    # We only consider function symbolic bindings for invocations.
-    # The typechecker doesn't care about module-level constants.
-    module_level_constants = {
-        c.name.identifier
-        for c in self.module.get_constants()
-        if isinstance(c.value, ast.Number)
-    }
-    relevant_symbolic_bindings = tuple(
-        (k, v)
-        for k, v in self.symbolic_bindings.items()
-        if k not in module_level_constants)
-    key = (self.module.name, self.dslx_name, relevant_symbolic_bindings)
+
+    key = (self.module.name, self.dslx_name, self._get_symbolic_bindings_tuple())
     logging.vlog(2, 'Invocation %s symbolic bindings: %r key: %r', invocation,
                  invocation.symbolic_bindings, key)
     return invocation.symbolic_bindings.get(key, ())
@@ -1146,7 +1145,6 @@ def convert_module_to_package(
                                              traverse_tests)
   logging.vlog(3, 'Convert order: %s', pprint.pformat(order))
   for record in order:
-    # print(record.f, record.node_to_type)
     emitted.append(
         _convert_one_function(
             package,

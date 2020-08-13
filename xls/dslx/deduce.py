@@ -513,10 +513,10 @@ def _deduce_slice_type(self: ast.Index, ctx: DeduceCtx,
   start = start.get_value_as_int() if start else None
 
   _, fn_symbolic_bindings = ctx.fn_stack[-1]
-  start, width = bit_helpers.resolve_bit_slice_indices(bit_count, start, limit,
-                                                       fn_symbolic_bindings)
-  index_slice.computed_start = start
-  index_slice.computed_width = width
+  if isinstance(bit_count, ParametricExpression):
+    bit_count = bit_count.evaluate(fn_symbolic_bindings)
+  start, width = bit_helpers.resolve_bit_slice_indices(bit_count, start, limit)
+  index_slice.bindings_to_start_width[tuple(fn_symbolic_bindings.items())] = (start, width)
   return BitsType(signed=False, size=width)
 
 
