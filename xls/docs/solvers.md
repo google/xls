@@ -8,7 +8,8 @@ We have implemented that conversion with the Z3 theorem prover using its "bit
 vector" type support. As a result, you can conceptually ask Z3 to prove any
 predicate that can be expressed as XLS, over all possible parameter inputs.
 
-See the [tools documentation](https://github.com/google/xls/tree/main/xls/g3doc/tools.md)
+See the
+[tools documentation](./tools.md)
 for usage information on related command line tools.
 
 ## Applications
