@@ -34,9 +34,9 @@ unique stimulus.
 
 The full input space for a 32-bit adder is a whopping 64 bits - far more than is
 possible to exhaustively test for correctness. Proving correctness via Z3,
-however, is relatively straightforward: at a high level, one just compares the
-output from the DSLX (translated into Z3) and comapres that to the same
-operation performed solely in Z3.
+however, is relatively straightforward: at a high level, one simply compares the
+output from the DSLX (translated into Z3) to the same operation performed
+solely in Z3.
 
 In detail, the steps are:
 

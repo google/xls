@@ -14,6 +14,7 @@ nav:
       - CRC32: 'dslx_intro_example1.md'
       - FP adder: 'fpadd_example.md'
       - Prefix Scan: 'dslx_intro_example3.md'
+    - Fuzzer: "fuzzer.md"
   - Tools:
     - Quick Start: 'tools_quick_start.md'
     - Listing: 'tools.md'
