@@ -156,14 +156,17 @@ class StructType(Type):
     self.struct = struct
     self.field_indices = {}
     self.element_types = {}
+    self.class_functions = {}
     if isinstance(struct, c_ast.Struct):
       self.is_const = False
       for decl in struct.decls:
         if isinstance(decl, c_ast.FuncDef):
           func = Function()
-          func.parse_function(translator, field)
+          func.parse_function(translator, decl)
           # Add scope to indicate class function
           func_name = self.name + "::" + func.name
+          func.name = func_name
+          self.class_functions[func_name] = func
           translator.functions_[func_name] = func
           continue
         name = decl.name
@@ -172,6 +175,7 @@ class StructType(Type):
           func = Function()
           func.parse_function(translator, field)
           func_name = self.name + "::" + func.name
+          self.class_functions[func_name] = func
           translator.functions_[func_name] = func
           continue
         self.field_indices[name] = len(self.field_indices)
@@ -199,7 +203,7 @@ class StructType(Type):
         else:
           raise NotImplementedError("Unsupported field type for field", name,
                                   ":", type(field))
-      self.bit_width = self.bit_width + self.element_types[name].bit_width
+        self.bit_width = self.bit_width + self.element_types[name].bit_width
 
  
    
@@ -231,6 +235,14 @@ class StructType(Type):
                                   type(field))
 
     return p.get_tuple_type(element_xls_types)
+
+  def set_class_functions(self):
+    """ Make all class functions available for use
+        after structType has been createdd
+    """
+    print("Setting class functions")
+    for f_name, func in self.class_functions.items():
+      func.make_class_func(self)
 
   def get_struct_members(self):
     local_vars = {}
@@ -322,19 +334,17 @@ class Function(object):
     self.params = collections.OrderedDict()
     # add implicit param for class functions
     if '::' in self.name:
-      self.is_class_func = True
       full_name = ast.decl.name
       self.class_name = full_name[:full_name.index('::')]
       self.func_name = full_name[full_name.index('::')+2:]
       class_struct = translator.get_struct_type(self.class_name)
       if not class_struct:
-          raise ValueError("Function call to unknown class " 
+        raise ValueError("Function created for to unknown class "
                             + self.class_name)
-      class_struct.is_ref = True 
-      self.params["this"] = class_struct
+      self.make_class_func(class_struct)
     if param_list is not None: 
       for name, child in param_list.children():
-        assert isinstance(child, (c_ast.Typename, c_ast.Decl)
+        assert isinstance(child, (c_ast.Typename, c_ast.Decl))
 
         name = child.name
 
@@ -350,6 +360,14 @@ class Function(object):
 
     # parse body
     self.body_ast = ast.body
+
+  def make_class_func(self, class_struct):
+    assert isinstance(class_struct, StructType)
+    class_struct.is_ref = True
+    self.is_class_func = True
+    self.class_name = class_struct.name
+    self.func_name = self.name
+    self.params["this"] = class_struct
 
   def set_fb_expr(self, fb_expr):
     self.fb_expr = fb_expr
@@ -495,6 +513,7 @@ class Translator(object):
         self.functions_[func.name] = func
       elif isinstance(child.type, c_ast.Struct): 
         struct = StructType(child.type.name, child.type, self)
+        struct.set_class_functions()
         self.hls_types_by_name_[child.type.name] = struct
       elif isinstance(child, c_ast.Decl):
         name = child.name
@@ -583,6 +602,7 @@ class Translator(object):
       return ret_type
     elif isinstance(ast, c_ast.Struct):  
       ret_type= StructType(ast.name, ast, self)
+      ret_type.set_class_functions
       self.hls_types_by_name_[ret_type.name] = ret_type
       return ret_type
     else:
@@ -1133,6 +1153,39 @@ class Translator(object):
 
           self._generic_assign(left_var, r_expr, r_type, condition,
                                translate_loc(stmt_ast))
+        elif template_ast == "read":
+          assert isinstance(left_var, c_ast.ID)
+          assert stmt_ast.args is None
+          left_fb, left_type = self.gen_expr_ir(left_var, condition)
+          assert isinstance(left_type, ChannelType)
+          assert left_type.is_input
+          self.read_tokens[id(left_fb)] = left_var.name
+          return left_fb, left_type.channel_type
+        elif template_ast == "write":
+          assert len(stmt_ast.args.exprs) == 1
+          obj = stmt_ast.args.exprs[0]
+          assert isinstance(left_var, c_ast.ID)
+
+          obj_expr, obj_type = self.gen_expr_ir(obj, condition)
+
+          in_ch_name = self.read_tokens[id(obj_expr)]
+          out_ch_name = left_var.name
+
+          # z
+          self.assign(out_ch_name, obj_expr, obj_type, condition, loc)
+          # in vz -> out lz
+          self.assign(out_ch_name + "_lz",
+                      self.cvars[in_ch_name + "_vz"].fb_expr,
+                      self.cvars[in_ch_name + "_vz"].ctype, condition, loc)
+          # out vz -> in lz
+          self.assign(in_ch_name + "_lz",
+                      self.cvars[out_ch_name + "_vz"].fb_expr,
+                      self.cvars[out_ch_name + "_vz"].ctype, condition, loc)
+
+          # vz_name = right_name + "_vz"
+          # lz_name = right_name + "_lz"
+
+          return None, VoidType()
         elif isinstance(stmt_ast, c_ast.FuncCall):
           struct_id_ast = struct_ast.name
           struct_id_name = struct_id_ast.name
@@ -1225,39 +1278,6 @@ class Translator(object):
               raise ValueError("Unsupported object class" + stmt_ast.coord)
           else:
               raise ValueError("Uninitialized object " + stmt_ast.coord)
-        elif template_ast == "read":
-          assert isinstance(left_var, c_ast.ID)
-          assert stmt_ast.args is None
-          left_fb, left_type = self.gen_expr_ir(left_var, condition)
-          assert isinstance(left_type, ChannelType)
-          assert left_type.is_input
-          self.read_tokens[id(left_fb)] = left_var.name
-          return left_fb, left_type.channel_type
-        elif template_ast == "write":
-          assert len(stmt_ast.args.exprs) == 1
-          obj = stmt_ast.args.exprs[0]
-          assert isinstance(left_var, c_ast.ID)
-
-          obj_expr, obj_type = self.gen_expr_ir(obj, condition)
-
-          in_ch_name = self.read_tokens[id(obj_expr)]
-          out_ch_name = left_var.name
-
-          # z
-          self.assign(out_ch_name, obj_expr, obj_type, condition, loc)
-          # in vz -> out lz
-          self.assign(out_ch_name + "_lz",
-                      self.cvars[in_ch_name + "_vz"].fb_expr,
-                      self.cvars[in_ch_name + "_vz"].ctype, condition, loc)
-          # out vz -> in lz
-          self.assign(in_ch_name + "_lz",
-                      self.cvars[out_ch_name + "_vz"].fb_expr,
-                      self.cvars[out_ch_name + "_vz"].ctype, condition, loc)
-
-          # vz_name = right_name + "_vz"
-          # lz_name = right_name + "_lz"
-
-          return None, VoidType()
         else:
           raise NotImplementedError("Unsupported method", template_ast)
       else:

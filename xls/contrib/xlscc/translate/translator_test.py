@@ -320,6 +320,9 @@ class TranslatorTest(absltest.TestCase):
     class Rectangle {
       int width;
       int height;
+      int getArea(){
+        return width * height;
+      }
     };
     void Rectangle::set_values(int w, int h) {
       width = w;
@@ -336,7 +339,7 @@ class TranslatorTest(absltest.TestCase):
       rect.width = 0;
       rect.height = 0;
       rect.set_values(a, b);
-      return rect.get_width() + rect.get_height();
+      return rect.getArea() + rect.get_height() + rect.get_width();
     }
     """
     f = self.parse_and_get_function(source)
@@ -345,7 +348,7 @@ class TranslatorTest(absltest.TestCase):
     args = dict(a=aval, b=bval)
     result = ir_interpreter.run_function_kwargs(f, args)
     result_int = int(ctypes.c_int32(int(str(result))).value)
-    self.assertEqual(9, result_int)
+    self.assertEqual(27, result_int)
 
   def test_simple_unrolled_loop(self):
     source = """
