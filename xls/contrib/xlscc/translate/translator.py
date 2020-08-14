@@ -150,7 +150,7 @@ class StructType(Type):
   """
 
   def __init__(self, name, struct, translator=None):
-    
+
     super(StructType, self).__init__()
     self.name = name
     self.struct = struct
@@ -166,7 +166,8 @@ class StructType(Type):
         self.field_indices[name] = len(self.field_indices)
         if isinstance(field, c_ast.TypeDecl):
           if isinstance(field.type, c_ast.Struct):
-            self.element_types[field.declname] = translator.parse_type(field.type)
+            self.element_types[field.declname] = translator.parse_type(
+                                                                      field.type)
           else:
             self.element_types[field.declname] = translator.parse_type(field)
         elif isinstance(field, c_ast.ArrayDecl):
@@ -176,22 +177,22 @@ class StructType(Type):
           self.element_types[field.name] = translator.parse_type(field)
         else:
           raise NotImplementedError("Unsupported field type for field", name,
-                                  ":", type(field))
-    else: 
+                                    ":", type(field))
+    else:
       for named_field in self.struct.fields:
         name = named_field.name
         field = named_field.hls_type
         self.field_indices[name] = len(self.field_indices)
         if field.HasField("as_int"):
           self.element_types[name] = IntType(field.as_int.width,
-                                           field.as_int.signed,
-                                           False)
+                                             field.as_int.signed,
+                                             False)
         elif field.HasField("as_struct"):
           self.element_types[name] = StructType(name, field.as_struct)
         else:
           raise NotImplementedError("Unsupported field type for field", name,
-                                  ":", type(field)) 
-   
+                                    ":", type(field))
+
   def get_xls_type(self, p):
     """Get XLS IR type for struct.
 
@@ -437,7 +438,7 @@ class Translator(object):
     return False
 
   def get_struct_type(self, name):
-    # May return StructType or hls_type struct    
+    # May return StructType or hls_type struct
     if name not in self.hls_types_by_name_:
       return None
     if isinstance(self.hls_types_by_name_[name], StructType):
@@ -490,13 +491,13 @@ class Translator(object):
             assert isinstance(val, c_ast.Enumerator)
             assert val.name not in self.global_decls_
             if val.value is None:
-                const_type = IntType(32, True, True)
+              const_type = IntType(32, True, True)
             else:
-                const_val, const_type = parse_constant(val.value)
-                enum_curr_val = int (const_val) 
+              const_val, const_type = parse_constant(val.value)
+              enum_curr_val = int(const_val)
             const_expr = ir_value.Value(
-                bits_mod.UBits(
-                    value = enum_curr_val, bit_count=const_type.bit_width))
+                                        bits_mod.UBits(
+                                        value = enum_curr_val, bit_count=const_type.bit_width))
             self.global_decls_[val.name] = CVar(const_expr, const_type)
             enum_curr_val += 1
         else:
@@ -505,8 +506,6 @@ class Translator(object):
       else:
         raise NotImplementedError("ERROR: Unknown construct at " + \
                                   str(child.coord))
-  
-
 
   def parse_type(self, ast_in):
     """Parses a C type's AST.
@@ -535,7 +534,7 @@ class Translator(object):
       if isinstance(ident, c_ast.TemplateInst):
         ident = ident.expr
       if isinstance(ident, c_ast.Struct):
-        ret_type= StructType(ident.name, ident, self)
+        ret_type = StructType(ident.name, ident, self)
         self.hls_types_by_name_[ret_type.name] = ret_type
         return ret_type
     elif isinstance(ast, c_ast.IdentifierType):
@@ -550,7 +549,7 @@ class Translator(object):
       ret_type.is_const = is_const
       return ret_type
     elif isinstance(ast, c_ast.Struct):
-      ret_type= StructType(ast.name, ast, self)
+      ret_type = StructType(ast.name, ast, self)
       self.hls_types_by_name_[ret_type.name] = ret_type
       return ret_type
     else:
@@ -1520,7 +1519,7 @@ class Translator(object):
           raise ValueError("Variable '", stmt.name,
                            "' already declared in this scope")
         decl_type = self.parse_type(stmt.type)
-        self.cvars[stmt.name] = CVar(None, decl_type) 
+        self.cvars[stmt.name] = CVar(None, decl_type)
         self.lvalues[stmt.name] = not decl_type.is_const
         if stmt.init is not None:
           if isinstance(stmt.init, c_ast.InitList):
@@ -1681,12 +1680,12 @@ class Translator(object):
                 item)
             case_loc = translate_loc(item.expr)
             case_condition = self.fb.add_eq(cond_expr, conv_case, case_loc)
-            
             if case_falls_thru:
-                case_condition = self.fb.add_or(fall_thru_cond, case_condition, case_loc)
-                case_falls_thru = False
+              case_condition = self.fb.add_or(fall_thru_cond,
+                                                case_condition, case_loc)
+              case_falls_thru = False
             else:
-                fall_thru_cond = case_condition                         
+              fall_thru_cond = case_condition
             if condition is None:
               compound_condition = case_condition
             else:
