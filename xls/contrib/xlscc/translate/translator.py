@@ -206,7 +206,7 @@ class StructType(Type):
     assert isinstance(ast, (c_ast.FuncDef, c_ast.FuncDecl))
     func = Function()
     func.parse_function(translator, ast)
-    func_name = self.name + "::" + func.name
+    func_name = self.name + "_" + func.name
     func.name = func_name
     self.class_functions[func_name] = func
     translator.functions_[func_name] = func
@@ -340,6 +340,7 @@ class Function(object):
       full_name = ast.decl.name
       self.class_name = full_name[:full_name.index('::')]
       self.func_name = full_name[full_name.index('::')+2:]
+      self.name = self.class_name + "_" + self.func_name
       class_struct = translator.get_struct_type(self.class_name)
       if not class_struct:
         raise ValueError("Function created for to unknown class "
@@ -1200,7 +1201,7 @@ class Translator(object):
             struct_type = struct.ctype
             struct_class = self.hls_types_by_name_[struct_type.name]
             if struct_class:
-              full_func_name = str(struct_class) + "::" + struct_func_name
+              full_func_name = str(struct_class) + "_" + struct_func_name
               struct_func = self.functions_[full_func_name]
               if struct_func.is_class_func:
                 args_bvalues = []
