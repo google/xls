@@ -162,19 +162,12 @@ class StructType(Type):
       self.is_const = False
       for decl in struct.decls:
         if isinstance(decl, c_ast.FuncDef):
-          func = Function()
-          func.parse_function(translator, decl)
-          # Add scope to indicate class function
-          self.class_functions[func.name] = func
-          translator.functions_[func.name] = func
+          self.parse_struct_func(translator, decl)
           continue
         name = decl.name
         field = decl.type
         if isinstance (field, c_ast.FuncDecl):
-          func = Function()
-          func.parse_function(translator, field)
-          self.class_functions[func.name] = func
-          translator.functions_[func.name] = func
+          self.parse_struct_func(translator, field)
           continue
         self.field_indices[name] = len(self.field_indices)
         if isinstance(field, c_ast.TypeDecl):
@@ -206,6 +199,17 @@ class StructType(Type):
           raise NotImplementedError("Unsupported field type for field", name,
                                     ":", type(field))
         self.bit_width = self.bit_width + self.element_types[name].bit_width
+  
+  def parse_struct_func(self, translator, ast):
+    """Parse a struc funcdef or decl
+    """
+    assert isinstance(ast, (c_ast.FuncDef, c_ast.FuncDecl))
+    func = Function()
+    func.parse_function(translator, ast)
+    func_name = self.name + "::" + func.name
+    func.name = func_name
+    self.class_functions[func_name] = func
+    translator.functions_[func_name] = func
 
   def get_xls_type(self, p):
     """Get XLS IR type for struct.
@@ -335,7 +339,7 @@ class Function(object):
     if '::' in self.name:
       full_name = ast.decl.name
       self.class_name = full_name[:full_name.index('::')]
-      self.name = full_name[full_name.index('::')+2:]
+      self.func_name = full_name[full_name.index('::')+2:]
       class_struct = translator.get_struct_type(self.class_name)
       if not class_struct:
         raise ValueError("Function created for to unknown class "
@@ -1191,16 +1195,14 @@ class Translator(object):
           struct_id_ast = struct_ast.name
           struct_id_name = struct_id_ast.name
           struct_func_name = struct_ast.field.name
-
           if struct_id_ast:
             struct = self.cvars[struct_id_name]
             struct_type = struct.ctype
-
             struct_class = self.hls_types_by_name_[struct_type.name]
             if struct_class:
-              struct_func = self.functions_[struct_func_name]
-         
-              if struct_func:
+              full_func_name = str(struct_class) + "::" + struct_func_name
+              struct_func = self.functions_[full_func_name]
+              if struct_func.is_class_func:
                 args_bvalues = []
                 args_bvalues.append(struct.fb_expr)
                    
@@ -1274,6 +1276,8 @@ class Translator(object):
                                          translate_loc(stmt_ast))
                 
                 return ret_val, struct_func.return_type
+              else:
+                raise ValueError("Error: Object calls non-member function")
             else:
               raise ValueError("Unsupported object class" + stmt_ast.coord)
           else:
