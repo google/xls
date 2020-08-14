@@ -43,8 +43,8 @@ def _check_function_params(f: Function,
     parametric_binding_type = deduce.deduce(parametric.type_, ctx)
     assert isinstance(parametric_binding_type, ConcreteType)
     if parametric.expr:
-      # TODO(hans): 2020-07-06 Either throw a more descriptive error if
-      # there's a parametric fn in this expr or add support for it
+      # TODO(hjmontero): 2020-07-06 fully document the behavior of parametric
+      # function calls in parametric expressions.
       expr_type = deduce.deduce(parametric.expr, ctx)
       if expr_type != parametric_binding_type:
         raise XlsTypeError(
@@ -192,13 +192,14 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
       # A builtin higher-order parametric fn would've been typechecked when we
       # were going through the arguments of this invocation.
       # If the function wasn't parametric, then we're good to go.
-      # invocation
       return None
 
     # If the higher order function is parametric, we need to typecheck its body
     # with the symbolic bindings we just computed.
     if isinstance(map_fn_ref, ast.ModRef):
       if symbolic_bindings in invocation.types_mappings:
+        # We've already typechecked this imported parametric function using
+        # these bindings.
         return None
       invocation_imported_node_to_type = deduce.NodeToType(parent=imported_node_to_type)
       imported_ctx = deduce.DeduceCtx(invocation_imported_node_to_type, imported_module,
@@ -213,8 +214,10 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
       invocation.types_mappings[symbolic_bindings] = invocation_node_to_type
     else:
       # If the higher-order parametric fn is in this module, let's try to push
-      # it onto the typechecking stack
+      # it onto the typechecking stack.
       if symbolic_bindings in invocation.types_mappings:
+        # We've already typecheck this parametric function using these
+        # bindings.
         return None
 
       ctx.fn_stack.append((map_fn_name, dict(symbolic_bindings)))
@@ -283,16 +286,19 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
                 n.callee.tok.value == 'map')
 
       if is_callee_map(stack_record.user):
-        # We need to remove the body of this higher order parametric function
-        # in case we need to recheck it later in this module. See
-        # deduce._check_parametric_invocation() for more information.
         assert isinstance(f, ast.Function) and f.is_parametric()
-        # ctx.node_to_type._dict.pop(f.body)  # pylint: disable=protected-access
+        # We just typechecked a higher-order parametric function (from map()).
+        # Let's go back to our parent node_to_type mapping.
         ctx.node_to_type = ctx.node_to_type.parent
 
       if stack_record.name == fn_name:
         # i.e. we just finished typechecking the body of the function we're
         # currently inside of.
+
+        # NOTE: if this is a local parametric function, we don't revert to our
+        # parent node_to_type until deduce._check_parametric_invocation() to
+        # avoid entering an infite loop. See the try-catch in that function for
+        # more details.
         ctx.fn_stack.pop()
 
     except deduce.TypeMissingError as e:
@@ -343,7 +349,6 @@ def check_module(module: Module,
     f_import: Callback to import a module (a la a import statement). This may be
       None e.g. in unit testing situations where it's guaranteed there will be
       no import statements.
-
   Returns:
     Mapping from AST node to its deduced/checked type.
   Raises:

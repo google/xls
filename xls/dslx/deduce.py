@@ -326,8 +326,10 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
   if isinstance(invocation.callee, ast.ModRef):
     # We need to typecheck this function with respect to its own module.
     # Let's use typecheck._check_function_or_test_in_module() to do this
-    # in case we run into more dependencies in that module
+    # in case we run into more dependencies in that module.
     if symbolic_bindings in invocation.types_mappings:
+      # We've already typechecked this imported parametric function using
+      # these symbolic bindings.
       return
 
     imported_module, imported_node_to_type = ctx.node_to_type.get_imported(
@@ -348,31 +350,28 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
     assert isinstance(invocation.callee, ast.NameRef), invocation.callee
     # We need to typecheck this function with respect to its own module
     # Let's take advantage of the existing try-catch mechanism in
-    # typecheck._check_function_or_test_in_module()
-    ctx.fn_stack.append(
-        (parametric_fn.name.identifier, dict(symbolic_bindings)))
+    # typecheck._check_function_or_test_in_module().
 
-    if symbolic_bindings in invocation.types_mappings:
-      invocation.types_mappings[symbolic_bindings].update(ctx.node_to_type)
-
-    invocation_node_to_type = (
-        NodeToType(parent=ctx.node_to_type)
-        if symbolic_bindings not in invocation.types_mappings
-        else invocation.types_mappings[symbolic_bindings])
-
-    invocation.types_mappings[symbolic_bindings] = invocation_node_to_type
-    ctx.node_to_type = invocation_node_to_type
-
-    # If the body of this function hasn't been typechecked, let's
-    # tell typecheck.py's handler to check it.
     try:
       body_return_type = ctx.node_to_type[parametric_fn.body]
     except TypeMissingError as e:
-      e.node = invocation.callee.name_def
-      raise
+      # If we've already typechecked the parametric function with the
+      # current symbolic bindings, no need to do it again.
+      if not symbolic_bindings in invocation.types_mappings:
+        # Let's typecheck this parametric function using the symbolic bindings
+        # we just derived to make sure they check out ok.
+        e.node = invocation.callee.name_def
+        ctx.fn_stack.append(
+            (parametric_fn.name.identifier, dict(symbolic_bindings)))
+        ctx.node_to_type = NodeToType(parent=ctx.node_to_type)
+        raise
 
-    ctx.fn_stack.pop()
-    ctx.node_to_type = ctx.node_to_type.parent
+    if not symbolic_bindings in invocation.types_mappings:
+      # If we haven't yet stored a node_to_type for these symbolic bindings
+      # and we're at this point, it means that we just finished typechecking
+      # the parametric function. Let's store the results.
+      invocation.types_mappings[symbolic_bindings] = ctx.node_to_type
+      ctx.node_to_type = ctx.node_to_type.parent
 
 @_rule(ast.Invocation)
 def _deduce_Invocation(self: ast.Invocation, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
