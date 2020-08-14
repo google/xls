@@ -164,19 +164,16 @@ class StructType(Type):
           func = Function()
           func.parse_function(translator, decl)
           # Add scope to indicate class function
-          func_name = self.name + "::" + func.name
-          func.name = func_name
-          self.class_functions[func_name] = func
-          translator.functions_[func_name] = func
+          self.class_functions[func.name] = func
+          translator.functions_[func.name] = func
           continue
         name = decl.name
         field = decl.type
         if isinstance (field, c_ast.FuncDecl):
           func = Function()
           func.parse_function(translator, field)
-          func_name = self.name + "::" + func.name
-          self.class_functions[func_name] = func
-          translator.functions_[func_name] = func
+          self.class_functions[func.name] = func
+          translator.functions_[func.name] = func
           continue
         self.field_indices[name] = len(self.field_indices)
         if isinstance(field, c_ast.TypeDecl):
@@ -240,7 +237,6 @@ class StructType(Type):
     """ Make all class functions available for use
         after structType has been createdd
     """
-    print("Setting class functions")
     for f_name, func in self.class_functions.items():
       func.make_class_func(self)
 
@@ -336,7 +332,7 @@ class Function(object):
     if '::' in self.name:
       full_name = ast.decl.name
       self.class_name = full_name[:full_name.index('::')]
-      self.func_name = full_name[full_name.index('::')+2:]
+      self.name = full_name[full_name.index('::')+2:]
       class_struct = translator.get_struct_type(self.class_name)
       if not class_struct:
         raise ValueError("Function created for to unknown class "
@@ -366,7 +362,6 @@ class Function(object):
     class_struct.is_ref = True
     self.is_class_func = True
     self.class_name = class_struct.name
-    self.func_name = self.name
     self.params["this"] = class_struct
 
   def set_fb_expr(self, fb_expr):
@@ -1197,8 +1192,7 @@ class Translator(object):
 
             struct_class = self.hls_types_by_name_[struct_type.name]
             if struct_class:
-              full_func_name = str(struct_class) + "::" + struct_func_name
-              struct_func = self.functions_[full_func_name]
+              struct_func = self.functions_[struct_func_name]
          
               if struct_func:
                 args_bvalues = []
