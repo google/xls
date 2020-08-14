@@ -119,11 +119,10 @@ class XLSccParser(CParserBase):
       """
     klass = self._select_struct_union_class(p[1])
     if len(p) == 5:
-      # Empty sequence means an empty list of members
       p[0] = klass(
-            name=p[2],
-            decls=[],
-            coord=self._token_coord(p, 2))
+          name=p[2],
+          decls=[],
+          coord=self._token_coord(p, 2))
     else:
       p[0] = klass(
             name=p[2],

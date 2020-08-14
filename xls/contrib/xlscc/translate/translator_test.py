@@ -24,9 +24,8 @@ import ctypes
 import os
 import re
 
-import pycparser
-
 from absl.testing import absltest
+import pycparser
 from xls.common import runfiles
 from xls.contrib.xlscc.parse import ext_c_parser
 from xls.contrib.xlscc.translate import hls_types_pb2
@@ -271,7 +270,7 @@ class TranslatorTest(absltest.TestCase):
     self.one_in_one_out(source, 5, 222, 227)
     self.one_in_one_out(source, 4, 222, 226)
     self.one_in_one_out(source, 6, 222, 6)
-    
+
   def test_inline_struct(self):
     source = """
     struct inner2 {
@@ -282,38 +281,20 @@ class TranslatorTest(absltest.TestCase):
       short y;
       struct innerstruct {
         int z;
+        int k[2];
       } in;
       inner2 second;
-    };
+    } out;
     outerstruct check;
     check.x = a;
     check.y = b;
     check.in.z = b;
     check.second.p = 2;
-    return check.x + check.in.z + check.second.p;
+    out.x = 2;
+    check.in.k[0] = 3;
+    return check.x + check.in.z + check.second.p + out.x + check.in.k[0];
     """
-    self.one_in_one_out(source, 1, 2, 5)
-
-  def test_simple_switch(self):
-    source = """
-    switch(a) {
-      case 0:
-        return b;
-      case 6:
-      default:
-      case 1:
-        return a;
-      case 4:
-      case 5:
-        return a+b;
-    }
-    """
-    self.one_in_one_out(source, 0, 222, 222)
-    self.one_in_one_out(source, 1, 222, 1)
-    self.one_in_one_out(source, 2, 222, 2)
-    self.one_in_one_out(source, 5, 222, 227)
-    self.one_in_one_out(source, 4, 222, 226)
-    self.one_in_one_out(source, 6, 222, 6)
+    self.one_in_one_out(source, 1, 2, 10)
   
   def test_class_methods(self): 
     source = """
