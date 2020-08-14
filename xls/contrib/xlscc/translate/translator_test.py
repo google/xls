@@ -24,9 +24,8 @@ import ctypes
 import os
 import re
 
-import pycparser
-
 from absl.testing import absltest
+import pycparser
 from xls.common import runfiles
 from xls.contrib.xlscc.parse import ext_c_parser
 from xls.contrib.xlscc.translate import hls_types_pb2

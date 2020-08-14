@@ -1013,7 +1013,8 @@ class Translator(object):
             else:
               offset_val, offset_type = self.gen_expr_ir(offset_expr, condition)
               assert isinstance(offset_type, IntType)
-              ret_fb = self.fb.add_dynamic_bit_slice(left_fb, offset_val, width, loc)
+              ret_fb = self.fb.add_dynamic_bit_slice(
+                           left_fb, offset_val, width, loc)
             return ret_fb, IntType(width, left_type.signed, False)
           else:
             raise NotImplementedError("Unknown non-template function on int",
@@ -1040,16 +1041,16 @@ class Translator(object):
 
           if isinstance(offset, int):
             if offset > 0:
-               concat_list.append(
-                   self.fb.add_bit_slice(l_o_value, 0, offset,  loc))
+              concat_list.append(
+                  self.fb.add_bit_slice(l_o_value, 0, offset, loc))
             right_hand_bits = l_o_type.bit_width - (
-                  offset + value_type.bit_width)
+                offset + value_type.bit_width)
             if right_hand_bits > 0:
               concat_list.insert(
-                    0,
-                    self.fb.add_bit_slice(l_o_value,
-                                  offset + value_type.bit_width,
-                                  right_hand_bits, loc))
+                  0,
+                  self.fb.add_bit_slice(l_o_value,
+                                        offset + value_type.bit_width,
+                                        right_hand_bits, loc))
           else:
             ext_slice = self.fb.add_zeroext(value_expr, l_o_type.bit_width, loc)
             shift_slice = self.fb.add_shll(ext_slice, offset, loc)
