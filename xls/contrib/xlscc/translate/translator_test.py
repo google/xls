@@ -414,7 +414,7 @@ class TranslatorTest(absltest.TestCase):
     result = ir_interpreter.run_function_kwargs(f, args)
     result_int = int(ctypes.c_int32(int(str(result))).value)
     self.assertEqual(32, result_int)
- 
+
   def test_globalconst(self):
     f = self.parse_and_get_function("""
       const int foo[6] = {2,4,5,3,2,1};
