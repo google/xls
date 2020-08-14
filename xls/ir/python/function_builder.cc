@@ -153,6 +153,9 @@ PYBIND11_MODULE(function_builder, m) {
            py::arg("case_values"), py::arg("default_value"),
            py::arg("loc") = absl::nullopt)
 
+      .def("add_after_all", PyWrap(&FunctionBuilder::AfterAll),
+           py::arg("dependencies"), py::arg("loc") = absl::nullopt)
+
       .def("add_tuple", PyWrap(&FunctionBuilder::Tuple), py::arg("elements"),
            py::arg("loc") = absl::nullopt)
       .def("add_array", PyWrap(&FunctionBuilder::Array), py::arg("elements"),

@@ -33,7 +33,7 @@ cc_library(
 
 delay_model(
     name = "model_unit",
-    srcs = ["unit.pbtxt"],
+    srcs = ["unit.textproto"],
     model_name = "unit",
     precedence = "kLow",
 )

@@ -1,0 +1,118 @@
+module add8_module(
+  input wire clk,
+  input wire [7:0] op0,
+  input wire [7:0] op1,
+  output wire [7:0] out
+);
+  // ===== Pipe stage 0:
+
+  // Registers for pipe stage 0:
+  reg [7:0] p0_op0;
+  reg [7:0] p0_op1;
+  always @ (posedge clk) begin
+    p0_op0 <= op0;
+    p0_op1 <= op1;
+  end
+
+  // ===== Pipe stage 1:
+  wire [7:0] p1_add_1_comb;
+  assign p1_add_1_comb = p0_op0 + p0_op1;
+
+  // Registers for pipe stage 1:
+  reg [7:0] p1_add_1;
+  always @ (posedge clk) begin
+    p1_add_1 <= p1_add_1_comb;
+  end
+  assign out = p1_add_1;
+endmodule
+
+
+module add16_module(
+  input wire clk,
+  input wire [15:0] op0,
+  input wire [15:0] op1,
+  output wire [15:0] out
+);
+  // ===== Pipe stage 0:
+
+  // Registers for pipe stage 0:
+  reg [15:0] p0_op0;
+  reg [15:0] p0_op1;
+  always @ (posedge clk) begin
+    p0_op0 <= op0;
+    p0_op1 <= op1;
+  end
+
+  // ===== Pipe stage 1:
+  wire [15:0] p1_add_1_comb;
+  assign p1_add_1_comb = p0_op0 + p0_op1;
+
+  // Registers for pipe stage 1:
+  reg [15:0] p1_add_1;
+  always @ (posedge clk) begin
+    p1_add_1 <= p1_add_1_comb;
+  end
+  assign out = p1_add_1;
+endmodule
+
+
+module add24_module(
+  input wire clk,
+  input wire [23:0] op0,
+  input wire [23:0] op1,
+  output wire [23:0] out
+);
+  // ===== Pipe stage 0:
+
+  // Registers for pipe stage 0:
+  reg [23:0] p0_op0;
+  reg [23:0] p0_op1;
+  always @ (posedge clk) begin
+    p0_op0 <= op0;
+    p0_op1 <= op1;
+  end
+
+  // ===== Pipe stage 1:
+  wire [23:0] p1_add_1_comb;
+  assign p1_add_1_comb = p0_op0 + p0_op1;
+
+  // Registers for pipe stage 1:
+  reg [23:0] p1_add_1;
+  always @ (posedge clk) begin
+    p1_add_1 <= p1_add_1_comb;
+  end
+  assign out = p1_add_1;
+endmodule
+
+
+module foo(
+  input wire clk,
+  input wire [7:0] add8_module_op0,
+  input wire [7:0] add8_module_op1,
+  output wire [7:0] add8_module_out,
+  input wire [15:0] add16_module_op0,
+  input wire [15:0] add16_module_op1,
+  output wire [15:0] add16_module_out,
+  input wire [23:0] add24_module_op0,
+  input wire [23:0] add24_module_op1,
+  output wire [23:0] add24_module_out
+);
+  add8_module add8_module_inst(
+    .clk(clk),
+    .op0(add8_module_op0),
+    .op1(add8_module_op1),
+    .out(add8_module_out)
+  );
+  add16_module add16_module_inst(
+    .clk(clk),
+    .op0(add16_module_op0),
+    .op1(add16_module_op1),
+    .out(add16_module_out)
+  );
+  add24_module add24_module_inst(
+    .clk(clk),
+    .op0(add24_module_op0),
+    .op1(add24_module_op1),
+    .out(add24_module_out)
+  );
+endmodule

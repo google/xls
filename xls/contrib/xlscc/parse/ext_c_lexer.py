@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pylint: disable=C6102,C6108
-
 """Extends pycparser's lexing with select C++ features."""
 
 from pycparser.c_lexer import CLexer as CLexerBase
@@ -26,7 +24,8 @@ class XLSccLexer(CLexerBase):
   """
   tokens = CLexerBase.tokens + ('DBLCOLON',)
 
-  t_DBLCOLON = r'::'
+  t_DBLCOLON = r'::'  # pylint: disable=invalid-name
+
 
 def add_lexer_keywords(cls, keywords):
   cls.keywords = cls.keywords + tuple(kw.upper() for kw in keywords)
@@ -37,5 +36,7 @@ def add_lexer_keywords(cls, keywords):
   cls.tokens = cls.tokens + tuple(kw.upper() for kw in keywords)
 
 
+
 _CL_KEYWORDS = ['BOOL', 'TRUE', 'FALSE', 'TEMPLATE', 'CLASS', 'PUBLIC', 'PRIVATE']
 add_lexer_keywords(XLSccLexer, [str.lower(kw) for kw in _CL_KEYWORDS])
+

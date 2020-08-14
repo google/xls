@@ -38,9 +38,55 @@ from xls.ir.python import value as ir_value
 
 class TranslatorTest(absltest.TestCase):
 
-  def parse_and_get_function(self, source, hls_types_by_name=None):
+  def test_combo_mux(self):
+    f = self.parse_and_get_function(
+        """
+        void test(bool a,
+             ac_channel<int> &in,
+             ac_channel<int> &out1,
+             ac_channel<int> &out2) {
+        const int inv = in.read();
+        if(a) {
+          out1.write(inv);
+        } else {
+          out2.write(inv);
+        }
+      }""", None, ["in"], ["out1", "out2"])
+
+    def v32(n):
+      return ir_value.Value(bits_mod.SBits(value=int(n), bit_count=32))
+
+    def v1(n):
+      return ir_value.Value(bits_mod.UBits(value=int(n), bit_count=1))
+
+    args = dict(
+        a=v1(0), in_z=v32(10), in_vz=v1(1), out1_vz=v1(1), out2_vz=v1(0))
+    result = ir_interpreter.run_function_kwargs(f, args)
+    self.assertEqual(str(result), "(0, 0, 0, 1, 10)")
+
+    args = dict(
+        a=v1(0), in_z=v32(10), in_vz=v1(1), out1_vz=v1(1), out2_vz=v1(1))
+    result = ir_interpreter.run_function_kwargs(f, args)
+    self.assertEqual(str(result), "(1, 0, 0, 1, 10)")
+
+    args = dict(
+        a=v1(1), in_z=v32(22), in_vz=v1(1), out1_vz=v1(1), out2_vz=v1(0))
+    result = ir_interpreter.run_function_kwargs(f, args)
+    self.assertEqual(str(result), "(1, 1, 22, 0, 0)")
+
+    args = dict(
+        a=v1(1), in_z=v32(22), in_vz=v1(0), out1_vz=v1(1), out2_vz=v1(0))
+    result = ir_interpreter.run_function_kwargs(f, args)
+    self.assertEqual(str(result), "(1, 0, 22, 0, 0)")
+
+  def parse_and_get_function(self,
+                             source,
+                             hls_types_by_name=None,
+                             channels_in=None,
+                             channels_out=None):
     hls_types_by_name = hls_types_by_name if hls_types_by_name else {}
-    translator = xlscc_translator.Translator("mypackage", hls_types_by_name)
+    translator = xlscc_translator.Translator("mypackage", hls_types_by_name,
+                                             channels_in, channels_out)
     my_parser = ext_c_parser.XLSccParser()
     my_parser.is_intrinsic_type = translator.is_intrinsic_type
     ast = my_parser.parse(source, "test_input")

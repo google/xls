@@ -30,6 +30,7 @@ class DfsVisitor {
 
   virtual absl::Status HandleAdd(BinOp* add) = 0;
   virtual absl::Status HandleAndReduce(BitwiseReductionOp* and_reduce) = 0;
+  virtual absl::Status HandleAfterAll(AfterAll* after_all) = 0;
   virtual absl::Status HandleArray(Array* array) = 0;
   virtual absl::Status HandleArrayIndex(ArrayIndex* index) = 0;
   virtual absl::Status HandleArrayUpdate(ArrayUpdate* update) = 0;
@@ -123,6 +124,7 @@ class DfsVisitorWithDefault : public DfsVisitor {
 
   absl::Status HandleAdd(BinOp* add) override;
   absl::Status HandleAndReduce(BitwiseReductionOp* and_reduce) override;
+  absl::Status HandleAfterAll(AfterAll* after_all) override;
   absl::Status HandleArray(Array* array) override;
   absl::Status HandleArrayIndex(ArrayIndex* index) override;
   absl::Status HandleArrayUpdate(ArrayUpdate* update) override;

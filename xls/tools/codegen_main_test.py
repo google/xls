@@ -43,7 +43,7 @@ class CodeGenMainTest(parameterized.TestCase):
     ir_file = self.create_tempfile(content=NOT_ADD_IR)
 
     signature_path = test_base.create_named_output_text_file(
-        'combinational_sig.pbtxt')
+        'combinational_sig.textproto')
     verilog_path = test_base.create_named_output_text_file('combinational.v')
 
     subprocess.check_call([
@@ -72,7 +72,7 @@ class CodeGenMainTest(parameterized.TestCase):
   @parameterized.parameters(range(1, 6))
   def test_fixed_pipeline_length(self, pipeline_stages):
     signature_path = test_base.create_named_output_text_file(
-        f'sha256.{pipeline_stages}_stage.sig.pbtxt')
+        f'sha256.{pipeline_stages}_stage.sig.textproto')
     verilog_path = test_base.create_named_output_text_file(
         f'sha256.{pipeline_stages}_stage.v')
     subprocess.check_call([

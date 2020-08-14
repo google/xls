@@ -48,6 +48,8 @@ std::string ValueKindToString(ValueKind kind) {
       return "tuple";
     case ValueKind::kArray:
       return "array";
+    case ValueKind::kToken:
+      return "token";
     default:
       return absl::StrCat("<invalid ValueKind(", static_cast<int>(kind), ")>");
   }
@@ -125,6 +127,8 @@ std::string Value::ToString(FormatPreference preference) const {
                           absl::StrAppend(out, element.ToString(preference));
                         }),
           "]");
+    case ValueKind::kToken:
+      return "token";
   }
   XLS_LOG(FATAL) << "Value has invalid kind: " << static_cast<int>(kind_);
 }
@@ -140,6 +144,7 @@ void Value::FlattenTo(BitPushBuffer* buffer) const {
         element.FlattenTo(buffer);
       }
       return;
+    case ValueKind::kToken:
     case ValueKind::kInvalid:
       break;
   }
@@ -183,6 +188,8 @@ std::string Value::ToHumanString(FormatPreference preference) const {
                                               out, v.ToHumanString(preference));
                                         }),
                           ")");
+    case ValueKind::kToken:
+      return "token";
   }
   XLS_LOG(FATAL) << "Invalid value kind: " << ValueKindToString(kind_);
 }
@@ -207,6 +214,8 @@ bool Value::SameTypeAs(const Value& other) const {
     case ValueKind::kArray: {
       return size() == other.size() && element(0).SameTypeAs(other.element(0));
     }
+    case ValueKind::kToken:
+      return true;
     case ValueKind::kInvalid:
       break;
   }
@@ -237,6 +246,9 @@ xabsl::StatusOr<TypeProto> Value::TypeAsProto() const {
                            elements().front().TypeAsProto());
       break;
     }
+    case ValueKind::kToken:
+      proto.set_type_enum(TypeProto::TOKEN);
+      break;
     case ValueKind::kInvalid:
       return absl::InternalError(absl::StrCat("Invalid value kind: ", kind()));
   }

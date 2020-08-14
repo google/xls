@@ -105,6 +105,16 @@ TEST_F(PackageTest, GetTupleTypes) {
               IsOkAndHolds(nested_tuple));
 }
 
+TEST_F(PackageTest, GetTokenType) {
+  Package p("my_package");
+
+  TokenType* my_token_type = p.GetTokenType();
+  EXPECT_TRUE(my_token_type->IsToken());
+  EXPECT_TRUE(p.IsOwnedType(my_token_type));
+  EXPECT_EQ(my_token_type, p.GetTokenType());
+  EXPECT_EQ("token", my_token_type->ToString());
+}
+
 TEST_F(PackageTest, IsDefinitelyEqualTo) {
   const char text1[] = R"(
 package package1

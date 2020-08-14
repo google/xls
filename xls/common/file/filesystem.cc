@@ -37,7 +37,7 @@ absl::Status ErrNoToStatusWithFilename(int errno_value,
                                        const std::filesystem::path& file_name) {
   xabsl::StatusBuilder builder = ErrnoToStatus(errno);
   builder << file_name.string();
-  return builder;
+  return std::move(builder);
 }
 
 // For use in reading serialized protos from files.
@@ -121,6 +121,20 @@ absl::Status RecursivelyCreateDir(const std::filesystem::path& path) {
   std::error_code ec;
   std::filesystem::create_directories(path, ec);
   return ErrorCodeToStatus(ec);
+}
+
+absl::Status RecursivelyDeletePath(const std::filesystem::path& path) {
+  std::error_code ec;
+  if (!std::filesystem::remove_all(path, ec)) {
+    return absl::NotFoundError("File or directory does not exist: " +
+                               path.string());
+  }
+
+  if (ec) {
+    return absl::InternalError(
+        absl::StrCat("Failed to recursively delete path ", path.c_str()));
+  }
+  return absl::OkStatus();
 }
 
 xabsl::StatusOr<std::string> GetFileContents(

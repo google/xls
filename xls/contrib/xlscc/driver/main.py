@@ -33,12 +33,25 @@ def main():
   parser.add_argument(
       "-T", "--types_proto", help="Parse types from protobuffer.", default=None)
   parser.add_argument(
-      "-D", "--define", help="Define a preprocessor symbol.", default=None)
+      "-D",
+      "--define",
+      help="Define a preprocessor symbol.",
+      action="append",
+      default=[])
   parser.add_argument(
-      "-N",
-      "--package_name",
-      help="Package name.",
-      default="test_package")
+      "--channel_in",
+      help="Define an input channel.",
+      action="append",
+      default=[])
+  parser.add_argument(
+      "--channel_out",
+      help="Define an output channel.",
+      action="append",
+      default=[])
+  parser.add_argument(
+      "-N", "--package_name", help="Package name.", default="test_package")
+  parser.add_argument(
+      "-W", "--wrapper", help="Generate a wrapper file at path.", default=None)
   args = parser.parse_args()
 
   hls_types_by_name = {}
@@ -59,13 +72,13 @@ def main():
       for named_type in hls_types.hls_types:
         hls_types_by_name[named_type.name] = named_type.hls_type
 
-  translator = xlscc_translator.Translator(args.package_name, hls_types_by_name)
+  translator = xlscc_translator.Translator(args.package_name, hls_types_by_name,
+                                           args.channel_in, args.channel_out)
 
   my_parser = ext_c_parser.XLSccParser()
   my_parser.is_intrinsic_type = translator.is_intrinsic_type
   defines = ["-DHLS_STATIC=static", "-D__SYNTHESIS__=1"]
-  if args.define:
-    defines += ["-D"+args.define]
+  defines += ["-D" + d for d in args.define]
   ast = pycparser.parse_file(
       args.cpp,
       use_cpp=True,
@@ -76,7 +89,6 @@ def main():
 
   with open(args.output_filename, "w") as text_file:
     text_file.write(translator.gen_ir().dump_ir())
-
 
 if __name__ == "__main__":
   main()

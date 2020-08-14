@@ -71,6 +71,13 @@ class QueryEngine {
   // Returns true if 'a' implies 'b'.
   virtual bool Implies(const BitLocation& a, const BitLocation& b) const = 0;
 
+  // If a particular value of 'node' (true or false for all bits)
+  // is implied when the bits in 'predicate_bit_values' have the given values,
+  // the implied value of 'node' is returned.
+  virtual absl::optional<Bits> ImpliedNodeValue(
+      absl::Span<const std::pair<BitLocation, bool>> predicate_bit_values,
+      Node* node) const = 0;
+
   // Returns true if 'a' equals 'b'
   virtual bool KnownEquals(const BitLocation& a,
                            const BitLocation& b) const = 0;

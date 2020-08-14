@@ -76,6 +76,11 @@ class PipelineOptions {
   PipelineOptions& flop_outputs(bool value);
   bool flop_outputs() const { return flop_outputs_; }
 
+  // If the output is tuple-typed, generate an output port for each element of
+  // the output tuple.
+  PipelineOptions& split_outputs(bool value);
+  bool split_outputs() const { return split_outputs_; }
+
  private:
   absl::optional<std::string> module_name_;
   absl::optional<ResetProto> reset_proto_;
@@ -83,6 +88,7 @@ class PipelineOptions {
   bool use_system_verilog_ = true;
   bool flop_inputs_ = true;
   bool flop_outputs_ = true;
+  bool split_outputs_ = false;
 };
 
 // Emits the given function as a verilog module which follows the given
@@ -91,15 +97,6 @@ class PipelineOptions {
 xabsl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     const PipelineSchedule& schedule, Function* func,
     const PipelineOptions& options = PipelineOptions());
-
-// Schedules and emits the entry function of given package and emits as a
-// pipelined verilog module. Uses standard delay estimator model (returned by
-// GetStandardDelayEstimator).
-xabsl::StatusOr<ModuleGeneratorResult> ScheduleAndGeneratePipelinedModule(
-    Package* package, int64 clock_period_ps,
-    absl::optional<ResetProto> reset_proto = absl::nullopt,
-    absl::optional<ValidProto> valid_proto = absl::nullopt,
-    absl::optional<absl::string_view> module_name = absl::nullopt);
 
 }  // namespace verilog
 }  // namespace xls

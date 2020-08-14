@@ -50,6 +50,8 @@ class Testbench {
   // die, we should fix that before evaluating for correctness (since any
   // changes might affect results).
   // All lambdas must be thread-safe.
+  // TODO(rspringer): Update Testbench & TestbenchThread to use the JIT
+  // wrappers once they're fully implemented.
   Testbench(std::string ir_path, std::string entry_function, uint64 start,
             uint64 end, uint64 max_failures,
             std::function<InputT(uint64)> index_to_input,

@@ -103,6 +103,65 @@ library (blah) {
   ASSERT_EQ(output_pin.function(), "i0|i1");
 }
 
+TEST(FunctionExtractorTest, HandlesStatetables) {
+  std::string lib = R"(
+library (blah) {
+  blah (blah) {
+  }
+  blah: "blahblahblah";
+  cell (cell_1) {
+    pin (i0) {
+      direction: input;
+    }
+    pin (i1) {
+      direction: input;
+    }
+    pin (o) {
+      direction: output;
+      function: "meow";
+    }
+    statetable ("i0 i1", "ham_sandwich") {
+     table: "L L : - : H, \
+             L H : T : X, \
+             H L : T : N, \
+             H H : - : H ";
+    }
+    pin (ham_sandwich) {
+      direction: internal;
+      internal_node: "ham_sandwich";
+    }
+  }
+}
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(auto stream, cell_lib::CharStream::FromText(lib));
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibraryProto proto, ExtractFunctions(&stream));
+
+  const CellLibraryEntryProto entry = proto.entries(0);
+  EXPECT_EQ(entry.name(), "cell_1");
+  ASSERT_TRUE(entry.has_state_table());
+  StateTableProto table = entry.state_table();
+  absl::flat_hash_set<std::string> input_names({"i0", "i1"});
+  for (const auto& input_name : table.input_names()) {
+    ASSERT_TRUE(input_names.contains(input_name));
+    input_names.erase(input_name);
+  }
+  ASSERT_EQ(table.internal_names(0), "ham_sandwich");
+
+  // Just validate a single row instead of going through all of them.
+  StateTableRow row = table.rows(2);
+  ASSERT_EQ(row.input_signals_size(), 2);
+  EXPECT_EQ(row.input_signals().at("i0"), STATE_TABLE_SIGNAL_HIGH);
+  EXPECT_EQ(row.input_signals().at("i1"), STATE_TABLE_SIGNAL_LOW);
+
+  ASSERT_EQ(row.internal_signals_size(), 1);
+  EXPECT_EQ(row.internal_signals().at("ham_sandwich"),
+            STATE_TABLE_SIGNAL_TOGGLE);
+
+  ASSERT_EQ(row.output_signals_size(), 1);
+  EXPECT_EQ(row.output_signals().at("ham_sandwich"),
+            STATE_TABLE_SIGNAL_NOCHANGE);
+}
+
 }  // namespace
 }  // namespace function
 }  // namespace netlist

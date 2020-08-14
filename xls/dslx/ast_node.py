@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """Core types for AST nodes.
 
 (Mostly broken out to reduce pytype checking time.)
@@ -46,8 +47,19 @@ class AstNode(metaclass=abc.ABCMeta):
   """
 
   def accept(self, visitor: AstVisitor) -> None:
+    """Visitor pattern: has this AST node accept the given visitor.
+
+    Calls 'visit_{classname}' on the visitor, if it is present, with the actual
+    type of this object used to determine the class name.
+
+    Args:
+      visitor: Visitor object being accepted.
+    """
     m = getattr(visitor, 'visit_{}'.format(self.__class__.__name__),
                 lambda x: None)
+    # If the visitor says "don't automatically traverse below this node" then
+    # we just visit the node itself, and don't call _accept_children on it to
+    # recurse below it.
     if getattr(m, 'no_auto_traverse', False):
       m(self)
     else:

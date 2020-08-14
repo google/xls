@@ -16,7 +16,8 @@
 
 """Helper routines dealing with bits (in arbitrary-width integers)."""
 
-from typing import Iterable, Text, Optional, Tuple
+from typing import Iterable, Text, Optional, Tuple, Dict, Union
+from xls.dslx.parametric_expression import ParametricExpression
 
 
 def to_zext_str(value: int, bit_count: int) -> Text:
@@ -180,9 +181,76 @@ def from_twos_complement(value: int, bit_count: int) -> int:
   return value
 
 
-def resolve_bit_slice_indices(bit_count: int, start: Optional[int],
-                              limit: Optional[int]) -> Tuple[int, int]:
+ResolvedBitSliceType = Tuple[Union[ParametricExpression, int],
+                             Union[ParametricExpression, int]]
+
+
+def _resolve_parametric_bit_slice_indices(
+    bit_count: ParametricExpression, start: Optional[int], limit: Optional[int],
+    bindings: Dict[Text, int]) -> ResolvedBitSliceType:
+  """Like resolve_bit_slice_indices(), but handles parametric bit_count."""
+
+  assert isinstance(bit_count, ParametricExpression), bit_count
+
+  # Since bit_count is parametric, we'll need bindings to resolve the
+  # ParametricExpression.
+  assert bindings, (f'Expected non-falsy bindings to use in evaluation, '
+                    f'got {bindings}.')
+
+  resolved_bit_count = bit_count.evaluate(bindings)
+  assert resolved_bit_count >= 0, resolved_bit_count
+
+  if start is None:
+    start = 0
+  if limit is None:
+    limit = bit_count
+
+  assert isinstance(start, int), start
+  resolved_start = start
+  # limit is either an int or we assigned it to bit_count (parametric) above.
+  resolved_limit = (
+      limit.evaluate(bindings)
+      if isinstance(limit, ParametricExpression) else limit)
+
+  if resolved_start < 0:
+    start += bit_count
+    resolved_start += resolved_bit_count
+
+  if resolved_limit < 0:
+    limit += bit_count
+    resolved_limit += resolved_bit_count
+
+  resolved_limit = min(max(resolved_limit, 0), resolved_bit_count)
+  if resolved_limit == resolved_bit_count:
+    limit = bit_count
+  elif resolved_limit == 0:
+    limit = 0
+
+  resolved_start = min(
+      max(resolved_start, 0), resolved_bit_count, resolved_limit)
+  if resolved_start == resolved_limit:
+    start = limit
+  elif resolved_start == resolved_bit_count:
+    start = bit_count
+  elif resolved_start == 0:
+    start = 0
+
+  assert resolved_start >= 0
+  assert resolved_limit >= resolved_start, (resolved_start, resolved_limit)
+  return (start, limit - start)
+
+
+def resolve_bit_slice_indices(
+    bit_count: Union[int, ParametricExpression],
+    start: Optional[int],
+    limit: Optional[int],
+    bindings: Optional[Dict[Text, int]] = None) -> ResolvedBitSliceType:
   """Returns (start, width), resolving indices via DSLX bit slice semantics."""
+
+  if isinstance(bit_count, ParametricExpression):
+    return _resolve_parametric_bit_slice_indices(bit_count, start, limit,
+                                                 bindings)
+
   assert bit_count >= 0, bit_count
   if start is None:
     start = 0

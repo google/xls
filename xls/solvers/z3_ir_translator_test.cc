@@ -30,6 +30,7 @@ namespace {
 using solvers::z3::IrTranslator;
 using solvers::z3::Predicate;
 using solvers::z3::TryProve;
+using status_testing::IsOkAndHolds;
 
 TEST(Z3IrTranslatorTest, ZeroIsZero) {
   Package p("test");
@@ -125,6 +126,58 @@ fn f(x: bits[4], y: bits[4], z: bits[4]) -> bits[1] {
   a: bits[12] = concat(x, y, z)
   b: bits[4] = bit_slice(a, start=4, width=4)
   ret c: bits[1] = eq(y, b)
+}
+)";
+  Package p("test");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, Parser::ParseFunction(program, &p));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven, TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+                            absl::Seconds(1)));
+  EXPECT_TRUE(proven);
+}
+
+TEST(Z3IrTranslatorTest, InBoundsDynamicSlice) {
+  const std::string program = R"(
+fn f(p: bits[4]) -> bits[1] {
+  start: bits[4] = literal(value=1)
+  dynamic_slice: bits[3] = dynamic_bit_slice(p, start, width=3)
+  slice: bits[3] = bit_slice(p, start=1, width=3)
+  ret result: bits[1] = eq(slice, dynamic_slice)
+}
+)";
+  Package p("test");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, Parser::ParseFunction(program, &p));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven, TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+                            absl::Seconds(1)));
+  EXPECT_TRUE(proven);
+}
+
+TEST(Z3IrTranslatorTest, PartialOutOfBoundsDynamicSlice) {
+  const std::string program = R"(
+fn f(p: bits[4]) -> bits[1] {
+  start: bits[4] = literal(value=2)
+  slice: bits[3] = dynamic_bit_slice(p, start, width=3)
+  out_of_bounds: bits[1] = bit_slice(slice, start=2, width=1)
+  zero: bits[1] = literal(value=0)
+  ret result: bits[1] = eq(out_of_bounds, zero)
+}
+)";
+  Package p("test");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, Parser::ParseFunction(program, &p));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven, TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+                            absl::Seconds(1)));
+  EXPECT_TRUE(proven);
+}
+
+TEST(Z3IrTranslatorTest, CompletelyOutOfBoundsDynamicSlice) {
+  const std::string program = R"(
+fn f(p: bits[4]) -> bits[1] {
+  start: bits[4] = literal(value=7)
+  slice: bits[3] = dynamic_bit_slice(p, start, width=3)
+  zero: bits[3] = literal(value=0)
+  ret result: bits[1] = eq(slice, zero)
 }
 )";
   Package p("test");
@@ -597,6 +650,149 @@ fn f() -> bits[4] {
       TryProve(f, f->return_value(), Predicate::EqualTo(to_compare),
                absl::Seconds(10)));
   EXPECT_TRUE(proven_eq);
+}
+
+TEST(Z3IrTranslatorTest, BasicAfterAllTokenTest) {
+  const std::string program = R"(
+package p
+
+fn f() -> bits[32] {
+  literal.1: bits[32] = literal(value=1)
+  after_all.10: token = after_all()
+  literal.2: bits[32] = literal(value=2)
+  after_all.11: token = after_all()
+  literal.3: bits[32] = literal(value=4)
+  after_all.12: token = after_all()
+  literal.4: bits[32] = literal(value=8)
+  after_all.13: token = after_all(after_all.10, after_all.11, after_all.12)
+  literal.5: bits[32] = literal(value=16)
+  array.6: bits[32][5] = array(literal.1, literal.2, literal.3, literal.4, literal.5)
+  ret array_index.7: bits[32] = array_index(array.6, literal.3)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+
+  // Check that non-token logic is not affected.
+  Node* eq_node;
+  for (Node* node : f->nodes()) {
+    if (node->ToString().find("literal.5") != std::string::npos) {
+      eq_node = node;
+      break;
+    }
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven_eq, TryProve(f, f->return_value(),
+                               Predicate::EqualTo(eq_node), absl::Seconds(10)));
+  EXPECT_TRUE(proven_eq);
+
+  std::vector<Node*> token_nodes;
+  for (Node* node : f->nodes()) {
+    if (node->GetType()->IsToken()) {
+      token_nodes.push_back(node);
+    }
+  }
+  assert(token_nodes.size() == 4);
+
+  for (int l_idx = 0; l_idx < token_nodes.size(); ++l_idx) {
+    for (int r_idx = l_idx + 1; r_idx < token_nodes.size(); ++r_idx) {
+      // All tokens are equal to each other.
+      XLS_ASSERT_OK_AND_ASSIGN(
+          bool proven_eq, TryProve(f, token_nodes.at(l_idx),
+                                   Predicate::EqualTo(token_nodes.at(r_idx)),
+                                   absl::Seconds(10)));
+      EXPECT_TRUE(proven_eq);
+    }
+    // Can't prove a token is 0 or non-zero because it is a non-bit type.
+    EXPECT_FALSE(TryProve(f, token_nodes.at(l_idx), Predicate::EqualToZero(),
+                          absl::Seconds(10))
+                     .status()
+                     .ok());
+    EXPECT_FALSE(TryProve(f, token_nodes.at(l_idx), Predicate::NotEqualToZero(),
+                          absl::Seconds(10))
+                     .status()
+                     .ok());
+  }
+}
+
+TEST(Z3IrTranslatorTest, TokensNotEqualToEmptyTuples) {
+  const std::string program = R"(
+package p
+
+fn f(empty_tuple: ()) -> bits[32] {
+  after_all.10: token = after_all()
+  ret literal.1: bits[32] = literal(value=1)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+
+  Node* token_node;
+  Node* tuple_node;
+  for (Node* node : f->nodes()) {
+    if (node->ToString().find("after_all") != std::string::npos) {
+      token_node = node;
+    }
+    if (node->ToString().find("empty_tuple") != std::string::npos) {
+      tuple_node = node;
+    }
+  }
+  // Even though we represent tokens as empty tuples as a convenient hack, we
+  // should not evaluate tokens == empty tuples.  Evaluation should fail becaue
+  // an empty tuple is not a bit type.
+  EXPECT_FALSE(
+      TryProve(f, token_node, Predicate::EqualTo(tuple_node), absl::Seconds(10))
+          .status()
+          .ok());
+  EXPECT_FALSE(
+      TryProve(f, tuple_node, Predicate::EqualTo(token_node), absl::Seconds(10))
+          .status()
+          .ok());
+}
+
+TEST(Z3IrTranslatorTest, TokenArgsAndReturn) {
+  const std::string program = R"(
+package p
+
+fn f(arr1: token, arr2: token, arr3: token) -> token {
+  ret after_all.1: token = after_all(arr1, arr2, arr3)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+
+  std::vector<Node*> token_nodes;
+  for (Node* node : f->nodes()) {
+    if (node->GetType()->IsToken()) {
+      token_nodes.push_back(node);
+    }
+  }
+  ASSERT_EQ(token_nodes.size(), 4);
+
+  for (int l_idx = 0; l_idx < token_nodes.size(); ++l_idx) {
+    for (int r_idx = l_idx + 1; r_idx < token_nodes.size(); ++r_idx) {
+      // All tokens are equal to each other.
+      ASSERT_THAT(TryProve(f, token_nodes.at(l_idx),
+                           Predicate::EqualTo(token_nodes.at(r_idx)),
+                           absl::Seconds(10)),
+                  IsOkAndHolds(true));
+    }
+    // Can't prove a token is 0 or non-zero because it is a non-bit type.
+    EXPECT_FALSE(TryProve(f, token_nodes.at(l_idx), Predicate::EqualToZero(),
+                          absl::Seconds(10))
+                     .status()
+                     .ok());
+    EXPECT_FALSE(TryProve(f, token_nodes.at(l_idx), Predicate::NotEqualToZero(),
+                          absl::Seconds(10))
+                     .status()
+                     .ok());
+  }
 }
 
 // Array test 1: Can we properly handle arrays of bits!

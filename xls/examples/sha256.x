@@ -1,3 +1,17 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #![cfg(let_terminator_is_semi = true)]
 
 import std
@@ -100,18 +114,10 @@ test compute_pad_bits {
 // trailing "stop" bit, padding out with zeros, and appending the length as a
 // 64-bit quantity such that the resulting number of bits is a multiple of 512.
 //
-// TODO(leary): 2019-03-06 Commenting this out to avoid working on the type
-// system handling symbolic dimensions for now, to make more forward progress
-// on end-to-end flow.
-//
-//fn [I: u32, P: u32 = compute_pad_bits(I+u32:65)] pad_to_512b_chunk(x: bits[I]) -> bits[I+u32:65+P] {
-//  let stop_bit: bits[1] = bits[1]:1;
-//  x ++ stop_bit ++ bits[P]:0 ++ bits[64]:I
-//}
-
-fn pad_to_512b_chunk(x: u24) -> bits[512] {
-  let stop_bit = u1:1;
-  x ++ stop_bit ++ bits[423]:0 ++ u64:24
+fn [I: u32, P: u32 = compute_pad_bits(I+u32:65),
+    R: u32 = I+u32:65+P] pad_to_512b_chunk(x: bits[I]) -> bits[R] {
+  let stop_bit: bits[1] = bits[1]:1;
+  x ++ stop_bit ++ bits[P]:0 ++ I as bits[64]
 }
 
 fn sha256(message: bits[512]) -> Digest {

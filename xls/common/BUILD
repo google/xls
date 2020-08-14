@@ -14,6 +14,8 @@
 
 # Common utilities shared among XLA subfolders.
 
+# pytype test and library
+
 package(
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0

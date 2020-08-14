@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# proto-file: third_party/xls/delay_model/delay_model.proto
+# proto-file: xls/delay_model/delay_model.proto
 # proto-message: xls.delay_model.DelayModel
 
 # Dummy "unit" model for testing. All operations have unit latency (1ps).
@@ -25,6 +25,7 @@ op_models { op: "kArray" estimator { fixed: 1 } }
 op_models { op: "kArrayIndex" estimator { fixed: 1 } }
 op_models { op: "kArrayUpdate" estimator { fixed: 1 } }
 op_models { op: "kBitSlice" estimator { fixed: 1 } }
+op_models { op: "kDynamicBitSlice" estimator { fixed: 1 } }
 op_models { op: "kConcat" estimator { fixed: 1 } }
 op_models { op: "kDecode" estimator { fixed: 1 } }
 op_models { op: "kEncode" estimator { fixed: 1 } }

@@ -26,6 +26,13 @@ dslx_test(
     convert_ir = False,
 )
 
+dslx_test(
+    name = "acm_random",
+    srcs = ["acm_random.x"],
+    # No meaningful entry point to convert.
+    convert_ir = False,
+)
+
 filegroup(
     name = "x_files",
     srcs = glob(["*.x"]),
