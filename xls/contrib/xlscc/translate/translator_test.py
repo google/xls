@@ -284,15 +284,16 @@ class TranslatorTest(absltest.TestCase):
         int z;
       } in;
       inner2 second;
-    };
+    } out;
     outerstruct check;
     check.x = a;
     check.y = b;
     check.in.z = b;
     check.second.p = 2;
-    return check.x + check.in.z + check.second.p;
+    out.x = 2;
+    return check.x + check.in.z + check.second.p + out.x;
     """
-    self.one_in_one_out(source, 1, 2, 5)
+    self.one_in_one_out(source, 1, 2, 7)
 
   def test_simple_switch(self):
     source = """

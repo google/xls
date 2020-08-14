@@ -528,9 +528,13 @@ class Translator(object):
     if isinstance(ast, c_ast.TypeDecl):
       ident = ast.type
       assert isinstance(ident, c_ast.IdentifierType) or isinstance(
-          ident, c_ast.TemplateInst)
+          ident, c_ast.TemplateInst) or isinstance(ident, c_ast.Struct)
       if isinstance(ident, c_ast.TemplateInst):
         ident = ident.expr
+      if isinstance(ident, c_ast.Struct):
+        ret_type= StructType(ident.name, ident, self)
+        self.hls_types_by_name_[ret_type.name] = ret_type
+        return ret_type
     elif isinstance(ast, c_ast.IdentifierType):
       ident = ast
     elif isinstance(ast, c_ast.ArrayDecl):
