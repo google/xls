@@ -167,7 +167,7 @@ class StructType(Type):
         if isinstance(field, c_ast.TypeDecl):
           if isinstance(field.type, c_ast.Struct):
             self.element_types[field.declname] = translator.parse_type(
-                                                     field.type)
+                field.type)
           else:
             self.element_types[field.declname] = translator.parse_type(field)
         elif isinstance(field, c_ast.ArrayDecl):
@@ -496,9 +496,9 @@ class Translator(object):
               const_val, const_type = parse_constant(val.value)
               enum_curr_val = int(const_val)
             const_expr = ir_value.Value(bits_mod.UBits(
-                                            value=enum_curr_val, 
-                                                bit_count=
-                                                    const_type.bit_width))
+                             value=enum_curr_val,
+                                 bit_count=
+                                     const_type.bit_width))
             self.global_decls_[val.name] = CVar(const_expr, const_type)
             enum_curr_val += 1
         else:
@@ -1683,7 +1683,7 @@ class Translator(object):
             case_condition = self.fb.add_eq(cond_expr, conv_case, case_loc)
             if case_falls_thru:
               case_condition = self.fb.add_or(fall_thru_cond,
-                                                case_condition, case_loc)
+                                              case_condition, case_loc)
               case_falls_thru = False
             else:
               fall_thru_cond = case_condition
@@ -1691,7 +1691,7 @@ class Translator(object):
               compound_condition = case_condition
             else:
               compound_condition = self.fb.add_and(condition, case_condition,
-                                                       case_loc)
+                                                   case_loc)
             ret_stmt = self.gen_ir_block_compound_or_single(
                 item.stmts, compound_condition, None, True)
             if not ret_stmt:
