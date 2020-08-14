@@ -1386,9 +1386,9 @@ class Interpreter(object):
     Returns:
       The value that results from DSL interpretation.
     """
-    has_child_node_to_type = expr and symbolic_bindings in expr.bindings_to_ntt
+    has_child_node_to_type = expr and symbolic_bindings in expr.types_mappings
     previous_node_to_type = self._node_to_type
-    invocation_node_to_type = (expr.bindings_to_ntt[symbolic_bindings]
+    invocation_node_to_type = (expr.types_mappings[symbolic_bindings]
                                if has_child_node_to_type
                                else self._node_to_type)
     self._node_to_type = invocation_node_to_type

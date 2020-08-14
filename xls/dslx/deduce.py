@@ -194,9 +194,6 @@ InterpCallbackType = Callable[[
     ast.Module, NodeToType, Dict[Text, int], Dict[Text, int], ast.Expr, ImportFn
 ], int]
 
-# Maps (module_name, parametric function node) to (node -> type)
-ParametricFnCache = Dict[ast.Function, Dict[ast.AstNode, ConcreteType]]
-
 # Type for stack of functions deduction is running on.
 # [(name, symbolic_bindings), ...]
 FnStack = List[Tuple[Text, Dict[Text, int]]]
@@ -215,9 +212,6 @@ class DeduceCtx:
       are not in this module.
     fn_stack: Keeps track of the function we're currently typechecking and the
       symbolic bindings we should be using.
-    parametric_fn_cache: Maps a parametric_fn to all the nodes that it is
-      dependent on. Used in typecheck.py to trick the typechecker into checking
-      the body of a parametric fn again (per instantiation).
   """
   node_to_type: NodeToType
   module: ast.Module
@@ -333,7 +327,7 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
     # We need to typecheck this function with respect to its own module.
     # Let's use typecheck._check_function_or_test_in_module() to do this
     # in case we run into more dependencies in that module
-    if symbolic_bindings in invocation.bindings_to_ntt:
+    if symbolic_bindings in invocation.types_mappings:
       return
 
     imported_module, imported_node_to_type = ctx.node_to_type.get_imported(
@@ -347,7 +341,7 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
 
     invocation_node_to_type = NodeToType(parent=ctx.node_to_type)
     invocation_node_to_type.update(imported_ctx.node_to_type)
-    invocation.bindings_to_ntt[symbolic_bindings] = invocation_node_to_type
+    invocation.types_mappings[symbolic_bindings] = invocation_node_to_type
     # ctx.node_to_type.parametric_fn_cache.update(
     #     imported_ctx.node_to_type.parametric_fn_cache)
   else:
@@ -358,17 +352,15 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
     ctx.fn_stack.append(
         (parametric_fn.name.identifier, dict(symbolic_bindings)))
 
+    if symbolic_bindings in invocation.types_mappings:
+      invocation.types_mappings[symbolic_bindings].update(ctx.node_to_type)
 
-    # print("bindings in inv: ", symbolic_bindings in invocation.bindings_to_ntt)
-    # print('f typechecked', parametric_fn in ctx.node_to_type)
-    if symbolic_bindings in invocation.bindings_to_ntt:
-      invocation.bindings_to_ntt[symbolic_bindings].update(ctx.node_to_type)
+    invocation_node_to_type = (
+        NodeToType(parent=ctx.node_to_type)
+        if symbolic_bindings not in invocation.types_mappings
+        else invocation.types_mappings[symbolic_bindings])
 
-    invocation_node_to_type = (NodeToType(parent=ctx.node_to_type)
-                               if symbolic_bindings not in invocation.bindings_to_ntt
-                               else invocation.bindings_to_ntt[symbolic_bindings])
-
-    invocation.bindings_to_ntt[symbolic_bindings] = invocation_node_to_type
+    invocation.types_mappings[symbolic_bindings] = invocation_node_to_type
     ctx.node_to_type = invocation_node_to_type
 
     # If the body of this function hasn't been typechecked, let's

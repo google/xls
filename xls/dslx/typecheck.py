@@ -198,7 +198,7 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
     # If the higher order function is parametric, we need to typecheck its body
     # with the symbolic bindings we just computed.
     if isinstance(map_fn_ref, ast.ModRef):
-      if symbolic_bindings in invocation.bindings_to_ntt:
+      if symbolic_bindings in invocation.types_mappings:
         return None
       invocation_imported_node_to_type = deduce.NodeToType(parent=imported_node_to_type)
       imported_ctx = deduce.DeduceCtx(invocation_imported_node_to_type, imported_module,
@@ -210,16 +210,16 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
 
       invocation_node_to_type = deduce.NodeToType(parent=ctx.node_to_type)
       invocation_node_to_type.update(imported_ctx.node_to_type)
-      invocation.bindings_to_ntt[symbolic_bindings] = invocation_node_to_type
+      invocation.types_mappings[symbolic_bindings] = invocation_node_to_type
     else:
       # If the higher-order parametric fn is in this module, let's try to push
       # it onto the typechecking stack
-      if symbolic_bindings in invocation.bindings_to_ntt:
+      if symbolic_bindings in invocation.types_mappings:
         return None
 
       ctx.fn_stack.append((map_fn_name, dict(symbolic_bindings)))
       invocation_node_to_type = deduce.NodeToType(parent=ctx.node_to_type)
-      invocation.bindings_to_ntt[symbolic_bindings] = invocation_node_to_type
+      invocation.types_mappings[symbolic_bindings] = invocation_node_to_type
       ctx.node_to_type = invocation_node_to_type
       return map_fn_ref.name_def
 
@@ -298,7 +298,6 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
     except deduce.TypeMissingError as e:
       while True:
         fn_name, _ = ctx.fn_stack[-1]
-        # print("got ", e.node)
         if (isinstance(e.node, ast.NameDef) and
             e.node.identifier in function_map):
           # If it's seen and not-done, we're recursing.
@@ -309,7 +308,6 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
           callee = function_map[e.node.identifier]
           assert isinstance(callee, ast.Function), callee
           seen[(e.node.identifier, False)] = (callee, True)
-          # stack.append(_make_record(callee, ctx, user=e.user))
           stack.append(
               _TypecheckStackRecord(callee.name.identifier,
                                     isinstance(callee, ast.Test),

@@ -123,8 +123,8 @@ def get_callees(func: Union[ast.Function, ast.Test], m: ast.Module,
 
       # Either use the global node_to_type or the child node_to_type
       # chained off of this invocation.
-      invocation_node_to_type = node.bindings_to_ntt.get(node_symbolic_bindings,
-                                                         node_to_type)
+      invocation_node_to_type = node.types_mappings.get(node_symbolic_bindings,
+                                                        node_to_type)
       callees.append(Callee(f, this_m, invocation_node_to_type,
                             node_symbolic_bindings))
 

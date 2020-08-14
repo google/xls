@@ -485,13 +485,19 @@ class Invocation(Expr):
     super(Invocation, self).__init__(span)
     self.callee = callee
     self.args = args
+
     # Note: this attribute is populated by type inference.
-    # Maps the (symbolic_bindings) of the function this
+    # Maps the symbolic_bindings of the function this
     # invocation is inside of to the resulting symbolic bindings
     # in the callee.
     self.symbolic_bindings = dict(
-    )  # type: Dict[Tuple[Text, int], parametric_instantiator.SymbolicBindings]
-    self.bindings_to_ntt = dict()
+    )  # type: Dict[parametric_instantiator.SymbolicBindings, parametric_instantiator.SymbolicBindings]
+
+    # Note: this attribute is populated by type inference.
+    # Maps the symbolic_bindings used in the callee to the node_to_type of the
+    # function body and any other dependencies.
+    self.types_mappings = dict(
+    )  # type: Dict[parametric_instantiator.SymbolicBindings, deduce.NodeToType]
 
   def __str__(self) -> Text:
     return '{}({})'.format(self.callee, self.format_args())
