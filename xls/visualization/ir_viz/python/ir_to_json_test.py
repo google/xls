@@ -14,13 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for xls.ir.visualization.python.ir_to_json."""
+"""Tests for xls.visualization.ir_viz.python.ir_to_json."""
 
 import json
 import sys
 
 from xls.common.python import init_xls
-from xls.ir.visualization.python import ir_to_json
+from xls.visualization.ir_viz.python import ir_to_json
 from absl.testing import absltest
 
 

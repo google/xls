@@ -517,7 +517,7 @@ class NodeChecker : public DfsVisitor {
           "bits.",
           ext->ToStringWithOperandTypes(), operand_bit_count, new_bit_count));
     }
-    return absl::OkStatus();
+    return ExpectHasBitsType(ext, new_bit_count);
   }
 
   // Verifies that the given node has the expected number of operands.

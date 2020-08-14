@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """Helper routines dealing with bits (in arbitrary-width integers)."""
 
 from typing import Iterable, Text, Optional, Tuple
@@ -220,3 +221,17 @@ def to_hex_string(value: int, width: int) -> Text:
     width: The width of the encoding to generate.
   """
   return '{:x}'.format(value & to_mask(width))
+
+
+def to_bits_string(value: int) -> str:
+  """Converts unsigned value to a bit string with _ separators every nibble."""
+  if value < 0:
+    raise ValueError(f'Value is not unsigned: {value!r}')
+  bits = bin(value)[2:]
+  rev = bits[::-1]
+  pieces = []
+  i = 0
+  while i < len(rev):
+    pieces.append(rev[i:i + 4])
+    i += 4
+  return '0b' + '_'.join(pieces)[::-1]

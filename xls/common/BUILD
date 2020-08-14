@@ -56,7 +56,6 @@ cc_library(
     hdrs = ["cleanup.h"],
     deps = [
         "@com_google_absl//absl/types:optional",
-    ],
 )
 
 cc_library(

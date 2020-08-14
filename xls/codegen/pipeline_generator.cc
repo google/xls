@@ -543,30 +543,5 @@ xabsl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
   return result;
 }
 
-xabsl::StatusOr<ModuleGeneratorResult> ScheduleAndGeneratePipelinedModule(
-    Package* package, int64 clock_period_ps,
-    absl::optional<ResetProto> reset_proto,
-    absl::optional<ValidProto> valid_proto,
-    absl::optional<absl::string_view> module_name) {
-  XLS_ASSIGN_OR_RETURN(Function * f, package->EntryFunction());
-  XLS_ASSIGN_OR_RETURN(
-      PipelineSchedule schedule,
-      PipelineSchedule::Run(
-          f, GetStandardDelayEstimator(),
-          SchedulingOptions().clock_period_ps(clock_period_ps)));
-  PipelineOptions options;
-  if (reset_proto.has_value()) {
-    options.reset(*reset_proto);
-  }
-  if (valid_proto.has_value()) {
-    options.valid_control(valid_proto->input_name(),
-                          valid_proto->output_name());
-  }
-  if (module_name.has_value()) {
-    options.module_name();
-  }
-  return ToPipelineModuleText(schedule, f, options);
-}
-
 }  // namespace verilog
 }  // namespace xls

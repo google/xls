@@ -16,11 +16,13 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3.h"
+#include "../z3/src/api/z3_api.h"
 
 namespace xls {
 namespace {
@@ -896,7 +898,7 @@ fn f() -> bits[32] {
 }
 
 // UpdateArray test 3: Array of Tuples
-TEST(Z3IrTranslatorTest, UpdateArrayOfTupless) {
+TEST(Z3IrTranslatorTest, UpdateArrayOfTuples) {
   const std::string program = R"(
 package p
 
@@ -949,7 +951,6 @@ fn f() -> bits[32] {
   assign_nodes(observe_str, observe_node);
 
   for (int idx = 0; idx < expect_node.size(); ++idx) {
-    printf("hello %d\n", idx);
     XLS_ASSERT_OK_AND_ASSIGN(
         bool proven_eq,
         TryProve(f, expect_node[idx], Predicate::EqualTo(observe_node[idx]),
@@ -959,7 +960,7 @@ fn f() -> bits[32] {
 }
 
 // UpdateArray test 4: Array of Tuples of Arrays
-TEST(Z3IrTranslatorTest, UpdateArrayOfTuplessOfArrays) {
+TEST(Z3IrTranslatorTest, UpdateArrayOfTuplesOfArrays) {
   const std::string program = R"(
 package p
 
@@ -1024,7 +1025,6 @@ fn f() -> bits[32] {
   assign_nodes(observe_str, observe_node);
 
   for (int idx = 0; idx < expect_node.size(); ++idx) {
-    printf("hello %d\n", idx);
     XLS_ASSERT_OK_AND_ASSIGN(
         bool proven_eq,
         TryProve(f, expect_node[idx], Predicate::EqualTo(observe_node[idx]),
@@ -1228,6 +1228,92 @@ fn f(selector: bits[2]) -> bits[4] {
   Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
   EXPECT_EQ(satisfiable, Z3_L_TRUE);
   Z3_solver_dec_ref(ctx, solver);
+}
+
+TEST(Z3IrTranslatorTest, HandlesUMul) {
+  const std::string tmpl = R"(
+package p
+
+fn f() -> bits[6] {
+  literal.1: bits[4] = literal(value=$0)
+  literal.2: bits[8] = literal(value=$1)
+  ret umul.3: bits[6] = umul(literal.1, literal.2)
+}
+)";
+
+  std::vector<std::pair<int, int>> test_cases({
+      {0x0, 0x5},
+      {0x1, 0x5},
+      {0xf, 0x4},
+      {0x3, 0x7f},
+      {0xf, 0xff},
+  });
+
+  for (std::pair<int, int> test_case : test_cases) {
+    std::string program =
+        absl::Substitute(tmpl, test_case.first, test_case.second);
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                             Parser::ParsePackage(program));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+    XLS_ASSERT_OK_AND_ASSIGN(auto translator,
+                             IrTranslator::CreateAndTranslate(f));
+    Z3_context ctx = translator->ctx();
+    Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
+    uint32 mask = 127;
+    Z3_ast expected =
+        Z3_mk_int(ctx, (test_case.first * test_case.second) & mask,
+                  Z3_mk_bv_sort(ctx, 6));
+    Z3_ast objective = Z3_mk_eq(ctx, translator->GetReturnNode(), expected);
+    Z3_solver_assert(ctx, solver, objective);
+    Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
+    EXPECT_EQ(satisfiable, Z3_L_TRUE);
+    Z3_solver_dec_ref(ctx, solver);
+  }
+}
+
+TEST(Z3IrTranslatorTest, HandlesSMul) {
+  const std::string tmpl = R"(
+package p
+
+fn f() -> bits[6] {
+  literal.1: bits[4] = literal(value=$0)
+  literal.2: bits[8] = literal(value=$1)
+  ret smul.3: bits[6] = smul(literal.1, literal.2)
+}
+)";
+
+  std::vector<std::pair<int, int>> test_cases({
+      {0, 5},
+      {1, 5},
+      {-1, 5},
+      {1, -5},
+      {-1, -5},
+      {6, -5},
+      {-5, 7},
+  });
+
+  for (std::pair<int, int> test_case : test_cases) {
+    std::string program =
+        absl::Substitute(tmpl, test_case.first, test_case.second);
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                             Parser::ParsePackage(program));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+    XLS_ASSERT_OK_AND_ASSIGN(auto translator,
+                             IrTranslator::CreateAndTranslate(f));
+    Z3_context ctx = translator->ctx();
+    Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
+    // To avoid boom in the last case (-35 requires 7 bits to represent), put
+    // everything in a 7-bit Bits and truncate by one.
+    Bits expected_bits = SBits(test_case.first * test_case.second, 7);
+    expected_bits = expected_bits.Slice(0, 6);
+    Z3_ast expected =
+        Z3_mk_int(ctx, expected_bits.ToInt64().value(), Z3_mk_bv_sort(ctx, 6));
+    Z3_ast objective = Z3_mk_eq(ctx, translator->GetReturnNode(), expected);
+    Z3_solver_assert(ctx, solver, objective);
+    Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
+    EXPECT_EQ(satisfiable, Z3_L_TRUE);
+    Z3_solver_dec_ref(ctx, solver);
+  }
 }
 
 }  // namespace

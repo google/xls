@@ -42,7 +42,7 @@ class Tag(enum_mod.Enum):
   FUNCTION = 'function'
 
 
-class Value(object):
+class Value:
   """Represents a value in the interpreter evaluation.
 
   The value type is capable of representing all expression evaluation results.

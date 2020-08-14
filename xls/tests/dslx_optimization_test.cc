@@ -73,6 +73,8 @@ fn main(i: u32) -> (bool, u32) {
   // tests here.
   EXPECT_FALSE(FunctionHasOp(entry, Op::kArrayIndex));
   EXPECT_FALSE(FunctionHasOp(entry, Op::kArrayUpdate));
+  EXPECT_FALSE(FunctionHasOp(entry, Op::kReverse));
+  EXPECT_FALSE(FunctionHasOp(entry, Op::kOr));
 }
 
 }  // namespace

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/ir/visualization/ir_to_json.h"
+#include "xls/visualization/ir_viz/ir_to_json.h"
 
 #include <memory>
 

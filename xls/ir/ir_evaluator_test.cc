@@ -2230,9 +2230,9 @@ absl::Status RunDynamicBitSliceTest(const IrEvaluatorTestParam& param,
   }
 
   absl::StrAppend(&start_bytes_str, absl::Hex(slice_start, absl::kZeroPad2));
-  std::string formatted_ir = absl::Substitute(
-      ir_text, slice_width, literal_width, bytes_str, start_width,
-      start_bytes_str);
+  std::string formatted_ir =
+      absl::Substitute(ir_text, slice_width, literal_width, bytes_str,
+                       start_width, start_bytes_str);
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(formatted_ir));
   XLS_ASSIGN_OR_RETURN(Function * function, package->EntryFunction());
 
@@ -2276,14 +2276,14 @@ absl::Status RunDynamicBitSliceTestLargeStart(const IrEvaluatorTestParam& param,
   }
 
   // Set start to be much larger than the operand.
-  for (int i = 0; i < CeilOfRatio(2*literal_width, static_cast<int64>(CHAR_BIT));
-       i++) {
+  for (int i = 0;
+       i < CeilOfRatio(2 * literal_width, static_cast<int64>(CHAR_BIT)); i++) {
     absl::StrAppend(&start_bytes_str, absl::Hex(255, absl::kZeroPad2));
     start_bytes.push_back(255);
   }
-  std::string formatted_ir = absl::Substitute(
-      ir_text, slice_width, literal_width, bytes_str, 2*literal_width,
-      start_bytes_str);
+  std::string formatted_ir =
+      absl::Substitute(ir_text, slice_width, literal_width, bytes_str,
+                       2 * literal_width, start_bytes_str);
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(formatted_ir));
   XLS_ASSIGN_OR_RETURN(Function * function, package->EntryFunction());
 

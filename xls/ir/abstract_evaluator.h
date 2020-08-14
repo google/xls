@@ -276,6 +276,65 @@ class AbstractEvaluator {
     return Vector({result});
   }
 
+  Vector Add(const Vector& a, const Vector& b) {
+    Vector result(a.size());
+    Element carry = Zero();
+    for (int i = 0; i < a.size(); i++) {
+      Element a_i = a[i];
+      Element b_i = b[i];
+      Element not_a_i = Not(a[i]);
+      Element not_b_i = Not(b[i]);
+      Element not_carry = Not(carry);
+
+      Vector bit_cases({
+          And(not_a_i, And(not_b_i, carry)),
+          And(not_a_i, And(b_i, not_carry)),
+          And(a_i, And(not_b_i, not_carry)),
+          And(a_i, And(b_i, carry)),
+      });
+      result[i] = OrReduce(bit_cases)[0];
+
+      Vector carry_cases({
+          And(not_a_i, And(b_i, carry)),
+          And(a_i, And(not_b_i, carry)),
+          And(a_i, And(b_i, not_carry)),
+          And(a_i, And(b_i, carry)),
+      });
+      carry = OrReduce(carry_cases)[0];
+    }
+    return result;
+  }
+
+  // Signed multiplication of two Vectors.
+  // Returns a Vector of a.size() + b.size().
+  // Note: This is an inefficient implementation, but is adequate for immediate
+  // needs. Algorithm is listed as "No Thinking Method" on
+  // http://pages.cs.wisc.edu/~david/courses/cs354/beyond354/int.mult.html
+  // (by Karen Miller).
+  // This will be optimized in the future.
+  Vector SMul(const Vector& a, const Vector& b) {
+    int max = std::max(a.size(), b.size());
+    Vector temp_a = SignExtend(a, max * 2);
+    Vector temp_b = SignExtend(b, max * 2);
+    Vector result = UMul(temp_a, temp_b);
+    return BitSlice(result, 0, a.size() + b.size());
+  }
+
+  // Unsigned multiplication of two Vectors.
+  // Returns a Vector of a.size() + b.size().
+  Vector UMul(const Vector& a, const Vector& b) {
+    Vector result(a.size() + b.size(), Zero());
+    Element one = One();
+    Vector zero_vector(a.size() + b.size(), Zero());
+    Vector temp_b = ZeroExtend(b, result.size());
+    for (const Element& e_a : a) {
+      Vector addend = Select({e_a}, {zero_vector, temp_b});
+      result = Add(result, addend);
+      temp_b = ShiftLeftLogical(temp_b, {one});
+    }
+    return BitSlice(result, 0, a.size() + b.size());
+  }
+
  private:
   // Performs an N-ary logical operation on the given inputs. The operation is
   // defined by the given function.

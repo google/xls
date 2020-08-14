@@ -23,6 +23,7 @@
 #include "xls/netlist/function_parser.h"
 #include "xls/netlist/netlist.h"
 #include "xls/solvers/z3_propagate_updates.h"
+#include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3_api.h"
 
 namespace xls {
@@ -47,7 +48,7 @@ NetlistTranslator::CreateAndTranslate(
 }
 
 xabsl::StatusOr<Z3_ast> NetlistTranslator::GetTranslation(NetRef ref) {
-  XLS_RET_CHECK(translated_.contains(ref));
+  XLS_RET_CHECK(translated_.contains(ref)) << ref->name();
   return translated_.at(ref);
 }
 
@@ -111,8 +112,8 @@ absl::Status NetlistTranslator::RebindInputNets(
   std::vector<UpdatedNode<NetRef>> updated_refs;
   for (const auto& input : inputs) {
     XLS_ASSIGN_OR_RETURN(NetRef ref, module_->ResolveNet(input.first));
-    Z3_ast new_ast = input.second;
     Z3_ast old_ast = translated_[ref];
+    Z3_ast new_ast = input.second;
     updated_refs.push_back({ref, old_ast, new_ast});
     translated_[ref] = new_ast;
   }
@@ -155,6 +156,27 @@ absl::Status NetlistTranslator::RebindInputNets(
                               updated_refs);
 
   return absl::OkStatus();
+}
+
+absl::Status NetlistTranslator::Retranslate(
+    const absl::flat_hash_map<std::string, Z3_ast>& new_inputs) {
+  translated_.clear();
+  for (const auto& pair : new_inputs) {
+    XLS_ASSIGN_OR_RETURN(const NetRef ref, module_->ResolveNet(pair.first));
+    translated_[ref] = pair.second;
+  }
+  Z3_sort bit_sort = Z3_mk_bv_sort(ctx_, 1);
+  auto status_or_clk = module_->ResolveNet("clk");
+  if (status_or_clk.ok()) {
+    translated_[status_or_clk.value()] = Z3_mk_int(ctx_, 1, bit_sort);
+  }
+  auto status_or_input_valid = module_->ResolveNet("input_valid");
+  if (status_or_input_valid.ok()) {
+    translated_[status_or_input_valid.value()] = Z3_mk_int(ctx_, 1, bit_sort);
+  }
+  translated_[module_->ResolveNumber(0).value()] = Z3_mk_int(ctx_, 0, bit_sort);
+  translated_[module_->ResolveNumber(1).value()] = Z3_mk_int(ctx_, 1, bit_sort);
+  return Translate();
 }
 
 // General idea: construct an AST by iterating over all the Cells in the module.
@@ -227,19 +249,6 @@ absl::Status NetlistTranslator::Translate() {
     }
   }
 
-  // Sanity check that we've processed all cells (i.e., that there aren't
-  // unsatisfiable cells).
-  for (const auto& cell : module_->cells()) {
-    for (const auto& output : cell->outputs()) {
-      if (!translated_.contains(output.netref)) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Netlist contains unconnected subgraphs and cannot be translated. "
-            "Example: cell %s, output %s.",
-            cell->name(), output.netref->name()));
-      }
-    }
-  }
-
   return absl::Status();
 }
 
@@ -267,7 +276,14 @@ absl::Status NetlistTranslator::TranslateCell(const Cell& cell) {
                            subtranslator->GetTranslation(module_output));
       for (const auto& cell_output : cell.outputs()) {
         if (cell_output.pin.name == module_output->name()) {
-          translated_[cell_output.netref] = translation;
+          if (translated_.contains(cell_output.netref)) {
+            // TODO REMOVE
+            XLS_LOG(INFO) << "Skipping translation of "
+                          << cell_output.netref->name()
+                          << "; already translated.";
+          } else {
+            translated_[cell_output.netref] = translation;
+          }
           break;
         }
       }
@@ -346,6 +362,62 @@ xabsl::StatusOr<Z3_ast> NetlistTranslator::TranslateFunction(
     default:
       return absl::InvalidArgumentError(absl::StrFormat(
           "Unknown AST kind: %d", static_cast<int>(ast.kind())));
+  }
+}
+
+NetlistTranslator::ValueCone NetlistTranslator::GetValueCone(
+    NetRef ref, const absl::flat_hash_set<Z3_ast>& terminals) {
+  // Could also check for strings?
+  if (terminals.contains(translated_[ref])) {
+    return {translated_[ref], ref, {}};
+  }
+
+  const Cell* parent_cell = nullptr;
+  for (const Cell* cell : ref->connected_cells()) {
+    for (const auto& output : cell->outputs()) {
+      if (output.netref == ref) {
+        parent_cell = cell;
+        break;
+      }
+    }
+    if (parent_cell != nullptr) {
+      break;
+    }
+  }
+
+  ValueCone value_cone;
+  value_cone.node = translated_[ref];
+  value_cone.ref = ref;
+  value_cone.parent_cell = parent_cell;
+  XLS_CHECK(parent_cell != nullptr) << ref->name() << " has no parent?!";
+  for (const auto& input : parent_cell->inputs()) {
+    // Ick
+    if (input.netref->name() == "input_valid" ||
+        input.netref->name() == "clk" ||
+        input.netref->name() == "<constant_0>" ||
+        input.netref->name() == "<constant_1>") {
+      continue;
+    }
+
+    value_cone.parents.push_back(GetValueCone(input.netref, terminals));
+  }
+
+  return value_cone;
+}
+
+void NetlistTranslator::PrintValueCone(const ValueCone& value_cone,
+                                       Z3_model model, int level) {
+  std::string prefix(level * 2, ' ');
+  std::cerr << prefix << value_cone.ref->name() << ": " << std::endl;
+  std::cerr << prefix << "Parent: "
+            << (value_cone.parent_cell == nullptr
+                    ? "<null>"
+                    : value_cone.parent_cell->name())
+            << std::endl;
+  std::cerr << prefix << QueryNode(ctx_, model, value_cone.node, true)
+            << std::endl;
+  for (const NetlistTranslator::ValueCone& parent : value_cone.parents) {
+    PrintValueCone(parent, model, level + 1);
   }
 }
 

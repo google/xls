@@ -36,12 +36,15 @@ xls_pybind_extension(
         "//xls/ir/python:package",  # build_cleaner: keep
     ],
     deps = [
+        "//xls/common/python:absl_casters",
         "//xls/codegen:module_signature",
         "//xls/codegen:pipeline_generator",
         "//xls/common/status:statusor",
         "//xls/common/status:statusor_pybind_caster",
+        "//xls/delay_model:delay_estimators",
         "//xls/ir",
         "//xls/ir/python:wrapper_types",
+        "//xls/scheduling:pipeline_schedule",
     ],
 )
 
@@ -53,7 +56,6 @@ py_test(
         ":pipeline_generator",
         "@com_google_absl_py//absl/testing:absltest",
         "//xls/common/python:init_xls",
-        "//xls/ir/python:bits",
         "//xls/ir/python:function_builder",
         "//xls/ir/python:package",
     ],

@@ -694,6 +694,94 @@ TEST_P(CombinationalGeneratorTest, BuildComplicatedType) {
               IsOkAndHolds(Value(UBits(42, 8))));
 }
 
+TEST_P(CombinationalGeneratorTest, ArrayShapedSel) {
+  VerilogFile file;
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  BValue p = fb.Param("p", package.GetBitsType(8));
+  BValue x = fb.Param("x", package.GetArrayType(3, package.GetBitsType(8)));
+  BValue y = fb.Param("y", package.GetArrayType(3, package.GetBitsType(8)));
+  BValue z = fb.Param("z", package.GetArrayType(3, package.GetBitsType(8)));
+  BValue d = fb.Param("d", package.GetArrayType(3, package.GetBitsType(8)));
+  fb.Select(p, {x, y, z}, /*default_value=*/d);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           ToCombinationalModuleText(f, UseSystemVerilog()));
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value x_in,
+      Parser::ParseTypedValue("[bits[8]:0xa, bits[8]:0xb, bits[8]:0xc]"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value y_in,
+      Parser::ParseTypedValue("[bits[8]:0x1, bits[8]:0x2, bits[8]:0x3]"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value z_in,
+      Parser::ParseTypedValue("[bits[8]:0x4, bits[8]:0x5, bits[8]:0x6]"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value d_in,
+      Parser::ParseTypedValue("[bits[8]:0x7, bits[8]:0x8, bits[8]:0x9]"));
+  EXPECT_THAT(simulator.Run({{"p", Value(UBits(0, 8))},
+                             {"x", x_in},
+                             {"y", y_in},
+                             {"z", z_in},
+                             {"d", d_in}}),
+              IsOkAndHolds(x_in));
+  EXPECT_THAT(simulator.Run({{"p", Value(UBits(1, 8))},
+                             {"x", x_in},
+                             {"y", y_in},
+                             {"z", z_in},
+                             {"d", d_in}}),
+              IsOkAndHolds(y_in));
+  EXPECT_THAT(simulator.Run({{"p", Value(UBits(2, 8))},
+                             {"x", x_in},
+                             {"y", y_in},
+                             {"z", z_in},
+                             {"d", d_in}}),
+              IsOkAndHolds(z_in));
+  EXPECT_THAT(simulator.Run({{"p", Value(UBits(3, 8))},
+                             {"x", x_in},
+                             {"y", y_in},
+                             {"z", z_in},
+                             {"d", d_in}}),
+              IsOkAndHolds(d_in));
+  EXPECT_THAT(simulator.Run({{"p", Value(UBits(100, 8))},
+                             {"x", x_in},
+                             {"y", y_in},
+                             {"z", z_in},
+                             {"d", d_in}}),
+              IsOkAndHolds(d_in));
+}
+
+TEST_P(CombinationalGeneratorTest, ArrayShapedSelNoDefault) {
+  VerilogFile file;
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  BValue p = fb.Param("p", package.GetBitsType(1));
+  BValue x = fb.Param("x", package.GetArrayType(3, package.GetBitsType(8)));
+  BValue y = fb.Param("y", package.GetArrayType(3, package.GetBitsType(8)));
+  fb.Select(p, {x, y});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           ToCombinationalModuleText(f, UseSystemVerilog()));
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value x_in,
+      Parser::ParseTypedValue("[bits[8]:0xa, bits[8]:0xb, bits[8]:0xc]"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value y_in,
+      Parser::ParseTypedValue("[bits[8]:0x1, bits[8]:0x2, bits[8]:0x3]"));
+  EXPECT_THAT(
+      simulator.Run({{"p", Value(UBits(0, 1))}, {"x", x_in}, {"y", y_in}}),
+      IsOkAndHolds(x_in));
+  EXPECT_THAT(
+      simulator.Run({{"p", Value(UBits(1, 1))}, {"x", x_in}, {"y", y_in}}),
+      IsOkAndHolds(y_in));
+}
+
 INSTANTIATE_TEST_SUITE_P(CombinationalGeneratorTestInstantiation,
                          CombinationalGeneratorTest,
                          testing::ValuesIn(kDefaultSimulationTargets),

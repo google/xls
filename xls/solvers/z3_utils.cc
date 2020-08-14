@@ -23,6 +23,7 @@
 #include "absl/strings/string_view.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 #include "../z3/src/api/z3_api.h"
 #include "re2/re2.h"
 
@@ -136,6 +137,20 @@ std::string HexifyOutput(const std::string& input) {
   }
 
   return text;
+}
+
+std::string BitVectorToString(Z3_context ctx,
+                              const std::vector<Z3_ast>& z3_bits,
+                              Z3_model model) {
+  constexpr const char kZ3One[] = "#x1";
+  BitsRope rope(z3_bits.size());
+
+  for (int i = 0; i < z3_bits.size(); i++) {
+    rope.push_back(QueryNode(ctx, model, z3_bits.at(i)) == kZ3One);
+  }
+  Bits bits = bits_ops::Reverse(rope.Build());
+  return absl::StrCat("0b", bits.ToRawDigits(FormatPreference::kBinary,
+                                             /*emit_leading_zeros=*/true));
 }
 
 Z3_sort TypeToSort(Z3_context ctx, const Type& type) {

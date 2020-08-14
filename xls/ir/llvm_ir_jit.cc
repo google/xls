@@ -237,22 +237,25 @@ class BuilderVisitor : public DfsVisitorWithDefault {
     llvm::Value* value_ext = builder_->CreateZExt(value, max_width_type);
     llvm::Value* start_ext = builder_->CreateZExt(start, max_width_type);
 
-    Value operand_width(
-        UBits(value_width, max_width));
+    Value operand_width(UBits(value_width, max_width));
     XLS_ASSIGN_OR_RETURN(
         llvm::Constant * bit_width,
         type_converter_->ToLlvmConstant(max_width_type, operand_width));
 
     // "out_of_bounds" indicates whether slice is completely out of bounds
     llvm::Value* out_of_bounds = builder_->CreateICmpUGE(start_ext, bit_width);
-    llvm::IntegerType* return_type = llvm::IntegerType::get(*context_, dynamic_bit_slice->width());
+    llvm::IntegerType* return_type =
+        llvm::IntegerType::get(*context_, dynamic_bit_slice->width());
     XLS_ASSIGN_OR_RETURN(
         llvm::Constant * zeros,
-        type_converter_->ToLlvmConstant(return_type, Value(Bits(dynamic_bit_slice->width()))));
+        type_converter_->ToLlvmConstant(
+            return_type, Value(Bits(dynamic_bit_slice->width()))));
     // Then shift and truncate the input value.
     llvm::Value* shifted_value = builder_->CreateLShr(value_ext, start_ext);
-    llvm::Value* truncated_value = builder_->CreateTrunc(shifted_value, return_type);
-    llvm::Value* result = builder_->CreateSelect(out_of_bounds, zeros, truncated_value);
+    llvm::Value* truncated_value =
+        builder_->CreateTrunc(shifted_value, return_type);
+    llvm::Value* result =
+        builder_->CreateSelect(out_of_bounds, zeros, truncated_value);
     return StoreResult(dynamic_bit_slice, result);
   }
 

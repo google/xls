@@ -772,6 +772,23 @@ TEST(VastTest, IndexScalarReg) {
 endmodule)");
 }
 
+TEST(VastTest, SliceScalarReg) {
+  VerilogFile f;
+  Module* module = f.Make<Module>("my_module", &f);
+  LogicRef* o_ref = module->AddPort(Direction::kOutput, "o", 1);
+  LogicRef* r = module->AddReg("r", 1, 1);
+  Slice* i = f.Slice(r, f.PlainLiteral(0), f.PlainLiteral(0));
+  module->Add<ContinuousAssignment>(o_ref, i);
+
+  EXPECT_EQ(module->Emit(),
+            R"(module my_module(
+  output wire o
+);
+  reg r = 1'h1;
+  assign o = r;
+endmodule)");
+}
+
 TEST(VastTest, ModuleSections) {
   VerilogFile f;
   Module* module = f.Make<Module>("my_module", &f);
