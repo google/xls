@@ -169,6 +169,9 @@ class StructType(Type):
             self.element_types[field.declname] = translator.parse_type(field.type)
           else:
             self.element_types[field.declname] = translator.parse_type(field)
+        elif isinstance(field, c_ast.ArrayDecl):
+            array_name = field.type.declname
+            self.element_types[array_name] = translator.parse_type(field)
         elif isinstance(field, c_ast.Struct):
           self.element_types[field.name] = translator.parse_type(field)
         else:
@@ -1510,8 +1513,9 @@ class Translator(object):
         break  # Ignore the rest of the block
       elif isinstance(stmt, c_ast.Decl):
         if stmt.name is None:
-          # Structs declared without object_names after saved as None type declaration
-          stmt.name = stmt.type.name + "decl"
+          # parse type but don't create cvar
+          decl_type = self.parse_type(stmt.type)
+          continue
         if stmt.name in self.cvars:
           raise ValueError("Variable '", stmt.name,
                            "' already declared in this scope")
