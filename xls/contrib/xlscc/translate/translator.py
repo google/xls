@@ -496,9 +496,9 @@ class Translator(object):
               const_val, const_type = parse_constant(val.value)
               enum_curr_val = int(const_val)
             const_expr = ir_value.Value(bits_mod.UBits(
-                             value=enum_curr_val,
-                                 bit_count=
-                                     const_type.bit_width))
+                value=enum_curr_val,
+                bit_count=
+                const_type.bit_width))
             self.global_decls_[val.name] = CVar(const_expr, const_type)
             enum_curr_val += 1
         else:
