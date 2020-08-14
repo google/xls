@@ -1010,7 +1010,7 @@ class Translator(object):
                                              int(offset_expr.value),
                                              width,
                                              loc)
-            else :
+            else:
               offset_val, offset_type = self.gen_expr_ir(offset_expr, condition)
               assert isinstance(offset_type, IntType)
               ret_fb = self.fb.add_dynamic_bit_slice(left_fb, offset_val, width, loc)
