@@ -16,6 +16,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/codegen/flattening.h"
 #include "xls/common/status/matchers.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/function_builder.h"
@@ -1043,6 +1044,110 @@ TEST_P(PipelineGeneratorTest, AddNegateFlopNeitherInputsNorOutputs) {
   EXPECT_THAT(simulator.RunAndReturnSingleOutput(
                   {{"x", UBits(123, 8)}, {"y", UBits(42, 8)}}),
               IsOkAndHolds(UBits(91, 8)));
+}
+
+TEST_P(PipelineGeneratorTest, SplitOutputs) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  auto x = fb.Param("x", package.GetBitsType(8));
+  auto y = fb.Param("y", package.GetBitsType(8));
+  fb.Tuple({x, y, fb.Add(x, y)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(func, TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(2)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleGeneratorResult result,
+      ToPipelineModuleText(schedule, func,
+                           PipelineOptions()
+                               .use_system_verilog(UseSystemVerilog())
+                               .split_outputs(true)));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+  EXPECT_EQ(result.signature.proto().pipeline().latency(), 3);
+  EXPECT_EQ(result.signature.data_outputs().size(), 3);
+  EXPECT_EQ(result.signature.data_outputs()[0].name(), "out_0");
+  EXPECT_EQ(result.signature.data_outputs()[1].name(), "out_1");
+  EXPECT_EQ(result.signature.data_outputs()[2].name(), "out_2");
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleSimulator::BitsMap bits_map,
+      simulator.Run({{"x", UBits(123, 8)}, {"y", UBits(42, 8)}}));
+  EXPECT_EQ(bits_map.size(), 3);
+  EXPECT_EQ(bits_map.at("out_0"), UBits(123, 8));
+  EXPECT_EQ(bits_map.at("out_1"), UBits(42, 8));
+  EXPECT_EQ(bits_map.at("out_2"), UBits(165, 8));
+}
+
+TEST_P(PipelineGeneratorTest, SplitTupleParamOutputs) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  fb.Param("x", package.GetTupleType(
+      {package.GetBitsType(8), package.GetBitsType(8)}));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(func, TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(2)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleGeneratorResult result,
+      ToPipelineModuleText(schedule, func,
+                           PipelineOptions()
+                               .use_system_verilog(UseSystemVerilog())
+                               .split_outputs(true)));
+
+  EXPECT_EQ(result.signature.data_outputs().size(), 2);
+  EXPECT_EQ(result.signature.data_outputs()[0].name(), "out_0");
+  EXPECT_EQ(result.signature.data_outputs()[1].name(), "out_1");
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  Value input = Value::Tuple({Value(UBits(123, 8)), Value(UBits(42, 8))});
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSimulator::BitsMap bits_map,
+                           simulator.Run({{"x", FlattenValueToBits(input)}}));
+  EXPECT_EQ(bits_map.size(), 2);
+  EXPECT_EQ(bits_map.at("out_0"), UBits(123, 8));
+  EXPECT_EQ(bits_map.at("out_1"), UBits(42, 8));
+}
+
+TEST_P(PipelineGeneratorTest, SplitOutputsNotTupleTyped) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  auto x = fb.Param("x", package.GetBitsType(8));
+  auto y = fb.Param("y", package.GetBitsType(8));
+  fb.Add(x, y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(func, TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(2)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleGeneratorResult result,
+      ToPipelineModuleText(schedule, func,
+                           PipelineOptions()
+                               .use_system_verilog(UseSystemVerilog())
+                               .split_outputs(true)));
+
+  EXPECT_EQ(result.signature.data_outputs().size(), 1);
+  EXPECT_EQ(result.signature.data_outputs()[0].name(), "out");
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleSimulator::BitsMap bits_map,
+      simulator.Run({{"x", UBits(123, 8)}, {"y", UBits(42, 8)}}));
+  EXPECT_EQ(bits_map.size(), 1);
+  EXPECT_EQ(bits_map.at("out"), UBits(165, 8));
 }
 
 INSTANTIATE_TEST_SUITE_P(PipelineGeneratorTestInstantiation,

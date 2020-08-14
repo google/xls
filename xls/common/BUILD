@@ -14,7 +14,6 @@
 
 # Common utilities shared among XLA subfolders.
 
-
 # pytype test and library
 
 package(

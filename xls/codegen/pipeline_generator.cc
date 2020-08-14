@@ -97,6 +97,11 @@ PipelineOptions& PipelineOptions::flop_outputs(bool value) {
   return *this;
 }
 
+PipelineOptions& PipelineOptions::split_outputs(bool value) {
+  split_outputs_ = value;
+  return *this;
+}
+
 namespace {
 
 // Class for constructing a pipeline. An abstraction containing the various
@@ -380,9 +385,25 @@ class PipelineGenerator {
 
     // Assign the output wire to the pipeline-registered output value.
     if (func_->return_value()->GetType()->GetFlatBitCount() > 0) {
-      XLS_RETURN_IF_ERROR(
-          mb_.AddOutputPort("out", func_->return_value()->GetType(),
-                            node_expressions.at(func_->return_value())));
+      if (options_.split_outputs() &&
+          func_->return_value()->GetType()->IsTuple()) {
+        TupleType* output_type =
+            func_->return_value()->GetType()->AsTupleOrDie();
+        for (int64 i = 0; i < output_type->size(); ++i) {
+          int64 start = GetFlatBitIndexOfElement(output_type, i);
+          int64 width = output_type->element_type(i)->GetFlatBitCount();
+          XLS_RETURN_IF_ERROR(mb_.AddOutputPort(
+              absl::StrFormat("out_%d", i), output_type->element_type(i),
+              mb_.module()->parent()->Slice(
+                  node_expressions.at(func_->return_value())
+                      ->AsIndexableExpressionOrDie(),
+                  start + width - 1, start)));
+        }
+      } else {
+        XLS_RETURN_IF_ERROR(
+            mb_.AddOutputPort("out", func_->return_value()->GetType(),
+                              node_expressions.at(func_->return_value())));
+      }
     }
 
     std::string text = file_->Emit();
@@ -399,8 +420,18 @@ class PipelineGenerator {
       sig_builder.AddDataInput(param->name(),
                                param->GetType()->GetFlatBitCount());
     }
-    sig_builder.AddDataOutput(
-        "out", func_->return_value()->GetType()->GetFlatBitCount());
+    if (options_.split_outputs() &&
+        func_->return_value()->GetType()->IsTuple()) {
+      TupleType* output_type = func_->return_value()->GetType()->AsTupleOrDie();
+      for (int64 i = 0; i < output_type->size(); ++i) {
+        sig_builder.AddDataOutput(
+            absl::StrFormat("out_%d", i),
+            output_type->element_type(i)->GetFlatBitCount());
+      }
+    } else {
+      sig_builder.AddDataOutput(
+          "out", func_->return_value()->GetType()->GetFlatBitCount());
+    }
     sig_builder.WithFunctionType(func_->GetType());
     sig_builder.WithPipelineInterface(
         /*latency=*/latency,

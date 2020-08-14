@@ -16,6 +16,7 @@
 
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/type.h"
 
 namespace xls {
 namespace {
@@ -40,6 +41,8 @@ Value ValueOfType(Type* type,
       }
       return Value::Array(elements).value();
     }
+    case TypeKind::kToken:
+      break;
   }
   XLS_LOG(FATAL) << "Invalid kind: " << type->kind();
 }

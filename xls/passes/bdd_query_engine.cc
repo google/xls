@@ -15,6 +15,7 @@
 #include "xls/passes/bdd_query_engine.h"
 
 #include "absl/types/optional.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/binary_decision_diagram.h"
@@ -25,10 +26,11 @@ namespace xls {
 
 /* static */
 xabsl::StatusOr<std::unique_ptr<BddQueryEngine>> BddQueryEngine::Run(
-    Function* f, int64 minterm_limit) {
+    Function* f, int64 minterm_limit,
+    absl::Span<const Op> do_not_evaluate_ops) {
   auto query_engine = absl::WrapUnique(new BddQueryEngine(minterm_limit));
   XLS_ASSIGN_OR_RETURN(query_engine->bdd_function_,
-                       BddFunction::Run(f, minterm_limit));
+                       BddFunction::Run(f, minterm_limit, do_not_evaluate_ops));
   // Construct the Bits objects indication which bit values are statically known
   // for each node and what those values are (0 or 1) if known.
   BinaryDecisionDiagram& bdd = query_engine->bdd();
@@ -125,6 +127,12 @@ absl::optional<Bits> BddQueryEngine::ImpliedNodeValue(
     conjuction_bit =
         conjunction_value ? conjuction_bit : bdd().Not(conjuction_bit);
     bdd_predicate_bit = bdd().And(bdd_predicate_bit, conjuction_bit);
+  }
+  // If the predicate evaluates to false, we can't determine
+  // what node value it implies. That is, !predicate || node_bit
+  // evaluates to true for both node_bit == 1 and == 0.
+  if (bdd_predicate_bit == bdd().zero()) {
+    return absl::nullopt;
   }
 
   auto implied_true_or_false = [&](int node_idx, bool node_bit_true) {

@@ -261,7 +261,7 @@ class SampleRunner:
           if options.simulate:
             assert args_filename is not None
             results['simulated'] = self._simulate(verilog_filename,
-                                                  'module_sig.pbtxt',
+                                                  'module_sig.textproto',
                                                   args_filename,
                                                   options.simulator)
 
@@ -422,7 +422,7 @@ class SampleRunner:
   def _codegen(self, ir_filename: Text, codegen_args: Sequence[Text]) -> Text:
     """Generates Verilog from the IR file and return the Verilog filename."""
     args = [
-        CODEGEN_MAIN_PATH, '--output_signature_path=module_sig.pbtxt',
+        CODEGEN_MAIN_PATH, '--output_signature_path=module_sig.textproto',
         '--delay_model=unit'
     ]
     args.extend(codegen_args)

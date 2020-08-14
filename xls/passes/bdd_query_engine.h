@@ -17,6 +17,7 @@
 
 #include <vector>
 
+#include "absl/container/flat_hash_set.h"
 #include "xls/common/status/statusor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
@@ -36,9 +37,12 @@ namespace xls {
 class BddQueryEngine : public QueryEngine {
  public:
   // 'minterm_limit' is the maximum number of minterms to allow in a BDD
-  // expression before truncating it. See BddFunction for details.
+  // expression before truncating it. If a node's op is in
+  // 'do_not_evaluate_ops', its bits are modeled as BDD variables. See
+  // BddFunction for details.
   static xabsl::StatusOr<std::unique_ptr<BddQueryEngine>> Run(
-      Function* f, int64 minterm_limit = 0);
+      Function* f, int64 minterm_limit = 0,
+      absl::Span<const Op> do_not_evaluate_ops = {});
 
   bool IsTracked(Node* node) const override {
     return known_bits_.contains(node);

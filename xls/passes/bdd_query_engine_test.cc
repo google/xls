@@ -236,5 +236,50 @@ TEST_F(BddQueryEngineTest,
   EXPECT_FALSE(result.has_value());
 }
 
+TEST_F(BddQueryEngineTest, ForceNodeToBeModeledAsVariable) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue x_not = fb.Not(x);
+  BValue andop = fb.And(x, x_not);
+  BValue orop = fb.Or(x, x_not);
+  BValue my_one = fb.Literal(UBits(1, 1));
+  BValue my_zero = fb.Literal(UBits(0, 1));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto query_engine,
+      BddQueryEngine::Run(f, /*minterm_limit=*/0, {Op::kOr}));
+  EXPECT_FALSE(KnownEquals(*query_engine, andop.node(), my_one.node()));
+  EXPECT_TRUE(KnownEquals(*query_engine, andop.node(), my_zero.node()));
+  EXPECT_FALSE(KnownEquals(*query_engine, orop.node(), my_one.node()));
+  EXPECT_FALSE(KnownEquals(*query_engine, orop.node(), my_zero.node()));
+  XLS_ASSERT_OK_AND_ASSIGN(auto query_engine_empty_op_set,
+                           BddQueryEngine::Run(f, /*minterm_limit=*/0, {}));
+  EXPECT_FALSE(
+      KnownEquals(*query_engine_empty_op_set, andop.node(), my_one.node()));
+  EXPECT_TRUE(
+      KnownEquals(*query_engine_empty_op_set, andop.node(), my_zero.node()));
+  EXPECT_TRUE(
+      KnownEquals(*query_engine_empty_op_set, orop.node(), my_one.node()));
+  EXPECT_FALSE(
+      KnownEquals(*query_engine_empty_op_set, orop.node(), my_zero.node()));
+}
+
+TEST_F(BddQueryEngineTest, BitValuesImplyNodeValuePredicateAlwaysFalse) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(1));
+  BValue a_not = fb.Not(a);
+  BValue orop = fb.Or(a, a_not);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto query_engine, BddQueryEngine::Run(f));
+
+  auto result = query_engine->ImpliedNodeValue(
+      {{{a.node(), 0}, true}, {{a_not.node(), 0}, true}}, orop.node());
+  EXPECT_FALSE(result.has_value());
+}
+
 }  // namespace
 }  // namespace xls

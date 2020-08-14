@@ -281,6 +281,10 @@ class FunctionBuilder {
   BValue Tuple(absl::Span<const BValue> elements,
                absl::optional<SourceLocation> loc = absl::nullopt);
 
+  // Creates an AfterAll ordering operation.
+  BValue AfterAll(absl::Span<const BValue> dependencies,
+                  absl::optional<SourceLocation> loc = absl::nullopt);
+
   // Creates an array of values. Each value in element must be the same type
   // which is given by element_type.
   BValue Array(absl::Span<const BValue> elements, Type* element_type,

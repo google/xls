@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """Helpers for parsing-and-typechecking."""
 
 import io
@@ -48,10 +47,9 @@ def parse_text(
     *,
     f_import: Optional[Callable],
     filename: Text,
-    do_typecheck: bool = True,
     fs_open: Callable[[Text], io.IOBase] = None,
-) -> Tuple[ast.Module, Optional[deduce.NodeToType]]:
-  """Parses text into a module with name "name", optionally typechecks it."""
+) -> Tuple[ast.Module, deduce.NodeToType]:
+  """Parses text into a module with name "name" and typechecks it."""
   module = parser_helpers.parse_text(
       text,
       name,
@@ -59,23 +57,15 @@ def parse_text(
       filename=filename,
       fs_open=fs_open)
 
-  node_to_type = None
-  if do_typecheck:
-    node_to_type = _run_typecheck(
-        module, print_on_error, f_import, fs_open=fs_open)
+  node_to_type = _run_typecheck(
+      module, print_on_error, f_import, fs_open=fs_open)
 
   return module, node_to_type
 
 
-def parse_text_fakefs(
-    text: Text,
-    name: Text,
-    print_on_error: bool,
-    *,
-    f_import: Optional[Callable],
-    filename: Text,
-    do_typecheck: bool = True
-) -> Tuple[ast.Module, Optional[deduce.NodeToType]]:
+def parse_text_fakefs(text: Text, name: Text, print_on_error: bool, *,
+                      f_import: Optional[Callable],
+                      filename: Text) -> Tuple[ast.Module, deduce.NodeToType]:
   """Wraps parse_text with a *fake filesystem* holding "text" in "filename".
 
   This primarily exists for use from testing infrastructure! For binaries and
@@ -90,10 +80,9 @@ def parse_text_fakefs(
       upon.
     filename: Path to use in the fake filesystem for the contexts of the fake
       file (with DSLX text).
-    do_typecheck: Whether to typecheck the DSLX text after parsing.
 
   Returns:
-    The DSLX module and the type information iff "do_typecheck" was true.
+    The DSLX module and the type information.
   """
   fs = fakefs.FakeFilesystem()
   fs.CreateFile(filename, contents=text)
@@ -104,5 +93,4 @@ def parse_text_fakefs(
       print_on_error=print_on_error,
       f_import=f_import,
       filename=filename,
-      do_typecheck=do_typecheck,
       fs_open=fake_open)

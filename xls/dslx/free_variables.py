@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,11 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """Tracking of free variables references."""
 
 import pprint
-from typing import Any, Sequence, Union, List, Tuple, Optional, Dict, Text, Callable, Set
+from typing import Any, Sequence, Union, List, Tuple, Optional, Dict, Text, Callable, Set, Iterable
 from xls.dslx.concrete_type import ConcreteType
 
 # pylint: disable=invalid-name
@@ -89,3 +90,12 @@ class FreeVariables(object):
         result._values[key] = list(refs)
     return result
     # pylint: enable=protected-access
+
+
+def union_all(freevars: Iterable[FreeVariables]) -> FreeVariables:
+  """Returns union of all the FreeVariables objects in the iterable."""
+  result = FreeVariables()
+  for item in freevars:
+    assert isinstance(item, FreeVariables), repr(item)
+    result = result.union(item)
+  return result

@@ -6,22 +6,19 @@
 
 namespace xls {
 
-xabsl::StatusOr<Op> FromOpProto(OpProto op_proto) {
+Op FromOpProto(OpProto op_proto) {
   switch (op_proto) {
 {% for op in spec.OPS -%}
     case OP_{{ op.name.upper() }}: return Op::{{ op.enum_name }};
 {% endfor -%}
-    default: return absl::InvalidArgumentError("Unknown op.");
   }
 }
 
-xabsl::StatusOr<OpProto> ToOpProto(Op op) {
+OpProto ToOpProto(Op op) {
   switch (op) {
 {% for op in spec.OPS -%}
     case Op::{{ op.enum_name }}: return OP_{{ op.name.upper() }};
 {% endfor -%}
-
-    default: return absl::InvalidArgumentError("Unknown op.");
   }
 }
 

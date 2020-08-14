@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """AST nodes that layer on top of the 'core' AST nodes in core_ast_nodes.
 
 These generally do not circularly reference each other.
@@ -23,6 +24,7 @@ These are broken out largely to reduce pytype runtime on a monolithic AST file.
 from typing import Union, Text, List, Dict, Tuple, Optional, Set, Sequence
 from absl import logging
 
+from xls.dslx import free_variables
 from xls.dslx import parametric_instantiator
 from xls.dslx.ast_node import AstNode
 from xls.dslx.ast_node import AstVisitor
@@ -40,6 +42,7 @@ from xls.dslx.core_ast_nodes import TypeAnnotation
 from xls.dslx.core_ast_nodes import TypeDef
 from xls.dslx.core_ast_nodes import WildcardPattern
 from xls.dslx.free_variables import FreeVariables
+from xls.dslx.parametric_expression import ParametricExpression
 from xls.dslx.scanner import Pos
 from xls.dslx.scanner import Token
 from xls.dslx.scanner import TokenKind
@@ -167,6 +170,17 @@ class Function(AstNode):
             'public={0.public!r})').format(self)
 
 
+class QuickCheck(AstNode):
+  """Represents a function to be QuickChecked."""
+
+  def __init__(self, span: Span, f: Function):
+    self.span = span
+    self.f = f
+
+  def __str__(self) -> Text:
+    return f'QC: {self.f}'
+
+
 class Proc(AstNode):
   """Represents a parsed 'process' specification in the DSL."""
 
@@ -195,6 +209,9 @@ class Test(AstNode):
   def __init__(self, name: NameDef, body: Expr):
     self.name = name
     self.body = body
+
+  def _accept_children(self, visitor: AstVisitor) -> None:
+    self.body.accept(visitor)
 
   def __str__(self) -> Text:
     return 'test {} {{ ... }}'.format(self.name)
@@ -259,6 +276,15 @@ StructInstanceMember = Tuple[Text, Expr]
 StructInstanceMembers = Tuple[StructInstanceMember, ...]
 
 
+def _struct_to_text(struct: Union[Struct, ModRef]) -> str:
+  """Returns "error display name" of a struct from a struct instance."""
+  if isinstance(struct, Struct):
+    return struct.identifier
+  else:
+    assert isinstance(struct, ModRef)
+    return str(struct)
+
+
 class StructInstance(Expr):
   """Represents instantiation of a struct via member expressions."""
 
@@ -273,6 +299,10 @@ class StructInstance(Expr):
     """Returns instance members in their syntactic order."""
     return self._members
 
+  @property
+  def struct_text(self) -> str:
+    return _struct_to_text(self.struct)
+
   def get_ordered_members(self, struct: Struct) -> StructInstanceMembers:
     """Returns instance members ordered according to the struct definition."""
     struct_names = struct.member_names
@@ -282,27 +312,54 @@ class StructInstance(Expr):
     for member in self._members:
       member[1].accept(visitor)
 
-  @property
-  def struct_text(self) -> Text:
-    if isinstance(self.struct, Struct):
-      return self.struct.identifier
-    elif isinstance(self.struct, ModRef):
-      return str(self.struct)
-    else:
-      raise NotImplementedError
-
   def __repr__(self) -> Text:
     members_str = ', '.join('{}: {}'.format(k, v) for k, v in self._members)
     return '{} {{ {} }}'.format(self.struct_text, members_str)
 
   def get_free_variables(self, start_pos: Pos) -> FreeVariables:
     accum = FreeVariables()
-    for member in self._members:
-      accum = accum.union(member[1].get_free_variables(start_pos))
+    for _, member in self._members:
+      accum = accum.union(member.get_free_variables(start_pos))
     return accum
 
 
-ModuleMember = Union[Function, Test, TypeDef, Struct, Constant, Enum, Import]
+class SplatStructInstance(Expr):
+  """Rerepresents struct instantiation as delta from a 'splatted' original.
+
+  Attributes:
+    struct: The struct being instantiated.
+    members: Sequence of members being changed from the splatted original; e.g.
+      in `Point { y: new_y, ..orig_p }` this is `[('y', new_y)]`.
+    splatted: Expression that's used as the original struct instance (that we're
+      instantiating a delta from); e.g. `orig_p` in the example above.
+  """
+
+  def __init__(self, span: Span, struct: Union[ModRef, Struct],
+               members: StructInstanceMembers, splatted: Expr):
+    super().__init__(span)
+    self.struct = struct
+    self.members = tuple(members)
+    self.splatted = splatted
+
+  def _accept_children(self, visitor: AstVisitor) -> None:
+    for _, member in self.members:
+      member.accept(visitor)
+    self.splatted.accept(visitor)
+
+  @property
+  def struct_text(self) -> str:
+    return _struct_to_text(self.struct)
+
+  def get_free_variables(self, start_pos: Pos) -> FreeVariables:
+    accum = FreeVariables()
+    for _, member in self.members:
+      accum = accum.union(member.get_free_variables(start_pos))
+    accum = accum.union(self.splatted.get_free_variables(start_pos))
+    return accum
+
+
+ModuleMember = Union[Function, Test, QuickCheck, TypeDef, Struct, Constant,
+                     Enum, Import]
 
 
 class Module(AstNode):
@@ -330,6 +387,9 @@ class Module(AstNode):
 
   def get_tests(self) -> List['Test']:
     return [member for member in self.top if isinstance(member, Test)]
+
+  def get_quickchecks(self) -> List['QuickCheck']:
+    return [member for member in self.top if isinstance(member, QuickCheck)]
 
   def get_constants(self) -> List[Constant]:
     return [member for member in self.top if isinstance(member, Constant)]
@@ -406,7 +466,11 @@ class Invocation(Expr):
     self.callee = callee
     self.args = args
     # Note: this attribute is populated by type inference.
-    self.symbolic_bindings = None  # type: Optional[parametric_instantiator.SymbolicBindings]
+    # Maps the (mod_name, fm_name, symbolic_bindings) of the function this
+    # invocation is inside of to the resulting symbolic bindings
+    # in the callee.
+    self.symbolic_bindings = dict(
+    )  # type: Dict[Tuple[Text, Text, Tuple[Text, int]], parametric_instantiator.SymbolicBindings]
 
   def __str__(self) -> Text:
     return '{}({})'.format(self.callee, self.format_args())
@@ -430,7 +494,18 @@ class Invocation(Expr):
 
 
 class Slice(AstNode):
-  """Represents a slice in the AST; e.g. `-4:-2`."""
+  """Represents a slice in the AST.
+
+  For example, we can have  x[-4:-2], where x is of bit width N.
+
+  Attributes:
+    span: The span of the slice expression.
+    start: The annotated start of the slice (-4 above).
+    limit: The annotated limit of the slice (-2 above).
+    computed_start: The computed start index of the slice (N - 4 above).
+    computed_width: The computed width of the slice ((N - 2) - (N - 4) = 2
+      above).
+  """
 
   def __init__(self, span: Span, start: Optional[Number],
                limit: Optional[Number]):
@@ -438,6 +513,10 @@ class Slice(AstNode):
     self.span = span
     self.start = start
     self.limit = limit
+
+    # These attributes are populated by type inference.
+    self.computed_start = None  # type: Union[ParametricExpression, int]
+    self.computed_width = None  # type: Union[ParametricExpression, int]
 
   def __str__(self) -> Text:
     if self.start and self.limit:
@@ -591,7 +670,7 @@ class Let(Expr):
       self.const.accept(visitor)
 
   def format(self) -> Text:
-    return '{} {}{} = {} in\n  {}'.format(
+    return '{} {}{} = {};\n  {}'.format(
         'const' if self.const else 'let', self.name_def_tree,
         ': ' + str(self.type_) if self.type_ else '', self.rhs, self.body)
 
@@ -645,8 +724,11 @@ class For(Expr):
     self.body.accept(visitor)
 
   def get_free_variables(self, start_pos: Pos) -> FreeVariables:
-    return self.body.get_free_variables(start_pos).union(
-        self.init.get_free_variables(start_pos))
+    free_vars = [
+        getattr(self, attr).get_free_variables(start_pos)
+        for attr in 'names iterable body init'.split()
+    ]
+    return free_variables.union_all(free_vars)
 
 
 class While(Expr):

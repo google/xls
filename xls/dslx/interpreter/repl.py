@@ -58,7 +58,7 @@ def concrete_type_to_annotation(
   raise NotImplementedError(concrete_type)
 
 
-def handle_line(line: str, stmt_index: int, f_import):
+def handle_line(line: str, stmt_index: int):
   """Runs a single user-provided line as a REPL input."""
   fn_name = f'repl_{stmt_index}'
   module_text = f"""
@@ -86,6 +86,9 @@ def handle_line(line: str, stmt_index: int, f_import):
     # First attempt at type checking, we expect this may fail the first time
     # around and we'll substitute the real return type we observe.
     try:
+      import_cache = {}
+      f_import = functools.partial(
+          import_routines.do_import, cache=import_cache)
       node_to_type = typecheck.check_module(fake_module, f_import=f_import)
     except xls_type_error.XlsTypeError as e:
       # We use nil as a placeholder, and swap it with the type that was expected
@@ -117,8 +120,6 @@ def main(argv):
 
   stmt_index = 0
 
-  import_cache = {}
-  f_import = functools.partial(import_routines.do_import, cache=import_cache)
   last_result = None
 
   while True:
@@ -146,7 +147,7 @@ def main(argv):
       print(bit_helpers.to_bits_string(last_result.get_bits_value()))
       continue
 
-    result = handle_line(line, stmt_index, f_import)
+    result = handle_line(line, stmt_index)
     if result is None:
       continue
     last_result = result

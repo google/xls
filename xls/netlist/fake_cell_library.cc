@@ -14,62 +14,22 @@
 
 #include "xls/netlist/fake_cell_library.h"
 
+#include "xls/common/file/filesystem.h"
+#include "xls/common/file/get_runfile_path.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/netlist/netlist.pb.h"
 
 namespace xls {
 namespace netlist {
 
-CellLibrary MakeFakeCellLibrary() {
-  CellLibrary cell_library;
-  OutputPin pin;
-  pin.name = "ZN";
-  pin.function = "!A";
-  XLS_CHECK_OK(cell_library.AddEntry(CellLibraryEntry(
-      CellKind::kInverter, "INV", std::vector<std::string>{"A"},
-      std::vector<OutputPin>{pin})));
-  pin.name = "Q";
-  pin.function = "D";
-  XLS_CHECK_OK(cell_library.AddEntry(
-      CellLibraryEntry(CellKind::kFlop, "DFF", std::vector<std::string>{"D"},
-                       std::vector<OutputPin>{pin}, "CLK")));
-  pin.name = "Z";
-  pin.function = "A&B";
-  XLS_CHECK_OK(cell_library.AddEntry(CellLibraryEntry(
-      CellKind::kOther, "AND", std::vector<std::string>{"A", "B"},
-      std::vector<OutputPin>{pin})));
-  pin.name = "Z";
-  pin.function = "A|B";
-  XLS_CHECK_OK(cell_library.AddEntry(CellLibraryEntry(
-      CellKind::kOther, "OR", std::vector<std::string>{"A", "B"},
-      std::vector<OutputPin>{pin})));
-  pin.name = "Z";
-  pin.function = "A^B";
-  XLS_CHECK_OK(cell_library.AddEntry(CellLibraryEntry(
-      CellKind::kOther, "XOR", std::vector<std::string>{"A", "B"},
-      std::vector<OutputPin>{pin})));
-  pin.name = "ZN";
-  pin.function = "!(A&B)";
-  XLS_CHECK_OK(cell_library.AddEntry(CellLibraryEntry(
-      CellKind::kNand, "NAND", std::vector<std::string>{"A", "B"},
-      std::vector<OutputPin>{pin})));
-  pin.name = "ZN";
-  pin.function = "!(A|B|C|D)";
-  XLS_CHECK_OK(cell_library.AddEntry(CellLibraryEntry(
-      CellKind::kNor, "NOR4", std::vector<std::string>{"A", "B", "C", "D"},
-      std::vector<OutputPin>{pin})));
-  // A la https://en.wikipedia.org/wiki/AND-OR-Invert
-  pin.name = "ZN";
-  pin.function = "!((A*B)|C)";
-  XLS_CHECK_OK(cell_library.AddEntry(CellLibraryEntry(
-      CellKind::kOther, "AOI21", std::vector<std::string>{"A", "B", "C"},
-      std::vector<OutputPin>{pin})));
-  // A fixed output-one cell.
-  pin.name = "O";
-  pin.function = "1";
-  XLS_CHECK_OK(cell_library.AddEntry(CellLibraryEntry(
-      CellKind::kOther, "LOGIC_ONE", std::vector<std::string>{},
-      std::vector<OutputPin>{pin})));
-  return cell_library;
+xabsl::StatusOr<CellLibrary> MakeFakeCellLibrary() {
+  std::filesystem::path proto_path(
+      GetXlsRunfilePath("xls/netlist/fake_cell_library.textproto"));
+
+  CellLibraryProto proto;
+  XLS_RETURN_IF_ERROR(ParseTextProtoFile(proto_path, &proto));
+  return CellLibrary::FromProto(proto);
 }
 
 }  // namespace netlist

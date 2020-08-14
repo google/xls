@@ -1,3 +1,4 @@
+# Lint as: python3
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,8 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# Lint as: python3
 """Specification for XLS ops.
 
 The contents of this file is used to generate op.h and op.cc.
@@ -20,7 +19,7 @@ The contents of this file is used to generate op.h and op.cc.
 
 import collections
 import enum
-from typing import List, Optional, Text
+from typing import List, Optional
 
 
 class ConstructorArgument(object):
@@ -34,9 +33,9 @@ class ConstructorArgument(object):
   """
 
   def __init__(self,
-               name: Text,
-               cpp_type: Text,
-               clone_expression: Optional[Text] = None):
+               name: str,
+               cpp_type: str,
+               clone_expression: Optional[str] = None):
     self.name = name
     self.cpp_type = cpp_type
     self.clone_expression = clone_expression
@@ -57,10 +56,10 @@ class DataMember(object):
   """
 
   def __init__(self,
-               name: Text,
-               cpp_type: Text,
-               init: Text,
-               equals_tmpl: Text = '{lhs} == {rhs}'):
+               name: str,
+               cpp_type: str,
+               init: str,
+               equals_tmpl: str = '{lhs} == {rhs}'):
     self.name = name
     self.cpp_type = cpp_type
     self.init = init
@@ -79,10 +78,10 @@ class Method(object):
   """
 
   def __init__(self,
-               name: Text,
-               return_cpp_type: Text,
-               expression: Optional[Text],
-               params: Text = ''):
+               name: str,
+               return_cpp_type: str,
+               expression: Optional[str],
+               params: str = ''):
     self.name = name
     self.return_cpp_type = return_cpp_type
     self.expression = expression
@@ -105,11 +104,11 @@ class Attribute(object):
   """
 
   def __init__(self,
-               name: Text,
-               cpp_type: Text,
-               arg_cpp_type: Optional[Text] = None,
-               return_cpp_type: Optional[Text] = None,
-               equals_tmpl: Text = '{lhs} == {rhs}'):
+               name: str,
+               cpp_type: str,
+               arg_cpp_type: Optional[str] = None,
+               return_cpp_type: Optional[str] = None,
+               equals_tmpl: str = '{lhs} == {rhs}'):
     """Initialize an Attribute.
 
     Args:
@@ -201,14 +200,14 @@ class Property(enum.Enum):
 
 class Operand(object):
 
-  def __init__(self, name: Text):
+  def __init__(self, name: str):
     self.name = name
     self.add_method = 'AddOperand'
 
 
 class OperandSpan(Operand):
 
-  def __init__(self, name: Text):
+  def __init__(self, name: str):
     super(OperandSpan, self).__init__(name)
     self.name = name
     self.add_method = 'AddOperands'
@@ -216,7 +215,7 @@ class OperandSpan(Operand):
 
 class OptionalOperand(Operand):
 
-  def __init__(self, name: Text):
+  def __init__(self, name: str):
     super(OptionalOperand, self).__init__(name)
     self.name = name
     self.add_method = 'AddOptionalOperand'
@@ -229,10 +228,10 @@ class OpClass(object):
   kinds = collections.OrderedDict()
 
   def __init__(self,
-               name: Text,
-               op: Text,
+               name: str,
+               op: str,
                operands: List[Operand],
-               xls_type_expression: Text,
+               xls_type_expression: str,
                attributes: List[Attribute] = (),
                extra_constructor_args=(),
                extra_data_members=(),
@@ -264,7 +263,7 @@ class OpClass(object):
     self.extra_methods = extra_methods
     self.custom_clone_method = custom_clone_method
 
-  def constructor_args_str(self) -> Text:
+  def constructor_args_str(self) -> str:
     """The constructor arguments list as a single string."""
     args = [
         ConstructorArgument('loc', 'absl::optional<SourceLocation>', 'loc()')
@@ -291,7 +290,7 @@ class OpClass(object):
     methods.extend(self.extra_methods)
     return methods
 
-  def clone_args_str(self, new_operands: Text) -> Text:
+  def clone_args_str(self, new_operands: str) -> str:
     """Returns the arguments to pass to the constructor during cloning.
 
     Args:
@@ -316,7 +315,7 @@ class OpClass(object):
     members.extend(self.extra_data_members)
     return members
 
-  def equal_to_expr(self) -> Text:
+  def equal_to_expr(self) -> str:
     """Returns expression used in IsDefinitelyEqualTo to compare expression."""
 
     def data_member_equal(m):
@@ -338,7 +337,7 @@ class Op(object):
    properties: A List of Properties describing the op.
   """
 
-  def __init__(self, enum_name: Text, name: Text, op_class: OpClass,
+  def __init__(self, enum_name: str, name: str, op_class: OpClass,
                properties: List[Property]):
     self.enum_name = enum_name
     self.name = name
@@ -346,6 +345,13 @@ class Op(object):
     self.properties = properties
 
 # pyformat: disable
+OpClass.kinds['AFTER_ALL'] = OpClass(
+    name='AfterAll',
+    op='Op::kAfterAll',
+    operands=[OperandSpan('dependencies')],
+    xls_type_expression='function->package()->GetTokenType()',
+)
+
 OpClass.kinds['ARRAY'] = OpClass(
     name='Array',
     op='Op::kArray',
@@ -659,6 +665,13 @@ OPS = [
         op_class=OpClass.kinds['NARY_OP'],
         # Note: not associative, because of the inversion.
         properties=[Property.BITWISE,
+                    Property.COMMUTATIVE],
+    ),
+    Op(
+        enum_name='kAfterAll',
+        name='after_all',
+        op_class=OpClass.kinds['AFTER_ALL'],
+        properties=[Property.ASSOCIATIVE,
                     Property.COMMUTATIVE],
     ),
     Op(

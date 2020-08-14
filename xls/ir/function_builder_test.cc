@@ -209,6 +209,32 @@ TEST(FunctionBuilderTest, ConcatTuples) {
                              testing::HasSubstr("it has non-bits type")));
 }
 
+TEST(FunctionBuilderTest, AfterAll) {
+  Package p("p");
+  FunctionBuilder fb("f", &p);
+  BValue token_a = fb.AfterAll({});
+  BValue token_b = fb.AfterAll({});
+  fb.AfterAll({token_a, token_b});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  EXPECT_THAT(f->return_value(), m::AfterAll(m::AfterAll(), m::AfterAll()));
+}
+
+TEST(FunctionBuilderTest, AfterAllNonTokenArg) {
+  Package p("p");
+  FunctionBuilder fb("f", &p);
+  BValue token_a = fb.AfterAll({});
+  BitsType* value_type = p.GetBitsType(32);
+  BValue x = fb.Param("x", value_type);
+  fb.AfterAll({token_a, x});
+
+  EXPECT_THAT(
+      fb.Build(),
+      status_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          testing::HasSubstr("Dependency type bits[32] is not a token.")));
+}
+
 TEST(FunctionBuilderTest, ArrayIndexBits) {
   Package p("p");
   FunctionBuilder b("f", &p);

@@ -21,14 +21,9 @@ import os
 import pprint
 
 from absl import app
-from absl import flags
 
 from xls.dslx import import_routines
 from xls.dslx import parse_and_typecheck
-
-FLAGS = flags.FLAGS
-
-flags.DEFINE_bool('typecheck', False, 'Typecheck parsed module.')
 
 
 def main(argv):
@@ -49,7 +44,6 @@ def main(argv):
       text,
       name,
       filename=path,
-      do_typecheck=FLAGS.typecheck,
       print_on_error=True,
       f_import=f_import)
   pprint.pprint(module)

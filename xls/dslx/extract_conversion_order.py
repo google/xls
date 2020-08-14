@@ -16,14 +16,13 @@
 
 """Determines the order in which functions should be converted to IR."""
 
-from typing import Tuple, Text, List, Dict, NamedTuple
+from typing import Tuple, Text, List, Dict, NamedTuple, Union
 
 from absl import logging
 
 from xls.dslx import ast
 from xls.dslx import deduce
 from xls.dslx import dslx_builtins
-from xls.dslx import parametric_expression
 from xls.dslx.parametric_instantiator import SymbolicBindings
 
 Callee = NamedTuple(
@@ -64,38 +63,13 @@ class ConversionRecord(object):
         self.f.identifier, self.m, self.bindings, self.callees)
 
 
-def _evaluate_bindings(outer_bindings: SymbolicBindings,
-                       inner_bindings: SymbolicBindings) -> SymbolicBindings:
-  """Returns inner parametric bindings evaluated according to outer bindings.
-
-  Args:
-    outer_bindings: Parametric bindings in the caller.
-    inner_bindings: Parametric bindings for the callee.
-  For example:
-    fn [N: u32] g(x: bits[N]) { f(x) }
-    fn [M: u32] f(x: bits[M]) { g(x) }
-    fn main() { f(bits[2]:0) }  Even though in the typecheck of f we see that g
-      is invoked with a bits[M], we need to resolve that to a "2" when it is
-      instantiated for IR conversion.
-  """
-  if not outer_bindings or not inner_bindings:
-    return inner_bindings
-
-  new_bindings = []
-  for k, v in inner_bindings:
-    if isinstance(v, parametric_expression.ParametricExpression):
-      v = v.evaluate(dict(outer_bindings))
-    new_bindings.append((k, v))
-  return tuple(new_bindings)
-
-
-def get_callees(f: ast.Function, m: ast.Module, imports: Dict[ast.Import,
-                                                              ImportedInfo],
+def get_callees(func: Union[ast.Function, ast.Test], m: ast.Module,
+                imports: Dict[ast.Import, ImportedInfo],
                 bindings: SymbolicBindings) -> Tuple[Callee, ...]:
   """Traverses the definition of f to find callees.
 
   Args:
-    f: Function to inspect for calls.
+    func: Function/test construct to inspect for calls.
     m: Module that f resides in.
     imports: Mapping of modules imported by m.
     bindings: Bindings used in instantiation of f.
@@ -113,6 +87,7 @@ def get_callees(f: ast.Function, m: ast.Module, imports: Dict[ast.Import,
       if isinstance(node.callee, ast.ModRef):
         this_m, _ = imports[node.callee.mod]
         f = this_m.get_function(node.callee.value_tok.value)
+        fn_identifier = f.name.identifier
       elif isinstance(node.callee, ast.NameRef):
         this_m = m
         fn_identifier = node.callee.identifier
@@ -134,12 +109,17 @@ def get_callees(f: ast.Function, m: ast.Module, imports: Dict[ast.Import,
         raise NotImplementedError(
             'Only calls to named functions are currently supported, got callee: {!r}'
             .format(node.callee))
-      callees.append(
-          Callee(f, this_m, _evaluate_bindings(bindings,
-                                               node.symbolic_bindings)))
 
-  f.accept(InvocationVisitor())
-  logging.vlog(3, 'Callees for %s: %s', f, [cr.f.identifier for cr in callees])
+      func_name = (
+          func.name.identifier if isinstance(func, ast.Function) else
+          '{}_test'.format(func.name.identifier))
+      node_symbolic_bindings = node.symbolic_bindings.get(
+          (m.name, func_name, bindings), ())
+      callees.append(Callee(f, this_m, node_symbolic_bindings))
+
+  func.accept(InvocationVisitor())
+  logging.vlog(3, 'Callees for %s: %s', func,
+               [(cr.f.identifier, cr.sym_bindings) for cr in callees])
   return tuple(callees)
 
 
@@ -149,9 +129,10 @@ def _is_ready(ready: List[ConversionRecord], f: ast.Function, m: ast.Module,
       cr.f == f and cr.m == m and cr.bindings == bindings for cr in ready)
 
 
-def _add_to_ready(ready: List[ConversionRecord],
-                  imports: Dict[ast.Import, ImportedInfo], f: ast.Function,
-                  m: ast.Module, bindings: SymbolicBindings) -> None:
+def _add_to_ready(ready: List[ConversionRecord], imports: Dict[ast.Import,
+                                                               ImportedInfo],
+                  f: Union[ast.Function, ast.Test], m: ast.Module,
+                  bindings: SymbolicBindings) -> None:
   """Adds (f, bindings) to conversion order after deps have been added."""
   if _is_ready(ready, f, m, bindings):
     return
@@ -172,27 +153,44 @@ def _add_to_ready(ready: List[ConversionRecord],
     _add_to_ready(ready, imports, callee.f, callee.m, callee.sym_bindings)
 
   assert not _is_ready(ready, f, m, bindings)
-  logging.vlog(3, 'Adding to ready sequence: %s', f.name.identifier)
-  ready.append(ConversionRecord(f, m, bindings, callees=orig_callees))
+
+  # We don't convert the bodies of test constructs to IR
+  if not isinstance(f, ast.Test):
+    logging.vlog(3, 'Adding to ready sequence: %s', f.name.identifier)
+    ready.append(ConversionRecord(f, m, bindings, callees=orig_callees))
 
 
-def get_order(
-    module: ast.Module, imports: Dict[ast.Import,
-                                      ImportedInfo]) -> List[ConversionRecord]:
+def get_order(module: ast.Module,
+              imports: Dict[ast.Import, ImportedInfo],
+              traverse_tests: bool = False) -> List[ConversionRecord]:
   """Returns (topological) order for functions to be converted to IR.
 
   Args:
     module: Module to convert the (non-parametric) functions for.
     imports: Transitive imports that are required by "module".
+    traverse_tests: Whether to traverse DSLX test constructs. This flag should
+      be set if we intend to run functions only called from test constructs
+      through the JIT.
   """
   ready = []  # type: List[ConversionRecord]
 
   # Functions in the module should become ready in dependency order (they
   # referred to each other's names).
+
+  for quickcheck in module.get_quickchecks():
+    function = quickcheck.f
+    assert not function.is_parametric(), function
+
+    _add_to_ready(ready, imports, function, module, bindings=())
+
   for function in module.get_functions():
     if function.is_parametric():
       continue
 
     _add_to_ready(ready, imports, function, module, bindings=())
+
+  if traverse_tests:
+    for test in module.get_tests():
+      _add_to_ready(ready, imports, test, module, bindings=())
 
   return ready
