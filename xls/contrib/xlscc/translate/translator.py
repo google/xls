@@ -1014,7 +1014,7 @@ class Translator(object):
               offset_val, offset_type = self.gen_expr_ir(offset_expr, condition)
               assert isinstance(offset_type, IntType)
               ret_fb = self.fb.add_dynamic_bit_slice(
-                           left_fb, offset_val, width, loc)
+                  left_fb, offset_val, width, loc)
             return ret_fb, IntType(width, left_type.signed, False)
           else:
             raise NotImplementedError("Unknown non-template function on int",
