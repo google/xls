@@ -58,9 +58,12 @@ from xls.dslx.leaf_ast_nodes import Next
 from xls.dslx.leaf_ast_nodes import Param
 from xls.dslx.leaf_ast_nodes import ParametricBinding
 from xls.dslx.leaf_ast_nodes import Proc
+from xls.dslx.leaf_ast_nodes import QuickCheck
 from xls.dslx.leaf_ast_nodes import Slice
+from xls.dslx.leaf_ast_nodes import SplatStructInstance
 from xls.dslx.leaf_ast_nodes import Struct
 from xls.dslx.leaf_ast_nodes import StructInstance
+from xls.dslx.leaf_ast_nodes import StructInstanceMembers
 from xls.dslx.leaf_ast_nodes import Test
 from xls.dslx.leaf_ast_nodes import Unop
 from xls.dslx.leaf_ast_nodes import While

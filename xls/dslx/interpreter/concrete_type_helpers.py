@@ -124,6 +124,8 @@ def concrete_type_from_dims(primitive: Token,
 
 def _value_compatible_with_type(type_: ConcreteType, value: Value) -> bool:
   """Returns whether value is compatible with type_ (recursively)."""
+  assert isinstance(value, Value), value
+
   if isinstance(type_, TupleType) and value.is_tuple():
     return all(
         _value_compatible_with_type(ct, m)
@@ -207,7 +209,7 @@ def concrete_type_convert_value(type_: ConcreteType, value: Value, span: Span,
 
   if (value.tag == Tag.ENUM and isinstance(type_, BitsType) and
       type_.get_total_bit_count() == value.get_bit_count()):
-    constructor = Value.make_sbits if type_.signed else Value.make_ubits
+    constructor = Value.make_sbits if type_.signed else Value.make_ubits  # pytype: disable=attribute-error
     bit_count = type_.get_total_bit_count()
     return constructor(bit_count, value.bits_payload.value)
 

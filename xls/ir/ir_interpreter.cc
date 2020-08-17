@@ -130,6 +130,12 @@ class InterpreterVisitor : public DfsVisitor {
     return SetBitsResult(xor_op, accum);
   }
 
+  absl::Status HandleAfterAll(AfterAll* after_all) override {
+    // AfterAll is only meaningful to the compiler and does not actually perform
+    // any computation.
+    return SetValueResult(after_all, Value::Token());
+  }
+
   absl::Status HandleArray(Array* array) override {
     std::vector<Value> operand_values;
     for (Node* operand : array->operands()) {
@@ -147,7 +153,17 @@ class InterpreterVisitor : public DfsVisitor {
 
   absl::Status HandleDynamicBitSlice(
       DynamicBitSlice* dynamic_bit_slice) override {
-    return absl::UnimplementedError("DynamicBitSlice not yet implemented");
+    int64 operand_width = dynamic_bit_slice->operand(0)->BitCountOrDie();
+    const Bits& start_bits = ResolveAsBits(dynamic_bit_slice->operand(1));
+    if (bits_ops::UGreaterThanOrEqual(start_bits, operand_width)) {
+      // Slice is entirely out-of-bounds. Return value should be all zero bits.
+      return SetBitsResult(dynamic_bit_slice, Bits(dynamic_bit_slice->width()));
+    }
+    uint64 start = start_bits.ToUint64().value();
+    const Bits& operand = ResolveAsBits(dynamic_bit_slice->operand(0));
+    Bits shifted_value = bits_ops::ShiftRightLogical(operand, start);
+    Bits truncated_value = shifted_value.Slice(0, dynamic_bit_slice->width());
+    return SetBitsResult(dynamic_bit_slice, truncated_value);
   }
 
   absl::Status HandleConcat(Concat* concat) override {

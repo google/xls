@@ -23,6 +23,7 @@
 #include "xls/common/strong_int.h"
 #include "xls/ir/function.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 namespace {
@@ -31,7 +32,9 @@ constexpr char kMain[] = "main";
 
 Package::Package(absl::string_view name,
                  absl::optional<absl::string_view> entry)
-    : entry_(entry), name_(name) {}
+    : entry_(entry), name_(name) {
+  owned_types_.insert(&token_type_);
+}
 
 Package::~Package() {}
 
@@ -184,6 +187,8 @@ TupleType* Package::GetTupleType(absl::Span<Type* const> element_types) {
   return new_type;
 }
 
+TokenType* Package::GetTokenType() { return &token_type_; }
+
 FunctionType* Package::GetFunctionType(absl::Span<Type* const> args_types,
                                        Type* return_type) {
   std::string key = FunctionType(args_types, return_type).ToString();
@@ -270,6 +275,8 @@ Type* Package::GetTypeForValue(const Value& value) {
       }
       return GetArrayType(value.size(), GetTypeForValue(value.elements()[0]));
     }
+    case ValueKind::kToken:
+      return GetTokenType();
     case ValueKind::kInvalid:
       break;
   }

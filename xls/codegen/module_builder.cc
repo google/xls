@@ -139,6 +139,48 @@ absl::Status ModuleBuilder::AddAssignment(
   return absl::OkStatus();
 }
 
+absl::Status ModuleBuilder::AddSelectAssignment(
+    Expression* lhs, Type* xls_type, Expression* selector, int64 selector_width,
+    absl::Span<Expression* const> cases, Expression* default_value,
+    std::function<void(Expression*, Expression*)> add_assignment_statement) {
+  // Array assignment is only supported in SystemVerilog. In Verilog, arrays
+  // must be assigned element-by-element.
+  if (!use_system_verilog_ && xls_type != nullptr && xls_type->IsArray()) {
+    ArrayType* array_type = xls_type->AsArrayOrDie();
+    for (int64 i = 0; i < array_type->size(); ++i) {
+      // Extract element 'i' from each case and the default value and pass
+      // recursively to AddSelectAssignment.
+      std::vector<Expression*> case_elements;
+      for (Expression* cas : cases) {
+        case_elements.push_back(
+            file_->Index(cas->AsIndexableExpressionOrDie(), i));
+      }
+      Expression* default_value_element =
+          default_value == nullptr
+              ? nullptr
+              : file_->Index(default_value->AsIndexableExpressionOrDie(), i);
+      XLS_RETURN_IF_ERROR(AddSelectAssignment(
+          file_->Index(lhs->AsIndexableExpressionOrDie(), i),
+          array_type->element_type(), selector, selector_width, case_elements,
+          default_value_element, add_assignment_statement));
+    }
+  } else {
+    Expression* rhs = default_value;
+    for (int64 i = cases.size() - 1; i >= 0; --i) {
+      if (rhs == nullptr) {
+        rhs = cases[i];
+      } else {
+        rhs = file_->Ternary(
+            file_->Equals(selector,
+                          file_->Literal(i, /*bit_count=*/selector_width)),
+            cases[i], rhs);
+      }
+    }
+    add_assignment_statement(lhs, rhs);
+  }
+  return absl::OkStatus();
+}
+
 absl::Status ModuleBuilder::AddAssignmentFromValue(
     Expression* lhs, const Value& value,
     std::function<void(Expression*, Expression*)> add_assignment_statement) {
@@ -437,6 +479,24 @@ xabsl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
               assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
             }));
         break;
+      case Op::kSel: {
+        Select* sel = node->As<Select>();
+        Expression* selector = inputs[0];
+        std::vector<Expression*> cases(sel->cases().size());
+        // Cases start at operand 1.
+        for (int64 i = 0; i < sel->cases().size(); ++i) {
+          cases[i] = inputs[i + 1];
+        }
+        // Default value (if any) is the last operand.
+        Expression* default_value =
+            sel->default_value().has_value() ? inputs.back() : nullptr;
+        XLS_RETURN_IF_ERROR(AddSelectAssignment(
+            ref, array_type, selector, sel->selector()->BitCountOrDie(), cases,
+            default_value, [&](Expression* lhs, Expression* rhs) {
+              assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
+            }));
+        break;
+      }
       default:
         return absl::UnimplementedError(
             absl::StrCat("Unsupported array-shaped op: ", node->ToString()));
@@ -552,6 +612,7 @@ bool ModuleBuilder::MustEmitAsFunction(Node* node) {
   switch (node->op()) {
     case Op::kSMul:
     case Op::kUMul:
+    case Op::kDynamicBitSlice:
       return true;
     default:
       return false;
@@ -567,12 +628,55 @@ std::string ModuleBuilder::VerilogFunctionName(Node* node) {
       return absl::StrFormat(
           "%s%db_%db_x_%db", OpToString(node->op()), node->BitCountOrDie(),
           node->operand(0)->BitCountOrDie(), node->operand(1)->BitCountOrDie());
+    case Op::kDynamicBitSlice:
+      return absl::StrFormat(
+          "%s_w%d_%db_%db", OpToString(node->op()), node->BitCountOrDie(),
+          node->operand(0)->BitCountOrDie(), node->operand(1)->BitCountOrDie());
     default:
       XLS_LOG(FATAL) << "Cannot emit node as function: " << node->ToString();
   }
 }
 
 namespace {
+
+// Defines and returns a function which implements the given DynamicBitSlice
+// node.
+VerilogFunction* DefineDynamicBitSliceFunction(Node* node,
+                                               absl::string_view function_name,
+                                               ModuleSection* section) {
+  XLS_CHECK_EQ(node->op(), Op::kDynamicBitSlice);
+  VerilogFile* file = section->file();
+  VerilogFunction* func =
+      section->Add<VerilogFunction>(function_name, node->BitCountOrDie(), file);
+  XLS_CHECK_EQ(node->operand_count(), 2);
+  DynamicBitSlice* slice = node->As<DynamicBitSlice>();
+  Expression* operand =
+      func->AddArgument("operand", node->operand(0)->BitCountOrDie());
+  Expression* start =
+      func->AddArgument("start", node->operand(1)->BitCountOrDie());
+  int64 width = slice->width();
+
+  LogicRef* zexted_operand = func->AddRegDef(
+      "zexted_operand",
+      file->PlainLiteral(node->operand(0)->BitCountOrDie() + width),
+      /*init=*/UninitializedSentinel(), /*is_signed=*/false);
+
+  Expression* zeros = file->Literal(0, width);
+  Expression* op_width = file->Literal(
+      slice->operand(0)->BitCountOrDie(),
+      Bits::MinBitCountUnsigned(slice->operand(0)->BitCountOrDie()));
+  // If start of slice is greater than or equal to operand width, result is
+  // completely out of bounds and set to all zeros.
+  Expression* out_of_bounds = file->GreaterThanEquals(start, op_width);
+  // Pad with width zeros
+  func->AddStatement<BlockingAssignment>(zexted_operand,
+                                         file->Concat({zeros, operand}));
+  Expression* sliced_operand = file->DynamicSlice(zexted_operand, start, width);
+  func->AddStatement<BlockingAssignment>(
+      func->return_value_ref(),
+      file->Ternary(out_of_bounds, zeros, sliced_operand));
+  return func;
+}
 
 // Defines and returns a function which implements the given SMul node.
 VerilogFunction* DefineSmulFunction(Node* node, absl::string_view function_name,
@@ -646,6 +750,10 @@ xabsl::StatusOr<VerilogFunction*> ModuleBuilder::DefineFunction(Node* node) {
       break;
     case Op::kUMul:
       func = DefineUmulFunction(node, function_name, functions_section_);
+      break;
+    case Op::kDynamicBitSlice:
+      func = DefineDynamicBitSliceFunction(node, function_name,
+                                           functions_section_);
       break;
     default:
       XLS_LOG(FATAL) << "Cannot define node as function: " << node->ToString();

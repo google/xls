@@ -15,6 +15,9 @@
 #ifndef XLS_PASSES_BDD_QUERY_ENGINE_H_
 #define XLS_PASSES_BDD_QUERY_ENGINE_H_
 
+#include <vector>
+
+#include "absl/container/flat_hash_set.h"
 #include "xls/common/status/statusor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
@@ -34,9 +37,12 @@ namespace xls {
 class BddQueryEngine : public QueryEngine {
  public:
   // 'minterm_limit' is the maximum number of minterms to allow in a BDD
-  // expression before truncating it. See BddFunction for details.
+  // expression before truncating it. If a node's op is in
+  // 'do_not_evaluate_ops', its bits are modeled as BDD variables. See
+  // BddFunction for details.
   static xabsl::StatusOr<std::unique_ptr<BddQueryEngine>> Run(
-      Function* f, int64 minterm_limit = 0);
+      Function* f, int64 minterm_limit = 0,
+      absl::Span<const Op> do_not_evaluate_ops = {});
 
   bool IsTracked(Node* node) const override {
     return known_bits_.contains(node);
@@ -52,6 +58,9 @@ class BddQueryEngine : public QueryEngine {
   bool AtMostOneTrue(absl::Span<BitLocation const> bits) const override;
   bool AtLeastOneTrue(absl::Span<BitLocation const> bits) const override;
   bool Implies(const BitLocation& a, const BitLocation& b) const override;
+  absl::optional<Bits> ImpliedNodeValue(
+      absl::Span<const std::pair<BitLocation, bool>> predicate_bit_values,
+      Node* node) const override;
   bool KnownEquals(const BitLocation& a, const BitLocation& b) const override;
   bool KnownNotEquals(const BitLocation& a,
                       const BitLocation& b) const override;
@@ -73,6 +82,9 @@ class BddQueryEngine : public QueryEngine {
   BddNodeIndex GetBddNode(const BitLocation& location) const {
     return bdd_function_->GetBddNode(location.node, location.bit_index);
   }
+
+  // A implies B  <=>  !(A && !B)
+  bool Implies(const BddNodeIndex& a, const BddNodeIndex& b) const;
 
   // Returns true if the expression of the given BDD node exceeds the minterm
   // limit.

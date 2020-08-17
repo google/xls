@@ -56,6 +56,10 @@ absl::Status FileExists(const std::filesystem::path& path);
 // exists.
 absl::Status RecursivelyCreateDir(const std::filesystem::path& path);
 
+// Recursively deletes the given path. Path can be a file or directory. Symlinks
+// are not followed.
+absl::Status RecursivelyDeletePath(const std::filesystem::path& path);
+
 // Reads and returns the contents of the file `file_name`.
 //
 // Typical return codes (not guaranteed exhaustive):

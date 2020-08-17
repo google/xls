@@ -82,7 +82,7 @@ class Lec {
   void DumpIrTree();
 
   // Returns a textual description of the result.
-  xabsl::StatusOr<std::string> ResultToString();
+  std::string ResultToString();
 
   Z3_context ctx() { return ir_translator_->ctx(); }
 
@@ -98,14 +98,14 @@ class Lec {
   // Collects the XLS IR nodes that are inputs to this evaluation - either the
   // original function inputs for whole-function or first-stage equivalence
   // checks, or the stage inputs for all others.
-  std::vector<const Node*> GetIrInputs();
+  absl::Status CollectIrInputs();
 
   // And the above, but for outputs - either the function outputs for
   // whole-function or last-stage checks, or stage outputs for all others.
-  std::vector<const Node*> GetIrOutputs();
+  void CollectIrOutputNodes();
 
   // Connects IR Params to netlist inputs.
-  absl::Status BindNetlistInputs(absl::Span<const Node*> ir_inputs);
+  absl::Status BindNetlistInputs();
 
   // Explodes each param into individual bits. XLS IR and parsed netlist data
   // layouts are different in that:
@@ -114,14 +114,12 @@ class Lec {
   //  2) Netlists interpret their input values as "little-endian", i.e.,
   //  input_value_7_ for an 8-bit input will be the MSB and
   //  input_value_0_ will be the LSB.
-  absl::flat_hash_map<std::string, Z3_ast> FlattenNetlistInputs(
-      absl::Span<const Node*> ir_inputs);
+  absl::flat_hash_map<std::string, Z3_ast> FlattenNetlistInputs();
 
   // The opposite of BindNetlistInputs - given the output nodes from the
   // stage, collect the corresponding NetRefs and use them to reconstruct
   // the composite output value.
-  xabsl::StatusOr<std::vector<Z3_ast>> GetNetlistOutputs(
-      absl::Span<const Node*> ir_outputs);
+  xabsl::StatusOr<std::vector<Z3_ast>> GetNetlistZ3ForIr(const Node* node);
 
   // Retrieves the set of NetRefs corresponding to the output value of the given
   // node.
@@ -129,8 +127,18 @@ class Lec {
       const Node* node);
 
   // Returns the name of the netlist wire corresponding to the input node.
-  // Internal wires are those that aren't inputs or outputs.
-  std::string NodeToWireName(const Node* node, absl::optional<int> bit_index);
+  std::string NodeToNetlistName(const Node* node, absl::optional<int> bit_index,
+                                bool is_cell = true);
+
+  // Gets strings comparing the IR to netlist values of the given node under the
+  // current model.
+  std::pair<std::string, std::string> GetComparisonStrings(const Node* node);
+
+  // Replaces any values in the given string (nl_string) with "don't care"
+  // markers if the corresponding AST nodes aren't present, i.e., if the source
+  // wires aren't present in the netlist.
+  void MarkDontCareBits(const std::vector<Z3_ast>& nl_bits,
+                        std::string& nl_string);
 
   Package* ir_package_;
   Function* ir_function_;
@@ -141,8 +149,9 @@ class Lec {
   const netlist::rtl::Module* module_;
   std::unique_ptr<NetlistTranslator> netlist_translator_;
 
-  // Cached copies of the output nodes from the IR and netlist (used for
-  // post-proof output).
+  // Cached copies of translation data (cached for post-proof output).
+  absl::flat_hash_map<const Node*, Z3_ast> input_mapping_;
+  std::vector<const Node*> ir_output_nodes_;
   std::vector<Z3_ast> ir_outputs_;
   std::vector<Z3_ast> netlist_outputs_;
 

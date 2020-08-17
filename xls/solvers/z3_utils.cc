@@ -23,6 +23,8 @@
 #include "absl/strings/string_view.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
+#include "xls/ir/type.h"
 #include "../z3/src/api/z3_api.h"
 #include "re2/re2.h"
 
@@ -138,6 +140,20 @@ std::string HexifyOutput(const std::string& input) {
   return text;
 }
 
+std::string BitVectorToString(Z3_context ctx,
+                              const std::vector<Z3_ast>& z3_bits,
+                              Z3_model model) {
+  constexpr const char kZ3One[] = "#x1";
+  BitsRope rope(z3_bits.size());
+
+  for (int i = 0; i < z3_bits.size(); i++) {
+    rope.push_back(QueryNode(ctx, model, z3_bits.at(i)) == kZ3One);
+  }
+  Bits bits = bits_ops::Reverse(rope.Build());
+  return absl::StrCat("0b", bits.ToRawDigits(FormatPreference::kBinary,
+                                             /*emit_leading_zeros=*/true));
+}
+
 Z3_sort TypeToSort(Z3_context ctx, const Type& type) {
   switch (type.kind()) {
     case TypeKind::kBits:
@@ -150,6 +166,12 @@ Z3_sort TypeToSort(Z3_context ctx, const Type& type) {
       Z3_sort index_sort =
           Z3_mk_bv_sort(ctx, Bits::MinBitCountUnsigned(array_type->size()));
       return Z3_mk_array_sort(ctx, index_sort, element_sort);
+    }
+    case TypeKind::kToken: {
+      // Token types don't contain any data. A 0-field tuple is a convenient
+      // way to let (most of) the rest of the z3 infrastructure treat
+      // token like a normal data-type.
+      return CreateTupleSort(ctx, TupleType(/*members=*/{}));
     }
     default:
       XLS_LOG(FATAL) << "Unsupported type kind: "

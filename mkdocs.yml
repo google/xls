@@ -1,0 +1,22 @@
+site_name: "XLS: Accelerated HW Synthesis"
+repo_url: "https://github.com/google/xls/"
+docs_dir: "xls/docs/"
+site_dir: "gendocs/"
+theme:
+  name: "material"
+nav:
+  - IR:
+    - Semantics: 'ir_semantics.md'
+    - Formal: 'solvers.md'
+  - DSLX:
+    - Reference: 'dslx_intro.md'
+    - Examples:
+      - CRC32: 'dslx_intro_example1.md'
+      - FP adder: 'fpadd_example.md'
+      - Prefix Scan: 'dslx_intro_example3.md'
+    - Fuzzer: "fuzzer.md"
+  - Tools:
+    - Quick Start: 'tools_quick_start.md'
+    - Listing: 'tools.md'
+  - Development:
+    - Style Guide: 'xls_style.md'

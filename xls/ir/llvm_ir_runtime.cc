@@ -24,11 +24,6 @@
 #include "xls/ir/value.h"
 
 namespace xls {
-namespace {
-
-constexpr int64 kCharBit = 8;
-
-}  // namespace
 
 LlvmIrRuntime::LlvmIrRuntime(const llvm::DataLayout& data_layout,
                              LlvmTypeConverter* type_converter)
@@ -36,18 +31,18 @@ LlvmIrRuntime::LlvmIrRuntime(const llvm::DataLayout& data_layout,
 
 absl::Status LlvmIrRuntime::PackArgs(absl::Span<const Value> args,
                                      absl::Span<Type* const> arg_types,
-                                     absl::Span<const int64> arg_sizes,
-                                     int64 total_args_size,
-                                     absl::Span<uint8> buffer) {
-  if (buffer.size() < total_args_size) {
+                                     absl::Span<uint8*> arg_buffers) {
+  if (arg_buffers.size() < args.size()) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Input buffer is not large enough to hold all arguments: %d vs. %d",
-        buffer.size(), total_args_size));
+        arg_buffers.size(), args.size()));
   }
-  if (total_args_size > 0) {
+  if (!args.empty()) {
     for (int i = 0; i < args.size(); ++i) {
-      BlitValueToBuffer(args[i], *arg_types[i], buffer);
-      buffer.remove_prefix(arg_sizes[i]);
+      BlitValueToBuffer(
+          args[i], *arg_types[i],
+          absl::MakeSpan(arg_buffers[i],
+                         type_converter_->GetTypeByteSize(*arg_types[i])));
     }
   }
 
@@ -115,6 +110,8 @@ Value LlvmIrRuntime::UnpackBuffer(const uint8* buffer,
 
       return Value::ArrayOrDie(values);
     }
+    case TypeKind::kToken:
+      return Value::Token();
     default:
       XLS_LOG(FATAL) << "Unsupported XLS Value kind: " << result_type->kind();
   }
@@ -158,6 +155,8 @@ void LlvmIrRuntime::BlitValueToBuffer(const Value& value, const Type& type,
       BlitValueToBuffer(value.element(i), *tuple_type->element_type(i),
                         buffer.subspan(layout->getElementOffset(i)));
     }
+  } else if (value.IsToken()) {
+    // Tokens contain no data.
   } else {
     XLS_LOG(FATAL) << "Unsupported XLS Value kind: " << value.kind();
   }
@@ -257,8 +256,7 @@ int64 GetArgBufferSize(int arg_count, const char** input_args) {
 // Since LLVM "main" execution isn't a throughput case, it's really not a
 // problem to be a bit wasteful, especially when it makes things that much
 // simpler.
-int64 PackArgs(int arg_count, const char** input_args, uint8* buffer,
-               int buffer_size) {
+int64 PackArgs(int arg_count, const char** input_args, uint8** buffer) {
   std::unique_ptr<RuntimeState> state = GetRuntimeState();
   if (state == nullptr) {
     return -1;
@@ -271,7 +269,6 @@ int64 PackArgs(int arg_count, const char** input_args, uint8* buffer,
   values.reserve(arg_count);
   types.reserve(arg_count);
   arg_sizes.reserve(arg_count);
-  int64 total_args_size = 0;
   // Skip argv[0].
   for (int i = 1; i < arg_count; i++) {
     auto status_or_value = xls::Parser::ParseTypedValue(input_args[i]);
@@ -281,13 +278,10 @@ int64 PackArgs(int arg_count, const char** input_args, uint8* buffer,
 
     values.push_back(status_or_value.value());
     types.push_back(package.GetTypeForValue(values.back()));
-    arg_sizes.push_back(state->type_converter->GetTypeByteSize(*types.back()));
-    total_args_size += arg_sizes.back();
   }
 
-  XLS_CHECK_OK(state->runtime->PackArgs(values, types, arg_sizes,
-                                        total_args_size,
-                                        absl::MakeSpan(buffer, buffer_size)));
+  XLS_CHECK_OK(state->runtime->PackArgs(values, types,
+                                        absl::MakeSpan(buffer, arg_count)));
   return 0;
 }
 

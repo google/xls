@@ -1,3 +1,17 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // options: {"input_is_dslx": true, "convert_to_ir": true, "optimize_ir": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=3"], "simulate": false, "simulator": null}
 // args: bits[33]:0x8000; bits[22]:0x800; bits[59]:0x400
 // args: bits[33]:0x1d95e7e90; bits[22]:0x2177ec; bits[59]:0x800000000000
@@ -512,34 +526,34 @@
 // args: bits[33]:0x8000; bits[22]:0x10000; bits[59]:0x0
 // args: bits[33]:0x40; bits[22]:0x155555; bits[59]:0x4109d2afd3abd74
 fn main(x5994102: u33, x5994103: u22, x5994104: u59) -> (u1, u22, u59, u22, u60, u33, u60, u32, u33, (u33, u33, u33, u59), u33, u43) {
-    let x5994105: u33 = clz(x5994102) in
-    let x5994106: (u33, u33, u33, u59) = (x5994105, x5994102, x5994102, x5994104) in
-    let x5994107: u22 = (x5994103) & (x5994103) in
-    let x5994108: u22 = -(x5994107) in
-    let x5994109: u59 = (x5994104) & ((x5994108 as u59)) in
-    let x5994110: u33 = one_hot_sel((u1:0x0), [x5994105]) in
-    let x5994111: u33 = x5994110 in
-    let x5994112: u34 = one_hot(x5994111, (u1:1)) in
-    let x5994113: u60 = (u60:0xfffffffffffffff) in
-    let x5994114: u33 = -(x5994111) in
-    let x5994115: u33 = !(x5994111) in
-    let x5994116: u44 = (x5994108) ++ (x5994107) in
-    let x5994117: u22 = one_hot_sel((u2:0x3), [x5994108, x5994103]) in
-    let x5994118: u34 = one_hot_sel((u4:0x1), [x5994112, x5994112, x5994112, x5994112]) in
-    let x5994119: u4 = (u4:0x0) in
-    let x5994120: u33 = ((x5994103 as u33)) & (x5994115) in
-    let x5994121: u33 = x5994105 in
-    let x5994122: u1 = ((x5994120) != ((u33:0x0))) || ((x5994111) != ((u33:0x0))) in
-    let x5994123: u43 = (u43:0x3ffffffffff) in
-    let x5994124: u22 = (x5994117) ^ ((x5994119 as u22)) in
-    let x5994125: u32 = (u32:0x400) in
-    let x5994126: u59 = x5994109 in
-    let x5994127: u33 = (x5994121) + ((x5994119 as u33)) in
-    let x5994128: u33 = one_hot_sel(x5994122, [x5994105]) in
-    let x5994129: u33 = -(x5994121) in
-    let x5994130: u32 = one_hot_sel(x5994122, [x5994125]) in
-    let x5994131: (u22, u59, u22) = (x5994107, x5994109, x5994117) in
-    let x5994132: u33 = one_hot_sel(x5994119, [x5994128, x5994102, x5994128, x5994128]) in
+    let x5994105: u33 = clz(x5994102);
+    let x5994106: (u33, u33, u33, u59) = (x5994105, x5994102, x5994102, x5994104);
+    let x5994107: u22 = (x5994103) & (x5994103);
+    let x5994108: u22 = -(x5994107);
+    let x5994109: u59 = (x5994104) & ((x5994108 as u59));
+    let x5994110: u33 = one_hot_sel((u1:0x0), [x5994105]);
+    let x5994111: u33 = x5994110;
+    let x5994112: u34 = one_hot(x5994111, (u1:1));
+    let x5994113: u60 = (u60:0xfffffffffffffff);
+    let x5994114: u33 = -(x5994111);
+    let x5994115: u33 = !(x5994111);
+    let x5994116: u44 = (x5994108) ++ (x5994107);
+    let x5994117: u22 = one_hot_sel((u2:0x3), [x5994108, x5994103]);
+    let x5994118: u34 = one_hot_sel((u4:0x1), [x5994112, x5994112, x5994112, x5994112]);
+    let x5994119: u4 = (u4:0x0);
+    let x5994120: u33 = ((x5994103 as u33)) & (x5994115);
+    let x5994121: u33 = x5994105;
+    let x5994122: u1 = ((x5994120) != ((u33:0x0))) || ((x5994111) != ((u33:0x0)));
+    let x5994123: u43 = (u43:0x3ffffffffff);
+    let x5994124: u22 = (x5994117) ^ ((x5994119 as u22));
+    let x5994125: u32 = (u32:0x400);
+    let x5994126: u59 = x5994109;
+    let x5994127: u33 = (x5994121) + ((x5994119 as u33));
+    let x5994128: u33 = one_hot_sel(x5994122, [x5994105]);
+    let x5994129: u33 = -(x5994121);
+    let x5994130: u32 = one_hot_sel(x5994122, [x5994125]);
+    let x5994131: (u22, u59, u22) = (x5994107, x5994109, x5994117);
+    let x5994132: u33 = one_hot_sel(x5994119, [x5994128, x5994102, x5994128, x5994128]);
     (x5994122, x5994107, x5994109, x5994108, x5994113, x5994127, x5994113, x5994130, x5994111, x5994106, x5994105, x5994123)
 }
 

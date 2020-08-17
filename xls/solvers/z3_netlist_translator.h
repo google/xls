@@ -65,6 +65,30 @@ class NetlistTranslator {
   absl::Status RebindInputNets(
       const absl::flat_hash_map<std::string, Z3_ast>& inputs);
 
+  absl::Status Retranslate(
+      const absl::flat_hash_map<std::string, Z3_ast>& inputs);
+
+  // An individual node in a "value cone": the transitive set of nodes on which
+  // one particular node depends to determine its value.
+  struct ValueCone {
+    Z3_ast node;
+    netlist::rtl::NetRef ref;
+    const netlist::rtl::Cell* parent_cell;
+    std::vector<ValueCone> parents;
+  };
+
+  // Calculates the value cone for the given NetRef. "terminals" is the set of
+  // nodes at which to stop processing, e.g., a set of fixed inputs or other
+  // values past which the cone is unnecessary.
+  ValueCone GetValueCone(netlist::rtl::NetRef ref,
+                         const absl::flat_hash_set<Z3_ast>& terminals);
+
+  // Prints the given value cone, when evaluated with the given model, to the
+  // terminal. Assumes (generally safely) that the associated Z3_context is that
+  // held by this object.
+  void PrintValueCone(const ValueCone& value_cone, Z3_model model,
+                      int level = 0);
+
  private:
   NetlistTranslator(
       Z3_context ctx, const netlist::rtl::Module* module,

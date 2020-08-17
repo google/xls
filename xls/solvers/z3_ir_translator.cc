@@ -234,6 +234,13 @@ xabsl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
   return translator;
 }
 
+absl::Status IrTranslator::Retranslate(
+    const absl::flat_hash_map<const Node*, Z3_ast>& replacements) {
+  ResetVisitedState();
+  translations_ = replacements;
+  return xls_function_->Accept(this);
+}
+
 IrTranslator::IrTranslator(Z3_config config, Function* xls_function)
     : config_(config),
       ctx_(Z3_mk_context(config_)),
@@ -256,34 +263,6 @@ IrTranslator::~IrTranslator() {
 
 Z3_ast IrTranslator::GetTranslation(const Node* source) {
   return translations_.at(source);
-}
-
-void IrTranslator::SetTranslation(const Node* node, Z3_ast dst) {
-  Z3_ast old = translations_.at(node);
-  translations_[node] = dst;
-
-  std::vector<UpdatedNode<const Node*>> updated_nodes;
-  for (Node* user : node->users()) {
-    UpdatedNode<const Node*> updated_node;
-    updated_node.node = user;
-    updated_node.old_ast = translations_[user];
-    translations_[user] =
-        Z3_substitute(ctx_, translations_[user], 1, &old, &dst);
-    updated_node.new_ast = translations_[user];
-    updated_nodes.push_back(updated_node);
-  }
-
-  auto get_inputs = [](const Node* node) {
-    return std::vector<const Node*>(node->operands().begin(),
-                                    node->operands().end());
-  };
-
-  auto get_outputs = [](const Node* node) {
-    return std::vector<const Node*>(node->users().begin(), node->users().end());
-  };
-
-  PropagateAstUpdates<const Node*>(ctx_, translations_, get_inputs, get_outputs,
-                                   updated_nodes);
 }
 
 Z3_ast IrTranslator::GetReturnNode() {
@@ -625,6 +604,17 @@ Z3_ast IrTranslator::CreateArray(ArrayType* type, absl::Span<Z3_ast> elements) {
   return z3_array;
 }
 
+absl::Status IrTranslator::HandleAfterAll(AfterAll* after_all) {
+  ScopedErrorHandler seh(ctx_);
+  // Token types don't contain any data. A 0-field tuple is a convenient
+  // way to let (most of) the rest of the z3 infrastructure treat a
+  // token like a normal data-type.
+  NoteTranslation(after_all,
+                  CreateTuple(TypeToSort(ctx_, *after_all->GetType()),
+                              /*elements=*/{}));
+  return seh.status();
+}
+
 absl::Status IrTranslator::HandleArray(Array* array) {
   ScopedErrorHandler seh(ctx_);
   std::vector<Z3_ast> elements;
@@ -821,6 +811,37 @@ absl::Status IrTranslator::HandleBitSlice(BitSlice* bit_slice) {
   return seh.status();
 }
 
+absl::Status IrTranslator::HandleDynamicBitSlice(
+    DynamicBitSlice* dynamic_bit_slice) {
+  ScopedErrorHandler seh(ctx_);
+  Z3_ast value = GetBitVec(dynamic_bit_slice->operand(0));
+  Z3_ast start = GetBitVec(dynamic_bit_slice->operand(1));
+  int64 value_width = dynamic_bit_slice->operand(0)->BitCountOrDie();
+  int64 start_width = dynamic_bit_slice->operand(1)->BitCountOrDie();
+
+  int64 max_width = std::max(value_width, start_width);
+  Z3_ast value_ext = Z3_mk_zero_ext(ctx_, max_width - value_width, value);
+  Z3_ast start_ext = Z3_mk_zero_ext(ctx_, max_width - start_width, start);
+
+  Value operand_width(UBits(value_width, max_width));
+  BitsType max_width_type(max_width);
+  XLS_ASSIGN_OR_RETURN(Z3_ast bit_width,
+                       TranslateLiteralValue(&max_width_type, operand_width));
+
+  // Indicates whether slice is completely out of bounds.
+  Z3_ast out_of_bounds = Z3_mk_bvuge(ctx_, start_ext, bit_width);
+  BitsType return_type(dynamic_bit_slice->width());
+  XLS_ASSIGN_OR_RETURN(
+      Z3_ast zeros, TranslateLiteralValue(
+                        &return_type, Value(Bits(dynamic_bit_slice->width()))));
+  Z3_ast shifted_value = Z3_mk_bvlshr(ctx_, value_ext, start_ext);
+  Z3_ast truncated_value =
+      Z3_mk_extract(ctx_, dynamic_bit_slice->width() - 1, 0, shifted_value);
+  Z3_ast result = Z3_mk_ite(ctx_, out_of_bounds, zeros, truncated_value);
+  NoteTranslation(dynamic_bit_slice, result);
+  return seh.status();
+}
+
 xabsl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(
     Type* value_type, const Value& value) {
   if (value.IsBits()) {
@@ -973,14 +994,13 @@ absl::Status IrTranslator::HandleSelect(
     NodeT* node, std::function<FlatValue(const FlatValue& selector,
                                          const std::vector<FlatValue>& cases)>
                      evaluator) {
-  // HandleSelect could be implemented on its own terms (and not in the same way
+  // HandleSel could be implemented on its own terms (and not in the same way
   // as one-hot), if there's concern that flattening to bitwise Z3_asts loses
   // any semantic info.
   ScopedErrorHandler seh(ctx_);
   Z3OpTranslator op_translator(ctx_);
   std::vector<Z3_ast> selector =
       Z3OpTranslator(ctx_).ExplodeBits(GetBitVec(node->selector()));
-  std::vector<std::vector<Z3_ast>> selected_elements;
 
   std::vector<std::vector<Z3_ast>> case_elements;
   for (Node* element : node->cases()) {
@@ -1033,29 +1053,30 @@ void IrTranslator::HandleMul(ArithOp* mul, bool is_signed) {
 
   int result_size = mul->BitCountOrDie();
   int operand_size = std::max(lhs_size, rhs_size);
-  operand_size = std::max(operand_size, result_size);
   if (is_signed) {
-    if (lhs_size != operand_size) {
+    if (lhs_size < operand_size) {
       lhs = Z3_mk_sign_ext(ctx_, operand_size - lhs_size, lhs);
     }
-    if (rhs_size != operand_size) {
+    if (rhs_size < operand_size) {
       rhs = Z3_mk_sign_ext(ctx_, operand_size - rhs_size, rhs);
     }
   } else {
     // If we're doing unsigned multiplication, add an extra 0 MSb to make sure
     // Z3 knows that.
     operand_size += 1;
-    if (lhs_size != operand_size) {
-      lhs = Z3_mk_zero_ext(ctx_, operand_size - lhs_size, lhs);
-    }
-    if (rhs_size != operand_size) {
-      rhs = Z3_mk_zero_ext(ctx_, operand_size - rhs_size, rhs);
-    }
+    lhs = Z3_mk_zero_ext(ctx_, operand_size - lhs_size, lhs);
+    rhs = Z3_mk_zero_ext(ctx_, operand_size - rhs_size, rhs);
   }
 
   Z3_ast result = Z3_mk_bvmul(ctx_, lhs, rhs);
-  if (operand_size != result_size) {
+  if (operand_size > result_size) {
     result = Z3_mk_extract(ctx_, result_size - 1, 0, result);
+  } else if (operand_size < result_size) {
+    if (is_signed) {
+      result = Z3_mk_sign_ext(ctx_, result_size - operand_size, result);
+    } else {
+      result = Z3_mk_zero_ext(ctx_, result_size - operand_size, result);
+    }
   }
 
   NoteTranslation(mul, result);
@@ -1095,6 +1116,12 @@ Z3_ast IrTranslator::GetBitVec(Node* node) {
 }
 
 void IrTranslator::NoteTranslation(Node* node, Z3_ast translated) {
+  if (translations_.contains(node)) {
+    XLS_VLOG(2) << "Skipping translation of " << node->GetName()
+                << ", as it's already been recorded "
+                << "(expected if we're retranslating).";
+    return;
+  }
   translations_[node] = translated;
 }
 
@@ -1134,6 +1161,13 @@ xabsl::StatusOr<bool> TryProve(Function* f, Node* subject, Predicate p,
   XLS_ASSIGN_OR_RETURN(auto translator, IrTranslator::CreateAndTranslate(f));
   translator->SetTimeout(timeout);
   Z3_ast value = translator->GetTranslation(subject);
+
+  // All token types are equal.
+  if (subject->GetType()->IsToken() &&
+      p.kind() == PredicateKind::kEqualToNode &&
+      p.node()->GetType()->IsToken()) {
+    return true;
+  }
   if (translator->GetValueKind(value) != Z3_BV_SORT) {
     return absl::InvalidArgumentError(
         "Cannot prove properties of non-bits-typed node: " +

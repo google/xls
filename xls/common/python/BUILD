@@ -43,7 +43,7 @@ xls_pybind_extension(
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
-        "//xls/common/python:absl_casters",
         "//xls/common:init_xls",
+        "//xls/common/python:absl_casters",
     ],
 )

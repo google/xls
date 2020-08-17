@@ -734,6 +734,17 @@ TEST(VastTest, Concat) {
                 ->Emit());
 }
 
+TEST(VastTest, DynamicSlice) {
+  VerilogFile f;
+  Module* m = f.AddModule("DynamicSlice");
+  EXPECT_EQ("a[4'h3 +: 16'h0006]",
+            f.DynamicSlice(m->AddReg8("a"), f.Literal(3, 4), f.Literal(6, 16))
+                ->Emit());
+  EXPECT_EQ("b[c +: 16'h0012]",
+            f.DynamicSlice(m->AddReg8("b"), m->AddReg1("c"), f.Literal(18, 16))
+                ->Emit());
+}
+
 TEST(VastTest, ArrayAssignmentPattern) {
   VerilogFile f;
   Module* m = f.AddModule("ArrayAssignmentPattern");
@@ -761,6 +772,23 @@ TEST(VastTest, IndexScalarReg) {
   LogicRef* o_ref = module->AddPort(Direction::kOutput, "o", 1);
   LogicRef* r = module->AddReg("r", 1, 1);
   Index* i = f.Index(r, f.PlainLiteral(0));
+  module->Add<ContinuousAssignment>(o_ref, i);
+
+  EXPECT_EQ(module->Emit(),
+            R"(module my_module(
+  output wire o
+);
+  reg r = 1'h1;
+  assign o = r;
+endmodule)");
+}
+
+TEST(VastTest, SliceScalarReg) {
+  VerilogFile f;
+  Module* module = f.Make<Module>("my_module", &f);
+  LogicRef* o_ref = module->AddPort(Direction::kOutput, "o", 1);
+  LogicRef* r = module->AddReg("r", 1, 1);
+  Slice* i = f.Slice(r, f.PlainLiteral(0), f.PlainLiteral(0));
   module->Add<ContinuousAssignment>(o_ref, i);
 
   EXPECT_EQ(module->Emit(),

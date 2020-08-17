@@ -62,9 +62,12 @@ class IrTranslator : public DfsVisitorWithDefault {
   // Returns the Z3 value (or set of values) corresponding to the given Node.
   Z3_ast GetTranslation(const Node* source);
 
-  // Sets the translation of a node to the given Z3_ast, for example to set the
-  // input to a particular node as a constant value.
-  void SetTranslation(const Node* node, Z3_ast dst);
+  // Re-translates the function from scratch, using fixed mappings for the
+  // values in "replacements", i.e., when any node in "replacements" is
+  // encountered, the fixed Z3_ast is used instead of using a translation from
+  // the original IR.
+  absl::Status Retranslate(
+      const absl::flat_hash_map<const Node*, Z3_ast>& replacements);
 
   // Convenience version for the above for the function return Node.
   Z3_ast GetReturnNode();
@@ -107,11 +110,14 @@ class IrTranslator : public DfsVisitorWithDefault {
   // DfsVisitorWithDefault override decls.
   absl::Status DefaultHandler(Node* node) override;
   absl::Status HandleAdd(BinOp* add) override;
+  absl::Status HandleAfterAll(AfterAll* after_all) override;
   absl::Status HandleArray(Array* array) override;
   absl::Status HandleArrayIndex(ArrayIndex* array_index) override;
   absl::Status HandleArrayUpdate(ArrayUpdate* array_update) override;
   absl::Status HandleBitSlice(BitSlice* bit_slice) override;
   absl::Status HandleConcat(Concat* concat) override;
+  absl::Status HandleDynamicBitSlice(
+      DynamicBitSlice* dynamic_bit_slice) override;
   absl::Status HandleEncode(Encode* encode) override;
   absl::Status HandleEq(CompareOp* eq) override;
   absl::Status HandleIdentity(UnOp* identity) override;

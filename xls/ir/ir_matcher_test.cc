@@ -17,6 +17,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/package.h"
 
@@ -279,6 +280,21 @@ TEST(IrMatchersTest, TupleIndex) {
   EXPECT_THAT(Explain(elem1.node(), m::TupleIndex(400)),
               Eq("tuple_index.3: bits[7] = tuple_index(x, index=1) has "
                  "incorrect index, expected: 400"));
+}
+
+TEST(IrMatchersTest, ReductionOps) {
+  Package p("p");
+  FunctionBuilder fb("f", &p);
+
+  auto param = fb.Param("param", p.GetBitsType(8));
+  auto or_reduce = fb.OrReduce(param);
+  auto and_reduce = fb.AndReduce(param);
+  auto xor_reduce = fb.XorReduce(param);
+  XLS_ASSERT_OK(fb.Build().status());
+
+  EXPECT_THAT(or_reduce.node(), m::OrReduce(m::Param("param")));
+  EXPECT_THAT(xor_reduce.node(), m::XorReduce(m::Param("param")));
+  EXPECT_THAT(and_reduce.node(), m::AndReduce(m::Param("param")));
 }
 
 }  // namespace

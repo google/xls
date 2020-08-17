@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <random>
 
 #include "absl/flags/flag.h"
 #include "absl/memory/memory.h"
@@ -37,6 +38,7 @@
 #include "llvm/ExecutionEngine/Orc/ThreadSafeModule.h"
 #include "llvm/ExecutionEngine/SectionMemoryManager.h"
 #include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Intrinsics.h"
@@ -61,14 +63,11 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
-
 namespace xls {
 namespace {
 
 // Convenience alias for XLS type => LLVM type mapping used as a cache.
 using TypeCache = absl::flat_hash_map<const Type*, llvm::Type*>;
-
-constexpr int64 kCharBit = CHAR_BIT;
 
 // Visitor to construct LLVM IR for each encountered XLS IR node. Based on
 // DfsVisitorWithDefault to highlight any unhandled IR nodes.
@@ -111,6 +110,18 @@ class BuilderVisitor : public DfsVisitorWithDefault {
     llvm::Value* eq = builder_->CreateICmpEQ(
         operand, llvm::ConstantInt::get(operand_type, operand_type->getMask()));
     return StoreResult(op, eq);
+  }
+
+  absl::Status HandleAfterAll(AfterAll* after_all) override {
+    // AfterAll is only meaningful to the compiler and does not actually perform
+    // any computation. Furter, token types don't contain any data. A 0-element
+    // array is a convenient and low-overhead way to let the rest of the llvm
+    // infrastructure treat token like a normal data-type.
+    return StoreResult(
+        after_all,
+        llvm::ConstantArray::get(
+            llvm::ArrayType::get(llvm::IntegerType::get(*context_, 1), 0),
+            llvm::ArrayRef<llvm::Constant*>()));
   }
 
   absl::Status HandleArray(Array* array) override {
@@ -221,6 +232,42 @@ class BuilderVisitor : public DfsVisitorWithDefault {
     llvm::Value* truncated_value = builder_->CreateTrunc(
         shifted_value, llvm::IntegerType::get(*context_, bit_slice->width()));
     return StoreResult(bit_slice, truncated_value);
+  }
+
+  absl::Status HandleDynamicBitSlice(
+      DynamicBitSlice* dynamic_bit_slice) override {
+    llvm::Value* value = node_map_.at(dynamic_bit_slice->operand(0));
+    llvm::Value* start = node_map_.at(dynamic_bit_slice->operand(1));
+    int64 value_width = value->getType()->getIntegerBitWidth();
+    int64 start_width = start->getType()->getIntegerBitWidth();
+    // Either value or start may be wider, so we use the widest of both
+    // since LLVM requires both arguments to be of the same type for
+    // comparison and shifting.
+    int64 max_width = std::max(start_width, value_width);
+    llvm::IntegerType* max_width_type = builder_->getIntNTy(max_width);
+    llvm::Value* value_ext = builder_->CreateZExt(value, max_width_type);
+    llvm::Value* start_ext = builder_->CreateZExt(start, max_width_type);
+
+    Value operand_width(UBits(value_width, max_width));
+    XLS_ASSIGN_OR_RETURN(
+        llvm::Constant * bit_width,
+        type_converter_->ToLlvmConstant(max_width_type, operand_width));
+
+    // "out_of_bounds" indicates whether slice is completely out of bounds
+    llvm::Value* out_of_bounds = builder_->CreateICmpUGE(start_ext, bit_width);
+    llvm::IntegerType* return_type =
+        llvm::IntegerType::get(*context_, dynamic_bit_slice->width());
+    XLS_ASSIGN_OR_RETURN(
+        llvm::Constant * zeros,
+        type_converter_->ToLlvmConstant(
+            return_type, Value(Bits(dynamic_bit_slice->width()))));
+    // Then shift and truncate the input value.
+    llvm::Value* shifted_value = builder_->CreateLShr(value_ext, start_ext);
+    llvm::Value* truncated_value =
+        builder_->CreateTrunc(shifted_value, return_type);
+    llvm::Value* result =
+        builder_->CreateSelect(out_of_bounds, zeros, truncated_value);
+    return StoreResult(dynamic_bit_slice, result);
   }
 
   absl::Status HandleConcat(Concat* concat) override {
@@ -515,23 +562,29 @@ class BuilderVisitor : public DfsVisitorWithDefault {
       return StoreResult(param, llvm_function->getArg(index));
     }
 
-    // Remember that all input args are packed into a buffer specified as a
-    // single formal parameter, hence the 0 constant here.
-    llvm::Argument* llvm_arg = llvm_function->getArg(0);
+    // Remember that all input arg pointers are packed into a buffer specified
+    // as a single formal parameter, hence the 0 constant here.
+    llvm::Argument* arg_pointer = llvm_function->getArg(0);
 
-    // Get the offset of the param in the buffer.
-    llvm::ConstantInt* gep_index = llvm::ConstantInt::get(
-        llvm::Type::getInt64Ty(*context_), arg_indices_[index].first);
-    llvm::Value* gep = builder_->CreateGEP(llvm_arg, gep_index);
-
-    // Convert that offset into a ParamT pointer, and load from it.
     llvm::Type* arg_type =
         type_converter_->ConvertToLlvmType(*param->GetType());
     llvm::Type* llvm_arg_ptr_type =
         llvm::PointerType::get(arg_type, /*AddressSpace=*/0);
-    llvm::Value* cast = builder_->CreateBitCast(gep, llvm_arg_ptr_type);
 
-    llvm::LoadInst* load = builder_->CreateLoad(arg_type, cast);
+    // Load 1: Get the pointer to arg N out of memory (the arg redirect buffer).
+    llvm::Value* gep = builder_->CreateGEP(
+        arg_pointer,
+        {
+            llvm::ConstantInt::get(llvm::Type::getInt64Ty(*context_), 0),
+            llvm::ConstantInt::get(llvm::Type::getInt64Ty(*context_), index),
+        });
+    llvm::LoadInst* load =
+        builder_->CreateLoad(gep->getType()->getPointerElementType(), gep);
+    llvm::Value* cast = builder_->CreateBitCast(load, llvm_arg_ptr_type);
+
+    // Load 2: Get the data at that pointer's destination.
+    load = builder_->CreateLoad(arg_type, cast);
+
     return StoreResult(param, load);
   }
 
@@ -1123,7 +1176,15 @@ absl::Status LlvmIrJit::CompileFunction() {
   llvm::FunctionType* function_type;
   // Create a dummy param to hold a packed representation of the input args.
   param_types.push_back(llvm::PointerType::get(
-      llvm::Type::getInt8Ty(*bare_context), /*AddressSpace=*/0));
+      llvm::ArrayType::get(
+          llvm::PointerType::get(llvm::Type::getInt8Ty(*bare_context),
+                                 /*AddressSpace=*/0),
+          xls_function_type_->parameter_count()),
+      /*AddressSpace=*/0));
+
+  for (const Type* type : xls_function_type_->parameters()) {
+    arg_type_bytes_.push_back(type_converter_->GetTypeByteSize(*type));
+  }
 
   // Since we only pass around concrete values (i.e., not functions), we can
   // use the flat byte count of the XLS type to size our result array.
@@ -1194,18 +1255,7 @@ absl::Status LlvmIrJit::CompileFunction() {
   }
 
   llvm::JITTargetAddress invoker = symbol->getAddress();
-  invoker_ =
-      reinterpret_cast<void (*)(uint8 * inputs, uint8 * outputs)>(invoker);
-
-  // Precompute the offsets at which the arguments get packed, and what size of
-  // buffer the arguments get.
-  arg_sizes_.reserve(xls_function_type_->parameter_count());
-  for (int64 i = 0; i < xls_function_type_->parameter_count(); ++i) {
-    const Type* type = xls_function_type_->parameter_type(i);
-    int64 arg_size = type_converter_->GetTypeByteSize(*type);
-    arg_sizes_.push_back(arg_size);
-    args_size_ += arg_sizes_.back();
-  }
+  invoker_ = reinterpret_cast<JitFunctionType>(invoker);
 
   ir_runtime_ =
       std::make_unique<LlvmIrRuntime>(data_layout_, type_converter_.get());
@@ -1229,13 +1279,21 @@ xabsl::StatusOr<Value> LlvmIrJit::Run(absl::Span<const Value> args) {
     }
   }
 
-  absl::InlinedVector<uint8, 64> packed_args;
-  packed_args.resize(args_size_);
-  XLS_RETURN_IF_ERROR(
-      ir_runtime_->PackArgs(args, xls_function_type_->parameters(), arg_sizes_,
-                            args_size_, absl::MakeSpan(packed_args)));
+  std::vector<std::unique_ptr<uint8[]>> unique_arg_buffers;
+  std::vector<uint8*> arg_buffers;
+  unique_arg_buffers.reserve(xls_function_type_->parameters().size());
+  arg_buffers.reserve(unique_arg_buffers.size());
+  for (const Type* type : xls_function_type_->parameters()) {
+    unique_arg_buffers.push_back(
+        std::make_unique<uint8[]>(type_converter_->GetTypeByteSize(*type)));
+    arg_buffers.push_back(unique_arg_buffers.back().get());
+  }
+
+  XLS_RETURN_IF_ERROR(ir_runtime_->PackArgs(
+      args, xls_function_type_->parameters(), absl::MakeSpan(arg_buffers)));
+
   absl::InlinedVector<uint8, 16> outputs(return_type_bytes_);
-  invoker_(packed_args.data(), outputs.data());
+  invoker_(arg_buffers.data(), outputs.data());
 
   return ir_runtime_->UnpackBuffer(outputs.data(),
                                    xls_function_type_->return_type());
@@ -1248,21 +1306,13 @@ xabsl::StatusOr<Value> LlvmIrJit::Run(
   return Run(positional_args);
 }
 
-absl::Status LlvmIrJit::RunToBuffer(absl::Span<const Value> args,
-                                    absl::Span<uint8> result_buffer) {
+absl::Status LlvmIrJit::RunWithViews(absl::Span<const uint8*> args,
+                                     absl::Span<uint8> result_buffer) {
   absl::Span<Param* const> params = xls_function_->params();
   if (args.size() != params.size()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Arg list has the wrong size: %d vs expected %d.",
                         args.size(), xls_function_->params().size()));
-  }
-
-  for (int i = 0; i < params.size(); i++) {
-    if (!ValueConformsToType(args[i], params[i]->GetType())) {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Got argument %s for parameter %d which is not of type %s",
-          args[i].ToString(), i, params[i]->GetType()->ToString()));
-    }
   }
 
   if (result_buffer.size() < return_type_bytes_) {
@@ -1271,13 +1321,38 @@ absl::Status LlvmIrJit::RunToBuffer(absl::Span<const Value> args,
                      return_type_bytes_));
   }
 
-  absl::InlinedVector<uint8, 64> packed_args;
-  packed_args.resize(args_size_);
-  XLS_RETURN_IF_ERROR(
-      ir_runtime_->PackArgs(args, xls_function_type_->parameters(), arg_sizes_,
-                            args_size_, absl::MakeSpan(packed_args)));
-  invoker_(packed_args.data(), result_buffer.data());
+  invoker_(args.data(), result_buffer.data());
   return absl::OkStatus();
+}
+
+xabsl::StatusOr<Value> CreateAndRun(Function* xls_function,
+                                    absl::Span<const Value> args) {
+  XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(xls_function));
+  XLS_ASSIGN_OR_RETURN(auto result, jit->Run(args));
+  return result;
+}
+
+xabsl::StatusOr<std::pair<std::vector<std::vector<Value>>, std::vector<Value>>>
+CreateAndQuickCheck(Function* xls_function) {
+  XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(xls_function));
+  std::vector<Value> results;
+  std::vector<std::vector<Value>> argsets;
+  auto seed = time(nullptr);
+  std::minstd_rand rng_engine(seed);
+  int64 kNumTests = 1000;
+
+  for (int i = 0; i < kNumTests; i++) {
+    argsets.push_back(RandomFunctionArguments(xls_function, &rng_engine));
+    XLS_ASSIGN_OR_RETURN(auto result, jit->Run(argsets[i]));
+    results.push_back(result);
+    if (result.IsAllZeros()) {
+      // We were able to falsify the xls_function (predicate), bail out early
+      // and present this evidence.
+      break;
+    }
+  }
+
+  return std::make_pair(argsets, results);
 }
 
 }  // namespace xls

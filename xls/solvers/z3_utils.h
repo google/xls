@@ -31,6 +31,7 @@ namespace z3 {
 // needed.
 Z3_solver CreateSolver(Z3_context ctx, int num_threads);
 
+// Printing / output functions ------------------------------------------------
 // Prints the solver's result, and, if satisfiable, prints a model demonstrating
 // such a case.
 // If "hexify" is true, then all output values will be converted from boolean or
@@ -49,6 +50,12 @@ std::string QueryNode(Z3_context ctx, Z3_model model, Z3_ast node,
 // pattern "#b[01]+" will be converted to "#x[0-9a-f]+", where the values are
 // converted accordingly.
 std::string HexifyOutput(const std::string& input);
+
+// Returns a string containing a binary-formatted version of the given bits
+// interpreted under "model".
+std::string BitVectorToString(Z3_context ctx,
+                              const std::vector<Z3_ast>& z3_bits,
+                              Z3_model model);
 
 // Converts a XLS IR Type to the corresponding Z3 sort.
 Z3_sort TypeToSort(Z3_context ctx, const Type& type);

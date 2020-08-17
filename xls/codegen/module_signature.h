@@ -96,6 +96,9 @@ class ModuleSignature {
 
   const ModuleSignatureProto& proto() const { return proto_; }
 
+  // Return the signature as the proto in text form.
+  std::string AsTextProto() const { return proto_.DebugString(); }
+
   // Returns the data inputs/outputs of module. This does not include clock,
   // reset, etc. These ports necessarily exist in the proto as well but are
   // duplicated here for convenience.

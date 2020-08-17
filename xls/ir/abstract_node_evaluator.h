@@ -62,6 +62,8 @@ xabsl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
       return evaluator->BitwiseAnd(operands);
     case Op::kAndReduce:
       return evaluator->AndReduce(operands[0]);
+    case Op::kAfterAll:
+      return default_handler(node);
     case Op::kArray:
       return default_handler(node);
     case Op::kArrayIndex:
