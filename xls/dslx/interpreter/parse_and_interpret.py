@@ -19,6 +19,7 @@
 import functools
 import os
 import sys
+import time
 from typing import Text, Optional
 
 from xls.dslx import import_routines
@@ -45,7 +46,8 @@ def parse_and_test(program: Text,
                    raise_on_error: bool = True,
                    test_filter: Optional[Text] = None,
                    trace_all: bool = False,
-                   compare_jit: bool = True) -> bool:
+                   compare_jit: bool = True,
+                   seed: Optional[int] = None) -> bool:
   """Parses program and run all tests contained inside.
 
   Args:
@@ -59,13 +61,14 @@ def parse_and_test(program: Text,
     trace_all: Whether or not to trace all expressions.
     compare_jit: Whether or not to assert equality between interpreted and
       JIT'd function return values.
+    seed: Seed for QuickCheck random input stimulus.
 
   Returns:
     Whether or not an error occurred during parsing/testing.
 
   Raises:
     ScanError, ParseError: In case of front-end errors.
-    TypeInferenceError, TypeError: In case of type errors (when do_typecheck).
+    TypeInferenceError, TypeError: In case of type errors.
     EvaluateError: In case of a runtime failure.
   """
   did_fail = False
@@ -94,11 +97,17 @@ def parse_and_test(program: Text,
       interpreter.run_test(test_name)
       print('[               OK ]', test_name, file=sys.stderr)
 
-    if ir_package:
+    if ir_package and module.get_quickchecks():
+      if seed is None:
+        # We want to guarantee non-determinism by default. See
+        # https://abseil.io/docs/cpp/guides/random#stability-of-generated-sequences
+        # for rationale.
+        seed = int(os.getpid() * time.time())
+      print(f'[ SEED: {seed} ]')
       for quickcheck in module.get_quickchecks():
         test_name = quickcheck.f.name.identifier
         print('[ RUN QUICKCHECK   ]', test_name, file=sys.stderr)
-        interpreter.run_quickcheck(quickcheck)
+        interpreter.run_quickcheck(quickcheck, seed=seed)
         print('[               OK ]', test_name, file=sys.stderr)
 
   except PositionalError as e:
@@ -119,7 +128,8 @@ def parse_and_test_path(path: Text,
                         raise_on_error: bool = True,
                         test_filter: Optional[Text] = None,
                         trace_all: bool = False,
-                        compare_jit: bool = True) -> bool:
+                        compare_jit: bool = True,
+                        seed: Optional[int] = None) -> bool:
   """Wrapper around parse_and_test that reads the file contents at "path"."""
   with open(path) as f:
     text = f.read()
@@ -134,4 +144,5 @@ def parse_and_test_path(path: Text,
       raise_on_error=raise_on_error,
       test_filter=test_filter,
       trace_all=trace_all,
-      compare_jit=compare_jit)
+      compare_jit=compare_jit,
+      seed=seed)

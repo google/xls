@@ -309,6 +309,8 @@ dslx_test(
 dslx_test(
     name = "array_concat",
     srcs = ["array_concat.x"],
+    # TODO(hjmontero): 10-08-2020 array comparison via JIT is incorrect.
+    compare_jit = False,
 )
 
 dslx_test(

@@ -1333,23 +1333,20 @@ xabsl::StatusOr<Value> CreateAndRun(Function* xls_function,
 }
 
 xabsl::StatusOr<std::pair<std::vector<std::vector<Value>>, std::vector<Value>>>
-CreateAndQuickCheck(Function* xls_function) {
+CreateAndQuickCheck(Function* xls_function, int64 seed, int64 num_tests) {
   XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(xls_function));
   std::vector<Value> results;
   std::vector<std::vector<Value>> argsets;
-  auto seed = time(nullptr);
   std::minstd_rand rng_engine(seed);
-  int64 kNumTests = 1000;
 
-  for (int i = 0; i < kNumTests; i++) {
+  for (int i = 0; i < num_tests; i++) {
     argsets.push_back(RandomFunctionArguments(xls_function, &rng_engine));
     XLS_ASSIGN_OR_RETURN(auto result, jit->Run(argsets[i]));
     results.push_back(result);
-    if (result.IsAllZeros()) {
+    if (result.IsAllZeros())
       // We were able to falsify the xls_function (predicate), bail out early
       // and present this evidence.
       break;
-    }
   }
 
   return std::make_pair(argsets, results);

@@ -23,25 +23,25 @@
 namespace xls {
 
 // View representation of a 32-bit float value.
-using F32TupleView = TupleView<BitsView<1>, BitsView<8>, BitsView<23>>;
+using F32TupleView = TupleView<BitsView<23>, BitsView<8>, BitsView<1>>;
 
 // Returns the flat float contained in the specified view tuple.
 inline float F32TupleViewToFloat(F32TupleView tuple) {
-  return absl::bit_cast<float>((tuple.Get<0>().GetValue() << 31) |
+  return absl::bit_cast<float>((tuple.Get<2>().GetValue() << 31) |
                                (tuple.Get<1>().GetValue() << 23) |
-                               (tuple.Get<2>().GetValue() & 0x7FFFFF));
+                               (tuple.Get<0>().GetValue() & 0x7FFFFF));
 }
 
 // Populates the specified view with the values from the input float.
 inline void PopulateAsF32TupleView(float f, uint8* view_buffer) {
   using MutableF32TupleView =
-      MutableTupleView<MutableBitsView<1>, MutableBitsView<8>,
-                       MutableBitsView<23>>;
+      MutableTupleView<MutableBitsView<23>, MutableBitsView<8>,
+                       MutableBitsView<1>>;
   MutableF32TupleView view(view_buffer);
   uint32 i = absl::bit_cast<uint32>(f);
-  view.Get<0>().SetValue(i >> 31);
+  view.Get<2>().SetValue(i >> 31);
   view.Get<1>().SetValue((i >> 23) & 0xff);
-  view.Get<2>().SetValue(i & 0x7FFFFF);
+  view.Get<0>().SetValue(i & 0x7FFFFF);
 }
 
 }  // namespace xls

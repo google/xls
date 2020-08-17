@@ -474,10 +474,28 @@ def _check_module_helper(module: Module,
   test_map = {t.name.identifier: t for t in ctx.module.get_tests()}
   for t in test_map.values():
     assert isinstance(t, ast.Test), t
-    # No symbolic bindings inside of a test construct
+
+    if isinstance(t, ast.TestFunction):
+      # New-style test constructs are specified using a function.
+      # This function shouldn't be parametric and shouldn't take any arguments.
+      if t.fn.params:
+        raise PositionalError("Test functions shouldn't take arguments.",
+                              t.fn.span)
+
+      if t.fn.is_parametric():
+        raise PositionalError("Test functions shouldn't be parametric.",
+                              t.fn.span)
+
+    # No symbolic bindings inside of a test.
     ctx.fn_stack.append(('{}_test'.format(t.name.identifier), dict()))
     logging.vlog(2, 'Typechecking test: %s', t)
-    check_function_or_test_in_module(t, ctx)
+    if isinstance(t, ast.TestFunction):
+      # New-style tests are wrapped in a function.
+      check_function_or_test_in_module(t.fn, ctx)
+    else:
+      # Old-style tests are specified in a construct with a body
+      # (see check_test()).
+      check_function_or_test_in_module(t, ctx)
     logging.vlog(2, 'Finished typechecking test: %s', t)
 
   # Let's discard all of the parametric fns' dependencies so that they are

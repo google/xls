@@ -120,9 +120,9 @@ for full details.
 
 ### Utilities
 
--   [tools/lec_main.cc](http://cs/google/third_party/xls/tools/lec_main.cc):
+-   [tools/lec_main.cc](http://cs/google/xls/tools/lec_main.cc):
     Driver function for performing IR-to-netlist LEC.
--   [solvers/python/z3_lec.cc](http://cs/google/third_party/xls/solvers/python/z3_lec.cc):
+-   [solvers/python/z3_lec.cc](http://cs/google/xls/solvers/python/z3_lec.cc):
     Wrapper to perform IR-to-netlist LEC from Python.
 
 ## Current Limitations

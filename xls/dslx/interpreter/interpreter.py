@@ -1401,10 +1401,14 @@ class Interpreter(object):
       # create it every time. This requires us to figure out how to wrap
       # LlvmIrJit::Create().
       ir_function = self._ir_package.get_function(ir_name)
-      ir_args = jit_comparison.convert_args_to_ir(args)
+      try:
+        ir_args = jit_comparison.convert_args_to_ir(args)
 
-      jit_value = llvm_ir_jit.llvm_ir_jit_run(ir_function, ir_args)
-      jit_comparison.compare_values(interpreter_value, jit_value)
+        jit_value = llvm_ir_jit.llvm_ir_jit_run(ir_function, ir_args)
+        jit_comparison.compare_values(interpreter_value, jit_value)
+      except (jit_comparison.UnsupportedJitConversionError,
+              jit_comparison.JitMiscompareError) as e:
+        raise FailureError(expr.span if expr else fn.span, str(e))
 
     return interpreter_value
 
@@ -1486,7 +1490,7 @@ class Interpreter(object):
         b.add_mod(member.identifier, imported_module)
     return b
 
-  def run_quickcheck(self, quickcheck: ast.QuickCheck) -> None:
+  def run_quickcheck(self, quickcheck: ast.QuickCheck, seed: int) -> None:
     """Runs a quickcheck AST node (via the LLVM JIT)."""
     assert self._ir_package
     fn = quickcheck.f
@@ -1495,7 +1499,8 @@ class Interpreter(object):
                                                self._module, ())
 
     ir_function = self._ir_package.get_function(ir_name)
-    argsets, results = llvm_ir_jit.quickcheck_jit(ir_function)
+    argsets, results = llvm_ir_jit.quickcheck_jit(ir_function, seed,
+                                                  quickcheck.test_count)
     last_result = results[-1].get_bits().to_uint()
     if not last_result:
       last_argset = argsets[-1]

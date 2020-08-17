@@ -74,12 +74,6 @@ class BitsView {
   BitsView() : buffer_(nullptr) { XLS_CHECK(buffer_ == nullptr); }
   explicit BitsView(const uint8* buffer) : buffer_(buffer) {}
 
-  // Gets the storage size of this type.
-  static constexpr uint64 GetTypeSize() {
-    // Constexpr ceiling division.
-    return CeilOfRatio(kNumBits, kCharBit);
-  }
-
   // Determines the appropriate return type for this BitsView type.
   static_assert(kNumBits != 0 && kNumBits <= 64);
   typedef typename std::conditional<
@@ -90,6 +84,9 @@ class BitsView {
               (kNumBits > 8), uint16,
               typename std::conditional<(kNumBits > 1), uint8, bool>::type>::
               type>::type>::type ReturnT;
+
+  // Gets the storage size of this type.
+  static constexpr uint64 GetTypeSize() { return sizeof(ReturnT); }
 
   // Note that this will only return the first 8 bytes of a > 64b type.
   // Values larger than 64 bits should be converted to proper Bits type before
@@ -398,7 +395,7 @@ class PackedTupleView {
         GetStartBitOffset<kElementIndex, Types...>(0);
     return typename element_accessor<kElementIndex, Types...>::type(
         buffer_ + (kStartBitOffset / kCharBit),
-        (buffer_offset_ + kStartBitOffset % kCharBit));
+        ((buffer_offset_ + kStartBitOffset) % kCharBit));
   }
 
  private:

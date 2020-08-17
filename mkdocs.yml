@@ -18,5 +18,6 @@ nav:
   - Tools:
     - Quick Start: 'tools_quick_start.md'
     - Listing: 'tools.md'
+    - Interpreters: 'interpreters.md'
   - Development:
     - Style Guide: 'xls_style.md'

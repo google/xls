@@ -10,7 +10,7 @@ exploration of the IR.
 To build and launch the IR visualization web app run:
 
 ```shell
-bazel run -c opt third_party/xls/visualization/ir_viz:app -- --delay_model=unit
+bazel run -c opt xls/visualization/ir_viz:app -- --delay_model=unit
 ```
 
 Then visit [http://localhost:5000](http://localhost:5000) in a browser.

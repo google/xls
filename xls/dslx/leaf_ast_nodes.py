@@ -173,9 +173,14 @@ class Function(AstNode):
 class QuickCheck(AstNode):
   """Represents a function to be QuickChecked."""
 
-  def __init__(self, span: Span, f: Function):
+  def __init__(self, span: Span, f: Function, test_count: Optional[int]):
     self.span = span
     self.f = f
+
+    if test_count is None:
+      test_count = 1000
+
+    self.test_count = test_count
 
   def __str__(self) -> Text:
     return f'QC: {self.f}'
@@ -215,6 +220,21 @@ class Test(AstNode):
 
   def __str__(self) -> Text:
     return 'test {} {{ ... }}'.format(self.name)
+
+
+class TestFunction(Test):
+  """Represents a new-style unit test construct.
+
+  These are specified as follows:
+    #![test]
+    fn test_foo() { ... }
+
+  We keep Test for backwards compatibility with old-style test constructs.
+  """
+
+  def __init__(self, fn: Function):
+    super().__init__(fn.name, fn.body)
+    self.fn = fn
 
 
 class Constant(AstNode):

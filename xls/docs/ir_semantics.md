@@ -1,7 +1,5 @@
 # XLS: IR semantics
 
-go/xls-ir
-
 [TOC]
 
 The XLS IR is a pure dataflow-oriented IR that has the static-single-assignment

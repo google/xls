@@ -1375,18 +1375,75 @@ replacement is viable.
 
 ## Testing and Debugging
 
-DSLX allows specifying tests right in the implementation file via the `test`
-construct, which looks similar to function definitions, but doesn't allow
-parameters.
+DSLX allows specifying tests right in the implementation file via the `test` and
+`quickcheck` directives.
 
 Having key test code in the implementation file serves two purposes. It helps
 to ensure the code behaves as expected. Additionally it serves as
 'executable' documentation, similar in spirit to Python doc strings.
 
+### Unit Tests
+
+Unit tests are specified by the `test` directive, as seen below: ```
+
+# ![test]
+
+fn test_reverse() { let _ = assert_eq(u1:1, rev(u1:1)) in let _ =
+assert_eq(u2:0b10, rev(u2:0b01)) in let _ = assert_eq(u2:0b00, rev(u2:0b00)) in
+() } ```
+
+The DSLX interpreter will execute all functions that are proceeded by a `test`
+directive. These functions should be non-parametric, take no arguments, and
+should return a unit-type.
+
+Unless otherwise specified in the implementation's build configs, functions
+called by unit tests are also converted to XLS IR and run through the
+toolchain's LLVM JIT. The resulting values from the DSLX interpreter and the
+LLVM JIT are compared against each other to assert equality. This is to ensure
+1) DSLX implementations are IR-convertable and 2) IR translation is correct.
+
+### QuickCheck
+
+QuickCheck is a [testing framework concept][hughes-paper] founded on
+property-based testing. Instead of specifying expected and test values,
+QuickCheck asks for properties of the implementation that should hold true
+against any input of the specified type(s). In DSLX, we use the `quickcheck`
+directive to designate functions to be run via the toolchain's QuickCheck
+framework. Here is an example that complements the unit testing of DSLX's `rev`
+implementation from above: ``` // Reversing a value twice gets you the original
+value.
+
+# ![quickcheck]
+
+fn prop_double_reverse(x: u32) -> bool { x == rev(rev(x)) } ```
+
+The DSLX interpreter will also execute all functions that are proceeded by a
+`quickcheck` directive. These functions should be non-parametric and return a
+`bool`. The framework will provide randomized input based on the types of the
+arguments to the function (e.g. above, the framework will provided randomized
+`u32`'s as `x`).
+
+By default, the framework will run the function against 1000 sets of randomized
+inputs. This default may be changed by specifying the `test_count` key in the
+`quickcheck` directive before a particular test: ```
+
+# ![quickcheck(test_count=50000)]
+
+```
+
+The framework also allows programmers to specify a seed to use in generating the random inputs, as opposed to letting the framework pick one. The seed chosen for production can be found in the execution log.
+
+For determinism, the DSLX interpreter should be run with the `seed` flag:
+```
+
+./interpreter_main --seed=1234 <DSLX source file> ```
+
+[hughes-paper]: https://www.cs.tufts.edu/~nr/cs257/archive/john-hughes/quick.pdf
+
 ### assert_eq
 
-In a test pseudo function all valid DSLX code is allowed. To evaluate test
-results DLSX provides the `assert_eq` primitive (we'll add more of those in the
+In a unit test pseudo function all valid DSLX code is allowed. To evaluate test
+results DSLX provides the `assert_eq` primitive (we'll add more of those in the
 future). Here is an example of a `divceil` implementation with its corresponding
 tests:
 
@@ -1395,14 +1452,14 @@ fn divceil(x: u32, y: u32) -> u32 {
   (x-u32:1) / y + u32:1
 }
 
-test divceil {
+#![test]
+fn test_divceil() {
   let _ = assert_eq(u32:3, divceil(u32:5, u32:2));
   let _ = assert_eq(u32:2, divceil(u32:4, u32:2));
   let _ = assert_eq(u32:2, divceil(u32:3, u32:2));
   let _ = assert_eq(u32:1, divceil(u32:2, u32:2));
   _
 }
-
 ```
 
 Note that in this example, the final `let _ = ... in _` construct could be

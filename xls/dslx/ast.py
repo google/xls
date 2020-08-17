@@ -65,6 +65,7 @@ from xls.dslx.leaf_ast_nodes import Struct
 from xls.dslx.leaf_ast_nodes import StructInstance
 from xls.dslx.leaf_ast_nodes import StructInstanceMembers
 from xls.dslx.leaf_ast_nodes import Test
+from xls.dslx.leaf_ast_nodes import TestFunction
 from xls.dslx.leaf_ast_nodes import Unop
 from xls.dslx.leaf_ast_nodes import While
 from xls.dslx.leaf_ast_nodes import WidthSlice

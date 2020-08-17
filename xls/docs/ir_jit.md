@@ -2,11 +2,6 @@
 
 [TOC]
 
-<!--*
-# Document freshness: For more information, see go/fresh-source.
-freshness: { owner: 'rspringer' reviewed: '2020-02-27' }
-*-->
-
 XLS provides a JIT compiler for evaluating functions written in the [XLS]
 compiler intermediate representation (IR) at native machine speed.
 

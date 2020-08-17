@@ -17,8 +17,6 @@
 
 from typing import Iterable
 
-from absl import logging
-
 from xls.dslx import bit_helpers
 from xls.dslx.concrete_type import ArrayType
 from xls.dslx.concrete_type import BitsType
@@ -32,12 +30,12 @@ from xls.ir.python import value as ir_value
 WORD_SIZE = 64  # type: int
 
 
-class UnsupportedConversionError(Exception):
-  """Raised when the JIT bindings throw an exception.
+class UnsupportedJitConversionError(Exception):
+  """Raised when the JIT bindings throw an exception."""
 
-  This exception is caught in interpreter.evaluate_fn() and means
-  that the function in question isn't JIT convertible (yet).
-  """
+
+class JitMiscompareError(Exception):
+  """Raised when the JIT and DSLX interpreter give inconsistent results."""
 
 
 def convert_interpreter_value_to_ir(
@@ -58,8 +56,8 @@ def convert_interpreter_value_to_ir(
       ir_tuple.append(convert_interpreter_value_to_ir(e))
     return ir_value.Value.make_tuple(ir_tuple)
   else:
-    logging.vlog(3, "Can't convert to JIT value: %s", interpreter_value)
-    raise UnsupportedConversionError
+    raise UnsupportedJitConversionError(
+        "Can't convert to JIT value: {}".format(interpreter_value))
 
 
 def convert_args_to_ir(
@@ -97,17 +95,19 @@ def compare_values(interpreter_value: dslx_value.Value,
     jit_value: Value that resulted from JIT-compiled execution.
 
   Raises:
-    UnsupportedConversionError: If there is not JIT-supported type equivalent
+    JitMiscompareError: If the dslx_value and jit_value are not equivalent.
+    UnsupportedJitConversionError: If there is not JIT-supported type equivalent
       for the interpreter value.
   """
   if interpreter_value.is_bits() or interpreter_value.is_enum():
-    assert jit_value.is_bits(), 'Expected bits value: {!r}'.format(jit_value)
+    assert jit_value.is_bits(), f'Expected bits value: {jit_value!r}'
 
     jit_value = jit_value.get_bits()
     bit_count = interpreter_value.get_bit_count()
-    assert bit_count == jit_value.bit_count(), (f'Inconsistent bit counts -- '
-                                                f'interp: {bit_count}, jit: '
-                                                f'{jit_value.bit_count()}')
+    if bit_count != jit_value.bit_count():
+      raise JitMiscompareError(f'Inconsistent bit counts for value -- '
+                               f'interp: {bit_count}, '
+                               f'jit: {jit_value.bit_count()}')
 
     if interpreter_value.is_ubits():
       interpreter_bits_value = interpreter_value.get_bits_value()
@@ -115,9 +115,11 @@ def compare_values(interpreter_value: dslx_value.Value,
     else:
       interpreter_bits_value = interpreter_value.get_bits_value_signed()
       jit_bits_value = bits_to_int(jit_value, signed=True)
-    assert interpreter_bits_value == jit_bits_value, (
-        'Inconsistent bit values -- interp: {!r}, jit: {!r}'.format(
-            interpreter_bits_value, jit_bits_value))
+
+    if interpreter_bits_value != jit_bits_value:
+      raise JitMiscompareError('Inconsistent bit values in return value -- '
+                               'interp: {!r}, jit: {!r}'.format(
+                                   interpreter_bits_value, jit_bits_value))
 
   elif interpreter_value.is_array():
     assert jit_value.is_array(), f'Expected array value: {jit_value!r}'
@@ -126,26 +128,28 @@ def compare_values(interpreter_value: dslx_value.Value,
     jit_values = jit_value.get_elements()
     interp_len = len(interpreter_values)
     jit_len = len(jit_values)
-    assert interp_len == jit_len, (
-        f'Inconsistent lengths -- interp: {interp_len}, jit: {jit_len}')
+    if interp_len != jit_len:
+      raise JitMiscompareError(f'Inconsistent array lengths in return value -- '
+                               f'interp: {interp_len}, jit: {jit_len}')
 
     for interpreter_element, jit_element in zip(interpreter_values, jit_values):
       compare_values(interpreter_element, jit_element)
   elif interpreter_value.is_tuple():
-    assert jit_value.is_tuple(), 'Expected tuple value: {!r}'.format(jit_value)
+    assert jit_value.is_tuple(), 'Expected tuple value: {jit_value!r}'
 
     interpreter_values = interpreter_value.tuple_members
     jit_values = jit_value.get_elements()
     interp_len = len(interpreter_values)
     jit_len = len(jit_values)
-    assert interp_len == jit_len, (
-        f'Inconsistent lengths -- interp: {interp_len}, jit: {jit_len}')
+    if interp_len != jit_len:
+      raise JitMiscompareError(f'Inconsistent tuple lengths in return value -- '
+                               f'interp: {interp_len}, jit: {jit_len}')
 
     for interpreter_element, jit_element in zip(interpreter_values, jit_values):
       compare_values(interpreter_element, jit_element)
   else:
-    logging.vlog(3, 'No JIT-supported type equivalent: %s', interpreter_value)
-    raise UnsupportedConversionError
+    raise UnsupportedJitConversionError(
+        'No JIT-supported type equivalent: {}'.format(interpreter_value))
 
 
 def ir_value_to_interpreter_value(value: ir_value.Value,

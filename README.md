@@ -4,12 +4,12 @@ Note: This is not an officially supported Google product. Expect bugs and
 sharp edges. Please help by trying it out, reporting bugs, and letting us know
 what you think!
 
-The XLS (Accelerator Synthesis) toolchain aims to enable the rapid development
-of hardware IP via "software style" methodology. XLS is a High Level Synthesis
-(HLS) toolchain which produces synthesizable designs from flexible, high-level
-descriptions of functionality.
+The XLS (Accelerated HW Synthesis) toolchain aims to enable the rapid
+development of hardware IP via "software style" methodology. XLS is a High Level
+Synthesis (HLS) toolchain which produces synthesizable designs from flexible,
+high-level descriptions of functionality.
 
-## Installation
+## Building From Source
 
 Currently, XLS must be built from source using the Bazel build system.
 

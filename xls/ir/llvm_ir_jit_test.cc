@@ -71,9 +71,12 @@ TEST(LlvmIrJitTest, QuickCheckBits) {
     ret eq_value: bits[1] = eq(first_bit, second_bit)
   }
   )";
+  int64 seed = 0;
+  int64 num_tests = 1000;
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
-  XLS_ASSERT_OK_AND_ASSIGN(auto quickcheck_info, CreateAndQuickCheck(function));
+  XLS_ASSERT_OK_AND_ASSIGN(auto quickcheck_info,
+                           CreateAndQuickCheck(function, seed, num_tests));
   std::vector<Value> results = quickcheck_info.second;
   // If a counter-example was found, the last result will be 0.
   EXPECT_EQ(results.back(), Value(UBits(0, 1)));
@@ -91,9 +94,12 @@ TEST(LlvmIrJitTest, QuickCheckArray) {
     ret eq_value: bits[1] = eq(first_element, second_element)
   }
   )";
+  int64 seed = 0;
+  int64 num_tests = 1000;
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
-  XLS_ASSERT_OK_AND_ASSIGN(auto quickcheck_info, CreateAndQuickCheck(function));
+  XLS_ASSERT_OK_AND_ASSIGN(auto quickcheck_info,
+                           CreateAndQuickCheck(function, seed, num_tests));
   std::vector<Value> results = quickcheck_info.second;
   EXPECT_EQ(results.back(), Value(UBits(0, 1)));
 }
@@ -108,11 +114,67 @@ TEST(LlvmIrJitTest, QuickCheckTuple) {
     ret eq_value: bits[1] = eq(first_member, second_member)
   }
   )";
+  int64 seed = 0;
+  int64 num_tests = 1000;
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
-  XLS_ASSERT_OK_AND_ASSIGN(auto quickcheck_info, CreateAndQuickCheck(function));
+  XLS_ASSERT_OK_AND_ASSIGN(auto quickcheck_info,
+                           CreateAndQuickCheck(function, seed, num_tests));
   std::vector<Value> results = quickcheck_info.second;
   EXPECT_EQ(results.back(), Value(UBits(0, 1)));
+}
+
+// If the QuickCheck mechanism can't find a falsifying example, we expect
+// the argsets and results vectors to have lengths of 'num_tests'.
+TEST(LlvmIrJitTest, NumTests) {
+  Package package("always_true");
+  std::string ir_text = R"(
+  fn ret_true(x: bits[32]) -> bits[1] {
+    ret eq_value: bits[1] = eq(x, x)
+  }
+  )";
+  int64 seed = 0;
+  int64 num_tests = 5050;
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           Parser::ParseFunction(ir_text, &package));
+  XLS_ASSERT_OK_AND_ASSIGN(auto quickcheck_info,
+                           CreateAndQuickCheck(function, seed, num_tests));
+
+  std::vector<std::vector<Value>> argsets = quickcheck_info.first;
+  std::vector<Value> results = quickcheck_info.second;
+  EXPECT_EQ(argsets.size(), 5050);
+  EXPECT_EQ(results.size(), 5050);
+}
+
+// Given a constant seed, we expect the same argsets and results vectors from
+// two runs through the QuickCheck mechanism.
+//
+// We expect this test to fail with a probability of (1/128)^1000.
+TEST(LlvmIrJitTest, Seeding) {
+  Package package("sometimes_false");
+  std::string ir_text = R"(
+  fn gt_one(x: bits[8]) -> bits[1] {
+    literal.2: bits[8] = literal(value=1)
+    ret ugt.3: bits[1] = ugt(x, literal.2)
+  }
+  )";
+  int64 seed = 12345;
+  int64 num_tests = 1000;
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           Parser::ParseFunction(ir_text, &package));
+  XLS_ASSERT_OK_AND_ASSIGN(auto quickcheck_info1,
+                           CreateAndQuickCheck(function, seed, num_tests));
+  XLS_ASSERT_OK_AND_ASSIGN(auto quickcheck_info2,
+                           CreateAndQuickCheck(function, seed, num_tests));
+
+  std::vector<std::vector<Value>> argsets1 = quickcheck_info1.first;
+  std::vector<Value> results1 = quickcheck_info1.second;
+
+  std::vector<std::vector<Value>> argsets2 = quickcheck_info2.first;
+  std::vector<Value> results2 = quickcheck_info2.second;
+
+  EXPECT_EQ(argsets1, argsets2);
+  EXPECT_EQ(results1, results2);
 }
 
 }  // namespace
