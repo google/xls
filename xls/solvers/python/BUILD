@@ -25,8 +25,6 @@ py_library(
     srcs = ["lec_characterizer.py"],
     srcs_version = "PY3",
     deps = [
-        "//net/grpc/python:grpc",
-        "//tech/env:envelope_loader",
         "@com_google_absl_py//absl/logging",
         "//xls/delay_model:op_module_generator",
         "//xls/ir:op_py_pb2",
@@ -34,6 +32,7 @@ py_library(
         "//xls/synthesis:client_credentials",
         "//xls/synthesis:synthesis_py_pb2",
         "//xls/synthesis:synthesis_service_py_pb2_grpc",
+        "@com_github_grpc_grpc//src/python/grpcio/grpc:grpcio",
     ],
 )
 
