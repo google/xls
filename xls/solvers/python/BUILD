@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@xls_pip_deps//:requirements.bzl", "requirement")
+
 # pytype test and library
 load("//dependency_support/pybind11:pybind11.bzl", "xls_pybind_extension")
 
@@ -25,7 +27,6 @@ py_library(
     srcs = ["lec_characterizer.py"],
     srcs_version = "PY3",
     deps = [
-        "@com_google_absl_py//absl/logging",
         "//xls/delay_model:op_module_generator",
         "//xls/ir:op_py_pb2",
         "//xls/ir/python:type",
@@ -33,6 +34,7 @@ py_library(
         "//xls/synthesis:synthesis_py_pb2",
         "//xls/synthesis:synthesis_service_py_pb2_grpc",
         "@com_github_grpc_grpc//src/python/grpcio/grpc:grpcio",
+        "@com_google_absl_py//absl/logging",
     ],
 )
 
@@ -45,11 +47,11 @@ py_test(
     python_version = "PY3",
     deps = [
         ":lec_characterizer",
-        "@com_google_absl_py//absl/testing:absltest",
         requirement("portpicker"),
         "//xls/common:runfiles",
         "//xls/ir:op_py_pb2",
         "//xls/ir/python:package",
+        "@com_google_absl_py//absl/testing:absltest",
     ],
 )
 
@@ -78,8 +80,8 @@ py_test(
     python_version = "PY3",
     deps = [
         ":z3_lec",
-        "@com_google_absl_py//absl/testing:absltest",
         "//xls/common:runfiles",
         "//xls/common/python:init_xls",
+        "@com_google_absl_py//absl/testing:absltest",
     ],
 )

@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@xls_pip_deps//:requirements.bzl", "requirement")
-
 # Build rules for XLS-used logic solvers.
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -27,6 +25,10 @@ cc_library(
     deps = [
         ":z3_propagate_updates",
         ":z3_utils",
+        "@com_google_absl//absl/debugging:leak_check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
         "//xls/common/logging",
         "//xls/common/logging:vlog_is_on",
         "//xls/common/status:ret_check",
@@ -35,10 +37,6 @@ cc_library(
         "//xls/ir",
         "//xls/ir:abstract_evaluator",
         "//xls/ir:abstract_node_evaluator",
-        "@com_google_absl//absl/debugging:leak_check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/time",
         "@z3//:api",
     ],
 )
@@ -49,12 +47,12 @@ cc_test(
     deps = [
         ":z3_ir_translator",
         ":z3_utils",
+        "@com_google_absl//absl/strings",
         "//xls/common/status:matchers",
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
-        "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest_main",
         "@z3//:api",
+        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -66,6 +64,10 @@ cc_library(
         ":z3_ir_translator",
         ":z3_netlist_translator",
         ":z3_utils",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
         "//xls/codegen:vast",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -75,10 +77,6 @@ cc_library(
         "//xls/ir:node_util",
         "//xls/netlist",
         "//xls/scheduling:pipeline_schedule",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:optional",
         "@z3//:api",
     ],
 )
@@ -104,6 +102,11 @@ cc_library(
     hdrs = ["z3_netlist_translator.h"],
     deps = [
         ":z3_propagate_updates",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -112,11 +115,6 @@ cc_library(
         "//xls/netlist",
         "//xls/netlist:function_parser",
         "//xls/solvers:z3_utils",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
         "@z3//:api",
     ],
 )
@@ -127,6 +125,10 @@ cc_test(
     deps = [
         ":z3_netlist_translator",
         ":z3_utils",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
         "//xls/common:cleanup",
         "//xls/common/logging",
         "//xls/common/status:matchers",
@@ -135,12 +137,8 @@ cc_test(
         "//xls/netlist",
         "//xls/netlist:fake_cell_library",
         "//xls/netlist:netlist_parser",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:optional",
-        "@com_google_googletest//:gtest_main",
         "@z3//:api",
+        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -160,15 +158,15 @@ cc_library(
     srcs = ["z3_utils.cc"],
     hdrs = ["z3_utils.h"],
     deps = [
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:type",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_re2//:re2",
         "@z3//:api",
+        "@com_google_re2//:re2",
     ],
 )
 
