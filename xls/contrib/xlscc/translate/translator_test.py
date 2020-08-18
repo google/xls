@@ -24,15 +24,17 @@ import ctypes
 import os
 import re
 
-from absl.testing import absltest
 import pycparser
-from xls.common import runfiles
-from xls.contrib.xlscc.parse import ext_c_parser
-from xls.contrib.xlscc.translate import hls_types_pb2
-import xls.contrib.xlscc.translate.translator as xlscc_translator
-from xls.ir.python import bits as bits_mod
-from xls.ir.python import ir_interpreter
-from xls.ir.python import value as ir_value
+
+from google3.testing.pybase import googletest as absltest
+
+from google3.third_party.xls.common import runfiles_google3 as runfiles
+from google3.third_party.xls.contrib.xlscc.parse import ext_c_parser
+from google3.third_party.xls.contrib.xlscc.translate import hls_types_pb2
+import google3.third_party.xls.contrib.xlscc.translate.translator as xlscc_translator
+from google3.third_party.xls.ir.python import bits as bits_mod
+from google3.third_party.xls.ir.python import ir_interpreter
+from google3.third_party.xls.ir.python import value as ir_value
 
 
 class TranslatorTest(absltest.TestCase):
