@@ -1,13 +1,17 @@
 site_name: "XLS: Accelerated HW Synthesis"
 repo_url: "https://github.com/google/xls/"
-docs_dir: "xls/docs/"
+docs_dir: "docs/"
 site_dir: "gendocs/"
 theme:
   name: "material"
 nav:
+  - Intro: 'README.md'
   - IR:
     - Semantics: 'ir_semantics.md'
-    - JIT: 'ir_jit.md'
+    - Optimizations: 'optimizations.md'
+    - Scheduling: 'scheduling.md'
+    - Visualizer: 'ir_visualization.md'
+    - Native JIT: 'ir_jit.md'
     - Formal: 'solvers.md'
   - DSLX:
     - Reference: 'dslx_intro.md'
