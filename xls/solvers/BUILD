@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pytype test and library
-
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 # Build rules for XLS-used logic solvers.
@@ -180,38 +178,5 @@ cc_test(
     deps = [
         ":z3_utils",
         "@com_google_googletest//:gtest_main",
-    ],
-)
-
-py_library(
-    name = "lec_characterizer",
-    srcs = ["lec_characterizer.py"],
-    srcs_version = "PY3",
-    deps = [
-        "//xls/delay_model:op_module_generator",
-        "//xls/ir:op_py_pb2",
-        "//xls/ir/python:type",
-        "//xls/synthesis:client_credentials",
-        "//xls/synthesis:synthesis_py_pb2",
-        "//xls/synthesis:synthesis_service_py_pb2_grpc",
-        "@com_github_grpc_grpc//src/python/grpcio/grpc:grpcio",
-        "@com_google_absl_py//absl/logging",
-    ],
-)
-
-py_test(
-    name = "lec_characterizer_test",
-    srcs = ["lec_characterizer_test.py"],
-    data = [
-        "//xls/synthesis:dummy_synthesis_server_main",
-    ],
-    python_version = "PY3",
-    deps = [
-        ":lec_characterizer",
-        requirement("portpicker"),
-        "//xls/common:runfiles",
-        "//xls/ir:op_py_pb2",
-        "//xls/ir/python:package",
-        "@com_google_absl_py//absl/testing:absltest",
     ],
 )

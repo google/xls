@@ -19,7 +19,7 @@ import portpicker
 from xls.common import runfiles
 from xls.ir import op_pb2
 from xls.ir.python import package
-from xls.solvers import lec_characterizer
+from xls.solvers.python import lec_characterizer
 from absl.testing import absltest
 
 

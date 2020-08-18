@@ -12,12 +12,46 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pytype tests are present in this file
+# pytype test and library
 load("//dependency_support/pybind11:pybind11.bzl", "xls_pybind_extension")
 
 package(
     default_visibility = ["//visibility:private"],
     licenses = ["notice"],  # Apache 2.0
+)
+
+py_library(
+    name = "lec_characterizer",
+    srcs = ["lec_characterizer.py"],
+    srcs_version = "PY3",
+    deps = [
+        "//net/grpc/python:grpc",
+        "//tech/env:envelope_loader",
+        "@com_google_absl_py//absl/logging",
+        "//xls/delay_model:op_module_generator",
+        "//xls/ir:op_py_pb2",
+        "//xls/ir/python:type",
+        "//xls/synthesis:client_credentials",
+        "//xls/synthesis:synthesis_py_pb2",
+        "//xls/synthesis:synthesis_service_py_pb2_grpc",
+    ],
+)
+
+py_test(
+    name = "lec_characterizer_test",
+    srcs = ["lec_characterizer_test.py"],
+    data = [
+        "//xls/synthesis:dummy_synthesis_server_main",
+    ],
+    python_version = "PY3",
+    deps = [
+        ":lec_characterizer",
+        "@com_google_absl_py//absl/testing:absltest",
+        requirement("portpicker"),
+        "//xls/common:runfiles",
+        "//xls/ir:op_py_pb2",
+        "//xls/ir/python:package",
+    ],
 )
 
 xls_pybind_extension(
