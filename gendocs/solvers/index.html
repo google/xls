@@ -1,0 +1,988 @@
+
+
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      <link rel="shortcut icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.1.2, mkdocs-material-5.5.7">
+    
+    
+      
+        <title>Formal - XLS: Accelerated HW Synthesis</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.b8ac9624.min.css">
+      
+      
+    
+    
+    
+      
+        <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700%7CRoboto+Mono&display=fallback">
+        <style>body,input{font-family:"Roboto",-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono",SFMono-Regular,Consolas,Menlo,monospace}</style>
+      
+    
+    
+    
+    
+      
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#xls-solvers" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <header class="md-header" data-md-component="header">
+  <nav class="md-header-nav md-grid" aria-label="Header">
+    <a href=".." title="XLS: Accelerated HW Synthesis" class="md-header-nav__button md-logo" aria-label="XLS: Accelerated HW Synthesis">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 003-3 3 3 0 00-3-3 3 3 0 00-3 3 3 3 0 003 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54z"/></svg>
+
+    </a>
+    <label class="md-header-nav__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2z"/></svg>
+    </label>
+    <div class="md-header-nav__title" data-md-component="header-title">
+      
+        <div class="md-header-nav__ellipsis">
+          <span class="md-header-nav__topic md-ellipsis">
+            XLS: Accelerated HW Synthesis
+          </span>
+          <span class="md-header-nav__topic md-ellipsis">
+            
+              Formal
+            
+          </span>
+        </div>
+      
+    </div>
+    
+      <label class="md-header-nav__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0116 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 019.5 16 6.5 6.5 0 013 9.5 6.5 6.5 0 019.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"/></svg>
+      </label>
+      
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" data-md-state="active">
+      <label class="md-search__icon md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0116 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 019.5 16 6.5 6.5 0 013 9.5 6.5 6.5 0 019.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+      </label>
+      <button type="reset" class="md-search__icon md-icon" aria-label="Clear" data-md-component="search-reset" tabindex="-1">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header-nav__source">
+        
+<a href="https://github.com/google/xls/" title="Go to repository" class="md-source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M439.55 236.05L244 40.45a28.87 28.87 0 00-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 01-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 000 40.81l195.61 195.6a28.86 28.86 0 0040.8 0l194.69-194.69a28.86 28.86 0 000-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+        
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              <div class="md-sidebar md-sidebar--primary" data-md-component="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="XLS: Accelerated HW Synthesis" class="md-nav__button md-logo" aria-label="XLS: Accelerated HW Synthesis">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 003-3 3 3 0 00-3-3 3 3 0 00-3 3 3 3 0 003 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54z"/></svg>
+
+    </a>
+    XLS: Accelerated HW Synthesis
+  </label>
+  
+    <div class="md-nav__source">
+      
+<a href="https://github.com/google/xls/" title="Go to repository" class="md-source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M439.55 236.05L244 40.45a28.87 28.87 0 00-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 01-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 000 40.81l195.61 195.6a28.86 28.86 0 0040.8 0l194.69-194.69a28.86 28.86 0 000-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href=".." title="Intro" class="md-nav__link">
+      Intro
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    
+      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2" checked>
+    
+    <label class="md-nav__link" for="nav-2">
+      IR
+      <span class="md-nav__icon md-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M8.59 16.58L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.42z"/></svg>
+      </span>
+    </label>
+    <nav class="md-nav" aria-label="IR" data-md-level="1">
+      <label class="md-nav__title" for="nav-2">
+        <span class="md-nav__icon md-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+        </span>
+        IR
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../ir_semantics/" title="Semantics" class="md-nav__link">
+      Semantics
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../optimizations/" title="Optimizations" class="md-nav__link">
+      Optimizations
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../scheduling/" title="Scheduling" class="md-nav__link">
+      Scheduling
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../ir_visualization/" title="Visualizer" class="md-nav__link">
+      Visualizer
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../ir_jit/" title="Native JIT" class="md-nav__link">
+      Native JIT
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="__toc">
+        Formal
+        <span class="md-nav__icon md-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 9h14V7H3v2m0 4h14v-2H3v2m0 4h14v-2H3v2m16 0h2v-2h-2v2m0-10v2h2V7h-2m0 6h2v-2h-2v2z"/></svg>
+        </span>
+      </label>
+    
+    <a href="./" title="Formal" class="md-nav__link md-nav__link--active">
+      Formal
+    </a>
+    
+      
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+      </span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#applications" class="md-nav__link">
+    Applications
+  </a>
+  
+    <nav class="md-nav" aria-label="Applications">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#correctness-wrt-reference-32-bit-floating-point-adder" class="md-nav__link">
+    Correctness WRT reference: 32-bit Floating-Point Adder
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ir-transform-validity" class="md-nav__link">
+    IR Transform validity
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ir-to-netlist-logical-equivalence-checking-lec" class="md-nav__link">
+    IR to netlist Logical Equivalence Checking (LEC)
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#utilities" class="md-nav__link">
+    Utilities
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#current-limitations" class="md-nav__link">
+    Current Limitations
+  </a>
+  
+    <nav class="md-nav" aria-label="Current Limitations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#time-to-result" class="md-nav__link">
+    Time-to-result
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#predicate-coverage" class="md-nav__link">
+    Predicate coverage
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#subroutines" class="md-nav__link">
+    Subroutines
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+    
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3">
+    
+    <label class="md-nav__link" for="nav-3">
+      DSLX
+      <span class="md-nav__icon md-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M8.59 16.58L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.42z"/></svg>
+      </span>
+    </label>
+    <nav class="md-nav" aria-label="DSLX" data-md-level="1">
+      <label class="md-nav__title" for="nav-3">
+        <span class="md-nav__icon md-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+        </span>
+        DSLX
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../dslx_intro/" title="Reference" class="md-nav__link">
+      Reference
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-3-2" type="checkbox" id="nav-3-2">
+    
+    <label class="md-nav__link" for="nav-3-2">
+      Examples
+      <span class="md-nav__icon md-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M8.59 16.58L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.42z"/></svg>
+      </span>
+    </label>
+    <nav class="md-nav" aria-label="Examples" data-md-level="2">
+      <label class="md-nav__title" for="nav-3-2">
+        <span class="md-nav__icon md-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+        </span>
+        Examples
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../dslx_intro_example1/" title="CRC32" class="md-nav__link">
+      CRC32
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../fpadd_example/" title="FP adder" class="md-nav__link">
+      FP adder
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../dslx_intro_example3/" title="Prefix Scan" class="md-nav__link">
+      Prefix Scan
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../fuzzer/" title="Fuzzer" class="md-nav__link">
+      Fuzzer
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
+    
+    <label class="md-nav__link" for="nav-4">
+      Tools
+      <span class="md-nav__icon md-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M8.59 16.58L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.42z"/></svg>
+      </span>
+    </label>
+    <nav class="md-nav" aria-label="Tools" data-md-level="1">
+      <label class="md-nav__title" for="nav-4">
+        <span class="md-nav__icon md-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+        </span>
+        Tools
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../tools_quick_start/" title="Quick Start" class="md-nav__link">
+      Quick Start
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../tools/" title="Listing" class="md-nav__link">
+      Listing
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../interpreters/" title="Interpreters" class="md-nav__link">
+      Interpreters
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5">
+    
+    <label class="md-nav__link" for="nav-5">
+      Development
+      <span class="md-nav__icon md-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M8.59 16.58L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.42z"/></svg>
+      </span>
+    </label>
+    <nav class="md-nav" aria-label="Development" data-md-level="1">
+      <label class="md-nav__title" for="nav-5">
+        <span class="md-nav__icon md-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+        </span>
+        Development
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../xls_style/" title="Style Guide" class="md-nav__link">
+      Style Guide
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+      </span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#applications" class="md-nav__link">
+    Applications
+  </a>
+  
+    <nav class="md-nav" aria-label="Applications">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#correctness-wrt-reference-32-bit-floating-point-adder" class="md-nav__link">
+    Correctness WRT reference: 32-bit Floating-Point Adder
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ir-transform-validity" class="md-nav__link">
+    IR Transform validity
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ir-to-netlist-logical-equivalence-checking-lec" class="md-nav__link">
+    IR to netlist Logical Equivalence Checking (LEC)
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#utilities" class="md-nav__link">
+    Utilities
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#current-limitations" class="md-nav__link">
+    Current Limitations
+  </a>
+  
+    <nav class="md-nav" aria-label="Current Limitations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#time-to-result" class="md-nav__link">
+    Time-to-result
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#predicate-coverage" class="md-nav__link">
+    Predicate coverage
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#subroutines" class="md-nav__link">
+    Subroutines
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/google/xls/edit/master/docs/solvers.md" title="Edit this page" class="md-content__button md-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
+                  </a>
+                
+                
+                  
+                
+                
+                <h1 id="xls-solvers">XLS Solvers</h1>
+<p>Programs that are represented as optimized XLS IR are converted into circuits
+based on boolean logic, and so it is also possible to feed those as logical
+operations to a theorem prover.</p>
+<p>We have implemented that conversion with the Z3 theorem prover using its "bit
+vector" type support. As a result, you can conceptually ask Z3 to prove any
+predicate that can be expressed as XLS, over all possible parameter inputs.</p>
+<p>See the
+<a href="../tools/">tools documentation</a>
+for usage information on related command line tools.</p>
+<h2 id="applications">Applications</h2>
+<p>This facility is expected to be useful to augment random testing. While
+profiling the values in an XLS IR function that is given random stimulus, we may
+observe bits that result from nodes that <em>appear</em> to be constant (but are not
+created via a "literal" or a "concat" of a literal).</p>
+<p><strong>Example:</strong> Say the value resulting from <code>and.1234</code> in the graph appears to be
+constant zero with all the stimulus provided via a fuzzer thus far -- the solver
+provides a facility whereby we can ask "is there a counterexample to <code>and.1234</code>
+always being zero?" and the solver will either say "no, it is always zero", or
+it will yield a counterexample, or will not terminate within the allocated
+deadline.</p>
+<p>Assuming we can prove useful properties in a reasonable amount of time, we can
+use this proof capability to help find interesting example inputs that provide
+unique stimulus.</p>
+<h3 id="correctness-wrt-reference-32-bit-floating-point-adder">Correctness WRT reference: <a href="https://github.com/google/xls/tree/main/xls/modules/fpadd_2x32.x">32-bit Floating-Point Adder</a></h3>
+<p>The full input space for a 32-bit adder is a whopping 64 bits - far more than is
+possible to exhaustively test for correctness. Proving correctness via Z3,
+however, is relatively straightforward: at a high level, one simply compares the
+output from the DSLX (translated into Z3) to the same operation performed
+solely in Z3.</p>
+<p>In detail, the steps are:</p>
+<ol>
+<li>Translate the DSLX implementation into Z3 via
+    <code>Z3Translator::CreateAndTranslate()</code>.</li>
+<li>Create a Z3 implementation of the same addition. This is nearly trivial, as
+    Z3 helpfully has built-in support for floating-point values and theories.</li>
+<li>Take the result nodes from each "branch" above and create a new node
+    subtracting the two. This is the absolute error. Note: Usually, one is
+    interested in relative error when working with FP values, but here, our
+    target is absolute equivalence, so absolute error sufficies (and is
+    simpler).</li>
+<li>Create a Z3 node comparing that error to the maximum bound (here 0.0f).</li>
+<li>Feed that error node into a Z3 solver, asking it to prove that the error
+    could be greater than that bound.</li>
+</ol>
+<p>If the solver can not satisfy that criterion, then that means the error is
+<em>never</em> greater than that bound, i.e., that the implementations are equivalent
+(with our 0.0f bound).</p>
+<h3 id="ir-transform-validity">IR Transform validity</h3>
+<p>It's usually not possible (or is merely extremely difficult) to write tests to
+prove that an optimization/transform is safe across all input IR. By comparing
+the optimized vs. unoptimized IR in a similar manner as the correctness proof
+above, we can symbolically prove safety.</p>
+<p>The only difference between this and the correctness proof is that both the
+optimized and unoptimized IR need to be fed into the same Z3Translator (the
+second via <code>Z3Translator::AddFunction()</code>) and the result nodes each are used in
+the error comparison.</p>
+<h3 id="ir-to-netlist-logical-equivalence-checking-lec">IR to netlist Logical Equivalence Checking (LEC)</h3>
+<p>After a user design has been lowered to IR, it is optimized (see the previous
+section), then Verilog is generated for that optimized IR. That Verilog is then
+compiled by an external tool, which, if successful, will output a "netlist" - a
+set of standard cells (think AND, OR, NOT, flops, etc.) and wires connecting
+them that realizes the design.</p>
+<p>Between the IR level and that netlist, many, many transformations are applied to
+the design. Before processing the netlist further - and certainly before sending
+the final design to fabrication - it's a very good idea to ensure that the
+netlist describes the correct logic!</p>
+<p>Demonstrating initial design correctness is up to the user, via unit tests or
+integration tests at the DSLX level. At all stages below that, though, ensuring
+logical equivalence between forms is XLS' responsibility. To prove equivalence
+between the IR and netlist forms of a design, XLS uses formal verification via
+solvers - currently only Z3, above.</p>
+<p>Performing IR-to-netlist LEC is very similar to the checking above - the source
+IR is one half of the comparison. Here, the second half is the netlist
+translated into IR, which only requires a small amount of extra work. Consider
+the snippet below:</p>
+<pre><code>FOO p1_and_1 ( .A(p0_i0), .B(p0_i1), .Z(p1_and_1_comb) );
+BAR p1_and_2 ( .A(p0_i2), .B(p0_i3), .Z(p1_and_2_comb) );
+</code></pre>
+
+<p>These lines describe, in order:</p>
+<ul>
+<li>One cell, called <code>AND</code>, that takes two inputs, .A and .B, provided by the
+    wires <code>p0_i0</code> and <code>p0_i1</code>, respectively, and one output, .Z, which will be
+    assigned to the wire `p1_and_1_comb.</li>
+<li>One cell, called <code>OR</code>, that takes two inputs, .A and .B, provided by the
+    wires <code>p0_i2</code> and <code>p0_i2</code>, respectively, and one output, .Z, which will be
+    assigned to the wire `p1_and_2_comb.</li>
+</ul>
+<p>Note that the <em>values</em> computed by the cells wasn't mentioned - that's because
+<code>FOO</code> and <code>BAR</code> are defined in the "cell library", the list of standard cells
+used to generate the netlist. Thus, to be able to model these gates in a solver,
+we need to take that cell library as input to the LEC tool. The netlist
+describes how cells are laid out, and the cell library indicates what cells
+actually <code>do</code>. With both of these in hand, preparing the netlist half of a LEC
+is a [relatively] straightforward matter of parsing a netlist and cell library
+and converting those together into a description of logic. See
+<a href="https://github.com/google/xls/tree/main/xls/solvers/z3_netlist_translator.cc">z3_netlist_translator.cc</a>
+for full details.</p>
+<h3 id="utilities">Utilities</h3>
+<ul>
+<li><a href="http://cs/google/xls/tools/lec_main.cc">tools/lec_main.cc</a>:
+    Driver function for performing IR-to-netlist LEC.</li>
+<li><a href="http://cs/google/xls/solvers/python/z3_lec.cc">solvers/python/z3_lec.cc</a>:
+    Wrapper to perform IR-to-netlist LEC from Python.</li>
+</ul>
+<h2 id="current-limitations">Current Limitations</h2>
+<h3 id="time-to-result">Time-to-result</h3>
+<p>Under the hood, Z3 (and many other tools in this space) is an (SMT
+solver)[https://en.wikipedia.org/wiki/Satisfiability_modulo_theories]. At a high
+level, think of an SMT solver as a SAT solver that has special handling for
+certain classes of data (bit vectors, floating-point numbers). Many sufficiently
+complicated problems will reduce to raw SAT solving (especially those involving
+netlists, which have to implement complex logic at the gate level. Consider what
+that means for a multiply, for example!). Since SAT scales exponentially with
+the size of its inputs, execution time can quickly grow past a point of utility
+for complex operations, notably multiplication. Fortunately, for most designs
+(without such complex ops), proving equivalence of a single pipeline stage can
+complete in a small amount of time (O(minutes)).</p>
+<h3 id="predicate-coverage">Predicate coverage</h3>
+<p>Hypothetically, any XLS function that computes a predicate (bool) can be fed to
+Z3 for satisfiability testing. Currently a more limited set of predicates are
+exposed that can be easily expressed on the command line; however, it should be
+possible to provide:</p>
+<ul>
+<li>an XLS IR file</li>
+<li>a set of nodes in the entry function</li>
+<li>a DSLX function that computes a predicate on those nodes</li>
+</ul>
+<p>Which would allow the user to compute arbitrary properties of nodes in the
+function with the concise DSL syntax.</p>
+<h3 id="subroutines">Subroutines</h3>
+<p>Z3 doesn't intrinsically have support for subroutines, or as they're called in
+Z3, "macros", instead requiring that
+<a href="https://stackoverflow.com/questions/7740556/equivalent-of-define-fun-in-z3-api">all function calls be inlined</a>.</p>
+<p>There is an extension that adds support for <em>recursive</em> function decls and defs,
+but in our experience, it doesn't behave the way we'd expect.</p>
+<p>Consider the following example:</p>
+<pre><code>package p
+
+fn mapper(value: bits[32]) -&gt; bits[32] {
+  ret value
+}
+
+fn main() -&gt; bits[1] {
+  literal_0: bits[32] = literal(value=0)
+  literal_1: bits[1] = literal(value=1)
+  elem_0: bits[32] = invoke(literal_0, to_apply=mapper)
+  eq_12: bits[1] = eq(literal_0, elem_0)
+  ret and_13: bits[1] = and(eq_12, literal_1)
+}
+</code></pre>
+
+<p>Here, it's trivial for a human reader to see that the results are the same; the
+output should be equal to 1. Z3, however, reports that this is not necessarily
+the case, suggesting that <code>literal_0</code> and <code>elem_0</code> would not be equal in the
+case where the input to <code>mapper</code> was 1...which is clearly never the case here.</p>
+<p>To address this, we require that all subroutines (including those used in maps
+and counted fors) be inlined before consumption by Z3.</p>
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <div class="md-footer-nav">
+      <nav class="md-footer-nav__inner md-grid" aria-label="Footer">
+        
+          <a href="../ir_jit/" title="Native JIT" class="md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+            <div class="md-footer-nav__button md-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+            </div>
+            <div class="md-footer-nav__title">
+              <div class="md-ellipsis">
+                <span class="md-footer-nav__direction">
+                  Previous
+                </span>
+                Native JIT
+              </div>
+            </div>
+          </a>
+        
+        
+          <a href="../dslx_intro/" title="Reference" class="md-footer-nav__link md-footer-nav__link--next" rel="next">
+            <div class="md-footer-nav__title">
+              <div class="md-ellipsis">
+                <span class="md-footer-nav__direction">
+                  Next
+                </span>
+                Reference
+              </div>
+            </div>
+            <div class="md-footer-nav__button md-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    </div>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        Made with
+        <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+          Material for MkDocs
+        </a>
+      </div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    
+      <script src="../assets/javascripts/vendor.d1f5a259.min.js"></script>
+      <script src="../assets/javascripts/bundle.d5fec882.min.js"></script><script id="__lang" type="application/json">{"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents"}</script>
+      
+      <script>
+        app = initialize({
+          base: "..",
+          features: [],
+          search: Object.assign({
+            worker: "../assets/javascripts/worker/search.fae956e7.min.js"
+          }, typeof search !== "undefined" && search)
+        })
+      </script>
+      
+    
+  </body>
+</html>
