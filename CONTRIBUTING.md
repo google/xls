@@ -24,6 +24,11 @@ The [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html)
 and the
 [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html).
 
+## Pull Request Style
+
+We ask contributors to squash all the commits in the
+PR into a single one, in order to have a cleaner revision history.
+
 ## Code reviews
 
 All submissions, including submissions by project members, require review. We
