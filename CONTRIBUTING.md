@@ -26,8 +26,19 @@ and the
 
 ## Pull Request Style
 
-We ask contributors to squash all the commits in the
-PR into a single one, in order to have a cleaner revision history.
+We ask contributors to squash all the commits in the PR into a single one, in
+order to have a cleaner revision history.
+
+Generally, this can be accomplished by:
+
+```
+git merge-base main my-branch-name  # Tells you common ancesor COMMIT_HASH.
+git reset --soft $COMMIT_HASH
+git commit -a -m "My awesome squashed commit message!!!1"
+```
+
+See also [this Stack Overflow
+question](https://stackoverflow.com/questions/17354353/git-squash-all-commits-in-branch-without-conflicting).
 
 ## Code reviews
 
