@@ -28,6 +28,7 @@
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
+#include "llvm/ExecutionEngine/JITSymbol.h"
 #include "llvm/ExecutionEngine/Orc/Core.h"
 #include "llvm/ExecutionEngine/Orc/ExecutionUtils.h"
 #include "llvm/ExecutionEngine/Orc/IRCompileLayer.h"
@@ -40,7 +41,6 @@
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -80,13 +80,15 @@ class BuilderVisitor : public DfsVisitorWithDefault {
   explicit BuilderVisitor(llvm::Module* module, llvm::IRBuilder<>* builder,
                           absl::Span<Param* const> params,
                           absl::optional<Function*> llvm_entry_function,
-                          LlvmTypeConverter* type_converter)
+                          LlvmTypeConverter* type_converter,
+                          bool generate_packed)
       : module_(module),
         context_(&module_->getContext()),
         builder_(builder),
         return_value_(nullptr),
         type_converter_(type_converter),
-        llvm_entry_function_(llvm_entry_function) {
+        llvm_entry_function_(llvm_entry_function),
+        generate_packed_(generate_packed) {
     for (int i = 0; i < params.size(); ++i) {
       int64 start = i == 0 ? 0 : arg_indices_[i - 1].second + 1;
       int64 end =
@@ -562,6 +564,11 @@ class BuilderVisitor : public DfsVisitorWithDefault {
       return StoreResult(param, llvm_function->getArg(index));
     }
 
+    // Just handle tokens here, since they're "nothing".
+    if (generate_packed_ && !param->GetType()->IsToken()) {
+      return HandlePackedParam(param);
+    }
+
     // Remember that all input arg pointers are packed into a buffer specified
     // as a single formal parameter, hence the 0 constant here.
     llvm::Argument* arg_pointer = llvm_function->getArg(0);
@@ -586,6 +593,89 @@ class BuilderVisitor : public DfsVisitorWithDefault {
     load = builder_->CreateLoad(arg_type, cast);
 
     return StoreResult(param, load);
+  }
+
+  absl::Status HandlePackedParam(Param* param) {
+    // For packed params, we need to get the buffer holding the param of
+    // interest, then decompose it into the structure expected by LLVM.
+    // That structure is target-dependent, but in general, has each tuple or
+    // array element aligned to a byte (or larger) boundary (e.g., as storing
+    // an i24 in an i32).
+    llvm::Function* llvm_function = builder_->GetInsertBlock()->getParent();
+    llvm::Argument* arg_pointer = llvm_function->getArg(0);
+    XLS_ASSIGN_OR_RETURN(int index, param->function()->GetParamIndex(param));
+
+    // First, load the arg buffer (as an i8*).
+    // Then pull out elements from that buffer to make the final type.
+    // Load 1: Get the pointer to arg N out of memory (the arg redirect buffer).
+    llvm::Value* gep = builder_->CreateGEP(
+        arg_pointer,
+        {
+            llvm::ConstantInt::get(llvm::Type::getInt64Ty(*context_), 0),
+            llvm::ConstantInt::get(llvm::Type::getInt64Ty(*context_), index),
+        });
+
+    // The GEP gives a pointer to a u8*; so 'load' is a i8. Cast it to its full
+    // width so we can load the whole thing.
+    llvm::LoadInst* load = builder_->CreateLoad(gep);
+    llvm::Type* packed_arg_type =
+        llvm::IntegerType::get(*context_, param->GetType()->GetFlatBitCount());
+    llvm::Value* cast = builder_->CreateBitCast(
+        load, llvm::PointerType::get(packed_arg_type, /*AddressSpace=*/0));
+    load = builder_->CreateLoad(cast);
+
+    // Now populate an Value of Param's type with the packed buffer contents.
+    XLS_ASSIGN_OR_RETURN(llvm::Value * unpacked,
+                         UnpackParamBuffer(param->GetType(), load));
+
+    return StoreResult(param, unpacked);
+  }
+
+  // param_buffer is an LLVM i8 (not a pointer to such). So for each element in
+  // the param [type], we read it from the buffer, then shift off the read
+  // amount.
+  xabsl::StatusOr<llvm::Value*> UnpackParamBuffer(Type* param_type,
+                                                  llvm::Value* param_buffer) {
+    switch (param_type->kind()) {
+      case TypeKind::kBits:
+        return builder_->CreateTrunc(
+            param_buffer,
+            llvm::IntegerType::get(*context_, param_type->GetFlatBitCount()));
+      case TypeKind::kArray: {
+        // Create an empty array and plop in every element.
+        ArrayType* array_type = param_type->AsArrayOrDie();
+        Type* element_type = array_type->element_type();
+
+        llvm::Value* array = CreateTypedZeroValue(
+            type_converter_->ConvertToLlvmType(*array_type));
+        for (uint32 i = 0; i < array_type->size(); i++) {
+          XLS_ASSIGN_OR_RETURN(llvm::Value * element,
+                               UnpackParamBuffer(element_type, param_buffer));
+          array = builder_->CreateInsertValue(array, element, {i});
+          param_buffer = builder_->CreateAShr(param_buffer,
+                                              element_type->GetFlatBitCount());
+        }
+        return array;
+      }
+      case TypeKind::kTuple: {
+        // Create an empty tuple and plop in every element.
+        TupleType* tuple_type = param_type->AsTupleOrDie();
+        llvm::Value* tuple = CreateTypedZeroValue(
+            type_converter_->ConvertToLlvmType(*tuple_type));
+        for (uint32 i = 0; i < tuple_type->size(); i++) {
+          Type* element_type = tuple_type->element_type(i);
+          XLS_ASSIGN_OR_RETURN(llvm::Value * element,
+                               UnpackParamBuffer(element_type, param_buffer));
+          tuple = builder_->CreateInsertValue(tuple, element, {i});
+          param_buffer = builder_->CreateLShr(param_buffer,
+                                              element_type->GetFlatBitCount());
+        }
+        return tuple;
+      }
+      default:
+        return absl::InvalidArgumentError(absl::StrCat(
+            "Unhandled type kind: ", TypeKindToString(param_type->kind())));
+    }
   }
 
   absl::Status HandleReverse(UnOp* reverse) override {
@@ -991,7 +1081,7 @@ class BuilderVisitor : public DfsVisitorWithDefault {
                                  function, /*InsertBefore=*/nullptr);
     llvm::IRBuilder<> builder(block);
     BuilderVisitor visitor(module_, &builder, {}, absl::nullopt,
-                           type_converter_);
+                           type_converter_, /*generate_packed=*/false);
     XLS_RETURN_IF_ERROR(xls_function->Accept(&visitor));
     if (function_type->getReturnType()->isVoidTy()) {
       builder.CreateRetVoid();
@@ -1038,6 +1128,10 @@ class BuilderVisitor : public DfsVisitorWithDefault {
   // The entry point into LLVM space - the function specified in the constructor
   // to the top-level LlvmIrJit object.
   absl::optional<Function*> llvm_entry_function_;
+
+  // True if this builder should generate packed parameter loads (as in the
+  // header comment for LlvmIrJit::RunWithPackedViews()).
+  bool generate_packed_;
 };
 
 absl::once_flag once;
@@ -1055,8 +1149,45 @@ xabsl::StatusOr<std::unique_ptr<LlvmIrJit>> LlvmIrJit::Create(
 
   auto jit = absl::WrapUnique(new LlvmIrJit(xls_function, opt_level));
   XLS_RETURN_IF_ERROR(jit->Init());
-  XLS_RETURN_IF_ERROR(jit->CompileFunction());
+  XLS_RETURN_IF_ERROR(jit->Compile());
   return jit;
+}
+
+absl::Status LlvmIrJit::Compile() {
+  llvm::LLVMContext* bare_context = context_.getContext();
+  auto module = std::make_unique<llvm::Module>("the_module", *bare_context);
+  module->setDataLayout(data_layout_);
+  XLS_RETURN_IF_ERROR(CompileFunction(module.get()));
+  XLS_RETURN_IF_ERROR(CompilePackedViewFunction(module.get()));
+  llvm::Error error = transform_layer_->add(
+      dylib_, llvm::orc::ThreadSafeModule(std::move(module), context_));
+  if (error) {
+    return absl::UnknownError(absl::StrFormat(
+        "Error compiling converted IR: %s", llvm::toString(std::move(error))));
+  }
+
+  auto load_symbol = [this](const std::string& function_name)
+      -> xabsl::StatusOr<llvm::JITTargetAddress> {
+    llvm::Expected<llvm::JITEvaluatedSymbol> symbol =
+        execution_session_.lookup(&dylib_, function_name);
+    if (!symbol) {
+      return absl::InternalError(
+          absl::StrFormat("Could not find start symbol \"%s\": %s",
+                          function_name, llvm::toString(symbol.takeError())));
+    }
+    return symbol->getAddress();
+  };
+
+  std::string function_name = absl::StrFormat(
+      "%s::%s", xls_function_->package()->name(), xls_function_->name());
+  XLS_ASSIGN_OR_RETURN(auto fn_address, load_symbol(function_name));
+  invoker_ = reinterpret_cast<JitFunctionType>(fn_address);
+
+  absl::StrAppend(&function_name, "_packed");
+  XLS_ASSIGN_OR_RETURN(fn_address, load_symbol(function_name));
+  packed_invoker_ = reinterpret_cast<PackedJitFunctionType>(fn_address);
+
+  return absl::OkStatus();
 }
 
 LlvmIrJit::LlvmIrJit(Function* xls_function, int64 opt_level)
@@ -1139,6 +1270,8 @@ absl::Status LlvmIrJit::Init() {
   }
   target_machine_ = std::move(error_or_target_machine.get());
   data_layout_ = target_machine_->createDataLayout();
+  type_converter_ =
+      std::make_unique<LlvmTypeConverter>(context_.getContext(), data_layout_);
 
   execution_session_.runSessionLocked([this]() {
     dylib_.addGenerator(
@@ -1157,15 +1290,14 @@ absl::Status LlvmIrJit::Init() {
         return Optimizer(std::move(module), responsibility);
       });
 
+  ir_runtime_ =
+      std::make_unique<LlvmIrRuntime>(data_layout_, type_converter_.get());
+
   return absl::OkStatus();
 }
 
-absl::Status LlvmIrJit::CompileFunction() {
+absl::Status LlvmIrJit::CompileFunction(llvm::Module* module) {
   llvm::LLVMContext* bare_context = context_.getContext();
-  auto module = std::make_unique<llvm::Module>("the_module", *bare_context);
-  module->setDataLayout(data_layout_);
-  type_converter_ =
-      std::make_unique<LlvmTypeConverter>(bare_context, data_layout_);
 
   // To return values > 64b in size, we need to copy them into a result buffer,
   // instead of returning a fixed-size result element.
@@ -1174,7 +1306,7 @@ absl::Status LlvmIrJit::CompileFunction() {
   // result therein.
   std::vector<llvm::Type*> param_types;
   llvm::FunctionType* function_type;
-  // Create a dummy param to hold a packed representation of the input args.
+  // Represent the input args as char/i8 pointers to their data.
   param_types.push_back(llvm::PointerType::get(
       llvm::ArrayType::get(
           llvm::PointerType::get(llvm::Type::getInt8Ty(*bare_context),
@@ -1186,8 +1318,7 @@ absl::Status LlvmIrJit::CompileFunction() {
     arg_type_bytes_.push_back(type_converter_->GetTypeByteSize(*type));
   }
 
-  // Since we only pass around concrete values (i.e., not functions), we can
-  // use the flat byte count of the XLS type to size our result array.
+  // Pass the last param as a pointer to the actual return type.
   Type* return_type = xls_function_type_->return_type();
   llvm::Type* llvm_return_type =
       type_converter_->ConvertToLlvmType(*return_type);
@@ -1207,8 +1338,9 @@ absl::Status LlvmIrJit::CompileFunction() {
       *bare_context, "so_basic", llvm_function, /*InsertBefore=*/nullptr);
 
   llvm::IRBuilder<> builder(basic_block);
-  BuilderVisitor visitor(module.get(), &builder, xls_function_->params(),
-                         xls_function_, type_converter_.get());
+  BuilderVisitor visitor(module, &builder, xls_function_->params(),
+                         xls_function_, type_converter_.get(),
+                         /*generate_packed=*/false);
   XLS_RETURN_IF_ERROR(xls_function_->Accept(&visitor));
   llvm::Value* return_value = visitor.return_value();
   if (return_value == nullptr) {
@@ -1238,27 +1370,6 @@ absl::Status LlvmIrJit::CompileFunction() {
                         llvm_function->getArg(llvm_function->arg_size() - 1));
   }
   builder.CreateRetVoid();
-
-  llvm::Error error = transform_layer_->add(
-      dylib_, llvm::orc::ThreadSafeModule(std::move(module), context_));
-  if (error) {
-    return absl::UnknownError(absl::StrFormat(
-        "Error compiling converted IR: %s", llvm::toString(std::move(error))));
-  }
-
-  llvm::Expected<llvm::JITEvaluatedSymbol> symbol =
-      execution_session_.lookup(&dylib_, function_name);
-  if (!symbol) {
-    return absl::InternalError(
-        absl::StrFormat("Could not find start symbol \"%s\": %s", function_name,
-                        llvm::toString(symbol.takeError())));
-  }
-
-  llvm::JITTargetAddress invoker = symbol->getAddress();
-  invoker_ = reinterpret_cast<JitFunctionType>(invoker);
-
-  ir_runtime_ =
-      std::make_unique<LlvmIrRuntime>(data_layout_, type_converter_.get());
 
   return absl::OkStatus();
 }
@@ -1350,6 +1461,116 @@ CreateAndQuickCheck(Function* xls_function, int64 seed, int64 num_tests) {
   }
 
   return std::make_pair(argsets, results);
+}
+
+// Much of the core here is the same as in CompileFunction() - refer there for
+// general comments.
+absl::Status LlvmIrJit::CompilePackedViewFunction(llvm::Module* module) {
+  llvm::LLVMContext* bare_context = context_.getContext();
+  llvm::Type* i8_type = llvm::Type::getInt8Ty(*bare_context);
+
+  // Create arg packing/unpacking buffers as in CompileFunction().
+  std::vector<llvm::Type*> param_types;
+  llvm::FunctionType* function_type;
+  // Represent the input args as char/i8 pointers to their data.
+  param_types.push_back(llvm::PointerType::get(
+      llvm::ArrayType::get(llvm::PointerType::get(i8_type, /*AddressSpace=*/0),
+                           xls_function_type_->parameter_count()),
+      /*AddressSpace=*/0));
+
+  int64 return_width =
+      xls_function_->return_value()->GetType()->GetFlatBitCount();
+  if (return_width != 0) {
+    // For packed operation, just pass a i8 pointer for the result.
+    llvm::Type* return_type =
+        llvm::IntegerType::get(*bare_context, return_width);
+    param_types.push_back(
+        llvm::PointerType::get(return_type, /*AddressSpace=*/0));
+  }
+  function_type = llvm::FunctionType::get(
+      llvm::Type::getVoidTy(*bare_context),
+      llvm::ArrayRef<llvm::Type*>(param_types.data(), param_types.size()),
+      /*isVarArg=*/false);
+
+  Package* xls_package = xls_function_->package();
+  std::string function_name = absl::StrFormat(
+      "%s::%s_packed", xls_package->name(), xls_function_->name());
+  llvm::Function* llvm_function = llvm::cast<llvm::Function>(
+      module->getOrInsertFunction(function_name, function_type).getCallee());
+  auto basic_block = llvm::BasicBlock::Create(
+      *bare_context, "so_basic", llvm_function, /*InsertBefore=*/nullptr);
+
+  llvm::IRBuilder<> builder(basic_block);
+  BuilderVisitor visitor(module, &builder, xls_function_->params(),
+                         xls_function_, type_converter_.get(),
+                         /*generate_packed=*/true);
+  XLS_RETURN_IF_ERROR(xls_function_->Accept(&visitor));
+  llvm::Value* return_value = visitor.return_value();
+  if (return_value == nullptr) {
+    return absl::InvalidArgumentError(
+        "Function had no (or an unsupported) return value specification!");
+  }
+
+  if (return_width != 0) {
+    // Declare the return argument as an iX, and pack the actual data as such an
+    // integer.
+    llvm::Value* packed_return = llvm::ConstantInt::get(
+        llvm::IntegerType::get(*bare_context, return_width), 0);
+    XLS_ASSIGN_OR_RETURN(
+        packed_return,
+        PackElement(builder, return_value, xls_function_type_->return_type(),
+                    packed_return, 0));
+    builder.CreateStore(packed_return,
+                        llvm_function->getArg(llvm_function->arg_size() - 1));
+  }
+
+  builder.CreateRetVoid();
+
+  return absl::OkStatus();
+}
+
+// "bit_offset" is relative to the true buffer start -- not some offset relative
+// to a parent location.
+xabsl::StatusOr<llvm::Value*> LlvmIrJit::PackElement(llvm::IRBuilder<>& builder,
+                                                     llvm::Value* element,
+                                                     Type* element_type,
+                                                     llvm::Value* buffer,
+                                                     int64 bit_offset) {
+  switch (element_type->kind()) {
+    case TypeKind::kBits:
+      if (element->getType() != buffer->getType()) {
+        element = builder.CreateZExt(element, buffer->getType());
+      }
+      element = builder.CreateShl(element, bit_offset);
+      return builder.CreateOr(buffer, element);
+    case TypeKind::kArray: {
+      ArrayType* array_type = element_type->AsArrayOrDie();
+      Type* array_element_type = array_type->element_type();
+      for (uint32 i = 0; i < array_type->size(); i++) {
+        XLS_ASSIGN_OR_RETURN(
+            buffer,
+            PackElement(
+                builder, builder.CreateExtractValue(element, {i}),
+                array_element_type, buffer,
+                bit_offset + i * array_element_type->GetFlatBitCount()));
+      }
+      return buffer;
+    }
+    case TypeKind::kTuple: {
+      TupleType* tuple_type = element_type->AsTupleOrDie();
+      for (uint32 i = 0; i < tuple_type->size(); i++) {
+        XLS_ASSIGN_OR_RETURN(
+            buffer,
+            PackElement(builder, builder.CreateExtractValue(element, {i}),
+                        tuple_type->element_type(i), buffer, bit_offset));
+        bit_offset += tuple_type->element_type(i)->GetFlatBitCount();
+      }
+      return buffer;
+    }
+    default:
+      return absl::InvalidArgumentError(absl::StrCat(
+          "Unhandled element kind: ", TypeKindToString(element_type->kind())));
+  }
 }
 
 }  // namespace xls

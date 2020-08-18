@@ -27,6 +27,8 @@
 #include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
+#include "xls/ir/package.h"
+#include "xls/ir/type.h"
 
 namespace xls {
 
@@ -253,6 +255,11 @@ class PackedBitsView {
     XLS_DCHECK(buffer_offset >= 0 && buffer_offset <= 7);
   }
 
+  // Returns the XLS IR Type corresponding to this packed view.
+  static Type* GetFullType(Package* p) { return p->GetBitsType(kElementBits); }
+
+  uint8* buffer() { return buffer_; }
+
   static constexpr int64 kBitCount = kElementBits;
 
   // Accessor: Populates the specified buffer with the data from this element,
@@ -339,6 +346,13 @@ class PackedArrayView {
   PackedArrayView(uint8* buffer, int64 buffer_offset)
       : buffer_(buffer), buffer_offset_(buffer_offset) {}
 
+  uint8* buffer() { return buffer_; }
+
+  // Returns the XLS IR Type corresponding to this packed view.
+  static Type* GetFullType(Package* p) {
+    return p->GetArrayType(kNumElements, ElementT::GetFullType(p));
+  }
+
   // Returns the element at the given index in the array.
   ElementT Get(int index) {
     assert(index < kNumElements);
@@ -364,6 +378,8 @@ class PackedTupleView {
   PackedTupleView(uint8* buffer, int64 buffer_offset)
       : buffer_(buffer), buffer_offset_(buffer_offset) {}
 
+  uint8* buffer() { return buffer_; }
+
   // Recursive templates - determine the size (in bits) of this packed tuple.
   template <typename FrontT, typename... ElemTypes>
   struct TupleBitSizer {
@@ -379,21 +395,44 @@ class PackedTupleView {
 
   static constexpr int64 kBitCount = TupleBitSizer<Types...>::value;
 
+  // Helper template routines to get the XLS IR Types for this tuple's elements.
+  template <typename FrontT, typename... RestT>
+  static void GetFullTypes(
+      Package* p, std::vector<Type*>& types,
+      typename std::enable_if<(sizeof...(RestT) != 0)>::type* dummy = nullptr) {
+    types.push_back(FrontT::GetFullType(p));
+    GetFullTypes<RestT...>(p, types);
+  }
+
+  template <typename FrontT, typename... RestT>
+  static void GetFullTypes(
+      Package* p, std::vector<Type*>& types,
+      typename std::enable_if<(sizeof...(RestT) == 0)>::type* dummy = nullptr) {
+    types.push_back(FrontT::GetFullType(p));
+  }
+
+  // Returns the XLS IR Type corresponding to this packed view.
+  static TupleType* GetFullType(Package* p) {
+    std::vector<Type*> types;
+    GetFullTypes<Types...>(p, types);
+    return p->GetTupleType(types);
+  }
+
  private:
   // Forward declaration of the element-type-accessing template. The definition
   // is way below for readability.
   template <int kElementIndex, typename... Rest>
-  struct element_accessor;
+  struct ElementAccessor;
 
  public:
   // Gets the N'th element in the tuple.
   template <int kElementIndex>
-  typename element_accessor<kElementIndex, Types...>::type Get() {
+  typename ElementAccessor<kElementIndex, Types...>::type Get() {
     static_assert(kElementIndex < sizeof...(Types));
 
     constexpr int64 kStartBitOffset =
         GetStartBitOffset<kElementIndex, Types...>(0);
-    return typename element_accessor<kElementIndex, Types...>::type(
+    return typename ElementAccessor<kElementIndex, Types...>::type(
         buffer_ + (kStartBitOffset / kCharBit),
         ((buffer_offset_ + kStartBitOffset) % kCharBit));
   }
@@ -422,12 +461,12 @@ class PackedTupleView {
   // Metaprogramming horrors to get the type of the N'th element.
   // Recursive case - keep drilling down until the element of interst.
   template <int kElementIndex, typename FrontT, typename... Rest>
-  struct element_accessor<kElementIndex, FrontT, Rest...>
-      : element_accessor<kElementIndex - 1, Rest...> {};
+  struct ElementAccessor<kElementIndex, FrontT, Rest...>
+      : ElementAccessor<kElementIndex - 1, Rest...> {};
 
   // Base case - we've arrived at the type of interest.
   template <typename FrontT, typename... Rest>
-  struct element_accessor<0, FrontT, Rest...> {
+  struct ElementAccessor<0, FrontT, Rest...> {
     typedef FrontT type;
   };
 };

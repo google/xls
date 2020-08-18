@@ -399,9 +399,13 @@ cc_library(
 cc_test(
     name = "llvm_ir_jit_test",
     srcs = ["llvm_ir_jit_test.cc"],
+    shard_count = 8,
     deps = [
         ":ir_evaluator_test",
         ":llvm_ir_jit",
+        ":value_helpers",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/strings",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "@com_google_googletest//:gtest_main",
@@ -982,6 +986,8 @@ cc_library(
     name = "value_view",
     hdrs = ["value_view.h"],
     deps = [
+        ":ir",
+        ":type",
         "//xls/common:bits_util",
         "//xls/common:integral_types",
         "//xls/common:math_util",
