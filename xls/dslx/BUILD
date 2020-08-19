@@ -139,15 +139,11 @@ py_library(
     srcs_version = "PY3",
     deps = [
         ":ast_node",
-        ":bit_helpers",
-        ":concrete_type",
         ":core_ast_nodes",
         ":free_variables",
-        ":parametric_expression",
         ":parametric_instantiator",
         ":scanner",
         ":span",
-        ":xls_type_error",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -525,6 +521,7 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":ast",
+        ":deduce",
         ":extract_conversion_order",
         ":fakefs_util",
         ":parse_and_typecheck",

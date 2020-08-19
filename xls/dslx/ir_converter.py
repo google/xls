@@ -87,15 +87,10 @@ class _IrConverterFb(ast.AstVisitor):
       has (as free variables); noted via add_constant_dep().
     emit_positions: Whether or not we should emit position data based on the AST
       node source positions.
-    dslx_name: The name of the DSLX function that's currently being translated.
   """
 
-  def __init__(self,
-               package: ir_package.Package,
-               module: ast.Module,
-               node_to_type: deduce.NodeToType,
-               emit_positions: bool,
-               dslx_name: Optional[Text] = None):
+  def __init__(self, package: ir_package.Package, module: ast.Module,
+               node_to_type: deduce.NodeToType, emit_positions: bool):
     self.module = module
     self.node_to_type = node_to_type
     self.emit_positions = emit_positions
@@ -110,7 +105,6 @@ class _IrConverterFb(ast.AstVisitor):
     # Number of "counted for" nodes we've observed in this function.
     self.counted_for_count = 0
     self.last_expression = None  # Optional[ast.Expr]
-    self.dslx_name = dslx_name
 
   def _extract_module_level_constants(self, m: ast.Module):
     """Populates `self.symbolic_bindings` with module-level constant values."""
@@ -450,13 +444,9 @@ class _IrConverterFb(ast.AstVisitor):
         return self._visit_width_slice(node, index_slice, lhs_type)
       assert isinstance(index_slice, ast.Slice), index_slice
 
-      start = node.index.computed_start
-      if isinstance(start, ParametricExpression):
-        start = start.evaluate(self.symbolic_bindings)
+      start, width = node.index.bindings_to_start_width[
+          self._get_symbolic_bindings_tuple()]
       assert isinstance(start, int)
-      width = node.index.computed_width
-      if isinstance(width, ParametricExpression):
-        width = width.evaluate(self.symbolic_bindings)
       assert isinstance(width, int)
 
       self._def(node, self.fb.add_bit_slice, self._use(node.lhs), start, width)
@@ -661,8 +651,7 @@ class _IrConverterFb(ast.AstVisitor):
         self.package,
         self.module,
         self.node_to_type,
-        emit_positions=self.emit_positions,
-        dslx_name=self.dslx_name)
+        emit_positions=self.emit_positions)
     body_converter.symbolic_bindings = dict(self.symbolic_bindings)
     body_fn_name = ('__' + self.fb.name + '_counted_for_{}_body').format(
         self._next_counted_for_ordinal()).replace('.', '_')
@@ -717,6 +706,18 @@ class _IrConverterFb(ast.AstVisitor):
     self._def(node, self.fb.add_counted_for, self._use(node.init), trip_count,
               stride, body_function, invariant_args)
 
+  def _get_symbolic_bindings_tuple(self) -> SymbolicBindings:
+    # We only consider function symbolic bindings for invocations.
+    # The typechecker doesn't care about module-level constants.
+    module_level_constants = {
+        c.name.identifier
+        for c in self.module.get_constants()
+        if isinstance(c.value, ast.Number)
+    }
+    return tuple((k, v)
+                 for k, v in self.symbolic_bindings.items()
+                 if k not in module_level_constants)
+
   def _get_invocation_bindings(self,
                                invocation: ast.Invocation) -> SymbolicBindings:
     """Returns the symbolic bindings of the invocation.
@@ -731,18 +732,8 @@ class _IrConverterFb(ast.AstVisitor):
     Returns:
       The symbolic bindings for the given invocation.
     """
-    # We only consider function symbolic bindings for invocations.
-    # The typechecker doesn't care about module-level constants.
-    module_level_constants = {
-        c.name.identifier
-        for c in self.module.get_constants()
-        if isinstance(c.value, ast.Number)
-    }
-    relevant_symbolic_bindings = tuple(
-        (k, v)
-        for k, v in self.symbolic_bindings.items()
-        if k not in module_level_constants)
-    key = (self.module.name, self.dslx_name, relevant_symbolic_bindings)
+
+    key = self._get_symbolic_bindings_tuple()
     logging.vlog(2, 'Invocation %s symbolic bindings: %r key: %r', invocation,
                  invocation.symbolic_bindings, key)
     return invocation.symbolic_bindings.get(key, ())
@@ -1091,11 +1082,7 @@ def _convert_one_function(package: ir_package.Package,
   function_by_name = module.get_function_by_name()
   constant_by_name = module.get_constant_by_name()
   converter = _IrConverterFb(
-      package,
-      module,
-      node_to_type,
-      emit_positions=emit_positions,
-      dslx_name=function.name.identifier)
+      package, module, node_to_type, emit_positions=emit_positions)
 
   freevars = function.body.get_free_variables(
       function.span.start).get_name_def_tups()
@@ -1142,7 +1129,8 @@ def convert_module_to_package(
   """
   emitted = []  # type: List[Text]
   package = ir_package.Package(module.name)
-  order = extract_conversion_order.get_order(module, node_to_type.get_imports(),
+  order = extract_conversion_order.get_order(module, node_to_type,
+                                             node_to_type.get_imports(),
                                              traverse_tests)
   logging.vlog(3, 'Convert order: %s', pprint.pformat(order))
   for record in order:
@@ -1151,7 +1139,7 @@ def convert_module_to_package(
             package,
             record.m,
             record.f,
-            node_to_type,
+            record.node_to_type,
             symbolic_bindings=record.bindings,
             emit_positions=emit_positions))
 

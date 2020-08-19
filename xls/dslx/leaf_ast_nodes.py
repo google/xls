@@ -21,7 +21,7 @@ These generally do not circularly reference each other.
 These are broken out largely to reduce pytype runtime on a monolithic AST file.
 """
 
-from typing import Union, Text, List, Dict, Tuple, Optional, Set, Sequence
+from typing import Union, Text, List, Dict, Tuple, Optional, Set, Sequence, Any
 from absl import logging
 
 from xls.dslx import free_variables
@@ -42,11 +42,13 @@ from xls.dslx.core_ast_nodes import TypeAnnotation
 from xls.dslx.core_ast_nodes import TypeDef
 from xls.dslx.core_ast_nodes import WildcardPattern
 from xls.dslx.free_variables import FreeVariables
-from xls.dslx.parametric_expression import ParametricExpression
 from xls.dslx.scanner import Pos
 from xls.dslx.scanner import Token
 from xls.dslx.scanner import TokenKind
 from xls.dslx.span import Span
+
+
+NodeToType = Any
 
 
 class Param(AstNode):
@@ -485,12 +487,19 @@ class Invocation(Expr):
     super(Invocation, self).__init__(span)
     self.callee = callee
     self.args = args
+
     # Note: this attribute is populated by type inference.
-    # Maps the (mod_name, fm_name, symbolic_bindings) of the function this
+    # Maps the symbolic_bindings of the function this
     # invocation is inside of to the resulting symbolic bindings
     # in the callee.
     self.symbolic_bindings = dict(
-    )  # type: Dict[Tuple[Text, Text, Tuple[Text, int]], parametric_instantiator.SymbolicBindings]
+    )  # type: Dict[parametric_instantiator.SymbolicBindings, parametric_instantiator.SymbolicBindings]
+
+    # Note: this attribute is populated by type inference.
+    # Maps the symbolic_bindings used in the callee to the node_to_type of the
+    # function body and any other dependencies.
+    self.types_mappings = dict(
+    )  # type: Dict[parametric_instantiator.SymbolicBindings, NodeToType]
 
   def __str__(self) -> Text:
     return '{}({})'.format(self.callee, self.format_args())
@@ -535,8 +544,7 @@ class Slice(AstNode):
     self.limit = limit
 
     # These attributes are populated by type inference.
-    self.computed_start = None  # type: Union[ParametricExpression, int]
-    self.computed_width = None  # type: Union[ParametricExpression, int]
+    self.bindings_to_start_width = dict()
 
   def __str__(self) -> Text:
     if self.start and self.limit:

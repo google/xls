@@ -14,6 +14,16 @@
 
 import std
 
+const FALSE = bool:false;
+
+pub fn my_lsb_uses_const(x: u3) -> u1 {
+  // Force the function to try to use the enclosing scope by referring to FALSE
+  // here.
+  let f: bool = FALSE;
+  let y: u1 = std::lsb(x);
+  y || f
+}
+
 pub fn my_lsb(x: u3) -> u1 {
   std::lsb(x)
 }

@@ -19,7 +19,7 @@
 """Type system deduction rules for AST nodes."""
 
 import typing
-from typing import Text, Dict, Union, Callable, Type, Tuple, List, Set
+from typing import Text, Dict, Union, Callable, Type, Tuple, List, Set, Optional
 
 from absl import logging
 import dataclasses
@@ -90,21 +90,28 @@ ImportedInfo = Tuple[ast.Module, 'NodeToType']
 class NodeToType(object):
   """Helper type that checks the types of {AstNode: ConcreteType} mappings.
 
+  Easily "chains" onto an existing mapping of node types when entering a scope
+  with parametric bindings; e.g. a new node_to_type mapping is created for
+  a parametric function's body after parametric instantiation.
+
   Also raises a TypeMissingError instead of a KeyError when we encounter a node
   that does not have a type known, so that it can be handled in a more specific
   way versus a KeyError.
   """
 
-  def __init__(self):
+  def __init__(self, parent: Optional['NodeToType'] = None):
     self._dict = {}  # type: Dict[ast.AstNode, ConcreteType]
     self._imports = {}  # type: Dict[ast.Import, ImportedInfo]
     self._name_to_const = {}  # type: Dict[ast.NameDef, ast.Constant]
-    self.parametric_fn_cache = {}
+    self._parent = parent  # type: NodeToType
+
+  @property
+  def parent(self) -> 'NodeToType':
+    return self._parent
 
   def update(self, other: 'NodeToType') -> None:
     self._dict.update(other._dict)  # pylint: disable=protected-access
     self._imports.update(other._imports)  # pylint: disable=protected-access
-    self.parametric_fn_cache.update(other.parametric_fn_cache)
 
   def add_import(self, import_node: ast.Import, info: ImportedInfo) -> None:
     assert import_node not in self._imports, import_node
@@ -115,9 +122,13 @@ class NodeToType(object):
     self._name_to_const[name_def] = constant
 
   def get_const_int(self, name_def: ast.NameDef, user_span: span.Span) -> int:
-    constant = self._name_to_const[name_def]
-    if isinstance(constant.value, ast.Number):
-      return constant.value.get_value_as_int()
+    if name_def not in self._name_to_const and self.parent:
+      constant = self.parent._name_to_const[name_def]  # pylint: disable=protected-access
+    else:
+      constant = self._name_to_const[name_def]
+    value = constant.value
+    if isinstance(value, ast.Number):
+      return value.get_value_as_int()
     raise TypeInferenceError(
         span=user_span,
         type_=None,
@@ -125,9 +136,18 @@ class NodeToType(object):
         'got: {}'.format(name_def, constant.value))
 
   def get_imports(self) -> Dict[ast.Import, ImportedInfo]:
-    return self._imports
+    return self._imports if not self.parent else {
+        **self._imports,  # pylint: disable=protected-access
+        **self.parent._imports  # pylint: disable=protected-access
+    }
 
   def get_imported(self, import_node: ast.Import) -> ImportedInfo:
+    if self.parent:
+      if import_node in self._imports:
+        return self._imports[import_node]
+
+      return self.parent._imports[import_node]  # pylint: disable=protected-access
+
     return self._imports[import_node]
 
   def __setitem__(self, k: ast.AstNode, v: ConcreteType) -> None:
@@ -147,14 +167,24 @@ class NodeToType(object):
     """
     assert isinstance(k, ast.AstNode), repr(k)
     try:
-      return self._dict[k]
+      if k in self._dict:
+        return self._dict[k]
+      if self.parent:
+        return self.parent.__getitem__(k)
     except KeyError:
       span_suffix = ' @ {}'.format(k.span) if hasattr(k, 'span') else ''
       raise TypeMissingError(
           k, suffix='resolving type of node{}'.format(span_suffix))
+    else:
+      span_suffix = ' @ {}'.format(k.span) if hasattr(k, 'span') else ''
+      raise TypeMissingError(
+          k,
+          suffix='resolving type of {} node{}'.format(k.__class__.__name__,
+                                                      span_suffix))
 
   def __contains__(self, k: ast.AstNode) -> bool:
-    return k in self._dict
+    return (k in self._dict or self.parent.__contains__(k)
+            if self.parent else k in self._dict)
 
 
 # Type signature for the import function callback:
@@ -170,9 +200,6 @@ ImportFn = Callable[[Tuple[Text, ...]], Tuple[ast.Module, NodeToType]]
 InterpCallbackType = Callable[[
     ast.Module, NodeToType, Dict[Text, int], Dict[Text, int], ast.Expr, ImportFn
 ], int]
-
-# Maps (module_name, parametric function node) to (node -> type)
-ParametricFnCache = Dict[ast.Function, Dict[ast.AstNode, ConcreteType]]
 
 # Type for stack of functions deduction is running on.
 # [(name, symbolic_bindings), ...]
@@ -192,9 +219,6 @@ class DeduceCtx:
       are not in this module.
     fn_stack: Keeps track of the function we're currently typechecking and the
       symbolic bindings we should be using.
-    parametric_fn_cache: Maps a parametric_fn to all the nodes that it is
-      dependent on. Used in typecheck.py to trick the typechecker into checking
-      the body of a parametric fn again (per instantiation).
   """
   node_to_type: NodeToType
   module: ast.Module
@@ -309,38 +333,51 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
   if isinstance(invocation.callee, ast.ModRef):
     # We need to typecheck this function with respect to its own module.
     # Let's use typecheck._check_function_or_test_in_module() to do this
-    # in case we run into more dependencies in that module
+    # in case we run into more dependencies in that module.
+    if symbolic_bindings in invocation.types_mappings:
+      # We've already typechecked this imported parametric function using
+      # these symbolic bindings.
+      return
+
     imported_module, imported_node_to_type = ctx.node_to_type.get_imported(
         invocation.callee.mod)
-    imported_ctx = DeduceCtx(imported_node_to_type, imported_module,
+    invocation_imported_node_to_type = NodeToType(parent=imported_node_to_type)
+    imported_ctx = DeduceCtx(invocation_imported_node_to_type, imported_module,
                              ctx.interpret_expr, ctx.check_function_in_module)
     imported_ctx.fn_stack.append(
         (parametric_fn.name.identifier, dict(symbolic_bindings)))
     ctx.check_function_in_module(parametric_fn, imported_ctx)
-    ctx.node_to_type.update(imported_ctx.node_to_type)
-    ctx.node_to_type.parametric_fn_cache.update(
-        imported_ctx.node_to_type.parametric_fn_cache)
+
+    invocation.types_mappings[
+        symbolic_bindings] = invocation_imported_node_to_type
   else:
     assert isinstance(invocation.callee, ast.NameRef), invocation.callee
     # We need to typecheck this function with respect to its own module
     # Let's take advantage of the existing try-catch mechanism in
-    # typecheck._check_function_or_test_in_module()
-    ctx.fn_stack.append(
-        (parametric_fn.name.identifier, dict(symbolic_bindings)))
+    # typecheck._check_function_or_test_in_module().
 
-    # If the body of this function hasn't been typechecked, let's
-    # tell typecheck.py's handler to check it.
     try:
-      body_return_type = ctx.node_to_type[parametric_fn.body]
+      # See if the body is present in the node_to_type mapping (we do this just
+      # to observe if it raises an exception).
+      ctx.node_to_type[parametric_fn.body]
     except TypeMissingError as e:
-      e.node = invocation.callee.name_def
-      raise
+      # If we've already typechecked the parametric function with the
+      # current symbolic bindings, no need to do it again.
+      if symbolic_bindings not in invocation.types_mappings:
+        # Let's typecheck this parametric function using the symbolic bindings
+        # we just derived to make sure they check out ok.
+        e.node = invocation.callee.name_def
+        ctx.fn_stack.append(
+            (parametric_fn.name.identifier, dict(symbolic_bindings)))
+        ctx.node_to_type = NodeToType(parent=ctx.node_to_type)
+        raise
 
-    ctx.fn_stack.pop()
-
-    # TODO(hjmontero): 2020-07-13 HACK: We remove the type of the body to so
-    # that we re-typecheck it if we see this invocation again.
-    ctx.node_to_type._dict.pop(parametric_fn.body)  # pylint: disable=protected-access
+    if symbolic_bindings not in invocation.types_mappings:
+      # If we haven't yet stored a node_to_type for these symbolic bindings
+      # and we're at this point, it means that we just finished typechecking
+      # the parametric function. Let's store the results.
+      invocation.types_mappings[symbolic_bindings] = ctx.node_to_type
+      ctx.node_to_type = ctx.node_to_type.parent
 
 
 @_rule(ast.Invocation)
@@ -348,7 +385,7 @@ def _deduce_Invocation(self: ast.Invocation, ctx: DeduceCtx) -> ConcreteType:  #
   """Deduces the concrete type of an Invocation AST node."""
   logging.vlog(5, 'Deducing type for invocation: %s', self)
   arg_types = []
-  fn_name, fn_symbolic_bindings = ctx.fn_stack[-1]
+  _, fn_symbolic_bindings = ctx.fn_stack[-1]
   for arg in self.args:
     try:
       arg_types.append(resolve(deduce(arg, ctx), ctx))
@@ -395,9 +432,8 @@ def _deduce_Invocation(self: ast.Invocation, ctx: DeduceCtx) -> ConcreteType:  #
   # Within the context of (mod_name, fn_name, fn_sym_bindings),
   # this invocation of callee will have bindings with values specified by
   # callee_sym_bindings
-  self.symbolic_bindings[(
-      ctx.module.name, fn_name,
-      tuple(fn_symbolic_bindings.items()))] = callee_sym_bindings
+  self.symbolic_bindings[tuple(
+      fn_symbolic_bindings.items())] = callee_sym_bindings
 
   if callee_fn.is_parametric():
     # Now that we have callee_sym_bindings, let's use them to typecheck the body
@@ -474,10 +510,11 @@ def _deduce_slice_type(self: ast.Index, ctx: DeduceCtx,
   start = start.get_value_as_int() if start else None
 
   _, fn_symbolic_bindings = ctx.fn_stack[-1]
-  start, width = bit_helpers.resolve_bit_slice_indices(bit_count, start, limit,
-                                                       fn_symbolic_bindings)
-  index_slice.computed_start = start
-  index_slice.computed_width = width
+  if isinstance(bit_count, ParametricExpression):
+    bit_count = bit_count.evaluate(fn_symbolic_bindings)
+  start, width = bit_helpers.resolve_bit_slice_indices(bit_count, start, limit)
+  key = tuple(fn_symbolic_bindings.items())
+  index_slice.bindings_to_start_width[key] = (start, width)
   return BitsType(signed=False, size=width)
 
 
@@ -554,11 +591,10 @@ def _deduce_Let(self: ast.Let, ctx: DeduceCtx) -> ConcreteType:  # pytype: disab
   """Deduces the concrete type of a Let AST node."""
 
   rhs_type = deduce(self.rhs, ctx)
+  resolved_rhs_type = resolve(rhs_type, ctx)
 
   if self.type_ is not None:
     concrete_type = deduce(self.type_, ctx)
-
-    resolved_rhs_type = resolve(rhs_type, ctx)
     resolved_concrete_type = resolve(concrete_type, ctx)
 
     if resolved_rhs_type != resolved_concrete_type:
@@ -566,7 +602,7 @@ def _deduce_Let(self: ast.Let, ctx: DeduceCtx) -> ConcreteType:  # pytype: disab
           self.rhs.span, resolved_concrete_type, resolved_rhs_type,
           'Annotated type did not match inferred type of right hand side.')
 
-  _bind_names(self.name_def_tree, rhs_type, ctx)
+  _bind_names(self.name_def_tree, resolved_rhs_type, ctx)
 
   if self.const:
     deduce(self.const, ctx)
@@ -586,7 +622,7 @@ def _unify_NameDefTree(self: ast.NameDefTree, type_: ConcreteType,
   if self.is_leaf():
     leaf = self.get_leaf()
     if isinstance(leaf, ast.NameDef):
-      ctx.node_to_type[leaf] = type_
+      ctx.node_to_type[leaf] = resolved_rhs_type
     elif isinstance(leaf, ast.WildcardPattern):
       pass
     elif isinstance(leaf, (ast.Number, ast.EnumRef)):
@@ -639,7 +675,7 @@ def _deduce_Match(self: ast.Match, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
       raise XlsTypeError(
           self.arms[i].span, resolved_arm_type, resolved_arm0_type,
           'This match arm did not have the same type as preceding match arms.')
-  return arm_types[0]
+  return resolved_arm0_type
 
 
 @_rule(ast.MatchArm)
@@ -666,7 +702,7 @@ def _deduce_For(self: ast.For, ctx: DeduceCtx) -> ConcreteType:  # pytype: disab
   # TODO(leary): 2019-02-19 Type check annotated_type (the bound names each
   # iteration) against init_type/body_type -- this requires us to understand
   # how iterables turn into induction values.
-  return init_type
+  return resolved_init_type
 
 
 @_rule(ast.While)
@@ -690,7 +726,7 @@ def _deduce_While(self: ast.While, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
         self.span, init_type, body_type,
         "While-loop init value type did not match while-loop body's "
         'result type.')
-  return init_type
+  return resolved_init_type
 
 
 @_rule(ast.Carry)
@@ -718,7 +754,7 @@ def _deduce_Cast(self: ast.Cast, ctx: DeduceCtx) -> ConcreteType:  # pytype: dis
         self.span, expr_type, type_result,
         'Cannot cast from expression type {} to {}.'.format(
             resolved_expr_type, resolved_type_result))
-  return type_result
+  return resolved_type_result
 
 
 @_rule(ast.Unop)
@@ -739,7 +775,7 @@ def _deduce_Array(self: ast.Array, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
           self.members[i].span, resolved_type0, resolved_x,
           'Array member did not have same type as other members.')
 
-  inferred = ArrayType(member_types[0], len(member_types))
+  inferred = ArrayType(resolved_type0, len(member_types))
 
   if not self.type_:
     return inferred
@@ -824,7 +860,7 @@ def _deduce_Number(self: ast.Number, ctx: DeduceCtx) -> ConcreteType:  # pytype:
         type_=None,
         suffix='Could not infer a type for this number, please annotate a type.'
     )
-  concrete_type = deduce(self.type_, ctx)
+  concrete_type = resolve(deduce(self.type_, ctx), ctx)
   self.check_bitwidth(concrete_type)
   return concrete_type
 
@@ -901,7 +937,8 @@ def _concretize_TypeAnnotation(
 def _deduce_TypeAnnotation(
     self: ast.TypeAnnotation,  # pytype: disable=wrong-arg-types
     ctx: DeduceCtx) -> ConcreteType:
-  return _concretize_TypeAnnotation(self, ctx)
+  result = _concretize_TypeAnnotation(self, ctx)
+  return result
 
 
 @_rule(ast.ModRef)
@@ -958,9 +995,9 @@ def _deduce_ModRef(self: ast.ModRef, ctx: DeduceCtx) -> ConcreteType:  # pytype:
 @_rule(ast.Enum)
 def _deduce_Enum(self: ast.Enum, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of a Enum AST node."""
-  deduce(self.type_, ctx)
+  resolved_type = resolve(deduce(self.type_, ctx), ctx)
   # Grab the bit count of the Enum's underlying type.
-  bit_count = ctx.node_to_type[self.type_].get_total_bit_count()
+  bit_count = resolved_type.get_total_bit_count()
   result = EnumType(self, bit_count)
   for name, value in self.values:
     # Note: the parser places the type_ from the enum on the value when it is
@@ -989,29 +1026,33 @@ def _deduce_Ternary(self: ast.Ternary, ctx: DeduceCtx) -> ConcreteType:  # pytyp
         self.span, resolved_cons_type, resolved_alt_type,
         'Ternary consequent type (in the "then" clause) did not match '
         'alternate type (in the "else" clause)')
-  return cons_type
+  return resolved_cons_type
 
 
 def _deduce_Concat(self: ast.Binop, ctx: DeduceCtx) -> ConcreteType:
   """Deduces the concrete type of a concatenate Binop AST node."""
   lhs_type = deduce(self.lhs, ctx)
+  resolved_lhs_type = resolve(lhs_type, ctx)
   rhs_type = deduce(self.rhs, ctx)
+  resolved_rhs_type = resolve(rhs_type, ctx)
 
   # Array-ness must be the same on both sides.
-  if isinstance(lhs_type, ArrayType) != isinstance(rhs_type, ArrayType):
+  if (isinstance(resolved_lhs_type, ArrayType) != isinstance(
+      resolved_rhs_type, ArrayType)):
     raise XlsTypeError(
-        self.span, lhs_type, rhs_type,
+        self.span, resolved_lhs_type, resolved_rhs_type,
         'Attempting to concatenate array/non-array values together.')
 
-  if (isinstance(lhs_type, ArrayType) and
-      lhs_type.get_element_type() != rhs_type.get_element_type()):
+  if (isinstance(resolved_lhs_type, ArrayType) and
+      resolved_lhs_type.get_element_type() !=
+      resolved_rhs_type.get_element_type()):
     raise XlsTypeError(
-        self.span, lhs_type, rhs_type,
+        self.span, resolved_lhs_type, resolved_rhs_type,
         'Array concatenation requires element types to be the same.')
 
-  new_size = lhs_type.size + rhs_type.size  # pytype: disable=attribute-error
-  if isinstance(lhs_type, ArrayType):
-    return ArrayType(lhs_type.get_element_type(), new_size)
+  new_size = resolved_lhs_type.size + resolved_rhs_type.size  # pytype: disable=attribute-error
+  if isinstance(resolved_lhs_type, ArrayType):
+    return ArrayType(resolved_lhs_type.get_element_type(), new_size)
 
   return BitsType(signed=False, size=new_size)
 
@@ -1039,19 +1080,20 @@ def _deduce_Binop(self: ast.Binop, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
   if isinstance(lhs_type,
                 EnumType) and self.operator.kind not in self.ENUM_OK_KINDS:
     raise XlsTypeError(
-        self.span, lhs_type, None,
+        self.span, resolved_lhs_type, None,
         "Cannot use '{}' on values with enum type {}".format(
             self.operator.kind.value, lhs_type.nominal_type.identifier))
 
   if self.operator.kind in self.COMPARISON_KINDS:
     return ConcreteType.U1
 
-  return lhs_type
+  return resolved_lhs_type
 
 
 @_rule(ast.Struct)
 def _deduce_Struct(self: ast.Struct, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  members = tuple((k.identifier, deduce(m, ctx)) for k, m in self.members)
+  members = tuple(
+      (k.identifier, resolve(deduce(m, ctx), ctx)) for k, m in self.members)
   result = ctx.node_to_type[self.name] = TupleType(members, self)
   logging.vlog(5, 'Deduced type for struct %s => %s; node_to_type: %r', self,
                result, ctx.node_to_type)

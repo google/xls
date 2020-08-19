@@ -16,13 +16,12 @@
 
 """Tests for xls.frontend.dslx.extract_conversion_order."""
 
-from typing import Text
-
-from absl import logging
+from typing import Text, Tuple
 
 from absl.testing import absltest
 from xls.common import test_base
 from xls.dslx import ast
+from xls.dslx import deduce
 from xls.dslx import extract_conversion_order
 from xls.dslx import fakefs_util
 from xls.dslx import parse_and_typecheck
@@ -30,26 +29,30 @@ from xls.dslx import parse_and_typecheck
 
 class ExtractConversionOrderTest(absltest.TestCase):
 
-  def _get_module(self, program: Text) -> ast.Module:
+  def _get_module(self, program: Text) -> Tuple[ast.Module, deduce.NodeToType]:
     filename = '/fake/test_program.x'
     with fakefs_util.scoped_fakefs(filename, program):
-      m, _ = parse_and_typecheck.parse_text(
+      m, node_to_type = parse_and_typecheck.parse_text(
           program,
           'test_program',
           print_on_error=True,
           f_import=None,
           filename=filename)
-      return m
+      return m, node_to_type
 
   def test_get_callees(self):
     program = """
     fn f() -> u32 { u32:42 }
     fn main() -> u32 { f() }
     """
-    m = self._get_module(program)
-    self.assertEqual(((m.get_function('f'), m, ()),),
+    m, node_to_type = self._get_module(program)
+    self.assertEqual(((m.get_function('f'), m, node_to_type, ()),),
                      extract_conversion_order.get_callees(
-                         m.get_function('main'), m, imports={}, bindings=()))
+                         m.get_function('main'),
+                         m,
+                         node_to_type,
+                         imports={},
+                         bindings=()))
 
   def test_simple_linear_callgraph(self):
     program = """
@@ -57,9 +60,8 @@ class ExtractConversionOrderTest(absltest.TestCase):
     fn f() -> u32 { g() }
     fn main() -> u32 { f() }
     """
-    m = self._get_module(program)
-    order = extract_conversion_order.get_order(m, imports={})
-    logging.info('order: %s', order)
+    m, node_to_type = self._get_module(program)
+    order = extract_conversion_order.get_order(m, node_to_type, imports={})
     self.assertLen(order, 3)
     self.assertEqual(order[0].f.identifier, 'g')
     self.assertEqual(order[1].f.identifier, 'f')
@@ -70,9 +72,8 @@ class ExtractConversionOrderTest(absltest.TestCase):
     fn [N: u32] f(x: bits[N]) -> u32 { N }
     fn main() -> u32 { f(u2:0) }
     """
-    m = self._get_module(program)
-    order = extract_conversion_order.get_order(m, imports={})
-    logging.info('order: %s', order)
+    m, node_to_type = self._get_module(program)
+    order = extract_conversion_order.get_order(m, node_to_type, imports={})
     self.assertLen(order, 2)
     self.assertEqual(order[0].f.identifier, 'f')
     self.assertEqual(order[0].bindings, (('N', 2),))
@@ -80,7 +81,9 @@ class ExtractConversionOrderTest(absltest.TestCase):
     self.assertEqual(order[1].f.identifier, 'main')
     self.assertEqual(order[1].bindings, ())
     f = m.get_function('f')
-    self.assertEqual(order[1].callees, ((f, m, (('N', 2),)),))
+    self.assertEqual(
+        tuple((c.f, c.m, c.sym_bindings) for c in order[1].callees),
+        ((f, m, (('N', 2),)),))
 
   def test_transitive_parametric(self):
     program = """
@@ -88,9 +91,8 @@ class ExtractConversionOrderTest(absltest.TestCase):
     fn [N: u32] f(x: bits[N]) -> u32 { g(x) }
     fn main() -> u32 { f(u2:0) }
     """
-    m = self._get_module(program)
-    order = extract_conversion_order.get_order(m, imports={})
-    logging.info('order: %s', order)
+    m, node_to_type = self._get_module(program)
+    order = extract_conversion_order.get_order(m, node_to_type, imports={})
     self.assertLen(order, 3)
     self.assertEqual(order[0].f.identifier, 'g')
     self.assertEqual(order[0].bindings, (('M', 2),))
@@ -103,9 +105,8 @@ class ExtractConversionOrderTest(absltest.TestCase):
     program = """
     fn main() -> u32 { fail!(u32:0) }
     """
-    m = self._get_module(program)
-    order = extract_conversion_order.get_order(m, imports={})
-    logging.info('order: %s', order)
+    m, node_to_type = self._get_module(program)
+    order = extract_conversion_order.get_order(m, node_to_type, imports={})
     self.assertLen(order, 1)
     self.assertEqual(order[0].f.identifier, 'main')
     self.assertEqual(order[0].bindings, ())

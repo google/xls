@@ -16,7 +16,10 @@ import xls.dslx.interpreter.tests.mod_imported
 import xls.dslx.interpreter.tests.mod_imported as mi
 
 fn main(x: u3) -> u1 {
-  mod_imported::my_lsb(x) || mi::my_lsb(x)
+  let lhs: u1 = mod_imported::my_lsb(x);
+  let rhs: u1 = mi::my_lsb(x);
+  let ehs: u1 = mi::my_lsb_uses_const(x);
+  lhs || rhs || ehs
 }
 
 test main {

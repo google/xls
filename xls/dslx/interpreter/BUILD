@@ -197,6 +197,7 @@ py_library(
     srcs = ["interpreter_helpers.py"],
     srcs_version = "PY3",
     deps = [
+        ":bindings",
         ":interpreter",
         "//xls/dslx:ast",
         "//xls/dslx:deduce",
@@ -208,6 +209,7 @@ py_library(
     srcs = ["parse_and_interpret.py"],
     srcs_version = "PY3",
     deps = [
+        ":bindings",
         ":interpreter",
         "//xls/dslx:import_routines",
         "//xls/dslx:ir_converter",

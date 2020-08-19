@@ -28,7 +28,7 @@ from xls.dslx.parametric_instantiator import SymbolicBindings
 Callee = NamedTuple(
     'Callee',
     [('f', ast.Function), ('m', ast.Module),
-     ('sym_bindings', SymbolicBindings)],
+     ('node_to_type', deduce.NodeToType), ('sym_bindings', SymbolicBindings)],
 )
 ImportedInfo = Tuple[ast.Module, deduce.NodeToType]
 
@@ -43,6 +43,8 @@ class ConversionRecord(object):
   Attributes:
     f: Function AST node to convert.
     m: Module that f resides in.
+    node_to_type: Node to type mapping for use in converting this
+      function instance.
     callees: Function names that 'f' calls.
     bindings: Parametric bindings for this function instance.
     callees: Functions that this instance calls.
@@ -51,10 +53,12 @@ class ConversionRecord(object):
   def __init__(self,
                f: ast.Function,
                m: ast.Module,
+               node_to_type,
                bindings: SymbolicBindings,
                callees: Tuple[Callee, ...] = ()):
     self.f = f
     self.m = m
+    self.node_to_type = node_to_type
     self.bindings = bindings
     self.callees = callees
 
@@ -64,13 +68,15 @@ class ConversionRecord(object):
 
 
 def get_callees(func: Union[ast.Function, ast.Test], m: ast.Module,
-                imports: Dict[ast.Import, ImportedInfo],
+                node_to_type: deduce.NodeToType, imports: Dict[ast.Import,
+                                                               ImportedInfo],
                 bindings: SymbolicBindings) -> Tuple[Callee, ...]:
   """Traverses the definition of f to find callees.
 
   Args:
     func: Function/test construct to inspect for calls.
     m: Module that f resides in.
+    node_to_type: Node to type mapping that should be used with f.
     imports: Mapping of modules imported by m.
     bindings: Bindings used in instantiation of f.
 
@@ -110,12 +116,14 @@ def get_callees(func: Union[ast.Function, ast.Test], m: ast.Module,
             'Only calls to named functions are currently supported, got callee: {!r}'
             .format(node.callee))
 
-      func_name = (
-          func.name.identifier if isinstance(func, ast.Function) else
-          '{}_test'.format(func.name.identifier))
-      node_symbolic_bindings = node.symbolic_bindings.get(
-          (m.name, func_name, bindings), ())
-      callees.append(Callee(f, this_m, node_symbolic_bindings))
+      node_symbolic_bindings = node.symbolic_bindings.get(bindings, ())
+
+      # Either use the global node_to_type or the child node_to_type
+      # chained off of this invocation.
+      invocation_node_to_type = node.types_mappings.get(node_symbolic_bindings,
+                                                        node_to_type)
+      callees.append(
+          Callee(f, this_m, invocation_node_to_type, node_symbolic_bindings))
 
   func.accept(InvocationVisitor())
   logging.vlog(3, 'Callees for %s: %s', func,
@@ -132,6 +140,7 @@ def _is_ready(ready: List[ConversionRecord], f: ast.Function, m: ast.Module,
 def _add_to_ready(ready: List[ConversionRecord], imports: Dict[ast.Import,
                                                                ImportedInfo],
                   f: Union[ast.Function, ast.Test], m: ast.Module,
+                  node_to_type: deduce.NodeToType,
                   bindings: SymbolicBindings) -> None:
   """Adds (f, bindings) to conversion order after deps have been added."""
   if _is_ready(ready, f, m, bindings):
@@ -139,7 +148,7 @@ def _add_to_ready(ready: List[ConversionRecord], imports: Dict[ast.Import,
 
   # Remember the original callees value because we're gonna knock them out
   # from a list.
-  orig_callees = tuple(get_callees(f, m, imports, bindings))
+  orig_callees = tuple(get_callees(f, m, node_to_type, imports, bindings))
 
   # Knock out all callees that are already in the order.
   callees = list(orig_callees)
@@ -150,23 +159,27 @@ def _add_to_ready(ready: List[ConversionRecord], imports: Dict[ast.Import,
   # For all of the remaining callees (that were not ready), add them to the
   # list before us, since we depend upon them.
   for callee in callees:
-    _add_to_ready(ready, imports, callee.f, callee.m, callee.sym_bindings)
+    _add_to_ready(ready, imports, callee.f, callee.m, callee.node_to_type,
+                  callee.sym_bindings)
 
   assert not _is_ready(ready, f, m, bindings)
 
   # We don't convert the bodies of test constructs to IR
   if not isinstance(f, ast.Test):
     logging.vlog(3, 'Adding to ready sequence: %s', f.name.identifier)
-    ready.append(ConversionRecord(f, m, bindings, callees=orig_callees))
+    ready.append(
+        ConversionRecord(f, m, node_to_type, bindings, callees=orig_callees))
 
 
 def get_order(module: ast.Module,
+              node_to_type: deduce.NodeToType,
               imports: Dict[ast.Import, ImportedInfo],
               traverse_tests: bool = False) -> List[ConversionRecord]:
   """Returns (topological) order for functions to be converted to IR.
 
   Args:
     module: Module to convert the (non-parametric) functions for.
+    node_to_type: Mapping from node to type.
     imports: Transitive imports that are required by "module".
     traverse_tests: Whether to traverse DSLX test constructs. This flag should
       be set if we intend to run functions only called from test constructs
@@ -181,16 +194,16 @@ def get_order(module: ast.Module,
     function = quickcheck.f
     assert not function.is_parametric(), function
 
-    _add_to_ready(ready, imports, function, module, bindings=())
+    _add_to_ready(ready, imports, function, module, node_to_type, bindings=())
 
   for function in module.get_functions():
     if function.is_parametric():
       continue
 
-    _add_to_ready(ready, imports, function, module, bindings=())
+    _add_to_ready(ready, imports, function, module, node_to_type, bindings=())
 
   if traverse_tests:
     for test in module.get_tests():
-      _add_to_ready(ready, imports, test, module, bindings=())
+      _add_to_ready(ready, imports, test, module, node_to_type, bindings=())
 
   return ready
