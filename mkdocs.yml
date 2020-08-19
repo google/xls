@@ -25,5 +25,5 @@ nav:
     - Listing: 'tools.md'
     - Interpreters: 'interpreters.md'
   - Development:
-    - Contributing: 'CONTRIBUTING.md'
+    - Contributing: 'contributing.md'
     - Style Guide: 'xls_style.md'
