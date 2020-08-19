@@ -9,7 +9,7 @@ multiplication proofs in SMT-LIB.
 
 Once these SMT solvers are installed, they can be used directly on the command line. 
 CVC4, STP, Yices, and Z3 infer input language by the file type, so to test a
-solver we can enter the following in the xls/experimental/smtlib directory:
+solver we can enter the following in the third_party/xls/experimental/smtlib directory:
 
 ```
 $ <solver_command> <smt2 file>
