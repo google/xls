@@ -1,8 +1,10 @@
-# XLS: Accelerated HW Synthesis
+![XLS Logo](images/xls_logo_886_356.png)
 
-Note: This is not an officially supported Google product. Expect bugs and
+# **XLS**: Accelerated HW Synthesis
+
+*Note: This is not an officially supported Google product. Expect bugs and
 sharp edges. Please help by trying it out, reporting bugs, and letting us know
-what you think!
+what you think!*
 
 The XLS (Accelerated HW Synthesis) toolchain aims to enable the rapid
 development of hardware IP via "software style" methodology. XLS is a High Level
@@ -15,7 +17,7 @@ Currently, XLS must be built from source using the Bazel build system.
 
 The following instructions are for the Ubuntu 20.04 (Focal) Linux distribution:
 
-```
+```shell-session
 # Follow the bazel install instructions:
 # https://docs.bazel.build/versions/master/install-ubuntu.html
 #
