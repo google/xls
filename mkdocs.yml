@@ -1,5 +1,6 @@
 site_name: "XLS: Accelerated HW Synthesis"
 repo_url: "https://github.com/google/xls/"
+site_url: "https://google.github.io/xls/"
 docs_dir: "docs_src/"
 site_dir: "docs/"
 theme:
