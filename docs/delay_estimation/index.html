@@ -9,7 +9,7 @@
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
       
-        <link rel="canonical" href="https://google.github.io/xls/scheduling/">
+        <link rel="canonical" href="https://google.github.io/xls/delay_estimation/">
       
       
       <link rel="shortcut icon" href="../assets/images/favicon.png">
@@ -17,7 +17,7 @@
     
     
       
-        <title>Overview - XLS: Accelerated HW Synthesis</title>
+        <title>Delay Estimation - XLS: Accelerated HW Synthesis</title>
       
     
     
@@ -51,7 +51,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#xls-scheduling" class="md-skip">
+        <a href="#delay-estimation-methodology" class="md-skip">
           Skip to content
         </a>
       
@@ -79,7 +79,7 @@
           </span>
           <span class="md-header-nav__topic md-ellipsis">
             
-              Overview
+              Delay Estimation
             
           </span>
         </div>
@@ -267,6 +267,18 @@
           
           
 
+
+  <li class="md-nav__item">
+    <a href="../scheduling/" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
   
 
 
@@ -278,14 +290,14 @@
     
     
       <label class="md-nav__link md-nav__link--active" for="__toc">
-        Overview
+        Delay Estimation
         <span class="md-nav__icon md-icon">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 9h14V7H3v2m0 4h14v-2H3v2m0 4h14v-2H3v2m16 0h2v-2h-2v2m0-10v2h2V7h-2m0 6h2v-2h-2v2z"/></svg>
         </span>
       </label>
     
-    <a href="./" title="Overview" class="md-nav__link md-nav__link--active">
-      Overview
+    <a href="./" title="Delay Estimation" class="md-nav__link md-nav__link--active">
+      Delay Estimation
     </a>
     
       
@@ -304,23 +316,30 @@
     <ul class="md-nav__list" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#pipeline-scheduling" class="md-nav__link">
-    Pipeline Scheduling
+  <a href="#context" class="md-nav__link">
+    Context
   </a>
   
-    <nav class="md-nav" aria-label="Pipeline Scheduling">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#background" class="md-nav__link">
+    Background
+  </a>
+  
+    <nav class="md-nav" aria-label="Background">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#scheduling-to-minimize-pipeline-registers" class="md-nav__link">
-    Scheduling to minimize pipeline registers
+  <a href="#what-xls-is-compiling" class="md-nav__link">
+    What XLS is compiling
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#rematerialization" class="md-nav__link">
-    Rematerialization
+  <a href="#the-delay-problem" class="md-nav__link">
+    The delay problem
   </a>
   
 </li>
@@ -330,22 +349,58 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#simple-delay-estimation" class="md-nav__link">
+    Simple Delay Estimation
+  </a>
+  
+    <nav class="md-nav" aria-label="Simple Delay Estimation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sweeping-multiple-dimensions" class="md-nav__link">
+    Sweeping multiple dimensions
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sources-of-pessimismoptimism" class="md-nav__link">
+    Sources of pessimism/optimism
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#iterative-refinement" class="md-nav__link">
+    Iterative refinement
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#on-hints" class="md-nav__link">
+    On Hints
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tools" class="md-nav__link">
+    Tools
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
     
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../delay_estimation/" title="Delay Estimation" class="md-nav__link">
-      Delay Estimation
-    </a>
   </li>
 
         
@@ -703,29 +758,84 @@
     <ul class="md-nav__list" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#pipeline-scheduling" class="md-nav__link">
-    Pipeline Scheduling
+  <a href="#context" class="md-nav__link">
+    Context
   </a>
   
-    <nav class="md-nav" aria-label="Pipeline Scheduling">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#background" class="md-nav__link">
+    Background
+  </a>
+  
+    <nav class="md-nav" aria-label="Background">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#scheduling-to-minimize-pipeline-registers" class="md-nav__link">
-    Scheduling to minimize pipeline registers
+  <a href="#what-xls-is-compiling" class="md-nav__link">
+    What XLS is compiling
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#rematerialization" class="md-nav__link">
-    Rematerialization
+  <a href="#the-delay-problem" class="md-nav__link">
+    The delay problem
   </a>
   
 </li>
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#simple-delay-estimation" class="md-nav__link">
+    Simple Delay Estimation
+  </a>
+  
+    <nav class="md-nav" aria-label="Simple Delay Estimation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sweeping-multiple-dimensions" class="md-nav__link">
+    Sweeping multiple dimensions
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sources-of-pessimismoptimism" class="md-nav__link">
+    Sources of pessimism/optimism
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#iterative-refinement" class="md-nav__link">
+    Iterative refinement
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#on-hints" class="md-nav__link">
+    On Hints
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tools" class="md-nav__link">
+    Tools
+  </a>
   
 </li>
       
@@ -741,7 +851,7 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/google/xls/edit/master/docs/scheduling.md" title="Edit this page" class="md-content__button md-icon">
+                  <a href="https://github.com/google/xls/edit/master/docs/delay_estimation.md" title="Edit this page" class="md-content__button md-icon">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
                   </a>
                 
@@ -749,103 +859,294 @@
                   
                 
                 
-                <h1 id="xls-scheduling">XLS Scheduling</h1>
-<div class="toc">
+                <h1 id="delay-estimation-methodology">Delay Estimation Methodology</h1>
+<h2 id="context">Context</h2>
+<p>This doc describes the delay estimation methodology used in XLS and related
+background.</p>
+<p>Estimating delays through networks of CMOS gates is a rich topic, and Static
+Timing Analysis (STA) is used in chip backend flows to ensure that, even for
+parts operating at the tail end of the distribution, chips continue to function
+as specified logically in the netlist.</p>
+<p>In stark contrast to something with very concrete constraints, like a
+"post-global routing, high-accuracy parasitics static timing analysis", the HLS
+tool needs to estimate at a high level, reasonably near to the user's behavioral
+specification, what delay HLS operations will have when they are "stacked on
+top" of each other in a data dependent fashion in the design.</p>
+<p>This information lets the HLS tool schedule operations into cycles without
+violating timing constraints; e.g. if the user specifies 1GHz (= 1000ps) as
+their target clock frequency, the HLS tool may choose to pack as much data
+dependent work into the 1000ps budget (minus clock uncertainty) as it can on any
+given cycle.</p>
+<p>Although what we're estimating is a close relative of Static Timing Analysis,
+the fact it's being analyzed at a very high level presents a different set of
+tradeoffs, where <strong>coarse granularity estimation</strong> and <strong>conservative bounds</strong>
+are more relevant. Fine-grained / precise analyses are used later in the chip
+design process, in the backend flows, but the HLS tool acts more like an RTL
+designer, creating an RTL output that early timing analysis deems acceptable.</p>
+<p>Notably, we don't want to be <em>too</em> conservative, as being conservative on timing
+can lead to designs that take more area and consume more power, as the flops
+introduced by additional pipeline stages are significant. We want to be as
+accurate as possible while providing a good experience of being able to close
+timing quickly (say, in a single pass, or with a small number of iterations in
+case of a pathological design).</p>
+<h2 id="background">Background</h2>
+<h3 id="what-xls-is-compiling">What XLS is compiling</h3>
+<p>XLS currently supports feed-forward pipelines -- once the user program is
+unrolled into a big "sea of nodes" we must schedule each of those operations
+(represented by nodes) to occur in a cycle.</p>
+<p>It seems clear that an operation like <code>add(bits[32], bits[32]) -&gt; bits[32]</code>
+takes some amount of time to produce a result -- we need to be able to determine
+what that amount of time is for packing that operation into a given cycle.
+[^atomic-packing] Note that XLS operations are parametric in their bitwidth, so
+<code>add(bits[17], bits[17]) -&gt; bits[17]</code> is just as possible as a value like <code>32</code>.
+This ain't C code.</p>
+<p>[^atomic-packing]: Note that we currently pack operations into cycles atomically
+  -- that is, we don't break an <code>add</code> that would straddle a cycle boundary into
+  <code>add.first_half</code> and <code>add.second_half</code> automatically to pull things as early
+  as possible in the pipeline, but this is future work of interest. Ideally
+  operations would be described structurally in a way that could automatically
+  be cut up according to available delay budget. This would also permit
+  operations in the IR that take more than a single cycle to produce a value
+  (currently they would have to be "legalized" into operations that fit within a
+  cycle, but that is not yet done, the user will simply receive a scheduling
+  error).</p>
+<p>Some operations, such as <code>bit_slice</code> or <code>concat</code> are just wiring "feng shui";
+however, they still have some relevance for delay calculations! Say we
+concatenate a value with zeros for zero extension. Even if we could schedule
+that in "cycle 0", if the consumer can only be placed in "cycle 1", we would
+want to "sink" the concat down into "cycle 1" as well to avoid unnecessary
+registers being materialized sending the zero values from "cycle 0".</p>
+<h3 id="the-delay-problem">The delay problem</h3>
+<p>Separately from XLS considerations, there are fundamental considerations in
+calculating the delay through clouds of functional logic in (generated) RTL.</p>
+<p>Between each launching and capturing flop is a functional network of logic
+gates, implemented with standard cells in our ASIC process flows. Chip designs
+target a particular clock frequency as their operating point, and the functional
+network has to produce its output value with a delay that meets the timing
+constraint of the clock frequency. The RTL designer typically has to iterate
+their design until:</p>
+<p>timing path delay &lt;= target clock period - clock uncertainty</p>
+<p>For all timing paths in their design, where clock uncertainty includes
+setup/hold time constraints, and slop that's built in as margin for later
+sources of timing variability (like instantiating a clock tree, which can skew
+the clock signal observed by different flops).</p>
+<p>In a reasonable model, gate delay is affected by a small handful of properties,
+as reflected in the "(Method of) Logical Effort" book:</p>
 <ul>
-<li><a href="#xls-scheduling">XLS Scheduling</a><ul>
-<li><a href="#pipeline-scheduling">Pipeline Scheduling</a><ul>
-<li><a href="#scheduling-to-minimize-pipeline-registers">Scheduling to minimize pipeline registers</a></li>
-<li><a href="#rematerialization">Rematerialization</a></li>
+<li>The transistor network used to implement a logic function (AKA logical
+  effort): on an input pin change, the gate of each transistor must be driven to
+  a point it recognizes whether a 0 or 1 voltage is being presented. More gates
+  to drive, or larger gates, means more work for the driver.</li>
+<li>The load being driven by the logic function (AKA electrical effort): fanning
+  out to more gates generally means more work to drive them all to their
+  threshold voltages. Being loaded down by bigger gates means more work to drive
+  it to its threshold voltage.</li>
+<li>Parasitic delays: RC elements in the system that leech useful work, typically
+  in a smaller way compared to the efforts listed above.</li>
+</ul>
+<p>The logical effort book describes a way to analyze the delays through a network
+of gates to find the minimal delay, and size transistors in a way that can
+achieve that minimal delay (namely by geometrically smoothing the ability for
+gate to drive capacitance).</p>
+<p>Confounding factors include:</p>
+<ul>
+<li>Medium/large wires: sizing transistors to smooth capacitance becomes difficult
+  as fixed-capacitance elements (wires) are introduced. It seems that small
+  wires have low enough capacitance they can generally be treated as parasitic.</li>
+<li>Divergence/reconvergence in the functional logic network (as a DAG). Different
+  numbers of logic levels and different drive currents may be presented from
+  different branches of a fork/join the logic graph, which forces delay analysis
+  into a system of equations to attempt to minimize the overall delay, as
+  observed by the critical path, with transistor sizing and gate choices. (Some
+  simplifications are possible, like buffering non-critical paths until they
+  have the same number of logic levels so they also have plenty of current to
+  supply at join points.)</li>
+</ul>
+<p>Somewhat orthogonal to the analytical modeling problem, there are also several
+industry standards for supplying process information to Static Timing Analysis
+engines for determining delay through a netlist. This information is often given
+in interpolated tables for each standard cell, for example in the NLDM model
+describing how delay changes as a function of input transition time and load
+(load capacitance).</p>
+<p>These models and supplied pieces of data are important to keep in mind for
+contrast, as we now ignore it all and do something very simple.</p>
+<h2 id="simple-delay-estimation">Simple Delay Estimation</h2>
+<p>Currently, XLS delay estimation follows a conceptually simple procedure:</p>
+<ul>
+<li>For every operation in XLS (e.g. binary addition):<ul>
+<li>For some relevant-seeming set of bitwidths; e.g. <code>{2, 4, 8, 16, ...,
+    2048}</code></li>
+<li>Find the maximum frequency at which that operation closes timing at that
+    bitwidth, in 100MHz units as determined by the synthesis tool.
+    [^cajole-dc] Call the clock period for this frequency <code>t_best</code>. (Note
+    that we currently just use a single process corner / voltage for this
+    sweep.)</li>
+<li>Subtract the clock uncertainty from <code>t_best</code>.</li>
+<li>Record that value in a table (with the keys of the table being operation
+    / bitwidth).</li>
 </ul>
 </li>
 </ul>
+<p>[^cajole-dc]: The timing report can provide the delay through a path at any
+    clock frequency, but a wrinkle is that synthesis tools only starts
+    doing smart things as you bump up against failure to close timing,
+    where it'll actually change the structure of the design to make it
+    more delay friendly. The sweep helps to try to cajole it in that
+    way.</p>
+<p>Inspecting the data acquired in this way we observe all of the plots consist of
+one or more the following delay components:</p>
+<ul>
+<li>Constant as a function of bitwidth for a given op (e.g. binary-or just
+    requires a single gate for each bit regardless of the width of the inputs).</li>
+<li>Logarithmic as a function of bitwidth (e.g. adders may end up using
+    tree-like structures to minimize delay, single-selector muxes end up using a
+    tree to fan out the selector to the muxes, etc.).</li>
+<li>Linear as a function of bitwidth (e.g., ripple-carry adders and some
+    components of multipliers).</li>
+</ul>
+<p>So given this observation we fit a curve of the form:</p>
+<pre><code>a * bitwidth + b * log_2(bitwidth) + c
+</code></pre>
+
+<p>to the sweep data for each operation, giving us <code>(a, b, c)</code> values to use in our
+XLS delay estimator.</p>
+<p>The utility <code>delay_model_visualizer</code> under the <code>tools</code> directory renders a graph
+of the delay model estimate against the measured data points. This graph for add
+shows a good correspondence to the measured delay.</p>
+<p><img alt="drawing" src="../add2_delay_plot.png" /></p>
+<h3 id="sweeping-multiple-dimensions">Sweeping multiple dimensions</h3>
+<p>Operations with attributes in addition to bitwidth that affect delay are swept
+across multiple dimensions. An example is <code>Op::kOneHotSelect</code> which has
+dimensions of bitwidth and number of cases. For the <code>Op::kOneHotSelect</code> example
+the formula is:</p>
+<pre><code>a * bitwidth + b * log_2(bitwidth) + c * (# of cases) + d * log_2(# of cases) + c
+</code></pre>
+
+<p>Below is plot of delay for <code>Op::kOneHotSelect</code> showing the two dimensions of
+bitwidth and operand count affecting delay:</p>
+<p><img alt="drawing" src="../one_hot_sel_delay_plot.png" /></p>
+<h3 id="sources-of-pessimismoptimism">Sources of pessimism/optimism</h3>
+<p>This simple method has both sources of optimism and pessimism, though we hope to
+employ a method that will be generally conservative, so that users can easily
+close timing and get a close-to-best-achievable result (say, within tens of
+percent) with a single HLS iteration.</p>
+<p>Sources of pessimism (estimate is conservative):</p>
+<ul>
+<li>The operation sweeps mentioned are not bisecting to the picosecond, so there
+    is inherent slop in the measurement on account of sweep granularity.</li>
+<li>We expect, in cycles where multiple dependent operations are present, there
+    would be "K-map style" logic reductions with adjacent operations. For
+    example, because we don't do cell library mapping in XLS delay estimation,
+    something a user wrote that mapped to an AOI21 cell would be the sum of
+    (and+or+invert) delays.</li>
+<li>[Unsure] May there be additional logic branch splitting options and
+    earlier-produced results available to the synthesis tool when there are more
+    operations in the graph (vs a lone critical path measured for a single
+    operation)?</li>
+</ul>
+<p>Sources of optimism (estimate is overeager):</p>
+<ul>
+<li>
+<p>For purposes of the sweep the outputs of an operation are only loaded by a
+    single capture flop flop -- when operations have fanout the delay will
+    increase.</p>
+<p>Note that we do account for fanout <em>within</em> individual operations as part of
+this sweep; e.g. a 128-bit selector fanout (e.g. 128 ways to 128 muxes) for
+a select is accounted for the in delay timing of the select operation. It is
+the <em>output</em> logic layer that is only loaded by a single flop in our
+characterization. Notably because most of these operations turn into trees
+of logic, there are $$log_2(bitcount)$$ layers of logic in which we can
+potentially smoothly increase drive strength out to the output logic layer,
+and paths can presumably be replicated by synthesis tools to reduce
+pointwise fanout when multiple high-level operations are data-dependent
+within a cycle. (Is it <em>possible</em> for a user to break up their 32-bit select
+into bitwise pieces in their XLS code to mess with our modeling? Sure, but
+probably not too expected, so we're currently sort of relying on the notion
+people are using high level operations instead of compodecomposing them into
+bitwise pieces in our graph.)</p>
+<p>A potential way to reconcile this output fanout in the future is to do a
+delay sweep with a high-capacitive fanout (e.g. four flops of load) and then
+ensure the IR has a maximum fanout of four for our delay estimation.</p>
+</li>
+<li>
+<p>Wiring delay / load / congestion / length are not estimated. This will need
+    additional analysis / refinement as we run XLS through synthesis tools with
+    advanced timing analysis, as it is certainly not viable for arbitrary
+    designs (tight pipelines may be ok for now, though).</p>
 </li>
 </ul>
-</div>
-<h2 id="pipeline-scheduling">Pipeline Scheduling</h2>
-<p>Pipeline scheduling divides the nodes of an XLS function into a sequence of
-stages constituting a feed-forward pipeline. Sequential stages are separated by
-registers enabling pipeline parallelism. The schedule must satify dependency
-constraints between XLS nodes as well as timing constraints imposed by the
-target clock frequency. Pipeline scheduling has multiple competing optimization
-objectives: minimize number of stages (minimize pipeline latency), minimize
-maximum delay of any stage (maximize clock frequency), and minimize the number
-of pipeline registers.</p>
-<h3 id="scheduling-to-minimize-pipeline-registers">Scheduling to minimize pipeline registers</h3>
-<p>Scheduling to minimize pipeline registers can be formulated as a graph min-cut
-problem where the graph cut divides the nodes of the graph into separate
-pipeline stages and the cost of the cut is the number of bits in the pipeline
-register between the stages. This formulation of the pipeline scheduling problem
-is attractive because the graph min-cut problem can be solved in polynomial
-time.</p>
-<p>In general, the XLS IR graph cannot be used directly by the min-cut algorithm
-because of additional constraints imposed by pipeline scheduling and features of
-the IR graph. As a motivating example, consider the following graph of an XLS
-function to be scheduled into a two-stage pipeline:</p>
-<p><img alt="drawing" src="../mincut_scheduling_0.png" /></p>
-<p>Node <strong><em>x</em></strong> is a parameter to the function, and node <strong><em>F</em></strong> is the return
-value. The width of the edges correlates with the (labeled) bit width of the
-respective operation. The bit width of the edges are edge weights in the min-cut
-algorithm.</p>
-<p>The drawing above shows the initial and final pipeline registers which flops the
-input output on the interface boundary. In this example, a two-stage pipeline is
-desired so one additional pipeline register is required. The scheduling problem
-is to partition the nodes <strong><em>A</em></strong> through <strong><em>F</em></strong> into the two pipeline stages
-while minimizing register count, or alternatively formulated, identify a cut
-through the graph of minimum cost. Below is one possible cut resulting in a
-pipeline schedule where nodes <strong><em>A</em></strong> and <strong><em>B</em></strong> are in stage one and nodes
-<strong><em>C</em></strong> through <strong><em>F</em></strong> are in stage two.</p>
-<p><img alt="drawing" src="../mincut_scheduling_1.png" /></p>
-<p>In the pipeline generated from the example cut above pipeline registers are
-required for nodes <strong><em>A</em></strong> and <strong><em>B</em></strong> of bit widths 2 and 32 respectively for a
-total of 34 flops. However this value is inconsistent with the cost of the cut
-in the IR graph which is equal to the sum of weights of the cut edges: 2 + 32 +
-32 = 66. To reconcile the cost function, transformations are applied to the
-graph about nodes with fan-out. Specifically, an artificial node <strong><em>N'</em></strong> is
-added for each node <strong><em>N</em></strong> with fan-out and an edge is added from each
-immediate successor of <strong><em>N</em></strong> to <strong><em>N'</em></strong>. The weight of each edge fanning out
-from <strong><em>N</em></strong> and fanning into <strong><em>N'</em></strong> is set to the original weight of the
-edges of <strong><em>N</em></strong> divided by the fan-out factor. In the example, the edge weight
-is set to 32 / 2 = 16. Below is the transformed graph. As shown, the cost of the
-cut (sum of edge weights) now equals the number of flops in the pipeline
-register (34).</p>
-<p><img alt="drawing" src="../mincut_scheduling_2.png" /></p>
-<p>For scheduling the example graph, assume the target clock period be three time
-units and all nodes have unit delay. In this case, not all cuts will produce a
-schedule which satisfies the timing constraint. Specifically, if <strong><em>B</em></strong> is
-scheduled in the second stage, or <strong><em>F</em></strong> is scheduled in the first stage the
-pipeline cannot meet the timing constraint. To ensure the min-cut results in a
-schedule which satisfies timing an artificial source and sink node is added to
-the graph. Edges with infinite weight are added from the source to nodes which
-must be scheduled in the first stage (or earlier in the case of parameter nodes)
-to satisfy timing constraints. Similar edges are added from nodes which must be
-scheduled in the second stage to the sink node as shown below:</p>
-<p><img alt="drawing" src="../mincut_scheduling_3.png" /></p>
-<p>One additional transformation (not shown) is required to ensure a correct
-pipeline. Generally, a partitioning created by a min-cut allows edges going in
-both directions between the partitions. However, pipeline stages do not allow
-circular dependencies. To enforce directionality to the edges of the cut, an
-edge of infinite weight is added parallel to and in the opposite direction of
-every edge in the graph.</p>
-<p>After transforming the graph, a min-cut is found by applying a max flow
-algorithm (Ford-Fulkerson) from the artificial source node to the artificial
-sink node. In the running example, the min cut is edges <strong><em>C</em></strong> -&gt; <strong><em>F</em></strong> and
-<strong><em>E</em></strong> -&gt; <strong><em>F</em></strong> of cost 12. All nodes except <strong><em>F</em></strong> are placed in the first
-stage of the pipeline.</p>
-<p>Generally, a pipeline can have more than two stages so a single cut is
-insufficient to determine a schedule. In this case a sequence of cuts is
-performed, one for each boundary between pipeline stages. Each min-cut
-partitions the nodes into two parts: the set of nodes scheduled before the
-respective stage boundary, and the set of node scheduled after. This imposes
-additional constraints on later min-cut computations. These constraints are
-imposed by extending infinite weight edges between thes nodes and the source or
-sink node in the graph.</p>
-<p>The order in which the sequence of cuts is performed (e.g., cut the boundary
-between stage 0 and stage 1, then between 1 and 2, then between 2 and 3, and so
-on) can affect the total number of pipeline flops so, in general, multiple
-orders are attemped and the result with the fewest pipeline flops is kept.</p>
-<h3 id="rematerialization">Rematerialization</h3>
-<p>TODO(meheff): Finish.</p>
+<h3 id="iterative-refinement">Iterative refinement</h3>
+<p>The caveats mentioned above seem somewhat daunting, but this first cut approach
+appears to work <em>comfortably</em> at target frequenties, in practice, for the
+real-world blocks being designed as XLS "first samples".</p>
+<p>Notably, human RTL designers fail to close timing on a first cut as well -- HLS
+estimations like the above assist in getting a numeric understanding (in lieu of
+an intuitive guess) of something that may close timing on a first cut. As this
+early model fails, we will continue to refine it; however, there is also a
+secondary procedure that can assist as the model improves.</p>
+<p>Let's call the delay estimation described above applied to a program a
+<em>prediction</em> of its delays. Let's call the first prediction we make <code>p0</code>: <code>p0</code>
+will either meet timing or fail to meet timing.</p>
+<p>When we meet timing with <code>p0</code>, there may be additional wins left on the table.
+If we're willing to put synthesis tool runs "in the loop" (say running a "tuner"
+overnight), we can refine XLS's estimates according to the realities of the
+current program, and, for example, try to squeeze as much as possible into as
+few cycles as possible if near-optimality of latency/area/power were a large
+consideration. This loop would generate <code>p1</code>, <code>p2</code>, ... as it refined its model
+according to empirical data observed from the synthesis tool's more refined
+analysis.</p>
+<p>When we fail to close timing with <code>p0</code>, we can feed back the negative slack
+delays for comparison with our estimates and relax estimates accordingly.
+Additionally, an "aggression" knob could be implemented that backs off delay
+estimations geometrically (say via a "fudge factor" coefficient) in order to
+ensure HLS developer time is not wasted unnecessarily to ensure. Once a
+combination of these mechanisms has obtained a design that closes timing, the
+"meeting timing, now refine" procedure can be employed as described above.</p>
+<h3 id="on-hints">On Hints</h3>
+<p>To whatever extent possible, XLS should <em>be</em> the tool that reasons about how to
+target the backend (vs having a tool that sits on top of it and messes with XLS'
+input in an attempt to achieve a result). User-facing hint systems are typically
+very fragile, owing to the fact they don't have easily obeyed semantics. XLS, by
+contrast, knows about its own internals, so can do things with awareness of
+what's happened upstream and what remains to happen downstream.</p>
+<p>By contrast, we <strong>should</strong> continue to add ways for users to provide more
+semantic information / intent as part of their program (e.g. via more high-level
+patterns that make high level structure more clear), and make XLS smarter about
+how to lower those constructs into hardware (and why it should be lowering them
+that way) in the face of some prioritized objectives (power/area/latency).</p>
+<p>That being said, because we're probably trying to produce hardware at a given
+point in time against a given technology, it likely makes sense to permit human
+users to specify things directly (at a point in time), even if those
+specifications might be ignored / handled very differently in the future or
+against different technology nodes. This would be the moral equivalent of what
+existing EDA tools do as a "one-off TCL file" used in a particular design, vs
+something carried from design to design. Recall, though, that the intent of XLS
+is to make things easier to carry from design to design and require fewer
+one-off modifications!</p>
+<h2 id="tools">Tools</h2>
+<p>XLS provides tools for analyzing its delay estimation model. (Note that the
+given IR should be in a form suitable for code generation; e.g. it has run
+through the <code>opt_main</code> binary).</p>
+<pre><code>$ tools/benchmark_main crc32.opt.ir --clock_period_ps=500
+&lt;snip&gt;
+Return value delay: 1362ps
+Critical path entry count: 42
+Critical path:
+   1362ps (+  5ps): not.29: bits[32] = not(xor.205: bits[32], pos=0,29,50)
+   1357ps (+ 20ps): xor.205: bits[32] = xor(concat.195: bits[32], and.196: bits[32], pos=0,24,19)
+   1337ps (+ 15ps): and.196: bits[32] = and(neg.194: bits[32], literal.304: bits[32], pos=0,24,33)
+   1322ps (+134ps): neg.194: bits[32] = neg(concat.191: bits[32], pos=0,23,15)
+&lt;snip&gt;
+    154ps (+ 15ps): and.133: bits[32] = and(neg.131: bits[32], literal.19: bits[32], pos=0,24,33)
+    139ps (+134ps): neg.131: bits[32] = neg(concat.219: bits[32], pos=0,23,15)
+      5ps (+  0ps): concat.219: bits[32] = concat(literal.297: bits[31], bit_slice.214: bits[1], pos=0,23,21)
+      5ps (+  0ps): bit_slice.214: bits[1] = bit_slice(not.208: bits[8], start=0, width=1, pos=0,23,21)
+      5ps (+  5ps): not.208: bits[8] = not(message: bits[8], pos=0,20,16)
+&lt;snip&gt;
+</code></pre>
+
+<p>In addition to the critical path, the cycle-by-cycle breakdown of which
+operations have been scheduled is provided in stdout.</p>
                 
               
               
@@ -864,7 +1165,7 @@ orders are attemped and the result with the fewest pipeline flops is kept.</p>
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid" aria-label="Footer">
         
-          <a href="../optimizations/" title="Optimizations" class="md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../scheduling/" title="Overview" class="md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-footer-nav__button md-icon">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
             </div>
@@ -873,19 +1174,19 @@ orders are attemped and the result with the fewest pipeline flops is kept.</p>
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                Optimizations
+                Overview
               </div>
             </div>
           </a>
         
         
-          <a href="../delay_estimation/" title="Delay Estimation" class="md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="../ir_visualization/" title="Visualizer" class="md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-footer-nav__title">
               <div class="md-ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                Delay Estimation
+                Visualizer
               </div>
             </div>
             <div class="md-footer-nav__button md-icon">
