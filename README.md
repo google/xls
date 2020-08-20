@@ -2,14 +2,11 @@
 
 # **XLS**: Accelerated HW Synthesis
 
-*Note: This is not an officially supported Google product. Expect bugs and
-sharp edges. Please help by trying it out, reporting bugs, and letting us know
-what you think!*
-
-The XLS (Accelerated HW Synthesis) toolchain aims to enable the rapid
-development of hardware IP via "software style" methodology. XLS is a High Level
-Synthesis (HLS) toolchain which produces synthesizable designs from flexible,
-high-level descriptions of functionality.
+The XLS (Accelerated HW Synthesis) project aims to enable the rapid development
+of hardware IP via "software style" methodology. XLS is a High Level Synthesis
+(HLS) toolchain which produces synthesizable designs from flexible, high-level
+descriptions of functionality. It is fully Open Source: Apache 2 licensed and
+developed via GitHub.
 
 XLS is used inside of Google for generating feed-forward pipelines from
 "building block" routines / libraries that can be easily retargeted, reused, and
@@ -19,13 +16,24 @@ composed in a latency-insensitive manner.
 *concurrent processes*, in Communicating Sequential Processes (CSP) style, that
 allow pipelines to communicate with each other and induct over time.
 
+XLS is still experimental, undergoing rapid development, and not an officially
+supported Google product. Expect bugs and sharp edges. Please help by trying it
+out, [reporting bugs](https://github.com/google/xls/issues), and letting us know
+what you think!
+
 ## Building From Source
 
 Currently, XLS must be built from source using the Bazel build system.
 
-The following instructions are for the Ubuntu 20.04 (Focal) Linux distribution:
+*Note:* Binary distributions of the XLS library are not currently available, but
+we hope to enable them via continuous integration, see [issue
+#108](https://github.com/google/xls/issues/108).
 
-```shell-session
+The following instructions are for the Ubuntu 20.04 (Focal) Linux distribution.
+Note that we start by assuming [Bazel has been
+installed](https://docs.bazel.build/versions/master/install-ubuntu.html).
+
+```console
 # Follow the bazel install instructions:
 # https://docs.bazel.build/versions/master/install-ubuntu.html
 #
@@ -48,11 +56,13 @@ $ source ~/.bashrc
 $ bazel test -c opt ...
 ```
 
-## Project Layout
+## Stack Diagram and Project Layout
 
 Navigating a new code base can be daunting; the following description provides a
 high-level view of the important directories and their intended organization /
-purpose:
+purpose, and correspond to the components in this XLS stack diagram:
+
+![XLS Stack Diagram](https://google.github.io/xls/images/xls_stack_diagram.png)
 
 * [`dependency_support`](https://github.com/google/xls/tree/main/dependency_support):
   Configuration files that load, build, and expose Bazel targets for *external*
@@ -65,11 +75,12 @@ purpose:
   [mkdocs](https://google.github.io/xls/contributing/#rendering-documentation).
 * [`xls`](https://github.com/google/xls/tree/main/xls): Project-named
   subdirectory within the repository, in common Bazel-project style.
+
   * [`build`](https://github.com/google/xls/tree/main/xls/build): Build macros
-    for creating XLS artifacts; e.g. convert DSL to IR, create test targets for
+    that create XLS artifacts; e.g. convert DSL to IR, create test targets for
     DSL code, etc.
   * [`codegen`](https://github.com/google/xls/tree/main/xls/codegen): Verilog
-    AST (VAST) support for generating Verilog/SystemVerilog operations and FSMs.
+    AST (VAST) support to generate Verilog/SystemVerilog operations and FSMs.
     VAST is built up by components we call *generators* (e.g.
     PipelineGenerator, SequentialGenerator for FSMs) in the translation from XLS
     IR.
@@ -85,7 +96,7 @@ purpose:
     Generic data structures used in XLS that augment standard libraries; e.g.
     BDDs, union find, min cut, etc.
   * [`delay_model`](https://github.com/google/xls/tree/main/xls/delay_model):
-    Functionality for characterizing, describing, and interpolating data delay for
+    Functionality to characterize, describe, and interpolate data delay for
     XLS IR operations on a target backend process. Already-characterized
     descriptions are placed in `xls/delay_model/models` and can be referred to via
     command line flags.
@@ -93,8 +104,8 @@ purpose:
     "DSLX") that mimics Rust, while being an immutable expression-language
     dataflow DSL with hardware-oriented features; e.g.  arbitrary bitwidths,
     entirely fixed size objects, fully analyzeable call graph. XLS team has found
-    dataflow DSLs are a good fit for describing hardware as compared to languages
-    designed assuming von Neumann style computation.
+    dataflow DSLs are a good fit to describe hardware as compared to languages
+    designed assume von Neumann style computation.
   * [`dslx/fuzzer`](https://github.com/google/xls/tree/main/xls/dslx/fuzzer): A
     whole-stack multiprocess fuzzer that generates programs at the DSL level and
     cross-compares different execution engines (DSL interpreter, IR interpreter,
@@ -113,7 +124,7 @@ purpose:
     Hardware building block DSLX "libraries" (outside the DSLX standard library)
     that may be easily reused or instantiated in a broader design.
   * [`netlist`](https://github.com/google/xls/tree/main/xls/netlist): Libraries
-    for parsing/analyzing/interpreting netlist-level descriptions, as are
+    that parse/analyze/interpret netlist-level descriptions, as are
     generally given in simple structural Verilog with an associated cell library.
   * [`passes`](https://github.com/google/xls/tree/main/xls/passes): Passes that
     run on the XLS IR as part of optimization, before scheduling / code
@@ -122,22 +133,23 @@ purpose:
     Scheduling algorithms, determine when operations execute (e.g. which
     pipeline stage) in a clocked design.
   * [`simulation`](https://github.com/google/xls/tree/main/xls/simulation):
-    Helper functionality wrapping Verilog simulators and for generating associated
-    Verilog testbenches for XLS computations.
+    Code that wraps Verilog simulators and generates Verilog testbenches for XLS
+    computations.
   * [`solvers`](https://github.com/google/xls/tree/main/xls/solvers):
-    Converters for turning XLS IR into SMT solver input, such that formal proofs
-    can be run on XLS computations.
+    Converters from XLS IR into SMT solver input, such that formal proofs can be
+    run on XLS computations; e.g. Logical Equalence Checks between XLS IR and a
+    netlist description.
   * [`synthesis`](https://github.com/google/xls/tree/main/xls/synthesis):
-    Interface wrapping a backend synthesis flow, such that tools can be retargeted
-    e.g. between ASIC and FPGA flows.
+    Interface that wraps backend synthesis flows, such that tools can be
+    retargeted e.g. between ASIC and FPGA flows.
   * [`tests`](https://github.com/google/xls/tree/main/xls/tests):
     Integration tests that span various top-level components of the XLS project.
   * [`tools`](https://github.com/google/xls/tree/main/xls/tools):
     [Many tools](tools.md) that work with the XLS system and its libraries in a
     decomposed way via command line interfaces.
   * [`uncore_rtl`](https://github.com/google/xls/tree/main/xls/uncore_rtl):
-    Helper RTL for interfacing XLS-generated blocks with device top-level for e.g.
+    Helper RTL that interfaces XLS-generated blocks with device top-level for e.g.
     FPGA experiments.
   * [`visualization`](https://github.com/google/xls/tree/main/xls/visualzation):
-    Visualization tools for working with the XLS system interactively. E.g. see
+    Visualization tools to inspect the XLS compiler/system interactively. See
     [IR visualization](ir_visualization.md).
