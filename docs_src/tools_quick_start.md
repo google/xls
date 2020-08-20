@@ -3,6 +3,11 @@
 This document is a quick start guide through the use of the individual XLS
 tools, from DSL input to RTL generation.
 
+**Note:** This guide assumes you have
+[set up your system so it can build the XLS tools via Bazel](README.md#building-from-source).
+There is currently no binary tools distribution so building from source is
+required.
+
 Create a file `/tmp/simple_add.x` with the following contents:
 
 ```

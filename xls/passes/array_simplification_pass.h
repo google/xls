@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_PASSES_ARRAY_SIMPLIFICATION_H_
-#define THIRD_PARTY_XLS_PASSES_ARRAY_SIMPLIFICATION_H_
+#ifndef XLS_PASSES_ARRAY_SIMPLIFICATION_H_
+#define XLS_PASSES_ARRAY_SIMPLIFICATION_H_
 
 #include "xls/common/status/statusor.h"
 #include "xls/ir/function.h"
@@ -34,4 +34,4 @@ class ArraySimplificationPass : public FunctionPass {
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_PASSES_ARRAY_SIMPLIFICATION_H_
+#endif  // XLS_PASSES_ARRAY_SIMPLIFICATION_H_

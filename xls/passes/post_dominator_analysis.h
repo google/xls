@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_XLS_PASSES_POSTDOMINATOR_FUNCTION_H_
-#define THIRD_PARTY_XLS_PASSES_POSTDOMINATOR_FUNCTION_H_
+#ifndef XLS_PASSES_POSTDOMINATOR_FUNCTION_H_
+#define XLS_PASSES_POSTDOMINATOR_FUNCTION_H_
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/types/span.h"
@@ -75,4 +75,4 @@ class PostDominatorAnalysis {
 
 }  // namespace xls
 
-#endif  // THIRD_PARTY_XLS_PASSES_POSTDOMINATOR_FUNCTION_H_
+#endif  // XLS_PASSES_POSTDOMINATOR_FUNCTION_H_

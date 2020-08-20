@@ -1,14 +1,20 @@
 <div align='center'>
-<img src='https://google.github.io/xls/images/xls_logo_627_252.png' alt='XLS Logo'>
+<img src='https://google.github.io/xls/images/xls_logo_623_250.png' alt='XLS Logo'>
 </div>
 
 # **XLS**: Accelerated HW Synthesis
 
+[**Docs**](https://google.github.io/xls/) | [**Quick Start**](https://google.github.io/xls/tools_quick_start/)
+
+## What is XLS?
+
 The XLS (Accelerated HW Synthesis) project aims to enable the rapid development
-of hardware IP via "software style" methodology. XLS is a High Level Synthesis
-(HLS) toolchain which produces synthesizable designs from flexible, high-level
-descriptions of functionality. It is fully Open Source: Apache 2 licensed and
-developed via GitHub.
+of *hardware IP* that also runs as efficient *host software* via "software
+style" methodology.
+
+XLS implements a High Level Synthesis (HLS) toolchain which produces
+synthesizable designs from flexible, high-level descriptions of functionality.
+It is fully Open Source: Apache 2 licensed and developed via GitHub.
 
 XLS is used inside of Google for generating feed-forward pipelines from
 "building block" routines / libraries that can be easily retargeted, reused, and
@@ -156,3 +162,24 @@ purpose, and correspond to the components in this XLS stack diagram:
   * [`visualization`](https://github.com/google/xls/tree/main/xls/visualzation):
     Visualization tools to inspect the XLS compiler/system interactively. See
     [IR visualization](ir_visualization.md).
+
+
+## Contributors
+
+The following are
+[contributors](https://github.com/google/xls/graphs/contributors) to the XLS
+project:
+
+* [Brandon Jiang](https://github.com/brajiang)
+* [Chris Leary](https://github.com/cdleary)
+* [Derek Lockhart](https://github.com/dmlockhart)
+* [Hans Montero](https://github.com/hmontero1205)
+* [Jonathan Bailey](https://github.com/jbaileyhandle)
+* [Julian Viera](https://github.com/julianviera99)
+* [Kevin Harlley](https://github.com/kevineharlley)
+* [Mark Heffernan](https://github.com/meheffernan)
+* [Per Grön](https://github.com/per-gron)
+* [Rebecca Chen (Pytype)](https://github.com/rchen152)
+* [Robert Hundt](https://github.com/rhundt)
+* [Rob Springer](https://github.com/RobSpringer)
+* [Sean Purser-Haskell](https://github.com/spurserh)
