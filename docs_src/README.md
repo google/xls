@@ -1,4 +1,6 @@
-![XLS Logo](https://google.github.io/xls/images/xls_logo_627_252.png)
+<div align='center'>
+<img src='https://google.github.io/xls/images/xls_logo_627_252.png' alt='XLS Logo'>
+</div>
 
 # **XLS**: Accelerated HW Synthesis
 
@@ -61,7 +63,9 @@ Navigating a new code base can be daunting; the following description provides a
 high-level view of the important directories and their intended organization /
 purpose, and correspond to the components in this XLS stack diagram:
 
-![XLS Stack Diagram](https://google.github.io/xls/images/xls_stack_diagram.png)
+<div align='center'>
+<img src='https://google.github.io/xls/images/xls_stack_diagram.png' alt='XLS Stack Diagram'>
+</div>
 
 * [`dependency_support`](https://github.com/google/xls/tree/main/dependency_support):
   Configuration files that load, build, and expose Bazel targets for *external*

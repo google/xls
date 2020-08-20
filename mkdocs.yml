@@ -33,3 +33,5 @@ nav:
   - Development:
     - Contributing: 'contributing.md'
     - Style Guide: 'xls_style.md'
+markdown_extensions:
+  - mdx_truly_sane_lists
