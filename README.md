@@ -26,8 +26,7 @@ what you think!
 Currently, XLS must be built from source using the Bazel build system.
 
 *Note:* Binary distributions of the XLS library are not currently available, but
-we hope to enable them via continuous integration, see [issue
-#108](https://github.com/google/xls/issues/108).
+we hope to enable them via continuous integration, [see this issue](https://github.com/google/xls/issues/108).
 
 The following instructions are for the Ubuntu 20.04 (Focal) Linux distribution.
 Note that we start by assuming [Bazel has been
