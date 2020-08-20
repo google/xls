@@ -7,6 +7,7 @@ theme:
   name: "material"
 nav:
   - Intro: 'README.md'
+    - Build system: 'build_system.md'
   - IR:
     - Semantics: 'ir_semantics.md'
     - Optimizations: 'optimizations.md'
