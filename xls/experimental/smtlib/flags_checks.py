@@ -34,3 +34,14 @@ def list_contains_only_integers(lst):
     if not elm.isdigit():
       return False
   return True
+
+def valid_axis_scale(scale_string):
+  """Returns True if the input is "linear" or "log", False otherwise.
+
+  Args:
+  scale_string: a string, must be "linear" or "log"
+  """
+  if type(scale_string) != str:
+    raise TypeError(f"Value for x- or y-axis scale flag {scale_string} is not a string.")
+  if (scale_string != "linear") and (scale_string != "log"):
+    raise ValueError("Value for x- or y-axis scale flag is not 'linear' or 'log'.")
