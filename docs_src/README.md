@@ -1,4 +1,4 @@
-![XLS Logo](https://google.github.io/xls/images/xls_logo_886_356.png)
+![XLS Logo](https://google.github.io/xls/images/xls_logo_627_252.png)
 
 # **XLS**: Accelerated HW Synthesis
 
