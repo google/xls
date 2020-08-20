@@ -314,6 +314,16 @@ class TranslatorTest(absltest.TestCase):
     """
     self.one_in_one_out(source, 10, 3, 27)
 
+  def test_dynamic_bit_slice(self):
+    source = """
+    #pragma hls_unroll yes
+    for(int x=0;x<8;x+=2) {
+        a.set_slc(x-b, a.slc<2>(6-x));
+    }
+    return a;
+    """
+    self.one_in_one_out(source, 0b0001011010, 0, 85)
+
     # TODO(seanhaskell): Broken parsing
 #  def test_simple_structref_cast(self):
 #    self.one_in_one_out("return uai32(a).slc<3>(2);", -5, 0, -11)
