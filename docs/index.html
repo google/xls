@@ -220,6 +220,13 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#project-layout" class="md-nav__link">
+    Project Layout
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -685,6 +692,13 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#project-layout" class="md-nav__link">
+    Project Layout
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -714,6 +728,12 @@ what you think!</em></p>
 development of hardware IP via "software style" methodology. XLS is a High Level
 Synthesis (HLS) toolchain which produces synthesizable designs from flexible,
 high-level descriptions of functionality.</p>
+<p>XLS is used inside of Google for generating feed-forward pipelines from
+"building block" routines / libraries that can be easily retargeted, reused, and
+composed in a latency-insensitive manner.</p>
+<p><em>Not yet available</em>, but active work in progress is the implementation of XLS
+<em>concurrent processes</em>, in Communicating Sequential Processes (CSP) style, that
+allow pipelines to communicate with each other and induct over time.</p>
 <h2 id="building-from-source">Building From Source</h2>
 <p>Currently, XLS must be built from source using the Bazel build system.</p>
 <p>The following instructions are for the Ubuntu 20.04 (Focal) Linux distribution:</p>
@@ -738,6 +758,100 @@ $ source ~/.bashrc
 
 $ bazel test -c opt ...
 </code></pre>
+
+<h2 id="project-layout">Project Layout</h2>
+<p>Navigating a new code base can be daunting; the following description provides a
+high-level view of the important directories and their intended organization /
+purpose:</p>
+<ul>
+<li><a href="https://github.com/google/xls/tree/main/dependency_support"><code>dependency_support</code></a>:
+  Configuration files that load, build, and expose Bazel targets for <em>external</em>
+  dependencies of XLS.</li>
+<li><a href="https://github.com/google/xls/tree/main/docs"><code>docs</code></a>: Generated documentation
+  served via GitHub pages:
+  <a href="https://google.github.io/xls/">https://google.github.io/xls/</a></li>
+<li><a href="https://github.com/google/xls/tree/main/docs_src"><code>docs_src</code></a>: Markdown file
+  sources, rendered to <code>docs</code> via
+  <a href="https://google.github.io/xls/contributing/#rendering-documentation">mkdocs</a>.</li>
+<li><a href="https://github.com/google/xls/tree/main/xls"><code>xls</code></a>: Project-named
+  subdirectory within the repository, in common Bazel-project style.</li>
+<li><a href="https://github.com/google/xls/tree/main/xls/build"><code>build</code></a>: Build macros
+    for creating XLS artifacts; e.g. convert DSL to IR, create test targets for
+    DSL code, etc.</li>
+<li><a href="https://github.com/google/xls/tree/main/xls/codegen"><code>codegen</code></a>: Verilog
+    AST (VAST) support for generating Verilog/SystemVerilog operations and FSMs.
+    VAST is built up by components we call <em>generators</em> (e.g.
+    PipelineGenerator, SequentialGenerator for FSMs) in the translation from XLS
+    IR.</li>
+<li><a href="https://github.com/google/xls/tree/main/xls/common"><code>common</code></a>: "base"
+    functionality that layers on top of standard library usage. Generally we use
+    <a href="https://abseil.io">Abseil</a> versions of base constructs wherever possible.</li>
+<li><a href="https://github.com/google/xls/tree/main/xls/contrib/xlscc"><code>contrib/xlscc</code></a>:
+    Experimental C++ syntax support that targets XLS IR (alternative path to
+    DSLX) developed by a sister team at Google, sharing the same open source /
+    testing flow as the rest of the XLS project. May be of particular interest
+    for teams with existing C++ HLS code bases.</li>
+<li><a href="https://github.com/google/xls/tree/main/xls/data_structures"><code>data_structures</code></a>:
+    Generic data structures used in XLS that augment standard libraries; e.g.
+    BDDs, union find, min cut, etc.</li>
+<li><a href="https://github.com/google/xls/tree/main/xls/delay_model"><code>delay_model</code></a>:
+    Functionality for characterizing, describing, and interpolating data delay for
+    XLS IR operations on a target backend process. Already-characterized
+    descriptions are placed in <code>xls/delay_model/models</code> and can be referred to via
+    command line flags.</li>
+<li><a href="https://github.com/google/xls/tree/main/xls/dslx"><code>dslx</code></a>: A DSL (called
+    "DSLX") that mimics Rust, while being an immutable expression-language
+    dataflow DSL with hardware-oriented features; e.g.  arbitrary bitwidths,
+    entirely fixed size objects, fully analyzeable call graph. XLS team has found
+    dataflow DSLs are a good fit for describing hardware as compared to languages
+    designed assuming von Neumann style computation.</li>
+<li><a href="https://github.com/google/xls/tree/main/xls/dslx/fuzzer"><code>dslx/fuzzer</code></a>: A
+    whole-stack multiprocess fuzzer that generates programs at the DSL level and
+    cross-compares different execution engines (DSL interpreter, IR interpreter,
+    IR JIT, code-generated-Verilog simulator). Designed so that it can easily be
+    run on different nodes in a cluster simultaneously and accumulate shared
+    findings.</li>
+<li><a href="https://github.com/google/xls/tree/main/xls/examples"><code>examples</code></a>: Example
+    computations that are tested and executable through the XLS stack.</li>
+<li><a href="https://github.com/google/xls/tree/main/xls/experimental"><code>experimental</code></a>:
+    Artifacts captured from experimental explorations.</li>
+<li><a href="https://github.com/google/xls/tree/main/xls/ir"><code>ir</code></a>:
+    XLS IR definition, text parser/formatter, and facilities for abstract
+    evaluation and execution engines (<a href="interpreters/">IR interpreter</a>,
+    <a href="ir_jit/">JIT</a>).</li>
+<li><a href="https://github.com/google/xls/tree/main/xls/modules"><code>modules</code></a>:
+    Hardware building block DSLX "libraries" (outside the DSLX standard library)
+    that may be easily reused or instantiated in a broader design.</li>
+<li><a href="https://github.com/google/xls/tree/main/xls/netlist"><code>netlist</code></a>: Libraries
+    for parsing/analyzing/interpreting netlist-level descriptions, as are
+    generally given in simple structural Verilog with an associated cell library.</li>
+<li><a href="https://github.com/google/xls/tree/main/xls/passes"><code>passes</code></a>: Passes that
+    run on the XLS IR as part of optimization, before scheduling / code
+    generation.</li>
+<li><a href="https://github.com/google/xls/tree/main/xls/scheduling"><code>scheduling</code></a>:
+    Scheduling algorithms, determine when operations execute (e.g. which
+    pipeline stage) in a clocked design.</li>
+<li><a href="https://github.com/google/xls/tree/main/xls/simulation"><code>simulation</code></a>:
+    Helper functionality wrapping Verilog simulators and for generating associated
+    Verilog testbenches for XLS computations.</li>
+<li><a href="https://github.com/google/xls/tree/main/xls/solvers"><code>solvers</code></a>:
+    Converters for turning XLS IR into SMT solver input, such that formal proofs
+    can be run on XLS computations.</li>
+<li><a href="https://github.com/google/xls/tree/main/xls/synthesis"><code>synthesis</code></a>:
+    Interface wrapping a backend synthesis flow, such that tools can be retargeted
+    e.g. between ASIC and FPGA flows.</li>
+<li><a href="https://github.com/google/xls/tree/main/xls/tests"><code>tests</code></a>:
+    Integration tests that span various top-level components of the XLS project.</li>
+<li><a href="https://github.com/google/xls/tree/main/xls/tools"><code>tools</code></a>:
+    <a href="tools/">Many tools</a> that work with the XLS system and its libraries in a
+    decomposed way via command line interfaces.</li>
+<li><a href="https://github.com/google/xls/tree/main/xls/uncore_rtl"><code>uncore_rtl</code></a>:
+    Helper RTL for interfacing XLS-generated blocks with device top-level for e.g.
+    FPGA experiments.</li>
+<li><a href="https://github.com/google/xls/tree/main/xls/visualzation"><code>visualization</code></a>:
+    Visualization tools for working with the XLS system interactively. E.g. see
+    <a href="ir_visualization/">IR visualization</a>.</li>
+</ul>
                 
               
               
