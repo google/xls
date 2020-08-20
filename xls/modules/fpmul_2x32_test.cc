@@ -25,6 +25,7 @@
 #include "xls/ir/llvm_ir_jit.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/ir/value_view_helpers.h"
+#include "xls/modules/fpmul_2x32_jit_wrapper.h"
 #include "xls/tools/testbench.h"
 
 ABSL_FLAG(bool, use_opt_ir, true, "Use optimized IR.");
@@ -71,22 +72,9 @@ float ComputeExpected(Float2x32 input) {
 }
 
 // Computes FP addition via DSLX & the JIT.
-float ComputeActual(LlvmIrJit* jit, absl::Span<uint8> result_buffer,
+float ComputeActual(Fpmul2x32* jit_wrapper, absl::Span<uint8> result_buffer,
                     Float2x32 input) {
-  // Meyers-singleton-esque static buffers.
-  thread_local std::unique_ptr<uint8[]> x_buffer =
-      std::make_unique<uint8[]>(jit->GetArgTypeSize(0));
-  thread_local std::unique_ptr<uint8[]> y_buffer =
-      std::make_unique<uint8[]>(jit->GetArgTypeSize(1));
-
-  PopulateAsF32TupleView(std::get<0>(input), x_buffer.get());
-  PopulateAsF32TupleView(std::get<1>(input), y_buffer.get());
-  const uint8* args[2] = {x_buffer.get(), y_buffer.get()};
-  memset(result_buffer.data(), 0, result_buffer.size());
-  XLS_CHECK_OK(jit->RunWithViews(args, result_buffer));
-
-  F32TupleView result(result_buffer.data());
-  return F32TupleViewToFloat(result);
+  return jit_wrapper->Run(std::get<0>(input), std::get<1>(input)).value();
 }
 
 // Compares expected vs. actual results, taking into account two special cases.
@@ -98,9 +86,8 @@ bool CompareResults(float a, float b) {
 }
 
 absl::Status RealMain(bool use_opt_ir, uint64 num_samples, int num_threads) {
-  Testbench<Float2x32, float> testbench(
-      GetXlsRunfilePath(use_opt_ir ? kOptIrPath : kIrPath),
-      /*entry_function=*/"__fpmul_2x32__fpmul_2x32", 0, num_samples,
+  Testbench<Fpmul2x32, Float2x32, float> testbench(
+      0, num_samples,
       /*max_failures=*/1, IndexToInput, ComputeExpected, ComputeActual,
       CompareResults);
   if (num_threads != 0) {

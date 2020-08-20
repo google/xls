@@ -32,7 +32,7 @@ namespace xls {
 // TestbenchThread handles the work of _actually_ running tests.
 // It simply iterates over its given range of the index space and calls the
 // expected/actual calculators.
-template <typename InputT, typename ResultT>
+template <typename JitWrapperT, typename InputT, typename ResultT>
 class TestbenchThread {
  public:
   // All specified functions must be thread-safe.
@@ -45,14 +45,14 @@ class TestbenchThread {
   //  - generate_expected: Given an input, generates the "expected" value.
   //  - generate_actual: Given an input, generates a value from the module
   //                     under test.
-  TestbenchThread(const std::string& ir_text, const std::string& entry_fn,
-                  absl::Mutex* wake_parent_mutex, absl::CondVar* wake_parent,
-                  uint64 start_index, uint64 end_index, uint64 max_failures,
-                  std::function<InputT(uint64)> index_to_input,
-                  std::function<ResultT(InputT)> generate_expected,
-                  std::function<ResultT(LlvmIrJit*, absl::Span<uint8>, InputT)>
-                      generate_actual,
-                  std::function<bool(ResultT, ResultT)> compare_results)
+  TestbenchThread(
+      absl::Mutex* wake_parent_mutex, absl::CondVar* wake_parent,
+      uint64 start_index, uint64 end_index, uint64 max_failures,
+      std::function<InputT(uint64)> index_to_input,
+      std::function<ResultT(InputT)> generate_expected,
+      std::function<ResultT(JitWrapperT*, absl::Span<uint8>, InputT)>
+          generate_actual,
+      std::function<bool(ResultT, ResultT)> compare_results)
       : wake_parent_mutex_(wake_parent_mutex),
         wake_parent_(wake_parent),
         cancelled_(false),
@@ -65,9 +65,7 @@ class TestbenchThread {
         index_to_input_(index_to_input),
         generate_expected_(generate_expected),
         generate_actual_(generate_actual),
-        compare_results_(compare_results),
-        ir_text_(ir_text),
-        entry_fn_(entry_fn) {}
+        compare_results_(compare_results) {}
 
   // Starts the thread. Silently returns if it's already running.
   // If the tax of calling index_to_input_ every iter is too high, we can
@@ -92,14 +90,14 @@ class TestbenchThread {
       return;
     }
 
-    // The spawning Testbench will have already validated the IR text, entry
-    // function, and JIT creation, so we can safely call value() here.
-    package_ = Parser::ParsePackage(ir_text_).value();
-    jit_ = LlvmIrJit::Create(package_->GetFunction(entry_fn_).value()).value();
-
-    auto result_buffer = std::make_unique<uint8[]>(jit_->GetReturnTypeSize());
+    xabsl::StatusOr<std::unique_ptr<JitWrapperT>> status_or_wrapper =
+        JitWrapperT::Create();
+    XLS_CHECK_OK(status_or_wrapper.status());
+    jit_wrapper_ = std::move(status_or_wrapper.value());
+    auto result_buffer =
+        std::make_unique<uint8[]>(jit_wrapper_->jit()->GetReturnTypeSize());
     absl::Span<uint8> result_span(result_buffer.get(),
-                                  jit_->GetReturnTypeSize());
+                                  jit_wrapper_->jit()->GetReturnTypeSize());
 
     running_.store(true);
     for (uint64 i = start_index_; i < end_index_; i++) {
@@ -111,7 +109,7 @@ class TestbenchThread {
 
       InputT input = index_to_input_(i);
       ResultT expected = generate_expected_(input);
-      ResultT actual = generate_actual_(jit_.get(), result_span, input);
+      ResultT actual = generate_actual_(jit_wrapper_.get(), result_span, input);
       if (!compare_results_(expected, actual)) {
         num_failures_.store(num_failures_.load() + 1);
         std::string error = absl::StrFormat(
@@ -181,14 +179,14 @@ class TestbenchThread {
 
   std::function<InputT(uint64)> index_to_input_;
   std::function<ResultT(InputT)> generate_expected_;
-  std::function<ResultT(LlvmIrJit*, absl::Span<uint8>, InputT)>
+  std::function<ResultT(JitWrapperT*, absl::Span<uint8>, InputT)>
       generate_actual_;
   std::function<bool(ResultT, ResultT)> compare_results_;
 
   std::string ir_text_;
   std::string entry_fn_;
   std::unique_ptr<Package> package_;
-  std::unique_ptr<LlvmIrJit> jit_;
+  std::unique_ptr<JitWrapperT> jit_wrapper_;
 
   std::unique_ptr<std::thread> thread_;
 };

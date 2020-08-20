@@ -652,7 +652,7 @@ class BuilderVisitor : public DfsVisitorWithDefault {
           XLS_ASSIGN_OR_RETURN(llvm::Value * element,
                                UnpackParamBuffer(element_type, param_buffer));
           array = builder_->CreateInsertValue(array, element, {i});
-          param_buffer = builder_->CreateAShr(param_buffer,
+          param_buffer = builder_->CreateLShr(param_buffer,
                                               element_type->GetFlatBitCount());
         }
         return array;

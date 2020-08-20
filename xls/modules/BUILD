@@ -71,6 +71,7 @@ cc_test(
     data = [":fpadd_2x32_all_ir"],
     tags = ["optonly"],
     deps = [
+        ":fpadd_2x32_jit_wrapper",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
         "//xls/common:init_xls",
@@ -102,6 +103,7 @@ cc_test(
     srcs = ["fpmul_2x32_test.cc"],
     data = [":fpmul_2x32_all_ir"],
     deps = [
+        ":fpmul_2x32_jit_wrapper",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
         "//xls/common:init_xls",

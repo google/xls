@@ -37,13 +37,19 @@ namespace xls {
 // lead to work imbalance if certain areas of the input space execute faster
 // than others. More advanced strategies can be explored in the future if this
 // becomes a problem.
-template <typename InputT, typename ResultT>
+template <typename JitWrapperT, typename InputT, typename ResultT>
 class Testbench {
  public:
-  //  - start, end: The bounds of the space to evaluate, as [start, end).
-  //  - max_failures: The maximum number of result mismatches to allow (per
+  // Args:
+  //   start, end: The bounds of the space to evaluate, as [start, end).
+  //   max_failures: The maximum number of result mismatches to allow (per
   //                  worker thread) before cancelling execution.
-  //  - compare_results: Should return true if both ResultTs (expected & actual)
+  //   compute_actual: The function to call to calculate the XLS result.
+  //     "result_buffer" is a convenience buffer provided as temporary storage
+  //     to hold result data if using view types in the calculation. This buffer
+  //     isn't directly used internally all - it's just a convenience to avoid
+  //     the need to heap allocate on every iteration.
+  //   compare_results: Should return true if both ResultTs (expected & actual)
   //                     are considered equivalent.
   // These lambdas return pure InputTs and ResultTs instead of wrapping them in
   // StatusOrs so we don't pay that tax on every iteration. If our algorithms
@@ -52,11 +58,10 @@ class Testbench {
   // All lambdas must be thread-safe.
   // TODO(rspringer): Update Testbench & TestbenchThread to use the JIT
   // wrappers once they're fully implemented.
-  Testbench(std::string ir_path, std::string entry_function, uint64 start,
-            uint64 end, uint64 max_failures,
+  Testbench(uint64 start, uint64 end, uint64 max_failures,
             std::function<InputT(uint64)> index_to_input,
             std::function<ResultT(InputT)> compute_expected,
-            std::function<ResultT(LlvmIrJit*, absl::Span<uint8>, InputT)>
+            std::function<ResultT(JitWrapperT*, absl::Span<uint8>, InputT)>
                 compute_actual,
             std::function<bool(ResultT, ResultT)> compare_results);
 
@@ -89,7 +94,8 @@ class Testbench {
   absl::Mutex mutex_;
   absl::CondVar wake_me_;
 
-  std::vector<std::unique_ptr<TestbenchThread<InputT, ResultT>>> threads_;
+  std::vector<std::unique_ptr<TestbenchThread<JitWrapperT, InputT, ResultT>>>
+      threads_;
 
   bool started_;
   int num_threads_;
@@ -100,21 +106,19 @@ class Testbench {
   uint64 num_samples_processed_;
   std::function<InputT(uint64)> index_to_input_;
   std::function<ResultT(InputT)> compute_expected_;
-  std::function<ResultT(LlvmIrJit*, absl::Span<uint8>, InputT)> compute_actual_;
+  std::function<ResultT(JitWrapperT*, absl::Span<uint8>, InputT)>
+      compute_actual_;
   std::function<bool(ResultT, ResultT)> compare_results_;
-
-  std::string ir_path_;
-  std::string entry_function_;
 };
 
 // INTERNAL IMPL ---------------------------------
 
-template <typename InputT, typename ResultT>
-Testbench<InputT, ResultT>::Testbench(
-    std::string ir_path, std::string entry_function, uint64 start, uint64 end,
-    uint64 max_failures, std::function<InputT(uint64)> index_to_input,
+template <typename JitWrapperT, typename InputT, typename ResultT>
+Testbench<JitWrapperT, InputT, ResultT>::Testbench(
+    uint64 start, uint64 end, uint64 max_failures,
+    std::function<InputT(uint64)> index_to_input,
     std::function<ResultT(InputT)> compute_expected,
-    std::function<ResultT(LlvmIrJit*, absl::Span<uint8>, InputT)>
+    std::function<ResultT(JitWrapperT*, absl::Span<uint8>, InputT)>
         compute_actual,
     std::function<bool(ResultT, ResultT)> compare_results)
     : started_(false),
@@ -126,21 +130,10 @@ Testbench<InputT, ResultT>::Testbench(
       index_to_input_(index_to_input),
       compute_expected_(compute_expected),
       compute_actual_(compute_actual),
-      compare_results_(compare_results),
-      ir_path_(std::move(ir_path)),
-      entry_function_(std::move(entry_function)) {}
+      compare_results_(compare_results) {}
 
-template <typename InputT, typename ResultT>
-absl::Status Testbench<InputT, ResultT>::Run() {
-  // First, verify that the IR and entry function are sane to avoid needing to
-  // check in the threads (one error message is nicer than 20).
-  // Reminder: we don't use this Package for anything; each thread needs its own
-  // due to thread-safety concerns.
-  XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path_));
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
-                       Parser::ParsePackage(ir_text));
-  XLS_RETURN_IF_ERROR(package->GetFunction(entry_function_).status());
-
+template <typename JitWrapperT, typename InputT, typename ResultT>
+absl::Status Testbench<JitWrapperT, InputT, ResultT>::Run() {
   // Lock before spawning threads to prevent missing any early wakeup signals
   // here.
   mutex_.Lock();
@@ -160,10 +153,10 @@ absl::Status Testbench<InputT, ResultT>::Run() {
       chunk_remainder--;
     }
 
-    threads_.push_back(std::make_unique<TestbenchThread<InputT, ResultT>>(
-        ir_text, entry_function_, &mutex_, &wake_me_, first, last,
-        max_failures_, index_to_input_, compute_expected_, compute_actual_,
-        compare_results_));
+    threads_.push_back(
+        std::make_unique<TestbenchThread<JitWrapperT, InputT, ResultT>>(
+            &mutex_, &wake_me_, first, last, max_failures_, index_to_input_,
+            compute_expected_, compute_actual_, compare_results_));
     threads_.back()->Run();
 
     first = last + 1;
@@ -211,8 +204,8 @@ absl::Status Testbench<InputT, ResultT>::Run() {
   return absl::OkStatus();
 }
 
-template <typename InputT, typename ResultT>
-void Testbench<InputT, ResultT>::PrintStatus() {
+template <typename JitWrapperT, typename InputT, typename ResultT>
+void Testbench<JitWrapperT, InputT, ResultT>::PrintStatus() {
   // Get the remainder-adjusted chunk size for this thread.
   auto thread_chunk_size = [this](int thread_index) {
     uint64 total_size = end_ - start_;
@@ -257,8 +250,8 @@ void Testbench<InputT, ResultT>::PrintStatus() {
   num_samples_processed_ = total_done;
 }
 
-template <typename InputT, typename ResultT>
-void Testbench<InputT, ResultT>::Cancel() {
+template <typename JitWrapperT, typename InputT, typename ResultT>
+void Testbench<JitWrapperT, InputT, ResultT>::Cancel() {
   for (int i = 0; i < threads_.size(); i++) {
     threads_[i]->Cancel();
   }

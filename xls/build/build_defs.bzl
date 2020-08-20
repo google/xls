@@ -219,11 +219,13 @@ def dslx_jit_wrapper(
         hdrs = [name + ".h"],
         deps = [
             "@com_google_absl//absl/status",
+            "//xls/common/status:status_macros",
             "//xls/common/status:statusor",
             "//xls/ir",
             "//xls/ir:llvm_ir_jit",
             "//xls/ir:ir_parser",
             "//xls/ir:value",
+            "//xls/ir:value_view",
         ],
     )
 

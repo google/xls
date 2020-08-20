@@ -24,6 +24,8 @@ namespace xls {
 
 // View representation of a 32-bit float value.
 using F32TupleView = TupleView<BitsView<23>, BitsView<8>, BitsView<1>>;
+using PackedF32TupleView =
+    PackedTupleView<PackedBitsView<23>, PackedBitsView<8>, PackedBitsView<1>>;
 
 // Returns the flat float contained in the specified view tuple.
 inline float F32TupleViewToFloat(F32TupleView tuple) {

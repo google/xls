@@ -26,11 +26,11 @@ namespace xls {
 namespace {
 
 TEST(Fpadd2x32JitWrapperTest, CanAdd) {
-  XLS_ASSERT_OK_AND_ASSIGN(Fpadd2x32 adder, Fpadd2x32::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(auto adder, Fpadd2x32::Create());
   Value one = F32ToTuple(1.0f);
   Value two = F32ToTuple(2.0f);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Value expected, adder.Run(one, two));
+  XLS_ASSERT_OK_AND_ASSIGN(Value expected, adder->Run(one, two));
   XLS_ASSERT_OK_AND_ASSIGN(float result, TupleToF32(expected));
   EXPECT_EQ(result, 3.0f);
 }
