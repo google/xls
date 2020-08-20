@@ -149,35 +149,49 @@ class StructType(Type):
       struct: HLSStructType protobuf
   """
 
-  def __init__(self, name, struct):
+  def __init__(self, name, struct, translator=None):
+
     super(StructType, self).__init__()
     self.name = name
     self.struct = struct
     self.field_indices = {}
     self.element_types = {}
-    self.bit_width = 0
-    for named_field in self.struct.fields:
-      name = named_field.name
-      field = named_field.hls_type
-      self.field_indices[name] = len(self.field_indices)
-      if field.HasField("as_int"):
-        self.element_types[name] = IntType(field.as_int.width,
-                                           field.as_int.signed,
-                                           False)
-      elif field.HasField("as_struct"):
-        self.element_types[name] = StructType(name, field.as_struct)
-      elif field.HasField("as_array"):
-        if not field.as_array.HasField("int_element_type"):
-          raise NotImplementedError("Unsupported element type for array")
-
-        elem_type = IntType(field.as_array.int_element_type.width,
-                            field.as_array.int_element_type.signed, False)
-
-        self.element_types[name] = ArrayType(elem_type, field.as_array.count)
-      else:
-        raise NotImplementedError("Unsupported field type for field", name,
-                                  ":", type(field))
-      self.bit_width = self.bit_width + self.element_types[name].bit_width
+    if isinstance(struct, c_ast.Struct):
+    # Parse c_ast.Struct and make StructType object
+      self.is_const = False
+      self.as_struct = None
+      for decl in struct.decls:
+        name = decl.name
+        field = decl.type
+        self.field_indices[name] = len(self.field_indices)
+        if isinstance(field, c_ast.TypeDecl):
+          if isinstance(field.type, c_ast.Struct):
+            self.element_types[field.declname] = translator.parse_type(
+                field.type)
+          else:
+            self.element_types[field.declname] = translator.parse_type(field)
+        elif isinstance(field, c_ast.ArrayDecl):
+          array_name = field.type.declname
+          self.element_types[array_name] = translator.parse_type(field)
+        elif isinstance(field, c_ast.Struct):
+          self.element_types[field.name] = translator.parse_type(field)
+        else:
+          raise NotImplementedError("Unsupported field type for field", name,
+                                    ":", type(field))
+    else:
+      for named_field in self.struct.fields:
+        name = named_field.name
+        field = named_field.hls_type
+        self.field_indices[name] = len(self.field_indices)
+        if field.HasField("as_int"):
+          self.element_types[name] = IntType(field.as_int.width,
+                                             field.as_int.signed,
+                                             False)
+        elif field.HasField("as_struct"):
+          self.element_types[name] = StructType(name, field.as_struct)
+        else:
+          raise NotImplementedError("Unsupported field type for field", name,
+                                    ":", type(field))
 
   def get_xls_type(self, p):
     """Get XLS IR type for struct.
@@ -189,18 +203,20 @@ class StructType(Type):
     """
 
     element_xls_types = []
-    for named_field in self.struct.fields:
-      name = named_field.name
-      field = named_field.hls_type
-      if field.HasField("as_int"):
-        element_xls_types.append(p.get_bits_type(field.as_int.width))
-      elif field.HasField("as_struct"):
+    if isinstance(self.struct, c_ast.Struct):
+      for name in self.element_types:
         element_xls_types.append(self.element_types[name].get_xls_type(p))
-      elif field.HasField("as_array"):
-        element_xls_types.append(self.element_types[name].get_xls_type(p))
-      else:
-        raise NotImplementedError("Unsupported struct field type in C AST",
-                                  type(field))
+    else:
+      for named_field in self.struct.fields:
+        name = named_field.name
+        field = named_field.hls_type
+        if field.HasField("as_int"):
+          element_xls_types.append(p.get_bits_type(field.as_int.width))
+        elif field.HasField("as_struct"):
+          element_xls_types.append(self.element_types[name].get_xls_type(p))
+        else:
+          raise NotImplementedError("Unsupported struct field type in C AST",
+                                    type(field))
 
     return p.get_tuple_type(element_xls_types)
 
@@ -278,7 +294,6 @@ class Function(object):
 
     # parse return type
     self.return_type = translator.parse_type(type_decl)
-
     # parse parameters
     self.params = collections.OrderedDict()
     if param_list is not None:
@@ -423,8 +438,11 @@ class Translator(object):
     return False
 
   def get_struct_type(self, name):
+    # May return StructType or hls_type struct
     if name not in self.hls_types_by_name_:
       return None
+    if isinstance(self.hls_types_by_name_[name], StructType):
+      return self.hls_types_by_name_[name]
     if not self.hls_types_by_name_[name].as_struct:
       return None
     return self.hls_types_by_name_[name].as_struct
@@ -440,6 +458,9 @@ class Translator(object):
         func = Function()
         func.parse_function(self, child)
         self.functions_[func.name] = func
+      elif isinstance(child.type, c_ast.Struct):
+        struct = StructType(child.type.name, child.type, self)
+        self.hls_types_by_name_[child.type.name] = struct
       elif isinstance(child, c_ast.Decl):
         name = child.name
         assert name not in self.global_decls_
@@ -469,14 +490,15 @@ class Translator(object):
           for val in enum_list.enumerators:
             assert isinstance(val, c_ast.Enumerator)
             assert val.name not in self.global_decls_
-            if val.value is not None:
+            if val.value is None:
+              const_type = IntType(32, True, True)
+            else:
               const_val, const_type = parse_constant(val.value)
               enum_curr_val = int(const_val)
-            else:
-              const_type = IntType(32, True, True)
-            const_expr = ir_value.Value(
-                bits_mod.UBits(
-                    value=enum_curr_val, bit_count=const_type.bit_width))
+            const_expr = ir_value.Value(bits_mod.UBits(
+                value=enum_curr_val,
+                bit_count=
+                const_type.bit_width))
             self.global_decls_[val.name] = CVar(const_expr, const_type)
             enum_curr_val += 1
         else:
@@ -506,13 +528,16 @@ class Translator(object):
     is_const = ("const" in ast.quals) if isinstance(ast,
                                                     c_ast.TypeDecl) else False
     array_type = None
-
     if isinstance(ast, c_ast.TypeDecl):
       ident = ast.type
       assert isinstance(ident, c_ast.IdentifierType) or isinstance(
-          ident, c_ast.TemplateInst)
+          ident, c_ast.TemplateInst) or isinstance(ident, c_ast.Struct)
       if isinstance(ident, c_ast.TemplateInst):
         ident = ident.expr
+      if isinstance(ident, c_ast.Struct):
+        ret_type = StructType(ident.name, ident, self)
+        self.hls_types_by_name_[ret_type.name] = ret_type
+        return ret_type
     elif isinstance(ast, c_ast.IdentifierType):
       ident = ast
     elif isinstance(ast, c_ast.ArrayDecl):
@@ -524,8 +549,11 @@ class Translator(object):
       ret_type.is_ref = True
       ret_type.is_const = is_const
       return ret_type
+    elif isinstance(ast, c_ast.Struct):
+      ret_type = StructType(ast.name, ast, self)
+      self.hls_types_by_name_[ret_type.name] = ret_type
+      return ret_type
     else:
-      print(ast)
       raise NotImplementedError("Unimplemented construct ", type(ast))
 
     assert ident is not None
@@ -565,8 +593,11 @@ class Translator(object):
     elif m_signed is not None:
       ptype = IntType(int(m_signed.group(1)), True, False)
     elif struct_type is not None:
-      assert isinstance(struct_type, hls_types_pb2.HLSStructType)
-      ptype = StructType(name, struct_type)
+      assert isinstance(struct_type, (StructType, hls_types_pb2.HLSStructType))
+      if isinstance(struct_type, hls_types_pb2.HLSStructType):
+        ptype = StructType(name, struct_type)
+      else:
+        ptype = struct_type
     elif name == "ac_channel":
       assert len(ast.type.params_list.exprs) == 1
       channel_type = self.parse_type(ast.type.params_list.exprs[0])
@@ -1481,13 +1512,15 @@ class Translator(object):
         ret_vals.append(RetVal(condition, ret_val, ret_type))
         break  # Ignore the rest of the block
       elif isinstance(stmt, c_ast.Decl):
+        if stmt.name is None:
+          # parse type but don't create cvar
+          decl_type = self.parse_type(stmt.type)
+          continue
         if stmt.name in self.cvars:
           raise ValueError("Variable '", stmt.name,
                            "' already declared in this scope")
-
         decl_type = self.parse_type(stmt.type)
         self.cvars[stmt.name] = CVar(None, decl_type)
-
         self.lvalues[stmt.name] = not decl_type.is_const
         if stmt.init is not None:
           if isinstance(stmt.init, c_ast.InitList):
@@ -1636,6 +1669,8 @@ class Translator(object):
           raise ValueError("Switch must be on integer")
         assert isinstance(stmt.stmt, c_ast.Compound)
         next_is_default = False
+        case_falls_thru = False
+        fall_thru_cond = None
         for item in stmt.stmt.block_items:
           if isinstance(item, c_ast.Case):
             case_expr, case_type = self.gen_expr_ir(item.expr, condition)
@@ -1646,28 +1681,36 @@ class Translator(object):
                 item)
             case_loc = translate_loc(item.expr)
             case_condition = self.fb.add_eq(cond_expr, conv_case, case_loc)
-
+            if case_falls_thru:
+              case_condition = self.fb.add_or(fall_thru_cond,
+                                              case_condition, case_loc)
+              case_falls_thru = False
+            else:
+              fall_thru_cond = case_condition
             if condition is None:
               compound_condition = case_condition
             else:
               compound_condition = self.fb.add_and(condition, case_condition,
                                                    case_loc)
-
-            ret_vals += self.gen_ir_block_compound_or_single(
+            ret_stmt = self.gen_ir_block_compound_or_single(
                 item.stmts, compound_condition, None, True)
-
+            if not ret_stmt:
+              case_falls_thru = True
             if next_is_default:
               ret_vals += self.gen_ir_block_compound_or_single(
                   item.stmts, condition, None, True)
-
+            ret_vals += ret_stmt
             next_is_default = False
           else:
             assert isinstance(item, c_ast.Default)
-            ret_vals += self.gen_ir_block_compound_or_single(
+            ret_stmt = self.gen_ir_block_compound_or_single(
                 item.stmts, condition, None, True)
             # TODO(seanhaskell): Also break
-            if not ret_vals:
+            if not ret_stmt:
               next_is_default = True
+            else:
+              case_falls_thru = False
+            ret_vals += ret_stmt
       elif isinstance(stmt, c_ast.EmptyStatement):
         pass
       elif isinstance(stmt, c_ast.UnaryOp):

@@ -52,6 +52,7 @@ from pycparser.c_ast import InitList
 from pycparser.c_ast import Node
 from pycparser.c_ast import Pragma
 from pycparser.c_ast import Return
+from pycparser.c_ast import Struct
 from pycparser.c_ast import StructRef
 from pycparser.c_ast import Switch
 from pycparser.c_ast import TernaryOp
