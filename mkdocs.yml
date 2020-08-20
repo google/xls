@@ -6,8 +6,7 @@ site_dir: "docs/"
 theme:
   name: "material"
 nav:
-  - Intro: 'README.md'
-    - Build system: 'build_system.md'
+  - Overview: 'README.md'
   - IR:
     - Semantics: 'ir_semantics.md'
     - Optimizations: 'optimizations.md'
@@ -27,6 +26,7 @@ nav:
       - Prefix Scan: 'dslx_intro_example3.md'
     - Fuzzer: "fuzzer.md"
   - Tools:
+    - Build System: 'build_system.md'
     - Quick Start: 'tools_quick_start.md'
     - Listing: 'tools.md'
     - Interpreters: 'interpreters.md'
