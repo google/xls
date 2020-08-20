@@ -17,6 +17,21 @@ struct Point {
   y: u32,
 }
 
+#![test]
+fn test_shorthand_equality() {
+  let x = u32:42;
+  let y = u32:64;
+
+  let p0 = Point { x, y };
+  let p1 = Point { y, x };
+
+  let _ = assert_eq(x, p0.x);
+  let _ = assert_eq(y, p0.y);
+  let _ = assert_eq(x, p1.x);
+  let _ = assert_eq(y, p1.y);
+  assert_eq(p0, p1)
+}
+
 test struct_equality {
   let p0 = Point { x: u32:42, y: u32:64 };
   let p1 = Point { y: u32:64, x: u32:42 };

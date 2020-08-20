@@ -347,6 +347,23 @@ test struct_equality {
 }
 ```
 
+There is a simple syntax when defining fields with names that are the same as the specified values:
+```
+struct Point {
+  x: u32,
+  y: u32,
+}
+
+test struct_equality {
+  let x = u32:42;
+  let y = u32:64;
+
+  let p0 = Point { x, y };
+  let p1 = Point { y, x };
+  assert_eq(p0, p1)
+}
+```
+
 Struct fields can also be accessed with "dot" syntax:
 
 ```
@@ -433,8 +450,24 @@ same definition (this is called "nominal typing"). For example:
         """,
         error='parameter type name: \'Point\'; argument type name: \'OtherPoint\''
     )
+```
 
-  def test_bad_enum_ref(self):
+DSLX also supports parametric structs. For more information on how type-parametricity works, see the [parametric functions](#parametric-functions) section.
+```
+fn double(n: u32) -> u32 { n * u32:2 }
+
+struct [N: u32, M: u32 = double(N)] Point {
+  x: bits[N],
+  y: bits[M],
+}
+
+fn [A: u32, B: u32] make_point(x: bits[A], y: bits[B]) -> Point[A, B] {
+  Point { x, y }
+}
+test struct_construction {
+  let p = make_point(u16:42, u32:42);
+  assert_eq(u16:42, p.x)
+}
 ```
 
 ### Array Type
@@ -1384,13 +1417,17 @@ to ensure the code behaves as expected. Additionally it serves as
 
 ### Unit Tests
 
-Unit tests are specified by the `test` directive, as seen below: ```
+Unit tests are specified by the `test` directive, as seen below:
 
-# ![test]
-
-fn test_reverse() { let _ = assert_eq(u1:1, rev(u1:1)) in let _ =
-assert_eq(u2:0b10, rev(u2:0b01)) in let _ = assert_eq(u2:0b00, rev(u2:0b00)) in
-() } ```
+```
+#![test]
+fn test_reverse() {
+  let _ = assert_eq(u1:1, rev(u1:1));
+  let _ = assert_eq(u2:0b10, rev(u2:0b01));
+  let _ = assert_eq(u2:0b00, rev(u2:0b00));
+  ()
+}
+```
 
 The DSLX interpreter will execute all functions that are proceeded by a `test`
 directive. These functions should be non-parametric, take no arguments, and
@@ -1399,8 +1436,7 @@ should return a unit-type.
 Unless otherwise specified in the implementation's build configs, functions
 called by unit tests are also converted to XLS IR and run through the
 toolchain's LLVM JIT. The resulting values from the DSLX interpreter and the
-LLVM JIT are compared against each other to assert equality. This is to ensure
-1) DSLX implementations are IR-convertable and 2) IR translation is correct.
+LLVM JIT are compared against each other to assert equality. This is to ensure DSLX implementations are IR-convertable and that IR translation is correct.
 
 ### QuickCheck
 
@@ -1410,12 +1446,16 @@ QuickCheck asks for properties of the implementation that should hold true
 against any input of the specified type(s). In DSLX, we use the `quickcheck`
 directive to designate functions to be run via the toolchain's QuickCheck
 framework. Here is an example that complements the unit testing of DSLX's `rev`
-implementation from above: ``` // Reversing a value twice gets you the original
-value.
+implementation from above:
 
-# ![quickcheck]
+```
+// Reversing a value twice gets you the original value.
 
-fn prop_double_reverse(x: u32) -> bool { x == rev(rev(x)) } ```
+#![quickcheck]
+fn prop_double_reverse(x: u32) -> bool {
+  x == rev(rev(x))
+}
+```
 
 The DSLX interpreter will also execute all functions that are proceeded by a
 `quickcheck` directive. These functions should be non-parametric and return a
@@ -1425,18 +1465,18 @@ arguments to the function (e.g. above, the framework will provided randomized
 
 By default, the framework will run the function against 1000 sets of randomized
 inputs. This default may be changed by specifying the `test_count` key in the
-`quickcheck` directive before a particular test: ```
+`quickcheck` directive before a particular test:
 
-# ![quickcheck(test_count=50000)]
-
+```
+#![quickcheck(test_count=50000)]
 ```
 
 The framework also allows programmers to specify a seed to use in generating the random inputs, as opposed to letting the framework pick one. The seed chosen for production can be found in the execution log.
 
 For determinism, the DSLX interpreter should be run with the `seed` flag:
 ```
-
-./interpreter_main --seed=1234 <DSLX source file> ```
+./interpreter_main --seed=1234 <DSLX source file>
+```
 
 [hughes-paper]: https://www.cs.tufts.edu/~nr/cs257/archive/john-hughes/quick.pdf
 

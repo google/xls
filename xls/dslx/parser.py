@@ -39,6 +39,7 @@ from xls.dslx.scanner import Token
 from xls.dslx.scanner import TokenKind
 from xls.dslx.scanner import TYPE_KEYWORDS
 from xls.dslx.span import Span
+from xls.dslx.span import Span
 
 
 # Helper data for noting which operator-signifying tokens bind tightly (strong
@@ -202,11 +203,23 @@ class Parser(token_parser.TokenParser):
       return ast.TypeAnnotation.make_tuple(span, tok, types)
 
     type_ref = self._parse_type_ref(bindings, tok)
+
     # Type ref may be followed by dimensions.
     if self._peekt_is(TokenKind.OBRACK):
-      dims = self._parse_dims(bindings)
+      parametrics = None
+      type_ = bindings.resolve_node(type_ref.text, type_ref.span)
+      if isinstance(type_, ast.Struct) and type_.is_parametric():
+        parametrics = self._parse_parametrics(bindings)
+
+      dims = None
+
+      if self._peekt_is(TokenKind.OBRACK):
+        dims = self._parse_dims(bindings)
       return ast.TypeAnnotation(
-          Span(tok.span.start, self._get_pos()), type_ref, dims)
+          Span(tok.span.start, self._get_pos()), type_ref, dims=dims,
+          parametrics=parametrics)
+
+      return ta
 
     span = Span(tok.span.start, self._get_pos())
     return ast.TypeAnnotation(span, type_ref)
@@ -282,6 +295,13 @@ class Parser(token_parser.TokenParser):
 
     def parse_struct_member() -> Tuple[Text, ast.Expr]:
       tok = self._popt_or_error(TokenKind.IDENTIFIER)
+
+      if not self._peekt_is(TokenKind.COLON):
+        # We also support field initialization like `Foo { field }` as sugar
+        # for `Foo { field: field }`.
+        token_as_name_ref = self._parse_name_ref(bindings, tok)
+        return (tok.value, token_as_name_ref)
+
       self._dropt_or_error(TokenKind.COLON)
       e = self.parse_expression(bindings)
       return (tok.value, e)
@@ -954,6 +974,10 @@ class Parser(token_parser.TokenParser):
   def _parse_struct(self, public: bool, bindings: Bindings) -> ast.Struct:
     """Parses a struct definition."""
     self._drop_keyword_or_error(Keyword.STRUCT)
+    parametric_bindings = ()
+    if self._try_popt(TokenKind.OBRACK):  # Parametric.
+      parametric_bindings = self._parse_parametric_bindings(bindings)
+
     name_def = self._parse_name_def(bindings)
     self._dropt_or_error(TokenKind.OBRACE)
 
@@ -965,7 +989,7 @@ class Parser(token_parser.TokenParser):
       return (name_def, type_)
 
     members = self._parse_comma_seq(parse_struct_member, TokenKind.CBRACE)
-    struct = ast.Struct(public, name_def, members)
+    struct = ast.Struct(public, parametric_bindings, name_def, members)
     bindings.add(name_def.identifier, struct)
     return struct
 
@@ -1044,6 +1068,35 @@ class Parser(token_parser.TokenParser):
       return ast.ParametricBinding(name_def, type_, expr)
 
     return self._parse_comma_seq(parse_parametric_binding, TokenKind.CBRACK)
+
+  def _parse_parametrics(self, bindings: Bindings
+                                ) -> Tuple[ast.Expr, ...]:
+    """Parses parametrics dims that follow a struct type annotation.
+
+    For example:
+
+      x: ParametricStruct[32, N]
+                         ^-----^
+    Args:
+      bindings: Bindings to populate with the parametric names.
+
+    Returns:
+      A tuple of the parsed parametric dims.
+    """
+
+    def _parse_dim() -> ast.Expr:
+      """Parses one dimension -- either a number or identifier."""
+      tok = self._peekt()
+      if tok.kind == TokenKind.IDENTIFIER:
+        return self._parse_name_ref(bindings, tok=self._popt())
+      elif tok.kind == TokenKind.NUMBER:
+        return ast.Number(self._popt())
+      else:
+        raise ParseError(tok.span,
+                         f'Expected number or identifier; got {tok.kind}')
+
+    self._dropt_or_error(TokenKind.OBRACK)
+    return self._parse_comma_seq(_parse_dim, TokenKind.CBRACK)
 
   def parse_proc(self, public: bool, outer_bindings: Bindings) -> ast.Proc:
     start_pos = self._get_pos()
@@ -1376,4 +1429,5 @@ class Parser(token_parser.TokenParser):
         raise ParseError(
             tok.span,
             'Expected start of top-level construct; got {}'.format(tok))
+
     return ast.Module(name, tuple(top))

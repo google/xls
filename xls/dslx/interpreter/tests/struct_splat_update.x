@@ -18,6 +18,12 @@ struct Point3 {
   z: u32,
 }
 
+struct [X: u32, Y: u32, Z: u32] ParametricPoint3 {
+  x: bits[X],
+  y: bits[Y],
+  z: bits[Z]
+}
+
 fn update_yz(p: Point3, new_y: u32, new_z: u32) -> Point3 {
   Point3 { y: new_y, z: new_z, ..p }
 }
@@ -27,7 +33,17 @@ fn main() -> Point3 {
   update_yz(p, u32:128, u32:256)
 }
 
-test main {
+#![test]
+fn test_main() {
   let want = Point3 { x: u32:42, y: u32:128, z: u32:256 };
   assert_eq(want, main())
+}
+
+#![test]
+fn test_parametric() {
+  let p = ParametricPoint3 { x: u32:42, y: u64:42, z: bits[128]:42 };
+  let q = ParametricPoint3 { x: u16:42, ..p };
+  let _ = assert_eq(p.y, q.y);
+  let _ = assert_eq(p.z, q.z);
+  ()
 }

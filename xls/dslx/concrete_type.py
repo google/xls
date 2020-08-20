@@ -163,7 +163,7 @@ class TupleType(ConcreteType[DimsT]):
     """Returns whether this tuple type is exactly equal to other tuple type."""
     if not isinstance(other, TupleType):
       return False
-    return (self._members == other._members and
+    return (self._members == other._members and 
             self.nominal_type == other.nominal_type)
 
   def __str__(self) -> str:

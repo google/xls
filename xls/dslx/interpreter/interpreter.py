@@ -31,6 +31,7 @@ from absl import logging
 import termcolor
 
 from xls.dslx import ast
+from xls.dslx import ast_helpers
 from xls.dslx import bit_helpers
 from xls.dslx import deduce
 from xls.dslx import import_fn
@@ -267,13 +268,37 @@ class Interpreter(object):
       bindings: Bindings) -> Union[ast.TypeAnnotation, ast.Enum, ast.Struct]:
     """Resolves the typeref to a type using its identifier via bindings."""
     if isinstance(typeref.type_def, ast.ModRef):
-      return self._evaluate_to_struct_or_enum_or_annotation(
-          typeref.type_def, bindings)
+      return ast_helpers.evaluate_to_struct_or_enum_or_annotation(
+          typeref.type_def, self._get_imported_module_via_bindings, bindings)
 
     result = bindings.resolve_type_annotation_or_enum(typeref.text)
     assert isinstance(result,
                       (ast.TypeAnnotation, ast.Enum, ast.Struct)), result
     return result
+
+  def _bindings_with_struct_parametrics(
+      self,
+      struct: ast.Struct,
+      parametrics: Tuple[ast.ParametricBinding, ...],
+      bindings: Bindings) -> Bindings:
+    """Creates new Bindings with `parametrics`.
+
+    For example, if we have a struct defined as `struct [N: u32, M: u32] Foo`,
+    and provided parametrics with values [A, 16], we'll create a new set of
+    Bindings out of `bindings` and add (N, A) and (M, 16) to that.
+    """
+    nested_bindings = Bindings(parent=bindings)
+    for p, d in zip(struct.parametric_bindings, parametrics):
+      if isinstance(d, ast.Number):
+        nested_bindings.add_value(
+            p.name.identifier,
+            Value.make_ubits(p.type_.primitive_to_bits(), int(d.value)))
+      else:
+        nested_bindings.add_value(
+            p.name.identifier,
+            nested_bindings.resolve_value_from_identifier(d.identifier))
+
+    return nested_bindings
 
   def _concretize(self, type_: Union[ast.TypeAnnotation, ast.Enum, ast.Struct],
                   bindings: Bindings) -> ConcreteType:
@@ -287,9 +312,13 @@ class Interpreter(object):
       return TupleType(members, type_)
     elif type_.is_typeref():
       logging.vlog(5, 'Concretizing typeref: %s', type_)
+      deref = self._deref_typeref(type_.get_typeref(), bindings)
+      if type_.parametrics:
+        bindings = self._bindings_with_struct_parametrics(deref,
+                                                          type_.parametrics,
+                                                          bindings)
       if type_.has_dims():
-        element_type = self._concretize(
-            self._deref_typeref(type_.get_typeref(), bindings), bindings)
+        element_type = self._concretize(deref, bindings)
         dims = tuple(
             self._evaluate(expr, bindings, ConcreteType.U32).get_bits_value()
             for expr in type_.dims)
@@ -390,48 +419,26 @@ class Interpreter(object):
     constructor = Value.make_sbits if signed else Value.make_ubits
     return constructor(bit_count, expr.get_value_as_int())
 
-  def _evaluate_to_struct_or_enum_or_annotation(
-      self, node: Union[ast.TypeDef, ast.ModRef, ast.Struct],
-      bindings: Bindings) -> Union[ast.Struct, ast.Enum, ast.TypeAnnotation]:
-    """Returns the node dereferenced into a Struct or Enum or TypeAnnotation.
-
-    Will produce TypeAnnotation in the case we bottom out in a tuple, for
-    example.
-
-    Args:
-      node: Node to resolve to a struct/enum/annotation.
-      bindings: Current bindings for evaluating the node.
-    """
-    while isinstance(node, ast.TypeDef):
-      annotation = node.type_
-      if not annotation.is_typeref():
-        return annotation
-      node = annotation.typeref.type_def
-
-    if isinstance(node, (ast.Struct, ast.Enum)):
-      return node
-
-    assert isinstance(node, ast.ModRef)
-    imported_module = bindings.resolve_mod(node.mod.identifier)
-    td = imported_module.get_typedef(node.value_tok.value)
-    # Recurse to dereference it if it's a typedef in the imported module.
-    td = self._evaluate_to_struct_or_enum_or_annotation(
-        td, self._make_top_level_bindings(imported_module))
-    assert isinstance(td, (ast.Struct, ast.Enum, ast.TypeAnnotation)), td
-    return td
+  def _get_imported_module_via_bindings(
+      self,
+      mod_ref: ast.ModRef,
+      bindings: Bindings) -> Tuple[ast.Module, Bindings]:
+    """Uses bindings to retrieve the corresponding module of a ModRef."""
+    imported_module = bindings.resolve_mod(mod_ref.identifier)
+    return imported_module, self._make_top_level_bindings(imported_module)
 
   def _evaluate_to_enum(self, node: Union[ast.TypeDef, ast.Enum],
                         bindings: Bindings) -> ast.Enum:
-    type_definition = self._evaluate_to_struct_or_enum_or_annotation(
-        node, bindings)
+    type_definition = ast_helpers.evaluate_to_struct_or_enum_or_annotation(
+        node, self._get_imported_module_via_bindings, bindings)
     assert isinstance(type_definition, ast.Enum), type_definition
     return type_definition
 
   def _evaluate_to_struct(self, node: Union[ast.ModRef, ast.Struct],
                           bindings: Bindings) -> ast.Struct:
     """Evaluates potential module-reference-to-struct to a struct."""
-    type_definition = self._evaluate_to_struct_or_enum_or_annotation(
-        node, bindings)
+    type_definition = ast_helpers.evaluate_to_struct_or_enum_or_annotation(
+        node, self._get_imported_module_via_bindings, bindings)
     assert isinstance(type_definition, ast.Struct), type_definition
     return type_definition
 
@@ -463,11 +470,6 @@ class Interpreter(object):
       i = struct.member_names.index(k)
       current_type = concrete_type_from_value(named_tuple.tuple_members[i])
       new_type = concrete_type_from_value(new_value)
-      if new_type != current_type:
-        raise EvaluateError(
-            v.span,
-            f'type error found at interpreter runtime! struct member {k} changing from type {current_type} to {new_type}'
-        )
       named_tuple = named_tuple.tuple_replace(i, new_value)
 
     assert isinstance(named_tuple, Value), named_tuple
@@ -1325,35 +1327,16 @@ class Interpreter(object):
     bindings = self._make_top_level_bindings(m)
 
     # Bind all args to the parameter identifiers.
-    #
-    # Check that the argument values conform to the parameter-annotated type.
     bound_dims = {} if not symbolic_bindings else dict(
         symbolic_bindings)  # type: Dict[Text, int]
-    param_types = []
-    for param, arg in zip(fn.params, args):
-      param_type = self._evaluate_param_type(param.type_, arg, bindings,
-                                             bound_dims)
-      param_types.append(param_type)
-
+    param_types = self._node_to_type[fn].params
     self._evaluate_derived_parametrics(fn, bindings, bound_dims)
     bindings.fn_ctx = FnCtx(m.name, fn.name.identifier, symbolic_bindings)
-    concrete_return_type = self._evaluate_TypeAnnotation(
-        fn.return_type, bindings) if fn.return_type else ConcreteType.NIL
+    concrete_return_type = self._node_to_type[fn].return_type
     for param, concrete_type, arg in zip(fn.params, param_types, args):
-      if not concrete_type_accepts_value(concrete_type, arg):
-        raise EvaluateError(
-            param.span,
-            'Argument of type {} does not conform to annotated parameter type {}; argument: {}'
-            .format(concrete_type_from_value(arg), concrete_type, arg))
       bindings.add_value(param.name.identifier, arg)
 
     result = self._evaluate(fn.body, bindings)
-    if not concrete_type_accepts_value(concrete_return_type, result):
-      raise EvaluateError(
-          fn.body.span,
-          'Type error found at interpreter runtime! Result did not conform to annotated return type; '
-          'want: {}; got: {} @ {}'.format(concrete_return_type, result, span))
-
     return result
 
   def _evaluate_fn(
