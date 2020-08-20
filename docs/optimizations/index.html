@@ -179,8 +179,8 @@
 
 
   <li class="md-nav__item">
-    <a href=".." title="Intro" class="md-nav__link">
-      Intro
+    <a href=".." title="Overview" class="md-nav__link">
+      Overview
     </a>
   </li>
 
@@ -762,6 +762,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../build_system/" title="Build System" class="md-nav__link">
+      Build System
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../tools_quick_start/" title="Quick Start" class="md-nav__link">
       Quick Start
     </a>
@@ -1310,19 +1322,19 @@ cases:</p>
 <p>Slice is entirely within the sign-extend operand.</p>
 <p><img alt="drawing" src="../bitslice_of_sign_ext_1.png" /></p>
 <p><strong>Transformation:</strong> replace the bit-slice of the sign-extended value with a
-bit-slice of the original value.</p>
+  bit-slice of the original value.</p>
 </li>
 <li>
 <p>Slice spans the sign bit of the sign-extend operand.</p>
 <p><img alt="drawing" src="../bitslice_of_sign_ext_2.png" /></p>
 <p><strong>Transformation:</strong> slice the most significant bits from the original value
-and sign-extend the result.</p>
+  and sign-extend the result.</p>
 </li>
 <li>
 <p>Slice is entirely within the sign-extended bits.</p>
 <p><img alt="drawing" src="../bitslice_of_sign_ext_3.png" /></p>
 <p><strong>Transformation:</strong> slice the sign bit from the original value and
-sign-extend it.</p>
+  sign-extend it.</p>
 </li>
 </ol>
 <p>To avoid introducing additional sign-extension operations cases (2) and (3)

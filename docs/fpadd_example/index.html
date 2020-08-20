@@ -179,8 +179,8 @@
 
 
   <li class="md-nav__item">
-    <a href=".." title="Intro" class="md-nav__link">
-      Intro
+    <a href=".." title="Overview" class="md-nav__link">
+      Overview
     </a>
   </li>
 
@@ -595,6 +595,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../build_system/" title="Build System" class="md-nav__link">
+      Build System
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../tools_quick_start/" title="Quick Start" class="md-nav__link">
       Quick Start
     </a>
@@ -795,12 +807,10 @@ integer addition, and has many more steps.</p>
 <li>Align significands: To ensure that significands are added with appropriate
     magnitudes, they must be aligned according to their exponents. To do so, the
     smaller significant needs to be shifted to the right (each right shift is
-    equivalent to increasing the exponent by one).<ul>
-<li>The extra precision bits are populated in this shift.</li>
-<li>As part of this step, the leading 1 bit... and a sign bit Note: The
-    sticky bit is calculated and applied in this step.</li>
-</ul>
-</li>
+    equivalent to increasing the exponent by one).
+    -   The extra precision bits are populated in this shift.
+    -   As part of this step, the leading 1 bit... and a sign bit Note: The
+        sticky bit is calculated and applied in this step.</li>
 <li>Sign-adjustment: if the significands differ in sign, then the significand
     with the smaller initial exponent needs to be (two's complement) negated.</li>
 <li>Add the significands and capture the carry bit. Note that, if the signs of
@@ -809,31 +819,25 @@ integer addition, and has many more steps.</p>
 <li>Normalize the significands: Shift the result so that the leading '1' is
     present in the proper space. This means shifting right one place if the
     result set the carry bit, and to the left some number of places if high bits
-    were cleared.<ul>
-<li>The sticky bit must be preserved in any of these shifts!</li>
-</ul>
-</li>
+    were cleared.
+    -   The sticky bit must be preserved in any of these shifts!</li>
 <li>Rounding: Here, the extra precision bits are examined to determine if the
     result significand's last bit should be rounded up. IEEE 754 supports five
-    rounding modes:<ul>
-<li>Round towards 0: just chop off the extra precision bits.</li>
-<li>Round towards +infinity: round up if any extra precision bits are set.</li>
-<li>Round towards -infinity: round down if any extra precision bits are set.</li>
-<li>Round to nearest, ties away from zero: Rounds to the nearest value. In
-    cases where the extra precision bits are halfway between values, i.e.,
-    0b100, then the result is rounded up for positive numbers and down for
-    negative ones.</li>
-<li>Round to nearest, ties to even: Rounds to the nearest value. In cases
-    where the extra precision bits are halfway between values, then the
-    result is rounded in whichever direction causes the LSB of the result
-    significant to be 0.<ul>
-<li>This is the most commonly-used rounding mode.</li>
-<li>This is [currently] the only supported mode by the DSLX
-    implementation.</li>
-</ul>
-</li>
-</ul>
-</li>
+    rounding modes:
+    -   Round towards 0: just chop off the extra precision bits.
+    -   Round towards +infinity: round up if any extra precision bits are set.
+    -   Round towards -infinity: round down if any extra precision bits are set.
+    -   Round to nearest, ties away from zero: Rounds to the nearest value. In
+        cases where the extra precision bits are halfway between values, i.e.,
+        0b100, then the result is rounded up for positive numbers and down for
+        negative ones.
+    -   Round to nearest, ties to even: Rounds to the nearest value. In cases
+        where the extra precision bits are halfway between values, then the
+        result is rounded in whichever direction causes the LSB of the result
+        significant to be 0.
+        -   This is the most commonly-used rounding mode.
+        -   This is [currently] the only supported mode by the DSLX
+            implementation.</li>
 <li>Special case handling: The results are examined for special cases such as
     NaNs, infinities, or (optionally) subnormals.</li>
 </ol>

@@ -179,8 +179,8 @@
 
 
   <li class="md-nav__item">
-    <a href=".." title="Intro" class="md-nav__link">
-      Intro
+    <a href=".." title="Overview" class="md-nav__link">
+      Overview
     </a>
   </li>
 
@@ -522,6 +522,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../build_system/" title="Build System" class="md-nav__link">
+      Build System
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../tools_quick_start/" title="Quick Start" class="md-nav__link">
       Quick Start
     </a>
@@ -743,50 +755,46 @@ in the XLS project, with the relevant Google style guides
 <a href="https://google.github.io/styleguide/pyguide.html">Python</a>) as their bases.</p>
 <h2 id="c">C++</h2>
 <ul>
-<li>
-<p>Align the pointer or reference modifier token with the type; e.g. <code>Foo&amp;
+<li>Align the pointer or reference modifier token with the type; e.g. <code>Foo&amp;
     foo = ...</code> instead of <code>Foo &amp;foo = ...</code>, and <code>Foo* foo = ...</code> instead of <code>Foo
-    *foo= ...</code>.</p>
-</li>
-<li>
-<p>Use <code>/*parameter_name=*/value</code> style comments if you choose to annotate
+    *foo= ...</code>.</li>
+</ul>
+<ul>
+<li>Use <code>/*parameter_name=*/value</code> style comments if you choose to annotate
     arguments in a function invocation. <code>clang-tidy</code> recognizes this form, and
     provides a Tricorder notification if <code>parameter_name</code> is mismatched against
-    the parameter name of the callee.</p>
-</li>
-<li>
-<p>Prefer <code>int64</code> over <code>int</code> to avoid any possibility of overflow.</p>
-</li>
-<li>
-<p>Always use <code>Status</code> or <code>StatusOr</code> for any error that a user could encounter.</p>
-</li>
-<li>
-<p>Other than user-facing errors, use <code>Status</code> only in exceptional situations.
+    the parameter name of the callee.</li>
+</ul>
+<ul>
+<li>Prefer <code>int64</code> over <code>int</code> to avoid any possibility of overflow.</li>
+</ul>
+<ul>
+<li>Always use <code>Status</code> or <code>StatusOr</code> for any error that a user could encounter.</li>
+</ul>
+<ul>
+<li>Other than user-facing errors, use <code>Status</code> only in exceptional situations.
     For example, <code>Status</code> is good to signal that a required file does not exist
     but not for signaling that constant folding did not constant fold an
-    expression.</p>
-</li>
-<li>
-<p>Internal errors for conditions that should never be false can use <code>CHECK</code>,
-    but may also use <code>Status</code> or <code>StatusOr</code>.</p>
-</li>
-<li>
-<p>Prefer <code>CHECK</code> to <code>DCHECK</code>, except that <code>DCHECK</code> can be used to verify
+    expression.</li>
+</ul>
+<ul>
+<li>Internal errors for conditions that should never be false can use <code>CHECK</code>,
+    but may also use <code>Status</code> or <code>StatusOr</code>.</li>
+</ul>
+<ul>
+<li>Prefer <code>CHECK</code> to <code>DCHECK</code>, except that <code>DCHECK</code> can be used to verify
     conditions that it would be too expensive to verify in production, but that
-    are fast enough to include outside of production.</p>
-</li>
+    are fast enough to include outside of production.</li>
 </ul>
 <h3 id="functions">Functions</h3>
 <ul>
-<li>
-<p>Short or easily-explained argument lists (as defined by the developer) can
+<li>Short or easily-explained argument lists (as defined by the developer) can
     be explained inline with the rest of the function comment. For more complex
-    argument lists, the following pattern should be used:</p>
-<p><code>// &lt;Function description&gt;
-// Args:
-//   arg1: &lt;arg1 description&gt;
-//   arg2: &lt;arg2 description&gt;
-//   ...</code></p>
+    argument lists, the following pattern should be used:<p><code>// &lt;Function description&gt;
+  // Args:
+  //   arg1: &lt;arg1 description&gt;
+  //   arg2: &lt;arg2 description&gt;
+  //   ...</code></p>
 </li>
 </ul>
                 

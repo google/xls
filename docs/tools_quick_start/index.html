@@ -179,8 +179,8 @@
 
 
   <li class="md-nav__item">
-    <a href=".." title="Intro" class="md-nav__link">
-      Intro
+    <a href=".." title="Overview" class="md-nav__link">
+      Overview
     </a>
   </li>
 
@@ -522,6 +522,18 @@
           
           
 
+
+  <li class="md-nav__item">
+    <a href="../build_system/" title="Build System" class="md-nav__link">
+      Build System
+    </a>
+  </li>
+
+        
+          
+          
+          
+
   
 
 
@@ -766,6 +778,10 @@
                 <h1 id="xls-tools-quick-start">XLS Tools Quick Start</h1>
 <p>This document is a quick start guide through the use of the individual XLS
 tools, from DSL input to RTL generation.</p>
+<p><strong>Note:</strong> This guide assumes you have
+<a href="..#building-from-source">set up your system so it can build the XLS tools via Bazel</a>.
+There is currently no binary tools distribution so building from source is
+required.</p>
 <p>Create a file <code>/tmp/simple_add.x</code> with the following contents:</p>
 <pre><code>fn add(x: u32, y: u32) -&gt; u32 {
   x + y + u32:0  // Something to optimize.
@@ -836,7 +852,7 @@ it from your machine as <code>http://localhost:5000</code> in a web browser.</p>
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid" aria-label="Footer">
         
-          <a href="../fuzzer/" title="Fuzzer" class="md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../build_system/" title="Build System" class="md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-footer-nav__button md-icon">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
             </div>
@@ -845,7 +861,7 @@ it from your machine as <code>http://localhost:5000</code> in a web browser.</p>
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                Fuzzer
+                Build System
               </div>
             </div>
           </a>

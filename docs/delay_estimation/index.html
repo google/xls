@@ -179,8 +179,8 @@
 
 
   <li class="md-nav__item">
-    <a href=".." title="Intro" class="md-nav__link">
-      Intro
+    <a href=".." title="Overview" class="md-nav__link">
+      Overview
     </a>
   </li>
 
@@ -643,6 +643,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../build_system/" title="Build System" class="md-nav__link">
+      Build System
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../tools_quick_start/" title="Quick Start" class="md-nav__link">
       Quick Start
     </a>
@@ -973,19 +985,17 @@ contrast, as we now ignore it all and do something very simple.</p>
 <h2 id="simple-delay-estimation">Simple Delay Estimation</h2>
 <p>Currently, XLS delay estimation follows a conceptually simple procedure:</p>
 <ul>
-<li>For every operation in XLS (e.g. binary addition):<ul>
-<li>For some relevant-seeming set of bitwidths; e.g. <code>{2, 4, 8, 16, ...,
-    2048}</code></li>
-<li>Find the maximum frequency at which that operation closes timing at that
-    bitwidth, in 100MHz units as determined by the synthesis tool.
-    [^cajole-dc] Call the clock period for this frequency <code>t_best</code>. (Note
-    that we currently just use a single process corner / voltage for this
-    sweep.)</li>
-<li>Subtract the clock uncertainty from <code>t_best</code>.</li>
-<li>Record that value in a table (with the keys of the table being operation
-    / bitwidth).</li>
-</ul>
-</li>
+<li>For every operation in XLS (e.g. binary addition):
+    *   For some relevant-seeming set of bitwidths; e.g. <code>{2, 4, 8, 16, ...,
+        2048}</code>
+    *   Find the maximum frequency at which that operation closes timing at that
+        bitwidth, in 100MHz units as determined by the synthesis tool.
+        [^cajole-dc] Call the clock period for this frequency <code>t_best</code>. (Note
+        that we currently just use a single process corner / voltage for this
+        sweep.)
+    *   Subtract the clock uncertainty from <code>t_best</code>.
+    *   Record that value in a table (with the keys of the table being operation
+        / bitwidth).</li>
 </ul>
 <p>[^cajole-dc]: The timing report can provide the delay through a path at any
     clock frequency, but a wrinkle is that synthesis tools only starts
@@ -1046,34 +1056,32 @@ percent) with a single HLS iteration.</p>
 </ul>
 <p>Sources of optimism (estimate is overeager):</p>
 <ul>
-<li>
-<p>For purposes of the sweep the outputs of an operation are only loaded by a
+<li>For purposes of the sweep the outputs of an operation are only loaded by a
     single capture flop flop -- when operations have fanout the delay will
-    increase.</p>
-<p>Note that we do account for fanout <em>within</em> individual operations as part of
-this sweep; e.g. a 128-bit selector fanout (e.g. 128 ways to 128 muxes) for
-a select is accounted for the in delay timing of the select operation. It is
-the <em>output</em> logic layer that is only loaded by a single flop in our
-characterization. Notably because most of these operations turn into trees
-of logic, there are $$log_2(bitcount)$$ layers of logic in which we can
-potentially smoothly increase drive strength out to the output logic layer,
-and paths can presumably be replicated by synthesis tools to reduce
-pointwise fanout when multiple high-level operations are data-dependent
-within a cycle. (Is it <em>possible</em> for a user to break up their 32-bit select
-into bitwise pieces in their XLS code to mess with our modeling? Sure, but
-probably not too expected, so we're currently sort of relying on the notion
-people are using high level operations instead of compodecomposing them into
-bitwise pieces in our graph.)</p>
+    increase.<p>Note that we do account for fanout <em>within</em> individual operations as part of
+  this sweep; e.g. a 128-bit selector fanout (e.g. 128 ways to 128 muxes) for
+  a select is accounted for the in delay timing of the select operation. It is
+  the <em>output</em> logic layer that is only loaded by a single flop in our
+  characterization. Notably because most of these operations turn into trees
+  of logic, there are $$log_2(bitcount)$$ layers of logic in which we can
+  potentially smoothly increase drive strength out to the output logic layer,
+  and paths can presumably be replicated by synthesis tools to reduce
+  pointwise fanout when multiple high-level operations are data-dependent
+  within a cycle. (Is it <em>possible</em> for a user to break up their 32-bit select
+  into bitwise pieces in their XLS code to mess with our modeling? Sure, but
+  probably not too expected, so we're currently sort of relying on the notion
+  people are using high level operations instead of compodecomposing them into
+  bitwise pieces in our graph.)</p>
 <p>A potential way to reconcile this output fanout in the future is to do a
-delay sweep with a high-capacitive fanout (e.g. four flops of load) and then
-ensure the IR has a maximum fanout of four for our delay estimation.</p>
+  delay sweep with a high-capacitive fanout (e.g. four flops of load) and then
+  ensure the IR has a maximum fanout of four for our delay estimation.</p>
 </li>
-<li>
-<p>Wiring delay / load / congestion / length are not estimated. This will need
+</ul>
+<ul>
+<li>Wiring delay / load / congestion / length are not estimated. This will need
     additional analysis / refinement as we run XLS through synthesis tools with
     advanced timing analysis, as it is certainly not viable for arbitrary
-    designs (tight pipelines may be ok for now, though).</p>
-</li>
+    designs (tight pipelines may be ok for now, though).</li>
 </ul>
 <h3 id="iterative-refinement">Iterative refinement</h3>
 <p>The caveats mentioned above seem somewhat daunting, but this first cut approach

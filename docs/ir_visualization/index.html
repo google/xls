@@ -179,8 +179,8 @@
 
 
   <li class="md-nav__item">
-    <a href=".." title="Intro" class="md-nav__link">
-      Intro
+    <a href=".." title="Overview" class="md-nav__link">
+      Overview
     </a>
   </li>
 
@@ -647,6 +647,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../build_system/" title="Build System" class="md-nav__link">
+      Build System
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../tools_quick_start/" title="Quick Start" class="md-nav__link">
       Quick Start
     </a>
@@ -890,16 +902,14 @@ the through the graph.</p>
 <p>The left hand side of the UI shows the IR in text form in an editable text box.
 The IR may be entered or loaded in several ways:</p>
 <ul>
-<li>
-<p>Upload from a file on the local file system via the <strong>Upload</strong> button.</p>
-</li>
-<li>
-<p>Enter directly by typing in the text box or cut and pasting.</p>
-</li>
-<li>
-<p>Load a pre-compiled benchmark via the <strong>Benchmarks</strong> button. The IR is from
-    the benchmark after optimizations.</p>
-</li>
+<li>Upload from a file on the local file system via the <strong>Upload</strong> button.</li>
+</ul>
+<ul>
+<li>Enter directly by typing in the text box or cut and pasting.</li>
+</ul>
+<ul>
+<li>Load a pre-compiled benchmark via the <strong>Benchmarks</strong> button. The IR is from
+    the benchmark after optimizations.</li>
 </ul>
 <p>The text IR is parsed as you type. The result of the parse (<strong>OK</strong> or an error)
 appears in an alert at the bottom of the text box. On successful parsing all
@@ -910,23 +920,21 @@ identifiers in the IR will be shown in bold.</p>
 <strong>View Graph</strong> button is enabled only if the IR is parsed successfully. The
 graph view may be manipulated as follows:</p>
 <ul>
-<li>
-<p><strong><em>Zoom</em></strong> The mouse scroll wheel zooms the view of the IR graph.</p>
-</li>
-<li>
-<p><strong><em>Pan</em></strong> Clicking and holding the left mouse button down in the graph panel
-    (while not on a graph element) and moving the mouse pans the graph.</p>
-</li>
-<li>
-<p><strong><em>Moving nodes</em></strong> Nodes in the graph are moved by clicking and holding on
-    the node and moving the mouse.</p>
-</li>
-<li>
-<p><strong><em>Focusing on nodes</em></strong> Clicking on a node in the graph while holding down
+<li><strong><em>Zoom</em></strong> The mouse scroll wheel zooms the view of the IR graph.</li>
+</ul>
+<ul>
+<li><strong><em>Pan</em></strong> Clicking and holding the left mouse button down in the graph panel
+    (while not on a graph element) and moving the mouse pans the graph.</li>
+</ul>
+<ul>
+<li><strong><em>Moving nodes</em></strong> Nodes in the graph are moved by clicking and holding on
+    the node and moving the mouse.</li>
+</ul>
+<ul>
+<li><strong><em>Focusing on nodes</em></strong> Clicking on a node in the graph while holding down
     the control key scrolls the respective definition of the node in the text IR
     into view in the text box. Similarly, control clicking on an identifier in
-    the text IR zooms and centers the graph view on the respective node.</p>
-</li>
+    the text IR zooms and centers the graph view on the respective node.</li>
 </ul>
 <h4 id="node-colors">Node colors</h4>
 <p>Every node in the graph is assigned a color on a spectrum from white (<code>#FFFFFF</code>)
@@ -942,17 +950,15 @@ IR.</p>
 <p>Information about a highlighted node (identifier in text IR) is displayed in a
 box above the IR graph. This information includes:</p>
 <ul>
-<li>
-<p>The definition of the IR value in text form.</p>
-</li>
-<li>
-<p>Estimate of the delay in picoseconds of the corresponding operation. The
-    delay estimation methodology is described <a href="../delay_estimation/">here</a>.</p>
-</li>
-<li>
-<p>Any known bits of the value as determined by the query engine
-    (https://github.com/google/xls/tree/main/xls/passes/query_engine.h).</p>
-</li>
+<li>The definition of the IR value in text form.</li>
+</ul>
+<ul>
+<li>Estimate of the delay in picoseconds of the corresponding operation. The
+    delay estimation methodology is described <a href="../delay_estimation/">here</a>.</li>
+</ul>
+<ul>
+<li>Any known bits of the value as determined by the query engine
+    (https://github.com/google/xls/tree/main/xls/passes/query_engine.h).</li>
 </ul>
 <h3 id="selecting-nodes">Selecting nodes</h3>
 <p>Nodes in the graph may be in a selected or deselected state. Clicking on a node
