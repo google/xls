@@ -24,9 +24,8 @@ import ctypes
 import os
 import re
 
-import pycparser
-
 from absl.testing import absltest
+import pycparser
 from xls.common import runfiles
 from xls.contrib.xlscc.parse import ext_c_parser
 from xls.contrib.xlscc.translate import hls_types_pb2
@@ -296,6 +295,41 @@ class TranslatorTest(absltest.TestCase):
     return check.x + check.in.z + check.second.p + out.x + check.in.k[0];
     """
     self.one_in_one_out(source, 1, 2, 10)
+
+  def test_class_methods(self):
+    source = """
+    class Rectangle {
+      int width;
+      int height;
+      int getArea(){
+        return width * height;
+      }
+    };
+    void Rectangle::set_values(int w, int h) {
+      width = w;
+      height = h;
+    }
+    int Rectangle::get_width(){
+      return width;
+    }
+    int Rectangle::get_height(){
+      return height;
+    }
+    int test(int a, int b) {
+      Rectangle rect;
+      rect.width = 0;
+      rect.height = 0;
+      rect.set_values(a, b);
+      return rect.getArea() + rect.get_height() + rect.get_width();
+    }
+    """
+    f = self.parse_and_get_function(source)
+    aval = ir_value.Value(bits_mod.SBits(value=int(6), bit_count=32))
+    bval = ir_value.Value(bits_mod.SBits(value=int(3), bit_count=32))
+    args = dict(a=aval, b=bval)
+    result = ir_interpreter.run_function_kwargs(f, args)
+    result_int = int(ctypes.c_int32(int(str(result))).value)
+    self.assertEqual(27, result_int)
 
   def test_simple_unrolled_loop(self):
     source = """
