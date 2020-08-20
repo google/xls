@@ -145,7 +145,7 @@ class StructType(Type):
   """Class for C++ HLS Struct Types.
 
     Args:
-      name: Name of the struct type
+      name: Name of the struct type or c_ast Struct
       struct: HLSStructType protobuf
   """
 
@@ -156,13 +156,19 @@ class StructType(Type):
     self.struct = struct
     self.field_indices = {}
     self.element_types = {}
+    self.class_functions = {}
     if isinstance(struct, c_ast.Struct):
     # Parse c_ast.Struct and make StructType object
       self.is_const = False
-      self.as_struct = None
       for decl in struct.decls:
+        if isinstance(decl, c_ast.FuncDef):
+          self.parse_struct_func(translator, decl)
+          continue
         name = decl.name
         field = decl.type
+        if isinstance(field, c_ast.FuncDecl):
+          self.parse_struct_func(translator, field)
+          continue
         self.field_indices[name] = len(self.field_indices)
         if isinstance(field, c_ast.TypeDecl):
           if isinstance(field.type, c_ast.Struct):
@@ -192,6 +198,22 @@ class StructType(Type):
         else:
           raise NotImplementedError("Unsupported field type for field", name,
                                     ":", type(field))
+        self.bit_width = self.bit_width + self.element_types[name].bit_width
+
+  def parse_struct_func(self, translator, ast):
+    """Parse a struct funcdef or decl.
+
+    Args:
+      translator: Translator object
+      ast: AST node to parse
+    """
+    assert isinstance(ast, (c_ast.FuncDef, c_ast.FuncDecl))
+    func = Function()
+    func.parse_function(translator, ast)
+    func_name = self.name + "_" + func.name
+    func.name = func_name
+    self.class_functions[func_name] = func
+    translator.functions_[func_name] = func
 
   def get_xls_type(self, p):
     """Get XLS IR type for struct.
@@ -214,11 +236,25 @@ class StructType(Type):
           element_xls_types.append(p.get_bits_type(field.as_int.width))
         elif field.HasField("as_struct"):
           element_xls_types.append(self.element_types[name].get_xls_type(p))
+        elif field.HasField("as_array"):
+          element_xls_types.append(self.element_types[name].get_xls_type(p))
         else:
           raise NotImplementedError("Unsupported struct field type in C AST",
                                     type(field))
 
     return p.get_tuple_type(element_xls_types)
+
+  def set_class_functions(self):
+    """Make all class functions available for use after structType created.
+    """
+    for _, func in self.class_functions.items():
+      func.make_class_func(self)
+
+  def get_struct_members(self):
+    local_vars = {}
+    for name, elem in self.element_types.items():
+      local_vars[name] = CVar(None, elem)
+    return local_vars
 
   def get_field_indices(self):
     return self.field_indices
@@ -280,14 +316,20 @@ class Function(object):
       translator: Translator object
       ast: pycparser ast
     """
-    assert isinstance(ast, c_ast.FuncDef)
-    decl = ast.decl
-    self.name = decl.name
-
+    assert isinstance(ast, (c_ast.FuncDef, c_ast.FuncDecl))
+    self.is_class_func = False
     self.loc = translate_loc(ast)
 
-    func_decl = decl.type
-    assert isinstance(func_decl, c_ast.FuncDecl)
+    if isinstance(ast, c_ast.FuncDef):
+      decl = ast.decl
+      self.name = decl.name
+      func_decl = decl.type
+      assert isinstance(func_decl, c_ast.FuncDecl)
+      self.body_ast = ast.body
+    else:
+      func_decl = ast
+      self.name = ast.type.declname
+      self.body_ast = None
 
     param_list = func_decl.args
     type_decl = func_decl.type
@@ -296,9 +338,20 @@ class Function(object):
     self.return_type = translator.parse_type(type_decl)
     # parse parameters
     self.params = collections.OrderedDict()
+    # add implicit param for class functions
+    if "::" in self.name:
+      full_name = ast.decl.name
+      self.class_name = full_name[:full_name.index("::")]
+      self.func_name = full_name[full_name.index("::")+2:]
+      self.name = self.class_name + "_" + self.func_name
+      class_struct = translator.get_struct_type(self.class_name)
+      if not class_struct:
+        raise ValueError("Function created for to unknown class "
+                         + self.class_name)
+      self.make_class_func(class_struct)
     if param_list is not None:
       for name, child in param_list.children():
-        assert isinstance(child, c_ast.Decl)
+        assert isinstance(child, (c_ast.Typename, c_ast.Decl))
 
         name = child.name
 
@@ -315,11 +368,17 @@ class Function(object):
     # parse body
     self.body_ast = ast.body
 
+  def make_class_func(self, class_struct):
+    assert isinstance(class_struct, StructType)
+    class_struct.is_ref = True
+    self.is_class_func = True
+    self.class_name = class_struct.name
+    self.params["this"] = class_struct
+
   def set_fb_expr(self, fb_expr):
     self.fb_expr = fb_expr
 
   def get_ref_param_names(self):
-
     def ref_name(name):
       param_type = self.params[name]
       return param_type.is_ref and (not param_type.is_const) and (
@@ -454,12 +513,13 @@ class Translator(object):
       ast: pycparser AST
     """
     for name, child in ast.children():
-      if isinstance(child, c_ast.FuncDef):
+      if isinstance(child, (c_ast.FuncDef, c_ast.FuncDecl)):
         func = Function()
         func.parse_function(self, child)
         self.functions_[func.name] = func
       elif isinstance(child.type, c_ast.Struct):
         struct = StructType(child.type.name, child.type, self)
+        struct.set_class_functions()
         self.hls_types_by_name_[child.type.name] = struct
       elif isinstance(child, c_ast.Decl):
         name = child.name
@@ -551,6 +611,7 @@ class Translator(object):
       return ret_type
     elif isinstance(ast, c_ast.Struct):
       ret_type = StructType(ast.name, ast, self)
+      ret_type.set_class_functions()
       self.hls_types_by_name_[ret_type.name] = ret_type
       return ret_type
     else:
@@ -594,10 +655,10 @@ class Translator(object):
       ptype = IntType(int(m_signed.group(1)), True, False)
     elif struct_type is not None:
       assert isinstance(struct_type, (StructType, hls_types_pb2.HLSStructType))
-      if isinstance(struct_type, hls_types_pb2.HLSStructType):
-        ptype = StructType(name, struct_type)
+      if isinstance(struct_type, StructType):
+        ptype = copy.copy(struct_type)
       else:
-        ptype = struct_type
+        ptype = StructType(name, struct_type)
     elif name == "ac_channel":
       assert len(ast.type.params_list.exprs) == 1
       channel_type = self.parse_type(ast.type.params_list.exprs[0])
@@ -642,14 +703,13 @@ class Translator(object):
                                decl_type.get_element_type().get_xls_type(self.p)
                                ,
                                loc)
-
     elif isinstance(decl_type, StructType):
       elements = []
       for elem_type in decl_type.get_element_types():
         elements.append(self.gen_default_init(elem_type, loc_ast))
       return self.fb.add_tuple(elements, loc)
     else:
-      raise NotImplementedError("Cannot generate default for type ", elem_type)
+      raise NotImplementedError("Cannot generate default for type ", decl_type)
 
   def gen_convert_ir(self, in_expr, in_type, to_type, loc_ast):
     """Generates XLS IR value conversion to C Type.
@@ -710,18 +770,29 @@ class Translator(object):
 
     is_struct = isinstance(lvalue_expr, c_ast.StructRef)
     is_array = isinstance(lvalue_expr, c_ast.ArrayRef)
-    if isinstance(lvalue_expr, c_ast.ID):
-      self.assign(lvalue_expr.name,
-                  rvalue,
-                  rvalue_type,
-                  condition,
-                  loc)
+    impl_ref = "this"
+    is_impl_ref = False
+    if impl_ref in self.cvars and isinstance(lvalue_expr, c_ast.ID):
+      if lvalue_expr.name in self.cvars[impl_ref].ctype.field_indices:
+        is_impl_ref = True
+    if is_impl_ref:
+      self.assign_compound(lvalue_expr,
+                           rvalue,
+                           rvalue_type,
+                           condition,
+                           loc)
     elif is_struct or is_array:
       self.assign_compound(lvalue_expr,
                            rvalue,
                            rvalue_type,
                            condition,
                            loc)
+    elif isinstance(lvalue_expr, c_ast.ID):
+      self.assign(lvalue_expr.name,
+                  rvalue,
+                  rvalue_type,
+                  condition,
+                  loc)
     else:
       raise NotImplementedError("Assigning non-lvalue", str(type(lvalue_expr)))
 
@@ -979,7 +1050,6 @@ class Translator(object):
 
           for name in func.params:
             params_by_index.append(func.params[name])
-
           if func.count_returns() == 1:
             unpacked_returns.append(invoke_returned)
             if not void_return:
@@ -1138,6 +1208,100 @@ class Translator(object):
           # lz_name = right_name + "_lz"
 
           return None, VoidType()
+        elif isinstance(stmt_ast, c_ast.FuncCall):
+          struct_id_ast = struct_ast.name
+          struct_id_name = struct_id_ast.name
+          struct_func_name = struct_ast.field.name
+          if struct_id_ast:
+            struct = self.cvars[struct_id_name]
+            struct_type = struct.ctype
+            struct_class = self.hls_types_by_name_[struct_type.name]
+            if struct_class:
+              full_func_name = str(struct_class) + "_" + struct_func_name
+              struct_func = self.functions_[full_func_name]
+              if struct_func.is_class_func:
+                args_bvalues = []
+                args_bvalues.append(struct.fb_expr)
+
+                param_types_array = []
+
+                for name_and_type in struct_func.params.items():
+                  param_types_array.append(name_and_type)
+
+                if isinstance(stmt_ast.args, c_ast.ExprList):
+                  if len(stmt_ast.args.exprs)+1 != len(struct_func.params):
+                    raise ValueError("Wrong number of args for function call")
+                  for arg_idx in range(0, len(stmt_ast.args.exprs)):
+                    stmt = stmt_ast.args.exprs[arg_idx]
+                    arg_expr, arg_expr_type = self.gen_expr_ir(stmt, condition)
+                    _, arg_type = param_types_array[arg_idx]
+                    conv_arg = self.gen_convert_ir(arg_expr,
+                                                   arg_expr_type,
+                                                   arg_type,
+                                                   stmt)
+                    args_bvalues.append(conv_arg)
+                invoke_returned = self.fb.add_invoke(args_bvalues,
+                                                     struct_func.fb_expr,
+                                                     loc)
+
+                # Handling for references
+                void_return = isinstance(struct_func.return_type, VoidType)
+                unpacked_returns = []
+                unpacked_return_types = []
+
+                params_by_index = []
+
+                for name in struct_func.params:
+                  params_by_index.append(struct_func.params[name])
+
+                if struct_func.count_returns() == 1:
+                  unpacked_returns.append(invoke_returned)
+                  if not void_return:
+                    unpacked_return_types.append(struct_func.return_type)
+                  else:
+                    ref_idx = struct_func.get_ref_param_indices()[0]
+                    unpacked_return_types.append(params_by_index[ref_idx])
+
+                elif struct_func.count_returns() > 1:
+                  for idx in range(0, struct_func.count_returns()):
+                    unpacked_returns.append(
+                        self.fb.add_tuple_index(invoke_returned, idx, loc))
+                    if idx == 0 and not void_return:
+                      unpacked_return_types.append(struct_func.return_type)
+                    else:
+                      unpacked_return_types.append(
+                          params_by_index[
+                              struct_func.get_ref_param_indices()[idx-1]])
+                ret_val = None
+                if not void_return:
+                  ret_val = unpacked_returns[0]
+                  del unpacked_returns[0]
+                  del unpacked_return_types[0]
+
+                ref_params = struct_func.get_ref_param_indices()
+                # Assign implicit ref to struct and del
+                struct.fb_expr = unpacked_returns[0]
+                del unpacked_returns[0]
+                del unpacked_return_types[0]
+
+                if stmt_ast.args:
+                  for ref_idx in range(len(unpacked_returns)):
+                    param_idx = ref_params[ref_idx]
+                    expr = stmt_ast.args.exprs[param_idx]
+
+                    self._generic_assign(expr,
+                                         unpacked_returns[ref_idx],
+                                         unpacked_return_types[ref_idx],
+                                         condition,
+                                         translate_loc(stmt_ast))
+
+                return ret_val, struct_func.return_type
+              else:
+                raise ValueError("Error: Object calls non-member function")
+            else:
+              raise ValueError("Unsupported object class" + stmt_ast.coord)
+          else:
+            raise ValueError("Uninitialized object " + stmt_ast.coord)
         else:
           raise NotImplementedError("Unsupported method", template_ast)
       else:
@@ -1254,9 +1418,25 @@ class Translator(object):
                 ptype.channel_type)
             self.lvalues[p_name] = True
 
-      # Function body
-      ret_vals = self.gen_ir_block(func.body_ast.children(), None, None)
+      # Add local vars for class functions
+      local_cvars = {}
+      if func.is_class_func:
+        func_class = self.hls_types_by_name_[func.class_name]
+        cvars = func_class.get_struct_members()
+        impl_ref = self.cvars["this"]
+        field_indices = impl_ref.ctype.get_field_indices()
+        for name, cvar in cvars.items():
+          self.cvars[name] = cvar
+          var_idx = field_indices[name]
+          self.cvars[name].fb_expr = self.fb.add_tuple_index(impl_ref.fb_expr,
+                                                             var_idx,
+                                                             func.loc)
+          self.lvalues[name] = not cvar.ctype.is_const
+      if not func.body_ast:
+        continue
 
+      # Function body
+      ret_vals = self.gen_ir_block(func.body_ast.children(), None, local_cvars)
       # Add in reference params
       reference_param_names = func.get_ref_param_names()
 
@@ -1303,7 +1483,6 @@ class Translator(object):
 
         assert ret_expr is not None
         returns.append(ret_expr)
-
       if reference_param_names:
         returns = returns + list(
             [self.cvars[name].fb_expr for name in reference_param_names])
@@ -1408,71 +1587,88 @@ class Translator(object):
 
     compound_node = lvalue_ast
     compound_lvals = [compound_node]
-    while isinstance(compound_node.name, c_ast.StructRef) or \
-        isinstance(compound_node.name, c_ast.ArrayRef):
-      compound_node = compound_node.name
-      compound_lvals = compound_lvals + [compound_node]
+    # assign for class members
+    if isinstance(lvalue_ast, c_ast.ID):
+      field_name = lvalue_ast.name
+      assign_name = "this"
+      impl_ref = self.cvars[assign_name]
+      left_expr, left_type = impl_ref.fb_expr, impl_ref.ctype
+      element_values = []
+      field_indices = impl_ref.ctype.get_field_indices()
+      field_index = field_indices[field_name]
+      element_type = left_type.get_element_type(field_name)
+      r_expr = self.gen_convert_ir(r_expr, r_type, element_type, lvalue_ast)
+      for _, index in field_indices.items():
+        if index == field_index:
+          element_values.append(r_expr)
+        else:
+          element_values.append(
+              self.fb.add_tuple_index(left_expr, index, loc))
 
-    assert isinstance(compound_lvals[-1].name, c_ast.ID)
-    assign_name = compound_lvals[-1].name.name
-    if assign_name not in self.cvars:
-      raise ValueError("ERROR: Assignment to unknown variable", assign_name)
+      r_expr = self.fb.add_tuple(element_values, loc)
+      r_type = left_type
+    else:
+      while isinstance(compound_node.name, c_ast.StructRef) or \
+          isinstance(compound_node.name, c_ast.ArrayRef):
+        compound_node = compound_node.name
+        compound_lvals = compound_lvals + [compound_node]
+      assert isinstance(compound_lvals[-1].name, c_ast.ID)
+      assign_name = compound_lvals[-1].name.name
+      if assign_name not in self.cvars:
+        raise ValueError("ERROR: Assignment to unknown variable", assign_name)
 
-    for compound_lval in compound_lvals:
-      left_expr, left_type = self.gen_expr_ir(compound_lval.name, condition)
+      for compound_lval in compound_lvals:
+        left_expr, left_type = self.gen_expr_ir(compound_lval.name, condition)
+        if isinstance(compound_lval, c_ast.StructRef):
 
-      # Build up expression
-      if isinstance(compound_lval, c_ast.StructRef):
+          element_values = []
 
-        element_values = []
+          field_indices = left_type.get_field_indices()
+          field_index = field_indices[compound_lval.field.name]
+          element_type = left_type.get_element_type(compound_lval.field.name)
+          r_expr = self.gen_convert_ir(r_expr, r_type, element_type, lvalue_ast)
+          for _, index in field_indices.items():
+            if index == field_index:
+              element_values.append(r_expr)
+            else:
+              element_values.append(
+                  self.fb.add_tuple_index(left_expr, index, loc))
 
-        field_indices = left_type.get_field_indices()
-        field_index = field_indices[compound_lval.field.name]
-        element_type = left_type.get_element_type(compound_lval.field.name)
-        r_expr = self.gen_convert_ir(r_expr, r_type, element_type, lvalue_ast)
-        for _, index in field_indices.items():
-          if index == field_index:
-            element_values.append(r_expr)
-          else:
-            element_values.append(
-                self.fb.add_tuple_index(left_expr, index, loc))
+          r_expr = self.fb.add_tuple(element_values, loc)
+          r_type = left_type
+        elif isinstance(compound_lval, c_ast.ArrayRef):
+          if not isinstance(compound_lval.subscript, c_ast.Constant):
+            raise NotImplementedError("Variable array indexing")
+          elem_index, elem_type = parse_constant(compound_lval.subscript)
+          if not isinstance(elem_type, IntType):
+            raise ValueError("Array index must be integer")
 
-        r_expr = self.fb.add_tuple(element_values, loc)
-        r_type = left_type
-      elif isinstance(compound_lval, c_ast.ArrayRef):
-        if not isinstance(compound_lval.subscript, c_ast.Constant):
-          raise NotImplementedError("Variable array indexing")
-        elem_index, elem_type = parse_constant(compound_lval.subscript)
-        if not isinstance(elem_type, IntType):
-          raise ValueError("Array index must be integer")
+          element_values = []
 
-        element_values = []
+          r_expr = self.gen_convert_ir(r_expr,
+                                       r_type,
+                                       left_type.get_element_type(),
+                                       lvalue_ast)
 
-        r_expr = self.gen_convert_ir(r_expr,
-                                     r_type,
-                                     left_type.get_element_type(),
-                                     lvalue_ast)
+          for index in range(0, left_type.get_size()):
+            if index == elem_index:
+              element_values.append(r_expr)
+            else:
+              element_values.append(
+                  self.fb.add_array_index(
+                      left_expr,
+                      self.fb.add_literal_bits(
+                          bits_mod.UBits(value=index,
+                                         bit_count=elem_type.bit_width),
+                          loc), loc))
 
-        for index in range(0, left_type.get_size()):
-          if index == elem_index:
-            element_values.append(r_expr)
-          else:
-            element_values.append(
-                self.fb.add_array_index(
-                    left_expr,
-                    self.fb.add_literal_bits(
-                        bits_mod.UBits(value=index,
-                                       bit_count=elem_type.bit_width),
-                        loc), loc))
-
-        r_expr = self.fb.add_array(
-            element_values,
-            left_type.get_element_type().get_xls_type(self.p), loc)
-        r_type = left_type
-      else:
-        raise NotImplementedError("Unknown compound in assignment",
-                                  type(compound_lval))
-
+          r_expr = self.fb.add_array(
+              element_values,
+              left_type.get_element_type().get_xls_type(self.p), loc)
+          r_type = left_type
+        else:
+          raise NotImplementedError("Unknown compound in assignment",
+                                    type(compound_lval))
     self.assign(assign_name, r_expr, r_type, condition, loc)
 
   def combine_condition_can_be_none(self, acond, bcond, use_and, loc):
@@ -1511,16 +1707,12 @@ class Translator(object):
           raise ValueError("Variable '", name,
                            "' already declared in this scope")
         self.cvars[name] = cvar
-
     ret_vals = []
-
     next_line_pragma = None
     for _, stmt in stmt_list:
       loc = translate_loc(stmt)
-
       this_line_pragma = next_line_pragma
       next_line_pragma = None
-
       if isinstance(stmt, c_ast.Return):
         ret_val, ret_type = self.gen_expr_ir(stmt.expr, condition)
         ret_vals.append(RetVal(condition, ret_val, ret_type))
