@@ -5,3 +5,34 @@ It is currently in the experimentation / prototyping phase.
 Original author Sean Purser-Haskell in 2019.
 Contact seanhaskell@google.com, sean.purserhaskell@gmail.com
 
+
+###
+
+XLScc attempts to match the behavior of Catapult HLS for code it will accept. 
+The behavior of the integer operations is inspired by 
+	https://github.com/hlslibs/ac_types
+
+Short names are available natively as saiN and uaiN. So ac_int<10, false> 
+can be written natively as uai10. 
+
+It also has some features unsupported by Catapult, such as:
+	- Sideloading of type info via protobufs, avoiding code generation
+		(use -T, see translate/hls_types.proto)
+	- Generation of purely combinational blocks, as for writing muxes in HLS. 
+
+###
+
+
+Sample usage to generate some verilog: 
+
+echo "int add2(int input) { return input+3; }" > test.cc
+
+bazel build -c opt //xls/contrib/xlscc/driver:xlscc //xls/tools:codegen_main //xls/tools:opt_main
+
+bazel-bin/xls/contrib/xlscc/driver/xlscc test.cc impl.ir
+bazel-bin/xls/tools/opt_main impl.ir > impl.opt.ir
+bazel-bin/xls/tools/codegen_main impl.opt.ir --generator=pipeline --clock_period_ps=1000 --delay_model=unit
+
+###
+
+Please explore and find out what's supported!
