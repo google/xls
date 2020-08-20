@@ -138,3 +138,35 @@ py_library(
     srcs_version = "PY3",
     deps = ["@com_github_grpc_grpc//src/python/grpcio/grpc:grpcio"],
 )
+
+py_library(
+    name = "synthesis_utils",
+    srcs = ["synthesis_utils.py"],
+    srcs_version = "PY3",
+    deps = [
+        ":client_credentials",
+        ":synthesis_py_pb2",
+        ":synthesis_service_py_pb2_grpc",
+        "//net/grpc/python:grpc",
+        "@com_google_absl_py//absl/logging",
+    ],
+)
+
+py_test(
+    name = "synthesis_utils_test",
+    srcs = ["synthesis_utils_test.py"],
+    data = [
+        ":dummy_synthesis_server_main",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        ":client_credentials",
+        ":synthesis_utils",
+        "//net/grpc/python:grpc",
+        "//tech/env:envelope_loader",
+        requirement("portpicker"),
+        "//xls/common:runfiles",
+        "@com_google_absl_py//absl/testing:absltest",
+    ],
+)

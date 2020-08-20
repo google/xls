@@ -53,3 +53,28 @@ message CompileResponse {
   repeated Path failing_paths = 7;
   map<string, string> data_fields = 8;
 }
+
+// Encapsulates a series of compile results of a verilog module at various
+// frequencies to determine the maximum frequency of the design.
+message SynthesisSweepResult {
+  // Verilog module text.
+  optional string module_text = 1;
+
+  // The signature of the Verilog module.
+  optional xls.verilog.ModuleSignatureProto signature = 2;
+
+  // Name of the top-level Verilog module.
+  optional string top_module_name = 3;
+
+  // The maximum frequency for which the design met timing. 0 if no such
+  // frequency was found.
+  optional int64 max_frequency_hz = 4;
+
+  message SynthesisResult {
+    optional int64 target_frequency_hz = 1;
+    optional CompileResponse response = 2;
+  }
+
+  // The compile results of the various target frequencies attempted.
+  repeated SynthesisResult results = 5;
+}
