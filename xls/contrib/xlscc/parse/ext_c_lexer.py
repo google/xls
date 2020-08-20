@@ -36,5 +36,7 @@ def add_lexer_keywords(cls, keywords):
   cls.tokens = cls.tokens + tuple(kw.upper() for kw in keywords)
 
 
-_CL_KEYWORDS = ['BOOL', 'TRUE', 'FALSE', 'TEMPLATE']
-add_lexer_keywords(XLSccLexer, [kw.lower() for kw in _CL_KEYWORDS])
+_CL_KEYWORDS = ['BOOL', 'TRUE', 'FALSE', 'TEMPLATE', 'CLASS', 'PUBLIC',
+                'PRIVATE']
+add_lexer_keywords(XLSccLexer, [str.lower(kw) for kw in _CL_KEYWORDS])
+
