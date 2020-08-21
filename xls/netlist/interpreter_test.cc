@@ -59,7 +59,7 @@ TEST(InterpreterTest, BasicFunctionality) {
   netlist.AddModule(std::move(module));
   XLS_ASSERT_OK_AND_ASSIGN(const rtl::Module* module_ptr,
                            netlist.GetModule("the_module"));
-  Interpreter interpreter(&netlist, {});
+  Interpreter interpreter(&netlist);
 
   absl::flat_hash_map<const rtl::NetRef, bool> inputs;
   inputs[module_ptr->inputs()[0]] = true;
@@ -140,7 +140,7 @@ TEST(InterpreterTest, Tree) {
   netlist.AddModule(std::move(module));
   XLS_ASSERT_OK_AND_ASSIGN(const rtl::Module* module_ptr,
                            netlist.GetModule("the_module"));
-  Interpreter interpreter(&netlist, {});
+  Interpreter interpreter(&netlist);
 
   absl::flat_hash_map<const rtl::NetRef, bool> inputs;
   // AND inputs
@@ -198,7 +198,7 @@ endmodule
   XLS_ASSERT_OK_AND_ASSIGN(auto netlist,
                            rtl::Parser::ParseNetlist(&cell_library, &scanner));
 
-  Interpreter interpreter(netlist.get(), {});
+  Interpreter interpreter(netlist.get());
   XLS_ASSERT_OK_AND_ASSIGN(const rtl::Module* module,
                            netlist->GetModule("main"));
 
@@ -214,6 +214,62 @@ endmodule
 
   EXPECT_EQ(outputs.size(), 1);
   EXPECT_EQ(outputs[module->outputs()[0]], 1);
+}
+
+// Verifies that a [combinational] StateTable can be correctly interpreted in a
+// design.
+TEST(InterpreterTest, StateTables) {
+  std::string module_text = R"(
+module main(i0, i1, i2, i3, o0);
+  input i0, i1, i2, i3;
+  output o0;
+  wire and0_out, and1_out;
+
+  AND and0 ( .A(i0), .B(i1), .Z(and0_out) );
+  STATETABLE_AND and1 (.A(i2), .B(i3), .Z(and1_out) );
+  AND and2 ( .A(and0_out), .B(and1_out), .Z(o0) );
+endmodule
+  )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibrary cell_library, MakeFakeCellLibrary());
+  rtl::Scanner scanner(module_text);
+  XLS_ASSERT_OK_AND_ASSIGN(auto netlist,
+                           rtl::Parser::ParseNetlist(&cell_library, &scanner));
+
+  Interpreter interpreter(netlist.get());
+  XLS_ASSERT_OK_AND_ASSIGN(const rtl::Module* module,
+                           netlist->GetModule("main"));
+
+  absl::flat_hash_map<const rtl::NetRef, bool> inputs;
+  inputs[module->inputs()[0]] = true;
+  inputs[module->inputs()[1]] = true;
+  inputs[module->inputs()[2]] = true;
+  inputs[module->inputs()[3]] = true;
+
+  using OutputT = absl::flat_hash_map<const rtl::NetRef, bool>;
+  XLS_ASSERT_OK_AND_ASSIGN(OutputT outputs,
+                           interpreter.InterpretModule(module, inputs));
+  EXPECT_EQ(outputs.size(), 1);
+  EXPECT_TRUE(outputs.begin()->second);
+
+  // Make sure that it works on the flip side, too.
+  inputs[module->inputs()[2]] = false;
+  inputs[module->inputs()[3]] = true;
+  XLS_ASSERT_OK_AND_ASSIGN(outputs,
+                           interpreter.InterpretModule(module, inputs));
+  EXPECT_FALSE(outputs.begin()->second);
+
+  inputs[module->inputs()[2]] = true;
+  inputs[module->inputs()[3]] = false;
+  XLS_ASSERT_OK_AND_ASSIGN(outputs,
+                           interpreter.InterpretModule(module, inputs));
+  EXPECT_FALSE(outputs.begin()->second);
+
+  inputs[module->inputs()[2]] = false;
+  inputs[module->inputs()[3]] = false;
+  XLS_ASSERT_OK_AND_ASSIGN(outputs,
+                           interpreter.InterpretModule(module, inputs));
+  EXPECT_FALSE(outputs.begin()->second);
 }
 
 }  // namespace

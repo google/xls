@@ -55,7 +55,7 @@ class Cell {
   struct Output {
     // The description of the pin from the Cell Library - the pin's name and
     // calculated function.
-    OutputPin pin;
+    std::string pin_name;
 
     // The associated net from the netlist.
     NetRef netref;
@@ -156,6 +156,8 @@ class Module {
   const std::string& name() const { return name_; }
 
   // Returns a representation of this module as a CellLibraryEntry.
+  // This does not currently support stateful modules, e.g., those with
+  // "state_table"-like attributes.
   const CellLibraryEntry* AsCellLibraryEntry() const;
 
   xabsl::StatusOr<Cell*> AddCell(Cell cell);

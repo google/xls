@@ -15,7 +15,7 @@
 
 
 # Find input files
-echo 'entries: { kind: INVERTER, name: "INV" input_names: "A" output_pins { name: "ZN" function: "F" } }' > "${TEST_TMPDIR}/fake_cell_library.textproto"
+echo 'entries: { kind: INVERTER, name: "INV" input_names: "A" output_pin_list { pins { name: "ZN" function: "F" } } }' > "${TEST_TMPDIR}/fake_cell_library.textproto"
 echo 'module main(i, o); input i; output o; INV inv_0(.A(i), .ZN(o)); endmodule' > "${TEST_TMPDIR}/netlist.v"
 
 BINPATH=./xls/netlist/parse_netlist_main

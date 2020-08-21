@@ -14,12 +14,15 @@
 
 #include "xls/solvers/z3_netlist_translator.h"
 
+#include <variant>
+
 #include "absl/flags/flag.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/netlist/cell_library.h"
 #include "xls/netlist/function_parser.h"
 #include "xls/netlist/netlist.h"
 #include "xls/solvers/z3_propagate_updates.h"
@@ -30,6 +33,7 @@ namespace xls {
 namespace solvers {
 namespace z3 {
 
+using netlist::CellLibraryEntry;
 using netlist::function::Ast;
 using netlist::rtl::Cell;
 using netlist::rtl::Module;
@@ -275,9 +279,8 @@ absl::Status NetlistTranslator::TranslateCell(const Cell& cell) {
       XLS_ASSIGN_OR_RETURN(Z3_ast translation,
                            subtranslator->GetTranslation(module_output));
       for (const auto& cell_output : cell.outputs()) {
-        if (cell_output.pin.name == module_output->name()) {
+        if (cell_output.pin_name == module_output->name()) {
           if (translated_.contains(cell_output.netref)) {
-            // TODO REMOVE
             XLS_LOG(INFO) << "Skipping translation of "
                           << cell_output.netref->name()
                           << "; already translated.";
@@ -291,17 +294,24 @@ absl::Status NetlistTranslator::TranslateCell(const Cell& cell) {
     return absl::OkStatus();
   }
 
-  if (high_cells_.contains(cell.cell_library_entry()->name())) {
-    // Set each output for the fixed-high cells to 1.
+  const CellLibraryEntry* entry = cell.cell_library_entry();
+  if (high_cells_.contains(entry->name())) {
     for (const auto& output : cell.outputs()) {
       translated_[output.netref] = Z3_mk_int(ctx_, 1, Z3_mk_bv_sort(ctx_, 1));
     }
   } else {
-    for (const auto& output : cell.outputs()) {
-      XLS_ASSIGN_OR_RETURN(Ast ast, netlist::function::Parser::ParseFunction(
-                                        output.pin.function));
-      XLS_ASSIGN_OR_RETURN(Z3_ast result, TranslateFunction(cell, ast));
-      translated_[output.netref] = result;
+    if (std::holds_alternative<netlist::StateTable>(entry->operation())) {
+      return absl::UnimplementedError(
+          "Translation of StateTables is not yet implemented.");
+    } else {
+      const CellLibraryEntry::SimplePins& pins =
+          std::get<CellLibraryEntry::SimplePins>(entry->operation());
+      for (const auto& output : cell.outputs()) {
+        XLS_ASSIGN_OR_RETURN(Ast ast, netlist::function::Parser::ParseFunction(
+                                          pins.at(output.pin_name)));
+        XLS_ASSIGN_OR_RETURN(Z3_ast result, TranslateFunction(cell, ast));
+        translated_[output.netref] = result;
+      }
     }
   }
 

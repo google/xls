@@ -14,6 +14,8 @@
 
 #include "xls/netlist/netlist.h"
 
+#include <variant>
+
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -31,12 +33,10 @@ const CellLibraryEntry* Module::AsCellLibraryEntry() const {
     for (const auto& input : inputs_) {
       input_names.push_back(input->name());
     }
-    std::vector<OutputPin> output_pins;
+    CellLibraryEntry::SimplePins output_pins;
     output_pins.reserve(outputs_.size());
     for (const auto& output : outputs_) {
-      OutputPin output_pin;
-      output_pin.name = output->name();
-      output_pins.push_back(output_pin);
+      output_pins[output->name()] = "";
     }
     cell_library_entry_.emplace(CellLibraryEntry(
         CellKind::kOther, name_, input_names, output_pins, absl::nullopt));
@@ -161,23 +161,33 @@ xabsl::StatusOr<std::vector<Cell*>> NetDef::GetConnectedCellsSans(
     cell_inputs.push_back(cell_input);
   }
 
+  const CellLibraryEntry::OperationT& operation =
+      cell_library_entry->operation();
   std::vector<Output> cell_outputs;
-  for (const OutputPin& output : cell_library_entry->output_pins()) {
-    auto it = named_parameter_assignments.find(output.name);
-    // Even if there's no named assignment, we still need to create an output so
-    // that we keep order correspondence between the cell and the library
-    // entry's pins.
-    // TODO(rspringer): This implicit correspondance has repeatedly shown itself
-    // to be fragile. We need to do something different.
-    if (it == named_parameter_assignments.end()) {
+  if (std::holds_alternative<CellLibraryEntry::SimplePins>(operation)) {
+    const auto& output_pins = std::get<CellLibraryEntry::SimplePins>(operation);
+    for (const auto& kv : output_pins) {
       Output cell_output;
-      cell_output.pin = output;
-      cell_output.netref = dummy_net;
+      cell_output.pin_name = kv.first;
+      auto it = named_parameter_assignments.find(cell_output.pin_name);
+      if (it == named_parameter_assignments.end()) {
+        cell_output.netref = dummy_net;
+      } else {
+        cell_output.netref = it->second;
+      }
       cell_outputs.push_back(cell_output);
-    } else {
+    }
+  } else {
+    const StateTable& state_table = std::get<StateTable>(operation);
+    for (const std::string& signal_name : state_table.output_signals()) {
       Output cell_output;
-      cell_output.pin = output;
-      cell_output.netref = it->second;
+      cell_output.pin_name = signal_name;
+      auto it = named_parameter_assignments.find(signal_name);
+      if (it == named_parameter_assignments.end()) {
+        cell_output.netref = dummy_net;
+      } else {
+        cell_output.netref = it->second;
+      }
       cell_outputs.push_back(cell_output);
     }
   }

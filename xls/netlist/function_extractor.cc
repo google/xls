@@ -41,7 +41,7 @@ constexpr const char kFfKind[] = "ff";
 constexpr const char kStateTableKind[] = "statetable";
 
 // Translates an individual signal value char to the protobuf equivalent.
-xabsl::StatusOr<StateTableSignal> LibertyToTableSignal(
+xabsl::StatusOr<StateTableSignalProto> LibertyToTableSignal(
     const std::string& input) {
   XLS_RET_CHECK(input.size() == 1) << input;
 
@@ -123,19 +123,19 @@ absl::Status ProcessStateTable(const cell_lib::Block& table_def,
 
     StateTableRow* row = table->add_rows();
     for (int i = 0; i < inputs.size(); i++) {
-      XLS_ASSIGN_OR_RETURN(StateTableSignal signal,
+      XLS_ASSIGN_OR_RETURN(StateTableSignalProto signal,
                            LibertyToTableSignal(inputs[i]));
       (*row->mutable_input_signals())[table->input_names()[i]] = signal;
     }
 
     for (int i = 0; i < internal_inputs.size(); i++) {
-      XLS_ASSIGN_OR_RETURN(StateTableSignal signal,
+      XLS_ASSIGN_OR_RETURN(StateTableSignalProto signal,
                            LibertyToTableSignal(internal_inputs[i]));
       (*row->mutable_internal_signals())[table->internal_names()[i]] = signal;
     }
 
     for (int i = 0; i < internal_inputs.size(); i++) {
-      XLS_ASSIGN_OR_RETURN(StateTableSignal signal,
+      XLS_ASSIGN_OR_RETURN(StateTableSignalProto signal,
                            LibertyToTableSignal(internal_outputs[i]));
       (*row->mutable_output_signals())[table->internal_names()[i]] = signal;
     }
@@ -183,7 +183,8 @@ absl::Status ExtractFromPin(const cell_lib::Block& pin,
   }
 
   if (is_output.value()) {
-    OutputPinProto* output_pin = entry_proto->add_output_pins();
+    OutputPinListProto* output_list = entry_proto->mutable_output_pin_list();
+    OutputPinProto* output_pin = output_list->add_pins();
     output_pin->set_name(name);
     if (!function.empty()) {
       // Some output pins lack associated functions.
@@ -211,8 +212,9 @@ absl::Status ExtractFromFf(const cell_lib::Block& ff,
     const auto* kv_entry = absl::get_if<cell_lib::KVEntry>(&entry);
     if (kv_entry && kv_entry->key == kNextStateKey) {
       std::string next_state_function = kv_entry->value;
-      XLS_RET_CHECK(entry_proto->output_pins_size() == 1);
-      entry_proto->mutable_output_pins(0)->set_function(next_state_function);
+      XLS_RET_CHECK(entry_proto->output_pin_list().pins_size() == 1);
+      entry_proto->mutable_output_pin_list()->mutable_pins(0)->set_function(
+          next_state_function);
     }
   }
 

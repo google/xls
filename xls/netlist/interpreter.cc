@@ -25,9 +25,7 @@
 namespace xls {
 namespace netlist {
 
-Interpreter::Interpreter(rtl::Netlist* netlist,
-                         const absl::flat_hash_set<std::string>& high_cells)
-    : netlist_(netlist), high_cells_(high_cells) {}
+Interpreter::Interpreter(rtl::Netlist* netlist) : netlist_(netlist) {}
 
 xabsl::StatusOr<absl::flat_hash_map<const rtl::NetRef, bool>>
 Interpreter::InterpretModule(
@@ -152,8 +150,9 @@ Interpreter::InterpretModule(
 absl::Status Interpreter::InterpretCell(
     const rtl::Cell& cell,
     absl::flat_hash_map<const rtl::NetRef, bool>* processed_wires) {
+  const CellLibraryEntry* entry = cell.cell_library_entry();
   xabsl::StatusOr<const rtl::Module*> status_or_module =
-      netlist_->GetModule(cell.cell_library_entry()->name());
+      netlist_->GetModule(entry->name());
   if (status_or_module.ok()) {
     // If this "cell" is actually a module defined in the netlist,
     // then recursively evaluate it.
@@ -197,7 +196,7 @@ absl::Status Interpreter::InterpretCell(
     for (const auto& child_output : child_outputs) {
       bool output_found = false;
       for (const auto& cell_output : cell.outputs()) {
-        if (child_output.first->name() == cell_output.pin.name) {
+        if (child_output.first->name() == cell_output.pin_name) {
           (*processed_wires)[cell_output.netref] = child_output.second;
           output_found = true;
           break;
@@ -213,23 +212,30 @@ absl::Status Interpreter::InterpretCell(
     return absl::OkStatus();
   }
 
-  // Handle (as a temporary measure) any fixed-high-output cells.
-  // See comment near top-of-file for more details.
-  if (high_cells_.contains(cell.cell_library_entry()->name())) {
-    for (const auto& output : cell.outputs()) {
-      (*processed_wires)[output.netref] = true;
+  if (std::holds_alternative<StateTable>(entry->operation())) {
+    const StateTable& state_table = std::get<StateTable>(entry->operation());
+    StateTable::InputStimulus stimulus;
+    for (const auto& input : cell.inputs()) {
+      stimulus[input.pin_name] = (*processed_wires).at(input.netref);
     }
-    return absl::OkStatus();
-  }
 
-  for (int i = 0; i < cell.outputs().size(); i++) {
-    XLS_ASSIGN_OR_RETURN(
-        function::Ast ast,
-        function::Parser::ParseFunction(
-            cell.cell_library_entry()->output_pins()[i].function));
-    XLS_ASSIGN_OR_RETURN(bool result,
-                         InterpretFunction(cell, ast, *processed_wires));
-    (*processed_wires)[cell.outputs()[i].netref] = result;
+    for (int i = 0; i < cell.outputs().size(); i++) {
+      XLS_ASSIGN_OR_RETURN(
+          bool result,
+          state_table.GetSignalValue(stimulus, cell.outputs()[i].pin_name));
+      (*processed_wires)[cell.outputs()[i].netref] = result;
+    }
+  } else {
+    const auto& pins =
+        std::get<CellLibraryEntry::SimplePins>(entry->operation());
+    for (int i = 0; i < cell.outputs().size(); i++) {
+      XLS_ASSIGN_OR_RETURN(
+          function::Ast ast,
+          function::Parser::ParseFunction(pins.at(cell.outputs()[i].pin_name)));
+      XLS_ASSIGN_OR_RETURN(bool result,
+                           InterpretFunction(cell, ast, *processed_wires));
+      (*processed_wires)[cell.outputs()[i].netref] = result;
+    }
   }
 
   return absl::OkStatus();

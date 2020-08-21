@@ -14,6 +14,7 @@
 
 #include "xls/netlist/cell_library.h"
 
+#include "google/protobuf/repeated_field.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/integral_types.h"
@@ -50,6 +51,51 @@ xabsl::StatusOr<CellKind> CellKindFromProto(CellKindProto proto) {
       "Invalid proto value for conversion to CellKind: %d", proto));
 }
 
+xabsl::StatusOr<StateTableSignal> StateTableSignalFromProto(
+    StateTableSignalProto proto) {
+  switch (proto) {
+    case STATE_TABLE_SIGNAL_INVALID:
+      return StateTableSignal::kInvalid;
+    case STATE_TABLE_SIGNAL_LOW:
+      return StateTableSignal::kLow;
+    case STATE_TABLE_SIGNAL_HIGH:
+      return StateTableSignal::kHigh;
+    case STATE_TABLE_SIGNAL_DONTCARE:
+      return StateTableSignal::kDontCare;
+    case STATE_TABLE_SIGNAL_NOCHANGE:
+      return StateTableSignal::kNoChange;
+    case STATE_TABLE_SIGNAL_TOGGLE:
+      return StateTableSignal::kToggle;
+    case STATE_TABLE_SIGNAL_X:
+      return StateTableSignal::kX;
+  }
+  return absl::InvalidArgumentError(absl::StrFormat(
+      "Invalid proto value for conversion to StateTableSignal: %d", proto));
+}
+
+xabsl::StatusOr<StateTableSignalProto> ProtoFromStateTableSignal(
+    StateTableSignal signal) {
+  switch (signal) {
+    case StateTableSignal::kInvalid:
+      return STATE_TABLE_SIGNAL_INVALID;
+    case StateTableSignal::kLow:
+      return STATE_TABLE_SIGNAL_LOW;
+    case StateTableSignal::kHigh:
+      return STATE_TABLE_SIGNAL_HIGH;
+    case StateTableSignal::kDontCare:
+      return STATE_TABLE_SIGNAL_DONTCARE;
+    case StateTableSignal::kNoChange:
+      return STATE_TABLE_SIGNAL_NOCHANGE;
+    case StateTableSignal::kToggle:
+      return STATE_TABLE_SIGNAL_TOGGLE;
+    case StateTableSignal::kX:
+      return STATE_TABLE_SIGNAL_X;
+  }
+  return absl::InvalidArgumentError(absl::StrFormat(
+      "Invalid proto value for conversion to StateTableSignalProto: %d",
+      signal));
+}
+
 }  // namespace
 
 std::string CellKindToString(CellKind kind) {
@@ -81,17 +127,20 @@ std::string CellKindToString(CellKind kind) {
   for (const auto& row : proto.rows()) {
     RowStimulus stimulus;
     for (const auto& kv : row.input_signals()) {
-      stimulus[kv.first] = kv.second;
+      XLS_ASSIGN_OR_RETURN(stimulus[kv.first],
+                           StateTableSignalFromProto(kv.second));
       signals.insert(kv.first);
     }
     for (const auto& kv : row.internal_signals()) {
-      stimulus[kv.first] = kv.second;
+      XLS_ASSIGN_OR_RETURN(stimulus[kv.first],
+                           StateTableSignalFromProto(kv.second));
       signals.insert(kv.first);
     }
 
     RowResponse response;
     for (const auto& kv : row.output_signals()) {
-      response[kv.first] = kv.second;
+      XLS_ASSIGN_OR_RETURN(response[kv.first],
+                           StateTableSignalFromProto(kv.second));
     }
 
     rows.push_back({stimulus, response});
@@ -103,15 +152,23 @@ std::string CellKindToString(CellKind kind) {
 StateTable::StateTable(const std::vector<Row>& rows,
                        const absl::flat_hash_set<std::string>& signals,
                        const StateTableProto& proto)
-    : signals_(signals), rows_(rows), proto_(proto) {}
+    : signals_(signals), rows_(rows), proto_(proto) {
+  // Get the output side ("RowResponse") of the first row in the table,
+  // and cache the signal names from there.
+  for (const auto& kv : rows_[0].response) {
+    output_signals_.insert(kv.first);
+  }
+}
 
-bool StateTable::SignalMismatch(absl::string_view name, bool value,
-                                const RowStimulus& stimulus) {
+bool StateTable::SignalMatches(absl::string_view name, bool value,
+                               const RowStimulus& stimulus) const {
   // Input signals can be either high or low - we don't manage persistent state
   // inside this class; we just represent the table.
   StateTableSignal value_signal =
-      value ? STATE_TABLE_SIGNAL_HIGH : STATE_TABLE_SIGNAL_LOW;
-  if (stimulus.contains(name) && value_signal != stimulus.at(name)) {
+      value ? StateTableSignal::kHigh : StateTableSignal::kLow;
+  if (stimulus.contains(name) &&
+      (value_signal == stimulus.at(name) ||
+       stimulus.at(name) == StateTableSignal::kDontCare)) {
     return true;
   }
 
@@ -119,9 +176,9 @@ bool StateTable::SignalMismatch(absl::string_view name, bool value,
 }
 
 xabsl::StatusOr<bool> StateTable::MatchRow(
-    const Row& row, const InputStimulus& input_stimulus) {
+    const Row& row, const InputStimulus& input_stimulus) const {
   absl::flat_hash_set<std::string> unspecified_inputs = signals_;
-  const RowStimulus& row_stimulus = row.first;
+  const RowStimulus& row_stimulus = row.stimulus;
   for (const auto& kv : input_stimulus) {
     const std::string& name = kv.first;
     bool value = kv.second;
@@ -129,7 +186,7 @@ xabsl::StatusOr<bool> StateTable::MatchRow(
     XLS_RET_CHECK(signals_.contains(name));
     // Check that, for every stimulus signal, that there's not a mismatch
     // (i.e., the row has "don't care" or a matching value for the input.
-    if (SignalMismatch(name, value, row_stimulus)) {
+    if (!SignalMatches(name, value, row_stimulus)) {
       return false;
     }
 
@@ -140,7 +197,7 @@ xabsl::StatusOr<bool> StateTable::MatchRow(
   // We've matched all inputs - now we have to verify that all unspecified
   // inputs are "don't care".
   for (const std::string& name : unspecified_inputs) {
-    if (row_stimulus.at(name) != STATE_TABLE_SIGNAL_DONTCARE) {
+    if (row_stimulus.at(name) != StateTableSignal::kDontCare) {
       return false;
     }
   }
@@ -148,7 +205,7 @@ xabsl::StatusOr<bool> StateTable::MatchRow(
 }
 
 xabsl::StatusOr<bool> StateTable::GetSignalValue(
-    const InputStimulus& input_stimulus, absl::string_view signal) {
+    const InputStimulus& input_stimulus, absl::string_view signal) const {
   // Find a row matching the stimulus or return error.
   XLS_RET_CHECK(std::find(proto_.internal_names().begin(),
                           proto_.internal_names().end(),
@@ -158,21 +215,71 @@ xabsl::StatusOr<bool> StateTable::GetSignalValue(
   for (const Row& row : rows_) {
     XLS_ASSIGN_OR_RETURN(bool match, MatchRow(row, input_stimulus));
     if (match) {
-      return row.second.at(signal) == STATE_TABLE_SIGNAL_HIGH;
+      return row.response.at(signal) == StateTableSignal::kHigh;
     }
   }
 
   return absl::NotFoundError("No matching row found in the table.");
 }
 
+xabsl::StatusOr<StateTableProto> StateTable::ToProto() const {
+  StateTableProto proto;
+  // First, extract the signals (internal and input) from the first row (each
+  // row contains every signal).
+  for (const auto& kv_stimulus : rows_[0].stimulus) {
+    const std::string& signal_name = kv_stimulus.first;
+    if (output_signals_.contains(signal_name)) {
+      proto.add_internal_names(signal_name);
+    } else {
+      proto.add_input_names(signal_name);
+    }
+  }
+
+  for (const Row& row : rows_) {
+    StateTableRow* row_proto = proto.add_rows();
+    for (const auto& kv_stimulus : row.stimulus) {
+      const std::string& signal_name = kv_stimulus.first;
+      XLS_ASSIGN_OR_RETURN(StateTableSignalProto signal_value,
+                           ProtoFromStateTableSignal(kv_stimulus.second));
+      if (output_signals_.contains(signal_name)) {
+        row_proto->mutable_internal_signals()->insert(
+            {signal_name, signal_value});
+      } else {
+        row_proto->mutable_input_signals()->insert({signal_name, signal_value});
+      }
+    }
+
+    for (const auto& kv_response : row.response) {
+      XLS_ASSIGN_OR_RETURN(StateTableSignalProto signal_value,
+                           ProtoFromStateTableSignal(kv_response.second));
+      row_proto->mutable_output_signals()->insert(
+          {kv_response.first, signal_value});
+    }
+  }
+  return proto;
+}
+
 /* static */ xabsl::StatusOr<CellLibraryEntry> CellLibraryEntry::FromProto(
     const CellLibraryEntryProto& proto) {
   XLS_ASSIGN_OR_RETURN(CellKind cell_kind, CellKindFromProto(proto.kind()));
-  return CellLibraryEntry(cell_kind, proto.name(), proto.input_names(),
-                          proto.output_pins());
+  if (proto.has_state_table()) {
+    XLS_ASSIGN_OR_RETURN(StateTable state_table,
+                         StateTable::FromProto(proto.state_table()));
+    return CellLibraryEntry(cell_kind, proto.name(), proto.input_names(),
+                            state_table);
+  }
+
+  OutputPinListProto output_pin_list = proto.output_pin_list();
+  SimplePins pins;
+  pins.reserve(output_pin_list.pins_size());
+  for (const auto& proto : output_pin_list.pins()) {
+    pins[proto.name()] = proto.function();
+  }
+
+  return CellLibraryEntry(cell_kind, proto.name(), proto.input_names(), pins);
 }
 
-CellLibraryEntryProto CellLibraryEntry::ToProto() const {
+xabsl::StatusOr<CellLibraryEntryProto> CellLibraryEntry::ToProto() const {
   CellLibraryEntryProto proto;
   switch (kind_) {
     case CellKind::kFlop:
@@ -204,10 +311,16 @@ CellLibraryEntryProto CellLibraryEntry::ToProto() const {
   for (const std::string& input_name : input_names_) {
     proto.add_input_names(input_name);
   }
-  for (const OutputPin& output_pin : output_pins_) {
-    OutputPinProto* pin_proto = proto.add_output_pins();
-    pin_proto->set_name(output_pin.name);
-    pin_proto->set_function(output_pin.function);
+  if (std::holds_alternative<StateTable>(operation_)) {
+    XLS_ASSIGN_OR_RETURN(*proto.mutable_state_table(),
+                         std::get<StateTable>(operation_).ToProto());
+  } else {
+    OutputPinListProto* pin_list = proto.mutable_output_pin_list();
+    for (const auto& kv : std::get<0>(operation_)) {
+      OutputPinProto* pin_proto = pin_list->add_pins();
+      pin_proto->set_name(kv.first);
+      pin_proto->set_function(kv.second);
+    }
   }
   return proto;
 }
@@ -222,10 +335,10 @@ CellLibraryEntryProto CellLibraryEntry::ToProto() const {
   return cell_library;
 }
 
-CellLibraryProto CellLibrary::ToProto() const {
+xabsl::StatusOr<CellLibraryProto> CellLibrary::ToProto() const {
   CellLibraryProto proto;
   for (const auto& entry : entries_) {
-    *proto.add_entries() = entry.second->ToProto();
+    XLS_ASSIGN_OR_RETURN(*proto.add_entries(), entry.second->ToProto());
   }
   return proto;
 }
