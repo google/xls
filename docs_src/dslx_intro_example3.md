@@ -129,7 +129,7 @@ following four cases:
       //     set to_place back to 0
       //     set new_counter back to 1
       (false, false) => (u3:0, u3:1);
-    } in
+    };
 ```
 
 To update the result, we set index `i` in the `result` array to the value
@@ -137,7 +137,7 @@ To update the result, we set index `i` in the `result` array to the value
 `new_result`):
 
 ```
-    let new_result: bits[8,3] = update(result, i, to_place) in
+    let new_result: bits[8,3] = update(result, i, to_place);
 ```
 
 Finally the updated accumulator value is constructed, it is the last expression
@@ -155,7 +155,7 @@ accumulator in the following way.
 *   set element `result` to 8 0's of size `u3`
 
 ```
-}((u32:-1, u3:0, bits[8,3]:[u3:0, u3:0, u3:0, u3:0, u3:0, u3:0, u3:0, u3:0])) in
+}((u32:-1, u3:0, bits[8,3]:[u3:0, u3:0, u3:0, u3:0, u3:0, u3:0, u3:0, u3:0]));
 ```
 
 And, finally, the function simply returns `result`:
@@ -172,14 +172,14 @@ right to this implementation file:
 
 ```
 test prefix_scan_eq_all_zero {
-  let input = bits[8,32]:[0, 0, 0, 0, 0, 0, 0, 0] in
-  let result = prefix_scan_eq(input) in
+  let input = bits[8,32]:[0, 0, 0, 0, 0, 0, 0, 0];
+  let result = prefix_scan_eq(input);
   assert_eq(result, bits[8,3]:[0, 1, 2, 3, 4, 5, 6, 7])
 }
 
 test prefix_scan_eq_doubles {
-  let input = bits[8,32]:[0, 0, 1, 1, 2, 2, 3, 3] in
-  let result = prefix_scan_eq(input) in
+  let input = bits[8,32]:[0, 0, 1, 1, 2, 2, 3, 3];
+  let result = prefix_scan_eq(input);
   assert_eq(result, bits[8,3]:[0, 1, 0, 1, 0, 1, 0, 1])
 }
 ```

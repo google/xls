@@ -47,20 +47,20 @@ unrolled into a big "sea of nodes" we must schedule each of those operations
 It seems clear that an operation like `add(bits[32], bits[32]) -> bits[32]`
 takes some amount of time to produce a result -- we need to be able to determine
 what that amount of time is for packing that operation into a given cycle.
-[^atomic-packing] Note that XLS operations are parametric in their bitwidth, so
-`add(bits[17], bits[17]) -> bits[17]` is just as possible as a value like `32`.
-This ain't C code.
+<sup>[1](#footnote1)</sup> Note that XLS operations are parametric in their
+bitwidth, so `add(bits[17], bits[17]) -> bits[17]` is just as possible as a
+value like `32`. This ain't C code.
 
-[^atomic-packing]: Note that we currently pack operations into cycles atomically
-  -- that is, we don't break an `add` that would straddle a cycle boundary into
-  `add.first_half` and `add.second_half` automatically to pull things as early
-  as possible in the pipeline, but this is future work of interest. Ideally
-  operations would be described structurally in a way that could automatically
-  be cut up according to available delay budget. This would also permit
-  operations in the IR that take more than a single cycle to produce a value
-  (currently they would have to be "legalized" into operations that fit within a
-  cycle, but that is not yet done, the user will simply receive a scheduling
-  error).
+<a name='footnote1'>1</a>: Note that we currently pack operations into cycles
+atomically -- that is, we don't break an `add` that would straddle a cycle
+boundary into `add.first_half` and `add.second_half` automatically to pull
+things as early as possible in the pipeline, but this is future work of
+interest. Ideally operations would be described structurally in a way that could
+automatically be cut up according to available delay budget. This would also
+permit operations in the IR that take more than a single cycle to produce a
+value (currently they would have to be "legalized" into operations that fit
+within a cycle, but that is not yet done, the user will simply receive a
+scheduling error).
 
 Some operations, such as `bit_slice` or `concat` are just wiring "feng shui";
 however, they still have some relevance for delay calculations! Say we
@@ -140,19 +140,19 @@ Currently, XLS delay estimation follows a conceptually simple procedure:
         2048}`
     *   Find the maximum frequency at which that operation closes timing at that
         bitwidth, in 100MHz units as determined by the synthesis tool.
-        [^cajole-dc] Call the clock period for this frequency `t_best`. (Note
-        that we currently just use a single process corner / voltage for this
-        sweep.)
+        <sup>[2](#footnote2)</sup> Call the clock period for this frequency
+        `t_best`. (Note that we currently just use a single process corner /
+        voltage for this sweep.)
     *   Subtract the clock uncertainty from `t_best`.
     *   Record that value in a table (with the keys of the table being operation
         / bitwidth).
 
-[^cajole-dc]: The timing report can provide the delay through a path at any
-    clock frequency, but a wrinkle is that synthesis tools only starts
-    doing smart things as you bump up against failure to close timing,
-    where it'll actually change the structure of the design to make it
-    more delay friendly. The sweep helps to try to cajole it in that
-    way.
+<a name='footnote2'>2</a>: The timing report can provide the delay through a
+path at any clock frequency, but a wrinkle is that synthesis tools potentially
+only start using their more aggressive techniques as you bump up against the
+failure-to-close-timing point -- there it'll be more likely to change the
+structure of the design to make it more delay friendly. The sweep helps to try
+to cajole it in that way.
 
 Inspecting the data acquired in this way we observe all of the plots consist of
 one or more the following delay components:

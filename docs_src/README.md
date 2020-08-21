@@ -4,7 +4,7 @@
 
 # **XLS**: Accelerated HW Synthesis
 
-[**Docs**](https://google.github.io/xls/) | [**Quick Start**](https://google.github.io/xls/tools_quick_start/)
+<!-- nav -->
 
 ## What is XLS?
 

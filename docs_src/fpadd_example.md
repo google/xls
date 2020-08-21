@@ -70,13 +70,13 @@ have the same exponent, then the sign will be that of the greater significand,
 and if the result is 0, then we favor positive 0 vs. negative 0.
 
 ```
-  let sfd = (addend_x as s29) + (addend_y as s29) in
-  let sfd_is_zero = sfd == s29:0 in
+  let sfd = (addend_x as s29) + (addend_y as s29);
+  let sfd_is_zero = sfd == s29:0;
   let result_sign = match (sfd_is_zero, sfd < s29:0) {
     (true, _) => u1:0;
     (false, true) => !greater_exp.sign;
     _ => greater_exp.sign;
-  } in
+  };
 ```
 
 ### Rounding
@@ -85,16 +85,16 @@ As complicated as rounding is to describe, its implementation is relatively
 straightforward.
 
 ```
-  let normal_chunk = shifted_sfd[0:3] in
-  let half_way_chunk = shifted_sfd[2:4] in
+  let normal_chunk = shifted_sfd[0:3];
+  let half_way_chunk = shifted_sfd[2:4];
   let do_round_up =
       u1:1 if (normal_chunk > u3:0x4) | (half_way_chunk == u2:0x3)
-      else u1:0 in
+      else u1:0;
 
   // We again need an extra bit for carry.
   let rounded_sfd = (shifted_sfd as u28) + u28:0x8 if do_round_up
-      else (shifted_sfd as u28) in
-  let rounding_carry = rounded_sfd[-1:] in
+      else (shifted_sfd as u28);
+  let rounding_carry = rounded_sfd[-1:];
 ```
 
 The behavior of logic descriptions - even in a higher level language such as

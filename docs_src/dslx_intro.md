@@ -1384,13 +1384,17 @@ to ensure the code behaves as expected. Additionally it serves as
 
 ### Unit Tests
 
-Unit tests are specified by the `test` directive, as seen below: ```
+Unit tests are specified by the `test` directive, as seen below:
 
-# ![test]
-
-fn test_reverse() { let _ = assert_eq(u1:1, rev(u1:1)) in let _ =
-assert_eq(u2:0b10, rev(u2:0b01)) in let _ = assert_eq(u2:0b00, rev(u2:0b00)) in
-() } ```
+```dslx
+#![test]
+fn test_reverse() {
+  let _ = assert_eq(u1:1, rev(u1:1));
+  let _ = assert_eq(u2:0b10, rev(u2:0b01));
+  let _ = assert_eq(u2:0b00, rev(u2:0b00));
+  ()
+}
+```
 
 The DSLX interpreter will execute all functions that are proceeded by a `test`
 directive. These functions should be non-parametric, take no arguments, and
