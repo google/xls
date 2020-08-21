@@ -743,7 +743,7 @@ by the declaration of the return type.</p>
 </ol>
 <p>The return type, which is declared after the <code>-&gt;</code>, is also a <code>u32</code>.</p>
 <p>The first line of the function's body is quite curious:</p>
-<pre><code>let crc: u32 = crc ^ u32:byte in
+<pre><code>let crc: u32 = crc ^ u32:byte;
 </code></pre>
 
 <p>The expression to the right side of the <code>=</code> is easy to understand, it computes
@@ -764,7 +764,7 @@ should execute 8 times.</p>
 <p>At the end of the loop, the calculated value is being assigned to the
 accumulator <code>crc</code> - the last expression in the loop body is assigned to the
 accumulator:</p>
-<pre><code>    let mask: u32 = -(crc &amp; u32:1) in
+<pre><code>    let mask: u32 = -(crc &amp; u32:1);
     (crc &gt;&gt; u32:1) ^ (polynomial &amp; mask)
 </code></pre>
 
