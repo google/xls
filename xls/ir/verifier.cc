@@ -78,6 +78,14 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleChannelReceive(ChannelReceive* receive) override {
+    return absl::UnimplementedError("ChannelReceive not yet implemented");
+  }
+
+  absl::Status HandleChannelSend(ChannelSend* send) override {
+    return absl::UnimplementedError("ChannelSend not yet implemented");
+  }
+
   absl::Status HandleArray(Array* array) override {
     XLS_RETURN_IF_ERROR(ExpectHasArrayType(array));
     ArrayType* array_type = array->GetType()->AsArrayOrDie();

@@ -204,6 +204,8 @@ bool ShouldEvaluate(Node* node) {
     case Op::kArray:
     case Op::kArrayIndex:
     case Op::kArrayUpdate:
+    case Op::kChannelReceive:
+    case Op::kChannelSend:
     case Op::kCountedFor:
     case Op::kInvoke:
     case Op::kMap:

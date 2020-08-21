@@ -79,6 +79,10 @@ xabsl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
     case Op::kDynamicBitSlice: {
       return default_handler(node);
     }
+    case Op::kChannelReceive:
+      return default_handler(node);
+    case Op::kChannelSend:
+      return default_handler(node);
     case Op::kConcat:
       return evaluator->Concat(operands);
     case Op::kCountedFor:

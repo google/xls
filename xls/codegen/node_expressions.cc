@@ -394,9 +394,12 @@ xabsl::StatusOr<Expression*> NodeToExpression(
           do_nary_op([file](Expression* lhs, Expression* rhs) {
             return file->BitwiseOr(lhs, rhs);
           }));
-    case Op::kAfterAll: {
+    case Op::kAfterAll:
       return absl::UnimplementedError("AfterAll not yet implemented");
-    }
+    case Op::kChannelReceive:
+      return absl::UnimplementedError("ChannelReceive not yet implemented");
+    case Op::kChannelSend:
+      return absl::UnimplementedError("ChannelSend not yet implemented");
     case Op::kArray: {
       std::vector<Expression*> elements(inputs.begin(), inputs.end());
       return file->ArrayAssignmentPattern(elements);

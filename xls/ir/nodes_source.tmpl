@@ -31,6 +31,14 @@ Type* GetMapType(Node* operand, Function* to_apply) {
                                  to_apply->return_value()->GetType());
 }
 
+Type* GetChannelReceiveType(Package* package, absl::Span<Type* const> data_types) {
+  std::vector<Type*> element_types;
+  element_types.push_back(package->GetTokenType());
+  element_types.insert(element_types.end(), data_types.begin(),
+                       data_types.end());
+  return package->GetTupleType(element_types);
+}
+
 }  // namespace
 
 {% for op_class in spec.OpClass.kinds.values() -%}
@@ -73,6 +81,14 @@ SliceData Concat::GetOperandSliceData(int64 operandno) const {
     start += operand->BitCountOrDie();
   }
   return SliceData{start, this->operand(operandno)->BitCountOrDie()};
+}
+
+xabsl::StatusOr<Node*> ChannelSend::Clone(absl::Span<Node* const> new_operands,
+                                           Function* new_function) const {
+  return new_function->MakeNode<ChannelSend>(loc(),
+                                             new_operands[0],
+                                             new_operands.subspan(1),
+                                             channel_id());
 }
 
 xabsl::StatusOr<Node*> CountedFor::Clone(absl::Span<Node* const> new_operands,
