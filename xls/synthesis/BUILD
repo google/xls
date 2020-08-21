@@ -147,7 +147,6 @@ py_library(
         ":client_credentials",
         ":synthesis_py_pb2",
         ":synthesis_service_py_pb2_grpc",
-        "//net/grpc/python:grpc",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -163,8 +162,6 @@ py_test(
     deps = [
         ":client_credentials",
         ":synthesis_utils",
-        "//net/grpc/python:grpc",
-        "//tech/env:envelope_loader",
         requirement("portpicker"),
         "//xls/common:runfiles",
         "@com_google_absl_py//absl/testing:absltest",
