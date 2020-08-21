@@ -276,14 +276,34 @@ class Constant(AstNode):
 class Struct(AstNode):
   """Represents a struct definition."""
 
-  def __init__(self, public: bool, name: NameDef,
-               members: Sequence[Tuple[NameDef, TypeAnnotation]]):
+  def __init__(self, public: bool, parametric_bindings: Tuple[ParametricBinding,
+                                                              ...],
+               name: NameDef, members: Sequence[Tuple[NameDef,
+                                                      TypeAnnotation]]):
     self.name = name
     self.members = members
     self.public = public
+    self.parametric_bindings = parametric_bindings
+
+  def is_parametric(self) -> bool:
+    return bool(self.parametric_bindings)
+
+  def get_parametric_binding(self, name: Text) -> ParametricBinding:
+    return next(
+        p for p in self.parametric_bindings if p.name.identifier == name)
+
+  def get_parametric_keys(self) -> Set[Text]:
+    return set([b.name.identifier for b in self.parametric_bindings])
+
+  def get_free_parametric_keys(self) -> Set[Text]:
+    """Returns 'freevar' parametric varnames (not populated by expression)."""
+    return set(
+        [b.name.identifier for b in self.parametric_bindings if b.expr is None])
 
   def __repr__(self) -> Text:
-    return 'Struct({!r}, {!r})'.format(self.name, self.members)
+    return 'Struct({!r}, {!r}, {!r})'.format(self.name,
+                                             self.parametric_bindings,
+                                             self.members)
 
   @property
   def identifier(self) -> Text:
@@ -409,6 +429,9 @@ class Module(AstNode):
 
   def get_tests(self) -> List['Test']:
     return [member for member in self.top if isinstance(member, Test)]
+
+  def get_structs(self) -> List['Struct']:
+    return [member for member in self.top if isinstance(member, Struct)]
 
   def get_quickchecks(self) -> List['QuickCheck']:
     return [member for member in self.top if isinstance(member, QuickCheck)]

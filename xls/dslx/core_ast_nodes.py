@@ -512,10 +512,12 @@ class TypeAnnotation(AstNode):
                span: Span,
                primitive: Union[Token, TypeRef],
                dims: Optional[Tuple[Expr, ...]] = None,
+               parametrics: Optional[Tuple[Expr, ...]] = None,
                tuple_members: Optional[Tuple['TypeAnnotation', ...]] = None):
     self.span = span
     self.primitive = primitive
     self._dims = dims
+    self.parametrics = parametrics
     self._tuple_members = tuple_members
     self._check_invariants()
 

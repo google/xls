@@ -289,6 +289,7 @@ py_library(
     srcs_version = "PY3",
     deps = [
         ":ast",
+        ":ast_helpers",
         ":bit_helpers",
         ":concrete_type",
         ":dslx_builtins",
@@ -592,5 +593,14 @@ py_library(
     deps = [
         ":ast",
         ":deduce",
+    ],
+)
+
+py_library(
+    name = "ast_helpers",
+    srcs = ["ast_helpers.py"],
+    srcs_version = "PY3",
+    deps = [
+        ":ast",
     ],
 )

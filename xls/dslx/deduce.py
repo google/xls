@@ -25,6 +25,7 @@ from absl import logging
 import dataclasses
 
 from xls.dslx import ast
+from xls.dslx import ast_helpers
 from xls.dslx import bit_helpers
 from xls.dslx import dslx_builtins
 from xls.dslx import parametric_instantiator
@@ -425,7 +426,7 @@ def _deduce_Invocation(self: ast.Invocation, ctx: DeduceCtx) -> ConcreteType:  #
     callee_name = self.callee.tok.value
     callee_fn = ctx.module.get_function(callee_name)
 
-  self_type, callee_sym_bindings = parametric_instantiator.instantiate(
+  self_type, callee_sym_bindings = parametric_instantiator.instantiate_function(
       self.span, callee_type, tuple(arg_types), ctx,
       callee_fn.parametric_bindings)
 
@@ -887,6 +888,48 @@ def _dim_to_parametric(self: ast.TypeAnnotation,
   raise TypeInferenceError(self.span, self, suffix=msg)
 
 
+def _concretize_struct_annotation(type_annotation: ast.TypeAnnotation,
+                                  struct: ast.Struct,
+                                  base_type: ConcreteType) -> ConcreteType:
+  """Returns concretized struct type using the provided bindings.
+
+  For example, if we have a struct defined as `struct [N: u32, M: u32] Foo`,
+  the default TupleType will be (N, M). If a type annotation provides bindings,
+  (e.g. Foo[A, 16]), we will replace N, M with those values. In the case above,
+  we will return (A, 16) instead.
+
+  Args:
+    type_annotation: The provided type annotation for this parametric struct.
+    struct: The corresponding struct AST node.
+    base_type: The TupleType of the struct, based only on the struct definition.
+  """
+  assert len(struct.parametric_bindings) == len(type_annotation.parametrics)
+  defined_to_annotated = {}
+  for defined_parametric, annotated_parametric in zip(
+      struct.parametric_bindings, type_annotation.parametrics):
+    if isinstance(annotated_parametric, ast.Number):
+      defined_to_annotated[defined_parametric.name.identifier] = \
+          int(annotated_parametric.value)
+    else:
+      defined_to_annotated[defined_parametric.name.identifier] = \
+          ParametricSymbol(annotated_parametric.identifier,
+                           annotated_parametric.span)
+
+  def resolver(dim):
+    if isinstance(dim, ParametricExpression):
+      return dim.evaluate(defined_to_annotated)
+    return dim
+
+  return base_type.map_size(resolver)
+
+
+def _get_imported_module_via_node_to_type(
+    import_: ast.Import,
+    node_to_type: NodeToType) -> Tuple[ast.Module, NodeToType]:
+  """Uses node_to_type to retrieve the corresponding module of a ModRef."""
+  return node_to_type.get_imported(import_)
+
+
 def _concretize_TypeAnnotation(
     self: ast.TypeAnnotation,
     ctx: DeduceCtx) -> ConcreteType[Union[int, ParametricExpression]]:
@@ -909,7 +952,16 @@ def _concretize_TypeAnnotation(
 
   if self.is_typeref():
     base_type = deduce(self.get_typeref(), ctx)
+
     logging.vlog(5, 'base type for typeref: %s', base_type)
+
+    maybe_struct = ast_helpers.evaluate_to_struct_or_enum_or_annotation(
+        self.typeref.type_def, _get_imported_module_via_node_to_type,
+        ctx.node_to_type)
+    if (isinstance(maybe_struct, ast.Struct) and
+        maybe_struct.is_parametric() and self.parametrics):
+      base_type = _concretize_struct_annotation(self, maybe_struct, base_type)
+
     if not self.has_dims():
       return base_type
 
@@ -937,8 +989,7 @@ def _concretize_TypeAnnotation(
 def _deduce_TypeAnnotation(
     self: ast.TypeAnnotation,  # pytype: disable=wrong-arg-types
     ctx: DeduceCtx) -> ConcreteType:
-  result = _concretize_TypeAnnotation(self, ctx)
-  return result
+  return _concretize_TypeAnnotation(self, ctx)
 
 
 @_rule(ast.ModRef)
@@ -1092,6 +1143,21 @@ def _deduce_Binop(self: ast.Binop, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
 
 @_rule(ast.Struct)
 def _deduce_Struct(self: ast.Struct, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
+  """Returns the concrete type for a (potentially parametric) struct."""
+  for parametric in self.parametric_bindings:
+    parametric_binding_type = deduce(parametric.type_, ctx)
+    assert isinstance(parametric_binding_type, ConcreteType)
+    if parametric.expr:
+      expr_type = deduce(parametric.expr, ctx)
+      if expr_type != parametric_binding_type:
+        raise XlsTypeError(
+            parametric.span,
+            parametric_binding_type,
+            expr_type,
+            suffix='Annotated type of derived parametric '
+            'value did not match inferred type.')
+    ctx.node_to_type[parametric.name] = parametric_binding_type
+
   members = tuple(
       (k.identifier, resolve(deduce(m, ctx), ctx)) for k, m in self.members)
   result = ctx.node_to_type[self.name] = TupleType(members, self)
@@ -1100,10 +1166,10 @@ def _deduce_Struct(self: ast.Struct, ctx: DeduceCtx) -> ConcreteType:  # pytype:
   return result
 
 
-def _typecheck_struct_members_subset(members: ast.StructInstanceMembers,
-                                     struct_type: ConcreteType,
-                                     struct_text: str,
-                                     ctx: DeduceCtx) -> Set[str]:
+def _validate_struct_members_subset(
+    members: ast.StructInstanceMembers, struct_type: ConcreteType,
+    struct_text: str, ctx: DeduceCtx
+) -> Tuple[Set[str], Tuple[ConcreteType], Tuple[ConcreteType]]:
   """Validates a struct instantiation is a subset of members with no dups.
 
   Args:
@@ -1114,9 +1180,13 @@ def _typecheck_struct_members_subset(members: ast.StructInstanceMembers,
     ctx: Wrapper containing node to type mapping context.
 
   Returns:
-    The set of struct member names that were instantiated.
+    A tuple containing the set of struct member names that were instantiated,
+    the ConcreteTypes of the provided arguments, and the ConcreteTypes of the
+    corresponding struct member definition.
   """
   seen_names = set()
+  arg_types = []
+  member_types = []
   for k, v in members:
     if k in seen_names:
       raise TypeInferenceError(
@@ -1125,21 +1195,19 @@ def _typecheck_struct_members_subset(members: ast.StructInstanceMembers,
           suffix='Duplicate value seen for {!r} in this {!r} struct instance.'
           .format(k, struct_text))
     seen_names.add(k)
-    expr_type = deduce(v, ctx)
+    expr_type = resolve(deduce(v, ctx), ctx)
+    arg_types.append(expr_type)
     try:
       member_type = struct_type.get_member_type_by_name(k)  # pytype: disable=attribute-error
+      member_types.append(member_type)
     except KeyError:
       raise TypeInferenceError(
           v.span,
           None,
           suffix='Struct {!r} has no member {!r}, but it was provided by this instance.'
           .format(struct_text, k))
-    if member_type != expr_type:
-      raise XlsTypeError(
-          v.span, member_type, expr_type,
-          'Member type for {!r} ({}) does not match expression type {}.'.format(
-              k, member_type, expr_type))
-  return seen_names
+
+  return seen_names, tuple(arg_types), tuple(member_types)
 
 
 @_rule(ast.StructInstance)
@@ -1149,9 +1217,8 @@ def _deduce_StructInstance(
   logging.vlog(5, 'Deducing type for struct instance: %s', self)
   struct_type = deduce(self.struct, ctx)
   expected_names = set(struct_type.tuple_names)  # pytype: disable=attribute-error
-  seen_names = _typecheck_struct_members_subset(self.unordered_members,
-                                                struct_type, self.struct_text,
-                                                ctx)
+  seen_names, arg_types, member_types = _validate_struct_members_subset(
+      self.unordered_members, struct_type, self.struct_text, ctx)
   if seen_names != expected_names:
     missing = ', '.join(
         repr(s) for s in sorted(list(expected_names - seen_names)))
@@ -1159,7 +1226,19 @@ def _deduce_StructInstance(
         self.span,
         None,
         suffix='Struct instance is missing member(s): {}'.format(missing))
-  return struct_type
+
+  struct_def = self.struct
+  if not isinstance(struct_def, ast.Struct):
+    # Traverse TypeDefs and ModRefs until we get the struct AST node.
+    struct_def = ast_helpers.evaluate_to_struct_or_enum_or_annotation(
+        struct_def, _get_imported_module_via_node_to_type, ctx.node_to_type)
+  assert isinstance(struct_def, ast.Struct), struct_def
+
+  resolved_struct_type, _ = parametric_instantiator.instantiate_struct(
+      self.span, struct_type, arg_types, member_types, ctx,
+      struct_def.parametric_bindings)
+
+  return resolved_struct_type
 
 
 @_rule(ast.SplatStructInstance)
@@ -1168,14 +1247,46 @@ def _deduce_SplatStructInstance(
   """Deduces the type of the struct instantiation expression and its members."""
   struct_type = deduce(self.struct, ctx)
   splatted_type = deduce(self.splatted, ctx)
-  if splatted_type != struct_type:
-    raise XlsTypeError(
-        self.splatted.span, struct_type, splatted_type,
-        'Splatted expression must have the same type as the struct being instantiated.'
-    )
-  _typecheck_struct_members_subset(self.members, struct_type, self.struct_text,
-                                   ctx)
-  return struct_type
+
+  assert isinstance(struct_type, TupleType), struct_type
+  assert isinstance(splatted_type, TupleType), splatted_type
+
+  # We will make sure this splat typechecks during instantiation. Let's just
+  # ensure the same number of elements for now.
+  assert len(struct_type.tuple_names) == len(splatted_type.tuple_names)
+
+  (seen_names, seen_arg_types,
+   seen_member_types) = _validate_struct_members_subset(self.members,
+                                                        struct_type,
+                                                        self.struct_text, ctx)
+
+  arg_types = list(seen_arg_types)
+  member_types = list(seen_member_types)
+  for m in struct_type.tuple_names:
+    if m not in seen_names:
+      splatted_member_type = splatted_type.get_member_type_by_name(m)
+      struct_member_type = struct_type.get_member_type_by_name(m)
+
+      arg_types.append(splatted_member_type)
+      member_types.append(struct_member_type)
+
+  # At this point, we should have the same number of args compared to the
+  # number of members defined in the struct.
+  assert len(arg_types) == len(member_types)
+
+  struct_def = self.struct
+  if not isinstance(struct_def, ast.Struct):
+    # Traverse TypeDefs and ModRefs until we get the struct AST node.
+    struct_def = ast_helpers.evaluate_to_struct_or_enum_or_annotation(
+        struct_def, _get_imported_module_via_node_to_type, ctx.node_to_type)
+
+  assert isinstance(struct_def, ast.Struct), struct_def
+
+  resolved_struct_type, _ = parametric_instantiator.instantiate_struct(
+      self.span, struct_type, tuple(arg_types), tuple(member_types), ctx,
+      struct_def.parametric_bindings)
+
+  return resolved_struct_type
 
 
 @_rule(ast.Attr)
