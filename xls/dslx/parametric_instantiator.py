@@ -40,40 +40,17 @@ Expr = Any
 
 
 class _ParametricInstantiator(object):
-  """Helper class for instantiating a parametric invocation.
-
-  Attributes:
-    span: Span for the instantiation; e.g. of the invocation AST node being
-      instantiated.
-    function_type: (Parametric) function type being instantiated.
-    arg_types: Argument types presented to the parametric function type.
-    symbolic_bindings: Mapping from name to bound value as encountered in the
-      instantiation process; e.g. instantiating `fn [N: u32] id(bits[N]) ->
-      bits[N]` with a u32 would lead to `{'N': 32}` as the symbolic bindings.
-    constraints: Mapping from parametric to its expression.
-      e.g. For [X: u32, Y: u32 = X + X], we'd have X -> (32, None) and
-      Y -> (32, (X + X)).
-    bit_widths: Mapping from parametric to its bit count
-      e.g. From above, X -> 32 and Y -> 32
-    ctx: Wrapper over useful typechecking objects (see deduce.DeduceCtx).
-  """
-
-  def __init__(self, span: Span, function_type: ConcreteType,
-               arg_types: Tuple[ConcreteType, ...], ctx: DeduceCtx,
+  def __init__(self, span: Span,
+               arg_types: Tuple[ConcreteType, ...],
+               ctx: DeduceCtx,
                parametric_constraints: Optional[ParametricBindings]):
     self.span = span
-    self.function_type = function_type
     self.arg_types = arg_types
     self.ctx = ctx
     self.symbolic_bindings = {}  # type: Dict[Text, int]
     self.constraints = {}  # type: Dict[Text, Optional[Expr]]
     self.bit_widths = {}  # type: Dict[Text, int]
 
-    param_types = self.function_type.get_function_params()  # pytype: disable=attribute-error
-    if len(self.arg_types) != len(param_types):
-      raise ArgCountMismatchError(self.span, arg_types, len(param_types),
-                                  param_types,
-                                  'Invocation of parametric function.')
     if parametric_constraints:
       for b in parametric_constraints:
         bit_count = b.type_.primitive_to_bits()
@@ -241,14 +218,9 @@ class _ParametricInstantiator(object):
           self.span,
           param_type,
           arg_type,
-          suffix='Parameter {} and argument types are different kinds ({} vs {})'
-          ' in invocation which has type `{}`.'.format(
-              i, param_type.get_debug_type_name(),
-              arg_type.get_debug_type_name(),
-              (self.struct_type
-               if isinstance(self, _ParametricStructInstantiator)
-               else self.function_type)))
-
+          suffix='Parameter {} and argument types are different kinds '
+                 '({} vs {}).'.format(i, param_type.get_debug_type_name(),
+                                      arg_type.get_debug_type_name()))
     logging.vlog(3, 'Symbolically binding param_type %d %s against arg_type %s',
                  i, param_type, arg_type)
     self._symbolic_bind(param_type, arg_type)
@@ -268,6 +240,38 @@ class _ParametricInstantiator(object):
       return dim
 
     return annotated.map_size(resolver)
+
+  def instantiate(self) -> Tuple[ConcreteType, SymbolicBindings]:
+    raise NotImplementedError
+
+class _FunctionInstantiator(_ParametricInstantiator):
+  """Instantiates a parametric function invocation.
+
+  Attributes:
+    span: Span for the instantiation; e.g. of the invocation AST node being
+      instantiated.
+    function_type: (Parametric) function type being instantiated.
+    arg_types: Argument types presented to the parametric function type.
+    symbolic_bindings: Mapping from name to bound value as encountered in the
+      instantiation process; e.g. instantiating `fn [N: u32] id(bits[N]) ->
+      bits[N]` with a u32 would lead to `{'N': 32}` as the symbolic bindings.
+    constraints: Mapping from parametric to its expression.
+      e.g. For [X: u32, Y: u32 = X + X], we'd have X -> (32, None) and
+      Y -> (32, (X + X)).
+    bit_widths: Mapping from parametric to its bit count
+      e.g. From above, X -> 32 and Y -> 32
+    ctx: Wrapper over useful typechecking objects (see deduce.DeduceCtx).
+  """
+  def __init__(self, span: Span, function_type: ConcreteType,
+               arg_types: Tuple[ConcreteType, ...], ctx: DeduceCtx,
+               parametric_constraints: Optional[ParametricBindings]):
+    super().__init__(span, arg_types, ctx, parametric_constraints)
+    self.function_type = function_type
+    param_types = self.function_type.get_function_params()  # pytype: disable=attribute-error
+    if len(self.arg_types) != len(param_types):
+      raise ArgCountMismatchError(self.span, arg_types, len(param_types),
+                                  param_types,
+                                  'Invocation of parametric function.')
 
   def instantiate(self) -> Tuple[ConcreteType, SymbolicBindings]:
     """Updates symbolic bindings for the parameter types according to arg_types.
@@ -299,8 +303,8 @@ class _ParametricInstantiator(object):
     logging.vlog(2, 'Resolved return type from %s to %s', orig, resolved)
     return resolved, tuple(sorted(self.symbolic_bindings.items()))
 
-class _ParametricStructInstantiator(_ParametricInstantiator):
-  """Subclass for instantiating a parametric struct.
+class _StructInstantiator(_ParametricInstantiator):
+  """Instantiates a parametric struct.
 
   Attributes:
     span: Span for the instantiation; e.g. of the invocation AST node being
@@ -323,24 +327,14 @@ class _ParametricStructInstantiator(_ParametricInstantiator):
                member_types: Tuple[ConcreteType, ...],
                ctx: DeduceCtx,
                parametric_constraints: Optional[ParametricBindings]):
-    self.span = span
+    super().__init__(span, arg_types, ctx, parametric_constraints)
     self.struct_type = struct_type
-    self.arg_types = arg_types
     self.member_types = member_types
-    self.ctx = ctx
-    self.symbolic_bindings = {}  # type: Dict[Text, int]
-    self.constraints = {}  # type: Dict[Text, Optional[Expr]]
-    self.bit_widths = {}  # type: Dict[Text, int]
 
     if len(self.arg_types) != len(self.member_types):
       raise ArgCountMismatchError(self.span, arg_types, len(member_types),
                                   member_types,
                                   'Invocation of parametric struct.')
-    if parametric_constraints:
-      for b in parametric_constraints:
-        bit_count = b.type_.primitive_to_bits()
-        self.bit_widths[b.name.identifier] = bit_count
-        self.constraints[b.name.identifier] = b.expr
 
   def instantiate(self) -> Tuple[ConcreteType, SymbolicBindings]:
     """Updates symbolic bindings for the member types according to arg_types.
@@ -353,35 +347,35 @@ class _ParametricStructInstantiator(_ParametricInstantiator):
       The return type of the struct_type, with parametric types instantiated
       in accordance with the presented argument types.
     """
-    # Walk through all the params/args to collect symbolic bindings.
+    # Walk through all the members/args to collect symbolic bindings.
     for i, (member_type, arg_type) in enumerate(
         zip(self.member_types, self.arg_types)):  # pytype: disable=attribute-error
       member_type = self._instantiate_one_arg(i, member_type, arg_type)
       logging.vlog(
           3,
-          'Post-instantiation; paramno: %d; member_type: %s; struct_type: %s',
+          'Post-instantiation; memno: %d; member_type: %s; struct_type: %s',
           i, member_type, arg_type)
       if member_type != arg_type:
-        message = 'Mismatch between parameter and argument types.'
+        message = 'Mismatch between member and argument types.'
         if str(member_type) == str(arg_type):
           message += ' {!r} vs {!r}'.format(member_type, arg_type)
         raise XlsTypeError(self.span, member_type, arg_type, suffix=message)
 
-    # Resolve the return type according to the bindings we collected.
+    # Resolve the struct type according to the bindings we collected.
     resolved = self._resolve(self.struct_type)
     logging.vlog(2, 'Resolved struct type from %s to %s',
                  self.struct_type, resolved)
     return resolved, tuple(sorted(self.symbolic_bindings.items()))
 
-def instantiate(
+def instantiate_function(
     span: Span, callee_type: ConcreteType,
     arg_types: Tuple[ConcreteType, ...],
     ctx: DeduceCtx,
     parametric_bindings: Optional[ParametricBindings]
 ) -> Tuple[ConcreteType, SymbolicBindings]:
   """Instantiates a fn invocation using the bindings derived from arg_types."""
-  return _ParametricInstantiator(span, callee_type, arg_types, ctx,
-                                 parametric_bindings).instantiate()
+  return _FunctionInstantiator(span, callee_type, arg_types, ctx,
+                               parametric_bindings).instantiate()
 
 def instantiate_struct(
     span: Span, callee_type: ConcreteType,
@@ -391,6 +385,5 @@ def instantiate_struct(
     parametric_bindings: Optional[ParametricBindings]
 ) -> Tuple[ConcreteType, SymbolicBindings]:
   """Instantiates a struct using the bindings derived from arg_types."""
-  return _ParametricStructInstantiator(
-      span, callee_type, arg_types, member_types, ctx,
-      parametric_bindings).instantiate()
+  return _StructInstantiator(span, callee_type, arg_types, member_types, ctx,
+                             parametric_bindings).instantiate()

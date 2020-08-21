@@ -425,7 +425,7 @@ def _deduce_Invocation(self: ast.Invocation, ctx: DeduceCtx) -> ConcreteType:  #
     callee_name = self.callee.tok.value
     callee_fn = ctx.module.get_function(callee_name)
 
-  self_type, callee_sym_bindings = parametric_instantiator.instantiate(
+  self_type, callee_sym_bindings = parametric_instantiator.instantiate_function(
       self.span, callee_type, tuple(arg_types), ctx,
       callee_fn.parametric_bindings)
 
