@@ -200,7 +200,9 @@ TEST_F(BddSimplificationPassTest, SelectChainOneHotOrZeroSelectors) {
                                m::Param("x2")}));
 }
 
-TEST_F(BddSimplificationPassTest, OneHotMsbTypical) {
+// TODO(meheff): 2020-08-24 Disabled for debugging of crasher
+// third_party/xls/dslx/fuzzer/crashers/2020-08-24-min.x
+TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbTypical) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -221,7 +223,9 @@ TEST_F(BddSimplificationPassTest, OneHotMsbTypical) {
                             m::BitSlice(m::OneHot(m::Param("input")), 0, 7)))));
 }
 
-TEST_F(BddSimplificationPassTest, OneHotMsbAlternateForm) {
+// TODO(meheff): 2020-08-24 Disabled for debugging of crasher
+// third_party/xls/dslx/fuzzer/crashers/2020-08-24-min.x
+TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbAlternateForm) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -243,7 +247,10 @@ TEST_F(BddSimplificationPassTest, OneHotMsbAlternateForm) {
                             m::BitSlice(m::OneHot(m::Param("input")), 0, 7)))));
 }
 
-TEST_F(BddSimplificationPassTest, OneHotMsbRequireFullBddToAnalyzeOneMsbCase) {
+// TODO(meheff): 2020-08-24 Disabled for debugging of crasher
+// third_party/xls/dslx/fuzzer/crashers/2020-08-24-min.x
+TEST_F(BddSimplificationPassTest,
+       DISABLED_OneHotMsbRequireFullBddToAnalyzeOneMsbCase) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -259,7 +266,9 @@ TEST_F(BddSimplificationPassTest, OneHotMsbRequireFullBddToAnalyzeOneMsbCase) {
                         m::BitSlice(m::OneHot(m::Param("input")), 0, 7)));
 }
 
-TEST_F(BddSimplificationPassTest, OneHotMsbMsbLeaks) {
+// TODO(meheff): 2020-08-24 Disabled for debugging of crasher
+// third_party/xls/dslx/fuzzer/crashers/2020-08-24-min.x
+TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbMsbLeaks) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -276,7 +285,9 @@ TEST_F(BddSimplificationPassTest, OneHotMsbMsbLeaks) {
   EXPECT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(false));
 }
 
-TEST_F(BddSimplificationPassTest, OneHotMsbNonMsbOneComparison) {
+// TODO(meheff): 2020-08-24 Disabled for debugging of crasher
+// third_party/xls/dslx/fuzzer/crashers/2020-08-24-min.x
+TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbNonMsbOneComparison) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -293,7 +304,9 @@ TEST_F(BddSimplificationPassTest, OneHotMsbNonMsbOneComparison) {
   EXPECT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(false));
 }
 
-TEST_F(BddSimplificationPassTest, OneHotMsbNonZeroReplacementValue) {
+// TODO(meheff): 2020-08-24 Disabled for debugging of crasher
+// third_party/xls/dslx/fuzzer/crashers/2020-08-24-min.x
+TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbNonZeroReplacementValue) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -310,7 +323,9 @@ TEST_F(BddSimplificationPassTest, OneHotMsbNonZeroReplacementValue) {
   EXPECT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(false));
 }
 
-TEST_F(BddSimplificationPassTest, OneHotMsbNoRecursion) {
+// TODO(meheff): 2020-08-24 Disabled for debugging of crasher
+// third_party/xls/dslx/fuzzer/crashers/2020-08-24-min.x
+TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbNoRecursion) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -332,8 +347,10 @@ TEST_F(BddSimplificationPassTest, OneHotMsbNoRecursion) {
   EXPECT_THAT(Run(f, /*run_cleanup_passes=*/false), IsOkAndHolds(false));
 }
 
+// TODO(meheff): 2020-08-24 Disabled for debugging of crasher
+// third_party/xls/dslx/fuzzer/crashers/2020-08-24-min.x
 TEST_F(BddSimplificationPassTest,
-       OneHotMsbNoRecursionExistingSliceIncludesMsb) {
+       DISABLED_OneHotMsbNoRecursionExistingSliceIncludesMsb) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -356,8 +373,10 @@ TEST_F(BddSimplificationPassTest,
   EXPECT_THAT(Run(f, /*run_cleanup_passes=*/false), IsOkAndHolds(false));
 }
 
+// TODO(meheff): 2020-08-24 Disabled for debugging of crasher
+// third_party/xls/dslx/fuzzer/crashers/2020-08-24-min.x
 TEST_F(BddSimplificationPassTest,
-       OneHotMsbNoRecursionExistingSliceExcludesMsb) {
+       DISABLED_OneHotMsbNoRecursionExistingSliceExcludesMsb) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -375,8 +394,11 @@ TEST_F(BddSimplificationPassTest,
   EXPECT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(false));
 }
 
-TEST_F(BddSimplificationPassTest,
-       OneHotMsbPostponeOneHotNativeOneHotDetectionUntilAfterOneHotMsb) {
+// TODO(meheff): 2020-08-24 Disabled for debugging of crasher
+// third_party/xls/dslx/fuzzer/crashers/2020-08-24-min.x
+TEST_F(
+    BddSimplificationPassTest,
+    DISABLED_OneHotMsbPostponeOneHotNativeOneHotDetectionUntilAfterOneHotMsb) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(2));
