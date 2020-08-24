@@ -9,7 +9,7 @@
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
       
-        <link rel="canonical" href="https://google.github.io/xls/dslx_intro/">
+        <link rel="canonical" href="https://google.github.io/xls/dslx_reference/">
       
       
       <link rel="shortcut icon" href="../assets/images/favicon.png">
@@ -51,7 +51,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#introduction-to-dslx" class="md-skip">
+        <a href="#dslx-reference" class="md-skip">
           Skip to content
         </a>
       
@@ -1549,7 +1549,7 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/google/xls/edit/master/docs/dslx_intro.md" title="Edit this page" class="md-content__button md-icon">
+                  <a href="https://github.com/google/xls/edit/master/docs/dslx_reference.md" title="Edit this page" class="md-content__button md-icon">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
                   </a>
                 
@@ -1557,12 +1557,10 @@
                   
                 
                 
-                <!--* freshness: { owner: 'rhundt' reviewed: '2019-10-29' } *-->
-
-<h1 id="introduction-to-dslx">Introduction to DSLX</h1>
+                <h1 id="dslx-reference">DSLX Reference</h1>
 <div class="toc">
 <ul>
-<li><a href="#introduction-to-dslx">Introduction to DSLX</a><ul>
+<li><a href="#dslx-reference">DSLX Reference</a><ul>
 <li><a href="#comments">Comments</a></li>
 <li><a href="#identifiers">Identifiers</a></li>
 <li><a href="#functions">Functions</a><ul>
@@ -1641,16 +1639,30 @@
 </li>
 </ul>
 </div>
-<p>DSLX is a domain specific, functional language to build hardware. It targets the
-XLS toolchain to enable flows for FPGAs and ASICs (note that other frontends
-will become available in the future).</p>
-<p>By using a DSL we get the best possible representation of a given problem,
-allowing us to explore the full potential of HLS, without being encumbered by
-C++ language or compiler limitations details. The language is still experimental
-and likely to change, but it is already useful for experimentation and
-exploration.</p>
-<p>This document provides am introduction to DSLX, mostly by example. After
-perusing it and learning about the language features, we recommend exploring the
+<p>DSLX is a domain specific, functional language to build hardware that can also
+run effectively as host software. The DSL targets the XLS compiler (by
+conversion to XLS IR) to enable flows for FPGAs and ASICs (note that other
+frontends will become available in the future).</p>
+<p>DSLX mimics Rust, while being an immutable expression-based dataflow DSL with
+hardware-oriented features; e.g. arbitrary bitwidths, entirely fixed size
+objects, fully analyzeable call graph, etc. To avoid arbitrary new
+syntax/semantics choices the DSL mimics Rust where it is reasonably possible;
+for example, integer conversions all follow the same semantics as Rust.</p>
+<p>Note: There are <em>some</em> unnecessary differences today from Rust syntax due to
+early experimentation, but they are quickly being removed to converge on Rust
+syntax.</p>
+<p>Dataflow DSLs are a good fit for describing hardware, compared to languages
+designed assume
+<a href="https://en.wikipedia.org/wiki/Von_Neumann_architecture">von Neumann style computation</a>
+(global mutable state, sequential mutation by a sequential thread of control).
+Using a DSL provides a more hardware-oriented representation of a given
+computation that matches XLS compiler (IR) constructs closely. The DSL also
+allows an exploration of HLS without being encumbered by C++ language or
+compiler limitations such as non-portable pragmas, magic macros, or semantically
+important syntactic conventions. The language is still experimental and likely
+to change, but it is already useful for experimentation and exploration.</p>
+<p>This document provides a reference for DSLX, mostly by example. After perusing
+it and learning about the language features, we recommend exploring the
 following, detailed examples to learn how the language features are put to
 action:</p>
 <ol>
@@ -1665,7 +1677,8 @@ action:</p>
 </li>
 </ol>
 <p>In this document we use the function to compute a CRC32 checksum to describe
-language feature. The full code is in <code>examples/dslx_intro/crc32_one_byte.x</code>.</p>
+language features. The full code is in
+<a href="https://github.com/google/xls/tree/main/xls/examples/dslx_intro/crc32_one_byte.x"><code>examples/dslx_intro/crc32_one_byte.x</code></a>.</p>
 <h3 id="comments">Comments</h3>
 <p>Just as in languages like C/C++, comments start with <code>//</code> and last through the
 end of the line.</p>
@@ -1846,8 +1859,8 @@ fn next_in_sequence(x: Opcode, y: Opcode) -&gt; bool {
 <p>As mentioned above casting of enum-values works with the same casting/extension
 rules that apply to the underlying enum type definition. For example, this cast
 will sign extend because the source type for the enum is signed. (See
-<a href="./#numerical-conversions">numerical conversions</a>
-for the full description of extension/truncation behavior.)</p>
+<a href="#numerical-conversions">numerical conversions</a> for the full description of
+extension/truncation behavior.)</p>
 <pre><code>enum MySignedEnum : s3 {
   LOW = -1
   ZERO = 0

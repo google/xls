@@ -402,7 +402,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../dslx_intro/" title="Reference" class="md-nav__link">
+    <a href="../dslx_reference/" title="Reference" class="md-nav__link">
       Reference
     </a>
   </li>
@@ -834,11 +834,12 @@ information on using pull requests.</p>
 <p>We ask contributors to squash all the commits in the PR into a single one, in
 order to have a cleaner revision history.</p>
 <p>Generally, this can be accomplished by:</p>
-<pre><code class="console">proj/xls$ git merge-base main my-branch-name  # Tells you common ancesor COMMIT_HASH.
+<pre><code class="console">proj/xls$ # Here we assume origin points to google/xls.
+proj/xls$ git fetch origin main
+proj/xls$ git merge-base origin/main my-branch-name  # Tells you common ancesor COMMIT_HASH.
 proj/xls$ git reset --soft $COMMIT_HASH
 proj/xls$ git commit -a -m &quot;My awesome squashed commit message!!!1&quot;
 proj/xls$ # Now we can more easily rebase our squashed commit on main.
-proj/xls$ git fetch
 proj/xls$ git rebase origin/main
 </code></pre>
 
