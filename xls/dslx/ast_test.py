@@ -57,14 +57,15 @@ class AstTest(test_base.TestCase):
   def fake_span(self) -> Span:
     return Span(self.fake_pos, self.fake_pos)
 
+  @property
+  def five(self) -> ast.Number:
+    return ast.Number(self.fake_span, '5')
+
   def test_stringify_type(self):
     fake_span = self.fake_span
-    token_5 = Token(TokenKind.NUMBER, fake_span, value='5')
-    token_2 = Token(TokenKind.NUMBER, fake_span, value='2')
-    token_3 = Token(TokenKind.NUMBER, fake_span, value='3')
-    number_5 = ast.Number(token_5)
-    number_2 = ast.Number(token_2)
-    number_3 = ast.Number(token_3)
+    number_5 = ast.Number(fake_span, '5')
+    number_2 = ast.Number(fake_span, '2')
+    number_3 = ast.Number(fake_span, '3')
     bits_token = Token(TokenKind.KEYWORD, value=Keyword.BITS, span=fake_span)
 
     type_ = ast.TypeAnnotation(fake_span, bits_token, (number_5,))
@@ -81,7 +82,7 @@ class AstTest(test_base.TestCase):
 
     # TypeRef with dims.
     my_type_tok = Token(TokenKind.IDENTIFIER, value='MyType', span=fake_span)
-    name_def = ast.NameDef(my_type_tok)
+    name_def = ast.NameDef(fake_span, 'MyType')
     type_def = ast.TypeDef(False, name_def, type_)
     type_ref = ast.TypeRef(fake_span, my_type_tok.value, type_def=type_def)
     type_ = ast.TypeAnnotation(fake_span, type_ref, (number_2, number_3))
@@ -91,15 +92,13 @@ class AstTest(test_base.TestCase):
     fake_pos = Pos('<fake>', 0, 0)
     fake_span = Span(fake_pos, fake_pos)
 
-    five = ast.Number(Token(TokenKind.NUMBER, value=5, span=fake_span))
-    t = ast.XlsTuple(fake_span, (five,))
+    t = ast.XlsTuple(fake_span, (self.five,))
     self.assertEqual('(5,)', str(t))
 
   def test_visit_type(self):
-    fake_pos = Pos('<fake>', 0, 0)
-    fake_span = Span(fake_pos, fake_pos)
+    fake_span = self.fake_span
+    five = self.five
     # Make a uN[5] type node.
-    five = ast.Number(Token(TokenKind.NUMBER, value=5, span=fake_span))
     t = ast.TypeAnnotation(
         fake_span,
         Token(TokenKind.KEYWORD, value=Keyword.BITS, span=fake_span),
@@ -112,12 +111,8 @@ class AstTest(test_base.TestCase):
   def test_visit_index(self):
     fake_span = self.fake_span
     # Make a t[i] inde xnode.
-    t = ast.NameRef(
-        Token(TokenKind.IDENTIFIER, value='t', span=fake_span),
-        ast.NameDef(Token(TokenKind.IDENTIFIER, value='t', span=fake_span)))
-    i = ast.NameRef(
-        Token(TokenKind.IDENTIFIER, value='i', span=fake_span),
-        ast.NameDef(Token(TokenKind.IDENTIFIER, value='i', span=fake_span)))
+    t = ast.NameRef(fake_span, 't', ast.NameDef(fake_span, 't'))
+    i = ast.NameRef(fake_span, 'i', ast.NameDef(fake_span, 'i'))
     index = ast.Index(fake_span, t, i)
 
     c = _Collector()
@@ -125,21 +120,19 @@ class AstTest(test_base.TestCase):
     self.assertEqual(c.collected, [t, i, index])
 
   def test_visit_unop(self):
-    fake_pos = self.fake_pos
-    fake_span = Span(fake_pos, fake_pos)
-    i = ast.NameRef(
-        Token(TokenKind.IDENTIFIER, value='i', span=fake_span),
-        ast.NameDef(Token(TokenKind.IDENTIFIER, value='i', span=fake_span)))
-    negated = ast.Unop(Token(TokenKind.MINUS, fake_span), i)
+    fake_span = self.fake_span
+    i_def = ast.NameDef(fake_span, 'i')
+    i_ref = ast.NameRef(fake_span, 'i', i_def)
+    negated = ast.Unop(Token(TokenKind.MINUS, fake_span), i_ref)
 
     c = _Collector()
     negated.accept(c)
-    self.assertEqual(c.collected, [i, negated])
+    self.assertEqual(c.collected, [i_ref, negated])
 
   def test_visit_match_multi_pattern(self):
     fake_pos = self.fake_pos
     fake_span = Span(fake_pos, fake_pos)
-    e = ast.Number(Token(TokenKind.NUMBER, value=u'0xf00', span=fake_span))
+    e = ast.Number(fake_span, u'0xf00')
     p0 = ast.NameDefTree(fake_span, e)
     p1 = ast.NameDefTree(fake_span, e)
     arm = ast.MatchArm(patterns=(p0, p1), expr=e)
@@ -150,27 +143,26 @@ class AstTest(test_base.TestCase):
   def test_unicode_hex_number(self):
     fake_pos = self.fake_pos
     fake_span = Span(fake_pos, fake_pos)
-    n = ast.Number(Token(TokenKind.NUMBER, value=u'0xf00', span=fake_span))
+    n = ast.Number(fake_span, u'0xf00')
     self.assertEqual(0xf00, n.get_value_as_int())
 
   def test_hex_number_with_underscores(self):
     fake_pos = self.fake_pos
     fake_span = Span(fake_pos, fake_pos)
-    n = ast.Number(
-        Token(TokenKind.NUMBER, value=u'0xf_abcde_1234', span=fake_span))
+    n = ast.Number(fake_span, '0xf_abcde_1234')
     self.assertEqual(0xfabcde1234, n.get_value_as_int())
 
   def test_binary_number_with_underscores(self):
     fake_pos = self.fake_pos
     fake_span = Span(fake_pos, fake_pos)
-    n = ast.Number(Token(TokenKind.NUMBER, value=u'0b1_0_0_1', span=fake_span))
+    n = ast.Number(fake_span, u'0b1_0_0_1')
     self.assertEqual(9, n.get_value_as_int())
 
   def test_ndt_preorder(self):
     fake_pos = self.fake_pos
     fake_span = Span(fake_pos, fake_pos)
-    t = ast.NameDef(Token(TokenKind.IDENTIFIER, value='t', span=fake_span))
-    u = ast.NameDef(Token(TokenKind.IDENTIFIER, value='u', span=fake_span))
+    t = ast.NameDef(fake_span, 't')
+    u = ast.NameDef(fake_span, 'u')
     wrapped_t = ast.NameDefTree(fake_span, t)
     wrapped_u = ast.NameDefTree(fake_span, u)
 
@@ -192,18 +184,15 @@ class AstTest(test_base.TestCase):
   def test_format_binop(self):
     fake_pos = self.fake_pos
     fake_span = Span(fake_pos, fake_pos)
-    five = ast.Number(Token(TokenKind.NUMBER, value='5', span=fake_span))
-    le = ast.Binop(Token(TokenKind.OANGLE_EQUALS, span=fake_span), five, five)
+    le = ast.Binop(
+        Token(TokenKind.OANGLE_EQUALS, span=fake_span), self.five, self.five)
     self.assertEqual('(5) <= (5)', str(le))
 
   def test_type_annotation_properties(self):
     fake_span = self.fake_span
-    token_5 = Token(TokenKind.NUMBER, fake_span, value='5')
-    token_2 = Token(TokenKind.NUMBER, fake_span, value='2')
-    token_3 = Token(TokenKind.NUMBER, fake_span, value='3')
-    number_5 = ast.Number(token_5)
-    number_2 = ast.Number(token_2)
-    number_3 = ast.Number(token_3)
+    number_5 = ast.Number(fake_span, '5')
+    number_2 = ast.Number(fake_span, '2')
+    number_3 = ast.Number(fake_span, '3')
     bits_token = Token(TokenKind.KEYWORD, value=Keyword.BITS, span=fake_span)
     un_token = Token(TokenKind.KEYWORD, value=Keyword.UN, span=fake_span)
     u32_token = Token(TokenKind.KEYWORD, value=Keyword.U32, span=fake_span)
@@ -245,10 +234,9 @@ class AstTest(test_base.TestCase):
     self.assertEqual('bits[]', str(type_))
 
     # TypeRef with dims.
-    my_type_tok = Token(TokenKind.IDENTIFIER, value='MyType', span=fake_span)
-    name_def = ast.NameDef(my_type_tok)
+    name_def = ast.NameDef(fake_span, 'MyType')
     type_def = ast.TypeDef(False, name_def, type_)
-    type_ref = ast.TypeRef(fake_span, my_type_tok.value, type_def=type_def)
+    type_ref = ast.TypeRef(fake_span, 'MyType', type_def=type_def)
     type_ = ast.TypeAnnotation(fake_span, type_ref, (number_2, number_3))
     self.assertTrue(type_.is_array())
     self.assertFalse(type_.is_tuple())

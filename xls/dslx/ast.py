@@ -34,6 +34,7 @@ from xls.dslx.core_ast_nodes import NameDef
 from xls.dslx.core_ast_nodes import NameDefTree
 from xls.dslx.core_ast_nodes import NameRef
 from xls.dslx.core_ast_nodes import Number
+from xls.dslx.core_ast_nodes import NumberKind
 from xls.dslx.core_ast_nodes import Ternary
 from xls.dslx.core_ast_nodes import TypeAnnotation
 from xls.dslx.core_ast_nodes import TypeDef

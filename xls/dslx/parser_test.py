@@ -682,7 +682,7 @@ proc simple(addend: u32) {
     self.assertIsInstance(e.alternate, ast.Number)
     self.assertEqual(e.alternate.value, '24')
     self.assertIsInstance(e.test, ast.Number)
-    self.assertEqual(e.test.value.value, 'true')
+    self.assertEqual(e.test.value, 'true')
 
   def test_constant_array(self):
     b = parser.Bindings(None)

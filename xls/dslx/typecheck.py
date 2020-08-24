@@ -156,7 +156,7 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
       higher_order_parametric_bindings = map_fn.parametric_bindings
     else:
       assert isinstance(map_fn_ref, ast.NameRef), map_fn_ref
-      map_fn_name = map_fn_ref.tok.value
+      map_fn_name = map_fn_ref.identifier
       if map_fn_ref.identifier not in dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
         map_fn = ctx.module.get_function(map_fn_name)
         higher_order_parametric_bindings = map_fn.parametric_bindings
@@ -275,7 +275,7 @@ def check_top_node_in_module(f: Union[ast.Function, ast.Test, ast.Struct,
       def is_callee_map(n: Optional[ast.AstNode]) -> bool:
         return (n and isinstance(n, ast.Invocation) and
                 isinstance(n.callee, ast.NameRef) and
-                n.callee.tok.value == 'map')
+                n.callee.identifier == 'map')
 
       if is_callee_map(stack_record.user):
         assert isinstance(f, ast.Function) and f.is_parametric()

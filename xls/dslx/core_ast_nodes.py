@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,14 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """AST nodes that form circular references / are more 'core' to the grammar.
 
 These are broken out largely to reduce pytype runtime on a monolithic AST file.
 """
 
 import abc
-from typing import Text, Optional, Union, Sequence, Tuple, List, cast
+import enum as enum_mod
+from typing import Text, Optional, Union, Tuple, List, cast
 
 from absl import logging
 
@@ -60,49 +62,25 @@ class BuiltinNameDef(AstNode):
     return self.identifier
 
 
-########################
-# Token-based AST nodes
-
-
-class TokenAstNode(AstNode, metaclass=abc.ABCMeta):
-  """AST node that simply wraps a token."""
-
-  TOKEN_KINDS = ()  # type: Tuple[TokenKind, ...]
-
-  def __init__(self, tok: Token):
-    assert isinstance(self.TOKEN_KINDS, Sequence)
-    assert isinstance(tok, Token), (self.__class__, tok)
-    assert tok.kind in self.TOKEN_KINDS, (
-        'Unexpected token kind for TokenAstNode subclass', self, tok)
-    self.tok = tok
-
-  def __repr__(self) -> Text:
-    return '{}({!r})'.format(self.__class__.__name__, self.tok)
-
-  @property
-  def span(self) -> Span:
-    return self.tok.span
-
-
-class NameDef(TokenAstNode):
+class NameDef(AstNode):
   """Represents the definition of a name (identifier)."""
-  TOKEN_KINDS = (TokenKind.IDENTIFIER,)
 
-  def __str__(self) -> Text:
+  def __init__(self, span: Span, identifier: str):
+    self.span = span
+    self.identifier = identifier
+
+  def __str__(self) -> str:
     return self.identifier
-
-  @property
-  def identifier(self) -> Text:
-    return self.tok.value
 
   def get_free_variables(self, start_pos: Pos) -> FreeVariables:
     return FreeVariables()
 
 
-class WildcardPattern(TokenAstNode):
+class WildcardPattern(AstNode):
   """Represents a wildcard pattern in a 'match' construct."""
 
-  TOKEN_KINDS = (TokenKind.IDENTIFIER,)
+  def __init__(self, span: Span):
+    self.span = span
 
   def __str__(self) -> Text:
     return self.identifier
@@ -216,18 +194,19 @@ class TypeRef(Expr):
     return FreeVariables()
 
 
-class NameRef(TokenAstNode, Expr):
+class NameRef(Expr):
   """Represents a reference to a name (identifier)."""
   TOKEN_KINDS = (TokenKind.IDENTIFIER,)
 
-  def __init__(self, tok: Token, name_def: Union['NameDef', 'BuiltinNameDef']):
-    TokenAstNode.__init__(self, tok)
-    Expr.__init__(self, tok.span)
+  def __init__(self, span: Span, identifier: str,
+               name_def: Union['NameDef', 'BuiltinNameDef']):
+    super().__init__(span)
+    self.identifier = identifier
     self.name_def = name_def
 
   def __repr__(self) -> Text:
-    return '{}(tok={!r}, name_def={!r})'.format(self.__class__.__name__,
-                                                self.tok, self.name_def)
+    return (f'NameRef(identifier={self.identifier!r},'
+            f'name_def={self.name_def!r})')
 
   def __str__(self) -> Text:
     return self.identifier
@@ -236,10 +215,6 @@ class NameRef(TokenAstNode, Expr):
     if not hasattr(self.name_def, 'span') or self.name_def.span.start < pos:
       return FreeVariables({self.identifier: [self]})
     return FreeVariables()
-
-  @property
-  def identifier(self) -> Text:
-    return self.tok.value
 
 
 class ConstRef(NameRef):
@@ -414,18 +389,31 @@ class NameDefTree(AstNode):
     return self.tree.get_free_variables(start_pos)
 
 
-class Number(TokenAstNode, Expr):
-  """Represents a number."""
-  TOKEN_KINDS = (TokenKind.NUMBER, TokenKind.CHARACTER, TokenKind.KEYWORD)
+class NumberKind(enum_mod.Enum):
+  CHARACTER = 'character'
+  BOOL = 'bool'
+  OTHER = 'other'
 
-  def __init__(self, tok: Token, type_: Optional['TypeAnnotation'] = None):
-    TokenAstNode.__init__(self, tok)
-    Expr.__init__(self, tok.span)
+
+class Number(Expr):
+  """Represents a number."""
+
+  def __init__(self,
+               span: Span,
+               value: str,
+               kind: NumberKind = NumberKind.OTHER,
+               type_: Optional['TypeAnnotation'] = None):
+    super().__init__(span)
+    self.kind = kind
+    self.value = value
+    if kind == NumberKind.BOOL:
+      assert value in ('true', 'false'), value
+    if value in ('true', 'false'):
+      assert kind == NumberKind.BOOL, kind
     self._type = type_
-    if isinstance(self.value, str):
-      assert not self.value.endswith(
-          'L'), 'Number value had a Python-like "L" suffix: {!r}'.format(
-              self.value)
+    assert isinstance(value, str), value
+    if kind != NumberKind.CHARACTER:
+      assert not value.endswith('L'), f'Number value had "L" suffix: {value!r}'
 
   def _accept_children(self, visitor: AstVisitor) -> None:
     if self._type:
@@ -447,27 +435,25 @@ class Number(TokenAstNode, Expr):
     return str(self.value)
 
   def __repr__(self) -> Text:
-    return 'Number(tok={!r}, type_={!r})'.format(self.tok, self.type_)
-
-  @property
-  def value(self) -> Text:
-    return self.tok.value
+    return (f'Number(kind={self.kind!r}, value={self.value!r}, '
+            f'type_={self.type_!r})')
 
   def get_value_as_int(self) -> int:
     """Returns the numerical value contained in the AST node as a Python int."""
-    if self.tok.kind == TokenKind.CHARACTER:
+    if self.kind == NumberKind.CHARACTER:
       return ord(self.value)
-    if self.tok.is_keyword(Keyword.TRUE):
-      return 1
-    if self.tok.is_keyword(Keyword.FALSE):
-      return 0
-    if isinstance(self.value, str):
-      if self.value.startswith(('0x', '-0x')):
-        return int(self.value.replace('_', ''), 16)
-      if self.value.startswith(('0b', '-0b')):
-        return int(self.value.replace('_', ''), 2)
-      return int(self.value.replace('_', ''))
-    return self.tok.value
+    if self.kind == NumberKind.BOOL:
+      if self.value == 'true':
+        return 1
+      else:
+        assert self.value == 'false'
+        return 0
+    assert isinstance(self.value, str), self.value
+    if self.value.startswith(('0x', '-0x')):
+      return int(self.value.replace('_', ''), 16)
+    if self.value.startswith(('0b', '-0b')):
+      return int(self.value.replace('_', ''), 2)
+    return int(self.value.replace('_', ''))
 
   def get_free_variables(
       self,

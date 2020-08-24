@@ -173,8 +173,8 @@ class AstGenerator(object):
     """Creates type annotations for widths > 64 bits."""
     token = scanner.Token(scanner.TokenKind.KEYWORD, self.fake_span,
                           scanner.Keyword[kw_identifier])
-    dims = (ast.Number(
-        scanner.Token(scanner.TokenKind.NUMBER, self.fake_span, width)),)
+    dim = self._make_number(width, None)
+    dims = (dim,)
     return ast.TypeAnnotation(self.fake_span, token, dims)
 
   def _get_type_bit_count(self, type_: ast.TypeAnnotation) -> int:
@@ -242,24 +242,23 @@ class AstGenerator(object):
                          identifier)
 
   def _make_name_ref(self, name_def: ast.NameDef) -> ast.NameRef:
-    return ast.NameRef(
-        self._make_identifier_token(name_def.identifier), name_def)
+    return ast.NameRef(self.fake_span, name_def.identifier, name_def)
 
   def _make_name_def(self, identifier: Text) -> ast.NameDef:
-    return ast.NameDef(self._make_identifier_token(identifier))
+    return ast.NameDef(self.fake_span, identifier)
 
   def _generate_param(self) -> ast.Param:
     identifier = self.gensym()
     type_ = self._generate_bits_type()
-    name_def = ast.NameDef(self._make_identifier_token(identifier))
+    name_def = ast.NameDef(self.fake_span, identifier)
     return ast.Param(name_def, type_)
 
   def _generate_params(self, count: int) -> Tuple[ast.Param, ...]:
     return tuple(self._generate_param() for _ in range(count))
 
   def _builtin_name_ref(self, identifier: Text) -> ast.NameRef:
-    tok = self._make_identifier_token(identifier)
-    return ast.NameRef(tok, ast.BuiltinNameDef(identifier))
+    return ast.NameRef(self.fake_span, identifier,
+                       ast.BuiltinNameDef(identifier))
 
   def _make_ge(self, lhs: ast.Expr, rhs: ast.Expr) -> ast.Expr:
     return ast.Binop(
@@ -623,16 +622,11 @@ class AstGenerator(object):
   def _make_number(self, value: int,
                    type_: Optional[ast.TypeAnnotation]) -> ast.Number:
     """Creates a number AST node with value 'value' of type 'type_'."""
-    tok = scanner.Token(
-        scanner.TokenKind.NUMBER, self.fake_span, value=hex(value).rstrip('L'))
-    num = ast.Number(tok, type_)
-    return num
+    return ast.Number(self.fake_span,
+                      hex(value).rstrip('L'), ast.NumberKind.OTHER, type_)
 
   def _make_bool(self, value: bool) -> ast.Number:
-    tok = scanner.Token(
-        scanner.TokenKind.NUMBER, self.fake_span, value=str(int(value)))
-    num = ast.Number(tok, self._make_type_annotation('u1'))
-    return num
+    return self._make_number(int(value), self._make_type_annotation('u1'))
 
   def _generate_number(
       self,
@@ -747,7 +741,7 @@ class AstGenerator(object):
     """Generates an expression AST node and returns it."""
     if self.should_nest(level):
       identifier = self.gensym()
-      name_def = ast.NameDef(self._make_identifier_token(identifier))
+      name_def = ast.NameDef(self.fake_span, identifier)
       choices = collections.OrderedDict()
       if self.options.emit_loops:
         choices[self._generate_counted_for] = 1.0
@@ -817,7 +811,7 @@ class AstGenerator(object):
     body, body_type = self._generate_body(level, params)
     return ast.Function(
         self.fake_span,
-        ast.NameDef(self._make_identifier_token(name)),
+        ast.NameDef(self.fake_span, name),
         parametric_bindings=(),
         params=params,
         return_type=body_type,

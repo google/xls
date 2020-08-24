@@ -320,8 +320,7 @@ def _create_element_invocation(span_: span.Span, callee: Union[ast.NameRef,
   annotation = ast.TypeAnnotation(
       span_, scanner.Token(scanner.TokenKind.KEYWORD, span_,
                            scanner.Keyword.U32), ())
-  index_number = ast.Number(
-      scanner.Token(scanner.TokenKind.KEYWORD, span_, '32'), annotation)
+  index_number = ast.Number(span_, '32', ast.NumberKind.OTHER, annotation)
   index = ast.Index(span_, arg_array, index_number)
   return ast.Invocation(span_, callee, (index,))
 
@@ -423,7 +422,7 @@ def _deduce_Invocation(self: ast.Invocation, ctx: DeduceCtx) -> ConcreteType:  #
     callee_fn = imported_module.get_function(callee_name)
   else:
     assert isinstance(self.callee, ast.NameRef), self.callee
-    callee_name = self.callee.tok.value
+    callee_name = self.callee.identifier
     callee_fn = ctx.module.get_function(callee_name)
 
   self_type, callee_sym_bindings = parametric_instantiator.instantiate_function(
@@ -852,9 +851,9 @@ def _deduce_EnumRef(self: ast.EnumRef, ctx: DeduceCtx) -> ConcreteType:  # pytyp
 def _deduce_Number(self: ast.Number, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of a Number AST node."""
   if not self.type_:
-    if self.tok.is_keyword_in((scanner.Keyword.TRUE, scanner.Keyword.FALSE)):
+    if self.kind == ast.NumberKind.BOOL:
       return ConcreteType.U1
-    if self.tok.kind == scanner.TokenKind.CHARACTER:
+    if self.kind == ast.NumberKind.CHARACTER:
       return ConcreteType.U8
     raise TypeInferenceError(
         span=self.span,

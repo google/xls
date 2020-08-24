@@ -61,8 +61,6 @@ from xls.dslx.parametric_expression import ParametricAdd
 from xls.dslx.parametric_expression import ParametricExpression
 from xls.dslx.parametric_expression import ParametricSymbol
 from xls.dslx.parametric_instantiator import SymbolicBindings
-from xls.dslx.scanner import Keyword
-from xls.dslx.scanner import TokenKind
 from xls.dslx.span import Pos
 from xls.dslx.span import Span
 from xls.ir.python import llvm_ir_jit
@@ -399,11 +397,9 @@ class Interpreter(object):
         tuple cannot be the type for a number).
     """
     logging.vlog(4, 'number: %s @ %s', expr, expr.span)
-    if expr.tok.is_keyword_in((Keyword.TRUE, Keyword.FALSE)):
-      type_context = type_context or ConcreteType.U1
-    if not type_context and expr.tok.kind == TokenKind.CHARACTER:
+    if not type_context and expr.kind == ast.NumberKind.CHARACTER:
       type_context = ConcreteType.U8
-    if not type_context and expr.tok.kind == TokenKind.KEYWORD:
+    if not type_context and expr.kind == ast.NumberKind.BOOL:
       type_context = ConcreteType.U1  # Boolean.
     if not type_context and expr.type_ is None:
       raise EvaluateError(

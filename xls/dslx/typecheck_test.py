@@ -836,6 +836,14 @@ fn f() -> Foo {
     """
     self._typecheck(program)
 
+  def test_char_literal_array(self):
+    program = """
+    fn main() -> u8[3] {
+      u8[3]:['X', 'L', 'S']
+    }
+    """
+    self._typecheck(program)
+
   def test_bad_array_literal_type(self):
     program = """
     fn main() -> s32[2] {

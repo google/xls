@@ -64,6 +64,26 @@ _BITWISE_KINDS = (
 )  # type: Tuple[TokenKind]
 
 
+def tok_to_number(tok: Token) -> ast.Number:
+  """Converts a numerical token into a number AST node."""
+  if tok.kind == TokenKind.CHARACTER:
+    number_kind = ast.NumberKind.CHARACTER
+    value = tok.value
+  elif tok.kind == TokenKind.KEYWORD:
+    assert tok.value in (Keyword.TRUE, Keyword.FALSE), tok.value
+    number_kind = ast.NumberKind.BOOL
+    value = tok.value.value
+  else:
+    number_kind = ast.NumberKind.OTHER
+    value = tok.value
+  assert isinstance(value, str), value
+  return ast.Number(tok.span, value, number_kind)
+
+
+def tok_to_name_def(tok: Token) -> ast.NameDef:
+  return ast.NameDef(tok.span, tok.value)
+
+
 @dataclasses.dataclass
 class _ParserOptions:
   let_terminator_is_semi: bool
@@ -128,7 +148,7 @@ class Parser(token_parser.TokenParser):
     if tok.kind == TokenKind.IDENTIFIER:
       return self._parse_name_ref(bindings, tok=self._popt())
     elif tok.kind == TokenKind.NUMBER:
-      return ast.Number(self._popt())
+      return tok_to_number(self._popt())
     else:
       raise ParseError(tok.span,
                        f'Expected number or identifier; got {tok.kind}')
@@ -231,8 +251,8 @@ class Parser(token_parser.TokenParser):
       tok = self._popt_or_error(TokenKind.IDENTIFIER)
     name_def = bindings.resolve(tok.value, tok.span)
     if isinstance(bindings.resolve_node(tok.value, tok.span), ast.Constant):
-      return ast.ConstRef(tok, name_def)
-    return ast.NameRef(tok, name_def)
+      return ast.ConstRef(tok.span, tok.value, name_def)
+    return ast.NameRef(tok.span, tok.value, name_def)
 
   def _parse_colon_ref(self, bindings: Bindings,
                        subject_tok: Token) -> Union[ast.EnumRef, ast.ModRef]:
@@ -349,15 +369,15 @@ class Parser(token_parser.TokenParser):
 
   def _parse_name_def(self, bindings: Bindings) -> ast.NameDef:
     tok = self._popt_or_error(TokenKind.IDENTIFIER)
-    name_def = ast.NameDef(tok)
+    name_def = tok_to_name_def(tok)
     bindings.add(name_def.identifier, name_def)
     return name_def
 
-  def _parse_name_def_or_wildcard(self, bindings: Bindings
-                                 ) -> Union[ast.NameDef, ast.WildcardPattern]:
+  def _parse_name_def_or_wildcard(
+      self, bindings: Bindings) -> Union[ast.NameDef, ast.WildcardPattern]:
     tok = self._try_pop_identifier_token('_')
     if tok:
-      return ast.WildcardPattern(tok)
+      return ast.WildcardPattern(tok.span)
     return self._parse_name_def(bindings)
 
   def _parse_name_def_tree(self, bindings: Bindings) -> ast.NameDefTree:
@@ -393,9 +413,9 @@ class Parser(token_parser.TokenParser):
     """Returns a parsed number (literal number) expression."""
     tok = self._peekt()
     if tok.kind in (TokenKind.NUMBER, TokenKind.CHARACTER):
-      return ast.Number(self._popt())
+      return tok_to_number(self._popt())
     if tok.is_keyword_in((Keyword.TRUE, Keyword.FALSE)):
-      return ast.Number(self._popt())
+      return tok_to_number(self._popt())
 
     # Numbers can also be given as u32:4 -- last ditch effort to parse one of
     # those.
@@ -614,7 +634,7 @@ class Parser(token_parser.TokenParser):
 
       if self._try_popt(TokenKind.DOT):  # Attribute.
         tok = self._popt_or_error(TokenKind.IDENTIFIER)
-        attr = ast.NameDef(tok)
+        attr = tok_to_name_def(tok)
         span = Span(new_pos, self._get_pos())
         lhs = ast.Attr(span, lhs, attr)
         continue
@@ -821,18 +841,18 @@ class Parser(token_parser.TokenParser):
     if self._peekt_is(TokenKind.IDENTIFIER):
       tok = self._popt_or_error(TokenKind.IDENTIFIER)
       if tok.value == '_':
-        return ast.NameDefTree(tok.span, ast.WildcardPattern(tok))
+        return ast.NameDefTree(tok.span, ast.WildcardPattern(tok.span))
       if self._peekt_is(TokenKind.DOUBLE_COLON):
         return ast.NameDefTree(tok.span, self._parse_colon_ref(bindings, tok))
       resolved = bindings.resolve_or_none(tok.value)
       if resolved:
         assert isinstance(resolved, (ast.NameDef, ast.BuiltinNameDef)), resolved
         if isinstance(bindings.resolve_node(tok.value, tok.span), ast.Constant):
-          ref = ast.ConstRef(tok, resolved)
+          ref = ast.ConstRef(tok.span, tok.value, resolved)
         else:
-          ref = ast.NameRef(tok, resolved)
+          ref = ast.NameRef(tok.span, tok.value, resolved)
         return ast.NameDefTree(tok.span, ref)
-      name_def = ast.NameDef(tok)
+      name_def = tok_to_name_def(tok)
       bindings.add(name_def.identifier, name_def)
       return ast.NameDefTree(tok.span, name_def)
 
@@ -982,7 +1002,7 @@ class Parser(token_parser.TokenParser):
 
     def parse_struct_member() -> Tuple[ast.NameDef, ast.TypeAnnotation]:
       tok = self._popt_or_error(TokenKind.IDENTIFIER)
-      name_def = ast.NameDef(tok)
+      name_def = tok_to_name_def(tok)
       self._dropt_or_error(TokenKind.COLON)
       type_ = self._parse_type_annotation(bindings)
       return (name_def, type_)
@@ -1088,7 +1108,7 @@ class Parser(token_parser.TokenParser):
       if tok.kind == TokenKind.IDENTIFIER:
         return self._parse_name_ref(bindings, tok=self._popt())
       elif tok.kind == TokenKind.NUMBER:
-        return ast.Number(self._popt())
+        return tok_to_number(self._popt())
       else:
         raise ParseError(tok.span,
                          f'Expected number or identifier; got {tok.kind}')
@@ -1183,7 +1203,7 @@ class Parser(token_parser.TokenParser):
       alias = name_def.identifier
     else:
       alias = None
-      name_def = ast.NameDef(toks[-1])
+      name_def = tok_to_name_def(toks[-1])
     import_ = ast.Import(kw.span, subject, name_def, alias)
     bindings.add(name_def.identifier, import_)
     return import_
