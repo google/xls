@@ -31,7 +31,7 @@ class _Collector(ast.AstVisitor):
   def __init__(self):
     self.collected = []
 
-  def visit_TypeAnnotation(self, node: ast.TypeAnnotation) -> None:
+  def visit_ArrayTypeAnnotation(self, node: ast.ArrayTypeAnnotation) -> None:
     self.collected.append(node)
 
   def visit_Number(self, node: ast.Number) -> None:
@@ -68,25 +68,27 @@ class AstTest(test_base.TestCase):
     number_3 = ast.Number(fake_span, '3')
     bits_token = Token(TokenKind.KEYWORD, value=Keyword.BITS, span=fake_span)
 
-    type_ = ast.TypeAnnotation(fake_span, bits_token, (number_5,))
+    type_ = ast.make_builtin_type_annotation(fake_span, bits_token, (number_5,))
     self.assertEqual('bits[5]', str(type_))
 
-    type_ = ast.TypeAnnotation(
+    type_ = ast.make_builtin_type_annotation(
         fake_span, Token(TokenKind.KEYWORD, value=Keyword.U32, span=fake_span),
         (number_5,))
     self.assertEqual('u32[5]', str(type_))
 
     # "no-volume" bits array.
-    type_ = ast.TypeAnnotation(fake_span, bits_token, ())
-    self.assertEqual('bits[]', str(type_))
+    # TODO(leary): 2020-08-24 delete bits in favor of uN
+    type_ = ast.make_builtin_type_annotation(fake_span, bits_token, ())
+    self.assertEqual('bits', str(type_))
 
     # TypeRef with dims.
     my_type_tok = Token(TokenKind.IDENTIFIER, value='MyType', span=fake_span)
     name_def = ast.NameDef(fake_span, 'MyType')
     type_def = ast.TypeDef(False, name_def, type_)
     type_ref = ast.TypeRef(fake_span, my_type_tok.value, type_def=type_def)
-    type_ = ast.TypeAnnotation(fake_span, type_ref, (number_2, number_3))
-    self.assertEqual('MyType[2,3]', str(type_))
+    type_ = ast.make_type_ref_type_annotation(fake_span, type_ref,
+                                              (number_2, number_3))
+    self.assertEqual('MyType[2][3]', str(type_))
 
   def test_stringify_single_member_tuple(self):
     fake_pos = Pos('<fake>', 0, 0)
@@ -99,10 +101,11 @@ class AstTest(test_base.TestCase):
     fake_span = self.fake_span
     five = self.five
     # Make a uN[5] type node.
-    t = ast.TypeAnnotation(
+    t = ast.make_builtin_type_annotation(
         fake_span,
         Token(TokenKind.KEYWORD, value=Keyword.BITS, span=fake_span),
         dims=(five,))
+    assert isinstance(t, ast.ArrayTypeAnnotation), t
 
     c = _Collector()
     t.accept(c)
@@ -197,59 +200,48 @@ class AstTest(test_base.TestCase):
     un_token = Token(TokenKind.KEYWORD, value=Keyword.UN, span=fake_span)
     u32_token = Token(TokenKind.KEYWORD, value=Keyword.U32, span=fake_span)
 
-    type_ = ast.TypeAnnotation(fake_span, bits_token, (number_5,))
-    self.assertFalse(type_.is_array())
-    self.assertFalse(type_.is_tuple())
+    type_ = ast.make_builtin_type_annotation(fake_span, bits_token, (number_5,))
     self.assertEqual('bits[5]', str(type_))
 
-    type_ = ast.TypeAnnotation(fake_span, bits_token, (number_5, number_2))
-    self.assertTrue(type_.is_array())
-    self.assertFalse(type_.is_tuple())
-    self.assertEqual('bits[5,2]', str(type_))
+    type_ = ast.make_builtin_type_annotation(fake_span, bits_token,
+                                             (number_5, number_2))
+    self.assertIsInstance(type_, ast.ArrayTypeAnnotation)
+    self.assertEqual('bits[5][2]', str(type_))
 
-    type_ = ast.TypeAnnotation(fake_span, u32_token, ())
-    self.assertFalse(type_.is_array())
-    self.assertFalse(type_.is_tuple())
+    type_ = ast.make_builtin_type_annotation(fake_span, u32_token, ())
     self.assertEqual('u32', str(type_))
 
-    type_ = ast.TypeAnnotation(fake_span, u32_token, (number_3,))
-    self.assertTrue(type_.is_array())
-    self.assertFalse(type_.is_tuple())
+    type_ = ast.make_builtin_type_annotation(fake_span, u32_token, (number_3,))
+    self.assertIsInstance(type_, ast.ArrayTypeAnnotation)
     self.assertEqual('u32[3]', str(type_))
 
-    type_ = ast.TypeAnnotation(fake_span, un_token, (number_2,))
-    self.assertFalse(type_.is_array())
-    self.assertFalse(type_.is_tuple())
+    type_ = ast.make_builtin_type_annotation(fake_span, un_token, (number_2,))
     self.assertEqual('uN[2]', str(type_))
 
-    type_ = ast.TypeAnnotation(fake_span, un_token, (number_2, number_3))
-    self.assertTrue(type_.is_array())
-    self.assertFalse(type_.is_tuple())
-    self.assertEqual('uN[2,3]', str(type_))
+    type_ = ast.make_builtin_type_annotation(fake_span, un_token,
+                                             (number_2, number_3))
+    self.assertIsInstance(type_, ast.ArrayTypeAnnotation)
+    self.assertEqual('uN[2][3]', str(type_))
 
+    # TODO(leary): 2020-08-24 delete bits in favor of uN
     # "no-volume" bits array.
-    type_ = ast.TypeAnnotation(fake_span, bits_token, ())
-    self.assertFalse(type_.is_array())
-    self.assertFalse(type_.is_tuple())
-    self.assertEqual('bits[]', str(type_))
+    type_ = ast.make_builtin_type_annotation(fake_span, bits_token, ())
+    self.assertEqual('bits', str(type_))
 
     # TypeRef with dims.
     name_def = ast.NameDef(fake_span, 'MyType')
     type_def = ast.TypeDef(False, name_def, type_)
     type_ref = ast.TypeRef(fake_span, 'MyType', type_def=type_def)
-    type_ = ast.TypeAnnotation(fake_span, type_ref, (number_2, number_3))
-    self.assertTrue(type_.is_array())
-    self.assertFalse(type_.is_tuple())
-    self.assertEqual('MyType[2,3]', str(type_))
+    type_ = ast.make_type_ref_type_annotation(fake_span, type_ref,
+                                              (number_2, number_3))
+    self.assertIsInstance(type_, ast.ArrayTypeAnnotation)
+    self.assertEqual('MyType[2][3]', str(type_))
 
-    type_ = ast.TypeAnnotation.make_tuple(
+    type_ = ast.TupleTypeAnnotation(
         fake_span,
-        Token(TokenKind.OPAREN, value='(', span=fake_span), (ast.TypeAnnotation(
-            fake_span, bits_token,
-            (number_5,)), ast.TypeAnnotation(fake_span, bits_token,
-                                             (number_2,))))
-    self.assertFalse(type_.is_array())
-    self.assertTrue(type_.is_tuple())
+        (ast.make_builtin_type_annotation(fake_span, bits_token, (number_5,)),
+         ast.make_builtin_type_annotation(fake_span, bits_token, (number_2,))))
+    self.assertIsInstance(type_, ast.TupleTypeAnnotation)
     self.assertEqual('(bits[5], bits[2])', str(type_))
 
 

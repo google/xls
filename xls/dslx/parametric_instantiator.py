@@ -28,11 +28,11 @@ from xls.dslx.concrete_type import EnumType
 from xls.dslx.concrete_type import FunctionType
 from xls.dslx.concrete_type import TupleType
 from xls.dslx.span import Span
+from xls.dslx.symbolic_bindings import SymbolicBindings
 from xls.dslx.xls_type_error import ArgCountMismatchError
 from xls.dslx.xls_type_error import XlsTypeError
 
 Invocation = Any  # pylint: disable=invalid-name
-SymbolicBindings = Tuple[Tuple[Text, int], ...]
 ParametricBinding = Any
 ParametricBindings = Tuple[ParametricBinding, ...]
 DeduceCtx = Any
@@ -54,7 +54,8 @@ class _ParametricInstantiator:
 
     if parametric_constraints:
       for b in parametric_constraints:
-        bit_count = b.type_.primitive_to_bits()
+        type_ = b.type_
+        bit_count = type_.primitive_bits
         self.bit_widths[b.name.identifier] = bit_count
         self.constraints[b.name.identifier] = b.expr
 

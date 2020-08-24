@@ -665,6 +665,7 @@ fn f() -> Foo {
         error_type=TypeInferenceError)
 
   def _typecheck_si(self, s: Text, *args, **kwargs):
+    """Shorthand for 'typecheck struct instance'."""
     program = """
     struct Point {
       x: s8,
@@ -876,6 +877,19 @@ fn f() -> Foo {
         program,
         error_type=span.PositionalError,
         error='Quickchecking parametric functions is unsupported')
+
+  def test_array_ellipsis(self):
+    self._typecheck("""
+    fn main() -> u8[2] {
+      u8[2]:[0, ...]
+    }
+    """)
+
+  def test_index(self):
+    self._typecheck("""\
+    fn f(x: uN[32][4]) -> u32 {
+      x[u32:0]
+    }""")
 
 
 if __name__ == '__main__':

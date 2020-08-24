@@ -104,6 +104,12 @@ py_test(
 )
 
 py_library(
+    name = "symbolic_bindings",
+    srcs = ["symbolic_bindings.py"],
+    srcs_version = "PY3",
+)
+
+py_library(
     name = "parametric_instantiator",
     srcs = ["parametric_instantiator.py"],
     srcs_version = "PY3",
@@ -111,6 +117,7 @@ py_library(
         ":concrete_type",
         ":parametric_expression",
         ":span",
+        ":symbolic_bindings",
         ":xls_type_error",
         "@com_google_absl_py//absl/logging",
     ],
@@ -141,9 +148,9 @@ py_library(
         ":ast_node",
         ":core_ast_nodes",
         ":free_variables",
-        ":parametric_instantiator",
         ":scanner",
         ":span",
+        ":symbolic_bindings",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -447,6 +454,7 @@ py_test(
         ":fakefs_util",
         ":ir_converter",
         ":parser_helpers",
+        ":span",
         ":typecheck",
         "//xls/common:runfiles",
         "@com_google_absl_py//absl/testing:absltest",

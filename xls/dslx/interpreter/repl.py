@@ -53,7 +53,8 @@ def concrete_type_to_annotation(
     keyword = SN_KEYWORD if concrete_type.get_signedness() else UN_KEYWORD
     num_tok = scanner.Token(scanner.TokenKind.NUMBER, FAKE_SPAN,
                             concrete_type.get_total_bit_count())
-    return ast.TypeAnnotation(FAKE_SPAN, keyword, dims=(ast.Number(num_tok),))
+    return ast.make_builtin_type_annotation(
+        FAKE_SPAN, keyword, dims=(ast.Number(num_tok),))
 
   raise NotImplementedError(concrete_type)
 

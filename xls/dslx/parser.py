@@ -1,4 +1,5 @@
 # Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -164,8 +165,7 @@ class Parser(token_parser.TokenParser):
     while self._try_popt(TokenKind.OBRACK):
       dims.append(self._parse_dim(bindings))
       self._dropt_or_error(TokenKind.CBRACK)
-    # Reversed to emulate the old [major,minor] style of syntax.
-    return tuple(reversed(dims))
+    return tuple(dims)
 
   def _parse_mod_type_ref(self, bindings: Bindings,
                           start_tok: Token) -> ast.TypeRef:
@@ -211,37 +211,32 @@ class Parser(token_parser.TokenParser):
       # Builtin types.
       if self._peekt_is(TokenKind.OBRACK):
         dims = self._parse_dims(bindings)
-        return ast.TypeAnnotation(
-            Span(tok.span.start, self._get_pos()), tok, dims)
-      return ast.TypeAnnotation(tok.span, tok, dims=())
+      else:
+        dims = ()
+      return ast.make_builtin_type_annotation(
+          Span(tok.span.start, self._get_pos()), tok, dims)
 
     if tok.kind == TokenKind.OPAREN:  # Tuple of types.
       types = self._parse_comma_seq(
           self._parse_type_annotation, TokenKind.CPAREN, args=(bindings,))
       span = Span(tok.span.start, self._get_pos())
-      return ast.TypeAnnotation.make_tuple(span, tok, types)
+      return ast.TupleTypeAnnotation(span, types)
 
     type_ref = self._parse_type_ref(bindings, tok)
 
     # Type ref may be followed by dimensions.
+    parametrics = None
+    dims = ()
     if self._peekt_is(TokenKind.OBRACK):
-      parametrics = None
       type_ = bindings.resolve_node(type_ref.text, type_ref.span)
       if isinstance(type_, ast.Struct) and type_.is_parametric():
         parametrics = self._parse_parametrics(bindings)
 
-      dims = None
-
       if self._peekt_is(TokenKind.OBRACK):
         dims = self._parse_dims(bindings)
-      return ast.TypeAnnotation(
-          Span(tok.span.start, self._get_pos()),
-          type_ref,
-          dims=dims,
-          parametrics=parametrics)
 
     span = Span(tok.span.start, self._get_pos())
-    return ast.TypeAnnotation(span, type_ref)
+    return ast.make_type_ref_type_annotation(span, type_ref, dims, parametrics)
 
   def _parse_name_ref(self,
                       bindings: Bindings,
@@ -288,10 +283,9 @@ class Parser(token_parser.TokenParser):
   def _resolve_struct(
       self, bindings: Bindings,
       type_: ast.TypeAnnotation) -> Union[ast.Struct, ast.ModRef]:
-    assert isinstance(type_, ast.TypeAnnotation), type_
-    assert type_.is_typeref(), type_
-    typeref = type_.get_typeref()
-    struct = typeref.type_def
+    assert isinstance(type_, ast.TypeRefTypeAnnotation), type_
+    type_ref = type_.type_ref
+    struct = type_ref.type_def
 
     while isinstance(struct, ast.TypeDef):
       struct = self._resolve_struct(bindings, struct.type_)
@@ -596,8 +590,8 @@ class Parser(token_parser.TokenParser):
     elif tok.kind == TokenKind.IDENTIFIER:
       lhs = self._parse_name_or_colon_ref(bindings)
       if isinstance(lhs, ast.ModRef) and self._peekt_is(TokenKind.OBRACE):
-        type_ = ast.TypeAnnotation(lhs.span,
-                                   ast.TypeRef(lhs.span, str(lhs), lhs))
+        type_ = ast.make_type_ref_type_annotation(
+            lhs.span, ast.TypeRef(lhs.span, str(lhs), lhs), ())
         return self._parse_struct_instance(bindings, type_)
     elif tok.is_keyword(Keyword.CARRY):
       self._dropt()

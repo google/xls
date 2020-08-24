@@ -317,7 +317,7 @@ def _create_element_invocation(span_: span.Span, callee: Union[ast.NameRef,
     An invocation node for the given function when called with an element in the
     argument array.
   """
-  annotation = ast.TypeAnnotation(
+  annotation = ast.make_builtin_type_annotation(
       span_, scanner.Token(scanner.TokenKind.KEYWORD, span_,
                            scanner.Keyword.U32), ())
   index_number = ast.Number(span_, '32', ast.NumberKind.OTHER, annotation)
@@ -887,108 +887,69 @@ def _dim_to_parametric(self: ast.TypeAnnotation,
   raise TypeInferenceError(self.span, self, suffix=msg)
 
 
-def _concretize_struct_annotation(type_annotation: ast.TypeAnnotation,
-                                  struct: ast.Struct,
-                                  base_type: ConcreteType) -> ConcreteType:
-  """Returns concretized struct type using the provided bindings.
-
-  For example, if we have a struct defined as `struct [N: u32, M: u32] Foo`,
-  the default TupleType will be (N, M). If a type annotation provides bindings,
-  (e.g. Foo[A, 16]), we will replace N, M with those values. In the case above,
-  we will return (A, 16) instead.
-
-  Args:
-    type_annotation: The provided type annotation for this parametric struct.
-    struct: The corresponding struct AST node.
-    base_type: The TupleType of the struct, based only on the struct definition.
-  """
-  assert len(struct.parametric_bindings) == len(type_annotation.parametrics)
-  defined_to_annotated = {}
-  for defined_parametric, annotated_parametric in zip(
-      struct.parametric_bindings, type_annotation.parametrics):
-    if isinstance(annotated_parametric, ast.Number):
-      defined_to_annotated[defined_parametric.name.identifier] = \
-          int(annotated_parametric.value)
-    else:
-      defined_to_annotated[defined_parametric.name.identifier] = \
-          ParametricSymbol(annotated_parametric.identifier,
-                           annotated_parametric.span)
-
-  def resolver(dim):
-    if isinstance(dim, ParametricExpression):
-      return dim.evaluate(defined_to_annotated)
-    return dim
-
-  return base_type.map_size(resolver)
+def _dim_to_parametric_or_int(
+    self: ast.TypeAnnotation, expr: ast.Expr,
+    ctx: DeduceCtx) -> Union[int, ParametricExpression]:
+  if isinstance(expr, ast.Number):
+    ctx.node_to_type[expr] = ConcreteType.U32
+    return expr.get_value_as_int()
+  if isinstance(expr, ast.ConstRef):
+    return ctx.node_to_type.get_const_int(expr.name_def, expr.span)
+  return _dim_to_parametric(self, expr)
 
 
-def _get_imported_module_via_node_to_type(
-    import_: ast.Import,
-    node_to_type: NodeToType) -> Tuple[ast.Module, NodeToType]:
-  """Uses node_to_type to retrieve the corresponding module of a ModRef."""
-  return node_to_type.get_imported(import_)
+def get_signedness_and_bits(
+    type_annotation: ast.BuiltinTypeAnnotation) -> Tuple[bool, int]:
+  return scanner.TYPE_KEYWORDS_TO_SIGNEDNESS_AND_BITS[type_annotation.tok.value]
 
 
-def _concretize_TypeAnnotation(
-    self: ast.TypeAnnotation,
-    ctx: DeduceCtx) -> ConcreteType[Union[int, ParametricExpression]]:
-  """Converts this AST-level type definition into a concrete type."""
-  if self.is_tuple():
-    return TupleType(
-        tuple(_concretize_TypeAnnotation(e, ctx) for e in self.tuple_members))
-
-  def resolve_dim(i: int) -> Union[int, ParametricExpression]:
-    """Resolves dims in 'self' to concrete integers or parametric AST nodes."""
-    dim = self.dims[i]
-    if isinstance(dim, ast.Number):
-      return dim.get_value_as_int()
-    else:  # It's not a number, so convert it to parametric AST nodes.
-      if isinstance(dim, ast.ConstRef):
-        return ctx.node_to_type.get_const_int(dim.name_def, dim.span)
-      if isinstance(dim, ast.NameRef):
-        ctx.node_to_type[dim] = ctx.node_to_type[dim.name_def]
-      return _dim_to_parametric(self, dim)
-
-  if self.is_typeref():
-    base_type = deduce(self.get_typeref(), ctx)
-
-    logging.vlog(5, 'base type for typeref: %s', base_type)
-
-    maybe_struct = ast_helpers.evaluate_to_struct_or_enum_or_annotation(
-        self.typeref.type_def, _get_imported_module_via_node_to_type,
-        ctx.node_to_type)
-    if (isinstance(maybe_struct, ast.Struct) and
-        maybe_struct.is_parametric() and self.parametrics):
-      base_type = _concretize_struct_annotation(self, maybe_struct, base_type)
-
-    if not self.has_dims():
-      return base_type
-
-    for i in reversed(range(len(self.dims))):
-      base_type = ArrayType(base_type, resolve_dim(i))
-    return base_type
-
-  # Append the datatype bit count to the dims as a minormost dimension.
-  if isinstance(self.primitive, scanner.Token) and self.primitive.is_keyword_in(
-      (scanner.Keyword.BITS, scanner.Keyword.UN, scanner.Keyword.SN)):
-    signedness = self.primitive.is_keyword(scanner.Keyword.SN)
-    t = BitsType(signedness, resolve_dim(-1))
-    for i, _ in reversed(list(enumerate(self.dims[:-1]))):
-      t = ArrayType(t, resolve_dim(i))
-    return t
-
-  signedness, primitive_bits = self.primitive_to_signedness_and_bits()
-  t = BitsType(signedness, primitive_bits)
-  for i, _ in reversed(list(enumerate(self.dims))):
-    t = ArrayType(t, resolve_dim(i))
-  return t
+@_rule(ast.TypeRefTypeAnnotation)
+def _deduce_TypeRefTypeAnnotation(self: ast.TypeRefTypeAnnotation,
+                                  ctx: DeduceCtx) -> ConcreteType:
+  """Dedeuces the concrete type of a TypeRef type annotation."""
+  base_type = deduce(self.type_ref, ctx)
+  maybe_struct = ast_helpers.evaluate_to_struct_or_enum_or_annotation(
+      self.type_ref.type_def, _get_imported_module_via_node_to_type,
+      ctx.node_to_type)
+  if (isinstance(maybe_struct, ast.Struct) and maybe_struct.is_parametric() and
+      self.parametrics):
+    base_type = _concretize_struct_annotation(self, maybe_struct, base_type)
+  return base_type
 
 
-@_rule(ast.TypeAnnotation)
-def _deduce_TypeAnnotation(
-    self: ast.TypeAnnotation,  # pytype: disable=wrong-arg-types
-    ctx: DeduceCtx) -> ConcreteType:
-  return _concretize_TypeAnnotation(self, ctx)
+@_rule(ast.BuiltinTypeAnnotation)
+def _deduce_BuiltinTypeAnnotation(
+    self: ast.BuiltinTypeAnnotation,
+    ctx: DeduceCtx,  # pylint: disable=unused-argument
+) -> ConcreteType:
+  signedness, primitive_bits = get_signedness_and_bits(self)
+  return BitsType(signedness, primitive_bits)
+
+
+@_rule(ast.TupleTypeAnnotation)
+def _deduce_TupleTypeAnnotation(self: ast.TupleTypeAnnotation,
+                                ctx: DeduceCtx) -> ConcreteType:
+  members = []
+  for member in self.members:
+    members.append(deduce(member, ctx))
+  return TupleType(tuple(members))
+
+
+@_rule(ast.ArrayTypeAnnotation)
+def _deduce_ArrayTypeAnnotation(self: ast.ArrayTypeAnnotation,
+                                ctx: DeduceCtx) -> ConcreteType:
+  """Deduces the concrete type of an Array type annotation."""
+  dim = _dim_to_parametric_or_int(self, self.dim, ctx)
+  if isinstance(
+      self.element_type,
+      ast.BuiltinTypeAnnotation) and self.element_type.tok.is_keyword_in(
+          (scanner.Keyword.BITS, scanner.Keyword.UN, scanner.Keyword.SN)):
+    signedness = self.element_type.tok.is_keyword(scanner.Keyword.SN)
+    return BitsType(signedness, dim)
+  element_type = deduce(self.element_type, ctx)
+  result = ArrayType(element_type, dim)
+  logging.vlog(4, 'array type annotation: %s => %s', self, result)
+  return result
 
 
 @_rule(ast.ModRef)
@@ -1046,8 +1007,12 @@ def _deduce_ModRef(self: ast.ModRef, ctx: DeduceCtx) -> ConcreteType:  # pytype:
 def _deduce_Enum(self: ast.Enum, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of a Enum AST node."""
   resolved_type = resolve(deduce(self.type_, ctx), ctx)
+  if not isinstance(resolved_type, BitsType):
+    raise XlsTypeError(self.span, resolved_type, None,
+                       'Underlying type for an enum must be a bits type.')
   # Grab the bit count of the Enum's underlying type.
   bit_count = resolved_type.get_total_bit_count()
+  self.set_signedness(resolved_type.get_signedness())
   result = EnumType(self, bit_count)
   for name, value in self.values:
     # Note: the parser places the type_ from the enum on the value when it is
@@ -1238,6 +1203,52 @@ def _deduce_StructInstance(
       struct_def.parametric_bindings)
 
   return resolved_struct_type
+
+
+def _concretize_struct_annotation(type_annotation: ast.TypeRefTypeAnnotation,
+                                  struct: ast.Struct,
+                                  base_type: ConcreteType) -> ConcreteType:
+  """Returns concretized struct type using the provided bindings.
+
+  For example, if we have a struct defined as `struct [N: u32, M: u32] Foo`,
+  the default TupleType will be (N, M). If a type annotation provides bindings,
+  (e.g. Foo[A, 16]), we will replace N, M with those values. In the case above,
+  we will return (A, 16) instead.
+
+  Args:
+    type_annotation: The provided type annotation for this parametric struct.
+    struct: The corresponding struct AST node.
+    base_type: The TupleType of the struct, based only on the struct definition.
+  """
+  assert len(struct.parametric_bindings) == len(type_annotation.parametrics)
+  defined_to_annotated = {}
+  for defined_parametric, annotated_parametric in zip(
+      struct.parametric_bindings, type_annotation.parametrics):
+    assert isinstance(defined_parametric,
+                      ast.ParametricBinding), defined_parametric
+    if isinstance(annotated_parametric, ast.Number):
+      defined_to_annotated[defined_parametric.name.identifier] = \
+          int(annotated_parametric.value)
+    else:
+      assert isinstance(annotated_parametric,
+                        ast.NameRef), repr(annotated_parametric)
+      defined_to_annotated[defined_parametric.name.identifier] = \
+          ParametricSymbol(annotated_parametric.identifier,
+                           annotated_parametric.span)
+
+  def resolver(dim):
+    if isinstance(dim, ParametricExpression):
+      return dim.evaluate(defined_to_annotated)
+    return dim
+
+  return base_type.map_size(resolver)
+
+
+def _get_imported_module_via_node_to_type(
+    import_: ast.Import,
+    node_to_type: NodeToType) -> Tuple[ast.Module, NodeToType]:
+  """Uses node_to_type to retrieve the corresponding module of a ModRef."""
+  return node_to_type.get_imported(import_)
 
 
 @_rule(ast.SplatStructInstance)

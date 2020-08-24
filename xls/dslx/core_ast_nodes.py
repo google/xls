@@ -21,7 +21,7 @@ These are broken out largely to reduce pytype runtime on a monolithic AST file.
 
 import abc
 import enum as enum_mod
-from typing import Text, Optional, Union, Tuple, List, cast
+from typing import Text, Optional, Union, Tuple, List, cast, Any
 
 from absl import logging
 
@@ -31,13 +31,10 @@ from xls.dslx.ast_node import AstVisitor
 from xls.dslx.concrete_type import BitsType
 from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.free_variables import FreeVariables
-from xls.dslx.parametric_expression import ParametricAdd
-from xls.dslx.parametric_expression import ParametricExpression
-from xls.dslx.parametric_expression import ParametricSymbol
-from xls.dslx.scanner import Keyword
 from xls.dslx.scanner import Pos
 from xls.dslx.scanner import Token
 from xls.dslx.scanner import TokenKind
+from xls.dslx.scanner import TYPE_KEYWORDS
 from xls.dslx.scanner import TYPE_KEYWORDS_TO_SIGNEDNESS_AND_BITS
 from xls.dslx.span import Span
 from xls.dslx.xls_type_error import TypeInferenceError
@@ -68,6 +65,9 @@ class NameDef(AstNode):
   def __init__(self, span: Span, identifier: str):
     self.span = span
     self.identifier = identifier
+
+  def __repr__(self) -> Text:
+    return f'NameDef({self.identifier!r})'
 
   def __str__(self) -> str:
     return self.identifier
@@ -480,246 +480,161 @@ class TypeAnnotation(AstNode):
   This is notably *not* an expression, as types are not values.
   """
 
-  @classmethod
-  def make_array(cls, span: Span, primitive: Union[Token, TypeRef],
-                 dims: Tuple[Expr, ...]) -> 'TypeAnnotation':
-    assert dims is not None and dims
-    return cls(span, primitive, dims)
+  def __init__(self, span: Span):
+    self.span = span
 
-  @classmethod
-  def make_tuple(cls, span: Span, oparen: Token,
-                 members: Tuple['TypeAnnotation', ...]) -> 'TypeAnnotation':
-    if oparen.kind != TokenKind.OPAREN:
-      raise ValueError(
-          'Expect "(" token as primitive type for tuple; got {}'.format(oparen))
-    return cls(span, oparen, tuple_members=members)
+  def __str__(self) -> str:
+    raise NotImplementedError
+
+  def __eq__(self, other: Any) -> bool:
+    raise NotImplementedError
+
+  def __ne__(self, other: Any) -> bool:
+    return not self.__eq__(other)
+
+  def _accept_children(self, visitor: AstVisitor) -> None:
+    raise NotImplementedError(self)
+
+
+class BuiltinTypeAnnotation(TypeAnnotation):
+  """Represents a builtin type annotation; e.g. `u32`, `bits`, etc."""
+
+  def __init__(self, span: Span, tok: Token):
+    super().__init__(span)
+    assert isinstance(tok, Token), tok
+    assert tok.is_keyword_in(TYPE_KEYWORDS), tok
+    self.tok = tok
+
+  @property
+  def primitive_signedness_and_bits(self) -> Tuple[bool, int]:
+    assert self.tok.kind == TokenKind.KEYWORD, self.tok
+    return TYPE_KEYWORDS_TO_SIGNEDNESS_AND_BITS[self.tok.value]
+
+  @property
+  def primitive_bits(self) -> int:
+    return self.primitive_signedness_and_bits[1]
+
+  def __hash__(self) -> int:
+    return hash(id(self))
+
+  def __eq__(self, other: Any) -> bool:
+    return isinstance(other, BuiltinTypeAnnotation) and self.tok == other.tok
+
+  def __repr__(self) -> str:
+    return f'BuiltinTypeAnnotation(span={self.span!r}, tok={self.tok!r})'
+
+  def __str__(self) -> str:
+    return str(self.tok)
+
+  def _accept_children(self, visitor: AstVisitor) -> None:
+    pass
+
+
+def make_builtin_type_annotation(span: Span, tok: Token,
+                                 dims: Tuple[Expr, ...]) -> TypeAnnotation:
+  elem_type = BuiltinTypeAnnotation(span, tok)
+  for dim in dims:
+    elem_type = ArrayTypeAnnotation(span, elem_type, dim)
+  return elem_type
+
+
+class TupleTypeAnnotation(TypeAnnotation):
+  """Represents a tuple type annotation; e.g. `(u32, s42)`."""
+
+  def __init__(self, span: Span, members: Tuple[TypeAnnotation, ...]):
+    assert isinstance(members, tuple), members
+    super().__init__(span)
+    self.members = members
+
+  def __hash__(self) -> int:
+    return hash(id(self))
+
+  def __eq__(self, other: TypeAnnotation) -> bool:
+    return (isinstance(other, TupleTypeAnnotation) and
+            self.members == other.members)
+
+  def __str__(self) -> str:
+    guts = ', '.join(str(member) for member in self.members)
+    return f'({guts})'
+
+  def _accept_children(self, visitor: AstVisitor) -> None:
+    for member in self.members:
+      member.accept(visitor)
+
+  def is_nil(self) -> bool:
+    return not self.members
+
+
+class TypeRefTypeAnnotation(TypeAnnotation):
+  """Represents a type reference annotation."""
 
   def __init__(self,
                span: Span,
-               primitive: Union[Token, TypeRef],
-               dims: Optional[Tuple[Expr, ...]] = None,
-               parametrics: Optional[Tuple[Expr, ...]] = None,
-               tuple_members: Optional[Tuple['TypeAnnotation', ...]] = None):
-    self.span = span
-    self.primitive = primitive
-    self._dims = dims
+               type_ref: TypeRef,
+               parametrics: Optional[Tuple[Expr, ...]] = None):
+    super().__init__(span)
+    self.type_ref = type_ref
     self.parametrics = parametrics
-    self._tuple_members = tuple_members
-    self._check_invariants()
 
-  def _check_invariants(self) -> None:
-    assert isinstance(
-        self.primitive,
-        (Token,
-         TypeRef)), 'Primitive should be Token or TypeRef; got {!r}'.format(
-             self.primitive)
-    if self.is_tuple():
-      assert self._dims is None, 'Tuple should not have dims.'
-      assert self._tuple_members is not None, 'Tuple should have members.'
-    elif isinstance(self.primitive, TypeRef):
-      assert self._tuple_members is None, ('TypeRef should not have tuple '
-                                           'members.')
-    else:
-      assert self._dims is not None, 'Bits-based type should have dims.'
-      assert self._tuple_members is None, (
-          'Bits-based type should not have tuple members.')
+  def __hash__(self) -> int:
+    return hash(id(self))
+
+  def __eq__(self, other: TypeAnnotation) -> bool:
+    return (isinstance(other, TypeRefTypeAnnotation) and
+            self.type_ref == other.type_ref)
+
+  def __str__(self) -> str:
+    return str(self.type_ref)
 
   def _accept_children(self, visitor: AstVisitor) -> None:
-    if self.is_tuple():
-      for tuple_member in self._tuple_members:
-        tuple_member.accept(visitor)
-    elif isinstance(self.primitive, TypeRef):
-      self.primitive.accept(visitor)
-      for dim in self._dims or ():
-        dim.accept(visitor)
-    else:
-      for dim in self._dims:
-        dim.accept(visitor)
+    self.type_ref.accept(visitor)
 
-  def __repr__(self) -> Text:
-    if isinstance(self.primitive, Token):
-      primitive_str = self.primitive.to_error_str()
-    else:
-      primitive_str = repr(self.primitive)
-    return ('TypeAnnotation(primitive={!r}, dims={!r}, tuple_members={!r}, '
-            'span={})').format(primitive_str, self._dims, self._tuple_members,
-                               self.span)
 
-  def __str__(self) -> Text:
-    """Returns string representation of this type.
+def make_type_ref_type_annotation(
+    span: Span,
+    type_ref: TypeRef,
+    dims: Tuple[Expr, ...],
+    parametrics: Optional[Tuple[Expr, ...]] = None) -> TypeAnnotation:
+  assert dims is not None, dims
+  elem_type = TypeRefTypeAnnotation(span, type_ref, parametrics)
+  for dim in dims:
+    elem_type = ArrayTypeAnnotation(span, elem_type, dim)
+  return elem_type
 
-    The value is suitable for printing DSLX-level errors to the user.
-    """
-    if self.is_tuple():
-      assert not self._dims
-      return '({}{})'.format(', '.join(str(e) for e in self.tuple_members),
-                             ',' if len(self.tuple_members) == 1 else '')
 
-    if isinstance(self.primitive, TypeRef):
-      if self._dims:
-        return '{}[{}]'.format(self.primitive, ','.join(map(str, self.dims)))
-      else:
-        return str(self.primitive)
+class ArrayTypeAnnotation(TypeAnnotation):
+  """Represents an array type annotation; e.g. `u32[5]`."""
 
-    if not self.dims and not self.primitive.is_keyword(Keyword.BITS):
-      return str(self.primitive)
+  def __init__(self, span: Span, element_type: TypeAnnotation, dim: Expr):
+    super().__init__(span)
+    self.element_type = element_type
+    self.dim = dim
 
-    return '{}[{}]'.format(
-        str(self.primitive), ','.join(str(d) for d in self.dims))
+  def __hash__(self) -> int:
+    return hash(id(self))
 
-  def primitive_to_signedness_and_bits(self) -> Tuple[bool, int]:
-    assert isinstance(
-        self.primitive, Token
-    ), 'Expected a token primitive for conversion to bit count; got {!r}'.format(
-        self.primitive)
-    assert self.primitive.kind == TokenKind.KEYWORD, self.primitive
-    # The [su]N annotations contain their own dimensionness, so need to be
-    # treated specially.
-    if self.primitive.value == Keyword.UN:
-      assert isinstance(self.dims[0], Number)
-      return (False, self.dims[0].get_value_as_int())
-    if self.primitive.value == Keyword.SN:
-      assert isinstance(self.dims[0], Number)
-      return (True, self.dims[0].get_value_as_int())
-    return TYPE_KEYWORDS_TO_SIGNEDNESS_AND_BITS[self.primitive.value]
+  def __eq__(self, other: TypeAnnotation) -> bool:
+    return (isinstance(other, ArrayTypeAnnotation) and
+            self.element_type == other.element_type and self.dim == other.dim)
 
-  def primitive_to_bits(self) -> int:
-    return self.primitive_to_signedness_and_bits()[1]
+  def __str__(self) -> str:
+    return f'{self.element_type}[{self.dim}]'
 
-  def primitive_to_signedness(self) -> bool:
-    return self.primitive_to_signedness_and_bits()[0]
+  def __repr__(self) -> str:
+    return (f'ArrayTypeAnnotation(span={self.span!r}, '
+            f'element_type={self.element_type!r}, dim={self.dim!r})')
 
-  def dim_to_parametric(self, expr: Expr) -> ParametricExpression:
-    if isinstance(expr, NameRef):
-      return ParametricSymbol(expr.name_def.identifier, expr.span)
-    if isinstance(expr, Binop):
-      if expr.operator.kind == TokenKind.PLUS:
-        return ParametricAdd(
-            self.dim_to_parametric(expr.lhs), self.dim_to_parametric(expr.rhs))
-    raise TypeInferenceError(
-        self.span,
-        self,
-        suffix='Could not concretize type with dimension: {}.'.format(expr))
+  def _accept_children(self, visitor: AstVisitor) -> None:
+    self.element_type.accept(visitor)
+    self.dim.accept(visitor)
 
-  def _compatible_dims(self, dims: Tuple[Expr, ...],
-                       other_dims: Tuple[Expr, ...]) -> bool:
-    """Returns whether "dims" is type-compatible with "other_dims".
+  def _get_all_dims(self, type_: TypeAnnotation):
+    if isinstance(type_, ArrayTypeAnnotation):
+      return type_.get_all_dims()
+    return []
 
-    For example:
-
-      bits[32,N] is compatible with:
-      bits[32,N] whether or not the AST nodes are identical.
-
-    Args:
-      dims: One sequence of dimension expressions.
-      other_dims: Another sequence of dimension expressions.
-    TODO(leary): 2019-01-22 The dimension expressions must be 'constexpr',
-      evaluating to concrete constant values when parameters are presented for
-      invocation at a given call site. Before evaluation, we can only check type
-      expressions at the level that we can reason about expressions
-      symbolically; e.g. "Is M+N=N?  Only if M=0 for integral types." We
-      side-step the expression-equivalence problem in type checking for the
-      moment, and only permit numbers to be equal and identical names to be
-      equal, which limits expressiveness of type-checkable signatures but
-      guarantees type checking correctness.
-    """
-    if len(dims) != len(other_dims):
-      return False
-    for d, o in zip(dims, other_dims):
-      if isinstance(d, NameRef) and isinstance(o, NameRef):
-        if d.name_def != o.name_def:
-          return False
-      elif isinstance(d, Number) and isinstance(o, Number):
-        if d.value != o.value:
-          return False
-      else:
-        raise NotImplementedError(d, o)
-    return True
-
-  def compatible(self, other: 'TypeAnnotation') -> bool:
-    """Returns whether "self" and "other" are compatible types.
-
-    Compatibility means that "self" may definitely be passed to a parameter
-    accepting "other", and visa versa, without explicit coersion.
-
-    Args:
-      other: The type to test for type compatibility with.
-    """
-    assert other is not None
-    if self.is_tuple():
-      if not other.is_tuple():
-        return False
-      return self.get_tuple_length() == other.get_tuple_length() and all(
-          e.compatible(f)
-          for e, f in zip(self.tuple_members, other.tuple_members))
-    if isinstance(self.primitive, Token) and isinstance(other.primitive, Token):
-      return (self.primitive.kind == other.primitive.kind and
-              self.primitive.value == other.primitive.value and
-              self._compatible_dims(self.dims, other.dims))
-    raise NotImplementedError(self, other)
-
-  def is_array(self) -> bool:
-    # Arrays can't be tuples (see _check_invariants), and it'd be confusing for
-    # typeness to not be commutative, so we enforce that tuples can't be
-    # arrays, either.
-    if self.is_tuple():
-      return False
-    if not self.dims:
-      return False
-    if len(self.dims) > 1:
-      return True
-    # Both bits types and arrays have dims. If the primitive type is bits, un,
-    # or sn then this is not an array as the dimensions field just gives the bit
-    # width of the type.
-    if isinstance(self.primitive,
-                  Token) and (self.primitive.is_keyword(Keyword.BITS) or
-                              self.primitive.is_keyword(Keyword.UN) or
-                              self.primitive.is_keyword(Keyword.SN)):
-      return False
-    return True
-
-  def is_tuple(self) -> bool:
-    return isinstance(self.primitive,
-                      Token) and self.primitive.kind == TokenKind.OPAREN
-
-  def get_tuple_length(self) -> int:
-    assert self.is_tuple(
-    ), 'Can only retrieve length of tuple type; got {!r}'.format(self)
-    return len(self.tuple_members)
-
-  def is_nil(self) -> bool:
-    """Returns whether this type is the nil (empty) tuple."""
-    return self.is_tuple() and not self.tuple_members
-
-  def is_typeref(self) -> bool:
-    """Returns whether this AST type is a reference to a type definition."""
-    return isinstance(self.primitive, TypeRef)
-
-  def get_typeref(self) -> TypeRef:
-    assert isinstance(self.primitive, TypeRef), self.primitive
-    return self.primitive
-
-  @property
-  def typeref(self) -> TypeRef:
-    """Retrieves the reference to the type definition."""
-    assert isinstance(self.primitive, TypeRef)
-    return self.primitive
-
-  @property
-  def tuple_members(self) -> Tuple['TypeAnnotation', ...]:
-    assert self.is_tuple(
-    ), 'Can only retrieve tuple members of tuple type; got: {!r}'.format(self)
-    assert self._tuple_members is not None, (
-        'Tuple must have non-None members: %r', self)
-    return self._tuple_members
-
-  def has_dims(self) -> bool:
-    return bool(self._dims)
-
-  @property
-  def dims(self) -> Tuple[Expr, ...]:
-    assert self._dims is not None, ('No dims on type AST node.', self)
-    return self._dims
+  def get_all_dims(self) -> Tuple[Expr, ...]:
+    return tuple([self.dim] + self._get_all_dims(self.element_type))
 
 
 class TypeDef(AstNode):
@@ -765,9 +680,12 @@ class Enum(AstNode):
     self.name = name
     self.type_ = type_
     self.values = values
+    # Signedness can be populated as a note on the AST node once types have
+    # been resolved (i.e. during typechecking / after parsing).
+    self._signedness: Optional[bool] = None
 
   def __repr__(self) -> Text:
-    return 'Enum(span={}, name={}, type_={}, values={})'.format(
+    return 'ast.Enum(span={}, name={}, type_={}, values={})'.format(
         self.span, self.name, self.type_, self.values)
 
   def has_value(self, name: Text) -> bool:
@@ -777,13 +695,18 @@ class Enum(AstNode):
   def get_value(self, name: Text) -> Union[NameRef, Number]:
     return next(v for k, v in self.values if k.identifier == name)
 
-  def get_signedness(self) -> bool:
-    """Returns the signedness of the Enum's underlying type."""
-    return self.type_.primitive_to_signedness()
-
   @property
   def identifier(self) -> Text:
     return self.name.identifier
+
+  def get_signedness(self) -> bool:
+    if self._signedness is None:
+      raise ValueError('Signedness is not noted on this Enum: %r' % self)
+    return self._signedness
+
+  def set_signedness(self, value: bool) -> None:
+    assert value is not None
+    self._signedness = value
 
 
 class Ternary(Expr):

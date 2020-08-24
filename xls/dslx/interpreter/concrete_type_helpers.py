@@ -119,7 +119,9 @@ def concrete_type_from_dims(primitive: Token,
       element_type = ArrayType(element_type, minor)
     return element_type
 
-  return concrete_type_from_element_type_and_dims(base_type, dims[:-1])
+  result = concrete_type_from_element_type_and_dims(base_type, dims[:-1])
+  logging.vlog(4, '%r %r => %r', primitive, dims, result)
+  return result
 
 
 def _value_compatible_with_type(type_: ConcreteType, value: Value) -> bool:

@@ -80,7 +80,7 @@ class ParserTest(absltest.TestCase):
     self.assertIsInstance(e, ast.Let)
     self.assertEqual(e.name_def_tree.tree.identifier, 'x')
     self.assertIsInstance(e.type_, ast.TypeAnnotation)
-    self.assertEqual(e.type_.primitive.value, scanner.Keyword.U32)
+    self.assertEqual(str(e.type_), 'u32')
     self.assertIsInstance(e.rhs, ast.Number)
     self.assertEqual(e.rhs.value, '2')
     self.assertIsInstance(e.body, ast.NameRef)

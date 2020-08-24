@@ -251,7 +251,11 @@ class _IrConverterFb(ast.AstVisitor):
     return result
 
   @ast.AstVisitor.no_auto_traverse
-  def visit_TypeAnnotation(self, node: ast.TypeAnnotation):
+  def visit_ArrayTypeAnnotation(self, node: ast.ArrayTypeAnnotation) -> None:
+    pass
+
+  @ast.AstVisitor.no_auto_traverse
+  def visit_TupleTypeAnnotation(self, node: ast.TupleTypeAnnotation) -> None:
     pass
 
   def visit_Ternary(self, node: ast.Ternary):
@@ -547,11 +551,11 @@ class _IrConverterFb(ast.AstVisitor):
   ) -> Union[ast.Struct, ast.Enum]:
     while isinstance(node, ast.TypeDef):
       annotation = node.type_
-      if not annotation.is_typeref():
+      if not isinstance(annotation, ast.TypeRefTypeAnnotation):
         raise NotImplementedError(
             'Unhandled typedef for resolving to struct-or-enum: %s' %
             annotation)
-      node = annotation.typeref.type_def
+      node = annotation.type_ref.type_def
 
     if isinstance(node, (ast.Struct, ast.Enum)):
       return node

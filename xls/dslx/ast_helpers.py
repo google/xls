@@ -42,9 +42,9 @@ def evaluate_to_struct_or_enum_or_annotation(
   """
   while isinstance(node, ast.TypeDef):
     annotation = node.type_
-    if not annotation.is_typeref():
+    if not isinstance(annotation, ast.TypeRefTypeAnnotation):
       return annotation
-    node = annotation.typeref.type_def
+    node = annotation.type_ref.type_def
 
   if isinstance(node, (ast.Struct, ast.Enum)):
     return node

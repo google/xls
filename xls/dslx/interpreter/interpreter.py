@@ -25,7 +25,7 @@ optimized forms of execution.
 import contextlib
 import functools
 import sys
-from typing import Text, Optional, List, Dict, Tuple, Callable, Sequence, Union
+from typing import Text, Optional, Dict, Tuple, Callable, Sequence, Union
 
 from absl import logging
 import termcolor
@@ -36,6 +36,7 @@ from xls.dslx import bit_helpers
 from xls.dslx import deduce
 from xls.dslx import import_fn
 from xls.dslx import ir_name_mangler
+from xls.dslx import scanner
 from xls.dslx.concrete_type import ArrayType
 from xls.dslx.concrete_type import BitsType
 from xls.dslx.concrete_type import ConcreteType
@@ -47,12 +48,9 @@ from xls.dslx.interpreter.bindings import Bindings
 from xls.dslx.interpreter.bindings import FnCtx
 from xls.dslx.interpreter.concrete_type_helpers import concrete_type_accepts_value
 from xls.dslx.interpreter.concrete_type_helpers import concrete_type_convert_value
-from xls.dslx.interpreter.concrete_type_helpers import concrete_type_from_dims
-from xls.dslx.interpreter.concrete_type_helpers import concrete_type_from_element_type_and_dims
 from xls.dslx.interpreter.concrete_type_helpers import concrete_type_from_value
 from xls.dslx.interpreter.errors import EvaluateError
 from xls.dslx.interpreter.errors import FailureError
-from xls.dslx.interpreter.errors import InstantiationError
 from xls.dslx.interpreter.value import Bits
 from xls.dslx.interpreter.value import Nil
 from xls.dslx.interpreter.value import Tag
@@ -261,15 +259,22 @@ class Interpreter(object):
         expr.span, 'The program being interpreted failed with an '
         'incomplete match! value: {}'.format(matched))
 
+  def _get_imported_module_via_bindings(
+      self, import_: ast.Import,
+      bindings: Bindings) -> Tuple[ast.Module, Bindings]:
+    """Uses bindings to retrieve the corresponding module of a ModRef."""
+    imported_module = bindings.resolve_mod(import_.identifier)
+    return imported_module, self._make_top_level_bindings(imported_module)
+
   def _deref_typeref(
-      self, typeref: ast.TypeRef,
+      self, type_ref: ast.TypeRef,
       bindings: Bindings) -> Union[ast.TypeAnnotation, ast.Enum, ast.Struct]:
     """Resolves the typeref to a type using its identifier via bindings."""
-    if isinstance(typeref.type_def, ast.ModRef):
+    if isinstance(type_ref.type_def, ast.ModRef):
       return ast_helpers.evaluate_to_struct_or_enum_or_annotation(
-          typeref.type_def, self._get_imported_module_via_bindings, bindings)
+          type_ref.type_def, self._get_imported_module_via_bindings, bindings)
 
-    result = bindings.resolve_type_annotation_or_enum(typeref.text)
+    result = bindings.resolve_type_annotation_or_enum(type_ref.text)
     assert isinstance(result,
                       (ast.TypeAnnotation, ast.Enum, ast.Struct)), result
     return result
@@ -295,7 +300,7 @@ class Interpreter(object):
       if isinstance(d, ast.Number):
         nested_bindings.add_value(
             p.name.identifier,
-            Value.make_ubits(p.type_.primitive_to_bits(), int(d.value)))
+            Value.make_ubits(p.type_.primitive_bits, int(d.value)))
       else:
         assert isinstance(p, ParametricSymbol), p
         nested_bindings.add_value(
@@ -314,42 +319,45 @@ class Interpreter(object):
       members = tuple((k.identifier, self._concretize(t, bindings))
                       for k, t in type_.members)
       return TupleType(members, type_)
-    elif type_.is_typeref():
+    elif isinstance(type_, ast.TypeRefTypeAnnotation):
       logging.vlog(5, 'Concretizing typeref: %s', type_)
-      deref = self._deref_typeref(type_.get_typeref(), bindings)
+      deref = self._deref_typeref(type_.type_ref, bindings)
       if type_.parametrics:
         bindings = self._bindings_with_struct_parametrics(
             deref, type_.parametrics, bindings)
-      if type_.has_dims():
-        element_type = self._concretize(deref, bindings)
-        dims = tuple(
-            self._evaluate(expr, bindings, ConcreteType.U32).get_bits_value()
-            for expr in type_.dims)
-        return concrete_type_from_element_type_and_dims(element_type, dims)
-      else:
-        type_def = type_.typeref.type_def
-        if isinstance(type_def, ast.Enum):
-          enum = type_def
-          bit_count = self._concretize(enum.type_,
-                                       bindings).get_total_bit_count()
-          return EnumType(enum, bit_count)
-        return self._concretize(
-            self._deref_typeref(type_.get_typeref(), bindings), bindings)
-    elif type_.is_tuple():
+      type_def = type_.type_ref.type_def
+      if isinstance(type_def, ast.Enum):
+        enum = type_def
+        bit_count = self._concretize(enum.type_, bindings).get_total_bit_count()
+        return EnumType(enum, bit_count)
+      return self._concretize(
+          self._deref_typeref(type_.type_ref, bindings), bindings)
+    elif isinstance(type_, ast.TupleTypeAnnotation):
       return TupleType(
-          tuple(self._concretize(m, bindings) for m in type_.tuple_members))
+          tuple(self._concretize(m, bindings) for m in type_.members))
+    elif isinstance(type_, ast.ArrayTypeAnnotation):
+      dim = self._resolve_dim(type_.dim, bindings)
+      if (isinstance(type_.element_type, ast.BuiltinTypeAnnotation) and
+          type_.element_type.tok.is_keyword_in(
+              (scanner.Keyword.BITS, scanner.Keyword.UN, scanner.Keyword.SN))):
+        signed = type_.element_type.tok.is_keyword_in((scanner.Keyword.SN,))
+        return BitsType(signed, dim)
+      elem_type = self._concretize(type_.element_type, bindings)
+      return ArrayType(elem_type, dim)
+    elif isinstance(type_, ast.BuiltinTypeAnnotation):
+      signed, bits = type_.primitive_signedness_and_bits
+      return BitsType(signed, bits)
     else:
-      dims = tuple(
-          self._evaluate(expr, bindings, ConcreteType.U32).get_bits_value()
-          for expr in type_.dims)
-      return concrete_type_from_dims(type_.primitive, dims)
+      raise NotImplementedError('Unknown type for concretization: %r' % type_)
 
-  def _resolve_dim(self, dim: Union[int, ParametricExpression],
+  def _resolve_dim(self, dim: Union[int, ast.Number, ParametricExpression],
                    bindings: Bindings) -> int:
     """Resolves (parametric) dim from deduction vs current bindings."""
     if isinstance(dim, int):
       return dim
-    if isinstance(dim, ParametricSymbol):
+    if isinstance(dim, ast.Number):
+      return dim.get_value_as_int()
+    if isinstance(dim, (ParametricSymbol, ast.ConstRef, ast.NameRef)):
       return bindings.resolve_value_from_identifier(
           dim.identifier).get_bits_value_signed()
     if isinstance(dim, ParametricAdd):
@@ -372,8 +380,8 @@ class Interpreter(object):
         functools.partial(self._resolve_dim, bindings=bindings))
     if not deduced.has_enum():
       assert deduced.compatible_with(result), \
-          ('Deduced type {0} incompatible w/interp-determined type {1} ({0!r}'
-           ' vs {1!r})').format(deduced, result)
+          (f'Deduced type {deduced} incompatible with '
+           f'interp-determined type {result} ({deduced!r} vs {result!r})')
 
     return result
 
@@ -420,12 +428,35 @@ class Interpreter(object):
     constructor = Value.make_sbits if signed else Value.make_ubits
     return constructor(bit_count, expr.get_value_as_int())
 
-  def _get_imported_module_via_bindings(
-      self, import_: ast.Import,
-      bindings: Bindings) -> Tuple[ast.Module, Bindings]:
-    """Uses bindings to retrieve the corresponding module of a ModRef."""
-    imported_module = bindings.resolve_mod(import_.identifier)
-    return imported_module, self._make_top_level_bindings(imported_module)
+  def _evaluate_to_struct_or_enum_or_annotation(
+      self, node: Union[ast.TypeDef, ast.ModRef, ast.Struct],
+      bindings: Bindings) -> Union[ast.Struct, ast.Enum, ast.TypeAnnotation]:
+    """Returns the node dereferenced into a Struct or Enum or TypeAnnotation.
+
+    Will produce TypeAnnotation in the case we bottom out in a tuple, for
+    example.
+
+    Args:
+      node: Node to resolve to a struct/enum/annotation.
+      bindings: Current bindings for evaluating the node.
+    """
+    while isinstance(node, ast.TypeDef):
+      annotation = node.type_
+      if not isinstance(annotation, ast.TypeRefTypeAnnotation):
+        return annotation
+      node = annotation.type_ref.type_def
+
+    if isinstance(node, (ast.Struct, ast.Enum)):
+      return node
+
+    assert isinstance(node, ast.ModRef)
+    imported_module = bindings.resolve_mod(node.mod.identifier)
+    td = imported_module.get_typedef(node.value_tok.value)
+    # Recurse to dereference it if it's a typedef in the imported module.
+    td = self._evaluate_to_struct_or_enum_or_annotation(
+        td, self._make_top_level_bindings(imported_module))
+    assert isinstance(td, (ast.Struct, ast.Enum, ast.TypeAnnotation)), td
+    return td
 
   def _evaluate_to_enum(self, node: Union[ast.TypeDef, ast.Enum],
                         bindings: Bindings) -> ast.Enum:
@@ -1162,104 +1193,6 @@ class Interpreter(object):
                          'The program being interpreted failed! {}'.format(msg))
     return Nil()
 
-  def _evaluate_param_type_dims(self, type_: ast.TypeAnnotation, arg: Value,
-                                bindings: Bindings,
-                                bound_dims: Dict[Text, int]) -> List[int]:
-    """Evaluates "dims" field of type_ to establish any parametric bindings."""
-    arg_concrete_type = concrete_type_from_value(arg)
-    logging.vlog(
-        5,
-        'evaluate_param_type_dims: type_ %s arg %s bound_dims %s arg_concrete_type %s',
-        type_, arg, bound_dims, arg_concrete_type)
-    dims = []  # type: List[int]
-    for i, dim in enumerate(type_.dims):
-      if isinstance(
-          dim,
-          (ast.NameRef, ast.NameDef)) and not isinstance(dim, ast.ConstRef):
-        dim_extent = arg_concrete_type.get_all_dims()[i]
-
-        # See if we're binding the same thing differently.
-        if (dim.identifier in bound_dims and
-            bound_dims[dim.identifier] != dim_extent):
-          raise InstantiationError(
-              dim.span,
-              "Cannot set parametric dimension '{}' to different values;"
-              'saw: {}, now: {}'.format(dim.identifier,
-                                        bound_dims[dim.identifier], dim_extent))
-
-        # Otherwise note what we've seen.
-        bound_dims[dim.identifier] = dim_extent
-
-        bit_count = self._node_to_type[dim].get_total_bit_count()
-        bindings.add_value(dim.identifier,
-                           Value.make_ubits(bit_count, dim_extent))
-        dims.append(dim_extent)
-      else:
-        dims.append(
-            self._evaluate(dim, bindings, ConcreteType.U32).get_bits_value())
-
-    return dims
-
-  def _evaluate_param_type(self, type_: Union[ast.TypeAnnotation, ast.Enum,
-                                              ast.Struct], arg: Value,
-                           bindings: Bindings,
-                           bound_dims: Dict[Text, int]) -> ConcreteType:
-    """Evaluates a "type" AST node that's associated with a parameter.
-
-    This is different from evaluating a normal type annotation because
-    parameters can be parametric, and therefore bind identifiers to properties
-    of the type (like the dimensions) for the implementation of the function to
-    use; e.g.
-
-      fn [N: u32] get_num_bits(x: bits[N]) -> u32 { N }
-
-    Dimensions are bound as U32s in the lexical environment.
-
-    Args:
-      type_: The abstract type annotated on the parameter (e.g. the bits[N]
-        annotated on 'x' above).
-      arg: The value being passed to the parameter (we evaluate the abstract
-        type_ against the type of this value).
-      bindings: The set of bindings being used to evaluate this function; e.g.
-        'N' in the above would be introduced into these bindings.
-      bound_dims: Mapping from identifier to the dimension value for this
-        parametric instantiation; we use this mapping to detect conflicts.
-
-    Returns:
-      The concrete type of the parameter (which is derived as the concrete type
-      of 'arg').
-
-    Raises:
-      InstantiationError: When there is a conflicting dimension binding in the
-        parametric instantiation.
-    """
-    if not isinstance(type_, ast.TypeAnnotation):
-      return self._concretize(type_, bindings)
-
-    logging.vlog(5, 'Evaluating parameter type: %s', type_)
-
-    # If it's a reference to a type definition, dereference it.
-    if type_.is_typeref():
-      deref = self._deref_typeref(type_.typeref, bindings)
-
-      if type_.has_dims():
-        dims = self._evaluate_param_type_dims(type_, arg, bindings, bound_dims)
-        base_type = self._evaluate_param_type(deref,
-                                              arg.array_payload.elements[0],
-                                              bindings, bound_dims)
-        assert len(dims) <= 1, dims
-        if not dims:
-          return base_type
-        return ArrayType(base_type, dims[0])
-
-      return self._evaluate_param_type(deref, arg, bindings, bound_dims)
-
-    if type_.is_tuple():
-      return concrete_type_from_value(arg)
-    else:
-      dims = self._evaluate_param_type_dims(type_, arg, bindings, bound_dims)
-      return concrete_type_from_dims(type_.primitive, tuple(dims))
-
   def _evaluate_derived_parametrics(self, fn: ast.Function, bindings: Bindings,
                                     bound_dims: Dict[Text, int]):
     """Evaluates the parametric values derived from other parametric values.
@@ -1269,10 +1202,6 @@ class Interpreter(object):
     For example, in:
 
       fn [X: u32, Y: u32 = X+X] f(x: bits[X]) { ... }
-
-    We add X to our bindings when we observe the formal parameter in
-    _evaluate_param_type(), but Y must be subsequently bound since it is a
-    derived parametric with no corresponding parameter.
 
     Args:
       fn: Function to evaluate parametric bindings for.
@@ -1284,7 +1213,7 @@ class Interpreter(object):
     assert len(bound_dims) == len(fn.parametric_bindings)
     for parametric in fn.parametric_bindings:
       if parametric.name.identifier in bindings.keys():
-        # Already bound in _evaluate_param_type()
+        # Already bound.
         continue
       type_ = self._evaluate_TypeAnnotation(parametric.type_, bindings)
       # We already computed derived parametrics in parametric_instantiator.py
