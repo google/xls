@@ -178,10 +178,10 @@ def dslx_codegen(name, dslx_dep, configs, entry = None, tags = None):
             tags = tags,
         )
 
-# TODO(2020-08-05): The dslx_test macro is a bit packed, which makes declaring
-# dslx_jit_wrapper rules a bit torturous - one needs to depend on an IR target
-# instead of a testonly (!) dslx_test target. When that's done, we can stop
-# depending on an explicit _opt_ir target in invocations.
+# TODO(rspringer): 2020-08-05 The dslx_test macro is a bit packed, which makes
+# declaring dslx_jit_wrapper rules a bit torturous - one needs to depend on an
+# IR target instead of a testonly (!) dslx_test target. When that's done, we
+# can stop depending on an explicit _opt_ir target in invocations.
 def dslx_jit_wrapper(
         name,
         dslx_name = None,

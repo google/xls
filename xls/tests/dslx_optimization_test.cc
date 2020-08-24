@@ -56,7 +56,7 @@ class DslxOptimizationTest : public IrTestBase {
 };
 
 // TODO(meheff): 2020-08-24 Disabled for debugging of crasher
-// third_party/xls/dslx/fuzzer/crashers/2020-08-24-min.x
+// xls/dslx/fuzzer/crashers/2020-08-24-min.x
 TEST_F(DslxOptimizationTest, DISABLED_StdFindIndexOfLiteralArray) {
   std::string input = R"(import std
 

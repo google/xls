@@ -262,8 +262,8 @@ fn next_in_sequence(x: Opcode, y: Opcode) -> bool {
 As mentioned above casting of enum-values works with the same casting/extension
 rules that apply to the underlying enum type definition. For example, this cast
 will sign extend because the source type for the enum is signed. (See
-[numerical conversions](./dslx_intro.md#numerical-conversions)
-for the full description of extension/truncation behavior.)
+[numerical conversions](#numerical-conversions) for the full description of
+extension/truncation behavior.)
 
 ```
 enum MySignedEnum : s3 {

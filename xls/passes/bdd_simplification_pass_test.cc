@@ -201,7 +201,7 @@ TEST_F(BddSimplificationPassTest, SelectChainOneHotOrZeroSelectors) {
 }
 
 // TODO(meheff): 2020-08-24 Disabled for debugging of crasher
-// third_party/xls/dslx/fuzzer/crashers/2020-08-24-min.x
+// xls/dslx/fuzzer/crashers/2020-08-24-min.x
 TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbTypical) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -224,7 +224,7 @@ TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbTypical) {
 }
 
 // TODO(meheff): 2020-08-24 Disabled for debugging of crasher
-// third_party/xls/dslx/fuzzer/crashers/2020-08-24-min.x
+// xls/dslx/fuzzer/crashers/2020-08-24-min.x
 TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbAlternateForm) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -248,7 +248,7 @@ TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbAlternateForm) {
 }
 
 // TODO(meheff): 2020-08-24 Disabled for debugging of crasher
-// third_party/xls/dslx/fuzzer/crashers/2020-08-24-min.x
+// xls/dslx/fuzzer/crashers/2020-08-24-min.x
 TEST_F(BddSimplificationPassTest,
        DISABLED_OneHotMsbRequireFullBddToAnalyzeOneMsbCase) {
   auto p = CreatePackage();
@@ -267,7 +267,7 @@ TEST_F(BddSimplificationPassTest,
 }
 
 // TODO(meheff): 2020-08-24 Disabled for debugging of crasher
-// third_party/xls/dslx/fuzzer/crashers/2020-08-24-min.x
+// xls/dslx/fuzzer/crashers/2020-08-24-min.x
 TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbMsbLeaks) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -286,7 +286,7 @@ TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbMsbLeaks) {
 }
 
 // TODO(meheff): 2020-08-24 Disabled for debugging of crasher
-// third_party/xls/dslx/fuzzer/crashers/2020-08-24-min.x
+// xls/dslx/fuzzer/crashers/2020-08-24-min.x
 TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbNonMsbOneComparison) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -305,7 +305,7 @@ TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbNonMsbOneComparison) {
 }
 
 // TODO(meheff): 2020-08-24 Disabled for debugging of crasher
-// third_party/xls/dslx/fuzzer/crashers/2020-08-24-min.x
+// xls/dslx/fuzzer/crashers/2020-08-24-min.x
 TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbNonZeroReplacementValue) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -324,7 +324,7 @@ TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbNonZeroReplacementValue) {
 }
 
 // TODO(meheff): 2020-08-24 Disabled for debugging of crasher
-// third_party/xls/dslx/fuzzer/crashers/2020-08-24-min.x
+// xls/dslx/fuzzer/crashers/2020-08-24-min.x
 TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbNoRecursion) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -348,7 +348,7 @@ TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbNoRecursion) {
 }
 
 // TODO(meheff): 2020-08-24 Disabled for debugging of crasher
-// third_party/xls/dslx/fuzzer/crashers/2020-08-24-min.x
+// xls/dslx/fuzzer/crashers/2020-08-24-min.x
 TEST_F(BddSimplificationPassTest,
        DISABLED_OneHotMsbNoRecursionExistingSliceIncludesMsb) {
   auto p = CreatePackage();
@@ -374,7 +374,7 @@ TEST_F(BddSimplificationPassTest,
 }
 
 // TODO(meheff): 2020-08-24 Disabled for debugging of crasher
-// third_party/xls/dslx/fuzzer/crashers/2020-08-24-min.x
+// xls/dslx/fuzzer/crashers/2020-08-24-min.x
 TEST_F(BddSimplificationPassTest,
        DISABLED_OneHotMsbNoRecursionExistingSliceExcludesMsb) {
   auto p = CreatePackage();
@@ -395,7 +395,7 @@ TEST_F(BddSimplificationPassTest,
 }
 
 // TODO(meheff): 2020-08-24 Disabled for debugging of crasher
-// third_party/xls/dslx/fuzzer/crashers/2020-08-24-min.x
+// xls/dslx/fuzzer/crashers/2020-08-24-min.x
 TEST_F(
     BddSimplificationPassTest,
     DISABLED_OneHotMsbPostponeOneHotNativeOneHotDetectionUntilAfterOneHotMsb) {

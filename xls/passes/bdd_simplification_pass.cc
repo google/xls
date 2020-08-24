@@ -324,7 +324,7 @@ xabsl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 
 xabsl::StatusOr<bool> SimplifyOneHotMsb(Function* f) {
   // TODO(meheff): 2020-08-24 Disabled for debugging of crasher
-  // third_party/xls/dslx/fuzzer/crashers/2020-08-24-min.x
+  // xls/dslx/fuzzer/crashers/2020-08-24-min.x
   return false;
 #if 0
   bool changed = false;
