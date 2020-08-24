@@ -1,21 +1,35 @@
-<!--* freshness: { owner: 'rhundt' reviewed: '2019-10-29' } *-->
-
-# Introduction to DSLX
+# DSLX Reference
 
 [TOC]
 
-DSLX is a domain specific, functional language to build hardware. It targets the
-XLS toolchain to enable flows for FPGAs and ASICs (note that other frontends
-will become available in the future).
+DSLX is a domain specific, functional language to build hardware that can also
+run effectively as host software. The DSL targets the XLS compiler (by
+conversion to XLS IR) to enable flows for FPGAs and ASICs (note that other
+frontends will become available in the future).
 
-By using a DSL we get the best possible representation of a given problem,
-allowing us to explore the full potential of HLS, without being encumbered by
-C++ language or compiler limitations details. The language is still experimental
-and likely to change, but it is already useful for experimentation and
-exploration.
+DSLX mimics Rust, while being an immutable expression-based dataflow DSL with
+hardware-oriented features; e.g. arbitrary bitwidths, entirely fixed size
+objects, fully analyzeable call graph, etc. To avoid arbitrary new
+syntax/semantics choices the DSL mimics Rust where it is reasonably possible;
+for example, integer conversions all follow the same semantics as Rust.
 
-This document provides am introduction to DSLX, mostly by example. After
-perusing it and learning about the language features, we recommend exploring the
+Note: There are *some* unnecessary differences today from Rust syntax due to
+early experimentation, but they are quickly being removed to converge on Rust
+syntax.
+
+Dataflow DSLs are a good fit for describing hardware, compared to languages
+designed assume
+[von Neumann style computation](https://en.wikipedia.org/wiki/Von_Neumann_architecture)
+(global mutable state, sequential mutation by a sequential thread of control).
+Using a DSL provides a more hardware-oriented representation of a given
+computation that matches XLS compiler (IR) constructs closely. The DSL also
+allows an exploration of HLS without being encumbered by C++ language or
+compiler limitations such as non-portable pragmas, magic macros, or semantically
+important syntactic conventions. The language is still experimental and likely
+to change, but it is already useful for experimentation and exploration.
+
+This document provides a reference for DSLX, mostly by example. After perusing
+it and learning about the language features, we recommend exploring the
 following, detailed examples to learn how the language features are put to
 action:
 
@@ -26,7 +40,8 @@ action:
 3.  [Prefix Sum Computation](./dslx_intro_example3.md)
 
 In this document we use the function to compute a CRC32 checksum to describe
-language feature. The full code is in `examples/dslx_intro/crc32_one_byte.x`.
+language features. The full code is in
+[`examples/dslx_intro/crc32_one_byte.x`](https://github.com/google/xls/tree/main/xls/examples/dslx_intro/crc32_one_byte.x).
 
 ### Comments
 
