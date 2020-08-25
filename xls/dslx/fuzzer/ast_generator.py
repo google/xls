@@ -22,6 +22,7 @@ import random
 from typing import Tuple, TypeVar, Text, Dict, Callable, Sequence, Optional
 from xls.common import memoize
 from xls.dslx import ast
+from xls.dslx import ast_helpers
 from xls.dslx import bit_helpers
 from xls.dslx import scanner
 from xls.dslx.span import Pos
@@ -187,7 +188,8 @@ class AstGenerator(object):
     assert kw_identifier in scanner.TYPE_KEYWORD_STRINGS, kw_identifier
     token = scanner.Token(scanner.TokenKind.KEYWORD, self.fake_span,
                           scanner.Keyword(kw_identifier))
-    return ast.make_builtin_type_annotation(self.fake_span, token, dims=())
+    return ast_helpers.make_builtin_type_annotation(
+        self.m, self.fake_span, token, dims=())
 
   def _make_large_type_annotation(self, kw_identifier: Text,
                                   width: int) -> ast.TypeAnnotation:
@@ -196,7 +198,8 @@ class AstGenerator(object):
                           scanner.Keyword[kw_identifier])
     dim = self._make_number(width, None)
     dims = (dim,)
-    return ast.make_builtin_type_annotation(self.fake_span, token, dims)
+    return ast_helpers.make_builtin_type_annotation(self.m, self.fake_span,
+                                                    token, dims)
 
   def _get_type_bit_count(self, type_: ast.TypeAnnotation) -> int:
     """Returns the bit count of the given type."""
@@ -211,7 +214,7 @@ class AstGenerator(object):
   def _make_tuple_type(
       self, members: Tuple[ast.TypeAnnotation, ...]) -> ast.TypeAnnotation:
     """Creates a tuple type with the given `members`."""
-    tuple_type = ast.TupleTypeAnnotation(self.fake_span, members)
+    tuple_type = ast.TupleTypeAnnotation(self.m, self.fake_span, members)
     self._type_bit_counts[str(tuple_type)] = sum(
         self._get_type_bit_count(t) for t in members)
     return tuple_type
@@ -219,8 +222,8 @@ class AstGenerator(object):
   def _make_array_type(self, element_type: ast.TypeAnnotation,
                        array_size: int) -> ast.TypeAnnotation:
     """Creates an array type with the given size and element type."""
-    array_type = ast.make_type_ref_type_annotation(
-        self.fake_span, self._create_type_ref(element_type),
+    array_type = ast_helpers.make_type_ref_type_annotation(
+        self.m, self.fake_span, self._create_type_ref(element_type),
         (self._make_number(array_size, None),))
     self._type_bit_counts[str(
         array_type)] = self._get_type_bit_count(element_type) * array_size
@@ -243,8 +246,8 @@ class AstGenerator(object):
   def _generate_primitive_type(self) -> ast.TypeAnnotation:
     """Generates a random primitive-based type (no extra dims or tuples)."""
     primitive_token = self._generate_type_primitive()
-    return ast.make_builtin_type_annotation(
-        self.fake_span, primitive_token, dims=())
+    return ast_helpers.make_builtin_type_annotation(
+        self.m, self.fake_span, primitive_token, dims=())
 
   def _generate_bits_type(self) -> ast.TypeAnnotation:
     """Generates a random bits type."""
@@ -266,31 +269,31 @@ class AstGenerator(object):
                          identifier)
 
   def _make_name_ref(self, name_def: ast.NameDef) -> ast.NameRef:
-    return ast.NameRef(self.fake_span, name_def.identifier, name_def)
+    return ast.NameRef(self.m, self.fake_span, name_def.identifier, name_def)
 
   def _make_name_def(self, identifier: Text) -> ast.NameDef:
-    return ast.NameDef(self.fake_span, identifier)
+    return ast.NameDef(self.m, self.fake_span, identifier)
 
   def _generate_param(self) -> ast.Param:
     identifier = self.gensym()
     type_ = self._generate_bits_type()
-    name_def = ast.NameDef(self.fake_span, identifier)
-    return ast.Param(name_def, type_)
+    name_def = ast.NameDef(self.m, self.fake_span, identifier)
+    return ast.Param(self.m, name_def, type_)
 
   def _generate_params(self, count: int) -> Tuple[ast.Param, ...]:
     return tuple(self._generate_param() for _ in range(count))
 
   def _builtin_name_ref(self, identifier: Text) -> ast.NameRef:
-    return ast.NameRef(self.fake_span, identifier,
-                       ast.BuiltinNameDef(identifier))
+    return ast.NameRef(self.m, self.fake_span, identifier,
+                       ast.BuiltinNameDef(self.m, identifier))
 
   def _make_ge(self, lhs: ast.Expr, rhs: ast.Expr) -> ast.Expr:
     return ast.Binop(
-        scanner.Token(ast.Binop.GE, self.fake_span, ast.Binop.GE.value), lhs,
-        rhs)
+        self.m, scanner.Token(ast.Binop.GE, self.fake_span, ast.Binop.GE.value),
+        lhs, rhs)
 
   def _make_sel(self, test: ast.Expr, lhs: ast.Expr, rhs: ast.Expr) -> ast.Expr:
-    return ast.Ternary(self.fake_span, test, lhs, rhs)
+    return ast.Ternary(self.m, self.fake_span, test, lhs, rhs)
 
   def _generate_umin(self, arg: ast.Expr, arg_type: ast.TypeAnnotation,
                      other: int) -> ast.Expr:
@@ -314,7 +317,7 @@ class AstGenerator(object):
         new_upper = self.rng.randrange(bit_count)
         rhs = self._generate_umin(rhs, input_type, new_upper)
       output_type = input_type
-    return ast.Binop(scanner.Token(op, self.fake_span, op.value), lhs,
+    return ast.Binop(self.m, scanner.Token(op, self.fake_span, op.value), lhs,
                      rhs), output_type
 
   def _choose_env_value(
@@ -359,12 +362,15 @@ class AstGenerator(object):
     make_rhs, rhs_type = self._choose_env_value(env, self._not_tuple_or_array)
     # Convert into one-bit numbers by checking whether lhs and rhs values are 0.
     ne_token = scanner.Token(ast.Binop.NE, self.fake_span, ast.Binop.NE.value)
-    lhs = ast.Binop(ne_token, make_lhs(), self._make_number(0, lhs_type))
-    rhs = ast.Binop(ne_token, make_rhs(), self._make_number(0, rhs_type))
+    lhs = ast.Binop(self.m, ne_token, make_lhs(),
+                    self._make_number(0, lhs_type))
+    rhs = ast.Binop(self.m, ne_token, make_rhs(),
+                    self._make_number(0, rhs_type))
     # Pick some operation to do.
     op = self.rng.choice([ast.Binop.LOGICAL_AND, ast.Binop.LOGICAL_OR])
     op_token = scanner.Token(op, self.fake_span, op.value)
-    return ast.Binop(op_token, lhs, rhs), self._make_type_annotation('u1')
+    return ast.Binop(self.m, op_token, lhs,
+                     rhs), self._make_type_annotation('u1')
 
   def _generate_binop(self, env: Env) -> Tuple[ast.Binop, ast.TypeAnnotation]:
     """Generates a binary operation AST node."""
@@ -380,11 +386,11 @@ class AstGenerator(object):
     if self.rng.choice([True, False]):
       # Cast RHS to LHS type.
       lhs = make_lhs()
-      rhs = ast.Cast(lhs_type, make_rhs())
+      rhs = ast.Cast(self.m, lhs_type, make_rhs())
       result_type = lhs_type
     else:
       # Cast LHS to RHS type.
-      lhs = ast.Cast(rhs_type, make_lhs())
+      lhs = ast.Cast(self.m, rhs_type, make_lhs())
       rhs = make_rhs()
       result_type = rhs_type
 
@@ -404,8 +410,8 @@ class AstGenerator(object):
     """
     type_name = self.gensym()
     name_def = self._make_name_def(type_name)
-    type_def = ast.TypeDef(False, name_def, type_)
-    type_ref = ast.TypeRef(self.fake_span, type_name, type_def)
+    type_def = ast.TypeDef(self.m, False, name_def, type_)
+    type_ref = ast.TypeRef(self.m, self.fake_span, type_name, type_def)
     self._type_defs.append(type_def)
     self._type_bit_counts[str(type_ref)] = self._get_type_bit_count(type_)
     return type_ref
@@ -436,20 +442,21 @@ class AstGenerator(object):
 
     args = self._make_constant_array(
         tuple(get_number()[0] for i in range(array_size)))
-    args.type_ = ast.ArrayTypeAnnotation(self.fake_span, map_fn.params[0].type_,
+    args.type_ = ast.ArrayTypeAnnotation(self.m, self.fake_span,
+                                         map_fn.params[0].type_,
                                          self._make_number(array_size, None))
 
     fn_ref = self._make_name_ref(self._make_name_def(map_fn_name))
-    invocation = ast.Invocation(self.fake_span, self._builtin_name_ref('map'),
-                                (args, fn_ref))
+    invocation = ast.Invocation(self.m, self.fake_span,
+                                self._builtin_name_ref('map'), (args, fn_ref))
     return invocation, return_type
 
   def _make_constant_array(self, exprs: Tuple[ast.Expr, ...]) -> ast.Array:
     return ast.ConstantArray(
-        members=exprs, has_ellipsis=False, span=self.fake_span)
+        self.m, members=exprs, has_ellipsis=False, span=self.fake_span)
 
   def _make_array(self, exprs: Tuple[ast.Expr, ...]) -> ast.Array:
-    return ast.Array(exprs, has_ellipsis=False, span=self.fake_span)
+    return ast.Array(self.m, self.fake_span, exprs, has_ellipsis=False)
 
   def _generate_one_hot_select_builtin(
       self, env: Env) -> Tuple[ast.Invocation, ast.TypeAnnotation]:
@@ -475,6 +482,7 @@ class AstGenerator(object):
       cases.append(make_rhs)
 
     invocation = ast.Invocation(
+        self.m,
         self.fake_span,
         self._builtin_name_ref('one_hot_sel'),
         args=(make_lhs(),
@@ -484,7 +492,7 @@ class AstGenerator(object):
   def _generate_unop(self, env: Env) -> Tuple[ast.Unop, ast.TypeAnnotation]:
     make_arg, arg_type = self._choose_env_value(env, self._not_tuple_or_array)
     op = self.rng.choice(ast.Unop.SAME_TYPE_KIND_LIST)
-    return ast.Unop(scanner.Token(op, self.fake_span, op.value),
+    return ast.Unop(self.m, scanner.Token(op, self.fake_span, op.value),
                     make_arg()), arg_type
 
   def _generate_unop_builtin(
@@ -501,12 +509,16 @@ class AstGenerator(object):
     to_invoke = self.rng.choice(choices)
     if to_invoke == 'clz':
       invocation = ast.Invocation(
-          self.fake_span, self._builtin_name_ref(to_invoke), args=(make_arg(),))
+          self.m,
+          self.fake_span,
+          self._builtin_name_ref(to_invoke),
+          args=(make_arg(),))
       result_type = arg_type
     else:
       assert to_invoke == 'one_hot'
       lsb_or_msb = self.rng.choice((True, False))
       invocation = ast.Invocation(
+          self.m,
           self.fake_span,
           self._builtin_name_ref(to_invoke),
           args=(make_arg(), self._make_bool(lsb_or_msb)))
@@ -535,20 +547,20 @@ class AstGenerator(object):
         break
     if slice_type == 'width_slice':
       index_slice = ast.WidthSlice(
-          self.fake_span, self._make_number(start or 0, None),
+          self.m, self.fake_span, self._make_number(start or 0, None),
           self._make_large_type_annotation('UN', width))
     elif slice_type == 'bit_slice':
       index_slice = ast.Slice(
-          self.fake_span,
+          self.m, self.fake_span,
           None if start is None else self._make_number(start, None),
           None if limit is None else self._make_number(limit, None))
     else:
       start_arg, _ = self._choose_env_value(env, self._is_builtin_unsigned)
       index_slice = ast.WidthSlice(
-          self.fake_span, start_arg(),
+          self.m, self.fake_span, start_arg(),
           self._make_large_type_annotation('UN', width))
     type_ = self._make_large_type_annotation('UN', width)
-    return (ast.Index(self.fake_span, make_arg(), index_slice), type_)
+    return (ast.Index(self.m, self.fake_span, make_arg(), index_slice), type_)
 
   def _generate_bitwise_reduction(
       self, env: Env) -> Tuple[ast.Invocation, ast.TypeAnnotation]:
@@ -557,7 +569,8 @@ class AstGenerator(object):
     ops = ['and_reduce', 'or_reduce', 'xor_reduce']
     callee = self._builtin_name_ref(self.rng.choice(ops))
     type_ = self._make_type_annotation('u1')
-    return (ast.Invocation(self.fake_span, callee, (make_arg(),)), type_)
+    return (ast.Invocation(self.m, self.fake_span, callee,
+                           (make_arg(),)), type_)
 
   def _generate_nary_operand_count(self, env: Env) -> int:
     count = int(math.ceil(self.rng.weibullvariate(1, 0.5) * 4))
@@ -579,8 +592,8 @@ class AstGenerator(object):
         factors.append((i, bit_count // i))
 
     element_size, array_size = self.rng.choice(factors)
-    element_type = ast.make_builtin_type_annotation(
-        self.fake_span,
+    element_type = ast_helpers.make_builtin_type_annotation(
+        self.m, self.fake_span,
         scanner.Token(
             scanner.TokenKind.KEYWORD,
             value=scanner.Keyword.UN,
@@ -588,7 +601,7 @@ class AstGenerator(object):
 
     outer_array_type = self._make_array_type(element_type, array_size)
 
-    return (ast.Cast(outer_array_type, make_arg()), outer_array_type)
+    return (ast.Cast(self.m, outer_array_type, make_arg()), outer_array_type)
 
   def _generate_array_concat(self,
                              env: Env) -> Tuple[ast.Expr, ast.TypeAnnotation]:
@@ -612,13 +625,13 @@ class AstGenerator(object):
     make_rhs, rhs_type = self._choose_env_value(env, array_same_elem_type)
     token = scanner.Token(ast.Binop.CONCAT, self.fake_span,
                           ast.Binop.CONCAT.value)
-    result = ast.Binop(token, make_lhs(), make_rhs())
+    result = ast.Binop(self.m, token, make_lhs(), make_rhs())
     lhs_size = self._get_array_size(lhs_type)
     bits_per_elem = self._get_type_bit_count(lhs_type) // lhs_size
     result_size = lhs_size + self._get_array_size(rhs_type)
     dim = self._make_number(result_size, None)
-    result_type = ast.ArrayTypeAnnotation(self.fake_span, lhs_type.element_type,
-                                          dim)
+    result_type = ast.ArrayTypeAnnotation(self.m, self.fake_span,
+                                          lhs_type.element_type, dim)
     self._type_bit_counts[str(result_type)] = bits_per_elem * result_size
     return (result, result_type)
 
@@ -649,7 +662,7 @@ class AstGenerator(object):
       this_bits = builtin_type_to_bits(operand_types[i])
       if result_bits + this_bits > self.options.max_width_bits_types:
         break
-      result = ast.Binop(token, result, operands[i])
+      result = ast.Binop(self.m, token, result, operands[i])
       result_bits += this_bits
     assert result_bits <= self.options.max_width_bits_types, result_bits
     return (result, self._make_large_type_annotation('UN', result_bits))
@@ -657,7 +670,7 @@ class AstGenerator(object):
   def _make_number(self, value: int,
                    type_: Optional[ast.TypeAnnotation]) -> ast.Number:
     """Creates a number AST node with value 'value' of type 'type_'."""
-    return ast.Number(self.fake_span,
+    return ast.Number(self.m, self.fake_span,
                       hex(value).rstrip('L'), ast.NumberKind.OTHER, type_)
 
   def _make_bool(self, value: bool) -> ast.Number:
@@ -712,12 +725,15 @@ class AstGenerator(object):
     else:
       assert len(types) != 1
       es = tuple(make_expr() for make_expr in make_exprs)
-      return ast.XlsTuple(self.fake_span,
+      return ast.XlsTuple(self.m, self.fake_span,
                           es), self._make_tuple_type(tuple(types))
 
   def _make_range(self, zero: ast.Expr, arg: ast.Expr):
     return ast.Invocation(
-        self.fake_span, self._builtin_name_ref('range'), args=(zero, arg))
+        self.m,
+        self.fake_span,
+        self._builtin_name_ref('range'),
+        args=(zero, arg))
 
   def _generate_counted_for(self,
                             env: Env) -> Tuple[ast.For, ast.TypeAnnotation]:
@@ -729,15 +745,16 @@ class AstGenerator(object):
     iterable = self._make_range(zero, trips)
     x_def = self._make_name_def('x')
     name_def_tree = ast.NameDefTree(
+        self.m,
         self.fake_span,
-        tree=(ast.NameDefTree(self.fake_span, self._make_name_def('i')),
-              ast.NameDefTree(self.fake_span, x_def)))
+        tree=(ast.NameDefTree(self.m, self.fake_span, self._make_name_def('i')),
+              ast.NameDefTree(self.m, self.fake_span, x_def)))
     make_expr, type_ = self._choose_env_value(env, self._not_array)
     init = make_expr()
     body = self._make_name_ref(x_def)
     tree_type = self._make_tuple_type((ivar_type, type_))
-    return ast.For(self.fake_span, name_def_tree, tree_type, iterable, body,
-                   init), type_
+    return ast.For(self.m, self.fake_span, name_def_tree, tree_type, iterable,
+                   body, init), type_
 
   def _generate_tuple_or_index(self,
                                env: Env) -> Tuple[ast.Expr, ast.TypeAnnotation]:
@@ -753,7 +770,7 @@ class AstGenerator(object):
       index_expr = self._make_number(i, type_=self._make_type_annotation('u32'))
       tuple_expr = make_tuple_expr()
       assert isinstance(tuple_type, ast.TupleTypeAnnotation), tuple_type
-      return ast.Index(self.fake_span, tuple_expr,
+      return ast.Index(self.m, self.fake_span, tuple_expr,
                        index_expr), tuple_type.members[i]
     else:
       members = []
@@ -768,7 +785,7 @@ class AstGenerator(object):
         types.append(type_)
         total_bit_count += self._get_type_bit_count(type_)
 
-      return ast.XlsTuple(self.fake_span,
+      return ast.XlsTuple(self.m, self.fake_span,
                           tuple(members)), self._make_tuple_type(tuple(types))
 
   def _generate_expr(self, env: Env,
@@ -776,7 +793,7 @@ class AstGenerator(object):
     """Generates an expression AST node and returns it."""
     if self.should_nest(level):
       identifier = self.gensym()
-      name_def = ast.NameDef(self.fake_span, identifier)
+      name_def = ast.NameDef(self.m, self.fake_span, identifier)
       choices = collections.OrderedDict()
       if self.options.emit_loops:
         choices[self._generate_counted_for] = 1.0
@@ -815,9 +832,15 @@ class AstGenerator(object):
       new_env[identifier] = (
           lambda: self._make_name_ref(name_def)), rhs_type, False
       body, body_type = self._generate_expr(new_env, level + 1)
-      name_def_tree = ast.NameDefTree(self.fake_span, name_def)
+      name_def_tree = ast.NameDefTree(self.m, self.fake_span, name_def)
       let = ast.Let(
-          name_def_tree, rhs_type, rhs, body, self.fake_span, const=None)
+          self.m,
+          name_def_tree,
+          rhs_type,
+          rhs,
+          body,
+          self.fake_span,
+          const=None)
       return let, body_type
     else:  # Should not nest any more -- select return values.
       return self._generate_retval(env)
@@ -845,8 +868,9 @@ class AstGenerator(object):
     params = self._generate_params(param_count)
     body, body_type = self._generate_body(level, params)
     return ast.Function(
+        self.m,
         self.fake_span,
-        ast.NameDef(self.fake_span, name),
+        ast.NameDef(self.m, self.fake_span, name),
         parametric_bindings=(),
         params=params,
         return_type=body_type,
@@ -856,7 +880,9 @@ class AstGenerator(object):
   def generate_function_in_module(
       self, fname: Text, mname: Text) -> Tuple[ast.Function, ast.Module]:
     """Generates a function named "fname" in a module named "mname"."""
+    self.m = ast.Module(mname)
     f = self.generate_function(fname)
     top = tuple(self._type_defs) + tuple(self._functions) + (f,)
-    m = ast.Module(mname, top)
-    return f, m
+    for item in top:
+      self.m.add_top(item)
+    return f, self.m

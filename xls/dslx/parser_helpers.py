@@ -140,7 +140,7 @@ def parse_text(text: Text,
     ScanError: When a scanning error occurs.
   """
   try:
-    return parser.Parser(scanner.Scanner(filename, text)).parse_module(name)
+    return parser.Parser(scanner.Scanner(filename, text), name).parse_module()
   except (parser.ParseError, scanner.ScanError) as e:
     if print_on_error:
       pprint_positional_error(e, fs_open=fs_open)

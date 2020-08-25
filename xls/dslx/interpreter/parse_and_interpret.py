@@ -76,7 +76,7 @@ def parse_and_test(program: Text,
   import_cache = {}
   f_import = functools.partial(import_routines.do_import, cache=import_cache)
   try:
-    module = Parser(Scanner(filename, program)).parse_module(name)
+    module = Parser(Scanner(filename, program), name).parse_module()
     node_to_type = None
     node_to_type = typecheck.check_module(module, f_import)
 

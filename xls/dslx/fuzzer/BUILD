@@ -36,6 +36,7 @@ py_library(
     deps = [
         "//xls/common:memoize",
         "//xls/dslx:ast",
+        "//xls/dslx:ast_helpers",
         "//xls/dslx:bit_helpers",
         "//xls/dslx:scanner",
         "//xls/dslx:span",
@@ -101,6 +102,7 @@ py_test(
     python_version = "PY3",
     shard_count = 50,
     srcs_version = "PY3",
+    tags = ["optonly"],
     deps = [
         ":ast_generator",
         ":run_fuzz",

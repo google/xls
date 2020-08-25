@@ -27,6 +27,7 @@ from absl import logging
 
 from xls.dslx import bit_helpers
 from xls.dslx.ast_node import AstNode
+from xls.dslx.ast_node import AstNodeOwner
 from xls.dslx.ast_node import AstVisitor
 from xls.dslx.concrete_type import BitsType
 from xls.dslx.concrete_type import ConcreteType
@@ -49,7 +50,8 @@ class BuiltinNameDef(AstNode):
   points for them.
   """
 
-  def __init__(self, identifier: Text):
+  def __init__(self, owner: AstNodeOwner, identifier: Text):
+    super().__init__(owner)
     self.identifier = identifier
 
   def __repr__(self) -> Text:
@@ -62,7 +64,8 @@ class BuiltinNameDef(AstNode):
 class NameDef(AstNode):
   """Represents the definition of a name (identifier)."""
 
-  def __init__(self, span: Span, identifier: str):
+  def __init__(self, owner: AstNodeOwner, span: Span, identifier: str):
+    super().__init__(owner)
     self.span = span
     self.identifier = identifier
 
@@ -79,7 +82,8 @@ class NameDef(AstNode):
 class WildcardPattern(AstNode):
   """Represents a wildcard pattern in a 'match' construct."""
 
-  def __init__(self, span: Span):
+  def __init__(self, owner: AstNodeOwner, span: Span):
+    super().__init__(owner)
     self.span = span
 
   def __str__(self) -> Text:
@@ -103,7 +107,8 @@ class WildcardPattern(AstNode):
 class Expr(AstNode, metaclass=abc.ABCMeta):
   """Represents an expression."""
 
-  def __init__(self, span: Span):
+  def __init__(self, owner: AstNodeOwner, span: Span):
+    super().__init__(owner)
     self._span = span
 
   @property
@@ -135,8 +140,9 @@ class Expr(AstNode, metaclass=abc.ABCMeta):
 class Array(Expr):
   """Represents an array expression."""
 
-  def __init__(self, members: Tuple[Expr, ...], has_ellipsis: bool, span: Span):
-    super(Array, self).__init__(span)
+  def __init__(self, owner: AstNodeOwner, span: Span, members: Tuple[Expr, ...],
+               has_ellipsis: bool):
+    super().__init__(owner, span)
     self.has_ellipsis = has_ellipsis
     self.members = members
     self._type = None  # type: Optional[TypeAnnotation]
@@ -174,9 +180,9 @@ class Array(Expr):
 class TypeRef(Expr):
   """Represents a name that refers to a defined type."""
 
-  def __init__(self, span: Span, text: Text,
+  def __init__(self, owner: AstNodeOwner, span: Span, text: Text,
                type_def: Union['ModRef', 'TypeDef', 'Enum']):
-    super(TypeRef, self).__init__(span)
+    super().__init__(owner, span)
     self._text = text
     self.type_def = type_def
 
@@ -196,11 +202,10 @@ class TypeRef(Expr):
 
 class NameRef(Expr):
   """Represents a reference to a name (identifier)."""
-  TOKEN_KINDS = (TokenKind.IDENTIFIER,)
 
-  def __init__(self, span: Span, identifier: str,
+  def __init__(self, owner: AstNodeOwner, span: Span, identifier: str,
                name_def: Union['NameDef', 'BuiltinNameDef']):
-    super().__init__(span)
+    super().__init__(owner, span)
     self.identifier = identifier
     self.name_def = name_def
 
@@ -224,9 +229,9 @@ class ConstRef(NameRef):
 class EnumRef(Expr):
   """Represents an enum-value reference (via ::, i.e. Foo::BAR)."""
 
-  def __init__(self, span: Span, enum: Union['Enum', 'TypeDef'],
-               value_tok: Token):
-    super(EnumRef, self).__init__(span)
+  def __init__(self, owner: AstNodeOwner, span: Span,
+               enum: Union['Enum', 'TypeDef'], value_tok: Token):
+    super().__init__(owner, span)
     self.enum = enum
     self.value_tok = value_tok
 
@@ -250,9 +255,9 @@ class Import(AstNode):
     identifier: The identifier text we bind the import to.
   """
 
-  def __init__(self, span: Span, name: Tuple[Text, ...], name_def: NameDef,
-               alias: Optional[Text]):
-    super(Import, self).__init__()
+  def __init__(self, owner: AstNodeOwner, span: Span, name: Tuple[Text, ...],
+               name_def: NameDef, alias: Optional[Text]):
+    super().__init__(owner)
     self.span = span
     self.name = name
     self.name_def = name_def
@@ -277,8 +282,9 @@ class Import(AstNode):
 class ModRef(Expr):
   """Represents a module-value reference (via :: i.e. std::FOO)."""
 
-  def __init__(self, span: Span, mod: Import, value_tok: Token):
-    super(ModRef, self).__init__(span)
+  def __init__(self, owner: AstNodeOwner, span: Span, mod: Import,
+               value_tok: Token):
+    super().__init__(owner, span)
     self.mod = mod
     self.value_tok = value_tok
 
@@ -325,8 +331,9 @@ class NameDefTree(AstNode):
     tree: The subtree this represents (either a tuple of subtrees or a leaf).
   """
 
-  def __init__(self, span: Span, tree: Union[LeafType, Tuple['NameDefTree',
-                                                             ...]]):
+  def __init__(self, owner: AstNodeOwner, span: Span,
+               tree: Union[LeafType, Tuple['NameDefTree', ...]]):
+    super().__init__(owner)
     self.span = span
     self.tree = tree
 
@@ -399,11 +406,12 @@ class Number(Expr):
   """Represents a number."""
 
   def __init__(self,
+               owner: AstNodeOwner,
                span: Span,
                value: str,
                kind: NumberKind = NumberKind.OTHER,
                type_: Optional['TypeAnnotation'] = None):
-    super().__init__(span)
+    super().__init__(owner, span)
     self.kind = kind
     self.value = value
     if kind == NumberKind.BOOL:
@@ -480,7 +488,8 @@ class TypeAnnotation(AstNode):
   This is notably *not* an expression, as types are not values.
   """
 
-  def __init__(self, span: Span):
+  def __init__(self, owner: AstNodeOwner, span: Span):
+    super().__init__(owner)
     self.span = span
 
   def __str__(self) -> str:
@@ -499,8 +508,8 @@ class TypeAnnotation(AstNode):
 class BuiltinTypeAnnotation(TypeAnnotation):
   """Represents a builtin type annotation; e.g. `u32`, `bits`, etc."""
 
-  def __init__(self, span: Span, tok: Token):
-    super().__init__(span)
+  def __init__(self, owner: AstNodeOwner, span: Span, tok: Token):
+    super().__init__(owner, span)
     assert isinstance(tok, Token), tok
     assert tok.is_keyword_in(TYPE_KEYWORDS), tok
     self.tok = tok
@@ -530,20 +539,13 @@ class BuiltinTypeAnnotation(TypeAnnotation):
     pass
 
 
-def make_builtin_type_annotation(span: Span, tok: Token,
-                                 dims: Tuple[Expr, ...]) -> TypeAnnotation:
-  elem_type = BuiltinTypeAnnotation(span, tok)
-  for dim in dims:
-    elem_type = ArrayTypeAnnotation(span, elem_type, dim)
-  return elem_type
-
-
 class TupleTypeAnnotation(TypeAnnotation):
   """Represents a tuple type annotation; e.g. `(u32, s42)`."""
 
-  def __init__(self, span: Span, members: Tuple[TypeAnnotation, ...]):
+  def __init__(self, owner: AstNodeOwner, span: Span,
+               members: Tuple[TypeAnnotation, ...]):
     assert isinstance(members, tuple), members
-    super().__init__(span)
+    super().__init__(owner, span)
     self.members = members
 
   def __hash__(self) -> int:
@@ -569,10 +571,11 @@ class TypeRefTypeAnnotation(TypeAnnotation):
   """Represents a type reference annotation."""
 
   def __init__(self,
+               owner: AstNodeOwner,
                span: Span,
                type_ref: TypeRef,
                parametrics: Optional[Tuple[Expr, ...]] = None):
-    super().__init__(span)
+    super().__init__(owner, span)
     self.type_ref = type_ref
     self.parametrics = parametrics
 
@@ -590,23 +593,12 @@ class TypeRefTypeAnnotation(TypeAnnotation):
     self.type_ref.accept(visitor)
 
 
-def make_type_ref_type_annotation(
-    span: Span,
-    type_ref: TypeRef,
-    dims: Tuple[Expr, ...],
-    parametrics: Optional[Tuple[Expr, ...]] = None) -> TypeAnnotation:
-  assert dims is not None, dims
-  elem_type = TypeRefTypeAnnotation(span, type_ref, parametrics)
-  for dim in dims:
-    elem_type = ArrayTypeAnnotation(span, elem_type, dim)
-  return elem_type
-
-
 class ArrayTypeAnnotation(TypeAnnotation):
   """Represents an array type annotation; e.g. `u32[5]`."""
 
-  def __init__(self, span: Span, element_type: TypeAnnotation, dim: Expr):
-    super().__init__(span)
+  def __init__(self, owner: AstNodeOwner, span: Span,
+               element_type: TypeAnnotation, dim: Expr):
+    super().__init__(owner, span)
     self.element_type = element_type
     self.dim = dim
 
@@ -644,7 +636,9 @@ class TypeDef(AstNode):
     type Bar = (u32, Foo);
   """
 
-  def __init__(self, public: bool, name: NameDef, type_: TypeAnnotation):
+  def __init__(self, owner: AstNodeOwner, public: bool, name: NameDef,
+               type_: TypeAnnotation):
+    super().__init__(owner)
     self.public = public
     self.name = name
     self.type_ = type_
@@ -672,9 +666,10 @@ class Enum(AstNode):
   }
   """
 
-  def __init__(self, span: Span, public: bool, name: NameDef,
-               type_: TypeAnnotation,
+  def __init__(self, owner: AstNodeOwner, span: Span, public: bool,
+               name: NameDef, type_: TypeAnnotation,
                values: Tuple[Tuple[NameDef, Union[NameRef, Number]], ...]):
+    super().__init__(owner)
     self.span = span
     self.public = public
     self.name = name
@@ -717,8 +712,9 @@ class Ternary(Expr):
     consequent if test else alternate
   """
 
-  def __init__(self, span: Span, test: Expr, consequent: Expr, alternate: Expr):
-    super(Ternary, self).__init__(span)
+  def __init__(self, owner: AstNodeOwner, span: Span, test: Expr,
+               consequent: Expr, alternate: Expr):
+    super().__init__(owner, span)
     self.test = test
     self.consequent = consequent
     self.alternate = alternate
@@ -808,8 +804,9 @@ class Binop(Expr):
   CONCAT_TYPE_KINDS = set(CONCAT_TYPE_KIND_LIST)
   ALL_KINDS = SAME_TYPE_KINDS | COMPARISON_KINDS | LOGICAL_KINDS | CONCAT_TYPE_KINDS
 
-  def __init__(self, operator: Token, lhs: Expr, rhs: Expr):
-    super(Binop, self).__init__(operator.span)
+  def __init__(self, owner: AstNodeOwner, operator: Token, lhs: Expr,
+               rhs: Expr):
+    super().__init__(owner, operator.span)
     self.operator = operator
     assert operator.is_kind_or_keyword(self.ALL_KINDS), \
         'Unknown operator for binop AST: {}'.format(operator.kind)

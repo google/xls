@@ -173,6 +173,7 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":ast",
+        ":ast_helpers",
         ":scanner",
         ":span",
         "//xls/common:test_base",
@@ -216,6 +217,7 @@ py_library(
     srcs_version = "PY3",
     deps = [
         ":ast",
+        ":ast_helpers",
         ":bindings",
         ":dslx_builtins",
         ":parse_error",
@@ -610,5 +612,7 @@ py_library(
     srcs_version = "PY3",
     deps = [
         ":ast",
+        ":scanner",
+        ":span",
     ],
 )

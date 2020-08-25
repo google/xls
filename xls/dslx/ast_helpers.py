@@ -13,11 +13,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 """Helper utilities for traversing AST nodes."""
 
-from typing import Union, Callable, Tuple, Any
+from typing import Union, Callable, Tuple, Any, Optional
 
 from xls.dslx import ast
+from xls.dslx import scanner
+from xls.dslx import span as span_mod
 
 ContextType = Any
 GetImportedCallback = Callable[[ast.Import, ContextType], Tuple[ast.Module,
@@ -58,3 +61,26 @@ def evaluate_to_struct_or_enum_or_annotation(
                                                 evaluation_context)
   assert isinstance(td, (ast.Struct, ast.Enum, ast.TypeAnnotation)), td
   return td
+
+
+def make_builtin_type_annotation(
+    owner: ast.AstNodeOwner, span: span_mod.Span, tok: scanner.Token,
+    dims: Tuple[ast.Expr, ...]) -> ast.TypeAnnotation:
+  elem_type = ast.BuiltinTypeAnnotation(owner, span, tok)
+  for dim in dims:
+    elem_type = ast.ArrayTypeAnnotation(owner, span, elem_type, dim)
+  return elem_type
+
+
+def make_type_ref_type_annotation(
+    owner: ast.AstNodeOwner,
+    span: span_mod.Span,
+    type_ref: ast.TypeRef,
+    dims: Tuple[ast.Expr, ...],
+    parametrics: Optional[Tuple[ast.Expr, ...]] = None) -> ast.TypeAnnotation:
+  """Creates a type ref annotation that may be wrapped in array dimensions."""
+  assert dims is not None, dims
+  elem_type = ast.TypeRefTypeAnnotation(owner, span, type_ref, parametrics)
+  for dim in dims:
+    elem_type = ast.ArrayTypeAnnotation(owner, span, elem_type, dim)
+  return elem_type

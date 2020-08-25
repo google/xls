@@ -26,6 +26,7 @@ from absl import logging
 
 from xls.dslx import free_variables
 from xls.dslx.ast_node import AstNode
+from xls.dslx.ast_node import AstNodeOwner
 from xls.dslx.ast_node import AstVisitor
 from xls.dslx.core_ast_nodes import Array
 from xls.dslx.core_ast_nodes import ConstRef
@@ -54,7 +55,8 @@ NodeToType = Any
 class Param(AstNode):
   """Represents a function parameter."""
 
-  def __init__(self, name: NameDef, type_: TypeAnnotation):
+  def __init__(self, owner: AstNodeOwner, name: NameDef, type_: TypeAnnotation):
+    super().__init__(owner)
     self.name = name
     self.type_ = type_
 
@@ -88,8 +90,9 @@ class ParametricBinding(AstNode):
   * Y is a value derived from the parametric binding of X.
   """
 
-  def __init__(self, name: NameDef, type_: TypeAnnotation,
+  def __init__(self, owner: AstNodeOwner, name: NameDef, type_: TypeAnnotation,
                expr: Optional[Expr]):
+    super().__init__(owner)
     self.name = name
     self.type_ = type_
     self.expr = expr
@@ -106,10 +109,11 @@ class ParametricBinding(AstNode):
 class Function(AstNode):
   """Represents a function definition."""
 
-  def __init__(self, span: Span, name: NameDef,
+  def __init__(self, owner: AstNodeOwner, span: Span, name: NameDef,
                parametric_bindings: Tuple[ParametricBinding,
                                           ...], params: Tuple[Param, ...],
                return_type: Optional[TypeAnnotation], body: Expr, public: bool):
+    super().__init__(owner)
     self.span = span
     self.name = name
     self.parametric_bindings = parametric_bindings
@@ -175,7 +179,9 @@ class Function(AstNode):
 class QuickCheck(AstNode):
   """Represents a function to be QuickChecked."""
 
-  def __init__(self, span: Span, f: Function, test_count: Optional[int]):
+  def __init__(self, owner: AstNodeOwner, span: Span, f: Function,
+               test_count: Optional[int]):
+    super().__init__(owner)
     self.span = span
     self.f = f
 
@@ -191,8 +197,10 @@ class QuickCheck(AstNode):
 class Proc(AstNode):
   """Represents a parsed 'process' specification in the DSL."""
 
-  def __init__(self, span: Span, name_def: NameDef, proc_params: Params,
-               iter_params: Params, iter_body: Expr, public: bool):
+  def __init__(self, owner: AstNodeOwner, span: Span, name_def: NameDef,
+               proc_params: Params, iter_params: Params, iter_body: Expr,
+               public: bool):
+    super().__init__(owner)
     self.span = span
     self.name_def = name_def
     self.proc_params = proc_params
@@ -204,8 +212,9 @@ class Proc(AstNode):
 class ConstantArray(Array):
   """Subtype of array that holds only constant values."""
 
-  def __init__(self, members: Tuple[Expr, ...], has_ellipsis: bool, span: Span):
-    super(ConstantArray, self).__init__(members, has_ellipsis, span)
+  def __init__(self, owner: AstNodeOwner, span: Span, members: Tuple[Expr, ...],
+               has_ellipsis: bool):
+    super().__init__(owner, span, members, has_ellipsis)
     for member in members:
       assert Constant.is_constant(member), member
 
@@ -213,7 +222,8 @@ class ConstantArray(Array):
 class Test(AstNode):
   """Represents a test definition."""
 
-  def __init__(self, name: NameDef, body: Expr):
+  def __init__(self, owner: AstNodeOwner, name: NameDef, body: Expr):
+    super().__init__(owner)
     self.name = name
     self.body = body
 
@@ -234,15 +244,16 @@ class TestFunction(Test):
   We keep Test for backwards compatibility with old-style test constructs.
   """
 
-  def __init__(self, fn: Function):
-    super().__init__(fn.name, fn.body)
+  def __init__(self, owner: AstNodeOwner, fn: Function):
+    super().__init__(owner, fn.name, fn.body)
     self.fn = fn
 
 
 class Constant(AstNode):
   """Represents a constant definition."""
 
-  def __init__(self, name: NameDef, value: Expr):
+  def __init__(self, owner: AstNodeOwner, name: NameDef, value: Expr):
+    super().__init__(owner)
     assert self.is_constant(value), (
         'Expr is not considered constant: {!r}'.format(value))
     self.name = name
@@ -276,10 +287,11 @@ class Constant(AstNode):
 class Struct(AstNode):
   """Represents a struct definition."""
 
-  def __init__(self, public: bool, parametric_bindings: Tuple[ParametricBinding,
-                                                              ...],
+  def __init__(self, owner: AstNodeOwner, public: bool,
+               parametric_bindings: Tuple[ParametricBinding, ...],
                name: NameDef, members: Sequence[Tuple[NameDef,
                                                       TypeAnnotation]]):
+    super().__init__(owner)
     self.name = name
     self.members = members
     self.public = public
@@ -330,9 +342,9 @@ def _struct_to_text(struct: Union[Struct, ModRef]) -> str:
 class StructInstance(Expr):
   """Represents instantiation of a struct via member expressions."""
 
-  def __init__(self, span: Span, struct: Union[ModRef, Struct],
-               members: StructInstanceMembers):
-    super(StructInstance, self).__init__(span)
+  def __init__(self, owner: AstNodeOwner, span: Span,
+               struct: Union[ModRef, Struct], members: StructInstanceMembers):
+    super().__init__(owner, span)
     self.struct = struct
     self._members = tuple(members)
 
@@ -376,9 +388,10 @@ class SplatStructInstance(Expr):
       instantiating a delta from); e.g. `orig_p` in the example above.
   """
 
-  def __init__(self, span: Span, struct: Union[ModRef, Struct],
+  def __init__(self, owner: AstNodeOwner, span: Span, struct: Union[ModRef,
+                                                                    Struct],
                members: StructInstanceMembers, splatted: Expr):
-    super().__init__(span)
+    super().__init__(owner, span)
     self.struct = struct
     self.members = tuple(members)
     self.splatted = splatted
@@ -416,28 +429,36 @@ class Module(AstNode):
       level (e.g. metadata, docstrings).
   """
 
-  def __init__(self, name: Text, top: Tuple[ModuleMember, ...]):
+  def __init__(self, name: Text, top: Tuple[ModuleMember, ...] = ()):
+    super().__init__(None)
     self.name = name
-    self.top = top
+    self._top = list(top)
+
+  @property
+  def top(self) -> Tuple[ModuleMember, ...]:
+    return tuple(self._top)
+
+  def add_top(self, member: ModuleMember) -> None:
+    self._top.append(member)
 
   def _accept_children(self, visitor: AstVisitor) -> None:
-    for element in self.top:
+    for element in self._top:
       element.accept(visitor)
 
   def get_functions(self) -> List['Function']:
-    return [member for member in self.top if isinstance(member, Function)]
+    return [member for member in self._top if isinstance(member, Function)]
 
   def get_tests(self) -> List['Test']:
-    return [member for member in self.top if isinstance(member, Test)]
+    return [member for member in self._top if isinstance(member, Test)]
 
   def get_structs(self) -> List['Struct']:
-    return [member for member in self.top if isinstance(member, Struct)]
+    return [member for member in self._top if isinstance(member, Struct)]
 
   def get_quickchecks(self) -> List['QuickCheck']:
-    return [member for member in self.top if isinstance(member, QuickCheck)]
+    return [member for member in self._top if isinstance(member, QuickCheck)]
 
   def get_constants(self) -> List[Constant]:
-    return [member for member in self.top if isinstance(member, Constant)]
+    return [member for member in self._top if isinstance(member, Constant)]
 
   def get_function_by_name(self) -> Dict[Text, Function]:
     return {member.name.identifier: member for member in self.get_functions()}
@@ -445,18 +466,18 @@ class Module(AstNode):
   def get_constant_by_name(self) -> Dict[Text, Constant]:
     return {
         member.name.identifier: member
-        for member in self.top
+        for member in self._top
         if isinstance(member, Constant)
     }
 
   def get_enum(self, name: Text) -> Enum:
     return next(
-        member for member in self.top
+        member for member in self._top
         if isinstance(member, Enum) and member.name.identifier == name)
 
   def get_typedefs(self) -> List[Union[TypeDef, Struct, Enum]]:
     return [
-        member for member in self.top
+        member for member in self._top
         if isinstance(member, (TypeDef, Struct, Enum))
     ]
 
@@ -470,7 +491,7 @@ class Module(AstNode):
     """Returns names of all the 'test' constructs in the module."""
     return [
         member.name.identifier
-        for member in self.top
+        for member in self._top
         if isinstance(member, Test)
     ]
 
@@ -483,13 +504,13 @@ class Module(AstNode):
     Raises:
       KeyError: if a test with the given target_name is not found.
     """
-    for member in self.top:
+    for member in self._top:
       if isinstance(member, Test) and member.name.identifier == target_name:
         return member
     raise KeyError('No test in module with name: ' + target_name)
 
   def get_function(self, target_name: Text) -> 'Function':
-    for member in self.top:
+    for member in self._top:
       if isinstance(member, Function) and member.name.identifier == target_name:
         return member
     raise KeyError('No function in module with name: ' + target_name)
@@ -506,8 +527,9 @@ class Module(AstNode):
 class Invocation(Expr):
   """Represents an invocation expression; e.g. ``f(a, b, c)``."""
 
-  def __init__(self, span: Span, callee: Expr, args: Tuple[Expr, ...]):
-    super(Invocation, self).__init__(span)
+  def __init__(self, owner: AstNodeOwner, span: Span, callee: Expr,
+               args: Tuple[Expr, ...]):
+    super().__init__(owner, span)
     self.callee = callee
     self.args = args
 
@@ -558,9 +580,9 @@ class Slice(AstNode):
       above).
   """
 
-  def __init__(self, span: Span, start: Optional[Number],
+  def __init__(self, owner: AstNodeOwner, span: Span, start: Optional[Number],
                limit: Optional[Number]):
-    super(Slice, self).__init__()
+    super().__init__(owner)
     self.span = span
     self.start = start
     self.limit = limit
@@ -589,8 +611,9 @@ class Slice(AstNode):
 class WidthSlice(AstNode):
   """Represents a slice in the AST; e.g. `-4+:u2`."""
 
-  def __init__(self, span: Span, start: Expr, width: TypeAnnotation):
-    super(WidthSlice, self).__init__()
+  def __init__(self, owner: AstNodeOwner, span: Span, start: Expr,
+               width: TypeAnnotation):
+    super().__init__(owner)
     self.span = span
     self.start = start
     self.width = width
@@ -614,9 +637,9 @@ class Index(Expr):
     span: The span of the indexing expression.
   """
 
-  def __init__(self, span: Span, lhs: Expr, index: Union[Expr, Slice,
-                                                         WidthSlice]):
-    super(Index, self).__init__(span)
+  def __init__(self, owner: AstNodeOwner, span: Span, lhs: Expr,
+               index: Union[Expr, Slice, WidthSlice]):
+    super().__init__(owner, span)
     self.lhs = lhs
     self.index = index
 
@@ -638,8 +661,8 @@ class Attr(Expr):
   ``a.x``
   """
 
-  def __init__(self, span: Span, lhs: Expr, attr: NameDef):
-    super(Attr, self).__init__(span)
+  def __init__(self, owner: AstNodeOwner, span: Span, lhs: Expr, attr: NameDef):
+    super().__init__(owner, span)
     self.lhs = lhs
     self.attr = attr
 
@@ -657,8 +680,8 @@ class Attr(Expr):
 class XlsTuple(Expr):
   """Represents an XLS tuple expression."""
 
-  def __init__(self, span: Span, members: Tuple[Expr]):
-    super(XlsTuple, self).__init__(span)
+  def __init__(self, owner: AstNodeOwner, span: Span, members: Tuple[Expr]):
+    super().__init__(owner, span)
     self.members = members
 
   def _accept_children(self, visitor: AstVisitor) -> None:
@@ -695,10 +718,10 @@ class Let(Expr):
       be shadowed.
   """
 
-  def __init__(self, name_def_tree: NameDefTree,
+  def __init__(self, owner: AstNodeOwner, name_def_tree: NameDefTree,
                type_: Optional[TypeAnnotation], rhs: Expr, body: Expr,
                span: Span, const: Optional[Constant]):
-    super(Let, self).__init__(span)
+    super().__init__(owner, span)
     self.name_def_tree = name_def_tree
     self.type_ = type_
     self.rhs = rhs
@@ -744,9 +767,9 @@ class For(Expr):
     init: Initial expression for the loop (start value(s) expression).
   """
 
-  def __init__(self, span: Span, names: NameDefTree, type_: TypeAnnotation,
-               iterable: Expr, body: Expr, init: Expr):
-    super(For, self).__init__(span)
+  def __init__(self, owner: AstNodeOwner, span: Span, names: NameDefTree,
+               type_: TypeAnnotation, iterable: Expr, body: Expr, init: Expr):
+    super().__init__(owner, span)
     self.names = names
     self.type_ = type_
     self.iterable = iterable
@@ -792,11 +815,12 @@ class While(Expr):
   """
 
   def __init__(self,
+               owner: AstNodeOwner,
                span: Span,
                test: Optional[Expr] = None,
                body: Optional[Expr] = None,
                init: Optional[Expr] = None):
-    super(While, self).__init__(span)
+    super().__init__(owner, span)
     self.test = test
     self.body = body
     self.init = init
@@ -818,8 +842,8 @@ class While(Expr):
 class Carry(Expr):
   """Represents 'carry' keyword, refers to implicit loop-carry data in While."""
 
-  def __init__(self, span: Span, loop: While):
-    super(Carry, self).__init__(span)
+  def __init__(self, owner: AstNodeOwner, span: Span, loop: While):
+    super().__init__(owner, span)
     self.loop = loop
 
   def __str__(self) -> Text:
@@ -849,10 +873,10 @@ class Cast(Expr):
   Casts the result of the foo() invocation to a u32 value.
   """
 
-  def __init__(self, type_: TypeAnnotation, expr: Expr):
+  def __init__(self, owner: AstNodeOwner, type_: TypeAnnotation, expr: Expr):
     start_pos = min(type_.span.start, expr.span.start)
     limit_pos = max(type_.span.limit, expr.span.limit)
-    super(Cast, self).__init__(Span(start_pos, limit_pos))
+    super().__init__(owner, Span(start_pos, limit_pos))
     self.type_ = type_
     self.expr = expr
 
@@ -884,9 +908,9 @@ class Unop(Expr):
 
   OPERATORS = set(SAME_TYPE_KIND_LIST)
 
-  def __init__(self, operator: Token, operand: Expr):
+  def __init__(self, owner: AstNodeOwner, operator: Token, operand: Expr):
     assert operator.is_kind_or_keyword(self.OPERATORS), operator
-    super(Unop, self).__init__(operator.span)
+    super().__init__(owner, operator.span)
     self.operator = operator
     self.operand = operand
 
@@ -909,7 +933,9 @@ class MatchArm(AstNode):
     span: The span of the match arm (both matcher and expr).
   """
 
-  def __init__(self, patterns: Tuple[NameDefTree, ...], expr: Expr):
+  def __init__(self, owner: AstNodeOwner, patterns: Tuple[NameDefTree, ...],
+               expr: Expr):
+    super().__init__(owner)
     self.patterns = patterns
     self.expr = expr
 
@@ -952,8 +978,9 @@ class MatchArm(AstNode):
 class Match(Expr):
   """Represents a match (pattern-match) expression."""
 
-  def __init__(self, span: Span, matched: Expr, arms: Tuple[MatchArm, ...]):
-    super(Match, self).__init__(span)
+  def __init__(self, owner: AstNodeOwner, span: Span, matched: Expr,
+               arms: Tuple[MatchArm, ...]):
+    super().__init__(owner, span)
     self.matched = matched
     self.arms = arms
 

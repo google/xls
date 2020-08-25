@@ -24,7 +24,6 @@ from absl import app
 from absl import flags
 from pyfakefs import fake_filesystem
 
-from xls.dslx import ast
 from xls.dslx import bit_helpers
 from xls.dslx import concrete_type as concrete_type_mod
 from xls.dslx import import_routines
@@ -47,18 +46,6 @@ SN_KEYWORD = scanner.Token(scanner.TokenKind.KEYWORD, FAKE_SPAN,
                            scanner.Keyword.SN)
 
 
-def concrete_type_to_annotation(
-    concrete_type: concrete_type_mod.ConcreteType) -> ast.TypeAnnotation:
-  if isinstance(concrete_type, concrete_type_mod.BitsType):
-    keyword = SN_KEYWORD if concrete_type.get_signedness() else UN_KEYWORD
-    num_tok = scanner.Token(scanner.TokenKind.NUMBER, FAKE_SPAN,
-                            concrete_type.get_total_bit_count())
-    return ast.make_builtin_type_annotation(
-        FAKE_SPAN, keyword, dims=(ast.Number(num_tok),))
-
-  raise NotImplementedError(concrete_type)
-
-
 def handle_line(line: str, stmt_index: int):
   """Runs a single user-provided line as a REPL input."""
   fn_name = f'repl_{stmt_index}'
@@ -78,8 +65,8 @@ def handle_line(line: str, stmt_index: int):
 
   while True:
     try:
-      fake_module = parser.Parser(scanner.Scanner(
-          FILENAME, module_text)).parse_module(fn_name)
+      fake_module = parser.Parser(
+          scanner.Scanner(FILENAME, module_text), fn_name).parse_module()
     except span.PositionalError as e:
       parser_helpers.pprint_positional_error(e, fs_open=make_fakefs_open())
       return

@@ -294,8 +294,8 @@ def _deduce_ConstantArray(
   return concrete_type
 
 
-def _create_element_invocation(span_: span.Span, callee: Union[ast.NameRef,
-                                                               ast.ModRef],
+def _create_element_invocation(owner: ast.AstNodeOwner, span_: span.Span,
+                               callee: Union[ast.NameRef, ast.ModRef],
                                arg_array: ast.Expr) -> ast.Invocation:
   """Creates a function invocation on the first element of the given array.
 
@@ -309,6 +309,7 @@ def _create_element_invocation(span_: span.Span, callee: Union[ast.NameRef,
   essentually perform that synthesis and deduction here.
 
   Args:
+    owner: AST node owner.
     span_: The location in the code where analysis is occurring.
     callee: The function to be invoked.
     arg_array: The array of arguments (at least one) to the function.
@@ -317,12 +318,13 @@ def _create_element_invocation(span_: span.Span, callee: Union[ast.NameRef,
     An invocation node for the given function when called with an element in the
     argument array.
   """
-  annotation = ast.make_builtin_type_annotation(
-      span_, scanner.Token(scanner.TokenKind.KEYWORD, span_,
-                           scanner.Keyword.U32), ())
-  index_number = ast.Number(span_, '32', ast.NumberKind.OTHER, annotation)
-  index = ast.Index(span_, arg_array, index_number)
-  return ast.Invocation(span_, callee, (index,))
+  annotation = ast_helpers.make_builtin_type_annotation(
+      owner, span_,
+      scanner.Token(scanner.TokenKind.KEYWORD, span_, scanner.Keyword.U32), ())
+  index_number = ast.Number(owner, span_, '32', ast.NumberKind.OTHER,
+                            annotation)
+  index = ast.Index(owner, span_, arg_array, index_number)
+  return ast.Invocation(owner, span_, callee, (index,))
 
 
 def _check_parametric_invocation(parametric_fn: ast.Function,
@@ -397,7 +399,8 @@ def _deduce_Invocation(self: ast.Invocation, ctx: DeduceCtx) -> ConcreteType:  #
           arg, ast.NameRef
       ) and arg.name_def.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES
       if callee_is_map and arg_is_builtin:
-        invocation = _create_element_invocation(self.span, arg, self.args[0])
+        invocation = _create_element_invocation(ctx.module, self.span, arg,
+                                                self.args[0])
         arg_types.append(resolve(deduce(invocation, ctx), ctx))
       else:
         raise
