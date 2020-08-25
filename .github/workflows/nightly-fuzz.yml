@@ -6,6 +6,8 @@ on:
   schedule:
     # Nightly at midnight.
     - cron:  '0 0 * * *'
+  # This lets us trigger manually from the UI.
+  workflow_dispatch:
 
 jobs:
   build:
