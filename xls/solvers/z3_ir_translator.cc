@@ -23,7 +23,6 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/abstract_evaluator.h"
 #include "xls/ir/abstract_node_evaluator.h"
-#include "xls/solvers/z3_propagate_updates.h"
 #include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3_api.h"
 #include "../z3/src/api/z3_fpa.h"

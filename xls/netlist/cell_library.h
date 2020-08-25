@@ -93,18 +93,20 @@ class StateTable {
     return output_signals_;
   }
 
-  // Return the protobuf representation of this table.
-  xabsl::StatusOr<StateTableProto> ToProto() const;
-
- private:
+  // Description of a row in the state table - a mapping of "stimulus", i.e.,
+  // input signals, to the "response", the output signals.
   using RowStimulus = absl::flat_hash_map<std::string, StateTableSignal>;
   using RowResponse = absl::flat_hash_map<std::string, StateTableSignal>;
-
   struct Row {
     RowStimulus stimulus;
     RowResponse response;
   };
+  const std::vector<Row>& rows() const { return rows_; }
 
+  // Return the protobuf representation of this table.
+  xabsl::StatusOr<StateTableProto> ToProto() const;
+
+ private:
   StateTable(const std::vector<Row>& rows,
              const absl::flat_hash_set<std::string>& signals,
              const StateTableProto& proto);

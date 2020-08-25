@@ -147,7 +147,7 @@ xabsl::StatusOr<std::vector<Cell*>> NetDef::GetConnectedCellsSans(
     return "[" + absl::StrJoin(keys, ", ") + "]";
   };
 
-  std::vector<Input> cell_inputs;
+  std::vector<Pin> cell_inputs;
   for (const std::string& input : cell_library_entry->input_names()) {
     auto it = named_parameter_assignments.find(input);
     if (it == named_parameter_assignments.end()) {
@@ -155,21 +155,21 @@ xabsl::StatusOr<std::vector<Cell*>> NetDef::GetConnectedCellsSans(
           "Missing named input parameter in instantiation: %s; got: %s", input,
           sorted_key_str()));
     }
-    Input cell_input;
-    cell_input.pin_name = input;
+    Pin cell_input;
+    cell_input.name = input;
     cell_input.netref = it->second;
     cell_inputs.push_back(cell_input);
   }
 
   const CellLibraryEntry::OperationT& operation =
       cell_library_entry->operation();
-  std::vector<Output> cell_outputs;
+  std::vector<Pin> cell_outputs;
   if (std::holds_alternative<CellLibraryEntry::SimplePins>(operation)) {
     const auto& output_pins = std::get<CellLibraryEntry::SimplePins>(operation);
     for (const auto& kv : output_pins) {
-      Output cell_output;
-      cell_output.pin_name = kv.first;
-      auto it = named_parameter_assignments.find(cell_output.pin_name);
+      Pin cell_output;
+      cell_output.name = kv.first;
+      auto it = named_parameter_assignments.find(cell_output.name);
       if (it == named_parameter_assignments.end()) {
         cell_output.netref = dummy_net;
       } else {
@@ -180,8 +180,8 @@ xabsl::StatusOr<std::vector<Cell*>> NetDef::GetConnectedCellsSans(
   } else {
     const StateTable& state_table = std::get<StateTable>(operation);
     for (const std::string& signal_name : state_table.output_signals()) {
-      Output cell_output;
-      cell_output.pin_name = signal_name;
+      Pin cell_output;
+      cell_output.name = signal_name;
       auto it = named_parameter_assignments.find(signal_name);
       if (it == named_parameter_assignments.end()) {
         cell_output.netref = dummy_net;

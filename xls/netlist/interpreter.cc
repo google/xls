@@ -175,7 +175,7 @@ absl::Status Interpreter::InterpretCell(
       // If ever an input isn't found, that's bad. Abort.
       bool input_found = false;
       for (int i = 0; i < module_input_names.size(); i++) {
-        if (module_input_names[i] == input.pin_name) {
+        if (module_input_names[i] == input.name) {
           inputs[module_input_refs[i]] = processed_wires->at(input.netref);
           input_found = true;
           break;
@@ -185,7 +185,7 @@ absl::Status Interpreter::InterpretCell(
       XLS_RET_CHECK(input_found) << absl::StrFormat(
           "Could not find input pin \"%s\" in module \"%s\", referenced in "
           "cell \"%s\"!",
-          input.pin_name, module->name(), cell.name());
+          input.name, module->name(), cell.name());
     }
 
     using ChildOutputsT = absl::flat_hash_map<const rtl::NetRef, bool>;
@@ -196,7 +196,7 @@ absl::Status Interpreter::InterpretCell(
     for (const auto& child_output : child_outputs) {
       bool output_found = false;
       for (const auto& cell_output : cell.outputs()) {
-        if (child_output.first->name() == cell_output.pin_name) {
+        if (child_output.first->name() == cell_output.name) {
           (*processed_wires)[cell_output.netref] = child_output.second;
           output_found = true;
           break;
@@ -216,13 +216,12 @@ absl::Status Interpreter::InterpretCell(
     const StateTable& state_table = std::get<StateTable>(entry->operation());
     StateTable::InputStimulus stimulus;
     for (const auto& input : cell.inputs()) {
-      stimulus[input.pin_name] = (*processed_wires).at(input.netref);
+      stimulus[input.name] = (*processed_wires).at(input.netref);
     }
 
     for (int i = 0; i < cell.outputs().size(); i++) {
-      XLS_ASSIGN_OR_RETURN(
-          bool result,
-          state_table.GetSignalValue(stimulus, cell.outputs()[i].pin_name));
+      XLS_ASSIGN_OR_RETURN(bool result, state_table.GetSignalValue(
+                                            stimulus, cell.outputs()[i].name));
       (*processed_wires)[cell.outputs()[i].netref] = result;
     }
   } else {
@@ -231,7 +230,7 @@ absl::Status Interpreter::InterpretCell(
     for (int i = 0; i < cell.outputs().size(); i++) {
       XLS_ASSIGN_OR_RETURN(
           function::Ast ast,
-          function::Parser::ParseFunction(pins.at(cell.outputs()[i].pin_name)));
+          function::Parser::ParseFunction(pins.at(cell.outputs()[i].name)));
       XLS_ASSIGN_OR_RETURN(bool result,
                            InterpretFunction(cell, ast, *processed_wires));
       (*processed_wires)[cell.outputs()[i].netref] = result;
@@ -255,7 +254,7 @@ xabsl::StatusOr<bool> Interpreter::InterpretFunction(
     case function::Ast::Kind::kIdentifier: {
       rtl::NetRef ref = nullptr;
       for (const auto& input : cell.inputs()) {
-        if (input.pin_name == ast.name()) {
+        if (input.name == ast.name()) {
           ref = input.netref;
         }
       }

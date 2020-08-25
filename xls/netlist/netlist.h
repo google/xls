@@ -42,20 +42,10 @@ using NetRef = NetDef*;
 // Represents a cell instantiated in the netlist.
 class Cell {
  public:
-  // Simple utility struct to capture data for a Cell input.
-  struct Input {
-    // Name of the input pin in the cell's function description.
-    std::string pin_name;
-
-    // The associated net from the netlist.
-    NetRef netref;
-  };
-
-  // Simple utility struct to capture data for a Cell output.
-  struct Output {
-    // The description of the pin from the Cell Library - the pin's name and
-    // calculated function.
-    std::string pin_name;
+  // Simple utility struct to capture data for a Cell's input or output pins.
+  struct Pin {
+    // Name of the pin in the cell's function description.
+    std::string name;
 
     // The associated net from the netlist.
     NetRef netref;
@@ -79,13 +69,13 @@ class Cell {
   const std::string& name() const { return name_; }
   CellKind kind() const { return cell_library_entry_->kind(); }
 
-  absl::Span<const Input> inputs() const { return inputs_; }
-  absl::Span<const Output> outputs() const { return outputs_; }
+  absl::Span<const Pin> inputs() const { return inputs_; }
+  absl::Span<const Pin> outputs() const { return outputs_; }
   const absl::optional<NetRef>& clock() const { return clock_; }
 
  private:
   Cell(const CellLibraryEntry* cell_library_entry, absl::string_view name,
-       const std::vector<Input>& inputs, const std::vector<Output>& outputs,
+       const std::vector<Pin>& inputs, const std::vector<Pin>& outputs,
        absl::optional<NetRef> clock)
       : cell_library_entry_(cell_library_entry),
         name_(name),
@@ -95,8 +85,8 @@ class Cell {
 
   const CellLibraryEntry* cell_library_entry_;
   std::string name_;  // Instance name.
-  std::vector<Input> inputs_;
-  std::vector<Output> outputs_;
+  std::vector<Pin> inputs_;
+  std::vector<Pin> outputs_;
   absl::optional<NetRef> clock_;
 };
 
