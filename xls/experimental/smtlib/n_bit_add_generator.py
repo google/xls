@@ -14,9 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pylint: disable=g-doc-args,g-bad-import-order,line-too-long,g-doc-return-or-yield
+"""Creates an SMTLIB2 file with an n-bit adder equivalence proof.
 
-"""This file receives numbers from the --N flag, and for each number n, creates an smt2 file containing an n-bit adder equivalence proof.
+This file receives numbers from the --N flag, and for each number n, creates an
+smt2 file containing an n-bit adder equivalence proof.
 
 For example, to create an smt2 file for 2-bit addition and an smt2 file for
 4-bit addition, we can run (after building):
@@ -41,23 +42,29 @@ are
 logically equivalent.
 """
 
-from xls.common.gfile import open as gopen
-from flags_checks import list_contains_only_integers
-
 from absl import app
 from absl import flags
+from xls.common import gfile
+from xls.experimental.smtlib import flags_checks
 
 FLAGS = flags.FLAGS
 flags.DEFINE_list("N", None, "List of n values for each n-bit addition proof.")
 flags.register_validator(
-    "N", list_contains_only_integers, message="--N must contain only integers.")
+    "N",
+    flags_checks.list_contains_only_integers,
+    message="--N must contain only integers.")
 flags.mark_flag_as_required("N")
 
 
 def description_comments(n, f):
-  """Write comments to the top of the file describing what it does. Write comments to the top of the smt2 file describing the proof it contains: the operations, how many bits in the arguments, and how many operations. Args: n: An integer, the number of bits in each input bitvector.
+  """Write comments to the top of the file describing what it does.
 
-  f: The file to write into.
+  Write comments to the top of the smt2 file describing the proof it contains:
+  the operations, how many bits in the arguments, and how many operations.
+
+  Args:
+    n: An integer, the number of bits in each input bitvector.
+    f: The file to write into.
   """
   print(
       f"""; The following SMT-LIB verifies that a {n}-bit adder is equivalent
@@ -67,9 +74,15 @@ def description_comments(n, f):
 
 
 def logic_and_variables(n, f):
-  """Set the logic for the smt2 file, and declare/define variables. Write the set-logic for the proof (QF_BV is the bitvector logic), declare the input bitvector variables, and define variables for their indices. Note that x_i or y_i corresponds to index i of that input bitvector. Args: n: An integer, the number of bits in each bitvector.
+  """Set the logic for the smt2 file, and declare/define variables.
 
-  f: The file to write into.
+  Write the set-logic for the proof (QF_BV is the bitvector logic), declare the
+  input bitvector variables, and define variables for their indices.
+  Note that x_i or y_i corresponds to index i of that input bitvector.
+
+  Args:
+    n: An integer, the number of bits in each bitvector.
+    f: The file to write into.
   """
   print(
       """(set-logic QF_BV)
@@ -88,8 +101,8 @@ def half_adder(n, f):
   """Define the sum and carry bits for a half adder.
 
   Args:
-  n: An integer, the number of bits for each bitvector.
-  f: The file to write into.
+    n: An integer, the number of bits for each bitvector.
+    f: The file to write into.
   """
   print(
       f"""; Half adder for bit {n}
@@ -100,9 +113,11 @@ def half_adder(n, f):
 
 
 def full_adder(n, f):
-  """Define the sum and carry bits for a full adder. Args: n: An integer, the number of bits for each bitvector.
+  """Defines the sum and carry bits for a full adder.
 
-  f: The file to write into.
+  Args:
+    n: An integer, the number of bits in the output bitvector.
+    f: The file to write into.
   """
   print(
       f"""; Full adder for bit {n}
@@ -113,10 +128,13 @@ def full_adder(n, f):
 
 
 def get_concat_result_bits(n):
-  """Creates a string of smt2 concat operations to combine the bits of the output sum.
+  """Creates a string of smt2 concat ops to combine the bits of the output sum.
 
   Args:
     n: An integer, the number of bits in the output bitvector.
+
+  Returns:
+    The combined string of concats.
   """
   concats = []
   for i in range(n):
@@ -133,8 +151,8 @@ def make_sum(n, f):
   """Write the final addition output by concatenating all of the output bits.
 
   Args:
-  n: An integer, the number of bits in the output bitvector.
-  f: The file to write into.
+    n: An integer, the number of bits in the output bitvector.
+    f: The file to write into.
   """
   print(
       f"""; Concatenate s bits to create sum
@@ -149,8 +167,10 @@ def assert_and_check_sat(n, f):
   Write the assertion that the output of the 'by-hand' addition (called
   sum), does not equal the output of the builtin bvadd operation, and tell
   the solver to check the satisfiability.
+
   Args:
-  f: The file to write into.
+    n: An integer, the number of bits in the output bitvector.
+    f: The file to write into.
   """
   print(
       f"""; Compare {n}-bit adder result and internal addition and solve
@@ -163,8 +183,8 @@ def n_bit_add_existing_file(n, f):
   """Given a file, write a multiplication proof into it with n-bit arguments.
 
   Args:
-  n: An integer, the number of bits for the input and output bitvectors.
-  f: The file to write the proof into.
+    n: An integer, the number of bits for the input and output bitvectors.
+    f: The file to write the proof into.
   """
   description_comments(n, f)
   logic_and_variables(n, f)
@@ -179,9 +199,9 @@ def n_bit_add_new_file(n):
   """Create a new file, and write a multiplication proof with n-bit arguments.
 
   Args:
-  n: An integer, the number of bits for the input and output bitvectors.
+    n: An integer, the number of bits for the input and output bitvectors.
   """
-  with gopen(f"add_2x{n}.smt2", "w+") as f:
+  with gfile.open(f"add_2x{n}.smt2", "w+") as f:
     n_bit_add_existing_file(n, f)
 
 

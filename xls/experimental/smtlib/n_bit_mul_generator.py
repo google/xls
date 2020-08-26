@@ -40,17 +40,18 @@ results.
 They are logically equivalent.
 """
 
-from xls.common.gfile import open as gopen
-from flags_checks import list_contains_only_integers
-
 from absl import app
 from absl import flags
+from xls.common import gfile
+from xls.experimental.smtlib import flags_checks
 
 FLAGS = flags.FLAGS
 flags.DEFINE_list("N", None,
                   "List of n values for each n-bit multiplication proof.")
 flags.register_validator(
-    "N", list_contains_only_integers, message="--N must contain only integers.")
+    "N",
+    flags_checks.list_contains_only_integers,
+    message="--N must contain only integers.")
 flags.mark_flag_as_required("N")
 
 
@@ -195,7 +196,7 @@ def n_bit_mul_new_file(n):
   Args:
   n: An integer, the number of bits for the input and output bitvectors.
   """
-  with gopen(f"mul_2x{n}.smt2", "w+") as f:
+  with gfile.open(f"mul_2x{n}.smt2", "w+") as f:
     n_bit_mul_existing_file(n, f)
 
 
