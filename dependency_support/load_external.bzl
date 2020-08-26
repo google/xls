@@ -89,43 +89,11 @@ def load_external_repositories():
     )
 
     http_archive(
-        name = "jinja_archive",
-        build_file_content = """py_library(
-            name = "jinja2",
-            visibility = ["//visibility:public"],
-            srcs = glob(["jinja2/*.py"]),
-            deps = ["@markupsafe//:markupsafe"],
-        )""",
-        sha256 = "93187ffbc7808079673ef52771baa950426fd664d3aad1d0fa3e95644360e250",
-        strip_prefix = "Jinja2-2.11.1/src",
-        urls = [
-            "http://mirror.bazel.build/files.pythonhosted.org/packages/d8/03/e491f423379ea14bb3a02a5238507f7d446de639b623187bccc111fbecdf/Jinja2-2.11.1.tar.gz",
-            "https://files.pythonhosted.org/packages/d8/03/e491f423379ea14bb3a02a5238507f7d446de639b623187bccc111fbecdf/Jinja2-2.11.1.tar.gz",  # 2020-01-30
-        ],
-    )
-
-    http_archive(
         name = "llvm",
         urls = ["https://github.com/llvm/llvm-project/archive/52cae05e087b3d4fd02849fc37c387c720055ffb.tar.gz"],
         sha256 = "84af24a605a9e20d999e65f87a36baeed56773d74ccc0287517f5fdcf44e737a",
         strip_prefix = "llvm-project-52cae05e087b3d4fd02849fc37c387c720055ffb/llvm",
         build_file = "@//dependency_support/llvm:bundled.BUILD.bazel",
-    )
-
-    # Jinja2 depends on MarkupSafe
-    http_archive(
-        name = "markupsafe",
-        build_file_content = """py_library(
-            name = "markupsafe",
-            visibility = ["//visibility:public"],
-            srcs = glob(["*.py"])
-        )""",
-        sha256 = "29872e92839765e546828bb7754a68c418d927cd064fd4708fab9fe9c8bb116b",
-        strip_prefix = "MarkupSafe-1.1.1/src/markupsafe",
-        urls = [
-            "http://mirror.bazel.build/files.pythonhosted.org/packages/b9/2e/64db92e53b86efccfaea71321f597fa2e1b2bd3853d8ce658568f7a13094/MarkupSafe-1.1.1.tar.gz",
-            "https://files.pythonhosted.org/packages/b9/2e/64db92e53b86efccfaea71321f597fa2e1b2bd3853d8ce658568f7a13094/MarkupSafe-1.1.1.tar.gz",  # 2019-02-24
-        ],
     )
 
     http_archive(
@@ -180,20 +148,6 @@ def load_external_repositories():
         url = "https://github.com/bazelbuild/rules_python/releases/download/0.0.2/rules_python-0.0.2.tar.gz",
         strip_prefix = "rules_python-0.0.2",
         sha256 = "b5668cde8bb6e3515057ef465a35ad712214962f0b3a314e551204266c7be90c",
-    )
-
-    http_archive(
-        name = "pyfakefs_archive",
-        build_file_content = """py_library(
-            name = "pyfakefs",
-            visibility = ["//visibility:public"],
-            srcs = glob(["pyfakefs/*.py"]),
-        )""",
-        strip_prefix = "pyfakefs-4.0.2",
-        sha256 = "c415e1c737e3aa72b92af41832a7e0a2c325eb8d3a72a210750714e00fcaeace",
-        urls = [
-            "https://pypi.python.org/packages/68/5f/e5501a707958443e0c0f2706a64b0199deb62a0f1d14bc4ee401ed96ef2a/pyfakefs-4.0.2.tar.gz",
-        ],
     )
 
     http_archive(

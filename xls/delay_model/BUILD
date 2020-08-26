@@ -152,11 +152,11 @@ py_binary(
     deps = [
         ":delay_model",
         ":delay_model_py_pb2",
+        requirement("jinja2"),
         "//xls/common:runfiles",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
         "@com_google_protobuf//:protobuf_python",
-        "@jinja_archive//:jinja2",
     ],
 )
 

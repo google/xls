@@ -47,8 +47,9 @@ flags.DEFINE_string(
     'save_temps_path', None, 'Path of directory in which to save temporary '
     'files. These temporary files include DSLX, IR, and arguments. A '
     'separate numerically-named subdirectory is created for each sample')
-flags.DEFINE_integer('worker_count', None,
-                     'Number of workers to use for execution')
+flags.DEFINE_integer(
+    'worker_count', None, 'Number of workers to use for execution; defaults '
+    'to number of physical cores detected')
 flags.DEFINE_boolean('disallow_divide', True,
                      'Exclude generation of divide operator')
 flags.DEFINE_boolean('emit_loops', True, 'Emit loops in generator')
@@ -108,7 +109,7 @@ def main(argv):
   start = datetime.datetime.now()
 
   physical_core_count = psutil.cpu_count(logical=False)
-  worker_count = FLAGS.worker_count or (physical_core_count - 1)
+  worker_count = FLAGS.worker_count or physical_core_count
   worker_count = max(worker_count, 1)  # Need at least one worker.
   queues = (multiprocess.get_user_data() or
             [mp.Queue() for _ in range(worker_count)])

@@ -21,7 +21,7 @@ import textwrap
 from typing import Text, Optional, cast, Callable, TypeVar, Sequence, Any
 
 from xls.dslx import ast
-from xls.dslx import fakefs_util
+from xls.dslx import fakefs_test_util
 from xls.dslx import parser
 from xls.dslx import parser_helpers
 from xls.dslx import scanner
@@ -40,7 +40,7 @@ class ParserTest(absltest.TestCase):
       fparse: Callable[[parser.Parser, parser.Bindings],
                        TypeVar('T')]
   ) -> TypeVar('T'):
-    with fakefs_util.scoped_fakefs(self.fake_filename, program):
+    with fakefs_test_util.scoped_fakefs(self.fake_filename, program):
       s = scanner.Scanner(self.fake_filename, program)
       b = bindings or parser.Bindings(None)
       try:
@@ -177,7 +177,7 @@ proc simple(addend: u32) {
     output = io.StringIO()
     filename = '/fake/test_file.x'
     text = 'oh\nwhoops\nI did an\nerror somewhere\nthat is bad'
-    with fakefs_util.scoped_fakefs(filename, text):
+    with fakefs_test_util.scoped_fakefs(filename, text):
       pos = scanner.Pos(filename, lineno=2, colno=0)
       span = Span(pos, pos.bump_col())
       error = parser.ParseError(span, 'This is bad')
@@ -517,7 +517,7 @@ proc simple(addend: u32) {
        y + z
     }
     """
-    with fakefs_util.scoped_fakefs(self.fake_filename, program):
+    with fakefs_test_util.scoped_fakefs(self.fake_filename, program):
       parser_helpers.parse_text(
           program,
           name=self.fake_filename,
@@ -561,7 +561,7 @@ proc simple(addend: u32) {
              i
         }
       }"""
-      with fakefs_util.scoped_fakefs(self.fake_filename, program):
+      with fakefs_test_util.scoped_fakefs(self.fake_filename, program):
         parser_helpers.parse_text(
             program,
             name=self.fake_filename,
@@ -573,7 +573,7 @@ proc simple(addend: u32) {
       program = """
         fn foo(x: bits[+]) -> bits[5] { u5:5 }
       """
-      with fakefs_util.scoped_fakefs(self.fake_filename, program):
+      with fakefs_test_util.scoped_fakefs(self.fake_filename, program):
         parser_helpers.parse_text(
             program,
             name=self.fake_filename,
@@ -585,7 +585,7 @@ proc simple(addend: u32) {
       program = """
         fn [X: u32, Y: u32] foo(x: bits[X + Y]) -> bits[5] { u5:5 }
       """
-      with fakefs_util.scoped_fakefs(self.fake_filename, program):
+      with fakefs_test_util.scoped_fakefs(self.fake_filename, program):
         parser_helpers.parse_text(
             program,
             name=self.fake_filename,
@@ -609,7 +609,7 @@ proc simple(addend: u32) {
           foo(x - 1 + y + z)
         }
         """
-      with fakefs_util.scoped_fakefs(self.fake_filename, program):
+      with fakefs_test_util.scoped_fakefs(self.fake_filename, program):
         parser_helpers.parse_text(
             program,
             name=self.fake_filename,

@@ -23,7 +23,7 @@ from xls.common import test_base
 from xls.dslx import ast
 from xls.dslx import deduce
 from xls.dslx import extract_conversion_order
-from xls.dslx import fakefs_util
+from xls.dslx import fakefs_test_util
 from xls.dslx import parse_and_typecheck
 
 
@@ -31,7 +31,7 @@ class ExtractConversionOrderTest(absltest.TestCase):
 
   def _get_module(self, program: Text) -> Tuple[ast.Module, deduce.NodeToType]:
     filename = '/fake/test_program.x'
-    with fakefs_util.scoped_fakefs(filename, program):
+    with fakefs_test_util.scoped_fakefs(filename, program):
       m, node_to_type = parse_and_typecheck.parse_text(
           program,
           'test_program',

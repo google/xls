@@ -249,7 +249,7 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":ast",
-        ":fakefs_util",
+        ":fakefs_test_util",
         ":parser",
         ":parser_helpers",
         ":scanner",
@@ -265,11 +265,12 @@ py_library(
     deps = [
         ":ast",
         ":deduce",
+        ":fakefs_util",
         ":import_fn",
         ":parser_helpers",
         ":typecheck",
         ":xls_type_error",
-        "@pyfakefs_archive//:pyfakefs",
+        requirement("pyfakefs"),
     ],
 )
 
@@ -347,7 +348,7 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":fakefs_util",
+        ":fakefs_test_util",
         ":parser_helpers",
         ":span",
         ":typecheck",
@@ -453,7 +454,7 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":fakefs_util",
+        ":fakefs_test_util",
         ":ir_converter",
         ":parser_helpers",
         ":span",
@@ -534,7 +535,7 @@ py_test(
         ":ast",
         ":deduce",
         ":extract_conversion_order",
-        ":fakefs_util",
+        ":fakefs_test_util",
         ":parse_and_typecheck",
         "//xls/common:test_base",
         "@com_google_absl_py//absl/logging",
@@ -585,14 +586,24 @@ py_library(
 
 py_library(
     name = "fakefs_util",
+    srcs = ["fakefs_util.py"],
+    srcs_version = "PY3",
+    deps = [
+        requirement("pyfakefs"),
+    ],
+)
+
+py_library(
+    name = "fakefs_test_util",
     # If we don't mark this as testonly we can get warnings (when the modified
     # third party version drags in googletest as a dependency and the test
     # main is not called).
     testonly = True,
-    srcs = ["fakefs_util.py"],
+    srcs = ["fakefs_test_util.py"],
     srcs_version = "PY3",
     deps = [
-        "@pyfakefs_archive//:pyfakefs",  # fake_filesystem_unittest
+        ":fakefs_util",
+        requirement("pyfakefs"),  # unittest
     ],
 )
 

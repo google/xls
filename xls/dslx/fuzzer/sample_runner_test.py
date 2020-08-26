@@ -19,7 +19,7 @@ from typing import Tuple, Text
 
 from xls.common import check_simulator
 from xls.common import test_base
-from xls.dslx import fakefs_util
+from xls.dslx import fakefs_test_util
 from xls.dslx import parser_helpers
 from xls.dslx.concrete_type import ArrayType
 from xls.dslx.concrete_type import BitsType
@@ -330,7 +330,7 @@ class SampleRunnerTest(test_base.TestCase):
   def test_sign_convert_args_batch(self):
     dslx_text = 'fn main(y: s8) -> s8 { y }'
     filename = '/fake/test_module.x'
-    with fakefs_util.scoped_fakefs(filename, dslx_text):
+    with fakefs_test_util.scoped_fakefs(filename, dslx_text):
       m = parser_helpers.parse_text(
           dslx_text, 'test_module', print_on_error=True, filename=filename)
 

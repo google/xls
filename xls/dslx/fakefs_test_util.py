@@ -13,14 +13,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Helpers for working with fake filesystems in unittests."""
 
-"""Adapter for fakefs between internal/external versions."""
+import contextlib
 
-from pyfakefs import fake_filesystem as fakefs
+from pyfakefs import fake_filesystem_unittest as ffu
+
+from xls.dslx.fakefs_util import create_file
 
 
-def create_file(fs: fakefs.FakeFilesystem, *args, **kwargs) -> fakefs.FakeFile:
-  # Note: avoids a warning for deprecated CreateFile, even though there's
-  # version skew between internal and external versions.
-  fcreate_file = (getattr(fs, 'create_file', None) or getattr(fs, 'CreateFile'))
-  return fcreate_file(*args, **kwargs)
+@contextlib.contextmanager
+def scoped_fakefs(path: str, contents: str):
+  with ffu.Patcher() as patcher:
+    yield create_file(patcher.fs, path, contents=contents)

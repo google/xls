@@ -23,7 +23,7 @@ from absl import logging
 
 from absl.testing import absltest
 from xls.common.xls_error import XlsError
-from xls.dslx import fakefs_util
+from xls.dslx import fakefs_test_util
 from xls.dslx import parser_helpers
 from xls.dslx import span
 from xls.dslx import typecheck
@@ -46,7 +46,7 @@ class TypecheckTest(absltest.TestCase):
       error_type: Type of error to check for, if "error" is given.
     """
     filename = '/fake/test_module.x'
-    with fakefs_util.scoped_fakefs(filename, text):
+    with fakefs_test_util.scoped_fakefs(filename, text):
       m = parser_helpers.parse_text(
           text, 'test_module', print_on_error=True, filename=filename)
       if error:

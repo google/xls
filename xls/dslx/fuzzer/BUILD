@@ -50,7 +50,7 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":ast_generator",
-        "//xls/dslx:fakefs_util",
+        "//xls/dslx:fakefs_test_util",
         "//xls/dslx:parser_helpers",
         "//xls/dslx:span",
         "//xls/dslx:typecheck",
@@ -220,7 +220,7 @@ py_test(
         "//xls/common:check_simulator",
         "//xls/common:test_base",
         "//xls/dslx:concrete_type",
-        "//xls/dslx:fakefs_util",
+        "//xls/dslx:fakefs_test_util",
         "//xls/dslx:parser_helpers",
         "//xls/dslx/interpreter:value",
     ],
