@@ -104,6 +104,12 @@ py_test(
 )
 
 py_library(
+    name = "symbolic_bindings",
+    srcs = ["symbolic_bindings.py"],
+    srcs_version = "PY3",
+)
+
+py_library(
     name = "parametric_instantiator",
     srcs = ["parametric_instantiator.py"],
     srcs_version = "PY3",
@@ -111,6 +117,7 @@ py_library(
         ":concrete_type",
         ":parametric_expression",
         ":span",
+        ":symbolic_bindings",
         ":xls_type_error",
         "@com_google_absl_py//absl/logging",
     ],
@@ -141,9 +148,9 @@ py_library(
         ":ast_node",
         ":core_ast_nodes",
         ":free_variables",
-        ":parametric_instantiator",
         ":scanner",
         ":span",
+        ":symbolic_bindings",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -166,6 +173,7 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":ast",
+        ":ast_helpers",
         ":scanner",
         ":span",
         "//xls/common:test_base",
@@ -209,6 +217,7 @@ py_library(
     srcs_version = "PY3",
     deps = [
         ":ast",
+        ":ast_helpers",
         ":bindings",
         ":dslx_builtins",
         ":parse_error",
@@ -240,7 +249,7 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":ast",
-        ":fakefs_util",
+        ":fakefs_test_util",
         ":parser",
         ":parser_helpers",
         ":scanner",
@@ -256,11 +265,12 @@ py_library(
     deps = [
         ":ast",
         ":deduce",
+        ":fakefs_util",
         ":import_fn",
         ":parser_helpers",
         ":typecheck",
         ":xls_type_error",
-        "@pyfakefs_archive//:pyfakefs",
+        requirement("pyfakefs"),
     ],
 )
 
@@ -289,6 +299,7 @@ py_library(
     srcs_version = "PY3",
     deps = [
         ":ast",
+        ":ast_helpers",
         ":bit_helpers",
         ":concrete_type",
         ":dslx_builtins",
@@ -337,7 +348,7 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":fakefs_util",
+        ":fakefs_test_util",
         ":parser_helpers",
         ":span",
         ":typecheck",
@@ -443,9 +454,10 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":fakefs_util",
+        ":fakefs_test_util",
         ":ir_converter",
         ":parser_helpers",
+        ":span",
         ":typecheck",
         "//xls/common:runfiles",
         "@com_google_absl_py//absl/testing:absltest",
@@ -523,7 +535,7 @@ py_test(
         ":ast",
         ":deduce",
         ":extract_conversion_order",
-        ":fakefs_util",
+        ":fakefs_test_util",
         ":parse_and_typecheck",
         "//xls/common:test_base",
         "@com_google_absl_py//absl/logging",
@@ -574,14 +586,24 @@ py_library(
 
 py_library(
     name = "fakefs_util",
+    srcs = ["fakefs_util.py"],
+    srcs_version = "PY3",
+    deps = [
+        requirement("pyfakefs"),
+    ],
+)
+
+py_library(
+    name = "fakefs_test_util",
     # If we don't mark this as testonly we can get warnings (when the modified
     # third party version drags in googletest as a dependency and the test
     # main is not called).
     testonly = True,
-    srcs = ["fakefs_util.py"],
+    srcs = ["fakefs_test_util.py"],
     srcs_version = "PY3",
     deps = [
-        "@pyfakefs_archive//:pyfakefs",  # fake_filesystem_unittest
+        ":fakefs_util",
+        requirement("pyfakefs"),  # unittest
     ],
 )
 
@@ -592,5 +614,16 @@ py_library(
     deps = [
         ":ast",
         ":deduce",
+    ],
+)
+
+py_library(
+    name = "ast_helpers",
+    srcs = ["ast_helpers.py"],
+    srcs_version = "PY3",
+    deps = [
+        ":ast",
+        ":scanner",
+        ":span",
     ],
 )

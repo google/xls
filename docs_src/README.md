@@ -4,7 +4,7 @@
 
 # **XLS**: Accelerated HW Synthesis
 
-[**Docs**](https://google.github.io/xls/) | [**Quick Start**](https://google.github.io/xls/tools_quick_start/)
+<!-- nav -->
 
 ## What is XLS?
 
@@ -163,6 +163,11 @@ purpose, and correspond to the components in this XLS stack diagram:
     Visualization tools to inspect the XLS compiler/system interactively. See
     [IR visualization](ir_visualization.md).
 
+
+## Community
+
+Discussions about XLS - development, debugging, usage, and anything else -
+should go to the [xls-dev mailing list](https://groups.google.com/g/xls-dev).
 
 ## Contributors
 

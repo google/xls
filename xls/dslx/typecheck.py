@@ -17,7 +17,7 @@
 """Implementation of type checking functionality on a parsed AST object."""
 
 import functools
-from typing import Dict, Optional, Text, Tuple, Union, Callable, List
+from typing import Dict, Optional, Text, Tuple, Union, Callable, List, Type
 
 from absl import logging
 import dataclasses
@@ -102,36 +102,24 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx) -> None:
 
   logging.vlog(1, 'Type-checking body for function: %s', f)
 
-  # Second, typecheck the body of the function
+  # Second, typecheck the return type of the function.
+  # NOTE: if there is no annotated return type, we assume NIL.
+  annotated_return_type = (
+      deduce.deduce(f.return_type, ctx) if f.return_type else ConcreteType.NIL)
+  resolved_return_type = deduce.resolve(annotated_return_type, ctx)
+
+  # Third, typecheck the body of the function
   body_return_type = deduce.deduce(f.body, ctx)
   resolved_body_type = deduce.resolve(body_return_type, ctx)
 
-  # Third, assert that the annotated return type matches the body return type
-  # (after resolving any parametric symbols)
-  if f.return_type is None:
-    if body_return_type.is_nil():
-      # When body return type is nil and no return type is annotated, everything
-      # is ok.
-      pass
-    else:
-      # Otherwise there's a mismatch.
-      raise XlsTypeError(
-          f.span,
-          None,
-          resolved_body_type,
-          suffix='No return type was annotated, but a non-nil return type was '
-          'found.')
-  else:
-    annotated_return_type = deduce.deduce(f.return_type, ctx)
-    resolved_return_type = deduce.resolve(annotated_return_type, ctx)
-
-    if resolved_return_type != resolved_body_type:
-      raise XlsTypeError(
-          f.body.span,
-          resolved_body_type,
-          resolved_return_type,
-          suffix='Return type of function body for "{}" did not match the '
-          'annotated return type.'.format(f.name.identifier))
+  # Finally, assert type consistency between body and annotated return type.
+  if resolved_return_type != resolved_body_type:
+    raise XlsTypeError(
+        f.body.span,
+        resolved_body_type,
+        resolved_return_type,
+        suffix='Return type of function body for "{}" did not match the '
+        'annotated return type.'.format(f.name.identifier))
 
   ctx.node_to_type[f.name] = ctx.node_to_type[f] = FunctionType(
       tuple(param_types), body_return_type)
@@ -168,7 +156,7 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
       higher_order_parametric_bindings = map_fn.parametric_bindings
     else:
       assert isinstance(map_fn_ref, ast.NameRef), map_fn_ref
-      map_fn_name = map_fn_ref.tok.value
+      map_fn_name = map_fn_ref.identifier
       if map_fn_ref.identifier not in dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
         map_fn = ctx.module.get_function(map_fn_name)
         higher_order_parametric_bindings = map_fn.parametric_bindings
@@ -229,27 +217,27 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
 
 @dataclasses.dataclass
 class _TypecheckStackRecord:
-  """A wrapper over information used to typecheck a test/function.
+  """A wrapper over information used to typecheck a top level AST node.
 
   Attributes:
-    name: The name of this test/function.
-    is_test: Flag indicating whether or not this record is for a test.
+    name: The name of this top-level node.
+    kind: The class type (ast.Function, ast.Test, ast.Struct, ast.TypeDef).
     user: The node in this module that needs 'name' to be typechecked. Used to
       detect the typechecking of the higher order function in map invocations.
   """
   name: Text
-  is_test: bool
+  kind: Type[ast.AstNode]
   user: Optional[ast.AstNode] = None
 
 
-def check_function_or_test_in_module(f: Union[Function, ast.Test],
-                                     ctx: deduce.DeduceCtx):
+def check_top_node_in_module(f: Union[ast.Function, ast.Test, ast.Struct,
+                                      ast.TypeDef], ctx: deduce.DeduceCtx):
   """Type-checks function f in the given module.
 
   Args:
-    f: Function to type-check.
-    ctx: Wraps a node_to_type, a mapping being populated with the
-      inferred type for AST nodes. Also contains a module.
+    f: Function/test/struct/typedef to type-check.
+    ctx: Wraps a node_to_type, a mapping being populated with the inferred type
+      for AST nodes. Also contains a module.
 
   Raises:
     TypeMissingError: When we attempt to resolve an AST node to a type that a)
@@ -260,30 +248,34 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
   """
   # {name: (function, wip)}
   seen = {
-      (f.name.identifier, isinstance(f, ast.Test)): (f, True)
-  }  # type: Dict[Tuple[Text, bool], Tuple[Union[Function, ast.Test], bool]]
+      (f.name.identifier, type(f)): (f, True)
+  }  # type: Dict[Tuple[Text, type], Tuple[Union[Function, ast.Test, ast.Struct, ast.TypeDef], bool]]
 
-  stack = [_TypecheckStackRecord(f.name.identifier, isinstance(f, ast.Test))
-          ]  # type: List[_TypecheckStackRecord]
+  stack = [_TypecheckStackRecord(f.name.identifier,
+                                 type(f))]  # type: List[_TypecheckStackRecord]
 
   function_map = {f.name.identifier: f for f in ctx.module.get_functions()}
   while stack:
     try:
-      f = seen[(stack[-1].name, stack[-1].is_test)][0]
+      f = seen[(stack[-1].name, stack[-1].kind)][0]
       if isinstance(f, ast.Function):
         _check_function(f, ctx)
-      else:
-        assert isinstance(f, ast.Test)
+      elif isinstance(f, ast.Test):
         check_test(f, ctx)
-      seen[(f.name.identifier, isinstance(f, ast.Test))] = (f, False
-                                                           )  # Mark as done.
+      else:
+        assert isinstance(f, (ast.Struct, ast.TypeDef))
+        # Nothing special, we just want to be able to catch any
+        # TypeMissingErrors and try to resolve them.
+        deduce.deduce(f, ctx)
+
+      seen[(f.name.identifier, type(f))] = (f, False)  # Mark as done.
       stack_record = stack.pop()
       fn_name, _ = ctx.fn_stack[-1]
 
       def is_callee_map(n: Optional[ast.AstNode]) -> bool:
         return (n and isinstance(n, ast.Invocation) and
                 isinstance(n.callee, ast.NameRef) and
-                n.callee.tok.value == 'map')
+                n.callee.identifier == 'map')
 
       if is_callee_map(stack_record.user):
         assert isinstance(f, ast.Function) and f.is_parametric()
@@ -307,16 +299,16 @@ def check_function_or_test_in_module(f: Union[Function, ast.Test],
         if (isinstance(e.node, ast.NameDef) and
             e.node.identifier in function_map):
           # If it's seen and not-done, we're recursing.
-          if seen.get((e.node.identifier, False), (None, False))[1]:
+          if seen.get((e.node.identifier, ast.Function), (None, False))[1]:
             raise XlsError(
                 'Recursion detected while typechecking; name: {}'.format(
                     e.node.identifier))
           callee = function_map[e.node.identifier]
           assert isinstance(callee, ast.Function), callee
-          seen[(e.node.identifier, False)] = (callee, True)
+          seen[(e.node.identifier, type(callee))] = (callee, True)
           stack.append(
-              _TypecheckStackRecord(callee.name.identifier,
-                                    isinstance(callee, ast.Test), e.user))
+              _TypecheckStackRecord(callee.name.identifier, type(callee),
+                                    e.user))
           break
         if (isinstance(e.node, ast.BuiltinNameDef) and
             e.node.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES):
@@ -356,7 +348,7 @@ def check_module(module: Module,
   node_to_type = deduce.NodeToType()
   interpreter_callback = functools.partial(interpret_expr, f_import=f_import)
   ctx = deduce.DeduceCtx(node_to_type, module, interpreter_callback,
-                         check_function_or_test_in_module)
+                         check_top_node_in_module)
 
   # First populate node_to_type with constants, enums, and resolved imports.
   ctx.fn_stack.append(('top', dict()))  # No sym bindings in the global scope.
@@ -365,11 +357,11 @@ def check_module(module: Module,
       imported_module, imported_node_to_type = f_import(member.name)
       ctx.node_to_type.add_import(member,
                                   (imported_module, imported_node_to_type))
-    elif isinstance(member, (ast.Constant, ast.Enum, ast.Struct, ast.TypeDef)):
+    elif isinstance(member, (ast.Constant, ast.Enum)):
       deduce.deduce(member, ctx)
     else:
-      assert isinstance(member,
-                        (ast.Function, ast.Test, ast.QuickCheck)), member
+      assert isinstance(member, (ast.Function, ast.Test, ast.Struct,
+                                 ast.QuickCheck, ast.TypeDef)), member
   ctx.fn_stack.pop()
 
   quickcheck_map = {
@@ -388,7 +380,7 @@ def check_module(module: Module,
 
     logging.vlog(2, 'Typechecking function: %s', f)
     ctx.fn_stack.append((f.name.identifier, dict()))  # No symbolic bindings.
-    check_function_or_test_in_module(f, ctx)
+    check_top_node_in_module(f, ctx)
 
     quickcheck_f_body_type = ctx.node_to_type[f.body]
     if quickcheck_f_body_type != ConcreteType.U1:
@@ -400,6 +392,28 @@ def check_module(module: Module,
 
     logging.vlog(2, 'Finished typechecking function: %s', f)
 
+  # We typecheck struct definitions using check_top_node_in_module() so that
+  # we can typecheck function calls in parametric bindings, if any.
+  struct_map = {s.name.identifier: s for s in ctx.module.get_structs()}
+  for s in struct_map.values():
+    assert isinstance(s, ast.Struct), s
+    logging.vlog(2, 'Typechecking struct %s', s)
+    ctx.fn_stack.append(('top', dict()))  # No symbolic bindings.
+    check_top_node_in_module(s, ctx)
+    logging.vlog(2, 'Finished typechecking struct: %s', s)
+
+  typedef_map = {
+      t.name.identifier: t
+      for t in ctx.module.top
+      if isinstance(t, ast.TypeDef)
+  }
+  for t in typedef_map.values():
+    assert isinstance(t, ast.TypeDef), t
+    logging.vlog(2, 'Typechecking typedef %s', t)
+    ctx.fn_stack.append(('top', dict()))  # No symbolic bindings.
+    check_top_node_in_module(t, ctx)
+    logging.vlog(2, 'Finished typechecking typedef: %s', t)
+
   function_map = {f.name.identifier: f for f in ctx.module.get_functions()}
   for f in function_map.values():
     assert isinstance(f, ast.Function), f
@@ -409,7 +423,7 @@ def check_module(module: Module,
 
     logging.vlog(2, 'Typechecking function: %s', f)
     ctx.fn_stack.append((f.name.identifier, dict()))  # No symbolic bindings.
-    check_function_or_test_in_module(f, ctx)
+    check_top_node_in_module(f, ctx)
     logging.vlog(2, 'Finished typechecking function: %s', f)
 
   test_map = {t.name.identifier: t for t in ctx.module.get_tests()}
@@ -432,11 +446,11 @@ def check_module(module: Module,
     logging.vlog(2, 'Typechecking test: %s', t)
     if isinstance(t, ast.TestFunction):
       # New-style tests are wrapped in a function.
-      check_function_or_test_in_module(t.fn, ctx)
+      check_top_node_in_module(t.fn, ctx)
     else:
       # Old-style tests are specified in a construct with a body
       # (see check_test()).
-      check_function_or_test_in_module(t, ctx)
+      check_top_node_in_module(t, ctx)
     logging.vlog(2, 'Finished typechecking test: %s', t)
 
   return ctx.node_to_type

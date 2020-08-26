@@ -23,7 +23,7 @@ from absl import logging
 
 from absl.testing import absltest
 from xls.common.xls_error import XlsError
-from xls.dslx import fakefs_util
+from xls.dslx import fakefs_test_util
 from xls.dslx import parser_helpers
 from xls.dslx import span
 from xls.dslx import typecheck
@@ -46,7 +46,7 @@ class TypecheckTest(absltest.TestCase):
       error_type: Type of error to check for, if "error" is given.
     """
     filename = '/fake/test_module.x'
-    with fakefs_util.scoped_fakefs(filename, text):
+    with fakefs_test_util.scoped_fakefs(filename, text):
       m = parser_helpers.parse_text(
           text, 'test_module', print_on_error=True, filename=filename)
       if error:
@@ -73,13 +73,13 @@ class TypecheckTest(absltest.TestCase):
 
   def test_typecheck_arithmetic(self):
     self._typecheck('fn f(x: u32, y: u32) -> u32 { x + y }')
-    self._typecheck('fn f(x: u32, y: u32) { x + y }', error='<none> vs uN[32]')
+    self._typecheck('fn f(x: u32, y: u32) { x + y }', error='uN[32] vs ()')
     self._typecheck(
         """
       fn [N: u32] f(x: bits[N], y: bits[N]) { x + y }
       fn g() -> u64 { f(u64: 5, u64: 5) }
         """,
-        error='<none> vs uN[64]')
+        error='uN[64] vs ()')
     self._typecheck(
         'fn f(x: u32, y: bits[4]) { x + y }', error='uN[32] vs uN[4]')
     self._typecheck(
@@ -665,6 +665,7 @@ fn f() -> Foo {
         error_type=TypeInferenceError)
 
   def _typecheck_si(self, s: Text, *args, **kwargs):
+    """Shorthand for 'typecheck struct instance'."""
     program = """
     struct Point {
       x: s8,
@@ -678,8 +679,7 @@ fn f() -> Foo {
     # Wrong type.
     self._typecheck_si(
         'fn f() -> Point { Point { y: u8:42, x: s8:255 } }',
-        error='Member type for \'y\' (uN[32]) does not match expression type uN[8].'
-    )
+        error='Types are not compatible: uN[32] vs uN[8]')
     # Out of order, this is OK.
     self._typecheck_si('fn f() -> Point { Point { y: u32:42, x: s8:255 } }')
     # Missing x.
@@ -745,6 +745,71 @@ fn f() -> Foo {
         error='parameter type name: \'Point\'; argument type name: \'OtherPoint\''
     )
 
+  def _typecheck_parametric_si(self, s: Text, *args, **kwargs):
+    program = """
+    struct [N: u32, M: u32 = N + N] Point {
+      x: bits[N],
+      y: bits[M]
+    }
+    """ + s
+    logging.info('typechecking: %s', program)
+    self._typecheck(program, *args, **kwargs)
+
+  def test_parametric_struct_instance(self):
+    # Wrong derived type.
+    self._typecheck_parametric_si(
+        'fn f() -> Point[32, 63] { Point { x: u32:5, y: u63:255 } }',
+        error='Types are not compatible: uN[64] vs uN[63]')
+    # Out of order, this is OK.
+    self._typecheck_parametric_si("""
+      fn f() -> Point[32, 64] { Point { y: u64:42, x: u32:255 } }
+    """)
+
+    # OK struct type-parametric instantiation in parametric function.
+    self._typecheck_parametric_si("""
+      fn [A: u32, B: u32] f(x: bits[A], y: bits[B]) -> Point[A, B] {
+        Point { x, y }
+      }
+
+      fn main() {
+        let _ = f(u5:1, u10:2);
+        let _ = f(u14:1, u28:2);
+        ()
+      }""")
+
+    # Bad return type.
+    self._typecheck_parametric_si(
+        'fn f() -> Point[5, 10] { Point { x: u32:5, y: u64:255 } }',
+        error='(x: uN[32], y: uN[64]) vs (x: uN[5], y: uN[10])')
+
+    # Bad struct type-parametric instantiation in parametric function.
+    self._typecheck_parametric_si(
+        """
+      fn [A: u32, B: u32] f(x: bits[A], y: bits[B]) -> Point[A, B] {
+        Point { x, y }
+      }
+
+      fn main() {
+        let _ = f(u5:1, u10:2);
+        let _ = f(u14:1, u15:2);
+        ()
+      }""",
+        error='Types are not compatible: uN[28] vs uN[15]')
+
+    # Bad struct type-parametric splat instantiation.
+    self._typecheck_parametric_si(
+        """
+      fn [A: u32, B: u32] f(x: bits[A], y: bits[B]) -> Point[A, B] {
+        let p = Point { x, y };
+        Point { x: (x++x), ..p }
+      }
+
+      fn main() {
+        let _ = f(u5:1, u10:2);
+        ()
+      }""",
+        error='Types are not compatible: uN[20] vs uN[10]')
+
   def test_bad_enum_ref(self):
     program = """enum MyEnum : u1 {
       A = 0,
@@ -768,6 +833,14 @@ fn f() -> Foo {
 
     fn main() -> u8[2] {
       p(false)
+    }
+    """
+    self._typecheck(program)
+
+  def test_char_literal_array(self):
+    program = """
+    fn main() -> u8[3] {
+      u8[3]:['X', 'L', 'S']
     }
     """
     self._typecheck(program)
@@ -804,6 +877,19 @@ fn f() -> Foo {
         program,
         error_type=span.PositionalError,
         error='Quickchecking parametric functions is unsupported')
+
+  def test_array_ellipsis(self):
+    self._typecheck("""
+    fn main() -> u8[2] {
+      u8[2]:[0, ...]
+    }
+    """)
+
+  def test_index(self):
+    self._typecheck("""\
+    fn f(x: uN[32][4]) -> u32 {
+      x[u32:0]
+    }""")
 
 
 if __name__ == '__main__':

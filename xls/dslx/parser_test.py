@@ -21,7 +21,7 @@ import textwrap
 from typing import Text, Optional, cast, Callable, TypeVar, Sequence, Any
 
 from xls.dslx import ast
-from xls.dslx import fakefs_util
+from xls.dslx import fakefs_test_util
 from xls.dslx import parser
 from xls.dslx import parser_helpers
 from xls.dslx import scanner
@@ -40,11 +40,11 @@ class ParserTest(absltest.TestCase):
       fparse: Callable[[parser.Parser, parser.Bindings],
                        TypeVar('T')]
   ) -> TypeVar('T'):
-    with fakefs_util.scoped_fakefs(self.fake_filename, program):
+    with fakefs_test_util.scoped_fakefs(self.fake_filename, program):
       s = scanner.Scanner(self.fake_filename, program)
       b = bindings or parser.Bindings(None)
       try:
-        e = fparse(parser.Parser(s), b)
+        e = fparse(parser.Parser(s, 'test_module'), b)
       except parser.ParseError as e:
         parser_helpers.pprint_positional_error(e)
         raise
@@ -72,7 +72,7 @@ class ParserTest(absltest.TestCase):
     return self._parse_internal(program, bindings, fparse)
 
   def parse_module(self, program: Text):
-    fparse = lambda p, _bindings: p.parse_module('test_module')
+    fparse = lambda p, _bindings: p.parse_module()
     return self._parse_internal(program, bindings=None, fparse=fparse)
 
   def test_let_expression(self):
@@ -80,7 +80,7 @@ class ParserTest(absltest.TestCase):
     self.assertIsInstance(e, ast.Let)
     self.assertEqual(e.name_def_tree.tree.identifier, 'x')
     self.assertIsInstance(e.type_, ast.TypeAnnotation)
-    self.assertEqual(e.type_.primitive.value, scanner.Keyword.U32)
+    self.assertEqual(str(e.type_), 'u32')
     self.assertIsInstance(e.rhs, ast.Number)
     self.assertEqual(e.rhs.value, '2')
     self.assertIsInstance(e.body, ast.NameRef)
@@ -177,7 +177,7 @@ proc simple(addend: u32) {
     output = io.StringIO()
     filename = '/fake/test_file.x'
     text = 'oh\nwhoops\nI did an\nerror somewhere\nthat is bad'
-    with fakefs_util.scoped_fakefs(filename, text):
+    with fakefs_test_util.scoped_fakefs(filename, text):
       pos = scanner.Pos(filename, lineno=2, colno=0)
       span = Span(pos, pos.bump_col())
       error = parser.ParseError(span, 'This is bad')
@@ -206,7 +206,8 @@ proc simple(addend: u32) {
     accum
     """)
     b = parser.Bindings(None)
-    b.add('range', ast.BuiltinNameDef('range'))
+    m = ast.Module('test')
+    b.add('range', ast.BuiltinNameDef(m, 'range'))
     e = self.parse_expression(program, bindings=b)
     self.assertIsInstance(e, ast.Let)
     self.assertIsInstance(e.body, ast.Let)
@@ -222,8 +223,9 @@ proc simple(addend: u32) {
       new_accum
     }(u32:0)"""
     b = parser.Bindings(None)
-    b.add('range', ast.BuiltinNameDef('range'))
-    b.add('j', ast.BuiltinNameDef('j'))
+    m = ast.Module('test')
+    b.add('range', ast.BuiltinNameDef(m, 'range'))
+    b.add('j', ast.BuiltinNameDef(m, 'j'))
     e = self.parse_expression(program, bindings=b)
     self.assertIsInstance(e, ast.For)
     self.assertEqual(e.span.start, Pos(self.fake_filename, lineno=0, colno=3))
@@ -283,9 +285,10 @@ proc simple(addend: u32) {
 
   def test_logical_equality(self):
     b = parser.Bindings(None)
-    b.add('a', ast.BuiltinNameDef('a'))
-    b.add('b', ast.BuiltinNameDef('b'))
-    b.add('f', ast.BuiltinNameDef('f'))
+    m = ast.Module('test')
+    b.add('a', ast.BuiltinNameDef(m, 'a'))
+    b.add('b', ast.BuiltinNameDef(m, 'b'))
+    b.add('f', ast.BuiltinNameDef(m, 'f'))
     e = self.parse_expression('a ^ !b == f()', bindings=b)
     # This should group as:
     #   ((a) ^ (!b)) == (f())
@@ -298,7 +301,8 @@ proc simple(addend: u32) {
 
   def test_double_negation(self):
     b = parser.Bindings(None)
-    b.add('x', ast.BuiltinNameDef('x'))
+    m = ast.Module('test')
+    b.add('x', ast.BuiltinNameDef(m, 'x'))
     e = self.parse_expression('!!x', bindings=b)
     self.assertIsInstance(e, ast.Unop)
     self.assertIsInstance(e.operand, ast.Unop)
@@ -307,9 +311,10 @@ proc simple(addend: u32) {
 
   def test_logical_operator_binding(self):
     b = parser.Bindings(None)
-    b.add('a', ast.BuiltinNameDef('a'))
-    b.add('b', ast.BuiltinNameDef('b'))
-    b.add('c', ast.BuiltinNameDef('c'))
+    m = ast.Module('test')
+    b.add('a', ast.BuiltinNameDef(m, 'a'))
+    b.add('b', ast.BuiltinNameDef(m, 'b'))
+    b.add('c', ast.BuiltinNameDef(m, 'c'))
     e = self.parse_expression('!a || !b && c', bindings=b)
     # This should group as:
     #   ((!a) || ((!b) && c))
@@ -322,7 +327,8 @@ proc simple(addend: u32) {
 
   def test_cast(self):
     b = parser.Bindings(None)
-    b.add('foo', ast.BuiltinNameDef('foo'))
+    m = ast.Module('test')
+    b.add('foo', ast.BuiltinNameDef(m, 'foo'))
     e = self.parse_expression('foo() as u32', bindings=b)
     self.assertIsInstance(e, ast.Cast)
     self.assertIsInstance(e.expr, ast.Invocation)
@@ -358,8 +364,9 @@ proc simple(addend: u32) {
 
   def test_array(self):
     b = parser.Bindings(None)
+    m = ast.Module('test')
     for identifier in 'a b c d'.split():
-      b.add(identifier, ast.BuiltinNameDef(identifier))
+      b.add(identifier, ast.BuiltinNameDef(m, identifier))
     e = self.parse_expression('[a, b, c, d]', bindings=b)
     self.assertIsInstance(e, ast.Array)
     a = e
@@ -510,7 +517,7 @@ proc simple(addend: u32) {
        y + z
     }
     """
-    with fakefs_util.scoped_fakefs(self.fake_filename, program):
+    with fakefs_test_util.scoped_fakefs(self.fake_filename, program):
       parser_helpers.parse_text(
           program,
           name=self.fake_filename,
@@ -521,9 +528,10 @@ proc simple(addend: u32) {
     top = parser.Bindings(None)
     leaf0 = parser.Bindings(top)
     leaf1 = parser.Bindings(top)
-    a = ast.BuiltinNameDef('a')
-    b = ast.BuiltinNameDef('b')
-    c = ast.BuiltinNameDef('c')
+    m = ast.Module('test')
+    a = ast.BuiltinNameDef(m, 'a')
+    b = ast.BuiltinNameDef(m, 'b')
+    c = ast.BuiltinNameDef(m, 'c')
     top.add('a', a)
     leaf0.add('b', b)
     leaf1.add('c', c)
@@ -553,7 +561,7 @@ proc simple(addend: u32) {
              i
         }
       }"""
-      with fakefs_util.scoped_fakefs(self.fake_filename, program):
+      with fakefs_test_util.scoped_fakefs(self.fake_filename, program):
         parser_helpers.parse_text(
             program,
             name=self.fake_filename,
@@ -565,7 +573,7 @@ proc simple(addend: u32) {
       program = """
         fn foo(x: bits[+]) -> bits[5] { u5:5 }
       """
-      with fakefs_util.scoped_fakefs(self.fake_filename, program):
+      with fakefs_test_util.scoped_fakefs(self.fake_filename, program):
         parser_helpers.parse_text(
             program,
             name=self.fake_filename,
@@ -577,7 +585,7 @@ proc simple(addend: u32) {
       program = """
         fn [X: u32, Y: u32] foo(x: bits[X + Y]) -> bits[5] { u5:5 }
       """
-      with fakefs_util.scoped_fakefs(self.fake_filename, program):
+      with fakefs_test_util.scoped_fakefs(self.fake_filename, program):
         parser_helpers.parse_text(
             program,
             name=self.fake_filename,
@@ -601,7 +609,7 @@ proc simple(addend: u32) {
           foo(x - 1 + y + z)
         }
         """
-      with fakefs_util.scoped_fakefs(self.fake_filename, program):
+      with fakefs_test_util.scoped_fakefs(self.fake_filename, program):
         parser_helpers.parse_text(
             program,
             name=self.fake_filename,
@@ -611,7 +619,8 @@ proc simple(addend: u32) {
 
   def test_match(self):
     b = parser.Bindings(None)
-    b.add('x', ast.BuiltinNameDef('x'))
+    m = ast.Module('test')
+    b.add('x', ast.BuiltinNameDef(m, 'x'))
     e = self.parse_expression(
         'match x { u32:42 => u32:64; _ => u32:42 }', bindings=b)
     self.assertIsInstance(e, ast.Match)
@@ -682,7 +691,7 @@ proc simple(addend: u32) {
     self.assertIsInstance(e.alternate, ast.Number)
     self.assertEqual(e.alternate.value, '24')
     self.assertIsInstance(e.test, ast.Number)
-    self.assertEqual(e.test.value.value, 'true')
+    self.assertEqual(e.test.value, 'true')
 
   def test_constant_array(self):
     b = parser.Bindings(None)
@@ -736,8 +745,9 @@ proc simple(addend: u32) {
       y => z
     }"""
     b = parser.Bindings(None)
+    m = ast.Module('test')
     for identifier in ('x', 'y', 'z'):
-      b.add(identifier, ast.BuiltinNameDef(identifier))
+      b.add(identifier, ast.BuiltinNameDef(m, identifier))
     n = self.parse_expression(text, bindings=b)
     freevars = n.get_free_variables(n.span.start)
     self.assertEqual(freevars.keys(), {'x', 'y', 'z'})
@@ -980,7 +990,7 @@ proc simple(addend: u32) {
     import thing
     """
     bindings = parser.Bindings(None)
-    fparse = lambda p, bindings: p.parse_module('test_module', bindings)
+    fparse = lambda p, bindings: p.parse_module(bindings)
     m = self._parse_internal(program, bindings, fparse)
     self.assertIsInstance(m.top[0], ast.Import)
     fake_pos = Pos(self.fake_filename, 0, 0)
@@ -992,7 +1002,7 @@ proc simple(addend: u32) {
     import thing as other
     """
     bindings = parser.Bindings(None)
-    fparse = lambda p, bindings: p.parse_module('test_module', bindings)
+    fparse = lambda p, bindings: p.parse_module(bindings)
     m = self._parse_internal(program, bindings, fparse)
     self.assertIsInstance(m.top[0], ast.Import)
     fake_pos = Pos(self.fake_filename, 0, 0)
@@ -1011,7 +1021,7 @@ proc simple(addend: u32) {
     }
     """
     bindings = parser.Bindings(None)
-    fparse = lambda p, bindings: p.parse_module('test_module', bindings)
+    fparse = lambda p, bindings: p.parse_module(bindings)
     with self.assertRaises(parser.ParseError) as cm:
       self._parse_internal(program, bindings, fparse)
     self.assertIn('Cannot find a definition for name: \'FOO\'',

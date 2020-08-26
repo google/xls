@@ -117,6 +117,10 @@ class EnumType(ConcreteType[DimsT]):
       return False
     return self.nominal_type == other.nominal_type and self.size == other.size
 
+  @property
+  def signedness(self) -> None:
+    raise NotImplementedError
+
   def get_signedness(self) -> bool:
     return self.nominal_type.get_signedness()
 
@@ -156,8 +160,12 @@ class TupleType(ConcreteType[DimsT]):
   def __init__(self,
                members: TupleTypeMembers,
                struct: Optional[NominalType] = None):
+    assert isinstance(members, tuple), members
     self._members = members
     self.nominal_type = struct
+
+  def __repr__(self) -> str:
+    return f'TupleType(members={self._members!r}, struct={self.nominal_type!r})'
 
   def __eq__(self, other: Any) -> bool:
     """Returns whether this tuple type is exactly equal to other tuple type."""
@@ -253,6 +261,9 @@ class BitsType(ConcreteType[DimsT]):
   def __init__(self, signed: bool, size: DimsT):
     self.signed = signed
     self.size = size
+
+  def __repr__(self) -> str:
+    return f'BitsType(signed={self.signed!r}, size={self.size!r})'
 
   def __eq__(self, other: Any) -> bool:
     if not isinstance(other, BitsType):

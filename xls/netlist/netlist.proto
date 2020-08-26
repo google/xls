@@ -40,7 +40,8 @@ enum CellKindProto {
 // This indicates that if A is low and C is low, on the next clock, C will be
 // high, and for all other inputs, C will be low (obviously, this table isn't
 // particularly useful, but illustrates the general idea).
-enum StateTableSignal {
+// Please keep this decl in sync with that in cell_library.h!
+enum StateTableSignalProto {
   STATE_TABLE_SIGNAL_INVALID = 0;
   STATE_TABLE_SIGNAL_LOW = 1;
   STATE_TABLE_SIGNAL_HIGH = 2;
@@ -54,14 +55,14 @@ enum StateTableSignal {
 
 message StateTableRow {
   // The values of the external inputs into this cell.
-  map<string, StateTableSignal> input_signals = 1;
+  map<string, StateTableSignalProto> input_signals = 1;
 
   // The current internal signal values of this cell.
-  map<string, StateTableSignal> internal_signals = 2;
+  map<string, StateTableSignalProto> internal_signals = 2;
 
   // The resulting value of the internal signals when presented with the above
   // inputs.
-  map<string, StateTableSignal> output_signals = 3;
+  map<string, StateTableSignalProto> output_signals = 3;
 }
 
 message StateTableProto {
@@ -83,19 +84,29 @@ message StateTableProto {
 }
 
 message OutputPinProto {
+  // Name of this output pin.
   optional string name = 1;
+
+  // Function calculated on this pin, as a string in the format described under
+  // "function attribute" in the Liberty file format.
   optional string function = 2;
+}
+
+message OutputPinListProto {
+  repeated OutputPinProto pins = 1;
 }
 
 message CellLibraryEntryProto {
   optional CellKindProto kind = 1;
   optional string name = 2;
   repeated string input_names = 3;
-  repeated OutputPinProto output_pins = 4;
 
-  // The liberty standard doesn't mention cardinality of statetable, but it
-  // seems wrong for there to be > 1.
-  optional StateTableProto state_table = 5;
+  oneof operation {
+    OutputPinListProto output_pin_list = 4;
+    // The Liberty standard doesn't mention cardinality of statetable, but it
+    // seems wrong for there to be > 1.
+    StateTableProto state_table = 5;
+  }
 }
 
 message CellLibraryProto {

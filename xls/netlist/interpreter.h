@@ -32,10 +32,7 @@ namespace netlist {
 // resulting value.
 class Interpreter {
  public:
-  // "high_cells" is a list of cell library entry names whose outputs should all
-  // be considered "1".
-  explicit Interpreter(rtl::Netlist* netlist,
-                       const absl::flat_hash_set<std::string>& high_cells);
+  explicit Interpreter(rtl::Netlist* netlist);
 
   // Interprets the given module with the given input mapping.
   //  - inputs: Mapping of module input wire to value. Must have the same size
@@ -60,9 +57,6 @@ class Interpreter {
       const absl::flat_hash_map<const rtl::NetRef, bool>& processed_wires);
 
   rtl::Netlist* netlist_;
-
-  // Any cells which are a priori known to have a output that's always asserted.
-  absl::flat_hash_set<std::string> high_cells_;
 };
 
 }  // namespace netlist

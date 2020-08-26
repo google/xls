@@ -19,7 +19,7 @@ nav:
       - Data Layout: 'data_layout.md'
     - Formal: 'solvers.md'
   - DSLX:
-    - Reference: 'dslx_intro.md'
+    - Reference: 'dslx_reference.md'
     - Examples:
       - CRC32: 'dslx_intro_example1.md'
       - FP adder: 'fpadd_example.md'

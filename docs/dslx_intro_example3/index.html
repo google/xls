@@ -404,7 +404,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../dslx_intro/" title="Reference" class="md-nav__link">
+    <a href="../dslx_reference/" title="Reference" class="md-nav__link">
       Reference
     </a>
   </li>
@@ -871,13 +871,13 @@ following four cases:</p>
       //     set to_place back to 0
       //     set new_counter back to 1
       (false, false) =&gt; (u3:0, u3:1);
-    } in
+    };
 </code></pre>
 
 <p>To update the result, we set index <code>i</code> in the <code>result</code> array to the value
 <code>to_place</code> via the built-in <code>update</code> function, which produces a new value
 <code>new_result</code>):</p>
-<pre><code>    let new_result: bits[8,3] = update(result, i, to_place) in
+<pre><code>    let new_result: bits[8,3] = update(result, i, to_place);
 </code></pre>
 
 <p>Finally the updated accumulator value is constructed, it is the last expression
@@ -892,7 +892,7 @@ accumulator in the following way.</p>
 <li>set element <code>count</code> to 0.</li>
 <li>set element <code>result</code> to 8 0's of size <code>u3</code></li>
 </ul>
-<pre><code>}((u32:-1, u3:0, bits[8,3]:[u3:0, u3:0, u3:0, u3:0, u3:0, u3:0, u3:0, u3:0])) in
+<pre><code>}((u32:-1, u3:0, bits[8,3]:[u3:0, u3:0, u3:0, u3:0, u3:0, u3:0, u3:0, u3:0]));
 </code></pre>
 
 <p>And, finally, the function simply returns <code>result</code>:</p>
@@ -904,14 +904,14 @@ accumulator in the following way.</p>
 <p>To test the two cases we've described above, we add the following two test cases
 right to this implementation file:</p>
 <pre><code>test prefix_scan_eq_all_zero {
-  let input = bits[8,32]:[0, 0, 0, 0, 0, 0, 0, 0] in
-  let result = prefix_scan_eq(input) in
+  let input = bits[8,32]:[0, 0, 0, 0, 0, 0, 0, 0];
+  let result = prefix_scan_eq(input);
   assert_eq(result, bits[8,3]:[0, 1, 2, 3, 4, 5, 6, 7])
 }
 
 test prefix_scan_eq_doubles {
-  let input = bits[8,32]:[0, 0, 1, 1, 2, 2, 3, 3] in
-  let result = prefix_scan_eq(input) in
+  let input = bits[8,32]:[0, 0, 1, 1, 2, 2, 3, 3];
+  let result = prefix_scan_eq(input);
   assert_eq(result, bits[8,3]:[0, 1, 0, 1, 0, 1, 0, 1])
 }
 </code></pre>

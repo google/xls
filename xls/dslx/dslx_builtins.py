@@ -352,7 +352,7 @@ def fsig(
   logging.vlog(5, 'Instantiating for builtin %r @ %s', name, span)
   _Checker(arg_types, name, span).len(2).is_array(0).is_fn(1, argc=1)
   t = arg_types[0].get_element_type()  # pytype: disable=attribute-error
-  u, symbolic_bindings = parametric_instantiator.instantiate(
+  u, symbolic_bindings = parametric_instantiator.instantiate_function(
       span, arg_types[1], (t,), ctx, parametric_bindings)
   return_type = ArrayType(u, arg_types[0].size)  # pytype: disable=attribute-error
   return FunctionType(arg_types, return_type), symbolic_bindings

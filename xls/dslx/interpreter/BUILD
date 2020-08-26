@@ -146,6 +146,7 @@ py_library(
         ":value",
         requirement("termcolor"),
         "//xls/dslx:ast",
+        "//xls/dslx:ast_helpers",
         "//xls/dslx:bit_helpers",
         "//xls/dslx:concrete_type",
         "//xls/dslx:deduce",
@@ -229,10 +230,10 @@ py_test(
     deps = [
         ":interpreter",
         ":parse_and_interpret",
+        requirement("pyfakefs"),  # unittest
         "//xls/dslx:concrete_type",
         "//xls/dslx:xls_type_error",
         "@com_google_absl_py//absl/testing:absltest",
-        "@pyfakefs_archive//:pyfakefs",  # fake_filesystem_unittest
     ],
 )
 
@@ -256,6 +257,7 @@ py_binary(
     deps = [
         ":interpreter",
         ":value",
+        requirement("pyfakefs"),
         "//xls/dslx:ast",
         "//xls/dslx:bindings",
         "//xls/dslx:bit_helpers",
@@ -270,7 +272,6 @@ py_binary(
         "//xls/dslx:xls_type_error",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
-        "@pyfakefs_archive//:pyfakefs",
     ],
 )
 

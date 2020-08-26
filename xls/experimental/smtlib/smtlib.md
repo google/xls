@@ -10,14 +10,16 @@ on other solvers in future research.
 
 SMT solvers like CVC4, STP, Yices, and Z3 can produce and consume a universal language
 called SMT-LIB, which allows us to compare logical equivalence checking for
+
 these solvers on the same file. This directory contains generators of n-bit
 addition, multiplication, and shift proofs in SMT-LIB.  
 
 ## Evaluating an smt2 file proof with CVC4, STP, Yices, or Z3
 
-Once these SMT solvers are installed, they can be used directly on the command line. 
+Once these SMT solvers are installed, they can be used directly on the command line.
 CVC4, STP, Yices, and Z3 infer input language by the file type, so to test a
-solver we can enter the following in the third\_party/xls/experimental/smtlib directory:
+solver we can enter the following in the xls/experimental/smtlib directory:
+
 
 ```
 $ <solver_command> <smt2 file>

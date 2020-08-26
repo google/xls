@@ -6,9 +6,11 @@ entries {
   name: "AND"
   input_names: "A"
   input_names: "B"
-  output_pins {
-    name: "Z"
-    function: "A&B"
+  output_pin_list {
+    pins {
+      name: "Z"
+      function: "A&B"
+    }
   }
 }
 entries {
@@ -17,35 +19,43 @@ entries {
   input_names: "A"
   input_names: "B"
   input_names: "C"
-  output_pins {
-    name: "ZN"
-    function: "!((A*B)|C)"
+  output_pin_list {
+    pins {
+      name: "ZN"
+      function: "!((A*B)|C)"
+    }
   }
 }
 entries {
   kind: FLOP
   name: "DFF"
   input_names: "D"
-  output_pins {
-    name: "Q"
-    function: "D"
+  output_pin_list {
+    pins {
+      name: "Q"
+      function: "D"
+    }
   }
 }
 entries {
   kind: INVERTER
   name: "INV"
   input_names: "A"
-  output_pins {
-    name: "ZN"
-    function: "!A"
+  output_pin_list {
+    pins {
+      name: "ZN"
+      function: "!A"
+    }
   }
 }
 entries {
   kind: OTHER
   name: "LOGIC_ONE"
-  output_pins {
-    name: "O"
-    function: "1"
+  output_pin_list {
+    pins {
+      name: "O"
+      function: "1"
+    }
   }
 }
 entries {
@@ -53,9 +63,11 @@ entries {
   name: "NAND"
   input_names: "A"
   input_names: "B"
-  output_pins {
-    name: "ZN"
-    function: "!(A&B)"
+  output_pin_list {
+    pins {
+      name: "ZN"
+      function: "!(A&B)"
+    }
   }
 }
 entries {
@@ -65,9 +77,11 @@ entries {
   input_names: "B"
   input_names: "C"
   input_names: "D"
-  output_pins {
-    name: "ZN"
-    function: "!(A|B|C|D)"
+  output_pin_list {
+    pins {
+      name: "ZN"
+      function: "!(A|B|C|D)"
+    }
   }
 }
 entries {
@@ -75,9 +89,11 @@ entries {
   name: "OR"
   input_names: "A"
   input_names: "B"
-  output_pins {
-    name: "Z"
-    function: "A|B"
+  output_pin_list {
+    pins {
+      name: "Z"
+      function: "A|B"
+    }
   }
 }
 entries {
@@ -85,8 +101,65 @@ entries {
   name: "XOR"
   input_names: "A"
   input_names: "B"
-  output_pins {
-    name: "Z"
-    function: "A^B"
+  output_pin_list {
+    pins {
+      name: "Z"
+      function: "A^B"
+    }
+  }
+}
+# A state-table-driven entry that simply computes AND.
+# This format is...not concise.
+entries {
+  kind: OTHER
+  name: "STATETABLE_AND"
+  input_names: "A"
+  input_names: "B"
+  state_table {
+    input_names: "A"
+    input_names: "B"
+    internal_names: "Z"
+    rows {
+      input_signals {
+        key: "A"
+        value: STATE_TABLE_SIGNAL_HIGH
+      }
+      input_signals {
+        key: "B"
+        value: STATE_TABLE_SIGNAL_HIGH
+      }
+      output_signals {
+        key: "Z"
+        value: STATE_TABLE_SIGNAL_HIGH
+      }
+    }
+    rows {
+      input_signals {
+        key: "A"
+        value: STATE_TABLE_SIGNAL_LOW
+      }
+      input_signals {
+        key: "B"
+        value: STATE_TABLE_SIGNAL_DONTCARE
+      }
+      output_signals {
+        key: "Z"
+        value: STATE_TABLE_SIGNAL_LOW
+      }
+    }
+    rows {
+      input_signals {
+        key: "A"
+        value: STATE_TABLE_SIGNAL_DONTCARE
+      }
+      input_signals {
+        key: "B"
+        value: STATE_TABLE_SIGNAL_LOW
+      }
+      output_signals {
+        key: "Z"
+        value: STATE_TABLE_SIGNAL_LOW
+      }
+    }
   }
 }

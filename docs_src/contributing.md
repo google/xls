@@ -46,11 +46,12 @@ order to have a cleaner revision history.
 Generally, this can be accomplished by:
 
 ```console
-proj/xls$ git merge-base main my-branch-name  # Tells you common ancesor COMMIT_HASH.
+proj/xls$ # Here we assume origin points to google/xls.
+proj/xls$ git fetch origin main
+proj/xls$ git merge-base origin/main my-branch-name  # Tells you common ancesor COMMIT_HASH.
 proj/xls$ git reset --soft $COMMIT_HASH
 proj/xls$ git commit -a -m "My awesome squashed commit message!!!1"
 proj/xls$ # Now we can more easily rebase our squashed commit on main.
-proj/xls$ git fetch
 proj/xls$ git rebase origin/main
 ```
 

@@ -29,20 +29,20 @@ namespace {
 
 TEST(CellLibraryTest, SerializeToProto) {
   CellLibrary cell_library;
-  OutputPin pin;
-  pin.name = "Z";
-  pin.function = "W";
+  CellLibraryEntry::SimplePins pins;
+  pins["Z"] = "W";
   XLS_ASSERT_OK(cell_library.AddEntry(CellLibraryEntry(
-      CellKind::kInverter, "INV", std::vector<std::string>{"A"},
-      std::vector<OutputPin>{pin})));
-  CellLibraryProto proto = cell_library.ToProto();
+      CellKind::kInverter, "INV", std::vector<std::string>{"A"}, pins)));
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibraryProto proto, cell_library.ToProto());
   EXPECT_EQ(R"(entries {
   kind: INVERTER
   name: "INV"
   input_names: "A"
-  output_pins {
-    name: "Z"
-    function: "W"
+  output_pin_list {
+    pins {
+      name: "Z"
+      function: "W"
+    }
   }
 }
 )",

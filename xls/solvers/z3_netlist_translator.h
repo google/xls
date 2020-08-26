@@ -50,21 +50,8 @@ class NetlistTranslator {
   // Returns the Z3 equivalent for the specified net.
   xabsl::StatusOr<Z3_ast> GetTranslation(netlist::rtl::NetRef ref);
 
-  // Replaces instances of a net as cell input with a different net, both
-  // represented as Z3_ast nodes. This is useful for re-writing a graph to,
-  // e.g., prove logical equivalence of two graphs.
-  // To do that, the inputs of one (or both) graphs can be replaced by another
-  // set of input nodes that are common to the two graphs.
-  // A more advanced case would be to "split out" a pipeline stage of a
-  // computation by replacing all register inputs to one stage with a set of
-  // constants (rather than depending on the full computation from earlier
-  // stages); the outputs would be similarly replaced.
-  // To un-do this operation, the Z3_ast for ref_name must be stored and
-  // passed as an argument to a later call.
-  // There is no way to replace only the n'th use of src by a given cell.
-  absl::Status RebindInputNets(
-      const absl::flat_hash_map<std::string, Z3_ast>& inputs);
-
+  // Retranslates the netlist, replacing the named netrefs with their paired Z3
+  // ASTs.
   absl::Status Retranslate(
       const absl::flat_hash_map<std::string, Z3_ast>& inputs);
 
@@ -102,6 +89,7 @@ class NetlistTranslator {
   absl::Status TranslateCell(const netlist::rtl::Cell& cell);
   xabsl::StatusOr<Z3_ast> TranslateFunction(const netlist::rtl::Cell& cell,
                                             const netlist::function::Ast ast);
+  absl::Status TranslateStateTable(const netlist::rtl::Cell& cell);
 
   Z3_context ctx_;
   const netlist::rtl::Module* module_;

@@ -30,7 +30,7 @@ The return type, which is declared after the `->`, is also a `u32`.
 The first line of the function's body is quite curious:
 
 ```
-let crc: u32 = crc ^ u32:byte in
+let crc: u32 = crc ^ u32:byte;
 ```
 
 The expression to the right side of the `=` is easy to understand, it computes
@@ -57,7 +57,7 @@ accumulator `crc` - the last expression in the loop body is assigned to the
 accumulator:
 
 ```
-    let mask: u32 = -(crc & u32:1) in
+    let mask: u32 = -(crc & u32:1);
     (crc >> u32:1) ^ (polynomial & mask)
 ```
 

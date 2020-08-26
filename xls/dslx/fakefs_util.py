@@ -14,22 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Helpers for working with fake filesystems.
+"""Adapter for fakefs between internal/external versions."""
 
-Helper for making a scoped fake filesystem; e.g. for use in tests or synthetic
-environments like the fuzzer.
-"""
-
-import contextlib
-from typing import Text
-
-from pyfakefs import fake_filesystem_unittest as ffu
+from pyfakefs import fake_filesystem as fakefs
 
 
-@contextlib.contextmanager
-def scoped_fakefs(path: Text, contents: Text):
-  with ffu.Patcher() as patcher:
-    create_file = getattr(patcher.fs, 'create_file', None) or getattr(
-        patcher.fs, 'CreateFile')
-    create_file(path, contents=contents)
-    yield
+def create_file(fs: fakefs.FakeFilesystem, *args, **kwargs) -> fakefs.FakeFile:
+  # Note: avoids a warning for deprecated CreateFile, even though there's
+  # version skew between internal and external versions.
+  fcreate_file = (getattr(fs, 'create_file', None) or getattr(fs, 'CreateFile'))
+  return fcreate_file(*args, **kwargs)

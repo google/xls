@@ -161,10 +161,14 @@ std::string CreateImplSpecialization(const Function& function,
   // Do the same for the return type - this requires allocating "buffer" space
   const Type& return_type = *function.return_value()->GetType();
   std::string return_spec = MatchTypeSpecialization(return_type).value();
-  param_conversions.push_back(absl::StrFormat(
-      "  %s return_value;\n"
-      "  %s",
-      return_spec, CreateConversion("return_value", return_type).value()));
+  param_conversions.push_back(
+      absl::StrFormat("  %s return_value;\n"
+                      "#if __has_feature(memory_sanitizer)\n"
+                      "  __msan_unpoison(&return_value, sizeof(%s));\n"
+                      "#endif\n"
+                      "  %s",
+                      return_spec, return_spec,
+                      CreateConversion("return_value", return_type).value()));
   param_names.push_back("return_value_view");
   return absl::StrFormat(R"(%s {
 %s;

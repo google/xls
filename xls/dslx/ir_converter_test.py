@@ -23,9 +23,10 @@ from typing import Text
 
 from absl.testing import absltest
 from xls.common import runfiles
-from xls.dslx import fakefs_util
+from xls.dslx import fakefs_test_util
 from xls.dslx import ir_converter
 from xls.dslx import parser_helpers
+from xls.dslx import span
 from xls.dslx import typecheck
 
 
@@ -38,11 +39,26 @@ class IrConverterTest(absltest.TestCase):
   def parse_dsl_text(self, program):
     program = textwrap.dedent(program)
     filename = '/fake/test_module.x'
-    with fakefs_util.scoped_fakefs(filename, program):
+    with fakefs_test_util.scoped_fakefs(filename, program):
       m = parser_helpers.parse_text(
           program, name='test_module', print_on_error=True, filename=filename)
       self.assertEqual(m.name, 'test_module')
       return m
+
+  def parse_and_convert(self, program: str):
+    program = textwrap.dedent(program)
+    filename = '/fake/test_module.x'
+    with fakefs_test_util.scoped_fakefs(filename, program):
+      try:
+        m = parser_helpers.parse_text(
+            program, name='test_module', print_on_error=True, filename=filename)
+        self.assertEqual(m.name, 'test_module')
+        node_to_type = typecheck.check_module(m, f_import=None)
+        return ir_converter.convert_module(
+            m, node_to_type, emit_positions=False)
+      except span.PositionalError as e:
+        parser_helpers.pprint_positional_error(e)
+        raise
 
   def assert_ir_equals_and_parses(self, text: Text, expected: Text) -> None:
     """Verify the given text parses as IR and matches expected."""
@@ -1153,14 +1169,11 @@ class IrConverterTest(absltest.TestCase):
         """)
 
   def test_array_ellipsis(self):
-    m = self.parse_dsl_text("""
+    converted = self.parse_and_convert("""
     fn main() -> u8[2] {
       u8[2]:[0, ...]
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
-    converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module

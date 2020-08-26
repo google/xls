@@ -323,6 +323,10 @@ xabsl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 }
 
 xabsl::StatusOr<bool> SimplifyOneHotMsb(Function* f) {
+  // TODO(meheff): 2020-08-24 Disabled for debugging of crasher
+  // xls/dslx/fuzzer/crashers/2020-08-24-min.x
+  return false;
+#if 0
   bool changed = false;
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<PostDominatorAnalysis> post_dominator_analysis,
@@ -431,6 +435,7 @@ xabsl::StatusOr<bool> SimplifyOneHotMsb(Function* f) {
   }
 
   return changed;
+#endif
 }
 
 }  // namespace

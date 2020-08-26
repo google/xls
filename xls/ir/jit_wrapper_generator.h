@@ -34,7 +34,7 @@ struct GeneratedJitWrapper {
 //   function: The function for which to generate the wrapper.
 //   class_name: The name to give to the generated class.
 //   header_path: Path to the eventual location of the class header.
-// TODO(2020-08-19) : Add support for non-opt IR.
+// TODO(rspringer): 2020-08-19 Add support for non-opt IR.
 GeneratedJitWrapper GenerateJitWrapper(
     const Function& function, const std::string& class_name,
     const std::filesystem::path& header_path);

@@ -18,7 +18,7 @@
 
 import random
 
-from xls.dslx import fakefs_util
+from xls.dslx import fakefs_test_util
 from xls.dslx import parser_helpers
 from xls.dslx import typecheck
 from xls.dslx.fuzzer import ast_generator
@@ -36,7 +36,7 @@ class AstGeneratorTest(absltest.TestCase):
       _, m = g.generate_function_in_module('main', 'test')
       text = m.format()
       filename = '/fake/test_sample.x'
-      with fakefs_util.scoped_fakefs(filename, text):
+      with fakefs_test_util.scoped_fakefs(filename, text):
         try:
           module = parser_helpers.parse_text(
               text, name='test_sample', print_on_error=True, filename=filename)

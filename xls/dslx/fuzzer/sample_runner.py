@@ -199,7 +199,7 @@ class SampleRunner:
     input_text = self._read_file(input_filename)
     options = sample.SampleOptions.from_json(
         self._read_file(json_options_filename))
-    args_batch = None
+    args_batch: Optional[sample.ArgsBatch] = None
     if args_filename:
       args_batch = sample.parse_args_batch(self._read_file(args_filename))
 
@@ -265,9 +265,9 @@ class SampleRunner:
                                                   args_filename,
                                                   options.simulator)
 
-      self._compare_results(results)
+      self._compare_results(results, args_batch)
     except Exception as e:  # pylint: disable=broad-except
-      logging.info('Exception when running sample: %s', str(e))
+      logging.exception('Exception when running sample: %s', str(e))
       self._write_file('exception.txt', str(e))
       raise SampleError(str(e))
 
@@ -329,7 +329,8 @@ class SampleRunner:
     with open(os.path.join(self._run_dir, filename), 'r') as f:
       return f.read()
 
-  def _compare_results(self, results: Dict[Text, Sequence[Value]]):
+  def _compare_results(self, results: Dict[Text, Sequence[Value]],
+                       args_batch: Optional[sample.ArgsBatch]):
     """Compares a set of results as for equality.
 
     Each entry in the map is sequence of Values generated from some source
@@ -338,12 +339,19 @@ class SampleRunner:
 
     Args:
       results: Map of result Values.
+      args_batch: Optional batch of arguments used to produce the given results.
+        Batch should be the same length as the number of results for any given
+        value in "results".
 
     Raises:
       SampleError: A miscompare is found.
     """
     if not results:
       return
+
+    if args_batch:  # Check length is the same as results.
+      assert len(next(iter(results.values()))) == len(args_batch)
+
     reference = None
     for name, values in results.items():
       if reference is None:
@@ -359,9 +367,13 @@ class SampleRunner:
           # the DSLX interpreter can produce signed values so compare the
           # results ignoring signedness.
           if not ref_result.eq_ignore_sign(values[i]).is_true():
+            args = '(args unknown)'
+            if args_batch:
+              args = '; '.join(str(a) for a in args_batch[i])
             raise SampleError(f'Result miscompare for sample {i}:'
-                              f'\n{reference} = {str(ref_result)}'
-                              f'\n{name} = {str(values[i])}')
+                              f'\nargs: {args}'
+                              f'\n{reference:40} = {ref_result}'
+                              f'\n{name:40} = {values[i]}')
 
   def _interpret_dslx(self, m: ast.Module, node_to_type: deduce.NodeToType,
                       args_batch: sample.ArgsBatch) -> Tuple[Value, ...]:

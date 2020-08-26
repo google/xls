@@ -59,7 +59,7 @@ library (blah) {
   }
   ASSERT_EQ(input_names.size(), 0);
 
-  OutputPinProto output_pin = entry.output_pins(0);
+  OutputPinProto output_pin = entry.output_pin_list().pins(0);
   ASSERT_EQ(output_pin.name(), "o");
   ASSERT_EQ(output_pin.function(), "meow");
 }
@@ -98,7 +98,7 @@ library (blah) {
   }
   ASSERT_EQ(input_names.size(), 0);
 
-  OutputPinProto output_pin = entry.output_pins(0);
+  OutputPinProto output_pin = entry.output_pin_list().pins(0);
   ASSERT_EQ(output_pin.name(), "q");
   ASSERT_EQ(output_pin.function(), "i0|i1");
 }

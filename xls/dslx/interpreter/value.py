@@ -97,6 +97,7 @@ class Value:
       assert isinstance(payload, tuple), payload
     elif tag == Tag.ENUM:
       assert type_ is not None
+      assert hasattr(type_, 'get_signedness'), type_
     self.tag = tag
     self.payload = payload
     self.type_ = type_

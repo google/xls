@@ -44,9 +44,6 @@ ABSL_FLAG(std::string, cell_library_proto, "",
 ABSL_FLAG(std::string, dump_cells, "",
           "Comma-separated list of cells (not cell library entries!) whose "
           "values to dump.");
-ABSL_FLAG(std::string, high_cells, "",
-          "Comma-separated list of cells for which to assume \"1\" values on "
-          "all outputs.");
 ABSL_FLAG(std::string, input, "",
           "The input to the function as a semicolon-separated list of typed "
           "values. For example: \"bits[32]:42; (bits[7]:0, bits[20]:4)\". "
@@ -83,7 +80,6 @@ xabsl::StatusOr<netlist::CellLibrary> GetCellLibrary(
 absl::Status RealMain(const std::string& netlist_path,
                       const std::string& cell_library_path,
                       const std::string& cell_library_proto_path,
-                      const absl::flat_hash_set<std::string>& high_cells,
                       const std::string& module_name,
                       absl::Span<const std::string> inputs,
                       const std::string& output_type_string,
@@ -116,7 +112,7 @@ absl::Status RealMain(const std::string& netlist_path,
     input_nets[module_inputs[i]] = input_bits.Get(i);
   }
 
-  netlist::Interpreter interpreter(netlist.get(), high_cells);
+  netlist::Interpreter interpreter(netlist.get());
   XLS_ASSIGN_OR_RETURN(auto output_nets, interpreter.InterpretModule(
                                              module, input_nets, dump_cells));
 
@@ -160,12 +156,6 @@ int main(int argc, char* argv[]) {
   std::string module_name = absl::GetFlag(FLAGS_module_name);
   XLS_QCHECK(!module_name.empty()) << "--module_name must be specified.";
 
-  std::string high_cells_string = absl::GetFlag(FLAGS_high_cells);
-  absl::flat_hash_set<std::string> high_cells;
-  for (const auto& high_cell : absl::StrSplit(high_cells_string, ',')) {
-    high_cells.insert(std::string(high_cell));
-  }
-
   std::string input = absl::GetFlag(FLAGS_input);
   XLS_QCHECK(!input.empty()) << "--input must be specified.";
   std::vector<std::string> inputs = absl::StrSplit(input, ';');
@@ -176,8 +166,8 @@ int main(int argc, char* argv[]) {
   std::string output_type = absl::GetFlag(FLAGS_output_type);
 
   XLS_QCHECK_OK(xls::RealMain(netlist_path, cell_library_path,
-                              cell_library_proto_path, high_cells, module_name,
-                              inputs, output_type, dump_cells));
+                              cell_library_proto_path, module_name, inputs,
+                              output_type, dump_cells));
 
   return 0;
 }

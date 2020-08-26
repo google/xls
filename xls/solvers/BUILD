@@ -23,7 +23,6 @@ cc_library(
     srcs = ["z3_ir_translator.cc"],
     hdrs = ["z3_ir_translator.h"],
     deps = [
-        ":z3_propagate_updates",
         ":z3_utils",
         "@com_google_absl//absl/debugging:leak_check",
         "@com_google_absl//absl/status",
@@ -101,7 +100,6 @@ cc_library(
     srcs = ["z3_netlist_translator.cc"],
     hdrs = ["z3_netlist_translator.h"],
     deps = [
-        ":z3_propagate_updates",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/flags:flag",
@@ -113,6 +111,7 @@ cc_library(
         "//xls/common/status:statusor",
         "//xls/ir",
         "//xls/netlist",
+        "//xls/netlist:cell_library",
         "//xls/netlist:function_parser",
         "//xls/solvers:z3_utils",
         "@z3//:api",
@@ -135,21 +134,11 @@ cc_test(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/netlist",
+        "//xls/netlist:cell_library",
         "//xls/netlist:fake_cell_library",
         "//xls/netlist:netlist_parser",
         "@z3//:api",
         "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_library(
-    name = "z3_propagate_updates",
-    hdrs = ["z3_propagate_updates.h"],
-    deps = [
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/types:span",
-        "@z3//:api",
     ],
 )
 

@@ -22,8 +22,11 @@ chew on.
 from xls.dslx.ast_node import AstNode
 from xls.dslx.ast_node import AstVisitor
 from xls.dslx.core_ast_nodes import Array
+from xls.dslx.core_ast_nodes import ArrayTypeAnnotation
+from xls.dslx.core_ast_nodes import AstNodeOwner
 from xls.dslx.core_ast_nodes import Binop
 from xls.dslx.core_ast_nodes import BuiltinNameDef
+from xls.dslx.core_ast_nodes import BuiltinTypeAnnotation
 from xls.dslx.core_ast_nodes import ConstRef
 from xls.dslx.core_ast_nodes import Enum
 from xls.dslx.core_ast_nodes import EnumRef
@@ -34,10 +37,13 @@ from xls.dslx.core_ast_nodes import NameDef
 from xls.dslx.core_ast_nodes import NameDefTree
 from xls.dslx.core_ast_nodes import NameRef
 from xls.dslx.core_ast_nodes import Number
+from xls.dslx.core_ast_nodes import NumberKind
 from xls.dslx.core_ast_nodes import Ternary
+from xls.dslx.core_ast_nodes import TupleTypeAnnotation
 from xls.dslx.core_ast_nodes import TypeAnnotation
 from xls.dslx.core_ast_nodes import TypeDef
 from xls.dslx.core_ast_nodes import TypeRef
+from xls.dslx.core_ast_nodes import TypeRefTypeAnnotation
 from xls.dslx.core_ast_nodes import WildcardPattern
 
 from xls.dslx.leaf_ast_nodes import Attr

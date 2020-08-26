@@ -9,7 +9,7 @@
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
       
-        <link rel="canonical" href="https://google.github.io/xls/dslx_intro/">
+        <link rel="canonical" href="https://google.github.io/xls/dslx_reference/">
       
       
       <link rel="shortcut icon" href="../assets/images/favicon.png">
@@ -51,7 +51,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#introduction-to-dslx" class="md-skip">
+        <a href="#dslx-reference" class="md-skip">
           Skip to content
         </a>
       
@@ -831,6 +831,34 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#quickcheck" class="md-nav__link">
+    QuickCheck
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assert_eq" class="md-nav__link">
+    assert_eq
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#trace" class="md-nav__link">
+    trace
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fail" class="md-nav__link">
+    fail!()
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1476,6 +1504,34 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#quickcheck" class="md-nav__link">
+    QuickCheck
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assert_eq" class="md-nav__link">
+    assert_eq
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#trace" class="md-nav__link">
+    trace
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fail" class="md-nav__link">
+    fail!()
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1493,7 +1549,7 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/google/xls/edit/master/docs/dslx_intro.md" title="Edit this page" class="md-content__button md-icon">
+                  <a href="https://github.com/google/xls/edit/master/docs/dslx_reference.md" title="Edit this page" class="md-content__button md-icon">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
                   </a>
                 
@@ -1501,12 +1557,10 @@
                   
                 
                 
-                <!--* freshness: { owner: 'rhundt' reviewed: '2019-10-29' } *-->
-
-<h1 id="introduction-to-dslx">Introduction to DSLX</h1>
+                <h1 id="dslx-reference">DSLX Reference</h1>
 <div class="toc">
 <ul>
-<li><a href="#introduction-to-dslx">Introduction to DSLX</a><ul>
+<li><a href="#dslx-reference">DSLX Reference</a><ul>
 <li><a href="#comments">Comments</a></li>
 <li><a href="#identifiers">Identifiers</a></li>
 <li><a href="#functions">Functions</a><ul>
@@ -1571,19 +1625,12 @@
 </li>
 <li><a href="#testing-and-debugging">Testing and Debugging</a><ul>
 <li><a href="#unit-tests">Unit Tests</a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li><a href="#test">![test]</a><ul>
 <li><a href="#quickcheck">QuickCheck</a></li>
-</ul>
-</li>
-<li><a href="#quickcheck_1">![quickcheck]</a></li>
-<li><a href="#quickchecktest_count50000">![quickcheck(test_count=50000)]</a><ul>
 <li><a href="#assert_eq">assert_eq</a></li>
 <li><a href="#trace">trace</a></li>
 <li><a href="#fail">fail!()</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li><a href="#appendix">Appendix</a><ul>
@@ -1592,16 +1639,30 @@
 </li>
 </ul>
 </div>
-<p>DSLX is a domain specific, functional language to build hardware. It targets the
-XLS toolchain to enable flows for FPGAs and ASICs (note that other frontends
-will become available in the future).</p>
-<p>By using a DSL we get the best possible representation of a given problem,
-allowing us to explore the full potential of HLS, without being encumbered by
-C++ language or compiler limitations details. The language is still experimental
-and likely to change, but it is already useful for experimentation and
-exploration.</p>
-<p>This document provides am introduction to DSLX, mostly by example. After
-perusing it and learning about the language features, we recommend exploring the
+<p>DSLX is a domain specific, functional language to build hardware that can also
+run effectively as host software. The DSL targets the XLS compiler (by
+conversion to XLS IR) to enable flows for FPGAs and ASICs (note that other
+frontends will become available in the future).</p>
+<p>DSLX mimics Rust, while being an immutable expression-based dataflow DSL with
+hardware-oriented features; e.g. arbitrary bitwidths, entirely fixed size
+objects, fully analyzeable call graph, etc. To avoid arbitrary new
+syntax/semantics choices the DSL mimics Rust where it is reasonably possible;
+for example, integer conversions all follow the same semantics as Rust.</p>
+<p>Note: There are <em>some</em> unnecessary differences today from Rust syntax due to
+early experimentation, but they are quickly being removed to converge on Rust
+syntax.</p>
+<p>Dataflow DSLs are a good fit for describing hardware, compared to languages
+designed assume
+<a href="https://en.wikipedia.org/wiki/Von_Neumann_architecture">von Neumann style computation</a>
+(global mutable state, sequential mutation by a sequential thread of control).
+Using a DSL provides a more hardware-oriented representation of a given
+computation that matches XLS compiler (IR) constructs closely. The DSL also
+allows an exploration of HLS without being encumbered by C++ language or
+compiler limitations such as non-portable pragmas, magic macros, or semantically
+important syntactic conventions. The language is still experimental and likely
+to change, but it is already useful for experimentation and exploration.</p>
+<p>This document provides a reference for DSLX, mostly by example. After perusing
+it and learning about the language features, we recommend exploring the
 following, detailed examples to learn how the language features are put to
 action:</p>
 <ol>
@@ -1616,7 +1677,8 @@ action:</p>
 </li>
 </ol>
 <p>In this document we use the function to compute a CRC32 checksum to describe
-language feature. The full code is in <code>examples/dslx_intro/crc32_one_byte.x</code>.</p>
+language features. The full code is in
+<a href="https://github.com/google/xls/tree/main/xls/examples/dslx_intro/crc32_one_byte.x"><code>examples/dslx_intro/crc32_one_byte.x</code></a>.</p>
 <h3 id="comments">Comments</h3>
 <p>Just as in languages like C/C++, comments start with <code>//</code> and last through the
 end of the line.</p>
@@ -1797,8 +1859,8 @@ fn next_in_sequence(x: Opcode, y: Opcode) -&gt; bool {
 <p>As mentioned above casting of enum-values works with the same casting/extension
 rules that apply to the underlying enum type definition. For example, this cast
 will sign extend because the source type for the enum is signed. (See
-<a href="./#numerical-conversions">numerical conversions</a>
-for the full description of extension/truncation behavior.)</p>
+<a href="#numerical-conversions">numerical conversions</a> for the full description of
+extension/truncation behavior.)</p>
 <pre><code>enum MySignedEnum : s3 {
   LOW = -1
   ZERO = 0
@@ -1878,6 +1940,10 @@ test struct_equality {
 }
 </code></pre>
 
+<p>There is a simple syntax when defining fields with names that are the same as
+the specified values: ``` struct Point { x: u32, y: u32, }</p>
+<p>test struct_equality { let x = u32:42; let y = u32:64;</p>
+<p>let p0 = Point { x, y }; let p1 = Point { y, x }; assert_eq(p0, p1) } ```</p>
 <p>Struct fields can also be accessed with "dot" syntax:</p>
 <pre><code>struct Point {
   x: u32,
@@ -1956,10 +2022,15 @@ same definition (this is called "nominal typing"). For example:</p>
         &quot;&quot;&quot;,
         error='parameter type name: \'Point\'; argument type name: \'OtherPoint\''
     )
-
-  def test_bad_enum_ref(self):
 </code></pre>
 
+<p>DSLX also supports parametric structs. For more information on how
+type-parametricity works, see the <a href="#parametric-functions">parametric functions</a>
+section. ``` fn double(n: u32) -&gt; u32 { n * u32:2 }</p>
+<p>struct [N: u32, M: u32 = double(N)] Point { x: bits[N], y: bits[M], }</p>
+<p>fn [A: u32, B: u32] make_point(x: bits[A], y: bits[B]) -&gt; Point[A, B] { Point {
+x, y } } test struct_construction { let p = make_point(u16:42, u32:42);
+assert_eq(u16:42, p.x) } ```</p>
 <h3 id="array-type">Array Type</h3>
 <p>Arrays can be constructed via bracket notation. All values that make up the
 array must have the same type. Arrays can be indexed with indexing notation
@@ -2726,11 +2797,16 @@ replacement is viable.</p>
 to ensure the code behaves as expected. Additionally it serves as
 'executable' documentation, similar in spirit to Python doc strings.</p>
 <h3 id="unit-tests">Unit Tests</h3>
-<p>Unit tests are specified by the <code>test</code> directive, as seen below: ```</p>
-<h1 id="test">![test]</h1>
-<p>fn test_reverse() { let _ = assert_eq(u1:1, rev(u1:1)) in let _ =
-assert_eq(u2:0b10, rev(u2:0b01)) in let _ = assert_eq(u2:0b00, rev(u2:0b00)) in
-() } ```</p>
+<p>Unit tests are specified by the <code>test</code> directive, as seen below:</p>
+<pre><code class="dslx">#![test]
+fn test_reverse() {
+  let _ = assert_eq(u1:1, rev(u1:1));
+  let _ = assert_eq(u2:0b10, rev(u2:0b01));
+  let _ = assert_eq(u2:0b00, rev(u2:0b00));
+  ()
+}
+</code></pre>
+
 <p>The DSLX interpreter will execute all functions that are proceeded by a <code>test</code>
 directive. These functions should be non-parametric, take no arguments, and
 should return a unit-type.</p>
@@ -2738,7 +2814,7 @@ should return a unit-type.</p>
 called by unit tests are also converted to XLS IR and run through the
 toolchain's LLVM JIT. The resulting values from the DSLX interpreter and the
 LLVM JIT are compared against each other to assert equality. This is to ensure
-1) DSLX implementations are IR-convertable and 2) IR translation is correct.</p>
+DSLX implementations are IR-convertable and that IR translation is correct.</p>
 <h3 id="quickcheck">QuickCheck</h3>
 <p>QuickCheck is a <a href="https://www.cs.tufts.edu/~nr/cs257/archive/john-hughes/quick.pdf">testing framework concept</a> founded on
 property-based testing. Instead of specifying expected and test values,
@@ -2746,10 +2822,15 @@ QuickCheck asks for properties of the implementation that should hold true
 against any input of the specified type(s). In DSLX, we use the <code>quickcheck</code>
 directive to designate functions to be run via the toolchain's QuickCheck
 framework. Here is an example that complements the unit testing of DSLX's <code>rev</code>
-implementation from above: ``` // Reversing a value twice gets you the original
-value.</p>
-<h1 id="quickcheck_1">![quickcheck]</h1>
-<p>fn prop_double_reverse(x: u32) -&gt; bool { x == rev(rev(x)) } ```</p>
+implementation from above:</p>
+<pre><code>// Reversing a value twice gets you the original value.
+
+#![quickcheck]
+fn prop_double_reverse(x: u32) -&gt; bool {
+  x == rev(rev(x))
+}
+</code></pre>
+
 <p>The DSLX interpreter will also execute all functions that are proceeded by a
 <code>quickcheck</code> directive. These functions should be non-parametric and return a
 <code>bool</code>. The framework will provide randomized input based on the types of the
@@ -2757,15 +2838,13 @@ arguments to the function (e.g. above, the framework will provided randomized
 <code>u32</code>'s as <code>x</code>).</p>
 <p>By default, the framework will run the function against 1000 sets of randomized
 inputs. This default may be changed by specifying the <code>test_count</code> key in the
-<code>quickcheck</code> directive before a particular test: ```</p>
-<h1 id="quickchecktest_count50000">![quickcheck(test_count=50000)]</h1>
-<pre><code>
-The framework also allows programmers to specify a seed to use in generating the random inputs, as opposed to letting the framework pick one. The seed chosen for production can be found in the execution log.
-
-For determinism, the DSLX interpreter should be run with the `seed` flag:
+<code>quickcheck</code> directive before a particular test:</p>
+<pre><code>#![quickcheck(test_count=50000)]
 </code></pre>
 
-<p>./interpreter_main --seed=1234 <DSLX source file> ```</p>
+<p>The framework also allows programmers to specify a seed to use in generating the random inputs, as opposed to letting the framework pick one. The seed chosen for production can be found in the execution log.</p>
+<p>For determinism, the DSLX interpreter should be run with the <code>seed</code> flag:
+<code>./interpreter_main --seed=1234 &lt;DSLX source file&gt;</code></p>
 <h3 id="assert_eq">assert_eq</h3>
 <p>In a unit test pseudo function all valid DSLX code is allowed. To evaluate test
 results DSLX provides the <code>assert_eq</code> primitive (we'll add more of those in the

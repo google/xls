@@ -23,6 +23,7 @@ from pyfakefs import fake_filesystem as fakefs
 
 from xls.dslx import ast
 from xls.dslx import deduce
+from xls.dslx import fakefs_util
 from xls.dslx import parser_helpers
 from xls.dslx import typecheck
 from xls.dslx.import_fn import ImportFn
@@ -85,7 +86,7 @@ def parse_text_fakefs(text: Text, name: Text, print_on_error: bool, *,
     The DSLX module and the type information.
   """
   fs = fakefs.FakeFilesystem()
-  fs.CreateFile(filename, contents=text)
+  fakefs_util.create_file(fs, filename, contents=text)
   fake_open = fakefs.FakeFileOpen(fs)
   return parse_text(
       text,

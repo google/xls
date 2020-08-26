@@ -108,7 +108,8 @@ class Attribute(object):
                cpp_type: str,
                arg_cpp_type: Optional[str] = None,
                return_cpp_type: Optional[str] = None,
-               equals_tmpl: str = '{lhs} == {rhs}'):
+               equals_tmpl: str = '{lhs} == {rhs}',
+               init_args=None):
     """Initialize an Attribute.
 
     Args:
@@ -123,6 +124,9 @@ class Attribute(object):
       equals_tmpl: A Python format string defining the expression for testing
         this member for equality. The format fields are named 'lhs' and 'rhs'.
         For example, '{lhs}.EqualTo({rhs})'.
+      init_args: Optional arguments to pass to the data member constructor.
+        If not specified, this is 'name', the name of the attribute constructor
+        argument.
     """
 
     self.name = name
@@ -131,7 +135,10 @@ class Attribute(object):
         cpp_type=cpp_type if arg_cpp_type is None else arg_cpp_type,
         clone_expression=self.name + '()')
     self.data_member = DataMember(
-        name=name + '_', cpp_type=cpp_type, init=name, equals_tmpl=equals_tmpl)
+        name=name + '_',
+        cpp_type=cpp_type,
+        init=name if init_args is None else ', '.join(init_args),
+        equals_tmpl=equals_tmpl)
     self.method = Method(
         name=name,
         return_cpp_type=cpp_type
@@ -185,6 +192,17 @@ class LsbOrMsbAttribute(Attribute):
         cpp_type='LsbOrMsb',
         return_cpp_type='LsbOrMsb',
         arg_cpp_type='LsbOrMsb')
+
+
+class TypeVectorAttribute(Attribute):
+
+  def __init__(self, name):
+    super(TypeVectorAttribute, self).__init__(
+        name,
+        cpp_type='std::vector<Type*>',
+        return_cpp_type='absl::Span<Type* const>',
+        arg_cpp_type='absl::Span<Type* const>',
+        init_args=(f'{name}.begin()', f'{name}.end()'))
 
 
 class Property(enum.Enum):
@@ -409,6 +427,24 @@ OpClass.kinds['BITWISE_REDUCTION_OP'] = OpClass(
     extra_constructor_args=[ConstructorArgument(name='op',
                                                 cpp_type='Op',
                                                 clone_expression='op()')]
+)
+
+OpClass.kinds['CHANNEL_RECEIVE'] = OpClass(
+    name='ChannelReceive',
+    op='Op::kChannelReceive',
+    operands=[Operand('token')],
+    xls_type_expression='GetChannelReceiveType(function->package(), data_types)',
+    attributes=[Int64Attribute('channel_id'),
+                TypeVectorAttribute('data_types')]
+)
+
+OpClass.kinds['CHANNEL_SEND'] = OpClass(
+    name='ChannelSend',
+    op='Op::kChannelSend',
+    operands=[Operand('token'), OperandSpan('args')],
+    xls_type_expression='function->package()->GetTokenType()',
+    attributes=[Int64Attribute('channel_id')],
+    custom_clone_method=True
 )
 
 OpClass.kinds['NARY_OP'] = OpClass(
@@ -649,6 +685,18 @@ OPS = [
         enum_name='kAndReduce',
         name='and_reduce',
         op_class=OpClass.kinds['BITWISE_REDUCTION_OP'],
+        properties=[],
+    ),
+    Op(
+        enum_name='kChannelReceive',
+        name='channel_receive',
+        op_class=OpClass.kinds['CHANNEL_RECEIVE'],
+        properties=[],
+    ),
+    Op(
+        enum_name='kChannelSend',
+        name='channel_send',
+        op_class=OpClass.kinds['CHANNEL_SEND'],
         properties=[],
     ),
     Op(

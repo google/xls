@@ -136,6 +136,14 @@ class InterpreterVisitor : public DfsVisitor {
     return SetValueResult(after_all, Value::Token());
   }
 
+  absl::Status HandleChannelReceive(ChannelReceive* receive) override {
+    return absl::UnimplementedError("ChannelReceive not yet implemented");
+  }
+
+  absl::Status HandleChannelSend(ChannelSend* send) override {
+    return absl::UnimplementedError("ChannelSend not yet implemented");
+  }
+
   absl::Status HandleArray(Array* array) override {
     std::vector<Value> operand_values;
     for (Node* operand : array->operands()) {

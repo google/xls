@@ -37,6 +37,19 @@ enum class CellKind {
   kOther,
 };
 
+// Definition of the "statetable" group of values from section 2.1.4 of the
+// Liberty file standard (2007.03).
+// Please keep this declaration in sync with that in netlist.proto!
+enum class StateTableSignal {
+  kInvalid,
+  kLow,
+  kHigh,
+  kDontCare,
+  kNoChange,
+  kToggle,
+  kX,
+};
+
 std::string CellKindToString(CellKind kind);
 
 // Captures useful information about (one of) a cell's output pin(s). Currently,
@@ -74,27 +87,44 @@ class StateTable {
   // specified stimulus.
   // return true/false
   xabsl::StatusOr<bool> GetSignalValue(const InputStimulus& stimulus,
-                                       absl::string_view signal);
+                                       absl::string_view signal) const;
 
- private:
+  const absl::flat_hash_set<std::string>& output_signals() const {
+    return output_signals_;
+  }
+
+  // Description of a row in the state table - a mapping of "stimulus", i.e.,
+  // input signals, to the "response", the output signals.
   using RowStimulus = absl::flat_hash_map<std::string, StateTableSignal>;
   using RowResponse = absl::flat_hash_map<std::string, StateTableSignal>;
-  using Row = std::pair<RowStimulus, RowResponse>;
+  struct Row {
+    RowStimulus stimulus;
+    RowResponse response;
+  };
+  const std::vector<Row>& rows() const { return rows_; }
 
+  // Return the protobuf representation of this table.
+  xabsl::StatusOr<StateTableProto> ToProto() const;
+
+ private:
   StateTable(const std::vector<Row>& rows,
              const absl::flat_hash_set<std::string>& signals,
              const StateTableProto& proto);
 
   // Returns true if the given input stimulus matches the given table row.
   xabsl::StatusOr<bool> MatchRow(const Row& row,
-                                 const InputStimulus& input_stimulus);
+                                 const InputStimulus& input_stimulus) const;
 
   // True if the value of "name" in stimulus matches the given bool value or is
   // "don't care".
-  bool SignalMismatch(absl::string_view name, bool value,
-                      const RowStimulus& stimulus);
+  bool SignalMatches(absl::string_view name, bool value,
+                     const RowStimulus& stimulus) const;
 
+  // The set of all signals (input and internal/output) in this state table.
   absl::flat_hash_set<std::string> signals_;
+
+  // Subset of signals_ - the output/internal signals.
+  absl::flat_hash_set<std::string> output_signals_;
 
   // We preprocess the proto to combine input signals (both true inputs and
   // internal state signals) for ease-of-lookup.
@@ -106,49 +136,43 @@ class StateTable {
 // of the cell module.
 class CellLibraryEntry {
  public:
+  // A map from output pin name to its function (as a string). One of the two
+  // possible function-describing attributes of a cell (either function-based
+  // per pin, as here, or a StateTable).
+  using SimplePins = absl::flat_hash_map<std::string, std::string>;
+
+  // Does this have to be a variant - could there be cells with both?
+  using OperationT = absl::variant<SimplePins, StateTable>;
+
   static xabsl::StatusOr<CellLibraryEntry> FromProto(
       const CellLibraryEntryProto& proto);
 
   // InputNamesContainer and OutputNamesContainer are expected to be containers
   // of std::strings.
-  template <typename InputNamesContainer, typename OutputPinsContainer>
+  template <typename InputNamesContainer>
   CellLibraryEntry(CellKind kind, absl::string_view name,
                    const InputNamesContainer& input_names,
-                   const OutputPinsContainer& output_pins,
+                   const OperationT& operation,
                    absl::optional<std::string> clock_name = absl::nullopt)
       : kind_(kind),
         name_(name),
         input_names_(input_names.begin(), input_names.end()),
-        output_pins_(output_pins.begin(), output_pins.end()),
+        operation_(operation),
         clock_name_(clock_name) {}
-
-  CellLibraryEntry(CellKind kind, absl::string_view name,
-                   const google::protobuf::RepeatedPtrField<std::string>& input_names,
-                   const google::protobuf::RepeatedPtrField<OutputPinProto>& output_pins,
-                   absl::optional<std::string> clock_name = absl::nullopt)
-      : kind_(kind),
-        name_(name),
-        input_names_(input_names.begin(), input_names.end()),
-        clock_name_(clock_name) {
-    output_pins_.reserve(output_pins.size());
-    for (const auto& proto : output_pins) {
-      output_pins_.push_back({proto.name(), proto.function()});
-    }
-  }
 
   CellKind kind() const { return kind_; }
   const std::string& name() const { return name_; }
   absl::Span<const std::string> input_names() const { return input_names_; }
-  absl::Span<const OutputPin> output_pins() const { return output_pins_; }
+  const OperationT& operation() const { return operation_; }
   absl::optional<std::string> clock_name() const { return clock_name_; }
 
-  CellLibraryEntryProto ToProto() const;
+  xabsl::StatusOr<CellLibraryEntryProto> ToProto() const;
 
  private:
   CellKind kind_;
   std::string name_;
   std::vector<std::string> input_names_;
-  std::vector<OutputPin> output_pins_;
+  OperationT operation_;
   absl::optional<std::string> clock_name_;
 };
 
@@ -165,7 +189,7 @@ class CellLibrary {
 
   absl::Status AddEntry(CellLibraryEntry entry);
 
-  CellLibraryProto ToProto() const;
+  xabsl::StatusOr<CellLibraryProto> ToProto() const;
 
  private:
   absl::flat_hash_map<std::string, std::unique_ptr<CellLibraryEntry>> entries_;

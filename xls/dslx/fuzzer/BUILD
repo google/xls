@@ -36,6 +36,7 @@ py_library(
     deps = [
         "//xls/common:memoize",
         "//xls/dslx:ast",
+        "//xls/dslx:ast_helpers",
         "//xls/dslx:bit_helpers",
         "//xls/dslx:scanner",
         "//xls/dslx:span",
@@ -49,7 +50,7 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":ast_generator",
-        "//xls/dslx:fakefs_util",
+        "//xls/dslx:fakefs_test_util",
         "//xls/dslx:parser_helpers",
         "//xls/dslx:span",
         "//xls/dslx:typecheck",
@@ -101,6 +102,7 @@ py_test(
     python_version = "PY3",
     shard_count = 50,
     srcs_version = "PY3",
+    tags = ["optonly"],
     deps = [
         ":ast_generator",
         ":run_fuzz",
@@ -218,7 +220,7 @@ py_test(
         "//xls/common:check_simulator",
         "//xls/common:test_base",
         "//xls/dslx:concrete_type",
-        "//xls/dslx:fakefs_util",
+        "//xls/dslx:fakefs_test_util",
         "//xls/dslx:parser_helpers",
         "//xls/dslx/interpreter:value",
     ],

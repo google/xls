@@ -25,7 +25,9 @@ from typing import TypeVar, Any
 from xls.dslx.span import Pos
 from xls.dslx.span import Span
 
+
 NameDefTree = Any  # pylint: disable=invalid-name
+AstNodeOwner = Any
 
 
 class AstVisitor(metaclass=abc.ABCMeta):
@@ -45,6 +47,10 @@ class AstNode(metaclass=abc.ABCMeta):
   refer back to tokens (and tokens notably refer to their positions in the input
   syntax file).
   """
+
+  def __init__(self, owner: AstNodeOwner):
+    assert owner is None or owner.__class__.__name__ == 'Module'
+    self._owner = owner
 
   def accept(self, visitor: AstVisitor) -> None:
     """Visitor pattern: has this AST node accept the given visitor.

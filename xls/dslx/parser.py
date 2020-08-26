@@ -1,4 +1,5 @@
 # Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,6 +29,7 @@ from absl import logging
 import dataclasses
 
 from xls.dslx import ast
+from xls.dslx import ast_helpers
 from xls.dslx import dslx_builtins
 from xls.dslx import token_parser
 from xls.dslx.bindings import Bindings
@@ -64,6 +66,26 @@ _BITWISE_KINDS = (
 )  # type: Tuple[TokenKind]
 
 
+def tok_to_number(m: ast.Module, tok: Token) -> ast.Number:
+  """Converts a numerical token into a number AST node."""
+  if tok.kind == TokenKind.CHARACTER:
+    number_kind = ast.NumberKind.CHARACTER
+    value = tok.value
+  elif tok.kind == TokenKind.KEYWORD:
+    assert tok.value in (Keyword.TRUE, Keyword.FALSE), tok.value
+    number_kind = ast.NumberKind.BOOL
+    value = tok.value.value
+  else:
+    number_kind = ast.NumberKind.OTHER
+    value = tok.value
+  assert isinstance(value, str), value
+  return ast.Number(m, tok.span, value, number_kind)
+
+
+def tok_to_name_def(m: ast.Module, tok: Token) -> ast.NameDef:
+  return ast.NameDef(m, tok.span, tok.value)
+
+
 @dataclasses.dataclass
 class _ParserOptions:
   let_terminator_is_semi: bool
@@ -72,8 +94,9 @@ class _ParserOptions:
 class Parser(token_parser.TokenParser):
   """Recursive-descent-parses the scanner's token stream into AST structures."""
 
-  def __init__(self, scanner: Scanner):
-    super(Parser, self).__init__(scanner)
+  def __init__(self, scanner: Scanner, module_name: str):
+    super().__init__(scanner)
+    self.m = ast.Module(module_name)
     self._loop_stack = []
     self._options = _ParserOptions(let_terminator_is_semi=True)
 
@@ -128,7 +151,7 @@ class Parser(token_parser.TokenParser):
     if tok.kind == TokenKind.IDENTIFIER:
       return self._parse_name_ref(bindings, tok=self._popt())
     elif tok.kind == TokenKind.NUMBER:
-      return ast.Number(self._popt())
+      return tok_to_number(self.m, self._popt())
     else:
       raise ParseError(tok.span,
                        f'Expected number or identifier; got {tok.kind}')
@@ -144,8 +167,7 @@ class Parser(token_parser.TokenParser):
     while self._try_popt(TokenKind.OBRACK):
       dims.append(self._parse_dim(bindings))
       self._dropt_or_error(TokenKind.CBRACK)
-    # Reversed to emulate the old [major,minor] style of syntax.
-    return tuple(reversed(dims))
+    return tuple(dims)
 
   def _parse_mod_type_ref(self, bindings: Bindings,
                           start_tok: Token) -> ast.TypeRef:
@@ -157,9 +179,9 @@ class Parser(token_parser.TokenParser):
               import_.__class__.__name__))
     type_name = self._popt_or_error(TokenKind.IDENTIFIER)
     span = Span(start_tok.span.start, self._get_pos())
-    mod_ref = ast.ModRef(span, import_, type_name)
+    mod_ref = ast.ModRef(self.m, span, import_, type_name)
     composite = '{}::{}'.format(start_tok.value, type_name.value)
-    return ast.TypeRef(span, composite, mod_ref)
+    return ast.TypeRef(self.m, span, composite, mod_ref)
 
   def _parse_type_ref(self, bindings: Bindings, tok: Token) -> ast.TypeRef:
     """Parses a reference to type, may be a single token or module reference."""
@@ -178,7 +200,7 @@ class Parser(token_parser.TokenParser):
           "Expected a type, but identifier {!r} doesn't resolve to a type, "
           'it resolved to a {}'.format(tok.value, type_def.__class__.__name__))
 
-    return ast.TypeRef(tok.span, tok.value, type_def)
+    return ast.TypeRef(self.m, tok.span, tok.value, type_def)
 
   def _parse_type_annotation(self,
                              bindings: Bindings,
@@ -191,25 +213,33 @@ class Parser(token_parser.TokenParser):
       # Builtin types.
       if self._peekt_is(TokenKind.OBRACK):
         dims = self._parse_dims(bindings)
-        return ast.TypeAnnotation(
-            Span(tok.span.start, self._get_pos()), tok, dims)
-      return ast.TypeAnnotation(tok.span, tok, dims=())
+      else:
+        dims = ()
+      return ast_helpers.make_builtin_type_annotation(
+          self.m, Span(tok.span.start, self._get_pos()), tok, dims)
 
     if tok.kind == TokenKind.OPAREN:  # Tuple of types.
       types = self._parse_comma_seq(
           self._parse_type_annotation, TokenKind.CPAREN, args=(bindings,))
       span = Span(tok.span.start, self._get_pos())
-      return ast.TypeAnnotation.make_tuple(span, tok, types)
+      return ast.TupleTypeAnnotation(self.m, span, types)
 
     type_ref = self._parse_type_ref(bindings, tok)
+
     # Type ref may be followed by dimensions.
+    parametrics = None
+    dims = ()
     if self._peekt_is(TokenKind.OBRACK):
-      dims = self._parse_dims(bindings)
-      return ast.TypeAnnotation(
-          Span(tok.span.start, self._get_pos()), type_ref, dims)
+      type_ = bindings.resolve_node(type_ref.text, type_ref.span)
+      if isinstance(type_, ast.Struct) and type_.is_parametric():
+        parametrics = self._parse_parametrics(bindings)
+
+      if self._peekt_is(TokenKind.OBRACK):
+        dims = self._parse_dims(bindings)
 
     span = Span(tok.span.start, self._get_pos())
-    return ast.TypeAnnotation(span, type_ref)
+    return ast_helpers.make_type_ref_type_annotation(self.m, span, type_ref,
+                                                     dims, parametrics)
 
   def _parse_name_ref(self,
                       bindings: Bindings,
@@ -219,8 +249,8 @@ class Parser(token_parser.TokenParser):
       tok = self._popt_or_error(TokenKind.IDENTIFIER)
     name_def = bindings.resolve(tok.value, tok.span)
     if isinstance(bindings.resolve_node(tok.value, tok.span), ast.Constant):
-      return ast.ConstRef(tok, name_def)
-    return ast.NameRef(tok, name_def)
+      return ast.ConstRef(self.m, tok.span, tok.value, name_def)
+    return ast.NameRef(self.m, tok.span, tok.value, name_def)
 
   def _parse_colon_ref(self, bindings: Bindings,
                        subject_tok: Token) -> Union[ast.EnumRef, ast.ModRef]:
@@ -237,10 +267,10 @@ class Parser(token_parser.TokenParser):
     value_tok = self._popt_or_error(TokenKind.IDENTIFIER)
     span = Span(subject_tok.span.start, value_tok.span.limit)
     if isinstance(defn, ast.Import):
-      return ast.ModRef(span, defn, value_tok)
+      return ast.ModRef(self.m, span, defn, value_tok)
 
     assert isinstance(defn, (ast.Enum, ast.TypeDef)), defn
-    return ast.EnumRef(span, defn, value_tok)
+    return ast.EnumRef(self.m, span, defn, value_tok)
 
   def _parse_cast_or_enum_ref_or_struct_instance(
       self, tok: Token, bindings: Bindings) -> ast.Expr:
@@ -256,10 +286,9 @@ class Parser(token_parser.TokenParser):
   def _resolve_struct(
       self, bindings: Bindings,
       type_: ast.TypeAnnotation) -> Union[ast.Struct, ast.ModRef]:
-    assert isinstance(type_, ast.TypeAnnotation), type_
-    assert type_.is_typeref(), type_
-    typeref = type_.get_typeref()
-    struct = typeref.type_def
+    assert isinstance(type_, ast.TypeRefTypeAnnotation), type_
+    type_ref = type_.type_ref
+    struct = type_ref.type_def
 
     while isinstance(struct, ast.TypeDef):
       struct = self._resolve_struct(bindings, struct.type_)
@@ -282,6 +311,13 @@ class Parser(token_parser.TokenParser):
 
     def parse_struct_member() -> Tuple[Text, ast.Expr]:
       tok = self._popt_or_error(TokenKind.IDENTIFIER)
+
+      if not self._peekt_is(TokenKind.COLON):
+        # We also support field initialization like `Foo { field }` as sugar
+        # for `Foo { field: field }`.
+        token_as_name_ref = self._parse_name_ref(bindings, tok)
+        return (tok.value, token_as_name_ref)
+
       self._dropt_or_error(TokenKind.COLON)
       e = self.parse_expression(bindings)
       return (tok.value, e)
@@ -305,12 +341,12 @@ class Parser(token_parser.TokenParser):
             TokenKind.CBRACE,
             context='Closing brace after struct instance "splat" (..) expression.'
         )
-        return ast.SplatStructInstance(get_span(), struct, tuple(members),
-                                       splatted)
+        return ast.SplatStructInstance(self.m, get_span(), struct,
+                                       tuple(members), splatted)
       members.append(parse_struct_member())
       must_end = not self._try_popt(TokenKind.COMMA)
 
-    return ast.StructInstance(get_span(), struct, tuple(members))
+    return ast.StructInstance(self.m, get_span(), struct, tuple(members))
 
   def _parse_cast_or_struct_instance(self, bindings: Bindings) -> ast.Expr:
     logging.vlog(5, 'Parsing cast-or-struct-instance')
@@ -330,15 +366,15 @@ class Parser(token_parser.TokenParser):
 
   def _parse_name_def(self, bindings: Bindings) -> ast.NameDef:
     tok = self._popt_or_error(TokenKind.IDENTIFIER)
-    name_def = ast.NameDef(tok)
+    name_def = tok_to_name_def(self.m, tok)
     bindings.add(name_def.identifier, name_def)
     return name_def
 
-  def _parse_name_def_or_wildcard(self, bindings: Bindings
-                                 ) -> Union[ast.NameDef, ast.WildcardPattern]:
+  def _parse_name_def_or_wildcard(
+      self, bindings: Bindings) -> Union[ast.NameDef, ast.WildcardPattern]:
     tok = self._try_pop_identifier_token('_')
     if tok:
-      return ast.WildcardPattern(tok)
+      return ast.WildcardPattern(self.m, tok.span)
     return self._parse_name_def(bindings)
 
   def _parse_name_def_tree(self, bindings: Bindings) -> ast.NameDefTree:
@@ -363,20 +399,20 @@ class Parser(token_parser.TokenParser):
       if self._peekt_is(TokenKind.OPAREN):
         return self._parse_name_def_tree(bindings)
       name_def = self._parse_name_def_or_wildcard(bindings)
-      return ast.NameDefTree(name_def.span, name_def)
+      return ast.NameDefTree(self.m, name_def.span, name_def)
 
     branches = self._parse_comma_seq(
         parse_name_def_or_tree, TokenKind.CPAREN, args=(bindings,))
-    return ast.NameDefTree(
-        Span(start.span.start, self._get_pos()), tuple(branches))
+    return ast.NameDefTree(self.m, Span(start.span.start, self._get_pos()),
+                           tuple(branches))
 
   def _parse_num(self, bindings: Bindings) -> ast.Number:
     """Returns a parsed number (literal number) expression."""
     tok = self._peekt()
     if tok.kind in (TokenKind.NUMBER, TokenKind.CHARACTER):
-      return ast.Number(self._popt())
+      return tok_to_number(self.m, self._popt())
     if tok.is_keyword_in((Keyword.TRUE, Keyword.FALSE)):
-      return ast.Number(self._popt())
+      return tok_to_number(self.m, self._popt())
 
     # Numbers can also be given as u32:4 -- last ditch effort to parse one of
     # those.
@@ -417,7 +453,7 @@ class Parser(token_parser.TokenParser):
       name_def_tree = self._parse_name_def_tree(new_bindings)
     else:
       name_def = self._parse_name_def(new_bindings)
-      name_def_tree = ast.NameDefTree(name_def.span, name_def)
+      name_def_tree = ast.NameDefTree(self.m, name_def.span, name_def)
     if self._try_popt(TokenKind.COLON):
       annotated_type = self._parse_type_annotation(bindings)
     else:
@@ -429,13 +465,14 @@ class Parser(token_parser.TokenParser):
     else:
       self._drop_keyword_or_error(Keyword.IN)
     if const and name_def:
-      const = ast.Constant(name_def, rhs)
+      const = ast.Constant(self.m, name_def, rhs)
       new_bindings.add(name_def.identifier, const)
     else:
       const = None
     body = self.parse_expression(new_bindings)
     span = Span(start_tok.span.start, self._get_pos())
-    return ast.Let(name_def_tree, annotated_type, rhs, body, span, const=const)
+    return ast.Let(
+        self.m, name_def_tree, annotated_type, rhs, body, span, const=const)
 
   def _parse_tuple_remainder(self, start_pos: Pos, first: ast.Expr,
                              bindings: Bindings) -> ast.XlsTuple:
@@ -460,7 +497,7 @@ class Parser(token_parser.TokenParser):
     es = self._parse_comma_seq(
         self.parse_expression, TokenKind.CPAREN, args=(bindings,))
     span = Span(start_pos, self._get_pos())
-    return ast.XlsTuple(span, (first,) + es)
+    return ast.XlsTuple(self.m, span, (first,) + es)
 
   def _parse_array(self, bindings: Bindings) -> ast.Array:
     """Parses an array AST node (starting with cursor over '[')."""
@@ -492,8 +529,8 @@ class Parser(token_parser.TokenParser):
           raise ParseError(member.span,
                            'Ellipsis may only be in trailing position.')
     if all(ast.Constant.is_constant(m) for m in members):
-      return ast.ConstantArray(members, has_trailing_elipsis, span)
-    return ast.Array(members, has_trailing_elipsis, span)
+      return ast.ConstantArray(self.m, span, members, has_trailing_elipsis)
+    return ast.Array(self.m, span, members, has_trailing_elipsis)
 
   def _parse_cast(self,
                   bindings: Bindings,
@@ -546,8 +583,9 @@ class Parser(token_parser.TokenParser):
       self._try_popt(TokenKind.OPAREN)
       args = self._parse_comma_seq(
           self.parse_expression, TokenKind.CPAREN, args=(bindings,))
-      lhs = ast.Next(tok.span)
-      lhs = ast.Invocation(Span(tok.span.start, self._get_pos()), lhs, args)
+      lhs = ast.Next(self.m, tok.span)
+      lhs = ast.Invocation(self.m, Span(tok.span.start, self._get_pos()), lhs,
+                           args)
     elif (tok.is_type_keyword() or
           (tok.kind == TokenKind.IDENTIFIER and isinstance(
               bindings.resolve_node_or_none(tok.value),
@@ -557,16 +595,17 @@ class Parser(token_parser.TokenParser):
     elif tok.kind == TokenKind.IDENTIFIER:
       lhs = self._parse_name_or_colon_ref(bindings)
       if isinstance(lhs, ast.ModRef) and self._peekt_is(TokenKind.OBRACE):
-        type_ = ast.TypeAnnotation(lhs.span,
-                                   ast.TypeRef(lhs.span, str(lhs), lhs))
+        type_ = ast_helpers.make_type_ref_type_annotation(
+            self.m, lhs.span, ast.TypeRef(self.m, lhs.span, str(lhs), lhs), ())
         return self._parse_struct_instance(bindings, type_)
     elif tok.is_keyword(Keyword.CARRY):
       self._dropt()
-      lhs = ast.Carry(tok.span, self._loop_stack[-1])
+      lhs = ast.Carry(self.m, tok.span, self._loop_stack[-1])
     elif tok.kind == TokenKind.OPAREN:  # Parenthesized expression.
       oparen = self._popt()
       if self._try_popt(TokenKind.CPAREN):
-        lhs = ast.XlsTuple(Span(oparen.span.start, self._get_pos()), tuple())
+        lhs = ast.XlsTuple(self.m, Span(oparen.span.start, self._get_pos()),
+                           tuple())
       else:
         lhs = self.parse_expression(bindings)
         if self._peekt_is(TokenKind.COMMA):
@@ -574,7 +613,7 @@ class Parser(token_parser.TokenParser):
         else:
           self._dropt_or_error(TokenKind.CPAREN, start=tok)
     elif tok.kind in (TokenKind.BANG, TokenKind.MINUS):
-      return ast.Unop(self._popt(), self._parse_term(bindings))
+      return ast.Unop(self.m, self._popt(), self._parse_term(bindings))
     elif tok.is_keyword(Keyword.MATCH):
       return self._parse_match(bindings)
     elif tok.kind == TokenKind.OBRACK:
@@ -590,14 +629,14 @@ class Parser(token_parser.TokenParser):
       if self._try_popt(TokenKind.OPAREN):  # Invocation.
         args = self._parse_comma_seq(
             self.parse_expression, TokenKind.CPAREN, args=(bindings,))
-        lhs = ast.Invocation(Span(new_pos, self._get_pos()), lhs, args)
+        lhs = ast.Invocation(self.m, Span(new_pos, self._get_pos()), lhs, args)
         continue
 
       if self._try_popt(TokenKind.DOT):  # Attribute.
         tok = self._popt_or_error(TokenKind.IDENTIFIER)
-        attr = ast.NameDef(tok)
+        attr = tok_to_name_def(self.m, tok)
         span = Span(new_pos, self._get_pos())
-        lhs = ast.Attr(span, lhs, attr)
+        lhs = ast.Attr(self.m, span, lhs, attr)
         continue
 
       if self._try_popt(TokenKind.OBRACK):  # Indexing.
@@ -610,8 +649,8 @@ class Parser(token_parser.TokenParser):
           start = index
           width = self._parse_type_annotation(bindings)
           span = Span(new_pos, self._get_pos())
-          width_slice = ast.WidthSlice(span, start, width)
-          lhs = ast.Index(span, lhs, width_slice)
+          width_slice = ast.WidthSlice(self.m, span, start, width)
+          lhs = ast.Index(self.m, span, lhs, width_slice)
           self._popt_or_error(TokenKind.CBRACK)
           continue
 
@@ -620,7 +659,7 @@ class Parser(token_parser.TokenParser):
           continue
 
         self._popt_or_error(TokenKind.CBRACK)
-        lhs = ast.Index(Span(new_pos, self._get_pos()), lhs, index)
+        lhs = ast.Index(self.m, Span(new_pos, self._get_pos()), lhs, index)
         continue
 
       break
@@ -638,9 +677,9 @@ class Parser(token_parser.TokenParser):
           Span(start_pos, self._get_pos()),
           'Only constant numbers are currently allowed in slice expressions.')
     index = ast.Slice(
-        Span(start_pos, self._get_pos()), start=start, limit=limit)
+        self.m, Span(start_pos, self._get_pos()), start=start, limit=limit)
     self._popt_or_error(TokenKind.CBRACK)
-    return ast.Index(Span(start_pos, self._get_pos()), lhs, index)
+    return ast.Index(self.m, Span(start_pos, self._get_pos()), lhs, index)
 
   def _parse_binop_chain(self, sub_production: Callable[..., ast.Expr],
                          target_tokens: Union[Tuple[TokenKind], Tuple[Keyword]],
@@ -681,7 +720,7 @@ class Parser(token_parser.TokenParser):
       if self._peekt_in(target_tokens):
         op = self._popt()
         rhs = sub_production(*args)
-        lhs = ast.Binop(op, lhs, rhs)
+        lhs = ast.Binop(self.m, op, lhs, rhs)
       else:
         break
 
@@ -691,7 +730,7 @@ class Parser(token_parser.TokenParser):
     lhs = self._parse_term(bindings)
     while self._try_pop_keyword(Keyword.AS):
       type_ = self._parse_type_annotation(bindings)
-      lhs = ast.Cast(type_, lhs)
+      lhs = ast.Cast(self.m, type_, lhs)
     return lhs
 
   def _parse_strong_arithmetic_expression(self, bindings: Bindings) -> ast.Expr:
@@ -750,8 +789,8 @@ class Parser(token_parser.TokenParser):
       test = self.parse_expression(bindings)
       self._pop_keyword_or_error(Keyword.ELSE)
       alternate = self.parse_expression(bindings)
-      return ast.Ternary(
-          Span(new_pos, self._get_pos()), test, consequent, alternate)
+      return ast.Ternary(self.m, Span(new_pos, self._get_pos()), test,
+                         consequent, alternate)
     return lhs
 
   def _parse_param(self, bindings: Bindings) -> ast.Param:
@@ -759,7 +798,7 @@ class Parser(token_parser.TokenParser):
     self._dropt_or_error(TokenKind.COLON)
     type_ = self._parse_type_annotation(bindings)
     logging.vlog(5, 'Parsed param name: %s type: %s', name, type_)
-    return ast.Param(name, type_)
+    return ast.Param(self.m, name, type_)
 
   def _parse_params(self, bindings: Bindings) -> Tuple[ast.Param, ...]:
     """Parses a sequence of parameters, starting with '(' ending after ')'.
@@ -791,7 +830,7 @@ class Parser(token_parser.TokenParser):
       members.append(self._parse_pattern(bindings))
       must_end = not self._try_popt(TokenKind.COMMA)
     span = Span(start_pos, self._get_pos())
-    return ast.NameDefTree(span, tuple(members))
+    return ast.NameDefTree(self.m, span, tuple(members))
 
   def _parse_pattern(self, bindings: Bindings) -> ast.NameDefTree:
     """Returns a parsed pattern; e.g. one that would guard a match arm."""
@@ -802,26 +841,28 @@ class Parser(token_parser.TokenParser):
     if self._peekt_is(TokenKind.IDENTIFIER):
       tok = self._popt_or_error(TokenKind.IDENTIFIER)
       if tok.value == '_':
-        return ast.NameDefTree(tok.span, ast.WildcardPattern(tok))
+        return ast.NameDefTree(self.m, tok.span,
+                               ast.WildcardPattern(self.m, tok.span))
       if self._peekt_is(TokenKind.DOUBLE_COLON):
-        return ast.NameDefTree(tok.span, self._parse_colon_ref(bindings, tok))
+        return ast.NameDefTree(self.m, tok.span,
+                               self._parse_colon_ref(bindings, tok))
       resolved = bindings.resolve_or_none(tok.value)
       if resolved:
         assert isinstance(resolved, (ast.NameDef, ast.BuiltinNameDef)), resolved
         if isinstance(bindings.resolve_node(tok.value, tok.span), ast.Constant):
-          ref = ast.ConstRef(tok, resolved)
+          ref = ast.ConstRef(self.m, tok.span, tok.value, resolved)
         else:
-          ref = ast.NameRef(tok, resolved)
-        return ast.NameDefTree(tok.span, ref)
-      name_def = ast.NameDef(tok)
+          ref = ast.NameRef(self.m, tok.span, tok.value, resolved)
+        return ast.NameDefTree(self.m, tok.span, ref)
+      name_def = tok_to_name_def(self.m, tok)
       bindings.add(name_def.identifier, name_def)
-      return ast.NameDefTree(tok.span, name_def)
+      return ast.NameDefTree(self.m, tok.span, name_def)
 
     if self._peekt_in([
         TokenKind.NUMBER, TokenKind.CHARACTER, Keyword.TRUE, Keyword.FALSE
     ]) or self._peekt().is_keyword_in(TYPE_KEYWORDS):
       num = self._parse_num(bindings)
-      return ast.NameDefTree(num.span, num)
+      return ast.NameDefTree(self.m, num.span, num)
 
     peekt = self._peekt()
     raise ParseError(peekt.span, 'Expected pattern; got {}'.format(peekt.kind))
@@ -854,16 +895,16 @@ class Parser(token_parser.TokenParser):
         patterns.append(self._parse_pattern(arm_bindings))
       self._dropt_or_error(TokenKind.FAT_ARROW)
       rhs = self.parse_expression(arm_bindings)
-      arms.append(ast.MatchArm(tuple(patterns), rhs))
+      arms.append(ast.MatchArm(self.m, tuple(patterns), rhs))
       must_end = not self._try_popt(TokenKind.SEMI)
 
-    return ast.Match(
-        Span(match_.span.start, self._get_pos()), matched, tuple(arms))
+    return ast.Match(self.m, Span(match_.span.start, self._get_pos()), matched,
+                     tuple(arms))
 
   def _parse_while(self, bindings: Bindings) -> ast.While:
     while_ = self._pop_keyword_or_error(Keyword.WHILE)
     while_bindings = Bindings(bindings)
-    w = ast.While(while_.span)
+    w = ast.While(self.m, while_.span)
     self._loop_stack.append(w)
     w.test = self.parse_expression(while_bindings)
     w.body = self._parse_block_expression(while_bindings)
@@ -913,9 +954,8 @@ class Parser(token_parser.TokenParser):
     # trips have iterated when the init value is evaluated).
     init = self.parse_expression(bindings)
     self._dropt_or_error(TokenKind.CPAREN)
-    return ast.For(
-        Span(for_.span.limit, self._get_pos()), names, type_, iterable, body,
-        init)
+    return ast.For(self.m, Span(for_.span.limit, self._get_pos()), names, type_,
+                   iterable, body, init)
 
   def _parse_enum(self, public: bool, bindings: Bindings) -> ast.Enum:
     """Parses an enum definition."""
@@ -947,25 +987,29 @@ class Parser(token_parser.TokenParser):
       return entry
 
     entries = self._parse_comma_seq(parse_enum_entry, TokenKind.CBRACE)
-    enum = ast.Enum(enum_tok.span, public, name_def, type_, entries)
+    enum = ast.Enum(self.m, enum_tok.span, public, name_def, type_, entries)
     bindings.add(name_def.identifier, enum)
     return enum
 
   def _parse_struct(self, public: bool, bindings: Bindings) -> ast.Struct:
     """Parses a struct definition."""
     self._drop_keyword_or_error(Keyword.STRUCT)
+    parametric_bindings = ()
+    if self._try_popt(TokenKind.OBRACK):  # Parametric.
+      parametric_bindings = self._parse_parametric_bindings(bindings)
+
     name_def = self._parse_name_def(bindings)
     self._dropt_or_error(TokenKind.OBRACE)
 
     def parse_struct_member() -> Tuple[ast.NameDef, ast.TypeAnnotation]:
       tok = self._popt_or_error(TokenKind.IDENTIFIER)
-      name_def = ast.NameDef(tok)
+      name_def = tok_to_name_def(self.m, tok)
       self._dropt_or_error(TokenKind.COLON)
       type_ = self._parse_type_annotation(bindings)
       return (name_def, type_)
 
     members = self._parse_comma_seq(parse_struct_member, TokenKind.CBRACE)
-    struct = ast.Struct(public, name_def, members)
+    struct = ast.Struct(self.m, public, parametric_bindings, name_def, members)
     bindings.add(name_def.identifier, struct)
     return struct
 
@@ -978,7 +1022,7 @@ class Parser(token_parser.TokenParser):
     self._dropt_or_error(TokenKind.EQUALS)
     type_ = self._parse_type_annotation(bindings)
     self._dropt_or_error(TokenKind.SEMI)
-    type_def = ast.TypeDef(public, name_def, type_)
+    type_def = ast.TypeDef(self.m, public, name_def, type_)
     bindings.add(name_def.identifier, type_def)
     return type_def
 
@@ -1041,9 +1085,37 @@ class Parser(token_parser.TokenParser):
         expr = self.parse_expression(bindings)
       else:
         expr = None
-      return ast.ParametricBinding(name_def, type_, expr)
+      return ast.ParametricBinding(self.m, name_def, type_, expr)
 
     return self._parse_comma_seq(parse_parametric_binding, TokenKind.CBRACK)
+
+  def _parse_parametrics(self, bindings: Bindings) -> Tuple[ast.Expr, ...]:
+    """Parses parametrics dims that follow a struct type annotation.
+
+    For example:
+
+      x: ParametricStruct[32, N]
+                         ^-----^
+    Args:
+      bindings: Bindings to populate with the parametric names.
+
+    Returns:
+      A tuple of the parsed parametric dims.
+    """
+
+    def _parse_dim() -> ast.Expr:
+      """Parses one dimension -- either a number or identifier."""
+      tok = self._peekt()
+      if tok.kind == TokenKind.IDENTIFIER:
+        return self._parse_name_ref(bindings, tok=self._popt())
+      elif tok.kind == TokenKind.NUMBER:
+        return tok_to_number(self.m, self._popt())
+      else:
+        raise ParseError(tok.span,
+                         f'Expected number or identifier; got {tok.kind}')
+
+    self._dropt_or_error(TokenKind.OBRACK)
+    return self._parse_comma_seq(_parse_dim, TokenKind.CBRACK)
 
   def parse_proc(self, public: bool, outer_bindings: Bindings) -> ast.Proc:
     start_pos = self._get_pos()
@@ -1067,9 +1139,8 @@ class Parser(token_parser.TokenParser):
     self._dropt_or_error(TokenKind.CBRACE)
 
     self._dropt_or_error(TokenKind.CBRACE)
-    return ast.Proc(
-        Span(start_pos, self._get_pos()), name_def, proc_params, iter_params,
-        body, public)
+    return ast.Proc(self.m, Span(start_pos, self._get_pos()), name_def,
+                    proc_params, iter_params, body, public)
 
   def _parse_function(self, public: bool,
                       outer_bindings: Bindings) -> ast.Function:
@@ -1111,9 +1182,8 @@ class Parser(token_parser.TokenParser):
     logging.vlog(5, 'Function body: %r', body)
     end_brace = self._popt_or_error(
         TokenKind.CBRACE, context='Expected \'}\' at end of function body.')
-    return ast.Function(
-        Span(start_pos, end_brace.span.limit), name_def, parametric_bindings,
-        params, return_type, body, public)
+    return ast.Function(self.m, Span(start_pos, end_brace.span.limit), name_def,
+                        parametric_bindings, params, return_type, body, public)
 
   def _parse_import(self, bindings: Bindings) -> ast.Import:
     """Parses an import statement into an Import AST node."""
@@ -1132,8 +1202,8 @@ class Parser(token_parser.TokenParser):
       alias = name_def.identifier
     else:
       alias = None
-      name_def = ast.NameDef(toks[-1])
-    import_ = ast.Import(kw.span, subject, name_def, alias)
+      name_def = tok_to_name_def(self.m, toks[-1])
+    import_ = ast.Import(self.m, kw.span, subject, name_def, alias)
     bindings.add(name_def.identifier, import_)
     return import_
 
@@ -1149,7 +1219,7 @@ class Parser(token_parser.TokenParser):
     These are specified in the following form: #![test] fn test_foo() { ... }
     """
     fn = self.parse_function(function_name_to_node, bindings, public=False)
-    return ast.TestFunction(fn)
+    return ast.TestFunction(self.m, fn)
 
   def parse_test_construct(self,
                            outer_bindings: Bindings,
@@ -1171,7 +1241,7 @@ class Parser(token_parser.TokenParser):
     self._dropt_or_error(TokenKind.OBRACE)
     body = self.parse_expression(bindings)
     self._dropt_or_error(TokenKind.CBRACE)
-    return ast.Test(name_def, body)
+    return ast.Test(self.m, name_def, body)
 
   def parse_constant(self, bindings: Bindings) -> ast.Constant:
     """Parses a constant definition."""
@@ -1194,7 +1264,7 @@ class Parser(token_parser.TokenParser):
     if not ast.Constant.is_constant(expr):
       raise ParseError(expr.span,
                        'Value is not considered constant: {}'.format(expr))
-    result = ast.Constant(name_def, expr)
+    result = ast.Constant(self.m, name_def, expr)
     bindings.add(name_def.identifier, result)
     return result
 
@@ -1244,7 +1314,7 @@ class Parser(token_parser.TokenParser):
 
     self._dropt_or_error(TokenKind.CBRACK)
     fn = self.parse_function(function_name_to_node, bindings, public=False)
-    return ast.QuickCheck(fn.span, fn, test_count)
+    return ast.QuickCheck(self.m, fn.span, fn, test_count)
 
   def _parse_directive(
       self, function_name_to_node: Dict[Text, ast.Function],
@@ -1306,7 +1376,6 @@ class Parser(token_parser.TokenParser):
     return f
 
   def parse_module(self,
-                   name: Text,
                    bindings: Optional[Bindings] = None) -> ast.Module:
     """Parses a module out of the token stream.
 
@@ -1314,7 +1383,6 @@ class Parser(token_parser.TokenParser):
     entire input syntax file.
 
     Args:
-      name: Name that should be given to the parsed module.
       bindings: Optional initial bindings object (e.g. for use in testing).
 
     Returns:
@@ -1323,14 +1391,12 @@ class Parser(token_parser.TokenParser):
     Raises:
       ParseError: When an unexpected construct is enountered at module scope.
     """
-    top = []  # type: List[ast.ModuleMember]
-
     # Populate the top-level bindings with the builtin names.
     bindings = bindings or Bindings()
     # Need this because pytype gets confused about whether it can be none.
     assert isinstance(bindings, Bindings), bindings
     for builtin_name in dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
-      bindings.add(builtin_name, ast.BuiltinNameDef(builtin_name))
+      bindings.add(builtin_name, ast.BuiltinNameDef(self.m, builtin_name))
 
     function_name_to_node = {}  # type: Dict[Text, ast.Function]
 
@@ -1339,14 +1405,14 @@ class Parser(token_parser.TokenParser):
         break
       elif self._try_pop_keyword(Keyword.PUB):
         if self._peekt_is_keyword(Keyword.FN):
-          top.append(
+          self.m.add_top(
               self.parse_function(function_name_to_node, bindings, public=True))
         elif self._peekt_is_keyword(Keyword.STRUCT):
-          top.append(self._parse_struct(True, bindings))
+          self.m.add_top(self._parse_struct(True, bindings))
         elif self._peekt_is_keyword(Keyword.ENUM):
-          top.append(self._parse_enum(True, bindings))
+          self.m.add_top(self._parse_enum(True, bindings))
         elif self._peekt_is_keyword(Keyword.TYPE):
-          top.append(self.parse_type_definition(True, bindings))
+          self.m.add_top(self.parse_type_definition(True, bindings))
         else:
           raise ParseError(
               Span(self._get_pos(), self._get_pos()),
@@ -1355,25 +1421,26 @@ class Parser(token_parser.TokenParser):
         quickcheck_or_test = self._parse_directive(function_name_to_node,
                                                    bindings)
         if quickcheck_or_test:
-          top.append(quickcheck_or_test)
+          self.m.add_top(quickcheck_or_test)
       elif self._peekt_is_keyword(Keyword.FN):
-        top.append(
+        self.m.add_top(
             self.parse_function(function_name_to_node, bindings, public=False))
       elif self._peekt_is_keyword(Keyword.TEST):
-        top.append(self.parse_test_construct(bindings))
+        self.m.add_top(self.parse_test_construct(bindings))
       elif self._peekt_is_keyword(Keyword.IMPORT):
-        top.append(self._parse_import(bindings))
+        self.m.add_top(self._parse_import(bindings))
       elif self._peekt_is_keyword(Keyword.TYPE):
-        top.append(self.parse_type_definition(False, bindings))
+        self.m.add_top(self.parse_type_definition(False, bindings))
       elif self._peekt_is_keyword(Keyword.STRUCT):
-        top.append(self._parse_struct(False, bindings))
+        self.m.add_top(self._parse_struct(False, bindings))
       elif self._peekt_is_keyword(Keyword.ENUM):
-        top.append(self._parse_enum(False, bindings))
+        self.m.add_top(self._parse_enum(False, bindings))
       elif self._peekt_is_keyword(Keyword.CONST):
-        top.append(self.parse_constant(bindings))
+        self.m.add_top(self.parse_constant(bindings))
       else:
         tok = self._peekt()
         raise ParseError(
             tok.span,
             'Expected start of top-level construct; got {}'.format(tok))
-    return ast.Module(name, tuple(top))
+
+    return self.m

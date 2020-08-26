@@ -164,6 +164,11 @@ purpose, and correspond to the components in this XLS stack diagram:
     [IR visualization](ir_visualization.md).
 
 
+## Community
+
+Discussions about XLS - development, debugging, usage, and anything else -
+should go to the [xls-dev mailing list](https://groups.google.com/g/xls-dev).
+
 ## Contributors
 
 The following are
