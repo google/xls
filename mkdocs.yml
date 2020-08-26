@@ -26,6 +26,8 @@ nav:
       - FP adder: 'fpadd_example.md'
       - Prefix Scan: 'dslx_intro_example3.md'
     - Fuzzer: "fuzzer.md"
+  - Code Generation:
+    - VAST: 'vast.md'
   - Tools:
     - Build System: 'build_system.md'
     - Quick Start: 'tools_quick_start.md'
