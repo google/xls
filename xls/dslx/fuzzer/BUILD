@@ -146,6 +146,7 @@ py_test(
     python_version = "PY3",
     shard_count = 50,
     srcs_version = "PY3",
+    tags = ["optonly"],
     deps = [
         ":ast_generator",
         ":run_fuzz",

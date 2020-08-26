@@ -63,10 +63,17 @@ def evaluate_to_struct_or_enum_or_annotation(
   return td
 
 
+def tok_to_builtin_type(tok: scanner.Token) -> ast.BuiltinType:
+  assert tok.is_keyword_in(scanner.TYPE_KEYWORDS)
+  bt = getattr(ast.BuiltinType, tok.value.value.upper())
+  assert isinstance(bt, ast.BuiltinType), repr(bt)
+  return bt
+
+
 def make_builtin_type_annotation(
     owner: ast.AstNodeOwner, span: span_mod.Span, tok: scanner.Token,
     dims: Tuple[ast.Expr, ...]) -> ast.TypeAnnotation:
-  elem_type = ast.BuiltinTypeAnnotation(owner, span, tok)
+  elem_type = ast.BuiltinTypeAnnotation(owner, span, tok_to_builtin_type(tok))
   for dim in dims:
     elem_type = ast.ArrayTypeAnnotation(owner, span, elem_type, dim)
   return elem_type

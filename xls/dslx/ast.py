@@ -26,6 +26,7 @@ from xls.dslx.core_ast_nodes import ArrayTypeAnnotation
 from xls.dslx.core_ast_nodes import AstNodeOwner
 from xls.dslx.core_ast_nodes import Binop
 from xls.dslx.core_ast_nodes import BuiltinNameDef
+from xls.dslx.core_ast_nodes import BuiltinType
 from xls.dslx.core_ast_nodes import BuiltinTypeAnnotation
 from xls.dslx.core_ast_nodes import ConstRef
 from xls.dslx.core_ast_nodes import Enum

@@ -162,6 +162,13 @@ class _Checker(object):
       raise xls_type_error.XlsTypeError(self.span, t, None, fmt.format(t))
     return self
 
+  def check_is_len(self, t: ArrayType[int], target: int,
+                   fmt: str) -> '_Checker':
+    if t.size != target:
+      raise xls_type_error.XlsTypeError(self.span, t, None,
+                                        fmt.format(t=t, target=target))
+    return self
+
   def check_is_same(self, t: ConcreteType, u: ConcreteType,
                     fmt: Text) -> '_Checker':
     if t != u:
@@ -256,10 +263,18 @@ def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx: DeduceCtx,
 @register_fsignature('(xN[N], xN[M][N]) -> xN[M]')
 def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx: DeduceCtx,
          _: Optional[ParametricBindings]) -> ConcreteType:
+  """Checks the type signature shown above and returns deduced output type."""
   checker = _Checker(arg_types, name, span).len(2).is_bits(0).is_array(1)
-  return_type = arg_types[1].get_element_type()  # pytype: disable=attribute-error
+
+  arg0 = arg_types[0]
+  arg1 = arg_types[1]
+  assert isinstance(arg1, ArrayType), arg1
+  assert isinstance(arg1.size, int), arg1
+  return_type = arg1.element_type
   checker.check_is_bits(return_type,
                         'Want arg 1 element type to be bits; got {0}')
+  checker.check_is_len(arg1, arg0.size,
+                       'bit width {target} must match {t} array size {t.size}')
   return FunctionType(arg_types, return_type)
 
 

@@ -901,11 +901,6 @@ def _dim_to_parametric_or_int(
   return _dim_to_parametric(self, expr)
 
 
-def get_signedness_and_bits(
-    type_annotation: ast.BuiltinTypeAnnotation) -> Tuple[bool, int]:
-  return scanner.TYPE_KEYWORDS_TO_SIGNEDNESS_AND_BITS[type_annotation.tok.value]
-
-
 @_rule(ast.TypeRefTypeAnnotation)
 def _deduce_TypeRefTypeAnnotation(self: ast.TypeRefTypeAnnotation,
                                   ctx: DeduceCtx) -> ConcreteType:
@@ -925,8 +920,8 @@ def _deduce_BuiltinTypeAnnotation(
     self: ast.BuiltinTypeAnnotation,
     ctx: DeduceCtx,  # pylint: disable=unused-argument
 ) -> ConcreteType:
-  signedness, primitive_bits = get_signedness_and_bits(self)
-  return BitsType(signedness, primitive_bits)
+  signedness, bits = self.signedness_and_bits
+  return BitsType(signedness, bits)
 
 
 @_rule(ast.TupleTypeAnnotation)
@@ -943,12 +938,10 @@ def _deduce_ArrayTypeAnnotation(self: ast.ArrayTypeAnnotation,
                                 ctx: DeduceCtx) -> ConcreteType:
   """Deduces the concrete type of an Array type annotation."""
   dim = _dim_to_parametric_or_int(self, self.dim, ctx)
-  if isinstance(
-      self.element_type,
-      ast.BuiltinTypeAnnotation) and self.element_type.tok.is_keyword_in(
-          (scanner.Keyword.BITS, scanner.Keyword.UN, scanner.Keyword.SN)):
-    signedness = self.element_type.tok.is_keyword(scanner.Keyword.SN)
-    return BitsType(signedness, dim)
+  if (isinstance(self.element_type, ast.BuiltinTypeAnnotation) and
+      self.element_type.bits == 0):
+    # No-volume builtin types like bits, uN, and sN.
+    return BitsType(self.element_type.signedness, dim)
   element_type = deduce(self.element_type, ctx)
   result = ArrayType(element_type, dim)
   logging.vlog(4, 'array type annotation: %s => %s', self, result)

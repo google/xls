@@ -132,10 +132,10 @@ py_library(
         ":bit_helpers",
         ":concrete_type",
         ":free_variables",
-        ":parametric_expression",
         ":scanner",
         ":span",
         ":xls_type_error",
+        requirement("aenum"),
         "@com_google_absl_py//absl/logging",
     ],
 )

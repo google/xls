@@ -36,7 +36,6 @@ from xls.dslx import bit_helpers
 from xls.dslx import deduce
 from xls.dslx import import_fn
 from xls.dslx import ir_name_mangler
-from xls.dslx import scanner
 from xls.dslx.concrete_type import ArrayType
 from xls.dslx.concrete_type import BitsType
 from xls.dslx.concrete_type import ConcreteType
@@ -298,9 +297,8 @@ class Interpreter(object):
     nested_bindings = Bindings(parent=bindings)
     for p, d in zip(struct.parametric_bindings, parametrics):
       if isinstance(d, ast.Number):
-        nested_bindings.add_value(
-            p.name.identifier,
-            Value.make_ubits(p.type_.primitive_bits, int(d.value)))
+        nested_bindings.add_value(p.name.identifier,
+                                  Value.make_ubits(p.type_.bits, int(d.value)))
       else:
         assert isinstance(p, ParametricSymbol), p
         nested_bindings.add_value(
@@ -338,14 +336,12 @@ class Interpreter(object):
     elif isinstance(type_, ast.ArrayTypeAnnotation):
       dim = self._resolve_dim(type_.dim, bindings)
       if (isinstance(type_.element_type, ast.BuiltinTypeAnnotation) and
-          type_.element_type.tok.is_keyword_in(
-              (scanner.Keyword.BITS, scanner.Keyword.UN, scanner.Keyword.SN))):
-        signed = type_.element_type.tok.is_keyword_in((scanner.Keyword.SN,))
-        return BitsType(signed, dim)
+          type_.element_type.bits == 0):
+        return BitsType(type_.element_type.signedness, dim)
       elem_type = self._concretize(type_.element_type, bindings)
       return ArrayType(elem_type, dim)
     elif isinstance(type_, ast.BuiltinTypeAnnotation):
-      signed, bits = type_.primitive_signedness_and_bits
+      signed, bits = type_.signedness_and_bits
       return BitsType(signed, bits)
     else:
       raise NotImplementedError('Unknown type for concretization: %r' % type_)

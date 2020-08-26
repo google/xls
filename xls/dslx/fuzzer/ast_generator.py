@@ -59,12 +59,6 @@ def make_bit_patterns(bit_count: int) -> Tuple[int, ...]:
   return result
 
 
-def builtin_type_to_signedness_and_bits(
-    type_annotation: ast.TypeAnnotation) -> Tuple[bool, int]:
-  assert isinstance(type_annotation, ast.BuiltinTypeAnnotation), type_annotation
-  return scanner.TYPE_KEYWORDS_TO_SIGNEDNESS_AND_BITS[type_annotation.tok.value]
-
-
 def builtin_type_to_bits(type_annotation: ast.TypeAnnotation) -> int:
   """Converts a type annotation (array of builtin or builtin) to a bit count."""
   if isinstance(type_annotation, ast.ArrayTypeAnnotation):
@@ -75,9 +69,8 @@ def builtin_type_to_bits(type_annotation: ast.TypeAnnotation) -> int:
         type_annotation.element_type) * dim.get_value_as_int()
 
   assert isinstance(type_annotation,
-                    ast.BuiltinTypeAnnotation), (str(type_annotation),
-                                                 repr(type_annotation))
-  return builtin_type_to_signedness_and_bits(type_annotation)[1]
+                    ast.BuiltinTypeAnnotation), repr(type_annotation)
+  return type_annotation.bits
 
 
 class AstGeneratorOptions(object):
@@ -184,27 +177,18 @@ class AstGenerator(object):
     return scanner.Token(scanner.TokenKind.KEYWORD, self.fake_span,
                          scanner.Keyword(kw_identifier))
 
-  def _make_type_annotation(self, kw_identifier: Text) -> ast.TypeAnnotation:
-    assert kw_identifier in scanner.TYPE_KEYWORD_STRINGS, kw_identifier
-    token = scanner.Token(scanner.TokenKind.KEYWORD, self.fake_span,
-                          scanner.Keyword(kw_identifier))
-    return ast_helpers.make_builtin_type_annotation(
-        self.m, self.fake_span, token, dims=())
-
-  def _make_large_type_annotation(self, kw_identifier: Text,
-                                  width: int) -> ast.TypeAnnotation:
-    """Creates type annotations for widths > 64 bits."""
-    token = scanner.Token(scanner.TokenKind.KEYWORD, self.fake_span,
-                          scanner.Keyword[kw_identifier])
-    dim = self._make_number(width, None)
-    dims = (dim,)
-    return ast_helpers.make_builtin_type_annotation(self.m, self.fake_span,
-                                                    token, dims)
+  def _make_type_annotation(self, signed: bool,
+                            width: int) -> ast.TypeAnnotation:
+    assert width > 0, width
+    if width <= 64:
+      return ast.BuiltinTypeAnnotation(self.m, self.fake_span,
+                                       ast.BuiltinType.get(signed, width))
+    raise NotImplementedError(signed, width)
 
   def _get_type_bit_count(self, type_: ast.TypeAnnotation) -> int:
     """Returns the bit count of the given type."""
     if isinstance(type_, ast.BuiltinTypeAnnotation):
-      return builtin_type_to_bits(type_)
+      return type_.bits
     if isinstance(type_, ast.ArrayTypeAnnotation):
       return self._get_type_bit_count(type_.element_type)
     assert str(type_) in self._type_bit_counts, (str(type_),
@@ -260,8 +244,8 @@ class AstGenerator(object):
       max_width = self.options.max_width_bits_types
       if max_width > 128 and self.rng.randint(1, 10) > 1:
         max_width = 128
-      return self._make_large_type_annotation(
-          self.rng.choice(('SN', 'UN')),
+      return self._make_type_annotation(
+          self.rng.choice((True, False)),
           64 + self.rng.randint(1, max_width - 64))
 
   def _make_identifier_token(self, identifier: Text) -> scanner.Token:
@@ -307,7 +291,7 @@ class AstGenerator(object):
     """Generates a binary operator on lhs/rhs which have the same input type."""
     if self.rng.random() < 0.1:
       op = self.rng.choice(ast.Binop.COMPARISON_KIND_LIST)
-      output_type = self._make_type_annotation('bool')
+      output_type = self._make_type_annotation(False, 1)
     else:
       op = self.rng.choice(self._binops)
       if op in ast.Binop.SHIFTS and self.rng.random() < 0.8:
@@ -347,8 +331,7 @@ class AstGenerator(object):
     return isinstance(t, ast.TupleTypeAnnotation)
 
   def _is_builtin_unsigned(self, t: ast.TypeAnnotation) -> bool:
-    return isinstance(t, ast.BuiltinTypeAnnotation
-                     ) and not builtin_type_to_signedness_and_bits(t)[0]
+    return isinstance(t, ast.BuiltinTypeAnnotation) and not t.signedness
 
   def _env_contains_array(self, env: Env) -> bool:
     return any(
@@ -370,7 +353,7 @@ class AstGenerator(object):
     op = self.rng.choice([ast.Binop.LOGICAL_AND, ast.Binop.LOGICAL_OR])
     op_token = scanner.Token(op, self.fake_span, op.value)
     return ast.Binop(self.m, op_token, lhs,
-                     rhs), self._make_type_annotation('u1')
+                     rhs), self._make_type_annotation(False, 1)
 
   def _generate_binop(self, env: Env) -> Tuple[ast.Binop, ast.TypeAnnotation]:
     """Generates a binary operation AST node."""
@@ -427,8 +410,9 @@ class AstGenerator(object):
     map_fn = self.generate_function(map_fn_name, level + 3, param_count=1)
     self._functions.append(map_fn)
 
-    map_arg_signedness, map_arg_bits = builtin_type_to_signedness_and_bits(
-        map_fn.params[0].type_)
+    map_arg_type = map_fn.params[0].type_
+    assert isinstance(map_arg_type, ast.BuiltinTypeAnnotation), map_arg_type
+    map_arg_signedness, map_arg_bits = map_arg_type.signedness_and_bits
 
     array_size = self.rng.randrange(
         1, max(2, self.options.max_width_aggregate_types // map_arg_bits))
@@ -465,18 +449,21 @@ class AstGenerator(object):
     # We need to choose a selector with a certain number of bits, then form an
     # array from that many values in the environment.
     def choose_value(t: ast.TypeAnnotation) -> bool:
-      return not isinstance(t, ast.TupleTypeAnnotation) and not isinstance(
-          t, ast.ArrayTypeAnnotation) and builtin_type_to_bits(t) < 8
+      return isinstance(t, ast.BuiltinTypeAnnotation) and 0 < t.bits <= 8
 
     try:
       make_lhs, lhs_type = self._choose_env_value(env, choose_value)
     except EmptyEnvError:
+      # If there's no natural environment value to use as the LHS, make up a
+      # number and number of bits.
       bits = self.rng.randrange(1, 8)
       make_lhs = lambda: self._generate_number(env, bits, signedness=False)[0]
-      lhs_type = self._make_large_type_annotation('UN', bits)
+      lhs_type = self._make_type_annotation(False, bits)
+
     make_rhs, rhs_type = self._choose_env_value(env, self._not_tuple_or_array)
     cases = [make_rhs]
-    total_operands = builtin_type_to_bits(lhs_type)
+    assert isinstance(lhs_type, ast.BuiltinTypeAnnotation), lhs_type
+    total_operands = lhs_type.bits
     for _ in range(total_operands - 1):
       make_rhs, rhs_type = self._choose_env_value(env, lambda t: t == rhs_type)
       cases.append(make_rhs)
@@ -523,7 +510,7 @@ class AstGenerator(object):
           self._builtin_name_ref(to_invoke),
           args=(make_arg(), self._make_bool(lsb_or_msb)))
       result_bits = builtin_type_to_bits(arg_type) + 1
-      result_type = self._make_large_type_annotation('UN', result_bits)
+      result_type = self._make_type_annotation(False, result_bits)
     return invocation, result_type
 
   def _generate_bit_slice(self,
@@ -546,9 +533,9 @@ class AstGenerator(object):
       else:
         break
     if slice_type == 'width_slice':
-      index_slice = ast.WidthSlice(
-          self.m, self.fake_span, self._make_number(start or 0, None),
-          self._make_large_type_annotation('UN', width))
+      index_slice = ast.WidthSlice(self.m, self.fake_span,
+                                   self._make_number(start or 0, None),
+                                   self._make_type_annotation(False, width))
     elif slice_type == 'bit_slice':
       index_slice = ast.Slice(
           self.m, self.fake_span,
@@ -556,10 +543,9 @@ class AstGenerator(object):
           None if limit is None else self._make_number(limit, None))
     else:
       start_arg, _ = self._choose_env_value(env, self._is_builtin_unsigned)
-      index_slice = ast.WidthSlice(
-          self.m, self.fake_span, start_arg(),
-          self._make_large_type_annotation('UN', width))
-    type_ = self._make_large_type_annotation('UN', width)
+      index_slice = ast.WidthSlice(self.m, self.fake_span, start_arg(),
+                                   self._make_type_annotation(False, width))
+    type_ = self._make_type_annotation(False, width)
     return (ast.Index(self.m, self.fake_span, make_arg(), index_slice), type_)
 
   def _generate_bitwise_reduction(
@@ -568,7 +554,7 @@ class AstGenerator(object):
     make_arg, _ = self._choose_env_value(env, self._is_builtin_unsigned)
     ops = ['and_reduce', 'or_reduce', 'xor_reduce']
     callee = self._builtin_name_ref(self.rng.choice(ops))
-    type_ = self._make_type_annotation('u1')
+    type_ = self._make_type_annotation(False, 1)
     return (ast.Invocation(self.m, self.fake_span, callee,
                            (make_arg(),)), type_)
 
@@ -665,7 +651,7 @@ class AstGenerator(object):
       result = ast.Binop(self.m, token, result, operands[i])
       result_bits += this_bits
     assert result_bits <= self.options.max_width_bits_types, result_bits
-    return (result, self._make_large_type_annotation('UN', result_bits))
+    return (result, self._make_type_annotation(False, result_bits))
 
   def _make_number(self, value: int,
                    type_: Optional[ast.TypeAnnotation]) -> ast.Number:
@@ -674,7 +660,7 @@ class AstGenerator(object):
                       hex(value).rstrip('L'), ast.NumberKind.OTHER, type_)
 
   def _make_bool(self, value: bool) -> ast.Number:
-    return self._make_number(int(value), self._make_type_annotation('u1'))
+    return self._make_number(int(value), self._make_type_annotation(False, 1))
 
   def _generate_number(
       self,
@@ -685,8 +671,7 @@ class AstGenerator(object):
     """Generates a number AST node with its associated type."""
     if bits:
       assert signedness is not None
-      type_ = self._make_large_type_annotation('SN' if signedness else 'UN',
-                                               bits)
+      type_ = self._make_type_annotation(signedness, bits)
     else:
       type_ = self._generate_primitive_type()
     bit_count = builtin_type_to_bits(type_)
@@ -739,7 +724,7 @@ class AstGenerator(object):
                             env: Env) -> Tuple[ast.For, ast.TypeAnnotation]:
     """Generates a counted for loop."""
     # Right now just generates the 'identity' for loop.
-    ivar_type = self._make_type_annotation('u4')
+    ivar_type = self._make_type_annotation(False, 4)
     zero = self._make_number(0, type_=ivar_type)
     trips = self._make_number(self.randrange(8), type_=ivar_type)
     iterable = self._make_range(zero, trips)
@@ -767,7 +752,8 @@ class AstGenerator(object):
       # the environment to use as an index.
       assert isinstance(tuple_type, ast.TupleTypeAnnotation), tuple_type
       i = self.randrange(len(tuple_type.members))
-      index_expr = self._make_number(i, type_=self._make_type_annotation('u32'))
+      index_expr = self._make_number(
+          i, type_=self._make_type_annotation(False, 32))
       tuple_expr = make_tuple_expr()
       assert isinstance(tuple_type, ast.TupleTypeAnnotation), tuple_type
       return ast.Index(self.m, self.fake_span, tuple_expr,

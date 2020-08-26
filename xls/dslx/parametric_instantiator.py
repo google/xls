@@ -55,7 +55,7 @@ class _ParametricInstantiator:
     if parametric_constraints:
       for b in parametric_constraints:
         type_ = b.type_
-        bit_count = type_.primitive_bits
+        bit_count = type_.bits
         self.bit_widths[b.name.identifier] = bit_count
         self.constraints[b.name.identifier] = b.expr
 

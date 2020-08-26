@@ -24,6 +24,7 @@ import enum as enum_mod
 from typing import Text, Optional, Union, Tuple, List, cast, Any
 
 from absl import logging
+import aenum
 
 from xls.dslx import bit_helpers
 from xls.dslx.ast_node import AstNode
@@ -35,8 +36,6 @@ from xls.dslx.free_variables import FreeVariables
 from xls.dslx.scanner import Pos
 from xls.dslx.scanner import Token
 from xls.dslx.scanner import TokenKind
-from xls.dslx.scanner import TYPE_KEYWORDS
-from xls.dslx.scanner import TYPE_KEYWORDS_TO_SIGNEDNESS_AND_BITS
 from xls.dslx.span import Span
 from xls.dslx.xls_type_error import TypeInferenceError
 
@@ -505,35 +504,88 @@ class TypeAnnotation(AstNode):
     raise NotImplementedError(self)
 
 
+class BuiltinType(aenum.Enum):
+  """Enumerates built-in types (keywords).
+
+  Note that some of these are "volumeless"; e.g. bits and uN and sN just
+  indicate the signedness and have to be supplemented by an ArrayTypeAnnotation
+  that wraps it and provides a size.
+
+  Implementation note: the `u1, u2, ..., u64, s1, s2, ..., s64` variants are
+  populated by `populate_builtin_types()` below.
+  """
+
+  BITS = 'bits'
+  SN = 'sN'
+  UN = 'uN'
+  BOOL = 'bool'
+
+  @classmethod
+  def get(cls, signed: bool, width: int):
+    prefix = 's' if signed else 'u'
+    return getattr(cls, f'{prefix}{width}'.upper())
+
+  @property
+  def bits(self) -> int:
+    if self.value in ('bits', 'uN', 'sN'):
+      return 0
+    if self.value == 'bool':
+      return 1
+    return int(self.value[1:])
+
+  @property
+  def signedness(self) -> bool:
+    return True if self.value.startswith('s') else False
+
+  @property
+  def signedness_and_bits(self) -> Tuple[bool, int]:
+    return (self.signedness, self.bits)
+
+
+def populate_builtin_types():
+  for i in range(1, 65):
+    aenum.extend_enum(BuiltinType, f'U{i}', f'u{i}')
+    aenum.extend_enum(BuiltinType, f'S{i}', f's{i}')
+
+
+populate_builtin_types()
+
+
 class BuiltinTypeAnnotation(TypeAnnotation):
   """Represents a builtin type annotation; e.g. `u32`, `bits`, etc."""
 
-  def __init__(self, owner: AstNodeOwner, span: Span, tok: Token):
+  def __init__(self, owner: AstNodeOwner, span: Span,
+               builtin_type: BuiltinType):
+    assert isinstance(builtin_type, BuiltinType), repr(builtin_type)
     super().__init__(owner, span)
-    assert isinstance(tok, Token), tok
-    assert tok.is_keyword_in(TYPE_KEYWORDS), tok
-    self.tok = tok
+    self.builtin_type = builtin_type
 
   @property
-  def primitive_signedness_and_bits(self) -> Tuple[bool, int]:
-    assert self.tok.kind == TokenKind.KEYWORD, self.tok
-    return TYPE_KEYWORDS_TO_SIGNEDNESS_AND_BITS[self.tok.value]
+  def signedness_and_bits(self) -> Tuple[bool, int]:
+    return self.builtin_type.signedness_and_bits
 
   @property
-  def primitive_bits(self) -> int:
-    return self.primitive_signedness_and_bits[1]
+  def bits(self) -> int:
+    return self.builtin_type.bits
+
+  @property
+  def signedness(self) -> bool:
+    return self.builtin_type.signedness
 
   def __hash__(self) -> int:
     return hash(id(self))
 
   def __eq__(self, other: Any) -> bool:
-    return isinstance(other, BuiltinTypeAnnotation) and self.tok == other.tok
+    return isinstance(
+        other,
+        BuiltinTypeAnnotation) and self.builtin_type == other.builtin_type
 
   def __repr__(self) -> str:
-    return f'BuiltinTypeAnnotation(span={self.span!r}, tok={self.tok!r})'
+    return (f'BuiltinTypeAnnotation(span={self.span!r}, '
+            f'builtin_type={self.builtin_type!r})')
 
   def __str__(self) -> str:
-    return str(self.tok)
+    return self.builtin_type.value
 
   def _accept_children(self, visitor: AstVisitor) -> None:
     pass
