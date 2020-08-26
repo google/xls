@@ -4,7 +4,7 @@
 
 # **XLS**: Accelerated HW Synthesis
 
-[**Docs**](https://google.github.io/xls/) | [**Quick Start**](https://google.github.io/xls/tools_quick_start/)
+[**Docs**](https://google.github.io/xls/) | [**Quick Start**](https://google.github.io/xls/tools_quick_start/) ![Continuous Integration](https://github.com/google/xls/workflows/Continuous%20Integration/badge.svg)
 
 ## What is XLS?
 
