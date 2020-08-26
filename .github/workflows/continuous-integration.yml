@@ -2,7 +2,16 @@
 # See also: https://github.com/marketplace/actions/bazel-action
 
 name: Continuous Integration
-on: [push]
+on:
+  # Avoid triggering on pushes to /all/ open PR branches.
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  # This lets us trigger manually from the UI.
+  workflow_dispatch:
 
 jobs:
   build:
@@ -27,6 +36,9 @@ jobs:
         run: |
           ln -s $(which python3) ${GITHUB_WORKSPACE}/bin/python
           echo "::add-path::${GITHUB_WORKSPACE}/bin"
+      - name: Bazel Build All (opt)
+        run: |
+          "${GITHUB_WORKSPACE}/bin/bazel" build -c opt //...
       - name: Bazel Test All (opt)
         run: |
           "${GITHUB_WORKSPACE}/bin/bazel" test -c opt //...
