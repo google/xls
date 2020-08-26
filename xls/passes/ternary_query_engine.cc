@@ -24,7 +24,7 @@
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/node_iterator.h"
-#include "xls/passes/ternary_logic.h"
+#include "xls/passes/ternary_evaluator.h"
 
 namespace xls {
 

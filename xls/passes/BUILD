@@ -216,8 +216,6 @@ cc_library(
         "//xls/common:math_util",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
-        "//xls/ir",
         "//xls/ir:function_builder",
     ],
 )
@@ -228,7 +226,6 @@ cc_test(
     deps = [
         ":map_inlining_pass",
         "//xls/common/status:matchers",
-        "//xls/ir",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_parser",
         "@com_google_googletest//:gtest_main",
@@ -453,7 +450,7 @@ cc_library(
     hdrs = ["ternary_query_engine.h"],
     deps = [
         ":query_engine",
-        ":ternary_logic",
+        ":ternary_evaluator",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
@@ -492,10 +489,10 @@ cc_library(
 )
 
 cc_library(
-    name = "ternary_logic",
-    hdrs = ["ternary_logic.h"],
+    name = "ternary_evaluator",
+    hdrs = ["ternary_evaluator.h"],
     deps = [
-        "@com_google_absl//absl/strings",
+        "//xls/common/logging",
         "//xls/common/status:statusor",
         "//xls/ir:abstract_evaluator",
         "//xls/ir:bits",
@@ -683,7 +680,6 @@ cc_library(
     hdrs = ["array_simplification_pass.h"],
     deps = [
         ":passes",
-        ":ternary_query_engine",
         "//xls/common/status:statusor",
         "//xls/ir",
         "//xls/ir:bits_ops",
@@ -840,7 +836,7 @@ cc_test(
     name = "ternary_query_engine_test",
     srcs = ["ternary_query_engine_test.cc"],
     deps = [
-        ":ternary_logic",
+        ":ternary_evaluator",
         ":ternary_query_engine",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/strings",
@@ -873,10 +869,10 @@ cc_test(
 )
 
 cc_test(
-    name = "ternary_logic_test",
-    srcs = ["ternary_logic_test.cc"],
+    name = "ternary_evaluator_test",
+    srcs = ["ternary_evaluator_test.cc"],
     deps = [
-        ":ternary_logic",
+        ":ternary_evaluator",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
         "//xls/common/status:matchers",
@@ -950,7 +946,7 @@ cc_test(
     deps = [
         ":bdd_query_engine",
         ":query_engine",
-        ":ternary_logic",
+        ":ternary_evaluator",
         ":ternary_query_engine",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/strings",

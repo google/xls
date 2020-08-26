@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/passes/ternary_logic.h"
+#include "xls/passes/ternary_evaluator.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

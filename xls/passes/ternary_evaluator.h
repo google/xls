@@ -12,13 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_PASSES_TERNARY_LOGIC_H_
-#define XLS_PASSES_TERNARY_LOGIC_H_
+#ifndef XLS_PASSES_TERNARY_EVALUATOR_H_
+#define XLS_PASSES_TERNARY_EVALUATOR_H_
 
-#include <iosfwd>
-#include <vector>
-
-#include "absl/strings/string_view.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/statusor.h"
 #include "xls/ir/abstract_evaluator.h"
 #include "xls/ir/bits.h"
@@ -34,13 +31,14 @@ class TernaryEvaluator : public AbstractEvaluator<TernaryValue> {
 
   TernaryValue Not(const TernaryValue& input) const override {
     switch (input) {
-      case (TernaryValue::kKnownZero):
+      case TernaryValue::kKnownZero:
         return TernaryValue::kKnownOne;
-      case (TernaryValue::kKnownOne):
+      case TernaryValue::kKnownOne:
         return TernaryValue::kKnownZero;
-      case (TernaryValue::kUnknown):
+      case TernaryValue::kUnknown:
         return TernaryValue::kUnknown;
     }
+    XLS_LOG(FATAL) << "Impossible ternary value: " << input;
   }
 
   TernaryValue And(const TernaryValue& a,
@@ -55,4 +53,4 @@ class TernaryEvaluator : public AbstractEvaluator<TernaryValue> {
 
 }  // namespace xls
 
-#endif  // XLS_PASSES_TERNARY_LOGIC_H_
+#endif  // XLS_PASSES_TERNARY_EVALUATOR_H_

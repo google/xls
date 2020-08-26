@@ -29,7 +29,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
-#include "xls/passes/ternary_logic.h"
+#include "xls/passes/ternary_evaluator.h"
 
 namespace xls {
 namespace {
