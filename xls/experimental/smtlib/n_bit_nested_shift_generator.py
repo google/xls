@@ -1,7 +1,20 @@
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """
-This file receives an integer from --n and an integer from --chains, and creates an 
+This file receives an integer from --n and an integer from --chains, and creates an
 smt2 file containing an (n)-bit multiplier equivalence proof with (chains) nested
-mul operations. For example, to create an smt2 file for 4-bit multiplication and 
+mul operations. For example, to create an smt2 file for 4-bit multiplication and
 5 nested mul operations, we can run (after building)
 
 $ bazel-bin/xls/experimental/smtlib/n_bit_nested_mul_generator --n=4 --chains=5
@@ -10,13 +23,13 @@ Once an smt2 file is created, we can run:
 
 $ <solver command> <filename>
 
-The created smt2 file asserts that the multiplier and the builtin multiplication DO NOT 
+The created smt2 file asserts that the multiplier and the builtin multiplication DO NOT
 produce the same result, so the output we expect to see is:
 
 $ unsat
 
 meaning the multiplier and the builtin multiplication never produce different
-results. They are logically equivalent. 
+results. They are logically equivalent.
 """
 
 import sys
@@ -27,30 +40,30 @@ def description_comments(n, shifts, f):
   Write comments to the top of the file describing what it does.
 
   Write comments to the top of the smt2 file describing the proof it contains:
-  the operation, how many bits in the arguments, and how many operations. 
-  
+  the operation, how many bits in the arguments, and how many operations.
+
   Args:
-  n: An integer, the number of bits in each input bitvector.
-  shifts: An integer, the number of nested shift operations. 
-  f: The file to write into. 
-  """  
+    n: An integer, the number of bits in each input bitvector.
+    shifts: An integer, the number of nested shift operations.
+    f: The file to write into.
+  """
   print(
-f"""; The following SMT-LIB verifies that a chain of {shifts} {n}-bit shifts 
+f"""; The following SMT-LIB verifies that a chain of {shifts} {n}-bit shifts
 ; is equivalent to SMT-LIB's built in bit-vector shift.
 """, file=f)
 
 def logic_and_variables(n, shifts, f):
   """
-  Set the logic for the smt2 file, and declare/define variables. 
+  Set the logic for the smt2 file, and declare/define variables.
 
   Write the set-logic for the proof (QF_BV is the bitvector logic), declare the input
-  bitvector variables, and define variables for their indices. Note that x_i_j 
-  corresponds to index j of the i-th input bitvector. 
-  
+  bitvector variables, and define variables for their indices. Note that x_i_j
+  corresponds to index j of the i-th input bitvector.
+
   Args:
-  n: An integer, the number of bits in each input bitvector. 
-  shifts: An integer, the number of nested shift operations. 
-  f: The file to write into. 
+    n: An integer, the number of bits in each input bitvector.
+    shifts: An integer, the number of nested shift operations.
+    f: The file to write into.
   """
   print(
 f"""(set-logic QF_BV)
@@ -64,11 +77,11 @@ f"""(set-logic QF_BV)
 
 def get_shift_bit(char, var):
   """
-  Return the var argument if char is '1', otherwise (bvnot var). 
+  Return the var argument if char is '1', otherwise (bvnot var).
 
   Args:
-  char: A string, either '0' or '1'
-  var: A string, representing a variable we've defined in the smt2 file.
+    char: A string, either '0' or '1'
+    var: A string, representing a variable we've defined in the smt2 file.
   """
   if char == '0':
     return f"(bvnot {var})"
@@ -84,12 +97,12 @@ def get_shift_bits(n, bit_string, shift):
   Each index of the given bit-string corresponds to the index of an n-bit bitvector.
   This function returns those bits, using the variable for the bit if the corresponding
   index in the bit-string is '1', and using the negation of the variable if the index
-  is '0'. 
+  is '0'.
 
   Args:
-  n: An integer, the number of bits in the bitvector
-  bit_string: A string of '0's and '1's
-  shift: An integer, the nested shift operation that we're currently at. 
+    n: An integer, the number of bits in the bitvector
+    bit_string: A string of '0's and '1's
+    shift: An integer, the nested shift operation that we're currently at.
   """
   bits = []
   var = f"x_{shift}" if shift == 0 else f"shl_{shift - 1}"
@@ -99,17 +112,17 @@ def get_shift_bits(n, bit_string, shift):
 
 def yield_shift_conjunctions(i, n, shift):
   """
-  Yield all of the expressions from get_shift_bits, from 0 to i. 
+  Yield all of the expressions from get_shift_bits, from 0 to i.
 
   This function iterates from 0 to i (inclusive), and represents each number
-  in the iteration as an n-bit bit-string. For each of these bit-strings, it 
+  in the iteration as an n-bit bit-string. For each of these bit-strings, it
   yields the bit-vector anding of all of the bits in the bit-vector at the shift
-  we are at, negating bits whose corresponding index in the bit-string have a '0'. 
+  we are at, negating bits whose corresponding index in the bit-string have a '0'.
 
   Args:
-  i: An integer, the index we iterate up to.
-  n: An integer, the number of bits in the bit-string
-  shift: An integer, the nested shift we're at. 
+    i: An integer, the index we iterate up to.
+    n: An integer, the number of bits in the bit-string
+    shift: An integer, the nested shift we're at.
   """
   if n == 1:
     yield get_shift_bits(n, format(i, f"0{n}b"), shift)
@@ -121,16 +134,16 @@ def yield_shift_conjunctions(i, n, shift):
 def shift_index(i, n, shift, f):
   """
   Write the definition of bit i of the output of shift (shift).
-  
+
   Bit i of the output of shift (shift) is defined by what bits in the shifting
   bitvector are '1' and '0'. For every case, bit i of the output will be equal to
-  a certain bit in the input bitvector that is being shifted. 
+  a certain bit in the input bitvector that is being shifted.
 
   Args:
-  i: An integer, the index we iterate up to.
-  n: An integer, the number of bits in the bit-string
-  shift: An integer, the nested shift we're at.
-  f: The file to write into.
+    i: An integer, the index we iterate up to.
+    n: An integer, the number of bits in the bit-string
+    shift: An integer, the nested shift we're at.
+    f: The file to write into.
   """
   clauses = []
   j = i
@@ -146,10 +159,10 @@ def shift_index(i, n, shift, f):
 def concat_shift_indices(n, shift):
   """
   Return the concat expression of the bits at shift (shift).
-  
+
   Args:
-  n: An integer, the number of bits in the bit-string
-  shift: An integer, the nested shift we're at.
+    n: An integer, the number of bits in the bit-string
+    shift: An integer, the nested shift we're at.
   """
   concats = [f"shl_{shift}_0"]
   for i in range(1, n):
@@ -160,12 +173,12 @@ def concat_shift_indices(n, shift):
 
 def shift_level(n, shift, f):
   """
-  Write the output of shift (shift), concatenating all of its bits together. 
-  
+  Write the output of shift (shift), concatenating all of its bits together.
+
   Args:
-  n: An integer, the number of bits in the bit-string
-  shift: An integer, the nested shift we're at.
-  f: The file to write into. 
+    n: An integer, the number of bits in the bit-string
+    shift: An integer, the nested shift we're at.
+    f: The file to write into.
   """
   for i in range(n):
     shift_index(i, n, shift, f)
@@ -173,10 +186,10 @@ def shift_level(n, shift, f):
 
 def get_nested_expression(shifts):
   """
-  Return a string representing the addition of all the input bitvectors. 
-  
+  Return a string representing the addition of all the input bitvectors.
+
   Args:
-  shifts: An integer, the number of nested shift operations. 
+    shifts: An integer, the number of nested shift operations.
   """
   nested_expressions = []
   for i in range(shifts):
@@ -187,17 +200,17 @@ def get_nested_expression(shifts):
 
 def assert_and_check_sat(n, shifts, f):
   """
-  Write an (unsatisfiable) assertion and tell the solver to check it. 
+  Write an (unsatisfiable) assertion and tell the solver to check it.
 
   Write the assertion that the output of the 'by-hand' shift, shl_(adders - 1),
   does not equal the output of the builtin bvshl operation, and tell the solver
   to check the satisfiability.
-  
+
   Args:
-  n: An integer, the number of bits in each bitvector.
-  shifts: An integer, the number of nested shift operations. 
-  f: The file to write into. 
-  """ 
+    n: An integer, the number of bits in each bitvector.
+    shifts: An integer, the number of nested shift operations.
+    f: The file to write into.
+  """
   print(
 f"""; Compare {n}-bit shift result and internal shift and solve
 (assert (not (= shl_{shifts - 1} {get_nested_expression(shifts)})))
@@ -208,9 +221,9 @@ def n_bit_nested_shift_existing_file(n, shifts, f):
   Given a file, write an n-bit shift proof with a chain of (shifts) shifts.
 
   Args:
-  n: An integer, the number of bits in each bitvector.
-  shifts: An integer, the number of nested shift operations.
-  f: The file to write into.
+    n: An integer, the number of bits in each bitvector.
+    shifts: An integer, the number of nested shift operations.
+    f: The file to write into.
   """
   description_comments(n, shifts, f)
   logic_and_variables(n, shifts, f)
@@ -220,12 +233,12 @@ def n_bit_nested_shift_existing_file(n, shifts, f):
 
 def n_bit_nested_shift_new_file(n, shifts):
   """
-  Make a new file and write an n-bit shift proof with a chain of (shifts) shifts. 
+  Make a new file and write an n-bit shift proof with a chain of (shifts) shifts.
 
   Args:
-  n: An integer, the number of bits in each bitvector.
-  shifts: An integer, the number of nested shift operations.
-  f: The file to write into. 
+    n: An integer, the number of bits in each bitvector.
+    shifts: An integer, the number of nested shift operations.
+    f: The file to write into.
   """
   with gopen(f"shift{shifts}_2x{n}.smt2", "w") as f:
     n_bit_nested_shift_existing_file(n, shifts, f)

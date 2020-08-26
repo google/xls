@@ -1,7 +1,20 @@
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """
-This file receives an integer from --n and an integer from --chains, and creates an 
+This file receives an integer from --n and an integer from --chains, and creates an
 smt2 file containing an (n)-bit multiplier equivalence proof with (chains) nested
-mul operations. For example, to create an smt2 file for 4-bit multiplication and 
+mul operations. For example, to create an smt2 file for 4-bit multiplication and
 5 nested mul operations, we can run (after building)
 
 $ bazel-bin/xls/experimental/smtlib/n_bit_nested_mul_generator --n=4 --chains=5
@@ -10,13 +23,13 @@ Once an smt2 file is created, we can run:
 
 $ <solver command> <filename>
 
-The created smt2 file asserts that the multiplier and the builtin multiplication DO NOT 
+The created smt2 file asserts that the multiplier and the builtin multiplication DO NOT
 produce the same result, so the output we expect to see is:
 
 $ unsat
 
 meaning the multiplier and the builtin multiplication never produce different
-results. They are logically equivalent. 
+results. They are logically equivalent.
 """
 
 import sys
@@ -27,30 +40,30 @@ def description_comments(n, muls, f):
   Write comments to the top of the file describing what it does.
 
   Write comments to the top of the smt2 file describing the proof it contains:
-  the operation, how many bits in the arguments, and how many operations. 
-  
+  the operation, how many bits in the arguments, and how many operations.
+
   Args:
-  n: An integer, the number of bits in each input bitvector.
-  adders: An integer, the number of nested addition operations. 
-  f: The file to write into. 
-  """  
+    n: An integer, the number of bits in each input bitvector.
+    adders: An integer, the number of nested addition operations.
+    f: The file to write into.
+  """
   print(
-f"""; The following SMT-LIB verifies that a chain of {muls} {n}-bit multiplier 
+f"""; The following SMT-LIB verifies that a chain of {muls} {n}-bit multiplier
 ; is equivalent to SMT-LIB's built in bit-vector multiplication.
 """, file=f)
 
 def logic_and_variables(n, muls, f):
   """
-  Set the logic for the smt2 file, and declare/define variables. 
+  Set the logic for the smt2 file, and declare/define variables.
 
   Write the set-logic for the proof (QF_BV is the bitvector logic), declare the input
-  bitvector variables, and define variables for their indices. Note that x_i_j 
-  corresponds to index j of the i-th input bitvector. 
-  
+  bitvector variables, and define variables for their indices. Note that x_i_j
+  corresponds to index j of the i-th input bitvector.
+
   Args:
-  n: An integer, the number of bits in each input bitvector. 
-  adders: An integer, the number of nested addition operations. 
-  f: The file to write into. 
+    n: An integer, the number of bits in each input bitvector.
+    adders: An integer, the number of nested addition operations.
+    f: The file to write into.
   """
   print(
 f"""(set-logic QF_BV)
@@ -64,17 +77,17 @@ f"""(set-logic QF_BV)
 
 def get_concat_level_bits(i, n, mul):
   """
-  Create a string with smt2 concat operations combining the bits of the current multiplication. 
+  Create a string with smt2 concat operations combining the bits of the current multiplication.
 
-  Combine the bits of the multiplication of the current variable (at mul) by the 
-  i-th index of the previous variable. 
-  
+  Combine the bits of the multiplication of the current variable (at mul) by the
+  i-th index of the previous variable.
+
   Args:
-  i: An integer, the index of the previous variable. 
-  n: An integer, the number of bits in the bitvectors. 
-  mul: An integer, the index of the nested mul we're at. 
+    i: An integer, the index of the previous variable.
+    n: An integer, the number of bits in the bitvectors.
+    mul: An integer, the index of the nested mul we're at.
   """
-  concats = [] 
+  concats = []
   if i > 0:
     concats.append(f"(concat m_{mul}_{i}_{i} #b{'0' * i})")
   else:
@@ -88,17 +101,17 @@ def get_concat_level_bits(i, n, mul):
 
 def mul_level(i, n, mul, f):
   """
-  Define index i of the (mul)-th multiplication. 
+  Define index i of the (mul)-th multiplication.
 
-  Mutiply the current variable by the i-th index of the previous variable. This 
-  is done by evaluating each of the output bits with a boolean expression and 
+  Mutiply the current variable by the i-th index of the previous variable. This
+  is done by evaluating each of the output bits with a boolean expression and
   then concatenating them together.
 
   Args:
-  i: An integer, the index of the previous variable. 
-  n: An integer, the number of bits in the bitvectors. 
-  mul: An integer, the index of the nested mul we're at. 
-  f: The file to write into. 
+    i: An integer, the index of the previous variable.
+    n: An integer, the number of bits in the bitvectors.
+    mul: An integer, the index of the nested mul we're at.
+  f: The file to write into.
   """
   prev_var = f"m_{mul - 1}" if mul > 0 else f"x_{mul}"
   print(f"; Multiply x_{mul + 1} by {prev_var}_{i}, shifting x_{mul + 1} bits accordingly", file=f)
@@ -111,11 +124,11 @@ f"""\n; Concatenate m_{mul}_{i} bits to create mul at level {mul}_{i}
 
 def get_all_levels(n, mul):
   """
-  Return all the indices of the bitvector at (mul) to be added together. 
+  Return all the indices of the bitvector at (mul) to be added together.
 
   Args:
-  n: An integer, the number of bits in the bitvector
-  mul: An integer, the index of the nested mul we're at. 
+    n: An integer, the number of bits in the bitvector
+    mul: An integer, the index of the nested mul we're at.
   """
   bits = []
   for i in range(n-1, -1, -1):
@@ -124,15 +137,15 @@ def get_all_levels(n, mul):
 
 def make_mul(n, mul, f):
   """
-  Create the output of the (mul)-th multiplication. 
+  Create the output of the (mul)-th multiplication.
 
-  Get the bitvectors for the multiplication at each index using get_all_levels, 
-  and add them all together to produce the result at the (mul)-th level. 
+  Get the bitvectors for the multiplication at each index using get_all_levels,
+  and add them all together to produce the result at the (mul)-th level.
 
   Args:
-  n: An integer, the number of bits in the bitvector
-  mul: An integer, the index of the nested mul we're at.
-  f: The file to write into. 
+    n: An integer, the number of bits in the bitvector
+    mul: An integer, the index of the nested mul we're at.
+    f: The file to write into.
   """
   if n == 1:
     bv_string = f"{get_all_levels(n, mul)}"
@@ -145,10 +158,10 @@ f"""; Add all m bit-vectors to create mul
 
 def get_nested_expression(muls):
   """
-  Return a string representing the multiplication of all the input bitvectors. 
+  Return a string representing the multiplication of all the input bitvectors.
 
   Args:
-  muls: An integer, represents the number of nested mul operations. 
+    muls: An integer, represents the number of nested mul operations.
   """
   nested_expressions = []
   for i in range(muls):
@@ -159,16 +172,16 @@ def get_nested_expression(muls):
 
 def assert_and_check_sat(muls, f):
   """
-  Write an (unsatisfiable) assertion and tell the solver to check it. 
+  Write an (unsatisfiable) assertion and tell the solver to check it.
 
   Write the assertion that the output of the 'by-hand' multiplication, m_(muls - 1),
   does not equal the output of the builtin bvmul operation, and tell the solver
   to check the satisfiability.
-  
+
   Args:
-  n: An integer, the number of bits in each bitvector.
-  muls: An integer, the number of nested multiplication operations. 
-  f: The file to write into. 
+    n: An integer, the number of bits in each bitvector.
+    muls: An integer, the number of nested multiplication operations.
+    f: The file to write into.
   """
   print(
 f"""; Assert and solve
@@ -180,10 +193,10 @@ def n_bit_nested_mul_existing_file(n, muls, f):
   Given a file, write an n-bit multiplication proof with a chain of (muls) muls.
 
   Args:
-  n: An integer, the number of bits in each bitvector.
-  muls: An integer, the number of nested multiplication operations.
-  f: The file to write into.
-  """  
+    n: An integer, the number of bits in each bitvector.
+    muls: An integer, the number of nested multiplication operations.
+    f: The file to write into.
+  """
   description_comments(n, muls, f)
   logic_and_variables(n, muls, f)
   for mul in range(muls):
@@ -194,12 +207,12 @@ def n_bit_nested_mul_existing_file(n, muls, f):
 
 def n_bit_nested_mul_new_file(n, muls):
   """
-  Make a new file and write an n-bit multiplication proof with a chain of (muls) muls. 
+  Make a new file and write an n-bit multiplication proof with a chain of (muls) muls.
 
   Args:
-  n: An integer, the number of bits in each bitvector.
-  muls: An integer, the number of nested multiplication operations.
-  """  
+    n: An integer, the number of bits in each bitvector.
+    muls: An integer, the number of nested multiplication operations.
+  """
   with gopen(f"mul{muls}_2x{n}.smt2", "w+") as f:
     n_bit_nested_mul_existing_file(n, muls, f)
 

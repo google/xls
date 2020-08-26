@@ -1,5 +1,18 @@
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """
-This file receives an integer from --n and an integer from --chains, and creates an 
+This file receives an integer from --n and an integer from --chains, and creates an
 smt2 file containing an (n)-bit adder equivalence proof with (chains) nested
 add operations. For example, to create an smt2 file for 4-bit addition and 5
 nested add operations, we can run (after building)
@@ -10,13 +23,13 @@ Once an smt2 file is created, we can run:
 
 $ <solver command> <filename>
 
-The created smt2 file asserts that the adder and the builtin addition DO NOT 
+The created smt2 file asserts that the adder and the builtin addition DO NOT
 produce the same result, so the output we expect to see is:
 
 $ unsat
 
 meaning the adder and the builtin addition never produce different
-results. They are logically equivalent. 
+results. They are logically equivalent.
 """
 
 import sys
@@ -27,30 +40,30 @@ def description_comments(n, adders, f):
   Write comments to the top of the file describing what it does.
 
   Write comments to the top of the smt2 file describing the proof it contains:
-  the operation, how many bits in the arguments, and how many operations. 
-  
+  the operation, how many bits in the arguments, and how many operations.
+
   Args:
-  n: An integer, the number of bits in each input bitvector.
-  adders: An integer, the number of nested addition operations. 
-  f: The file to write into. 
-  """  
+    n: An integer, the number of bits in each input bitvector.
+    adders: An integer, the number of nested addition operations.
+    f: The file to write into.
+  """
   print(
-f"""; The following SMT-LIB verifies that a chain of {adders} {n}-bit adder 
+f"""; The following SMT-LIB verifies that a chain of {adders} {n}-bit adder
 ; is equivalent to SMT-LIB's built in bit-vector addition.
 """, file=f)
 
 def logic_and_variables(n, adders, f):
   """
-  Set the logic for the smt2 file, and declare/define variables. 
+  Set the logic for the smt2 file, and declare/define variables.
 
   Write the set-logic for the proof (QF_BV is the bitvector logic), declare the input
-  bitvector variables, and define variables for their indices. Note that x_i_j 
-  corresponds to index j of the i-th input bitvector. 
-  
+  bitvector variables, and define variables for their indices. Note that x_i_j
+  corresponds to index j of the i-th input bitvector.
+
   Args:
-  n: An integer, the number of bits in each input bitvector. 
-  adders: An integer, the number of nested addition operations. 
-  f: The file to write into. 
+    n: An integer, the number of bits in each input bitvector.
+    adders: An integer, the number of nested addition operations.
+    f: The file to write into.
   """
   print(
 f"""(set-logic QF_BV)
@@ -67,9 +80,9 @@ def half_adder(bit, adder, f):
   Write a half adder for adder (adder) in the chain at bit (bit).
 
   Args:
-  bit: An integer, represents the current index. 
-  adder: An integer, represents the index of the add that we're at in the chain.
-  f: The file to write into. 
+    bit: An integer, represents the current index.
+    adder: An integer, represents the index of the add that we're at in the chain.
+    f: The file to write into.
   """
   prev_var = f"s_{adder - 1}" if adder > 0 else f"x_{adder}"
   print(
@@ -80,12 +93,12 @@ f"""; Half adder for bit {bit} at adder {adder}
 
 def full_adder(bit, adder, f):
   """
-  Write a full adder for adder (adder) in the chain at bit (bit).
-  
+  Write a full adder for adder "adder" in the chain at bit "bit".
+
   Args:
-  bit: An integer, represents the current index. 
-  adder: An integer, represents the index of the add that we're at in the chain.
-  f: The file to write into. 
+    bit: An integer, represents the current index.
+    adder: An integer, represents the index of the add that we're at in the chain.
+    f: The file to write into.
   """
   prev_var = f"s_{adder - 1}" if adder > 0 else f"x_{adder}"
   print(
@@ -99,9 +112,9 @@ def get_concat_level_bits(n, adder):
   Create a string of smt2 concat operations for the bits of the sum at the given adder.
 
   Args:
-  n: An integer, the number of bits to concatenate
-  adder: An integer, represents the index of the add that we're at in the chain.
-  """
+    n: An integer, the number of bits to concatenate
+    adder: An integer, represents the index of the add that we're at in the chain.
+    """
   concats = [f"s_{adder}_0"]
   for i in range(1, n):
     rhs = concats[i - 1]
@@ -114,8 +127,8 @@ def level_sum(n, adder, f):
   Write the result sum at adder (adder), concatenating the output bits using get_concat_level_bits.
 
   Args:
-  n: An integer, the number of bits for the bitvector representing the sum.
-  adder: An integer, represents the index of the add that we're at in the chain. 
+    n: An integer, the number of bits for the bitvector representing the sum.
+    adder: An integer, represents the index of the add that we're at in the chain.
   """
   print(
 f"""; Concatenate s_{adder} bits to create sum at level {adder}
@@ -124,10 +137,10 @@ f"""; Concatenate s_{adder} bits to create sum at level {adder}
 
 def get_nested_expression(adders):
   """
-  Return a string representing the addition of all the input bitvectors. 
-  
+  Return a string representing the addition of all the input bitvectors.
+
   Args:
-  adders: An integer, the number of nested addition operations. 
+    adders: An integer, the number of nested addition operations.
   """
   nested_expressions = []
   for i in range(adders):
@@ -138,16 +151,16 @@ def get_nested_expression(adders):
 
 def assert_and_check_sat(n, adders, f):
   """
-  Write an (unsatisfiable) assertion and tell the solver to check it. 
+  Write an (unsatisfiable) assertion and tell the solver to check it.
 
   Write the assertion that the output of the 'by-hand' addition, s_(adders - 1),
   does not equal the output of the builtin bvadd operation, and tell the solver
   to check the satisfiability.
-  
+
   Args:
-  n: An integer, the number of bits in each bitvector.
-  adders: An integer, the number of nested addition operations. 
-  f: The file to write into. 
+    n: An integer, the number of bits in each bitvector.
+    adders: An integer, the number of nested addition operations.
+    f: The file to write into.
   """
   print(
 f"""; Compare {n}-bit adder result and internal addition and solve
@@ -159,9 +172,9 @@ def n_bit_nested_add_existing_file(n, adders, f):
   Given a file, write an n-bit addition proof with a chain of (adders) adds.
 
   Args:
-  n: An integer, the number of bits in each bitvector.
-  adders: An integer, the number of nested addition operations.
-  f: The file to write into.
+    n: An integer, the number of bits in each bitvector.
+    adders: An integer, the number of nested addition operations.
+    f: The file to write into.
   """
   description_comments(n, adders, f)
   logic_and_variables(n, adders, f)
@@ -174,12 +187,12 @@ def n_bit_nested_add_existing_file(n, adders, f):
 
 def n_bit_nested_add_new_file(n, adders):
   """
-  Make a new file and write an n-bit addition proof with a chain of (adders) adds. 
+  Make a new file and write an n-bit addition proof with a chain of (adders) adds.
 
   Args:
-  n: An integer, the number of bits in each bitvector.
-  adders: An integer, the number of nested addition operations.
-  f: The file to write into. 
+    n: An integer, the number of bits in each bitvector.
+    adders: An integer, the number of nested addition operations.
+    f: The file to write into.
   """
   with gopen(f"add{adders}_2x{n}.smt2", "w") as f:
     n_bit_nested_add_existing_file(n, adders, f)

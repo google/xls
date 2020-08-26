@@ -24,7 +24,7 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
-py_binary(
+py_library(
     name = "flags_checks",
     srcs = [
         "flags_checks.py",
@@ -60,7 +60,7 @@ py_binary(
     ],
 )
 
-py_binary(
+py_library(
   name = "n_bit_nested_add_generator",
   srcs = [
       "n_bit_nested_add_generator.py",
@@ -71,7 +71,7 @@ py_binary(
   ],
 )
 
-py_binary(
+py_library(
   name = "n_bit_nested_mul_generator",
   srcs = [
       "n_bit_nested_mul_generator.py",
@@ -82,7 +82,7 @@ py_binary(
   ],
 )
 
-py_binary(
+py_library(
   name = "n_bit_nested_shift_generator",
   srcs = [
       "n_bit_nested_shift_generator.py",
@@ -93,12 +93,12 @@ py_binary(
   ],
 )
 
-py_binary(
+py_library(
   name = "solvers_op_comparison_functions",
   srcs = [
       "solvers_op_comparison_functions.py",
   ],
-  python_version = "PY3", 
+  python_version = "PY3",
 )
 
 py_binary(

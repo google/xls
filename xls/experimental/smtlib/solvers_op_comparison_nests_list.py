@@ -1,3 +1,17 @@
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 This file takes in 5 flags:
 
@@ -13,7 +27,7 @@ This file takes in 5 flags:
          to the end of the file)
 
 This script creates smt2 files for each proof, runs each of the solvers on these
-smt2 files, and stores the speed of each solver on each smt2 file in a csv file. 
+smt2 files, and stores the speed of each solver on each smt2 file in a csv file.
 This data can then be plotted using plot_csv_solver_speed_data.py.
 """
 import os
@@ -49,10 +63,10 @@ flags.mark_flag_as_required("solvers")
 
 def create_and_get_smt_files_nests_list(op, nests_list, bits_val):
   """
-  Create smt2 files for the necessary proof and return them in a list. 
+  Create smt2 files for the necessary proof and return them in a list.
 
   Given an operation, a list of nest values, and the number of bits, create smt2
-  files for each proof, and return them in a list. 
+  files for each proof, and return them in a list.
 
   Args:
   op: A string, the operation to test ('add', 'mul', or 'shl')
@@ -77,8 +91,8 @@ def csv_solvers_speeds_nests_list(op, nests_list, bits_val, solvers, fname):
   """
   Create smt2 files for each proof, test the solvers, and write the data to a csv file.
 
-  Create smt2 files for each of the nest values in nests_list with the 
-  given operation and the input bitvector length, get the average speeds of 
+  Create smt2 files for each of the nest values in nests_list with the
+  given operation and the input bitvector length, get the average speeds of
   each of the solvers on these proofs, and store the data in a csv file with fname.
 
   Args:

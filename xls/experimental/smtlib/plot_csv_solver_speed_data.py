@@ -1,9 +1,22 @@
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """
-This file contains a function that takes in a csv file and plots the data in within it. 
+This file contains a function that takes in a csv file and plots the data in within it.
 
 This file is meant to be used in conjunction with solvers_op_comparison_bits_list.py and
 solvers_op_comparison_nests_list.py. Those two files produce the data as csv files, and
-this file reads that data and plots it. 
+this file reads that data and plots it.
 
 This file takes in three flags:
 
@@ -24,21 +37,19 @@ FLAGS = flags.FLAGS
 
 flags.DEFINE_string("fname", None, "csv file with data to plot")
 flags.mark_flag_as_required("fname")
-
 flags.DEFINE_string("xscale", "linear", "x-axis scale: 'linear' or 'log' (base 2)")
-
 flags.DEFINE_string("yscale", "linear", "y-axis scale: 'linear' or 'log' (base 10)")
 
 def plot_csv_data(fname):
   """
-  Plot the contents of the csv file fname. 
+  Plot the contents of the csv file fname.
 
   Given a csv file, takes the first row as the values for the x-axis, and each of the
-  following rows as data for a solver. Assumes the first element in each row is the 
-  name of the solver. 
+  following rows as data for a solver. Assumes the first element in each row is the
+  name of the solver.
 
   Args:
-  fname: The name of the file containing the data to plot. 
+  fname: The name of the file containing the data to plot.
   """
   with gopen(fname, "r") as csv_file:
     csv_reader = csv.reader(csv_file, delimiter=",")
