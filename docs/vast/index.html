@@ -9,7 +9,7 @@
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
       
-        <link rel="canonical" href="https://google.github.io/xls/fpadd_example/">
+        <link rel="canonical" href="https://google.github.io/xls/vast/">
       
       
       <link rel="shortcut icon" href="../assets/images/favicon.png">
@@ -17,7 +17,7 @@
     
     
       
-        <title>FP adder - XLS: Accelerated HW Synthesis</title>
+        <title>VAST - XLS: Accelerated HW Synthesis</title>
       
     
     
@@ -51,7 +51,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#dslx-example-floating-point-addition" class="md-skip">
+        <a href="#verilog-abstract-syntax-tree-vast" class="md-skip">
           Skip to content
         </a>
       
@@ -79,7 +79,7 @@
           </span>
           <span class="md-header-nav__topic md-ellipsis">
             
-              FP adder
+              VAST
             
           </span>
         </div>
@@ -375,12 +375,10 @@
       
       
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+  <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3" checked>
+      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3">
     
     <label class="md-nav__link" for="nav-3">
       DSLX
@@ -414,12 +412,10 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+  <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-3-2" type="checkbox" id="nav-3-2" checked>
+      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-3-2" type="checkbox" id="nav-3-2">
     
     <label class="md-nav__link" for="nav-3-2">
       Examples
@@ -453,80 +449,11 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active">
-    
-    <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
-    
-      
-    
-    
-      <label class="md-nav__link md-nav__link--active" for="__toc">
-        FP adder
-        <span class="md-nav__icon md-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 9h14V7H3v2m0 4h14v-2H3v2m0 4h14v-2H3v2m16 0h2v-2h-2v2m0-10v2h2V7h-2m0 6h2v-2h-2v2z"/></svg>
-        </span>
-      </label>
-    
-    <a href="./" title="FP adder" class="md-nav__link md-nav__link--active">
+  <li class="md-nav__item">
+    <a href="../fpadd_example/" title="FP adder" class="md-nav__link">
       FP adder
     </a>
-    
-      
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
-      </span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#background" class="md-nav__link">
-    Background
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#dslx-implementation" class="md-nav__link">
-    DSLX implementation
-  </a>
-  
-    <nav class="md-nav" aria-label="DSLX implementation">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#result-sign-determination" class="md-nav__link">
-    Result sign determination
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rounding" class="md-nav__link">
-    Rounding
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-    
   </li>
 
         
@@ -568,10 +495,12 @@
       
       
 
+  
 
-  <li class="md-nav__item md-nav__item--nested">
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
     
-      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
+      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4" checked>
     
     <label class="md-nav__link" for="nav-4">
       Code Generation
@@ -593,11 +522,87 @@
           
           
 
+  
 
-  <li class="md-nav__item">
-    <a href="../vast/" title="VAST" class="md-nav__link">
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="__toc">
+        VAST
+        <span class="md-nav__icon md-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 9h14V7H3v2m0 4h14v-2H3v2m0 4h14v-2H3v2m16 0h2v-2h-2v2m0-10v2h2V7h-2m0 6h2v-2h-2v2z"/></svg>
+        </span>
+      </label>
+    
+    <a href="./" title="VAST" class="md-nav__link md-nav__link--active">
       VAST
     </a>
+    
+      
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+      </span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#vast-overview" class="md-nav__link">
+    VAST Overview
+  </a>
+  
+    <nav class="md-nav" aria-label="VAST Overview">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#operator-precedence" class="md-nav__link">
+    Operator Precedence
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#containers" class="md-nav__link">
+    Containers
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#emitting-verilog-text" class="md-nav__link">
+    Emitting Verilog text
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sytemverilog-support" class="md-nav__link">
+    SytemVerilog support
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+    
   </li>
 
         
@@ -764,30 +769,37 @@
     <ul class="md-nav__list" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#background" class="md-nav__link">
-    Background
+  <a href="#vast-overview" class="md-nav__link">
+    VAST Overview
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#dslx-implementation" class="md-nav__link">
-    DSLX implementation
-  </a>
-  
-    <nav class="md-nav" aria-label="DSLX implementation">
+    <nav class="md-nav" aria-label="VAST Overview">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#result-sign-determination" class="md-nav__link">
-    Result sign determination
+  <a href="#operator-precedence" class="md-nav__link">
+    Operator Precedence
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#rounding" class="md-nav__link">
-    Rounding
+  <a href="#containers" class="md-nav__link">
+    Containers
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#emitting-verilog-text" class="md-nav__link">
+    Emitting Verilog text
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sytemverilog-support" class="md-nav__link">
+    SytemVerilog support
   </a>
   
 </li>
@@ -809,7 +821,7 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/google/xls/tree/main/docs_src/fpadd_example.md" title="Edit this page" class="md-content__button md-icon">
+                  <a href="https://github.com/google/xls/tree/main/docs_src/vast.md" title="Edit this page" class="md-content__button md-icon">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
                   </a>
                 
@@ -817,107 +829,89 @@
                   
                 
                 
-                <h1 id="dslx-example-floating-point-addition">DSLX Example: Floating-point addition</h1>
-<p>This document explains how floating-point addition is implemented in DSLX, along
-with a discussion on the algorithm and how it maps to DSLX.</p>
-<p>This document assumes familiarity with floating-point numbers in general
-(layout, precision, error, etc.).</p>
-<div class="toc">
+                <h1 id="verilog-abstract-syntax-tree-vast">Verilog Abstract Syntax Tree (VAST)</h1>
+<p>XLS outputs Verilog (or SystemVerilog) for synthesis and simulation. As a lowest
+common denominator, Verilog output enables XLS generated designs to integrate
+into existing design flows. To make generation of Verilog easier, XLS includes
+an abstract representation of Verilog called VAST (Verilog Abstract Syntax
+Tree). VAST is a C++ library which represents Verilog in a recursive tree data
+structure which is simple to construct and manipulate programmatically. Verilog
+source code is emitted directly from the VAST data structure.</p>
+<p>VAST is intentionally not a complete representation of the Verilog language.
+VAST is used to emit Verilog for the purposes of code generation within XLS.
+Given this limited use case, VAST is much smaller and simpler than a complete
+representation of the entire Verilog language as might be required for a parser,
+for example.</p>
+<h2 id="vast-overview">VAST Overview</h2>
+<p>Each supported Verilog construct is represented with a C++ class. These classes
+form a type heirarchy with the class <code>VastNode</code> at the root. Objects are
+gathered in tree-shaped structures to represent Verilog constructs. Ownership of
+all VAST objects is maintained by a <code>VerilogFile</code> object which represents a
+single file of Verilog source code. References between objects are stored as
+plain pointers.</p>
+<p>For example, consider the following Verilog expression:</p>
+<pre><code>  foo + 8
+</code></pre>
+
+<p>In VAST, this is represented with an object of the <code>BinaryInfix</code> class which is
+derived from the <code>Expression</code> class representing arbitrary Verilog expressions.
+A <code>BinaryInfix</code> object has three relevant data members:</p>
+<p><code>std::string op_;</code>
+:   The string representation of the operation to perform (e.g., <code>+</code>).</p>
+<p><code>Expression* lhs_;</code>
+:   The left-hand-side of the expression. In this example, this points to a
+    <code>LogicRef</code> object (derived from <code>Expression</code> class) referring to a Verilog
+    <code>reg</code> or <code>wire</code> variable.</p>
+<p><code>Expression* rhs_;</code>
+:   The left-hand-side of the expression. In this example, this points to a
+    <code>Literal</code> object (derived from <code>Expression</code> class) containing the number 8
+    with unspecified bit width.</p>
+<p>The <code>BinaryInfix</code> object representing <code>foo + 8</code> might be used within other
+expressions or statements by referring to the object by pointer. For example,
+the representation of the statement <code>assign bar = foo + 8</code> would contain an
+<code>Expression*</code> pointer referring to the <code>foo + 8</code> object for the right-hand-side
+of the assignment.</p>
+<h3 id="operator-precedence">Operator Precedence</h3>
+<p>To avoid ambiguity, operators in Verilog follow precedence rules. For example,
+multiplication is higher precendence than addition so the expression <code>2 + 4 *
+10</code> evaluates to <code>42</code> (i.e., <code>2 + (4 * 10)</code>) not <code>60</code> (i.e., <code>(2 + 4) * 10</code>). In
+VAST, expressions are built as a trees which is evaluated from the leaves to the
+root. To ensure that the operations are evaluated in the correct order when
+emitted as Verilog text, VAST automatically adds parentheses where appropriate.
+For example, the VAST expression consisting of the product (<code>BinaryInfix</code> with
+operation <code>*</code>) of <code>10</code> and the sum of <code>2</code> and <code>4</code> (<code>BinaryInfix</code> with operation
+<code>+</code>) will be emitted as <code>10 * (2 + 4)</code>.</p>
+<h3 id="containers">Containers</h3>
+<p>VAST has a number of classes which hold a sequence of (pointers to) other VAST
+objects. At the top-level, this includes the <code>VerilogFile</code> class which can hold
+a sequence of objects such as include statements and modules. Verilog modules
+themselves are represented with the <code>Module</code> class containing a sequence of
+statements, declarations, comments, and other constructs. Other containers
+include always blocks and functions.</p>
+<h3 id="emitting-verilog-text">Emitting Verilog text</h3>
+<p>VAST classes include an <code>Emit</code> method which returns the represented Verilog
+construct as a string. Typically, <code>Emit</code> is called on the top-level
+<code>VerilogFile</code> object to create the text of the entire Verilog source file.
+Underneath the hood, this method calls the <code>Emit</code> method on all contained VAST
+objects and assembles the returned strings into the Verilog source code.</p>
+<h3 id="sytemverilog-support">SytemVerilog support</h3>
+<p>XLS can emit either Verilog or SystemVerilog so VAST supports both languages.
+SystemVerilog constructs are included alongside Verilog constructs in VAST.
+Examples of SystemVerilog features supported by VAST include:</p>
 <ul>
-<li><a href="#dslx-example-floating-point-addition">DSLX Example: Floating-point addition</a><ul>
-<li><a href="#background">Background</a></li>
-<li><a href="#dslx-implementation">DSLX implementation</a><ul>
-<li><a href="#result-sign-determination">Result sign determination</a></li>
-<li><a href="#rounding">Rounding</a></li>
+<li><code>always_ff</code> procedure for modeling sequential logic (VAST <code>AlwaysFlop</code>
+    class).</li>
 </ul>
-</li>
+<ul>
+<li>Array assignment pattern (VAST <code>ArrayAssignmentPattern</code> class). Example:
+    <code>'{foo, bar, baz}</code></li>
 </ul>
-</li>
+<ul>
+<li>Array declaration using sizes. Example: <code>reg [7:0] foo[42];</code></li>
 </ul>
-</div>
-<h2 id="background">Background</h2>
-<p>Floating-point addition, like any FP operation, is much more complicated than
-integer addition, and has many more steps.</p>
-<ol>
-<li>Expand significands: Floating-point operations are computed with bits beyond
-    that in their normal representations for increased precision. For IEEE 754
-    numbers, there are three extra, called the guard, rounding and sticky bits.
-    The first two behave normally, but the last, the "sticky" bit, is special.
-    During shift operations (below), if a "1" value is ever shifted into the
-    sticky bit, it "sticks" - the bit will remain "1" through any further shift
-    operations. In this step, the significands are expanded by these three bits.</li>
-<li>Align significands: To ensure that significands are added with appropriate
-    magnitudes, they must be aligned according to their exponents. To do so, the
-    smaller significant needs to be shifted to the right (each right shift is
-    equivalent to increasing the exponent by one).
-    -   The extra precision bits are populated in this shift.
-    -   As part of this step, the leading 1 bit... and a sign bit Note: The
-        sticky bit is calculated and applied in this step.</li>
-<li>Sign-adjustment: if the significands differ in sign, then the significand
-    with the smaller initial exponent needs to be (two's complement) negated.</li>
-<li>Add the significands and capture the carry bit. Note that, if the signs of
-    the significands differs, then this could result in higher bits being
-    cleared.</li>
-<li>Normalize the significands: Shift the result so that the leading '1' is
-    present in the proper space. This means shifting right one place if the
-    result set the carry bit, and to the left some number of places if high bits
-    were cleared.
-    -   The sticky bit must be preserved in any of these shifts!</li>
-<li>Rounding: Here, the extra precision bits are examined to determine if the
-    result significand's last bit should be rounded up. IEEE 754 supports five
-    rounding modes:
-    -   Round towards 0: just chop off the extra precision bits.
-    -   Round towards +infinity: round up if any extra precision bits are set.
-    -   Round towards -infinity: round down if any extra precision bits are set.
-    -   Round to nearest, ties away from zero: Rounds to the nearest value. In
-        cases where the extra precision bits are halfway between values, i.e.,
-        0b100, then the result is rounded up for positive numbers and down for
-        negative ones.
-    -   Round to nearest, ties to even: Rounds to the nearest value. In cases
-        where the extra precision bits are halfway between values, then the
-        result is rounded in whichever direction causes the LSB of the result
-        significant to be 0.
-        -   This is the most commonly-used rounding mode.
-        -   This is [currently] the only supported mode by the DSLX
-            implementation.</li>
-<li>Special case handling: The results are examined for special cases such as
-    NaNs, infinities, or (optionally) subnormals.</li>
-</ol>
-<h2 id="dslx-implementation">DSLX implementation</h2>
-<p>With an understanding of the algorithm above, the DSLX implementation is
-relatively straightforward. "Interesting" chunks are described below.</p>
-<h3 id="result-sign-determination">Result sign determination</h3>
-<p>The sign of the result will normally be the same as the sign of the operand with
-the greater exponent, but there are two extra cases to consider. If the operands
-have the same exponent, then the sign will be that of the greater significand,
-and if the result is 0, then we favor positive 0 vs. negative 0.</p>
-<pre><code>  let sfd = (addend_x as s29) + (addend_y as s29);
-  let sfd_is_zero = sfd == s29:0;
-  let result_sign = match (sfd_is_zero, sfd &lt; s29:0) {
-    (true, _) =&gt; u1:0;
-    (false, true) =&gt; !greater_exp.sign;
-    _ =&gt; greater_exp.sign;
-  };
-</code></pre>
-
-<h3 id="rounding">Rounding</h3>
-<p>As complicated as rounding is to describe, its implementation is relatively
-straightforward.</p>
-<pre><code>  let normal_chunk = shifted_sfd[0:3];
-  let half_way_chunk = shifted_sfd[2:4];
-  let do_round_up =
-      u1:1 if (normal_chunk &gt; u3:0x4) | (half_way_chunk == u2:0x3)
-      else u1:0;
-
-  // We again need an extra bit for carry.
-  let rounded_sfd = (shifted_sfd as u28) + u28:0x8 if do_round_up
-      else (shifted_sfd as u28);
-  let rounding_carry = rounded_sfd[-1:];
-</code></pre>
-
-<p>The behavior of logic descriptions - even in a higher level language such as
-DSLX - can be non-obvious to a new reader, so extensive comments, such as those
-here, are invaluable.</p>
+<p>Within VAST, there is no distinction between the two languages and it is up to
+the user of VAST to only use the supported features for the target language
+(Verilog or SystemVerilog).</p>
                 
               
               
@@ -936,7 +930,7 @@ here, are invaluable.</p>
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid" aria-label="Footer">
         
-          <a href="../dslx_intro_example1/" title="CRC32" class="md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../fuzzer/" title="Fuzzer" class="md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-footer-nav__button md-icon">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
             </div>
@@ -945,19 +939,19 @@ here, are invaluable.</p>
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                CRC32
+                Fuzzer
               </div>
             </div>
           </a>
         
         
-          <a href="../dslx_intro_example3/" title="Prefix Scan" class="md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="../build_system/" title="Build System" class="md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-footer-nav__title">
               <div class="md-ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                Prefix Scan
+                Build System
               </div>
             </div>
             <div class="md-footer-nav__button md-icon">
