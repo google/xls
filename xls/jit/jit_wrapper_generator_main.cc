@@ -26,7 +26,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/ir_parser.h"
-#include "xls/ir/jit_wrapper_generator.h"
+#include "xls/jit/jit_wrapper_generator.h"
 
 ABSL_FLAG(std::string, class_name, "",
           "Name of the generated class. "

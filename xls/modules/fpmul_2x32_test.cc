@@ -22,7 +22,6 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/ir/llvm_ir_jit.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/ir/value_view_helpers.h"
 #include "xls/modules/fpmul_2x32_jit_wrapper.h"

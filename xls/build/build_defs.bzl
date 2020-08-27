@@ -207,9 +207,9 @@ def dslx_jit_wrapper(
             name + ".h",
             name + ".cc",
         ],
-        cmd = "$(location //xls/ir:jit_wrapper_generator_main) -ir_path $(SRCS) %s -class_name %s -output_name %s -output_dir $(@D)" % (entry_arg, dslx_name, name),
+        cmd = "$(location //xls/jit:jit_wrapper_generator_main) -ir_path $(SRCS) %s -class_name %s -output_name %s -output_dir $(@D)" % (entry_arg, dslx_name, name),
         exec_tools = [
-            "//xls/ir:jit_wrapper_generator_main",
+            "//xls/jit:jit_wrapper_generator_main",
         ],
     )
 
@@ -222,10 +222,10 @@ def dslx_jit_wrapper(
             "//xls/common/status:status_macros",
             "//xls/common/status:statusor",
             "//xls/ir",
-            "//xls/ir:llvm_ir_jit",
             "//xls/ir:ir_parser",
             "//xls/ir:value",
             "//xls/ir:value_view",
+            "//xls/jit:llvm_ir_jit",
         ],
     )
 

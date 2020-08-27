@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_IR_LLVM_IR_JIT_H_
-#define XLS_IR_LLVM_IR_JIT_H_
+#ifndef XLS_JIT_LLVM_IR_JIT_H_
+#define XLS_JIT_LLVM_IR_JIT_H_
 
 #include "absl/status/status.h"
 #include "absl/types/span.h"
@@ -29,11 +29,11 @@
 #include "llvm/Target/TargetMachine.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function.h"
-#include "xls/ir/llvm_ir_runtime.h"
-#include "xls/ir/llvm_type_converter.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_view.h"
+#include "xls/jit/llvm_ir_runtime.h"
+#include "xls/jit/llvm_type_converter.h"
 
 namespace xls {
 
@@ -208,4 +208,4 @@ xabsl::StatusOr<std::pair<std::vector<std::vector<Value>>, std::vector<Value>>>
 CreateAndQuickCheck(Function* xls_function, int64 seed, int64 num_tests);
 }  // namespace xls
 
-#endif  // XLS_IR_LLVM_IR_JIT_H_
+#endif  // XLS_JIT_LLVM_IR_JIT_H_

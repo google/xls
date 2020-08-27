@@ -28,8 +28,8 @@
 #include "xls/common/status/statusor.h"
 #include "xls/ir/ir_interpreter.h"
 #include "xls/ir/ir_parser.h"
-#include "xls/ir/llvm_ir_jit.h"
 #include "xls/ir/value_helpers.h"
+#include "xls/jit/llvm_ir_jit.h"
 #include "xls/passes/passes.h"
 #include "xls/passes/standard_pipeline.h"
 

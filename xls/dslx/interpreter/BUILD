@@ -156,8 +156,8 @@ py_library(
         "//xls/dslx:parametric_instantiator",
         "//xls/dslx:scanner",
         "//xls/dslx:span",
-        "//xls/ir/python:llvm_ir_jit",
         "//xls/ir/python:package",
+        "//xls/jit/python:llvm_ir_jit",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -172,9 +172,9 @@ py_library(
         "//xls/dslx:concrete_type",
         "//xls/dslx/interpreter:value",
         "//xls/ir/python:bits",
-        "//xls/ir/python:llvm_ir_jit",
         "//xls/ir/python:number_parser",
         "//xls/ir/python:value",
+        "//xls/jit/python:llvm_ir_jit",
         "@com_google_absl_py//absl/logging",
     ],
 )

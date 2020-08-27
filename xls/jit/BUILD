@@ -1,0 +1,146 @@
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Build rules for the IR JIT - converts XLS IR into native host code.
+
+package(
+    default_visibility = ["//xls:xls_internal"],
+    licenses = ["notice"],  # Apache 2.0
+)
+
+cc_library(
+    name = "jit_wrapper_generator",
+    srcs = ["jit_wrapper_generator.cc"],
+    hdrs = ["jit_wrapper_generator.h"],
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "//xls/ir",
+    ],
+)
+
+cc_binary(
+    name = "jit_wrapper_generator_main",
+    srcs = ["jit_wrapper_generator_main.cc"],
+    deps = [
+        ":jit_wrapper_generator",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir:ir_parser",
+    ],
+)
+
+cc_library(
+    name = "llvm_ir_jit",
+    srcs = ["llvm_ir_jit.cc"],
+    hdrs = ["llvm_ir_jit.h"],
+    deps = [
+        ":llvm_ir_runtime",
+        ":llvm_type_converter",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "//xls/codegen:vast",
+        "//xls/common:integral_types",
+        "//xls/common:math_util",
+        "//xls/common/logging",
+        "//xls/common/logging:log_lines",
+        "//xls/common/logging:vlog_is_on",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:keyword_args",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "//xls/ir:value_helpers",
+        "//xls/ir:value_view",
+        "@llvm//:Analysis",
+        "@llvm//:Core",
+        "@llvm//:ExecutionEngine",
+        "@llvm//:IPO",
+        "@llvm//:JITLink",  # build_cleaner: keep
+        "@llvm//:OrcJIT",
+        "@llvm//:Support",
+        "@llvm//:Target",
+        "@llvm//:X86AsmParser",  # build_cleaner: keep
+        "@llvm//:X86CodeGen",  # build_cleaner: keep
+    ],
+)
+
+cc_test(
+    name = "llvm_ir_jit_test",
+    srcs = ["llvm_ir_jit_test.cc"],
+    shard_count = 8,
+    deps = [
+        ":llvm_ir_jit",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/strings",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir:ir_evaluator_test",
+        "//xls/ir:value_helpers",
+        "@com_google_re2//:re2",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "llvm_ir_runtime",
+    srcs = ["llvm_ir_runtime.cc"],
+    hdrs = ["llvm_ir_runtime.h"],
+    deps = [
+        ":llvm_type_converter",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "//xls/common:integral_types",
+        "//xls/ir:format_preference",
+        "//xls/ir:ir_parser",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "@llvm//:Core",
+        "@llvm//:OrcJIT",
+        "@llvm//:Support",
+        "@llvm//:Target",
+        "@llvm//:X86AsmParser",  # build_cleaner: keep
+        "@llvm//:X86CodeGen",  # build_cleaner: keep
+    ],
+)
+
+cc_library(
+    name = "llvm_type_converter",
+    srcs = ["llvm_type_converter.cc"],
+    hdrs = ["llvm_type_converter.h"],
+    deps = [
+        "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
+        "//xls/common:integral_types",
+        "//xls/common/logging",
+        "//xls/common/status:statusor",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "@llvm//:Core",
+    ],
+)

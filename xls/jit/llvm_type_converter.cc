@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/ir/llvm_type_converter.h"
+#include "xls/jit/llvm_type_converter.h"
 
 #include "llvm/IR/DerivedTypes.h"
 #include "xls/common/logging/logging.h"

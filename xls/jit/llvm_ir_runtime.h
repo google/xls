@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_IR_LLVM_IR_RUNTIME_H_
-#define XLS_IR_LLVM_IR_RUNTIME_H_
+#ifndef XLS_JIT_LLVM_IR_RUNTIME_H_
+#define XLS_JIT_LLVM_IR_RUNTIME_H_
 
 #include "absl/status/status.h"
 #include "absl/types/span.h"
@@ -21,9 +21,9 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Support/raw_ostream.h"
 #include "xls/common/integral_types.h"
-#include "xls/ir/llvm_type_converter.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/jit/llvm_type_converter.h"
 
 namespace xls {
 
@@ -93,4 +93,4 @@ int UnpackAndPrintBuffer(const char* output_type_string, int arg_count,
 
 }  // namespace xls
 
-#endif  // XLS_IR_LLVM_IR_RUNTIME_H_
+#endif  // XLS_JIT_LLVM_IR_RUNTIME_H_

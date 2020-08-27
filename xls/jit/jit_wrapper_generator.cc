@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "xls/ir/jit_wrapper_generator.h"
+#include "xls/jit/jit_wrapper_generator.h"
 
 #include "absl/strings/substitute.h"
 
@@ -195,10 +195,10 @@ std::string GenerateWrapperHeader(const Function& function,
 
 #include "absl/status/status.h"
 #include "xls/common/status/statusor.h"
-#include "xls/ir/llvm_ir_jit.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_view.h"
+#include "xls/jit/llvm_ir_jit.h"
 
 namespace xls {
 

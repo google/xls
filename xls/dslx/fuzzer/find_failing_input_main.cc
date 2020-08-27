@@ -26,9 +26,9 @@
 #include "xls/ir/function.h"
 #include "xls/ir/ir_interpreter.h"
 #include "xls/ir/ir_parser.h"
-#include "xls/ir/llvm_ir_jit.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
+#include "xls/jit/llvm_ir_jit.h"
 
 const char kUsage[] = R"(
 Runs an IR function with a set of inputs through both the JIT and the

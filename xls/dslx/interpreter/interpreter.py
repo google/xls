@@ -60,8 +60,8 @@ from xls.dslx.parametric_expression import ParametricSymbol
 from xls.dslx.parametric_instantiator import SymbolicBindings
 from xls.dslx.span import Pos
 from xls.dslx.span import Span
-from xls.ir.python import llvm_ir_jit
 from xls.ir.python import package as ir_package_mod
+from xls.jit.python import llvm_ir_jit
 
 
 class _WipSentinel(object):

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_IR_LLVM_TYPE_CONVERTER_H_
-#define XLS_IR_LLVM_TYPE_CONVERTER_H_
+#ifndef XLS_JIT_LLVM_TYPE_CONVERTER_H_
+#define XLS_JIT_LLVM_TYPE_CONVERTER_H_
 
 #include "absl/container/inlined_vector.h"
 #include "absl/status/status.h"
@@ -69,4 +69,4 @@ class LlvmTypeConverter {
 
 }  // namespace xls
 
-#endif  // XLS_IR_LLVM_TYPE_CONVERTER_H_
+#endif  // XLS_JIT_LLVM_TYPE_CONVERTER_H_

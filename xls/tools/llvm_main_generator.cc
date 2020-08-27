@@ -45,7 +45,7 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/ir/llvm_ir_runtime.h"
+#include "xls/jit/llvm_ir_runtime.h"
 
 ABSL_FLAG(
     std::string, entry_function, "sample::__sample__main",

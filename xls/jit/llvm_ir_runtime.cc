@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/ir/llvm_ir_runtime.h"
+#include "xls/jit/llvm_ir_runtime.h"
 
 #include "absl/strings/str_format.h"
 #include "llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
