@@ -178,6 +178,7 @@ project:
 * [Brandon Jiang](https://github.com/brajiang)
 * [Chris Leary](https://github.com/cdleary)
 * [Derek Lockhart](https://github.com/dmlockhart)
+* [Felix Zhu](https://github.com/felixzhuologist)
 * [Hans Montero](https://github.com/hmontero1205)
 * [Jonathan Bailey](https://github.com/jbaileyhandle)
 * [Julian Viera](https://github.com/julianviera99)
