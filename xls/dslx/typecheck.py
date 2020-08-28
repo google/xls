@@ -151,7 +151,7 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
     if isinstance(map_fn_ref, ast.ModRef):
       imported_module, imported_node_to_type = ctx.node_to_type.get_imported(
           map_fn_ref.mod)
-      map_fn_name = map_fn_ref.value_tok.value
+      map_fn_name = map_fn_ref.value
       map_fn = imported_module.get_function(map_fn_name)
       higher_order_parametric_bindings = map_fn.parametric_bindings
     else:

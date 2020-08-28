@@ -82,7 +82,7 @@ class AstGeneratorOptions(object):
                max_width_bits_types: int = 64,
                max_width_aggregate_types: int = 1024,
                emit_loops: bool = True,
-               binop_allowlist: Optional[Sequence[scanner.TokenKind]] = None,
+               binop_allowlist: Optional[Sequence[ast.BinopKind]] = None,
                short_samples: bool = False):
     self.disallow_divide = disallow_divide
     self.max_width_bits_types = max_width_bits_types
@@ -109,15 +109,15 @@ class AstGenerator(object):
     self.name_generator = self._name_generator()
     if options.binop_allowlist:
       assert all(
-          binop in ast.Binop.SAME_TYPE_KIND_LIST
+          binop in ast.BinopKind.SAME_TYPE_KIND_LIST
           for binop in options.binop_allowlist
       ), 'Contains invalid TokenKinds for same-type binop allowlist: {}'.format(
           options.binop_allowlist)
       self._binops = options.binop_allowlist
     else:
-      self._binops = list(ast.Binop.SAME_TYPE_KIND_LIST)
+      self._binops = list(ast.BinopKind.SAME_TYPE_KIND_LIST)
       if options.disallow_divide:
-        self._binops.remove(scanner.TokenKind.SLASH)
+        self._binops.remove(ast.BinopKind.DIV)
 
     type_kws = set(scanner.TYPE_KEYWORD_STRINGS) - set(['bits', 'uN', 'sN'])
     if not options.emit_signed_types:
@@ -272,9 +272,7 @@ class AstGenerator(object):
                        ast.BuiltinNameDef(self.m, identifier))
 
   def _make_ge(self, lhs: ast.Expr, rhs: ast.Expr) -> ast.Expr:
-    return ast.Binop(
-        self.m, scanner.Token(ast.Binop.GE, self.fake_span, ast.Binop.GE.value),
-        lhs, rhs)
+    return ast.Binop(self.m, self.fake_span, ast.BinopKind.GE, lhs, rhs)
 
   def _make_sel(self, test: ast.Expr, lhs: ast.Expr, rhs: ast.Expr) -> ast.Expr:
     return ast.Ternary(self.m, self.fake_span, test, lhs, rhs)
@@ -290,19 +288,18 @@ class AstGenerator(object):
       input_type: ast.TypeAnnotation) -> Tuple[ast.Binop, ast.TypeAnnotation]:
     """Generates a binary operator on lhs/rhs which have the same input type."""
     if self.rng.random() < 0.1:
-      op = self.rng.choice(ast.Binop.COMPARISON_KIND_LIST)
+      op = self.rng.choice(ast.BinopKind.COMPARISON_KIND_LIST)
       output_type = self._make_type_annotation(False, 1)
     else:
       op = self.rng.choice(self._binops)
-      if op in ast.Binop.SHIFTS and self.rng.random() < 0.8:
+      if op in ast.BinopKind.SHIFTS and self.rng.random() < 0.8:
         # Clamp the RHS to be in range most of the time.
         assert isinstance(input_type, ast.BuiltinTypeAnnotation), input_type
         bit_count = builtin_type_to_bits(input_type)
         new_upper = self.rng.randrange(bit_count)
         rhs = self._generate_umin(rhs, input_type, new_upper)
       output_type = input_type
-    return ast.Binop(self.m, scanner.Token(op, self.fake_span, op.value), lhs,
-                     rhs), output_type
+    return ast.Binop(self.m, self.fake_span, op, lhs, rhs), output_type
 
   def _choose_env_value(
       self,
@@ -344,15 +341,13 @@ class AstGenerator(object):
     make_lhs, lhs_type = self._choose_env_value(env, self._not_tuple_or_array)
     make_rhs, rhs_type = self._choose_env_value(env, self._not_tuple_or_array)
     # Convert into one-bit numbers by checking whether lhs and rhs values are 0.
-    ne_token = scanner.Token(ast.Binop.NE, self.fake_span, ast.Binop.NE.value)
-    lhs = ast.Binop(self.m, ne_token, make_lhs(),
+    lhs = ast.Binop(self.m, self.fake_span, ast.BinopKind.NE, make_lhs(),
                     self._make_number(0, lhs_type))
-    rhs = ast.Binop(self.m, ne_token, make_rhs(),
+    rhs = ast.Binop(self.m, self.fake_span, ast.BinopKind.NE, make_rhs(),
                     self._make_number(0, rhs_type))
     # Pick some operation to do.
-    op = self.rng.choice([ast.Binop.LOGICAL_AND, ast.Binop.LOGICAL_OR])
-    op_token = scanner.Token(op, self.fake_span, op.value)
-    return ast.Binop(self.m, op_token, lhs,
+    op = self.rng.choice([ast.BinopKind.LOGICAL_AND, ast.BinopKind.LOGICAL_OR])
+    return ast.Binop(self.m, self.fake_span, op, lhs,
                      rhs), self._make_type_annotation(False, 1)
 
   def _generate_binop(self, env: Env) -> Tuple[ast.Binop, ast.TypeAnnotation]:
@@ -478,9 +473,8 @@ class AstGenerator(object):
 
   def _generate_unop(self, env: Env) -> Tuple[ast.Unop, ast.TypeAnnotation]:
     make_arg, arg_type = self._choose_env_value(env, self._not_tuple_or_array)
-    op = self.rng.choice(ast.Unop.SAME_TYPE_KIND_LIST)
-    return ast.Unop(self.m, scanner.Token(op, self.fake_span, op.value),
-                    make_arg()), arg_type
+    op = self.rng.choice(ast.UnopKind.SAME_TYPE_KIND_LIST)
+    return ast.Unop(self.m, self.fake_span, op, make_arg()), arg_type
 
   def _generate_unop_builtin(
       self, env: Env) -> Tuple[ast.Invocation, ast.TypeAnnotation]:
@@ -609,9 +603,8 @@ class AstGenerator(object):
               t.element_type == lhs_type.element_type)
 
     make_rhs, rhs_type = self._choose_env_value(env, array_same_elem_type)
-    token = scanner.Token(ast.Binop.CONCAT, self.fake_span,
-                          ast.Binop.CONCAT.value)
-    result = ast.Binop(self.m, token, make_lhs(), make_rhs())
+    result = ast.Binop(self.m, self.fake_span, ast.BinopKind.CONCAT, make_lhs(),
+                       make_rhs())
     lhs_size = self._get_array_size(lhs_type)
     bits_per_elem = self._get_type_bit_count(lhs_type) // lhs_size
     result_size = lhs_size + self._get_array_size(rhs_type)
@@ -642,13 +635,12 @@ class AstGenerator(object):
       operand_types.append(arg_type)
     result = operands[0]
     result_bits = builtin_type_to_bits(operand_types[0])
-    token = scanner.Token(ast.Binop.CONCAT, self.fake_span,
-                          ast.Binop.CONCAT.value)
     for i in range(1, count):
       this_bits = builtin_type_to_bits(operand_types[i])
       if result_bits + this_bits > self.options.max_width_bits_types:
         break
-      result = ast.Binop(self.m, token, result, operands[i])
+      result = ast.Binop(self.m, self.fake_span, ast.BinopKind.CONCAT, result,
+                         operands[i])
       result_bits += this_bits
     assert result_bits <= self.options.max_width_bits_types, result_bits
     return (result, self._make_type_annotation(False, result_bits))

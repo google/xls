@@ -106,7 +106,7 @@ class Interpreter(object):
       _type_context: Optional[ConcreteType]) -> Value:
     """Evaluates a reference to an enum value."""
     enum = self._evaluate_to_enum(expr.enum, bindings)
-    value_node = enum.get_value(expr.value_tok.value)
+    value_node = enum.get_value(expr.value)
     fresh_bindings = self._make_top_level_bindings(self._module)
     raw_value = self._evaluate(
         value_node, fresh_bindings,
@@ -447,7 +447,7 @@ class Interpreter(object):
 
     assert isinstance(node, ast.ModRef)
     imported_module = bindings.resolve_mod(node.mod.identifier)
-    td = imported_module.get_typedef(node.value_tok.value)
+    td = imported_module.get_typedef(node.value)
     # Recurse to dereference it if it's a typedef in the imported module.
     td = self._evaluate_to_struct_or_enum_or_annotation(
         td, self._make_top_level_bindings(imported_module))
@@ -553,11 +553,11 @@ class Interpreter(object):
       _: Optional[ConcreteType]) -> Value:
     """Evaluates a 'Unop' AST node to a Value."""
     operand_value = self._evaluate(expr.operand, bindings)
-    if expr.operator.kind == ast.Unop.INV:
+    if expr.kind == ast.UnopKind.INV:
       return operand_value.bitwise_negate()
-    if expr.operator.kind == ast.Unop.NEG:
+    if expr.kind == ast.UnopKind.NEG:
       return operand_value.arithmetic_negate()
-    raise NotImplementedError('Unimplemented unop.', expr.operator)
+    raise NotImplementedError('Unimplemented unop.', expr.kind)
 
   def _evaluate_Binop(  # pylint: disable=invalid-name
       self, expr: ast.Binop, bindings: Bindings,
@@ -565,44 +565,42 @@ class Interpreter(object):
     """Evaluates a 'Binop' AST node to a value."""
     lhs_value = self._evaluate(expr.lhs, bindings)
     rhs_value = self._evaluate(expr.rhs, bindings)
-    if expr.operator.kind == ast.Binop.ADD:
+    if expr.kind == ast.BinopKind.ADD:
       result = lhs_value.add(rhs_value)
-    elif expr.operator.kind == ast.Binop.SUB:
+    elif expr.kind == ast.BinopKind.SUB:
       result = lhs_value.sub(rhs_value)
-    elif expr.operator.kind == ast.Binop.CONCAT:
+    elif expr.kind == ast.BinopKind.CONCAT:
       result = lhs_value.concat(rhs_value)
-    elif expr.operator.kind == ast.Binop.MUL:
+    elif expr.kind == ast.BinopKind.MUL:
       result = lhs_value.mul(rhs_value)
-    elif expr.operator.kind == ast.Binop.DIV:
+    elif expr.kind == ast.BinopKind.DIV:
       result = lhs_value.floordiv(rhs_value)
-    elif expr.operator.get_kind_or_keyword() in (ast.Binop.OR,
-                                                 ast.Binop.LOGICAL_OR):
+    elif expr.kind in (ast.BinopKind.OR, ast.BinopKind.LOGICAL_OR):
       result = lhs_value.bitwise_or(rhs_value)
-    elif expr.operator.get_kind_or_keyword() in (ast.Binop.AND,
-                                                 ast.Binop.LOGICAL_AND):
+    elif expr.kind in (ast.BinopKind.AND, ast.BinopKind.LOGICAL_AND):
       result = lhs_value.bitwise_and(rhs_value)
-    elif expr.operator.get_kind_or_keyword() == ast.Binop.XOR:
+    elif expr.kind == ast.BinopKind.XOR:
       result = lhs_value.bitwise_xor(rhs_value)
-    elif expr.operator.kind == ast.Binop.SHLL:  # <<
+    elif expr.kind == ast.BinopKind.SHLL:  # <<
       result = lhs_value.shll(rhs_value)
-    elif expr.operator.kind == ast.Binop.SHRL:  # >>
+    elif expr.kind == ast.BinopKind.SHRL:  # >>
       result = lhs_value.shrl(rhs_value)
-    elif expr.operator.kind == ast.Binop.SHRA:  # >>>
+    elif expr.kind == ast.BinopKind.SHRA:  # >>>
       result = lhs_value.shra(rhs_value)
-    elif expr.operator.kind == ast.Binop.EQ:  # ==
+    elif expr.kind == ast.BinopKind.EQ:  # ==
       result = lhs_value.eq(rhs_value)
-    elif expr.operator.kind == ast.Binop.NE:  # !=
+    elif expr.kind == ast.BinopKind.NE:  # !=
       result = lhs_value.ne(rhs_value)
-    elif expr.operator.kind == ast.Binop.GT:  # >
+    elif expr.kind == ast.BinopKind.GT:  # >
       result = lhs_value.gt(rhs_value)
-    elif expr.operator.kind == ast.Binop.LT:  # <
+    elif expr.kind == ast.BinopKind.LT:  # <
       result = lhs_value.lt(rhs_value)
-    elif expr.operator.kind == ast.Binop.LE:  # <=
+    elif expr.kind == ast.BinopKind.LE:  # <=
       result = lhs_value.le(rhs_value)
-    elif expr.operator.kind == ast.Binop.GE:  # >=
+    elif expr.kind == ast.BinopKind.GE:  # >=
       result = lhs_value.ge(rhs_value)
     else:
-      raise NotImplementedError('Unimplemented binop', expr.operator)
+      raise NotImplementedError('Unimplemented binop', expr.kind)
     return result
 
   def _evaluate_For(  # pylint: disable=invalid-name
@@ -673,7 +671,7 @@ class Interpreter(object):
       _: Optional[ConcreteType]) -> Value:
     """Evaluates a 'ModRef' AST node to a value."""
     mod = bindings.resolve_mod(expr.mod.identifier)
-    f = mod.get_function(expr.value_tok.value)
+    f = mod.get_function(expr.value)
     return Value.make_function(functools.partial(self._evaluate_fn, f, mod))
 
   def _evaluate_Invocation(  # pylint: disable=invalid-name

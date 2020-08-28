@@ -138,7 +138,7 @@ class AstTest(test_base.TestCase):
     m = self.m
     i_def = ast.NameDef(m, fake_span, 'i')
     i_ref = ast.NameRef(m, fake_span, 'i', i_def)
-    negated = ast.Unop(m, Token(TokenKind.MINUS, fake_span), i_ref)
+    negated = ast.Unop(m, fake_span, ast.UnopKind.NEG, i_ref)
 
     c = _Collector()
     negated.accept(c)
@@ -202,8 +202,7 @@ class AstTest(test_base.TestCase):
     m = ast.Module('test')
     fake_pos = self.fake_pos
     fake_span = Span(fake_pos, fake_pos)
-    le = ast.Binop(m, Token(TokenKind.OANGLE_EQUALS, span=fake_span), self.five,
-                   self.five)
+    le = ast.Binop(m, fake_span, ast.BinopKind.LE, self.five, self.five)
     self.assertEqual('(5) <= (5)', str(le))
 
   def test_type_annotation_properties(self):

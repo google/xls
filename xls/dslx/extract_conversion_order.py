@@ -92,7 +92,7 @@ def get_callees(func: Union[ast.Function, ast.Test], m: ast.Module,
     def visit_Invocation(self, node: ast.Invocation) -> None:
       if isinstance(node.callee, ast.ModRef):
         this_m, _ = imports[node.callee.mod]
-        f = this_m.get_function(node.callee.value_tok.value)
+        f = this_m.get_function(node.callee.value)
         fn_identifier = f.name.identifier
       elif isinstance(node.callee, ast.NameRef):
         this_m = m
@@ -101,7 +101,7 @@ def get_callees(func: Union[ast.Function, ast.Test], m: ast.Module,
           # We need to make sure we convert the mapped function!
           fn_node = node.args[1]
           if isinstance(fn_node, ast.ModRef):
-            fn_identifier = fn_node.value_tok.value
+            fn_identifier = fn_node.value
             this_m = imports[fn_node.mod][0]
           else:
             fn_identifier = fn_node.name_def.identifier

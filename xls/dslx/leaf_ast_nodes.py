@@ -21,6 +21,7 @@ These generally do not circularly reference each other.
 These are broken out largely to reduce pytype runtime on a monolithic AST file.
 """
 
+import enum as enum_mod
 from typing import Union, Text, List, Dict, Tuple, Optional, Set, Sequence, Any
 from absl import logging
 
@@ -43,8 +44,6 @@ from xls.dslx.core_ast_nodes import TypeDef
 from xls.dslx.core_ast_nodes import WildcardPattern
 from xls.dslx.free_variables import FreeVariables
 from xls.dslx.scanner import Pos
-from xls.dslx.scanner import Token
-from xls.dslx.scanner import TokenKind
 from xls.dslx.span import Span
 from xls.dslx.symbolic_bindings import SymbolicBindings
 
@@ -894,28 +893,31 @@ class Cast(Expr):
     return self.expr.get_free_variables(start_pos)
 
 
+class UnopKind(enum_mod.Enum):
+  INV = '!'
+  NEG = '-'
+
+
+# (T) -> T operators.
+UnopKind.SAME_TYPE_KIND_LIST = [
+    UnopKind.INV,
+    UnopKind.NEG,
+]
+
+UnopKind.OPERATORS = frozenset(UnopKind.SAME_TYPE_KIND_LIST)
+
+
 class Unop(Expr):
   """Represents a unary operation expression; e.g. "!"."""
 
-  INV = TokenKind.BANG
-  NEG = TokenKind.MINUS
-
-  # (T) -> T operators.
-  SAME_TYPE_KIND_LIST = [
-      INV,
-      NEG,
-  ]
-
-  OPERATORS = set(SAME_TYPE_KIND_LIST)
-
-  def __init__(self, owner: AstNodeOwner, operator: Token, operand: Expr):
-    assert operator.is_kind_or_keyword(self.OPERATORS), operator
-    super().__init__(owner, operator.span)
-    self.operator = operator
+  def __init__(self, owner: AstNodeOwner, span: Span, kind: UnopKind,
+               operand: Expr):
+    super().__init__(owner, span)
+    self.kind = kind
     self.operand = operand
 
   def __str__(self) -> Text:
-    return '{}({})'.format(self.operator.kind.value, self.operand)
+    return '{}({})'.format(self.kind.value, self.operand)
 
   def get_free_variables(self, pos: Pos) -> FreeVariables:
     return self.operand.get_free_variables(pos)

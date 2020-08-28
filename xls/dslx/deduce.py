@@ -421,7 +421,7 @@ def _deduce_Invocation(self: ast.Invocation, ctx: DeduceCtx) -> ConcreteType:  #
 
   if isinstance(self.callee, ast.ModRef):
     imported_module, _ = ctx.node_to_type.get_imported(self.callee.mod)
-    callee_name = self.callee.value_tok.value
+    callee_name = self.callee.value
     callee_fn = imported_module.get_function(callee_name)
   else:
     assert isinstance(self.callee, ast.NameRef), self.callee
@@ -840,7 +840,7 @@ def _deduce_EnumRef(self: ast.EnumRef, ctx: DeduceCtx) -> ConcreteType:  # pytyp
   assert isinstance(result, EnumType), result
   enum = result.nominal_type
   assert isinstance(enum, ast.Enum), enum
-  name = self.value_tok.value
+  name = self.value
   if not enum.has_value(name):
     raise TypeInferenceError(
         span=self.span,
@@ -882,7 +882,7 @@ def _dim_to_parametric(self: ast.TypeAnnotation,
   if isinstance(expr, ast.NameRef):
     return ParametricSymbol(expr.name_def.identifier, expr.span)
   if isinstance(expr, ast.Binop):
-    if expr.operator.kind == scanner.TokenKind.PLUS:
+    if expr.kind == ast.BinopKind.ADD:
       return ParametricAdd(
           _dim_to_parametric(self, expr.lhs),
           _dim_to_parametric(self, expr.rhs))
@@ -953,7 +953,7 @@ def _deduce_ModRef(self: ast.ModRef, ctx: DeduceCtx) -> ConcreteType:  # pytype:
   """Deduces the type of an entity referenced via module reference."""
   imported_module, imported_node_to_type = ctx.node_to_type.get_imported(
       self.mod)
-  leaf_name = self.value_tok.value
+  leaf_name = self.value
 
   # May be a type definition reference.
   if leaf_name in imported_module.get_typedef_by_name():
@@ -1072,7 +1072,7 @@ def _deduce_Concat(self: ast.Binop, ctx: DeduceCtx) -> ConcreteType:
 def _deduce_Binop(self: ast.Binop, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of a Binop AST node."""
   # Concatenation is handled differently from other binary operations.
-  if self.operator.kind == scanner.TokenKind.DOUBLE_PLUS:
+  if self.kind == ast.BinopKind.CONCAT:
     return _deduce_Concat(self, ctx)
 
   lhs_type = deduce(self.lhs, ctx)
@@ -1085,17 +1085,17 @@ def _deduce_Binop(self: ast.Binop, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
     raise XlsTypeError(
         self.span, resolved_lhs_type, resolved_rhs_type,
         'Could not deduce type for binary operation {0} ({0!r}).'.format(
-            self.operator))
+            self.kind))
 
   # Enums only support a more limited set of binary operations.
   if isinstance(lhs_type,
-                EnumType) and self.operator.kind not in self.ENUM_OK_KINDS:
+                EnumType) and self.kind not in ast.BinopKind.ENUM_OK_KINDS:
     raise XlsTypeError(
         self.span, resolved_lhs_type, None,
         "Cannot use '{}' on values with enum type {}".format(
-            self.operator.kind.value, lhs_type.nominal_type.identifier))
+            self.kind.value, lhs_type.nominal_type.identifier))
 
-  if self.operator.kind in self.COMPARISON_KINDS:
+  if self.kind in ast.BinopKind.COMPARISON_KINDS:
     return ConcreteType.U1
 
   return resolved_lhs_type

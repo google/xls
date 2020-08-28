@@ -55,7 +55,7 @@ def evaluate_to_struct_or_enum_or_annotation(
   assert isinstance(node, ast.ModRef)
   imported_module, evaluation_context = get_imported_module(
       node.mod, evaluation_context)
-  td = imported_module.get_typedef(node.value_tok.value)
+  td = imported_module.get_typedef(node.value)
   # Recurse to dereference it if it's a typedef in the imported module.
   td = evaluate_to_struct_or_enum_or_annotation(td, get_imported_module,
                                                 evaluation_context)

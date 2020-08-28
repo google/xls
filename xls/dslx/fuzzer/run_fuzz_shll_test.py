@@ -56,7 +56,7 @@ class RunFuzzShllTest(parameterized.TestCase):
     samples = run_fuzz.run_fuzz(
         rng,
         ast_generator.AstGeneratorOptions(
-            disallow_divide=True, binop_allowlist=[ast.Binop.SHLL]),
+            disallow_divide=True, binop_allowlist=[ast.BinopKind.SHLL]),
         **self.KWARGS)
     for i in range(self.KWARGS['sample_count']):
       if seed < self.SEED_TO_CHECK_LIMIT and i < self.SAMPLE_TO_CHECK_LIMIT:

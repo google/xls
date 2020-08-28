@@ -34,8 +34,6 @@ from xls.dslx.concrete_type import BitsType
 from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.free_variables import FreeVariables
 from xls.dslx.scanner import Pos
-from xls.dslx.scanner import Token
-from xls.dslx.scanner import TokenKind
 from xls.dslx.span import Span
 from xls.dslx.xls_type_error import TypeInferenceError
 
@@ -229,13 +227,13 @@ class EnumRef(Expr):
   """Represents an enum-value reference (via ::, i.e. Foo::BAR)."""
 
   def __init__(self, owner: AstNodeOwner, span: Span,
-               enum: Union['Enum', 'TypeDef'], value_tok: Token):
+               enum: Union['Enum', 'TypeDef'], value: str):
     super().__init__(owner, span)
     self.enum = enum
-    self.value_tok = value_tok
+    self.value = value
 
   def __str__(self) -> Text:
-    return '{}::{}'.format(self.enum.identifier, self.value_tok.value)
+    return '{}::{}'.format(self.enum.identifier, self.value)
 
   def get_free_variables(self, pos: Pos) -> FreeVariables:
     return FreeVariables()
@@ -281,14 +279,13 @@ class Import(AstNode):
 class ModRef(Expr):
   """Represents a module-value reference (via :: i.e. std::FOO)."""
 
-  def __init__(self, owner: AstNodeOwner, span: Span, mod: Import,
-               value_tok: Token):
+  def __init__(self, owner: AstNodeOwner, span: Span, mod: Import, value: str):
     super().__init__(owner, span)
     self.mod = mod
-    self.value_tok = value_tok
+    self.value = value
 
   def __str__(self) -> Text:
-    return '{}::{}'.format(self.mod.identifier, self.value_tok.value)
+    return '{}::{}'.format(self.mod.identifier, self.value)
 
   def get_free_variables(self, pos: Pos) -> FreeVariables:
     return FreeVariables()
@@ -786,91 +783,92 @@ class Ternary(Expr):
             self.alternate.get_free_variables(start_pos)))
 
 
+class BinopKind(enum_mod.Enum):
+  """Binary operation kinds."""
+  SHLL = '<<'
+  SHRL = '>>'
+  SHRA = '>>>'
+  GE = '>='
+  GT = '>'
+  LE = '<='
+  LT = '<'
+  EQ = '=='
+  NE = '!='
+  ADD = '+'
+  SUB = '-'
+  MUL = '*'
+  AND = '&'
+  OR = '|'
+  XOR = '^'
+  DIV = '/'
+
+  LOGICAL_AND = '&&'
+  LOGICAL_OR = '||'
+  CONCAT = '++'
+
+
+# (T, T) -> T operators.
+BinopKind.SAME_TYPE_KIND_LIST = [
+    BinopKind.AND,
+    BinopKind.OR,
+    BinopKind.SHLL,
+    BinopKind.SHRL,
+    BinopKind.SHRA,
+    BinopKind.XOR,
+    BinopKind.SUB,
+    BinopKind.ADD,
+    BinopKind.DIV,
+    BinopKind.MUL,
+]
+# (bits[M], bits[N]) -> bits[M+N] operators.
+BinopKind.CONCAT_TYPE_KIND_LIST = [
+    BinopKind.CONCAT,
+]
+# (bool, bool) -> bool operators.
+BinopKind.LOGICAL_KIND_LIST = [
+    BinopKind.LOGICAL_AND,
+    BinopKind.LOGICAL_OR,
+    BinopKind.XOR,
+]
+# (T, T) -> bool operators.
+BinopKind.COMPARISON_KIND_LIST = [
+    BinopKind.EQ,
+    BinopKind.NE,
+    BinopKind.GT,
+    BinopKind.GE,
+    BinopKind.LT,
+    BinopKind.LE,
+]
+
+# Binary operators that are ok for enum values.
+BinopKind.ENUM_OK_KINDS = [
+    BinopKind.EQ,
+    BinopKind.NE,
+]
+
+BinopKind.SHIFTS = set([BinopKind.SHLL, BinopKind.SHRL, BinopKind.SHRA])
+BinopKind.SAME_TYPE_KINDS = set(BinopKind.SAME_TYPE_KIND_LIST)
+BinopKind.COMPARISON_KINDS = set(BinopKind.COMPARISON_KIND_LIST)
+BinopKind.LOGICAL_KINDS = set(BinopKind.LOGICAL_KIND_LIST)
+BinopKind.CONCAT_TYPE_KINDS = set(BinopKind.CONCAT_TYPE_KIND_LIST)
+BinopKind.ALL_KINDS = BinopKind.SAME_TYPE_KINDS | BinopKind.COMPARISON_KINDS | BinopKind.LOGICAL_KINDS | BinopKind.CONCAT_TYPE_KINDS
+
+
 class Binop(Expr):
   """Represents a binary operation expression."""
 
-  SHLL = TokenKind.DOUBLE_OANGLE  # <<
-  SHRL = TokenKind.DOUBLE_CANGLE  # >>
-  SHRA = TokenKind.TRIPLE_CANGLE  # >>>
-  GE = TokenKind.CANGLE_EQUALS  # >=
-  GT = TokenKind.CANGLE  # >
-  LE = TokenKind.OANGLE_EQUALS  # <=
-  LT = TokenKind.OANGLE  # <
-  EQ = TokenKind.DOUBLE_EQUALS  # ==
-  NE = TokenKind.BANG_EQUALS  # !=
-  ADD = TokenKind.PLUS  # +
-  SUB = TokenKind.MINUS  # -
-  MUL = TokenKind.STAR  # *
-  AND = TokenKind.AMPERSAND  # &
-  OR = TokenKind.BAR  # |
-  XOR = TokenKind.HAT  # ^
-  DIV = TokenKind.SLASH  # /
-
-  LOGICAL_AND = TokenKind.DOUBLE_AMPERSAND  # and
-  LOGICAL_OR = TokenKind.DOUBLE_BAR  # or
-  CONCAT = TokenKind.DOUBLE_PLUS  # ++
-
-  # (T, T) -> T operators.
-  SAME_TYPE_KIND_LIST = [
-      AND,
-      OR,
-      SHLL,
-      SHRL,
-      SHRA,
-      XOR,
-      SUB,
-      ADD,
-      DIV,
-      MUL,
-  ]
-  # (bits[M], bits[N]) -> bits[M+N] operators.
-  CONCAT_TYPE_KIND_LIST = [
-      CONCAT,
-  ]
-  # (bool, bool) -> bool operators.
-  LOGICAL_KIND_LIST = [
-      LOGICAL_AND,
-      LOGICAL_OR,
-      XOR,
-  ]
-  # (T, T) -> bool operators.
-  COMPARISON_KIND_LIST = [
-      EQ,
-      NE,
-      GT,
-      GE,
-      LT,
-      LE,
-  ]
-
-  # Binary operators that are ok for enum values.
-  ENUM_OK_KINDS = [
-      EQ,
-      NE,
-  ]
-
-  SHIFTS = set([SHLL, SHRL, SHRA])
-  SAME_TYPE_KINDS = set(SAME_TYPE_KIND_LIST)
-  COMPARISON_KINDS = set(COMPARISON_KIND_LIST)
-  LOGICAL_KINDS = set(LOGICAL_KIND_LIST)
-  CONCAT_TYPE_KINDS = set(CONCAT_TYPE_KIND_LIST)
-  ALL_KINDS = SAME_TYPE_KINDS | COMPARISON_KINDS | LOGICAL_KINDS | CONCAT_TYPE_KINDS
-
-  def __init__(self, owner: AstNodeOwner, operator: Token, lhs: Expr,
-               rhs: Expr):
-    super().__init__(owner, operator.span)
-    self.operator = operator
-    assert operator.is_kind_or_keyword(self.ALL_KINDS), \
-        'Unknown operator for binop AST: {}'.format(operator.kind)
+  def __init__(self, owner: AstNodeOwner, span: Span, kind: BinopKind,
+               lhs: Expr, rhs: Expr):
+    super().__init__(owner, span)
+    self.kind = kind
     self.lhs = lhs
     self.rhs = rhs
 
   def __str__(self) -> Text:
-    return '({}) {} ({})'.format(self.lhs, self.operator.kind.value, self.rhs)
+    return '({}) {} ({})'.format(self.lhs, self.kind.value, self.rhs)
 
   def __repr__(self) -> Text:
-    return 'Binop(operator={!r}, lhs={!r}, rhs={!r})'.format(
-        self.operator, self.lhs, self.rhs)
+    return f'Binop(kind={self.kind!r}, lhs={self.lhs!r}, rhs={self.rhs!r})'
 
   def get_free_variables(self, pos: Pos) -> FreeVariables:
     return self.lhs.get_free_variables(pos).union(

@@ -25,6 +25,7 @@ from xls.dslx.core_ast_nodes import Array
 from xls.dslx.core_ast_nodes import ArrayTypeAnnotation
 from xls.dslx.core_ast_nodes import AstNodeOwner
 from xls.dslx.core_ast_nodes import Binop
+from xls.dslx.core_ast_nodes import BinopKind
 from xls.dslx.core_ast_nodes import BuiltinNameDef
 from xls.dslx.core_ast_nodes import BuiltinType
 from xls.dslx.core_ast_nodes import BuiltinTypeAnnotation
@@ -74,6 +75,7 @@ from xls.dslx.leaf_ast_nodes import StructInstanceMembers
 from xls.dslx.leaf_ast_nodes import Test
 from xls.dslx.leaf_ast_nodes import TestFunction
 from xls.dslx.leaf_ast_nodes import Unop
+from xls.dslx.leaf_ast_nodes import UnopKind
 from xls.dslx.leaf_ast_nodes import While
 from xls.dslx.leaf_ast_nodes import WidthSlice
 from xls.dslx.leaf_ast_nodes import XlsTuple

@@ -292,39 +292,56 @@ class _IrConverterFb(ast.AstVisitor):
   def visit_Binop(self, node: ast.Binop):
     lhs_type = self.node_to_type[node.lhs]
     signed_input = isinstance(lhs_type, BitsType) and lhs_type.signed
-    kind_or_keyword = node.operator.get_kind_or_keyword()
 
     # Concat is handled specially since the array-typed operation has no
     # directly corresponding IR operation.
     # See https://github.com/google/xls/issues/72
-    if kind_or_keyword == ast.Binop.CONCAT:
+    if node.kind == ast.BinopKind.CONCAT:
       return self._visit_concat(node)
 
     f = {
         # Arithmetic.
-        ast.Binop.ADD: self.fb.add_add,
-        ast.Binop.SUB: self.fb.add_sub,
-        ast.Binop.MUL: self.fb.add_smul if signed_input else self.fb.add_umul,
-        ast.Binop.DIV: self.fb.add_udiv,
+        ast.BinopKind.ADD:
+            self.fb.add_add,
+        ast.BinopKind.SUB:
+            self.fb.add_sub,
+        ast.BinopKind.MUL:
+            self.fb.add_smul if signed_input else self.fb.add_umul,
+        ast.BinopKind.DIV:
+            self.fb.add_udiv,
         # Comparisons.
-        ast.Binop.EQ: self.fb.add_eq,
-        ast.Binop.NE: self.fb.add_ne,
-        ast.Binop.GE: self.fb.add_sge if signed_input else self.fb.add_uge,
-        ast.Binop.GT: self.fb.add_sgt if signed_input else self.fb.add_ugt,
-        ast.Binop.LE: self.fb.add_sle if signed_input else self.fb.add_ule,
-        ast.Binop.LT: self.fb.add_slt if signed_input else self.fb.add_ult,
+        ast.BinopKind.EQ:
+            self.fb.add_eq,
+        ast.BinopKind.NE:
+            self.fb.add_ne,
+        ast.BinopKind.GE:
+            self.fb.add_sge if signed_input else self.fb.add_uge,
+        ast.BinopKind.GT:
+            self.fb.add_sgt if signed_input else self.fb.add_ugt,
+        ast.BinopKind.LE:
+            self.fb.add_sle if signed_input else self.fb.add_ule,
+        ast.BinopKind.LT:
+            self.fb.add_slt if signed_input else self.fb.add_ult,
         # Shifts.
-        ast.Binop.SHRL: self.fb.add_shrl,
-        ast.Binop.SHLL: self.fb.add_shll,
-        ast.Binop.SHRA: self.fb.add_shra,
+        ast.BinopKind.SHRL:
+            self.fb.add_shrl,
+        ast.BinopKind.SHLL:
+            self.fb.add_shll,
+        ast.BinopKind.SHRA:
+            self.fb.add_shra,
         # Bitwise.
-        ast.Binop.XOR: self.fb.add_xor,
-        ast.Binop.AND: self.fb.add_and,
-        ast.Binop.OR: self.fb.add_or,
+        ast.BinopKind.XOR:
+            self.fb.add_xor,
+        ast.BinopKind.AND:
+            self.fb.add_and,
+        ast.BinopKind.OR:
+            self.fb.add_or,
         # Logical.
-        ast.Binop.LOGICAL_AND: self.fb.add_and,
-        ast.Binop.LOGICAL_OR: self.fb.add_or,
-    }[kind_or_keyword]
+        ast.BinopKind.LOGICAL_AND:
+            self.fb.add_and,
+        ast.BinopKind.LOGICAL_OR:
+            self.fb.add_or,
+    }[node.kind]
 
     self._def(node, f, self._use(node.lhs), self._use(node.rhs))
 
@@ -417,13 +434,12 @@ class _IrConverterFb(ast.AstVisitor):
     self.last_expression = node
 
   def visit_Unop(self, node: ast.Unop):
-    kind = node.operator.get_kind_or_keyword()
-    if kind == ast.Unop.NEG:
+    if node.kind == ast.UnopKind.NEG:
       self._def(node, self.fb.add_neg, self._use(node.operand))
-    elif kind == ast.Unop.INV:
+    elif node.kind == ast.UnopKind.INV:
       self._def(node, self.fb.add_not, self._use(node.operand))
     else:
-      raise NotImplementedError(kind)
+      raise NotImplementedError(node.kind)
 
   def _visit_width_slice(self, node: ast.Index, width_slice: ast.WidthSlice,
                          lhs_type: ConcreteType) -> None:
@@ -562,7 +578,7 @@ class _IrConverterFb(ast.AstVisitor):
 
     assert isinstance(node, ast.ModRef), node
     imported_mod, _ = self.node_to_type.get_imports()[node.mod]
-    td = imported_mod.get_typedef_by_name()[node.value_tok.value]
+    td = imported_mod.get_typedef_by_name()[node.value]
     # Recurse to resolve the typedef within the imported module.
     td = self._deref_struct_or_enum(td)
     assert isinstance(td, (ast.Struct, ast.Enum)), td
@@ -749,7 +765,7 @@ class _IrConverterFb(ast.AstVisitor):
       m = self.module
     elif isinstance(node.callee, ast.ModRef):
       m = self.node_to_type.get_imports()[node.callee.mod][0]
-      callee_name = node.callee.value_tok.value
+      callee_name = node.callee.value
     else:
       raise NotImplementedError('Callee not currently supported @ {}'.format(
           node.span))
@@ -806,7 +822,7 @@ class _IrConverterFb(ast.AstVisitor):
         lookup_module = self.module
         fn = lookup_module.get_function(map_fn_name)
     elif isinstance(fn_node, ast.ModRef):
-      map_fn_name = fn_node.value_tok.value
+      map_fn_name = fn_node.value
       imports = self.node_to_type.get_imports()
       lookup_module, _ = imports[fn_node.mod]
       fn = lookup_module.get_function(map_fn_name)
@@ -954,7 +970,7 @@ class _IrConverterFb(ast.AstVisitor):
 
   def visit_EnumRef(self, node: ast.EnumRef) -> None:
     enum = self._deref_enum(node.enum)
-    value = enum.get_value(node.value_tok.value)
+    value = enum.get_value(node.value)
     value.accept(self)
     self._def_alias(from_=value, to=node)
 

@@ -25,7 +25,6 @@ from xls.dslx import fakefs_test_util
 from xls.dslx import parser
 from xls.dslx import parser_helpers
 from xls.dslx import scanner
-from xls.dslx.scanner import TokenKind
 from xls.dslx.span import Pos
 from xls.dslx.span import Span
 from absl.testing import absltest
@@ -48,7 +47,7 @@ class ParserTest(absltest.TestCase):
       except parser.ParseError as e:
         parser_helpers.pprint_positional_error(e)
         raise
-      self.assertTrue(s.at_eof())
+      self.assertTrue(s.at_eof(), msg=s.peek())
       return e
 
   def assertLen(self, sequence: Sequence[Any], target: int) -> None:
@@ -118,7 +117,7 @@ proc simple(addend: u32) {
     f = self.parse_function('fn concat(x: bits, y: bits) { x >>> y }')
     self.assertIsInstance(f, ast.Function)
     self.assertIsInstance(f.body, ast.Binop)
-    self.assertTrue(f.body.operator.is_kind(TokenKind.TRIPLE_CANGLE))
+    self.assertEqual(f.body.kind, ast.BinopKind.SHRA)
 
   def test_trailing_param_comma(self):
     program = textwrap.dedent("""\
@@ -292,9 +291,9 @@ proc simple(addend: u32) {
     e = self.parse_expression('a ^ !b == f()', bindings=b)
     # This should group as:
     #   ((a) ^ (!b)) == (f())
-    self.assertTrue(e.operator.is_kind(TokenKind.DOUBLE_EQUALS), msg=e.operator)
-    self.assertTrue(e.lhs.operator.is_kind(TokenKind.HAT))
-    self.assertTrue(e.lhs.rhs.operator.is_kind(TokenKind.BANG))
+    self.assertEqual(e.kind, ast.BinopKind.EQ)
+    self.assertTrue(e.lhs.kind, ast.BinopKind.XOR)
+    self.assertTrue(e.lhs.rhs.kind, ast.UnopKind.INV)
     self.assertIsInstance(e.rhs, ast.Invocation)
     self.assertIsInstance(e.rhs.callee, ast.NameRef)
     self.assertEqual(e.rhs.callee.identifier, 'f')
@@ -318,10 +317,10 @@ proc simple(addend: u32) {
     e = self.parse_expression('!a || !b && c', bindings=b)
     # This should group as:
     #   ((!a) || ((!b) && c))
-    self.assertTrue(e.operator.is_kind(TokenKind.DOUBLE_BAR), msg=e.operator)
-    self.assertTrue(e.lhs.operator.is_kind(TokenKind.BANG))
-    self.assertTrue(e.rhs.operator.is_kind(TokenKind.DOUBLE_AMPERSAND))
-    self.assertTrue(e.rhs.lhs.operator.is_kind(TokenKind.BANG))
+    self.assertTrue(e.kind, ast.BinopKind.LOGICAL_OR)
+    self.assertTrue(e.lhs.kind, ast.UnopKind.INV)
+    self.assertTrue(e.rhs.kind, ast.BinopKind.LOGICAL_AND)
+    self.assertEqual(e.rhs.lhs.kind, ast.UnopKind.INV)
     self.assertIsInstance(e.rhs.rhs, ast.NameRef)
     self.assertEqual(e.rhs.rhs.identifier, 'c')
 

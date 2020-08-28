@@ -64,6 +64,14 @@ _BITWISE_KINDS = (
     TokenKind.DOUBLE_CANGLE,
     TokenKind.TRIPLE_CANGLE,
 )  # type: Tuple[TokenKind]
+_COMPARISON_KINDS = {
+    TokenKind.DOUBLE_EQUALS: ast.BinopKind.EQ,
+    TokenKind.BANG_EQUALS: ast.BinopKind.NE,
+    TokenKind.CANGLE: ast.BinopKind.GT,  # >
+    TokenKind.CANGLE_EQUALS: ast.BinopKind.GE,  # >=
+    TokenKind.OANGLE: ast.BinopKind.LT,  # <
+    TokenKind.OANGLE_EQUALS: ast.BinopKind.LE,  # <=
+}
 
 
 def tok_to_number(m: ast.Module, tok: Token) -> ast.Number:
@@ -179,7 +187,7 @@ class Parser(token_parser.TokenParser):
               import_.__class__.__name__))
     type_name = self._popt_or_error(TokenKind.IDENTIFIER)
     span = Span(start_tok.span.start, self._get_pos())
-    mod_ref = ast.ModRef(self.m, span, import_, type_name)
+    mod_ref = ast.ModRef(self.m, span, import_, type_name.value)
     composite = '{}::{}'.format(start_tok.value, type_name.value)
     return ast.TypeRef(self.m, span, composite, mod_ref)
 
@@ -267,10 +275,10 @@ class Parser(token_parser.TokenParser):
     value_tok = self._popt_or_error(TokenKind.IDENTIFIER)
     span = Span(subject_tok.span.start, value_tok.span.limit)
     if isinstance(defn, ast.Import):
-      return ast.ModRef(self.m, span, defn, value_tok)
+      return ast.ModRef(self.m, span, defn, value_tok.value)
 
     assert isinstance(defn, (ast.Enum, ast.TypeDef)), defn
-    return ast.EnumRef(self.m, span, defn, value_tok)
+    return ast.EnumRef(self.m, span, defn, value_tok.value)
 
   def _parse_cast_or_enum_ref_or_struct_instance(
       self, tok: Token, bindings: Bindings) -> ast.Expr:
@@ -613,7 +621,9 @@ class Parser(token_parser.TokenParser):
         else:
           self._dropt_or_error(TokenKind.CPAREN, start=tok)
     elif tok.kind in (TokenKind.BANG, TokenKind.MINUS):
-      return ast.Unop(self.m, self._popt(), self._parse_term(bindings))
+      tok = self._popt()
+      kind = ast.UnopKind(tok.kind.value)
+      return ast.Unop(self.m, tok.span, kind, self._parse_term(bindings))
     elif tok.is_keyword(Keyword.MATCH):
       return self._parse_match(bindings)
     elif tok.kind == TokenKind.OBRACK:
@@ -720,7 +730,8 @@ class Parser(token_parser.TokenParser):
       if self._peekt_in(target_tokens):
         op = self._popt()
         rhs = sub_production(*args)
-        lhs = ast.Binop(self.m, op, lhs, rhs)
+        kind = ast.BinopKind(op.kind.value)
+        lhs = ast.Binop(self.m, op.span, kind, lhs, rhs)
       else:
         break
 
@@ -759,7 +770,7 @@ class Parser(token_parser.TokenParser):
 
   def _parse_comparison_expression(self, bindings: Bindings) -> ast.Expr:
     return self._parse_binop_chain(self._parse_or_expression,
-                                   tuple(ast.Binop.COMPARISON_KINDS), bindings)
+                                   tuple(_COMPARISON_KINDS), bindings)
 
   def _parse_logical_and_expression(self, bindings: Bindings) -> ast.Expr:
     return self._parse_binop_chain(self._parse_comparison_expression,
