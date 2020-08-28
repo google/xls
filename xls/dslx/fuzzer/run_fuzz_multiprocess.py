@@ -142,7 +142,8 @@ def do_worker_task(workerno: int,
     if not save_temps_path:
       shutil.rmtree(run_dir)
 
-    if i != 0 and i % 64 == 0:
+    # TODO(leary): 2020-08-28 Turn this into an option.
+    if i != 0 and i % 16 == 0:
       elapsed = (datetime.datetime.now() - start).total_seconds()
       print('---- Worker {:3}: {:8.2f} samples/s {:8.2f} calls/s'.format(
           workerno, i / elapsed, calls / elapsed))
