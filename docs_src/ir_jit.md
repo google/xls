@@ -7,13 +7,60 @@ compiler intermediate representation (IR) at native machine speed.
 
 ## Usage
 
-The IR JIT is the default backend for the
-[eval_ir_main](./tools.md#eval-ir-main)
-tool, which loads IR from disk and runs with args present on either the command
-line or in a specified file.
+Given a DSLX file and build target, one can build and run it through the JIT by:
 
-For programmatic usage, the JIT is available as a library with a straightforward
-interface:
+1.  Declaring a
+    [`dslx_jit_wrapper`](http://cs/xls/build/build_defs.bzl) target
+    matching the DSLX build target.
+2.  Creating a JIT object and calling its `Run()` method. Using the 2-way
+    floating-point adder as an example:
+
+     ```c
+     # include "xls/modules/fpadd_2x24_jit_wrapper.h"
+
+     xabsl::StatusOr<Value> foo(Value a, Value b) {
+       ...
+       // Only create this once and re-use it; it's created here just as
+       // an illustration.
+       XLS_ASSIGN_OR_RETURN(Fpadd2x32 adder, Fpadd2x32::Create()); return
+       adder.Run(a, b);
+     }
+     ```
+
+The advantages of JIT compilation (or any
+compilation, for that matter) only come into play when repeatedly using the
+compiled object, so programs should be structured to create a JIT wrapper
+once and to reuse it many times, e.g., to test a module across many - or
+even exhaustively, across all possible - inputs.
+
+### Specialized matching
+
+In many cases, the types used by DSLX designs map to native types, such as the
+C/C++ `float`. In that case, a simplified wrapper call is available:
+
+```
+#include "xls/modules/fpadd_2x24_jit_wrapper.h"
+
+xabsl::StatusOr<float> foo(float a, float b) {
+  ...
+  // Only create this once and re-use it; it's created here just as
+  // an illustration.
+  XLS_ASSIGN_OR_RETURN(Fpadd2x32 adder, Fpadd2x32::Create());
+  return adder.Run(a, b);
+yn
+```
+
+When available, these simplified wrappers should be used for higher performance
+(~30% in our measured cases). Currently, only floats are specialized in this
+way, but others will be added as needs arise.
+
+These are higher performance because they avoid unnecessary marshaling of these
+types into Views (e.g., a `float` outside the JIT -> View -> `float` inside the
+JIT).
+
+### Direct usage
+
+The JIT is also available as a library with a straightforward interface:
 
 ```
 xabsl::StatusOr<Value> RunOnJit(
@@ -23,10 +70,10 @@ xabsl::StatusOr<Value> RunOnJit(
 }
 ```
 
-The advantages of JIT compilation (or any compilation, for that matter) only
-come into play when repeatedly using the compiled object, so programs should be
-structured to compile a function once and to reuse it many times, e.g., to test
-a module across many - or even exhaustively, across all possible - inputs.
+The IR JIT is the default backend for the
+[eval_ir_main](./tools.md#eval-ir-main)
+tool, which loads IR from disk and runs with args present on either the command
+line or in a specified file.
 
 ## Design
 
