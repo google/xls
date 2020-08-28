@@ -46,11 +46,16 @@ enum StateTableSignalProto {
   STATE_TABLE_SIGNAL_LOW = 1;
   STATE_TABLE_SIGNAL_HIGH = 2;
   STATE_TABLE_SIGNAL_DONTCARE = 3;
-  STATE_TABLE_SIGNAL_NOCHANGE = 4;
-  STATE_TABLE_SIGNAL_TOGGLE = 5;
-  STATE_TABLE_SIGNAL_X = 6;
-  // There's an 'F' signal referenced but not defined in the standard.
-  // It's possible we'll have to add that in the future.
+  // State table value H/L.
+  STATE_TABLE_SIGNAL_HIGH_OR_LOW = 4;
+  // State table value L/H.
+  STATE_TABLE_SIGNAL_LOW_OR_HIGH = 5;
+  STATE_TABLE_SIGNAL_RISING = 6;
+  STATE_TABLE_SIGNAL_FALLING = 7;
+  STATE_TABLE_SIGNAL_NOT_RISING = 8;
+  STATE_TABLE_SIGNAL_NOT_FALLING = 9;
+  STATE_TABLE_SIGNAL_NOCHANGE = 10;
+  STATE_TABLE_SIGNAL_X = 11;
 }
 
 message StateTableRow {

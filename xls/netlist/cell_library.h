@@ -45,8 +45,13 @@ enum class StateTableSignal {
   kLow,
   kHigh,
   kDontCare,
+  kHighOrLow,
+  kLowOrHigh,
+  kRising,
+  kFalling,
+  kNotRising,
+  kNotFalling,
   kNoChange,
-  kToggle,
   kX,
 };
 

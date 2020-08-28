@@ -120,11 +120,11 @@ library (blah) {
       direction: output;
       function: "meow";
     }
-    statetable ("i0 i1", "ham_sandwich") {
-     table: "L L : - : H, \
-             L H : T : X, \
-             H L : T : N, \
-             H H : - : H ";
+    statetable ("i0 i1 phi", "ham_sandwich") {
+     table: "L L R : - : H, \
+             L H R : H : X, \
+             H L F : L : N, \
+             H H - : - : H ";
     }
     pin (ham_sandwich) {
       direction: internal;
@@ -140,7 +140,7 @@ library (blah) {
   EXPECT_EQ(entry.name(), "cell_1");
   ASSERT_TRUE(entry.has_state_table());
   StateTableProto table = entry.state_table();
-  absl::flat_hash_set<std::string> input_names({"i0", "i1"});
+  absl::flat_hash_set<std::string> input_names({"i0", "i1", "phi"});
   for (const auto& input_name : table.input_names()) {
     ASSERT_TRUE(input_names.contains(input_name));
     input_names.erase(input_name);
@@ -149,13 +149,13 @@ library (blah) {
 
   // Just validate a single row instead of going through all of them.
   StateTableRow row = table.rows(2);
-  ASSERT_EQ(row.input_signals_size(), 2);
+  ASSERT_EQ(row.input_signals_size(), 3);
   EXPECT_EQ(row.input_signals().at("i0"), STATE_TABLE_SIGNAL_HIGH);
   EXPECT_EQ(row.input_signals().at("i1"), STATE_TABLE_SIGNAL_LOW);
+  EXPECT_EQ(row.input_signals().at("phi"), STATE_TABLE_SIGNAL_FALLING);
 
   ASSERT_EQ(row.internal_signals_size(), 1);
-  EXPECT_EQ(row.internal_signals().at("ham_sandwich"),
-            STATE_TABLE_SIGNAL_TOGGLE);
+  EXPECT_EQ(row.internal_signals().at("ham_sandwich"), STATE_TABLE_SIGNAL_LOW);
 
   ASSERT_EQ(row.output_signals_size(), 1);
   EXPECT_EQ(row.output_signals().at("ham_sandwich"),

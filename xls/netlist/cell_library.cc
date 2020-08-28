@@ -62,15 +62,26 @@ xabsl::StatusOr<StateTableSignal> StateTableSignalFromProto(
       return StateTableSignal::kHigh;
     case STATE_TABLE_SIGNAL_DONTCARE:
       return StateTableSignal::kDontCare;
+    case STATE_TABLE_SIGNAL_HIGH_OR_LOW:
+      return StateTableSignal::kHighOrLow;
+    case STATE_TABLE_SIGNAL_LOW_OR_HIGH:
+      return StateTableSignal::kLowOrHigh;
+    case STATE_TABLE_SIGNAL_RISING:
+      return StateTableSignal::kRising;
+    case STATE_TABLE_SIGNAL_FALLING:
+      return StateTableSignal::kFalling;
+    case STATE_TABLE_SIGNAL_NOT_RISING:
+      return StateTableSignal::kNotRising;
+    case STATE_TABLE_SIGNAL_NOT_FALLING:
+      return StateTableSignal::kNotFalling;
     case STATE_TABLE_SIGNAL_NOCHANGE:
       return StateTableSignal::kNoChange;
-    case STATE_TABLE_SIGNAL_TOGGLE:
-      return StateTableSignal::kToggle;
     case STATE_TABLE_SIGNAL_X:
       return StateTableSignal::kX;
+    default:
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Invalid proto value for conversion to StateTableSignal: %d", proto));
   }
-  return absl::InvalidArgumentError(absl::StrFormat(
-      "Invalid proto value for conversion to StateTableSignal: %d", proto));
 }
 
 xabsl::StatusOr<StateTableSignalProto> ProtoFromStateTableSignal(
@@ -84,16 +95,27 @@ xabsl::StatusOr<StateTableSignalProto> ProtoFromStateTableSignal(
       return STATE_TABLE_SIGNAL_HIGH;
     case StateTableSignal::kDontCare:
       return STATE_TABLE_SIGNAL_DONTCARE;
+    case StateTableSignal::kHighOrLow:
+      return STATE_TABLE_SIGNAL_HIGH_OR_LOW;
+    case StateTableSignal::kLowOrHigh:
+      return STATE_TABLE_SIGNAL_LOW_OR_HIGH;
+    case StateTableSignal::kRising:
+      return STATE_TABLE_SIGNAL_RISING;
+    case StateTableSignal::kFalling:
+      return STATE_TABLE_SIGNAL_FALLING;
+    case StateTableSignal::kNotRising:
+      return STATE_TABLE_SIGNAL_NOT_RISING;
+    case StateTableSignal::kNotFalling:
+      return STATE_TABLE_SIGNAL_NOT_FALLING;
     case StateTableSignal::kNoChange:
       return STATE_TABLE_SIGNAL_NOCHANGE;
-    case StateTableSignal::kToggle:
-      return STATE_TABLE_SIGNAL_TOGGLE;
     case StateTableSignal::kX:
       return STATE_TABLE_SIGNAL_X;
+    default:
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Invalid proto value for conversion to StateTableSignal: %d",
+          static_cast<int>(signal)));
   }
-  return absl::InvalidArgumentError(absl::StrFormat(
-      "Invalid proto value for conversion to StateTableSignalProto: %d",
-      signal));
 }
 
 }  // namespace

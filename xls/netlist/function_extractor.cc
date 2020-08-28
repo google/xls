@@ -43,11 +43,22 @@ constexpr const char kStateTableKind[] = "statetable";
 // Translates an individual signal value char to the protobuf equivalent.
 xabsl::StatusOr<StateTableSignalProto> LibertyToTableSignal(
     const std::string& input) {
+  if (input == "H/L") {
+    return STATE_TABLE_SIGNAL_HIGH_OR_LOW;
+  }
+  if (input == "L/H") {
+    return STATE_TABLE_SIGNAL_LOW_OR_HIGH;
+  } else if (input == "~R") {
+    return STATE_TABLE_SIGNAL_NOT_RISING;
+  } else if (input == "~F") {
+    return STATE_TABLE_SIGNAL_NOT_FALLING;
+  }
   XLS_RET_CHECK(input.size() == 1) << input;
 
   char signal = input[0];
   XLS_RET_CHECK(signal == '-' || signal == 'H' || signal == 'L' ||
-                signal == 'N' || signal == 'T' || signal == 'X');
+                signal == 'N' || signal == 'R' || signal == 'F' ||
+                signal == 'X');
   switch (signal) {
     case '-':
       return STATE_TABLE_SIGNAL_DONTCARE;
@@ -57,12 +68,14 @@ xabsl::StatusOr<StateTableSignalProto> LibertyToTableSignal(
       return STATE_TABLE_SIGNAL_LOW;
     case 'N':
       return STATE_TABLE_SIGNAL_NOCHANGE;
-    case 'T':
-      return STATE_TABLE_SIGNAL_TOGGLE;
+    case 'R':
+      return STATE_TABLE_SIGNAL_RISING;
+    case 'F':
+      return STATE_TABLE_SIGNAL_FALLING;
     case 'X':
       return STATE_TABLE_SIGNAL_X;
     default:
-      XLS_LOG(FATAL) << "Invalid input signal!";
+      XLS_LOG(FATAL) << "Invalid input signal: " << signal;
   }
 }
 
