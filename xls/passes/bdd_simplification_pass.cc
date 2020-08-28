@@ -323,10 +323,6 @@ xabsl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 }
 
 xabsl::StatusOr<bool> SimplifyOneHotMsb(Function* f) {
-  // TODO(meheff): 2020-08-24 Disabled for debugging of crasher
-  // xls/dslx/fuzzer/crashers/2020-08-24-min.x
-  return false;
-#if 0
   bool changed = false;
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<PostDominatorAnalysis> post_dominator_analysis,
@@ -435,7 +431,6 @@ xabsl::StatusOr<bool> SimplifyOneHotMsb(Function* f) {
   }
 
   return changed;
-#endif
 }
 
 }  // namespace
@@ -446,14 +441,14 @@ xabsl::StatusOr<bool> BddSimplificationPass::RunOnFunction(
   XLS_VLOG(3) << "Before:";
   XLS_VLOG_LINES(3, f->DumpIr());
 
-  // TODO(meheff): Try tuning the minterm limit.
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BddQueryEngine> query_engine,
-                       BddQueryEngine::Run(f, /*minterm_limit=*/4096));
-
   bool one_hot_modified = false;
   if (split_ops_) {
     XLS_ASSIGN_OR_RETURN(one_hot_modified, SimplifyOneHotMsb(f));
   }
+
+  // TODO(meheff): Try tuning the minterm limit.
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BddQueryEngine> query_engine,
+                       BddQueryEngine::Run(f, /*minterm_limit=*/4096));
 
   bool modified = false;
   for (Node* node : TopoSort(f)) {

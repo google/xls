@@ -55,9 +55,7 @@ class DslxOptimizationTest : public IrTestBase {
   }
 };
 
-// TODO(meheff): 2020-08-24 Disabled for debugging of crasher
-// xls/dslx/fuzzer/crashers/2020-08-24-min.x
-TEST_F(DslxOptimizationTest, DISABLED_StdFindIndexOfLiteralArray) {
+TEST_F(DslxOptimizationTest, StdFindIndexOfLiteralArray) {
   std::string input = R"(import std
 
 const A = u32[3]:[10, 20, 30];

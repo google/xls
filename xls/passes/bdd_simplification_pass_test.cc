@@ -200,9 +200,7 @@ TEST_F(BddSimplificationPassTest, SelectChainOneHotOrZeroSelectors) {
                                m::Param("x2")}));
 }
 
-// TODO(meheff): 2020-08-24 Disabled for debugging of crasher
-// xls/dslx/fuzzer/crashers/2020-08-24-min.x
-TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbTypical) {
+TEST_F(BddSimplificationPassTest, OneHotMsbTypical) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -223,9 +221,7 @@ TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbTypical) {
                             m::BitSlice(m::OneHot(m::Param("input")), 0, 7)))));
 }
 
-// TODO(meheff): 2020-08-24 Disabled for debugging of crasher
-// xls/dslx/fuzzer/crashers/2020-08-24-min.x
-TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbAlternateForm) {
+TEST_F(BddSimplificationPassTest, OneHotMsbAlternateForm) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -247,10 +243,8 @@ TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbAlternateForm) {
                             m::BitSlice(m::OneHot(m::Param("input")), 0, 7)))));
 }
 
-// TODO(meheff): 2020-08-24 Disabled for debugging of crasher
-// xls/dslx/fuzzer/crashers/2020-08-24-min.x
 TEST_F(BddSimplificationPassTest,
-       DISABLED_OneHotMsbRequireFullBddToAnalyzeOneMsbCase) {
+       OneHotMsbRequireFullBddToAnalyzeOneMsbCase) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -266,9 +260,7 @@ TEST_F(BddSimplificationPassTest,
                         m::BitSlice(m::OneHot(m::Param("input")), 0, 7)));
 }
 
-// TODO(meheff): 2020-08-24 Disabled for debugging of crasher
-// xls/dslx/fuzzer/crashers/2020-08-24-min.x
-TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbMsbLeaks) {
+TEST_F(BddSimplificationPassTest, OneHotMsbMsbLeaks) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -285,9 +277,7 @@ TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbMsbLeaks) {
   EXPECT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(false));
 }
 
-// TODO(meheff): 2020-08-24 Disabled for debugging of crasher
-// xls/dslx/fuzzer/crashers/2020-08-24-min.x
-TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbNonMsbOneComparison) {
+TEST_F(BddSimplificationPassTest, OneHotMsbNonMsbOneComparison) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -304,9 +294,7 @@ TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbNonMsbOneComparison) {
   EXPECT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(false));
 }
 
-// TODO(meheff): 2020-08-24 Disabled for debugging of crasher
-// xls/dslx/fuzzer/crashers/2020-08-24-min.x
-TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbNonZeroReplacementValue) {
+TEST_F(BddSimplificationPassTest, OneHotMsbNonZeroReplacementValue) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -323,9 +311,7 @@ TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbNonZeroReplacementValue) {
   EXPECT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(false));
 }
 
-// TODO(meheff): 2020-08-24 Disabled for debugging of crasher
-// xls/dslx/fuzzer/crashers/2020-08-24-min.x
-TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbNoRecursion) {
+TEST_F(BddSimplificationPassTest, OneHotMsbNoRecursion) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -347,10 +333,8 @@ TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbNoRecursion) {
   EXPECT_THAT(Run(f, /*run_cleanup_passes=*/false), IsOkAndHolds(false));
 }
 
-// TODO(meheff): 2020-08-24 Disabled for debugging of crasher
-// xls/dslx/fuzzer/crashers/2020-08-24-min.x
 TEST_F(BddSimplificationPassTest,
-       DISABLED_OneHotMsbNoRecursionExistingSliceIncludesMsb) {
+       OneHotMsbNoRecursionExistingSliceIncludesMsb) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -373,10 +357,8 @@ TEST_F(BddSimplificationPassTest,
   EXPECT_THAT(Run(f, /*run_cleanup_passes=*/false), IsOkAndHolds(false));
 }
 
-// TODO(meheff): 2020-08-24 Disabled for debugging of crasher
-// xls/dslx/fuzzer/crashers/2020-08-24-min.x
 TEST_F(BddSimplificationPassTest,
-       DISABLED_OneHotMsbNoRecursionExistingSliceExcludesMsb) {
+       OneHotMsbNoRecursionExistingSliceExcludesMsb) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -394,11 +376,9 @@ TEST_F(BddSimplificationPassTest,
   EXPECT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(false));
 }
 
-// TODO(meheff): 2020-08-24 Disabled for debugging of crasher
-// xls/dslx/fuzzer/crashers/2020-08-24-min.x
 TEST_F(
     BddSimplificationPassTest,
-    DISABLED_OneHotMsbPostponeOneHotNativeOneHotDetectionUntilAfterOneHotMsb) {
+    OneHotMsbPostponeOneHotNativeOneHotDetectionUntilAfterOneHotMsb) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(2));
@@ -425,6 +405,22 @@ TEST_F(
           m::Literal(UBits(0, 1)),
           m::Concat(m::Eq(m::Literal(UBits(1, 2)), m::Param("input")),
                     m::Eq(m::Literal(UBits(3, 2)), m::Param("input"))))));
+}
+
+TEST_F(BddSimplificationPassTest, BddNotStaleAfterOneHotSimplification) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue input = fb.Param("input", p->GetBitsType(1));
+  BValue literal_zero2 = fb.Literal(UBits(0, 2));
+  BValue concat = fb.Concat({input, literal_zero2});
+  BValue hot = fb.OneHot(concat, LsbOrMsb::kLsb);
+  BValue encode = fb.Encode(hot);
+  fb.XorReduce(encode);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Param("input"));
 }
 
 }  // namespace
