@@ -47,7 +47,7 @@ xabsl::StatusOr<float> foo(float a, float b) {
   // an illustration.
   XLS_ASSIGN_OR_RETURN(Fpadd2x32 adder, Fpadd2x32::Create());
   return adder.Run(a, b);
-yn
+}
 ```
 
 When available, these simplified wrappers should be used for higher performance
