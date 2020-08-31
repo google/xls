@@ -13,6 +13,7 @@
 // limitations under the License.
 #include <iostream>
 
+#include "absl/base/casts.h"
 #include "absl/flags/flag.h"
 #include "absl/types/span.h"
 #include "xls/common/init_xls.h"

@@ -42,6 +42,7 @@ cc_binary(
     name = "adler32_reference",
     srcs = ["adler32_reference.cc"],
     deps = [
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/types:span",
         "//xls/common:init_xls",
@@ -65,6 +66,7 @@ cc_binary(
     name = "crc32_reference",
     srcs = ["crc32_reference.cc"],
     deps = [
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/types:span",
         "//xls/common:init_xls",

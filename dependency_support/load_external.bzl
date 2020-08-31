@@ -64,11 +64,12 @@ def load_external_repositories():
         sha256 = "9463ff914d7c3db02de6bd40a3c412a74e979e3c76eaa89920a49ff8488d6d69",
     )
 
+    # 2020-08-28
     http_archive(
         name = "com_google_absl",
-        strip_prefix = "abseil-cpp-a1d6689907864974118e592ef2ac7d716c576aad",
-        urls = ["https://github.com/abseil/abseil-cpp/archive/a1d6689907864974118e592ef2ac7d716c576aad.zip"],
-        sha256 = "53b78ffe87db3c737feddda52fa10dcdb75e2d85eed1cb1c5bfd77ca22e53e53",
+        strip_prefix = "abseil-cpp-a4cbb5f698c42845aab6a6d6318290205e6c5baf",
+        urls = ["https://github.com/abseil/abseil-cpp/archive/a4cbb5f698c42845aab6a6d6318290205e6c5baf.zip"],
+        sha256 = "334f860cfa4cf097abab5ac31402921652a58c1280251e7acabfabb310acad5d",
     )
 
     # Protobuf depends on Skylib

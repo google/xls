@@ -17,6 +17,7 @@
 #include "grpcpp/server.h"
 #include "grpcpp/server_builder.h"
 #include "grpcpp/server_context.h"
+#include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"

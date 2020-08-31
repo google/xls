@@ -71,6 +71,7 @@ cc_library(
     deps = [
         ":bits",
         "//xls/common/status:statusor",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
     ],
 )

@@ -41,6 +41,7 @@ cc_library(
     hdrs = ["filesystem.h"],
     deps = [
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
         "//xls/common/logging",
         "//xls/common/status:error_code_to_status",
         "//xls/common/status:ret_check",

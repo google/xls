@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "absl/flags/flag.h"
+#include "absl/strings/numbers.h"
 #include "xls/common/integral_types.h"
 
 ABSL_FLAG(int32, v, 0,
@@ -53,7 +54,7 @@ namespace logging_internal {
 // Reads may be done without the lock if Acquire_Load() is used.
 // Writes must use Release_Store().
 static absl::base_internal::SpinLock vmodule_lock(
-    absl::base_internal::kLinkerInitialized);
+    absl::kConstInit, absl::base_internal::SCHEDULE_COOPERATIVE_AND_KERNEL);
 
 }  // namespace logging_internal
 }  // namespace xls

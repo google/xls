@@ -103,6 +103,7 @@ cc_binary(
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor",
         "@com_github_grpc_grpc//:grpc++",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
     ],
 )
