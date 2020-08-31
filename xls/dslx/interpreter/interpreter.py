@@ -695,8 +695,8 @@ class Interpreter(object):
     if bindings.fn_ctx:
       # The symbolic bindings of this invocation were already computed during
       # typechecking.
-      fn_symbolic_bindings = expr.symbolic_bindings.get(
-          bindings.fn_ctx.sym_bindings, ())
+      fn_symbolic_bindings = self._type_info.get_invocation_symbolic_bindings(
+          expr, bindings.fn_ctx.sym_bindings)
     return callee_value.function_payload(
         arg_values, expr.span, expr, symbolic_bindings=fn_symbolic_bindings)
 
@@ -1288,9 +1288,10 @@ class Interpreter(object):
     Returns:
       The value that results from DSL interpretation.
     """
-    has_child_type_info = expr and symbolic_bindings in expr.types_mappings
+    has_child_type_info = expr and self._type_info.has_instantiation(
+        expr, symbolic_bindings)
     invocation_type_info = (
-        expr.types_mappings[symbolic_bindings]
+        self._type_info.get_instantiation(expr, symbolic_bindings)
         if has_child_type_info else self._type_info)
 
     @contextlib.contextmanager

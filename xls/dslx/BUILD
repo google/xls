@@ -301,7 +301,9 @@ py_library(
         ":ast",
         ":concrete_type",
         ":span",
+        ":symbolic_bindings",
         ":xls_type_error",
+        "@com_google_absl_py//absl/logging",
     ],
 )
 

@@ -121,12 +121,16 @@ def get_callees(func: Union[ast.Function, ast.Test], m: ast.Module,
             'Only calls to named functions are currently supported, got callee: {!r}'
             .format(node.callee))
 
-      node_symbolic_bindings = node.symbolic_bindings.get(bindings, ())
+      node_symbolic_bindings = type_info.get_invocation_symbolic_bindings(
+          node, bindings)
 
       # Either use the global type_info or the child type_info
       # chained off of this invocation.
-      invocation_type_info = node.types_mappings.get(node_symbolic_bindings,
-                                                     type_info)
+      try:
+        invocation_type_info = type_info.get_instantiation(
+            node, node_symbolic_bindings)
+      except KeyError:
+        invocation_type_info = type_info
       callees.append(
           Callee(f, this_m, invocation_type_info, node_symbolic_bindings))
 

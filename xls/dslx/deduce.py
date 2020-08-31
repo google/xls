@@ -213,7 +213,7 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
     # We need to typecheck this function with respect to its own module.
     # Let's use typecheck._check_function_or_test_in_module() to do this
     # in case we run into more dependencies in that module.
-    if symbolic_bindings in invocation.types_mappings:
+    if ctx.type_info.has_instantiation(invocation, symbolic_bindings):
       # We've already typechecked this imported parametric function using
       # these symbolic bindings.
       return
@@ -227,35 +227,40 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
         (parametric_fn.name.identifier, dict(symbolic_bindings)))
     ctx.check_function_in_module(parametric_fn, imported_ctx)
 
-    invocation.types_mappings[symbolic_bindings] = invocation_imported_type_info
-  else:
-    assert isinstance(invocation.callee, ast.NameRef), invocation.callee
-    # We need to typecheck this function with respect to its own module
-    # Let's take advantage of the existing try-catch mechanism in
-    # typecheck._check_function_or_test_in_module().
+    ctx.type_info.add_instantiation(invocation, symbolic_bindings,
+                                    invocation_imported_type_info)
+    return
 
-    try:
-      # See if the body is present in the type_info mapping (we do this just
-      # to observe if it raises an exception).
-      ctx.type_info[parametric_fn.body]
-    except TypeMissingError as e:
-      # If we've already typechecked the parametric function with the
-      # current symbolic bindings, no need to do it again.
-      if symbolic_bindings not in invocation.types_mappings:
-        # Let's typecheck this parametric function using the symbolic bindings
-        # we just derived to make sure they check out ok.
-        e.node = invocation.callee.name_def
-        ctx.fn_stack.append(
-            (parametric_fn.name.identifier, dict(symbolic_bindings)))
-        ctx.type_info = TypeInfo(parent=ctx.type_info)
-        raise
+  assert isinstance(invocation.callee, ast.NameRef), invocation.callee
+  has_instantiation = ctx.type_info.has_instantiation(invocation,
+                                                      symbolic_bindings)
+  # We need to typecheck this function with respect to its own module
+  # Let's take advantage of the existing try-catch mechanism in
+  # typecheck._check_function_or_test_in_module().
 
-    if symbolic_bindings not in invocation.types_mappings:
-      # If we haven't yet stored a type_info for these symbolic bindings
-      # and we're at this point, it means that we just finished typechecking
-      # the parametric function. Let's store the results.
-      invocation.types_mappings[symbolic_bindings] = ctx.type_info
-      ctx.type_info = ctx.type_info.parent
+  try:
+    # See if the body is present in the type_info mapping (we do this just
+    # to observe if it raises an exception).
+    ctx.type_info[parametric_fn.body]
+  except TypeMissingError as e:
+    # If we've already typechecked the parametric function with the
+    # current symbolic bindings, no need to do it again.
+    if not has_instantiation:
+      # Let's typecheck this parametric function using the symbolic bindings
+      # we just derived to make sure they check out ok.
+      e.node = invocation.callee.name_def
+      ctx.fn_stack.append(
+          (parametric_fn.name.identifier, dict(symbolic_bindings)))
+      ctx.type_info = TypeInfo(parent=ctx.type_info)
+      raise
+
+  if not has_instantiation:
+    # If we haven't yet stored a type_info for these symbolic bindings
+    # and we're at this point, it means that we just finished typechecking
+    # the parametric function. Let's store the results.
+    ctx.type_info.parent.add_instantiation(invocation, symbolic_bindings,
+                                           ctx.type_info)
+    ctx.type_info = ctx.type_info.parent
 
 
 @_rule(ast.Invocation)
@@ -308,11 +313,9 @@ def _deduce_Invocation(self: ast.Invocation, ctx: DeduceCtx) -> ConcreteType:  #
       self.span, callee_type, tuple(arg_types), ctx,
       callee_fn.parametric_bindings)
 
-  # Within the context of (mod_name, fn_name, fn_sym_bindings),
-  # this invocation of callee will have bindings with values specified by
-  # callee_sym_bindings
-  self.symbolic_bindings[tuple(
-      fn_symbolic_bindings.items())] = callee_sym_bindings
+  caller_sym_bindings = tuple(fn_symbolic_bindings.items())
+  ctx.type_info.add_invocation_symbolic_bindings(self, caller_sym_bindings,
+                                                 callee_sym_bindings)
 
   if callee_fn.is_parametric():
     # Now that we have callee_sym_bindings, let's use them to typecheck the body

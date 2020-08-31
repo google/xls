@@ -168,8 +168,8 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
                                           higher_order_parametric_bindings)
 
   _, fn_symbolic_bindings = ctx.fn_stack[-1]
-  invocation.symbolic_bindings[tuple(
-      fn_symbolic_bindings.items())] = symbolic_bindings
+  ctx.type_info.add_invocation_symbolic_bindings(
+      invocation, tuple(fn_symbolic_bindings.items()), symbolic_bindings)
   ctx.type_info[invocation.callee] = fn_type
   ctx.type_info[invocation] = fn_type.return_type  # pytype: disable=attribute-error
 
@@ -185,7 +185,7 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
     # If the higher order function is parametric, we need to typecheck its body
     # with the symbolic bindings we just computed.
     if isinstance(map_fn_ref, ast.ModRef):
-      if symbolic_bindings in invocation.types_mappings:
+      if ctx.type_info.has_instantiation(invocation, symbolic_bindings):
         # We've already typechecked this imported parametric function using
         # these bindings.
         return None
@@ -197,19 +197,20 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
       imported_ctx.fn_stack.append((map_fn_name, dict(symbolic_bindings)))
       # We need to typecheck this imported function with respect to its module
       ctx.check_function_in_module(map_fn, imported_ctx)
-      invocation.types_mappings[
-          symbolic_bindings] = invocation_imported_type_info
+      ctx.type_info.add_instantiation(invocation, symbolic_bindings,
+                                      invocation_imported_type_info)
     else:
       # If the higher-order parametric fn is in this module, let's try to push
       # it onto the typechecking stack.
-      if symbolic_bindings in invocation.types_mappings:
+      if ctx.type_info.has_instantiation(invocation, symbolic_bindings):
         # We've already typecheck this parametric function using these
         # bindings.
         return None
 
       ctx.fn_stack.append((map_fn_name, dict(symbolic_bindings)))
       invocation_type_info = type_info.TypeInfo(parent=ctx.type_info)
-      invocation.types_mappings[symbolic_bindings] = invocation_type_info
+      ctx.type_info.add_instantiation(invocation, symbolic_bindings,
+                                      invocation_type_info)
       ctx.type_info = invocation_type_info
       return map_fn_ref.name_def
 

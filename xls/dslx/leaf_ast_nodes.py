@@ -45,7 +45,6 @@ from xls.dslx.core_ast_nodes import WildcardPattern
 from xls.dslx.free_variables import FreeVariables
 from xls.dslx.scanner import Pos
 from xls.dslx.span import Span
-from xls.dslx.symbolic_bindings import SymbolicBindings
 
 
 NodeToType = Any
@@ -531,18 +530,6 @@ class Invocation(Expr):
     super().__init__(owner, span)
     self.callee = callee
     self.args = args
-
-    # Note: this attribute is populated by type inference.
-    # Maps the symbolic_bindings of the function this
-    # invocation is inside of to the resulting symbolic bindings
-    # in the callee.
-    self.symbolic_bindings = dict(
-    )  # type: Dict[SymbolicBindings, SymbolicBindings]
-
-    # Note: this attribute is populated by type inference.
-    # Maps the symbolic_bindings used in the callee to the node_to_type of the
-    # function body and any other dependencies.
-    self.types_mappings = dict()  # type: Dict[SymbolicBindings, NodeToType]
 
   def __str__(self) -> Text:
     return '{}({})'.format(self.callee, self.format_args())

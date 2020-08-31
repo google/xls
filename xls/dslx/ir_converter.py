@@ -755,9 +755,7 @@ class _IrConverterFb(ast.AstVisitor):
     """
 
     key = self._get_symbolic_bindings_tuple()
-    logging.vlog(2, 'Invocation %s symbolic bindings: %r key: %r', invocation,
-                 invocation.symbolic_bindings, key)
-    return invocation.symbolic_bindings.get(key, ())
+    return self.type_info.get_invocation_symbolic_bindings(invocation, key)
 
   def _get_callee_identifier(self, node: ast.Invocation) -> Text:
     logging.vlog(3, 'Getting callee identifier for invocation: %s', node)

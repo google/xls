@@ -13,12 +13,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# Note: we often access "protected" members on instances of the
+# known-same-class, but PyLint flags these as potential errors. We just blanket
+# disable instead of annotating every line.
+# pylint: disable=protected-access
+
 """Support for carrying type information from type inferencing."""
 
 from typing import Tuple, Optional, Dict
 
+import dataclasses
+
 from xls.dslx import ast
 from xls.dslx import span
+from xls.dslx import symbolic_bindings
 from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.xls_type_error import TypeInferenceError
 
@@ -47,6 +56,30 @@ class TypeMissingError(span.PositionalError):
     self.user = None
 
 
+@dataclasses.dataclass
+class InvocationData:
+  """Parametric instantiation information related to an invocation AST node.
+
+  Instance variables:
+    symbolic_bindings_map: Maps from symbolic bindings in the caller to the
+      corresponding symbolic bindings in the callee.
+    instantiations: Type information that is specialized for a particular
+      parametric instantiation of an invocation.
+  """
+  invocation: ast.Invocation
+  symbolic_bindings_map: Dict[
+      symbolic_bindings.SymbolicBindings,
+      symbolic_bindings.SymbolicBindings] = dataclasses.field(
+          default_factory=dict)
+  instantiations: Dict[symbolic_bindings.SymbolicBindings,
+                       'TypeInfo'] = dataclasses.field(default_factory=dict)
+
+  def update(self, other: 'InvocationData') -> None:
+    assert self.invocation == other.invocation
+    self.symbolic_bindings_map.update(other.symbolic_bindings_map)
+    self.instantiations.update(other.instantiations)
+
+
 class TypeInfo:
   """Holds {AstNode: ConcreteType} mapping and other type analysis info.
 
@@ -63,6 +96,7 @@ class TypeInfo:
     self._dict: Dict[ast.AstNode, ConcreteType] = {}
     self._imports: Dict[ast.Import, ImportedInfo] = {}
     self._name_to_const: Dict[ast.NameDef, ast.Constant] = {}
+    self._invocations: Dict[ast.Invocation, InvocationData] = {}
     self._parent: Optional['TypeInfo'] = parent
 
   @property
@@ -70,8 +104,80 @@ class TypeInfo:
     return self._parent
 
   def update(self, other: 'TypeInfo') -> None:
-    self._dict.update(other._dict)  # pylint: disable=protected-access
-    self._imports.update(other._imports)  # pylint: disable=protected-access
+    self._dict.update(other._dict)
+    self._imports.update(other._imports)
+    for invocation, data in other._invocations.items():
+      if invocation in self._invocations:
+        self._invocations[invocation].update(data)
+      else:
+        self._invocations[invocation] = data
+
+  def _top(self) -> 'TypeInfo':
+    """Traverses to the "most parent" TypeInfo."""
+    this = self
+    while this._parent:
+      this = this._parent
+    return this
+
+  def add_invocation_symbolic_bindings(
+      self, invocation: ast.Invocation,
+      caller: symbolic_bindings.SymbolicBindings,
+      callee: symbolic_bindings.SymbolicBindings) -> None:
+    """Notes caller/callee relation of symbolic bindings at an invocation.
+
+    This is kept from type inferencing time for convenience purposes (so it
+    doesn't need to be recalculated anywhere; e.g. in the interpreter).
+
+    Args:
+      invocation: The invocation node that (may have) caused parametric
+        instantiation.
+      caller: The caller's symbolic bindings at the point of invocation.
+      callee: The callee's computed symbolic bindings for the invocation.
+    """
+    self._top()._invocations.setdefault(
+        invocation,
+        InvocationData(invocation)).symbolic_bindings_map[caller] = callee
+
+  def get_invocation_symbolic_bindings(
+      self, invocation: ast.Invocation,
+      caller: symbolic_bindings.SymbolicBindings
+  ) -> symbolic_bindings.SymbolicBindings:
+    """Returns callee bindings given caller bindings at an invocation."""
+    return self._top()._invocations[invocation].symbolic_bindings_map[caller]
+
+  def add_instantiation(self, invocation: ast.Invocation,
+                        caller: symbolic_bindings.SymbolicBindings,
+                        type_info: 'TypeInfo') -> None:
+    """Adds derived type info for an "instantiation".
+
+    An "instantiation" is an invocation of a parametric function from some
+    caller context (given by the invocation / caller symbolic bindings). These
+    have /derived/ type information, where the parametric expressions are
+    concretized, and have concrete types corresponding to AST nodes in the
+    instantiated parametric function.
+
+    Args:
+      invocation: The invocation the type information has been generated for.
+      caller: The caller's symbolic bindings that caused this instantiation to
+        occur.
+      type_info: The type information that has been determined for this
+        instantiation.
+    """
+    self._top()._invocations.setdefault(
+        invocation,
+        InvocationData(invocation)).instantiations[caller] = type_info
+
+  def has_instantiation(self, invocation: ast.Invocation,
+                        caller: symbolic_bindings.SymbolicBindings) -> bool:
+    """Returns if there's type info at invocation with given caller bindings."""
+    return caller in self._top()._invocations.get(
+        invocation, InvocationData(invocation)).instantiations
+
+  def get_instantiation(
+      self, invocation: ast.Invocation,
+      caller: symbolic_bindings.SymbolicBindings) -> 'TypeInfo':
+    """Retrieves type info for invocation with given caller bindings."""
+    return self._top()._invocations[invocation].instantiations[caller]
 
   def add_import(self, import_node: ast.Import, info: ImportedInfo) -> None:
     assert import_node not in self._imports, import_node
@@ -97,8 +203,8 @@ class TypeInfo:
 
   def get_imports(self) -> Dict[ast.Import, ImportedInfo]:
     return self._imports if not self.parent else {
-        **self._imports,  # pylint: disable=protected-access
-        **self.parent._imports  # pylint: disable=protected-access
+        **self._imports,
+        **self.parent._imports
     }
 
   def get_imported(self, import_node: ast.Import) -> ImportedInfo:
@@ -106,7 +212,7 @@ class TypeInfo:
       if import_node in self._imports:
         return self._imports[import_node]
 
-      return self.parent._imports[import_node]  # pylint: disable=protected-access
+      return self.parent._imports[import_node]
 
     return self._imports[import_node]
 
