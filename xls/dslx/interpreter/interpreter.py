@@ -33,9 +33,9 @@ import termcolor
 from xls.dslx import ast
 from xls.dslx import ast_helpers
 from xls.dslx import bit_helpers
-from xls.dslx import deduce
 from xls.dslx import import_fn
 from xls.dslx import ir_name_mangler
+from xls.dslx import type_info as type_info_mod
 from xls.dslx.concrete_type import ArrayType
 from xls.dslx.concrete_type import BitsType
 from xls.dslx.concrete_type import ConcreteType
@@ -69,7 +69,7 @@ class _WipSentinel(object):
 
 
 ImportSubject = Tuple[Text, ...]
-ImportInfo = Tuple[ast.Module, deduce.NodeToType]
+ImportInfo = Tuple[ast.Module, type_info_mod.TypeInfo]
 
 
 class Interpreter(object):
@@ -77,12 +77,12 @@ class Interpreter(object):
 
   def __init__(self,
                module: ast.Module,
-               node_to_type: deduce.NodeToType,
+               type_info: type_info_mod.TypeInfo,
                f_import: Optional[Callable[[ImportSubject], ImportInfo]],
                trace_all: bool = False,
                ir_package: Optional[ir_package_mod.Package] = None):
     self._module = module
-    self._node_to_type = node_to_type
+    self._type_info = type_info
     self._top_level_members = {}
     self._started_top_level_index = None
     self._f_import = f_import
@@ -371,7 +371,7 @@ class Interpreter(object):
     # TODO(leary): 2019-12-03 We don't have a way to check enum compatibility
     # with the corresponding bits-type value -- we should be using enum-based
     # ConcreteTypes in the interpreter instead of their bits equivalents.
-    deduced = self._node_to_type[type_]
+    deduced = self._type_info[type_]
     deduced = deduced.map_size(
         functools.partial(self._resolve_dim, bindings=bindings))
     if not deduced.has_enum():
@@ -509,7 +509,7 @@ class Interpreter(object):
     """Evaluates an attribute-accessing AST node to a value."""
     lhs_value = self._evaluate(expr.lhs, bindings)
     index = next(
-        i for i, name in enumerate(self._node_to_type[expr.lhs].tuple_names)  # pytype: disable=attribute-error
+        i for i, name in enumerate(self._type_info[expr.lhs].tuple_names)  # pytype: disable=attribute-error
         if name == expr.attr.identifier)
     return lhs_value.tuple_members[index]
 
@@ -1133,8 +1133,7 @@ class Interpreter(object):
               len(args)))
     selector, cases = args
     selector = selector.bits_payload
-    accum = Bits(
-        value=0, bit_count=self._node_to_type[expr].get_total_bit_count())
+    accum = Bits(value=0, bit_count=self._type_info[expr].get_total_bit_count())
     for i in range(selector.bit_count):
       if selector.get_lsb_index(i).value != 0:
         accum |= cases.array_payload.index(i).bits_payload
@@ -1289,19 +1288,19 @@ class Interpreter(object):
     Returns:
       The value that results from DSL interpretation.
     """
-    has_child_node_to_type = expr and symbolic_bindings in expr.types_mappings
-    invocation_node_to_type = (
+    has_child_type_info = expr and symbolic_bindings in expr.types_mappings
+    invocation_type_info = (
         expr.types_mappings[symbolic_bindings]
-        if has_child_node_to_type else self._node_to_type)
+        if has_child_type_info else self._type_info)
 
     @contextlib.contextmanager
     def ntt_swap(new_ntt):
-      old_ntt = self._node_to_type
-      self._node_to_type = new_ntt
+      old_ntt = self._type_info
+      self._type_info = new_ntt
       yield
-      self._node_to_type = old_ntt
+      self._type_info = old_ntt
 
-    with ntt_swap(invocation_node_to_type):
+    with ntt_swap(invocation_type_info):
       interpreter_value = self._evaluate_fn_with_interpreter(
           fn, m, args, span, expr, symbolic_bindings)
 
@@ -1331,8 +1330,8 @@ class Interpreter(object):
     if self._f_import is None:
       raise EvaluateError(span,
                           'Cannot import, no import capability was provided.')
-    imported_module, imported_node_to_type = self._f_import(subject)
-    self._node_to_type.update(imported_node_to_type)
+    imported_module, imported_type_info = self._f_import(subject)
+    self._type_info.update(imported_type_info)
     return imported_module
 
   def _make_top_level_bindings(self, m: ast.Module) -> Bindings:
@@ -1417,7 +1416,7 @@ class Interpreter(object):
     last_result = results[-1].get_bits().to_uint()
     if not last_result:
       last_argset = argsets[-1]
-      fn_type = self._node_to_type[fn]
+      fn_type = self._type_info[fn]
       assert isinstance(fn_type, FunctionType), fn_type
       fn_param_types = fn_type.params
       dslx_argset = [

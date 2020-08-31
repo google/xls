@@ -15,27 +15,28 @@
 # limitations under the License.
 """Helper utilities for use with the interpreter.Interpreter."""
 
-from typing import Tuple, Text, Optional, Dict
+from typing import Tuple, Optional, Dict
 from xls.dslx import ast
 from xls.dslx import deduce
+from xls.dslx import type_info as type_info_mod
 from xls.dslx.interpreter import interpreter
 from xls.dslx.interpreter.bindings import FnCtx
 
-SymbolicBindings = Tuple[Tuple[Text, int], ...]
+SymbolicBindings = Tuple[Tuple[str, int], ...]
 
 
 def interpret_expr(module: ast.Module,
-                   node_to_type: deduce.NodeToType,
-                   env: Dict[Text, int],
-                   bit_widths: Dict[Text, int],
+                   type_info: type_info_mod.TypeInfo,
+                   env: Dict[str, int],
+                   bit_widths: Dict[str, int],
                    expr: ast.Expr,
                    f_import: Optional[deduce.ImportFn],
-                   fn_ctx=Tuple[Text, Text, SymbolicBindings]) -> int:
+                   fn_ctx=Tuple[str, str, SymbolicBindings]) -> int:
   """Interprets expr using env and module's top level bindings.
 
   Args:
     module: The module that this expression is inside of.
-    node_to_type: Mapping from AST node to its deduced/checked type.
+    type_info: Mapping from AST node to its deduced/checked type.
     env: Mapping from symbols to their integer values.
     bit_widths: Mapping from symbols to their bitwidths.
     expr: Expression to evaluate using the values from env and top level
@@ -50,7 +51,7 @@ def interpret_expr(module: ast.Module,
   Raises:
     KeyError: Occurs when the interpreter encounters a symbol that isn't in env.
   """
-  interp = interpreter.Interpreter(module, node_to_type, f_import=f_import)
+  interp = interpreter.Interpreter(module, type_info, f_import=f_import)
   bindings = interp._make_top_level_bindings(module)  # pylint: disable=protected-access
   bindings.fn_ctx = FnCtx(*fn_ctx)
   for ident, val in env.items():

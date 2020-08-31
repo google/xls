@@ -268,6 +268,7 @@ py_library(
         ":fakefs_util",
         ":import_fn",
         ":parser_helpers",
+        ":type_info",
         ":typecheck",
         ":xls_type_error",
         requirement("pyfakefs"),
@@ -294,6 +295,17 @@ py_library(
 )
 
 py_library(
+    name = "type_info",
+    srcs = ["type_info.py"],
+    deps = [
+        ":ast",
+        ":concrete_type",
+        ":span",
+        ":xls_type_error",
+    ],
+)
+
+py_library(
     name = "deduce",
     srcs = ["deduce.py"],
     srcs_version = "PY3",
@@ -307,6 +319,7 @@ py_library(
         ":parametric_instantiator",
         ":scanner",
         ":span",
+        ":type_info",
         ":xls_type_error",
         "@com_google_absl_py//absl/logging",
     ],
@@ -335,6 +348,7 @@ py_library(
         ":deduce",
         ":dslx_builtins",
         ":span",
+        ":type_info",
         ":xls_type_error",
         "//xls/common:xls_error",
         "//xls/dslx/interpreter:interpreter_helpers",
@@ -420,6 +434,7 @@ py_library(
         ":parametric_expression",
         ":parametric_instantiator",
         ":span",
+        ":type_info",
         "//xls/common:xls_error",
         "//xls/ir/python:bits",
         "//xls/ir/python:fileno",
@@ -519,9 +534,8 @@ py_library(
         ":ast",
         ":deduce",
         ":dslx_builtins",
-        ":parametric_expression",
         ":parametric_instantiator",
-        ":parser",
+        ":type_info",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -537,8 +551,8 @@ py_test(
         ":extract_conversion_order",
         ":fakefs_test_util",
         ":parse_and_typecheck",
+        ":type_info",
         "//xls/common:test_base",
-        "@com_google_absl_py//absl/logging",
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )
@@ -614,6 +628,7 @@ py_library(
     deps = [
         ":ast",
         ":deduce",
+        ":type_info",
     ],
 )
 

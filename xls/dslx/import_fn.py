@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,14 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """Defines the ImportFn type signature, used to break circular dependency."""
 
 from typing import Callable, Text, Tuple
 
 from xls.dslx import ast
-from xls.dslx import deduce
+from xls.dslx import type_info
 
-ModuleInfo = Tuple[ast.Module, deduce.NodeToType]
+ModuleInfo = Tuple[ast.Module, type_info.TypeInfo]
 ImportTokens = Tuple[Text, ...]
 ImportFn = Callable[[ImportTokens], ModuleInfo]

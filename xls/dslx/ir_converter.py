@@ -27,6 +27,7 @@ from xls.dslx import bit_helpers
 from xls.dslx import deduce
 from xls.dslx import dslx_builtins
 from xls.dslx import extract_conversion_order
+from xls.dslx import type_info as type_info_mod
 from xls.dslx.concrete_type import ArrayType
 from xls.dslx.concrete_type import BitsType
 from xls.dslx.concrete_type import ConcreteType
@@ -81,7 +82,7 @@ class _IrConverterFb(ast.AstVisitor):
       FunctionBuilder BValue).
     symbolic_bindings: Mapping from parametric binding name (e.g. "N" in
       `fn [N: u32] id(x: bits[N]) -> bits[N]`) to its value in this conversion.
-    node_to_type: Type information for the AstNodes determined during the type
+    type_info: Type information for the AstNodes determined during the type
       checking phase (that must precede IR conversion).
     _constant_deps: Externally-noted constant dependencies that this function
       has (as free variables); noted via add_constant_dep().
@@ -90,9 +91,9 @@ class _IrConverterFb(ast.AstVisitor):
   """
 
   def __init__(self, package: ir_package.Package, module: ast.Module,
-               node_to_type: deduce.NodeToType, emit_positions: bool):
+               type_info: type_info_mod.TypeInfo, emit_positions: bool):
     self.module = module
-    self.node_to_type = node_to_type
+    self.type_info = type_info
     self.emit_positions = emit_positions
     self.package = package
     self.node_to_ir = {
@@ -238,7 +239,7 @@ class _IrConverterFb(ast.AstVisitor):
 
   def _resolve_type(self, node: ast.AstNode) -> ConcreteType:
     try:
-      concrete_type = self.node_to_type[node]
+      concrete_type = self.type_info[node]
     except deduce.TypeMissingError:
       raise ConversionError(
           f'Failed to convert to IR because type was missing for AST node: '
@@ -290,7 +291,7 @@ class _IrConverterFb(ast.AstVisitor):
     self._def(node, self.fb.add_array, vals, self._type_to_ir(element_type))
 
   def visit_Binop(self, node: ast.Binop):
-    lhs_type = self.node_to_type[node.lhs]
+    lhs_type = self.type_info[node.lhs]
     signed_input = isinstance(lhs_type, BitsType) and lhs_type.signed
 
     # Concat is handled specially since the array-typed operation has no
@@ -449,12 +450,12 @@ class _IrConverterFb(ast.AstVisitor):
               self._resolve_type(node).get_total_bit_count())
 
   def visit_Attr(self, node: ast.Attr) -> None:
-    lhs_type = self.node_to_type[node.lhs]
+    lhs_type = self.type_info[node.lhs]
     index = lhs_type.tuple_names.index(node.attr.identifier)  # pytype: disable=attribute-error
     self._def(node, self.fb.add_tuple_index, self._use(node.lhs), index)
 
   def visit_Index(self, node: ast.Index) -> None:
-    lhs_type = self.node_to_type[node.lhs]
+    lhs_type = self.type_info[node.lhs]
     if isinstance(lhs_type, TupleType):
       self._def(node, self.fb.add_tuple_index, self._use(node.lhs),
                 self._get_const(node.index))
@@ -577,7 +578,7 @@ class _IrConverterFb(ast.AstVisitor):
       return node
 
     assert isinstance(node, ast.ModRef), node
-    imported_mod, _ = self.node_to_type.get_imports()[node.mod]
+    imported_mod, _ = self.type_info.get_imports()[node.mod]
     td = imported_mod.get_typedef_by_name()[node.value]
     # Recurse to resolve the typedef within the imported module.
     td = self._deref_struct_or_enum(td)
@@ -670,7 +671,7 @@ class _IrConverterFb(ast.AstVisitor):
     body_converter = _IrConverterFb(
         self.package,
         self.module,
-        self.node_to_type,
+        self.type_info,
         emit_positions=self.emit_positions)
     body_converter.symbolic_bindings = dict(self.symbolic_bindings)
     body_fn_name = ('__' + self.fb.name + '_counted_for_{}_body').format(
@@ -706,7 +707,7 @@ class _IrConverterFb(ast.AstVisitor):
     freevars = node.body.get_free_variables(node.span.start)
     freevars = freevars.drop_defs(lambda x: isinstance(x, ast.BuiltinNameDef))
     for name_def in freevars.get_name_defs():
-      type_ = self.node_to_type[name_def]
+      type_ = self.type_info[name_def]
       if isinstance(type_, FunctionType):
         continue
       logging.vlog(3, 'Converting freevar name: %s', name_def)
@@ -722,7 +723,7 @@ class _IrConverterFb(ast.AstVisitor):
     invariant_args = tuple(
         self._use(name_def)
         for name_def in freevars.get_name_defs()
-        if not isinstance(self.node_to_type[name_def], FunctionType))
+        if not isinstance(self.type_info[name_def], FunctionType))
     self._def(node, self.fb.add_counted_for, self._use(node.init), trip_count,
               stride, body_function, invariant_args)
 
@@ -764,7 +765,7 @@ class _IrConverterFb(ast.AstVisitor):
       callee_name = node.callee.identifier
       m = self.module
     elif isinstance(node.callee, ast.ModRef):
-      m = self.node_to_type.get_imports()[node.callee.mod][0]
+      m = self.type_info.get_imports()[node.callee.mod][0]
       callee_name = node.callee.value
     else:
       raise NotImplementedError('Callee not currently supported @ {}'.format(
@@ -823,7 +824,7 @@ class _IrConverterFb(ast.AstVisitor):
         fn = lookup_module.get_function(map_fn_name)
     elif isinstance(fn_node, ast.ModRef):
       map_fn_name = fn_node.value
-      imports = self.node_to_type.get_imports()
+      imports = self.type_info.get_imports()
       lookup_module, _ = imports[fn_node.mod]
       fn = lookup_module.get_function(map_fn_name)
     else:
@@ -1081,7 +1082,7 @@ class _IrConverterFb(ast.AstVisitor):
 def _convert_one_function(package: ir_package.Package,
                           module: ast.Module,
                           function: ast.Function,
-                          node_to_type: deduce.NodeToType,
+                          type_info: type_info_mod.TypeInfo,
                           symbolic_bindings: Optional[SymbolicBindings] = None,
                           emit_positions: bool = True) -> Text:
   """Converts a single function into its emitted text form.
@@ -1090,7 +1091,7 @@ def _convert_one_function(package: ir_package.Package,
     package: IR package we're converting the function into.
     module: Module we're converting a function within.
     function: Function we're converting.
-    node_to_type: Type information about module from the typechecking phase.
+    type_info: Type information about module from the typechecking phase.
     symbolic_bindings: Parametric bindings to use during conversion, if this
       function is parametric.
     emit_positions: Whether to emit position information into the IR based on
@@ -1102,7 +1103,7 @@ def _convert_one_function(package: ir_package.Package,
   function_by_name = module.get_function_by_name()
   constant_by_name = module.get_constant_by_name()
   converter = _IrConverterFb(
-      package, module, node_to_type, emit_positions=emit_positions)
+      package, module, type_info, emit_positions=emit_positions)
 
   freevars = function.body.get_free_variables(
       function.span.start).get_name_def_tups()
@@ -1132,14 +1133,14 @@ def _convert_one_function(package: ir_package.Package,
 
 def convert_module_to_package(
     module: ast.Module,
-    node_to_type: deduce.NodeToType,
+    type_info: type_info_mod.TypeInfo,
     emit_positions: bool = True,
     traverse_tests: bool = False) -> ir_package.Package:
   """Converts the contents of a module to IR form.
 
   Args:
     module: Module to convert.
-    node_to_type: Concrete type information used in conversion.
+    type_info: Concrete type information used in conversion.
     emit_positions: Whether to emit positional metadata into the output IR.
     traverse_tests: Whether to convert functions called in DSLX test constructs.
       Note that this does NOT convert the test constructs themselves.
@@ -1149,8 +1150,8 @@ def convert_module_to_package(
   """
   emitted = []  # type: List[Text]
   package = ir_package.Package(module.name)
-  order = extract_conversion_order.get_order(module, node_to_type,
-                                             node_to_type.get_imports(),
+  order = extract_conversion_order.get_order(module, type_info,
+                                             type_info.get_imports(),
                                              traverse_tests)
   logging.vlog(3, 'Convert order: %s', pprint.pformat(order))
   for record in order:
@@ -1159,7 +1160,7 @@ def convert_module_to_package(
             package,
             record.m,
             record.f,
-            record.node_to_type,
+            record.type_info,
             symbolic_bindings=record.bindings,
             emit_positions=emit_positions))
 
@@ -1168,16 +1169,15 @@ def convert_module_to_package(
 
 
 def convert_module(module: ast.Module,
-                   node_to_type: deduce.NodeToType,
+                   type_info: type_info_mod.TypeInfo,
                    emit_positions: bool = True) -> Text:
   """Same as convert_module_to_package, but converts to IR text."""
-  return convert_module_to_package(module, node_to_type,
-                                   emit_positions).dump_ir()
+  return convert_module_to_package(module, type_info, emit_positions).dump_ir()
 
 
 def convert_one_function(module: ast.Module,
                          entry_function_name: Text,
-                         node_to_type: deduce.NodeToType,
+                         type_info: type_info_mod.TypeInfo,
                          emit_positions: bool = True) -> Text:
   """Returns function named entry_function_name in module as IR text."""
   package = ir_package.Package(module.name)
@@ -1185,6 +1185,6 @@ def convert_one_function(module: ast.Module,
       package,
       module,
       module.get_function(entry_function_name),
-      node_to_type,
+      type_info,
       emit_positions=emit_positions)
   return package.dump_ir()

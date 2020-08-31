@@ -328,3 +328,11 @@ dslx_test(
     name = "map_of_stdlib_parametric",
     srcs = ["map_of_stdlib_parametric.x"],
 )
+
+dslx_test(
+    name = "parametric_const_ref",
+    srcs = ["parametric_const_ref.x"],
+    # Only a parametric entry point, so no benchmark.
+    generate_benchmark = False,
+    prove_unopt_eq_opt = False,
+)

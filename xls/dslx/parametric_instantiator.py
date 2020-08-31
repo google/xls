@@ -81,7 +81,7 @@ class _ParametricInstantiator:
                   tuple(fn_symbolic_bindings.items()))
         result = self.ctx.interpret_expr(
             self.ctx.module,
-            self.ctx.node_to_type,
+            self.ctx.type_info,
             self.symbolic_bindings,
             self.bit_widths,
             constraint,

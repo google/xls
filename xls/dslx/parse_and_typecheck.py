@@ -22,16 +22,17 @@ from typing import Text, Optional, Tuple, Callable
 from pyfakefs import fake_filesystem as fakefs
 
 from xls.dslx import ast
-from xls.dslx import deduce
 from xls.dslx import fakefs_util
 from xls.dslx import parser_helpers
+from xls.dslx import type_info as type_info_mod
 from xls.dslx import typecheck
 from xls.dslx.import_fn import ImportFn
 from xls.dslx.xls_type_error import XlsTypeError
 
 
-def _run_typecheck(module: ast.Module, print_on_error: bool, f_import: ImportFn,
-                   fs_open: Callable[[Text], io.IOBase]) -> deduce.NodeToType:
+def _run_typecheck(
+    module: ast.Module, print_on_error: bool, f_import: ImportFn,
+    fs_open: Callable[[Text], io.IOBase]) -> type_info_mod.TypeInfo:
   try:
     return typecheck.check_module(module, f_import)
   except XlsTypeError as e:
@@ -49,7 +50,7 @@ def parse_text(
     f_import: Optional[Callable],
     filename: Text,
     fs_open: Callable[[Text], io.IOBase] = None,
-) -> Tuple[ast.Module, deduce.NodeToType]:
+) -> Tuple[ast.Module, type_info_mod.TypeInfo]:
   """Parses text into a module with name "name" and typechecks it."""
   module = parser_helpers.parse_text(
       text,
@@ -58,15 +59,15 @@ def parse_text(
       filename=filename,
       fs_open=fs_open)
 
-  node_to_type = _run_typecheck(
-      module, print_on_error, f_import, fs_open=fs_open)
+  type_info = _run_typecheck(module, print_on_error, f_import, fs_open=fs_open)
 
-  return module, node_to_type
+  return module, type_info
 
 
-def parse_text_fakefs(text: Text, name: Text, print_on_error: bool, *,
-                      f_import: Optional[Callable],
-                      filename: Text) -> Tuple[ast.Module, deduce.NodeToType]:
+def parse_text_fakefs(
+    text: Text, name: Text, print_on_error: bool, *,
+    f_import: Optional[Callable],
+    filename: Text) -> Tuple[ast.Module, type_info_mod.TypeInfo]:
   """Wraps parse_text with a *fake filesystem* holding "text" in "filename".
 
   This primarily exists for use from testing infrastructure! For binaries and

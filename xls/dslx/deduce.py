@@ -19,7 +19,7 @@
 """Type system deduction rules for AST nodes."""
 
 import typing
-from typing import Text, Dict, Union, Callable, Type, Tuple, List, Set, Optional
+from typing import Text, Dict, Union, Callable, Type, Tuple, List, Set
 
 from absl import logging
 import dataclasses
@@ -40,6 +40,8 @@ from xls.dslx.concrete_type import TupleType
 from xls.dslx.parametric_expression import ParametricAdd
 from xls.dslx.parametric_expression import ParametricExpression
 from xls.dslx.parametric_expression import ParametricSymbol
+from xls.dslx.type_info import TypeInfo
+from xls.dslx.type_info import TypeMissingError
 from xls.dslx.xls_type_error import TypeInferenceError
 from xls.dslx.xls_type_error import XlsTypeError
 
@@ -63,143 +65,18 @@ def _rule(cls: Type[ast.AstNode]):
   return register
 
 
-class TypeMissingError(span.PositionalError):
-  """Raised when there is no binding from an AST node to its corresponding type.
-
-  This is useful to raise in order to flag free variables that are dependencies
-  for type inference; e.g. functions within a module that invoke other top-level
-  functions. The type inference system can catch the error, infer the
-  dependency, and re-attempt the deduction of the dependent function.
-  """
-
-  def __init__(self, node: ast.AstNode, suffix: Text = ''):
-    assert isinstance(node, ast.AstNode), repr(node)
-    message = 'Missing type for AST node: {node}{suffix}'.format(
-        node=node, suffix=' :: ' + suffix if suffix else '')
-    # We don't know the real span of the user, we rely on the appropriate caller
-    # to catch the error and populate this field properly.
-    fake_span = span.Span(span.Pos('<fake>', 0, 0), span.Pos('<fake>', 0, 0))
-    super(TypeMissingError, self).__init__(message, fake_span)
-    self.node = node
-    self.suffix = suffix
-    self.user = None
-
-
-ImportedInfo = Tuple[ast.Module, 'NodeToType']
-
-
-class NodeToType(object):
-  """Helper type that checks the types of {AstNode: ConcreteType} mappings.
-
-  Easily "chains" onto an existing mapping of node types when entering a scope
-  with parametric bindings; e.g. a new node_to_type mapping is created for
-  a parametric function's body after parametric instantiation.
-
-  Also raises a TypeMissingError instead of a KeyError when we encounter a node
-  that does not have a type known, so that it can be handled in a more specific
-  way versus a KeyError.
-  """
-
-  def __init__(self, parent: Optional['NodeToType'] = None):
-    self._dict = {}  # type: Dict[ast.AstNode, ConcreteType]
-    self._imports = {}  # type: Dict[ast.Import, ImportedInfo]
-    self._name_to_const = {}  # type: Dict[ast.NameDef, ast.Constant]
-    self._parent = parent  # type: NodeToType
-
-  @property
-  def parent(self) -> 'NodeToType':
-    return self._parent
-
-  def update(self, other: 'NodeToType') -> None:
-    self._dict.update(other._dict)  # pylint: disable=protected-access
-    self._imports.update(other._imports)  # pylint: disable=protected-access
-
-  def add_import(self, import_node: ast.Import, info: ImportedInfo) -> None:
-    assert import_node not in self._imports, import_node
-    self._imports[import_node] = info
-    self.update(info[1])
-
-  def note_constant(self, name_def: ast.NameDef, constant: ast.Constant):
-    self._name_to_const[name_def] = constant
-
-  def get_const_int(self, name_def: ast.NameDef, user_span: span.Span) -> int:
-    if name_def not in self._name_to_const and self.parent:
-      constant = self.parent._name_to_const[name_def]  # pylint: disable=protected-access
-    else:
-      constant = self._name_to_const[name_def]
-    value = constant.value
-    if isinstance(value, ast.Number):
-      return value.get_value_as_int()
-    raise TypeInferenceError(
-        span=user_span,
-        type_=None,
-        suffix='Expected to find a constant integral value with the name {};'
-        'got: {}'.format(name_def, constant.value))
-
-  def get_imports(self) -> Dict[ast.Import, ImportedInfo]:
-    return self._imports if not self.parent else {
-        **self._imports,  # pylint: disable=protected-access
-        **self.parent._imports  # pylint: disable=protected-access
-    }
-
-  def get_imported(self, import_node: ast.Import) -> ImportedInfo:
-    if self.parent:
-      if import_node in self._imports:
-        return self._imports[import_node]
-
-      return self.parent._imports[import_node]  # pylint: disable=protected-access
-
-    return self._imports[import_node]
-
-  def __setitem__(self, k: ast.AstNode, v: ConcreteType) -> None:
-    self._dict[k] = v
-
-  def __getitem__(self, k: ast.AstNode) -> ConcreteType:
-    """Attempts to resolve AST node 'k' in the node-to-type dictionary.
-
-    Args:
-      k: The AST node to resolve to a concrete type.
-
-    Raises:
-      TypeMissingError: When the node is not found.
-
-    Returns:
-      The previously-determined type of the AST node 'k'.
-    """
-    assert isinstance(k, ast.AstNode), repr(k)
-    try:
-      if k in self._dict:
-        return self._dict[k]
-      if self.parent:
-        return self.parent.__getitem__(k)
-    except KeyError:
-      span_suffix = ' @ {}'.format(k.span) if hasattr(k, 'span') else ''
-      raise TypeMissingError(
-          k, suffix='resolving type of node{}'.format(span_suffix))
-    else:
-      span_suffix = ' @ {}'.format(k.span) if hasattr(k, 'span') else ''
-      raise TypeMissingError(
-          k,
-          suffix='resolving type of {} node{}'.format(k.__class__.__name__,
-                                                      span_suffix))
-
-  def __contains__(self, k: ast.AstNode) -> bool:
-    return (k in self._dict or self.parent.__contains__(k)
-            if self.parent else k in self._dict)
-
-
 # Type signature for the import function callback:
-# (import_tokens) -> (module, node_to_type)
-ImportFn = Callable[[Tuple[Text, ...]], Tuple[ast.Module, NodeToType]]
+# (import_tokens) -> (module, type_info)
+ImportFn = Callable[[Tuple[Text, ...]], Tuple[ast.Module, TypeInfo]]
 
 # Type signature for interpreter function callback:
-# (module, node_to_type, env, bit_widths, expr, f_import, fn_ctx) ->
+# (module, type_info, env, bit_widths, expr, f_import, fn_ctx) ->
 #   value_as_int
 #
 # This is an abstract interface to break circular dependencies; see
 # interpreter_helpers.py
 InterpCallbackType = Callable[[
-    ast.Module, NodeToType, Dict[Text, int], Dict[Text, int], ast.Expr, ImportFn
+    ast.Module, TypeInfo, Dict[Text, int], Dict[Text, int], ast.Expr, ImportFn
 ], int]
 
 # Type for stack of functions deduction is running on.
@@ -212,7 +89,7 @@ class DeduceCtx:
   """A wrapper over useful objects for typechecking.
 
   Attributes:
-    node_to_type: Maps an AST node to its deduced type.
+    type_info: Maps an AST node to its deduced type.
     module: The (entry point) module we are typechecking.
     interpret_expr: An Interpreter wrapper that parametric_instantiator uses to
       evaluate bindings with complex expressions (eg. function calls).
@@ -221,7 +98,7 @@ class DeduceCtx:
     fn_stack: Keeps track of the function we're currently typechecking and the
       symbolic bindings we should be using.
   """
-  node_to_type: NodeToType
+  type_info: TypeInfo
   module: ast.Module
   interpret_expr: InterpCallbackType
   check_function_in_module: Callable[[ast.Function, 'DeduceCtx'], None]
@@ -258,8 +135,8 @@ def _deduce_Param(self: ast.Param, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
 
 @_rule(ast.Constant)
 def _deduce_Constant(self: ast.Constant, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  result = ctx.node_to_type[self.name] = deduce(self.value, ctx)
-  ctx.node_to_type.note_constant(self.name, self)
+  result = ctx.type_info[self.name] = deduce(self.value, ctx)
+  ctx.type_info.note_constant(self.name, self)
   return result
 
 
@@ -287,7 +164,7 @@ def _deduce_ConstantArray(
   for member in self.members:
     assert ast.Constant.is_constant(member)
     if isinstance(member, ast.Number) and not member.type_:
-      ctx.node_to_type[member] = element_type
+      ctx.type_info[member] = element_type
       member.check_bitwidth(element_type)
   # Use the base class to check all members are compatible.
   _deduce_Array(self, ctx)
@@ -341,17 +218,16 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
       # these symbolic bindings.
       return
 
-    imported_module, imported_node_to_type = ctx.node_to_type.get_imported(
+    imported_module, imported_type_info = ctx.type_info.get_imported(
         invocation.callee.mod)
-    invocation_imported_node_to_type = NodeToType(parent=imported_node_to_type)
-    imported_ctx = DeduceCtx(invocation_imported_node_to_type, imported_module,
+    invocation_imported_type_info = TypeInfo(parent=imported_type_info)
+    imported_ctx = DeduceCtx(invocation_imported_type_info, imported_module,
                              ctx.interpret_expr, ctx.check_function_in_module)
     imported_ctx.fn_stack.append(
         (parametric_fn.name.identifier, dict(symbolic_bindings)))
     ctx.check_function_in_module(parametric_fn, imported_ctx)
 
-    invocation.types_mappings[
-        symbolic_bindings] = invocation_imported_node_to_type
+    invocation.types_mappings[symbolic_bindings] = invocation_imported_type_info
   else:
     assert isinstance(invocation.callee, ast.NameRef), invocation.callee
     # We need to typecheck this function with respect to its own module
@@ -359,9 +235,9 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
     # typecheck._check_function_or_test_in_module().
 
     try:
-      # See if the body is present in the node_to_type mapping (we do this just
+      # See if the body is present in the type_info mapping (we do this just
       # to observe if it raises an exception).
-      ctx.node_to_type[parametric_fn.body]
+      ctx.type_info[parametric_fn.body]
     except TypeMissingError as e:
       # If we've already typechecked the parametric function with the
       # current symbolic bindings, no need to do it again.
@@ -371,15 +247,15 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
         e.node = invocation.callee.name_def
         ctx.fn_stack.append(
             (parametric_fn.name.identifier, dict(symbolic_bindings)))
-        ctx.node_to_type = NodeToType(parent=ctx.node_to_type)
+        ctx.type_info = TypeInfo(parent=ctx.type_info)
         raise
 
     if symbolic_bindings not in invocation.types_mappings:
-      # If we haven't yet stored a node_to_type for these symbolic bindings
+      # If we haven't yet stored a type_info for these symbolic bindings
       # and we're at this point, it means that we just finished typechecking
       # the parametric function. Let's store the results.
-      invocation.types_mappings[symbolic_bindings] = ctx.node_to_type
-      ctx.node_to_type = ctx.node_to_type.parent
+      invocation.types_mappings[symbolic_bindings] = ctx.type_info
+      ctx.type_info = ctx.type_info.parent
 
 
 @_rule(ast.Invocation)
@@ -420,7 +296,7 @@ def _deduce_Invocation(self: ast.Invocation, ctx: DeduceCtx) -> ConcreteType:  #
                        'Callee does not have a function type.')
 
   if isinstance(self.callee, ast.ModRef):
-    imported_module, _ = ctx.node_to_type.get_imported(self.callee.mod)
+    imported_module, _ = ctx.type_info.get_imported(self.callee.mod)
     callee_name = self.callee.value
     callee_fn = imported_module.get_function(callee_name)
   else:
@@ -472,7 +348,7 @@ def _deduce_slice_type(self: ast.Index, ctx: DeduceCtx,
             'Cannot fit {} in {} bits (inferred from bits to slice).'.format(
                 start.get_value_as_int(),
                 resolved_start_type.get_total_bit_count()))
-      ctx.node_to_type[start] = start_type
+      ctx.type_info[start] = start_type
     else:
       start_type = deduce(start, ctx)
 
@@ -566,7 +442,7 @@ def _bind_names(name_def_tree: ast.NameDefTree, type_: ConcreteType,
   """Binds names in name_def_tree to corresponding type given in type_."""
   if name_def_tree.is_leaf():
     name_def = name_def_tree.get_leaf()
-    ctx.node_to_type[name_def] = type_
+    ctx.type_info[name_def] = type_
     return
 
   if not isinstance(type_, TupleType):
@@ -585,7 +461,7 @@ def _bind_names(name_def_tree: ast.NameDefTree, type_: ConcreteType,
             len(name_def_tree.tree), type_.get_tuple_length()))
 
   for subtree, subtype in zip(name_def_tree.tree, type_.get_unnamed_members()):
-    ctx.node_to_type[subtree] = subtype
+    ctx.type_info[subtree] = subtype
     _bind_names(subtree, subtype, ctx)
 
 
@@ -625,7 +501,7 @@ def _unify_NameDefTree(self: ast.NameDefTree, type_: ConcreteType,
   if self.is_leaf():
     leaf = self.get_leaf()
     if isinstance(leaf, ast.NameDef):
-      ctx.node_to_type[leaf] = resolved_rhs_type
+      ctx.type_info[leaf] = resolved_rhs_type
     elif isinstance(leaf, ast.WildcardPattern):
       pass
     elif isinstance(leaf, (ast.Number, ast.EnumRef)):
@@ -638,7 +514,7 @@ def _unify_NameDefTree(self: ast.NameDefTree, type_: ConcreteType,
             .format(resolved_rhs_type, resolved_leaf_type))
     else:
       assert isinstance(leaf, ast.NameRef), repr(leaf)
-      ref_type = ctx.node_to_type[leaf.name_def]
+      ref_type = ctx.type_info[leaf.name_def]
       resolved_ref_type = resolve(ref_type, ctx)
       if resolved_ref_type != resolved_rhs_type:
         raise TypeInferenceError(
@@ -816,7 +692,7 @@ def _deduce_TypeRef(self: ast.TypeRef, ctx: DeduceCtx) -> ConcreteType:  # pytyp
 def _deduce_NameRef(self: ast.NameRef, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of a NameDef AST node."""
   try:
-    result = ctx.node_to_type[self.name_def]
+    result = ctx.type_info[self.name_def]
   except TypeMissingError as e:
     logging.vlog(3, 'Could not resolve name def: %s', self.name_def)
     e.span = self.span
@@ -829,7 +705,7 @@ def _deduce_NameRef(self: ast.NameRef, ctx: DeduceCtx) -> ConcreteType:  # pytyp
 def _deduce_EnumRef(self: ast.EnumRef, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of an EnumRef AST node."""
   try:
-    result = ctx.node_to_type[self.enum]
+    result = ctx.type_info[self.enum]
   except TypeMissingError as e:
     logging.vlog(3, 'Could not resolve enum to type: %s', self.enum)
     e.span = self.span
@@ -871,7 +747,7 @@ def _deduce_Number(self: ast.Number, ctx: DeduceCtx) -> ConcreteType:  # pytype:
 @_rule(ast.TypeDef)
 def _deduce_TypeDef(self: ast.TypeDef, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   concrete_type = deduce(self.type_, ctx)
-  ctx.node_to_type[self.name] = concrete_type
+  ctx.type_info[self.name] = concrete_type
   return concrete_type
 
 
@@ -894,10 +770,10 @@ def _dim_to_parametric_or_int(
     self: ast.TypeAnnotation, expr: ast.Expr,
     ctx: DeduceCtx) -> Union[int, ParametricExpression]:
   if isinstance(expr, ast.Number):
-    ctx.node_to_type[expr] = ConcreteType.U32
+    ctx.type_info[expr] = ConcreteType.U32
     return expr.get_value_as_int()
   if isinstance(expr, ast.ConstRef):
-    return ctx.node_to_type.get_const_int(expr.name_def, expr.span)
+    return ctx.type_info.get_const_int(expr.name_def, expr.span)
   return _dim_to_parametric(self, expr)
 
 
@@ -907,8 +783,7 @@ def _deduce_TypeRefTypeAnnotation(self: ast.TypeRefTypeAnnotation,
   """Dedeuces the concrete type of a TypeRef type annotation."""
   base_type = deduce(self.type_ref, ctx)
   maybe_struct = ast_helpers.evaluate_to_struct_or_enum_or_annotation(
-      self.type_ref.type_def, _get_imported_module_via_node_to_type,
-      ctx.node_to_type)
+      self.type_ref.type_def, _get_imported_module_via_type_info, ctx.type_info)
   if (isinstance(maybe_struct, ast.Struct) and maybe_struct.is_parametric() and
       self.parametrics):
     base_type = _concretize_struct_annotation(self, maybe_struct, base_type)
@@ -951,8 +826,7 @@ def _deduce_ArrayTypeAnnotation(self: ast.ArrayTypeAnnotation,
 @_rule(ast.ModRef)
 def _deduce_ModRef(self: ast.ModRef, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the type of an entity referenced via module reference."""
-  imported_module, imported_node_to_type = ctx.node_to_type.get_imported(
-      self.mod)
+  imported_module, imported_type_info = ctx.type_info.get_imported(self.mod)
   leaf_name = self.value
 
   # May be a type definition reference.
@@ -963,7 +837,7 @@ def _deduce_ModRef(self: ast.ModRef, ctx: DeduceCtx) -> ConcreteType:  # pytype:
           self.span,
           type_=None,
           suffix='Attempted to refer to module type that is not public.')
-    return imported_node_to_type[td.name]
+    return imported_type_info[td.name]
 
   # May be a function reference.
   try:
@@ -981,22 +855,22 @@ def _deduce_ModRef(self: ast.ModRef, ctx: DeduceCtx) -> ConcreteType:  # pytype:
         type_=None,
         suffix='Attempted to refer to module {!r} function {!r} that is not public.'
         .format(imported_module.name, f.name))
-  if f.name not in imported_node_to_type:
+  if f.name not in imported_type_info:
     logging.vlog(
-        2, 'Function name not in imported_node_to_type; must be parametric: %r',
+        2, 'Function name not in imported_type_info; must be parametric: %r',
         f.name)
     assert f.is_parametric()
     # We don't type check parametric functions until invocations.
     # Let's typecheck this imported parametric function with respect to its
     # module (this will only get the type signature, body gets typechecked
     # after parametric instantiation).
-    imported_ctx = DeduceCtx(imported_node_to_type, imported_module,
+    imported_ctx = DeduceCtx(imported_type_info, imported_module,
                              ctx.interpret_expr, ctx.check_function_in_module)
     imported_ctx.fn_stack.append(ctx.fn_stack[-1])
     ctx.check_function_in_module(f, imported_ctx)
-    ctx.node_to_type.update(imported_ctx.node_to_type)
-    imported_node_to_type = imported_ctx.node_to_type
-  return imported_node_to_type[f.name]
+    ctx.type_info.update(imported_ctx.type_info)
+    imported_type_info = imported_ctx.type_info
+  return imported_type_info[f.name]
 
 
 @_rule(ast.Enum)
@@ -1014,8 +888,8 @@ def _deduce_Enum(self: ast.Enum, ctx: DeduceCtx) -> ConcreteType:  # pytype: dis
     # Note: the parser places the type_ from the enum on the value when it is
     # a number, so this deduction flags inappropriate numbers.
     deduce(value, ctx)
-    ctx.node_to_type[name] = ctx.node_to_type[value] = result
-  ctx.node_to_type[self.name] = ctx.node_to_type[self] = result
+    ctx.type_info[name] = ctx.type_info[value] = result
+  ctx.type_info[self.name] = ctx.type_info[self] = result
   return result
 
 
@@ -1116,13 +990,13 @@ def _deduce_Struct(self: ast.Struct, ctx: DeduceCtx) -> ConcreteType:  # pytype:
             expr_type,
             suffix='Annotated type of derived parametric '
             'value did not match inferred type.')
-    ctx.node_to_type[parametric.name] = parametric_binding_type
+    ctx.type_info[parametric.name] = parametric_binding_type
 
   members = tuple(
       (k.identifier, resolve(deduce(m, ctx), ctx)) for k, m in self.members)
-  result = ctx.node_to_type[self.name] = TupleType(members, self)
-  logging.vlog(5, 'Deduced type for struct %s => %s; node_to_type: %r', self,
-               result, ctx.node_to_type)
+  result = ctx.type_info[self.name] = TupleType(members, self)
+  logging.vlog(5, 'Deduced type for struct %s => %s; type_info: %r', self,
+               result, ctx.type_info)
   return result
 
 
@@ -1191,7 +1065,7 @@ def _deduce_StructInstance(
   if not isinstance(struct_def, ast.Struct):
     # Traverse TypeDefs and ModRefs until we get the struct AST node.
     struct_def = ast_helpers.evaluate_to_struct_or_enum_or_annotation(
-        struct_def, _get_imported_module_via_node_to_type, ctx.node_to_type)
+        struct_def, _get_imported_module_via_type_info, ctx.type_info)
   assert isinstance(struct_def, ast.Struct), struct_def
 
   resolved_struct_type, _ = parametric_instantiator.instantiate_struct(
@@ -1240,11 +1114,10 @@ def _concretize_struct_annotation(type_annotation: ast.TypeRefTypeAnnotation,
   return base_type.map_size(resolver)
 
 
-def _get_imported_module_via_node_to_type(
-    import_: ast.Import,
-    node_to_type: NodeToType) -> Tuple[ast.Module, NodeToType]:
-  """Uses node_to_type to retrieve the corresponding module of a ModRef."""
-  return node_to_type.get_imported(import_)
+def _get_imported_module_via_type_info(
+    import_: ast.Import, type_info: TypeInfo) -> Tuple[ast.Module, TypeInfo]:
+  """Uses type_info to retrieve the corresponding module of a ModRef."""
+  return type_info.get_imported(import_)
 
 
 @_rule(ast.SplatStructInstance)
@@ -1284,7 +1157,7 @@ def _deduce_SplatStructInstance(
   if not isinstance(struct_def, ast.Struct):
     # Traverse TypeDefs and ModRefs until we get the struct AST node.
     struct_def = ast_helpers.evaluate_to_struct_or_enum_or_annotation(
-        struct_def, _get_imported_module_via_node_to_type, ctx.node_to_type)
+        struct_def, _get_imported_module_via_type_info, ctx.type_info)
 
   assert isinstance(struct_def, ast.Struct), struct_def
 
@@ -1313,31 +1186,31 @@ def _deduce(n: ast.AstNode, ctx: DeduceCtx) -> ConcreteType:
   f = RULES[n.__class__]
   f = typing.cast(Callable[[ast.AstNode, DeduceCtx], ConcreteType], f)
   result = f(n, ctx)
-  ctx.node_to_type[n] = result
+  ctx.type_info[n] = result
   return result
 
 
 def deduce(n: ast.AstNode, ctx: DeduceCtx) -> ConcreteType:
   """Deduces and returns the type of value produced by this expr.
 
-  Also adds n to ctx.node_to_type memoization dictionary.
+  Also adds n to ctx.type_info memoization dictionary.
 
   Args:
     n: The AST node to deduce the type for.
-    ctx: Wraps a node_to_type, a dictionary mapping nodes to their types.
+    ctx: Wraps a type_info, a dictionary mapping nodes to their types.
 
   Returns:
     The type of this expression.
 
-  As a side effect the node_to_type mapping is filled with all the deductions
+  As a side effect the type_info mapping is filled with all the deductions
   that were necessary to determine (deduce) the resulting type of n.
   """
   assert isinstance(n, ast.AstNode), n
-  if n in ctx.node_to_type:
-    result = ctx.node_to_type[n]
+  if n in ctx.type_info:
+    result = ctx.type_info[n]
     assert isinstance(result, ConcreteType), result
   else:
-    result = ctx.node_to_type[n] = _deduce(n, ctx)
+    result = ctx.type_info[n] = _deduce(n, ctx)
     logging.vlog(5, 'Deduced type of %s => %s', n, result)
     assert isinstance(result, ConcreteType), \
         '_deduce did not return a ConcreteType; got: {!r}'.format(result)

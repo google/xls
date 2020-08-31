@@ -26,6 +26,7 @@ from xls.common.xls_error import XlsError
 from xls.dslx import ast
 from xls.dslx import deduce
 from xls.dslx import dslx_builtins
+from xls.dslx import type_info
 from xls.dslx.ast import Function
 from xls.dslx.ast import Module
 from xls.dslx.concrete_type import ConcreteType
@@ -52,7 +53,7 @@ def _check_function_params(f: Function,
             expr_type,
             suffix='Annotated type of derived parametric '
             'value did not match inferred type.')
-    ctx.node_to_type[parametric.name] = parametric_binding_type
+    ctx.type_info[parametric.name] = parametric_binding_type
 
   param_types = []
   for param in f.params:
@@ -60,7 +61,7 @@ def _check_function_params(f: Function,
     param_type = deduce.deduce(param, ctx)
     assert isinstance(param_type, ConcreteType), param_type
     param_types.append(param_type)
-    ctx.node_to_type[param.name] = param_type
+    ctx.type_info[param.name] = param_type
 
   return param_types
 
@@ -70,7 +71,7 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx) -> None:
 
   Args:
     f: The function to type check.
-    ctx: Wraps a node_to_type, a mapping of AST node to its deduced type;
+    ctx: Wraps a type_info, a mapping of AST node to its deduced type;
       (free-variable) references are resolved via this dictionary.
 
   Raises:
@@ -83,9 +84,9 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx) -> None:
     # Parametric functions are evaluated per invocation. If we're currently
     # inside of this function, it must mean that we already have the type
     # signature and now we just need to evaluate the body.
-    assert f in ctx.node_to_type, f
-    annotated_return_type = ctx.node_to_type[f].return_type  # pytype: disable=attribute-error
-    param_types = list(ctx.node_to_type[f].params)  # pytype: disable=attribute-error
+    assert f in ctx.type_info, f
+    annotated_return_type = ctx.type_info[f].return_type  # pytype: disable=attribute-error
+    param_types = list(ctx.type_info[f].params)  # pytype: disable=attribute-error
   else:
     logging.vlog(1, 'Type-checking sig for function: %s', f)
     param_types = _check_function_params(f, ctx)
@@ -96,7 +97,7 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx) -> None:
       annotated_return_type = (
           deduce.deduce(f.return_type, ctx)
           if f.return_type else ConcreteType.NIL)
-      ctx.node_to_type[f.name] = ctx.node_to_type[f] = FunctionType(
+      ctx.type_info[f.name] = ctx.type_info[f] = FunctionType(
           tuple(param_types), annotated_return_type)
       return
 
@@ -121,7 +122,7 @@ def _check_function(f: Function, ctx: deduce.DeduceCtx) -> None:
         suffix='Return type of function body for "{}" did not match the '
         'annotated return type.'.format(f.name.identifier))
 
-  ctx.node_to_type[f.name] = ctx.node_to_type[f] = FunctionType(
+  ctx.type_info[f.name] = ctx.type_info[f] = FunctionType(
       tuple(param_types), body_return_type)
 
 
@@ -142,14 +143,14 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
                  ctx: deduce.DeduceCtx) -> Optional[ast.NameDef]:
   """Instantiates a builtin parametric invocation; e.g. 'update'."""
   arg_types = tuple(
-      deduce.resolve(ctx.node_to_type[arg], ctx) for arg in invocation.args)
+      deduce.resolve(ctx.type_info[arg], ctx) for arg in invocation.args)
 
   higher_order_parametric_bindings = None
   map_fn_name = None
   if builtin_name.identifier == 'map':
     map_fn_ref = invocation.args[1]
     if isinstance(map_fn_ref, ast.ModRef):
-      imported_module, imported_node_to_type = ctx.node_to_type.get_imported(
+      imported_module, imported_type_info = ctx.type_info.get_imported(
           map_fn_ref.mod)
       map_fn_name = map_fn_ref.value
       map_fn = imported_module.get_function(map_fn_name)
@@ -169,8 +170,8 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
   _, fn_symbolic_bindings = ctx.fn_stack[-1]
   invocation.symbolic_bindings[tuple(
       fn_symbolic_bindings.items())] = symbolic_bindings
-  ctx.node_to_type[invocation.callee] = fn_type
-  ctx.node_to_type[invocation] = fn_type.return_type  # pytype: disable=attribute-error
+  ctx.type_info[invocation.callee] = fn_type
+  ctx.type_info[invocation] = fn_type.return_type  # pytype: disable=attribute-error
 
   if builtin_name.identifier == 'map':
     assert isinstance(map_fn_name, str), map_fn_name
@@ -188,16 +189,16 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
         # We've already typechecked this imported parametric function using
         # these bindings.
         return None
-      invocation_imported_node_to_type = deduce.NodeToType(
-          parent=imported_node_to_type)
-      imported_ctx = deduce.DeduceCtx(invocation_imported_node_to_type,
+      invocation_imported_type_info = type_info.TypeInfo(
+          parent=imported_type_info)
+      imported_ctx = deduce.DeduceCtx(invocation_imported_type_info,
                                       imported_module, ctx.interpret_expr,
                                       ctx.check_function_in_module)
       imported_ctx.fn_stack.append((map_fn_name, dict(symbolic_bindings)))
       # We need to typecheck this imported function with respect to its module
       ctx.check_function_in_module(map_fn, imported_ctx)
       invocation.types_mappings[
-          symbolic_bindings] = invocation_imported_node_to_type
+          symbolic_bindings] = invocation_imported_type_info
     else:
       # If the higher-order parametric fn is in this module, let's try to push
       # it onto the typechecking stack.
@@ -207,9 +208,9 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
         return None
 
       ctx.fn_stack.append((map_fn_name, dict(symbolic_bindings)))
-      invocation_node_to_type = deduce.NodeToType(parent=ctx.node_to_type)
-      invocation.types_mappings[symbolic_bindings] = invocation_node_to_type
-      ctx.node_to_type = invocation_node_to_type
+      invocation_type_info = type_info.TypeInfo(parent=ctx.type_info)
+      invocation.types_mappings[symbolic_bindings] = invocation_type_info
+      ctx.type_info = invocation_type_info
       return map_fn_ref.name_def
 
   return None
@@ -236,12 +237,12 @@ def check_top_node_in_module(f: Union[ast.Function, ast.Test, ast.Struct,
 
   Args:
     f: Function/test/struct/typedef to type-check.
-    ctx: Wraps a node_to_type, a mapping being populated with the inferred type
+    ctx: Wraps a type_info, a mapping being populated with the inferred type
       for AST nodes. Also contains a module.
 
   Raises:
     TypeMissingError: When we attempt to resolve an AST node to a type that a)
-      cannot be resolved via the node_to_type mapping and b) the AST node
+      cannot be resolved via the type_info mapping and b) the AST node
       missing a type does not refer to a top-level function in the module
       (determined via function_map).
     XlsTypeError: When there is a type check failure.
@@ -280,15 +281,15 @@ def check_top_node_in_module(f: Union[ast.Function, ast.Test, ast.Struct,
       if is_callee_map(stack_record.user):
         assert isinstance(f, ast.Function) and f.is_parametric()
         # We just typechecked a higher-order parametric function (from map()).
-        # Let's go back to our parent node_to_type mapping.
-        ctx.node_to_type = ctx.node_to_type.parent
+        # Let's go back to our parent type_info mapping.
+        ctx.type_info = ctx.type_info.parent
 
       if stack_record.name == fn_name:
         # i.e. we just finished typechecking the body of the function we're
         # currently inside of.
 
         # NOTE: if this is a local parametric function, we don't revert to our
-        # parent node_to_type until deduce._check_parametric_invocation() to
+        # parent type_info until deduce._check_parametric_invocation() to
         # avoid entering an infite loop. See the try-catch in that function for
         # more details.
         ctx.fn_stack.pop()
@@ -328,11 +329,11 @@ def check_top_node_in_module(f: Union[ast.Function, ast.Test, ast.Struct,
         raise
 
 
-ImportFn = Callable[[Tuple[Text, ...]], Tuple[ast.Module, deduce.NodeToType]]
+ImportFn = Callable[[Tuple[Text, ...]], Tuple[ast.Module, type_info.TypeInfo]]
 
 
 def check_module(module: Module,
-                 f_import: Optional[ImportFn]) -> deduce.NodeToType:
+                 f_import: Optional[ImportFn]) -> type_info.TypeInfo:
   """Validates type annotations on all functions within "module".
 
   Args:
@@ -345,18 +346,17 @@ def check_module(module: Module,
   Raises:
     XlsTypeError: If any of the function in f have typecheck errors.
   """
-  node_to_type = deduce.NodeToType()
+  ti = type_info.TypeInfo()
   interpreter_callback = functools.partial(interpret_expr, f_import=f_import)
-  ctx = deduce.DeduceCtx(node_to_type, module, interpreter_callback,
+  ctx = deduce.DeduceCtx(ti, module, interpreter_callback,
                          check_top_node_in_module)
 
-  # First populate node_to_type with constants, enums, and resolved imports.
+  # First populate type_info with constants, enums, and resolved imports.
   ctx.fn_stack.append(('top', dict()))  # No sym bindings in the global scope.
   for member in ctx.module.top:
     if isinstance(member, ast.Import):
-      imported_module, imported_node_to_type = f_import(member.name)
-      ctx.node_to_type.add_import(member,
-                                  (imported_module, imported_node_to_type))
+      imported_module, imported_type_info = f_import(member.name)
+      ctx.type_info.add_import(member, (imported_module, imported_type_info))
     elif isinstance(member, (ast.Constant, ast.Enum)):
       deduce.deduce(member, ctx)
     else:
@@ -382,7 +382,7 @@ def check_module(module: Module,
     ctx.fn_stack.append((f.name.identifier, dict()))  # No symbolic bindings.
     check_top_node_in_module(f, ctx)
 
-    quickcheck_f_body_type = ctx.node_to_type[f.body]
+    quickcheck_f_body_type = ctx.type_info[f.body]
     if quickcheck_f_body_type != ConcreteType.U1:
       raise XlsTypeError(
           f.span,
@@ -453,4 +453,4 @@ def check_module(module: Module,
       check_top_node_in_module(t, ctx)
     logging.vlog(2, 'Finished typechecking test: %s', t)
 
-  return ctx.node_to_type
+  return ctx.type_info

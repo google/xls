@@ -199,6 +199,7 @@ py_library(
         "//xls/dslx:concrete_type",
         "//xls/dslx:deduce",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:type_info",
         "//xls/dslx:typecheck",
         "//xls/dslx/interpreter",
         "//xls/dslx/interpreter:value",

@@ -154,8 +154,8 @@ py_library(
         "//xls/dslx:ir_name_mangler",
         "//xls/dslx:parametric_expression",
         "//xls/dslx:parametric_instantiator",
-        "//xls/dslx:scanner",
         "//xls/dslx:span",
+        "//xls/dslx:type_info",
         "//xls/ir/python:package",
         "//xls/jit/python:llvm_ir_jit",
         "@com_google_absl_py//absl/logging",
@@ -202,6 +202,7 @@ py_library(
         ":interpreter",
         "//xls/dslx:ast",
         "//xls/dslx:deduce",
+        "//xls/dslx:type_info",
     ],
 )
 

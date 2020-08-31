@@ -21,36 +21,39 @@ from typing import Text, Tuple
 from absl.testing import absltest
 from xls.common import test_base
 from xls.dslx import ast
-from xls.dslx import deduce
 from xls.dslx import extract_conversion_order
 from xls.dslx import fakefs_test_util
 from xls.dslx import parse_and_typecheck
+from xls.dslx import type_info as type_info_mod
 
 
 class ExtractConversionOrderTest(absltest.TestCase):
 
-  def _get_module(self, program: Text) -> Tuple[ast.Module, deduce.NodeToType]:
+  def _get_module(self,
+                  program: Text) -> Tuple[ast.Module, type_info_mod.TypeInfo]:
     filename = '/fake/test_program.x'
     with fakefs_test_util.scoped_fakefs(filename, program):
-      m, node_to_type = parse_and_typecheck.parse_text(
+      m, type_info = parse_and_typecheck.parse_text(
           program,
           'test_program',
           print_on_error=True,
           f_import=None,
           filename=filename)
-      return m, node_to_type
+      return m, type_info
 
   def test_get_callees(self):
     program = """
     fn f() -> u32 { u32:42 }
     fn main() -> u32 { f() }
     """
-    m, node_to_type = self._get_module(program)
-    self.assertEqual(((m.get_function('f'), m, node_to_type, ()),),
+    m, type_info = self._get_module(program)
+    callee = extract_conversion_order.Callee(
+        m.get_function('f'), m, type_info, ())
+    self.assertEqual((callee,),
                      extract_conversion_order.get_callees(
                          m.get_function('main'),
                          m,
-                         node_to_type,
+                         type_info,
                          imports={},
                          bindings=()))
 
@@ -60,8 +63,8 @@ class ExtractConversionOrderTest(absltest.TestCase):
     fn f() -> u32 { g() }
     fn main() -> u32 { f() }
     """
-    m, node_to_type = self._get_module(program)
-    order = extract_conversion_order.get_order(m, node_to_type, imports={})
+    m, type_info = self._get_module(program)
+    order = extract_conversion_order.get_order(m, type_info, imports={})
     self.assertLen(order, 3)
     self.assertEqual(order[0].f.identifier, 'g')
     self.assertEqual(order[1].f.identifier, 'f')
@@ -72,8 +75,8 @@ class ExtractConversionOrderTest(absltest.TestCase):
     fn [N: u32] f(x: bits[N]) -> u32 { N }
     fn main() -> u32 { f(u2:0) }
     """
-    m, node_to_type = self._get_module(program)
-    order = extract_conversion_order.get_order(m, node_to_type, imports={})
+    m, type_info = self._get_module(program)
+    order = extract_conversion_order.get_order(m, type_info, imports={})
     self.assertLen(order, 2)
     self.assertEqual(order[0].f.identifier, 'f')
     self.assertEqual(order[0].bindings, (('N', 2),))
@@ -91,8 +94,8 @@ class ExtractConversionOrderTest(absltest.TestCase):
     fn [N: u32] f(x: bits[N]) -> u32 { g(x) }
     fn main() -> u32 { f(u2:0) }
     """
-    m, node_to_type = self._get_module(program)
-    order = extract_conversion_order.get_order(m, node_to_type, imports={})
+    m, type_info = self._get_module(program)
+    order = extract_conversion_order.get_order(m, type_info, imports={})
     self.assertLen(order, 3)
     self.assertEqual(order[0].f.identifier, 'g')
     self.assertEqual(order[0].bindings, (('M', 2),))
@@ -105,8 +108,8 @@ class ExtractConversionOrderTest(absltest.TestCase):
     program = """
     fn main() -> u32 { fail!(u32:0) }
     """
-    m, node_to_type = self._get_module(program)
-    order = extract_conversion_order.get_order(m, node_to_type, imports={})
+    m, type_info = self._get_module(program)
+    order = extract_conversion_order.get_order(m, type_info, imports={})
     self.assertLen(order, 1)
     self.assertEqual(order[0].f.identifier, 'main')
     self.assertEqual(order[0].bindings, ())

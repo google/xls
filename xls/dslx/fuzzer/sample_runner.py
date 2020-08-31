@@ -30,8 +30,8 @@ from xls.common import runfiles
 from xls.common.xls_error import XlsError
 from xls.dslx import ast
 from xls.dslx import concrete_type as concrete_type_mod
-from xls.dslx import deduce
 from xls.dslx import parse_and_typecheck
+from xls.dslx import type_info as type_info_mod
 from xls.dslx import typecheck
 from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.fuzzer import sample
@@ -130,8 +130,8 @@ def sign_convert_args_batch(f: ast.Function, m: ast.Module,
                             args_batch: sample.ArgsBatch) -> sample.ArgsBatch:
   """Sign-converts ArgsBatch to match the signedness of function arguments."""
   f = m.get_function('main')
-  node_to_type = typecheck.check_module(m, f_import=None)
-  arg_types = tuple(node_to_type[p.type_] for p in f.params)
+  type_info = typecheck.check_module(m, f_import=None)
+  arg_types = tuple(type_info[p.type_] for p in f.params)
   converted_batch = []
   for args in args_batch:
     assert len(arg_types) == len(args)
@@ -213,7 +213,7 @@ class SampleRunner:
       logging.vlog(1, 'Parsing DSLX file.')
       start = time.time()
       if options.input_is_dslx:
-        m, node_to_type = parse_and_typecheck.parse_text_fakefs(
+        m, type_info = parse_and_typecheck.parse_text_fakefs(
             input_text,
             'test_module',
             f_import=None,
@@ -226,7 +226,7 @@ class SampleRunner:
           logging.vlog(1, 'Interpreting DSLX file.')
           start = time.time()
           results['interpreted DSLX'] = self._interpret_dslx(
-              m, node_to_type, args_batch)
+              m, type_info, args_batch)
           logging.vlog(1, 'Parsing DSLX file complete, elapsed %0.2fs',
                        time.time() - start)
 
@@ -375,10 +375,10 @@ class SampleRunner:
                               f'\n{reference:40} = {ref_result}'
                               f'\n{name:40} = {values[i]}')
 
-  def _interpret_dslx(self, m: ast.Module, node_to_type: deduce.NodeToType,
+  def _interpret_dslx(self, m: ast.Module, type_info: type_info_mod.TypeInfo,
                       args_batch: sample.ArgsBatch) -> Tuple[Value, ...]:
     """Interprets the DSLX module returns the result Values."""
-    interp = Interpreter(m, node_to_type, f_import=None)
+    interp = Interpreter(m, type_info, f_import=None)
     dslx_results = []
     f = m.get_function('main')
     for args in sign_convert_args_batch(f, m, args_batch):
