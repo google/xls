@@ -28,8 +28,8 @@ fn mod(dividend: u32, divisor: u32) -> u32 {
        let term = term >> u64:1;
        let (new_q, new_r) : (u32, u32) =
          match product <= (remainder as u64) {
-           true => (quotient + (term as u32), remainder - (product as u32));
-           _ => (quotient, remainder);
+           true => (quotient + (term as u32), remainder - (product as u32)),
+           _ => (quotient, remainder),
          };
        (new_q, new_r, product, term)
     }((quotient, remainder, product, term));

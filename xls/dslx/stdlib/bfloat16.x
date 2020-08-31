@@ -33,15 +33,15 @@ pub fn increment_sfd(input: BF16) -> BF16 {
   let new_sfd_msb = new_sfd[8 +: u1];
   match (new_sfd_msb, input.bexp >= u8:0xfe) {
     // Overflow to infinity.
-    (true, true) => inf(input.sign);
+    (true, true) => inf(input.sign),
     // Significand overflowed, normalize.
     (true, false) => BF16 { sign: input.sign,
                             bexp: input.bexp + u8:1,
-                            sfd: new_sfd[1 +: u7] };
+                            sfd: new_sfd[1 +: u7] },
     // No normalization required.
     (_, _) => BF16 { sign: input.sign,
                      bexp: input.bexp,
-                     sfd: new_sfd[:7] };
+                     sfd: new_sfd[:7] },
   }
 }
 

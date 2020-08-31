@@ -610,8 +610,8 @@ class IrConverterTest(absltest.TestCase):
     m = self.parse_dsl_text("""\
     fn f(x: u8) -> u2 {
       match x {
-        u8:42 => u2:0;
-        u8:64 => u2:1;
+        u8:42 => u2:0,
+        u8:64 => u2:1,
         _ => u2:2
       }
     }
@@ -642,9 +642,9 @@ class IrConverterTest(absltest.TestCase):
     m = self.parse_dsl_text("""\
     fn f(x: u2) -> u8 {
       match x {
-        u2:0 => u8:42;
-        u2:1 => u8:64;
-        u2:2 => u8:128;
+        u2:0 => u8:42,
+        u2:1 => u8:64,
+        u2:2 => u8:128,
         _ => u8:255
       }
     }
@@ -682,9 +682,9 @@ class IrConverterTest(absltest.TestCase):
     const TWO = MyU2:2;
     fn f(x: u2) -> u8 {
       match x {
-        ZERO => u8:42;
-        ONE => u8:64;
-        TWO => u8:128;
+        ZERO => u8:42,
+        ONE => u8:64,
+        TWO => u8:128,
         _ => u8:255
       }
     }
@@ -718,8 +718,8 @@ class IrConverterTest(absltest.TestCase):
     m = self.parse_dsl_text("""\
     fn f(x: u8) -> u2 {
       match x {
-        u8:42 => let x = u2:0; x;
-        u8:64 => let x = u2:1; x;
+        u8:42 => let x = u2:0; x,
+        u8:64 => let x = u2:1; x,
         _ => let x = u2:2; x
       }
     }
@@ -750,7 +750,7 @@ class IrConverterTest(absltest.TestCase):
     m = self.parse_dsl_text("""\
     fn f(x: u8) -> u2 {
       match x {
-        u8:42 => u2:3;
+        u8:42 => u2:3,
         _ => x as u2
       }
     }
@@ -779,7 +779,7 @@ class IrConverterTest(absltest.TestCase):
     const FOO = u8:0xff;
     fn f(x: u8) -> u2 {
       match x {
-        FOO => u2:0;
+        FOO => u2:0,
         _ => x as u2
       }
     }
@@ -982,7 +982,7 @@ class IrConverterTest(absltest.TestCase):
     m = self.parse_dsl_text("""
     fn main(x: u8) -> u8 {
       let t = match x {
-        u8:42 => u8:0xff;
+        u8:42 => u8:0xff,
         _ => x
       };
       t

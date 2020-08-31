@@ -117,18 +117,18 @@ following four cases:
 ```
       // i == 0 (no matter whether prior == elem or not):
       //    we set position 0 to 0 and update the new_counter to 1
-      (true, true) => (u3:0, u3:1);
-      (true, false) => (u3:0, u3:1);
+      (true, true) => (u3:0, u3:1),
+      (true, false) => (u3:0, u3:1),
 
       // if i != 0 - if the current element is the same as pior,
       //    set to_place to the value of the current count
       //    update new_counter with the increased counter value
-      (false, true) => (count, count + u3:1);
+      (false, true) => (count, count + u3:1),
 
       // if i != 0 - if current element is different from prior,
       //     set to_place back to 0
       //     set new_counter back to 1
-      (false, false) => (u3:0, u3:1);
+      (false, false) => (u3:0, u3:1),
     };
 ```
 

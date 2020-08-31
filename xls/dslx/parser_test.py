@@ -621,7 +621,7 @@ proc simple(addend: u32) {
     m = ast.Module('test')
     b.add('x', ast.BuiltinNameDef(m, 'x'))
     e = self.parse_expression(
-        'match x { u32:42 => u32:64; _ => u32:42 }', bindings=b)
+        'match x { u32:42 => u32:64, _ => u32:42 }', bindings=b)
     self.assertIsInstance(e, ast.Match)
 
   def test_match_with_const_pattern(self):
@@ -629,7 +629,7 @@ proc simple(addend: u32) {
         const FOO = u32:64;
         fn f(x: u32) {
           match x {
-            FOO => u32:64;
+            FOO => u32:64,
             _ => u32:42
           }
         }
@@ -647,7 +647,7 @@ proc simple(addend: u32) {
     program = """
         fn f(x: u32) {
           match x {
-            y | z => u32:64;
+            y | z => u32:64,
             _ => u32:42
           }
         }
