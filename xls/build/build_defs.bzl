@@ -207,7 +207,7 @@ def dslx_jit_wrapper(
             name + ".h",
             name + ".cc",
         ],
-        cmd = "$(location //xls/jit:jit_wrapper_generator_main) -ir_path $(SRCS) %s -class_name %s -output_name %s -output_dir $(@D)" % (entry_arg, dslx_name, name),
+        cmd = "$(location //xls/jit:jit_wrapper_generator_main) -ir_path $(SRCS) %s -class_name %s -output_name %s -output_dir $(@D) -genfiles_dir $(GENDIR)" % (entry_arg, dslx_name, name),
         exec_tools = [
             "//xls/jit:jit_wrapper_generator_main",
         ],

@@ -42,6 +42,9 @@ ABSL_FLAG(std::string, output_name, "",
 ABSL_FLAG(std::string, output_dir, "",
           "Directory into which to write the output. "
           "Files will be named <function>.h and <function>.cc");
+ABSL_FLAG(std::string, genfiles_dir, "",
+          "The directory into which generated files are placed. "
+          "This prefix will be removed from the header guards.");
 
 namespace xls {
 namespace {
@@ -59,6 +62,7 @@ std::string Camelize(absl::string_view input) {
 
 absl::Status RealMain(const std::filesystem::path& ir_path,
                       const std::filesystem::path& output_path,
+                      const std::filesystem::path& genfiles_dir,
                       std::string class_name, std::string output_name,
                       std::string function_name) {
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));
@@ -89,7 +93,7 @@ absl::Status RealMain(const std::filesystem::path& ir_path,
   }
   header_path.append(absl::StrCat(output_name, ".h"));
   GeneratedJitWrapper wrapper =
-      GenerateJitWrapper(*function, class_name, header_path);
+      GenerateJitWrapper(*function, class_name, header_path, genfiles_dir);
 
   XLS_RETURN_IF_ERROR(SetFileContents(header_path, wrapper.header));
 
@@ -112,8 +116,9 @@ int main(int argc, char* argv[]) {
   XLS_QCHECK(!output_dir.empty()) << "-output_dir must be specified!";
 
   XLS_QCHECK_OK(xls::RealMain(
-      ir_path, output_dir, absl::GetFlag(FLAGS_class_name),
-      absl::GetFlag(FLAGS_output_name), absl::GetFlag(FLAGS_function)));
+      ir_path, output_dir, absl::GetFlag(FLAGS_genfiles_dir),
+      absl::GetFlag(FLAGS_class_name), absl::GetFlag(FLAGS_output_name),
+      absl::GetFlag(FLAGS_function)));
 
   return 0;
 }

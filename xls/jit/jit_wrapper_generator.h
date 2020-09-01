@@ -37,7 +37,8 @@ struct GeneratedJitWrapper {
 // TODO(rspringer): 2020-08-19 Add support for non-opt IR.
 GeneratedJitWrapper GenerateJitWrapper(
     const Function& function, const std::string& class_name,
-    const std::filesystem::path& header_path);
+    const std::filesystem::path& header_path,
+    const std::filesystem::path& genfiles_path);
 
 }  // namespace xls
 

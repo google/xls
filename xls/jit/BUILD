@@ -26,6 +26,7 @@ cc_library(
     deps = [
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "//xls/common/status:ret_check",
         "//xls/ir",
     ],
 )
@@ -43,6 +44,18 @@ cc_binary(
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/ir:ir_parser",
+    ],
+)
+
+cc_test(
+    name = "jit_wrapper_generator_test",
+    srcs = ["jit_wrapper_generator_test.cc"],
+    deps = [
+        ":jit_wrapper_generator",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "@com_google_googletest//:gtest_main",
     ],
 )
 

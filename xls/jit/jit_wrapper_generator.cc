@@ -13,7 +13,9 @@
 // limitations under the License.
 #include "xls/jit/jit_wrapper_generator.h"
 
+#include "absl/strings/str_replace.h"
 #include "absl/strings/substitute.h"
+#include "xls/common/status/ret_check.h"
 
 namespace xls {
 namespace {
@@ -182,15 +184,20 @@ std::string CreateImplSpecialization(const Function& function,
 }  // namespace
 
 std::string GenerateWrapperHeader(const Function& function,
-                                  absl::string_view class_name) {
+                                  absl::string_view class_name,
+                                  const std::filesystem::path& header_path,
+                                  const std::filesystem::path& genfiles_path) {
   // $0 : Class name
   // $1 : Function params
   // $2 : Function name
   // $3 : Packed view params
   // $4 : Any interfaces for specially-matched types, e.g., an interface that
   //      takes a float for a PackedTupleView<PackedBitsView<23>, ...>.
+  // $5 : Header guard.
   constexpr const char header_template[] =
       R"(// Automatically-generated file! DO NOT EDIT!
+#ifndef $5
+#define $5
 #include <memory>
 
 #include "absl/status/status.h"
@@ -220,6 +227,8 @@ class $0 {
 };
 
 }  // namespace xls
+
+#endif  // $5
 )";
 
   std::vector<std::string> params;
@@ -232,9 +241,21 @@ class $0 {
   packed_params.push_back(absl::StrCat(
       PackedTypeString(*function.return_value()->GetType()), " result"));
 
-  return absl::Substitute(
-      header_template, class_name, absl::StrJoin(params, ", "), function.name(),
-      absl::StrJoin(packed_params, ", "), CreateDeclSpecialization(function));
+  // Transform "blah/genfiles/xls/foo/bar.h" into "XLS_FOO_BAR_H_"
+  std::string header_guard =
+      std::string(header_path).substr(std::string(genfiles_path).size() + 1);
+  header_guard = absl::StrReplaceAll(
+      header_guard,
+      {
+          {absl::StrFormat("%c", header_path.preferred_separator), "_"},
+          {".", "_"},
+      });
+  header_guard = absl::StrCat(absl::AsciiStrToUpper(header_guard), "_");
+
+  return absl::Substitute(header_template, class_name,
+                          absl::StrJoin(params, ", "), function.name(),
+                          absl::StrJoin(packed_params, ", "),
+                          CreateDeclSpecialization(function), header_guard);
 }
 
 std::string GenerateWrapperSource(const Function& function,
@@ -319,9 +340,11 @@ $9
 
 GeneratedJitWrapper GenerateJitWrapper(
     const Function& function, const std::string& class_name,
-    const std::filesystem::path& header_path) {
+    const std::filesystem::path& header_path,
+    const std::filesystem::path& genfiles_path) {
   GeneratedJitWrapper wrapper;
-  wrapper.header = GenerateWrapperHeader(function, class_name);
+  wrapper.header =
+      GenerateWrapperHeader(function, class_name, header_path, genfiles_path);
   wrapper.source = GenerateWrapperSource(function, class_name, header_path);
   return wrapper;
 }
