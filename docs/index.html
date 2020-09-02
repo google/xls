@@ -868,6 +868,12 @@ $ source ~/.bashrc
 $ bazel test -c opt ...
 </code></pre>
 
+<p>A reference build/test environment setup is also provided via <code>Dockerfile</code>:</p>
+<pre><code class="console">~$ git clone https://github.com/google/xls.git
+~$ cd xls
+~/xls$ docker build .  # Performs optimized build and test.
+</code></pre>
+
 <h2 id="stack-diagram-and-project-layout">Stack Diagram and Project Layout</h2>
 <p>Navigating a new code base can be daunting; the following description provides a
 high-level view of the important directories and their intended organization /
@@ -981,6 +987,7 @@ project:</p>
 <li><a href="https://github.com/brajiang">Brandon Jiang</a></li>
 <li><a href="https://github.com/cdleary">Chris Leary</a></li>
 <li><a href="https://github.com/dmlockhart">Derek Lockhart</a></li>
+<li><a href="https://github.com/felixzhuologist">Felix Zhu</a></li>
 <li><a href="https://github.com/hmontero1205">Hans Montero</a></li>
 <li><a href="https://github.com/jbaileyhandle">Jonathan Bailey</a></li>
 <li><a href="https://github.com/julianviera99">Julian Viera</a></li>

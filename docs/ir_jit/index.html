@@ -374,6 +374,26 @@
     Usage
   </a>
   
+    <nav class="md-nav" aria-label="Usage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#specialized-matching" class="md-nav__link">
+    Specialized matching
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#direct-usage" class="md-nav__link">
+    Direct usage
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -808,6 +828,26 @@
     Usage
   </a>
   
+    <nav class="md-nav" aria-label="Usage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#specialized-matching" class="md-nav__link">
+    Specialized matching
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#direct-usage" class="md-nav__link">
+    Direct usage
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -901,7 +941,11 @@
 <div class="toc">
 <ul>
 <li><a href="#ir-jit-compiler">IR JIT Compiler</a><ul>
-<li><a href="#usage">Usage</a></li>
+<li><a href="#usage">Usage</a><ul>
+<li><a href="#specialized-matching">Specialized matching</a></li>
+<li><a href="#direct-usage">Direct usage</a></li>
+</ul>
+</li>
 <li><a href="#design">Design</a><ul>
 <li><a href="#arg-passing">Arg passing</a></li>
 <li><a href="#arrayindex">ArrayIndex</a></li>
@@ -922,12 +966,51 @@
 <p>XLS provides a JIT compiler for evaluating functions written in the [XLS]
 compiler intermediate representation (IR) at native machine speed.</p>
 <h2 id="usage">Usage</h2>
-<p>The IR JIT is the default backend for the
-<a href="../tools/#eval-ir-main">eval_ir_main</a>
-tool, which loads IR from disk and runs with args present on either the command
-line or in a specified file.</p>
-<p>For programmatic usage, the JIT is available as a library with a straightforward
-interface:</p>
+<p>Given a DSLX file and build target, one can build and run it through the JIT by:</p>
+<ol>
+<li>Declaring a
+    <a href="http://cs/xls/build/build_defs.bzl"><code>dslx_jit_wrapper</code></a> target
+    matching the DSLX build target.</li>
+<li>Creating a JIT object and calling its <code>Run()</code> method. Using the 2-way
+    floating-point adder as an example:<p>```c
+   # include "xls/modules/fpadd_2x24_jit_wrapper.h"</p>
+<p>xabsl::StatusOr<Value> foo(Value a, Value b) {
+     ...
+     // Only create this once and re-use it; it's created here just as
+     // an illustration.
+     XLS_ASSIGN_OR_RETURN(Fpadd2x32 adder, Fpadd2x32::Create()); return
+     adder.Run(a, b);
+   }
+   ```</p>
+</li>
+</ol>
+<p>The advantages of JIT compilation (or any
+compilation, for that matter) only come into play when repeatedly using the
+compiled object, so programs should be structured to create a JIT wrapper
+once and to reuse it many times, e.g., to test a module across many - or
+even exhaustively, across all possible - inputs.</p>
+<h3 id="specialized-matching">Specialized matching</h3>
+<p>In many cases, the types used by DSLX designs map to native types, such as the
+C/C++ <code>float</code>. In that case, a simplified wrapper call is available:</p>
+<pre><code>#include &quot;xls/modules/fpadd_2x24_jit_wrapper.h&quot;
+
+xabsl::StatusOr&lt;float&gt; foo(float a, float b) {
+  ...
+  // Only create this once and re-use it; it's created here just as
+  // an illustration.
+  XLS_ASSIGN_OR_RETURN(Fpadd2x32 adder, Fpadd2x32::Create());
+  return adder.Run(a, b);
+}
+</code></pre>
+
+<p>When available, these simplified wrappers should be used for higher performance
+(~30% in our measured cases). Currently, only floats are specialized in this
+way, but others will be added as needs arise.</p>
+<p>These are higher performance because they avoid unnecessary marshaling of these
+types into Views (e.g., a <code>float</code> outside the JIT -&gt; View -&gt; <code>float</code> inside the
+JIT).</p>
+<h3 id="direct-usage">Direct usage</h3>
+<p>The JIT is also available as a library with a straightforward interface:</p>
 <pre><code>xabsl::StatusOr&lt;Value&gt; RunOnJit(
     Function* function, absl::Span&lt;const Value&gt; args) {
   XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(function));
@@ -935,10 +1018,10 @@ interface:</p>
 }
 </code></pre>
 
-<p>The advantages of JIT compilation (or any compilation, for that matter) only
-come into play when repeatedly using the compiled object, so programs should be
-structured to compile a function once and to reuse it many times, e.g., to test
-a module across many - or even exhaustively, across all possible - inputs.</p>
+<p>The IR JIT is the default backend for the
+<a href="../tools/#eval-ir-main">eval_ir_main</a>
+tool, which loads IR from disk and runs with args present on either the command
+line or in a specified file.</p>
 <h2 id="design">Design</h2>
 <p>Internally, the JIT converts XLS IR to LLVM IR and uses
 <a href="https://llvm.org/docs/ORCv2.html">LLVM's ORC infrastructure</a> to convert that

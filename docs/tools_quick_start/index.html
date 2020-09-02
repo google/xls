@@ -866,12 +866,12 @@ assume <code>bazel build -c opt //xls/...</code> has been completed so the binar
 eliminated the useless add-with-zero.</p>
 <h2 id="verilog-rtl-generation">Verilog RTL generation</h2>
 <p>To generate RTL from the optimized IR, use the codegen tool:</p>
-<pre><code>$ ./bazel-bin/xls/tools/codegen_main --pipeline_stages=1 /tmp/simple_add.opt.ir &gt; /tmp/simple_add.v
+<pre><code>$ ./bazel-bin/xls/tools/codegen_main --pipeline_stages=1 --delay_model=unit /tmp/simple_add.opt.ir &gt; /tmp/simple_add.v
 </code></pre>
 
 <h2 id="ir-visualizer">IR visualizer</h2>
 <p>To get a graphical view of the IR files, use the IR visualization tool:</p>
-<pre><code>$ ./bazel-bin/xls/ir/visualization/app --delay_model=unit --ir_path=/tmp/simple_add.ir
+<pre><code>$ ./bazel-bin/xls/visualization/ir_viz/app --delay_model=unit --ir_path=/tmp/simple_add.ir
 </code></pre>
 
 <p>This starts a server on the local host port 5000 by default, so you can access
