@@ -160,7 +160,7 @@ std::string CellKindToString(CellKind kind) {
     }
 
     RowResponse response;
-    for (const auto& kv : row.output_signals()) {
+    for (const auto& kv : row.next_internal_signals()) {
       XLS_ASSIGN_OR_RETURN(response[kv.first],
                            StateTableSignalFromProto(kv.second));
     }
@@ -175,21 +175,27 @@ StateTable::StateTable(const std::vector<Row>& rows,
                        const absl::flat_hash_set<std::string>& signals,
                        const StateTableProto& proto)
     : signals_(signals), rows_(rows), proto_(proto) {
-  // Get the output side ("RowResponse") of the first row in the table,
+  // Get the "output" side ("RowResponse") of the first row in the table,
   // and cache the signal names from there.
   for (const auto& kv : rows_[0].response) {
-    output_signals_.insert(kv.first);
+    internal_signals_.insert(kv.first);
   }
 }
 
+// TODO(rspringer): 2020/08/28 - We don't handle transition signals (rising,
+// falling, etc.) here yet.
 bool StateTable::SignalMatches(absl::string_view name, bool value,
                                const RowStimulus& stimulus) const {
   // Input signals can be either high or low - we don't manage persistent state
   // inside this class; we just represent the table.
   StateTableSignal value_signal =
       value ? StateTableSignal::kHigh : StateTableSignal::kLow;
+  // If the stimulus is L/H or H/L, it has to match; we'll figure out what to do
+  // with the output later (in GetSignalValue()).
   if (stimulus.contains(name) &&
-      (value_signal == stimulus.at(name) ||
+      (stimulus.at(name) == StateTableSignal::kLowOrHigh ||
+       stimulus.at(name) == StateTableSignal::kHighOrLow ||
+       value_signal == stimulus.at(name) ||
        stimulus.at(name) == StateTableSignal::kDontCare)) {
     return true;
   }
@@ -237,7 +243,21 @@ xabsl::StatusOr<bool> StateTable::GetSignalValue(
   for (const Row& row : rows_) {
     XLS_ASSIGN_OR_RETURN(bool match, MatchRow(row, input_stimulus));
     if (match) {
-      return row.response.at(signal) == StateTableSignal::kHigh;
+      // If "switched" (e.g., kLowOrHigh) are used, then the next value is
+      // identity if both sides are the same, and inversion otherwise.
+      StateTableSignal stimulus_signal = row.stimulus.at(signal);
+      StateTableSignal response_signal = row.response.at(signal);
+      bool switched_signal = stimulus_signal == StateTableSignal::kLowOrHigh ||
+                             stimulus_signal == StateTableSignal::kHighOrLow;
+      if (switched_signal) {
+        if (stimulus_signal == response_signal) {
+          return input_stimulus.at(signal);
+        } else {
+          return !input_stimulus.at(signal);
+        }
+      }
+
+      return response_signal == StateTableSignal::kHigh;
     }
   }
 
@@ -250,7 +270,7 @@ xabsl::StatusOr<StateTableProto> StateTable::ToProto() const {
   // row contains every signal).
   for (const auto& kv_stimulus : rows_[0].stimulus) {
     const std::string& signal_name = kv_stimulus.first;
-    if (output_signals_.contains(signal_name)) {
+    if (internal_signals_.contains(signal_name)) {
       proto.add_internal_names(signal_name);
     } else {
       proto.add_input_names(signal_name);
@@ -263,7 +283,7 @@ xabsl::StatusOr<StateTableProto> StateTable::ToProto() const {
       const std::string& signal_name = kv_stimulus.first;
       XLS_ASSIGN_OR_RETURN(StateTableSignalProto signal_value,
                            ProtoFromStateTableSignal(kv_stimulus.second));
-      if (output_signals_.contains(signal_name)) {
+      if (internal_signals_.contains(signal_name)) {
         row_proto->mutable_internal_signals()->insert(
             {signal_name, signal_value});
       } else {
@@ -274,7 +294,7 @@ xabsl::StatusOr<StateTableProto> StateTable::ToProto() const {
     for (const auto& kv_response : row.response) {
       XLS_ASSIGN_OR_RETURN(StateTableSignalProto signal_value,
                            ProtoFromStateTableSignal(kv_response.second));
-      row_proto->mutable_output_signals()->insert(
+      row_proto->mutable_next_internal_signals()->insert(
           {kv_response.first, signal_value});
     }
   }
@@ -284,21 +304,22 @@ xabsl::StatusOr<StateTableProto> StateTable::ToProto() const {
 /* static */ xabsl::StatusOr<CellLibraryEntry> CellLibraryEntry::FromProto(
     const CellLibraryEntryProto& proto) {
   XLS_ASSIGN_OR_RETURN(CellKind cell_kind, CellKindFromProto(proto.kind()));
-  if (proto.has_state_table()) {
-    XLS_ASSIGN_OR_RETURN(StateTable state_table,
-                         StateTable::FromProto(proto.state_table()));
-    return CellLibraryEntry(cell_kind, proto.name(), proto.input_names(),
-                            state_table);
-  }
 
   OutputPinListProto output_pin_list = proto.output_pin_list();
-  SimplePins pins;
+  OutputPinToFunction pins;
   pins.reserve(output_pin_list.pins_size());
   for (const auto& proto : output_pin_list.pins()) {
     pins[proto.name()] = proto.function();
   }
 
-  return CellLibraryEntry(cell_kind, proto.name(), proto.input_names(), pins);
+  absl::optional<StateTable> state_table;
+  if (proto.has_state_table()) {
+    XLS_ASSIGN_OR_RETURN(state_table,
+                         StateTable::FromProto(proto.state_table()));
+  }
+
+  return CellLibraryEntry(cell_kind, proto.name(), proto.input_names(), pins,
+                          state_table);
 }
 
 xabsl::StatusOr<CellLibraryEntryProto> CellLibraryEntry::ToProto() const {
@@ -333,16 +354,16 @@ xabsl::StatusOr<CellLibraryEntryProto> CellLibraryEntry::ToProto() const {
   for (const std::string& input_name : input_names_) {
     proto.add_input_names(input_name);
   }
-  if (std::holds_alternative<StateTable>(operation_)) {
+  if (state_table_.has_value()) {
     XLS_ASSIGN_OR_RETURN(*proto.mutable_state_table(),
-                         std::get<StateTable>(operation_).ToProto());
-  } else {
-    OutputPinListProto* pin_list = proto.mutable_output_pin_list();
-    for (const auto& kv : std::get<0>(operation_)) {
-      OutputPinProto* pin_proto = pin_list->add_pins();
-      pin_proto->set_name(kv.first);
-      pin_proto->set_function(kv.second);
-    }
+                         state_table_.value().ToProto());
+  }
+
+  OutputPinListProto* pin_list = proto.mutable_output_pin_list();
+  for (const auto& kv : output_pin_to_function_) {
+    OutputPinProto* pin_proto = pin_list->add_pins();
+    pin_proto->set_name(kv.first);
+    pin_proto->set_function(kv.second);
   }
   return proto;
 }

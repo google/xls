@@ -99,11 +99,13 @@ absl::string_view SanitizeRow(const absl::string_view& row) {
 absl::Status ProcessStateTable(const cell_lib::Block& table_def,
                                CellLibraryEntryProto* proto) {
   StateTableProto* table = proto->mutable_state_table();
-  for (absl::string_view name : absl::StrSplit(table_def.args[0], ' ')) {
+  for (absl::string_view name :
+       absl::StrSplit(table_def.args[0], ' ', absl::SkipWhitespace())) {
     table->add_input_names(std::string(name));
   }
 
-  for (absl::string_view name : absl::StrSplit(table_def.args[1], ' ')) {
+  for (absl::string_view name :
+       absl::StrSplit(table_def.args[1], ' ', absl::SkipWhitespace())) {
     table->add_internal_names(std::string(name));
   }
 
@@ -150,7 +152,8 @@ absl::Status ProcessStateTable(const cell_lib::Block& table_def,
     for (int i = 0; i < internal_inputs.size(); i++) {
       XLS_ASSIGN_OR_RETURN(StateTableSignalProto signal,
                            LibertyToTableSignal(internal_outputs[i]));
-      (*row->mutable_output_signals())[table->internal_names()[i]] = signal;
+      (*row->mutable_next_internal_signals())[table->internal_names()[i]] =
+          signal;
     }
   }
 

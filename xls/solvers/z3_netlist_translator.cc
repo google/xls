@@ -232,17 +232,19 @@ absl::Status NetlistTranslator::TranslateCell(const Cell& cell) {
       translated_[output.netref] = Z3_mk_int(ctx_, 1, Z3_mk_bv_sort(ctx_, 1));
     }
   } else {
-    if (std::holds_alternative<StateTable>(entry->operation())) {
-      XLS_RETURN_IF_ERROR(TranslateStateTable(cell));
-    } else {
-      const CellLibraryEntry::SimplePins& pins =
-          std::get<CellLibraryEntry::SimplePins>(entry->operation());
-      for (const auto& output : cell.outputs()) {
-        XLS_ASSIGN_OR_RETURN(Ast ast, netlist::function::Parser::ParseFunction(
-                                          pins.at(output.name)));
-        XLS_ASSIGN_OR_RETURN(Z3_ast result, TranslateFunction(cell, ast));
-        translated_[output.netref] = result;
-      }
+    absl::flat_hash_map<std::string, Z3_ast> state_table_values;
+    if (entry->state_table()) {
+      XLS_ASSIGN_OR_RETURN(state_table_values, TranslateStateTable(cell));
+    }
+
+    const CellLibraryEntry::OutputPinToFunction& pins =
+        entry->output_pin_to_function();
+    for (const auto& output : cell.outputs()) {
+      XLS_ASSIGN_OR_RETURN(Ast ast, netlist::function::Parser::ParseFunction(
+                                        pins.at(output.name)));
+      XLS_ASSIGN_OR_RETURN(Z3_ast result,
+                           TranslateFunction(cell, ast, state_table_values));
+      translated_[output.netref] = result;
     }
   }
 
@@ -251,29 +253,32 @@ absl::Status NetlistTranslator::TranslateCell(const Cell& cell) {
 
 // After all the above, this is the spot where any _ACTUAL_ translation happens.
 xabsl::StatusOr<Z3_ast> NetlistTranslator::TranslateFunction(
-    const Cell& cell, netlist::function::Ast ast) {
+    const Cell& cell, netlist::function::Ast ast,
+    const absl::flat_hash_map<std::string, Z3_ast>& state_table_values) {
   switch (ast.kind()) {
     case Ast::Kind::kAnd: {
-      XLS_ASSIGN_OR_RETURN(Z3_ast lhs,
-                           TranslateFunction(cell, ast.children()[0]));
-      XLS_ASSIGN_OR_RETURN(Z3_ast rhs,
-                           TranslateFunction(cell, ast.children()[1]));
+      XLS_ASSIGN_OR_RETURN(
+          Z3_ast lhs,
+          TranslateFunction(cell, ast.children()[0], state_table_values));
+      XLS_ASSIGN_OR_RETURN(
+          Z3_ast rhs,
+          TranslateFunction(cell, ast.children()[1], state_table_values));
       return Z3_mk_bvand(ctx_, lhs, rhs);
     }
     case Ast::Kind::kIdentifier: {
-      NetRef ref = nullptr;
       for (const auto& input : cell.inputs()) {
         if (input.name == ast.name()) {
-          ref = input.netref;
-          break;
+          return translated_.at(input.netref);
         }
       }
-      if (ref == nullptr) {
-        return absl::NotFoundError(absl::StrFormat(
-            "Identifier \"%s\", was not found in cell %s's inputs.", ast.name(),
-            cell.name()));
+
+      if (state_table_values.contains(ast.name())) {
+        return state_table_values.at(ast.name());
       }
-      return translated_.at(ref);
+
+      return absl::NotFoundError(absl::StrFormat(
+          "Identifier \"%s\", was not found in cell %s's inputs.", ast.name(),
+          cell.name()));
     }
     case Ast::Kind::kLiteralOne: {
       return Z3_mk_int(ctx_, 1, Z3_mk_bv_sort(ctx_, 1));
@@ -282,22 +287,27 @@ xabsl::StatusOr<Z3_ast> NetlistTranslator::TranslateFunction(
       return Z3_mk_int(ctx_, 0, Z3_mk_bv_sort(ctx_, 1));
     }
     case Ast::Kind::kNot: {
-      XLS_ASSIGN_OR_RETURN(Z3_ast child,
-                           TranslateFunction(cell, ast.children()[0]));
+      XLS_ASSIGN_OR_RETURN(
+          Z3_ast child,
+          TranslateFunction(cell, ast.children()[0], state_table_values));
       return Z3_mk_bvnot(ctx_, child);
     }
     case Ast::Kind::kOr: {
-      XLS_ASSIGN_OR_RETURN(Z3_ast lhs,
-                           TranslateFunction(cell, ast.children()[0]));
-      XLS_ASSIGN_OR_RETURN(Z3_ast rhs,
-                           TranslateFunction(cell, ast.children()[1]));
+      XLS_ASSIGN_OR_RETURN(
+          Z3_ast lhs,
+          TranslateFunction(cell, ast.children()[0], state_table_values));
+      XLS_ASSIGN_OR_RETURN(
+          Z3_ast rhs,
+          TranslateFunction(cell, ast.children()[1], state_table_values));
       return Z3_mk_bvor(ctx_, lhs, rhs);
     }
     case Ast::Kind::kXor: {
-      XLS_ASSIGN_OR_RETURN(Z3_ast lhs,
-                           TranslateFunction(cell, ast.children()[0]));
-      XLS_ASSIGN_OR_RETURN(Z3_ast rhs,
-                           TranslateFunction(cell, ast.children()[1]));
+      XLS_ASSIGN_OR_RETURN(
+          Z3_ast lhs,
+          TranslateFunction(cell, ast.children()[0], state_table_values));
+      XLS_ASSIGN_OR_RETURN(
+          Z3_ast rhs,
+          TranslateFunction(cell, ast.children()[1], state_table_values));
       return Z3_mk_bvxor(ctx_, lhs, rhs);
     }
     default:
@@ -306,9 +316,9 @@ xabsl::StatusOr<Z3_ast> NetlistTranslator::TranslateFunction(
   }
 }
 
-absl::Status NetlistTranslator::TranslateStateTable(const Cell& cell) {
-  const StateTable& table =
-      std::get<StateTable>(cell.cell_library_entry()->operation());
+xabsl::StatusOr<absl::flat_hash_map<std::string, Z3_ast>>
+NetlistTranslator::TranslateStateTable(const Cell& cell) {
+  const StateTable& table = cell.cell_library_entry()->state_table().value();
 
   auto get_pin_netref =
       [](const absl::Span<const Cell::Pin>& pins,
@@ -329,7 +339,7 @@ absl::Status NetlistTranslator::TranslateStateTable(const Cell& cell) {
     Z3_ast combined_stimulus;
     Z3_ast output_value;
   };
-  absl::flat_hash_map<NetRef, std::vector<OutputCase>> output_table;
+  absl::flat_hash_map<std::string, std::vector<OutputCase>> output_table;
 
   for (const StateTable::Row& row : table.rows()) {
     // For each row, create a single Z3_ast combining all stimulus values.
@@ -339,6 +349,9 @@ absl::Status NetlistTranslator::TranslateStateTable(const Cell& cell) {
       const StateTableSignal signal = kv.second;
       if (signal != StateTableSignal::kHigh &&
           signal != StateTableSignal::kLow) {
+        XLS_LOG(WARNING) << "Non-high or -low input signal encountered: "
+                         << cell.name() << ":" << input_name << ": "
+                         << static_cast<int>(signal);
         continue;
       }
 
@@ -360,22 +373,22 @@ absl::Status NetlistTranslator::TranslateStateTable(const Cell& cell) {
 
       if (signal != StateTableSignal::kHigh &&
           signal != StateTableSignal::kLow) {
-        XLS_LOG(WARNING) << "Non-high or -low signal encountered: "
-                         << output_name << ": " << static_cast<int>(signal);
+        XLS_LOG(WARNING) << "Non-high or -low output signal encountered: "
+                         << cell.name() << ":" << output_name << ": "
+                         << static_cast<int>(signal);
         continue;
       }
 
-      XLS_ASSIGN_OR_RETURN(NetRef output_ref,
-                           get_pin_netref(cell.outputs(), output_name));
-      output_table[output_ref].push_back(OutputCase{
+      output_table[output_name].push_back(OutputCase{
           combined_stimulus, signal == StateTableSignal::kHigh ? one : zero});
     }
   }
 
   // Iterate through each output ref, assigning the final value as an
   // if-then-else chain.
+  absl::flat_hash_map<std::string, Z3_ast> final_values;
   for (const auto& kv : output_table) {
-    const NetRef& ref = kv.first;
+    const std::string& pin_name = kv.first;
     const std::vector<OutputCase>& output_table = kv.second;
 
     // Need to go backwards for proper handling of "else".
@@ -384,10 +397,12 @@ absl::Status NetlistTranslator::TranslateStateTable(const Cell& cell) {
       prev_case = Z3_mk_ite(ctx_, output_table[i].combined_stimulus,
                             output_table[i].output_value, prev_case);
     }
+
     // Finally, assign the root if-then-else to the ref.
-    translated_[ref] = prev_case;
+    final_values[pin_name] = prev_case;
   }
-  return absl::OkStatus();
+
+  return final_values;
 }
 
 NetlistTranslator::ValueCone NetlistTranslator::GetValueCone(

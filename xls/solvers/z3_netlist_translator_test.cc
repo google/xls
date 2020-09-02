@@ -109,8 +109,7 @@ absl::Status CreateNetList(
     }
 
     // And associate the output with a new NetRef.
-    const CellLibraryEntry::SimplePins& pins =
-        std::get<CellLibraryEntry::SimplePins>(entry->operation());
+    const auto& pins = entry->output_pin_to_function();
 
     for (const auto& kv : pins) {
       std::string output_net_name = absl::StrCat(cell_name, "_out");
@@ -206,8 +205,7 @@ TEST(NetlistTranslatorTest_Standalone, SimpleNet) {
     param_assignments[input_name] = ref;
   }
 
-  CellLibraryEntry::SimplePins pins =
-      std::get<CellLibraryEntry::SimplePins>(and_entry->operation());
+  const auto& pins = and_entry->output_pin_to_function();
   std::string output_name = pins.begin()->first;
   XLS_ASSERT_OK(module.AddNetDecl(NetDeclKind::kOutput, output_name));
   XLS_ASSERT_OK_AND_ASSIGN(NetRef output_ref, module.ResolveNet(output_name));
@@ -259,8 +257,7 @@ xabsl::StatusOr<Module> CreateModule(
     const std::string& child_name = child_cells[i];
     XLS_ASSIGN_OR_RETURN(const CellLibraryEntry* entry,
                          cell_library.GetEntry(child_name));
-    CellLibraryEntry::SimplePins pins =
-        std::get<CellLibraryEntry::SimplePins>(entry->operation());
+    const auto& pins = entry->output_pin_to_function();
 
     absl::flat_hash_map<std::string, NetRef> child_params;
     absl::Span<const std::string> entry_input_names = entry->input_names();
@@ -294,8 +291,7 @@ xabsl::StatusOr<Module> CreateModule(
   // If we're short parent cell inputs, then synthesize some.
   XLS_ASSIGN_OR_RETURN(const CellLibraryEntry* entry,
                        cell_library.GetEntry(cell_name));
-  CellLibraryEntry::SimplePins pins =
-      std::get<CellLibraryEntry::SimplePins>(entry->operation());
+  const auto& pins = entry->output_pin_to_function();
   absl::Span<const std::string> entry_input_names = entry->input_names();
   XLS_RET_CHECK(child_outputs.size() <= entry_input_names.size())
       << "Too many inputs for cell: " << cell_name << "! "

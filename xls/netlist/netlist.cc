@@ -33,7 +33,7 @@ const CellLibraryEntry* Module::AsCellLibraryEntry() const {
     for (const auto& input : inputs_) {
       input_names.push_back(input->name());
     }
-    CellLibraryEntry::SimplePins output_pins;
+    CellLibraryEntry::OutputPinToFunction output_pins;
     output_pins.reserve(outputs_.size());
     for (const auto& output : outputs_) {
       output_pins[output->name()] = "";
@@ -161,34 +161,30 @@ xabsl::StatusOr<std::vector<Cell*>> NetDef::GetConnectedCellsSans(
     cell_inputs.push_back(cell_input);
   }
 
-  const CellLibraryEntry::OperationT& operation =
-      cell_library_entry->operation();
+  const CellLibraryEntry::OutputPinToFunction& output_pins =
+      cell_library_entry->output_pin_to_function();
   std::vector<Pin> cell_outputs;
-  if (std::holds_alternative<CellLibraryEntry::SimplePins>(operation)) {
-    const auto& output_pins = std::get<CellLibraryEntry::SimplePins>(operation);
-    for (const auto& kv : output_pins) {
-      Pin cell_output;
-      cell_output.name = kv.first;
-      auto it = named_parameter_assignments.find(cell_output.name);
-      if (it == named_parameter_assignments.end()) {
-        cell_output.netref = dummy_net;
-      } else {
-        cell_output.netref = it->second;
-      }
-      cell_outputs.push_back(cell_output);
+  for (const auto& kv : output_pins) {
+    Pin cell_output;
+    cell_output.name = kv.first;
+    auto it = named_parameter_assignments.find(cell_output.name);
+    if (it == named_parameter_assignments.end()) {
+      cell_output.netref = dummy_net;
+    } else {
+      cell_output.netref = it->second;
     }
-  } else {
-    const StateTable& state_table = std::get<StateTable>(operation);
-    for (const std::string& signal_name : state_table.output_signals()) {
-      Pin cell_output;
-      cell_output.name = signal_name;
-      auto it = named_parameter_assignments.find(signal_name);
-      if (it == named_parameter_assignments.end()) {
-        cell_output.netref = dummy_net;
-      } else {
-        cell_output.netref = it->second;
-      }
-      cell_outputs.push_back(cell_output);
+    cell_outputs.push_back(cell_output);
+  }
+
+  std::vector<Pin> internal_pins;
+  if (cell_library_entry->state_table().has_value()) {
+    const StateTable& state_table = cell_library_entry->state_table().value();
+    for (const std::string& signal : state_table.internal_signals()) {
+      Pin pin;
+      pin.name = signal;
+      // Synthesize "fake" wire?
+      pin.netref = nullptr;
+      internal_pins.push_back(pin);
     }
   }
 
@@ -199,7 +195,7 @@ xabsl::StatusOr<std::vector<Cell*>> NetDef::GetConnectedCellsSans(
   }
 
   return Cell(cell_library_entry, name, std::move(cell_inputs),
-              std::move(cell_outputs), clock);
+              std::move(cell_outputs), std::move(internal_pins), clock);
 }
 
 void Netlist::AddModule(std::unique_ptr<Module> module) {

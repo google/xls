@@ -29,10 +29,11 @@ namespace {
 
 TEST(CellLibraryTest, SerializeToProto) {
   CellLibrary cell_library;
-  CellLibraryEntry::SimplePins pins;
+  CellLibraryEntry::OutputPinToFunction pins;
   pins["Z"] = "W";
-  XLS_ASSERT_OK(cell_library.AddEntry(CellLibraryEntry(
-      CellKind::kInverter, "INV", std::vector<std::string>{"A"}, pins)));
+  XLS_ASSERT_OK(cell_library.AddEntry(
+      CellLibraryEntry(CellKind::kInverter, "INV",
+                       std::vector<std::string>{"A"}, pins, absl::nullopt)));
   XLS_ASSERT_OK_AND_ASSIGN(CellLibraryProto proto, cell_library.ToProto());
   EXPECT_EQ(R"(entries {
   kind: INVERTER
@@ -71,11 +72,11 @@ TEST(CellLibraryTest, EvaluateStateTable) {
       key: "ham_sandwich"
       value: STATE_TABLE_SIGNAL_DONTCARE
     }
-    output_signals {
+    next_internal_signals {
       key: "BLT"
       value: STATE_TABLE_SIGNAL_LOW
     }
-    output_signals {
+    next_internal_signals {
       key: "ham_sandwich"
       value: STATE_TABLE_SIGNAL_HIGH
     }
@@ -97,11 +98,11 @@ TEST(CellLibraryTest, EvaluateStateTable) {
       key: "ham_sandwich"
       value: STATE_TABLE_SIGNAL_DONTCARE
     }
-    output_signals {
+    next_internal_signals {
       key: "BLT"
       value: STATE_TABLE_SIGNAL_HIGH
     }
-    output_signals {
+    next_internal_signals {
       key: "ham_sandwich"
       value: STATE_TABLE_SIGNAL_LOW
     }

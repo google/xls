@@ -77,7 +77,7 @@ H AbslHashValue(H state, const OutputPin& p) {
 // require information outside a given row of the table. Consider the row:
 // "A B C : D : D"
 // "H - - : - : N"; this indicates that the value of the internal signal ("D")
-// is unchanged by that stimulus...but the output value depends on state not
+// is unchanged by that stimulus...but the next state value depends on state not
 // captured here. To model that, a StateTable should be wrapped in a stateful
 // class (not implemented here).
 class StateTable {
@@ -94,12 +94,12 @@ class StateTable {
   xabsl::StatusOr<bool> GetSignalValue(const InputStimulus& stimulus,
                                        absl::string_view signal) const;
 
-  const absl::flat_hash_set<std::string>& output_signals() const {
-    return output_signals_;
+  const absl::flat_hash_set<std::string>& internal_signals() const {
+    return internal_signals_;
   }
 
   // Description of a row in the state table - a mapping of "stimulus", i.e.,
-  // input signals, to the "response", the output signals.
+  // input signals, to the "response", the next state of the internal signals.
   using RowStimulus = absl::flat_hash_map<std::string, StateTableSignal>;
   using RowResponse = absl::flat_hash_map<std::string, StateTableSignal>;
   struct Row {
@@ -129,7 +129,7 @@ class StateTable {
   absl::flat_hash_set<std::string> signals_;
 
   // Subset of signals_ - the output/internal signals.
-  absl::flat_hash_set<std::string> output_signals_;
+  absl::flat_hash_set<std::string> internal_signals_;
 
   // We preprocess the proto to combine input signals (both true inputs and
   // internal state signals) for ease-of-lookup.
@@ -141,13 +141,7 @@ class StateTable {
 // of the cell module.
 class CellLibraryEntry {
  public:
-  // A map from output pin name to its function (as a string). One of the two
-  // possible function-describing attributes of a cell (either function-based
-  // per pin, as here, or a StateTable).
-  using SimplePins = absl::flat_hash_map<std::string, std::string>;
-
-  // Does this have to be a variant - could there be cells with both?
-  using OperationT = absl::variant<SimplePins, StateTable>;
+  using OutputPinToFunction = absl::flat_hash_map<std::string, std::string>;
 
   static xabsl::StatusOr<CellLibraryEntry> FromProto(
       const CellLibraryEntryProto& proto);
@@ -157,18 +151,23 @@ class CellLibraryEntry {
   template <typename InputNamesContainer>
   CellLibraryEntry(CellKind kind, absl::string_view name,
                    const InputNamesContainer& input_names,
-                   const OperationT& operation,
+                   const OutputPinToFunction& output_pin_to_function,
+                   const absl::optional<StateTable> state_table,
                    absl::optional<std::string> clock_name = absl::nullopt)
       : kind_(kind),
         name_(name),
         input_names_(input_names.begin(), input_names.end()),
-        operation_(operation),
+        output_pin_to_function_(output_pin_to_function),
+        state_table_(state_table),
         clock_name_(clock_name) {}
 
   CellKind kind() const { return kind_; }
   const std::string& name() const { return name_; }
   absl::Span<const std::string> input_names() const { return input_names_; }
-  const OperationT& operation() const { return operation_; }
+  const OutputPinToFunction& output_pin_to_function() const {
+    return output_pin_to_function_;
+  }
+  const absl::optional<StateTable>& state_table() const { return state_table_; }
   absl::optional<std::string> clock_name() const { return clock_name_; }
 
   xabsl::StatusOr<CellLibraryEntryProto> ToProto() const;
@@ -177,7 +176,8 @@ class CellLibraryEntry {
   CellKind kind_;
   std::string name_;
   std::vector<std::string> input_names_;
-  OperationT operation_;
+  OutputPinToFunction output_pin_to_function_;
+  absl::optional<StateTable> state_table_;
   absl::optional<std::string> clock_name_;
 };
 

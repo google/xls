@@ -157,8 +157,8 @@ library (blah) {
   ASSERT_EQ(row.internal_signals_size(), 1);
   EXPECT_EQ(row.internal_signals().at("ham_sandwich"), STATE_TABLE_SIGNAL_LOW);
 
-  ASSERT_EQ(row.output_signals_size(), 1);
-  EXPECT_EQ(row.output_signals().at("ham_sandwich"),
+  ASSERT_EQ(row.next_internal_signals_size(), 1);
+  EXPECT_EQ(row.next_internal_signals().at("ham_sandwich"),
             STATE_TABLE_SIGNAL_NOCHANGE);
 }
 

@@ -118,7 +118,7 @@ entries {
   state_table {
     input_names: "A"
     input_names: "B"
-    internal_names: "Z"
+    internal_names: "X"
     rows {
       input_signals {
         key: "A"
@@ -128,8 +128,12 @@ entries {
         key: "B"
         value: STATE_TABLE_SIGNAL_HIGH
       }
-      output_signals {
-        key: "Z"
+      internal_signals {
+        key: "X"
+        value: STATE_TABLE_SIGNAL_DONTCARE
+      }
+      next_internal_signals {
+        key: "X"
         value: STATE_TABLE_SIGNAL_HIGH
       }
     }
@@ -142,8 +146,12 @@ entries {
         key: "B"
         value: STATE_TABLE_SIGNAL_DONTCARE
       }
-      output_signals {
-        key: "Z"
+      internal_signals {
+        key: "X"
+        value: STATE_TABLE_SIGNAL_DONTCARE
+      }
+      next_internal_signals {
+        key: "X"
         value: STATE_TABLE_SIGNAL_LOW
       }
     }
@@ -156,10 +164,22 @@ entries {
         key: "B"
         value: STATE_TABLE_SIGNAL_LOW
       }
-      output_signals {
-        key: "Z"
+      internal_signals {
+        key: "X"
+        value: STATE_TABLE_SIGNAL_DONTCARE
+      }
+      next_internal_signals {
+        key: "X"
         value: STATE_TABLE_SIGNAL_LOW
       }
+    }
+  }
+  output_pin_list {
+    pins {
+      name: "Z"
+      # This should really be "state_function", but we group them together
+      # in the proto def.
+      function: "X"
     }
   }
 }

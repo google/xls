@@ -67,7 +67,7 @@ message StateTableRow {
 
   // The resulting value of the internal signals when presented with the above
   // inputs.
-  map<string, StateTableSignalProto> output_signals = 3;
+  map<string, StateTableSignalProto> next_internal_signals = 3;
 }
 
 message StateTableProto {
@@ -78,6 +78,11 @@ message StateTableProto {
   repeated string input_names = 1;
 
   // The name of the internal signal controlled by this table.
+  //
+  // IMPORTANT: Internal pins (with direction "internal") may have the attribute
+  // "internal_field", which maps the pin name to a _different_name_ in the
+  // statetable. This is not yet handled, and is apparently extremely uncommon,
+  // but we should be aware in case we do encounter it.
   repeated string internal_names = 2;
 
   // Valid entries to the table. Example (using the inputs above)
@@ -94,6 +99,9 @@ message OutputPinProto {
 
   // Function calculated on this pin, as a string in the format described under
   // "function attribute" in the Liberty file format.
+  // This currently encapsulates both the "function" and "state_function"
+  // attributes, as we currently have no need to handle them separately. If that
+  // changes, we'll grow a oneof here.
   optional string function = 2;
 }
 
@@ -102,16 +110,21 @@ message OutputPinListProto {
 }
 
 message CellLibraryEntryProto {
+  // The "kind" of this cell library entry. For most purposes (i.e., unless you
+  // _know_ otherwise), this should be OTHER.
   optional CellKindProto kind = 1;
+
+  // The name of this entry.
   optional string name = 2;
+
+  // The names of the input pins to this cell.
   repeated string input_names = 3;
 
-  oneof operation {
-    OutputPinListProto output_pin_list = 4;
-    // The Liberty standard doesn't mention cardinality of statetable, but it
-    // seems wrong for there to be > 1.
-    StateTableProto state_table = 5;
-  }
+  // The list of outputs from this cell.
+  optional OutputPinListProto output_pin_list = 4;
+
+  // The state table defining internal pin transitions, if applicable.
+  optional StateTableProto state_table = 5;
 }
 
 message CellLibraryProto {

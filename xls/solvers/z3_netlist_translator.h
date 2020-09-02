@@ -87,9 +87,11 @@ class NetlistTranslator {
   // Translates the module, cell, or cell function, respectively, into Z3-space.
   absl::Status Translate();
   absl::Status TranslateCell(const netlist::rtl::Cell& cell);
-  xabsl::StatusOr<Z3_ast> TranslateFunction(const netlist::rtl::Cell& cell,
-                                            const netlist::function::Ast ast);
-  absl::Status TranslateStateTable(const netlist::rtl::Cell& cell);
+  xabsl::StatusOr<Z3_ast> TranslateFunction(
+      const netlist::rtl::Cell& cell, const netlist::function::Ast ast,
+      const absl::flat_hash_map<std::string, Z3_ast>& state_table_values);
+  xabsl::StatusOr<absl::flat_hash_map<std::string, Z3_ast>> TranslateStateTable(
+      const netlist::rtl::Cell& cell);
 
   Z3_context ctx_;
   const netlist::rtl::Module* module_;

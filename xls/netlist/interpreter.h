@@ -56,6 +56,12 @@ class Interpreter {
       const rtl::Cell& cell, const function::Ast& ast,
       const absl::flat_hash_map<const rtl::NetRef, bool>& processed_wires);
 
+  // Returns the value of the internal/output pin from the cell (defined by a
+  // "statetable" attribute under the conditions defined in "processed_wires".
+  xabsl::StatusOr<bool> InterpretStateTable(
+      const rtl::Cell& cell, const std::string& pin_name,
+      const absl::flat_hash_map<const rtl::NetRef, bool>& processed_wires);
+
   rtl::Netlist* netlist_;
 };
 

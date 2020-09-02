@@ -71,22 +71,25 @@ class Cell {
 
   absl::Span<const Pin> inputs() const { return inputs_; }
   absl::Span<const Pin> outputs() const { return outputs_; }
+  absl::Span<const Pin> internal_pins() const { return internal_pins_; }
   const absl::optional<NetRef>& clock() const { return clock_; }
 
  private:
   Cell(const CellLibraryEntry* cell_library_entry, absl::string_view name,
        const std::vector<Pin>& inputs, const std::vector<Pin>& outputs,
-       absl::optional<NetRef> clock)
+       const std::vector<Pin>& internal_pins, absl::optional<NetRef> clock)
       : cell_library_entry_(cell_library_entry),
         name_(name),
         inputs_(std::move(inputs)),
         outputs_(std::move(outputs)),
+        internal_pins_(std::move(internal_pins)),
         clock_(clock) {}
 
   const CellLibraryEntry* cell_library_entry_;
   std::string name_;  // Instance name.
   std::vector<Pin> inputs_;
   std::vector<Pin> outputs_;
+  std::vector<Pin> internal_pins_;
   absl::optional<NetRef> clock_;
 };
 

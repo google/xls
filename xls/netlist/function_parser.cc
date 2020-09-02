@@ -15,7 +15,9 @@
 #include "xls/netlist/function_parser.h"
 
 #include "absl/status/status.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/str_format.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 
 namespace xls {
@@ -45,8 +47,16 @@ Token Token::Identifier(const std::string& s, int64 pos) {
   return Token(Kind::kIdentifier, pos, s);
 }
 
-Scanner::Scanner(std::string function)
-    : function_(std::move(function)), current_pos_(0) {}
+Scanner::Scanner(std::string function) : function_(function), current_pos_(0) {
+  absl::string_view stripped = absl::StripAsciiWhitespace(function_);
+  if (stripped != function_) {
+    XLS_LOG(WARNING)
+        << "Function '" << function_ << "' has leading or trailing spaces. "
+        << "Per the Liberty spec, spaces are AND, which are invalid here. "
+        << "These spaces will be dropped.";
+    function_ = std::string(stripped);
+  }
+}
 
 absl::Status Scanner::DropSpaces() {
   XLS_ASSIGN_OR_RETURN(char next_char, PeekChar());
@@ -85,7 +95,7 @@ xabsl::StatusOr<Token> Scanner::Pop() {
     case ')':
       return Token::Simple(Token::Kind::kCloseParen, last_pos);
     case ' ': {
-      // Unfortunately, the liberty spec isn't consistently followed -
+      // Unfortunately, the Liberty spec isn't consistently followed -
       // spaces are sometimes inserted into functions when not meant as ANDs.
       // So - we need to condense all whitespace into a single token, then check
       // to see if the next token is an expression or an operator.
@@ -169,7 +179,9 @@ xabsl::StatusOr<Token> Scanner::ScanIdentifier() {
 }
 
 xabsl::StatusOr<char> Scanner::PeekChar() {
-  XLS_RET_CHECK_LT(current_pos_, function_.size());
+  XLS_RET_CHECK_LT(current_pos_, function_.size())
+      << "Function: " << function_ << ": current: " << current_pos_
+      << ", max: " << function_.size() - 1;
   return function_.at(current_pos_);
 }
 

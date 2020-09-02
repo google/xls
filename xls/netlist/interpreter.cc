@@ -212,29 +212,14 @@ absl::Status Interpreter::InterpretCell(
     return absl::OkStatus();
   }
 
-  if (std::holds_alternative<StateTable>(entry->operation())) {
-    const StateTable& state_table = std::get<StateTable>(entry->operation());
-    StateTable::InputStimulus stimulus;
-    for (const auto& input : cell.inputs()) {
-      stimulus[input.name] = (*processed_wires).at(input.netref);
-    }
-
-    for (int i = 0; i < cell.outputs().size(); i++) {
-      XLS_ASSIGN_OR_RETURN(bool result, state_table.GetSignalValue(
-                                            stimulus, cell.outputs()[i].name));
-      (*processed_wires)[cell.outputs()[i].netref] = result;
-    }
-  } else {
-    const auto& pins =
-        std::get<CellLibraryEntry::SimplePins>(entry->operation());
-    for (int i = 0; i < cell.outputs().size(); i++) {
-      XLS_ASSIGN_OR_RETURN(
-          function::Ast ast,
-          function::Parser::ParseFunction(pins.at(cell.outputs()[i].name)));
-      XLS_ASSIGN_OR_RETURN(bool result,
-                           InterpretFunction(cell, ast, *processed_wires));
-      (*processed_wires)[cell.outputs()[i].netref] = result;
-    }
+  const auto& pins = entry->output_pin_to_function();
+  for (int i = 0; i < cell.outputs().size(); i++) {
+    XLS_ASSIGN_OR_RETURN(
+        function::Ast ast,
+        function::Parser::ParseFunction(pins.at(cell.outputs()[i].name)));
+    XLS_ASSIGN_OR_RETURN(bool result,
+                         InterpretFunction(cell, ast, *processed_wires));
+    (*processed_wires)[cell.outputs()[i].netref] = result;
   }
 
   return absl::OkStatus();
@@ -260,8 +245,17 @@ xabsl::StatusOr<bool> Interpreter::InterpretFunction(
       }
 
       if (ref == nullptr) {
+        for (const auto& internal : cell.internal_pins()) {
+          if (internal.name == ast.name()) {
+            return InterpretStateTable(cell, internal.name, processed_wires);
+          }
+        }
+      }
+
+      if (ref == nullptr) {
         return absl::NotFoundError(
-            absl::StrFormat("Identifier \"%s\" not found in cell %s's inputs.",
+            absl::StrFormat("Identifier \"%s\" not found in cell %s's inputs "
+                            "or internal signals.",
                             ast.name(), cell.name()));
       }
 
@@ -295,6 +289,28 @@ xabsl::StatusOr<bool> Interpreter::InterpretFunction(
       return absl::InvalidArgumentError(
           absl::StrCat("Unknown AST element type: ", ast.kind()));
   }
+}
+
+xabsl::StatusOr<bool> Interpreter::InterpretStateTable(
+    const rtl::Cell& cell, const std::string& pin_name,
+    const absl::flat_hash_map<const rtl::NetRef, bool>& processed_wires) {
+  XLS_RET_CHECK(cell.cell_library_entry()->state_table());
+  const StateTable& state_table =
+      cell.cell_library_entry()->state_table().value();
+
+  StateTable::InputStimulus stimulus;
+  for (const auto& input : cell.inputs()) {
+    stimulus[input.name] = processed_wires.at(input.netref);
+  }
+
+  for (const auto& pin : cell.internal_pins()) {
+    if (pin.name == pin_name) {
+      return state_table.GetSignalValue(stimulus, pin.name);
+    }
+  }
+
+  return absl::NotFoundError(
+      absl::StrFormat("Signal %s not found in state table!", pin_name));
 }
 
 bool Interpreter::IsCellOutput(const rtl::Cell& cell, const rtl::NetRef ref) {

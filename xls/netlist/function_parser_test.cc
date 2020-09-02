@@ -212,6 +212,14 @@ TEST(FunctionParserTest, SpaceAsAnd) {
   ASSERT_EQ(rhs->children()[1].children()[0].name(), "D");
 }
 
+TEST(FunctionParserTest, LeadingAndTrailingWhitespace) {
+  std::string function = " A B+C ";
+  XLS_ASSERT_OK_AND_ASSIGN(auto node, Parser::ParseFunction(function));
+  ASSERT_EQ(node.kind(), Ast::Kind::kOr);
+  ASSERT_EQ(node.children()[0].kind(), Ast::Kind::kAnd);
+  ASSERT_EQ(node.children()[1].kind(), Ast::Kind::kIdentifier);
+}
+
 }  // namespace
 }  // namespace function
 }  // namespace netlist
