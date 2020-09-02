@@ -530,7 +530,7 @@ class PipelineGenerator {
 
     absl::optional<Expression*> reset_value;
     if (rst_.has_value()) {
-      reset_value = file_->PlainLiteral(0);
+      reset_value = file_->Literal(0, /*bit_count=*/1);
     }
 
     XLS_ASSIGN_OR_RETURN(
