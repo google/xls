@@ -20,6 +20,13 @@
 namespace xls {
 namespace {
 
+// Returns true if the given type matches the C float type layout.
+bool MatchFloat(const Type& type) {
+  // TODO(leary): 2020-09-02 Match on floats again when we have PackedBitsView
+  // in MSb-field-to-LSb-field order.
+  return false;
+}
+
 // Returns the string representation of the packed view type corresponding to
 // the given Type.
 std::string PackedTypeString(const Type& type) {
@@ -41,22 +48,6 @@ std::string PackedTypeString(const Type& type) {
     return absl::StrFormat("PackedTupleView<%s>",
                            absl::StrJoin(element_type_strs, ", "));
   }
-}
-
-// Returns true if the given type matches the C float type layout.
-bool MatchFloat(const Type& type) {
-  if (!type.IsTuple()) {
-    return false;
-  }
-
-  const TupleType* tuple_type = type.AsTupleOrDie();
-  auto element_types = tuple_type->element_types();
-  if (element_types[0]->IsBits() && element_types[0]->GetFlatBitCount() == 23 &&
-      element_types[1]->IsBits() && element_types[1]->GetFlatBitCount() == 8 &&
-      element_types[2]->IsBits() && element_types[2]->GetFlatBitCount() == 1) {
-    return true;
-  }
-  return false;
 }
 
 // Emits the code necessary to convert a float value to its corresponding

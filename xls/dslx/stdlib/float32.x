@@ -15,9 +15,9 @@
 // 32-bit floating point routines.
 
 pub struct F32 {
-  sfd: u23,  // significand (no hidden bit)
-  bexp: u8,  // biased exponent
   sign: u1,  // sign bit
+  bexp: u8,  // biased exponent
+  sfd: u23,  // significand (no hidden bit)
 }
 
 pub enum FloatTag : u3 {

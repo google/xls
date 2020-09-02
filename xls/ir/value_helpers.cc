@@ -99,15 +99,17 @@ Value F32ToTuple(float value) {
   bool sign = x >> 31;
   uint8 exp = x >> 23;
   uint32 fraction = x & Mask(23);
-  return Value::Tuple({Value(UBits(fraction, /*bit_count=*/23)),
-                       Value(Bits::FromBytes({exp}, /*bit_count=*/8)),
-                       Value(Bits::FromBytes({sign}, /*bit_count=*/1))});
+  return Value::Tuple({
+      Value(Bits::FromBytes({sign}, /*bit_count=*/1)),
+      Value(Bits::FromBytes({exp}, /*bit_count=*/8)),
+      Value(UBits(fraction, /*bit_count=*/23)),
+  });
 }
 
 xabsl::StatusOr<float> TupleToF32(const Value& v) {
-  XLS_ASSIGN_OR_RETURN(uint32 fraction, v.element(0).bits().ToUint64());
+  XLS_ASSIGN_OR_RETURN(uint32 sign, v.element(0).bits().ToUint64());
   XLS_ASSIGN_OR_RETURN(uint32 exp, v.element(1).bits().ToUint64());
-  XLS_ASSIGN_OR_RETURN(uint32 sign, v.element(2).bits().ToUint64());
+  XLS_ASSIGN_OR_RETURN(uint32 fraction, v.element(2).bits().ToUint64());
   // Validate the values were all appropriate.
   XLS_DCHECK_EQ(sign, sign & Mask(1));
   XLS_DCHECK_EQ(exp, exp & Mask(8));

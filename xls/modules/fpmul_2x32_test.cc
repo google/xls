@@ -71,9 +71,27 @@ float ComputeExpected(Float2x32 input) {
 }
 
 // Computes FP addition via DSLX & the JIT.
+//
+// TODO(leary): 2020-09-02 Switch back to JIT wrapper usage.
 float ComputeActual(Fpmul2x32* jit_wrapper, absl::Span<uint8> result_buffer,
                     Float2x32 input) {
-  return jit_wrapper->Run(std::get<0>(input), std::get<1>(input)).value();
+  LlvmIrJit* jit = jit_wrapper->jit();
+
+  // Meyers-singleton-esque static buffers.
+  thread_local std::unique_ptr<uint8[]> x_buffer =
+      std::make_unique<uint8[]>(jit->GetArgTypeSize(0));
+  thread_local std::unique_ptr<uint8[]> y_buffer =
+      std::make_unique<uint8[]>(jit->GetArgTypeSize(1));
+
+  PopulateAsF32TupleView(std::get<0>(input), x_buffer.get());
+  PopulateAsF32TupleView(std::get<1>(input), y_buffer.get());
+
+  const uint8* args[2] = {x_buffer.get(), y_buffer.get()};
+  memset(result_buffer.data(), 0, result_buffer.size());
+  XLS_CHECK_OK(jit->RunWithViews(args, result_buffer));
+
+  F32TupleView result(result_buffer.data());
+  return F32TupleViewToFloat(result);
 }
 
 // Compares expected vs. actual results, taking into account two special cases.
