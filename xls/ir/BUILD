@@ -621,7 +621,8 @@ py_binary(
     ],
     python_version = "PY3",
     deps = [
-        requirement("jinja2"),
+        requirement("Jinja2"),
+        requirement("MarkupSafe"),
         "//xls/common:runfiles",
         "@com_google_absl_py//absl:app",
     ],

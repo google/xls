@@ -63,6 +63,14 @@ $ source ~/.bashrc
 $ bazel test -c opt ...
 ```
 
+A reference build/test environment setup is also provided via `Dockerfile`:
+
+```console
+~$ git clone https://github.com/google/xls.git
+~$ cd xls
+~/xls$ docker build .  # Performs optimized build and test.
+```
+
 ## Stack Diagram and Project Layout
 
 Navigating a new code base can be daunting; the following description provides a
