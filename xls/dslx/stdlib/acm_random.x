@@ -63,7 +63,7 @@ pub fn rng_deterministic_seed() -> u32 {
 fn rng_sanitize_seed(seed: u32) -> u32 {
   let seed = seed & u32:0x7fffffff;
   match seed {
-    u32:0 | M => u32:1;
+    u32:0 | M => u32:1,
     _ => seed
   }
 }

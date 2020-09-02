@@ -62,9 +62,9 @@ fn fpadd_2x32(x: F32, y: F32) -> F32 {
   let sfd = (addend_x as s29) + (addend_y as s29);
   let sfd_is_zero = sfd == s29:0;
   let result_sign = match (sfd_is_zero, sfd < s29:0) {
-    (true, _) => u1:0;
-    (false, true) => !greater_exp.sign;
-    _ => greater_exp.sign;
+    (true, _) => u1:0,
+    (false, true) => !greater_exp.sign,
+    _ => greater_exp.sign,
   };
 
   // Get the absolute value of the result then chop off the sign bit: s29 -> u28.
@@ -83,9 +83,9 @@ fn fpadd_2x32(x: F32, y: F32) -> F32 {
   let cancel = leading_zeroes > u28:1;
   let cancel_sfd = (abs_sfd << (leading_zeroes - u28:1)) as u27;
   let shifted_sfd = match(carry_bit, cancel) {
-    (true, false) => carry_sfd;
-    (false, true) => cancel_sfd;
-    (false, false) => abs_sfd as u27;
+    (true, false) => carry_sfd,
+    (false, true) => cancel_sfd,
+    (false, false) => abs_sfd as u27,
     _ => fail!(u27:666)
   };
 

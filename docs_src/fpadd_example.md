@@ -73,9 +73,9 @@ and if the result is 0, then we favor positive 0 vs. negative 0.
   let sfd = (addend_x as s29) + (addend_y as s29);
   let sfd_is_zero = sfd == s29:0;
   let result_sign = match (sfd_is_zero, sfd < s29:0) {
-    (true, _) => u1:0;
-    (false, true) => !greater_exp.sign;
-    _ => greater_exp.sign;
+    (true, _) => u1:0,
+    (false, true) => !greater_exp.sign,
+    _ => greater_exp.sign,
   };
 ```
 

@@ -375,22 +375,22 @@ fn run_r_instruction(pc: u32,
                  -> (u32, u32[REG_COUNT], u8[DMEM_SIZE]) {
   let (funct7, rs2, rs1, funct3, rd, opcode) = decode_r_instruction(ins);
   let new_value = match funct3 {
-     XOR => regs[rs1]  ^ regs[rs2];
-     AND => regs[rs1]  & regs[rs2];
-     OR  => regs[rs1]  | regs[rs2];
-     SLL => regs[rs1] << regs[rs2];
+     XOR => regs[rs1]  ^ regs[rs2],
+     AND => regs[rs1]  & regs[rs2],
+     OR  => regs[rs1]  | regs[rs2],
+     SLL => regs[rs1] << regs[rs2],
      // Note: ADD and SUB have the same opcode
      ADD => match funct7 {
-        ADD_FUNCT7 => regs[rs1] + regs[rs2];
-        SUB_FUNCT7 => regs[rs1] - regs[rs2];
-        _          => fail!(u32:0);
-        };
+        ADD_FUNCT7 => regs[rs1] + regs[rs2],
+        SUB_FUNCT7 => regs[rs1] - regs[rs2],
+        _          => fail!(u32:0),
+        },
      // Note: SRL and SRA have the same opcode
      SRL => match funct7 {
-        SRL_FUNCT7 => regs[rs1] >> regs[rs2];
-        SRA_FUNCT7 => regs[rs1] >>> regs[rs2];
-        _          => fail!(u32:0);
-        };
+        SRL_FUNCT7 => regs[rs1] >> regs[rs2],
+        SRA_FUNCT7 => regs[rs1] >>> regs[rs2],
+        _          => fail!(u32:0),
+        },
      // LD.R, ST.C (atomics) will not be implemented here.
      _   => fail!(u32:0)
   };
@@ -410,41 +410,41 @@ fn run_i_instruction(pc: u32,
      I_ARITH =>
         let pc: u32 = pc + u32:4;
         let value: u32 = match funct3 {
-           ADDI => regs[rs1] +   (imm12 as u32);
-           SLLI => regs[rs1] <<  (imm12 as u32);
-           XORI => regs[rs1] ^   (imm12 as u32);
-           SRLI => regs[rs1] >>  (imm12 as u32);
-           SRLA => regs[rs1] >>> (imm12 as u32);
-           ORI  => regs[rs1] |   (imm12 as u32);
-           ANDI => regs[rs1] &   (imm12 as u32);
+           ADDI => regs[rs1] +   (imm12 as u32),
+           SLLI => regs[rs1] <<  (imm12 as u32),
+           XORI => regs[rs1] ^   (imm12 as u32),
+           SRLI => regs[rs1] >>  (imm12 as u32),
+           SRLA => regs[rs1] >>> (imm12 as u32),
+           ORI  => regs[rs1] |   (imm12 as u32),
+           ANDI => regs[rs1] &   (imm12 as u32),
            _    => fail!(u32:0)
         };
-        (pc, value);
+        (pc, value),
      I_LD =>
         let pc: u32 = pc + u32:4;
         let addr:u32 = regs[rs1] + (imm12 as u32);
         let value: u32 = match funct3 {
-           LB   => signex(dmem[addr], u32:0);
-           LH   => signex(dmem[addr] ++ dmem[addr + u32:1], u32:0);
+           LB   => signex(dmem[addr], u32:0),
+           LH   => signex(dmem[addr] ++ dmem[addr + u32:1], u32:0),
            LW   => dmem[addr + u32:0] ++
                    dmem[addr + u32:1] ++
                    dmem[addr + u32:2] ++
-                   dmem[addr + u32:3];
+                   dmem[addr + u32:3],
 
-           LBU  => dmem[regs[addr]] as u32;
-           LHU  => (dmem[addr] ++ dmem[addr + u32:1]) as u32;
+           LBU  => dmem[regs[addr]] as u32,
+           LHU  => (dmem[addr] ++ dmem[addr + u32:1]) as u32,
            _    => fail!(u32:0)
         };
-        (pc, value);
+        (pc, value),
      I_JALR =>
         let (pc, value) = match funct3 {
           JALR => let new_rd : u32 = pc + u32:4;
                   // Add imm12 to rs1 and clear the LSB
                   let pc = (regs[rs1] + signex(imm12, u32:0)) & u32:-2;
-                  (pc, new_rd);
+                  (pc, new_rd),
           _    => fail!((pc, u32:0))
         };
-        (pc, value);
+        (pc, value),
 
      // Unsupported RV64I instructions:
      //   LD, LWU
@@ -475,15 +475,15 @@ fn run_s_instruction(pc: u32,
              let dmem = update(dmem, regs[rs2] + u32:2 + (imm12 as u32),
                                regs[rs1][8 +: u8]);
                         update(dmem, regs[rs2] + u32:3 + (imm12 as u32),
-                               regs[rs1][0 +: u8]);
+                               regs[rs1][0 +: u8]),
      SH   => let dmem = update(dmem, regs[rs2] + u32:0 + (imm12 as u32),
                                regs[rs1][8 +: u8]);
                         update(dmem, regs[rs2] + u32:1 + (imm12 as u32),
-                               regs[rs1][0 +: u8]);
+                               regs[rs1][0 +: u8]),
      SB   =>            update(dmem, regs[rs2] + u32:0 + (imm12 as u32),
-                               regs[rs1][0 +: u8]);
+                               regs[rs1][0 +: u8]),
      // Note: SD is a RV64I-only instruction.
-      _   => fail!(dmem);
+      _   => fail!(dmem),
   };
   (pc + u32:4, regs, dmem)
 }
@@ -524,12 +524,12 @@ fn run_b_instruction(pc: u32,
   let pc4 = pc + u32:4;
   let pc_imm = pc + signex(imm12 ++ u1:0, u32:0);
   let new_pc = match funct3 {
-     BEQ  => pc_imm if (regs[rs1] as s32) == (regs[rs2] as s32) else pc4;
-     BNE  => pc_imm if (regs[rs1] as s32) != (regs[rs2] as s32) else pc4;
-     BLT  => pc_imm if (regs[rs1] as s32) <  (regs[rs2] as s32) else pc4;
-     BGE  => pc_imm if (regs[rs1] as s32) >= (regs[rs2] as s32) else pc4;
-     BLTU => pc_imm if regs[rs1] < regs[rs2] else pc4;
-     BGEU => pc_imm if regs[rs1] >= regs[rs2] else pc4;
+     BEQ  => pc_imm if (regs[rs1] as s32) == (regs[rs2] as s32) else pc4,
+     BNE  => pc_imm if (regs[rs1] as s32) != (regs[rs2] as s32) else pc4,
+     BLT  => pc_imm if (regs[rs1] as s32) <  (regs[rs2] as s32) else pc4,
+     BGE  => pc_imm if (regs[rs1] as s32) >= (regs[rs2] as s32) else pc4,
+     BLTU => pc_imm if regs[rs1] < regs[rs2] else pc4,
+     BGEU => pc_imm if regs[rs1] >= regs[rs2] else pc4,
      _    => fail!(u32:0)
   };
   (new_pc, regs, dmem)
@@ -546,15 +546,15 @@ fn run_instruction(pc: u32,
                    (u32, u32[REG_COUNT], u8[DMEM_SIZE]) {
   let opcode = decode_opcode(ins);
   let (pc, regs, dmem) = match opcode {
-      R_CLASS  => run_r_instruction(pc, ins, regs, dmem);
-      S_CLASS  => run_s_instruction(pc, ins, regs, dmem);
+      R_CLASS  => run_r_instruction(pc, ins, regs, dmem),
+      S_CLASS  => run_s_instruction(pc, ins, regs, dmem),
       I_ARITH  |
       I_JALR   |
-      I_LD     => run_i_instruction(pc, ins, regs, dmem);
-      B_CLASS  => run_b_instruction(pc, ins, regs, dmem);
-      U_CLASS  => run_u_instruction(pc, ins, regs, dmem);
-      UJ_CLASS => run_uj_instruction(pc, ins, regs, dmem);
-      _ => fail!((pc, regs, dmem));
+      I_LD     => run_i_instruction(pc, ins, regs, dmem),
+      B_CLASS  => run_b_instruction(pc, ins, regs, dmem),
+      U_CLASS  => run_u_instruction(pc, ins, regs, dmem),
+      UJ_CLASS => run_uj_instruction(pc, ins, regs, dmem),
+      _ => fail!((pc, regs, dmem)),
     };
     (pc, update(regs, u32:0, u32:0), dmem) // to ensure r0 == 0 at all times.
 }
@@ -563,10 +563,10 @@ fn run_instruction(pc: u32,
 //
 fn make_r_insn(op: u3, rdest: u5, r1: u5, r2: u5) -> u32 {
   let funct7 = match op {
-     SUB => SUB_FUNCT7;
-     SRA => SRA_FUNCT7;
-     LRD => LRD_FUNCT7;
-     SCD => SCD_FUNCT7;
+     SUB => SUB_FUNCT7,
+     SRA => SRA_FUNCT7,
+     LRD => LRD_FUNCT7,
+     SCD => SCD_FUNCT7,
      _   => u7:0
   };
   funct7 ++ r2 ++ r1 ++ op ++ rdest ++ R_CLASS
@@ -576,7 +576,7 @@ fn make_r_insn(op: u3, rdest: u5, r1: u5, r2: u5) -> u32 {
 //
 fn make_i_insn(op: u3, rdest: u5, r1: u5, imm12: u12) -> u32 {
   let itype : u7 = match op {
-     ADDI | SLLI | XORI | SRLI | SRAI | ORI | ANDI => I_ARITH;
+     ADDI | SLLI | XORI | SRLI | SRAI | ORI | ANDI => I_ARITH,
      _    => I_LD
   };
   imm12 ++ r1 ++ op ++ rdest ++ itype

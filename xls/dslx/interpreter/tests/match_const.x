@@ -16,8 +16,8 @@ const FOO = u8:42;
 
 fn match_const(x: u8) -> u8 {
   match x {
-    FOO => u8:0;
-    _ => u8:42;
+    FOO => u8:0,
+    _ => u8:42,
   }
 }
 
@@ -30,9 +30,9 @@ test match_const_not_binding {
 
 fn h(t: (u8, (u16, u32))) -> u32 {
   match t {
-    (FOO, (x, y)) => (x as u32) + y;
-    (_, (y, u32:42)) => y as u32;
-    _ => u32:7;
+    (FOO, (x, y)) => (x as u32) + y,
+    (_, (y, u32:42)) => y as u32,
+    _ => u32:7,
   }
 }
 

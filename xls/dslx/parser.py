@@ -907,7 +907,7 @@ class Parser(token_parser.TokenParser):
       self._dropt_or_error(TokenKind.FAT_ARROW)
       rhs = self.parse_expression(arm_bindings)
       arms.append(ast.MatchArm(self.m, tuple(patterns), rhs))
-      must_end = not self._try_popt(TokenKind.SEMI)
+      must_end = not self._try_popt(TokenKind.COMMA)
 
     return ast.Match(self.m, Span(match_.span.start, self._get_pos()), matched,
                      tuple(arms))

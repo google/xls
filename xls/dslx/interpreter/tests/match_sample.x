@@ -14,9 +14,9 @@
 
 fn match_sample(s: bool, x: u32, y: u32) -> u32 {
   match (s, x, y) {
-    (true, _, _) => x;
-    (false, u32:7, b) => b;
-    _ => u32:42;
+    (true, _, _) => x,
+    (false, u32:7, b) => b,
+    _ => u32:42,
   }
 }
 test match_wildcard {
@@ -28,9 +28,9 @@ test match_wildcard {
 
 fn match_wrapper(x: u32) -> u8 {
   match x {
-    u32:42 => u8:1;
-    u32:64 => u8:2;
-    u32:77 => u8:3;
+    u32:42 => u8:1,
+    u32:64 => u8:2,
+    u32:77 => u8:3,
     _ => u8:4
   }
 }

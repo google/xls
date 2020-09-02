@@ -754,7 +754,7 @@ values to identifiers for subsequent use. For example:
 ```
 fn f(t: (u8, u32)) -> u32 {
   match t {
-    (u8:42, y) => y;
+    (u8:42, y) => y,
     (_, y) => y+u8:77
   }
 }
@@ -771,7 +771,7 @@ constants; For example, consider this variation on the above:
 const MY_FAVORITE_NUMBER = u8:42;
 fn f(t: (u8, u32)) -> u32 {
   match t {
-    (MY_FAVORITE_NUMBER, y) => y;
+    (MY_FAVORITE_NUMBER, y) => y,
     (_, y) => y+u8:77
   }
 }
@@ -783,8 +783,8 @@ This also works with nested tuples; for example:
 const MY_FAVORITE_NUMBER = u8:42;
 fn f(t: (u8, (u16, u32))) -> u32 {
   match t {
-    (MY_FAVORITE_NUMBER, (y, z)) => u32:y+z;
-    (_, (y, u32:42)) => u32:y;
+    (MY_FAVORITE_NUMBER, (y, z)) => u32:y+z,
+    (_, (y, u32:42)) => u32:y,
     _ => u32:7
   }
 }
@@ -1165,8 +1165,8 @@ const FOO = u8:42;
 
 fn match_const(x: u8) -> u8 {
   match x {
-    FOO => u8:0;
-    _ => u8:42;
+    FOO => u8:0,
+    _ => u8:42,
   }
 }
 
@@ -1179,9 +1179,9 @@ test match_const_not_binding {
 
 fn h(t: (u8, (u16, u32))) -> u32 {
   match t {
-    (FOO, (x, y)) => (x as u32) + y;
-    (_, (y, u32:42)) => y as u32;
-    _ => u32:7;
+    (FOO, (x, y)) => (x as u32) + y,
+    (_, (y, u32:42)) => y as u32,
+    _ => u32:7,
   }
 }
 

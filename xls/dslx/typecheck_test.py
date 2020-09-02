@@ -587,7 +587,7 @@ fn f(x: u32) -> (u1, u32) {
 
   def test_match_arm_mismatch(self):
     self._typecheck(
-        'fn f(x: u8) -> u8 { match x { u8:0 => u8:3; _ => u3:3 } }',
+        'fn f(x: u8) -> u8 { match x { u8:0 => u8:3, _ => u3:3 } }',
         error='match arm did not have the same type')
 
   def test_array_inconsistency(self):

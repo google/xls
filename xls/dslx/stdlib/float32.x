@@ -53,11 +53,11 @@ pub fn unflatten(x: u32) -> F32 {
 
 pub fn tag(input_float: F32) -> FloatTag {
   match (input_float.bexp, input_float.sfd) {
-    (  u8:0, u23:0) => FloatTag::ZERO;
-    (  u8:0,     _) => FloatTag::SUBNORMAL;
-    (u8:255, u23:0) => FloatTag::INFINITY;
-    (u8:255,     _) => FloatTag::NAN;
-    (     _,     _) => FloatTag::NORMAL;
+    (  u8:0, u23:0) => FloatTag::ZERO,
+    (  u8:0,     _) => FloatTag::SUBNORMAL,
+    (u8:255, u23:0) => FloatTag::INFINITY,
+    (u8:255,     _) => FloatTag::NAN,
+    (     _,     _) => FloatTag::NORMAL,
   }
 }
 
@@ -96,7 +96,7 @@ pub fn fixed_fraction(input_float: F32) -> u23 {
   let input_fixed_magnitude: u25 = match sgt(unbiased_input_float_exponent, u9:0) {
     true =>
       let significand_left_shift = unbiased_input_float_exponent as u3;
-      input_significand_magnitude << (significand_left_shift as u25);
+      input_significand_magnitude << (significand_left_shift as u25),
     _ =>
       let significand_right_shift = (-unbiased_input_float_exponent) as u5;
       input_significand_magnitude >> (significand_right_shift as u25)
@@ -118,13 +118,13 @@ pub fn normalize(sign: u1, exp: u8, sfd_with_hidden: u24) -> F32 {
   let leading_zeros = clz(sfd_with_hidden) as u8;
   match (exp <= leading_zeros, leading_zeros) {
     // Significand is zero.
-    (_, u8:24) => zero(sign);
+    (_, u8:24) => zero(sign),
     // Flush denormals to zero.
-    (true, _) => zero(sign);
+    (true, _) => zero(sign),
     // Normalize.
     _ => F32 { sign: sign,
                bexp: exp - (leading_zeros as u8),
-               sfd: (sfd_with_hidden << (leading_zeros as u24))[:23] };
+               sfd: (sfd_with_hidden << (leading_zeros as u24))[:23] },
   }
 }
 
