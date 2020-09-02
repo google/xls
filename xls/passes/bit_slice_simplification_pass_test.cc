@@ -250,5 +250,57 @@ TEST_F(BitSliceSimplificationPassTest, SliceOfSignExtCaseCaseThree) {
               m::SignExt(m::BitSlice(m::Param(), /*start=*/7, /*width=*/1)));
 }
 
+TEST_F(BitSliceSimplificationPassTest, DynamicBitSliceLiteralStart) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn f(x: bits[42]) -> bits[15] {
+    literal.1: bits[23] = literal(value=6)
+    ret dynamic_bit_slice.2: bits[15] = dynamic_bit_slice(x, literal.1, width=15)
+ }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::BitSlice(m::Param(), /*start=*/6, /*width=*/15));
+}
+
+TEST_F(BitSliceSimplificationPassTest, DynamicBitSliceLiteralStartOob) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn f(x: bits[42]) -> bits[15] {
+    literal.1: bits[23] = literal(value=35)
+    ret dynamic_bit_slice.2: bits[15] = dynamic_bit_slice(x, literal.1, width=15)
+ }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::DynamicBitSlice(m::Param(), m::Literal()));
+}
+
+TEST_F(BitSliceSimplificationPassTest, DynamicBitSliceLiteralInput) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn f(x: bits[30]) -> bits[15] {
+    literal.1: bits[30] = literal(value=6)
+    ret dynamic_bit_slice.2: bits[15] = dynamic_bit_slice(literal.1, x, width=15)
+ }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::DynamicBitSlice(m::Literal(), m::Param()));
+}
+
+TEST_F(BitSliceSimplificationPassTest, DynamicBitSliceNonLiteral) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn f(x: bits[42], y: bits[33]) -> bits[35] {
+    ret dynamic_bit_slice.1: bits[35] = dynamic_bit_slice(x, y, width=35)
+ }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::DynamicBitSlice(m::Param(), m::Param()));
+}
+
 }  // namespace
 }  // namespace xls

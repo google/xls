@@ -264,6 +264,26 @@ xabsl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunction(
     changed = changed || node_changed;
   }
 
+  // Replace dynamic bit slices with literal indices with a non-dynamic bit
+  // slice.
+  for (Node* node : f->nodes()) {
+    if (node->Is<DynamicBitSlice>() && node->operand(1)->Is<Literal>()) {
+      int64 result_width = node->BitCountOrDie();
+      int64 operand_width = node->operand(0)->BitCountOrDie();
+      const Bits& start_bits = node->operand(1)->As<Literal>()->value().bits();
+      if (bits_ops::ULessThanOrEqual(start_bits,
+                                     operand_width - result_width)) {
+        XLS_ASSIGN_OR_RETURN(uint64 start, start_bits.ToUint64());
+        XLS_RETURN_IF_ERROR(
+            node->ReplaceUsesWithNew<BitSlice>(node->operand(0),
+                                               /*start=*/start,
+                                               /*width=*/node->BitCountOrDie())
+                .status());
+        changed = true;
+      }
+    }
+  }
+
   XLS_VLOG(3) << "After:";
   XLS_VLOG_LINES(3, f->DumpIr());
 
