@@ -181,7 +181,9 @@ should go to the [xls-dev mailing list](https://groups.google.com/g/xls-dev).
 
 The following are
 [contributors](https://github.com/google/xls/graphs/contributors) to the XLS
-project:
+project, see our
+[contributing documentation](https://google.github.io/xls/contributing/) and
+[good first issues](https://github.com/google/xls/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)!
 
 * [Brandon Jiang](https://github.com/brajiang)
 * [Chris Leary](https://github.com/cdleary)
