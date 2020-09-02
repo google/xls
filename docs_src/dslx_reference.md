@@ -2,6 +2,8 @@
 
 [TOC]
 
+### Overview
+
 DSLX is a domain specific, functional language to build hardware that can also
 run effectively as host software. The DSL targets the XLS compiler (by
 conversion to XLS IR) to enable flows for FPGAs and ASICs (note that other
