@@ -22,8 +22,18 @@ namespace {
 
 // Returns true if the given type matches the C float type layout.
 bool MatchFloat(const Type& type) {
-  // TODO(leary): 2020-09-02 Match on floats again when we have PackedBitsView
-  // in MSb-field-to-LSb-field order.
+  if (!type.IsTuple()) {
+    return false;
+  }
+
+  const TupleType* tuple_type = type.AsTupleOrDie();
+  auto element_types = tuple_type->element_types();
+  if (element_types[0]->IsBits() && element_types[0]->GetFlatBitCount() == 1 &&
+      element_types[1]->IsBits() && element_types[1]->GetFlatBitCount() == 8 &&
+      element_types[2]->IsBits() && element_types[2]->GetFlatBitCount() == 23) {
+    return true;
+  }
+
   return false;
 }
 
@@ -54,8 +64,8 @@ std::string PackedTypeString(const Type& type) {
 // packed view.
 std::string ConvertFloat(const std::string& name) {
   return absl::StrCat(
-      "PackedTupleView<PackedBitsView<23>, PackedBitsView<8>, "
-      "PackedBitsView<1>> ",
+      "PackedTupleView<PackedBitsView<1>, PackedBitsView<8>, "
+      "PackedBitsView<23>> ",
       name, "_view(reinterpret_cast<uint8*>(&", name, "), 0)");
 }
 
@@ -183,7 +193,7 @@ std::string GenerateWrapperHeader(const Function& function,
   // $2 : Function name
   // $3 : Packed view params
   // $4 : Any interfaces for specially-matched types, e.g., an interface that
-  //      takes a float for a PackedTupleView<PackedBitsView<23>, ...>.
+  //      takes a float for a PackedTupleView<PackedBitsView<1>, ...>.
   // $5 : Header guard.
   constexpr const char header_template[] =
       R"(// Automatically-generated file! DO NOT EDIT!

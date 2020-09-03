@@ -662,11 +662,14 @@ class BuilderVisitor : public DfsVisitorWithDefault {
         TupleType* tuple_type = param_type->AsTupleOrDie();
         llvm::Value* tuple = CreateTypedZeroValue(
             type_converter_->ConvertToLlvmType(*tuple_type));
-        for (uint32 i = 0; i < tuple_type->size(); i++) {
+        for (int32 i = tuple_type->size() - 1; i >= 0; i--) {
+          // Tuple elements are stored MSB -> LSB, so we need to extract in
+          // reverse order to match native layout.
           Type* element_type = tuple_type->element_type(i);
           XLS_ASSIGN_OR_RETURN(llvm::Value * element,
                                UnpackParamBuffer(element_type, param_buffer));
-          tuple = builder_->CreateInsertValue(tuple, element, {i});
+          tuple = builder_->CreateInsertValue(tuple, element,
+                                              {static_cast<uint32>(i)});
           param_buffer = builder_->CreateLShr(param_buffer,
                                               element_type->GetFlatBitCount());
         }
@@ -1557,12 +1560,16 @@ xabsl::StatusOr<llvm::Value*> LlvmIrJit::PackElement(llvm::IRBuilder<>& builder,
       return buffer;
     }
     case TypeKind::kTuple: {
+      // As with HandlePackedParam, we need to reverse tuple packing order to
+      // match native layout.
       TupleType* tuple_type = element_type->AsTupleOrDie();
-      for (uint32 i = 0; i < tuple_type->size(); i++) {
+      for (int64 i = tuple_type->size() - 1; i >= 0; i--) {
         XLS_ASSIGN_OR_RETURN(
             buffer,
-            PackElement(builder, builder.CreateExtractValue(element, {i}),
-                        tuple_type->element_type(i), buffer, bit_offset));
+            PackElement(
+                builder,
+                builder.CreateExtractValue(element, {static_cast<uint32>(i)}),
+                tuple_type->element_type(i), buffer, bit_offset));
         bit_offset += tuple_type->element_type(i)->GetFlatBitCount();
       }
       return buffer;

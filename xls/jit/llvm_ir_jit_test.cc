@@ -302,9 +302,15 @@ struct TestData {
   static void FlattenValue(const Value& value, BitsRope& rope) {
     if (value.IsBits()) {
       rope.push_back(value.bits());
-    } else if (value.IsArray() || value.IsTuple()) {
+    } else if (value.IsArray()) {
       for (const Value& element : value.elements()) {
         FlattenValue(element, rope);
+      }
+    } else if (value.IsTuple()) {
+      // Tuple elements are declared MSelement to LSelement, so we need to pack
+      // them in "reverse" order, so the LSelement is at the LSb.
+      for (int i = value.elements().size() - 1; i >= 0; i--) {
+        FlattenValue(value.elements()[i], rope);
       }
     }
   }

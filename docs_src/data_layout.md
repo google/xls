@@ -7,7 +7,7 @@ understood and possibly reconciled.
 
 [TOC]
 
-# XLS data layout
+## XLS data layout
 
 The concrete XLS [`Bits`](https://github.com/google/xls/tree/main/xls/ir/bits.h) type is
 the ultimate container of actual data for any XLS IR type: tuples and arrays may
@@ -23,14 +23,14 @@ High  <--  Low
 0x 4E 61 BC 00
 ```
 
-# Host data layout
+## Host data layout
 
 Different architectures can use different native layouts. For example, x86 (and
 descendants) use little-endian (i.e., `0x00 BC 61 4E`), and modern ARM can be
 configurable as either. (There are actually other layouts, but they're best left
 to the dustbin of history).
 
-# JIT data layout
+## JIT data layout
 
 From the above, we can see that XLS' native layout differs from that of most
 modern hosts. When compiling XLS code, the [LLVM] JIT understandably uses the
@@ -42,7 +42,7 @@ For Value or unpacked view input, this swapping is handled automatically, in
 __un__swapping is also automatically performed in `LlvmIrRuntime::UnpackBuffer()`.
 Thus, for these uses, no special action is required of the user.
 
-# Packed views
+## Packed views
 
 *However*, this is not the case for use of packed views. The motivating use case
 for packed views is to allow users to map native types directly into JIT-usable
@@ -60,3 +60,37 @@ the provider of that data to ensure proper layout.
 
 Distilled into a simple rule of thumb: if packed view data is coming from XLS,
 it needs to be byte swapped before being passed into the JIT.
+
+### Tuple types
+
+Another wrinkle is the usage of packed tuple views. When XLS emits a tuple type
+in Verilog, the first element in the tuple declaration is placed in the most
+significant bits, and so on, with the last-declared element placed in the least
+significant bits. To match this layout, PackedTupleView elements must be also
+declared from most significant to least significant element. This way, when
+running on a host, the in-memory layout of input data matches that expected by
+XLS tools. That means, using the usual float32 example, that the packed view
+declaration is:
+
+```
+PackedTupleView<PackedBitsView<1>, PackedBitsView<8>, PackedBitsView<23>>
+```
+
+(The non-packed-View tuple declaration is much the same, but matters less, as it
+doesn't directly correspond to in-memory data layout.)
+
+Be aware of this layout when accessing elements in a PackedTupleView. In the
+float32 above, accessing element 0 yields the sign bit (the most significant bit
+in memory), and accessing element 2 yields the significand (the least
+significant 23 bits in memory), as one would expect given the tuple type
+declaration order.
+
+While this may initially seem confusing, it suffices to remember that
+PackedTupleView element declaration order is the "reverse" of the in-memory
+order; refer to
+[value_view_test.cc](https://github.com/google/xls/tree/main/xls/ir/value_view_test.cc)
+and
+[llvm_ir_jit_test.cc](https://github.com/google/xls/tree/main/xls/jit/llvm_ir_jit_test.cc)
+for test examples, or the [generated] fpadd_2x32_jit_wrapper.h/cc and
+[fpadd_2x32_test.cc](https://github.com/google/xls/tree/main/xls/modules/fpadd_2x32_test.cc)
+for practical usage.

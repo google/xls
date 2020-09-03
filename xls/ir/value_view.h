@@ -431,7 +431,7 @@ class PackedTupleView {
     static_assert(kElementIndex < sizeof...(Types));
 
     constexpr int64 kStartBitOffset =
-        GetStartBitOffset<kElementIndex, Types...>(0);
+        GetStartBitOffset<0, kElementIndex, Types...>(0);
     return typename ElementAccessor<kElementIndex, Types...>::type(
         buffer_ + (kStartBitOffset / kCharBit),
         ((buffer_offset_ + kStartBitOffset) % kCharBit));
@@ -442,18 +442,32 @@ class PackedTupleView {
   int64 buffer_offset_;
 
   // ---- Element offset calculation.
-  template <int kElementIndex, typename FrontT, typename... Rest>
+  // Tuples are declared MSb to LSb, so we need to extract types in "reverse"
+  // order to find the N'th element. Since we "peel" types off the front of the
+  // template parameter pack, that means we start counting bit widths once we
+  // hit the element of interest.
+  template <int kCurrentIndex, int kTargetIndex, typename FrontT,
+            typename NextT, typename... Rest>
   static constexpr int64 GetStartBitOffset(
       int64 offset,
-      typename std::enable_if<(kElementIndex > 0)>::type* dummy = nullptr) {
-    return GetStartBitOffset<kElementIndex - 1, Rest...>(offset +
-                                                         FrontT::kBitCount);
+      typename std::enable_if<(kCurrentIndex != sizeof...(Types) - 1)>::type*
+          dummy = nullptr) {
+    if (kCurrentIndex < kTargetIndex) {
+      return GetStartBitOffset<kCurrentIndex + 1, kTargetIndex, NextT, Rest...>(
+          offset);
+    } else {
+      return NextT::kBitCount +
+             GetStartBitOffset<kCurrentIndex + 1, kTargetIndex, NextT, Rest...>(
+                 offset);
+    }
   }
 
-  template <int kElementIndex, typename FrontT, typename... Rest>
+  template <int kCurrentIndex, int kTargetIndex, typename FrontT,
+            typename... Rest>
   static constexpr int64 GetStartBitOffset(
       int64 offset,
-      typename std::enable_if<(kElementIndex == 0)>::type* dummy = nullptr) {
+      typename std::enable_if<(kCurrentIndex == sizeof...(Types) - 1)>::type*
+          dummy = nullptr) {
     return offset;
   }
 

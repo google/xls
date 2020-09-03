@@ -232,6 +232,7 @@ TEST(PackedArrayViewTest, ExtractsUnaligned) {
 }
 
 TEST(PackedTupleViewTest, ExtractsSimpleUnaligned) {
+  constexpr int64 kValueBits = 32;
   constexpr int kBitOffset = 5;
 
   uint32 int_value = 0xa5a5a5a5;
@@ -242,18 +243,21 @@ TEST(PackedTupleViewTest, ExtractsSimpleUnaligned) {
   using SfdT = PackedBitsView<23>;
   using TupleT = PackedTupleView<SignT, ExpT, SfdT>;
   BitsRope rope(TupleT::kBitCount + kBitOffset);
+
   for (int i = 0; i < kBitOffset; i++) {
     rope.push_back(0);
   }
-
-  for (const Value& element : value.elements()) {
+  // Iterate low-to-high, keeping LSb-first ordering.
+  absl::Span<const Value> elements = value.elements();
+  for (int i = elements.size() - 1; i >= 0; i--) {
+    const Value& element = elements[i];
     for (bool bit : element.bits().ToBitVector()) {
       rope.push_back(bit);
     }
   }
 
-  std::vector<uint8> buffer = rope.Build().ToBytes();
-  std::reverse(buffer.begin(), buffer.end());
+  std::vector<uint8> buffer(CeilOfRatio(kValueBits + kBitOffset, kCharBit), 0);
+  rope.Build().ToBytes(absl::MakeSpan(buffer), false);
 
   TupleT tuple_view(buffer.data(), kBitOffset);
   uint8 sign_data = 0;
