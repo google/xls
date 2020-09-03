@@ -159,10 +159,8 @@ class Interpreter(object):
 
     symbolic_bindings = bindings.fn_ctx.sym_bindings
 
-    start, width = index_slice.bindings_to_start_width[symbolic_bindings]
-    assert isinstance(start, int)
-    assert isinstance(width, int)
-
+    start, width = self._type_info.get_slice_start_width(
+        index_slice, symbolic_bindings)
     return Value(Tag.UBITS, bits.slice(start, start + width, lsb_is_0=True))
 
   def _evaluate_Index(  # pylint: disable=invalid-name

@@ -465,11 +465,8 @@ class _IrConverterFb(ast.AstVisitor):
         return self._visit_width_slice(node, index_slice, lhs_type)
       assert isinstance(index_slice, ast.Slice), index_slice
 
-      start, width = node.index.bindings_to_start_width[
-          self._get_symbolic_bindings_tuple()]
-      assert isinstance(start, int)
-      assert isinstance(width, int)
-
+      start, width = self.type_info.get_slice_start_width(
+          index_slice, self._get_symbolic_bindings_tuple())
       self._def(node, self.fb.add_bit_slice, self._use(node.lhs), start, width)
     else:
       self._def(node, self.fb.add_array_index, self._use(node.lhs),

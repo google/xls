@@ -396,7 +396,7 @@ def _deduce_slice_type(self: ast.Index, ctx: DeduceCtx,
     bit_count = bit_count.evaluate(fn_symbolic_bindings)
   start, width = bit_helpers.resolve_bit_slice_indices(bit_count, start, limit)
   key = tuple(fn_symbolic_bindings.items())
-  index_slice.bindings_to_start_width[key] = (start, width)
+  ctx.type_info.add_slice_start_width(index_slice, key, (start, width))
   return BitsType(signed=False, size=width)
 
 

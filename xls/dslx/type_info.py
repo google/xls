@@ -27,7 +27,7 @@ import dataclasses
 
 from xls.dslx import ast
 from xls.dslx import span
-from xls.dslx import symbolic_bindings
+from xls.dslx import symbolic_bindings as symbind_mod
 from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.xls_type_error import TypeInferenceError
 
@@ -68,16 +68,28 @@ class InvocationData:
   """
   invocation: ast.Invocation
   symbolic_bindings_map: Dict[
-      symbolic_bindings.SymbolicBindings,
-      symbolic_bindings.SymbolicBindings] = dataclasses.field(
+      symbind_mod.SymbolicBindings,
+      symbind_mod.SymbolicBindings] = dataclasses.field(
           default_factory=dict)
-  instantiations: Dict[symbolic_bindings.SymbolicBindings,
+  instantiations: Dict[symbind_mod.SymbolicBindings,
                        'TypeInfo'] = dataclasses.field(default_factory=dict)
 
   def update(self, other: 'InvocationData') -> None:
     assert self.invocation == other.invocation
     self.symbolic_bindings_map.update(other.symbolic_bindings_map)
     self.instantiations.update(other.instantiations)
+
+
+@dataclasses.dataclass
+class SliceData:
+  node: ast.Slice
+  bindings_to_start_width: Dict[symbind_mod.SymbolicBindings,
+                                Tuple[int, int]] = dataclasses.field(
+                                    default_factory=dict)
+
+  def update(self, other: 'SliceData') -> None:
+    assert self.node == other.node
+    self.bindings_to_start_width.update(other.bindings_to_start_width)
 
 
 class TypeInfo:
@@ -97,6 +109,7 @@ class TypeInfo:
     self._imports: Dict[ast.Import, ImportedInfo] = {}
     self._name_to_const: Dict[ast.NameDef, ast.Constant] = {}
     self._invocations: Dict[ast.Invocation, InvocationData] = {}
+    self._slices: Dict[ast.Slice, SliceData] = {}
     self._parent: Optional['TypeInfo'] = parent
 
   @property
@@ -104,13 +117,21 @@ class TypeInfo:
     return self._parent
 
   def update(self, other: 'TypeInfo') -> None:
+    """Updates this type information object with the data from 'other'."""
     self._dict.update(other._dict)
     self._imports.update(other._imports)
+    # Merge in all the invocation information.
     for invocation, data in other._invocations.items():
       if invocation in self._invocations:
         self._invocations[invocation].update(data)
       else:
         self._invocations[invocation] = data
+    # Merge in all the slice information.
+    for node, data in other._slices.items():
+      if node in self._slices:
+        self._slices[node].update(data)
+      else:
+        self._slices[node] = data
 
   def _top(self) -> 'TypeInfo':
     """Traverses to the "most parent" TypeInfo."""
@@ -119,10 +140,24 @@ class TypeInfo:
       this = this._parent
     return this
 
+  def add_slice_start_width(
+      self, node: ast.Slice,
+      symbolic_bindings: symbind_mod.SymbolicBindings,
+      start_width: Tuple[int, int]):
+    """Notes start/width for a slice operation found during type inference."""
+    self._top()._slices.setdefault(node, SliceData(
+        node)).bindings_to_start_width[symbolic_bindings] = start_width
+
+  def get_slice_start_width(
+      self, node: ast.Slice,
+      symbolic_bindings: symbind_mod.SymbolicBindings) -> Tuple[int, int]:
+    """Retrieves start/width for slice operation found during type inference."""
+    return self._top()._slices[node].bindings_to_start_width[symbolic_bindings]
+
   def add_invocation_symbolic_bindings(
       self, invocation: ast.Invocation,
-      caller: symbolic_bindings.SymbolicBindings,
-      callee: symbolic_bindings.SymbolicBindings) -> None:
+      caller: symbind_mod.SymbolicBindings,
+      callee: symbind_mod.SymbolicBindings) -> None:
     """Notes caller/callee relation of symbolic bindings at an invocation.
 
     This is kept from type inferencing time for convenience purposes (so it
@@ -140,13 +175,13 @@ class TypeInfo:
 
   def get_invocation_symbolic_bindings(
       self, invocation: ast.Invocation,
-      caller: symbolic_bindings.SymbolicBindings
-  ) -> symbolic_bindings.SymbolicBindings:
+      caller: symbind_mod.SymbolicBindings
+  ) -> symbind_mod.SymbolicBindings:
     """Returns callee bindings given caller bindings at an invocation."""
     return self._top()._invocations[invocation].symbolic_bindings_map[caller]
 
   def add_instantiation(self, invocation: ast.Invocation,
-                        caller: symbolic_bindings.SymbolicBindings,
+                        caller: symbind_mod.SymbolicBindings,
                         type_info: 'TypeInfo') -> None:
     """Adds derived type info for an "instantiation".
 
@@ -168,14 +203,14 @@ class TypeInfo:
         InvocationData(invocation)).instantiations[caller] = type_info
 
   def has_instantiation(self, invocation: ast.Invocation,
-                        caller: symbolic_bindings.SymbolicBindings) -> bool:
+                        caller: symbind_mod.SymbolicBindings) -> bool:
     """Returns if there's type info at invocation with given caller bindings."""
     return caller in self._top()._invocations.get(
         invocation, InvocationData(invocation)).instantiations
 
   def get_instantiation(
       self, invocation: ast.Invocation,
-      caller: symbolic_bindings.SymbolicBindings) -> 'TypeInfo':
+      caller: symbind_mod.SymbolicBindings) -> 'TypeInfo':
     """Retrieves type info for invocation with given caller bindings."""
     return self._top()._invocations[invocation].instantiations[caller]
 

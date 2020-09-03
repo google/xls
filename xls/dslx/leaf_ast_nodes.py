@@ -573,9 +573,6 @@ class Slice(AstNode):
     self.start = start
     self.limit = limit
 
-    # These attributes are populated by type inference.
-    self.bindings_to_start_width = dict()
-
   def __str__(self) -> Text:
     if self.start and self.limit:
       return '{}:{}'.format(self.start, self.limit)
