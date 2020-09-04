@@ -22,6 +22,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "xls/common/iterator_range.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/statusor.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/node.h"
@@ -46,6 +47,7 @@ class Function {
       : name_(name),
         qualified_name_(absl::StrCat(package->name(), "::", name_)),
         package_(package) {}
+  virtual ~Function() = default;
 
   Package* package() const { return package_; }
   const std::string& name() const { return name_; }
@@ -55,11 +57,19 @@ class Function {
   // Parameter:
   //   'recursive' if true, will dump counted-for body functions as well.
   //   This is only useful when dumping individual functions, and not packages.
-  std::string DumpIr(bool recursive = false) const;
+  virtual std::string DumpIr(bool recursive = false) const;
 
   // Returns the node that serves as the return value of this function.
   Node* return_value() const { return return_value_; }
-  void set_return_value(Node* n) { return_value_ = n; }
+
+  // Sets the node that serves as the return value of this function.
+  virtual absl::Status set_return_value(Node* n) {
+    XLS_RET_CHECK_EQ(n->function(), this) << absl::StreamFormat(
+        "Return value node %s is not in this function %s (is in function %s)",
+        n->GetName(), name(), n->function()->name());
+    return_value_ = n;
+    return absl::OkStatus();
+  }
 
   FunctionType* GetType();
 

@@ -34,6 +34,7 @@
 namespace xls {
 
 class Function;
+class Proc;
 
 class Package {
  public:
@@ -70,10 +71,14 @@ class Package {
 
   Type* GetTypeForValue(const Value& value);
 
+  // Add a function (or proc) to the package. Ownership is tranferred to the
+  // package.
   Function* AddFunction(std::unique_ptr<Function> f);
+  Proc* AddProc(std::unique_ptr<Proc> proc);
 
-  // Get a function by name.
+  // Get a function (or proc) by name.
   xabsl::StatusOr<Function*> GetFunction(absl::string_view func_name) const;
+  xabsl::StatusOr<Proc*> GetProc(absl::string_view proc_name) const;
 
   // Remove (dead) functions.
   void DeleteDeadFunctions(absl::Span<Function* const> dead_funcs);
@@ -127,6 +132,10 @@ class Package {
     return functions_;
   }
 
+  // Returns the procs in this package.
+  absl::Span<std::unique_ptr<Proc>> procs() { return absl::MakeSpan(procs_); }
+  absl::Span<const std::unique_ptr<Proc>> procs() const { return procs_; }
+
   const std::string& name() const { return name_; }
 
   // Returns true if analysis indicates that this package always produces the
@@ -162,6 +171,7 @@ class Package {
   int64 next_node_id_ = 1;
 
   std::vector<std::unique_ptr<Function>> functions_;
+  std::vector<std::unique_ptr<Proc>> procs_;
 
   // Set of owned types in this package.
   UnorderedSet<const Type*> owned_types_;

@@ -152,6 +152,7 @@ cc_library(
         "node_iterator.cc",
         "nodes.cc",
         "package.cc",
+        "proc.cc",
         "verifier.cc",
     ],
     hdrs = [
@@ -162,6 +163,7 @@ cc_library(
         "node_iterator.h",
         "nodes.h",
         "package.h",
+        "proc.h",
         "verifier.h",
     ],
     deps = [
@@ -932,6 +934,17 @@ cc_test(
         ":ir",
         ":value",
         ":value_helpers",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "proc_test",
+    srcs = ["proc_test.cc"],
+    deps = [
+        ":ir",
+        ":ir_test_base",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
     ],

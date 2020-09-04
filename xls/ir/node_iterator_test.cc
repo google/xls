@@ -35,7 +35,7 @@ TEST(NodeIteratorTest, ReordersViaDependencies) {
   XLS_ASSERT_OK_AND_ASSIGN(Node * neg,
                            f.MakeNode<UnOp>(loc, literal, Op::kNeg));
 
-  f.set_return_value(neg);
+  XLS_ASSERT_OK(f.set_return_value(neg));
 
   // Literal should precede the negation in RPO although we added those nodes in
   // the opposite order.
@@ -91,7 +91,7 @@ TEST(NodeIteratorTest, PostOrderNotPreOrder) {
   XLS_ASSERT_OK_AND_ASSIGN(Node * b, f.MakeNode<BinOp>(loc, a, a, Op::kAdd));
   XLS_ASSERT_OK_AND_ASSIGN(Node * c, f.MakeNode<BinOp>(loc, a, b, Op::kAdd));
 
-  f.set_return_value(c);
+  XLS_ASSERT_OK(f.set_return_value(c));
 
   NodeIterator rni = TopoSort(&f);
   auto it = rni.begin();

@@ -63,6 +63,9 @@ class IrTestBase : public ::testing::Test {
   xabsl::StatusOr<Function*> ParseFunction(absl::string_view text,
                                            Package* package);
 
+  // Parse the input_string as a proc into the given package.
+  xabsl::StatusOr<Proc*> ParseProc(absl::string_view text, Package* package);
+
   // Finds and returns the node in the given package (function) with the given
   // name. Dies if no such node exists.
   static Node* FindNode(absl::string_view name, Package* package);

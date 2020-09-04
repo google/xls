@@ -26,6 +26,23 @@ namespace py = pybind11;
 
 namespace xls {
 
+// FunctionBuilder is a derived type (derived from BuilderBase) which does not
+// play nice with PyWrap. Specifically, the methods defined in the base class
+// (BuilderBase) result in PrWrap attempting to create a wrapper for a
+// BuilderBase object which has no defined wrapper. Create a special wrapper for
+// wrapping of FunctionBuilder methods for this purpose.
+template <typename ReturnT, typename T, typename... Args>
+auto FbPyWrap(ReturnT (T::*method_pointer)(Args...) const) {
+  return PyWrapHelper<decltype(method_pointer), ReturnT, FunctionBuilder,
+                      Args...>(method_pointer);
+}
+
+template <typename ReturnT, typename T, typename... Args>
+auto FbPyWrap(ReturnT (T::*method_pointer)(Args...)) {
+  return PyWrapHelper<decltype(method_pointer), ReturnT, FunctionBuilder,
+                      Args...>(method_pointer);
+}
+
 PYBIND11_MODULE(function_builder, m) {
   py::module::import("xls.ir.python.bits");
   py::module::import("xls.ir.python.function");
@@ -37,7 +54,6 @@ PYBIND11_MODULE(function_builder, m) {
 
   py::class_<BValueHolder>(m, "BValue")
       .def("__str__", PyWrap(&BValue::ToString))
-      .def("get_builder", PyWrap(&BValue::builder))
       .def("get_type", PyWrap(&BValue::GetType));
 
   // Explicitly select overload when pybind11 can't infer it.
@@ -68,74 +84,74 @@ PYBIND11_MODULE(function_builder, m) {
       .def(py::init<absl::string_view, PackageHolder>(), py::arg("name"),
            py::arg("package"))
 
-      .def_property_readonly("name", PyWrap(&FunctionBuilder::name))
+      .def_property_readonly("name", FbPyWrap(&FunctionBuilder::name))
 
-      .def("add_param", PyWrap(&FunctionBuilder::Param), py::arg("name"),
+      .def("add_param", FbPyWrap(&FunctionBuilder::Param), py::arg("name"),
            py::arg("type"), py::arg("loc") = absl::nullopt)
 
-      .def("add_shra", PyWrap(&FunctionBuilder::Shra), py::arg("lhs"),
+      .def("add_shra", FbPyWrap(&FunctionBuilder::Shra), py::arg("lhs"),
            py::arg("rhs"), py::arg("loc") = absl::nullopt)
-      .def("add_shrl", PyWrap(&FunctionBuilder::Shrl), py::arg("lhs"),
+      .def("add_shrl", FbPyWrap(&FunctionBuilder::Shrl), py::arg("lhs"),
            py::arg("rhs"), py::arg("loc") = absl::nullopt)
-      .def("add_shll", PyWrap(&FunctionBuilder::Shll), py::arg("lhs"),
+      .def("add_shll", FbPyWrap(&FunctionBuilder::Shll), py::arg("lhs"),
            py::arg("rhs"), py::arg("loc") = absl::nullopt)
-      .def("add_or", PyWrap(add_or), py::arg("lhs"), py::arg("rhs"),
+      .def("add_or", FbPyWrap(add_or), py::arg("lhs"), py::arg("rhs"),
            py::arg("loc") = absl::nullopt)
-      .def("add_nary_or", PyWrap(add_nary_or), py::arg("operands"),
+      .def("add_nary_or", FbPyWrap(add_nary_or), py::arg("operands"),
            py::arg("loc") = absl::nullopt)
-      .def("add_xor", PyWrap(&FunctionBuilder::Xor), py::arg("lhs"),
+      .def("add_xor", FbPyWrap(&FunctionBuilder::Xor), py::arg("lhs"),
            py::arg("rhs"), py::arg("loc") = absl::nullopt)
-      .def("add_and", PyWrap(&FunctionBuilder::And), py::arg("lhs"),
+      .def("add_and", FbPyWrap(&FunctionBuilder::And), py::arg("lhs"),
            py::arg("rhs"), py::arg("loc") = absl::nullopt)
       .def("add_smul", PyWrap(add_smul), py::arg("lhs"), py::arg("rhs"),
            py::arg("loc") = absl::nullopt)
       .def("add_umul", PyWrap(add_umul), py::arg("lhs"), py::arg("rhs"),
            py::arg("loc") = absl::nullopt)
-      .def("add_udiv", PyWrap(&FunctionBuilder::UDiv), py::arg("lhs"),
+      .def("add_udiv", FbPyWrap(&FunctionBuilder::UDiv), py::arg("lhs"),
            py::arg("rhs"), py::arg("loc") = absl::nullopt)
-      .def("add_sub", PyWrap(&FunctionBuilder::Subtract), py::arg("lhs"),
+      .def("add_sub", FbPyWrap(&FunctionBuilder::Subtract), py::arg("lhs"),
            py::arg("rhs"), py::arg("loc") = absl::nullopt)
-      .def("add_add", PyWrap(&FunctionBuilder::Add), py::arg("lhs"),
+      .def("add_add", FbPyWrap(&FunctionBuilder::Add), py::arg("lhs"),
            py::arg("rhs"), py::arg("loc") = absl::nullopt)
 
-      .def("add_concat", PyWrap(&FunctionBuilder::Concat), py::arg("operands"),
+      .def("add_concat", FbPyWrap(&FunctionBuilder::Concat),
+           py::arg("operands"), py::arg("loc") = absl::nullopt)
+
+      .def("add_ule", FbPyWrap(&FunctionBuilder::ULe), py::arg("lhs"),
+           py::arg("rhs"), py::arg("loc") = absl::nullopt)
+      .def("add_ult", FbPyWrap(&FunctionBuilder::ULt), py::arg("lhs"),
+           py::arg("rhs"), py::arg("loc") = absl::nullopt)
+      .def("add_uge", FbPyWrap(&FunctionBuilder::UGe), py::arg("lhs"),
+           py::arg("rhs"), py::arg("loc") = absl::nullopt)
+      .def("add_ugt", FbPyWrap(&FunctionBuilder::UGt), py::arg("lhs"),
+           py::arg("rhs"), py::arg("loc") = absl::nullopt)
+
+      .def("add_sle", FbPyWrap(&FunctionBuilder::SLe), py::arg("lhs"),
+           py::arg("rhs"), py::arg("loc") = absl::nullopt)
+      .def("add_slt", FbPyWrap(&FunctionBuilder::SLt), py::arg("lhs"),
+           py::arg("rhs"), py::arg("loc") = absl::nullopt)
+      .def("add_sge", FbPyWrap(&FunctionBuilder::SGe), py::arg("lhs"),
+           py::arg("rhs"), py::arg("loc") = absl::nullopt)
+      .def("add_sgt", FbPyWrap(&FunctionBuilder::SGt), py::arg("lhs"),
+           py::arg("rhs"), py::arg("loc") = absl::nullopt)
+
+      .def("add_eq", FbPyWrap(&FunctionBuilder::Eq), py::arg("lhs"),
+           py::arg("rhs"), py::arg("loc") = absl::nullopt)
+      .def("add_ne", FbPyWrap(&FunctionBuilder::Ne), py::arg("lhs"),
+           py::arg("rhs"), py::arg("loc") = absl::nullopt)
+
+      .def("add_neg", FbPyWrap(&FunctionBuilder::Negate), py::arg("x"),
+           py::arg("loc") = absl::nullopt)
+      .def("add_not", FbPyWrap(&FunctionBuilder::Not), py::arg("x"),
+           py::arg("loc") = absl::nullopt)
+      .def("add_clz", FbPyWrap(&FunctionBuilder::Clz), py::arg("x"),
+           py::arg("loc") = absl::nullopt)
+      .def("add_ctz", FbPyWrap(&FunctionBuilder::Ctz), py::arg("x"),
            py::arg("loc") = absl::nullopt)
 
-      .def("add_ule", PyWrap(&FunctionBuilder::ULe), py::arg("lhs"),
-           py::arg("rhs"), py::arg("loc") = absl::nullopt)
-      .def("add_ult", PyWrap(&FunctionBuilder::ULt), py::arg("lhs"),
-           py::arg("rhs"), py::arg("loc") = absl::nullopt)
-      .def("add_uge", PyWrap(&FunctionBuilder::UGe), py::arg("lhs"),
-           py::arg("rhs"), py::arg("loc") = absl::nullopt)
-      .def("add_ugt", PyWrap(&FunctionBuilder::UGt), py::arg("lhs"),
-           py::arg("rhs"), py::arg("loc") = absl::nullopt)
-
-      .def("add_sle", PyWrap(&FunctionBuilder::SLe), py::arg("lhs"),
-           py::arg("rhs"), py::arg("loc") = absl::nullopt)
-      .def("add_slt", PyWrap(&FunctionBuilder::SLt), py::arg("lhs"),
-           py::arg("rhs"), py::arg("loc") = absl::nullopt)
-      .def("add_sge", PyWrap(&FunctionBuilder::SGe), py::arg("lhs"),
-           py::arg("rhs"), py::arg("loc") = absl::nullopt)
-      .def("add_sgt", PyWrap(&FunctionBuilder::SGt), py::arg("lhs"),
-           py::arg("rhs"), py::arg("loc") = absl::nullopt)
-
-      .def("add_eq", PyWrap(&FunctionBuilder::Eq), py::arg("lhs"),
-           py::arg("rhs"), py::arg("loc") = absl::nullopt)
-      .def("add_ne", PyWrap(&FunctionBuilder::Ne), py::arg("lhs"),
-           py::arg("rhs"), py::arg("loc") = absl::nullopt)
-
-      .def("add_neg", PyWrap(&FunctionBuilder::Negate), py::arg("x"),
-           py::arg("loc") = absl::nullopt)
-      .def("add_not", PyWrap(&FunctionBuilder::Not), py::arg("x"),
-           py::arg("loc") = absl::nullopt)
-      .def("add_clz", PyWrap(&FunctionBuilder::Clz), py::arg("x"),
-           py::arg("loc") = absl::nullopt)
-      .def("add_ctz", PyWrap(&FunctionBuilder::Ctz), py::arg("x"),
-           py::arg("loc") = absl::nullopt)
-
-      .def("add_one_hot", PyWrap(&FunctionBuilder::OneHot), py::arg("arg"),
+      .def("add_one_hot", FbPyWrap(&FunctionBuilder::OneHot), py::arg("arg"),
            py::arg("lsb_is_prio"), py::arg("loc") = absl::nullopt)
-      .def("add_one_hot_sel", PyWrap(&FunctionBuilder::OneHotSelect),
+      .def("add_one_hot_sel", FbPyWrap(&FunctionBuilder::OneHotSelect),
            py::arg("selector"), py::arg("cases"),
            py::arg("loc") = absl::nullopt)
 
@@ -153,55 +169,58 @@ PYBIND11_MODULE(function_builder, m) {
            py::arg("case_values"), py::arg("default_value"),
            py::arg("loc") = absl::nullopt)
 
-      .def("add_after_all", PyWrap(&FunctionBuilder::AfterAll),
+      .def("add_after_all", FbPyWrap(&FunctionBuilder::AfterAll),
            py::arg("dependencies"), py::arg("loc") = absl::nullopt)
 
-      .def("add_tuple", PyWrap(&FunctionBuilder::Tuple), py::arg("elements"),
+      .def("add_tuple", FbPyWrap(&FunctionBuilder::Tuple), py::arg("elements"),
            py::arg("loc") = absl::nullopt)
-      .def("add_array", PyWrap(&FunctionBuilder::Array), py::arg("elements"),
+      .def("add_array", FbPyWrap(&FunctionBuilder::Array), py::arg("elements"),
            py::arg("element_type"), py::arg("loc") = absl::nullopt)
 
-      .def("add_tuple_index", PyWrap(&FunctionBuilder::TupleIndex),
+      .def("add_tuple_index", FbPyWrap(&FunctionBuilder::TupleIndex),
            py::arg("arg"), py::arg("idx"), py::arg("loc") = absl::nullopt)
 
-      .def("add_counted_for", PyWrap(&FunctionBuilder::CountedFor),
+      .def("add_counted_for", FbPyWrap(&FunctionBuilder::CountedFor),
            py::arg("init_value"), py::arg("trip_count"), py::arg("stride"),
            py::arg("body"), py::arg("invariant_args"),
            py::arg("loc") = absl::nullopt)
 
-      .def("add_map", PyWrap(&FunctionBuilder::Map), py::arg("operand"),
+      .def("add_map", FbPyWrap(&FunctionBuilder::Map), py::arg("operand"),
            py::arg("to_apply"), py::arg("loc") = absl::nullopt)
 
-      .def("add_invoke", PyWrap(&FunctionBuilder::Invoke), py::arg("args"),
+      .def("add_invoke", FbPyWrap(&FunctionBuilder::Invoke), py::arg("args"),
            py::arg("to_apply"), py::arg("loc") = absl::nullopt)
 
-      .def("add_array_index", PyWrap(&FunctionBuilder::ArrayIndex),
+      .def("add_array_index", FbPyWrap(&FunctionBuilder::ArrayIndex),
            py::arg("arg"), py::arg("idx"), py::arg("loc") = absl::nullopt)
-      .def("add_array_update", PyWrap(&FunctionBuilder::ArrayUpdate),
+      .def("add_array_update", FbPyWrap(&FunctionBuilder::ArrayUpdate),
            py::arg("arg"), py::arg("idx"), py::arg("update_value"),
            py::arg("loc") = absl::nullopt)
-      .def("add_reverse", PyWrap(&FunctionBuilder::Reverse), py::arg("arg"),
+      .def("add_reverse", FbPyWrap(&FunctionBuilder::Reverse), py::arg("arg"),
            py::arg("loc") = absl::nullopt)
-      .def("add_identity", PyWrap(&FunctionBuilder::Identity), py::arg("arg"),
+      .def("add_identity", FbPyWrap(&FunctionBuilder::Identity), py::arg("arg"),
            py::arg("loc") = absl::nullopt)
-      .def("add_signext", PyWrap(&FunctionBuilder::SignExtend), py::arg("arg"),
-           py::arg("new_bit_count"), py::arg("loc") = absl::nullopt)
-      .def("add_zeroext", PyWrap(&FunctionBuilder::ZeroExtend), py::arg("arg"),
-           py::arg("new_bit_count"), py::arg("loc") = absl::nullopt)
-      .def("add_bit_slice", PyWrap(&FunctionBuilder::BitSlice), py::arg("arg"),
-           py::arg("start"), py::arg("width"), py::arg("loc") = absl::nullopt)
-      .def("add_dynamic_bit_slice", PyWrap(&FunctionBuilder::DynamicBitSlice),
+      .def("add_signext", FbPyWrap(&FunctionBuilder::SignExtend),
+           py::arg("arg"), py::arg("new_bit_count"),
+           py::arg("loc") = absl::nullopt)
+      .def("add_zeroext", FbPyWrap(&FunctionBuilder::ZeroExtend),
+           py::arg("arg"), py::arg("new_bit_count"),
+           py::arg("loc") = absl::nullopt)
+      .def("add_bit_slice", FbPyWrap(&FunctionBuilder::BitSlice),
+           py::arg("arg"), py::arg("start"), py::arg("width"),
+           py::arg("loc") = absl::nullopt)
+      .def("add_dynamic_bit_slice", FbPyWrap(&FunctionBuilder::DynamicBitSlice),
            py::arg("arg"), py::arg("start"), py::arg("width"),
            py::arg("loc") = absl::nullopt)
 
-      .def("add_and_reduce", PyWrap(&FunctionBuilder::AndReduce),
+      .def("add_and_reduce", FbPyWrap(&FunctionBuilder::AndReduce),
            py::arg("operand"), py::arg("loc") = absl::nullopt)
-      .def("add_or_reduce", PyWrap(&FunctionBuilder::OrReduce),
+      .def("add_or_reduce", FbPyWrap(&FunctionBuilder::OrReduce),
            py::arg("operand"), py::arg("loc") = absl::nullopt)
-      .def("add_xor_reduce", PyWrap(&FunctionBuilder::XorReduce),
+      .def("add_xor_reduce", FbPyWrap(&FunctionBuilder::XorReduce),
            py::arg("operand"), py::arg("loc") = absl::nullopt)
 
-      .def("build", PyWrap(&FunctionBuilder::Build));
+      .def("build", FbPyWrap(&FunctionBuilder::Build));
 }
 
 }  // namespace xls

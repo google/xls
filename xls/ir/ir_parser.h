@@ -58,6 +58,10 @@ class Parser {
   static xabsl::StatusOr<Function*> ParseFunction(
       absl::string_view input_string, Package* package);
 
+  // Parse the input_string as a proc into the given package.
+  static xabsl::StatusOr<Proc*> ParseProc(absl::string_view input_string,
+                                          Package* package);
+
   // Parse the input_string as a function type into the given package.
   static xabsl::StatusOr<FunctionType*> ParseFunctionType(
       absl::string_view input_string, Package* package);
@@ -99,8 +103,11 @@ class Parser {
 
   explicit Parser(Scanner scanner) : scanner_(scanner) {}
 
-  // Parse starting from a single function.
+  // Parse a function starting at the current scanner position.
   xabsl::StatusOr<Function*> ParseFunction(Package* package);
+
+  // Parse a proc starting at the current scanner position.
+  xabsl::StatusOr<Proc*> ParseProc(Package* package);
 
   // Parse starting from a function type.
   xabsl::StatusOr<FunctionType*> ParseFunctionType(Package* package);
@@ -161,13 +168,12 @@ class Parser {
   // Builds a binary or unary BValue with the given Op using the given
   // FunctionBuilder and arg parser.
   xabsl::StatusOr<BValue> BuildBinaryOrUnaryOp(
-      Op op, FunctionBuilder* fb, absl::optional<SourceLocation>* loc,
+      Op op, BuilderBase* fb, absl::optional<SourceLocation>* loc,
       ArgParser* arg_parser);
 
   // Parses the line-statements in the body of a function.
   xabsl::StatusOr<BValue> ParseFunctionBody(
-      FunctionBuilder* fb,
-      absl::flat_hash_map<std::string, BValue>* name_to_value,
+      BuilderBase* fb, absl::flat_hash_map<std::string, BValue>* name_to_value,
       Package* package);
 
   // Parses a full function signature, starting after the 'fn' keyword.
@@ -178,8 +184,13 @@ class Parser {
   // Note: FunctionBuilder must be unique_ptr because it is referred to by
   // pointer in BValue types.
   xabsl::StatusOr<std::pair<std::unique_ptr<FunctionBuilder>, Type*>>
-  ParseSignature(absl::flat_hash_map<std::string, BValue>* name_to_value,
-                 Package* package);
+  ParseFunctionSignature(
+      absl::flat_hash_map<std::string, BValue>* name_to_value,
+      Package* package);
+
+  xabsl::StatusOr<std::unique_ptr<ProcBuilder>> ParseProcSignature(
+      absl::flat_hash_map<std::string, BValue>* name_to_value,
+      Package* package);
 
   // Pops the package name out of the scanner, of the form:
   //
@@ -205,8 +216,22 @@ xabsl::StatusOr<std::unique_ptr<PackageT>> Parser::ParseDerivedPackageNoVerify(
 
   auto package = absl::make_unique<PackageT>(package_name, entry);
   while (!parser.AtEof()) {
-    XLS_RETURN_IF_ERROR(parser.ParseFunction(package.get()).status())
-        << "@ " << (filename.has_value() ? filename.value() : "<unknown file>");
+    XLS_ASSIGN_OR_RETURN(Token peek, parser.scanner_.PeekToken());
+    if (peek.type() == LexicalTokenType::kKeyword && peek.value() == "fn") {
+      XLS_RETURN_IF_ERROR(parser.ParseFunction(package.get()).status())
+          << "@ "
+          << (filename.has_value() ? filename.value() : "<unknown file>");
+      continue;
+    }
+    if (peek.type() == LexicalTokenType::kKeyword && peek.value() == "proc") {
+      XLS_RETURN_IF_ERROR(parser.ParseProc(package.get()).status())
+          << "@ "
+          << (filename.has_value() ? filename.value() : "<unknown file>");
+      continue;
+    }
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Expected fn or proc definition, got %s @ %s",
+                        peek.value(), peek.pos().ToHumanString()));
   }
 
   // Ensure that, if there were explicit node ID hints in the input IR text,

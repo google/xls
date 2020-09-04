@@ -65,6 +65,11 @@ xabsl::StatusOr<Function*> IrTestBase::ParseFunction(absl::string_view text,
   return Parser::ParseFunction(text, package);
 }
 
+xabsl::StatusOr<Proc*> IrTestBase::ParseProc(absl::string_view text,
+                                             Package* package) {
+  return Parser::ParseProc(text, package);
+}
+
 Node* IrTestBase::FindNode(absl::string_view name, Package* package) {
   for (auto& function : package->functions()) {
     for (Node* node : function->nodes()) {

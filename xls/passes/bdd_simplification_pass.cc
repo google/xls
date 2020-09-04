@@ -269,7 +269,7 @@ xabsl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
           user->ReplaceOperand(node, replacement);
         }
         if (node == node->function()->return_value()) {
-          node->function()->set_return_value(replacement);
+          XLS_RETURN_IF_ERROR(node->function()->set_return_value(replacement));
         }
       }
       return true;

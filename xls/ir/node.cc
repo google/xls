@@ -513,7 +513,7 @@ xabsl::StatusOr<bool> Node::ReplaceUsesWith(Node* replacement) {
     changed = true;
   }
   if (this == function()->return_value()) {
-    function()->set_return_value(replacement);
+    XLS_RETURN_IF_ERROR(function()->set_return_value(replacement));
     changed = true;
   }
   return changed;

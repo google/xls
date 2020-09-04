@@ -164,7 +164,8 @@ xabsl::StatusOr<Function*> Function::Clone(absl::string_view new_name) const {
     XLS_ASSIGN_OR_RETURN(original_to_clone[node],
                          node->Clone(cloned_operands, cloned_function));
   }
-  cloned_function->set_return_value(original_to_clone.at(return_value()));
+  XLS_RETURN_IF_ERROR(
+      cloned_function->set_return_value(original_to_clone.at(return_value())));
   return cloned_function;
 }
 

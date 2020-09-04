@@ -102,7 +102,7 @@ TEST_F(NodeUtilTest, GatherBits) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(Node * gathered,
                            GatherBits(f->return_value(), {0, 2, 3, 4, 6}));
-  f->set_return_value(gathered);
+  XLS_ASSERT_OK(f->set_return_value(gathered));
   EXPECT_EQ(p->DumpIr(), R"(package GatherBits
 
 fn GatherBits(x: bits[8]) -> bits[5] {
@@ -120,7 +120,7 @@ TEST_F(NodeUtilTest, GatherNoBits) {
   fb.Param("x", p->GetBitsType(8));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(Node * gathered, GatherBits(f->return_value(), {}));
-  f->set_return_value(gathered);
+  XLS_ASSERT_OK(f->set_return_value(gathered));
   EXPECT_EQ(p->DumpIr(), R"(package GatherNoBits
 
 fn GatherNoBits(x: bits[8]) -> bits[0] {
@@ -136,7 +136,7 @@ TEST_F(NodeUtilTest, GatherAllTheBits) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * gathered, GatherBits(f->return_value(), {0, 1, 2, 3, 4, 5, 6, 7}));
-  f->set_return_value(gathered);
+  XLS_ASSERT_OK(f->set_return_value(gathered));
   EXPECT_EQ(p->DumpIr(), R"(package GatherAllTheBits
 
 fn GatherAllTheBits(x: bits[8]) -> bits[8] {

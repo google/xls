@@ -134,7 +134,6 @@ fn f(pred_x: bits[1], x: bits[32], pred_y: bits[1], y: bits[32], default: bits[3
     x = fb.add_param('param_name', p.get_bits_type(32))
 
     self.assertIn('param_name', str(x))
-    self.assertEqual('test_function', x.get_builder().name)
     self.assertEqual(32, x.get_type().get_bit_count())
 
   def test_all_add_methods(self):

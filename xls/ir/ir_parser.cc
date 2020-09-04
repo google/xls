@@ -440,7 +440,7 @@ xabsl::StatusOr<SourceLocation> Parser::ParseSourceLocation() {
 }
 
 xabsl::StatusOr<BValue> Parser::BuildBinaryOrUnaryOp(
-    Op op, FunctionBuilder* fb, absl::optional<SourceLocation>* loc,
+    Op op, BuilderBase* fb, absl::optional<SourceLocation>* loc,
     ArgParser* arg_parser) {
   std::vector<BValue> operands;
 
@@ -489,8 +489,8 @@ xabsl::StatusOr<Node*> GetLocalNode(
 }  // namespace
 
 xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
-    FunctionBuilder* fb,
-    absl::flat_hash_map<std::string, BValue>* name_to_value, Package* package) {
+    BuilderBase* fb, absl::flat_hash_map<std::string, BValue>* name_to_value,
+    Package* package) {
   BValue last_created;
   BValue return_value;
   while (!scanner_.PeekTokenIs(LexicalTokenType::kCurlClose)) {
@@ -503,7 +503,7 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
     if (saw_ret && !scanner_.PeekTokenIs(LexicalTokenType::kColon)) {
       XLS_ASSIGN_OR_RETURN(Node * ret,
                            GetLocalNode(output_name.value(), name_to_value));
-      fb->function()->set_return_value(ret);
+      XLS_RETURN_IF_ERROR(fb->function()->set_return_value(ret));
       XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(
           LexicalTokenType::kCurlClose, "'}' at end of function body"));
       return BValue(ret, fb);
@@ -812,8 +812,8 @@ xabsl::StatusOr<Type*> Parser::ParseTupleType(Package* package) {
 }
 
 xabsl::StatusOr<std::pair<std::unique_ptr<FunctionBuilder>, Type*>>
-Parser::ParseSignature(absl::flat_hash_map<std::string, BValue>* name_to_value,
-                       Package* package) {
+Parser::ParseFunctionSignature(
+    absl::flat_hash_map<std::string, BValue>* name_to_value, Package* package) {
   XLS_ASSIGN_OR_RETURN(
       Token name,
       scanner_.PopTokenOrError(LexicalTokenType::kIdent, "function name"));
@@ -845,6 +845,68 @@ Parser::ParseSignature(absl::flat_hash_map<std::string, BValue>* name_to_value,
                                                             return_type};
 }
 
+xabsl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
+    absl::flat_hash_map<std::string, BValue>* name_to_value, Package* package) {
+  // Proc definition begins with something like:
+  //
+  //   proc foo(state: bits[32], tok: token, init=42) {
+  //     ...
+  //
+  // The signature being parsed by this method starts at the proc name and ends
+  // with the open brace.
+  XLS_ASSIGN_OR_RETURN(Token name, scanner_.PopTokenOrError(
+                                       LexicalTokenType::kIdent, "proc name"));
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenOpen,
+                                                "'(' in proc parameters"));
+
+  // Parse the state parameter.
+  XLS_ASSIGN_OR_RETURN(Token state_name,
+                       scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kColon));
+  XLS_ASSIGN_OR_RETURN(Type * state_type, ParseType(package));
+
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma));
+
+  // Parse the token parameter.
+  XLS_ASSIGN_OR_RETURN(Token token_name,
+                       scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kColon));
+  XLS_ASSIGN_OR_RETURN(Token peek, scanner_.PeekToken());
+  const TokenPos token_type_pos = peek.pos();
+  XLS_ASSIGN_OR_RETURN(Type * token_type, ParseType(package));
+  if (!token_type->IsToken()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Expected second argument of proc to be token type, is: %s @ %s",
+        token_type->ToString(), token_type_pos.ToHumanString()));
+  }
+
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma));
+
+  // Parse "init=VALUE".
+  XLS_ASSIGN_OR_RETURN(
+      Token init_name,
+      scanner_.PopTokenOrError(LexicalTokenType::kIdent, "argument"));
+  if (init_name.value() != "init") {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Expected 'init' attribute @ %s", token_type_pos.ToHumanString()));
+  }
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kEquals));
+  XLS_ASSIGN_OR_RETURN(Value init_value, ParseValueInternal(state_type));
+
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenClose,
+                                                "')' in proc parameters"));
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlOpen,
+                                                "start of proc body"));
+
+  auto builder = absl::make_unique<ProcBuilder>(name.value(), init_value,
+                                                state_name.value(),
+                                                token_name.value(), package);
+  (*name_to_value)[state_name.value()] = builder->GetStateParam();
+  (*name_to_value)[token_name.value()] = builder->GetTokenParam();
+
+  return std::move(builder);
+}
+
 xabsl::StatusOr<std::string> Parser::ParsePackageName() {
   XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("package"));
   XLS_ASSIGN_OR_RETURN(
@@ -861,7 +923,7 @@ xabsl::StatusOr<Function*> Parser::ParseFunction(Package* package) {
 
   absl::flat_hash_map<std::string, BValue> name_to_value;
   XLS_ASSIGN_OR_RETURN(auto function_data,
-                       ParseSignature(&name_to_value, package));
+                       ParseFunctionSignature(&name_to_value, package));
   FunctionBuilder* fb = function_data.first.get();
 
   XLS_ASSIGN_OR_RETURN(BValue return_value,
@@ -880,6 +942,30 @@ xabsl::StatusOr<Function*> Parser::ParseFunction(Package* package) {
   // what to do for those. Accept that the return value can be null and handle
   // everywhere?
   return fb->BuildWithReturnValue(return_value);
+}
+
+xabsl::StatusOr<Proc*> Parser::ParseProc(Package* package) {
+  if (AtEof()) {
+    return absl::InvalidArgumentError("Could not parse proc; at EOF.");
+  }
+  XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("proc"));
+
+  absl::flat_hash_map<std::string, BValue> name_to_value;
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ProcBuilder> pb,
+                       ParseProcSignature(&name_to_value, package));
+
+  XLS_ASSIGN_OR_RETURN(BValue return_value,
+                       ParseFunctionBody(pb.get(), &name_to_value, package));
+
+  if (return_value.valid() &&
+      return_value.node()->GetType() != pb->proc()->ReturnType()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Type of return value %s does not match declared proc return type %s",
+        return_value.node()->GetType()->ToString(),
+        pb->proc()->ReturnType()->ToString()));
+  }
+
+  return pb->BuildWithReturnValue(return_value);
 }
 
 xabsl::StatusOr<FunctionType*> Parser::ParseFunctionType(Package* package) {
@@ -942,6 +1028,19 @@ xabsl::StatusOr<Function*> Parser::ParseFunction(absl::string_view input_string,
   // package-scoped invariants (eg, duplicate function name).
   XLS_RETURN_IF_ERROR(VerifyPackage(package));
   return function;
+}
+
+/* static */
+xabsl::StatusOr<Proc*> Parser::ParseProc(absl::string_view input_string,
+                                         Package* package) {
+  XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
+  Parser p(std::move(scanner));
+  XLS_ASSIGN_OR_RETURN(Proc * proc, p.ParseProc(package));
+
+  // Verify the whole package because the addition of the proc may break
+  // package-scoped invariants (eg, duplicate proc name).
+  XLS_RETURN_IF_ERROR(VerifyPackage(package));
+  return proc;
 }
 
 /* static */

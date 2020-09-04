@@ -196,7 +196,7 @@ xabsl::StatusOr<SimplificationResult> SimplifyReturnValue(
     const int64 orig_tuple_size = orig_tup->operands().size();
     if (orig_tuple_size == 1) {
       // Unbox the singleton tuple.
-      f->set_return_value(orig_tup->operand(0));
+      XLS_RETURN_IF_ERROR(f->set_return_value(orig_tup->operand(0)));
       *which_transform = "unbox singleton tuple return value";
       return SimplificationResult::kDidChange;
     }
@@ -217,13 +217,13 @@ xabsl::StatusOr<SimplificationResult> SimplifyReturnValue(
                                        orig_tuple_size, new_members.size());
     XLS_ASSIGN_OR_RETURN(Tuple * new_t,
                          f->MakeNode<Tuple>(orig->loc(), new_members));
-    f->set_return_value(new_t);
+    XLS_RETURN_IF_ERROR(f->set_return_value(new_t));
     return result;
   }
 
   if (orig->operand_count() > 0) {
     int64 which_operand = absl::Uniform<int>(*rng, 0, orig->operand_count());
-    f->set_return_value(orig->operand(which_operand));
+    XLS_RETURN_IF_ERROR(f->set_return_value(orig->operand(which_operand)));
     *which_transform =
         absl::StrFormat("return operand %d of return value", which_operand);
     return SimplificationResult::kDidChange;

@@ -553,7 +553,7 @@ Garbage
 )";
   EXPECT_THAT(Parser::ParsePackage(input).status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Expected 'fn' keyword")));
+                       HasSubstr("Expected fn or proc definition")));
 }
 
 TEST(IrParserTest, ParseEmptyStringAsPackage) {
@@ -1188,6 +1188,102 @@ fn main() -> bits[1] {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
   EXPECT_GT(package->next_node_id(), 1000);
+}
+
+TEST(IrParserTest, TrivialProc) {
+  std::string program = R"(
+package test
+
+proc foo(my_state: bits[32], my_token: token, init=42) {
+  ret tuple.1: (bits[32], token) = tuple(my_state, my_token)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
+  EXPECT_EQ(package->functions().size(), 0);
+  EXPECT_EQ(package->procs().size(), 1);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("foo"));
+  EXPECT_EQ(proc->node_count(), 3);
+  EXPECT_EQ(proc->params().size(), 2);
+  EXPECT_EQ(proc->InitValue().ToString(), "bits[32]:42");
+  EXPECT_EQ(proc->StateType()->ToString(), "bits[32]");
+  EXPECT_EQ(proc->TokenParam()->GetName(), "my_token");
+  EXPECT_EQ(proc->StateParam()->GetName(), "my_state");
+}
+
+TEST(IrParserTest, FunctionAndProc) {
+  std::string program = R"(
+package test
+
+fn my_function() -> bits[1] {
+  ret literal.1: bits[1] = literal(value=0)
+}
+
+proc my_proc(my_state: bits[32], my_token: token, init=42) {
+  ret tuple.1: (bits[32], token) = tuple(my_state, my_token)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
+  EXPECT_EQ(package->functions().size(), 1);
+  EXPECT_EQ(package->procs().size(), 1);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           package->GetFunction("my_function"));
+  EXPECT_EQ(function->name(), "my_function");
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
+  EXPECT_EQ(proc->name(), "my_proc");
+}
+
+TEST(IrParserTest, ProcWrongParameterCount) {
+  std::string program = R"(
+package test
+
+proc foo(my_state: bits[32], my_token: token, total_garbage: bits[1], init=42) {
+  ret tuple.1: (bits[32], token) = tuple(my_state, my_token)
+}
+)";
+  EXPECT_THAT(Parser::ParsePackage(program).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected 'init' attribute")));
+}
+
+TEST(IrParserTest, ProcWrongTokenType) {
+  std::string program = R"(
+package test
+
+proc foo(my_state: bits[32], my_token: bits[1], init=42) {
+  ret tuple.1: (bits[32], token) = tuple(my_state, my_token)
+}
+)";
+  EXPECT_THAT(
+      Parser::ParsePackage(program).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Expected second argument of proc to be token type")));
+}
+
+TEST(IrParserTest, ProcWrongInitValueType) {
+  std::string program = R"(
+package test
+
+proc foo(my_state: bits[32], my_token: token, init=(1, 2, 3)) {
+  ret tuple.1: (bits[32], token) = tuple(my_state, my_token)
+}
+)";
+  EXPECT_THAT(Parser::ParsePackage(program).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected token of type \"literal\"")));
+}
+
+TEST(IrParserTest, ProcWrongReturnType) {
+  std::string program = R"(
+package test
+
+proc foo(my_state: bits[32], my_token: token, init=42) {
+  ret literal.1: bits[32] = literal(value=123)
+}
+)";
+  EXPECT_THAT(
+      Parser::ParsePackage(program).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Type of return value bits[32] does not match")));
 }
 
 }  // namespace xls

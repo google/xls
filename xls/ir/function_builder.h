@@ -19,11 +19,13 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/statusor.h"
 #include "xls/ir/function.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 
 namespace xls {
 
+class BuilderBase;
 class FunctionBuilder;
 class Node;
 
@@ -37,10 +39,10 @@ class BValue {
   // initialization.
   BValue() : BValue(nullptr, nullptr) {}
 
-  BValue(Node* node, FunctionBuilder* builder)
-      : node_(node), builder_(builder) {}
+  BValue(Node* node, BuilderBase* builder) : node_(node), builder_(builder) {}
 
-  FunctionBuilder* builder() const { return builder_; }
+  BuilderBase* builder() const { return builder_; }
+
   Node* node() const { return node_; }
   Type* GetType() const { return node()->GetType(); }
   int64 BitCountOrDie() const { return node()->BitCountOrDie(); }
@@ -67,10 +69,11 @@ class BValue {
 
  private:
   Node* node_;
-  FunctionBuilder* builder_;
+  BuilderBase* builder_;
 };
 
-// Builds up a function for subsequent HLS (optimization and conversion to RTL).
+// Base class for function and proc. Provides interface for adding nodes to a
+// function proc. Example usage (for derived FunctionBuilder class):
 //
 //  Package p("my_package");
 //  FunctionBuilder b("my_or_function_32b", &p);
@@ -82,13 +85,16 @@ class BValue {
 // Note that the BValues returned by builder routines are specific to that
 // function, and attempt to use those BValues with FunctionBuilders that did not
 // originate them will cause fatal errors.
-class FunctionBuilder {
+class BuilderBase {
  public:
-  explicit FunctionBuilder(absl::string_view name, Package* package)
-      : function_(absl::make_unique<Function>(std::string(name), package)),
-        error_pending_(false) {}
+  // The given argument 'function' can contain either a Function or Proc.
+  explicit BuilderBase(std::unique_ptr<Function> function)
+      : function_(std::move(function)), error_pending_(false) {}
 
   const std::string& name() const { return function_->name(); }
+
+  // Get access to currently built up function (or proc).
+  Function* function() const { return function_.get(); }
 
   // Declares a parameter to the function being built of type "type".
   BValue Param(absl::string_view name, Type* type,
@@ -377,19 +383,6 @@ class FunctionBuilder {
   // Retrieves the type of "value" and returns it.
   Type* GetType(BValue value) { return value.node()->GetType(); }
 
-  // Adds the function internally being built-up by this builder to the package
-  // given at construction time, and returns a pointer to it (the function is
-  // subsequently owned by the package and this builder should be discarded).
-  //
-  // The return value of the function is the most recently added operation.
-  xabsl::StatusOr<Function*> Build();
-
-  // Get access to currently built up function.
-  Function* function() { return function_.get(); }
-
-  // Overload which enables explicitly setting the return value.
-  xabsl::StatusOr<Function*> BuildWithReturnValue(BValue return_value);
-
   // Adds a Arith/UnOp/BinOp/CompareOp to the function. Exposed for
   // programmatically adding these ops using with variable Op values.
   BValue AddUnOp(Op op, BValue x,
@@ -410,7 +403,7 @@ class FunctionBuilder {
 
   Package* package() const { return function_->package(); }
 
- private:
+ protected:
   BValue SetError(std::string msg, absl::optional<SourceLocation> loc);
   bool ErrorPending() { return error_pending_; }
 
@@ -435,5 +428,58 @@ class FunctionBuilder {
   absl::optional<SourceLocation> error_loc_;
 };
 
+// Class for building an XLS Function.
+class FunctionBuilder : public BuilderBase {
+ public:
+  explicit FunctionBuilder(absl::string_view name, Package* package)
+      : BuilderBase(absl::make_unique<Function>(std::string(name), package)) {}
+
+  // Adds the function internally being built-up by this builder to the package
+  // given at construction time, and returns a pointer to it (the function is
+  // subsequently owned by the package and this builder should be discarded).
+  //
+  // The return value of the function is the most recently added operation.
+  xabsl::StatusOr<Function*> Build();
+
+  // Build function using given return value.
+  xabsl::StatusOr<Function*> BuildWithReturnValue(BValue return_value);
+};
+
+// Class for building an XLS Proc (a communicating sequential process).
+class ProcBuilder : public BuilderBase {
+ public:
+  explicit ProcBuilder(absl::string_view name, const Value& init_value,
+                       absl::string_view state_name,
+                       absl::string_view token_name, Package* package)
+      : BuilderBase(absl::make_unique<Proc>(name, init_value, state_name,
+                                            token_name, package)),
+        // The parameter nodes are added at construction time. Create a BValue
+        // for each param node so they may be used in construction of
+        // expressions.
+        state_param_(proc()->StateParam(), this),
+        token_param_(proc()->TokenParam(), this) {}
+
+  // Returns the Proc being constructed.
+  Proc* proc() const { return down_cast<Proc*>(function()); }
+
+  // Returns the Param BValue for the state or token parameter. Unlike
+  // BuilderBase::Param this does add a Param node to the Proc. Rather the state
+  // and token parameters are added to the Proc at construction time and these
+  // methods return references to the these parameters.
+  BValue GetStateParam() const { return state_param_; }
+  BValue GetTokenParam() const { return token_param_; }
+
+  // Build function using given return value.
+  xabsl::StatusOr<Proc*> BuildWithReturnValue(BValue return_value);
+
+ private:
+  // The BValue of the state parameter (parameter 0).
+  BValue state_param_;
+
+  // The BValue of the token parameter (parameter 1).
+  BValue token_param_;
+};
+
 }  // namespace xls
+
 #endif  // XLS_IR_FUNCTION_BUILDER_H_

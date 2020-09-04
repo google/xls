@@ -22,6 +22,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/strong_int.h"
 #include "xls/ir/function.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
@@ -43,6 +44,11 @@ Function* Package::AddFunction(std::unique_ptr<Function> f) {
   return functions_.back().get();
 }
 
+Proc* Package::AddProc(std::unique_ptr<Proc> proc) {
+  procs_.push_back(std::move(proc));
+  return procs_.back().get();
+}
+
 xabsl::StatusOr<Function*> Package::GetFunction(
     absl::string_view func_name) const {
   for (auto& f : functions_) {
@@ -56,6 +62,21 @@ xabsl::StatusOr<Function*> Package::GetFunction(
       absl::StrJoin(functions_, ", ",
                     [](std::string* out, const std::unique_ptr<Function>& f) {
                       absl::StrAppend(out, f->name());
+                    })));
+}
+
+xabsl::StatusOr<Proc*> Package::GetProc(absl::string_view proc_name) const {
+  for (auto& p : procs_) {
+    if (p->name() == proc_name) {
+      return p.get();
+    }
+  }
+  return absl::NotFoundError(absl::StrFormat(
+      "Package does not have a proc with name: \"%s\"; available: [%s]",
+      proc_name,
+      absl::StrJoin(procs_, ", ",
+                    [](std::string* out, const std::unique_ptr<Proc>& p) {
+                      absl::StrAppend(out, p->name());
                     })));
 }
 
@@ -324,6 +345,9 @@ std::string Package::DumpIr() const {
   std::vector<std::string> function_dumps;
   for (auto& function : functions()) {
     function_dumps.push_back(function->DumpIr());
+  }
+  for (auto& proc : procs()) {
+    function_dumps.push_back(proc->DumpIr());
   }
   absl::StrAppend(&out, absl::StrJoin(function_dumps, "\n"));
   return out;
