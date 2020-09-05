@@ -23,7 +23,7 @@ namespace xls {
 absl::Status SchedulingChecker::Run(SchedulingUnit* unit,
                                     const SchedulingPassOptions& options,
                                     SchedulingPassResults* results) const {
-  XLS_RETURN_IF_ERROR(Verify(unit->package));
+  XLS_RETURN_IF_ERROR(VerifyPackage(unit->package));
   if (unit->schedule.has_value()) {
     XLS_ASSIGN_OR_RETURN(Function * entry, unit->package->EntryFunction());
     XLS_RET_CHECK_EQ(entry, unit->schedule->function());

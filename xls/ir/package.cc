@@ -80,6 +80,17 @@ xabsl::StatusOr<Proc*> Package::GetProc(absl::string_view proc_name) const {
                     })));
 }
 
+std::vector<Function*> Package::GetFunctionsAndProcs() const {
+  std::vector<Function*> result;
+  for (auto& function : functions()) {
+    result.push_back(function.get());
+  }
+  for (auto& proc : procs()) {
+    result.push_back(proc.get());
+  }
+  return result;
+}
+
 void Package::DeleteDeadFunctions(absl::Span<Function* const> dead_funcs) {
   std::vector<std::unique_ptr<Function>> to_unlink;
   for (std::unique_ptr<Function>& f : functions_) {

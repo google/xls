@@ -25,6 +25,7 @@
 #include "xls/ir/function.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/verifier.h"
 
 namespace xls {
 
@@ -60,7 +61,7 @@ void Node::AddOptionalOperand(absl::optional<Node*> operand) {
 absl::Status Node::AddNodeToFunctionAndReplace(
     std::unique_ptr<Node> replacement) {
   Node* replacement_ptr = function()->AddNode(std::move(replacement));
-  XLS_RETURN_IF_ERROR(Verify(replacement_ptr));
+  XLS_RETURN_IF_ERROR(VerifyNode(replacement_ptr));
   return ReplaceUsesWith(replacement_ptr).status();
 }
 

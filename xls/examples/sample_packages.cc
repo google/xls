@@ -46,7 +46,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildRrot32() {
   auto result = lhs | rhs;
   xabsl::StatusOr<Function*> f = b.BuildWithReturnValue(result);
   XLS_CHECK_OK(f.status());
-  XLS_CHECK_OK(Verify(p.get()));
+  XLS_CHECK_OK(VerifyPackage(p.get()));
   return {std::move(p), *f};
 }
 
@@ -76,7 +76,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildAbs32() {
   auto result = b.Select(is_neg, -x, x);
   xabsl::StatusOr<Function*> f = b.BuildWithReturnValue(result);
   XLS_CHECK_OK(f.status());
-  XLS_CHECK_OK(Verify(p.get()));
+  XLS_CHECK_OK(VerifyPackage(p.get()));
   return {std::move(p), *f};
 }
 
@@ -89,7 +89,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildConcatWith1() {
   b.Concat({x, imm_1});
   xabsl::StatusOr<Function*> f = b.Build();
   XLS_CHECK_OK(f.status());
-  XLS_CHECK_OK(Verify(p.get()));
+  XLS_CHECK_OK(VerifyPackage(p.get()));
   return {std::move(p), *f};
 }
 
@@ -101,7 +101,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildSignExtendTo32() {
   b.SignExtend(x, 32);
   xabsl::StatusOr<Function*> f = b.Build();
   XLS_CHECK_OK(f.status());
-  XLS_CHECK_OK(Verify(p.get()));
+  XLS_CHECK_OK(VerifyPackage(p.get()));
   return {std::move(p), *f};
 }
 
@@ -113,7 +113,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildZeroExtendTo32() {
   b.ZeroExtend(x, 32);
   xabsl::StatusOr<Function*> f = b.Build();
   XLS_CHECK_OK(f.status());
-  XLS_CHECK_OK(Verify(p.get()));
+  XLS_CHECK_OK(VerifyPackage(p.get()));
   return {std::move(p), *f};
 }
 
@@ -136,7 +136,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildAccumulateIvar(
                                 /*stride=*/1, body);
   xabsl::StatusOr<Function*> f = fb.BuildWithReturnValue(result);
   XLS_CHECK_OK(f.status());
-  XLS_CHECK_OK(Verify(p.get()));
+  XLS_CHECK_OK(VerifyPackage(p.get()));
   return {std::move(p), *f};
 }
 
@@ -178,7 +178,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildTwoLoops(
   BValue result2 = dependent_loops ? param + loop1 + loop2 : loop2;
   xabsl::StatusOr<Function*> f = fb.BuildWithReturnValue(result2);
   XLS_CHECK_OK(f.status());
-  XLS_CHECK_OK(Verify(p.get()));
+  XLS_CHECK_OK(VerifyPackage(p.get()));
   return {std::move(p), *f};
 }
 
@@ -204,7 +204,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildSimpleMap(
     XLS_CHECK_OK(f.status());
     top = *f;
   }
-  XLS_CHECK_OK(Verify(p.get()));
+  XLS_CHECK_OK(VerifyPackage(p.get()));
   return {std::move(p), top};
 }
 

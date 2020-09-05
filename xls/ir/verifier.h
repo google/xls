@@ -16,25 +16,26 @@
 #define XLS_IR_VERIFIER_H_
 
 #include "absl/status/status.h"
-#include "xls/ir/function.h"
-#include "xls/ir/node.h"
-#include "xls/ir/package.h"
 
 namespace xls {
 
 class Node;
 class Function;
+class Proc;
 class Package;
 
 // Verifies numerous invariants of the IR for the given package. Returns a
 // error status if a violation is found.
-absl::Status Verify(Package* package);
+absl::Status VerifyPackage(Package* package);
+
+// Overload for Procs.
+absl::Status VerifyProc(Proc* Proc);
 
 // Overload for functions.
-absl::Status Verify(Function* function);
+absl::Status VerifyFunction(Function* function);
 
 // Overload for nodes.
-absl::Status Verify(Node* Node);
+absl::Status VerifyNode(Node* Node);
 
 }  // namespace xls
 

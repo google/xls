@@ -16,6 +16,8 @@
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "xls/ir/function.h"
+#include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 
 namespace xls {

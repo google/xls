@@ -21,6 +21,10 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/dfs_visitor.h"
+#include "xls/ir/function.h"
+#include "xls/ir/node.h"
+#include "xls/ir/package.h"
+#include "xls/ir/proc.h"
 
 namespace xls {
 namespace {
@@ -724,61 +728,8 @@ absl::Status VerifyNodeIdUnique(
   return absl::OkStatus();
 }
 
-}  // namespace
-
-absl::Status Verify(Package* package) {
-  XLS_VLOG(2) << "Verifying package:\n";
-  XLS_VLOG_LINES(2, package->DumpIr());
-
-  for (auto& function : package->functions()) {
-    XLS_RETURN_IF_ERROR(Verify(function.get()));
-  }
-
-  // Verify node IDs are unique within the package and uplinks point to this
-  // package.
-  absl::flat_hash_map<int64, absl::optional<SourceLocation>> ids;
-  ids.reserve(package->GetNodeCount());
-  for (auto& function : package->functions()) {
-    XLS_RET_CHECK(function->package() == package);
-    for (Node* node : function->nodes()) {
-      XLS_RETURN_IF_ERROR(VerifyNodeIdUnique(node, &ids));
-      XLS_RET_CHECK(node->package() == package);
-    }
-  }
-
-  // Ensure that the package's "next ID" is not in the space of IDs currently
-  // occupied by the package's nodes.
-  int64 max_id_seen = -1;
-  for (const auto& item : ids) {
-    max_id_seen = std::max(item.first, max_id_seen);
-  }
-  XLS_RET_CHECK_GT(package->next_node_id(), max_id_seen);
-
-  // Verify function names are unique within the package.
-  absl::flat_hash_set<Function*> functions;
-  absl::flat_hash_set<std::string> function_names;
-  for (auto& function : package->functions()) {
-    XLS_RET_CHECK(!function_names.contains(function->name()))
-        << "Function with name " << function->name()
-        << " is not unique within package " << package->name();
-    function_names.insert(function->name());
-
-    XLS_RET_CHECK(!functions.contains(function.get()))
-        << "Function with name " << function->name()
-        << " appears more than once in function list within package "
-        << package->name();
-    functions.insert(function.get());
-  }
-
-  // TODO(meheff): Verify main entry point is one of the functions.
-  // TODO(meheff): Verify functions called by any node are in the set of
-  //   functions owned by the package.
-  // TODO(meheff): Verify that there is no recursion.
-
-  return absl::OkStatus();
-}
-
-absl::Status Verify(Function* function) {
+// Verify common invariants to procs and functions.
+absl::Status VerifyFunctionOrProc(Function* function) {
   XLS_VLOG(2) << "Verifying function:\n";
   XLS_VLOG_LINES(2, function->DumpIr());
 
@@ -797,7 +748,7 @@ absl::Status Verify(Function* function) {
 
   // Verify consistency of node::users() and node::operands().
   for (Node* node : function->nodes()) {
-    XLS_RETURN_IF_ERROR(Verify(node));
+    XLS_RETURN_IF_ERROR(VerifyNode(node));
   }
 
   // Verify the set of parameter nodes is exactly Function::params(), and that
@@ -827,7 +778,97 @@ absl::Status Verify(Function* function) {
   return absl::OkStatus();
 }
 
-absl::Status Verify(Node* node) {
+}  // namespace
+
+absl::Status VerifyPackage(Package* package) {
+  XLS_VLOG(2) << "Verifying package:\n";
+  XLS_VLOG_LINES(2, package->DumpIr());
+
+  for (auto& function : package->functions()) {
+    XLS_RETURN_IF_ERROR(VerifyFunction(function.get()));
+  }
+
+  for (auto& proc : package->procs()) {
+    XLS_RETURN_IF_ERROR(VerifyProc(proc.get()));
+  }
+
+  // Verify node IDs are unique within the package and uplinks point to this
+  // package.
+  absl::flat_hash_map<int64, absl::optional<SourceLocation>> ids;
+  ids.reserve(package->GetNodeCount());
+  for (Function* function : package->GetFunctionsAndProcs()) {
+    XLS_RET_CHECK(function->package() == package);
+    for (Node* node : function->nodes()) {
+      XLS_RETURN_IF_ERROR(VerifyNodeIdUnique(node, &ids));
+      XLS_RET_CHECK(node->package() == package);
+    }
+  }
+
+  // Ensure that the package's "next ID" is not in the space of IDs currently
+  // occupied by the package's nodes.
+  int64 max_id_seen = -1;
+  for (const auto& item : ids) {
+    max_id_seen = std::max(item.first, max_id_seen);
+  }
+  XLS_RET_CHECK_GT(package->next_node_id(), max_id_seen);
+
+  // Verify function (proc) names are unique within the package.
+  absl::flat_hash_set<Function*> functions;
+  absl::flat_hash_set<std::string> function_names;
+  for (Function* function : package->GetFunctionsAndProcs()) {
+    XLS_RET_CHECK(!function_names.contains(function->name()))
+        << "Function or proc with name " << function->name()
+        << " is not unique within package " << package->name();
+    function_names.insert(function->name());
+
+    XLS_RET_CHECK(!functions.contains(function))
+        << "Function or proc with name " << function->name()
+        << " appears more than once in within package" << package->name();
+    functions.insert(function);
+  }
+
+  // TODO(meheff): Verify main entry point is one of the functions.
+  // TODO(meheff): Verify functions called by any node are in the set of
+  //   functions owned by the package.
+  // TODO(meheff): Verify that there is no recursion.
+
+  return absl::OkStatus();
+}
+
+absl::Status VerifyFunction(Function* function) {
+  XLS_VLOG(2) << "Verifying function:\n";
+  XLS_VLOG_LINES(2, function->DumpIr());
+
+  XLS_RETURN_IF_ERROR(VerifyFunctionOrProc(function));
+
+  return absl::OkStatus();
+}
+
+absl::Status VerifyProc(Proc* proc) {
+  XLS_VLOG(2) << "Verifying proc:\n";
+  XLS_VLOG_LINES(2, proc->DumpIr());
+
+  XLS_RETURN_IF_ERROR(VerifyFunctionOrProc(proc));
+
+  // A Proc should have two parameters: the recurent state (parameter 0) and a
+  // token (parameter 1).
+  XLS_RET_CHECK_EQ(proc->params().size(), 2) << absl::StreamFormat(
+      "Proc %s does not have two parameters", proc->name());
+
+  XLS_RET_CHECK_EQ(proc->param(1)->GetType(), proc->package()->GetTokenType())
+      << absl::StreamFormat("Parameter 1 of a proc %s is not token type, is %s",
+                            proc->name(),
+                            proc->param(1)->GetType()->ToString());
+
+  // Return type of proc must be a 2-tuple of the recurrent state and a token.
+  XLS_RET_CHECK_EQ(proc->return_value()->GetType(),
+                   proc->package()->GetTupleType(
+                       {proc->StateType(), proc->package()->GetTokenType()}));
+
+  return absl::OkStatus();
+}
+
+absl::Status VerifyNode(Node* node) {
   XLS_VLOG(2) << "Verifying node: " << node->ToString();
 
   for (Node* operand : node->operands()) {

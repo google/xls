@@ -32,6 +32,7 @@
 #include "xls/ir/number_parser.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
+#include "xls/ir/verifier.h"
 #include "xls/jit/llvm_ir_jit.h"
 #include "xls/passes/constant_folding_pass.h"
 #include "xls/passes/cse_pass.h"
@@ -371,7 +372,7 @@ absl::Status RealMain(absl::string_view path, const int64 failed_attempt_limit,
     XLS_ASSIGN_OR_RETURN(Function * main, package->EntryFunction());
     // const int64 original_node_count = main->node_count();
     XLS_RETURN_IF_ERROR(CleanUp(main, can_remove_params));
-    XLS_RETURN_IF_ERROR(Verify(package.get()));
+    XLS_RETURN_IF_ERROR(VerifyPackage(package.get()));
     knownf_ir_text = package->DumpIr();
     XLS_RETURN_IF_ERROR(
         VerifyStillFails(knownf_ir_text, inputs,

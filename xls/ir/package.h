@@ -136,6 +136,10 @@ class Package {
   absl::Span<std::unique_ptr<Proc>> procs() { return absl::MakeSpan(procs_); }
   absl::Span<const std::unique_ptr<Proc>> procs() const { return procs_; }
 
+  // Returns the procs and functions in this package.
+  // TODO(meheff): Consider holding functions and procs in a common vector.
+  std::vector<Function*> GetFunctionsAndProcs() const;
+
   const std::string& name() const { return name_; }
 
   // Returns true if analysis indicates that this package always produces the

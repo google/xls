@@ -1342,7 +1342,7 @@ TEST_P(IrEvaluatorTest, InterpretMap) {
   }
   )"));
 
-  XLS_ASSERT_OK(Verify(package.get()));
+  XLS_ASSERT_OK(VerifyPackage(package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
   XLS_ASSERT_OK_AND_ASSIGN(
       auto input_array,
@@ -1385,7 +1385,7 @@ TEST_P(IrEvaluatorTest, InterpretTwoLevelInvoke) {
   }
   )"));
 
-  XLS_ASSERT_OK(Verify(package.get()));
+  XLS_ASSERT_OK(VerifyPackage(package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
   XLS_ASSERT_OK_AND_ASSIGN(
       auto input_array,
@@ -1450,7 +1450,7 @@ TEST_P(IrEvaluatorTest, InterpretCountedFor) {
     ret counted_for.5: bits[11] = counted_for(literal.4, trip_count=7, stride=1, body=body)
   }
   )"));
-  XLS_ASSERT_OK(Verify(package.get()));
+  XLS_ASSERT_OK(VerifyPackage(package.get()));
 
   // Expected execution behavior:
   //  initial_value = 0, trip_count = 7, stride = 1

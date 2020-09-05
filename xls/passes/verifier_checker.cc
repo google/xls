@@ -20,7 +20,7 @@ namespace xls {
 
 absl::Status VerifierChecker::Run(Package* p, const PassOptions& options,
                                   PassResults* results) const {
-  return Verify(p);
+  return VerifyPackage(p);
 }
 
 }  // namespace xls

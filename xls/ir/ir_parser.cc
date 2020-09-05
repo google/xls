@@ -1009,8 +1009,8 @@ xabsl::StatusOr<FunctionType*> Parser::ParseFunctionType(Package* package) {
 
 // Verifies the given package. Replaces InternalError status codes with
 // InvalidArgument status code which is more appropriate for the parser.
-static absl::Status VerifyPackage(Package* package) {
-  absl::Status status = Verify(package);
+static absl::Status VerifyAndSwapError(Package* package) {
+  absl::Status status = VerifyPackage(package);
   if (!status.ok() && status.code() == absl::StatusCode::kInternal) {
     return absl::InvalidArgumentError(status.message());
   }
@@ -1026,7 +1026,7 @@ xabsl::StatusOr<Function*> Parser::ParseFunction(absl::string_view input_string,
 
   // Verify the whole package because the addition of the function may break
   // package-scoped invariants (eg, duplicate function name).
-  XLS_RETURN_IF_ERROR(VerifyPackage(package));
+  XLS_RETURN_IF_ERROR(VerifyAndSwapError(package));
   return function;
 }
 
@@ -1039,7 +1039,7 @@ xabsl::StatusOr<Proc*> Parser::ParseProc(absl::string_view input_string,
 
   // Verify the whole package because the addition of the proc may break
   // package-scoped invariants (eg, duplicate proc name).
-  XLS_RETURN_IF_ERROR(VerifyPackage(package));
+  XLS_RETURN_IF_ERROR(VerifyAndSwapError(package));
   return proc;
 }
 
@@ -1049,7 +1049,7 @@ xabsl::StatusOr<std::unique_ptr<Package>> Parser::ParsePackage(
     absl::optional<absl::string_view> filename) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        ParsePackageNoVerify(input_string, filename));
-  XLS_RETURN_IF_ERROR(VerifyPackage(package.get()));
+  XLS_RETURN_IF_ERROR(VerifyAndSwapError(package.get()));
   return package;
 }
 

@@ -46,9 +46,9 @@ fn graph2(a: bits[16]) -> bits[16] {
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
-  XLS_ASSERT_OK(Verify(p.get()));
-  XLS_ASSERT_OK(Verify(FindFunction("graph", p.get())));
-  XLS_ASSERT_OK(Verify(FindFunction("graph2", p.get())));
+  XLS_ASSERT_OK(VerifyPackage(p.get()));
+  XLS_ASSERT_OK(VerifyFunction(FindFunction("graph", p.get())));
+  XLS_ASSERT_OK(VerifyFunction(FindFunction("graph2", p.get())));
 }
 
 TEST_F(VerifierTest, NonUniqueNodeId) {
@@ -63,8 +63,8 @@ fn graph(p: bits[42], q: bits[42]) -> bits[42] {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("graph"));
-  EXPECT_THAT(Verify(f), StatusIs(absl::StatusCode::kInternal,
-                                  HasSubstr("ID 2 is not unique")));
+  EXPECT_THAT(VerifyFunction(f), StatusIs(absl::StatusCode::kInternal,
+                                          HasSubstr("ID 2 is not unique")));
 }
 
 TEST_F(VerifierTest, NonUniqueFunctionName) {
@@ -83,9 +83,10 @@ fn graph(a: bits[16]) -> bits[16] {
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
-  EXPECT_THAT(Verify(p.get()),
-              StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("Function with name graph is not unique")));
+  EXPECT_THAT(
+      VerifyPackage(p.get()),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Function or proc with name graph is not unique")));
 }
 
 TEST_F(VerifierTest, BinOpOperandTypeMismatch) {
@@ -100,10 +101,11 @@ fn graph(p: bits[2], q: bits[42], r: bits[42]) -> bits[42] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("graph"));
   // Replace lhs of the 'and' with a different bit-width value.
   FindNode("and.1", f)->ReplaceOperand(FindNode("q", f), FindNode("p", f));
-  EXPECT_THAT(Verify(f), StatusIs(absl::StatusCode::kInternal,
-                                  HasSubstr("Type of operand 0 (bits[2] via p) "
-                                            "does not match type of and.1")));
-  EXPECT_THAT(Verify(p.get()),
+  EXPECT_THAT(VerifyFunction(f),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Type of operand 0 (bits[2] via p) "
+                                 "does not match type of and.1")));
+  EXPECT_THAT(VerifyPackage(p.get()),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("Type of operand 0 (bits[2] via p) does not "
                                  "match type of and.1")));
@@ -119,7 +121,7 @@ fn f(p: bits[1], q: bits[42], r: bits[42]) -> bits[42] {
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
-  EXPECT_THAT(Verify(p.get()),
+  EXPECT_THAT(VerifyPackage(p.get()),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("Select has useless default value")));
 }
@@ -133,7 +135,7 @@ fn f(p: bits[2], q: bits[42], r: bits[42], s:bits[42]) -> bits[42] {
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
-  EXPECT_THAT(Verify(p.get()),
+  EXPECT_THAT(VerifyPackage(p.get()),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("Select has no default value")));
 }
@@ -148,11 +150,25 @@ fn f(p: bits[1], q: bits[42], r: bits[42], s:bits[42], t:bits[42]) -> bits[42] {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
   EXPECT_THAT(
-      Verify(p.get()),
+      VerifyPackage(p.get()),
       StatusIs(
           absl::StatusCode::kInternal,
           HasSubstr(
               "Selector must have at least 2 bits to select amongst 4 cases")));
+}
+
+TEST_F(VerifierTest, WellFormedProc) {
+  std::string input = R"(
+package test_package
+
+proc my_proc(s: bits[42], t: token, init=45) {
+  ret tuple.1: (bits[42], token) = tuple(s, t)
+}
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  XLS_ASSERT_OK(VerifyPackage(p.get()));
+  XLS_ASSERT_OK(VerifyProc(FindProc("my_proc", p.get())));
 }
 
 }  // namespace

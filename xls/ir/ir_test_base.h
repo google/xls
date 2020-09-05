@@ -71,9 +71,10 @@ class IrTestBase : public ::testing::Test {
   static Node* FindNode(absl::string_view name, Package* package);
   static Node* FindNode(absl::string_view name, Function* function);
 
-  // Finds and returns the node in the given package with the given name. Dies
-  // if no such node exists.
+  // Finds and returns the function or proc in the given package with the given
+  // name. Dies if no such function or proc  exists.
   static Function* FindFunction(absl::string_view name, Package* package);
+  static Proc* FindProc(absl::string_view name, Package* package);
 
   // Runs the given package (passed as IR text) and EXPECTs the result to equal
   // 'expected'. Runs the package in several ways:

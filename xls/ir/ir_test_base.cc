@@ -36,7 +36,7 @@
 namespace xls {
 
 VerifiedPackage::~VerifiedPackage() {
-  absl::Status status = Verify(this);
+  absl::Status status = VerifyPackage(this);
   if (!status.ok()) {
     ADD_FAILURE() << absl::StrFormat(
         "IR verifier failed on package %s during destruction: %s", name(),
@@ -49,7 +49,7 @@ xabsl::StatusOr<std::unique_ptr<VerifiedPackage>> IrTestBase::ParsePackage(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<VerifiedPackage> package,
                        Parser::ParseDerivedPackageNoVerify<VerifiedPackage>(
                            text, absl::nullopt));
-  XLS_RETURN_IF_ERROR(Verify(package.get()));
+  XLS_RETURN_IF_ERROR(VerifyPackage(package.get()));
   return std::move(package);
 }
 
@@ -71,7 +71,7 @@ xabsl::StatusOr<Proc*> IrTestBase::ParseProc(absl::string_view text,
 }
 
 Node* IrTestBase::FindNode(absl::string_view name, Package* package) {
-  for (auto& function : package->functions()) {
+  for (Function* function : package->GetFunctionsAndProcs()) {
     for (Node* node : function->nodes()) {
       if (node->GetName() == name) {
         return node;
@@ -98,6 +98,15 @@ Function* IrTestBase::FindFunction(absl::string_view name, Package* package) {
   }
   XLS_LOG(FATAL) << "No function named " << name << " in package:\n"
                  << *package;
+}
+
+Proc* IrTestBase::FindProc(absl::string_view name, Package* package) {
+  for (auto& proc : package->procs()) {
+    if (proc->name() == name) {
+      return proc.get();
+    }
+  }
+  XLS_LOG(FATAL) << "No proc named " << name << " in package:\n" << *package;
 }
 
 void IrTestBase::RunAndExpectEq(

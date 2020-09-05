@@ -26,12 +26,8 @@ PYBIND11_MODULE(verifier, m) {
   py::module::import("xls.ir.python.function");
   py::module::import("xls.ir.python.package");
 
-  // Explicitly select overload, they can't be inferred.
-  absl::Status (*verify_function)(Function* package) = &Verify;
-  absl::Status (*verify_package)(Package* package) = &Verify;
-
-  m.def("verify_function", PyWrap(verify_function), py::arg("function"));
-  m.def("verify_package", PyWrap(verify_package), py::arg("package"));
+  m.def("verify_function", PyWrap(&VerifyFunction), py::arg("function"));
+  m.def("verify_package", PyWrap(&VerifyPackage), py::arg("package"));
 }
 
 }  // namespace xls

@@ -237,7 +237,7 @@ xabsl::StatusOr<std::unique_ptr<PackageT>> Parser::ParseDerivedPackageNoVerify(
   // Ensure that, if there were explicit node ID hints in the input IR text,
   // that the package's next ID doesn't collide with anything.
   int64 max_id_seen = -1;
-  for (auto& function : package->functions()) {
+  for (Function* function : package->GetFunctionsAndProcs()) {
     for (Node* node : function->nodes()) {
       max_id_seen = std::max(max_id_seen, node->id());
     }

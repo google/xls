@@ -113,7 +113,7 @@ class Function {
   xabsl::StatusOr<NodeT*> MakeNode(Args&&... args) {
     NodeT* new_node =
         AddNode(absl::make_unique<NodeT>(std::forward<Args>(args)..., this));
-    XLS_RETURN_IF_ERROR(Verify(new_node));
+    XLS_RETURN_IF_ERROR(VerifyNode(new_node));
     return new_node;
   }
 

@@ -1219,7 +1219,7 @@ fn my_function() -> bits[1] {
 }
 
 proc my_proc(my_state: bits[32], my_token: token, init=42) {
-  ret tuple.1: (bits[32], token) = tuple(my_state, my_token)
+  ret tuple.2: (bits[32], token) = tuple(my_state, my_token)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));

@@ -446,6 +446,7 @@ cc_binary(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor",
+        "//xls/ir",
         "//xls/ir:bits_ops",
         "//xls/ir:ir_interpreter",
         "//xls/ir:ir_parser",
