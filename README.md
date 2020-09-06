@@ -49,16 +49,7 @@ installed](https://docs.bazel.build/versions/master/install-ubuntu.html).
 $ bazel --version
 bazel 3.2.0
 
-$ sudo apt install python3-dev python3-distutils python3-dev libtinfo5
-
-# py_binary currently assume they can refer to /usr/bin/env python
-# even though Ubuntu 20.04 has no `python`, only `python3`.
-# See https://github.com/bazelbuild/bazel/issues/8685
-
-$ mkdir -p $HOME/opt/bin/
-$ ln -s $(which python3) $HOME/opt/bin/python
-$ echo 'export PATH=$HOME/opt/bin:$PATH' >> ~/.bashrc
-$ source ~/.bashrc
+$ sudo apt install python3-dev python3-distutils python3-dev python-is-python3 libtinfo5
 
 $ bazel test -c opt ...
 ```
