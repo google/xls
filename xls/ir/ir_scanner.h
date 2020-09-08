@@ -27,24 +27,25 @@
 namespace xls {
 
 enum class LexicalTokenType {
+  kAdd,
+  kBracketClose,
+  kBracketOpen,
+  kColon,
+  kComma,
+  kCurlClose,
+  kCurlOpen,
+  kDot,
+  kEquals,
+  kGt,
   kIdent,
   kKeyword,
   kLiteral,
-  kMinus,
-  kAdd,
-  kColon,
-  kGt,
   kLt,
-  kDot,
-  kComma,
-  kCurlOpen,
-  kCurlClose,
-  kBracketOpen,
-  kBracketClose,
-  kParenOpen,
+  kMinus,
   kParenClose,
+  kParenOpen,
+  kQuotedString,
   kRightArrow,
-  kEquals,
 };
 
 std::string LexicalTokenTypeToString(LexicalTokenType token_type);

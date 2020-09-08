@@ -25,6 +25,17 @@ namespace xls {
 namespace {
 
 using status_testing::StatusIs;
+using testing::ElementsAre;
+using testing::HasSubstr;
+
+// Returns the string values of the given tokens as a vector of strings.
+std::vector<std::string> TokensToStrings(absl::Span<const Token> tokens) {
+  std::vector<std::string> strs;
+  for (const Token& token : tokens) {
+    strs.push_back(token.value());
+  }
+  return strs;
+}
 
 TEST(IrScannerTest, TokenizeWhitespaceString) {
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Token> tokens,
@@ -58,19 +69,111 @@ TEST(IrScannerTest, TokenizeInvalidCharacter) {
   {
     auto tokens_status = TokenizeString("$");
     EXPECT_FALSE(tokens_status.ok());
-    EXPECT_THAT(
-        tokens_status.status(),
-        StatusIs(absl::StatusCode::kInvalidArgument,
-                 ::testing::HasSubstr("Invalid character in IR text \"$\"")));
+    EXPECT_THAT(tokens_status.status(),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         HasSubstr("Invalid character in IR text \"$\"")));
   }
   {
     auto tokens_status = TokenizeString("\x07");
     EXPECT_FALSE(tokens_status.ok());
     EXPECT_THAT(tokens_status.status(),
                 StatusIs(absl::StatusCode::kInvalidArgument,
-                         ::testing::HasSubstr(
-                             "Invalid character in IR text \"\\x07\"")));
+                         HasSubstr("Invalid character in IR text \"\\x07\"")));
   }
+}
+
+TEST(IrScannerTest, QuotedString) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Token> tokens,
+                           TokenizeString(R"("foo")"));
+  EXPECT_EQ(tokens.size(), 1);
+  const Token& foo = tokens.front();
+  EXPECT_EQ(foo.type(), LexicalTokenType::kQuotedString);
+  EXPECT_EQ(foo.value(), "foo");
+  EXPECT_EQ(foo.pos().colno, 0);
+  EXPECT_EQ(foo.pos().lineno, 0);
+}
+
+TEST(IrScannerTest, OffsetQuotedString) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Token> tokens,
+                           TokenizeString("\n\n \"foo\""));
+  EXPECT_EQ(tokens.size(), 1);
+  const Token& foo = tokens.front();
+  EXPECT_EQ(foo.type(), LexicalTokenType::kQuotedString);
+  EXPECT_EQ(foo.value(), "foo");
+  EXPECT_EQ(foo.pos().colno, 1);
+  EXPECT_EQ(foo.pos().lineno, 2);
+}
+
+TEST(IrScannerTest, EmptyQuotedString) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Token> tokens, TokenizeString(R"("")"));
+  EXPECT_THAT(TokensToStrings(tokens), ElementsAre(""));
+}
+
+TEST(IrScannerTest, MultipleQuotedStrings) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Token> tokens,
+                           TokenizeString(R"("foo""bar""baz""")"));
+  EXPECT_THAT(TokensToStrings(tokens), ElementsAre("foo", "bar", "baz", ""));
+}
+
+TEST(IrScannerTest, TripleQuotedString) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Token> tokens,
+                           TokenizeString(R"("""asdf""")"));
+  EXPECT_THAT(TokensToStrings(tokens), ElementsAre("asdf"));
+}
+
+TEST(IrScannerTest, MultilineQuotedStrings) {
+  EXPECT_THAT(TokenizeString("\"foo bar\n\"").status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Unterminated quoted string")));
+}
+
+TEST(IrScannerTest, EmptyTripleQuotedString) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Token> tokens,
+                           TokenizeString(R"("""""")"));
+  EXPECT_THAT(TokensToStrings(tokens), ElementsAre(""));
+}
+
+TEST(IrScannerTest, EmptyTripleQuotedStrings) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Token> tokens,
+                           TokenizeString(R"("""""""""""""""""")"));
+  EXPECT_THAT(TokensToStrings(tokens), ElementsAre("", "", ""));
+}
+
+TEST(IrScannerTest, TripleQuotedStringWithSingleQuotes) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Token> tokens,
+                           TokenizeString(R"(""""dog" "cat" " "" "  """)"));
+  EXPECT_THAT(TokensToStrings(tokens), ElementsAre(R"("dog" "cat" " "" "  )"));
+}
+
+TEST(IrScannerTest, MultilineTripleQuotedStrings) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Token> tokens, TokenizeString(R"("""
+something
+somethingelse
+
+foo
+
+bar""")"));
+  EXPECT_THAT(TokensToStrings(tokens), ElementsAre(R"(
+something
+somethingelse
+
+foo
+
+bar)"));
+}
+
+TEST(IrScannerTest, UnterminatedQuotedStrings) {
+  EXPECT_THAT(
+      TokenizeString(R"("unterminated)").status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Unterminated quoted string starting at 1:1")));
+}
+
+TEST(IrScannerTest, UnterminatedTripleQuotedStrings) {
+  EXPECT_THAT(
+      TokenizeString(R"("""does not terminate)").status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Unterminated quoted string starting at 1:1")));
 }
 
 }  // namespace
