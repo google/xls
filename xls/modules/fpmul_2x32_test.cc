@@ -71,8 +71,7 @@ float ComputeExpected(Float2x32 input) {
 }
 
 // Computes FP addition via DSLX & the JIT.
-float ComputeActual(Fpmul2x32* jit_wrapper, absl::Span<uint8> result_buffer,
-                    Float2x32 input) {
+float ComputeActual(Fpmul2x32* jit_wrapper, Float2x32 input) {
   return jit_wrapper->Run(std::get<0>(input), std::get<1>(input)).value();
 }
 
