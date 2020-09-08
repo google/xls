@@ -64,12 +64,6 @@ ABSL_FLAG(std::string, constraints_file, "",
 ABSL_FLAG(std::string, entry_function_name, "",
           "Function (in the IR) to compare. If unset, the program will attempt "
           "to find and use an appropriate entry function.");
-// TODO(rspringer): Eliminate the need for this flag.
-// This one is a hidden temporary flag until we can properly handle cells
-// with state_function attributes (e.g., some latches).
-ABSL_FLAG(std::string, high_cells, "",
-          "Comma-separated list of cells for which to assume \"1\" values on "
-          "all outputs.");
 ABSL_FLAG(std::string, netlist_module_name, "",
           "Module name (in the netlist) to compare. If unset, the program will "
           "use the name of the entry function in the IR.");
@@ -150,7 +144,6 @@ absl::Status RealMain(absl::string_view ir_path,
                       absl::string_view netlist_module_name,
                       absl::string_view cell_lib_path,
                       absl::string_view cell_proto_path,
-                      const absl::flat_hash_set<std::string>& high_cells,
                       absl::string_view netlist_path,
                       absl::string_view constraints_file,
                       absl::string_view schedule_path, int stage) {
@@ -171,7 +164,6 @@ absl::Status RealMain(absl::string_view ir_path,
   XLS_ASSIGN_OR_RETURN(auto netlist, GetNetlist(netlist_path, &cell_library));
   lec_params.netlist = netlist.get();
   lec_params.netlist_module_name = netlist_module_name;
-  lec_params.high_cells = high_cells;
 
   std::unique_ptr<solvers::z3::Lec> lec;
   if (!schedule_path.empty()) {
@@ -229,21 +221,15 @@ int main(int argc, char* argv[]) {
       << "One (and only one) of --cell_lib_path and --cell_proto_path "
          "should be set.";
 
-  std::string high_cells_string = absl::GetFlag(FLAGS_high_cells);
-  absl::flat_hash_set<std::string> high_cells;
-  for (const auto& high_cell : absl::StrSplit(high_cells_string, ',')) {
-    high_cells.insert(std::string(high_cell));
-  }
-
   std::string schedule_path = absl::GetFlag(FLAGS_schedule_path);
   int stage = absl::GetFlag(FLAGS_stage);
   XLS_QCHECK(stage == -1 || !schedule_path.empty())
       << "--schedule_path must be specified with --stage.";
 
-  XLS_QCHECK_OK(xls::RealMain(
-      ir_path, absl::GetFlag(FLAGS_entry_function_name),
-      absl::GetFlag(FLAGS_netlist_module_name), cell_lib_path, cell_proto_path,
-      high_cells, netlist_path, absl::GetFlag(FLAGS_constraints_file),
-      schedule_path, stage));
+  XLS_QCHECK_OK(xls::RealMain(ir_path, absl::GetFlag(FLAGS_entry_function_name),
+                              absl::GetFlag(FLAGS_netlist_module_name),
+                              cell_lib_path, cell_proto_path, netlist_path,
+                              absl::GetFlag(FLAGS_constraints_file),
+                              schedule_path, stage));
   return 0;
 }

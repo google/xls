@@ -45,9 +45,6 @@ struct LecParams {
 
   // The name of the module (inside "netlist") to compare.
   std::string netlist_module_name;
-
-  // Set of [netlist] cells to assume are always high.
-  absl::flat_hash_set<std::string> high_cells;
 };
 
 // Class for performing logical equivalence checks between a function specified
@@ -90,10 +87,9 @@ class Lec {
   Lec(Package* ir_package, Function* ir_function,
       netlist::rtl::Netlist* netlist, const std::string& netlist_module_name,
       absl::optional<PipelineSchedule> schedule, int stage);
-  absl::Status Init(const absl::flat_hash_set<std::string>& high_cells);
+  absl::Status Init();
   absl::Status CreateIrTranslator();
-  absl::Status CreateNetlistTranslator(
-      const absl::flat_hash_set<std::string>& high_cells);
+  absl::Status CreateNetlistTranslator();
 
   // Collects the XLS IR nodes that are inputs to this evaluation - either the
   // original function inputs for whole-function or first-stage equivalence

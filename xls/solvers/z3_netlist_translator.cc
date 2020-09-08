@@ -43,10 +43,9 @@ using netlist::rtl::NetRef;
 xabsl::StatusOr<std::unique_ptr<NetlistTranslator>>
 NetlistTranslator::CreateAndTranslate(
     Z3_context ctx, const Module* module,
-    const absl::flat_hash_map<std::string, const Module*>& module_refs,
-    const absl::flat_hash_set<std::string>& high_cells) {
-  auto translator = absl::WrapUnique(
-      new NetlistTranslator(ctx, module, module_refs, high_cells));
+    const absl::flat_hash_map<std::string, const Module*>& module_refs) {
+  auto translator =
+      absl::WrapUnique(new NetlistTranslator(ctx, module, module_refs));
   XLS_RETURN_IF_ERROR(translator->Init());
   XLS_RETURN_IF_ERROR(translator->Translate());
   return translator;
@@ -59,12 +58,8 @@ xabsl::StatusOr<Z3_ast> NetlistTranslator::GetTranslation(NetRef ref) {
 
 NetlistTranslator::NetlistTranslator(
     Z3_context ctx, const Module* module,
-    const absl::flat_hash_map<std::string, const Module*>& module_refs,
-    const absl::flat_hash_set<std::string>& high_cells)
-    : ctx_(ctx),
-      module_(module),
-      module_refs_(module_refs),
-      high_cells_(high_cells) {}
+    const absl::flat_hash_map<std::string, const Module*>& module_refs)
+    : ctx_(ctx), module_(module), module_refs_(module_refs) {}
 
 absl::Status NetlistTranslator::Init() {
   // Create a symbolic constant for each module input and make it available for
@@ -201,9 +196,9 @@ absl::Status NetlistTranslator::TranslateCell(const Cell& cell) {
     }
 
     const Module* module_ref = module_refs_.at(entry_name);
-    XLS_ASSIGN_OR_RETURN(auto subtranslator,
-                         NetlistTranslator::CreateAndTranslate(
-                             ctx_, module_ref, module_refs_, high_cells_));
+    XLS_ASSIGN_OR_RETURN(
+        auto subtranslator,
+        NetlistTranslator::CreateAndTranslate(ctx_, module_ref, module_refs_));
 
     // Now match the module outputs to the corresponding netref in this module's
     // corresponding cell.
@@ -227,25 +222,19 @@ absl::Status NetlistTranslator::TranslateCell(const Cell& cell) {
   }
 
   const CellLibraryEntry* entry = cell.cell_library_entry();
-  if (high_cells_.contains(entry->name())) {
-    for (const auto& output : cell.outputs()) {
-      translated_[output.netref] = Z3_mk_int(ctx_, 1, Z3_mk_bv_sort(ctx_, 1));
-    }
-  } else {
-    absl::flat_hash_map<std::string, Z3_ast> state_table_values;
-    if (entry->state_table()) {
-      XLS_ASSIGN_OR_RETURN(state_table_values, TranslateStateTable(cell));
-    }
+  absl::flat_hash_map<std::string, Z3_ast> state_table_values;
+  if (entry->state_table()) {
+    XLS_ASSIGN_OR_RETURN(state_table_values, TranslateStateTable(cell));
+  }
 
-    const CellLibraryEntry::OutputPinToFunction& pins =
-        entry->output_pin_to_function();
-    for (const auto& output : cell.outputs()) {
-      XLS_ASSIGN_OR_RETURN(Ast ast, netlist::function::Parser::ParseFunction(
-                                        pins.at(output.name)));
-      XLS_ASSIGN_OR_RETURN(Z3_ast result,
-                           TranslateFunction(cell, ast, state_table_values));
-      translated_[output.netref] = result;
-    }
+  const CellLibraryEntry::OutputPinToFunction& pins =
+      entry->output_pin_to_function();
+  for (const auto& output : cell.outputs()) {
+    XLS_ASSIGN_OR_RETURN(Ast ast, netlist::function::Parser::ParseFunction(
+                                      pins.at(output.name)));
+    XLS_ASSIGN_OR_RETURN(Z3_ast result,
+                         TranslateFunction(cell, ast, state_table_values));
+    translated_[output.netref] = result;
   }
 
   return absl::OkStatus();
@@ -349,9 +338,9 @@ NetlistTranslator::TranslateStateTable(const Cell& cell) {
       const StateTableSignal signal = kv.second;
       if (signal != StateTableSignal::kHigh &&
           signal != StateTableSignal::kLow) {
-        XLS_LOG(WARNING) << "Non-high or -low input signal encountered: "
-                         << cell.name() << ":" << input_name << ": "
-                         << static_cast<int>(signal);
+        XLS_VLOG(1) << "Non-high or -low input signal encountered: "
+                    << cell.name() << ":" << input_name << ": "
+                    << static_cast<int>(signal);
         continue;
       }
 

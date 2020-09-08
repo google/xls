@@ -44,8 +44,7 @@ class NetlistTranslator {
   static xabsl::StatusOr<std::unique_ptr<NetlistTranslator>> CreateAndTranslate(
       Z3_context ctx, const netlist::rtl::Module* module,
       const absl::flat_hash_map<std::string, const netlist::rtl::Module*>&
-          module_refs,
-      const absl::flat_hash_set<std::string>& high_cells);
+          module_refs);
 
   // Returns the Z3 equivalent for the specified net.
   xabsl::StatusOr<Z3_ast> GetTranslation(netlist::rtl::NetRef ref);
@@ -80,8 +79,7 @@ class NetlistTranslator {
   NetlistTranslator(
       Z3_context ctx, const netlist::rtl::Module* module,
       const absl::flat_hash_map<std::string, const netlist::rtl::Module*>&
-          module_refs,
-      const absl::flat_hash_set<std::string>& high_cells);
+          module_refs);
   absl::Status Init();
 
   // Translates the module, cell, or cell function, respectively, into Z3-space.
@@ -101,11 +99,6 @@ class NetlistTranslator {
 
   const absl::flat_hash_map<std::string, const netlist::rtl::Module*>
       module_refs_;
-
-  // TODO(rspringer): Eliminate the need for this by properly handling cells
-  // with state_function attributes.
-  // List of cells for which all outputs are unconditionally set to 1.
-  absl::flat_hash_set<std::string> high_cells_;
 };
 
 }  // namespace z3

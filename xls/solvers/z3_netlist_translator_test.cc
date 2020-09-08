@@ -177,8 +177,7 @@ TEST(NetlistTranslatorTest_Standalone, BasicFunctionality) {
       CreateNetList(&bitgen, inputs, kNumCells, cell_library, &module));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto translator,
-      NetlistTranslator::CreateAndTranslate(ctx, &module, {}, {}));
+      auto translator, NetlistTranslator::CreateAndTranslate(ctx, &module, {}));
 }
 
 // Tests that a simple (single-cell) netlist is translated correctly.
@@ -224,8 +223,7 @@ TEST(NetlistTranslatorTest_Standalone, SimpleNet) {
   }
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto translator,
-      NetlistTranslator::CreateAndTranslate(ctx, &module, {}, {}));
+      auto translator, NetlistTranslator::CreateAndTranslate(ctx, &module, {}));
 
   NetRef cell_output = cell->outputs().begin()->netref;
   XLS_ASSERT_OK_AND_ASSIGN(Z3_ast z3_output,
@@ -371,7 +369,7 @@ TEST(NetlistTranslatorTest_Standalone, HandlesSubmodules) {
   });
   XLS_ASSERT_OK_AND_ASSIGN(
       auto translator,
-      NetlistTranslator::CreateAndTranslate(ctx, &module_3, module_refs, {}));
+      NetlistTranslator::CreateAndTranslate(ctx, &module_3, module_refs));
 
   XLS_ASSERT_OK_AND_ASSIGN(Z3_ast z3_output,
                            translator->GetTranslation(module_3.outputs()[0]));
@@ -413,8 +411,8 @@ class NetlistTranslatorTest : public ::testing::Test {
     config_ = Z3_mk_config();
     ctx_ = Z3_mk_context(config_);
 
-    XLS_ASSIGN_OR_RETURN(translator_, NetlistTranslator::CreateAndTranslate(
-                                          ctx_, module_, {}, {}));
+    XLS_ASSIGN_OR_RETURN(
+        translator_, NetlistTranslator::CreateAndTranslate(ctx_, module_, {}));
     return absl::OkStatus();
   }
 

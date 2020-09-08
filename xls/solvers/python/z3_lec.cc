@@ -58,7 +58,6 @@ PYBIND11_MODULE(z3_lec, m) {
         params.ir_function = entry_function;
         params.netlist = netlist.get();
         params.netlist_module_name = netlist_module_name;
-        params.high_cells;  // TODO : Just hardcode this? Fix this?
 
         XLS_ASSIGN_OR_RETURN(auto lec, z3::Lec::Create(params));
         return lec->Run();

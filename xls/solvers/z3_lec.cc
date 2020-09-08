@@ -56,7 +56,7 @@ xabsl::StatusOr<std::unique_ptr<Lec>> Lec::Create(const LecParams& params) {
   auto lec = absl::WrapUnique<Lec>(
       new Lec(params.ir_package, params.ir_function, params.netlist,
               params.netlist_module_name, absl::nullopt, 0));
-  XLS_RETURN_IF_ERROR(lec->Init(params.high_cells));
+  XLS_RETURN_IF_ERROR(lec->Init());
   return lec;
 }
 
@@ -67,7 +67,7 @@ xabsl::StatusOr<std::unique_ptr<Lec>> Lec::CreateForStage(
   auto lec = absl::WrapUnique<Lec>(
       new Lec(params.ir_package, params.ir_function, params.netlist,
               params.netlist_module_name, schedule, stage));
-  XLS_RETURN_IF_ERROR(lec->Init(params.high_cells));
+  XLS_RETURN_IF_ERROR(lec->Init());
   return lec;
 }
 
@@ -90,10 +90,10 @@ Lec::~Lec() {
   }
 }
 
-absl::Status Lec::Init(const absl::flat_hash_set<std::string>& high_cells) {
+absl::Status Lec::Init() {
   XLS_ASSIGN_OR_RETURN(module_, netlist_->GetModule(netlist_module_name_));
   XLS_RETURN_IF_ERROR(CreateIrTranslator());
-  XLS_RETURN_IF_ERROR(CreateNetlistTranslator(high_cells));
+  XLS_RETURN_IF_ERROR(CreateNetlistTranslator());
 
   XLS_RETURN_IF_ERROR(CollectIrInputs());
   if (XLS_VLOG_IS_ON(2)) {
@@ -386,8 +386,7 @@ xabsl::StatusOr<std::vector<Z3_ast>> Lec::GetNetlistZ3ForIr(const Node* node) {
   return netlist_output;
 }
 
-absl::Status Lec::CreateNetlistTranslator(
-    const absl::flat_hash_set<std::string>& high_cells) {
+absl::Status Lec::CreateNetlistTranslator() {
   absl::flat_hash_map<std::string, const Module*> module_refs;
   for (const std::unique_ptr<Module>& module : netlist_->modules()) {
     if (module->name() != netlist_module_name_) {
@@ -395,10 +394,9 @@ absl::Status Lec::CreateNetlistTranslator(
     }
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      netlist_translator_,
-      NetlistTranslator::CreateAndTranslate(ir_translator_->ctx(), module_,
-                                            module_refs, high_cells));
+  XLS_ASSIGN_OR_RETURN(netlist_translator_,
+                       NetlistTranslator::CreateAndTranslate(
+                           ir_translator_->ctx(), module_, module_refs));
 
   return absl::OkStatus();
 }
