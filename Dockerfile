@@ -16,20 +16,13 @@ echo "deb [arch=amd64] https://storage.googleapis.com/bazel-apt stable jdk1.8" |
 apt-get update -y && apt-get install -y bazel
 
 # Install dependencies
-RUN apt-get -y install python3-distutils python3-dev libtinfo5
+RUN apt-get -y install python3-distutils python3-dev python-is-python3 libtinfo5
 
 # Install development tools
 RUN apt-get install -y git vim
 
 RUN useradd -m xls-developer
 USER xls-developer
-
-# Create "python" binary in PATH for Bazel Python environment.
-# (Ubuntu 20.04 only has "python3" in PATH.)
-RUN mkdir -p ~/opt/bin && \
-ln -s $(which python3) ~/opt/bin/python
-
-ENV PATH /home/xls-developer/opt/bin:$PATH
 
 # Clone the project
 WORKDIR /home/xls-developer/
