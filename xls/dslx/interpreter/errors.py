@@ -16,9 +16,7 @@
 
 """Error types used during syntax interpretations."""
 
-from typing import Text
-
-from xls.dslx.python import cpp_ast
+from xls.dslx.python import cpp_pos
 from xls.dslx.span import PositionalError
 
 
@@ -28,7 +26,7 @@ class FailureError(PositionalError):
   This is used e.g. in tests, but may be reusable for things like fatal errors.
   """
 
-  def __init__(self, span: cpp_ast.Span, message: Text):
+  def __init__(self, span: cpp_pos.Span, message: str):
     super(FailureError, self).__init__(message, span)
 
 
@@ -40,7 +38,7 @@ class EvaluateError(PositionalError):
   raised.
   """
 
-  def __init__(self, span: cpp_ast.Span, message: Text):
+  def __init__(self, span: cpp_pos.Span, message: str):
     super(EvaluateError, self).__init__(message, span)
 
 
@@ -55,5 +53,5 @@ class InstantiationError(PositionalError):
   This error will be raised.
   """
 
-  def __init__(self, span: cpp_ast.Span, message: Text):
+  def __init__(self, span: cpp_pos.Span, message: str):
     super(InstantiationError, self).__init__(message, span)

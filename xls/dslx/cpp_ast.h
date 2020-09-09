@@ -23,6 +23,7 @@
 #include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/statusor.h"
+#include "xls/dslx/cpp_pos.h"
 
 namespace xls::dslx {
 
@@ -40,88 +41,6 @@ bool IsOneOf(ObjT* obj) {
   }
   return IsOneOf<Rest...>(obj);
 }
-
-// Represents a position in the text (file, line, column).
-class Pos {
- public:
-  Pos() : filename_(""), lineno_(0), colno_(0) {}
-  Pos(std::string filename, int64 lineno, int64 colno)
-      : filename_(std::move(filename)), lineno_(lineno), colno_(colno) {}
-
-  std::string ToString() const {
-    return absl::StrFormat("%s:%d:%d", filename_, lineno_ + 1, colno_ + 1);
-  }
-
-  bool operator<(const Pos& other) const {
-    XLS_CHECK_EQ(filename_, other.filename_);
-    if (lineno_ < other.lineno_) {
-      return true;
-    }
-    if (lineno_ > other.lineno_) {
-      return false;
-    }
-    if (colno_ < other.colno_) {
-      return true;
-    }
-    return false;
-  }
-  bool operator==(const Pos& other) const {
-    XLS_CHECK_EQ(filename_, other.filename_);
-    return lineno_ == other.lineno_ && colno_ == other.colno_;
-  }
-  bool operator!=(const Pos& other) const { return !(*this == other); }
-  bool operator<=(const Pos& other) const {
-    return (*this) < other || (*this) == other;
-  }
-  bool operator>=(const Pos& other) const { return !((*this) < other); }
-
-  const std::string& filename() const { return filename_; }
-  int64 lineno() const { return lineno_; }
-  int64 colno() const { return colno_; }
-
-  Pos BumpCol() const { return Pos(filename_, lineno_, colno_ + 1); }
-
- private:
-  std::string filename_;
-  int64 lineno_;
-  int64 colno_;
-};
-
-inline std::ostream& operator<<(std::ostream& os, const Pos& pos) {
-  os << pos.ToString();
-  return os;
-}
-
-// Represents a positional span in the text.
-class Span {
- public:
-  Span(Pos start, Pos limit)
-      : start_(std::move(start)), limit_(std::move(limit)) {
-    XLS_CHECK_EQ(start_.filename(), limit_.filename());
-    XLS_CHECK_LE(start_, limit_);
-  }
-  Span() = default;
-
-  const std::string& filename() const { return start().filename(); }
-  const Pos& start() const { return start_; }
-  const Pos& limit() const { return limit_; }
-
-  bool operator==(const Span& other) const {
-    return start_ == other.start_ && limit_ == other.limit_;
-  }
-  bool operator!=(const Span& other) const { return !(*this == other); }
-
-  std::string ToString() const {
-    return absl::StrFormat("%s-%d:%d", start().ToString(), limit().lineno() + 1,
-                           limit().colno() + 1);
-  }
-
-  Span CloneWithLimit(Pos limit) const { return Span(start_, limit); }
-
- private:
-  Pos start_;
-  Pos limit_;
-};
 
 // Forward decls.
 class BuiltinNameDef;
@@ -230,7 +149,7 @@ class TypeAnnotation : public AstNode {
 // Enumeration of types that are built-in keywords; e.g. `u32`, `bool`, etc.
 enum BuiltinType {
 #define FIRST_COMMA(A, ...) A,
-  BUILTIN_TYPE_EACH(FIRST_COMMA)
+  XLS_DSLX_BUILTIN_TYPE_EACH(FIRST_COMMA)
 #undef FIRST_COMMA
 };
 

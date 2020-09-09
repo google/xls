@@ -20,14 +20,14 @@ import io
 import textwrap
 from typing import Text, Optional, cast, Callable, TypeVar, Sequence, Any
 
+from absl.testing import absltest
 from xls.dslx import fakefs_test_util
 from xls.dslx import parser
 from xls.dslx import parser_helpers
-from xls.dslx import scanner
 from xls.dslx.python import cpp_ast as ast
-from xls.dslx.python.cpp_ast import Pos
-from xls.dslx.python.cpp_ast import Span
-from absl.testing import absltest
+from xls.dslx.python import cpp_scanner as scanner
+from xls.dslx.python.cpp_pos import Pos
+from xls.dslx.python.cpp_pos import Span
 
 
 class ParserTest(absltest.TestCase):
@@ -177,7 +177,7 @@ proc simple(addend: u32) {
     filename = '/fake/test_file.x'
     text = 'oh\nwhoops\nI did an\nerror somewhere\nthat is bad'
     with fakefs_test_util.scoped_fakefs(filename, text):
-      pos = scanner.Pos(filename, lineno=2, colno=0)
+      pos = Pos(filename, lineno=2, colno=0)
       span = Span(pos, pos.bump_col())
       error = parser.ParseError(span, 'This is bad')
       parser_helpers.pprint_positional_error(
@@ -532,7 +532,7 @@ proc simple(addend: u32) {
     top.add('a', a)
     leaf0.add('b', b)
     leaf1.add('c', c)
-    pos = scanner.Pos(self.fake_filename, lineno=0, colno=0)
+    pos = Pos(self.fake_filename, lineno=0, colno=0)
     span = Span(pos, pos)
     self.assertEqual(leaf0.resolve('a', span), a)
     self.assertEqual(leaf1.resolve('a', span), a)

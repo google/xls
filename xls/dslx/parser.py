@@ -34,13 +34,13 @@ from xls.dslx import token_parser
 from xls.dslx.bindings import Bindings
 from xls.dslx.parse_error import ParseError
 from xls.dslx.python import cpp_ast as ast
-from xls.dslx.python.cpp_ast import Span
-from xls.dslx.scanner import Keyword
-from xls.dslx.scanner import Pos
-from xls.dslx.scanner import Scanner
-from xls.dslx.scanner import Token
-from xls.dslx.scanner import TokenKind
-from xls.dslx.scanner import TYPE_KEYWORDS
+from xls.dslx.python.cpp_pos import Pos
+from xls.dslx.python.cpp_pos import Span
+from xls.dslx.python.cpp_scanner import Keyword
+from xls.dslx.python.cpp_scanner import Scanner
+from xls.dslx.python.cpp_scanner import Token
+from xls.dslx.python.cpp_scanner import TokenKind
+from xls.dslx.python.cpp_scanner import TYPE_KEYWORDS
 
 
 # Helper data for noting which operator-signifying tokens bind tightly (strong
@@ -420,7 +420,7 @@ class Parser(token_parser.TokenParser):
     tok = self._peekt()
     if tok.kind in (TokenKind.NUMBER, TokenKind.CHARACTER):
       return tok_to_number(self.m, self._popt())
-    if tok.is_keyword_in((Keyword.TRUE, Keyword.FALSE)):
+    if tok.is_keyword_in({Keyword.TRUE, Keyword.FALSE}):
       return tok_to_number(self.m, self._popt())
 
     # Numbers can also be given as u32:4 -- last ditch effort to parse one of
@@ -583,7 +583,7 @@ class Parser(token_parser.TokenParser):
     tok = self._peekt()
     logging.vlog(5, 'Parsing term; tok: %r', tok)
     if tok.kind in (TokenKind.NUMBER, TokenKind.CHARACTER) or tok.is_keyword_in(
-        (Keyword.TRUE, Keyword.FALSE)):
+        {Keyword.TRUE, Keyword.FALSE}):
       lhs = self._parse_num(bindings)
     elif tok.is_keyword(Keyword.NEXT):
       # Next is also used as a special function call inside a proc that says it

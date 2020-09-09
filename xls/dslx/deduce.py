@@ -28,7 +28,6 @@ from xls.dslx import ast_helpers
 from xls.dslx import bit_helpers
 from xls.dslx import dslx_builtins
 from xls.dslx import parametric_instantiator
-from xls.dslx import scanner
 from xls.dslx.concrete_type import ArrayType
 from xls.dslx.concrete_type import BitsType
 from xls.dslx.concrete_type import ConcreteType
@@ -39,7 +38,8 @@ from xls.dslx.parametric_expression import ParametricAdd
 from xls.dslx.parametric_expression import ParametricExpression
 from xls.dslx.parametric_expression import ParametricSymbol
 from xls.dslx.python import cpp_ast as ast
-from xls.dslx.python.cpp_ast import Span
+from xls.dslx.python import cpp_scanner as scanner
+from xls.dslx.python.cpp_pos import Span
 from xls.dslx.type_info import TypeInfo
 from xls.dslx.type_info import TypeMissingError
 from xls.dslx.xls_type_error import TypeInferenceError
@@ -207,8 +207,7 @@ def _create_element_invocation(owner: ast.AstNodeOwner, span_: Span,
     argument array.
   """
   annotation = ast_helpers.make_builtin_type_annotation(
-      owner, span_,
-      scanner.Token(scanner.TokenKind.KEYWORD, span_, scanner.Keyword.U32), ())
+      owner, span_, scanner.Token(span_, scanner.Keyword.U32), ())
   index_number = ast.Number(owner, span_, '32', ast.NumberKind.OTHER,
                             annotation)
   index = ast.Index(owner, span_, arg_array, index_number)

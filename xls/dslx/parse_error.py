@@ -16,7 +16,7 @@
 
 """Positional parse error class for errors during parsing."""
 
-from xls.dslx.python import cpp_ast
+from xls.dslx.python import cpp_pos
 from xls.dslx.span import PositionalError
 
 
@@ -27,6 +27,6 @@ class ParseError(PositionalError):
     span: Span in the text at which the parse error occurred.
   """
 
-  def __init__(self, span: cpp_ast.Span, message: str):
+  def __init__(self, span: cpp_pos.Span, message: str):
     super(ParseError, self).__init__('{} @ {}'.format(message, span), span)
     self.span = span

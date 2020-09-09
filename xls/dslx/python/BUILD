@@ -39,6 +39,7 @@ py_test(
     python_version = "PY3",
     deps = [
         ":cpp_ast",
+        ":cpp_pos",
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )
@@ -59,6 +60,32 @@ py_test(
     deps = [
         ":cpp_ast",
         ":cpp_ast_visitor",
+        ":cpp_pos",
         "@com_google_absl_py//absl/testing:absltest",
+    ],
+)
+
+xls_pybind_extension(
+    name = "cpp_scanner",
+    srcs = ["cpp_scanner.cc"],
+    deps = [
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/strings",
+        "//xls/common/status:status_macros",
+        "//xls/common/status:statusor_pybind_caster",
+        "//xls/dslx:cpp_ast_builtin_types",
+        "//xls/dslx:cpp_pos",
+        "//xls/dslx:cpp_scanner",
+    ],
+)
+
+xls_pybind_extension(
+    name = "cpp_pos",
+    srcs = ["cpp_pos.cc"],
+    deps = [
+        "@com_google_absl//absl/base",
+        "//xls/common/status:status_macros",
+        "//xls/common/status:statusor_pybind_caster",
+        "//xls/dslx:cpp_pos",
     ],
 )

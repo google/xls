@@ -18,10 +18,10 @@
 
 from typing import Union, Callable, Tuple, Any, Optional, Sequence
 
-from xls.dslx import scanner
 from xls.dslx.python import cpp_ast as ast
-from xls.dslx.python.cpp_ast import Pos
-from xls.dslx.python.cpp_ast import Span
+from xls.dslx.python import cpp_scanner as scanner_mod
+from xls.dslx.python.cpp_pos import Pos
+from xls.dslx.python.cpp_pos import Span
 
 ContextType = Any
 GetImportedCallback = Callable[[ast.Import, ContextType], Tuple[ast.Module,
@@ -103,8 +103,9 @@ def evaluate_to_struct_or_enum_or_annotation(
   return td
 
 
-def tok_to_builtin_type(tok: scanner.Token) -> ast.BuiltinType:
-  assert tok.is_keyword_in(scanner.TYPE_KEYWORDS)
+def tok_to_builtin_type(tok: scanner_mod.Token) -> ast.BuiltinType:
+  assert tok.is_keyword_in(scanner_mod.TYPE_KEYWORDS)
+  assert isinstance(tok.value, scanner_mod.Keyword), tok.value
   bt = getattr(ast.BuiltinType, tok.value.value.upper())
   assert isinstance(bt, ast.BuiltinType), repr(bt)
   return bt
@@ -116,7 +117,7 @@ def get_builtin_type(signed: bool, width: int) -> ast.BuiltinType:
 
 
 def make_builtin_type_annotation(
-    owner: ast.AstNodeOwner, span: Span, tok: scanner.Token,
+    owner: ast.AstNodeOwner, span: Span, tok: scanner_mod.Token,
     dims: Tuple[ast.Expr, ...]) -> ast.TypeAnnotation:
   elem_type = ast.BuiltinTypeAnnotation(owner, span, tok_to_builtin_type(tok))
   for dim in dims:
@@ -146,22 +147,30 @@ def get_span_or_fake(n: ast.AstNode) -> Span:
   return getattr(n, 'span', _FAKE_SPAN)
 
 
+def _get_value_as_int(s: str) -> int:
+  if s in ('true', 'false'):
+    return int(s == 'true')
+  if s.startswith(('0x', '-0x')):
+    return int(s.replace('_', ''), 16)
+  if s.startswith(('0b', '-0b')):
+    return int(s.replace('_', ''), 2)
+  return int(s.replace('_', ''))
+
+
 def get_value_as_int(n: ast.Number) -> int:
   """Returns the numerical value contained in the AST node as a Python int."""
+  assert isinstance(n, ast.Number), n
   if n.kind == ast.NumberKind.CHARACTER:
     return ord(n.value)
-  if n.kind == ast.NumberKind.BOOL:
-    if n.value == 'true':
-      return 1
-    else:
-      assert n.value == 'false'
-      return 0
-  assert isinstance(n.value, str), n.value
-  if n.value.startswith(('0x', '-0x')):
-    return int(n.value.replace('_', ''), 16)
-  if n.value.startswith(('0b', '-0b')):
-    return int(n.value.replace('_', ''), 2)
-  return int(n.value.replace('_', ''))
+  return _get_value_as_int(n.value)
+
+
+def get_token_value_as_int(t: scanner_mod.Token) -> int:
+  assert isinstance(t, scanner_mod.Token), t
+  assert isinstance(t.value, str), t
+  if t.kind == scanner_mod.TokenKind.CHARACTER:
+    return ord(t.value)
+  return _get_value_as_int(t.value)
 
 
 def do_preorder(n: ast.NameDefTree,

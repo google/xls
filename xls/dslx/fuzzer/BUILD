@@ -37,9 +37,9 @@ py_library(
         "//xls/common:memoize",
         "//xls/dslx:ast_helpers",
         "//xls/dslx:bit_helpers",
-        "//xls/dslx:scanner",
-        "//xls/dslx:span",
         "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_pos",
+        "//xls/dslx/python:cpp_scanner",
     ],
 )
 

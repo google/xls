@@ -28,7 +28,7 @@ from xls.dslx.concrete_type import BitsType
 from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.concrete_type import FunctionType
 from xls.dslx.concrete_type import TupleType
-from xls.dslx.python.cpp_ast import Span
+from xls.dslx.python.cpp_pos import Span
 
 ParametricBinding = Any
 ParametricBindings = Tuple[ParametricBinding, ...]

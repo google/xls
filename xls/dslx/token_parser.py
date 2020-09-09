@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,17 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """Base class for the parser that implements token peeking/popping."""
 
 from typing import Text, Sequence, Union, Optional
 
 from xls.dslx.parse_error import ParseError
-from xls.dslx.scanner import Keyword
-from xls.dslx.scanner import Pos
-from xls.dslx.scanner import Scanner
-from xls.dslx.scanner import Token
-from xls.dslx.scanner import TokenKind
+from xls.dslx.python.cpp_pos import Pos
+from xls.dslx.python.cpp_scanner import Keyword
+from xls.dslx.python.cpp_scanner import Scanner
+from xls.dslx.python.cpp_scanner import Token
+from xls.dslx.python.cpp_scanner import TokenKind
 
 
 class TokenParser(object):

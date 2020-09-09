@@ -73,7 +73,7 @@ std::string BuiltinTypeToString(BuiltinType t) {
 #define CASE(__enum, B, __str, ...) \
   case BuiltinType::__enum:         \
     return __str;
-    BUILTIN_TYPE_EACH(CASE)
+    XLS_DSLX_BUILTIN_TYPE_EACH(CASE)
 #undef CASE
   }
   return absl::StrFormat("<invalid BuiltinType(%d)>", static_cast<int>(t));
@@ -390,7 +390,7 @@ int64 BuiltinTypeAnnotation::GetBitCount() const {
 #define CASE(__enum, _unused1, _unused2, _unused3, __bit_count) \
   case BuiltinType::__enum:                                     \
     return __bit_count;
-    BUILTIN_TYPE_EACH(CASE)
+    XLS_DSLX_BUILTIN_TYPE_EACH(CASE)
 #undef CASE
   }
   XLS_LOG(FATAL) << "Invalid builtin type: " << static_cast<int>(builtin_type_);
@@ -401,7 +401,7 @@ bool BuiltinTypeAnnotation::GetSignedness() const {
 #define CASE(__enum, _unused1, _unused2, __signedness, ...) \
   case BuiltinType::__enum:                                 \
     return __signedness;
-    BUILTIN_TYPE_EACH(CASE)
+    XLS_DSLX_BUILTIN_TYPE_EACH(CASE)
 #undef CASE
   }
   XLS_LOG(FATAL) << "Invalid builtin type: " << static_cast<int>(builtin_type_);

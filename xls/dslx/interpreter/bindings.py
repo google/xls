@@ -21,7 +21,7 @@ from typing import Text, Callable, List, Union, Optional, Dict, Set, NamedTuple,
 from xls.dslx.interpreter.value import Value
 from xls.dslx.parametric_instantiator import SymbolicBindings
 from xls.dslx.python import cpp_ast as ast
-from xls.dslx.python.cpp_ast import Span
+from xls.dslx.python.cpp_pos import Span
 
 
 InterpreterFn = Callable[[List[Value], Span, ast.Invocation], Value]

@@ -18,8 +18,8 @@
 
 from xls.common import test_base
 from xls.dslx.concrete_type import BitsType
-from xls.dslx.python.cpp_ast import Pos
-from xls.dslx.python.cpp_ast import Span
+from xls.dslx.python.cpp_pos import Pos
+from xls.dslx.python.cpp_pos import Span
 from xls.dslx.xls_type_error import XlsTypeError
 
 

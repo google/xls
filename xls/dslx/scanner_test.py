@@ -16,11 +16,14 @@
 
 """Tests for xls.dslx.scanner."""
 
+import random
 from typing import Text, Sequence, Any
 
-from xls.dslx import scanner
-from xls.dslx.scanner import TokenKind
 from absl.testing import absltest
+from xls.dslx.python import cpp_pos
+from xls.dslx.python import cpp_scanner as scanner
+from xls.dslx.python.cpp_scanner import TokenKind
+from xls.dslx.python.cpp_scanner import TokenKindFromString
 
 
 class ScannerTest(absltest.TestCase):
@@ -31,6 +34,23 @@ class ScannerTest(absltest.TestCase):
 
   def make_scanner(self, text: Text, **kwargs) -> scanner.Scanner:
     return scanner.Scanner('<fake>', text, **kwargs)
+
+  def test_scan_random(self):
+    rng = random.Random(0)
+    for _ in range(1024):
+      chars = rng.randrange(512)
+      text = ''.join(chr(rng.randrange(128)) for _ in range(chars))
+      s = self.make_scanner(text)
+      try:
+        [str(t) for t in s.pop_all()]
+      except scanner.ScanError:
+        pass
+
+  def test_scan_just_whitespace(self):
+    s = self.make_scanner(' ')
+    tokens = s.pop_all()
+    self.assertLen(tokens, 1)
+    self.assertEqual(tokens[0].kind, TokenKind.EOF)
 
   def test_scan_keyword(self):
     s = self.make_scanner('fn')
@@ -47,27 +67,27 @@ class ScannerTest(absltest.TestCase):
     self.assertEqual('fn', str(tokens[0]))
     self.assertTrue(tokens[1].is_identifier('ident'))
     self.assertEqual('ident', str(tokens[1]))
-    self.assertEqual(tokens[2].kind, TokenKind('('))
-    self.assertEqual('OPAREN', str(tokens[2]))
+    self.assertEqual(tokens[2].kind, TokenKindFromString('('))
+    self.assertEqual('(', str(tokens[2]))
     self.assertTrue(tokens[3].is_identifier('x'))
     self.assertEqual('x', str(tokens[3]))
-    self.assertEqual(tokens[4].kind, TokenKind(')'))
-    self.assertEqual('CPAREN', str(tokens[4]))
-    self.assertEqual(tokens[5].kind, TokenKind('{'))
-    self.assertEqual('OBRACE', str(tokens[5]))
+    self.assertEqual(tokens[4].kind, TokenKindFromString(')'))
+    self.assertEqual(')', str(tokens[4]))
+    self.assertEqual(tokens[5].kind, TokenKindFromString('{'))
+    self.assertEqual('{', str(tokens[5]))
     self.assertTrue(tokens[6].is_identifier('x'))
     self.assertEqual('x', str(tokens[6]))
-    self.assertEqual(tokens[7].kind, TokenKind('}'))
-    self.assertEqual('CBRACE', str(tokens[7]))
+    self.assertEqual(tokens[7].kind, TokenKindFromString('}'))
+    self.assertEqual('}', str(tokens[7]))
 
   def test_doubled_up_plus(self):
     s = self.make_scanner('fn concat(x, y) { x ++ y }')
     tokens = s.pop_all()
 
     self.assertTrue(tokens[-4].is_identifier('x'))
-    self.assertEqual(tokens[-3].kind, TokenKind('++'))
+    self.assertEqual(tokens[-3].kind, TokenKindFromString('++'))
     self.assertTrue(tokens[-2].is_identifier('y'))
-    self.assertEqual(tokens[-1].kind, TokenKind('}'))
+    self.assertEqual(tokens[-1].kind, TokenKindFromString('}'))
 
   def test_number_hex(self):
     s = self.make_scanner('0xf00')
@@ -88,9 +108,15 @@ class ScannerTest(absltest.TestCase):
     self.assertTrue(tokens[0].is_number('0b10'), msg=str(tokens))
 
     with self.assertRaisesRegex(scanner.ScanError,
-                                'Invalid digit for binary number: 2'):
+                                'Invalid digit for binary number: \'2\'') as cm:
       s = self.make_scanner('0b102')
       tokens = s.pop_all()
+
+    self.assertIsInstance(cm.exception, scanner.ScanError)
+    self.assertIsInstance(cm.exception, Exception)
+    self.assertEqual(
+        str(cm.exception),
+        "ScanError: <fake>:1:5 Invalid digit for binary number: '2'")
 
   def test_negative_number_bin(self):
     s = self.make_scanner('-0b10')
@@ -111,10 +137,10 @@ class ScannerTest(absltest.TestCase):
     self.assertTrue(tokens[0].is_number('0b11_1100'), msg=str(tokens))
 
   def test_pos_lt(self):
-    self.assertLess(scanner.Pos('<fake>', 0, 0), scanner.Pos('<fake>', 0, 1))
-    self.assertLess(scanner.Pos('<fake>', 0, 0), scanner.Pos('<fake>', 1, 0))
+    self.assertLess(cpp_pos.Pos('<fake>', 0, 0), cpp_pos.Pos('<fake>', 0, 1))
+    self.assertLess(cpp_pos.Pos('<fake>', 0, 0), cpp_pos.Pos('<fake>', 1, 0))
     self.assertGreaterEqual(
-        scanner.Pos('<fake>', 0, 0), scanner.Pos('<fake>', 0, 0))
+        cpp_pos.Pos('<fake>', 0, 0), cpp_pos.Pos('<fake>', 0, 0))
 
   def test_scan_incomplete_number(self):
     with self.assertRaisesRegex(scanner.ScanError, 'Expected hex characters'):

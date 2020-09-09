@@ -39,8 +39,8 @@ from xls.dslx.parametric_expression import ParametricExpression
 from xls.dslx.parametric_instantiator import SymbolicBindings
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_ast_visitor
-from xls.dslx.python.cpp_ast import Span
 from xls.dslx.python.cpp_ast_visitor import visit
+from xls.dslx.python.cpp_pos import Span
 from xls.dslx.span import PositionalError
 from xls.ir.python import bits as bits_mod
 from xls.ir.python import fileno as fileno_mod

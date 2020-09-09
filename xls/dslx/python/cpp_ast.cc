@@ -340,46 +340,14 @@ std::vector<ExprHolder> WrapExprs(absl::Span<Expr* const> xs,
   return results;
 }
 
-std::string Repr(const Pos& pos) {
-  return absl::StrFormat("Pos(\"%s\", %d, %d)", pos.filename(), pos.lineno(),
-                         pos.colno());
-}
-
 PYBIND11_MODULE(cpp_ast, m) {
   py::enum_<BuiltinType>(m, "BuiltinType")
-#define VALUE(__enum, __pyattr, ...) .value(__pyattr, BuiltinType::__enum)
-      BUILTIN_TYPE_EACH(VALUE)
+#define VALUE(__enum, __pyattr, ...) .value(#__pyattr, BuiltinType::__enum)
+      XLS_DSLX_BUILTIN_TYPE_EACH(VALUE)
 #undef VALUE
           .export_values();
 
   m.def("is_constant", [](AstNodeHolder a) { return IsConstant(&a.deref()); });
-
-  // class Pos
-  py::class_<Pos>(m, "Pos")
-      .def(py::init<std::string, int64, int64>(), py::arg("filename"),
-           py::arg("lineno"), py::arg("colno"))
-      .def("bump_col", &Pos::BumpCol)
-      .def_property_readonly("filename", &Pos::filename)
-      .def_property_readonly("lineno", &Pos::lineno)
-      .def_property_readonly("colno", &Pos::colno)
-      .def("__eq__", &Pos::operator==)
-      .def("__ne__", &Pos::operator!=)
-      .def("__lt__", &Pos::operator<)  // NOLINT
-      .def("__ge__", &Pos::operator>=);
-  py::class_<Span>(m, "Span")
-      .def(py::init<Pos, Pos>())
-      .def("__eq__", &Span::operator==)
-      .def("__ne__", &Span::operator!=)
-      .def("__str__", &Span::ToString)
-      .def("__repr__",
-           [](const Span& span) {
-             return absl::StrFormat("Span(%s, %s)", Repr(span.start()),
-                                    Repr(span.limit()));
-           })
-      .def("clone_with_limit", &Span::CloneWithLimit)
-      .def_property_readonly("filename", &Span::filename)
-      .def_property_readonly("start", &Span::start)
-      .def_property_readonly("limit", &Span::limit);
 
   // class EnumMember
   py::class_<EnumMember>(m, "EnumMember")

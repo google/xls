@@ -20,8 +20,8 @@ from typing import Union, Text, Optional, Dict
 
 from xls.dslx.parse_error import ParseError
 from xls.dslx.python import cpp_ast as ast
-from xls.dslx.python.cpp_ast import Pos
-from xls.dslx.python.cpp_ast import Span
+from xls.dslx.python.cpp_pos import Pos
+from xls.dslx.python.cpp_pos import Span
 
 BoundNode = Union[ast.Enum, ast.TypeDef, ast.Constant, ast.NameDef,
                   ast.BuiltinNameDef, ast.Struct, ast.Import]

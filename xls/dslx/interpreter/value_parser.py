@@ -19,12 +19,13 @@
 from typing import Text
 
 from xls.common.xls_error import XlsError
-from xls.dslx import scanner as scanner_mod
+from xls.dslx import ast_helpers
 from xls.dslx.interpreter.value import Value
-from xls.dslx.scanner import Keyword
-from xls.dslx.scanner import ScanError
-from xls.dslx.scanner import Scanner
-from xls.dslx.scanner import TokenKind
+from xls.dslx.python import cpp_scanner as scanner_mod
+from xls.dslx.python.cpp_scanner import Keyword
+from xls.dslx.python.cpp_scanner import ScanError
+from xls.dslx.python.cpp_scanner import Scanner
+from xls.dslx.python.cpp_scanner import TokenKind
 
 
 class ValueParseError(XlsError):
@@ -39,8 +40,8 @@ def _bit_value_from_scanner(s: Scanner, signed: bool) -> Value:
   value_tok = s.pop_or_error(TokenKind.NUMBER)
   constructor = Value.make_sbits if signed else Value.make_ubits
   return constructor(
-      bit_count=bit_count_tok.get_value_as_int(),
-      value=value_tok.get_value_as_int())
+      bit_count=ast_helpers.get_token_value_as_int(bit_count_tok),
+      value=ast_helpers.get_token_value_as_int(value_tok))
 
 
 def value_from_scanner(s: Scanner) -> Value:
@@ -83,7 +84,9 @@ def value_from_scanner(s: Scanner) -> Value:
     signedness, bit_count = scanner_mod.TYPE_KEYWORDS_TO_SIGNEDNESS_AND_BITS[
         type_.value]
     constructor = Value.make_sbits if signedness else Value.make_ubits
-    return constructor(bit_count=bit_count, value=value_tok.get_value_as_int())
+    return constructor(
+        bit_count=bit_count,
+        value=ast_helpers.get_token_value_as_int(value_tok))
 
   raise ScanError(s.peek().span.start,
                   'Unexpected token in value; found {}'.format(s.peek().kind))

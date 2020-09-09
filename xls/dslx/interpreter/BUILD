@@ -29,7 +29,7 @@ py_library(
     srcs_version = "PY3",
     deps = [
         "//xls/dslx:span",
-        "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_pos",
     ],
 )
 
@@ -60,7 +60,7 @@ py_library(
     srcs_version = "PY3",
     deps = [
         ":errors",
-        "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_pos",
     ],
 )
 
@@ -71,7 +71,7 @@ py_library(
     deps = [
         ":array",
         ":bits",
-        "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_pos",
     ],
 )
 
@@ -82,7 +82,8 @@ py_library(
     deps = [
         ":value",
         "//xls/common:xls_error",
-        "//xls/dslx:scanner",
+        "//xls/dslx:ast_helpers",
+        "//xls/dslx/python:cpp_scanner",
     ],
 )
 
@@ -116,8 +117,8 @@ py_library(
     deps = [
         ":value",
         "//xls/dslx:parametric_instantiator",
-        "//xls/dslx:span",
         "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_pos",
     ],
 )
 
@@ -130,9 +131,9 @@ py_library(
         ":value",
         "//xls/dslx:bit_helpers",
         "//xls/dslx:concrete_type",
-        "//xls/dslx:scanner",
-        "//xls/dslx:span",
         "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_pos",
+        "//xls/dslx/python:cpp_scanner",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -151,14 +152,13 @@ py_library(
         "//xls/dslx:ast_helpers",
         "//xls/dslx:bit_helpers",
         "//xls/dslx:concrete_type",
-        "//xls/dslx:deduce",
         "//xls/dslx:import_fn",
         "//xls/dslx:ir_name_mangler",
         "//xls/dslx:parametric_expression",
         "//xls/dslx:parametric_instantiator",
-        "//xls/dslx:span",
         "//xls/dslx:type_info",
         "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_pos",
         "//xls/ir/python:package",
         "//xls/jit/python:llvm_ir_jit",
         "@com_google_absl_py//absl/logging",
@@ -213,15 +213,14 @@ py_library(
     srcs = ["parse_and_interpret.py"],
     srcs_version = "PY3",
     deps = [
-        ":bindings",
         ":interpreter",
         "//xls/dslx:import_routines",
         "//xls/dslx:ir_converter",
         "//xls/dslx:parser",
         "//xls/dslx:parser_helpers",
-        "//xls/dslx:scanner",
         "//xls/dslx:span",
         "//xls/dslx:typecheck",
+        "//xls/dslx/python:cpp_scanner",
     ],
 )
 
@@ -266,11 +265,11 @@ py_binary(
         "//xls/dslx:import_routines",
         "//xls/dslx:parser",
         "//xls/dslx:parser_helpers",
-        "//xls/dslx:scanner",
         "//xls/dslx:span",
         "//xls/dslx:typecheck",
         "//xls/dslx:xls_type_error",
-        "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_pos",
+        "//xls/dslx/python:cpp_scanner",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
     ],

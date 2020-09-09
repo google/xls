@@ -28,7 +28,7 @@ from xls.dslx import parser_helpers
 from xls.dslx import typecheck
 from xls.dslx.interpreter.interpreter import Interpreter
 from xls.dslx.parser import Parser
-from xls.dslx.scanner import Scanner
+from xls.dslx.python.cpp_scanner import Scanner
 from xls.dslx.span import PositionalError
 
 

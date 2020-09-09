@@ -20,8 +20,8 @@ from xls.dslx.parametric_expression import ParametricAdd
 from xls.dslx.parametric_expression import ParametricConstant
 from xls.dslx.parametric_expression import ParametricMul
 from xls.dslx.parametric_expression import ParametricSymbol
-from xls.dslx.python.cpp_ast import Pos
-from xls.dslx.python.cpp_ast import Span
+from xls.dslx.python.cpp_pos import Pos
+from xls.dslx.python.cpp_pos import Span
 from absl.testing import absltest
 
 

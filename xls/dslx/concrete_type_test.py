@@ -1,4 +1,5 @@
 # Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,8 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# Lint as: python3
 
 """Tests for xls.dslx.concrete_type."""
 
@@ -23,8 +22,8 @@ from xls.dslx.concrete_type import BitsType
 from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.concrete_type import TupleType
 from xls.dslx.parametric_expression import ParametricSymbol
-from xls.dslx.python.cpp_ast import Pos
-from xls.dslx.python.cpp_ast import Span
+from xls.dslx.python.cpp_pos import Pos
+from xls.dslx.python.cpp_pos import Span
 
 
 class ConcreteTypeTest(absltest.TestCase):

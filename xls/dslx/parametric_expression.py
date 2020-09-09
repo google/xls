@@ -29,7 +29,7 @@ via `ParametricExpression.evaluate()`.
 import abc
 from typing import Text, Dict, Set, Union
 
-from xls.dslx.python.cpp_ast import Span
+from xls.dslx.python.cpp_pos import Span
 
 
 class ParametricExpression(abc.ABC):

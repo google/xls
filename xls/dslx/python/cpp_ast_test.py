@@ -14,18 +14,19 @@
 """Tests for xls.dslx.python.cpp_ast."""
 
 from xls.dslx.python import cpp_ast
+from xls.dslx.python import cpp_pos
 from absl.testing import absltest
 
 
 class CppAstTest(absltest.TestCase):
 
-  fake_pos = cpp_ast.Pos('fake.x', 0, 0)
-  fake_span = cpp_ast.Span(fake_pos, fake_pos)
+  fake_pos = cpp_pos.Pos('fake.x', 0, 0)
+  fake_span = cpp_pos.Span(fake_pos, fake_pos)
 
   def test_simple_span(self):
-    start = cpp_ast.Pos('fake.x', 1, 2)
-    limit = cpp_ast.Pos('fake.x', 3, 4)
-    span = cpp_ast.Span(start, limit)
+    start = cpp_pos.Pos('fake.x', 1, 2)
+    limit = cpp_pos.Pos('fake.x', 3, 4)
+    span = cpp_pos.Span(start, limit)
     self.assertEqual(str(span), 'fake.x:2:3-4:5')
 
   def test_module_with_constant(self):

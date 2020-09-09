@@ -20,12 +20,12 @@ from xls.common import test_base
 from xls.dslx import ast_helpers
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_ast_visitor
-from xls.dslx.python.cpp_ast import Pos
-from xls.dslx.python.cpp_ast import Span
 from xls.dslx.python.cpp_ast_visitor import visit
-from xls.dslx.scanner import Keyword
-from xls.dslx.scanner import Token
-from xls.dslx.scanner import TokenKind
+from xls.dslx.python.cpp_pos import Pos
+from xls.dslx.python.cpp_pos import Span
+from xls.dslx.python.cpp_scanner import Keyword
+from xls.dslx.python.cpp_scanner import Token
+from xls.dslx.python.cpp_scanner import TokenKind
 
 
 class _Collector(cpp_ast_visitor.AstVisitor):
@@ -74,16 +74,14 @@ class AstTest(test_base.TestCase):
     number_5 = ast.Number(m, fake_span, '5')
     number_2 = ast.Number(m, fake_span, '2')
     number_3 = ast.Number(m, fake_span, '3')
-    bits_token = Token(TokenKind.KEYWORD, value=Keyword.BITS, span=fake_span)
+    bits_token = Token(value=Keyword.BITS, span=fake_span)
 
     type_ = ast_helpers.make_builtin_type_annotation(m, fake_span, bits_token,
                                                      (number_5,))
     self.assertEqual('bits[5]', str(type_))
 
     type_ = ast_helpers.make_builtin_type_annotation(
-        m, fake_span,
-        Token(TokenKind.KEYWORD, value=Keyword.U32,
-              span=fake_span), (number_5,))
+        m, fake_span, Token(value=Keyword.U32, span=fake_span), (number_5,))
     self.assertEqual('u32[5]', str(type_))
 
     # "no-volume" bits array.
@@ -115,7 +113,7 @@ class AstTest(test_base.TestCase):
     t = ast_helpers.make_builtin_type_annotation(
         self.m,
         fake_span,
-        Token(TokenKind.KEYWORD, value=Keyword.BITS, span=fake_span),
+        Token(value=Keyword.BITS, span=fake_span),
         dims=(five,))
     assert isinstance(t, ast.ArrayTypeAnnotation), t
 
@@ -213,9 +211,9 @@ class AstTest(test_base.TestCase):
     number_5 = ast.Number(m, fake_span, '5')
     number_2 = ast.Number(m, fake_span, '2')
     number_3 = ast.Number(m, fake_span, '3')
-    bits_token = Token(TokenKind.KEYWORD, value=Keyword.BITS, span=fake_span)
-    un_token = Token(TokenKind.KEYWORD, value=Keyword.UN, span=fake_span)
-    u32_token = Token(TokenKind.KEYWORD, value=Keyword.U32, span=fake_span)
+    bits_token = Token(value=Keyword.BITS, span=fake_span)
+    un_token = Token(value=Keyword.UN, span=fake_span)
+    u32_token = Token(value=Keyword.U32, span=fake_span)
 
     type_ = ast_helpers.make_builtin_type_annotation(m, fake_span, bits_token,
                                                      (number_5,))

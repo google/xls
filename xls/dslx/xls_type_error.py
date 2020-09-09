@@ -19,7 +19,7 @@
 from typing import Text, Optional, Any, Tuple
 
 from xls.dslx.concrete_type import ConcreteType
-from xls.dslx.python import cpp_ast
+from xls.dslx.python import cpp_pos
 from xls.dslx.span import PositionalError
 
 
@@ -27,7 +27,7 @@ class XlsTypeError(PositionalError):
   """Error that is raised when there is a type checking error for DSLX code."""
 
   def __init__(self,
-               span: cpp_ast.Span,
+               span: cpp_pos.Span,
                lhs_type: Optional[ConcreteType],
                rhs_type: Optional[ConcreteType],
                suffix: Text = ''):
@@ -56,7 +56,7 @@ class TypeInferenceError(PositionalError):
   """
 
   def __init__(self,
-               span: cpp_ast.Span,
+               span: cpp_pos.Span,
                type_: Optional[Any] = None,
                suffix: Text = ''):
     msg = 'Could not infer type{}{} @ {}'.format(
@@ -70,7 +70,7 @@ class TypeInferenceError(PositionalError):
 class ArgCountMismatchError(PositionalError):
   """Raised when argument count != parameter count in an invocation."""
 
-  def __init__(self, span: cpp_ast.Span, arg_types: Tuple[ConcreteType, ...],
+  def __init__(self, span: cpp_pos.Span, arg_types: Tuple[ConcreteType, ...],
                param_count: int, param_types: Optional[Tuple[ConcreteType,
                                                              ...]],
                suffix: Optional[Text]):

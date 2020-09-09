@@ -29,22 +29,20 @@ from xls.dslx import concrete_type as concrete_type_mod
 from xls.dslx import import_routines
 from xls.dslx import parser
 from xls.dslx import parser_helpers
-from xls.dslx import scanner
 from xls.dslx import span
 from xls.dslx import typecheck
 from xls.dslx import xls_type_error
 from xls.dslx.interpreter import interpreter as interpreter_mod
 from xls.dslx.interpreter import value as value_mod
-from xls.dslx.python import cpp_ast
+from xls.dslx.python import cpp_pos
+from xls.dslx.python import cpp_scanner as scanner
 
 FLAGS = flags.FLAGS
 FILENAME = '/fake/repl.x'
-FAKE_POS = cpp_ast.Pos(FILENAME, 0, 0)
-FAKE_SPAN = cpp_ast.Span(FAKE_POS, FAKE_POS)
-UN_KEYWORD = scanner.Token(scanner.TokenKind.KEYWORD, FAKE_SPAN,
-                           scanner.Keyword.UN)
-SN_KEYWORD = scanner.Token(scanner.TokenKind.KEYWORD, FAKE_SPAN,
-                           scanner.Keyword.SN)
+FAKE_POS = cpp_pos.Pos(FILENAME, 0, 0)
+FAKE_SPAN = cpp_pos.Span(FAKE_POS, FAKE_POS)
+UN_KEYWORD = scanner.Token(FAKE_SPAN, scanner.Keyword.UN)
+SN_KEYWORD = scanner.Token(FAKE_SPAN, scanner.Keyword.SN)
 
 
 def handle_line(line: str, stmt_index: int):

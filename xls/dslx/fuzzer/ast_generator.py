@@ -23,10 +23,10 @@ from typing import Tuple, TypeVar, Text, Dict, Callable, Sequence, Optional
 from xls.common import memoize
 from xls.dslx import ast_helpers
 from xls.dslx import bit_helpers
-from xls.dslx import scanner
 from xls.dslx.python import cpp_ast as ast
-from xls.dslx.python.cpp_ast import Pos
-from xls.dslx.python.cpp_ast import Span
+from xls.dslx.python import cpp_scanner as scanner
+from xls.dslx.python.cpp_pos import Pos
+from xls.dslx.python.cpp_pos import Span
 
 T = TypeVar('T')
 U = TypeVar('U')
@@ -169,13 +169,9 @@ class AstGenerator(object):
 
   def _generate_type_primitive(self) -> scanner.Token:
     """Generates a primitive type token for use in building a type."""
-    # Exclude "bits" from the primitive set because it's unclear what a bits[]
-    # represents.
-    #
-    # TODO(leary): 2019-06-14 Define this!
     kw_identifier = self.rng.choice(self._kw_identifiers)
-    return scanner.Token(scanner.TokenKind.KEYWORD, self.fake_span,
-                         scanner.Keyword(kw_identifier))
+    return scanner.Token(self.fake_span,
+                         scanner.KeywordFromString(kw_identifier))
 
   def _make_type_annotation(self, signed: bool,
                             width: int) -> ast.TypeAnnotation:
@@ -578,7 +574,6 @@ class AstGenerator(object):
     element_type = ast_helpers.make_builtin_type_annotation(
         self.m, self.fake_span,
         scanner.Token(
-            scanner.TokenKind.KEYWORD,
             value=scanner.Keyword.UN,
             span=self.fake_span), (self._make_number(element_size, None),))
 

@@ -18,13 +18,13 @@
 """Base error for positional errors in the source text."""
 
 from xls.common.xls_error import XlsError
-from xls.dslx.python import cpp_ast
+from xls.dslx.python import cpp_pos
 
 
 class PositionalError(XlsError):
   """An XLS error that's associated with a span position in source text."""
 
-  def __init__(self, message: str, span: cpp_ast.Span):
+  def __init__(self, message: str, span: cpp_pos.Span):
     super(PositionalError, self).__init__(message)
     self.span = span
     self.printed = False

@@ -17,6 +17,7 @@
 
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_ast_visitor
+from xls.dslx.python import cpp_pos
 from absl.testing import absltest
 
 
@@ -34,8 +35,8 @@ class Collector(cpp_ast_visitor.AstVisitor):
 
 class CppAstVisitorTest(absltest.TestCase):
 
-  fake_pos = ast.Pos('fake.x', 0, 0)
-  fake_span = ast.Span(fake_pos, fake_pos)
+  fake_pos = cpp_pos.Pos('fake.x', 0, 0)
+  fake_span = cpp_pos.Span(fake_pos, fake_pos)
 
   def test_simple_number(self):
     m = ast.Module('test')

@@ -16,27 +16,27 @@
 
 """Array data held in the "guts" of an array Value."""
 
-from typing import Text, Any, Tuple, Optional
+from typing import Any, Tuple, Optional
 
 from xls.dslx.interpreter import errors
-from xls.dslx.python.cpp_ast import Span
+from xls.dslx.python.cpp_pos import Span
 
 Value = Any
 
 
-class Array(object):
+class Array:
   """Represents an array of interpreter values (e.g. bits or other arrays)."""
 
   def __init__(self, elements: Tuple[Value, ...]):
     self.elements = elements
 
-  def __str__(self) -> Text:
+  def __str__(self) -> str:
     return '[{}]'.format(', '.join(str(e) for e in self.elements))
 
-  def to_human_str(self) -> Text:
+  def to_human_str(self) -> str:
     return '[{}]'.format(', '.join(e.to_human_str() for e in self.elements))
 
-  def __repr__(self) -> Text:
+  def __repr__(self) -> str:
     return 'Array(({},))'.format(', '.join(
         '{!r}'.format(e) for e in self.elements))
 
