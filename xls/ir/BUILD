@@ -784,20 +784,38 @@ cc_test(
     ],
 )
 
-cc_proto_library(
-    name = "xls_type_cc_proto",
-    deps = [":xls_type_proto"],
-)
-
 proto_library(
     name = "xls_type_proto",
     srcs = ["xls_type.proto"],
+)
+
+cc_proto_library(
+    name = "xls_type_cc_proto",
+    deps = [":xls_type_proto"],
 )
 
 xls_py_proto_library(
     name = "xls_type_py_pb2",
     srcs = ["xls_type.proto"],
     internal_deps = [":xls_type_proto"],
+)
+
+proto_library(
+    name = "channel_proto",
+    srcs = ["channel.proto"],
+)
+
+cc_proto_library(
+    name = "channel_cc_proto",
+    deps = [":channel_proto"],
+)
+
+xls_py_proto_library(
+    name = "channel_py_pb2",
+    srcs = ["channel.proto"],
+    internal_deps = [
+        ":channel_proto",
+    ],
 )
 
 cc_library(
@@ -884,6 +902,20 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "channel",
+    srcs = ["channel.cc"],
+    hdrs = ["channel.h"],
+    deps = [
+        ":channel_cc_proto",
+        ":type",
+        "//xls/common:integral_types",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
 cc_test(
     name = "value_view_test",
     srcs = ["value_view_test.cc"],
@@ -945,6 +977,17 @@ cc_test(
     deps = [
         ":ir",
         ":ir_test_base",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "channel_test",
+    srcs = ["channel_test.cc"],
+    deps = [
+        ":channel",
+        ":ir",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
     ],
