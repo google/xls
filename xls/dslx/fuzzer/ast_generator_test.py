@@ -34,7 +34,7 @@ class AstGeneratorTest(absltest.TestCase):
     for i in range(32):
       print('Generating sample', i)
       _, m = g.generate_function_in_module('main', 'test')
-      text = m.format()
+      text = str(m)
       filename = '/fake/test_sample.x'
       with fakefs_test_util.scoped_fakefs(filename, text):
         try:
@@ -49,7 +49,7 @@ class AstGeneratorTest(absltest.TestCase):
 
     def generate_one(g):
       _, m = g.generate_function_in_module('main', 'test')
-      text = m.format()
+      text = str(m)
       return text
 
     count_to_generate = 128

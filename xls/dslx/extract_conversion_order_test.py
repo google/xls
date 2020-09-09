@@ -18,9 +18,9 @@
 
 from typing import Text, Tuple
 
+from xls.dslx.python import cpp_ast as ast
 from absl.testing import absltest
 from xls.common import test_base
-from xls.dslx import ast
 from xls.dslx import extract_conversion_order
 from xls.dslx import fakefs_test_util
 from xls.dslx import parse_and_typecheck

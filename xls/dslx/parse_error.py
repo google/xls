@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,12 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """Positional parse error class for errors during parsing."""
 
-from typing import Text
+from xls.dslx.python import cpp_ast
 from xls.dslx.span import PositionalError
-from xls.dslx.span import Span
 
 
 class ParseError(PositionalError):
@@ -27,6 +27,6 @@ class ParseError(PositionalError):
     span: Span in the text at which the parse error occurred.
   """
 
-  def __init__(self, span: Span, message: Text):
+  def __init__(self, span: cpp_ast.Span, message: str):
     super(ParseError, self).__init__('{} @ {}'.format(message, span), span)
     self.span = span

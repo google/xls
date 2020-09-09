@@ -21,12 +21,12 @@ import random
 
 from typing import Tuple, TypeVar, Text, Dict, Callable, Sequence, Optional
 from xls.common import memoize
-from xls.dslx import ast
 from xls.dslx import ast_helpers
 from xls.dslx import bit_helpers
 from xls.dslx import scanner
-from xls.dslx.span import Pos
-from xls.dslx.span import Span
+from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python.cpp_ast import Pos
+from xls.dslx.python.cpp_ast import Span
 
 T = TypeVar('T')
 U = TypeVar('U')
@@ -66,7 +66,7 @@ def builtin_type_to_bits(type_annotation: ast.TypeAnnotation) -> int:
     dim = type_annotation.dim
     assert isinstance(dim, ast.Number), dim
     return builtin_type_to_bits(
-        type_annotation.element_type) * dim.get_value_as_int()
+        type_annotation.element_type) * ast_helpers.get_value_as_int(dim)
 
   assert isinstance(type_annotation,
                     ast.BuiltinTypeAnnotation), repr(type_annotation)
@@ -109,13 +109,13 @@ class AstGenerator(object):
     self.name_generator = self._name_generator()
     if options.binop_allowlist:
       assert all(
-          binop in ast.BinopKind.SAME_TYPE_KIND_LIST
+          binop in ast_helpers.BINOP_SAME_TYPE_KIND_LIST
           for binop in options.binop_allowlist
       ), 'Contains invalid TokenKinds for same-type binop allowlist: {}'.format(
           options.binop_allowlist)
       self._binops = options.binop_allowlist
     else:
-      self._binops = list(ast.BinopKind.SAME_TYPE_KIND_LIST)
+      self._binops = list(ast_helpers.BINOP_SAME_TYPE_KIND_LIST)
       if options.disallow_divide:
         self._binops.remove(ast.BinopKind.DIV)
 
@@ -181,8 +181,8 @@ class AstGenerator(object):
                             width: int) -> ast.TypeAnnotation:
     assert width > 0, width
     if width <= 64:
-      return ast.BuiltinTypeAnnotation(self.m, self.fake_span,
-                                       ast.BuiltinType.get(signed, width))
+      return ast.BuiltinTypeAnnotation(
+          self.m, self.fake_span, ast_helpers.get_builtin_type(signed, width))
     raise NotImplementedError(signed, width)
 
   def _get_type_bit_count(self, type_: ast.TypeAnnotation) -> int:
@@ -225,7 +225,7 @@ class AstGenerator(object):
     assert isinstance(array_type, ast.ArrayTypeAnnotation), array_type
     dim = array_type.dim
     assert isinstance(dim, ast.Number), dim
-    return dim.get_value_as_int()
+    return ast_helpers.get_value_as_int(dim)
 
   def _generate_primitive_type(self) -> ast.TypeAnnotation:
     """Generates a random primitive-based type (no extra dims or tuples)."""
@@ -288,11 +288,11 @@ class AstGenerator(object):
       input_type: ast.TypeAnnotation) -> Tuple[ast.Binop, ast.TypeAnnotation]:
     """Generates a binary operator on lhs/rhs which have the same input type."""
     if self.rng.random() < 0.1:
-      op = self.rng.choice(ast.BinopKind.COMPARISON_KIND_LIST)
+      op = self.rng.choice(ast_helpers.BINOP_COMPARISON_KIND_LIST)
       output_type = self._make_type_annotation(False, 1)
     else:
       op = self.rng.choice(self._binops)
-      if op in ast.BinopKind.SHIFTS and self.rng.random() < 0.8:
+      if op in ast_helpers.BINOP_SHIFTS and self.rng.random() < 0.8:
         # Clamp the RHS to be in range most of the time.
         assert isinstance(input_type, ast.BuiltinTypeAnnotation), input_type
         bit_count = builtin_type_to_bits(input_type)
@@ -330,6 +330,9 @@ class AstGenerator(object):
   def _is_builtin_unsigned(self, t: ast.TypeAnnotation) -> bool:
     return isinstance(t, ast.BuiltinTypeAnnotation) and not t.signedness
 
+  def _is_builtin_bool(self, t: ast.TypeAnnotation) -> bool:
+    return str(t) == 'bool'
+
   def _env_contains_array(self, env: Env) -> bool:
     return any(
         isinstance(type_, ast.ArrayTypeAnnotation)
@@ -364,11 +367,11 @@ class AstGenerator(object):
     if self.rng.choice([True, False]):
       # Cast RHS to LHS type.
       lhs = make_lhs()
-      rhs = ast.Cast(self.m, lhs_type, make_rhs())
+      rhs = ast.Cast(self.m, self.fake_span, lhs_type, make_rhs())
       result_type = lhs_type
     else:
       # Cast LHS to RHS type.
-      lhs = ast.Cast(self.m, rhs_type, make_lhs())
+      lhs = ast.Cast(self.m, self.fake_span, rhs_type, make_lhs())
       rhs = make_rhs()
       result_type = rhs_type
 
@@ -388,7 +391,7 @@ class AstGenerator(object):
     """
     type_name = self.gensym()
     name_def = self._make_name_def(type_name)
-    type_def = ast.TypeDef(self.m, False, name_def, type_)
+    type_def = ast.TypeDef(self.m, name_def, type_, False)
     type_ref = ast.TypeRef(self.m, self.fake_span, type_name, type_def)
     self._type_defs.append(type_def)
     self._type_bit_counts[str(type_ref)] = self._get_type_bit_count(type_)
@@ -473,7 +476,7 @@ class AstGenerator(object):
 
   def _generate_unop(self, env: Env) -> Tuple[ast.Unop, ast.TypeAnnotation]:
     make_arg, arg_type = self._choose_env_value(env, self._not_tuple_or_array)
-    op = self.rng.choice(ast.UnopKind.SAME_TYPE_KIND_LIST)
+    op = self.rng.choice(ast_helpers.UNOP_SAME_TYPE_KIND_LIST)
     return ast.Unop(self.m, self.fake_span, op, make_arg()), arg_type
 
   def _generate_unop_builtin(
@@ -581,7 +584,8 @@ class AstGenerator(object):
 
     outer_array_type = self._make_array_type(element_type, array_size)
 
-    return (ast.Cast(self.m, outer_array_type, make_arg()), outer_array_type)
+    return (ast.Cast(self.m, self.fake_span, outer_array_type,
+                     make_arg()), outer_array_type)
 
   def _generate_array_concat(self,
                              env: Env) -> Tuple[ast.Expr, ast.TypeAnnotation]:
@@ -648,8 +652,12 @@ class AstGenerator(object):
   def _make_number(self, value: int,
                    type_: Optional[ast.TypeAnnotation]) -> ast.Number:
     """Creates a number AST node with value 'value' of type 'type_'."""
-    return ast.Number(self.m, self.fake_span,
-                      hex(value).rstrip('L'), ast.NumberKind.OTHER, type_)
+    if self._is_builtin_bool(type_):
+      assert 0 <= value <= 1, value
+      return ast.Number(self.m, self.fake_span, 'true' if value else 'false',
+                        ast.NumberKind.BOOL, type_)
+    return ast.Number(self.m, self.fake_span, hex(value), ast.NumberKind.OTHER,
+                      type_)
 
   def _make_bool(self, value: bool) -> ast.Number:
     return self._make_number(int(value), self._make_type_annotation(False, 1))
@@ -813,11 +821,11 @@ class AstGenerator(object):
       name_def_tree = ast.NameDefTree(self.m, self.fake_span, name_def)
       let = ast.Let(
           self.m,
+          self.fake_span,
           name_def_tree,
           rhs_type,
           rhs,
           body,
-          self.fake_span,
           const=None)
       return let, body_type
     else:  # Should not nest any more -- select return values.

@@ -30,7 +30,6 @@ from typing import Text, Optional, Dict, Tuple, Callable, Sequence, Union
 from absl import logging
 import termcolor
 
-from xls.dslx import ast
 from xls.dslx import ast_helpers
 from xls.dslx import bit_helpers
 from xls.dslx import import_fn
@@ -58,8 +57,9 @@ from xls.dslx.parametric_expression import ParametricAdd
 from xls.dslx.parametric_expression import ParametricExpression
 from xls.dslx.parametric_expression import ParametricSymbol
 from xls.dslx.parametric_instantiator import SymbolicBindings
-from xls.dslx.span import Pos
-from xls.dslx.span import Span
+from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python.cpp_ast import Pos
+from xls.dslx.python.cpp_ast import Span
 from xls.ir.python import package as ir_package_mod
 from xls.jit.python import llvm_ir_jit
 
@@ -115,12 +115,14 @@ class Interpreter(object):
 
   def _get_enum_values(self, type_: ConcreteType,
                        bindings: Bindings) -> Optional[Tuple[Value, ...]]:
+    """Retrieves the flat/evaluated members of enum if type_ is an EnumType."""
     if not isinstance(type_, EnumType):
       return None
 
     enum = type_.nominal_type
     result = []
-    for _, value in enum.values:
+    for member in enum.values:
+      _, value = member.get_name_value(enum)
       result.append(self._evaluate(value, bindings))
     return tuple(result)
 
@@ -350,10 +352,11 @@ class Interpreter(object):
     if isinstance(dim, int):
       return dim
     if isinstance(dim, ast.Number):
-      return dim.get_value_as_int()
+      return ast_helpers.get_value_as_int(dim)
     if isinstance(dim, (ParametricSymbol, ast.ConstRef, ast.NameRef)):
+      identifier = dim.identifier  # pytype: disable=attribute-error
       return bindings.resolve_value_from_identifier(
-          dim.identifier).get_bits_value_signed()
+          identifier).get_bits_value_signed()
     if isinstance(dim, ParametricAdd):
       return (self._resolve_dim(dim.lhs, bindings) +
               self._resolve_dim(dim.rhs, bindings))
@@ -420,7 +423,7 @@ class Interpreter(object):
     bit_count = type_context.get_total_bit_count()
     signed = type_context.signed  # pytype: disable=attribute-error
     constructor = Value.make_sbits if signed else Value.make_ubits
-    return constructor(bit_count, expr.get_value_as_int())
+    return constructor(bit_count, ast_helpers.get_value_as_int(expr))
 
   def _evaluate_to_struct_or_enum_or_annotation(
       self, node: Union[ast.TypeDef, ast.ModRef, ast.Struct],

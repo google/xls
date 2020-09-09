@@ -20,13 +20,13 @@ import io
 import textwrap
 from typing import Text, Optional, cast, Callable, TypeVar, Sequence, Any
 
-from xls.dslx import ast
 from xls.dslx import fakefs_test_util
 from xls.dslx import parser
 from xls.dslx import parser_helpers
 from xls.dslx import scanner
-from xls.dslx.span import Pos
-from xls.dslx.span import Span
+from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python.cpp_ast import Pos
+from xls.dslx.python.cpp_ast import Span
 from absl.testing import absltest
 
 
@@ -77,6 +77,7 @@ class ParserTest(absltest.TestCase):
   def test_let_expression(self):
     e = self.parse_expression('let x: u32 = 2; x')
     self.assertIsInstance(e, ast.Let)
+    self.assertIsInstance(e.name_def_tree.tree, ast.NameDef)
     self.assertEqual(e.name_def_tree.tree.identifier, 'x')
     self.assertIsInstance(e.type_, ast.TypeAnnotation)
     self.assertEqual(str(e.type_), 'u32')
@@ -107,8 +108,7 @@ proc simple(addend: u32) {
     self.assertIsInstance(f, ast.Function)
     self.assertIsInstance(f.body, ast.Binop)
     self.assertIsInstance(f.body.lhs, ast.NameRef)
-    self.assertIs(f.body.lhs.name_def, f.params[0].name)
-    self.assertIs(f.body.rhs.name_def, f.params[1].name)
+    self.assertLen(f.params, 2)
     self.assertIsInstance(f.body.rhs, ast.NameRef)
     self.assertEqual(f.body.lhs.identifier, 'x')
     self.assertEqual(f.body.rhs.identifier, 'y')
@@ -190,7 +190,7 @@ proc simple(addend: u32) {
     /fake/test_file.x:2-4
       0002: whoops
     * 0003: I did an
-            ^^ This is bad @ /fake/test_file.x:3:1
+            ^^ This is bad @ /fake/test_file.x:3:1-3:2
       0004: error somewhere
     """)
     self.assertMultiLineEqual(expected, output.getvalue())
@@ -213,7 +213,6 @@ proc simple(addend: u32) {
     self.assertIsInstance(e.body.rhs, ast.For)
     for_ = e.body.rhs
     self.assertIsInstance(for_.init, ast.NameRef)
-    self.assertIs(for_.init.name_def, e.name_def_tree.get_leaf())
     self.assertIsNot(for_.init.name_def, for_.names.tree[1].get_leaf())
 
   def test_for_freevars(self):
@@ -279,8 +278,7 @@ proc simple(addend: u32) {
     self.assertIsInstance(m.top[0], ast.Enum)
     enum = m.top[0]
     self.assertEqual(enum.name.identifier, 'MyEnum')
-    self.assertEqual([t[0].identifier for t in enum.values],
-                     ['A', 'B', 'C', 'D'])
+    self.assertEqual([v.identifier for v in enum.values], ['A', 'B', 'C', 'D'])
 
   def test_logical_equality(self):
     b = parser.Bindings(None)
@@ -556,7 +554,8 @@ proc simple(addend: u32) {
       fn tuple_assign(x: u32, y: u32) -> (u32) {
         // We don't have compound expressions yet, so the use of
         // curly braces should result in an error.
-        let (i, i): Tuple2 = (x, y) in {
+        let (i, i): Tuple2 = (x, y);
+        {
              i
         }
       }"""
@@ -812,6 +811,13 @@ proc simple(addend: u32) {
     """
     m = self.parse_module(program)
     f = m.get_function('f')
+    self.assertIsInstance(f, ast.Function)
+    self.assertEqual(
+        str(f),
+        textwrap.dedent("""\
+    fn f(x: u32) -> u8 {
+      (id(x))[0:8]
+    }"""))
     self.assertIsInstance(f.body, ast.Index)
     self.assertIsInstance(f.body.lhs, ast.Invocation)
     self.assertIsInstance(f.body.index, ast.Slice)
@@ -930,7 +936,11 @@ proc simple(addend: u32) {
     }
     """
     m = self.parse_module(program)
-    c = m.get_typedef_by_name()['Point']
+    self.assertLen(m.top, 1)
+
+    typedef_by_name = m.get_typedef_by_name()
+    self.assertIn('Point', typedef_by_name)
+    c = typedef_by_name['Point']
     self.assertIsInstance(c, ast.Struct)
 
   def test_struct_with_access_fn(self):

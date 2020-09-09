@@ -11,4 +11,3 @@ termcolor==1.1.0
 psutil==5.7.0
 portpicker==1.3.1
 pyfakefs==4.0.2
-aenum==2.1.2

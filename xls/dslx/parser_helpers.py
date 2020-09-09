@@ -25,10 +25,10 @@ from typing import Text, Optional, Callable
 
 import termcolor
 
-from xls.dslx import ast
 from xls.dslx import parser
 from xls.dslx import scanner
 from xls.dslx import span as span_mod
+from xls.dslx.python import cpp_ast as ast
 
 
 def pprint_positional_error(error: span_mod.PositionalError,

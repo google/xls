@@ -17,8 +17,9 @@
 """Tests for xls.dslx.xls_type_error."""
 
 from xls.common import test_base
-from xls.dslx import span
 from xls.dslx.concrete_type import BitsType
+from xls.dslx.python.cpp_ast import Pos
+from xls.dslx.python.cpp_ast import Span
 from xls.dslx.xls_type_error import XlsTypeError
 
 
@@ -27,8 +28,8 @@ class XlsTypeErrorTest(test_base.TestCase):
   def test_stringify(self):
     # Test without a suffix.
     t = BitsType(signed=False, size=3)
-    fake_pos = span.Pos('<fake>', 9, 10)
-    fake_span = span.Span(fake_pos, fake_pos)
+    fake_pos = Pos('<fake>', 9, 10)
+    fake_span = Span(fake_pos, fake_pos)
     e = XlsTypeError(fake_span, t, t)
     self.assertEndsWith(str(e), '@ <fake>:10:11-10:11')
 

@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,21 +14,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """Defines the type error that DSLX can produce during type checking."""
 
 from typing import Text, Optional, Any, Tuple
 
 from xls.dslx.concrete_type import ConcreteType
+from xls.dslx.python import cpp_ast
 from xls.dslx.span import PositionalError
-from xls.dslx.span import Span
 
 
 class XlsTypeError(PositionalError):
   """Error that is raised when there is a type checking error for DSLX code."""
 
   def __init__(self,
-               span: Span,
+               span: cpp_ast.Span,
                lhs_type: Optional[ConcreteType],
                rhs_type: Optional[ConcreteType],
                suffix: Text = ''):
@@ -55,7 +56,7 @@ class TypeInferenceError(PositionalError):
   """
 
   def __init__(self,
-               span: Span,
+               span: cpp_ast.Span,
                type_: Optional[Any] = None,
                suffix: Text = ''):
     msg = 'Could not infer type{}{} @ {}'.format(
@@ -69,10 +70,10 @@ class TypeInferenceError(PositionalError):
 class ArgCountMismatchError(PositionalError):
   """Raised when argument count != parameter count in an invocation."""
 
-  def __init__(self, span: Span, arg_types: Tuple[ConcreteType,
-                                                  ...], param_count: int,
-               param_types: Optional[Tuple[ConcreteType,
-                                           ...]], suffix: Optional[Text]):
+  def __init__(self, span: cpp_ast.Span, arg_types: Tuple[ConcreteType, ...],
+               param_count: int, param_types: Optional[Tuple[ConcreteType,
+                                                             ...]],
+               suffix: Optional[Text]):
     self.arg_types = arg_types
     self.param_types = param_types
     parameters_str = ' parameters: [{}];'.format(', '.join(

@@ -27,7 +27,10 @@ py_library(
     name = "errors",
     srcs = ["errors.py"],
     srcs_version = "PY3",
-    deps = ["//xls/dslx:span"],
+    deps = [
+        "//xls/dslx:span",
+        "//xls/dslx/python:cpp_ast",
+    ],
 )
 
 py_library(
@@ -57,7 +60,7 @@ py_library(
     srcs_version = "PY3",
     deps = [
         ":errors",
-        "//xls/dslx:span",
+        "//xls/dslx/python:cpp_ast",
     ],
 )
 
@@ -68,7 +71,7 @@ py_library(
     deps = [
         ":array",
         ":bits",
-        "//xls/dslx:span",
+        "//xls/dslx/python:cpp_ast",
     ],
 )
 
@@ -112,9 +115,9 @@ py_library(
     srcs_version = "PY3",
     deps = [
         ":value",
-        "//xls/dslx:ast",
         "//xls/dslx:parametric_instantiator",
         "//xls/dslx:span",
+        "//xls/dslx/python:cpp_ast",
     ],
 )
 
@@ -125,11 +128,11 @@ py_library(
     deps = [
         ":errors",
         ":value",
-        "//xls/dslx:ast",
         "//xls/dslx:bit_helpers",
         "//xls/dslx:concrete_type",
         "//xls/dslx:scanner",
         "//xls/dslx:span",
+        "//xls/dslx/python:cpp_ast",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -145,7 +148,6 @@ py_library(
         ":jit_comparison",
         ":value",
         requirement("termcolor"),
-        "//xls/dslx:ast",
         "//xls/dslx:ast_helpers",
         "//xls/dslx:bit_helpers",
         "//xls/dslx:concrete_type",
@@ -156,6 +158,7 @@ py_library(
         "//xls/dslx:parametric_instantiator",
         "//xls/dslx:span",
         "//xls/dslx:type_info",
+        "//xls/dslx/python:cpp_ast",
         "//xls/ir/python:package",
         "//xls/jit/python:llvm_ir_jit",
         "@com_google_absl_py//absl/logging",
@@ -167,7 +170,6 @@ py_library(
     srcs = ["jit_comparison.py"],
     srcs_version = "PY3",
     deps = [
-        "//xls/dslx:ast",
         "//xls/dslx:bit_helpers",
         "//xls/dslx:concrete_type",
         "//xls/dslx/interpreter:value",
@@ -200,9 +202,9 @@ py_library(
     deps = [
         ":bindings",
         ":interpreter",
-        "//xls/dslx:ast",
         "//xls/dslx:deduce",
         "//xls/dslx:type_info",
+        "//xls/dslx/python:cpp_ast",
     ],
 )
 
@@ -259,11 +261,8 @@ py_binary(
         ":interpreter",
         ":value",
         requirement("pyfakefs"),
-        "//xls/dslx:ast",
-        "//xls/dslx:bindings",
         "//xls/dslx:bit_helpers",
         "//xls/dslx:concrete_type",
-        "//xls/dslx:deduce",
         "//xls/dslx:import_routines",
         "//xls/dslx:parser",
         "//xls/dslx:parser_helpers",
@@ -271,6 +270,7 @@ py_binary(
         "//xls/dslx:span",
         "//xls/dslx:typecheck",
         "//xls/dslx:xls_type_error",
+        "//xls/dslx/python:cpp_ast",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
     ],

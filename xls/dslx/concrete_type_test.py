@@ -18,12 +18,13 @@
 """Tests for xls.dslx.concrete_type."""
 
 from absl.testing import absltest
-from xls.dslx import span
 from xls.dslx.concrete_type import ArrayType
 from xls.dslx.concrete_type import BitsType
 from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.concrete_type import TupleType
 from xls.dslx.parametric_expression import ParametricSymbol
+from xls.dslx.python.cpp_ast import Pos
+from xls.dslx.python.cpp_ast import Span
 
 
 class ConcreteTypeTest(absltest.TestCase):
@@ -36,8 +37,8 @@ class ConcreteTypeTest(absltest.TestCase):
     self.assertFalse(t.is_nil())
 
   def test_equality(self):
-    fake_pos = span.Pos('<fake>', 0, 0)
-    fake_span = span.Span(fake_pos, fake_pos)
+    fake_pos = Pos('<fake>', 0, 0)
+    fake_span = Span(fake_pos, fake_pos)
     p = BitsType(signed=False, size=ParametricSymbol('N', fake_span))
     c = BitsType(signed=False, size=32)
     self.assertTrue(p.__ne__(c))

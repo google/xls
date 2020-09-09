@@ -18,10 +18,10 @@
 
 from typing import Text, Callable, List, Union, Optional, Dict, Set, NamedTuple, cast
 
-from xls.dslx import ast
 from xls.dslx.interpreter.value import Value
 from xls.dslx.parametric_instantiator import SymbolicBindings
-from xls.dslx.span import Span
+from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python.cpp_ast import Span
 
 
 InterpreterFn = Callable[[List[Value], Span, ast.Invocation], Value]
@@ -31,7 +31,7 @@ FnCtx = NamedTuple('FnCtx', [('module_name', Text), ('fn_name', Text),
                              ('sym_bindings', SymbolicBindings)])
 
 
-class Bindings(object):
+class Bindings:
   """Represents the set of bindings (ident: value mappings) for evaluation.
 
   Acts as a {ident: Value} mapping that can easily "chain" onto an existing set
@@ -160,7 +160,7 @@ class Bindings(object):
     """Resolves 'identifier' to a type binding, or raises."""
     entry = self._resolve_entry(identifier)
     if isinstance(entry, (ast.Enum, ast.TypeDef)):
-      return entry.type_
+      return entry.type_  # pytype: disable=attribute-error
     raise TypeError('Attempted to resolve a type but identifier {!r} '
                     'was not bound to a type; got: {!r}'.format(
                         identifier, entry))
@@ -170,7 +170,7 @@ class Bindings(object):
       identifier: Text) -> Union[ast.TypeAnnotation, ast.Enum, ast.Struct]:
     entry = self._resolve_entry(identifier)
     if isinstance(entry, ast.TypeDef):
-      return entry.type_
+      return entry.type_  # pytype: disable=attribute-error
     if isinstance(entry, (ast.Enum, ast.TypeAnnotation, ast.Struct)):
       return entry
     raise TypeError('Attempted to resolve a type (or enum) but identifier {!r} '

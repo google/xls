@@ -16,15 +16,55 @@
 
 """Helper utilities for traversing AST nodes."""
 
-from typing import Union, Callable, Tuple, Any, Optional
+from typing import Union, Callable, Tuple, Any, Optional, Sequence
 
-from xls.dslx import ast
 from xls.dslx import scanner
-from xls.dslx import span as span_mod
+from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python.cpp_ast import Pos
+from xls.dslx.python.cpp_ast import Span
 
 ContextType = Any
 GetImportedCallback = Callable[[ast.Import, ContextType], Tuple[ast.Module,
                                                                 ContextType]]
+StructInstanceMembers = Sequence[Tuple[str, ast.Expr]]
+
+# (T, T) -> bool operators.
+BINOP_COMPARISON_KIND_LIST = [
+    ast.BinopKind.EQ,
+    ast.BinopKind.NE,
+    ast.BinopKind.GT,
+    ast.BinopKind.GE,
+    ast.BinopKind.LT,
+    ast.BinopKind.LE,
+]
+BINOP_COMPARISON_KINDS = frozenset(BINOP_COMPARISON_KIND_LIST)
+BINOP_ENUM_OK_KINDS = (
+    ast.BinopKind.EQ,
+    ast.BinopKind.NE,
+)
+BINOP_SHIFTS = (
+    ast.BinopKind.SHLL,
+    ast.BinopKind.SHRL,
+    ast.BinopKind.SHRA,
+)
+# (T, T) -> T operators.
+BINOP_SAME_TYPE_KIND_LIST = [
+    ast.BinopKind.AND,
+    ast.BinopKind.OR,
+    ast.BinopKind.SHLL,
+    ast.BinopKind.SHRL,
+    ast.BinopKind.SHRA,
+    ast.BinopKind.XOR,
+    ast.BinopKind.SUB,
+    ast.BinopKind.ADD,
+    ast.BinopKind.DIV,
+    ast.BinopKind.MUL,
+]
+# (T) -> T operators.
+UNOP_SAME_TYPE_KIND_LIST = [
+    ast.UnopKind.INV,
+    ast.UnopKind.NEG,
+]
 
 
 def evaluate_to_struct_or_enum_or_annotation(
@@ -55,7 +95,7 @@ def evaluate_to_struct_or_enum_or_annotation(
   assert isinstance(node, ast.ModRef)
   imported_module, evaluation_context = get_imported_module(
       node.mod, evaluation_context)
-  td = imported_module.get_typedef(node.value)
+  td = imported_module.get_typedef_by_name()[node.value]
   # Recurse to dereference it if it's a typedef in the imported module.
   td = evaluate_to_struct_or_enum_or_annotation(td, get_imported_module,
                                                 evaluation_context)
@@ -70,8 +110,13 @@ def tok_to_builtin_type(tok: scanner.Token) -> ast.BuiltinType:
   return bt
 
 
+def get_builtin_type(signed: bool, width: int) -> ast.BuiltinType:
+  prefix = 'S' if signed else 'U'
+  return getattr(ast.BuiltinType, f'{prefix}{width}')
+
+
 def make_builtin_type_annotation(
-    owner: ast.AstNodeOwner, span: span_mod.Span, tok: scanner.Token,
+    owner: ast.AstNodeOwner, span: Span, tok: scanner.Token,
     dims: Tuple[ast.Expr, ...]) -> ast.TypeAnnotation:
   elem_type = ast.BuiltinTypeAnnotation(owner, span, tok_to_builtin_type(tok))
   for dim in dims:
@@ -81,7 +126,7 @@ def make_builtin_type_annotation(
 
 def make_type_ref_type_annotation(
     owner: ast.AstNodeOwner,
-    span: span_mod.Span,
+    span: Span,
     type_ref: ast.TypeRef,
     dims: Tuple[ast.Expr, ...],
     parametrics: Optional[Tuple[ast.Expr, ...]] = None) -> ast.TypeAnnotation:
@@ -91,3 +136,47 @@ def make_type_ref_type_annotation(
   for dim in dims:
     elem_type = ast.ArrayTypeAnnotation(owner, span, elem_type, dim)
   return elem_type
+
+
+_FAKE_POS = Pos('<no-file>', 0, 0)
+_FAKE_SPAN = Span(_FAKE_POS, _FAKE_POS)
+
+
+def get_span_or_fake(n: ast.AstNode) -> Span:
+  return getattr(n, 'span', _FAKE_SPAN)
+
+
+def get_value_as_int(n: ast.Number) -> int:
+  """Returns the numerical value contained in the AST node as a Python int."""
+  if n.kind == ast.NumberKind.CHARACTER:
+    return ord(n.value)
+  if n.kind == ast.NumberKind.BOOL:
+    if n.value == 'true':
+      return 1
+    else:
+      assert n.value == 'false'
+      return 0
+  assert isinstance(n.value, str), n.value
+  if n.value.startswith(('0x', '-0x')):
+    return int(n.value.replace('_', ''), 16)
+  if n.value.startswith(('0b', '-0b')):
+    return int(n.value.replace('_', ''), 2)
+  return int(n.value.replace('_', ''))
+
+
+def do_preorder(n: ast.NameDefTree,
+                f: Callable[[ast.NameDefTree, int, int], None],
+                level: int = 1) -> None:
+  """Performs a preorder traversal under this node in the NameDefTree.
+
+  Args:
+    n: The NameDefTree to do a preorder traversal of.
+    f: Callback invoked as f(NameDefTree, level, branchno).
+    level: Current level of the node.
+  """
+  if n.is_leaf():
+    return
+
+  for i, item in enumerate(n.tree):
+    f(item, level, i)
+    do_preorder(item, f, level + 1)

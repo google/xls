@@ -16,7 +16,7 @@
 """DSLX name mangling for XLS IR conversion."""
 
 from typing import Tuple, Text, Optional, Set
-from xls.dslx import ast
+from xls.dslx.python import cpp_ast as ast
 
 SymbolicBindings = Tuple[Tuple[Text, int], ...]
 

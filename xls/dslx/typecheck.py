@@ -23,20 +23,18 @@ from absl import logging
 import dataclasses
 
 from xls.common.xls_error import XlsError
-from xls.dslx import ast
 from xls.dslx import deduce
 from xls.dslx import dslx_builtins
 from xls.dslx import type_info
-from xls.dslx.ast import Function
-from xls.dslx.ast import Module
 from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.concrete_type import FunctionType
 from xls.dslx.interpreter.interpreter_helpers import interpret_expr
+from xls.dslx.python import cpp_ast as ast
 from xls.dslx.span import PositionalError
 from xls.dslx.xls_type_error import XlsTypeError
 
 
-def _check_function_params(f: Function,
+def _check_function_params(f: ast.Function,
                            ctx: deduce.DeduceCtx) -> List[ConcreteType]:
   """Checks the function's parametrics' and arguments' types."""
   for parametric in f.parametric_bindings:
@@ -66,7 +64,7 @@ def _check_function_params(f: Function,
   return param_types
 
 
-def _check_function(f: Function, ctx: deduce.DeduceCtx) -> None:
+def _check_function(f: ast.Function, ctx: deduce.DeduceCtx) -> None:
   """Validates type annotations on parameters/return type of f are consistent.
 
   Args:
@@ -251,7 +249,7 @@ def check_top_node_in_module(f: Union[ast.Function, ast.Test, ast.Struct,
   # {name: (function, wip)}
   seen = {
       (f.name.identifier, type(f)): (f, True)
-  }  # type: Dict[Tuple[Text, type], Tuple[Union[Function, ast.Test, ast.Struct, ast.TypeDef], bool]]
+  }  # type: Dict[Tuple[Text, type], Tuple[Union[ast.Function, ast.Test, ast.Struct, ast.TypeDef], bool]]
 
   stack = [_TypecheckStackRecord(f.name.identifier,
                                  type(f))]  # type: List[_TypecheckStackRecord]
@@ -333,7 +331,7 @@ def check_top_node_in_module(f: Union[ast.Function, ast.Test, ast.Struct,
 ImportFn = Callable[[Tuple[Text, ...]], Tuple[ast.Module, type_info.TypeInfo]]
 
 
-def check_module(module: Module,
+def check_module(module: ast.Module,
                  f_import: Optional[ImportFn]) -> type_info.TypeInfo:
   """Validates type annotations on all functions within "module".
 
@@ -356,6 +354,7 @@ def check_module(module: Module,
   ctx.fn_stack.append(('top', dict()))  # No sym bindings in the global scope.
   for member in ctx.module.top:
     if isinstance(member, ast.Import):
+      assert isinstance(member.name, tuple), member.name
       imported_module, imported_type_info = f_import(member.name)
       ctx.type_info.add_import(member, (imported_module, imported_type_info))
     elif isinstance(member, (ast.Constant, ast.Enum)):

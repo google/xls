@@ -141,7 +141,7 @@ def generate_sample(rng: Random, ast_options: ast_generator.AstGeneratorOptions,
   ast_gen = ast_generator.AstGenerator(
       rng, ast_options, codegen_ops_only=default_options.codegen)
   f, m = ast_gen.generate_function_in_module(fname='main', mname='test')
-  dslx_text = m.format()
+  dslx_text = str(m)
 
   # Re-parse so we can get real positions in error messages.
   m, node_to_type = parse_and_typecheck.parse_text_fakefs(

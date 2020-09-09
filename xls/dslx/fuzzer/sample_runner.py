@@ -28,7 +28,6 @@ from xls.common import check_simulator
 from xls.common import revision
 from xls.common import runfiles
 from xls.common.xls_error import XlsError
-from xls.dslx import ast
 from xls.dslx import concrete_type as concrete_type_mod
 from xls.dslx import parse_and_typecheck
 from xls.dslx import type_info as type_info_mod
@@ -38,6 +37,7 @@ from xls.dslx.fuzzer import sample
 from xls.dslx.interpreter.interpreter import Interpreter
 from xls.dslx.interpreter.value import Value
 from xls.dslx.interpreter.value_parser import value_from_string
+from xls.dslx.python import cpp_ast as ast
 from xls.ir.python import ir_parser
 from xls.ir.python import value as ir_value_mod
 from xls.ir.python.format_preference import FormatPreference

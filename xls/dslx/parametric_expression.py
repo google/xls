@@ -29,10 +29,10 @@ via `ParametricExpression.evaluate()`.
 import abc
 from typing import Text, Dict, Set, Union
 
-from xls.dslx.span import Span
+from xls.dslx.python.cpp_ast import Span
 
 
-class ParametricExpression(object):  # pytype: disable=ignored-metaclass
+class ParametricExpression(abc.ABC):
   """Abstract base class for a parametric dimension expression.
 
   Parametric dimension expressions can be evaluated with an environment. For
@@ -45,8 +45,6 @@ class ParametricExpression(object):  # pytype: disable=ignored-metaclass
 
     bits[10]
   """
-
-  __metaclass__ = abc.ABCMeta
 
   def __add__(self, other: Union[int,
                                  'ParametricExpression']) -> 'ParametricAdd':

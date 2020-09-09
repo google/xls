@@ -623,6 +623,7 @@ py_test(
     python_version = "PY3",
     shard_count = 50,
     srcs_version = "PY3",
+    tags = ["optonly"],
     deps = [
         "@com_google_absl_py//absl/testing:absltest",
         "@com_google_absl_py//absl/testing:parameterized",

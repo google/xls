@@ -19,7 +19,7 @@
 from typing import Text, Any, Tuple, Optional
 
 from xls.dslx.interpreter import errors
-from xls.dslx.span import Span
+from xls.dslx.python.cpp_ast import Span
 
 Value = Any
 

@@ -23,9 +23,9 @@ from absl import flags
 from absl.testing import absltest
 from absl.testing import parameterized
 from xls.common import runfiles
-from xls.dslx import ast
 from xls.dslx.fuzzer import ast_generator
 from xls.dslx.fuzzer import run_fuzz
+from xls.dslx.python import cpp_ast as ast
 
 flags.DEFINE_boolean('update_golden', False,
                      'Whether to update golden reference files.')

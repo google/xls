@@ -17,16 +17,18 @@
 """Tests for xls.dslx.ast."""
 
 from xls.common import test_base
-from xls.dslx import ast
 from xls.dslx import ast_helpers
+from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python import cpp_ast_visitor
+from xls.dslx.python.cpp_ast import Pos
+from xls.dslx.python.cpp_ast import Span
+from xls.dslx.python.cpp_ast_visitor import visit
 from xls.dslx.scanner import Keyword
 from xls.dslx.scanner import Token
 from xls.dslx.scanner import TokenKind
-from xls.dslx.span import Pos
-from xls.dslx.span import Span
 
 
-class _Collector(ast.AstVisitor):
+class _Collector(cpp_ast_visitor.AstVisitor):
   """Collects visited nodes for test condition checking."""
 
   def __init__(self):
@@ -93,8 +95,8 @@ class AstTest(test_base.TestCase):
     # TypeRef with dims.
     my_type_tok = Token(TokenKind.IDENTIFIER, value='MyType', span=fake_span)
     name_def = ast.NameDef(m, fake_span, 'MyType')
-    type_def = ast.TypeDef(m, False, name_def, type_)
-    type_ref = ast.TypeRef(m, fake_span, my_type_tok.value, type_def=type_def)
+    type_def = ast.TypeDef(m, name_def, type_, public=False)
+    type_ref = ast.TypeRef(m, fake_span, my_type_tok.value, type_def)
     type_ = ast_helpers.make_type_ref_type_annotation(m, fake_span, type_ref,
                                                       (number_2, number_3))
     self.assertEqual('MyType[2][3]', str(type_))
@@ -118,7 +120,7 @@ class AstTest(test_base.TestCase):
     assert isinstance(t, ast.ArrayTypeAnnotation), t
 
     c = _Collector()
-    t.accept(c)
+    visit(t, c)
     self.assertEqual(c.collected, [five, t])
 
   def test_visit_index(self):
@@ -130,7 +132,7 @@ class AstTest(test_base.TestCase):
     index = ast.Index(m, fake_span, t, i)
 
     c = _Collector()
-    index.accept(c)
+    visit(index, c)
     self.assertEqual(c.collected, [t, i, index])
 
   def test_visit_unop(self):
@@ -141,7 +143,7 @@ class AstTest(test_base.TestCase):
     negated = ast.Unop(m, fake_span, ast.UnopKind.NEG, i_ref)
 
     c = _Collector()
-    negated.accept(c)
+    visit(negated, c)
     self.assertEqual(c.collected, [i_ref, negated])
 
   def test_visit_match_multi_pattern(self):
@@ -151,28 +153,28 @@ class AstTest(test_base.TestCase):
     e = ast.Number(m, fake_span, u'0xf00')
     p0 = ast.NameDefTree(m, fake_span, e)
     p1 = ast.NameDefTree(m, fake_span, e)
-    arm = ast.MatchArm(m, patterns=(p0, p1), expr=e)
+    arm = ast.MatchArm(m, fake_span, patterns=(p0, p1), expr=e)
     c = _Collector()
-    arm.accept(c)
-    self.assertEqual(c.collected, [e])
+    visit(arm, c)
+    self.assertEqual(c.collected, [e, e, e])
 
   def test_unicode_hex_number(self):
     fake_pos = self.fake_pos
     fake_span = Span(fake_pos, fake_pos)
     n = ast.Number(self.m, fake_span, u'0xf00')
-    self.assertEqual(0xf00, n.get_value_as_int())
+    self.assertEqual(0xf00, ast_helpers.get_value_as_int(n))
 
   def test_hex_number_with_underscores(self):
     fake_pos = self.fake_pos
     fake_span = Span(fake_pos, fake_pos)
     n = ast.Number(self.m, fake_span, '0xf_abcde_1234')
-    self.assertEqual(0xfabcde1234, n.get_value_as_int())
+    self.assertEqual(0xfabcde1234, ast_helpers.get_value_as_int(n))
 
   def test_binary_number_with_underscores(self):
     fake_pos = self.fake_pos
     fake_span = Span(fake_pos, fake_pos)
     n = ast.Number(self.m, fake_span, u'0b1_0_0_1')
-    self.assertEqual(9, n.get_value_as_int())
+    self.assertEqual(9, ast_helpers.get_value_as_int(n))
 
   def test_ndt_preorder(self):
     fake_pos = self.fake_pos
@@ -191,7 +193,7 @@ class AstTest(test_base.TestCase):
     def walk(item: ast.NameDefTree, level: int, i: int):
       walk_data.append((item, level, i))
 
-    outer.do_preorder(walk)
+    ast_helpers.do_preorder(outer, walk)
 
     self.assertLen(walk_data, 3)
     self.assertEqual(walk_data[0], (interior, 1, 0))
@@ -250,8 +252,8 @@ class AstTest(test_base.TestCase):
 
     # TypeRef with dims.
     name_def = ast.NameDef(m, fake_span, 'MyType')
-    type_def = ast.TypeDef(m, False, name_def, type_)
-    type_ref = ast.TypeRef(m, fake_span, 'MyType', type_def=type_def)
+    type_def = ast.TypeDef(m, name_def, type_, public=False)
+    type_ref = ast.TypeRef(m, fake_span, 'MyType', type_def)
     type_ = ast_helpers.make_type_ref_type_annotation(m, fake_span, type_ref,
                                                       (number_2, number_3))
     self.assertIsInstance(type_, ast.ArrayTypeAnnotation)

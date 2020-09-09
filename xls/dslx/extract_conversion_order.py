@@ -21,10 +21,11 @@ from typing import Tuple, Text, List, Dict, Union
 from absl import logging
 import dataclasses
 
-from xls.dslx import ast
 from xls.dslx import dslx_builtins
 from xls.dslx import type_info as type_info_mod
 from xls.dslx.parametric_instantiator import SymbolicBindings
+from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python import cpp_ast_visitor
 
 
 @dataclasses.dataclass
@@ -91,8 +92,12 @@ def get_callees(func: Union[ast.Function, ast.Test], m: ast.Module,
   """
   callees = []
 
-  class InvocationVisitor(ast.AstVisitor):
+  class InvocationVisitor(cpp_ast_visitor.AstVisitor):
     """Visits invocation nodes to build up the callees list."""
+
+    @cpp_ast_visitor.AstVisitor.no_auto_traverse
+    def visit_ParametricBinding(self, node: ast.ParametricBinding) -> None:
+      pass
 
     def visit_Invocation(self, node: ast.Invocation) -> None:
       if isinstance(node.callee, ast.ModRef):
@@ -134,7 +139,7 @@ def get_callees(func: Union[ast.Function, ast.Test], m: ast.Module,
       callees.append(
           Callee(f, this_m, invocation_type_info, node_symbolic_bindings))
 
-  func.accept(InvocationVisitor())
+  cpp_ast_visitor.visit(func, InvocationVisitor())
   logging.vlog(3, 'Callees for %s: %s', func,
                [(cr.f.identifier, cr.sym_bindings) for cr in callees])
   return tuple(callees)

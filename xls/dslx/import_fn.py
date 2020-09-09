@@ -18,8 +18,8 @@
 
 from typing import Callable, Text, Tuple
 
-from xls.dslx import ast
 from xls.dslx import type_info
+from xls.dslx.python import cpp_ast as ast
 
 ModuleInfo = Tuple[ast.Module, type_info.TypeInfo]
 ImportTokens = Tuple[Text, ...]

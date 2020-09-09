@@ -21,7 +21,7 @@ from typing import Callable, Text, Union, Tuple, Any, Optional
 
 from xls.dslx.interpreter.array import Array
 from xls.dslx.interpreter.bits import Bits
-from xls.dslx.span import Span
+from xls.dslx.python.cpp_ast import Span
 
 
 XlsEnum = Any

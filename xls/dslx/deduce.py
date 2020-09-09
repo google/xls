@@ -24,13 +24,11 @@ from typing import Text, Dict, Union, Callable, Type, Tuple, List, Set
 from absl import logging
 import dataclasses
 
-from xls.dslx import ast
 from xls.dslx import ast_helpers
 from xls.dslx import bit_helpers
 from xls.dslx import dslx_builtins
 from xls.dslx import parametric_instantiator
 from xls.dslx import scanner
-from xls.dslx import span
 from xls.dslx.concrete_type import ArrayType
 from xls.dslx.concrete_type import BitsType
 from xls.dslx.concrete_type import ConcreteType
@@ -40,6 +38,8 @@ from xls.dslx.concrete_type import TupleType
 from xls.dslx.parametric_expression import ParametricAdd
 from xls.dslx.parametric_expression import ParametricExpression
 from xls.dslx.parametric_expression import ParametricSymbol
+from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python.cpp_ast import Span
 from xls.dslx.type_info import TypeInfo
 from xls.dslx.type_info import TypeMissingError
 from xls.dslx.xls_type_error import TypeInferenceError
@@ -140,6 +140,17 @@ def _deduce_Constant(self: ast.Constant, ctx: DeduceCtx) -> ConcreteType:  # pyt
   return result
 
 
+def _check_bitwidth(n: ast.Number, concrete_type: ConcreteType) -> None:
+  if (isinstance(concrete_type, BitsType) and
+      isinstance(concrete_type.get_total_bit_count(), int) and
+      not bit_helpers.fits_in_bits(
+          ast_helpers.get_value_as_int(n),
+          concrete_type.get_total_bit_count())):
+    msg = 'value {!r} does not fit in the bitwidth of a {} ({})'.format(
+        n.value, concrete_type, concrete_type.get_total_bit_count())
+    raise TypeInferenceError(span=n.span, type_=concrete_type, suffix=msg)
+
+
 @_rule(ast.ConstantArray)
 def _deduce_ConstantArray(
     self: ast.ConstantArray, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
@@ -162,16 +173,16 @@ def _deduce_ConstantArray(
     )
   element_type = concrete_type.get_element_type()
   for member in self.members:
-    assert ast.Constant.is_constant(member)
+    assert ast.is_constant(member)
     if isinstance(member, ast.Number) and not member.type_:
       ctx.type_info[member] = element_type
-      member.check_bitwidth(element_type)
+      _check_bitwidth(member, element_type)
   # Use the base class to check all members are compatible.
   _deduce_Array(self, ctx)
   return concrete_type
 
 
-def _create_element_invocation(owner: ast.AstNodeOwner, span_: span.Span,
+def _create_element_invocation(owner: ast.AstNodeOwner, span_: Span,
                                callee: Union[ast.NameRef, ast.ModRef],
                                arg_array: ast.Expr) -> ast.Invocation:
   """Creates a function invocation on the first element of the given array.
@@ -344,13 +355,13 @@ def _deduce_slice_type(self: ast.Index, ctx: DeduceCtx,
     if isinstance(start, ast.Number) and start.type_ is None:
       start_type = lhs_type.to_ubits()
       resolved_start_type = resolve(start_type, ctx)
+      start_int = ast_helpers.get_value_as_int(start)
       if not bit_helpers.fits_in_bits(
-          start.get_value_as_int(), resolved_start_type.get_total_bit_count()):
+          start_int, resolved_start_type.get_total_bit_count()):
         raise TypeInferenceError(
             start.span, resolved_start_type,
             'Cannot fit {} in {} bits (inferred from bits to slice).'.format(
-                start.get_value_as_int(),
-                resolved_start_type.get_total_bit_count()))
+                start_int, resolved_start_type.get_total_bit_count()))
       ctx.type_info[start] = start_type
     else:
       start_type = deduce(start, ctx)
@@ -384,12 +395,13 @@ def _deduce_slice_type(self: ast.Index, ctx: DeduceCtx,
     return width_type
 
   assert isinstance(index_slice, ast.Slice), index_slice
-  limit = index_slice.limit.get_value_as_int() if index_slice.limit else None
+  limit = ast_helpers.get_value_as_int(
+      index_slice.limit) if index_slice.limit else None
   # PyType has trouble figuring out that start is definitely an Number at this
   # point.
   start = index_slice.start
   assert isinstance(start, (ast.Number, type(None)))
-  start = start.get_value_as_int() if start else None
+  start = ast_helpers.get_value_as_int(start) if start else None
 
   _, fn_symbolic_bindings = ctx.fn_stack[-1]
   if isinstance(bit_count, ParametricExpression):
@@ -414,7 +426,7 @@ def _deduce_Index(self: ast.Index, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
     if not isinstance(self.index, ast.Number):
       raise XlsTypeError(self.index.span, index_type, None,
                          'Tuple index is not a literal number.')
-    index_value = self.index.get_value_as_int()
+    index_value = ast_helpers.get_value_as_int(self.index)
     if index_value >= lhs_type.get_tuple_length():
       raise XlsTypeError(
           self.index.span, lhs_type, None,
@@ -743,7 +755,7 @@ def _deduce_Number(self: ast.Number, ctx: DeduceCtx) -> ConcreteType:  # pytype:
         suffix='Could not infer a type for this number, please annotate a type.'
     )
   concrete_type = resolve(deduce(self.type_, ctx), ctx)
-  self.check_bitwidth(concrete_type)
+  _check_bitwidth(self, concrete_type)
   return concrete_type
 
 
@@ -774,7 +786,7 @@ def _dim_to_parametric_or_int(
     ctx: DeduceCtx) -> Union[int, ParametricExpression]:
   if isinstance(expr, ast.Number):
     ctx.type_info[expr] = ConcreteType.U32
-    return expr.get_value_as_int()
+    return ast_helpers.get_value_as_int(expr)
   if isinstance(expr, ast.ConstRef):
     return ctx.type_info.get_const_int(expr.name_def, expr.span)
   return _dim_to_parametric(self, expr)
@@ -887,7 +899,8 @@ def _deduce_Enum(self: ast.Enum, ctx: DeduceCtx) -> ConcreteType:  # pytype: dis
   bit_count = resolved_type.get_total_bit_count()
   self.set_signedness(resolved_type.get_signedness())
   result = EnumType(self, bit_count)
-  for name, value in self.values:
+  for member in self.values:
+    name, value = member.get_name_value(self)
     # Note: the parser places the type_ from the enum on the value when it is
     # a number, so this deduction flags inappropriate numbers.
     deduce(value, ctx)
@@ -966,13 +979,13 @@ def _deduce_Binop(self: ast.Binop, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
 
   # Enums only support a more limited set of binary operations.
   if isinstance(lhs_type,
-                EnumType) and self.kind not in ast.BinopKind.ENUM_OK_KINDS:
+                EnumType) and self.kind not in ast_helpers.BINOP_ENUM_OK_KINDS:
     raise XlsTypeError(
         self.span, resolved_lhs_type, None,
         "Cannot use '{}' on values with enum type {}".format(
             self.kind.value, lhs_type.nominal_type.identifier))
 
-  if self.kind in ast.BinopKind.COMPARISON_KINDS:
+  if self.kind in ast_helpers.BINOP_COMPARISON_KINDS:
     return ConcreteType.U1
 
   return resolved_lhs_type
@@ -1004,7 +1017,7 @@ def _deduce_Struct(self: ast.Struct, ctx: DeduceCtx) -> ConcreteType:  # pytype:
 
 
 def _validate_struct_members_subset(
-    members: ast.StructInstanceMembers, struct_type: ConcreteType,
+    members: ast_helpers.StructInstanceMembers, struct_type: ConcreteType,
     struct_text: str, ctx: DeduceCtx
 ) -> Tuple[Set[str], Tuple[ConcreteType], Tuple[ConcreteType]]:
   """Validates a struct instantiation is a subset of members with no dups.

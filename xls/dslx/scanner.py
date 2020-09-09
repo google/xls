@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,8 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# Lint as: python3
 
 """Scanner for HLS syntax input.
 
@@ -27,9 +27,9 @@ import string
 from typing import List, Optional, Union, Callable, Text, Container
 
 from xls.dslx import dslx_builtins
-from xls.dslx.span import Pos
+from xls.dslx.python.cpp_ast import Pos
+from xls.dslx.python.cpp_ast import Span
 from xls.dslx.span import PositionalError
-from xls.dslx.span import Span
 
 
 class TokenKind(enum.Enum):

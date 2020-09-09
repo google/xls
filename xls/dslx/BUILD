@@ -49,6 +49,7 @@ py_library(
     srcs_version = "PY3",
     deps = [
         "//xls/common:xls_error",
+        "//xls/dslx/python:cpp_ast",
     ],
 )
 
@@ -59,6 +60,7 @@ py_library(
     deps = [
         ":dslx_builtins",
         ":span",
+        "//xls/dslx/python:cpp_ast",
     ],
 )
 
@@ -88,7 +90,7 @@ py_library(
     name = "parametric_expression",
     srcs = ["parametric_expression.py"],
     srcs_version = "PY3",
-    deps = [":span"],
+    deps = ["//xls/dslx/python:cpp_ast"],
 )
 
 py_test(
@@ -98,7 +100,7 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":parametric_expression",
-        ":span",
+        "//xls/dslx/python:cpp_ast",
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )
@@ -116,53 +118,10 @@ py_library(
     deps = [
         ":concrete_type",
         ":parametric_expression",
-        ":span",
         ":symbolic_bindings",
         ":xls_type_error",
+        "//xls/dslx/python:cpp_ast",
         "@com_google_absl_py//absl/logging",
-    ],
-)
-
-py_library(
-    name = "core_ast_nodes",
-    srcs = ["core_ast_nodes.py"],
-    srcs_version = "PY3",
-    deps = [
-        ":ast_node",
-        ":bit_helpers",
-        ":concrete_type",
-        ":free_variables",
-        ":scanner",
-        ":span",
-        ":xls_type_error",
-        requirement("aenum"),
-        "@com_google_absl_py//absl/logging",
-    ],
-)
-
-py_library(
-    name = "leaf_ast_nodes",
-    srcs = ["leaf_ast_nodes.py"],
-    srcs_version = "PY3",
-    deps = [
-        ":ast_node",
-        ":core_ast_nodes",
-        ":free_variables",
-        ":scanner",
-        ":span",
-        ":symbolic_bindings",
-        "@com_google_absl_py//absl/logging",
-    ],
-)
-
-py_library(
-    name = "ast",
-    srcs = ["ast.py"],
-    srcs_version = "PY3",
-    deps = [
-        ":ast_node",
-        ":core_ast_nodes",
-        ":leaf_ast_nodes",
     ],
 )
 
@@ -172,11 +131,12 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":ast",
         ":ast_helpers",
         ":scanner",
         ":span",
         "//xls/common:test_base",
+        "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_ast_visitor",
     ],
 )
 
@@ -197,6 +157,7 @@ py_library(
     srcs_version = "PY3",
     deps = [
         ":span",
+        "//xls/dslx/python:cpp_ast",
     ],
 )
 
@@ -205,9 +166,9 @@ py_library(
     srcs = ["bindings.py"],
     srcs_version = "PY3",
     deps = [
-        ":ast",
         ":parse_error",
         ":span",
+        "//xls/dslx/python:cpp_ast",
     ],
 )
 
@@ -216,7 +177,6 @@ py_library(
     srcs = ["parser.py"],
     srcs_version = "PY3",
     deps = [
-        ":ast",
         ":ast_helpers",
         ":bindings",
         ":dslx_builtins",
@@ -224,6 +184,7 @@ py_library(
         ":scanner",
         ":span",
         ":token_parser",
+        "//xls/dslx/python:cpp_ast",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -233,12 +194,11 @@ py_library(
     srcs = ["parser_helpers.py"],
     srcs_version = "PY3",
     deps = [
-        ":ast",
         ":parser",
         ":scanner",
         ":span",
         requirement("termcolor"),
-        "@com_google_absl_py//absl/logging",
+        "//xls/dslx/python:cpp_ast",
     ],
 )
 
@@ -248,12 +208,13 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":ast",
         ":fakefs_test_util",
+        ":fakefs_util",
         ":parser",
         ":parser_helpers",
         ":scanner",
         ":span",
+        "//xls/dslx/python:cpp_ast",
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )
@@ -263,8 +224,6 @@ py_library(
     srcs = ["parse_and_typecheck.py"],
     srcs_version = "PY3",
     deps = [
-        ":ast",
-        ":deduce",
         ":fakefs_util",
         ":import_fn",
         ":parser_helpers",
@@ -272,6 +231,7 @@ py_library(
         ":typecheck",
         ":xls_type_error",
         requirement("pyfakefs"),
+        "//xls/dslx/python:cpp_ast",
     ],
 )
 
@@ -298,11 +258,12 @@ py_library(
     name = "type_info",
     srcs = ["type_info.py"],
     deps = [
-        ":ast",
+        ":ast_helpers",
         ":concrete_type",
         ":span",
         ":symbolic_bindings",
         ":xls_type_error",
+        "//xls/dslx/python:cpp_ast",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -312,7 +273,6 @@ py_library(
     srcs = ["deduce.py"],
     srcs_version = "PY3",
     deps = [
-        ":ast",
         ":ast_helpers",
         ":bit_helpers",
         ":concrete_type",
@@ -323,6 +283,7 @@ py_library(
         ":span",
         ":type_info",
         ":xls_type_error",
+        "//xls/dslx/python:cpp_ast",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -334,8 +295,8 @@ py_library(
     deps = [
         ":concrete_type",
         ":parametric_instantiator",
-        ":span",
         ":xls_type_error",
+        "//xls/dslx/python:cpp_ast",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -345,7 +306,6 @@ py_library(
     srcs = ["typecheck.py"],
     srcs_version = "PY3",
     deps = [
-        ":ast",
         ":concrete_type",
         ":deduce",
         ":dslx_builtins",
@@ -354,6 +314,7 @@ py_library(
         ":xls_type_error",
         "//xls/common:xls_error",
         "//xls/dslx/interpreter:interpreter_helpers",
+        "//xls/dslx/python:cpp_ast",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -382,6 +343,7 @@ py_library(
     deps = [
         ":concrete_type",
         ":span",
+        "//xls/dslx/python:cpp_ast",
     ],
 )
 
@@ -392,9 +354,9 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":concrete_type",
-        ":span",
         ":xls_type_error",
         "//xls/common:test_base",
+        "//xls/dslx/python:cpp_ast",
     ],
 )
 
@@ -416,7 +378,7 @@ py_test(
     deps = [
         ":concrete_type",
         ":parametric_expression",
-        ":span",
+        "//xls/dslx/python:cpp_ast",
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )
@@ -426,7 +388,7 @@ py_library(
     srcs = ["ir_converter.py"],
     srcs_version = "PY3",
     deps = [
-        ":ast",
+        ":ast_helpers",
         ":bit_helpers",
         ":concrete_type",
         ":deduce",
@@ -438,6 +400,8 @@ py_library(
         ":span",
         ":type_info",
         "//xls/common:xls_error",
+        "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_ast_visitor",
         "//xls/ir/python:bits",
         "//xls/ir/python:fileno",
         "//xls/ir/python:function",
@@ -458,7 +422,7 @@ py_library(
     srcs = ["ir_name_mangler.py"],
     srcs_version = "PY3",
     deps = [
-        ":ast",
+        "//xls/dslx/python:cpp_ast",
     ],
 )
 
@@ -513,31 +477,15 @@ py_binary(
 )
 
 py_library(
-    name = "free_variables",
-    srcs = ["free_variables.py"],
-    srcs_version = "PY3",
-    deps = [
-        ":concrete_type",
-    ],
-)
-
-py_library(
-    name = "ast_node",
-    srcs = ["ast_node.py"],
-    srcs_version = "PY3",
-    deps = [":span"],
-)
-
-py_library(
     name = "extract_conversion_order",
     srcs = ["extract_conversion_order.py"],
     srcs_version = "PY3",
     deps = [
-        ":ast",
-        ":deduce",
         ":dslx_builtins",
         ":parametric_instantiator",
         ":type_info",
+        "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_ast_visitor",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -548,13 +496,12 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":ast",
-        ":deduce",
         ":extract_conversion_order",
         ":fakefs_test_util",
         ":parse_and_typecheck",
         ":type_info",
         "//xls/common:test_base",
+        "//xls/dslx/python:cpp_ast",
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )
@@ -591,7 +538,6 @@ py_library(
     data = ["//xls/dslx/stdlib:x_files"],
     srcs_version = "PY3",
     deps = [
-        ":ast",
         ":deduce",
         ":import_fn",
         ":parse_and_typecheck",
@@ -628,9 +574,9 @@ py_library(
     srcs = ["import_fn.py"],
     srcs_version = "PY3",
     deps = [
-        ":ast",
         ":deduce",
         ":type_info",
+        "//xls/dslx/python:cpp_ast",
     ],
 )
 
@@ -639,8 +585,37 @@ py_library(
     srcs = ["ast_helpers.py"],
     srcs_version = "PY3",
     deps = [
-        ":ast",
         ":scanner",
         ":span",
+        "//xls/dslx/python:cpp_ast",
+    ],
+)
+
+cc_library(
+    name = "cpp_ast",
+    srcs = ["cpp_ast.cc"],
+    hdrs = [
+        "cpp_ast.h",
+        "cpp_ast_builtin_types.inc",
+    ],
+    deps = [
+        "//xls/common:indent",
+        "//xls/common/logging",
+        "//xls/common/status:statusor",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "@com_google_absl//absl/types:variant",
+    ],
+)
+
+cc_test(
+    name = "cpp_ast_test",
+    srcs = ["cpp_ast_test.cc"],
+    deps = [
+        ":cpp_ast",
+        "@com_google_googletest//:gtest_main",
     ],
 )

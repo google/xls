@@ -27,7 +27,7 @@ from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.concrete_type import EnumType
 from xls.dslx.concrete_type import FunctionType
 from xls.dslx.concrete_type import TupleType
-from xls.dslx.span import Span
+from xls.dslx.python.cpp_ast import Span
 from xls.dslx.symbolic_bindings import SymbolicBindings
 from xls.dslx.xls_type_error import ArgCountMismatchError
 from xls.dslx.xls_type_error import XlsTypeError

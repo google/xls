@@ -20,7 +20,6 @@ from typing import Tuple, Optional
 
 from absl import logging
 
-from xls.dslx import ast
 from xls.dslx import bit_helpers
 from xls.dslx.concrete_type import ArrayType
 from xls.dslx.concrete_type import BitsType
@@ -31,11 +30,12 @@ from xls.dslx.concrete_type import TupleType
 from xls.dslx.interpreter.errors import FailureError
 from xls.dslx.interpreter.value import Tag
 from xls.dslx.interpreter.value import Value
+from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python.cpp_ast import Span
 from xls.dslx.scanner import Keyword
 from xls.dslx.scanner import Token
 from xls.dslx.scanner import TokenKind
 from xls.dslx.scanner import TYPE_KEYWORDS_TO_SIGNEDNESS_AND_BITS
-from xls.dslx.span import Span
 
 
 def _strength_reduce_enum(type_: ast.Enum, bit_count: int) -> ConcreteType[int]:

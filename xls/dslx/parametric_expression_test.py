@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,24 +13,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# Lint as: python3
 
 """Tests for xls.dslx.parametric_expression."""
 
-from xls.dslx import span
 from xls.dslx.parametric_expression import ParametricAdd
 from xls.dslx.parametric_expression import ParametricConstant
 from xls.dslx.parametric_expression import ParametricMul
 from xls.dslx.parametric_expression import ParametricSymbol
+from xls.dslx.python.cpp_ast import Pos
+from xls.dslx.python.cpp_ast import Span
 from absl.testing import absltest
 
 
 class ParametricExpressionTest(absltest.TestCase):
 
   def test_sample_evaluation(self):
-    fake_pos = span.Pos('<fake>', 0, 0)
-    fake_span = span.Span(fake_pos, fake_pos)
+    fake_pos = Pos('<fake>', 0, 0)
+    fake_span = Span(fake_pos, fake_pos)
     e = ParametricMul(
         ParametricConstant(3),
         ParametricAdd(
@@ -40,8 +41,8 @@ class ParametricExpressionTest(absltest.TestCase):
     self.assertEqual(set(['N', 'M']), e.get_freevars())
 
   def test_simple_folding(self):
-    fake_pos = span.Pos('<fake>', 0, 0)
-    fake_span = span.Span(fake_pos, fake_pos)
+    fake_pos = Pos('<fake>', 0, 0)
+    fake_span = Span(fake_pos, fake_pos)
     n = ParametricSymbol('N', fake_span)
     self.assertEqual(n, 0 + n)
     self.assertEqual(n, 1 * n)

@@ -25,16 +25,19 @@ from typing import Tuple, Optional, Dict
 
 import dataclasses
 
-from xls.dslx import ast
-from xls.dslx import span
+from xls.dslx import ast_helpers
 from xls.dslx import symbolic_bindings as symbind_mod
 from xls.dslx.concrete_type import ConcreteType
+from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python.cpp_ast import Pos
+from xls.dslx.python.cpp_ast import Span
+from xls.dslx.span import PositionalError
 from xls.dslx.xls_type_error import TypeInferenceError
 
 ImportedInfo = Tuple[ast.Module, 'TypeInfo']
 
 
-class TypeMissingError(span.PositionalError):
+class TypeMissingError(PositionalError):
   """Raised when there is no binding from an AST node to its corresponding type.
 
   This is useful to raise in order to flag free variables that are dependencies
@@ -49,7 +52,7 @@ class TypeMissingError(span.PositionalError):
         node=node, suffix=' :: ' + suffix if suffix else '')
     # We don't know the real span of the user, we rely on the appropriate caller
     # to catch the error and populate this field properly.
-    fake_span = span.Span(span.Pos('<fake>', 0, 0), span.Pos('<fake>', 0, 0))
+    fake_span = Span(Pos('<fake>', 0, 0), Pos('<fake>', 0, 0))
     super(TypeMissingError, self).__init__(message, fake_span)
     self.node = node
     self.suffix = suffix
@@ -178,7 +181,8 @@ class TypeInfo:
       caller: symbind_mod.SymbolicBindings
   ) -> symbind_mod.SymbolicBindings:
     """Returns callee bindings given caller bindings at an invocation."""
-    return self._top()._invocations[invocation].symbolic_bindings_map[caller]
+    invocation_data = self._top()._invocations[invocation]
+    return invocation_data.symbolic_bindings_map[caller]
 
   def add_instantiation(self, invocation: ast.Invocation,
                         caller: symbind_mod.SymbolicBindings,
@@ -222,14 +226,14 @@ class TypeInfo:
   def note_constant(self, name_def: ast.NameDef, constant: ast.Constant):
     self._name_to_const[name_def] = constant
 
-  def get_const_int(self, name_def: ast.NameDef, user_span: span.Span) -> int:
+  def get_const_int(self, name_def: ast.NameDef, user_span: Span) -> int:
     if name_def not in self._name_to_const and self.parent:
       return self.parent.get_const_int(name_def, user_span)
 
     constant = self._name_to_const[name_def]
     value = constant.value
     if isinstance(value, ast.Number):
-      return value.get_value_as_int()
+      return ast_helpers.get_value_as_int(value)
     raise TypeInferenceError(
         span=user_span,
         type_=None,

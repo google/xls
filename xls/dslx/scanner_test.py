@@ -16,7 +16,6 @@
 
 """Tests for xls.dslx.scanner."""
 
-import pprint
 from typing import Text, Sequence, Any
 
 from xls.dslx import scanner
@@ -36,14 +35,12 @@ class ScannerTest(absltest.TestCase):
   def test_scan_keyword(self):
     s = self.make_scanner('fn')
     tokens = s.pop_all()
-    pprint.pprint(tokens)
     self.assertLen(tokens, 1)
     self.assertTrue(tokens[0].is_keyword(scanner.Keyword.FN))
 
   def test_function_definition(self):
     s = self.make_scanner('fn ident(x) { x }')
     tokens = s.pop_all()
-    pprint.pprint(tokens)
 
     self.assertTrue(
         tokens[0].is_keyword(scanner.Keyword.FN), msg=repr(tokens[0]))
@@ -66,7 +63,6 @@ class ScannerTest(absltest.TestCase):
   def test_doubled_up_plus(self):
     s = self.make_scanner('fn concat(x, y) { x ++ y }')
     tokens = s.pop_all()
-    pprint.pprint(tokens)
 
     self.assertTrue(tokens[-4].is_identifier('x'))
     self.assertEqual(tokens[-3].kind, TokenKind('++'))
@@ -76,21 +72,18 @@ class ScannerTest(absltest.TestCase):
   def test_number_hex(self):
     s = self.make_scanner('0xf00')
     tokens = s.pop_all()
-    pprint.pprint(tokens)
     self.assertLen(tokens, 1)
     self.assertTrue(tokens[0].is_number('0xf00'), msg=str(tokens))
 
   def test_negative_number_hex(self):
     s = self.make_scanner('-0xf00')
     tokens = s.pop_all()
-    pprint.pprint(tokens)
     self.assertLen(tokens, 1)
     self.assertTrue(tokens[0].is_number('-0xf00'), msg=str(tokens))
 
   def test_number_bin(self):
     s = self.make_scanner('0b10')
     tokens = s.pop_all()
-    pprint.pprint(tokens)
     self.assertLen(tokens, 1)
     self.assertTrue(tokens[0].is_number('0b10'), msg=str(tokens))
 
@@ -102,21 +95,18 @@ class ScannerTest(absltest.TestCase):
   def test_negative_number_bin(self):
     s = self.make_scanner('-0b10')
     tokens = s.pop_all()
-    pprint.pprint(tokens)
     self.assertLen(tokens, 1)
     self.assertTrue(tokens[0].is_number('-0b10'), msg=str(tokens))
 
   def test_negative_number(self):
     s = self.make_scanner('-42')
     tokens = s.pop_all()
-    pprint.pprint(tokens)
     self.assertLen(tokens, 1)
     self.assertTrue(tokens[0].is_number('-42'), msg=str(tokens))
 
   def test_number_with_underscores(self):
     s = self.make_scanner('0b11_1100')
     tokens = s.pop_all()
-    pprint.pprint(tokens)
     self.assertLen(tokens, 1)
     self.assertTrue(tokens[0].is_number('0b11_1100'), msg=str(tokens))
 

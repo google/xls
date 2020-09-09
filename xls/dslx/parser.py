@@ -28,19 +28,19 @@ from typing import Optional, Tuple, Union, List, TypeVar, Callable, Text, Dict, 
 from absl import logging
 import dataclasses
 
-from xls.dslx import ast
 from xls.dslx import ast_helpers
 from xls.dslx import dslx_builtins
 from xls.dslx import token_parser
 from xls.dslx.bindings import Bindings
 from xls.dslx.parse_error import ParseError
+from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python.cpp_ast import Span
 from xls.dslx.scanner import Keyword
 from xls.dslx.scanner import Pos
 from xls.dslx.scanner import Scanner
 from xls.dslx.scanner import Token
 from xls.dslx.scanner import TokenKind
 from xls.dslx.scanner import TYPE_KEYWORDS
-from xls.dslx.span import Span
 
 
 # Helper data for noting which operator-signifying tokens bind tightly (strong
@@ -72,6 +72,7 @@ _COMPARISON_KINDS = {
     TokenKind.OANGLE: ast.BinopKind.LT,  # <
     TokenKind.OANGLE_EQUALS: ast.BinopKind.LE,  # <=
 }
+assert set(_COMPARISON_KINDS.values()) == ast_helpers.BINOP_COMPARISON_KINDS
 
 
 def tok_to_number(m: ast.Module, tok: Token) -> ast.Number:
@@ -87,7 +88,7 @@ def tok_to_number(m: ast.Module, tok: Token) -> ast.Number:
     number_kind = ast.NumberKind.OTHER
     value = tok.value
   assert isinstance(value, str), value
-  return ast.Number(m, tok.span, value, number_kind)
+  return ast.Number(m, tok.span, value, number_kind, type_=None)
 
 
 def tok_to_name_def(m: ast.Module, tok: Token) -> ast.NameDef:
@@ -479,8 +480,8 @@ class Parser(token_parser.TokenParser):
       const = None
     body = self.parse_expression(new_bindings)
     span = Span(start_tok.span.start, self._get_pos())
-    return ast.Let(
-        self.m, name_def_tree, annotated_type, rhs, body, span, const=const)
+    return ast.Let(self.m, span, name_def_tree, annotated_type, rhs, body,
+                   const)
 
   def _parse_tuple_remainder(self, start_pos: Pos, first: ast.Expr,
                              bindings: Bindings) -> ast.XlsTuple:
@@ -536,7 +537,7 @@ class Parser(token_parser.TokenParser):
         else:
           raise ParseError(member.span,
                            'Ellipsis may only be in trailing position.')
-    if all(ast.Constant.is_constant(m) for m in members):
+    if all(ast.is_constant(m) for m in members):
       return ast.ConstantArray(self.m, span, members, has_trailing_elipsis)
     return ast.Array(self.m, span, members, has_trailing_elipsis)
 
@@ -557,7 +558,7 @@ class Parser(token_parser.TokenParser):
       term.type_ = type_
       return term
     if isinstance(term, ast.XlsTuple) and all(
-        ast.Constant.is_constant(m) for m in term.members):
+        ast.is_constant(m) for m in term.members):
       return term
     raise ParseError(
         type_.span,
@@ -612,8 +613,7 @@ class Parser(token_parser.TokenParser):
     elif tok.kind == TokenKind.OPAREN:  # Parenthesized expression.
       oparen = self._popt()
       if self._try_popt(TokenKind.CPAREN):
-        lhs = ast.XlsTuple(self.m, Span(oparen.span.start, self._get_pos()),
-                           tuple())
+        lhs = ast.XlsTuple(self.m, Span(oparen.span.start, self._get_pos()), ())
       else:
         lhs = self.parse_expression(bindings)
         if self._peekt_is(TokenKind.COMMA):
@@ -741,7 +741,8 @@ class Parser(token_parser.TokenParser):
     lhs = self._parse_term(bindings)
     while self._try_pop_keyword(Keyword.AS):
       type_ = self._parse_type_annotation(bindings)
-      lhs = ast.Cast(self.m, type_, lhs)
+      span = Span(lhs.span.start, type_.span.limit)
+      lhs = ast.Cast(self.m, span, type_, lhs)
     return lhs
 
   def _parse_strong_arithmetic_expression(self, bindings: Bindings) -> ast.Expr:
@@ -906,7 +907,8 @@ class Parser(token_parser.TokenParser):
         patterns.append(self._parse_pattern(arm_bindings))
       self._dropt_or_error(TokenKind.FAT_ARROW)
       rhs = self.parse_expression(arm_bindings)
-      arms.append(ast.MatchArm(self.m, tuple(patterns), rhs))
+      span = Span(patterns[0].span.start, rhs.span.limit)
+      arms.append(ast.MatchArm(self.m, span, tuple(patterns), rhs))
       must_end = not self._try_popt(TokenKind.COMMA)
 
     return ast.Match(self.m, Span(match_.span.start, self._get_pos()), matched,
@@ -920,7 +922,7 @@ class Parser(token_parser.TokenParser):
     w.test = self.parse_expression(while_bindings)
     w.body = self._parse_block_expression(while_bindings)
     w.init = self._parse_parenthesized_expr(bindings)
-    w.span = w.span.update_limit(self._get_pos())
+    w.span = w.span.clone_with_limit(self._get_pos())
     return w
 
   def _parse_for(self, bindings: Bindings) -> ast.For:
@@ -993,12 +995,12 @@ class Parser(token_parser.TokenParser):
               'Type is annotated in enum value, but enum defines a type. '
               'Please remove the leading type-annotation.')
         value.type_ = type_
-      entry = (name_def, value)
+      entry = ast.EnumMember(name_def, value)
       logging.vlog(3, 'enum entry: %s', entry)
       return entry
 
     entries = self._parse_comma_seq(parse_enum_entry, TokenKind.CBRACE)
-    enum = ast.Enum(self.m, enum_tok.span, public, name_def, type_, entries)
+    enum = ast.Enum(self.m, enum_tok.span, name_def, type_, entries, public)
     bindings.add(name_def.identifier, enum)
     return enum
 
@@ -1020,7 +1022,7 @@ class Parser(token_parser.TokenParser):
       return (name_def, type_)
 
     members = self._parse_comma_seq(parse_struct_member, TokenKind.CBRACE)
-    struct = ast.Struct(self.m, public, parametric_bindings, name_def, members)
+    struct = ast.Struct(self.m, name_def, parametric_bindings, members, public)
     bindings.add(name_def.identifier, struct)
     return struct
 
@@ -1033,7 +1035,7 @@ class Parser(token_parser.TokenParser):
     self._dropt_or_error(TokenKind.EQUALS)
     type_ = self._parse_type_annotation(bindings)
     self._dropt_or_error(TokenKind.SEMI)
-    type_def = ast.TypeDef(self.m, public, name_def, type_)
+    type_def = ast.TypeDef(self.m, name_def, type_, public)
     bindings.add(name_def.identifier, type_def)
     return type_def
 
@@ -1172,7 +1174,7 @@ class Parser(token_parser.TokenParser):
     # symbols available in the outer bindings.
     bindings = Bindings(outer_bindings)
 
-    parametric_bindings = ()
+    parametric_bindings: Tuple[ast.ParametricBinding, ...] = ()
     if self._try_popt(TokenKind.OBRACK):  # Parametric.
       parametric_bindings = self._parse_parametric_bindings(bindings)
 
@@ -1264,15 +1266,16 @@ class Parser(token_parser.TokenParser):
     # an error if they do!
     name = name_def.identifier
     if bindings.has_name(name):
+      span = ast_helpers.get_span_or_fake(bindings.resolve(name, name_def.span))
       raise ParseError(
           name_def.span,
-          'Constant definition is shadowing an existing definition from {}'
-          .format(bindings.resolve(name, name_def.span).get_span_or_fake()))
+          f'Constant definition is shadowing an existing definition from {span}'
+      )
 
     self._dropt_or_error(TokenKind.EQUALS)
     expr = self._parse_cast(bindings)
     self._dropt_or_error(TokenKind.SEMI)
-    if not ast.Constant.is_constant(expr):
+    if not ast.is_constant(expr):
       raise ParseError(expr.span,
                        'Value is not considered constant: {}'.format(expr))
     result = ast.Constant(self.m, name_def, expr)
