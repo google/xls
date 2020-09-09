@@ -22,35 +22,4 @@
 #include "xls/common/status/statusor.h"
 #include "xls/common/status/statusor_pybind_caster.inc"
 
-namespace pybind11 {
-namespace detail {
-
-// Convert an xabsl::StatusOr.
-template <typename PayloadType>
-struct type_caster<xabsl::StatusOr<PayloadType>> {
- public:
-  using PayloadCaster = make_caster<PayloadType>;
-  using StatusCaster = make_caster<absl::Status>;
-  static constexpr auto name = _("StatusOr[") + PayloadCaster::name + _("]");
-
-  // Conversion part 2 (C++ -> Python).
-  static handle cast(xabsl::StatusOr<PayloadType>&& src,
-                     return_value_policy policy, handle parent,
-                     bool throw_exception = true) {
-    if (src.ok()) {
-      // Convert and return the payload.
-      return PayloadCaster::cast(std::forward<PayloadType>(*src), policy,
-                                 parent);
-    } else {
-      // Convert and return the error.
-      return StatusCaster::cast(std::move(src.status()),
-                                return_value_policy::move, parent,
-                                throw_exception);
-    }
-  }
-};
-
-}  // namespace detail
-}  // namespace pybind11
-
 #endif  // XLS_COMMON_STATUS_STATUSOR_PYBIND_CASTER_H_

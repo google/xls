@@ -56,7 +56,10 @@ void TryThrowScanError(const absl::Status& status) {
 }
 
 const absl::Status& GetStatus(const absl::Status& status) { return status; }
-// Note: GetStatus is defined for StatusOr<T> in its header.
+template <typename T>
+const absl::Status& GetStatus(const absl::StatusOr<T>& status_or) {
+  return status_or.status();
+}
 
 template <typename ReturnT, typename... Args>
 std::function<ReturnT(Scanner*, Args...)> ScanErrorWrap(
