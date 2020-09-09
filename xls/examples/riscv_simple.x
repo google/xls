@@ -12,20 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Copyright 2020 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 // A trivial implementation of a simple RISC-V, supporting only
 // a subset of the RV32I operations, as described here:
 // https://content.riscv.org/wp-content/uploads/2017/05/riscv-spec-v2.2.pdf
@@ -38,7 +24,7 @@
 // Only a very small subset of the ISA is implemented here, as this
 // way of implementing a core will result in fairly inefficient,
 // non-pipelined code.
-//
+
 const REG_COUNT = u32:32;
 const DMEM_SIZE = u32:16;  // Bytes
 
@@ -145,7 +131,6 @@ fn waddr(x: u32) -> u32 {
 //                    ---                funct3
 //                       ---- -          rd
 //                             -------   opcode
-//
 fn decode_r_instruction(ins: u32) -> (u7, u5, u5, u3, u5, u7) {
    let funct7 = (ins >> u32:25);
    let rs2 = (ins >> u32:20) & u32:0x1F;
@@ -188,7 +173,6 @@ test decode_r_test_msb {
 //                    ---                funct3
 //                       ---- -          rd
 //                             -------   opcode
-//
 fn decode_i_instruction(ins: u32) -> (u12, u5, u3, u5, u7) {
    let imm_11_0 = (ins >> u32:20);
    let rs1 = (ins >> u32:15) & u32:0x1F;
@@ -229,7 +213,6 @@ test decode_i_test_msb {
 //                    ---                funct3
 //                       ---- -          rd
 //                             -------   opcode
-//
 fn decode_s_instruction(ins: u32) -> (u12, u5, u5, u3, u7) {
    let imm_11_5 = (ins >> u32:25);
    let rs2 = (ins >> u32:20) & u32:0x1F;
@@ -269,7 +252,6 @@ test decode_s_test_msb {
 // -------- -------- ----                imm_31_12
 //                       ---- -          rd
 //                             -------   opcode
-//
 fn decode_u_instruction(ins: u32) -> (u20, u5, u7) {
    let imm_31_12 = (ins >> u32:12);
    let rd = (ins >> u32:7) & u32:0x1F;
@@ -307,7 +289,6 @@ test decode_u_test_msb {
 //                       ----            imm_4_1
 //                            -          imm_11
 //                             -------   opcode
-//
 fn decode_b_instruction(ins: u32) -> (u12, u5, u5, u3, u7) {
    let imm_12 = (ins >> u32:31);
    let imm_10_5 = (ins >> u32:25) & u32:0x3F;
@@ -342,7 +323,6 @@ test decode_b_test {
 //              ---- ----                imm_19:12
 //                       ---- -          rd
 //                             -------   opcode
-//
 fn decode_j_instruction(ins: u32) -> (u20, u5, u7) {
    let imm_20 = (ins >> u32:31);
    let imm_10_1 = (ins >> u32:21) & u32:0x3FF;
@@ -367,7 +347,6 @@ test decode_j_test {
 // ==================================================
 
 // R-Type instructions.
-//
 fn run_r_instruction(pc: u32,
                      ins: u32,
                      regs: u32[REG_COUNT],
@@ -399,7 +378,6 @@ fn run_r_instruction(pc: u32,
 
 
 // I-type instructions.
-//
 fn run_i_instruction(pc: u32,
                      ins: u32,
                      regs: u32[REG_COUNT],
@@ -455,7 +433,6 @@ fn run_i_instruction(pc: u32,
 
 
 // S-type instructions.
-//
 fn run_s_instruction(pc: u32,
                      ins: u32,
                      regs: u32[REG_COUNT],
@@ -466,7 +443,6 @@ fn run_s_instruction(pc: u32,
   // Store various byte length to dmem.
   // This is where are much smarter load/store queue mechanism
   // will end up, which will resolve issues around alignment as well.
-  //
   let dmem = match funct3 {
      SW   => let dmem = update(dmem, regs[rs2] + u32:0 + (imm12 as u32),
                                regs[rs1][24 +: u8]);
@@ -490,7 +466,6 @@ fn run_s_instruction(pc: u32,
 
 // U-type instructions, of which there
 // is only one: the LUI instruction.
-//
 fn run_u_instruction(pc: u32,
                      ins: u32,
                      regs: u32[REG_COUNT],
@@ -502,7 +477,6 @@ fn run_u_instruction(pc: u32,
 
 // UJ-type instructions, of which there
 // is only one: the JAL instruction.
-//
 fn run_uj_instruction(pc: u32,
                       ins: u32,
                       regs: u32[REG_COUNT],
@@ -514,7 +488,6 @@ fn run_uj_instruction(pc: u32,
 
 
 // B-Type instructions.
-//
 fn run_b_instruction(pc: u32,
                      ins: u32,
                      regs: u32[REG_COUNT],
@@ -538,7 +511,6 @@ fn run_b_instruction(pc: u32,
 
 // Run a program by iterating over the instruction memory.
 // At this point - only execute a single instruction.
-//
 fn run_instruction(pc: u32,
                    ins: u32,
                    regs: u32[REG_COUNT],
@@ -560,7 +532,6 @@ fn run_instruction(pc: u32,
 }
 
 // Make an R-type instruction.
-//
 fn make_r_insn(op: u3, rdest: u5, r1: u5, r2: u5) -> u32 {
   let funct7 = match op {
      SUB => SUB_FUNCT7,
@@ -573,7 +544,6 @@ fn make_r_insn(op: u3, rdest: u5, r1: u5, r2: u5) -> u32 {
 }
 
 // Make an I-type instruction for I_ARITH and I_LD
-//
 fn make_i_insn(op: u3, rdest: u5, r1: u5, imm12: u12) -> u32 {
   let itype : u7 = match op {
      ADDI | SLLI | XORI | SRLI | SRAI | ORI | ANDI => I_ARITH,
@@ -583,20 +553,17 @@ fn make_i_insn(op: u3, rdest: u5, r1: u5, imm12: u12) -> u32 {
 }
 
 // Make an I-Type instruction for JALR.
-//
 fn make_jalr_insn(op: u3, rdest: u5, r1: u5, imm12: u12) -> u32 {
   imm12 ++ r1 ++ op ++ rdest ++ I_JALR
 }
 
 // Make an S-type instruction.
-//
 fn make_s_insn(op: u3, rs1: u5, rs2: u5, imm12: u12) -> u32 {
    imm12[5 +: u7] ++ rs2 ++ rs1 ++
    op ++ imm12[0 +: u5] ++ S_CLASS
 }
 
 // Make a B-type instruction.
-//
 fn make_b_insn(op: u3, rs1: u5, rs2: u5, imm12: u12) -> u32 {
       imm12[11 +: u1] ++
       imm12[ 4 +: u6] ++
@@ -609,14 +576,12 @@ fn make_b_insn(op: u3, rs1: u5, rs2: u5, imm12: u12) -> u32 {
 }
 
 // Make a U-type instruction.
-//
 fn make_u_insn(rdest: u5, imm20: u20) -> u32 {
    imm20 ++ rdest ++ U_CLASS
 }
 
 
 // Make a UJ-type instruction.
-//
 fn make_uj_insn(rdest: u5, imm20: u20) -> u32 {
    imm20[19 +:  u1] ++
    imm20[ 0 +: u10] ++
@@ -630,7 +595,6 @@ fn make_uj_insn(rdest: u5, imm20: u20) -> u32 {
 // We construct and iterate over the instructions here, in a test(),
 // to make sure that above functions are not being inlined multiple
 // times.
-//
 test risc_v_example {
   // Create an initial machine / process.
   //
