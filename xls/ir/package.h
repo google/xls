@@ -26,6 +26,8 @@
 #include "absl/strings/string_view.h"
 #include "xls/common/integral_types.h"
 #include "xls/common/status/statusor.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/channel.pb.h"
 #include "xls/ir/fileno.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
@@ -157,6 +159,34 @@ class Package {
   // Intended for use by the parser when node ids are suggested by the IR text.
   void set_next_node_id(int64 value) { next_node_id_ = value; }
 
+  // Create a channel. A unique channel ID will be automatically
+  // allocated. Channels are used with send/receive nodes in communicate between
+  // procs or between procs and external (to XLS) components.
+  xabsl::StatusOr<Channel*> CreateChannel(
+      absl::string_view name, ChannelKind kind,
+      absl::Span<const DataElement> data_elements,
+      const ChannelMetadataProto& metadata);
+
+  // Create a channel with the given ID. Can be used when parsing a package file
+  // where ID's are specified in the file. Otherwise CreateChannel should be
+  // used.
+  xabsl::StatusOr<Channel*> CreateChannelWithId(
+      absl::string_view name, int64 id, ChannelKind kind,
+      absl::Span<const DataElement> data_elements,
+      const ChannelMetadataProto& metadata);
+
+  // Returns the channel with the given ID or returns an error if no such
+  // channel exists.
+  xabsl::StatusOr<Channel*> GetChannel(int64 id) const;
+
+  // Returns whether there exists a channel with the given ID.
+  bool HasChannelWithId(int64 id) const {
+    return channels_.find(id) != channels_.end();
+  }
+
+  // Returns the type of a receive operation for the channel with the given id.
+  xabsl::StatusOr<Type*> GetReceiveType(int64 channel_id);
+
  private:
   friend class FunctionBuilder;
 
@@ -210,6 +240,13 @@ class Package {
   // and should always contain the same number of entries.
   UnorderedMap<Fileno, std::string> fileno_to_filename_;
   UnorderedMap<std::string, Fileno> filename_to_fileno_;
+
+  // Channels owned by this package. Indexed by channel id. Stored as
+  // unique_ptrs for pointer stability.
+  UnorderedMap<int64, std::unique_ptr<Channel>> channels_;
+
+  // The next channel ID to assign.
+  int64 next_channel_id_ = 0;
 
 #include "xls/ir/container_hack_undef.inc"
 };

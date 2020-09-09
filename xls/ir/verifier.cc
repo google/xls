@@ -83,11 +83,49 @@ class NodeChecker : public DfsVisitor {
   }
 
   absl::Status HandleChannelReceive(ChannelReceive* receive) override {
-    return absl::UnimplementedError("ChannelReceive not yet implemented");
+    if (!receive->package()->HasChannelWithId(receive->channel_id())) {
+      return absl::InternalError(
+          StrFormat("%s refers to channel ID %d which does not exist",
+                    receive->GetName(), receive->channel_id()));
+    }
+    XLS_ASSIGN_OR_RETURN(
+        Type * expected_type,
+        receive->package()->GetReceiveType(receive->channel_id()));
+    if (receive->GetType() != expected_type) {
+      return absl::InternalError(StrFormat(
+          "Expected %s to have type %s, has type %s", receive->GetName(),
+          expected_type->ToString(), receive->GetType()->ToString()));
+    }
+    XLS_ASSIGN_OR_RETURN(Channel * channel,
+                         receive->package()->GetChannel(receive->channel_id()));
+    if (!channel->CanReceive()) {
+      return absl::InternalError(StrFormat(
+          "Cannot receive over channel %s (%d), receive operation: %s",
+          channel->name(), channel->id(), receive->GetName()));
+    }
+    return absl::OkStatus();
   }
 
   absl::Status HandleChannelSend(ChannelSend* send) override {
-    return absl::UnimplementedError("ChannelSend not yet implemented");
+    XLS_RETURN_IF_ERROR(ExpectHasTokenType(send));
+    if (send->operand_count() < 2) {
+      return absl::InternalError(StrFormat(
+          "Expected %s to have at least 2 operands", send->GetName()));
+    }
+    XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(send, 0));
+    if (!send->package()->HasChannelWithId(send->channel_id())) {
+      return absl::InternalError(
+          StrFormat("%s refers to channel ID %d which does not exist",
+                    send->GetName(), send->channel_id()));
+    }
+    XLS_ASSIGN_OR_RETURN(Channel * channel,
+                         send->package()->GetChannel(send->channel_id()));
+    if (!channel->CanSend()) {
+      return absl::InternalError(
+          StrFormat("Cannot send over channel %s (%d), send operation: %s",
+                    channel->name(), channel->id(), send->GetName()));
+    }
+    return absl::OkStatus();
   }
 
   absl::Status HandleArray(Array* array) override {

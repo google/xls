@@ -401,6 +401,16 @@ class BuilderBase {
   BValue AddBitwiseReductionOp(
       Op op, BValue arg, absl::optional<SourceLocation> loc = absl::nullopt);
 
+  // Add a receive operation. The type of the data elements received is
+  // determined by the channel.
+  BValue Receive(Channel* channel, BValue token,
+                 absl::optional<SourceLocation> loc = absl::nullopt);
+
+  // Add a send operation.
+  BValue Send(Channel* channel, BValue token,
+              absl::Span<const BValue> data_operands,
+              absl::optional<SourceLocation> loc = absl::nullopt);
+
   Package* package() const { return function_->package(); }
 
  protected:

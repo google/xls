@@ -770,4 +770,42 @@ BValue BuilderBase::AddBitwiseReductionOp(Op op, BValue arg,
   return AddNode<BitwiseReductionOp>(loc, arg.node(), op);
 }
 
+BValue BuilderBase::Receive(Channel* channel, BValue token,
+                            absl::optional<SourceLocation> loc) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!token.GetType()->IsToken()) {
+    return SetError(
+        StrFormat("Token operand of receive must be of token type; is: %s",
+                  token.GetType()->ToString()),
+        loc);
+  }
+  return AddNode<ChannelReceive>(loc, token.node(), channel->id());
+}
+
+BValue BuilderBase::Send(Channel* channel, BValue token,
+                         absl::Span<const BValue> data_operands,
+                         absl::optional<SourceLocation> loc) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!token.GetType()->IsToken()) {
+    return SetError(
+        StrFormat("Token operand of send must be of token type; is: %s",
+                  token.GetType()->ToString()),
+        loc);
+  }
+  if (data_operands.empty()) {
+    return SetError("Send must have at least one data operand", loc);
+  }
+  std::vector<Node*> data_operand_nodes;
+  data_operand_nodes.push_back(token.node());
+  for (const BValue& data_operand : data_operands) {
+    data_operand_nodes.push_back(data_operand.node());
+  }
+  return AddNode<ChannelSend>(loc, token.node(), data_operand_nodes,
+                              channel->id());
+}
+
 }  // namespace xls

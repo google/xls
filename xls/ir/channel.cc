@@ -57,7 +57,7 @@ std::ostream& operator<<(std::ostream& os, ChannelKind kind) {
 }
 
 std::string Channel::ToString() const {
-  std::string result = absl::StrFormat("channel %s(", name());
+  std::string result = absl::StrFormat("chan %s(", name());
   absl::StrAppend(&result,
                   absl::StrJoin(data_elements(), ", ",
                                 [](std::string* out, const DataElement& e) {

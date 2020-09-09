@@ -14,12 +14,14 @@
 
 #include "xls/ir/ir_parser.h"
 
+#include "google/protobuf/text_format.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/channel.pb.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/number_parser.h"
@@ -734,6 +736,42 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
                                 type->AsBitsOrDie()->bit_count(), *loc);
         break;
       }
+      case Op::kChannelReceive: {
+        int64* channel_id = arg_parser.AddKeywordArg<int64>("channel_id");
+        XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
+        // Get the channel from the package.
+        if (!package->HasChannelWithId(*channel_id)) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "No such channel with channel ID %d", *channel_id));
+        }
+        XLS_ASSIGN_OR_RETURN(Type * expected_type,
+                             package->GetReceiveType(*channel_id));
+        if (expected_type != type) {
+          return absl::InvalidArgumentError(
+              absl::StrFormat("Receive op type is type: %s. Expected: %s",
+                              type->ToString(), expected_type->ToString()));
+        }
+        XLS_ASSIGN_OR_RETURN(Channel * channel,
+                             package->GetChannel(*channel_id));
+        bvalue = fb->Receive(channel, operands[0], *loc);
+        break;
+      }
+      case Op::kChannelSend: {
+        int64* channel_id = arg_parser.AddKeywordArg<int64>("channel_id");
+        XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(ArgParser::kVariadic));
+        // Get the channel from the package.
+        if (!package->HasChannelWithId(*channel_id)) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "No such channel with channel ID %d", *channel_id));
+        }
+        XLS_ASSIGN_OR_RETURN(Channel * channel,
+                             package->GetChannel(*channel_id));
+        // The first operand is the token, and the remaining are the data
+        // values to send.
+        bvalue = fb->Send(channel, operands[0],
+                          absl::Span<BValue>(operands).subspan(1), *loc);
+        break;
+      }
       default:
         XLS_ASSIGN_OR_RETURN(bvalue,
                              BuildBinaryOrUnaryOp(op, fb, loc, &arg_parser));
@@ -968,6 +1006,105 @@ xabsl::StatusOr<Proc*> Parser::ParseProc(Package* package) {
   return pb->BuildWithReturnValue(return_value);
 }
 
+xabsl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
+  if (AtEof()) {
+    return absl::InvalidArgumentError("Could not parse channel; at EOF.");
+  }
+  XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("chan"));
+  XLS_ASSIGN_OR_RETURN(
+      Token channel_name,
+      scanner_.PopTokenOrError(LexicalTokenType::kIdent, "channel name"));
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenOpen,
+                                                "'(' in channel definition"));
+  absl::optional<int64> id;
+  absl::optional<ChannelKind> kind;
+  absl::optional<ChannelMetadataProto> metadata;
+  std::vector<DataElement> data_elements;
+  bool must_end = false;
+
+  // Iterate through the comma-separated elements in the channel definition.
+  // Example:
+  //
+  //  chan my_channel(foo: bits[32], id=42, ...)
+  //
+  while (true) {
+    if (must_end || scanner_.PeekTokenIs(LexicalTokenType::kParenClose)) {
+      XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(
+          LexicalTokenType::kParenClose, "')' in channel definition"));
+      break;
+    }
+    XLS_ASSIGN_OR_RETURN(Token field_name,
+                         scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+    if (scanner_.PeekTokenIs(LexicalTokenType::kColon)) {
+      // Data element: "<name>: <type>"
+      XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kColon));
+      XLS_ASSIGN_OR_RETURN(Type * type, ParseType(package));
+      data_elements.push_back(DataElement{field_name.value(), type});
+    } else if (scanner_.TryDropToken(LexicalTokenType::kEquals)) {
+      // Attribute: "<name>=<value>"
+      if (field_name.value() == "id") {
+        XLS_ASSIGN_OR_RETURN(Token id_token, scanner_.PopTokenOrError(
+                                                 LexicalTokenType::kLiteral));
+        XLS_ASSIGN_OR_RETURN(id, id_token.GetValueInt64());
+      } else if (field_name.value() == "kind") {
+        XLS_ASSIGN_OR_RETURN(Token kind_token, scanner_.PopTokenOrError(
+                                                   LexicalTokenType::kIdent));
+        if (kind_token.value() == "send_only") {
+          kind = ChannelKind::kSendOnly;
+        } else if (kind_token.value() == "receive_only") {
+          kind = ChannelKind::kReceiveOnly;
+        } else if (kind_token.value() == "send_receive") {
+          kind = ChannelKind::kSendReceive;
+        } else {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Invalid channel kind \"%s\" @ %s. Expected: send_only, "
+              "receive_only, or send_receive",
+              kind_token.value(), field_name.pos().ToHumanString()));
+        }
+      } else if (field_name.value() == "metadata") {
+        // The metadata is serialized as a text proto.
+        XLS_ASSIGN_OR_RETURN(
+            Token metadata_token,
+            scanner_.PopTokenOrError(LexicalTokenType::kQuotedString));
+        ChannelMetadataProto proto;
+        bool success =
+            google::protobuf::TextFormat::ParseFromString(metadata_token.value(), &proto);
+        if (!success) {
+          return absl::InvalidArgumentError(
+              absl::StrFormat("Invalid channel metadata @ %s",
+                              metadata_token.pos().ToHumanString()));
+        }
+        metadata = proto;
+      } else {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Invalid channel attribute \"%s\" @ %s", field_name.value(),
+            field_name.pos().ToHumanString()));
+      }
+    }
+    must_end = !scanner_.TryDropToken(LexicalTokenType::kComma);
+  }
+
+  auto error = [&](absl::string_view message) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "%s @ %s", message, channel_name.pos().ToHumanString()));
+  };
+  if (!id.has_value()) {
+    return error("Missing channel id");
+  }
+  if (!kind.has_value()) {
+    return error("Missing channel kind");
+  }
+  if (!metadata.has_value()) {
+    return error("Missing channel metadata");
+  }
+  if (data_elements.empty()) {
+    return error("Channel has no data elements");
+  }
+
+  return package->CreateChannelWithId(channel_name.value(), *id, *kind,
+                                      data_elements, *metadata);
+}
+
 xabsl::StatusOr<FunctionType*> Parser::ParseFunctionType(Package* package) {
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
   std::vector<Type*> parameter_types;
@@ -1041,6 +1178,14 @@ xabsl::StatusOr<Proc*> Parser::ParseProc(absl::string_view input_string,
   // package-scoped invariants (eg, duplicate proc name).
   XLS_RETURN_IF_ERROR(VerifyAndSwapError(package));
   return proc;
+}
+
+/* static */
+xabsl::StatusOr<Channel*> Parser::ParseChannel(absl::string_view input_string,
+                                               Package* package) {
+  XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
+  Parser p(std::move(scanner));
+  return p.ParseChannel(package);
 }
 
 /* static */

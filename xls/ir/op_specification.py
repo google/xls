@@ -433,9 +433,8 @@ OpClass.kinds['CHANNEL_RECEIVE'] = OpClass(
     name='ChannelReceive',
     op='Op::kChannelReceive',
     operands=[Operand('token')],
-    xls_type_expression='GetChannelReceiveType(function->package(), data_types)',
-    attributes=[Int64Attribute('channel_id'),
-                TypeVectorAttribute('data_types')]
+    xls_type_expression='function->package()->GetReceiveType(channel_id).value()',
+    attributes=[Int64Attribute('channel_id')]
 )
 
 OpClass.kinds['CHANNEL_SEND'] = OpClass(
@@ -689,13 +688,13 @@ OPS = [
     ),
     Op(
         enum_name='kChannelReceive',
-        name='channel_receive',
+        name='receive',
         op_class=OpClass.kinds['CHANNEL_RECEIVE'],
         properties=[],
     ),
     Op(
         enum_name='kChannelSend',
-        name='channel_send',
+        name='send',
         op_class=OpClass.kinds['CHANNEL_SEND'],
         properties=[],
     ),

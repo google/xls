@@ -553,7 +553,7 @@ Garbage
 )";
   EXPECT_THAT(Parser::ParsePackage(input).status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Expected fn or proc definition")));
+                       HasSubstr("Expected fn, proc, or chan definition")));
 }
 
 TEST(IrParserTest, ParseEmptyStringAsPackage) {
@@ -1284,6 +1284,131 @@ proc foo(my_state: bits[32], my_token: token, init=42) {
       Parser::ParsePackage(program).status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Type of return value bits[32] does not match")));
+}
+
+TEST(IrParserTest, ParseSendReceiveChannel) {
+  Package p("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch,
+      Parser::ParseChannel(
+          R"(chan foo(foo_data: bits[32], id=42, kind=send_receive,
+                         metadata="module_port { flopped: true }"))",
+          &p));
+  EXPECT_EQ(ch->name(), "foo");
+  EXPECT_EQ(ch->id(), 42);
+  EXPECT_EQ(ch->kind(), ChannelKind::kSendReceive);
+  EXPECT_EQ(ch->data_elements().size(), 1);
+  EXPECT_EQ(ch->data_elements().front().name, "foo_data");
+  EXPECT_EQ(ch->data_elements().front().type, p.GetBitsType(32));
+  EXPECT_EQ(ch->metadata().channel_oneof_case(),
+            ChannelMetadataProto::kModulePort);
+  EXPECT_TRUE(ch->metadata().module_port().flopped());
+}
+
+TEST(IrParserTest, ParseSendOnlyChannel) {
+  Package p("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch, Parser::ParseChannel(
+                        R"(chan bar(baz: (bits[32], bits[1]), qux: bits[123],
+                         id=7, kind=send_only,
+                         metadata="module_port { flopped: false }"))",
+                        &p));
+  EXPECT_EQ(ch->name(), "bar");
+  EXPECT_EQ(ch->id(), 7);
+  EXPECT_EQ(ch->kind(), ChannelKind::kSendOnly);
+  EXPECT_EQ(ch->data_elements().size(), 2);
+  EXPECT_EQ(ch->data_elements()[0].name, "baz");
+  EXPECT_EQ(ch->data_elements()[0].type,
+            p.GetTupleType({p.GetBitsType(32), p.GetBitsType(1)}));
+  EXPECT_EQ(ch->data_elements()[1].name, "qux");
+  EXPECT_EQ(ch->data_elements()[1].type, p.GetBitsType(123));
+  EXPECT_EQ(ch->metadata().channel_oneof_case(),
+            ChannelMetadataProto::kModulePort);
+  EXPECT_FALSE(ch->metadata().module_port().flopped());
+}
+
+TEST(IrParserTest, ParseReceiveOnlyChannel) {
+  Package p("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch, Parser::ParseChannel(
+                        R"(chan meh(huh: bits[32][4], id=0, kind=receive_only,
+                         metadata="module_port { flopped: true }"))",
+                        &p));
+  EXPECT_EQ(ch->name(), "meh");
+  EXPECT_EQ(ch->id(), 0);
+  EXPECT_EQ(ch->kind(), ChannelKind::kReceiveOnly);
+  EXPECT_EQ(ch->data_elements().size(), 1);
+  EXPECT_EQ(ch->data_elements().front().name, "huh");
+  EXPECT_EQ(ch->data_elements().front().type,
+            p.GetArrayType(4, p.GetBitsType(32)));
+  EXPECT_EQ(ch->metadata().channel_oneof_case(),
+            ChannelMetadataProto::kModulePort);
+  EXPECT_TRUE(ch->metadata().module_port().flopped());
+}
+
+TEST(IrParserTest, ChannelParsingErrors) {
+  Package p("my_package");
+  EXPECT_THAT(Parser::ParseChannel(
+                  R"(chan meh(huh: bits[32][4], kind=receive_only,
+                         metadata="module_port { flopped: true }"))",
+                  &p)
+                  .status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Missing channel id")));
+  EXPECT_THAT(Parser::ParseChannel(
+                  R"(chan meh(huh: bits[32][4], id=7,
+                         metadata="module_port { flopped: true }"))",
+                  &p)
+                  .status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Missing channel kind")));
+
+  EXPECT_THAT(Parser::ParseChannel(
+                  R"(chan meh(huh: bits[32][4], id=7, kind=receive_only))", &p)
+                  .status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Missing channel metadata")));
+
+  EXPECT_THAT(Parser::ParseChannel(
+                  R"(chan meh(id=44, kind=receive_only,
+                         metadata="module_port { flopped: true }"))",
+                  &p)
+                  .status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Channel has no data elements")));
+
+  EXPECT_THAT(Parser::ParseChannel(
+                  R"(chan meh(foo: bits[32], id=44, kind=receive_only,
+                         bogus="totally!",
+                         metadata="module_port { flopped: true }"))",
+                  &p)
+                  .status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Invalid channel attribute \"bogus\"")));
+}
+
+TEST(IrParserTest, PackageWithSingleDataElementChannels) {
+  std::string program = R"(
+package test
+
+chan hbo(junk: bits[32], id=0, kind=receive_only,
+            metadata="module_port { flopped: true }")
+chan mtv(stuff: bits[32], id=1, kind=send_only,
+            metadata="module_port { flopped: true }")
+
+proc my_proc(my_state: bits[32], my_token: token, init=42) {
+  receive.1: (token, bits[32]) = receive(my_token, channel_id=0)
+  tuple_index.2: token = tuple_index(receive.1, index=0)
+  tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
+  add.4: bits[32] = add(my_state, tuple_index.3)
+  send.5: token = send(tuple_index.2, my_state, add.4, channel_id=1)
+  ret tuple.6: (bits[32], token) = tuple(add.4, send.5)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
+  EXPECT_EQ(package->procs().size(), 1);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
+  EXPECT_EQ(proc->name(), "my_proc");
 }
 
 }  // namespace xls

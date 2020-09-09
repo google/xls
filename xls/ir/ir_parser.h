@@ -29,12 +29,14 @@
 #include "absl/strings/string_view.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_scanner.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
 
 namespace xls {
@@ -61,6 +63,10 @@ class Parser {
   // Parse the input_string as a proc into the given package.
   static xabsl::StatusOr<Proc*> ParseProc(absl::string_view input_string,
                                           Package* package);
+
+  // Parse the input_string as a channel in the given package.
+  static xabsl::StatusOr<Channel*> ParseChannel(absl::string_view input_string,
+                                                Package* package);
 
   // Parse the input_string as a function type into the given package.
   static xabsl::StatusOr<FunctionType*> ParseFunctionType(
@@ -108,6 +114,9 @@ class Parser {
 
   // Parse a proc starting at the current scanner position.
   xabsl::StatusOr<Proc*> ParseProc(Package* package);
+
+  // Parse a proc starting at the current scanner position.
+  xabsl::StatusOr<Channel*> ParseChannel(Package* package);
 
   // Parse starting from a function type.
   xabsl::StatusOr<FunctionType*> ParseFunctionType(Package* package);
@@ -215,22 +224,27 @@ xabsl::StatusOr<std::unique_ptr<PackageT>> Parser::ParseDerivedPackageNoVerify(
   XLS_ASSIGN_OR_RETURN(std::string package_name, parser.ParsePackageName());
 
   auto package = absl::make_unique<PackageT>(package_name, entry);
+  std::string filename_str =
+      (filename.has_value() ? std::string(filename.value()) : "<unknown file>");
   while (!parser.AtEof()) {
     XLS_ASSIGN_OR_RETURN(Token peek, parser.scanner_.PeekToken());
     if (peek.type() == LexicalTokenType::kKeyword && peek.value() == "fn") {
       XLS_RETURN_IF_ERROR(parser.ParseFunction(package.get()).status())
-          << "@ "
-          << (filename.has_value() ? filename.value() : "<unknown file>");
+          << "@ " << filename_str;
       continue;
     }
     if (peek.type() == LexicalTokenType::kKeyword && peek.value() == "proc") {
       XLS_RETURN_IF_ERROR(parser.ParseProc(package.get()).status())
-          << "@ "
-          << (filename.has_value() ? filename.value() : "<unknown file>");
+          << "@ " << filename_str;
+      continue;
+    }
+    if (peek.type() == LexicalTokenType::kKeyword && peek.value() == "chan") {
+      XLS_RETURN_IF_ERROR(parser.ParseChannel(package.get()).status())
+          << "@ " << filename_str;
       continue;
     }
     return absl::InvalidArgumentError(
-        absl::StrFormat("Expected fn or proc definition, got %s @ %s",
+        absl::StrFormat("Expected fn, proc, or chan definition, got %s @ %s",
                         peek.value(), peek.pos().ToHumanString()));
   }
 

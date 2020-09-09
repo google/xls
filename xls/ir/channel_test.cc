@@ -17,6 +17,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
 
 namespace xls {
@@ -60,10 +61,30 @@ TEST(ChannelTest, ConstructChannel) {
   EXPECT_EQ(ch.data_element(0).type, p.GetBitsType(32));
   EXPECT_EQ(ch.data_element(1).name, "bar");
   EXPECT_EQ(ch.data_element(1).type, p.GetBitsType(123));
+}
+
+TEST(ChannelTest, ToStringParses) {
+  Package p("my_package");
+  ChannelMetadataProto metadata;
+  metadata.mutable_module_port()->set_flopped(true);
+  Channel ch("my_channel", 42, ChannelKind::kReceiveOnly,
+             {DataElement{"foo", p.GetBitsType(32)},
+              DataElement{"bar", p.GetBitsType(123)}},
+             metadata);
+  std::string ch_to_string = ch.ToString();
   EXPECT_EQ(
-      ch.ToString(),
-      "channel my_channel(foo: bits[32], bar: bits[123], id=42, "
+      ch_to_string,
+      "chan my_channel(foo: bits[32], bar: bits[123], id=42, "
       "kind=receive_only, metadata=\"\"\"module_port { flopped: true }\"\"\")");
+
+  // Create another package and try to parse the channel into the other
+  // package. We can't use the existing package because adding the channel will
+  // fail because the id already exists.
+  Package other_p("other_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * parsed_ch,
+                           Parser::ParseChannel(ch_to_string, &other_p));
+  EXPECT_EQ(parsed_ch->name(), "my_channel");
+  EXPECT_EQ(parsed_ch->id(), 42);
 }
 
 }  // namespace

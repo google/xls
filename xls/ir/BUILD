@@ -168,6 +168,8 @@ cc_library(
     ],
     deps = [
         ":bits",
+        ":channel",
+        ":channel_cc_proto",
         ":op",
         ":source_location",
         ":type",
@@ -288,6 +290,8 @@ cc_library(
     hdrs = ["ir_parser.h"],
     deps = [
         ":bits_ops",
+        ":channel",
+        ":channel_cc_proto",
         ":function_builder",
         ":ir",
         ":ir_scanner",
@@ -301,6 +305,7 @@ cc_library(
         "//xls/common/status:statusor",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_protobuf//:protobuf",
     ],
 )
 
@@ -988,6 +993,7 @@ cc_test(
     deps = [
         ":channel",
         ":ir",
+        ":ir_parser",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
     ],

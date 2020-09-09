@@ -388,4 +388,46 @@ std::vector<std::string> Package::GetFunctionNames() const {
   return names;
 }
 
+xabsl::StatusOr<Channel*> Package::CreateChannel(
+    absl::string_view name, ChannelKind kind,
+    absl::Span<const DataElement> data_elements,
+    const ChannelMetadataProto& metadata) {
+  return CreateChannelWithId(name, next_channel_id_, kind, data_elements,
+                             metadata);
+}
+
+xabsl::StatusOr<Channel*> Package::CreateChannelWithId(
+    absl::string_view name, int64 id, ChannelKind kind,
+    absl::Span<const DataElement> data_elements,
+    const ChannelMetadataProto& metadata) {
+  auto [channel_it, inserted] =
+      channels_.insert({id, absl::make_unique<Channel>(
+                                name, id, kind, data_elements, metadata)});
+  if (!inserted) {
+    return absl::InternalError(
+        absl::StrFormat("Channel already exists with id %d.", id));
+  }
+  next_channel_id_ = std::max(next_channel_id_, id + 1);
+  return channel_it->second.get();
+}
+
+xabsl::StatusOr<Channel*> Package::GetChannel(int64 id) const {
+  if (channels_.find(id) == channels_.end()) {
+    return absl::NotFoundError(
+        absl::StrFormat("No channel with id %d (package has %d channels).", id,
+                        channels_.size()));
+  }
+  return channels_.at(id).get();
+}
+
+xabsl::StatusOr<Type*> Package::GetReceiveType(int64 channel_id) {
+  XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannel(channel_id));
+  std::vector<Type*> element_types;
+  element_types.push_back(GetTokenType());
+  for (const DataElement& data : channel->data_elements()) {
+    element_types.push_back(data.type);
+  }
+  return GetTupleType(element_types);
+}
+
 }  // namespace xls
