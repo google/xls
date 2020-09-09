@@ -467,7 +467,7 @@ class Array : public Expr {
         }));
   }
 
-  std::vector<AstNode*> GetChildren(bool want_types) const {
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
     std::vector<AstNode*> results;
     if (type_ != nullptr) {
       results.push_back(type_);
@@ -580,7 +580,9 @@ class ModRef : public Expr {
     return absl::StrFormat("%s::%s", mod_->identifier(), attr_);
   }
 
-  std::vector<AstNode*> GetChildren(bool want_types) const { return {mod_}; }
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {mod_};
+  }
 
   Import* import() const { return mod_; }
   const std::string& attr() const { return attr_; }
@@ -598,7 +600,7 @@ class Param : public AstNode {
         type_(type),
         span_(name_def_->span().start(), type_->span().limit()) {}
 
-  std::string ToString() const {
+  std::string ToString() const override {
     return absl::StrFormat("%s: %s", name_def_->ToString(), type_->ToString());
   }
 
@@ -1371,10 +1373,7 @@ class Test : public AstNode {
 class TestFunction : public Test {
  public:
   explicit TestFunction(Function* fn)
-      : Test(fn->name_def(), fn->body()), fn_(fn) {}
-
- private:
-  Function* fn_;
+      : Test(fn->name_def(), fn->body()) {}
 };
 
 // Represents a function to be quick-check'd.

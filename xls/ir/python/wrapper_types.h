@@ -253,7 +253,7 @@ auto WrapInPyHolderIfHolderExists(T&& value, Holder* holder)
 }
 template <typename T>
 auto WrapInPyHolderIfHolderExists(T&& value, ...) {
-  return value;
+  return std::forward<T>(value);
 }
 
 // Tells PyWrap how to wrap BValue return values, see
@@ -321,7 +321,7 @@ template <typename T, typename = std::void_t<>>
 struct WrappedFunctionParameterTraits {
   using WrappedType = T;
 
-  static T Unwrap(T&& t) { return t; }
+  static T Unwrap(T&& t) { return std::move(t); }
 };
 
 // WrappedFunctionParameterTraits for absl::Spans of types that have wrapper
