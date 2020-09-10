@@ -18,7 +18,7 @@
 
 namespace xls::dslx {
 
-/* static */ xabsl::StatusOr<Pos> Pos::FromString(absl::string_view s) {
+/* static */ absl::StatusOr<Pos> Pos::FromString(absl::string_view s) {
   std::string filename;
   int64 lineno, colno;
   if (RE2::FullMatch(s, "(.*):(\\d+):(\\d+)", &filename, &lineno, &colno)) {

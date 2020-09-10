@@ -34,7 +34,7 @@ class BooleanSimplificationPassTest : public IrTestBase {
  protected:
   BooleanSimplificationPassTest() = default;
 
-  xabsl::StatusOr<bool> Run(Function* f) {
+  absl::StatusOr<bool> Run(Function* f) {
     PassResults results;
     XLS_ASSIGN_OR_RETURN(
         bool changed,

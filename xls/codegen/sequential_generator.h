@@ -20,6 +20,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "xls/codegen/module_builder.h"
@@ -28,7 +29,6 @@
 #include "xls/codegen/vast.h"
 #include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/status/statusor.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/function.h"
@@ -134,7 +134,7 @@ class SequentialModuleBuilder {
 
   // Adds a strided counter with statically determined value_limit_exclusive to
   // the module. Note that this is not a saturating counter.
-  xabsl::StatusOr<StridedCounterReferences> AddStaticStridedCounter(
+  absl::StatusOr<StridedCounterReferences> AddStaticStridedCounter(
       std::string name, int64 stride, int64 value_limit_exclusive,
       LogicRef* clk, LogicRef* set_zero_arg, LogicRef* increment_arg);
 
@@ -144,14 +144,14 @@ class SequentialModuleBuilder {
   }
 
   // Constructs the sequential module.
-  xabsl::StatusOr<ModuleGeneratorResult> Build();
+  absl::StatusOr<ModuleGeneratorResult> Build();
 
   // Generates a pipeline module that implements the loop's body.
-  xabsl::StatusOr<std::unique_ptr<ModuleGeneratorResult>>
+  absl::StatusOr<std::unique_ptr<ModuleGeneratorResult>>
   GenerateLoopBodyPipeline();
 
   // Generates the signature for the top-level module.
-  xabsl::StatusOr<std::unique_ptr<ModuleSignature>> GenerateModuleSignature();
+  absl::StatusOr<std::unique_ptr<ModuleSignature>> GenerateModuleSignature();
 
   // Initializes the module builder according to the signature.
   absl::Status InitializeModuleBuilder(const ModuleSignature& signature);
@@ -198,11 +198,11 @@ class SequentialModuleBuilder {
 
 // Emits the given function as a verilog module which reuses the same hardware
 // over time to executed loop iterations.
-xabsl::StatusOr<ModuleGeneratorResult> ToSequentialModuleText(Function* func);
+absl::StatusOr<ModuleGeneratorResult> ToSequentialModuleText(Function* func);
 
 // Emits the given CountedFor as a verilog module which reuses the same hardware
 // over time to executed loop iterations.
-xabsl::StatusOr<ModuleGeneratorResult> ToSequentialModuleText(
+absl::StatusOr<ModuleGeneratorResult> ToSequentialModuleText(
     const SequentialOptions& options, const CountedFor* loop);
 
 }  // namespace verilog

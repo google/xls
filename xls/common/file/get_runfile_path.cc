@@ -33,7 +33,7 @@ using ::bazel::tools::cpp::runfiles::Runfiles;
 static absl::Mutex mutex(absl::kConstInit);
 static Runfiles* runfiles;
 
-xabsl::StatusOr<Runfiles*> GetRunfiles(
+absl::StatusOr<Runfiles*> GetRunfiles(
     const std::string& argv0 = "/proc/self/exe") {
   absl::MutexLock lock(&mutex);
   if (runfiles == nullptr) {

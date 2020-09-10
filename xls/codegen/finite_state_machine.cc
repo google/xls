@@ -368,7 +368,7 @@ bool AllSameAndNonNull(absl::Span<Expression* const> exprs) {
 
 }  // namespace
 
-xabsl::StatusOr<Expression*> FsmBlockBase::HoistCommonConditionalAssignments(
+absl::StatusOr<Expression*> FsmBlockBase::HoistCommonConditionalAssignments(
     const FsmOutput& output) {
   XLS_VLOG(3) << absl::StreamFormat(
       "HoistCommonConditionalAssignments for output %s in block \"%s\"",

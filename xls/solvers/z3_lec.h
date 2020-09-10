@@ -53,12 +53,12 @@ class Lec {
  public:
   // Creates a LEC object for checking across the entire specified function and
   // module.
-  static xabsl::StatusOr<std::unique_ptr<Lec>> Create(const LecParams& params);
+  static absl::StatusOr<std::unique_ptr<Lec>> Create(const LecParams& params);
 
   // Creates a LEC object for a particular pipeline stage. The schedule only
   // directly applies to the specified XLS Function; the mapping of Netlist
   // cell/wire to stage is derived from there.
-  static xabsl::StatusOr<std::unique_ptr<Lec>> CreateForStage(
+  static absl::StatusOr<std::unique_ptr<Lec>> CreateForStage(
       const LecParams& params, const PipelineSchedule& schedule, int stage);
   ~Lec();
 
@@ -115,11 +115,11 @@ class Lec {
   // The opposite of BindNetlistInputs - given the output nodes from the
   // stage, collect the corresponding NetRefs and use them to reconstruct
   // the composite output value.
-  xabsl::StatusOr<std::vector<Z3_ast>> GetNetlistZ3ForIr(const Node* node);
+  absl::StatusOr<std::vector<Z3_ast>> GetNetlistZ3ForIr(const Node* node);
 
   // Retrieves the set of NetRefs corresponding to the output value of the given
   // node.
-  xabsl::StatusOr<std::vector<netlist::rtl::NetRef>> GetIrNetrefs(
+  absl::StatusOr<std::vector<netlist::rtl::NetRef>> GetIrNetrefs(
       const Node* node);
 
   // Returns the name of the netlist wire corresponding to the input node.

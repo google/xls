@@ -17,9 +17,9 @@
 namespace xls {
 
 // Starting from the return_value(s), call the dumper function.
-xabsl::StatusOr<bool> DumpPass::RunOnFunction(Function* f,
-                                              const PassOptions& options,
-                                              PassResults* results) const {
+absl::StatusOr<bool> DumpPass::RunOnFunction(Function* f,
+                                             const PassOptions& options,
+                                             PassResults* results) const {
   std::string func = f->DumpIr();
   std::cerr << std::endl << func << std::endl;
   return true;

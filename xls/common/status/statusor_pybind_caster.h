@@ -19,7 +19,7 @@
 #include <pybind11/pybind11.h>
 
 #include "absl/status/status.h"
-#include "xls/common/status/statusor.h"
+#include "absl/status/statusor.h"
 #include "xls/common/status/statusor_pybind_caster.inc"
 
 #endif  // XLS_COMMON_STATUS_STATUSOR_PYBIND_CASTER_H_

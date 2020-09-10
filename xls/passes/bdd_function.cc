@@ -234,7 +234,7 @@ bool ShouldEvaluate(Node* node) {
 
 }  // namespace
 
-/* static */ xabsl::StatusOr<std::unique_ptr<BddFunction>> BddFunction::Run(
+/* static */ absl::StatusOr<std::unique_ptr<BddFunction>> BddFunction::Run(
     Function* f, int64 minterm_limit,
     absl::Span<const Op> do_not_evaluate_ops) {
   XLS_VLOG(1) << absl::StreamFormat("BddFunction::Run(%s):", f->name());
@@ -308,7 +308,7 @@ bool ShouldEvaluate(Node* node) {
   return std::move(bdd_function);
 }
 
-xabsl::StatusOr<Value> BddFunction::Evaluate(
+absl::StatusOr<Value> BddFunction::Evaluate(
     absl::Span<const Value> args) const {
   // Map containing the result of each node.
   absl::flat_hash_map<const Node*, Value> values;

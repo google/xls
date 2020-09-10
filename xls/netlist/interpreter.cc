@@ -27,7 +27,7 @@ namespace netlist {
 
 Interpreter::Interpreter(rtl::Netlist* netlist) : netlist_(netlist) {}
 
-xabsl::StatusOr<absl::flat_hash_map<const rtl::NetRef, bool>>
+absl::StatusOr<absl::flat_hash_map<const rtl::NetRef, bool>>
 Interpreter::InterpretModule(
     const rtl::Module* module,
     const absl::flat_hash_map<const rtl::NetRef, bool>& inputs,
@@ -151,7 +151,7 @@ absl::Status Interpreter::InterpretCell(
     const rtl::Cell& cell,
     absl::flat_hash_map<const rtl::NetRef, bool>* processed_wires) {
   const CellLibraryEntry* entry = cell.cell_library_entry();
-  xabsl::StatusOr<const rtl::Module*> status_or_module =
+  absl::StatusOr<const rtl::Module*> status_or_module =
       netlist_->GetModule(entry->name());
   if (status_or_module.ok()) {
     // If this "cell" is actually a module defined in the netlist,
@@ -225,7 +225,7 @@ absl::Status Interpreter::InterpretCell(
   return absl::OkStatus();
 }
 
-xabsl::StatusOr<bool> Interpreter::InterpretFunction(
+absl::StatusOr<bool> Interpreter::InterpretFunction(
     const rtl::Cell& cell, const function::Ast& ast,
     const absl::flat_hash_map<const rtl::NetRef, bool>& processed_wires) {
   switch (ast.kind()) {
@@ -291,7 +291,7 @@ xabsl::StatusOr<bool> Interpreter::InterpretFunction(
   }
 }
 
-xabsl::StatusOr<bool> Interpreter::InterpretStateTable(
+absl::StatusOr<bool> Interpreter::InterpretStateTable(
     const rtl::Cell& cell, const std::string& pin_name,
     const absl::flat_hash_map<const rtl::NetRef, bool>& processed_wires) {
   XLS_RET_CHECK(cell.cell_library_entry()->state_table());

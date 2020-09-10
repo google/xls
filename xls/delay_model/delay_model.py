@@ -327,7 +327,7 @@ class LogicalEffortEstimator(Estimator):
   def cpp_delay_code(self, node_identifier: Text) -> Text:
     lines = []
     lines.append(
-        'xabsl::StatusOr<int64> delay_in_ps = DelayEstimator::GetLogicalEffortDelayInPs({}, {});'
+        'absl::StatusOr<int64> delay_in_ps = DelayEstimator::GetLogicalEffortDelayInPs({}, {});'
         .format(node_identifier, self.tau_in_ps))
     lines.append('if (delay_in_ps.ok()) {')
     lines.append('  return delay_in_ps.value();')
@@ -389,7 +389,7 @@ class OpModel:
   def cpp_delay_function(self) -> Text:
     """Return a C++ function which computes delay for an operation."""
     lines = []
-    lines.append('xabsl::StatusOr<int64> %s(Node* node) {' %
+    lines.append('absl::StatusOr<int64> %s(Node* node) {' %
                  self.cpp_delay_function_name())
     for kind, estimator in self.specializations.items():
       if kind == delay_model_pb2.SpecializationKind.OPERANDS_IDENTICAL:
@@ -411,7 +411,7 @@ class OpModel:
     return self.op.lstrip('k') + 'Delay'
 
   def cpp_delay_function_declaration(self) -> Text:
-    return 'xabsl::StatusOr<int64> {}(Node* node);'.format(
+    return 'absl::StatusOr<int64> {}(Node* node);'.format(
         self.cpp_delay_function_name())
 
 

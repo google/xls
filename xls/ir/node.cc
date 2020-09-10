@@ -503,7 +503,7 @@ absl::Status Node::ReplaceOperandNumber(int64 operand_no, Node* new_operand) {
   return absl::OkStatus();
 }
 
-xabsl::StatusOr<bool> Node::ReplaceUsesWith(Node* replacement) {
+absl::StatusOr<bool> Node::ReplaceUsesWith(Node* replacement) {
   XLS_RET_CHECK(GetType() == replacement->GetType())
       << "type was: " << GetType()->ToString()
       << " replacement: " << replacement->GetType()->ToString();

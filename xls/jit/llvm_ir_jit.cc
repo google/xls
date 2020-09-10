@@ -634,8 +634,8 @@ class BuilderVisitor : public DfsVisitorWithDefault {
   // param_buffer is an LLVM i8 (not a pointer to such). So for each element in
   // the param [type], we read it from the buffer, then shift off the read
   // amount.
-  xabsl::StatusOr<llvm::Value*> UnpackParamBuffer(Type* param_type,
-                                                  llvm::Value* param_buffer) {
+  absl::StatusOr<llvm::Value*> UnpackParamBuffer(Type* param_type,
+                                                 llvm::Value* param_buffer) {
     switch (param_type->kind()) {
       case TypeKind::kBits:
         return builder_->CreateTrunc(
@@ -1012,8 +1012,8 @@ class BuilderVisitor : public DfsVisitorWithDefault {
     return result;
   }
 
-  xabsl::StatusOr<llvm::Constant*> ConvertToLlvmConstant(Type* type,
-                                                         const Value& value) {
+  absl::StatusOr<llvm::Constant*> ConvertToLlvmConstant(Type* type,
+                                                        const Value& value) {
     if (type->IsBits()) {
       return type_converter_->ToLlvmConstant(
           type_converter_->ConvertToLlvmType(*type), value);
@@ -1050,7 +1050,7 @@ class BuilderVisitor : public DfsVisitorWithDefault {
     XLS_LOG(FATAL) << "Unknown value kind: " << value.kind();
   }
 
-  xabsl::StatusOr<llvm::Function*> GetModuleFunction(Function* xls_function) {
+  absl::StatusOr<llvm::Function*> GetModuleFunction(Function* xls_function) {
     // If we've not processed this function yet, then do so.
     llvm::Function* found_function = module_->getFunction(xls_function->name());
     if (found_function != nullptr) {
@@ -1146,7 +1146,7 @@ void OnceInit() {
 
 }  // namespace
 
-xabsl::StatusOr<std::unique_ptr<LlvmIrJit>> LlvmIrJit::Create(
+absl::StatusOr<std::unique_ptr<LlvmIrJit>> LlvmIrJit::Create(
     Function* xls_function, int64 opt_level) {
   absl::call_once(once, OnceInit);
 
@@ -1170,7 +1170,7 @@ absl::Status LlvmIrJit::Compile() {
   }
 
   auto load_symbol = [this](const std::string& function_name)
-      -> xabsl::StatusOr<llvm::JITTargetAddress> {
+      -> absl::StatusOr<llvm::JITTargetAddress> {
     llvm::Expected<llvm::JITEvaluatedSymbol> symbol =
         execution_session_.lookup(&dylib_, function_name);
     if (!symbol) {
@@ -1377,7 +1377,7 @@ absl::Status LlvmIrJit::CompileFunction(llvm::Module* module) {
   return absl::OkStatus();
 }
 
-xabsl::StatusOr<Value> LlvmIrJit::Run(absl::Span<const Value> args) {
+absl::StatusOr<Value> LlvmIrJit::Run(absl::Span<const Value> args) {
   absl::Span<Param* const> params = xls_function_->params();
   if (args.size() != params.size()) {
     return absl::InvalidArgumentError(
@@ -1413,7 +1413,7 @@ xabsl::StatusOr<Value> LlvmIrJit::Run(absl::Span<const Value> args) {
                                    xls_function_type_->return_type());
 }
 
-xabsl::StatusOr<Value> LlvmIrJit::Run(
+absl::StatusOr<Value> LlvmIrJit::Run(
     const absl::flat_hash_map<std::string, Value>& kwargs) {
   XLS_ASSIGN_OR_RETURN(std::vector<Value> positional_args,
                        KeywordArgsToPositional(*xls_function_, kwargs));
@@ -1439,14 +1439,14 @@ absl::Status LlvmIrJit::RunWithViews(absl::Span<const uint8*> args,
   return absl::OkStatus();
 }
 
-xabsl::StatusOr<Value> CreateAndRun(Function* xls_function,
-                                    absl::Span<const Value> args) {
+absl::StatusOr<Value> CreateAndRun(Function* xls_function,
+                                   absl::Span<const Value> args) {
   XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(xls_function));
   XLS_ASSIGN_OR_RETURN(auto result, jit->Run(args));
   return result;
 }
 
-xabsl::StatusOr<std::pair<std::vector<std::vector<Value>>, std::vector<Value>>>
+absl::StatusOr<std::pair<std::vector<std::vector<Value>>, std::vector<Value>>>
 CreateAndQuickCheck(Function* xls_function, int64 seed, int64 num_tests) {
   XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(xls_function));
   std::vector<Value> results;
@@ -1534,11 +1534,11 @@ absl::Status LlvmIrJit::CompilePackedViewFunction(llvm::Module* module) {
 
 // "bit_offset" is relative to the true buffer start -- not some offset relative
 // to a parent location.
-xabsl::StatusOr<llvm::Value*> LlvmIrJit::PackElement(llvm::IRBuilder<>& builder,
-                                                     llvm::Value* element,
-                                                     Type* element_type,
-                                                     llvm::Value* buffer,
-                                                     int64 bit_offset) {
+absl::StatusOr<llvm::Value*> LlvmIrJit::PackElement(llvm::IRBuilder<>& builder,
+                                                    llvm::Value* element,
+                                                    Type* element_type,
+                                                    llvm::Value* buffer,
+                                                    int64 bit_offset) {
   switch (element_type->kind()) {
     case TypeKind::kBits:
       if (element->getType() != buffer->getType()) {

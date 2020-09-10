@@ -16,9 +16,9 @@
 #ifndef XLS_CODEGEN_NODE_EXPRESSIONS_H_
 #define XLS_CODEGEN_NODE_EXPRESSIONS_H_
 
+#include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/codegen/vast.h"
-#include "xls/common/status/statusor.h"
 #include "xls/ir/node.h"
 
 namespace xls {
@@ -53,7 +53,7 @@ bool OperandMustBeNamedReference(Node* node, int64 operand_no);
 // Returns a VAST expression which computes the given node with the given
 // inputs. If the node cannot be expressed as an expression (e.g., CountedFor),
 // then an error is returned.
-xabsl::StatusOr<Expression*> NodeToExpression(
+absl::StatusOr<Expression*> NodeToExpression(
     Node* node, absl::Span<Expression* const> inputs, VerilogFile* file);
 
 // Returns true if the expression for the given Node should be inlined into its

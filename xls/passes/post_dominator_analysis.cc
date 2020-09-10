@@ -29,7 +29,7 @@
 
 namespace xls {
 
-/* static */ xabsl::StatusOr<std::unique_ptr<PostDominatorAnalysis>>
+/* static */ absl::StatusOr<std::unique_ptr<PostDominatorAnalysis>>
 PostDominatorAnalysis::Run(Function* f) {
   auto analysis = absl::WrapUnique(new PostDominatorAnalysis(f));
 

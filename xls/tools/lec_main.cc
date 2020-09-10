@@ -17,6 +17,7 @@
 #include "absl/base/internal/sysinfo.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/file/filesystem.h"
@@ -24,7 +25,6 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/status/statusor.h"
 #include "xls/common/subprocess.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/netlist/cell_library.h"
@@ -88,7 +88,7 @@ constexpr const char kIrConverterPath[] = "xls/dslx/ir_converter_main";
 
 // Loads a cell library, either from a raw Liberty file or a preprocessed
 // CellLibraryProto proto.
-xabsl::StatusOr<netlist::CellLibrary> GetCellLibrary(
+absl::StatusOr<netlist::CellLibrary> GetCellLibrary(
     absl::string_view cell_lib_path, absl::string_view cell_proto_path) {
   if (!cell_proto_path.empty()) {
     XLS_ASSIGN_OR_RETURN(std::string cell_proto_text,
@@ -107,7 +107,7 @@ xabsl::StatusOr<netlist::CellLibrary> GetCellLibrary(
 }
 
 // Loads and parses a netlist from a file.
-xabsl::StatusOr<std::unique_ptr<netlist::rtl::Netlist>> GetNetlist(
+absl::StatusOr<std::unique_ptr<netlist::rtl::Netlist>> GetNetlist(
     absl::string_view netlist_path, netlist::CellLibrary* cell_library) {
   XLS_ASSIGN_OR_RETURN(std::string netlist_text, GetFileContents(netlist_path));
   netlist::rtl::Scanner scanner(netlist_text);

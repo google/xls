@@ -17,7 +17,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
-#include "xls/common/status/statusor.h"
+#include "absl/status/statusor.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/function.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
@@ -109,12 +109,12 @@ class PipelineSchedule {
  public:
   // Produces a feed-forward pipeline schedule using the given delay model and
   // scheduling options.
-  static xabsl::StatusOr<PipelineSchedule> Run(
+  static absl::StatusOr<PipelineSchedule> Run(
       Function* f, const DelayEstimator& delay_estimator,
       const SchedulingOptions& options);
 
   // Reconstructs a PipelineSchedule object from a proto representation.
-  static xabsl::StatusOr<PipelineSchedule> FromProto(
+  static absl::StatusOr<PipelineSchedule> FromProto(
       Function* function, const PipelineScheduleProto& proto);
 
   // Constructs a schedule for the given function with the given cycle map. If

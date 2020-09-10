@@ -19,8 +19,8 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/common/status/statusor.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/node.h"
 
@@ -134,7 +134,7 @@ class DelayHeap {
 
   // Returns the critical path delay through the heap after adding the given
   // node.
-  xabsl::StatusOr<int64> CriticalPathDelayAfterAdding(Node* node) const;
+  absl::StatusOr<int64> CriticalPathDelayAfterAdding(Node* node) const;
 
   // Returns the critical path delay through the heap after removing the given
   // node. The node must be in the frontier set.

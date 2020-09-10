@@ -42,7 +42,7 @@ TEST(LibParserTest, ScanSimple) {
 
 // Helper that parses the given text as a library block and returns the
 // block structure.
-xabsl::StatusOr<std::unique_ptr<Block>> Parse(
+absl::StatusOr<std::unique_ptr<Block>> Parse(
     std::string text,
     absl::optional<absl::flat_hash_set<std::string>> allowlist =
         absl::nullopt) {
@@ -52,7 +52,7 @@ xabsl::StatusOr<std::unique_ptr<Block>> Parse(
   return parser.ParseLibrary();
 }
 
-xabsl::StatusOr<std::string> ParseToString(std::string text) {
+absl::StatusOr<std::string> ParseToString(std::string text) {
   XLS_ASSIGN_OR_RETURN(auto block, Parse(text));
   return block->ToString();
 }

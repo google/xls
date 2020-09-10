@@ -23,8 +23,8 @@
 //   error";
 //
 // The XLS_RET_CHECK* macros can only be used in functions that return
-// absl::Status or StatusOr.  The generated `absl::Status` will contain the
-// string "XLS_RET_CHECK failure".
+// absl::Status or absl::StatusOr.  The generated `absl::Status` will contain
+// the string "XLS_RET_CHECK failure".
 //
 // On failure these routines will log a stack trace to `ERROR`.  The
 // `XLS_RET_CHECK` macros end with a `StatusBuilder` in their tail position and
@@ -45,10 +45,10 @@
 
 #include "absl/flags/declare.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/status_builder.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/status/statusor.h"
 
 namespace xls {
 namespace internal_status_macros_ret_check {
@@ -80,7 +80,7 @@ inline const absl::Status& AsStatus(const absl::Status& status) {
 }
 
 template <typename T>
-inline const absl::Status& AsStatus(const xabsl::StatusOr<T>& status_or) {
+inline const absl::Status& AsStatus(const absl::StatusOr<T>& status_or) {
   return status_or.status();
 }
 

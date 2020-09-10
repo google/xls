@@ -16,6 +16,7 @@
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
@@ -25,7 +26,6 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/status/statusor.h"
 #include "xls/ir/ir_interpreter.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value_helpers.h"
@@ -128,7 +128,7 @@ std::string ArgsToString(absl::Span<const Value> args) {
 // does not match expectations (if any). 'actual_src' and 'expected_src' are
 // string descriptions of the sources of the actual results and expected
 // results, respectively. These strings are included in error messages.
-xabsl::StatusOr<std::vector<Value>> Eval(
+absl::StatusOr<std::vector<Value>> Eval(
     Function* f, absl::Span<const ArgSet> arg_sets, bool use_jit,
     absl::string_view actual_src = "actual",
     absl::string_view expected_src = "expected") {
@@ -250,7 +250,7 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
 }
 
 // Parse the given string as a semi-colon separated list of Values.
-xabsl::StatusOr<ArgSet> ArgSetFromString(absl::string_view args_string) {
+absl::StatusOr<ArgSet> ArgSetFromString(absl::string_view args_string) {
   ArgSet arg_set;
   for (const absl::string_view& value_string :
        absl::StrSplit(args_string, ';')) {
@@ -281,7 +281,7 @@ absl::Status RealMain(absl::string_view input_path) {
         << "Cannot specify both --input and --random_inputs";
     XLS_QCHECK(absl::GetFlag(FLAGS_input_file).empty())
         << "Cannot specify both --input and --input_file";
-    xabsl::StatusOr<ArgSet> arg_set_status =
+    absl::StatusOr<ArgSet> arg_set_status =
         ArgSetFromString(absl::GetFlag(FLAGS_input));
     XLS_QCHECK_OK(arg_set_status.status())
         << "Failed to parse input: " << absl::GetFlag(FLAGS_input);
@@ -290,12 +290,12 @@ absl::Status RealMain(absl::string_view input_path) {
   } else if (!absl::GetFlag(FLAGS_input_file).empty()) {
     XLS_QCHECK_EQ(absl::GetFlag(FLAGS_random_inputs), 0)
         << "Cannot specify both --input_file and --random_inputs";
-    xabsl::StatusOr<std::string> args_input_file =
+    absl::StatusOr<std::string> args_input_file =
         GetFileContents(absl::GetFlag(FLAGS_input_file));
     XLS_QCHECK_OK(args_input_file.status());
     for (const auto& arg_line : absl::StrSplit(args_input_file.value(), '\n',
                                                absl::SkipWhitespace())) {
-      xabsl::StatusOr<ArgSet> arg_set_status = ArgSetFromString(arg_line);
+      absl::StatusOr<ArgSet> arg_set_status = ArgSetFromString(arg_line);
       XLS_QCHECK_OK(arg_set_status.status())
           << absl::StreamFormat("Invalid line in input file %s: %s",
                                 absl::GetFlag(FLAGS_input_file), arg_line);
@@ -316,7 +316,7 @@ absl::Status RealMain(absl::string_view input_path) {
   if (!absl::GetFlag(FLAGS_expected).empty()) {
     XLS_QCHECK(absl::GetFlag(FLAGS_expected_file).empty())
         << "Cannot specify both --expected_file and --expected";
-    xabsl::StatusOr<Value> expected_status =
+    absl::StatusOr<Value> expected_status =
         Parser::ParseTypedValue(absl::GetFlag(FLAGS_expected));
     XLS_QCHECK_OK(expected_status.status())
         << "Failed to parse expected value: " << absl::GetFlag(FLAGS_expected);
@@ -325,13 +325,13 @@ absl::Status RealMain(absl::string_view input_path) {
       arg_set.expected = expected_status.value();
     }
   } else if (!absl::GetFlag(FLAGS_expected_file).empty()) {
-    xabsl::StatusOr<std::string> expected_file =
+    absl::StatusOr<std::string> expected_file =
         GetFileContents(absl::GetFlag(FLAGS_expected_file));
     XLS_QCHECK_OK(expected_file.status());
     std::vector<Value> expecteds;
     for (const auto& expected_line :
          absl::StrSplit(expected_file.value(), '\n', absl::SkipWhitespace())) {
-      xabsl::StatusOr<Value> expected_status =
+      absl::StatusOr<Value> expected_status =
           Parser::ParseTypedValue(expected_line);
       XLS_QCHECK_OK(expected_status.status())
           << absl::StreamFormat("Failed to parse line in expected file %s: %s",

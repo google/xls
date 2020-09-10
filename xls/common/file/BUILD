@@ -41,12 +41,12 @@ cc_library(
     hdrs = ["filesystem.h"],
     deps = [
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common/logging",
         "//xls/common/status:error_code_to_status",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
         "@com_google_protobuf//:protobuf",
     ],
 )
@@ -59,8 +59,8 @@ cc_test(
         ":filesystem_test_cc_proto",
         ":temp_directory",
         ":temp_file",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:matchers",
-        "//xls/common/status:statusor",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -97,8 +97,8 @@ cc_test(
     deps = [
         ":filesystem",
         ":get_runfile_path",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:matchers",
-        "//xls/common/status:statusor",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -108,8 +108,8 @@ cc_library(
     srcs = ["path.cc"],
     hdrs = ["path.h"],
     deps = [
+        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:error_code_to_status",
-        "//xls/common/status:statusor",
     ],
 )
 
@@ -129,9 +129,9 @@ cc_library(
     srcs = ["temp_directory.cc"],
     hdrs = ["temp_directory.h"],
     deps = [
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common/logging",
-        "//xls/common/status:statusor",
     ],
 )
 
@@ -151,11 +151,11 @@ cc_library(
     srcs = ["temp_file.cc"],
     hdrs = ["temp_file.h"],
     deps = [
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common:strerror",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
     ],
 )
 

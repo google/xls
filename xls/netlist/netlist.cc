@@ -44,7 +44,7 @@ const CellLibraryEntry* Module::AsCellLibraryEntry() const {
   return &cell_library_entry_.value();
 }
 
-xabsl::StatusOr<NetRef> Module::AddOrResolveNumber(int64 number) {
+absl::StatusOr<NetRef> Module::AddOrResolveNumber(int64 number) {
   auto status_or_ref = ResolveNumber(number);
   if (status_or_ref.ok()) {
     return status_or_ref.value();
@@ -55,12 +55,12 @@ xabsl::StatusOr<NetRef> Module::AddOrResolveNumber(int64 number) {
   return ResolveNet(wire_name);
 }
 
-xabsl::StatusOr<NetRef> Module::ResolveNumber(int64 number) const {
+absl::StatusOr<NetRef> Module::ResolveNumber(int64 number) const {
   std::string wire_name = absl::StrFormat("<constant_%d>", number);
   return ResolveNet(wire_name);
 }
 
-xabsl::StatusOr<NetRef> Module::ResolveNet(absl::string_view name) const {
+absl::StatusOr<NetRef> Module::ResolveNet(absl::string_view name) const {
   for (const auto& net : nets_) {
     if (net->name() == name) {
       return net.get();
@@ -70,7 +70,7 @@ xabsl::StatusOr<NetRef> Module::ResolveNet(absl::string_view name) const {
   return absl::NotFoundError(absl::StrCat("Could not find net: ", name));
 }
 
-xabsl::StatusOr<Cell*> Module::ResolveCell(absl::string_view name) const {
+absl::StatusOr<Cell*> Module::ResolveCell(absl::string_view name) const {
   for (const auto& cell : cells_) {
     if (cell->name() == name) {
       return cell.get();
@@ -80,7 +80,7 @@ xabsl::StatusOr<Cell*> Module::ResolveCell(absl::string_view name) const {
       absl::StrCat("Could not find cell with name: ", name));
 }
 
-xabsl::StatusOr<Cell*> Module::AddCell(Cell cell) {
+absl::StatusOr<Cell*> Module::AddCell(Cell cell) {
   auto status_or_cell = ResolveCell(cell.name());
   if (status_or_cell.status().ok()) {
     return absl::InvalidArgumentError(
@@ -114,7 +114,7 @@ absl::Status Module::AddNetDecl(NetDeclKind kind, absl::string_view name) {
   return absl::OkStatus();
 }
 
-xabsl::StatusOr<std::vector<Cell*>> NetDef::GetConnectedCellsSans(
+absl::StatusOr<std::vector<Cell*>> NetDef::GetConnectedCellsSans(
     Cell* to_remove) const {
   std::vector<Cell*> new_cells;
   new_cells.reserve(connected_cells_.size() - 1);
@@ -134,7 +134,7 @@ xabsl::StatusOr<std::vector<Cell*>> NetDef::GetConnectedCellsSans(
   return new_cells;
 }
 
-/* static */ xabsl::StatusOr<Cell> Cell::Create(
+/* static */ absl::StatusOr<Cell> Cell::Create(
     const CellLibraryEntry* cell_library_entry, absl::string_view name,
     const absl::flat_hash_map<std::string, NetRef>& named_parameter_assignments,
     absl::optional<NetRef> clock, const NetRef dummy_net) {
@@ -202,7 +202,7 @@ void Netlist::AddModule(std::unique_ptr<Module> module) {
   modules_.emplace_back(std::move(module));
 }
 
-xabsl::StatusOr<const Module*> Netlist::GetModule(
+absl::StatusOr<const Module*> Netlist::GetModule(
     const std::string& module_name) const {
   for (const auto& module : modules_) {
     if (module->name() == module_name) {

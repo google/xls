@@ -21,7 +21,7 @@ namespace xls {
 namespace netlist {
 namespace cell_lib {
 
-/* static */ xabsl::StatusOr<CharStream> CharStream::FromPath(
+/* static */ absl::StatusOr<CharStream> CharStream::FromPath(
     absl::string_view path) {
   std::ifstream file_stream{std::string(path)};
   if (file_stream.is_open()) {
@@ -31,8 +31,7 @@ namespace cell_lib {
       absl::StrCat("Could not open file at path: ", path));
 }
 
-/* static */ xabsl::StatusOr<CharStream> CharStream::FromText(
-    std::string text) {
+/* static */ absl::StatusOr<CharStream> CharStream::FromText(std::string text) {
   return CharStream(std::move(text));
 }
 
@@ -62,7 +61,7 @@ std::string TokenKindToString(TokenKind kind) {
   return absl::StrFormat("<invalid TokenKind(%d)>", static_cast<int64>(kind));
 }
 
-xabsl::StatusOr<Token> Scanner::ScanIdentifier() {
+absl::StatusOr<Token> Scanner::ScanIdentifier() {
   const Pos start_pos = cs_->GetPos();
   XLS_CHECK(IsIdentifierStart(cs_->PeekCharOrDie()));
   absl::InlinedVector<char, 16> chars;
@@ -74,7 +73,7 @@ xabsl::StatusOr<Token> Scanner::ScanIdentifier() {
 }
 
 // Scans a number token.
-xabsl::StatusOr<Token> Scanner::ScanNumber() {
+absl::StatusOr<Token> Scanner::ScanNumber() {
   const Pos start_pos = cs_->GetPos();
   XLS_CHECK(std::isdigit(cs_->PeekCharOrDie()));
   absl::InlinedVector<char, 16> chars;
@@ -93,7 +92,7 @@ xabsl::StatusOr<Token> Scanner::ScanNumber() {
 }
 
 // Scans a string token.
-xabsl::StatusOr<Token> Scanner::ScanQuotedString() {
+absl::StatusOr<Token> Scanner::ScanQuotedString() {
   const Pos start_pos = cs_->GetPos();
   XLS_CHECK(cs_->TryDropChar('"'));
   absl::InlinedVector<char, 16> chars;
@@ -226,7 +225,7 @@ int64 Block::CountEntries(absl::string_view target) const {
   return count;
 }
 
-xabsl::StatusOr<bool> Parser::TryDropToken(TokenKind target, Pos* pos) {
+absl::StatusOr<bool> Parser::TryDropToken(TokenKind target, Pos* pos) {
   XLS_ASSIGN_OR_RETURN(const Token* peek, scanner_->Peek());
   if (peek->kind() == target) {
     if (pos != nullptr) {
@@ -255,7 +254,7 @@ absl::Status Parser::DropIdentifierOrError(absl::string_view target) {
   return absl::OkStatus();
 }
 
-xabsl::StatusOr<std::string> Parser::PopIdentifierOrError() {
+absl::StatusOr<std::string> Parser::PopIdentifierOrError() {
   XLS_ASSIGN_OR_RETURN(Token t, scanner_->Pop());
   if (t.kind() != TokenKind::kIdentifier) {
     return absl::InvalidArgumentError(
@@ -265,7 +264,7 @@ xabsl::StatusOr<std::string> Parser::PopIdentifierOrError() {
   return t.PopPayload();
 }
 
-xabsl::StatusOr<std::string> Parser::PopValueOrError(Pos* last_pos) {
+absl::StatusOr<std::string> Parser::PopValueOrError(Pos* last_pos) {
   XLS_ASSIGN_OR_RETURN(Token t, scanner_->Pop());
   if (last_pos != nullptr) {
     *last_pos = t.pos();
@@ -282,7 +281,7 @@ xabsl::StatusOr<std::string> Parser::PopValueOrError(Pos* last_pos) {
   }
 }
 
-xabsl::StatusOr<std::vector<BlockEntry>> Parser::ParseEntries() {
+absl::StatusOr<std::vector<BlockEntry>> Parser::ParseEntries() {
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOpenCurl));
   std::vector<BlockEntry> result;
   while (true) {
@@ -314,7 +313,7 @@ xabsl::StatusOr<std::vector<BlockEntry>> Parser::ParseEntries() {
   return result;
 }
 
-xabsl::StatusOr<absl::InlinedVector<std::string, 4>> Parser::ParseValues(
+absl::StatusOr<absl::InlinedVector<std::string, 4>> Parser::ParseValues(
     Pos* end_pos) {
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOpenParen));
   absl::InlinedVector<std::string, 4> result;
@@ -336,7 +335,7 @@ xabsl::StatusOr<absl::InlinedVector<std::string, 4>> Parser::ParseValues(
   return result;
 }
 
-xabsl::StatusOr<std::unique_ptr<Block>> Parser::ParseBlock(
+absl::StatusOr<std::unique_ptr<Block>> Parser::ParseBlock(
     std::string identifier) {
   auto block = absl::make_unique<Block>();
   block->kind = std::move(identifier);

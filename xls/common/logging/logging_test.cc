@@ -18,12 +18,12 @@
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "xls/common/logging/capture_stream.h"
 #include "xls/common/logging/log_entry.h"
 #include "xls/common/logging/logging_test_base.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/status/statusor.h"
 
 namespace my_unit_test {
 
@@ -49,7 +49,7 @@ class LoggingTest : public ::xls::logging_internal::testing::LoggingTestBase {
 };
 
 TEST_F(LoggingTest, LogMessagesArePrintedToStderr) {
-  xabsl::StatusOr<std::string> output = ::xls::testing::CaptureStream(
+  absl::StatusOr<std::string> output = ::xls::testing::CaptureStream(
       STDERR_FILENO, [] { XLS_LOG(ERROR) << "test_info_log_message"; });
 
   EXPECT_THAT(output, IsOkAndHolds(HasSubstr("test_info_log_message")));

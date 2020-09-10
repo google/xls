@@ -16,9 +16,9 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
@@ -33,12 +33,12 @@ class DeadFunctionEliminationPassTest : public IrTestBase {
  protected:
   DeadFunctionEliminationPassTest() = default;
 
-  xabsl::StatusOr<bool> Run(Package* p) {
+  absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
     return DeadFunctionEliminationPass().Run(p, PassOptions(), &results);
   }
 
-  xabsl::StatusOr<Function*> MakeFunction(absl::string_view name, Package* p) {
+  absl::StatusOr<Function*> MakeFunction(absl::string_view name, Package* p) {
     FunctionBuilder fb(name, p);
     fb.Param("arg", p->GetBitsType(32));
     return fb.Build();

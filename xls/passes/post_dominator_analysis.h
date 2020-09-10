@@ -16,8 +16,8 @@
 #define XLS_PASSES_POSTDOMINATOR_FUNCTION_H_
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/common/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/node.h"
 
@@ -27,7 +27,7 @@ namespace xls {
 class PostDominatorAnalysis {
  public:
   // Performs post-dominator analysis on the function and returns the result.
-  static xabsl::StatusOr<std::unique_ptr<PostDominatorAnalysis>> Run(
+  static absl::StatusOr<std::unique_ptr<PostDominatorAnalysis>> Run(
       Function* f);
 
   // Returns the nodes that post-dominate this node.

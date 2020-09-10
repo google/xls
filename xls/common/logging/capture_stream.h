@@ -20,7 +20,7 @@
 #include <functional>
 #include <string>
 
-#include "xls/common/status/statusor.h"
+#include "absl/status/statusor.h"
 
 namespace xls {
 namespace testing {
@@ -28,7 +28,7 @@ namespace testing {
 // Capture what is printed to the provided file descriptor `fd` (should be
 // STDOUT_FILENO or STDERR_FILENO) while `fn` is run. Returns a string with the
 // captured data.
-xabsl::StatusOr<std::string> CaptureStream(int fd, std::function<void()> fn);
+absl::StatusOr<std::string> CaptureStream(int fd, std::function<void()> fn);
 
 }  // namespace testing
 }  // namespace xls

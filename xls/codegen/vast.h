@@ -25,13 +25,13 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "absl/types/optional.h"
 #include "absl/types/variant.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/status/statusor.h"
 #include "xls/ir/bits.h"
 
 namespace xls {
@@ -1169,7 +1169,7 @@ class ModuleSection : public VastNode {
 struct Port {
   static Port FromProto(const PortProto& proto, VerilogFile* f);
 
-  xabsl::StatusOr<PortProto> ToProto() const;
+  absl::StatusOr<PortProto> ToProto() const;
   const std::string& name() const { return wire->name(); }
   std::string ToString() const;
 
@@ -1183,8 +1183,8 @@ std::string PortsToString(absl::Span<const Port> ports);
 
 // Returns the flattened number of input/output bits required to represent the
 // port set.
-xabsl::StatusOr<int64> GetInputBits(absl::Span<const Port> ports);
-xabsl::StatusOr<int64> GetOutputBits(absl::Span<const Port> ports);
+absl::StatusOr<int64> GetInputBits(absl::Span<const Port> ports);
+absl::StatusOr<int64> GetOutputBits(absl::Span<const Port> ports);
 
 // Represents a module definition.
 class Module : public VastNode {

@@ -15,9 +15,9 @@
 #ifndef XLS_IR_VALUE_H_
 #define XLS_IR_VALUE_H_
 
+#include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
-#include "xls/common/status/statusor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/xls_type.pb.h"
 
@@ -64,7 +64,7 @@ class Value {
 
   // All members of "elements" must be of the same type, or an error status will
   // be returned.
-  static xabsl::StatusOr<Value> Array(absl::Span<const Value> elements);
+  static absl::StatusOr<Value> Array(absl::Span<const Value> elements);
 
   // As above, but as a precondition all elements must be known to be of the
   // same type.
@@ -90,9 +90,9 @@ class Value {
   bool IsBits() const { return absl::holds_alternative<Bits>(payload_); }
   bool IsToken() const { return kind_ == ValueKind::kToken; }
   const Bits& bits() const { return absl::get<Bits>(payload_); }
-  xabsl::StatusOr<Bits> GetBitsWithStatus() const;
+  absl::StatusOr<Bits> GetBitsWithStatus() const;
 
-  xabsl::StatusOr<std::vector<Value>> GetElements() const;
+  absl::StatusOr<std::vector<Value>> GetElements() const;
 
   absl::Span<const Value> elements() const {
     return absl::get<std::vector<Value>>(payload_);
@@ -124,7 +124,7 @@ class Value {
       FormatPreference preference = FormatPreference::kDefault) const;
 
   // Returns the type of the Value as a type proto.
-  xabsl::StatusOr<TypeProto> TypeAsProto() const;
+  absl::StatusOr<TypeProto> TypeAsProto() const;
 
   // Returns true if 'other' has the same type as this Value.
   bool SameTypeAs(const Value& other) const;

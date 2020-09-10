@@ -24,8 +24,8 @@
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/statusor.h"
 #include "absl/time/time.h"
-#include "xls/common/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
 #include "xls/passes/pass_base.h"
@@ -46,13 +46,13 @@ class FunctionPass : public Pass {
   FunctionPass(absl::string_view short_name, absl::string_view long_name)
       : Pass(short_name, long_name) {}
 
-  virtual xabsl::StatusOr<bool> RunOnFunction(Function* f,
-                                              const PassOptions& options,
-                                              PassResults* results) const = 0;
+  virtual absl::StatusOr<bool> RunOnFunction(Function* f,
+                                             const PassOptions& options,
+                                             PassResults* results) const = 0;
 
   // Iterates over each function in the package calling RunOnFunction.
-  xabsl::StatusOr<bool> Run(Package* p, const PassOptions& options,
-                            PassResults* results) const override;
+  absl::StatusOr<bool> Run(Package* p, const PassOptions& options,
+                           PassResults* results) const override;
 };
 
 }  // namespace xls

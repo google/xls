@@ -17,11 +17,11 @@
 
 #include "absl/container/inlined_vector.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Module.h"
 #include "xls/common/integral_types.h"
-#include "xls/common/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -40,10 +40,10 @@ class LlvmTypeConverter {
   llvm::Type* ConvertToLlvmType(const Type& type);
 
   // Converts the input XLS Value to an LLVM Constant of the specified type.
-  xabsl::StatusOr<llvm::Constant*> ToLlvmConstant(llvm::Type* type,
-                                                  const Value& value);
-  xabsl::StatusOr<llvm::Constant*> ToLlvmConstant(const Type& type,
-                                                  const Value& value);
+  absl::StatusOr<llvm::Constant*> ToLlvmConstant(llvm::Type* type,
+                                                 const Value& value);
+  absl::StatusOr<llvm::Constant*> ToLlvmConstant(const Type& type,
+                                                 const Value& value);
 
   // Returns the number of bytes that LLVM will internally use to store the
   // given element. This is not simply the flat bit count of the type (rounded
@@ -57,8 +57,8 @@ class LlvmTypeConverter {
   using TypeCache = absl::flat_hash_map<const Type*, llvm::Type*>;
 
   // Handles the special (and base) case of converting Bits types to LLVM.
-  xabsl::StatusOr<llvm::Constant*> ToIntegralConstant(llvm::Type* type,
-                                                      const Value& value);
+  absl::StatusOr<llvm::Constant*> ToIntegralConstant(llvm::Type* type,
+                                                     const Value& value);
 
   llvm::LLVMContext& context_;
   llvm::DataLayout data_layout_;

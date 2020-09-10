@@ -64,7 +64,7 @@ std::ostream& operator<<(std::ostream& os, const Result& result) {
 
 class NodeUtilTest : public IrTestBase {
  protected:
-  xabsl::StatusOr<Result> RunOn(const Bits& bits) {
+  absl::StatusOr<Result> RunOn(const Bits& bits) {
     auto p = CreatePackage();
     FunctionBuilder fb("f", p.get());
     fb.Literal(bits);

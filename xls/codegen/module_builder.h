@@ -19,10 +19,10 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "xls/codegen/vast.h"
-#include "xls/common/status/statusor.h"
 #include "xls/ir/node.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -45,7 +45,7 @@ class ModuleBuilder {
   Module* module() { return module_; }
 
   // Add an input port of the given XLS type to the module.
-  xabsl::StatusOr<LogicRef*> AddInputPort(absl::string_view name, Type* type);
+  absl::StatusOr<LogicRef*> AddInputPort(absl::string_view name, Type* type);
 
   // Add an input port of the given width.
   LogicRef* AddInputPort(absl::string_view name, int64 bit_count);
@@ -77,13 +77,13 @@ class ModuleBuilder {
 
   // Returns the given node as a Verilog expression. 'inputs' contains the
   // operand expressions for the node.
-  xabsl::StatusOr<Expression*> EmitAsInlineExpression(
+  absl::StatusOr<Expression*> EmitAsInlineExpression(
       Node* node, absl::Span<Expression* const> inputs);
 
   // Emits the node as one or more assignments to a newly declared variable with
   // the given name. 'inputs' contains the operand expressions for the
   // node. Returns a reference to the declared variable.
-  xabsl::StatusOr<LogicRef*> EmitAsAssignment(
+  absl::StatusOr<LogicRef*> EmitAsAssignment(
       absl::string_view name, Node* node, absl::Span<Expression* const> inputs);
 
   // Declares a variable with the given name and XLS type. Returns a reference
@@ -101,8 +101,8 @@ class ModuleBuilder {
 
   // Declares variable with the given name and assigns the given value to
   // it. Returns a reference to the variable.
-  xabsl::StatusOr<LogicRef*> DeclareModuleConstant(absl::string_view name,
-                                                   const Value& Value);
+  absl::StatusOr<LogicRef*> DeclareModuleConstant(absl::string_view name,
+                                                  const Value& Value);
 
   // Data structure describing a register (collection of flops).
   struct Register {
@@ -130,12 +130,12 @@ class ModuleBuilder {
   //
   // Declared registers must be passed to a subsequent AssignRegisters call for
   // assignment within an always block.
-  xabsl::StatusOr<Register> DeclareRegister(
+  absl::StatusOr<Register> DeclareRegister(
       absl::string_view name, Type* type, Expression* next,
       absl::optional<Expression*> reset_value = absl::nullopt);
 
   // As above, but declares a register of a given bit width.
-  xabsl::StatusOr<Register> DeclareRegister(
+  absl::StatusOr<Register> DeclareRegister(
       absl::string_view name, int64 bit_count, Expression* next,
       absl::optional<Expression*> reset_value = absl::nullopt);
 
@@ -262,7 +262,7 @@ class ModuleBuilder {
 
   // Defines a function which implements the given node. If a function already
   // exists which implements this node then the existing function is returned.
-  xabsl::StatusOr<VerilogFunction*> DefineFunction(Node* node);
+  absl::StatusOr<VerilogFunction*> DefineFunction(Node* node);
 
   std::string module_name_;
   VerilogFile* file_;

@@ -26,9 +26,9 @@
 
 namespace xls {
 
-xabsl::StatusOr<Function*> ExtractStage(Function* src,
-                                        const PipelineSchedule& schedule,
-                                        int stage) {
+absl::StatusOr<Function*> ExtractStage(Function* src,
+                                       const PipelineSchedule& schedule,
+                                       int stage) {
   // Create a new function in the package which only contains the nodes at the
   // given stage (cycle).
   Package* package = src->package();

@@ -209,7 +209,7 @@ std::vector<AstNode*> Module::GetChildren(bool want_types) const {
   return results;
 }
 
-xabsl::StatusOr<ModuleMember> AsModuleMember(AstNode* node) {
+absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node) {
   // clang-format off
   if (auto* n = dynamic_cast<Function*   >(node)) { return ModuleMember(n); }
   if (auto* n = dynamic_cast<Test*       >(node)) { return ModuleMember(n); }
@@ -224,7 +224,7 @@ xabsl::StatusOr<ModuleMember> AsModuleMember(AstNode* node) {
                                     node->ToString());
 }
 
-xabsl::StatusOr<IndexRhs> AstNodeToIndexRhs(AstNode* node) {
+absl::StatusOr<IndexRhs> AstNodeToIndexRhs(AstNode* node) {
   // clang-format off
   if (auto* n = dynamic_cast<Slice*     >(node)) { return IndexRhs(n); }
   if (auto* n = dynamic_cast<WidthSlice*>(node)) { return IndexRhs(n); }

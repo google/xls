@@ -58,7 +58,7 @@ class TernaryQueryEngineTest : public IrTestBase {
   // Runs QueryEngine on the op created with the passed in function. The
   // inputs to the op is crafted to have known bits equal to the given
   // TernaryVectors.
-  xabsl::StatusOr<std::string> RunOnBinaryOp(
+  absl::StatusOr<std::string> RunOnBinaryOp(
       absl::string_view lhs_known_bits, absl::string_view rhs_known_bits,
       std::function<void(BValue, BValue, FunctionBuilder*)> make_op) {
     Package p("test_package");

@@ -17,17 +17,17 @@
 
 #include <string>
 
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/status/statusor.h"
 
 namespace xls::dslx {
 
 // Represents a position in the text (file, line, column).
 class Pos {
  public:
-  static xabsl::StatusOr<Pos> FromString(absl::string_view s);
+  static absl::StatusOr<Pos> FromString(absl::string_view s);
 
   Pos() : filename_(""), lineno_(0), colno_(0) {}
   Pos(std::string filename, int64 lineno, int64 colno)

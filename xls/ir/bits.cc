@@ -46,7 +46,7 @@ namespace xls {
   return MinBitCountUnsigned(value) + 1;
 }
 
-xabsl::StatusOr<Bits> UBitsWithStatus(uint64 value, int64 bit_count) {
+absl::StatusOr<Bits> UBitsWithStatus(uint64 value, int64 bit_count) {
   if (Bits::MinBitCountUnsigned(value) > bit_count) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Value %#x requires %d bits to fit in an unsigned "
@@ -56,7 +56,7 @@ xabsl::StatusOr<Bits> UBitsWithStatus(uint64 value, int64 bit_count) {
   return Bits(InlineBitmap::FromWord(value, bit_count, /*fill=*/false));
 }
 
-xabsl::StatusOr<Bits> SBitsWithStatus(int64 value, int64 bit_count) {
+absl::StatusOr<Bits> SBitsWithStatus(int64 value, int64 bit_count) {
   if (Bits::MinBitCountSigned(value) > bit_count) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Value %#x requires %d bits to fit in an signed "
@@ -202,7 +202,7 @@ bool Bits::FitsInNBitsSigned(int64 n) const {
   return true;
 }
 
-xabsl::StatusOr<uint64> Bits::ToUint64() const {
+absl::StatusOr<uint64> Bits::ToUint64() const {
   if (bit_count() == 0) {
     // By convention, an empty Bits has a numeric value of zero.
     return 0;
@@ -215,7 +215,7 @@ xabsl::StatusOr<uint64> Bits::ToUint64() const {
   return bitmap_.GetWord(0);
 }
 
-xabsl::StatusOr<uint64> Bits::WordToUint64(int64 word_number) const {
+absl::StatusOr<uint64> Bits::WordToUint64(int64 word_number) const {
   if (bit_count() == 0) {
     // By convention, an empty Bits has a numeric value of zero.
     return 0;
@@ -224,7 +224,7 @@ xabsl::StatusOr<uint64> Bits::WordToUint64(int64 word_number) const {
   return bitmap_.GetWord(word_number);
 }
 
-xabsl::StatusOr<int64> Bits::ToInt64() const {
+absl::StatusOr<int64> Bits::ToInt64() const {
   if (!FitsInInt64()) {
     return absl::InvalidArgumentError(absl::StrCat(
         "Bits value cannot be represented as a signed 64-bit value: ",

@@ -138,7 +138,7 @@ absl::Status RecursivelyDeletePath(const std::filesystem::path& path) {
   return absl::OkStatus();
 }
 
-xabsl::StatusOr<std::string> GetFileContents(
+absl::StatusOr<std::string> GetFileContents(
     const std::filesystem::path& file_name) {
   // Use POSIX C APIs instead of C++ iostreams to avoid exceptions.
   std::string result;
@@ -206,7 +206,7 @@ absl::Status SetTextProtoFile(const std::filesystem::path& file_name,
   return SetFileContents(file_name, text_proto);
 }
 
-xabsl::StatusOr<std::filesystem::path> GetCurrentDirectory() {
+absl::StatusOr<std::filesystem::path> GetCurrentDirectory() {
   std::error_code ec;
   std::filesystem::path path = std::filesystem::current_path(ec);
   if (ec) {
@@ -215,7 +215,7 @@ xabsl::StatusOr<std::filesystem::path> GetCurrentDirectory() {
   return path;
 }
 
-xabsl::StatusOr<std::vector<std::filesystem::path>> GetDirectoryEntries(
+absl::StatusOr<std::vector<std::filesystem::path>> GetDirectoryEntries(
     const std::filesystem::path& path) {
   std::vector<std::filesystem::path> result;
   std::error_code ec;
@@ -234,7 +234,7 @@ xabsl::StatusOr<std::vector<std::filesystem::path>> GetDirectoryEntries(
   return std::move(result);
 }
 
-xabsl::StatusOr<std::filesystem::path> GetRealPath(const std::string& path) {
+absl::StatusOr<std::filesystem::path> GetRealPath(const std::string& path) {
   struct stat statbuf;
   XLS_RET_CHECK(lstat(path.c_str(), &statbuf) != -1) << strerror(errno);
   // If the file is a link, then dereference it.

@@ -82,7 +82,7 @@ DelayHeap::FrontierSet::iterator DelayHeap::Remove(Node* node) {
   return next_it;
 }
 
-xabsl::StatusOr<int64> DelayHeap::CriticalPathDelayAfterAdding(
+absl::StatusOr<int64> DelayHeap::CriticalPathDelayAfterAdding(
     Node* node) const {
   XLS_CHECK(!contains(node));
   XLS_ASSIGN_OR_RETURN(int64 node_delay,

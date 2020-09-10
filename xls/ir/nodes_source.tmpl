@@ -2,7 +2,7 @@
 
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
-#include "xls/common/status/statusor.h"
+#include "absl/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
 
@@ -54,7 +54,7 @@ Type* GetChannelReceiveType(Package* package, absl::Span<Type* const> data_types
 }
 
 {% if not op_class.custom_clone_method %}
-xabsl::StatusOr<Node*> {{ op_class.name }}::Clone(absl::Span<Node* const> new_operands,
+absl::StatusOr<Node*> {{ op_class.name }}::Clone(absl::Span<Node* const> new_operands,
                                     Function* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNode<{{ op_class.name }}>({{ op_class.clone_args_str("new_operands") }});
@@ -83,7 +83,7 @@ SliceData Concat::GetOperandSliceData(int64 operandno) const {
   return SliceData{start, this->operand(operandno)->BitCountOrDie()};
 }
 
-xabsl::StatusOr<Node*> ChannelSend::Clone(absl::Span<Node* const> new_operands,
+absl::StatusOr<Node*> ChannelSend::Clone(absl::Span<Node* const> new_operands,
                                            Function* new_function) const {
   return new_function->MakeNode<ChannelSend>(loc(),
                                              new_operands[0],
@@ -91,7 +91,7 @@ xabsl::StatusOr<Node*> ChannelSend::Clone(absl::Span<Node* const> new_operands,
                                              channel_id());
 }
 
-xabsl::StatusOr<Node*> CountedFor::Clone(absl::Span<Node* const> new_operands,
+absl::StatusOr<Node*> CountedFor::Clone(absl::Span<Node* const> new_operands,
                                         Function* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNode<CountedFor>(loc(), new_operands[0],
@@ -101,7 +101,7 @@ xabsl::StatusOr<Node*> CountedFor::Clone(absl::Span<Node* const> new_operands,
                                             body());
 }
 
-xabsl::StatusOr<Node*> Select::Clone(absl::Span<Node* const> new_operands,
+absl::StatusOr<Node*> Select::Clone(absl::Span<Node* const> new_operands,
                                     Function* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   absl::optional<Node*> new_default_value =
@@ -113,7 +113,7 @@ xabsl::StatusOr<Node*> Select::Clone(absl::Span<Node* const> new_operands,
                                         new_default_value);
 }
 
-xabsl::StatusOr<Node*> OneHotSelect::Clone(absl::Span<Node* const> new_operands,
+absl::StatusOr<Node*> OneHotSelect::Clone(absl::Span<Node* const> new_operands,
                                           Function* new_function) const {
   return new_function->MakeNode<OneHotSelect>(loc(), new_operands[0],
                                         new_operands.subspan(1));

@@ -58,7 +58,7 @@ TEST(BinarySearchTest, MaxTrueWithStatus) {
       for (int target = start; target <= end; ++target) {
         auto got = BinarySearchMaxTrueWithStatus(
             start, end,
-            [&](int64 i) -> xabsl::StatusOr<bool> { return i <= target; });
+            [&](int64 i) -> absl::StatusOr<bool> { return i <= target; });
         EXPECT_THAT(got, IsOkAndHolds(target));
       }
     }
@@ -72,7 +72,7 @@ TEST(BinarySearchTest, MinTrueWithStatus) {
       for (int target = start; target <= end; ++target) {
         auto got = BinarySearchMinTrueWithStatus(
             start, end,
-            [&](int64 i) -> xabsl::StatusOr<bool> { return i >= target; });
+            [&](int64 i) -> absl::StatusOr<bool> { return i >= target; });
         EXPECT_THAT(got, IsOkAndHolds(target));
       }
     }
@@ -103,33 +103,33 @@ TEST(BinarySearchTest, ErrorConditions) {
   // Note: some compilers dislike the lambda living inside the macro, so we
   // hoist the compared-to values.
   auto a = BinarySearchMaxTrueWithStatus(
-      123, 42, [&](int64 i) -> xabsl::StatusOr<bool> { return true; });
+      123, 42, [&](int64 i) -> absl::StatusOr<bool> { return true; });
   EXPECT_THAT(a,
               StatusIs(absl::StatusCode::kInternal, HasSubstr("start <= end")));
   auto b = BinarySearchMinTrueWithStatus(
-      123, 42, [&](int64 i) -> xabsl::StatusOr<bool> { return true; });
+      123, 42, [&](int64 i) -> absl::StatusOr<bool> { return true; });
   EXPECT_THAT(b,
               StatusIs(absl::StatusCode::kInternal, HasSubstr("start <= end")));
 
   auto c = BinarySearchMaxTrueWithStatus(
-      1, 42, [&](int64 i) -> xabsl::StatusOr<bool> { return false; });
+      1, 42, [&](int64 i) -> absl::StatusOr<bool> { return false; });
   EXPECT_THAT(c, StatusIs(absl::StatusCode::kInvalidArgument,
                           HasSubstr("Lowest value in range fails condition")));
   EXPECT_THAT(
       BinarySearchMinTrueWithStatus(
-          1, 42, [&](int64 i) -> xabsl::StatusOr<bool> { return false; }),
+          1, 42, [&](int64 i) -> absl::StatusOr<bool> { return false; }),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Highest value in range fails condition")));
 
   auto d = BinarySearchMaxTrueWithStatus(
-      1, 42, [&](int64 i) -> xabsl::StatusOr<bool> {
+      1, 42, [&](int64 i) -> absl::StatusOr<bool> {
         return absl::InvalidArgumentError("foobar");
       });
   EXPECT_THAT(
       d, StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("foobar")));
 
   auto e = BinarySearchMaxTrueWithStatus(
-      1, 42, [&](int64 i) -> xabsl::StatusOr<bool> {
+      1, 42, [&](int64 i) -> absl::StatusOr<bool> {
         return absl::UnimplementedError("qux");
       });
   EXPECT_THAT(e, StatusIs(absl::StatusCode::kUnimplemented, HasSubstr("qux")));

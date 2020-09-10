@@ -14,8 +14,8 @@
 
 #include "xls/passes/dfe_pass.h"
 
+#include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/status/statusor.h"
 #include "xls/ir/node_iterator.h"
 
 namespace xls {
@@ -46,13 +46,13 @@ void MarkReachedFunctions(Function* func,
 
 // Starting from the return_value(s), DFS over all nodes. Unvisited
 // nodes, or parameters, are dead.
-xabsl::StatusOr<bool> DeadFunctionEliminationPass::Run(
+absl::StatusOr<bool> DeadFunctionEliminationPass::Run(
     Package* p, const PassOptions& options, PassResults* results) const {
   absl::flat_hash_set<Function*> reached;
   // TODO(meheff): Package:EntryFunction check fails if there is not a function
   // named "main". Ideally as an invariant a Package should always have an entry
   // function, but for now look for it and bail if it does not exist.
-  xabsl::StatusOr<Function*> func = p->EntryFunction();
+  absl::StatusOr<Function*> func = p->EntryFunction();
   if (!func.ok()) {
     return false;
   }

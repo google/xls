@@ -16,7 +16,7 @@
 #define XLS_NETLIST_NETLIST_PARSER_H_
 
 #include "absl/status/status.h"
-#include "xls/common/status/statusor.h"
+#include "absl/status/statusor.h"
 #include "xls/netlist/netlist.h"
 
 namespace xls {
@@ -62,9 +62,9 @@ class Scanner {
  public:
   explicit Scanner(absl::string_view text) : text_(text) {}
 
-  xabsl::StatusOr<Token> Peek();
+  absl::StatusOr<Token> Peek();
 
-  xabsl::StatusOr<Token> Pop();
+  absl::StatusOr<Token> Pop();
 
   bool AtEof() {
     DropCommentsAndWhitespace();
@@ -72,9 +72,9 @@ class Scanner {
   }
 
  private:
-  xabsl::StatusOr<Token> ScanName(char startc, Pos pos, bool is_escaped);
-  xabsl::StatusOr<Token> ScanNumber(char startc, Pos pos);
-  xabsl::StatusOr<Token> PeekInternal();
+  absl::StatusOr<Token> ScanName(char startc, Pos pos, bool is_escaped);
+  absl::StatusOr<Token> ScanNumber(char startc, Pos pos);
+  absl::StatusOr<Token> PeekInternal();
 
   void DropCommentsAndWhitespace();
 
@@ -100,7 +100,7 @@ class Parser {
  public:
   // Parses a netlist with the given cell library and token scanner.
   // Returns a status on parse error.
-  static xabsl::StatusOr<std::unique_ptr<Netlist>> ParseNetlist(
+  static absl::StatusOr<std::unique_ptr<Netlist>> ParseNetlist(
       CellLibrary* cell_library, Scanner* scanner);
 
  private:
@@ -112,7 +112,7 @@ class Parser {
 
   // Parses a cell module name out of the token stream and returns the
   // corresponding CellLibraryEntry for that module name.
-  xabsl::StatusOr<const CellLibraryEntry*> ParseCellModule(Netlist& netlist);
+  absl::StatusOr<const CellLibraryEntry*> ParseCellModule(Netlist& netlist);
 
   // Parses a wire declaration at the module scope.
   absl::Status ParseNetDecl(Module* module, NetDeclKind kind);
@@ -121,21 +121,21 @@ class Parser {
   absl::Status ParseModuleStatement(Module* module, Netlist& netlist);
 
   // Parses a module definition (e.g. at the top of the file).
-  xabsl::StatusOr<std::unique_ptr<Module>> ParseModule(Netlist& netlist);
+  absl::StatusOr<std::unique_ptr<Module>> ParseModule(Netlist& netlist);
 
   // Parses a reference to an already- declared net.
-  xabsl::StatusOr<NetRef> ParseNetRef(Module* module);
+  absl::StatusOr<NetRef> ParseNetRef(Module* module);
 
   // Pops a name token and returns its contents or gives an error status if a
   // name token is not immediately present in the stream.
-  xabsl::StatusOr<std::string> PopNameOrError();
+  absl::StatusOr<std::string> PopNameOrError();
 
   // Pops a name token and returns its value or gives an error status if a
   // number token is not immediately present in the stream.
-  xabsl::StatusOr<int64> PopNumberOrError();
+  absl::StatusOr<int64> PopNumberOrError();
 
   // Pops either a name or number token or returns an error.
-  xabsl::StatusOr<absl::variant<std::string, int64>> PopNameOrNumberOrError();
+  absl::StatusOr<absl::variant<std::string, int64>> PopNameOrNumberOrError();
 
   // Drops a token of kind target from the head of the stream or gives an error
   // status.
@@ -154,7 +154,7 @@ class Parser {
 
   // Pops a parenthesized name list from the token stream and returns it as a
   // vector of those names.
-  xabsl::StatusOr<std::vector<std::string>> PopParenNameList();
+  absl::StatusOr<std::vector<std::string>> PopParenNameList();
 
   // Cell library definitions are resolved against.
   CellLibrary* cell_library_;

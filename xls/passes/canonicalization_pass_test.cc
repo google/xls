@@ -32,7 +32,7 @@ using status_testing::IsOkAndHolds;
 
 class CanonicalizePassTest : public IrTestBase {
  protected:
-  xabsl::StatusOr<bool> Run(Package* p) {
+  absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
     return CanonicalizationPass().Run(p, PassOptions(), &results);
   }

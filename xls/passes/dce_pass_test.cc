@@ -16,8 +16,8 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_test_base.h"
 
@@ -30,7 +30,7 @@ class DeadCodeEliminationPassTest : public IrTestBase {
  protected:
   DeadCodeEliminationPassTest() = default;
 
-  xabsl::StatusOr<bool> Run(Function* f) {
+  absl::StatusOr<bool> Run(Function* f) {
     PassResults results;
     return DeadCodeEliminationPass().RunOnFunction(f, PassOptions(), &results);
   }

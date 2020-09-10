@@ -20,8 +20,8 @@
 
 #include <utility>
 
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "xls/common/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
 
@@ -87,11 +87,11 @@ std::pair<std::unique_ptr<Package>, Function*> BuildSimpleMap(
 // directory. 'name' should be the name of the dslx_test target (e.g.,
 // "sha256"). The optional 'optimize' indicates whether to return the IR after
 // optimizations.
-xabsl::StatusOr<std::unique_ptr<Package>> GetBenchmark(absl::string_view name,
-                                                       bool optimized);
+absl::StatusOr<std::unique_ptr<Package>> GetBenchmark(absl::string_view name,
+                                                      bool optimized);
 
 // Returns the names of all benchmarks.
-xabsl::StatusOr<std::vector<std::string>> GetBenchmarkNames();
+absl::StatusOr<std::vector<std::string>> GetBenchmarkNames();
 
 }  // namespace sample_packages
 }  // namespace xls

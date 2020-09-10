@@ -17,13 +17,13 @@
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_split.h"
 #include "xls/codegen/flattening.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/status/statusor.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value.h"
@@ -56,7 +56,7 @@ ABSL_FLAG(std::string, netlist, "", "Path to the netlist to interpret.");
 
 namespace xls {
 
-xabsl::StatusOr<netlist::CellLibrary> GetCellLibrary(
+absl::StatusOr<netlist::CellLibrary> GetCellLibrary(
     const std::string& cell_library_path,
     const std::string& cell_library_proto_path) {
   if (!cell_library_proto_path.empty()) {

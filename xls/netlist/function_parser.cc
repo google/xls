@@ -67,7 +67,7 @@ absl::Status Scanner::DropSpaces() {
   return absl::OkStatus();
 }
 
-xabsl::StatusOr<Token> Scanner::Pop() {
+absl::StatusOr<Token> Scanner::Pop() {
   if (peeked_) {
     Token ret = peeked_.value();
     peeked_.reset();
@@ -132,7 +132,7 @@ xabsl::StatusOr<Token> Scanner::Pop() {
   }
 }
 
-xabsl::StatusOr<Token> Scanner::Peek() {
+absl::StatusOr<Token> Scanner::Peek() {
   if (peeked_) {
     return peeked_.value();
   }
@@ -147,7 +147,7 @@ bool Scanner::IsIdentifierStart(char next_char) {
   return std::isalpha(next_char) || next_char == '"' || next_char == '_';
 }
 
-xabsl::StatusOr<Token> Scanner::ScanIdentifier() {
+absl::StatusOr<Token> Scanner::ScanIdentifier() {
   int64 start_pos = current_pos_;
   XLS_ASSIGN_OR_RETURN(char next_char, PeekChar());
   bool need_closing_quote = next_char == '"';
@@ -178,7 +178,7 @@ xabsl::StatusOr<Token> Scanner::ScanIdentifier() {
   return Token::Identifier(identifier, start_pos);
 }
 
-xabsl::StatusOr<char> Scanner::PeekChar() {
+absl::StatusOr<char> Scanner::PeekChar() {
   XLS_RET_CHECK_LT(current_pos_, function_.size())
       << "Function: " << function_ << ": current: " << current_pos_
       << ", max: " << function_.size() - 1;
@@ -191,14 +191,14 @@ absl::Status Scanner::DropChar() {
   return absl::OkStatus();
 }
 
-xabsl::StatusOr<Ast> Parser::ParseFunction(std::string function) {
+absl::StatusOr<Ast> Parser::ParseFunction(std::string function) {
   Parser parser(std::move(function));
   return parser.ParseOr();
 }
 
 Parser::Parser(std::string function) : scanner_(std::move(function)) {}
 
-xabsl::StatusOr<Ast> Parser::ParseOr() {
+absl::StatusOr<Ast> Parser::ParseOr() {
   XLS_ASSIGN_OR_RETURN(auto lhs, ParseAnd());
   if (scanner_.Eof()) {
     return lhs;
@@ -222,7 +222,7 @@ xabsl::StatusOr<Ast> Parser::ParseOr() {
   return lhs;
 }
 
-xabsl::StatusOr<Ast> Parser::ParseAnd() {
+absl::StatusOr<Ast> Parser::ParseAnd() {
   XLS_ASSIGN_OR_RETURN(auto lhs, ParseXor());
   if (scanner_.Eof()) {
     return lhs;
@@ -246,7 +246,7 @@ xabsl::StatusOr<Ast> Parser::ParseAnd() {
   return lhs;
 }
 
-xabsl::StatusOr<Ast> Parser::ParseXor() {
+absl::StatusOr<Ast> Parser::ParseXor() {
   XLS_ASSIGN_OR_RETURN(auto lhs, ParseInvertNext());
   if (scanner_.Eof()) {
     return lhs;
@@ -270,7 +270,7 @@ xabsl::StatusOr<Ast> Parser::ParseXor() {
   return lhs;
 }
 
-xabsl::StatusOr<Ast> Parser::ParseInvertNext() {
+absl::StatusOr<Ast> Parser::ParseInvertNext() {
   // Rather than have to track every potentially stacked negation, we'll just
   // see if we have an odd or even count and apply after processing the
   // following term.
@@ -292,7 +292,7 @@ xabsl::StatusOr<Ast> Parser::ParseInvertNext() {
   return term;
 }
 
-xabsl::StatusOr<Ast> Parser::ParseInvertPrev() {
+absl::StatusOr<Ast> Parser::ParseInvertPrev() {
   XLS_ASSIGN_OR_RETURN(auto term, ParseTerm());
   if (scanner_.Eof()) {
     return term;
@@ -312,7 +312,7 @@ xabsl::StatusOr<Ast> Parser::ParseInvertPrev() {
   return term;
 }
 
-xabsl::StatusOr<Ast> Parser::ParseTerm() {
+absl::StatusOr<Ast> Parser::ParseTerm() {
   XLS_ASSIGN_OR_RETURN(Token token, scanner_.Pop());
   switch (token.kind()) {
     case Token::Kind::kOpenParen: {

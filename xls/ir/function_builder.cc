@@ -643,7 +643,7 @@ BValue BuilderBase::Concat(absl::Span<const BValue> operands,
   return AddNode<xls::Concat>(loc, node_operands);
 }
 
-xabsl::StatusOr<Function*> FunctionBuilder::Build() {
+absl::StatusOr<Function*> FunctionBuilder::Build() {
   if (function_ == nullptr) {
     return absl::FailedPreconditionError(
         "Cannot build function multiple times");
@@ -655,7 +655,7 @@ xabsl::StatusOr<Function*> FunctionBuilder::Build() {
   return BuildWithReturnValue(BValue(last_node_, this));
 }
 
-xabsl::StatusOr<Function*> FunctionBuilder::BuildWithReturnValue(
+absl::StatusOr<Function*> FunctionBuilder::BuildWithReturnValue(
     BValue return_value) {
   if (ErrorPending()) {
     std::string msg = error_msg_ + " ";
@@ -672,7 +672,7 @@ xabsl::StatusOr<Function*> FunctionBuilder::BuildWithReturnValue(
   return package()->AddFunction(std::move(function_));
 }
 
-xabsl::StatusOr<Proc*> ProcBuilder::BuildWithReturnValue(BValue return_value) {
+absl::StatusOr<Proc*> ProcBuilder::BuildWithReturnValue(BValue return_value) {
   if (ErrorPending()) {
     std::string msg = error_msg_ + " ";
     if (error_loc_.has_value()) {

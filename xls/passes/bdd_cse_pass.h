@@ -15,7 +15,7 @@
 #ifndef XLS_PASSES_BDD_CSE_PASS_H_
 #define XLS_PASSES_BDD_CSE_PASS_H_
 
-#include "xls/common/status/statusor.h"
+#include "absl/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/passes/passes.h"
 
@@ -29,8 +29,8 @@ class BddCsePass : public FunctionPass {
       : FunctionPass("bdd_cse", "BDD-based Common Subexpression Elimination") {}
   ~BddCsePass() override {}
 
-  xabsl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                      PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
+                                     PassResults* results) const override;
 };
 
 }  // namespace xls

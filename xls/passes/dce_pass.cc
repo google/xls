@@ -21,7 +21,7 @@
 
 namespace xls {
 
-xabsl::StatusOr<bool> DeadCodeEliminationPass::RunOnFunction(
+absl::StatusOr<bool> DeadCodeEliminationPass::RunOnFunction(
     Function* f, const PassOptions& options, PassResults* results) const {
   std::deque<Node*> worklist;
   for (Node* n : f->nodes()) {

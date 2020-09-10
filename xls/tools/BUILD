@@ -40,8 +40,8 @@ cc_library(
     deps = [
         ":verilog_include",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "//xls/codegen:vast",
-        "//xls/common/status:statusor",
     ],
 )
 
@@ -52,8 +52,8 @@ cc_library(
     deps = [
         ":io_strategy",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "//xls/common/status:statusor",
     ],
 )
 
@@ -64,13 +64,13 @@ cc_binary(
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/passes",
@@ -117,6 +117,7 @@ cc_binary(
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common:init_xls",
         "//xls/common:subprocess",
@@ -124,7 +125,6 @@ cc_binary(
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/netlist",
@@ -148,13 +148,13 @@ cc_binary(
     deps = [
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/codegen:flattening",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
         "//xls/ir:bits_ops",
         "//xls/ir:ir_parser",
         "//xls/ir:value",
@@ -201,6 +201,7 @@ cc_library(
     hdrs = ["wrap_io.h"],
     deps = [
         ":io_strategy",
+        "@com_google_absl//absl/status:statusor",
         "//xls/codegen:finite_state_machine",
         "//xls/codegen:module_signature",
         "//xls/codegen:vast",
@@ -208,7 +209,6 @@ cc_library(
         "//xls/common:math_util",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
         "//xls/ir:type",
     ],
 )
@@ -239,11 +239,11 @@ cc_library(
     deps = [
         ":wrap_io",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "//xls/codegen:vast",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
     ],
 )
 
@@ -256,11 +256,11 @@ cc_binary(
         ":io_strategy_factory",
         ":wrap_io",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status:statusor",
         "//xls/codegen:module_signature",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
-        "//xls/common/status:statusor",
     ],
 )
 
@@ -283,9 +283,9 @@ cc_binary(
         ":device_rpc_strategy_factory",
         ":ice40_device_rpc_strategy_registry",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common:init_xls",
         "//xls/common/logging",
-        "//xls/common/status:statusor",
         "//xls/ir:ir_parser",
     ],
 )
@@ -318,6 +318,7 @@ cc_binary(
     deps = [
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
@@ -326,7 +327,6 @@ cc_binary(
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
         "//xls/ir:ir_interpreter",
         "//xls/ir:ir_parser",
         "//xls/ir:value_helpers",
@@ -341,8 +341,8 @@ cc_library(
     hdrs = ["device_rpc_strategy.h"],
     deps = [
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
-        "//xls/common/status:statusor",
         "//xls/ir:type",
         "//xls/ir:value",
     ],
@@ -356,7 +356,7 @@ cc_library(
         ":device_rpc_strategy",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
-        "//xls/common/status:statusor",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
@@ -366,6 +366,7 @@ cc_library(
     hdrs = ["ice40_device_rpc_strategy.h"],
     deps = [
         ":device_rpc_strategy",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common:math_util",
         "//xls/common:strerror",
@@ -373,7 +374,6 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
     ],
 )
 
@@ -395,8 +395,8 @@ cc_library(
     deps = [
         ":io_strategy",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "//xls/codegen:vast",
-        "//xls/common/status:statusor",
     ],
 )
 
@@ -437,6 +437,7 @@ cc_binary(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random:distributions",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common:init_xls",
         "//xls/common:subprocess",
@@ -445,7 +446,6 @@ cc_binary(
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
         "//xls/ir",
         "//xls/ir:bits_ops",
         "//xls/ir:ir_interpreter",
@@ -581,13 +581,13 @@ cc_binary(
     deps = [
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/codegen:module_signature",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
         "//xls/ir:format_preference",
         "//xls/ir:ir_parser",
         "//xls/ir:value",
@@ -649,6 +649,7 @@ cc_binary(
     srcs = ["benchmark_main.cc"],
     deps = [
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
         "//xls/codegen:module_signature",
@@ -658,7 +659,6 @@ cc_binary(
         "//xls/common/file:filesystem",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
         "//xls/delay_model:analyze_critical_path",
         "//xls/delay_model:delay_estimator",
         "//xls/delay_model:delay_estimators",
@@ -748,13 +748,13 @@ cc_binary(
     srcs = ["bdd_stats.cc"],
     deps = [
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/time",
         "//xls/common:init_xls",
         "//xls/common:integral_types",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
         "//xls/examples:sample_packages",
         "//xls/ir",
         "//xls/ir:ir_parser",
@@ -768,12 +768,12 @@ cc_binary(
     deps = [
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
         "//xls/netlist:lib_parser",
     ],
 )

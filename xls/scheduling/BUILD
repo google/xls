@@ -36,9 +36,9 @@ cc_library(
     deps = [
         ":pipeline_schedule",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
         "//xls/ir",
     ],
 )
@@ -66,12 +66,12 @@ cc_library(
         ":schedule_bounds",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
-        "//xls/common/status:statusor",
         "//xls/data_structures:binary_search",
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
@@ -84,8 +84,8 @@ cc_test(
     deps = [
         ":pipeline_schedule",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:matchers",
-        "//xls/common/status:statusor",
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
         "//xls/ir:bits",
@@ -134,13 +134,13 @@ cc_library(
     deps = [
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "//xls/common:integral_types",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
     ],
@@ -181,9 +181,9 @@ cc_library(
     hdrs = ["pipeline_scheduling_pass.h"],
     deps = [
         ":scheduling_pass",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
     ],
 )
 

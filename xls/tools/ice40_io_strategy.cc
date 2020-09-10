@@ -86,7 +86,7 @@ absl::Status Ice40IoStrategy::InstantiateIoBlocks(Input input, Output output,
   return absl::OkStatus();
 }
 
-xabsl::StatusOr<std::vector<VerilogInclude>> Ice40IoStrategy::GetIncludes() {
+absl::StatusOr<std::vector<VerilogInclude>> Ice40IoStrategy::GetIncludes() {
   std::vector<VerilogInclude> includes;
   for (const char* rel_path : kIncludes) {
     VerilogInclude include;

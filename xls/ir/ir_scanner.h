@@ -19,9 +19,9 @@
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/status/statusor.h"
 #include "xls/ir/bits.h"
 
 namespace xls {
@@ -95,18 +95,18 @@ class Token {
   // expected string representation is the same as with
   // ParseNumberAsBits. Returns an error if the number does not fit in a
   // (u)int64.
-  xabsl::StatusOr<int64> GetValueInt64() const;
+  absl::StatusOr<int64> GetValueInt64() const;
 
   // Returns the token as a bool value. Token must be a literal. Returns an
   // error if the number does not fit in a bool.
-  xabsl::StatusOr<bool> GetValueBool() const;
+  absl::StatusOr<bool> GetValueBool() const;
 
   // Returns the token as a Bits value. Token must be a literal. The
   // expected string representation is the same as with ParseNumberAsBits.
-  xabsl::StatusOr<Bits> GetValueBits() const;
+  absl::StatusOr<Bits> GetValueBits() const;
 
   // Returns whether the token is a negative value. Token must be a literal.
-  xabsl::StatusOr<bool> IsNegative() const;
+  absl::StatusOr<bool> IsNegative() const;
 
   std::string ToString() const;
 
@@ -125,15 +125,15 @@ inline std::ostream& operator<<(std::ostream& os, const Token& token) {
 // source location information.  Right now this is a eager implementation - it
 // tokenizes the whole input. This can be easily changed later to a more demand
 // driven tokenization.
-xabsl::StatusOr<std::vector<Token>> TokenizeString(absl::string_view str);
+absl::StatusOr<std::vector<Token>> TokenizeString(absl::string_view str);
 
 class Scanner {
  public:
-  static xabsl::StatusOr<Scanner> Create(absl::string_view text);
+  static absl::StatusOr<Scanner> Create(absl::string_view text);
 
   // Peeks at the next token in the token stream, or returns an error if we're
   // at EOF and no more tokens are available.
-  xabsl::StatusOr<Token> PeekToken() const;
+  absl::StatusOr<Token> PeekToken() const;
 
   // Return the current token.
   const Token& PeekTokenOrDie() const {
@@ -154,7 +154,7 @@ class Scanner {
 
   // Same as PopToken() but returns a status error if we are at EOF (in which
   // case a token cannot be popped).
-  xabsl::StatusOr<Token> PopTokenOrError(absl::string_view context = "");
+  absl::StatusOr<Token> PopTokenOrError(absl::string_view context = "");
 
   // As above, but the caller must ensure we are not possibly at EOF: if we are,
   // then the program will CHECK-fail.
@@ -177,8 +177,8 @@ class Scanner {
 
   // As with PopTokenOrError, but also supplies an error if the token is not of
   // type "target".
-  xabsl::StatusOr<Token> PopTokenOrError(LexicalTokenType target,
-                                         absl::string_view context = "");
+  absl::StatusOr<Token> PopTokenOrError(LexicalTokenType target,
+                                        absl::string_view context = "");
 
   // Wrapper around PopTokenOrError(target) above that can be used with
   // XLS_RETURN_IF_ERROR.

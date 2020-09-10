@@ -15,7 +15,7 @@
 #ifndef XLS_SCHEDULING_EXTRACT_STAGE_H_
 #define XLS_SCHEDULING_EXTRACT_STAGE_H_
 
-#include "xls/common/status/statusor.h"
+#include "absl/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
@@ -23,9 +23,9 @@ namespace xls {
 
 // Creates a new function containing only the nodes within the specified
 // pipeline stage and new params/output nodes.
-xabsl::StatusOr<Function*> ExtractStage(Function* src,
-                                        const PipelineSchedule& schedule,
-                                        int stage);
+absl::StatusOr<Function*> ExtractStage(Function* src,
+                                       const PipelineSchedule& schedule,
+                                       int stage);
 
 }  // namespace xls
 

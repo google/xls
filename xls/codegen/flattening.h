@@ -17,9 +17,9 @@
 #ifndef XLS_CODEGEN_FLATTENING_H_
 #define XLS_CODEGEN_FLATTENING_H_
 
+#include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/codegen/vast.h"
-#include "xls/common/status/statusor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -37,9 +37,9 @@ Bits FlattenValueToBits(const Value& value);
 
 // Unflattens the given Bits to a Value of the given type. This is the inverse
 // of FlattenValueToBits.
-xabsl::StatusOr<Value> UnflattenBitsToValue(const Bits& bits, const Type* type);
-xabsl::StatusOr<Value> UnflattenBitsToValue(const Bits& bits,
-                                            const TypeProto& type_proto);
+absl::StatusOr<Value> UnflattenBitsToValue(const Bits& bits, const Type* type);
+absl::StatusOr<Value> UnflattenBitsToValue(const Bits& bits,
+                                           const TypeProto& type_proto);
 
 // Returns the index of the first bit of tuple element at 'index' where the
 // tuple is flattened into a vector of bits.

@@ -77,7 +77,7 @@ int64 GatherExpressionLeaves(Op op, int64 bit_count, Node* node,
   return max_depth;
 }
 
-xabsl::StatusOr<bool> ReassociationPass::RunOnFunction(
+absl::StatusOr<bool> ReassociationPass::RunOnFunction(
     Function* f, const PassOptions& options, PassResults* results) const {
   XLS_VLOG(2) << "Running reassociation on function " << f->name();
   XLS_VLOG(3) << "Before:";
@@ -179,7 +179,7 @@ xabsl::StatusOr<bool> ReassociationPass::RunOnFunction(
     XLS_VLOG(4) << "  leaves:  " << absl::StrJoin(leaves, ", ", NodeFormatter);
 
     // Create a clone of 'node' for construcing a reassociated expression.
-    auto new_node = [&](Node* lhs, Node* rhs) -> xabsl::StatusOr<Node*> {
+    auto new_node = [&](Node* lhs, Node* rhs) -> absl::StatusOr<Node*> {
       return node->Clone({lhs, rhs}, node->function());
     };
 

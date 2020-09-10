@@ -16,9 +16,9 @@
 #define XLS_IR_ABSTRACT_NODE_EVALUATOR_H_
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/types/optional.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/status/statusor.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 
@@ -30,7 +30,7 @@ namespace xls {
 // operand values. For unsupported operations the given function
 // 'default_handler' is called to generate the return value.
 template <typename AbstractEvaluatorT>
-xabsl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
+absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
     Node* node, absl::Span<const typename AbstractEvaluatorT::Vector> operands,
     AbstractEvaluatorT* evaluator,
     std::function<typename AbstractEvaluatorT::Vector(Node*)> default_handler) {

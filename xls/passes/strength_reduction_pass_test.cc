@@ -35,7 +35,7 @@ class StrengthReductionPassTest : public IrTestBase {
  protected:
   StrengthReductionPassTest() = default;
 
-  xabsl::StatusOr<bool> Run(Function* f) {
+  absl::StatusOr<bool> Run(Function* f) {
     PassResults results;
     XLS_ASSIGN_OR_RETURN(bool changed,
                          StrengthReductionPass(/*split_ops=*/true)

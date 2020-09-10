@@ -27,12 +27,12 @@ cc_library(
     srcs = ["capture_stream.cc"],
     hdrs = ["capture_stream.h"],
     deps = [
+        "@com_google_absl//absl/status:statusor",
         "//xls/common/file:file_descriptor",
         "//xls/common/file:filesystem",
         "//xls/common/file:temp_file",
         "//xls/common/status:error_code_to_status",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
     ],
 )
 
@@ -41,6 +41,7 @@ cc_test(
     srcs = ["capture_stream_test.cc"],
     deps = [
         ":capture_stream",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
     ],
@@ -143,9 +144,9 @@ cc_test(
         ":capture_stream",
         ":log_flags",
         ":logging_test_base",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -243,9 +244,9 @@ cc_test(
         ":logging_test_base",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
         "@com_google_googletest//:gtest_main",
     ],
 )

@@ -30,7 +30,7 @@ using testing::Pair;
 
 class TestDelayEstimator : public DelayEstimator {
  public:
-  xabsl::StatusOr<int64> GetOperationDelayInPs(Node* node) const override {
+  absl::StatusOr<int64> GetOperationDelayInPs(Node* node) const override {
     switch (node->op()) {
       case Op::kParam:
       case Op::kLiteral:

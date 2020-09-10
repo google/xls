@@ -15,8 +15,8 @@
 #ifndef XLS_PASSES_QUERY_ENGINE_H_
 #define XLS_PASSES_QUERY_ENGINE_H_
 
+#include "absl/status/statusor.h"
 #include "absl/types/variant.h"
-#include "xls/common/status/statusor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/node.h"
 

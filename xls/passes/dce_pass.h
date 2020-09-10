@@ -17,7 +17,7 @@
 #ifndef XLS_PASSES_DCE_PASS_H_
 #define XLS_PASSES_DCE_PASS_H_
 
-#include "xls/common/status/statusor.h"
+#include "absl/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/passes/passes.h"
 
@@ -32,8 +32,8 @@ class DeadCodeEliminationPass : public FunctionPass {
   ~DeadCodeEliminationPass() override {}
 
   // Iterate all nodes, mark and eliminate the unvisited nodes.
-  xabsl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                      PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
+                                     PassResults* results) const override;
 };
 
 }  // namespace xls

@@ -24,9 +24,9 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/status/statusor.h"
 #include "xls/netlist/cell_library.h"
 
 namespace xls {
@@ -57,7 +57,7 @@ class Cell {
   // map.
   // "dummy_net" is a ref to the "dummy" cell used by the containing module for
   // output wires that aren't connected to any cells.
-  static xabsl::StatusOr<Cell> Create(
+  static absl::StatusOr<Cell> Create(
       const CellLibraryEntry* cell_library_entry, absl::string_view name,
       const absl::flat_hash_map<std::string, NetRef>&
           named_parameter_assignments,
@@ -110,7 +110,7 @@ class NetDef {
   // connected (e.g. a driver). Note: could be optimized to give a smart
   // view/iterator object that filters out to_remove without instantiating
   // storage.
-  xabsl::StatusOr<std::vector<Cell*>> GetConnectedCellsSans(
+  absl::StatusOr<std::vector<Cell*>> GetConnectedCellsSans(
       Cell* to_remove) const;
 
  private:
@@ -153,22 +153,22 @@ class Module {
   // "state_table"-like attributes.
   const CellLibraryEntry* AsCellLibraryEntry() const;
 
-  xabsl::StatusOr<Cell*> AddCell(Cell cell);
+  absl::StatusOr<Cell*> AddCell(Cell cell);
 
   absl::Status AddNetDecl(NetDeclKind kind, absl::string_view name);
 
   // Returns a NetRef to the given number, creating a NetDef if necessary.
-  xabsl::StatusOr<NetRef> AddOrResolveNumber(int64 number);
+  absl::StatusOr<NetRef> AddOrResolveNumber(int64 number);
 
-  xabsl::StatusOr<NetRef> ResolveNumber(int64 number) const;
+  absl::StatusOr<NetRef> ResolveNumber(int64 number) const;
 
-  xabsl::StatusOr<NetRef> ResolveNet(absl::string_view name) const;
+  absl::StatusOr<NetRef> ResolveNet(absl::string_view name) const;
 
   // Returns a reference to a "dummy" net - this is needed for cases where one
   // of a cell's output pins isn't actually used.
   NetRef GetDummyRef() const { return dummy_; }
 
-  xabsl::StatusOr<Cell*> ResolveCell(absl::string_view name) const;
+  absl::StatusOr<Cell*> ResolveCell(absl::string_view name) const;
 
   absl::Span<const std::unique_ptr<NetDef>> nets() const { return nets_; }
   absl::Span<const std::unique_ptr<Cell>> cells() const { return cells_; }
@@ -194,8 +194,7 @@ class Module {
 class Netlist {
  public:
   void AddModule(std::unique_ptr<Module> module);
-  xabsl::StatusOr<const Module*> GetModule(
-      const std::string& module_name) const;
+  absl::StatusOr<const Module*> GetModule(const std::string& module_name) const;
   const absl::Span<const std::unique_ptr<Module>> modules() { return modules_; }
 
  private:
