@@ -52,5 +52,117 @@ fn foo(x: bits[4]) -> bits[4] {
   EXPECT_NE(pos, std::string::npos);
 }
 
+TEST(JitWrapperGeneratorTest, GeneratesNativeInts) {
+  constexpr const char kClassName[] = "MyClass";
+  const std::filesystem::path kHeaderPath =
+      "some/silly/genfiles/path/this_is_myclass.h";
+
+  const std::string program = R"(package p
+fn foo8(x: bits[8]) -> bits[8] {
+  ret identity.2: bits[8] = identity(x)
+}
+
+fn foo16(x: bits[16]) -> bits[16] {
+  ret identity.4: bits[16] = identity(x)
+}
+
+fn foo32(x: bits[32]) -> bits[32] {
+  ret identity.6: bits[32] = identity(x)
+}
+
+fn foo64(x: bits[64]) -> bits[64] {
+  ret identity.8: bits[64] = identity(x)
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("foo8"));
+  GeneratedJitWrapper generated = GenerateJitWrapper(
+      *f, kClassName, kHeaderPath, "some/silly/genfiles/path");
+  int64 pos = generated.header.find("xabsl::StatusOr<uint8> Run(uint8 x);");
+  EXPECT_NE(pos, std::string::npos);
+
+  XLS_ASSERT_OK_AND_ASSIGN(f, p->GetFunction("foo16"));
+  generated = GenerateJitWrapper(*f, kClassName, kHeaderPath,
+                                 "some/silly/genfiles/path");
+  pos = generated.header.find("xabsl::StatusOr<uint16> Run(uint16 x);");
+  EXPECT_NE(pos, std::string::npos);
+
+  XLS_ASSERT_OK_AND_ASSIGN(f, p->GetFunction("foo32"));
+  generated = GenerateJitWrapper(*f, kClassName, kHeaderPath,
+                                 "some/silly/genfiles/path");
+  pos = generated.header.find("xabsl::StatusOr<uint32> Run(uint32 x);");
+  EXPECT_NE(pos, std::string::npos);
+
+  XLS_ASSERT_OK_AND_ASSIGN(f, p->GetFunction("foo64"));
+  generated = GenerateJitWrapper(*f, kClassName, kHeaderPath,
+                                 "some/silly/genfiles/path");
+  pos = generated.header.find("xabsl::StatusOr<uint64> Run(uint64 x);");
+  EXPECT_NE(pos, std::string::npos);
+}
+
+TEST(JitWrapperGeneratorTest, GeneratesNonnativeInts) {
+  constexpr const char kClassName[] = "MyClass";
+  const std::filesystem::path kHeaderPath =
+      "some/silly/genfiles/path/this_is_myclass.h";
+
+  const std::string program = R"(package p
+
+fn foo5(x: bits[5]) -> bits[5] {
+  ret identity.2: bits[5] = identity(x)
+}
+
+fn foo13(x: bits[13]) -> bits[13] {
+  ret identity.4: bits[13] = identity(x)
+}
+
+fn foo22(x: bits[22]) -> bits[22] {
+  ret identity.6: bits[22] = identity(x)
+}
+
+fn foo63(x: bits[63]) -> bits[63] {
+  ret identity.8: bits[63] = identity(x)
+}
+
+fn foo65(x: bits[65]) -> bits[65] {
+  ret identity.16: bits[65] = identity(x)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("foo5"));
+  GeneratedJitWrapper generated = GenerateJitWrapper(
+      *f, kClassName, kHeaderPath, "some/silly/genfiles/path");
+  int64 pos = generated.header.find("xabsl::StatusOr<uint8> Run(uint8 x);");
+  EXPECT_NE(pos, std::string::npos);
+
+  XLS_ASSERT_OK_AND_ASSIGN(f, p->GetFunction("foo13"));
+  generated = GenerateJitWrapper(*f, kClassName, kHeaderPath,
+                                 "some/silly/genfiles/path");
+  pos = generated.header.find("xabsl::StatusOr<uint16> Run(uint16 x);");
+  EXPECT_NE(pos, std::string::npos);
+
+  XLS_ASSERT_OK_AND_ASSIGN(f, p->GetFunction("foo22"));
+  generated = GenerateJitWrapper(*f, kClassName, kHeaderPath,
+                                 "some/silly/genfiles/path");
+  pos = generated.header.find("xabsl::StatusOr<uint32> Run(uint32 x);");
+  EXPECT_NE(pos, std::string::npos);
+
+  XLS_ASSERT_OK_AND_ASSIGN(f, p->GetFunction("foo63"));
+  generated = GenerateJitWrapper(*f, kClassName, kHeaderPath,
+                                 "some/silly/genfiles/path");
+  pos = generated.header.find("xabsl::StatusOr<uint64> Run(uint64 x);");
+  EXPECT_NE(pos, std::string::npos);
+
+  // Verify we stop at 64 bits (we'll handle 128b integers once they're part of
+  // a standard).
+  XLS_ASSERT_OK_AND_ASSIGN(f, p->GetFunction("foo65"));
+  generated = GenerateJitWrapper(*f, kClassName, kHeaderPath,
+                                 "some/silly/genfiles/path");
+  pos = generated.header.find("xabsl::StatusOr<uint64> Run(uint64 x);");
+  EXPECT_EQ(pos, std::string::npos);
+}
+
 }  // namespace
 }  // namespace xls

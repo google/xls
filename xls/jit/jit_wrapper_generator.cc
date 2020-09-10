@@ -20,6 +20,35 @@
 namespace xls {
 namespace {
 
+// Returns true if the given type can be represented as a native unsigned
+// integer type (uint8, uint16, ...) and sets "enclosing_type" to the name
+// of that type (as a string).
+// Not a "match", per se, since we're finding the next enclosing native type
+// (instead of strict matching), but for consistency with other match
+// operations, we'll keep the MatchUint name.
+bool MatchUint(const Type& type, std::string* enclosing_type) {
+  if (!type.IsBits()) {
+    return false;
+  }
+
+  int bit_count = type.GetFlatBitCount();
+  if (bit_count <= 8) {
+    *enclosing_type = "uint8";
+    return true;
+  } else if (bit_count <= 16) {
+    *enclosing_type = "uint16";
+    return true;
+  } else if (bit_count <= 32) {
+    *enclosing_type = "uint32";
+    return true;
+  } else if (bit_count <= 64) {
+    *enclosing_type = "uint64";
+    return true;
+  }
+
+  return false;
+}
+
 // Returns true if the given type matches the C float type layout.
 bool MatchFloat(const Type& type) {
   if (!type.IsTuple()) {
@@ -28,6 +57,10 @@ bool MatchFloat(const Type& type) {
 
   const TupleType* tuple_type = type.AsTupleOrDie();
   auto element_types = tuple_type->element_types();
+  if (element_types.size() != 3) {
+    return false;
+  }
+
   if (element_types[0]->IsBits() && element_types[0]->GetFlatBitCount() == 1 &&
       element_types[1]->IsBits() && element_types[1]->GetFlatBitCount() == 8 &&
       element_types[2]->IsBits() && element_types[2]->GetFlatBitCount() == 23) {
@@ -60,6 +93,16 @@ std::string PackedTypeString(const Type& type) {
   }
 }
 
+// Emits the code necessary to convert a u32/i32 value to its corresponding
+// packed view.
+std::string ConvertUint(const std::string& name, const Type& type) {
+  XLS_CHECK(type.IsBits());
+
+  return absl::StrFormat(
+      "PackedBitsView<%d> %s_view(reinterpret_cast<uint8*>(&%s), 0)",
+      type.GetFlatBitCount(), name, name);
+}
+
 // Emits the code necessary to convert a float value to its corresponding
 // packed view.
 std::string ConvertFloat(const std::string& name) {
@@ -75,7 +118,12 @@ std::string ConvertFloat(const std::string& name) {
 // that could be specializations of a param.
 absl::optional<std::string> MatchTypeSpecialization(const Type& type) {
   // No need at present for anything fancy. Cascading if/else works.
-  if (MatchFloat(type)) {
+  std::string type_string;
+  if (MatchUint(type, &type_string)) {
+    // Bits objects are an ordered of bits and have no notion of signedness so
+    // they are best represented as unsigned integer data types in C/C++.
+    return type_string;
+  } else if (MatchFloat(type)) {
     return "float";
   }
 
@@ -87,7 +135,10 @@ absl::optional<std::string> MatchTypeSpecialization(const Type& type) {
 // Pretty bare-bones at present, but will be expanded depending on need.
 absl::optional<std::string> CreateConversion(const std::string& name,
                                              const Type& type) {
-  if (MatchFloat(type)) {
+  std::string type_string;
+  if (MatchUint(type, &type_string)) {
+    return ConvertUint(name, type);
+  } else if (MatchFloat(type)) {
     return ConvertFloat(name);
   }
 

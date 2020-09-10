@@ -51,8 +51,11 @@ xabsl::StatusOr<float> foo(float a, float b) {
 ```
 
 When available, these simplified wrappers should be used for higher performance
-(~30% in our measured cases). Currently, only floats are specialized in this
-way, but others will be added as needs arise.
+(~30% in our measured cases). Currently, floats and integral types >= 64 bits in
+this way. For non-native integral types, the generated wrapper will accept the
+next larger native type e.g., `uint64` for `bits[47]`. Proper operation with
+next-larger types depends on the input value being present in the
+least-significant bits of the containing type.
 
 These are higher performance because they avoid unnecessary marshaling of these
 types into Views (e.g., a `float` outside the JIT -> View -> `float` inside the
