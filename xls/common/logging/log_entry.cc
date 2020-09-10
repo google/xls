@@ -32,13 +32,6 @@ pid_t GetCachedTID() {
   return thread_id;
 }
 
-// Note that the value 0 is invalid for tm_mday.
-constexpr struct tm kInitTm = {
-    0, 0, 0,  // tm_sec, tm_min, tm_hour
-    1, 0, 0,  // tm_mday, tm_mon, tm_year
-    0, 0, 0   // tm_wday, tm_yday, tm_isdst
-};
-
 absl::string_view Basename(absl::string_view filepath) {
 #ifdef _WIN32
   size_t path = filepath.find_last_of("/\\");

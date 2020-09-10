@@ -166,7 +166,6 @@ class UnpackedArrayRegDef : public RegDef {
 
  private:
   std::vector<UnpackedArrayBound> bounds_;
-  VerilogFile* file_;
 };
 
 // Unpacked array wire definition.
@@ -186,7 +185,6 @@ class UnpackedArrayWireDef : public WireDef {
 
  private:
   std::vector<UnpackedArrayBound> bounds_;
-  VerilogFile* file_;
 };
 
 // Represents a #${delay} statement.

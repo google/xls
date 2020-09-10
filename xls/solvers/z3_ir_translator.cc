@@ -1028,7 +1028,7 @@ absl::Status IrTranslator::HandleOneHotSel(OneHotSelect* one_hot) {
 absl::Status IrTranslator::HandleSel(Select* sel) {
   Z3AbstractEvaluator evaluator(ctx_);
   Z3OpTranslator op_translator(ctx_);
-  return HandleSelect(sel, [this, sel, &evaluator, &op_translator](
+  return HandleSelect(sel, [this, sel, &evaluator](
                                const std::vector<Z3_ast>& selector,
                                const std::vector<std::vector<Z3_ast>>& cases) {
     // Calculate the Z3-ified default value, if any.

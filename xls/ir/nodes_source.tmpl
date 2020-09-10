@@ -31,14 +31,6 @@ Type* GetMapType(Node* operand, Function* to_apply) {
                                  to_apply->return_value()->GetType());
 }
 
-Type* GetChannelReceiveType(Package* package, absl::Span<Type* const> data_types) {
-  std::vector<Type*> element_types;
-  element_types.push_back(package->GetTokenType());
-  element_types.insert(element_types.end(), data_types.begin(),
-                       data_types.end());
-  return package->GetTupleType(element_types);
-}
-
 }  // namespace
 
 {% for op_class in spec.OpClass.kinds.values() -%}

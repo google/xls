@@ -185,16 +185,6 @@ struct TooManySentinel {};
 using FrontierVector = absl::InlinedVector<Node*, kMaxFrontierNodes>;
 using Frontier = absl::variant<FrontierVector, TooManySentinel>;
 
-// Convenient converter of the Frontier type to string for debugging.
-std::string ToString(const Frontier& x) {
-  if (absl::holds_alternative<TooManySentinel>(x)) {
-    return "Frontier(<too many>)";
-  }
-  const auto& nodes = absl::get<FrontierVector>(x);
-  return absl::StrFormat("Frontier([%s])",
-                         absl::StrJoin(nodes, ", ", NodeFormatter));
-}
-
 bool HasFrontierVector(const Frontier& frontier) {
   return absl::holds_alternative<FrontierVector>(frontier);
 }

@@ -201,7 +201,12 @@ struct RuntimeState {
   std::unique_ptr<xls::LlvmIrRuntime> runtime;
 };
 
-std::unique_ptr<RuntimeState> GetRuntimeState() {
+// Note: Returned pointer is owned by the caller.
+//
+// Implementation note: normally we'd return a unique_ptr from this, but this is
+// exposed via C ABI, so LLVM warns/errors if we do. Be sure to immediately wrap
+// in unique_ptr in C++ callers.
+RuntimeState* GetRuntimeState() {
   absl::call_once(once, OnceInit);
   auto state = std::make_unique<RuntimeState>();
   state->context = std::make_unique<llvm::LLVMContext>();
@@ -224,16 +229,16 @@ std::unique_ptr<RuntimeState> GetRuntimeState() {
       state->context.get(), data_layout);
   state->runtime = std::make_unique<xls::LlvmIrRuntime>(
       data_layout, state->type_converter.get());
-  return state;
+  return state.release();
 }
 
 int64 GetArgBufferSize(int arg_count, const char** input_args) {
-  std::unique_ptr<RuntimeState> state = GetRuntimeState();
+  std::unique_ptr<RuntimeState> state(GetRuntimeState());
   if (state == nullptr) {
     return -1;
   }
 
-  xls::Package package("meow meow meow");
+  xls::Package package("get_arg_buffer_size");
   int64 args_size = 0;
   for (int i = 1; i < arg_count; i++) {
     auto status_or_value = xls::Parser::ParseTypedValue(input_args[i]);
@@ -257,12 +262,12 @@ int64 GetArgBufferSize(int arg_count, const char** input_args) {
 // problem to be a bit wasteful, especially when it makes things that much
 // simpler.
 int64 PackArgs(int arg_count, const char** input_args, uint8** buffer) {
-  std::unique_ptr<RuntimeState> state = GetRuntimeState();
+  std::unique_ptr<RuntimeState> state(GetRuntimeState());
   if (state == nullptr) {
     return -1;
   }
 
-  xls::Package package("meow meow meow");
+  xls::Package package("pack_args");
   std::vector<xls::Value> values;
   std::vector<xls::Type*> types;
   std::vector<int64> arg_sizes;
@@ -287,7 +292,7 @@ int64 PackArgs(int arg_count, const char** input_args, uint8** buffer) {
 
 int UnpackAndPrintBuffer(const char* output_type_string, int arg_count,
                          const char** input_args, const uint8* buffer) {
-  std::unique_ptr<RuntimeState> state = GetRuntimeState();
+  std::unique_ptr<RuntimeState> state(GetRuntimeState());
   if (state == nullptr) {
     return -1;
   }

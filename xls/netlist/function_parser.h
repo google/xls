@@ -20,6 +20,7 @@
 #define XLS_NETLIST_FUNCTION_PARSER_H_
 
 #include <string>
+#include <vector>
 
 #include "absl/types/optional.h"
 #include "xls/common/integral_types.h"

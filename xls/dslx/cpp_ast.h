@@ -1325,6 +1325,7 @@ class Proc : public AstNode {
   }
 
   NameDef* name_def() const { return name_def_; }
+  bool is_public() const { return is_public_; }
 
  private:
   Span span_;
