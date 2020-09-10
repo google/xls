@@ -17,8 +17,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/statusor.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
@@ -38,7 +38,7 @@ using ::testing::UnorderedElementsAre;
 
 class TestDelayEstimator : public DelayEstimator {
  public:
-  absl::StatusOr<int64> GetOperationDelayInPs(Node* node) const override {
+  xabsl::StatusOr<int64> GetOperationDelayInPs(Node* node) const override {
     switch (node->op()) {
       case Op::kParam:
       case Op::kLiteral:

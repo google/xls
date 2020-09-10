@@ -26,9 +26,9 @@
 #include <utility>
 #include <vector>
 
-#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -46,39 +46,39 @@ class ArgParser;
 class Parser {
  public:
   // Parses the given input string as a package.
-  static absl::StatusOr<std::unique_ptr<Package>> ParsePackage(
+  static xabsl::StatusOr<std::unique_ptr<Package>> ParsePackage(
       absl::string_view input_string,
       absl::optional<absl::string_view> filename = absl::nullopt);
 
   // As above, but sets the entry function to be the given name in the returned
   // package.
-  static absl::StatusOr<std::unique_ptr<Package>> ParsePackageWithEntry(
+  static xabsl::StatusOr<std::unique_ptr<Package>> ParsePackageWithEntry(
       absl::string_view input_string, absl::string_view entry,
       absl::optional<absl::string_view> filename = absl::nullopt);
 
   // Parse the input_string as a function into the given package.
-  static absl::StatusOr<Function*> ParseFunction(absl::string_view input_string,
-                                                 Package* package);
+  static xabsl::StatusOr<Function*> ParseFunction(
+      absl::string_view input_string, Package* package);
 
   // Parse the input_string as a proc into the given package.
-  static absl::StatusOr<Proc*> ParseProc(absl::string_view input_string,
-                                         Package* package);
+  static xabsl::StatusOr<Proc*> ParseProc(absl::string_view input_string,
+                                          Package* package);
 
   // Parse the input_string as a channel in the given package.
-  static absl::StatusOr<Channel*> ParseChannel(absl::string_view input_string,
-                                               Package* package);
+  static xabsl::StatusOr<Channel*> ParseChannel(absl::string_view input_string,
+                                                Package* package);
 
   // Parse the input_string as a function type into the given package.
-  static absl::StatusOr<FunctionType*> ParseFunctionType(
+  static xabsl::StatusOr<FunctionType*> ParseFunctionType(
       absl::string_view input_string, Package* package);
 
   // Parse the input_string as a type into the given package.
-  static absl::StatusOr<Type*> ParseType(absl::string_view input_string,
-                                         Package* package);
+  static xabsl::StatusOr<Type*> ParseType(absl::string_view input_string,
+                                          Package* package);
 
   // Parses the given input string as a package skipping verification. This
   // should only be used in tests when malformed IR is desired.
-  static absl::StatusOr<std::unique_ptr<Package>> ParsePackageNoVerify(
+  static xabsl::StatusOr<std::unique_ptr<Package>> ParsePackageNoVerify(
       absl::string_view input_string,
       absl::optional<absl::string_view> filename = absl::nullopt,
       absl::optional<absl::string_view> entry = absl::nullopt);
@@ -86,15 +86,15 @@ class Parser {
   // As above but creates a package of type PackageT where PackageT must be
   // type derived from Package.
   template <typename PackageT>
-  static absl::StatusOr<std::unique_ptr<PackageT>> ParseDerivedPackageNoVerify(
+  static xabsl::StatusOr<std::unique_ptr<PackageT>> ParseDerivedPackageNoVerify(
       absl::string_view input_string,
       absl::optional<absl::string_view> filename = absl::nullopt,
       absl::optional<absl::string_view> entry = absl::nullopt);
 
   // Parses a literal value that should be of type "expected_type" and returns
   // it.
-  static absl::StatusOr<Value> ParseValue(absl::string_view input_string,
-                                          Type* expected_type);
+  static xabsl::StatusOr<Value> ParseValue(absl::string_view input_string,
+                                           Type* expected_type);
 
   // Parses a value with embedded type information, specifically 'bits[xx]:'
   // substrings indicating the width of literal values. Value::ToString emits
@@ -102,7 +102,7 @@ class Parser {
   //   bits[32]:0x42
   //   (bits[7]:0, bits[8]:1)
   //   [bits[2]:1, bits[2]:2, bits[2]:3]
-  static absl::StatusOr<Value> ParseTypedValue(absl::string_view input_string);
+  static xabsl::StatusOr<Value> ParseTypedValue(absl::string_view input_string);
 
  private:
   friend class ArgParser;
@@ -110,29 +110,29 @@ class Parser {
   explicit Parser(Scanner scanner) : scanner_(scanner) {}
 
   // Parse a function starting at the current scanner position.
-  absl::StatusOr<Function*> ParseFunction(Package* package);
+  xabsl::StatusOr<Function*> ParseFunction(Package* package);
 
   // Parse a proc starting at the current scanner position.
-  absl::StatusOr<Proc*> ParseProc(Package* package);
+  xabsl::StatusOr<Proc*> ParseProc(Package* package);
 
   // Parse a proc starting at the current scanner position.
-  absl::StatusOr<Channel*> ParseChannel(Package* package);
+  xabsl::StatusOr<Channel*> ParseChannel(Package* package);
 
   // Parse starting from a function type.
-  absl::StatusOr<FunctionType*> ParseFunctionType(Package* package);
+  xabsl::StatusOr<FunctionType*> ParseFunctionType(Package* package);
 
   // A thin convenience function which parses a single boolean literal.
-  absl::StatusOr<bool> ParseBool();
+  xabsl::StatusOr<bool> ParseBool();
 
   // A thin convenience function which parses a single int64 number.
-  absl::StatusOr<int64> ParseInt64();
+  xabsl::StatusOr<int64> ParseInt64();
 
   // A thin convenience function which parses a single identifier string.
-  absl::StatusOr<std::string> ParseIdentifierString(TokenPos* pos = nullptr);
+  xabsl::StatusOr<std::string> ParseIdentifierString(TokenPos* pos = nullptr);
 
   // Convenience function that parses an identifier and resolve it to a value,
   // or returns a status error if it cannot.
-  absl::StatusOr<BValue> ParseIdentifierValue(
+  xabsl::StatusOr<BValue> ParseIdentifierValue(
       const absl::flat_hash_map<std::string, BValue>& name_to_value);
 
   // Parses a Value. Supports bits, array, and tuple types as well as their
@@ -141,7 +141,8 @@ class Parser {
   // by Value::ToString. For example: "(bits[32]:0x23, bits[0]:0x1)". If
   // expected_type is given, the string should NOT have embedded bits types as
   // produced by Value::ToHumanString. For example: "(0x23, 0x1)".
-  absl::StatusOr<Value> ParseValueInternal(absl::optional<Type*> expected_type);
+  xabsl::StatusOr<Value> ParseValueInternal(
+      absl::optional<Type*> expected_type);
 
   // Parses a comma-delimited list of names surrounded by brackets; e.g.
   //
@@ -151,7 +152,7 @@ class Parser {
   //
   // Returns an error if the parse fails or if any of the names cannot be
   // resolved via name_to_value.
-  absl::StatusOr<std::vector<BValue>> ParseNameList(
+  xabsl::StatusOr<std::vector<BValue>> ParseNameList(
       const absl::flat_hash_map<std::string, BValue>& name_to_value);
 
   // Parses a source location.
@@ -159,28 +160,28 @@ class Parser {
   // comma-separated numbers. Encapsulating the numbers in braces or something
   // would make the output less ambiguous. Example:
   // "and(x,y,pos={1,2,3},foo=bar)" vs "and(x,y,pos=1,2,3,foo=bar)"
-  absl::StatusOr<SourceLocation> ParseSourceLocation();
+  xabsl::StatusOr<SourceLocation> ParseSourceLocation();
 
   // Parse type specifications.
-  absl::StatusOr<Type*> ParseType(Package* package);
+  xabsl::StatusOr<Type*> ParseType(Package* package);
 
   // Parse a tuple type (which can contain nested tuples).
-  absl::StatusOr<Type*> ParseTupleType(Package* package);
+  xabsl::StatusOr<Type*> ParseTupleType(Package* package);
 
   // Parse a bits type.
-  absl::StatusOr<Type*> ParseBitsType(Package* package);
+  xabsl::StatusOr<Type*> ParseBitsType(Package* package);
 
   // Parses a bits types and returns the width.
-  absl::StatusOr<int64> ParseBitsTypeAndReturnWidth();
+  xabsl::StatusOr<int64> ParseBitsTypeAndReturnWidth();
 
   // Builds a binary or unary BValue with the given Op using the given
   // FunctionBuilder and arg parser.
-  absl::StatusOr<BValue> BuildBinaryOrUnaryOp(
+  xabsl::StatusOr<BValue> BuildBinaryOrUnaryOp(
       Op op, BuilderBase* fb, absl::optional<SourceLocation>* loc,
       ArgParser* arg_parser);
 
   // Parses the line-statements in the body of a function.
-  absl::StatusOr<BValue> ParseFunctionBody(
+  xabsl::StatusOr<BValue> ParseFunctionBody(
       BuilderBase* fb, absl::flat_hash_map<std::string, BValue>* name_to_value,
       Package* package);
 
@@ -191,12 +192,12 @@ class Parser {
   //
   // Note: FunctionBuilder must be unique_ptr because it is referred to by
   // pointer in BValue types.
-  absl::StatusOr<std::pair<std::unique_ptr<FunctionBuilder>, Type*>>
+  xabsl::StatusOr<std::pair<std::unique_ptr<FunctionBuilder>, Type*>>
   ParseFunctionSignature(
       absl::flat_hash_map<std::string, BValue>* name_to_value,
       Package* package);
 
-  absl::StatusOr<std::unique_ptr<ProcBuilder>> ParseProcSignature(
+  xabsl::StatusOr<std::unique_ptr<ProcBuilder>> ParseProcSignature(
       absl::flat_hash_map<std::string, BValue>* name_to_value,
       Package* package);
 
@@ -205,7 +206,7 @@ class Parser {
   //  "package" <name>
   //
   // And returns the name.
-  absl::StatusOr<std::string> ParsePackageName();
+  xabsl::StatusOr<std::string> ParsePackageName();
 
   bool AtEof() const { return scanner_.AtEof(); }
 
@@ -214,7 +215,7 @@ class Parser {
 
 /* static */
 template <typename PackageT>
-absl::StatusOr<std::unique_ptr<PackageT>> Parser::ParseDerivedPackageNoVerify(
+xabsl::StatusOr<std::unique_ptr<PackageT>> Parser::ParseDerivedPackageNoVerify(
     absl::string_view input_string, absl::optional<absl::string_view> filename,
     absl::optional<absl::string_view> entry) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));

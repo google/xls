@@ -15,7 +15,7 @@
 #ifndef XLS_PASSES_STANDARD_PIPELINE_H_
 #define XLS_PASSES_STANDARD_PIPELINE_H_
 
-#include "absl/status/statusor.h"
+#include "xls/common/status/statusor.h"
 #include "xls/passes/passes.h"
 #include "xls/scheduling/scheduling_pass.h"
 
@@ -27,7 +27,7 @@ std::unique_ptr<CompoundPass> CreateStandardPassPipeline();
 
 // Creates and runs the standard pipeline on the given package with default
 // options.
-absl::StatusOr<bool> RunStandardPassPipeline(Package* package);
+xabsl::StatusOr<bool> RunStandardPassPipeline(Package* package);
 
 // Creates a pipeline for constructing a schedule for a feedforward pipeline.
 std::unique_ptr<SchedulingCompoundPass> CreateStandardSchedulingPassPipeline();

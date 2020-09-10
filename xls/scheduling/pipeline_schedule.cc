@@ -72,7 +72,7 @@ absl::Status SplitAfterCycle(Function* f, int64 cycle,
 
 // Returns the number of pipeline registers (flops) on the interior of the
 // pipeline not counting the input and output flops (if any).
-absl::StatusOr<int64> CountInteriorPipelineRegisters(
+xabsl::StatusOr<int64> CountInteriorPipelineRegisters(
     Function* f, const sched::ScheduleBounds& bounds) {
   int64 registers = 0;
   for (Node* node : f->nodes()) {
@@ -91,7 +91,7 @@ absl::StatusOr<int64> CountInteriorPipelineRegisters(
 // period. Attempts to split nodes into stages such that the total number of
 // flops in the pipeline stages is minimized without violating the target clock
 // period.
-absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegisters(
+xabsl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegisters(
     Function* f, int64 pipeline_stages, const DelayEstimator& delay_estimator,
     sched::ScheduleBounds* bounds) {
   XLS_VLOG(3) << "ScheduleToMinimizeRegisters()";
@@ -140,7 +140,7 @@ absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegisters(
 
 // Returns the critical path of the function given a topological sort of its
 // nodes.
-absl::StatusOr<int64> FunctionCriticalPath(
+xabsl::StatusOr<int64> FunctionCriticalPath(
     absl::Span<Node* const> topo_sort, const DelayEstimator& delay_estimator) {
   int64 function_cp = 0;
   absl::flat_hash_map<Node*, int64> node_cp;
@@ -159,7 +159,7 @@ absl::StatusOr<int64> FunctionCriticalPath(
 
 // Returns the minimum clock period in picoseconds for which it is feasible to
 // schedule the function into a pipeline with the given number of stages.
-absl::StatusOr<int64> FindMinimumClockPeriod(
+xabsl::StatusOr<int64> FindMinimumClockPeriod(
     Function* f, int64 pipeline_stages, const DelayEstimator& delay_estimator) {
   XLS_VLOG(4) << "FindMinimumClockPeriod()";
   XLS_VLOG(4) << "  pipeline stages = " << pipeline_stages;
@@ -179,7 +179,7 @@ absl::StatusOr<int64> FindMinimumClockPeriod(
   XLS_ASSIGN_OR_RETURN(int64 min_period,
                        BinarySearchMinTrueWithStatus(
                            search_start, search_end,
-                           [&](int64 clk_period_ps) -> absl::StatusOr<bool> {
+                           [&](int64 clk_period_ps) -> xabsl::StatusOr<bool> {
                              // If any node does not fit in the clock period,
                              // fail outright.
                              for (Node* node : f->nodes()) {
@@ -284,7 +284,7 @@ PipelineSchedule::PipelineSchedule(Function* function,
   }
 }
 
-absl::StatusOr<PipelineSchedule> PipelineSchedule::FromProto(
+xabsl::StatusOr<PipelineSchedule> PipelineSchedule::FromProto(
     Function* function, const PipelineScheduleProto& proto) {
   ScheduleCycleMap cycle_map;
   for (const auto& stage : proto.stages()) {
@@ -317,7 +317,7 @@ std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64 c) const {
   return live_out;
 }
 
-/*static*/ absl::StatusOr<PipelineSchedule> PipelineSchedule::Run(
+/*static*/ xabsl::StatusOr<PipelineSchedule> PipelineSchedule::Run(
     Function* f, const DelayEstimator& delay_estimator,
     const SchedulingOptions& options) {
   int64 clock_period_ps;

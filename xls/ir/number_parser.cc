@@ -26,7 +26,7 @@ using absl::StrFormat;
 
 // Parses the given input as an unsigned number (with no format prefix) of the
 // given format. 'orig_string' is the string used in error message.
-static absl::StatusOr<Bits> ParseUnsignedNumberHelper(
+static xabsl::StatusOr<Bits> ParseUnsignedNumberHelper(
     absl::string_view input, FormatPreference format,
     absl::string_view orig_string, int64 bit_count = kMinimumBitCount) {
   if (format == FormatPreference::kDefault) {
@@ -98,14 +98,14 @@ static absl::StatusOr<Bits> ParseUnsignedNumberHelper(
   }
 }
 
-absl::StatusOr<Bits> ParseUnsignedNumberWithoutPrefix(absl::string_view input,
-                                                      FormatPreference format,
-                                                      int64 bit_count) {
+xabsl::StatusOr<Bits> ParseUnsignedNumberWithoutPrefix(absl::string_view input,
+                                                       FormatPreference format,
+                                                       int64 bit_count) {
   return ParseUnsignedNumberHelper(input, format, /*orig_string=*/input,
                                    bit_count);
 }
 
-absl::StatusOr<std::pair<bool, Bits>> GetSignAndMagnitude(
+xabsl::StatusOr<std::pair<bool, Bits>> GetSignAndMagnitude(
     absl::string_view input) {
   // Literal numbers can be one of:
   //   1) decimal numbers, eg '123'
@@ -144,7 +144,7 @@ absl::StatusOr<std::pair<bool, Bits>> GetSignAndMagnitude(
   return std::make_pair(is_negative, value);
 }
 
-absl::StatusOr<Bits> ParseNumber(absl::string_view input) {
+xabsl::StatusOr<Bits> ParseNumber(absl::string_view input) {
   std::pair<bool, Bits> pair;
   XLS_ASSIGN_OR_RETURN(pair, GetSignAndMagnitude(input));
   bool is_negative = pair.first;
@@ -164,7 +164,7 @@ absl::StatusOr<Bits> ParseNumber(absl::string_view input) {
   return magnitude;
 }
 
-absl::StatusOr<uint64> ParseNumberAsUint64(absl::string_view input) {
+xabsl::StatusOr<uint64> ParseNumberAsUint64(absl::string_view input) {
   std::pair<bool, Bits> pair;
   XLS_ASSIGN_OR_RETURN(pair, GetSignAndMagnitude(input));
   bool is_negative = pair.first;
@@ -176,7 +176,7 @@ absl::StatusOr<uint64> ParseNumberAsUint64(absl::string_view input) {
   return pair.second.ToUint64();
 }
 
-absl::StatusOr<int64> ParseNumberAsInt64(absl::string_view input) {
+xabsl::StatusOr<int64> ParseNumberAsInt64(absl::string_view input) {
   std::pair<bool, Bits> pair;
   XLS_ASSIGN_OR_RETURN(pair, GetSignAndMagnitude(input));
   bool is_negative = pair.first;
@@ -209,7 +209,7 @@ absl::StatusOr<int64> ParseNumberAsInt64(absl::string_view input) {
   return bits_ops::Negate(bits_ops::ZeroExtend(magnitude, 64)).ToInt64();
 }
 
-absl::StatusOr<bool> ParseNumberAsBool(absl::string_view input) {
+xabsl::StatusOr<bool> ParseNumberAsBool(absl::string_view input) {
   if (input == "true") {
     return true;
   }

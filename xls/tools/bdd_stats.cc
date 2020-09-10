@@ -15,13 +15,13 @@
 #include <limits>
 
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "absl/time/clock.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/status/statusor.h"
 #include "xls/examples/sample_packages.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
@@ -48,7 +48,7 @@ namespace xls {
 namespace {
 
 // Return list of pairs of {name, Package} for the specified bechmarks.
-absl::StatusOr<std::vector<std::pair<std::string, std::unique_ptr<Package>>>>
+xabsl::StatusOr<std::vector<std::pair<std::string, std::unique_ptr<Package>>>>
 GetBenchmarks(absl::Span<const std::string> benchmark_names) {
   std::vector<std::pair<std::string, std::unique_ptr<Package>>> packages;
   std::vector<std::string> names;

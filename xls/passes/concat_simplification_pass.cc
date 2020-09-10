@@ -48,7 +48,7 @@ bool HasConsecutiveLiteralOperands(Concat* concat) {
 // Replaces any consecutive literal operands with a single merged literal
 // operand. Returns the newly created concat which never aliases the given
 // concat.
-absl::StatusOr<Concat*> ReplaceConsecutiveLiteralOperands(Concat* concat) {
+xabsl::StatusOr<Concat*> ReplaceConsecutiveLiteralOperands(Concat* concat) {
   std::vector<Node*> new_operands;
   std::vector<Literal*> consecutive_literals;
 
@@ -89,7 +89,7 @@ absl::StatusOr<Concat*> ReplaceConsecutiveLiteralOperands(Concat* concat) {
 //   Concat(a, b, Concat(c, Concat(d, e))) => Concat(a, b, c, d, e)
 //
 // Returns the newly created concat which never aliases the given concat.
-absl::StatusOr<Concat*> FlattenConcatTree(Concat* concat) {
+xabsl::StatusOr<Concat*> FlattenConcatTree(Concat* concat) {
   std::vector<Node*> new_operands;
   std::deque<Node*> worklist(concat->operands().begin(),
                              concat->operands().end());
@@ -108,8 +108,8 @@ absl::StatusOr<Concat*> FlattenConcatTree(Concat* concat) {
 
 // Attempts to replace the given concat with a simpler or more canonical
 // form. Returns true if the concat was replaced.
-absl::StatusOr<bool> SimplifyConcat(Concat* concat,
-                                    std::deque<Concat*>* worklist) {
+xabsl::StatusOr<bool> SimplifyConcat(Concat* concat,
+                                     std::deque<Concat*>* worklist) {
   absl::Span<Node* const> operands = concat->operands();
 
   // Concat with a single operand can be replaced with its operand.
@@ -272,7 +272,7 @@ absl::StatusOr<bool> SimplifyConcat(Concat* concat,
 // inputs to the concatentation operations that are inputs
 // to 'node'.  e.g. for node = {A: u2, B:u3} OR {C: u3, B: u2},
 // we get begin_end_bits_inclusive = {{0,1},{2,2},{3, 4}}.
-absl::StatusOr<std::map<int64, int64>> GetBitRangeUnionOfInputConcats(
+xabsl::StatusOr<std::map<int64, int64>> GetBitRangeUnionOfInputConcats(
     Node* node) {
   std::map<int64, int64> begin_end_bits_inclusive;
   // Record the beginning of all bit-ranges.
@@ -326,7 +326,7 @@ absl::StatusOr<std::map<int64, int64>> GetBitRangeUnionOfInputConcats(
 //
 // Preconditions:
 //   * All operands of the bitwise operation are concats.
-absl::StatusOr<bool> TryHoistBitWiseOperation(Node* node) {
+xabsl::StatusOr<bool> TryHoistBitWiseOperation(Node* node) {
   XLS_RET_CHECK(OpIsBitWise(node->op()));
   if (node->operand_count() == 0 ||
       !std::all_of(node->operands().begin(), node->operands().end(),
@@ -369,7 +369,7 @@ absl::StatusOr<bool> TryHoistBitWiseOperation(Node* node) {
 
 // Transform a reduction of a concat to a reduction of the concat's operands.
 // e.g. OrReduce(Concat(a,b)) ==> Or(OrReduce(a), OrReduce(b))
-absl::StatusOr<bool> TryBypassReductionOfConcatenation(Node* node) {
+xabsl::StatusOr<bool> TryBypassReductionOfConcatenation(Node* node) {
   if (!node->Is<BitwiseReductionOp>() || !node->operand(0)->Is<Concat>()) {
     return false;
   }
@@ -402,7 +402,7 @@ absl::StatusOr<bool> TryBypassReductionOfConcatenation(Node* node) {
 // So it can enable transforms like like:
 //
 //    Eq(Concat(bits[7]:0, x), 0) => And(Eq(bits[7], 0), Eq(x, 0)) => Eq(x, 0)
-absl::StatusOr<bool> TryDistributeReducibleOperation(Node* node) {
+xabsl::StatusOr<bool> TryDistributeReducibleOperation(Node* node) {
   // For now we only handle eq and ne operations.
   if (node->op() != Op::kEq && node->op() != Op::kNe) {
     return false;
@@ -462,7 +462,7 @@ absl::StatusOr<bool> TryDistributeReducibleOperation(Node* node) {
 
 }  // namespace
 
-absl::StatusOr<bool> ConcatSimplificationPass::RunOnFunction(
+xabsl::StatusOr<bool> ConcatSimplificationPass::RunOnFunction(
     Function* f, const PassOptions& options, PassResults* results) const {
   XLS_VLOG(2) << "Running concat simplifier on function " << f->name();
   XLS_VLOG(3) << "Before:";

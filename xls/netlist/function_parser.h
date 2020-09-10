@@ -21,9 +21,9 @@
 
 #include <string>
 
-#include "absl/status/statusor.h"
 #include "absl/types/optional.h"
 #include "xls/common/integral_types.h"
+#include "xls/common/status/statusor.h"
 
 namespace xls {
 namespace netlist {
@@ -72,8 +72,8 @@ class Token {
 class Scanner {
  public:
   Scanner(std::string function);
-  absl::StatusOr<Token> Pop();
-  absl::StatusOr<Token> Peek();
+  xabsl::StatusOr<Token> Pop();
+  xabsl::StatusOr<Token> Peek();
 
   bool Eof() { return current_pos_ == function_.size(); }
 
@@ -82,10 +82,10 @@ class Scanner {
   bool IsIdentifierStart(char next_char);
 
   // Processes a single identifier.
-  absl::StatusOr<Token> ScanIdentifier();
+  xabsl::StatusOr<Token> ScanIdentifier();
 
   // Looks at and optionally consumes the next character of input.
-  absl::StatusOr<char> PeekChar();
+  xabsl::StatusOr<char> PeekChar();
   absl::Status DropChar();
 
   // Drops all spaces until the next token.
@@ -152,19 +152,19 @@ class Ast {
 // Creates a function AST from an input cell/pin function description.
 class Parser {
  public:
-  static absl::StatusOr<Ast> ParseFunction(std::string function);
+  static xabsl::StatusOr<Ast> ParseFunction(std::string function);
 
  private:
   Parser(std::string function);
 
   // Parsers for each syntactic element in a function, here ordered from highest
   // to lowest precedence.
-  absl::StatusOr<Ast> ParseTerm();
-  absl::StatusOr<Ast> ParseInvertPrev();
-  absl::StatusOr<Ast> ParseInvertNext();
-  absl::StatusOr<Ast> ParseXor();
-  absl::StatusOr<Ast> ParseAnd();
-  absl::StatusOr<Ast> ParseOr();
+  xabsl::StatusOr<Ast> ParseTerm();
+  xabsl::StatusOr<Ast> ParseInvertPrev();
+  xabsl::StatusOr<Ast> ParseInvertNext();
+  xabsl::StatusOr<Ast> ParseXor();
+  xabsl::StatusOr<Ast> ParseAnd();
+  xabsl::StatusOr<Ast> ParseOr();
 
   Scanner scanner_;
 };

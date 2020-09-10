@@ -15,8 +15,8 @@
 #ifndef XLS_IR_BIG_INT_H_
 #define XLS_IR_BIG_INT_H_
 
-#include "absl/status/statusor.h"
 #include "openssl/bn.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/bits.h"
 
 namespace xls {
@@ -49,8 +49,8 @@ class BigInt {
 
   // Returns the BigInt value as a Bits object of the specified width. Returns
   // an error if the value doesn't fit in the specified bit count.
-  absl::StatusOr<Bits> ToSignedBitsWithBitCount(int64 bit_count) const;
-  absl::StatusOr<Bits> ToUnsignedBitsWithBitCount(int64 bit_count) const;
+  xabsl::StatusOr<Bits> ToSignedBitsWithBitCount(int64 bit_count) const;
+  xabsl::StatusOr<Bits> ToUnsignedBitsWithBitCount(int64 bit_count) const;
 
   // Returns the minimum number of bits required to hold this BigInt value. For
   // SignedBitCount this is the number of bits required to hold the value in

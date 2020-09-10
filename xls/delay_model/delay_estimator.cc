@@ -28,7 +28,7 @@ DelayEstimatorManager& GetDelayEstimatorManagerSingleton() {
   return *manager;
 }
 
-absl::StatusOr<DelayEstimator*> DelayEstimatorManager::GetDelayEstimator(
+xabsl::StatusOr<DelayEstimator*> DelayEstimatorManager::GetDelayEstimator(
     absl::string_view name) const {
   if (!estimators_.contains(name)) {
     if (estimator_names_.empty()) {
@@ -45,7 +45,7 @@ absl::StatusOr<DelayEstimator*> DelayEstimatorManager::GetDelayEstimator(
   return estimators_.at(name).second.get();
 }
 
-absl::StatusOr<DelayEstimator*>
+xabsl::StatusOr<DelayEstimator*>
 DelayEstimatorManager::GetDefaultDelayEstimator() const {
   if (estimators_.empty()) {
     return absl::NotFoundError(
@@ -83,16 +83,16 @@ namespace {
 
 // TODO(leary): 2019-08-19 Read all of the curve-fit values from a
 // characterization file for easier reference / recomputing if necessary.
-/* static */ absl::StatusOr<int64> GetLogicalEffortDelayInTau(Node* node) {
+/* static */ xabsl::StatusOr<int64> GetLogicalEffortDelayInTau(Node* node) {
   auto get_logical_effort = [node](netlist::CellKind kind,
-                                   bool invert) -> absl::StatusOr<int64> {
+                                   bool invert) -> xabsl::StatusOr<int64> {
     XLS_ASSIGN_OR_RETURN(double base_effort,
                          netlist::logical_effort::GetLogicalEffort(
                              kind, node->operands().size()));
     return std::ceil(invert ? base_effort + 1LL : base_effort);
   };
   auto get_reduction_logical_effort =
-      [node](netlist::CellKind kind, bool invert) -> absl::StatusOr<int64> {
+      [node](netlist::CellKind kind, bool invert) -> xabsl::StatusOr<int64> {
     int bit_count = node->BitCountOrDie();
     if (bit_count < 2) {
       return 0;
@@ -151,7 +151,7 @@ namespace {
 
 }  // namespace
 
-/* static */ absl::StatusOr<int64> DelayEstimator::GetLogicalEffortDelayInPs(
+/* static */ xabsl::StatusOr<int64> DelayEstimator::GetLogicalEffortDelayInPs(
     Node* node, int64 tau_in_ps) {
   XLS_ASSIGN_OR_RETURN(int64 delay_in_tau, GetLogicalEffortDelayInTau(node));
   return delay_in_tau * tau_in_ps;

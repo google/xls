@@ -24,7 +24,6 @@
 #include "absl/base/internal/sysinfo.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "absl/time/time.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
@@ -32,6 +31,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "xls/solvers/z3_utils.h"
@@ -74,7 +74,7 @@ using solvers::z3::IrTranslator;
 //
 // Returns "actual" vs. "expected" nodes (via reference) to query (via
 // QueryNode) on failure.
-absl::StatusOr<Z3_ast> CreateReferenceComparisonFunction(
+xabsl::StatusOr<Z3_ast> CreateReferenceComparisonFunction(
     Function* function, IrTranslator* translator, bool flush_subnormals,
     Z3_ast* expected, Z3_ast* actual) {
   // Get the translated XLS function, and create its return value.
@@ -127,7 +127,7 @@ absl::StatusOr<Z3_ast> CreateReferenceComparisonFunction(
   return error;
 }
 
-absl::StatusOr<std::unique_ptr<Package>> GetIr(bool opt_ir) {
+xabsl::StatusOr<std::unique_ptr<Package>> GetIr(bool opt_ir) {
   std::filesystem::path ir_path =
       GetXlsRunfilePath(opt_ir ? kOptIrPath : kIrPath);
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));

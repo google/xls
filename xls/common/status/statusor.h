@@ -12,20 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/delay_model/delay_estimators.h"
+#ifndef XLS_COMMON_STATUS_STATUSOR_H_
+#define XLS_COMMON_STATUS_STATUSOR_H_
 
-#include "absl/flags/flag.h"
+#include "absl/status/statusor.h"
 
-namespace xls {
+// The xabsl namespace has types that are anticipated to become available in
+// Abseil reasonably soon, at which point they can be removed. These types are
+// not in the xls namespace to make it easier to search/replace migrate usages
+// to Abseil in the future.
+namespace xabsl {
 
-xabsl::StatusOr<DelayEstimator*> GetDelayEstimator(absl::string_view name) {
-  return GetDelayEstimatorManagerSingleton().GetDelayEstimator(name);
-}
+// DEPRECATED: Use absl::StatusOr directly.
+template <typename T>
+using StatusOr = absl::StatusOr<T>;
 
-const DelayEstimator& GetStandardDelayEstimator() {
-  return *GetDelayEstimatorManagerSingleton()
-              .GetDefaultDelayEstimator()
-              .value();
-}
+}  // namespace xabsl
 
-}  // namespace xls
+#endif  // XLS_COMMON_STATUS_STATUSOR_H_

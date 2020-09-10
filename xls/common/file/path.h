@@ -17,7 +17,7 @@
 
 #include <filesystem>
 
-#include "absl/status/statusor.h"
+#include "xls/common/status/statusor.h"
 
 namespace xls {
 
@@ -30,7 +30,7 @@ namespace xls {
 // * RelativizePath("/a/d", "/a") == "d"
 // * RelativizePath("/a/d", "/a/b/c") == "../../d"
 // * RelativizePath("/a/b/c", "/a/d") == "../b/c"
-absl::StatusOr<std::filesystem::path> RelativizePath(
+xabsl::StatusOr<std::filesystem::path> RelativizePath(
     const std::filesystem::path& path, const std::filesystem::path& reference);
 
 }  // namespace xls

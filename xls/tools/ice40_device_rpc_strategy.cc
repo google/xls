@@ -65,7 +65,7 @@ constexpr const char* kProductId = "6010";
 // Returns whether the device at symlink_path is in fact an ICE40-looking
 // endpoint (as determined by USB vendor/product ID for the FTDI serial-over-USB
 // endpoint).
-absl::StatusOr<bool> IsDeviceMatch(const std::filesystem::path& symlink_path) {
+xabsl::StatusOr<bool> IsDeviceMatch(const std::filesystem::path& symlink_path) {
   std::error_code ec;
   std::filesystem::path real_path =
       std::filesystem::canonical(symlink_path, ec);
@@ -84,7 +84,7 @@ absl::StatusOr<bool> IsDeviceMatch(const std::filesystem::path& symlink_path) {
 
 // Finds the tty device path for the "device_ordinal" ICE40 device attached to
 // this host.
-absl::StatusOr<std::string> FindPath(int64 device_ordinal) {
+xabsl::StatusOr<std::string> FindPath(int64 device_ordinal) {
   std::vector<std::string> device_paths;
 
   XLS_ASSIGN_OR_RETURN(std::vector<std::filesystem::path> usb_device_paths,
@@ -249,7 +249,7 @@ absl::Status Ice40DeviceRpcStrategy::Connect(int64 device_ordinal) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<Value> Ice40DeviceRpcStrategy::CallUnnamed(
+xabsl::StatusOr<Value> Ice40DeviceRpcStrategy::CallUnnamed(
     const FunctionType& function_type, absl::Span<const Value> arguments) {
   BitPushBuffer buffer;
   for (const Value& arg : arguments) {

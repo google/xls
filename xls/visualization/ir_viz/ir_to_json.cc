@@ -67,7 +67,7 @@ class AttributeVisitor : public DfsVisitorWithDefault {
 
 // Returns the attributes of a node (e.g., the index value of a kTupleIndex
 // instruction) as a proto which is to be serialized to JSON.
-absl::StatusOr<IrForVisualization::Attributes> NodeAttributes(
+xabsl::StatusOr<IrForVisualization::Attributes> NodeAttributes(
     Node* node,
     const absl::flat_hash_map<Node*, CriticalPathEntry*>& critical_path_map,
     const QueryEngine& query_engine, const PipelineSchedule* schedule) {
@@ -82,7 +82,7 @@ absl::StatusOr<IrForVisualization::Attributes> NodeAttributes(
     attributes.set_known_bits(query_engine.ToString(node));
   }
 
-  absl::StatusOr<int64> delay_ps_status =
+  xabsl::StatusOr<int64> delay_ps_status =
       GetStandardDelayEstimator().GetOperationDelayInPs(node);
   if (delay_ps_status.ok()) {
     attributes.set_delay_ps(delay_ps_status.value());
@@ -97,11 +97,11 @@ absl::StatusOr<IrForVisualization::Attributes> NodeAttributes(
 
 }  // namespace
 
-absl::StatusOr<std::string> IrToJson(Function* function,
-                                     const DelayEstimator& delay_estimator,
-                                     const PipelineSchedule* schedule) {
+xabsl::StatusOr<std::string> IrToJson(Function* function,
+                                      const DelayEstimator& delay_estimator,
+                                      const PipelineSchedule* schedule) {
   IrForVisualization ir;
-  absl::StatusOr<std::vector<CriticalPathEntry>> critical_path =
+  xabsl::StatusOr<std::vector<CriticalPathEntry>> critical_path =
       AnalyzeCriticalPath(function, /*clock_period_ps=*/absl::nullopt,
                           delay_estimator);
   absl::flat_hash_map<Node*, CriticalPathEntry*> node_to_critical_path_entry;

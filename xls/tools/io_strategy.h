@@ -16,8 +16,8 @@
 #define XLS_TOOLS_IO_STRATEGY_H_
 
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "xls/codegen/vast.h"
+#include "xls/common/status/statusor.h"
 #include "xls/tools/verilog_include.h"
 
 namespace xls {
@@ -78,7 +78,7 @@ class IoStrategy {
   // IO strategy. Each VerilogInclude specifies the relative path that the file
   // is included with (eg, "foo/bar.v" for "`include "foo/bar.v") and the
   // Verilog text of the included file.
-  virtual absl::StatusOr<std::vector<VerilogInclude>> GetIncludes() = 0;
+  virtual xabsl::StatusOr<std::vector<VerilogInclude>> GetIncludes() = 0;
 };
 
 }  // namespace verilog

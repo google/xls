@@ -39,7 +39,7 @@ bool IsLiteralWithRunOfSetBits(Node* node, int64* leading_zero_count,
                                     trailing_zero_count);
 }
 
-absl::StatusOr<Node*> GatherBits(Node* node, absl::Span<int64 const> indices) {
+xabsl::StatusOr<Node*> GatherBits(Node* node, absl::Span<int64 const> indices) {
   XLS_RET_CHECK(node->GetType()->IsBits());
   Function* f = node->function();
   if (indices.empty()) {
@@ -84,7 +84,7 @@ absl::StatusOr<Node*> GatherBits(Node* node, absl::Span<int64 const> indices) {
   return f->MakeNode<Concat>(node->loc(), slices);
 }
 
-absl::StatusOr<Node*> AndReduceTrailing(Node* node, int64 bit_count) {
+xabsl::StatusOr<Node*> AndReduceTrailing(Node* node, int64 bit_count) {
   Function* f = node->function();
   // Reducing zero bits should return one (identity of AND).
   if (bit_count == 0) {
@@ -100,7 +100,7 @@ absl::StatusOr<Node*> AndReduceTrailing(Node* node, int64 bit_count) {
   return f->MakeNode<NaryOp>(node->loc(), bits, Op::kAnd);
 }
 
-absl::StatusOr<Node*> OrReduceLeading(Node* node, int64 bit_count) {
+xabsl::StatusOr<Node*> OrReduceLeading(Node* node, int64 bit_count) {
   Function* f = node->function();
   // Reducing zero bits should return zero (identity of OR).
   if (bit_count == 0) {
@@ -143,7 +143,7 @@ bool IsSignedCompare(Node* node) {
   }
 }
 
-absl::StatusOr<Op> OpToNonReductionOp(Op reduce_op) {
+xabsl::StatusOr<Op> OpToNonReductionOp(Op reduce_op) {
   switch (reduce_op) {
     case Op::kAndReduce:
       return Op::kAnd;

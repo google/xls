@@ -16,9 +16,9 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_test_base.h"
@@ -34,7 +34,7 @@ class IdentityRemovalPassTest : public IrTestBase {
  protected:
   IdentityRemovalPassTest() = default;
 
-  absl::StatusOr<bool> Run(Package* p) {
+  xabsl::StatusOr<bool> Run(Package* p) {
     PassResults results;
     XLS_ASSIGN_OR_RETURN(bool changed,
                          IdentityRemovalPass().Run(p, PassOptions(), &results));

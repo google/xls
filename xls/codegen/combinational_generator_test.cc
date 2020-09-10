@@ -477,7 +477,7 @@ fn main(idx: bits[2]) -> bits[32][3] {
     for (auto v : values) {
       elements.push_back(Value(UBits(v, 32)));
     }
-    absl::StatusOr<Value> array = Value::Array(elements);
+    xabsl::StatusOr<Value> array = Value::Array(elements);
     EXPECT_TRUE(array.ok());
     return array.value();
   };
@@ -518,7 +518,7 @@ fn main(idx: bits[2]) -> bits[32][2][3] {
     for (auto v : values) {
       elements.push_back(Value(UBits(v, 32)));
     }
-    absl::StatusOr<Value> array = Value::Array(elements);
+    xabsl::StatusOr<Value> array = Value::Array(elements);
     EXPECT_TRUE(array.ok());
     return array.value();
   };
@@ -528,7 +528,7 @@ fn main(idx: bits[2]) -> bits[32][2][3] {
     for (auto array : values) {
       elements.push_back(array);
     }
-    absl::StatusOr<Value> array_of_values = Value::Array(elements);
+    xabsl::StatusOr<Value> array_of_values = Value::Array(elements);
     EXPECT_TRUE(array_of_values.ok());
     return array_of_values.value();
   };
@@ -577,7 +577,7 @@ fn main(idx: bits[2]) -> (bits[32], bits[32])[3] {
     for (auto v : values) {
       elements.push_back(Value(UBits(v, 32)));
     }
-    absl::StatusOr<Value> tuple = Value::Tuple(elements);
+    xabsl::StatusOr<Value> tuple = Value::Tuple(elements);
     EXPECT_TRUE(tuple.ok());
     return tuple.value();
   };
@@ -587,7 +587,7 @@ fn main(idx: bits[2]) -> (bits[32], bits[32])[3] {
     for (auto array : values) {
       elements.push_back(array);
     }
-    absl::StatusOr<Value> array_of_values = Value::Array(elements);
+    xabsl::StatusOr<Value> array_of_values = Value::Array(elements);
     EXPECT_TRUE(array_of_values.ok());
     return array_of_values.value();
   };
@@ -636,7 +636,7 @@ fn main(idx: bits[2]) -> (bits[32], bits[8][2])[2] {
     for (auto v : values) {
       elements.push_back(Value(UBits(v, 8)));
     }
-    absl::StatusOr<Value> array = Value::Array(elements);
+    xabsl::StatusOr<Value> array = Value::Array(elements);
     EXPECT_TRUE(array.ok());
     return array.value();
   };
@@ -646,7 +646,7 @@ fn main(idx: bits[2]) -> (bits[32], bits[8][2])[2] {
     for (auto v : values) {
       elements.push_back(v);
     }
-    absl::StatusOr<Value> tuple = Value::Tuple(elements);
+    xabsl::StatusOr<Value> tuple = Value::Tuple(elements);
     EXPECT_TRUE(tuple.ok());
     return tuple.value();
   };
@@ -656,7 +656,7 @@ fn main(idx: bits[2]) -> (bits[32], bits[8][2])[2] {
     for (auto array : values) {
       elements.push_back(array);
     }
-    absl::StatusOr<Value> array_of_values = Value::Array(elements);
+    xabsl::StatusOr<Value> array_of_values = Value::Array(elements);
     EXPECT_TRUE(array_of_values.ok());
     return array_of_values.value();
   };

@@ -19,10 +19,10 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "xls/codegen/name_to_bit_count.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/bits.h"
 #include "xls/tools/verilog_include.h"
 
@@ -42,10 +42,10 @@ class VerilogSimulator {
 
   // Runs the simulator with the given Verilog text as input and returns the
   // stdout/stderr as a string pair.
-  virtual absl::StatusOr<std::pair<std::string, std::string>> Run(
+  virtual xabsl::StatusOr<std::pair<std::string, std::string>> Run(
       absl::string_view text,
       absl::Span<const VerilogInclude> includes) const = 0;
-  absl::StatusOr<std::pair<std::string, std::string>> Run(
+  xabsl::StatusOr<std::pair<std::string, std::string>> Run(
       absl::string_view text) const;
 
   // Runs the simulator to check the Verilog syntax. Does not run simulation.
@@ -65,7 +65,7 @@ class VerilogSimulator {
   //
   // Which the routine turns into a sequence of the Observation structure shown
   // above.
-  absl::StatusOr<std::vector<Observation>> SimulateCombinational(
+  xabsl::StatusOr<std::vector<Observation>> SimulateCombinational(
       absl::string_view text, const NameToBitCount& to_observe) const;
 };
 
@@ -75,7 +75,7 @@ class VerilogSimulatorManager {
  public:
   // Returns the delay estimator with the given name, or returns an error if no
   // such estimator exists.
-  absl::StatusOr<VerilogSimulator*> GetVerilogSimulator(
+  xabsl::StatusOr<VerilogSimulator*> GetVerilogSimulator(
       absl::string_view name) const;
 
   // Adds a VerilogSimulator to the manager and associates it with the given

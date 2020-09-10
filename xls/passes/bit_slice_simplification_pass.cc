@@ -26,15 +26,15 @@ namespace {
 // Attempts to replace the given bit slice with a simpler or more canonical
 // form. Returns true if the bit slice was replaced. Any newly created
 // bit-slices are added to the worklist.
-absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice,
-                                      std::deque<BitSlice*>* worklist) {
+xabsl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice,
+                                       std::deque<BitSlice*>* worklist) {
   Node* operand = bit_slice->operand(0);
   BitsType* operand_type = operand->GetType()->AsBitsOrDie();
 
   // Creates a new bit slice and adds it to the worklist.
   auto make_bit_slice = [&](absl::optional<SourceLocation> loc, Node* operand,
                             int64 start,
-                            int64 width) -> absl::StatusOr<BitSlice*> {
+                            int64 width) -> xabsl::StatusOr<BitSlice*> {
     XLS_ASSIGN_OR_RETURN(
         BitSlice * new_bit_slice,
         bit_slice->function()->MakeNode<BitSlice>(loc, operand, start, width));
@@ -243,7 +243,7 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice,
 
 }  // namespace
 
-absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunction(
+xabsl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunction(
     Function* f, const PassOptions& options, PassResults* results) const {
   XLS_VLOG(2) << "Running bit-slice simplifier on function " << f->name();
   XLS_VLOG(3) << "Before:";

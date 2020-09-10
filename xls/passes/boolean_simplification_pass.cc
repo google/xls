@@ -149,7 +149,7 @@ bool TruthTable::MatchesSymmetrical(
   XLS_LOG(FATAL) << "Unreachable.";
 }
 
-absl::StatusOr<Node*> TruthTable::CreateReplacement(
+xabsl::StatusOr<Node*> TruthTable::CreateReplacement(
     const absl::optional<SourceLocation>& original_loc,
     absl::Span<Node* const> operands, Function* f) const {
   XLS_CHECK_LE(operands.size(), kMaxFrontierNodes);
@@ -338,9 +338,9 @@ class BooleanFlowTracker : public DfsVisitorWithDefault {
   }
 
   // "operands" are the nodes on the frontier of the logical operations.
-  absl::StatusOr<Node*> ResolveTruthTable(const Bits& bits,
-                                          absl::Span<Node* const> operands,
-                                          Node* original) {
+  xabsl::StatusOr<Node*> ResolveTruthTable(const Bits& bits,
+                                           absl::Span<Node* const> operands,
+                                           Node* original) {
     XLS_RET_CHECK(2 <= operands.size() && operands.size() <= 3);
     Function* f = original->function();
     if (bits.IsAllOnes()) {
@@ -387,8 +387,8 @@ class BooleanFlowTracker : public DfsVisitorWithDefault {
   // function. At that point we can just look up whether there's a simplified
   // expression of that logical function is and replace it accordingly, as we do
   // in ResolveTruthTable().
-  absl::StatusOr<Bits> FlowFromFrontierToNode(const Frontier& frontier,
-                                              Node* node) {
+  xabsl::StatusOr<Bits> FlowFromFrontierToNode(const Frontier& frontier,
+                                               Node* node) {
     if (node == GetX(frontier)) {
       return TruthTable::GetInitialVector(0);
     }
@@ -468,7 +468,7 @@ class BooleanFlowTracker : public DfsVisitorWithDefault {
 
 }  // namespace
 
-absl::StatusOr<bool> BooleanSimplificationPass::RunOnFunction(
+xabsl::StatusOr<bool> BooleanSimplificationPass::RunOnFunction(
     Function* f, const PassOptions& options, PassResults* results) const {
   BooleanFlowTracker visitor;
   XLS_RETURN_IF_ERROR(f->Accept(&visitor));

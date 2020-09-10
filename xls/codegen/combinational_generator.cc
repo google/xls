@@ -32,7 +32,7 @@
 namespace xls {
 namespace verilog {
 
-absl::StatusOr<ModuleGeneratorResult> ToCombinationalModuleText(
+xabsl::StatusOr<ModuleGeneratorResult> ToCombinationalModuleText(
     Function* func, bool use_system_verilog) {
   XLS_VLOG(2) << "Generating combinational module for function:";
   XLS_VLOG_LINES(2, func->DumpIr());

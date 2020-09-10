@@ -150,9 +150,9 @@ xls_pybind_extension(
     ],
     deps = [
         ":wrapper_types",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common/python:absl_casters",
         "//xls/common/status:status_macros",
+        "//xls/common/status:statusor",
         "//xls/common/status:statusor_pybind_caster",
         "//xls/ir:ir_parser",
     ],
@@ -301,7 +301,7 @@ cc_library(
     ],
     features = ["-use_header_modules"],
     deps = [
-        "@com_google_absl//absl/status:statusor",
+        "//xls/common/status:statusor",
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:type",

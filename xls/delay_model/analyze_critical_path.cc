@@ -21,7 +21,7 @@
 
 namespace xls {
 
-absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
+xabsl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
     Function* f, absl::optional<int64> clock_period_ps,
     const DelayEstimator& delay_estimator) {
   absl::flat_hash_map<Node*, std::pair<int64, bool>> node_to_output_delay;

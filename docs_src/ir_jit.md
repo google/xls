@@ -15,17 +15,17 @@ Given a DSLX file and build target, one can build and run it through the JIT by:
 2.  Creating a JIT object and calling its `Run()` method. Using the 2-way
     floating-point adder as an example:
 
-    ```c
+     ```c
      # include "xls/modules/fpadd_2x24_jit_wrapper.h"
 
-     absl::StatusOr<Value> foo(Value a, Value b) {
+     xabsl::StatusOr<Value> foo(Value a, Value b) {
        ...
        // Only create this once and re-use it; it's created here just as
        // an illustration.
        XLS_ASSIGN_OR_RETURN(Fpadd2x32 adder, Fpadd2x32::Create()); return
        adder.Run(a, b);
      }
-    ```
+     ```
 
 The advantages of JIT compilation (or any
 compilation, for that matter) only come into play when repeatedly using the
@@ -41,7 +41,7 @@ C/C++ `float`. In that case, a simplified wrapper call is available:
 ```
 #include "xls/modules/fpadd_2x24_jit_wrapper.h"
 
-absl::StatusOr<float> foo(float a, float b) {
+xabsl::StatusOr<float> foo(float a, float b) {
   ...
   // Only create this once and re-use it; it's created here just as
   // an illustration.
@@ -63,7 +63,7 @@ JIT).
 The JIT is also available as a library with a straightforward interface:
 
 ```
-absl::StatusOr<Value> RunOnJit(
+xabsl::StatusOr<Value> RunOnJit(
     Function* function, absl::Span<const Value> args) {
   XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(function));
   return jit->Run(args);

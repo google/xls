@@ -15,7 +15,7 @@
 #ifndef XLS_PASSES_BOOLEAN_SIMPLIFICATION_PASS_H_
 #define XLS_PASSES_BOOLEAN_SIMPLIFICATION_PASS_H_
 
-#include "absl/status/statusor.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/passes/passes.h"
 
@@ -46,7 +46,7 @@ class TruthTable {
 
   // Creates a replacement node to use in lieu of the original that corresponds
   // to this truth table with the given input frontier operands.
-  absl::StatusOr<Node*> CreateReplacement(
+  xabsl::StatusOr<Node*> CreateReplacement(
       const absl::optional<SourceLocation>& original_loc,
       absl::Span<Node* const> operands, Function* f) const;
 
@@ -69,8 +69,8 @@ class BooleanSimplificationPass : public FunctionPass {
   BooleanSimplificationPass()
       : FunctionPass("bool_simp", "boolean simplification") {}
 
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  xabsl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
+                                      PassResults* results) const override;
 };
 
 }  // namespace xls

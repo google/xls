@@ -25,7 +25,7 @@
 
 namespace xls {
 
-/* static */ absl::StatusOr<Value> Value::Array(
+/* static */ xabsl::StatusOr<Value> Value::Array(
     absl::Span<const Value> elements) {
   if (elements.empty()) {
     return absl::UnimplementedError("Empty array Values are not supported.");
@@ -151,14 +151,14 @@ void Value::FlattenTo(BitPushBuffer* buffer) const {
   XLS_LOG(FATAL) << "Invalid value kind: " << ValueKindToString(kind_);
 }
 
-absl::StatusOr<std::vector<Value>> Value::GetElements() const {
+xabsl::StatusOr<std::vector<Value>> Value::GetElements() const {
   if (!absl::holds_alternative<std::vector<Value>>(payload_)) {
     return absl::InvalidArgumentError("Value does not hold elements.");
   }
   return std::vector<Value>(elements().begin(), elements().end());
 }
 
-absl::StatusOr<Bits> Value::GetBitsWithStatus() const {
+xabsl::StatusOr<Bits> Value::GetBitsWithStatus() const {
   if (!IsBits()) {
     return absl::InvalidArgumentError(
         "Attempted to convert a non-Bits Value to Bits.");
@@ -222,7 +222,7 @@ bool Value::SameTypeAs(const Value& other) const {
   XLS_LOG(FATAL) << "Invalid value encountered: " << ValueKindToString(kind());
 }
 
-absl::StatusOr<TypeProto> Value::TypeAsProto() const {
+xabsl::StatusOr<TypeProto> Value::TypeAsProto() const {
   TypeProto proto;
   switch (kind()) {
     case ValueKind::kBits:

@@ -13,11 +13,11 @@
 // limitations under the License.
 
 #include "absl/flags/flag.h"
-#include "absl/status/statusor.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/statusor.h"
 #include "xls/tools/io_strategy.h"
 #include "xls/tools/io_strategy_factory.h"
 #include "xls/tools/wrap_io.h"
@@ -62,11 +62,11 @@ void RealMain() {
   verilog::VerilogFile f;
   f.AddInclude(include);
 
-  absl::StatusOr<std::unique_ptr<verilog::IoStrategy>> io_strategy_status =
+  xabsl::StatusOr<std::unique_ptr<verilog::IoStrategy>> io_strategy_status =
       verilog::IoStrategyFactory::CreateForDevice(target_device, &f);
   XLS_QCHECK_OK(io_strategy_status.status());
   auto io_strategy = std::move(io_strategy_status).value();
-  absl::StatusOr<verilog::Module*> module_status = verilog::WrapIo(
+  xabsl::StatusOr<verilog::Module*> module_status = verilog::WrapIo(
       wrapped_module_name, instance_name, signature, io_strategy.get(), &f);
   XLS_QCHECK_OK(module_status.status());
   std::cout << f.Emit() << std::endl;

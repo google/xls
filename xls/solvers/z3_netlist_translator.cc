@@ -40,7 +40,7 @@ using netlist::rtl::Cell;
 using netlist::rtl::Module;
 using netlist::rtl::NetRef;
 
-absl::StatusOr<std::unique_ptr<NetlistTranslator>>
+xabsl::StatusOr<std::unique_ptr<NetlistTranslator>>
 NetlistTranslator::CreateAndTranslate(
     Z3_context ctx, const Module* module,
     const absl::flat_hash_map<std::string, const Module*>& module_refs) {
@@ -51,7 +51,7 @@ NetlistTranslator::CreateAndTranslate(
   return translator;
 }
 
-absl::StatusOr<Z3_ast> NetlistTranslator::GetTranslation(NetRef ref) {
+xabsl::StatusOr<Z3_ast> NetlistTranslator::GetTranslation(NetRef ref) {
   XLS_RET_CHECK(translated_.contains(ref)) << ref->name();
   return translated_.at(ref);
 }
@@ -241,7 +241,7 @@ absl::Status NetlistTranslator::TranslateCell(const Cell& cell) {
 }
 
 // After all the above, this is the spot where any _ACTUAL_ translation happens.
-absl::StatusOr<Z3_ast> NetlistTranslator::TranslateFunction(
+xabsl::StatusOr<Z3_ast> NetlistTranslator::TranslateFunction(
     const Cell& cell, netlist::function::Ast ast,
     const absl::flat_hash_map<std::string, Z3_ast>& state_table_values) {
   switch (ast.kind()) {
@@ -305,13 +305,13 @@ absl::StatusOr<Z3_ast> NetlistTranslator::TranslateFunction(
   }
 }
 
-absl::StatusOr<absl::flat_hash_map<std::string, Z3_ast>>
+xabsl::StatusOr<absl::flat_hash_map<std::string, Z3_ast>>
 NetlistTranslator::TranslateStateTable(const Cell& cell) {
   const StateTable& table = cell.cell_library_entry()->state_table().value();
 
   auto get_pin_netref =
       [](const absl::Span<const Cell::Pin>& pins,
-         const std::string& pin_name) -> absl::StatusOr<NetRef> {
+         const std::string& pin_name) -> xabsl::StatusOr<NetRef> {
     for (const auto& pin : pins) {
       if (pin.name == pin_name) {
         return pin.netref;

@@ -40,14 +40,14 @@ namespace {
 // and const_lsb values out of the output, and slices all the operands to
 // correspond to the non-const run of bits in the center.
 template <typename SelectT>
-absl::StatusOr<bool> SqueezeSelect(
+xabsl::StatusOr<bool> SqueezeSelect(
     const Bits& const_msb, const Bits& const_lsb,
-    const std::function<absl::StatusOr<SelectT*>(SelectT*, std::vector<Node*>)>&
-        make_select,
+    const std::function<
+        xabsl::StatusOr<SelectT*>(SelectT*, std::vector<Node*>)>& make_select,
     SelectT* select) {
   Function* f = select->function();
   int64 bit_count = select->BitCountOrDie();
-  auto slice = [&](Node* n) -> absl::StatusOr<Node*> {
+  auto slice = [&](Node* n) -> xabsl::StatusOr<Node*> {
     int64 new_width = bit_count - const_msb.bit_count() - const_lsb.bit_count();
     return f->MakeNode<BitSlice>(select->loc(), n,
                                  /*start=*/const_lsb.bit_count(),
@@ -155,8 +155,8 @@ std::string ToString(const MatchedPairs& pairs) {
 // Returns a OneHotSelect instruction which selects a slice of the given
 // OneHotSelect's cases. The cases are sliced with the given start and width and
 // then selected with a new OnehotSelect which is returned.
-absl::StatusOr<OneHotSelect*> SliceOneHotSelect(OneHotSelect* ohs, int64 start,
-                                                int64 width) {
+xabsl::StatusOr<OneHotSelect*> SliceOneHotSelect(OneHotSelect* ohs, int64 start,
+                                                 int64 width) {
   std::vector<Node*> case_slices;
   for (Node* cas : ohs->cases()) {
     XLS_ASSIGN_OR_RETURN(
@@ -232,7 +232,7 @@ int64 RunOfDistinctCaseBits(absl::Span<Node* const> cases, int64 start,
 //
 // Returns the newly created OneHotSelect instructions if the transformation
 // succeeded.
-absl::StatusOr<std::vector<OneHotSelect*>> MaybeSplitOneHotSelect(
+xabsl::StatusOr<std::vector<OneHotSelect*>> MaybeSplitOneHotSelect(
     OneHotSelect* ohs, const QueryEngine& query_engine) {
   if (!ohs->GetType()->IsBits()) {
     return std::vector<OneHotSelect*>();
@@ -277,8 +277,8 @@ absl::StatusOr<std::vector<OneHotSelect*>> MaybeSplitOneHotSelect(
   return new_ohses;
 }
 
-absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
-                                  bool split_ops) {
+xabsl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
+                                   bool split_ops) {
   // Select with a constant selector can be replaced with the respective
   // case.
   if (node->Is<Select>() && node->As<Select>()->selector()->Is<Literal>()) {
@@ -395,7 +395,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     // case of the select.
     auto elements_at_tuple_index =
         [&](absl::Span<Node* const> nodes,
-            int64 tuple_index) -> absl::StatusOr<std::vector<Node*>> {
+            int64 tuple_index) -> xabsl::StatusOr<std::vector<Node*>> {
       std::vector<Node*> elements;
       for (Node* n : nodes) {
         XLS_ASSIGN_OR_RETURN(Node * element,
@@ -782,10 +782,10 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     };
     Bits const_msb, const_lsb;
     if (is_squeezable_mux(&const_msb, &const_lsb)) {
-      std::function<absl::StatusOr<Select*>(Select*, std::vector<Node*>)>
+      std::function<xabsl::StatusOr<Select*>(Select*, std::vector<Node*>)>
           make_select =
               [](Select* original,
-                 std::vector<Node*> new_cases) -> absl::StatusOr<Select*> {
+                 std::vector<Node*> new_cases) -> xabsl::StatusOr<Select*> {
         Function* f = original->function();
         absl::optional<Node*> new_default;
         if (original->default_value().has_value()) {
@@ -969,7 +969,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 
 }  // namespace
 
-absl::StatusOr<bool> SelectSimplificationPass::RunOnFunction(
+xabsl::StatusOr<bool> SelectSimplificationPass::RunOnFunction(
     Function* func, const PassOptions& options, PassResults* results) const {
   XLS_VLOG(2) << "Running select simplifier on function " << func->name();
   XLS_VLOG(3) << "Before:";

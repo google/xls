@@ -27,9 +27,9 @@ xls_pybind_extension(
         "//xls/ir/python:value",  # build_cleaner: keep
     ],
     deps = [
-        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
         "//xls/common/python:absl_casters",
+        "//xls/common/status:statusor",
         "//xls/common/status:statusor_pybind_caster",
         "//xls/ir:value",
         "//xls/simulation:module_simulator",

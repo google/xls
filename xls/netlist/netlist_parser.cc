@@ -118,7 +118,7 @@ void Scanner::DropCommentsAndWhitespace() {
   }
 }
 
-absl::StatusOr<Token> Scanner::Peek() {
+xabsl::StatusOr<Token> Scanner::Peek() {
   if (lookahead_.has_value()) {
     return lookahead_.value();
   }
@@ -127,14 +127,14 @@ absl::StatusOr<Token> Scanner::Peek() {
   return lookahead_.value();
 }
 
-absl::StatusOr<Token> Scanner::Pop() {
+xabsl::StatusOr<Token> Scanner::Pop() {
   XLS_ASSIGN_OR_RETURN(Token result, Peek());
   lookahead_.reset();
   XLS_VLOG(3) << "Popping token: " << result.ToString();
   return result;
 }
 
-absl::StatusOr<Token> Scanner::ScanNumber(char startc, Pos pos) {
+xabsl::StatusOr<Token> Scanner::ScanNumber(char startc, Pos pos) {
   std::string chars;
   chars.push_back(startc);
   bool seen_separator = false;
@@ -178,7 +178,8 @@ absl::StatusOr<Token> Scanner::ScanNumber(char startc, Pos pos) {
   return Token{TokenKind::kNumber, pos, chars};
 }
 
-absl::StatusOr<Token> Scanner::ScanName(char startc, Pos pos, bool is_escaped) {
+xabsl::StatusOr<Token> Scanner::ScanName(char startc, Pos pos,
+                                         bool is_escaped) {
   std::string chars;
   chars.push_back(startc);
   while (!AtEofInternal()) {
@@ -194,7 +195,7 @@ absl::StatusOr<Token> Scanner::ScanName(char startc, Pos pos, bool is_escaped) {
   return Token{TokenKind::kName, pos, chars};
 }
 
-absl::StatusOr<Token> Scanner::PeekInternal() {
+xabsl::StatusOr<Token> Scanner::PeekInternal() {
   DropCommentsAndWhitespace();
   if (index_ >= text_.size()) {
     return absl::FailedPreconditionError("Scan has reached EOF.");
@@ -230,7 +231,7 @@ absl::StatusOr<Token> Scanner::PeekInternal() {
   }
 }
 
-absl::StatusOr<std::string> Parser::PopNameOrError() {
+xabsl::StatusOr<std::string> Parser::PopNameOrError() {
   XLS_ASSIGN_OR_RETURN(Token token, scanner_->Pop());
   if (token.kind == TokenKind::kName) {
     return token.value;
@@ -239,7 +240,7 @@ absl::StatusOr<std::string> Parser::PopNameOrError() {
                                     token.ToString());
 }
 
-absl::StatusOr<int64> Parser::PopNumberOrError() {
+xabsl::StatusOr<int64> Parser::PopNumberOrError() {
   // We're assuming we won't see > 64b values. Fine for now, at least.
   XLS_ASSIGN_OR_RETURN(Token token, scanner_->Pop());
   if (token.kind == TokenKind::kNumber) {
@@ -291,7 +292,7 @@ absl::StatusOr<int64> Parser::PopNumberOrError() {
                                     token.ToString());
 }
 
-absl::StatusOr<absl::variant<std::string, int64>>
+xabsl::StatusOr<absl::variant<std::string, int64>>
 Parser::PopNameOrNumberOrError() {
   TokenKind kind = scanner_->Peek()->kind;
   if (kind == TokenKind::kName) {
@@ -313,7 +314,7 @@ absl::Status Parser::DropTokenOrError(TokenKind target) {
       "Want token %s; got %s.", TokenKindToString(target), token.ToString()));
 }
 
-absl::StatusOr<std::vector<std::string>> Parser::PopParenNameList() {
+xabsl::StatusOr<std::vector<std::string>> Parser::PopParenNameList() {
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOpenParen));
   std::vector<std::string> results;
   bool must_end = false;
@@ -341,7 +342,7 @@ absl::Status Parser::DropKeywordOrError(absl::string_view target) {
       absl::StrFormat("Want keyword '%s', got: %s", target, token.ToString()));
 }
 
-absl::StatusOr<const CellLibraryEntry*> Parser::ParseCellModule(
+xabsl::StatusOr<const CellLibraryEntry*> Parser::ParseCellModule(
     Netlist& netlist) {
   XLS_ASSIGN_OR_RETURN(std::string name, PopNameOrError());
   auto status_or_module = netlist.GetModule(name);
@@ -351,7 +352,7 @@ absl::StatusOr<const CellLibraryEntry*> Parser::ParseCellModule(
   return cell_library_->GetEntry(name);
 }
 
-absl::StatusOr<NetRef> Parser::ParseNetRef(Module* module) {
+xabsl::StatusOr<NetRef> Parser::ParseNetRef(Module* module) {
   using TokenT = absl::variant<std::string, int64>;
   XLS_ASSIGN_OR_RETURN(TokenT token, PopNameOrNumberOrError());
   if (absl::holds_alternative<int64>(token)) {
@@ -501,7 +502,7 @@ absl::Status Parser::ParseModuleStatement(Module* module, Netlist& netlist) {
   return ParseInstance(module, netlist);
 }
 
-absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(Netlist& netlist) {
+xabsl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(Netlist& netlist) {
   XLS_RETURN_IF_ERROR(DropKeywordOrError("module"));
   XLS_ASSIGN_OR_RETURN(std::string module_name, PopNameOrError());
   auto module = std::make_unique<Module>(module_name);
@@ -517,7 +518,7 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(Netlist& netlist) {
   return module;
 }
 
-absl::StatusOr<std::unique_ptr<Netlist>> Parser::ParseNetlist(
+xabsl::StatusOr<std::unique_ptr<Netlist>> Parser::ParseNetlist(
     CellLibrary* cell_library, Scanner* scanner) {
   auto netlist = std::make_unique<Netlist>();
   Parser p(cell_library, scanner);

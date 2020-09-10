@@ -17,7 +17,7 @@
 
 #include <filesystem>
 
-#include "absl/status/statusor.h"
+#include "xls/common/status/statusor.h"
 
 namespace xls {
 
@@ -29,7 +29,7 @@ class TempDirectory {
  public:
   ~TempDirectory();
 
-  static absl::StatusOr<TempDirectory> Create();
+  static xabsl::StatusOr<TempDirectory> Create();
 
   const std::filesystem::path& path() const;
 

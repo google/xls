@@ -220,7 +220,7 @@ def dslx_jit_wrapper(
         deps = [
             "@com_google_absl//absl/status",
             "//xls/common/status:status_macros",
-            "@com_google_absl//absl/status:statusor",
+            "//xls/common/status:statusor",
             "//xls/ir",
             "//xls/ir:ir_parser",
             "//xls/ir:value",

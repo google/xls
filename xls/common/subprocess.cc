@@ -33,6 +33,7 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/status/statusor.h"
 #include "xls/common/strerror.h"
 
 namespace xls {
@@ -43,7 +44,7 @@ struct Pipe {
       : exit(std::move(exit)), entrance(std::move(entrance)) {}
 
   // Opens a Unix pipe with a C++ friendly interface.
-  static absl::StatusOr<Pipe> Open() {
+  static xabsl::StatusOr<Pipe> Open() {
     int descriptors[2];
     if (pipe2(descriptors, O_CLOEXEC) == -1) {
       return absl::InternalError(
@@ -81,7 +82,7 @@ void PrepareAndExecInChildProcess(const std::vector<const char*>& argv_pointers,
 
 // Takes a list of file descriptor data streams and reads them into a list of
 // strings, one for each provided file descriptor. Uses poll.
-absl::StatusOr<std::vector<std::string>> ReadFileDescriptors(
+xabsl::StatusOr<std::vector<std::string>> ReadFileDescriptors(
     absl::Span<FileDescriptor*> fds) {
   absl::FixedArray<char> buffer(4096);
   std::vector<std::string> result;
@@ -139,7 +140,7 @@ absl::StatusOr<std::vector<std::string>> ReadFileDescriptors(
 }
 
 // Waits for a process to finish. Returns its exit status code.
-absl::StatusOr<int> WaitForPid(pid_t pid) {
+xabsl::StatusOr<int> WaitForPid(pid_t pid) {
   int wait_status;
   while (waitpid(pid, &wait_status, 0) == -1) {
     if (errno == EINTR) {
@@ -154,7 +155,7 @@ absl::StatusOr<int> WaitForPid(pid_t pid) {
 
 }  // namespace
 
-absl::StatusOr<std::pair<std::string, std::string>> InvokeSubprocess(
+xabsl::StatusOr<std::pair<std::string, std::string>> InvokeSubprocess(
     absl::Span<const std::string> argv, const std::filesystem::path& cwd) {
   if (argv.empty()) {
     return absl::InvalidArgumentError("Cannot invoke empty argv list.");

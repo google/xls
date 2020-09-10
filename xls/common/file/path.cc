@@ -18,7 +18,7 @@
 
 namespace xls {
 
-absl::StatusOr<std::filesystem::path> RelativizePath(
+xabsl::StatusOr<std::filesystem::path> RelativizePath(
     const std::filesystem::path& path, const std::filesystem::path& reference) {
   std::error_code ec;
   std::filesystem::path result = std::filesystem::relative(path, reference, ec);

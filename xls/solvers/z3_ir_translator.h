@@ -18,9 +18,9 @@
 #ifndef XLS_TOOLS_Z3_IR_TRANSLATOR_H_
 #define XLS_TOOLS_Z3_IR_TRANSLATOR_H_
 
-#include "absl/status/statusor.h"
 #include "absl/time/time.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/statusor.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/function.h"
 #include "xls/solvers/z3_utils.h"
@@ -43,7 +43,7 @@ class IrTranslator : public DfsVisitorWithDefault {
  public:
   // Creates a translator and uses it to translate the given function into a Z3
   // AST.
-  static absl::StatusOr<std::unique_ptr<IrTranslator>> CreateAndTranslate(
+  static xabsl::StatusOr<std::unique_ptr<IrTranslator>> CreateAndTranslate(
       Function* function);
 
   // Translates the given function into a Z3 AST using a preexisting context
@@ -51,7 +51,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   // to use the specified (already translated) parameters. This is to enable two
   // versions of the same function to be compared against the same inputs,
   // usually for equivalence checking.
-  static absl::StatusOr<std::unique_ptr<IrTranslator>> CreateAndTranslate(
+  static xabsl::StatusOr<std::unique_ptr<IrTranslator>> CreateAndTranslate(
       Z3_context ctx, Function* function,
       absl::Span<const Z3_ast> imported_params);
   ~IrTranslator() override;
@@ -96,14 +96,14 @@ class IrTranslator : public DfsVisitorWithDefault {
   Z3_ast FloatZero(Z3_sort sort);
 
   // Flushes the given floating-point value to 0 if it's a subnormal value.
-  absl::StatusOr<Z3_ast> FloatFlushSubnormal(Z3_ast value);
+  xabsl::StatusOr<Z3_ast> FloatFlushSubnormal(Z3_ast value);
 
   // Converts three AST nodes (u1:sign, u8:bexp, u23:sfd) to a Z3-internal
   // floating-point number.
-  absl::StatusOr<Z3_ast> ToFloat32(absl::Span<Z3_ast> nodes);
+  xabsl::StatusOr<Z3_ast> ToFloat32(absl::Span<Z3_ast> nodes);
 
   // Same as above, but for a tuple-typed value.
-  absl::StatusOr<Z3_ast> ToFloat32(Z3_ast tuple);
+  xabsl::StatusOr<Z3_ast> ToFloat32(Z3_ast tuple);
 
   Z3_context ctx() { return ctx_; }
 
@@ -188,7 +188,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::Status HandleUnary(UnOp* op, FnT f);
 
   // Recursive call to translate XLS literals into Z3 form.
-  absl::StatusOr<Z3_ast> TranslateLiteralValue(Type* type, const Value& value);
+  xabsl::StatusOr<Z3_ast> TranslateLiteralValue(Type* type, const Value& value);
 
   // Common multiply handling.
   void HandleMul(ArithOp* mul, bool is_signed);
@@ -208,8 +208,8 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::Status HandleUnaryViaAbstractEval(Node* op);
 
   // Converts a XLS param decl into a Z3 param type.
-  absl::StatusOr<Z3_ast> CreateZ3Param(Type* type,
-                                       absl::string_view param_name);
+  xabsl::StatusOr<Z3_ast> CreateZ3Param(Type* type,
+                                        absl::string_view param_name);
 
   // Records the mapping of the specified XLS IR node to Z3 value.
   void NoteTranslation(Node* node, Z3_ast translated);
@@ -272,7 +272,7 @@ class Predicate {
 
 // Attempts to prove node "subject" in function "f" satisfies the given
 // predicate (over all possible inputs) within the duration "timeout".
-absl::StatusOr<bool> TryProve(Function* f, Node* subject, Predicate p,
+xabsl::StatusOr<bool> TryProve(Function* f, Node* subject, Predicate p,
                               absl::Duration timeout);
 
 }  // namespace z3

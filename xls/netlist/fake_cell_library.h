@@ -15,14 +15,14 @@
 #ifndef XLS_NETLIST_FAKE_CELL_LIBRARY_H_
 #define XLS_NETLIST_FAKE_CELL_LIBRARY_H_
 
-#include "absl/status/statusor.h"
+#include "xls/common/status/statusor.h"
 #include "xls/netlist/netlist.h"
 
 namespace xls {
 namespace netlist {
 
 // Creates a fake cell library suitable for testing.
-absl::StatusOr<CellLibrary> MakeFakeCellLibrary();
+xabsl::StatusOr<CellLibrary> MakeFakeCellLibrary();
 
 }  // namespace netlist
 }  // namespace xls

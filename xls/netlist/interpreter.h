@@ -19,7 +19,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/netlist/function_parser.h"
@@ -39,7 +39,7 @@ class Interpreter {
   //    as module->inputs();
   //  - dump_cells: List of cells whose inputs and outputs should be dumped
   //    on evaluation.
-  absl::StatusOr<absl::flat_hash_map<const rtl::NetRef, bool>> InterpretModule(
+  xabsl::StatusOr<absl::flat_hash_map<const rtl::NetRef, bool>> InterpretModule(
       const rtl::Module* module,
       const absl::flat_hash_map<const rtl::NetRef, bool>& inputs,
       absl::Span<const std::string> dump_cells = {});
@@ -52,13 +52,13 @@ class Interpreter {
       const rtl::Cell& cell,
       absl::flat_hash_map<const rtl::NetRef, bool>* processed_wires);
 
-  absl::StatusOr<bool> InterpretFunction(
+  xabsl::StatusOr<bool> InterpretFunction(
       const rtl::Cell& cell, const function::Ast& ast,
       const absl::flat_hash_map<const rtl::NetRef, bool>& processed_wires);
 
   // Returns the value of the internal/output pin from the cell (defined by a
   // "statetable" attribute under the conditions defined in "processed_wires".
-  absl::StatusOr<bool> InterpretStateTable(
+  xabsl::StatusOr<bool> InterpretStateTable(
       const rtl::Cell& cell, const std::string& pin_name,
       const absl::flat_hash_map<const rtl::NetRef, bool>& processed_wires);
 

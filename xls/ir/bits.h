@@ -21,12 +21,12 @@
 #include <string>
 
 #include "absl/base/casts.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/bits_util.h"
 #include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
+#include "xls/common/status/statusor.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/bit_push_buffer.h"
 #include "xls/ir/format_preference.h"
@@ -213,12 +213,12 @@ class Bits {
   // twos-complement representation. Returns an error if the *value* cannot be
   // represented in 64 bits (the width of the Bits object can be arbitrarily
   // large).
-  absl::StatusOr<uint64> ToUint64() const;
-  absl::StatusOr<int64> ToInt64() const;
+  xabsl::StatusOr<uint64> ToUint64() const;
+  xabsl::StatusOr<int64> ToInt64() const;
 
   // Extracts the "word_number"th u64 from this value, as in Bitmap::GetWord.
   // (Zero-bit values get 0 by convention.)
-  absl::StatusOr<uint64> WordToUint64(int64 word_number) const;
+  xabsl::StatusOr<uint64> WordToUint64(int64 word_number) const;
 
   // Returns whether this "bits" object is identical to the other in both
   // bit_count() and held value.
@@ -243,8 +243,8 @@ class Bits {
 
  private:
   friend class BitsRope;
-  friend absl::StatusOr<Bits> UBitsWithStatus(uint64, int64);
-  friend absl::StatusOr<Bits> SBitsWithStatus(int64, int64);
+  friend xabsl::StatusOr<Bits> UBitsWithStatus(uint64, int64);
+  friend xabsl::StatusOr<Bits> SBitsWithStatus(int64, int64);
 
   explicit Bits(InlineBitmap&& bitmap) : bitmap_(bitmap) {}
 
@@ -294,8 +294,8 @@ class BitsRope {
 // signedness, but the UBits and SBits factories affect how the minimum bit
 // width is computed for checking against 'width' and whether the value is
 // zero or sign extended.
-absl::StatusOr<Bits> UBitsWithStatus(uint64 value, int64 bit_count);
-absl::StatusOr<Bits> SBitsWithStatus(int64 value, int64 bit_count);
+xabsl::StatusOr<Bits> UBitsWithStatus(uint64 value, int64 bit_count);
+xabsl::StatusOr<Bits> SBitsWithStatus(int64 value, int64 bit_count);
 inline Bits UBits(uint64 value, int64 bit_count) {
   return UBitsWithStatus(value, bit_count).value();
 }

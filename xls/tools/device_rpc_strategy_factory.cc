@@ -18,7 +18,7 @@
 
 namespace xls {
 
-absl::StatusOr<std::unique_ptr<DeviceRpcStrategy>>
+xabsl::StatusOr<std::unique_ptr<DeviceRpcStrategy>>
 DeviceRpcStrategyFactory::Create(absl::string_view target_device) {
   auto it = target_device_to_factory_.find(target_device);
   if (it == target_device_to_factory_.end()) {

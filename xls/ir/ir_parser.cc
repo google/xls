@@ -31,7 +31,7 @@
 
 namespace xls {
 
-absl::StatusOr<int64> Parser::ParseBitsTypeAndReturnWidth() {
+xabsl::StatusOr<int64> Parser::ParseBitsTypeAndReturnWidth() {
   XLS_ASSIGN_OR_RETURN(Token peek, scanner_.PeekToken());
   XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("bits"));
   XLS_RETURN_IF_ERROR(
@@ -47,12 +47,12 @@ absl::StatusOr<int64> Parser::ParseBitsTypeAndReturnWidth() {
   return bit_count;
 }
 
-absl::StatusOr<Type*> Parser::ParseBitsType(Package* package) {
+xabsl::StatusOr<Type*> Parser::ParseBitsType(Package* package) {
   XLS_ASSIGN_OR_RETURN(int64 bit_count, ParseBitsTypeAndReturnWidth());
   return package->GetBitsType(bit_count);
 }
 
-absl::StatusOr<Type*> Parser::ParseType(Package* package) {
+xabsl::StatusOr<Type*> Parser::ParseType(Package* package) {
   Type* type;
   if (scanner_.PeekTokenIs(LexicalTokenType::kParenOpen)) {
     XLS_ASSIGN_OR_RETURN(type, ParseTupleType(package));
@@ -80,7 +80,7 @@ struct KeywordValue {
 
   // Sets the value of this object to the value contains in 'value_status' or
   // returns an error if value_status is an error value.
-  absl::Status SetOrReturn(absl::StatusOr<T> value_status) {
+  absl::Status SetOrReturn(xabsl::StatusOr<T> value_status) {
     if (is_optional) {
       XLS_ASSIGN_OR_RETURN(optional_value, value_status);
     } else {
@@ -164,7 +164,7 @@ class ArgParser {
   // Runs the argument parser. 'arity' is the expected number of operands
   // (positional arguments). Returns the BValues of the operands.
   static constexpr int64 kVariadic = -1;
-  absl::StatusOr<std::vector<BValue>> Run(int64 arity) {
+  xabsl::StatusOr<std::vector<BValue>> Run(int64 arity) {
     absl::flat_hash_set<std::string> seen_keywords;
     std::vector<BValue> operands;
     XLS_ASSIGN_OR_RETURN(Token open_paren, parser_->scanner_.PopTokenOrError(
@@ -269,19 +269,19 @@ class ArgParser {
   absl::flat_hash_map<std::string, std::unique_ptr<KeywordVariant>> keywords_;
 };
 
-absl::StatusOr<int64> Parser::ParseInt64() {
+xabsl::StatusOr<int64> Parser::ParseInt64() {
   XLS_ASSIGN_OR_RETURN(Token literal,
                        scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
   return literal.GetValueInt64();
 }
 
-absl::StatusOr<bool> Parser::ParseBool() {
+xabsl::StatusOr<bool> Parser::ParseBool() {
   XLS_ASSIGN_OR_RETURN(Token literal,
                        scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
   return literal.GetValueBool();
 }
 
-absl::StatusOr<std::string> Parser::ParseIdentifierString(TokenPos* pos) {
+xabsl::StatusOr<std::string> Parser::ParseIdentifierString(TokenPos* pos) {
   XLS_ASSIGN_OR_RETURN(Token token,
                        scanner_.PopTokenOrError(LexicalTokenType::kIdent));
   if (pos != nullptr) {
@@ -290,7 +290,7 @@ absl::StatusOr<std::string> Parser::ParseIdentifierString(TokenPos* pos) {
   return token.value();
 }
 
-absl::StatusOr<BValue> Parser::ParseIdentifierValue(
+xabsl::StatusOr<BValue> Parser::ParseIdentifierValue(
     const absl::flat_hash_map<std::string, BValue>& name_to_value) {
   TokenPos start_pos;
   XLS_ASSIGN_OR_RETURN(std::string identifier,
@@ -304,7 +304,7 @@ absl::StatusOr<BValue> Parser::ParseIdentifierValue(
   return it->second;
 }
 
-absl::StatusOr<Value> Parser::ParseValueInternal(absl::optional<Type*> type) {
+xabsl::StatusOr<Value> Parser::ParseValueInternal(absl::optional<Type*> type) {
   XLS_ASSIGN_OR_RETURN(Token peek, scanner_.PeekToken());
   const TokenPos start_pos = peek.pos();
   TypeKind type_kind;
@@ -403,7 +403,7 @@ absl::StatusOr<Value> Parser::ParseValueInternal(absl::optional<Type*> type) {
       absl::StrFormat("Unsupported type %s", TypeKindToString(type_kind)));
 }
 
-absl::StatusOr<std::vector<BValue>> Parser::ParseNameList(
+xabsl::StatusOr<std::vector<BValue>> Parser::ParseNameList(
     const absl::flat_hash_map<std::string, BValue>& name_to_value) {
   XLS_RETURN_IF_ERROR(
       scanner_.DropTokenOrError(LexicalTokenType::kBracketOpen));
@@ -425,7 +425,7 @@ absl::StatusOr<std::vector<BValue>> Parser::ParseNameList(
   return result;
 }
 
-absl::StatusOr<SourceLocation> Parser::ParseSourceLocation() {
+xabsl::StatusOr<SourceLocation> Parser::ParseSourceLocation() {
   XLS_ASSIGN_OR_RETURN(Token fileno,
                        scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma));
@@ -441,7 +441,7 @@ absl::StatusOr<SourceLocation> Parser::ParseSourceLocation() {
                         Colno(colno_value));
 }
 
-absl::StatusOr<BValue> Parser::BuildBinaryOrUnaryOp(
+xabsl::StatusOr<BValue> Parser::BuildBinaryOrUnaryOp(
     Op op, BuilderBase* fb, absl::optional<SourceLocation>* loc,
     ArgParser* arg_parser) {
   std::vector<BValue> operands;
@@ -478,7 +478,7 @@ absl::StatusOr<BValue> Parser::BuildBinaryOrUnaryOp(
 namespace {
 
 // GetLocalNode finds function-local BValues by name.
-absl::StatusOr<Node*> GetLocalNode(
+xabsl::StatusOr<Node*> GetLocalNode(
     std::string name, absl::flat_hash_map<std::string, BValue>* name_to_value) {
   auto it = name_to_value->find(name);
   if (it == name_to_value->end()) {
@@ -490,7 +490,7 @@ absl::StatusOr<Node*> GetLocalNode(
 
 }  // namespace
 
-absl::StatusOr<BValue> Parser::ParseFunctionBody(
+xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
     BuilderBase* fb, absl::flat_hash_map<std::string, BValue>* name_to_value,
     Package* package) {
   BValue last_created;
@@ -831,7 +831,7 @@ absl::StatusOr<BValue> Parser::ParseFunctionBody(
   return return_value;
 }
 
-absl::StatusOr<Type*> Parser::ParseTupleType(Package* package) {
+xabsl::StatusOr<Type*> Parser::ParseTupleType(Package* package) {
   std::vector<Type*> types;
   scanner_.PopToken();
   if (!scanner_.PeekTokenIs(LexicalTokenType::kParenClose)) {
@@ -849,7 +849,7 @@ absl::StatusOr<Type*> Parser::ParseTupleType(Package* package) {
   return package->GetTupleType(types);
 }
 
-absl::StatusOr<std::pair<std::unique_ptr<FunctionBuilder>, Type*>>
+xabsl::StatusOr<std::pair<std::unique_ptr<FunctionBuilder>, Type*>>
 Parser::ParseFunctionSignature(
     absl::flat_hash_map<std::string, BValue>* name_to_value, Package* package) {
   XLS_ASSIGN_OR_RETURN(
@@ -883,7 +883,7 @@ Parser::ParseFunctionSignature(
                                                             return_type};
 }
 
-absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
+xabsl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
     absl::flat_hash_map<std::string, BValue>* name_to_value, Package* package) {
   // Proc definition begins with something like:
   //
@@ -945,7 +945,7 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
   return std::move(builder);
 }
 
-absl::StatusOr<std::string> Parser::ParsePackageName() {
+xabsl::StatusOr<std::string> Parser::ParsePackageName() {
   XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("package"));
   XLS_ASSIGN_OR_RETURN(
       Token package_name,
@@ -953,7 +953,7 @@ absl::StatusOr<std::string> Parser::ParsePackageName() {
   return package_name.value();
 }
 
-absl::StatusOr<Function*> Parser::ParseFunction(Package* package) {
+xabsl::StatusOr<Function*> Parser::ParseFunction(Package* package) {
   if (AtEof()) {
     return absl::InvalidArgumentError("Could not parse function; at EOF.");
   }
@@ -982,7 +982,7 @@ absl::StatusOr<Function*> Parser::ParseFunction(Package* package) {
   return fb->BuildWithReturnValue(return_value);
 }
 
-absl::StatusOr<Proc*> Parser::ParseProc(Package* package) {
+xabsl::StatusOr<Proc*> Parser::ParseProc(Package* package) {
   if (AtEof()) {
     return absl::InvalidArgumentError("Could not parse proc; at EOF.");
   }
@@ -1006,7 +1006,7 @@ absl::StatusOr<Proc*> Parser::ParseProc(Package* package) {
   return pb->BuildWithReturnValue(return_value);
 }
 
-absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
+xabsl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
   if (AtEof()) {
     return absl::InvalidArgumentError("Could not parse channel; at EOF.");
   }
@@ -1105,7 +1105,7 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
                                       data_elements, *metadata);
 }
 
-absl::StatusOr<FunctionType*> Parser::ParseFunctionType(Package* package) {
+xabsl::StatusOr<FunctionType*> Parser::ParseFunctionType(Package* package) {
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
   std::vector<Type*> parameter_types;
   bool must_end = false;
@@ -1130,14 +1130,14 @@ absl::StatusOr<FunctionType*> Parser::ParseFunctionType(Package* package) {
   return package->GetFunctionType(parameter_types, return_type);
 }
 
-/* static */ absl::StatusOr<FunctionType*> Parser::ParseFunctionType(
+/* static */ xabsl::StatusOr<FunctionType*> Parser::ParseFunctionType(
     absl::string_view input_string, Package* package) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
   return p.ParseFunctionType(package);
 }
 
-/* static */ absl::StatusOr<Type*> Parser::ParseType(
+/* static */ xabsl::StatusOr<Type*> Parser::ParseType(
     absl::string_view input_string, Package* package) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
@@ -1155,8 +1155,8 @@ static absl::Status VerifyAndSwapError(Package* package) {
 }
 
 /* static */
-absl::StatusOr<Function*> Parser::ParseFunction(absl::string_view input_string,
-                                                Package* package) {
+xabsl::StatusOr<Function*> Parser::ParseFunction(absl::string_view input_string,
+                                                 Package* package) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
   XLS_ASSIGN_OR_RETURN(Function * function, p.ParseFunction(package));
@@ -1168,8 +1168,8 @@ absl::StatusOr<Function*> Parser::ParseFunction(absl::string_view input_string,
 }
 
 /* static */
-absl::StatusOr<Proc*> Parser::ParseProc(absl::string_view input_string,
-                                        Package* package) {
+xabsl::StatusOr<Proc*> Parser::ParseProc(absl::string_view input_string,
+                                         Package* package) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
   XLS_ASSIGN_OR_RETURN(Proc * proc, p.ParseProc(package));
@@ -1181,15 +1181,15 @@ absl::StatusOr<Proc*> Parser::ParseProc(absl::string_view input_string,
 }
 
 /* static */
-absl::StatusOr<Channel*> Parser::ParseChannel(absl::string_view input_string,
-                                              Package* package) {
+xabsl::StatusOr<Channel*> Parser::ParseChannel(absl::string_view input_string,
+                                               Package* package) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
   return p.ParseChannel(package);
 }
 
 /* static */
-absl::StatusOr<std::unique_ptr<Package>> Parser::ParsePackage(
+xabsl::StatusOr<std::unique_ptr<Package>> Parser::ParsePackage(
     absl::string_view input_string,
     absl::optional<absl::string_view> filename) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
@@ -1199,7 +1199,7 @@ absl::StatusOr<std::unique_ptr<Package>> Parser::ParsePackage(
 }
 
 /* static */
-absl::StatusOr<std::unique_ptr<Package>> Parser::ParsePackageWithEntry(
+xabsl::StatusOr<std::unique_ptr<Package>> Parser::ParsePackageWithEntry(
     absl::string_view input_string, absl::string_view entry,
     absl::optional<absl::string_view> filename) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
@@ -1209,22 +1209,22 @@ absl::StatusOr<std::unique_ptr<Package>> Parser::ParsePackageWithEntry(
 }
 
 /* static */
-absl::StatusOr<std::unique_ptr<Package>> Parser::ParsePackageNoVerify(
+xabsl::StatusOr<std::unique_ptr<Package>> Parser::ParsePackageNoVerify(
     absl::string_view input_string, absl::optional<absl::string_view> filename,
     absl::optional<absl::string_view> entry) {
   return ParseDerivedPackageNoVerify<Package>(input_string, filename, entry);
 }
 
 /* static */
-absl::StatusOr<Value> Parser::ParseValue(absl::string_view input_string,
-                                         Type* expected_type) {
+xabsl::StatusOr<Value> Parser::ParseValue(absl::string_view input_string,
+                                          Type* expected_type) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
   return p.ParseValueInternal(expected_type);
 }
 
 /* static */
-absl::StatusOr<Value> Parser::ParseTypedValue(absl::string_view input_string) {
+xabsl::StatusOr<Value> Parser::ParseTypedValue(absl::string_view input_string) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
   return p.ParseValueInternal(/*expected_type=*/absl::nullopt);

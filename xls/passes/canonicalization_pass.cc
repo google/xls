@@ -14,10 +14,10 @@
 
 #include "xls/passes/canonicalization_pass.h"
 
-#include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/node_iterator.h"
 
 namespace xls {
@@ -60,7 +60,7 @@ Op CompareOpCommuted(Op op) {
 // Being able to rely on the shape of such nodes greatly simplifies
 // the implementation of transformation passes, as only one pattern needs
 // to be matched, instead of two.
-absl::StatusOr<bool> CanonicalizeNodes(Node* n, Function* f) {
+xabsl::StatusOr<bool> CanonicalizeNodes(Node* n, Function* f) {
   // Always move kLiteral to right for commutative operators.
   Op op = n->op();
   if (OpIsCommutative(op) && n->operand_count() == 2) {
@@ -120,7 +120,7 @@ absl::StatusOr<bool> CanonicalizeNodes(Node* n, Function* f) {
   return false;
 }
 
-absl::StatusOr<bool> CanonicalizationPass::RunOnFunction(
+xabsl::StatusOr<bool> CanonicalizationPass::RunOnFunction(
     Function* func, const PassOptions& options, PassResults* results) const {
   bool changed = false;
   for (Node* node : TopoSort(func)) {

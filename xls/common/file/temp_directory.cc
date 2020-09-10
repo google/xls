@@ -47,7 +47,7 @@ absl::Status TempDirectory::Cleanup() && {
   return absl::OkStatus();
 }
 
-absl::StatusOr<TempDirectory> TempDirectory::Create() {
+xabsl::StatusOr<TempDirectory> TempDirectory::Create() {
   std::error_code ec;
   auto global_temp_dir = std::filesystem::temp_directory_path(ec);
   if (ec) {

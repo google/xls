@@ -17,9 +17,9 @@
 
 #include <random>
 
-#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -90,7 +90,7 @@ inline bool ValueConformsToType(const Value& value, const Type* type) {
 Value F32ToTuple(float value);
 
 // Converts a 3-tuple (XLS rsqrt routine float representation) into a C++ float.
-absl::StatusOr<float> TupleToF32(const Value& v);
+xabsl::StatusOr<float> TupleToF32(const Value& v);
 
 }  // namespace xls
 

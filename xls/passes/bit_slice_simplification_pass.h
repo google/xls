@@ -15,7 +15,7 @@
 #ifndef XLS_PASSES_BIT_SLICE_SIMPLIFICATION_PASS_H_
 #define XLS_PASSES_BIT_SLICE_SIMPLIFICATION_PASS_H_
 
-#include "absl/status/statusor.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/passes/passes.h"
 
@@ -29,8 +29,8 @@ class BitSliceSimplificationPass : public FunctionPass {
       : FunctionPass("bitslice_simp", "Bit-slice simplification") {}
   ~BitSliceSimplificationPass() override {}
 
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  xabsl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
+                                      PassResults* results) const override;
 };
 
 }  // namespace xls

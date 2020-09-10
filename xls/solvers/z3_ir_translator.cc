@@ -215,7 +215,7 @@ class Z3AbstractEvaluator : public AbstractEvaluator<Z3_ast> {
 
 }  // namespace
 
-absl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
+xabsl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
     Function* function) {
   Z3_config config = Z3_mk_config();
   Z3_set_param_value(config, "proof", "true");
@@ -224,7 +224,7 @@ absl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
   return translator;
 }
 
-absl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
+xabsl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
     Z3_context ctx, Function* function,
     absl::Span<const Z3_ast> imported_params) {
   auto translator =
@@ -282,7 +282,7 @@ Z3_ast IrTranslator::FloatZero(Z3_sort sort) {
   return Z3_mk_fpa_zero(ctx_, sort, /*negative=*/false);
 }
 
-absl::StatusOr<Z3_ast> IrTranslator::FloatFlushSubnormal(Z3_ast value) {
+xabsl::StatusOr<Z3_ast> IrTranslator::FloatFlushSubnormal(Z3_ast value) {
   Z3_sort sort = Z3_get_sort(ctx_, value);
   Z3_sort_kind sort_kind = Z3_get_sort_kind(ctx_, sort);
   if (sort_kind != Z3_FLOATING_POINT_SORT) {
@@ -294,7 +294,7 @@ absl::StatusOr<Z3_ast> IrTranslator::FloatFlushSubnormal(Z3_ast value) {
   return Z3_mk_ite(ctx_, is_subnormal, FloatZero(sort), value);
 }
 
-absl::StatusOr<Z3_ast> IrTranslator::ToFloat32(absl::Span<Z3_ast> nodes) {
+xabsl::StatusOr<Z3_ast> IrTranslator::ToFloat32(absl::Span<Z3_ast> nodes) {
   if (nodes.size() != 3) {
     return absl::InvalidArgumentError(absl::StrCat(
         "Incorrect number of arguments - need 3, got ", nodes.size()));
@@ -303,7 +303,7 @@ absl::StatusOr<Z3_ast> IrTranslator::ToFloat32(absl::Span<Z3_ast> nodes) {
   // Does some sanity checking and returns the node of interest.
   auto get_fp_component = [this, nodes](
                               int64 index,
-                              int64 expected_width) -> absl::StatusOr<Z3_ast> {
+                              int64 expected_width) -> xabsl::StatusOr<Z3_ast> {
     Z3_sort sort = Z3_get_sort(ctx_, nodes[index]);
     Z3_sort_kind sort_kind = Z3_get_sort_kind(ctx_, sort);
     if (sort_kind != Z3_BV_SORT) {
@@ -328,7 +328,7 @@ absl::StatusOr<Z3_ast> IrTranslator::ToFloat32(absl::Span<Z3_ast> nodes) {
   return Z3_mk_fpa_fp(ctx_, sign, exponent, significand);
 }
 
-absl::StatusOr<Z3_ast> IrTranslator::ToFloat32(Z3_ast tuple) {
+xabsl::StatusOr<Z3_ast> IrTranslator::ToFloat32(Z3_ast tuple) {
   std::vector<Z3_ast> components;
   Z3_sort tuple_sort = Z3_get_sort(ctx_, tuple);
   for (int i = 0; i < 3; i++) {
@@ -530,7 +530,7 @@ Z3_ast IrTranslator::CreateTuple(Type* tuple_type,
   return Z3_mk_app(ctx_, mk_tuple_decl, elements.size(), elements.data());
 }
 
-absl::StatusOr<Z3_ast> IrTranslator::CreateZ3Param(
+xabsl::StatusOr<Z3_ast> IrTranslator::CreateZ3Param(
     Type* type, absl::string_view param_name) {
   return Z3_mk_const(ctx_,
                      Z3_mk_string_symbol(ctx_, std::string(param_name).c_str()),
@@ -841,8 +841,8 @@ absl::Status IrTranslator::HandleDynamicBitSlice(
   return seh.status();
 }
 
-absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(Type* value_type,
-                                                           const Value& value) {
+xabsl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(
+    Type* value_type, const Value& value) {
   if (value.IsBits()) {
     const Bits& bits = value.bits();
     std::unique_ptr<bool[]> booleans(new bool[bits.bit_count()]);
@@ -1124,8 +1124,8 @@ void IrTranslator::NoteTranslation(Node* node, Z3_ast translated) {
   translations_[node] = translated;
 }
 
-absl::StatusOr<Z3_ast> PredicateToObjective(Predicate p, Z3_ast a,
-                                            IrTranslator* translator) {
+xabsl::StatusOr<Z3_ast> PredicateToObjective(Predicate p, Z3_ast a,
+                                             IrTranslator* translator) {
   ScopedErrorHandler seh(translator->ctx());
   Z3_ast objective;
   // Note that if the predicate we want to prove is "equal to zero" we return
@@ -1155,7 +1155,7 @@ absl::StatusOr<Z3_ast> PredicateToObjective(Predicate p, Z3_ast a,
   return objective;
 }
 
-absl::StatusOr<bool> TryProve(Function* f, Node* subject, Predicate p,
+xabsl::StatusOr<bool> TryProve(Function* f, Node* subject, Predicate p,
                               absl::Duration timeout) {
   XLS_ASSIGN_OR_RETURN(auto translator, IrTranslator::CreateAndTranslate(f));
   translator->SetTimeout(timeout);

@@ -3,7 +3,7 @@
 
 #include <string>
 
-#include "absl/status/statusor.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/node.h"
 #include "xls/ir/op.h"
@@ -25,7 +25,7 @@ class {{ op_class.name }} : public Node {
  public:
   {{ op_class.name }}({{ op_class.constructor_args_str() }});
 
-  absl::StatusOr<Node*> Clone(absl::Span<Node* const> new_operands,
+  xabsl::StatusOr<Node*> Clone(absl::Span<Node* const> new_operands,
                               Function* new_function) const override;
 {% for method in op_class.methods() -%}
 {{ method.return_cpp_type }} {{ method.name }}({{ method.params }}) const{% if method.expression %} { return {{ method.expression }}; }{% else %};{% endif %}

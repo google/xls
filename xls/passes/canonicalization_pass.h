@@ -17,7 +17,7 @@
 #ifndef XLS_PASSES_CANONICALIZATION_PASS_H_
 #define XLS_PASSES_CANONICALIZATION_PASS_H_
 
-#include "absl/status/statusor.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/passes/passes.h"
 
@@ -33,8 +33,8 @@ class CanonicalizationPass : public FunctionPass {
   explicit CanonicalizationPass() : FunctionPass("canon", "Canonicalization") {}
   ~CanonicalizationPass() override {}
 
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  xabsl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
+                                      PassResults* results) const override;
 };
 
 }  // namespace xls

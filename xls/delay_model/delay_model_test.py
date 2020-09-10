@@ -259,7 +259,7 @@ class DelayModelTest(absltest.TestCase):
             _parse_operation('op: "kBar" bit_count: 123')), 42)
     self.assertEqualIgnoringWhitespace(
         op_model.cpp_delay_function(),
-        """absl::StatusOr<int64> FooDelay(Node* node) {
+        """xabsl::StatusOr<int64> FooDelay(Node* node) {
              return 42;
            }""")
 
@@ -279,7 +279,7 @@ class DelayModelTest(absltest.TestCase):
         .operation_delay(_parse_operation('op: "kBar" bit_count: 123')), 123)
     self.assertEqualIgnoringWhitespace(
         op_model.cpp_delay_function(), """
-          absl::StatusOr<int64> FooDelay(Node* node) {
+          xabsl::StatusOr<int64> FooDelay(Node* node) {
             if (std::all_of(node->operands().begin(), node->operands().end(),
                 [&](Node* n) { return n == node->operand(0); })) {
               return 123;
@@ -308,7 +308,7 @@ class DelayModelTest(absltest.TestCase):
     self.assertEqual(op_model.op, 'kFoo')
     self.assertEqualIgnoringWhitespaceAndFloats(
         op_model.cpp_delay_function(), """
-          absl::StatusOr<int64> FooDelay(Node* node) {
+          xabsl::StatusOr<int64> FooDelay(Node* node) {
             if (std::all_of(node->operands().begin(), node->operands().end(),
                 [&](Node* n) { return n == node->operand(0); })) {
               if (node->GetType()->GetFlatBitCount() <= 1) { return 2; }

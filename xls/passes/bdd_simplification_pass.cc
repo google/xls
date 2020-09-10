@@ -74,8 +74,8 @@ std::string SelectorToString(Node* node) {
 
 // Collapse chain of selects with disjoint (one-hot or zero) selectors into a
 // single one-hot-select.
-absl::StatusOr<bool> CollapseSelectChains(Function* f,
-                                          const QueryEngine& query_engine) {
+xabsl::StatusOr<bool> CollapseSelectChains(Function* f,
+                                           const QueryEngine& query_engine) {
   auto is_binary_select = [](Node* node) {
     if (!node->Is<Select>()) {
       return false;
@@ -173,8 +173,8 @@ absl::StatusOr<bool> CollapseSelectChains(Function* f,
   return modified;
 }
 
-absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
-                                  bool split_ops) {
+xabsl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
+                                   bool split_ops) {
   // Replace a sequence of known bits at the least-significant (suffix) or
   // most-significant (prefix) bits of a value.
   if (!node->Is<Literal>() && node->GetType()->IsBits()) {
@@ -322,7 +322,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   return false;
 }
 
-absl::StatusOr<bool> SimplifyOneHotMsb(Function* f) {
+xabsl::StatusOr<bool> SimplifyOneHotMsb(Function* f) {
   bool changed = false;
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<PostDominatorAnalysis> post_dominator_analysis,
@@ -435,7 +435,7 @@ absl::StatusOr<bool> SimplifyOneHotMsb(Function* f) {
 
 }  // namespace
 
-absl::StatusOr<bool> BddSimplificationPass::RunOnFunction(
+xabsl::StatusOr<bool> BddSimplificationPass::RunOnFunction(
     Function* f, const PassOptions& options, PassResults* results) const {
   XLS_VLOG(2) << "Running BDD simplifier on function " << f->name();
   XLS_VLOG(3) << "Before:";

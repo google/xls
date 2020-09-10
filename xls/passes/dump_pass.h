@@ -17,7 +17,7 @@
 #ifndef XLS_PASSES_DUMP_PASS_H_
 #define XLS_PASSES_DUMP_PASS_H_
 
-#include "absl/status/statusor.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/passes/passes.h"
 
@@ -31,8 +31,8 @@ class DumpPass : public FunctionPass {
   ~DumpPass() override = default;
 
   // Dumps the IR and keeps it unmodified.
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  xabsl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
+                                      PassResults* results) const override;
 };
 
 }  // namespace xls

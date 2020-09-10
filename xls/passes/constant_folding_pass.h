@@ -15,7 +15,7 @@
 #ifndef XLS_PASSES_CONSTANT_FOLDING_PASS_H_
 #define XLS_PASSES_CONSTANT_FOLDING_PASS_H_
 
-#include "absl/status/statusor.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/passes/passes.h"
 
@@ -28,8 +28,8 @@ class ConstantFoldingPass : public FunctionPass {
   ConstantFoldingPass() : FunctionPass("const_fold", "Constant folding") {}
   ~ConstantFoldingPass() override {}
 
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  xabsl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
+                                      PassResults* results) const override;
 };
 
 }  // namespace xls

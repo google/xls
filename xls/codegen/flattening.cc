@@ -45,7 +45,8 @@ Bits FlattenValueToBits(const Value& value) {
   return bits_ops::Concat(leaves);
 }
 
-absl::StatusOr<Value> UnflattenBitsToValue(const Bits& bits, const Type* type) {
+xabsl::StatusOr<Value> UnflattenBitsToValue(const Bits& bits,
+                                            const Type* type) {
   if (bits.bit_count() != type->GetFlatBitCount()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Cannot unflatten input. Has %d bits, expected %d bits",
@@ -86,8 +87,8 @@ absl::StatusOr<Value> UnflattenBitsToValue(const Bits& bits, const Type* type) {
       absl::StrFormat("Invalid type: %s", type->ToString()));
 }
 
-absl::StatusOr<Value> UnflattenBitsToValue(const Bits& bits,
-                                           const TypeProto& type_proto) {
+xabsl::StatusOr<Value> UnflattenBitsToValue(const Bits& bits,
+                                            const TypeProto& type_proto) {
   // Create a dummy package for converting  a TypeProto into a Type*.
   Package p("unflatten_dummy");
   XLS_ASSIGN_OR_RETURN(Type * type, p.GetTypeFromProto(type_proto));

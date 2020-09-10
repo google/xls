@@ -39,14 +39,14 @@ std::ostream& operator<<(std::ostream& os, TypeKind type_kind) {
   return os;
 }
 
-absl::StatusOr<BitsType*> Type::AsBits() {
+xabsl::StatusOr<BitsType*> Type::AsBits() {
   if (IsBits()) {
     return AsBitsOrDie();
   }
   return absl::InvalidArgumentError("Type is not 'bits': " + ToString());
 }
 
-absl::StatusOr<ArrayType*> Type::AsArray() {
+xabsl::StatusOr<ArrayType*> Type::AsArray() {
   if (IsArray()) {
     return AsArrayOrDie();
   }

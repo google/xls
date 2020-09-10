@@ -19,8 +19,8 @@
 #include <memory>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+#include "xls/common/status/statusor.h"
 #include "xls/tools/io_strategy.h"
 
 namespace xls {
@@ -33,7 +33,7 @@ class IoStrategyFactory {
     return singleton;
   }
 
-  static absl::StatusOr<std::unique_ptr<IoStrategy>> CreateForDevice(
+  static xabsl::StatusOr<std::unique_ptr<IoStrategy>> CreateForDevice(
       absl::string_view target_device, VerilogFile* f);
 
   void Add(absl::string_view target_device,

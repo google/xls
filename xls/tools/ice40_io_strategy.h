@@ -16,8 +16,8 @@
 #define XLS_TOOLS_ICE40_IO_STRATEGY_H_
 
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "xls/codegen/vast.h"
+#include "xls/common/status/statusor.h"
 #include "xls/tools/wrap_io.h"
 
 namespace xls {
@@ -33,7 +33,7 @@ class Ice40IoStrategy : public IoStrategy {
   absl::Status InstantiateIoBlocks(Input input, Output output,
                                    Module* m) override;
 
-  absl::StatusOr<std::vector<VerilogInclude>> GetIncludes() override;
+  xabsl::StatusOr<std::vector<VerilogInclude>> GetIncludes() override;
 
  private:
   // The files tick-included by the IO strategy.

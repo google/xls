@@ -42,7 +42,7 @@ class StandardPipelineTest : public IrTestBase {
  protected:
   StandardPipelineTest() = default;
 
-  absl::StatusOr<bool> Run(Package* p) { return RunStandardPassPipeline(p); }
+  xabsl::StatusOr<bool> Run(Package* p) { return RunStandardPassPipeline(p); }
 
   void TestAssociativeWithConstants(absl::string_view xls_op, Op op,
                                     int64 value) {

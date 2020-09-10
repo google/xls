@@ -144,7 +144,7 @@ class FsmBlockBase {
   //   b = 0;
   // end
   //
-  absl::StatusOr<Expression*> HoistCommonConditionalAssignments(
+  xabsl::StatusOr<Expression*> HoistCommonConditionalAssignments(
       const FsmOutput& output);
 
   // An name which is used to uniquely identify the block in log messages. The

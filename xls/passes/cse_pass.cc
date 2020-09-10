@@ -20,9 +20,9 @@
 
 namespace xls {
 
-absl::StatusOr<bool> CsePass::RunOnFunction(Function* f,
-                                            const PassOptions& options,
-                                            PassResults* results) const {
+xabsl::StatusOr<bool> CsePass::RunOnFunction(Function* f,
+                                             const PassOptions& options,
+                                             PassResults* results) const {
   // To improve efficiency, bucket potentially common nodes together. The
   // bucketing is done via an int64 hash value which is constructed from the
   // op() of the node and the uid's of the node's operands.

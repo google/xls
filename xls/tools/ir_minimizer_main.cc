@@ -17,7 +17,6 @@
 #include "absl/flags/flag.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_file.h"
@@ -25,6 +24,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/status/statusor.h"
 #include "xls/common/subprocess.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/ir_interpreter.h"
@@ -106,8 +106,8 @@ namespace {
 
 // Checks whether we still fail when attempting to run function "f". Optional
 // 'inputs' is required if --test_llvm_jit is used.
-absl::StatusOr<bool> StillFails(absl::string_view ir_text,
-                                absl::optional<std::vector<Value>> inputs) {
+xabsl::StatusOr<bool> StillFails(absl::string_view ir_text,
+                                 absl::optional<std::vector<Value>> inputs) {
   XLS_VLOG_LINES(
       1, absl::StrCat("=== Verifying contents still fails:\n", ir_text));
   if (!absl::GetFlag(FLAGS_test_executable).empty()) {
@@ -120,7 +120,7 @@ absl::StatusOr<bool> StillFails(absl::string_view ir_text,
         << "Cannot specify --test_llvm_jit with --test_executable";
     XLS_QCHECK(absl::GetFlag(FLAGS_input).empty())
         << "Cannot specify --input with --test_executable";
-    absl::StatusOr<std::pair<std::string, std::string>> result =
+    xabsl::StatusOr<std::pair<std::string, std::string>> result =
         InvokeSubprocess({absl::GetFlag(FLAGS_test_executable), ir_path});
 
     if (result.ok()) {
@@ -172,7 +172,7 @@ absl::Status VerifyStillFails(absl::string_view ir_text,
 }
 
 // Removes params with zero users from the function.
-absl::StatusOr<bool> RemoveDeadParameters(Function* f) {
+xabsl::StatusOr<bool> RemoveDeadParameters(Function* f) {
   std::vector<Param*> params(f->params().begin(), f->params().end());
   for (Param* p : params) {
     if (p->users().empty() && p != f->return_value()) {
@@ -188,7 +188,7 @@ enum class SimplificationResult {
   kDidChange,     // Did simplify in some way.
 };
 
-absl::StatusOr<SimplificationResult> SimplifyReturnValue(
+xabsl::StatusOr<SimplificationResult> SimplifyReturnValue(
     Function* f, std::mt19937* rng, std::string* which_transform) {
   Node* orig = f->return_value();
   SimplificationResult result = SimplificationResult::kDidNotChange;
@@ -239,7 +239,7 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
   return SimplificationResult::kCannotChange;
 }
 
-absl::StatusOr<SimplificationResult> Simplify(
+xabsl::StatusOr<SimplificationResult> Simplify(
     Function* f, absl::optional<std::vector<Value>> inputs, std::mt19937* rng,
     std::string* which_transform) {
   // Return a uniform random number over the interval [0, 1).

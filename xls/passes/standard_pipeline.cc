@@ -107,7 +107,7 @@ std::unique_ptr<CompoundPass> CreateStandardPassPipeline() {
   return top;
 }
 
-absl::StatusOr<bool> RunStandardPassPipeline(Package* package) {
+xabsl::StatusOr<bool> RunStandardPassPipeline(Package* package) {
   std::unique_ptr<CompoundPass> pipeline = CreateStandardPassPipeline();
   PassResults results;
   return pipeline->Run(package, PassOptions(), &results);

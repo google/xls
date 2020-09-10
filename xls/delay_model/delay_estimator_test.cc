@@ -34,7 +34,7 @@ class TestDelayEstimator : public DelayEstimator {
  public:
   explicit TestDelayEstimator(int64 delay) : delay_(delay) {}
 
-  absl::StatusOr<int64> GetOperationDelayInPs(Node* node) const override {
+  xabsl::StatusOr<int64> GetOperationDelayInPs(Node* node) const override {
     return delay_;
   }
 

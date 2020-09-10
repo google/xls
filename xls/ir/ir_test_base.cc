@@ -44,7 +44,7 @@ VerifiedPackage::~VerifiedPackage() {
   }
 }
 
-absl::StatusOr<std::unique_ptr<VerifiedPackage>> IrTestBase::ParsePackage(
+xabsl::StatusOr<std::unique_ptr<VerifiedPackage>> IrTestBase::ParsePackage(
     absl::string_view text) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<VerifiedPackage> package,
                        Parser::ParseDerivedPackageNoVerify<VerifiedPackage>(
@@ -53,20 +53,20 @@ absl::StatusOr<std::unique_ptr<VerifiedPackage>> IrTestBase::ParsePackage(
   return std::move(package);
 }
 
-absl::StatusOr<std::unique_ptr<Package>> IrTestBase::ParsePackageNoVerify(
+xabsl::StatusOr<std::unique_ptr<Package>> IrTestBase::ParsePackageNoVerify(
     absl::string_view text) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackageNoVerify(text));
   return std::move(package);
 }
 
-absl::StatusOr<Function*> IrTestBase::ParseFunction(absl::string_view text,
-                                                    Package* package) {
+xabsl::StatusOr<Function*> IrTestBase::ParseFunction(absl::string_view text,
+                                                     Package* package) {
   return Parser::ParseFunction(text, package);
 }
 
-absl::StatusOr<Proc*> IrTestBase::ParseProc(absl::string_view text,
-                                            Package* package) {
+xabsl::StatusOr<Proc*> IrTestBase::ParseProc(absl::string_view text,
+                                             Package* package) {
   return Parser::ParseProc(text, package);
 }
 
@@ -155,7 +155,7 @@ void IrTestBase::RunAndExpectEq(
   RunAndExpectEq(args, expected, std::move(package));
 }
 
-absl::StatusOr<absl::flat_hash_map<std::string, Value>>
+xabsl::StatusOr<absl::flat_hash_map<std::string, Value>>
 IrTestBase::UInt64ArgsToValues(
     const absl::flat_hash_map<std::string, uint64>& args, Package* package) {
   absl::flat_hash_map<std::string, Value> value_args;
@@ -180,8 +180,8 @@ IrTestBase::UInt64ArgsToValues(
   return value_args;
 }
 
-absl::StatusOr<Value> IrTestBase::UInt64ResultToValue(uint64 value,
-                                                      Package* package) {
+xabsl::StatusOr<Value> IrTestBase::UInt64ResultToValue(uint64 value,
+                                                       Package* package) {
   XLS_ASSIGN_OR_RETURN(Function * entry, package->EntryFunction());
   Type* return_type = entry->return_value()->GetType();
   XLS_RET_CHECK(return_type->IsBits()) << absl::StrFormat(

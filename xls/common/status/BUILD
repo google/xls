@@ -49,11 +49,11 @@ cc_library(
     deps = [
         ":status_builder",
         ":status_macros",
+        ":statusor",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common:source_location",
     ],
 )
@@ -66,7 +66,6 @@ cc_test(
         ":ret_check",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common/logging:scoped_mock_log",
         "@com_google_googletest//:gtest_main",
     ],
@@ -95,9 +94,9 @@ cc_test(
     srcs = ["status_builder_test.cc"],
     deps = [
         ":status_builder",
+        ":statusor",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
         "//xls/common:source_location",
@@ -124,11 +123,21 @@ cc_test(
     deps = [
         ":status_builder",
         ":status_macros",
+        ":statusor",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "statusor",
+    hdrs = [
+        "statusor.h",
+    ],
+    deps = [
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
@@ -143,8 +152,8 @@ cc_library(
     ],
     features = ["-use_header_modules"],
     deps = [
+        ":statusor",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "@pybind11",
     ],
 )
@@ -157,7 +166,7 @@ cc_library(
     deps = [
         ":status_builder",
         ":status_macros",
-        "@com_google_absl//absl/status:statusor",
+        ":statusor",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",
     ],

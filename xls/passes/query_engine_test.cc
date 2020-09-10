@@ -42,7 +42,7 @@ enum class QueryEngineType { kTernary, kBdd };
 class QueryEngineTest : public IrTestBase,
                         public testing::WithParamInterface<QueryEngineType> {
  protected:
-  absl::StatusOr<std::unique_ptr<QueryEngine>> GetEngine(Function* f) {
+  xabsl::StatusOr<std::unique_ptr<QueryEngine>> GetEngine(Function* f) {
     if (GetParam() == QueryEngineType::kTernary) {
       return TernaryQueryEngine::Run(f);
     }
@@ -69,7 +69,7 @@ class QueryEngineTest : public IrTestBase,
   // Runs QueryEngine on the op created with the passed in function. The
   // input to the op is crafted to have known bits equal to the given
   // TernaryVector.
-  absl::StatusOr<std::string> RunOnUnaryOp(
+  xabsl::StatusOr<std::string> RunOnUnaryOp(
       absl::string_view operand_known_bits,
       std::function<void(BValue, FunctionBuilder*)> make_op) {
     Package p("test_package");
@@ -86,7 +86,7 @@ class QueryEngineTest : public IrTestBase,
   // Runs QueryEngine on the op created with the passed in function. The
   // inputs to the op is crafted to have known bits equal to the given
   // TernaryVectors.
-  absl::StatusOr<std::string> RunOnBinaryOp(
+  xabsl::StatusOr<std::string> RunOnBinaryOp(
       absl::string_view lhs_known_bits, absl::string_view rhs_known_bits,
       std::function<void(BValue, BValue, FunctionBuilder*)> make_op) {
     Package p("test_package");

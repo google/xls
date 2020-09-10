@@ -18,10 +18,10 @@
 #include <string>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/status/statusor.h"
 #include "absl/types/optional.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/vast.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
@@ -76,7 +76,7 @@ class ModuleSignatureBuilder {
   ModuleSignatureBuilder& AddDataInput(absl::string_view name, int64 width);
   ModuleSignatureBuilder& AddDataOutput(absl::string_view name, int64 width);
 
-  absl::StatusOr<ModuleSignature> Build();
+  xabsl::StatusOr<ModuleSignature> Build();
 
  private:
   ModuleSignatureProto proto_;
@@ -89,7 +89,7 @@ class ModuleSignatureBuilder {
 // to expand the interface.
 class ModuleSignature {
  public:
-  static absl::StatusOr<ModuleSignature> FromProto(
+  static xabsl::StatusOr<ModuleSignature> FromProto(
       const ModuleSignatureProto& proto);
 
   const std::string& module_name() const { return proto_.module_name(); }
@@ -120,7 +120,7 @@ class ModuleSignature {
 
   // Converts the ordered set of Value arguments to the module of the signature
   // into an argument name-value map.
-  absl::StatusOr<absl::flat_hash_map<std::string, Value>> ToKwargs(
+  xabsl::StatusOr<absl::flat_hash_map<std::string, Value>> ToKwargs(
       absl::Span<const Value> inputs) const;
 
  private:

@@ -239,7 +239,7 @@ TEST(NetlistTranslatorTest_Standalone, SimpleNet) {
 
 // Create a module that instantiates all child cells and combines them with a
 // cell with the specified name.
-absl::StatusOr<Module> CreateModule(
+xabsl::StatusOr<Module> CreateModule(
     const CellLibrary& cell_library, const std::string& module_name,
     const std::string& cell_name, const std::vector<std::string>& child_cells) {
   // Instantiate all child cells, collect their inputs and outputs

@@ -121,9 +121,9 @@ Expression* ValueToVastLiteral(const Value& value, VerilogFile* file,
   }
 }
 
-absl::StatusOr<Expression*> EmitSel(Select* sel, Expression* selector,
-                                    absl::Span<Expression* const> cases,
-                                    int64 caseno, VerilogFile* file) {
+xabsl::StatusOr<Expression*> EmitSel(Select* sel, Expression* selector,
+                                     absl::Span<Expression* const> cases,
+                                     int64 caseno, VerilogFile* file) {
   if (caseno + 1 == cases.size()) {
     return cases[caseno];
   }
@@ -137,9 +137,9 @@ absl::StatusOr<Expression*> EmitSel(Select* sel, Expression* selector,
       cases[caseno], rhs);
 }
 
-absl::StatusOr<Expression*> EmitOneHot(OneHot* one_hot,
-                                       IndexableExpression* input,
-                                       VerilogFile* file) {
+xabsl::StatusOr<Expression*> EmitOneHot(OneHot* one_hot,
+                                        IndexableExpression* input,
+                                        VerilogFile* file) {
   const int64 input_width = one_hot->operand(0)->BitCountOrDie();
   const int64 output_width = one_hot->BitCountOrDie();
   auto do_index_input = [&](int64 i) {
@@ -191,7 +191,7 @@ absl::StatusOr<Expression*> EmitOneHot(OneHot* one_hot,
   return file->Concat(one_hot_bits);
 }
 
-absl::StatusOr<Expression*> EmitOneHotSelect(
+xabsl::StatusOr<Expression*> EmitOneHotSelect(
     OneHotSelect* sel, IndexableExpression* selector,
     absl::Span<Expression* const> inputs, VerilogFile* file) {
   if (!sel->GetType()->IsBits()) {
@@ -218,8 +218,8 @@ absl::StatusOr<Expression*> EmitOneHotSelect(
 
 // Returns an OR reduction of the given expressions. That is:
 //   exprs[0] | exprs[1] | ... | exprs[n]
-absl::StatusOr<Expression*> OrReduction(absl::Span<Expression* const> exprs,
-                                        VerilogFile* file) {
+xabsl::StatusOr<Expression*> OrReduction(absl::Span<Expression* const> exprs,
+                                         VerilogFile* file) {
   XLS_RET_CHECK(!exprs.empty());
   Expression* reduction = exprs[0];
   for (int i = 1; i < exprs.size(); ++i) {
@@ -229,9 +229,9 @@ absl::StatusOr<Expression*> OrReduction(absl::Span<Expression* const> exprs,
 }
 
 // Emits the given encode op and returns the Verilog expression.
-absl::StatusOr<Expression*> EmitEncode(Encode* encode,
-                                       IndexableExpression* operand,
-                                       VerilogFile* file) {
+xabsl::StatusOr<Expression*> EmitEncode(Encode* encode,
+                                        IndexableExpression* operand,
+                                        VerilogFile* file) {
   std::vector<Expression*> output_bits(encode->BitCountOrDie());
   // Encode produces the OR reduction of the ordinal positions of the set bits
   // of the input. For example, if bit 5 and bit 42 are set in the input, the
@@ -251,9 +251,9 @@ absl::StatusOr<Expression*> EmitEncode(Encode* encode,
 }
 
 // Reverses the order of the bits of the operand.
-absl::StatusOr<Expression*> EmitReverse(Node* reverse,
-                                        IndexableExpression* operand,
-                                        VerilogFile* file) {
+xabsl::StatusOr<Expression*> EmitReverse(Node* reverse,
+                                         IndexableExpression* operand,
+                                         VerilogFile* file) {
   const int64 width = reverse->BitCountOrDie();
   std::vector<Expression*> output_bits(width);
   for (int64 i = 0; i < width; ++i) {
@@ -265,9 +265,9 @@ absl::StatusOr<Expression*> EmitReverse(Node* reverse,
 }
 
 // Emits a shift (shll, shrl, shra).
-absl::StatusOr<Expression*> EmitShift(Node* shift, Expression* operand,
-                                      Expression* shift_amount,
-                                      VerilogFile* file) {
+xabsl::StatusOr<Expression*> EmitShift(Node* shift, Expression* operand,
+                                       Expression* shift_amount,
+                                       VerilogFile* file) {
   Expression* shifted_operand;
   if (shift->op() == Op::kShra) {
     // To perform an arithmetic shift right the left operand must be cast to a
@@ -319,8 +319,8 @@ absl::StatusOr<Expression*> EmitShift(Node* shift, Expression* operand,
 }
 
 // Emits a decode instruction.
-absl::StatusOr<Expression*> EmitDecode(Decode* decode, Expression* operand,
-                                       VerilogFile* file) {
+xabsl::StatusOr<Expression*> EmitDecode(Decode* decode, Expression* operand,
+                                        VerilogFile* file) {
   Expression* result =
       file->Shll(file->Literal(1, decode->BitCountOrDie()), operand);
   if (Bits::MinBitCountUnsigned(decode->BitCountOrDie()) >
@@ -342,8 +342,8 @@ absl::StatusOr<Expression*> EmitDecode(Decode* decode, Expression* operand,
 }
 
 // Emits an multiply with potentially mixed bit-widths.
-absl::StatusOr<Expression*> EmitMultiply(Node* mul, Expression* lhs,
-                                         Expression* rhs, VerilogFile* file) {
+xabsl::StatusOr<Expression*> EmitMultiply(Node* mul, Expression* lhs,
+                                          Expression* rhs, VerilogFile* file) {
   // TODO(meheff): Arbitrary widths are supported via functions in module
   // builder. Unify the expression generation in this file with module builder
   // some how.
@@ -360,7 +360,7 @@ absl::StatusOr<Expression*> EmitMultiply(Node* mul, Expression* lhs,
 
 }  // namespace
 
-absl::StatusOr<Expression*> NodeToExpression(
+xabsl::StatusOr<Expression*> NodeToExpression(
     Node* node, absl::Span<Expression* const> inputs, VerilogFile* file) {
   auto unimplemented = [&]() {
     return absl::UnimplementedError(

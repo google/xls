@@ -18,7 +18,7 @@
 #include <memory>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/status/statusor.h"
+#include "xls/common/status/statusor.h"
 #include "xls/netlist/function_parser.h"
 #include "xls/netlist/netlist.h"
 #include "../z3/src/api/z3.h"
@@ -41,13 +41,13 @@ class NetlistTranslator {
   //    references in the module being processed.
   //  - inputs is a map of wire/net name to Z3 one-bit vectors; this requires
   //    "exploding" values, such as a bits[8] into 8 single-bit inputs.
-  static absl::StatusOr<std::unique_ptr<NetlistTranslator>> CreateAndTranslate(
+  static xabsl::StatusOr<std::unique_ptr<NetlistTranslator>> CreateAndTranslate(
       Z3_context ctx, const netlist::rtl::Module* module,
       const absl::flat_hash_map<std::string, const netlist::rtl::Module*>&
           module_refs);
 
   // Returns the Z3 equivalent for the specified net.
-  absl::StatusOr<Z3_ast> GetTranslation(netlist::rtl::NetRef ref);
+  xabsl::StatusOr<Z3_ast> GetTranslation(netlist::rtl::NetRef ref);
 
   // Retranslates the netlist, replacing the named netrefs with their paired Z3
   // ASTs.
@@ -85,10 +85,10 @@ class NetlistTranslator {
   // Translates the module, cell, or cell function, respectively, into Z3-space.
   absl::Status Translate();
   absl::Status TranslateCell(const netlist::rtl::Cell& cell);
-  absl::StatusOr<Z3_ast> TranslateFunction(
+  xabsl::StatusOr<Z3_ast> TranslateFunction(
       const netlist::rtl::Cell& cell, const netlist::function::Ast ast,
       const absl::flat_hash_map<std::string, Z3_ast>& state_table_values);
-  absl::StatusOr<absl::flat_hash_map<std::string, Z3_ast>> TranslateStateTable(
+  xabsl::StatusOr<absl::flat_hash_map<std::string, Z3_ast>> TranslateStateTable(
       const netlist::rtl::Cell& cell);
 
   Z3_context ctx_;

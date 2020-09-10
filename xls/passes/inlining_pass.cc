@@ -74,9 +74,9 @@ absl::Status InlineInvoke(Invoke* invoke, Function* f) {
 
 }  // namespace
 
-absl::StatusOr<bool> InliningPass::RunOnFunction(Function* f,
-                                                 const PassOptions& options,
-                                                 PassResults* results) const {
+xabsl::StatusOr<bool> InliningPass::RunOnFunction(Function* f,
+                                                  const PassOptions& options,
+                                                  PassResults* results) const {
   bool changed = false;
   while (true) {
     Invoke* invoke = FindInvoke(f);

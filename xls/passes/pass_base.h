@@ -25,7 +25,6 @@
 #include <vector>
 
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
@@ -33,6 +32,7 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
 
@@ -112,8 +112,8 @@ class PassBase {
   // Run the specific pass. Returns true if the graph was changed by the pass.
   // Typically the "changed" indicator is used to determine when to terminate
   // fixed point computation.
-  virtual absl::StatusOr<bool> Run(IrT* ir, const OptionsT& options,
-                                   ResultsT* results) const = 0;
+  virtual xabsl::StatusOr<bool> Run(IrT* ir, const OptionsT& options,
+                                    ResultsT* results) const = 0;
 
   // Returns true if this is a compound pass.
   virtual bool IsCompound() const { return false; }
@@ -182,8 +182,8 @@ class CompoundPassBase : public PassBase<IrT, OptionsT, ResultsT> {
     return checker;
   }
 
-  absl::StatusOr<bool> Run(IrT* ir, const OptionsT& options,
-                           ResultsT* results) const override {
+  xabsl::StatusOr<bool> Run(IrT* ir, const OptionsT& options,
+                            ResultsT* results) const override {
     if (!options.ir_dump_path.empty()) {
       // Start of the top-level pass. Dump IR.
       XLS_RETURN_IF_ERROR(DumpIr(options.ir_dump_path, ir, this->short_name(),
@@ -197,7 +197,7 @@ class CompoundPassBase : public PassBase<IrT, OptionsT, ResultsT> {
   // Internal implementation of Run for compound passes. Invoked when a compound
   // pass is nested within another compound pass. Enables passing of invariant
   // checkers and name of the top-level pass to nested compound passes.
-  virtual absl::StatusOr<bool> RunInternal(
+  virtual xabsl::StatusOr<bool> RunInternal(
       IrT* ir, const OptionsT& options, ResultsT* results,
       absl::string_view top_level_name,
       absl::Span<const InvariantChecker* const> invariant_checkers) const;
@@ -235,7 +235,7 @@ class FixedPointCompoundPassBase
                              absl::string_view long_name)
       : CompoundPassBase<IrT, OptionsT, ResultsT>(short_name, long_name) {}
 
-  absl::StatusOr<bool> RunInternal(
+  xabsl::StatusOr<bool> RunInternal(
       IrT* ir, const OptionsT& options, ResultsT* results,
       absl::string_view top_level_name,
       absl::Span<const typename CompoundPassBase<
@@ -255,7 +255,7 @@ class FixedPointCompoundPassBase
 };
 
 template <typename IrT, typename OptionsT, typename ResultsT>
-absl::StatusOr<bool> CompoundPassBase<IrT, OptionsT, ResultsT>::RunInternal(
+xabsl::StatusOr<bool> CompoundPassBase<IrT, OptionsT, ResultsT>::RunInternal(
     IrT* ir, const OptionsT& options, ResultsT* results,
     absl::string_view top_level_name,
     absl::Span<const InvariantChecker* const> invariant_checkers) const {

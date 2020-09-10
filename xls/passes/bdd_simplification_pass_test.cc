@@ -16,9 +16,9 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -40,8 +40,8 @@ using status_testing::IsOkAndHolds;
 
 class BddSimplificationPassTest : public IrTestBase {
  protected:
-  absl::StatusOr<bool> Run(Function* f, bool run_cleanup_passes = false,
-                           bool split_opts = true) {
+  xabsl::StatusOr<bool> Run(Function* f, bool run_cleanup_passes = false,
+                            bool split_opts = true) {
     PassResults results;
     XLS_ASSIGN_OR_RETURN(bool changed,
                          BddSimplificationPass(/*split_ops=*/split_opts)

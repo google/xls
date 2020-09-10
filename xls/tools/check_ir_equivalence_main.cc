@@ -15,13 +15,13 @@
 #include "absl/base/internal/sysinfo.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
 #include "xls/passes/inlining_pass.h"
@@ -54,7 +54,7 @@ namespace xls {
 using solvers::z3::IrTranslator;
 
 // To compare, simply take the output nodes of each function and compare them.
-absl::StatusOr<Z3_ast> CreateComparisonFunction(
+xabsl::StatusOr<Z3_ast> CreateComparisonFunction(
     absl::Span<std::unique_ptr<IrTranslator>> translators,
     const std::vector<Function*>& functions) {
   Z3_context ctx = translators[0]->ctx();

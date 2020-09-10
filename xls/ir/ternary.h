@@ -17,7 +17,7 @@
 
 #include <vector>
 
-#include "absl/status/statusor.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/bits.h"
 
 namespace xls {
@@ -35,7 +35,7 @@ std::string ToString(const TernaryValue& value);
 
 // Converts the given string to a TernaryVector. Expects string to be of form
 // emitted by ToString (for example, 0b01X0). Underscores are ignored.
-absl::StatusOr<TernaryVector> StringToTernaryVector(absl::string_view s);
+xabsl::StatusOr<TernaryVector> StringToTernaryVector(absl::string_view s);
 
 inline std::ostream& operator<<(std::ostream& os, TernaryValue value) {
   os << ToString(value);

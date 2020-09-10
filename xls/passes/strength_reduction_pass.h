@@ -15,7 +15,7 @@
 #ifndef XLS_PASSES_STRENGTH_REDUCTION_PASS_H_
 #define XLS_PASSES_STRENGTH_REDUCTION_PASS_H_
 
-#include "absl/status/statusor.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/passes/passes.h"
 
@@ -31,8 +31,8 @@ class StrengthReductionPass : public FunctionPass {
   ~StrengthReductionPass() override {}
 
   // Run all registered passes in order of registration.
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  xabsl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
+                                      PassResults* results) const override;
 
  private:
   bool split_ops_;

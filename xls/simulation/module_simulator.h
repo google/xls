@@ -16,9 +16,9 @@
 #define XLS_SIMULATION_MODULE_SIMULATOR_H_
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/status/statusor.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/vast.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/value.h"
 #include "xls/simulation/module_testbench.h"
 #include "xls/simulation/verilog_simulator.h"
@@ -46,26 +46,26 @@ class ModuleSimulator {
 
   // Simulates the module with the given inputs as Bits types. Returns a
   // map containing the outputs by port name.
-  absl::StatusOr<BitsMap> Run(const BitsMap& inputs) const;
+  xabsl::StatusOr<BitsMap> Run(const BitsMap& inputs) const;
 
   // As above but expects that there is a single data output of the module
   // otherwise an error is returned. Returns the single output value.
-  absl::StatusOr<Bits> RunAndReturnSingleOutput(const BitsMap& inputs) const;
+  xabsl::StatusOr<Bits> RunAndReturnSingleOutput(const BitsMap& inputs) const;
 
   // Runs the given batch of argument values through the module with a single
   // invocation of the Verilog simulator. Generally, this is much faster than
   // running via separate calls to Run.
-  absl::StatusOr<std::vector<BitsMap>> RunBatched(
+  xabsl::StatusOr<std::vector<BitsMap>> RunBatched(
       absl::Span<const BitsMap> inputs) const;
 
   // Overloads which accept Values rather than Bits.
-  absl::StatusOr<Value> Run(
+  xabsl::StatusOr<Value> Run(
       const absl::flat_hash_map<std::string, Value>& inputs) const;
-  absl::StatusOr<std::vector<Value>> RunBatched(
+  xabsl::StatusOr<std::vector<Value>> RunBatched(
       absl::Span<const absl::flat_hash_map<std::string, Value>> inputs) const;
 
   // Overload which accepts arguments as a Span.
-  absl::StatusOr<Value> Run(absl::Span<const Value> inputs) const;
+  xabsl::StatusOr<Value> Run(absl::Span<const Value> inputs) const;
 
  private:
   // Deassert all control inputs on the module.

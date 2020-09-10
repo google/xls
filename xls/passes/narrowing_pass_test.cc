@@ -34,7 +34,7 @@ class NarrowingPassTest : public IrTestBase {
  protected:
   NarrowingPassTest() = default;
 
-  absl::StatusOr<bool> Run(Package* p) {
+  xabsl::StatusOr<bool> Run(Package* p) {
     PassResults results;
     return NarrowingPass().Run(p, PassOptions(), &results);
   }

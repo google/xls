@@ -19,11 +19,11 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/status/statusor.h"
 #include "xls/dslx/cpp_pos.h"
 #include "xls/dslx/cpp_scanner_keywords.inc"
 
@@ -86,7 +86,7 @@ enum class TokenKind { XLS_DSLX_TOKEN_KINDS(XLS_FIRST_COMMA) };
 
 std::string TokenKindToString(TokenKind kind);
 
-absl::StatusOr<TokenKind> TokenKindFromString(absl::string_view s);
+xabsl::StatusOr<TokenKind> TokenKindFromString(absl::string_view s);
 
 inline std::ostream& operator<<(std::ostream& os, TokenKind kind) {
   os << TokenKindToString(kind);
@@ -97,7 +97,7 @@ enum Keyword { XLS_DSLX_KEYWORDS(XLS_FIRST_COMMA) };
 
 std::string KeywordToString(Keyword keyword);
 
-absl::StatusOr<Keyword> KeywordFromString(absl::string_view s);
+xabsl::StatusOr<Keyword> KeywordFromString(absl::string_view s);
 
 // Returns a singleton set of type keywords.
 const absl::flat_hash_set<Keyword>& GetTypeKeywords();
@@ -186,7 +186,7 @@ class Scanner {
 
   // Pops a token from the current position in the token stream, or returns a
   // status error if no token can be scanned out.
-  absl::StatusOr<Token> Pop() {
+  xabsl::StatusOr<Token> Pop() {
     XLS_ASSIGN_OR_RETURN(Token tok, Peek());
     lookahead_ = absl::nullopt;
     return tok;
@@ -194,7 +194,7 @@ class Scanner {
 
   // Pops all tokens from the token stream until it is extinguished (as
   // determined by `AtEof()`) and returns them as a sequence.
-  absl::StatusOr<std::vector<Token>> PopAll() {
+  xabsl::StatusOr<std::vector<Token>> PopAll() {
     std::vector<Token> tokens;
     while (!AtEof()) {
       XLS_ASSIGN_OR_RETURN(Token tok, Pop());
@@ -207,7 +207,7 @@ class Scanner {
   //
   // Note: Returns an error if there is an error encountered while trying to
   // peek at the token to see if it should be dropped.
-  absl::StatusOr<bool> TryDrop(TokenKind target) {
+  xabsl::StatusOr<bool> TryDrop(TokenKind target) {
     XLS_ASSIGN_OR_RETURN(Token peek_tok, Peek());
     if (peek_tok.kind() == target) {
       XLS_CHECK_EQ(lookahead_->kind(), target);
@@ -222,7 +222,7 @@ class Scanner {
   //
   // Note: Returns an error if there is an error encountered while trying to
   // peek at the token to see if it should be dropped.
-  absl::StatusOr<bool> TryDropKeyword(Keyword target) {
+  xabsl::StatusOr<bool> TryDropKeyword(Keyword target) {
     XLS_ASSIGN_OR_RETURN(Token peek_tok, Peek());
     if (peek_tok.kind() == TokenKind::kKeyword &&
         peek_tok.GetKeyword() == target) {
@@ -235,12 +235,12 @@ class Scanner {
   // Looks ahead a single token and returns it, or an error if the lookahead
   // token cannot be obtained. Note that at character stream EOF an infinite
   // number of EOF tokens will be returned.
-  absl::StatusOr<Token> Peek();
+  xabsl::StatusOr<Token> Peek();
 
   // Attempts to pop a token with the given "target" kind; returns the token if
   // it is successful, returns an error status if it is not or an error occurs
   // when scanning out the token being observed.
-  absl::StatusOr<Token> PopOrError(TokenKind target) {
+  xabsl::StatusOr<Token> PopOrError(TokenKind target) {
     XLS_ASSIGN_OR_RETURN(Token token, Peek());
     if (token.kind() == target) {
       return Pop();
@@ -293,12 +293,12 @@ class Scanner {
   //
   // Precondition: The character stream must be positioned over either a digit
   // or a minus sign.
-  absl::StatusOr<Token> ScanNumber(char startc, const Pos& start_pos);
+  xabsl::StatusOr<Token> ScanNumber(char startc, const Pos& start_pos);
 
   // Scans a character literal from the character stream as a character token.
   //
   // Precondition: The character stream must be positioned at an open quote.
-  absl::StatusOr<Token> ScanChar(const Pos& start_pos);
+  xabsl::StatusOr<Token> ScanChar(const Pos& start_pos);
 
   // Scans from the current position until ftake returns false or EOF is
   // reached.
@@ -325,8 +325,8 @@ class Scanner {
   // Returns:
   //  Either a keyword (if the scanned identifier turns out to be in the set of
   //  keywords) or an identifier token.
-  absl::StatusOr<Token> ScanIdentifierOrKeyword(char startc,
-                                                const Pos& start_pos);
+  xabsl::StatusOr<Token> ScanIdentifierOrKeyword(char startc,
+                                                 const Pos& start_pos);
 
   // Drops comments/whitespace from the current scan position in the character
   // stream.
@@ -384,7 +384,7 @@ class Scanner {
   // Pops all the characters from the current character cursor to the end of
   // line (or end of file) and returns that. (This is useful presuming a leading
   // EOL-comment-delimiter was observed.)
-  absl::StatusOr<Token> PopComment(const Pos& start_pos);
+  xabsl::StatusOr<Token> PopComment(const Pos& start_pos);
 
   // Pops all the whitespace characters and returns them as a token. This is
   // useful e.g. in syntax-highlighting mode where we want whitespace and
@@ -392,14 +392,14 @@ class Scanner {
   //
   // Precondition: the character stream cursor must be positioned over
   // whitespace.
-  absl::StatusOr<Token> PopWhitespace(const Pos& start_pos);
+  xabsl::StatusOr<Token> PopWhitespace(const Pos& start_pos);
 
   // Attempts to pop either whitespace (as a token) or a comment (as a token) at
   // the current character stream position. If the character stream is
   // extinguished, returns an EOF token.
   //
   // If none of whitespace, comment, or EOF is observed, returns nullopt.
-  absl::StatusOr<absl::optional<Token>> TryPopWhitespaceOrComment();
+  xabsl::StatusOr<absl::optional<Token>> TryPopWhitespaceOrComment();
 
   std::string filename_;
   std::string text_;

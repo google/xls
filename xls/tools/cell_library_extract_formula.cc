@@ -62,7 +62,7 @@ absl::Status RealMain(absl::string_view path, absl::string_view cell_name,
   // Either make a char stream that loads the file entirely into memory or
   // streams it from disk. Since these files can get quite large this can be
   // useful.
-  std::function<absl::StatusOr<CharStream>()> make_cs;
+  std::function<xabsl::StatusOr<CharStream>()> make_cs;
   absl::optional<std::string> text;
   if (stream_from_file) {
     make_cs = [&] { return CharStream::FromPath(path); };

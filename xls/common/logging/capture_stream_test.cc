@@ -18,7 +18,6 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 
 namespace xls {
@@ -29,7 +28,7 @@ using status_testing::IsOkAndHolds;
 using ::testing::Eq;
 
 TEST(CaptureStreamTest, CaptureStdoutData) {
-  absl::StatusOr<std::string> data = CaptureStream(STDOUT_FILENO, [] {
+  xabsl::StatusOr<std::string> data = CaptureStream(STDOUT_FILENO, [] {
     fprintf(stdout, "Hello!");
     fprintf(stderr, "This should be ignored.");
   });
@@ -37,7 +36,7 @@ TEST(CaptureStreamTest, CaptureStdoutData) {
 }
 
 TEST(CaptureStreamTest, CaptureStderrData) {
-  absl::StatusOr<std::string> data = CaptureStream(STDERR_FILENO, [] {
+  xabsl::StatusOr<std::string> data = CaptureStream(STDERR_FILENO, [] {
     fprintf(stderr, "Some output.\nHello!");
     fprintf(stdout, "This should be ignored.");
   });

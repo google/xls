@@ -15,9 +15,9 @@
 #ifndef XLS_TOOLS_WRAP_IO_H_
 #define XLS_TOOLS_WRAP_IO_H_
 
-#include "absl/status/statusor.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/vast.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/type.h"
 #include "xls/tools/io_strategy.h"
 
@@ -75,10 +75,10 @@ enum IoEscapeCode : uint8 {
 // TODO(leary): 2019-03-25 We'll want to change the I/O mechanism into a
 // pluggable strategy, right now this assumes ICE40 UART, but just as easily we
 // should be able to plug in something like PCIe TLP handling.
-absl::StatusOr<Module*> WrapIo(absl::string_view module_name,
-                               absl::string_view instance_name,
-                               const ModuleSignature& signature,
-                               IoStrategy* io_strategy, VerilogFile* f);
+xabsl::StatusOr<Module*> WrapIo(absl::string_view module_name,
+                                absl::string_view instance_name,
+                                const ModuleSignature& signature,
+                                IoStrategy* io_strategy, VerilogFile* f);
 
 // Creates and returns a module which controls the input to the I/O state
 // machine. This module has a byte-wide input with ready/valid flow control and
@@ -89,26 +89,26 @@ absl::StatusOr<Module*> WrapIo(absl::string_view module_name,
 // This module is intended to be used within WrapIo and is exposed in the header
 // for testing purposes.
 // TODO(meheff): Hook up this module into WrapIo.
-absl::StatusOr<Module*> InputControllerModule(const ModuleSignature& signature,
-                                              VerilogFile* f);
+xabsl::StatusOr<Module*> InputControllerModule(const ModuleSignature& signature,
+                                               VerilogFile* f);
 
 // Creates and returns the module which controls the reset of the I/O state
 // machine via the reset control code (IoControlCode::kReset). This is
 // instantiated within the InputControlModule and is exposed in the header for
 // testing purposes.
-absl::StatusOr<Module*> InputResetModule(VerilogFile* f);
+xabsl::StatusOr<Module*> InputResetModule(VerilogFile* f);
 
 // Creates and returns a shift register used by the InputControlerModuler. Takes
 // a byte at a time, and output is an arbitrary width given by 'bit_count'.
-absl::StatusOr<Module*> InputShiftRegisterModule(int64 bit_count,
-                                                 VerilogFile* f);
+xabsl::StatusOr<Module*> InputShiftRegisterModule(int64 bit_count,
+                                                  VerilogFile* f);
 
 // Creates and returns a module which controls the output side of the I/O state
 // machine. This module has an arbitrary width input to match the output of the
 // device function. The output of the output controller is byte-wide. Both have
 // ready/valid flow control.
-absl::StatusOr<Module*> OutputControllerModule(const ModuleSignature& signature,
-                                               VerilogFile* f);
+xabsl::StatusOr<Module*> OutputControllerModule(
+    const ModuleSignature& signature, VerilogFile* f);
 
 }  // namespace verilog
 }  // namespace xls

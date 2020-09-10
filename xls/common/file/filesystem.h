@@ -19,7 +19,7 @@
 
 #include "google/protobuf/message.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
+#include "xls/common/status/statusor.h"
 
 namespace xls {
 
@@ -67,7 +67,7 @@ absl::Status RecursivelyDeletePath(const std::filesystem::path& path);
 //  * StatusCode::kPermissionDenied (file not readable)
 //  * StatusCode::kNotFound (no such file)
 //  * StatusCode::kUnknown (a Read or Open error occurred)
-absl::StatusOr<std::string> GetFileContents(
+xabsl::StatusOr<std::string> GetFileContents(
     const std::filesystem::path& file_name);
 
 // Writes the data provided in `content` to the file `file_name`, overwriting
@@ -127,9 +127,9 @@ absl::Status ParseTextProtoFile(const std::filesystem::path& file_name,
 // As above, except returns the proto in a StatusOr rather than an output
 // parameter.
 template <typename T>
-inline absl::StatusOr<T> ParseTextProtoFile(
+inline xabsl::StatusOr<T> ParseTextProtoFile(
     const std::filesystem::path& file_name) {
-  absl::StatusOr<T> v_or = T();
+  xabsl::StatusOr<T> v_or = T();
   absl::Status status = ParseTextProtoFile(file_name, &v_or.value());
   if (!status.ok()) {
     v_or = status;
@@ -152,7 +152,7 @@ absl::Status SetTextProtoFile(const std::filesystem::path& file_name,
                               const google::protobuf::Message& proto);
 
 // Returns the process's current working directory.
-absl::StatusOr<std::filesystem::path> GetCurrentDirectory();
+xabsl::StatusOr<std::filesystem::path> GetCurrentDirectory();
 
 // Lists the entries of a directory.
 //
@@ -164,12 +164,12 @@ absl::StatusOr<std::filesystem::path> GetCurrentDirectory();
 //  * StatusCode::kNotFound (no such directory)
 //  * StatusCode::kFailedPrecondition (`path` is not a directory)
 //  * StatusCode::kPermissionDenied (directory is not readable)
-absl::StatusOr<std::vector<std::filesystem::path>> GetDirectoryEntries(
+xabsl::StatusOr<std::vector<std::filesystem::path>> GetDirectoryEntries(
     const std::filesystem::path& path);
 
 // Returns the path pointed to by the file, if it's a link, or the given path
 // otherwise.
-absl::StatusOr<std::filesystem::path> GetRealPath(const std::string& path);
+xabsl::StatusOr<std::filesystem::path> GetRealPath(const std::string& path);
 
 }  // namespace xls
 

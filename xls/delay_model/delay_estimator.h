@@ -16,10 +16,10 @@
 #define XLS_DELAY_MODEL_DELAY_ESTIMATOR_H_
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/integral_types.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/node.h"
 
 namespace xls {
@@ -30,13 +30,13 @@ class DelayEstimator {
   virtual ~DelayEstimator() = default;
 
   // Returns the estimated delay of the given node in picoseconds.
-  virtual absl::StatusOr<int64> GetOperationDelayInPs(Node* node) const = 0;
+  virtual xabsl::StatusOr<int64> GetOperationDelayInPs(Node* node) const = 0;
 
   // Compute the delay of the given node using logical effort estimation. Only
   // relatively simple operations (kAnd, kOr, etc) are supported using this
   // method.
-  static absl::StatusOr<int64> GetLogicalEffortDelayInPs(Node* node,
-                                                         int64 tau_in_ps);
+  static xabsl::StatusOr<int64> GetLogicalEffortDelayInPs(Node* node,
+                                                          int64 tau_in_ps);
 };
 
 enum class DelayEstimatorPrecedence {
@@ -50,10 +50,10 @@ class DelayEstimatorManager {
  public:
   // Returns the delay estimator with the given name, or returns an error if no
   // such estimator exists.
-  absl::StatusOr<DelayEstimator*> GetDelayEstimator(
+  xabsl::StatusOr<DelayEstimator*> GetDelayEstimator(
       absl::string_view name) const;
 
-  absl::StatusOr<DelayEstimator*> GetDefaultDelayEstimator() const;
+  xabsl::StatusOr<DelayEstimator*> GetDefaultDelayEstimator() const;
 
   // Adds a DelayEstimator to the manager and associates it with the given name.
   absl::Status RegisterDelayEstimator(

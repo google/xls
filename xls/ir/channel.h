@@ -37,7 +37,7 @@ std::string ChannelKindToString(ChannelKind kind);
 
 // Converts the string representation of a channel to a ChannelKind. Returns an
 // error if the string is not a valid channel kind.
-absl::StatusOr<ChannelKind> StringToChannelKind(absl::string_view str);
+xabsl::StatusOr<ChannelKind> StringToChannelKind(absl::string_view str);
 
 std::ostream& operator<<(std::ostream& os, ChannelKind kind);
 

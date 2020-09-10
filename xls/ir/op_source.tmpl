@@ -1,7 +1,7 @@
 #include "xls/ir/op.h"
 
 #include "xls/common/logging/logging.h"
-#include "absl/status/statusor.h"
+#include "xls/common/status/statusor.h"
 #include "absl/container/flat_hash_map.h"
 
 namespace xls {
@@ -37,7 +37,7 @@ std::string OpToString(Op op) {
   return found->second;
 }
 
-absl::StatusOr<Op> StringToOp(absl::string_view op_str) {
+xabsl::StatusOr<Op> StringToOp(absl::string_view op_str) {
   static const absl::flat_hash_map<std::string, Op>* string_map =
       new absl::flat_hash_map<std::string, Op>({
 {% for op in spec.OPS -%}

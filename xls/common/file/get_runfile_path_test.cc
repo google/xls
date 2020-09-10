@@ -16,9 +16,9 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/statusor.h"
 
 namespace xls {
 namespace {
@@ -27,7 +27,7 @@ using status_testing::IsOkAndHolds;
 using ::testing::HasSubstr;
 
 TEST(GetRunfilePathTest, GetXlsRunfilePathReturnsTheRightPath) {
-  absl::StatusOr<std::string> test_cc_file_contents = GetFileContents(
+  xabsl::StatusOr<std::string> test_cc_file_contents = GetFileContents(
       GetXlsRunfilePath("xls/common/file/get_runfile_path_test.cc"));
 
   EXPECT_THAT(

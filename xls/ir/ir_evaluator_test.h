@@ -17,10 +17,10 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/ir_parser.h"
@@ -35,12 +35,12 @@ namespace xls {
 struct IrEvaluatorTestParam {
   // Function to perform evaluation of the specified program with the given
   // [positional] args.
-  using EvaluatorFnT = std::function<absl::StatusOr<Value>(
+  using EvaluatorFnT = std::function<xabsl::StatusOr<Value>(
       Function* function, const std::vector<Value>& args)>;
 
   // Function to perform evaluation of the specified program with the given
   // keyword args.
-  using KwargsEvaluatorFnT = std::function<absl::StatusOr<Value>(
+  using KwargsEvaluatorFnT = std::function<xabsl::StatusOr<Value>(
       Function* function,
       const absl::flat_hash_map<std::string, Value>& kwargs)>;
 
@@ -67,15 +67,15 @@ class IrEvaluatorTest
     return Parser::ParseTypedValue(input_string).value();
   }
 
-  absl::StatusOr<Function*> ParseAndGetFunction(Package* package,
-                                                absl::string_view program) {
+  xabsl::StatusOr<Function*> ParseAndGetFunction(Package* package,
+                                                 absl::string_view program) {
     XLS_ASSIGN_OR_RETURN(Function * function,
                          Parser::ParseFunction(program, package));
     XLS_VLOG(1) << "Dumped:\n" << function->DumpIr();
     return function;
   }
 
-  absl::StatusOr<Function*> get_neg_function(Package* package) {
+  xabsl::StatusOr<Function*> get_neg_function(Package* package) {
     return ParseAndGetFunction(package, R"(
   fn negate_value(a: bits[4]) -> bits[4] {
     ret neg.1: bits[4] = neg(a)
@@ -85,7 +85,7 @@ class IrEvaluatorTest
 
   // Runs the given function with uint64s as input. Converts to/from Values
   // under the hood. All arguments and result must be bits-typed.
-  absl::StatusOr<uint64> Run(Function* f, absl::Span<const uint64> args) {
+  xabsl::StatusOr<uint64> Run(Function* f, absl::Span<const uint64> args) {
     std::vector<Value> value_args;
     for (int64 i = 0; i < args.size(); ++i) {
       XLS_RET_CHECK(f->param(i)->GetType()->IsBits());
@@ -99,7 +99,7 @@ class IrEvaluatorTest
 
   // Runs the given function with Bits as input. Converts to/from Values under
   // the hood. All arguments and result must be bits-typed.
-  absl::StatusOr<Bits> RunBits(Function* f, absl::Span<const Bits> args) {
+  xabsl::StatusOr<Bits> RunBits(Function* f, absl::Span<const Bits> args) {
     std::vector<Value> value_args;
     for (int64 i = 0; i < args.size(); ++i) {
       value_args.push_back(Value(args[i]));

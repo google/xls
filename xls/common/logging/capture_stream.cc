@@ -28,7 +28,7 @@
 namespace xls {
 namespace testing {
 
-absl::StatusOr<std::string> CaptureStream(int fd, std::function<void()> fn) {
+xabsl::StatusOr<std::string> CaptureStream(int fd, std::function<void()> fn) {
   XLS_ASSIGN_OR_RETURN(TempFile temp_file, TempFile::Create());
 
   auto uncaptured_fd = FileDescriptor(dup(fd));

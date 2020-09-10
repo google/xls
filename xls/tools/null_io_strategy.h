@@ -16,8 +16,8 @@
 #define XLS_TOOLS_NULL_IO_STRATEGY_H_
 
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "xls/codegen/vast.h"
+#include "xls/common/status/statusor.h"
 #include "xls/tools/io_strategy.h"
 
 namespace xls {
@@ -35,7 +35,7 @@ class NullIoStrategy : public IoStrategy {
   absl::Status InstantiateIoBlocks(Input input, Output output,
                                    Module* m) override;
 
-  absl::StatusOr<std::vector<VerilogInclude>> GetIncludes() override {
+  xabsl::StatusOr<std::vector<VerilogInclude>> GetIncludes() override {
     return std::vector<VerilogInclude>();
   }
 

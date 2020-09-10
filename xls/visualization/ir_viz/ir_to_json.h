@@ -17,8 +17,8 @@
 
 #include <string>
 
-#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+#include "xls/common/status/statusor.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls {
@@ -27,7 +27,7 @@ namespace xls {
 // the graph representation is generic (see ir_to_json_test.cc for examples) and
 // the client is responsible for constructing the appropriate representation for
 // the web view.
-absl::StatusOr<std::string> IrToJson(
+xabsl::StatusOr<std::string> IrToJson(
     Function* function, const DelayEstimator& delay_estimator,
     const PipelineSchedule* schedule = nullptr);
 

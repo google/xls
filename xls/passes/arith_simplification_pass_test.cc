@@ -34,7 +34,7 @@ class ArithSimplificationPassTest : public IrTestBase {
  protected:
   ArithSimplificationPassTest() = default;
 
-  absl::StatusOr<bool> Run(Package* p) {
+  xabsl::StatusOr<bool> Run(Package* p) {
     PassResults results;
     return ArithSimplificationPass().Run(p, PassOptions(), &results);
   }

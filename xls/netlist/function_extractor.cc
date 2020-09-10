@@ -41,7 +41,7 @@ constexpr const char kFfKind[] = "ff";
 constexpr const char kStateTableKind[] = "statetable";
 
 // Translates an individual signal value char to the protobuf equivalent.
-absl::StatusOr<StateTableSignalProto> LibertyToTableSignal(
+xabsl::StatusOr<StateTableSignalProto> LibertyToTableSignal(
     const std::string& input) {
   if (input == "H/L") {
     return STATE_TABLE_SIGNAL_HIGH_OR_LOW;
@@ -265,7 +265,7 @@ absl::Status ExtractFromCell(const cell_lib::Block& cell,
 
 }  // namespace
 
-absl::StatusOr<CellLibraryProto> ExtractFunctions(
+xabsl::StatusOr<CellLibraryProto> ExtractFunctions(
     cell_lib::CharStream* stream) {
   cell_lib::Scanner scanner(stream);
   absl::flat_hash_set<std::string> kind_allowlist(

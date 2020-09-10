@@ -25,7 +25,7 @@
 namespace xls {
 
 /* static */
-absl::StatusOr<std::unique_ptr<BddQueryEngine>> BddQueryEngine::Run(
+xabsl::StatusOr<std::unique_ptr<BddQueryEngine>> BddQueryEngine::Run(
     Function* f, int64 minterm_limit,
     absl::Span<const Op> do_not_evaluate_ops) {
   auto query_engine = absl::WrapUnique(new BddQueryEngine(minterm_limit));

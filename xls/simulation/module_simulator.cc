@@ -71,14 +71,14 @@ absl::Status ModuleSimulator::ResetModule(ModuleTestbench* tb) const {
   return absl::OkStatus();
 }
 
-absl::StatusOr<ModuleSimulator::BitsMap> ModuleSimulator::Run(
+xabsl::StatusOr<ModuleSimulator::BitsMap> ModuleSimulator::Run(
     const ModuleSimulator::BitsMap& inputs) const {
   XLS_ASSIGN_OR_RETURN(auto outputs, RunBatched({inputs}));
   XLS_RET_CHECK_EQ(outputs.size(), 1);
   return outputs[0];
 }
 
-absl::StatusOr<Bits> ModuleSimulator::RunAndReturnSingleOutput(
+xabsl::StatusOr<Bits> ModuleSimulator::RunAndReturnSingleOutput(
     const BitsMap& inputs) const {
   BitsMap outputs;
   XLS_ASSIGN_OR_RETURN(outputs, Run(inputs));
@@ -89,7 +89,7 @@ absl::StatusOr<Bits> ModuleSimulator::RunAndReturnSingleOutput(
   return outputs.begin()->second;
 }
 
-absl::StatusOr<std::vector<ModuleSimulator::BitsMap>>
+xabsl::StatusOr<std::vector<ModuleSimulator::BitsMap>>
 ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
   XLS_VLOG(1) << "Running Verilog module with signature:\n"
               << signature_.ToString();
@@ -278,7 +278,7 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
   return outputs;
 }
 
-absl::StatusOr<Value> ModuleSimulator::Run(
+xabsl::StatusOr<Value> ModuleSimulator::Run(
     const absl::flat_hash_map<std::string, Value>& inputs) const {
   absl::flat_hash_map<std::string, Value> input_map(inputs.begin(),
                                                     inputs.end());
@@ -287,7 +287,7 @@ absl::StatusOr<Value> ModuleSimulator::Run(
   return outputs[0];
 }
 
-absl::StatusOr<std::vector<Value>> ModuleSimulator::RunBatched(
+xabsl::StatusOr<std::vector<Value>> ModuleSimulator::RunBatched(
     absl::Span<const absl::flat_hash_map<std::string, Value>> inputs) const {
   std::vector<BitsMap> bits_inputs;
   for (const auto& input : inputs) {
@@ -308,7 +308,7 @@ absl::StatusOr<std::vector<Value>> ModuleSimulator::RunBatched(
   return outputs;
 }
 
-absl::StatusOr<Value> ModuleSimulator::Run(
+xabsl::StatusOr<Value> ModuleSimulator::Run(
     absl::Span<const Value> inputs) const {
   absl::flat_hash_map<std::string, Value> kwargs;
   XLS_ASSIGN_OR_RETURN(kwargs, signature_.ToKwargs(inputs));

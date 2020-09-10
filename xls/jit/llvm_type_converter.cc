@@ -65,12 +65,12 @@ llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type& xls_type) {
   return llvm_type;
 }
 
-absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToLlvmConstant(
+xabsl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToLlvmConstant(
     const Type& type, const Value& value) {
   return ToLlvmConstant(ConvertToLlvmType(type), value);
 }
 
-absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToLlvmConstant(
+xabsl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToLlvmConstant(
     llvm::Type* type, const Value& value) {
   if (type->isIntegerTy()) {
     return ToIntegralConstant(type, value);
@@ -101,7 +101,7 @@ absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToLlvmConstant(
   XLS_LOG(FATAL) << "Unknown value kind: " << value.kind();
 }
 
-absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToIntegralConstant(
+xabsl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToIntegralConstant(
     llvm::Type* type, const Value& value) {
   Bits xls_bits = value.bits();
 

@@ -60,7 +60,7 @@ Op CompareOpInverse(Op op) {
 // for simplification, such as adding a zero, multiplying by 1, etc.
 //
 // Return 'true' if the IR was modified.
-absl::StatusOr<bool> MatchArithPatterns(Node* n) {
+xabsl::StatusOr<bool> MatchArithPatterns(Node* n) {
   absl::Span<Node* const> ops = n->operands();
 
   // Pattern: Add/Sub/Or/Xor/Shift a value with 0 on the RHS.
@@ -81,7 +81,7 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
   // "predicate" holds. If the predicate holds for all operands, the
   // NaryOpNullaryResult is used as a replacement.
   auto eliminate_operands_where =
-      [n](std::function<bool(Node*)> predicate) -> absl::StatusOr<bool> {
+      [n](std::function<bool(Node*)> predicate) -> xabsl::StatusOr<bool> {
     XLS_RET_CHECK(n->Is<NaryOp>());
     std::vector<Node*> new_operands;
     for (Node* operand : n->operands()) {
@@ -274,7 +274,7 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
   //  (4) node width > bit_count and !is_signed: return node zero-extended to
   //  bit_count
   auto maybe_extend_or_trunc = [](Node* node, int64 bit_count,
-                                  bool is_signed) -> absl::StatusOr<Node*> {
+                                  bool is_signed) -> xabsl::StatusOr<Node*> {
     if (node->BitCountOrDie() == bit_count) {
       return node;
     }
@@ -533,7 +533,7 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
 
 }  // namespace
 
-absl::StatusOr<bool> ArithSimplificationPass::RunOnFunction(
+xabsl::StatusOr<bool> ArithSimplificationPass::RunOnFunction(
     Function* f, const PassOptions& options, PassResults* results) const {
   bool modified = false;
   bool local_modified = false;

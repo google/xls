@@ -16,8 +16,8 @@
 #define XLS_DATA_STRUCTURES_BINARY_SEARCH_H_
 
 #include "absl/functional/function_ref.h"
-#include "absl/status/statusor.h"
 #include "xls/common/integral_types.h"
+#include "xls/common/status/statusor.h"
 
 namespace xls {
 
@@ -36,10 +36,12 @@ int64 BinarySearchMinTrue(int64 start, int64 end,
                           absl::FunctionRef<bool(int64 i)> f);
 
 // Overloads which accept a StatusOr function.
-absl::StatusOr<int64> BinarySearchMaxTrueWithStatus(
-    int64 start, int64 end, absl::FunctionRef<absl::StatusOr<bool>(int64 i)> f);
-absl::StatusOr<int64> BinarySearchMinTrueWithStatus(
-    int64 start, int64 end, absl::FunctionRef<absl::StatusOr<bool>(int64 i)> f);
+xabsl::StatusOr<int64> BinarySearchMaxTrueWithStatus(
+    int64 start, int64 end,
+    absl::FunctionRef<xabsl::StatusOr<bool>(int64 i)> f);
+xabsl::StatusOr<int64> BinarySearchMinTrueWithStatus(
+    int64 start, int64 end,
+    absl::FunctionRef<xabsl::StatusOr<bool>(int64 i)> f);
 
 }  // namespace xls
 

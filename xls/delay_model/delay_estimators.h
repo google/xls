@@ -19,14 +19,14 @@
 #include <string>
 #include <vector>
 
-#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+#include "xls/common/status/statusor.h"
 #include "xls/delay_model/delay_estimator.h"
 
 namespace xls {
 
 // Returns the registered delay estimator with the given name.
-absl::StatusOr<DelayEstimator*> GetDelayEstimator(absl::string_view name);
+xabsl::StatusOr<DelayEstimator*> GetDelayEstimator(absl::string_view name);
 
 // Returns a reference to a singleton object which uses the "standard" delay
 // estimation model.

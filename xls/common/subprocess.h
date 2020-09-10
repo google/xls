@@ -17,16 +17,16 @@
 
 #include <filesystem>
 
-#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+#include "xls/common/status/statusor.h"
 
 namespace xls {
 
 // Invokes a subprocess with the given argv. If 'cwd' is not empty the
 // subprocess will be invoked in the given directory. Returns the
 // stdout/stderr as a string pair.
-absl::StatusOr<std::pair<std::string, std::string>> InvokeSubprocess(
+xabsl::StatusOr<std::pair<std::string, std::string>> InvokeSubprocess(
     absl::Span<const std::string> argv, const std::filesystem::path& cwd = "");
 }
 

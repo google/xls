@@ -146,10 +146,10 @@ cc_library(
     deps = [
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
         "//xls/common:integral_types",
         "//xls/common/logging",
+        "//xls/common/status:statusor",
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:type",

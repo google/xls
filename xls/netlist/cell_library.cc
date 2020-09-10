@@ -26,7 +26,7 @@ namespace xls {
 namespace netlist {
 namespace {
 
-absl::StatusOr<CellKind> CellKindFromProto(CellKindProto proto) {
+xabsl::StatusOr<CellKind> CellKindFromProto(CellKindProto proto) {
   switch (proto) {
     case INVALID:
       break;
@@ -51,7 +51,7 @@ absl::StatusOr<CellKind> CellKindFromProto(CellKindProto proto) {
       "Invalid proto value for conversion to CellKind: %d", proto));
 }
 
-absl::StatusOr<StateTableSignal> StateTableSignalFromProto(
+xabsl::StatusOr<StateTableSignal> StateTableSignalFromProto(
     StateTableSignalProto proto) {
   switch (proto) {
     case STATE_TABLE_SIGNAL_INVALID:
@@ -84,7 +84,7 @@ absl::StatusOr<StateTableSignal> StateTableSignalFromProto(
   }
 }
 
-absl::StatusOr<StateTableSignalProto> ProtoFromStateTableSignal(
+xabsl::StatusOr<StateTableSignalProto> ProtoFromStateTableSignal(
     StateTableSignal signal) {
   switch (signal) {
     case StateTableSignal::kInvalid:
@@ -142,7 +142,7 @@ std::string CellKindToString(CellKind kind) {
   return absl::StrFormat("<invalid CellKind(%d)>", static_cast<int64>(kind));
 }
 
-/* static */ absl::StatusOr<StateTable> StateTable::FromProto(
+/* static */ xabsl::StatusOr<StateTable> StateTable::FromProto(
     const StateTableProto& proto) {
   std::vector<Row> rows;
   absl::flat_hash_set<std::string> signals;
@@ -203,7 +203,7 @@ bool StateTable::SignalMatches(absl::string_view name, bool value,
   return false;
 }
 
-absl::StatusOr<bool> StateTable::MatchRow(
+xabsl::StatusOr<bool> StateTable::MatchRow(
     const Row& row, const InputStimulus& input_stimulus) const {
   absl::flat_hash_set<std::string> unspecified_inputs = signals_;
   const RowStimulus& row_stimulus = row.stimulus;
@@ -232,7 +232,7 @@ absl::StatusOr<bool> StateTable::MatchRow(
   return true;
 }
 
-absl::StatusOr<bool> StateTable::GetSignalValue(
+xabsl::StatusOr<bool> StateTable::GetSignalValue(
     const InputStimulus& input_stimulus, absl::string_view signal) const {
   // Find a row matching the stimulus or return error.
   XLS_RET_CHECK(std::find(proto_.internal_names().begin(),
@@ -264,7 +264,7 @@ absl::StatusOr<bool> StateTable::GetSignalValue(
   return absl::NotFoundError("No matching row found in the table.");
 }
 
-absl::StatusOr<StateTableProto> StateTable::ToProto() const {
+xabsl::StatusOr<StateTableProto> StateTable::ToProto() const {
   StateTableProto proto;
   // First, extract the signals (internal and input) from the first row (each
   // row contains every signal).
@@ -301,7 +301,7 @@ absl::StatusOr<StateTableProto> StateTable::ToProto() const {
   return proto;
 }
 
-/* static */ absl::StatusOr<CellLibraryEntry> CellLibraryEntry::FromProto(
+/* static */ xabsl::StatusOr<CellLibraryEntry> CellLibraryEntry::FromProto(
     const CellLibraryEntryProto& proto) {
   XLS_ASSIGN_OR_RETURN(CellKind cell_kind, CellKindFromProto(proto.kind()));
 
@@ -322,7 +322,7 @@ absl::StatusOr<StateTableProto> StateTable::ToProto() const {
                           state_table);
 }
 
-absl::StatusOr<CellLibraryEntryProto> CellLibraryEntry::ToProto() const {
+xabsl::StatusOr<CellLibraryEntryProto> CellLibraryEntry::ToProto() const {
   CellLibraryEntryProto proto;
   switch (kind_) {
     case CellKind::kFlop:
@@ -368,7 +368,7 @@ absl::StatusOr<CellLibraryEntryProto> CellLibraryEntry::ToProto() const {
   return proto;
 }
 
-/* static */ absl::StatusOr<CellLibrary> CellLibrary::FromProto(
+/* static */ xabsl::StatusOr<CellLibrary> CellLibrary::FromProto(
     const CellLibraryProto& proto) {
   CellLibrary cell_library;
   for (const CellLibraryEntryProto& entry_proto : proto.entries()) {
@@ -378,7 +378,7 @@ absl::StatusOr<CellLibraryEntryProto> CellLibraryEntry::ToProto() const {
   return cell_library;
 }
 
-absl::StatusOr<CellLibraryProto> CellLibrary::ToProto() const {
+xabsl::StatusOr<CellLibraryProto> CellLibrary::ToProto() const {
   CellLibraryProto proto;
   for (const auto& entry : entries_) {
     XLS_ASSIGN_OR_RETURN(*proto.add_entries(), entry.second->ToProto());
@@ -396,7 +396,7 @@ absl::Status CellLibrary::AddEntry(CellLibraryEntry entry) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<const CellLibraryEntry*> CellLibrary::GetEntry(
+xabsl::StatusOr<const CellLibraryEntry*> CellLibrary::GetEntry(
     absl::string_view name) const {
   auto it = entries_.find(name);
   if (it == entries_.end()) {

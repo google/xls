@@ -32,7 +32,7 @@ namespace {
 // Finds and returns the set of adds which may be safely strength-reduced to
 // ORs. These are determined ahead of time rather than being transformed inline
 // to avoid problems with stale information in QueryEngine.
-absl::StatusOr<absl::flat_hash_set<Node*>> FindReducibleAdds(
+xabsl::StatusOr<absl::flat_hash_set<Node*>> FindReducibleAdds(
     Function* f, const QueryEngine& query_engine) {
   absl::flat_hash_set<Node*> reducible_adds;
   for (Node* node : f->nodes()) {
@@ -58,7 +58,7 @@ absl::StatusOr<absl::flat_hash_set<Node*>> FindReducibleAdds(
 // Attempts to strength-reduce the given node. Returns true if successful.
 // 'reducible_adds' is the set of add operations which may be safely replaced
 // with an OR.
-absl::StatusOr<bool> StrengthReduceNode(
+xabsl::StatusOr<bool> StrengthReduceNode(
     Node* node, const absl::flat_hash_set<Node*>& reducible_adds,
     const QueryEngine& query_engine, bool split_ops) {
   if (!node->Is<Literal>() && node->GetType()->IsBits() &&
@@ -334,7 +334,7 @@ absl::StatusOr<bool> StrengthReduceNode(
       Node* nonzero_operand =
           op0_known_zero > op1_known_zero ? node->operand(1) : node->operand(0);
       int64 narrow_amt = std::max(op0_known_zero, op1_known_zero);
-      auto narrow = [&](Node* n) -> absl::StatusOr<Node*> {
+      auto narrow = [&](Node* n) -> xabsl::StatusOr<Node*> {
         return node->function()->MakeNode<BitSlice>(
             node->loc(), n, /*start=*/narrow_amt,
             /*width=*/n->BitCountOrDie() - narrow_amt);
@@ -360,7 +360,7 @@ absl::StatusOr<bool> StrengthReduceNode(
 
 }  // namespace
 
-absl::StatusOr<bool> StrengthReductionPass::RunOnFunction(
+xabsl::StatusOr<bool> StrengthReductionPass::RunOnFunction(
     Function* f, const PassOptions& options, PassResults* results) const {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<TernaryQueryEngine> query_engine,
                        TernaryQueryEngine::Run(f));

@@ -20,7 +20,7 @@
 
 namespace xls {
 
-absl::StatusOr<std::vector<Value>> KeywordArgsToPositional(
+xabsl::StatusOr<std::vector<Value>> KeywordArgsToPositional(
     const Function& function,
     const absl::flat_hash_map<std::string, Value>& kwargs) {
   XLS_VLOG(2) << "Interpreting function " << function.name()

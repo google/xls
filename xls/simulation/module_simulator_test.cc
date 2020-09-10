@@ -16,10 +16,10 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/status/statusor.h"
 #include "xls/simulation/verilog_simulators.h"
 #include "xls/simulation/verilog_test_base.h"
 
@@ -39,7 +39,7 @@ class ModuleSimulatorTest : public VerilogTestBase {
   // Verilog text and Module signature. Output is the sum of the input and a
   // delayed version of the input. For a correct result the input must be driven
   // for the duration of the computation.
-  absl::StatusOr<std::pair<std::string, ModuleSignature>>
+  xabsl::StatusOr<std::pair<std::string, ModuleSignature>>
   MakeFixedLatencyModule() const {
     const std::string text =
         R"(module fixed_latency_3(input wire clk, input wire [7:0] x, output wire [7:0] out);
@@ -65,7 +65,7 @@ endmodule
 
   // Returns a combinatorial Verilog module as a pair of Verilog text and Module
   // signature. Output is the difference between the two inputs.
-  absl::StatusOr<std::pair<std::string, ModuleSignature>>
+  xabsl::StatusOr<std::pair<std::string, ModuleSignature>>
   MakeCombinationalModule() const {
     const std::string text =
         R"(module comb_diff(input wire clk,
@@ -87,8 +87,8 @@ endmodule
 
   // Returns a Verilog module with a ready-valid interface as a pair of Verilog
   // text and Module signature. Output is the difference between the two inputs.
-  absl::StatusOr<std::pair<std::string, ModuleSignature>> MakeReadyValidModule()
-      const {
+  xabsl::StatusOr<std::pair<std::string, ModuleSignature>>
+  MakeReadyValidModule() const {
     const std::string text =
         R"(module comb_diff(input wire clk,
                             input wire [7:0] x,

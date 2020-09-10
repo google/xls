@@ -21,7 +21,7 @@ namespace xls {
 
 // Identity Removal performs one forward pass over the TopoSort'ed nodes
 // and replaces identities with their respective operands.
-absl::StatusOr<bool> IdentityRemovalPass::RunOnFunction(
+xabsl::StatusOr<bool> IdentityRemovalPass::RunOnFunction(
     Function* f, const PassOptions& options, PassResults* results) const {
   bool changed = false;
   absl::flat_hash_map<Node*, Node*> identity_map;

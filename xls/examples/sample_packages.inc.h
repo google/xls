@@ -18,14 +18,14 @@
 #include <string>
 #include <vector>
 
-#include "absl/status/statusor.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/status/statusor.h"
 
 namespace xls {
 
-inline absl::StatusOr<std::vector<std::string>> GetExamplePaths() {
+inline xabsl::StatusOr<std::vector<std::string>> GetExamplePaths() {
   std::filesystem::path example_file_list_path =
       GetXlsRunfilePath("xls/examples/ir_example_file_list.txt");
   XLS_ASSIGN_OR_RETURN(std::string example_paths_string,

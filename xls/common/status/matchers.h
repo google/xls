@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Testing utilities for working with absl::Status, absl::StatusOr.
+// Testing utilities for working with absl::Status, xabsl::StatusOr.
 //
 // Defines the following utilities:
 //
@@ -57,12 +57,12 @@
 //
 //   Example:
 //
-//     using ::absl::StatusOr;
 //     using ::testing::HasSubstr;
 //     using ::testing::MatchesRegex;
 //     using ::testing::Ne;
+//     using xls::status_testing::StatusIs;
 //     using ::testing::_;
-//     using ::xls::status_testing::StatusIs;
+//     using xabsl::StatusOr;
 //     StatusOr<string> GetName(int id);
 //     ...
 //
@@ -122,7 +122,7 @@
 //   IsOk()
 //   ===============
 //
-//   Matches a absl::Status or absl::StatusOr<T> value
+//   Matches a absl::Status or xabsl::StatusOr<T> value
 //   whose status value is absl::OkStatus().
 //   Equivalent to 'StatusIs(absl::StatusCode::kOk)'.
 //   Example:
@@ -141,9 +141,9 @@
 #include <type_traits>
 
 #include "gmock/gmock.h"
-#include "absl/status/statusor.h"
 #include "xls/common/status/status_builder.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/status/statusor.h"
 
 namespace xls {
 namespace status_testing {
@@ -154,7 +154,7 @@ inline const absl::Status& GetStatus(const absl::Status& status) {
 }
 
 template <typename T>
-inline const absl::Status& GetStatus(const absl::StatusOr<T>& status) {
+inline const absl::Status& GetStatus(const xabsl::StatusOr<T>& status) {
   return status.status();
 }
 
@@ -535,13 +535,13 @@ IsOkAndHolds(InnerMatcher&& inner_matcher) {
 }
 
 // Macros for testing the results of functions that return absl::Status or
-// absl::StatusOr<T> (for any type T).
+// xabsl::StatusOr<T> (for any type T).
 #define XLS_EXPECT_OK(expression) \
   EXPECT_THAT(expression, xls::status_testing::IsOk())
 #define XLS_ASSERT_OK(expression) \
   ASSERT_THAT(expression, xls::status_testing::IsOk())
 
-// Executes an expression that returns a absl::StatusOr, and assigns the
+// Executes an expression that returns a xabsl::StatusOr, and assigns the
 // contained variable to lhs if the error code is OK.
 // If the Status is non-OK, generates a test failure and returns from the
 // current function, which must have a void return type.

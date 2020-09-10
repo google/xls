@@ -21,7 +21,7 @@
 
 namespace xls {
 
-absl::StatusOr<bool> ConstantFoldingPass::RunOnFunction(
+xabsl::StatusOr<bool> ConstantFoldingPass::RunOnFunction(
     Function* f, const PassOptions& options, PassResults* results) const {
   XLS_VLOG(2) << "Running constant folding on function " << f->name();
   XLS_VLOG(3) << "Before:";

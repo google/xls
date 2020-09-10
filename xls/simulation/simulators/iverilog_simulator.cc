@@ -29,7 +29,7 @@ namespace xls {
 namespace verilog {
 namespace {
 
-absl::StatusOr<std::pair<std::string, std::string>> InvokeIverilog(
+xabsl::StatusOr<std::pair<std::string, std::string>> InvokeIverilog(
     absl::Span<const std::string> args) {
   std::vector<std::string> args_vec;
   std::string iverilog_path =
@@ -42,7 +42,7 @@ absl::StatusOr<std::pair<std::string, std::string>> InvokeIverilog(
   return InvokeSubprocess(args_vec);
 }
 
-absl::StatusOr<std::pair<std::string, std::string>> InvokeVvp(
+xabsl::StatusOr<std::pair<std::string, std::string>> InvokeVvp(
     absl::Span<const std::string> args) {
   std::vector<std::string> args_vec;
   std::string iverilog_path =
@@ -56,7 +56,7 @@ absl::StatusOr<std::pair<std::string, std::string>> InvokeVvp(
 
 class IcarusVerilogSimulator : public VerilogSimulator {
  public:
-  absl::StatusOr<std::pair<std::string, std::string>> Run(
+  xabsl::StatusOr<std::pair<std::string, std::string>> Run(
       absl::string_view text,
       absl::Span<const VerilogInclude> includes) const override {
     XLS_ASSIGN_OR_RETURN(TempFile temp, TempFile::CreateWithContent(text));

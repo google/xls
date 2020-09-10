@@ -16,8 +16,8 @@
 #define XLS_DATA_STRUCTURES_BINARY_DECISION_DIAGRAM_H_
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/status/statusor.h"
 #include "xls/common/integral_types.h"
+#include "xls/common/status/statusor.h"
 #include "xls/common/strong_int.h"
 
 namespace xls {
@@ -79,7 +79,7 @@ class BinaryDecisionDiagram {
   // the map are the *node* indices of the respective variable (value returned
   // by NewVariable). An error is returned if the map is missing a variable
   // required to evaluate the expression.
-  absl::StatusOr<bool> Evaluate(
+  xabsl::StatusOr<bool> Evaluate(
       BddNodeIndex expr,
       const absl::flat_hash_map<BddNodeIndex, bool>& variable_values) const;
 

@@ -15,7 +15,6 @@
 #include <numeric>
 
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/time/clock.h"
@@ -26,6 +25,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/status/statusor.h"
 #include "xls/delay_model/analyze_critical_path.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
@@ -195,7 +195,7 @@ absl::Status PrintCriticalPath(
 }
 
 // Returns the critical-path delay through each pipeline stage.
-absl::StatusOr<std::vector<int64>> GetDelayPerStageInPs(
+xabsl::StatusOr<std::vector<int64>> GetDelayPerStageInPs(
     Function* f, const PipelineSchedule& schedule,
     const DelayEstimator& delay_estimator) {
   std::vector<int64> delay_per_stage(schedule.length() + 1);
@@ -217,7 +217,7 @@ absl::StatusOr<std::vector<int64>> GetDelayPerStageInPs(
   return delay_per_stage;
 }
 
-absl::StatusOr<PipelineSchedule> ScheduleAndPrintStats(
+xabsl::StatusOr<PipelineSchedule> ScheduleAndPrintStats(
     Package* package, const DelayEstimator& delay_estimator,
     absl::optional<int64> clock_period_ps,
     absl::optional<int64> pipeline_stages,

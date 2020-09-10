@@ -158,7 +158,7 @@ class TestbenchThreadBase {
       return;
     }
 
-    absl::StatusOr<std::unique_ptr<JitWrapperT>> status_or_wrapper =
+    xabsl::StatusOr<std::unique_ptr<JitWrapperT>> status_or_wrapper =
         JitWrapperT::Create();
     XLS_CHECK_OK(status_or_wrapper.status());
     jit_wrapper_ = std::move(status_or_wrapper.value());

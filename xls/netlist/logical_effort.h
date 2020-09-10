@@ -18,8 +18,8 @@
 #ifndef XLS_NETLIST_LOGICAL_EFFORT_H_
 #define XLS_NETLIST_LOGICAL_EFFORT_H_
 
-#include "absl/status/statusor.h"
 #include "xls/common/integral_types.h"
+#include "xls/common/status/statusor.h"
 #include "xls/netlist/netlist.h"
 
 namespace xls {
@@ -27,43 +27,43 @@ namespace netlist {
 namespace logical_effort {
 
 // Also referred to as "g".
-absl::StatusOr<double> GetLogicalEffort(CellKind kind, int64 input_count);
+xabsl::StatusOr<double> GetLogicalEffort(CellKind kind, int64 input_count);
 
 // Also referred to as "p".
 //
 // Returns a value in (coefficient) units of $p_{inv}$, the parasitic delay of
 // an inverter. Note a typical value convenient for analysis is 1.0 (in units of
 // \tao) for $p_{inv}$.
-absl::StatusOr<double> GetParasiticDelay(CellKind kind, int64 input_count);
+xabsl::StatusOr<double> GetParasiticDelay(CellKind kind, int64 input_count);
 
 // Also referred to as "h".
-absl::StatusOr<double> ComputeElectricalEffort(const rtl::Cell& cell);
+xabsl::StatusOr<double> ComputeElectricalEffort(const rtl::Cell& cell);
 
 // Computes $d = gh + p$.
-absl::StatusOr<double> ComputeDelay(rtl::Cell* cell);
+xabsl::StatusOr<double> ComputeDelay(rtl::Cell* cell);
 
 // Computes $G = \Pi g$ (product of the cell logical efforts in the path).
-absl::StatusOr<double> ComputePathLogicalEffort(
+xabsl::StatusOr<double> ComputePathLogicalEffort(
     absl::Span<rtl::Cell* const> path);
 
 // Computes $P = \Sigma p$ (sum of the cell parasitic delays in the path).
-absl::StatusOr<double> ComputePathParasiticDelay(
+xabsl::StatusOr<double> ComputePathParasiticDelay(
     absl::Span<rtl::Cell* const> path);
 
 // Computes $B = \Pi b_i$ (product of branching efforts for each stage in the
 // path, where $b = \frac{C_{total}}{C_{useful}}$).
-absl::StatusOr<double> ComputePathBranchingEffort(
+xabsl::StatusOr<double> ComputePathBranchingEffort(
     absl::Span<rtl::Cell* const> path);
 
 // Computes $F = G B H$ (incorporates logical path effort, branching effort, and
 // path electrical effort).
-absl::StatusOr<double> ComputePathEffort(absl::Span<rtl::Cell* const> path,
-                                         double input_pin_capacitance,
-                                         double output_pin_capacitance);
+xabsl::StatusOr<double> ComputePathEffort(absl::Span<rtl::Cell* const> path,
+                                          double input_pin_capacitance,
+                                          double output_pin_capacitance);
 
 // Computes $D \hat = N F^{1/N} + P$, the minimal delay achievable along the
 // path.
-absl::StatusOr<double> ComputePathLeastDelayAchievable(
+xabsl::StatusOr<double> ComputePathLeastDelayAchievable(
     absl::Span<rtl::Cell* const> path, double input_pin_capacitance,
     double output_pin_capacitance);
 

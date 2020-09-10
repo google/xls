@@ -21,11 +21,11 @@
 #include <utility>
 #include <vector>
 
-#include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
 #include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/xls_type.pb.h"
 
 namespace xls {
@@ -50,7 +50,7 @@ class Type {
   virtual ~Type() = default;
 
   // Creates a Type object from the given proto.
-  static absl::StatusOr<std::unique_ptr<Type>> FromProto(
+  static xabsl::StatusOr<std::unique_ptr<Type>> FromProto(
       const TypeProto& proto);
 
   // Returns a proto representation of the type.
@@ -64,7 +64,7 @@ class Type {
   bool IsBits() const { return kind_ == TypeKind::kBits; }
   BitsType* AsBitsOrDie();
   const BitsType* AsBitsOrDie() const;
-  absl::StatusOr<BitsType*> AsBits();
+  xabsl::StatusOr<BitsType*> AsBits();
 
   bool IsTuple() const { return kind_ == TypeKind::kTuple; }
   TupleType* AsTupleOrDie();
@@ -73,7 +73,7 @@ class Type {
   bool IsArray() const { return kind_ == TypeKind::kArray; }
   ArrayType* AsArrayOrDie();
   const ArrayType* AsArrayOrDie() const;
-  absl::StatusOr<ArrayType*> AsArray();
+  xabsl::StatusOr<ArrayType*> AsArray();
 
   bool IsToken() const { return kind_ == TypeKind::kToken; }
   TokenType* AsTokenOrDie();

@@ -20,7 +20,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
+#include "xls/common/status/statusor.h"
 #include "xls/netlist/netlist.pb.h"
 
 namespace xls {
@@ -86,13 +86,13 @@ class StateTable {
   using InputStimulus = absl::flat_hash_map<std::string, bool>;
 
   // Constructs a StateTable object from the matching proto.
-  static absl::StatusOr<StateTable> FromProto(const StateTableProto& proto);
+  static xabsl::StatusOr<StateTable> FromProto(const StateTableProto& proto);
 
   // Gets the value of the given signal when the table is presented with the
   // specified stimulus.
   // return true/false
-  absl::StatusOr<bool> GetSignalValue(const InputStimulus& stimulus,
-                                      absl::string_view signal) const;
+  xabsl::StatusOr<bool> GetSignalValue(const InputStimulus& stimulus,
+                                       absl::string_view signal) const;
 
   const absl::flat_hash_set<std::string>& internal_signals() const {
     return internal_signals_;
@@ -109,7 +109,7 @@ class StateTable {
   const std::vector<Row>& rows() const { return rows_; }
 
   // Return the protobuf representation of this table.
-  absl::StatusOr<StateTableProto> ToProto() const;
+  xabsl::StatusOr<StateTableProto> ToProto() const;
 
  private:
   StateTable(const std::vector<Row>& rows,
@@ -117,8 +117,8 @@ class StateTable {
              const StateTableProto& proto);
 
   // Returns true if the given input stimulus matches the given table row.
-  absl::StatusOr<bool> MatchRow(const Row& row,
-                                const InputStimulus& input_stimulus) const;
+  xabsl::StatusOr<bool> MatchRow(const Row& row,
+                                 const InputStimulus& input_stimulus) const;
 
   // True if the value of "name" in stimulus matches the given bool value or is
   // "don't care".
@@ -143,7 +143,7 @@ class CellLibraryEntry {
  public:
   using OutputPinToFunction = absl::flat_hash_map<std::string, std::string>;
 
-  static absl::StatusOr<CellLibraryEntry> FromProto(
+  static xabsl::StatusOr<CellLibraryEntry> FromProto(
       const CellLibraryEntryProto& proto);
 
   // InputNamesContainer and OutputNamesContainer are expected to be containers
@@ -170,7 +170,7 @@ class CellLibraryEntry {
   const absl::optional<StateTable>& state_table() const { return state_table_; }
   absl::optional<std::string> clock_name() const { return clock_name_; }
 
-  absl::StatusOr<CellLibraryEntryProto> ToProto() const;
+  xabsl::StatusOr<CellLibraryEntryProto> ToProto() const;
 
  private:
   CellKind kind_;
@@ -186,15 +186,15 @@ class CellLibraryEntry {
 // Module.
 class CellLibrary {
  public:
-  static absl::StatusOr<CellLibrary> FromProto(const CellLibraryProto& proto);
+  static xabsl::StatusOr<CellLibrary> FromProto(const CellLibraryProto& proto);
 
   // Returns a NOT_FOUND status if there is not entry with the given name.
-  absl::StatusOr<const CellLibraryEntry*> GetEntry(
+  xabsl::StatusOr<const CellLibraryEntry*> GetEntry(
       absl::string_view name) const;
 
   absl::Status AddEntry(CellLibraryEntry entry);
 
-  absl::StatusOr<CellLibraryProto> ToProto() const;
+  xabsl::StatusOr<CellLibraryProto> ToProto() const;
 
  private:
   absl::flat_hash_map<std::string, std::unique_ptr<CellLibraryEntry>> entries_;

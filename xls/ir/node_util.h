@@ -18,8 +18,8 @@
 #define XLS_IR_NODE_UTIL_H_
 
 #include "absl/functional/function_ref.h"
-#include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/nodes.h"
 
 namespace xls {
@@ -114,19 +114,19 @@ inline void NodeFormatter(std::string* out, Node* node) {
 // Returns an IR expression whose value is equal to the bits of 'operand' at the
 // given indices concated together. 'indices' must be unique and sorted in an
 // ascending order.
-absl::StatusOr<Node*> GatherBits(Node* node, absl::Span<int64 const> indices);
+xabsl::StatusOr<Node*> GatherBits(Node* node, absl::Span<int64 const> indices);
 
 // And-reduces the trailing (least significant) "bit_count" bits of node.
 //
 // TODO(b/150557922): Create a dedicated opcode for and-reductions of multi-bit
 // values.
-absl::StatusOr<Node*> AndReduceTrailing(Node* node, int64 bit_count);
+xabsl::StatusOr<Node*> AndReduceTrailing(Node* node, int64 bit_count);
 
 // Or-reduces the leading (most significant) "bit_count" bits of node.
 //
 // TODO(b/150557922): Create a dedicated opcode for or-reductions of multi-bit
 // values.
-absl::StatusOr<Node*> OrReduceLeading(Node* node, int64 bit_count);
+xabsl::StatusOr<Node*> OrReduceLeading(Node* node, int64 bit_count);
 
 // Returns whether the given node is a signed/unsigned comparison operation (for
 // example, ULe or SGt).
@@ -134,7 +134,7 @@ bool IsUnsignedCompare(Node* node);
 bool IsSignedCompare(Node* node);
 
 // For <AndReduce, OrReduce, XorReduce>, returns <And, Or, Xor>.
-absl::StatusOr<Op> OpToNonReductionOp(Op reduce_op);
+xabsl::StatusOr<Op> OpToNonReductionOp(Op reduce_op);
 
 }  // namespace xls
 

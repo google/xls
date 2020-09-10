@@ -19,9 +19,9 @@
 // format; e.g. -hex, -dec, -bin and so on.
 
 #include "absl/flags/flag.h"
-#include "absl/status/statusor.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/tools/device_rpc_strategy.h"
 #include "xls/tools/device_rpc_strategy_factory.h"
@@ -53,20 +53,20 @@ void RealMain(absl::Span<const absl::string_view> args) {
   std::vector<Value> arguments;
   for (int64 i = 0; i < args.size(); ++i) {
     absl::string_view s = args[i];
-    absl::StatusOr<Value> argument =
+    xabsl::StatusOr<Value> argument =
         Parser::ParseValue(s, function_type->parameter_type(i));
     XLS_QCHECK_OK(argument.status());
     arguments.push_back(std::move(argument).value());
   }
 
-  absl::StatusOr<std::unique_ptr<DeviceRpcStrategy>> drpc_status =
+  xabsl::StatusOr<std::unique_ptr<DeviceRpcStrategy>> drpc_status =
       DeviceRpcStrategyFactory::GetSingleton()->Create(target_device);
   XLS_QCHECK_OK(drpc_status.status());
 
   std::unique_ptr<DeviceRpcStrategy> drpc = std::move(drpc_status).value();
   XLS_QCHECK_OK(drpc->Connect(absl::GetFlag(FLAGS_device_ordinal)));
 
-  absl::StatusOr<Value> rpc_status =
+  xabsl::StatusOr<Value> rpc_status =
       drpc->CallUnnamed(*function_type, arguments);
   XLS_QCHECK_OK(rpc_status.status());
 

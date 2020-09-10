@@ -15,8 +15,8 @@
 #ifndef XLS_IR_IR_INTERPRETER_H_
 #define XLS_IR_IR_INTERPRETER_H_
 
-#include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -27,20 +27,20 @@ namespace ir_interpreter {
 
 // Executes the function and returns the calculated output(s) (i.e. perform
 // behavioral simulation) by interpreting each node in the IR graph.
-absl::StatusOr<Value> RunKwargs(
+xabsl::StatusOr<Value> RunKwargs(
     Function* function, const absl::flat_hash_map<std::string, Value>& args,
     InterpreterStats* stats = nullptr);
 
 // As above, but with positional arguments.
-absl::StatusOr<Value> Run(Function* function, absl::Span<const Value> args,
-                          InterpreterStats* stats = nullptr);
+xabsl::StatusOr<Value> Run(Function* function, absl::Span<const Value> args,
+                           InterpreterStats* stats = nullptr);
 
 // Evaluates the given node. All operands of the nodes must be literal which are
 // used in the evaluation.
-absl::StatusOr<Value> EvaluateNodeWithLiteralOperands(Node* node);
+xabsl::StatusOr<Value> EvaluateNodeWithLiteralOperands(Node* node);
 
 // Evaluates the given nodes using the given operand values.
-absl::StatusOr<Value> EvaluateNode(
+xabsl::StatusOr<Value> EvaluateNode(
     Node* node, absl::Span<const Value* const> operand_values);
 
 }  // namespace ir_interpreter

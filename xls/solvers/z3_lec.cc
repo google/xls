@@ -52,7 +52,7 @@ std::vector<const Node*> SetToIdSortedVector(
 
 }  // namespace
 
-absl::StatusOr<std::unique_ptr<Lec>> Lec::Create(const LecParams& params) {
+xabsl::StatusOr<std::unique_ptr<Lec>> Lec::Create(const LecParams& params) {
   auto lec = absl::WrapUnique<Lec>(
       new Lec(params.ir_package, params.ir_function, params.netlist,
               params.netlist_module_name, absl::nullopt, 0));
@@ -62,7 +62,7 @@ absl::StatusOr<std::unique_ptr<Lec>> Lec::Create(const LecParams& params) {
 
 // This is just sugar; we could add schedule & stage to LecParams, but I like
 // the more-explicit invocation style here.
-absl::StatusOr<std::unique_ptr<Lec>> Lec::CreateForStage(
+xabsl::StatusOr<std::unique_ptr<Lec>> Lec::CreateForStage(
     const LecParams& params, const PipelineSchedule& schedule, int stage) {
   auto lec = absl::WrapUnique<Lec>(
       new Lec(params.ir_package, params.ir_function, params.netlist,
@@ -202,7 +202,7 @@ void Lec::CollectIrOutputNodes() {
   ir_output_nodes_ = SetToIdSortedVector(stage_outputs);
 }
 
-absl::StatusOr<std::vector<NetRef>> Lec::GetIrNetrefs(const Node* node) {
+xabsl::StatusOr<std::vector<NetRef>> Lec::GetIrNetrefs(const Node* node) {
   std::vector<NetRef> refs;
   // Increment down (instead of up) to keep the std::reverse symmetry in
   // UnflattenNetlistOutputs() (WRT FlattenNetlistInputs()).
@@ -363,7 +363,7 @@ absl::flat_hash_map<std::string, Z3_ast> Lec::FlattenNetlistInputs() {
   return netlist_inputs;
 }
 
-absl::StatusOr<std::vector<Z3_ast>> Lec::GetNetlistZ3ForIr(const Node* node) {
+xabsl::StatusOr<std::vector<Z3_ast>> Lec::GetNetlistZ3ForIr(const Node* node) {
   std::vector<Z3_ast> netlist_output;
 
   XLS_ASSIGN_OR_RETURN(std::vector<NetRef> netrefs, GetIrNetrefs(node));

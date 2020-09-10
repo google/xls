@@ -367,7 +367,7 @@ TEST(FunctionBuilderTest, BuildTwiceFails) {
   b.ULt(b.Param("a", type), b.Param("b", type));
 
   XLS_EXPECT_OK(b.Build());
-  absl::StatusOr<Function*> result = b.Build();
+  xabsl::StatusOr<Function*> result = b.Build();
 
   EXPECT_THAT(result, StatusIs(absl::StatusCode::kFailedPrecondition,
                                HasSubstr("multiple times")));

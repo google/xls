@@ -44,7 +44,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildRrot32() {
   auto rhs_shamt = (imm_32 - y);
   auto rhs = (x << rhs_shamt);
   auto result = lhs | rhs;
-  absl::StatusOr<Function*> f = b.BuildWithReturnValue(result);
+  xabsl::StatusOr<Function*> f = b.BuildWithReturnValue(result);
   XLS_CHECK_OK(f.status());
   XLS_CHECK_OK(VerifyPackage(p.get()));
   return {std::move(p), *f};
@@ -74,7 +74,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildAbs32() {
   auto imm_31 = b.Literal(UBits(31, /*bit_count=*/32));
   auto is_neg = b.Eq(x >> imm_31, b.Literal(UBits(1, /*bit_count=*/32)));
   auto result = b.Select(is_neg, -x, x);
-  absl::StatusOr<Function*> f = b.BuildWithReturnValue(result);
+  xabsl::StatusOr<Function*> f = b.BuildWithReturnValue(result);
   XLS_CHECK_OK(f.status());
   XLS_CHECK_OK(VerifyPackage(p.get()));
   return {std::move(p), *f};
@@ -87,7 +87,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildConcatWith1() {
   auto x = b.Param("x", bits_31);
   auto imm_1 = b.Literal(UBits(1, /*bit_count=*/1));
   b.Concat({x, imm_1});
-  absl::StatusOr<Function*> f = b.Build();
+  xabsl::StatusOr<Function*> f = b.Build();
   XLS_CHECK_OK(f.status());
   XLS_CHECK_OK(VerifyPackage(p.get()));
   return {std::move(p), *f};
@@ -99,7 +99,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildSignExtendTo32() {
   Type* bits_2 = p->GetBitsType(2);
   auto x = b.Param("x", bits_2);
   b.SignExtend(x, 32);
-  absl::StatusOr<Function*> f = b.Build();
+  xabsl::StatusOr<Function*> f = b.Build();
   XLS_CHECK_OK(f.status());
   XLS_CHECK_OK(VerifyPackage(p.get()));
   return {std::move(p), *f};
@@ -111,7 +111,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildZeroExtendTo32() {
   Type* bits_2 = p->GetBitsType(2);
   auto x = b.Param("x", bits_2);
   b.ZeroExtend(x, 32);
-  absl::StatusOr<Function*> f = b.Build();
+  xabsl::StatusOr<Function*> f = b.Build();
   XLS_CHECK_OK(f.status());
   XLS_CHECK_OK(VerifyPackage(p.get()));
   return {std::move(p), *f};
@@ -125,7 +125,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildAccumulateIvar(
     FunctionBuilder fb("body", p.get());
     auto x = fb.Param("x", p->GetBitsType(bit_count));
     auto y = fb.Param("y", p->GetBitsType(bit_count));
-    absl::StatusOr<Function*> f = fb.BuildWithReturnValue(x + y);
+    xabsl::StatusOr<Function*> f = fb.BuildWithReturnValue(x + y);
     XLS_CHECK_OK(f.status());
     body = *f;
   }
@@ -134,7 +134,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildAccumulateIvar(
   BValue zero = fb.Literal(UBits(0, bit_count));
   BValue result = fb.CountedFor(/*init_value=*/zero, /*trip_count=*/trip_count,
                                 /*stride=*/1, body);
-  absl::StatusOr<Function*> f = fb.BuildWithReturnValue(result);
+  xabsl::StatusOr<Function*> f = fb.BuildWithReturnValue(result);
   XLS_CHECK_OK(f.status());
   XLS_CHECK_OK(VerifyPackage(p.get()));
   return {std::move(p), *f};
@@ -155,7 +155,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildTwoLoops(
     FunctionBuilder fb("innerbody1", p.get());
     auto x = fb.Param("x", p->GetBitsType(bit_count));
     auto y = fb.Param("y", p->GetBitsType(bit_count));
-    absl::StatusOr<Function*> f = fb.BuildWithReturnValue(x + y);
+    xabsl::StatusOr<Function*> f = fb.BuildWithReturnValue(x + y);
     XLS_CHECK_OK(f.status());
     inner_body1 = *f;
   }
@@ -164,7 +164,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildTwoLoops(
     FunctionBuilder fb("innerbody2", p.get());
     auto x = fb.Param("x", p->GetBitsType(bit_count));
     auto y = fb.Param("y", p->GetBitsType(bit_count));
-    absl::StatusOr<Function*> f = fb.BuildWithReturnValue(x - y);
+    xabsl::StatusOr<Function*> f = fb.BuildWithReturnValue(x - y);
     XLS_CHECK_OK(f.status());
     inner_body2 = *f;
   }
@@ -176,7 +176,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildTwoLoops(
                                /*stride=*/1, inner_body2);
 
   BValue result2 = dependent_loops ? param + loop1 + loop2 : loop2;
-  absl::StatusOr<Function*> f = fb.BuildWithReturnValue(result2);
+  xabsl::StatusOr<Function*> f = fb.BuildWithReturnValue(result2);
   XLS_CHECK_OK(f.status());
   XLS_CHECK_OK(VerifyPackage(p.get()));
   return {std::move(p), *f};
@@ -192,7 +192,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildSimpleMap(
     FunctionBuilder b("to_apply", p.get());
     b.ULt(b.Param("element", element_type),
           b.Literal(UBits(10, element_type->bit_count())));
-    absl::StatusOr<Function*> f = b.Build();
+    xabsl::StatusOr<Function*> f = b.Build();
     XLS_CHECK_OK(f.status());
     to_apply = *f;
   }
@@ -200,7 +200,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildSimpleMap(
   {
     FunctionBuilder b("top", p.get());
     b.Map(b.Param("input", array_type), to_apply);
-    absl::StatusOr<Function*> f = b.Build();
+    xabsl::StatusOr<Function*> f = b.Build();
     XLS_CHECK_OK(f.status());
     top = *f;
   }
@@ -208,11 +208,11 @@ std::pair<std::unique_ptr<Package>, Function*> BuildSimpleMap(
   return {std::move(p), top};
 }
 
-absl::StatusOr<std::unique_ptr<Package>> GetBenchmark(absl::string_view name,
-                                                      bool optimized) {
+xabsl::StatusOr<std::unique_ptr<Package>> GetBenchmark(absl::string_view name,
+                                                       bool optimized) {
   std::filesystem::path filename =
       optimized ? absl::StrCat(name, ".opt.ir") : absl::StrCat(name, ".ir");
-  absl::StatusOr<std::string> ir_status =
+  xabsl::StatusOr<std::string> ir_status =
       GetFileContents(GetXlsRunfilePath("xls/examples" / filename));
   if (!ir_status.ok()) {
     return absl::Status(ir_status.status().code(),
@@ -222,7 +222,7 @@ absl::StatusOr<std::unique_ptr<Package>> GetBenchmark(absl::string_view name,
   return Parser::ParsePackage(ir_status.value());
 }
 
-absl::StatusOr<std::vector<std::string>> GetBenchmarkNames() {
+xabsl::StatusOr<std::vector<std::string>> GetBenchmarkNames() {
   XLS_ASSIGN_OR_RETURN(std::vector<std::string> example_paths,
                        GetExamplePaths());
   std::filesystem::path example_file_list_path =

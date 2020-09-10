@@ -15,8 +15,8 @@
 #ifndef XLS_PASSES_TERNARY_QUERY_ENGINE_H_
 #define XLS_PASSES_TERNARY_QUERY_ENGINE_H_
 
-#include "absl/status/statusor.h"
 #include "absl/types/optional.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/nodes.h"
@@ -31,7 +31,7 @@ namespace xls {
 // function (implications, equality, etc).
 class TernaryQueryEngine : public QueryEngine {
  public:
-  static absl::StatusOr<std::unique_ptr<TernaryQueryEngine>> Run(Function* f);
+  static xabsl::StatusOr<std::unique_ptr<TernaryQueryEngine>> Run(Function* f);
 
   bool IsTracked(Node* node) const override {
     return known_bits_.contains(node);

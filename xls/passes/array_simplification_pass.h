@@ -15,7 +15,7 @@
 #ifndef XLS_PASSES_ARRAY_SIMPLIFICATION_H_
 #define XLS_PASSES_ARRAY_SIMPLIFICATION_H_
 
-#include "absl/status/statusor.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/passes/passes.h"
 
@@ -28,8 +28,8 @@ class ArraySimplificationPass : public FunctionPass {
   ArraySimplificationPass()
       : FunctionPass("array_simp", "Array Simplification") {}
 
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  xabsl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
+                                      PassResults* results) const override;
 };
 
 }  // namespace xls

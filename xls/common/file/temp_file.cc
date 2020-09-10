@@ -46,7 +46,7 @@ absl::Status WriteContent(int fd, absl::string_view content) {
   return ::absl::OkStatus();
 }
 
-absl::StatusOr<std::filesystem::path> GetGlobalTemporaryDirectory() {
+xabsl::StatusOr<std::filesystem::path> GetGlobalTemporaryDirectory() {
   std::error_code ec;
   auto temp_dir = std::filesystem::temp_directory_path(ec);
   if (ec) {
@@ -59,13 +59,13 @@ absl::StatusOr<std::filesystem::path> GetGlobalTemporaryDirectory() {
 
 TempFile::~TempFile() { Cleanup(); }
 
-absl::StatusOr<TempFile> TempFile::Create() {
+xabsl::StatusOr<TempFile> TempFile::Create() {
   XLS_ASSIGN_OR_RETURN(std::filesystem::path temp_dir,
                        GetGlobalTemporaryDirectory());
   return Create(temp_dir);
 }
 
-absl::StatusOr<TempFile> TempFile::Create(
+xabsl::StatusOr<TempFile> TempFile::Create(
     const std::filesystem::path& directory) {
   int fd;
   XLS_ASSIGN_OR_RETURN(TempFile temp_file, Create(directory, &fd));
@@ -73,14 +73,14 @@ absl::StatusOr<TempFile> TempFile::Create(
   return temp_file;
 }
 
-absl::StatusOr<TempFile> TempFile::CreateWithContent(
+xabsl::StatusOr<TempFile> TempFile::CreateWithContent(
     absl::string_view content) {
   XLS_ASSIGN_OR_RETURN(std::filesystem::path temp_dir,
                        GetGlobalTemporaryDirectory());
   return CreateWithContent(content, temp_dir);
 }
 
-absl::StatusOr<TempFile> TempFile::CreateWithContent(
+xabsl::StatusOr<TempFile> TempFile::CreateWithContent(
     absl::string_view content, const std::filesystem::path& directory) {
   int fd;
   XLS_ASSIGN_OR_RETURN(TempFile temp_file, Create(directory, &fd));
@@ -121,7 +121,7 @@ void TempFile::Cleanup() {
   }
 }
 
-absl::StatusOr<TempFile> TempFile::Create(
+xabsl::StatusOr<TempFile> TempFile::Create(
     const std::filesystem::path& directory, int* file_descriptor) {
   std::string path_template = (directory / "xls_tempfile_XXXXXX").string();
   *file_descriptor = mkostemp(path_template.data(), O_CLOEXEC);

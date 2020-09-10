@@ -16,8 +16,8 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
@@ -33,7 +33,7 @@ class ReassociationPassTest : public IrTestBase {
  protected:
   ReassociationPassTest() = default;
 
-  absl::StatusOr<bool> Run(Package* p) {
+  xabsl::StatusOr<bool> Run(Package* p) {
     PassResults results;
     return ReassociationPass().Run(p, PassOptions(), &results);
   }

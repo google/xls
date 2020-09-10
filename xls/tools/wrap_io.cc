@@ -134,10 +134,10 @@ absl::Status InstantiateFixedLatencyDeviceFunction(
 
 }  // namespace
 
-absl::StatusOr<Module*> WrapIo(absl::string_view module_name,
-                               absl::string_view instance_name,
-                               const ModuleSignature& signature,
-                               IoStrategy* io_strategy, VerilogFile* f) {
+xabsl::StatusOr<Module*> WrapIo(absl::string_view module_name,
+                                absl::string_view instance_name,
+                                const ModuleSignature& signature,
+                                IoStrategy* io_strategy, VerilogFile* f) {
   XLS_ASSIGN_OR_RETURN(Module * input_controller_m,
                        InputControllerModule(signature, f));
   XLS_ASSIGN_OR_RETURN(Module * output_controller_m,
@@ -235,7 +235,7 @@ static Literal* Hex8Literal(uint8 value, VerilogFile* f) {
   return f->Literal(value, 8, FormatPreference::kHex);
 }
 
-absl::StatusOr<Module*> InputResetModule(VerilogFile* f) {
+xabsl::StatusOr<Module*> InputResetModule(VerilogFile* f) {
   Module* m = f->AddModule("input_resetter");
   auto clk = m->AddInput("clk");
   auto byte_in = m->AddPort(Direction::kInput, "byte_in", 8);
@@ -277,8 +277,8 @@ absl::StatusOr<Module*> InputResetModule(VerilogFile* f) {
   return m;
 }
 
-absl::StatusOr<Module*> InputShiftRegisterModule(int64 bit_count,
-                                                 VerilogFile* f) {
+xabsl::StatusOr<Module*> InputShiftRegisterModule(int64 bit_count,
+                                                  VerilogFile* f) {
   Module* m = f->AddModule("input_shifter");
   LogicRef1* clk = m->AddInput("clk");
   LogicRef1* clear = m->AddInput("clear");
@@ -342,7 +342,7 @@ absl::StatusOr<Module*> InputShiftRegisterModule(int64 bit_count,
 // Constructs a module which decodes an input byte based on whether the state
 // machine is in an escaped state (previoius input byte was
 // IoControlCode::kEscape). The module is purely combinational.
-static absl::StatusOr<Module*> EscapeDecoderModule(VerilogFile* f) {
+static xabsl::StatusOr<Module*> EscapeDecoderModule(VerilogFile* f) {
   Module* m = f->AddModule("escape_decoder");
   LogicRef* byte_in = m->AddPort(Direction::kInput, "byte_in", 8);
   LogicRef* byte_out = m->AddPort(Direction::kOutput, "byte_out", 8);
@@ -381,8 +381,8 @@ static absl::StatusOr<Module*> EscapeDecoderModule(VerilogFile* f) {
   return m;
 }
 
-absl::StatusOr<Module*> InputControllerModule(const ModuleSignature& signature,
-                                              VerilogFile* f) {
+xabsl::StatusOr<Module*> InputControllerModule(const ModuleSignature& signature,
+                                               VerilogFile* f) {
   XLS_ASSIGN_OR_RETURN(Module * reset_m, InputResetModule(f));
   XLS_ASSIGN_OR_RETURN(
       Module * shift_m,
@@ -517,8 +517,8 @@ absl::StatusOr<Module*> InputControllerModule(const ModuleSignature& signature,
   return m;
 }
 
-absl::StatusOr<Module*> OutputControllerModule(const ModuleSignature& signature,
-                                               VerilogFile* f) {
+xabsl::StatusOr<Module*> OutputControllerModule(
+    const ModuleSignature& signature, VerilogFile* f) {
   const int64 output_bits = signature.TotalDataOutputBits();
 
   Module* m = f->AddModule("output_controller");

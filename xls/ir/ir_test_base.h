@@ -17,8 +17,8 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
 #include "xls/common/source_location.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
 #include "xls/ir/verifier.h"
@@ -52,19 +52,19 @@ class IrTestBase : public ::testing::Test {
 
   // Parses the given text as a package and replaces the owned packaged with the
   // result. Package can be accessed by calling "package()".
-  static absl::StatusOr<std::unique_ptr<VerifiedPackage>> ParsePackage(
+  static xabsl::StatusOr<std::unique_ptr<VerifiedPackage>> ParsePackage(
       absl::string_view text);
 
   // As above but skips IR verification and returns an ordinary Package..
-  static absl::StatusOr<std::unique_ptr<Package>> ParsePackageNoVerify(
+  static xabsl::StatusOr<std::unique_ptr<Package>> ParsePackageNoVerify(
       absl::string_view text);
 
   // Parse the input_string as a function into the given package.
-  absl::StatusOr<Function*> ParseFunction(absl::string_view text,
-                                          Package* package);
+  xabsl::StatusOr<Function*> ParseFunction(absl::string_view text,
+                                           Package* package);
 
   // Parse the input_string as a proc into the given package.
-  absl::StatusOr<Proc*> ParseProc(absl::string_view text, Package* package);
+  xabsl::StatusOr<Proc*> ParseProc(absl::string_view text, Package* package);
 
   // Finds and returns the node in the given package (function) with the given
   // name. Dies if no such node exists.
@@ -107,14 +107,14 @@ class IrTestBase : public ::testing::Test {
 
   // Converts the given map of uint64 arguments into a map of Value argument
   // with the appropriate bit widths as determined by the package.
-  static absl::StatusOr<absl::flat_hash_map<std::string, Value>>
+  static xabsl::StatusOr<absl::flat_hash_map<std::string, Value>>
   UInt64ArgsToValues(const absl::flat_hash_map<std::string, uint64>& args,
                      Package* package);
 
   // Converts the uint64 result to a Value with the appropriate bit widths as
   // determined by the package return value.
-  static absl::StatusOr<Value> UInt64ResultToValue(uint64 value,
-                                                   Package* package);
+  static xabsl::StatusOr<Value> UInt64ResultToValue(uint64 value,
+                                                    Package* package);
 };
 
 }  // namespace xls

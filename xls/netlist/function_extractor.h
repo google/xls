@@ -17,7 +17,7 @@
 
 #include <string>
 
-#include "absl/status/statusor.h"
+#include "xls/common/status/statusor.h"
 #include "xls/netlist/lib_parser.h"
 #include "xls/netlist/netlist.pb.h"
 
@@ -29,7 +29,8 @@ namespace function {
 // formatted file and collects the input and output pins of a "cell".
 // For output pins, the "function" is collected as well - that specifies the
 // logical operation of the cell or pin (in the case of multiple output pins).
-absl::StatusOr<CellLibraryProto> ExtractFunctions(cell_lib::CharStream* stream);
+xabsl::StatusOr<CellLibraryProto> ExtractFunctions(
+    cell_lib::CharStream* stream);
 
 }  // namespace function
 }  // namespace netlist

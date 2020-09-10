@@ -112,11 +112,11 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddDataOutput(
   return *this;
 }
 
-absl::StatusOr<ModuleSignature> ModuleSignatureBuilder::Build() {
+xabsl::StatusOr<ModuleSignature> ModuleSignatureBuilder::Build() {
   return ModuleSignature::FromProto(proto_);
 }
 
-/*static*/ absl::StatusOr<ModuleSignature> ModuleSignature::FromProto(
+/*static*/ xabsl::StatusOr<ModuleSignature> ModuleSignature::FromProto(
     const ModuleSignatureProto& proto) {
   // TODO(meheff): do more validation here.
   // Validate widths/number of function type.
@@ -159,7 +159,7 @@ int64 ModuleSignature::TotalDataOutputBits() const {
 // name). Returns a vector containing the inputs in the same order as the input
 // ports.
 template <typename T>
-static absl::StatusOr<std::vector<const T*>> CheckAndReturnOrderedInputs(
+static xabsl::StatusOr<std::vector<const T*>> CheckAndReturnOrderedInputs(
     absl::Span<const PortProto> input_ports,
     const absl::flat_hash_map<std::string, T>& inputs) {
   absl::flat_hash_set<std::string> port_names;
@@ -212,8 +212,8 @@ static std::string TypeProtoToString(const TypeProto& proto) {
   return type_status.value()->ToString();
 }
 
-static absl::StatusOr<bool> TypeProtosEqual(const TypeProto& a,
-                                            const TypeProto& b) {
+static xabsl::StatusOr<bool> TypeProtosEqual(const TypeProto& a,
+                                             const TypeProto& b) {
   // Create a dummy package for creating Type*'s from a proto.
   // TODO(meheff): Find a better way to manage types. We need types disconnected
   // from any IR package.
@@ -252,7 +252,7 @@ absl::Status ModuleSignature::ValidateInputs(
   return absl::OkStatus();
 }
 
-absl::StatusOr<absl::flat_hash_map<std::string, Value>>
+xabsl::StatusOr<absl::flat_hash_map<std::string, Value>>
 ModuleSignature::ToKwargs(absl::Span<const Value> inputs) const {
   if (inputs.size() != data_inputs().size()) {
     return absl::InvalidArgumentError(absl::StrFormat(

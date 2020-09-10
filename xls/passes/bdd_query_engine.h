@@ -18,7 +18,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
-#include "absl/status/statusor.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/nodes.h"
@@ -40,7 +40,7 @@ class BddQueryEngine : public QueryEngine {
   // expression before truncating it. If a node's op is in
   // 'do_not_evaluate_ops', its bits are modeled as BDD variables. See
   // BddFunction for details.
-  static absl::StatusOr<std::unique_ptr<BddQueryEngine>> Run(
+  static xabsl::StatusOr<std::unique_ptr<BddQueryEngine>> Run(
       Function* f, int64 minterm_limit = 0,
       absl::Span<const Op> do_not_evaluate_ops = {});
 

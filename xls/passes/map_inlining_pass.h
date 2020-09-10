@@ -25,9 +25,9 @@ namespace xls {
 class MapInliningPass : public FunctionPass {
  public:
   MapInliningPass();
-  absl::StatusOr<bool> RunOnFunction(Function* function,
-                                     const PassOptions& options,
-                                     PassResults* results) const override;
+  xabsl::StatusOr<bool> RunOnFunction(Function* function,
+                                      const PassOptions& options,
+                                      PassResults* results) const override;
 
  private:
   // Replaces a single Map node with a CountedFor operation.

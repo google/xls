@@ -17,10 +17,10 @@
 
 #include <string>
 
-#include "absl/status/statusor.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/name_to_bit_count.h"
 #include "xls/codegen/vast.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/function.h"
 
 namespace xls {
@@ -29,7 +29,7 @@ namespace verilog {
 // Emits the given function as a combinational Verilog module. If
 // use_system_verilog is true the generated module will be SystemVerilog
 // otherwise it will be Verilog.
-absl::StatusOr<ModuleGeneratorResult> ToCombinationalModuleText(
+xabsl::StatusOr<ModuleGeneratorResult> ToCombinationalModuleText(
     Function* func, bool use_system_verilog = true);
 
 }  // namespace verilog

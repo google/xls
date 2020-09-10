@@ -30,10 +30,10 @@ cc_library(
         "//xls/common:integral_types",
         "//xls/common/status:status_builder",
         "//xls/common/status:status_macros",
+        "//xls/common/status:statusor",
         "//xls/ir",
         "//xls/netlist:logical_effort",
         "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
@@ -62,6 +62,7 @@ cc_test(
         ":delay_estimator",
         ":delay_heap",
         "//xls/common/status:matchers",
+        "//xls/common/status:statusor",
         "//xls/examples:sample_packages",
         "//xls/ir",
         "//xls/ir:bits",
@@ -71,7 +72,6 @@ cc_test(
         "//xls/ir:op",
         "//xls/ir:type",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -98,8 +98,8 @@ cc_library(
         "//xls/common:integral_types",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
+        "//xls/common/status:statusor",
         "//xls/ir",
-        "@com_google_absl//absl/status:statusor",
     ],
 )
 
@@ -111,10 +111,10 @@ cc_library(
         ":delay_estimator",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
+        "//xls/common/status:statusor",
         "//xls/ir",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -125,9 +125,9 @@ cc_library(
     hdrs = ["delay_estimators.h"],
     deps = [
         ":delay_estimator",
+        "//xls/common/status:statusor",
         "//xls/delay_model/models",
         "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
     ],
 )

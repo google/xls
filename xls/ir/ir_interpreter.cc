@@ -37,9 +37,9 @@ class InterpreterVisitor : public DfsVisitor {
  public:
   // Runs the visitor on the given function. 'args' are the argument values
   // indexed by parameter name.
-  static absl::StatusOr<Value> Run(Function* function,
-                                   absl::Span<const Value> args,
-                                   InterpreterStats* stats) {
+  static xabsl::StatusOr<Value> Run(Function* function,
+                                    absl::Span<const Value> args,
+                                    InterpreterStats* stats) {
     if (args.size() != function->params().size()) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Function %s wants %d arguments, got %d.", function->name(),
@@ -61,13 +61,13 @@ class InterpreterVisitor : public DfsVisitor {
     return visitor.ResolveAsValue(function->return_value());
   }
 
-  static absl::StatusOr<Value> EvaluateNodeWithLiteralOperands(Node* node) {
+  static xabsl::StatusOr<Value> EvaluateNodeWithLiteralOperands(Node* node) {
     InterpreterVisitor visitor({}, /*stats=*/nullptr);
     XLS_RETURN_IF_ERROR(node->Accept(&visitor));
     return visitor.ResolveAsValue(node);
   }
 
-  static absl::StatusOr<Value> EvaluateNode(
+  static xabsl::StatusOr<Value> EvaluateNode(
       Node* node, absl::Span<const Value* const> operand_values) {
     XLS_RET_CHECK_EQ(node->operand_count(), operand_values.size());
     InterpreterVisitor visitor({}, /*stats=*/nullptr);
@@ -616,8 +616,8 @@ class InterpreterVisitor : public DfsVisitor {
   // Performs a logical OR of the given inputs. If 'inputs' is a not a Bits type
   // (ie, tuple or array) the element a recursively traversed and the Bits-typed
   // leaves are OR-ed.
-  absl::StatusOr<Value> DeepOr(Type* input_type,
-                               absl::Span<const Value* const> inputs) {
+  xabsl::StatusOr<Value> DeepOr(Type* input_type,
+                                absl::Span<const Value* const> inputs) {
     if (input_type->IsBits()) {
       Bits result(input_type->AsBitsOrDie()->bit_count());
       for (const Value* input : inputs) {
@@ -666,8 +666,8 @@ class InterpreterVisitor : public DfsVisitor {
   absl::flat_hash_map<Node*, Value> node_values_;
 };
 
-absl::StatusOr<Value> Run(Function* function, absl::Span<const Value> args,
-                          InterpreterStats* stats) {
+xabsl::StatusOr<Value> Run(Function* function, absl::Span<const Value> args,
+                           InterpreterStats* stats) {
   XLS_VLOG(3) << "Function:";
   XLS_VLOG_LINES(3, function->DumpIr());
   XLS_ASSIGN_OR_RETURN(Value result,
@@ -676,7 +676,7 @@ absl::StatusOr<Value> Run(Function* function, absl::Span<const Value> args,
   return result;
 }
 
-absl::StatusOr<Value> RunKwargs(
+xabsl::StatusOr<Value> RunKwargs(
     Function* function, const absl::flat_hash_map<std::string, Value>& args,
     InterpreterStats* stats) {
   XLS_VLOG(2) << "Interpreting function " << function->name()
@@ -686,14 +686,14 @@ absl::StatusOr<Value> RunKwargs(
   return Run(function, positional_args, stats);
 }
 
-absl::StatusOr<Value> EvaluateNodeWithLiteralOperands(Node* node) {
+xabsl::StatusOr<Value> EvaluateNodeWithLiteralOperands(Node* node) {
   XLS_RET_CHECK_GT(node->operand_count(), 0);
   XLS_RET_CHECK(std::all_of(node->operands().begin(), node->operands().end(),
                             [](Node* o) { return o->Is<Literal>(); }));
   return InterpreterVisitor::EvaluateNodeWithLiteralOperands(node);
 }
 
-absl::StatusOr<Value> EvaluateNode(
+xabsl::StatusOr<Value> EvaluateNode(
     Node* node, absl::Span<const Value* const> operand_values) {
   return InterpreterVisitor::EvaluateNode(node, operand_values);
 }

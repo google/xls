@@ -119,7 +119,7 @@ class PipelineGenerator {
             file,
             /*use_system_verilog=*/options.use_system_verilog()) {}
 
-  absl::StatusOr<ModuleGeneratorResult> Run() {
+  xabsl::StatusOr<ModuleGeneratorResult> Run() {
     clk_ = mb_.AddInputPort("clk", /*bit_count=*/1);
 
     if (options_.reset().has_value()) {
@@ -413,7 +413,7 @@ class PipelineGenerator {
   }
 
   // Builds and returns a module signature for the given latency.
-  absl::StatusOr<ModuleSignature> BuildSignature(int64 latency) {
+  xabsl::StatusOr<ModuleSignature> BuildSignature(int64 latency) {
     ModuleSignatureBuilder sig_builder(mb_.module()->name());
     sig_builder.WithClock("clk");
     for (Param* param : func_->params()) {
@@ -483,7 +483,7 @@ class PipelineGenerator {
   // value corresponding to the node. The registers use the supplied clock and
   // optional load enable (can be null). Returns references corresponding to the
   // defined registers.
-  absl::StatusOr<std::vector<Expression*>> AddPipelineRegisters(
+  xabsl::StatusOr<std::vector<Expression*>> AddPipelineRegisters(
       absl::Span<const std::pair<Node*, Expression*>> assignments, int64 stage,
       Expression* load_enable) {
     // Add always flop block for the registers.
@@ -519,8 +519,8 @@ class PipelineGenerator {
 
   // Adds a "valid" signal register for the given stage using the given clock
   // signal. Returns a reference to the defined register.
-  absl::StatusOr<LogicRef*> AddValidRegister(LogicRef* valid_load_enable,
-                                             int64 stage) {
+  xabsl::StatusOr<LogicRef*> AddValidRegister(LogicRef* valid_load_enable,
+                                              int64 stage) {
     // Add always flop block for the valid signal. Add it separately from the
     // other pipeline register because it does not use a load_enable signal
     // like the other pipeline registers.
@@ -556,7 +556,7 @@ class PipelineGenerator {
 
 }  // namespace
 
-absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
+xabsl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     const PipelineSchedule& schedule, Function* func,
     const PipelineOptions& options) {
   XLS_VLOG(2) << "Generating pipelined module for function:";

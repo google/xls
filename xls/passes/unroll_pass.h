@@ -15,7 +15,7 @@
 #ifndef XLS_PASSES_UNROLL_PASS_H_
 #define XLS_PASSES_UNROLL_PASS_H_
 
-#include "absl/status/statusor.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/passes/passes.h"
 
@@ -25,8 +25,8 @@ class UnrollPass : public FunctionPass {
  public:
   UnrollPass() : FunctionPass("loop_unroll", "Unroll counted loops") {}
 
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  xabsl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
+                                      PassResults* results) const override;
 };
 
 }  // namespace xls

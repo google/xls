@@ -15,9 +15,9 @@
 #ifndef XLS_IR_FUNCTION_BUILDER_H_
 #define XLS_IR_FUNCTION_BUILDER_H_
 
-#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
@@ -449,10 +449,10 @@ class FunctionBuilder : public BuilderBase {
   // subsequently owned by the package and this builder should be discarded).
   //
   // The return value of the function is the most recently added operation.
-  absl::StatusOr<Function*> Build();
+  xabsl::StatusOr<Function*> Build();
 
   // Build function using given return value.
-  absl::StatusOr<Function*> BuildWithReturnValue(BValue return_value);
+  xabsl::StatusOr<Function*> BuildWithReturnValue(BValue return_value);
 };
 
 // Class for building an XLS Proc (a communicating sequential process).
@@ -480,7 +480,7 @@ class ProcBuilder : public BuilderBase {
   BValue GetTokenParam() const { return token_param_; }
 
   // Build function using given return value.
-  absl::StatusOr<Proc*> BuildWithReturnValue(BValue return_value);
+  xabsl::StatusOr<Proc*> BuildWithReturnValue(BValue return_value);
 
  private:
   // The BValue of the state parameter (parameter 0).

@@ -18,8 +18,8 @@
 #include <cstdio>
 #include <filesystem>
 
-#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+#include "xls/common/status/statusor.h"
 
 namespace xls {
 
@@ -29,15 +29,15 @@ class TempFile {
   ~TempFile();
 
   // Create an empty temporary file in a temporary directory (not cwd).
-  static absl::StatusOr<TempFile> Create();
+  static xabsl::StatusOr<TempFile> Create();
   // Create an empty temporary file in a specified directory.
-  static absl::StatusOr<TempFile> Create(
+  static xabsl::StatusOr<TempFile> Create(
       const std::filesystem::path& directory);
   // Create a temporary file with the given contents in a temporary directory
   // (not cwd).
-  static absl::StatusOr<TempFile> CreateWithContent(absl::string_view content);
+  static xabsl::StatusOr<TempFile> CreateWithContent(absl::string_view content);
   // Create a temporary file with the given contents in a specified directory.
-  static absl::StatusOr<TempFile> CreateWithContent(
+  static xabsl::StatusOr<TempFile> CreateWithContent(
       absl::string_view content, const std::filesystem::path& directory);
 
   std::filesystem::path path() const;
@@ -71,8 +71,8 @@ class TempFile {
   // is an output parameter. If the function call succeeds, it is set to a file
   // descriptor that points to the temporary file. The caller is responsible for
   // closing it.
-  static absl::StatusOr<TempFile> Create(const std::filesystem::path& directory,
-                                         int* file_descriptor);
+  static xabsl::StatusOr<TempFile> Create(
+      const std::filesystem::path& directory, int* file_descriptor);
 
   std::filesystem::path path_;
 };

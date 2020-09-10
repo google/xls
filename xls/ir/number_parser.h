@@ -17,9 +17,9 @@
 #ifndef XLS_IR_NUMBER_PARSER_H_
 #define XLS_IR_NUMBER_PARSER_H_
 
-#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "xls/common/integral_types.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/format_preference.h"
 
@@ -32,7 +32,7 @@ constexpr int64 kMinimumBitCount = -1;
 // Returns a bool indicating whether the literal token is negative, and a Bits
 // containing the magnitude. The Bits value is the minimum width necessary to
 // hold the (necessarily) unsigned magnitude.
-absl::StatusOr<std::pair<bool, Bits>> GetSignAndMagnitude(
+xabsl::StatusOr<std::pair<bool, Bits>> GetSignAndMagnitude(
     absl::string_view input);
 
 // Parses the given string as a number and returns the result as a Bits
@@ -53,19 +53,19 @@ absl::StatusOr<std::pair<bool, Bits>> GetSignAndMagnitude(
 //   "10" => UBits(10, 4)
 //   "-10" => SBits(-10, 5) (equivalently UBits(22, 5))
 //   "0x17" => UBits(0x17, 5)
-absl::StatusOr<Bits> ParseNumber(absl::string_view input);
+xabsl::StatusOr<Bits> ParseNumber(absl::string_view input);
 
 // Parses the string as a number and returns the value as a (u)int64. Returns an
 // error if the number is not representable as a (u)int64.
-absl::StatusOr<int64> ParseNumberAsInt64(absl::string_view input);
-absl::StatusOr<uint64> ParseNumberAsUint64(absl::string_view input);
+xabsl::StatusOr<int64> ParseNumberAsInt64(absl::string_view input);
+xabsl::StatusOr<uint64> ParseNumberAsUint64(absl::string_view input);
 
-absl::StatusOr<bool> ParseNumberAsBool(absl::string_view input);
+xabsl::StatusOr<bool> ParseNumberAsBool(absl::string_view input);
 
 // Parse an unsigned number but the given input does not include any
 // format-specifying prefix (e.g., "0x" for hexadecimal). Rather, the format is
 // specified by argument.
-absl::StatusOr<Bits> ParseUnsignedNumberWithoutPrefix(
+xabsl::StatusOr<Bits> ParseUnsignedNumberWithoutPrefix(
     absl::string_view input, FormatPreference format = FormatPreference::kHex,
     int64 bit_count = kMinimumBitCount);
 

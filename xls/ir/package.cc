@@ -49,7 +49,7 @@ Proc* Package::AddProc(std::unique_ptr<Proc> proc) {
   return procs_.back().get();
 }
 
-absl::StatusOr<Function*> Package::GetFunction(
+xabsl::StatusOr<Function*> Package::GetFunction(
     absl::string_view func_name) const {
   for (auto& f : functions_) {
     if (f->name() == func_name) {
@@ -65,7 +65,7 @@ absl::StatusOr<Function*> Package::GetFunction(
                     })));
 }
 
-absl::StatusOr<Proc*> Package::GetProc(absl::string_view proc_name) const {
+xabsl::StatusOr<Proc*> Package::GetProc(absl::string_view proc_name) const {
   for (auto& p : procs_) {
     if (p->name() == proc_name) {
       return p.get();
@@ -111,7 +111,7 @@ void Package::DeleteDeadFunctions(absl::Span<Function* const> dead_funcs) {
                    functions_.end());
 }
 
-absl::StatusOr<Function*> Package::EntryFunction() {
+xabsl::StatusOr<Function*> Package::EntryFunction() {
   auto by_name = GetFunctionByName();
 
   if (entry_.has_value()) {
@@ -160,7 +160,7 @@ absl::StatusOr<Function*> Package::EntryFunction() {
       name(), absl::StrJoin(to_try, ", ", quote)));
 }
 
-absl::StatusOr<const Function*> Package::EntryFunction() const {
+xabsl::StatusOr<const Function*> Package::EntryFunction() const {
   XLS_ASSIGN_OR_RETURN(Function * f,
                        const_cast<Package*>(this)->EntryFunction());
   return f;
@@ -237,7 +237,7 @@ FunctionType* Package::GetFunctionType(absl::Span<Type* const> args_types,
   return new_type;
 }
 
-absl::StatusOr<Type*> Package::GetTypeFromProto(const TypeProto& proto) {
+xabsl::StatusOr<Type*> Package::GetTypeFromProto(const TypeProto& proto) {
   if (!proto.has_type_enum()) {
     return absl::InvalidArgumentError("Missing type_enum field in TypeProto.");
   }
@@ -273,7 +273,7 @@ absl::StatusOr<Type*> Package::GetTypeFromProto(const TypeProto& proto) {
       "Invalid type_enum value in TypeProto: %d", proto.type_enum()));
 }
 
-absl::StatusOr<FunctionType*> Package::GetFunctionTypeFromProto(
+xabsl::StatusOr<FunctionType*> Package::GetFunctionTypeFromProto(
     const FunctionTypeProto& proto) {
   std::vector<Type*> param_types;
   for (const TypeProto& param_proto : proto.parameters()) {
@@ -388,7 +388,7 @@ std::vector<std::string> Package::GetFunctionNames() const {
   return names;
 }
 
-absl::StatusOr<Channel*> Package::CreateChannel(
+xabsl::StatusOr<Channel*> Package::CreateChannel(
     absl::string_view name, ChannelKind kind,
     absl::Span<const DataElement> data_elements,
     const ChannelMetadataProto& metadata) {
@@ -396,7 +396,7 @@ absl::StatusOr<Channel*> Package::CreateChannel(
                              metadata);
 }
 
-absl::StatusOr<Channel*> Package::CreateChannelWithId(
+xabsl::StatusOr<Channel*> Package::CreateChannelWithId(
     absl::string_view name, int64 id, ChannelKind kind,
     absl::Span<const DataElement> data_elements,
     const ChannelMetadataProto& metadata) {
@@ -411,7 +411,7 @@ absl::StatusOr<Channel*> Package::CreateChannelWithId(
   return channel_it->second.get();
 }
 
-absl::StatusOr<Channel*> Package::GetChannel(int64 id) const {
+xabsl::StatusOr<Channel*> Package::GetChannel(int64 id) const {
   if (channels_.find(id) == channels_.end()) {
     return absl::NotFoundError(
         absl::StrFormat("No channel with id %d (package has %d channels).", id,
@@ -420,7 +420,7 @@ absl::StatusOr<Channel*> Package::GetChannel(int64 id) const {
   return channels_.at(id).get();
 }
 
-absl::StatusOr<Type*> Package::GetReceiveType(int64 channel_id) {
+xabsl::StatusOr<Type*> Package::GetReceiveType(int64 channel_id) {
   XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannel(channel_id));
   std::vector<Type*> element_types;
   element_types.push_back(GetTokenType());

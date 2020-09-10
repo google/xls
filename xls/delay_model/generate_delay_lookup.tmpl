@@ -2,7 +2,7 @@
 #include "absl/memory/memory.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/module_initializer.h"
-#include "absl/status/statusor.h"
+#include "xls/common/status/statusor.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/node.h"
 
@@ -22,8 +22,8 @@ namespace {
 
 class DelayEstimatorModel{{camel_case_name}} : public DelayEstimator {
 
-  absl::StatusOr<int64> GetOperationDelayInPs(Node* node) const {
-    absl::StatusOr<int64> delay_status;
+  xabsl::StatusOr<int64> GetOperationDelayInPs(Node* node) const {
+    xabsl::StatusOr<int64> delay_status;
     switch (node->op()) {
   {% for op in delay_model.ops() -%}
       case Op::{{op}}:

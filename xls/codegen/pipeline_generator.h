@@ -17,12 +17,12 @@
 
 #include <string>
 
-#include "absl/status/statusor.h"
 #include "absl/types/optional.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/name_to_bit_count.h"
 #include "xls/codegen/vast.h"
+#include "xls/common/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
@@ -94,7 +94,7 @@ class PipelineOptions {
 // Emits the given function as a verilog module which follows the given
 // schedule. The module is pipelined with a latency and initiation interval
 // given in the signature.
-absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
+xabsl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     const PipelineSchedule& schedule, Function* func,
     const PipelineOptions& options = PipelineOptions());
 

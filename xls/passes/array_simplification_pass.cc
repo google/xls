@@ -28,7 +28,7 @@ namespace {
 // expression. Specifically, if the index is a literal and the element at that
 // index can be determined statically, the ArrayIndex operation is replaced with
 // that value. Returns true if the IR was changed.
-absl::StatusOr<bool> SimplifyArrayIndex(ArrayIndex* node) {
+xabsl::StatusOr<bool> SimplifyArrayIndex(ArrayIndex* node) {
   if (!node->operand(1)->Is<Literal>()) {
     return false;
   }
@@ -88,7 +88,7 @@ absl::StatusOr<bool> SimplifyArrayIndex(ArrayIndex* node) {
 }
 }  // namespace
 
-absl::StatusOr<bool> ArraySimplificationPass::RunOnFunction(
+xabsl::StatusOr<bool> ArraySimplificationPass::RunOnFunction(
     Function* func, const PassOptions& options, PassResults* results) const {
   XLS_VLOG(2) << "Running array simplifier on function " << func->name();
   XLS_VLOG(3) << "Before:";

@@ -20,8 +20,8 @@
 
 namespace xls {
 
-absl::StatusOr<bool> FunctionPass::Run(Package* p, const PassOptions& options,
-                                       PassResults* results) const {
+xabsl::StatusOr<bool> FunctionPass::Run(Package* p, const PassOptions& options,
+                                        PassResults* results) const {
   bool changed = false;
   for (auto& f : p->functions()) {
     XLS_ASSIGN_OR_RETURN(bool function_changed,

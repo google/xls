@@ -30,8 +30,9 @@ namespace {
 
 using netlist::rtl::Netlist;
 
-absl::StatusOr<bool> Match(const std::string& ir_text,
-                           const std::string& netlist_text, bool expect_equal) {
+xabsl::StatusOr<bool> Match(const std::string& ir_text,
+                            const std::string& netlist_text,
+                            bool expect_equal) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(ir_text));
   XLS_ASSIGN_OR_RETURN(Function * entry_function, package->EntryFunction());
