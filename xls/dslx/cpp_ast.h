@@ -649,7 +649,7 @@ class Unop : public Expr {
   Expr* operand_;
 };
 
-#define BINOP_KIND_EACH(X)                \
+#define XLS_DSLX_BINOP_KIND_EACH(X)       \
   /* enum member, python attr, tok str */ \
   X(kShll, "SHLL", "<<")                  \
   X(kShrl, "SHRL", ">>")                  \
@@ -673,8 +673,8 @@ class Unop : public Expr {
 
 enum class BinopKind {
 #define FIRST_COMMA(A, ...) A,
-  BINOP_KIND_EACH(FIRST_COMMA)
-#undef FIRST
+  XLS_DSLX_BINOP_KIND_EACH(FIRST_COMMA)
+#undef FIRST_COMMA
 };
 
 BinopKind BinopKindFromString(absl::string_view s);

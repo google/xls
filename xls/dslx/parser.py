@@ -31,9 +31,9 @@ import dataclasses
 from xls.dslx import ast_helpers
 from xls.dslx import dslx_builtins
 from xls.dslx import token_parser
-from xls.dslx.bindings import Bindings
 from xls.dslx.parse_error import ParseError
 from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python.cpp_bindings import Bindings
 from xls.dslx.python.cpp_pos import Pos
 from xls.dslx.python.cpp_pos import Span
 from xls.dslx.python.cpp_scanner import Keyword
@@ -447,7 +447,7 @@ class Parser(token_parser.TokenParser):
 
   def _parse_let(self, bindings: Bindings) -> ast.Let:
     """Returns a parsed 'let' expression."""
-    new_bindings = Bindings(bindings)
+    new_bindings = Bindings(self.m, bindings)
     start_tok = self._popt()
     if start_tok.is_keyword(Keyword.LET):
       const = False
@@ -898,7 +898,7 @@ class Parser(token_parser.TokenParser):
             context="Expected '}' since no ';' was seen "
             'to indicate an additional match case.')
         break
-      arm_bindings = Bindings(bindings)
+      arm_bindings = Bindings(self.m, bindings)
       patterns = [self._parse_pattern(arm_bindings)]
       while self._try_popt(TokenKind.BAR):
         if arm_bindings.has_local_bindings():
@@ -916,7 +916,7 @@ class Parser(token_parser.TokenParser):
 
   def _parse_while(self, bindings: Bindings) -> ast.While:
     while_ = self._pop_keyword_or_error(Keyword.WHILE)
-    while_bindings = Bindings(bindings)
+    while_bindings = Bindings(self.m, bindings)
     w = ast.While(self.m, while_.span)
     self._loop_stack.append(w)
     w.test = self.parse_expression(while_bindings)
@@ -945,7 +945,7 @@ class Parser(token_parser.TokenParser):
 
     # We create a new binding scope for the per-iteration variables to be bound
     # inside of the loop.
-    for_bindings = Bindings(bindings)
+    for_bindings = Bindings(self.m, bindings)
     names = self._parse_name_def_tree(for_bindings)
     self._dropt_or_error(
         TokenKind.COLON,
@@ -980,7 +980,7 @@ class Parser(token_parser.TokenParser):
     )
     type_ = self._parse_type_annotation(bindings)
     self._dropt_or_error(TokenKind.OBRACE)
-    enum_bindings = Bindings(parent=bindings)
+    enum_bindings = Bindings(self.m, parent=bindings)
 
     def parse_enum_entry(
     ) -> Tuple[ast.NameDef, Union[ast.Number, ast.NameRef]]:
@@ -1137,7 +1137,7 @@ class Parser(token_parser.TokenParser):
 
     # Create bindings internal to this proc we're parsing, based off of the
     # symbols available in the outer bindings.
-    bindings = Bindings(outer_bindings)
+    bindings = Bindings(self.m, outer_bindings)
 
     proc_params = self._parse_params(bindings)
     self._dropt_or_error(TokenKind.OBRACE)
@@ -1172,7 +1172,7 @@ class Parser(token_parser.TokenParser):
     start_pos = fn_tok.span.start
     # Create bindings internal to this function we're parsing, based off of the
     # symbols available in the outer bindings.
-    bindings = Bindings(outer_bindings)
+    bindings = Bindings(self.m, outer_bindings)
 
     parametric_bindings: Tuple[ast.ParametricBinding, ...] = ()
     if self._try_popt(TokenKind.OBRACK):  # Parametric.
@@ -1248,9 +1248,9 @@ class Parser(token_parser.TokenParser):
     """
     if not directive:
       self._drop_keyword_or_error(Keyword.TEST)
-    fake_bindings = Bindings()
+    fake_bindings = Bindings(self.m)
     name_def = self._parse_name_def(fake_bindings)
-    bindings = Bindings(outer_bindings)
+    bindings = Bindings(self.m, outer_bindings)
     self._dropt_or_error(TokenKind.OBRACE)
     body = self.parse_expression(bindings)
     self._dropt_or_error(TokenKind.CBRACE)
@@ -1259,7 +1259,7 @@ class Parser(token_parser.TokenParser):
   def parse_constant(self, bindings: Bindings) -> ast.Constant:
     """Parses a constant definition."""
     self._drop_keyword_or_error(Keyword.CONST)
-    new_bindings = Bindings(parent=bindings)
+    new_bindings = Bindings(self.m, parent=bindings)
     name_def = self._parse_name_def(new_bindings)
 
     # Explicitly check whether const bindings are shadowing anything, and give
@@ -1406,7 +1406,7 @@ class Parser(token_parser.TokenParser):
       ParseError: When an unexpected construct is enountered at module scope.
     """
     # Populate the top-level bindings with the builtin names.
-    bindings = bindings or Bindings()
+    bindings = bindings or Bindings(self.m)
     # Need this because pytype gets confused about whether it can be none.
     assert isinstance(bindings, Bindings), bindings
     for builtin_name in dslx_builtins.PARAMETRIC_BUILTIN_NAMES:

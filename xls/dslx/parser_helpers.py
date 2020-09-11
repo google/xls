@@ -21,17 +21,31 @@ import functools
 import io
 import os
 import sys
-from typing import Text, Optional, Callable
+from typing import Text, Optional, Callable, Union
 
 import termcolor
 
+from xls.dslx import parse_error
 from xls.dslx import parser
 from xls.dslx import span as span_mod
 from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python import cpp_bindings
 from xls.dslx.python import cpp_scanner as scanner
 
 
-def pprint_positional_error(error: span_mod.PositionalError,
+def _to_positional_error(
+    error: Union[span_mod.PositionalError, cpp_bindings.CppParseError]
+) -> span_mod.PositionalError:
+  """Ensures error is positional for display: if a C++ based error, converts."""
+  if isinstance(error, span_mod.PositionalError):
+    return error
+  assert isinstance(error, cpp_bindings.CppParseError)
+  return parse_error.ParseError(
+      cpp_bindings.get_parse_error_span(error), error.message)
+
+
+def pprint_positional_error(error: Union[span_mod.PositionalError,
+                                         cpp_bindings.CppParseError],
                             *,
                             output: io.IOBase = sys.stderr,
                             color: Optional[bool] = None,
@@ -56,6 +70,7 @@ def pprint_positional_error(error: span_mod.PositionalError,
     ValueError: if the error_context_line_count is not odd (only odd values can
       be symmetrical around the erroneous line).
   """
+  error = _to_positional_error(error)
   assert isinstance(error, span_mod.PositionalError), error
   if error.printed:
     return

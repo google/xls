@@ -24,7 +24,10 @@ package(
 
 xls_pybind_extension(
     name = "cpp_ast",
-    srcs = ["cpp_ast.cc"],
+    srcs = [
+        "cpp_ast.cc",
+        "cpp_ast.h",
+    ],
     deps = [
         "@com_google_absl//absl/base",
         "//xls/common/status:status_macros",
@@ -87,5 +90,23 @@ xls_pybind_extension(
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor_pybind_caster",
         "//xls/dslx:cpp_pos",
+    ],
+)
+
+xls_pybind_extension(
+    name = "cpp_bindings",
+    srcs = [
+        "cpp_ast.h",
+        "cpp_bindings.cc",
+    ],
+    py_deps = [
+        ":cpp_ast",  # build_cleaner: keep
+    ],
+    deps = [
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/strings",
+        "//xls/common/status:status_macros",
+        "//xls/common/status:statusor_pybind_caster",
+        "//xls/dslx:cpp_bindings",
     ],
 )

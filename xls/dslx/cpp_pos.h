@@ -84,6 +84,8 @@ inline std::ostream& operator<<(std::ostream& os, const Pos& pos) {
 // Represents a positional span in the text.
 class Span {
  public:
+  static xabsl::StatusOr<Span> FromString(absl::string_view s);
+
   Span(Pos start, Pos limit)
       : start_(std::move(start)), limit_(std::move(limit)) {
     XLS_CHECK_EQ(start_.filename(), limit_.filename());

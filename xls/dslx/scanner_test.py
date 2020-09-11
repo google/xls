@@ -114,9 +114,7 @@ class ScannerTest(absltest.TestCase):
 
     self.assertIsInstance(cm.exception, scanner.ScanError)
     self.assertIsInstance(cm.exception, Exception)
-    self.assertEqual(
-        str(cm.exception),
-        "ScanError: <fake>:1:5 Invalid digit for binary number: '2'")
+    self.assertEqual(str(cm.exception), "Invalid digit for binary number: '2'")
 
   def test_negative_number_bin(self):
     s = self.make_scanner('-0b10')

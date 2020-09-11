@@ -152,27 +152,16 @@ py_library(
 )
 
 py_library(
-    name = "bindings",
-    srcs = ["bindings.py"],
-    srcs_version = "PY3",
-    deps = [
-        ":parse_error",
-        "//xls/dslx/python:cpp_ast",
-        "//xls/dslx/python:cpp_pos",
-    ],
-)
-
-py_library(
     name = "parser",
     srcs = ["parser.py"],
     srcs_version = "PY3",
     deps = [
         ":ast_helpers",
-        ":bindings",
         ":dslx_builtins",
         ":parse_error",
         ":token_parser",
         "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_bindings",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_scanner",
         "@com_google_absl_py//absl/logging",
@@ -184,10 +173,12 @@ py_library(
     srcs = ["parser_helpers.py"],
     srcs_version = "PY3",
     deps = [
+        ":parse_error",
         ":parser",
         ":span",
         requirement("termcolor"),
         "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_bindings",
         "//xls/dslx/python:cpp_scanner",
     ],
 )
@@ -202,6 +193,7 @@ py_test(
         ":parser",
         ":parser_helpers",
         "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_bindings",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_scanner",
         "@com_google_absl_py//absl/testing:absltest",
@@ -320,6 +312,7 @@ py_test(
         ":typecheck",
         ":xls_type_error",
         "//xls/common:xls_error",
+        "//xls/dslx/python:cpp_bindings",
         "@com_google_absl_py//absl/logging",
         "@com_google_absl_py//absl/testing:absltest",
     ],
@@ -431,6 +424,7 @@ py_test(
         ":span",
         ":typecheck",
         "//xls/common:runfiles",
+        "//xls/dslx/python:cpp_bindings",
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )
@@ -448,6 +442,7 @@ py_binary(
         ":parser_helpers",
         ":span",
         ":typecheck",
+        "//xls/dslx/python:cpp_bindings",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
     ],
@@ -654,5 +649,21 @@ cc_test(
         ":cpp_scanner",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "cpp_bindings",
+    srcs = ["cpp_bindings.cc"],
+    hdrs = ["cpp_bindings.h"],
+    deps = [
+        ":cpp_ast",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/common/status:statusor",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:variant",
     ],
 )

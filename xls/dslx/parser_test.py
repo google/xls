@@ -26,6 +26,7 @@ from xls.dslx import parser
 from xls.dslx import parser_helpers
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_scanner as scanner
+from xls.dslx.python.cpp_bindings import CppParseError
 from xls.dslx.python.cpp_pos import Pos
 from xls.dslx.python.cpp_pos import Span
 
@@ -39,9 +40,10 @@ class ParserTest(absltest.TestCase):
       fparse: Callable[[parser.Parser, parser.Bindings],
                        TypeVar('T')]
   ) -> TypeVar('T'):
+    m = ast.Module('test') if bindings is None else bindings.module
     with fakefs_test_util.scoped_fakefs(self.fake_filename, program):
       s = scanner.Scanner(self.fake_filename, program)
-      b = bindings or parser.Bindings(None)
+      b = bindings or parser.Bindings(m, None)
       try:
         e = fparse(parser.Parser(s, 'test_module'), b)
       except parser.ParseError as e:
@@ -204,8 +206,8 @@ proc simple(addend: u32) {
     }(accum);
     accum
     """)
-    b = parser.Bindings(None)
     m = ast.Module('test')
+    b = parser.Bindings(m, None)
     b.add('range', ast.BuiltinNameDef(m, 'range'))
     e = self.parse_expression(program, bindings=b)
     self.assertIsInstance(e, ast.Let)
@@ -220,8 +222,8 @@ proc simple(addend: u32) {
       let new_accum: u32 = accum + i + j;
       new_accum
     }(u32:0)"""
-    b = parser.Bindings(None)
     m = ast.Module('test')
+    b = parser.Bindings(m, None)
     b.add('range', ast.BuiltinNameDef(m, 'range'))
     b.add('j', ast.BuiltinNameDef(m, 'j'))
     e = self.parse_expression(program, bindings=b)
@@ -281,8 +283,8 @@ proc simple(addend: u32) {
     self.assertEqual([v.identifier for v in enum.values], ['A', 'B', 'C', 'D'])
 
   def test_logical_equality(self):
-    b = parser.Bindings(None)
     m = ast.Module('test')
+    b = parser.Bindings(m, None)
     b.add('a', ast.BuiltinNameDef(m, 'a'))
     b.add('b', ast.BuiltinNameDef(m, 'b'))
     b.add('f', ast.BuiltinNameDef(m, 'f'))
@@ -297,8 +299,8 @@ proc simple(addend: u32) {
     self.assertEqual(e.rhs.callee.identifier, 'f')
 
   def test_double_negation(self):
-    b = parser.Bindings(None)
     m = ast.Module('test')
+    b = parser.Bindings(m, None)
     b.add('x', ast.BuiltinNameDef(m, 'x'))
     e = self.parse_expression('!!x', bindings=b)
     self.assertIsInstance(e, ast.Unop)
@@ -307,8 +309,8 @@ proc simple(addend: u32) {
     self.assertEqual(e.operand.operand.identifier, 'x')
 
   def test_logical_operator_binding(self):
-    b = parser.Bindings(None)
     m = ast.Module('test')
+    b = parser.Bindings(m, None)
     b.add('a', ast.BuiltinNameDef(m, 'a'))
     b.add('b', ast.BuiltinNameDef(m, 'b'))
     b.add('c', ast.BuiltinNameDef(m, 'c'))
@@ -323,8 +325,8 @@ proc simple(addend: u32) {
     self.assertEqual(e.rhs.rhs.identifier, 'c')
 
   def test_cast(self):
-    b = parser.Bindings(None)
     m = ast.Module('test')
+    b = parser.Bindings(m, None)
     b.add('foo', ast.BuiltinNameDef(m, 'foo'))
     e = self.parse_expression('foo() as u32', bindings=b)
     self.assertIsInstance(e, ast.Cast)
@@ -360,8 +362,8 @@ proc simple(addend: u32) {
     self.assertEmpty(e.members)
 
   def test_array(self):
-    b = parser.Bindings(None)
     m = ast.Module('test')
+    b = parser.Bindings(m, None)
     for identifier in 'a b c d'.split():
       b.add(identifier, ast.BuiltinNameDef(m, identifier))
     e = self.parse_expression('[a, b, c, d]', bindings=b)
@@ -522,10 +524,10 @@ proc simple(addend: u32) {
           filename=self.fake_filename)
 
   def test_bindings_stack(self):
-    top = parser.Bindings(None)
-    leaf0 = parser.Bindings(top)
-    leaf1 = parser.Bindings(top)
     m = ast.Module('test')
+    top = parser.Bindings(m, None)
+    leaf0 = parser.Bindings(m, top)
+    leaf1 = parser.Bindings(m, top)
     a = ast.BuiltinNameDef(m, 'a')
     b = ast.BuiltinNameDef(m, 'b')
     c = ast.BuiltinNameDef(m, 'c')
@@ -537,11 +539,11 @@ proc simple(addend: u32) {
     self.assertEqual(leaf0.resolve('a', span), a)
     self.assertEqual(leaf1.resolve('a', span), a)
     self.assertEqual(top.resolve('a', span), a)
-    with self.assertRaises(parser.ParseError):
+    with self.assertRaises(CppParseError):
       top.resolve('b', span)
-    with self.assertRaises(parser.ParseError):
+    with self.assertRaises(CppParseError):
       leaf1.resolve('b', span)
-    with self.assertRaises(parser.ParseError):
+    with self.assertRaises(CppParseError):
       leaf0.resolve('c', span)
     self.assertEqual(leaf0.resolve('b', span), b)
     self.assertEqual(leaf1.resolve('c', span), c)
@@ -591,7 +593,7 @@ proc simple(addend: u32) {
             filename=self.fake_filename)
 
   def test_co_recursion(self):
-    with self.assertRaises(parser.ParseError) as cm:
+    with self.assertRaises(CppParseError) as cm:
       program = """
         // Co-recursion
         //
@@ -616,8 +618,8 @@ proc simple(addend: u32) {
     self.assertIn("Cannot find a definition for name: 'bar'", str(cm.exception))
 
   def test_match(self):
-    b = parser.Bindings(None)
     m = ast.Module('test')
+    b = parser.Bindings(m, None)
     b.add('x', ast.BuiltinNameDef(m, 'x'))
     e = self.parse_expression(
         'match x { u32:42 => u32:64, _ => u32:42 }', bindings=b)
@@ -681,7 +683,8 @@ proc simple(addend: u32) {
     self.assertEqual('foo', foo_test.f.name.identifier)
 
   def test_ternary(self):
-    b = parser.Bindings(None)
+    m = ast.Module('test')
+    b = parser.Bindings(m, None)
     e = self.parse_expression('u32:42 if true else u32:24', bindings=b)
     self.assertIsInstance(e, ast.Ternary)
     self.assertIsInstance(e.consequent, ast.Number)
@@ -692,7 +695,8 @@ proc simple(addend: u32) {
     self.assertEqual(e.test.value, 'true')
 
   def test_constant_array(self):
-    b = parser.Bindings(None)
+    m = ast.Module('test')
+    b = parser.Bindings(m, None)
     e = self.parse_expression('u32[2]:[u32:0, u32:1]', bindings=b)
     self.assertIsInstance(e, ast.ConstantArray)
 
@@ -722,7 +726,8 @@ proc simple(addend: u32) {
   def test_parse_name_def_tree(self):
     text = '(a, (b, (c, d), e), f)'
     fparse = lambda p, b: p._parse_name_def_tree(b)
-    bindings = parser.Bindings()
+    m = ast.Module('test')
+    bindings = parser.Bindings(m)
     ndt = self._parse_internal(text, bindings, fparse)
     self.assertIsInstance(ndt, ast.NameDefTree)
     self.assertLen(ndt.tree, 3)
@@ -742,8 +747,8 @@ proc simple(addend: u32) {
     text = """match x {
       y => z
     }"""
-    b = parser.Bindings(None)
     m = ast.Module('test')
+    b = parser.Bindings(m, None)
     for identifier in ('x', 'y', 'z'):
       b.add(identifier, ast.BuiltinNameDef(m, identifier))
     n = self.parse_expression(text, bindings=b)
@@ -998,7 +1003,8 @@ proc simple(addend: u32) {
     program = """
     import thing
     """
-    bindings = parser.Bindings(None)
+    m = ast.Module('test')
+    bindings = parser.Bindings(m, None)
     fparse = lambda p, bindings: p.parse_module(bindings)
     m = self._parse_internal(program, bindings, fparse)
     self.assertIsInstance(m.top[0], ast.Import)
@@ -1010,7 +1016,8 @@ proc simple(addend: u32) {
     program = """
     import thing as other
     """
-    bindings = parser.Bindings(None)
+    m = ast.Module('test')
+    bindings = parser.Bindings(m, None)
     fparse = lambda p, bindings: p.parse_module(bindings)
     m = self._parse_internal(program, bindings, fparse)
     self.assertIsInstance(m.top[0], ast.Import)
@@ -1029,9 +1036,10 @@ proc simple(addend: u32) {
       FOO  // Should be qualified as MyEnum::FOO!
     }
     """
-    bindings = parser.Bindings(None)
+    m = ast.Module('test')
+    bindings = parser.Bindings(m, None)
     fparse = lambda p, bindings: p.parse_module(bindings)
-    with self.assertRaises(parser.ParseError) as cm:
+    with self.assertRaises(CppParseError) as cm:
       self._parse_internal(program, bindings, fparse)
     self.assertIn('Cannot find a definition for name: \'FOO\'',
                   str(cm.exception))

@@ -323,7 +323,7 @@ BinopKind BinopKindFromString(absl::string_view s) {
   if (s == __operator) {                     \
     return BinopKind::__enum;                \
   }
-  BINOP_KIND_EACH(HANDLE)
+  XLS_DSLX_BINOP_KIND_EACH(HANDLE)
 #undef HANDLE
   XLS_LOG(FATAL) << "Invalid BinopKind string: \"" << s << "\"";
 }

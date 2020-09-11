@@ -51,13 +51,13 @@ void TryThrowScanError(const absl::Status& status) {
       return;
     }
     xabsl::StatusOr<Pos> pos = Pos::FromString(pieces[0]);
-    throw ScanError(std::move(pos.value()), std::string(status.message()));
+    throw ScanError(std::move(pos.value()), std::string(pieces[1]));
   }
 }
 
 const absl::Status& GetStatus(const absl::Status& status) { return status; }
 template <typename T>
-const absl::Status& GetStatus(const absl::StatusOr<T>& status_or) {
+const absl::Status& GetStatus(const xabsl::StatusOr<T>& status_or) {
   return status_or.status();
 }
 

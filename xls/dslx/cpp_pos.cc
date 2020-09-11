@@ -18,6 +18,20 @@
 
 namespace xls::dslx {
 
+/* static */ xabsl::StatusOr<Span> Span::FromString(absl::string_view s) {
+  std::string filename;
+  int64 start_lineno, start_colno, limit_lineno, limit_colno;
+  if (RE2::FullMatch(s, R"((.*):(\d+):(\d+)-(\d+):(\d+))", &filename,
+                     &start_lineno, &start_colno, &limit_lineno,
+                     &limit_colno)) {
+    return Span(Pos(filename, start_lineno, start_colno),
+                Pos(filename, limit_lineno, limit_colno));
+  }
+
+  return absl::InvalidArgumentError(
+      absl::StrFormat("Cannot convert string to span: \"%s\"", s));
+}
+
 /* static */ xabsl::StatusOr<Pos> Pos::FromString(absl::string_view s) {
   std::string filename;
   int64 lineno, colno;
