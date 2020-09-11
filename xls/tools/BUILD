@@ -58,6 +58,22 @@ cc_library(
 )
 
 cc_binary(
+    name = "ir_stats_main",
+    srcs = ["ir_stats_main.cc"],
+    deps = [
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir:ir_parser",
+    ],
+)
+
+cc_binary(
     name = "check_ir_equivalence_main",
     srcs = ["check_ir_equivalence_main.cc"],
     deps = [

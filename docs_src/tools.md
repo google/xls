@@ -35,6 +35,26 @@ tool very useful for identifying optimization bugs.
 
 Tool for reducing IR to a minimal test case based on an external test.
 
+## [`ir_stats_main`](https://github.com/google/xls/tree/main/xls/tools/ir_stats_main.cc)
+
+Prints summary information/stats on an IR [Package] file. An example:
+
+```
+$ bazel-bin/xls/tools/ir_stats_main bazel-genfiles/xls/modules/fpadd_2x32.ir
+Package "fpadd_2x32"
+  Function: "__float32__is_inf"
+    Signature: ((bits[1], bits[8], bits[23])) -> bits[1]
+    Nodes: 8
+
+  Function: "__float32__is_nan"
+    Signature: ((bits[1], bits[8], bits[23])) -> bits[1]
+    Nodes: 8
+
+  Function: "__fpadd_2x32__fpadd_2x32"
+    Signature: ((bits[1], bits[8], bits[23]), (bits[1], bits[8], bits[23])) -> (bits[1], bits[8], bits[23])
+    Nodes: 252
+```
+
 \##
 [`check_ir_equivalence`](https://github.com/google/xls/tree/main/xls/tools/check_ir_equivalence_main.cc)
 
