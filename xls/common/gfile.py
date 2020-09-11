@@ -21,6 +21,10 @@ import os
 import shutil
 
 
+def exists(path: str):
+  return os.path.exists(path)
+
+
 def open(path: str, mode: str):  # pylint: disable=redefined-builtin
   return builtins.open(path, mode)
 

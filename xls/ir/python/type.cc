@@ -14,6 +14,7 @@
 
 #include "xls/ir/type.h"
 
+#include "google/protobuf/text_format.h"
 #include "pybind11/pybind11.h"
 #include "xls/common/status/statusor_pybind_caster.h"
 #include "xls/ir/python/wrapper_types.h"
@@ -40,7 +41,12 @@ PYBIND11_MODULE(type, m) {
       .def("return_type", PyWrap(&FunctionType::return_type))
       .def("get_parameter_count", PyWrap(&FunctionType::parameter_count))
       .def("get_parameter_type", PyWrap(&FunctionType::parameter_type),
-           py::arg("i"));
+           py::arg("i"))
+      .def("to_textproto", [](const FunctionTypeHolder& type) {
+        std::string output;
+        google::protobuf::TextFormat::PrintToString(type.deref().ToProto(), &output);
+        return output;
+      });
 }
 
 }  // namespace xls

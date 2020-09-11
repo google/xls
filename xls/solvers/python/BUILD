@@ -15,6 +15,7 @@
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 # pytype test and library
+load("//xls/build:py_proto_library.bzl", "xls_py_proto_library")
 load("//dependency_support/pybind11:pybind11.bzl", "xls_pybind_extension")
 
 package(
@@ -27,14 +28,40 @@ py_library(
     srcs = ["lec_characterizer.py"],
     srcs_version = "PY3",
     deps = [
+        ":lec_characterizer_py_pb2",
+        ":z3_lec",
+        "//xls/common:gfile",
         "//xls/delay_model:op_module_generator",
         "//xls/ir:op_py_pb2",
+        "//xls/ir/python:ir_parser",
+        "//xls/ir/python:package",
         "//xls/ir/python:type",
         "//xls/synthesis:client_credentials",
         "//xls/synthesis:synthesis_py_pb2",
         "//xls/synthesis:synthesis_service_py_pb2_grpc",
         "@com_github_grpc_grpc//src/python/grpcio/grpc:grpcio",
         "@com_google_absl_py//absl/logging",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
+proto_library(
+    name = "lec_characterizer_proto",
+    srcs = ["lec_characterizer.proto"],
+    deps = [
+        "//xls/ir:xls_type_proto",
+    ],
+)
+
+xls_py_proto_library(
+    name = "lec_characterizer_py_pb2",
+    srcs = ["lec_characterizer.proto"],
+    internal_deps = [
+        ":lec_characterizer_proto",
+        "//xls/ir:xls_type_proto",
+    ],
+    deps = [
+        "//xls/ir:xls_type_py_pb2",
     ],
 )
 
@@ -42,16 +69,21 @@ py_test(
     name = "lec_characterizer_test",
     srcs = ["lec_characterizer_test.py"],
     data = [
+        "//xls/netlist:fake_cell_library.textproto",
         "//xls/synthesis:dummy_synthesis_server_main",
     ],
     python_version = "PY3",
     deps = [
         ":lec_characterizer",
+        ":lec_characterizer_py_pb2",
         requirement("portpicker"),
+        "//xls/common:gfile",
         "//xls/common:runfiles",
         "//xls/ir:op_py_pb2",
+        "//xls/ir:xls_type_py_pb2",
         "//xls/ir/python:package",
         "@com_google_absl_py//absl/testing:absltest",
+        "@com_google_protobuf//:protobuf_python",
     ],
 )
 

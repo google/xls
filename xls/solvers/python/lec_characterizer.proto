@@ -1,0 +1,45 @@
+// Lint as: python3
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+syntax = "proto2";
+
+package xls.solvers;
+
+import "xls/ir/xls_type.proto";
+
+// Timing results for a single type mapped to the parent's LecTiming
+// ir_function.
+message TestCase {
+  // The type of the function generating these results.
+  optional FunctionTypeProto function_type = 1;
+
+  // List of all execution results for this configuration in microseconds.
+  repeated int64 exec_times_us = 2;
+
+  // The average of all execution results for this config in microseconds.
+  optional int64 average_us = 3;
+}
+
+// Top-level structure holding LEC performance info for an IR function.
+message LecTiming {
+  // The IR function being tested.
+  // This is used solely as an identifier to match a LecResults with some
+  // function-under-test, and shouldn't be full IR text (since that'd include
+  // concrete type information). A clear textual identifer ("single mul")
+  // or IR with placeholder types would be good candidates.
+  optional string ir_function = 1;
+
+  // Maps the param and return type to the associated timing data.
+  repeated TestCase test_cases = 2;
+}

@@ -276,6 +276,7 @@ xls_pybind_extension(
         "//xls/common/status:statusor_pybind_caster",
         "//xls/ir",  # build_cleaner: keep
         "//xls/ir:type",
+        "@com_google_protobuf//:protobuf",
     ],
 )
 
