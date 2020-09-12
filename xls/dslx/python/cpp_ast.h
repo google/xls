@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_PYTHON_CPP_AST_H_
 #define XLS_DSLX_PYTHON_CPP_AST_H_
 
+#include "absl/base/casts.h"
 #include "pybind11/pybind11.h"
 #include "xls/dslx/cpp_ast.h"
 
