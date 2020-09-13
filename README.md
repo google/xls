@@ -200,3 +200,4 @@ project, see our
 * [Robert Hundt](https://github.com/rhundt)
 * [Rob Springer](https://github.com/RobSpringer)
 * [Sean Purser-Haskell](https://github.com/spurserh)
+* [Ted Xie](https://github.com/ted-xie)
