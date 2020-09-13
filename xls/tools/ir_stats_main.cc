@@ -27,7 +27,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/ir_parser.h"
 
-ABSL_FLAG(string, function, "",
+ABSL_FLAG(std::string, function, "",
           "If set, restrict dumping to the given function. "
           "The name should not be mangled with the Package name.");
 
