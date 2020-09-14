@@ -34,6 +34,7 @@ class DfsVisitor {
   virtual absl::Status HandleArray(Array* array) = 0;
   virtual absl::Status HandleArrayIndex(ArrayIndex* index) = 0;
   virtual absl::Status HandleArrayUpdate(ArrayUpdate* update) = 0;
+  virtual absl::Status HandleArrayConcat(ArrayConcat* array_concat) = 0;
   virtual absl::Status HandleBitSlice(BitSlice* bit_slice) = 0;
   virtual absl::Status HandleChannelReceive(ChannelReceive* receive) = 0;
   virtual absl::Status HandleChannelSend(ChannelSend* send) = 0;
@@ -130,6 +131,7 @@ class DfsVisitorWithDefault : public DfsVisitor {
   absl::Status HandleArray(Array* array) override;
   absl::Status HandleArrayIndex(ArrayIndex* index) override;
   absl::Status HandleArrayUpdate(ArrayUpdate* update) override;
+  absl::Status HandleArrayConcat(ArrayConcat* array_concat) override;
   absl::Status HandleBitSlice(BitSlice* bit_slice) override;
   absl::Status HandleChannelReceive(ChannelReceive* receive) override;
   absl::Status HandleChannelSend(ChannelSend* send) override;

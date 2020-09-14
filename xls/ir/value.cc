@@ -38,6 +38,85 @@ namespace xls {
   return Value(ValueKind::kArray, elements);
 }
 
+/* static */ xabsl::StatusOr<Value> Value::UBitsArray(
+    absl::Span<const uint64> elements, int64 bit_count) {
+  if (elements.empty()) {
+    return absl::UnimplementedError("Empty array Values are not supported.");
+  }
+
+  std::vector<Value> elements_as_values;
+  for (auto x : elements) {
+    XLS_ASSIGN_OR_RETURN(Bits bits, UBitsWithStatus(x, bit_count));
+    elements_as_values.push_back(Value(bits));
+  }
+
+  return Value::Array(elements_as_values);
+}
+
+/* static */ xabsl::StatusOr<Value> Value::UBits2DArray(
+    absl::Span<const absl::Span<const uint64>> elements, int64 bit_count) {
+  if (elements.empty()) {
+    return absl::UnimplementedError("Empty array Values are not supported.");
+  }
+
+  std::vector<Value> elements_as_values;
+  int64 element_size = -1;
+  for (auto x : elements) {
+    XLS_ASSIGN_OR_RETURN(Value x_as_value, UBitsArray(x, bit_count));
+
+    if (element_size == -1) {
+      element_size = x_as_value.size();
+    } else if (element_size != x_as_value.size()) {
+      return absl::InternalError(
+          "UBitsArray - elements of arrays should have consistent size.");
+    }
+
+    elements_as_values.push_back(x_as_value);
+  }
+
+  return Value::Array(elements_as_values);
+}
+
+/* static */ xabsl::StatusOr<Value> Value::SBitsArray(
+    absl::Span<const int64> elements, int64 bit_count) {
+  if (elements.empty()) {
+    return absl::UnimplementedError("Empty array Values are not supported.");
+  }
+
+  std::vector<Value> elements_as_values;
+  for (auto x : elements) {
+    XLS_ASSIGN_OR_RETURN(Bits bits, SBitsWithStatus(x, bit_count));
+    elements_as_values.push_back(Value(bits));
+  }
+
+  return Value::Array(elements_as_values);
+}
+
+/* static */ xabsl::StatusOr<Value> Value::SBits2DArray(
+    absl::Span<const absl::Span<const int64>> elements, int64 bit_count) {
+  if (elements.empty()) {
+    return absl::UnimplementedError("Empty array Values are not supported.");
+  }
+
+  std::vector<Value> elements_as_values;
+  int64 element_size = -1;
+
+  for (auto x : elements) {
+    XLS_ASSIGN_OR_RETURN(Value x_as_value, SBitsArray(x, bit_count));
+
+    if (element_size == -1) {
+      element_size = x_as_value.size();
+    } else if (element_size != x_as_value.size()) {
+      return absl::InternalError(
+          "SBitsArray - elements of arrays should have consistent size.");
+    }
+
+    elements_as_values.push_back(x_as_value);
+  }
+
+  return Value::Array(elements_as_values);
+}
+
 std::string ValueKindToString(ValueKind kind) {
   switch (kind) {
     case ValueKind::kInvalid:

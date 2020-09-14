@@ -196,6 +196,8 @@ PYBIND11_MODULE(function_builder, m) {
       .def("add_array_update", FbPyWrap(&FunctionBuilder::ArrayUpdate),
            py::arg("arg"), py::arg("idx"), py::arg("update_value"),
            py::arg("loc") = absl::nullopt)
+      .def("add_array_concat", FbPyWrap(&FunctionBuilder::ArrayConcat),
+           py::arg("operands"), py::arg("loc") = absl::nullopt)
       .def("add_reverse", FbPyWrap(&FunctionBuilder::Reverse), py::arg("arg"),
            py::arg("loc") = absl::nullopt)
       .def("add_identity", FbPyWrap(&FunctionBuilder::Identity), py::arg("arg"),

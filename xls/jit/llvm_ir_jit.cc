@@ -221,6 +221,39 @@ class BuilderVisitor : public DfsVisitorWithDefault {
     return StoreResult(update, update_array);
   }
 
+  absl::Status HandleArrayConcat(ArrayConcat* concat) override {
+    llvm::Type* array_type =
+        type_converter_->ConvertToLlvmType(*concat->GetType());
+
+    llvm::Value* result = CreateTypedZeroValue(array_type);
+
+    int64 result_index = 0;
+    int64 result_elements = array_type->getArrayNumElements();
+    for (Node* operand : concat->operands()) {
+      llvm::Value* array = node_map_.at(operand);
+      llvm::Type* array_type = array->getType();
+
+      int64 element_count = array_type->getArrayNumElements();
+      for (int64 j = 0; j < element_count; ++j) {
+        llvm::Value* element =
+            builder_->CreateExtractValue(array, {static_cast<uint32>(j)});
+
+        if (result_index >= result_elements) {
+          return absl::InternalError(absl::StrFormat(
+              "array-concat %s result and source have mismatched number of "
+              "elements - expected %d",
+              concat->ToString(), result_elements));
+        }
+
+        result = builder_->CreateInsertValue(
+            result, element, {static_cast<uint32>(result_index)});
+        ++result_index;
+      }
+    }
+
+    return StoreResult(concat, result);
+  }
+
   absl::Status HandleBitSlice(BitSlice* bit_slice) override {
     llvm::Value* value = node_map_.at(bit_slice->operand(0));
     Value shift_amount(

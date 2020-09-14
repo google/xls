@@ -309,6 +309,21 @@ absl::Status IrInterpreter::HandleArrayUpdate(ArrayUpdate* update) {
   return SetValueResult(update, result);
 }
 
+absl::Status IrInterpreter::HandleArrayConcat(ArrayConcat* concat) {
+  std::vector<Value> array_elements;
+
+  for (Node* operand : concat->operands()) {
+    const Value& operand_as_value = ResolveAsValue(operand);
+    auto elements = operand_as_value.elements();
+
+    array_elements.insert(array_elements.end(), elements.begin(),
+                          elements.end());
+  }
+
+  XLS_ASSIGN_OR_RETURN(Value result, Value::Array(array_elements));
+  return SetValueResult(concat, result);
+}
+
 absl::Status IrInterpreter::HandleInvoke(Invoke* invoke) {
   Function* to_apply = invoke->to_apply();
   std::vector<Value> args;

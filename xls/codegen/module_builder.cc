@@ -469,6 +469,42 @@ xabsl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
               /*element_type=*/array_type->element_type()));
         }
         break;
+      case Op::kArrayConcat: {
+        if (inputs.size() != node->operands().size()) {
+          return absl::InternalError(absl::StrFormat(
+              "EmitAsAssignment %s has %d operands, but VAST inputs has %d",
+              node->ToString(), node->operands().size(), inputs.size()));
+        }
+
+        int64 result_index = 0;
+        for (int64 i = 0; i < node->operand_count(); ++i) {
+          Node* operand = node->operand(i);
+
+          if (!operand->GetType()->IsArray()) {
+            return absl::InternalError(absl::StrFormat(
+                "EmitAsAssignment %s has operand %s expected to be array",
+                node->ToString(), operand->ToString()));
+          }
+
+          Expression* input = inputs.at(i);
+          ArrayType* input_type = operand->GetType()->AsArrayOrDie();
+          int64 input_size = input_type->size();
+
+          for (int64 j = 0; j < input_size; ++j) {
+            XLS_RETURN_IF_ERROR(AddAssignment(
+                file_->Index(ref, file_->PlainLiteral(result_index)),
+                file_->Index(input->AsIndexableExpressionOrDie(),
+                             file_->PlainLiteral(j)),
+                input_type->element_type(),
+                [&](Expression* lhs, Expression* rhs) {
+                  assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
+                }));
+
+            ++result_index;
+          }
+        }
+        break;
+      }
       case Op::kTupleIndex:
         XLS_RETURN_IF_ERROR(AssignFromSlice(
             ref, inputs[0], array_type,

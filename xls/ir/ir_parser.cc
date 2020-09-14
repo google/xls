@@ -689,6 +689,21 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
         bvalue = fb->ArrayUpdate(operands[0], operands[1], operands[2], *loc);
         break;
       }
+      case Op::kArrayConcat: {
+        // fb->ArrayConcat will check that all operands are of an array
+        // type and that all concat'ed arrays have the same element type.
+        //
+        // for now, just check that type is an Array
+        if (!type->IsArray()) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Expected array type @ %s, got %s",
+              op_token.pos().ToHumanString(), type->ToString()));
+        }
+
+        XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(ArgParser::kVariadic));
+        bvalue = fb->ArrayConcat(operands, *loc);
+        break;
+      }
       case Op::kInvoke: {
         std::string* to_apply_name =
             arg_parser.AddKeywordArg<std::string>("to_apply");

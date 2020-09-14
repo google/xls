@@ -198,7 +198,7 @@ class NodeChecker : public DfsVisitor {
     int64 total_bits = 0;
     for (int64 i = 0; i < concat->operand_count(); ++i) {
       Type* operand_type = concat->operand(i)->GetType();
-      XLS_RETURN_IF_ERROR(ExpectHasBitsType(concat));
+      XLS_RETURN_IF_ERROR(ExpectHasBitsType(concat->operand(i)));
       total_bits += operand_type->AsBitsOrDie()->bit_count();
     }
     return ExpectHasBitsType(concat, /*expected_bit_count=*/total_bits);
@@ -310,6 +310,41 @@ class NodeChecker : public DfsVisitor {
     return ExpectSameType(update, element_type, update->operand(2),
                           update->operand(2)->GetType(),
                           "array update operation elements", "update value");
+  }
+
+  absl::Status HandleArrayConcat(ArrayConcat* array_concat) override {
+    // Must have at least one operand
+    XLS_RETURN_IF_ERROR(ExpectOperandCountGt(array_concat, 0));
+
+    // Verify operands are all arrays and that their elements are
+    // of the same type
+    int64 size = 0;
+    Type* zeroth_element_type = nullptr;
+
+    for (int64 i = 0; i < array_concat->operand_count(); ++i) {
+      Node* operand = array_concat->operand(i);
+
+      XLS_RETURN_IF_ERROR(ExpectOperandHasArrayType(array_concat, i));
+
+      ArrayType* operand_type = operand->GetType()->AsArrayOrDie();
+      Type* element_type = operand_type->element_type();
+
+      if (!zeroth_element_type) {
+        zeroth_element_type = element_type;
+      } else if (element_type != zeroth_element_type) {
+        return absl::InternalError(StrFormat(
+            "Element type of operand %d of %s (%s via %s) "
+            "does not match element type of operand 0 (%s via %s): %s",
+            i, array_concat->GetName(), element_type->ToString(),
+            operand->GetName(), zeroth_element_type->ToString(),
+            array_concat->operand(0)->GetName(), array_concat->ToString()));
+      }
+
+      size += operand_type->size();
+    }
+
+    // Verify return type is an array, with the expected type and size
+    return ExpectHasArrayType(array_concat, zeroth_element_type, size);
   }
 
   absl::Status HandleInvoke(Invoke* invoke) override {
@@ -620,12 +655,62 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status ExpectHasArrayType(Node* node) const {
+  absl::Status ExpectHasArrayType(Node* node,
+                                  Type* expected_element_type = nullptr,
+                                  int64 expected_size = -1) const {
     if (!node->GetType()->IsArray()) {
       return absl::InternalError(
           StrFormat("Expected %s to have Array type, has type %s",
                     node->GetName(), node->GetType()->ToString()));
     }
+
+    Type* element_type = node->GetType()->AsArrayOrDie()->element_type();
+    if (expected_element_type && element_type != expected_element_type) {
+      return absl::InternalError(StrFormat(
+          "Expected %s to have element type %s, has type %s", node->GetName(),
+          expected_element_type->ToString(), element_type->ToString()));
+    }
+
+    int64 size = node->GetType()->AsArrayOrDie()->size();
+    if (expected_size >= 0 && size != expected_size) {
+      return absl::InternalError(
+          StrFormat("Expected %s to have size %d, has size %d", node->GetName(),
+                    expected_size, size));
+    }
+
+    return absl::OkStatus();
+  }
+
+  absl::Status ExpectOperandHasArrayType(Node* node, int64 operand_no,
+                                         Type* expected_element_type = nullptr,
+                                         int64 expected_size = -1) const {
+    Node* operand = node->operand(operand_no);
+
+    if (!operand->GetType()->IsArray()) {
+      return absl::InternalError(
+          StrFormat("Expected operand %d of %s to have Array type, "
+                    "has type %s: %s",
+                    operand_no, node->GetName(), operand->GetType()->ToString(),
+                    node->ToString()));
+    }
+
+    Type* element_type = operand->GetType()->AsArrayOrDie()->element_type();
+    if (expected_element_type && element_type != expected_element_type) {
+      return absl::InternalError(StrFormat(
+          "Expected operand %d of %s to have "
+          "element type %s, has type %s: %s",
+          operand_no, node->GetName(), expected_element_type->ToString(),
+          element_type->ToString(), node->ToString()));
+    }
+
+    int64 size = operand->GetType()->AsArrayOrDie()->size();
+    if (expected_size >= 0 && size != expected_size) {
+      return absl::InternalError(StrFormat(
+          "Expected operand %d of %s to have size %d, "
+          "has size %d: %s",
+          operand_no, node->GetName(), expected_size, size, node->ToString()));
+    }
+
     return absl::OkStatus();
   }
 

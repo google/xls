@@ -398,6 +398,13 @@ OpClass.kinds['ARRAY_UPDATE'] = OpClass(
                           expression='GetType()->AsArrayOrDie()->size()')]
 )
 
+OpClass.kinds['ARRAY_CONCAT'] = OpClass(
+    name='ArrayConcat',
+    op='Op::kArrayConcat',
+    operands=[OperandSpan('args')],
+    xls_type_expression='GetArrayConcatType(function->package(), args)',
+)
+
 OpClass.kinds['BIN_OP'] = OpClass(
     name='BinOp',
     op='op',
@@ -737,6 +744,12 @@ OPS = [
         enum_name='kArrayUpdate',
         name='array_update',
         op_class=OpClass.kinds['ARRAY_UPDATE'],
+        properties=[],
+    ),
+    Op(
+        enum_name='kArrayConcat',
+        name='array_concat',
+        op_class=OpClass.kinds['ARRAY_CONCAT'],
         properties=[],
     ),
     Op(

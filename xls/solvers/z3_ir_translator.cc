@@ -710,6 +710,33 @@ absl::Status IrTranslator::HandleArrayUpdate(ArrayUpdate* array_update) {
   return seh.status();
 }
 
+absl::Status IrTranslator::HandleArrayConcat(ArrayConcat* array_concat) {
+  ScopedErrorHandler seh(ctx_);
+
+  std::vector<Z3_ast> elements;
+  for (Node* operand : array_concat->operands()) {
+    // Get number of elements in this operand (which is an array)
+    ArrayType* array_type = operand->GetType()->AsArrayOrDie();
+    int64 element_count = array_type->size();
+
+    Z3_sort index_sort =
+        Z3_mk_bv_sort(ctx_, Bits::MinBitCountUnsigned(element_count));
+
+    Z3_ast array = GetValue(operand);
+
+    for (int64 i = 0; i < element_count; ++i) {
+      Z3_ast index = Z3_mk_int64(ctx_, i, index_sort);
+      Z3_ast element = Z3_mk_select(ctx_, array, index);
+      elements.push_back(element);
+    }
+  }
+
+  NoteTranslation(array_concat,
+                  CreateArray(array_concat->GetType()->AsArrayOrDie(),
+                              absl::MakeSpan(elements)));
+  return seh.status();
+}
+
 absl::Status IrTranslator::HandleTupleIndex(TupleIndex* tuple_index) {
   ScopedErrorHandler seh(ctx_);
   Z3_ast tuple = GetValue(tuple_index->operand(0));

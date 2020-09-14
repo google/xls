@@ -66,6 +66,17 @@ class Value {
   // be returned.
   static xabsl::StatusOr<Value> Array(absl::Span<const Value> elements);
 
+  // Shortcut to create an array of bits from an initializer list of literals
+  // ex. UBitsArray({1, 2}, 32) will create a Value of type bits[32][2]
+  static xabsl::StatusOr<Value> UBitsArray(absl::Span<const uint64> elements,
+                                           int64 bit_count);
+  static xabsl::StatusOr<Value> UBits2DArray(
+      absl::Span<const absl::Span<const uint64>> elements, int64 bit_count);
+  static xabsl::StatusOr<Value> SBitsArray(absl::Span<const int64> elements,
+                                           int64 bit_count);
+  static xabsl::StatusOr<Value> SBits2DArray(
+      absl::Span<const absl::Span<const int64>> elements, int64 bit_count);
+
   // As above, but as a precondition all elements must be known to be of the
   // same type.
   static Value ArrayOrDie(absl::Span<const Value> elements) {

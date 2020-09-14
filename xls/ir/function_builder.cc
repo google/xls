@@ -351,6 +351,45 @@ BValue BuilderBase::ArrayUpdate(BValue arg, BValue idx, BValue update_value,
                                    update_value.node());
 }
 
+BValue BuilderBase::ArrayConcat(absl::Span<const BValue> operands,
+                                absl::optional<SourceLocation> loc) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+
+  std::vector<Node*> node_operands;
+  Type* zeroth_element_type = nullptr;
+
+  for (const BValue operand : operands) {
+    node_operands.push_back(operand.node());
+    if (!operand.node()->GetType()->IsArray()) {
+      return SetError(
+          absl::StrFormat(
+              "Cannot array-concat node %s because it has non-array type %s",
+              operand.node()->ToString(),
+              operand.node()->GetType()->ToString()),
+          loc);
+    }
+
+    ArrayType* operand_type = operand.node()->GetType()->AsArrayOrDie();
+    Type* element_type = operand_type->element_type();
+
+    if (!zeroth_element_type) {
+      zeroth_element_type = element_type;
+    } else if (zeroth_element_type != element_type) {
+      return SetError(
+          absl::StrFormat(
+              "Cannot array-concat node %s because it has element type %s"
+              " but expected %s",
+              operand.node()->ToString(), element_type->ToString(),
+              zeroth_element_type->ToString()),
+          loc);
+    }
+  }
+
+  return AddNode<xls::ArrayConcat>(loc, node_operands);
+}
+
 BValue BuilderBase::Reverse(BValue arg, absl::optional<SourceLocation> loc) {
   if (ErrorPending()) {
     return BValue();

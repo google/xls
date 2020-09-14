@@ -1554,6 +1554,27 @@ class IrConverterTest(absltest.TestCase):
         }
         """)
 
+  def test_array_concat_0(self):
+    m = self.parse_dsl_text("""\
+    fn f(in1: u32[2]) -> u32 {
+      let x : u32[4] = in1 ++ in1;
+      x[u32:0]
+    }
+    """)
+    node_to_type = typecheck.check_module(m, f_import=None)
+    converted = ir_converter.convert_module(
+        m, node_to_type, emit_positions=False)
+    self.assert_ir_equals_and_parses(
+        converted, """\
+        package test_module
+
+        fn __test_module__f(in1: bits[32][2]) -> bits[32] {
+          array_concat.2: bits[32][4] = array_concat(in1, in1)
+          literal.3: bits[32] = literal(value=0)
+          ret array_index.4: bits[32] = array_index(array_concat.2, literal.3)
+        }
+        """)
+
 
 if __name__ == '__main__':
   absltest.main()

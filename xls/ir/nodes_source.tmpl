@@ -26,6 +26,24 @@ Type* GetConcatType(Package* package, absl::Span<Node* const> operands) {
   return package->GetBitsType(width);
 }
 
+Type* GetArrayConcatType(Package* package, absl::Span<Node* const> operands) {
+  int64 size = 0;
+  Type* element_type = nullptr;
+
+  for (Node* operand : operands) {
+    auto operand_type = operand->GetType()->AsArrayOrDie();
+
+    size += operand_type->size();
+    if (element_type == nullptr) {
+      // Set element_type to the first operand's element type
+      element_type = operand_type->element_type();
+    }
+  }
+
+  XLS_CHECK(element_type);
+  return package->GetArrayType(size, element_type);
+}
+
 Type* GetMapType(Node* operand, Function* to_apply) {
   return operand->package()->GetArrayType(operand->GetType()->AsArrayOrDie()->size(),
                                  to_apply->return_value()->GetType());

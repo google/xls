@@ -767,6 +767,78 @@ fn foo(array: bits[32][3], idx: bits[32], newval: bits[64]) -> bits[32][3] {
                                  "type as the array elements")));
 }
 
+TEST(IrParserTest, ParseArrayConcat0) {
+  const std::string input = R"(
+fn foo(a0: bits[32][3], a1: bits[32][1]) -> bits[32][4] {
+  ret array_concat.3: bits[32][4] = array_concat(a0, a1)
+}
+)";
+  ParseFunctionAndCheckDump(input);
+}
+
+TEST(IrParserTest, ParseArrayConcat1) {
+  const std::string input = R"(
+fn foo(a0: bits[32][0], a1: bits[32][1]) -> bits[32][1] {
+  ret array_concat.3: bits[32][1] = array_concat(a0, a1)
+}
+)";
+  ParseFunctionAndCheckDump(input);
+}
+
+TEST(IrParserTest, ParseArrayConcatMixedOperands) {
+  const std::string input = R"(
+fn f(a0: bits[32][2], a1: bits[32][3], a2: bits[32][1]) -> bits[32][7] {
+  array_concat.4: bits[32][1] = array_concat(a2)
+  array_concat.5: bits[32][2] = array_concat(array_concat.4, array_concat.4)
+  array_concat.6: bits[32][7] = array_concat(a0, array_concat.5, a1)
+  ret array_concat.7: bits[32][7] = array_concat(array_concat.6)
+}
+)";
+  ParseFunctionAndCheckDump(input);
+}
+
+TEST(IrParserTest, ParseArrayConcatNonArrayType) {
+  const std::string input = R"(
+fn foo(a0: bits[16], a1: bits[16][1]) -> bits[16][2] {
+  ret array_concat.3: bits[16][2] = array_concat(a0, a1)
+}
+)";
+  Package p("my_package");
+  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Cannot array-concat node "
+                                 "a0: bits[16] = param(a0) "
+                                 "because it has non-array type bits[16]")));
+}
+
+TEST(IrParserTest, ParseArrayIncompatibleElementType) {
+  const std::string input = R"(
+fn foo(a0: bits[16][1], a1: bits[32][1]) -> bits[16][2] {
+  ret array_concat.3: bits[16][2] = array_concat(a0, a1)
+}
+)";
+  Package p("my_package");
+  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Cannot array-concat node "
+                                 "a1: bits[32][1] = param(a1) because "
+                                 "it has element type bits[32] but "
+                                 "expected bits[16]")));
+}
+
+TEST(IrParserTest, ParseArrayIncompatibleReturnType) {
+  const std::string input = R"(
+fn foo(a0: bits[16][1], a1: bits[16][1]) -> bits[16][3] {
+  ret array_concat.3: bits[16][3] = array_concat(a0, a1)
+}
+)";
+  Package p("my_package");
+  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Declared type bits[16][3] does not match "
+                                 "expected type bits[16][2]")));
+}
+
 TEST(IrParserTest, ParseTupleIndex) {
   const std::string input = R"(
 fn foo(x: bits[42]) -> bits[33] {

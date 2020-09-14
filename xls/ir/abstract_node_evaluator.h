@@ -70,6 +70,8 @@ xabsl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
       return default_handler(node);
     case Op::kArrayUpdate:
       return default_handler(node);
+    case Op::kArrayConcat:
+      return default_handler(node);
     case Op::kBitSlice: {
       XLS_RETURN_IF_ERROR(check_operand_count(1));
       BitSlice* bit_slice = node->As<BitSlice>();

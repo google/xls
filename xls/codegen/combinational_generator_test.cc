@@ -782,6 +782,89 @@ TEST_P(CombinationalGeneratorTest, ArrayShapedSelNoDefault) {
       IsOkAndHolds(y_in));
 }
 
+TEST_P(CombinationalGeneratorTest, ArrayConcatArrayOfBits) {
+  Package package(TestBaseName());
+
+  std::string ir_text = R"(
+  fn f(a0: bits[32][2], a1: bits[32][3]) -> bits[32][7] {
+    array_concat.3: bits[32][5] = array_concat(a0, a1)
+    ret array_concat.4: bits[32][7] = array_concat(array_concat.3, a0)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           Parser::ParseFunction(ir_text, &package));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, ToCombinationalModuleText(function, UseSystemVerilog()));
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+
+  XLS_ASSERT_OK_AND_ASSIGN(Value a0, Value::UBitsArray({1, 2}, 32));
+  XLS_ASSERT_OK_AND_ASSIGN(Value a1, Value::UBitsArray({3, 4, 5}, 32));
+  XLS_ASSERT_OK_AND_ASSIGN(Value ret,
+                           Value::UBitsArray({1, 2, 3, 4, 5, 1, 2}, 32));
+
+  EXPECT_THAT(simulator.Run({{"a0", a0}, {"a1", a1}}), IsOkAndHolds(ret));
+}
+
+TEST_P(CombinationalGeneratorTest, ArrayConcatArrayOfBitsMixedOperands) {
+  Package package(TestBaseName());
+
+  std::string ir_text = R"(
+  fn f(a0: bits[32][2], a1: bits[32][3], a2: bits[32][1]) -> bits[32][7] {
+    array_concat.4: bits[32][1] = array_concat(a2)
+    array_concat.5: bits[32][2] = array_concat(array_concat.4, array_concat.4)
+    array_concat.6: bits[32][7] = array_concat(a0, array_concat.5, a1)
+    ret array_concat.7: bits[32][7] = array_concat(array_concat.6)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           Parser::ParseFunction(ir_text, &package));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, ToCombinationalModuleText(function, UseSystemVerilog()));
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+
+  XLS_ASSERT_OK_AND_ASSIGN(Value a0, Value::UBitsArray({1, 2}, 32));
+  XLS_ASSERT_OK_AND_ASSIGN(Value a1, Value::UBitsArray({3, 4, 5}, 32));
+  XLS_ASSERT_OK_AND_ASSIGN(Value a2, Value::SBitsArray({-1}, 32));
+  XLS_ASSERT_OK_AND_ASSIGN(Value ret,
+                           Value::SBitsArray({1, 2, -1, -1, 3, 4, 5}, 32));
+
+  EXPECT_THAT(simulator.Run({{"a0", a0}, {"a1", a1}, {"a2", a2}}),
+              IsOkAndHolds(ret));
+}
+
+TEST_P(CombinationalGeneratorTest, InterpretArrayConcatArraysOfArrays) {
+  Package package(TestBaseName());
+
+  std::string ir_text = R"(
+  fn f() -> bits[32][2][3] {
+    literal.1: bits[32][2][2] = literal(value=[[1, 2], [3, 4]])
+    literal.2: bits[32][2][1] = literal(value=[[5, 6]])
+
+    ret array_concat.3: bits[32][2][3] = array_concat(literal.2, literal.1)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           Parser::ParseFunction(ir_text, &package));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, ToCombinationalModuleText(function, UseSystemVerilog()));
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+
+  XLS_ASSERT_OK_AND_ASSIGN(Value ret,
+                           Value::SBits2DArray({{5, 6}, {1, 2}, {3, 4}}, 32));
+
+  std::vector<Value> args;
+  EXPECT_THAT(simulator.Run(args), IsOkAndHolds(ret));
+}
+
 INSTANTIATE_TEST_SUITE_P(CombinationalGeneratorTestInstantiation,
                          CombinationalGeneratorTest,
                          testing::ValuesIn(kDefaultSimulationTargets),

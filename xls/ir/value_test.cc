@@ -22,6 +22,8 @@
 
 namespace xls {
 
+using ::testing::HasSubstr;
+
 TEST(ValueTest, ToHumanString) {
   Value bits_value(UBits(42, 33));
   EXPECT_EQ(bits_value.ToHumanString(), "42");
@@ -147,6 +149,185 @@ TEST(ValueTest, IsAllZeroOnes) {
   EXPECT_FALSE(Value::Tuple({Value(UBits(7, 3)), Value(UBits(121, 7)),
                              Value(UBits(1, 1))})
                    .IsAllOnes());
+}
+
+TEST(ValueTest, XBitsArray) {
+  Value v0;
+
+  XLS_ASSERT_OK_AND_ASSIGN(v0, Value::UBitsArray({0}, 1));
+  EXPECT_TRUE(v0.IsArray());
+  EXPECT_EQ(v0.size(), 1);
+  EXPECT_EQ(v0.element(0).ToString(), "bits[1]:0");
+
+  XLS_ASSERT_OK_AND_ASSIGN(v0, Value::UBitsArray({1}, 1));
+  EXPECT_TRUE(v0.IsArray());
+  EXPECT_EQ(v0.size(), 1);
+  EXPECT_EQ(v0.element(0).ToString(), "bits[1]:1");
+
+  XLS_ASSERT_OK_AND_ASSIGN(v0, Value::SBitsArray({-1}, 2));
+  EXPECT_TRUE(v0.IsArray());
+  EXPECT_EQ(v0.size(), 1);
+  EXPECT_EQ(v0.element(0).ToString(), "bits[2]:3");
+
+  XLS_ASSERT_OK_AND_ASSIGN(v0, Value::SBitsArray({1}, 2));
+  EXPECT_TRUE(v0.IsArray());
+  EXPECT_EQ(v0.size(), 1);
+  EXPECT_EQ(v0.element(0).ToString(), "bits[2]:1");
+
+  XLS_ASSERT_OK_AND_ASSIGN(v0, Value::UBitsArray({0, 1}, 4));
+  EXPECT_TRUE(v0.IsArray());
+  EXPECT_EQ(v0.size(), 2);
+  EXPECT_EQ(v0.element(0).ToString(), "bits[4]:0");
+  EXPECT_EQ(v0.element(1).ToString(), "bits[4]:1");
+
+  XLS_ASSERT_OK_AND_ASSIGN(v0, Value::UBitsArray({1, 2, 3}, 4));
+  EXPECT_TRUE(v0.IsArray());
+  EXPECT_EQ(v0.size(), 3);
+  EXPECT_EQ(v0.element(0).ToString(), "bits[4]:1");
+  EXPECT_EQ(v0.element(1).ToString(), "bits[4]:2");
+  EXPECT_EQ(v0.element(2).ToString(), "bits[4]:3");
+
+  XLS_ASSERT_OK_AND_ASSIGN(v0, Value::SBitsArray({-1, 0}, 4));
+  EXPECT_TRUE(v0.IsArray());
+  EXPECT_EQ(v0.size(), 2);
+  EXPECT_EQ(v0.element(0).ToString(), "bits[4]:15");
+  EXPECT_EQ(v0.element(1).ToString(), "bits[4]:0");
+
+  XLS_ASSERT_OK_AND_ASSIGN(v0, Value::SBitsArray({1, 2, 3, 4}, 4));
+  EXPECT_TRUE(v0.IsArray());
+  EXPECT_EQ(v0.size(), 4);
+  EXPECT_EQ(v0.element(0).ToString(), "bits[4]:1");
+  EXPECT_EQ(v0.element(1).ToString(), "bits[4]:2");
+  EXPECT_EQ(v0.element(2).ToString(), "bits[4]:3");
+  EXPECT_EQ(v0.element(3).ToString(), "bits[4]:4");
+}
+
+TEST(ValueTest, XBits2DArray) {
+  Value v0;
+
+  XLS_ASSERT_OK_AND_ASSIGN(v0, Value::UBits2DArray({{0}, {1}}, 1));
+  EXPECT_TRUE(v0.IsArray());
+  EXPECT_EQ(v0.size(), 2);
+  EXPECT_TRUE(v0.element(0).IsArray());
+  EXPECT_TRUE(v0.element(1).IsArray());
+  EXPECT_EQ(v0.element(0).size(), 1);
+  EXPECT_EQ(v0.element(1).size(), 1);
+  EXPECT_EQ(v0.element(0).element(0).ToString(), "bits[1]:0");
+  EXPECT_EQ(v0.element(1).element(0).ToString(), "bits[1]:1");
+
+  XLS_ASSERT_OK_AND_ASSIGN(v0, Value::UBits2DArray({{0, 1}, {2, 3}}, 2));
+  EXPECT_TRUE(v0.IsArray());
+  EXPECT_EQ(v0.size(), 2);
+  EXPECT_TRUE(v0.element(0).IsArray());
+  EXPECT_TRUE(v0.element(1).IsArray());
+  EXPECT_EQ(v0.element(0).size(), 2);
+  EXPECT_EQ(v0.element(1).size(), 2);
+  EXPECT_EQ(v0.element(0).element(0).ToString(), "bits[2]:0");
+  EXPECT_EQ(v0.element(0).element(1).ToString(), "bits[2]:1");
+  EXPECT_EQ(v0.element(1).element(0).ToString(), "bits[2]:2");
+  EXPECT_EQ(v0.element(1).element(1).ToString(), "bits[2]:3");
+
+  XLS_ASSERT_OK_AND_ASSIGN(v0, Value::SBits2DArray({{0}, {1}, {-1}}, 2));
+  EXPECT_TRUE(v0.IsArray());
+  EXPECT_EQ(v0.size(), 3);
+  EXPECT_TRUE(v0.element(0).IsArray());
+  EXPECT_TRUE(v0.element(1).IsArray());
+  EXPECT_TRUE(v0.element(2).IsArray());
+  EXPECT_EQ(v0.element(0).size(), 1);
+  EXPECT_EQ(v0.element(1).size(), 1);
+  EXPECT_EQ(v0.element(2).size(), 1);
+  EXPECT_EQ(v0.element(0).element(0).ToString(), "bits[2]:0");
+  EXPECT_EQ(v0.element(1).element(0).ToString(), "bits[2]:1");
+  EXPECT_EQ(v0.element(2).element(0).ToString(), "bits[2]:3");
+
+  XLS_ASSERT_OK_AND_ASSIGN(v0,
+                           Value::SBits2DArray({{0, 1}, {2, 3}, {4, 5}}, 4));
+  EXPECT_TRUE(v0.IsArray());
+  EXPECT_EQ(v0.size(), 3);
+  EXPECT_TRUE(v0.element(0).IsArray());
+  EXPECT_TRUE(v0.element(1).IsArray());
+  EXPECT_TRUE(v0.element(2).IsArray());
+  EXPECT_EQ(v0.element(0).size(), 2);
+  EXPECT_EQ(v0.element(1).size(), 2);
+  EXPECT_EQ(v0.element(2).size(), 2);
+  EXPECT_EQ(v0.element(0).element(0).ToString(), "bits[4]:0");
+  EXPECT_EQ(v0.element(0).element(1).ToString(), "bits[4]:1");
+  EXPECT_EQ(v0.element(1).element(0).ToString(), "bits[4]:2");
+  EXPECT_EQ(v0.element(1).element(1).ToString(), "bits[4]:3");
+  EXPECT_EQ(v0.element(2).element(0).ToString(), "bits[4]:4");
+  EXPECT_EQ(v0.element(2).element(1).ToString(), "bits[4]:5");
+}
+
+TEST(ValueTest, XBitsArrayEmpty) {
+  // Test empty array values
+  auto v0 = Value::UBitsArray(absl::Span<uint64>({}), 1);
+  EXPECT_FALSE(v0.ok());
+  EXPECT_EQ(v0.status().message(), "Empty array Values are not supported.");
+
+  v0 = Value::SBitsArray(absl::Span<int64>({}), 1);
+  EXPECT_FALSE(v0.ok());
+  EXPECT_EQ(v0.status().message(), "Empty array Values are not supported.");
+
+  v0 = Value::UBits2DArray(absl::Span<const absl::Span<const uint64>>({}), 1);
+  EXPECT_FALSE(v0.ok());
+  EXPECT_EQ(v0.status().message(), "Empty array Values are not supported.");
+
+  v0 = Value::SBits2DArray(absl::Span<const absl::Span<const int64>>({}), 1);
+  EXPECT_FALSE(v0.ok());
+  EXPECT_EQ(v0.status().message(), "Empty array Values are not supported.");
+
+  // Test partially empty values (2D Arrays)
+  v0 = Value::UBits2DArray(
+      absl::Span<const absl::Span<const uint64>>({{}, {1}}), 2);
+  EXPECT_FALSE(v0.ok());
+  EXPECT_EQ(v0.status().message(), "Empty array Values are not supported.");
+
+  v0 = Value::SBits2DArray(absl::Span<const absl::Span<const int64>>({{}, {1}}),
+                           2);
+  EXPECT_FALSE(v0.ok());
+  EXPECT_EQ(v0.status().message(), "Empty array Values are not supported.");
+
+  v0 = Value::UBits2DArray(
+      absl::Span<const absl::Span<const uint64>>({{1}, {}}), 2);
+  EXPECT_FALSE(v0.ok());
+  EXPECT_EQ(v0.status().message(), "Empty array Values are not supported.");
+
+  v0 = Value::SBits2DArray(absl::Span<const absl::Span<const int64>>({{1}, {}}),
+                           2);
+  EXPECT_FALSE(v0.ok());
+  EXPECT_EQ(v0.status().message(), "Empty array Values are not supported.");
+}
+
+TEST(ValueTest, XBitsArrayWrongSizes) {
+  // Test bit sizes
+  auto v0 = Value::UBitsArray({2}, 1);
+  EXPECT_FALSE(v0.ok());
+  EXPECT_THAT(v0.status().message(), HasSubstr("Value 0x2 requires 2 bits"));
+
+  v0 = Value::SBitsArray({1}, 1);
+  EXPECT_FALSE(v0.ok());
+  EXPECT_THAT(v0.status().message(), HasSubstr("Value 0x1 requires 2 bits"));
+
+  // Test partially arrays sizes (2D Arrays)
+  v0 = Value::UBits2DArray({{1, 2}, {3}}, 4);
+  EXPECT_FALSE(v0.ok());
+  EXPECT_THAT(v0.status().message(),
+              HasSubstr("elements of arrays should have consistent size."));
+
+  v0 = Value::SBits2DArray({{1, 2}, {3}}, 4);
+  EXPECT_FALSE(v0.ok());
+  EXPECT_THAT(v0.status().message(),
+              HasSubstr("elements of arrays should have consistent size."));
+
+  v0 = Value::UBits2DArray({{1}, {2, 3}}, 4);
+  EXPECT_FALSE(v0.ok());
+  EXPECT_THAT(v0.status().message(),
+              HasSubstr("elements of arrays should have consistent size."));
+
+  v0 = Value::SBits2DArray({{1}, {2, 3}}, 4);
+  EXPECT_FALSE(v0.ok());
+  EXPECT_THAT(v0.status().message(),
+              HasSubstr("elements of arrays should have consistent size."));
 }
 
 }  // namespace xls

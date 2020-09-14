@@ -461,5 +461,78 @@ TEST(LlvmIrJitTest, PackedTuples) {
   }
 }
 
+TEST(LlvmIrJitTest, ArrayConcatArrayOfBits) {
+  Package package("my_package");
+
+  std::string ir_text = R"(
+  fn f(a0: bits[32][2], a1: bits[32][3]) -> bits[32][7] {
+    array_concat.3: bits[32][5] = array_concat(a0, a1)
+    ret array_concat.4: bits[32][7] = array_concat(array_concat.3, a0)
+  }
+  )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           Parser::ParseFunction(ir_text, &package));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, LlvmIrJit::Create(function));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Value a0, Value::UBitsArray({1, 2}, 32));
+  XLS_ASSERT_OK_AND_ASSIGN(Value a1, Value::UBitsArray({3, 4, 5}, 32));
+  XLS_ASSERT_OK_AND_ASSIGN(Value ret,
+                           Value::UBitsArray({1, 2, 3, 4, 5, 1, 2}, 32));
+
+  std::vector args{a0, a1};
+  EXPECT_THAT(jit->Run(args), IsOkAndHolds(ret));
+}
+
+TEST(LlvmIrJitTest, ArrayConcatArrayOfBitsMixedOperands) {
+  Package package("my_package");
+
+  std::string ir_text = R"(
+  fn f(a0: bits[32][2], a1: bits[32][3], a2: bits[32][1]) -> bits[32][7] {
+    array_concat.4: bits[32][1] = array_concat(a2)
+    array_concat.5: bits[32][2] = array_concat(array_concat.4, array_concat.4)
+    array_concat.6: bits[32][7] = array_concat(a0, array_concat.5, a1)
+    ret array_concat.7: bits[32][7] = array_concat(array_concat.6)
+  }
+  )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           Parser::ParseFunction(ir_text, &package));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, LlvmIrJit::Create(function));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Value a0, Value::UBitsArray({1, 2}, 32));
+  XLS_ASSERT_OK_AND_ASSIGN(Value a1, Value::UBitsArray({3, 4, 5}, 32));
+  XLS_ASSERT_OK_AND_ASSIGN(Value a2, Value::SBitsArray({-1}, 32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value ret,
+      Value::UBitsArray({1, 2, 0xffffffff, 0xffffffff, 3, 4, 5}, 32));
+
+  std::vector args{a0, a1, a2};
+  EXPECT_THAT(jit->Run(args), IsOkAndHolds(ret));
+}
+
+TEST(LlvmIrJitTest, ArrayConcatArrayOfArrays) {
+  Package package("my_package");
+
+  std::string ir_text = R"(
+  fn f() -> bits[32][2][3] {
+    literal.1: bits[32][2][2] = literal(value=[[1, 2], [3, 4]])
+    literal.2: bits[32][2][1] = literal(value=[[5, 6]])
+
+    ret array_concat.3: bits[32][2][3] = array_concat(literal.2, literal.1)
+  }
+  )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(Value ret,
+                           Value::SBits2DArray({{5, 6}, {1, 2}, {3, 4}}, 32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           Parser::ParseFunction(ir_text, &package));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, LlvmIrJit::Create(function));
+
+  std::vector<Value> args;
+  EXPECT_THAT(jit->Run(args), IsOkAndHolds(ret));
+}
+
 }  // namespace
 }  // namespace xls

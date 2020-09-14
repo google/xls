@@ -1343,6 +1343,70 @@ fn f(index: bits[32]) -> bits[32] {
   }
 }
 
+// Array Concat #0a - Test bits after concat are traced back to input (part a)
+TEST(Z3IrTranslatorTest, ConcatZero) {
+  const std::string program = R"(
+fn f(x: bits[4][1], y: bits[4][1]) -> bits[4] {
+  array_concat.3: bits[4][4] = array_concat(x, x, y, y)
+
+  literal.4: bits[32] = literal(value=0)
+  literal.5: bits[32] = literal(value=1)
+  literal.6: bits[32] = literal(value=2)
+  literal.7: bits[32] = literal(value=3)
+
+  ind.8: bits[4] = array_index(array_concat.3, literal.4)
+  ind.9: bits[4] = array_index(array_concat.3, literal.5)
+  ind.10: bits[4] = array_index(array_concat.3, literal.6)
+  ind.11: bits[4] = array_index(array_concat.3, literal.7)
+
+  z.12: bits[4] = xor(ind.8, ind.11)
+  z.13: bits[4] = xor(z.12, ind.9)
+  ret result: bits[4] = xor(z.13, ind.10)
+}
+)";
+
+  Package p("test");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, Parser::ParseFunction(program, &p));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven, TryProve(f, f->return_value(), Predicate::EqualToZero(),
+                            absl::Seconds(1)));
+  EXPECT_TRUE(proven);
+}
+
+// Array Concat #0b - Test bits after concat are traced back to input (part b)
+TEST(Z3IrTranslatorTest, ConcatNotZero) {
+  const std::string program = R"(
+fn f(x: bits[4][1], y: bits[4][1]) -> bits[1] {
+  array_concat.3: bits[4][4] = array_concat(x, x, y, y)
+
+  literal.4: bits[32] = literal(value=0)
+  literal.5: bits[32] = literal(value=1)
+  literal.6: bits[32] = literal(value=2)
+  literal.7: bits[32] = literal(value=3)
+
+  ind.8: bits[4] = array_index(array_concat.3, literal.4)
+  ind.9: bits[4] = array_index(array_concat.3, literal.5)
+  ind.10: bits[4] = array_index(array_concat.3, literal.6)
+  ind.11: bits[4] = array_index(array_concat.3, literal.7)
+
+  z.12: bits[4] = xor(ind.8, ind.11)
+  z.13: bits[4] = xor(z.12, ind.9)
+
+  ind.14: bits[4] = array_index(x, literal.4)
+  ind.15: bits[4] = array_index(y, literal.4)
+
+  ret result: bits[1] = eq(z.13, ind.15)
+}
+)";
+
+  Package p("test");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, Parser::ParseFunction(program, &p));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven, TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+                            absl::Seconds(1)));
+  EXPECT_TRUE(proven);
+}
+
 TEST(Z3IrTranslatorTest, ParamReuse) {
   // Have the two programs do slightly different things, just to avoid paranoia
   // over potential evaluation short-circuits.

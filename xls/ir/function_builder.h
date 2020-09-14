@@ -346,6 +346,11 @@ class BuilderBase {
   BValue ArrayUpdate(BValue arg, BValue idx, BValue update_value,
                      absl::optional<SourceLocation> loc = absl::nullopt);
 
+  // Concatenates array operands into a single array.  zero-th
+  // element is the zero-th element of the zero-th (left-most) array.
+  BValue ArrayConcat(absl::Span<const BValue> operands,
+                     absl::optional<SourceLocation> loc = absl::nullopt);
+
   // Reverses the order of the bits of the argument.
   BValue Reverse(BValue arg,
                  absl::optional<SourceLocation> loc = absl::nullopt);

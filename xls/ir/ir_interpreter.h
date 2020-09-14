@@ -56,6 +56,7 @@ class IrInterpreter : public DfsVisitor {
   absl::Status HandleArray(Array* array) override;
   absl::Status HandleArrayIndex(ArrayIndex* index) override;
   absl::Status HandleArrayUpdate(ArrayUpdate* update) override;
+  absl::Status HandleArrayConcat(ArrayConcat* concat) override;
   absl::Status HandleBitSlice(BitSlice* bit_slice) override;
   absl::Status HandleChannelReceive(ChannelReceive* receive) override;
   absl::Status HandleChannelSend(ChannelSend* send) override;
