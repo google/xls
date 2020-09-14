@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![cfg(let_terminator_is_semi = true)]
-
 import std
 
 // ---

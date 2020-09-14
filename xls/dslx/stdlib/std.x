@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![cfg(let_terminator_is_semi = true)]
-
 // DSLX standard library routines.
 
 // Returns unsigned mul of x (N bits) and y (M bits) as an N+M bit value.

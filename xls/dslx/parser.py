@@ -26,7 +26,6 @@ import sys
 from typing import Optional, Tuple, Union, List, TypeVar, Callable, Text, Dict, Any
 
 from absl import logging
-import dataclasses
 
 from xls.dslx import ast_helpers
 from xls.dslx import dslx_builtins
@@ -95,11 +94,6 @@ def tok_to_name_def(m: ast.Module, tok: Token) -> ast.NameDef:
   return ast.NameDef(m, tok.span, tok.value)
 
 
-@dataclasses.dataclass
-class _ParserOptions:
-  let_terminator_is_semi: bool
-
-
 class Parser(token_parser.TokenParser):
   """Recursive-descent-parses the scanner's token stream into AST structures."""
 
@@ -107,7 +101,6 @@ class Parser(token_parser.TokenParser):
     super().__init__(scanner)
     self.m = ast.Module(module_name)
     self._loop_stack = []
-    self._options = _ParserOptions(let_terminator_is_semi=True)
 
   def _parse_comma_seq(self,
                        fparse: Callable[..., TypeVar('T')],
@@ -469,10 +462,7 @@ class Parser(token_parser.TokenParser):
       annotated_type = None
     self._dropt_or_error(TokenKind.EQUALS)
     rhs = self.parse_expression(bindings)
-    if self._options.let_terminator_is_semi:
-      self._dropt_or_error(TokenKind.SEMI)
-    else:
-      self._drop_keyword_or_error(Keyword.IN)
+    self._dropt_or_error(TokenKind.SEMI)
     if const and name_def:
       const = ast.Constant(self.m, name_def, rhs)
       new_bindings.add(name_def.identifier, const)
@@ -1287,20 +1277,10 @@ class Parser(token_parser.TokenParser):
     config_name = self._popt_or_error(TokenKind.IDENTIFIER)
     self._dropt_or_error(TokenKind.EQUALS)
     config_value = self._popt_or_error(TokenKind.KEYWORD)
-    if config_name.value == 'let_terminator_is_semi':
-      if config_value.value not in (Keyword.TRUE, Keyword.FALSE):
-        raise ParseError(
-            config_value.span,
-            'Invalid value for boolean directive; got {!r}'.format(
-                config_value.value))
-      self._options = dataclasses.replace(
-          self._options,
-          let_terminator_is_semi=config_value.value == Keyword.TRUE)
-    else:
-      raise ParseError(
-          directive_span, 'Unknown configuration key in directive: {!r}'.format(
-              config_name.value))
     self._dropt_or_error(TokenKind.CPAREN)
+    raise ParseError(
+        directive_span, 'Unknown configuration key in directive: {!r}'.format(
+            config_name.value))
 
   def _parse_quickcheck(self, function_name_to_node: Dict[Text, ast.Function],
                         bindings: Bindings,

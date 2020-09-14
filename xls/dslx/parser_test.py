@@ -348,7 +348,6 @@ proc simple(addend: u32) {
 
   def test_module_with_semis(self):
     program = textwrap.dedent("""\
-    #![cfg(let_terminator_is_semi = true)]
     fn f() -> s32 {
       let x: s32 = 42;
       x

@@ -15,8 +15,6 @@
 // Demonstrates use of a typedef as the element type in a multidimensional
 // array.
 
-#![cfg(let_terminator_is_semi = true)]
-
 type TypeX = u6;
 
 // Identity function.

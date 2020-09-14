@@ -22,8 +22,6 @@
 // output may wish to guess earlier/later output values would be very
 // bad.
 
-#![cfg(let_terminator_is_semi = true)]
-
 import std
 
 const M = u32:2147483647;

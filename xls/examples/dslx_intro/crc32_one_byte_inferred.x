@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![cfg(let_terminator_is_semi = true)]
-
 // Performs a table-less crc32 of the input data as in Hacker's Delight:
 // https://www.hackersdelight.org/hdcodetxt/crc.c.txt (roughly flavor b)
 
