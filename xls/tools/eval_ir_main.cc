@@ -149,7 +149,7 @@ xabsl::StatusOr<std::vector<Value>> Eval(
                                          FLAGS_test_only_inject_jit_result)));
       }
     } else {
-      XLS_ASSIGN_OR_RETURN(result, ir_interpreter::Run(f, arg_set.args));
+      XLS_ASSIGN_OR_RETURN(result, IrInterpreter::Run(f, arg_set.args));
     }
     std::cout << result.ToString(FormatPreference::kHex) << std::endl;
 

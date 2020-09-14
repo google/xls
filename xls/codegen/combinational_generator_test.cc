@@ -396,7 +396,7 @@ fn main(a: bits[32],
   std::minstd_rand engine;
   std::vector<Value> arguments = RandomFunctionArguments(entry, &engine);
   XLS_ASSERT_OK_AND_ASSIGN(Value expected,
-                           ir_interpreter::Run(entry, arguments));
+                           IrInterpreter::Run(entry, arguments));
   EXPECT_THAT(simulator.Run(arguments), IsOkAndHolds(expected));
 }
 

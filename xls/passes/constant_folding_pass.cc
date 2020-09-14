@@ -35,7 +35,7 @@ xabsl::StatusOr<bool> ConstantFoldingPass::RunOnFunction(
                     [](Node* o) { return o->Is<Literal>(); })) {
       XLS_VLOG(2) << "Folding: " << *node;
       XLS_ASSIGN_OR_RETURN(
-          Value result, ir_interpreter::EvaluateNodeWithLiteralOperands(node));
+          Value result, IrInterpreter::EvaluateNodeWithLiteralOperands(node));
       XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<Literal>(result).status());
       changed = true;
     }

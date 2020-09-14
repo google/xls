@@ -22,18 +22,16 @@
 namespace py = pybind11;
 
 namespace xls {
-namespace ir_interpreter {
 
 PYBIND11_MODULE(ir_interpreter, m) {
   py::module::import("xls.ir.python.function");
   py::module::import("xls.ir.python.ir_interpreter_stats");
   py::module::import("xls.ir.python.value");
 
-  m.def("run_function_kwargs", PyWrap(&RunKwargs), py::arg("f"),
+  m.def("run_function_kwargs", PyWrap(&IrInterpreter::RunKwargs), py::arg("f"),
         py::arg("args"), py::arg("stats") = nullptr);
-  m.def("run_function", PyWrap(&Run), py::arg("f"), py::arg("args"),
-        py::arg("stats") = nullptr);
+  m.def("run_function", PyWrap(&IrInterpreter::Run), py::arg("f"),
+        py::arg("args"), py::arg("stats") = nullptr);
 }
 
-}  // namespace ir_interpreter
 }  // namespace xls

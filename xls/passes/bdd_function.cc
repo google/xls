@@ -329,7 +329,7 @@ xabsl::StatusOr<Value> BddFunction::Evaluate(
         operand_values.push_back(&values.at(operand));
       }
       XLS_ASSIGN_OR_RETURN(result,
-                           ir_interpreter::EvaluateNode(node, operand_values));
+                           IrInterpreter::EvaluateNode(node, operand_values));
     } else {
       const BddNodeVector& bdd_vector = node_map_.at(node);
       absl::InlinedVector<bool, 64> bits;

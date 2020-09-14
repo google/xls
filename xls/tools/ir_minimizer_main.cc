@@ -148,7 +148,7 @@ xabsl::StatusOr<bool> StillFails(absl::string_view ir_text,
                                          FLAGS_test_only_inject_jit_result)));
   }
   XLS_ASSIGN_OR_RETURN(Value interpreter_result,
-                       ir_interpreter::Run(main, *inputs));
+                       IrInterpreter::Run(main, *inputs));
   if (jit_result != interpreter_result) {
     return true;
   }
