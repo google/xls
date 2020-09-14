@@ -1411,4 +1411,65 @@ proc my_proc(my_state: bits[32], my_token: token, init=42) {
   EXPECT_EQ(proc->name(), "my_proc");
 }
 
+TEST(IrParserTest, ParseTupleIndexWithInvalidBValue) {
+  const std::string input = R"(
+fn f(x: bits[4], y: bits[4][1]) -> bits[4] {
+  onehot.10: bits[16] = decode(y, width=16)
+  ret ind.20: bits[4] = tuple_index(onehot.10, index=0)
+}
+)";
+
+  Package p("my_package");
+  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Decode argument must be of Bits type")));
+}
+
+TEST(IrParserTest, ParseArrayIndexWithInvalidBValue) {
+  const std::string input = R"(
+fn f(x: bits[4], y: bits[4][1]) -> bits[4] {
+  literal.10: bits[32] = literal(value=0)
+  onehot.20: bits[16] = decode(y, width=16)
+  ret ind.30: bits[4] = array_index(onehot.20, literal.10)
+}
+)";
+
+  Package p("my_package");
+  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Decode argument must be of Bits type")));
+}
+
+TEST(IrParserTest, ParseArrayUpdateWithInvalidOp0BValue) {
+  const std::string input = R"(
+fn f(x: bits[4], y: bits[4][1]) -> bits[4][1] {
+  literal.10: bits[32] = literal(value=0)
+  literal.20: bits[32] = literal(value=0)
+
+  onehot.30: bits[16] = decode(y, width=16)
+  ret arr.40: bits[4][1] = array_update(onehot.30, literal.10, literal.20)
+}
+)";
+
+  Package p("my_package");
+  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Decode argument must be of Bits type")));
+}
+
+TEST(IrParserTest, ParseArrayUpdateWithInvalidOp2BValue) {
+  const std::string input = R"(
+fn f(x: bits[4], y: bits[4][1]) -> bits[4][1] {
+  literal.10: bits[32] = literal(value=0)
+  onehot.20: bits[16] = decode(y, width=16)
+  ret arr.30: bits[4][1] = array_update(y, literal.10, onehot.20)
+}
+)";
+
+  Package p("my_package");
+  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Decode argument must be of Bits type")));
+}
+
 }  // namespace xls

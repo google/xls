@@ -647,7 +647,7 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
       case Op::kTupleIndex: {
         int64* index = arg_parser.AddKeywordArg<int64>("index");
         XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
-        if (!operands[0].GetType()->IsTuple()) {
+        if (operands[0].valid() && !operands[0].GetType()->IsTuple()) {
           return absl::InvalidArgumentError(
               absl::StrFormat("tuple_index operand is not a tuple; got %s @ %s",
                               operands[0].GetType()->ToString(),
@@ -658,7 +658,7 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
       }
       case Op::kArrayIndex: {
         XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
-        if (!operands[0].GetType()->IsArray()) {
+        if (operands[0].valid() && !operands[0].GetType()->IsArray()) {
           return absl::InvalidArgumentError(absl::StrFormat(
               "array_index operand is not an array; got %s @ %s",
               operands[0].GetType()->ToString(),
@@ -669,20 +669,22 @@ xabsl::StatusOr<BValue> Parser::ParseFunctionBody(
       }
       case Op::kArrayUpdate: {
         XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/3));
-        if (!operands[0].GetType()->IsArray()) {
+        if (operands[0].valid() && !operands[0].GetType()->IsArray()) {
           return absl::InvalidArgumentError(absl::StrFormat(
               "array_update operand is not an array; got %s @ %s",
               operands[0].GetType()->ToString(),
               op_token.pos().ToHumanString()));
         }
-        Type* element_type =
-            operands[0].GetType()->AsArrayOrDie()->element_type();
-        if (operands[2].GetType() != element_type) {
-          return absl::InvalidArgumentError(
-              absl::StrFormat("array_update update value is not the same type "
-                              "as the array elements; got %s @ %s",
-                              operands[2].GetType()->ToString(),
-                              op_token.pos().ToHumanString()));
+        if (operands[0].valid() && operands[2].valid()) {
+          Type* element_type =
+              operands[0].GetType()->AsArrayOrDie()->element_type();
+          if (operands[2].GetType() != element_type) {
+            return absl::InvalidArgumentError(absl::StrFormat(
+                "array_update update value is not the same type "
+                "as the array elements; got %s @ %s",
+                operands[2].GetType()->ToString(),
+                op_token.pos().ToHumanString()));
+          }
         }
         bvalue = fb->ArrayUpdate(operands[0], operands[1], operands[2], *loc);
         break;
