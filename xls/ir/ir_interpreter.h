@@ -150,7 +150,7 @@ class IrInterpreter : public DfsVisitor {
   InterpreterStats* stats_;
 
   // The arguments to the Function being evaluated indexed by parameter name.
-  std::vector<const Value> args_;
+  std::vector<Value> args_;
 
   // The evaluated values for the nodes in the Function.
   absl::flat_hash_map<Node*, Value> node_values_;
