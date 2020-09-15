@@ -660,6 +660,13 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#ir_stats_main" class="md-nav__link">
+    ir_stats_main
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#opt_main" class="md-nav__link">
     opt_main
   </a>
@@ -826,6 +833,13 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#ir_stats_main" class="md-nav__link">
+    ir_stats_main
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#opt_main" class="md-nav__link">
     opt_main
   </a>
@@ -898,6 +912,23 @@ features for evaluating the IR before and after optimizations which makes this
 tool very useful for identifying optimization bugs.</p>
 <h2 id="ir_minimizer_main"><a href="https://github.com/google/xls/tree/main/xls/tools/ir_minimizer_main.cc"><code>ir_minimizer_main</code></a></h2>
 <p>Tool for reducing IR to a minimal test case based on an external test.</p>
+<h2 id="ir_stats_main"><a href="https://github.com/google/xls/tree/main/xls/tools/ir_stats_main.cc"><code>ir_stats_main</code></a></h2>
+<p>Prints summary information/stats on an IR [Package] file. An example:</p>
+<pre><code>$ bazel-bin/xls/tools/ir_stats_main bazel-genfiles/xls/modules/fpadd_2x32.ir
+Package &quot;fpadd_2x32&quot;
+  Function: &quot;__float32__is_inf&quot;
+    Signature: ((bits[1], bits[8], bits[23])) -&gt; bits[1]
+    Nodes: 8
+
+  Function: &quot;__float32__is_nan&quot;
+    Signature: ((bits[1], bits[8], bits[23])) -&gt; bits[1]
+    Nodes: 8
+
+  Function: &quot;__fpadd_2x32__fpadd_2x32&quot;
+    Signature: ((bits[1], bits[8], bits[23]), (bits[1], bits[8], bits[23])) -&gt; (bits[1], bits[8], bits[23])
+    Nodes: 252
+</code></pre>
+
 <p>##
 <a href="https://github.com/google/xls/tree/main/xls/tools/check_ir_equivalence_main.cc"><code>check_ir_equivalence</code></a></p>
 <p>Verifies that two IR files (for example, optimized and unoptimized IR from the

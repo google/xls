@@ -2310,7 +2310,7 @@ statement. It can both test for values (like a conditional guard) and bind
 values to identifiers for subsequent use. For example:</p>
 <pre><code>fn f(t: (u8, u32)) -&gt; u32 {
   match t {
-    (u8:42, y) =&gt; y;
+    (u8:42, y) =&gt; y,
     (_, y) =&gt; y+u8:77
   }
 }
@@ -2324,7 +2324,7 @@ constants; For example, consider this variation on the above:</p>
 <pre><code>const MY_FAVORITE_NUMBER = u8:42;
 fn f(t: (u8, u32)) -&gt; u32 {
   match t {
-    (MY_FAVORITE_NUMBER, y) =&gt; y;
+    (MY_FAVORITE_NUMBER, y) =&gt; y,
     (_, y) =&gt; y+u8:77
   }
 }
@@ -2334,8 +2334,8 @@ fn f(t: (u8, u32)) -&gt; u32 {
 <pre><code>const MY_FAVORITE_NUMBER = u8:42;
 fn f(t: (u8, (u16, u32))) -&gt; u32 {
   match t {
-    (MY_FAVORITE_NUMBER, (y, z)) =&gt; u32:y+z;
-    (_, (y, u32:42)) =&gt; u32:y;
+    (MY_FAVORITE_NUMBER, (y, z)) =&gt; u32:y+z,
+    (_, (y, u32:42)) =&gt; u32:y,
     _ =&gt; u32:7
   }
 }
@@ -2642,8 +2642,8 @@ constants should be usable anywhere a literal value can be used:</p>
 
 fn match_const(x: u8) -&gt; u8 {
   match x {
-    FOO =&gt; u8:0;
-    _ =&gt; u8:42;
+    FOO =&gt; u8:0,
+    _ =&gt; u8:42,
   }
 }
 
@@ -2656,9 +2656,9 @@ test match_const_not_binding {
 
 fn h(t: (u8, (u16, u32))) -&gt; u32 {
   match t {
-    (FOO, (x, y)) =&gt; (x as u32) + y;
-    (_, (y, u32:42)) =&gt; y as u32;
-    _ =&gt; u32:7;
+    (FOO, (x, y)) =&gt; (x as u32) + y,
+    (_, (y, u32:42)) =&gt; y as u32,
+    _ =&gt; u32:7,
   }
 }
 

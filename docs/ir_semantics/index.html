@@ -427,6 +427,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#dynamic_bit_slice" class="md-nav__link">
+    dynamic_bit_slice
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#concat" class="md-nav__link">
     concat
   </a>
@@ -1177,6 +1184,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#dynamic_bit_slice" class="md-nav__link">
+    dynamic_bit_slice
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#concat" class="md-nav__link">
     concat
   </a>
@@ -1329,6 +1343,7 @@
 <li><a href="#array_index">array_index</a></li>
 <li><a href="#array_update">array_update</a></li>
 <li><a href="#bit_slice">bit_slice</a></li>
+<li><a href="#dynamic_bit_slice">dynamic_bit_slice</a></li>
 <li><a href="#concat">concat</a></li>
 <li><a href="#counted_for">counted_for</a></li>
 <li><a href="#decode">decode</a></li>
@@ -1996,7 +2011,7 @@ empty array).</p>
 the given value. If index is out of bounds, the returned array is identical to
 the input array.</p>
 <h4 id="bit_slice"><strong><code>bit_slice</code></strong></h4>
-<p>Slices a a contiguous range of bits from a bits-typed operand.</p>
+<p>Slices a contiguous range of bits from a bits-typed operand.</p>
 <p><strong>Syntax</strong></p>
 <pre><code>result = bit_slice(operand, start=&lt;start&gt;, width=&lt;width&gt;)
 </code></pre>
@@ -2106,6 +2121,67 @@ the input array.</p>
 </table>
 <p>The bit-width of <code>operand</code> must be greater than or equal to <code>&lt;start&gt;</code> plus
 <code>&lt;width&gt;</code>.</p>
+<h4 id="dynamic_bit_slice"><strong><code>dynamic_bit_slice</code></strong></h4>
+<p>Slices a contiguous range of bits from a bits-typed operand, with variable
+starting index but fixed width. Out-of-bounds slicing is supported by
+treating all out-of-bounds bits as having value 0.</p>
+<p><strong>Syntax</strong></p>
+<pre><code>result = dynamic_bit_slice(operand, start, width=&lt;width&gt;)
+</code></pre>
+
+<p><strong>Types</strong></p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>operand</code></td>
+<td><code>bits[N]</code></td>
+</tr>
+<tr>
+<td><code>start</code></td>
+<td><code>bits[M]</code></td>
+</tr>
+<tr>
+<td><code>result</code></td>
+<td><code>bits[&lt;width&gt;]</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>start</code> can be of arbitrary bit width. It will be interpreted
+as an unsigned integer.</p>
+<p><strong>Keyword arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Keyword</th>
+<th>Type</th>
+<th>Required</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>width</code></td>
+<td><code>int64</code></td>
+<td>yes</td>
+<td></td>
+<td>The width of the</td>
+</tr>
+<tr>
+<td>:         :         :          :         : slice.            :</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
 <h4 id="concat"><strong><code>concat</code></strong></h4>
 <p>Concatenates and arbitrary number of bits-typed operands.</p>
 <pre><code>result = concat(operand{0}, ..., operand{n-1})
