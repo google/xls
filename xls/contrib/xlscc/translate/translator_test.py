@@ -31,8 +31,8 @@ from xls.common import runfiles
 from xls.contrib.xlscc.parse import ext_c_parser
 from xls.contrib.xlscc.translate import hls_types_pb2
 import xls.contrib.xlscc.translate.translator as xlscc_translator
+from xls.interpreter.python import ir_interpreter
 from xls.ir.python import bits as bits_mod
-from xls.ir.python import ir_interpreter
 from xls.ir.python import value as ir_value
 
 

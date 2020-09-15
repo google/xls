@@ -358,74 +358,12 @@ cc_test(
 )
 
 cc_library(
-    name = "ir_evaluator_test",
-    testonly = True,
-    srcs = ["ir_evaluator_test.cc"],
-    hdrs = ["ir_evaluator_test.h"],
-    deps = [
-        ":bits",
-        ":bits_ops",
-        ":ir",
-        ":ir_parser",
-        ":ir_test_base",
-        ":keyword_args",
-        "//xls/common:math_util",
-        "//xls/common/logging",
-        "//xls/common/status:matchers",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
-    name = "ir_interpreter_stats",
-    srcs = ["ir_interpreter_stats.cc"],
-    hdrs = ["ir_interpreter_stats.h"],
-    deps = [
-        ":ir",
-        ":ternary",
-        "//xls/common:integral_types",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/synchronization",
-        "@com_google_absl//absl/types:optional",
-    ],
-)
-
-cc_library(
-    name = "ir_interpreter",
-    srcs = ["ir_interpreter.cc"],
-    hdrs = ["ir_interpreter.h"],
-    deps = [
-        ":bits",
-        ":bits_ops",
-        ":function_builder",
-        ":ir",
-        ":ir_interpreter_stats",
-        ":keyword_args",
-        "//xls/common/logging",
-        "//xls/common/logging:log_lines",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/types:span",
-    ],
-)
-
-cc_library(
     name = "ir_test_base",
     testonly = True,
     srcs = ["ir_test_base.cc"],
     hdrs = ["ir_test_base.h"],
     deps = [
         ":ir",
-        ":ir_interpreter",
         ":ir_parser",
         ":value_test_util",
         "//xls/codegen:combinational_generator",
@@ -438,6 +376,7 @@ cc_library(
         "//xls/common/status:statusor",
         "//xls/delay_model:delay_estimator",
         "//xls/delay_model:delay_estimators",
+        "//xls/interpreter:ir_interpreter",
         "//xls/passes:standard_pipeline",
         "//xls/scheduling:pipeline_schedule",
         "//xls/simulation:module_simulator",
@@ -445,23 +384,6 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_test(
-    name = "ir_interpreter_test",
-    size = "small",
-    srcs = ["ir_interpreter_test.cc"],
-    deps = [
-        ":bits",
-        ":bits_ops",
-        ":ir",
-        ":ir_evaluator_test",
-        ":ir_interpreter",
-        ":ir_parser",
-        ":ir_test_base",
-        "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 

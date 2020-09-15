@@ -16,7 +16,7 @@
 
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/ir/ir_interpreter.h"
+#include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/node_iterator.h"
 
 namespace xls {

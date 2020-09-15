@@ -14,9 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for xls.ir.python.ir_interpreter."""
+"""Tests for xls.interpreter.python.ir_interpreter."""
 
-from xls.ir.python import ir_interpreter
+from xls.interpreter.python import ir_interpreter
 from xls.ir.python import ir_parser
 from absl.testing import absltest
 

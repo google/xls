@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/ir/ir_interpreter.h"
+#include "xls/interpreter/ir_interpreter.h"
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
@@ -24,7 +24,6 @@
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function.h"
-#include "xls/ir/ir_interpreter_stats.h"
 #include "xls/ir/keyword_args.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/package.h"

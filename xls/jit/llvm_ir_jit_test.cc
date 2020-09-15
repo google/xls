@@ -22,7 +22,7 @@
 #include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/ir/ir_evaluator_test.h"
+#include "xls/interpreter/ir_evaluator_test.h"
 #include "xls/ir/value_helpers.h"
 #include "re2/re2.h"
 

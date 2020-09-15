@@ -24,10 +24,10 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/abstract_evaluator.h"
 #include "xls/ir/abstract_node_evaluator.h"
 #include "xls/ir/dfs_visitor.h"
-#include "xls/ir/ir_interpreter.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 

@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_IR_IR_INTERPRETER_H_
-#define XLS_IR_IR_INTERPRETER_H_
+#ifndef XLS_INTERPRETER_IR_INTERPRETER_H_
+#define XLS_INTERPRETER_IR_INTERPRETER_H_
 
 #include "absl/types/span.h"
 #include "xls/common/status/statusor.h"
+#include "xls/interpreter/ir_interpreter_stats.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
-#include "xls/ir/ir_interpreter_stats.h"
 
 namespace xls {
 
@@ -159,4 +159,4 @@ class IrInterpreter : public DfsVisitor {
 
 }  // namespace xls
 
-#endif  // XLS_IR_IR_INTERPRETER_H_
+#endif  // XLS_INTERPRETER_IR_INTERPRETER_H_

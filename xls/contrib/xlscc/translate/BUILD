@@ -72,7 +72,7 @@ py_test(
         ":translator",
         "//xls/contrib/xlscc/parse:ext_c_ast",
         "//xls/contrib/xlscc/parse:ext_c_parser",
-        "//xls/ir/python:ir_interpreter",
+        "//xls/interpreter/python:ir_interpreter",
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )

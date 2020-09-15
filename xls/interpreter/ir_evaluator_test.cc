@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/ir/ir_evaluator_test.h"
+#include "xls/interpreter/ir_evaluator_test.h"
 
 #include "absl/strings/substitute.h"
 #include "xls/common/logging/logging.h"

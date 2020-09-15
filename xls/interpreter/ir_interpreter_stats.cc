@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/ir/ir_interpreter_stats.h"
+#include "xls/interpreter/ir_interpreter_stats.h"
 
 namespace xls {
 

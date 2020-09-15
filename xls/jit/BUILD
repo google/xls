@@ -109,7 +109,7 @@ cc_test(
         "@com_google_absl//absl/strings",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
-        "//xls/ir:ir_evaluator_test",
+        "//xls/interpreter:ir_evaluator_test",
         "//xls/ir:value_helpers",
         "@com_google_re2//:re2",
         "@com_google_googletest//:gtest_main",

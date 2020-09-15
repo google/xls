@@ -26,7 +26,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor.h"
-#include "xls/ir/ir_interpreter.h"
+#include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/jit/llvm_ir_jit.h"

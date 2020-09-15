@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/ir/ir_interpreter.h"
+#include "xls/interpreter/ir_interpreter.h"
 
 #include "pybind11/pybind11.h"
 #include "xls/common/python/absl_casters.h"
@@ -24,9 +24,12 @@ namespace py = pybind11;
 namespace xls {
 
 PYBIND11_MODULE(ir_interpreter, m) {
+  // clang-format off
+  py::module::import("xls.interpreter."
+                     "python.ir_interpreter_stats");
   py::module::import("xls.ir.python.function");
-  py::module::import("xls.ir.python.ir_interpreter_stats");
   py::module::import("xls.ir.python.value");
+  // clang-format on
 
   m.def("run_function_kwargs", PyWrap(&IrInterpreter::RunKwargs), py::arg("f"),
         py::arg("args"), py::arg("stats") = nullptr);

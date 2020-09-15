@@ -113,34 +113,6 @@ xls_pybind_extension(
 )
 
 xls_pybind_extension(
-    name = "ir_interpreter",
-    srcs = ["ir_interpreter.cc"],
-    py_deps = [
-        ":function",  # build_cleaner: keep
-        ":ir_interpreter_stats",  # build_cleaner: keep
-        ":value",  # build_cleaner: keep
-    ],
-    deps = [
-        ":wrapper_types",
-        "//xls/common/python:absl_casters",
-        "//xls/common/status:statusor_pybind_caster",
-        "//xls/ir:ir_interpreter",
-    ],
-)
-
-py_test(
-    name = "ir_interpreter_test",
-    srcs = ["ir_interpreter_test.py"],
-    python_version = "PY3",
-    deps = [
-        ":ir_interpreter",
-        ":ir_parser",
-        ":value",  # build_cleaner: keep
-        "@com_google_absl_py//absl/testing:absltest",
-    ],
-)
-
-xls_pybind_extension(
     name = "ir_parser",
     srcs = ["ir_parser.cc"],
     py_deps = [
@@ -183,14 +155,6 @@ py_test(
         ":source_location",
         ":value",
         "@com_google_absl_py//absl/testing:absltest",
-    ],
-)
-
-xls_pybind_extension(
-    name = "ir_interpreter_stats",
-    srcs = ["ir_interpreter_stats.cc"],
-    deps = [
-        "//xls/ir:ir_interpreter_stats",
     ],
 )
 

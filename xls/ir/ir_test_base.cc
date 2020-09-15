@@ -24,7 +24,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
-#include "xls/ir/ir_interpreter.h"
+#include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value_test_util.h"
 #include "xls/ir/verifier.h"
