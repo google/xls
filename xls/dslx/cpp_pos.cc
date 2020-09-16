@@ -18,7 +18,7 @@
 
 namespace xls::dslx {
 
-/* static */ xabsl::StatusOr<Span> Span::FromString(absl::string_view s) {
+/* static */ absl::StatusOr<Span> Span::FromString(absl::string_view s) {
   std::string filename;
   int64 start_lineno, start_colno, limit_lineno, limit_colno;
   if (RE2::FullMatch(s, R"((.*):(\d+):(\d+)-(\d+):(\d+))", &filename,
@@ -32,7 +32,7 @@ namespace xls::dslx {
       absl::StrFormat("Cannot convert string to span: \"%s\"", s));
 }
 
-/* static */ xabsl::StatusOr<Pos> Pos::FromString(absl::string_view s) {
+/* static */ absl::StatusOr<Pos> Pos::FromString(absl::string_view s) {
   std::string filename;
   int64 lineno, colno;
   if (RE2::FullMatch(s, "(.*):(\\d+):(\\d+)", &filename, &lineno, &colno)) {

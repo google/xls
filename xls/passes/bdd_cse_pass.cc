@@ -45,7 +45,7 @@ namespace {
 //     in the list. This ensures that the CSE replacement does not increase
 //     critical-path
 //
-xabsl::StatusOr<std::vector<Node*>> GetNodeOrder(Function* f) {
+absl::StatusOr<std::vector<Node*>> GetNodeOrder(Function* f) {
   // Index of each node in the topological sort.
   absl::flat_hash_map<Node*, int64> topo_index;
   // Critical-path distance from root in the graph to each node.
@@ -59,7 +59,7 @@ xabsl::StatusOr<std::vector<Node*>> GetNodeOrder(Function* f) {
   // TODO(meheff): Replace with the actual model being used when the delay model
   // is threaded through the pass pipeline.
   auto get_node_delay = [&](Node* n) {
-    xabsl::StatusOr<int64> delay_status =
+    absl::StatusOr<int64> delay_status =
         GetStandardDelayEstimator().GetOperationDelayInPs(n);
     return delay_status.ok() ? delay_status.value() : 0;
   };
@@ -91,9 +91,9 @@ xabsl::StatusOr<std::vector<Node*>> GetNodeOrder(Function* f) {
 
 }  // namespace
 
-xabsl::StatusOr<bool> BddCsePass::RunOnFunction(Function* f,
-                                                const PassOptions& options,
-                                                PassResults* results) const {
+absl::StatusOr<bool> BddCsePass::RunOnFunction(Function* f,
+                                               const PassOptions& options,
+                                               PassResults* results) const {
   XLS_VLOG(2) << "Running BDD CSE on function " << f->name();
   XLS_VLOG(3) << "Before:";
   XLS_VLOG_LINES(3, f->DumpIr());

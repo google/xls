@@ -14,10 +14,10 @@
 
 #include "xls/ir/ir_parser.h"
 
+#include "absl/status/statusor.h"
 #include "pybind11/pybind11.h"
 #include "xls/common/python/absl_casters.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/status/statusor.h"
 #include "xls/common/status/statusor_pybind_caster.h"
 #include "xls/ir/python/wrapper_types.h"
 
@@ -35,7 +35,7 @@ PYBIND11_MODULE(ir_parser, m) {
           "parse_package",
           [](absl::string_view input_string,
              absl::optional<absl::string_view> filename)
-              -> xabsl::StatusOr<PackageHolder> {
+              -> absl::StatusOr<PackageHolder> {
             XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                                  Parser::ParsePackage(input_string, filename));
             std::shared_ptr<Package> shared_package = std::move(package);

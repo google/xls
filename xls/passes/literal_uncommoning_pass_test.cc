@@ -16,8 +16,8 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
@@ -31,7 +31,7 @@ class LiteralUncommoningPassTest : public IrTestBase {
  protected:
   LiteralUncommoningPassTest() = default;
 
-  xabsl::StatusOr<bool> Run(Package* p) {
+  absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
     return LiteralUncommoningPass().Run(p, PassOptions(), &results);
   }

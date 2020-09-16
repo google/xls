@@ -50,7 +50,7 @@ void TryThrowCppParseError(const absl::Status& status) {
     if (pieces.size() < 2) {
       return;
     }
-    xabsl::StatusOr<Span> pos = Span::FromString(pieces[0]);
+    absl::StatusOr<Span> pos = Span::FromString(pieces[0]);
     throw CppParseError(std::move(pos.value()), std::string(pieces[1]));
   }
 }
@@ -73,7 +73,7 @@ PYBIND11_MODULE(cpp_bindings, m) {
       .def("add",
            [](Bindings& bindings, std::string name,
               AstNodeHolder binding) -> absl::Status {
-             xabsl::StatusOr<BoundNode> bn = ToBoundNode(&binding.deref());
+             absl::StatusOr<BoundNode> bn = ToBoundNode(&binding.deref());
              TryThrowCppParseError(bn.status());
              XLS_RETURN_IF_ERROR(bn.status());
              bindings.Add(std::move(name), bn.value());
@@ -82,8 +82,8 @@ PYBIND11_MODULE(cpp_bindings, m) {
       // Note: returns an AnyNameDef.
       .def("resolve",
            [](Bindings& self, absl::string_view name,
-              const Span& span) -> xabsl::StatusOr<AstNodeHolder> {
-             xabsl::StatusOr<AnyNameDef> name_def =
+              const Span& span) -> absl::StatusOr<AstNodeHolder> {
+             absl::StatusOr<AnyNameDef> name_def =
                  self.ResolveNameOrError(name, span);
              TryThrowCppParseError(name_def.status());
              XLS_RETURN_IF_ERROR(name_def.status());
@@ -103,9 +103,8 @@ PYBIND11_MODULE(cpp_bindings, m) {
       // Note: returns an arbitrary BoundNode.
       .def("resolve_node",
            [](Bindings& self, absl::string_view name,
-              const Span& span) -> xabsl::StatusOr<AstNodeHolder> {
-             xabsl::StatusOr<BoundNode> bn =
-                 self.ResolveNodeOrError(name, span);
+              const Span& span) -> absl::StatusOr<AstNodeHolder> {
+             absl::StatusOr<BoundNode> bn = self.ResolveNodeOrError(name, span);
              TryThrowCppParseError(bn.status());
              XLS_RETURN_IF_ERROR(bn.status());
              return AstNodeHolder(ToAstNode(bn.value()), self.module());

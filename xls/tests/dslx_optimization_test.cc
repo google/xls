@@ -32,7 +32,7 @@ namespace {
 // because the complicated bit (matching of the IR) use a C++ API.
 class DslxOptimizationTest : public IrTestBase {
  protected:
-  xabsl::StatusOr<std::unique_ptr<VerifiedPackage>> DslxToIr(
+  absl::StatusOr<std::unique_ptr<VerifiedPackage>> DslxToIr(
       absl::string_view dslx) {
     XLS_ASSIGN_OR_RETURN(TempFile dslx_temp, TempFile::CreateWithContent(dslx));
     std::string ir_converter_main_path =

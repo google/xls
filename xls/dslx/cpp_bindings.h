@@ -24,7 +24,7 @@ namespace xls::dslx {
 using BoundNode = absl::variant<Enum*, TypeDef*, ConstantDef*, NameDef*,
                                 BuiltinNameDef*, Struct*, Import*>;
 
-xabsl::StatusOr<BoundNode> ToBoundNode(AstNode* n);
+absl::StatusOr<BoundNode> ToBoundNode(AstNode* n);
 
 // Maps identifiers to the AST node that bound that identifier (also known as
 // the lexical environment).
@@ -72,8 +72,8 @@ class Bindings {
 
   // As above, but flags a ParseError() if the binding cannot be resolved,
   // attributing the source of the binding resolution as span.
-  xabsl::StatusOr<BoundNode> ResolveNodeOrError(absl::string_view name,
-                                                const Span& span) const {
+  absl::StatusOr<BoundNode> ResolveNodeOrError(absl::string_view name,
+                                               const Span& span) const {
     absl::optional<BoundNode> result = ResolveNode(name);
     if (result.has_value()) {
       return *std::move(result);
@@ -88,8 +88,8 @@ class Bindings {
   absl::optional<AnyNameDef> ResolveNameOrNullopt(absl::string_view name) const;
 
   // As above, but returns a ParseError status.
-  xabsl::StatusOr<AnyNameDef> ResolveNameOrError(absl::string_view name,
-                                                 const Span& span) const;
+  absl::StatusOr<AnyNameDef> ResolveNameOrError(absl::string_view name,
+                                                const Span& span) const;
 
   // Returns whether there is an AST binding associated with "name".
   bool HasName(absl::string_view name) const {

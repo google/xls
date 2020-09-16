@@ -14,10 +14,10 @@
 
 #include "xls/simulation/module_simulator.h"
 
+#include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "pybind11/pybind11.h"
 #include "xls/common/python/absl_casters.h"
-#include "xls/common/status/statusor.h"
 #include "xls/common/status/statusor_pybind_caster.h"
 #include "xls/ir/value.h"
 #include "xls/simulation/verilog_simulators.h"
@@ -44,10 +44,10 @@ PYBIND11_MODULE(module_simulator, m) {
   py::module::import("xls.codegen.python.module_signature");
   py::module::import("xls.ir.python.value");
 
-  xabsl::StatusOr<Value> (ModuleSimulator::*run_kwargs)(
+  absl::StatusOr<Value> (ModuleSimulator::*run_kwargs)(
       const absl::flat_hash_map<std::string, Value>&) const =
       &ModuleSimulator::Run;
-  xabsl::StatusOr<Value> (ModuleSimulator::*run)(absl::Span<const Value> inputs)
+  absl::StatusOr<Value> (ModuleSimulator::*run)(absl::Span<const Value> inputs)
       const = &ModuleSimulator::Run;
 
   py::class_<ModuleSimulatorWrapper>(m, "ModuleSimulator")

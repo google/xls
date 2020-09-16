@@ -185,7 +185,7 @@ std::string CreateDeclSpecialization(const Function& function,
     absl::StrAppend(&prepend_class_name, "::");
   }
 
-  return absl::StrFormat("xabsl::StatusOr<%s> %sRun(%s);", return_type_string,
+  return absl::StrFormat("absl::StatusOr<%s> %sRun(%s);", return_type_string,
                          prepend_class_name, absl::StrJoin(params, ", "));
 }
 
@@ -253,7 +253,7 @@ std::string GenerateWrapperHeader(const Function& function,
 #include <memory>
 
 #include "absl/status/status.h"
-#include "xls/common/status/statusor.h"
+#include "absl/status/statusor.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_view.h"
@@ -264,10 +264,10 @@ namespace xls {
 // JIT execution wrapper for the $2 XLS IR module.
 class $0 {
  public:
-  static xabsl::StatusOr<std::unique_ptr<$0>> Create();
+  static absl::StatusOr<std::unique_ptr<$0>> Create();
   LlvmIrJit* jit() { return jit_.get(); }
 
-  xabsl::StatusOr<Value> Run($1);
+  absl::StatusOr<Value> Run($1);
   absl::Status Run($3);
   $4
 
@@ -336,7 +336,7 @@ namespace xls {
 constexpr const char ir_text[] = R"($1
 )";
 
-xabsl::StatusOr<std::unique_ptr<$0>> $0::Create() {
+absl::StatusOr<std::unique_ptr<$0>> $0::Create() {
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(ir_text));
   XLS_ASSIGN_OR_RETURN(Function* function, package->GetFunction("$6"));
   XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(function));
@@ -346,7 +346,7 @@ xabsl::StatusOr<std::unique_ptr<$0>> $0::Create() {
 $0::$0(std::unique_ptr<Package> package, std::unique_ptr<LlvmIrJit> jit)
     : package_(std::move(package)), jit_(std::move(jit)) { }
 
-xabsl::StatusOr<Value> $0::Run($2) {
+absl::StatusOr<Value> $0::Run($2) {
   Value args[$4] = { $3 };
   // Special form to handle zero-argument spans.
   return jit_->Run(absl::MakeSpan(args, $4));

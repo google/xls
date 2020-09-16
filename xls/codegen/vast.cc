@@ -125,7 +125,7 @@ std::string Port::ToString() const {
                          verilog::ToString(direction), name());
 }
 
-xabsl::StatusOr<PortProto> Port::ToProto() const {
+absl::StatusOr<PortProto> Port::ToProto() const {
   if (!wire->width()->IsLiteral()) {
     return absl::FailedPreconditionError(
         "Width of port is not a literal, cannot convert to proto: " +
@@ -142,8 +142,8 @@ xabsl::StatusOr<PortProto> Port::ToProto() const {
 }
 
 namespace {
-xabsl::StatusOr<int64> GetBitsForDirection(absl::Span<const Port> ports,
-                                           Direction direction) {
+absl::StatusOr<int64> GetBitsForDirection(absl::Span<const Port> ports,
+                                          Direction direction) {
   int64 result = 0;
   for (const Port& port : ports) {
     if (port.direction != direction) {
@@ -162,11 +162,11 @@ xabsl::StatusOr<int64> GetBitsForDirection(absl::Span<const Port> ports,
 }
 }  // namespace
 
-xabsl::StatusOr<int64> GetInputBits(absl::Span<const Port> ports) {
+absl::StatusOr<int64> GetInputBits(absl::Span<const Port> ports) {
   return GetBitsForDirection(ports, Direction::kInput);
 }
 
-xabsl::StatusOr<int64> GetOutputBits(absl::Span<const Port> ports) {
+absl::StatusOr<int64> GetOutputBits(absl::Span<const Port> ports) {
   return GetBitsForDirection(ports, Direction::kOutput);
 }
 

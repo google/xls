@@ -124,7 +124,7 @@ Bits BigInt::ToUnsignedBits() const {
   return Bits::FromBytes(byte_vector, bit_count);
 }
 
-xabsl::StatusOr<Bits> BigInt::ToSignedBitsWithBitCount(int64 bit_count) const {
+absl::StatusOr<Bits> BigInt::ToSignedBitsWithBitCount(int64 bit_count) const {
   int64 min_bit_count = SignedBitCount();
   if (bit_count < min_bit_count) {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -144,8 +144,7 @@ xabsl::StatusOr<Bits> BigInt::ToSignedBitsWithBitCount(int64 bit_count) const {
   return rope.Build();
 }
 
-xabsl::StatusOr<Bits> BigInt::ToUnsignedBitsWithBitCount(
-    int64 bit_count) const {
+absl::StatusOr<Bits> BigInt::ToUnsignedBitsWithBitCount(int64 bit_count) const {
   int64 min_bit_count = UnsignedBitCount();
   if (bit_count < min_bit_count) {
     return absl::InvalidArgumentError(absl::StrFormat(

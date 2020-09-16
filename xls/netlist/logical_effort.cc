@@ -23,7 +23,7 @@ namespace xls {
 namespace netlist {
 namespace logical_effort {
 
-xabsl::StatusOr<double> GetLogicalEffort(CellKind kind, int64 input_count) {
+absl::StatusOr<double> GetLogicalEffort(CellKind kind, int64 input_count) {
   // Table 1.1 in the Logical Effort book.
   switch (kind) {
     case CellKind::kInverter:
@@ -51,7 +51,7 @@ xabsl::StatusOr<double> GetLogicalEffort(CellKind kind, int64 input_count) {
   }
 }
 
-xabsl::StatusOr<double> GetParasiticDelay(CellKind kind, int64 input_count) {
+absl::StatusOr<double> GetParasiticDelay(CellKind kind, int64 input_count) {
   // Table 1.2 in the Logical Effort book.
   switch (kind) {
     case CellKind::kInverter:
@@ -77,7 +77,7 @@ xabsl::StatusOr<double> GetParasiticDelay(CellKind kind, int64 input_count) {
   }
 }
 
-xabsl::StatusOr<double> ComputeElectricalEffort(const rtl::Cell& cell) {
+absl::StatusOr<double> ComputeElectricalEffort(const rtl::Cell& cell) {
   int64 output_load_same_kind = 0;
   for (const auto& iter : cell.outputs()) {
     rtl::NetRef output = iter.netref;
@@ -100,7 +100,7 @@ xabsl::StatusOr<double> ComputeElectricalEffort(const rtl::Cell& cell) {
   return output_load_same_kind;
 }
 
-xabsl::StatusOr<double> ComputeDelay(rtl::Cell* cell) {
+absl::StatusOr<double> ComputeDelay(rtl::Cell* cell) {
   XLS_ASSIGN_OR_RETURN(double g,
                        GetLogicalEffort(cell->kind(), cell->inputs().size()));
   XLS_ASSIGN_OR_RETURN(double h, ComputeElectricalEffort(*cell));
@@ -111,7 +111,7 @@ xabsl::StatusOr<double> ComputeDelay(rtl::Cell* cell) {
   return d;
 }
 
-xabsl::StatusOr<double> ComputePathLogicalEffort(
+absl::StatusOr<double> ComputePathLogicalEffort(
     absl::Span<rtl::Cell* const> path) {
   if (path.empty()) {
     return absl::InvalidArgumentError(
@@ -126,7 +126,7 @@ xabsl::StatusOr<double> ComputePathLogicalEffort(
   return effort;
 }
 
-xabsl::StatusOr<double> ComputePathParasiticDelay(
+absl::StatusOr<double> ComputePathParasiticDelay(
     absl::Span<rtl::Cell* const> path) {
   double sum = 0.0;
   for (const rtl::Cell* cell : path) {
@@ -137,7 +137,7 @@ xabsl::StatusOr<double> ComputePathParasiticDelay(
   return sum;
 }
 
-xabsl::StatusOr<double> ComputePathBranchingEffort(
+absl::StatusOr<double> ComputePathBranchingEffort(
     absl::Span<rtl::Cell* const> path) {
   double branching_effort = 1.0;
   for (int64 i = 0; i < path.size() - 1; ++i) {
@@ -157,16 +157,16 @@ xabsl::StatusOr<double> ComputePathBranchingEffort(
   return branching_effort;
 }
 
-xabsl::StatusOr<double> ComputePathEffort(absl::Span<rtl::Cell* const> path,
-                                          double input_pin_capacitance,
-                                          double output_pin_capacitance) {
+absl::StatusOr<double> ComputePathEffort(absl::Span<rtl::Cell* const> path,
+                                         double input_pin_capacitance,
+                                         double output_pin_capacitance) {
   XLS_ASSIGN_OR_RETURN(double G, ComputePathLogicalEffort(path));
   XLS_ASSIGN_OR_RETURN(double B, ComputePathBranchingEffort(path));
   double H = output_pin_capacitance / input_pin_capacitance;
   return G * B * H;
 }
 
-xabsl::StatusOr<double> ComputePathLeastDelayAchievable(
+absl::StatusOr<double> ComputePathLeastDelayAchievable(
     absl::Span<rtl::Cell* const> path, double input_pin_capacitance,
     double output_pin_capacitance) {
   double N = path.size();

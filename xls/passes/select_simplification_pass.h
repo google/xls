@@ -15,7 +15,7 @@
 #ifndef XLS_PASSES_SELECT_SIMPLIFICATION_PASS_H_
 #define XLS_PASSES_SELECT_SIMPLIFICATION_PASS_H_
 
-#include "xls/common/status/statusor.h"
+#include "absl/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/passes/passes.h"
 
@@ -33,8 +33,8 @@ class SelectSimplificationPass : public FunctionPass {
         split_ops_(split_ops) {}
   ~SelectSimplificationPass() override {}
 
-  xabsl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                      PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
+                                     PassResults* results) const override;
 
  private:
   bool split_ops_;

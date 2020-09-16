@@ -16,11 +16,11 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
 #include "xls/common/logging/capture_stream.h"
 #include "xls/common/logging/logging_test_base.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/status/statusor.h"
 
 namespace {
 
@@ -83,7 +83,7 @@ TEST_F(LogFlagsTest, LogToStderrFalseDoesNotCauseInfoLoggingToStderr) {
   auto set_logtostderr = ScopedFlagSetter(&FLAGS_logtostderr, false);
   auto set_alsologtostderr = ScopedFlagSetter(&FLAGS_alsologtostderr, false);
 
-  xabsl::StatusOr<std::string> output = ::xls::testing::CaptureStream(
+  absl::StatusOr<std::string> output = ::xls::testing::CaptureStream(
       STDERR_FILENO, [] { XLS_LOG(INFO) << "test_info_log_message"; });
 
   EXPECT_THAT(output, IsOkAndHolds(Not(HasSubstr("test_info_log_message"))));
@@ -93,7 +93,7 @@ TEST_F(LogFlagsTest, LogToStderrTrueCausesInfoLoggingToStderr) {
   auto set_logtostderr = ScopedFlagSetter(&FLAGS_logtostderr, true);
   auto set_alsologtostderr = ScopedFlagSetter(&FLAGS_alsologtostderr, false);
 
-  xabsl::StatusOr<std::string> output = ::xls::testing::CaptureStream(
+  absl::StatusOr<std::string> output = ::xls::testing::CaptureStream(
       STDERR_FILENO, [] { XLS_LOG(INFO) << "test_info_log_message"; });
 
   EXPECT_THAT(output, IsOkAndHolds(HasSubstr("test_info_log_message")));
@@ -103,7 +103,7 @@ TEST_F(LogFlagsTest, AlsoLogToStderrTrueCausesInfoLoggingToStderr) {
   auto set_logtostderr = ScopedFlagSetter(&FLAGS_logtostderr, false);
   auto set_alsologtostderr = ScopedFlagSetter(&FLAGS_alsologtostderr, true);
 
-  xabsl::StatusOr<std::string> output = ::xls::testing::CaptureStream(
+  absl::StatusOr<std::string> output = ::xls::testing::CaptureStream(
       STDERR_FILENO, [] { XLS_LOG(INFO) << "test_info_log_message"; });
 
   EXPECT_THAT(output, IsOkAndHolds(HasSubstr("test_info_log_message")));
@@ -115,7 +115,7 @@ TEST_F(LogFlagsTest, StderrThresholdSuppressesLoggingBelowSpecifiedLevel) {
   auto set_stderrthreshold = ScopedFlagSetter(
       &FLAGS_stderrthreshold, static_cast<int>(absl::LogSeverity::kWarning));
 
-  xabsl::StatusOr<std::string> output = ::xls::testing::CaptureStream(
+  absl::StatusOr<std::string> output = ::xls::testing::CaptureStream(
       STDERR_FILENO, [] { XLS_LOG(INFO) << "test_info_log_message"; });
 
   EXPECT_THAT(output, IsOkAndHolds(Not(HasSubstr("test_info_log_message"))));
@@ -125,7 +125,7 @@ TEST_F(LogFlagsTest, StderrThresholdAllowsLoggingAtSpecifiedLevel) {
   auto set_flag = ScopedFlagSetter(
       &FLAGS_stderrthreshold, static_cast<int>(absl::LogSeverity::kWarning));
 
-  xabsl::StatusOr<std::string> output = ::xls::testing::CaptureStream(
+  absl::StatusOr<std::string> output = ::xls::testing::CaptureStream(
       STDERR_FILENO, [] { XLS_LOG(WARNING) << "test_info_log_message"; });
 
   EXPECT_THAT(output, IsOkAndHolds(HasSubstr("test_info_log_message")));
@@ -135,7 +135,7 @@ TEST_F(LogFlagsTest, StderrThresholdAllowsLoggingAboveSpecifiedLevel) {
   auto set_flag = ScopedFlagSetter(
       &FLAGS_stderrthreshold, static_cast<int>(absl::LogSeverity::kWarning));
 
-  xabsl::StatusOr<std::string> output = ::xls::testing::CaptureStream(
+  absl::StatusOr<std::string> output = ::xls::testing::CaptureStream(
       STDERR_FILENO, [] { XLS_LOG(ERROR) << "test_info_log_message"; });
 
   EXPECT_THAT(output, IsOkAndHolds(HasSubstr("test_info_log_message")));
@@ -144,7 +144,7 @@ TEST_F(LogFlagsTest, StderrThresholdAllowsLoggingAboveSpecifiedLevel) {
 TEST_F(LogFlagsTest, EnabledLogPrefixCausesLoggingToBePrefixed) {
   auto set_flag = ScopedFlagSetter(&FLAGS_log_prefix, true);
 
-  xabsl::StatusOr<std::string> output = ::xls::testing::CaptureStream(
+  absl::StatusOr<std::string> output = ::xls::testing::CaptureStream(
       STDERR_FILENO, [] { XLS_LOG(ERROR) << "test_info_log_message"; });
 
   EXPECT_THAT(output, IsOkAndHolds(HasSubstr("test_info_log_message")));
@@ -154,7 +154,7 @@ TEST_F(LogFlagsTest, EnabledLogPrefixCausesLoggingToBePrefixed) {
 TEST_F(LogFlagsTest, DisabledLogPrefixCausesLoggingToNotBePrefixed) {
   auto set_flag = ScopedFlagSetter(&FLAGS_log_prefix, false);
 
-  xabsl::StatusOr<std::string> output = ::xls::testing::CaptureStream(
+  absl::StatusOr<std::string> output = ::xls::testing::CaptureStream(
       STDERR_FILENO, [] { XLS_LOG(ERROR) << "test_info_log_message"; });
 
   EXPECT_THAT(output, IsOkAndHolds(HasSubstr("test_info_log_message")));

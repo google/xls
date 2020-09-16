@@ -30,7 +30,7 @@ namespace py = pybind11;
 namespace xls {
 
 // IR to JSON conversion function which takes strings rather than objects.
-xabsl::StatusOr<std::string> IrToJsonWrapper(
+absl::StatusOr<std::string> IrToJsonWrapper(
     absl::string_view ir_text, absl::string_view delay_model_name,
     absl::optional<int64> pipeline_stages) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,

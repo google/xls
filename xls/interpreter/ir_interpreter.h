@@ -15,8 +15,8 @@
 #ifndef XLS_INTERPRETER_IR_INTERPRETER_H_
 #define XLS_INTERPRETER_IR_INTERPRETER_H_
 
+#include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/common/status/statusor.h"
 #include "xls/interpreter/ir_interpreter_stats.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
@@ -32,22 +32,22 @@ class IrInterpreter : public DfsVisitor {
 
   // Runs the interpreter on the given function. 'args' are the argument values
   // indexed by parameter name.
-  static xabsl::StatusOr<Value> Run(Function* function,
-                                    absl::Span<const Value> args,
-                                    InterpreterStats* stats = nullptr);
+  static absl::StatusOr<Value> Run(Function* function,
+                                   absl::Span<const Value> args,
+                                   InterpreterStats* stats = nullptr);
 
   // Runs the interpreter on the function where the arguments are given by name.
-  static xabsl::StatusOr<Value> RunKwargs(
+  static absl::StatusOr<Value> RunKwargs(
       Function* function, const absl::flat_hash_map<std::string, Value>& args,
       InterpreterStats* stats = nullptr);
 
   // Evaluates the given node and returns the Value. Prerequisite: node must
   // have only literal operands.
-  static xabsl::StatusOr<Value> EvaluateNodeWithLiteralOperands(Node* node);
+  static absl::StatusOr<Value> EvaluateNodeWithLiteralOperands(Node* node);
 
   // Evaluates the given node using the given operand values and returns the
   // result.
-  static xabsl::StatusOr<Value> EvaluateNode(
+  static absl::StatusOr<Value> EvaluateNode(
       Node* node, absl::Span<const Value* const> operand_values);
 
   absl::Status HandleAdd(BinOp* add) override;
@@ -144,8 +144,8 @@ class IrInterpreter : public DfsVisitor {
   // Performs a logical OR of the given inputs. If 'inputs' is a not a Bits type
   // (ie, tuple or array) the element a recursively traversed and the Bits-typed
   // leaves are OR-ed.
-  xabsl::StatusOr<Value> DeepOr(Type* input_type,
-                                absl::Span<const Value* const> inputs);
+  absl::StatusOr<Value> DeepOr(Type* input_type,
+                               absl::Span<const Value* const> inputs);
 
   // Statistics on interpreter execution. May be nullptr.
   InterpreterStats* stats_;

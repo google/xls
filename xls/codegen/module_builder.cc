@@ -74,8 +74,8 @@ int64 NestedElementWidth(ArrayType* type) {
 
 // Flattens a value into a single bits-typed expression. Tuples and arrays are
 // represented as a concatenation of their elements.
-xabsl::StatusOr<Expression*> FlattenValueToExpression(const Value& value,
-                                                      VerilogFile* file) {
+absl::StatusOr<Expression*> FlattenValueToExpression(const Value& value,
+                                                     VerilogFile* file) {
   XLS_RET_CHECK_GT(value.GetFlatBitCount(), 0);
   if (value.IsBits()) {
     return file->Literal(value.bits());
@@ -100,7 +100,7 @@ xabsl::StatusOr<Expression*> FlattenValueToExpression(const Value& value,
 // would produce:
 //
 //   '{8'h42, 8'h10, 8'h2}
-xabsl::StatusOr<ArrayAssignmentPattern*> ValueToArrayAssignmentPattern(
+absl::StatusOr<ArrayAssignmentPattern*> ValueToArrayAssignmentPattern(
     const Value& value, VerilogFile* file) {
   XLS_RET_CHECK(value.IsArray());
   std::vector<Expression*> pieces;
@@ -265,8 +265,8 @@ absl::Status ModuleBuilder::AssignFromSlice(
   return absl::OkStatus();
 }
 
-xabsl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(absl::string_view name,
-                                                       Type* type) {
+absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(absl::string_view name,
+                                                      Type* type) {
   LogicRef* port = module_->AddPort(Direction::kInput, SanitizeIdentifier(name),
                                     type->GetFlatBitCount());
   if (!type->IsArray()) {
@@ -313,7 +313,7 @@ absl::Status ModuleBuilder::AddOutputPort(absl::string_view name,
   return absl::OkStatus();
 }
 
-xabsl::StatusOr<LogicRef*> ModuleBuilder::DeclareModuleConstant(
+absl::StatusOr<LogicRef*> ModuleBuilder::DeclareModuleConstant(
     absl::string_view name, const Value& value) {
   // To generate XLS types we need a package.
   // TODO(meheff): There should be a way of generating a Type for a value
@@ -382,7 +382,7 @@ bool ModuleBuilder::CanEmitAsInlineExpression(
   return true;
 }
 
-xabsl::StatusOr<Expression*> ModuleBuilder::EmitAsInlineExpression(
+absl::StatusOr<Expression*> ModuleBuilder::EmitAsInlineExpression(
     Node* node, absl::Span<Expression* const> inputs) {
   if (MustEmitAsFunction(node)) {
     XLS_ASSIGN_OR_RETURN(VerilogFunction * func, DefineFunction(node));
@@ -430,7 +430,7 @@ absl::Status ModuleBuilder::EmitArrayUpdateElement(Expression* lhs,
   return absl::OkStatus();
 }
 
-xabsl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
+absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
     absl::string_view name, Node* node, absl::Span<Expression* const> inputs) {
   LogicRef* ref = DeclareVariable(name, node->GetType());
   if (node->GetType()->IsArray()) {
@@ -553,7 +553,7 @@ absl::Status ModuleBuilder::Assign(LogicRef* lhs, Expression* rhs, Type* type) {
   return absl::OkStatus();
 }
 
-xabsl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
+absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
     absl::string_view name, Type* type, Expression* next,
     absl::optional<Expression*> reset_value) {
   LogicRef* reg;
@@ -573,7 +573,7 @@ xabsl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
       .xls_type = type};
 }
 
-xabsl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
+absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
     absl::string_view name, int64 bit_count, Expression* next,
     absl::optional<Expression*> reset_value) {
   return Register{
@@ -774,7 +774,7 @@ VerilogFunction* DefineUmulFunction(Node* node, absl::string_view function_name,
 
 }  // namespace
 
-xabsl::StatusOr<VerilogFunction*> ModuleBuilder::DefineFunction(Node* node) {
+absl::StatusOr<VerilogFunction*> ModuleBuilder::DefineFunction(Node* node) {
   std::string function_name = VerilogFunctionName(node);
   if (node_functions_.contains(function_name)) {
     return node_functions_.at(function_name);

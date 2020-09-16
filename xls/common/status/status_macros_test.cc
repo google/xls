@@ -23,9 +23,9 @@
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "xls/common/status/status_builder.h"
-#include "xls/common/status/statusor.h"
 
 namespace {
 
@@ -47,24 +47,24 @@ xabsl::StatusBuilder ReturnErrorBuilder(absl::string_view msg) {
   return xabsl::StatusBuilder(absl::UnknownError(msg));
 }
 
-xabsl::StatusOr<int> ReturnStatusOrValue(int v) { return v; }
+absl::StatusOr<int> ReturnStatusOrValue(int v) { return v; }
 
-xabsl::StatusOr<int> ReturnStatusOrError(absl::string_view msg) {
+absl::StatusOr<int> ReturnStatusOrError(absl::string_view msg) {
   return absl::UnknownError(msg);
 }
 
 template <class... Args>
-xabsl::StatusOr<std::tuple<Args...>> ReturnStatusOrTupleValue(Args&&... v) {
+absl::StatusOr<std::tuple<Args...>> ReturnStatusOrTupleValue(Args&&... v) {
   return std::tuple<Args...>(std::forward<Args>(v)...);
 }
 
 template <class... Args>
-xabsl::StatusOr<std::tuple<Args...>> ReturnStatusOrTupleError(
+absl::StatusOr<std::tuple<Args...>> ReturnStatusOrTupleError(
     absl::string_view msg) {
   return absl::UnknownError(msg);
 }
 
-xabsl::StatusOr<std::unique_ptr<int>> ReturnStatusOrPtrValue(int v) {
+absl::StatusOr<std::unique_ptr<int>> ReturnStatusOrPtrValue(int v) {
   return absl::make_unique<int>(v);
 }
 
@@ -386,7 +386,7 @@ class ReturnIfErrorWithAnnotateLoop : public ReturnLoop<absl::Status> {
   }
 };
 
-class AssignOrReturnLoop : public ReturnLoop<xabsl::StatusOr<int>> {
+class AssignOrReturnLoop : public ReturnLoop<absl::StatusOr<int>> {
  public:
   explicit AssignOrReturnLoop(ReturnType return_value)
       : ReturnLoop(std::move(return_value)) {}
@@ -401,7 +401,7 @@ class AssignOrReturnLoop : public ReturnLoop<xabsl::StatusOr<int>> {
   ReturnType result_;
 };
 
-class AssignOrReturnAnnotateLoop : public ReturnLoop<xabsl::StatusOr<int>> {
+class AssignOrReturnAnnotateLoop : public ReturnLoop<absl::StatusOr<int>> {
  public:
   explicit AssignOrReturnAnnotateLoop(ReturnType return_value)
       : ReturnLoop(std::move(return_value)) {}

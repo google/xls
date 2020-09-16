@@ -48,7 +48,7 @@ Bits TernaryVectorToValueBits(const TernaryEvaluator::Vector& ternary_vector) {
 }
 
 /* static */
-xabsl::StatusOr<std::unique_ptr<TernaryQueryEngine>> TernaryQueryEngine::Run(
+absl::StatusOr<std::unique_ptr<TernaryQueryEngine>> TernaryQueryEngine::Run(
     Function* f) {
   TernaryEvaluator evaluator;
   absl::flat_hash_map<Node*, TernaryEvaluator::Vector> values;

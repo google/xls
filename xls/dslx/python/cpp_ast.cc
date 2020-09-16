@@ -186,8 +186,8 @@ PYBIND11_MODULE(cpp_ast, m) {
               "name", [](ModuleHolder module) { return module.deref().name(); })
           .def("get_function",
                [](ModuleHolder module, absl::string_view target_name)
-                   -> xabsl::StatusOr<FunctionHolder> {
-                 xabsl::StatusOr<Function*> f =
+                   -> absl::StatusOr<FunctionHolder> {
+                 absl::StatusOr<Function*> f =
                      module.deref().GetFunction(target_name);
                  if (!f.status().ok() &&
                      f.status().code() == absl::StatusCode::kNotFound) {
@@ -264,7 +264,7 @@ PYBIND11_MODULE(cpp_ast, m) {
               [](ModuleHolder module) { return module.deref().GetTestNames(); })
           .def("get_test",
                [](ModuleHolder module,
-                  absl::string_view name) -> xabsl::StatusOr<TestHolder> {
+                  absl::string_view name) -> absl::StatusOr<TestHolder> {
                  XLS_ASSIGN_OR_RETURN(Test * test,
                                       module.deref().GetTest(name));
                  return TestHolder(test, module.module());
@@ -304,7 +304,7 @@ PYBIND11_MODULE(cpp_ast, m) {
            })
       .def("get_value",
            [](EnumHolder self,
-              absl::string_view name) -> xabsl::StatusOr<AstNodeHolder> {
+              absl::string_view name) -> absl::StatusOr<AstNodeHolder> {
              XLS_ASSIGN_OR_RETURN(auto value, self.deref().GetValue(name));
              return AstNodeHolder(ToAstNode(value), self.module());
            })
@@ -637,7 +637,7 @@ PYBIND11_MODULE(cpp_ast, m) {
           .def("is_leaf",
                [](NameDefTreeHolder self) { return self.deref().is_leaf(); })
           .def("get_leaf",
-               [](NameDefTreeHolder self) -> xabsl::StatusOr<AstNodeHolder> {
+               [](NameDefTreeHolder self) -> absl::StatusOr<AstNodeHolder> {
                  if (!self.deref().is_leaf()) {
                    return absl::InvalidArgumentError(
                        "NameDefTree AST node is not a leaf.");

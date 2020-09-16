@@ -73,7 +73,7 @@ bool Scanner::TryDropChar(char target) {
   return false;
 }
 
-xabsl::StatusOr<Token> Scanner::PopComment(const Pos& start_pos) {
+absl::StatusOr<Token> Scanner::PopComment(const Pos& start_pos) {
   std::string chars;
   while (!AtCharEof() && !TryDropChar('\n')) {
     chars.append(1, PopChar());
@@ -81,7 +81,7 @@ xabsl::StatusOr<Token> Scanner::PopComment(const Pos& start_pos) {
   return Token(TokenKind::kComment, Span(start_pos, GetPos()), chars);
 }
 
-xabsl::StatusOr<Token> Scanner::PopWhitespace(const Pos& start_pos) {
+absl::StatusOr<Token> Scanner::PopWhitespace(const Pos& start_pos) {
   XLS_CHECK(AtWhitespace());
   std::string chars;
   while (!AtCharEof() && AtWhitespace()) {
@@ -103,8 +103,8 @@ xabsl::StatusOr<Token> Scanner::PopWhitespace(const Pos& start_pos) {
   return it->second;
 }
 
-xabsl::StatusOr<Token> Scanner::ScanIdentifierOrKeyword(char startc,
-                                                        const Pos& start_pos) {
+absl::StatusOr<Token> Scanner::ScanIdentifierOrKeyword(char startc,
+                                                       const Pos& start_pos) {
   std::string s = ScanWhile(startc, [](char c) {
     return std::isalpha(c) || std::isdigit(c) || c == '_' || c == '!';
   });
@@ -115,7 +115,7 @@ xabsl::StatusOr<Token> Scanner::ScanIdentifierOrKeyword(char startc,
   return Token(TokenKind::kIdentifier, span, std::move(s));
 }
 
-xabsl::StatusOr<absl::optional<Token>> Scanner::TryPopWhitespaceOrComment() {
+absl::StatusOr<absl::optional<Token>> Scanner::TryPopWhitespaceOrComment() {
   const Pos start_pos = GetPos();
   if (AtCharEof()) {
     return Token(TokenKind::kEof, Span(start_pos, start_pos));
@@ -132,7 +132,7 @@ xabsl::StatusOr<absl::optional<Token>> Scanner::TryPopWhitespaceOrComment() {
   return absl::nullopt;
 }
 
-xabsl::StatusOr<Token> Scanner::ScanNumber(char startc, const Pos& start_pos) {
+absl::StatusOr<Token> Scanner::ScanNumber(char startc, const Pos& start_pos) {
   bool negative = startc == '-';
   if (negative) {
     startc = PopChar();
@@ -182,7 +182,7 @@ std::string KeywordToString(Keyword keyword) {
   return absl::StrFormat("<invalid Keyword(%d)>", static_cast<int>(keyword));
 }
 
-xabsl::StatusOr<Keyword> KeywordFromString(absl::string_view s) {
+absl::StatusOr<Keyword> KeywordFromString(absl::string_view s) {
 #define MAKE_CASE(__enum, unused, __str, ...) \
   if (s == __str) {                           \
     return Keyword::__enum;                   \
@@ -204,7 +204,7 @@ std::string TokenKindToString(TokenKind kind) {
   return absl::StrFormat("<invalid TokenKind(%d)>", static_cast<int>(kind));
 }
 
-xabsl::StatusOr<TokenKind> TokenKindFromString(absl::string_view s) {
+absl::StatusOr<TokenKind> TokenKindFromString(absl::string_view s) {
 #define MAKE_CASE(__enum, unused, __str, ...) \
   if (s == __str) {                           \
     return TokenKind::__enum;                 \
@@ -245,7 +245,7 @@ void Scanner::DropCommentsAndLeadingWhitespace() {
   }
 }
 
-xabsl::StatusOr<Token> Scanner::ScanChar(const Pos& start_pos) {
+absl::StatusOr<Token> Scanner::ScanChar(const Pos& start_pos) {
   const char open_quote = PopChar();
   XLS_CHECK_EQ(open_quote, '\'');
   if (AtCharEof()) {
@@ -263,7 +263,7 @@ xabsl::StatusOr<Token> Scanner::ScanChar(const Pos& start_pos) {
                std::string(1, c));
 }
 
-xabsl::StatusOr<Token> Scanner::Peek() {
+absl::StatusOr<Token> Scanner::Peek() {
   if (include_whitespace_and_comments_) {
     XLS_ASSIGN_OR_RETURN(absl::optional<Token> tok,
                          TryPopWhitespaceOrComment());

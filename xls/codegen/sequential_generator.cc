@@ -22,6 +22,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "xls/codegen/finite_state_machine.h"
@@ -34,7 +35,6 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/status/statusor.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/function.h"
@@ -99,7 +99,7 @@ absl::Status SequentialModuleBuilder::AddFsm(
   auto add_output_and_drive_wire =
       [&fsm, &wire_reg_assignments](
           absl::string_view name, int64 default_value,
-          LogicRef* driven_wire) -> xabsl::StatusOr<FsmOutput*> {
+          LogicRef* driven_wire) -> absl::StatusOr<FsmOutput*> {
     FsmOutput* fsm_out = fsm.AddOutput1(name, default_value);
     if (wire_reg_assignments.contains(driven_wire)) {
       return absl::InternalError(
@@ -220,7 +220,7 @@ absl::Status SequentialModuleBuilder::AddSequentialLogic() {
   return absl::OkStatus();
 }
 
-xabsl::StatusOr<SequentialModuleBuilder::StridedCounterReferences>
+absl::StatusOr<SequentialModuleBuilder::StridedCounterReferences>
 SequentialModuleBuilder::AddStaticStridedCounter(std::string name, int64 stride,
                                                  int64 value_limit_exclusive,
                                                  LogicRef* clk,
@@ -288,9 +288,9 @@ SequentialModuleBuilder::AddStaticStridedCounter(std::string name, int64 stride,
   return refs;
 }
 
-xabsl::StatusOr<ModuleGeneratorResult> SequentialModuleBuilder::Build() {
+absl::StatusOr<ModuleGeneratorResult> SequentialModuleBuilder::Build() {
   // Generate the loop body module.
-  xabsl::StatusOr<std::unique_ptr<ModuleGeneratorResult>> loop_body_status =
+  absl::StatusOr<std::unique_ptr<ModuleGeneratorResult>> loop_body_status =
       GenerateLoopBodyPipeline();
   XLS_RETURN_IF_ERROR(loop_body_status.status());
   loop_body_pipeline_result_ = std::move(loop_body_status.value());
@@ -301,7 +301,7 @@ xabsl::StatusOr<ModuleGeneratorResult> SequentialModuleBuilder::Build() {
                1);
 
   // Get the module signature.
-  xabsl::StatusOr<std::unique_ptr<ModuleSignature>> signature_result =
+  absl::StatusOr<std::unique_ptr<ModuleSignature>> signature_result =
       GenerateModuleSignature();
   XLS_RETURN_IF_ERROR(signature_result.status());
   module_signature_ = std::move(signature_result.value());
@@ -322,7 +322,7 @@ xabsl::StatusOr<ModuleGeneratorResult> SequentialModuleBuilder::Build() {
   return result;
 }
 
-xabsl::StatusOr<std::unique_ptr<ModuleSignature>>
+absl::StatusOr<std::unique_ptr<ModuleSignature>>
 SequentialModuleBuilder::GenerateModuleSignature() {
   std::string module_name = sequential_options_.module_name().has_value()
                                 ? sequential_options_.module_name().value()
@@ -371,7 +371,7 @@ SequentialModuleBuilder::GenerateModuleSignature() {
   return std::move(signature);
 }
 
-xabsl::StatusOr<std::unique_ptr<ModuleGeneratorResult>>
+absl::StatusOr<std::unique_ptr<ModuleGeneratorResult>>
 SequentialModuleBuilder::GenerateLoopBodyPipeline() {
   // Set pipeline options.
   PipelineOptions pipeline_options;
@@ -508,14 +508,14 @@ absl::Status SequentialModuleBuilder::InstantiateLoopBody(
   return absl::OkStatus();
 }
 
-xabsl::StatusOr<ModuleGeneratorResult> ToSequentialModuleText(Function* func) {
+absl::StatusOr<ModuleGeneratorResult> ToSequentialModuleText(Function* func) {
   return absl::UnimplementedError(
       "Sequential generator does not yet support arbitrary functions.");
 }
 
 // Emits the given CountedFor as a verilog module which reuses the same hardware
 // over time to executed loop iterations.
-xabsl::StatusOr<ModuleGeneratorResult> ToSequentialModuleText(
+absl::StatusOr<ModuleGeneratorResult> ToSequentialModuleText(
     const SequentialOptions& options, const CountedFor* loop) {
   SequentialModuleBuilder builder(options, loop);
   return builder.Build();

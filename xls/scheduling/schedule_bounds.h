@@ -20,11 +20,11 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
-#include "xls/common/status/statusor.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/function.h"
 #include "xls/ir/node.h"
@@ -42,7 +42,7 @@ class ScheduleBounds {
   // constraints. Similarly, upper bounds are set to the latest possible cycle
   // The upper bounds of nodes with no uses (leaf nodes) are set to the maximum
   // lower bound of any node.
-  static xabsl::StatusOr<ScheduleBounds> ComputeAsapAndAlapBounds(
+  static absl::StatusOr<ScheduleBounds> ComputeAsapAndAlapBounds(
       Function* f, int64 clock_period_ps,
       const DelayEstimator& delay_estimator);
 

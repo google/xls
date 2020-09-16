@@ -42,8 +42,8 @@ class DummyPass : public Pass {
   DummyPass(std::string short_name, std::string long_name)
       : Pass(short_name, long_name) {}
 
-  xabsl::StatusOr<bool> Run(Package* p, const PassOptions& options,
-                            PassResults* results) const override {
+  absl::StatusOr<bool> Run(Package* p, const PassOptions& options,
+                           PassResults* results) const override {
     return false;
   }
 };
@@ -77,7 +77,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildShift0() {
   (void)deadcode;
   auto imm = imm_3 - imm_2 - imm_1;
   auto result = ((x >> imm) - imm_0);
-  xabsl::StatusOr<Function*> f_or_status = b.BuildWithReturnValue(result);
+  absl::StatusOr<Function*> f_or_status = b.BuildWithReturnValue(result);
   XLS_CHECK_OK(f_or_status.status());
   return {absl::move(m), *f_or_status};
 }
@@ -214,8 +214,8 @@ class FunctionAdderPass : public Pass {
         name_(name) {}
 
   // Adds a function named 'str_' to the package.
-  xabsl::StatusOr<bool> Run(Package* package, const PassOptions& options,
-                            PassResults* results) const override {
+  absl::StatusOr<bool> Run(Package* package, const PassOptions& options,
+                           PassResults* results) const override {
     const char format_string[] =
         R"(
 fn %s() -> bits[32] {
@@ -256,8 +256,8 @@ class RecordingPass : public Pass {
   RecordingPass(std::string name, std::vector<std::string>* record)
       : Pass(name, name), record_(record) {}
 
-  xabsl::StatusOr<bool> Run(Package* p, const PassOptions& options,
-                            PassResults* results) const override {
+  absl::StatusOr<bool> Run(Package* p, const PassOptions& options,
+                           PassResults* results) const override {
     record_->push_back(short_name());
     return false;
   }

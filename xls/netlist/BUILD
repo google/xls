@@ -30,12 +30,12 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:integral_types",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
     ],
 )
 
@@ -48,11 +48,11 @@ cc_library(
     deps = [
         ":netlist",
         ":netlist_cc_proto",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
     ],
 )
 
@@ -66,6 +66,7 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "//xls/codegen:flattening",
@@ -73,7 +74,6 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:type",
@@ -104,13 +104,13 @@ cc_library(
     deps = [
         ":netlist",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:variant",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
         "//xls/ir:bits",
         "@com_google_re2//:re2",
     ],
@@ -148,11 +148,11 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:integral_types",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
         "@com_google_protobuf//:protobuf",
     ],
 )
@@ -226,12 +226,12 @@ cc_library(
     hdrs = ["logical_effort.h"],
     deps = [
         ":netlist",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:integral_types",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
     ],
 )
 
@@ -255,12 +255,12 @@ cc_library(
     deps = [
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:optional",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
     ],
 )
 
@@ -284,12 +284,12 @@ cc_library(
         ":netlist_cc_proto",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:variant",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
     ],
 )
 
@@ -328,13 +328,13 @@ cc_library(
     hdrs = ["function_parser.h"],
     deps = [
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:optional",
         "//xls/common:integral_types",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
-        "//xls/common/status:statusor",
     ],
 )
 

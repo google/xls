@@ -79,7 +79,7 @@ FunctionType* Function::GetType() {
   return package_->GetFunctionType(arg_types, return_value()->GetType());
 }
 
-xabsl::StatusOr<Param*> Function::GetParamByName(
+absl::StatusOr<Param*> Function::GetParamByName(
     absl::string_view param_name) const {
   for (Param* param : params()) {
     if (param->name() == param_name) {
@@ -91,7 +91,7 @@ xabsl::StatusOr<Param*> Function::GetParamByName(
                       name(), param_name));
 }
 
-xabsl::StatusOr<int64> Function::GetParamIndex(Param* param) const {
+absl::StatusOr<int64> Function::GetParamIndex(Param* param) const {
   auto it = std::find(params_.begin(), params_.end(), param);
   if (it == params_.end()) {
     return absl::InvalidArgumentError(
@@ -100,7 +100,7 @@ xabsl::StatusOr<int64> Function::GetParamIndex(Param* param) const {
   return std::distance(params_.begin(), it);
 }
 
-xabsl::StatusOr<Node*> Function::GetNode(absl::string_view standard_node_name) {
+absl::StatusOr<Node*> Function::GetNode(absl::string_view standard_node_name) {
   for (Node* node : nodes()) {
     if (node->GetName() == standard_node_name) {
       return node;
@@ -152,7 +152,7 @@ absl::Status Function::Accept(DfsVisitor* visitor) {
   return absl::OkStatus();
 }
 
-xabsl::StatusOr<Function*> Function::Clone(absl::string_view new_name) const {
+absl::StatusOr<Function*> Function::Clone(absl::string_view new_name) const {
   absl::flat_hash_map<Node*, Node*> original_to_clone;
   Function* cloned_function =
       package()->AddFunction(absl::make_unique<Function>(new_name, package()));

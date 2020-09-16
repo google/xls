@@ -18,7 +18,7 @@
 #include <string>
 #include <vector>
 
-#include "xls/common/status/statusor.h"
+#include "absl/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/value.h"
 
@@ -26,7 +26,7 @@ namespace xls {
 
 // Converts the given set of keyword args for the given function into a vector
 // of positional arguments.
-xabsl::StatusOr<std::vector<Value>> KeywordArgsToPositional(
+absl::StatusOr<std::vector<Value>> KeywordArgsToPositional(
     const Function& function,
     const absl::flat_hash_map<std::string, Value>& kwargs);
 

@@ -16,8 +16,8 @@
 #define XLS_PASSES_BDD_FUNCTION_H_
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/status/statusor.h"
 #include "xls/data_structures/binary_decision_diagram.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/function.h"
@@ -48,7 +48,7 @@ class BddFunction {
   // new BDD variable. If a node's op is in 'do_not_evaluate_ops', its
   // bits are modeled as BDD variables. Otherwise, bits are represented as BDD
   // nodes whose values are determined by the values of other BDD nodes.
-  static xabsl::StatusOr<std::unique_ptr<BddFunction>> Run(
+  static absl::StatusOr<std::unique_ptr<BddFunction>> Run(
       Function* f, int64 minterm_limit = 0,
       absl::Span<const Op> do_not_evaluate_ops = {});
 
@@ -66,7 +66,7 @@ class BddFunction {
   // Operations such as arithmetic operations which are not expressed in the BDD
   // are evaluated using the IR interpreter. This method is for testing purposes
   // only for verifying that the BDD is properly constructed.
-  xabsl::StatusOr<Value> Evaluate(absl::Span<const Value> args) const;
+  absl::StatusOr<Value> Evaluate(absl::Span<const Value> args) const;
 
  private:
   explicit BddFunction(Function* f) : func_(f) {}

@@ -18,8 +18,8 @@
 #include <memory>
 #include <type_traits>
 
+#include "absl/status/statusor.h"
 #include "pybind11/cast.h"
-#include "xls/common/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/package.h"
@@ -284,11 +284,11 @@ PyHolderType<T> WrapInPyHolder(T* value, PointerOwnedByPackage<U>* holder) {
   return PyHolderType<T>(value, holder->package());
 }
 
-// Tells PyWrap how to wrap xabsl::StatusOr return values of types that need to
+// Tells PyWrap how to wrap absl::StatusOr return values of types that need to
 // be wrapped, see WrapInPyHolderIfHolderExists.
 template <typename T, typename Holder>
-xabsl::StatusOr<PyHolderType<T>> WrapInPyHolder(
-    const xabsl::StatusOr<T*>& value, Holder* holder) {
+absl::StatusOr<PyHolderType<T>> WrapInPyHolder(const absl::StatusOr<T*>& value,
+                                               Holder* holder) {
   if (value.ok()) {
     return PyHolderType<T>(value.value(), holder->package());
   } else {

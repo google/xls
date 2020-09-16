@@ -14,6 +14,7 @@
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
@@ -22,7 +23,6 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/status/statusor.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value.h"
@@ -102,7 +102,7 @@ int main(int argc, char** argv) {
   if (absl::GetFlag(FLAGS_verilog_simulator).empty()) {
     verilog_simulator = &xls::verilog::GetDefaultVerilogSimulator();
   } else {
-    xabsl::StatusOr<const xls::verilog::VerilogSimulator*>
+    absl::StatusOr<const xls::verilog::VerilogSimulator*>
         verilog_simulator_status = xls::verilog::GetVerilogSimulator(
             absl::GetFlag(FLAGS_verilog_simulator));
     std::string verilog_simulator_names = absl::StrJoin(
@@ -114,7 +114,7 @@ int main(int argc, char** argv) {
   }
   XLS_QCHECK_EQ(positional_arguments.size(), 1)
       << "Expected single Verilog file argument.";
-  xabsl::StatusOr<std::string> verilog_text =
+  absl::StatusOr<std::string> verilog_text =
       xls::GetFileContents(positional_arguments.at(0));
   XLS_QCHECK_OK(verilog_text.status());
 
@@ -125,7 +125,7 @@ int main(int argc, char** argv) {
   if (!absl::GetFlag(FLAGS_args).empty()) {
     args_strings.push_back(absl::GetFlag(FLAGS_args));
   } else {
-    xabsl::StatusOr<std::string> args_file_contents =
+    absl::StatusOr<std::string> args_file_contents =
         xls::GetFileContents(absl::GetFlag(FLAGS_args_file));
     XLS_QCHECK_OK(args_file_contents.status());
     args_strings = absl::StrSplit(args_file_contents.value(), '\n',

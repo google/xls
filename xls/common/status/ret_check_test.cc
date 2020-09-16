@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "xls/common/logging/scoped_mock_log.h"
 #include "xls/common/status/matchers.h"
 
@@ -174,9 +175,9 @@ TEST(StatusMacrosChecksTest, Ok) {
 TEST(StatusMacrosChecksTest, StatusOrOk) {
   auto func = []() -> ::absl::Status {
     int val = 45;
-    ::xabsl::StatusOr<int*> ok = &val;
-    ::xabsl::StatusOr<int*> ok_null = nullptr;
-    ::xabsl::StatusOr<int*> not_ok =
+    ::absl::StatusOr<int*> ok = &val;
+    ::absl::StatusOr<int*> ok_null = nullptr;
+    ::absl::StatusOr<int*> not_ok =
         ::absl::Status(::absl::StatusCode::kUnknown, "zomg");
     XLS_RET_CHECK_OK(ok) << "IGNORED";
     XLS_RET_CHECK_OK(ok_null) << "IGNORED";

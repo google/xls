@@ -14,10 +14,10 @@
 
 #include "xls/codegen/pipeline_generator.h"
 
+#include "absl/status/statusor.h"
 #include "pybind11/pybind11.h"
 #include "xls/common/python/absl_casters.h"
 #include "xls/codegen/module_signature.h"
-#include "xls/common/status/statusor.h"
 #include "xls/common/status/statusor_pybind_caster.h"
 #include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/function.h"
@@ -32,7 +32,7 @@ namespace verilog {
 namespace {
 
 // Generates a pipeline with the given number of stages.
-xabsl::StatusOr<ModuleGeneratorResult> GeneratePipelinedModuleWithNStages(
+absl::StatusOr<ModuleGeneratorResult> GeneratePipelinedModuleWithNStages(
     Package* package, int64 stages, absl::string_view module_name) {
   XLS_ASSIGN_OR_RETURN(Function * f, package->EntryFunction());
   XLS_ASSIGN_OR_RETURN(
@@ -46,7 +46,7 @@ xabsl::StatusOr<ModuleGeneratorResult> GeneratePipelinedModuleWithNStages(
 }
 
 // Generates a pipeline with the given clock period.
-xabsl::StatusOr<ModuleGeneratorResult> GeneratePipelinedModuleWithClockPeriod(
+absl::StatusOr<ModuleGeneratorResult> GeneratePipelinedModuleWithClockPeriod(
     Package* package, int64 clock_period_ps, absl::string_view module_name) {
   XLS_ASSIGN_OR_RETURN(Function * f, package->EntryFunction());
   XLS_ASSIGN_OR_RETURN(

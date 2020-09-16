@@ -25,12 +25,12 @@
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/status/statusor.h"
 
 namespace xls {
 namespace netlist {
@@ -50,8 +50,8 @@ struct Pos {
 // interface.
 class CharStream {
  public:
-  static xabsl::StatusOr<CharStream> FromPath(absl::string_view path);
-  static xabsl::StatusOr<CharStream> FromText(std::string text);
+  static absl::StatusOr<CharStream> FromPath(absl::string_view path);
+  static absl::StatusOr<CharStream> FromText(std::string text);
 
   ~CharStream() {
     if (if_.has_value()) {
@@ -211,14 +211,14 @@ class Scanner {
   explicit Scanner(CharStream* cs) : cs_(cs) { DropWhitespaceAndComments(); }
 
   // Pops a token off of the token stream.
-  xabsl::StatusOr<Token> Pop() {
+  absl::StatusOr<Token> Pop() {
     XLS_RETURN_IF_ERROR(Peek().status());
     Token result = std::move(lookahead_.value());
     lookahead_ = absl::nullopt;
     return result;
   }
 
-  xabsl::StatusOr<const Token*> Peek() {
+  absl::StatusOr<const Token*> Peek() {
     if (lookahead_.has_value()) {
       return &lookahead_.value();
     }
@@ -246,14 +246,14 @@ class Scanner {
   }
 
   // Scans an identifier token.
-  xabsl::StatusOr<Token> ScanIdentifier();
+  absl::StatusOr<Token> ScanIdentifier();
 
   // Scans a number token.
-  xabsl::StatusOr<Token> ScanNumber();
+  absl::StatusOr<Token> ScanNumber();
 
   // Scans a quoted string token. Character stream cursor should be over the
   // starting quote character.
-  xabsl::StatusOr<Token> ScanQuotedString();
+  absl::StatusOr<Token> ScanQuotedString();
 
   // Drops whitespace, comments, and line continuation characters.
   void DropWhitespaceAndComments() {
@@ -365,39 +365,39 @@ class Parser {
                       kind_allowlist = absl::nullopt)
       : scanner_(scanner), kind_allowlist_(std::move(kind_allowlist)) {}
 
-  xabsl::StatusOr<std::unique_ptr<Block>> ParseLibrary() {
+  absl::StatusOr<std::unique_ptr<Block>> ParseLibrary() {
     XLS_RETURN_IF_ERROR(DropIdentifierOrError("library"));
     return ParseBlock("library");
   }
 
  private:
-  xabsl::StatusOr<bool> TryDropToken(TokenKind target, Pos* pos = nullptr);
+  absl::StatusOr<bool> TryDropToken(TokenKind target, Pos* pos = nullptr);
   absl::Status DropTokenOrError(TokenKind kind);
   absl::Status DropIdentifierOrError(absl::string_view target);
 
   // Pops an identifier token and returns its payload, or errors.
-  xabsl::StatusOr<std::string> PopIdentifierOrError();
+  absl::StatusOr<std::string> PopIdentifierOrError();
 
   // Pops a value token and returns its payload, or errors.
   //
   // If last_pos is provided it is populated with the position of the last value
   // token. (This is useful for checking for newline termination in lieu of
   // semicolons.)
-  xabsl::StatusOr<std::string> PopValueOrError(Pos* last_pos = nullptr);
+  absl::StatusOr<std::string> PopValueOrError(Pos* last_pos = nullptr);
 
   // Parses all of the entries contained within a block -- includes key/value
   // entries as well as sub-blocks.
-  xabsl::StatusOr<std::vector<BlockEntry>> ParseEntries();
+  absl::StatusOr<std::vector<BlockEntry>> ParseEntries();
 
   // Parses a comma-delimited sequence of values and returns their payloads.
-  xabsl::StatusOr<absl::InlinedVector<std::string, 4>> ParseValues(
+  absl::StatusOr<absl::InlinedVector<std::string, 4>> ParseValues(
       Pos* end_pos = nullptr);
 
   // Parses a block per the grammar above.
   //
   // If the identifier is provided by the caller it is not scanned out of the
   // token stream.
-  xabsl::StatusOr<std::unique_ptr<Block>> ParseBlock(std::string identifier);
+  absl::StatusOr<std::unique_ptr<Block>> ParseBlock(std::string identifier);
 
   Scanner* scanner_;
 

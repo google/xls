@@ -19,11 +19,11 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
 #include "xls/common/file/filesystem_test.pb.h"
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/statusor.h"
 
 namespace xls {
 namespace {
@@ -36,9 +36,9 @@ using ::testing::Eq;
 using ::testing::HasSubstr;
 
 TEST(FilesystemTest, FileExistsReturnsTrueIfTheFileExists) {
-  xabsl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
+  absl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
   XLS_ASSERT_OK(temp_dir);
-  xabsl::StatusOr<TempFile> temp_file = TempFile::Create();
+  absl::StatusOr<TempFile> temp_file = TempFile::Create();
   XLS_ASSERT_OK(temp_file);
 
   XLS_EXPECT_OK(FileExists(temp_file->path()));
@@ -49,7 +49,7 @@ TEST(FilesystemTest, FileExistsReturnsTrueIfTheFileExists) {
 }
 
 TEST(FilesystemTest, RecursivelyCreateDirCreatesDirectory) {
-  xabsl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
+  absl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
   XLS_ASSERT_OK(temp_dir);
   auto path = temp_dir->path() / "my_dir";
 
@@ -61,14 +61,14 @@ TEST(FilesystemTest, RecursivelyCreateDirCreatesDirectory) {
 }
 
 TEST(FilesystemTest, RecursivelyCreateExistingDirSucceedsAndDoesNothing) {
-  xabsl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
+  absl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
   XLS_ASSERT_OK(temp_dir);
 
   XLS_EXPECT_OK(RecursivelyCreateDir(temp_dir->path()));
 }
 
 TEST(FilesystemTest, RecursivelyCreateDirWhereAFileIsFails) {
-  xabsl::StatusOr<TempFile> temp_file = TempFile::Create();
+  absl::StatusOr<TempFile> temp_file = TempFile::Create();
   XLS_ASSERT_OK(temp_file);
 
   absl::Status status = RecursivelyCreateDir(temp_file->path());
@@ -125,10 +125,10 @@ TEST(FilesystemTest, GetFileContentsReadsFile) {
   // be read.
   std::string contents(kContents, sizeof(kContents));
 
-  xabsl::StatusOr<TempFile> temp_file = TempFile::CreateWithContent(contents);
+  absl::StatusOr<TempFile> temp_file = TempFile::CreateWithContent(contents);
   XLS_ASSERT_OK(temp_file);
 
-  xabsl::StatusOr<std::string> read_contents =
+  absl::StatusOr<std::string> read_contents =
       GetFileContents(temp_file->path());
 
   XLS_ASSERT_OK(read_contents);
@@ -136,21 +136,21 @@ TEST(FilesystemTest, GetFileContentsReadsFile) {
 }
 
 TEST(FilesystemTest, GetFileContentsOfDirectoryFails) {
-  xabsl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
+  absl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
   XLS_ASSERT_OK(temp_dir);
 
-  xabsl::StatusOr<std::string> contents = GetFileContents(temp_dir->path());
+  absl::StatusOr<std::string> contents = GetFileContents(temp_dir->path());
 
   EXPECT_THAT(contents, StatusIs(absl::StatusCode::kFailedPrecondition));
 }
 
 TEST(FilesystemTest, SetFileContentsCreatesFileWhenMissing) {
-  xabsl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
+  absl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
   XLS_ASSERT_OK(temp_dir);
 
   XLS_EXPECT_OK(SetFileContents(temp_dir->path() / "file", "hello"));
 
-  xabsl::StatusOr<std::string> read_contents =
+  absl::StatusOr<std::string> read_contents =
       GetFileContents(temp_dir->path() / "file");
   XLS_ASSERT_OK(read_contents);
   EXPECT_EQ(*read_contents, "hello");
@@ -162,12 +162,12 @@ TEST(FilesystemTest, SetFileContentsOverwritesFile) {
   // be written.
   std::string contents(kContents, sizeof(kContents));
 
-  xabsl::StatusOr<TempFile> temp_file = TempFile::CreateWithContent("abc");
+  absl::StatusOr<TempFile> temp_file = TempFile::CreateWithContent("abc");
   XLS_ASSERT_OK(temp_file);
 
   XLS_EXPECT_OK(SetFileContents(temp_file->path(), contents));
 
-  xabsl::StatusOr<std::string> read_contents =
+  absl::StatusOr<std::string> read_contents =
       GetFileContents(temp_file->path());
   XLS_ASSERT_OK(read_contents);
   EXPECT_EQ(*read_contents, contents);
@@ -222,64 +222,63 @@ TEST(FilesystemTest, VerifyPermissionsOfSetFileContentsFile) {
 }
 
 TEST(FilesystemTest, SetFileContentsOfDirectoryFails) {
-  xabsl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
+  absl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
   XLS_ASSERT_OK(temp_dir);
 
-  xabsl::StatusOr<std::string> contents =
-      SetFileContents(temp_dir->path(), ".");
+  absl::StatusOr<std::string> contents = SetFileContents(temp_dir->path(), ".");
 
   EXPECT_THAT(contents, StatusIs(absl::StatusCode::kFailedPrecondition));
 }
 
 TEST(FilesystemTest, AppendStringToFileCreatesFileWhenMissing) {
-  xabsl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
+  absl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
   XLS_ASSERT_OK(temp_dir);
 
   XLS_EXPECT_OK(AppendStringToFile(temp_dir->path() / "file", "hello"));
 
-  xabsl::StatusOr<std::string> read_contents =
+  absl::StatusOr<std::string> read_contents =
       GetFileContents(temp_dir->path() / "file");
   EXPECT_THAT(read_contents, IsOkAndHolds(Eq("hello")));
 }
 
 TEST(FilesystemTest, AppendStringToFileAppendsToFile) {
-  xabsl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
+  absl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
   XLS_ASSERT_OK(temp_dir);
   XLS_EXPECT_OK(SetFileContents(temp_dir->path() / "file", "hello "));
 
   XLS_EXPECT_OK(AppendStringToFile(temp_dir->path() / "file", "there"));
 
-  xabsl::StatusOr<std::string> read_contents =
+  absl::StatusOr<std::string> read_contents =
       GetFileContents(temp_dir->path() / "file");
   EXPECT_THAT(read_contents, IsOkAndHolds(Eq("hello there")));
 }
 
 TEST(FilesystemTest, ParseTextProtoFileOfNonexistingFileFails) {
-  xabsl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
+  absl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
   XLS_ASSERT_OK(temp_dir);
 
-  xabsl::StatusOr<FilesystemTest> contents =
+  absl::StatusOr<FilesystemTest> contents =
       ParseTextProtoFile<FilesystemTest>(temp_dir->path() / "abc");
 
   EXPECT_THAT(contents, StatusIs(absl::StatusCode::kNotFound));
 }
 
 TEST(FilesystemTest, ParseTextProtoFileOfFileWithInvalidSyntaxFails) {
-  xabsl::StatusOr<TempFile> temp_file = TempFile::CreateWithContent("abc");
+  absl::StatusOr<TempFile> temp_file = TempFile::CreateWithContent("abc");
   XLS_ASSERT_OK(temp_file);
 
-  xabsl::StatusOr<FilesystemTest> contents =
+  absl::StatusOr<FilesystemTest> contents =
       ParseTextProtoFile<FilesystemTest>(temp_file->path());
 
   EXPECT_THAT(contents, StatusIs(absl::StatusCode::kFailedPrecondition));
 }
 
 TEST(FilesystemTest, ParseTextProtoFileParsesTextProto) {
-  xabsl::StatusOr<TempFile> temp_file =
+  absl::StatusOr<TempFile> temp_file =
       TempFile::CreateWithContent("field: \"hi\"");
   XLS_ASSERT_OK(temp_file);
 
-  xabsl::StatusOr<FilesystemTest> contents =
+  absl::StatusOr<FilesystemTest> contents =
       ParseTextProtoFile<FilesystemTest>(temp_file->path());
 
   XLS_ASSERT_OK(contents);
@@ -287,19 +286,19 @@ TEST(FilesystemTest, ParseTextProtoFileParsesTextProto) {
 }
 
 TEST(FilesystemTest, SetTextProtoFileWritesAFile) {
-  xabsl::StatusOr<TempFile> temp_file = TempFile::Create();
+  absl::StatusOr<TempFile> temp_file = TempFile::Create();
   XLS_ASSERT_OK(temp_file);
   FilesystemTest test;
   test.set_field("hi");
 
   XLS_EXPECT_OK(SetTextProtoFile(temp_file->path(), test));
 
-  xabsl::StatusOr<std::string> contents = GetFileContents(temp_file->path());
+  absl::StatusOr<std::string> contents = GetFileContents(temp_file->path());
   EXPECT_THAT(contents, IsOkAndHolds("field: \"hi\"\n"));
 }
 
 TEST(FilesystemTest, SetTextProtoFileFailsWhenRequiredFieldIsMissing) {
-  xabsl::StatusOr<TempFile> temp_file = TempFile::Create();
+  absl::StatusOr<TempFile> temp_file = TempFile::Create();
   XLS_ASSERT_OK(temp_file);
   FilesystemTest test;
 
@@ -310,13 +309,13 @@ TEST(FilesystemTest, SetTextProtoFileFailsWhenRequiredFieldIsMissing) {
 }
 
 TEST(FilesystemTest, GetCurrentDirectoryReturnsCurrentDirectory) {
-  xabsl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
+  absl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
   XLS_ASSERT_OK(temp_dir);
-  xabsl::StatusOr<std::filesystem::path> initial_cwd = GetCurrentDirectory();
+  absl::StatusOr<std::filesystem::path> initial_cwd = GetCurrentDirectory();
   XLS_ASSERT_OK(initial_cwd);
   ASSERT_EQ(0, chdir(temp_dir->path().c_str()));
 
-  xabsl::StatusOr<std::filesystem::path> new_cwd = GetCurrentDirectory();
+  absl::StatusOr<std::filesystem::path> new_cwd = GetCurrentDirectory();
   XLS_ASSERT_OK(new_cwd);
   EXPECT_EQ(temp_dir->path(), *new_cwd);
 
@@ -325,7 +324,7 @@ TEST(FilesystemTest, GetCurrentDirectoryReturnsCurrentDirectory) {
 }
 
 TEST(FilesystemTest, GetDirectoryEntriesFailsWhenPathDoesNotExist) {
-  xabsl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
+  absl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
   XLS_ASSERT_OK(temp_dir);
 
   auto entries = GetDirectoryEntries(temp_dir->path() / "nonexisting");
@@ -334,7 +333,7 @@ TEST(FilesystemTest, GetDirectoryEntriesFailsWhenPathDoesNotExist) {
 }
 
 TEST(FilesystemTest, GetDirectoryEntriesFailsWhenPathIsFile) {
-  xabsl::StatusOr<TempFile> temp_file = TempFile::Create();
+  absl::StatusOr<TempFile> temp_file = TempFile::Create();
   XLS_ASSERT_OK(temp_file);
 
   auto entries = GetDirectoryEntries(temp_file->path() / "nonexisting");
@@ -343,7 +342,7 @@ TEST(FilesystemTest, GetDirectoryEntriesFailsWhenPathIsFile) {
 }
 
 TEST(FilesystemTest, GetDirectoryEntriesGivesAbsolutePathsWhenPathIsAbsolute) {
-  xabsl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
+  absl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
   XLS_ASSERT_OK(temp_dir);
   XLS_EXPECT_OK(SetFileContents(temp_dir->path() / "a.txt", "hello"));
   XLS_EXPECT_OK(SetFileContents(temp_dir->path() / "b.txt", "hello"));
@@ -356,9 +355,9 @@ TEST(FilesystemTest, GetDirectoryEntriesGivesAbsolutePathsWhenPathIsAbsolute) {
 }
 
 TEST(FilesystemTest, GetDirectoryEntriesGivesRelativePathsWhenPathIsRelative) {
-  xabsl::StatusOr<std::filesystem::path> initial_cwd = GetCurrentDirectory();
+  absl::StatusOr<std::filesystem::path> initial_cwd = GetCurrentDirectory();
   XLS_ASSERT_OK(initial_cwd);
-  xabsl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
+  absl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
   XLS_ASSERT_OK(temp_dir);
   XLS_EXPECT_OK(SetFileContents(temp_dir->path() / "a.txt", "hello"));
   XLS_EXPECT_OK(SetFileContents(temp_dir->path() / "b.txt", "hello"));

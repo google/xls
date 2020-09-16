@@ -21,13 +21,13 @@
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
 #include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/status/statusor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
@@ -93,7 +93,7 @@ class Node {
   // value. This node is not deleted and remains in the graph. Returns true if
   // the graph was changed, equivalently, whether 'this' has any users or is the
   // return value of the function.
-  xabsl::StatusOr<bool> ReplaceUsesWith(Node* replacement);
+  absl::StatusOr<bool> ReplaceUsesWith(Node* replacement);
 
   // Constructs a new node and replaces all uses of 'this' with the newly
   // constructed node. NodeT is the node subclass (e.g., 'Param') and the
@@ -101,7 +101,7 @@ class Node {
   // loc argument and the final Function* argument which are inherited from this
   // node. Returns a pointer to the newly constructed node.
   template <typename NodeT, typename... Args>
-  xabsl::StatusOr<NodeT*> ReplaceUsesWithNew(Args&&... args) {
+  absl::StatusOr<NodeT*> ReplaceUsesWithNew(Args&&... args) {
     std::unique_ptr<NodeT> new_node = absl::make_unique<NodeT>(
         loc(), std::forward<Args>(args)..., function());
     NodeT* ptr = new_node.get();
@@ -188,8 +188,8 @@ class Node {
   // Clones the node with the new operands. Returns the newly created
   // instruction. The instruction is owned by new_function which must also
   // contain all of new_operands (if any).
-  virtual xabsl::StatusOr<Node*> Clone(absl::Span<Node* const> new_operands,
-                                       Function* new_function) const = 0;
+  virtual absl::StatusOr<Node*> Clone(absl::Span<Node* const> new_operands,
+                                      Function* new_function) const = 0;
 
  protected:
   // Function needs to be a friend to access RemoveUser for deleting nodes from

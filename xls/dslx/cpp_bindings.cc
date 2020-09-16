@@ -31,7 +31,7 @@ static AnyNameDef BoundNodeToAnyNameDef(BoundNode bn) {
                  << ToAstNode(bn)->ToString();
 }
 
-xabsl::StatusOr<AnyNameDef> Bindings::ResolveNameOrError(
+absl::StatusOr<AnyNameDef> Bindings::ResolveNameOrError(
     absl::string_view name, const Span& span) const {
   XLS_ASSIGN_OR_RETURN(BoundNode bn, ResolveNodeOrError(name, span));
   return BoundNodeToAnyNameDef(bn);
@@ -46,7 +46,7 @@ absl::optional<AnyNameDef> Bindings::ResolveNameOrNullopt(
   return BoundNodeToAnyNameDef(*bn);
 }
 
-xabsl::StatusOr<BoundNode> ToBoundNode(AstNode* n) {
+absl::StatusOr<BoundNode> ToBoundNode(AstNode* n) {
   // clang-format off
   if (auto* bn = dynamic_cast<Enum*>(n)) { return BoundNode(bn); }
   if (auto* bn = dynamic_cast<TypeDef*>(n)) { return BoundNode(bn); }

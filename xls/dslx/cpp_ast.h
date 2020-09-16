@@ -17,12 +17,12 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/status/statusor.h"
 #include "xls/dslx/cpp_pos.h"
 
 namespace xls::dslx {
@@ -1036,7 +1036,7 @@ class Enum : public AstNode {
     return false;
   }
 
-  xabsl::StatusOr<absl::variant<NameDef*, Number*>> GetValue(
+  absl::StatusOr<absl::variant<NameDef*, Number*>> GetValue(
       absl::string_view name) const {
     for (const auto& item : values_) {
       if (item.name->identifier() == name) {
@@ -1174,7 +1174,7 @@ class StructInstance : public Expr {
     return result;
   }
 
-  xabsl::StatusOr<Expr*> GetExpr(absl::string_view name) const {
+  absl::StatusOr<Expr*> GetExpr(absl::string_view name) const {
     for (const auto& item : members_) {
       if (item.first == name) {
         return item.second;
@@ -1271,7 +1271,7 @@ class WidthSlice : public AstNode {
 // hand side.
 using IndexRhs = std::variant<Expr*, Slice*, WidthSlice*>;
 
-xabsl::StatusOr<IndexRhs> AstNodeToIndexRhs(AstNode* node);
+absl::StatusOr<IndexRhs> AstNodeToIndexRhs(AstNode* node);
 
 // Represents an index expression; e.g. `a[i]`
 class Index : public Expr {
@@ -1729,7 +1729,7 @@ class Let : public Expr {
 using ModuleMember = absl::variant<Function*, Test*, QuickCheck*, TypeDef*,
                                    Struct*, ConstantDef*, Enum*, Import*>;
 
-xabsl::StatusOr<ModuleMember> AsModuleMember(AstNode* node);
+absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node);
 
 // Represents a syntactic module in the AST.
 //
@@ -1764,7 +1764,7 @@ class Module : public AstNode {
 
   void AddTop(ModuleMember member) { top_.push_back(member); }
 
-  xabsl::StatusOr<Function*> GetFunction(absl::string_view target_name) {
+  absl::StatusOr<Function*> GetFunction(absl::string_view target_name) {
     for (ModuleMember& member : top_) {
       if (absl::holds_alternative<Function*>(member)) {
         Function* f = absl::get<Function*>(member);
@@ -1777,7 +1777,7 @@ class Module : public AstNode {
         "No function in module %s with name \"%s\"", name_, target_name));
   }
 
-  xabsl::StatusOr<Test*> GetTest(absl::string_view target_name) {
+  absl::StatusOr<Test*> GetTest(absl::string_view target_name) {
     for (ModuleMember& member : top_) {
       if (absl::holds_alternative<Test*>(member)) {
         return absl::get<Test*>(member);

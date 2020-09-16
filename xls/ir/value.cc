@@ -25,7 +25,7 @@
 
 namespace xls {
 
-/* static */ xabsl::StatusOr<Value> Value::Array(
+/* static */ absl::StatusOr<Value> Value::Array(
     absl::Span<const Value> elements) {
   if (elements.empty()) {
     return absl::UnimplementedError("Empty array Values are not supported.");
@@ -38,7 +38,7 @@ namespace xls {
   return Value(ValueKind::kArray, elements);
 }
 
-/* static */ xabsl::StatusOr<Value> Value::UBitsArray(
+/* static */ absl::StatusOr<Value> Value::UBitsArray(
     absl::Span<const uint64> elements, int64 bit_count) {
   if (elements.empty()) {
     return absl::UnimplementedError("Empty array Values are not supported.");
@@ -53,7 +53,7 @@ namespace xls {
   return Value::Array(elements_as_values);
 }
 
-/* static */ xabsl::StatusOr<Value> Value::UBits2DArray(
+/* static */ absl::StatusOr<Value> Value::UBits2DArray(
     absl::Span<const absl::Span<const uint64>> elements, int64 bit_count) {
   if (elements.empty()) {
     return absl::UnimplementedError("Empty array Values are not supported.");
@@ -77,7 +77,7 @@ namespace xls {
   return Value::Array(elements_as_values);
 }
 
-/* static */ xabsl::StatusOr<Value> Value::SBitsArray(
+/* static */ absl::StatusOr<Value> Value::SBitsArray(
     absl::Span<const int64> elements, int64 bit_count) {
   if (elements.empty()) {
     return absl::UnimplementedError("Empty array Values are not supported.");
@@ -92,7 +92,7 @@ namespace xls {
   return Value::Array(elements_as_values);
 }
 
-/* static */ xabsl::StatusOr<Value> Value::SBits2DArray(
+/* static */ absl::StatusOr<Value> Value::SBits2DArray(
     absl::Span<const absl::Span<const int64>> elements, int64 bit_count) {
   if (elements.empty()) {
     return absl::UnimplementedError("Empty array Values are not supported.");
@@ -230,14 +230,14 @@ void Value::FlattenTo(BitPushBuffer* buffer) const {
   XLS_LOG(FATAL) << "Invalid value kind: " << ValueKindToString(kind_);
 }
 
-xabsl::StatusOr<std::vector<Value>> Value::GetElements() const {
+absl::StatusOr<std::vector<Value>> Value::GetElements() const {
   if (!absl::holds_alternative<std::vector<Value>>(payload_)) {
     return absl::InvalidArgumentError("Value does not hold elements.");
   }
   return std::vector<Value>(elements().begin(), elements().end());
 }
 
-xabsl::StatusOr<Bits> Value::GetBitsWithStatus() const {
+absl::StatusOr<Bits> Value::GetBitsWithStatus() const {
   if (!IsBits()) {
     return absl::InvalidArgumentError(
         "Attempted to convert a non-Bits Value to Bits.");
@@ -301,7 +301,7 @@ bool Value::SameTypeAs(const Value& other) const {
   XLS_LOG(FATAL) << "Invalid value encountered: " << ValueKindToString(kind());
 }
 
-xabsl::StatusOr<TypeProto> Value::TypeAsProto() const {
+absl::StatusOr<TypeProto> Value::TypeAsProto() const {
   TypeProto proto;
   switch (kind()) {
     case ValueKind::kBits:

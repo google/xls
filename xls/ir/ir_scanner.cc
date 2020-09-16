@@ -72,7 +72,7 @@ std::string TokenPos::ToHumanString() const {
   return absl::StrFormat("%d:%d", lineno + 1, colno + 1);
 }
 
-xabsl::StatusOr<bool> Token::IsNegative() const {
+absl::StatusOr<bool> Token::IsNegative() const {
   if (type() != LexicalTokenType::kLiteral) {
     return absl::InternalError("Can only get sign for literal tokens.");
   }
@@ -81,7 +81,7 @@ xabsl::StatusOr<bool> Token::IsNegative() const {
   return pair.first;
 }
 
-xabsl::StatusOr<Bits> Token::GetValueBits() const {
+absl::StatusOr<Bits> Token::GetValueBits() const {
   if (type() != LexicalTokenType::kLiteral) {
     return absl::InternalError(
         "Can only get value as integer for literal tokens.");
@@ -89,7 +89,7 @@ xabsl::StatusOr<Bits> Token::GetValueBits() const {
   return ParseNumber(value());
 }
 
-xabsl::StatusOr<int64> Token::GetValueInt64() const {
+absl::StatusOr<int64> Token::GetValueInt64() const {
   if (type() != LexicalTokenType::kLiteral) {
     return absl::InternalError(
         "Can only get value as integer for literal tokens.");
@@ -97,7 +97,7 @@ xabsl::StatusOr<int64> Token::GetValueInt64() const {
   return ParseNumberAsInt64(value());
 }
 
-xabsl::StatusOr<bool> Token::GetValueBool() const {
+absl::StatusOr<bool> Token::GetValueBool() const {
   if (type() != LexicalTokenType::kLiteral) {
     return absl::InternalError(
         "Can only get value as integer for literal tokens.");
@@ -119,7 +119,7 @@ namespace {
 class Tokenizer {
  public:
   // Tokenizes the given string and returns the vector of Tokens.
-  static xabsl::StatusOr<std::vector<Token>> TokenizeString(
+  static absl::StatusOr<std::vector<Token>> TokenizeString(
       absl::string_view str) {
     Tokenizer tokenizer(str);
     return tokenizer.Tokenize();
@@ -160,7 +160,7 @@ class Tokenizer {
   // (e.g., """). Returns the contents of the quoted string or nullopt if no
   // quoted string was matched. allow_multine indicates whether a newline
   // character is allowed in the quoted string.
-  xabsl::StatusOr<absl::optional<absl::string_view>> MatchQuotedString(
+  absl::StatusOr<absl::optional<absl::string_view>> MatchQuotedString(
       absl::string_view quote, bool allow_multiline) {
     if (!MatchSubstring(quote)) {
       return absl::nullopt;
@@ -222,7 +222,7 @@ class Tokenizer {
   }
 
   // Tokenizes the internal string.
-  xabsl::StatusOr<std::vector<Token>> Tokenize() {
+  absl::StatusOr<std::vector<Token>> Tokenize() {
     std::vector<Token> tokens;
     while (!EndOfString()) {
       if (DropWhiteSpace() || DropEndOfLineComment()) {
@@ -379,23 +379,23 @@ class Tokenizer {
 
 }  // namespace
 
-xabsl::StatusOr<std::vector<Token>> TokenizeString(absl::string_view str) {
+absl::StatusOr<std::vector<Token>> TokenizeString(absl::string_view str) {
   return Tokenizer::TokenizeString(str);
 }
 
-xabsl::StatusOr<Scanner> Scanner::Create(absl::string_view text) {
+absl::StatusOr<Scanner> Scanner::Create(absl::string_view text) {
   XLS_ASSIGN_OR_RETURN(auto tokens, TokenizeString(text));
   return Scanner(std::move(tokens));
 }
 
-xabsl::StatusOr<Token> Scanner::PeekToken() const {
+absl::StatusOr<Token> Scanner::PeekToken() const {
   if (AtEof()) {
     return absl::InvalidArgumentError("Expected token, but found EOF.");
   }
   return tokens_[token_idx_];
 }
 
-xabsl::StatusOr<Token> Scanner::PopTokenOrError(absl::string_view context) {
+absl::StatusOr<Token> Scanner::PopTokenOrError(absl::string_view context) {
   if (AtEof()) {
     std::string context_str =
         context.empty() ? std::string("") : absl::StrCat(" in ", context);
@@ -427,8 +427,8 @@ absl::Status Scanner::DropTokenOrError(LexicalTokenType target,
   return absl::OkStatus();
 }
 
-xabsl::StatusOr<Token> Scanner::PopTokenOrError(LexicalTokenType target,
-                                                absl::string_view context) {
+absl::StatusOr<Token> Scanner::PopTokenOrError(LexicalTokenType target,
+                                               absl::string_view context) {
   XLS_ASSIGN_OR_RETURN(Token token, PopTokenOrError());
   if (token.type() != target) {
     std::string context_str =
@@ -442,7 +442,7 @@ xabsl::StatusOr<Token> Scanner::PopTokenOrError(LexicalTokenType target,
 }
 
 absl::Status Scanner::DropKeywordOrError(absl::string_view keyword) {
-  xabsl::StatusOr<Token> popped_status = PopTokenOrError();
+  absl::StatusOr<Token> popped_status = PopTokenOrError();
   if (!popped_status.ok()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Expected keyword '%s': %s", keyword,

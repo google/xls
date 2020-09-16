@@ -15,8 +15,8 @@
 #ifndef XLS_PASSES_TERNARY_EVALUATOR_H_
 #define XLS_PASSES_TERNARY_EVALUATOR_H_
 
+#include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/status/statusor.h"
 #include "xls/ir/abstract_evaluator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/ternary.h"

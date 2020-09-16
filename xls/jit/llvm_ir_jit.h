@@ -43,14 +43,14 @@ class LlvmIrJit {
  public:
   // Returns an object containing a host-compiled version of the specified XLS
   // function.
-  static xabsl::StatusOr<std::unique_ptr<LlvmIrJit>> Create(
+  static absl::StatusOr<std::unique_ptr<LlvmIrJit>> Create(
       Function* xls_function, int64 opt_level = 3);
 
   // Executes the compiled function with the specified arguments.
-  xabsl::StatusOr<Value> Run(absl::Span<const Value> args);
+  absl::StatusOr<Value> Run(absl::Span<const Value> args);
 
   // As above, buth with arguments as key-value pairs.
-  xabsl::StatusOr<Value> Run(
+  absl::StatusOr<Value> Run(
       const absl::flat_hash_map<std::string, Value>& kwargs);
 
   // Executes the compiled function with the arguments and results specified as
@@ -128,11 +128,11 @@ class LlvmIrJit {
   //   buffer: The output/packing buffer.
   //   bit_offset: The location into the buffer to write the input element. For
   //     multi-byte structures, this can be > 7.
-  xabsl::StatusOr<llvm::Value*> PackElement(llvm::IRBuilder<>& builder,
-                                            llvm::Value* element,
-                                            Type* element_type,
-                                            llvm::Value* buffer,
-                                            int64 bit_offset);
+  absl::StatusOr<llvm::Value*> PackElement(llvm::IRBuilder<>& builder,
+                                           llvm::Value* element,
+                                           Type* element_type,
+                                           llvm::Value* buffer,
+                                           int64 bit_offset);
 
   llvm::Expected<llvm::orc::ThreadSafeModule> Optimizer(
       llvm::orc::ThreadSafeModule module,
@@ -191,8 +191,8 @@ class LlvmIrJit {
 // resulting return value. Note that this will cause the overhead of creating a
 // LlvmIrJit object each time, so external caching strategies are generally
 // preferred.
-xabsl::StatusOr<Value> CreateAndRun(Function* xls_function,
-                                    absl::Span<const Value> args);
+absl::StatusOr<Value> CreateAndRun(Function* xls_function,
+                                   absl::Span<const Value> args);
 
 // JIT-compiles the given xls_function and invokes it with 1000 randomly
 // generated arguments -- returns `([argset, ...], [results, ...])` (i.e. in
@@ -204,7 +204,7 @@ xabsl::StatusOr<Value> CreateAndRun(Function* xls_function,
 //
 // TODO(hjmontero): 2020-08-09 Make RNG seeding possible.
 // TODO(leary): 2020-08-09 Factor out into its own module with Python bindings.
-xabsl::StatusOr<std::pair<std::vector<std::vector<Value>>, std::vector<Value>>>
+absl::StatusOr<std::pair<std::vector<std::vector<Value>>, std::vector<Value>>>
 CreateAndQuickCheck(Function* xls_function, int64 seed, int64 num_tests);
 }  // namespace xls
 

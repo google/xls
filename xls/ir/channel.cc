@@ -39,7 +39,7 @@ std::string ChannelKindToString(ChannelKind kind) {
   }
 }
 
-xabsl::StatusOr<ChannelKind> StringToChannelKind(absl::string_view str) {
+absl::StatusOr<ChannelKind> StringToChannelKind(absl::string_view str) {
   if (str == "send_only") {
     return ChannelKind::kSendOnly;
   } else if (str == "receive_only") {

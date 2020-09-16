@@ -16,8 +16,8 @@
 #define XLS_TOOLS_DEVICE_RPC_STRATEGY_H_
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/common/status/statusor.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
@@ -36,7 +36,7 @@ class DeviceRpcStrategy {
   virtual absl::Status Connect(int64 device_ordinal) = 0;
 
   // Calls an unnamed function on the device.
-  virtual xabsl::StatusOr<Value> CallUnnamed(
+  virtual absl::StatusOr<Value> CallUnnamed(
       const FunctionType& function_type, absl::Span<const Value> arguments) = 0;
 };
 

@@ -1684,7 +1684,7 @@ TEST_P(IrEvaluatorTest, InterpretArrayUpdateInBounds) {
     for (auto v : values) {
       elements.push_back(Value(UBits(v, 32)));
     }
-    xabsl::StatusOr<Value> array = Value::Array(elements);
+    absl::StatusOr<Value> array = Value::Array(elements);
     EXPECT_TRUE(array.ok());
     return array.value();
   };

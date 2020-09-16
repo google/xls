@@ -23,9 +23,9 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/container/node_hash_map.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "xls/common/integral_types.h"
-#include "xls/common/status/statusor.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel.pb.h"
 #include "xls/ir/fileno.h"
@@ -67,8 +67,8 @@ class Package {
                                 Type* return_type);
 
   // Creates and returned an owned type constructed from the given proto.
-  xabsl::StatusOr<Type*> GetTypeFromProto(const TypeProto& proto);
-  xabsl::StatusOr<FunctionType*> GetFunctionTypeFromProto(
+  absl::StatusOr<Type*> GetTypeFromProto(const TypeProto& proto);
+  absl::StatusOr<FunctionType*> GetFunctionTypeFromProto(
       const FunctionTypeProto& proto);
 
   Type* GetTypeForValue(const Value& value);
@@ -79,15 +79,15 @@ class Package {
   Proc* AddProc(std::unique_ptr<Proc> proc);
 
   // Get a function (or proc) by name.
-  xabsl::StatusOr<Function*> GetFunction(absl::string_view func_name) const;
-  xabsl::StatusOr<Proc*> GetProc(absl::string_view proc_name) const;
+  absl::StatusOr<Function*> GetFunction(absl::string_view func_name) const;
+  absl::StatusOr<Proc*> GetProc(absl::string_view proc_name) const;
 
   // Remove (dead) functions.
   void DeleteDeadFunctions(absl::Span<Function* const> dead_funcs);
 
   // Returns the entry function of the package.
-  xabsl::StatusOr<Function*> EntryFunction();
-  xabsl::StatusOr<const Function*> EntryFunction() const;
+  absl::StatusOr<Function*> EntryFunction();
+  absl::StatusOr<const Function*> EntryFunction() const;
 
   // Returns a new SourceLocation object containing a Fileno and Lineno pair.
   // SourceLocation objects are added to XLS IR nodes and used for debug
@@ -162,7 +162,7 @@ class Package {
   // Create a channel. A unique channel ID will be automatically
   // allocated. Channels are used with send/receive nodes in communicate between
   // procs or between procs and external (to XLS) components.
-  xabsl::StatusOr<Channel*> CreateChannel(
+  absl::StatusOr<Channel*> CreateChannel(
       absl::string_view name, ChannelKind kind,
       absl::Span<const DataElement> data_elements,
       const ChannelMetadataProto& metadata);
@@ -170,14 +170,14 @@ class Package {
   // Create a channel with the given ID. Can be used when parsing a package file
   // where ID's are specified in the file. Otherwise CreateChannel should be
   // used.
-  xabsl::StatusOr<Channel*> CreateChannelWithId(
+  absl::StatusOr<Channel*> CreateChannelWithId(
       absl::string_view name, int64 id, ChannelKind kind,
       absl::Span<const DataElement> data_elements,
       const ChannelMetadataProto& metadata);
 
   // Returns the channel with the given ID or returns an error if no such
   // channel exists.
-  xabsl::StatusOr<Channel*> GetChannel(int64 id) const;
+  absl::StatusOr<Channel*> GetChannel(int64 id) const;
 
   // Returns whether there exists a channel with the given ID.
   bool HasChannelWithId(int64 id) const {
@@ -185,7 +185,7 @@ class Package {
   }
 
   // Returns the type of a receive operation for the channel with the given id.
-  xabsl::StatusOr<Type*> GetReceiveType(int64 channel_id);
+  absl::StatusOr<Type*> GetReceiveType(int64 channel_id);
 
  private:
   friend class FunctionBuilder;

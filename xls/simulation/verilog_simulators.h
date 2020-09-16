@@ -19,15 +19,15 @@
 #include <string>
 #include <vector>
 
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "xls/common/status/statusor.h"
 #include "xls/simulation/verilog_simulator.h"
 
 namespace xls {
 namespace verilog {
 
 // Returns the registered Verilog simulator with the given name.
-xabsl::StatusOr<VerilogSimulator*> GetVerilogSimulator(absl::string_view name);
+absl::StatusOr<VerilogSimulator*> GetVerilogSimulator(absl::string_view name);
 
 // Returns a reference to a default verilog simulator.
 const VerilogSimulator& GetDefaultVerilogSimulator();

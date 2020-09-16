@@ -30,7 +30,7 @@
 
 namespace xls {
 
-/* static */ xabsl::StatusOr<Value> IrInterpreter::Run(
+/* static */ absl::StatusOr<Value> IrInterpreter::Run(
     Function* function, absl::Span<const Value> args, InterpreterStats* stats) {
   XLS_VLOG(3) << "Interpreting function " << function->name();
   if (args.size() != function->params().size()) {
@@ -57,7 +57,7 @@ namespace xls {
 }
 
 /* static */
-xabsl::StatusOr<Value> IrInterpreter::RunKwargs(
+absl::StatusOr<Value> IrInterpreter::RunKwargs(
     Function* function, const absl::flat_hash_map<std::string, Value>& args,
     InterpreterStats* stats) {
   XLS_VLOG(2) << "Interpreting function " << function->name()
@@ -67,7 +67,7 @@ xabsl::StatusOr<Value> IrInterpreter::RunKwargs(
   return Run(function, positional_args, stats);
 }
 
-/* static */ xabsl::StatusOr<Value>
+/* static */ absl::StatusOr<Value>
 IrInterpreter::EvaluateNodeWithLiteralOperands(Node* node) {
   XLS_RET_CHECK(std::all_of(node->operands().begin(), node->operands().end(),
                             [](Node* n) { return n->Is<Literal>(); }));
@@ -76,7 +76,7 @@ IrInterpreter::EvaluateNodeWithLiteralOperands(Node* node) {
   return visitor.ResolveAsValue(node);
 }
 
-/* static */ xabsl::StatusOr<Value> IrInterpreter::EvaluateNode(
+/* static */ absl::StatusOr<Value> IrInterpreter::EvaluateNode(
     Node* node, absl::Span<const Value* const> operand_values) {
   XLS_RET_CHECK_EQ(node->operand_count(), operand_values.size());
   IrInterpreter visitor({}, /*stats=*/nullptr);
@@ -591,7 +591,7 @@ absl::Status IrInterpreter::SetValueResult(Node* node, Value result) {
   return absl::OkStatus();
 }
 
-xabsl::StatusOr<Value> IrInterpreter::DeepOr(
+absl::StatusOr<Value> IrInterpreter::DeepOr(
     Type* input_type, absl::Span<const Value* const> inputs) {
   if (input_type->IsBits()) {
     Bits result(input_type->AsBitsOrDie()->bit_count());

@@ -15,6 +15,7 @@
 #include "xls/simulation/verilog_simulator.h"
 
 #include "absl/flags/flag.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -25,7 +26,6 @@
 #include "xls/common/file/temp_file.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/status/statusor.h"
 #include "xls/common/subprocess.h"
 #include "re2/re2.h"
 
@@ -33,7 +33,7 @@ namespace xls {
 namespace verilog {
 namespace {
 
-xabsl::StatusOr<std::vector<Observation>> StdoutToObservations(
+absl::StatusOr<std::vector<Observation>> StdoutToObservations(
     absl::string_view output, const NameToBitCount& to_observe) {
   std::vector<Observation> result;
   auto error = [](absl::string_view line, absl::string_view message) {
@@ -85,7 +85,7 @@ xabsl::StatusOr<std::vector<Observation>> StdoutToObservations(
 
 }  // namespace
 
-xabsl::StatusOr<std::pair<std::string, std::string>> VerilogSimulator::Run(
+absl::StatusOr<std::pair<std::string, std::string>> VerilogSimulator::Run(
     absl::string_view text) const {
   return Run(text, /*includes=*/{});
 }
@@ -94,7 +94,7 @@ absl::Status VerilogSimulator::RunSyntaxChecking(absl::string_view text) const {
   return RunSyntaxChecking(text, /*includes=*/{});
 }
 
-xabsl::StatusOr<std::vector<Observation>>
+absl::StatusOr<std::vector<Observation>>
 VerilogSimulator::SimulateCombinational(
     absl::string_view text, const NameToBitCount& to_observe) const {
   std::pair<std::string, std::string> stdout_stderr;
@@ -107,7 +107,7 @@ VerilogSimulatorManager& GetVerilogSimulatorManagerSingleton() {
   return *manager;
 }
 
-xabsl::StatusOr<VerilogSimulator*> VerilogSimulatorManager::GetVerilogSimulator(
+absl::StatusOr<VerilogSimulator*> VerilogSimulatorManager::GetVerilogSimulator(
     absl::string_view name) const {
   if (!simulators_.contains(name)) {
     if (simulator_names_.empty()) {

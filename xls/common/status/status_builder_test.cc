@@ -20,7 +20,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
-#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
@@ -29,7 +29,6 @@
 #include "xls/common/logging/log_sink.h"
 #include "xls/common/logging/scoped_mock_log.h"
 #include "xls/common/source_location.h"
-#include "xls/common/status/statusor.h"
 
 namespace xabsl {
 namespace {
@@ -82,7 +81,7 @@ void ConvertToStatusAndIgnore(const StatusBuilder& s) {
 
 // Converts a StatusBuilder to a StatusOr<T>.
 template <typename T>
-xabsl::StatusOr<T> ToStatusOr(const StatusBuilder& s) {
+absl::StatusOr<T> ToStatusOr(const StatusBuilder& s) {
   return s;
 }
 

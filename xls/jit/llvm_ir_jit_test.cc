@@ -35,13 +35,13 @@ INSTANTIATE_TEST_SUITE_P(
     LlvmIrJitTest, IrEvaluatorTest,
     testing::Values(IrEvaluatorTestParam(
         [](Function* function,
-           const std::vector<Value>& args) -> xabsl::StatusOr<Value> {
+           const std::vector<Value>& args) -> absl::StatusOr<Value> {
           XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(function));
           return jit->Run(args);
         },
         [](Function* function,
            const absl::flat_hash_map<std::string, Value>& kwargs)
-            -> xabsl::StatusOr<Value> {
+            -> absl::StatusOr<Value> {
           XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(function));
           return jit->Run(kwargs);
         })));
@@ -374,9 +374,8 @@ TEST(LlvmIrJitTest, PackedArrays) {
 }
 
 // Creates a simple function to perform a tuple update.
-xabsl::StatusOr<Function*> CreateTupleFunction(Package* p,
-                                               TupleType* tuple_type,
-                                               int64 replacement_index) {
+absl::StatusOr<Function*> CreateTupleFunction(Package* p, TupleType* tuple_type,
+                                              int64 replacement_index) {
   FunctionBuilder builder("tuple_update", p);
   BValue input_tuple = builder.Param("input_tuple", tuple_type);
   BValue new_element =

@@ -16,8 +16,8 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
@@ -35,7 +35,7 @@ class BddCsePassTest : public IrTestBase {
  protected:
   BddCsePassTest() = default;
 
-  xabsl::StatusOr<bool> Run(Function* f) {
+  absl::StatusOr<bool> Run(Function* f) {
     PassResults results;
     return BddCsePass().RunOnFunction(f, PassOptions(), &results);
   }

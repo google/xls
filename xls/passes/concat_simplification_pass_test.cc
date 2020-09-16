@@ -19,10 +19,10 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/status/statusor.h"
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
@@ -46,7 +46,7 @@ class ConcatSimplificationPassTest : public IrTestBase {
  protected:
   ConcatSimplificationPassTest() = default;
 
-  xabsl::StatusOr<bool> Run(Function* f) {
+  absl::StatusOr<bool> Run(Function* f) {
     bool changed = true;
     bool any_concat_chagned = false;
     while (changed) {

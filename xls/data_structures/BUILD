@@ -77,13 +77,13 @@ cc_library(
     deps = [
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:integral_types",
         "//xls/common:strong_int",
         "//xls/common/logging",
         "//xls/common/logging:vlog_is_on",
-        "//xls/common/status:statusor",
     ],
 )
 
@@ -110,11 +110,11 @@ cc_library(
     hdrs = ["binary_search.h"],
     deps = [
         "@com_google_absl//absl/functional:function_ref",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common:integral_types",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor",
     ],
 )
 

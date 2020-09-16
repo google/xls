@@ -19,7 +19,7 @@
 #include <memory>
 
 #include "absl/container/flat_hash_map.h"
-#include "xls/common/status/statusor.h"
+#include "absl/status/statusor.h"
 #include "xls/tools/device_rpc_strategy.h"
 
 namespace xls {
@@ -40,7 +40,7 @@ class DeviceRpcStrategyFactory {
         {std::string(target_device), std::move(fcreate)});
   }
 
-  xabsl::StatusOr<std::unique_ptr<DeviceRpcStrategy>> Create(
+  absl::StatusOr<std::unique_ptr<DeviceRpcStrategy>> Create(
       absl::string_view target_device);
 
  private:

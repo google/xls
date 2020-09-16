@@ -7,7 +7,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "xls/common/integral_types.h"
-#include "xls/common/status/statusor.h"
+#include "absl/status/statusor.h"
 #include "xls/ir/op.pb.h"
 
 namespace xls {
@@ -39,7 +39,7 @@ OpProto ToOpProto(Op op);
 std::string OpToString(Op op);
 
 // Converts a human readable op string into the "op" enumeration.
-xabsl::StatusOr<Op> StringToOp(absl::string_view op_str);
+absl::StatusOr<Op> StringToOp(absl::string_view op_str);
 
 // Returns whether the operation is a compare operation.
 bool OpIsCompare(Op op);
