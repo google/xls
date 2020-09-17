@@ -83,7 +83,11 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
     }
     case Op::kChannelReceive:
       return default_handler(node);
+    case Op::kChannelReceiveIf:
+      return default_handler(node);
     case Op::kChannelSend:
+      return default_handler(node);
+    case Op::kChannelSendIf:
       return default_handler(node);
     case Op::kConcat:
       return evaluator->Concat(operands);

@@ -444,10 +444,27 @@ OpClass.kinds['CHANNEL_RECEIVE'] = OpClass(
     attributes=[Int64Attribute('channel_id')]
 )
 
+OpClass.kinds['CHANNEL_RECEIVE_IF'] = OpClass(
+    name='ChannelReceiveIf',
+    op='Op::kChannelReceiveIf',
+    operands=[Operand('token'), Operand('pred')],
+    xls_type_expression='function->package()->GetReceiveType(channel_id).value()',
+    attributes=[Int64Attribute('channel_id')]
+)
+
 OpClass.kinds['CHANNEL_SEND'] = OpClass(
     name='ChannelSend',
     op='Op::kChannelSend',
     operands=[Operand('token'), OperandSpan('args')],
+    xls_type_expression='function->package()->GetTokenType()',
+    attributes=[Int64Attribute('channel_id')],
+    custom_clone_method=True
+)
+
+OpClass.kinds['CHANNEL_SEND_IF'] = OpClass(
+    name='ChannelSendIf',
+    op='Op::kChannelSendIf',
+    operands=[Operand('token'), Operand('pred'), OperandSpan('args')],
     xls_type_expression='function->package()->GetTokenType()',
     attributes=[Int64Attribute('channel_id')],
     custom_clone_method=True
@@ -700,9 +717,21 @@ OPS = [
         properties=[],
     ),
     Op(
+        enum_name='kChannelReceiveIf',
+        name='receive_if',
+        op_class=OpClass.kinds['CHANNEL_RECEIVE_IF'],
+        properties=[],
+    ),
+    Op(
         enum_name='kChannelSend',
         name='send',
         op_class=OpClass.kinds['CHANNEL_SEND'],
+        properties=[],
+    ),
+    Op(
+        enum_name='kChannelSendIf',
+        name='send_if',
+        op_class=OpClass.kinds['CHANNEL_SEND_IF'],
         properties=[],
     ),
     Op(

@@ -148,9 +148,20 @@ absl::Status IrInterpreter::HandleChannelReceive(ChannelReceive* receive) {
       "ChannelReceive not implemented in IrInterpreter");
 }
 
+absl::Status IrInterpreter::HandleChannelReceiveIf(
+    ChannelReceiveIf* receive_if) {
+  return absl::UnimplementedError(
+      "ChannelReceiveIf not implemented in IrInterpreter");
+}
+
 absl::Status IrInterpreter::HandleChannelSend(ChannelSend* send) {
   return absl::UnimplementedError(
       "Channel send not implemented in IrInterpreter");
+}
+
+absl::Status IrInterpreter::HandleChannelSendIf(ChannelSendIf* send_if) {
+  return absl::UnimplementedError(
+      "Channel send_if not implemented in IrInterpreter");
 }
 
 absl::Status IrInterpreter::HandleArray(Array* array) {

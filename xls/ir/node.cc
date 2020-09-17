@@ -95,9 +95,17 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
       XLS_RETURN_IF_ERROR(
           visitor->HandleChannelReceive(down_cast<ChannelReceive*>(this)));
       break;
+    case Op::kChannelReceiveIf:
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleChannelReceiveIf(down_cast<ChannelReceiveIf*>(this)));
+      break;
     case Op::kChannelSend:
       XLS_RETURN_IF_ERROR(
           visitor->HandleChannelSend(down_cast<ChannelSend*>(this)));
+      break;
+    case Op::kChannelSendIf:
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleChannelSendIf(down_cast<ChannelSendIf*>(this)));
       break;
     case Op::kNand:
       XLS_RETURN_IF_ERROR(visitor->HandleNaryNand(down_cast<NaryOp*>(this)));

@@ -83,6 +83,8 @@ class NodeChecker : public DfsVisitor {
   }
 
   absl::Status HandleChannelReceive(ChannelReceive* receive) override {
+    XLS_RETURN_IF_ERROR(ExpectOperandCountGt(receive, 0));
+    XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(receive, /*operand_no=*/0));
     if (!receive->package()->HasChannelWithId(receive->channel_id())) {
       return absl::InternalError(
           StrFormat("%s refers to channel ID %d which does not exist",
@@ -106,13 +108,41 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleChannelReceiveIf(ChannelReceiveIf* receive_if) override {
+    XLS_RETURN_IF_ERROR(ExpectOperandCountGt(receive_if, 1));
+    XLS_RETURN_IF_ERROR(
+        ExpectOperandHasTokenType(receive_if, /*operand_no=*/0));
+    XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(receive_if, /*operand_no=*/1,
+                                                 /*expected_bit_count=*/1));
+    if (!receive_if->package()->HasChannelWithId(receive_if->channel_id())) {
+      return absl::InternalError(
+          StrFormat("%s refers to channel ID %d which does not exist",
+                    receive_if->GetName(), receive_if->channel_id()));
+    }
+    XLS_ASSIGN_OR_RETURN(
+        Type * expected_type,
+        receive_if->package()->GetReceiveType(receive_if->channel_id()));
+    if (receive_if->GetType() != expected_type) {
+      return absl::InternalError(StrFormat(
+          "Expected %s to have type %s, has type %s", receive_if->GetName(),
+          expected_type->ToString(), receive_if->GetType()->ToString()));
+    }
+    XLS_ASSIGN_OR_RETURN(Channel * channel, receive_if->package()->GetChannel(
+                                                receive_if->channel_id()));
+    if (!channel->CanReceive()) {
+      return absl::InternalError(StrFormat(
+          "Cannot receive over channel %s (%d), receive_if operation: %s",
+          channel->name(), channel->id(), receive_if->GetName()));
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status HandleChannelSend(ChannelSend* send) override {
     XLS_RETURN_IF_ERROR(ExpectHasTokenType(send));
-    if (send->operand_count() < 2) {
-      return absl::InternalError(StrFormat(
-          "Expected %s to have at least 2 operands", send->GetName()));
-    }
-    XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(send, 0));
+    XLS_RETURN_IF_ERROR(ExpectOperandCountGt(send, 1));
+    XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(send, /*operand_no=*/0));
+    // TODO(meheff): Verify types of data operands 1...n match the channel data
+    // types.
     if (!send->package()->HasChannelWithId(send->channel_id())) {
       return absl::InternalError(
           StrFormat("%s refers to channel ID %d which does not exist",
@@ -124,6 +154,29 @@ class NodeChecker : public DfsVisitor {
       return absl::InternalError(
           StrFormat("Cannot send over channel %s (%d), send operation: %s",
                     channel->name(), channel->id(), send->GetName()));
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleChannelSendIf(ChannelSendIf* send_if) override {
+    XLS_RETURN_IF_ERROR(ExpectHasTokenType(send_if));
+    XLS_RETURN_IF_ERROR(ExpectOperandCountGt(send_if, 2));
+    XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(send_if, /*operand_no=*/0));
+    XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(send_if, /*operand_no=*/1,
+                                                 /*expected_bit_count=*/1));
+    // TODO(meheff): Verify types of data operands 2...n match the channel data
+    // types.
+    if (!send_if->package()->HasChannelWithId(send_if->channel_id())) {
+      return absl::InternalError(
+          StrFormat("%s refers to channel ID %d which does not exist",
+                    send_if->GetName(), send_if->channel_id()));
+    }
+    XLS_ASSIGN_OR_RETURN(Channel * channel,
+                         send_if->package()->GetChannel(send_if->channel_id()));
+    if (!channel->CanSend()) {
+      return absl::InternalError(
+          StrFormat("Cannot send over channel %s (%d), send_if operation: %s",
+                    channel->name(), channel->id(), send_if->GetName()));
     }
     return absl::OkStatus();
   }
