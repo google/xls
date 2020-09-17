@@ -16,6 +16,7 @@
 # Description Language.
 
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 
 # cc_proto_library is used in this file
 load("//xls/build:py_proto_library.bzl", "xls_py_proto_library")
@@ -539,6 +540,9 @@ filegroup(
     srcs = glob(["*.tmpl"]),
 )
 
+# op_specification is very slow to type check so don't use a type checking
+# target. Types are checked separately in the build test
+# op_specification_build_test.
 py_binary(
     name = "render_specification_against_template",
     srcs = [
@@ -555,6 +559,18 @@ py_binary(
         "//xls/common:runfiles",
         "@com_google_absl_py//absl:app",
     ],
+)
+
+py_library(
+    name = "op_specification_typechecked",
+    srcs = [
+        "op_specification.py",
+    ],
+)
+
+build_test(
+    name = "op_specification_build_test",
+    targets = ["op_specification_typechecked"],
 )
 
 genrule(
