@@ -75,7 +75,7 @@ def generate_ir_package(op: str,
     operand_types: The types of the output of the operation. For example:
       ("bits[32]", "bits[16]").
     attributes: Attributes to include in the operation mnemonic. For example,
-      "new_bit_count" in extend operatoins.
+      "new_bit_count" in extend operations.
     literal_operand: Optionally specifies that the given operand number should
       be substituted with a randomly generated literal instead of a function
       parameter.

@@ -29,6 +29,14 @@ message TestCase {
 
   // The average of all execution results for this config in microseconds.
   optional int64 average_us = 3;
+
+  // The IR used to run this test case's LEC.
+  optional string ir_text = 4;
+
+  // The netlist used to run this test case's LEC.
+  // If our messages start trending near the maximum size (64MiB up to 2GiB),
+  // we'll have to consider conditionally omitting these fields.
+  optional string netlist_text = 5;
 }
 
 // Top-level structure holding LEC performance info for an IR function.

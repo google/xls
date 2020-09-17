@@ -14,13 +14,32 @@
 
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 
-# pytype test and library
+# pytype binary, test, library
 load("//xls/build:py_proto_library.bzl", "xls_py_proto_library")
 load("//dependency_support/pybind11:pybind11.bzl", "xls_pybind_extension")
 
 package(
     default_visibility = ["//visibility:private"],
     licenses = ["notice"],  # Apache 2.0
+)
+
+py_binary(
+    name = "characterize_binops",
+    srcs = ["characterize_binops.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        ":lec_characterizer",
+        ":lec_characterizer_py_pb2",
+        ":z3_lec",
+        "//xls/common:gfile",
+        "//xls/ir:op_py_pb2",
+        "//xls/ir:xls_type_py_pb2",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_absl_py//absl/logging",
+        "@com_google_protobuf//:protobuf_python",
+    ],
 )
 
 py_library(
@@ -82,6 +101,7 @@ py_test(
         "//xls/ir:op_py_pb2",
         "//xls/ir:xls_type_py_pb2",
         "//xls/ir/python:package",
+        "@com_google_absl_py//absl/logging",
         "@com_google_absl_py//absl/testing:absltest",
         "@com_google_protobuf//:protobuf_python",
     ],

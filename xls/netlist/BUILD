@@ -305,7 +305,9 @@ cc_binary(
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "@com_google_protobuf//:protobuf",
     ],
 )
 

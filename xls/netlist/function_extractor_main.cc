@@ -15,11 +15,13 @@
 // Simple driver function for FunctionExtractor; preprocesses a netlist into a
 // CellLibraryProto for colocation with the original library.
 
+#include "google/protobuf/text_format.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/netlist/cell_library.h"
 #include "xls/netlist/function_extractor.h"
@@ -28,11 +30,13 @@
 ABSL_FLAG(std::string, cell_library, "", "Cell library to preprocess.");
 ABSL_FLAG(std::string, output_path, "",
           "Path to the file in which to write the output.");
+ABSL_FLAG(bool, output_textproto, false,
+          "If true, write the output as a text-format protobuf.");
 
 namespace xls::netlist::function {
 
 absl::Status RealMain(const std::string& cell_library_path,
-                      const std::string& output_path) {
+                      const std::string& output_path, bool output_textproto) {
   XLS_ASSIGN_OR_RETURN(std::string cell_library_text,
                        GetFileContents(cell_library_path));
   XLS_ASSIGN_OR_RETURN(
@@ -40,6 +44,12 @@ absl::Status RealMain(const std::string& cell_library_path,
       netlist::cell_lib::CharStream::FromText(cell_library_text));
   XLS_ASSIGN_OR_RETURN(netlist::CellLibraryProto lib_proto,
                        netlist::function::ExtractFunctions(&char_stream));
+
+  if (output_textproto) {
+    std::string output;
+    XLS_RET_CHECK(google::protobuf::TextFormat::PrintToString(lib_proto, &output));
+    return SetFileContents(output_path, output);
+  }
   return SetFileContents(output_path, lib_proto.SerializeAsString());
 }
 
@@ -54,8 +64,8 @@ int main(int argc, char* argv[]) {
   std::string output_path = absl::GetFlag(FLAGS_output_path);
   XLS_QCHECK(!output_path.empty()) << "--output_path must be specified.";
 
-  XLS_QCHECK_OK(
-      xls::netlist::function::RealMain(cell_library_path, output_path));
+  XLS_QCHECK_OK(xls::netlist::function::RealMain(
+      cell_library_path, output_path, absl::GetFlag(FLAGS_output_textproto)));
 
   return 0;
 }
