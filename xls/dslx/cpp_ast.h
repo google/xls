@@ -123,6 +123,12 @@ inline AstNode* ToAstNode(const absl::variant<Types...>& v) {
 }
 inline AstNode* ToAstNode(AstNode* n) { return n; }
 
+// As above, but for Expr base.
+template <typename... Types>
+inline Expr* ToExprNode(const absl::variant<Types...>& v) {
+  return absl::ConvertVariantTo<Expr*>(v);
+}
+
 // Converts sequence of AstNode subtype pointers to vector of the base AstNode*.
 template <typename NodeT>
 inline std::vector<AstNode*> ToAstNodes(absl::Span<NodeT* const> source) {
@@ -147,13 +153,14 @@ class TypeAnnotation : public AstNode {
 #include "xls/dslx/cpp_ast_builtin_types.inc"
 
 // Enumeration of types that are built-in keywords; e.g. `u32`, `bool`, etc.
-enum BuiltinType {
+enum class BuiltinType {
 #define FIRST_COMMA(A, ...) A,
   XLS_DSLX_BUILTIN_TYPE_EACH(FIRST_COMMA)
 #undef FIRST_COMMA
 };
 
 std::string BuiltinTypeToString(BuiltinType t);
+absl::StatusOr<BuiltinType> BuiltinTypeFromString(absl::string_view s);
 
 // Represents a built-in type annotation; e.g. `u32`, `bits`, etc.
 class BuiltinTypeAnnotation : public TypeAnnotation {
@@ -318,8 +325,7 @@ class Expr : public AstNode {
 // Represents a reference to a name (identifier).
 class NameRef : public Expr {
  public:
-  NameRef(Span span, std::string identifier,
-          absl::variant<NameDef*, BuiltinNameDef*> name_def)
+  NameRef(Span span, std::string identifier, AnyNameDef name_def)
       : Expr(std::move(span)),
         name_def_(name_def),
         identifier_(std::move(identifier)) {}
@@ -344,7 +350,7 @@ class NameRef : public Expr {
   }
 
  private:
-  absl::variant<NameDef*, BuiltinNameDef*> name_def_;
+  AnyNameDef name_def_;
   std::string identifier_;
 };
 
@@ -427,10 +433,15 @@ class Number : public Expr {
 // Represents a user-defined-type definition; e.g.
 //    type Foo = (u32, u32);
 //    type Bar = (u32, Foo);
+//
+// TODO(leary): 2020-09-15 Rename to TypeAlias, less of a loaded term.
 class TypeDef : public AstNode {
  public:
-  TypeDef(NameDef* name_def, TypeAnnotation* type, bool is_public)
-      : name_def_(name_def), type_(type), is_public_(is_public) {}
+  TypeDef(Span span, NameDef* name_def, TypeAnnotation* type, bool is_public)
+      : span_(std::move(span)),
+        name_def_(name_def),
+        type_(type),
+        is_public_(is_public) {}
 
   const std::string& identifier() const { return name_def_->identifier(); }
 
@@ -445,8 +456,10 @@ class TypeDef : public AstNode {
   NameDef* name_def() const { return name_def_; }
   TypeAnnotation* type() const { return type_; }
   bool is_public() const { return is_public_; }
+  const Span& span() const { return span_; }
 
  private:
+  Span span_;
   NameDef* name_def_;
   TypeAnnotation* type_;
   bool is_public_;
@@ -522,7 +535,7 @@ class TypeRef : public Expr {
   }
 
   const std::string& text() const { return text_; }
-  TypeDefinition type_definition() const { return type_definition_; }
+  const TypeDefinition& type_definition() const { return type_definition_; }
 
  private:
   std::string text_;
@@ -538,7 +551,9 @@ class Import : public AstNode {
       : span_(std::move(span)),
         name_(std::move(name)),
         name_def_(name_def),
-        alias_(std::move(alias)) {}
+        alias_(std::move(alias)) {
+    XLS_CHECK(!name_.empty());
+  }
 
   const std::string& identifier() const { return name_def_->identifier(); }
 
@@ -623,7 +638,7 @@ enum class UnopKind {
   kNegate,  // two's complement aritmetic negation (~x+1)
 };
 
-UnopKind UnopKindFromString(absl::string_view s);
+absl::StatusOr<UnopKind> UnopKindFromString(absl::string_view s);
 std::string UnopKindToString(UnopKind k);
 
 // Represents a unary operation expression; e.g. `!x`.
@@ -677,7 +692,7 @@ enum class BinopKind {
 #undef FIRST_COMMA
 };
 
-BinopKind BinopKindFromString(absl::string_view s);
+absl::StatusOr<BinopKind> BinopKindFromString(absl::string_view s);
 
 std::string BinopKindFormat(BinopKind kind);
 
@@ -795,11 +810,11 @@ class Function : public AstNode {
            std::vector<Param*> params, TypeAnnotation* return_type, Expr* body,
            bool is_public)
       : span_(span),
-        name_def_(name_def),
+        name_def_(XLS_DIE_IF_NULL(name_def)),
         params_(std::move(params)),
         parametric_bindings_(std::move(parametric_bindings)),
         return_type_(return_type),
-        body_(body),
+        body_(XLS_DIE_IF_NULL(body)),
         is_public_(is_public) {}
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -1005,8 +1020,9 @@ class Slice : public AstNode {
 
 // Helper struct for members items defined inside of enums.
 struct EnumMember {
-  NameDef* name;
-  absl::variant<NameDef*, Number*> value;
+  NameDef* name_def;
+  // TODO(leary): 2020-09-14 This should be ConstRef*.
+  absl::variant<Number*, NameRef*> value;
 };
 
 // Represents a user-defined enum definition; e.g.
@@ -1029,17 +1045,17 @@ class Enum : public AstNode {
 
   bool HasValue(absl::string_view name) const {
     for (const auto& item : values_) {
-      if (item.name->identifier() == name) {
+      if (item.name_def->identifier() == name) {
         return true;
       }
     }
     return false;
   }
 
-  absl::StatusOr<absl::variant<NameDef*, Number*>> GetValue(
+  absl::StatusOr<absl::variant<Number*, NameRef*>> GetValue(
       absl::string_view name) const {
-    for (const auto& item : values_) {
-      if (item.name->identifier() == name) {
+    for (const EnumMember& item : values_) {
+      if (item.name_def->identifier() == name) {
         return item.value;
       }
     }
@@ -1051,7 +1067,8 @@ class Enum : public AstNode {
     std::string result =
         absl::StrFormat("enum %s : %s {\n", identifier(), type_->ToString());
     for (const auto& item : values_) {
-      absl::StrAppendFormat(&result, "  %s = %s,\n", item.name->identifier(),
+      absl::StrAppendFormat(&result, "  %s = %s,\n",
+                            item.name_def->identifier(),
                             ToAstNode(item.value)->ToString());
     }
     absl::StrAppend(&result, "}");
@@ -1060,8 +1077,8 @@ class Enum : public AstNode {
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     std::vector<AstNode*> results = {name_def_, type_};
-    for (auto& item : values_) {
-      results.push_back(item.name);
+    for (const EnumMember& item : values_) {
+      results.push_back(item.name_def);
       results.push_back(ToAstNode(item.value));
     }
     return results;
@@ -1090,10 +1107,12 @@ class Enum : public AstNode {
 // Represents a struct definition.
 class Struct : public AstNode {
  public:
-  Struct(NameDef* name_def, std::vector<ParametricBinding*> parametric_bindings,
+  Struct(Span span, NameDef* name_def,
+         std::vector<ParametricBinding*> parametric_bindings,
          std::vector<std::pair<NameDef*, TypeAnnotation*>> members,
          bool is_public)
-      : name_def_(name_def),
+      : span_(std::move(span)),
+        name_def_(name_def),
         parametric_bindings_(std::move(parametric_bindings)),
         members_(std::move(members)),
         public_(is_public) {}
@@ -1124,6 +1143,7 @@ class Struct : public AstNode {
     return members_;
   }
   bool is_public() const { return public_; }
+  const Span& span() const { return span_; }
 
   std::vector<std::string> GetMemberNames() const {
     std::vector<std::string> names;
@@ -1134,6 +1154,7 @@ class Struct : public AstNode {
   }
 
  private:
+  Span span_;
   NameDef* name_def_;
   std::vector<ParametricBinding*> parametric_bindings_;
   std::vector<std::pair<NameDef*, TypeAnnotation*>> members_;
@@ -1548,8 +1569,8 @@ class Carry : public Expr {
 // Represents a constant definition.
 class ConstantDef : public AstNode {
  public:
-  ConstantDef(NameDef* name_def, Expr* value)
-      : name_def_(name_def), value_(value) {}
+  ConstantDef(Span span, NameDef* name_def, Expr* value)
+      : span_(std::move(span)), name_def_(name_def), value_(value) {}
 
   std::string ToString() const override;
 
@@ -1560,8 +1581,10 @@ class ConstantDef : public AstNode {
   const std::string& identifier() const { return name_def_->identifier(); }
   NameDef* name_def() const { return name_def_; }
   Expr* value() const { return value_; }
+  const Span& span() const { return span_; }
 
  private:
+  Span span_;
   NameDef* name_def_;
   Expr* value_;
 };
@@ -1788,6 +1811,7 @@ class Module : public AstNode {
   }
 
   absl::Span<ModuleMember const> top() const { return top_; }
+  std::vector<ModuleMember>* mutable_top() { return &top_; }
 
   // Obtains all the type definition nodes in the module:
   //    TypeDef, Struct, Enum

@@ -21,10 +21,38 @@
 
 namespace xls::dslx {
 
+// Bindings (name references in the environment that map back to definition
+// points in the AST) resolve to this BoundNode variant, which are all kinds of
+// definitions.
 using BoundNode = absl::variant<Enum*, TypeDef*, ConstantDef*, NameDef*,
                                 BuiltinNameDef*, Struct*, Import*>;
 
+// Checks that n is one of the BoundNode variants shown above, and returns it in
+// the BoundNode variant. Returns an error status if the AST node is not one of
+// the supported variant types.
 absl::StatusOr<BoundNode> ToBoundNode(AstNode* n);
+
+// Returns a string, useful for reporting in error messages, for the type of the
+// AST node contained inside of the given BoundNode variant; e.g. "Import".
+std::string BoundNodeGetTypeString(const BoundNode& bn);
+
+// Encodes ParseError data in a canonical way inside of an invalid argument
+// error.
+//
+// When these propagate up to a Python boundary we throw them as exceptions
+// using the data encoded in the absl::Status message. See ParseErrorGetData()
+// for the utility used to extract the data from the error message text.
+inline absl::Status ParseError(const Span& span, absl::string_view message) {
+  return absl::InvalidArgumentError(
+      absl::StrFormat("ParseError: %s %s", span.ToString(), message));
+}
+
+// Returns (span, message), or an error status if "status" is not a valid
+// ParseError.
+absl::StatusOr<std::pair<Span, std::string>> ParseErrorGetData(
+    const absl::Status& status);
+absl::StatusOr<Span> ParseErrorGetSpan(const absl::Status& status);
+absl::StatusOr<std::string> ParseErrorGetText(const absl::Status& status);
 
 // Maps identifiers to the AST node that bound that identifier (also known as
 // the lexical environment).
@@ -45,8 +73,7 @@ absl::StatusOr<BoundNode> ToBoundNode(AstNode* n);
 // scope; new bindings in the worst case only shadow previous bindings.
 class Bindings {
  public:
-  Bindings(const std::shared_ptr<Module>& module, Bindings* parent = nullptr)
-      : module_(module), parent_(parent) {}
+  Bindings(Bindings* parent = nullptr) : parent_(parent) {}
 
   // Returns whether there are any local bindings (i.e. bindings that are not
   // set in parent/ancestors).
@@ -68,6 +95,16 @@ class Bindings {
     }
 
     return it->second;
+  }
+
+  bool ResolveNodeIsTypeDefinition(absl::string_view name) const {
+    absl::optional<BoundNode> bn = ResolveNode(name);
+    if (!bn) {
+      return false;
+    }
+    return absl::holds_alternative<Enum*>(*bn) ||
+           absl::holds_alternative<TypeDef*>(*bn) ||
+           absl::holds_alternative<Struct*>(*bn);
   }
 
   // As above, but flags a ParseError() if the binding cannot be resolved,
@@ -96,21 +133,20 @@ class Bindings {
     return ResolveNode(name).has_value();
   }
 
-  // Returns the AST-node-owning module.
-  const std::shared_ptr<Module>& module() const { return module_; }
-
  private:
-  // Encodes ParseError data in a canonical way inside of an invalid argument
-  // error.
-  static absl::Status ParseError(const Span& span, absl::string_view message) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("ParseError: %s %s", span.ToString(), message));
-  }
-
-  std::shared_ptr<Module> module_;
   Bindings* parent_;
   absl::flat_hash_map<std::string, BoundNode> local_bindings_;
 };
+
+// Returns the name definition node (either builtin or user-defined) associated
+// with the given binding data.
+AnyNameDef BoundNodeToAnyNameDef(BoundNode bn);
+
+// Returns the text span where the binding data is defined.
+//
+// For a builtin name definition, a "fake" span is returned (that spans no
+// characters in the filename "<builtin>").
+Span BoundNodeGetSpan(BoundNode bn);
 
 }  // namespace xls::dslx
 

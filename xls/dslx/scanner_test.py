@@ -168,7 +168,7 @@ class ScannerTest(absltest.TestCase):
     self.assertEqual(tokens[3].kind, TokenKind.WHITESPACE)
     self.assertEqual(tokens[4].kind, TokenKind.COMMENT)
 
-  def test_peek_pop_drop_try_drop(self):
+  def test_pop_several(self):
     text = '[!](-)'
     expected = [
         TokenKind.OBRACK,
@@ -179,15 +179,11 @@ class ScannerTest(absltest.TestCase):
         TokenKind.CPAREN,
     ]
     s = self.make_scanner(text)
-    for i, tk in enumerate(expected):
+    for tk in expected:
       self.assertFalse(s.at_eof())
-      self.assertEqual(s.peek().kind, tk)
-      if i % 2 == 0:
-        t = s.pop()
-        self.assertIsInstance(t, scanner.Token)
-        self.assertEqual(t.kind, tk)
-      else:
-        self.assertTrue(s.try_pop(tk))
+      t = s.pop()
+      self.assertIsInstance(t, scanner.Token)
+      self.assertEqual(t.kind, tk)
     self.assertTrue(s.at_eof())
 
 if __name__ == '__main__':

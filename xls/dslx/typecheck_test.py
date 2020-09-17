@@ -27,7 +27,7 @@ from xls.dslx import fakefs_test_util
 from xls.dslx import parser_helpers
 from xls.dslx import span
 from xls.dslx import typecheck
-from xls.dslx.python import cpp_bindings
+from xls.dslx.python import cpp_parser
 from xls.dslx.xls_type_error import ArgCountMismatchError
 from xls.dslx.xls_type_error import TypeInferenceError
 from xls.dslx.xls_type_error import XlsTypeError
@@ -57,7 +57,7 @@ class TypecheckTest(absltest.TestCase):
       else:
         try:
           typecheck.check_module(m, f_import=None)
-        except (span.PositionalError, cpp_bindings.CppParseError) as e:
+        except (span.PositionalError, cpp_parser.CppParseError) as e:
           parser_helpers.pprint_positional_error(e)
           raise
 

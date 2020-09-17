@@ -28,7 +28,7 @@ from xls.dslx import ir_converter
 from xls.dslx import parser_helpers
 from xls.dslx import span
 from xls.dslx import typecheck
-from xls.dslx.python import cpp_bindings
+from xls.dslx.python import cpp_parser
 
 
 # IR parser binary. Reads from stdin and tries to parse the text as a package.
@@ -57,7 +57,7 @@ class IrConverterTest(absltest.TestCase):
         node_to_type = typecheck.check_module(m, f_import=None)
         return ir_converter.convert_module(
             m, node_to_type, emit_positions=False)
-      except (span.PositionalError, cpp_bindings.CppParseError) as e:
+      except (span.PositionalError, cpp_parser.CppParseError) as e:
         parser_helpers.pprint_positional_error(e)
         raise
 

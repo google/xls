@@ -387,7 +387,7 @@ class AstGenerator(object):
     """
     type_name = self.gensym()
     name_def = self._make_name_def(type_name)
-    type_def = ast.TypeDef(self.m, name_def, type_, False)
+    type_def = ast.TypeDef(self.m, self.fake_span, name_def, type_, False)
     type_ref = ast.TypeRef(self.m, self.fake_span, type_name, type_def)
     self._type_defs.append(type_def)
     self._type_bit_counts[str(type_ref)] = self._get_type_bit_count(type_)

@@ -93,7 +93,7 @@ class AstTest(test_base.TestCase):
     # TypeRef with dims.
     my_type_tok = Token(TokenKind.IDENTIFIER, value='MyType', span=fake_span)
     name_def = ast.NameDef(m, fake_span, 'MyType')
-    type_def = ast.TypeDef(m, name_def, type_, public=False)
+    type_def = ast.TypeDef(m, fake_span, name_def, type_, public=False)
     type_ref = ast.TypeRef(m, fake_span, my_type_tok.value, type_def)
     type_ = ast_helpers.make_type_ref_type_annotation(m, fake_span, type_ref,
                                                       (number_2, number_3))
@@ -250,7 +250,7 @@ class AstTest(test_base.TestCase):
 
     # TypeRef with dims.
     name_def = ast.NameDef(m, fake_span, 'MyType')
-    type_def = ast.TypeDef(m, name_def, type_, public=False)
+    type_def = ast.TypeDef(m, fake_span, name_def, type_, public=False)
     type_ref = ast.TypeRef(m, fake_span, 'MyType', type_def)
     type_ = ast_helpers.make_type_ref_type_annotation(m, fake_span, type_ref,
                                                       (number_2, number_3))

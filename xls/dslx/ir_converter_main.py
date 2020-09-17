@@ -30,7 +30,7 @@ from xls.dslx import import_routines
 from xls.dslx import ir_converter
 from xls.dslx import parser_helpers
 from xls.dslx import typecheck
-from xls.dslx.python import cpp_bindings
+from xls.dslx.python import cpp_parser
 from xls.dslx.span import PositionalError
 
 
@@ -69,7 +69,7 @@ def main(argv):
           ir_converter.convert_one_function(module, FLAGS.entry, node_to_type))
     else:
       print(ir_converter.convert_module(module, node_to_type))
-  except (PositionalError, cpp_bindings.CppParseError) as e:
+  except (PositionalError, cpp_parser.CppParseError) as e:
     parser_helpers.pprint_positional_error(e)
     if FLAGS.raise_exception:
       raise

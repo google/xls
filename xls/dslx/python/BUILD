@@ -94,19 +94,20 @@ xls_pybind_extension(
 )
 
 xls_pybind_extension(
-    name = "cpp_bindings",
+    name = "cpp_parser",
     srcs = [
         "cpp_ast.h",
-        "cpp_bindings.cc",
+        "cpp_parser.cc",
     ],
     py_deps = [
         ":cpp_ast",  # build_cleaner: keep
+        ":cpp_scanner",  # build_cleaner: keep
     ],
     deps = [
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/strings",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor_pybind_caster",
-        "//xls/dslx:cpp_bindings",
+        "//xls/dslx:cpp_parser",
     ],
 )

@@ -24,8 +24,10 @@ namespace xls::dslx {
   if (RE2::FullMatch(s, R"((.*):(\d+):(\d+)-(\d+):(\d+))", &filename,
                      &start_lineno, &start_colno, &limit_lineno,
                      &limit_colno)) {
-    return Span(Pos(filename, start_lineno, start_colno),
-                Pos(filename, limit_lineno, limit_colno));
+    // The values used for display are 1-based, whereas the backing storage is
+    // zero-based.
+    return Span(Pos(filename, start_lineno - 1, start_colno - 1),
+                Pos(filename, limit_lineno - 1, limit_colno - 1));
   }
 
   return absl::InvalidArgumentError(

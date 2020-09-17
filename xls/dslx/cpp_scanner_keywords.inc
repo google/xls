@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef XLS_DSLX_CPP_SCANNER_KEYWORDS_INC_
+#define XLS_DSLX_CPP_SCANNER_KEYWORDS_INC_
+
 #define XLS_DSLX_KEYWORDS(X)   \
   X(kAs, AS, "as")             \
   X(kCarry, CARRY, "carry")    \
@@ -308,3 +311,5 @@
   X(kS63, S63, "s63")             \
   X(kS64, S64, "s64")             \
   /* done */
+
+#endif  // XLS_DSLX_CPP_SCANNER_KEYWORDS_INC_

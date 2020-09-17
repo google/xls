@@ -79,6 +79,17 @@ std::string BuiltinTypeToString(BuiltinType t) {
   return absl::StrFormat("<invalid BuiltinType(%d)>", static_cast<int>(t));
 }
 
+absl::StatusOr<BuiltinType> BuiltinTypeFromString(absl::string_view s) {
+#define CASE(__enum, __unused, __str, ...) \
+  if (s == __str) {                        \
+    return BuiltinType::__enum;            \
+  }
+  XLS_DSLX_BUILTIN_TYPE_EACH(CASE)
+#undef CASE
+  return absl::InvalidArgumentError(
+      absl::StrFormat("String is not a BuiltinType: \"%s\"", s));
+}
+
 class DfsIteratorNoTypes {
  public:
   DfsIteratorNoTypes(AstNode* start) : to_visit_({start}) {}
@@ -318,24 +329,26 @@ std::string TypeRefTypeAnnotation::ToString() const {
   return type_ref_->ToString();
 }
 
-BinopKind BinopKindFromString(absl::string_view s) {
+absl::StatusOr<BinopKind> BinopKindFromString(absl::string_view s) {
 #define HANDLE(__enum, __unused, __operator) \
   if (s == __operator) {                     \
     return BinopKind::__enum;                \
   }
   XLS_DSLX_BINOP_KIND_EACH(HANDLE)
 #undef HANDLE
-  XLS_LOG(FATAL) << "Invalid BinopKind string: \"" << s << "\"";
+  return absl::InvalidArgumentError(
+      absl::StrFormat("Invalid BinopKind string: \"%s\"", s));
 }
 
-UnopKind UnopKindFromString(absl::string_view s) {
+absl::StatusOr<UnopKind> UnopKindFromString(absl::string_view s) {
   if (s == "!") {
     return UnopKind::kInvert;
   }
   if (s == "-") {
     return UnopKind::kNegate;
   }
-  XLS_LOG(FATAL) << "Invalid UnopKind string: \"" << s << "\"";
+  return absl::InvalidArgumentError(
+      absl::StrFormat("Invalid UnopKind string: \"%s\"", s));
 }
 
 std::string UnopKindToString(UnopKind k) {
@@ -378,12 +391,25 @@ std::string Function::Format(bool include_body) const {
   if (return_type_ != nullptr) {
     return_type_str = " -> " + return_type_->ToString() + " ";
   }
-  return absl::StrFormat("%sfn %s%s(%s)%s{\n%s\n}", is_public_ ? "pub " : "",
-                         parametric_str, name_def_->ToString(), params_str,
-                         return_type_str, Indent(body_->ToString()));
+  std::string pub_str = is_public_ ? "pub " : "";
+  std::string name_str = name_def_->ToString();
+  std::string body_str = Indent(body_->ToString());
+  return absl::StrFormat("%sfn %s%s(%s)%s{\n%s\n}", pub_str, parametric_str,
+                         name_str, params_str, return_type_str, body_str);
 }
 
-std::string Proc::ToString() const { XLS_LOG(FATAL) << "boom"; }
+std::string Proc::ToString() const {
+  std::string pub_str = is_public_ ? "pub " : "";
+  auto param_append = [](std::string* out, const Param* param) {
+    absl::StrAppend(out, param->ToString());
+  };
+  std::string proc_params_str = absl::StrJoin(proc_params_, ", ", param_append);
+  std::string iter_params_str = absl::StrJoin(iter_params_, ", ", param_append);
+  return absl::StrFormat("%sproc %s(%s) {\n  next(%s) {\n%s\n  }\n}", pub_str,
+                         name_def_->identifier(), proc_params_str,
+                         iter_params_str,
+                         Indent(iter_body_->ToString(), /*spaces=*/4));
+}
 
 int64 BuiltinTypeAnnotation::GetBitCount() const {
   switch (builtin_type_) {

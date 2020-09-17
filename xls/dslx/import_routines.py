@@ -44,6 +44,7 @@ def do_import(
   Returns:
     The imported module information.
   """
+  assert subject
   if subject in cache:
     return cache[subject]
 

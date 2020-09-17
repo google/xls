@@ -93,7 +93,7 @@ inline std::ostream& operator<<(std::ostream& os, TokenKind kind) {
   return os;
 }
 
-enum Keyword { XLS_DSLX_KEYWORDS(XLS_FIRST_COMMA) };
+enum class Keyword { XLS_DSLX_KEYWORDS(XLS_FIRST_COMMA) };
 
 std::string KeywordToString(Keyword keyword);
 
@@ -121,6 +121,8 @@ class Token {
     return absl::get<absl::optional<std::string>>(payload_);
   }
 
+  absl::StatusOr<int64> GetValueAsInt64() const;
+
   absl::variant<absl::optional<std::string>, Keyword> GetPayload() const {
     return payload_;
   }
@@ -145,6 +147,22 @@ class Token {
   }
   bool IsNumber(absl::string_view target) const {
     return kind_ == TokenKind::kNumber && *GetValue() == target;
+  }
+
+  bool IsKindIn(
+      absl::Span<absl::variant<TokenKind, Keyword> const> targets) const {
+    for (auto target : targets) {
+      if (absl::holds_alternative<TokenKind>(target)) {
+        if (kind() == absl::get<TokenKind>(target)) {
+          return true;
+        }
+      } else {
+        if (IsKeyword(absl::get<Keyword>(target))) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   // Returns a string that represents this token suitable for use in displaying
@@ -172,25 +190,22 @@ class Scanner {
         include_whitespace_and_comments_(include_whitespace_and_comments) {}
 
   // Gets the current position in the token stream. Note that the position in
-  // the token stream can change on a Peek(), because whitespace and comments
+  // the token stream can change on a Pop(), because whitespace and comments
   // may be discarded.
   //
   // TODO(leary): 2020-09-08 Attempt to privatize this, ideally consumers would
   // only care about the positions of tokens, not of the scanner itself.
   Pos GetPos() const {
-    if (lookahead_.has_value()) {
-      return lookahead_->span().start();
-    }
     return Pos(filename_, lineno_, colno_);
   }
 
-  // Pops a token from the current position in the token stream, or returns a
-  // status error if no token can be scanned out.
-  absl::StatusOr<Token> Pop() {
-    XLS_ASSIGN_OR_RETURN(Token tok, Peek());
-    lookahead_ = absl::nullopt;
-    return tok;
-  }
+  // Pops a token from the current position in the character stream, or returns
+  // a status error if no token can be scanned out.
+  //
+  // Note that if the current position in the character stream is whitespace
+  // before the EOF, an EOF-kind token will be returned, and subsequently
+  // AtEof() will be true.
+  absl::StatusOr<Token> Pop();
 
   // Pops all tokens from the token stream until it is extinguished (as
   // determined by `AtEof()`) and returns them as a sequence.
@@ -203,71 +218,11 @@ class Scanner {
     return tokens;
   }
 
-  // Attempts to drop a token of the kind "target", returns true if successful.
-  //
-  // Note: Returns an error if there is an error encountered while trying to
-  // peek at the token to see if it should be dropped.
-  absl::StatusOr<bool> TryDrop(TokenKind target) {
-    XLS_ASSIGN_OR_RETURN(Token peek_tok, Peek());
-    if (peek_tok.kind() == target) {
-      XLS_CHECK_EQ(lookahead_->kind(), target);
-      lookahead_ = absl::nullopt;
-      return true;
-    }
-    return false;
-  }
-
-  // Attempts to drop a keyword token of the given "target"; returns true if
-  // successful.
-  //
-  // Note: Returns an error if there is an error encountered while trying to
-  // peek at the token to see if it should be dropped.
-  absl::StatusOr<bool> TryDropKeyword(Keyword target) {
-    XLS_ASSIGN_OR_RETURN(Token peek_tok, Peek());
-    if (peek_tok.kind() == TokenKind::kKeyword &&
-        peek_tok.GetKeyword() == target) {
-      lookahead_ = absl::nullopt;
-      return true;
-    }
-    return false;
-  }
-
-  // Looks ahead a single token and returns it, or an error if the lookahead
-  // token cannot be obtained. Note that at character stream EOF an infinite
-  // number of EOF tokens will be returned.
-  absl::StatusOr<Token> Peek();
-
-  // Attempts to pop a token with the given "target" kind; returns the token if
-  // it is successful, returns an error status if it is not or an error occurs
-  // when scanning out the token being observed.
-  absl::StatusOr<Token> PopOrError(TokenKind target) {
-    XLS_ASSIGN_OR_RETURN(Token token, Peek());
-    if (token.kind() == target) {
-      return Pop();
-    }
-    return ScanError(token.span().start(),
-                     absl::StrFormat("Expected %s token, found %s.",
-                                     TokenKindToString(target),
-                                     TokenKindToString(token.kind())));
-  }
-
-  // As above, but does not return the token, just a status.
-  absl::Status DropOrError(TokenKind target) {
-    XLS_ASSIGN_OR_RETURN(Token unused, PopOrError(target));
-    return absl::OkStatus();
-  }
-
-  // Returns whether the scanner reached end of file: no more tokens!
-  //
-  // Note: when the character stream is exhausted but there is a lookahead token
-  // available, this returns false.
+  // Returns whether the scanner reached end of file: no more characters!
   //
   // Note: if there is trailing whitespace in the file, AtEof() will return
-  // false until you try to Peek(), at which point you'll see an EOF-kind token.
+  // false until you try to Pop(), at which point you'll see an EOF-kind token.
   bool AtEof() const {
-    if (lookahead_) {
-      return false;
-    }
     return AtCharEof();
   }
 
@@ -404,7 +359,6 @@ class Scanner {
   std::string filename_;
   std::string text_;
   bool include_whitespace_and_comments_;
-  absl::optional<Token> lookahead_;
   int64 index_ = 0;
   int64 lineno_ = 0;
   int64 colno_ = 0;

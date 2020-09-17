@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef XLS_DSLX_CPP_AST_BUILTIN_TYPES_INC_
+#define XLS_DSLX_CPP_AST_BUILTIN_TYPES_INC_
+
 #define XLS_DSLX_BUILTIN_TYPE_EACH(X) \
   X(kBits, BITS, "bits", false, 0)    \
   X(kUN, UN, "uN", false, 0)          \
@@ -148,3 +151,5 @@
   X(kS63, S63, "s63", true, 63)       \
   X(kS64, S64, "s64", true, 64)       \
   /* done */
+
+#endif  // XLS_DSLX_CPP_AST_BUILTIN_TYPES_INC_

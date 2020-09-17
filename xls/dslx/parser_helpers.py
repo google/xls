@@ -26,26 +26,26 @@ from typing import Text, Optional, Callable, Union
 import termcolor
 
 from xls.dslx import parse_error
-from xls.dslx import parser
 from xls.dslx import span as span_mod
 from xls.dslx.python import cpp_ast as ast
-from xls.dslx.python import cpp_bindings
+from xls.dslx.python import cpp_parser as parser
 from xls.dslx.python import cpp_scanner as scanner
 
 
 def _to_positional_error(
-    error: Union[span_mod.PositionalError, cpp_bindings.CppParseError]
+    error: Union[span_mod.PositionalError, parser.CppParseError]
 ) -> span_mod.PositionalError:
   """Ensures error is positional for display: if a C++ based error, converts."""
   if isinstance(error, span_mod.PositionalError):
     return error
-  assert isinstance(error, cpp_bindings.CppParseError)
-  return parse_error.ParseError(
-      cpp_bindings.get_parse_error_span(error), error.message)
+  assert isinstance(error, parser.CppParseError)
+  span = parser.get_parse_error_span(str(error))
+  text = parser.get_parse_error_text(str(error))
+  return parse_error.ParseError(span, text)
 
 
 def pprint_positional_error(error: Union[span_mod.PositionalError,
-                                         cpp_bindings.CppParseError],
+                                         parser.CppParseError],
                             *,
                             output: io.IOBase = sys.stderr,
                             color: Optional[bool] = None,
@@ -151,12 +151,13 @@ def parse_text(text: Text,
       program is not materialized on the real filesystem.
 
   Raises:
-    ParseError: When a parsing error occurs.
+    CppParseError: When a parsing error occurs.
     ScanError: When a scanning error occurs.
   """
   try:
-    return parser.Parser(scanner.Scanner(filename, text), name).parse_module()
-  except (parser.ParseError, scanner.ScanError) as e:
+    s = scanner.Scanner(filename, text)
+    return parser.Parser(s, name).parse_module()
+  except (parser.CppParseError, scanner.ScanError) as e:
     if print_on_error:
       pprint_positional_error(e, fs_open=fs_open)
     raise
@@ -173,7 +174,7 @@ def parse_path(path: Text, print_on_error: bool) -> ast.Module:
       the error is simply raised and nothing is printed.
 
   Raises:
-    ParseError: When a parsing error occurs.
+    CppParseError: When a parsing error occurs.
     ScanError: When a scanning error occurs.
   """
   with open(path) as f:

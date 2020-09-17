@@ -150,13 +150,7 @@ PYBIND11_MODULE(cpp_scanner, m) {
            py::arg("filename"), py::arg("text"),
            py::arg("include_whitespace_and_comments") = false)
       .def("at_eof", &Scanner::AtEof)
-      .def("peek", ScanErrorWrap(&Scanner::Peek))
       .def("pop", ScanErrorWrap(&Scanner::Pop))
-      // TODO(leary): 2020-09-08 Rename to try_drop and try_drop_keyword
-      .def("try_pop", ScanErrorWrap(&Scanner::TryDrop))
-      .def("try_pop_keyword", ScanErrorWrap(&Scanner::TryDropKeyword))
-      .def("pop_or_error", ScanErrorWrap(&Scanner::PopOrError))
-      .def("drop_or_error", ScanErrorWrap(&Scanner::DropOrError))
       .def("pop_all", ScanErrorWrap(&Scanner::PopAll))
       .def_property_readonly("pos", &Scanner::GetPos);
 }

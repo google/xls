@@ -16,6 +16,20 @@
 
 namespace xls::dslx {
 
+absl::StatusOr<int64> Token::GetValueAsInt64() const {
+  absl::optional<std::string> value = GetValue();
+  if (!value) {
+    return absl::InvalidArgumentError(
+        "Token does not have a (string) value; cannot convert to int64.");
+  }
+  int64 result;
+  if (absl::SimpleAtoi(*value, &result)) {
+    return result;
+  }
+  return absl::InvalidArgumentError("Could not convert value to int64: " +
+                                    *value);
+}
+
 std::string Token::ToErrorString() const {
   if (kind_ == TokenKind::kKeyword) {
     return absl::StrFormat("keyword:%s", KeywordToString(GetKeyword()));
@@ -263,7 +277,7 @@ absl::StatusOr<Token> Scanner::ScanChar(const Pos& start_pos) {
                std::string(1, c));
 }
 
-absl::StatusOr<Token> Scanner::Peek() {
+absl::StatusOr<Token> Scanner::Pop() {
   if (include_whitespace_and_comments_) {
     XLS_ASSIGN_OR_RETURN(absl::optional<Token> tok,
                          TryPopWhitespaceOrComment());
@@ -272,12 +286,6 @@ absl::StatusOr<Token> Scanner::Peek() {
     }
   } else {
     DropCommentsAndLeadingWhitespace();
-  }
-
-  // If there's a lookahead token already, we return that as the result of the
-  // peek.
-  if (lookahead_) {
-    return *lookahead_;
   }
 
   // Record the position the token starts at.
@@ -291,130 +299,130 @@ absl::StatusOr<Token> Scanner::Peek() {
 
   // Peek at one character for prefix scanning.
   const char startc = PeekChar();
-  XLS_CHECK(!lookahead_.has_value());
+  absl::optional<Token> result;
   switch (startc) {
     case '\'': {
-      XLS_ASSIGN_OR_RETURN(lookahead_, ScanChar(start_pos));
+      XLS_ASSIGN_OR_RETURN(result, ScanChar(start_pos));
       break;
     }
     case '#':
       DropChar();
-      lookahead_ = Token(TokenKind::kHash, mk_span());
+      result = Token(TokenKind::kHash, mk_span());
       break;
     case '!':
       DropChar();
       if (TryDropChar('=')) {
-        lookahead_ = Token(TokenKind::kBangEquals, mk_span());
+        result = Token(TokenKind::kBangEquals, mk_span());
       } else {
-        lookahead_ = Token(TokenKind::kBang, mk_span());
+        result = Token(TokenKind::kBang, mk_span());
       }
       break;
     case '=':
       DropChar();
       if (TryDropChar('=')) {
-        lookahead_ = Token(TokenKind::kDoubleEquals, mk_span());
+        result = Token(TokenKind::kDoubleEquals, mk_span());
       } else if (TryDropChar('>')) {
-        lookahead_ = Token(TokenKind::kFatArrow, mk_span());
+        result = Token(TokenKind::kFatArrow, mk_span());
       } else {
-        lookahead_ = Token(TokenKind::kEquals, mk_span());
+        result = Token(TokenKind::kEquals, mk_span());
       }
       break;
     case '+':
       DropChar();
       if (TryDropChar('+')) {
-        lookahead_ = Token(TokenKind::kDoublePlus, mk_span());
+        result = Token(TokenKind::kDoublePlus, mk_span());
       } else if (TryDropChar(':')) {
-        lookahead_ = Token(TokenKind::kPlusColon, mk_span());
+        result = Token(TokenKind::kPlusColon, mk_span());
       } else {
-        lookahead_ = Token(TokenKind::kPlus, mk_span());
+        result = Token(TokenKind::kPlus, mk_span());
       }
       break;
     case '<':
       DropChar();
       if (TryDropChar('<')) {
-        lookahead_ = Token(TokenKind::kDoubleOAngle, mk_span());
+        result = Token(TokenKind::kDoubleOAngle, mk_span());
       } else if (TryDropChar('=')) {
-        lookahead_ = Token(TokenKind::kOAngleEquals, mk_span());
+        result = Token(TokenKind::kOAngleEquals, mk_span());
       } else {
-        lookahead_ = Token(TokenKind::kOAngle, mk_span());
+        result = Token(TokenKind::kOAngle, mk_span());
       }
       break;
     case '>':
       DropChar();
       if (TryDropChar('>')) {
         if (TryDropChar('>')) {
-          lookahead_ = Token(TokenKind::kTripleCAngle, mk_span());
+          result = Token(TokenKind::kTripleCAngle, mk_span());
         } else {
-          lookahead_ = Token(TokenKind::kDoubleCAngle, mk_span());
+          result = Token(TokenKind::kDoubleCAngle, mk_span());
         }
       } else if (TryDropChar('=')) {
-        lookahead_ = Token(TokenKind::kCAngleEquals, mk_span());
+        result = Token(TokenKind::kCAngleEquals, mk_span());
       } else {
-        lookahead_ = Token(TokenKind::kCAngle, mk_span());
+        result = Token(TokenKind::kCAngle, mk_span());
       }
       break;
     case '.':
       DropChar();
       if (TryDropChar('.')) {
         if (TryDropChar('.')) {
-          lookahead_ = Token(TokenKind::kEllipsis, mk_span());
+          result = Token(TokenKind::kEllipsis, mk_span());
         } else {
-          lookahead_ = Token(TokenKind::kDoubleDot, mk_span());
+          result = Token(TokenKind::kDoubleDot, mk_span());
         }
       } else {
-        lookahead_ = Token(TokenKind::kDot, mk_span());
+        result = Token(TokenKind::kDot, mk_span());
       }
       break;
     case ':':
       DropChar();
       if (TryDropChar(':')) {
-        lookahead_ = Token(TokenKind::kDoubleColon, mk_span());
+        result = Token(TokenKind::kDoubleColon, mk_span());
       } else {
-        lookahead_ = Token(TokenKind::kColon, mk_span());
+        result = Token(TokenKind::kColon, mk_span());
       }
       break;
     case '|':
       DropChar();
       if (TryDropChar('|')) {
-        lookahead_ = Token(TokenKind::kDoubleBar, mk_span());
+        result = Token(TokenKind::kDoubleBar, mk_span());
       } else {
-        lookahead_ = Token(TokenKind::kBar, mk_span());
+        result = Token(TokenKind::kBar, mk_span());
       }
       break;
     case '&':
       DropChar();
       if (TryDropChar('&')) {
-        lookahead_ = Token(TokenKind::kDoubleAmpersand, mk_span());
+        result = Token(TokenKind::kDoubleAmpersand, mk_span());
       } else {
-        lookahead_ = Token(TokenKind::kAmpersand, mk_span());
+        result = Token(TokenKind::kAmpersand, mk_span());
       }
       break;
     // clang-format off
-    case '(': DropChar(); lookahead_ = Token(TokenKind::kOParen, mk_span()); break;  // NOLINT
-    case ')': DropChar(); lookahead_ = Token(TokenKind::kCParen, mk_span()); break;  // NOLINT
-    case '[': DropChar(); lookahead_ = Token(TokenKind::kOBrack, mk_span()); break;  // NOLINT
-    case ']': DropChar(); lookahead_ = Token(TokenKind::kCBrack, mk_span()); break;  // NOLINT
-    case '{': DropChar(); lookahead_ = Token(TokenKind::kOBrace, mk_span()); break;  // NOLINT
-    case '}': DropChar(); lookahead_ = Token(TokenKind::kCBrace, mk_span()); break;  // NOLINT
-    case ',': DropChar(); lookahead_ = Token(TokenKind::kComma, mk_span()); break;  // NOLINT
-    case ';': DropChar(); lookahead_ = Token(TokenKind::kSemi, mk_span()); break;  // NOLINT
-    case '*': DropChar(); lookahead_ = Token(TokenKind::kStar, mk_span()); break;  // NOLINT
-    case '^': DropChar(); lookahead_ = Token(TokenKind::kHat, mk_span()); break;  // NOLINT
-    case '/': DropChar(); lookahead_ = Token(TokenKind::kSlash, mk_span()); break;  // NOLINT
+    case '(': DropChar(); result = Token(TokenKind::kOParen, mk_span()); break;  // NOLINT
+    case ')': DropChar(); result = Token(TokenKind::kCParen, mk_span()); break;  // NOLINT
+    case '[': DropChar(); result = Token(TokenKind::kOBrack, mk_span()); break;  // NOLINT
+    case ']': DropChar(); result = Token(TokenKind::kCBrack, mk_span()); break;  // NOLINT
+    case '{': DropChar(); result = Token(TokenKind::kOBrace, mk_span()); break;  // NOLINT
+    case '}': DropChar(); result = Token(TokenKind::kCBrace, mk_span()); break;  // NOLINT
+    case ',': DropChar(); result = Token(TokenKind::kComma, mk_span()); break;  // NOLINT
+    case ';': DropChar(); result = Token(TokenKind::kSemi, mk_span()); break;  // NOLINT
+    case '*': DropChar(); result = Token(TokenKind::kStar, mk_span()); break;  // NOLINT
+    case '^': DropChar(); result = Token(TokenKind::kHat, mk_span()); break;  // NOLINT
+    case '/': DropChar(); result = Token(TokenKind::kSlash, mk_span()); break;  // NOLINT
     // clang-format on
     default:
       if (std::isalpha(startc) || startc == '_') {
-        XLS_ASSIGN_OR_RETURN(lookahead_,
+        XLS_ASSIGN_OR_RETURN(result,
                              ScanIdentifierOrKeyword(PopChar(), start_pos));
       } else if (std::isdigit(startc) ||
                  (startc == '-' && std::isdigit((PeekChar2OrNull())))) {
-        XLS_ASSIGN_OR_RETURN(lookahead_, ScanNumber(PopChar(), start_pos));
+        XLS_ASSIGN_OR_RETURN(result, ScanNumber(PopChar(), start_pos));
       } else if (startc == '-') {  // Minus handling is after the "number" path.
         DropChar();
         if (TryDropChar('>')) {
-          lookahead_ = Token(TokenKind::kArrow, mk_span());
+          result = Token(TokenKind::kArrow, mk_span());
         } else {
-          lookahead_ = Token(TokenKind::kMinus, mk_span());
+          result = Token(TokenKind::kMinus, mk_span());
         }
       } else {
         return ScanError(GetPos(),
@@ -423,8 +431,8 @@ absl::StatusOr<Token> Scanner::Peek() {
       }
   }
 
-  XLS_CHECK(lookahead_.has_value());
-  return *lookahead_;
+  XLS_CHECK(result.has_value());
+  return std::move(result).value();
 }
 
 const absl::flat_hash_set<Keyword>& GetTypeKeywords() {

@@ -109,17 +109,17 @@ PYBIND11_MODULE(cpp_ast, m) {
       .def(py::init([](NameDefHolder name, NumberHolder value) {
         return EnumMember{&name.deref(), &value.deref()};
       }))
-      .def(py::init([](NameDefHolder name, NameDefHolder value) {
+      .def(py::init([](NameDefHolder name, NameRefHolder value) {
         return EnumMember{&name.deref(), &value.deref()};
       }))
       .def("get_name_value",
            [](EnumMember& self, EnumHolder enum_) {
              return std::make_pair(
-                 NameDefHolder(self.name, enum_.module()),
+                 NameDefHolder(self.name_def, enum_.module()),
                  AstNodeHolder(ToAstNode(self.value), enum_.module()));
            })
       .def_property_readonly("identifier", [](const EnumMember& self) {
-        return self.name->identifier();
+        return self.name_def->identifier();
       });
 
   // class FreeVariables
@@ -330,14 +330,14 @@ PYBIND11_MODULE(cpp_ast, m) {
 
   // class TypeDef
   py::class_<TypeDefHolder, AstNodeHolder>(m, "TypeDef")
-      .def(py::init([](ModuleHolder module, NameDefHolder name_def,
+      .def(py::init([](ModuleHolder module, Span span, NameDefHolder name_def,
                        TypeAnnotationHolder type, bool is_public) {
              auto* self = module.deref().Make<TypeDef>(
-                 &name_def.deref(), &type.deref(), is_public);
+                 std::move(span), &name_def.deref(), &type.deref(), is_public);
              return TypeDefHolder(self, module.module());
            }),
-           py::arg("module"), py::arg("name_def"), py::arg("type"),
-           py::arg("public"))
+           py::arg("module"), py::arg("span"), py::arg("name_def"),
+           py::arg("type"), py::arg("public"))
       .def_property_readonly("type_",
                              [](TypeDefHolder self) {
                                return TypeAnnotationHolder(self.deref().type(),
@@ -385,13 +385,13 @@ PYBIND11_MODULE(cpp_ast, m) {
   // class Struct
   py::class_<StructHolder, AstNodeHolder>(m, "Struct")
       .def(py::init(
-          [](ModuleHolder module, NameDefHolder name_def,
+          [](ModuleHolder module, Span span, NameDefHolder name_def,
              std::vector<ParametricBindingHolder> parametric_bindings,
              std::vector<std::pair<NameDefHolder, TypeAnnotationHolder>>
                  members,
              bool is_public) {
             auto* self = module.deref().Make<Struct>(
-                &name_def.deref(),
+                std::move(span), &name_def.deref(),
                 Unwrap<ParametricBinding*>(parametric_bindings),
                 UnwrapPair<NameDef*, TypeAnnotation*>(members), is_public);
             return StructHolder(self, module.module());
@@ -1416,10 +1416,10 @@ PYBIND11_MODULE(cpp_ast, m) {
   // class ConstantDef
   // TODO(leary): 2020-08-27 Rename to ConstantDef.
   py::class_<ConstantDefHolder, AstNodeHolder>(m, "Constant")
-      .def(py::init([](ModuleHolder module, NameDefHolder name_def,
+      .def(py::init([](ModuleHolder module, Span span, NameDefHolder name_def,
                        ExprHolder expr) {
-        auto* self =
-            module.deref().Make<ConstantDef>(&name_def.deref(), &expr.deref());
+        auto* self = module.deref().Make<ConstantDef>(
+            std::move(span), &name_def.deref(), &expr.deref());
         return ConstantDefHolder(self, module.module());
       }))
       .def_property_readonly("value",
@@ -1436,7 +1436,8 @@ PYBIND11_MODULE(cpp_ast, m) {
       .value("INV", UnopKind::kInvert)
       .value("NEG", UnopKind::kNegate)
       .export_values()
-      .def(py::init([](absl::string_view s) { return UnopKindFromString(s); }));
+      .def(py::init(
+          [](absl::string_view s) { return UnopKindFromString(s).value(); }));
 
   py::class_<UnopHolder, ExprHolder>(m, "Unop")
       .def(py::init(
@@ -1460,8 +1461,9 @@ PYBIND11_MODULE(cpp_ast, m) {
           .export_values()
           .def_property_readonly(
               "value", [](BinopKind kind) { return BinopKindFormat(kind); })
-          .def(py::init(
-              [](absl::string_view s) { return BinopKindFromString(s); }));
+          .def(py::init([](absl::string_view s) {
+            return BinopKindFromString(s).value();
+          }));
 
   py::class_<BinopHolder, ExprHolder>(m, "Binop")
       .def(py::init([](ModuleHolder module, Span span, BinopKind kind,

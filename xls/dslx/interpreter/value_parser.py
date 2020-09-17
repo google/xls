@@ -16,7 +16,7 @@
 
 """Parses values from string text."""
 
-from typing import Text
+from typing import Optional
 
 from xls.common.xls_error import XlsError
 from xls.dslx import ast_helpers
@@ -25,6 +25,7 @@ from xls.dslx.python import cpp_scanner as scanner_mod
 from xls.dslx.python.cpp_scanner import Keyword
 from xls.dslx.python.cpp_scanner import ScanError
 from xls.dslx.python.cpp_scanner import Scanner
+from xls.dslx.python.cpp_scanner import Token
 from xls.dslx.python.cpp_scanner import TokenKind
 
 
@@ -33,10 +34,10 @@ class ValueParseError(XlsError):
 
 
 def _bit_value_from_scanner(s: Scanner, signed: bool) -> Value:
-  s.drop_or_error(TokenKind.OBRACK)
+  s.pop_or_error(TokenKind.OBRACK)
   bit_count_tok = s.pop_or_error(TokenKind.NUMBER)
-  s.drop_or_error(TokenKind.CBRACK)
-  s.drop_or_error(TokenKind.COLON)
+  s.pop_or_error(TokenKind.CBRACK)
+  s.pop_or_error(TokenKind.COLON)
   value_tok = s.pop_or_error(TokenKind.NUMBER)
   constructor = Value.make_sbits if signed else Value.make_ubits
   return constructor(
@@ -44,8 +45,55 @@ def _bit_value_from_scanner(s: Scanner, signed: bool) -> Value:
       value=ast_helpers.get_token_value_as_int(value_tok))
 
 
+class _LookaheadWrapper:
+  """Wraps a scanner with a token of lookahead capability.
+
+  Lookahead must not be populated when this object is destroyed.
+  """
+
+  def __init__(self, scanner: Scanner):
+    self.scanner = scanner
+    self.lookahead = None
+
+  def __del__(self):
+    assert self.lookahead is None
+
+  def _populate_lookahead(self):
+    if self.lookahead is None:
+      self.lookahead = self.scanner.pop()
+
+  def _pop_lookahead(self) -> Token:
+    assert self.lookahead is not None
+    result = self.lookahead
+    self.lookahead = None
+    return result
+
+  def pop(self) -> Token:
+    self._populate_lookahead()
+    return self._pop_lookahead()
+
+  def pop_or_error(self, target: TokenKind) -> Token:
+    tok = self.pop()
+    if tok.kind != target:
+      raise ValueParseError(f'Required {target} for value parsing; got: {tok}')
+    return tok
+
+  def try_pop(self, target: TokenKind) -> Optional[Token]:
+    self._populate_lookahead()
+    if self.lookahead.kind == target:
+      return self._pop_lookahead()
+    return None
+
+  def try_pop_keyword(self, target: Keyword) -> Optional[Token]:
+    self._populate_lookahead()
+    if self.lookahead.is_keyword(target):
+      return self._pop_lookahead()
+    return None
+
+
 def value_from_scanner(s: Scanner) -> Value:
   """Recursive call for converting a stream of tokens into a value."""
+  s = _LookaheadWrapper(s)
   if s.try_pop(TokenKind.OPAREN):
     elements = []
     must_end = False
@@ -77,9 +125,10 @@ def value_from_scanner(s: Scanner) -> Value:
   if s.try_pop_keyword(Keyword.BITS) or s.try_pop_keyword(Keyword.SN):
     return _bit_value_from_scanner(s, signed=True)
 
-  if s.peek().is_type_keyword():
-    type_ = s.pop()
-    s.drop_or_error(TokenKind.COLON)
+  tok = s.pop()
+  if tok.is_type_keyword():
+    type_ = tok
+    s.pop_or_error(TokenKind.COLON)
     value_tok = s.pop_or_error(TokenKind.NUMBER)
     signedness, bit_count = scanner_mod.TYPE_KEYWORDS_TO_SIGNEDNESS_AND_BITS[
         type_.value]
@@ -88,11 +137,11 @@ def value_from_scanner(s: Scanner) -> Value:
         bit_count=bit_count,
         value=ast_helpers.get_token_value_as_int(value_tok))
 
-  raise ScanError(s.peek().span.start,
-                  'Unexpected token in value; found {}'.format(s.peek().kind))
+  raise ScanError(tok.span.start,
+                  'Unexpected token in value; found {}'.format(tok.kind))
 
 
-def value_from_string(s: Text) -> Value:
+def value_from_string(s: str) -> Value:
   scanner = Scanner('<text>', s)
   try:
     return value_from_scanner(scanner)

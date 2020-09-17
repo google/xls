@@ -14,18 +14,96 @@
 
 #include "xls/dslx/cpp_bindings.h"
 
+#include "absl/strings/str_split.h"
+#include "absl/strings/strip.h"
 #include "xls/common/status/status_macros.h"
 
 namespace xls::dslx {
 
-static AnyNameDef BoundNodeToAnyNameDef(BoundNode bn) {
+absl::StatusOr<std::pair<Span, std::string>> ParseErrorGetData(
+    const absl::Status& status) {
+  absl::string_view s = status.message();
+  if (absl::ConsumePrefix(&s, "ParseError: ")) {
+    std::vector<absl::string_view> pieces =
+        absl::StrSplit(s, absl::MaxSplits(' ', 1));
+    if (pieces.size() < 2) {
+      return absl::InvalidArgumentError(
+          "Provided status does not have a standard ParseError message");
+    }
+    XLS_ASSIGN_OR_RETURN(Span span, Span::FromString(pieces[0]));
+    return std::make_pair(span, std::string(pieces[1]));
+  }
+  return absl::InvalidArgumentError("Provided status is not a ParseError: " +
+                                    status.ToString());
+}
+
+absl::StatusOr<Span> ParseErrorGetSpan(const absl::Status& status) {
+  XLS_ASSIGN_OR_RETURN(auto data, ParseErrorGetData(status));
+  return data.first;
+}
+
+absl::StatusOr<std::string> ParseErrorGetText(const absl::Status& status) {
+  XLS_ASSIGN_OR_RETURN(auto data, ParseErrorGetData(status));
+  return data.second;
+}
+
+AnyNameDef BoundNodeToAnyNameDef(BoundNode bn) {
+  if (absl::holds_alternative<ConstantDef*>(bn)) {
+    return absl::get<ConstantDef*>(bn)->name_def();
+  }
+  if (absl::holds_alternative<TypeDef*>(bn)) {
+    return absl::get<TypeDef*>(bn)->name_def();
+  }
+  if (absl::holds_alternative<Struct*>(bn)) {
+    return absl::get<Struct*>(bn)->name_def();
+  }
+  if (absl::holds_alternative<Enum*>(bn)) {
+    return absl::get<Enum*>(bn)->name_def();
+  }
+  if (absl::holds_alternative<NameDef*>(bn)) {
+    return absl::get<NameDef*>(bn);
+  }
+  if (absl::holds_alternative<BuiltinNameDef*>(bn)) {
+    return absl::get<BuiltinNameDef*>(bn);
+  }
+  XLS_LOG(FATAL) << "Unsupported BoundNode variant: "
+                 << ToAstNode(bn)->ToString();
+}
+
+Span BoundNodeGetSpan(BoundNode bn) {
+  if (absl::holds_alternative<ConstantDef*>(bn)) {
+    return absl::get<ConstantDef*>(bn)->span();
+  }
+  if (absl::holds_alternative<TypeDef*>(bn)) {
+    return absl::get<TypeDef*>(bn)->span();
+  }
+  if (absl::holds_alternative<Struct*>(bn)) {
+    return absl::get<Struct*>(bn)->span();
+  }
+  if (absl::holds_alternative<Enum*>(bn)) {
+    return absl::get<Enum*>(bn)->span();
+  }
+  if (absl::holds_alternative<NameDef*>(bn)) {
+    return absl::get<NameDef*>(bn)->span();
+  }
+  if (absl::holds_alternative<BuiltinNameDef*>(bn)) {
+    Pos p("<builtin>", 0, 0);
+    return Span(p, p);
+  }
+  XLS_LOG(FATAL) << "Unsupported BoundNode variant: "
+                 << ToAstNode(bn)->ToString();
+}
+
+std::string BoundNodeGetTypeString(const BoundNode& bn) {
   // clang-format off
-  if (absl::holds_alternative<ConstantDef*>(bn)) { return absl::get<ConstantDef*>(bn)->name_def(); }  // NOLINT
-  if (absl::holds_alternative<TypeDef*>(bn)) { return absl::get<TypeDef*>(bn)->name_def(); }  // NOLINT
-  if (absl::holds_alternative<Struct*>(bn)) { return absl::get<Struct*>(bn)->name_def(); }  // NOLINT
-  if (absl::holds_alternative<Enum*>(bn)) { return absl::get<Enum*>(bn)->name_def(); }  // NOLINT
-  if (absl::holds_alternative<NameDef*>(bn)) { return absl::get<NameDef*>(bn); }  // NOLINT
-  if (absl::holds_alternative<BuiltinNameDef*>(bn)) { return absl::get<BuiltinNameDef*>(bn); }  // NOLINT
+  if (absl::holds_alternative<Enum*>(bn)) { return "Enum"; }
+  if (absl::holds_alternative<TypeDef*>(bn)) { return "TypeDef"; }
+  if (absl::holds_alternative<ConstantDef*>(bn)) { return "ConstantDef"; }
+  if (absl::holds_alternative<Struct*>(bn)) { return "Struct"; }
+  if (absl::holds_alternative<NameDef*>(bn)) { return "NameDef"; }
+  if (absl::holds_alternative<BuiltinNameDef*>(bn)) { return "BuiltinNameDef"; }
+  if (absl::holds_alternative<Struct*>(bn)) { return "Struct"; }
+  if (absl::holds_alternative<Import*>(bn)) { return "Import"; }
   // clang-format on
   XLS_LOG(FATAL) << "Unsupported BoundNode variant: "
                  << ToAstNode(bn)->ToString();

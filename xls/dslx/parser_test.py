@@ -22,11 +22,11 @@ from typing import Text, Optional, cast, Callable, TypeVar, Sequence, Any
 
 from absl.testing import absltest
 from xls.dslx import fakefs_test_util
-from xls.dslx import parser
 from xls.dslx import parser_helpers
 from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python import cpp_parser as parser
 from xls.dslx.python import cpp_scanner as scanner
-from xls.dslx.python.cpp_bindings import CppParseError
+from xls.dslx.python.cpp_parser import CppParseError
 from xls.dslx.python.cpp_pos import Pos
 from xls.dslx.python.cpp_pos import Span
 
@@ -40,16 +40,15 @@ class ParserTest(absltest.TestCase):
       fparse: Callable[[parser.Parser, parser.Bindings],
                        TypeVar('T')]
   ) -> TypeVar('T'):
-    m = ast.Module('test') if bindings is None else bindings.module
     with fakefs_test_util.scoped_fakefs(self.fake_filename, program):
       s = scanner.Scanner(self.fake_filename, program)
-      b = bindings or parser.Bindings(m, None)
+      b = bindings or parser.Bindings(None)
       try:
         e = fparse(parser.Parser(s, 'test_module'), b)
-      except parser.ParseError as e:
+      except parser.CppParseError as e:
         parser_helpers.pprint_positional_error(e)
         raise
-      self.assertTrue(s.at_eof(), msg=s.peek())
+      self.assertTrue(s.at_eof())
       return e
 
   def assertLen(self, sequence: Sequence[Any], target: int) -> None:
@@ -61,11 +60,13 @@ class ParserTest(absltest.TestCase):
         len(sequence),)
 
   def parse_function(self, program, bindings=None):
-    fparse = lambda p, b: p._parse_function(public=False, outer_bindings=b)
+    fparse = lambda p, b: p.parse_function(is_public=False, outer_bindings=b)
     return self._parse_internal(program, bindings, fparse)
 
-  def parse_proc(self, program, bindings=None):
-    fparse = lambda p, b: p.parse_proc(public=False, outer_bindings=b)
+  def parse_proc(self,
+                 program: str,
+                 bindings: Optional[parser.Bindings] = None):
+    fparse = lambda p, b: p.parse_proc(outer_bindings=b, is_public=False)
     return self._parse_internal(program, bindings, fparse)
 
   def parse_expression(self, program, bindings=None):
@@ -75,6 +76,18 @@ class ParserTest(absltest.TestCase):
   def parse_module(self, program: Text):
     fparse = lambda p, _bindings: p.parse_module()
     return self._parse_internal(program, bindings=None, fparse=fparse)
+
+  def test_parse_error_get_span(self):
+    s = scanner.Scanner(self.fake_filename, '+')
+    p = parser.Parser(s, 'test_module')
+    try:
+      p.parse_expression(None)
+    except parser.CppParseError as e:
+      pos = Pos(self.fake_filename, 0, 0)
+      want = Span(pos, pos.bump_col())
+      self.assertEqual(parser.get_parse_error_span(str(e)), want)
+    else:
+      raise AssertionError
 
   def test_let_expression(self):
     e = self.parse_expression('let x: u32 = 2; x')
@@ -95,15 +108,17 @@ class ParserTest(absltest.TestCase):
     self.assertEqual(f.body.identifier, 'x')
 
   def test_simple_proc(self):
-    f = self.parse_proc("""
-proc simple(addend: u32) {
-  next(x: u32) {
-    next(x+addend)
-  }
-}""")
+    program = textwrap.dedent("""\
+    proc simple(addend: u32) {
+      next(x: u32) {
+        next((x) + (addend))
+      }
+    }""")
+    f = self.parse_proc(program)
     self.assertIsInstance(f, ast.Proc)
     self.assertIsInstance(f.name_def, ast.NameDef)
     self.assertEqual(f.name_def.identifier, 'simple')
+    self.assertEqual(program, str(f))
 
   def test_concat_function(self):
     f = self.parse_function('fn concat(x: bits, y: bits) { x ++ y }')
@@ -181,12 +196,14 @@ proc simple(addend: u32) {
     with fakefs_test_util.scoped_fakefs(filename, text):
       pos = Pos(filename, lineno=2, colno=0)
       span = Span(pos, pos.bump_col())
-      error = parser.ParseError(span, 'This is bad')
-      parser_helpers.pprint_positional_error(
-          error,
-          output=cast(io.IOBase, output),
-          color=False,
-          error_context_line_count=3)
+      try:
+        parser.throw_parse_error(span, 'This is bad')
+      except parser.CppParseError as error:
+        parser_helpers.pprint_positional_error(
+            error,
+            output=cast(io.IOBase, output),
+            color=False,
+            error_context_line_count=3)
 
     expected = textwrap.dedent("""\
     /fake/test_file.x:2-4
@@ -207,7 +224,7 @@ proc simple(addend: u32) {
     accum
     """)
     m = ast.Module('test')
-    b = parser.Bindings(m, None)
+    b = parser.Bindings(None)
     b.add('range', ast.BuiltinNameDef(m, 'range'))
     e = self.parse_expression(program, bindings=b)
     self.assertIsInstance(e, ast.Let)
@@ -223,7 +240,7 @@ proc simple(addend: u32) {
       new_accum
     }(u32:0)"""
     m = ast.Module('test')
-    b = parser.Bindings(m, None)
+    b = parser.Bindings(None)
     b.add('range', ast.BuiltinNameDef(m, 'range'))
     b.add('j', ast.BuiltinNameDef(m, 'j'))
     e = self.parse_expression(program, bindings=b)
@@ -284,7 +301,7 @@ proc simple(addend: u32) {
 
   def test_logical_equality(self):
     m = ast.Module('test')
-    b = parser.Bindings(m, None)
+    b = parser.Bindings(None)
     b.add('a', ast.BuiltinNameDef(m, 'a'))
     b.add('b', ast.BuiltinNameDef(m, 'b'))
     b.add('f', ast.BuiltinNameDef(m, 'f'))
@@ -300,7 +317,7 @@ proc simple(addend: u32) {
 
   def test_double_negation(self):
     m = ast.Module('test')
-    b = parser.Bindings(m, None)
+    b = parser.Bindings(None)
     b.add('x', ast.BuiltinNameDef(m, 'x'))
     e = self.parse_expression('!!x', bindings=b)
     self.assertIsInstance(e, ast.Unop)
@@ -310,7 +327,7 @@ proc simple(addend: u32) {
 
   def test_logical_operator_binding(self):
     m = ast.Module('test')
-    b = parser.Bindings(m, None)
+    b = parser.Bindings(None)
     b.add('a', ast.BuiltinNameDef(m, 'a'))
     b.add('b', ast.BuiltinNameDef(m, 'b'))
     b.add('c', ast.BuiltinNameDef(m, 'c'))
@@ -326,7 +343,7 @@ proc simple(addend: u32) {
 
   def test_cast(self):
     m = ast.Module('test')
-    b = parser.Bindings(m, None)
+    b = parser.Bindings(None)
     b.add('foo', ast.BuiltinNameDef(m, 'foo'))
     e = self.parse_expression('foo() as u32', bindings=b)
     self.assertIsInstance(e, ast.Cast)
@@ -362,7 +379,7 @@ proc simple(addend: u32) {
 
   def test_array(self):
     m = ast.Module('test')
-    b = parser.Bindings(m, None)
+    b = parser.Bindings(None)
     for identifier in 'a b c d'.split():
       b.add(identifier, ast.BuiltinNameDef(m, identifier))
     e = self.parse_expression('[a, b, c, d]', bindings=b)
@@ -524,9 +541,9 @@ proc simple(addend: u32) {
 
   def test_bindings_stack(self):
     m = ast.Module('test')
-    top = parser.Bindings(m, None)
-    leaf0 = parser.Bindings(m, top)
-    leaf1 = parser.Bindings(m, top)
+    top = parser.Bindings(None)
+    leaf0 = parser.Bindings(top)
+    leaf1 = parser.Bindings(top)
     a = ast.BuiltinNameDef(m, 'a')
     b = ast.BuiltinNameDef(m, 'b')
     c = ast.BuiltinNameDef(m, 'c')
@@ -535,20 +552,20 @@ proc simple(addend: u32) {
     leaf1.add('c', c)
     pos = Pos(self.fake_filename, lineno=0, colno=0)
     span = Span(pos, pos)
-    self.assertEqual(leaf0.resolve('a', span), a)
-    self.assertEqual(leaf1.resolve('a', span), a)
-    self.assertEqual(top.resolve('a', span), a)
+    self.assertEqual(leaf0.resolve(m, 'a', span), a)
+    self.assertEqual(leaf1.resolve(m, 'a', span), a)
+    self.assertEqual(top.resolve(m, 'a', span), a)
     with self.assertRaises(CppParseError):
-      top.resolve('b', span)
+      top.resolve(m, 'b', span)
     with self.assertRaises(CppParseError):
-      leaf1.resolve('b', span)
+      leaf1.resolve(m, 'b', span)
     with self.assertRaises(CppParseError):
-      leaf0.resolve('c', span)
-    self.assertEqual(leaf0.resolve('b', span), b)
-    self.assertEqual(leaf1.resolve('c', span), c)
+      leaf0.resolve(m, 'c', span)
+    self.assertEqual(leaf0.resolve(m, 'b', span), b)
+    self.assertEqual(leaf1.resolve(m, 'c', span), c)
 
   def test_parser_errors(self):
-    with self.assertRaises(parser.ParseError):
+    with self.assertRaises(parser.CppParseError):
       program = """
       type Tuple2 = (u32, u32);
 
@@ -568,7 +585,7 @@ proc simple(addend: u32) {
             filename=self.fake_filename)
 
   def test_bad_dim(self):
-    with self.assertRaises(parser.ParseError):
+    with self.assertRaises(parser.CppParseError):
       program = """
         fn foo(x: bits[+]) -> bits[5] { u5:5 }
       """
@@ -580,7 +597,7 @@ proc simple(addend: u32) {
             filename=self.fake_filename)
 
   def test_bad_dim_expression(self):
-    with self.assertRaises(parser.ParseError):
+    with self.assertRaises(parser.CppParseError):
       program = """
         fn [X: u32, Y: u32] foo(x: bits[X + Y]) -> bits[5] { u5:5 }
       """
@@ -618,7 +635,7 @@ proc simple(addend: u32) {
 
   def test_match(self):
     m = ast.Module('test')
-    b = parser.Bindings(m, None)
+    b = parser.Bindings(None)
     b.add('x', ast.BuiltinNameDef(m, 'x'))
     e = self.parse_expression(
         'match x { u32:42 => u32:64, _ => u32:42 }', bindings=b)
@@ -652,7 +669,7 @@ proc simple(addend: u32) {
           }
         }
         """
-    with self.assertRaises(parser.ParseError) as cm:
+    with self.assertRaises(parser.CppParseError) as cm:
       self.parse_function(program)
     self.assertIn('Cannot have multiple patterns that bind names.',
                   str(cm.exception))
@@ -681,9 +698,21 @@ proc simple(addend: u32) {
     self.assertIsInstance(foo_test.f, ast.Function)
     self.assertEqual('foo', foo_test.f.name.identifier)
 
+  def test_quickcheck_directive_with_test_count(self):
+    m = self.parse_module("""
+    #![quickcheck(test_count=1024)]
+    fn foo(x: u5) -> bool { true }
+    """)
+
+    quickchecks = m.get_quickchecks()
+    self.assertLen(quickchecks, 1)
+    qc = quickchecks[0]
+    self.assertIsInstance(qc, ast.QuickCheck)
+    self.assertIsInstance(qc.f, ast.Function)
+    self.assertEqual('foo', qc.f.name.identifier)
+
   def test_ternary(self):
-    m = ast.Module('test')
-    b = parser.Bindings(m, None)
+    b = parser.Bindings(None)
     e = self.parse_expression('u32:42 if true else u32:24', bindings=b)
     self.assertIsInstance(e, ast.Ternary)
     self.assertIsInstance(e.consequent, ast.Number)
@@ -694,8 +723,7 @@ proc simple(addend: u32) {
     self.assertEqual(e.test.value, 'true')
 
   def test_constant_array(self):
-    m = ast.Module('test')
-    b = parser.Bindings(m, None)
+    b = parser.Bindings(None)
     e = self.parse_expression('u32[2]:[u32:0, u32:1]', bindings=b)
     self.assertIsInstance(e, ast.ConstantArray)
 
@@ -705,7 +733,7 @@ proc simple(addend: u32) {
       x
     }
     """
-    with self.assertRaises(parser.ParseError) as cm:
+    with self.assertRaises(parser.CppParseError) as cm:
       self.parse_function(program)
     self.assertIn("identifier 'x' doesn't resolve to a type", str(cm.exception))
 
@@ -718,16 +746,18 @@ proc simple(addend: u32) {
       x+u32:1
     }
     """
-    with self.assertRaises(parser.ParseError) as cm:
+    with self.assertRaises(parser.CppParseError) as cm:
       self.parse_module(program)
-    self.assertIn('defined in this package multiple times', str(cm.exception))
+    self.assertIn('defined in this module multiple times', str(cm.exception))
 
   def test_parse_name_def_tree(self):
-    text = '(a, (b, (c, d), e), f)'
-    fparse = lambda p, b: p._parse_name_def_tree(b)
+    text = 'let (a, (b, (c, d), e), f) = x; a'
     m = ast.Module('test')
-    bindings = parser.Bindings(m)
-    ndt = self._parse_internal(text, bindings, fparse)
+    bindings = parser.Bindings()
+    bindings.add('x', ast.BuiltinNameDef(m, 'x'))
+    let = self.parse_expression(text, bindings)
+    self.assertIsInstance(let, ast.Let)
+    ndt = let.name_def_tree
     self.assertIsInstance(ndt, ast.NameDefTree)
     self.assertLen(ndt.tree, 3)
     self.assertIsInstance(ndt.tree[0], ast.NameDefTree)
@@ -736,10 +766,10 @@ proc simple(addend: u32) {
     self.assertTrue(ndt.tree[2].is_leaf())
     self.assertEqual(
         ndt.tree[0].span,
-        Span(Pos(self.fake_filename, 0, 1), Pos(self.fake_filename, 0, 2)))
+        Span(Pos(self.fake_filename, 0, 5), Pos(self.fake_filename, 0, 6)))
     self.assertEqual(
         ndt.tree[2].span,
-        Span(Pos(self.fake_filename, 0, 20), Pos(self.fake_filename, 0, 21)))
+        Span(Pos(self.fake_filename, 0, 24), Pos(self.fake_filename, 0, 25)))
     self.assertNotEqual(ndt.tree[2].span, ndt.tree[0].span)
 
   def test_match_freevars(self):
@@ -747,7 +777,7 @@ proc simple(addend: u32) {
       y => z
     }"""
     m = ast.Module('test')
-    b = parser.Bindings(m, None)
+    b = parser.Bindings(None)
     for identifier in ('x', 'y', 'z'):
       b.add(identifier, ast.BuiltinNameDef(m, identifier))
     n = self.parse_expression(text, bindings=b)
@@ -759,10 +789,10 @@ proc simple(addend: u32) {
     const FOO = u32:42;
     const FOO = u3:42;
     """)
-    with self.assertRaises(parser.ParseError) as cm:
+    with self.assertRaises(parser.CppParseError) as cm:
       self.parse_module(program)
     self.assertIn(
-        f'Constant definition is shadowing an existing definition from {self.fake_filename}:1:7-1:10 @ {self.fake_filename}:2:7-2:10',
+        f'Constant definition is shadowing an existing definition from {self.fake_filename}:1:1-1:20',
         str(cm.exception),
     )
 
@@ -993,7 +1023,7 @@ proc simple(addend: u32) {
       FOO = u2:2
     }
     """
-    with self.assertRaises(parser.ParseError) as cm:
+    with self.assertRaises(parser.CppParseError) as cm:
       self.parse_module(program)
     self.assertIn('Type is annotated in enum value, but enum defines a type',
                   str(cm.exception))
@@ -1003,27 +1033,29 @@ proc simple(addend: u32) {
     import thing
     """
     m = ast.Module('test')
-    bindings = parser.Bindings(m, None)
+    bindings = parser.Bindings(None)
     fparse = lambda p, bindings: p.parse_module(bindings)
     m = self._parse_internal(program, bindings, fparse)
     self.assertIsInstance(m.top[0], ast.Import)
     fake_pos = Pos(self.fake_filename, 0, 0)
     fake_span = Span(fake_pos, fake_pos)
-    self.assertIsInstance(bindings.resolve_node('thing', fake_span), ast.Import)
+    self.assertIsInstance(
+        bindings.resolve_node(m, 'thing', fake_span), ast.Import)
 
   def test_import_as(self):
     program = """
     import thing as other
     """
     m = ast.Module('test')
-    bindings = parser.Bindings(m, None)
+    bindings = parser.Bindings(None)
     fparse = lambda p, bindings: p.parse_module(bindings)
     m = self._parse_internal(program, bindings, fparse)
     self.assertIsInstance(m.top[0], ast.Import)
     fake_pos = Pos(self.fake_filename, 0, 0)
     fake_span = Span(fake_pos, fake_pos)
-    self.assertIsInstance(bindings.resolve_node('other', fake_span), ast.Import)
-    self.assertIsNone(bindings.resolve_node_or_none('thing'), None)
+    self.assertIsInstance(
+        bindings.resolve_node(m, 'other', fake_span), ast.Import)
+    self.assertIsNone(bindings.resolve_node_or_none(m, 'thing'), None)
 
   def test_bad_enum_ref(self):
     program = """
@@ -1035,8 +1067,7 @@ proc simple(addend: u32) {
       FOO  // Should be qualified as MyEnum::FOO!
     }
     """
-    m = ast.Module('test')
-    bindings = parser.Bindings(m, None)
+    bindings = parser.Bindings(None)
     fparse = lambda p, bindings: p.parse_module(bindings)
     with self.assertRaises(CppParseError) as cm:
       self._parse_internal(program, bindings, fparse)

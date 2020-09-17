@@ -152,33 +152,15 @@ py_library(
 )
 
 py_library(
-    name = "parser",
-    srcs = ["parser.py"],
-    srcs_version = "PY3",
-    deps = [
-        ":ast_helpers",
-        ":dslx_builtins",
-        ":parse_error",
-        ":token_parser",
-        "//xls/dslx/python:cpp_ast",
-        "//xls/dslx/python:cpp_bindings",
-        "//xls/dslx/python:cpp_pos",
-        "//xls/dslx/python:cpp_scanner",
-        "@com_google_absl_py//absl/logging",
-    ],
-)
-
-py_library(
     name = "parser_helpers",
     srcs = ["parser_helpers.py"],
     srcs_version = "PY3",
     deps = [
         ":parse_error",
-        ":parser",
         ":span",
         requirement("termcolor"),
         "//xls/dslx/python:cpp_ast",
-        "//xls/dslx/python:cpp_bindings",
+        "//xls/dslx/python:cpp_parser",
         "//xls/dslx/python:cpp_scanner",
     ],
 )
@@ -190,10 +172,9 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":fakefs_test_util",
-        ":parser",
         ":parser_helpers",
         "//xls/dslx/python:cpp_ast",
-        "//xls/dslx/python:cpp_bindings",
+        "//xls/dslx/python:cpp_parser",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_scanner",
         "@com_google_absl_py//absl/testing:absltest",
@@ -312,7 +293,7 @@ py_test(
         ":typecheck",
         ":xls_type_error",
         "//xls/common:xls_error",
-        "//xls/dslx/python:cpp_bindings",
+        "//xls/dslx/python:cpp_parser",
         "@com_google_absl_py//absl/logging",
         "@com_google_absl_py//absl/testing:absltest",
     ],
@@ -424,7 +405,7 @@ py_test(
         ":span",
         ":typecheck",
         "//xls/common:runfiles",
-        "//xls/dslx/python:cpp_bindings",
+        "//xls/dslx/python:cpp_parser",
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )
@@ -442,7 +423,7 @@ py_binary(
         ":parser_helpers",
         ":span",
         ":typecheck",
-        "//xls/dslx/python:cpp_bindings",
+        "//xls/dslx/python:cpp_parser",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
     ],
@@ -658,12 +639,40 @@ cc_library(
     hdrs = ["cpp_bindings.h"],
     deps = [
         ":cpp_ast",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "cpp_token_parser",
+    hdrs = ["token_parser.h"],
+    deps = [
+        ":cpp_bindings",
+        ":cpp_scanner",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:variant",
+    ],
+)
+
+cc_library(
+    name = "cpp_parser",
+    srcs = ["parser.cc"],
+    hdrs = ["parser.h"],
+    deps = [
+        ":cpp_ast",
+        ":cpp_bindings",
+        ":cpp_token_parser",
+        "@com_google_absl//absl/debugging:demangle_internal",
+    ],
+)
+
+cc_test(
+    name = "cpp_parser_test",
+    srcs = ["parser_test.cc"],
+    deps = [
+        ":cpp_parser",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest_main",
     ],
 )
