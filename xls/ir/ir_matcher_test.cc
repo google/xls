@@ -297,5 +297,73 @@ TEST(IrMatchersTest, ReductionOps) {
   EXPECT_THAT(and_reduce.node(), m::AndReduce(m::Param("param")));
 }
 
+TEST(IrMatchersTest, SendOps) {
+  Package p("p");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch42,
+      p.CreateChannelWithId("ch42", 42, ChannelKind ::kSendReceive,
+                            {DataElement{"data", p.GetBitsType(32)}},
+                            ChannelMetadataProto()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch123,
+      p.CreateChannelWithId("ch123", 123, ChannelKind::kSendReceive,
+                            {DataElement{"data", p.GetBitsType(32)}},
+                            ChannelMetadataProto()));
+
+  ProcBuilder b("proc", Value(UBits(333, 32)), "my_state", "my_token", &p);
+  auto send = b.Send(ch42, b.GetTokenParam(), {b.GetStateParam()});
+  auto send_if = b.SendIf(ch123, b.GetTokenParam(), b.Literal(UBits(1, 1)),
+                          {b.GetStateParam()});
+  XLS_ASSERT_OK(b.BuildWithReturnValue(
+                     b.Tuple({b.GetStateParam(), b.AfterAll({send, send_if})}))
+                    .status());
+
+  EXPECT_THAT(send.node(), m::Send());
+  EXPECT_THAT(send.node(), m::Send(/*channel_id=*/42));
+  EXPECT_THAT(send.node(), m::Send(m::Param("my_token"), {m::Param("my_state")},
+                                   /*channel_id=*/42));
+
+  EXPECT_THAT(send_if.node(), m::SendIf());
+  EXPECT_THAT(send_if.node(), m::SendIf(/*channel_id=*/123));
+  EXPECT_THAT(send_if.node(), m::SendIf(m::Param("my_token"), m::Literal(),
+                                        {m::Param("my_state")},
+                                        /*channel_id=*/123));
+}
+
+TEST(IrMatchersTest, ReceiveOps) {
+  Package p("p");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch42,
+      p.CreateChannelWithId("ch42", 42, ChannelKind ::kSendReceive,
+                            {DataElement{"data", p.GetBitsType(32)}},
+                            ChannelMetadataProto()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch123,
+      p.CreateChannelWithId("ch123", 123, ChannelKind::kSendReceive,
+                            {DataElement{"data", p.GetBitsType(32)}},
+                            ChannelMetadataProto()));
+
+  ProcBuilder b("proc", Value(UBits(333, 32)), "my_state", "my_token", &p);
+  auto receive = b.Receive(ch42, b.GetTokenParam());
+  auto receive_if =
+      b.ReceiveIf(ch123, b.GetTokenParam(), b.Literal(UBits(1, 1)));
+  XLS_ASSERT_OK(b.BuildWithReturnValue(
+                     b.Tuple({b.GetStateParam(),
+                              b.AfterAll({b.TupleIndex(receive, 0),
+                                          b.TupleIndex(receive_if, 0)})}))
+                    .status());
+
+  EXPECT_THAT(receive.node(), m::Receive());
+  EXPECT_THAT(receive.node(), m::Receive(/*channel_id=*/42));
+  EXPECT_THAT(receive.node(), m::Receive(m::Param("my_token"),
+                                         /*channel_id=*/42));
+
+  EXPECT_THAT(receive_if.node(), m::ReceiveIf());
+  EXPECT_THAT(receive_if.node(), m::ReceiveIf(/*channel_id=*/123));
+  EXPECT_THAT(receive_if.node(),
+              m::ReceiveIf(m::Param("my_token"), m::Literal(),
+                           /*channel_id=*/123));
+}
+
 }  // namespace
 }  // namespace xls

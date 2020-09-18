@@ -373,4 +373,56 @@ TEST(FunctionBuilderTest, BuildTwiceFails) {
                                HasSubstr("multiple times")));
 }
 
+TEST(FunctionBuilderTest, SendAndReceive) {
+  Package p("p");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch0, p.CreateChannel("ch0", ChannelKind::kSendReceive,
+                                     {DataElement{"data", p.GetBitsType(32)}},
+                                     ChannelMetadataProto()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch1, p.CreateChannel("ch1", ChannelKind::kSendReceive,
+                                     {DataElement{"data", p.GetBitsType(32)}},
+                                     ChannelMetadataProto()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch2, p.CreateChannel("ch2", ChannelKind::kSendReceive,
+                                     {DataElement{"data", p.GetBitsType(32)}},
+                                     ChannelMetadataProto()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch3, p.CreateChannel("ch3", ChannelKind::kSendReceive,
+                                     {DataElement{"data", p.GetBitsType(32)}},
+                                     ChannelMetadataProto()));
+
+  ProcBuilder b("sending_receiving", Value(UBits(42, 32)),
+                /*state_name=*/"my_state", /*token_name=*/"my_token", &p);
+  BValue send = b.Send(ch0, b.GetTokenParam(), {b.GetStateParam()});
+  BValue receive = b.Receive(ch1, b.GetTokenParam());
+  BValue pred = b.Literal(UBits(1, 1));
+  BValue send_if = b.SendIf(ch2, b.GetTokenParam(), pred, {b.GetStateParam()});
+  BValue receive_if = b.ReceiveIf(ch3, b.GetTokenParam(), pred);
+  BValue after_all = b.AfterAll(
+      {send, b.TupleIndex(receive, 0), send_if, b.TupleIndex(receive_if, 0)});
+  BValue next_state =
+      b.Add(b.TupleIndex(receive, 1), b.TupleIndex(receive_if, 1));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * proc, b.BuildWithReturnValue(b.Tuple({next_state, after_all})));
+
+  EXPECT_THAT(
+      proc->return_value(),
+      m::Tuple(
+          m::Add(m::TupleIndex(m::Receive()), m::TupleIndex(m::ReceiveIf())),
+          m::AfterAll(m::Send(), m::TupleIndex(m::Receive()), m::SendIf(),
+                      m::TupleIndex(m::ReceiveIf()))));
+
+  EXPECT_EQ(proc->InitValue(), Value(UBits(42, 32)));
+  EXPECT_EQ(proc->StateParam()->GetName(), "my_state");
+  EXPECT_EQ(proc->TokenParam()->GetName(), "my_token");
+  EXPECT_EQ(proc->StateType(), p.GetBitsType(32));
+
+  EXPECT_EQ(send.node()->GetType(), p.GetTokenType());
+  EXPECT_EQ(send_if.node()->GetType(), p.GetTokenType());
+  EXPECT_EQ(receive.node()->GetType(), p.GetReceiveType(ch1));
+  EXPECT_EQ(receive_if.node()->GetType(), p.GetReceiveType(ch3));
+}
+
 }  // namespace xls

@@ -411,10 +411,22 @@ class BuilderBase {
   BValue Receive(Channel* channel, BValue token,
                  absl::optional<SourceLocation> loc = absl::nullopt);
 
+  // Add a receive_if operation. The receive executes conditionally on the value
+  // of the predicate "pred". The type of the data elements received is
+  // determined by the channel.
+  BValue ReceiveIf(Channel* channel, BValue token, BValue pred,
+                   absl::optional<SourceLocation> loc = absl::nullopt);
+
   // Add a send operation.
   BValue Send(Channel* channel, BValue token,
               absl::Span<const BValue> data_operands,
               absl::optional<SourceLocation> loc = absl::nullopt);
+
+  // Add a send_if operation. The send executes conditionally on the value of
+  // the predicate "pred".
+  BValue SendIf(Channel* channel, BValue token, BValue pred,
+                absl::Span<const BValue> data_operands,
+                absl::optional<SourceLocation> loc = absl::nullopt);
 
   Package* package() const { return function_->package(); }
 

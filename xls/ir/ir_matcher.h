@@ -16,6 +16,7 @@
 #define XLS_IR_IR_MATCHER_H_
 
 #include "gtest/gtest.h"
+#include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "xls/ir/format_preference.h"
@@ -303,9 +304,9 @@ inline ::testing::Matcher<const ::xls::Node*> Literal(
     absl::string_view value_str) {
   Value value = Parser::ParseTypedValue(value_str).value();
   FormatPreference format = FormatPreference::kDefault;
-  if (value_str.find("0b") != std::string::npos) {
+  if (absl::StrContains(value_str, "0b")) {
     format = FormatPreference::kBinary;
-  } else if (value_str.find("0x") != std::string::npos) {
+  } else if (absl::StrContains(value_str, "0x")) {
     format = FormatPreference::kHex;
   }
   return ::testing::MakeMatcher(
@@ -416,6 +417,7 @@ inline ::testing::Matcher<const ::xls::Node*> OneHotSelect() {
 //
 //   EXPECT_THAT(foo, op::TupleIndex());
 //   EXPECT_THAT(foo, op::TupleIndex(/*index=*/42));
+//   EXPECT_THAT(foo, op::TupleIndex(op::Param(), /*index=*/42));
 class TupleIndexMatcher : public NodeMatcher {
  public:
   explicit TupleIndexMatcher(::testing::Matcher<const Node*> operand,
@@ -442,6 +444,166 @@ inline ::testing::Matcher<const ::xls::Node*> TupleIndex(
     absl::optional<int64> index = absl::nullopt) {
   return ::testing::MakeMatcher(
       new ::xls::op_matchers::TupleIndexMatcher(operand, index));
+}
+
+// Send matcher. Supported forms:
+//
+//   EXPECT_THAT(foo, op::Send());
+//   EXPECT_THAT(foo, op::Send(/*channel_id=*/42));
+//   EXPECT_THAT(foo, op::Send(/*token=*/op::Param(), /*data=*/{op::Param()},
+//                             /*channel_id=*/42));
+class SendMatcher : public NodeMatcher {
+ public:
+  explicit SendMatcher(::testing::Matcher<const Node*> token,
+                       std::vector<::testing::Matcher<const Node*>> data,
+                       absl::optional<int64> channel_id = absl::nullopt)
+      : NodeMatcher(Op::kChannelSend,
+                    [&]() {
+                      std::vector<::testing::Matcher<const Node*>> operands;
+                      operands.push_back(token);
+                      operands.insert(operands.end(), data.begin(), data.end());
+                      return operands;
+                    }()),
+        channel_id_(channel_id) {}
+  explicit SendMatcher(absl::optional<int64> channel_id = absl::nullopt)
+      : NodeMatcher(Op::kChannelSend, {}), channel_id_(channel_id) {}
+
+  bool MatchAndExplain(const Node* node,
+                       ::testing::MatchResultListener* listener) const override;
+
+ private:
+  absl::optional<int64> channel_id_;
+};
+
+inline ::testing::Matcher<const ::xls::Node*> Send(
+    absl::optional<int64> channel_id = absl::nullopt) {
+  return ::testing::MakeMatcher(
+      new ::xls::op_matchers::SendMatcher(channel_id));
+}
+
+inline ::testing::Matcher<const ::xls::Node*> Send(
+    ::testing::Matcher<const ::xls::Node*> token,
+    std::vector<::testing::Matcher<const Node*>> data,
+    absl::optional<int64> channel_id = absl::nullopt) {
+  return ::testing::MakeMatcher(
+      new ::xls::op_matchers::SendMatcher(token, data, channel_id));
+}
+
+// SendIf matcher. Supported forms:
+//
+//   EXPECT_THAT(foo, op::SendIf());
+//   EXPECT_THAT(foo, op::SendIf(/*channel_id=*/42));
+//   EXPECT_THAT(foo, op::SendIf(/*token=*/op::Param(), /*pred=*/op::Param(),
+//                               /*data=*/{op::Param()}, /*channel_id=*/42));
+class SendIfMatcher : public NodeMatcher {
+ public:
+  explicit SendIfMatcher(::testing::Matcher<const Node*> token,
+                         ::testing::Matcher<const Node*> pred,
+                         std::vector<::testing::Matcher<const Node*>> data,
+                         absl::optional<int64> channel_id = absl::nullopt)
+      : NodeMatcher(Op::kChannelSendIf,
+                    [&]() {
+                      std::vector<::testing::Matcher<const Node*>> operands;
+                      operands.push_back(token);
+                      operands.push_back(pred);
+                      operands.insert(operands.end(), data.begin(), data.end());
+                      return operands;
+                    }()),
+        channel_id_(channel_id) {}
+  explicit SendIfMatcher(absl::optional<int64> channel_id = absl::nullopt)
+      : NodeMatcher(Op::kChannelSendIf, {}), channel_id_(channel_id) {}
+
+  bool MatchAndExplain(const Node* node,
+                       ::testing::MatchResultListener* listener) const override;
+
+ private:
+  absl::optional<int64> channel_id_;
+};
+
+inline ::testing::Matcher<const ::xls::Node*> SendIf(
+    absl::optional<int64> channel_id = absl::nullopt) {
+  return ::testing::MakeMatcher(
+      new ::xls::op_matchers::SendIfMatcher(channel_id));
+}
+
+inline ::testing::Matcher<const ::xls::Node*> SendIf(
+    ::testing::Matcher<const ::xls::Node*> token,
+    ::testing::Matcher<const ::xls::Node*> pred,
+    std::vector<::testing::Matcher<const Node*>> data,
+    absl::optional<int64> channel_id = absl::nullopt) {
+  return ::testing::MakeMatcher(
+      new ::xls::op_matchers::SendIfMatcher(token, pred, data, channel_id));
+}
+
+// Receive matcher. Supported forms:
+//
+//   EXPECT_THAT(foo, op::Receive());
+//   EXPECT_THAT(foo, op::Receive(/*channel_id=*/42));
+//   EXPECT_THAT(foo, op::Receive(/*token=*/op::Param(), /*pred=*/op::Param(),
+//                                /*channel_id=*/42));
+class ReceiveMatcher : public NodeMatcher {
+ public:
+  explicit ReceiveMatcher(::testing::Matcher<const Node*> token,
+                          absl::optional<int64> channel_id = absl::nullopt)
+      : NodeMatcher(Op::kChannelReceive, {token}), channel_id_(channel_id) {}
+  explicit ReceiveMatcher(absl::optional<int64> channel_id = absl::nullopt)
+      : NodeMatcher(Op::kChannelReceive, {}), channel_id_(channel_id) {}
+
+  bool MatchAndExplain(const Node* node,
+                       ::testing::MatchResultListener* listener) const override;
+
+ private:
+  absl::optional<int64> channel_id_;
+};
+
+inline ::testing::Matcher<const ::xls::Node*> Receive(
+    absl::optional<int64> channel_id = absl::nullopt) {
+  return ::testing::MakeMatcher(
+      new ::xls::op_matchers::ReceiveMatcher(channel_id));
+}
+
+inline ::testing::Matcher<const ::xls::Node*> Receive(
+    ::testing::Matcher<const ::xls::Node*> token,
+    absl::optional<int64> channel_id = absl::nullopt) {
+  return ::testing::MakeMatcher(
+      new ::xls::op_matchers::ReceiveMatcher(token, channel_id));
+}
+
+// ReceiveIf matcher. Supported forms:
+//
+//   EXPECT_THAT(foo, op::ReceiveIf());
+//   EXPECT_THAT(foo, op::ReceiveIf(/*channel_id=*/42));
+//   EXPECT_THAT(foo, op::ReceiveIf(/*token=*/op::Param(),
+//                                  /*pred=*/op::Param(), /*channel_id=*/42));
+class ReceiveIfMatcher : public NodeMatcher {
+ public:
+  explicit ReceiveIfMatcher(::testing::Matcher<const Node*> token,
+                            ::testing::Matcher<const Node*> pred,
+                            absl::optional<int64> channel_id = absl::nullopt)
+      : NodeMatcher(Op::kChannelReceiveIf, {token, pred}),
+        channel_id_(channel_id) {}
+  explicit ReceiveIfMatcher(absl::optional<int64> channel_id = absl::nullopt)
+      : NodeMatcher(Op::kChannelReceiveIf, {}), channel_id_(channel_id) {}
+
+  bool MatchAndExplain(const Node* node,
+                       ::testing::MatchResultListener* listener) const override;
+
+ private:
+  absl::optional<int64> channel_id_;
+};
+
+inline ::testing::Matcher<const ::xls::Node*> ReceiveIf(
+    absl::optional<int64> channel_id = absl::nullopt) {
+  return ::testing::MakeMatcher(
+      new ::xls::op_matchers::ReceiveIfMatcher(channel_id));
+}
+
+inline ::testing::Matcher<const ::xls::Node*> ReceiveIf(
+    ::testing::Matcher<const ::xls::Node*> token,
+    ::testing::Matcher<const ::xls::Node*> pred,
+    absl::optional<int64> channel_id = absl::nullopt) {
+  return ::testing::MakeMatcher(
+      new ::xls::op_matchers::ReceiveIfMatcher(token, pred, channel_id));
 }
 
 }  // namespace op_matchers

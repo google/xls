@@ -761,21 +761,41 @@ absl::StatusOr<BValue> Parser::ParseFunctionBody(
           return absl::InvalidArgumentError(absl::StrFormat(
               "No such channel with channel ID %d", *channel_id));
         }
-        XLS_ASSIGN_OR_RETURN(Type * expected_type,
-                             package->GetReceiveType(*channel_id));
+        XLS_ASSIGN_OR_RETURN(Channel * channel,
+                             package->GetChannel(*channel_id));
+        Type* expected_type = package->GetReceiveType(channel);
         if (expected_type != type) {
           return absl::InvalidArgumentError(
               absl::StrFormat("Receive op type is type: %s. Expected: %s",
                               type->ToString(), expected_type->ToString()));
         }
+        bvalue = fb->Receive(channel, operands[0], *loc);
+        break;
+      }
+      case Op::kChannelReceiveIf: {
+        int64* channel_id = arg_parser.AddKeywordArg<int64>("channel_id");
+        XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
+        // Get the channel from the package.
+        if (!package->HasChannelWithId(*channel_id)) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "No such channel with channel ID %d", *channel_id));
+        }
         XLS_ASSIGN_OR_RETURN(Channel * channel,
                              package->GetChannel(*channel_id));
-        bvalue = fb->Receive(channel, operands[0], *loc);
+        Type* expected_type = package->GetReceiveType(channel);
+        if (expected_type != type) {
+          return absl::InvalidArgumentError(
+              absl::StrFormat("Receive_if op type is type: %s. Expected: %s",
+                              type->ToString(), expected_type->ToString()));
+        }
+        bvalue = fb->ReceiveIf(channel, operands[0], operands[1], *loc);
         break;
       }
       case Op::kChannelSend: {
         int64* channel_id = arg_parser.AddKeywordArg<int64>("channel_id");
-        XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(ArgParser::kVariadic));
+        std::vector<BValue>* data_args =
+            arg_parser.AddKeywordArg<std::vector<BValue>>("data");
+        XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
         // Get the channel from the package.
         if (!package->HasChannelWithId(*channel_id)) {
           return absl::InvalidArgumentError(absl::StrFormat(
@@ -785,8 +805,25 @@ absl::StatusOr<BValue> Parser::ParseFunctionBody(
                              package->GetChannel(*channel_id));
         // The first operand is the token, and the remaining are the data
         // values to send.
-        bvalue = fb->Send(channel, operands[0],
-                          absl::Span<BValue>(operands).subspan(1), *loc);
+        bvalue = fb->Send(channel, operands[0], *data_args, *loc);
+        break;
+      }
+      case Op::kChannelSendIf: {
+        int64* channel_id = arg_parser.AddKeywordArg<int64>("channel_id");
+        std::vector<BValue>* data_args =
+            arg_parser.AddKeywordArg<std::vector<BValue>>("data");
+        XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
+        // Get the channel from the package.
+        if (!package->HasChannelWithId(*channel_id)) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "No such channel with channel ID %d", *channel_id));
+        }
+        XLS_ASSIGN_OR_RETURN(Channel * channel,
+                             package->GetChannel(*channel_id));
+        // The first operand is the token, and the remaining are the data
+        // values to send.
+        bvalue = fb->SendIf(channel, /*token=*/operands[0],
+                            /*pred=*/operands[1], *data_args, *loc);
         break;
       }
       default:

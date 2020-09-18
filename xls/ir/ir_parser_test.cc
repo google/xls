@@ -723,6 +723,21 @@ fn foo(x: bits[32]) -> bits[32] {
   ParsePackageAndCheckDump(input);
 }
 
+TEST(IrParserTest, ParseSimpleProc) {
+  const std::string input = R"(package test
+
+chan ch(data: bits[32], id=0, kind=send_receive, metadata="""module_port { flopped: true }""")
+
+proc my_proc(my_state: bits[32], my_token: token, init=42) {
+  send.1: token = send(my_token, data=[my_state], channel_id=0)
+  receive.2: (token, bits[32]) = receive(send.1, channel_id=0)
+  tuple_index.3: token = tuple_index(receive.2, index=0)
+  ret tuple.4: (bits[32], token) = tuple(my_state, tuple_index.3)
+}
+)";
+  ParsePackageAndCheckDump(input);
+}
+
 TEST(IrParserTest, ParseArrayIndex) {
   const std::string input = R"(
 fn foo(x: bits[32][6]) -> bits[32] {
@@ -1473,8 +1488,33 @@ proc my_proc(my_state: bits[32], my_token: token, init=42) {
   tuple_index.2: token = tuple_index(receive.1, index=0)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
   add.4: bits[32] = add(my_state, tuple_index.3)
-  send.5: token = send(tuple_index.2, my_state, add.4, channel_id=1)
+  send.5: token = send(tuple_index.2, data=[add.4], channel_id=1)
   ret tuple.6: (bits[32], token) = tuple(add.4, send.5)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
+  EXPECT_EQ(package->procs().size(), 1);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
+  EXPECT_EQ(proc->name(), "my_proc");
+}
+
+TEST(IrParserTest, PackageWithMultipleDataElementChannels) {
+  std::string program = R"(
+package test
+
+chan hbo(junk: bits[32], garbage: bits[1], id=0, kind=receive_only,
+            metadata="module_port { flopped: true }")
+chan mtv(stuff: bits[32], zzz: bits[1], id=1, kind=send_only,
+            metadata="module_port { flopped: true }")
+
+proc my_proc(my_state: bits[32], my_token: token, init=42) {
+  literal.1: bits[1] = literal(value=1)
+  receive_if.2: (token, bits[32], bits[1]) = receive_if(my_token, literal.1, channel_id=0)
+  tuple_index.3: token = tuple_index(receive_if.2, index=0)
+  tuple_index.4: bits[32] = tuple_index(receive_if.2, index=1)
+  tuple_index.5: bits[1] = tuple_index(receive_if.2, index=2)
+  send_if.6: token = send_if(tuple_index.3, literal.1, data=[tuple_index.4, tuple_index.5], channel_id=1)
+  ret tuple.7: (bits[32], token) = tuple(my_state, send_if.6)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));

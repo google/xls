@@ -440,7 +440,7 @@ OpClass.kinds['CHANNEL_RECEIVE'] = OpClass(
     name='ChannelReceive',
     op='Op::kChannelReceive',
     operands=[Operand('token')],
-    xls_type_expression='function->package()->GetReceiveType(channel_id).value()',
+    xls_type_expression='function->package()->GetReceiveType(function->package()->GetChannel(channel_id).value())',
     attributes=[Int64Attribute('channel_id')]
 )
 
@@ -448,7 +448,7 @@ OpClass.kinds['CHANNEL_RECEIVE_IF'] = OpClass(
     name='ChannelReceiveIf',
     op='Op::kChannelReceiveIf',
     operands=[Operand('token'), Operand('pred')],
-    xls_type_expression='function->package()->GetReceiveType(channel_id).value()',
+    xls_type_expression='function->package()->GetReceiveType(function->package()->GetChannel(channel_id).value())',
     attributes=[Int64Attribute('channel_id')]
 )
 
@@ -458,6 +458,9 @@ OpClass.kinds['CHANNEL_SEND'] = OpClass(
     operands=[Operand('token'), OperandSpan('args')],
     xls_type_expression='function->package()->GetTokenType()',
     attributes=[Int64Attribute('channel_id')],
+    extra_methods=[Method(name='data',
+                          return_cpp_type='absl::Span<Node* const>',
+                          expression='operands().subspan(1)')],
     custom_clone_method=True
 )
 
@@ -467,6 +470,12 @@ OpClass.kinds['CHANNEL_SEND_IF'] = OpClass(
     operands=[Operand('token'), Operand('pred'), OperandSpan('args')],
     xls_type_expression='function->package()->GetTokenType()',
     attributes=[Int64Attribute('channel_id')],
+    extra_methods=[Method(name='predicate',
+                          return_cpp_type='Node*',
+                          expression='operand(1)'),
+                   Method(name='data',
+                          return_cpp_type='absl::Span<Node* const>',
+                          expression='operands().subspan(2)')],
     custom_clone_method=True
 )
 

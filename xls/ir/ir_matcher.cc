@@ -207,5 +207,57 @@ bool TupleIndexMatcher::MatchAndExplain(
   return true;
 }
 
+bool SendMatcher::MatchAndExplain(
+    const Node* node, ::testing::MatchResultListener* listener) const {
+  if (!NodeMatcher::MatchAndExplain(node, listener)) {
+    return false;
+  }
+  if (channel_id_.has_value() &&
+      *channel_id_ != node->As<::xls::ChannelSend>()->channel_id()) {
+    *listener << " has incorrect channel id, expected: " << *channel_id_;
+    return false;
+  }
+  return true;
+}
+
+bool SendIfMatcher::MatchAndExplain(
+    const Node* node, ::testing::MatchResultListener* listener) const {
+  if (!NodeMatcher::MatchAndExplain(node, listener)) {
+    return false;
+  }
+  if (channel_id_.has_value() &&
+      *channel_id_ != node->As<::xls::ChannelSendIf>()->channel_id()) {
+    *listener << " has incorrect channel id, expected: " << *channel_id_;
+    return false;
+  }
+  return true;
+}
+
+bool ReceiveMatcher::MatchAndExplain(
+    const Node* node, ::testing::MatchResultListener* listener) const {
+  if (!NodeMatcher::MatchAndExplain(node, listener)) {
+    return false;
+  }
+  if (channel_id_.has_value() &&
+      *channel_id_ != node->As<::xls::ChannelReceive>()->channel_id()) {
+    *listener << " has incorrect channel id, expected: " << *channel_id_;
+    return false;
+  }
+  return true;
+}
+
+bool ReceiveIfMatcher::MatchAndExplain(
+    const Node* node, ::testing::MatchResultListener* listener) const {
+  if (!NodeMatcher::MatchAndExplain(node, listener)) {
+    return false;
+  }
+  if (channel_id_.has_value() &&
+      *channel_id_ != node->As<::xls::ChannelReceiveIf>()->channel_id()) {
+    *listener << " has incorrect channel id, expected: " << *channel_id_;
+    return false;
+  }
+  return true;
+}
+
 }  // namespace op_matchers
 }  // namespace xls

@@ -175,6 +175,9 @@ class Package {
       absl::Span<const DataElement> data_elements,
       const ChannelMetadataProto& metadata);
 
+  // Returns a span of the channels owned by the package. Sorted by channel ID.
+  absl::Span<Channel* const> channels() const { return channel_vec_; }
+
   // Returns the channel with the given ID or returns an error if no such
   // channel exists.
   absl::StatusOr<Channel*> GetChannel(int64 id) const;
@@ -184,8 +187,8 @@ class Package {
     return channels_.find(id) != channels_.end();
   }
 
-  // Returns the type of a receive operation for the channel with the given id.
-  absl::StatusOr<Type*> GetReceiveType(int64 channel_id);
+  // Returns the type of a receive operation for the given channel.
+  Type* GetReceiveType(Channel* channel);
 
  private:
   friend class FunctionBuilder;
@@ -244,6 +247,10 @@ class Package {
   // Channels owned by this package. Indexed by channel id. Stored as
   // unique_ptrs for pointer stability.
   UnorderedMap<int64, std::unique_ptr<Channel>> channels_;
+
+  // Vector of channel pointers. Kept in sync with the channels_ map. Enables
+  // easy, stable iteration over channels.
+  std::vector<Channel*> channel_vec_;
 
   // The next channel ID to assign.
   int64 next_channel_id_ = 0;

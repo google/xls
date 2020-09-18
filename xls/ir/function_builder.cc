@@ -823,6 +823,28 @@ BValue BuilderBase::Receive(Channel* channel, BValue token,
   return AddNode<ChannelReceive>(loc, token.node(), channel->id());
 }
 
+BValue BuilderBase::ReceiveIf(Channel* channel, BValue token, BValue pred,
+                              absl::optional<SourceLocation> loc) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!token.GetType()->IsToken()) {
+    return SetError(
+        StrFormat("Token operand of receive must be of token type; is: %s",
+                  token.GetType()->ToString()),
+        loc);
+  }
+  if (!pred.GetType()->IsBits() ||
+      pred.GetType()->AsBitsOrDie()->bit_count() != 1) {
+    return SetError(StrFormat("Predicate operand of receive_if must be of bits "
+                              "type of width 1; is: %s",
+                              pred.GetType()->ToString()),
+                    loc);
+  }
+  return AddNode<ChannelReceiveIf>(loc, token.node(), pred.node(),
+                                   channel->id());
+}
+
 BValue BuilderBase::Send(Channel* channel, BValue token,
                          absl::Span<const BValue> data_operands,
                          absl::optional<SourceLocation> loc) {
@@ -839,12 +861,41 @@ BValue BuilderBase::Send(Channel* channel, BValue token,
     return SetError("Send must have at least one data operand", loc);
   }
   std::vector<Node*> data_operand_nodes;
-  data_operand_nodes.push_back(token.node());
   for (const BValue& data_operand : data_operands) {
     data_operand_nodes.push_back(data_operand.node());
   }
   return AddNode<ChannelSend>(loc, token.node(), data_operand_nodes,
                               channel->id());
+}
+
+BValue BuilderBase::SendIf(Channel* channel, BValue token, BValue pred,
+                           absl::Span<const BValue> data_operands,
+                           absl::optional<SourceLocation> loc) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!token.GetType()->IsToken()) {
+    return SetError(
+        StrFormat("Token operand of send must be of token type; is: %s",
+                  token.GetType()->ToString()),
+        loc);
+  }
+  if (!pred.GetType()->IsBits() ||
+      pred.GetType()->AsBitsOrDie()->bit_count() != 1) {
+    return SetError(StrFormat("Predicate operand of send_if must be of bits "
+                              "type of width 1; is: %s",
+                              pred.GetType()->ToString()),
+                    loc);
+  }
+  if (data_operands.empty()) {
+    return SetError("Send must have at least one data operand", loc);
+  }
+  std::vector<Node*> data_operand_nodes;
+  for (const BValue& data_operand : data_operands) {
+    data_operand_nodes.push_back(data_operand.node());
+  }
+  return AddNode<ChannelSendIf>(loc, token.node(), pred.node(),
+                                data_operand_nodes, channel->id());
 }
 
 }  // namespace xls

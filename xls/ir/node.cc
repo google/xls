@@ -399,6 +399,39 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       }
       break;
     }
+    case Op::kChannelSend: {
+      const ChannelSend* send = As<ChannelSend>();
+      args = {operand(0)->GetName()};
+      args.push_back(absl::StrFormat(
+          "data=[%s]", absl::StrJoin(send->data(), ", ",
+                                     [](std::string* out, const Node* node) {
+                                       absl::StrAppend(out, node->GetName());
+                                     })));
+      args.push_back(absl::StrFormat("channel_id=%d", send->channel_id()));
+      break;
+    }
+    case Op::kChannelSendIf: {
+      const ChannelSendIf* send_if = As<ChannelSendIf>();
+      args = {operand(0)->GetName(), operand(1)->GetName()};
+      args.push_back(absl::StrFormat(
+          "data=[%s]", absl::StrJoin(send_if->data(), ", ",
+                                     [](std::string* out, const Node* node) {
+                                       absl::StrAppend(out, node->GetName());
+                                     })));
+      args.push_back(absl::StrFormat("channel_id=%d", send_if->channel_id()));
+      break;
+    }
+    case Op::kChannelReceive: {
+      const ChannelReceive* receive = As<ChannelReceive>();
+      args.push_back(absl::StrFormat("channel_id=%d", receive->channel_id()));
+      break;
+    }
+    case Op::kChannelReceiveIf: {
+      const ChannelReceiveIf* receive_if = As<ChannelReceiveIf>();
+      args.push_back(
+          absl::StrFormat("channel_id=%d", receive_if->channel_id()));
+      break;
+    }
     case Op::kSignExt:
     case Op::kZeroExt:
       args.push_back(

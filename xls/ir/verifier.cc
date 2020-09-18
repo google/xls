@@ -90,16 +90,14 @@ class NodeChecker : public DfsVisitor {
           StrFormat("%s refers to channel ID %d which does not exist",
                     receive->GetName(), receive->channel_id()));
     }
-    XLS_ASSIGN_OR_RETURN(
-        Type * expected_type,
-        receive->package()->GetReceiveType(receive->channel_id()));
+    XLS_ASSIGN_OR_RETURN(Channel * channel,
+                         receive->package()->GetChannel(receive->channel_id()));
+    Type* expected_type = receive->package()->GetReceiveType(channel);
     if (receive->GetType() != expected_type) {
       return absl::InternalError(StrFormat(
           "Expected %s to have type %s, has type %s", receive->GetName(),
           expected_type->ToString(), receive->GetType()->ToString()));
     }
-    XLS_ASSIGN_OR_RETURN(Channel * channel,
-                         receive->package()->GetChannel(receive->channel_id()));
     if (!channel->CanReceive()) {
       return absl::InternalError(StrFormat(
           "Cannot receive over channel %s (%d), receive operation: %s",
@@ -119,16 +117,14 @@ class NodeChecker : public DfsVisitor {
           StrFormat("%s refers to channel ID %d which does not exist",
                     receive_if->GetName(), receive_if->channel_id()));
     }
-    XLS_ASSIGN_OR_RETURN(
-        Type * expected_type,
-        receive_if->package()->GetReceiveType(receive_if->channel_id()));
+    XLS_ASSIGN_OR_RETURN(Channel * channel, receive_if->package()->GetChannel(
+                                                receive_if->channel_id()));
+    Type* expected_type = receive_if->package()->GetReceiveType(channel);
     if (receive_if->GetType() != expected_type) {
       return absl::InternalError(StrFormat(
           "Expected %s to have type %s, has type %s", receive_if->GetName(),
           expected_type->ToString(), receive_if->GetType()->ToString()));
     }
-    XLS_ASSIGN_OR_RETURN(Channel * channel, receive_if->package()->GetChannel(
-                                                receive_if->channel_id()));
     if (!channel->CanReceive()) {
       return absl::InternalError(StrFormat(
           "Cannot receive over channel %s (%d), receive_if operation: %s",
@@ -1016,6 +1012,9 @@ absl::Status VerifyFunction(Function* function) {
   XLS_VLOG_LINES(2, function->DumpIr());
 
   XLS_RETURN_IF_ERROR(VerifyFunctionOrProc(function));
+
+  // TODO(meheff): Verify no send or receive operations are in the function.
+  // TODO(meheff): Verify no token types are in the function.
 
   return absl::OkStatus();
 }

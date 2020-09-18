@@ -353,6 +353,12 @@ bool Package::IsDefinitelyEqualTo(const Package* other) const {
 std::string Package::DumpIr() const {
   std::string out;
   absl::StrAppend(&out, "package ", name(), "\n\n");
+  if (!channels().empty()) {
+    for (Channel* channel : channels()) {
+      absl::StrAppend(&out, channel->ToString(), "\n");
+    }
+    absl::StrAppend(&out, "\n");
+  }
   std::vector<std::string> function_dumps;
   for (auto& function : functions()) {
     function_dumps.push_back(function->DumpIr());
@@ -407,6 +413,13 @@ absl::StatusOr<Channel*> Package::CreateChannelWithId(
     return absl::InternalError(
         absl::StrFormat("Channel already exists with id %d.", id));
   }
+
+  // Add pointer to newly added channel to the channel vector and resort it by
+  // ID.
+  channel_vec_.push_back(channel_it->second.get());
+  std::sort(channel_vec_.begin(), channel_vec_.end(),
+            [](Channel* a, Channel* b) { return a->id() < b->id(); });
+
   next_channel_id_ = std::max(next_channel_id_, id + 1);
   return channel_it->second.get();
 }
@@ -420,8 +433,7 @@ absl::StatusOr<Channel*> Package::GetChannel(int64 id) const {
   return channels_.at(id).get();
 }
 
-absl::StatusOr<Type*> Package::GetReceiveType(int64 channel_id) {
-  XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannel(channel_id));
+Type* Package::GetReceiveType(Channel* channel) {
   std::vector<Type*> element_types;
   element_types.push_back(GetTokenType());
   for (const DataElement& data : channel->data_elements()) {
