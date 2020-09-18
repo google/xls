@@ -352,7 +352,7 @@ TEST(IrParserTest, CountedForMissingBody) {
   std::string program = R"(
 package CountedForMissingBody
 
-fn body(x: bits[11], y: bits[11]) -> bits[11] {
+fn body(i: bits[11], x: bits[11], y: bits[11]) -> bits[11] {
   ret add.3: bits[11] = add(x, y)
 }
 
@@ -371,7 +371,7 @@ TEST(IrParserTest, CountedForInvariantArgs) {
   std::string program = R"(
 package CountedFor
 
-fn body(x: bits[11], y: bits[11]) -> bits[11] {
+fn body(i: bits[11], x: bits[11], y: bits[11]) -> bits[11] {
   ret add.3: bits[11] = add(x, y)
 }
 
@@ -382,6 +382,363 @@ fn main() -> bits[11] {
 }
 )";
   ParsePackageAndCheckDump(program);
+}
+TEST(IrParserTest, CountedForBodyParamCountTooMany0) {
+  std::string program = R"(
+package test
+
+fn loop_fn(i: bits[4], data: bits[16], x: bits[16], y: bits[16]) -> bits[16] {
+  ret literal.10: bits[16] = literal(value=0)
+}
+
+fn f(x: bits[16]) -> bits[16] {
+  literal.2: bits[16] = literal(value=2)
+  literal.3: bits[16] = literal(value=3)
+
+  ret counted_for.100: bits[16] = counted_for(x, trip_count=2, body=loop_fn,
+      invariant_args=[literal.2])
+}
+)";
+
+  EXPECT_THAT(Parser::ParsePackage(program).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("counted_for body should have 3 parameters, "
+                                 "got 4 instead")));
+}
+
+TEST(IrParserTest, CountedForBodyParamCountTooMany1) {
+  std::string program = R"(
+package test
+
+fn loop_fn(i: bits[4], data: bits[16], x: bits[16]) -> bits[16] {
+  ret literal.10: bits[16] = literal(value=0)
+}
+
+fn f(x: bits[16]) -> bits[16] {
+  literal.2: bits[16] = literal(value=2)
+
+  ret counted_for.100: bits[16] = counted_for(x, trip_count=2, body=loop_fn)
+}
+)";
+
+  EXPECT_THAT(Parser::ParsePackage(program).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("counted_for body should have 2 parameters, "
+                                 "got 3 instead")));
+}
+
+TEST(IrParserTest, CountedForBodyParamCountTooFew0) {
+  std::string program = R"(
+package test
+
+fn loop_fn(i: bits[4], data: bits[16], x: bits[16], y: bits[16]) -> bits[16] {
+  ret literal.10: bits[16] = literal(value=0)
+}
+
+fn f(x: bits[16]) -> bits[16] {
+  literal.2: bits[16] = literal(value=2)
+  literal.3: bits[16] = literal(value=3)
+  literal.4: bits[16] = literal(value=4)
+
+  ret counted_for.100: bits[16] = counted_for(x, trip_count=2, body=loop_fn,
+      invariant_args=[literal.2, literal.3, literal.4])
+}
+)";
+
+  EXPECT_THAT(Parser::ParsePackage(program).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("counted_for body should have 5 parameters, "
+                                 "got 4 instead")));
+}
+
+TEST(IrParserTest, CountedForBodyParamCountTooFew1) {
+  std::string program = R"(
+package test
+
+fn loop_fn(i: bits[4], data: bits[16]) -> bits[16] {
+  ret literal.10: bits[16] = literal(value=0)
+}
+
+fn f(x: bits[16]) -> bits[16] {
+  literal.2: bits[16] = literal(value=2)
+
+  ret counted_for.100: bits[16] = counted_for(x, trip_count=2, body=loop_fn,
+      invariant_args=[literal.2])
+}
+)";
+
+  EXPECT_THAT(Parser::ParsePackage(program).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("counted_for body should have 3 parameters, "
+                                 "got 2 instead")));
+}
+
+TEST(IrParserTest, CountedForBodyParamCountTooFew2) {
+  std::string program = R"(
+package test
+
+fn loop_fn() -> bits[16] {
+  ret literal.10: bits[16] = literal(value=0)
+}
+
+fn f(x: bits[16]) -> bits[16] {
+  literal.2: bits[16] = literal(value=2)
+
+  ret counted_for.100: bits[16] = counted_for(x, trip_count=2, body=loop_fn)
+}
+)";
+
+  EXPECT_THAT(Parser::ParsePackage(program).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("counted_for body should have 2 parameters, "
+                                 "got 0 instead")));
+}
+
+TEST(IrParserTest, CountedForBodyBitWidthSufficient0) {
+  std::string program = R"(
+package test
+
+fn loop_fn(i: bits[4], data: bits[16]) -> bits[16] {
+  ret literal.10: bits[16] = literal(value=0)
+}
+
+fn f(x: bits[16]) -> bits[16] {
+  literal.2: bits[16] = literal(value=2)
+
+  ret counted_for.100: bits[16] = counted_for(x, trip_count=16, stride=1,
+                                              body=loop_fn)
+}
+)";
+
+  ParsePackageAndCheckDump(program);
+}
+
+TEST(IrParserTest, CountedForBodyBitWidthZeroIteration) {
+  std::string program = R"(
+package test
+
+fn loop_fn(i: bits[1], data: bits[16]) -> bits[16] {
+  ret literal.10: bits[16] = literal(value=0)
+}
+
+fn f(x: bits[16]) -> bits[16] {
+  literal.2: bits[16] = literal(value=2)
+
+  ret counted_for.100: bits[16] = counted_for(x, trip_count=0, stride=1,
+                                              body=loop_fn)
+}
+)";
+
+  ParsePackageAndCheckDump(program);
+}
+
+TEST(IrParserTest, CountedForBodyBitWidthOneIteration) {
+  std::string program = R"(
+package test
+
+fn loop_fn(i: bits[1], data: bits[16]) -> bits[16] {
+  ret literal.10: bits[16] = literal(value=0)
+}
+
+fn f(x: bits[16]) -> bits[16] {
+  literal.2: bits[16] = literal(value=2)
+
+  ret counted_for.100: bits[16] = counted_for(x, trip_count=1, stride=1,
+                                              body=loop_fn)
+}
+)";
+
+  ParsePackageAndCheckDump(program);
+}
+
+TEST(IrParserTest, CountedForBodyBitWidthInsufficient) {
+  std::string program = R"(
+package test
+
+fn loop_fn(i: bits[4], data: bits[16]) -> bits[16] {
+  ret literal.10: bits[16] = literal(value=0)
+}
+
+fn f(x: bits[16]) -> bits[16] {
+  literal.2: bits[16] = literal(value=2)
+
+  ret counted_for.100: bits[16] = counted_for(x, trip_count=17, body=loop_fn)
+}
+)";
+
+  EXPECT_THAT(
+      Parser::ParsePackage(program).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("counted_for body should have bits[N] type, where "
+                         "N >= 5, got bits[4]")));
+}
+
+TEST(IrParserTest, CountedForBodyBitWidthInsufficientWithStride) {
+  std::string program = R"(
+package test
+
+fn loop_fn(i: bits[4], data: bits[16]) -> bits[16] {
+  ret literal.10: bits[16] = literal(value=0)
+}
+
+fn f(x: bits[16]) -> bits[16] {
+  literal.2: bits[16] = literal(value=2)
+
+  ret counted_for.100: bits[16] = counted_for(x, trip_count=16, stride=2,
+                                              body=loop_fn)
+}
+)";
+
+  EXPECT_THAT(
+      Parser::ParsePackage(program).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("counted_for body should have bits[N] type, where "
+                         "N >= 5, got bits[4]")));
+}
+
+TEST(IrParserTest, CountedForBodyBitWidthTypeMismatch0) {
+  std::string program = R"(
+package test
+
+fn loop_fn(i: bits[4][1], data: bits[16]) -> bits[16] {
+  ret literal.10: bits[16] = literal(value=0)
+}
+
+fn f(x: bits[16]) -> bits[16] {
+  literal.2: bits[16] = literal(value=2)
+
+  ret counted_for.100: bits[16] = counted_for(x, trip_count=0, body=loop_fn)
+}
+)";
+
+  EXPECT_THAT(
+      Parser::ParsePackage(program).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("counted_for body should have bits[N] type, where "
+                         "N >= 1, got bits[4][1]")));
+}
+
+TEST(IrParserTest, CountedForBodyBitWidthTypeMismatch1) {
+  std::string program = R"(
+package test
+
+fn loop_fn(i: (bits[4]), data: bits[16]) -> bits[16] {
+  ret literal.10: bits[16] = literal(value=0)
+}
+
+fn f(x: bits[16]) -> bits[16] {
+  literal.2: bits[16] = literal(value=2)
+
+  ret counted_for.100: bits[16] = counted_for(x, trip_count=1, body=loop_fn)
+}
+)";
+
+  EXPECT_THAT(
+      Parser::ParsePackage(program).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("counted_for body should have bits[N] type, where "
+                         "N >= 1, got (bits[4])")));
+}
+
+TEST(IrParserTest, CountedForBodyDataTypeMismatch) {
+  std::string program = R"(
+package test
+
+fn loop_fn(i: bits[4], data: bits[13]) -> bits[16] {
+  ret literal.10: bits[16] = literal(value=0)
+}
+
+fn f(x: bits[16]) -> bits[16] {
+  literal.2: bits[16] = literal(value=2)
+
+  ret counted_for.100: bits[16] = counted_for(x, trip_count=1, body=loop_fn)
+}
+)";
+
+  EXPECT_THAT(
+      Parser::ParsePackage(program).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("should have bits[16] type, got bits[13] instead")));
+}
+
+TEST(IrParserTest, CountedForReturnTypeMismatch) {
+  std::string program = R"(
+package test
+
+fn loop_fn(i: bits[4], data: bits[16]) -> bits[15] {
+  ret literal.10: bits[15] = literal(value=0)
+}
+
+fn f(x: bits[16]) -> bits[16] {
+  literal.2: bits[16] = literal(value=2)
+
+  ret counted_for.100: bits[16] = counted_for(x, trip_count=1, body=loop_fn)
+}
+)";
+
+  EXPECT_THAT(
+      Parser::ParsePackage(program).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("should have bits[16] type, got bits[15] instead")));
+}
+
+TEST(IrParserTest, CountedForBodyInvariantArgTypeMismatch0) {
+  std::string program = R"(
+package test
+
+fn loop_fn(i: bits[4], data: bits[16],
+           x: bits[4], y: (bits[4], bits[4]), z: bits[4][1]) -> bits[16] {
+  ret literal.10: bits[16] = literal(value=0)
+}
+
+fn f(x: bits[16]) -> bits[16] {
+  literal.2: bits[4] = literal(value=2)
+  literal.3: bits[4] = literal(value=3)
+  literal.4: bits[4] = literal(value=4)
+
+  bits.112: bits[4] = literal(value=1)
+  tuple.113: (bits[4], bits[4]) = tuple(literal.2, literal.3)
+  array.114: bits[4][1] = array(literal.4)
+
+  ret counted_for.200: bits[16] = counted_for(x, trip_count=2, body=loop_fn,
+      invariant_args=[bits.112, array.114, array.114])
+}
+)";
+
+  EXPECT_THAT(
+      Parser::ParsePackage(program).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Parameter 3 (y) of function loop_fn used as "
+                         "counted_for body should have bits[4][1] type")));
+}
+
+TEST(IrParserTest, CountedForBodyInvariantArgTypeMismatch1) {
+  std::string program = R"(
+package test
+
+fn loop_fn(i: bits[4], data: bits[16],
+           x: bits[4], y: (bits[4], bits[4]), z: bits[4][1]) -> bits[16] {
+  ret literal.10: bits[16] = literal(value=0)
+}
+
+fn f(x: bits[16]) -> bits[16] {
+  literal.2: bits[4] = literal(value=2)
+  literal.3: bits[4] = literal(value=3)
+  literal.4: bits[4] = literal(value=4)
+
+  bits.112: bits[4] = literal(value=1)
+  tuple.113: (bits[4], bits[4]) = tuple(literal.2, literal.3)
+  array.114: bits[4][1] = array(literal.4)
+
+  ret counted_for.200: bits[16] = counted_for(x, trip_count=2, body=loop_fn,
+      invariant_args=[bits.112, tuple.113, bits.112])
+}
+)";
+
+  EXPECT_THAT(Parser::ParsePackage(program).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Parameter 4 (z) of function loop_fn used as "
+                                 "counted_for body should have bits[4] type")));
 }
 
 TEST(IrParserTest, ParseBitSlice) {

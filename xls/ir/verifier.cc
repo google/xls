@@ -254,13 +254,85 @@ class NodeChecker : public DfsVisitor {
   }
 
   absl::Status HandleCountedFor(CountedFor* counted_for) override {
-    // TODO(meheff): Verify signature of called function.
-
     XLS_RET_CHECK_GE(counted_for->trip_count(), 0);
     if (counted_for->operand_count() == 0) {
       return absl::InternalError(StrFormat(
           "Expected %s to have at least 1 operand", counted_for->GetName()));
     }
+
+    Function* body = counted_for->body();
+
+    // Verify function has signature
+    //  body(i: bits[N], loop_carry_data: T, [inv_arg0, ..., inv_argN]) -> T
+    //  where N is of sufficient size to store 0 .. stride * (trip_count - 1)
+    //  where T is an arbitrary type
+    //  where inv_argX each have arbitrary types
+    int64 invariant_args_count = counted_for->operand_count() - 1;
+
+    // Verify number of parameters
+    int64 expected_param_count = 2 + invariant_args_count;
+    int64 actual_param_count = body->params().size();
+
+    if (actual_param_count != expected_param_count) {
+      return absl::InternalError(
+          StrFormat("Function %s used as counted_for body should have "
+                    "%d parameters, got %d instead: %s",
+                    body->name(), expected_param_count, actual_param_count,
+                    counted_for->ToString()));
+    }
+
+    // Verify i is of type bits with a sufficient width and at least 1 bit
+    Type* i_type = body->param(0)->GetType();
+
+    int64 trip_count = counted_for->trip_count();
+    int64 max_i = counted_for->stride() * (trip_count - 1);
+    int64 min_i_bits = (trip_count <= 1) ? 1 : Bits::MinBitCountUnsigned(max_i);
+
+    if (!i_type->IsBits() || i_type->AsBitsOrDie()->bit_count() < min_i_bits) {
+      return absl::InternalError(
+          StrFormat("Parameter 0 (%s) of function %s used as counted_for "
+                    "body should have bits[N] type, where N >= %d, got %s "
+                    "instead: %s",
+                    body->param(0)->GetName(), body->name(), min_i_bits,
+                    i_type->ToString(), counted_for->ToString()));
+    }
+
+    // Verify return type and loop_carry_data are of the correct type
+    Type* data_type = counted_for->operand(0)->GetType();
+    Type* body_ret_type = body->return_value()->GetType();
+    Type* body_data_param_type = body->param(1)->GetType();
+
+    if (data_type != body_ret_type) {
+      return absl::InternalError(
+          StrFormat("Return type of function %s used as counted_for "
+                    "body should have %s type, got %s instead: %s",
+                    body->name(), data_type->ToString(),
+                    body_ret_type->ToString(), counted_for->ToString()));
+    }
+
+    if (data_type != body_data_param_type) {
+      return absl::InternalError(StrFormat(
+          "Parameter 1 (%s) of function %s used as counted_for "
+          "body should have %s type, got %s instead: %s",
+          body->param(1)->GetName(), body->name(), data_type->ToString(),
+          body_data_param_type->ToString(), counted_for->ToString()));
+    }
+
+    // Verify invariant arg type matches corresponding function param type
+    for (int64 i = 0; i < invariant_args_count; ++i) {
+      Type* inv_arg_type = counted_for->operand(i + 1)->GetType();
+      Type* body_inv_param_type = body->param(i + 2)->GetType();
+
+      if (inv_arg_type != body_inv_param_type) {
+        return absl::InternalError(StrFormat(
+            "Parameter %d (%s) of function %s used as counted_for "
+            "body should have %s type from %s, got %s instead: %s",
+            i + 2, body->param(i + 2)->GetName(), body->name(),
+            inv_arg_type->ToString(), counted_for->operand(i + 1)->ToString(),
+            body_inv_param_type->ToString(), counted_for->ToString()));
+      }
+    }
+
     return ExpectSameType(
         counted_for->operand(0), counted_for->operand(0)->GetType(),
         counted_for, counted_for->GetType(), "operand", counted_for->GetName());
