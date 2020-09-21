@@ -1112,6 +1112,10 @@ absl::Status VerifyProc(Proc* proc) {
                    proc->package()->GetTupleType(
                        {proc->StateType(), proc->package()->GetTokenType()}));
 
+  // TODO(meheff): Verify that all send/receive nodes are connected to the
+  // initial token and the return token.
+
+  // TODO(meheff): Verify no send/receive on same channel in same proc.
   return absl::OkStatus();
 }
 

@@ -413,6 +413,7 @@ absl::StatusOr<Channel*> Package::CreateChannelWithId(
     return absl::InternalError(
         absl::StrFormat("Channel already exists with id %d.", id));
   }
+  // TODO(meheff): Verify the name is unique as well.
 
   // Add pointer to newly added channel to the channel vector and resort it by
   // ID.
@@ -431,6 +432,17 @@ absl::StatusOr<Channel*> Package::GetChannel(int64 id) const {
                         channels_.size()));
   }
   return channels_.at(id).get();
+}
+
+absl::StatusOr<Channel*> Package::GetChannel(absl::string_view name) const {
+  for (Channel* ch : channels()) {
+    if (ch->name() == name) {
+      return ch;
+    }
+  }
+  return absl::NotFoundError(
+      absl::StrFormat("No channel with name %s (package has %d channels).",
+                      name, channels().size()));
 }
 
 Type* Package::GetReceiveType(Channel* channel) {

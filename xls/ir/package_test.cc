@@ -26,6 +26,7 @@ namespace {
 
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
+using testing::ElementsAre;
 using testing::HasSubstr;
 
 class PackageTest : public IrTestBase {};
@@ -168,6 +169,8 @@ TEST_F(PackageTest, CreateChannel) {
   EXPECT_EQ(ch0->kind(), ChannelKind::kSendOnly);
   EXPECT_THAT(p.GetChannel(0), IsOkAndHolds(ch0));
 
+  EXPECT_THAT(p.channels(), ElementsAre(ch0));
+
   // Next channel should get ID 1.
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch1, p.CreateChannel("ch1", ChannelKind::kReceiveOnly,
@@ -205,6 +208,8 @@ TEST_F(PackageTest, CreateChannel) {
   // Fetching a non-existent channel ID is an error.
   EXPECT_THAT(p.GetChannel(123), StatusIs(absl::StatusCode::kNotFound,
                                           HasSubstr("No channel with id 123")));
+
+  EXPECT_THAT(p.channels(), ElementsAre(ch0, ch1, ch42, ch43));
 }
 
 }  // namespace

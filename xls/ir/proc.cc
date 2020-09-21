@@ -24,7 +24,7 @@ namespace xls {
 
 absl::Status Proc::set_return_value(Node* n) {
   XLS_RET_CHECK_EQ(n->GetType(), ReturnType()) << absl::StreamFormat(
-      "Cannot set proc return value to node %s. Proc state type is %s, but "
+      "Cannot set proc return value to node %s. Expected type is %s, but "
       "node has type %s",
       n->GetName(), ReturnType()->ToString(), n->GetType()->ToString());
   return Function::set_return_value(n);

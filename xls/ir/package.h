@@ -181,6 +181,7 @@ class Package {
   // Returns the channel with the given ID or returns an error if no such
   // channel exists.
   absl::StatusOr<Channel*> GetChannel(int64 id) const;
+  absl::StatusOr<Channel*> GetChannel(absl::string_view name) const;
 
   // Returns whether there exists a channel with the given ID.
   bool HasChannelWithId(int64 id) const {

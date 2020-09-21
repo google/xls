@@ -496,7 +496,8 @@ class ProcBuilder : public BuilderBase {
   BValue GetStateParam() const { return state_param_; }
   BValue GetTokenParam() const { return token_param_; }
 
-  // Build function using given return value.
+  // TODO(meheff): This would be more convenient if this takes a token and a new
+  // state value. Under the hood this could add a tuple instruction.
   absl::StatusOr<Proc*> BuildWithReturnValue(BValue return_value);
 
  private:

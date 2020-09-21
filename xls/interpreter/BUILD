@@ -73,6 +73,67 @@ cc_test(
 )
 
 cc_library(
+    name = "proc_interpreter",
+    srcs = ["proc_interpreter.cc"],
+    hdrs = ["proc_interpreter.h"],
+    deps = [
+        ":channel_queue",
+        ":ir_interpreter",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/ir:value",
+    ],
+)
+
+cc_test(
+    name = "proc_interpreter_test",
+    srcs = ["proc_interpreter_test.cc"],
+    deps = [
+        ":proc_interpreter",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/status:matchers",
+        "//xls/ir:channel",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "channel_queue_test",
+    srcs = ["channel_queue_test.cc"],
+    deps = [
+        ":channel_queue",
+        ":ir_interpreter",
+        "//xls/common/status:matchers",
+        "//xls/ir:channel",
+        "//xls/ir:channel_cc_proto",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "proc_network_interpreter_test",
+    srcs = ["proc_network_interpreter_test.cc"],
+    deps = [
+        ":proc_network_interpreter",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "ir_evaluator_test",
     testonly = True,
     srcs = ["ir_evaluator_test.cc"],
@@ -92,5 +153,35 @@ cc_library(
         "//xls/ir:ir_test_base",
         "//xls/ir:keyword_args",
         "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "channel_queue",
+    srcs = ["channel_queue.cc"],
+    hdrs = ["channel_queue.h"],
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/ir:type",
+        "//xls/ir:value",
+    ],
+)
+
+cc_library(
+    name = "proc_network_interpreter",
+    srcs = ["proc_network_interpreter.cc"],
+    hdrs = ["proc_network_interpreter.h"],
+    deps = [
+        ":channel_queue",
+        ":proc_interpreter",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "//xls/ir",
     ],
 )
