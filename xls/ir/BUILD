@@ -566,6 +566,7 @@ py_library(
     srcs = [
         "op_specification.py",
     ],
+    srcs_version = "PY2AND3",
 )
 
 build_test(
