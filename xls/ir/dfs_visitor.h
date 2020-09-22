@@ -36,10 +36,10 @@ class DfsVisitor {
   virtual absl::Status HandleArrayUpdate(ArrayUpdate* update) = 0;
   virtual absl::Status HandleArrayConcat(ArrayConcat* array_concat) = 0;
   virtual absl::Status HandleBitSlice(BitSlice* bit_slice) = 0;
-  virtual absl::Status HandleChannelReceive(ChannelReceive* receive) = 0;
-  virtual absl::Status HandleChannelReceiveIf(ChannelReceiveIf* receive_if) = 0;
-  virtual absl::Status HandleChannelSend(ChannelSend* send) = 0;
-  virtual absl::Status HandleChannelSendIf(ChannelSendIf* send_if) = 0;
+  virtual absl::Status HandleReceive(Receive* receive) = 0;
+  virtual absl::Status HandleReceiveIf(ReceiveIf* receive_if) = 0;
+  virtual absl::Status HandleSend(Send* send) = 0;
+  virtual absl::Status HandleSendIf(SendIf* send_if) = 0;
   virtual absl::Status HandleDynamicBitSlice(
       DynamicBitSlice* dynamic_bit_slice) = 0;
   virtual absl::Status HandleConcat(Concat* concat) = 0;
@@ -135,10 +135,10 @@ class DfsVisitorWithDefault : public DfsVisitor {
   absl::Status HandleArrayUpdate(ArrayUpdate* update) override;
   absl::Status HandleArrayConcat(ArrayConcat* array_concat) override;
   absl::Status HandleBitSlice(BitSlice* bit_slice) override;
-  absl::Status HandleChannelReceive(ChannelReceive* receive) override;
-  absl::Status HandleChannelReceiveIf(ChannelReceiveIf* receive_if) override;
-  absl::Status HandleChannelSend(ChannelSend* send) override;
-  absl::Status HandleChannelSendIf(ChannelSendIf* send_if) override;
+  absl::Status HandleReceive(Receive* receive) override;
+  absl::Status HandleReceiveIf(ReceiveIf* receive_if) override;
+  absl::Status HandleSend(Send* send) override;
+  absl::Status HandleSendIf(SendIf* send_if) override;
   absl::Status HandleDynamicBitSlice(
       DynamicBitSlice* dynamic_bit_slice) override;
   absl::Status HandleConcat(Concat* concat) override;

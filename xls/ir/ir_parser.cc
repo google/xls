@@ -753,7 +753,7 @@ absl::StatusOr<BValue> Parser::ParseFunctionBody(
                                 type->AsBitsOrDie()->bit_count(), *loc);
         break;
       }
-      case Op::kChannelReceive: {
+      case Op::kReceive: {
         int64* channel_id = arg_parser.AddKeywordArg<int64>("channel_id");
         XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
         // Get the channel from the package.
@@ -772,7 +772,7 @@ absl::StatusOr<BValue> Parser::ParseFunctionBody(
         bvalue = fb->Receive(channel, operands[0], *loc);
         break;
       }
-      case Op::kChannelReceiveIf: {
+      case Op::kReceiveIf: {
         int64* channel_id = arg_parser.AddKeywordArg<int64>("channel_id");
         XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
         // Get the channel from the package.
@@ -791,7 +791,7 @@ absl::StatusOr<BValue> Parser::ParseFunctionBody(
         bvalue = fb->ReceiveIf(channel, operands[0], operands[1], *loc);
         break;
       }
-      case Op::kChannelSend: {
+      case Op::kSend: {
         int64* channel_id = arg_parser.AddKeywordArg<int64>("channel_id");
         std::vector<BValue>* data_args =
             arg_parser.AddKeywordArg<std::vector<BValue>>("data");
@@ -808,7 +808,7 @@ absl::StatusOr<BValue> Parser::ParseFunctionBody(
         bvalue = fb->Send(channel, operands[0], *data_args, *loc);
         break;
       }
-      case Op::kChannelSendIf: {
+      case Op::kSendIf: {
         int64* channel_id = arg_parser.AddKeywordArg<int64>("channel_id");
         std::vector<BValue>* data_args =
             arg_parser.AddKeywordArg<std::vector<BValue>>("data");

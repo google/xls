@@ -457,7 +457,7 @@ class SendMatcher : public NodeMatcher {
   explicit SendMatcher(::testing::Matcher<const Node*> token,
                        std::vector<::testing::Matcher<const Node*>> data,
                        absl::optional<int64> channel_id = absl::nullopt)
-      : NodeMatcher(Op::kChannelSend,
+      : NodeMatcher(Op::kSend,
                     [&]() {
                       std::vector<::testing::Matcher<const Node*>> operands;
                       operands.push_back(token);
@@ -466,7 +466,7 @@ class SendMatcher : public NodeMatcher {
                     }()),
         channel_id_(channel_id) {}
   explicit SendMatcher(absl::optional<int64> channel_id = absl::nullopt)
-      : NodeMatcher(Op::kChannelSend, {}), channel_id_(channel_id) {}
+      : NodeMatcher(Op::kSend, {}), channel_id_(channel_id) {}
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
@@ -501,7 +501,7 @@ class SendIfMatcher : public NodeMatcher {
                          ::testing::Matcher<const Node*> pred,
                          std::vector<::testing::Matcher<const Node*>> data,
                          absl::optional<int64> channel_id = absl::nullopt)
-      : NodeMatcher(Op::kChannelSendIf,
+      : NodeMatcher(Op::kSendIf,
                     [&]() {
                       std::vector<::testing::Matcher<const Node*>> operands;
                       operands.push_back(token);
@@ -511,7 +511,7 @@ class SendIfMatcher : public NodeMatcher {
                     }()),
         channel_id_(channel_id) {}
   explicit SendIfMatcher(absl::optional<int64> channel_id = absl::nullopt)
-      : NodeMatcher(Op::kChannelSendIf, {}), channel_id_(channel_id) {}
+      : NodeMatcher(Op::kSendIf, {}), channel_id_(channel_id) {}
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
@@ -545,9 +545,9 @@ class ReceiveMatcher : public NodeMatcher {
  public:
   explicit ReceiveMatcher(::testing::Matcher<const Node*> token,
                           absl::optional<int64> channel_id = absl::nullopt)
-      : NodeMatcher(Op::kChannelReceive, {token}), channel_id_(channel_id) {}
+      : NodeMatcher(Op::kReceive, {token}), channel_id_(channel_id) {}
   explicit ReceiveMatcher(absl::optional<int64> channel_id = absl::nullopt)
-      : NodeMatcher(Op::kChannelReceive, {}), channel_id_(channel_id) {}
+      : NodeMatcher(Op::kReceive, {}), channel_id_(channel_id) {}
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
@@ -580,10 +580,9 @@ class ReceiveIfMatcher : public NodeMatcher {
   explicit ReceiveIfMatcher(::testing::Matcher<const Node*> token,
                             ::testing::Matcher<const Node*> pred,
                             absl::optional<int64> channel_id = absl::nullopt)
-      : NodeMatcher(Op::kChannelReceiveIf, {token, pred}),
-        channel_id_(channel_id) {}
+      : NodeMatcher(Op::kReceiveIf, {token, pred}), channel_id_(channel_id) {}
   explicit ReceiveIfMatcher(absl::optional<int64> channel_id = absl::nullopt)
-      : NodeMatcher(Op::kChannelReceiveIf, {}), channel_id_(channel_id) {}
+      : NodeMatcher(Op::kReceiveIf, {}), channel_id_(channel_id) {}
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;

@@ -93,21 +93,21 @@ SliceData Concat::GetOperandSliceData(int64 operandno) const {
   return SliceData{start, this->operand(operandno)->BitCountOrDie()};
 }
 
-absl::StatusOr<Node*> ChannelSend::Clone(absl::Span<Node* const> new_operands,
+absl::StatusOr<Node*> Send::Clone(absl::Span<Node* const> new_operands,
                                            Function* new_function) const {
-  return new_function->MakeNode<ChannelSend>(loc(),
-                                             new_operands[0],
-                                             new_operands.subspan(1),
-                                             channel_id());
+  return new_function->MakeNode<Send>(loc(),
+                                      new_operands[0],
+                                      new_operands.subspan(1),
+                                      channel_id());
 }
 
-absl::StatusOr<Node*> ChannelSendIf::Clone(absl::Span<Node* const> new_operands,
+absl::StatusOr<Node*> SendIf::Clone(absl::Span<Node* const> new_operands,
                                            Function* new_function) const {
-  return new_function->MakeNode<ChannelSendIf>(loc(),
-                                               new_operands[0],
-                                               new_operands[1],
-                                               new_operands.subspan(2),
-                                               channel_id());
+  return new_function->MakeNode<SendIf>(loc(),
+                                        new_operands[0],
+                                        new_operands[1],
+                                        new_operands.subspan(2),
+                                        channel_id());
 }
 
 absl::StatusOr<Node*> CountedFor::Clone(absl::Span<Node* const> new_operands,

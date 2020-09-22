@@ -396,14 +396,14 @@ absl::StatusOr<Expression*> NodeToExpression(
           }));
     case Op::kAfterAll:
       return absl::UnimplementedError("AfterAll not yet implemented");
-    case Op::kChannelReceive:
-      return absl::UnimplementedError("ChannelReceive not yet implemented");
-    case Op::kChannelReceiveIf:
-      return absl::UnimplementedError("ChannelReceiveIf not yet implemented");
-    case Op::kChannelSend:
-      return absl::UnimplementedError("ChannelSend not yet implemented");
-    case Op::kChannelSendIf:
-      return absl::UnimplementedError("ChannelSendIf not yet implemented");
+    case Op::kReceive:
+      return absl::UnimplementedError("Receive not yet implemented");
+    case Op::kReceiveIf:
+      return absl::UnimplementedError("ReceiveIf not yet implemented");
+    case Op::kSend:
+      return absl::UnimplementedError("Send not yet implemented");
+    case Op::kSendIf:
+      return absl::UnimplementedError("SendIf not yet implemented");
     case Op::kArray: {
       std::vector<Expression*> elements(inputs.begin(), inputs.end());
       return file->ArrayAssignmentPattern(elements);

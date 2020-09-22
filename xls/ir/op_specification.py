@@ -436,25 +436,25 @@ OpClass.kinds['BITWISE_REDUCTION_OP'] = OpClass(
                                                 clone_expression='op()')]
 )
 
-OpClass.kinds['CHANNEL_RECEIVE'] = OpClass(
-    name='ChannelReceive',
-    op='Op::kChannelReceive',
+OpClass.kinds['RECEIVE'] = OpClass(
+    name='Receive',
+    op='Op::kReceive',
     operands=[Operand('token')],
     xls_type_expression='function->package()->GetReceiveType(function->package()->GetChannel(channel_id).value())',
     attributes=[Int64Attribute('channel_id')]
 )
 
-OpClass.kinds['CHANNEL_RECEIVE_IF'] = OpClass(
-    name='ChannelReceiveIf',
-    op='Op::kChannelReceiveIf',
+OpClass.kinds['RECEIVE_IF'] = OpClass(
+    name='ReceiveIf',
+    op='Op::kReceiveIf',
     operands=[Operand('token'), Operand('pred')],
     xls_type_expression='function->package()->GetReceiveType(function->package()->GetChannel(channel_id).value())',
     attributes=[Int64Attribute('channel_id')]
 )
 
-OpClass.kinds['CHANNEL_SEND'] = OpClass(
-    name='ChannelSend',
-    op='Op::kChannelSend',
+OpClass.kinds['SEND'] = OpClass(
+    name='Send',
+    op='Op::kSend',
     operands=[Operand('token'), OperandSpan('args')],
     xls_type_expression='function->package()->GetTokenType()',
     attributes=[Int64Attribute('channel_id')],
@@ -464,9 +464,9 @@ OpClass.kinds['CHANNEL_SEND'] = OpClass(
     custom_clone_method=True
 )
 
-OpClass.kinds['CHANNEL_SEND_IF'] = OpClass(
-    name='ChannelSendIf',
-    op='Op::kChannelSendIf',
+OpClass.kinds['SEND_IF'] = OpClass(
+    name='SendIf',
+    op='Op::kSendIf',
     operands=[Operand('token'), Operand('pred'), OperandSpan('args')],
     xls_type_expression='function->package()->GetTokenType()',
     attributes=[Int64Attribute('channel_id')],
@@ -720,27 +720,27 @@ OPS = [
         properties=[],
     ),
     Op(
-        enum_name='kChannelReceive',
+        enum_name='kReceive',
         name='receive',
-        op_class=OpClass.kinds['CHANNEL_RECEIVE'],
+        op_class=OpClass.kinds['RECEIVE'],
         properties=[],
     ),
     Op(
-        enum_name='kChannelReceiveIf',
+        enum_name='kReceiveIf',
         name='receive_if',
-        op_class=OpClass.kinds['CHANNEL_RECEIVE_IF'],
+        op_class=OpClass.kinds['RECEIVE_IF'],
         properties=[],
     ),
     Op(
-        enum_name='kChannelSend',
+        enum_name='kSend',
         name='send',
-        op_class=OpClass.kinds['CHANNEL_SEND'],
+        op_class=OpClass.kinds['SEND'],
         properties=[],
     ),
     Op(
-        enum_name='kChannelSendIf',
+        enum_name='kSendIf',
         name='send_if',
-        op_class=OpClass.kinds['CHANNEL_SEND_IF'],
+        op_class=OpClass.kinds['SEND_IF'],
         properties=[],
     ),
     Op(

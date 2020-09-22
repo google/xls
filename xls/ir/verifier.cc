@@ -83,7 +83,7 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleChannelReceive(ChannelReceive* receive) override {
+  absl::Status HandleReceive(Receive* receive) override {
     XLS_RETURN_IF_ERROR(ExpectOperandCountGt(receive, 0));
     XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(receive, /*operand_no=*/0));
     if (!receive->package()->HasChannelWithId(receive->channel_id())) {
@@ -107,7 +107,7 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleChannelReceiveIf(ChannelReceiveIf* receive_if) override {
+  absl::Status HandleReceiveIf(ReceiveIf* receive_if) override {
     XLS_RETURN_IF_ERROR(ExpectOperandCountGt(receive_if, 1));
     XLS_RETURN_IF_ERROR(
         ExpectOperandHasTokenType(receive_if, /*operand_no=*/0));
@@ -134,7 +134,7 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleChannelSend(ChannelSend* send) override {
+  absl::Status HandleSend(Send* send) override {
     XLS_RETURN_IF_ERROR(ExpectHasTokenType(send));
     XLS_RETURN_IF_ERROR(ExpectOperandCountGt(send, 1));
     XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(send, /*operand_no=*/0));
@@ -155,7 +155,7 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleChannelSendIf(ChannelSendIf* send_if) override {
+  absl::Status HandleSendIf(SendIf* send_if) override {
     XLS_RETURN_IF_ERROR(ExpectHasTokenType(send_if));
     XLS_RETURN_IF_ERROR(ExpectOperandCountGt(send_if, 2));
     XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(send_if, /*operand_no=*/0));
@@ -1026,26 +1026,24 @@ absl::Status VerifyFunctionOrProc(Function* function) {
 // Returns true if the given node is a send/receive node or the conditional
 // variant (send_if or receive_if).
 bool IsSendOrReceive(Node* node) {
-  return node->Is<ChannelSend>() || node->Is<ChannelSendIf>() ||
-         node->Is<ChannelReceive>() || node->Is<ChannelReceiveIf>();
+  return node->Is<Send>() || node->Is<SendIf>() || node->Is<Receive>() ||
+         node->Is<ReceiveIf>();
 }
 
 // Returns the channel used by the given send or receive node. Returns an error
 // if the given node is not a send, send_if, receive, or receive_if.
 absl::StatusOr<Channel*> GetSendOrReceiveChannel(Node* node) {
-  if (node->Is<ChannelSend>()) {
-    return node->package()->GetChannel(node->As<ChannelSend>()->channel_id());
+  if (node->Is<Send>()) {
+    return node->package()->GetChannel(node->As<Send>()->channel_id());
   }
-  if (node->Is<ChannelSendIf>()) {
-    return node->package()->GetChannel(node->As<ChannelSendIf>()->channel_id());
+  if (node->Is<SendIf>()) {
+    return node->package()->GetChannel(node->As<SendIf>()->channel_id());
   }
-  if (node->Is<ChannelReceive>()) {
-    return node->package()->GetChannel(
-        node->As<ChannelReceive>()->channel_id());
+  if (node->Is<Receive>()) {
+    return node->package()->GetChannel(node->As<Receive>()->channel_id());
   }
-  if (node->Is<ChannelReceiveIf>()) {
-    return node->package()->GetChannel(
-        node->As<ChannelReceiveIf>()->channel_id());
+  if (node->Is<ReceiveIf>()) {
+    return node->package()->GetChannel(node->As<ReceiveIf>()->channel_id());
   }
   return absl::InternalError(absl::StrFormat(
       "Node is not a send or receive node: %s", node->ToString()));
@@ -1169,7 +1167,7 @@ absl::Status VerifyChannels(Package* package) {
   absl::flat_hash_map<Channel*, Node*> receive_nodes;
   for (auto& proc : package->procs()) {
     for (Node* node : proc->nodes()) {
-      if (node->Is<ChannelSend>() || node->Is<ChannelSendIf>()) {
+      if (node->Is<Send>() || node->Is<SendIf>()) {
         XLS_ASSIGN_OR_RETURN(Channel * channel, GetSendOrReceiveChannel(node));
         XLS_RET_CHECK(!send_nodes.contains(channel)) << absl::StreamFormat(
             "Multiple send nodes associated with channel '%s': %s and %s (at "
@@ -1178,7 +1176,7 @@ absl::Status VerifyChannels(Package* package) {
             send_nodes.at(channel)->GetName());
         send_nodes[channel] = node;
       }
-      if (node->Is<ChannelReceive>() || node->Is<ChannelReceiveIf>()) {
+      if (node->Is<Receive>() || node->Is<ReceiveIf>()) {
         XLS_ASSIGN_OR_RETURN(Channel * channel, GetSendOrReceiveChannel(node));
         XLS_RET_CHECK(!receive_nodes.contains(channel)) << absl::StreamFormat(
             "Multiple receive nodes associated with channel '%s': %s and %s "

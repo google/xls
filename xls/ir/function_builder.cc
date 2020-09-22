@@ -820,7 +820,7 @@ BValue BuilderBase::Receive(Channel* channel, BValue token,
                   token.GetType()->ToString()),
         loc);
   }
-  return AddNode<ChannelReceive>(loc, token.node(), channel->id());
+  return AddNode<xls::Receive>(loc, token.node(), channel->id());
 }
 
 BValue BuilderBase::ReceiveIf(Channel* channel, BValue token, BValue pred,
@@ -841,8 +841,7 @@ BValue BuilderBase::ReceiveIf(Channel* channel, BValue token, BValue pred,
                               pred.GetType()->ToString()),
                     loc);
   }
-  return AddNode<ChannelReceiveIf>(loc, token.node(), pred.node(),
-                                   channel->id());
+  return AddNode<xls::ReceiveIf>(loc, token.node(), pred.node(), channel->id());
 }
 
 BValue BuilderBase::Send(Channel* channel, BValue token,
@@ -864,8 +863,8 @@ BValue BuilderBase::Send(Channel* channel, BValue token,
   for (const BValue& data_operand : data_operands) {
     data_operand_nodes.push_back(data_operand.node());
   }
-  return AddNode<ChannelSend>(loc, token.node(), data_operand_nodes,
-                              channel->id());
+  return AddNode<xls::Send>(loc, token.node(), data_operand_nodes,
+                            channel->id());
 }
 
 BValue BuilderBase::SendIf(Channel* channel, BValue token, BValue pred,
@@ -894,8 +893,8 @@ BValue BuilderBase::SendIf(Channel* channel, BValue token, BValue pred,
   for (const BValue& data_operand : data_operands) {
     data_operand_nodes.push_back(data_operand.node());
   }
-  return AddNode<ChannelSendIf>(loc, token.node(), pred.node(),
-                                data_operand_nodes, channel->id());
+  return AddNode<xls::SendIf>(loc, token.node(), pred.node(),
+                              data_operand_nodes, channel->id());
 }
 
 }  // namespace xls

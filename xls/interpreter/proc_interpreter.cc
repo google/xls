@@ -29,7 +29,7 @@ class ProcIrInterpreter : public IrInterpreter {
       : IrInterpreter({state, Value::Token()}, stats),
         queue_manager_(queue_manager) {}
 
-  absl::Status HandleChannelReceive(ChannelReceive* receive) override {
+  absl::Status HandleReceive(Receive* receive) override {
     XLS_ASSIGN_OR_RETURN(ChannelQueue * queue,
                          queue_manager_->GetQueueById(receive->channel_id()));
     XLS_ASSIGN_OR_RETURN(ChannelData data, queue->Dequeue());
@@ -43,7 +43,7 @@ class ProcIrInterpreter : public IrInterpreter {
     return SetValueResult(receive, Value::Tuple(tuple_values));
   }
 
-  absl::Status HandleChannelSend(ChannelSend* send) override {
+  absl::Status HandleSend(Send* send) override {
     XLS_ASSIGN_OR_RETURN(ChannelQueue * queue,
                          queue_manager_->GetQueueById(send->channel_id()));
     // The zero-th operand of the send is a token, the remaining operands are
@@ -129,15 +129,15 @@ ProcInterpreter::RunIterationUntilCompleteOrBlocked() {
     if (std::all_of(node->operands().begin(), node->operands().end(),
                     executed_this_iteration)) {
       // Check to see if this is a receive node which is blocked.
-      if (node->Is<ChannelReceive>()) {
-        XLS_ASSIGN_OR_RETURN(ChannelQueue * queue,
-                             queue_manager_->GetQueueById(
-                                 node->As<ChannelReceive>()->channel_id()));
+      if (node->Is<Receive>()) {
+        XLS_ASSIGN_OR_RETURN(
+            ChannelQueue * queue,
+            queue_manager_->GetQueueById(node->As<Receive>()->channel_id()));
         if (queue->empty()) {
           // Queue is empty, receive is blocked.
           XLS_VLOG(4) << absl::StreamFormat(
               "Receive node %s blocked on channel with ID %d", node->GetName(),
-              node->As<ChannelReceive>()->channel_id());
+              node->As<Receive>()->channel_id());
           result.blocked_channels.push_back(queue->channel());
           result.iteration_complete = false;
           continue;

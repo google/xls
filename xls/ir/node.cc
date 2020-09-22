@@ -91,21 +91,18 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
       XLS_RETURN_IF_ERROR(
           visitor->HandleAndReduce(down_cast<BitwiseReductionOp*>(this)));
       break;
-    case Op::kChannelReceive:
-      XLS_RETURN_IF_ERROR(
-          visitor->HandleChannelReceive(down_cast<ChannelReceive*>(this)));
+    case Op::kReceive:
+      XLS_RETURN_IF_ERROR(visitor->HandleReceive(down_cast<Receive*>(this)));
       break;
-    case Op::kChannelReceiveIf:
+    case Op::kReceiveIf:
       XLS_RETURN_IF_ERROR(
-          visitor->HandleChannelReceiveIf(down_cast<ChannelReceiveIf*>(this)));
+          visitor->HandleReceiveIf(down_cast<ReceiveIf*>(this)));
       break;
-    case Op::kChannelSend:
-      XLS_RETURN_IF_ERROR(
-          visitor->HandleChannelSend(down_cast<ChannelSend*>(this)));
+    case Op::kSend:
+      XLS_RETURN_IF_ERROR(visitor->HandleSend(down_cast<Send*>(this)));
       break;
-    case Op::kChannelSendIf:
-      XLS_RETURN_IF_ERROR(
-          visitor->HandleChannelSendIf(down_cast<ChannelSendIf*>(this)));
+    case Op::kSendIf:
+      XLS_RETURN_IF_ERROR(visitor->HandleSendIf(down_cast<SendIf*>(this)));
       break;
     case Op::kNand:
       XLS_RETURN_IF_ERROR(visitor->HandleNaryNand(down_cast<NaryOp*>(this)));
@@ -399,8 +396,8 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       }
       break;
     }
-    case Op::kChannelSend: {
-      const ChannelSend* send = As<ChannelSend>();
+    case Op::kSend: {
+      const Send* send = As<Send>();
       args = {operand(0)->GetName()};
       args.push_back(absl::StrFormat(
           "data=[%s]", absl::StrJoin(send->data(), ", ",
@@ -410,8 +407,8 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       args.push_back(absl::StrFormat("channel_id=%d", send->channel_id()));
       break;
     }
-    case Op::kChannelSendIf: {
-      const ChannelSendIf* send_if = As<ChannelSendIf>();
+    case Op::kSendIf: {
+      const SendIf* send_if = As<SendIf>();
       args = {operand(0)->GetName(), operand(1)->GetName()};
       args.push_back(absl::StrFormat(
           "data=[%s]", absl::StrJoin(send_if->data(), ", ",
@@ -421,13 +418,13 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       args.push_back(absl::StrFormat("channel_id=%d", send_if->channel_id()));
       break;
     }
-    case Op::kChannelReceive: {
-      const ChannelReceive* receive = As<ChannelReceive>();
+    case Op::kReceive: {
+      const Receive* receive = As<Receive>();
       args.push_back(absl::StrFormat("channel_id=%d", receive->channel_id()));
       break;
     }
-    case Op::kChannelReceiveIf: {
-      const ChannelReceiveIf* receive_if = As<ChannelReceiveIf>();
+    case Op::kReceiveIf: {
+      const ReceiveIf* receive_if = As<ReceiveIf>();
       args.push_back(
           absl::StrFormat("channel_id=%d", receive_if->channel_id()));
       break;

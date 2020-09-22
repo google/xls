@@ -213,7 +213,7 @@ bool SendMatcher::MatchAndExplain(
     return false;
   }
   if (channel_id_.has_value() &&
-      *channel_id_ != node->As<::xls::ChannelSend>()->channel_id()) {
+      *channel_id_ != node->As<::xls::Send>()->channel_id()) {
     *listener << " has incorrect channel id, expected: " << *channel_id_;
     return false;
   }
@@ -226,7 +226,7 @@ bool SendIfMatcher::MatchAndExplain(
     return false;
   }
   if (channel_id_.has_value() &&
-      *channel_id_ != node->As<::xls::ChannelSendIf>()->channel_id()) {
+      *channel_id_ != node->As<::xls::SendIf>()->channel_id()) {
     *listener << " has incorrect channel id, expected: " << *channel_id_;
     return false;
   }
@@ -239,7 +239,7 @@ bool ReceiveMatcher::MatchAndExplain(
     return false;
   }
   if (channel_id_.has_value() &&
-      *channel_id_ != node->As<::xls::ChannelReceive>()->channel_id()) {
+      *channel_id_ != node->As<::xls::Receive>()->channel_id()) {
     *listener << " has incorrect channel id, expected: " << *channel_id_;
     return false;
   }
@@ -252,7 +252,7 @@ bool ReceiveIfMatcher::MatchAndExplain(
     return false;
   }
   if (channel_id_.has_value() &&
-      *channel_id_ != node->As<::xls::ChannelReceiveIf>()->channel_id()) {
+      *channel_id_ != node->As<::xls::ReceiveIf>()->channel_id()) {
     *listener << " has incorrect channel id, expected: " << *channel_id_;
     return false;
   }

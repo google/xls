@@ -81,13 +81,13 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
     case Op::kDynamicBitSlice: {
       return default_handler(node);
     }
-    case Op::kChannelReceive:
+    case Op::kReceive:
       return default_handler(node);
-    case Op::kChannelReceiveIf:
+    case Op::kReceiveIf:
       return default_handler(node);
-    case Op::kChannelSend:
+    case Op::kSend:
       return default_handler(node);
-    case Op::kChannelSendIf:
+    case Op::kSendIf:
       return default_handler(node);
     case Op::kConcat:
       return evaluator->Concat(operands);

@@ -80,22 +80,19 @@ absl::Status DfsVisitorWithDefault::HandleBitSlice(BitSlice* bit_slice) {
   return DefaultHandler(bit_slice);
 }
 
-absl::Status DfsVisitorWithDefault::HandleChannelReceive(
-    ChannelReceive* receive) {
+absl::Status DfsVisitorWithDefault::HandleReceive(Receive* receive) {
   return DefaultHandler(receive);
 }
 
-absl::Status DfsVisitorWithDefault::HandleChannelReceiveIf(
-    ChannelReceiveIf* receive_if) {
+absl::Status DfsVisitorWithDefault::HandleReceiveIf(ReceiveIf* receive_if) {
   return DefaultHandler(receive_if);
 }
 
-absl::Status DfsVisitorWithDefault::HandleChannelSend(ChannelSend* send) {
+absl::Status DfsVisitorWithDefault::HandleSend(Send* send) {
   return DefaultHandler(send);
 }
 
-absl::Status DfsVisitorWithDefault::HandleChannelSendIf(
-    ChannelSendIf* send_if) {
+absl::Status DfsVisitorWithDefault::HandleSendIf(SendIf* send_if) {
   return DefaultHandler(send_if);
 }
 
