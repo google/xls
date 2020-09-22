@@ -171,5 +171,127 @@ proc my_proc(s: bits[42], t: token, init=45) {
   XLS_ASSERT_OK(VerifyProc(FindProc("my_proc", p.get())));
 }
 
+TEST_F(VerifierTest, ProcMissingReceive) {
+  std::string input = R"(
+package test_package
+
+chan ch(data: bits[32], id=42, kind=send_receive, metadata="""module_port { flopped: true }""")
+
+proc my_proc(s: bits[42], t: token, init=45) {
+  send.1: token = send(t, data=[s], channel_id=42)
+  ret tuple.2: (bits[42], token) = tuple(s, send.1)
+}
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  EXPECT_THAT(
+      VerifyPackage(p.get()),
+      StatusIs(
+          absl::StatusCode::kInternal,
+          HasSubstr("Channel 'ch' (id 42) has no associated receive node")));
+}
+
+TEST_F(VerifierTest, MultipleSendNodes) {
+  std::string input = R"(
+package test_package
+
+chan ch(data: bits[32], id=42, kind=send_only, metadata="""module_port { flopped: true }""")
+
+proc my_proc(s: bits[42], t: token, init=45) {
+  send.1: token = send(t, data=[s], channel_id=42)
+  send.2: token = send(send.1, data=[s], channel_id=42)
+  ret tuple.3: (bits[42], token) = tuple(s, send.2)
+}
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  EXPECT_THAT(VerifyPackage(p.get()),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Multiple send nodes associated with channel "
+                                 "'ch': send.2 and send.1")));
+}
+
+TEST_F(VerifierTest, DisconnectedSendNode) {
+  std::string input = R"(
+package test_package
+
+chan ch(data: bits[32], id=42, kind=send_only, metadata="""module_port { flopped: true }""")
+
+proc my_proc(s: bits[42], t: token, init=45) {
+  after_all.1: token = after_all()
+  send.2: token = send(after_all.1, data=[s], channel_id=42)
+  ret tuple.3: (bits[42], token) = tuple(s, send.2)
+}
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  EXPECT_THAT(
+      VerifyPackage(p.get()),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Send and receive nodes must be connected to the "
+                         "token parameter via a path of tokens: send.2")));
+}
+
+TEST_F(VerifierTest, DisconnectedReceiveNode) {
+  std::string input = R"(
+package test_package
+
+chan ch(data: bits[32], id=42, kind=receive_only, metadata="""module_port { flopped: true }""")
+
+proc my_proc(s: bits[42], t: token, init=45) {
+  receive.1: (token, bits[32]) = receive(t, channel_id=42)
+  ret tuple.2: (bits[42], token) = tuple(s, t)
+}
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  EXPECT_THAT(
+      VerifyPackage(p.get()),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Send and receive nodes must be connected to the "
+                         "return value via a path of tokens: receive.")));
+}
+
+TEST_F(VerifierTest, DisconnectedReturnValueInProc) {
+  std::string input = R"(
+package test_package
+
+proc my_proc(s: bits[42], t: token, init=45) {
+  after_all.1: token = after_all()
+  ret tuple.2: (bits[42], token) = tuple(s, after_all.1)
+}
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  EXPECT_THAT(
+      VerifyPackage(p.get()),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Return value of proc must be connected to the token "
+                         "parameter via a path of tokens: tuple.2")));
+}
+
+TEST_F(VerifierTest, SendOnReceiveOnlyChannel) {
+  std::string input = R"(
+package test_package
+
+chan ch(data: bits[32], id=42, kind=receive_only, metadata="""module_port { flopped: true }""")
+
+proc my_proc(s: bits[42], t: token, init=45) {
+  send.1: token = send(t, data=[s], channel_id=42)
+  receive.2: (token, bits[32]) = receive(send.1, channel_id=42)
+  tuple_index.3: token = tuple_index(receive.2, index=0)
+  ret tuple.4: (bits[42], token) = tuple(s, tuple_index.3)
+}
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  EXPECT_THAT(
+      VerifyPackage(p.get()),
+      StatusIs(
+          absl::StatusCode::kInternal,
+          HasSubstr(
+              "Cannot send over channel ch (42), send operation: send.1")));
+}
+
 }  // namespace
 }  // namespace xls

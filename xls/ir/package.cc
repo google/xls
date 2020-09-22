@@ -441,7 +441,7 @@ absl::StatusOr<Channel*> Package::GetChannel(absl::string_view name) const {
     }
   }
   return absl::NotFoundError(
-      absl::StrFormat("No channel with name %s (package has %d channels).",
+      absl::StrFormat("No channel with name '%s' (package has %d channels).",
                       name, channels().size()));
 }
 

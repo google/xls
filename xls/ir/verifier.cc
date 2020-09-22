@@ -23,6 +23,7 @@
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_iterator.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 
@@ -1022,6 +1023,199 @@ absl::Status VerifyFunctionOrProc(Function* function) {
   return absl::OkStatus();
 }
 
+// Returns true if the given node is a send/receive node or the conditional
+// variant (send_if or receive_if).
+bool IsSendOrReceive(Node* node) {
+  return node->Is<ChannelSend>() || node->Is<ChannelSendIf>() ||
+         node->Is<ChannelReceive>() || node->Is<ChannelReceiveIf>();
+}
+
+// Returns the channel used by the given send or receive node. Returns an error
+// if the given node is not a send, send_if, receive, or receive_if.
+absl::StatusOr<Channel*> GetSendOrReceiveChannel(Node* node) {
+  if (node->Is<ChannelSend>()) {
+    return node->package()->GetChannel(node->As<ChannelSend>()->channel_id());
+  }
+  if (node->Is<ChannelSendIf>()) {
+    return node->package()->GetChannel(node->As<ChannelSendIf>()->channel_id());
+  }
+  if (node->Is<ChannelReceive>()) {
+    return node->package()->GetChannel(
+        node->As<ChannelReceive>()->channel_id());
+  }
+  if (node->Is<ChannelReceiveIf>()) {
+    return node->package()->GetChannel(
+        node->As<ChannelReceiveIf>()->channel_id());
+  }
+  return absl::InternalError(absl::StrFormat(
+      "Node is not a send or receive node: %s", node->ToString()));
+}
+
+// Returns true if the given type is a token type or has a token type as an
+// subelement.
+bool TypeHasToken(Type* type) {
+  if (type->IsToken()) {
+    return true;
+  }
+  if (type->IsArray()) {
+    return TypeHasToken(type->AsArrayOrDie()->element_type());
+  }
+  if (type->IsTuple()) {
+    for (Type* element_type : type->AsTupleOrDie()->element_types()) {
+      if (TypeHasToken(element_type)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Verify that all send/receive nodes are connected to the initial Param token
+// and the return token via token paths. Verify return value similarly
+// connected to token param.
+absl::Status VerifyTokenConnectivity(Proc* proc) {
+  absl::flat_hash_set<Node*> visited;
+  std::deque<Node*> worklist;
+  auto maybe_add_to_worklist = [&](Node* n) {
+    if (visited.contains(n)) {
+      return;
+    }
+    worklist.push_back(n);
+    visited.insert(n);
+  };
+
+  // Verify connectivity to token param.
+  absl::flat_hash_set<Node*> connected_to_param;
+  maybe_add_to_worklist(proc->TokenParam());
+  while (!worklist.empty()) {
+    Node* node = worklist.front();
+    worklist.pop_front();
+    connected_to_param.insert(node);
+    if (TypeHasToken(node->GetType())) {
+      for (Node* user : node->users()) {
+        maybe_add_to_worklist(user);
+      }
+    }
+  }
+
+  // Verify connectivity to return value.
+  absl::flat_hash_set<Node*> connected_to_return;
+  visited.clear();
+  maybe_add_to_worklist(proc->return_value());
+  while (!worklist.empty()) {
+    Node* node = worklist.front();
+    worklist.pop_front();
+    connected_to_return.insert(node);
+    for (Node* operand : node->operands()) {
+      if (TypeHasToken(operand->GetType())) {
+        maybe_add_to_worklist(operand);
+      }
+    }
+  }
+
+  for (Node* node : proc->nodes()) {
+    if (IsSendOrReceive(node)) {
+      if (!connected_to_param.contains(node)) {
+        return absl::InternalError(absl::StrFormat(
+            "Send and receive nodes must be connected to the token parameter "
+            "via a path of tokens: %s.",
+            node->GetName()));
+      }
+      if (!connected_to_return.contains(node)) {
+        return absl::InternalError(absl::StrFormat(
+            "Send and receive nodes must be connected to the return value "
+            "via a path of tokens: %s.",
+            node->GetName()));
+      }
+    }
+  }
+
+  if (!connected_to_param.contains(proc->return_value())) {
+    return absl::InternalError(absl::StrFormat(
+        "Return value of proc must be connected to the token parameter "
+        "via a path of tokens: %s.",
+        proc->return_value()->GetName()));
+  }
+
+  return absl::OkStatus();
+}
+
+// Verify various invariants about the channels owned by the given pacakge.
+absl::Status VerifyChannels(Package* package) {
+  // Verify unique ids.
+  absl::flat_hash_map<int64, Channel*> channels_by_id;
+  for (Channel* channel : package->channels()) {
+    XLS_RET_CHECK(!channels_by_id.contains(channel->id()))
+        << absl::StreamFormat("More than one channel has id %d: '%s' and '%s'",
+                              channel->id(), channel->name(),
+                              channels_by_id.at(channel->id())->name());
+    channels_by_id[channel->id()] = channel;
+  }
+
+  // Verify unique names.
+  absl::flat_hash_map<std::string, Channel*> channels_by_name;
+  for (Channel* channel : package->channels()) {
+    XLS_RET_CHECK(!channels_by_name.contains(channel->name()))
+        << absl::StreamFormat(
+               "More than one channel has name '%s'. IDs of channels: %d and "
+               "%d",
+               channel->name(), channel->id(),
+               channels_by_name.at(channel->name())->id());
+    channels_by_name[channel->name()] = channel;
+  }
+
+  // Verify each channel has the appropriate send/receive node.
+  absl::flat_hash_map<Channel*, Node*> send_nodes;
+  absl::flat_hash_map<Channel*, Node*> receive_nodes;
+  for (auto& proc : package->procs()) {
+    for (Node* node : proc->nodes()) {
+      if (node->Is<ChannelSend>() || node->Is<ChannelSendIf>()) {
+        XLS_ASSIGN_OR_RETURN(Channel * channel, GetSendOrReceiveChannel(node));
+        XLS_RET_CHECK(!send_nodes.contains(channel)) << absl::StreamFormat(
+            "Multiple send nodes associated with channel '%s': %s and %s (at "
+            "least).",
+            channel->name(), node->GetName(),
+            send_nodes.at(channel)->GetName());
+        send_nodes[channel] = node;
+      }
+      if (node->Is<ChannelReceive>() || node->Is<ChannelReceiveIf>()) {
+        XLS_ASSIGN_OR_RETURN(Channel * channel, GetSendOrReceiveChannel(node));
+        XLS_RET_CHECK(!receive_nodes.contains(channel)) << absl::StreamFormat(
+            "Multiple receive nodes associated with channel '%s': %s and %s "
+            "(at "
+            "least).",
+            channel->name(), node->GetName(),
+            receive_nodes.at(channel)->GetName());
+        receive_nodes[channel] = node;
+      }
+    }
+  }
+
+  // Verify that each channel has the appropriate number of send and receive
+  // nodes (one or zero).
+  for (Channel* channel : package->channels()) {
+    if (channel->CanSend()) {
+      XLS_RET_CHECK(send_nodes.contains(channel)) << absl::StreamFormat(
+          "Channel '%s' (id %d) has no associated send node", channel->name(),
+          channel->id());
+    } else {
+      XLS_RET_CHECK(!send_nodes.contains(channel)) << absl::StreamFormat(
+          "Channel '%s' (id %d) cannot send but has a send node %s",
+          channel->name(), channel->id(), send_nodes.at(channel)->GetName());
+    }
+    if (channel->CanReceive()) {
+      XLS_RET_CHECK(receive_nodes.contains(channel)) << absl::StreamFormat(
+          "Channel '%s' (id %d) has no associated receive node",
+          channel->name(), channel->id());
+    } else {
+      XLS_RET_CHECK(!receive_nodes.contains(channel)) << absl::StreamFormat(
+          "Channel '%s' (id %d) cannot receive but has a receive node %s",
+          channel->name(), channel->id(), receive_nodes.at(channel)->GetName());
+    }
+  }
+  return absl::OkStatus();
+}
+
 }  // namespace
 
 absl::Status VerifyPackage(Package* package) {
@@ -1071,6 +1265,8 @@ absl::Status VerifyPackage(Package* package) {
     functions.insert(function);
   }
 
+  XLS_RETURN_IF_ERROR(VerifyChannels(package));
+
   // TODO(meheff): Verify main entry point is one of the functions.
   // TODO(meheff): Verify functions called by any node are in the set of
   //   functions owned by the package.
@@ -1085,8 +1281,13 @@ absl::Status VerifyFunction(Function* function) {
 
   XLS_RETURN_IF_ERROR(VerifyFunctionOrProc(function));
 
-  // TODO(meheff): Verify no send or receive operations are in the function.
-  // TODO(meheff): Verify no token types are in the function.
+  for (Node* node : function->nodes()) {
+    if (IsSendOrReceive(node)) {
+      return absl::InternalError(absl::StrFormat(
+          "Send and receive nodes can only be in procs, not functions (%s)",
+          node->GetName()));
+    }
+  }
 
   return absl::OkStatus();
 }
@@ -1112,10 +1313,10 @@ absl::Status VerifyProc(Proc* proc) {
                    proc->package()->GetTupleType(
                        {proc->StateType(), proc->package()->GetTokenType()}));
 
-  // TODO(meheff): Verify that all send/receive nodes are connected to the
-  // initial token and the return token.
+  // Verify that all send/receive nodes are connected to the token parameter and
+  // the return value via paths of tokens.
+  XLS_RETURN_IF_ERROR(VerifyTokenConnectivity(proc));
 
-  // TODO(meheff): Verify no send/receive on same channel in same proc.
   return absl::OkStatus();
 }
 

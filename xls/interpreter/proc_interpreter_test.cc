@@ -101,19 +101,19 @@ TEST_F(ProcInterpreterTest, ProcIota) {
 }
 
 TEST_F(ProcInterpreterTest, ProcWhichReturnsPreviousResults) {
-  auto package = CreatePackage();
+  Package package(TestName());
   ProcBuilder pb("prev", /*init_value=*/Value(UBits(55, 32)),
-                 /*state_name=*/"prev", /*token_name=*/"tok", package.get());
+                 /*state_name=*/"prev", /*token_name=*/"tok", &package);
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch_in,
-      package->CreateChannel("in", ChannelKind::kSendReceive,
-                             {DataElement{"data", package->GetBitsType(32)}},
-                             ChannelMetadataProto()));
+      package.CreateChannel("in", ChannelKind::kSendReceive,
+                            {DataElement{"data", package.GetBitsType(32)}},
+                            ChannelMetadataProto()));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch_out,
-      package->CreateChannel("out", ChannelKind::kSendOnly,
-                             {DataElement{"data", package->GetBitsType(32)}},
-                             ChannelMetadataProto()));
+      package.CreateChannel("out", ChannelKind::kSendOnly,
+                            {DataElement{"data", package.GetBitsType(32)}},
+                            ChannelMetadataProto()));
 
   // Build a proc which receives a value and saves it, and sends the value
   // received in the previous iteration.
@@ -126,7 +126,7 @@ TEST_F(ProcInterpreterTest, ProcWhichReturnsPreviousResults) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*rx_only_queues=*/{}, package.get()));
+      ChannelQueueManager::Create(/*rx_only_queues=*/{}, &package));
 
   ProcInterpreter interpreter(proc, queue_manager.get());
   ChannelQueue& rx_only_queue = queue_manager->GetQueue(ch_in);
