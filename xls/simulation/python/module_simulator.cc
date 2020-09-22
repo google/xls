@@ -41,6 +41,8 @@ class ModuleSimulatorWrapper : public ModuleSimulator {
 }  // namespace
 
 PYBIND11_MODULE(module_simulator, m) {
+  ImportStatusModule();
+
   py::module::import("xls.codegen.python.module_signature");
   py::module::import("xls.ir.python.value");
 

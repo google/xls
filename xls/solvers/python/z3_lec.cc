@@ -31,6 +31,8 @@ namespace xls {
 namespace solvers {
 
 PYBIND11_MODULE(z3_lec, m) {
+  ImportStatusModule();
+
   // This takes a textproto instead of a fully realized protocol buffer, as
   // there's no pybind11 caster for protobufs, and writing one isn't a great
   // idea because A) there's supposedly an internal one being open-sourced soon,

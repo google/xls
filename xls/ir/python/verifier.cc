@@ -23,6 +23,7 @@ namespace py = pybind11;
 namespace xls {
 
 PYBIND11_MODULE(verifier, m) {
+  ImportStatusModule();
   py::module::import("xls.ir.python.function");
   py::module::import("xls.ir.python.package");
 

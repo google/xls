@@ -96,6 +96,8 @@ std::vector<ExprHolder> WrapExprs(absl::Span<Expr* const> xs,
 }
 
 PYBIND11_MODULE(cpp_ast, m) {
+  ImportStatusModule();
+
   py::enum_<BuiltinType>(m, "BuiltinType")
 #define VALUE(__enum, __pyattr, ...) .value(#__pyattr, BuiltinType::__enum)
       XLS_DSLX_BUILTIN_TYPE_EACH(VALUE)

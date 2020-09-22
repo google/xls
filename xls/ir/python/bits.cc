@@ -22,6 +22,8 @@ namespace py = pybind11;
 namespace xls {
 
 PYBIND11_MODULE(bits, m) {
+  ImportStatusModule();
+
   py::class_<Bits>(m, "Bits")
       .def(py::init<int64>())
       .def("bit_count", &Bits::bit_count)

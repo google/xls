@@ -24,6 +24,8 @@ namespace py = pybind11;
 namespace xls {
 
 PYBIND11_MODULE(ir_interpreter, m) {
+  ImportStatusModule();
+
   // clang-format off
   py::module::import("xls.interpreter."
                      "python.ir_interpreter_stats");

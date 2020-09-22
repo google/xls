@@ -29,6 +29,9 @@ class StatusNotOk : public std::exception {
   std::string what_;
 };
 
+// Stub ImportStatusModule.
+void ImportStatusModule() {}
+
 }  // namespace xls
 
 namespace pybind11 {

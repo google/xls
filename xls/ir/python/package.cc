@@ -25,6 +25,7 @@ namespace py = pybind11;
 namespace xls {
 
 PYBIND11_MODULE(package, m) {
+  ImportStatusModule();
   py::module::import("xls.ir.python.type");
   py::module::import("xls.ir.python.fileno");
   py::module::import("xls.ir.python.function");

@@ -23,6 +23,8 @@ namespace py = pybind11;
 namespace xls {
 
 PYBIND11_MODULE(standard_pipeline, m) {
+  ImportStatusModule();
+
   py::module::import("xls.ir.python.package");
 
   m.def("run_standard_pass_pipeline", PyWrap(&RunStandardPassPipeline),

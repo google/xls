@@ -24,6 +24,8 @@ namespace py = pybind11;
 namespace xls {
 
 PYBIND11_MODULE(llvm_ir_jit, m) {
+  ImportStatusModule();
+
   py::module::import("xls.ir.python.function");
   py::module::import("xls.ir.python.value");
 

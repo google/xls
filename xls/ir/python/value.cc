@@ -23,6 +23,7 @@ namespace py = pybind11;
 namespace xls {
 
 PYBIND11_MODULE(value, m) {
+  ImportStatusModule();
   py::module::import("xls.ir.python.bits");
   py::module::import("xls.ir.python.format_preference");
 

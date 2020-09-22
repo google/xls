@@ -44,6 +44,8 @@ auto FbPyWrap(ReturnT (T::*method_pointer)(Args...)) {
 }
 
 PYBIND11_MODULE(function_builder, m) {
+  ImportStatusModule();
+
   py::module::import("xls.ir.python.bits");
   py::module::import("xls.ir.python.function");
   py::module::import("xls.ir.python.lsb_or_msb");

@@ -63,6 +63,8 @@ absl::StatusOr<ModuleGeneratorResult> GeneratePipelinedModuleWithClockPeriod(
 }  // namespace
 
 PYBIND11_MODULE(pipeline_generator, m) {
+  ImportStatusModule();
+
   py::module::import("xls.codegen.python.module_signature");
   py::module::import("xls.ir.python.package");
 

@@ -90,6 +90,8 @@ std::unordered_set<std::string> GetTypeKeywordStrings() {
 }
 
 PYBIND11_MODULE(cpp_scanner, m) {
+  ImportStatusModule();
+
   py::enum_<Keyword>(m, "Keyword")
 #define VALUE(__enum, __pyattr, ...) .value(#__pyattr, Keyword::__enum)
       XLS_DSLX_KEYWORDS(VALUE)

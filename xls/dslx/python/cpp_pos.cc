@@ -29,6 +29,8 @@ std::string Repr(const Pos& pos) {
 }
 
 PYBIND11_MODULE(cpp_pos, m) {
+  ImportStatusModule();
+
   // class Pos
   py::class_<Pos>(m, "Pos")
       .def(py::init<std::string, int64, int64>(), py::arg("filename"),

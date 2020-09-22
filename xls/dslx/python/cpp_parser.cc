@@ -49,6 +49,7 @@ void TryThrowCppParseError(const absl::Status& status) {
 }
 
 PYBIND11_MODULE(cpp_parser, m) {
+  ImportStatusModule();
   py::module::import("xls.dslx.python.cpp_ast");
   py::module::import("xls.dslx.python.cpp_scanner");
 
