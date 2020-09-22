@@ -509,25 +509,25 @@ TEST(BitsTest, Equality) {
 
 TEST(BitsTest, AllZerosOrOnes) {
   Bits empty_bits(0);
-  EXPECT_TRUE(empty_bits.IsAllZeros());
+  EXPECT_TRUE(empty_bits.IsZero());
   EXPECT_TRUE(empty_bits.IsAllOnes());
 
   Bits b0 = UBits(0, 1);
-  EXPECT_TRUE(b0.IsAllZeros());
+  EXPECT_TRUE(b0.IsZero());
   EXPECT_FALSE(b0.IsAllOnes());
 
   Bits b1 = UBits(1, 1);
-  EXPECT_FALSE(b1.IsAllZeros());
+  EXPECT_FALSE(b1.IsZero());
   EXPECT_TRUE(b1.IsAllOnes());
 
   EXPECT_TRUE(UBits(0xffff, 16).IsAllOnes());
   EXPECT_FALSE(UBits(0xffef, 16).IsAllOnes());
 
-  EXPECT_TRUE(UBits(0, 16).IsAllZeros());
-  EXPECT_FALSE(UBits(0x800, 16).IsAllZeros());
+  EXPECT_TRUE(UBits(0, 16).IsZero());
+  EXPECT_FALSE(UBits(0x800, 16).IsZero());
 
-  EXPECT_TRUE(Bits(1234).IsAllZeros());
-  EXPECT_FALSE(PrimeBits(1234).IsAllZeros());
+  EXPECT_TRUE(Bits(1234).IsZero());
+  EXPECT_FALSE(PrimeBits(1234).IsZero());
 
   EXPECT_TRUE(Bits::AllOnes(0).IsAllOnes());
   EXPECT_EQ(Bits::AllOnes(0).bit_count(), 0);

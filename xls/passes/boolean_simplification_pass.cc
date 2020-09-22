@@ -40,7 +40,7 @@ TruthTable::TruthTable(const Bits& xyz_present, const Bits& xyz_negated,
     : xyz_present_(xyz_present),
       xyz_negated_(xyz_negated),
       logical_op_(logical_op) {
-  XLS_CHECK(!xyz_present.IsAllZeros());
+  XLS_CHECK(!xyz_present.IsZero());
   XLS_CHECK_EQ(3, xyz_present.bit_count());
   XLS_CHECK_EQ(3, xyz_negated.bit_count());
   if (!logical_op.has_value()) {
@@ -48,8 +48,7 @@ TruthTable::TruthTable(const Bits& xyz_present, const Bits& xyz_negated,
     XLS_CHECK_LE(xyz_negated.PopCount(), 1);
   }
   // Check for not-present bits that are negated.
-  XLS_CHECK(
-      bits_ops::And(bits_ops::Not(xyz_present), xyz_negated).IsAllZeros());
+  XLS_CHECK(bits_ops::And(bits_ops::Not(xyz_present), xyz_negated).IsZero());
 }
 
 /* static */ Bits TruthTable::GetInitialVector(int64 i) {
@@ -337,7 +336,7 @@ class BooleanFlowTracker : public DfsVisitorWithDefault {
       return f->MakeNode<Literal>(original->loc(),
                                   Value(SBits(-1, original->BitCountOrDie())));
     }
-    if (bits.IsAllZeros()) {
+    if (bits.IsZero()) {
       return f->MakeNode<Literal>(original->loc(),
                                   Value(UBits(0, original->BitCountOrDie())));
     }

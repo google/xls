@@ -78,6 +78,41 @@ absl::StatusOr<Proc*> CreatePassThroughProc(absl::string_view proc_name,
   return pb.BuildWithReturnValue(pb.Tuple({pb.GetStateParam(), send_token}));
 }
 
+// Create a proc which reads tuples of (count: u32, char: u8) from in_channel,
+// run-length decodes them, and sends the resulting char stream to
+// out_channel. Run lengths of zero are allowed.
+absl::StatusOr<Proc*> CreateRunLengthDecoderProc(absl::string_view proc_name,
+                                                 Channel* in_channel,
+                                                 Channel* out_channel,
+                                                 Package* package) {
+  // Proc state is a two-tuple containing: character to write and remaining
+  // number of times to write the character.
+  ProcBuilder pb(
+      proc_name,
+      /*init_value=*/Value::Tuple({Value(UBits(0, 8)), Value(UBits(0, 32))}),
+      /*state_name=*/"state", /*token_name=*/"tok", package);
+  BValue last_char = pb.TupleIndex(pb.GetStateParam(), 0);
+  BValue num_remaining = pb.TupleIndex(pb.GetStateParam(), 1);
+  BValue receive_next = pb.Eq(num_remaining, pb.Literal(UBits(0, 32)));
+  BValue receive_if =
+      pb.ReceiveIf(in_channel, pb.GetTokenParam(), receive_next);
+  BValue run_length = pb.Select(
+      receive_next, /*cases=*/{num_remaining, pb.TupleIndex(receive_if, 1)});
+  BValue this_char = pb.Select(
+      receive_next, /*cases=*/{last_char, pb.TupleIndex(receive_if, 2)});
+  BValue run_length_is_nonzero = pb.Ne(run_length, pb.Literal(UBits(0, 32)));
+  BValue send = pb.SendIf(out_channel, pb.TupleIndex(receive_if, 0),
+                          run_length_is_nonzero, {this_char});
+  BValue next_state = pb.Tuple(
+      {this_char,
+       pb.Select(
+           run_length_is_nonzero,
+           /*cases=*/{pb.Literal(UBits(0, 32)),
+                      pb.Subtract(run_length, pb.Literal(UBits(1, 32)))})});
+
+  return pb.BuildWithReturnValue(pb.Tuple({next_state, send}));
+}
+
 TEST_F(ProcNetworkInterpreterTest, ProcIota) {
   auto package = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -253,12 +288,131 @@ TEST_F(ProcNetworkInterpreterTest, DeadlockedProc) {
       std::unique_ptr<ProcNetworkInterpreter> interpreter,
       ProcNetworkInterpreter::Create(package.get(), /*rx_only_queues*/ {}));
 
+  // The interpreter can tick once without deadlocking because some instructions
+  // can actually execute initially (e.g., the paramters). A subsequent call to
+  // Tick() will detect the deadlock.
+  XLS_ASSERT_OK(interpreter->Tick());
   EXPECT_THAT(
       interpreter->Tick(),
       StatusIs(
           absl::StatusCode::kInternal,
           HasSubstr(
               "Proc network is deadlocked. Blocked channels: my_channel")));
+}
+
+TEST_F(ProcNetworkInterpreterTest, RunLengthDecoding) {
+  auto package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * input_channel,
+      package->CreateChannel("in", ChannelKind::kReceiveOnly,
+                             {DataElement{"length", package->GetBitsType(32)},
+                              DataElement{"value", package->GetBitsType(8)}},
+                             ChannelMetadataProto()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * output_channel,
+      package->CreateChannel("output", ChannelKind::kSendOnly,
+                             {DataElement{"data", package->GetBitsType(8)}},
+                             ChannelMetadataProto()));
+
+  XLS_ASSERT_OK(CreateRunLengthDecoderProc("decoder", input_channel,
+                                           output_channel, package.get())
+                    .status());
+
+  std::vector<std::unique_ptr<RxOnlyChannelQueue>> rx_only_queues;
+  std::vector<ChannelData> inputs = {
+      {Value(UBits(1, 32)), Value(UBits(42, 8))},
+      {Value(UBits(3, 32)), Value(UBits(123, 8))},
+      {Value(UBits(0, 32)), Value(UBits(55, 8))},
+      {Value(UBits(0, 32)), Value(UBits(66, 8))},
+      {Value(UBits(2, 32)), Value(UBits(20, 8))}};
+  rx_only_queues.push_back(absl::make_unique<FixedRxOnlyChannelQueue>(
+      input_channel, package.get(), inputs));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcNetworkInterpreter> interpreter,
+      ProcNetworkInterpreter::Create(package.get(), std::move(rx_only_queues)));
+
+  ChannelQueue& output_queue =
+      interpreter->queue_manager().GetQueue(output_channel);
+  while (output_queue.size() < 6) {
+    XLS_ASSERT_OK(interpreter->Tick());
+  }
+
+  EXPECT_THAT(output_queue.Dequeue(),
+              IsOkAndHolds(ElementsAre(Value(UBits(42, 8)))));
+  EXPECT_THAT(output_queue.Dequeue(),
+              IsOkAndHolds(ElementsAre(Value(UBits(123, 8)))));
+  EXPECT_THAT(output_queue.Dequeue(),
+              IsOkAndHolds(ElementsAre(Value(UBits(123, 8)))));
+  EXPECT_THAT(output_queue.Dequeue(),
+              IsOkAndHolds(ElementsAre(Value(UBits(123, 8)))));
+  EXPECT_THAT(output_queue.Dequeue(),
+              IsOkAndHolds(ElementsAre(Value(UBits(20, 8)))));
+  EXPECT_THAT(output_queue.Dequeue(),
+              IsOkAndHolds(ElementsAre(Value(UBits(20, 8)))));
+}
+
+TEST_F(ProcNetworkInterpreterTest, RunLengthDecodingFilter) {
+  // Connect a run-length decoding proc to a proc which only passes through even
+  // values.
+  auto package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * input_channel,
+      package->CreateChannel("in", ChannelKind::kReceiveOnly,
+                             {DataElement{"length", package->GetBitsType(32)},
+                              DataElement{"value", package->GetBitsType(8)}},
+                             ChannelMetadataProto()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * decoded_channel,
+      package->CreateChannel("decoded", ChannelKind::kSendReceive,
+                             {DataElement{"data", package->GetBitsType(8)}},
+                             ChannelMetadataProto()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * output_channel,
+      package->CreateChannel("output", ChannelKind::kSendOnly,
+                             {DataElement{"data", package->GetBitsType(8)}},
+                             ChannelMetadataProto()));
+
+  XLS_ASSERT_OK(CreateRunLengthDecoderProc("decoder", input_channel,
+                                           decoded_channel, package.get())
+                    .status());
+  ProcBuilder pb("filter", /*init_value=*/Value::Tuple({}),
+                 /*state_name=*/"nil", /*token_name=*/"tok", package.get());
+  BValue receive = pb.Receive(decoded_channel, pb.GetTokenParam());
+  BValue rx_token = pb.TupleIndex(receive, 0);
+  BValue rx_value = pb.TupleIndex(receive, 1);
+  BValue rx_value_even =
+      pb.Not(pb.BitSlice(rx_value, /*start=*/0, /*width=*/1));
+  BValue send_if =
+      pb.SendIf(output_channel, rx_token, rx_value_even, {rx_value});
+  XLS_ASSERT_OK(
+      pb.BuildWithReturnValue(pb.Tuple({pb.GetStateParam(), send_if})));
+
+  std::vector<std::unique_ptr<RxOnlyChannelQueue>> rx_only_queues;
+  std::vector<ChannelData> inputs = {
+      {Value(UBits(1, 32)), Value(UBits(42, 8))},
+      {Value(UBits(3, 32)), Value(UBits(123, 8))},
+      {Value(UBits(0, 32)), Value(UBits(55, 8))},
+      {Value(UBits(0, 32)), Value(UBits(66, 8))},
+      {Value(UBits(2, 32)), Value(UBits(20, 8))}};
+  rx_only_queues.push_back(absl::make_unique<FixedRxOnlyChannelQueue>(
+      input_channel, package.get(), inputs));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcNetworkInterpreter> interpreter,
+      ProcNetworkInterpreter::Create(package.get(), std::move(rx_only_queues)));
+
+  ChannelQueue& output_queue =
+      interpreter->queue_manager().GetQueue(output_channel);
+  while (output_queue.size() < 3) {
+    XLS_ASSERT_OK(interpreter->Tick());
+  }
+
+  // Only even values should make it through the filter.
+  EXPECT_THAT(output_queue.Dequeue(),
+              IsOkAndHolds(ElementsAre(Value(UBits(42, 8)))));
+  EXPECT_THAT(output_queue.Dequeue(),
+              IsOkAndHolds(ElementsAre(Value(UBits(20, 8)))));
+  EXPECT_THAT(output_queue.Dequeue(),
+              IsOkAndHolds(ElementsAre(Value(UBits(20, 8)))));
 }
 
 }  // namespace

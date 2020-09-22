@@ -79,7 +79,7 @@ TEST(BitsOpsTest, LogicalOps) {
   Bits wide_bits = PrimeBits(12345);
   EXPECT_EQ(wide_bits, bits_ops::And(wide_bits, wide_bits));
   EXPECT_EQ(wide_bits, bits_ops::Or(wide_bits, wide_bits));
-  EXPECT_TRUE(bits_ops::Xor(wide_bits, wide_bits).IsAllZeros());
+  EXPECT_TRUE(bits_ops::Xor(wide_bits, wide_bits).IsZero());
   EXPECT_TRUE(bits_ops::Xor(wide_bits, bits_ops::Not(wide_bits)).IsAllOnes());
 }
 
@@ -486,12 +486,12 @@ TEST(BitsOpsTest, Int64SignedComparisons) {
 
 TEST(BitsOpsTest, ZeroAndSignExtend) {
   Bits empty_bits(0);
-  EXPECT_TRUE(bits_ops::ZeroExtend(empty_bits, 47).IsAllZeros());
-  EXPECT_TRUE(bits_ops::SignExtend(empty_bits, 123).IsAllZeros());
+  EXPECT_TRUE(bits_ops::ZeroExtend(empty_bits, 47).IsZero());
+  EXPECT_TRUE(bits_ops::SignExtend(empty_bits, 123).IsZero());
 
   Bits b0 = UBits(0, 1);
-  EXPECT_TRUE(bits_ops::ZeroExtend(b0, 2).IsAllZeros());
-  EXPECT_TRUE(bits_ops::SignExtend(b0, 44).IsAllZeros());
+  EXPECT_TRUE(bits_ops::ZeroExtend(b0, 2).IsZero());
+  EXPECT_TRUE(bits_ops::SignExtend(b0, 44).IsZero());
 
   Bits b1 = UBits(1, 1);
   EXPECT_EQ(bits_ops::ZeroExtend(b1, 32), UBits(1, 32));

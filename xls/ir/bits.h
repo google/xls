@@ -164,12 +164,14 @@ class Bits {
     return clone;
   }
 
-  // Returns whether the bits are all zeros/ones.
+  // Returns whether the bits are all ones.
   bool IsAllOnes() const { return bitmap_.IsAllOnes(); }
-  bool IsAllZeros() const { return bitmap_.IsAllZeroes(); }
 
   // Returns true if the bits interpreted as an unsigned number is equal to one.
   bool IsOne() const;
+
+  // Returns true if the bits value is zero.
+  bool IsZero() const { return bitmap_.IsAllZeroes(); }
 
   // Returns true if the Bits value as an unsigned number is a power of two.
   bool IsPowerOfTwo() const { return PopCount() == 1; }

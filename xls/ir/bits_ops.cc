@@ -172,7 +172,7 @@ Bits AndReduce(const Bits& operand) {
 
 Bits OrReduce(const Bits& operand) {
   // Is any bit set?
-  return operand.IsAllZeros() ? UBits(0, 1) : UBits(1, 1);
+  return operand.IsZero() ? UBits(0, 1) : UBits(1, 1);
 }
 
 Bits XorReduce(const Bits& operand) {
@@ -254,7 +254,7 @@ Bits UMul(const Bits& lhs, const Bits& rhs) {
 
 Bits UDiv(const Bits& lhs, const Bits& rhs) {
   XLS_CHECK_EQ(lhs.bit_count(), rhs.bit_count());
-  if (rhs.IsAllZeros()) {
+  if (rhs.IsZero()) {
     return Bits::AllOnes(lhs.bit_count());
   }
   BigInt quotient =
@@ -264,7 +264,7 @@ Bits UDiv(const Bits& lhs, const Bits& rhs) {
 
 Bits SDiv(const Bits& lhs, const Bits& rhs) {
   XLS_CHECK_EQ(lhs.bit_count(), rhs.bit_count());
-  if (rhs.IsAllZeros()) {
+  if (rhs.IsZero()) {
     if (lhs.bit_count() == 0) {
       return UBits(0, 0);
     }

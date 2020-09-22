@@ -45,9 +45,12 @@ ProcNetworkInterpreter::Create(
 
 absl::Status ProcNetworkInterpreter::Tick() {
   absl::flat_hash_set<ProcInterpreter*> completed_procs;
-  while (completed_procs.size() != proc_interpreters_.size()) {
-    bool progress_made = false;
-    absl::flat_hash_set<Channel*> blocked_channels;
+  absl::flat_hash_set<Channel*> blocked_channels;
+  bool global_progress_made = false;
+  bool progress_made_this_loop = true;
+  while (progress_made_this_loop) {
+    progress_made_this_loop = false;
+    blocked_channels.clear();
     for (auto& interpreter : proc_interpreters_) {
       if (completed_procs.contains(interpreter.get())) {
         continue;
@@ -55,25 +58,28 @@ absl::Status ProcNetworkInterpreter::Tick() {
       XLS_ASSIGN_OR_RETURN(ProcInterpreter::RunResult result,
                            interpreter->RunIterationUntilCompleteOrBlocked());
 
-      progress_made |= result.progress_made;
+      progress_made_this_loop |= result.progress_made;
       if (result.iteration_complete) {
         completed_procs.insert(interpreter.get());
       }
       blocked_channels.insert(result.blocked_channels.begin(),
                               result.blocked_channels.end());
     }
-    if (!progress_made) {
-      // Sort blocked channels by channel id so the return message is stable.
-      std::vector<Channel*> blocked_vec(blocked_channels.begin(),
-                                        blocked_channels.end());
-      std::sort(blocked_vec.begin(), blocked_vec.end(),
-                [](Channel* a, Channel* b) { return a->id() < b->id(); });
-      return absl::InternalError(absl::StrFormat(
-          "Proc network is deadlocked. Blocked channels: %s",
-          absl::StrJoin(blocked_vec, ", ", [](std::string* out, Channel* ch) {
-            return absl::StrAppend(out, ch->name());
-          })));
-    }
+    global_progress_made |= progress_made_this_loop;
+  }
+  if (!global_progress_made) {
+    // Not a single instruction executed on any proc. This is necessarily a
+    // deadlock. Sort blocked channels by channel id so the return message is
+    // stable.
+    std::vector<Channel*> blocked_vec(blocked_channels.begin(),
+                                      blocked_channels.end());
+    std::sort(blocked_vec.begin(), blocked_vec.end(),
+              [](Channel* a, Channel* b) { return a->id() < b->id(); });
+    return absl::InternalError(absl::StrFormat(
+        "Proc network is deadlocked. Blocked channels: %s",
+        absl::StrJoin(blocked_vec, ", ", [](std::string* out, Channel* ch) {
+          return absl::StrAppend(out, ch->name());
+        })));
   }
   return absl::OkStatus();
 }

@@ -86,6 +86,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:channel",
         "//xls/ir:value",
+        "//xls/ir:value_helpers",
     ],
 )
 

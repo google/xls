@@ -400,7 +400,7 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       const Send* send = As<Send>();
       args = {operand(0)->GetName()};
       args.push_back(absl::StrFormat(
-          "data=[%s]", absl::StrJoin(send->data(), ", ",
+          "data=[%s]", absl::StrJoin(send->data_operands(), ", ",
                                      [](std::string* out, const Node* node) {
                                        absl::StrAppend(out, node->GetName());
                                      })));
@@ -411,7 +411,7 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       const SendIf* send_if = As<SendIf>();
       args = {operand(0)->GetName(), operand(1)->GetName()};
       args.push_back(absl::StrFormat(
-          "data=[%s]", absl::StrJoin(send_if->data(), ", ",
+          "data=[%s]", absl::StrJoin(send_if->data_operands(), ", ",
                                      [](std::string* out, const Node* node) {
                                        absl::StrAppend(out, node->GetName());
                                      })));

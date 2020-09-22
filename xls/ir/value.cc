@@ -155,7 +155,7 @@ int64 Value::GetFlatBitCount() const {
 
 bool Value::IsAllZeros() const {
   if (kind() == ValueKind::kBits) {
-    return bits().IsAllZeros();
+    return bits().IsZero();
   } else if (kind() == ValueKind::kTuple || kind() == ValueKind::kArray) {
     for (const Value& e : elements()) {
       if (!e.IsAllZeros()) {

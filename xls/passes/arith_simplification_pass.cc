@@ -326,7 +326,7 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
   if ((n->op() == Op::kShll || n->op() == Op::kShrl) && ops[1]->Is<Literal>()) {
     int64 bit_count = n->BitCountOrDie();
     const Bits& shift_bits = ops[1]->As<Literal>()->value().bits();
-    if (shift_bits.IsAllZeros()) {
+    if (shift_bits.IsZero()) {
       // A shift by zero is a nop.
       return n->ReplaceUsesWith(ops[0]);
     }
@@ -376,7 +376,7 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
   if (n->op() == Op::kShra && ops[1]->Is<Literal>()) {
     const int64 bit_count = n->BitCountOrDie();
     const Bits& shift_bits = ops[1]->As<Literal>()->value().bits();
-    if (shift_bits.IsAllZeros()) {
+    if (shift_bits.IsZero()) {
       // A shift by zero is a nop.
       return n->ReplaceUsesWith(ops[0]);
     }

@@ -376,7 +376,7 @@ TEST_F(TernaryLogicTest, OneHotSelectSelectorCannotBeZero) {
         for (const TernaryVector& c : EnumerateTernaryVectors(/*width=*/1)) {
           std::vector<Bits> results;
           for (const Bits& selector_bits : ExpandToBits(selector)) {
-            if (selector_bits.IsAllZeros()) {
+            if (selector_bits.IsZero()) {
               continue;
             }
             for (const Bits& a_bits : ExpandToBits(a)) {

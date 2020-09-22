@@ -26,7 +26,7 @@ namespace xls {
 
 inline bool IsLiteralZero(Node* node) {
   return node->Is<Literal>() && node->As<Literal>()->value().IsBits() &&
-         node->As<Literal>()->value().bits().IsAllZeros();
+         node->As<Literal>()->value().bits().IsZero();
 }
 
 // Returns true if the given node is a literal with the value one when

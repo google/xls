@@ -190,7 +190,7 @@ bool Bits::FitsInNBitsUnsigned(int64 n) const {
 
 bool Bits::FitsInNBitsSigned(int64 n) const {
   if (n == 0) {
-    return IsAllZeros();
+    return IsZero();
   }
 
   // All bits at and above bit N-1 must be the same.

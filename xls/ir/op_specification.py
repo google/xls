@@ -449,6 +449,9 @@ OpClass.kinds['RECEIVE_IF'] = OpClass(
     op='Op::kReceiveIf',
     operands=[Operand('token'), Operand('pred')],
     xls_type_expression='function->package()->GetReceiveType(function->package()->GetChannel(channel_id).value())',
+    extra_methods=[Method(name='predicate',
+                          return_cpp_type='Node*',
+                          expression='operand(1)')],
     attributes=[Int64Attribute('channel_id')]
 )
 
@@ -458,7 +461,7 @@ OpClass.kinds['SEND'] = OpClass(
     operands=[Operand('token'), OperandSpan('args')],
     xls_type_expression='function->package()->GetTokenType()',
     attributes=[Int64Attribute('channel_id')],
-    extra_methods=[Method(name='data',
+    extra_methods=[Method(name='data_operands',
                           return_cpp_type='absl::Span<Node* const>',
                           expression='operands().subspan(1)')],
     custom_clone_method=True
@@ -473,7 +476,7 @@ OpClass.kinds['SEND_IF'] = OpClass(
     extra_methods=[Method(name='predicate',
                           return_cpp_type='Node*',
                           expression='operand(1)'),
-                   Method(name='data',
+                   Method(name='data_operands',
                           return_cpp_type='absl::Span<Node* const>',
                           expression='operands().subspan(2)')],
     custom_clone_method=True
@@ -571,7 +574,7 @@ OpClass.kinds['LITERAL'] = OpClass(
     xls_type_expression='function->package()->GetTypeForValue(value)',
     attributes=[ValueAttribute('value')],
     extra_methods=[Method('IsZero', 'bool',
-                          'value().IsBits() && value().bits().IsAllZeros()')],
+                          'value().IsBits() && value().bits().IsZero()')],
 )
 
 OpClass.kinds['MAP'] = OpClass(

@@ -149,7 +149,7 @@ absl::StatusOr<Bits> ParseNumber(absl::string_view input) {
   XLS_ASSIGN_OR_RETURN(pair, GetSignAndMagnitude(input));
   bool is_negative = pair.first;
   const Bits& magnitude = pair.second;
-  if (is_negative && !magnitude.IsAllZeros()) {
+  if (is_negative && !magnitude.IsZero()) {
     Bits result = bits_ops::Negate(
         bits_ops::ZeroExtend(magnitude, magnitude.bit_count() + 1));
     // We want to return the narrowest Bits object which can hold the (negative)
@@ -168,8 +168,7 @@ absl::StatusOr<uint64> ParseNumberAsUint64(absl::string_view input) {
   std::pair<bool, Bits> pair;
   XLS_ASSIGN_OR_RETURN(pair, GetSignAndMagnitude(input));
   bool is_negative = pair.first;
-  if ((is_negative && !pair.second.IsAllZeros()) ||
-      pair.second.bit_count() > 64) {
+  if ((is_negative && !pair.second.IsZero()) || pair.second.bit_count() > 64) {
     return absl::InvalidArgumentError(
         StrFormat("Value is not representable as an uint64: %s", input));
   }

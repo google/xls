@@ -129,10 +129,10 @@ TEST_F(ProcInterpreterTest, ProcWhichReturnsPreviousResults) {
       ChannelQueueManager::Create(/*rx_only_queues=*/{}, &package));
 
   ProcInterpreter interpreter(proc, queue_manager.get());
-  ChannelQueue& rx_only_queue = queue_manager->GetQueue(ch_in);
+  ChannelQueue& input_queue = queue_manager->GetQueue(ch_in);
   ChannelQueue& output_queue = queue_manager->GetQueue(ch_out);
 
-  ASSERT_TRUE(rx_only_queue.empty());
+  ASSERT_TRUE(input_queue.empty());
   ASSERT_TRUE(output_queue.empty());
 
   // First invocation of RunIterationUntilCompleteOrBlocked should block on
@@ -153,9 +153,9 @@ TEST_F(ProcInterpreterTest, ProcWhichReturnsPreviousResults) {
                                               .blocked_channels = {ch_in}}));
   EXPECT_FALSE(interpreter.IsIterationComplete());
 
-  // Enqueue something into the receive only queue.
-  XLS_ASSERT_OK(rx_only_queue.Enqueue({Value(UBits(42, 32))}));
-  EXPECT_EQ(rx_only_queue.size(), 1);
+  // Enqueue something into the input queue.
+  XLS_ASSERT_OK(input_queue.Enqueue({Value(UBits(42, 32))}));
+  EXPECT_EQ(input_queue.size(), 1);
   EXPECT_TRUE(output_queue.empty());
 
   // It can now continue until complete.
@@ -166,7 +166,7 @@ TEST_F(ProcInterpreterTest, ProcWhichReturnsPreviousResults) {
                                               .blocked_channels = {}}));
   EXPECT_TRUE(interpreter.IsIterationComplete());
 
-  EXPECT_TRUE(rx_only_queue.empty());
+  EXPECT_TRUE(input_queue.empty());
   EXPECT_EQ(output_queue.size(), 1);
 
   EXPECT_THAT(output_queue.Dequeue(),
@@ -175,7 +175,7 @@ TEST_F(ProcInterpreterTest, ProcWhichReturnsPreviousResults) {
 
   // Now run the next iteration. It should spit out the value we fed in during
   // the last iteration (42).
-  XLS_ASSERT_OK(rx_only_queue.Enqueue({Value(UBits(123, 32))}));
+  XLS_ASSERT_OK(input_queue.Enqueue({Value(UBits(123, 32))}));
   ASSERT_THAT(
       interpreter.RunIterationUntilCompleteOrBlocked(),
       IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
@@ -183,6 +183,127 @@ TEST_F(ProcInterpreterTest, ProcWhichReturnsPreviousResults) {
                                               .blocked_channels = {}}));
   EXPECT_THAT(output_queue.Dequeue(),
               IsOkAndHolds(ElementsAre(Value(UBits(42, 32)))));
+}
+
+TEST_F(ProcInterpreterTest, ReceiveIfProc) {
+  // Create a proc which has a receive_if which fires every other
+  // iteration. Receive_if value is unconditionally sent over a different
+  // channel.
+  Package package(TestName());
+  ProcBuilder pb("send_if", /*init_value=*/Value(UBits(1, 1)),
+                 /*state_name=*/"st", /*token_name=*/"tok", &package);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateChannel("in", ChannelKind::kSendReceive,
+                            {DataElement{"data", package.GetBitsType(32)}},
+                            ChannelMetadataProto()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateChannel("out", ChannelKind::kSendOnly,
+                            {DataElement{"data", package.GetBitsType(32)}},
+                            ChannelMetadataProto()));
+
+  BValue receive_if = pb.ReceiveIf(ch_in, /*token=*/pb.GetTokenParam(),
+                                   /*pred=*/pb.GetStateParam());
+  BValue rx_token = pb.TupleIndex(receive_if, 0);
+  BValue rx_data = pb.TupleIndex(receive_if, 1);
+  BValue send = pb.Send(ch_out, rx_token, {rx_data});
+  // Next state value is the inverse of the current state value.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * proc,
+      pb.BuildWithReturnValue(pb.Tuple({pb.Not(pb.GetStateParam()), send})));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ChannelQueueManager> queue_manager,
+      ChannelQueueManager::Create(/*rx_only_queues=*/{}, &package));
+
+  ProcInterpreter interpreter(proc, queue_manager.get());
+  ChannelQueue& input_queue = queue_manager->GetQueue(ch_in);
+  ChannelQueue& output_queue = queue_manager->GetQueue(ch_out);
+
+  ASSERT_TRUE(input_queue.empty());
+  ASSERT_TRUE(output_queue.empty());
+
+  // Enqueue a single value into the input queue.
+  XLS_ASSERT_OK(input_queue.Enqueue({Value(UBits(42, 32))}));
+
+  // In the first iteration, the receive_if should dequeue a value because the
+  // proc state value (which is the receive_if predicate) is initialized to
+  // true.
+  ASSERT_THAT(
+      interpreter.RunIterationUntilCompleteOrBlocked(),
+      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
+                                              .progress_made = true,
+                                              .blocked_channels = {}}));
+  EXPECT_THAT(output_queue.Dequeue(),
+              IsOkAndHolds(ElementsAre(Value(UBits(42, 32)))));
+
+  // The second iteration should not dequeue anything as the receive_if
+  // predicate is now false. The data value of the receive_if (which is sent
+  // over the output channel) should be zeros.
+  ASSERT_TRUE(input_queue.empty());
+  ASSERT_THAT(
+      interpreter.RunIterationUntilCompleteOrBlocked(),
+      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
+                                              .progress_made = true,
+                                              .blocked_channels = {}}));
+  EXPECT_THAT(output_queue.Dequeue(),
+              IsOkAndHolds(ElementsAre(Value(UBits(0, 32)))));
+
+  // The third iteration should again dequeue a value.
+  XLS_ASSERT_OK(input_queue.Enqueue({Value(UBits(123, 32))}));
+  ASSERT_THAT(
+      interpreter.RunIterationUntilCompleteOrBlocked(),
+      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
+                                              .progress_made = true,
+                                              .blocked_channels = {}}));
+  EXPECT_THAT(output_queue.Dequeue(),
+              IsOkAndHolds(ElementsAre(Value(UBits(123, 32)))));
+}
+
+TEST_F(ProcInterpreterTest, SendIfProc) {
+  // Create an output-only proc with a by-one-counter which sends only
+  // even values over a send_if.
+  Package package(TestName());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel,
+      package.CreateChannel("even_out", ChannelKind::kSendOnly,
+                            {DataElement{"data", package.GetBitsType(32)}},
+                            ChannelMetadataProto()));
+
+  ProcBuilder pb("even", /*init_value=*/Value(UBits(0, 32)),
+                 /*state_name=*/"prev", /*token_name=*/"tok", &package);
+  BValue is_even =
+      pb.Eq(pb.BitSlice(pb.GetStateParam(), /*start=*/0, /*width=*/1),
+            pb.Literal(UBits(0, 1)));
+  BValue send_if =
+      pb.SendIf(channel, pb.GetTokenParam(), is_even, {pb.GetStateParam()});
+  BValue new_value = pb.Add(pb.GetStateParam(), pb.Literal(UBits(1, 32)));
+  XLS_ASSERT_OK(
+      pb.BuildWithReturnValue(pb.Tuple({new_value, send_if})).status());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ChannelQueueManager> queue_manager,
+      ChannelQueueManager::Create(/*rx_only_queues=*/{}, &package));
+  ProcInterpreter interpreter(FindProc("even", &package), queue_manager.get());
+
+  ChannelQueue& queue = queue_manager->GetQueue(channel);
+
+  XLS_ASSERT_OK(interpreter.RunIterationUntilCompleteOrBlocked().status());
+  EXPECT_EQ(queue.size(), 1);
+  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(ElementsAre(Value(UBits(0, 32)))));
+
+  XLS_ASSERT_OK(interpreter.RunIterationUntilCompleteOrBlocked().status());
+  EXPECT_TRUE(queue.empty());
+
+  XLS_ASSERT_OK(interpreter.RunIterationUntilCompleteOrBlocked().status());
+  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(ElementsAre(Value(UBits(2, 32)))));
+
+  XLS_ASSERT_OK(interpreter.RunIterationUntilCompleteOrBlocked().status());
+  EXPECT_TRUE(queue.empty());
+
+  XLS_ASSERT_OK(interpreter.RunIterationUntilCompleteOrBlocked().status());
+  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(ElementsAre(Value(UBits(4, 32)))));
 }
 
 }  // namespace

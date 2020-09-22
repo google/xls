@@ -332,6 +332,117 @@ filling in the most significant bits (MSbs) with the following policy:
 
 ### Channel operations
 
+These operations send or receive data over channels. Channels are monomorphic,
+and each channel supports a fixed set of data types which are sent or received
+in a single transaction.
+
+#### **`receive`**
+
+Receives data values from a specified channel. The number of data values `N` and
+their type is determined by the channel.
+
+```
+result = receive(tkn, channel_id=<ch>)
+```
+
+**Types**
+
+Value    | Type
+-------- | -------------------------------
+`tkn`    | `token`
+`result` | `(token, T_{0}, ... , T_{N-1})`
+
+**Keyword arguments**
+
+| Keyword      | Type    | Required | Default | Description              |
+| ------------ | ------- | -------- | ------- | ------------------------ |
+| `channel_id` | `int64` | yes      |         | The ID of the channel to |
+:              :         :          :         : receive data from        :
+
+#### **`receive_if`**
+
+Receives data values from a specified channel if and only if the predicate
+operand is true. The number of data values `N` and their type is determined by
+the channel.
+
+```
+result = receive_if(tkn, pred, channel_id=<ch>)
+```
+
+**Types**
+
+Value    | Type
+-------- | -------------------------------
+`tkn`    | `token`
+`pred`   | `bits[1]`
+`result` | `(token, T_{0}, ... , T_{N-1})`
+
+**Keyword arguments**
+
+| Keyword      | Type    | Required | Default | Description              |
+| ------------ | ------- | -------- | ------- | ------------------------ |
+| `channel_id` | `int64` | yes      |         | The ID of the channel to |
+:              :         :          :         : receive data from        :
+
+If the predicate is false the data values in the result are zero-filled.
+
+#### **`send`**
+
+Sends data values to a specified channel. The number of data values `N` and
+their type is determined by the channel.
+
+```
+result = send(tkn, data_{0}, ..., data_{N-1}, channel_id=<ch>)
+```
+
+**Types**
+
+Value      | Type
+---------- | -------
+`tkn`      | `token`
+`data_{i}` | `T_{i}`
+`result`   | `token`
+
+The types of operands `data_{i}` and the number `N` must match the types and
+number of data elements supported by the channel.
+
+**Keyword arguments**
+
+| Keyword      | Type    | Required | Default | Description                   |
+| ------------ | ------- | -------- | ------- | ----------------------------- |
+| `channel_id` | `int64` | yes      |         | The ID of the channel to send |
+:              :         :          :         : data to.                      :
+
+#### **`send_if`**
+
+Sends data values to a specified channel if and only if the predicate operand is
+true. The number and type of data values is determined by the channel.
+
+```
+result = send_if(tkn, pred, data_{0}, ..., data_{N-1}, channel_id=<ch>)
+```
+
+**Types**
+
+Value      | Type
+---------- | ---------
+`tkn`      | `token`
+`pred`     | `bits[1]`
+`data_{i}` | `T_{i}`
+`result`   | `token`
+
+The types of operands `data_{i}` and the number `N` must match the types and
+number of data elements supported by the channel.
+
+**Keyword arguments**
+
+| Keyword      | Type    | Required | Default | Description                   |
+| ------------ | ------- | -------- | ------- | ----------------------------- |
+| `channel_id` | `int64` | yes      |         | The ID of the channel to send |
+:              :         :          :         : data to.                      :
+
+### Miscellaneous operations
+
 #### **`after_all`**
 
 Used to construct partial orderings among channel operations.
@@ -348,8 +459,6 @@ Value         | Type
 `result`      | `token`
 
 `after_all` can consume an arbitrary number of token operands including zero.
-
-### Miscellaneous operations
 
 #### **`array`**
 

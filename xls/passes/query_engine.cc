@@ -85,7 +85,7 @@ bool QueryEngine::GetKnownMsb(Node* node) const {
 
 bool QueryEngine::IsAllZeros(Node* node) const {
   return IsTracked(node) && GetKnownBits(node).IsAllOnes() &&
-         GetKnownBitsValues(node).IsAllZeros();
+         GetKnownBitsValues(node).IsZero();
 }
 
 bool QueryEngine::IsAllOnes(Node* node) const {
