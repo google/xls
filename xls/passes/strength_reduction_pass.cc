@@ -82,43 +82,6 @@ absl::StatusOr<bool> StrengthReduceNode(
     return true;
   }
 
-  // Replace a multiplication by a power of two with a shift left. We rely on
-  // canonicalization to place the literal on the RHS.
-  // TODO(meheff): 2019/8/6 There are many other possibilities of replacing
-  // multiplication by a constant with shifts and adds.
-  if ((node->op() == Op::kSMul || node->op() == Op::kUMul) &&
-      node->operand(1)->Is<Literal>() &&
-      node->BitCountOrDie() >= node->operand(0)->BitCountOrDie()) {
-    const Bits& multiplicand = node->operand(1)->As<Literal>()->value().bits();
-    // The multiplicand needs to be a power of two. IsPowerOfTwo treats its
-    // operand as an unsigned number, so if the operation is a SMul verify that
-    // the multiplicand is non-negative (sign bit is zero).
-    if (multiplicand.IsPowerOfTwo() &&
-        (node->op() == Op::kUMul || !multiplicand.msb())) {
-      const int64 result_bit_count = node->BitCountOrDie();
-      Node* to_shift = node->operand(0);
-      if (result_bit_count > node->operand(0)->BitCountOrDie()) {
-        // Sign/Zero extend the lhs to match the result width.
-        XLS_ASSIGN_OR_RETURN(
-            to_shift,
-            node->function()->MakeNode<ExtendOp>(
-                node->loc(), node->operand(0),
-                /*new_bit_count=*/result_bit_count,
-                /*op=*/node->op() == Op::kSMul ? Op::kSignExt : Op::kZeroExt));
-      }
-      const int64 shift_amount =
-          multiplicand.bit_count() - multiplicand.CountLeadingZeros() - 1;
-      XLS_ASSIGN_OR_RETURN(
-          Node * literal,
-          node->function()->MakeNode<Literal>(
-              node->loc(), Value(UBits(shift_amount, result_bit_count))));
-      XLS_RETURN_IF_ERROR(
-          node->ReplaceUsesWithNew<BinOp>(to_shift, literal, Op::kShll)
-              .status());
-      return true;
-    }
-  }
-
   // And(x, mask) => Concat(0, Slice(x), 0)
   //
   // Note that we only do this if the mask is a single run of set bits, to avoid

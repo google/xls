@@ -84,7 +84,20 @@ TEST_F(ArithSimplificationPassTest, MulBy0) {
   EXPECT_THAT(f->return_value(), m::Literal(0));
 }
 
-TEST_F(ArithSimplificationPassTest, MulBy1SignExtendedResult) {
+TEST_F(ArithSimplificationPassTest, MulBy42) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK(ParseFunction(R"(
+     fn mul_zero(x:bits[8]) -> bits[8] {
+        literal.1: bits[8] = literal(value=42)
+        ret ret_mul: bits[8] = umul(x, literal.1)
+     }
+  )",
+                              p.get())
+                    .status());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
+TEST_F(ArithSimplificationPassTest, SMulBy1SignExtendedResult) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn mul_zero(x:bits[8]) -> bits[16] {
@@ -94,10 +107,25 @@ TEST_F(ArithSimplificationPassTest, MulBy1SignExtendedResult) {
   )",
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(), m::SignExt(m::Param("x")));
+  EXPECT_THAT(f->return_value(),
+              m::Shll(m::SignExt(m::Param("x")), m::Literal(0)));
 }
 
-TEST_F(ArithSimplificationPassTest, MulBy1ZeroExtendedResult) {
+TEST_F(ArithSimplificationPassTest, SMulBy16SignExtendedResult) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn mul_zero(x:bits[8]) -> bits[16] {
+        one: bits[8] = literal(value=16)
+        ret ret_mul: bits[16] = smul(x, one)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Shll(m::SignExt(m::Param("x")), m::Literal(4)));
+}
+
+TEST_F(ArithSimplificationPassTest, UMulBy1ZeroExtendedResult) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn mul_zero(x:bits[8]) -> bits[16] {
@@ -107,7 +135,48 @@ TEST_F(ArithSimplificationPassTest, MulBy1ZeroExtendedResult) {
   )",
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(), m::ZeroExt(m::Param("x")));
+  EXPECT_THAT(f->return_value(),
+              m::Shll(m::ZeroExt(m::Param("x")), m::Literal(0)));
+}
+
+TEST_F(ArithSimplificationPassTest, UMulBy256ZeroExtendedResult) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn mul_zero(x:bits[8]) -> bits[16] {
+        one: bits[12] = literal(value=256)
+        ret ret_mul: bits[16] = umul(x, one)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Shll(m::ZeroExt(m::Param("x")), m::Literal(8)));
+}
+
+TEST_F(ArithSimplificationPassTest, UDivBy4) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn mul_zero(x:bits[16]) -> bits[16] {
+        literal.1: bits[16] = literal(value=4)
+        ret ret_mul: bits[16] = udiv(x, literal.1)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Shrl(m::Param("x"), m::Literal(2)));
+}
+
+TEST_F(ArithSimplificationPassTest, SDivBy2) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn mul_zero(x:bits[16]) -> bits[16] {
+        literal.1: bits[16] = literal(value=2)
+        ret ret_mul: bits[16] = sdiv(x, literal.1)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Shra(m::Param("x"), m::Literal(1)));
 }
 
 TEST_F(ArithSimplificationPassTest, MulBy1NarrowedResult) {
@@ -121,12 +190,41 @@ TEST_F(ArithSimplificationPassTest, MulBy1NarrowedResult) {
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
-              m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/3));
+              m::Shll(m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/3),
+                      m::Literal(0)));
+}
+
+TEST_F(ArithSimplificationPassTest, UMulByMaxPowerOfTwo) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn mul_zero(x:bits[16]) -> bits[16] {
+        literal.1: bits[8] = literal(value=128)
+        ret ret_mul: bits[16] = umul(x, literal.1)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Shll(m::Param("x"), m::Literal(7)));
+}
+
+TEST_F(ArithSimplificationPassTest, SMulByMinNegative) {
+  // The minimal negative number has only one bit set like powers of two do, but
+  // the mul-by-power-of-two optimization should not kick in.
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn mul_zero(x:bits[8]) -> bits[8] {
+        literal.1: bits[8] = literal(value=128)
+        ret ret_mul: bits[8] = smul(x, literal.1)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::SMul());
 }
 
 TEST_F(ArithSimplificationPassTest, SMulByMinusOne) {
   // A single-bit value of 1 is a -1 when interpreted as a signed number. The
-  // Mul-by-1 optimization should not kick in in this case.
+  // Mul-by-power-of-two optimization should not kick in in this case.
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn mul_zero(x:bits[8]) -> bits[3] {
@@ -149,7 +247,7 @@ TEST_F(ArithSimplificationPassTest, UDivBy1) {
   )",
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(), m::Param());
+  EXPECT_THAT(f->return_value(), m::Shrl(m::Param(), m::Literal(0)));
 }
 
 TEST_F(ArithSimplificationPassTest, MulBy1) {
@@ -162,7 +260,7 @@ TEST_F(ArithSimplificationPassTest, MulBy1) {
   )",
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(), m::Param());
+  EXPECT_THAT(f->return_value(), m::Shll(m::Param(), m::Literal(0)));
 }
 
 TEST_F(ArithSimplificationPassTest, CanonicalizeXorAllOnes) {
