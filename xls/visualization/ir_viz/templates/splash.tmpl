@@ -128,7 +128,7 @@
               </div>
               <div class="col">
                 <div class="custom-control custom-switch">
-                  <input type="checkbox" class="custom-control-input" id="only-selected-checkbox">
+                  <input type="checkbox" class="custom-control-input" id="only-selected-checkbox" checked>
                   <label class="custom-control-label" for="only-selected-checkbox">Show only selected nodes</label>
                 </div>
               </div>
@@ -212,7 +212,7 @@
       {% if load_default %}
       loadBenchmark('default', function() {
         visualizer.selectCriticalPath();
-        visualizer.draw(/*showOnlySelected=*/true);
+        visualizer.draw(showOnlySelectedState());
       });
       {% endif %}
 
