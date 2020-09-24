@@ -120,8 +120,7 @@ cc_library(
         "lib/xtime.c",
     ],
     copts = [
-        "-Wno-vla",
-        "-Wno-maybe-uninitialized",
+        "-w",
         "-DHAVE_CONFIG_H",
         # These are defined in gnulib's fcntl.h, but they're the only thing we
         # need from gnulib, so we define them here instead for simplicity.

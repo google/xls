@@ -362,9 +362,7 @@ cc_binary(
         "config.h",
     ],
     copts = [
-        "-Wno-strict-aliasing",
-        "-Wno-unused-but-set-variable",
-        "-Wno-unused-variable",
+        "-w",
     ],
     # Do not sort: dot last.
     includes = [
@@ -408,7 +406,6 @@ genyacc(
 cc_library(
     name = "shared_headers",
     hdrs = [
-        "config.h",
         "ivl_alloc.h",
         "ivl_target.h",
         "ivl_target_priv.h",
@@ -430,6 +427,7 @@ cc_binary(
         "driver/cflexor.c",
         "driver/cfparse.c",
         "driver/cfparse.h",
+        "config.h",
     ] + glob([
         "driver/*.h",
         "driver/*.c",
@@ -438,7 +436,7 @@ cc_binary(
         "-D_GNU_SOURCE",
         "-std=c11",
         "-fcommon",
-        "-Wno-format-truncation",
+        "-w",
     ],
     # Do not sort: dot last.
     includes = [
@@ -520,8 +518,7 @@ cc_binary(
     ],
     copts = [
         "-O2",  # Optimized binary regardless of configuration.
-        "-Wno-unused-variable",
-        "-Wno-implicit-fallthrough",
+        "-w",
     ],
     # Do not sort: dot last.
     includes = [
@@ -571,6 +568,7 @@ genrule(
 cc_binary(
     name = "ivlpp",
     srcs = [
+        "config.h",
         "ivlpp_lex/lexor.c",
         "ivlpp/globals.h",
         "ivlpp/main.c",
@@ -789,10 +787,7 @@ vpi_binary(
         "tgt-vvp/vvp_scope.c",
     ],
     copts = [
-        "-Wno-implicit-function-declaration",
-        "-Wno-int-conversion",
-        "-Wno-unused-but-set-variable",
-        "-Wno-unused-variable",
+        "-w",
         "-std=c11",
     ],
     includes = [
