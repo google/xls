@@ -440,6 +440,8 @@ absl::StatusOr<Expression*> NodeToExpression(
       return file->Concat(inputs);
     case Op::kUDiv:
       return file->Div(inputs[0], inputs[1]);
+    case Op::kUMod:
+      return file->Mod(inputs[0], inputs[1]);
     case Op::kEq:
       return file->Equals(inputs[0], inputs[1]);
     case Op::kUGe:
@@ -522,6 +524,12 @@ absl::StatusOr<Expression*> NodeToExpression(
       // leaking out into the rest of the expression.
       return file->Make<UnsignedCast>(
           file->Div(file->Make<SignedCast>(inputs[0]),
+                    file->Make<SignedCast>(inputs[1])));
+    case Op::kSMod:
+      // Wrap the expression in $unsigned to prevent the signed property from
+      // leaking out into the rest of the expression.
+      return file->Make<UnsignedCast>(
+          file->Mod(file->Make<SignedCast>(inputs[0]),
                     file->Make<SignedCast>(inputs[1])));
     case Op::kSGt:
       return file->GreaterThan(file->Make<SignedCast>(inputs[0]),

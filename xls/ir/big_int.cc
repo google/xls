@@ -218,6 +218,16 @@ int64 BigInt::UnsignedBitCount() const {
   return value;
 }
 
+/* static */ BigInt BigInt::Mod(const BigInt& lhs, const BigInt& rhs) {
+  BigInt value;
+  // Note: The documentation about BN_CTX in bn.h indicates that it's possible
+  // to pass null to public methods that take a BN_CTX*, but that's not true.
+  BN_CTX* ctx = BN_CTX_new();
+  BN_div(/*quotient=*/nullptr, /*rem=*/&value.bn_, &lhs.bn_, &rhs.bn_, ctx);
+  BN_CTX_free(ctx);
+  return value;
+}
+
 /* static */ BigInt BigInt::Negate(const BigInt& input) {
   BigInt value = input;
   BN_set_negative(&value.bn_, !BN_is_negative(&value.bn_));

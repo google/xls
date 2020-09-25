@@ -153,6 +153,71 @@ TEST_F(ArithSimplificationPassTest, UMulBy256ZeroExtendedResult) {
               m::Shll(m::ZeroExt(m::Param("x")), m::Literal(8)));
 }
 
+TEST_F(ArithSimplificationPassTest, UModBy4) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn umod_power_of_two(x:bits[16]) -> bits[16] {
+        literal.1: bits[16] = literal(value=4)
+        ret umod.2: bits[16] = umod(x, literal.1)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::And(m::Param("x"), m::Literal(3)));
+}
+
+TEST_F(ArithSimplificationPassTest, UModBy1) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn umod_power_of_two(x:bits[16]) -> bits[16] {
+        literal.1: bits[16] = literal(value=1)
+        ret umod.2: bits[16] = umod(x, literal.1)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::And(m::Param("x"), m::Literal(0)));
+}
+
+TEST_F(ArithSimplificationPassTest, UModBy512) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn umod_power_of_two(x:bits[16]) -> bits[16] {
+        literal.1: bits[16] = literal(value=512)
+        ret umod.2: bits[16] = umod(x, literal.1)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::And(m::Param("x"), m::Literal(0x1ff)));
+}
+
+TEST_F(ArithSimplificationPassTest, UModBy42) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn umod_power_of_two(x:bits[16]) -> bits[16] {
+        literal.1: bits[16] = literal(value=42)
+        ret umod.2: bits[16] = umod(x, literal.1)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::UMod());
+}
+
+TEST_F(ArithSimplificationPassTest, UModBy0) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn umod_power_of_two(x:bits[16]) -> bits[16] {
+        literal.1: bits[16] = literal(value=0)
+        ret umod.2: bits[16] = umod(x, literal.1)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::UMod());
+}
+
 TEST_F(ArithSimplificationPassTest, UDivBy4) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(

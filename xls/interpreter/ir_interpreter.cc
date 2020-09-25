@@ -259,6 +259,16 @@ absl::Status IrInterpreter::HandleSDiv(BinOp* div) {
                                            ResolveAsBits(div->operand(1))));
 }
 
+absl::Status IrInterpreter::HandleUMod(BinOp* mod) {
+  return SetBitsResult(mod, bits_ops::UMod(ResolveAsBits(mod->operand(0)),
+                                           ResolveAsBits(mod->operand(1))));
+}
+
+absl::Status IrInterpreter::HandleSMod(BinOp* mod) {
+  return SetBitsResult(mod, bits_ops::SMod(ResolveAsBits(mod->operand(0)),
+                                           ResolveAsBits(mod->operand(1))));
+}
+
 absl::Status IrInterpreter::HandleEq(CompareOp* eq) {
   XLS_RETURN_IF_ERROR(VerifyAllBitsTypes(eq));
   return SetUint64Result(

@@ -91,6 +91,7 @@ class IrInterpreter : public DfsVisitor {
   absl::Status HandleSGt(CompareOp* gt) override;
   absl::Status HandleSLe(CompareOp* le) override;
   absl::Status HandleSLt(CompareOp* lt) override;
+  absl::Status HandleSMod(BinOp* mod) override;
   absl::Status HandleSMul(ArithOp* mul) override;
   absl::Status HandleSel(Select* sel) override;
   absl::Status HandleShll(BinOp* shll) override;
@@ -105,6 +106,7 @@ class IrInterpreter : public DfsVisitor {
   absl::Status HandleUGt(CompareOp* gt) override;
   absl::Status HandleULe(CompareOp* le) override;
   absl::Status HandleULt(CompareOp* lt) override;
+  absl::Status HandleUMod(BinOp* mod) override;
   absl::Status HandleUMul(ArithOp* mul) override;
   absl::Status HandleXorReduce(BitwiseReductionOp* xor_reduce) override;
   absl::Status HandleZeroExtend(ExtendOp* zero_ext) override;

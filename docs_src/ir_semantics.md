@@ -208,17 +208,28 @@ support arbitrary widths.
 **Operations**
 
 Operation | Opcode      | Semantics
---------- | ----------- | ----------------------------------------
+--------- | ----------- | --------------------------------------------
 `add`     | `Op::kAnd`  | `result = lhs + rhs`
-`sdiv`    | `Op::kSDiv` | `result = $signed(lhs) / $signed(rhs)` *
+`sdiv`    | `Op::kSDiv` | `result = $signed(lhs) / $signed(rhs)` * **
+`smod`    | `Op::kSMod` | `result = $signed(lhs) % $signed(rhs)` * ***
 `smul`    | `Op::kSMul` | `result = $signed(lhs) * $signed(rhs)`
 `sub`     | `Op::kSub`  | `result = lhs - rhs`
-`udiv`    | `Op::kUDiv` | `result = lhs / rhs` *
+`udiv`    | `Op::kUDiv` | `result = lhs / rhs` * **
+`umod`    | `Op::kUMod` | `result = lhs % rhs` * ***
 `umul`    | `Op::kUMul` | `result = lhs * rhs`
 
-\* Synthesizing division can lead to failing synthesis and/or problems with
-timing closure. It is usually best not to rely on this Verilog operator in
-practice, but instead explicitly instantiate a divider of choice.
+\* Synthesizing division or modulus can lead to failing synthesis and/or
+problems with timing closure. It is usually best not to rely on this Verilog
+operator in practice, but instead explicitly instantiate a divider of choice.
+
+\** Division rounds toward zero. For unsigned division this is the same as
+truncation. If the divisor is zero, unsigned division produces a maximal
+positive value. For signed division, if the divisor is zero the result is the
+maximal positive value if the dividend is non-negative or the maximal negative
+value if the dividend is negative.
+
+\*** For signed modulus, the sign of the result of modulus matches the sign of
+the left operand. If the right operand is zero the result is zero.
 
 ### Comparison operations
 

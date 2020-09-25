@@ -1406,6 +1406,9 @@ class VerilogFile {
   BinaryInfix* Div(Expression* lhs, Expression* rhs) {
     return Make<BinaryInfix>(lhs, "/", rhs, /*precedence=*/10);
   }
+  BinaryInfix* Mod(Expression* lhs, Expression* rhs) {
+    return Make<BinaryInfix>(lhs, "%", rhs, /*precedence=*/10);
+  }
   BinaryInfix* Mul(Expression* lhs, Expression* rhs) {
     return Make<BinaryInfix>(lhs, "*", rhs, /*precedence=*/10);
   }

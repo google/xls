@@ -59,6 +59,12 @@ Bits UMul(const Bits& lhs, const Bits& rhs);
 Bits SDiv(const Bits& lhs, const Bits& rhs);
 Bits UDiv(const Bits& lhs, const Bits& rhs);
 
+// Performs the (un)signed modulus operation. For signed modulus, the sign of
+// the result matches the sign of the left operand. If the right operand is
+// zero, the result is zero for both signed and unsigned modulus.
+Bits SMod(const Bits& lhs, const Bits& rhs);
+Bits UMod(const Bits& lhs, const Bits& rhs);
+
 // Various unsigned comparison operations. lhs and rhs can be different widths.
 bool UEqual(const Bits& lhs, const Bits& rhs);
 bool UGreaterThanOrEqual(const Bits& lhs, const Bits& rhs);

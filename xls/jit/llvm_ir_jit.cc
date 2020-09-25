@@ -723,6 +723,8 @@ class BuilderVisitor : public DfsVisitorWithDefault {
 
   absl::Status HandleSDiv(BinOp* binop) override { return HandleBinOp(binop); }
 
+  absl::Status HandleSMod(BinOp* binop) override { return HandleBinOp(binop); }
+
   absl::Status HandleSel(Select* sel) override {
     // Sel is implemented by a cascading series of select ops, e.g.,
     // selector == 0 ? cases[0] : selector == 1 ? cases[1] : selector == 2 ? ...
@@ -807,6 +809,8 @@ class BuilderVisitor : public DfsVisitorWithDefault {
   }
 
   absl::Status HandleUDiv(BinOp* binop) override { return HandleBinOp(binop); }
+
+  absl::Status HandleUMod(BinOp* binop) override { return HandleBinOp(binop); }
 
   absl::Status HandleUGe(CompareOp* ge) override {
     llvm::Value* lhs = node_map_.at(ge->operand(0));
@@ -922,6 +926,12 @@ class BuilderVisitor : public DfsVisitorWithDefault {
       case Op::kSDiv:
         result = EmitDiv(lhs, rhs, /*is_signed=*/true);
         break;
+      case Op::kUMod:
+        result = EmitMod(lhs, rhs, /*is_signed=*/false);
+        break;
+      case Op::kSMod:
+        result = EmitMod(lhs, rhs, /*is_signed=*/true);
+        break;
       default:
         return absl::UnimplementedError(
             absl::StrFormat("Unsupported/unimplemented bin op: %d",
@@ -1003,6 +1013,20 @@ class BuilderVisitor : public DfsVisitorWithDefault {
             .value(),
         lhs);
     return builder_->CreateUDiv(lhs, rhs);
+  }
+
+  llvm::Value* EmitMod(llvm::Value* lhs, llvm::Value* rhs, bool is_signed) {
+    // XLS mod semantics differ from LLVMs with regard to mod by zero. In XLS,
+    // modulo by zero returns zero rather than undefined behavior.
+    llvm::Value* zero = llvm::ConstantInt::get(rhs->getType(), 0);
+    llvm::Value* rhs_eq_zero = builder_->CreateICmpEQ(rhs, zero);
+    // Replace a zero rhs with one to avoid SIGFPE even though the result is not
+    // used.
+    rhs = builder_->CreateSelect(
+        rhs_eq_zero, llvm::ConstantInt::get(rhs->getType(), 1), rhs);
+    return builder_->CreateSelect(rhs_eq_zero, zero,
+                                  is_signed ? builder_->CreateSRem(lhs, rhs)
+                                            : builder_->CreateURem(lhs, rhs));
   }
 
   llvm::Constant* CreateTypedZeroValue(llvm::Type* type) {

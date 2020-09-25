@@ -296,6 +296,39 @@ TEST_F(BigIntTest, Divide) {
       MakeBigInt("0x1_0000_0001_0000_0001_0000_0001_0000_0001"));
 }
 
+TEST_F(BigIntTest, Modulus) {
+  EXPECT_EQ(BigInt::Mod(MakeBigInt(0), MakeBigInt(10)), MakeBigInt(0));
+
+  // Result should match C semantics.
+  EXPECT_EQ(BigInt::Mod(MakeBigInt(10), MakeBigInt(2)), MakeBigInt(10 % 2));
+  EXPECT_EQ(BigInt::Mod(MakeBigInt(10), MakeBigInt(3)), MakeBigInt(10 % 3));
+  EXPECT_EQ(BigInt::Mod(MakeBigInt(10), MakeBigInt(4)), MakeBigInt(10 % 4));
+
+  EXPECT_EQ(BigInt::Mod(MakeBigInt(-10), MakeBigInt(2)), MakeBigInt(-10 % 2));
+  EXPECT_EQ(BigInt::Mod(MakeBigInt(-10), MakeBigInt(3)), MakeBigInt(-10 % 3));
+  EXPECT_EQ(BigInt::Mod(MakeBigInt(-10), MakeBigInt(4)), MakeBigInt(-10 % 4));
+
+  EXPECT_EQ(BigInt::Mod(MakeBigInt(10), MakeBigInt(-2)), MakeBigInt(10 % -2));
+  EXPECT_EQ(BigInt::Mod(MakeBigInt(10), MakeBigInt(-3)), MakeBigInt(10 % -3));
+  EXPECT_EQ(BigInt::Mod(MakeBigInt(10), MakeBigInt(-4)), MakeBigInt(10 % -4));
+
+  EXPECT_EQ(BigInt::Mod(MakeBigInt(-10), MakeBigInt(-2)), MakeBigInt(-10 % -2));
+  EXPECT_EQ(BigInt::Mod(MakeBigInt(-10), MakeBigInt(-3)), MakeBigInt(-10 % -3));
+  EXPECT_EQ(BigInt::Mod(MakeBigInt(-10), MakeBigInt(-4)), MakeBigInt(-10 % -4));
+
+  EXPECT_EQ(
+      BigInt::Mod(
+          MakeBigInt("0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff"),
+          MakeBigInt("0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff")),
+      MakeBigInt(0));
+
+  EXPECT_EQ(
+      BigInt::Mod(
+          MakeBigInt("0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff"),
+          MakeBigInt("0xfff_ffff")),
+      MakeBigInt("0xf_ffff"));
+}
+
 TEST_F(BigIntTest, LessThan) {
   EXPECT_TRUE(BigInt::LessThan(MakeBigInt(2), MakeBigInt(10)));
   EXPECT_FALSE(BigInt::LessThan(MakeBigInt(10), MakeBigInt(10)));

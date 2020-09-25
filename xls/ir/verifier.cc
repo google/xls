@@ -373,6 +373,16 @@ class NodeChecker : public DfsVisitor {
     return ExpectAllSameBitsType(div);
   }
 
+  absl::Status HandleUMod(BinOp* mod) override {
+    XLS_RETURN_IF_ERROR(ExpectOperandCount(mod, 2));
+    return ExpectAllSameBitsType(mod);
+  }
+
+  absl::Status HandleSMod(BinOp* mod) override {
+    XLS_RETURN_IF_ERROR(ExpectOperandCount(mod, 2));
+    return ExpectAllSameBitsType(mod);
+  }
+
   absl::Status HandleEq(CompareOp* eq) override {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(eq, 2));
     XLS_RETURN_IF_ERROR(ExpectOperandsSameBitsType(eq));

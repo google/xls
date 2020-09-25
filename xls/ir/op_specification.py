@@ -924,6 +924,12 @@ OPS = [
         properties=[],
     ),
     Op(
+        enum_name='kSMod',
+        name='smod',
+        op_class=OpClass.kinds['BIN_OP'],
+        properties=[],
+    ),
+    Op(
         enum_name='kSel',
         name='sel',
         op_class=OpClass.kinds['SELECT'],
@@ -1005,6 +1011,12 @@ OPS = [
     Op(
         enum_name='kUDiv',
         name='udiv',
+        op_class=OpClass.kinds['BIN_OP'],
+        properties=[],
+    ),
+    Op(
+        enum_name='kUMod',
+        name='umod',
         op_class=OpClass.kinds['BIN_OP'],
         properties=[],
     ),

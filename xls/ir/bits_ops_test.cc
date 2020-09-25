@@ -224,6 +224,27 @@ TEST(BitsOpsTest, UDiv) {
             "0xf_ffff_ffff_ffff_ffff_fff0_0000");
 }
 
+TEST(BitsOpsTest, UMod) {
+  EXPECT_EQ(bits_ops::UMod(UBits(100, 64), UBits(5, 64)), UBits(0, 64));
+  EXPECT_EQ(bits_ops::UMod(UBits(100, 32), UBits(7, 32)), UBits(2, 32));
+  EXPECT_EQ(bits_ops::UMod(UBits(0, 64), UBits(7, 64)), UBits(0, 64));
+
+  // Zero right-hand side should always produce zero.
+  EXPECT_EQ(bits_ops::UMod(Bits(), Bits()), Bits());
+  EXPECT_EQ(bits_ops::UMod(UBits(10, 4), UBits(0, 4)), Bits(4));
+  EXPECT_EQ(bits_ops::UMod(UBits(123456, 64), UBits(0, 64)), Bits(64));
+
+  // Test wide values.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Bits wide_lhs,
+      ParseNumber("0xffff_ffff_ffff_ffff_ffff_0000_0000_1002_3004_5006"));
+  XLS_ASSERT_OK_AND_ASSIGN(Bits wide_rhs, ParseNumber("0x1000_0000_0000_0000"));
+  EXPECT_EQ(bits_ops::UMod(wide_lhs,
+                           bits_ops::ZeroExtend(wide_rhs, wide_lhs.bit_count()))
+                .ToString(FormatPreference::kHex),
+            "0x1002_3004_5006");
+}
+
 TEST(BitsOpsTest, SDiv) {
   EXPECT_EQ(bits_ops::SDiv(SBits(100, 64), SBits(5, 64)), SBits(20, 64));
   EXPECT_EQ(bits_ops::SDiv(SBits(100, 64), SBits(-5, 64)), SBits(-20, 64));
@@ -256,6 +277,36 @@ TEST(BitsOpsTest, SDiv) {
                            bits_ops::ZeroExtend(wide_rhs, wide_lhs.bit_count()))
                 .ToString(FormatPreference::kHex),
             "0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_fff0_0000");
+}
+
+TEST(BitsOpsTest, SMod) {
+  EXPECT_EQ(bits_ops::SMod(SBits(100, 64), SBits(5, 64)), SBits(0, 64));
+  EXPECT_EQ(bits_ops::SMod(SBits(100, 64), SBits(-5, 64)), SBits(0, 64));
+  EXPECT_EQ(bits_ops::SMod(SBits(-100, 64), SBits(-5, 64)), SBits(0, 64));
+  EXPECT_EQ(bits_ops::SMod(SBits(-100, 64), SBits(5, 64)), SBits(0, 64));
+
+  EXPECT_EQ(bits_ops::SMod(SBits(100, 32), SBits(7, 32)), SBits(2, 32));
+  EXPECT_EQ(bits_ops::SMod(SBits(-100, 32), SBits(7, 32)), SBits(-2, 32));
+  EXPECT_EQ(bits_ops::SMod(SBits(100, 32), SBits(-7, 32)), SBits(2, 32));
+  EXPECT_EQ(bits_ops::SMod(SBits(-100, 32), SBits(-7, 32)), SBits(-2, 32));
+
+  EXPECT_EQ(bits_ops::SMod(SBits(0, 64), SBits(7, 64)), SBits(0, 64));
+  EXPECT_EQ(bits_ops::SMod(SBits(0, 64), SBits(-7, 64)), SBits(0, 64));
+
+  // Zero right hand side.
+  EXPECT_EQ(bits_ops::SMod(Bits(), Bits()), Bits());
+  EXPECT_EQ(bits_ops::SMod(SBits(5, 4), SBits(0, 4)), Bits(4));
+  EXPECT_EQ(bits_ops::SMod(SBits(-5, 4), SBits(0, 4)), Bits(4));
+
+  // Test wide values.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Bits wide_lhs,
+      ParseNumber("0xffff_ffff_ffff_ffff_ffff_0000_0000_a000_b000_c000"));
+  XLS_ASSERT_OK_AND_ASSIGN(Bits wide_rhs, ParseNumber("0x1000_0000_0000_0000"));
+  EXPECT_EQ(bits_ops::SMod(wide_lhs,
+                           bits_ops::ZeroExtend(wide_rhs, wide_lhs.bit_count()))
+                .ToString(FormatPreference::kHex),
+            "0xffff_ffff_ffff_ffff_ffff_ffff_f000_a000_b000_c000");
 }
 
 TEST(BitsOpsTest, UnsignedComparisons) {

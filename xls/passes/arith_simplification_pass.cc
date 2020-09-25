@@ -332,6 +332,30 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
     return true;
   }
 
+  // Pattern: UMod by a power of two.
+  if ((n->op() == Op::kUMod) && n->operand(1)->Is<Literal>()) {
+    const Bits& rhs = n->operand(1)->As<Literal>()->value().bits();
+    if (rhs.IsPowerOfTwo()) {
+      XLS_VLOG(2) << "FOUND: UMod by a power of two";
+      // Extend/trunc operand 0 (the non-literal operand) to the width of the
+      // mod then mask off the high bits.
+      XLS_ASSIGN_OR_RETURN(
+          Node * adjusted_lhs,
+          maybe_extend_or_trunc(n->operand(0), n->BitCountOrDie(),
+                                /*is_signed=*/false));
+      Bits one = UBits(1, adjusted_lhs->BitCountOrDie());
+      Bits bits_mask = bits_ops::Sub(
+          bits_ops::ShiftLeftLogical(one, rhs.CountTrailingZeros()), one);
+      XLS_ASSIGN_OR_RETURN(Node * mask, n->function()->MakeNode<Literal>(
+                                            n->loc(), Value(bits_mask)));
+      XLS_RETURN_IF_ERROR(
+          n->ReplaceUsesWithNew<NaryOp>(
+               std::vector<Node*>({adjusted_lhs, mask}), Op::kAnd)
+              .status());
+      return true;
+    }
+  }
+
   // Pattern: Not(Not(x)) => x
   if (n->op() == Op::kNot && n->operand(0)->op() == Op::kNot) {
     return n->ReplaceUsesWith(n->operand(0)->operand(0));

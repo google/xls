@@ -191,6 +191,8 @@ bool ShouldEvaluate(Node* node) {
     case Op::kSDiv:
     case Op::kSub:
     case Op::kUDiv:
+    case Op::kSMod:
+    case Op::kUMod:
       return false;
 
     // Reduction ops.

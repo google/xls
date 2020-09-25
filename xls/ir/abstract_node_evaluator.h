@@ -156,6 +156,8 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
     }
     case Op::kSDiv:
       return default_handler(node);
+    case Op::kSMod:
+      return default_handler(node);
     case Op::kSGe:
       return default_handler(node);
     case Op::kSGt:
@@ -197,6 +199,8 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
     case Op::kTupleIndex:
       return default_handler(node);
     case Op::kUDiv:
+      return default_handler(node);
+    case Op::kUMod:
       return default_handler(node);
     case Op::kUGe:
       XLS_RETURN_IF_ERROR(check_operand_count(2));

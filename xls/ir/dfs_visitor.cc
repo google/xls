@@ -168,6 +168,10 @@ absl::Status DfsVisitorWithDefault::HandleSDiv(BinOp* div) {
   return DefaultHandler(div);
 }
 
+absl::Status DfsVisitorWithDefault::HandleSMod(BinOp* mod) {
+  return DefaultHandler(mod);
+}
+
 absl::Status DfsVisitorWithDefault::HandleSGe(CompareOp* ge) {
   return DefaultHandler(ge);
 }
@@ -226,6 +230,10 @@ absl::Status DfsVisitorWithDefault::HandleTupleIndex(TupleIndex* index) {
 
 absl::Status DfsVisitorWithDefault::HandleUDiv(BinOp* div) {
   return DefaultHandler(div);
+}
+
+absl::Status DfsVisitorWithDefault::HandleUMod(BinOp* mod) {
+  return DefaultHandler(mod);
 }
 
 absl::Status DfsVisitorWithDefault::HandleUGe(CompareOp* ge) {

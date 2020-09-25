@@ -777,6 +777,31 @@ TEST_P(IrEvaluatorTest, InterpretUDiv) {
               IsOkAndHolds(Value(UBits(0xff, 8))));
 }
 
+TEST_P(IrEvaluatorTest, InterpretUMod) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn shift_left_logical(a: bits[8], b: bits[8]) -> bits[8] {
+    ret shll.1: bits[8] = umod(a, b)
+  }
+  )"));
+
+  absl::flat_hash_map<std::string, Value> args;
+
+  args = {{"a", Value(UBits(33, 8))}, {"b", Value(UBits(11, 8))}};
+  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+              IsOkAndHolds(Value(UBits(0, 8))));
+
+  args = {{"a", Value(UBits(42, 8))}, {"b", Value(UBits(5, 8))}};
+  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+              IsOkAndHolds(Value(UBits(2, 8))));
+
+  // Modulo by zero.
+  args = {{"a", Value(UBits(123, 8))}, {"b", Value(UBits(0, 8))}};
+  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+              IsOkAndHolds(Value(UBits(0, 8))));
+}
+
 TEST_P(IrEvaluatorTest, InterpretSDiv) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
@@ -807,6 +832,43 @@ TEST_P(IrEvaluatorTest, InterpretSDiv) {
   args = {{"a", Value(SBits(-10, 8))}, {"b", Value(SBits(0, 8))}};
   EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
               IsOkAndHolds(Value(SBits(-128, 8))));
+}
+
+TEST_P(IrEvaluatorTest, InterpretSMod) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn signed_mod(a: bits[8], b: bits[8]) -> bits[8] {
+    ret shll.1: bits[8] = smod(a, b)
+  }
+  )"));
+
+  absl::flat_hash_map<std::string, Value> args;
+
+  args = {{"a", Value(SBits(33, 8))}, {"b", Value(SBits(-11, 8))}};
+  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+              IsOkAndHolds(Value(SBits(0, 8))));
+
+  args = {{"a", Value(SBits(4, 8))}, {"b", Value(SBits(3, 8))}};
+  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+              IsOkAndHolds(Value(SBits(1, 8))));
+  args = {{"a", Value(SBits(4, 8))}, {"b", Value(SBits(-3, 8))}};
+  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+              IsOkAndHolds(Value(SBits(1, 8))));
+  args = {{"a", Value(SBits(-4, 8))}, {"b", Value(SBits(3, 8))}};
+  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+              IsOkAndHolds(Value(SBits(-1, 8))));
+  args = {{"a", Value(SBits(-4, 8))}, {"b", Value(SBits(-3, 8))}};
+  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+              IsOkAndHolds(Value(SBits(-1, 8))));
+
+  // Modulus by zero.
+  args = {{"a", Value(SBits(123, 8))}, {"b", Value(SBits(0, 8))}};
+  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+              IsOkAndHolds(Value(SBits(0, 8))));
+  args = {{"a", Value(SBits(-10, 8))}, {"b", Value(SBits(0, 8))}};
+  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+              IsOkAndHolds(Value(SBits(0, 8))));
 }
 
 TEST_P(IrEvaluatorTest, InterpretShll) {

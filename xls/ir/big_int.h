@@ -63,6 +63,7 @@ class BigInt {
   static BigInt Sub(const BigInt& lhs, const BigInt& rhs);
   static BigInt Mul(const BigInt& lhs, const BigInt& rhs);
   static BigInt Div(const BigInt& lhs, const BigInt& rhs);
+  static BigInt Mod(const BigInt& lhs, const BigInt& rhs);
   static BigInt Negate(const BigInt& input);
   static bool LessThan(const BigInt& lhs, const BigInt& rhs);
 
