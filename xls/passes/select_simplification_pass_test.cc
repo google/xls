@@ -14,10 +14,10 @@
 
 #include "xls/passes/select_simplification_pass.h"
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/substitute.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function.h"
@@ -671,6 +671,109 @@ TEST_F(SelectSimplificationPassTest, SelectsWithCommonCase3) {
   EXPECT_THAT(f->return_value(),
               m::Select(m::Or(m::Param("p0"), m::Param("p1")),
                         {m::Param("y"), m::Param("x")}));
+}
+
+TEST_F(SelectSimplificationPassTest, SpecializeSelectSimple) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+fn f(a: bits[1], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
+  sel.1: bits[32] = sel(a, cases=[x, y])
+  ret sel.2: bits[32] = sel(a, cases=[z, sel.1])
+}
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Select(m::Param("a"),
+                {m::Param("z"),
+                 m::Select(m::Literal(1), {m::Param("x"), m::Param("y")})}));
+}
+
+TEST_F(SelectSimplificationPassTest, SpecializeSelectMultipleBranches) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+fn f(a: bits[32], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
+  add.1: bits[32] = add(a, x)
+  add.2: bits[32] = add(a, y)
+  add.3: bits[32] = add(a, z)
+  ret sel.4: bits[32] = sel(a, cases=[add.1, add.2, add.3], default=a)
+}
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::Param("a"),
+                        {m::Add(m::Literal(0), m::Param("x")),
+                         m::Add(m::Literal(1), m::Param("y")),
+                         m::Add(m::Literal(2), m::Param("z"))},
+                        m::Param("a")));
+}
+
+TEST_F(SelectSimplificationPassTest, SpecializeSelectSelectorExpression) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+fn f(a: bits[32], x: bits[1]) -> bits[1] {
+  literal.1: bits[32] = literal(value=7)
+  ult.2: bits[1] = ult(a, literal.1)
+  not.3: bits[1] = not(ult.2)
+  ret sel.4: bits[1] = sel(ult.2, cases=[not.3, x])
+}
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::ULt(m::Param("a"), m::Literal(7)),
+                        {m::Not(m::Literal(0)), m::Param("x")}));
+}
+
+TEST_F(SelectSimplificationPassTest, SpecializeSelectNegative0) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+fn f(a: bits[32], x: bits[32], y: bits[32]) -> bits[32] {
+  not.1: bits[32] = not(a)
+  add.2: bits[32] = add(not.1, x)
+  add.3: bits[32] = add(not.1, y)
+  ret sel.4: bits[32] = sel(a, cases=[add.2, add.3], default=a)
+}
+  )",
+                                                       p.get()));
+  // Select arm specialization does not apply because not(a) is used in both
+  // branches:
+  //
+  //      not(a)
+  //     /      \
+  //   add.2   add.3
+  //
+  // This could be improved by making separate copies or each branch:
+  //
+  //   not(a)  not(a)
+  //    |       |
+  //   add.2   add.3
+  //
+  // and specializing the selector value separately for each:
+  //
+  //   not(0)  not(1)
+  //    |        |
+  //   add.2   add.3
+  //
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_F(SelectSimplificationPassTest, SpecializeSelectNegative1) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+fn f(a: bits[32], x: bits[32], y: bits[32]) -> bits[32] {
+  add.1: bits[32] = add(a, y)
+  sel.2: bits[32] = sel(a, cases=[x, add.1], default=a)
+  ret add.3: bits[32] = add(add.1, sel.2)
+}
+  )",
+                                                       p.get()));
+  // Similar to the negative test above, the select arm could be specialized
+  // by creating a separate copy of the add.1 Node to be used in the return
+  // value, and then replacing only the one used in the select arm.
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
 }  // namespace

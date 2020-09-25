@@ -82,7 +82,8 @@ class Node {
   // SwapOperands() below.
   absl::Span<Node* const> operands() const { return operands_; }
 
-  // Returns whether at least one operand was replaced.
+  // Replaces all instances of 'old_operand' with 'new_operand', and returns
+  // whether at least one operand was replaced.
   bool ReplaceOperand(Node* old_operand, Node* new_operand);
 
   // Replaces the existing operand at position 'operand_no' with 'new_operand'.

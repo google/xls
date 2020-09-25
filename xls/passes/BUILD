@@ -471,6 +471,7 @@ cc_library(
     hdrs = ["select_simplification_pass.h"],
     deps = [
         ":passes",
+        ":post_dominator_analysis",
         ":ternary_query_engine",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_set",
