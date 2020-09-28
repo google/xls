@@ -37,6 +37,7 @@
 #include "xls/passes/reassociation_pass.h"
 #include "xls/passes/select_simplification_pass.h"
 #include "xls/passes/strength_reduction_pass.h"
+#include "xls/passes/table_switch_pass.h"
 #include "xls/passes/tuple_simplification_pass.h"
 #include "xls/passes/unroll_pass.h"
 #include "xls/passes/verifier_checker.h"
@@ -52,6 +53,8 @@ class SimplificationPass : public FixedPointCompoundPass {
     Add<ConstantFoldingPass>();
     Add<DeadCodeEliminationPass>();
     Add<CanonicalizationPass>();
+    Add<DeadCodeEliminationPass>();
+    Add<TableSwitchPass>();
     Add<DeadCodeEliminationPass>();
     Add<SelectSimplificationPass>(split_ops);
     Add<DeadCodeEliminationPass>();

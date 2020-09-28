@@ -113,6 +113,9 @@ Bits ShiftRightArith(const Bits& bits, int64 shift_amount);
 // 0x800...).
 Bits Negate(const Bits& bits);
 
+// Returns the absolute value of the given [signed] Bits.
+Bits Abs(const Bits& bits);
+
 // Concatenates the argument bits together. The zero-th index element in the
 // span becomes the most significant bits in the returned Bits object.
 Bits Concat(absl::Span<const Bits> inputs);

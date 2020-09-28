@@ -426,6 +426,14 @@ Bits Negate(const Bits& bits) {
   return TruncateOrSignExtend(negated, bits.bit_count());
 }
 
+Bits Abs(const Bits& bits) {
+  if (bits.GetFromMsb(0)) {
+    return Negate(bits);
+  } else {
+    return bits;
+  }
+}
+
 Bits ShiftLeftLogical(const Bits& bits, int64 shift_amount) {
   XLS_CHECK_GE(shift_amount, 0);
   shift_amount = std::min(shift_amount, bits.bit_count());

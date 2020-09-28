@@ -26,7 +26,7 @@ namespace xls {
 class SelectSimplificationPass : public FunctionPass {
  public:
   // 'split_ops' indicates whether to perform optimizations which split
-  // operations into smaller operations. Typically spliiting optimizations
+  // operations into smaller operations. Typically splitting optimizations
   // should be performed later in the optimization pipeline.
   explicit SelectSimplificationPass(bool split_ops)
       : FunctionPass("select_simp", "Select Simplification"),

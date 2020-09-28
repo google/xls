@@ -307,7 +307,7 @@ absl::Status IrInterpreter::HandleArrayIndex(ArrayIndex* index) {
   const Value& input_array = ResolveAsValue(index->operand(0));
   // Out-of-bounds accesses are clamped to the highest index.
   // TODO(meheff): Figure out what the right thing to do here is including
-  // potentially making the behavior  an option.
+  // potentially making the behavior an option.
   uint64 i = ResolveAsBoundedUint64(index->operand(1), input_array.size() - 1);
   return SetValueResult(index, input_array.elements().at(i));
 }

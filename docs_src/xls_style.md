@@ -48,3 +48,18 @@ in the XLS project, with the relevant Google style guides
     //   arg2: <arg2 description>
     //   ...
     ```
+
+### IR nodes
+
+*   Unlike most data, IR elements should be passed as non-const pointers, even
+    when expected to be const (which would usually indicate passing them as
+    const references). Experience has shown that IR elements often develop
+    non-const usages over time. Consider the case of IR analysis passes - those
+    passes themselves rarely need to mutate their input data, but they build up
+    data structures whose users often need to mutate their contents. In
+    addition, treating elements as pointers makes equality comparisons more
+    straightforward (avoid taking an address of a reference) and helps avoid
+    accidental copies (assigning a reference to local, etc.). Non-const pointer
+    usage propagates outwards such that the few cases where a const reference
+    could _actually_ be appropriate become odd outliers, so our guidance is that
+    IR elements should uniformly be passed as non-const pointers.

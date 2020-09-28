@@ -141,7 +141,7 @@ NODE_MATCHER(Map);
 #undef NODE_MATCHER
 
 // Ops which have metadata beyond the Op, type, and the operands (e.g., Literals
-// whice have values) require their own subclass of NodeMatcher. Below are the
+// which have values) require their own subclass of NodeMatcher. Below are the
 // definitions of these classes.
 
 // Param matcher. Matches parameter name only. Supported forms:

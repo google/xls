@@ -45,6 +45,7 @@ cc_library(
         ":reassociation_pass",
         ":select_simplification_pass",
         ":strength_reduction_pass",
+        ":table_switch_pass",
         ":tuple_simplification_pass",
         ":unroll_pass",
         ":verifier_checker",
@@ -675,6 +676,21 @@ cc_library(
 )
 
 cc_library(
+    name = "table_switch_pass",
+    srcs = ["table_switch_pass.cc"],
+    hdrs = ["table_switch_pass.h"],
+    deps = [
+        ":passes",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+    ],
+)
+
+cc_library(
     name = "array_simplification_pass",
     srcs = ["array_simplification_pass.cc"],
     hdrs = ["array_simplification_pass.h"],
@@ -1053,6 +1069,24 @@ cc_test(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_parser",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "table_switch_pass_test",
+    srcs = ["table_switch_pass_test.cc"],
+    deps = [
+        ":pass_base",
+        ":table_switch_pass",
+        "@com_google_absl//absl/strings",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/interpreter:ir_interpreter",
+        "//xls/ir",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
