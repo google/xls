@@ -20,13 +20,13 @@ from typing import Any, Text, Dict, Tuple, Optional
 
 from absl import logging
 
-from xls.dslx import parametric_expression
 from xls.dslx.concrete_type import ArrayType
 from xls.dslx.concrete_type import BitsType
 from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.concrete_type import EnumType
 from xls.dslx.concrete_type import FunctionType
 from xls.dslx.concrete_type import TupleType
+from xls.dslx.python import cpp_parametric_expression as parametric_expression
 from xls.dslx.python.cpp_pos import Span
 from xls.dslx.symbolic_bindings import SymbolicBindings
 from xls.dslx.xls_type_error import ArgCountMismatchError

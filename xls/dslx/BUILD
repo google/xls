@@ -28,7 +28,7 @@ py_library(
     srcs = ["bit_helpers.py"],
     srcs_version = "PY3",
     deps = [
-        "//xls/dslx:parametric_expression",
+        "//xls/dslx/python:cpp_parametric_expression",
     ],
 )
 
@@ -76,20 +76,13 @@ py_binary(
     ],
 )
 
-py_library(
-    name = "parametric_expression",
-    srcs = ["parametric_expression.py"],
-    srcs_version = "PY3",
-    deps = ["//xls/dslx/python:cpp_pos"],
-)
-
 py_test(
     name = "parametric_expression_test",
     srcs = ["parametric_expression_test.py"],
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":parametric_expression",
+        "//xls/dslx/python:cpp_parametric_expression",
         "//xls/dslx/python:cpp_pos",
         "@com_google_absl_py//absl/testing:absltest",
     ],
@@ -107,9 +100,9 @@ py_library(
     srcs_version = "PY3",
     deps = [
         ":concrete_type",
-        ":parametric_expression",
         ":symbolic_bindings",
         ":xls_type_error",
+        "//xls/dslx/python:cpp_parametric_expression",
         "//xls/dslx/python:cpp_pos",
         "@com_google_absl_py//absl/logging",
     ],
@@ -239,11 +232,11 @@ py_library(
         ":bit_helpers",
         ":concrete_type",
         ":dslx_builtins",
-        ":parametric_expression",
         ":parametric_instantiator",
         ":type_info",
         ":xls_type_error",
         "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_parametric_expression",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_scanner",
         "@com_google_absl_py//absl/logging",
@@ -340,7 +333,7 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":concrete_type",
-        ":parametric_expression",
+        "//xls/dslx/python:cpp_parametric_expression",
         "//xls/dslx/python:cpp_pos",
         "@com_google_absl_py//absl/testing:absltest",
     ],
@@ -358,13 +351,13 @@ py_library(
         ":dslx_builtins",
         ":extract_conversion_order",
         ":ir_name_mangler",
-        ":parametric_expression",
         ":parametric_instantiator",
         ":span",
         ":type_info",
         "//xls/common:xls_error",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_ast_visitor",
+        "//xls/dslx/python:cpp_parametric_expression",
         "//xls/dslx/python:cpp_pos",
         "//xls/ir/python:bits",
         "//xls/ir/python:fileno",
@@ -674,5 +667,17 @@ cc_test(
         ":cpp_parser",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "cpp_parametric_expression",
+    srcs = ["parametric_expression.cc"],
+    hdrs = ["parametric_expression.h"],
+    deps = [
+        ":cpp_pos",
+        "//xls/common:integral_types",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
     ],
 )

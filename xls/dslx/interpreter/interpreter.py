@@ -53,11 +53,11 @@ from xls.dslx.interpreter.value import Bits
 from xls.dslx.interpreter.value import Nil
 from xls.dslx.interpreter.value import Tag
 from xls.dslx.interpreter.value import Value
-from xls.dslx.parametric_expression import ParametricAdd
-from xls.dslx.parametric_expression import ParametricExpression
-from xls.dslx.parametric_expression import ParametricSymbol
 from xls.dslx.parametric_instantiator import SymbolicBindings
 from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python.cpp_parametric_expression import ParametricAdd
+from xls.dslx.python.cpp_parametric_expression import ParametricExpression
+from xls.dslx.python.cpp_parametric_expression import ParametricSymbol
 from xls.dslx.python.cpp_pos import Pos
 from xls.dslx.python.cpp_pos import Span
 from xls.ir.python import package as ir_package_mod

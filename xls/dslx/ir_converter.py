@@ -35,11 +35,11 @@ from xls.dslx.concrete_type import EnumType
 from xls.dslx.concrete_type import FunctionType
 from xls.dslx.concrete_type import TupleType
 from xls.dslx.ir_name_mangler import mangle_dslx_name
-from xls.dslx.parametric_expression import ParametricExpression
 from xls.dslx.parametric_instantiator import SymbolicBindings
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_ast_visitor
 from xls.dslx.python.cpp_ast_visitor import visit
+from xls.dslx.python.cpp_parametric_expression import ParametricExpression
 from xls.dslx.python.cpp_pos import Span
 from xls.dslx.span import PositionalError
 from xls.ir.python import bits as bits_mod
@@ -239,7 +239,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     while isinstance(dim, ParametricExpression):
       try:
         orig = dim
-        dim = dim.evaluate(self.symbolic_bindings)
+        dim = dim.evaluate(self.symbolic_bindings)  # pytype: disable=attribute-error
         logging.vlog(4, 'Evaluated dim %s to %s via %s', orig, dim,
                      self.symbolic_bindings)
       except KeyError:

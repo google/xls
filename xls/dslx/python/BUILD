@@ -111,3 +111,15 @@ xls_pybind_extension(
         "//xls/dslx:cpp_parser",
     ],
 )
+
+xls_pybind_extension(
+    name = "cpp_parametric_expression",
+    srcs = ["cpp_parametric_expression.cc"],
+    deps = [
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/strings",
+        "//xls/common/status:status_macros",
+        "//xls/common/status:statusor_pybind_caster",
+        "//xls/dslx:cpp_parametric_expression",
+    ],
+)

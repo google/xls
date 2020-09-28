@@ -34,11 +34,11 @@ from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.concrete_type import EnumType
 from xls.dslx.concrete_type import FunctionType
 from xls.dslx.concrete_type import TupleType
-from xls.dslx.parametric_expression import ParametricAdd
-from xls.dslx.parametric_expression import ParametricExpression
-from xls.dslx.parametric_expression import ParametricSymbol
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_scanner as scanner
+from xls.dslx.python.cpp_parametric_expression import ParametricAdd
+from xls.dslx.python.cpp_parametric_expression import ParametricExpression
+from xls.dslx.python.cpp_parametric_expression import ParametricSymbol
 from xls.dslx.python.cpp_pos import Span
 from xls.dslx.type_info import TypeInfo
 from xls.dslx.type_info import TypeMissingError
