@@ -120,7 +120,8 @@ absl::StatusOr<bool> CollapseSelectChains(Function* f,
       continue;
     }
     std::vector<Select*> select_chain;
-    for (Node* s = node; is_binary_select(s); s = s->As<Select>()->cases()[0]) {
+    for (Node* s = node; is_binary_select(s);
+         s = s->As<Select>()->get_case(0)) {
       select_chain.push_back(s->As<Select>());
     }
     if (select_chain.size() <= 1) {
@@ -144,7 +145,7 @@ absl::StatusOr<bool> CollapseSelectChains(Function* f,
     }
     std::vector<Node*> cases(selectors.size());
     std::transform(select_chain.begin(), select_chain.end(), cases.begin(),
-                   [](Select* s) { return s->cases()[1]; });
+                   [](Select* s) { return s->get_case(1); });
     if (!query_engine.AtLeastOneNodeTrue(selectors)) {
       // All the selectors may be simultaneously false, so we need to add a
       // "fall-through" case whose selector is the NOR of all the other
@@ -154,7 +155,7 @@ absl::StatusOr<bool> CollapseSelectChains(Function* f,
                            node->function()->MakeNode<NaryOp>(
                                node->loc(), std::vector{selectors}, Op::kNor));
       selectors.push_back(nor_of_selectors);
-      cases.push_back(select_chain.back()->cases()[0]);
+      cases.push_back(select_chain.back()->get_case(0));
     }
     XLS_VLOG(4) << "Replacing select chain with one-hot-select.";
     XLS_ASSIGN_OR_RETURN(Node * ohs_selector,
@@ -290,7 +291,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       XLS_RETURN_IF_ERROR(
           node->ReplaceUsesWithNew<Select>(
                   /*selector=*/bit0_selector,
-                  std::vector<Node*>{ohs->cases()[1], ohs->cases()[0]},
+                  std::vector<Node*>{ohs->get_case(1), ohs->get_case(0)},
                   /*default_value*/ absl::nullopt)
               .status());
     }

@@ -454,7 +454,7 @@ absl::Status IrInterpreter::HandleOneHotSel(OneHotSelect* sel) {
   std::vector<const Value*> activated_inputs;
   for (int64 i = 0; i < selector.bit_count(); ++i) {
     if (selector.Get(i)) {
-      activated_inputs.push_back(&ResolveAsValue(sel->cases()[i]));
+      activated_inputs.push_back(&ResolveAsValue(sel->get_case(i)));
     }
   }
   XLS_ASSIGN_OR_RETURN(Value result, DeepOr(sel->GetType(), activated_inputs));
@@ -484,7 +484,7 @@ absl::Status IrInterpreter::HandleSel(Select* sel) {
     return SetValueResult(sel, ResolveAsValue(*sel->default_value()));
   }
   XLS_ASSIGN_OR_RETURN(uint64 i, selector.ToUint64());
-  return SetValueResult(sel, ResolveAsValue(sel->cases()[i]));
+  return SetValueResult(sel, ResolveAsValue(sel->get_case(i)));
 }
 
 absl::Status IrInterpreter::HandleShll(BinOp* shll) {

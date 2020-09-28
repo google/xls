@@ -656,7 +656,7 @@ class NodeChecker : public DfsVisitor {
     }
 
     for (int64 i = 0; i < sel->cases().size(); ++i) {
-      Type* operand_type = sel->cases()[i]->GetType();
+      Type* operand_type = sel->get_case(i)->GetType();
       if (operand_type != sel->GetType()) {
         return absl::InternalError(StrFormat(
             "Case %d (operand %d) type %s does not match node type: %s", i,

@@ -732,7 +732,7 @@ class BuilderVisitor : public DfsVisitorWithDefault {
     llvm::Value* llvm_sel =
         sel->default_value() ? node_map_.at(*sel->default_value()) : nullptr;
     for (int i = sel->cases().size() - 1; i >= 0; i--) {
-      Node* node = sel->cases()[i];
+      Node* node = sel->get_case(i);
       if (llvm_sel == nullptr) {
         // The last element in the select tree isn't a sel, but an actual value.
         llvm_sel = node_map_.at(node);
