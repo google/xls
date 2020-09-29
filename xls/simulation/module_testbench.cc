@@ -289,33 +289,40 @@ absl::Status ModuleTestbench::CheckOutput(absl::string_view stdout_str) const {
   for (const auto& pair : expectations_) {
     auto cycle_port = pair.first;
     const Expectation& expectation = pair.second;
+    auto get_source_location = [&]() {
+      return absl::StrFormat("%s@%d", expectation.loc.file_name(),
+                             expectation.loc.line());
+    };
     if (!parsed_values.contains(cycle_port)) {
       return absl::NotFoundError(absl::StrFormat(
-          "Output '%s', instance #%d @ %s not found in Verilog "
+          "%s: output '%s', instance #%d @ %s not found in Verilog "
           "simulator output.",
-          cycle_port.second, cycle_port.first, ToString(expectation.loc)));
+          get_source_location(), cycle_port.second, cycle_port.first,
+          ToString(expectation.loc)));
     }
     if (absl::holds_alternative<Bits>(expectation.expected)) {
       const Bits& expected_bits = absl::get<Bits>(expectation.expected);
       if (absl::holds_alternative<IsX>(parsed_values.at(cycle_port))) {
         return absl::FailedPreconditionError(absl::StrFormat(
-            "Expected output '%s', instance #%d to have value: %s, has X",
-            cycle_port.second, cycle_port.first, expected_bits.ToString()));
+            "%s: expected output '%s', instance #%d to have value: %s, has X",
+            get_source_location(), cycle_port.second, cycle_port.first,
+            expected_bits.ToString()));
       }
       const Bits& actual_bits = absl::get<Bits>(parsed_values.at(cycle_port));
       if (actual_bits != expected_bits) {
         return absl::FailedPreconditionError(absl::StrFormat(
-            "Expected output '%s', instance #%d to have value: %s, actual: %s",
-            cycle_port.second, cycle_port.first, expected_bits.ToString(),
-            actual_bits.ToString()));
+            "%s: expected output '%s', instance #%d to have value: %s, actual: "
+            "%s",
+            get_source_location(), cycle_port.second, cycle_port.first,
+            expected_bits.ToString(), actual_bits.ToString()));
       }
     } else {
       XLS_CHECK(absl::holds_alternative<IsX>(expectation.expected));
       if (absl::holds_alternative<Bits>(parsed_values.at(cycle_port))) {
         return absl::FailedPreconditionError(absl::StrFormat(
-            "Expected output '%s', instance #%d to have X value, has non X "
+            "%s: expected output '%s', instance #%d to have X value, has non X "
             "value: %s",
-            cycle_port.second, cycle_port.first,
+            get_source_location(), cycle_port.second, cycle_port.first,
             absl::get<Bits>(parsed_values.at(cycle_port)).ToString()));
       }
     }

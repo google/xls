@@ -1150,6 +1150,82 @@ TEST_P(PipelineGeneratorTest, SplitOutputsNotTupleTyped) {
   EXPECT_EQ(bits_map.at("out"), UBits(165, 8));
 }
 
+TEST_P(PipelineGeneratorTest, ValidPipelineControlWithResetSimulation) {
+  // Verify the valid signaling works as expected by driving the module with a
+  // ModuleTestBench when a reset is present.
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  auto x = fb.Param("x", package.GetBitsType(64));
+  auto y = fb.Param("y", package.GetBitsType(64));
+  auto z = fb.Param("z", package.GetBitsType(64));
+  auto a = fb.UMul(x, y);
+  fb.UMul(a, z);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(func, TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(5)));
+
+  ResetProto reset_proto;
+  reset_proto.set_name("rst");
+  reset_proto.set_asynchronous(false);
+  reset_proto.set_active_low(false);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleGeneratorResult result,
+      ToPipelineModuleText(schedule, func,
+                           PipelineOptions()
+                               .valid_control("in_valid", "out_valid")
+                               .reset(reset_proto)
+                               .use_system_verilog(UseSystemVerilog())));
+
+  ModuleTestbench tb(result.verilog_text, result.signature, GetSimulator());
+  tb.Set("in_valid", 0).Set("rst", 1).NextCycle();
+  tb.Set("rst", 0).NextCycle();
+
+  tb.WaitForNotX("out_valid").ExpectEq("out_valid", 0);
+
+  // Send in a valid value on one cycle.
+  tb.Set("in_valid", 1).Set("x", 2).Set("y", 3).Set("z", 4).NextCycle();
+  // Then don't send any more valid values.
+  tb.Set("in_valid", 0);
+
+  // Wait until the output goes valid.
+  const int kExpected = 2 * 3 * 4;
+  tb.WaitFor("out_valid").ExpectEq("out_valid", 1).ExpectEq("out", kExpected);
+
+  // Output will be invalid in all subsequent cycles.
+  tb.NextCycle();
+  tb.ExpectEq("out_valid", 0);
+  tb.NextCycle();
+  tb.ExpectEq("out_valid", 0);
+
+  // Now change the input and observe that the output never changes (because we
+  // don't correspondingly set input_valid).
+  tb.Set("z", 7);
+  int64 latency = result.signature.proto().pipeline().latency();
+  ASSERT_GT(latency, 0);
+  for (int64 i = 0; i < 2 * latency; ++i) {
+    tb.ExpectEq("out", kExpected);
+    tb.ExpectEq("out_valid", 0);
+    tb.NextCycle();
+  }
+
+  // Asserting reset should flush the pipeline after the pipline latency even
+  // without in_valid asserted.
+  tb.Set("rst", 1).Set("in_valid", 0).Set("x", 0).Set("y", 0).Set("z", 0);
+  for (int64 i = 0; i < latency; ++i) {
+    tb.ExpectEq("out", kExpected).NextCycle();
+  }
+  for (int64 i = 0; i < latency; ++i) {
+    tb.ExpectEq("out", 0).NextCycle();
+  }
+
+  XLS_ASSERT_OK(tb.Run());
+}
+
 INSTANTIATE_TEST_SUITE_P(PipelineGeneratorTestInstantiation,
                          PipelineGeneratorTest,
                          testing::ValuesIn(kDefaultSimulationTargets),

@@ -28,6 +28,7 @@ namespace verilog {
 namespace {
 
 using status_testing::StatusIs;
+using ::testing::ContainsRegex;
 using ::testing::HasSubstr;
 
 class ModuleTestbenchTest : public VerilogTestBase {
@@ -120,10 +121,12 @@ TEST_P(ModuleTestbenchTest, TwoStageWithExpectationFailure) {
   tb.NextCycle().ExpectEq("out", 42).SetX("in");
   tb.NextCycle().ExpectEq("out", 7);
 
-  EXPECT_THAT(tb.Run(),
-              StatusIs(absl::StatusCode::kFailedPrecondition,
-                       HasSubstr("Expected output 'out', instance #1 to have "
-                                 "value: 7, actual: 1234")));
+  EXPECT_THAT(
+      tb.Run(),
+      StatusIs(absl::StatusCode::kFailedPrecondition,
+               ContainsRegex("module_testbench_test.cc@[0-9]+: expected "
+                             "output 'out', instance #1 to have "
+                             "value: 7, actual: 1234")));
 }
 
 TEST_P(ModuleTestbenchTest, MultipleOutputsWithCapture) {

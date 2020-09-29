@@ -173,8 +173,16 @@ class PipelineGenerator {
     // the given stage.
     auto get_load_enable = [&](int64 stage) -> Expression* {
       if (valid_load_enable != nullptr) {
-        // 'valid_load_enable' is updated to the latest flopped value in
-        // each iteration of the loop.
+        // 'valid_load_enable' is updated to the latest flopped value in each
+        // iteration of the loop. If the pipeline has a reset signal, OR in the
+        // reset signal to enable pipeline flushing during reset.
+        if (rst_.has_value()) {
+          return file_->LogicalOr(
+              valid_load_enable,
+              rst_->active_low
+                  ? static_cast<Expression*>(file_->LogicalNot(rst_->signal))
+                  : static_cast<Expression*>(rst_->signal));
+        }
         return valid_load_enable;
       }
       if (manual_load_enable != nullptr) {
