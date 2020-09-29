@@ -239,8 +239,8 @@ class SelectChain {
   // a Select and chooses between a Select and a Literal.
   bool SelectIsChainShaped(Select* select) {
     if (VerifyCompareOp(select->selector()) && select->cases().size() == 2 &&
-        select->cases()[0]->op() == Op::kSel &&
-        select->cases()[1]->op() == Op::kLiteral) {
+        select->get_case(0)->op() == Op::kSel &&
+        select->get_case(1)->op() == Op::kLiteral) {
       return true;
     }
 
@@ -254,8 +254,8 @@ class SelectChain {
     //    the same node as the rest in the chain,
     // 2. Make sure both options are literals.
     if (VerifyCompareOp(select->selector()) && select->cases().size() == 2 &&
-        select->cases()[0]->op() == Op::kLiteral &&
-        select->cases()[1]->op() == Op::kLiteral) {
+        select->get_case(0)->op() == Op::kLiteral &&
+        select->get_case(1)->op() == Op::kLiteral) {
       return true;
     }
 
@@ -326,8 +326,8 @@ bool IsChainCandidate(Node* node) {
 
   Select* select = node->As<Select>();
   return select->selector()->op() == Op::kEq && select->cases().size() == 2 &&
-         select->cases()[0]->op() == Op::kSel &&
-         select->cases()[1]->op() == Op::kLiteral;
+         select->get_case(0)->op() == Op::kSel &&
+         select->get_case(1)->op() == Op::kLiteral;
 }
 
 // Returns true if this node is already in another SelectChain.
