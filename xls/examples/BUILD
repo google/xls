@@ -27,6 +27,7 @@ filegroup(
     srcs = [
         ":adler32_all_ir",
         ":crc32_all_ir",
+        ":matmul_4x4.ir",
         ":sha256_all_ir",
     ],
 )
@@ -128,5 +129,26 @@ cc_library(
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
+    ],
+)
+
+cc_test(
+    name = "matmul_4x4_test",
+    srcs = ["matmul_4x4_test.cc"],
+    data = ["matmul_4x4.ir"],
+    deps = [
+        "@com_google_absl//absl/status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/interpreter:channel_queue",
+        "//xls/interpreter:proc_network_interpreter",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:ir_parser",
+        "//xls/ir:value",
+        "@com_google_googletest//:gtest_main",
     ],
 )
