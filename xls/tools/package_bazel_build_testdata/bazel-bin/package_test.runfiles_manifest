@@ -1,0 +1,6 @@
+copied_dep.sh
+c/copied_dep.sh
+e/execroot_dep_0.sh {x}/hash/execroot/com_google_xls/execroot_dep.sh
+e/execroot_dep_1.sh {x}/hash/execroot/com_google_xls/execroot_dep.sh
+o/output_root.sh {x}/hash/external/outputroot_dep.sh
+s/src_dep.sh {x}/s/src_dep.sh

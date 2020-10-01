@@ -20,7 +20,7 @@ load("@bazel_skylib//rules:build_test.bzl", "build_test")
 
 # cc_proto_library is used in this file
 load("//xls/build:py_proto_library.bzl", "xls_py_proto_library")
-# pytype binary only
+# pytype library only
 
 package(
     default_visibility = ["//xls:xls_internal"],

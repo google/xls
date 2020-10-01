@@ -60,6 +60,7 @@ py_binary(
         requirement("Werkzeug"),
         requirement("click"),
         requirement("itsdangerous"),
+        requirement("MarkupSafe"),
         "//xls/common:runfiles",
         "//xls/common/python:init_xls",
         "//xls/visualization/ir_viz/python:ir_to_json",

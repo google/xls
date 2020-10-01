@@ -20,6 +20,26 @@ package(
 )
 
 py_binary(
+    name = "package_bazel_build",
+    srcs = ["package_bazel_build.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_absl_py//absl/logging",
+    ],
+)
+
+sh_test(
+    name = "package_bazel_build_test",
+    srcs = ["package_bazel_build_test.sh"],
+    data = glob(["package_bazel_build_testdata/**"]) + [
+        ":package_bazel_build",
+    ],
+)
+
+py_binary(
     name = "generate_vvp_runner",
     srcs = ["generate_vvp_runner.py"],
     python_version = "PY3",
