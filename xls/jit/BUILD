@@ -60,11 +60,11 @@ cc_test(
 )
 
 cc_library(
-    name = "llvm_ir_jit",
-    srcs = ["llvm_ir_jit.cc"],
-    hdrs = ["llvm_ir_jit.h"],
+    name = "ir_jit",
+    srcs = ["ir_jit.cc"],
+    hdrs = ["ir_jit.h"],
     deps = [
-        ":llvm_ir_runtime",
+        ":jit_runtime",
         ":llvm_type_converter",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/memory",
@@ -103,11 +103,11 @@ cc_library(
 )
 
 cc_test(
-    name = "llvm_ir_jit_test",
-    srcs = ["llvm_ir_jit_test.cc"],
+    name = "ir_jit_test",
+    srcs = ["ir_jit_test.cc"],
     shard_count = 8,
     deps = [
-        ":llvm_ir_jit",
+        ":ir_jit",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/strings",
         "//xls/common/status:matchers",
@@ -121,9 +121,9 @@ cc_test(
 )
 
 cc_library(
-    name = "llvm_ir_runtime",
-    srcs = ["llvm_ir_runtime.cc"],
-    hdrs = ["llvm_ir_runtime.h"],
+    name = "jit_runtime",
+    srcs = ["jit_runtime.cc"],
+    hdrs = ["jit_runtime.h"],
     deps = [
         ":llvm_type_converter",
         "@com_google_absl//absl/status",

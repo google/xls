@@ -61,7 +61,7 @@ from xls.dslx.python.cpp_parametric_expression import ParametricSymbol
 from xls.dslx.python.cpp_pos import Pos
 from xls.dslx.python.cpp_pos import Span
 from xls.ir.python import package as ir_package_mod
-from xls.jit.python import llvm_ir_jit
+from xls.jit.python import ir_jit
 
 
 class _WipSentinel(object):
@@ -1313,12 +1313,12 @@ class Interpreter(object):
     if self._ir_package:
       # TODO(hjmontero): 2020-07-28 Cache JIT function so we don't have to
       # create it every time. This requires us to figure out how to wrap
-      # LlvmIrJit::Create().
+      # IrJit::Create().
       ir_function = self._ir_package.get_function(ir_name)
       try:
         ir_args = jit_comparison.convert_args_to_ir(args)
 
-        jit_value = llvm_ir_jit.llvm_ir_jit_run(ir_function, ir_args)
+        jit_value = ir_jit.ir_jit_run(ir_function, ir_args)
         jit_comparison.compare_values(interpreter_value, jit_value)
       except (jit_comparison.UnsupportedJitConversionError,
               jit_comparison.JitMiscompareError) as e:
@@ -1413,8 +1413,8 @@ class Interpreter(object):
                                                self._module, ())
 
     ir_function = self._ir_package.get_function(ir_name)
-    argsets, results = llvm_ir_jit.quickcheck_jit(ir_function, seed,
-                                                  quickcheck.test_count)
+    argsets, results = ir_jit.quickcheck_jit(ir_function, seed,
+                                             quickcheck.test_count)
     last_result = results[-1].get_bits().to_uint()
     if not last_result:
       last_argset = argsets[-1]

@@ -29,7 +29,7 @@
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value_helpers.h"
-#include "xls/jit/llvm_ir_jit.h"
+#include "xls/jit/ir_jit.h"
 #include "xls/passes/passes.h"
 #include "xls/passes/standard_pipeline.h"
 
@@ -132,12 +132,12 @@ absl::StatusOr<std::vector<Value>> Eval(
     Function* f, absl::Span<const ArgSet> arg_sets, bool use_jit,
     absl::string_view actual_src = "actual",
     absl::string_view expected_src = "expected") {
-  std::unique_ptr<LlvmIrJit> jit;
+  std::unique_ptr<IrJit> jit;
   if (use_jit) {
     // No support for procs yet.
-    XLS_ASSIGN_OR_RETURN(
-        jit, LlvmIrJit::Create(f, /*queue_mgr=*/nullptr,
-                               absl::GetFlag(FLAGS_llvm_opt_level)));
+    XLS_ASSIGN_OR_RETURN(jit,
+                         IrJit::Create(f, /*queue_mgr=*/nullptr,
+                                       absl::GetFlag(FLAGS_llvm_opt_level)));
   }
 
   std::vector<Value> results;

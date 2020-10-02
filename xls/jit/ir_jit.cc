@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/jit/llvm_ir_jit.h"
+#include "xls/jit/ir_jit.h"
 
 #include <cstddef>
 #include <memory>
@@ -67,7 +67,7 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
-#include "xls/jit/llvm_ir_runtime.h"
+#include "xls/jit/jit_runtime.h"
 #include "xls/jit/llvm_type_converter.h"
 
 extern "C" {
@@ -85,8 +85,7 @@ extern "C" {
 // similar mechanism).
 void DequeueMessage(void* runtime_ptr, void* type_converter_ptr,
                     void* queue_ptr, uint8* data_ptr, void* receive_ptr) {
-  xls::LlvmIrRuntime* runtime =
-      reinterpret_cast<xls::LlvmIrRuntime*>(runtime_ptr);
+  xls::JitRuntime* runtime = reinterpret_cast<xls::JitRuntime*>(runtime_ptr);
   xls::LlvmTypeConverter* type_converter =
       reinterpret_cast<xls::LlvmTypeConverter*>(type_converter_ptr);
 
@@ -95,7 +94,7 @@ void DequeueMessage(void* runtime_ptr, void* type_converter_ptr,
 
   // We're given a flat buffer and series of types to extract from it. To make
   // life a lot easier, we'll group those types into a top-level tuple (even if
-  // it's a single type) so we can use LlvmIrRuntime::BlitValueToBuffer().
+  // it's a single type) so we can use JitRuntime::BlitValueToBuffer().
   xls::Value tuple = xls::Value::Tuple(data);
   xls::Receive* receive = reinterpret_cast<xls::Receive*>(receive_ptr);
   xls::TupleType* recv_type = receive->GetType()->AsTupleOrDie();
@@ -122,14 +121,13 @@ void DequeueMessage(void* runtime_ptr, void* type_converter_ptr,
 // similar mechanism).
 void EnqueueMessage(void* runtime_ptr, void* queue_ptr, uint8* data_ptr,
                     void* send_ptr) {
-  xls::LlvmIrRuntime* runtime =
-      reinterpret_cast<xls::LlvmIrRuntime*>(runtime_ptr);
+  xls::JitRuntime* runtime = reinterpret_cast<xls::JitRuntime*>(runtime_ptr);
 
   xls::ChannelData channel_data;
   xls::Send* send = reinterpret_cast<xls::Send*>(send_ptr);
 
   // Group all the return element types into a single tuple so we can use
-  // LlvmIrRuntime::UnpackBuffer() populate the return buffer.
+  // JitRuntime::UnpackBuffer() populate the return buffer.
   std::vector<xls::Type*> data_types;
   for (const xls::Node* node : send->data_operands()) {
     data_types.push_back(node->GetType());
@@ -164,7 +162,7 @@ class BuilderVisitor : public DfsVisitorWithDefault {
   explicit BuilderVisitor(llvm::Module* module, llvm::IRBuilder<>* builder,
                           absl::Span<Param* const> params,
                           absl::optional<Function*> llvm_entry_function,
-                          LlvmIrRuntime* runtime,
+                          JitRuntime* runtime,
                           LlvmTypeConverter* type_converter,
                           ChannelQueueManager* queue_mgr, bool generate_packed)
       : module_(module),
@@ -1392,17 +1390,17 @@ class BuilderVisitor : public DfsVisitorWithDefault {
   // and store the array once.
   absl::flat_hash_map<llvm::Value*, llvm::AllocaInst*> array_storage_;
 
-  LlvmIrRuntime* runtime_;
+  JitRuntime* runtime_;
   LlvmTypeConverter* type_converter_;
 
   // The entry point into LLVM space - the function specified in the constructor
-  // to the top-level LlvmIrJit object.
+  // to the top-level IrJit object.
   absl::optional<Function*> llvm_entry_function_;
 
   ChannelQueueManager* queue_mgr_;
 
   // True if this builder should generate packed parameter loads (as in the
-  // header comment for LlvmIrJit::RunWithPackedViews()).
+  // header comment for IrJit::RunWithPackedViews()).
   bool generate_packed_;
 };
 
@@ -1415,19 +1413,17 @@ void OnceInit() {
 
 }  // namespace
 
-absl::StatusOr<std::unique_ptr<LlvmIrJit>> LlvmIrJit::Create(
+absl::StatusOr<std::unique_ptr<IrJit>> IrJit::Create(
     Function* xls_function, ChannelQueueManager* queue_mgr, int64 opt_level) {
   absl::call_once(once, OnceInit);
 
-  auto jit =
-      absl::WrapUnique(new LlvmIrJit(xls_function, queue_mgr, opt_level));
+  auto jit = absl::WrapUnique(new IrJit(xls_function, queue_mgr, opt_level));
   XLS_RETURN_IF_ERROR(jit->Init());
   XLS_RETURN_IF_ERROR(jit->Compile(absl::nullopt));
   return jit;
 }
 
-absl::Status LlvmIrJit::Compile(
-    absl::optional<ChannelQueueManager*> queue_mgr) {
+absl::Status IrJit::Compile(absl::optional<ChannelQueueManager*> queue_mgr) {
   llvm::LLVMContext* bare_context = context_.getContext();
   auto module = std::make_unique<llvm::Module>("the_module", *bare_context);
   module->setDataLayout(data_layout_);
@@ -1464,8 +1460,8 @@ absl::Status LlvmIrJit::Compile(
   return absl::OkStatus();
 }
 
-LlvmIrJit::LlvmIrJit(Function* xls_function, ChannelQueueManager* queue_mgr,
-                     int64 opt_level)
+IrJit::IrJit(Function* xls_function, ChannelQueueManager* queue_mgr,
+             int64 opt_level)
     : context_(std::make_unique<llvm::LLVMContext>()),
       object_layer_(
           execution_session_,
@@ -1478,7 +1474,7 @@ LlvmIrJit::LlvmIrJit(Function* xls_function, ChannelQueueManager* queue_mgr,
       opt_level_(opt_level),
       invoker_(nullptr) {}
 
-llvm::Expected<llvm::orc::ThreadSafeModule> LlvmIrJit::Optimizer(
+llvm::Expected<llvm::orc::ThreadSafeModule> IrJit::Optimizer(
     llvm::orc::ThreadSafeModule module,
     const llvm::orc::MaterializationResponsibility& responsibility) {
   llvm::Module* bare_module = module.getModuleUnlocked();
@@ -1529,7 +1525,7 @@ llvm::Expected<llvm::orc::ThreadSafeModule> LlvmIrJit::Optimizer(
   return module;
 }
 
-absl::Status LlvmIrJit::Init() {
+absl::Status IrJit::Init() {
   auto error_or_target_builder =
       llvm::orc::JITTargetMachineBuilder::detectHost();
   if (!error_or_target_builder) {
@@ -1567,12 +1563,12 @@ absl::Status LlvmIrJit::Init() {
       });
 
   ir_runtime_ =
-      std::make_unique<LlvmIrRuntime>(data_layout_, type_converter_.get());
+      std::make_unique<JitRuntime>(data_layout_, type_converter_.get());
 
   return absl::OkStatus();
 }
 
-absl::Status LlvmIrJit::CompileFunction(llvm::Module* module) {
+absl::Status IrJit::CompileFunction(llvm::Module* module) {
   llvm::LLVMContext* bare_context = context_.getContext();
 
   // To return values > 64b in size, we need to copy them into a result buffer,
@@ -1651,7 +1647,7 @@ absl::Status LlvmIrJit::CompileFunction(llvm::Module* module) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<Value> LlvmIrJit::Run(absl::Span<const Value> args) {
+absl::StatusOr<Value> IrJit::Run(absl::Span<const Value> args) {
   absl::Span<Param* const> params = xls_function_->params();
   if (args.size() != params.size()) {
     return absl::InvalidArgumentError(
@@ -1687,15 +1683,15 @@ absl::StatusOr<Value> LlvmIrJit::Run(absl::Span<const Value> args) {
                                    xls_function_type_->return_type());
 }
 
-absl::StatusOr<Value> LlvmIrJit::Run(
+absl::StatusOr<Value> IrJit::Run(
     const absl::flat_hash_map<std::string, Value>& kwargs) {
   XLS_ASSIGN_OR_RETURN(std::vector<Value> positional_args,
                        KeywordArgsToPositional(*xls_function_, kwargs));
   return Run(positional_args);
 }
 
-absl::Status LlvmIrJit::RunWithViews(absl::Span<const uint8*> args,
-                                     absl::Span<uint8> result_buffer) {
+absl::Status IrJit::RunWithViews(absl::Span<const uint8*> args,
+                                 absl::Span<uint8> result_buffer) {
   absl::Span<Param* const> params = xls_function_->params();
   if (args.size() != params.size()) {
     return absl::InvalidArgumentError(
@@ -1717,7 +1713,7 @@ absl::StatusOr<Value> CreateAndRun(Function* xls_function,
                                    absl::Span<const Value> args) {
   // No proc support from Python yet.
   XLS_ASSIGN_OR_RETURN(auto jit,
-                       LlvmIrJit::Create(xls_function, /*queue_mgr=*/nullptr));
+                       IrJit::Create(xls_function, /*queue_mgr=*/nullptr));
   XLS_ASSIGN_OR_RETURN(auto result, jit->Run(args));
   return result;
 }
@@ -1726,7 +1722,7 @@ absl::StatusOr<std::pair<std::vector<std::vector<Value>>, std::vector<Value>>>
 CreateAndQuickCheck(Function* xls_function, int64 seed, int64 num_tests) {
   // No proc support from Python yet.
   XLS_ASSIGN_OR_RETURN(auto jit,
-                       LlvmIrJit::Create(xls_function, /*queue_mgr=*/nullptr));
+                       IrJit::Create(xls_function, /*queue_mgr=*/nullptr));
   std::vector<Value> results;
   std::vector<std::vector<Value>> argsets;
   std::minstd_rand rng_engine(seed);
@@ -1746,7 +1742,7 @@ CreateAndQuickCheck(Function* xls_function, int64 seed, int64 num_tests) {
 
 // Much of the core here is the same as in CompileFunction() - refer there for
 // general comments.
-absl::Status LlvmIrJit::CompilePackedViewFunction(llvm::Module* module) {
+absl::Status IrJit::CompilePackedViewFunction(llvm::Module* module) {
   llvm::LLVMContext* bare_context = context_.getContext();
   llvm::Type* i8_type = llvm::Type::getInt8Ty(*bare_context);
 
@@ -1813,11 +1809,11 @@ absl::Status LlvmIrJit::CompilePackedViewFunction(llvm::Module* module) {
 
 // "bit_offset" is relative to the true buffer start -- not some offset relative
 // to a parent location.
-absl::StatusOr<llvm::Value*> LlvmIrJit::PackElement(llvm::IRBuilder<>& builder,
-                                                    llvm::Value* element,
-                                                    Type* element_type,
-                                                    llvm::Value* buffer,
-                                                    int64 bit_offset) {
+absl::StatusOr<llvm::Value*> IrJit::PackElement(llvm::IRBuilder<>& builder,
+                                                llvm::Value* element,
+                                                Type* element_type,
+                                                llvm::Value* buffer,
+                                                int64 bit_offset) {
   switch (element_type->kind()) {
     case TypeKind::kBits:
       if (element->getType() != buffer->getType()) {

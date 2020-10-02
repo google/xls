@@ -25,7 +25,6 @@
 #include "xls/common/logging/logging.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
-#include "xls/jit/llvm_ir_jit.h"
 
 namespace xls {
 

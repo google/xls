@@ -89,8 +89,7 @@ While this may initially seem confusing, it suffices to remember that
 PackedTupleView element declaration order is the "reverse" of the in-memory
 order; refer to
 [value_view_test.cc](https://github.com/google/xls/tree/main/xls/ir/value_view_test.cc)
-and
-[llvm_ir_jit_test.cc](https://github.com/google/xls/tree/main/xls/jit/llvm_ir_jit_test.cc)
-for test examples, or the [generated] fpadd_2x32_jit_wrapper.h/cc and
+and [ir_jit_test.cc](https://github.com/google/xls/tree/main/xls/jit/ir_jit_test.cc) for
+test examples, or the [generated] fpadd_2x32_jit_wrapper.h/cc and
 [fpadd_2x32_test.cc](https://github.com/google/xls/tree/main/xls/modules/fpadd_2x32_test.cc)
 for practical usage.

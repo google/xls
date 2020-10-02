@@ -133,10 +133,15 @@ purpose, and correspond to the components in this XLS stack diagram:
     computations that are tested and executable through the XLS stack.
   * [`experimental`](https://github.com/google/xls/tree/main/xls/experimental):
     Artifacts captured from experimental explorations.
+  * [`interpreter`](https://github.com/google/xls/tree/main/xls/interpreter):
+    Interpreter for XLS IR - useful for debugging and exploration. For cases
+    needing throughput, consider using the JIT (below).
   * [`ir`](https://github.com/google/xls/tree/main/xls/ir):
     XLS IR definition, text parser/formatter, and facilities for abstract
-    evaluation and execution engines ([IR interpreter](interpreters.md),
-    [JIT](ir_jit.md)).
+    evaluation.
+  * [`jit`](https://github.com/google/xls/tree/main/xls/jit):
+    LLVM-based JIT for XLS IR. Enables native-speed execution of DSLX and XLS IR
+    programs.
   * [`modules`](https://github.com/google/xls/tree/main/xls/modules):
     Hardware building block DSLX "libraries" (outside the DSLX standard library)
     that may be easily reused or instantiated in a broader design.

@@ -389,7 +389,7 @@ cc_binary(
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:value",
-        "//xls/jit:llvm_ir_jit",
+        "//xls/jit:ir_jit",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",

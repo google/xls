@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/jit/llvm_ir_runtime.h"
+#include "xls/jit/jit_runtime.h"
 
 #include "absl/strings/str_format.h"
 #include "llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
@@ -25,13 +25,13 @@
 
 namespace xls {
 
-LlvmIrRuntime::LlvmIrRuntime(const llvm::DataLayout& data_layout,
-                             LlvmTypeConverter* type_converter)
+JitRuntime::JitRuntime(const llvm::DataLayout& data_layout,
+                       LlvmTypeConverter* type_converter)
     : data_layout_(data_layout), type_converter_(type_converter) {}
 
-absl::Status LlvmIrRuntime::PackArgs(absl::Span<const Value> args,
-                                     absl::Span<Type* const> arg_types,
-                                     absl::Span<uint8*> arg_buffers) {
+absl::Status JitRuntime::PackArgs(absl::Span<const Value> args,
+                                  absl::Span<Type* const> arg_types,
+                                  absl::Span<uint8*> arg_buffers) {
   if (arg_buffers.size() < args.size()) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Input buffer is not large enough to hold all arguments: %d vs. %d",
@@ -49,8 +49,7 @@ absl::Status LlvmIrRuntime::PackArgs(absl::Span<const Value> args,
   return absl::OkStatus();
 }
 
-Value LlvmIrRuntime::UnpackBuffer(const uint8* buffer,
-                                  const Type* result_type) {
+Value JitRuntime::UnpackBuffer(const uint8* buffer, const Type* result_type) {
   switch (result_type->kind()) {
     case TypeKind::kBits: {
       const BitsType* bits_type = result_type->AsBitsOrDie();
@@ -117,8 +116,8 @@ Value LlvmIrRuntime::UnpackBuffer(const uint8* buffer,
   }
 }
 
-void LlvmIrRuntime::BlitValueToBuffer(const Value& value, const Type& type,
-                                      absl::Span<uint8> buffer) {
+void JitRuntime::BlitValueToBuffer(const Value& value, const Type& type,
+                                   absl::Span<uint8> buffer) {
   if (value.IsBits()) {
     const Bits& bits = value.bits();
     int64 byte_count = CeilOfRatio(bits.bit_count(), kCharBit);
@@ -163,7 +162,7 @@ void LlvmIrRuntime::BlitValueToBuffer(const Value& value, const Type& type,
 }
 
 template <typename T>
-std::string LlvmIrRuntime::DumpToString(const T& llvm_object) {
+std::string JitRuntime::DumpToString(const T& llvm_object) {
   std::string buffer;
   llvm::raw_string_ostream ostream(buffer);
   llvm_object.print(ostream);
@@ -172,7 +171,7 @@ std::string LlvmIrRuntime::DumpToString(const T& llvm_object) {
 }
 
 template <>
-std::string LlvmIrRuntime::DumpToString<llvm::Module>(
+std::string JitRuntime::DumpToString<llvm::Module>(
     const llvm::Module& llvm_object) {
   std::string buffer;
   llvm::raw_string_ostream ostream(buffer);
@@ -198,7 +197,7 @@ struct RuntimeState {
   std::unique_ptr<llvm::LLVMContext> context;
   std::unique_ptr<llvm::TargetMachine> target_machine;
   std::unique_ptr<xls::LlvmTypeConverter> type_converter;
-  std::unique_ptr<xls::LlvmIrRuntime> runtime;
+  std::unique_ptr<xls::JitRuntime> runtime;
 };
 
 // Note: Returned pointer is owned by the caller.
@@ -227,7 +226,7 @@ RuntimeState* GetRuntimeState() {
   llvm::DataLayout data_layout = state->target_machine->createDataLayout();
   state->type_converter = std::make_unique<xls::LlvmTypeConverter>(
       state->context.get(), data_layout);
-  state->runtime = std::make_unique<xls::LlvmIrRuntime>(
+  state->runtime = std::make_unique<xls::JitRuntime>(
       data_layout, state->type_converter.get());
   return state.release();
 }

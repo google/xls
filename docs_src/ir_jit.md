@@ -100,12 +100,12 @@ pointer). Calling such a function pointer with concrete-typed arguments, though,
 is difficult: one must either make heavy [ab]use of C++ templates or "hide" the
 argument types behind an opaque pointer. The latter approach is taken here.
 
-When a compiled function is invoked (via `LlvmIrJit::Run()`), the typed input
-args are "packed" into an opaque byte buffer which is passed into the new
-function. Inside there, any references to an argument (via
-`DfsVisitor::HandleParam()`) calculate the offset of that param in the opaque
-buffer and load from there appropriately (this should happen at most once per
-arg; LLVM and/or XLS should optimize away redundant loads).
+When a compiled function is invoked (via `IrJit::Run()`), the typed input args
+are "packed" into an opaque byte buffer which is passed into the new function.
+Inside there, any references to an argument (via `DfsVisitor::HandleParam()`)
+calculate the offset of that param in the opaque buffer and load from there
+appropriately (this should happen at most once per arg; LLVM and/or XLS should
+optimize away redundant loads).
 
 A special case is for function invocations (inside the JITted function): for
 these, the arguments already exist inside "LLVM-space", so there's no need for
@@ -208,8 +208,8 @@ create a `main()` function to:
 1.  Unpack the output buffer after the entry function completes and print its
     contents.
 
-For arg packing/unpacking, the functions provided by LlvmIrRuntime are used, but
-in a stateless context wrapped in an `extern "C"` space, to simplify invocation
+For arg packing/unpacking, the functions provided by JitRuntime are used, but in
+a stateless context wrapped in an `extern "C"` space, to simplify invocation
 from within LLVM IR.
 
 #### Output type determination

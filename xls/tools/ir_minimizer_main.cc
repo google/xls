@@ -33,7 +33,7 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/ir/verifier.h"
-#include "xls/jit/llvm_ir_jit.h"
+#include "xls/jit/ir_jit.h"
 #include "xls/passes/constant_folding_pass.h"
 #include "xls/passes/cse_pass.h"
 #include "xls/passes/dce_pass.h"
@@ -139,8 +139,8 @@ absl::StatusOr<bool> StillFails(absl::string_view ir_text,
                        Parser::ParsePackage(ir_text));
   XLS_RET_CHECK(inputs.has_value());
   XLS_ASSIGN_OR_RETURN(Function * main, package->EntryFunction());
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<LlvmIrJit> jit,
-                       LlvmIrJit::Create(main, /*queue_mgr=*/nullptr));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrJit> jit,
+                       IrJit::Create(main, /*queue_mgr=*/nullptr));
   Value jit_result;
   if (absl::GetFlag(FLAGS_test_only_inject_jit_result).empty()) {
     XLS_ASSIGN_OR_RETURN(jit_result, jit->Run(*inputs));

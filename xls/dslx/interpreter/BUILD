@@ -160,7 +160,7 @@ py_library(
         "//xls/dslx/python:cpp_parametric_expression",
         "//xls/dslx/python:cpp_pos",
         "//xls/ir/python:package",
-        "//xls/jit/python:llvm_ir_jit",
+        "//xls/jit/python:ir_jit",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -176,7 +176,7 @@ py_library(
         "//xls/ir/python:bits",
         "//xls/ir/python:number_parser",
         "//xls/ir/python:value",
-        "//xls/jit/python:llvm_ir_jit",
+        "//xls/jit/python:ir_jit",
         "@com_google_absl_py//absl/logging",
     ],
 )

@@ -22,8 +22,8 @@ package(
 )
 
 xls_pybind_extension(
-    name = "llvm_ir_jit",
-    srcs = ["llvm_ir_jit.cc"],
+    name = "ir_jit",
+    srcs = ["ir_jit.cc"],
     py_deps = [
         "//xls/ir/python:function",  # build_cleaner: keep
         "//xls/ir/python:value",  # build_cleaner: keep
@@ -32,6 +32,6 @@ xls_pybind_extension(
         "//xls/common/python:absl_casters",
         "//xls/common/status:statusor_pybind_caster",
         "//xls/ir/python:wrapper_types",
-        "//xls/jit:llvm_ir_jit",
+        "//xls/jit:ir_jit",
     ],
 )

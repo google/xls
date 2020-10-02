@@ -225,7 +225,7 @@ def dslx_jit_wrapper(
             "//xls/ir:ir_parser",
             "//xls/ir:value",
             "//xls/ir:value_view",
-            "//xls/jit:llvm_ir_jit",
+            "//xls/jit:ir_jit",
         ],
     )
 

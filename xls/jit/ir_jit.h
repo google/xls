@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_JIT_LLVM_IR_JIT_H_
-#define XLS_JIT_LLVM_IR_JIT_H_
+#ifndef XLS_JIT_IR_JIT_H_
+#define XLS_JIT_IR_JIT_H_
 
 #include "absl/status/status.h"
 #include "absl/types/span.h"
@@ -33,19 +33,19 @@
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_view.h"
-#include "xls/jit/llvm_ir_runtime.h"
+#include "xls/jit/jit_runtime.h"
 #include "xls/jit/llvm_type_converter.h"
 
 namespace xls {
 
 // This class provides a facility to execute XLS functions (on the host) by
 // converting it to LLVM IR, compiling it, and finally executing it.
-class LlvmIrJit {
+class IrJit {
  public:
   // Returns an object containing a host-compiled version of the specified XLS
   // function.
   // "queue_mgr" can/should be nullptr if not compiling a Proc.
-  static absl::StatusOr<std::unique_ptr<LlvmIrJit>> Create(
+  static absl::StatusOr<std::unique_ptr<IrJit>> Create(
       Function* xls_function, ChannelQueueManager* queue_mgr,
       int64 opt_level = 3);
 
@@ -106,8 +106,8 @@ class LlvmIrJit {
   int64 GetReturnTypeSize() { return return_type_bytes_; }
 
  private:
-  explicit LlvmIrJit(Function* xls_function, ChannelQueueManager* queue_mgr,
-                     int64 opt_level);
+  explicit IrJit(Function* xls_function, ChannelQueueManager* queue_mgr,
+                 int64 opt_level);
 
   // Performs non-trivial initialization (i.e., that which can fail).
   absl::Status Init();
@@ -180,7 +180,7 @@ class LlvmIrJit {
   absl::flat_hash_map<const Type*, llvm::Type*> xls_to_llvm_type_;
 
   std::unique_ptr<LlvmTypeConverter> type_converter_;
-  std::unique_ptr<LlvmIrRuntime> ir_runtime_;
+  std::unique_ptr<JitRuntime> ir_runtime_;
 
   // When initialized, this points to the compiled output.
   using JitFunctionType = void (*)(const uint8* const* inputs, uint8* output);
@@ -194,7 +194,7 @@ class LlvmIrJit {
 
 // JIT-compiles the given xls_function and invokes it with args, returning the
 // resulting return value. Note that this will cause the overhead of creating a
-// LlvmIrJit object each time, so external caching strategies are generally
+// IrJit object each time, so external caching strategies are generally
 // preferred.
 absl::StatusOr<Value> CreateAndRun(Function* xls_function,
                                    absl::Span<const Value> args);
@@ -213,4 +213,4 @@ absl::StatusOr<std::pair<std::vector<std::vector<Value>>, std::vector<Value>>>
 CreateAndQuickCheck(Function* xls_function, int64 seed, int64 num_tests);
 }  // namespace xls
 
-#endif  // XLS_JIT_LLVM_IR_JIT_H_
+#endif  // XLS_JIT_IR_JIT_H_
