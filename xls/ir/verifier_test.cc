@@ -161,8 +161,8 @@ TEST_F(VerifierTest, WellFormedProc) {
   std::string input = R"(
 package test_package
 
-proc my_proc(s: bits[42], t: token, init=45) {
-  ret tuple.1: (bits[42], token) = tuple(s, t)
+proc my_proc(t: token, s: bits[42], init=45) {
+  ret tuple.1: (token, bits[42]) = tuple(t, s)
 }
 
 )";
@@ -177,9 +177,9 @@ package test_package
 
 chan ch(data: bits[32], id=42, kind=send_receive, metadata="""module_port { flopped: true }""")
 
-proc my_proc(s: bits[42], t: token, init=45) {
+proc my_proc(t: token, s: bits[42], init=45) {
   send.1: token = send(t, data=[s], channel_id=42)
-  ret tuple.2: (bits[42], token) = tuple(s, send.1)
+  ret tuple.2: (token, bits[42]) = tuple(send.1, s)
 }
 
 )";
@@ -197,10 +197,10 @@ package test_package
 
 chan ch(data: bits[32], id=42, kind=send_only, metadata="""module_port { flopped: true }""")
 
-proc my_proc(s: bits[42], t: token, init=45) {
+proc my_proc(t: token, s: bits[42], init=45) {
   send.1: token = send(t, data=[s], channel_id=42)
   send.2: token = send(send.1, data=[s], channel_id=42)
-  ret tuple.3: (bits[42], token) = tuple(s, send.2)
+  ret tuple.3: (token, bits[42]) = tuple(send.2, s)
 }
 
 )";
@@ -217,10 +217,10 @@ package test_package
 
 chan ch(data: bits[32], id=42, kind=send_only, metadata="""module_port { flopped: true }""")
 
-proc my_proc(s: bits[42], t: token, init=45) {
+proc my_proc(t: token, s: bits[42], init=45) {
   after_all.1: token = after_all()
   send.2: token = send(after_all.1, data=[s], channel_id=42)
-  ret tuple.3: (bits[42], token) = tuple(s, send.2)
+  ret tuple.3: (token, bits[42]) = tuple(send.2, s)
 }
 
 )";
@@ -238,9 +238,9 @@ package test_package
 
 chan ch(data: bits[32], id=42, kind=receive_only, metadata="""module_port { flopped: true }""")
 
-proc my_proc(s: bits[42], t: token, init=45) {
+proc my_proc(t: token, s: bits[42], init=45) {
   receive.1: (token, bits[32]) = receive(t, channel_id=42)
-  ret tuple.2: (bits[42], token) = tuple(s, t)
+  ret tuple.2: (token, bits[42]) = tuple(t, s)
 }
 
 )";
@@ -256,9 +256,9 @@ TEST_F(VerifierTest, DisconnectedReturnValueInProc) {
   std::string input = R"(
 package test_package
 
-proc my_proc(s: bits[42], t: token, init=45) {
+proc my_proc(t: token, s: bits[42], init=45) {
   after_all.1: token = after_all()
-  ret tuple.2: (bits[42], token) = tuple(s, after_all.1)
+  ret tuple.2: (token, bits[42]) = tuple(after_all.1, s)
 }
 
 )";
@@ -276,11 +276,11 @@ package test_package
 
 chan ch(data: bits[32], id=42, kind=receive_only, metadata="""module_port { flopped: true }""")
 
-proc my_proc(s: bits[42], t: token, init=45) {
+proc my_proc(t: token, s: bits[42], init=45) {
   send.1: token = send(t, data=[s], channel_id=42)
   receive.2: (token, bits[32]) = receive(send.1, channel_id=42)
   tuple_index.3: token = tuple_index(receive.2, index=0)
-  ret tuple.4: (bits[42], token) = tuple(s, tuple_index.3)
+  ret tuple.4: (token, bits[42]) = tuple(tuple_index.3, s)
 }
 
 )";

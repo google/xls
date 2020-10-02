@@ -1311,15 +1311,15 @@ absl::Status VerifyProc(Proc* proc) {
   XLS_RET_CHECK_EQ(proc->params().size(), 2) << absl::StreamFormat(
       "Proc %s does not have two parameters", proc->name());
 
-  XLS_RET_CHECK_EQ(proc->param(1)->GetType(), proc->package()->GetTokenType())
-      << absl::StreamFormat("Parameter 1 of a proc %s is not token type, is %s",
+  XLS_RET_CHECK_EQ(proc->param(0)->GetType(), proc->package()->GetTokenType())
+      << absl::StreamFormat("Parameter 0 of a proc %s is not token type, is %s",
                             proc->name(),
                             proc->param(1)->GetType()->ToString());
 
-  // Return type of proc must be a 2-tuple of the recurrent state and a token.
+  // Return type of proc must be a 2-tuple of a token and the recurrent state.
   XLS_RET_CHECK_EQ(proc->return_value()->GetType(),
                    proc->package()->GetTupleType(
-                       {proc->StateType(), proc->package()->GetTokenType()}));
+                       {proc->package()->GetTokenType(), proc->StateType()}));
 
   // Verify that all send/receive nodes are connected to the token parameter and
   // the return value via paths of tokens.

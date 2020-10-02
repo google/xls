@@ -711,6 +711,21 @@ absl::StatusOr<Function*> FunctionBuilder::BuildWithReturnValue(
   return package()->AddFunction(std::move(function_));
 }
 
+absl::StatusOr<Proc*> ProcBuilder::Build(BValue token, BValue next_state) {
+  if (!GetType(token)->IsToken()) {
+    return absl::InvalidArgumentError(
+        StrFormat("Recurrent token of proc must be token type, is: %s.",
+                  GetType(token)->ToString()));
+  }
+  if (GetType(next_state) != GetType(GetStateParam())) {
+    return absl::InvalidArgumentError(StrFormat(
+        "Recurrent state type %s does not match proc "
+        "parameter state type %s.",
+        GetType(GetStateParam())->ToString(), GetType(next_state)->ToString()));
+  }
+  return BuildWithReturnValue(Tuple({token, next_state}));
+}
+
 absl::StatusOr<Proc*> ProcBuilder::BuildWithReturnValue(BValue return_value) {
   if (ErrorPending()) {
     std::string msg = error_msg_ + " ";

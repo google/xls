@@ -476,15 +476,15 @@ class FunctionBuilder : public BuilderBase {
 class ProcBuilder : public BuilderBase {
  public:
   explicit ProcBuilder(absl::string_view name, const Value& init_value,
-                       absl::string_view state_name,
-                       absl::string_view token_name, Package* package)
-      : BuilderBase(absl::make_unique<Proc>(name, init_value, state_name,
-                                            token_name, package)),
+                       absl::string_view token_name,
+                       absl::string_view state_name, Package* package)
+      : BuilderBase(absl::make_unique<Proc>(name, init_value, token_name,
+                                            state_name, package)),
         // The parameter nodes are added at construction time. Create a BValue
         // for each param node so they may be used in construction of
         // expressions.
-        state_param_(proc()->StateParam(), this),
-        token_param_(proc()->TokenParam(), this) {}
+        token_param_(proc()->TokenParam(), this),
+        state_param_(proc()->StateParam(), this) {}
 
   // Returns the Proc being constructed.
   Proc* proc() const { return down_cast<Proc*>(function()); }
@@ -496,16 +496,21 @@ class ProcBuilder : public BuilderBase {
   BValue GetStateParam() const { return state_param_; }
   BValue GetTokenParam() const { return token_param_; }
 
-  // TODO(meheff): This would be more convenient if this takes a token and a new
-  // state value. Under the hood this could add a tuple instruction.
+  // Build the proc using the given BValues as the recurrent token and state
+  // respectively. The return value of the proc is constructed as a two-tuple
+  // of the token and next-state.
+  absl::StatusOr<Proc*> Build(BValue token, BValue next_state);
+
+  // Build the proc wioth the given return value. The return value must be a
+  // two-tuple of a token and value of the state type.
   absl::StatusOr<Proc*> BuildWithReturnValue(BValue return_value);
 
  private:
-  // The BValue of the state parameter (parameter 0).
-  BValue state_param_;
-
   // The BValue of the token parameter (parameter 1).
   BValue token_param_;
+
+  // The BValue of the state parameter (parameter 0).
+  BValue state_param_;
 };
 
 }  // namespace xls

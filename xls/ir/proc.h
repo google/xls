@@ -29,17 +29,17 @@ namespace xls {
 class Proc : public Function {
  public:
   Proc(absl::string_view name, const Value& init_value,
-       absl::string_view state_param_name, absl::string_view token_param_name,
+       absl::string_view token_param_name, absl::string_view state_param_name,
        Package* package)
       : Function(name, package),
         init_value_(init_value),
         state_type_(package->GetTypeForValue(init_value_)),
         return_type_(
-            package->GetTupleType({state_type_, package->GetTokenType()})),
-        state_param_(AddNode(absl::make_unique<Param>(
-            absl::nullopt, state_param_name, state_type_, this))),
+            package->GetTupleType({package->GetTokenType(), state_type_})),
         token_param_(AddNode(absl::make_unique<Param>(
-            absl::nullopt, token_param_name, package->GetTokenType(), this))) {}
+            absl::nullopt, token_param_name, package->GetTokenType(), this))),
+        state_param_(AddNode(absl::make_unique<Param>(
+            absl::nullopt, state_param_name, state_type_, this))) {}
 
   virtual ~Proc() = default;
 
@@ -69,8 +69,8 @@ class Proc : public Function {
 
   // State and token parameters. Procs have fixed set of parameters (state data
   // and an input token) which are added at construction time.
-  Param* state_param_;
   Param* token_param_;
+  Param* state_param_;
 };
 
 }  // namespace xls

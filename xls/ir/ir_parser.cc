@@ -951,14 +951,6 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenOpen,
                                                 "'(' in proc parameters"));
 
-  // Parse the state parameter.
-  XLS_ASSIGN_OR_RETURN(Token state_name,
-                       scanner_.PopTokenOrError(LexicalTokenType::kIdent));
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kColon));
-  XLS_ASSIGN_OR_RETURN(Type * state_type, ParseType(package));
-
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma));
-
   // Parse the token parameter.
   XLS_ASSIGN_OR_RETURN(Token token_name,
                        scanner_.PopTokenOrError(LexicalTokenType::kIdent));
@@ -971,6 +963,14 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
         "Expected second argument of proc to be token type, is: %s @ %s",
         token_type->ToString(), token_type_pos.ToHumanString()));
   }
+
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma));
+
+  // Parse the state parameter.
+  XLS_ASSIGN_OR_RETURN(Token state_name,
+                       scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kColon));
+  XLS_ASSIGN_OR_RETURN(Type * state_type, ParseType(package));
 
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma));
 
@@ -991,10 +991,10 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
                                                 "start of proc body"));
 
   auto builder = absl::make_unique<ProcBuilder>(name.value(), init_value,
-                                                state_name.value(),
-                                                token_name.value(), package);
-  (*name_to_value)[state_name.value()] = builder->GetStateParam();
+                                                token_name.value(),
+                                                state_name.value(), package);
   (*name_to_value)[token_name.value()] = builder->GetTokenParam();
+  (*name_to_value)[state_name.value()] = builder->GetStateParam();
 
   return std::move(builder);
 }

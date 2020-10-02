@@ -310,13 +310,12 @@ TEST(IrMatchersTest, SendOps) {
                             {DataElement{"data", p.GetBitsType(32)}},
                             ChannelMetadataProto()));
 
-  ProcBuilder b("proc", Value(UBits(333, 32)), "my_state", "my_token", &p);
+  ProcBuilder b("proc", Value(UBits(333, 32)), "my_token", "my_state", &p);
   auto send = b.Send(ch42, b.GetTokenParam(), {b.GetStateParam()});
   auto send_if = b.SendIf(ch123, b.GetTokenParam(), b.Literal(UBits(1, 1)),
                           {b.GetStateParam()});
-  XLS_ASSERT_OK(b.BuildWithReturnValue(
-                     b.Tuple({b.GetStateParam(), b.AfterAll({send, send_if})}))
-                    .status());
+  XLS_ASSERT_OK(
+      b.Build(b.AfterAll({send, send_if}), b.GetStateParam()).status());
 
   EXPECT_THAT(send.node(), m::Send());
   EXPECT_THAT(send.node(), m::Send(/*channel_id=*/42));
@@ -343,14 +342,13 @@ TEST(IrMatchersTest, ReceiveOps) {
                             {DataElement{"data", p.GetBitsType(32)}},
                             ChannelMetadataProto()));
 
-  ProcBuilder b("proc", Value(UBits(333, 32)), "my_state", "my_token", &p);
+  ProcBuilder b("proc", Value(UBits(333, 32)), "my_token", "my_state", &p);
   auto receive = b.Receive(ch42, b.GetTokenParam());
   auto receive_if =
       b.ReceiveIf(ch123, b.GetTokenParam(), b.Literal(UBits(1, 1)));
-  XLS_ASSERT_OK(b.BuildWithReturnValue(
-                     b.Tuple({b.GetStateParam(),
-                              b.AfterAll({b.TupleIndex(receive, 0),
-                                          b.TupleIndex(receive_if, 0)})}))
+  XLS_ASSERT_OK(b.Build(b.AfterAll({b.TupleIndex(receive, 0),
+                                    b.TupleIndex(receive_if, 0)}),
+                        b.GetStateParam())
                     .status());
 
   EXPECT_THAT(receive.node(), m::Receive());

@@ -15,6 +15,7 @@
 #include "xls/interpreter/proc_interpreter.h"
 
 #include "absl/strings/str_join.h"
+#include "xls/common/logging/log_lines.h"
 #include "xls/ir/value_helpers.h"
 
 namespace xls {
@@ -27,7 +28,7 @@ class ProcIrInterpreter : public IrInterpreter {
   // "state" is the value to use for the proc state during interpretation.
   ProcIrInterpreter(const Value& state, ChannelQueueManager* queue_manager,
                     InterpreterStats* stats = nullptr)
-      : IrInterpreter({state, Value::Token()}, stats),
+      : IrInterpreter({Value::Token(), state}, stats),
         queue_manager_(queue_manager) {}
 
   absl::Status HandleReceive(Receive* receive) override {
@@ -136,6 +137,7 @@ ProcInterpreter::RunIterationUntilCompleteOrBlocked() {
       "%s iteration %d of proc %s",
       (IsIterationComplete() ? "Running" : "Resuming"), current_iteration_,
       proc_->name());
+  XLS_VLOG_LINES(4, proc_->DumpIr());
 
   if (IsIterationComplete()) {
     // Previous iteration was complete or this the first time this method has
@@ -146,12 +148,12 @@ ProcInterpreter::RunIterationUntilCompleteOrBlocked() {
       visitor_ = absl::make_unique<ProcIrInterpreter>(proc_->InitValue(),
                                                       queue_manager_);
     } else {
-      // This not the first time the proc has run. Proc state is the return
-      // value of the previous iteration.
+      // This not the first time the proc has run. Proc state is the second
+      // element of the return value of the previous iteration.
       const Value& return_value =
           visitor_->ResolveAsValue(proc_->return_value());
       XLS_RET_CHECK(return_value.IsTuple());
-      visitor_ = absl::make_unique<ProcIrInterpreter>(return_value.element(0),
+      visitor_ = absl::make_unique<ProcIrInterpreter>(return_value.element(1),
                                                       queue_manager_);
       ++current_iteration_;
     }

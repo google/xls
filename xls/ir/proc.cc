@@ -37,9 +37,9 @@ std::string Proc::DumpIr(bool recursive) const {
   XLS_CHECK(!recursive);
 
   std::string res = absl::StrFormat(
-      "proc %s(%s: %s, %s: %s, init=%s) {\n", name(), StateParam()->GetName(),
-      StateParam()->GetType()->ToString(), TokenParam()->GetName(),
-      TokenParam()->GetType()->ToString(), InitValue().ToHumanString());
+      "proc %s(%s: %s, %s: %s, init=%s) {\n", name(), TokenParam()->GetName(),
+      TokenParam()->GetType()->ToString(), StateParam()->GetName(),
+      StateParam()->GetType()->ToString(), InitValue().ToHumanString());
 
   for (Node* node : TopoSort(const_cast<Proc*>(this))) {
     if (node->op() == Op::kParam) {

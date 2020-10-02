@@ -41,12 +41,12 @@ absl::StatusOr<Proc*> CreateIotaProc(absl::string_view proc_name,
                                      int64 starting_value, int64 step,
                                      Channel* channel, Package* package) {
   ProcBuilder pb(proc_name, /*init_value=*/Value(UBits(starting_value, 32)),
-                 /*state_name=*/"prev", /*token_name=*/"tok", package);
+                 /*token_name=*/"tok", /*state_name=*/"prev", package);
   BValue send_token =
       pb.Send(channel, pb.GetTokenParam(), {pb.GetStateParam()});
 
   BValue new_value = pb.Add(pb.GetStateParam(), pb.Literal(UBits(step, 32)));
-  return pb.BuildWithReturnValue(pb.Tuple({new_value, send_token}));
+  return pb.Build(send_token, new_value);
 }
 
 // Creates a proc which keeps a running sum of all values read through the input
@@ -55,13 +55,13 @@ absl::StatusOr<Proc*> CreateAccumProc(absl::string_view proc_name,
                                       Channel* in_channel, Channel* out_channel,
                                       Package* package) {
   ProcBuilder pb(proc_name, /*init_value=*/Value(UBits(0, 32)),
-                 /*state_name=*/"prev", /*token_name=*/"tok", package);
+                 /*token_name=*/"tok", /*state_name=*/"prev", package);
   BValue token_input = pb.Receive(in_channel, pb.GetTokenParam());
   BValue recv_token = pb.TupleIndex(token_input, 0);
   BValue input = pb.TupleIndex(token_input, 1);
   BValue accum = pb.Add(pb.GetStateParam(), input);
   BValue send_token = pb.Send(out_channel, recv_token, {accum});
-  return pb.BuildWithReturnValue(pb.Tuple({accum, send_token}));
+  return pb.Build(send_token, accum);
 }
 
 // Creates a proc which simply passes through a received value to a send.
@@ -70,12 +70,12 @@ absl::StatusOr<Proc*> CreatePassThroughProc(absl::string_view proc_name,
                                             Channel* out_channel,
                                             Package* package) {
   ProcBuilder pb(proc_name, /*init_value=*/Value::Tuple({}),
-                 /*state_name=*/"state", /*token_name=*/"tok", package);
+                 /*token_name=*/"tok", /*state_name=*/"state", package);
   BValue token_input = pb.Receive(in_channel, pb.GetTokenParam());
   BValue recv_token = pb.TupleIndex(token_input, 0);
   BValue input = pb.TupleIndex(token_input, 1);
   BValue send_token = pb.Send(out_channel, recv_token, {input});
-  return pb.BuildWithReturnValue(pb.Tuple({pb.GetStateParam(), send_token}));
+  return pb.Build(send_token, pb.GetStateParam());
 }
 
 // Create a proc which reads tuples of (count: u32, char: u8) from in_channel,
@@ -90,7 +90,7 @@ absl::StatusOr<Proc*> CreateRunLengthDecoderProc(absl::string_view proc_name,
   ProcBuilder pb(
       proc_name,
       /*init_value=*/Value::Tuple({Value(UBits(0, 8)), Value(UBits(0, 32))}),
-      /*state_name=*/"state", /*token_name=*/"tok", package);
+      /*token_name=*/"tok", /*state_name=*/"state", package);
   BValue last_char = pb.TupleIndex(pb.GetStateParam(), 0);
   BValue num_remaining = pb.TupleIndex(pb.GetStateParam(), 1);
   BValue receive_next = pb.Eq(num_remaining, pb.Literal(UBits(0, 32)));
@@ -110,7 +110,7 @@ absl::StatusOr<Proc*> CreateRunLengthDecoderProc(absl::string_view proc_name,
            /*cases=*/{pb.Literal(UBits(0, 32)),
                       pb.Subtract(run_length, pb.Literal(UBits(1, 32)))})});
 
-  return pb.BuildWithReturnValue(pb.Tuple({next_state, send}));
+  return pb.Build(send, next_state);
 }
 
 TEST_F(ProcNetworkInterpreterTest, ProcIota) {
@@ -193,9 +193,8 @@ TEST_F(ProcNetworkInterpreterTest, DegenerateProc) {
   // Tests interpreting a proc with no send of receive nodes.
   auto package = CreatePackage();
   ProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
-                 /*state_name=*/"prev", /*token_name=*/"tok", package.get());
-  XLS_ASSERT_OK(pb.BuildWithReturnValue(
-      pb.Tuple({pb.GetStateParam(), pb.GetTokenParam()})));
+                 /*token_name=*/"tok", /*state_name=*/"prev", package.get());
+  XLS_ASSERT_OK(pb.Build(pb.GetTokenParam(), pb.GetStateParam()));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ProcNetworkInterpreter> interpreter,
       ProcNetworkInterpreter::Create(package.get(), /*rx_only_queues*/ {}));
@@ -232,7 +231,7 @@ TEST_F(ProcNetworkInterpreterTest, WrappedProc) {
                              ChannelMetadataProto()));
 
   ProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
-                 /*state_name=*/"prev", /*token_name=*/"tok", package.get());
+                 /*token_name=*/"tok", /*state_name=*/"prev", package.get());
   BValue recv_input = pb.Receive(in_channel, pb.GetTokenParam());
   BValue send_to_accum =
       pb.Send(in_accum_channel, /*token=*/pb.TupleIndex(recv_input, 0),
@@ -241,7 +240,7 @@ TEST_F(ProcNetworkInterpreterTest, WrappedProc) {
   BValue send_output =
       pb.Send(out_channel, /*token=*/pb.TupleIndex(recv_from_accum, 0),
               /*data_operands=*/{pb.TupleIndex(recv_from_accum, 1)});
-  XLS_ASSERT_OK(pb.BuildWithReturnValue(pb.Tuple({pb.Tuple({}), send_output})));
+  XLS_ASSERT_OK(pb.Build(send_output, pb.Tuple({})));
 
   XLS_ASSERT_OK(CreateAccumProc("accum", /*in_channel=*/in_accum_channel,
                                 /*out_channel=*/out_accum_channel,
@@ -376,7 +375,7 @@ TEST_F(ProcNetworkInterpreterTest, RunLengthDecodingFilter) {
                                            decoded_channel, package.get())
                     .status());
   ProcBuilder pb("filter", /*init_value=*/Value::Tuple({}),
-                 /*state_name=*/"nil", /*token_name=*/"tok", package.get());
+                 /*token_name=*/"tok", /*state_name=*/"nil", package.get());
   BValue receive = pb.Receive(decoded_channel, pb.GetTokenParam());
   BValue rx_token = pb.TupleIndex(receive, 0);
   BValue rx_value = pb.TupleIndex(receive, 1);
@@ -384,8 +383,7 @@ TEST_F(ProcNetworkInterpreterTest, RunLengthDecodingFilter) {
       pb.Not(pb.BitSlice(rx_value, /*start=*/0, /*width=*/1));
   BValue send_if =
       pb.SendIf(output_channel, rx_token, rx_value_even, {rx_value});
-  XLS_ASSERT_OK(
-      pb.BuildWithReturnValue(pb.Tuple({pb.GetStateParam(), send_if})));
+  XLS_ASSERT_OK(pb.Build(send_if, pb.GetStateParam()));
 
   std::vector<std::unique_ptr<RxOnlyChannelQueue>> rx_only_queues;
   std::vector<ChannelData> inputs = {

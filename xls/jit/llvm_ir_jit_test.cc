@@ -554,12 +554,12 @@ package p
 chan input(data: bits[32], id=0, kind=receive_only, metadata="")
 chan output(data: bits[32], id=1, kind=send_only, metadata="")
 
-proc the_proc(state: (), my_token: token, init=()) {
+proc the_proc(my_token: token, state: (), init=()) {
   receive.1: (token, bits[32]) = receive(my_token, channel_id=0)
   tuple_index.2: token = tuple_index(receive.1, index=0)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
   send.4: token = send(tuple_index.2, data=[tuple_index.3], channel_id=1)
-  ret tuple.5: ((), token) = tuple(state, send.4)
+  ret tuple.5: (token, ()) = tuple(send.4, state)
 }
 )";
 
@@ -575,8 +575,8 @@ proc the_proc(state: (), my_token: token, init=()) {
       ChannelQueueManager::Create(std::move(rx_queues), package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, LlvmIrJit::Create(proc, queue_mgr.get()));
   std::vector<Value> args;
-  args.push_back(Value::Tuple({}));
   args.push_back(Value::Token());
+  args.push_back(Value::Tuple({}));
   XLS_ASSERT_OK_AND_ASSIGN(Value result_value, jit->Run(args));
   XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * queue, queue_mgr->GetQueueById(1));
   XLS_ASSERT_OK_AND_ASSIGN(ChannelData data, queue->Dequeue());
@@ -594,14 +594,14 @@ package p
 chan input(x: bits[32], y: bits[16], z: bits[8], id=0, kind=receive_only, metadata="")
 chan output(a: bits[8], b: bits[16], z: bits[32], id=1, kind=send_only, metadata="")
 
-proc the_proc(state: (), my_token: token, init=()) {
+proc the_proc(my_token: token, state: (), init=()) {
   receive.1: (token, bits[32], bits[16], bits[8]) = receive(my_token, channel_id=0)
   tuple_index.2: token = tuple_index(receive.1, index=0)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
   tuple_index.4: bits[16] = tuple_index(receive.1, index=2)
   tuple_index.5: bits[8] = tuple_index(receive.1, index=3)
   send.6: token = send(tuple_index.2, data=[tuple_index.5, tuple_index.4, tuple_index.3], channel_id=1)
-  ret tuple.7: ((), token) = tuple(state, send.6)
+  ret tuple.7: (token, ()) = tuple(send.6, state)
 }
 )";
 
@@ -622,8 +622,8 @@ proc the_proc(state: (), my_token: token, init=()) {
       ChannelQueueManager::Create(std::move(rx_queues), package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, LlvmIrJit::Create(proc, queue_mgr.get()));
   std::vector<Value> args;
-  args.push_back(Value::Tuple({}));
   args.push_back(Value::Token());
+  args.push_back(Value::Tuple({}));
   XLS_ASSERT_OK_AND_ASSIGN(Value result_value, jit->Run(args));
   XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * queue, queue_mgr->GetQueueById(1));
   XLS_ASSERT_OK_AND_ASSIGN(ChannelData data, queue->Dequeue());

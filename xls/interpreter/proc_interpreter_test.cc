@@ -42,12 +42,11 @@ TEST_F(ProcInterpreterTest, ProcIota) {
 
   // Create an output-only proc which counts up by 7 starting at 42.
   ProcBuilder pb("iota", /*init_value=*/Value(UBits(42, 32)),
-                 /*state_name=*/"prev", /*token_name=*/"tok", package.get());
+                 /*token_name=*/"tok", /*state_name=*/"prev", package.get());
   BValue send_token =
       pb.Send(channel, pb.GetTokenParam(), {pb.GetStateParam()});
   BValue new_value = pb.Add(pb.GetStateParam(), pb.Literal(UBits(7, 32)));
-  XLS_ASSERT_OK(
-      pb.BuildWithReturnValue(pb.Tuple({new_value, send_token})).status());
+  XLS_ASSERT_OK(pb.Build(send_token, new_value).status());
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ChannelQueueManager> queue_manager,
@@ -103,7 +102,7 @@ TEST_F(ProcInterpreterTest, ProcIota) {
 TEST_F(ProcInterpreterTest, ProcWhichReturnsPreviousResults) {
   Package package(TestName());
   ProcBuilder pb("prev", /*init_value=*/Value(UBits(55, 32)),
-                 /*state_name=*/"prev", /*token_name=*/"tok", &package);
+                 /*token_name=*/"tok", /*state_name=*/"prev", &package);
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch_in,
       package.CreateChannel("in", ChannelKind::kSendReceive,
@@ -121,8 +120,7 @@ TEST_F(ProcInterpreterTest, ProcWhichReturnsPreviousResults) {
   BValue recv_token = pb.TupleIndex(token_input, 0);
   BValue input = pb.TupleIndex(token_input, 1);
   BValue send_token = pb.Send(ch_out, recv_token, {pb.GetStateParam()});
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc, pb.BuildWithReturnValue(pb.Tuple({input, send_token})));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send_token, input));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ChannelQueueManager> queue_manager,
@@ -191,7 +189,7 @@ TEST_F(ProcInterpreterTest, ReceiveIfProc) {
   // channel.
   Package package(TestName());
   ProcBuilder pb("send_if", /*init_value=*/Value(UBits(1, 1)),
-                 /*state_name=*/"st", /*token_name=*/"tok", &package);
+                 /*token_name=*/"tok", /*state_name=*/"st", &package);
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch_in,
       package.CreateChannel("in", ChannelKind::kSendReceive,
@@ -209,9 +207,8 @@ TEST_F(ProcInterpreterTest, ReceiveIfProc) {
   BValue rx_data = pb.TupleIndex(receive_if, 1);
   BValue send = pb.Send(ch_out, rx_token, {rx_data});
   // Next state value is the inverse of the current state value.
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc,
-      pb.BuildWithReturnValue(pb.Tuple({pb.Not(pb.GetStateParam()), send})));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build(send, pb.Not(pb.GetStateParam())));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ChannelQueueManager> queue_manager,
@@ -272,15 +269,14 @@ TEST_F(ProcInterpreterTest, SendIfProc) {
                             ChannelMetadataProto()));
 
   ProcBuilder pb("even", /*init_value=*/Value(UBits(0, 32)),
-                 /*state_name=*/"prev", /*token_name=*/"tok", &package);
+                 /*token_name=*/"tok", /*state_name=*/"prev", &package);
   BValue is_even =
       pb.Eq(pb.BitSlice(pb.GetStateParam(), /*start=*/0, /*width=*/1),
             pb.Literal(UBits(0, 1)));
   BValue send_if =
       pb.SendIf(channel, pb.GetTokenParam(), is_even, {pb.GetStateParam()});
   BValue new_value = pb.Add(pb.GetStateParam(), pb.Literal(UBits(1, 32)));
-  XLS_ASSERT_OK(
-      pb.BuildWithReturnValue(pb.Tuple({new_value, send_if})).status());
+  XLS_ASSERT_OK(pb.Build(send_if, new_value).status());
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ChannelQueueManager> queue_manager,

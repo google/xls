@@ -83,6 +83,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "//xls/common/logging:log_lines",
         "//xls/ir",
         "//xls/ir:channel",
         "//xls/ir:value",

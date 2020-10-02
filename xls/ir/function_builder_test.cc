@@ -393,7 +393,7 @@ TEST(FunctionBuilderTest, SendAndReceive) {
                                      ChannelMetadataProto()));
 
   ProcBuilder b("sending_receiving", Value(UBits(42, 32)),
-                /*state_name=*/"my_state", /*token_name=*/"my_token", &p);
+                /*token_name=*/"my_token", /*state_name=*/"my_state", &p);
   BValue send = b.Send(ch0, b.GetTokenParam(), {b.GetStateParam()});
   BValue receive = b.Receive(ch1, b.GetTokenParam());
   BValue pred = b.Literal(UBits(1, 1));
@@ -404,15 +404,13 @@ TEST(FunctionBuilderTest, SendAndReceive) {
   BValue next_state =
       b.Add(b.TupleIndex(receive, 1), b.TupleIndex(receive_if, 1));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc, b.BuildWithReturnValue(b.Tuple({next_state, after_all})));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build(after_all, next_state));
 
-  EXPECT_THAT(
-      proc->return_value(),
-      m::Tuple(
-          m::Add(m::TupleIndex(m::Receive()), m::TupleIndex(m::ReceiveIf())),
-          m::AfterAll(m::Send(), m::TupleIndex(m::Receive()), m::SendIf(),
-                      m::TupleIndex(m::ReceiveIf()))));
+  EXPECT_THAT(proc->return_value(),
+              m::Tuple(m::AfterAll(m::Send(), m::TupleIndex(m::Receive()),
+                                   m::SendIf(), m::TupleIndex(m::ReceiveIf())),
+                       m::Add(m::TupleIndex(m::Receive()),
+                              m::TupleIndex(m::ReceiveIf()))));
 
   EXPECT_EQ(proc->InitValue(), Value(UBits(42, 32)));
   EXPECT_EQ(proc->StateParam()->GetName(), "my_state");

@@ -27,10 +27,10 @@ class ProcTest : public IrTestBase {};
 TEST_F(ProcTest, SimpleProc) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, ParseProc(R"(
-proc foo(in_state: bits[32], in_token: token, init=42) {
+proc foo(in_token: token, in_state: bits[32], init=42) {
   literal.1: bits[32] = literal(value=1)
   add.2: bits[32] = add(literal.1, in_state)
-  ret tuple.3: (bits[32], token) = tuple(add.2, in_token)
+  ret tuple.3: (token, bits[32]) = tuple(in_token, add.2)
 }
 )",
                                                   p.get()));
@@ -39,10 +39,10 @@ proc foo(in_state: bits[32], in_token: token, init=42) {
   EXPECT_EQ(proc->return_value()->op(), Op::kTuple);
 
   EXPECT_EQ(proc->DumpIr(),
-            R"(proc foo(in_state: bits[32], in_token: token, init=42) {
+            R"(proc foo(in_token: token, in_state: bits[32], init=42) {
   literal.1: bits[32] = literal(value=1)
   add.2: bits[32] = add(literal.1, in_state)
-  ret tuple.3: (bits[32], token) = tuple(add.2, in_token)
+  ret tuple.3: (token, bits[32]) = tuple(in_token, add.2)
 }
 )");
 }
