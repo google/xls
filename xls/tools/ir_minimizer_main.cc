@@ -134,12 +134,13 @@ absl::StatusOr<bool> StillFails(absl::string_view ir_text,
     return result.ok();
   }
 
-  // Test for bug by comparing results of JIT and interpreter.
+  // Test for bugs by comparing the results of the JIT and interpreter.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(ir_text));
   XLS_RET_CHECK(inputs.has_value());
   XLS_ASSIGN_OR_RETURN(Function * main, package->EntryFunction());
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<LlvmIrJit> jit, LlvmIrJit::Create(main));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<LlvmIrJit> jit,
+                       LlvmIrJit::Create(main, /*queue_mgr=*/nullptr));
   Value jit_result;
   if (absl::GetFlag(FLAGS_test_only_inject_jit_result).empty()) {
     XLS_ASSIGN_OR_RETURN(jit_result, jit->Run(*inputs));

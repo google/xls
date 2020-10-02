@@ -49,6 +49,8 @@ absl::Status ChannelQueue::Enqueue(const ChannelData& data) {
           actual_type->ToString()));
     }
   }
+
+  absl::MutexLock lock(&mutex_);
   queue_.push_back(data);
   XLS_VLOG(4) << absl::StreamFormat("Channel now has %d elements", size());
   return absl::OkStatus();
@@ -60,6 +62,7 @@ absl::StatusOr<ChannelData> ChannelQueue::Dequeue() {
         absl::StrFormat("Attempting to dequeue data from empty channel %s (%d)",
                         channel_->name(), channel_->id()));
   }
+  absl::MutexLock lock(&mutex_);
   ChannelData data = queue_.front();
   queue_.pop_front();
   XLS_VLOG(4) << absl::StreamFormat("Dequeuing data on channel %s: { %s }",

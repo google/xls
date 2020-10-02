@@ -339,7 +339,7 @@ constexpr const char ir_text[] = R"($1
 absl::StatusOr<std::unique_ptr<$0>> $0::Create() {
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(ir_text));
   XLS_ASSIGN_OR_RETURN(Function* function, package->GetFunction("$6"));
-  XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(function));
+  XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(function, /*queue_mgr=*/nullptr));
   return absl::WrapUnique(new $0(std::move(package), std::move(jit)));
 }
 

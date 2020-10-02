@@ -134,8 +134,10 @@ absl::StatusOr<std::vector<Value>> Eval(
     absl::string_view expected_src = "expected") {
   std::unique_ptr<LlvmIrJit> jit;
   if (use_jit) {
+    // No support for procs yet.
     XLS_ASSIGN_OR_RETURN(
-        jit, LlvmIrJit::Create(f, absl::GetFlag(FLAGS_llvm_opt_level)));
+        jit, LlvmIrJit::Create(f, /*queue_mgr=*/nullptr,
+                               absl::GetFlag(FLAGS_llvm_opt_level)));
   }
 
   std::vector<Value> results;

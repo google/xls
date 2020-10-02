@@ -22,6 +22,7 @@
 #include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/ir_evaluator_test.h"
 #include "xls/ir/value_helpers.h"
 #include "re2/re2.h"
@@ -36,13 +37,15 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Values(IrEvaluatorTestParam(
         [](Function* function,
            const std::vector<Value>& args) -> absl::StatusOr<Value> {
-          XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(function));
+          XLS_ASSIGN_OR_RETURN(
+              auto jit, LlvmIrJit::Create(function, /*queue_mgr=*/nullptr));
           return jit->Run(args);
         },
         [](Function* function,
            const absl::flat_hash_map<std::string, Value>& kwargs)
             -> absl::StatusOr<Value> {
-          XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(function));
+          XLS_ASSIGN_OR_RETURN(
+              auto jit, LlvmIrJit::Create(function, /*queue_mgr=*/nullptr));
           return jit->Run(kwargs);
         })));
 
@@ -57,7 +60,8 @@ TEST(LlvmIrJitTest, ReuseTest) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, LlvmIrJit::Create(function));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit,
+                           LlvmIrJit::Create(function, /*queue_mgr=*/nullptr));
   EXPECT_THAT(jit->Run({Value(UBits(2, 8))}), IsOkAndHolds(Value(UBits(2, 8))));
   EXPECT_THAT(jit->Run({Value(UBits(4, 8))}), IsOkAndHolds(Value(UBits(4, 8))));
   EXPECT_THAT(jit->Run({Value(UBits(7, 8))}), IsOkAndHolds(Value(UBits(7, 8))));
@@ -193,7 +197,8 @@ TEST(LlvmIrJitTest, PackedSmoke) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, LlvmIrJit::Create(function));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit,
+                           LlvmIrJit::Create(function, /*queue_mgr=*/nullptr));
   uint8 input_data[] = {0x5a, 0xa5};
   uint8 output_data;
   PackedBitsView<8> input(input_data, 0);
@@ -214,7 +219,8 @@ absl::Status TestPackedBits(std::minstd_rand& bitgen) {
   std::string ir_text = absl::Substitute(ir_template, kBitWidth);
   XLS_ASSIGN_OR_RETURN(Function * function,
                        Parser::ParseFunction(ir_text, &package));
-  XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(function));
+  XLS_ASSIGN_OR_RETURN(auto jit,
+                       LlvmIrJit::Create(function, /*queue_mgr=*/nullptr));
   Value v = RandomValue(package.GetBitsType(kBitWidth), &bitgen);
   Bits a(v.bits());
   v = RandomValue(package.GetBitsType(kBitWidth), &bitgen);
@@ -332,7 +338,8 @@ absl::Status TestSimpleArray(std::minstd_rand& bitgen) {
   std::string ir_text = absl::Substitute(ir_template, kBitWidth, kNumElements);
   XLS_ASSIGN_OR_RETURN(Function * function,
                        Parser::ParseFunction(ir_text, &package));
-  XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(function));
+  XLS_ASSIGN_OR_RETURN(auto jit,
+                       LlvmIrJit::Create(function, /*queue_mgr=*/nullptr));
 
   std::vector<Bits> bits_vector;
   for (int i = 0; i < kNumElements; i++) {
@@ -402,7 +409,8 @@ absl::Status TestTuples(std::minstd_rand& bitgen) {
   XLS_ASSIGN_OR_RETURN(
       Function * function,
       CreateTupleFunction(&package, tuple_type, kReplacementIndex));
-  XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(function));
+  XLS_ASSIGN_OR_RETURN(auto jit,
+                       LlvmIrJit::Create(function, /*queue_mgr=*/nullptr));
 
   Value input_tuple = RandomValue(tuple_type, &bitgen);
   TestData<TupleT> input_tuple_data(input_tuple);
@@ -472,7 +480,8 @@ TEST(LlvmIrJitTest, ArrayConcatArrayOfBits) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, LlvmIrJit::Create(function));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit,
+                           LlvmIrJit::Create(function, /*queue_mgr=*/nullptr));
 
   XLS_ASSERT_OK_AND_ASSIGN(Value a0, Value::UBitsArray({1, 2}, 32));
   XLS_ASSERT_OK_AND_ASSIGN(Value a1, Value::UBitsArray({3, 4, 5}, 32));
@@ -497,7 +506,8 @@ TEST(LlvmIrJitTest, ArrayConcatArrayOfBitsMixedOperands) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, LlvmIrJit::Create(function));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit,
+                           LlvmIrJit::Create(function, /*queue_mgr=*/nullptr));
 
   XLS_ASSERT_OK_AND_ASSIGN(Value a0, Value::UBitsArray({1, 2}, 32));
   XLS_ASSERT_OK_AND_ASSIGN(Value a1, Value::UBitsArray({3, 4, 5}, 32));
@@ -527,10 +537,108 @@ TEST(LlvmIrJitTest, ArrayConcatArrayOfArrays) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, LlvmIrJit::Create(function));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit,
+                           LlvmIrJit::Create(function, /*queue_mgr=*/nullptr));
 
   std::vector<Value> args;
   EXPECT_THAT(jit->Run(args), IsOkAndHolds(ret));
+}
+
+// Verifies that a simple proc can be correctly compiled and can propagate
+// simple data.
+TEST(LlvmIrJitTest, CompilesSimpleProc) {
+  constexpr const uint32 kDataElement = 0xdeadbeef;
+  constexpr const char kIrText[] = R"(
+package p
+
+chan input(data: bits[32], id=0, kind=receive_only, metadata="")
+chan output(data: bits[32], id=1, kind=send_only, metadata="")
+
+proc the_proc(state: (), my_token: token, init=()) {
+  receive.1: (token, bits[32]) = receive(my_token, channel_id=0)
+  tuple_index.2: token = tuple_index(receive.1, index=0)
+  tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
+  send.4: token = send(tuple_index.2, data=[tuple_index.3], channel_id=1)
+  ret tuple.5: ((), token) = tuple(state, send.4)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(kIrText));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("the_proc"));
+  std::vector<std::unique_ptr<RxOnlyChannelQueue>> rx_queues;
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * channel, package->GetChannel(0));
+  rx_queues.emplace_back(std::make_unique<RxOnlyChannelQueue>(
+      channel, package.get(),
+      []() { return std::vector<Value>{Value(UBits(kDataElement, 32))}; }));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto queue_mgr,
+      ChannelQueueManager::Create(std::move(rx_queues), package.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, LlvmIrJit::Create(proc, queue_mgr.get()));
+  std::vector<Value> args;
+  args.push_back(Value::Tuple({}));
+  args.push_back(Value::Token());
+  XLS_ASSERT_OK_AND_ASSIGN(Value result_value, jit->Run(args));
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * queue, queue_mgr->GetQueueById(1));
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelData data, queue->Dequeue());
+  ASSERT_EQ(data.size(), 1);
+  XLS_ASSERT_OK_AND_ASSIGN(Bits bits, data[0].GetBitsWithStatus());
+  XLS_ASSERT_OK_AND_ASSIGN(int64 result, bits.ToInt64());
+  ASSERT_EQ(static_cast<uint32>(result), kDataElement);
+}
+
+// Verifies that a JIT'ed procs can transmit multiple data elements correctly.
+TEST(LlvmIrJitTest, CompilesMultiElementProc) {
+  constexpr const char kIrText[] = R"(
+package p
+
+chan input(x: bits[32], y: bits[16], z: bits[8], id=0, kind=receive_only, metadata="")
+chan output(a: bits[8], b: bits[16], z: bits[32], id=1, kind=send_only, metadata="")
+
+proc the_proc(state: (), my_token: token, init=()) {
+  receive.1: (token, bits[32], bits[16], bits[8]) = receive(my_token, channel_id=0)
+  tuple_index.2: token = tuple_index(receive.1, index=0)
+  tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
+  tuple_index.4: bits[16] = tuple_index(receive.1, index=2)
+  tuple_index.5: bits[8] = tuple_index(receive.1, index=3)
+  send.6: token = send(tuple_index.2, data=[tuple_index.5, tuple_index.4, tuple_index.3], channel_id=1)
+  ret tuple.7: ((), token) = tuple(state, send.6)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(kIrText));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("the_proc"));
+  std::vector<std::unique_ptr<RxOnlyChannelQueue>> rx_queues;
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * channel, package->GetChannel(0));
+  rx_queues.emplace_back(
+      std::make_unique<RxOnlyChannelQueue>(channel, package.get(), []() {
+        return std::vector<Value>{
+            Value(UBits(32, 32)),
+            Value(UBits(16, 16)),
+            Value(UBits(8, 8)),
+        };
+      }));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto queue_mgr,
+      ChannelQueueManager::Create(std::move(rx_queues), package.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, LlvmIrJit::Create(proc, queue_mgr.get()));
+  std::vector<Value> args;
+  args.push_back(Value::Tuple({}));
+  args.push_back(Value::Token());
+  XLS_ASSERT_OK_AND_ASSIGN(Value result_value, jit->Run(args));
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * queue, queue_mgr->GetQueueById(1));
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelData data, queue->Dequeue());
+  ASSERT_EQ(data.size(), 3);
+  XLS_ASSERT_OK_AND_ASSIGN(Bits bits, data[0].GetBitsWithStatus());
+  XLS_ASSERT_OK_AND_ASSIGN(int64 result, bits.ToInt64());
+  ASSERT_EQ(static_cast<uint8>(result), 8);
+
+  XLS_ASSERT_OK_AND_ASSIGN(bits, data[1].GetBitsWithStatus());
+  XLS_ASSERT_OK_AND_ASSIGN(result, bits.ToInt64());
+  ASSERT_EQ(static_cast<uint16>(result), 16);
+
+  XLS_ASSERT_OK_AND_ASSIGN(bits, data[2].GetBitsWithStatus());
+  XLS_ASSERT_OK_AND_ASSIGN(result, bits.ToInt64());
+  ASSERT_EQ(static_cast<uint32>(result), 32);
 }
 
 }  // namespace

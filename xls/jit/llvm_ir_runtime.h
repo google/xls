@@ -21,6 +21,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Support/raw_ostream.h"
 #include "xls/common/integral_types.h"
+#include "xls/interpreter/channel_queue.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/jit/llvm_type_converter.h"

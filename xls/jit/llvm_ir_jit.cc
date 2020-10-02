@@ -41,6 +41,7 @@
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -58,11 +59,94 @@
 #include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/interpreter/channel_queue.h"
 #include "xls/ir/dfs_visitor.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/keyword_args.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
+#include "xls/jit/llvm_ir_runtime.h"
+#include "xls/jit/llvm_type_converter.h"
+
+extern "C" {
+
+// Pulls an [XLS] Value off of a ChannelQueue (as the means of inter-proc
+// communication) and populates the given buffer (an LLVM Alloca) with its
+// contents.
+// IMPORTANT NOTE: This function is executed at _runtime_, not compile time, so
+// special care must be taken with all input pointers to ensure they'll
+// persist, i.e., aren't declared on the compile-time stack.
+// NOTE: This function can conceptually be specialized for each
+// channel send or receive - some of this is already done by "hardcoding" these
+// pointer values at compile time. We can go one step further by, e.g., creating
+// data_type_tuple ahead of time and passing that in as a pointer (or some
+// similar mechanism).
+void DequeueMessage(void* runtime_ptr, void* type_converter_ptr,
+                    void* queue_ptr, uint8* data_ptr, void* receive_ptr) {
+  xls::LlvmIrRuntime* runtime =
+      reinterpret_cast<xls::LlvmIrRuntime*>(runtime_ptr);
+  xls::LlvmTypeConverter* type_converter =
+      reinterpret_cast<xls::LlvmTypeConverter*>(type_converter_ptr);
+
+  xls::ChannelQueue* queue = reinterpret_cast<xls::ChannelQueue*>(queue_ptr);
+  xls::ChannelData data = queue->Dequeue().value();
+
+  // We're given a flat buffer and series of types to extract from it. To make
+  // life a lot easier, we'll group those types into a top-level tuple (even if
+  // it's a single type) so we can use LlvmIrRuntime::BlitValueToBuffer().
+  xls::Value tuple = xls::Value::Tuple(data);
+  xls::Receive* receive = reinterpret_cast<xls::Receive*>(receive_ptr);
+  xls::TupleType* recv_type = receive->GetType()->AsTupleOrDie();
+  std::vector<xls::Type*> data_types;
+  for (int i = 1; i < recv_type->element_types().size(); i++) {
+    data_types.push_back(recv_type->element_type(i));
+  }
+  xls::TupleType tuple_type(data_types);
+
+  runtime->BlitValueToBuffer(
+      tuple, tuple_type,
+      absl::MakeSpan(data_ptr, type_converter->GetTypeByteSize(tuple_type)));
+}
+
+// Places a data element generated from LLVM on a[n XLS] Channel for consumption
+// by some other proc/actor.
+// IMPORTANT NOTE: This function is executed at _runtime_, not compile time, so
+// special care must be taken with all input pointers to ensure they'll
+// persist, i.e., aren't declared on the compile-time stack.
+// NOTE: This function can conceptually be specialized for each
+// channel send or receive - some of this is already done by "hardcoding" these
+// pointer values at compile time. We can go one step further by, e.g., creating
+// data_type_tuple ahead of time and passing that in as a pointer (or some
+// similar mechanism).
+void EnqueueMessage(void* runtime_ptr, void* queue_ptr, uint8* data_ptr,
+                    void* send_ptr) {
+  xls::LlvmIrRuntime* runtime =
+      reinterpret_cast<xls::LlvmIrRuntime*>(runtime_ptr);
+
+  xls::ChannelData channel_data;
+  xls::Send* send = reinterpret_cast<xls::Send*>(send_ptr);
+
+  // Group all the return element types into a single tuple so we can use
+  // LlvmIrRuntime::UnpackBuffer() populate the return buffer.
+  std::vector<xls::Type*> data_types;
+  for (const xls::Node* node : send->data_operands()) {
+    data_types.push_back(node->GetType());
+  }
+  xls::TupleType data_type_tuple(data_types);
+
+  xls::Value unpacked_value = runtime->UnpackBuffer(data_ptr, &data_type_tuple);
+  for (const xls::Value& value : unpacked_value.elements()) {
+    channel_data.push_back(value);
+  }
+
+  xls::ChannelQueue* queue = reinterpret_cast<xls::ChannelQueue*>(queue_ptr);
+  XLS_CHECK_OK(queue->Enqueue(channel_data));
+}
+
+}  // extern "C"
+
 namespace xls {
 namespace {
 
@@ -80,14 +164,17 @@ class BuilderVisitor : public DfsVisitorWithDefault {
   explicit BuilderVisitor(llvm::Module* module, llvm::IRBuilder<>* builder,
                           absl::Span<Param* const> params,
                           absl::optional<Function*> llvm_entry_function,
+                          LlvmIrRuntime* runtime,
                           LlvmTypeConverter* type_converter,
-                          bool generate_packed)
+                          ChannelQueueManager* queue_mgr, bool generate_packed)
       : module_(module),
         context_(&module_->getContext()),
         builder_(builder),
         return_value_(nullptr),
+        runtime_(runtime),
         type_converter_(type_converter),
         llvm_entry_function_(llvm_entry_function),
+        queue_mgr_(queue_mgr),
         generate_packed_(generate_packed) {
     for (int i = 0; i < params.size(); ++i) {
       int64 start = i == 0 ? 0 : arg_indices_[i - 1].second + 1;
@@ -651,6 +738,11 @@ class BuilderVisitor : public DfsVisitorWithDefault {
     // The GEP gives a pointer to a u8*; so 'load' is a i8. Cast it to its full
     // width so we can load the whole thing.
     llvm::LoadInst* load = builder_->CreateLoad(gep);
+    if (param->GetType()->GetFlatBitCount() == 0) {
+      // Create an empty structure, etc.
+      llvm::StructType* struct_type = llvm::StructType::create(*context_);
+      return StoreResult(param, llvm::ConstantStruct::get(struct_type));
+    }
     llvm::Type* packed_arg_type =
         llvm::IntegerType::get(*context_, param->GetType()->GetFlatBitCount());
     llvm::Value* cast = builder_->CreateBitCast(
@@ -795,6 +887,9 @@ class BuilderVisitor : public DfsVisitorWithDefault {
 
     llvm::Value* result = CreateTypedZeroValue(tuple_type);
     for (uint32 i = 0; i < tuple->operand_count(); ++i) {
+      if (tuple->operand(i)->GetType()->GetFlatBitCount() == 0) {
+        continue;
+      }
       result = builder_->CreateInsertValue(
           result, node_map_.at(tuple->operand(i)), {i});
     }
@@ -860,6 +955,119 @@ class BuilderVisitor : public DfsVisitorWithDefault {
     llvm::Value* zext =
         builder_->CreateZExt(node_map_.at(zero_ext->operand(0)), dest_type);
     return StoreResult(zero_ext, zext);
+  }
+
+  // Proc-specific methods
+  absl::Status HandleReceive(Receive* receive) override {
+    if (queue_mgr_ == nullptr) {
+      return absl::FailedPreconditionError(
+          "Proc-specific node (Receive) encountered without queue manager.");
+    }
+
+    XLS_ASSIGN_OR_RETURN(ChannelQueue * queue,
+                         queue_mgr_->GetQueueById(receive->channel_id()));
+
+    llvm::Type* void_type = llvm::Type::getVoidTy(*context_);
+    llvm::Type* int64_type = llvm::Type::getInt64Ty(*context_);
+    llvm::Type* int8_ptr_type = llvm::Type::getInt8PtrTy(*context_, 0);
+
+    // To actually receive a message, we'll be pulling it from some queue (that
+    // will be known at JIT compilation time). Rather than trying to code that
+    // up as LLVM IR, we provide the dequeue operation as an external function
+    // (currently "DequeueMessage"). To call such a function - being defined
+    // outside LLVM - we need to:
+    //  1) conceptually add it to our module under construction, which requires
+    //     defining its signature to LLVM,
+    std::vector<llvm::Type*> params;
+    params.push_back(int64_type);
+    params.push_back(int64_type);
+    params.push_back(int64_type);
+    params.push_back(int8_ptr_type);
+    params.push_back(int64_type);
+    llvm::FunctionType* fn_type =
+        llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
+    llvm::Function* f = reinterpret_cast<llvm::Function*>(
+        module_->getOrInsertFunction("DequeueMessage", fn_type).getCallee());
+
+    llvm::Type* recv_type =
+        type_converter_->ConvertToLlvmType(*receive->GetType());
+    llvm::AllocaInst* alloca = builder_->CreateAlloca(recv_type);
+
+    //  2) create the argument list to pass to the function. We use opaque
+    //     pointers to our data elements, to avoid recursively defining every
+    //     type used by every type and so on.
+    std::vector<llvm::Value*> args;
+    args.push_back(
+        llvm::ConstantInt::get(int64_type, reinterpret_cast<uint64>(runtime_)));
+    args.push_back(llvm::ConstantInt::get(
+        int64_type, reinterpret_cast<uint64>(type_converter_)));
+    args.push_back(
+        llvm::ConstantInt::get(int64_type, reinterpret_cast<uint64>(queue)));
+    args.push_back(builder_->CreatePointerCast(alloca, int8_ptr_type));
+    args.push_back(
+        llvm::ConstantInt::get(int64_type, reinterpret_cast<uint64>(receive)));
+
+    // 3) finally emit the function call,
+    builder_->CreateCall(fn_type, f, args);
+
+    // 4) then load its result from the bounce buffer.
+    llvm::Value* xls_value = builder_->CreateLoad(alloca);
+    return StoreResult(receive, xls_value);
+  }
+
+  absl::Status HandleSend(Send* send) override {
+    if (queue_mgr_ == nullptr) {
+      return absl::FailedPreconditionError(
+          "Proc-specific node (Receive) encountered without queue manager.");
+    }
+
+    llvm::Type* void_type = llvm::Type::getVoidTy(*context_);
+    llvm::Type* int64_type = llvm::Type::getInt64Ty(*context_);
+    llvm::Type* int8_ptr_type = llvm::Type::getInt8PtrTy(*context_, 0);
+
+    XLS_ASSIGN_OR_RETURN(ChannelQueue * queue,
+                         queue_mgr_->GetQueueById(send->channel_id()));
+
+    // We do the same for sending/enqueuing as we do for receiving/dequeueing
+    // above (set up and call an external function).
+    std::vector<llvm::Type*> params;
+    params.push_back(int64_type);
+    params.push_back(int64_type);
+    params.push_back(int8_ptr_type);
+    params.push_back(int64_type);
+    llvm::FunctionType* fn_type =
+        llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
+
+    llvm::Function* f = reinterpret_cast<llvm::Function*>(
+        module_->getOrInsertFunction("EnqueueMessage", fn_type).getCallee());
+
+    // ChannelQueue::Enqueue() takes a vector of Values. To ensure we correctly
+    // pack those Values with the data from LLVM, create a temporary tuple
+    // to hold the data elements.
+    std::vector<Type*> tuple_elems;
+    for (const Node* node : send->data_operands()) {
+      tuple_elems.push_back(node->GetType());
+    }
+    TupleType tuple_type(tuple_elems);
+    llvm::Type* send_op_types = type_converter_->ConvertToLlvmType(tuple_type);
+    llvm::Value* tuple = CreateTypedZeroValue(send_op_types);
+    for (uint i = 0; i < send->data_operands().size(); i++) {
+      tuple = builder_->CreateInsertValue(
+          tuple, node_map_.at(send->data_operands()[i]), {i});
+    }
+    llvm::AllocaInst* alloca = builder_->CreateAlloca(send_op_types);
+    builder_->CreateStore(tuple, alloca);
+
+    std::vector<llvm::Value*> args;
+    args.push_back(
+        llvm::ConstantInt::get(int64_type, reinterpret_cast<uint64>(runtime_)));
+    args.push_back(
+        llvm::ConstantInt::get(int64_type, reinterpret_cast<uint64>(queue)));
+    args.push_back(builder_->CreatePointerCast(alloca, int8_ptr_type));
+    args.push_back(
+        llvm::ConstantInt::get(int64_type, reinterpret_cast<uint64>(send)));
+    builder_->CreateCall(fn_type, f, args);
+    return absl::OkStatus();
   }
 
   llvm::Value* return_value() { return return_value_; }
@@ -1140,8 +1348,9 @@ class BuilderVisitor : public DfsVisitorWithDefault {
         llvm::BasicBlock::Create(*context_, xls_function->qualified_name(),
                                  function, /*InsertBefore=*/nullptr);
     llvm::IRBuilder<> builder(block);
-    BuilderVisitor visitor(module_, &builder, {}, absl::nullopt,
-                           type_converter_, /*generate_packed=*/false);
+    BuilderVisitor visitor(module_, &builder, {}, absl::nullopt, runtime_,
+                           type_converter_, queue_mgr_,
+                           /*generate_packed=*/false);
     XLS_RETURN_IF_ERROR(xls_function->Accept(&visitor));
     if (function_type->getReturnType()->isVoidTy()) {
       builder.CreateRetVoid();
@@ -1183,11 +1392,14 @@ class BuilderVisitor : public DfsVisitorWithDefault {
   // and store the array once.
   absl::flat_hash_map<llvm::Value*, llvm::AllocaInst*> array_storage_;
 
+  LlvmIrRuntime* runtime_;
   LlvmTypeConverter* type_converter_;
 
   // The entry point into LLVM space - the function specified in the constructor
   // to the top-level LlvmIrJit object.
   absl::optional<Function*> llvm_entry_function_;
+
+  ChannelQueueManager* queue_mgr_;
 
   // True if this builder should generate packed parameter loads (as in the
   // header comment for LlvmIrJit::RunWithPackedViews()).
@@ -1204,16 +1416,18 @@ void OnceInit() {
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<LlvmIrJit>> LlvmIrJit::Create(
-    Function* xls_function, int64 opt_level) {
+    Function* xls_function, ChannelQueueManager* queue_mgr, int64 opt_level) {
   absl::call_once(once, OnceInit);
 
-  auto jit = absl::WrapUnique(new LlvmIrJit(xls_function, opt_level));
+  auto jit =
+      absl::WrapUnique(new LlvmIrJit(xls_function, queue_mgr, opt_level));
   XLS_RETURN_IF_ERROR(jit->Init());
-  XLS_RETURN_IF_ERROR(jit->Compile());
+  XLS_RETURN_IF_ERROR(jit->Compile(absl::nullopt));
   return jit;
 }
 
-absl::Status LlvmIrJit::Compile() {
+absl::Status LlvmIrJit::Compile(
+    absl::optional<ChannelQueueManager*> queue_mgr) {
   llvm::LLVMContext* bare_context = context_.getContext();
   auto module = std::make_unique<llvm::Module>("the_module", *bare_context);
   module->setDataLayout(data_layout_);
@@ -1250,7 +1464,8 @@ absl::Status LlvmIrJit::Compile() {
   return absl::OkStatus();
 }
 
-LlvmIrJit::LlvmIrJit(Function* xls_function, int64 opt_level)
+LlvmIrJit::LlvmIrJit(Function* xls_function, ChannelQueueManager* queue_mgr,
+                     int64 opt_level)
     : context_(std::make_unique<llvm::LLVMContext>()),
       object_layer_(
           execution_session_,
@@ -1259,6 +1474,7 @@ LlvmIrJit::LlvmIrJit(Function* xls_function, int64 opt_level)
       data_layout_(""),
       xls_function_(xls_function),
       xls_function_type_(xls_function_->GetType()),
+      queue_mgr_(queue_mgr),
       opt_level_(opt_level),
       invoker_(nullptr) {}
 
@@ -1399,7 +1615,8 @@ absl::Status LlvmIrJit::CompileFunction(llvm::Module* module) {
 
   llvm::IRBuilder<> builder(basic_block);
   BuilderVisitor visitor(module, &builder, xls_function_->params(),
-                         xls_function_, type_converter_.get(),
+                         xls_function_, ir_runtime_.get(),
+                         type_converter_.get(), queue_mgr_,
                          /*generate_packed=*/false);
   XLS_RETURN_IF_ERROR(xls_function_->Accept(&visitor));
   llvm::Value* return_value = visitor.return_value();
@@ -1498,14 +1715,18 @@ absl::Status LlvmIrJit::RunWithViews(absl::Span<const uint8*> args,
 
 absl::StatusOr<Value> CreateAndRun(Function* xls_function,
                                    absl::Span<const Value> args) {
-  XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(xls_function));
+  // No proc support from Python yet.
+  XLS_ASSIGN_OR_RETURN(auto jit,
+                       LlvmIrJit::Create(xls_function, /*queue_mgr=*/nullptr));
   XLS_ASSIGN_OR_RETURN(auto result, jit->Run(args));
   return result;
 }
 
 absl::StatusOr<std::pair<std::vector<std::vector<Value>>, std::vector<Value>>>
 CreateAndQuickCheck(Function* xls_function, int64 seed, int64 num_tests) {
-  XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(xls_function));
+  // No proc support from Python yet.
+  XLS_ASSIGN_OR_RETURN(auto jit,
+                       LlvmIrJit::Create(xls_function, /*queue_mgr=*/nullptr));
   std::vector<Value> results;
   std::vector<std::vector<Value>> argsets;
   std::minstd_rand rng_engine(seed);
@@ -1562,7 +1783,8 @@ absl::Status LlvmIrJit::CompilePackedViewFunction(llvm::Module* module) {
 
   llvm::IRBuilder<> builder(basic_block);
   BuilderVisitor visitor(module, &builder, xls_function_->params(),
-                         xls_function_, type_converter_.get(),
+                         xls_function_, ir_runtime_.get(),
+                         type_converter_.get(), queue_mgr_,
                          /*generate_packed=*/true);
   XLS_RETURN_IF_ERROR(xls_function_->Accept(&visitor));
   llvm::Value* return_value = visitor.return_value();

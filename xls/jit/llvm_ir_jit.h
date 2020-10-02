@@ -28,6 +28,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Target/TargetMachine.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/interpreter/channel_queue.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
@@ -43,8 +44,10 @@ class LlvmIrJit {
  public:
   // Returns an object containing a host-compiled version of the specified XLS
   // function.
+  // "queue_mgr" can/should be nullptr if not compiling a Proc.
   static absl::StatusOr<std::unique_ptr<LlvmIrJit>> Create(
-      Function* xls_function, int64 opt_level = 3);
+      Function* xls_function, ChannelQueueManager* queue_mgr,
+      int64 opt_level = 3);
 
   // Executes the compiled function with the specified arguments.
   absl::StatusOr<Value> Run(absl::Span<const Value> args);
@@ -103,13 +106,14 @@ class LlvmIrJit {
   int64 GetReturnTypeSize() { return return_type_bytes_; }
 
  private:
-  explicit LlvmIrJit(Function* xls_function, int64 opt_level);
+  explicit LlvmIrJit(Function* xls_function, ChannelQueueManager* queue_mgr,
+                     int64 opt_level);
 
   // Performs non-trivial initialization (i.e., that which can fail).
   absl::Status Init();
 
   // Drives regular and packed function compilation.
-  absl::Status Compile();
+  absl::Status Compile(absl::optional<ChannelQueueManager*> queue_mgr);
 
   // Compiles the input function to host code, accepting byte-aligned inputs.
   absl::Status CompileFunction(llvm::Module* module);
@@ -165,6 +169,7 @@ class LlvmIrJit {
 
   Function* xls_function_;
   FunctionType* xls_function_type_;
+  ChannelQueueManager* queue_mgr_;
   int64 opt_level_;
 
   // Size of the function's args or return type as flat bytes.

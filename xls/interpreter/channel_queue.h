@@ -35,8 +35,6 @@ using ChannelData = std::vector<Value>;
 // interpretation. During interpretation of a network of procs each channel is
 // backed by exactly one ChannelQueue. ChannelQueues are thread-compatible, but
 // not thread-safe.
-// TODO(rspringer): If this data structure is used in a multithreaded
-// interpreter, it will need to be thread-safe.
 class ChannelQueue {
  public:
   ChannelQueue(Channel* channel, Package* package)
@@ -55,10 +53,16 @@ class ChannelQueue {
   Channel* channel() const { return channel_; }
 
   // Returns the number of elements currently in the channel queue.
-  virtual int64 size() const { return queue_.size(); }
+  virtual int64 size() const {
+    absl::MutexLock lock(&mutex_);
+    return queue_.size();
+  }
 
   // Returns whether the channel queue is empty.
-  virtual bool empty() const { return queue_.empty(); }
+  virtual bool empty() const {
+    absl::MutexLock lock(&mutex_);
+    return queue_.empty();
+  }
 
   // Enqueues the given data on to the channel.
   virtual absl::Status Enqueue(const ChannelData& data);
@@ -72,7 +76,9 @@ class ChannelQueue {
   Package* package_;
 
   // Data values are enqueued to the back, and dequeued from the front.
-  std::deque<ChannelData> queue_;
+  std::deque<ChannelData> queue_ GUARDED_BY(mutex_);
+
+  mutable absl::Mutex mutex_;
 };
 
 // A queue backing a receive-only channel. Receive-only channels provide inputs
