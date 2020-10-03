@@ -20,19 +20,20 @@ import random
 from typing import Tuple, Text, Sequence
 
 from xls.dslx import parse_and_typecheck
-from xls.dslx.concrete_type import ArrayType
-from xls.dslx.concrete_type import BitsType
-from xls.dslx.concrete_type import ConcreteType
-from xls.dslx.concrete_type import TupleType
 from xls.dslx.fuzzer import ast_generator
 from xls.dslx.fuzzer import sample
 from xls.dslx.interpreter.value import Value
+from xls.dslx.python.cpp_concrete_type import ArrayType
+from xls.dslx.python.cpp_concrete_type import BitsType
+from xls.dslx.python.cpp_concrete_type import ConcreteType
+from xls.dslx.python.cpp_concrete_type import TupleType
 
 Random = random.Random
 del random  # Avoids accidentally calling module functions, use object methods.
 
 
 def _generate_bit_value(bit_count: int, rng: Random, signed: bool) -> Value:
+  assert isinstance(bit_count, int), bit_count
   p = rng.random()
   if p < 0.9:  # Most of the time, use some interesting bit pattern.
     value = rng.choice(ast_generator.make_bit_patterns(bit_count))
@@ -45,7 +46,7 @@ def _generate_bit_value(bit_count: int, rng: Random, signed: bool) -> Value:
 def _generate_unbiased_argument(concrete_type: ConcreteType,
                                 rng: Random) -> Value:
   if isinstance(concrete_type, BitsType):
-    bit_count = concrete_type.get_total_bit_count()
+    bit_count = concrete_type.get_total_bit_count().value
     return _generate_bit_value(bit_count, rng, concrete_type.get_signedness())
   else:
     raise NotImplementedError(
@@ -67,14 +68,14 @@ def generate_argument(arg_type: ConcreteType, rng: Random,
     return Value.make_array(
         tuple(
             generate_argument(arg_type.get_element_type(), rng, prior)
-            for _ in range(arg_type.size)))
+            for _ in range(arg_type.size.value)))
   else:
     assert isinstance(arg_type, BitsType)
     if not prior or rng.random() < 0.5:
       return _generate_unbiased_argument(arg_type, rng)
 
   to_mutate = rng.choice(prior)
-  bit_count = arg_type.get_total_bit_count()
+  bit_count = arg_type.get_total_bit_count().value
   if bit_count > to_mutate.get_bit_count():
     to_mutate = to_mutate.bits_payload.concat(
         _generate_bit_value(

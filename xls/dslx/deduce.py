@@ -26,16 +26,18 @@ import dataclasses
 
 from xls.dslx import ast_helpers
 from xls.dslx import bit_helpers
+from xls.dslx import concrete_type_helpers
 from xls.dslx import dslx_builtins
 from xls.dslx import parametric_instantiator
-from xls.dslx.concrete_type import ArrayType
-from xls.dslx.concrete_type import BitsType
-from xls.dslx.concrete_type import ConcreteType
-from xls.dslx.concrete_type import EnumType
-from xls.dslx.concrete_type import FunctionType
-from xls.dslx.concrete_type import TupleType
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_scanner as scanner
+from xls.dslx.python.cpp_concrete_type import ArrayType
+from xls.dslx.python.cpp_concrete_type import BitsType
+from xls.dslx.python.cpp_concrete_type import ConcreteType
+from xls.dslx.python.cpp_concrete_type import ConcreteTypeDim
+from xls.dslx.python.cpp_concrete_type import EnumType
+from xls.dslx.python.cpp_concrete_type import FunctionType
+from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.dslx.python.cpp_parametric_expression import ParametricAdd
 from xls.dslx.python.cpp_parametric_expression import ParametricExpression
 from xls.dslx.python.cpp_parametric_expression import ParametricSymbol
@@ -120,12 +122,12 @@ def resolve(type_: ConcreteType, ctx: DeduceCtx) -> ConcreteType:
   """
   _, fn_symbolic_bindings = ctx.fn_stack[-1]
 
-  def resolver(dim):
-    if isinstance(dim, ParametricExpression):
-      return dim.evaluate(fn_symbolic_bindings)
+  def resolver(dim: ConcreteTypeDim) -> ConcreteTypeDim:
+    if isinstance(dim.value, ParametricExpression):
+      return ConcreteTypeDim(dim.value.evaluate(fn_symbolic_bindings))
     return dim
 
-  return type_.map_size(resolver)
+  return concrete_type_helpers.map_size(type_, ctx.module, resolver)
 
 
 @_rule(ast.Param)
@@ -142,12 +144,13 @@ def _deduce_Constant(self: ast.Constant, ctx: DeduceCtx) -> ConcreteType:  # pyt
 
 def _check_bitwidth(n: ast.Number, concrete_type: ConcreteType) -> None:
   if (isinstance(concrete_type, BitsType) and
-      isinstance(concrete_type.get_total_bit_count(), int) and
+      isinstance(concrete_type.get_total_bit_count().value, int) and
       not bit_helpers.fits_in_bits(
           ast_helpers.get_value_as_int(n),
-          concrete_type.get_total_bit_count())):
+          concrete_type.get_total_bit_count().value)):
     msg = 'value {!r} does not fit in the bitwidth of a {} ({})'.format(
-        n.value, concrete_type, concrete_type.get_total_bit_count())
+        n.value, concrete_type,
+        concrete_type.get_total_bit_count().value)
     raise TypeInferenceError(span=n.span, type_=concrete_type, suffix=msg)
 
 
@@ -347,7 +350,7 @@ def _deduce_slice_type(self: ast.Index, ctx: DeduceCtx,
     raise XlsTypeError(self.span, lhs_type, None,
                        'Value to slice is not of "bits" type.')
 
-  bit_count = lhs_type.get_total_bit_count()
+  bit_count = lhs_type.get_total_bit_count().value
 
   if isinstance(index_slice, ast.WidthSlice):
     start = index_slice.start
@@ -356,11 +359,13 @@ def _deduce_slice_type(self: ast.Index, ctx: DeduceCtx,
       resolved_start_type = resolve(start_type, ctx)
       start_int = ast_helpers.get_value_as_int(start)
       if not bit_helpers.fits_in_bits(
-          start_int, resolved_start_type.get_total_bit_count()):
+          start_int,
+          resolved_start_type.get_total_bit_count().value):
         raise TypeInferenceError(
             start.span, resolved_start_type,
             'Cannot fit {} in {} bits (inferred from bits to slice).'.format(
-                start_int, resolved_start_type.get_total_bit_count()))
+                start_int,
+                resolved_start_type.get_total_bit_count().value))
       ctx.type_info[start] = start_type
     else:
       start_type = deduce(start, ctx)
@@ -373,14 +378,15 @@ def _deduce_slice_type(self: ast.Index, ctx: DeduceCtx,
           suffix='Start index for width-based slice must be unsigned.')
 
     width_type = deduce(index_slice.width, ctx)
-    if isinstance(width_type.get_total_bit_count(), int) and isinstance(
-        lhs_type.get_total_bit_count(), int
-    ) and width_type.get_total_bit_count() > lhs_type.get_total_bit_count():
+    if isinstance(width_type.get_total_bit_count().value, int) and isinstance(
+        lhs_type.get_total_bit_count().value,
+        int) and width_type.get_total_bit_count(
+        ).value > lhs_type.get_total_bit_count().value:
       raise XlsTypeError(
           start.span, lhs_type, width_type,
           'Slice type must have <= original number of bits; attempted slice from {} to {} bits.'
-          .format(lhs_type.get_total_bit_count(),
-                  width_type.get_total_bit_count()))
+          .format(lhs_type.get_total_bit_count().value,
+                  width_type.get_total_bit_count().value))
 
     # Check the width type is bits-based (no enums, since value could be out
     # of range of the enum values).
@@ -728,7 +734,7 @@ def _deduce_EnumRef(self: ast.EnumRef, ctx: DeduceCtx) -> ConcreteType:  # pytyp
 
   # Check the name we're accessing is actually defined on the enum.
   assert isinstance(result, EnumType), result
-  enum = result.nominal_type
+  enum = result.get_nominal_type(ctx.module)
   assert isinstance(enum, ast.Enum), enum
   name = self.value
   if not enum.has_value(name):
@@ -800,7 +806,8 @@ def _deduce_TypeRefTypeAnnotation(self: ast.TypeRefTypeAnnotation,
       self.type_ref.type_def, _get_imported_module_via_type_info, ctx.type_info)
   if (isinstance(maybe_struct, ast.Struct) and maybe_struct.is_parametric() and
       self.parametrics):
-    base_type = _concretize_struct_annotation(self, maybe_struct, base_type)
+    base_type = _concretize_struct_annotation(ctx.module, self, maybe_struct,
+                                              base_type)
   return base_type
 
 
@@ -982,7 +989,8 @@ def _deduce_Binop(self: ast.Binop, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
     raise XlsTypeError(
         self.span, resolved_lhs_type, None,
         "Cannot use '{}' on values with enum type {}".format(
-            self.kind.value, lhs_type.nominal_type.identifier))
+            self.kind.value,
+            lhs_type.get_nominal_type(ctx.module).identifier))
 
   if self.kind in ast_helpers.BINOP_COMPARISON_KINDS:
     return ConcreteType.U1
@@ -1033,6 +1041,7 @@ def _validate_struct_members_subset(
     the ConcreteTypes of the provided arguments, and the ConcreteTypes of the
     corresponding struct member definition.
   """
+  assert isinstance(struct_type, TupleType), struct_type
   seen_names = set()
   arg_types = []
   member_types = []
@@ -1047,7 +1056,7 @@ def _validate_struct_members_subset(
     expr_type = resolve(deduce(v, ctx), ctx)
     arg_types.append(expr_type)
     try:
-      member_type = struct_type.get_member_type_by_name(k)  # pytype: disable=attribute-error
+      member_type = struct_type.get_member_type_by_name(k)
       member_types.append(member_type)
     except KeyError:
       raise TypeInferenceError(
@@ -1065,7 +1074,9 @@ def _deduce_StructInstance(
   """Deduces the type of the struct instantiation expression and its members."""
   logging.vlog(5, 'Deducing type for struct instance: %s', self)
   struct_type = deduce(self.struct, ctx)
-  expected_names = set(struct_type.tuple_names)  # pytype: disable=attribute-error
+  assert isinstance(struct_type, TupleType), struct_type
+  assert struct_type.named, struct_type
+  expected_names = set(struct_type.tuple_names)
   seen_names, arg_types, member_types = _validate_struct_members_subset(
       self.unordered_members, struct_type, self.struct_text, ctx)
   if seen_names != expected_names:
@@ -1090,7 +1101,8 @@ def _deduce_StructInstance(
   return resolved_struct_type
 
 
-def _concretize_struct_annotation(type_annotation: ast.TypeRefTypeAnnotation,
+def _concretize_struct_annotation(module: ast.Module,
+                                  type_annotation: ast.TypeRefTypeAnnotation,
                                   struct: ast.Struct,
                                   base_type: ConcreteType) -> ConcreteType:
   """Returns concretized struct type using the provided bindings.
@@ -1101,6 +1113,7 @@ def _concretize_struct_annotation(type_annotation: ast.TypeRefTypeAnnotation,
   we will return (A, 16) instead.
 
   Args:
+    module: Owning AST module for the nodes.
     type_annotation: The provided type annotation for this parametric struct.
     struct: The corresponding struct AST node.
     base_type: The TupleType of the struct, based only on the struct definition.
@@ -1121,12 +1134,12 @@ def _concretize_struct_annotation(type_annotation: ast.TypeRefTypeAnnotation,
           ParametricSymbol(annotated_parametric.identifier,
                            annotated_parametric.span)
 
-  def resolver(dim):
-    if isinstance(dim, ParametricExpression):
-      return dim.evaluate(defined_to_annotated)
+  def resolver(dim: ConcreteTypeDim) -> ConcreteTypeDim:
+    if isinstance(dim.value, ParametricExpression):
+      return ConcreteTypeDim(dim.value.evaluate(defined_to_annotated))
     return dim
 
-  return base_type.map_size(resolver)
+  return concrete_type_helpers.map_size(base_type, module, resolver)
 
 
 def _get_imported_module_via_type_info(
@@ -1187,14 +1200,15 @@ def _deduce_SplatStructInstance(
 def _deduce_Attr(self: ast.Attr, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the type of a struct attribute access expression."""
   struct = deduce(self.lhs, ctx)
-  if not struct.has_named_member(self.attr.identifier):  # pytype: disable=attribute-error
+  assert isinstance(struct, TupleType), struct
+  if not struct.has_named_member(self.attr.identifier):
     raise TypeInferenceError(
         span=self.span,
         type_=None,
         suffix='Struct does not have a member with name {!r}.'.format(
             self.attr))
 
-  return struct.get_named_member_type(self.attr.identifier)  # pytype: disable=attribute-error
+  return struct.get_member_type_by_name(self.attr.identifier)
 
 
 def _deduce(n: ast.AstNode, ctx: DeduceCtx) -> ConcreteType:

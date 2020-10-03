@@ -217,7 +217,7 @@ class ParametricSymbol : public ParametricExpression {
   std::string ToString() const override { return identifier_; }
   bool operator==(const ParametricExpression& other) const override {
     if (auto* o = dynamic_cast<const ParametricSymbol*>(&other)) {
-      return identifier_ == o->identifier_ && span_ == o->span_;
+      return identifier_ == o->identifier_;
     }
     return false;
   }

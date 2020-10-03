@@ -184,6 +184,7 @@ def resolve_bit_slice_indices(bit_count: int, start: Optional[int],
                               limit: Optional[int]) -> Tuple[int, int]:
   """Returns (start, width), resolving indices via DSLX bit slice semantics."""
 
+  assert isinstance(bit_count, int), bit_count
   assert bit_count >= 0, bit_count
   if start is None:
     start = 0

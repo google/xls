@@ -26,10 +26,10 @@ from xls.common.xls_error import XlsError
 from xls.dslx import deduce
 from xls.dslx import dslx_builtins
 from xls.dslx import type_info
-from xls.dslx.concrete_type import ConcreteType
-from xls.dslx.concrete_type import FunctionType
 from xls.dslx.interpreter.interpreter_helpers import interpret_expr
 from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python.cpp_concrete_type import ConcreteType
+from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.span import PositionalError
 from xls.dslx.xls_type_error import XlsTypeError
 
@@ -83,8 +83,10 @@ def _check_function(f: ast.Function, ctx: deduce.DeduceCtx) -> None:
     # inside of this function, it must mean that we already have the type
     # signature and now we just need to evaluate the body.
     assert f in ctx.type_info, f
-    annotated_return_type = ctx.type_info[f].return_type  # pytype: disable=attribute-error
-    param_types = list(ctx.type_info[f].params)  # pytype: disable=attribute-error
+    f_type = ctx.type_info[f]
+    assert isinstance(f_type, FunctionType), f_type
+    annotated_return_type = f_type.return_type
+    param_types = list(ctx.type_info[f].params)
   else:
     logging.vlog(1, 'Type-checking sig for function: %s', f)
     param_types = _check_function_params(f, ctx)
@@ -112,6 +114,9 @@ def _check_function(f: ast.Function, ctx: deduce.DeduceCtx) -> None:
   resolved_body_type = deduce.resolve(body_return_type, ctx)
 
   # Finally, assert type consistency between body and annotated return type.
+  logging.vlog(3, 'resolved return type: %s => %s resolved body type: %s => %s',
+               annotated_return_type, resolved_return_type, body_return_type,
+               resolved_body_type)
   if resolved_return_type != resolved_body_type:
     raise XlsTypeError(
         f.body.span,

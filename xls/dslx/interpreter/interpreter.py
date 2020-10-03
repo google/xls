@@ -35,12 +35,7 @@ from xls.dslx import bit_helpers
 from xls.dslx import import_fn
 from xls.dslx import ir_name_mangler
 from xls.dslx import type_info as type_info_mod
-from xls.dslx.concrete_type import ArrayType
-from xls.dslx.concrete_type import BitsType
-from xls.dslx.concrete_type import ConcreteType
-from xls.dslx.concrete_type import EnumType
-from xls.dslx.concrete_type import FunctionType
-from xls.dslx.concrete_type import TupleType
+from xls.dslx.concrete_type_helpers import map_size
 from xls.dslx.interpreter import jit_comparison
 from xls.dslx.interpreter.bindings import Bindings
 from xls.dslx.interpreter.bindings import FnCtx
@@ -55,8 +50,14 @@ from xls.dslx.interpreter.value import Tag
 from xls.dslx.interpreter.value import Value
 from xls.dslx.parametric_instantiator import SymbolicBindings
 from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python.cpp_concrete_type import ArrayType
+from xls.dslx.python.cpp_concrete_type import BitsType
+from xls.dslx.python.cpp_concrete_type import ConcreteType
+from xls.dslx.python.cpp_concrete_type import ConcreteTypeDim
+from xls.dslx.python.cpp_concrete_type import EnumType
+from xls.dslx.python.cpp_concrete_type import FunctionType
+from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.dslx.python.cpp_parametric_expression import ParametricAdd
-from xls.dslx.python.cpp_parametric_expression import ParametricExpression
 from xls.dslx.python.cpp_parametric_expression import ParametricSymbol
 from xls.dslx.python.cpp_pos import Pos
 from xls.dslx.python.cpp_pos import Span
@@ -119,7 +120,7 @@ class Interpreter(object):
     if not isinstance(type_, EnumType):
       return None
 
-    enum = type_.nominal_type
+    enum = type_.get_nominal_type(self._module)
     result = []
     for member in enum.values:
       _, value = member.get_name_value(enum)
@@ -133,11 +134,12 @@ class Interpreter(object):
     type_ = self._evaluate_TypeAnnotation(expr.type_, bindings)
     logging.vlog(3, 'Cast to type: %s @ %s', type_, expr.span)
     value = self._evaluate(expr.expr, bindings, type_)
-    type_accepts_value = concrete_type_accepts_value(type_, value)
+    type_accepts_value = concrete_type_accepts_value(self._module, type_, value)
     logging.vlog(3, 'Type %s accepts value %s? %s', type_, value,
                  type_accepts_value)
     return concrete_type_convert_value(
-        type_, value, expr.span, self._get_enum_values(type_, bindings),
+        self._module, type_, value, expr.span,
+        self._get_enum_values(type_, bindings),
         value.type_.get_signedness() if value.type_ else None)
 
   def _evaluate_index_widthslice(self, expr: ast.Index, bindings: Bindings,
@@ -149,7 +151,7 @@ class Interpreter(object):
                            BitsType(signed=False, size=bits.bit_count))
     width_type = self._evaluate_TypeAnnotation(index_slice.width, bindings)
     result = (bits >> start.get_bits_value()).slice(
-        0, width_type.get_total_bit_count(), lsb_is_0=True)
+        0, width_type.get_total_bit_count().value, lsb_is_0=True)
     return Value(Tag.SBITS if width_type.get_signedness() else Tag.UBITS,  # pytype: disable=attribute-error
                  result)
 
@@ -192,7 +194,7 @@ class Interpreter(object):
       type_ = self._evaluate_TypeAnnotation(expr.type_, bindings)
 
     to_bind = self._evaluate(expr.rhs, bindings, type_)
-    if type_ and not concrete_type_accepts_value(type_, to_bind):
+    if type_ and not concrete_type_accepts_value(self._module, type_, to_bind):
       raise EvaluateError(
           expr.type_.span, 'Type error found at interpreter runtime! '
           'Let-expression right hand side did not conform to annotated type'
@@ -346,21 +348,30 @@ class Interpreter(object):
     else:
       raise NotImplementedError('Unknown type for concretization: %r' % type_)
 
-  def _resolve_dim(self, dim: Union[int, ast.Number, ParametricExpression],
+  def _resolve_dim(self, dim: Union[ConcreteTypeDim, ast.Number, ast.ConstRef,
+                                    ast.NameRef, int],
                    bindings: Bindings) -> int:
     """Resolves (parametric) dim from deduction vs current bindings."""
     if isinstance(dim, int):
       return dim
     if isinstance(dim, ast.Number):
       return ast_helpers.get_value_as_int(dim)
-    if isinstance(dim, (ParametricSymbol, ast.ConstRef, ast.NameRef)):
-      identifier = dim.identifier  # pytype: disable=attribute-error
+    if isinstance(dim, (ast.ConstRef, ast.NameRef)):
+      identifier = dim.identifier
       return bindings.resolve_value_from_identifier(
           identifier).get_bits_value_signed()
-    if isinstance(dim, ParametricAdd):
-      return (self._resolve_dim(dim.lhs, bindings) +
-              self._resolve_dim(dim.rhs, bindings))
-    raise NotImplementedError(repr(dim))
+    assert isinstance(dim, ConcreteTypeDim), repr(dim)
+    value = dim.value
+    if isinstance(value, int):
+      return value
+    if isinstance(value, ParametricSymbol):
+      identifier = value.identifier
+      return bindings.resolve_value_from_identifier(
+          identifier).get_bits_value_signed()
+    if isinstance(value, ParametricAdd):
+      return (self._resolve_dim(value.lhs, bindings) +
+              self._resolve_dim(value.rhs, bindings))
+    raise NotImplementedError(f'Unhandled dim for resolution: {dim!r}')
 
   def _evaluate_TypeAnnotation(  # pylint: disable=invalid-name
       self, type_: ast.TypeAnnotation, bindings: Bindings) -> ConcreteType:
@@ -373,8 +384,8 @@ class Interpreter(object):
     # with the corresponding bits-type value -- we should be using enum-based
     # ConcreteTypes in the interpreter instead of their bits equivalents.
     deduced = self._type_info[type_]
-    deduced = deduced.map_size(
-        functools.partial(self._resolve_dim, bindings=bindings))
+    deduced = map_size(deduced, self._module,
+                       functools.partial(self._resolve_dim, bindings=bindings))
     if not deduced.has_enum():
       assert deduced.compatible_with(result), \
           (f'Deduced type {deduced} incompatible with '
@@ -420,7 +431,7 @@ class Interpreter(object):
       raise EvaluateError(
           expr.span, 'Type context for number is a tuple type {} @ {}'.format(
               type_context, expr.span))
-    bit_count = type_context.get_total_bit_count()
+    bit_count = type_context.get_total_bit_count().value
     signed = type_context.signed  # pytype: disable=attribute-error
     constructor = Value.make_sbits if signed else Value.make_ubits
     return constructor(bit_count, ast_helpers.get_value_as_int(expr))
@@ -531,7 +542,8 @@ class Interpreter(object):
       """
       if type_context is None:
         return None
-      return type_context.get_tuple_member(i)  # pytype: disable=attribute-error
+      assert isinstance(type_context, TupleType), type_context
+      return type_context.get_tuple_member(i)
 
     result = Value.make_tuple(
         tuple(
@@ -613,7 +625,8 @@ class Interpreter(object):
     carry = self._evaluate(expr.init, bindings)
     for i, x in enumerate(iterable):
       iteration = Value.make_tuple((x, carry))
-      if not concrete_type_accepts_value(concrete_iteration_type, iteration):
+      if not concrete_type_accepts_value(self._module, concrete_iteration_type,
+                                         iteration):
         raise EvaluateError(
             expr.type_.span,
             'type error found at interpreter runtime! iteration value does not conform to type annotation '
@@ -651,14 +664,16 @@ class Interpreter(object):
     if type_context is None and expr.type_:
       type_context = self._evaluate_TypeAnnotation(expr.type_, bindings)
     if type_context is not None:
-      element_type = type_context.get_element_type()  # pytype: disable=attribute-error
+      assert isinstance(type_context, ArrayType), type_context
+      element_type = type_context.get_element_type()
       logging.vlog(3, 'element type for array members: %s @ %s', element_type,
                    expr.span)
     elements = tuple(
         self._evaluate(e, bindings, element_type) for e in expr.members)
     if expr.has_ellipsis:
       assert type_context is not None, type_context
-      elements = elements + elements[-1:] * (type_context.size - len(elements))  # pytype: disable=attribute-error
+      elements = elements + elements[-1:] * (
+          type_context.size.value - len(elements))
     return Value.make_array(elements)
 
   def _evaluate_ConstantArray(  # pylint: disable=invalid-name
@@ -1134,7 +1149,8 @@ class Interpreter(object):
               len(args)))
     selector, cases = args
     selector = selector.bits_payload
-    accum = Bits(value=0, bit_count=self._type_info[expr].get_total_bit_count())
+    accum = Bits(
+        value=0, bit_count=self._type_info[expr].get_total_bit_count().value)
     for i in range(selector.bit_count):
       if selector.get_lsb_index(i).value != 0:
         accum |= cases.array_payload.index(i).bits_payload
@@ -1213,7 +1229,8 @@ class Interpreter(object):
       # We already computed derived parametrics in parametric_instantiator.py
       # All that's left is to add it to the current Bindings
       raw_value = bound_dims[parametric.name.identifier]
-      wrapped_value = Value.make_ubits(type_.get_total_bit_count(), raw_value)
+      wrapped_value = Value.make_ubits(type_.get_total_bit_count().value,
+                                       raw_value)
       bindings.add_value(parametric.name.identifier, wrapped_value)
 
   def _evaluate_fn_with_interpreter(

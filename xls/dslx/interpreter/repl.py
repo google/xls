@@ -25,7 +25,6 @@ from absl import flags
 from pyfakefs import fake_filesystem
 
 from xls.dslx import bit_helpers
-from xls.dslx import concrete_type as concrete_type_mod
 from xls.dslx import import_routines
 from xls.dslx import parser_helpers
 from xls.dslx import span
@@ -33,6 +32,7 @@ from xls.dslx import typecheck
 from xls.dslx import xls_type_error
 from xls.dslx.interpreter import interpreter as interpreter_mod
 from xls.dslx.interpreter import value as value_mod
+from xls.dslx.python import cpp_concrete_type as concrete_type_mod
 from xls.dslx.python import cpp_parser as parser
 from xls.dslx.python import cpp_pos
 from xls.dslx.python import cpp_scanner as scanner

@@ -18,11 +18,11 @@
 from typing import Iterable
 
 from xls.dslx import bit_helpers
-from xls.dslx.concrete_type import ArrayType
-from xls.dslx.concrete_type import BitsType
-from xls.dslx.concrete_type import ConcreteType
-from xls.dslx.concrete_type import TupleType
 from xls.dslx.interpreter import value as dslx_value
+from xls.dslx.python.cpp_concrete_type import ArrayType
+from xls.dslx.python.cpp_concrete_type import BitsType
+from xls.dslx.python.cpp_concrete_type import ConcreteType
+from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.ir.python import bits as ir_bits
 from xls.ir.python import number_parser
 from xls.ir.python import value as ir_value
@@ -174,8 +174,8 @@ def ir_value_to_interpreter_value(value: ir_value.Value,
     assert isinstance(dslx_type, TupleType), dslx_type
     return dslx_value.Value.make_tuple(
         tuple(
-            ir_value_to_interpreter_value(e, t)
-            for e, t in zip(value.get_elements(), t.get_unnamed_members())))
+            ir_value_to_interpreter_value(e, t) for e, t in zip(
+                value.get_elements(), dslx_type.get_unnamed_members())))
 
 
 def int_to_bits(value: int, bit_count: int) -> ir_bits.Bits:

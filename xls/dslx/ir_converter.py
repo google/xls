@@ -24,21 +24,23 @@ from absl import logging
 from xls.common.xls_error import XlsError
 from xls.dslx import ast_helpers
 from xls.dslx import bit_helpers
+from xls.dslx import concrete_type_helpers
 from xls.dslx import deduce
 from xls.dslx import dslx_builtins
 from xls.dslx import extract_conversion_order
 from xls.dslx import type_info as type_info_mod
-from xls.dslx.concrete_type import ArrayType
-from xls.dslx.concrete_type import BitsType
-from xls.dslx.concrete_type import ConcreteType
-from xls.dslx.concrete_type import EnumType
-from xls.dslx.concrete_type import FunctionType
-from xls.dslx.concrete_type import TupleType
 from xls.dslx.ir_name_mangler import mangle_dslx_name
 from xls.dslx.parametric_instantiator import SymbolicBindings
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_ast_visitor
 from xls.dslx.python.cpp_ast_visitor import visit
+from xls.dslx.python.cpp_concrete_type import ArrayType
+from xls.dslx.python.cpp_concrete_type import BitsType
+from xls.dslx.python.cpp_concrete_type import ConcreteType
+from xls.dslx.python.cpp_concrete_type import ConcreteTypeDim
+from xls.dslx.python.cpp_concrete_type import EnumType
+from xls.dslx.python.cpp_concrete_type import FunctionType
+from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.dslx.python.cpp_parametric_expression import ParametricExpression
 from xls.dslx.python.cpp_pos import Span
 from xls.dslx.span import PositionalError
@@ -66,6 +68,7 @@ class ConversionError(PositionalError):
 
 def _int_to_bits(value: int, bit_count: int) -> bits_mod.Bits:
   """Converts a Python arbitrary precision int to a Bits type."""
+  assert isinstance(bit_count, int), bit_count
   if bit_count <= 64:
     return bits_mod.UBits(value, bit_count) if value >= 0 else bits_mod.SBits(
         value, bit_count)
@@ -131,7 +134,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     logging.vlog(4, 'Converting concrete type to IR: %s', concrete_type)
     if isinstance(concrete_type, ArrayType):
       element_type = self._type_to_ir(concrete_type.get_element_type())
-      element_count = concrete_type.size
+      element_count = concrete_type.size.value
       if not isinstance(element_count, int):
         raise ValueError(
             'Expect array element count to be integer; got {!r}'.format(
@@ -143,7 +146,8 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       return result
     elif isinstance(concrete_type, BitsType) or isinstance(
         concrete_type, EnumType):
-      return self.package.get_bits_type(concrete_type.get_total_bit_count())
+      return self.package.get_bits_type(
+          concrete_type.get_total_bit_count().value)
     else:
       if not isinstance(concrete_type, TupleType):
         raise ValueError(
@@ -160,9 +164,9 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       return self._type_to_ir(concrete_type)
     except ValueError as e:
       if 'Expect type to be' in str(e):
-        raise ConversionError('Could not resolve type: {}'.format(e), node.span)
+        raise ConversionError(f'Could not resolve type: {e}', node.span)
       if 'Expect array element count to be' in str(e):
-        raise ConversionError('Could not resolve type: {}'.format(e), node.span)
+        raise ConversionError(f'Could not resolve type: {e}', node.span)
       raise
 
   def _def(self, node: ast.AstNode, ir_func: Callable[..., BValue], *args,
@@ -235,13 +239,16 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     else:
       return record
 
-  def _resolve_dim(self, dim):
-    while isinstance(dim, ParametricExpression):
+  def _resolve_dim(self, dim: ConcreteTypeDim) -> ConcreteTypeDim:
+    assert isinstance(dim, ConcreteTypeDim), dim
+    while isinstance(dim.value, ParametricExpression):
       try:
-        orig = dim
-        dim = dim.evaluate(self.symbolic_bindings)  # pytype: disable=attribute-error
-        logging.vlog(4, 'Evaluated dim %s to %s via %s', orig, dim,
+        orig = dim.value
+        assert isinstance(orig, ParametricExpression), orig
+        evaluated = orig.evaluate(self.symbolic_bindings)
+        logging.vlog(4, 'Evaluated dim %s to %s via %s', orig, evaluated,
                      self.symbolic_bindings)
+        dim = ConcreteTypeDim(evaluated)
       except KeyError:
         logging.vlog(4, 'Could not resolve %s dim %s via symbolic bindings %r',
                      dim, self.symbolic_bindings)
@@ -257,7 +264,8 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
           f'{node} :: {node!r}', ast_helpers.get_span_or_fake(node))
 
     assert isinstance(concrete_type, ConcreteType), concrete_type
-    result = concrete_type.map_size(self._resolve_dim)
+    result = concrete_type_helpers.map_size(concrete_type, self.module,
+                                            self._resolve_dim)
     logging.vlog(4, 'Resolved concrete type from %s to %s via %s',
                  concrete_type, result, self.symbolic_bindings)
     return result
@@ -462,7 +470,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     visit(width_slice.start, self)
     self._def(node, self.fb.add_dynamic_bit_slice, self._use(node.lhs),
               self._use(width_slice.start),
-              self._resolve_type(node).get_total_bit_count())
+              self._resolve_type(node).get_total_bit_count().value)
 
   def visit_Attr(self, node: ast.Attr) -> None:
     lhs_type = self.type_info[node.lhs]
@@ -493,8 +501,9 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
 
   def visit_Number(self, node: ast.Number):
     type_ = self._resolve_type(node)
-    self._def_const(node, ast_helpers.get_value_as_int(node),
-                    type_.get_total_bit_count())
+    bit_count = type_.get_total_bit_count().value
+    assert isinstance(bit_count, int), bit_count
+    self._def_const(node, ast_helpers.get_value_as_int(node), bit_count)
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Constant(self, node: ast.Constant) -> None:
@@ -510,21 +519,22 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       visit(member, self)
       members.append(self._use(member))
     if node.has_ellipsis:
-      while len(members) < array_type.size:  # pytype: disable=attribute-error
+      while len(members) < array_type.size.value:
         members.append(members[-1])
     self._def(node, self.fb.add_array, members, members[0].get_type())
 
   # Note: need to traverse to define constants for members.
   def visit_ConstantArray(self, node: ast.ConstantArray) -> None:
     array_type = self._resolve_type(node)
-    e_type = array_type.get_element_type()  # pytype: disable=attribute-error
+    e_type = array_type.get_element_type()
     values = []
     for n in node.members:
       e = self._get_const(n)
       values.append(
-          ir_value.Value(_int_to_bits(e, e_type.get_total_bit_count())))
+          ir_value.Value(_int_to_bits(e,
+                                      e_type.get_total_bit_count().value)))
     if node.has_ellipsis:
-      while len(values) < array_type.size:  # pytype: disable=attribute-error
+      while len(values) < array_type.size.value:
         values.append(values[-1])
     self._def(node, self.fb.add_literal_value,
               ir_value.Value.make_array(values))
@@ -532,9 +542,12 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
   def _cast_to_array(self, node: ast.Cast, output_type: ConcreteType) -> None:
     bits = self._use(node.expr)
     slices = []
-    element_bit_count = output_type.get_element_type().get_total_bit_count()  # pytype: disable=attribute-error
+    assert isinstance(output_type, ArrayType), output_type
+    element_bit_count = output_type.get_element_type().get_total_bit_count(
+    ).value
     # MSb becomes lowest-indexed array element.
-    for i in range(0, output_type.get_total_bit_count(), element_bit_count):
+    for i in range(0,
+                   output_type.get_total_bit_count().value, element_bit_count):
       slices.append(self.fb.add_bit_slice(bits, i, element_bit_count))
     slices.reverse()
     element_type = self.package.get_bits_type(element_bit_count)
@@ -564,13 +577,14 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     input_type = self._resolve_type(node.expr)
     if isinstance(input_type, ArrayType):
       return self._cast_from_array(node, output_type)
-    new_bit_count = output_type.get_total_bit_count()
+    new_bit_count = output_type.get_total_bit_count().value
     input_type = self._resolve_type(node.expr)
-    if new_bit_count < input_type.get_total_bit_count():
+    if new_bit_count < input_type.get_total_bit_count().value:
       self._def(node, self.fb.add_bit_slice, self._use(node.expr), 0,
                 new_bit_count)
     else:
-      signed_input = input_type.get_signedness()
+      signed_input = input_type.signed
+      assert signed_input is not None, input_type
       f = self.fb.add_signext if signed_input else self.fb.add_zeroext
       self._def(node, f, self._use(node.expr), new_bit_count)
 
@@ -1060,12 +1074,13 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
         logging.vlog(4, 'Resolving parametric binding %s', parametric_binding)
 
         sb_value = self.symbolic_bindings[parametric_binding.name.identifier]
-        value = self._resolve_dim(sb_value)
-        assert isinstance(value, int), \
+        value = self._resolve_dim(ConcreteTypeDim(sb_value))
+        assert isinstance(value.value, int), \
             'Expect integral parametric binding; got {!r}'.format(value)
         self._def_const(
-            parametric_binding, value,
-            self._resolve_type(parametric_binding.type_).get_total_bit_count())
+            parametric_binding, value.value,
+            self._resolve_type(
+                parametric_binding.type_).get_total_bit_count().value)
         self._def_alias(parametric_binding, to=parametric_binding.name)
 
       for dep in self._constant_deps:

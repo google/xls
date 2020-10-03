@@ -20,13 +20,15 @@ from typing import Any, Text, Dict, Tuple, Optional
 
 from absl import logging
 
-from xls.dslx.concrete_type import ArrayType
-from xls.dslx.concrete_type import BitsType
-from xls.dslx.concrete_type import ConcreteType
-from xls.dslx.concrete_type import EnumType
-from xls.dslx.concrete_type import FunctionType
-from xls.dslx.concrete_type import TupleType
+from xls.dslx.concrete_type_helpers import map_size
 from xls.dslx.python import cpp_parametric_expression as parametric_expression
+from xls.dslx.python.cpp_concrete_type import ArrayType
+from xls.dslx.python.cpp_concrete_type import BitsType
+from xls.dslx.python.cpp_concrete_type import ConcreteType
+from xls.dslx.python.cpp_concrete_type import ConcreteTypeDim
+from xls.dslx.python.cpp_concrete_type import EnumType
+from xls.dslx.python.cpp_concrete_type import FunctionType
+from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.dslx.python.cpp_pos import Span
 from xls.dslx.symbolic_bindings import SymbolicBindings
 from xls.dslx.xls_type_error import ArgCountMismatchError
@@ -106,8 +108,8 @@ class _ParametricInstantiator:
     """Binds parametric symbols in param_type according to arg_type."""
     # Create bindings for symbolic parameter dimensions based on argument
     # values passed.
-    param_dim = param_type.size  # pytype: disable=attribute-error
-    arg_dim = arg_type.size  # pytype: disable=attribute-error
+    param_dim = param_type.size.value
+    arg_dim = arg_type.size.value
     if not isinstance(param_dim, parametric_expression.ParametricSymbol):
       return
 
@@ -151,7 +153,7 @@ class _ParametricInstantiator:
     self._symbolic_bind_dims(param_type, arg_type)
 
   def _symbolic_bind_tuple(self, param_type: ConcreteType,
-                           arg_type: ConcreteType):
+                           arg_type: ConcreteType) -> None:
     """Binds any parametric symbols in the "tuple" param_type."""
     assert isinstance(param_type, TupleType) and isinstance(arg_type, TupleType)
     for param_member, arg_member in zip(param_type.get_unnamed_members(),
@@ -159,7 +161,7 @@ class _ParametricInstantiator:
       self._symbolic_bind(param_member, arg_member)
 
   def _symbolic_bind_array(self, param_type: ConcreteType,
-                           arg_type: ConcreteType):
+                           arg_type: ConcreteType) -> None:
     """Binds any parametric symbols in the "array" param_type."""
     assert isinstance(param_type, ArrayType) and isinstance(arg_type, ArrayType)
     self._symbolic_bind(param_type.get_element_type(),
@@ -167,15 +169,13 @@ class _ParametricInstantiator:
     self._symbolic_bind_dims(param_type, arg_type)
 
   def _symbolic_bind_function(self, param_type: ConcreteType,
-                              arg_type: ConcreteType):
+                              arg_type: ConcreteType) -> None:
     """Binds any parametric symbols in the "function" param_type."""
     assert isinstance(param_type, FunctionType) and isinstance(
         arg_type, FunctionType)
-    for param_param, arg_param in zip(param_type.get_function_params(),
-                                      arg_type.get_function_params()):
+    for param_param, arg_param in zip(param_type.params, arg_type.params):
       self._symbolic_bind(param_param, arg_param)
-    self._symbolic_bind(param_type.get_function_return_type(),
-                        arg_type.get_function_return_type())
+    self._symbolic_bind(param_type.return_type, arg_type.return_type)
 
   def _symbolic_bind(self, param_type: ConcreteType,
                      arg_type: ConcreteType) -> None:
@@ -185,21 +185,24 @@ class _ParametricInstantiator:
     if isinstance(param_type, BitsType):
       self._symbolic_bind_bits(param_type, arg_type)
     elif isinstance(param_type, EnumType):
-      assert param_type.nominal_type == arg_type.nominal_type
+      assert param_type.get_nominal_type(
+          self.ctx.module) == arg_type.get_nominal_type(self.ctx.module)
       # If the enums are the same, we do the same thing as we do with bits
       # (ignore the primitive and symbolic bind the dims).
       self._symbolic_bind_bits(param_type, arg_type)
     elif isinstance(param_type, TupleType):
-      if param_type.nominal_type != arg_type.nominal_type:
+      param_nominal = param_type.get_nominal_type(self.ctx.module)
+      arg_nominal = arg_type.get_nominal_type(self.ctx.module)
+      logging.vlog(3, 'param nominal %s arg nominal %s', param_nominal,
+                   arg_nominal)
+      if param_nominal != arg_nominal:
         raise XlsTypeError(
             self.span,
             param_type,
             arg_type,
             suffix='parameter type name: {}; argument type name: {}.'.format(
-                repr(param_type.nominal_type.identifier)
-                if param_type.nominal_type else '<none>',
-                repr(arg_type.nominal_type.identifier)
-                if arg_type.nominal_type else '<none>'))
+                repr(param_nominal.identifier) if param_nominal else '<none>',
+                repr(arg_nominal.identifier) if arg_nominal else '<none>'))
       self._symbolic_bind_tuple(param_type, arg_type)
     elif isinstance(param_type, ArrayType):
       self._symbolic_bind_array(param_type, arg_type)
@@ -236,12 +239,16 @@ class _ParametricInstantiator:
     if self.constraints:
       self._verify_constraints()
 
-    def resolver(dim):
-      if isinstance(dim, parametric_expression.ParametricExpression):
-        return dim.evaluate(self.symbolic_bindings)
+    def resolver(dim: ConcreteTypeDim) -> ConcreteTypeDim:
+      if isinstance(dim.value, parametric_expression.ParametricExpression):
+        before = dim.value
+        after = before.evaluate(self.symbolic_bindings)
+        logging.vlog(3, 'Resolved parametric expression via %s: %s => %s',
+                     self.symbolic_bindings, before, after)
+        return ConcreteTypeDim(after)
       return dim
 
-    return annotated.map_size(resolver)
+    return map_size(annotated, self.ctx.module, resolver)
 
   def instantiate(self) -> Tuple[ConcreteType, SymbolicBindings]:
     raise NotImplementedError
@@ -271,7 +278,7 @@ class _FunctionInstantiator(_ParametricInstantiator):
                parametric_constraints: Optional[ParametricBindings]):
     super().__init__(span, arg_types, ctx, parametric_constraints)
     self.function_type = function_type
-    param_types = self.function_type.get_function_params()  # pytype: disable=attribute-error
+    param_types = self.function_type.params
     if len(self.arg_types) != len(param_types):
       raise ArgCountMismatchError(self.span, arg_types, len(param_types),
                                   param_types,
@@ -290,7 +297,7 @@ class _FunctionInstantiator(_ParametricInstantiator):
     """
     # Walk through all the params/args to collect symbolic bindings.
     for i, (param_type, arg_type) in enumerate(
-        zip(self.function_type.get_function_params(), self.arg_types)):  # pytype: disable=attribute-error
+        zip(self.function_type.params, self.arg_types)):
       param_type = self._instantiate_one_arg(i, param_type, arg_type)
       logging.vlog(
           3, 'Post-instantiation; paramno: %d; param_type: %s; arg_type: %s', i,
@@ -302,7 +309,7 @@ class _FunctionInstantiator(_ParametricInstantiator):
         raise XlsTypeError(self.span, param_type, arg_type, suffix=message)
 
     # Resolve the return type according to the bindings we collected.
-    orig = self.function_type.get_function_return_type()  # pytype: disable=attribute-error
+    orig = self.function_type.return_type
     resolved = self._resolve(orig)
     logging.vlog(2, 'Resolved return type from %s to %s', orig, resolved)
     return resolved, tuple(sorted(self.symbolic_bindings.items()))
@@ -355,7 +362,7 @@ class _StructInstantiator(_ParametricInstantiator):
     """
     # Walk through all the members/args to collect symbolic bindings.
     for i, (member_type,
-            arg_type) in enumerate(zip(self.member_types, self.arg_types)):  # pytype: disable=attribute-error
+            arg_type) in enumerate(zip(self.member_types, self.arg_types)):
       member_type = self._instantiate_one_arg(i, member_type, arg_type)
       logging.vlog(
           3, 'Post-instantiation; memno: %d; member_type: %s; struct_type: %s',
@@ -368,7 +375,7 @@ class _StructInstantiator(_ParametricInstantiator):
 
     # Resolve the struct type according to the bindings we collected.
     resolved = self._resolve(self.struct_type)
-    logging.vlog(2, 'Resolved struct type from %s to %s', self.struct_type,
+    logging.vlog(3, 'Resolved struct type from %s to %s', self.struct_type,
                  resolved)
     return resolved, tuple(sorted(self.symbolic_bindings.items()))
 

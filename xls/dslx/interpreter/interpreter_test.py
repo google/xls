@@ -24,11 +24,11 @@ from typing import Text
 import unittest.mock as mock
 from pyfakefs import fake_filesystem_unittest as ffu
 
-from xls.dslx.concrete_type import ArrayType
+from absl.testing import absltest
 from xls.dslx.interpreter import interpreter
 from xls.dslx.interpreter import parse_and_interpret
+from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.xls_type_error import XlsTypeError
-from absl.testing import absltest
 
 
 class InterpreterTest(absltest.TestCase):

@@ -23,11 +23,12 @@ from absl import logging
 
 from xls.dslx import parametric_instantiator
 from xls.dslx import xls_type_error
-from xls.dslx.concrete_type import ArrayType
-from xls.dslx.concrete_type import BitsType
-from xls.dslx.concrete_type import ConcreteType
-from xls.dslx.concrete_type import FunctionType
-from xls.dslx.concrete_type import TupleType
+from xls.dslx.python.cpp_concrete_type import ArrayType
+from xls.dslx.python.cpp_concrete_type import BitsType
+from xls.dslx.python.cpp_concrete_type import ConcreteType
+from xls.dslx.python.cpp_concrete_type import ConcreteTypeDim
+from xls.dslx.python.cpp_concrete_type import FunctionType
+from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.dslx.python.cpp_pos import Span
 
 ParametricBinding = Any
@@ -113,7 +114,7 @@ class _Checker(object):
       raise xls_type_error.XlsTypeError(
           self.span, t, None,
           'Want argument {} to be a function; got {}'.format(argno, t))
-    if len(t.get_function_params()) != argc:
+    if len(t.params) != argc:
       raise xls_type_error.XlsTypeError(
           self.span, t, None,
           'Want argument {} to be a function with {} parameters; got {}'.format(
@@ -162,8 +163,7 @@ class _Checker(object):
       raise xls_type_error.XlsTypeError(self.span, t, None, fmt.format(t))
     return self
 
-  def check_is_len(self, t: ArrayType[int], target: int,
-                   fmt: str) -> '_Checker':
+  def check_is_len(self, t: ArrayType, target: int, fmt: str) -> '_Checker':
     if t.size != target:
       raise xls_type_error.XlsTypeError(self.span, t, None,
                                         fmt.format(t=t, target=target))
@@ -269,7 +269,7 @@ def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx: DeduceCtx,
   arg0 = arg_types[0]
   arg1 = arg_types[1]
   assert isinstance(arg1, ArrayType), arg1
-  assert isinstance(arg1.size, int), arg1
+  assert isinstance(arg1.size.value, int), arg1
   return_type = arg1.element_type
   checker.check_is_bits(return_type,
                         'Want arg 1 element type to be bits; got {0}')
@@ -329,7 +329,8 @@ def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx: DeduceCtx,
          _: Optional[ParametricBindings]) -> ConcreteType:
   _Checker(arg_types, name, span).len(2).is_uN(0).is_u1(1)
   return_type = BitsType(
-      signed=False, size=arg_types[0].get_total_bit_count() + 1)
+      signed=False,
+      size=arg_types[0].get_total_bit_count() + ConcreteTypeDim(1))
   return FunctionType(arg_types, return_type)
 
 

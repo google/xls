@@ -18,8 +18,8 @@
 
 from typing import Text, Optional, Any, Tuple
 
-from xls.dslx.concrete_type import ConcreteType
 from xls.dslx.python import cpp_pos
+from xls.dslx.python.cpp_concrete_type import ConcreteType
 from xls.dslx.span import PositionalError
 
 

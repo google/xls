@@ -123,3 +123,21 @@ xls_pybind_extension(
         "//xls/dslx:cpp_parametric_expression",
     ],
 )
+
+xls_pybind_extension(
+    name = "cpp_concrete_type",
+    srcs = [
+        "cpp_ast.h",
+        "cpp_concrete_type.cc",
+    ],
+    py_deps = [
+        ":cpp_ast",  # build_cleaner: keep
+    ],
+    deps = [
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/strings",
+        "//xls/common/status:status_macros",
+        "//xls/common/status:statusor_pybind_caster",
+        "//xls/dslx:cpp_concrete_type",
+    ],
+)

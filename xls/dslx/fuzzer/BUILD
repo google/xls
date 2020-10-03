@@ -195,7 +195,6 @@ py_library(
         "//xls/common:revision",
         "//xls/common:runfiles",
         "//xls/common:xls_error",
-        "//xls/dslx:concrete_type",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx:type_info",
         "//xls/dslx:typecheck",
@@ -203,6 +202,7 @@ py_library(
         "//xls/dslx/interpreter:value",
         "//xls/dslx/interpreter:value_parser",
         "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_concrete_type",
         "//xls/ir/python:format_preference",
         "//xls/ir/python:ir_parser",
         "//xls/ir/python:value",
@@ -220,10 +220,10 @@ py_test(
         ":sample_runner",
         "//xls/common:check_simulator",
         "//xls/common:test_base",
-        "//xls/dslx:concrete_type",
         "//xls/dslx:fakefs_test_util",
         "//xls/dslx:parser_helpers",
         "//xls/dslx/interpreter:value",
+        "//xls/dslx/python:cpp_concrete_type",
     ],
 )
 
@@ -266,9 +266,9 @@ py_library(
     deps = [
         ":ast_generator",
         ":sample",
-        "//xls/dslx:concrete_type",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/interpreter:value",
+        "//xls/dslx/python:cpp_concrete_type",
     ],
 )
 
@@ -341,7 +341,7 @@ py_test(
         ":sample",
         ":sample_generator",
         "//xls/common:test_base",
-        "//xls/dslx:concrete_type",
+        "//xls/dslx/python:cpp_concrete_type",
     ],
 )
 

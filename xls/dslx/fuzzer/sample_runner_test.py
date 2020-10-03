@@ -21,12 +21,12 @@ from xls.common import check_simulator
 from xls.common import test_base
 from xls.dslx import fakefs_test_util
 from xls.dslx import parser_helpers
-from xls.dslx.concrete_type import ArrayType
-from xls.dslx.concrete_type import BitsType
-from xls.dslx.concrete_type import TupleType
 from xls.dslx.fuzzer import sample
 from xls.dslx.fuzzer import sample_runner
 from xls.dslx.interpreter.value import Value
+from xls.dslx.python.cpp_concrete_type import ArrayType
+from xls.dslx.python.cpp_concrete_type import BitsType
+from xls.dslx.python.cpp_concrete_type import TupleType
 
 
 def _read_file(dirname: Text, filename: Text) -> Text:

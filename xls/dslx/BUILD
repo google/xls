@@ -99,9 +99,10 @@ py_library(
     srcs = ["parametric_instantiator.py"],
     srcs_version = "PY3",
     deps = [
-        ":concrete_type",
+        ":concrete_type_helpers",
         ":symbolic_bindings",
         ":xls_type_error",
+        "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_parametric_expression",
         "//xls/dslx/python:cpp_pos",
         "@com_google_absl_py//absl/logging",
@@ -118,17 +119,6 @@ py_test(
         "//xls/common:test_base",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_ast_visitor",
-        "//xls/dslx/python:cpp_pos",
-        "//xls/dslx/python:cpp_scanner",
-    ],
-)
-
-py_library(
-    name = "token_parser",
-    srcs = ["token_parser.py"],
-    srcs_version = "PY3",
-    deps = [
-        ":parse_error",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_scanner",
     ],
@@ -214,11 +204,11 @@ py_library(
     srcs = ["type_info.py"],
     deps = [
         ":ast_helpers",
-        ":concrete_type",
         ":span",
         ":symbolic_bindings",
         ":xls_type_error",
         "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_pos",
     ],
 )
@@ -230,12 +220,13 @@ py_library(
     deps = [
         ":ast_helpers",
         ":bit_helpers",
-        ":concrete_type",
+        ":concrete_type_helpers",
         ":dslx_builtins",
         ":parametric_instantiator",
         ":type_info",
         ":xls_type_error",
         "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_parametric_expression",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_scanner",
@@ -248,9 +239,9 @@ py_library(
     srcs = ["dslx_builtins.py"],
     srcs_version = "PY3",
     deps = [
-        ":concrete_type",
         ":parametric_instantiator",
         ":xls_type_error",
+        "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_pos",
         "@com_google_absl_py//absl/logging",
     ],
@@ -261,7 +252,6 @@ py_library(
     srcs = ["typecheck.py"],
     srcs_version = "PY3",
     deps = [
-        ":concrete_type",
         ":deduce",
         ":dslx_builtins",
         ":span",
@@ -270,6 +260,7 @@ py_library(
         "//xls/common:xls_error",
         "//xls/dslx/interpreter:interpreter_helpers",
         "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_concrete_type",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -297,8 +288,8 @@ py_library(
     srcs = ["xls_type_error.py"],
     srcs_version = "PY3",
     deps = [
-        ":concrete_type",
         ":span",
+        "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_pos",
     ],
 )
@@ -309,20 +300,10 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":concrete_type",
         ":xls_type_error",
         "//xls/common:test_base",
+        "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_pos",
-    ],
-)
-
-py_library(
-    name = "concrete_type",
-    srcs = ["concrete_type.py"],
-    srcs_version = "PY3",
-    deps = [
-        ":math_helpers",
-        "@com_google_absl_py//absl/logging",
     ],
 )
 
@@ -332,7 +313,8 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":concrete_type",
+        "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_parametric_expression",
         "//xls/dslx/python:cpp_pos",
         "@com_google_absl_py//absl/testing:absltest",
@@ -346,7 +328,7 @@ py_library(
     deps = [
         ":ast_helpers",
         ":bit_helpers",
-        ":concrete_type",
+        ":concrete_type_helpers",
         ":deduce",
         ":dslx_builtins",
         ":extract_conversion_order",
@@ -357,6 +339,7 @@ py_library(
         "//xls/common:xls_error",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_ast_visitor",
+        "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_parametric_expression",
         "//xls/dslx/python:cpp_pos",
         "//xls/ir/python:bits",
@@ -679,5 +662,39 @@ cc_library(
         "//xls/common:integral_types",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+    ],
+)
+
+cc_library(
+    name = "cpp_concrete_type",
+    srcs = ["concrete_type.cc"],
+    hdrs = ["concrete_type.h"],
+    deps = [
+        ":cpp_ast",
+        ":cpp_parametric_expression",
+        "//xls/common:integral_types",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:variant",
+    ],
+)
+
+cc_test(
+    name = "cpp_concrete_type_test",
+    srcs = ["concrete_type_test.cc"],
+    deps = [
+        ":cpp_concrete_type",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+py_library(
+    name = "concrete_type_helpers",
+    srcs = ["concrete_type_helpers.py"],
+    deps = [
+        "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_concrete_type",
     ],
 )
