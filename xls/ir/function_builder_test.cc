@@ -423,4 +423,44 @@ TEST(FunctionBuilderTest, SendAndReceive) {
   EXPECT_EQ(receive_if.node()->GetType(), p.GetReceiveType(ch3));
 }
 
+TEST(FunctionBuilderTest, WrongAddOpMethodBinOp) {
+  Package p("p");
+  FunctionBuilder b("f", &p);
+  b.AddBinOp(Op::kEq, b.Param("x", p.GetBitsType(32)),
+             b.Param("y", p.GetBitsType(32)));
+  EXPECT_THAT(b.Build().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Op eq is not a operation of class BinOp")));
+}
+
+TEST(FunctionBuilderTest, WrongAddOpMethodUnaryOp) {
+  Package p("p");
+  FunctionBuilder b("f", &p);
+  b.AddUnOp(Op::kAdd, b.Param("x", p.GetBitsType(32)));
+  EXPECT_THAT(b.Build().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Op add is not a operation of class UnOp")));
+}
+
+TEST(FunctionBuilderTest, WrongAddOpMethodCompareOp) {
+  Package p("p");
+  FunctionBuilder b("f", &p);
+  b.AddCompareOp(Op::kNeg, b.Param("x", p.GetBitsType(32)),
+                 b.Param("y", p.GetBitsType(32)));
+  EXPECT_THAT(
+      b.Build().status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Op neg is not a operation of class CompareOp")));
+}
+
+TEST(FunctionBuilderTest, WrongAddOpMethodNaryOp) {
+  Package p("p");
+  FunctionBuilder b("f", &p);
+  b.AddNaryOp(Op::kNe, {b.Param("x", p.GetBitsType(32)),
+                        b.Param("y", p.GetBitsType(32))});
+  EXPECT_THAT(b.Build().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Op ne is not a operation of class NaryOp")));
+}
+
 }  // namespace xls

@@ -782,6 +782,11 @@ BValue BuilderBase::AddUnOp(Op op, BValue x,
   if (ErrorPending()) {
     return BValue();
   }
+  if (!IsOpClass<UnOp>(op)) {
+    return SetError(
+        StrFormat("Op %s is not a operation of class UnOp", OpToString(op)),
+        loc);
+  }
   return AddNode<UnOp>(loc, x.node(), op);
 }
 
@@ -790,6 +795,11 @@ BValue BuilderBase::AddBinOp(Op op, BValue lhs, BValue rhs,
   XLS_CHECK_EQ(lhs.builder(), rhs.builder());
   if (ErrorPending()) {
     return BValue();
+  }
+  if (!IsOpClass<BinOp>(op)) {
+    return SetError(
+        StrFormat("Op %s is not a operation of class BinOp", OpToString(op)),
+        loc);
   }
   return AddNode<BinOp>(loc, lhs.node(), rhs.node(), op);
 }
@@ -800,6 +810,11 @@ BValue BuilderBase::AddCompareOp(Op op, BValue lhs, BValue rhs,
   if (ErrorPending()) {
     return BValue();
   }
+  if (!IsOpClass<CompareOp>(op)) {
+    return SetError(StrFormat("Op %s is not a operation of class CompareOp",
+                              OpToString(op)),
+                    loc);
+  }
   return AddNode<CompareOp>(loc, lhs.node(), rhs.node(), op);
 }
 
@@ -807,6 +822,11 @@ BValue BuilderBase::AddNaryOp(Op op, absl::Span<const BValue> args,
                               absl::optional<SourceLocation> loc) {
   if (ErrorPending()) {
     return BValue();
+  }
+  if (!IsOpClass<NaryOp>(op)) {
+    return SetError(
+        StrFormat("Op %s is not a operation of class NaryOp", OpToString(op)),
+        loc);
   }
   std::vector<Node*> nodes;
   for (const BValue& bvalue : args) {
