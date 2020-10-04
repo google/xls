@@ -184,7 +184,8 @@ def load_external_repositories():
 
     http_archive(
         name = "com_github_grpc_grpc",
-        urls = ["https://github.com/grpc/grpc/archive/v1.30.1.tar.gz"],
-        sha256 = "d6a10be7e803cc7ba73b3a03d34f6d18c046b562e4b08752c17aa978464baea3",
-        strip_prefix = "grpc-1.30.1",
+        urls = ["https://github.com/grpc/grpc/archive/v1.32.0.tar.gz"],
+        sha256 = "f880ebeb2ccf0e47721526c10dd97469200e40b5f101a0d9774eb69efa0bd07a",
+        strip_prefix = "grpc-1.32.0",
+        patches = ["//dependency_support/com_github_grpc_grpc:grpc-cython.patch"],
     )

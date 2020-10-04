@@ -32,5 +32,6 @@ def initialize_external_repositories():
         name = "xls_pip_deps",
         requirements = "//dependency_support:pip_requirements.txt",
         python_interpreter = "python3",
+        timeout = 600000,
     )
     initialize_boost()
