@@ -100,10 +100,11 @@ class Node {
   // variadic args are the constructor arguments with the exception of the first
   // loc argument and the final Function* argument which are inherited from this
   // node. Returns a pointer to the newly constructed node.
+  // TODO(meheff): Propagate the name of the replaced node.
   template <typename NodeT, typename... Args>
   absl::StatusOr<NodeT*> ReplaceUsesWithNew(Args&&... args) {
     std::unique_ptr<NodeT> new_node = absl::make_unique<NodeT>(
-        loc(), std::forward<Args>(args)..., function());
+        loc(), std::forward<Args>(args)..., /*name=*/"", function());
     NodeT* ptr = new_node.get();
     XLS_RETURN_IF_ERROR(AddNodeToFunctionAndReplace(std::move(new_node)));
     return ptr;
@@ -140,7 +141,13 @@ class Node {
     return down_cast<OpT*>(this);
   }
 
-  // Returns the ordinal-annotated name of this node; e.g. "add.2".
+  // Returns whether this node was assigned a name at construction. Nodes
+  // without assigned names will have names generated from the opcode and unique
+  // id.
+  bool HasAssignedName() const { return !name_.empty(); }
+
+  // Returns name of this node. If not assigned at construction time, the name
+  // is generated from the opcode and unique id (e.g. "add.2");
   std::string GetName() const;
 
   // Returns the name of the node and any concise supplementary information.
@@ -196,8 +203,8 @@ class Node {
   // the graph.
   friend class Function;
 
-  explicit Node(Op op, Type* type, absl::optional<SourceLocation> loc,
-                Function* function);
+  Node(Op op, Type* type, absl::optional<SourceLocation> loc,
+       absl::string_view name, Function* function);
 
   std::string ToStringInternal(bool include_operand_types) const;
 
@@ -217,7 +224,7 @@ class Node {
   // with the node.
   absl::Status AddNodeToFunctionAndReplace(std::unique_ptr<Node> replacement);
 
- private:
+ protected:
   void AddUser(Node* user);
   void RemoveUser(Node* user);
 
@@ -225,8 +232,9 @@ class Node {
   int64 id_;
   Op op_;
   Type* type_;
-
   absl::optional<SourceLocation> loc_;
+  std::string name_;
+
   std::vector<Node*> operands_;
 
 #include "xls/ir/container_hack.inc"

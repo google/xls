@@ -189,7 +189,7 @@ TEST_F(StrengthReductionPassTest, UGeWithLeadingBits) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn func(x: bits[10]) -> bits[1] {
        literal.1: bits[10] = literal(value=256)
-       ret ult.2: bits[1] = uge(x, literal.1)
+       ret result: bits[1] = uge(x, literal.1)
      }
   )",
                                                        p.get()));

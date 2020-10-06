@@ -177,7 +177,7 @@ class Parser {
   // FunctionBuilder and arg parser.
   absl::StatusOr<BValue> BuildBinaryOrUnaryOp(
       Op op, BuilderBase* fb, absl::optional<SourceLocation>* loc,
-      ArgParser* arg_parser);
+      absl::string_view node_name, ArgParser* arg_parser);
 
   // Parses the line-statements in the body of a function.
   absl::StatusOr<BValue> ParseFunctionBody(

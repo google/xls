@@ -38,7 +38,8 @@ class FunctionBuilderTest(absltest.TestCase):
     lineno = fileno_mod.Lineno(42)
     colno = fileno_mod.Colno(64)
     loc = source_location.SourceLocation(fileno, lineno, colno)
-    fb.add_or(x, x, loc=loc)
+    fb.add_or(x, x, loc=loc, name='my_or')
+    fb.add_not(x, loc=loc, name='why_not')
 
     fb.build()
     self.assertMultiLineEqual(
@@ -46,7 +47,8 @@ class FunctionBuilderTest(absltest.TestCase):
 package test_package
 
 fn test_function(x: bits[32]) -> bits[32] {
-  ret or.2: bits[32] = or(x, x, pos=0,42,64)
+  my_or: bits[32] = or(x, x, pos=0,42,64)
+  ret why_not: bits[32] = not(x, pos=0,42,64)
 }
 """)
 

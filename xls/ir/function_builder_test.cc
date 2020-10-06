@@ -463,4 +463,20 @@ TEST(FunctionBuilderTest, WrongAddOpMethodNaryOp) {
                        HasSubstr("Op ne is not a operation of class NaryOp")));
 }
 
+TEST(FunctionBuilderTest, NamedOps) {
+  Package p("p");
+  FunctionBuilder b("f", &p);
+  BitsType* type = p.GetBitsType(7);
+  BValue and_node = b.And(b.Param("a", type), b.Param("b", type),
+                          /*loc=*/absl::nullopt, /*name=*/"foo");
+  b.Negate(and_node, /*loc=*/absl::nullopt, /*name=*/"bar");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, b.Build());
+  Node* return_value = func->return_value();
+  EXPECT_EQ(return_value->op(), Op::kNeg);
+  EXPECT_TRUE(return_value->HasAssignedName());
+  EXPECT_EQ(return_value->GetName(), "bar");
+  EXPECT_TRUE(return_value->operand(0)->HasAssignedName());
+  EXPECT_EQ(return_value->operand(0)->GetName(), "foo");
+}
+
 }  // namespace xls

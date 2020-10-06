@@ -72,7 +72,7 @@ TEST_F(SelectSimplificationPassTest, BinaryTupleOneHotSelect) {
      fn f(p: bits[2], x: bits[8], y: bits[8], z: bits[8]) -> (bits[8], bits[8]) {
         tuple.1: (bits[8], bits[8]) = tuple(x, y)
         tuple.2: (bits[8], bits[8]) = tuple(y, z)
-        ret sel.3: (bits[8], bits[8]) = one_hot_sel(p, cases=[tuple.2, tuple.1])
+        ret result: (bits[8], bits[8]) = one_hot_sel(p, cases=[tuple.2, tuple.1])
      }
   )",
                                                        p.get()));
@@ -182,7 +182,7 @@ TEST_F(SelectSimplificationPassTest, OneHotSelectWithConstantSelector) {
   std::string tmpl = R"(
      fn f(x: bits[42], y: bits[42]) -> bits[42] {
         literal.1: bits[2] = literal(value=$0)
-        ret sel.2: bits[42] = one_hot_sel(literal.1, cases=[x, y])
+        ret result: bits[42] = one_hot_sel(literal.1, cases=[x, y])
      }
   )";
   {
@@ -233,7 +233,7 @@ TEST_F(SelectSimplificationPassTest, UselessOneHotSelect) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(x: bits[2]) -> bits[32] {
         literal.1: bits[32] = literal(value=42)
-        ret sel.2: bits[32] = one_hot_sel(x, cases=[literal.1, literal.1])
+        ret result: bits[32] = one_hot_sel(x, cases=[literal.1, literal.1])
      }
   )",
                                                        p.get()));
@@ -587,7 +587,7 @@ TEST_F(SelectSimplificationPassTest, SplittableOneHotSelect) {
        bit_slice.3: bits[2] = bit_slice(x, start=0, width=2)
        concat.4: bits[8] = concat(literal.1, bit_slice.3, bit_slice.3)
        concat.5: bits[8] = concat(literal.2, y)
-       ret one_hot_select.6: bits[8] = one_hot_sel(p, cases=[concat.4, concat.5, x])
+       ret result: bits[8] = one_hot_sel(p, cases=[concat.4, concat.5, x])
      }
   )",
                                                        p.get()));

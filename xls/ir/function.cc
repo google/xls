@@ -32,8 +32,8 @@ std::string Function::DumpIr(bool recursive) const {
   std::string res = "fn " + name() + "(";
   std::vector<std::string> param_strings;
   for (Param* param : params_) {
-    param_strings.push_back(param->name() + ": " +
-                            param->GetType()->ToString());
+    param_strings.push_back(
+        absl::StrFormat("%s: %s", param->name(), param->GetType()->ToString()));
   }
   StrAppend(&res, absl::StrJoin(param_strings, ", "));
   StrAppend(&res, ") -> ");

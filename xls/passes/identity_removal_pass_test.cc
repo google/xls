@@ -21,9 +21,12 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/passes/dce_pass.h"
+
+namespace m = ::xls::op_matchers;
 
 namespace xls {
 namespace {
@@ -67,13 +70,8 @@ TEST_F(IdentityRemovalPassTest, IdentityChainRemoval) {
   )",
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_EQ(f->DumpIr(), R"(fn simple_neg(x: bits[8]) -> bits[8] {
-  literal.2: bits[8] = literal(value=1)
-  add.4: bits[8] = add(x, literal.2)
-  ret sub.13: bits[8] = sub(add.4, literal.2)
-}
-)");
-  EXPECT_EQ(f->node_count(), 4);
+  EXPECT_THAT(f->return_value(),
+              m::Sub(m::Add(m::Param("x"), m::Literal(1)), m::Literal(1)));
 }
 
 TEST_F(IdentityRemovalPassTest, IdentityRemovalFromParam) {
@@ -85,10 +83,7 @@ TEST_F(IdentityRemovalPassTest, IdentityRemovalFromParam) {
   )",
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_EQ(f->DumpIr(), R"(fn simple_param(x: bits[8]) -> bits[8] {
-  ret param.1: bits[8] = param(name=x)
-}
-)");
+  EXPECT_THAT(f->return_value(), m::Param("x"));
 }
 
 }  // namespace

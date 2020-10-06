@@ -39,7 +39,7 @@ TEST_F(BasicOpsTest, LogicalNot) {
 package LogicalNot
 
 fn main(x: bits[32]) -> bits[32] {
-  ret not: bits[32] = not(x)
+  ret result: bits[32] = not(x)
 }
 )";
 
@@ -53,7 +53,7 @@ TEST_F(BasicOpsTest, Add64) {
 package Add64
 
 fn main(x: bits[64], y: bits[64]) -> bits[64] {
-  ret add: bits[64] = add(x, y)
+  ret result: bits[64] = add(x, y)
 }
 )";
 
@@ -67,7 +67,7 @@ TEST_F(BasicOpsTest, BitSlice) {
 package BitSlice
 
 fn main(x: bits[$0]) -> bits[$2] {
-  ret add: bits[$2] = bit_slice(x, start=$1, width=$2)
+  ret result: bits[$2] = bit_slice(x, start=$1, width=$2)
 }
 )";
   auto gen_bitslice = [&](int64 input_width, int64 start, int64 output_width) {
@@ -93,7 +93,7 @@ package WideAndNot
 
 fn main(x: bits[128], y: bits[128]) -> bits[128] {
   not_y: bits[128] = not(y)
-  ret and: bits[128] = and(x, not_y)
+  ret result: bits[128] = and(x, not_y)
 }
 )";
 
@@ -116,7 +116,7 @@ TEST_F(BasicOpsTest, Nand) {
 package test
 
 fn main(x: bits[2], y: bits[2]) -> bits[2] {
-  ret nand.3: bits[2] = nand(x, y)
+  ret result: bits[2] = nand(x, y)
 }
 )";
 
@@ -132,7 +132,7 @@ TEST_F(BasicOpsTest, Nor) {
 package test
 
 fn main(x: bits[2], y: bits[2]) -> bits[2] {
-  ret nor.3: bits[2] = nor(x, y)
+  ret result: bits[2] = nor(x, y)
 }
 )";
 
@@ -154,7 +154,7 @@ fn main(x: bits[32], y: bits[32]) -> bits[4] {
   sgt.2: bits[1] = sgt(x, y)
   sle.3: bits[1] = sle(x, y)
   slt.4: bits[1] = slt(x, y)
-  ret concat.5: bits[4] = concat(sge.1, sgt.2, sle.3, slt.4)
+  ret result: bits[4] = concat(sge.1, sgt.2, sle.3, slt.4)
 }
 )";
   auto run_and_compare = [&](int64 x, int64 y, uint64 expected) {
@@ -177,7 +177,7 @@ TEST_F(BasicOpsTest, BinarySelect) {
 package Select
 
 fn main(p: bits[1], x: bits[32], y: bits[32]) -> bits[32] {
-  ret sel.1: bits[32] = sel(p, cases=[x, y])
+  ret result: bits[32] = sel(p, cases=[x, y])
 }
 )";
 
@@ -191,7 +191,7 @@ package Select
 
 fn main(p: bits[2], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
   literal.1: bits[32] = literal(value=0)
-  ret sel.2: bits[32] = sel(p, cases=[x, y, z], default=literal.1)
+  ret result: bits[32] = sel(p, cases=[x, y, z], default=literal.1)
 }
 )";
 
@@ -206,7 +206,7 @@ TEST_F(BasicOpsTest, OneHotWithMsbPriority3bInput) {
 package test
 
 fn main(x: bits[3]) -> bits[4] {
-  ret one_hot.1: bits[4] = one_hot(x, lsb_prio=false)
+  ret result: bits[4] = one_hot(x, lsb_prio=false)
 }
 )";
 
@@ -242,7 +242,7 @@ package Select
 
 fn main(p: bits[2], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
   one_hot.1: bits[3] = one_hot(p, lsb_prio=true)
-  ret one_hot_select.2: bits[32] = one_hot_sel(one_hot.1, cases=[x, y, z])
+  ret result: bits[32] = one_hot_sel(one_hot.1, cases=[x, y, z])
 }
 )";
 
@@ -258,7 +258,7 @@ package Select
 
 fn main(p0: bits[3], p1: bits[2], w: bits[32], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
   one_hot_sel.1: bits[32] = one_hot_sel(p0, cases=[w, x, y])
-  ret one_hot_sel.2: bits[32] = one_hot_sel(p1, cases=[one_hot_sel.1, z])
+  ret result: bits[32] = one_hot_sel(p1, cases=[one_hot_sel.1, z])
 }
 )";
 
@@ -327,7 +327,7 @@ TEST_F(BasicOpsTest, Decode) {
 package Decode
 
 fn main(x: bits[3]) -> bits[8] {
-  ret decode.1: bits[8] = decode(x, width=8)
+  ret result: bits[8] = decode(x, width=8)
 }
 )";
 
@@ -342,7 +342,7 @@ TEST_F(BasicOpsTest, NarrowedDecode) {
 package NarrowedDecode
 
 fn main(x: bits[8]) -> bits[27] {
-  ret decode.1: bits[27] = decode(x, width=27)
+  ret result: bits[27] = decode(x, width=27)
 }
 )";
 
@@ -360,7 +360,7 @@ TEST_F(BasicOpsTest, Encode) {
 package Encode
 
 fn main(x: bits[5]) -> bits[3] {
-  ret encode.1: bits[3] = encode(x)
+  ret result: bits[3] = encode(x)
 }
 )";
   RunAndExpectEq({{"x", 0}}, 0, text);
@@ -378,7 +378,7 @@ TEST_F(BasicOpsTest, Reverse) {
 package Reverse
 
 fn main(x: bits[4]) -> bits[4] {
-  ret reverse.1: bits[4] = reverse(x)
+  ret result: bits[4] = reverse(x)
 }
 )";
 
@@ -392,7 +392,7 @@ TEST_F(BasicOpsTest, NonBitsTypedLiteral) {
 package TupleLiteral
 
 fn main(x: bits[4]) -> (bits[4], bits[8]) {
-  ret literal.1: (bits[4], bits[8]) = literal(value=(1, 2))
+  ret result: (bits[4], bits[8]) = literal(value=(1, 2))
 }
 )";
 
@@ -405,7 +405,7 @@ TEST_F(BasicOpsTest, AndReduce) {
 package Decode
 
 fn main(x: bits[8]) -> bits[1] {
-  ret and_reduce.1: bits[1] = and_reduce(x)
+  ret result: bits[1] = and_reduce(x)
 }
 )";
 
@@ -420,7 +420,7 @@ TEST_F(BasicOpsTest, OrReduce) {
 package Decode
 
 fn main(x: bits[8]) -> bits[1] {
-  ret or_reduce.1: bits[1] = or_reduce(x)
+  ret result: bits[1] = or_reduce(x)
 }
 )";
 
@@ -435,7 +435,7 @@ TEST_F(BasicOpsTest, XorrReduce) {
 package Decode
 
 fn main(x: bits[8]) -> bits[1] {
-  ret or_reduce.1: bits[1] = xor_reduce(x)
+  ret result: bits[1] = xor_reduce(x)
 }
 )";
 

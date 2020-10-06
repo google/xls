@@ -404,20 +404,14 @@ TEST_F(ConcatSimplificationPassTest, NeOfConcatDistributes) {
 fn f(x: bits[5], y: bits[10]) -> bits[1] {
   concat.1: bits[15] = concat(x, y)
   literal.2: bits[15] = literal(value=0)
-  ret eq.3: bits[1] = ne(concat.1, literal.2)
+  ret result: bits[1] = ne(concat.1, literal.2)
 }
   )",
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_EQ(f->DumpIr(), R"(fn f(x: bits[5], y: bits[10]) -> bits[1] {
-  literal.2: bits[15] = literal(value=0)
-  bit_slice.6: bits[5] = bit_slice(literal.2, start=10, width=5)
-  bit_slice.8: bits[10] = bit_slice(literal.2, start=0, width=10)
-  ne.7: bits[1] = ne(x, bit_slice.6)
-  ne.9: bits[1] = ne(y, bit_slice.8)
-  ret or.10: bits[1] = or(ne.7, ne.9)
-}
-)");
+  EXPECT_THAT(f->return_value(),
+              m::Or(m::Ne(m::Param("x"), m::BitSlice(10, 5)),
+                    m::Ne(m::Param("y"), m::BitSlice(0, 10))));
 }
 
 TEST_F(ConcatSimplificationPassTest, ConcatOnRhs) {
@@ -426,20 +420,14 @@ TEST_F(ConcatSimplificationPassTest, ConcatOnRhs) {
 fn f(x: bits[5], y: bits[10]) -> bits[1] {
   concat.1: bits[15] = concat(x, y)
   literal.2: bits[15] = literal(value=0)
-  ret eq.3: bits[1] = eq(literal.2, concat.1)
+  ret result: bits[1] = eq(literal.2, concat.1)
 }
   )",
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_EQ(f->DumpIr(), R"(fn f(x: bits[5], y: bits[10]) -> bits[1] {
-  literal.2: bits[15] = literal(value=0)
-  bit_slice.6: bits[5] = bit_slice(literal.2, start=10, width=5)
-  bit_slice.8: bits[10] = bit_slice(literal.2, start=0, width=10)
-  eq.7: bits[1] = eq(x, bit_slice.6)
-  eq.9: bits[1] = eq(y, bit_slice.8)
-  ret and.10: bits[1] = and(eq.7, eq.9)
-}
-)");
+  EXPECT_THAT(f->return_value(),
+              m::And(m::Eq(m::Param("x"), m::BitSlice(10, 5)),
+                     m::Eq(m::Param("y"), m::BitSlice(0, 10))));
 }
 
 TEST_F(ConcatSimplificationPassTest, ReverseConcatenationOfBits) {
@@ -448,7 +436,7 @@ TEST_F(ConcatSimplificationPassTest, ReverseConcatenationOfBits) {
 fn f(x: bits[1], y: bits[1], z: bits[1]) -> bits[4] {
   concat.1: bits[3] = concat(x, y, z)
   reverse.2: bits[3] = reverse(concat.1)
-  ret one_hot.3: bits[4] = one_hot(reverse.2, lsb_prio=true)
+  ret result: bits[4] = one_hot(reverse.2, lsb_prio=true)
 }
   )",
                                                        p.get()));
@@ -541,7 +529,7 @@ TEST_F(ConcatSimplificationPassTest, ReverseConcatenationOfMultiBits) {
 fn f(x: bits[2], y: bits[2], z: bits[2]) -> bits[7] {
   concat.1: bits[6] = concat(x, y, z)
   reverse.2: bits[6] = reverse(concat.1)
-  ret one_hot.3: bits[7] = one_hot(reverse.2, lsb_prio=true)
+  ret result: bits[7] = one_hot(reverse.2, lsb_prio=true)
 }
   )",
                                                        p.get()));
@@ -558,7 +546,7 @@ TEST_F(ConcatSimplificationPassTest, MergeConcatenationOfSlicesBeginning) {
   fn __merge_slice__main(x: bits[6], y: bits[2]) -> bits[6] {
   bit_slice.3: bits[2] = bit_slice(x, start=0, width=2, pos=0,1,15)
   bit_slice.4: bits[2] = bit_slice(x, start=2, width=2, pos=0,2,15)
-  ret concat.5: bits[6] = concat(bit_slice.4, bit_slice.3, y, pos=0,3,26)
+  ret result: bits[6] = concat(bit_slice.4, bit_slice.3, y, pos=0,3,26)
 }
   )",
                                                        p.get()));
@@ -573,7 +561,7 @@ TEST_F(ConcatSimplificationPassTest, MergeConcatenationOfSlicesMiddle) {
   fn __merge_slice__main(x: bits[6], y: bits[2]) -> bits[8] {
   bit_slice.3: bits[2] = bit_slice(x, start=0, width=2, pos=0,1,15)
   bit_slice.4: bits[2] = bit_slice(x, start=2, width=2, pos=0,2,15)
-  ret concat.5: bits[8] = concat(y, bit_slice.4, bit_slice.3, y, pos=0,3,26)
+  ret result: bits[8] = concat(y, bit_slice.4, bit_slice.3, y, pos=0,3,26)
 }
   )",
                                                        p.get()));
@@ -589,7 +577,7 @@ TEST_F(ConcatSimplificationPassTest, MergeConcatenationOfSlicesEnd) {
   fn __merge_slice__main(x: bits[6], y: bits[2]) -> bits[6] {
   bit_slice.3: bits[2] = bit_slice(x, start=0, width=2, pos=0,1,15)
   bit_slice.4: bits[2] = bit_slice(x, start=2, width=2, pos=0,2,15)
-  ret concat.5: bits[6] = concat(y, bit_slice.4, bit_slice.3, pos=0,3,26)
+  ret result: bits[6] = concat(y, bit_slice.4, bit_slice.3, pos=0,3,26)
 }
   )",
                                                        p.get()));
@@ -604,7 +592,7 @@ TEST_F(ConcatSimplificationPassTest, MergeConcatenationOfSlicesAll) {
   fn __merge_slice__main(x: bits[6], y: bits[2]) -> bits[4] {
   bit_slice.3: bits[2] = bit_slice(x, start=0, width=2, pos=0,1,15)
   bit_slice.4: bits[2] = bit_slice(x, start=2, width=2, pos=0,2,15)
-  ret concat.5: bits[4] = concat(bit_slice.4, bit_slice.3, pos=0,3,26)
+  ret result: bits[4] = concat(bit_slice.4, bit_slice.3, pos=0,3,26)
 }
   )",
                                                        p.get()));
@@ -619,7 +607,7 @@ TEST_F(ConcatSimplificationPassTest, MergeConcatenationOfSlicesMultipleSlices) {
   bit_slice.3: bits[2] = bit_slice(x, start=0, width=2, pos=0,1,15)
   bit_slice.4: bits[2] = bit_slice(x, start=2, width=2, pos=0,2,15)
   bit_slice.5: bits[2] = bit_slice(x, start=4, width=2, pos=0,2,15)
-  ret concat.6: bits[8] = concat(bit_slice.5, bit_slice.4, bit_slice.3, y, pos=0,3,26)
+  ret result: bits[8] = concat(bit_slice.5, bit_slice.4, bit_slice.3, y, pos=0,3,26)
 }
   )",
                                                        p.get()));
@@ -636,7 +624,7 @@ TEST_F(ConcatSimplificationPassTest,
   bit_slice.4: bits[2] = bit_slice(x, start=2, width=2, pos=0,2,15)
   bit_slice.5: bits[2] = bit_slice(x, start=4, width=2, pos=0,2,15)
   bit_slice.6: bits[2] = bit_slice(x, start=6, width=2, pos=0,2,15)
-  ret concat.7: bits[10] = concat(bit_slice.6, bit_slice.5, y, bit_slice.4, bit_slice.3, pos=0,3,26)
+  ret result: bits[10] = concat(bit_slice.6, bit_slice.5, y, bit_slice.4, bit_slice.3, pos=0,3,26)
 }
   )",
                                                        p.get()));
@@ -652,7 +640,7 @@ TEST_F(ConcatSimplificationPassTest, MergeConcatenationOfSlicesNonConsecutive) {
   fn __merge_slice__main(x: bits[6], y: bits[2]) -> bits[6] {
   bit_slice.3: bits[2] = bit_slice(x, start=0, width=2, pos=0,1,15)
   bit_slice.4: bits[2] = bit_slice(x, start=2, width=2, pos=0,2,15)
-  ret concat.5: bits[6] = concat(bit_slice.4, y, bit_slice.3, pos=0,3,26)
+  ret result: bits[6] = concat(bit_slice.4, y, bit_slice.3, pos=0,3,26)
 }
   )",
                                                        p.get()));
@@ -666,7 +654,7 @@ TEST_F(ConcatSimplificationPassTest,
   fn __merge_slice__main(x: bits[6], y: bits[2]) -> bits[6] {
   bit_slice.3: bits[2] = bit_slice(x, start=0, width=2, pos=0,1,15)
   bit_slice.4: bits[2] = bit_slice(x, start=2, width=2, pos=0,2,15)
-  ret concat.5: bits[6] = concat(bit_slice.3, bit_slice.4, y, pos=0,3,26)
+  ret result: bits[6] = concat(bit_slice.3, bit_slice.4, y, pos=0,3,26)
 }
   )",
                                                        p.get()));
@@ -680,7 +668,7 @@ TEST_F(ConcatSimplificationPassTest,
   fn __merge_slice__main(x: bits[6], y: bits[2]) -> bits[6] {
   bit_slice.3: bits[2] = bit_slice(x, start=0, width=2, pos=0,1,15)
   bit_slice.4: bits[2] = bit_slice(x, start=3, width=2, pos=0,2,15)
-  ret concat.5: bits[6] = concat(bit_slice.4, bit_slice.3, y, pos=0,3,26)
+  ret result: bits[6] = concat(bit_slice.4, bit_slice.3, y, pos=0,3,26)
 }
   )",
                                                        p.get()));
@@ -694,7 +682,7 @@ TEST_F(ConcatSimplificationPassTest,
   fn __merge_slice__main(x: bits[6], y: bits[2]) -> bits[6] {
   bit_slice.3: bits[2] = bit_slice(x, start=0, width=2, pos=0,1,15)
   bit_slice.4: bits[2] = bit_slice(x, start=1, width=2, pos=0,2,15)
-  ret concat.5: bits[6] = concat(bit_slice.4, bit_slice.3, y, pos=0,3,26)
+  ret result: bits[6] = concat(bit_slice.4, bit_slice.3, y, pos=0,3,26)
 }
   )",
                                                        p.get()));
@@ -708,7 +696,7 @@ TEST_F(ConcatSimplificationPassTest,
   fn __merge_slice__main(x: bits[6], y: bits[2]) -> bits[4] {
   bit_slice.3: bits[2] = bit_slice(y, start=0, width=2, pos=0,1,15)
   bit_slice.4: bits[2] = bit_slice(x, start=2, width=2, pos=0,2,15)
-  ret concat.5: bits[4] = concat(bit_slice.4, bit_slice.3, pos=0,3,26)
+  ret result: bits[4] = concat(bit_slice.4, bit_slice.3, pos=0,3,26)
 }
   )",
                                                        p.get()));

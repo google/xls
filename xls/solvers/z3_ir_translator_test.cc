@@ -838,14 +838,14 @@ fn f() -> bits[32] {
   literal.3: bits[32] = literal(value=2)
   literal.4: bits[32] = literal(value=3)
   literal.5: bits[32] = literal(value=4)
-  subarray.6: bits[32][5] = array(literal.1, literal.2, literal.3, literal.4, literal.5)
-  subarray.7: bits[32][5] = array(literal.2, literal.3, literal.4, literal.5, literal.1)
-  subarray.8: bits[32][5] = array(literal.3, literal.4, literal.5, literal.1, literal.2)
-  subarray.9: bits[32][5] = array(literal.4, literal.5, literal.1, literal.2, literal.3)
-  subarray.10: bits[32][5] = array(literal.5, literal.1, literal.2, literal.3, literal.4)
-  big_array.11: bits[32][5][5] = array(subarray.6, subarray.7, subarray.8, subarray.9, subarray.10)
-  big_array_index.12: bits[32][5] = array_index(big_array.11, literal.3)
-  ret sub_array_index.13: bits[32] = array_index(big_array_index.12, literal.2)
+  array.6: bits[32][5] = array(literal.1, literal.2, literal.3, literal.4, literal.5)
+  array.7: bits[32][5] = array(literal.2, literal.3, literal.4, literal.5, literal.1)
+  array.8: bits[32][5] = array(literal.3, literal.4, literal.5, literal.1, literal.2)
+  array.9: bits[32][5] = array(literal.4, literal.5, literal.1, literal.2, literal.3)
+  array.10: bits[32][5] = array(literal.5, literal.1, literal.2, literal.3, literal.4)
+  array.11: bits[32][5][5] = array(array.6, array.7, array.8, array.9, array.10)
+  array_index.12: bits[32][5] = array_index(array.11, literal.3)
+  ret array_index.13: bits[32] = array_index(array_index.12, literal.2)
 }
 )";
 
@@ -1354,14 +1354,14 @@ fn f(x: bits[4][1], y: bits[4][1]) -> bits[4] {
   literal.6: bits[32] = literal(value=2)
   literal.7: bits[32] = literal(value=3)
 
-  ind.8: bits[4] = array_index(array_concat.3, literal.4)
-  ind.9: bits[4] = array_index(array_concat.3, literal.5)
-  ind.10: bits[4] = array_index(array_concat.3, literal.6)
-  ind.11: bits[4] = array_index(array_concat.3, literal.7)
+  array_index.8: bits[4] = array_index(array_concat.3, literal.4)
+  array_index.9: bits[4] = array_index(array_concat.3, literal.5)
+  array_index.10: bits[4] = array_index(array_concat.3, literal.6)
+  array_index.11: bits[4] = array_index(array_concat.3, literal.7)
 
-  z.12: bits[4] = xor(ind.8, ind.11)
-  z.13: bits[4] = xor(z.12, ind.9)
-  ret result: bits[4] = xor(z.13, ind.10)
+  xor.12: bits[4] = xor(array_index.8, array_index.11)
+  xor.13: bits[4] = xor(xor.12, array_index.9)
+  ret result: bits[4] = xor(xor.13, array_index.10)
 }
 )";
 
@@ -1384,18 +1384,18 @@ fn f(x: bits[4][1], y: bits[4][1]) -> bits[1] {
   literal.6: bits[32] = literal(value=2)
   literal.7: bits[32] = literal(value=3)
 
-  ind.8: bits[4] = array_index(array_concat.3, literal.4)
-  ind.9: bits[4] = array_index(array_concat.3, literal.5)
-  ind.10: bits[4] = array_index(array_concat.3, literal.6)
-  ind.11: bits[4] = array_index(array_concat.3, literal.7)
+  array_index.8: bits[4] = array_index(array_concat.3, literal.4)
+  array_index.9: bits[4] = array_index(array_concat.3, literal.5)
+  array_index.10: bits[4] = array_index(array_concat.3, literal.6)
+  array_index.11: bits[4] = array_index(array_concat.3, literal.7)
 
-  z.12: bits[4] = xor(ind.8, ind.11)
-  z.13: bits[4] = xor(z.12, ind.9)
+  xor.12: bits[4] = xor(array_index.8, array_index.11)
+  xor.13: bits[4] = xor(xor.12, array_index.9)
 
-  ind.14: bits[4] = array_index(x, literal.4)
-  ind.15: bits[4] = array_index(y, literal.4)
+  array_index.14: bits[4] = array_index(x, literal.4)
+  array_index.15: bits[4] = array_index(y, literal.4)
 
-  ret result: bits[1] = eq(z.13, ind.15)
+  ret result: bits[1] = eq(xor.13, array_index.15)
 }
 )";
 

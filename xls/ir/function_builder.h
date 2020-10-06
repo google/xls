@@ -102,116 +102,147 @@ class BuilderBase {
 
   // Shift right arithmetic.
   BValue Shra(BValue operand, BValue amount,
-              absl::optional<SourceLocation> loc = absl::nullopt);
+              absl::optional<SourceLocation> loc = absl::nullopt,
+              absl::string_view name = "");
 
   // Shift right logical.
   BValue Shrl(BValue operand, BValue amount,
-              absl::optional<SourceLocation> loc = absl::nullopt);
+              absl::optional<SourceLocation> loc = absl::nullopt,
+              absl::string_view name = "");
 
   // Shift left (logical).
   BValue Shll(BValue operand, BValue amount,
-              absl::optional<SourceLocation> loc = absl::nullopt);
+              absl::optional<SourceLocation> loc = absl::nullopt,
+              absl::string_view name = "");
 
   // Bitwise or.
   BValue Or(BValue lhs, BValue rhs,
-            absl::optional<SourceLocation> loc = absl::nullopt);
+            absl::optional<SourceLocation> loc = absl::nullopt,
+            absl::string_view name = "");
   BValue Or(absl::Span<const BValue> operands,
-            absl::optional<SourceLocation> loc = absl::nullopt);
+            absl::optional<SourceLocation> loc = absl::nullopt,
+            absl::string_view name = "");
 
   // Bitwise xor.
   BValue Xor(BValue lhs, BValue rhs,
-             absl::optional<SourceLocation> loc = absl::nullopt);
+             absl::optional<SourceLocation> loc = absl::nullopt,
+             absl::string_view name = "");
 
   // Bitwise and.
   BValue And(BValue lhs, BValue rhs,
-             absl::optional<SourceLocation> loc = absl::nullopt);
+             absl::optional<SourceLocation> loc = absl::nullopt,
+             absl::string_view name = "");
 
   // Unary and-reduction.
   BValue AndReduce(BValue operand,
-                   absl::optional<SourceLocation> loc = absl::nullopt);
+                   absl::optional<SourceLocation> loc = absl::nullopt,
+                   absl::string_view name = "");
 
   // Unary or-reduction.
   BValue OrReduce(BValue operand,
-                  absl::optional<SourceLocation> loc = absl::nullopt);
+                  absl::optional<SourceLocation> loc = absl::nullopt,
+                  absl::string_view name = "");
 
   // Unary xor-reduction.
   BValue XorReduce(BValue operand,
-                   absl::optional<SourceLocation> loc = absl::nullopt);
+                   absl::optional<SourceLocation> loc = absl::nullopt,
+                   absl::string_view name = "");
 
   // Signed/unsigned multiply. Result width is the same as the operand
   // width. Operand widths must be the same.
   BValue UMul(BValue lhs, BValue rhs,
-              absl::optional<SourceLocation> loc = absl::nullopt);
+              absl::optional<SourceLocation> loc = absl::nullopt,
+              absl::string_view name = "");
   BValue SMul(BValue lhs, BValue rhs,
-              absl::optional<SourceLocation> loc = absl::nullopt);
+              absl::optional<SourceLocation> loc = absl::nullopt,
+              absl::string_view name = "");
 
   // Signed/unsigned multiply with explicitly specified result width. Operand
   // widths can be arbitrary.
   BValue UMul(BValue lhs, BValue rhs, int64 result_width,
-              absl::optional<SourceLocation> loc = absl::nullopt);
+              absl::optional<SourceLocation> loc = absl::nullopt,
+              absl::string_view name = "");
   BValue SMul(BValue lhs, BValue rhs, int64 result_width,
-              absl::optional<SourceLocation> loc = absl::nullopt);
+              absl::optional<SourceLocation> loc = absl::nullopt,
+              absl::string_view name = "");
 
   // Unsigned division.
   BValue UDiv(BValue lhs, BValue rhs,
-              absl::optional<SourceLocation> loc = absl::nullopt);
+              absl::optional<SourceLocation> loc = absl::nullopt,
+              absl::string_view name = "");
 
   // Two's complement subtraction/addition.
   BValue Subtract(BValue lhs, BValue rhs,
-                  absl::optional<SourceLocation> loc = absl::nullopt);
+                  absl::optional<SourceLocation> loc = absl::nullopt,
+                  absl::string_view name = "");
   BValue Add(BValue lhs, BValue rhs,
-             absl::optional<SourceLocation> loc = absl::nullopt);
+             absl::optional<SourceLocation> loc = absl::nullopt,
+             absl::string_view name = "");
 
   // Concatenates the operands (zero-th operand are the most significant bits in
   // the result).
   BValue Concat(absl::Span<const BValue> operands,
-                absl::optional<SourceLocation> loc = absl::nullopt);
+                absl::optional<SourceLocation> loc = absl::nullopt,
+                absl::string_view name = "");
 
   // Unsigned less-or-equal.
   BValue ULe(BValue lhs, BValue rhs,
-             absl::optional<SourceLocation> loc = absl::nullopt);
+             absl::optional<SourceLocation> loc = absl::nullopt,
+             absl::string_view name = "");
   // Unsigned less-than.
   BValue ULt(BValue lhs, BValue rhs,
-             absl::optional<SourceLocation> loc = absl::nullopt);
+             absl::optional<SourceLocation> loc = absl::nullopt,
+             absl::string_view name = "");
   // Unsigned greater-or-equal.
   BValue UGe(BValue lhs, BValue rhs,
-             absl::optional<SourceLocation> loc = absl::nullopt);
+             absl::optional<SourceLocation> loc = absl::nullopt,
+             absl::string_view name = "");
   // Unsigned greater-than.
   BValue UGt(BValue lhs, BValue rhs,
-             absl::optional<SourceLocation> loc = absl::nullopt);
+             absl::optional<SourceLocation> loc = absl::nullopt,
+             absl::string_view name = "");
 
   // Signed less-or-equal.
   BValue SLe(BValue lhs, BValue rhs,
-             absl::optional<SourceLocation> loc = absl::nullopt);
+             absl::optional<SourceLocation> loc = absl::nullopt,
+             absl::string_view name = "");
   // Signed less-than.
   BValue SLt(BValue lhs, BValue rhs,
-             absl::optional<SourceLocation> loc = absl::nullopt);
+             absl::optional<SourceLocation> loc = absl::nullopt,
+             absl::string_view name = "");
   // Signed greater-or-equal.
   BValue SGe(BValue lhs, BValue rhs,
-             absl::optional<SourceLocation> loc = absl::nullopt);
+             absl::optional<SourceLocation> loc = absl::nullopt,
+             absl::string_view name = "");
   // Signed greater-than.
   BValue SGt(BValue lhs, BValue rhs,
-             absl::optional<SourceLocation> loc = absl::nullopt);
+             absl::optional<SourceLocation> loc = absl::nullopt,
+             absl::string_view name = "");
 
   // Equal.
   BValue Eq(BValue lhs, BValue rhs,
-            absl::optional<SourceLocation> loc = absl::nullopt);
+            absl::optional<SourceLocation> loc = absl::nullopt,
+            absl::string_view name = "");
   // Not Equal.
   BValue Ne(BValue lhs, BValue rhs,
-            absl::optional<SourceLocation> loc = absl::nullopt);
+            absl::optional<SourceLocation> loc = absl::nullopt,
+            absl::string_view name = "");
 
   // Two's complement (arithmetic) negation.
-  BValue Negate(BValue x, absl::optional<SourceLocation> loc = absl::nullopt);
+  BValue Negate(BValue x, absl::optional<SourceLocation> loc = absl::nullopt,
+                absl::string_view name = "");
 
   // One's complement negation (bitwise not).
-  BValue Not(BValue x, absl::optional<SourceLocation> loc = absl::nullopt);
+  BValue Not(BValue x, absl::optional<SourceLocation> loc = absl::nullopt,
+             absl::string_view name = "");
 
   // Turns a literal value into a handle that can be used in this function being
   // built.
   BValue Literal(Value value,
-                 absl::optional<SourceLocation> loc = absl::nullopt);
-  BValue Literal(Bits bits,
-                 absl::optional<SourceLocation> loc = absl::nullopt) {
+                 absl::optional<SourceLocation> loc = absl::nullopt,
+                 absl::string_view name = "");
+  BValue Literal(Bits bits, absl::optional<SourceLocation> loc = absl::nullopt,
+                 absl::string_view name = "") {
     return Literal(Value(bits), loc);
   }
 
@@ -220,36 +251,42 @@ class BuilderBase {
   // then a default value must be specified.
   BValue Select(BValue selector, absl::Span<const BValue> cases,
                 absl::optional<BValue> default_value = absl::nullopt,
-                absl::optional<SourceLocation> loc = absl::nullopt);
+                absl::optional<SourceLocation> loc = absl::nullopt,
+                absl::string_view name = "");
 
   // An overload for binary select: selects on_true when selector is true,
   // on_false otherwise.
   // TODO(meheff): switch positions of on_true and on_false to match the
   // ordering of the cases span in the n-ary select.
   BValue Select(BValue selector, BValue on_true, BValue on_false,
-                absl::optional<SourceLocation> loc = absl::nullopt);
+                absl::optional<SourceLocation> loc = absl::nullopt,
+                absl::string_view name = "");
 
   // Creates a one-hot operation which generates a one-hot bits value from its
   // inputs.
   BValue OneHot(BValue input, LsbOrMsb priority,
-                absl::optional<SourceLocation> loc = absl::nullopt);
+                absl::optional<SourceLocation> loc = absl::nullopt,
+                absl::string_view name = "");
 
   // Creates a select operation which uses a one-hot selector (rather than a
   // binary encoded selector as used in Select).
   BValue OneHotSelect(BValue selector, absl::Span<const BValue> cases,
-                      absl::optional<SourceLocation> loc = absl::nullopt);
+                      absl::optional<SourceLocation> loc = absl::nullopt,
+                      absl::string_view name = "");
 
   // Counts the number of leading zeros in the value 'x'.
   //
   // x must be of bits type. This function returns a value of the same type that
   // it takes as an argument.
-  BValue Clz(BValue x, absl::optional<SourceLocation> loc = absl::nullopt);
+  BValue Clz(BValue x, absl::optional<SourceLocation> loc = absl::nullopt,
+             absl::string_view name = "");
 
   // Counts the number of trailing zeros in the value 'x'.
   //
   // x must be of bits type. This function returns a value of the same type that
   // it takes as an argument.
-  BValue Ctz(BValue x, absl::optional<SourceLocation> loc = absl::nullopt);
+  BValue Ctz(BValue x, absl::optional<SourceLocation> loc = absl::nullopt,
+             absl::string_view name = "");
 
   // Creates an match operation which compares 'condition' against each of the
   // case clauses and produces the respective case value of the first match. If
@@ -263,17 +300,20 @@ class BuilderBase {
   };
   BValue Match(BValue condition, absl::Span<const Case> cases,
                BValue default_value,
-               absl::optional<SourceLocation> loc = absl::nullopt);
+               absl::optional<SourceLocation> loc = absl::nullopt,
+               absl::string_view name = "");
 
   // Creates a match operation which matches each of the case clauses against
   // the single-bit literal one. Each case clause must be a single-bit Bits
   // value.
   BValue MatchTrue(absl::Span<const Case> cases, BValue default_value,
-                   absl::optional<SourceLocation> loc = absl::nullopt);
+                   absl::optional<SourceLocation> loc = absl::nullopt,
+                   absl::string_view name = "");
   // Overload which is easier to expose to Python.
   BValue MatchTrue(absl::Span<const BValue> case_clauses,
                    absl::Span<const BValue> case_values, BValue default_value,
-                   absl::optional<SourceLocation> loc = absl::nullopt);
+                   absl::optional<SourceLocation> loc = absl::nullopt,
+                   absl::string_view name = "");
 
   // Creates a tuple of values.
   //
@@ -285,20 +325,24 @@ class BuilderBase {
   //
   //  The arrow indicates the source location for the tuple expression.
   BValue Tuple(absl::Span<const BValue> elements,
-               absl::optional<SourceLocation> loc = absl::nullopt);
+               absl::optional<SourceLocation> loc = absl::nullopt,
+               absl::string_view name = "");
 
   // Creates an AfterAll ordering operation.
   BValue AfterAll(absl::Span<const BValue> dependencies,
-                  absl::optional<SourceLocation> loc = absl::nullopt);
+                  absl::optional<SourceLocation> loc = absl::nullopt,
+                  absl::string_view name = "");
 
   // Creates an array of values. Each value in element must be the same type
   // which is given by element_type.
   BValue Array(absl::Span<const BValue> elements, Type* element_type,
-               absl::optional<SourceLocation> loc = absl::nullopt);
+               absl::optional<SourceLocation> loc = absl::nullopt,
+               absl::string_view name = "");
 
   // Adds an tuple index expression.
   BValue TupleIndex(BValue arg, int64 idx,
-                    absl::optional<SourceLocation> loc = absl::nullopt);
+                    absl::optional<SourceLocation> loc = absl::nullopt,
+                    absl::string_view name = "");
 
   // Adds a "counted for-loop" to the computation, having a known-constant
   // number of loop iterations.
@@ -319,7 +363,8 @@ class BuilderBase {
   BValue CountedFor(BValue init_value, int64 trip_count, int64 stride,
                     Function* body,
                     absl::Span<const BValue> invariant_args = {},
-                    absl::optional<SourceLocation> loc = absl::nullopt);
+                    absl::optional<SourceLocation> loc = absl::nullopt,
+                    absl::string_view name = "");
 
   // Adds a map to the computation.
   // Applies the function to_apply to each element of the array-typed operand
@@ -332,58 +377,70 @@ class BuilderBase {
   //
   // Returns a value of type "Array<U, N>".
   BValue Map(BValue operand, Function* to_apply,
-             absl::optional<SourceLocation> loc = absl::nullopt);
+             absl::optional<SourceLocation> loc = absl::nullopt,
+             absl::string_view name = "");
 
   // Adds a function call with parameters.
   BValue Invoke(absl::Span<const BValue> args, Function* to_apply,
-                absl::optional<SourceLocation> loc = absl::nullopt);
+                absl::optional<SourceLocation> loc = absl::nullopt,
+                absl::string_view name = "");
 
   // Adds an array index expression.
   BValue ArrayIndex(BValue arg, BValue idx,
-                    absl::optional<SourceLocation> loc = absl::nullopt);
+                    absl::optional<SourceLocation> loc = absl::nullopt,
+                    absl::string_view name = "");
 
   // Updates the array element at index "idx" to update_value.
   BValue ArrayUpdate(BValue arg, BValue idx, BValue update_value,
-                     absl::optional<SourceLocation> loc = absl::nullopt);
+                     absl::optional<SourceLocation> loc = absl::nullopt,
+                     absl::string_view name = "");
 
   // Concatenates array operands into a single array.  zero-th
   // element is the zero-th element of the zero-th (left-most) array.
   BValue ArrayConcat(absl::Span<const BValue> operands,
-                     absl::optional<SourceLocation> loc = absl::nullopt);
+                     absl::optional<SourceLocation> loc = absl::nullopt,
+                     absl::string_view name = "");
 
   // Reverses the order of the bits of the argument.
-  BValue Reverse(BValue arg,
-                 absl::optional<SourceLocation> loc = absl::nullopt);
+  BValue Reverse(BValue arg, absl::optional<SourceLocation> loc = absl::nullopt,
+                 absl::string_view name = "");
 
   // Adds an identity expression.
   BValue Identity(BValue var,
-                  absl::optional<SourceLocation> loc = absl::nullopt);
+                  absl::optional<SourceLocation> loc = absl::nullopt,
+                  absl::string_view name = "");
 
   // Sign-extends arg to the new_bit_count.
   BValue SignExtend(BValue arg, int64 new_bit_count,
-                    absl::optional<SourceLocation> loc = absl::nullopt);
+                    absl::optional<SourceLocation> loc = absl::nullopt,
+                    absl::string_view name = "");
 
   // Zero-extends arg to the new_bit_count.
   BValue ZeroExtend(BValue arg, int64 new_bit_count,
-                    absl::optional<SourceLocation> loc = absl::nullopt);
+                    absl::optional<SourceLocation> loc = absl::nullopt,
+                    absl::string_view name = "");
 
   // Extracts a slice from the bits-typed arg. 'start' is the first bit of the
   // slice and is zero-indexed where zero is the LSb of arg.
   BValue BitSlice(BValue arg, int64 start, int64 width,
-                  absl::optional<SourceLocation> loc = absl::nullopt);
+                  absl::optional<SourceLocation> loc = absl::nullopt,
+                  absl::string_view name = "");
 
   // Same as BitSlice, but allows for dynamic 'start' offsets
   BValue DynamicBitSlice(BValue arg, BValue start, int64 width,
-                         absl::optional<SourceLocation> loc = absl::nullopt);
+                         absl::optional<SourceLocation> loc = absl::nullopt,
+                         absl::string_view name = "");
 
   // Binary encodes the n-bit input to a log_2(n) bit output.
-  BValue Encode(BValue arg, absl::optional<SourceLocation> loc = absl::nullopt);
+  BValue Encode(BValue arg, absl::optional<SourceLocation> loc = absl::nullopt,
+                absl::string_view name = "");
 
   // Binary decodes the n-bit input to a one-hot output. 'width' can be at most
   // 2**n where n is the bit width of the operand. If 'width' is not specified
   // the output is 2**n bits wide.
   BValue Decode(BValue arg, absl::optional<int64> width = absl::nullopt,
-                absl::optional<SourceLocation> loc = absl::nullopt);
+                absl::optional<SourceLocation> loc = absl::nullopt,
+                absl::string_view name = "");
 
   // Retrieves the type of "value" and returns it.
   Type* GetType(BValue value) { return value.node()->GetType(); }
@@ -391,42 +448,52 @@ class BuilderBase {
   // Adds a Arith/UnOp/BinOp/CompareOp to the function. Exposed for
   // programmatically adding these ops using with variable Op values.
   BValue AddUnOp(Op op, BValue x,
-                 absl::optional<SourceLocation> loc = absl::nullopt);
+                 absl::optional<SourceLocation> loc = absl::nullopt,
+                 absl::string_view name = "");
   BValue AddBinOp(Op op, BValue lhs, BValue rhs,
-                  absl::optional<SourceLocation> loc = absl::nullopt);
+                  absl::optional<SourceLocation> loc = absl::nullopt,
+                  absl::string_view name = "");
   BValue AddCompareOp(Op op, BValue lhs, BValue rhs,
-                      absl::optional<SourceLocation> loc = absl::nullopt);
+                      absl::optional<SourceLocation> loc = absl::nullopt,
+                      absl::string_view name = "");
   BValue AddNaryOp(Op op, absl::Span<const BValue> args,
-                   absl::optional<SourceLocation> loc = absl::nullopt);
+                   absl::optional<SourceLocation> loc = absl::nullopt,
+                   absl::string_view name = "");
   // If result width is not given the result width set to the width of the
   // arguments lhs and rhs which must have the same width.
   BValue AddArithOp(Op op, BValue lhs, BValue rhs,
                     absl::optional<int64> result_width,
-                    absl::optional<SourceLocation> loc = absl::nullopt);
+                    absl::optional<SourceLocation> loc = absl::nullopt,
+                    absl::string_view name = "");
   BValue AddBitwiseReductionOp(
-      Op op, BValue arg, absl::optional<SourceLocation> loc = absl::nullopt);
+      Op op, BValue arg, absl::optional<SourceLocation> loc = absl::nullopt,
+      absl::string_view name = "");
 
   // Add a receive operation. The type of the data elements received is
   // determined by the channel.
   BValue Receive(Channel* channel, BValue token,
-                 absl::optional<SourceLocation> loc = absl::nullopt);
+                 absl::optional<SourceLocation> loc = absl::nullopt,
+                 absl::string_view name = "");
 
   // Add a receive_if operation. The receive executes conditionally on the value
   // of the predicate "pred". The type of the data elements received is
   // determined by the channel.
   BValue ReceiveIf(Channel* channel, BValue token, BValue pred,
-                   absl::optional<SourceLocation> loc = absl::nullopt);
+                   absl::optional<SourceLocation> loc = absl::nullopt,
+                   absl::string_view name = "");
 
   // Add a send operation.
   BValue Send(Channel* channel, BValue token,
               absl::Span<const BValue> data_operands,
-              absl::optional<SourceLocation> loc = absl::nullopt);
+              absl::optional<SourceLocation> loc = absl::nullopt,
+              absl::string_view name = "");
 
   // Add a send_if operation. The send executes conditionally on the value of
   // the predicate "pred".
   BValue SendIf(Channel* channel, BValue token, BValue pred,
                 absl::Span<const BValue> data_operands,
-                absl::optional<SourceLocation> loc = absl::nullopt);
+                absl::optional<SourceLocation> loc = absl::nullopt,
+                absl::string_view name = "");
 
   Package* package() const { return function_->package(); }
 

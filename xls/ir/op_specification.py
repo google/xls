@@ -254,7 +254,8 @@ class OpClass(object):
                extra_constructor_args=(),
                extra_data_members=(),
                extra_methods: List[Method] = (),
-               custom_clone_method: bool = False):
+               custom_clone_method: bool = False,
+               custom_equivalence_expression: Optional[str] = None):
     """Initializes an OpClass.
 
     Args:
@@ -270,6 +271,10 @@ class OpClass(object):
       extra_methods: List of additional class methods.
       custom_clone_method: Whether this class has a custom clone method. If true
         the method should be defined directly in nodes_source.tmpl.
+      custom_equivalence_expression: A C++ expression which indicates whether
+        the node is equivalent to another node. The variable name of the
+        other node is always 'other'. Used in construction of
+        IsDefinitelyEquivalent method.
     """
     self.name = name
     self.op = op
@@ -280,6 +285,7 @@ class OpClass(object):
     self.extra_data_members = extra_data_members
     self.extra_methods = extra_methods
     self.custom_clone_method = custom_clone_method
+    self.custom_equivalence_expression = custom_equivalence_expression
 
   def constructor_args_str(self) -> str:
     """The constructor arguments list as a single string."""
@@ -295,11 +301,13 @@ class OpClass(object):
         args.append(ConstructorArgument(o.name, 'Node*'))
     args.extend(a.constructor_argument for a in self.attributes)
     args.extend(self.extra_constructor_args)
+    if 'name' not in [a.name for a in self.extra_constructor_args]:
+      args.append(ConstructorArgument('name', 'absl::string_view', 'name'))
     args.append(ConstructorArgument('function', 'Function*', 'function()'))
     return ', '.join(a.cpp_type + ' ' + a.name for a in args)
 
   def base_constructor_invocation(self):
-    return 'Node({op}, {type_expr}, loc, function)'.format(
+    return 'Node({op}, {type_expr}, loc, name, function)'.format(
         op=self.op, type_expr=self.xls_type_expression)
 
   def methods(self) -> List[Method]:
@@ -325,6 +333,8 @@ class OpClass(object):
         args.append('{}[{}]'.format(new_operands, i))
     args.extend('{}()'.format(a.name) for a in self.attributes)
     args.extend(a.clone_expression for a in self.extra_constructor_args)
+    if 'name' not in [a.name for a in self.extra_constructor_args]:
+      args.append('name_')
     return ', '.join(args)
 
   def data_members(self) -> List[DataMember]:
@@ -335,6 +345,9 @@ class OpClass(object):
 
   def equal_to_expr(self) -> str:
     """Returns expression used in IsDefinitelyEqualTo to compare expression."""
+
+    if self.custom_equivalence_expression:
+      return self.custom_equivalence_expression
 
     def data_member_equal(m):
       lhs = m.name
@@ -618,11 +631,17 @@ OpClass.kinds['PARAM'] = OpClass(
     op='Op::kParam',
     operands=[],
     xls_type_expression='type',
-    attributes=[StringAttribute('name')],
-    extra_constructor_args=[ConstructorArgument(name='type',
+    extra_constructor_args=[ConstructorArgument(name='name',
+                                                cpp_type='absl::string_view',
+                                                clone_expression='name()'),
+                            ConstructorArgument(name='type',
                                                 cpp_type='Type*',
                                                 clone_expression='GetType()')],
-)
+    extra_methods=[Method(name='name',
+                          return_cpp_type='absl::string_view',
+                          expression='name_')],
+    # Params are never equivalent to other nodes.
+    custom_equivalence_expression='false')
 
 OpClass.kinds['SELECT'] = OpClass(
     name='Select',

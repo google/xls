@@ -231,7 +231,7 @@ fn main(index: bits[32]) -> bits[32] {
   literal.0: bits[32] = literal(value=0)
   literal.1 : bits[32]= literal(value=1)
   eq.4: bits[1] = eq(index, literal.0)
-  ret select.9: bits[32] = sel(eq.4, cases=[literal.0, literal.1])
+  ret result: bits[32] = sel(eq.4, cases=[literal.0, literal.1])
 }
 )";
 
@@ -367,7 +367,7 @@ fn main(index: bits[32]) -> bits[32] {
   sel.23: bits[32] = sel(eq.13, cases=[literal.54, literal.55])
   sel.24: bits[32] = sel(eq.14, cases=[sel.23, literal.56])
   sel.25: bits[32] = sel(eq.14, cases=[sel.24, literal.57])
-  ret and.30: bits[32] = sel(eq.10, cases=[sel.22, sel.25])
+  ret result: bits[32] = sel(eq.10, cases=[sel.22, sel.25])
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<VerifiedPackage> p,

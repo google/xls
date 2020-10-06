@@ -219,7 +219,7 @@ TEST_P(IrEvaluatorTest, InterpretNaryNor) {
     literal.1: bits[8] = literal(value=4)
     literal.2: bits[8] = literal(value=2)
     literal.3: bits[8] = literal(value=0)
-    ret or.4: bits[8] = nor(literal.1, literal.2, literal.3)
+    ret nor.4: bits[8] = nor(literal.1, literal.2, literal.3)
   }
   )"));
 
@@ -251,7 +251,7 @@ TEST_P(IrEvaluatorTest, InterpretNaryNand) {
     literal.1: bits[8] = literal(value=6)
     literal.2: bits[8] = literal(value=3)
     literal.3: bits[8] = literal(value=2)
-    ret and.4: bits[8] = nand(literal.1, literal.2, literal.3)
+    ret nand.4: bits[8] = nand(literal.1, literal.2, literal.3)
   }
   )"));
 
@@ -377,7 +377,7 @@ TEST_P(IrEvaluatorTest, InterpretULt) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
   fn less_than(a: bits[32], b: bits[32]) -> bits[1] {
-    ret lt.1: bits[1] = ult(a, b)
+    ret ult.1: bits[1] = ult(a, b)
   }
   )"));
 
@@ -404,7 +404,7 @@ TEST_P(IrEvaluatorTest, InterpretULe) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
   fn less_than_or_equal(a: bits[32], b: bits[32]) -> bits[1] {
-    ret le.1: bits[1] = ule(a, b)
+    ret ule.1: bits[1] = ule(a, b)
   }
   )"));
 
@@ -431,7 +431,7 @@ TEST_P(IrEvaluatorTest, InterpretUGt) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
   fn greater_than(a: bits[32], b: bits[32]) -> bits[1] {
-    ret gt.1: bits[1] = ugt(a, b)
+    ret ugt.1: bits[1] = ugt(a, b)
   }
   )"));
 
@@ -458,7 +458,7 @@ TEST_P(IrEvaluatorTest, InterpretUGe) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
   fn greater_than_or_equal(a: bits[32], b: bits[32]) -> bits[1] {
-    ret ge.1: bits[1] = uge(a, b)
+    ret uge.1: bits[1] = uge(a, b)
   }
   )"));
 
@@ -485,7 +485,7 @@ TEST_P(IrEvaluatorTest, InterpretSLt) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
   fn less_than(a: bits[32], b: bits[32]) -> bits[1] {
-    ret lt.1: bits[1] = slt(a, b)
+    ret slt.1: bits[1] = slt(a, b)
   }
   )"));
 
@@ -512,7 +512,7 @@ TEST_P(IrEvaluatorTest, InterpretSLe) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
   fn less_than_or_equal(a: bits[32], b: bits[32]) -> bits[1] {
-    ret le.1: bits[1] = sle(a, b)
+    ret sle.1: bits[1] = sle(a, b)
   }
   )"));
 
@@ -539,7 +539,7 @@ TEST_P(IrEvaluatorTest, InterpretSGt) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
   fn greater_than(a: bits[32], b: bits[32]) -> bits[1] {
-    ret gt.1: bits[1] = sgt(a, b)
+    ret sgt.1: bits[1] = sgt(a, b)
   }
   )"));
 
@@ -566,7 +566,7 @@ TEST_P(IrEvaluatorTest, InterpretSGe) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
   fn greater_than_or_equal(a: bits[32], b: bits[32]) -> bits[1] {
-    ret ge.1: bits[1] = sge(a, b)
+    ret sge.1: bits[1] = sge(a, b)
   }
   )"));
 
@@ -610,7 +610,7 @@ TEST_P(IrEvaluatorTest, InterpretMaxMulTwo) {
   fn max_plus_two() -> bits[3] {
     literal.1: bits[3] = literal(value=7)
     literal.2: bits[3] = literal(value=2)
-    ret add.3: bits[3] = umul(literal.1, literal.2)
+    ret umul.3: bits[3] = umul(literal.1, literal.2)
   }
   )"));
 
@@ -756,7 +756,7 @@ TEST_P(IrEvaluatorTest, InterpretUDiv) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
   fn shift_left_logical(a: bits[8], b: bits[8]) -> bits[8] {
-    ret shll.1: bits[8] = udiv(a, b)
+    ret udiv.1: bits[8] = udiv(a, b)
   }
   )"));
 
@@ -782,7 +782,7 @@ TEST_P(IrEvaluatorTest, InterpretUMod) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
   fn shift_left_logical(a: bits[8], b: bits[8]) -> bits[8] {
-    ret shll.1: bits[8] = umod(a, b)
+    ret umod.1: bits[8] = umod(a, b)
   }
   )"));
 
@@ -807,7 +807,7 @@ TEST_P(IrEvaluatorTest, InterpretSDiv) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
   fn signed_div(a: bits[8], b: bits[8]) -> bits[8] {
-    ret shll.1: bits[8] = sdiv(a, b)
+    ret sdiv.1: bits[8] = sdiv(a, b)
   }
   )"));
 
@@ -839,7 +839,7 @@ TEST_P(IrEvaluatorTest, InterpretSMod) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
   fn signed_mod(a: bits[8], b: bits[8]) -> bits[8] {
-    ret shll.1: bits[8] = smod(a, b)
+    ret smod.1: bits[8] = smod(a, b)
   }
   )"));
 
@@ -1396,7 +1396,7 @@ TEST_P(IrEvaluatorTest, InterpretMap) {
 
   fn to_apply(element: bits[16]) -> bits[1] {
     literal.2: bits[16] = literal(value=2)
-    ret lt.3: bits[1] = ult(element, literal.2)
+    ret ult.3: bits[1] = ult(element, literal.2)
   }
 
   fn main(input: bits[16][2]) -> bits[1][2] {
@@ -1422,8 +1422,8 @@ TEST_P(IrEvaluatorTest, InterpretTwoLevelInvoke) {
 
   fn create_tuple(element: bits[16]) -> (bits[1], bits[16]) {
     literal.2: bits[16] = literal(value=2)
-    lt.3: bits[1] = ult(element, literal.2)
-    ret tuple.4: (bits[1], bits[16]) = tuple(lt.3, element)
+    ult.3: bits[1] = ult(element, literal.2)
+    ret tuple.4: (bits[1], bits[16]) = tuple(ult.3, element)
   }
 
   fn nest_tuple(element: (bits[1], bits[16])) -> ((bits[1], bits[1]), bits[16]) {
@@ -1731,8 +1731,8 @@ TEST_P(IrEvaluatorTest, InterpretArrayOfArrayIndex) {
   fn array_index() -> bits[32] {
     literal.1: bits[32][2][2] = literal(value=[[1, 2], [3, 4]])
     literal.2: bits[3] = literal(value=1)
-    literal.3: bits[32][2] = array_index(literal.1, literal.2)
-    ret array_index.4: bits[32] = array_index(literal.3, literal.2)
+    array_index.3: bits[32][2] = array_index(literal.1, literal.2)
+    ret array_index.4: bits[32] = array_index(array_index.3, literal.2)
   }
   )"));
 
@@ -2134,7 +2134,7 @@ TEST_P(IrEvaluatorTest, WideNegate) {
   package wide_negate
 
   fn main(a: bits[128]) -> bits[128] {
-    ret add.1: bits[128] = neg(a)
+    ret neg.1: bits[128] = neg(a)
   }
   )"));
   absl::flat_hash_map<std::string, Value> args = {
@@ -2202,7 +2202,7 @@ TEST_P(IrEvaluatorTest, AfterAllWithOtherOps) {
     after_all.5: token = after_all()
     literal.6: bits[8] = literal(value=2)
     after_all.7: token = after_all()
-    ret and.8: bits[8] = nand(literal.2, literal.4, literal.6)
+    ret nand.8: bits[8] = nand(literal.2, literal.4, literal.6)
   }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());

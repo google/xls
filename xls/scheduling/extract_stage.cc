@@ -43,10 +43,9 @@ absl::StatusOr<Function*> ExtractStage(Function* src,
         if (node_map.contains(operand)) {
           new_operands.push_back(node_map.at(operand));
         } else {
-          XLS_ASSIGN_OR_RETURN(
-              Node * new_param,
-              new_f->MakeNode<Param>(operand->loc(), operand->GetName(),
-                                     operand->GetType()));
+          Node* new_param = new_f->AddNode(
+              absl::make_unique<Param>(operand->loc(), operand->GetName(),
+                                       operand->GetType(), new_f.get()));
           node_map[operand] = new_param;
           new_operands.push_back(new_param);
         }

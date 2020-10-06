@@ -48,7 +48,7 @@ TEST_F(ArithSimplificationPassTest, Arith1) {
      two:bits[32] = literal(value=2)
      xshrl3:bits[32] = shrl(x, three)
      xshrl3_shrl2:bits[32] = shrl(xshrl3, two)
-     ret add: bits[32] = add(xshrl3_shrl2, xshrl3_shrl2)
+     ret result: bits[32] = add(xshrl3_shrl2, xshrl3_shrl2)
    }
    )",
                                                        p.get()));
@@ -63,7 +63,7 @@ TEST_F(ArithSimplificationPassTest, DoubleNeg) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn simple_neg(x:bits[2]) -> bits[2] {
         neg1:bits[2] = neg(x)
-        ret neg2: bits[2] = neg(neg1)
+        ret result: bits[2] = neg(neg1)
      }
   )",
                                                        p.get()));
@@ -76,7 +76,7 @@ TEST_F(ArithSimplificationPassTest, MulBy0) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn mul_zero(x:bits[8]) -> bits[8] {
         zero:bits[8] = literal(value=0)
-        ret ret_mul: bits[8] = umul(x, zero)
+        ret result: bits[8] = umul(x, zero)
      }
   )",
                                                        p.get()));
@@ -89,7 +89,7 @@ TEST_F(ArithSimplificationPassTest, MulBy42) {
   XLS_ASSERT_OK(ParseFunction(R"(
      fn mul_zero(x:bits[8]) -> bits[8] {
         literal.1: bits[8] = literal(value=42)
-        ret ret_mul: bits[8] = umul(x, literal.1)
+        ret result: bits[8] = umul(x, literal.1)
      }
   )",
                               p.get())
@@ -102,7 +102,7 @@ TEST_F(ArithSimplificationPassTest, SMulBy1SignExtendedResult) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn mul_zero(x:bits[8]) -> bits[16] {
         one: bits[8] = literal(value=1)
-        ret ret_mul: bits[16] = smul(x, one)
+        ret result: bits[16] = smul(x, one)
      }
   )",
                                                        p.get()));
@@ -116,7 +116,7 @@ TEST_F(ArithSimplificationPassTest, SMulBy16SignExtendedResult) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn mul_zero(x:bits[8]) -> bits[16] {
         one: bits[8] = literal(value=16)
-        ret ret_mul: bits[16] = smul(x, one)
+        ret result: bits[16] = smul(x, one)
      }
   )",
                                                        p.get()));
@@ -130,7 +130,7 @@ TEST_F(ArithSimplificationPassTest, UMulBy1ZeroExtendedResult) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn mul_zero(x:bits[8]) -> bits[16] {
         one: bits[8] = literal(value=1)
-        ret ret_mul: bits[16] = umul(x, one)
+        ret result: bits[16] = umul(x, one)
      }
   )",
                                                        p.get()));
@@ -144,7 +144,7 @@ TEST_F(ArithSimplificationPassTest, UMulBy256ZeroExtendedResult) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn mul_zero(x:bits[8]) -> bits[16] {
         one: bits[12] = literal(value=256)
-        ret ret_mul: bits[16] = umul(x, one)
+        ret result: bits[16] = umul(x, one)
      }
   )",
                                                        p.get()));
@@ -158,7 +158,7 @@ TEST_F(ArithSimplificationPassTest, UModBy4) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn umod_power_of_two(x:bits[16]) -> bits[16] {
         literal.1: bits[16] = literal(value=4)
-        ret umod.2: bits[16] = umod(x, literal.1)
+        ret result: bits[16] = umod(x, literal.1)
      }
   )",
                                                        p.get()));
@@ -171,7 +171,7 @@ TEST_F(ArithSimplificationPassTest, UModBy1) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn umod_power_of_two(x:bits[16]) -> bits[16] {
         literal.1: bits[16] = literal(value=1)
-        ret umod.2: bits[16] = umod(x, literal.1)
+        ret result: bits[16] = umod(x, literal.1)
      }
   )",
                                                        p.get()));
@@ -184,7 +184,7 @@ TEST_F(ArithSimplificationPassTest, UModBy512) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn umod_power_of_two(x:bits[16]) -> bits[16] {
         literal.1: bits[16] = literal(value=512)
-        ret umod.2: bits[16] = umod(x, literal.1)
+        ret result: bits[16] = umod(x, literal.1)
      }
   )",
                                                        p.get()));
@@ -197,7 +197,7 @@ TEST_F(ArithSimplificationPassTest, UModBy42) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn umod_power_of_two(x:bits[16]) -> bits[16] {
         literal.1: bits[16] = literal(value=42)
-        ret umod.2: bits[16] = umod(x, literal.1)
+        ret result: bits[16] = umod(x, literal.1)
      }
   )",
                                                        p.get()));
@@ -210,7 +210,7 @@ TEST_F(ArithSimplificationPassTest, UModBy0) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn umod_power_of_two(x:bits[16]) -> bits[16] {
         literal.1: bits[16] = literal(value=0)
-        ret umod.2: bits[16] = umod(x, literal.1)
+        ret result: bits[16] = umod(x, literal.1)
      }
   )",
                                                        p.get()));
@@ -223,7 +223,7 @@ TEST_F(ArithSimplificationPassTest, UDivBy4) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn mul_zero(x:bits[16]) -> bits[16] {
         literal.1: bits[16] = literal(value=4)
-        ret ret_mul: bits[16] = udiv(x, literal.1)
+        ret result: bits[16] = udiv(x, literal.1)
      }
   )",
                                                        p.get()));
@@ -236,7 +236,7 @@ TEST_F(ArithSimplificationPassTest, SDivBy2) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn mul_zero(x:bits[16]) -> bits[16] {
         literal.1: bits[16] = literal(value=2)
-        ret ret_mul: bits[16] = sdiv(x, literal.1)
+        ret result: bits[16] = sdiv(x, literal.1)
      }
   )",
                                                        p.get()));
@@ -249,7 +249,7 @@ TEST_F(ArithSimplificationPassTest, MulBy1NarrowedResult) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn mul_zero(x:bits[8]) -> bits[3] {
         one: bits[8] = literal(value=1)
-        ret ret_mul: bits[3] = umul(x, one)
+        ret result: bits[3] = umul(x, one)
      }
   )",
                                                        p.get()));
@@ -264,7 +264,7 @@ TEST_F(ArithSimplificationPassTest, UMulByMaxPowerOfTwo) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn mul_zero(x:bits[16]) -> bits[16] {
         literal.1: bits[8] = literal(value=128)
-        ret ret_mul: bits[16] = umul(x, literal.1)
+        ret result: bits[16] = umul(x, literal.1)
      }
   )",
                                                        p.get()));
@@ -279,7 +279,7 @@ TEST_F(ArithSimplificationPassTest, SMulByMinNegative) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn mul_zero(x:bits[8]) -> bits[8] {
         literal.1: bits[8] = literal(value=128)
-        ret ret_mul: bits[8] = smul(x, literal.1)
+        ret result: bits[8] = smul(x, literal.1)
      }
   )",
                                                        p.get()));
@@ -294,7 +294,7 @@ TEST_F(ArithSimplificationPassTest, SMulByMinusOne) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn mul_zero(x:bits[8]) -> bits[3] {
         one: bits[1] = literal(value=1)
-        ret ret_mul: bits[3] = smul(x, one)
+        ret result: bits[3] = smul(x, one)
      }
   )",
                                                        p.get()));
@@ -307,7 +307,7 @@ TEST_F(ArithSimplificationPassTest, UDivBy1) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn div_one(x:bits[8]) -> bits[8] {
         one:bits[8] = literal(value=1)
-        ret ret_mul: bits[8] = udiv(x, one)
+        ret result: bits[8] = udiv(x, one)
      }
   )",
                                                        p.get()));
@@ -320,7 +320,7 @@ TEST_F(ArithSimplificationPassTest, MulBy1) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn mul_zero(x:bits[8]) -> bits[8] {
         one:bits[8] = literal(value=1)
-        ret ret_mul: bits[8] = umul(x, one)
+        ret result: bits[8] = umul(x, one)
      }
   )",
                                                        p.get()));
@@ -333,7 +333,7 @@ TEST_F(ArithSimplificationPassTest, CanonicalizeXorAllOnes) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(x:bits[2]) -> bits[2] {
         literal.1: bits[2] = literal(value=3)
-        ret xor.2: bits[2] = xor(x, literal.1)
+        ret result: bits[2] = xor(x, literal.1)
      }
   )",
                                                        p.get()));
@@ -347,7 +347,7 @@ TEST_F(ArithSimplificationPassTest, OverlargeShiftAfterSimp) {
      fn f(x:bits[2]) -> bits[2] {
         literal.1: bits[2] = literal(value=2)
         shrl.2: bits[2] = shrl(x, literal.1)
-        ret shrl.3: bits[2] = shrl(shrl.2, literal.1)
+        ret result: bits[2] = shrl(shrl.2, literal.1)
      }
   )",
                                                        p.get()));
@@ -360,7 +360,7 @@ TEST_F(ArithSimplificationPassTest, ShiftRightArithmeticByLiteral) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(x:bits[16]) -> bits[16] {
         literal.1: bits[16] = literal(value=13)
-        ret shra.3: bits[16] = shra(x, literal.1)
+        ret result: bits[16] = shra(x, literal.1)
      }
   )",
                                                        p.get()));
@@ -373,7 +373,7 @@ TEST_F(ArithSimplificationPassTest, OverlargeShiftRightArithmeticByLiteral) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(x:bits[16]) -> bits[16] {
         literal.1: bits[16] = literal(value=1234)
-        ret shra.3: bits[16] = shra(x, literal.1)
+        ret result: bits[16] = shra(x, literal.1)
      }
   )",
                                                        p.get()));
@@ -387,7 +387,7 @@ TEST_F(ArithSimplificationPassTest, CompareBoolAgainstOne) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(x:bits[1]) -> bits[1] {
         literal.1: bits[1] = literal(value=1)
-        ret eq.2: bits[1] = eq(x, literal.1)
+        ret result: bits[1] = eq(x, literal.1)
      }
   )",
                                                        p.get()));
@@ -401,7 +401,7 @@ TEST_F(ArithSimplificationPassTest, CompareBoolAgainstZero) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(x:bits[1]) -> bits[1] {
         literal.1: bits[1] = literal(value=0)
-        ret eq.2: bits[1] = eq(x, literal.1)
+        ret result: bits[1] = eq(x, literal.1)
      }
   )",
                                                        p.get()));
@@ -415,7 +415,7 @@ TEST_F(ArithSimplificationPassTest, DoubleNegation) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(x: bits[42]) -> bits[42] {
         not.2: bits[42] = not(x)
-        ret not.3: bits[42] = not(not.2)
+        ret result: bits[42] = not(not.2)
      }
   )",
                                                        p.get()));
@@ -430,7 +430,7 @@ TEST_F(ArithSimplificationPassTest, NaryOrEliminateSeveralZeros) {
      fn f(x: bits[8], y: bits[8]) -> bits[8] {
         literal.3: bits[8] = literal(value=0)
         literal.4: bits[8] = literal(value=0)
-        ret or.5: bits[8] = or(x, literal.3, y, literal.4)
+        ret result: bits[8] = or(x, literal.3, y, literal.4)
      }
   )",
                                                        p.get()));
@@ -444,7 +444,7 @@ TEST_F(ArithSimplificationPassTest, NaryAndEliminateSeveralOnes) {
      fn f(x: bits[8], y: bits[8]) -> bits[8] {
         literal.3: bits[8] = literal(value=0xff)
         literal.4: bits[8] = literal(value=0xff)
-        ret and.5: bits[8] = and(x, literal.3, y, literal.4)
+        ret result: bits[8] = and(x, literal.3, y, literal.4)
      }
   )",
                                                        p.get()));
@@ -458,7 +458,7 @@ TEST_F(ArithSimplificationPassTest, NaryAndEliminateAllOnes) {
      fn f() -> bits[8] {
         literal.1: bits[8] = literal(value=0xff)
         literal.2: bits[8] = literal(value=0xff)
-        ret and.3: bits[8] = and(literal.1, literal.2)
+        ret result: bits[8] = and(literal.1, literal.2)
      }
   )",
                                                        p.get()));
@@ -473,7 +473,7 @@ TEST_F(ArithSimplificationPassTest, NaryFlattening) {
         literal.3: bits[8] = literal(value=0x1f)
         literal.4: bits[8] = literal(value=0x0f)
         and.5: bits[8] = and(z, literal.3)
-        ret and.6: bits[8] = and(x, y, literal.4, and.5)
+        ret result: bits[8] = and(x, y, literal.4, and.5)
      }
   )",
                                                        p.get()));
@@ -489,7 +489,7 @@ TEST_F(ArithSimplificationPassTest, NaryLiteralConsolidation) {
 fn f(x: bits[8], y: bits[8], z: bits[8]) -> bits[8] {
   literal.4: bits[8] = literal(value=15)
   literal.5: bits[8] = literal(value=31)
-  ret and.6: bits[8] = and(x, y, literal.4, z, literal.5)
+  ret result: bits[8] = and(x, y, literal.4, z, literal.5)
 }
   )",
                                                        p.get()));
@@ -503,7 +503,7 @@ TEST_F(ArithSimplificationPassTest, XAndNotX) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(x: bits[32]) -> bits[32] {
         not.2: bits[32] = not(x)
-        ret and.3: bits[32] = and(x, not.2)
+        ret result: bits[32] = and(x, not.2)
      }
   )",
                                                        p.get()));
@@ -516,7 +516,7 @@ TEST_F(ArithSimplificationPassTest, NotXAndX) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(x: bits[32]) -> bits[32] {
         not.2: bits[32] = not(x)
-        ret and.3: bits[32] = and(not.2, x)
+        ret result: bits[32] = and(not.2, x)
      }
   )",
                                                        p.get()));
@@ -529,7 +529,7 @@ TEST_F(ArithSimplificationPassTest, SignExtTwice) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(x: bits[8]) -> bits[32] {
         sign_ext.2: bits[24] = sign_ext(x, new_bit_count=24)
-        ret sign_ext.3: bits[32] = sign_ext(sign_ext.2, new_bit_count=32)
+        ret result: bits[32] = sign_ext(sign_ext.2, new_bit_count=32)
      }
   )",
                                                        p.get()));
@@ -543,7 +543,7 @@ TEST_F(ArithSimplificationPassTest, CollapseToNaryOr) {
  fn f(w: bits[8], x: bits[8], y: bits[8], z: bits[8]) -> bits[8] {
     or.5: bits[8] = or(w, x)
     or.6: bits[8] = or(y, z)
-    ret or.7: bits[8] = or(or.5, or.6)
+    ret result: bits[8] = or(or.5, or.6)
  }
   )",
                                                        p.get()));
@@ -557,7 +557,7 @@ TEST_F(ArithSimplificationPassTest, CollapseOneSideToNaryOr) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
  fn f(x: bits[8], y: bits[8], z: bits[8]) -> bits[8] {
     or.4: bits[8] = or(y, z)
-    ret or.5: bits[8] = or(x, or.4)
+    ret result: bits[8] = or(x, or.4)
  }
   )",
                                                        p.get()));
@@ -572,7 +572,7 @@ TEST_F(ArithSimplificationPassTest, NorWithLiteralZeroOperands) {
  fn f(x: bits[8], y: bits[8], z: bits[8]) -> bits[8] {
     literal.1: bits[8] = literal(value=0)
     literal.2: bits[8] = literal(value=0)
-    ret nor.3: bits[8] = nor(x, literal.1, y, literal.2, z)
+    ret result: bits[8] = nor(x, literal.1, y, literal.2, z)
  }
   )",
                                                        p.get()));
@@ -586,7 +586,7 @@ TEST_F(ArithSimplificationPassTest, NandWithLiteralAllOnesOperands) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
  fn f(x: bits[8], y: bits[8], z: bits[8]) -> bits[8] {
     literal.1: bits[8] = literal(value=255)
-    ret nand.2: bits[8] = nand(x, literal.1, y, z)
+    ret result: bits[8] = nand(x, literal.1, y, z)
  }
   )",
                                                        p.get()));
@@ -617,7 +617,7 @@ TEST_F(ArithSimplificationPassTest, RedundantAnd) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
     fn id_and(x: bits[32], y: bits[32]) -> bits[32] {
-       ret and.3: bits[32] = and(x, x, pos=0,1,5)
+       ret result: bits[32] = and(x, x, pos=0,1,5)
     }
 )",
                                                        p.get()));
@@ -629,7 +629,7 @@ TEST_F(ArithSimplificationPassTest, RedundantOr) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
     fn id_or(x: bits[32], y: bits[32]) -> bits[32] {
-       ret and.3: bits[32] = or(x, x, pos=0,1,5)
+       ret result: bits[32] = or(x, x, pos=0,1,5)
     }
 )",
                                                        p.get()));
@@ -641,8 +641,8 @@ TEST_F(ArithSimplificationPassTest, AddWithZero) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
     fn add_zero(x: bits[32]) -> bits[32] {
-      literal.1: bits[32] = literal(value=0)
-      ret slt.2: bits[32] = add(x, literal.1)
+      zero: bits[32] = literal(value=0)
+      ret result: bits[32] = add(x, zero)
     }
 )",
                                                        p.get()));
@@ -654,7 +654,7 @@ TEST_F(ArithSimplificationPassTest, ZeroWidthMulOperand) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
     fn id_or(x: bits[0], y: bits[32]) -> bits[32] {
-       ret smul.1: bits[32] = smul(x, y, pos=0,1,5)
+       ret result: bits[32] = smul(x, y, pos=0,1,5)
     }
 )",
                                                        p.get()));
@@ -666,8 +666,8 @@ TEST_F(ArithSimplificationPassTest, SltZero) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
     fn slt_zero(x: bits[32]) -> bits[1] {
-      literal.1: bits[32] = literal(value=0)
-      ret slt.2: bits[1] = slt(x, literal.1)
+      zero: bits[32] = literal(value=0)
+      ret result: bits[1] = slt(x, zero)
     }
 )",
                                                        p.get()));
@@ -680,8 +680,8 @@ TEST_F(ArithSimplificationPassTest, SGeZero) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
     fn sge_zero(x: bits[32]) -> bits[1] {
-      literal.1: bits[32] = literal(value=0)
-      ret sge.2: bits[1] = sge(x, literal.1)
+      zero: bits[32] = literal(value=0)
+      ret result: bits[1] = sge(x, zero)
     }
 )",
                                                        p.get()));
@@ -725,7 +725,7 @@ TEST_F(ArithSimplificationPassTest, ULtMask) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
     fn f(x: bits[4]) -> bits[1] {
       literal.1: bits[4] = literal(value=0b0011)
-      ret ult.2: bits[1] = ult(x, literal.1)
+      ret result: bits[1] = ult(x, literal.1)
     }
 )",
                                                        p.get()));
@@ -743,7 +743,7 @@ TEST_F(ArithSimplificationPassTest, UGtMask) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
     fn f(x: bits[4]) -> bits[1] {
       literal.1: bits[4] = literal(value=0b0011)
-      ret res: bits[1] = ugt(x, literal.1)
+      ret result: bits[1] = ugt(x, literal.1)
     }
 )",
                                                        p.get()));
@@ -758,7 +758,7 @@ TEST_F(ArithSimplificationPassTest, UGtMaskAllOnes) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
     fn f(x: bits[4]) -> bits[1] {
       literal.1: bits[4] = literal(value=0b1111)
-      ret res: bits[1] = ugt(x, literal.1)
+      ret result: bits[1] = ugt(x, literal.1)
     }
 )",
                                                        p.get()));

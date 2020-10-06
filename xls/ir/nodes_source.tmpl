@@ -67,19 +67,31 @@ Type* GetMapType(Node* operand, Function* to_apply) {
 absl::StatusOr<Node*> {{ op_class.name }}::Clone(absl::Span<Node* const> new_operands,
                                     Function* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
-  return new_function->MakeNode<{{ op_class.name }}>({{ op_class.clone_args_str("new_operands") }});
+  return new_function->MakeNodeWithName<{{ op_class.name }}>(
+      {{ op_class.clone_args_str("new_operands") }});
 }
 {% endif %}
 
 {% if op_class.data_members() %}
 bool {{ op_class.name }}::IsDefinitelyEqualTo(const Node* other) const {
+  if (this == other) {
+    return true;
+  }
   if (!Node::IsDefinitelyEqualTo(other)) {
     return false;
   }
 
   return {{ op_class.equal_to_expr() }};
 }
+{% elif op_class.custom_equivalence_expression %}
+bool {{ op_class.name }}::IsDefinitelyEqualTo(const Node* other) const {
+  if (this == other) {
+    return true;
+  }
+  return {{ op_class.custom_equivalence_expression }};
+}
 {% endif %}
+
 
 {% endfor %}
 
@@ -95,29 +107,35 @@ SliceData Concat::GetOperandSliceData(int64 operandno) const {
 
 absl::StatusOr<Node*> Send::Clone(absl::Span<Node* const> new_operands,
                                            Function* new_function) const {
-  return new_function->MakeNode<Send>(loc(),
+  // TODO(meheff): Choose an appropriate name for the cloned node.
+  return new_function->MakeNodeWithName<Send>(loc(),
                                       new_operands[0],
                                       new_operands.subspan(1),
-                                      channel_id());
+                                      channel_id(),
+                                      name_);
 }
 
 absl::StatusOr<Node*> SendIf::Clone(absl::Span<Node* const> new_operands,
                                            Function* new_function) const {
-  return new_function->MakeNode<SendIf>(loc(),
+  // TODO(meheff): Choose an appropriate name for the cloned node.
+  return new_function->MakeNodeWithName<SendIf>(loc(),
                                         new_operands[0],
                                         new_operands[1],
                                         new_operands.subspan(2),
-                                        channel_id());
+                                        channel_id(),
+                                        name_);
 }
 
 absl::StatusOr<Node*> CountedFor::Clone(absl::Span<Node* const> new_operands,
                                         Function* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
-  return new_function->MakeNode<CountedFor>(loc(), new_operands[0],
+  // TODO(meheff): Choose an appropriate name for the cloned node.
+  return new_function->MakeNodeWithName<CountedFor>(loc(), new_operands[0],
                                             new_operands.subspan(1),
                                             trip_count(),
                                             stride(),
-                                            body());
+                                            body(),
+                                            name_);
 }
 
 absl::StatusOr<Node*> Select::Clone(absl::Span<Node* const> new_operands,
@@ -127,15 +145,19 @@ absl::StatusOr<Node*> Select::Clone(absl::Span<Node* const> new_operands,
     default_value().has_value()
     ? absl::optional<Node*>(new_operands.back())
     : absl::nullopt;
-  return new_function->MakeNode<Select>(loc(), new_operands[0],
+  // TODO(meheff): Choose an appropriate name for the cloned node.
+  return new_function->MakeNodeWithName<Select>(loc(), new_operands[0],
                                         new_operands.subspan(1, cases_size_),
-                                        new_default_value);
+                                        new_default_value,
+                                        name_);
 }
 
 absl::StatusOr<Node*> OneHotSelect::Clone(absl::Span<Node* const> new_operands,
                                           Function* new_function) const {
-  return new_function->MakeNode<OneHotSelect>(loc(), new_operands[0],
-                                        new_operands.subspan(1));
+  // TODO(meheff): Choose an appropriate name for the cloned node.
+  return new_function->MakeNodeWithName<OneHotSelect>(loc(), new_operands[0],
+                                              new_operands.subspan(1),
+                                              name_);
 }
 
 bool Select::AllCases(std::function<bool(Node*)> p) const {

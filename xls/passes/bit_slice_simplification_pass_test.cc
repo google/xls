@@ -71,8 +71,8 @@ TEST_F(BitSliceSimplificationPassTest, SliceOfASlice) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn SliceOfASlice(x: bits[123]) -> bits[32] {
-        slice.1: bits[74] = bit_slice(x, start=30, width=74)
-        ret slice.2: bits[32] = bit_slice(slice.1, start=15, width=32)
+        slice: bits[74] = bit_slice(x, start=30, width=74)
+        ret result: bits[32] = bit_slice(slice, start=15, width=32)
      }
   )",
                                                        p.get()));
@@ -88,7 +88,7 @@ TEST_F(BitSliceSimplificationPassTest, SliceOfTrivialConcat) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn SliceOfTrivialConcat(x: bits[42]) -> bits[10] {
         concat.1: bits[42] = concat(x)
-        ret slice.2: bits[10] = bit_slice(concat.1, start=5, width=10)
+        ret result: bits[10] = bit_slice(concat.1, start=5, width=10)
      }
   )",
                                                        p.get()));
@@ -105,7 +105,7 @@ package SliceOfConcats
 
 fn main(x: bits[4], y: bits[1], z: bits[4]) -> bits[$1] {
     concat.1: bits[9] = concat(x, y, z)
-    ret slice.2: bits[$1] = bit_slice(concat.1, start=$0, width=$1)
+    ret result: bits[$1] = bit_slice(concat.1, start=$0, width=$1)
 })";
   auto gen_fn = [&](int64 start, int64 width) {
     return absl::Substitute(fn_template, start, width);
@@ -141,7 +141,7 @@ TEST_F(BitSliceSimplificationPassTest, SoleSliceOfAnd) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(x: bits[42], y: bits[42]) -> bits[32] {
         and.3: bits[42] = and(x, y)
-        ret slice.4: bits[32] = bit_slice(and.3, start=7, width=32)
+        ret result: bits[32] = bit_slice(and.3, start=7, width=32)
      }
   )",
                                                        p.get()));
@@ -157,7 +157,7 @@ TEST_F(BitSliceSimplificationPassTest, SoleSliceLowBitsOfAdd) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(x: bits[42], y: bits[42]) -> bits[32] {
         add.3: bits[42] = add(x, y)
-        ret slice.4: bits[32] = bit_slice(add.3, start=0, width=32)
+        ret result: bits[32] = bit_slice(add.3, start=0, width=32)
      }
   )",
                                                        p.get()));
@@ -173,7 +173,7 @@ TEST_F(BitSliceSimplificationPassTest,
   auto p = CreatePackage();
   const std::string program = R"(fn f(x: bits[42], y: bits[42]) -> bits[32] {
   add.3: bits[42] = add(x, y)
-  ret bit_slice.4: bits[32] = bit_slice(add.3, start=1, width=32)
+  ret result: bits[32] = bit_slice(add.3, start=1, width=32)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
@@ -187,7 +187,7 @@ TEST_F(BitSliceSimplificationPassTest, SliceOfSignExtCaseOne) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
  fn f(x: bits[8]) -> bits[5] {
     sign_ext.2: bits[24] = sign_ext(x, new_bit_count=24)
-    ret bit_slice.3: bits[5] = bit_slice(sign_ext.2, start=2, width=5)
+    ret result: bits[5] = bit_slice(sign_ext.2, start=2, width=5)
  }
   )",
                                                        p.get()));
@@ -200,7 +200,7 @@ TEST_F(BitSliceSimplificationPassTest, SliceOfSignExtCaseOneStartingAtZero) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
  fn f(x: bits[8]) -> bits[16] {
     sign_ext.2: bits[24] = sign_ext(x, new_bit_count=24)
-    ret bit_slice.3: bits[16] = bit_slice(sign_ext.2, start=0, width=16)
+    ret result: bits[16] = bit_slice(sign_ext.2, start=0, width=16)
  }
   )",
                                                        p.get()));
@@ -213,7 +213,7 @@ TEST_F(BitSliceSimplificationPassTest, SliceOfSignExtCaseTwo) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
  fn f(x: bits[8]) -> bits[5] {
     sign_ext.2: bits[24] = sign_ext(x, new_bit_count=24)
-    ret bit_slice.3: bits[5] = bit_slice(sign_ext.2, start=4, width=5)
+    ret result: bits[5] = bit_slice(sign_ext.2, start=4, width=5)
  }
   )",
                                                        p.get()));
@@ -227,7 +227,7 @@ TEST_F(BitSliceSimplificationPassTest, SliceOfSignExtCaseTwoExactlyTheSignBit) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
  fn f(x: bits[8]) -> bits[5] {
     sign_ext.2: bits[24] = sign_ext(x, new_bit_count=24)
-    ret bit_slice.3: bits[5] = bit_slice(sign_ext.2, start=7, width=5)
+    ret result: bits[5] = bit_slice(sign_ext.2, start=7, width=5)
  }
   )",
                                                        p.get()));
@@ -241,7 +241,7 @@ TEST_F(BitSliceSimplificationPassTest, SliceOfSignExtCaseCaseThree) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
  fn f(x: bits[8]) -> bits[5] {
     sign_ext.2: bits[24] = sign_ext(x, new_bit_count=24)
-    ret bit_slice.3: bits[5] = bit_slice(sign_ext.2, start=12, width=5)
+    ret result: bits[5] = bit_slice(sign_ext.2, start=12, width=5)
  }
   )",
                                                        p.get()));
@@ -255,7 +255,7 @@ TEST_F(BitSliceSimplificationPassTest, DynamicBitSliceLiteralStart) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
  fn f(x: bits[42]) -> bits[15] {
     literal.1: bits[23] = literal(value=6)
-    ret dynamic_bit_slice.2: bits[15] = dynamic_bit_slice(x, literal.1, width=15)
+    ret result: bits[15] = dynamic_bit_slice(x, literal.1, width=15)
  }
   )",
                                                        p.get()));
@@ -269,7 +269,7 @@ TEST_F(BitSliceSimplificationPassTest, DynamicBitSliceLiteralStartOob) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
  fn f(x: bits[42]) -> bits[15] {
     literal.1: bits[23] = literal(value=35)
-    ret dynamic_bit_slice.2: bits[15] = dynamic_bit_slice(x, literal.1, width=15)
+    ret result: bits[15] = dynamic_bit_slice(x, literal.1, width=15)
  }
   )",
                                                        p.get()));
@@ -282,7 +282,7 @@ TEST_F(BitSliceSimplificationPassTest, DynamicBitSliceLiteralInput) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
  fn f(x: bits[30]) -> bits[15] {
     literal.1: bits[30] = literal(value=6)
-    ret dynamic_bit_slice.2: bits[15] = dynamic_bit_slice(literal.1, x, width=15)
+    ret result: bits[15] = dynamic_bit_slice(literal.1, x, width=15)
  }
   )",
                                                        p.get()));
@@ -294,7 +294,7 @@ TEST_F(BitSliceSimplificationPassTest, DynamicBitSliceNonLiteral) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
  fn f(x: bits[42], y: bits[33]) -> bits[35] {
-    ret dynamic_bit_slice.1: bits[35] = dynamic_bit_slice(x, y, width=35)
+    ret result: bits[35] = dynamic_bit_slice(x, y, width=35)
  }
   )",
                                                        p.get()));

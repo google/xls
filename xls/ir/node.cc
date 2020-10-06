@@ -30,12 +30,13 @@
 namespace xls {
 
 Node::Node(Op op, Type* type, absl::optional<SourceLocation> loc,
-           Function* function)
+           absl::string_view name, Function* function)
     : function_(function),
       id_(function_->package()->GetNextNodeId()),
       op_(op),
       type_(type),
-      loc_(loc) {}
+      loc_(loc),
+      name_(name) {}
 
 void Node::AddOperand(Node* operand) {
   XLS_VLOG(3) << " Adding operand " << operand->GetName() << " as #"
@@ -293,6 +294,9 @@ absl::Status Node::Accept(DfsVisitor* visitor) {
 }
 
 bool Node::IsDefinitelyEqualTo(const Node* other) const {
+  if (this == other) {
+    return true;
+  }
   if (op() != other->op()) {
     return false;
   }
@@ -313,10 +317,11 @@ bool Node::IsDefinitelyEqualTo(const Node* other) const {
 }
 
 std::string Node::GetName() const {
-  if (Is<Param>()) {
-    return As<Param>()->name();
+  if (!name_.empty()) {
+    return name_;
   }
-  return absl::StrFormat("%s.%d", OpToString(op_), id_);
+  // Return a generated name based on the id.
+  return absl::StrFormat("%s.%d", OpToString(op()), id());
 }
 
 std::string Node::ToStringInternal(bool include_operand_types) const {

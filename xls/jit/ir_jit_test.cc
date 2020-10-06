@@ -96,10 +96,10 @@ TEST(IrJitTest, QuickCheckArray) {
   Package package("bad_array_property");
   std::string ir_text = R"(
   fn adjacent_elements(x: bits[8][5]) -> bits[1] {
-    index.0: bits[32] = literal(value=0)
-    index.1: bits[32] = literal(value=1)
-    first_element: bits[8] = array_index(x, index.0)
-    second_element: bits[8] = array_index(x, index.1)
+    zero: bits[32] = literal(value=0)
+    one: bits[32] = literal(value=1)
+    first_element: bits[8] = array_index(x, zero)
+    second_element: bits[8] = array_index(x, one)
     ret eq_value: bits[1] = eq(first_element, second_element)
   }
   )";

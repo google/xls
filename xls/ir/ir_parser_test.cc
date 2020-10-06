@@ -315,9 +315,9 @@ fn two_plus_two() -> bits[32] {
 TEST(IrParserTest, ParseTwoPlusThreeCustomIdentifiers) {
   std::string program = R"(
 fn two_plus_two() -> bits[32] {
-  x.1: bits[32] = literal(value=2)
-  y.2: bits[32] = literal(value=3)
-  ret z.3: bits[32] = add(x.1, y.2)
+  literal.1: bits[32] = literal(value=2)
+  literal.2: bits[32] = literal(value=3)
+  ret add.3: bits[32] = add(literal.1, literal.2)
 }
 )";
   Package p("my_package");
@@ -696,12 +696,12 @@ fn f(x: bits[16]) -> bits[16] {
   literal.3: bits[4] = literal(value=3)
   literal.4: bits[4] = literal(value=4)
 
-  bits.112: bits[4] = literal(value=1)
+  literal.112: bits[4] = literal(value=1)
   tuple.113: (bits[4], bits[4]) = tuple(literal.2, literal.3)
   array.114: bits[4][1] = array(literal.4)
 
   ret counted_for.200: bits[16] = counted_for(x, trip_count=2, body=loop_fn,
-      invariant_args=[bits.112, array.114, array.114])
+      invariant_args=[literal.112, array.114, array.114])
 }
 )";
 
@@ -726,12 +726,12 @@ fn f(x: bits[16]) -> bits[16] {
   literal.3: bits[4] = literal(value=3)
   literal.4: bits[4] = literal(value=4)
 
-  bits.112: bits[4] = literal(value=1)
+  literal.112: bits[4] = literal(value=1)
   tuple.113: (bits[4], bits[4]) = tuple(literal.2, literal.3)
   array.114: bits[4][1] = array(literal.4)
 
   ret counted_for.200: bits[16] = counted_for(x, trip_count=2, body=loop_fn,
-      invariant_args=[bits.112, tuple.113, bits.112])
+      invariant_args=[literal.112, tuple.113, literal.112])
 }
 )";
 
@@ -1939,6 +1939,52 @@ fn f(x: bits[4], y: bits[4][1]) -> bits[4][1] {
   EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Decode argument must be of Bits type")));
+}
+
+TEST(IrParserTest, NodeNames) {
+  std::string program = R"(package test
+
+fn foo(x: bits[32], foobar: bits[32]) -> bits[32] {
+  add.1: bits[32] = add(x, foobar)
+  ret qux: bits[32] = not(add.1)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("foo"));
+  EXPECT_EQ(package->DumpIr(), program);
+
+  Node* x = f->param(0);
+  EXPECT_TRUE(x->HasAssignedName());
+  EXPECT_EQ(x->GetName(), "x");
+  EXPECT_EQ(x->id(), 1);
+
+  Node* foobar = f->param(1);
+  EXPECT_TRUE(foobar->HasAssignedName());
+  EXPECT_EQ(foobar->GetName(), "foobar");
+  EXPECT_EQ(foobar->id(), 2);
+
+  Node* add = f->return_value()->operand(0);
+  EXPECT_FALSE(add->HasAssignedName());
+  EXPECT_EQ(add->GetName(), "add.1");
+  EXPECT_EQ(add->id(), 1);
+
+  Node* qux = f->return_value();
+  EXPECT_TRUE(qux->HasAssignedName());
+  EXPECT_EQ(qux->GetName(), "qux");
+}
+
+TEST(IrParserTest, InvalidName) {
+  const std::string input = R"(
+fn f(x: bits[4]) -> bits[4] {
+  ret blahblah.30: bits[4] = add(x, x)
+}
+)";
+  Package p("my_package");
+  EXPECT_THAT(
+      Parser::ParseFunction(input, &p).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("The substring 'blahblah' in node name blahblah.30 "
+                         "does not match the node op 'add")));
 }
 
 }  // namespace xls

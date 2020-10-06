@@ -61,13 +61,13 @@ TEST(NodeIteratorTest, Diamond) {
 
   NodeIterator rni = TopoSort(f);
   auto it = rni.begin();
-  EXPECT_EQ((*it)->As<Param>()->name(), "x");
+  EXPECT_EQ((*it)->GetName(), "x");
   ++it;
-  EXPECT_EQ((*it)->id(), 1);
+  EXPECT_EQ((*it)->GetName(), "neg.1");
   ++it;
-  EXPECT_EQ((*it)->id(), 2);
+  EXPECT_EQ((*it)->GetName(), "neg.2");
   ++it;
-  EXPECT_EQ((*it)->id(), 3);
+  EXPECT_EQ((*it)->GetName(), "add.3");
   ++it;
   EXPECT_EQ(rni.end(), it);
 }
@@ -119,9 +119,9 @@ TEST(NodeIteratorTest, PostOrderNotPreOrder) {
 TEST(NodeIteratorTest, TwoOfSameOperandLinks) {
   std::string program = R"(
   fn computation(a: bits[32]) -> bits[32] {
-    b.1: bits[32] = add(a, a)
-    c.2: bits[32] = neg(a)
-    ret d.3: bits[32] = add(b.1, c.2)
+    b: bits[32] = add(a, a)
+    c: bits[32] = neg(a)
+    ret d: bits[32] = add(b, c)
   })";
 
   Package p("p");
@@ -129,13 +129,13 @@ TEST(NodeIteratorTest, TwoOfSameOperandLinks) {
 
   NodeIterator rni = TopoSort(f);
   auto it = rni.begin();
-  EXPECT_EQ((*it)->As<Param>()->name(), "a");
+  EXPECT_EQ((*it)->GetName(), "a");
   ++it;
-  EXPECT_EQ((*it)->id(), 1);
+  EXPECT_EQ((*it)->GetName(), "b");
   ++it;
-  EXPECT_EQ((*it)->id(), 2);
+  EXPECT_EQ((*it)->GetName(), "c");
   ++it;
-  EXPECT_EQ((*it)->id(), 3);
+  EXPECT_EQ((*it)->GetName(), "d");
   ++it;
   EXPECT_EQ(rni.end(), it);
 }
@@ -143,7 +143,7 @@ TEST(NodeIteratorTest, TwoOfSameOperandLinks) {
 TEST(NodeIteratorTest, UselessParamsUnrelatedReturn) {
   std::string program = R"(
   fn computation(a: bits[32], b: bits[32]) -> bits[32] {
-    ret r.1: bits[32] = literal(value=2)
+    ret r: bits[32] = literal(value=2)
   })";
 
   Package p("p");
@@ -151,11 +151,11 @@ TEST(NodeIteratorTest, UselessParamsUnrelatedReturn) {
 
   NodeIterator rni = TopoSort(f);
   auto it = rni.begin();
-  EXPECT_EQ((*it)->As<Param>()->name(), "a");
+  EXPECT_EQ((*it)->GetName(), "a");
   ++it;
-  EXPECT_EQ((*it)->As<Param>()->name(), "b");
+  EXPECT_EQ((*it)->GetName(), "b");
   ++it;
-  EXPECT_EQ((*it)->id(), 1);
+  EXPECT_EQ((*it)->GetName(), "r");
   ++it;
   EXPECT_EQ(rni.end(), it);
 }
@@ -172,11 +172,11 @@ TEST(NodeIteratorTest, UselessParamsUnrelatedReturn) {
 TEST(NodeIteratorTest, ExtendedDiamond) {
   std::string program = R"(
   fn computation(a: bits[32]) -> bits[32] {
-    t.1: bits[32] = neg(a)
-    c.2: bits[32] = neg(a)
-    b.3: bits[32] = add(t.1, c.2)
-    e.4: bits[32] = neg(c.2)
-    ret d.5: bits[32] = add(b.3, e.4)
+    t: bits[32] = neg(a)
+    c: bits[32] = neg(a)
+    b: bits[32] = add(t, c)
+    e: bits[32] = neg(c)
+    ret d: bits[32] = add(b, e)
   })";
 
   Package p("p");
@@ -184,17 +184,17 @@ TEST(NodeIteratorTest, ExtendedDiamond) {
 
   NodeIterator rni = TopoSort(f);
   auto it = rni.begin();
-  EXPECT_EQ((*it)->As<Param>()->name(), "a");
+  EXPECT_EQ((*it)->GetName(), "a");
   ++it;
-  EXPECT_EQ((*it)->id(), 1);
+  EXPECT_EQ((*it)->GetName(), "t");
   ++it;
-  EXPECT_EQ((*it)->id(), 2);
+  EXPECT_EQ((*it)->GetName(), "c");
   ++it;
-  EXPECT_EQ((*it)->id(), 3);
+  EXPECT_EQ((*it)->GetName(), "b");
   ++it;
-  EXPECT_EQ((*it)->id(), 4);
+  EXPECT_EQ((*it)->GetName(), "e");
   ++it;
-  EXPECT_EQ((*it)->id(), 5);
+  EXPECT_EQ((*it)->GetName(), "d");
   ++it;
   EXPECT_EQ(rni.end(), it);
 }
@@ -202,11 +202,11 @@ TEST(NodeIteratorTest, ExtendedDiamond) {
 TEST(NodeIteratorTest, ExtendedDiamondReverse) {
   std::string program = R"(
   fn computation(a: bits[32]) -> bits[32] {
-    t.1: bits[32] = neg(a)
-    c.2: bits[32] = neg(a)
-    b.3: bits[32] = add(t.1, c.2)
-    e.4: bits[32] = neg(c.2)
-    ret d.5: bits[32] = add(b.3, e.4)
+    t: bits[32] = neg(a)
+    c: bits[32] = neg(a)
+    b: bits[32] = add(t, c)
+    e: bits[32] = neg(c)
+    ret d: bits[32] = add(b, e)
   })";
   Package p("p");
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, Parser::ParseFunction(program, &p));
@@ -243,10 +243,10 @@ TEST(NodeIteratorTest, ExtendedDiamondReverse) {
 TEST(NodeIteratorTest, RpoVsTopo) {
   std::string program = R"(
   fn computation(a: bits[32]) -> bits[32] {
-    t.1: bits[32] = neg(a)
-    b.2: bits[32] = neg(a)
-    c.3: bits[32] = neg(b.2)
-    ret d.4: bits[32] = add(c.3, t.1)
+    t: bits[32] = neg(a)
+    b: bits[32] = neg(a)
+    c: bits[32] = neg(b)
+    ret d: bits[32] = add(c, t)
   })";
 
   Package p("p");
@@ -254,15 +254,15 @@ TEST(NodeIteratorTest, RpoVsTopo) {
 
   NodeIterator rni = TopoSort(f);
   auto it = rni.begin();
-  EXPECT_EQ((*it)->As<Param>()->name(), "a");
+  EXPECT_EQ((*it)->GetName(), "a");
   ++it;
-  EXPECT_EQ((*it)->id(), 2);
+  EXPECT_EQ((*it)->GetName(), "b");
   ++it;
-  EXPECT_EQ((*it)->id(), 3);
+  EXPECT_EQ((*it)->GetName(), "c");
   ++it;
-  EXPECT_EQ((*it)->id(), 1);
+  EXPECT_EQ((*it)->GetName(), "t");
   ++it;
-  EXPECT_EQ((*it)->id(), 4);
+  EXPECT_EQ((*it)->GetName(), "d");
   ++it;
   EXPECT_EQ(rni.end(), it);
 }

@@ -95,7 +95,7 @@ std::string PackedTypeString(const Type& type) {
 
 // Emits the code necessary to convert a u32/i32 value to its corresponding
 // packed view.
-std::string ConvertUint(const std::string& name, const Type& type) {
+std::string ConvertUint(absl::string_view name, const Type& type) {
   XLS_CHECK(type.IsBits());
 
   return absl::StrFormat(
@@ -105,7 +105,7 @@ std::string ConvertUint(const std::string& name, const Type& type) {
 
 // Emits the code necessary to convert a float value to its corresponding
 // packed view.
-std::string ConvertFloat(const std::string& name) {
+std::string ConvertFloat(absl::string_view name) {
   return absl::StrCat(
       "PackedTupleView<PackedBitsView<1>, PackedBitsView<8>, "
       "PackedBitsView<23>> ",
@@ -133,7 +133,7 @@ absl::optional<std::string> MatchTypeSpecialization(const Type& type) {
 // Simple matching "driver" for emitting logic to convert a simple type into an
 // XLS view.
 // Pretty bare-bones at present, but will be expanded depending on need.
-absl::optional<std::string> CreateConversion(const std::string& name,
+absl::optional<std::string> CreateConversion(absl::string_view name,
                                              const Type& type) {
   std::string type_string;
   if (MatchUint(type, &type_string)) {
@@ -375,7 +375,7 @@ $9
 
   std::vector<std::string> arg_list;
   for (const Param* param : function.params()) {
-    arg_list.push_back(param->name());
+    arg_list.push_back(std::string(param->name()));
   }
   int num_unpacked_args = arg_list.size();
   std::string unpacked_args = absl::StrJoin(arg_list, ", ");
