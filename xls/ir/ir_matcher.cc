@@ -88,6 +88,17 @@ bool TypeMatcher::MatchAndExplain(
 
 void TypeMatcher::DescribeTo(std::ostream* os) const { *os << type_str_; }
 
+bool NameMatcher::MatchAndExplain(
+    const Node* node, ::testing::MatchResultListener* listener) const {
+  if (name_ == node->GetName()) {
+    return true;
+  }
+  *listener << node->ToString() << " has incorrect name, expected: " << name_;
+  return false;
+}
+
+void NameMatcher::DescribeTo(std::ostream* os) const { *os << name_; }
+
 bool ParamMatcher::MatchAndExplain(
     const Node* node, ::testing::MatchResultListener* listener) const {
   if (!NodeMatcher::MatchAndExplain(node, listener)) {

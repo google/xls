@@ -38,9 +38,24 @@ namespace op_matchers {
 //
 //    EXPECT_THAT(f->return_value(),
 //                m::BitSlice(m::Param(), /*start=*/3, /*width=*/8));
+//
+// Matchers can be combined with ::testing::AllOf like in the example below
+// which expects the bit-slice operand to be a param node of the given type:
+//
+//    using ::testing::AllOf;
+//    ...
+//    EXPECT_THAT(f->return_value(),
+//                m::BitSlice(AllOf(m::Param(), m::Type("bits[7]")),
+//                            /*start=*/3, /*width=*/8));
+//
+// Nodes can also be matched by name. Here, "foo", "bar", and "baz" are
+// names of nodes in the function.
+//
+//    EXPECT_THAT(f->return_value(),
+//                m::Or(m::Name("foo"), m::Name("bar"), m::Name("baz")));
 
-// Base class for matchers. Only checks the op and then recursively checks the
-// operands.
+// Base class for matchers. Has two constructions. The first checks the op and
+// then recursively checks the operands. The second simply matches the name.
 class NodeMatcher : public ::testing::MatcherInterface<const Node*> {
  public:
   NodeMatcher(Op op, std::vector<::testing::Matcher<const Node*>> operands)
@@ -79,6 +94,28 @@ inline ::testing::Matcher<const ::xls::Node*> Type(const Type* type) {
 
 inline ::testing::Matcher<const ::xls::Node*> Type(const char* type_str) {
   return ::testing::MakeMatcher(new ::xls::op_matchers::TypeMatcher(type_str));
+}
+
+// Class for matching node names. Example usage:
+//
+//   EXPECT_THAT(baz, m::Or(m::Name("foo"), m::Name("bar"))
+//
+// TODO(meheff): Through template wizardry it'd probably be possible to elide
+// the m::Name. For example: EXPECT_THAT(baz, m::Or("foo", "bar")).
+class NameMatcher : public ::testing::MatcherInterface<const Node*> {
+ public:
+  explicit NameMatcher(absl::string_view name) : name_(name) {}
+
+  bool MatchAndExplain(const Node* node,
+                       ::testing::MatchResultListener* listener) const override;
+  void DescribeTo(std::ostream* os) const override;
+
+ private:
+  std::string name_;
+};
+
+inline ::testing::Matcher<const ::xls::Node*> Name(absl::string_view name_str) {
+  return ::testing::MakeMatcher(new ::xls::op_matchers::NameMatcher(name_str));
 }
 
 // Node* matchers for ops which have no metadata beyond Op, type, and operands.
@@ -127,8 +164,8 @@ NODE_MATCHER(UGe);
 NODE_MATCHER(UGt);
 NODE_MATCHER(ULe);
 NODE_MATCHER(ULt);
-NODE_MATCHER(UMul);
 NODE_MATCHER(UMod);
+NODE_MATCHER(UMul);
 NODE_MATCHER(Xor);
 NODE_MATCHER(XorReduce);
 NODE_MATCHER(ZeroExt);

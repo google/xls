@@ -53,23 +53,23 @@ TEST(IrMatchersTest, Basic) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
   EXPECT_THAT(x.node(), m::Param());
-  EXPECT_THAT(x.node(), m::Param("x"));
+  EXPECT_THAT(x.node(), m::Name("x"));
   EXPECT_THAT(x.node(), m::Type("bits[32]"));
-  EXPECT_THAT(x.node(), AllOf(m::Param("x"), m::Type("bits[32]")));
+  EXPECT_THAT(x.node(), AllOf(m::Name("x"), m::Type("bits[32]")));
 
   EXPECT_THAT(y.node(), m::Param());
-  EXPECT_THAT(y.node(), m::Param("y"));
+  EXPECT_THAT(y.node(), m::Name("y"));
   EXPECT_THAT(y.node(), m::Type("bits[32]"));
 
   EXPECT_THAT(f->return_value(), m::Add());
   EXPECT_THAT(f->return_value(), m::Add(m::Sub(), m::Not()));
   EXPECT_THAT(f->return_value(),
               m::Add(m::Sub(m::Param(), m::Param()), m::Not(m::Param())));
-  EXPECT_THAT(f->return_value(), m::Add(m::Sub(m::Param("x"), m::Param("y")),
-                                        m::Not(m::Param("x"))));
-  EXPECT_THAT(f->return_value(), m::Add(m::Sub(_, m::Param("y")), _));
+  EXPECT_THAT(f->return_value(),
+              m::Add(m::Sub(m::Name("x"), m::Name("y")), m::Not(m::Name("x"))));
+  EXPECT_THAT(f->return_value(), m::Add(m::Sub(_, m::Name("y")), _));
 
-  EXPECT_THAT(Explain(x.node(), m::Param("z")),
+  EXPECT_THAT(Explain(x.node(), m::Name("z")),
               Eq("x: bits[32] = param(x) has incorrect name, expected: z"));
   EXPECT_THAT(
       Explain(y.node(), m::Type("bits[123]")),
@@ -99,7 +99,7 @@ TEST(IrMatchersTest, BitSlice) {
   EXPECT_THAT(f->return_value(),
               m::BitSlice(m::Param(), /*start=*/7, /*width=*/9));
   EXPECT_THAT(f->return_value(),
-              m::BitSlice(m::Param("x"), /*start=*/7, /*width=*/9));
+              m::BitSlice(m::Name("x"), /*start=*/7, /*width=*/9));
 
   EXPECT_THAT(
       Explain(f->return_value(), m::BitSlice(/*start=*/7, /*width=*/42)),
@@ -124,7 +124,7 @@ TEST(IrMatchersTest, DynamicBitSlice) {
   EXPECT_THAT(f->return_value(),
               m::DynamicBitSlice(m::Param(), m::Param(), /*width=*/5));
   EXPECT_THAT(f->return_value(),
-              m::DynamicBitSlice(m::Param("x"), m::Param("y"), /*width=*/5));
+              m::DynamicBitSlice(m::Name("x"), m::Name("y"), /*width=*/5));
 
   EXPECT_THAT(Explain(f->return_value(),
                       m::DynamicBitSlice(m::Param(), m::Param(), /*width=*/42)),
@@ -184,9 +184,8 @@ TEST(IrMatchersTest, OneHotSelect) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
   EXPECT_THAT(f->return_value(), m::OneHotSelect());
-  EXPECT_THAT(
-      f->return_value(),
-      m::OneHotSelect(m::Param("pred"), {m::Param("x"), m::Param("y")}));
+  EXPECT_THAT(f->return_value(),
+              m::OneHotSelect(m::Name("pred"), {m::Name("x"), m::Name("y")}));
 }
 
 TEST(IrMatchersTest, Select) {
@@ -201,16 +200,16 @@ TEST(IrMatchersTest, Select) {
 
   EXPECT_THAT(f->return_value(), m::Select());
   EXPECT_THAT(f->return_value(),
-              m::Select(m::Param("pred"), {m::Param("x"), m::Param("y")}));
+              m::Select(m::Name("pred"), {m::Name("x"), m::Name("y")}));
   EXPECT_THAT(f->return_value(),
-              m::Select(m::Param("pred"), {m::Param("x"), m::Param("y")},
+              m::Select(m::Name("pred"), {m::Name("x"), m::Name("y")},
                         /*default_value=*/absl::nullopt));
 
   EXPECT_THAT(
-      Explain(f->return_value(), m::Select(m::Param("pred"), {m::Param("x")},
-                                           /*default_value=*/m::Param("y"))),
+      Explain(f->return_value(), m::Select(m::Name("pred"), {m::Name("x")},
+                                           /*default_value=*/m::Name("y"))),
       Eq("sel.4: bits[32] = sel(pred, cases=[x, y]) has no default value, "
-         "expected: param"));
+         "expected: y"));
 }
 
 TEST(IrMatchersTest, SelectWithDefault) {
@@ -226,13 +225,13 @@ TEST(IrMatchersTest, SelectWithDefault) {
 
   EXPECT_THAT(f->return_value(), m::Select());
   EXPECT_THAT(f->return_value(),
-              m::Select(m::Param("pred"), {m::Param("x"), m::Param("y")},
-                        /*default_value=*/m::Param("z")));
+              m::Select(m::Name("pred"), {m::Name("x"), m::Name("y")},
+                        /*default_value=*/m::Name("z")));
 
   EXPECT_THAT(
       Explain(f->return_value(),
-              m::Select(m::Param("pred"),
-                        {m::Param("x"), m::Param("y"), m::Param("z")})),
+              m::Select(m::Name("pred"),
+                        {m::Name("x"), m::Name("y"), m::Name("z")})),
       Eq("sel.5: bits[32] = sel(pred, cases=[x, y], default=z) has default "
          "value, expected no default value"));
 }
@@ -292,9 +291,9 @@ TEST(IrMatchersTest, ReductionOps) {
   auto xor_reduce = fb.XorReduce(param);
   XLS_ASSERT_OK(fb.Build().status());
 
-  EXPECT_THAT(or_reduce.node(), m::OrReduce(m::Param("param")));
-  EXPECT_THAT(xor_reduce.node(), m::XorReduce(m::Param("param")));
-  EXPECT_THAT(and_reduce.node(), m::AndReduce(m::Param("param")));
+  EXPECT_THAT(or_reduce.node(), m::OrReduce(m::Name("param")));
+  EXPECT_THAT(xor_reduce.node(), m::XorReduce(m::Name("param")));
+  EXPECT_THAT(and_reduce.node(), m::AndReduce(m::Name("param")));
 }
 
 TEST(IrMatchersTest, SendOps) {
@@ -319,13 +318,13 @@ TEST(IrMatchersTest, SendOps) {
 
   EXPECT_THAT(send.node(), m::Send());
   EXPECT_THAT(send.node(), m::Send(/*channel_id=*/42));
-  EXPECT_THAT(send.node(), m::Send(m::Param("my_token"), {m::Param("my_state")},
+  EXPECT_THAT(send.node(), m::Send(m::Name("my_token"), {m::Name("my_state")},
                                    /*channel_id=*/42));
 
   EXPECT_THAT(send_if.node(), m::SendIf());
   EXPECT_THAT(send_if.node(), m::SendIf(/*channel_id=*/123));
-  EXPECT_THAT(send_if.node(), m::SendIf(m::Param("my_token"), m::Literal(),
-                                        {m::Param("my_state")},
+  EXPECT_THAT(send_if.node(), m::SendIf(m::Name("my_token"), m::Literal(),
+                                        {m::Name("my_state")},
                                         /*channel_id=*/123));
 }
 
@@ -353,14 +352,13 @@ TEST(IrMatchersTest, ReceiveOps) {
 
   EXPECT_THAT(receive.node(), m::Receive());
   EXPECT_THAT(receive.node(), m::Receive(/*channel_id=*/42));
-  EXPECT_THAT(receive.node(), m::Receive(m::Param("my_token"),
+  EXPECT_THAT(receive.node(), m::Receive(m::Name("my_token"),
                                          /*channel_id=*/42));
 
   EXPECT_THAT(receive_if.node(), m::ReceiveIf());
   EXPECT_THAT(receive_if.node(), m::ReceiveIf(/*channel_id=*/123));
-  EXPECT_THAT(receive_if.node(),
-              m::ReceiveIf(m::Param("my_token"), m::Literal(),
-                           /*channel_id=*/123));
+  EXPECT_THAT(receive_if.node(), m::ReceiveIf(m::Name("my_token"), m::Literal(),
+                                              /*channel_id=*/123));
 }
 
 }  // namespace
