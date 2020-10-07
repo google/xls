@@ -50,6 +50,59 @@ py_binary(
 )
 
 cc_library(
+    name = "booleanifier",
+    srcs = ["booleanifier.cc"],
+    hdrs = ["booleanifier.h"],
+    deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:abstract_evaluator",
+        "//xls/ir:abstract_node_evaluator",
+        "//xls/ir:function_builder",
+        "//xls/ir:type",
+    ],
+)
+
+cc_test(
+    name = "booleanifier_test",
+    srcs = ["booleanifier_test.cc"],
+    data = [
+        "//xls/examples:crc32_opt_ir",
+    ],
+    deps = [
+        ":booleanifier",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/status:matchers",
+        "//xls/interpreter:ir_interpreter",
+        "//xls/ir:ir_parser",
+        "//xls/jit:ir_jit",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_binary(
+    name = "booleanify_main",
+    srcs = ["booleanify_main.cc"],
+    deps = [
+        ":booleanifier",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:optional",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+    ],
+)
+
+cc_library(
     name = "verilog_include",
     hdrs = ["verilog_include.h"],
 )
@@ -200,6 +253,28 @@ cc_binary(
         "//xls/netlist:lib_parser",
         "//xls/netlist:netlist_cc_proto",
         "//xls/netlist:netlist_parser",
+    ],
+)
+
+cc_binary(
+    name = "smtlib_emitter_main",
+    srcs = ["smtlib_emitter_main.cc"],
+    deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:optional",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:abstract_evaluator",
+        "//xls/ir:abstract_node_evaluator",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_parser",
+        "//xls/solvers:z3_ir_translator",
+        "@z3//:api",
     ],
 )
 

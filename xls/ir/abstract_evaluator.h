@@ -17,7 +17,6 @@
 
 #include <vector>
 
-#include "absl/functional/function_ref.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "xls/common/integral_types.h"
@@ -120,6 +119,21 @@ class AbstractEvaluator {
       result = And(result, Or(And(a[i], b[i]), And(Not(a[i]), Not(b[i]))));
     }
     return result;
+  }
+
+  Element SLessThan(const Vector& a, const Vector& b) {
+    // A < B if:
+    //  - A is negative && B is non-negative, or
+    //  - B has a more-signficant bit set (when A and B have the same sign)
+    // Which simplifies to:
+    //  (A is neg & B is non-neg) ||
+    //  (Not(A is non_neg & B is neg) & B has a more-significant bit set))
+    // Which simplifies to:
+    //  (A is neg & B is non-neg) ||
+    //  (Not(A is non-neg and B is neg) && ULessThan(a, b))
+    Element a_neg_b_non_neg = And(a.back(), Not(b.back()));
+    Element a_non_neg_b_neg = And(Not(a.back()), b.back());
+    return Or(a_neg_b_non_neg, And(Not(a_non_neg_b_neg), ULessThan(a, b)));
   }
 
   Element ULessThan(const Vector& a, const Vector& b) {
@@ -303,6 +317,10 @@ class AbstractEvaluator {
       carry = OrReduce(carry_cases)[0];
     }
     return result;
+  }
+
+  Vector Neg(const Vector& x) {
+    return Add(BitwiseNot(x), BitsToVector(UBits(1, x.size())));
   }
 
   // Signed multiplication of two Vectors.

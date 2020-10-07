@@ -17,6 +17,12 @@ tool may be run against arbitrary IR not just the fixed set of XLS benchmarks.
 The output of this tool is scraped by `run_benchmarks` to construct a table
 comparing metrics against a mint CL across the benchmark suite.
 
+## [`booleanify_main`](https://github.com/google/xls/tree/main/xls/tools/booleanify_main.cc)
+
+Rewrites an XLS IR function in terms of its ops' fundamental AND/OR/NOT
+constituents, i.e., makes all operations boolean, thus it's "booleanifying" the
+function.
+
 ## [`codegen_main`](https://github.com/google/xls/tree/main/xls/tools/codegen_main.cc)
 
 Lowers an XLS IR file into Verilog. Options include emitting a feedforward
@@ -70,6 +76,11 @@ Runs XLS IR through the optimization pipeline.
 Runs an Verilog block emitted by XLS through a Verilog simulator. Requires both
 the Verilog text and the module signature which includes metadata about the
 block.
+
+## [`smtlib_emitter_main`](https://github.com/google/xls/tree/main/xls/tools/smtlib_emitter_main.cc)
+
+Simple driver for Z3IrTranslator - converts a given IR function into its Z3
+representation and outputs that translation as SMTLIB2.
 
 ## [`solver`](https://github.com/google/xls/tree/main/xls/tools/solver.cc)
 

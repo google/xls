@@ -36,6 +36,7 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
     std::function<typename AbstractEvaluatorT::Vector(Node*)> default_handler) {
   using Vector = typename AbstractEvaluatorT::Vector;
 
+  XLS_VLOG(3) << "Handling " << node->ToString();
   auto check_operand_count = [&](int64 expected) {
     if (operands.size() != expected) {
       return absl::InvalidArgumentError(
@@ -46,18 +47,15 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
     return absl::OkStatus();
   };
 
-  // TODO(meheff): Extend this to non-Bits-typed values.
-  if (!node->GetType()->IsBits() ||
-      !std::all_of(node->operands().begin(), node->operands().end(),
-                   [](Node* o) { return o->GetType()->IsBits(); })) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Only Bits types supported for evaluation, node: %s",
-                        node->ToString()));
-  }
+  // Important! Array and Tuples are "pass-through" - all ops will be passed to
+  // the default_handler.
+  // TODO(rspringer): Actually, the implementations in smtlib_emitter_main.cc
+  // seem general enough. Make them "official"?
 
   switch (node->op()) {
     case Op::kAdd:
-      return default_handler(node);
+      XLS_RETURN_IF_ERROR(check_operand_count(2));
+      return evaluator->Add(operands[0], operands[1]);
     case Op::kAnd:
       return evaluator->BitwiseAnd(operands);
     case Op::kAndReduce:
@@ -123,7 +121,8 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
       return Vector(
           {evaluator->Not(evaluator->Equals(operands[0], operands[1]))});
     case Op::kNeg:
-      return default_handler(node);
+      XLS_RETURN_IF_ERROR(check_operand_count(1));
+      return evaluator->Neg(operands[0]);
     case Op::kNor:
       return evaluator->BitwiseNot(evaluator->BitwiseOr(operands));
     case Op::kNot:
@@ -159,13 +158,19 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
     case Op::kSMod:
       return default_handler(node);
     case Op::kSGe:
-      return default_handler(node);
+      XLS_RETURN_IF_ERROR(check_operand_count(2));
+      return Vector(
+          {evaluator->Not(evaluator->SLessThan(operands[0], operands[1]))});
     case Op::kSGt:
       return default_handler(node);
     case Op::kSLe:
-      return default_handler(node);
+      XLS_RETURN_IF_ERROR(check_operand_count(2));
+      return Vector(
+          {evaluator->Or(evaluator->Equals(operands[0], operands[1]),
+                         evaluator->SLessThan(operands[0], operands[1]))});
     case Op::kSLt:
-      return default_handler(node);
+      XLS_RETURN_IF_ERROR(check_operand_count(2));
+      return Vector({evaluator->SLessThan(operands[0], operands[1])});
     case Op::kSel: {
       Select* sel = node->As<Select>();
       absl::Span<const Vector> cases =
@@ -193,7 +198,8 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
     case Op::kSMul:
       return default_handler(node);
     case Op::kSub:
-      return default_handler(node);
+      XLS_RETURN_IF_ERROR(check_operand_count(2));
+      return evaluator->Add(operands[0], evaluator->Neg(operands[1]));
     case Op::kTuple:
       return default_handler(node);
     case Op::kTupleIndex:

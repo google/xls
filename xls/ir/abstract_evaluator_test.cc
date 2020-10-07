@@ -86,6 +86,29 @@ TEST(AbstractEvaluatorTest, Add) {
   EXPECT_EQ(c.ToInt64().value(), -1);
 }
 
+TEST(AbstractEvaluatorTest, Neg) {
+  TestAbstractEvaluator eval;
+  Bits a = SBits(4, 32);
+  Bits b = FromBoxedVector(eval.Neg(ToBoxedVector(a)));
+  EXPECT_EQ(b.ToInt64().value(), -4);
+
+  a = SBits(1023, 32);
+  b = FromBoxedVector(eval.Neg(ToBoxedVector(a)));
+  EXPECT_EQ(b.ToInt64().value(), -1023);
+
+  a = SBits(-1024, 32);
+  b = FromBoxedVector(eval.Neg(ToBoxedVector(a)));
+  EXPECT_EQ(b.ToInt64().value(), 1024);
+
+  a = SBits(5893798, 32);
+  b = FromBoxedVector(eval.Neg(ToBoxedVector(a)));
+  EXPECT_EQ(b.ToInt64().value(), -5893798);
+
+  a = SBits(0, 32);
+  b = FromBoxedVector(eval.Neg(ToBoxedVector(a)));
+  EXPECT_EQ(b.ToInt64().value(), 0);
+}
+
 TEST(AbstractEvaluatorTest, UMul) {
   TestAbstractEvaluator eval;
   Bits a = UBits(3, 8);
@@ -125,6 +148,45 @@ TEST(AbstractEvaluatorTest, SMul) {
   b = SBits(-64, 64);
   c = FromBoxedVector(eval.SMul(ToBoxedVector(a), ToBoxedVector(b)));
   EXPECT_EQ(c.ToInt64().value(), 8128);
+}
+
+TEST(AbstractEvaluatorTest, SLessThan) {
+  TestAbstractEvaluator eval;
+  for (int a = -4; a <= 3; ++a) {
+    for (int b = -4; b <= 3; ++b) {
+      EXPECT_EQ(
+          eval.SLessThan(ToBoxedVector(SBits(a, 3)), ToBoxedVector(SBits(b, 3)))
+              .value,
+          a < b);
+    }
+  }
+  Bits a = SBits(2, 32);
+  Bits b = SBits(4, 32);
+  EXPECT_EQ(eval.SLessThan(ToBoxedVector(a), ToBoxedVector(b)).value, 1);
+
+  a = SBits(2, 32);
+  b = SBits(-4, 32);
+  EXPECT_EQ(eval.SLessThan(ToBoxedVector(a), ToBoxedVector(b)).value, 0);
+
+  a = SBits(-2, 32);
+  b = SBits(-4, 32);
+  EXPECT_EQ(eval.SLessThan(ToBoxedVector(a), ToBoxedVector(b)).value, 0);
+
+  a = SBits(-2, 32);
+  b = SBits(4, 32);
+  EXPECT_EQ(eval.SLessThan(ToBoxedVector(a), ToBoxedVector(b)).value, 1);
+
+  a = SBits(0, 32);
+  b = SBits(0, 32);
+  EXPECT_EQ(eval.SLessThan(ToBoxedVector(a), ToBoxedVector(b)).value, 0);
+
+  a = SBits(0, 32);
+  b = SBits(16, 32);
+  EXPECT_EQ(eval.SLessThan(ToBoxedVector(a), ToBoxedVector(b)).value, 1);
+
+  a = SBits(0, 32);
+  b = SBits(-16, 32);
+  EXPECT_EQ(eval.SLessThan(ToBoxedVector(a), ToBoxedVector(b)).value, 0);
 }
 
 }  // namespace
