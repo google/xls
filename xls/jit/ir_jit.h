@@ -123,21 +123,6 @@ class IrJit {
   // closely packed, without any padding bits or bytes between them.
   absl::Status CompilePackedViewFunction(llvm::Module* module);
 
-  // Packs an element into an LLVM integral type...in other words, packs an
-  // output element into the return buffer/value.
-  // Args:
-  //   builder: The active IR builder.
-  //   element: The element to pack into the return buffer.
-  //   type: The XLS type of the element to pack.
-  //   buffer: The output/packing buffer.
-  //   bit_offset: The location into the buffer to write the input element. For
-  //     multi-byte structures, this can be > 7.
-  absl::StatusOr<llvm::Value*> PackElement(llvm::IRBuilder<>& builder,
-                                           llvm::Value* element,
-                                           Type* element_type,
-                                           llvm::Value* buffer,
-                                           int64 bit_offset);
-
   llvm::Expected<llvm::orc::ThreadSafeModule> Optimizer(
       llvm::orc::ThreadSafeModule module,
       const llvm::orc::MaterializationResponsibility& responsibility);

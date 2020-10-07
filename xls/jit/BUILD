@@ -20,6 +20,22 @@ package(
 )
 
 cc_library(
+    name = "function_builder_visitor",
+    srcs = ["function_builder_visitor.cc"],
+    hdrs = ["function_builder_visitor.h"],
+    deps = [
+        ":jit_runtime",
+        ":llvm_type_converter",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:optional",
+        "@com_google_absl//absl/types:span",
+        "//xls/codegen:vast",
+        "//xls/ir",
+        "@llvm//:Core",
+    ],
+)
+
+cc_library(
     name = "jit_wrapper_generator",
     srcs = ["jit_wrapper_generator.cc"],
     hdrs = ["jit_wrapper_generator.h"],
@@ -64,6 +80,7 @@ cc_library(
     srcs = ["ir_jit.cc"],
     hdrs = ["ir_jit.h"],
     deps = [
+        ":function_builder_visitor",
         ":jit_runtime",
         ":llvm_type_converter",
         "@com_google_absl//absl/flags:flag",
