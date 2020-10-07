@@ -181,8 +181,8 @@ absl::Status RealMain(absl::string_view ir_path,
 
   std::unique_ptr<Package> constraints_pkg;
   if (!constraints_file.empty()) {
-    std::filesystem::path ir_converter_path =
-        GetXlsRunfilePath(kIrConverterPath);
+    XLS_ASSIGN_OR_RETURN(std::filesystem::path ir_converter_path,
+                         GetXlsRunfilePath(kIrConverterPath));
     std::vector<std::string> args;
     args.push_back(ir_converter_path);
     args.push_back(std::string(constraints_file));

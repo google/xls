@@ -45,8 +45,8 @@ absl::StatusOr<FunctionData> GetFunctionData(const std::string& ir_text,
 
 absl::StatusOr<FunctionData> GetFunctionDataFromFile(
     const std::string& ir_path, const std::string& fn_name) {
-  XLS_ASSIGN_OR_RETURN(std::string ir_text,
-                       GetFileContents(GetXlsRunfilePath(ir_path)));
+  XLS_ASSIGN_OR_RETURN(std::string runfile_path, GetXlsRunfilePath(ir_path));
+  XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(runfile_path));
   return GetFunctionData(ir_text, fn_name);
 }
 

@@ -116,6 +116,7 @@ cc_library(
     data = [
         ":ir_example_file_list.txt",
         ":ir_examples",
+        "//xls/examples:adler32.opt.ir",
     ],
     deps = [
         "@com_google_absl//absl/memory",

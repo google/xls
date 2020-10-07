@@ -27,8 +27,11 @@ using status_testing::IsOkAndHolds;
 using ::testing::HasSubstr;
 
 TEST(GetRunfilePathTest, GetXlsRunfilePathReturnsTheRightPath) {
-  absl::StatusOr<std::string> test_cc_file_contents = GetFileContents(
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::filesystem::path runfile_path,
       GetXlsRunfilePath("xls/common/file/get_runfile_path_test.cc"));
+  absl::StatusOr<std::string> test_cc_file_contents =
+      GetFileContents(runfile_path);
 
   EXPECT_THAT(
       test_cc_file_contents,

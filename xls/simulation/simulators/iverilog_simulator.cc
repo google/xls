@@ -32,12 +32,12 @@ namespace {
 absl::StatusOr<std::pair<std::string, std::string>> InvokeIverilog(
     absl::Span<const std::string> args) {
   std::vector<std::string> args_vec;
-  std::string iverilog_path =
-      GetXlsRunfilePath("external/com_icarus_iverilog/iverilog-bin").string();
-  args_vec.push_back(iverilog_path);
+  XLS_ASSIGN_OR_RETURN(std::filesystem::path iverilog_path,
+                       GetXlsRunfilePath("external/com_icarus_iverilog/iverilog-bin"));
+  args_vec.push_back(iverilog_path.string());
   args_vec.push_back("-B");
   args_vec.push_back(
-      std::string(absl::StripSuffix(iverilog_path, "iverilog-bin")));
+      std::string(absl::StripSuffix(iverilog_path.string(), "iverilog-bin")));
   args_vec.insert(args_vec.end(), args.begin(), args.end());
   return InvokeSubprocess(args_vec);
 }
@@ -45,11 +45,12 @@ absl::StatusOr<std::pair<std::string, std::string>> InvokeIverilog(
 absl::StatusOr<std::pair<std::string, std::string>> InvokeVvp(
     absl::Span<const std::string> args) {
   std::vector<std::string> args_vec;
-  std::string iverilog_path =
-      GetXlsRunfilePath("external/com_icarus_iverilog/vvp-bin").string();
-  args_vec.push_back(iverilog_path);
+  XLS_ASSIGN_OR_RETURN(std::filesystem::path iverilog_path,
+                       GetXlsRunfilePath("external/com_icarus_iverilog/vvp-bin"));
+  args_vec.push_back(iverilog_path.string());
   args_vec.push_back("-M");
-  args_vec.push_back(std::string(absl::StripSuffix(iverilog_path, "vvp-bin")));
+  args_vec.push_back(
+      std::string(absl::StripSuffix(iverilog_path.string(), "vvp-bin")));
   args_vec.insert(args_vec.end(), args.begin(), args.end());
   return InvokeSubprocess(args_vec);
 }

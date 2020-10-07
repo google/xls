@@ -91,9 +91,10 @@ absl::StatusOr<std::vector<VerilogInclude>> Ice40IoStrategy::GetIncludes() {
   for (const char* rel_path : kIncludes) {
     VerilogInclude include;
     include.relative_path = rel_path;
-    XLS_ASSIGN_OR_RETURN(
-        include.verilog_text,
-        xls::GetFileContents(xls::GetXlsRunfilePath(rel_path)));
+    XLS_ASSIGN_OR_RETURN(std::filesystem::path runfile_path,
+                         xls::GetXlsRunfilePath(rel_path));
+    XLS_ASSIGN_OR_RETURN(include.verilog_text,
+                         xls::GetFileContents(runfile_path));
     includes.push_back(std::move(include));
   }
   return includes;

@@ -24,7 +24,8 @@ namespace xls {
 namespace netlist {
 
 absl::StatusOr<CellLibrary> MakeFakeCellLibrary() {
-  std::filesystem::path proto_path(
+  XLS_ASSIGN_OR_RETURN(
+      std::filesystem::path proto_path,
       GetXlsRunfilePath("xls/netlist/fake_cell_library.textproto"));
 
   CellLibraryProto proto;

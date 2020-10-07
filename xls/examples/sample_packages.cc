@@ -212,8 +212,9 @@ absl::StatusOr<std::unique_ptr<Package>> GetBenchmark(absl::string_view name,
                                                       bool optimized) {
   std::filesystem::path filename =
       optimized ? absl::StrCat(name, ".opt.ir") : absl::StrCat(name, ".ir");
-  absl::StatusOr<std::string> ir_status =
-      GetFileContents(GetXlsRunfilePath("xls/examples" / filename));
+  XLS_ASSIGN_OR_RETURN(std::filesystem::path runfile_path,
+                       GetXlsRunfilePath("xls/examples" / filename));
+  absl::StatusOr<std::string> ir_status = GetFileContents(runfile_path);
   if (!ir_status.ok()) {
     return absl::Status(ir_status.status().code(),
                         absl::StrFormat("GetBenchmark %s failed: %s", name,
@@ -225,12 +226,14 @@ absl::StatusOr<std::unique_ptr<Package>> GetBenchmark(absl::string_view name,
 absl::StatusOr<std::vector<std::string>> GetBenchmarkNames() {
   XLS_ASSIGN_OR_RETURN(std::vector<std::string> example_paths,
                        GetExamplePaths());
-  std::filesystem::path example_file_list_path =
-      GetXlsRunfilePath("xls/examples/ir_example_file_list.txt");
+  XLS_ASSIGN_OR_RETURN(
+      std::filesystem::path example_file_list_path,
+      GetXlsRunfilePath("xls/examples/ir_example_file_list.txt"));
 
   std::vector<std::string> names;
   for (auto& example_path : example_paths) {
-    std::string absolute_example_path = GetXlsRunfilePath(example_path);
+    XLS_ASSIGN_OR_RETURN(std::string absolute_example_path,
+                         GetXlsRunfilePath(example_path));
     absl::string_view example_path_view = absolute_example_path;
     // Check if the file name ends with ".opt.ir". If so, strip the suffix and
     // add the result to names.

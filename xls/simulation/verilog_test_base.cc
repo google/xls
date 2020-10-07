@@ -67,7 +67,8 @@ void VerilogTestBase::ExpectVerilogEqualToGoldenFile(
     XLS_CHECK_OK(SetFileContents(abs_path, text));
     XLS_LOG(INFO) << "Updated golden file: " << golden_file_path;
   } else {
-    std::filesystem::path abs_path = GetXlsRunfilePath(golden_file_path);
+    XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path abs_path,
+                             GetXlsRunfilePath(golden_file_path));
     std::string golden = GetFileContents(abs_path).value();
     ExpectVerilogEqual(golden, text, includes);
   }

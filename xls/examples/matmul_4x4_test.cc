@@ -62,7 +62,8 @@ absl::StatusOr<int64> ChannelDataToInt(const ChannelData& data) {
 // Straightforward test - can we correctly multiply a matrix against the
 // identity matrix baked into the IR?
 TEST(Matmul4x4Test, Works) {
-  std::filesystem::path ir_path = GetXlsRunfilePath(kIrPath);
+  XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path ir_path,
+                           GetXlsRunfilePath(kIrPath));
   XLS_ASSERT_OK_AND_ASSIGN(std::string ir_text, GetFileContents(ir_path));
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
 

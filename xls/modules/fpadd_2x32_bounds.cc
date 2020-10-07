@@ -128,8 +128,8 @@ absl::StatusOr<Z3_ast> CreateReferenceComparisonFunction(
 }
 
 absl::StatusOr<std::unique_ptr<Package>> GetIr(bool opt_ir) {
-  std::filesystem::path ir_path =
-      GetXlsRunfilePath(opt_ir ? kOptIrPath : kIrPath);
+  XLS_ASSIGN_OR_RETURN(std::filesystem::path ir_path,
+                       GetXlsRunfilePath(opt_ir ? kOptIrPath : kIrPath));
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));
   return Parser::ParsePackage(ir_text);
 }
