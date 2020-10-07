@@ -14,7 +14,7 @@
 
 """Contains macros for DSLX test targets."""
 
-# genrules are used in this file
+load("//xls/build:genrule_wrapper.bzl", "genrule_wrapper")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 
 _IR_CONVERTER_MAIN = "//xls/dslx:ir_converter_main"
@@ -54,7 +54,8 @@ def _codegen(
         srcs,
         codegen_params,
         entry = None,
-        tags = []):
+        tags = [],
+        **kwargs):
     """Generates a Verilog file by running codegen_main on the source IR files.
 
     Args:
@@ -63,6 +64,7 @@ def _codegen(
       codegen_params: Codegen configuration used for Verilog generation.
       entry: Name of entry function to codegen.
       tags: Tags to add to RTL target.
+      **kwargs: Extra arguments to pass to genrule.
     """
     codegen_flags = []
     codegen_flags.append("--delay_model=" +
@@ -91,7 +93,7 @@ def _codegen(
     verilog_file = name + ".v"
     module_sig_file = name + ".sig.textproto"
     schedule_file = name + ".schedule.textproto"
-    native.genrule(  # generated_file
+    genrule_wrapper(
         name = name,
         srcs = srcs,
         outs = [verilog_file, module_sig_file, schedule_file],
@@ -106,6 +108,7 @@ def _codegen(
         ),
         exec_tools = [_CODEGEN_MAIN],
         tags = tags,
+        **kwargs
     )
 
 def _make_benchmark_args(package_name, name, entry, args):
@@ -115,7 +118,13 @@ def _make_benchmark_args(package_name, name, entry, args):
     benchmark_args += args
     return benchmark_args
 
-def dslx_codegen(name, dslx_dep, configs, entry = None, tags = None):
+def dslx_codegen(
+        name,
+        dslx_dep,
+        configs,
+        entry = None,
+        tags = None,
+        **kwargs):
     """Exercises code generation to create Verilog (post IR conversion).
 
     Multiple code generation configurations can be given.
@@ -130,6 +139,7 @@ def dslx_codegen(name, dslx_dep, configs, entry = None, tags = None):
         clock_margin_percent, delay_model.
       entry: Entry function name to use for code generation.
       tags: Tags to use for the resulting test targets.
+      **kwargs: Extra arguments to pass to _codegen.
     """
     if not name.endswith("_codegen"):
         fail("Codegen name must end with '_codegen': " + repr(name))
@@ -143,6 +153,7 @@ def dslx_codegen(name, dslx_dep, configs, entry = None, tags = None):
             codegen_params = params,
             entry = entry,
             tags = tags,
+            **kwargs
         )
 
         # Also create a codegen benchmark target.
@@ -186,7 +197,8 @@ def dslx_jit_wrapper(
         name,
         dslx_name = None,
         entry_function = None,
-        deps = []):
+        deps = [],
+        **kwargs):
     """Generates sources and rules for JIT invocation wrappers.
 
     Args:
@@ -198,9 +210,10 @@ def dslx_jit_wrapper(
         searches for functions w/the package name or "main" or some variations
         thereof).
       deps: Dependencies of this wrapper - likely only the source IR.
+      **kwargs: Extra arguments to pass to genrule.
     """
     entry_arg = ("--function=" + entry_function) if entry_function else ""
-    native.genrule(  # generated_file
+    genrule_wrapper(
         name = "gen_" + name,
         srcs = deps,
         outs = [
@@ -211,6 +224,7 @@ def dslx_jit_wrapper(
         exec_tools = [
             "//xls/jit:jit_wrapper_generator_main",
         ],
+        **kwargs
     )
 
     native.cc_library(
@@ -242,7 +256,8 @@ def dslx_test(
         compare_jit = True,
         prove_unopt_eq_opt = True,
         generate_benchmark = True,
-        tags = []):
+        tags = [],
+        **kwargs):
     """Runs all test cases inside of a DSLX source file as a test target.
 
     Args:
@@ -261,6 +276,7 @@ def dslx_test(
       prove_unopt_eq_opt: Whether or not to generate a test to compare semantics
         of opt vs. non-opt IR. Only enabled if convert_ir is true.
       tags: Tags to place on all generated targets.
+      **kwargs: Extra arguments to pass to genrule.
     """
     args = args or []
     deps = deps or []
@@ -292,15 +308,16 @@ def dslx_test(
             ] + srcs + deps,
             tags = tags,
         )
-        native.genrule(  # generated_file
+        genrule_wrapper(
             name = name + "_ir",
             srcs = srcs + deps,
             outs = [name + ".ir"],
             cmd = "$(location //xls/dslx:ir_converter_main) $(SRCS) > $@",
             exec_tools = ["//xls/dslx:ir_converter_main"],
             tags = tags,
+            **kwargs
         )
-        native.genrule(  # generated_file
+        genrule_wrapper(
             name = name + "_opt_ir",
             srcs = srcs + deps,
             outs = [name + ".opt.ir"],
@@ -310,6 +327,7 @@ def dslx_test(
                 "//xls/tools:opt_main",
             ],
             tags = tags,
+            **kwargs
         )
         native.filegroup(
             name = name + "_all_ir",
@@ -379,7 +397,8 @@ def dslx_generated_rtl(
         codegen_params,
         deps = None,
         entry = None,
-        tags = []):
+        tags = [],
+        **kwargs):
     """Generates RTL from DSLX sources using a released toolchain.
 
     Args:
@@ -390,28 +409,31 @@ def dslx_generated_rtl(
       deps: Dependent '.x' file sources.
       entry: Name of entry function to codegen.
       tags: Tags to place on all generated targets.
+      **kwargs: Extra arguments to pass to genrule and _codegen.
     """
     deps = deps or []
     if len(srcs) != 1:
         fail("More than one source not currently supported.")
     src = srcs[0]
 
-    native.genrule(  # generated_file
+    genrule_wrapper(
         name = name + "_ir",
         srcs = [src] + deps,
         outs = [name + ".ir"],
         cmd = "$(location %s) $(SRCS) > $@" % _IR_CONVERTER_MAIN,
         exec_tools = [_IR_CONVERTER_MAIN],
         tags = tags,
+        **kwargs
     )
 
-    native.genrule(  # generated_file
+    genrule_wrapper(
         name = name + "_opt_ir",
         srcs = [":{}_ir".format(name)],
         outs = [name + ".opt.ir"],
         cmd = "$(location %s) --entry=%s  $(SRCS) > $@" % (_OPT_MAIN, entry or ""),
         exec_tools = [_OPT_MAIN],
         tags = tags,
+        **kwargs
     )
 
     _codegen(
@@ -420,6 +442,7 @@ def dslx_generated_rtl(
         codegen_params = codegen_params,
         entry = entry,
         tags = tags,
+        **kwargs
     )
 
     # Add a build test to ensure changes to BUILD and bzl files do not break

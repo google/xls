@@ -14,7 +14,7 @@
 
 """Contains macros for creating XLS delay models."""
 
-# genrules are used in this file
+load("//xls/build:genrule_wrapper.bzl", "genrule_wrapper")
 
 def delay_model(
         name,
@@ -32,7 +32,7 @@ def delay_model(
       precedence: Precedence for the model in the delay model registry.
       srcs: The pbtext file containing the DelayModel proto. There should only
         be a single source file.
-      **kwargs: Keyword args to pass to cc_library rule.
+      **kwargs: Keyword args to pass to cc_library and genrule_wrapper rules.
     """
 
     if len(srcs) != 1:
@@ -41,7 +41,7 @@ def delay_model(
     if precedence not in ("kLow", "kMedium", "kHigh"):
         fail("Invalid precedence for delay model: " + precedence)
 
-    native.genrule(  # generated_file
+    genrule_wrapper(
         name = "{}_source".format(name),
         srcs = srcs,
         outs = ["{}.cc".format(name)],
@@ -53,6 +53,7 @@ def delay_model(
             "//xls/delay_model:generate_delay_lookup",
             "@llvm_toolchain//:bin/clang-format",
         ],
+        **kwargs
     )
     native.cc_library(
         name = name,
