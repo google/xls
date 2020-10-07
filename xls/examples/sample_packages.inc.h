@@ -26,11 +26,12 @@
 namespace xls {
 
 inline absl::StatusOr<std::vector<std::string>> GetExamplePaths() {
-  std::filesystem::path example_file_list_path =
-      GetXlsRunfilePath("xls/examples/ir_example_file_list.txt");
+  XLS_ASSIGN_OR_RETURN(
+      std::filesystem::path example_file_list_path,
+      GetXlsRunfilePath("xls/examples/ir_example_file_list.txt"));
   XLS_ASSIGN_OR_RETURN(std::string example_paths_string,
                        GetFileContents(example_file_list_path));
-  return absl::StrSplit(example_paths_string, '\n'_);
+  return absl::StrSplit(example_paths_string, '\n');
 }
 
 }  // namespace xls
