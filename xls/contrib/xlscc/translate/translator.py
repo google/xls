@@ -1,6 +1,6 @@
 # Lint as: python3
 #
-# Copyright 2020 Google LLC
+# Copyright 2020 The XLS Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -158,7 +158,7 @@ class StructType(Type):
     self.element_types = {}
     self.class_functions = {}
     if isinstance(struct, c_ast.Struct):
-    # Parse c_ast.Struct and make StructType object
+      # Parse c_ast.Struct and make StructType object
       self.is_const = False
       for decl in struct.decls:
         if isinstance(decl, c_ast.FuncDef):

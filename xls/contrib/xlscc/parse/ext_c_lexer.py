@@ -1,6 +1,6 @@
 # Lint as: python3
 #
-# Copyright 2020 Google LLC
+# Copyright 2020 The XLS Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,4 +39,3 @@ def add_lexer_keywords(cls, keywords):
 _CL_KEYWORDS = ['BOOL', 'TRUE', 'FALSE', 'TEMPLATE', 'CLASS', 'PUBLIC',
                 'PRIVATE']
 add_lexer_keywords(XLSccLexer, [str.lower(kw) for kw in _CL_KEYWORDS])
-
