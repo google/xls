@@ -47,8 +47,8 @@ class FunctionBuilderTest(absltest.TestCase):
 package test_package
 
 fn test_function(x: bits[32]) -> bits[32] {
-  my_or: bits[32] = or(x, x, pos=0,42,64)
-  ret why_not: bits[32] = not(x, pos=0,42,64)
+  my_or: bits[32] = or(x, x, id=2, pos=0,42,64)
+  ret why_not: bits[32] = not(x, id=3, pos=0,42,64)
 }
 """)
 
@@ -74,15 +74,15 @@ fn test_function(x: bits[32]) -> bits[32] {
 package test_package
 
 fn add_wrapper(x: bits[32], y: bits[32]) -> bits[32] {
-  ret add.3: bits[32] = add(x, y)
+  ret add.3: bits[32] = add(x, y, id=3)
 }
 
 fn main() -> bits[1] {
-  literal.4: bits[32] = literal(value=2)
-  literal.5: bits[32] = literal(value=3)
-  invoke.6: bits[32] = invoke(literal.4, literal.5, to_apply=add_wrapper)
-  literal.7: bits[32] = literal(value=5)
-  ret eq.8: bits[1] = eq(invoke.6, literal.7)
+  literal.4: bits[32] = literal(value=2, id=4)
+  literal.5: bits[32] = literal(value=3, id=5)
+  invoke.6: bits[32] = invoke(literal.4, literal.5, to_apply=add_wrapper, id=6)
+  literal.7: bits[32] = literal(value=5, id=7)
+  ret eq.8: bits[1] = eq(invoke.6, literal.7, id=8)
 }
 """)
 
@@ -100,7 +100,7 @@ fn main() -> bits[1] {
 package test_package
 
 fn f() -> bits[32][2] {
-  ret literal.1: bits[32][2] = literal(value=[5, 6])
+  ret literal.1: bits[32][2] = literal(value=[5, 6], id=1)
 }
 """)
 
@@ -121,9 +121,9 @@ fn f() -> bits[32][2] {
 package test_package
 
 fn f(pred_x: bits[1], x: bits[32], pred_y: bits[1], y: bits[32], default: bits[32]) -> bits[32] {
-  concat.6: bits[2] = concat(pred_y, pred_x)
-  one_hot.7: bits[3] = one_hot(concat.6, lsb_prio=true)
-  ret one_hot_sel.8: bits[32] = one_hot_sel(one_hot.7, cases=[x, y, default])
+  concat.6: bits[2] = concat(pred_y, pred_x, id=6)
+  one_hot.7: bits[3] = one_hot(concat.6, lsb_prio=true, id=7)
+  ret one_hot_sel.8: bits[32] = one_hot_sel(one_hot.7, cases=[x, y, default], id=8)
 }
 """)
 

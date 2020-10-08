@@ -29,6 +29,7 @@ namespace {
 using ::testing::_;
 using ::testing::AllOf;
 using ::testing::Eq;
+using ::testing::HasSubstr;
 
 template <typename M, typename T>
 std::string Explain(const T& t, const M& m) {
@@ -70,20 +71,16 @@ TEST(IrMatchersTest, Basic) {
   EXPECT_THAT(f->return_value(), m::Add(m::Sub(_, m::Name("y")), _));
 
   EXPECT_THAT(Explain(x.node(), m::Name("z")),
-              Eq("x: bits[32] = param(x) has incorrect name, expected: z"));
-  EXPECT_THAT(
-      Explain(y.node(), m::Type("bits[123]")),
-      Eq("y: bits[32] = param(y) has incorrect type, expected: bits[123]"));
+              HasSubstr("has incorrect name, expected: z"));
+  EXPECT_THAT(Explain(y.node(), m::Type("bits[123]")),
+              HasSubstr("has incorrect type, expected: bits[123]"));
   EXPECT_THAT(Explain(y.node(), m::Add()),
-              Eq("y: bits[32] = param(y) has incorrect op, expected: add"));
+              HasSubstr("has incorrect op, expected: add"));
 
   EXPECT_THAT(Explain(f->return_value(), m::Add(m::Param())),
-              Eq("add.5: bits[32] = add(sub.3, not.4) has too many operands "
-                 "(got 2, want 1)"));
+              HasSubstr("has too many operands (got 2, want 1)"));
   EXPECT_THAT(Explain(f->return_value(), m::Add(m::Add(), _)),
-              Eq("add.5: bits[32] = add(sub.3, not.4)\noperand 0:\n\tsub.3: "
-                 "bits[32] = sub(x, y)\ndoesn't match expected:\n\tadd, sub.3: "
-                 "bits[32] = sub(x, y) has incorrect op, expected: add"));
+              HasSubstr("has incorrect op, expected: add"));
 }
 
 TEST(IrMatchersTest, BitSlice) {
@@ -103,12 +100,10 @@ TEST(IrMatchersTest, BitSlice) {
 
   EXPECT_THAT(
       Explain(f->return_value(), m::BitSlice(/*start=*/7, /*width=*/42)),
-      Eq("bit_slice.2: bits[9] = bit_slice(x, start=7, width=9) has incorrect "
-         "width, expected: 42"));
+      HasSubstr("has incorrect width, expected: 42"));
   EXPECT_THAT(
       Explain(f->return_value(), m::BitSlice(/*start=*/123, /*width=*/9)),
-      Eq("bit_slice.2: bits[9] = bit_slice(x, start=7, width=9) has incorrect "
-         "start, expected: 123"));
+      HasSubstr("has incorrect start, expected: 123"));
 }
 
 TEST(IrMatchersTest, DynamicBitSlice) {
@@ -128,9 +123,7 @@ TEST(IrMatchersTest, DynamicBitSlice) {
 
   EXPECT_THAT(Explain(f->return_value(),
                       m::DynamicBitSlice(m::Param(), m::Param(), /*width=*/42)),
-              Eq("dynamic_bit_slice.3: bits[5] = dynamic_bit_slice(x, y, "
-                 "width=5) has incorrect "
-                 "width, expected: 42"));
+              HasSubstr("has incorrect width, expected: 42"));
 }
 
 TEST(IrMatchersTest, Literal) {
@@ -154,23 +147,18 @@ TEST(IrMatchersTest, Literal) {
   EXPECT_THAT(y.node(), m::Literal(12345678));
 
   EXPECT_THAT(Explain(x.node(), m::Literal(Value(UBits(9, 123)))),
-              Eq("literal.1: bits[4] = literal(value=9) has value bits[4]:9, "
-                 "expected: bits[123]:0x9"));
+              HasSubstr("has value bits[4]:9, expected: bits[123]:0x9"));
   EXPECT_THAT(Explain(x.node(), m::Literal(42)),
-              Eq("literal.1: bits[4] = literal(value=9) has value bits[4]:9, "
-                 "expected: bits[64]:42"));
+              HasSubstr("has value bits[4]:9, expected: bits[64]:42"));
 
   // When passing in a string for value matching, verify that the number format
   // of the input string is used in the error message.
   EXPECT_THAT(Explain(x.node(), m::Literal("bits[4]: 0b1111")),
-              Eq("literal.1: bits[4] = literal(value=9) has value "
-                 "bits[4]:0b1001, expected: bits[4]:0b1111"));
+              HasSubstr("has value bits[4]:0b1001, expected: bits[4]:0b1111"));
   EXPECT_THAT(Explain(x.node(), m::Literal("bits[4]: 0xf")),
-              Eq("literal.1: bits[4] = literal(value=9) has value bits[4]:0x9, "
-                 "expected: bits[4]:0xf"));
+              HasSubstr("has value bits[4]:0x9, expected: bits[4]:0xf"));
   EXPECT_THAT(Explain(x.node(), m::Literal("bits[4]: 12")),
-              Eq("literal.1: bits[4] = literal(value=9) has value bits[4]:9, "
-                 "expected: bits[4]:12"));
+              HasSubstr("has value bits[4]:9, expected: bits[4]:12"));
 }
 
 TEST(IrMatchersTest, OneHotSelect) {
@@ -208,8 +196,7 @@ TEST(IrMatchersTest, Select) {
   EXPECT_THAT(
       Explain(f->return_value(), m::Select(m::Name("pred"), {m::Name("x")},
                                            /*default_value=*/m::Name("y"))),
-      Eq("sel.4: bits[32] = sel(pred, cases=[x, y]) has no default value, "
-         "expected: y"));
+      HasSubstr("has no default value, expected: y"));
 }
 
 TEST(IrMatchersTest, SelectWithDefault) {
@@ -228,12 +215,10 @@ TEST(IrMatchersTest, SelectWithDefault) {
               m::Select(m::Name("pred"), {m::Name("x"), m::Name("y")},
                         /*default_value=*/m::Name("z")));
 
-  EXPECT_THAT(
-      Explain(f->return_value(),
-              m::Select(m::Name("pred"),
-                        {m::Name("x"), m::Name("y"), m::Name("z")})),
-      Eq("sel.5: bits[32] = sel(pred, cases=[x, y], default=z) has default "
-         "value, expected no default value"));
+  EXPECT_THAT(Explain(f->return_value(),
+                      m::Select(m::Name("pred"),
+                                {m::Name("x"), m::Name("y"), m::Name("z")})),
+              HasSubstr("has default value, expected no default value"));
 }
 
 TEST(IrMatchersTest, OneHot) {
@@ -250,11 +235,9 @@ TEST(IrMatchersTest, OneHot) {
   EXPECT_THAT(oh1.node(), m::OneHot(m::OneHot(), LsbOrMsb::kMsb));
 
   EXPECT_THAT(Explain(oh0.node(), m::OneHot(LsbOrMsb::kMsb)),
-              Eq("one_hot.2: bits[33] = one_hot(x, lsb_prio=true) has "
-                 "incorrect priority, expected: lsb_prio=false"));
+              HasSubstr("has incorrect priority, expected: lsb_prio=false"));
   EXPECT_THAT(Explain(oh1.node(), m::OneHot(LsbOrMsb::kLsb)),
-              Eq("one_hot.3: bits[34] = one_hot(one_hot.2, lsb_prio=false) has "
-                 "incorrect priority, expected: lsb_prio=true"));
+              HasSubstr("has incorrect priority, expected: lsb_prio=true"));
 }
 
 TEST(IrMatchersTest, TupleIndex) {
@@ -274,11 +257,9 @@ TEST(IrMatchersTest, TupleIndex) {
   EXPECT_THAT(elem1.node(), m::TupleIndex(m::Param(), 1));
 
   EXPECT_THAT(Explain(elem0.node(), m::TupleIndex(1)),
-              Eq("tuple_index.2: bits[32] = tuple_index(x, index=0) has "
-                 "incorrect index, expected: 1"));
+              HasSubstr("has incorrect index, expected: 1"));
   EXPECT_THAT(Explain(elem1.node(), m::TupleIndex(400)),
-              Eq("tuple_index.3: bits[7] = tuple_index(x, index=1) has "
-                 "incorrect index, expected: 400"));
+              HasSubstr("has incorrect index, expected: 400"));
 }
 
 TEST(IrMatchersTest, ReductionOps) {

@@ -20,9 +20,12 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/passes/dce_pass.h"
+
+namespace m = ::xls::op_matchers;
 
 namespace xls {
 namespace {
@@ -58,8 +61,7 @@ TEST_F(TupleSimplificationPassTest, SingleSimplification) {
   EXPECT_EQ(f->node_count(), 4);
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_EQ(f->node_count(), 2);
-  EXPECT_TRUE(f->return_value()->Is<Param>());
-  EXPECT_EQ(f->return_value()->GetName(), "y");
+  EXPECT_THAT(f->return_value(), m::Param("y"));
 }
 
 TEST_F(TupleSimplificationPassTest, NoSimplification) {
@@ -91,8 +93,7 @@ TEST_F(TupleSimplificationPassTest, NestedSimplification) {
   EXPECT_EQ(f->node_count(), 9);
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_EQ(f->node_count(), 3);
-  EXPECT_TRUE(f->return_value()->Is<Param>());
-  EXPECT_EQ(f->return_value()->GetName(), "z");
+  EXPECT_THAT(f->return_value(), m::Param("z"));
 }
 
 TEST_F(TupleSimplificationPassTest, ChainOfTuplesSimplification) {
@@ -111,8 +112,7 @@ TEST_F(TupleSimplificationPassTest, ChainOfTuplesSimplification) {
   EXPECT_EQ(f->node_count(), 8);
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_EQ(f->node_count(), 2);
-  EXPECT_TRUE(f->return_value()->Is<Param>());
-  EXPECT_EQ(f->return_value()->GetName(), "x");
+  EXPECT_THAT(f->return_value(), m::Param("x"));
 }
 
 TEST_F(TupleSimplificationPassTest, SimpleUnboxingArray) {
@@ -126,10 +126,7 @@ TEST_F(TupleSimplificationPassTest, SimpleUnboxingArray) {
   )",
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_EQ(f->DumpIr(), R"(fn func(x: bits[2]) -> bits[2] {
-  ret param.1: bits[2] = param(name=x)
-}
-)");
+  EXPECT_THAT(f->return_value(), m::Param("x"));
 }
 
 TEST_F(TupleSimplificationPassTest, UnboxingLiteralArray) {
@@ -146,12 +143,7 @@ TEST_F(TupleSimplificationPassTest, UnboxingLiteralArray) {
   )",
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_EQ(f->DumpIr(), R"(fn func() -> bits[2] {
-  literal.7: bits[2] = literal(value=0)
-  literal.8: bits[2] = literal(value=1)
-  ret add.6: bits[2] = add(literal.7, literal.8)
-}
-)");
+  EXPECT_THAT(f->return_value(), m::Add(m::Literal(0), m::Literal(1)));
 }
 
 }  // namespace

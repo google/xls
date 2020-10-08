@@ -31,7 +31,6 @@ namespace xls {
 namespace {
 
 using status_testing::IsOkAndHolds;
-using testing::_;
 
 class SelectSimplificationPassTest : public IrTestBase {
  protected:
@@ -256,8 +255,6 @@ TEST_F(SelectSimplificationPassTest, MeaningfulSelect) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
 
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
-
-  EXPECT_EQ(f->DumpIr(), program);
 }
 
 TEST_F(SelectSimplificationPassTest, Useless3ArySelectWithDefault) {
@@ -285,8 +282,6 @@ TEST_F(SelectSimplificationPassTest, Meaningful3ArySelectViaDefault) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
 
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
-
-  EXPECT_EQ(f->DumpIr(), program);
 }
 
 TEST_F(SelectSimplificationPassTest, OneBitMux) {

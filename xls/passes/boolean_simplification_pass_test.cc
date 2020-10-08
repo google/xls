@@ -22,8 +22,11 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/passes/dce_pass.h"
+
+namespace m = ::xls::op_matchers;
 
 namespace xls {
 namespace {
@@ -105,10 +108,7 @@ fn f(x: bits[42], y: bits[42]) -> bits[42] {
   )",
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_EQ(f->DumpIr(), R"(fn f(x: bits[42], y: bits[42]) -> bits[42] {
-  ret and.5: bits[42] = and(x, y)
-}
-)");
+  EXPECT_THAT(f->return_value(), m::And(m::Param("x"), m::Param("y")));
 }
 
 TEST_F(BooleanSimplificationPassTest, NotAndOr) {
@@ -122,10 +122,7 @@ fn f(x: bits[42], y: bits[42]) -> bits[42] {
   )",
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_EQ(f->DumpIr(), R"(fn f(x: bits[42], y: bits[42]) -> bits[42] {
-  ret or.8: bits[42] = or(x, y)
-}
-)");
+  EXPECT_THAT(f->return_value(), m::Or(m::Param("x"), m::Param("y")));
 }
 
 TEST_F(BooleanSimplificationPassTest, TwoVarsMakingAllOnes) {
@@ -142,10 +139,7 @@ fn f(x: bits[7], y: bits[7]) -> bits[7] {
   )",
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_EQ(f->DumpIr(), R"(fn f(x: bits[7], y: bits[7]) -> bits[7] {
-  ret literal.11: bits[7] = literal(value=127)
-}
-)");
+  EXPECT_THAT(f->return_value(), m::Literal(127));
 }
 
 TEST_F(BooleanSimplificationPassTest, ConvertToNand) {
@@ -157,10 +151,7 @@ fn f(x: bits[42], y: bits[42]) -> bits[42] {
 })",
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_EQ(f->DumpIr(), R"(fn f(x: bits[42], y: bits[42]) -> bits[42] {
-  ret nand.5: bits[42] = nand(x, y)
-}
-)");
+  EXPECT_THAT(f->return_value(), m::Nand(m::Param("x"), m::Param("y")));
 }
 
 TEST_F(BooleanSimplificationPassTest, ThreeVarsZero) {
@@ -174,11 +165,7 @@ fn f(x: bits[42], y: bits[42], z: bits[42]) -> bits[42] {
 })",
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_EQ(f->DumpIr(),
-            R"(fn f(x: bits[42], y: bits[42], z: bits[42]) -> bits[42] {
-  ret literal.9: bits[42] = literal(value=0)
-}
-)");
+  EXPECT_THAT(f->return_value(), m::Literal(0));
 }
 
 TEST_F(BooleanSimplificationPassTest, ThreeVarsNor) {
@@ -194,11 +181,8 @@ fn f(x: bits[42], y: bits[42], z: bits[42]) -> bits[42] {
 })",
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_EQ(f->DumpIr(),
-            R"(fn f(x: bits[42], y: bits[42], z: bits[42]) -> bits[42] {
-  ret nor.11: bits[42] = nor(x, y, z)
-}
-)");
+  EXPECT_THAT(f->return_value(),
+              m::Nor(m::Param("x"), m::Param("y"), m::Param("z")));
 }
 
 TEST_F(BooleanSimplificationPassTest, ConvertToNor) {
@@ -211,10 +195,7 @@ fn f(x: bits[42], y: bits[42]) -> bits[42] {
   )",
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_EQ(f->DumpIr(), R"(fn f(x: bits[42], y: bits[42]) -> bits[42] {
-  ret nor.5: bits[42] = nor(x, y)
-}
-)");
+  EXPECT_THAT(f->return_value(), m::Nor(m::Param("x"), m::Param("y")));
 }
 
 TEST_F(BooleanSimplificationPassTest, SimplifyToXOrNotZEquivalent) {
@@ -228,12 +209,7 @@ fn f(x: bits[3], y: bits[3], z: bits[3]) -> bits[3] {
   )",
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_EQ(f->DumpIr(),
-            R"(fn f(x: bits[3], y: bits[3], z: bits[3]) -> bits[3] {
-  not.7: bits[3] = not(x)
-  ret nand.8: bits[3] = nand(not.7, z)
-}
-)");
+  EXPECT_THAT(f->return_value(), m::Nand(m::Not(m::Param("x")), m::Param("z")));
 }
 
 TEST_F(BooleanSimplificationPassTest, SimplifyToNotYAndZEquivalent) {
@@ -247,12 +223,7 @@ fn f(x: bits[3], y: bits[3], z: bits[3]) -> bits[3] {
   )",
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_EQ(f->DumpIr(),
-            R"(fn f(x: bits[3], y: bits[3], z: bits[3]) -> bits[3] {
-  not.7: bits[3] = not(z)
-  ret nor.8: bits[3] = nor(y, not.7)
-}
-)");
+  EXPECT_THAT(f->return_value(), m::Nor(m::Param("y"), m::Not(m::Param("z"))));
 }
 
 TEST_F(BooleanSimplificationPassTest, SimplifyRealWorld) {
@@ -267,12 +238,7 @@ fn f(x: bits[3], y: bits[3], z: bits[3]) -> bits[3] {
   )",
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_EQ(f->DumpIr(),
-            R"(fn f(x: bits[3], y: bits[3], z: bits[3]) -> bits[3] {
-  not.10: bits[3] = not(y)
-  ret nand.11: bits[3] = nand(z, not.10)
-}
-)");
+  EXPECT_THAT(f->return_value(), m::Nand(m::Param("z"), m::Not(m::Param("y"))));
 }
 
 // TODO(leary): 2019-10-11 Needs AOI21 logical function to map against.

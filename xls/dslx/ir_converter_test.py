@@ -89,9 +89,9 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__two_plus_two() -> bits[32] {
-          literal.1: bits[32] = literal(value=2, pos=0,1,6)
-          literal.2: bits[32] = literal(value=2, pos=0,1,14)
-          ret add.3: bits[32] = add(literal.1, literal.2, pos=0,1,8)
+          literal.1: bits[32] = literal(value=2, id=1, pos=0,1,6)
+          literal.2: bits[32] = literal(value=2, id=2, pos=0,1,14)
+          ret add.3: bits[32] = add(literal.1, literal.2, id=3, pos=0,1,8)
         }
         """)
 
@@ -107,7 +107,7 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__negate(x: bits[32]) -> bits[32] {
-          ret neg.2: bits[32] = neg(x, pos=0,1,2)
+          ret neg.2: bits[32] = neg(x, id=2, pos=0,1,2)
         }
         """)
 
@@ -124,8 +124,8 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__f() -> bits[32] {
-          literal.1: bits[32] = literal(value=2, pos=0,1,19)
-          ret add.2: bits[32] = add(literal.1, literal.1, pos=0,2,3)
+          literal.1: bits[32] = literal(value=2, id=1, pos=0,1,19)
+          ret add.2: bits[32] = add(literal.1, literal.1, id=2, pos=0,2,3)
         }
         """)
 
@@ -143,12 +143,12 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__f() -> bits[32] {
-          literal.1: bits[32] = literal(value=2, pos=0,1,15)
-          literal.2: bits[32] = literal(value=3, pos=0,1,22)
-          tuple.3: (bits[32], bits[32]) = tuple(literal.1, literal.2, pos=0,1,10)
-          tuple_index.4: bits[32] = tuple_index(tuple.3, index=0, pos=0,2,7)
-          tuple_index.5: bits[32] = tuple_index(tuple.3, index=1, pos=0,2,10)
-          ret add.6: bits[32] = add(tuple_index.4, tuple_index.5, pos=0,3,3)
+          literal.1: bits[32] = literal(value=2, id=1, pos=0,1,15)
+          literal.2: bits[32] = literal(value=3, id=2, pos=0,1,22)
+          tuple.3: (bits[32], bits[32]) = tuple(literal.1, literal.2, id=3, pos=0,1,10)
+          tuple_index.4: bits[32] = tuple_index(tuple.3, index=0, id=4, pos=0,2,7)
+          tuple_index.5: bits[32] = tuple_index(tuple.3, index=1, id=5, pos=0,2,10)
+          ret add.6: bits[32] = add(tuple_index.4, tuple_index.5, id=6, pos=0,3,3)
         }
         """)
 
@@ -167,22 +167,22 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__f() -> bits[32] {
-          literal.3: bits[32] = literal(value=4)
-          literal.2: bits[32] = literal(value=3)
-          tuple.4: (bits[32]) = tuple(literal.3)
-          literal.5: bits[32] = literal(value=5)
-          literal.1: bits[32] = literal(value=2)
-          tuple.6: (bits[32], (bits[32]), bits[32]) = tuple(literal.2, tuple.4, literal.5)
-          tuple.7: (bits[32], (bits[32], (bits[32]), bits[32])) = tuple(literal.1, tuple.6)
-          tuple_index.9: (bits[32], (bits[32]), bits[32]) = tuple_index(tuple.7, index=1)
-          tuple_index.8: bits[32] = tuple_index(tuple.7, index=0)
-          tuple_index.10: bits[32] = tuple_index(tuple_index.9, index=0)
-          tuple_index.11: (bits[32]) = tuple_index(tuple_index.9, index=1)
-          add.14: bits[32] = add(tuple_index.8, tuple_index.10)
-          tuple_index.12: bits[32] = tuple_index(tuple_index.11, index=0)
-          add.15: bits[32] = add(add.14, tuple_index.12)
-          tuple_index.13: bits[32] = tuple_index(tuple_index.9, index=2)
-          ret add.16: bits[32] = add(add.15, tuple_index.13)
+          literal.3: bits[32] = literal(value=4, id=3)
+          literal.2: bits[32] = literal(value=3, id=2)
+          tuple.4: (bits[32]) = tuple(literal.3, id=4)
+          literal.5: bits[32] = literal(value=5, id=5)
+          literal.1: bits[32] = literal(value=2, id=1)
+          tuple.6: (bits[32], (bits[32]), bits[32]) = tuple(literal.2, tuple.4, literal.5, id=6)
+          tuple.7: (bits[32], (bits[32], (bits[32]), bits[32])) = tuple(literal.1, tuple.6, id=7)
+          tuple_index.9: (bits[32], (bits[32]), bits[32]) = tuple_index(tuple.7, index=1, id=9)
+          tuple_index.8: bits[32] = tuple_index(tuple.7, index=0, id=8)
+          tuple_index.10: bits[32] = tuple_index(tuple_index.9, index=0, id=10)
+          tuple_index.11: (bits[32]) = tuple_index(tuple_index.9, index=1, id=11)
+          add.14: bits[32] = add(tuple_index.8, tuple_index.10, id=14)
+          tuple_index.12: bits[32] = tuple_index(tuple_index.11, index=0, id=12)
+          add.15: bits[32] = add(add.14, tuple_index.12, id=15)
+          tuple_index.13: bits[32] = tuple_index(tuple_index.9, index=2, id=13)
+          ret add.16: bits[32] = add(add.15, tuple_index.13, id=16)
         }
         """)
 
@@ -198,8 +198,8 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__f(x: bits[31]) -> bits[32] {
-          literal.2: bits[1] = literal(value=1, pos=0,1,10)
-          ret concat.3: bits[32] = concat(literal.2, x, pos=0,1,12)
+          literal.2: bits[1] = literal(value=1, id=2, pos=0,1,10)
+          ret concat.3: bits[32] = concat(literal.2, x, id=3, pos=0,1,12)
         }
         """)
 
@@ -215,7 +215,7 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__f(x: bits[8], y: bits[8]) -> (bits[8], bits[8]) {
-          ret tuple.3: (bits[8], bits[8]) = tuple(x, y, pos=0,1,2)
+          ret tuple.3: (bits[8], bits[8]) = tuple(x, y, id=3, pos=0,1,2)
         }
         """)
 
@@ -231,9 +231,9 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__f() -> (bits[8], bits[8]) {
-          literal.1: bits[8] = literal(value=170, pos=0,1,6)
-          literal.2: bits[8] = literal(value=85, pos=0,1,15)
-          ret tuple.3: (bits[8], bits[8]) = tuple(literal.1, literal.2, pos=0,1,2)
+          literal.1: bits[8] = literal(value=170, id=1, pos=0,1,6)
+          literal.2: bits[8] = literal(value=85, id=2, pos=0,1,15)
+          ret tuple.3: (bits[8], bits[8]) = tuple(literal.1, literal.2, id=3, pos=0,1,2)
         }
         """)
 
@@ -252,13 +252,13 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn ____test_module__f_counted_for_0_body(i: bits[32], accum: bits[32]) -> bits[32] {
-          ret add.5: bits[32] = add(accum, i)
+          ret add.5: bits[32] = add(accum, i, id=5)
         }
 
         fn __test_module__f() -> bits[32] {
-          literal.1: bits[32] = literal(value=0)
-          literal.2: bits[32] = literal(value=4)
-          ret counted_for.6: bits[32] = counted_for(literal.1, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body)
+          literal.1: bits[32] = literal(value=0, id=1)
+          literal.2: bits[32] = literal(value=4, id=2)
+          ret counted_for.6: bits[32] = counted_for(literal.1, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, id=6)
         }
         """)
 
@@ -278,25 +278,25 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn ____test_module__f_counted_for_0_body(i: bits[32], __loop_carry: (bits[32], bits[8])) -> (bits[32], bits[8]) {
-          literal.7: bits[1] = literal(value=1)
-          literal.9: bits[1] = literal(value=1)
-          tuple_index.8: bits[32] = tuple_index(__loop_carry, index=0)
-          and.10: bits[1] = and(literal.7, literal.9)
-          literal.12: bits[1] = literal(value=1)
-          add.14: bits[32] = add(tuple_index.8, i)
-          tuple_index.11: bits[8] = tuple_index(__loop_carry, index=1)
-          and.13: bits[1] = and(and.10, literal.12)
-          ret tuple.15: (bits[32], bits[8]) = tuple(add.14, tuple_index.11)
+          literal.7: bits[1] = literal(value=1, id=7)
+          literal.9: bits[1] = literal(value=1, id=9)
+          tuple_index.8: bits[32] = tuple_index(__loop_carry, index=0, id=8)
+          and.10: bits[1] = and(literal.7, literal.9, id=10)
+          literal.12: bits[1] = literal(value=1, id=12)
+          add.14: bits[32] = add(tuple_index.8, i, id=14)
+          tuple_index.11: bits[8] = tuple_index(__loop_carry, index=1, id=11)
+          and.13: bits[1] = and(and.10, literal.12, id=13)
+          ret tuple.15: (bits[32], bits[8]) = tuple(add.14, tuple_index.11, id=15)
         }
 
         fn __test_module__f() -> bits[32] {
-          literal.1: bits[32] = literal(value=0)
-          literal.2: bits[8] = literal(value=0)
-          tuple.3: (bits[32], bits[8]) = tuple(literal.1, literal.2)
-          counted_for.16: (bits[32], bits[8]) = counted_for(tuple.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body)
-          literal.4: bits[32] = literal(value=4)
-          literal.17: bits[32] = literal(value=0)
-          ret tuple_index.18: bits[32] = tuple_index(counted_for.16, index=0)
+          literal.1: bits[32] = literal(value=0, id=1)
+          literal.2: bits[8] = literal(value=0, id=2)
+          tuple.3: (bits[32], bits[8]) = tuple(literal.1, literal.2, id=3)
+          counted_for.16: (bits[32], bits[8]) = counted_for(tuple.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, id=16)
+          literal.4: bits[32] = literal(value=4, id=4)
+          literal.17: bits[32] = literal(value=0, id=17)
+          ret tuple_index.18: bits[32] = tuple_index(counted_for.16, index=0, id=18)
         }
         """)
 
@@ -319,18 +319,18 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn ____test_module__f__2_counted_for_0_body(i: bits[32], accum: bits[32]) -> bits[32] {
-          ret add.6: bits[32] = add(accum, i)
+          ret add.6: bits[32] = add(accum, i, id=6)
         }
 
         fn __test_module__f__2(x: bits[2]) -> bits[32] {
-          literal.3: bits[32] = literal(value=0)
-          literal.2: bits[32] = literal(value=2)
-          ret counted_for.7: bits[32] = counted_for(literal.3, trip_count=2, stride=1, body=____test_module__f__2_counted_for_0_body)
+          literal.3: bits[32] = literal(value=0, id=3)
+          literal.2: bits[32] = literal(value=2, id=2)
+          ret counted_for.7: bits[32] = counted_for(literal.3, trip_count=2, stride=1, body=____test_module__f__2_counted_for_0_body, id=7)
         }
 
         fn __test_module__main() -> bits[32] {
-          literal.8: bits[2] = literal(value=0)
-          ret invoke.9: bits[32] = invoke(literal.8, to_apply=__test_module__f__2)
+          literal.8: bits[2] = literal(value=0, id=8)
+          ret invoke.9: bits[32] = invoke(literal.8, to_apply=__test_module__f__2, id=9)
         }
         """)
 
@@ -350,18 +350,18 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__my_id(x: bits[32]) -> bits[32] {
-          ret identity.2: bits[32] = identity(x)
+          ret identity.2: bits[32] = identity(x, id=2)
         }
 
         fn ____test_module__f_counted_for_0_body(i: bits[32], accum: bits[32]) -> bits[32] {
-          add.7: bits[32] = add(accum, i)
-          ret invoke.8: bits[32] = invoke(add.7, to_apply=__test_module__my_id)
+          add.7: bits[32] = add(accum, i, id=7)
+          ret invoke.8: bits[32] = invoke(add.7, to_apply=__test_module__my_id, id=8)
         }
 
         fn __test_module__f() -> bits[32] {
-          literal.3: bits[32] = literal(value=0)
-          literal.4: bits[32] = literal(value=4)
-          ret counted_for.9: bits[32] = counted_for(literal.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body)
+          literal.3: bits[32] = literal(value=0, id=3)
+          literal.4: bits[32] = literal(value=4, id=4)
+          ret counted_for.9: bits[32] = counted_for(literal.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, id=9)
         }
         """)
 
@@ -382,17 +382,17 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn ____test_module__f_counted_for_0_body(i: bits[32], accum: bits[32], other_outer_thing: bits[32], outer_thing: bits[32]) -> bits[32] {
-          add.9: bits[32] = add(accum, i)
-          add.10: bits[32] = add(add.9, outer_thing)
-          ret add.11: bits[32] = add(add.10, other_outer_thing)
+          add.9: bits[32] = add(accum, i, id=9)
+          add.10: bits[32] = add(add.9, outer_thing, id=10)
+          ret add.11: bits[32] = add(add.10, other_outer_thing, id=11)
         }
 
         fn __test_module__f() -> bits[32] {
-          literal.3: bits[32] = literal(value=0)
-          literal.2: bits[32] = literal(value=24)
-          literal.1: bits[32] = literal(value=42)
-          literal.4: bits[32] = literal(value=4)
-          ret counted_for.12: bits[32] = counted_for(literal.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, invariant_args=[literal.2, literal.1])
+          literal.3: bits[32] = literal(value=0, id=3)
+          literal.2: bits[32] = literal(value=24, id=2)
+          literal.1: bits[32] = literal(value=42, id=1)
+          literal.4: bits[32] = literal(value=4, id=4)
+          ret counted_for.12: bits[32] = counted_for(literal.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, invariant_args=[literal.2, literal.1], id=12)
         }
         """)
 
@@ -411,25 +411,25 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn ____test_module__f_counted_for_0_body(i: bits[32], __loop_carry: (bits[32], bits[32])) -> (bits[32], bits[32]) {
-          literal.7: bits[1] = literal(value=1)
-          literal.9: bits[1] = literal(value=1)
-          tuple_index.8: bits[32] = tuple_index(__loop_carry, index=0)
-          tuple_index.11: bits[32] = tuple_index(__loop_carry, index=1)
-          literal.15: bits[32] = literal(value=1)
-          and.10: bits[1] = and(literal.7, literal.9)
-          literal.12: bits[1] = literal(value=1)
-          add.14: bits[32] = add(tuple_index.8, tuple_index.11)
-          add.16: bits[32] = add(tuple_index.11, literal.15)
-          and.13: bits[1] = and(and.10, literal.12)
-          ret tuple.17: (bits[32], bits[32]) = tuple(add.14, add.16)
+          literal.7: bits[1] = literal(value=1, id=7)
+          literal.9: bits[1] = literal(value=1, id=9)
+          tuple_index.8: bits[32] = tuple_index(__loop_carry, index=0, id=8)
+          tuple_index.11: bits[32] = tuple_index(__loop_carry, index=1, id=11)
+          literal.15: bits[32] = literal(value=1, id=15)
+          and.10: bits[1] = and(literal.7, literal.9, id=10)
+          literal.12: bits[1] = literal(value=1, id=12)
+          add.14: bits[32] = add(tuple_index.8, tuple_index.11, id=14)
+          add.16: bits[32] = add(tuple_index.11, literal.15, id=16)
+          and.13: bits[1] = and(and.10, literal.12, id=13)
+          ret tuple.17: (bits[32], bits[32]) = tuple(add.14, add.16, id=17)
         }
 
         fn __test_module__f() -> (bits[32], bits[32]) {
-          literal.1: bits[32] = literal(value=0)
-          literal.2: bits[32] = literal(value=1)
-          tuple.3: (bits[32], bits[32]) = tuple(literal.1, literal.2)
-          literal.4: bits[32] = literal(value=4)
-          ret counted_for.18: (bits[32], bits[32]) = counted_for(tuple.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body)
+          literal.1: bits[32] = literal(value=0, id=1)
+          literal.2: bits[32] = literal(value=1, id=2)
+          tuple.3: (bits[32], bits[32]) = tuple(literal.1, literal.2, id=3)
+          literal.4: bits[32] = literal(value=4, id=4)
+          ret counted_for.18: (bits[32], bits[32]) = counted_for(tuple.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, id=18)
         }
         """)
 
@@ -445,8 +445,8 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__f(x: bits[32][4]) -> bits[32] {
-          literal.2: bits[32] = literal(value=0, pos=0,1,8)
-          ret array_index.3: bits[32] = array_index(x, literal.2, pos=0,1,3)
+          literal.2: bits[32] = literal(value=0, id=2, pos=0,1,8)
+          ret array_index.3: bits[32] = array_index(x, literal.2, id=3, pos=0,1,3)
         }
         """)
 
@@ -465,11 +465,11 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__callee() -> bits[32] {
-          ret literal.1: bits[32] = literal(value=42, pos=0,1,6)
+          ret literal.1: bits[32] = literal(value=42, id=1, pos=0,1,6)
         }
 
         fn __test_module__caller() -> bits[32] {
-          ret invoke.2: bits[32] = invoke(to_apply=__test_module__callee, pos=0,4,8)
+          ret invoke.2: bits[32] = invoke(to_apply=__test_module__callee, id=2, pos=0,4,8)
         }
         """)
 
@@ -488,13 +488,13 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__callee(x: bits[32], y: bits[32]) -> bits[32] {
-          ret add.3: bits[32] = add(x, y, pos=0,1,4)
+          ret add.3: bits[32] = add(x, y, id=3, pos=0,1,4)
         }
 
         fn __test_module__caller() -> bits[32] {
-          literal.4: bits[32] = literal(value=2, pos=0,4,13)
-          literal.5: bits[32] = literal(value=3, pos=0,4,20)
-          ret invoke.6: bits[32] = invoke(literal.4, literal.5, to_apply=__test_module__callee, pos=0,4,8)
+          literal.4: bits[32] = literal(value=2, id=4, pos=0,4,13)
+          literal.5: bits[32] = literal(value=3, id=5, pos=0,4,20)
+          ret invoke.6: bits[32] = invoke(literal.4, literal.5, to_apply=__test_module__callee, id=6, pos=0,4,8)
         }
         """)
 
@@ -511,8 +511,8 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__main(x: bits[8], y: bits[8]) -> bits[32] {
-          add.3: bits[8] = add(x, y)
-          ret zero_ext.4: bits[32] = zero_ext(add.3, new_bit_count=32)
+          add.3: bits[8] = add(x, y, id=3)
+          ret zero_ext.4: bits[32] = zero_ext(add.3, new_bit_count=32, id=4)
         }
         """)
 
@@ -528,7 +528,7 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__main(x: bits[8]) -> bits[8] {
-          ret identity.2: bits[8] = identity(x, pos=0,1,2)
+          ret identity.2: bits[8] = identity(x, id=2, pos=0,1,2)
         }
         """)
 
@@ -544,9 +544,9 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__main(x: bits[1]) -> bits[8] {
-          literal.3: bits[8] = literal(value=24, pos=0,1,21)
-          literal.2: bits[8] = literal(value=42, pos=0,1,5)
-          ret sel.4: bits[8] = sel(x, cases=[literal.3, literal.2], pos=0,1,8)
+          literal.3: bits[8] = literal(value=24, id=3, pos=0,1,21)
+          literal.2: bits[8] = literal(value=42, id=2, pos=0,1,5)
+          ret sel.4: bits[8] = sel(x, cases=[literal.3, literal.2], id=4, pos=0,1,8)
         }
         """)
 
@@ -564,19 +564,19 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__f() -> bits[8] {
-          literal.3: bits[8][2] = literal(value=[1, 2])
-          literal.4: bits[32] = literal(value=0)
-          literal.1: bits[8] = literal(value=1)
-          literal.2: bits[8] = literal(value=2)
-          ret array_index.5: bits[8] = array_index(literal.3, literal.4)
+          literal.3: bits[8][2] = literal(value=[1, 2], id=3)
+          literal.4: bits[32] = literal(value=0, id=4)
+          literal.1: bits[8] = literal(value=1, id=1)
+          literal.2: bits[8] = literal(value=2, id=2)
+          ret array_index.5: bits[8] = array_index(literal.3, literal.4, id=5)
         }
 
         fn __test_module__g() -> bits[8] {
-          literal.8: bits[8][2] = literal(value=[1, 2])
-          literal.9: bits[32] = literal(value=1)
-          literal.6: bits[8] = literal(value=1)
-          literal.7: bits[8] = literal(value=2)
-          ret array_index.10: bits[8] = array_index(literal.8, literal.9)
+          literal.8: bits[8][2] = literal(value=[1, 2], id=8)
+          literal.9: bits[32] = literal(value=1, id=9)
+          literal.6: bits[8] = literal(value=1, id=6)
+          literal.7: bits[8] = literal(value=2, id=7)
+          ret array_index.10: bits[8] = array_index(literal.8, literal.9, id=10)
         }
         """)
 
@@ -593,17 +593,17 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__f() -> bits[8][2] {
-          literal.3: bits[8][2] = literal(value=[1, 2], pos=0,0,18)
-          literal.1: bits[8] = literal(value=1, pos=0,0,19)
-          literal.2: bits[8] = literal(value=2, pos=0,0,22)
-          ret identity.4: bits[8][2] = identity(literal.3, pos=0,1,18)
+          literal.3: bits[8][2] = literal(value=[1, 2], id=3, pos=0,0,18)
+          literal.1: bits[8] = literal(value=1, id=1, pos=0,0,19)
+          literal.2: bits[8] = literal(value=2, id=2, pos=0,0,22)
+          ret identity.4: bits[8][2] = identity(literal.3, id=4, pos=0,1,18)
         }
 
         fn __test_module__g() -> bits[8][2] {
-          literal.7: bits[8][2] = literal(value=[1, 2], pos=0,0,18)
-          literal.5: bits[8] = literal(value=1, pos=0,0,19)
-          literal.6: bits[8] = literal(value=2, pos=0,0,22)
-          ret identity.8: bits[8][2] = identity(literal.7, pos=0,2,18)
+          literal.7: bits[8][2] = literal(value=[1, 2], id=7, pos=0,0,18)
+          literal.5: bits[8] = literal(value=1, id=5, pos=0,0,19)
+          literal.6: bits[8] = literal(value=2, id=6, pos=0,0,22)
+          ret identity.8: bits[8][2] = identity(literal.7, id=8, pos=0,2,18)
         }
         """)
 
@@ -625,17 +625,17 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__f(x: bits[8]) -> bits[2] {
-          literal.7: bits[8] = literal(value=64)
-          literal.4: bits[8] = literal(value=42)
-          eq.8: bits[1] = eq(literal.7, x)
-          eq.5: bits[1] = eq(literal.4, x)
-          concat.10: bits[2] = concat(eq.8, eq.5)
-          one_hot.11: bits[3] = one_hot(concat.10, lsb_prio=true)
-          literal.6: bits[2] = literal(value=0)
-          literal.9: bits[2] = literal(value=1)
-          literal.3: bits[2] = literal(value=2)
-          literal.2: bits[1] = literal(value=1)
-          ret one_hot_sel.12: bits[2] = one_hot_sel(one_hot.11, cases=[literal.6, literal.9, literal.3])
+          literal.7: bits[8] = literal(value=64, id=7)
+          literal.4: bits[8] = literal(value=42, id=4)
+          eq.8: bits[1] = eq(literal.7, x, id=8)
+          eq.5: bits[1] = eq(literal.4, x, id=5)
+          concat.10: bits[2] = concat(eq.8, eq.5, id=10)
+          one_hot.11: bits[3] = one_hot(concat.10, lsb_prio=true, id=11)
+          literal.6: bits[2] = literal(value=0, id=6)
+          literal.9: bits[2] = literal(value=1, id=9)
+          literal.3: bits[2] = literal(value=2, id=3)
+          literal.2: bits[1] = literal(value=1, id=2)
+          ret one_hot_sel.12: bits[2] = one_hot_sel(one_hot.11, cases=[literal.6, literal.9, literal.3], id=12)
         }
         """)
 
@@ -658,20 +658,20 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__f(x: bits[2]) -> bits[8] {
-          literal.10: bits[2] = literal(value=2)
-          literal.7: bits[2] = literal(value=1)
-          literal.4: bits[2] = literal(value=0)
-          eq.11: bits[1] = eq(literal.10, x)
-          eq.8: bits[1] = eq(literal.7, x)
-          eq.5: bits[1] = eq(literal.4, x)
-          concat.13: bits[3] = concat(eq.11, eq.8, eq.5)
-          one_hot.14: bits[4] = one_hot(concat.13, lsb_prio=true)
-          literal.6: bits[8] = literal(value=42)
-          literal.9: bits[8] = literal(value=64)
-          literal.12: bits[8] = literal(value=128)
-          literal.3: bits[8] = literal(value=255)
-          literal.2: bits[1] = literal(value=1)
-          ret one_hot_sel.15: bits[8] = one_hot_sel(one_hot.14, cases=[literal.6, literal.9, literal.12, literal.3])
+          literal.10: bits[2] = literal(value=2, id=10)
+          literal.7: bits[2] = literal(value=1, id=7)
+          literal.4: bits[2] = literal(value=0, id=4)
+          eq.11: bits[1] = eq(literal.10, x, id=11)
+          eq.8: bits[1] = eq(literal.7, x, id=8)
+          eq.5: bits[1] = eq(literal.4, x, id=5)
+          concat.13: bits[3] = concat(eq.11, eq.8, eq.5, id=13)
+          one_hot.14: bits[4] = one_hot(concat.13, lsb_prio=true, id=14)
+          literal.6: bits[8] = literal(value=42, id=6)
+          literal.9: bits[8] = literal(value=64, id=9)
+          literal.12: bits[8] = literal(value=128, id=12)
+          literal.3: bits[8] = literal(value=255, id=3)
+          literal.2: bits[1] = literal(value=1, id=2)
+          ret one_hot_sel.15: bits[8] = one_hot_sel(one_hot.14, cases=[literal.6, literal.9, literal.12, literal.3], id=15)
         }
         """)
 
@@ -698,20 +698,20 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__f(x: bits[2]) -> bits[8] {
-          literal.3: bits[2] = literal(value=2)
-          literal.2: bits[2] = literal(value=1)
-          literal.4: bits[2] = literal(value=0)
-          eq.11: bits[1] = eq(literal.3, x)
-          eq.9: bits[1] = eq(literal.2, x)
-          eq.7: bits[1] = eq(literal.4, x)
-          concat.13: bits[3] = concat(eq.11, eq.9, eq.7)
-          one_hot.14: bits[4] = one_hot(concat.13, lsb_prio=true)
-          literal.8: bits[8] = literal(value=42)
-          literal.10: bits[8] = literal(value=64)
-          literal.12: bits[8] = literal(value=128)
-          literal.6: bits[8] = literal(value=255)
-          literal.5: bits[1] = literal(value=1)
-          ret one_hot_sel.15: bits[8] = one_hot_sel(one_hot.14, cases=[literal.8, literal.10, literal.12, literal.6])
+          literal.3: bits[2] = literal(value=2, id=3)
+          literal.2: bits[2] = literal(value=1, id=2)
+          literal.4: bits[2] = literal(value=0, id=4)
+          eq.11: bits[1] = eq(literal.3, x, id=11)
+          eq.9: bits[1] = eq(literal.2, x, id=9)
+          eq.7: bits[1] = eq(literal.4, x, id=7)
+          concat.13: bits[3] = concat(eq.11, eq.9, eq.7, id=13)
+          one_hot.14: bits[4] = one_hot(concat.13, lsb_prio=true, id=14)
+          literal.8: bits[8] = literal(value=42, id=8)
+          literal.10: bits[8] = literal(value=64, id=10)
+          literal.12: bits[8] = literal(value=128, id=12)
+          literal.6: bits[8] = literal(value=255, id=6)
+          literal.5: bits[1] = literal(value=1, id=5)
+          ret one_hot_sel.15: bits[8] = one_hot_sel(one_hot.14, cases=[literal.8, literal.10, literal.12, literal.6], id=15)
         }
         """)
 
@@ -733,17 +733,17 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__f(x: bits[8]) -> bits[2] {
-          literal.7: bits[8] = literal(value=64)
-          literal.4: bits[8] = literal(value=42)
-          eq.8: bits[1] = eq(literal.7, x)
-          eq.5: bits[1] = eq(literal.4, x)
-          concat.10: bits[2] = concat(eq.8, eq.5)
-          one_hot.11: bits[3] = one_hot(concat.10, lsb_prio=true)
-          literal.6: bits[2] = literal(value=0)
-          literal.9: bits[2] = literal(value=1)
-          literal.3: bits[2] = literal(value=2)
-          literal.2: bits[1] = literal(value=1)
-          ret one_hot_sel.12: bits[2] = one_hot_sel(one_hot.11, cases=[literal.6, literal.9, literal.3])
+          literal.7: bits[8] = literal(value=64, id=7)
+          literal.4: bits[8] = literal(value=42, id=4)
+          eq.8: bits[1] = eq(literal.7, x, id=8)
+          eq.5: bits[1] = eq(literal.4, x, id=5)
+          concat.10: bits[2] = concat(eq.8, eq.5, id=10)
+          one_hot.11: bits[3] = one_hot(concat.10, lsb_prio=true, id=11)
+          literal.6: bits[2] = literal(value=0, id=6)
+          literal.9: bits[2] = literal(value=1, id=9)
+          literal.3: bits[2] = literal(value=2, id=3)
+          literal.2: bits[1] = literal(value=1, id=2)
+          ret one_hot_sel.12: bits[2] = one_hot_sel(one_hot.11, cases=[literal.6, literal.9, literal.3], id=12)
         }
         """)
 
@@ -764,14 +764,14 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__f(x: bits[8]) -> bits[2] {
-          literal.4: bits[8] = literal(value=42)
-          eq.5: bits[1] = eq(literal.4, x)
-          concat.7: bits[1] = concat(eq.5)
-          one_hot.8: bits[2] = one_hot(concat.7, lsb_prio=true)
-          literal.6: bits[2] = literal(value=3)
-          bit_slice.3: bits[2] = bit_slice(x, start=0, width=2)
-          literal.2: bits[1] = literal(value=1)
-          ret one_hot_sel.9: bits[2] = one_hot_sel(one_hot.8, cases=[literal.6, bit_slice.3])
+          literal.4: bits[8] = literal(value=42, id=4)
+          eq.5: bits[1] = eq(literal.4, x, id=5)
+          concat.7: bits[1] = concat(eq.5, id=7)
+          one_hot.8: bits[2] = one_hot(concat.7, lsb_prio=true, id=8)
+          literal.6: bits[2] = literal(value=3, id=6)
+          bit_slice.3: bits[2] = bit_slice(x, start=0, width=2, id=3)
+          literal.2: bits[1] = literal(value=1, id=2)
+          ret one_hot_sel.9: bits[2] = one_hot_sel(one_hot.8, cases=[literal.6, bit_slice.3], id=9)
         }
         """)
 
@@ -793,14 +793,14 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__f(x: bits[8]) -> bits[2] {
-          literal.2: bits[8] = literal(value=255)
-          eq.5: bits[1] = eq(literal.2, x)
-          concat.7: bits[1] = concat(eq.5)
-          one_hot.8: bits[2] = one_hot(concat.7, lsb_prio=true)
-          literal.6: bits[2] = literal(value=0)
-          bit_slice.4: bits[2] = bit_slice(x, start=0, width=2)
-          literal.3: bits[1] = literal(value=1)
-          ret one_hot_sel.9: bits[2] = one_hot_sel(one_hot.8, cases=[literal.6, bit_slice.4])
+          literal.2: bits[8] = literal(value=255, id=2)
+          eq.5: bits[1] = eq(literal.2, x, id=5)
+          concat.7: bits[1] = concat(eq.5, id=7)
+          one_hot.8: bits[2] = one_hot(concat.7, lsb_prio=true, id=8)
+          literal.6: bits[2] = literal(value=0, id=6)
+          bit_slice.4: bits[2] = bit_slice(x, start=0, width=2, id=4)
+          literal.3: bits[1] = literal(value=1, id=3)
+          ret one_hot_sel.9: bits[2] = one_hot_sel(one_hot.8, cases=[literal.6, bit_slice.4], id=9)
         }
         """)
 
@@ -818,11 +818,11 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__f(x: bits[8]) -> bits[1] {
-          literal.2: bits[8] = literal(value=42)
-          eq.3: bits[1] = eq(x, literal.2)
-          literal.5: bits[1] = literal(value=0)
-          literal.4: bits[1] = literal(value=1)
-          ret sel.6: bits[1] = sel(eq.3, cases=[literal.5, literal.4])
+          literal.2: bits[8] = literal(value=42, id=2)
+          eq.3: bits[1] = eq(x, literal.2, id=3)
+          literal.5: bits[1] = literal(value=0, id=5)
+          literal.4: bits[1] = literal(value=1, id=4)
+          ret sel.6: bits[1] = sel(eq.3, cases=[literal.5, literal.4], id=6)
         }
         """)
 
@@ -843,13 +843,13 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__parametric_id__8(x: bits[8]) -> bits[8] {
-          literal.2: bits[32] = literal(value=8)
-          bit_slice.3: bits[8] = bit_slice(literal.2, start=0, width=8)
-          ret add.4: bits[8] = add(x, bit_slice.3)
+          literal.2: bits[32] = literal(value=8, id=2)
+          bit_slice.3: bits[8] = bit_slice(literal.2, start=0, width=8, id=3)
+          ret add.4: bits[8] = add(x, bit_slice.3, id=4)
         }
 
         fn __test_module__main(x: bits[8]) -> bits[8] {
-          ret invoke.6: bits[8] = invoke(x, to_apply=__test_module__parametric_id__8)
+          ret invoke.6: bits[8] = invoke(x, to_apply=__test_module__parametric_id__8, id=6)
         }
         """)
 
@@ -872,18 +872,18 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__parametric_id__8(x: bits[8]) -> bits[8] {
-          literal.2: bits[32] = literal(value=8)
-          bit_slice.3: bits[8] = bit_slice(literal.2, start=0, width=8)
-          ret add.4: bits[8] = add(x, bit_slice.3)
+          literal.2: bits[32] = literal(value=8, id=2)
+          bit_slice.3: bits[8] = bit_slice(literal.2, start=0, width=8, id=3)
+          ret add.4: bits[8] = add(x, bit_slice.3, id=4)
         }
 
         fn __test_module__parametric_id_wrapper__8(x: bits[8]) -> bits[8] {
-          literal.6: bits[32] = literal(value=8)
-          ret invoke.7: bits[8] = invoke(x, to_apply=__test_module__parametric_id__8)
+          literal.6: bits[32] = literal(value=8, id=6)
+          ret invoke.7: bits[8] = invoke(x, to_apply=__test_module__parametric_id__8, id=7)
         }
 
         fn __test_module__main(x: bits[8]) -> bits[8] {
-          ret invoke.9: bits[8] = invoke(x, to_apply=__test_module__parametric_id_wrapper__8)
+          ret invoke.9: bits[8] = invoke(x, to_apply=__test_module__parametric_id_wrapper__8, id=9)
         }
         """)
 
@@ -902,16 +902,16 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__parametric__3_5_8(x: bits[3], y: bits[5]) -> bits[8] {
-          literal.3: bits[32] = literal(value=3, pos=0,0,4)
-          literal.4: bits[32] = literal(value=5, pos=0,0,12)
-          literal.5: bits[32] = literal(value=8, pos=0,0,20)
-          ret concat.6: bits[8] = concat(x, y, pos=0,1,4)
+          literal.3: bits[32] = literal(value=3, id=3, pos=0,0,4)
+          literal.4: bits[32] = literal(value=5, id=4, pos=0,0,12)
+          literal.5: bits[32] = literal(value=8, id=5, pos=0,0,20)
+          ret concat.6: bits[8] = concat(x, y, id=6, pos=0,1,4)
         }
 
         fn __test_module__main() -> bits[8] {
-          literal.7: bits[3] = literal(value=0, pos=0,4,21)
-          literal.8: bits[5] = literal(value=1, pos=0,4,32)
-          ret invoke.9: bits[8] = invoke(literal.7, literal.8, to_apply=__test_module__parametric__3_5_8, pos=0,4,12)
+          literal.7: bits[3] = literal(value=0, id=7, pos=0,4,21)
+          literal.8: bits[5] = literal(value=1, id=8, pos=0,4,32)
+          ret invoke.9: bits[8] = invoke(literal.7, literal.8, to_apply=__test_module__parametric__3_5_8, id=9, pos=0,4,12)
         }
         """)
 
@@ -931,10 +931,10 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__main(x0: bits[19], x3: bits[29]) -> bits[29] {
-          literal.3: bits[29] = literal(value=0)
-          bit_slice.4: bits[19] = bit_slice(literal.3, start=0, width=19)
-          add.5: bits[19] = add(x0, bit_slice.4)
-          ret identity.6: bits[29] = identity(x3)
+          literal.3: bits[29] = literal(value=0, id=3)
+          bit_slice.4: bits[19] = bit_slice(literal.3, start=0, width=19, id=4)
+          add.5: bits[19] = add(x0, bit_slice.4, id=5)
+          ret identity.6: bits[29] = identity(x3, id=6)
         }
         """)
 
@@ -952,7 +952,7 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__main(x: bits[2]) -> bits[1] {
-          ret bit_slice.2: bits[1] = bit_slice(x, start=0, width=1)
+          ret bit_slice.2: bits[1] = bit_slice(x, start=0, width=1, id=2)
         }
         """)
 
@@ -971,11 +971,11 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__main() -> bits[8] {
-          literal.1: bits[32] = literal(value=3)
-          literal.2: bits[8] = literal(value=4)
-          tuple.3: (bits[32], bits[8]) = tuple(literal.1, literal.2)
-          literal.4: bits[32] = literal(value=1)
-          ret tuple_index.5: bits[8] = tuple_index(tuple.3, index=1)
+          literal.1: bits[32] = literal(value=3, id=1)
+          literal.2: bits[8] = literal(value=4, id=2)
+          tuple.3: (bits[32], bits[8]) = tuple(literal.1, literal.2, id=3)
+          literal.4: bits[32] = literal(value=1, id=4)
+          ret tuple_index.5: bits[8] = tuple_index(tuple.3, index=1, id=5)
         }
         """)
 
@@ -997,13 +997,13 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__main(x: bits[8]) -> bits[8] {
-          literal.3: bits[8] = literal(value=42)
-          eq.4: bits[1] = eq(literal.3, x)
-          concat.6: bits[1] = concat(eq.4)
-          one_hot.7: bits[2] = one_hot(concat.6, lsb_prio=true)
-          literal.5: bits[8] = literal(value=255)
-          literal.2: bits[1] = literal(value=1)
-          ret one_hot_sel.8: bits[8] = one_hot_sel(one_hot.7, cases=[literal.5, x])
+          literal.3: bits[8] = literal(value=42, id=3)
+          eq.4: bits[1] = eq(literal.3, x, id=4)
+          concat.6: bits[1] = concat(eq.4, id=6)
+          one_hot.7: bits[2] = one_hot(concat.6, lsb_prio=true, id=7)
+          literal.5: bits[8] = literal(value=255, id=5)
+          literal.2: bits[1] = literal(value=1, id=2)
+          ret one_hot_sel.8: bits[8] = one_hot_sel(one_hot.7, cases=[literal.5, x], id=8)
         }
         """)
 
@@ -1023,8 +1023,8 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__main(x: bits[32][17]) -> bits[32] {
-          literal.2: bits[32] = literal(value=16)
-          ret array_index.3: bits[32] = array_index(x, literal.2)
+          literal.2: bits[32] = literal(value=16, id=2)
+          ret array_index.3: bits[32] = array_index(x, literal.2, id=3)
         }
         """)
 
@@ -1046,21 +1046,21 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__parametric__2(x: bits[2]) -> bits[32] {
-          literal.2: bits[32] = literal(value=2)
-          ret identity.3: bits[32] = identity(literal.2)
+          literal.2: bits[32] = literal(value=2, id=2)
+          ret identity.3: bits[32] = identity(literal.2, id=3)
         }
 
         fn __test_module__parametric__3(x: bits[3]) -> bits[32] {
-          literal.5: bits[32] = literal(value=3)
-          ret identity.6: bits[32] = identity(literal.5)
+          literal.5: bits[32] = literal(value=3, id=5)
+          ret identity.6: bits[32] = identity(literal.5, id=6)
         }
 
         fn __test_module__main() -> bits[32] {
-          literal.7: bits[2] = literal(value=0)
-          literal.9: bits[3] = literal(value=0)
-          invoke.8: bits[32] = invoke(literal.7, to_apply=__test_module__parametric__2)
-          invoke.10: bits[32] = invoke(literal.9, to_apply=__test_module__parametric__3)
-          ret add.11: bits[32] = add(invoke.8, invoke.10)
+          literal.7: bits[2] = literal(value=0, id=7)
+          literal.9: bits[3] = literal(value=0, id=9)
+          invoke.8: bits[32] = invoke(literal.7, to_apply=__test_module__parametric__2, id=8)
+          invoke.10: bits[32] = invoke(literal.9, to_apply=__test_module__parametric__3, id=10)
+          ret add.11: bits[32] = add(invoke.8, invoke.10, id=11)
         }
         """)
 
@@ -1078,8 +1078,8 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__main() -> bits[32] {
-          literal.1: bits[32] = literal(value=42)
-          ret identity.2: bits[32] = identity(literal.1)
+          literal.1: bits[32] = literal(value=42, id=1)
+          ret identity.2: bits[32] = identity(literal.1, id=2)
         }
         """)
 
@@ -1111,12 +1111,12 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__main(r: bits[9], l: bits[10], input: ((bits[1], (bits[6], bits[1]), bits[3])[3], bits[3], bits[1])) -> (bits[9], bits[10], (bits[64], bits[1])) {
-          literal.6: bits[64] = literal(value=0)
-          literal.7: bits[1] = literal(value=0)
-          literal.4: bits[9] = literal(value=0)
-          literal.5: bits[10] = literal(value=0)
-          tuple.8: (bits[64], bits[1]) = tuple(literal.6, literal.7)
-          ret tuple.9: (bits[9], bits[10], (bits[64], bits[1])) = tuple(literal.4, literal.5, tuple.8)
+          literal.6: bits[64] = literal(value=0, id=6)
+          literal.7: bits[1] = literal(value=0, id=7)
+          literal.4: bits[9] = literal(value=0, id=4)
+          literal.5: bits[10] = literal(value=0, id=5)
+          tuple.8: (bits[64], bits[1]) = tuple(literal.6, literal.7, id=8)
+          ret tuple.9: (bits[9], bits[10], (bits[64], bits[1])) = tuple(literal.4, literal.5, tuple.8, id=9)
         }
         """)
 
@@ -1134,9 +1134,9 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__main(input: bits[8][2]) -> bits[8][2] {
-          literal.2: bits[32] = literal(value=1)
-          literal.3: bits[8] = literal(value=66)
-          ret array_update.4: bits[8][2] = array_update(input, literal.2, literal.3)
+          literal.2: bits[32] = literal(value=1, id=2)
+          literal.3: bits[8] = literal(value=66, id=3)
+          ret array_update.4: bits[8][2] = array_update(input, literal.2, literal.3, id=4)
         }
         """)
 
@@ -1156,16 +1156,16 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn ____test_module__main_counted_for_0_body(i: bits[32], accum: bits[8][2]) -> bits[8][2] {
-          bit_slice.7: bits[8] = bit_slice(i, start=0, width=8)
-          ret array_update.8: bits[8][2] = array_update(accum, i, bit_slice.7)
+          bit_slice.7: bits[8] = bit_slice(i, start=0, width=8, id=7)
+          ret array_update.8: bits[8][2] = array_update(accum, i, bit_slice.7, id=8)
         }
 
         fn __test_module__main() -> bits[8][2] {
-          literal.3: bits[8][2] = literal(value=[0, 0])
-          literal.1: bits[8] = literal(value=0)
-          literal.2: bits[8] = literal(value=0)
-          literal.4: bits[32] = literal(value=2)
-          ret counted_for.9: bits[8][2] = counted_for(literal.3, trip_count=2, stride=1, body=____test_module__main_counted_for_0_body)
+          literal.3: bits[8][2] = literal(value=[0, 0], id=3)
+          literal.1: bits[8] = literal(value=0, id=1)
+          literal.2: bits[8] = literal(value=0, id=2)
+          literal.4: bits[32] = literal(value=2, id=4)
+          ret counted_for.9: bits[8][2] = counted_for(literal.3, trip_count=2, stride=1, body=____test_module__main_counted_for_0_body, id=9)
         }
         """)
 
@@ -1180,8 +1180,8 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__main() -> bits[8][2] {
-          literal.1: bits[8] = literal(value=0)
-          ret literal.2: bits[8][2] = literal(value=[0, 0])
+          literal.1: bits[8] = literal(value=0, id=1)
+          ret literal.2: bits[8][2] = literal(value=[0, 0], id=2)
         }
         """)
 
@@ -1199,8 +1199,8 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__main(x: bits[8]) -> bits[8][4] {
-          literal.2: bits[8] = literal(value=0)
-          ret array.3: bits[8][4] = array(literal.2, x, x, x)
+          literal.2: bits[8] = literal(value=0, id=2)
+          ret array.3: bits[8][4] = array(literal.2, x, x, x, id=3)
         }
         """)
 
@@ -1224,18 +1224,18 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn ____test_module__f__32_counted_for_0_body(i: bits[32], accum: bits[32]) -> bits[32] {
-          ret zero_ext.6: bits[32] = zero_ext(accum, new_bit_count=32)
+          ret zero_ext.6: bits[32] = zero_ext(accum, new_bit_count=32, id=6)
         }
 
         fn __test_module__f__32(init: bits[32]) -> bits[32] {
-          literal.2: bits[32] = literal(value=32)
-          literal.3: bits[32] = literal(value=4)
-          ret counted_for.7: bits[32] = counted_for(init, trip_count=4, stride=1, body=____test_module__f__32_counted_for_0_body)
+          literal.2: bits[32] = literal(value=32, id=2)
+          literal.3: bits[32] = literal(value=4, id=3)
+          ret counted_for.7: bits[32] = counted_for(init, trip_count=4, stride=1, body=____test_module__f__32_counted_for_0_body, id=7)
         }
 
         fn __test_module__main() -> bits[32] {
-          literal.8: bits[32] = literal(value=0)
-          ret invoke.9: bits[32] = invoke(literal.8, to_apply=__test_module__f__32)
+          literal.8: bits[32] = literal(value=0, id=8)
+          ret invoke.9: bits[32] = invoke(literal.8, to_apply=__test_module__f__32, id=9)
         }
         """)
 
@@ -1253,13 +1253,13 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__main(x: bits[32], y: bits[32]) -> bits[1] {
-          sgt.3: bits[1] = sgt(x, y)
-          slt.4: bits[1] = slt(x, y)
-          and.5: bits[1] = and(sgt.3, slt.4)
-          sge.6: bits[1] = sge(x, y)
-          and.7: bits[1] = and(and.5, sge.6)
-          sle.8: bits[1] = sle(x, y)
-          ret and.9: bits[1] = and(and.7, sle.8)
+          sgt.3: bits[1] = sgt(x, y, id=3)
+          slt.4: bits[1] = slt(x, y, id=4)
+          and.5: bits[1] = and(sgt.3, slt.4, id=5)
+          sge.6: bits[1] = sge(x, y, id=6)
+          and.7: bits[1] = and(and.5, sge.6, id=7)
+          sle.8: bits[1] = sle(x, y, id=8)
+          ret and.9: bits[1] = and(and.7, sle.8, id=9)
         }
         """)
 
@@ -1277,13 +1277,13 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__main(x: bits[32], y: bits[32]) -> bits[1] {
-          sgt.3: bits[1] = sgt(x, y)
-          slt.4: bits[1] = slt(x, y)
-          and.5: bits[1] = and(sgt.3, slt.4)
-          sge.6: bits[1] = sge(x, y)
-          and.7: bits[1] = and(and.5, sge.6)
-          sle.8: bits[1] = sle(x, y)
-          ret and.9: bits[1] = and(and.7, sle.8)
+          sgt.3: bits[1] = sgt(x, y, id=3)
+          slt.4: bits[1] = slt(x, y, id=4)
+          and.5: bits[1] = and(sgt.3, slt.4, id=5)
+          sge.6: bits[1] = sge(x, y, id=6)
+          and.7: bits[1] = and(and.5, sge.6, id=7)
+          sle.8: bits[1] = sle(x, y, id=8)
+          ret and.9: bits[1] = and(and.7, sle.8, id=9)
         }
         """)
 
@@ -1301,8 +1301,8 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__main(x: bits[8]) -> bits[32] {
-          literal.2: bits[32] = literal(value=0)
-          ret sign_ext.3: bits[32] = sign_ext(x, new_bit_count=32)
+          literal.2: bits[32] = literal(value=0, id=2)
+          ret sign_ext.3: bits[32] = sign_ext(x, new_bit_count=32, id=3)
         }
         """)
 
@@ -1320,8 +1320,8 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__main(x: bits[8]) -> bits[32] {
-          literal.2: bits[32] = literal(value=0)
-          ret sign_ext.3: bits[32] = sign_ext(x, new_bit_count=32)
+          literal.2: bits[32] = literal(value=0, id=2)
+          ret sign_ext.3: bits[32] = sign_ext(x, new_bit_count=32, id=3)
         }
         """)
 
@@ -1339,11 +1339,11 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__main(x: bits[8], y: bits[8]) -> (bits[32], bits[32], bits[32], bits[32]) {
-          zero_ext.3: bits[32] = zero_ext(x, new_bit_count=32)
-          sign_ext.4: bits[32] = sign_ext(y, new_bit_count=32)
-          zero_ext.5: bits[32] = zero_ext(x, new_bit_count=32)
-          sign_ext.6: bits[32] = sign_ext(y, new_bit_count=32)
-          ret tuple.7: (bits[32], bits[32], bits[32], bits[32]) = tuple(zero_ext.3, sign_ext.4, zero_ext.5, sign_ext.6)
+          zero_ext.3: bits[32] = zero_ext(x, new_bit_count=32, id=3)
+          sign_ext.4: bits[32] = sign_ext(y, new_bit_count=32, id=4)
+          zero_ext.5: bits[32] = zero_ext(x, new_bit_count=32, id=5)
+          sign_ext.6: bits[32] = sign_ext(y, new_bit_count=32, id=6)
+          ret tuple.7: (bits[32], bits[32], bits[32], bits[32]) = tuple(zero_ext.3, sign_ext.4, zero_ext.5, sign_ext.6, id=7)
         }
         """)
 
@@ -1361,14 +1361,14 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__main(s: bits[2]) -> bits[32] {
-          literal.4: bits[32][2] = literal(value=[2, 3])
-          literal.5: bits[32] = literal(value=0)
-          literal.7: bits[32] = literal(value=1)
-          array_index.6: bits[32] = array_index(literal.4, literal.5)
-          array_index.8: bits[32] = array_index(literal.4, literal.7)
-          literal.2: bits[32] = literal(value=2)
-          literal.3: bits[32] = literal(value=3)
-          ret one_hot_sel.9: bits[32] = one_hot_sel(s, cases=[array_index.6, array_index.8])
+          literal.4: bits[32][2] = literal(value=[2, 3], id=4)
+          literal.5: bits[32] = literal(value=0, id=5)
+          literal.7: bits[32] = literal(value=1, id=7)
+          array_index.6: bits[32] = array_index(literal.4, literal.5, id=6)
+          array_index.8: bits[32] = array_index(literal.4, literal.7, id=8)
+          literal.2: bits[32] = literal(value=2, id=2)
+          literal.3: bits[32] = literal(value=3, id=3)
+          ret one_hot_sel.9: bits[32] = one_hot_sel(s, cases=[array_index.6, array_index.8], id=9)
         }
         """)
 
@@ -1391,9 +1391,9 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__get_thing(x: (bits[32][2]), i: bits[32]) -> bits[32] {
-          tuple_index.4: bits[32][2] = tuple_index(x, index=0)
-          literal.3: bits[32] = literal(value=0)
-          ret array_index.5: bits[32] = array_index(tuple_index.4, i)
+          tuple_index.4: bits[32][2] = tuple_index(x, index=0, id=4)
+          literal.3: bits[32] = literal(value=0, id=3)
+          ret array_index.5: bits[32] = array_index(tuple_index.4, i, id=5)
         }
         """)
 
@@ -1415,11 +1415,11 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__f(x: bits[32]) -> bits[32] {
-          literal.2: bits[32] = literal(value=0)
-          eq.3: bits[1] = eq(x, literal.2)
-          literal.5: bits[32] = literal(value=0)
-          literal.4: bits[32] = literal(value=1)
-          ret sel.6: bits[32] = sel(eq.3, cases=[literal.5, literal.4])
+          literal.2: bits[32] = literal(value=0, id=2)
+          eq.3: bits[1] = eq(x, literal.2, id=3)
+          literal.5: bits[32] = literal(value=0, id=5)
+          literal.4: bits[32] = literal(value=1, id=4)
+          ret sel.6: bits[32] = sel(eq.3, cases=[literal.5, literal.4], id=6)
         }
         """)
 
@@ -1437,7 +1437,7 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__f(x: bits[32][1]) -> bits[32][1] {
-          ret identity.2: bits[32][1] = identity(x)
+          ret identity.2: bits[32][1] = identity(x, id=2)
         }
         """)
 
@@ -1456,7 +1456,7 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__f(x: bits[2][1]) -> bits[2][1] {
-          ret identity.2: bits[2][1] = identity(x)
+          ret identity.2: bits[2][1] = identity(x, id=2)
         }
         """)
 
@@ -1474,15 +1474,15 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__f(x: bits[4]) -> bits[2] {
-          bit_slice.2: bits[2] = bit_slice(x, start=0, width=2)
-          bit_slice.3: bits[2] = bit_slice(x, start=2, width=2)
-          add.4: bits[2] = add(bit_slice.2, bit_slice.3)
-          bit_slice.5: bits[2] = bit_slice(x, start=1, width=2)
-          add.6: bits[2] = add(add.4, bit_slice.5)
-          bit_slice.7: bits[2] = bit_slice(x, start=1, width=2)
-          add.8: bits[2] = add(add.6, bit_slice.7)
-          bit_slice.9: bits[2] = bit_slice(x, start=0, width=2)
-          ret add.10: bits[2] = add(add.8, bit_slice.9)
+          bit_slice.2: bits[2] = bit_slice(x, start=0, width=2, id=2)
+          bit_slice.3: bits[2] = bit_slice(x, start=2, width=2, id=3)
+          add.4: bits[2] = add(bit_slice.2, bit_slice.3, id=4)
+          bit_slice.5: bits[2] = bit_slice(x, start=1, width=2, id=5)
+          add.6: bits[2] = add(add.4, bit_slice.5, id=6)
+          bit_slice.7: bits[2] = bit_slice(x, start=1, width=2, id=7)
+          add.8: bits[2] = add(add.6, bit_slice.7, id=8)
+          bit_slice.9: bits[2] = bit_slice(x, start=0, width=2, id=9)
+          ret add.10: bits[2] = add(add.8, bit_slice.9, id=10)
         }
         """), converted)
 
@@ -1500,10 +1500,10 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__f(x: bits[32], y: bits[32]) -> bits[8] {
-          literal.3: bits[32] = literal(value=2)
-          dynamic_bit_slice.4: bits[8] = dynamic_bit_slice(x, literal.3, width=8)
-          dynamic_bit_slice.5: bits[8] = dynamic_bit_slice(x, y, width=8)
-          ret add.6: bits[8] = add(dynamic_bit_slice.4, dynamic_bit_slice.5)
+          literal.3: bits[32] = literal(value=2, id=3)
+          dynamic_bit_slice.4: bits[8] = dynamic_bit_slice(x, literal.3, width=8, id=4)
+          dynamic_bit_slice.5: bits[8] = dynamic_bit_slice(x, y, width=8, id=5)
+          ret add.6: bits[8] = add(dynamic_bit_slice.4, dynamic_bit_slice.5, id=6)
         }
         """), converted)
 
@@ -1526,7 +1526,7 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__f(xy: bits[32]) -> (bits[32], bits[32]) {
-          ret tuple.2: (bits[32], bits[32]) = tuple(xy, xy)
+          ret tuple.2: (bits[32], bits[32]) = tuple(xy, xy, id=2)
         }
         """)
 
@@ -1549,8 +1549,8 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__f(p: (bits[32], bits[32]), new_y: bits[32]) -> (bits[32], bits[32]) {
-          tuple_index.3: bits[32] = tuple_index(p, index=0)
-          ret tuple.4: (bits[32], bits[32]) = tuple(tuple_index.3, new_y)
+          tuple_index.3: bits[32] = tuple_index(p, index=0, id=3)
+          ret tuple.4: (bits[32], bits[32]) = tuple(tuple_index.3, new_y, id=4)
         }
         """)
 
@@ -1569,9 +1569,9 @@ class IrConverterTest(absltest.TestCase):
         package test_module
 
         fn __test_module__f(in1: bits[32][2]) -> bits[32] {
-          array_concat.2: bits[32][4] = array_concat(in1, in1)
-          literal.3: bits[32] = literal(value=0)
-          ret array_index.4: bits[32] = array_index(array_concat.2, literal.3)
+          array_concat.2: bits[32][4] = array_concat(in1, in1, id=2)
+          literal.3: bits[32] = literal(value=0, id=3)
+          ret array_index.4: bits[32] = array_index(array_concat.2, literal.3, id=4)
         }
         """)
 

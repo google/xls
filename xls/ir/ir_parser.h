@@ -247,16 +247,6 @@ absl::StatusOr<std::unique_ptr<PackageT>> Parser::ParseDerivedPackageNoVerify(
                         peek.value(), peek.pos().ToHumanString()));
   }
 
-  // Ensure that, if there were explicit node ID hints in the input IR text,
-  // that the package's next ID doesn't collide with anything.
-  int64 max_id_seen = -1;
-  for (Function* function : package->GetFunctionsAndProcs()) {
-    for (Node* node : function->nodes()) {
-      max_id_seen = std::max(max_id_seen, node->id());
-    }
-  }
-  package->set_next_node_id(max_id_seen + 1);
-
   // Verify the given entry function exists in the package.
   if (entry.has_value()) {
     XLS_RETURN_IF_ERROR(package->GetFunction(*entry).status());

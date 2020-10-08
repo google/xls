@@ -17,11 +17,16 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/passes/dce_pass.h"
 
+namespace m = ::xls::op_matchers;
+
 namespace xls {
 namespace {
+
+using status_testing::IsOkAndHolds;
 
 TEST(UnrollPassTest, UnrollsCountedForWithInvariantArgsAndStride) {
   const std::string program = R"(
@@ -44,19 +49,12 @@ fn unrollable() -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("unrollable"));
   PassResults results;
   UnrollPass pass;
-  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           pass.RunOnFunction(f, PassOptions(), &results));
-  EXPECT_TRUE(changed);
-
-  const std::string expected = R"(fn unrollable() -> bits[32] {
-  literal.6: bits[4] = literal(value=0)
-  literal.1: bits[32] = literal(value=0)
-  literal.8: bits[4] = literal(value=2)
-  invoke.7: bits[32] = invoke(literal.6, literal.1, literal.1, to_apply=body)
-  ret invoke.9: bits[32] = invoke(literal.8, invoke.7, literal.1, to_apply=body)
-}
-)";
-  EXPECT_EQ(expected, f->DumpIr());
+  EXPECT_THAT(pass.RunOnFunction(f, PassOptions(), &results),
+              IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Invoke(m::Literal(2),
+                        m::Invoke(m::Literal(0), m::Literal(0), m::Literal(0)),
+                        m::Literal(0)));
 }
 
 }  // namespace

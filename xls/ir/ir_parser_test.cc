@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/strings/substitute.h"
+#include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/number_parser.h"
@@ -42,7 +43,11 @@ void ExpectStringsSimilar(absl::string_view a, absl::string_view b) {
 
 // Parses the given string as a function, dumps the IR and compares that the
 // dumped string and input string are the same modulo whitespace.
-void ParseFunctionAndCheckDump(absl::string_view in) {
+void ParseFunctionAndCheckDump(
+    absl::string_view in,
+    xabsl::SourceLocation loc = xabsl::SourceLocation::current()) {
+  testing::ScopedTrace trace(loc.file_name(), loc.line(),
+                             "ParseFunctionAndCheckDump failed");
   Package p("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(auto function, Parser::ParseFunction(in, &p));
   ExpectStringsSimilar(function->DumpIr(), in);
@@ -50,20 +55,24 @@ void ParseFunctionAndCheckDump(absl::string_view in) {
 
 // Parses the given string as a package, dumps the IR and compares that the
 // dumped string and input string are the same modulo whitespace.
-void ParsePackageAndCheckDump(absl::string_view in) {
+void ParsePackageAndCheckDump(
+    absl::string_view in,
+    xabsl::SourceLocation loc = xabsl::SourceLocation::current()) {
+  testing::ScopedTrace trace(loc.file_name(), loc.line(),
+                             "ParsePackageAndCheckDump failed");
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(in));
   ExpectStringsSimilar(package->DumpIr(), in);
 }
 
 TEST(IrParserTest, ParseBitsLiteral) {
   ParseFunctionAndCheckDump(R"(fn f() -> bits[37] {
-  ret literal.1: bits[37] = literal(value=42)
+  ret literal.1: bits[37] = literal(value=42, id=1)
 })");
 }
 
 TEST(IrParserTest, ParseWideLiteral) {
   ParseFunctionAndCheckDump(R"(fn f() -> bits[96] {
-  ret literal.1: bits[96] = literal(value=0xaaaa_bbbb_1234_5678_90ab_cdef)
+  ret literal.1: bits[96] = literal(value=0xaaaa_bbbb_1234_5678_90ab_cdef, id=1)
 })");
 }
 
@@ -182,7 +191,7 @@ TEST(IrParserTest, ParsePosition) {
   ParseFunctionAndCheckDump(
       R"(
 fn f(x: bits[42], y: bits[42]) -> bits[42] {
-  ret and.1: bits[42] = and(x, y, pos=0,1,3)
+  ret and.1: bits[42] = and(x, y, id=1, pos=0,1,3)
 }
 )");
 }
@@ -246,7 +255,7 @@ TEST(IrParserTest, TooFewOperands) {
   const std::string input =
       R"(
 fn f(x: bits[42]) -> bits[42] {
-  ret add.1: bits[42] = add(x)
+  ret add.1: bits[42] = add(x, id=1)
 }
 })";
   EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
@@ -259,7 +268,7 @@ TEST(IrParserTest, DuplicateName) {
   const std::string input =
       R"(
 fn f(x: bits[42]) -> bits[42] {
- and.1: bits[42] = and(x, x)
+ and.1: bits[42] = and(x, x, id=1)
  and.1: bits[42] = and(and.1, and.1)
 }
 })";
@@ -272,8 +281,8 @@ TEST(IrParserTest, ParseNode) {
   ParseFunctionAndCheckDump(
       R"(
 fn f() -> bits[32] {
-  literal.1: bits[32] = literal(value=3, pos=0,3,11)
-  ret sub.2: bits[32] = sub(literal.1, literal.1)
+  literal.1: bits[32] = literal(value=3, id=1, pos=0,3,11)
+  ret sub.2: bits[32] = sub(literal.1, literal.1, id=2)
 })");
 }
 
@@ -281,7 +290,7 @@ TEST(IrParserTest, ParseFunction) {
   ParseFunctionAndCheckDump(
       R"(
 fn simple_arith(a: bits[32], b: bits[32]) -> bits[32] {
-  ret sub.3: bits[32] = sub(a, b)
+  ret sub.3: bits[32] = sub(a, b, id=3)
 })");
 }
 
@@ -289,7 +298,7 @@ TEST(IrParserTest, ParseULessThan) {
   ParseFunctionAndCheckDump(
       R"(
 fn less_than(a: bits[32], b: bits[32]) -> bits[1] {
-  ret ult.3: bits[1] = ult(a, b)
+  ret ult.3: bits[1] = ult(a, b, id=3)
 })");
 }
 
@@ -297,16 +306,16 @@ TEST(IrParserTest, ParseSLessThan) {
   ParseFunctionAndCheckDump(
       R"(
 fn less_than(a: bits[32], b: bits[32]) -> bits[1] {
-  ret slt.3: bits[1] = slt(a, b)
+  ret slt.3: bits[1] = slt(a, b, id=3)
 })");
 }
 
 TEST(IrParserTest, ParseTwoPlusTwo) {
   std::string program = R"(
 fn two_plus_two() -> bits[32] {
-  literal.1: bits[32] = literal(value=2)
-  literal.2: bits[32] = literal(value=2)
-  ret add.3: bits[32] = add(literal.1, literal.2)
+  literal.1: bits[32] = literal(value=2, id=1)
+  literal.2: bits[32] = literal(value=2, id=2)
+  ret add.3: bits[32] = add(literal.1, literal.2, id=3)
 }
 )";
   ParseFunctionAndCheckDump(program);
@@ -315,9 +324,9 @@ fn two_plus_two() -> bits[32] {
 TEST(IrParserTest, ParseTwoPlusThreeCustomIdentifiers) {
   std::string program = R"(
 fn two_plus_two() -> bits[32] {
-  literal.1: bits[32] = literal(value=2)
-  literal.2: bits[32] = literal(value=3)
-  ret add.3: bits[32] = add(literal.1, literal.2)
+  literal.1: bits[32] = literal(value=2, id=1)
+  literal.2: bits[32] = literal(value=3, id=2)
+  ret add.3: bits[32] = add(literal.1, literal.2, id=3)
 }
 )";
   Package p("my_package");
@@ -326,9 +335,9 @@ fn two_plus_two() -> bits[32] {
   // original names.
   ExpectStringsSimilar(function->DumpIr(), R"(
 fn two_plus_two() -> bits[32] {
-  literal.1: bits[32] = literal(value=2)
-  literal.2: bits[32] = literal(value=3)
-  ret add.3: bits[32] = add(literal.1, literal.2)
+  literal.1: bits[32] = literal(value=2, id=1)
+  literal.2: bits[32] = literal(value=3, id=2)
+  ret add.3: bits[32] = add(literal.1, literal.2, id=3)
 })");
 }
 
@@ -337,12 +346,12 @@ TEST(IrParserTest, CountedFor) {
 package CountedFor
 
 fn body(x: bits[11], y: bits[11]) -> bits[11] {
-  ret add.3: bits[11] = add(x, y)
+  ret add.3: bits[11] = add(x, y, id=3)
 }
 
 fn main() -> bits[11] {
-  literal.4: bits[11] = literal(value=0)
-  ret counted_for.5: bits[11] = counted_for(literal.4, trip_count=7, stride=1, body=body)
+  literal.4: bits[11] = literal(value=0, id=4)
+  ret counted_for.5: bits[11] = counted_for(literal.4, trip_count=7, stride=1, body=body, id=5)
 }
 )";
   ParsePackageAndCheckDump(program);
@@ -353,11 +362,11 @@ TEST(IrParserTest, CountedForMissingBody) {
 package CountedForMissingBody
 
 fn body(i: bits[11], x: bits[11], y: bits[11]) -> bits[11] {
-  ret add.3: bits[11] = add(x, y)
+  ret add.3: bits[11] = add(x, y, id=3)
 }
 
 fn main() -> bits[11] {
-  literal.4: bits[11] = literal(value=0)
+  literal.4: bits[11] = literal(value=0, id=4)
   ret counted_for.5: bits[11] = counted_for(literal.4, trip_count=7, stride=1)
 }
 )";
@@ -372,13 +381,13 @@ TEST(IrParserTest, CountedForInvariantArgs) {
 package CountedFor
 
 fn body(i: bits[11], x: bits[11], y: bits[11]) -> bits[11] {
-  ret add.3: bits[11] = add(x, y)
+  ret add.3: bits[11] = add(x, y, id=3)
 }
 
 fn main() -> bits[11] {
-  literal.4: bits[11] = literal(value=0)
-  literal.5: bits[11] = literal(value=1)
-  ret counted_for.6: bits[11] = counted_for(literal.4, trip_count=7, stride=1, body=body, invariant_args=[literal.5])
+  literal.4: bits[11] = literal(value=0, id=4)
+  literal.5: bits[11] = literal(value=1, id=5)
+  ret counted_for.6: bits[11] = counted_for(literal.4, trip_count=7, stride=1, body=body, invariant_args=[literal.5], id=6)
 }
 )";
   ParsePackageAndCheckDump(program);
@@ -392,7 +401,7 @@ fn loop_fn(i: bits[4], data: bits[16], x: bits[16], y: bits[16]) -> bits[16] {
 }
 
 fn f(x: bits[16]) -> bits[16] {
-  literal.2: bits[16] = literal(value=2)
+  literal.2: bits[16] = literal(value=2, id=2)
   literal.3: bits[16] = literal(value=3)
 
   ret counted_for.100: bits[16] = counted_for(x, trip_count=2, body=loop_fn,
@@ -436,8 +445,8 @@ fn loop_fn(i: bits[4], data: bits[16], x: bits[16], y: bits[16]) -> bits[16] {
 }
 
 fn f(x: bits[16]) -> bits[16] {
-  literal.2: bits[16] = literal(value=2)
-  literal.3: bits[16] = literal(value=3)
+  literal.2: bits[16] = literal(value=2, id=2)
+  literal.3: bits[16] = literal(value=3, id=3)
   literal.4: bits[16] = literal(value=4)
 
   ret counted_for.100: bits[16] = counted_for(x, trip_count=2, body=loop_fn,
@@ -499,14 +508,14 @@ TEST(IrParserTest, CountedForBodyBitWidthSufficient0) {
 package test
 
 fn loop_fn(i: bits[4], data: bits[16]) -> bits[16] {
-  ret literal.10: bits[16] = literal(value=0)
+  ret literal.10: bits[16] = literal(value=0, id=10)
 }
 
 fn f(x: bits[16]) -> bits[16] {
-  literal.2: bits[16] = literal(value=2)
+  literal.2: bits[16] = literal(value=2, id=2)
 
   ret counted_for.100: bits[16] = counted_for(x, trip_count=16, stride=1,
-                                              body=loop_fn)
+                                              body=loop_fn, id=100)
 }
 )";
 
@@ -518,14 +527,14 @@ TEST(IrParserTest, CountedForBodyBitWidthZeroIteration) {
 package test
 
 fn loop_fn(i: bits[1], data: bits[16]) -> bits[16] {
-  ret literal.10: bits[16] = literal(value=0)
+  ret literal.10: bits[16] = literal(value=0, id=10)
 }
 
 fn f(x: bits[16]) -> bits[16] {
-  literal.2: bits[16] = literal(value=2)
+  literal.2: bits[16] = literal(value=2, id=2)
 
   ret counted_for.100: bits[16] = counted_for(x, trip_count=0, stride=1,
-                                              body=loop_fn)
+                                              body=loop_fn, id=100)
 }
 )";
 
@@ -537,14 +546,14 @@ TEST(IrParserTest, CountedForBodyBitWidthOneIteration) {
 package test
 
 fn loop_fn(i: bits[1], data: bits[16]) -> bits[16] {
-  ret literal.10: bits[16] = literal(value=0)
+  ret literal.10: bits[16] = literal(value=0, id=10)
 }
 
 fn f(x: bits[16]) -> bits[16] {
-  literal.2: bits[16] = literal(value=2)
+  literal.2: bits[16] = literal(value=2, id=2)
 
   ret counted_for.100: bits[16] = counted_for(x, trip_count=1, stride=1,
-                                              body=loop_fn)
+                                              body=loop_fn, id=100)
 }
 )";
 
@@ -560,9 +569,9 @@ fn loop_fn(i: bits[4], data: bits[16]) -> bits[16] {
 }
 
 fn f(x: bits[16]) -> bits[16] {
-  literal.2: bits[16] = literal(value=2)
+  literal.2: bits[16] = literal(value=2, id=2)
 
-  ret counted_for.100: bits[16] = counted_for(x, trip_count=17, body=loop_fn)
+  ret counted_for.100: bits[16] = counted_for(x, trip_count=17, body=loop_fn, id=100)
 }
 )";
 
@@ -578,11 +587,11 @@ TEST(IrParserTest, CountedForBodyBitWidthInsufficientWithStride) {
 package test
 
 fn loop_fn(i: bits[4], data: bits[16]) -> bits[16] {
-  ret literal.10: bits[16] = literal(value=0)
+  ret literal.10: bits[16] = literal(value=0, id=10)
 }
 
 fn f(x: bits[16]) -> bits[16] {
-  literal.2: bits[16] = literal(value=2)
+  literal.2: bits[16] = literal(value=2, id=2)
 
   ret counted_for.100: bits[16] = counted_for(x, trip_count=16, stride=2,
                                               body=loop_fn)
@@ -601,13 +610,13 @@ TEST(IrParserTest, CountedForBodyBitWidthTypeMismatch0) {
 package test
 
 fn loop_fn(i: bits[4][1], data: bits[16]) -> bits[16] {
-  ret literal.10: bits[16] = literal(value=0)
+  ret literal.10: bits[16] = literal(value=0, id=10)
 }
 
 fn f(x: bits[16]) -> bits[16] {
-  literal.2: bits[16] = literal(value=2)
+  literal.2: bits[16] = literal(value=2, id=2)
 
-  ret counted_for.100: bits[16] = counted_for(x, trip_count=0, body=loop_fn)
+  ret counted_for.100: bits[16] = counted_for(x, trip_count=0, body=loop_fn, id=100)
 }
 )";
 
@@ -623,13 +632,13 @@ TEST(IrParserTest, CountedForBodyBitWidthTypeMismatch1) {
 package test
 
 fn loop_fn(i: (bits[4]), data: bits[16]) -> bits[16] {
-  ret literal.10: bits[16] = literal(value=0)
+  ret literal.10: bits[16] = literal(value=0, id=10)
 }
 
 fn f(x: bits[16]) -> bits[16] {
-  literal.2: bits[16] = literal(value=2)
+  literal.2: bits[16] = literal(value=2, id=2)
 
-  ret counted_for.100: bits[16] = counted_for(x, trip_count=1, body=loop_fn)
+  ret counted_for.100: bits[16] = counted_for(x, trip_count=1, body=loop_fn, id=100)
 }
 )";
 
@@ -645,13 +654,13 @@ TEST(IrParserTest, CountedForBodyDataTypeMismatch) {
 package test
 
 fn loop_fn(i: bits[4], data: bits[13]) -> bits[16] {
-  ret literal.10: bits[16] = literal(value=0)
+  ret literal.10: bits[16] = literal(value=0, id=10)
 }
 
 fn f(x: bits[16]) -> bits[16] {
-  literal.2: bits[16] = literal(value=2)
+  literal.2: bits[16] = literal(value=2, id=2)
 
-  ret counted_for.100: bits[16] = counted_for(x, trip_count=1, body=loop_fn)
+  ret counted_for.100: bits[16] = counted_for(x, trip_count=1, body=loop_fn, id=100)
 }
 )";
 
@@ -666,13 +675,13 @@ TEST(IrParserTest, CountedForReturnTypeMismatch) {
 package test
 
 fn loop_fn(i: bits[4], data: bits[16]) -> bits[15] {
-  ret literal.10: bits[15] = literal(value=0)
+  ret literal.10: bits[15] = literal(value=0, id=10)
 }
 
 fn f(x: bits[16]) -> bits[16] {
-  literal.2: bits[16] = literal(value=2)
+  literal.2: bits[16] = literal(value=2, id=2)
 
-  ret counted_for.100: bits[16] = counted_for(x, trip_count=1, body=loop_fn)
+  ret counted_for.100: bits[16] = counted_for(x, trip_count=1, body=loop_fn, id=100)
 }
 )";
 
@@ -688,17 +697,17 @@ package test
 
 fn loop_fn(i: bits[4], data: bits[16],
            x: bits[4], y: (bits[4], bits[4]), z: bits[4][1]) -> bits[16] {
-  ret literal.10: bits[16] = literal(value=0)
+  ret literal.10: bits[16] = literal(value=0, id=10)
 }
 
 fn f(x: bits[16]) -> bits[16] {
-  literal.2: bits[4] = literal(value=2)
-  literal.3: bits[4] = literal(value=3)
-  literal.4: bits[4] = literal(value=4)
+  literal.2: bits[4] = literal(value=2, id=2)
+  literal.3: bits[4] = literal(value=3, id=3)
+  literal.4: bits[4] = literal(value=4, id=4)
 
-  literal.112: bits[4] = literal(value=1)
-  tuple.113: (bits[4], bits[4]) = tuple(literal.2, literal.3)
-  array.114: bits[4][1] = array(literal.4)
+  literal.112: bits[4] = literal(value=1, id=112)
+  tuple.113: (bits[4], bits[4]) = tuple(literal.2, literal.3, id=113)
+  array.114: bits[4][1] = array(literal.4, id=114)
 
   ret counted_for.200: bits[16] = counted_for(x, trip_count=2, body=loop_fn,
       invariant_args=[literal.112, array.114, array.114])
@@ -722,12 +731,12 @@ fn loop_fn(i: bits[4], data: bits[16],
 }
 
 fn f(x: bits[16]) -> bits[16] {
-  literal.2: bits[4] = literal(value=2)
-  literal.3: bits[4] = literal(value=3)
+  literal.2: bits[4] = literal(value=2, id=2)
+  literal.3: bits[4] = literal(value=3, id=3)
   literal.4: bits[4] = literal(value=4)
 
-  literal.112: bits[4] = literal(value=1)
-  tuple.113: (bits[4], bits[4]) = tuple(literal.2, literal.3)
+  literal.112: bits[4] = literal(value=1, id=112)
+  tuple.113: (bits[4], bits[4]) = tuple(literal.2, literal.3, id=113)
   array.114: bits[4][1] = array(literal.4)
 
   ret counted_for.200: bits[16] = counted_for(x, trip_count=2, body=loop_fn,
@@ -744,7 +753,7 @@ fn f(x: bits[16]) -> bits[16] {
 TEST(IrParserTest, ParseBitSlice) {
   std::string input = R"(
 fn bitslice(x: bits[32]) -> bits[14] {
-  ret bit_slice.1: bits[14] = bit_slice(x, start=7, width=14)
+  ret bit_slice.1: bits[14] = bit_slice(x, start=7, width=14, id=1)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -753,7 +762,7 @@ fn bitslice(x: bits[32]) -> bits[14] {
 TEST(IrParserTest, ParseDynamicBitSlice) {
   std::string input = R"(
 fn dynamicbitslice(x: bits[32], y: bits[32]) -> bits[14] {
-  ret dynamic_bit_slice.1: bits[14] = dynamic_bit_slice(x, y, width=14)
+  ret dynamic_bit_slice.1: bits[14] = dynamic_bit_slice(x, y, width=14, id=1)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -762,7 +771,7 @@ fn dynamicbitslice(x: bits[32], y: bits[32]) -> bits[14] {
 TEST(IrParserTest, ParseAfterAllEmpty) {
   std::string input = R"(
 fn after_all_func() -> token {
-  ret after_all.1: token = after_all()
+  ret after_all.1: token = after_all(id=1)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -771,9 +780,9 @@ fn after_all_func() -> token {
 TEST(IrParserTest, ParseAfterAllMany) {
   std::string input = R"(
 fn after_all_func() -> token {
-  after_all.1: token = after_all()
-  after_all.2: token = after_all()
-  ret after_all.3: token = after_all(after_all.1, after_all.2)
+  after_all.1: token = after_all(id=1)
+  after_all.2: token = after_all(id=2)
+  ret after_all.3: token = after_all(after_all.1, after_all.2, id=3)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -783,9 +792,9 @@ TEST(IrParserTest, ParseAfterAllNonToken) {
   Package p("my_package");
   std::string input = R"(
 fn after_all_func() -> token {
-  after_all.1: token = after_all()
-  after_all.2: token = after_all()
-  ret after_all.3: bits[2] = after_all(after_all.1, after_all.2)
+  after_all.1: token = after_all(id=1)
+  after_all.2: token = after_all(id=2)
+  ret after_all.3: bits[2] = after_all(after_all.1, after_all.2, id=3)
 }
 )";
   EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
@@ -796,7 +805,7 @@ fn after_all_func() -> token {
 TEST(IrParserTest, ParseArray) {
   std::string input = R"(
 fn array_and_array(x: bits[32], y: bits[32], z: bits[32]) -> bits[32][3] {
-  ret array.1: bits[32][3] = array(x, y, z)
+  ret array.1: bits[32][3] = array(x, y, z, id=1)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -805,7 +814,7 @@ fn array_and_array(x: bits[32], y: bits[32], z: bits[32]) -> bits[32][3] {
 TEST(IrParserTest, ParseReverse) {
   std::string input = R"(
 fn reverse(x: bits[32]) -> bits[32] {
-  ret reverse.1: bits[32] = reverse(x)
+  ret reverse.1: bits[32] = reverse(x, id=1)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -814,7 +823,7 @@ fn reverse(x: bits[32]) -> bits[32] {
 TEST(IrParserTest, ParseArrayOfTuples) {
   std::string input = R"(
 fn array_and_array(x: (bits[32], bits[1]), y: (bits[32], bits[1])) -> (bits[32], bits[1])[3] {
-  ret array.1: (bits[32], bits[1])[3] = array(x, y, x)
+  ret array.1: (bits[32], bits[1])[3] = array(x, y, x, id=1)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -823,7 +832,7 @@ fn array_and_array(x: (bits[32], bits[1]), y: (bits[32], bits[1])) -> (bits[32],
 TEST(IrParserTest, ParseNestedBitsArrayIndex) {
   std::string input = R"(
 fn array_and_array(p: bits[2][5][4], q: bits[32]) -> bits[2][5] {
-  ret array_index.1: bits[2][5] = array_index(p, q)
+  ret array_index.1: bits[2][5] = array_index(p, q, id=1)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -832,7 +841,7 @@ fn array_and_array(p: bits[2][5][4], q: bits[32]) -> bits[2][5] {
 TEST(IrParserTest, DifferentWidthMultiplies) {
   std::string input = R"(
 fn multiply(x: bits[32], y: bits[7]) -> bits[42] {
-  ret umul.1: bits[42] = umul(x, y)
+  ret umul.1: bits[42] = umul(x, y, id=1)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -841,7 +850,7 @@ fn multiply(x: bits[32], y: bits[7]) -> bits[42] {
 TEST(IrParserTest, EmptyBitsBounds) {
   Package p("my_package");
   std::string input = R"(fn f() -> bits[] {
-  ret literal.1: bits[] = literal(value=0)
+  ret literal.1: bits[] = literal(value=0, id=1)
 })";
   EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
@@ -862,9 +871,9 @@ TEST(IrParserTest, ParseSingleFunctionPackage) {
   std::string input = R"(package SingleFunctionPackage
 
 fn two_plus_two() -> bits[32] {
-  literal.1: bits[32] = literal(value=2)
-  literal.2: bits[32] = literal(value=2)
-  ret add.3: bits[32] = add(literal.1, literal.2)
+  literal.1: bits[32] = literal(value=2, id=1)
+  literal.2: bits[32] = literal(value=2, id=2)
+  ret add.3: bits[32] = add(literal.1, literal.2, id=3)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -881,15 +890,15 @@ TEST(IrParserTest, ParseMultiFunctionPackage) {
   std::string input = R"(package MultiFunctionPackage
 
 fn two_plus_two() -> bits[32] {
-  literal.1: bits[32] = literal(value=2)
-  literal.2: bits[32] = literal(value=2)
-  ret add.3: bits[32] = add(literal.1, literal.2)
+  literal.1: bits[32] = literal(value=2, id=1)
+  literal.2: bits[32] = literal(value=2, id=2)
+  ret add.3: bits[32] = add(literal.1, literal.2, id=3)
 }
 
 fn seven_and_five() -> bits[32] {
-  literal.4: bits[32] = literal(value=7)
-  literal.5: bits[32] = literal(value=5)
-  ret and.6: bits[32] = and(literal.4, literal.5)
+  literal.4: bits[32] = literal(value=7, id=4)
+  literal.5: bits[32] = literal(value=5, id=5)
+  ret and.6: bits[32] = and(literal.4, literal.5, id=6)
 }
 )";
 
@@ -921,9 +930,9 @@ TEST(IrParserTest, ParseEmptyStringAsPackage) {
 
 TEST(IrParserTest, ParsePackageWithMissingPackageLine) {
   std::string input = R"(fn two_plus_two() -> bits[32] {
-  literal.1: bits[32] = literal(value=2)
-  literal.2: bits[32] = literal(value=2)
-  ret add.3: bits[32] = add(literal.1, literal.2)
+  literal.1: bits[32] = literal(value=2, id=1)
+  literal.2: bits[32] = literal(value=2, id=2)
+  ret add.3: bits[32] = add(literal.1, literal.2, id=3)
 }
 )";
   absl::Status status = Parser::ParsePackage(input).status();
@@ -935,7 +944,7 @@ TEST(IrParserTest, ParsePackageWithMissingPackageLine) {
 TEST(IrParserTest, ParseBinaryConcat) {
   std::string input = R"(package p
 fn concat_wrapper(x: bits[31], y: bits[1]) -> bits[32] {
-  ret concat.1: bits[32] = concat(x, y)
+  ret concat.1: bits[32] = concat(x, y, id=1)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
@@ -951,7 +960,7 @@ fn concat_wrapper(x: bits[31], y: bits[1]) -> bits[32] {
 TEST(IrParserTest, ParseNaryConcat) {
   std::string input = R"(package p
 fn concat_wrapper(x: bits[31], y: bits[1]) -> bits[95] {
-  ret concat.1: bits[95] = concat(x, y, x, x, y)
+  ret concat.1: bits[95] = concat(x, y, x, x, y, id=1)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
@@ -968,12 +977,12 @@ TEST(IrParserTest, ParseMap) {
 package SimpleMap
 
 fn to_apply(element: bits[42]) -> bits[1] {
-  literal.2: bits[42] = literal(value=10)
-  ret ult.3: bits[1] = ult(element, literal.2)
+  literal.2: bits[42] = literal(value=10, id=2)
+  ret ult.3: bits[1] = ult(element, literal.2, id=3)
 }
 
 fn top(input: bits[42][123]) -> bits[1][123] {
-  ret map.5: bits[1][123] = map(input, to_apply=to_apply)
+  ret map.5: bits[1][123] = map(input, to_apply=to_apply, id=5)
 }
 )";
   ParsePackageAndCheckDump(input);
@@ -984,7 +993,7 @@ TEST(IrParserTest, ParseBinarySel) {
 package ParseSel
 
 fn sel_wrapper(x: bits[1], y: bits[32], z: bits[32]) -> bits[32] {
-  ret sel.1: bits[32] = sel(x, cases=[y, z])
+  ret sel.1: bits[32] = sel(x, cases=[y, z], id=1)
 }
   )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> pkg,
@@ -1004,8 +1013,8 @@ TEST(IrParserTest, ParseTernarySelectWithDefault) {
 package ParseSel
 
 fn sel_wrapper(p: bits[2], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
-  literal.1: bits[32] = literal(value=0)
-  ret sel.2: bits[32] = sel(p, cases=[x, y, z], default=literal.1)
+  literal.1: bits[32] = literal(value=0, id=1)
+  ret sel.2: bits[32] = sel(p, cases=[x, y, z], default=literal.1, id=2)
 }
   )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> pkg,
@@ -1025,7 +1034,7 @@ TEST(IrParserTest, ParseOneHotLsbPriority) {
 package ParseOneHot
 
 fn sel_wrapper(x: bits[42]) -> bits[43] {
-  ret one_hot.1: bits[43] = one_hot(x, lsb_prio=true)
+  ret one_hot.1: bits[43] = one_hot(x, lsb_prio=true, id=1)
 }
   )";
   ParsePackageAndCheckDump(input);
@@ -1036,7 +1045,7 @@ TEST(IrParserTest, ParseOneHotMsbPriority) {
 package ParseOneHot
 
 fn sel_wrapper(x: bits[42]) -> bits[43] {
-  ret one_hot.1: bits[43] = one_hot(x, lsb_prio=false)
+  ret one_hot.1: bits[43] = one_hot(x, lsb_prio=false, id=1)
 }
   )";
   ParsePackageAndCheckDump(input);
@@ -1047,7 +1056,7 @@ TEST(IrParserTest, ParseOneHotSelect) {
 package ParseOneHotSel
 
 fn sel_wrapper(p: bits[3], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
-  ret one_hot_sel.1: bits[32] = one_hot_sel(p, cases=[x, y, z])
+  ret one_hot_sel.1: bits[32] = one_hot_sel(p, cases=[x, y, z], id=1)
 }
   )";
   ParsePackageAndCheckDump(input);
@@ -1069,12 +1078,12 @@ TEST(IrParserTest, ParseInvoke) {
   const std::string input = R"(package foobar
 
 fn bar(x: bits[32], y: bits[32]) -> bits[32] {
-  ret add.1: bits[32] = add(x, y)
+  ret add.1: bits[32] = add(x, y, id=1)
 }
 
 fn foo(x: bits[32]) -> bits[32] {
-  literal.2: bits[32] = literal(value=5)
-  ret invoke.3: bits[32] = invoke(x, literal.2, to_apply=bar)
+  literal.2: bits[32] = literal(value=5, id=2)
+  ret invoke.3: bits[32] = invoke(x, literal.2, to_apply=bar, id=3)
 }
 )";
   ParsePackageAndCheckDump(input);
@@ -1086,10 +1095,10 @@ TEST(IrParserTest, ParseSimpleProc) {
 chan ch(data: bits[32], id=0, kind=send_receive, metadata="""module_port { flopped: true }""")
 
 proc my_proc(my_token: token, my_state: bits[32], init=42) {
-  send.1: token = send(my_token, data=[my_state], channel_id=0)
-  receive.2: (token, bits[32]) = receive(send.1, channel_id=0)
-  tuple_index.3: token = tuple_index(receive.2, index=0)
-  ret tuple.4: (token, bits[32]) = tuple(tuple_index.3, my_state)
+  send.1: token = send(my_token, data=[my_state], channel_id=0, id=1)
+  receive.2: (token, bits[32]) = receive(send.1, channel_id=0, id=2)
+  tuple_index.3: token = tuple_index(receive.2, index=0, id=3)
+  ret tuple.4: (token, bits[32]) = tuple(tuple_index.3, my_state, id=4)
 }
 )";
   ParsePackageAndCheckDump(input);
@@ -1098,8 +1107,8 @@ proc my_proc(my_token: token, my_state: bits[32], init=42) {
 TEST(IrParserTest, ParseArrayIndex) {
   const std::string input = R"(
 fn foo(x: bits[32][6]) -> bits[32] {
-  literal.1: bits[32] = literal(value=5)
-  ret array_index.2: bits[32] = array_index(x, literal.1)
+  literal.1: bits[32] = literal(value=5, id=1)
+  ret array_index.2: bits[32] = array_index(x, literal.1, id=2)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -1108,7 +1117,7 @@ fn foo(x: bits[32][6]) -> bits[32] {
 TEST(IrParserTest, ParseArrayUpdate) {
   const std::string input = R"(
 fn foo(array: bits[32][3], idx: bits[32], newval: bits[32]) -> bits[32][3] {
-  ret array_update.4: bits[32][3] = array_update(array, idx, newval)
+  ret array_update.4: bits[32][3] = array_update(array, idx, newval, id=4)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -1117,7 +1126,7 @@ fn foo(array: bits[32][3], idx: bits[32], newval: bits[32]) -> bits[32][3] {
 TEST(IrParserTest, ParseArrayUpdateNonArary) {
   const std::string input = R"(
 fn foo(array: bits[32], idx: bits[32], newval: bits[32]) -> bits[32][3] {
-  ret array_update.4: bits[32][3] = array_update(array, idx, newval)
+  ret array_update.4: bits[32][3] = array_update(array, idx, newval, id=4)
 }
 )";
   Package p("my_package");
@@ -1129,7 +1138,7 @@ fn foo(array: bits[32], idx: bits[32], newval: bits[32]) -> bits[32][3] {
 TEST(IrParserTest, ParseArrayUpdateIncompatibleTypes) {
   const std::string input = R"(
 fn foo(array: bits[32][3], idx: bits[32], newval: bits[64]) -> bits[32][3] {
-  ret array_update.4: bits[32][3] = array_update(array, idx, newval)
+  ret array_update.4: bits[32][3] = array_update(array, idx, newval, id=4)
 }
 )";
   Package p("my_package");
@@ -1142,7 +1151,7 @@ fn foo(array: bits[32][3], idx: bits[32], newval: bits[64]) -> bits[32][3] {
 TEST(IrParserTest, ParseArrayConcat0) {
   const std::string input = R"(
 fn foo(a0: bits[32][3], a1: bits[32][1]) -> bits[32][4] {
-  ret array_concat.3: bits[32][4] = array_concat(a0, a1)
+  ret array_concat.3: bits[32][4] = array_concat(a0, a1, id=3)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -1151,7 +1160,7 @@ fn foo(a0: bits[32][3], a1: bits[32][1]) -> bits[32][4] {
 TEST(IrParserTest, ParseArrayConcat1) {
   const std::string input = R"(
 fn foo(a0: bits[32][0], a1: bits[32][1]) -> bits[32][1] {
-  ret array_concat.3: bits[32][1] = array_concat(a0, a1)
+  ret array_concat.3: bits[32][1] = array_concat(a0, a1, id=3)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -1160,10 +1169,10 @@ fn foo(a0: bits[32][0], a1: bits[32][1]) -> bits[32][1] {
 TEST(IrParserTest, ParseArrayConcatMixedOperands) {
   const std::string input = R"(
 fn f(a0: bits[32][2], a1: bits[32][3], a2: bits[32][1]) -> bits[32][7] {
-  array_concat.4: bits[32][1] = array_concat(a2)
-  array_concat.5: bits[32][2] = array_concat(array_concat.4, array_concat.4)
-  array_concat.6: bits[32][7] = array_concat(a0, array_concat.5, a1)
-  ret array_concat.7: bits[32][7] = array_concat(array_concat.6)
+  array_concat.4: bits[32][1] = array_concat(a2, id=4)
+  array_concat.5: bits[32][2] = array_concat(array_concat.4, array_concat.4, id=5)
+  array_concat.6: bits[32][7] = array_concat(a0, array_concat.5, a1, id=6)
+  ret array_concat.7: bits[32][7] = array_concat(array_concat.6, id=7)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -1172,36 +1181,34 @@ fn f(a0: bits[32][2], a1: bits[32][3], a2: bits[32][1]) -> bits[32][7] {
 TEST(IrParserTest, ParseArrayConcatNonArrayType) {
   const std::string input = R"(
 fn foo(a0: bits[16], a1: bits[16][1]) -> bits[16][2] {
-  ret array_concat.3: bits[16][2] = array_concat(a0, a1)
+  ret array_concat.3: bits[16][2] = array_concat(a0, a1, id=3)
 }
 )";
   Package p("my_package");
   EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Cannot array-concat node "
-                                 "a0: bits[16] = param(a0) "
-                                 "because it has non-array type bits[16]")));
+                       HasSubstr("Cannot array-concat node a0 because it has "
+                                 "non-array type bits[16]")));
 }
 
 TEST(IrParserTest, ParseArrayIncompatibleElementType) {
   const std::string input = R"(
 fn foo(a0: bits[16][1], a1: bits[32][1]) -> bits[16][2] {
-  ret array_concat.3: bits[16][2] = array_concat(a0, a1)
+  ret array_concat.3: bits[16][2] = array_concat(a0, a1, id=3)
 }
 )";
   Package p("my_package");
-  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Cannot array-concat node "
-                                 "a1: bits[32][1] = param(a1) because "
-                                 "it has element type bits[32] but "
-                                 "expected bits[16]")));
+  EXPECT_THAT(
+      Parser::ParseFunction(input, &p).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Cannot array-concat node a1 because it has element "
+                         "type bits[32] but expected bits[16]")));
 }
 
 TEST(IrParserTest, ParseArrayIncompatibleReturnType) {
   const std::string input = R"(
 fn foo(a0: bits[16][1], a1: bits[16][1]) -> bits[16][3] {
-  ret array_concat.3: bits[16][3] = array_concat(a0, a1)
+  ret array_concat.3: bits[16][3] = array_concat(a0, a1, id=3)
 }
 )";
   Package p("my_package");
@@ -1214,10 +1221,10 @@ fn foo(a0: bits[16][1], a1: bits[16][1]) -> bits[16][3] {
 TEST(IrParserTest, ParseTupleIndex) {
   const std::string input = R"(
 fn foo(x: bits[42]) -> bits[33] {
-  literal.1: bits[32] = literal(value=5)
-  literal.2: bits[33] = literal(value=123)
-  tuple.3: (bits[42], bits[32], bits[33]) = tuple(x, literal.1, literal.2)
-  ret tuple_index.4: bits[33] = tuple_index(tuple.3, index=2)
+  literal.1: bits[32] = literal(value=5, id=1)
+  literal.2: bits[33] = literal(value=123, id=2)
+  tuple.3: (bits[42], bits[32], bits[33]) = tuple(x, literal.1, literal.2, id=3)
+  ret tuple_index.4: bits[33] = tuple_index(tuple.3, index=2, id=4)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -1226,7 +1233,7 @@ fn foo(x: bits[42]) -> bits[33] {
 TEST(IrParserTest, ParseIdentity) {
   const std::string input = R"(
 fn foo(x: bits[32]) -> bits[32] {
-  ret identity.2: bits[32] = identity(x)
+  ret identity.2: bits[32] = identity(x, id=2)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -1235,13 +1242,13 @@ fn foo(x: bits[32]) -> bits[32] {
 TEST(IrParserTest, ParseUnsignedInequalities) {
   std::string program = R"(
 fn parse_inequalities() -> bits[1] {
-  literal.1: bits[32] = literal(value=2)
-  literal.2: bits[32] = literal(value=2)
-  uge.3: bits[1] = uge(literal.1, literal.2)
-  ugt.4: bits[1] = ugt(literal.1, literal.2)
-  ule.5: bits[1] = ule(literal.1, literal.2)
-  ult.6: bits[1] = ult(literal.1, literal.2)
-  ret eq.7: bits[1] = eq(literal.1, literal.2)
+  literal.1: bits[32] = literal(value=2, id=1)
+  literal.2: bits[32] = literal(value=2, id=2)
+  uge.3: bits[1] = uge(literal.1, literal.2, id=3)
+  ugt.4: bits[1] = ugt(literal.1, literal.2, id=4)
+  ule.5: bits[1] = ule(literal.1, literal.2, id=5)
+  ult.6: bits[1] = ult(literal.1, literal.2, id=6)
+  ret eq.7: bits[1] = eq(literal.1, literal.2, id=7)
 }
 )";
   ParseFunctionAndCheckDump(program);
@@ -1250,13 +1257,13 @@ fn parse_inequalities() -> bits[1] {
 TEST(IrParserTest, ParseSignedInequalities) {
   std::string program = R"(
 fn parse_inequalities() -> bits[1] {
-  literal.1: bits[32] = literal(value=2)
-  literal.2: bits[32] = literal(value=2)
-  sge.3: bits[1] = sge(literal.1, literal.2)
-  sgt.4: bits[1] = sgt(literal.1, literal.2)
-  sle.5: bits[1] = sle(literal.1, literal.2)
-  slt.6: bits[1] = slt(literal.1, literal.2)
-  ret eq.7: bits[1] = eq(literal.1, literal.2)
+  literal.1: bits[32] = literal(value=2, id=1)
+  literal.2: bits[32] = literal(value=2, id=2)
+  sge.3: bits[1] = sge(literal.1, literal.2, id=3)
+  sgt.4: bits[1] = sgt(literal.1, literal.2, id=4)
+  sle.5: bits[1] = sle(literal.1, literal.2, id=5)
+  slt.6: bits[1] = slt(literal.1, literal.2, id=6)
+  ret eq.7: bits[1] = eq(literal.1, literal.2, id=7)
 }
 )";
   ParseFunctionAndCheckDump(program);
@@ -1266,7 +1273,7 @@ TEST(IrParserTest, StandAloneRet) {
   const std::string input = R"(package foobar
 
 fn foo(x: bits[32]) -> bits[32] {
-  identity.2: bits[32] = identity(x)
+  identity.2: bits[32] = identity(x, id=2)
   ret identity.2
 }
 )";
@@ -1274,7 +1281,7 @@ fn foo(x: bits[32]) -> bits[32] {
   const std::string expected_output = R"(package foobar
 
 fn foo(x: bits[32]) -> bits[32] {
-  ret identity.2: bits[32] = identity(x)
+  ret identity.2: bits[32] = identity(x, id=2)
 }
 )";
 
@@ -1307,7 +1314,7 @@ TEST(IrParserTest, ParseTupleType) {
     package foobar
 
     fn foo(x: bits[32]) -> (bits[32], bits[32]) {
-       ret tuple.1: (bits[32], bits[32]) = tuple(x, x)
+       ret tuple.1: (bits[32], bits[32]) = tuple(x, x, id=1)
     }
   )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> pkg,
@@ -1325,7 +1332,7 @@ TEST(IrParserTest, ParseEmptyTuple) {
     package foobar
 
     fn foo(x: bits[32]) -> () {
-       ret tuple.1: () = tuple()
+       ret tuple.1: () = tuple(id=1)
     }
   )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> pkg,
@@ -1341,8 +1348,8 @@ TEST(IrParserTest, ParseNestedTuple) {
     package foobar
 
     fn foo(x: bits[32]) -> ((bits[32], bits[32]), bits[32]) {
-       tuple.1: (bits[32], bits[32]) = tuple(x, x)
-       tuple.2: ((bits[32], bits[32]), bits[32]) = tuple(tuple.1, x)
+       tuple.1: (bits[32], bits[32]) = tuple(x, x, id=1)
+       tuple.2: ((bits[32], bits[32]), bits[32]) = tuple(tuple.1, x, id=2)
        ret tuple.2
     }
   )";
@@ -1360,9 +1367,9 @@ TEST(IrParserTest, ParseNestedTuple) {
 TEST(IrParserTest, ParseArrayLiterals) {
   const std::string input = R"(
 fn foo(x: bits[32]) -> bits[32] {
-  literal.1: bits[32][2] = literal(value=[0, 1])
-  literal.2: bits[3] = literal(value=1)
-  ret array_index.3: bits[32] = array_index(literal.1, literal.2)
+  literal.1: bits[32][2] = literal(value=[0, 1], id=1)
+  literal.2: bits[3] = literal(value=1, id=2)
+  ret array_index.3: bits[32] = array_index(literal.1, literal.2, id=3)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -1371,7 +1378,7 @@ fn foo(x: bits[32]) -> bits[32] {
 TEST(IrParserTest, ParseNestedArrayLiterals) {
   const std::string input = R"(
 fn foo() -> bits[32][2][3][1] {
-  ret literal.1: bits[32][2][3][1] = literal(value=[[[0, 1], [2, 3], [4, 5]]])
+  ret literal.1: bits[32][2][3][1] = literal(value=[[[0, 1], [2, 3], [4, 5]]], id=1)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -1381,7 +1388,7 @@ TEST(IrParserTest, ParseArrayLiteralWithInsufficientBits) {
   Package p("my_package");
   const std::string input = R"(
 fn foo() -> bits[7][2] {
-  ret literal.1: bits[7][2] = literal(value=[0, 12345])
+  ret literal.1: bits[7][2] = literal(value=[0, 12345], id=1)
 }
 )";
   EXPECT_THAT(
@@ -1395,7 +1402,7 @@ TEST(IrParserTest, ReturnArrayLiteral) {
 package foobar
 
 fn foo(x: bits[32]) -> bits[32][2] {
-  ret literal.1: bits[32][2] = literal(value=[0, 1])
+  ret literal.1: bits[32][2] = literal(value=[0, 1], id=1)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> pkg,
@@ -1410,7 +1417,7 @@ TEST(IrParserTest, ReturnArrayOfTuplesLiteral) {
 package foobar
 
 fn foo() -> (bits[32], bits[3])[2] {
-  ret literal.1: (bits[32], bits[3])[2] = literal(value=[(2, 2), (0, 1)])
+  ret literal.1: (bits[32], bits[3])[2] = literal(value=[(2, 2), (0, 1)], id=1)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> pkg,
@@ -1424,7 +1431,7 @@ TEST(IrParserTest, ArrayValueInBitsLiteral) {
   Package p("my_package");
   const std::string input = R"(
 fn foo() -> bits[42] {
-  ret literal.1: bits[42] = literal(value=[0, 123])
+  ret literal.1: bits[42] = literal(value=[0, 123], id=1)
 }
 )";
   EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
@@ -1436,7 +1443,7 @@ TEST(IrParserTest, BitsValueInArrayLiteral) {
   Package p("my_package");
   const std::string input = R"(
 fn foo() -> bits[7][42] {
-  ret literal.1: bits[7][42] = literal(value=123])
+  ret literal.1: bits[7][42] = literal(value=123], id=1)
 }
 )";
   EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
@@ -1447,7 +1454,7 @@ fn foo() -> bits[7][42] {
 TEST(IrParserTest, ParseTupleLiteral) {
   const std::string input = R"(
 fn foo() -> (bits[32][2], bits[1]) {
-  ret literal.1: (bits[32][2], bits[1]) = literal(value=([123, 456], 0))
+  ret literal.1: (bits[32][2], bits[1]) = literal(value=([123, 456], 0), id=1)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -1456,7 +1463,7 @@ fn foo() -> (bits[32][2], bits[1]) {
 TEST(IrParserTest, ParseNestedTupleLiteral) {
   const std::string input = R"(
 fn foo() -> (bits[32][2], bits[1], (), (bits[44])) {
-  ret literal.1: (bits[32][2], bits[1], (), (bits[44])) = literal(value=([123, 456], 0, (), (10)))
+  ret literal.1: (bits[32][2], bits[1], (), (bits[44])) = literal(value=([123, 456], 0, (), (10)), id=1)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -1465,7 +1472,7 @@ fn foo() -> (bits[32][2], bits[1], (), (bits[44])) {
 TEST(IrParserTest, ParseNaryXor) {
   const std::string input = R"(
 fn foo(x: bits[8]) -> bits[8] {
-  ret xor.2: bits[8] = xor(x, x, x, x)
+  ret xor.2: bits[8] = xor(x, x, x, x, id=2)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -1474,9 +1481,9 @@ fn foo(x: bits[8]) -> bits[8] {
 TEST(IrParserTest, ParseExtendOps) {
   const std::string input = R"(
 fn foo(x: bits[8]) -> bits[32] {
-  zero_ext.1: bits[32] = zero_ext(x, new_bit_count=32)
-  sign_ext.2: bits[32] = sign_ext(x, new_bit_count=32)
-  ret xor.3: bits[32] = xor(zero_ext.1, sign_ext.2)
+  zero_ext.1: bits[32] = zero_ext(x, new_bit_count=32, id=1)
+  sign_ext.2: bits[32] = sign_ext(x, new_bit_count=32, id=2)
+  ret xor.3: bits[32] = xor(zero_ext.1, sign_ext.2, id=3)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -1485,7 +1492,7 @@ fn foo(x: bits[8]) -> bits[32] {
 TEST(IrParserTest, ParseInconsistentExtendOp) {
   const std::string input = R"(
 fn foo(x: bits[8]) -> bits[32] {
-  ret zero_ext.1: bits[33] = zero_ext(x, new_bit_count=32)
+  ret zero_ext.1: bits[33] = zero_ext(x, new_bit_count=32, id=1)
 }
 )";
   Package p("my_package");
@@ -1498,8 +1505,8 @@ fn foo(x: bits[8]) -> bits[32] {
 TEST(IrParserTest, ParseDecode) {
   const std::string input = R"(
 fn foo(x: bits[8]) -> bits[256] {
-  decode.1: bits[42] = decode(x, width=42)
-  ret decode.2: bits[256] = decode(x, width=256)
+  decode.1: bits[42] = decode(x, width=42, id=1)
+  ret decode.2: bits[256] = decode(x, width=256, id=2)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -1508,7 +1515,7 @@ fn foo(x: bits[8]) -> bits[256] {
 TEST(IrParserTest, ParseEncode) {
   const std::string input = R"(
 fn foo(x: bits[16]) -> bits[4] {
-  ret encode.1: bits[4] = encode(x)
+  ret encode.1: bits[4] = encode(x, id=1)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -1517,8 +1524,8 @@ fn foo(x: bits[16]) -> bits[4] {
 TEST(IrParserTest, ArrayIndexOfTuple) {
   const std::string input = R"(
 fn foo(x: (bits[8])) -> bits[32] {
-  literal.1: bits[32] = literal(value=0)
-  ret array_index.2: bits[8] = array_index(x, literal.1)
+  literal.1: bits[32] = literal(value=0, id=1)
+  ret array_index.2: bits[8] = array_index(x, literal.1, id=2)
 }
 )";
   Package p("my_package");
@@ -1530,7 +1537,7 @@ fn foo(x: (bits[8])) -> bits[32] {
 TEST(IrParserTest, TupleIndexOfArray) {
   const std::string input = R"(
 fn foo(x: bits[8][5]) -> bits[8] {
-  ret tuple_index.1: bits[8] = tuple_index(x, index=0)
+  ret tuple_index.1: bits[8] = tuple_index(x, index=0, id=1)
 }
 )";
   Package p("my_package");
@@ -1627,7 +1634,7 @@ TEST(IrParserTest, BigOrdinalAnnotation) {
 package test
 
 fn main() -> bits[1] {
-  ret literal.1000: bits[1] = literal(value=0)
+  ret literal.1000: bits[1] = literal(value=0, id=1000)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
@@ -1639,7 +1646,7 @@ TEST(IrParserTest, TrivialProc) {
 package test
 
 proc foo(my_token: token, my_state: bits[32], init=42) {
-  ret tuple.1: (token, bits[32]) = tuple(my_token, my_state)
+  ret tuple.1: (token, bits[32]) = tuple(my_token, my_state, id=1)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
@@ -1659,11 +1666,11 @@ TEST(IrParserTest, FunctionAndProc) {
 package test
 
 fn my_function() -> bits[1] {
-  ret literal.1: bits[1] = literal(value=0)
+  ret literal.1: bits[1] = literal(value=0, id=1)
 }
 
 proc my_proc(my_token: token, my_state: bits[32], init=42) {
-  ret tuple.2: (token, bits[32]) = tuple(my_token, my_state)
+  ret tuple.2: (token, bits[32]) = tuple(my_token, my_state, id=2)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
@@ -1681,7 +1688,7 @@ TEST(IrParserTest, ProcWrongParameterCount) {
 package test
 
 proc foo(my_token: token, my_state: bits[32], total_garbage: bits[1], init=42) {
-  ret tuple.1: (token, bits[32]) = tuple(my_token, my_state)
+  ret tuple.1: (token, bits[32]) = tuple(my_token, my_state, id=1)
 }
 )";
   EXPECT_THAT(Parser::ParsePackage(program).status(),
@@ -1694,7 +1701,7 @@ TEST(IrParserTest, ProcWrongTokenType) {
 package test
 
 proc foo(my_token: bits[1], my_state: bits[32], init=42) {
-  ret tuple.1: (token, bits[32]) = tuple(my_token, my_state)
+  ret tuple.1: (token, bits[32]) = tuple(my_token, my_state, id=1)
 }
 )";
   EXPECT_THAT(
@@ -1708,7 +1715,7 @@ TEST(IrParserTest, ProcWrongInitValueType) {
 package test
 
 proc foo(my_token: token, my_state: bits[32], init=(1, 2, 3)) {
-  ret tuple.1: (token, bits[32]) = tuple(my_token, my_state)
+  ret tuple.1: (token, bits[32]) = tuple(my_token, my_state, id=1)
 }
 )";
   EXPECT_THAT(Parser::ParsePackage(program).status(),
@@ -1721,7 +1728,7 @@ TEST(IrParserTest, ProcWrongReturnType) {
 package test
 
 proc foo(my_token: token, my_state: bits[32], init=42) {
-  ret literal.1: bits[32] = literal(value=123)
+  ret literal.1: bits[32] = literal(value=123, id=1)
 }
 )";
   EXPECT_THAT(
@@ -1842,11 +1849,11 @@ chan mtv(stuff: bits[32], id=1, kind=send_only,
 
 proc my_proc(my_token: token, my_state: bits[32], init=42) {
   receive.1: (token, bits[32]) = receive(my_token, channel_id=0)
-  tuple_index.2: token = tuple_index(receive.1, index=0)
-  tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
-  add.4: bits[32] = add(my_state, tuple_index.3)
+  tuple_index.2: token = tuple_index(receive.1, index=0, id=2)
+  tuple_index.3: bits[32] = tuple_index(receive.1, index=1, id=3)
+  add.4: bits[32] = add(my_state, tuple_index.3, id=4)
   send.5: token = send(tuple_index.2, data=[add.4], channel_id=1)
-  ret tuple.6: (token, bits[32]) = tuple(send.5, add.4)
+  ret tuple.6: (token, bits[32]) = tuple(send.5, add.4, id=6)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
@@ -1865,13 +1872,13 @@ chan mtv(stuff: bits[32], zzz: bits[1], id=1, kind=send_only,
             metadata="module_port { flopped: true }")
 
 proc my_proc(my_token: token, my_state: bits[32], init=42) {
-  literal.1: bits[1] = literal(value=1)
+  literal.1: bits[1] = literal(value=1, id=1)
   receive_if.2: (token, bits[32], bits[1]) = receive_if(my_token, literal.1, channel_id=0)
-  tuple_index.3: token = tuple_index(receive_if.2, index=0)
-  tuple_index.4: bits[32] = tuple_index(receive_if.2, index=1)
-  tuple_index.5: bits[1] = tuple_index(receive_if.2, index=2)
+  tuple_index.3: token = tuple_index(receive_if.2, index=0, id=3)
+  tuple_index.4: bits[32] = tuple_index(receive_if.2, index=1, id=4)
+  tuple_index.5: bits[1] = tuple_index(receive_if.2, index=2, id=5)
   send_if.6: token = send_if(tuple_index.3, literal.1, data=[tuple_index.4, tuple_index.5], channel_id=1)
-  ret tuple.7: (token, bits[32]) = tuple(send_if.6, my_state)
+  ret tuple.7: (token, bits[32]) = tuple(send_if.6, my_state, id=7)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
@@ -1883,8 +1890,8 @@ proc my_proc(my_token: token, my_state: bits[32], init=42) {
 TEST(IrParserTest, ParseTupleIndexWithInvalidBValue) {
   const std::string input = R"(
 fn f(x: bits[4], y: bits[4][1]) -> bits[4] {
-  onehot.10: bits[16] = decode(y, width=16)
-  ret ind.20: bits[4] = tuple_index(onehot.10, index=0)
+  onehot.10: bits[16] = decode(y, width=16, id=10)
+  ret ind.20: bits[4] = tuple_index(onehot.10, index=0, id=20)
 }
 )";
 
@@ -1897,9 +1904,9 @@ fn f(x: bits[4], y: bits[4][1]) -> bits[4] {
 TEST(IrParserTest, ParseArrayIndexWithInvalidBValue) {
   const std::string input = R"(
 fn f(x: bits[4], y: bits[4][1]) -> bits[4] {
-  literal.10: bits[32] = literal(value=0)
-  onehot.20: bits[16] = decode(y, width=16)
-  ret ind.30: bits[4] = array_index(onehot.20, literal.10)
+  literal.10: bits[32] = literal(value=0, id=10)
+  onehot.20: bits[16] = decode(y, width=16, id=20)
+  ret ind.30: bits[4] = array_index(onehot.20, literal.10, id=30)
 }
 )";
 
@@ -1912,11 +1919,11 @@ fn f(x: bits[4], y: bits[4][1]) -> bits[4] {
 TEST(IrParserTest, ParseArrayUpdateWithInvalidOp0BValue) {
   const std::string input = R"(
 fn f(x: bits[4], y: bits[4][1]) -> bits[4][1] {
-  literal.10: bits[32] = literal(value=0)
-  literal.20: bits[32] = literal(value=0)
+  literal.10: bits[32] = literal(value=0, id=10)
+  literal.20: bits[32] = literal(value=0, id=20)
 
-  onehot.30: bits[16] = decode(y, width=16)
-  ret arr.40: bits[4][1] = array_update(onehot.30, literal.10, literal.20)
+  onehot.30: bits[16] = decode(y, width=16, id=30)
+  ret arr.40: bits[4][1] = array_update(onehot.30, literal.10, literal.20, id=40)
 }
 )";
 
@@ -1929,9 +1936,9 @@ fn f(x: bits[4], y: bits[4][1]) -> bits[4][1] {
 TEST(IrParserTest, ParseArrayUpdateWithInvalidOp2BValue) {
   const std::string input = R"(
 fn f(x: bits[4], y: bits[4][1]) -> bits[4][1] {
-  literal.10: bits[32] = literal(value=0)
-  onehot.20: bits[16] = decode(y, width=16)
-  ret arr.30: bits[4][1] = array_update(y, literal.10, onehot.20)
+  literal.10: bits[32] = literal(value=0, id=10)
+  onehot.20: bits[16] = decode(y, width=16, id=20)
+  ret arr.30: bits[4][1] = array_update(y, literal.10, onehot.20, id=30)
 }
 )";
 
@@ -1945,8 +1952,8 @@ TEST(IrParserTest, NodeNames) {
   std::string program = R"(package test
 
 fn foo(x: bits[32], foobar: bits[32]) -> bits[32] {
-  add.1: bits[32] = add(x, foobar)
-  ret qux: bits[32] = not(add.1)
+  add.1: bits[32] = add(x, foobar, id=1)
+  ret qux: bits[32] = not(add.1, id=123)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
@@ -1976,7 +1983,7 @@ fn foo(x: bits[32], foobar: bits[32]) -> bits[32] {
 TEST(IrParserTest, InvalidName) {
   const std::string input = R"(
 fn f(x: bits[4]) -> bits[4] {
-  ret blahblah.30: bits[4] = add(x, x)
+  ret blahblah.30: bits[4] = add(x, x, id=30)
 }
 )";
   Package p("my_package");
@@ -1985,6 +1992,37 @@ fn f(x: bits[4]) -> bits[4] {
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("The substring 'blahblah' in node name blahblah.30 "
                          "does not match the node op 'add")));
+}
+
+TEST(IrParserTest, IdAttributes) {
+  const std::string input = R"(
+fn f(x: bits[4]) -> bits[4] {
+  foo: bits[4] = not(x)
+  bar: bits[4] = not(foo, id=42)
+  not.123: bits[4] = not(bar, id=123)
+  ret not.333: bits[4] = not(not.123, id=333)
+}
+)";
+  Package p("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, Parser::ParseFunction(input, &p));
+  EXPECT_EQ(f->return_value()->id(), 333);
+  EXPECT_EQ(f->return_value()->operand(0)->id(), 123);
+  EXPECT_EQ(f->return_value()->operand(0)->operand(0)->id(), 42);
+  EXPECT_EQ(f->return_value()->operand(0)->operand(0)->operand(0)->id(), 2);
+}
+
+TEST(IrParserTest, MismatchedId) {
+  const std::string input = R"(
+fn f(x: bits[4]) -> bits[4] {
+  ret add.30: bits[4] = add(x, x, id=42)
+}
+)";
+  Package p("my_package");
+  EXPECT_THAT(
+      Parser::ParseFunction(input, &p).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("The id '30' in node name add.30 does not match the "
+                         "id '42' specified as an attribute")));
 }
 
 }  // namespace xls

@@ -157,20 +157,13 @@ TEST(FunctionBuilderTest, Match) {
            {b.Literal(UBits(8, 8)), z}},
           the_default);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
-  EXPECT_EQ(
-      f->DumpIr(),
-      R"(fn f(cond: bits[8], x: bits[32], y: bits[32], z: bits[32], default: bits[32]) -> bits[32] {
-  literal.8: bits[8] = literal(value=8)
-  literal.7: bits[8] = literal(value=123)
-  literal.6: bits[8] = literal(value=42)
-  eq.11: bits[1] = eq(cond, literal.8)
-  eq.10: bits[1] = eq(cond, literal.7)
-  eq.9: bits[1] = eq(cond, literal.6)
-  concat.12: bits[3] = concat(eq.11, eq.10, eq.9)
-  one_hot.13: bits[4] = one_hot(concat.12, lsb_prio=true)
-  ret one_hot_sel.14: bits[32] = one_hot_sel(one_hot.13, cases=[x, y, z, default])
-}
-)");
+  EXPECT_THAT(f->return_value(),
+              m::OneHotSelect(
+                  m::OneHot(m::Concat(m::Eq(m::Param("cond"), m::Literal(8)),
+                                      m::Eq(m::Param("cond"), m::Literal(123)),
+                                      m::Eq(m::Param("cond"), m::Literal(42)))),
+                  /*cases=*/{m::Param("x"), m::Param("y"), m::Param("z"),
+                             m::Param("default")}));
 }
 
 TEST(FunctionBuilderTest, MatchTrue) {
@@ -187,14 +180,12 @@ TEST(FunctionBuilderTest, MatchTrue) {
   BValue the_default = b.Param("default", value_type);
   b.MatchTrue({{p0, x}, {p1, y}, {p2, z}}, the_default);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
-  EXPECT_EQ(
-      f->DumpIr(),
-      R"(fn f(p0: bits[1], p1: bits[1], p2: bits[1], x: bits[32], y: bits[32], z: bits[32], default: bits[32]) -> bits[32] {
-  concat.8: bits[3] = concat(p2, p1, p0)
-  one_hot.9: bits[4] = one_hot(concat.8, lsb_prio=true)
-  ret one_hot_sel.10: bits[32] = one_hot_sel(one_hot.9, cases=[x, y, z, default])
-}
-)");
+  EXPECT_THAT(
+      f->return_value(),
+      m::OneHotSelect(
+          m::OneHot(m::Concat(m::Param("p2"), m::Param("p1"), m::Param("p0"))),
+          /*cases=*/{m::Param("x"), m::Param("y"), m::Param("z"),
+                     m::Param("default")}));
 }
 
 TEST(FunctionBuilderTest, ConcatTuples) {

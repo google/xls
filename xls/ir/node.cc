@@ -459,6 +459,7 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
     default:
       break;
   }
+  args.push_back(absl::StrFormat("id=%d", id()));
   if (loc()) {
     // Tack the location on as an optional keyword attribute.
     args.push_back(absl::StrFormat("pos=%d,%d,%d", loc()->fileno().value(),
@@ -505,6 +506,11 @@ int64 Node::OperandInstanceCount(const Node* target) const {
     }
   }
   return count;
+}
+
+void Node::set_id(int64 id) {
+  id_ = id;
+  package()->set_next_node_id(std::max(id + 1, package()->next_node_id()));
 }
 
 bool Node::ReplaceOperand(Node* old_operand, Node* new_operand) {

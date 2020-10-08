@@ -190,7 +190,7 @@ class Node {
 
   // Note: use with caution, the id should be unique among all nodes in a
   // function.
-  void set_id(int64 id) { id_ = id; }
+  void set_id(int64 id);
 
   // Clones the node with the new operands. Returns the newly created
   // instruction. The instruction is owned by new_function which must also

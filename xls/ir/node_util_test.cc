@@ -24,9 +24,12 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+
+namespace m = ::xls::op_matchers;
 
 namespace xls {
 namespace {
@@ -103,15 +106,8 @@ TEST_F(NodeUtilTest, GatherBits) {
   XLS_ASSERT_OK_AND_ASSIGN(Node * gathered,
                            GatherBits(f->return_value(), {0, 2, 3, 4, 6}));
   XLS_ASSERT_OK(f->set_return_value(gathered));
-  EXPECT_EQ(p->DumpIr(), R"(package GatherBits
-
-fn GatherBits(x: bits[8]) -> bits[5] {
-  bit_slice.4: bits[1] = bit_slice(x, start=6, width=1)
-  bit_slice.3: bits[3] = bit_slice(x, start=2, width=3)
-  bit_slice.2: bits[1] = bit_slice(x, start=0, width=1)
-  ret concat.5: bits[5] = concat(bit_slice.4, bit_slice.3, bit_slice.2)
-}
-)");
+  EXPECT_THAT(f->return_value(), m::Concat(m::BitSlice(6, 1), m::BitSlice(2, 3),
+                                           m::BitSlice(0, 1)));
 }
 
 TEST_F(NodeUtilTest, GatherNoBits) {
@@ -121,12 +117,7 @@ TEST_F(NodeUtilTest, GatherNoBits) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(Node * gathered, GatherBits(f->return_value(), {}));
   XLS_ASSERT_OK(f->set_return_value(gathered));
-  EXPECT_EQ(p->DumpIr(), R"(package GatherNoBits
-
-fn GatherNoBits(x: bits[8]) -> bits[0] {
-  ret literal.2: bits[0] = literal(value=0)
-}
-)");
+  EXPECT_THAT(f->return_value(), m::Literal(0));
 }
 
 TEST_F(NodeUtilTest, GatherAllTheBits) {
@@ -137,12 +128,7 @@ TEST_F(NodeUtilTest, GatherAllTheBits) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * gathered, GatherBits(f->return_value(), {0, 1, 2, 3, 4, 5, 6, 7}));
   XLS_ASSERT_OK(f->set_return_value(gathered));
-  EXPECT_EQ(p->DumpIr(), R"(package GatherAllTheBits
-
-fn GatherAllTheBits(x: bits[8]) -> bits[8] {
-  ret param.1: bits[8] = param(name=x)
-}
-)");
+  EXPECT_THAT(f->return_value(), m::Param("x"));
 }
 
 TEST_F(NodeUtilTest, GatherBitsIndicesNotSorted) {

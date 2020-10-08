@@ -56,7 +56,8 @@ fn main(x: bits[32], y: bits[32]) -> bits[32] {
   EXPECT_THAT(json, HasSubstr(R"("id": "add_1")"));
   EXPECT_THAT(
       json,
-      HasSubstr("\"ir\": \"add.1: bits[32] = add(x: bits[32], y: bits[32])\""));
+      HasSubstr(
+          "\"ir\": \"add.1: bits[32] = add(x: bits[32], y: bits[32], id=1)\""));
   EXPECT_THAT(json, HasSubstr(R"("name": "add.1")"));
   EXPECT_THAT(json, HasSubstr(R"("opcode": "add")"));
   EXPECT_THAT(

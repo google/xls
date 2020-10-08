@@ -56,16 +56,6 @@ class OptMainTest(test_base.TestCase):
     # The add with zero should be eliminated.
     self.assertIn('ret param', optimized_ir)
 
-  def test_run_only_irrelevant_passes(self):
-    ir_file = self.create_tempfile(content=ADD_ZERO_IR)
-
-    optimized_ir = subprocess.check_output(
-        [OPT_MAIN_PATH, '--run_only_passes=cse,dce',
-         ir_file.full_path]).decode('utf-8')
-
-    # There should be no change in the ir.
-    self.assertEqual(ADD_ZERO_IR, optimized_ir)
-
   def test_run_only_arith_simp_and_dce_passes(self):
     ir_file = self.create_tempfile(content=ADD_ZERO_IR)
 
@@ -74,13 +64,8 @@ class OptMainTest(test_base.TestCase):
          ir_file.full_path]).decode('utf-8')
 
     # The add with zero should be eliminated.
-    self.assertEqual(
-        optimized_ir, """package add_zero
-
-fn add_zero(x: bits[32]) -> bits[32] {
-  ret param.1: bits[32] = param(name=x)
-}
-""")
+    self.assertIn('add(', ADD_ZERO_IR)
+    self.assertNotIn('add(', optimized_ir)
 
   def test_skip_dfe(self):
     ir_file = self.create_tempfile(content=DEAD_FUNCTION_IR)

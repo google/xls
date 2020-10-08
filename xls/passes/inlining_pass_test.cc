@@ -17,27 +17,32 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/ir_test_base.h"
 #include "xls/passes/dce_pass.h"
+
+namespace m = ::xls::op_matchers;
 
 namespace xls {
 namespace {
 
-void Inline(absl::string_view program, std::string* output) {
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
-                           Parser::ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("caller"));
-  PassResults results;
-  XLS_ASSERT_OK_AND_ASSIGN(
-      bool changed, InliningPass().RunOnFunction(f, PassOptions(), &results));
-  EXPECT_TRUE(changed);
-  XLS_ASSERT_OK(DeadCodeEliminationPass()
-                    .RunOnFunction(f, PassOptions(), &results)
-                    .status());
-  *output = f->DumpIr();
-}
+using status_testing::IsOkAndHolds;
 
-TEST(InliningPassTest, AddWrapper) {
+class InliningPassTest : public IrTestBase {
+ protected:
+  absl::StatusOr<bool> Inline(Function* f) {
+    PassResults results;
+    XLS_ASSIGN_OR_RETURN(
+        bool changed, InliningPass().RunOnFunction(f, PassOptions(), &results));
+    XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
+                            .RunOnFunction(f, PassOptions(), &results)
+                            .status());
+    return changed;
+  }
+};
+
+TEST_F(InliningPassTest, AddWrapper) {
   const std::string program = R"(
 package some_package
 
@@ -50,19 +55,13 @@ fn caller() -> bits[32] {
   ret invoke.3: bits[32] = invoke(literal.2, literal.2, to_apply=callee)
 }
 )";
-
-  std::string output;
-  Inline(program, &output);
-
-  const std::string expected = R"(fn caller() -> bits[32] {
-  literal.2: bits[32] = literal(value=2)
-  ret add.4: bits[32] = add(literal.2, literal.2)
-}
-)";
-  EXPECT_EQ(expected, output);
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, ParsePackage(program));
+  Function* f = FindFunction("caller", package.get());
+  ASSERT_THAT(Inline(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Add(m::Literal(2), m::Literal(2)));
 }
 
-TEST(InliningPassTest, Transitive) {
+TEST_F(InliningPassTest, Transitive) {
   const std::string program = R"(
 package some_package
 
@@ -80,15 +79,10 @@ fn caller() -> bits[32] {
 }
 )";
 
-  std::string output;
-  Inline(program, &output);
-
-  const std::string expected = R"(fn caller() -> bits[32] {
-  literal.3: bits[32] = literal(value=2)
-  ret add.7: bits[32] = add(literal.3, literal.3)
-}
-)";
-  EXPECT_EQ(expected, output);
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, ParsePackage(program));
+  Function* f = FindFunction("caller", package.get());
+  ASSERT_THAT(Inline(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Add(m ::Literal(2), m::Literal(2)));
 }
 
 }  // namespace

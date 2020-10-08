@@ -318,6 +318,7 @@ cc_test(
         "ir_parser",
         ":bits_ops",
         ":number_parser",
+        "//xls/common:source_location",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
@@ -346,6 +347,7 @@ cc_test(
     deps = [
         ":function_builder",
         ":ir",
+        ":ir_matcher",
         ":ir_test_base",
         ":node_util",
         ":op",
@@ -920,6 +922,7 @@ cc_test(
     srcs = ["proc_test.cc"],
     deps = [
         ":ir",
+        ":ir_matcher",
         ":ir_test_base",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",

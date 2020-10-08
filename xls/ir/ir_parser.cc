@@ -545,6 +545,8 @@ absl::StatusOr<BValue> Parser::ParseFunctionBody(
     ArgParser arg_parser(*name_to_value, type, this);
     absl::optional<SourceLocation>* loc =
         arg_parser.AddOptionalKeywordArg<SourceLocation>("pos");
+    absl::optional<int64>* id_attribute =
+        arg_parser.AddOptionalKeywordArg<int64>("id");
     BValue bvalue;
 
     absl::optional<SplitName> split_name = SplitNodeName(output_name.value());
@@ -886,12 +888,19 @@ absl::StatusOr<BValue> Parser::ParseFunctionBody(
 
     last_created = bvalue;
 
-
     if (last_created.valid()) {
       Node* node = last_created.node();
       if (split_name.has_value()) {
         // If the name is a generated from opcode and id (e.g., "add.42") then
-        // verify the opcode matches and set the id.
+        // verify the opcode and id attribute (if given) match then set the id.
+        if (id_attribute->has_value() &&
+            id_attribute->value() != split_name->node_id) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "The id '%d' in node name %s does not match the id '%d' "
+              "specified as an attribute @ %s",
+              split_name->node_id, output_name.value(), id_attribute->value(),
+              op_token.pos().ToHumanString()));
+        }
         node->set_id(split_name->node_id);
         if (split_name->op_name != OpToString(node->op())) {
           return absl::InvalidArgumentError(absl::StrFormat(
@@ -905,6 +914,10 @@ absl::StatusOr<BValue> Parser::ParseFunctionBody(
         // was assigned to the op. OK to XLS_RET_CHECK as a mismatch here is an
         // error in the parser not in the input file.
         XLS_RET_CHECK_EQ(node->GetName(), node_name);
+        // Also set the ID to the attribute ID (if given).
+        if (id_attribute->has_value()) {
+          node->set_id(id_attribute->value());
+        }
       }
     }
 

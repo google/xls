@@ -178,8 +178,7 @@ TEST_F(BitSliceSimplificationPassTest,
 )";
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   EXPECT_TRUE(f->return_value()->Is<BitSlice>());
-  XLS_ASSERT_OK(Run(f));
-  EXPECT_EQ(f->DumpIr(), program);
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
 TEST_F(BitSliceSimplificationPassTest, SliceOfSignExtCaseOne) {

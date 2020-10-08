@@ -26,9 +26,9 @@ IR_MINIMIZER_MAIN_PATH = runfiles.get_path('xls/tools/ir_minimizer_main')
 ADD_IR = """package foo
 
 fn foo(x: bits[32], y: bits[32]) -> bits[32] {
-  not.1: bits[32] = not(x)
-  add.2: bits[32] = add(not.1, y)
-  ret not.3: bits[32] = not(add.2)
+  not.1: bits[32] = not(x, id=1)
+  add.2: bits[32] = add(not.1, y, id=2)
+  ret not.3: bits[32] = not(add.2, id=3)
 }
 """
 
@@ -54,8 +54,8 @@ class IrMinimizerMainTest(absltest.TestCase):
         minimized_ir.decode('utf-8'), """package foo
 
 fn foo(x: bits[32], y: bits[32]) -> bits[32] {
-  literal.4: bits[32] = literal(value=0)
-  ret add.2: bits[32] = add(literal.4, literal.4)
+  literal.6: bits[32] = literal(value=0, id=6)
+  ret add.2: bits[32] = add(literal.6, literal.6, id=2)
 }
 """)
 
@@ -71,8 +71,8 @@ fn foo(x: bits[32], y: bits[32]) -> bits[32] {
         minimized_ir.decode('utf-8'), """package foo
 
 fn foo() -> bits[32] {
-  literal.4: bits[32] = literal(value=0)
-  ret add.2: bits[32] = add(literal.4, literal.4)
+  literal.6: bits[32] = literal(value=0, id=6)
+  ret add.2: bits[32] = add(literal.6, literal.6, id=2)
 }
 """)
 

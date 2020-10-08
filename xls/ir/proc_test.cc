@@ -17,7 +17,10 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+
+namespace m = ::xls::op_matchers;
 
 namespace xls {
 namespace {
@@ -38,13 +41,9 @@ proc foo(in_token: token, in_state: bits[32], init=42) {
   EXPECT_EQ(proc->node_count(), 5);
   EXPECT_EQ(proc->return_value()->op(), Op::kTuple);
 
-  EXPECT_EQ(proc->DumpIr(),
-            R"(proc foo(in_token: token, in_state: bits[32], init=42) {
-  literal.1: bits[32] = literal(value=1)
-  add.2: bits[32] = add(literal.1, in_state)
-  ret tuple.3: (token, bits[32]) = tuple(in_token, add.2)
-}
-)");
+  EXPECT_THAT(proc->return_value(),
+              m::Tuple(m::Param("in_token"),
+                       m::Add(m::Literal(1), m::Param("in_state"))));
 }
 
 }  // namespace

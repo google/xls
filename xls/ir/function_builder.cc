@@ -389,8 +389,7 @@ BValue BuilderBase::ArrayConcat(absl::Span<const BValue> operands,
       return SetError(
           absl::StrFormat(
               "Cannot array-concat node %s because it has non-array type %s",
-              operand.node()->ToString(),
-              operand.node()->GetType()->ToString()),
+              operand.node()->GetName(), operand.node()->GetType()->ToString()),
           loc);
     }
 
@@ -404,7 +403,7 @@ BValue BuilderBase::ArrayConcat(absl::Span<const BValue> operands,
           absl::StrFormat(
               "Cannot array-concat node %s because it has element type %s"
               " but expected %s",
-              operand.node()->ToString(), element_type->ToString(),
+              operand.node()->GetName(), element_type->ToString(),
               zeroth_element_type->ToString()),
           loc);
     }

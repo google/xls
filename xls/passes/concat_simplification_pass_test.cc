@@ -361,15 +361,9 @@ fn f(x: bits[5], y: bits[10]) -> bits[1] {
   )",
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_EQ(f->DumpIr(), R"(fn f(x: bits[5], y: bits[10]) -> bits[1] {
-  literal.2: bits[15] = literal(value=0)
-  bit_slice.6: bits[5] = bit_slice(literal.2, start=10, width=5)
-  bit_slice.8: bits[10] = bit_slice(literal.2, start=0, width=10)
-  eq.7: bits[1] = eq(x, bit_slice.6)
-  eq.9: bits[1] = eq(y, bit_slice.8)
-  ret and.10: bits[1] = and(eq.7, eq.9)
-}
-)");
+  EXPECT_THAT(f->return_value(),
+              m::And(m::Eq(m::Param("x"), m::BitSlice(m::Literal(0), 10, 5)),
+                     m::Eq(m::Param("y"), m::BitSlice(m::Literal(0), 0, 10))));
 }
 
 TEST_F(ConcatSimplificationPassTest, EqOfConcatDistributes3Pieces) {
@@ -383,19 +377,11 @@ fn f(x: bits[1], y: bits[2], z: bits[3]) -> bits[1] {
   )",
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_EQ(f->DumpIr(),
-            R"(fn f(x: bits[1], y: bits[2], z: bits[3]) -> bits[1] {
-  literal.2: bits[6] = literal(value=0)
-  bit_slice.7: bits[1] = bit_slice(literal.2, start=5, width=1)
-  bit_slice.9: bits[2] = bit_slice(literal.2, start=3, width=2)
-  eq.8: bits[1] = eq(x, bit_slice.7)
-  eq.10: bits[1] = eq(y, bit_slice.9)
-  bit_slice.12: bits[3] = bit_slice(literal.2, start=0, width=3)
-  and.11: bits[1] = and(eq.8, eq.10)
-  eq.13: bits[1] = eq(z, bit_slice.12)
-  ret and.14: bits[1] = and(and.11, eq.13)
-}
-)");
+  EXPECT_THAT(
+      f->return_value(),
+      m::And(m::And(m::Eq(m::Param("x"), m::BitSlice(m::Literal(0), 5, 1)),
+                    m::Eq(m::Param("y"), m::BitSlice(m::Literal(0), 3, 2))),
+             m::Eq(m::Param("z"), m::BitSlice(m::Literal(0), 0, 3))));
 }
 
 TEST_F(ConcatSimplificationPassTest, NeOfConcatDistributes) {

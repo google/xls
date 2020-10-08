@@ -162,17 +162,11 @@ fn main(x: bits[11]) -> (bits[11], bits[11], bits[11]) {
 
   EXPECT_THAT(Run(entry), IsOkAndHolds(true));
 
-  EXPECT_EQ(R"(fn main(x: bits[11]) -> (bits[11], bits[11], bits[11]) {
-  literal.42: bits[32] = literal(value=0)
-  bit_slice.2: bits[10] = bit_slice(x, start=1, width=10)
-  concat.43: bits[42] = concat(literal.42, bit_slice.2)
-  bit_slice.44: bits[10] = bit_slice(concat.43, start=0, width=10)
-  literal.3: bits[1] = literal(value=0, pos=1,2,3)
-  concat.6: bits[11] = concat(bit_slice.44, literal.3, pos=10,11,12)
-  ret tuple.9: (bits[11], bits[11], bits[11]) = tuple(concat.6, concat.6, concat.6)
-}
-)",
-            entry->DumpIr());
+  EXPECT_EQ(entry->return_value()->operand(0)->op(), Op::kConcat);
+  EXPECT_EQ(entry->return_value()->operand(0),
+            entry->return_value()->operand(1));
+  EXPECT_EQ(entry->return_value()->operand(0),
+            entry->return_value()->operand(2));
 }
 
 }  // namespace
