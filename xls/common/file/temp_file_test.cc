@@ -18,6 +18,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/strings/match.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/matchers.h"
 
@@ -38,9 +39,21 @@ TEST(TempFile, CreateCreatesEmptyFile) {
   EXPECT_TRUE(std::filesystem::is_empty(file->path().string(), ec));
 }
 
+TEST(TempFile, CreateCreatesFileWithSuffix) {
+  std::error_code ec;
+  auto file = TempFile::Create(".foobar");
+
+  XLS_ASSERT_OK(file);
+  EXPECT_THAT(file->path().string(), Not(IsEmpty()));
+  EXPECT_TRUE(absl::EndsWith(file->path().string(), ".foobar"));
+  EXPECT_TRUE(std::filesystem::exists(file->path().string(), ec));
+  EXPECT_TRUE(std::filesystem::is_empty(file->path().string(), ec));
+}
+
 TEST(TempFile, CreateInNonexistingDirectoryFails) {
   std::error_code ec;
-  auto file = TempFile::Create(/*directory=*/"nonexisting_path_name___");
+  auto file =
+      TempFile::CreateInDirectory(/*directory=*/"nonexisting_path_name___");
 
   EXPECT_THAT(file.status(),
               StatusIs(absl::StatusCode::kUnavailable,
@@ -55,7 +68,7 @@ TEST(TempFile, CreateWithContentCreatesEmptyFileInSpecifiedDirectory) {
   ASSERT_NE(mkdtemp(temp_dir.data()), nullptr);
 
   {
-    auto file = TempFile::CreateWithContent("hey there", temp_dir);
+    auto file = TempFile::CreateWithContentInDirectory("hey there", temp_dir);
 
     XLS_EXPECT_OK(file);
     if (file.ok()) {

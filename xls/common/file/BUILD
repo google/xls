@@ -166,6 +166,7 @@ cc_test(
     deps = [
         ":filesystem",
         ":temp_file",
+        "@com_google_absl//absl/strings",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
     ],

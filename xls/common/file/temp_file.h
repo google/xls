@@ -28,17 +28,22 @@ class TempFile {
  public:
   ~TempFile();
 
-  // Create an empty temporary file in a temporary directory (not cwd).
-  static absl::StatusOr<TempFile> Create();
-  // Create an empty temporary file in a specified directory.
-  static absl::StatusOr<TempFile> Create(
-      const std::filesystem::path& directory);
+  // Create an empty temporary file in a temporary directory (not cwd). The name
+  // of the temporary file will end with the given suffix.
+  static absl::StatusOr<TempFile> Create(absl::string_view suffix = "");
+  // Create an empty temporary file in a specified directory. The name
+  // of the temporary file will end with the given suffix.
+  static absl::StatusOr<TempFile> CreateInDirectory(
+      const std::filesystem::path& directory, absl::string_view suffix = "");
   // Create a temporary file with the given contents in a temporary directory
-  // (not cwd).
-  static absl::StatusOr<TempFile> CreateWithContent(absl::string_view content);
-  // Create a temporary file with the given contents in a specified directory.
+  // (not cwd). The name of the temporary file will end with the given suffix.
   static absl::StatusOr<TempFile> CreateWithContent(
-      absl::string_view content, const std::filesystem::path& directory);
+      absl::string_view content, absl::string_view suffix = "");
+  // Create a temporary file with the given contents in a specified directory.
+  // The name of the temporary file will end with the given suffix.
+  static absl::StatusOr<TempFile> CreateWithContentInDirectory(
+      absl::string_view content, const std::filesystem::path& directory,
+      absl::string_view suffix = "");
 
   std::filesystem::path path() const;
 
@@ -72,6 +77,7 @@ class TempFile {
   // descriptor that points to the temporary file. The caller is responsible for
   // closing it.
   static absl::StatusOr<TempFile> Create(const std::filesystem::path& directory,
+                                         absl::string_view suffix,
                                          int* file_descriptor);
 
   std::filesystem::path path_;
