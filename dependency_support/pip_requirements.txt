@@ -6,7 +6,7 @@ itsdangerous==1.1.0
 click==7.1.2
 numpy==1.18.4
 markupsafe==1.1.1
-scipy==1.4.1
+scipy==1.5.0
 termcolor==1.1.0
 psutil==5.7.0
 portpicker==1.3.1
