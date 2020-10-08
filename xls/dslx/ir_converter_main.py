@@ -59,7 +59,7 @@ def main(argv):
   module = parser_helpers.parse_text(
       text, name, print_on_error=True, filename=path)
 
-  import_cache = {}
+  import_cache = import_routines.ImportCache()
   f_import = functools.partial(import_routines.do_import, cache=import_cache)
 
   try:

@@ -141,3 +141,21 @@ xls_pybind_extension(
         "//xls/dslx:cpp_concrete_type",
     ],
 )
+
+xls_pybind_extension(
+    name = "cpp_type_info",
+    srcs = [
+        "cpp_ast.h",
+        "cpp_type_info.cc",
+    ],
+    py_deps = [
+        ":cpp_ast",  # build_cleaner: keep
+    ],
+    deps = [
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/strings",
+        "//xls/common/status:status_macros",
+        "//xls/common/status:statusor_pybind_caster",
+        "//xls/dslx:cpp_type_info",
+    ],
+)

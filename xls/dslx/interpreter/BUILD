@@ -155,11 +155,11 @@ py_library(
         "//xls/dslx:import_fn",
         "//xls/dslx:ir_name_mangler",
         "//xls/dslx:parametric_instantiator",
-        "//xls/dslx:type_info",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_parametric_expression",
         "//xls/dslx/python:cpp_pos",
+        "//xls/dslx/python:cpp_type_info",
         "//xls/ir/python:package",
         "//xls/jit/python:ir_jit",
         "@com_google_absl_py//absl/logging",
@@ -203,8 +203,8 @@ py_library(
         ":bindings",
         ":interpreter",
         "//xls/dslx:deduce",
-        "//xls/dslx:type_info",
         "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_type_info",
     ],
 )
 
@@ -246,6 +246,7 @@ py_binary(
     srcs_version = "PY3",
     deps = [
         ":parse_and_interpret",
+        "//xls/common/python:init_xls",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
     ],

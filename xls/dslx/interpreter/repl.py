@@ -62,6 +62,8 @@ def handle_line(line: str, stmt_index: int):
     fs.CreateFile(FILENAME, module_text)
     return fake_filesystem.FakeFileOpen(fs)
 
+  import_cache = import_routines.ImportCache()
+
   while True:
     try:
       fake_module = parser.Parser(
@@ -73,10 +75,9 @@ def handle_line(line: str, stmt_index: int):
     # First attempt at type checking, we expect this may fail the first time
     # around and we'll substitute the real return type we observe.
     try:
-      import_cache = {}
       f_import = functools.partial(
           import_routines.do_import, cache=import_cache)
-      node_to_type = typecheck.check_module(fake_module, f_import=f_import)
+      type_info = typecheck.check_module(fake_module, f_import=f_import)
     except xls_type_error.XlsTypeError as e:
       # We use nil as a placeholder, and swap it with the type that was expected
       # and retry once we determine what that should be.
@@ -95,7 +96,7 @@ def handle_line(line: str, stmt_index: int):
   # TODO(leary): 2020-06-20 No let bindings for the moment, just useful for
   # evaluating expressions -- could put them into the module scope as consts.
   interpreter = interpreter_mod.Interpreter(
-      fake_module, node_to_type, f_import=f_import, trace_all=False)
+      fake_module, type_info, f_import=f_import, trace_all=False)
   result = interpreter.run_function(fn_name, args=())
   print(result)
   return result

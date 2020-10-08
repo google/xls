@@ -34,7 +34,6 @@ from xls.dslx import ast_helpers
 from xls.dslx import bit_helpers
 from xls.dslx import import_fn
 from xls.dslx import ir_name_mangler
-from xls.dslx import type_info as type_info_mod
 from xls.dslx.concrete_type_helpers import map_size
 from xls.dslx.interpreter import jit_comparison
 from xls.dslx.interpreter.bindings import Bindings
@@ -50,6 +49,7 @@ from xls.dslx.interpreter.value import Tag
 from xls.dslx.interpreter.value import Value
 from xls.dslx.parametric_instantiator import SymbolicBindings
 from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python import cpp_type_info as type_info_mod
 from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType
 from xls.dslx.python.cpp_concrete_type import ConcreteType

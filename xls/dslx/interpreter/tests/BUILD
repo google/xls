@@ -247,6 +247,12 @@ dslx_test(
 )
 
 dslx_test(
+    name = "mod_importer_simple",
+    srcs = ["mod_importer_simple.x"],
+    deps = ["mod_imported.x"],
+)
+
+dslx_test(
     name = "mod_struct_importer",
     srcs = ["mod_struct_importer.x"],
     deps = ["mod_imported.x"],

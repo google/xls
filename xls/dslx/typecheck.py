@@ -25,9 +25,9 @@ import dataclasses
 from xls.common.xls_error import XlsError
 from xls.dslx import deduce
 from xls.dslx import dslx_builtins
-from xls.dslx import type_info
 from xls.dslx.interpreter.interpreter_helpers import interpret_expr
 from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python import cpp_type_info as type_info
 from xls.dslx.python.cpp_concrete_type import ConcreteType
 from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.span import PositionalError
@@ -193,7 +193,7 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
         # these bindings.
         return None
       invocation_imported_type_info = type_info.TypeInfo(
-          parent=imported_type_info)
+          imported_module, parent=imported_type_info)
       imported_ctx = deduce.DeduceCtx(invocation_imported_type_info,
                                       imported_module, ctx.interpret_expr,
                                       ctx.check_function_in_module)
@@ -211,7 +211,8 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
         return None
 
       ctx.fn_stack.append((map_fn_name, dict(symbolic_bindings)))
-      invocation_type_info = type_info.TypeInfo(parent=ctx.type_info)
+      invocation_type_info = type_info.TypeInfo(
+          ctx.module, parent=ctx.type_info)
       ctx.type_info.add_instantiation(invocation, symbolic_bindings,
                                       invocation_type_info)
       ctx.type_info = invocation_type_info
@@ -350,7 +351,7 @@ def check_module(module: ast.Module,
   Raises:
     XlsTypeError: If any of the function in f have typecheck errors.
   """
-  ti = type_info.TypeInfo()
+  ti = type_info.TypeInfo(module)
   interpreter_callback = functools.partial(interpret_expr, f_import=f_import)
   ctx = deduce.DeduceCtx(ti, module, interpreter_callback,
                          check_top_node_in_module)

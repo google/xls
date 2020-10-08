@@ -26,6 +26,7 @@ import sys
 from absl import app
 from absl import flags
 
+from xls.common.python import init_xls
 from xls.dslx.interpreter import parse_and_interpret
 
 FLAGS = flags.FLAGS
@@ -52,4 +53,5 @@ def main(argv):
 
 
 if __name__ == '__main__':
+  init_xls.init_xls(sys.argv)
   app.run(main)

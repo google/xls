@@ -172,11 +172,11 @@ py_library(
         ":fakefs_util",
         ":import_fn",
         ":parser_helpers",
-        ":type_info",
         ":typecheck",
         ":xls_type_error",
         requirement("pyfakefs"),
         "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_type_info",
     ],
 )
 
@@ -199,17 +199,22 @@ py_library(
     srcs_version = "PY3",
 )
 
-py_library(
-    name = "type_info",
-    srcs = ["type_info.py"],
+cc_library(
+    name = "cpp_type_info",
+    srcs = ["type_info.cc"],
+    hdrs = ["type_info.h"],
     deps = [
-        ":ast_helpers",
-        ":span",
-        ":symbolic_bindings",
-        ":xls_type_error",
-        "//xls/dslx/python:cpp_ast",
-        "//xls/dslx/python:cpp_concrete_type",
-        "//xls/dslx/python:cpp_pos",
+        ":cpp_ast",
+        ":cpp_concrete_type",
+    ],
+)
+
+cc_test(
+    name = "cpp_type_info_test",
+    srcs = ["type_info_test.cc"],
+    deps = [
+        ":cpp_type_info",
+        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -223,13 +228,13 @@ py_library(
         ":concrete_type_helpers",
         ":dslx_builtins",
         ":parametric_instantiator",
-        ":type_info",
         ":xls_type_error",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_parametric_expression",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_scanner",
+        "//xls/dslx/python:cpp_type_info",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -255,12 +260,12 @@ py_library(
         ":deduce",
         ":dslx_builtins",
         ":span",
-        ":type_info",
         ":xls_type_error",
         "//xls/common:xls_error",
         "//xls/dslx/interpreter:interpreter_helpers",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_concrete_type",
+        "//xls/dslx/python:cpp_type_info",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -335,13 +340,13 @@ py_library(
         ":ir_name_mangler",
         ":parametric_instantiator",
         ":span",
-        ":type_info",
         "//xls/common:xls_error",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_ast_visitor",
         "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_parametric_expression",
         "//xls/dslx/python:cpp_pos",
+        "//xls/dslx/python:cpp_type_info",
         "//xls/ir/python:bits",
         "//xls/ir/python:fileno",
         "//xls/ir/python:function",
@@ -381,6 +386,7 @@ py_test(
         ":span",
         ":typecheck",
         "//xls/common:runfiles",
+        "//xls/common:test_base",
         "//xls/dslx/python:cpp_parser",
         "@com_google_absl_py//absl/testing:absltest",
     ],
@@ -425,9 +431,9 @@ py_library(
     deps = [
         ":dslx_builtins",
         ":parametric_instantiator",
-        ":type_info",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_ast_visitor",
+        "//xls/dslx/python:cpp_type_info",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -441,9 +447,9 @@ py_test(
         ":extract_conversion_order",
         ":fakefs_test_util",
         ":parse_and_typecheck",
-        ":type_info",
         "//xls/common:test_base",
         "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_type_info",
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )
@@ -517,8 +523,8 @@ py_library(
     srcs_version = "PY3",
     deps = [
         ":deduce",
-        ":type_info",
         "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_type_info",
     ],
 )
 

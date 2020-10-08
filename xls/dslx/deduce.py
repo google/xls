@@ -42,8 +42,8 @@ from xls.dslx.python.cpp_parametric_expression import ParametricAdd
 from xls.dslx.python.cpp_parametric_expression import ParametricExpression
 from xls.dslx.python.cpp_parametric_expression import ParametricSymbol
 from xls.dslx.python.cpp_pos import Span
-from xls.dslx.type_info import TypeInfo
-from xls.dslx.type_info import TypeMissingError
+from xls.dslx.python.cpp_type_info import TypeInfo
+from xls.dslx.python.cpp_type_info import TypeMissingError
 from xls.dslx.xls_type_error import TypeInferenceError
 from xls.dslx.xls_type_error import XlsTypeError
 
@@ -233,7 +233,8 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
 
     imported_module, imported_type_info = ctx.type_info.get_imported(
         invocation.callee.mod)
-    invocation_imported_type_info = TypeInfo(parent=imported_type_info)
+    invocation_imported_type_info = TypeInfo(
+        imported_module, parent=imported_type_info)
     imported_ctx = DeduceCtx(invocation_imported_type_info, imported_module,
                              ctx.interpret_expr, ctx.check_function_in_module)
     imported_ctx.fn_stack.append(
@@ -264,7 +265,7 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
       e.node = invocation.callee.name_def
       ctx.fn_stack.append(
           (parametric_fn.name.identifier, dict(symbolic_bindings)))
-      ctx.type_info = TypeInfo(parent=ctx.type_info)
+      ctx.type_info = TypeInfo(ctx.type_info.module, parent=ctx.type_info)
       raise
 
   if not has_instantiation:
@@ -789,11 +790,19 @@ def _dim_to_parametric(self: ast.TypeAnnotation,
 def _dim_to_parametric_or_int(
     self: ast.TypeAnnotation, expr: ast.Expr,
     ctx: DeduceCtx) -> Union[int, ParametricExpression]:
+  """Converts dimension expression within an annotation to int or parametric."""
   if isinstance(expr, ast.Number):
     ctx.type_info[expr] = ConcreteType.U32
     return ast_helpers.get_value_as_int(expr)
   if isinstance(expr, ast.ConstRef):
-    return ctx.type_info.get_const_int(expr.name_def, expr.span)
+    n = ctx.type_info.get_const_int(expr.name_def)
+    if not isinstance(n, ast.Number):
+      raise TypeInferenceError(
+          span=expr.span,
+          type_=None,
+          suffix=f'Expected a constant integral value with the name {expr.name_def}; got {n}'
+      )
+    return ast_helpers.get_value_as_int(n)
   return _dim_to_parametric(self, expr)
 
 

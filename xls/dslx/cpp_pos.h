@@ -118,6 +118,11 @@ class Span {
   Pos limit_;
 };
 
+inline std::ostream& operator<<(std::ostream& os, const Span& span) {
+  os << span.ToString();
+  return os;
+}
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_CPP_POS_H_

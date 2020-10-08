@@ -107,9 +107,8 @@ def load_external_repositories():
     http_archive(
         name = "pybind11",
         build_file = "@pybind11_bazel//:pybind11.BUILD",
-        strip_prefix = "pybind11-a54eab92d265337996b8e4b4149d9176c2d428a6",
-        urls = ["https://github.com/pybind/pybind11/archive/a54eab92d265337996b8e4b4149d9176c2d428a6.tar.gz"],
-        sha256 = "c9375b7453bef1ba0106849c83881e6b6882d892c9fae5b2572a2192100ffb8a",
+        strip_prefix = "pybind11-4a288ab92839837126e75a862ba07af1b207b084",
+        urls = ["https://github.com/pybind/pybind11/archive/4a288ab92839837126e75a862ba07af1b207b084.tar.gz"],
     )
 
     http_archive(

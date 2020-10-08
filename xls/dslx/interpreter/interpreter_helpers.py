@@ -18,10 +18,10 @@
 
 from typing import Tuple, Optional, Dict
 from xls.dslx import deduce
-from xls.dslx import type_info as type_info_mod
 from xls.dslx.interpreter import interpreter
 from xls.dslx.interpreter.bindings import FnCtx
 from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python import cpp_type_info as type_info_mod
 
 SymbolicBindings = Tuple[Tuple[str, int], ...]
 

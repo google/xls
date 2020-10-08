@@ -99,6 +99,9 @@ class AstNode {
  public:
   virtual ~AstNode() = default;
 
+  // Retrieves the name of the leafmost-derived class, suitable for debugging;
+  // e.g. "NameDef", "BuiltinTypeAnnotation", etc.
+  virtual absl::string_view GetNodeTypeName() const = 0;
   virtual std::string ToString() const = 0;
 
   // Retrieves all the child nodes for this AST node.
@@ -168,6 +171,9 @@ class BuiltinTypeAnnotation : public TypeAnnotation {
   BuiltinTypeAnnotation(Span span, BuiltinType builtin_type)
       : TypeAnnotation(std::move(span)), builtin_type_(builtin_type) {}
 
+  absl::string_view GetNodeTypeName() const override {
+    return "BuiltinTypeAnnotation";
+  }
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {};
   }
@@ -189,6 +195,9 @@ class TupleTypeAnnotation : public TypeAnnotation {
   TupleTypeAnnotation(Span span, std::vector<TypeAnnotation*> members)
       : TypeAnnotation(std::move(span)), members_(std::move(members)) {}
 
+  absl::string_view GetNodeTypeName() const override {
+    return "TupleTypeAnnotation";
+  }
   std::string ToString() const override {
     std::string guts =
         absl::StrJoin(members_, ", ", [](std::string* out, TypeAnnotation* t) {
@@ -220,6 +229,9 @@ class TypeRefTypeAnnotation : public TypeAnnotation {
 
   std::string ToString() const override;
 
+  absl::string_view GetNodeTypeName() const override {
+    return "TypeRefTypeAnnotation";
+  }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   const std::vector<Expr*>& parametrics() const { return parametrics_; }
@@ -237,6 +249,9 @@ class ArrayTypeAnnotation : public TypeAnnotation {
         element_type_(element_type),
         dim_(dim) {}
 
+  absl::string_view GetNodeTypeName() const override {
+    return "ArrayTypeAnnotation";
+  }
   TypeAnnotation* element_type() const { return element_type_; }
   Expr* dim() const { return dim_; }
 
@@ -260,6 +275,9 @@ class BuiltinNameDef : public AstNode {
   explicit BuiltinNameDef(std::string identifier)
       : identifier_(std::move(identifier)) {}
 
+  absl::string_view GetNodeTypeName() const override {
+    return "BuiltinNameDef";
+  }
   std::string ToString() const override { return identifier_; }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -277,6 +295,9 @@ class WildcardPattern : public AstNode {
  public:
   WildcardPattern(Span span) : span_(std::move(span)) {}
 
+  absl::string_view GetNodeTypeName() const override {
+    return "WildcardPattern";
+  }
   std::string ToString() const override { return "_"; }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -295,6 +316,7 @@ class NameDef : public AstNode {
   NameDef(Span span, std::string identifier)
       : span_(span), identifier_(std::move(identifier)) {}
 
+  absl::string_view GetNodeTypeName() const override { return "NameDef"; }
   const Span& span() const { return span_; }
   const std::string& identifier() const { return identifier_; }
 
@@ -332,6 +354,7 @@ class NameRef : public Expr {
 
   const std::string& identifier() const { return identifier_; }
 
+  absl::string_view GetNodeTypeName() const override { return "NameRef"; }
   std::string ToString() const override { return identifier_; }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -358,6 +381,8 @@ class NameRef : public Expr {
 class ConstRef : public NameRef {
  public:
   using NameRef::NameRef;
+
+  absl::string_view GetNodeTypeName() const override { return "ConstRef"; }
 };
 
 // Represents an enum-value reference (via `::`, i.e. `Foo::BAR`).
@@ -369,6 +394,7 @@ class EnumRef : public Expr {
   EnumRef(Span span, absl::variant<TypeDef*, Enum*> enum_def, std::string attr)
       : Expr(std::move(span)), enum_def_(enum_def), attr_(std::move(attr)) {}
 
+  absl::string_view GetNodeTypeName() const override { return "EnumRef"; }
   std::string ToString() const override {
     return absl::StrFormat("%s::%s", GetEnumIdentifier(), attr_);
   }
@@ -403,6 +429,7 @@ class Number : public Expr {
         kind_(kind),
         type_(type) {}
 
+  absl::string_view GetNodeTypeName() const override { return "Number"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     if (type_ == nullptr) {
       return {};
@@ -443,6 +470,7 @@ class TypeDef : public AstNode {
         type_(type),
         is_public_(is_public) {}
 
+  absl::string_view GetNodeTypeName() const override { return "TypeDef"; }
   const std::string& identifier() const { return name_def_->identifier(); }
 
   std::string ToString() const override {
@@ -473,6 +501,7 @@ class Array : public Expr {
         members_(std::move(members)),
         has_ellipsis_(has_ellipsis) {}
 
+  absl::string_view GetNodeTypeName() const override { return "Array"; }
   std::string ToString() const override {
     return absl::StrFormat(
         "[%s]", absl::StrJoin(members_, ", ", [](std::string* out, Expr* expr) {
@@ -528,6 +557,7 @@ class TypeRef : public Expr {
         text_(std::move(text)),
         type_definition_(type_definition) {}
 
+  absl::string_view GetNodeTypeName() const override { return "TypeRef"; }
   std::string ToString() const override { return text_; }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -555,6 +585,7 @@ class Import : public AstNode {
     XLS_CHECK(!name_.empty());
   }
 
+  absl::string_view GetNodeTypeName() const override { return "Import"; }
   const std::string& identifier() const { return name_def_->identifier(); }
 
   std::string ToString() const override {
@@ -591,6 +622,7 @@ class ModRef : public Expr {
   ModRef(Span span, Import* mod, std::string attr)
       : Expr(std::move(span)), mod_(mod), attr_(std::move(attr)) {}
 
+  absl::string_view GetNodeTypeName() const override { return "ModRef"; }
   std::string ToString() const override {
     return absl::StrFormat("%s::%s", mod_->identifier(), attr_);
   }
@@ -615,6 +647,7 @@ class Param : public AstNode {
         type_(type),
         span_(name_def_->span().start(), type_->span().limit()) {}
 
+  absl::string_view GetNodeTypeName() const override { return "Param"; }
   std::string ToString() const override {
     return absl::StrFormat("%s: %s", name_def_->ToString(), type_->ToString());
   }
@@ -647,6 +680,7 @@ class Unop : public Expr {
   Unop(Span span, UnopKind kind, Expr* operand)
       : Expr(std::move(span)), kind_(kind), operand_(operand) {}
 
+  absl::string_view GetNodeTypeName() const override { return "Unop"; }
   std::string ToString() const override {
     return absl::StrFormat("%s(%s)", UnopKindToString(kind_),
                            operand_->ToString());
@@ -702,6 +736,7 @@ class Binop : public Expr {
   Binop(Span span, BinopKind kind, Expr* lhs, Expr* rhs)
       : Expr(span), kind_(kind), lhs_(lhs), rhs_(rhs) {}
 
+  absl::string_view GetNodeTypeName() const override { return "Binop"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {lhs_, rhs_};
   }
@@ -732,6 +767,7 @@ class Ternary : public Expr {
         consequent_(consequent),
         alternate_(alternate) {}
 
+  absl::string_view GetNodeTypeName() const override { return "Ternary"; }
   std::string ToString() const override {
     return absl::StrFormat("(%s) if (%s) else (%s)", consequent_->ToString(),
                            test_->ToString(), alternate_->ToString());
@@ -772,6 +808,9 @@ class ParametricBinding : public AstNode {
   // span, it must include the type/expr.
   const Span& span() const { return name_def_->span(); }
 
+  absl::string_view GetNodeTypeName() const override {
+    return "ParametricBinding";
+  }
   std::string ToString() const override {
     std::string suffix;
     if (expr_ != nullptr) {
@@ -817,6 +856,7 @@ class Function : public AstNode {
         body_(XLS_DIE_IF_NULL(body)),
         is_public_(is_public) {}
 
+  absl::string_view GetNodeTypeName() const override { return "Function"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     std::vector<AstNode*> results;
     results.push_back(name_def_);
@@ -881,6 +921,7 @@ class MatchArm : public AstNode {
   MatchArm(Span span, std::vector<NameDefTree*> patterns, Expr* expr)
       : span_(std::move(span)), patterns_(std::move(patterns)), expr_(expr) {}
 
+  absl::string_view GetNodeTypeName() const override { return "MatchArm"; }
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override;
@@ -901,6 +942,7 @@ class Match : public Expr {
   Match(Span span, Expr* matched, std::vector<MatchArm*> arms)
       : Expr(std::move(span)), matched_(matched), arms_(std::move(arms)) {}
 
+  absl::string_view GetNodeTypeName() const override { return "Match"; }
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -925,6 +967,7 @@ class Attr : public Expr {
   Attr(Span span, Expr* lhs, NameDef* attr)
       : Expr(std::move(span)), lhs_(lhs), attr_(attr) {}
 
+  absl::string_view GetNodeTypeName() const override { return "Attr"; }
   std::string ToString() const override {
     return absl::StrFormat("%s.%s", lhs_->ToString(), attr_->ToString());
   }
@@ -947,6 +990,7 @@ class Invocation : public Expr {
   Invocation(Span span, Expr* callee, std::vector<Expr*> args)
       : Expr(std::move(span)), callee_(callee), args_(std::move(args)) {}
 
+  absl::string_view GetNodeTypeName() const override { return "Invocation"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     std::vector<AstNode*> results = {callee_};
     for (Expr* arg : args_) {
@@ -985,6 +1029,7 @@ class Slice : public AstNode {
   Slice(Span span, Number* start, Number* limit)
       : span_(std::move(span)), start_(start), limit_(limit) {}
 
+  absl::string_view GetNodeTypeName() const override { return "Slice"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     std::vector<AstNode*> results;
     if (start_ != nullptr) {
@@ -1043,6 +1088,7 @@ class Enum : public AstNode {
         values_(std::move(values)),
         is_public_(is_public) {}
 
+  absl::string_view GetNodeTypeName() const override { return "Enum"; }
   bool HasValue(absl::string_view name) const {
     for (const auto& item : values_) {
       if (item.name_def->identifier() == name) {
@@ -1121,6 +1167,7 @@ class Struct : public AstNode {
 
   const std::string& identifier() const { return name_def_->identifier(); }
 
+  absl::string_view GetNodeTypeName() const override { return "Struct"; }
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -1176,6 +1223,9 @@ class StructInstance : public Expr {
         struct_def_(struct_def),
         members_(std::move(members)) {}
 
+  absl::string_view GetNodeTypeName() const override {
+    return "StructInstance";
+  }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   std::string ToString() const override;
@@ -1232,6 +1282,9 @@ class SplatStructInstance : public Expr {
         members_(std::move(members)),
         splatted_(splatted) {}
 
+  absl::string_view GetNodeTypeName() const override {
+    return "SplatStructInstance";
+  }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   std::string ToString() const override {
@@ -1271,6 +1324,7 @@ class WidthSlice : public AstNode {
   WidthSlice(Span span, Expr* start, TypeAnnotation* width)
       : span_(std::move(span)), start_(start), width_(width) {}
 
+  absl::string_view GetNodeTypeName() const override { return "WidthSlice"; }
   std::string ToString() const override {
     return absl::StrFormat("%s+:%s", start_->ToString(), width_->ToString());
   }
@@ -1300,6 +1354,7 @@ class Index : public Expr {
   Index(Span span, Expr* lhs, IndexRhs rhs)
       : Expr(std::move(span)), lhs_(lhs), rhs_(rhs) {}
 
+  absl::string_view GetNodeTypeName() const override { return "Index"; }
   std::string ToString() const override {
     return absl::StrFormat("(%s)[%s]", lhs_->ToString(),
                            ToAstNode(rhs_)->ToString());
@@ -1331,6 +1386,7 @@ class Proc : public AstNode {
         iter_body_(iter_body),
         is_public_(is_public) {}
 
+  absl::string_view GetNodeTypeName() const override { return "Proc"; }
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -1364,6 +1420,7 @@ class Test : public AstNode {
  public:
   Test(NameDef* name_def, Expr* body) : name_def_(name_def), body_(body) {}
 
+  absl::string_view GetNodeTypeName() const override { return "Test"; }
   std::string ToString() const override {
     return absl::StrFormat("test %s { ... }", name_def_->ToString());
   }
@@ -1396,6 +1453,8 @@ class TestFunction : public Test {
  public:
   explicit TestFunction(Function* fn)
       : Test(fn->name_def(), fn->body()) {}
+
+  absl::string_view GetNodeTypeName() const override { return "TestFunction"; }
 };
 
 // Represents a function to be quick-check'd.
@@ -1409,6 +1468,7 @@ class QuickCheck : public AstNode {
         f_(f),
         test_count_(test_count ? *test_count : kDefaultTestCount) {}
 
+  absl::string_view GetNodeTypeName() const override { return "QuickCheck"; }
   std::string ToString() const override {
     return absl::StrFormat("#![quickcheck]\n%s", f_->ToString());
   }
@@ -1434,6 +1494,7 @@ class XlsTuple : public Expr {
   XlsTuple(Span span, std::vector<Expr*> members)
       : Expr(std::move(span)), members_(members) {}
 
+  absl::string_view GetNodeTypeName() const override { return "XlsTuple"; }
   absl::Span<Expr* const> members() const { return members_; }
 
   std::string ToString() const override;
@@ -1458,6 +1519,7 @@ class For : public Expr {
         body_(body),
         init_(init) {}
 
+  absl::string_view GetNodeTypeName() const override { return "For"; }
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override;
@@ -1481,6 +1543,7 @@ class While : public Expr {
  public:
   While(Span span) : Expr(std::move(span)) {}
 
+  absl::string_view GetNodeTypeName() const override { return "While"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {test_, body_, init_};
   }
@@ -1515,6 +1578,7 @@ class Cast : public Expr {
   Cast(Span span, Expr* expr, TypeAnnotation* type)
       : Expr(std::move(span)), expr_(expr), type_(type) {}
 
+  absl::string_view GetNodeTypeName() const override { return "Cast"; }
   std::string ToString() const override {
     return absl::StrFormat("((%s) as %s)", expr_->ToString(),
                            type_->ToString());
@@ -1540,6 +1604,7 @@ class Next : public Expr {
  public:
   using Expr::Expr;
 
+  absl::string_view GetNodeTypeName() const override { return "Next"; }
   std::string ToString() const override { return "next"; }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -1553,6 +1618,7 @@ class Carry : public Expr {
  public:
   Carry(Span span, While* loop) : Expr(std::move(span)), loop_(loop) {}
 
+  absl::string_view GetNodeTypeName() const override { return "Carry"; }
   std::string ToString() const override { return "carry"; }
 
   // Note: the while loop is a back reference, it is not a child.
@@ -1572,6 +1638,7 @@ class ConstantDef : public AstNode {
   ConstantDef(Span span, NameDef* name_def, Expr* value)
       : span_(std::move(span)), name_def_(name_def), value_(value) {}
 
+  absl::string_view GetNodeTypeName() const override { return "ConstantDef"; }
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -1622,6 +1689,7 @@ class NameDefTree : public AstNode {
   NameDefTree(Span span, absl::variant<Nodes, Leaf> tree)
       : span_(std::move(span)), tree_(tree) {}
 
+  absl::string_view GetNodeTypeName() const override { return "NameDefTree"; }
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -1705,6 +1773,7 @@ class Let : public Expr {
         body_(body),
         constant_def_(const_def) {}
 
+  absl::string_view GetNodeTypeName() const override { return "Let"; }
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -1768,6 +1837,7 @@ class Module : public AstNode {
  public:
   explicit Module(std::string name) : name_(std::move(name)) {}
 
+  absl::string_view GetNodeTypeName() const override { return "Module"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   std::string ToString() const override {

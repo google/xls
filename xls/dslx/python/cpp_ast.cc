@@ -177,11 +177,16 @@ PYBIND11_MODULE(cpp_ast, m) {
 
   // class Module
   py::object ast_module =
-      py::class_<ModuleHolder>(m, "Module")
+      py::class_<ModuleHolder, AstNodeHolder>(m, "Module")
           .def(py::init([](std::string name) {
             auto module = std::make_shared<Module>(std::move(name));
             return ModuleHolder(module.get(), module);
           }))
+          .def("__repr__",
+               [](ModuleHolder module) {
+                 return absl::StrFormat("Module(name='%s', id=%p)",
+                                        module.deref().name(), &module.deref());
+               })
           .def("__str__",
                [](ModuleHolder module) { return module.deref().ToString(); })
           .def_property_readonly(

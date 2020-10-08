@@ -28,11 +28,11 @@ from xls.dslx import concrete_type_helpers
 from xls.dslx import deduce
 from xls.dslx import dslx_builtins
 from xls.dslx import extract_conversion_order
-from xls.dslx import type_info as type_info_mod
 from xls.dslx.ir_name_mangler import mangle_dslx_name
 from xls.dslx.parametric_instantiator import SymbolicBindings
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_ast_visitor
+from xls.dslx.python import cpp_type_info as type_info_mod
 from xls.dslx.python.cpp_ast_visitor import visit
 from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType
@@ -610,7 +610,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       return node
 
     assert isinstance(node, ast.ModRef), node
-    imported_mod, _ = self.type_info.get_imports()[node.mod]
+    imported_mod, _ = dict(self.type_info.get_imports())[node.mod]
     td = imported_mod.get_typedef_by_name()[node.value]
     # Recurse to resolve the typedef within the imported module.
     td = self._deref_struct_or_enum(td)
@@ -796,7 +796,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       callee_name = node.callee.identifier
       m = self.module
     elif isinstance(node.callee, ast.ModRef):
-      m = self.type_info.get_imports()[node.callee.mod][0]
+      m = dict(self.type_info.get_imports())[node.callee.mod][0]
       callee_name = node.callee.value
     else:
       raise NotImplementedError('Callee not currently supported @ {}'.format(
@@ -855,7 +855,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
         fn = lookup_module.get_function(map_fn_name)
     elif isinstance(fn_node, ast.ModRef):
       map_fn_name = fn_node.value
-      imports = self.type_info.get_imports()
+      imports = dict(self.type_info.get_imports())
       lookup_module, _ = imports[fn_node.mod]
       fn = lookup_module.get_function(map_fn_name)
     else:
@@ -1187,7 +1187,7 @@ def convert_module_to_package(
   emitted = []  # type: List[Text]
   package = ir_package.Package(module.name)
   order = extract_conversion_order.get_order(module, type_info,
-                                             type_info.get_imports(),
+                                             dict(type_info.get_imports()),
                                              traverse_tests)
   logging.vlog(3, 'Convert order: %s', pprint.pformat(order))
   for record in order:

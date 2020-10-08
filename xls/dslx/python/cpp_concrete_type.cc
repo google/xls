@@ -253,16 +253,17 @@ PYBIND11_MODULE(cpp_concrete_type, m) {
                  std::move(owned_params), return_type->CloneToUnique());
            }),
            py::return_value_policy::reference_internal)
-      .def_property_readonly("params",
-                             [](const FunctionType& self) {
-                               py::tuple t(self.GetParamCount());
-                               std::vector<const ConcreteType*> params =
-                                   self.GetParams();
-                               for (int64 i = 0; i < params.size(); ++i) {
-                                 t[i] = py::cast(params[i]);
-                               }
-                               return t;
-                             })
+      .def_property_readonly(
+          "params",
+          [](const FunctionType& self) {
+            py::tuple t(self.GetParamCount());
+            std::vector<const ConcreteType*> params = self.GetParams();
+            for (int64 i = 0; i < params.size(); ++i) {
+              t[i] = params[i]->CloneToUnique();
+            }
+            return t;
+          },
+          py::return_value_policy::reference_internal)
       .def_property_readonly("return_type", &FunctionType::return_type,
                              py::return_value_policy::reference_internal);
 

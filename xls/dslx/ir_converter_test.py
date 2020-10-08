@@ -21,8 +21,8 @@ import sys
 import textwrap
 from typing import Text
 
-from absl.testing import absltest
 from xls.common import runfiles
+from xls.common import test_base
 from xls.dslx import fakefs_test_util
 from xls.dslx import ir_converter
 from xls.dslx import parser_helpers
@@ -35,7 +35,7 @@ from xls.dslx.python import cpp_parser
 _PARSE_IR = 'xls/tools/parse_ir'
 
 
-class IrConverterTest(absltest.TestCase):
+class IrConverterTest(test_base.TestCase):
 
   def parse_dsl_text(self, program):
     program = textwrap.dedent(program)
@@ -1577,4 +1577,4 @@ class IrConverterTest(absltest.TestCase):
 
 
 if __name__ == '__main__':
-  absltest.main()
+  test_base.main()

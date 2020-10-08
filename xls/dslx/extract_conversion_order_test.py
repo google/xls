@@ -24,7 +24,7 @@ from xls.common import test_base
 from xls.dslx import extract_conversion_order
 from xls.dslx import fakefs_test_util
 from xls.dslx import parse_and_typecheck
-from xls.dslx import type_info as type_info_mod
+from xls.dslx.python import cpp_type_info as type_info_mod
 
 
 class ExtractConversionOrderTest(absltest.TestCase):

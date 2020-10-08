@@ -22,10 +22,10 @@ from absl import logging
 import dataclasses
 
 from xls.dslx import dslx_builtins
-from xls.dslx import type_info as type_info_mod
 from xls.dslx.parametric_instantiator import SymbolicBindings
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_ast_visitor
+from xls.dslx.python import cpp_type_info as type_info_mod
 
 
 @dataclasses.dataclass
@@ -34,6 +34,9 @@ class Callee:
   m: ast.Module
   type_info: type_info_mod.TypeInfo
   sym_bindings: SymbolicBindings
+
+  def __str__(self) -> str:
+    return f'Callee(f={self.f.identifier!r}, m={self.m.name!r})'
 
 
 ImportedInfo = Tuple[ast.Module, type_info_mod.TypeInfo]
@@ -136,12 +139,14 @@ def get_callees(func: Union[ast.Function, ast.Test], m: ast.Module,
             node, node_symbolic_bindings)
       except KeyError:
         invocation_type_info = type_info
+      assert invocation_type_info is not None
       callees.append(
           Callee(f, this_m, invocation_type_info, node_symbolic_bindings))
 
   cpp_ast_visitor.visit(func, InvocationVisitor())
-  logging.vlog(3, 'Callees for %s: %s', func,
-               [(cr.f.identifier, cr.sym_bindings) for cr in callees])
+  logging.vlog(
+      3, 'Callees for %s: %s', func,
+      [(cr.m.name, cr.f.identifier, cr.sym_bindings) for cr in callees])
   return tuple(callees)
 
 

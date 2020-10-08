@@ -73,23 +73,20 @@ def parse_and_test(program: Text,
   """
   did_fail = False
   test_name = None
-  import_cache = {}
+  import_cache = import_routines.ImportCache()
   f_import = functools.partial(import_routines.do_import, cache=import_cache)
+  type_info = None
+
   try:
     module = Parser(Scanner(filename, program), name).parse_module()
-    node_to_type = None
-    node_to_type = typecheck.check_module(module, f_import)
+    type_info = typecheck.check_module(module, f_import)
 
     ir_package = (
         ir_converter.convert_module_to_package(
-            module, node_to_type, traverse_tests=True) if compare_jit else None)
+            module, type_info, traverse_tests=True) if compare_jit else None)
 
     interpreter = Interpreter(
-        module,
-        node_to_type,
-        f_import,
-        trace_all=trace_all,
-        ir_package=ir_package)
+        module, type_info, f_import, trace_all=trace_all, ir_package=ir_package)
     for test_name in module.get_test_names():
       if not _matches(test_name, test_filter):
         continue
@@ -121,6 +118,10 @@ def parse_and_test(program: Text,
           file=sys.stderr)
     if raise_on_error:
       raise
+  finally:
+    if type_info is not None:
+      type_info.clear_type_info_refs_for_gc()
+
   return did_fail
 
 

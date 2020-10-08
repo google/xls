@@ -23,10 +23,10 @@ from pyfakefs import fake_filesystem as fakefs
 
 from xls.dslx import fakefs_util
 from xls.dslx import parser_helpers
-from xls.dslx import type_info as type_info_mod
 from xls.dslx import typecheck
 from xls.dslx.import_fn import ImportFn
 from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python import cpp_type_info as type_info_mod
 from xls.dslx.xls_type_error import XlsTypeError
 
 

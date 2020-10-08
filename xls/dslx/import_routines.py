@@ -26,10 +26,32 @@ from xls.dslx import import_fn
 from xls.dslx import parse_and_typecheck
 
 
-def do_import(
-    subject: import_fn.ImportTokens, cache: Dict[import_fn.ImportTokens,
-                                                 import_fn.ModuleInfo]
-) -> import_fn.ModuleInfo:
+class ImportCache:
+  """Wrapper around a {subject: module_info} dict that does finalization."""
+
+  def __init__(self):
+    self._cache: Dict[import_fn.ImportTokens, import_fn.ModuleInfo] = {}
+
+  def __contains__(self, subject: import_fn.ImportTokens) -> bool:
+    return subject in self._cache
+
+  def __getitem__(self,
+                  subject: import_fn.ImportTokens) -> import_fn.ModuleInfo:
+    return self._cache[subject]
+
+  def __setitem__(self, subject: import_fn.ImportTokens,
+                  module_info: import_fn.ModuleInfo) -> None:
+    assert subject not in self._cache
+    self._cache[subject] = module_info
+
+  def __del__(self):
+    # We do this to break cycles in pybind11 shared_ptr land.
+    for _, type_info in self._cache.values():
+      type_info.clear_type_info_refs_for_gc()
+
+
+def do_import(subject: import_fn.ImportTokens,
+              cache: ImportCache) -> import_fn.ModuleInfo:
   """Imports the module identified (globally) by 'subject'.
 
   Resolves against an existing import in 'cache' if it is present.
@@ -45,6 +67,7 @@ def do_import(
     The imported module information.
   """
   assert subject
+  assert isinstance(cache, ImportCache), cache
   if subject in cache:
     return cache[subject]
 
