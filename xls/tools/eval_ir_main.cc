@@ -177,7 +177,12 @@ class EvalInvariantChecker : public InvariantChecker {
       : arg_sets_(arg_sets.begin(), arg_sets.end()), use_jit_(use_jit) {}
   absl::Status Run(Package* package, const PassOptions& options,
                    PassResults* results) const override {
-    std::cerr << "// Evaluating entry function after pass\n";
+    if (results->invocations.empty()) {
+      std::cerr << "// Evaluating entry function at start of pipeline.\n";
+    } else {
+      std::cerr << "// Evaluating entry function after pass: "
+                << results->invocations.back().pass_name << "\n";
+    }
     XLS_ASSIGN_OR_RETURN(Function * f, package->EntryFunction());
     std::string actual_src = "before optimizations";
     XLS_RETURN_IF_ERROR(Eval(f, arg_sets_, use_jit_,
