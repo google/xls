@@ -190,6 +190,7 @@ project, see our
 [contributing documentation](https://google.github.io/xls/contributing/) and
 [good first issues](https://github.com/google/xls/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)!
 
+* [Balint Christian](https://github.com/cbalint13)
 * [Blaok](https://github.com/Blaok)
 * [Brandon Jiang](https://github.com/brajiang)
 * [Chris Leary](https://github.com/cdleary)
@@ -200,6 +201,7 @@ project, see our
 * [Julian Viera](https://github.com/julianviera99)
 * [Kevin Harlley](https://github.com/kevineharlley)
 * [Mark Heffernan](https://github.com/meheffernan)
+* [Paul Rigge](https://github.com/grebe)
 * [Per Grön](https://github.com/per-gron)
 * [Rebecca Chen (Pytype)](https://github.com/rchen152)
 * [Robert Hundt](https://github.com/rhundt)
