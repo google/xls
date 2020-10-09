@@ -19,6 +19,7 @@
 #include "grpcpp/server_context.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/time/time.h"
 #include "xls/common/file/filesystem.h"
@@ -64,7 +65,8 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
 
     absl::Status synthesis_status = RunSynthesis(request, result);
     if (!synthesis_status.ok()) {
-      return ::grpc::Status(synthesis_status);
+      return ::grpc::Status(grpc::StatusCode::INTERNAL,
+                            std::string(synthesis_status.message()));
     }
 
     result->set_elapsed_runtime_ms(
@@ -106,8 +108,7 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
   absl::Status RunSynthesis(const CompileRequest* request,
                             CompileResponse* result) {
     if (request->top_module_name().empty()) {
-      return ::grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
-                            "Must specify top module name.");
+      return absl::InvalidArgumentError("Must specify top module name.");
     }
 
     XLS_ASSIGN_OR_RETURN(TempDirectory temp_dir, TempDirectory::Create());
@@ -122,13 +123,15 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
     // TODO(meheff): Allow selecting synthesis targets (e.g., ecp5, ice40,
     // etc.).
     std::filesystem::path netlist_path = temp_dir_path / "netlist.json";
+    std::pair<std::string, std::string> string_pair;
     XLS_ASSIGN_OR_RETURN(
-        (auto [yosys_stdout, yosys_stderr]),
+        string_pair,
         RunSubprocess(
             {yosys_path_, "-p",
              absl::StrFormat("synth_ecp5 -top %s -json %s",
                              request->top_module_name(), netlist_path.string()),
              verilog_path.string()}));
+    auto [yosys_stdout, yosys_stderr] = string_pair;
     if (absl::GetFlag(FLAGS_save_temps)) {
       XLS_RETURN_IF_ERROR(
           SetFileContents(temp_dir_path / "yosys.stdout", yosys_stdout));
@@ -149,8 +152,8 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
       nextpnr_args.push_back(
           absl::StrCat(request->has_target_frequency_hz() / 1000000));
     }
-    XLS_ASSIGN_OR_RETURN((auto [nextpnr_stdout, nextpnr_stderr]),
-                         RunSubprocess(nextpnr_args));
+    XLS_ASSIGN_OR_RETURN(string_pair, RunSubprocess(nextpnr_args));
+    auto [nextpnr_stdout, nextpnr_stderr] = string_pair;
     if (absl::GetFlag(FLAGS_save_temps)) {
       XLS_RETURN_IF_ERROR(
           SetFileContents(temp_dir_path / "nextpnr.stdout", nextpnr_stdout));

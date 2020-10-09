@@ -96,7 +96,6 @@ int main(int argc, char** argv) {
   // to do flag parsing because or we will have to define all the flags nextpnr
   // accepts.
   xls::InitXls(kUsage, 1, argv);
-  absl::StatusSavesStackTrace(true);
   std::vector<std::string> args(argc);
   for (int i = 0; i < argc; ++i) {
     args[i] = argv[i];

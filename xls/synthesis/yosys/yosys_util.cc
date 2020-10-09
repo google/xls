@@ -14,7 +14,9 @@
 
 #include "xls/synthesis/yosys/yosys_util.h"
 
-#include "re2/re2.h"
+#include "absl/strings/match.h"
+#include "absl/strings/numbers.h"
+#include "absl/strings/str_split.h"
 
 namespace xls {
 namespace synthesis {
@@ -22,10 +24,26 @@ namespace synthesis {
 absl::StatusOr<int64> ParseNextpnrOutput(absl::string_view nextpnr_output) {
   bool found = false;
   double max_mhz;
-  while (RE2::FindAndConsume(
-      &nextpnr_output, R"(Info: Max frequency for clock '\S+': ([0-9.]+) MHz)",
-      &max_mhz)) {
-    found = true;
+  // We're looking for lines of the form:
+  //
+  //   Info: Max frequency for clock 'foo': 125.28 MHz (PASS at 100.00 MHz)
+  //
+  // And we want to extract 125.28.
+  // TODO(meheff): Use regular expressions for this. Unfortunately using RE2
+  // causes multiple definition link errors when building yosys_server_test.
+  for (auto line : absl::StrSplit(nextpnr_output, '\n')) {
+    if (absl::StartsWith(line, "Info: Max frequency for clock") &&
+        absl::StrContains(line, " MHz ")) {
+      std::vector<absl::string_view> tokens = absl::StrSplit(line, ' ');
+      for (int64 i = 1; i < tokens.size(); ++i) {
+        if (tokens[i] == "MHz") {
+          if (absl::SimpleAtod(tokens[i - 1], &max_mhz)) {
+            found = true;
+            break;
+          }
+        }
+      }
+    }
   }
   if (!found) {
     return absl::NotFoundError(
