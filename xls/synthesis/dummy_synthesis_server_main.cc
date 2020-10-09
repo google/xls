@@ -39,7 +39,7 @@ Invocation:
 
 ABSL_FLAG(int32, port, 10000, "Port to listen on.");
 ABSL_FLAG(double, max_frequency_ghz, 1000,
-          "The maximum frequency to Port to listen on.");
+          "The maximum frequency to use for any synthesis request.");
 ABSL_FLAG(bool, serve_errors, false,
           "Whether to serve an error in the response.");
 

@@ -46,9 +46,11 @@ message Path {
 message CompileResponse {
   optional int64 elapsed_runtime_ms = 1;
   optional int64 slack_ps = 2;
+  optional int64 max_frequency_hz = 9;
   optional float power = 3;
   optional float area = 4;
   optional string netlist = 5;
+  optional string place_and_route_result = 10;
   optional InstanceCount instance_count = 6;
   repeated Path failing_paths = 7;
   map<string, string> data_fields = 8;
