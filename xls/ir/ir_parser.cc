@@ -910,10 +910,10 @@ absl::StatusOr<BValue> Parser::ParseFunctionBody(
               op_token.pos().ToHumanString()));
         }
       } else {
-        // Otherwise, the output_name is a non-generated name. Verify the name
+        // Otherwise, the output_name is a non-generated name. Verify a name
         // was assigned to the op. OK to XLS_RET_CHECK as a mismatch here is an
         // error in the parser not in the input file.
-        XLS_RET_CHECK_EQ(node->GetName(), node_name);
+        XLS_RET_CHECK(node->HasAssignedName());
         // Also set the ID to the attribute ID (if given).
         if (id_attribute->has_value()) {
           node->set_id(id_attribute->value());

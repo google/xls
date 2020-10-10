@@ -36,7 +36,7 @@ Node::Node(Op op, Type* type, absl::optional<SourceLocation> loc,
       op_(op),
       type_(type),
       loc_(loc),
-      name_(name) {}
+      name_(name.empty() ? "" : function_->UniquifyNodeName(name)) {}
 
 void Node::AddOperand(Node* operand) {
   XLS_VLOG(3) << " Adding operand " << operand->GetName() << " as #"
@@ -323,6 +323,12 @@ std::string Node::GetName() const {
   // Return a generated name based on the id.
   return absl::StrFormat("%s.%d", OpToString(op()), id());
 }
+
+void Node::SetName(absl::string_view name) {
+  name_ = function_->UniquifyNodeName(name);
+}
+
+void Node::ClearName() { name_ = ""; }
 
 std::string Node::ToStringInternal(bool include_operand_types) const {
   auto node_to_name = [](const Node* n, bool include_type) -> std::string {

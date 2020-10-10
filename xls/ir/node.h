@@ -150,6 +150,15 @@ class Node {
   // is generated from the opcode and unique id (e.g. "add.2");
   std::string GetName() const;
 
+  // Sets the name of this node. After this method is called. HasAssignedName
+  // will return true.
+  void SetName(absl::string_view name);
+
+  // Clears the name of this node. The node will have a generate name based on
+  // the opcode and ID. After this method is called. HasAssignedName will return
+  // false.
+  void ClearName();
+
   // Returns the name of the node and any concise supplementary information.
   std::string ToString() const { return ToStringInternal(false); }
 

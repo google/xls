@@ -437,5 +437,27 @@ fn f(x: bits[3], y: bits[2], z: bits[1]) -> bits[6] {
   EXPECT_EQ(3, concat->GetOperandSliceData(0).width);
 }
 
+TEST_F(NodeTest, NodeNames) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto literal0 = fb.Literal(UBits(123, 32));
+  auto add = fb.Add(literal0, literal0);
+  add.SetName("foobar");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(add));
+
+  EXPECT_EQ(f->return_value()->GetName(), "foobar");
+  EXPECT_TRUE(f->return_value()->HasAssignedName());
+
+  f->return_value()->ClearName();
+
+  EXPECT_EQ(f->return_value()->GetName(), "add.2");
+  EXPECT_FALSE(f->return_value()->HasAssignedName());
+
+  f->return_value()->SetName("foobar");
+
+  EXPECT_EQ(f->return_value()->GetName(), "foobar__1");
+  EXPECT_TRUE(f->return_value()->HasAssignedName());
+}
+
 }  // namespace
 }  // namespace xls

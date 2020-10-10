@@ -56,6 +56,31 @@ class BValue {
     return node_ != nullptr;
   }
 
+  // Sets the name of the node.
+  std::string SetName(absl::string_view name) {
+    if (node_ != nullptr) {
+      node_->SetName(name);
+    }
+    return "";
+  }
+
+  // Returns the name of the node.
+  std::string GetName() const {
+    if (node_ != nullptr) {
+      return node_->GetName();
+    }
+    return "";
+  }
+
+  // Returns whether the node has been assigned a name. Nodes without assigned
+  // names have names generated from the opcode and unique id.
+  bool HasAssignedName() const {
+    if (node_ != nullptr) {
+      return node_->HasAssignedName();
+    }
+    return false;
+  }
+
   BValue operator>>(BValue rhs);
   BValue operator<<(BValue rhs);
   BValue operator|(BValue rhs);

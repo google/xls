@@ -145,10 +145,10 @@ class IrConverterTest(test_base.TestCase):
         fn __test_module__f() -> bits[32] {
           literal.1: bits[32] = literal(value=2, id=1, pos=0,1,15)
           literal.2: bits[32] = literal(value=3, id=2, pos=0,1,22)
-          tuple.3: (bits[32], bits[32]) = tuple(literal.1, literal.2, id=3, pos=0,1,10)
-          tuple_index.4: bits[32] = tuple_index(tuple.3, index=0, id=4, pos=0,2,7)
-          tuple_index.5: bits[32] = tuple_index(tuple.3, index=1, id=5, pos=0,2,10)
-          ret add.6: bits[32] = add(tuple_index.4, tuple_index.5, id=6, pos=0,3,3)
+          t: (bits[32], bits[32]) = tuple(literal.1, literal.2, id=3, pos=0,1,10)
+          x: bits[32] = tuple_index(t, index=0, id=4, pos=0,2,7)
+          y: bits[32] = tuple_index(t, index=1, id=5, pos=0,2,10)
+          ret add.6: bits[32] = add(x, y, id=6, pos=0,3,3)
         }
         """)
 
@@ -173,16 +173,51 @@ class IrConverterTest(test_base.TestCase):
           literal.5: bits[32] = literal(value=5, id=5)
           literal.1: bits[32] = literal(value=2, id=1)
           tuple.6: (bits[32], (bits[32]), bits[32]) = tuple(literal.2, tuple.4, literal.5, id=6)
-          tuple.7: (bits[32], (bits[32], (bits[32]), bits[32])) = tuple(literal.1, tuple.6, id=7)
-          tuple_index.9: (bits[32], (bits[32]), bits[32]) = tuple_index(tuple.7, index=1, id=9)
-          tuple_index.8: bits[32] = tuple_index(tuple.7, index=0, id=8)
-          tuple_index.10: bits[32] = tuple_index(tuple_index.9, index=0, id=10)
+          t: (bits[32], (bits[32], (bits[32]), bits[32])) = tuple(literal.1, tuple.6, id=7)
+          tuple_index.9: (bits[32], (bits[32]), bits[32]) = tuple_index(t, index=1, id=9)
+          x: bits[32] = tuple_index(t, index=0, id=8)
+          y: bits[32] = tuple_index(tuple_index.9, index=0, id=10)
           tuple_index.11: (bits[32]) = tuple_index(tuple_index.9, index=1, id=11)
-          add.14: bits[32] = add(tuple_index.8, tuple_index.10, id=14)
-          tuple_index.12: bits[32] = tuple_index(tuple_index.11, index=0, id=12)
-          add.15: bits[32] = add(add.14, tuple_index.12, id=15)
-          tuple_index.13: bits[32] = tuple_index(tuple_index.9, index=2, id=13)
-          ret add.16: bits[32] = add(add.15, tuple_index.13, id=16)
+          add.14: bits[32] = add(x, y, id=14)
+          z: bits[32] = tuple_index(tuple_index.11, index=0, id=12)
+          add.15: bits[32] = add(add.14, z, id=15)
+          a: bits[32] = tuple_index(tuple_index.9, index=2, id=13)
+          ret add.16: bits[32] = add(add.15, a, id=16)
+        }
+        """)
+
+  def test_struct(self):
+    m = self.parse_dsl_text("""\
+    struct S {
+      zub: u8,
+      qux: u8,
+    }
+
+    fn f(a: S, b: S) -> u8 {
+      let foo = a.zub + b.qux;
+      (S { zub: u8:42, qux: u8:0 }).zub + (S { zub: u8:22, qux: u8:11 }).zub
+
+    }""")
+    node_to_type = typecheck.check_module(m, f_import=None)
+    converted = ir_converter.convert_one_function(
+        m, 'f', node_to_type, emit_positions=False)
+    self.assert_ir_equals_and_parses(
+        converted, """\
+        package test_module
+
+        fn __test_module__f(a: (bits[8], bits[8]), b: (bits[8], bits[8])) -> bits[8] {
+          literal.6: bits[8] = literal(value=42, id=6)
+          literal.7: bits[8] = literal(value=0, id=7)
+          literal.10: bits[8] = literal(value=22, id=10)
+          literal.11: bits[8] = literal(value=11, id=11)
+          tuple.8: (bits[8], bits[8]) = tuple(literal.6, literal.7, id=8)
+          tuple.12: (bits[8], bits[8]) = tuple(literal.10, literal.11, id=12)
+          a_zub: bits[8] = tuple_index(a, index=0, id=3)
+          b_qux: bits[8] = tuple_index(b, index=1, id=4)
+          zub: bits[8] = tuple_index(tuple.8, index=0, id=9)
+          zub__1: bits[8] = tuple_index(tuple.12, index=0, id=13)
+          foo: bits[8] = add(a_zub, b_qux, id=5)
+          ret add.14: bits[8] = add(zub, zub__1, id=14)
         }
         """)
 
@@ -293,10 +328,10 @@ class IrConverterTest(test_base.TestCase):
           literal.1: bits[32] = literal(value=0, id=1)
           literal.2: bits[8] = literal(value=0, id=2)
           tuple.3: (bits[32], bits[8]) = tuple(literal.1, literal.2, id=3)
-          counted_for.16: (bits[32], bits[8]) = counted_for(tuple.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, id=16)
+          t: (bits[32], bits[8]) = counted_for(tuple.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, id=16)
           literal.4: bits[32] = literal(value=4, id=4)
           literal.17: bits[32] = literal(value=0, id=17)
-          ret tuple_index.18: bits[32] = tuple_index(counted_for.16, index=0, id=18)
+          ret tuple_index.18: bits[32] = tuple_index(t, index=0, id=18)
         }
         """)
 
@@ -564,19 +599,19 @@ class IrConverterTest(test_base.TestCase):
         package test_module
 
         fn __test_module__f() -> bits[8] {
-          literal.3: bits[8][2] = literal(value=[1, 2], id=3)
+          FOO: bits[8][2] = literal(value=[1, 2], id=3)
           literal.4: bits[32] = literal(value=0, id=4)
           literal.1: bits[8] = literal(value=1, id=1)
           literal.2: bits[8] = literal(value=2, id=2)
-          ret array_index.5: bits[8] = array_index(literal.3, literal.4, id=5)
+          ret array_index.5: bits[8] = array_index(FOO, literal.4, id=5)
         }
 
         fn __test_module__g() -> bits[8] {
-          literal.8: bits[8][2] = literal(value=[1, 2], id=8)
+          FOO: bits[8][2] = literal(value=[1, 2], id=8)
           literal.9: bits[32] = literal(value=1, id=9)
           literal.6: bits[8] = literal(value=1, id=6)
           literal.7: bits[8] = literal(value=2, id=7)
-          ret array_index.10: bits[8] = array_index(literal.8, literal.9, id=10)
+          ret array_index.10: bits[8] = array_index(FOO, literal.9, id=10)
         }
         """)
 
@@ -593,17 +628,17 @@ class IrConverterTest(test_base.TestCase):
         package test_module
 
         fn __test_module__f() -> bits[8][2] {
-          literal.3: bits[8][2] = literal(value=[1, 2], id=3, pos=0,0,18)
+          FOO: bits[8][2] = literal(value=[1, 2], id=3, pos=0,0,18)
           literal.1: bits[8] = literal(value=1, id=1, pos=0,0,19)
           literal.2: bits[8] = literal(value=2, id=2, pos=0,0,22)
-          ret identity.4: bits[8][2] = identity(literal.3, id=4, pos=0,1,18)
+          ret identity.4: bits[8][2] = identity(FOO, id=4, pos=0,1,18)
         }
 
         fn __test_module__g() -> bits[8][2] {
-          literal.7: bits[8][2] = literal(value=[1, 2], id=7, pos=0,0,18)
+          FOO: bits[8][2] = literal(value=[1, 2], id=7, pos=0,0,18)
           literal.5: bits[8] = literal(value=1, id=5, pos=0,0,19)
           literal.6: bits[8] = literal(value=2, id=6, pos=0,0,22)
-          ret identity.8: bits[8][2] = identity(literal.7, id=8, pos=0,2,18)
+          ret identity.8: bits[8][2] = identity(FOO, id=8, pos=0,2,18)
         }
         """)
 
@@ -933,7 +968,7 @@ class IrConverterTest(test_base.TestCase):
         fn __test_module__main(x0: bits[19], x3: bits[29]) -> bits[29] {
           literal.3: bits[29] = literal(value=0, id=3)
           bit_slice.4: bits[19] = bit_slice(literal.3, start=0, width=19, id=4)
-          add.5: bits[19] = add(x0, bit_slice.4, id=5)
+          x17: bits[19] = add(x0, bit_slice.4, id=5)
           ret identity.6: bits[29] = identity(x3, id=6)
         }
         """)
@@ -973,9 +1008,9 @@ class IrConverterTest(test_base.TestCase):
         fn __test_module__main() -> bits[8] {
           literal.1: bits[32] = literal(value=3, id=1)
           literal.2: bits[8] = literal(value=4, id=2)
-          tuple.3: (bits[32], bits[8]) = tuple(literal.1, literal.2, id=3)
+          t: (bits[32], bits[8]) = tuple(literal.1, literal.2, id=3)
           literal.4: bits[32] = literal(value=1, id=4)
-          ret tuple_index.5: bits[8] = tuple_index(tuple.3, index=1, id=5)
+          ret tuple_index.5: bits[8] = tuple_index(t, index=1, id=5)
         }
         """)
 
@@ -1003,7 +1038,7 @@ class IrConverterTest(test_base.TestCase):
           one_hot.7: bits[2] = one_hot(concat.6, lsb_prio=true, id=7)
           literal.5: bits[8] = literal(value=255, id=5)
           literal.2: bits[1] = literal(value=1, id=2)
-          ret one_hot_sel.8: bits[8] = one_hot_sel(one_hot.7, cases=[literal.5, x], id=8)
+          ret t: bits[8] = one_hot_sel(one_hot.7, cases=[literal.5, x], id=8)
         }
         """)
 
@@ -1391,9 +1426,9 @@ class IrConverterTest(test_base.TestCase):
         package test_module
 
         fn __test_module__get_thing(x: (bits[32][2]), i: bits[32]) -> bits[32] {
-          tuple_index.4: bits[32][2] = tuple_index(x, index=0, id=4)
+          things: bits[32][2] = tuple_index(x, index=0, id=4)
           literal.3: bits[32] = literal(value=0, id=3)
-          ret array_index.5: bits[32] = array_index(tuple_index.4, i, id=5)
+          ret array_index.5: bits[32] = array_index(things, i, id=5)
         }
         """)
 
@@ -1569,9 +1604,9 @@ class IrConverterTest(test_base.TestCase):
         package test_module
 
         fn __test_module__f(in1: bits[32][2]) -> bits[32] {
-          array_concat.2: bits[32][4] = array_concat(in1, in1, id=2)
+          x: bits[32][4] = array_concat(in1, in1, id=2)
           literal.3: bits[32] = literal(value=0, id=3)
-          ret array_index.4: bits[32] = array_index(array_concat.2, literal.3, id=4)
+          ret array_index.4: bits[32] = array_index(x, literal.3, id=4)
         }
         """)
 

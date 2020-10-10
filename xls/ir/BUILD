@@ -171,6 +171,7 @@ cc_library(
         ":bits",
         ":channel",
         ":channel_cc_proto",
+        ":name_uniquer",
         ":op",
         ":source_location",
         ":type",
@@ -862,6 +863,19 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "name_uniquer",
+    srcs = ["name_uniquer.cc"],
+    hdrs = ["name_uniquer.h"],
+    deps = [
+        "//xls/common:integral_types",
+        "//xls/common/logging",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
 cc_test(
     name = "value_view_test",
     srcs = ["value_view_test.cc"],
@@ -937,6 +951,15 @@ cc_test(
         ":ir",
         ":ir_parser",
         "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "name_uniquer_test",
+    srcs = ["name_uniquer_test.cc"],
+    deps = [
+        ":name_uniquer",
         "@com_google_googletest//:gtest_main",
     ],
 )

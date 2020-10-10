@@ -25,6 +25,7 @@
 #include "xls/common/iterator_range.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/dfs_visitor.h"
+#include "xls/ir/name_uniquer.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
@@ -151,6 +152,11 @@ class Function {
   // conservative and false may be returned for some "equivalent" functions.
   bool IsDefinitelyEqualTo(const Function* other) const;
 
+  // Sanitizes and uniquifies the given name using the function's name uniquer.
+  std::string UniquifyNodeName(absl::string_view name) {
+    return node_name_uniquer_.GetSanitizedUniqueName(name);
+  }
+
  private:
   Function(const Function& other) = delete;
   void operator=(const Function& other) = delete;
@@ -167,6 +173,8 @@ class Function {
 
   std::vector<Param*> params_;
   Node* return_value_ = nullptr;
+
+  NameUniquer node_name_uniquer_ = NameUniquer(/*separator=*/"__");
 };
 
 std::ostream& operator<<(std::ostream& os, const Function& function);

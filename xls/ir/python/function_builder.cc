@@ -56,7 +56,10 @@ PYBIND11_MODULE(function_builder, m) {
 
   py::class_<BValueHolder>(m, "BValue")
       .def("__str__", PyWrap(&BValue::ToString))
-      .def("get_type", PyWrap(&BValue::GetType));
+      .def("get_type", PyWrap(&BValue::GetType))
+      .def("set_name", PyWrap(&BValue::SetName), py::arg("name"))
+      .def("has_assigned_name", PyWrap(&BValue::HasAssignedName))
+      .def("get_name", PyWrap(&BValue::GetName));
 
   // Explicitly select overload when pybind11 can't infer it.
   BValue (FunctionBuilder::*add_or)(

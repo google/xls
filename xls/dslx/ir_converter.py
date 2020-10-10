@@ -204,6 +204,11 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
   def _def_alias(self, from_: ast.AstNode, to: ast.AstNode) -> BValue:
     self.node_to_ir[to] = self.node_to_ir[from_]
     logging.vlog(4, 'Alias node "%s" to be same as %s', to, from_)
+    if isinstance(to, ast.NameDef):
+      # Name the aliased node based on the identifier in the NameDef.
+      if isinstance(self.node_to_ir[from_], BValue):
+        ir_node: BValue = self.node_to_ir[from_]
+        ir_node.set_name(to.identifier.encode('utf-8'))
     return self._use(to)
 
   def _def_const(self, node: ast.AstNode, value: int, bit_count: int) -> BValue:
@@ -474,8 +479,17 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
 
   def visit_Attr(self, node: ast.Attr) -> None:
     lhs_type = self.type_info[node.lhs]
-    index = lhs_type.tuple_names.index(node.attr.identifier)  # pytype: disable=attribute-error
-    self._def(node, self.fb.add_tuple_index, self._use(node.lhs), index)
+    identifier = node.attr.identifier
+    assert isinstance(lhs_type, TupleType)
+    index = lhs_type.tuple_names.index(identifier)
+    lhs = self._use(node.lhs)
+    ir = self._def(node, self.fb.add_tuple_index, lhs, index)
+    # Give the tuple-index instruction a meaningful name based on the
+    # identifier.
+    if lhs.has_assigned_name():
+      ir.set_name(lhs.get_name() + '_' + identifier)
+    else:
+      ir.set_name(identifier)
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Index(self, node: ast.Index) -> None:
