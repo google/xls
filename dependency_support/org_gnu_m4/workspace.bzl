@@ -14,12 +14,12 @@
 
 """Loads the m4 macro processor, used by Bison."""
 
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("//dependency_support:repo.bzl", "xls_http_archive")
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 
 def repo():
     maybe(
-        http_archive,
+        xls_http_archive,
         name = "org_gnu_m4",
         urls = [
             "http://ftp.acc.umu.se/mirror/gnu.org/gnu/m4/m4-1.4.18.tar.xz",
@@ -28,4 +28,5 @@ def repo():
         strip_prefix = "m4-1.4.18",
         sha256 = "f2c1e86ca0a404ff281631bdc8377638992744b175afb806e25871a24a934e07",
         build_file = Label("//dependency_support:org_gnu_m4/bundled.BUILD.bazel"),
+        system_build_file = "@//dependency_support/systemlibs:org_gnu_m4.BUILD",
     )

@@ -16,6 +16,7 @@
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+load("//dependency_support:repo.bzl", "xls_http_archive")
 load("//dependency_support:edu_berkeley_abc/workspace.bzl", repo_abc = "repo")
 load("//dependency_support/boost:workspace.bzl", repo_boost = "repo")
 load("//dependency_support/org_gnu_bison:workspace.bzl", repo_bison = "repo")
@@ -89,12 +90,13 @@ def load_external_repositories():
         shallow_since = "1543277914 +0000",
     )
 
-    http_archive(
+    xls_http_archive(
         name = "llvm",
         urls = ["https://github.com/llvm/llvm-project/archive/52cae05e087b3d4fd02849fc37c387c720055ffb.tar.gz"],
         sha256 = "84af24a605a9e20d999e65f87a36baeed56773d74ccc0287517f5fdcf44e737a",
         strip_prefix = "llvm-project-52cae05e087b3d4fd02849fc37c387c720055ffb/llvm",
         build_file = "@//dependency_support/llvm:bundled.BUILD.bazel",
+        system_build_file = "@//dependency_support/systemlibs:llvm.BUILD",
     )
 
     http_archive(
@@ -150,12 +152,13 @@ def load_external_repositories():
         sha256 = "b5668cde8bb6e3515057ef465a35ad712214962f0b3a314e551204266c7be90c",
     )
 
-    http_archive(
+    xls_http_archive(
         name = "z3",
         urls = ["https://github.com/Z3Prover/z3/archive/z3-4.8.7.tar.gz"],
         sha256 = "8c1c49a1eccf5d8b952dadadba3552b0eac67482b8a29eaad62aa7343a0732c3",
         strip_prefix = "z3-z3-4.8.7",
         build_file = "@//dependency_support/z3:bundled.BUILD.bazel",
+        system_build_file = "@//dependency_support/systemlibs:z3.BUILD",
     )
 
     http_archive(
@@ -171,7 +174,7 @@ def load_external_repositories():
     # does not include all the source code (e.g., gzread is missing) which
     # breaks other users of zlib like iverilog. So add zlib explicitly here with
     # a working BUILD file.
-    http_archive(
+    xls_http_archive(
         name = "zlib",
         sha256 = "f5cc4ab910db99b2bdbba39ebbdc225ffc2aa04b4057bc2817f1b94b6978cfc3",
         strip_prefix = "zlib-1.2.11",
@@ -179,6 +182,7 @@ def load_external_repositories():
             "https://github.com/madler/zlib/archive/v1.2.11.zip",
         ],
         build_file = "@//dependency_support/zlib:bundled.BUILD.bazel",
+        system_build_file = "@//dependency_support/systemlibs:zlib.BUILD",
     )
 
     http_archive(
