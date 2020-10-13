@@ -397,6 +397,20 @@ class ParserTest(absltest.TestCase):
     self.assertIsInstance(e.members[0], ast.ConstantArray)
     self.assertIsInstance(e.members[1], ast.Number)
 
+  def test_invalid_parameter_cast(self):
+    program = """
+    fn [N: u32]addN(x: u32) -> u32 {
+      x + u32: N
+    }
+    """
+    with fakefs_test_util.scoped_fakefs(self.fake_filename, program):
+      with self.assertRaises(CppParseError):
+        parser_helpers.parse_text(
+            program,
+            name=self.fake_filename,
+            print_on_error=True,
+            filename=self.fake_filename)
+
   def test_invalid_constructs(self):
     # TODO(rhundt): Over time these tests will fail at parse time or
     # runtime. At this point, we will have to check the relevant

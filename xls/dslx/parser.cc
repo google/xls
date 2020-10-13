@@ -726,8 +726,9 @@ absl::StatusOr<Expr*> Parser::ParseCast(Bindings* bindings,
     return term;
   }
 
-  if (auto* tuple = dynamic_cast<XlsTuple*>(term); std::all_of(
-          tuple->members().begin(), tuple->members().end(), IsConstant)) {
+  if (auto* tuple = dynamic_cast<XlsTuple*>(term);
+            tuple != nullptr && std::all_of(
+                tuple->members().begin(), tuple->members().end(), IsConstant)) {
     return term;
   }
   return ParseError(type->span(),
