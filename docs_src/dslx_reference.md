@@ -461,13 +461,17 @@ same definition (this is called "nominal typing"). For example:
 
 DSLX also supports parametric structs. For more information on how
 type-parametricity works, see the [parametric functions](#parametric-functions)
-section. ``` fn double(n: u32) -> u32 { n * u32:2 }
+section.
+
+```
+fn double(n: u32) -> u32 { n * u32:2 }
 
 struct [N: u32, M: u32 = double(N)] Point { x: bits[N], y: bits[M], }
 
 fn [A: u32, B: u32] make_point(x: bits[A], y: bits[B]) -> Point[A, B] { Point {
 x, y } } test struct_construction { let p = make_point(u16:42, u32:42);
-assert_eq(u16:42, p.x) } ```
+assert_eq(u16:42, p.x) }
+```
 
 ### Array Type
 
