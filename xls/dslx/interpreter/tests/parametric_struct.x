@@ -36,6 +36,20 @@ from_point(p: ParametricPoint[N, M]) -> ParametricPoint[N, M] {
   ParametricPoint { x: p.x, y: p.y }
 }
 
+fn [N: u32, M: u32]
+add_points(lhs: ParametricPoint[N, M], rhs: ParametricPoint[N, M])
+    -> ParametricPoint[N, M] {
+    make_point(lhs.x + rhs.x, lhs.y + rhs.y)
+}
+
+fn [N: u32, M: u32, L: u32]
+accum_points(points: ParametricPoint[N, M][L]) -> ParametricPoint[N, M] {
+    let start = make_point(bits[N]: 0, bits[M]: 0);
+    for (idx, accum): (u32, ParametricPoint[N, M]) in range(u32: 0, L) {
+        add_points(accum, points[idx])
+    } (start)
+}
+
 // Direct instantiation via typedefs works too!
 type PP32 = ParametricPoint[32, 64];
 
@@ -61,5 +75,13 @@ fn test_funcs() {
   // WrapperStruct wraps an instance of ParametricPoint.
   let s_wrapper = WrapperStruct { pp: r };
   let _ = assert_eq(r, s_wrapper.pp);
+
+  let sum = accum_points([
+      make_point(u8: 3, u16: 4),
+      make_point(u8: 5, u16: 6),
+      make_point(u8: 7, u16: 8),
+  ]);
+  let _ = assert_eq(sum, make_point(u8: 15, u16: 18));
+
   ()
 }

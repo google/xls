@@ -302,7 +302,7 @@ class Interpreter(object):
         nested_bindings.add_value(p.name.identifier,
                                   Value.make_ubits(p.type_.bits, int(d.value)))
       else:
-        assert isinstance(p, ParametricSymbol), p
+        assert isinstance(p, ast.ParametricBinding), p
         nested_bindings.add_value(
             p.name.identifier,
             nested_bindings.resolve_value_from_identifier(d.identifier))
