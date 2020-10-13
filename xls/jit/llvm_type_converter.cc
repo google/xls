@@ -129,4 +129,10 @@ int64 LlvmTypeConverter::GetTypeByteSize(const Type& type) {
   return data_layout_.getTypeAllocSize(ConvertToLlvmType(type)).getFixedSize();
 }
 
+llvm::Value* LlvmTypeConverter::GetToken() {
+  llvm::ArrayType* token_type =
+      llvm::ArrayType::get(llvm::IntegerType::get(context_, 1), 0);
+  return llvm::ConstantArray::get(token_type, {});
+}
+
 }  // namespace xls

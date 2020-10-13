@@ -39,11 +39,9 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   //   is_top: true if this is the top-level function being translated,
   //     false if this is a function invocation from already inside "LLVM
   //     space".
-  static absl::StatusOr<std::unique_ptr<FunctionBuilderVisitor>> Build(
-      llvm::Module* module, llvm::Function* llvm_fn, Function* xls_fn,
-      LlvmTypeConverter* type_converter, bool is_top, bool generate_packed);
-
-  llvm::Value* return_value() { return return_value_; }
+  static absl::Status Visit(llvm::Module* module, llvm::Function* llvm_fn,
+                            Function* xls_fn, LlvmTypeConverter* type_converter,
+                            bool is_top, bool generate_packed);
 
   absl::Status DefaultHandler(Node* node) override {
     return absl::UnimplementedError(
@@ -110,14 +108,29 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   absl::Status HandleXorReduce(BitwiseReductionOp* op) override;
   absl::Status HandleZeroExtend(ExtendOp* zero_ext) override;
 
- private:
+ protected:
   FunctionBuilderVisitor(llvm::Module* module, llvm::Function* llvm_fn,
                          Function* xls_fn, LlvmTypeConverter* type_converter,
                          bool is_top, bool generate_packed);
 
+  llvm::LLVMContext& ctx() { return ctx_; }
+  llvm::Module* module() { return module_; }
+  llvm::IRBuilder<>* builder() { return builder_.get(); }
+  LlvmTypeConverter* type_converter() { return type_converter_; }
+  absl::flat_hash_map<Node*, llvm::Value*>& node_map() { return node_map_; }
+
   // Actual driver for the building process (Build is a creation/init shim).
   absl::Status BuildInternal();
 
+  // Saves the assocation between the given XLS IR Node and the matching LLVM
+  // Value.
+  absl::Status StoreResult(Node* node, llvm::Value* value);
+
+  // Creates a zero-valued LLVM constant for the given type, be it a Bits,
+  // Array, or Tuple.
+  llvm::Constant* CreateTypedZeroValue(llvm::Type* type);
+
+ private:
   // Common handler for all arithmetic ops.
   absl::Status HandleArithOp(ArithOp* arith_op);
 
@@ -133,10 +146,6 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   // Generates a modulo operation.
   llvm::Value* EmitMod(llvm::Value* lhs, llvm::Value* rhs, bool is_signed);
 
-  // Creates a zero-valued LLVM constant for the given type, be it a Bits,
-  // Array, or Tuple.
-  llvm::Constant* CreateTypedZeroValue(llvm::Type* type);
-
   // ORs together all elements in the two given values, be they Bits, Arrays, or
   // Tuples.
   llvm::Value* CreateAggregateOr(llvm::Value* lhs, llvm::Value* rhs);
@@ -148,10 +157,6 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   // Looks up and returns the given function in the module, translating it into
   // LLVM first, if necessary.
   absl::StatusOr<llvm::Function*> GetModuleFunction(Function* xls_function);
-
-  // Saves the assocation between the given XLS IR Node and the matching LLVM
-  // Value.
-  absl::Status StoreResult(Node* node, llvm::Value* value);
 
   // Takes an LLVM Value and densely (i.e., with no padding) packs it into an
   // alloca/buffer.

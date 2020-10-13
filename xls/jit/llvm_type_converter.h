@@ -53,6 +53,9 @@ class LlvmTypeConverter {
   // DataLayout object can handle ~all of the work for us.
   int64 GetTypeByteSize(const Type& type);
 
+  // Returns a new Value representing the LLVM form of a Token.
+  llvm::Value* GetToken();
+
  private:
   using TypeCache = absl::flat_hash_map<const Type*, llvm::Type*>;
 

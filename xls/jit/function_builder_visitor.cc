@@ -13,19 +13,19 @@
 // limitations under the License.
 #include "xls/jit/function_builder_visitor.h"
 
+#include "llvm/IR/Constants.h"
 #include "xls/codegen/vast.h"
 
 namespace xls {
 
-absl::StatusOr<std::unique_ptr<FunctionBuilderVisitor>>
-FunctionBuilderVisitor::Build(llvm::Module* module, llvm::Function* llvm_fn,
-                              Function* xls_fn,
-                              LlvmTypeConverter* type_converter, bool is_top,
-                              bool generate_packed) {
-  auto visitor = absl::WrapUnique(new FunctionBuilderVisitor(
-      module, llvm_fn, xls_fn, type_converter, is_top, generate_packed));
-  XLS_RETURN_IF_ERROR(visitor->BuildInternal());
-  return visitor;
+absl::Status FunctionBuilderVisitor::Visit(llvm::Module* module,
+                                           llvm::Function* llvm_fn,
+                                           Function* xls_fn,
+                                           LlvmTypeConverter* type_converter,
+                                           bool is_top, bool generate_packed) {
+  FunctionBuilderVisitor visitor(module, llvm_fn, xls_fn, type_converter,
+                                 is_top, generate_packed);
+  return visitor.BuildInternal();
 }
 
 FunctionBuilderVisitor::FunctionBuilderVisitor(
@@ -126,10 +126,7 @@ absl::Status FunctionBuilderVisitor::HandleAfterAll(AfterAll* after_all) {
   // any computation. Furter, token types don't contain any data. A 0-element
   // array is a convenient and low-overhead way to let the rest of the llvm
   // infrastructure treat token like a normal data-type.
-  return StoreResult(
-      after_all, llvm::ConstantArray::get(
-                     llvm::ArrayType::get(llvm::IntegerType::get(ctx_, 1), 0),
-                     llvm::ArrayRef<llvm::Constant*>()));
+  return StoreResult(after_all, type_converter_->GetToken());
 }
 
 absl::Status FunctionBuilderVisitor::HandleArray(Array* array) {
@@ -601,6 +598,10 @@ absl::Status FunctionBuilderVisitor::HandleParam(Param* param) {
 
   if (!is_top_) {
     return StoreResult(param, llvm_function->getArg(index));
+  }
+
+  if (param->GetType()->IsToken()) {
+    return StoreResult(param, type_converter_->GetToken());
   }
 
   // Just handle tokens here, since they're "nothing".
@@ -1163,11 +1164,9 @@ absl::StatusOr<llvm::Function*> FunctionBuilderVisitor::GetModuleFunction(
           ->getOrInsertFunction(xls_function->qualified_name(), function_type)
           .getCallee());
 
-  XLS_ASSIGN_OR_RETURN(
-      auto sub_builder,
-      FunctionBuilderVisitor::Build(
-          module_, llvm_function, xls_function, type_converter_,
-          /*is_top=*/false, /*generate_packed=*/false));
+  XLS_RETURN_IF_ERROR(FunctionBuilderVisitor::Visit(
+      module_, llvm_function, xls_function, type_converter_,
+      /*is_top=*/false, /*generate_packed=*/false));
 
   return llvm_function;
 }

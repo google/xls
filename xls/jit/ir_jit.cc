@@ -247,7 +247,6 @@ absl::Status IrJit::CompileFunction(llvm::Module* module) {
   // arg (and setting the result type to void) and then storing the computation
   // result therein.
   std::vector<llvm::Type*> param_types;
-  llvm::FunctionType* function_type;
   // Represent the input args as char/i8 pointers to their data.
   param_types.push_back(llvm::PointerType::get(
       llvm::ArrayType::get(
@@ -266,7 +265,7 @@ absl::Status IrJit::CompileFunction(llvm::Module* module) {
       type_converter_->ConvertToLlvmType(*return_type);
   param_types.push_back(
       llvm::PointerType::get(llvm_return_type, /*AddressSpace=*/0));
-  function_type = llvm::FunctionType::get(
+  llvm::FunctionType* function_type = llvm::FunctionType::get(
       llvm::Type::getVoidTy(*bare_context),
       llvm::ArrayRef<llvm::Type*>(param_types.data(), param_types.size()),
       /*isVarArg=*/false);
@@ -277,11 +276,10 @@ absl::Status IrJit::CompileFunction(llvm::Module* module) {
   llvm::Function* llvm_function = llvm::cast<llvm::Function>(
       module->getOrInsertFunction(function_name, function_type).getCallee());
   return_type_bytes_ = type_converter_->GetTypeByteSize(*return_type);
-  XLS_RETURN_IF_ERROR(
-      FunctionBuilderVisitor::Build(module, llvm_function, xls_function_,
-                                    type_converter_.get(),
-                                    /*is_top=*/true, /*generate_packed=*/false)
-          .status());
+  XLS_RETURN_IF_ERROR(FunctionBuilderVisitor::Visit(
+      module, llvm_function, xls_function_, type_converter_.get(),
+      /*is_top=*/true,
+      /*generate_packed=*/false));
 
   return absl::OkStatus();
 }
@@ -413,11 +411,9 @@ absl::Status IrJit::CompilePackedViewFunction(llvm::Module* module) {
       "%s::%s_packed", xls_package->name(), xls_function_->name());
   llvm::Function* llvm_function = llvm::cast<llvm::Function>(
       module->getOrInsertFunction(function_name, function_type).getCallee());
-  XLS_RETURN_IF_ERROR(
-      FunctionBuilderVisitor::Build(module, llvm_function, xls_function_,
-                                    type_converter_.get(),
-                                    /*is_top=*/true, /*generate_packed=*/true)
-          .status());
+  XLS_RETURN_IF_ERROR(FunctionBuilderVisitor::Visit(
+      module, llvm_function, xls_function_, type_converter_.get(),
+      /*is_top=*/true, /*generate_packed=*/true));
 
   return absl::OkStatus();
 }

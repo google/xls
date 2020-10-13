@@ -138,6 +138,15 @@ cc_test(
 )
 
 cc_library(
+    name = "jit_channel_queue",
+    hdrs = ["jit_channel_queue.h"],
+    deps = [
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:integral_types",
+    ],
+)
+
+cc_library(
     name = "jit_runtime",
     srcs = ["jit_runtime.cc"],
     hdrs = ["jit_runtime.h"],
@@ -177,5 +186,45 @@ cc_library(
         "//xls/ir:type",
         "//xls/ir:value",
         "@llvm//:Core",
+    ],
+)
+
+cc_library(
+    name = "proc_builder_visitor",
+    srcs = ["proc_builder_visitor.cc"],
+    hdrs = ["proc_builder_visitor.h"],
+    deps = [
+        ":function_builder_visitor",
+        ":jit_channel_queue",
+        ":llvm_type_converter",
+        "//xls/ir",
+        "@llvm//:Core",
+    ],
+)
+
+cc_test(
+    name = "proc_builder_visitor_test",
+    srcs = ["proc_builder_visitor_test.cc"],
+    deps = [
+        ":jit_runtime",
+        ":llvm_type_converter",
+        ":proc_builder_visitor",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:subprocess",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/file:temp_directory",
+        "//xls/common/status:matchers",
+        "//xls/common/status:ret_check",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "@com_google_googletest//:gtest_main",
+        "@llvm//:Core",
+        "@llvm//:ExecutionEngine",
+        "@llvm//:MCJIT",
+        "@llvm//:OrcJIT",
+        "@llvm//:Target",
     ],
 )
