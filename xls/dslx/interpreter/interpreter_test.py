@@ -527,7 +527,7 @@ class InterpreterTest(absltest.TestCase):
     """
     with self.assertRaises(interpreter.FailureError) as cm:
       self._parse_and_test(program)
-    self.assertIn('want: [1, 2]\n', str(cm.exception))
+    self.assertIn('lhs: [1, 2]\n', str(cm.exception))
 
 
 if __name__ == '__main__':
