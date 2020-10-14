@@ -49,7 +49,7 @@ installed](https://docs.bazel.build/versions/master/install-ubuntu.html).
 $ bazel --version
 bazel 3.2.0
 
-$ sudo apt install python3-dev python3-distutils python3-dev libtinfo5
+$ sudo apt install python3-distutils python3-dev libtinfo5
 
 # py_binary currently assume they can refer to /usr/bin/env python
 # even though Ubuntu 20.04 has no `python`, only `python3`.
