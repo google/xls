@@ -193,6 +193,7 @@ project, see our
 * [Balint Christian](https://github.com/cbalint13)
 * [Blaok](https://github.com/Blaok)
 * [Brandon Jiang](https://github.com/brajiang)
+* [Chris Drake](https://github.com/cjdrake)
 * [Chris Leary](https://github.com/cdleary)
 * [Derek Lockhart](https://github.com/dmlockhart)
 * [Felix Zhu](https://github.com/felixzhuologist)
