@@ -45,8 +45,8 @@ std::string Function::DumpIr(bool recursive) const {
 
   for (Node* node : TopoSort(const_cast<Function*>(this))) {
     if (node->op() == Op::kParam && node == return_value()) {
-      absl::StrAppendFormat(&res, "  ret param.%d: %s = param(name=%s)\n",
-                            node->id(), node->GetType()->ToString(),
+      absl::StrAppendFormat(&res, "  ret %s: %s = param(name=%s)\n",
+                            node->GetName(), node->GetType()->ToString(),
                             node->As<Param>()->name());
       continue;
     }

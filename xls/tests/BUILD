@@ -55,6 +55,7 @@ cc_test(
         "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/ir",
+        "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
         "//xls/passes:standard_pipeline",

@@ -281,7 +281,7 @@ class PipelineGenerator {
         return false;
       };
 
-      // Identify nodes in this stage which must be named temporaries.
+      // Identify nodes in this stage which should be named temporaries.
       // Conditions:
       //
       //   (0) Is not a module constant or parameter, AND one of the following
@@ -294,7 +294,10 @@ class PipelineGenerator {
       //
       //   (3) Has an in-stage use that needs a named reference, OR
       //
-      //   (4) Is live out of the stage.
+      //   (4) Is live out of the stage, OR
+      //
+      //   (5) Has an assigned name. This preserves names in the generated
+      //       Verilog.
       absl::flat_hash_set<Node*> named_temps;
       for (Node* node : schedule_.nodes_in_cycle(schedule_cycle)) {
         if (node->Is<Param>() || module_constants.contains(node)) {
@@ -303,7 +306,7 @@ class PipelineGenerator {
         if (!mb_.CanEmitAsInlineExpression(node, UsersInStage(node)) ||
             (FanoutInStage(node, schedule_cycle) > 1 &&
              !ShouldInlineExpressionIntoMultipleUses(node)) ||
-            is_live_out_of_stage(node)) {
+            is_live_out_of_stage(node) || node->HasAssignedName()) {
           named_temps.insert(node);
         }
       }

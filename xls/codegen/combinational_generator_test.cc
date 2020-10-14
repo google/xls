@@ -61,10 +61,10 @@ TEST_P(CombinationalGeneratorTest, RandomExpression) {
   auto a = fb.Param("a", u8);
   auto b = fb.Param("b", u8);
   auto c = fb.Param("c", u8);
-  auto a_minus_b = a - b;
+  auto a_minus_b = fb.Subtract(a, b, /*loc=*/absl::nullopt, /*name=*/"diff");
   auto lhs = (a_minus_b * a_minus_b);
   auto rhs = (c * a_minus_b);
-  auto out = lhs + rhs;
+  auto out = fb.Add(lhs, rhs, /*loc=*/absl::nullopt, /*name=*/"the_output");
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(out));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            ToCombinationalModuleText(f, UseSystemVerilog()));
@@ -140,7 +140,7 @@ TEST_P(CombinationalGeneratorTest, TakesEmptyTuple) {
   auto a = fb.Param("a", u8);
   fb.Param("b", package.GetTupleType({}));
   auto c = fb.Param("c", u8);
-  fb.Add(a, c);
+  fb.Add(a, c, /*loc=*/absl::nullopt, /*name=*/"sum");
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            ToCombinationalModuleText(f, UseSystemVerilog()));
@@ -173,7 +173,8 @@ TEST_P(CombinationalGeneratorTest, ExpressionWhichRequiresNamedIntermediate) {
   auto a = fb.Param("a", u8);
   auto b = fb.Param("b", u8);
   auto a_plus_b = a + b;
-  auto out = fb.BitSlice(a_plus_b, /*start=*/3, /*width=*/4);
+  auto out = fb.BitSlice(a_plus_b, /*start=*/3, /*width=*/4,
+                         /*loc=*/absl::nullopt, /*name=*/"slice_n_dice");
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(out));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            ToCombinationalModuleText(f, UseSystemVerilog()));
@@ -200,7 +201,7 @@ TEST_P(CombinationalGeneratorTest, ExpressionsOfTuples) {
   auto c = fb.Param("c", tuple_u10_u16);
 
   // Glom all the inputs together into a big tuple.
-  auto a_b_c = fb.Tuple({a, b, c});
+  auto a_b_c = fb.Tuple({a, b, c}, /*loc=*/absl::nullopt, /*name=*/"big_tuple");
 
   // Then extract some elements and perform some arithmetic operations on them
   // after zero-extending them to the same width (16-bits).
@@ -238,9 +239,9 @@ fn main(x: bits[123]) -> bits[123] {
   tuple_index.2: bits[123] = tuple_index(literal.1, index=0)
   tuple_index.3: bits[123] = tuple_index(literal.1, index=1)
   tuple_index.4: bits[123] = tuple_index(literal.1, index=2)
-  add.6: bits[123] = add(tuple_index.2, tuple_index.3)
-  add.7: bits[123] = add(tuple_index.4, x)
-  ret add.8: bits[123] = add(add.6, add.7)
+  sum1: bits[123] = add(tuple_index.2, tuple_index.3)
+  sum2: bits[123] = add(tuple_index.4, x)
+  ret total: bits[123] = add(sum1, sum2)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -266,7 +267,7 @@ package ArrayLiterals
 fn main(x: bits[32], y: bits[32]) -> bits[44] {
   literal.1: bits[44][3][2] = literal(value=[[1, 2, 3], [4, 5, 6]])
   array_index.2: bits[44][3] = array_index(literal.1, x)
-  ret array_index.3: bits[44] = array_index(array_index.2, y)
+  ret result: bits[44] = array_index(array_index.2, y)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -459,7 +460,7 @@ package ArrayUpdate
 fn main(idx: bits[2]) -> bits[32][3] {
   literal.5: bits[32][3] = literal(value=[1, 2, 3])
   literal.6: bits[32] = literal(value=99)
-  ret array_update.7: bits[32][3] = array_update(literal.5, idx, literal.6)
+  ret updated_array: bits[32][3] = array_update(literal.5, idx, literal.6)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -499,7 +500,7 @@ package ArrayUpdate
 fn main(idx: bits[2]) -> bits[32][2][3] {
   literal.17: bits[32][2][3] = literal(value=[[1, 2], [3, 4], [5, 6]])
   literal.14: bits[32][2] = literal(value=[98, 99])
-  ret array_update.15: bits[32][2][3] = array_update(literal.17, idx, literal.14)
+  ret updated_array: bits[32][2][3] = array_update(literal.17, idx, literal.14)
 }
 
 )";

@@ -328,7 +328,10 @@ void Node::SetName(absl::string_view name) {
   name_ = function_->UniquifyNodeName(name);
 }
 
-void Node::ClearName() { name_ = ""; }
+void Node::ClearName() {
+  XLS_CHECK(!Is<Param>());
+  name_ = "";
+}
 
 std::string Node::ToStringInternal(bool include_operand_types) const {
   auto node_to_name = [](const Node* n, bool include_type) -> std::string {
@@ -581,6 +584,15 @@ absl::StatusOr<bool> Node::ReplaceUsesWith(Node* replacement) {
   if (this == function()->return_value()) {
     XLS_RETURN_IF_ERROR(function()->set_return_value(replacement));
     changed = true;
+  }
+  // If the replacement does not have an assigned name but this node does, move
+  // the name over to preserve the name. If this is a parameter node then don't
+  // move the name because we cannot clear the name of a parameter node.
+  if (!Is<Param>() && HasAssignedName() && !replacement->HasAssignedName()) {
+    // Do not use SetName because we do not want the name to be uniqued which
+    // would add a suffix because (clearly) the name already exists.
+    replacement->name_ = name_;
+    ClearName();
   }
   return changed;
 }

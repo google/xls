@@ -1064,14 +1064,13 @@ fn sel_wrapper(p: bits[3], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
 
 TEST(IrParserTest, ParseParamReturn) {
   std::string input = R"(
+package ParseParamReturn
+
 fn simple_neg(x: bits[2]) -> bits[2] {
   ret x: bits[2] = param(name=x)
 }
 )";
-  Package p("my_package");
-  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Name 'x' has already been defined")));
+  ParsePackageAndCheckDump(input);
 }
 
 TEST(IrParserTest, ParseInvoke) {

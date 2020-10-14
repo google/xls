@@ -49,7 +49,7 @@ TEST_F(FunctionTest, DumpIrWhenParamIsRetval) {
   auto x = b.Param("x", p->GetBitsType(32));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.BuildWithReturnValue(x));
   EXPECT_EQ(f->DumpIr(), R"(fn f(x: bits[32]) -> bits[32] {
-  ret param.1: bits[32] = param(name=x)
+  ret x: bits[32] = param(name=x)
 }
 )");
 }
@@ -128,7 +128,7 @@ TEST_F(FunctionTest, RemoveParam) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, ParseFunction(R"(
 fn id(x: bits[32], y: bits[32]) -> bits[32] {
-  ret param.1: bits[32] = param(name=x)
+  ret x: bits[32] = param(name=x)
 }
 )",
                                                           p.get()));
@@ -152,7 +152,7 @@ TEST_F(FunctionTest, MakeInvalidNode) {
   Package p(TestName());
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, ParseFunction(R"(
 fn id(x: bits[16], y: bits[32]) -> bits[16] {
-  ret param.1: bits[16] = param(name=x)
+  ret x: bits[16] = param(name=x)
 }
 )",
                                                           &p));

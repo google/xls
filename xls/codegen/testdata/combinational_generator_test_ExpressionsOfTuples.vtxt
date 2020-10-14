@@ -4,14 +4,14 @@ module ExpressionsOfTuples(
   input wire [25:0] c,
   output wire [31:0] out
 );
-  wire [43:0] tuple_4;
+  wire [43:0] big_tuple;
   wire [25:0] tuple_index_10;
   wire [15:0] add_9;
   wire [15:0] sub_14;
   wire [31:0] tuple_15;
-  assign tuple_4 = {a, b, c};
-  assign tuple_index_10 = tuple_4[25:0];
-  assign add_9 = {8'h00, tuple_4[43:36]} + {6'h00, tuple_4[35:26]};
+  assign big_tuple = {a, b, c};
+  assign tuple_index_10 = big_tuple[25:0];
+  assign add_9 = {8'h00, big_tuple[43:36]} + {6'h00, big_tuple[35:26]};
   assign sub_14 = {6'h00, tuple_index_10[25:16]} - tuple_index_10[15:0];
   assign tuple_15 = {add_9, sub_14};
   assign out = tuple_15;

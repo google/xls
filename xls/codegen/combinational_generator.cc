@@ -47,7 +47,10 @@ absl::StatusOr<ModuleGeneratorResult> ToCombinationalModuleText(
                              param->GetType()->GetFlatBitCount());
   }
   const int64 output_width = func->return_value()->GetType()->GetFlatBitCount();
-  sig_builder.AddDataOutput("out", output_width);
+  // Don't use the assigned name if this is a parameter or there will be ports
+  // with duplicate names.
+  const char kOutputPortName[] = "out";
+  sig_builder.AddDataOutput(kOutputPortName, output_width);
   sig_builder.WithFunctionType(func->GetType());
   sig_builder.WithCombinationalInterface();
   XLS_ASSIGN_OR_RETURN(ModuleSignature signature, sig_builder.Build());
@@ -95,8 +98,10 @@ absl::StatusOr<ModuleGeneratorResult> ToCombinationalModuleText(
     for (Node* operand : node->operands()) {
       inputs.push_back(node_exprs.at(operand));
     }
-    if (node->users().size() > 1 || node == func->return_value() ||
-        !mb.CanEmitAsInlineExpression(node)) {
+    // If the node has an assigned name then don't emit as an inline
+    // expression. This ensures the name appears in the generated Verilog.
+    if (node->HasAssignedName() || node->users().size() > 1 ||
+        node == func->return_value() || !mb.CanEmitAsInlineExpression(node)) {
       XLS_ASSIGN_OR_RETURN(node_exprs[node],
                            mb.EmitAsAssignment(node->GetName(), node, inputs));
     } else {
@@ -108,7 +113,8 @@ absl::StatusOr<ModuleGeneratorResult> ToCombinationalModuleText(
   // Skip adding an output port to the Verilog module if the output is
   // zero-width.
   if (output_width > 0) {
-    XLS_RETURN_IF_ERROR(mb.AddOutputPort("out", func->return_value()->GetType(),
+    XLS_RETURN_IF_ERROR(mb.AddOutputPort(kOutputPortName,
+                                         func->return_value()->GetType(),
                                          node_exprs.at(func->return_value())));
   }
   std::string text = f.Emit();

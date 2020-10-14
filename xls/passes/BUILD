@@ -188,6 +188,7 @@ cc_library(
         ":passes",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "//xls/common/status:status_macros",
         "//xls/ir",
     ],

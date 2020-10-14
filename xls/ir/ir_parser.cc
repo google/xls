@@ -869,8 +869,10 @@ absl::StatusOr<BValue> Parser::ParseFunctionBody(
             bvalue, BuildBinaryOrUnaryOp(op, fb, loc, node_name, &arg_parser));
     }
 
-    // Verify name is unique
-    if (name_to_value->contains(output_name.value())) {
+    // Verify name is unique. Skip Params because these nodes are already added
+    // to the name_to_value map during function signature parsing.
+    if (name_to_value->contains(output_name.value()) &&
+        (!bvalue.valid() || !bvalue.node()->Is<Param>())) {
       return absl::InvalidArgumentError(
           absl::StrFormat("Name '%s' has already been defined @ %s",
                           output_name.value(), op_token.pos().ToHumanString()));

@@ -20,10 +20,13 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/subprocess.h"
 #include "xls/ir/function.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/passes/standard_pipeline.h"
+
+namespace m = xls::op_matchers;
 
 namespace xls {
 namespace {
@@ -76,6 +79,36 @@ fn main(i: u32) -> (bool, u32) {
   EXPECT_FALSE(FunctionHasOp(entry, Op::kReverse));
   EXPECT_FALSE(FunctionHasOp(entry, Op::kSignExt));
   EXPECT_FALSE(FunctionHasOp(entry, Op::kAnd));
+}
+
+TEST_F(DslxOptimizationTest, AttributeNamePropagation) {
+  std::string input = R"(
+struct S {
+  zub: u8,
+  qux: u8,
+}
+
+fn get_zub(x: S) -> u8 {
+  x.zub
+}
+
+fn get_qux(y: S) -> u8 {
+  y.qux
+}
+
+fn pass_S(z: S) -> S {
+  z
+}
+
+fn main(foo: S, foo_bar: S) -> u8 {
+  get_zub(foo) + get_qux(pass_S(pass_S(foo_bar)))
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package, DslxToIr(input));
+  XLS_ASSERT_OK(RunStandardPassPipeline(package.get()).status());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
+  EXPECT_THAT(entry->return_value(),
+              m::Add(m::Name("foo_zub"), m::Name("foo_bar_qux")));
 }
 
 }  // namespace
