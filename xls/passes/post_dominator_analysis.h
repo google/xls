@@ -31,19 +31,20 @@ class PostDominatorAnalysis {
       Function* f);
 
   // Returns the nodes that post-dominate this node.
-  absl::Span<Node* const> GetPostDominatorsOfNode(const Node* node) {
+  absl::Span<Node* const> GetPostDominatorsOfNode(const Node* node) const {
     return dominated_node_to_post_dominators_ordered_by_id_.at(node);
   }
   // Returns the nodes that are post-dominated by this node.
-  absl::Span<Node* const> GetNodesPostDominatedByNode(const Node* node) {
+  absl::Span<Node* const> GetNodesPostDominatedByNode(const Node* node) const {
     return post_dominator_to_dominated_nodes_ordered_by_id_.at(node);
   }
   // Returns true if 'node' is post-dominated by 'post_dominator'.
-  bool NodeIsPostDominatedBy(const Node* node, const Node* post_dominator) {
+  bool NodeIsPostDominatedBy(const Node* node,
+                             const Node* post_dominator) const {
     return dominated_node_to_post_dominators_.at(node).contains(post_dominator);
   }
   // Returns true if 'node' post_dominates 'post_dominated'.
-  bool NodePostDominates(const Node* node, const Node* post_dominated) {
+  bool NodePostDominates(const Node* node, const Node* post_dominated) const {
     return post_dominator_to_dominated_nodes_.at(node).contains(post_dominated);
   }
 

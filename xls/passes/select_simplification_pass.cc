@@ -31,6 +31,7 @@
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
+#include "xls/passes/post_dominator_analysis.h"
 #include "xls/passes/ternary_query_engine.h"
 
 namespace xls {
@@ -962,6 +963,40 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
               .status());
       return true;
     }
+  }
+
+  // Specialize the arms of the select based on the selector value which chooses
+  // the arm.
+  if (node->Is<Select>()) {
+    XLS_ASSIGN_OR_RETURN(
+        std::unique_ptr<PostDominatorAnalysis> post_dominator_analysis,
+        PostDominatorAnalysis::Run(node->function()));
+    Select* sel = node->As<Select>();
+    int64 selr_width = sel->selector()->BitCountOrDie();
+    bool changed = false;
+    for (int64 selr_value = 0; selr_value < sel->cases().size(); ++selr_value) {
+      Node* arm = sel->cases()[selr_value];
+      // Skip any cases where the select arm is used other than just in the
+      // select statement
+      if (arm->users().size() != 1) {
+        continue;
+      }
+      std::vector<Node*> users(sel->selector()->users().begin(),
+                               sel->selector()->users().end());
+      for (Node* selr_user : users) {
+        if (!post_dominator_analysis->NodeIsPostDominatedBy(selr_user, arm)) {
+          continue;
+        }
+        XLS_ASSIGN_OR_RETURN(
+            Literal * literal,
+            node->function()->MakeNode<Literal>(
+                sel->selector()->loc(), Value(UBits(selr_value, selr_width))));
+        if (selr_user->ReplaceOperand(sel->selector(), literal)) {
+          changed = true;
+        }
+      }
+    }
+    if (changed) return true;
   }
 
   return false;
