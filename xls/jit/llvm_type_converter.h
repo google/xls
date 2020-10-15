@@ -56,6 +56,9 @@ class LlvmTypeConverter {
   // Returns a new Value representing the LLVM form of a Token.
   llvm::Value* GetToken();
 
+  // Gets the LLVM type used to represent a Token.
+  llvm::Type* GetTokenType();
+
  private:
   using TypeCache = absl::flat_hash_map<const Type*, llvm::Type*>;
 

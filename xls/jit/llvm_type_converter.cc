@@ -56,7 +56,7 @@ llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type& xls_type) {
     // Token types don't contain any data. A 0-element array is a convenient and
     // low-overhead way to let the rest of the llvm infrastructure treat token
     // like a normal data-type.
-    llvm_type = llvm::ArrayType::get(llvm::IntegerType::get(context_, 1), 0);
+    llvm_type = GetTokenType();
   } else {
     XLS_LOG(FATAL) << absl::StrCat("Type not supported for LLVM conversion: %s",
                                    xls_type.ToString());
@@ -127,6 +127,10 @@ absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToIntegralConstant(
 
 int64 LlvmTypeConverter::GetTypeByteSize(const Type& type) {
   return data_layout_.getTypeAllocSize(ConvertToLlvmType(type)).getFixedSize();
+}
+
+llvm::Type* LlvmTypeConverter::GetTokenType() {
+  return llvm::ArrayType::get(llvm::IntegerType::get(context_, 1), 0);
 }
 
 llvm::Value* LlvmTypeConverter::GetToken() {

@@ -105,6 +105,8 @@ class FakeQueueManager : public JitChannelQueueManager {
 class ProcBuilderVisitorTest : public ::testing::Test {
  protected:
   using EntryFunctionT = void (*)(uint8**, uint8*);
+  static constexpr const char kModuleName[] = "the_module";
+  static constexpr const char kFunctionName[] = "the_function";
 
   virtual void SetUp() { absl::call_once(once, OnceInit); }
 
@@ -143,15 +145,15 @@ class ProcBuilderVisitorTest : public ::testing::Test {
     llvm::FunctionType* fn_type = llvm::FunctionType::get(
         llvm::Type::getVoidTy(context_), llvm_param_types, /*isVarArg=*/false);
     llvm_fn_ = llvm::cast<llvm::Function>(
-        module->getOrInsertFunction("test_fn", fn_type).getCallee());
+        module->getOrInsertFunction(kFunctionName, fn_type).getCallee());
     return absl::OkStatus();
   }
 
-  // Wraps input params in a Tuple with a first Token member.
-  Type* ProcWrapStateParams(absl::Span<Type*> state_param_types) {
+  // Wraps a single input param in a Tuple with a first Token member.
+  Type* ProcWrapStateParam(Type* state_param_type) {
     std::vector<Type*> param_types;
     param_types.push_back(package_->GetTokenType());
-    param_types.push_back(package_->GetTupleType(state_param_types));
+    param_types.push_back(state_param_type);
     return package_->GetTupleType(param_types);
   }
 
@@ -163,6 +165,32 @@ class ProcBuilderVisitorTest : public ::testing::Test {
     evaluator_ = absl::WrapUnique(builder.create());
     return reinterpret_cast<EntryFunctionT>(
         evaluator_->getFunctionAddress(fn_name));
+  }
+
+  // Packs the input values into the format our LLVM functions expect (i.e.,
+  // input params as an array of u8 pointers). The resulting pointers are held
+  // as unique_ptrs to auto-magically handle dealloc.
+  absl::StatusOr<std::vector<uint8*>> PackArgs(Function* function,
+                                               absl::Span<const Value> values) {
+    absl::Span<Type* const> param_types = function->GetType()->parameters();
+    XLS_RET_CHECK(values.size() == param_types.size());
+
+    JitRuntime runtime(*data_layout(), type_converter());
+    std::vector<uint8*> arg_buffers;
+    unique_arg_buffers_.clear();
+    unique_arg_buffers_.reserve(param_types.size());
+    arg_buffers.reserve(param_types.size());
+
+    for (const Type* type : function->GetType()->parameters()) {
+      unique_arg_buffers_.push_back(
+          std::make_unique<uint8[]>(type_converter()->GetTypeByteSize(*type)));
+      arg_buffers.push_back(unique_arg_buffers_.back().get());
+    }
+
+    XLS_RETURN_IF_ERROR(runtime.PackArgs(values,
+                                         function->GetType()->parameters(),
+                                         absl::MakeSpan(arg_buffers)));
+    return arg_buffers;
   }
 
   Package* package() { return package_.get(); }
@@ -179,6 +207,8 @@ class ProcBuilderVisitorTest : public ::testing::Test {
   std::unique_ptr<llvm::DataLayout> data_layout_;
   std::unique_ptr<LlvmTypeConverter> type_converter_;
   std::unique_ptr<llvm::ExecutionEngine> evaluator_;
+
+  std::vector<std::unique_ptr<uint8[]>> unique_arg_buffers_;
 };
 
 // Simple smoke-style test verifying that ProcBuilderVisitor can still build
@@ -195,7 +225,7 @@ fn AddTwo(a: bits[8], b: bits[8]) -> bits[8] {
   XLS_ASSERT_OK(InitPackage(kIrText));
   Type* u8_type = package()->GetBitsType(8);
 
-  auto module = std::make_unique<llvm::Module>("the_module", ctx());
+  auto module = std::make_unique<llvm::Module>(kModuleName, ctx());
   XLS_ASSERT_OK(InitLlvm(module.get(), u8_type, /*num_params=*/2));
   XLS_ASSERT_OK_AND_ASSIGN(auto xls_fn, package()->GetFunction("AddTwo"));
 
@@ -222,7 +252,7 @@ fn AddTwo(a: bits[8], b: bits[8]) -> bits[8] {
   std::unique_ptr<llvm::ExecutionEngine> evaluator =
       absl::WrapUnique(builder.create());
   auto fn = reinterpret_cast<EntryFunctionT>(
-      evaluator->getFunctionAddress("test_fn"));
+      evaluator->getFunctionAddress(kFunctionName));
   fn(input_buffer, &output_buffer);
   EXPECT_EQ(output_buffer, arg_0 + arg_1);
 }
@@ -259,8 +289,9 @@ proc the_proc(my_token: token, state: (), init=()) {
 }
 )";
   XLS_ASSERT_OK(InitPackage(kIrText));
-  auto module = std::make_unique<llvm::Module>("the_module", ctx());
-  XLS_ASSERT_OK(InitLlvm(module.get(), ProcWrapStateParams({})));
+  auto module = std::make_unique<llvm::Module>(kModuleName, ctx());
+  XLS_ASSERT_OK(
+      InitLlvm(module.get(), ProcWrapStateParam(package()->GetTupleType({}))));
   XLS_ASSERT_OK_AND_ASSIGN(auto xls_fn, package()->GetProc("the_proc"));
 
   FakeQueueManager<uint32> queue_mgr;
@@ -273,7 +304,7 @@ proc the_proc(my_token: token, state: (), init=()) {
 
   // The provided JIT doesn't support ExecutionEngine::runFunction, so we have
   // to get the fn pointer and call that directly.
-  auto fn = BuildEntryFn(std::move(module), "test_fn");
+  auto fn = BuildEntryFn(std::move(module), kFunctionName);
 
   // We don't have any persistent state, so we don't reference params, hence
   // nullptr.
@@ -284,6 +315,101 @@ proc the_proc(my_token: token, state: (), init=()) {
   queue_mgr.GetFakeQueueById(0).value()->EnqueueData(8);
   fn(nullptr, nullptr);
   EXPECT_EQ(queue_mgr.GetFakeQueueById(1).value()->DequeueData(), 24);
+}
+
+TEST_F(ProcBuilderVisitorTest, RecvIf) {
+  const std::string kIrText = R"(
+package p
+
+chan c_i(data: bits[32], id=0, kind=receive_only, metadata="")
+chan c_o(data: bits[32], id=1, kind=send_only, metadata="")
+
+proc the_proc(my_token: token, state: bits[1], init=0) {
+  receive_if.2: (token, bits[32]) = receive_if(my_token, state, channel_id=0)
+  tuple_index.3: token = tuple_index(receive_if.2, index=0)
+  tuple_index.4: bits[32] = tuple_index(receive_if.2, index=1)
+  send.5: token = send(tuple_index.3, data=[tuple_index.4], channel_id=1)
+  ret tuple.6: (token, bits[1]) = tuple(send.5, state)
+}
+)";
+  XLS_ASSERT_OK(InitPackage(kIrText));
+  auto module = std::make_unique<llvm::Module>(kModuleName, ctx());
+  XLS_ASSERT_OK(
+      InitLlvm(module.get(), ProcWrapStateParam(package()->GetBitsType(1))));
+  XLS_ASSERT_OK_AND_ASSIGN(auto xls_fn, package()->GetProc("the_proc"));
+
+  constexpr uint32 kQueueData = 0xbeef;
+  FakeQueueManager<uint32> queue_mgr;
+  queue_mgr.GetFakeQueueById(0).value()->EnqueueData(kQueueData);
+
+  XLS_ASSERT_OK(ProcBuilderVisitor::Visit(
+      module.get(), llvm_fn(), xls_fn, type_converter(),
+      /*is_top=*/true, /*generate_packed=*/false, &queue_mgr,
+      &CanCompileProcs_recv, &CanCompileProcs_send));
+
+  // First: set state to 0; see that recv_if returns 0.
+  uint64 output;
+  auto fn = BuildEntryFn(std::move(module), kFunctionName);
+  std::vector<Value> args = {Value::Token(), Value(UBits(0, 1))};
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<uint8*> arg_buffers,
+                           PackArgs(xls_fn, args));
+  fn(arg_buffers.data(), reinterpret_cast<uint8*>(&output));
+  EXPECT_EQ(queue_mgr.GetFakeQueueById(1).value()->DequeueData(), 0);
+
+  // Second: set state to 1, see that recv_if returns what we put in the queue
+  args = {Value::Token(), Value(UBits(1, 1))};
+  XLS_ASSERT_OK_AND_ASSIGN(arg_buffers, PackArgs(xls_fn, args));
+  fn(arg_buffers.data(), reinterpret_cast<uint8*>(&output));
+  EXPECT_EQ(queue_mgr.GetFakeQueueById(1).value()->DequeueData(), kQueueData);
+}
+
+TEST_F(ProcBuilderVisitorTest, SendIf) {
+  const std::string kIrText = R"(
+package p
+
+chan c_i(data: bits[32], id=0, kind=receive_only, metadata="")
+chan c_o(data: bits[32], id=1, kind=send_only, metadata="")
+
+proc the_proc(my_token: token, state: bits[1], init=0) {
+  receive.2: (token, bits[32]) = receive(my_token, channel_id=0)
+  tuple_index.3: token = tuple_index(receive.2, index=0)
+  tuple_index.4: bits[32] = tuple_index(receive.2, index=1)
+  send_if.5: token = send_if(tuple_index.3, state, data=[tuple_index.4], channel_id=1)
+  ret tuple.6: (token, bits[1]) = tuple(send_if.5, state)
+}
+)";
+  XLS_ASSERT_OK(InitPackage(kIrText));
+  auto module = std::make_unique<llvm::Module>(kModuleName, ctx());
+  XLS_ASSERT_OK(
+      InitLlvm(module.get(), ProcWrapStateParam(package()->GetBitsType(1))));
+  XLS_ASSERT_OK_AND_ASSIGN(auto xls_fn, package()->GetProc("the_proc"));
+
+  constexpr uint32 kQueueData = 0xbeef;
+  FakeQueueManager<uint32> queue_mgr;
+  queue_mgr.GetFakeQueueById(0).value()->EnqueueData(kQueueData);
+  queue_mgr.GetFakeQueueById(0).value()->EnqueueData(kQueueData);
+
+  XLS_ASSERT_OK(ProcBuilderVisitor::Visit(
+      module.get(), llvm_fn(), xls_fn, type_converter(),
+      /*is_top=*/true, /*generate_packed=*/false, &queue_mgr,
+      &CanCompileProcs_recv, &CanCompileProcs_send));
+
+  // First: with state 0, make sure no send occurred (i.e., our output queue is
+  // empty).
+  uint64 output;
+  auto fn = BuildEntryFn(std::move(module), kFunctionName);
+  std::vector<Value> args = {Value::Token(), Value(UBits(0, 1))};
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<uint8*> arg_buffers,
+                           PackArgs(xls_fn, args));
+  fn(arg_buffers.data(), reinterpret_cast<uint8*>(&output));
+  EXPECT_EQ(queue_mgr.GetFakeQueueById(1).value()->the_queue().size(), 0);
+
+  // Second: with state 1, make sure we've now got output data.
+  args = {Value::Token(), Value(UBits(1, 1))};
+  XLS_ASSERT_OK_AND_ASSIGN(arg_buffers, PackArgs(xls_fn, args));
+  fn(arg_buffers.data(), reinterpret_cast<uint8*>(&output));
+  EXPECT_EQ(queue_mgr.GetFakeQueueById(1).value()->the_queue().size(), 1);
+  EXPECT_EQ(queue_mgr.GetFakeQueueById(1).value()->DequeueData(), kQueueData);
 }
 
 }  // namespace

@@ -115,6 +115,7 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
 
   llvm::LLVMContext& ctx() { return ctx_; }
   llvm::Module* module() { return module_; }
+  llvm::Function* llvm_fn() { return llvm_fn_; }
   llvm::IRBuilder<>* builder() { return builder_.get(); }
   LlvmTypeConverter* type_converter() { return type_converter_; }
   absl::flat_hash_map<Node*, llvm::Value*>& node_map() { return node_map_; }
@@ -129,6 +130,14 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   // Creates a zero-valued LLVM constant for the given type, be it a Bits,
   // Array, or Tuple.
   llvm::Constant* CreateTypedZeroValue(llvm::Type* type);
+
+  // Updates the active IRBuilder. This is used when dealing with branches (and
+  // _ONLY_ with branches), which require new BasicBlocks, and thus, new
+  // IRBuilders. When branches re-converge, this function should be called with
+  // the IRBuilder for that new BasicBlock.
+  void set_builder(std::unique_ptr<llvm::IRBuilder<>> new_builder) {
+    builder_ = std::move(new_builder);
+  }
 
  private:
   // Common handler for all arithmetic ops.

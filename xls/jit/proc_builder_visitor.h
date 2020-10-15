@@ -68,7 +68,9 @@ class ProcBuilderVisitor : public FunctionBuilderVisitor {
                             SendFnT send_fn);
 
   absl::Status HandleReceive(Receive* recv) override;
+  absl::Status HandleReceiveIf(ReceiveIf* recv) override;
   absl::Status HandleSend(Send* send) override;
+  absl::Status HandleSendIf(SendIf* send) override;
 
  private:
   ProcBuilderVisitor(llvm::Module* module, llvm::Function* llvm_fn,
@@ -79,7 +81,8 @@ class ProcBuilderVisitor : public FunctionBuilderVisitor {
 
   absl::StatusOr<llvm::Value*> InvokeRecvCallback(llvm::IRBuilder<>* builder,
                                                   JitChannelQueue* queue,
-                                                  Node* xls_node);
+                                                  Node* node);
+
   absl::Status InvokeSendCallback(llvm::IRBuilder<>* builder,
                                   JitChannelQueue* queue, Node* node,
                                   absl::Span<Node* const> operands);

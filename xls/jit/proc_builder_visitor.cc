@@ -13,7 +13,10 @@
 // limitations under the License.
 #include "xls/jit/proc_builder_visitor.h"
 
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Instructions.h"
 
 namespace xls {
 
@@ -36,10 +39,8 @@ ProcBuilderVisitor::ProcBuilderVisitor(
       recv_fn_(recv_fn),
       send_fn_(send_fn) {}
 
-absl::Status ProcBuilderVisitor::HandleReceive(Receive* recv) {
-  XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
-                       queue_mgr_->GetQueueById(recv->channel_id()));
-
+absl::StatusOr<llvm::Value*> ProcBuilderVisitor::InvokeRecvCallback(
+    llvm::IRBuilder<>* builder, JitChannelQueue* queue, Node* node) {
   llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
   llvm::Type* int64_type = llvm::Type::getInt64Ty(ctx());
   llvm::Type* int8_ptr_type = llvm::Type::getInt8PtrTy(ctx(), 0);
@@ -57,38 +58,101 @@ absl::Status ProcBuilderVisitor::HandleReceive(Receive* recv) {
   llvm::FunctionType* fn_type =
       llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
 
-  llvm::Type* recv_type = type_converter()->ConvertToLlvmType(*recv->GetType());
-  int64 recv_bytes = type_converter()->GetTypeByteSize(*recv->GetType());
-  llvm::AllocaInst* alloca = builder()->CreateAlloca(recv_type);
+  llvm::Type* recv_type = type_converter()->ConvertToLlvmType(*node->GetType());
+  int64 recv_bytes = type_converter()->GetTypeByteSize(*node->GetType());
+  llvm::AllocaInst* alloca = builder->CreateAlloca(recv_type);
 
   //  2) create the argument list to pass to the function. We use opaque
   //     pointers to our data elements, to avoid recursively defining every
   //     type used by every type and so on.
+  static_assert(sizeof(Receive) == sizeof(ReceiveIf));
   std::vector<llvm::Value*> args(
       {llvm::ConstantInt::get(int64_type, reinterpret_cast<uint64>(queue)),
-       llvm::ConstantInt::get(int64_type, reinterpret_cast<uint64>(recv)),
-       builder()->CreatePointerCast(alloca, int8_ptr_type),
+       // This is sinful, I know, but ReceiveIf and Receive are
+       // layout-compatible..._for now_ (hence the static_assert above).
+       // TODO(meheff) : Make Receive & ReceiveIf share a common base
+       // class (also Send & SendIf).
+       llvm::ConstantInt::get(int64_type, reinterpret_cast<uint64>(node)),
+       builder->CreatePointerCast(alloca, int8_ptr_type),
        llvm::ConstantInt::get(int64_type, recv_bytes)});
 
   // 3) finally emit the function call,
   llvm::ConstantInt* fn_addr = llvm::ConstantInt::get(
       llvm::Type::getInt64Ty(ctx()), reinterpret_cast<uint64>(recv_fn_));
   llvm::Value* fn_ptr =
-      builder()->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
-  builder()->CreateCall(fn_type, fn_ptr, args);
+      builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
+  builder->CreateCall(fn_type, fn_ptr, args);
 
   // 4) then load its result from the bounce buffer.
-  llvm::Value* xls_value = builder()->CreateLoad(alloca);
-  return StoreResult(recv, xls_value);
+  return builder->CreateLoad(alloca);
 }
 
-absl::Status ProcBuilderVisitor::HandleSend(Send* send) {
+absl::Status ProcBuilderVisitor::HandleReceive(Receive* recv) {
+  XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
+                       queue_mgr_->GetQueueById(recv->channel_id()));
+  XLS_ASSIGN_OR_RETURN(llvm::Value * invoke,
+                       InvokeRecvCallback(builder(), queue, recv));
+  llvm::Value* result =
+      builder()->CreateInsertValue(invoke, type_converter()->GetToken(), {0});
+  return StoreResult(recv, result);
+}
+
+absl::Status ProcBuilderVisitor::HandleReceiveIf(ReceiveIf* recv_if) {
+  // First, declare the join block (so the case blocks can refer to it).
+  llvm::BasicBlock* join_block = llvm::BasicBlock::Create(
+      ctx(), absl::StrCat(recv_if->GetName(), "_join"), llvm_fn());
+
+  // Create a block/branch for the true predicate case.
+  llvm::BasicBlock* true_block = llvm::BasicBlock::Create(
+      ctx(), absl::StrCat(recv_if->GetName(), "_true"), llvm_fn(), join_block);
+  llvm::IRBuilder<> true_builder(true_block);
+  XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
+                       queue_mgr_->GetQueueById(recv_if->channel_id()));
+  XLS_ASSIGN_OR_RETURN(llvm::Value * true_result,
+                       InvokeRecvCallback(&true_builder, queue, recv_if));
+  llvm::Value* true_token = type_converter()->GetToken();
+  true_builder.CreateBr(join_block);
+
+  // And the same for a false predicate - this will return an empty/zero value.
+  // Creating an empty struct emits ops, so it needs a builder.
+  llvm::BasicBlock* false_block = llvm::BasicBlock::Create(
+      ctx(), absl::StrCat(recv_if->GetName(), "_false"), llvm_fn(), join_block);
+  llvm::IRBuilder<> false_builder(false_block);
+  llvm::Type* result_type =
+      type_converter()->ConvertToLlvmType(*recv_if->GetType());
+  llvm::Value* false_result = CreateTypedZeroValue(result_type);
+  llvm::Value* false_token = node_map().at(recv_if->operand(0));
+  false_builder.CreateBr(join_block);
+
+  // Next, create a branch op w/the original builder,
+  builder()->CreateCondBr(node_map().at(recv_if->predicate()), true_block,
+                          false_block);
+
+  // then join the two branches back together.
+  auto join_builder = std::make_unique<llvm::IRBuilder<>>(join_block);
+  llvm::PHINode* phi =
+      join_builder->CreatePHI(result_type, /*NumReservedValues=*/2);
+  phi->addIncoming(true_result, true_block);
+  phi->addIncoming(false_result, false_block);
+
+  llvm::PHINode* token_phi = join_builder->CreatePHI(
+      type_converter()->GetTokenType(), /*NumReservedValues=*/2);
+  token_phi->addIncoming(true_token, true_block);
+  token_phi->addIncoming(false_token, false_block);
+  llvm::Value* result = join_builder->CreateInsertValue(phi, token_phi, {0});
+
+  // Finally, set this's IRBuilder to be the output block's (since that's where
+  // the Function continues).
+  set_builder(std::move(join_builder));
+  return StoreResult(recv_if, result);
+}
+
+absl::Status ProcBuilderVisitor::InvokeSendCallback(
+    llvm::IRBuilder<>* builder, JitChannelQueue* queue, Node* node,
+    absl::Span<Node* const> operands) {
   llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
   llvm::Type* int64_type = llvm::Type::getInt64Ty(ctx());
   llvm::Type* int8_ptr_type = llvm::Type::getInt8PtrTy(ctx(), 0);
-
-  XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
-                       queue_mgr_->GetQueueById(send->channel_id()));
 
   // We do the same for sending/enqueuing as we do for receiving/dequeueing
   // above (set up and call an external function).
@@ -105,33 +169,75 @@ absl::Status ProcBuilderVisitor::HandleSend(Send* send) {
   // the data anyway, since llvm::Values don't automatically correspond to
   // pointer-referencable storage; that's what allocas are for).
   std::vector<Type*> tuple_elems;
-  for (const Node* node : send->data_operands()) {
-    tuple_elems.push_back(node->GetType());
+  for (const Node* operand : operands) {
+    tuple_elems.push_back(operand->GetType());
   }
   TupleType tuple_type(tuple_elems);
   llvm::Type* send_op_types = type_converter()->ConvertToLlvmType(tuple_type);
   int64 send_type_size = type_converter()->GetTypeByteSize(tuple_type);
   llvm::Value* tuple = CreateTypedZeroValue(send_op_types);
-  for (int i = 0; i < send->data_operands().size(); i++) {
-    tuple = builder()->CreateInsertValue(
-        tuple, node_map().at(send->data_operands()[i]), {static_cast<uint>(i)});
+  for (int i = 0; i < operands.size(); i++) {
+    tuple = builder->CreateInsertValue(tuple, node_map().at(operands[i]),
+                                       {static_cast<uint>(i)});
   }
-  llvm::AllocaInst* alloca = builder()->CreateAlloca(send_op_types);
-  builder()->CreateStore(tuple, alloca);
+  llvm::AllocaInst* alloca = builder->CreateAlloca(send_op_types);
+  builder->CreateStore(tuple, alloca);
 
   std::vector<llvm::Value*> args({
       llvm::ConstantInt::get(int64_type, reinterpret_cast<uint64>(queue)),
-      llvm::ConstantInt::get(int64_type, reinterpret_cast<uint64>(send)),
-      builder()->CreatePointerCast(alloca, int8_ptr_type),
+      llvm::ConstantInt::get(int64_type, reinterpret_cast<uint64>(node)),
+      builder->CreatePointerCast(alloca, int8_ptr_type),
       llvm::ConstantInt::get(int64_type, send_type_size),
   });
 
   llvm::ConstantInt* fn_addr = llvm::ConstantInt::get(
       llvm::Type::getInt64Ty(ctx()), reinterpret_cast<uint64>(send_fn_));
   llvm::Value* fn_ptr =
-      builder()->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
-  builder()->CreateCall(fn_type, fn_ptr, args);
+      builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
+  builder->CreateCall(fn_type, fn_ptr, args);
   return absl::OkStatus();
+}
+
+absl::Status ProcBuilderVisitor::HandleSend(Send* send) {
+  XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
+                       queue_mgr_->GetQueueById(send->channel_id()));
+  XLS_RETURN_IF_ERROR(
+      InvokeSendCallback(builder(), queue, send, send->data_operands()));
+  return StoreResult(send, type_converter()->GetToken());
+}
+
+absl::Status ProcBuilderVisitor::HandleSendIf(SendIf* send_if) {
+  // First, declare the join block (so the case blocks can refer to it).
+  llvm::BasicBlock* join_block = llvm::BasicBlock::Create(
+      ctx(), absl::StrCat(send_if->GetName(), "_join"), llvm_fn());
+
+  llvm::BasicBlock* true_block = llvm::BasicBlock::Create(
+      ctx(), absl::StrCat(send_if->GetName(), "_true"), llvm_fn(), join_block);
+  llvm::IRBuilder<> true_builder(true_block);
+  XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
+                       queue_mgr_->GetQueueById(send_if->channel_id()));
+  XLS_RETURN_IF_ERROR(InvokeSendCallback(&true_builder, queue, send_if,
+                                         send_if->data_operands()));
+  llvm::Value* true_token = type_converter()->GetToken();
+  true_builder.CreateBr(join_block);
+
+  llvm::BasicBlock* false_block = llvm::BasicBlock::Create(
+      ctx(), absl::StrCat(send_if->GetName(), "_false"), llvm_fn(), join_block);
+  llvm::IRBuilder<> false_builder(false_block);
+  llvm::Value* false_token = node_map().at(send_if->operand(0));
+  false_builder.CreateBr(join_block);
+
+  builder()->CreateCondBr(node_map().at(send_if->predicate()), true_block,
+                          false_block);
+
+  auto join_builder = std::make_unique<llvm::IRBuilder<>>(join_block);
+  llvm::PHINode* phi = join_builder->CreatePHI(type_converter()->GetTokenType(),
+                                               /*NumReservedValues=*/2);
+  phi->addIncoming(true_token, true_block);
+  phi->addIncoming(false_token, false_block);
+
+  set_builder(std::move(join_builder));
+  return StoreResult(send_if, phi);
 }
 
 }  // namespace xls
