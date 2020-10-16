@@ -149,15 +149,11 @@ fn f(pred_x: bits[1], x: bits[32], pred_y: bits[1], y: bits[32], default: bits[3
     loc = source_location.SourceLocation(fileno, lineno, colno)
     fb = function_builder.FunctionBuilder('test_function', p)
 
-    input_function_builder = function_builder.FunctionBuilder('fn', p)
-    input_function_builder.add_literal_value(
-        ir_value.Value(bits_mod.UBits(7, 8)))
-    input_function = input_function_builder.build()
-
     single_zero_bit = fb.add_literal_value(
         ir_value.Value(bits_mod.UBits(value=0, bit_count=1)))
     t = p.get_bits_type(32)
     x = fb.add_param('x', t)
+    s = fb.add_param('s', p.get_bits_type(1))
 
     fb.add_shra(x, x, loc=loc)
     fb.add_shra(x, x, loc=loc)
@@ -193,14 +189,14 @@ fn f(pred_x: bits[1], x: bits[32], pred_y: bits[1], y: bits[32], default: bits[3
     fb.add_clz(x, loc=loc)
 
     fb.add_one_hot(x, lsb_or_msb.LsbOrMsb.LSB, loc=loc)
-    fb.add_one_hot_sel(x, [x], loc=loc)
+    fb.add_one_hot_sel(s, [x], loc=loc)
 
     fb.add_literal_bits(bits_mod.UBits(value=2, bit_count=32), loc=loc)
     fb.add_literal_value(
         ir_value.Value(bits_mod.UBits(value=5, bit_count=32)), loc=loc)
 
-    fb.add_sel(x, x, x, loc=loc)
-    fb.add_sel_multi(x, [x], x, loc=loc)
+    fb.add_sel(s, x, x, loc=loc)
+    fb.add_sel_multi(s, [x], x, loc=loc)
     fb.add_match_true([single_zero_bit], [x], x, loc=loc)
 
     tuple_node = fb.add_tuple([x], loc=loc)
@@ -208,17 +204,29 @@ fn f(pred_x: bits[1], x: bits[32], pred_y: bits[1], y: bits[32], default: bits[3
 
     fb.add_tuple_index(tuple_node, 0, loc=loc)
 
-    fb.add_counted_for(x, 1, 1, input_function, [x], loc=loc)
+    for_function_builder = function_builder.FunctionBuilder('for_f', p)
+    for_function_builder.add_param('i', t)
+    for_function_builder.add_param('x', t)
+    for_function_builder.add_param('s', t)
+    for_function = for_function_builder.build()
 
-    fb.add_map(fb.add_array([x], t, loc=loc), input_function, loc=loc)
+    fb.add_counted_for(x, 1, 1, for_function, [x], loc=loc)
 
+    map_function_builder = function_builder.FunctionBuilder('map_f', p)
+    map_function_builder.add_param('x', t)
+    map_function = map_function_builder.build()
+    fb.add_map(fb.add_array([x], t, loc=loc), map_function, loc=loc)
+
+    input_function_builder = function_builder.FunctionBuilder('input_f', p)
+    input_function_builder.add_param('x', t)
+    input_function = input_function_builder.build()
     fb.add_invoke([x], input_function, loc=loc)
 
     fb.add_array_index(fb.add_array([x], t, loc=loc), x, loc=loc)
-    fb.add_reverse(fb.add_array([x], t, loc=loc), loc=loc)
+    fb.add_reverse(x, loc=loc)
     fb.add_identity(x, loc=loc)
-    fb.add_signext(x, 10, loc=loc)
-    fb.add_zeroext(x, 10, loc=loc)
+    fb.add_signext(x, 100, loc=loc)
+    fb.add_zeroext(x, 100, loc=loc)
     fb.add_bit_slice(x, 4, 2, loc=loc)
 
     fb.build()

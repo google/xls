@@ -97,7 +97,8 @@ TEST_F(DeadFunctionEliminationPassTest, MapAndCountedFor) {
   Function* body;
   {
     FunctionBuilder fb("jesse_the_loop_body", p.get());
-    fb.Param("arg", p->GetTupleType({p->GetBitsType(32), p->GetBitsType(32)}));
+    fb.Param("i", p->GetBitsType(32));
+    fb.Param("arg", p->GetBitsType(32));
     fb.Literal(UBits(123, 32));
     XLS_ASSERT_OK_AND_ASSIGN(body, fb.Build());
   }

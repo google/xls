@@ -34,7 +34,7 @@ BValue BValue::operator-(BValue rhs) { return builder()->Subtract(*this, rhs); }
 BValue BValue::operator+(BValue rhs) { return builder()->Add(*this, rhs); }
 BValue BValue::operator-() { return builder()->Negate(*this); }
 
-BValue BuilderBase::SetError(std::string msg,
+BValue BuilderBase::SetError(absl::string_view msg,
                              absl::optional<SourceLocation> loc) {
   error_pending_ = true;
   error_msg_ = msg;
@@ -770,7 +770,11 @@ absl::StatusOr<Function*> FunctionBuilder::BuildWithReturnValue(
   }
   XLS_RET_CHECK_EQ(return_value.builder(), this);
   XLS_RETURN_IF_ERROR(function_->set_return_value(return_value.node()));
-  return package()->AddFunction(std::move(function_));
+  Function* f = package()->AddFunction(std::move(function_));
+  if (should_verify_) {
+    XLS_RETURN_IF_ERROR(VerifyFunction(f));
+  }
+  return f;
 }
 
 absl::StatusOr<Proc*> ProcBuilder::Build(BValue token, BValue next_state) {
@@ -806,6 +810,9 @@ absl::StatusOr<Proc*> ProcBuilder::BuildWithReturnValue(BValue return_value) {
   Proc* proc = package()->AddProc(
       absl::WrapUnique<Proc>(down_cast<Proc*>(function_.release())));
   XLS_RETURN_IF_ERROR(proc->set_return_value(return_value.node()));
+  if (should_verify_) {
+    XLS_RETURN_IF_ERROR(VerifyProc(proc));
+  }
   return proc;
 }
 

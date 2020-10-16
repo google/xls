@@ -961,7 +961,10 @@ Parser::ParseFunctionSignature(
   XLS_ASSIGN_OR_RETURN(
       Token name,
       scanner_.PopTokenOrError(LexicalTokenType::kIdent, "function name"));
-  auto fb = absl::make_unique<FunctionBuilder>(name.value(), package);
+  // The parser does its own verification so pass should_verify=false. This
+  // enables the parser to parse and construct malformed IR for tests.
+  auto fb = absl::make_unique<FunctionBuilder>(name.value(), package,
+                                               /*should_verify=*/false);
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenOpen,
                                                 "'(' in function parameters"));
 
@@ -1042,9 +1045,11 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlOpen,
                                                 "start of proc body"));
 
-  auto builder = absl::make_unique<ProcBuilder>(name.value(), init_value,
-                                                token_name.value(),
-                                                state_name.value(), package);
+  // The parser does its own verification so pass should_verify=false. This
+  // enables the parser to parse and construct malformed IR for tests.
+  auto builder = absl::make_unique<ProcBuilder>(
+      name.value(), init_value, token_name.value(), state_name.value(), package,
+      /*should_verify=*/false);
   (*name_to_value)[token_name.value()] = builder->GetTokenParam();
   (*name_to_value)[state_name.value()] = builder->GetStateParam();
 

@@ -113,8 +113,13 @@ class BValue {
 class BuilderBase {
  public:
   // The given argument 'function' can contain either a Function or Proc.
-  explicit BuilderBase(std::unique_ptr<Function> function)
-      : function_(std::move(function)), error_pending_(false) {}
+  // 'should_verify' is a test-only argument which can be set to false in tests
+  // that wish to build malformed IR.
+  explicit BuilderBase(std::unique_ptr<Function> function,
+                       bool should_verify = true)
+      : function_(std::move(function)),
+        error_pending_(false),
+        should_verify_(should_verify) {}
 
   const std::string& name() const { return function_->name(); }
 
@@ -523,15 +528,21 @@ class BuilderBase {
   Package* package() const { return function_->package(); }
 
  protected:
-  BValue SetError(std::string msg, absl::optional<SourceLocation> loc);
+  BValue SetError(absl::string_view msg, absl::optional<SourceLocation> loc);
   bool ErrorPending() { return error_pending_; }
 
   // Constructs and adds a node to the function and returns a corresponding
   // BValue.
   template <typename NodeT, typename... Args>
-  BValue AddNode(Args&&... args) {
-    last_node_ = function_->AddNode<NodeT>(
-        absl::make_unique<NodeT>(std::forward<Args>(args)..., function_.get()));
+  BValue AddNode(absl::optional<SourceLocation> loc, Args&&... args) {
+    last_node_ = function_->AddNode<NodeT>(absl::make_unique<NodeT>(
+        loc, std::forward<Args>(args)..., function_.get()));
+    if (should_verify_) {
+      absl::Status verify_status = VerifyNode(last_node_);
+      if (!verify_status.ok()) {
+        return SetError(verify_status.message(), loc);
+      }
+    }
     return BValue(last_node_, this);
   }
 
@@ -542,6 +553,11 @@ class BuilderBase {
   std::unique_ptr<Function> function_;
 
   bool error_pending_;
+
+  // Whether nodes and the built function should be verified. Only false in
+  // tests.
+  bool should_verify_;
+
   std::string error_msg_;
   std::string error_stacktrace_;
   absl::optional<SourceLocation> error_loc_;
@@ -550,8 +566,12 @@ class BuilderBase {
 // Class for building an XLS Function.
 class FunctionBuilder : public BuilderBase {
  public:
-  explicit FunctionBuilder(absl::string_view name, Package* package)
-      : BuilderBase(absl::make_unique<Function>(std::string(name), package)) {}
+  // Builder for xls::Functions. 'should_verify' is a test-only argument which
+  // can be set to false in tests that wish to build malformed IR.
+  explicit FunctionBuilder(absl::string_view name, Package* package,
+                           bool should_verify = true)
+      : BuilderBase(absl::make_unique<Function>(std::string(name), package),
+                    should_verify) {}
 
   // Adds the function internally being built-up by this builder to the package
   // given at construction time, and returns a pointer to it (the function is
@@ -567,11 +587,15 @@ class FunctionBuilder : public BuilderBase {
 // Class for building an XLS Proc (a communicating sequential process).
 class ProcBuilder : public BuilderBase {
  public:
+  // Builder for xls::Procs. 'should_verify' is a test-only argument which can
+  // be set to false in tests that wish to build malformed IR.
   explicit ProcBuilder(absl::string_view name, const Value& init_value,
                        absl::string_view token_name,
-                       absl::string_view state_name, Package* package)
+                       absl::string_view state_name, Package* package,
+                       bool should_verify = true)
       : BuilderBase(absl::make_unique<Proc>(name, init_value, token_name,
-                                            state_name, package)),
+                                            state_name, package),
+                    should_verify),
         // The parameter nodes are added at construction time. Create a BValue
         // for each param node so they may be used in construction of
         // expressions.
@@ -593,7 +617,7 @@ class ProcBuilder : public BuilderBase {
   // of the token and next-state.
   absl::StatusOr<Proc*> Build(BValue token, BValue next_state);
 
-  // Build the proc wioth the given return value. The return value must be a
+  // Build the proc with the given return value. The return value must be a
   // two-tuple of a token and value of the state type.
   absl::StatusOr<Proc*> BuildWithReturnValue(BValue return_value);
 

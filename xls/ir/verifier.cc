@@ -483,9 +483,15 @@ class NodeChecker : public DfsVisitor {
     // Verify the signature (inputs and output) of the invoked function matches
     // the Invoke node.
     Function* func = invoke->to_apply();
+    if (invoke->operand_count() != func->params().size()) {
+      return absl::InternalError(absl::StrFormat(
+          "Expected invoke operand count (%d) to equal invoked function "
+          "parameter count (%d)",
+          invoke->operand_count(), func->params().size()));
+    }
     for (int64 i = 0; i < invoke->operand_count(); ++i) {
       XLS_RETURN_IF_ERROR(ExpectSameType(
-          invoke->operand(i), invoke->operand(i)->GetType(), func->params()[i],
+          invoke->operand(i), invoke->operand(i)->GetType(), func->param(i),
           func->params()[i]->GetType(), StrFormat("invoke operand %d", i),
           StrFormat("invoked function argument %d", i)));
     }
