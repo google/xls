@@ -186,7 +186,7 @@ absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
     }
   } else if (absl::GetFlag(FLAGS_generator) == "combinational") {
     XLS_ASSIGN_OR_RETURN(result,
-                         verilog::ToCombinationalModuleText(
+                         verilog::GenerateCombinationalModule(
                              main, absl::GetFlag(FLAGS_use_system_verilog)));
   } else {
     XLS_LOG(QFATAL) << absl::StreamFormat(

@@ -22,6 +22,7 @@
 #include "xls/codegen/name_to_bit_count.h"
 #include "xls/codegen/vast.h"
 #include "xls/ir/function.h"
+#include "xls/ir/proc.h"
 
 namespace xls {
 namespace verilog {
@@ -29,8 +30,14 @@ namespace verilog {
 // Emits the given function as a combinational Verilog module. If
 // use_system_verilog is true the generated module will be SystemVerilog
 // otherwise it will be Verilog.
-absl::StatusOr<ModuleGeneratorResult> ToCombinationalModuleText(
+absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
     Function* func, bool use_system_verilog = true);
+
+// Emits the given proc as a combinational Verilog module. To ensure no
+// combinational loops, the proc can have no state (state type is empty
+// tuple). Also, all channels must be of the module port type and unflopped.
+absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModuleFromProc(
+    Proc* proc, bool use_system_verilog = true);
 
 }  // namespace verilog
 }  // namespace xls

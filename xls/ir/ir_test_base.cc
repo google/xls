@@ -221,9 +221,9 @@ void IrTestBase::RunAndExpectEq(
     ASSERT_EQ(package->functions().size(), 1);
     XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
 
-    XLS_ASSERT_OK_AND_ASSIGN(
-        verilog::ModuleGeneratorResult result,
-        verilog::ToCombinationalModuleText(main, /*use_system_verilog=*/false));
+    XLS_ASSERT_OK_AND_ASSIGN(verilog::ModuleGeneratorResult result,
+                             verilog::GenerateCombinationalModule(
+                                 main, /*use_system_verilog=*/false));
 
     absl::flat_hash_map<std::string, Value> arg_set;
     for (const auto& pair : args) {

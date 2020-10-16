@@ -20,6 +20,7 @@
 #include "xls/common/symbolized_stacktrace.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/verifier.h"
 
 namespace xls {
 

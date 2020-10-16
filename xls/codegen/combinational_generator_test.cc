@@ -42,7 +42,7 @@ TEST_P(CombinationalGeneratorTest, RrotToCombinationalText) {
   auto rrot32_data = sample_packages::BuildRrot32();
   Function* f = rrot32_data.second;
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           ToCombinationalModuleText(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -67,7 +67,7 @@ TEST_P(CombinationalGeneratorTest, RandomExpression) {
   auto out = fb.Add(lhs, rhs, /*loc=*/absl::nullopt, /*name=*/"the_output");
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(out));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           ToCombinationalModuleText(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -86,7 +86,7 @@ TEST_P(CombinationalGeneratorTest, ReturnsLiteral) {
   fb.Literal(UBits(123, 8));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           ToCombinationalModuleText(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
   EXPECT_THAT(simulator.RunAndReturnSingleOutput(ModuleSimulator::BitsMap()),
@@ -99,7 +99,7 @@ TEST_P(CombinationalGeneratorTest, ReturnsTupleLiteral) {
   fb.Literal(Value::Tuple({Value(UBits(123, 8)), Value(UBits(42, 32))}));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           ToCombinationalModuleText(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
   EXPECT_THAT(
@@ -113,7 +113,7 @@ TEST_P(CombinationalGeneratorTest, ReturnsEmptyTuple) {
   fb.Literal(Value::Tuple({}));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           ToCombinationalModuleText(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
   EXPECT_THAT(simulator.Run(absl::flat_hash_map<std::string, Value>()),
@@ -126,7 +126,7 @@ TEST_P(CombinationalGeneratorTest, PassesEmptyTuple) {
   fb.Param("x", package.GetTupleType({}));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           ToCombinationalModuleText(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
   EXPECT_THAT(simulator.Run({{"x", Value::Tuple({})}}),
@@ -143,7 +143,7 @@ TEST_P(CombinationalGeneratorTest, TakesEmptyTuple) {
   fb.Add(a, c, /*loc=*/absl::nullopt, /*name=*/"sum");
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           ToCombinationalModuleText(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
   EXPECT_THAT(simulator.Run({{"a", Value(UBits(42, 8))},
@@ -159,7 +159,7 @@ TEST_P(CombinationalGeneratorTest, ReturnsParam) {
   fb.Param("a", u8);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           ToCombinationalModuleText(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
   EXPECT_THAT(simulator.RunAndReturnSingleOutput({{"a", UBits(0x42, 8)}}),
@@ -177,7 +177,7 @@ TEST_P(CombinationalGeneratorTest, ExpressionWhichRequiresNamedIntermediate) {
                          /*loc=*/absl::nullopt, /*name=*/"slice_n_dice");
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(out));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           ToCombinationalModuleText(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -215,7 +215,7 @@ TEST_P(CombinationalGeneratorTest, ExpressionsOfTuples) {
   auto return_value = fb.Tuple({a_plus_b, c0_minus_c1});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(return_value));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           ToCombinationalModuleText(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -249,7 +249,7 @@ fn main(x: bits[123]) -> bits[123] {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, ToCombinationalModuleText(entry, UseSystemVerilog()));
+      auto result, GenerateCombinationalModule(entry, UseSystemVerilog()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -275,7 +275,7 @@ fn main(x: bits[32], y: bits[32]) -> bits[44] {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, ToCombinationalModuleText(entry, UseSystemVerilog()));
+      auto result, GenerateCombinationalModule(entry, UseSystemVerilog()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -303,7 +303,7 @@ fn main(x: bits[3]) -> bits[4] {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, ToCombinationalModuleText(entry, UseSystemVerilog()));
+      auto result, GenerateCombinationalModule(entry, UseSystemVerilog()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -341,7 +341,7 @@ fn main(p: bits[2], x: bits[16], y: bits[16]) -> bits[16] {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, ToCombinationalModuleText(entry, UseSystemVerilog()));
+      auto result, GenerateCombinationalModule(entry, UseSystemVerilog()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -386,7 +386,7 @@ fn main(a: bits[32],
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, ToCombinationalModuleText(entry, UseSystemVerilog()));
+      auto result, GenerateCombinationalModule(entry, UseSystemVerilog()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -420,7 +420,7 @@ TEST_P(CombinationalGeneratorTest, TwoDArray) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           ToCombinationalModuleText(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
   EXPECT_THAT(simulator.Run({{"a", Value(UBits(123, 8))},
@@ -442,7 +442,7 @@ TEST_P(CombinationalGeneratorTest, ReturnTwoDArray) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           ToCombinationalModuleText(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
   EXPECT_THAT(
@@ -468,7 +468,7 @@ fn main(idx: bits[2]) -> bits[32][3] {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, ToCombinationalModuleText(entry, UseSystemVerilog()));
+      auto result, GenerateCombinationalModule(entry, UseSystemVerilog()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -509,7 +509,7 @@ fn main(idx: bits[2]) -> bits[32][2][3] {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, ToCombinationalModuleText(entry, UseSystemVerilog()));
+      auto result, GenerateCombinationalModule(entry, UseSystemVerilog()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -568,7 +568,7 @@ fn main(idx: bits[2]) -> (bits[32], bits[32])[3] {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, ToCombinationalModuleText(entry, UseSystemVerilog()));
+      auto result, GenerateCombinationalModule(entry, UseSystemVerilog()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -627,7 +627,7 @@ fn main(idx: bits[2]) -> (bits[32], bits[8][2])[2] {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, ToCombinationalModuleText(entry, UseSystemVerilog()));
+      auto result, GenerateCombinationalModule(entry, UseSystemVerilog()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -686,7 +686,7 @@ TEST_P(CombinationalGeneratorTest, BuildComplicatedType) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           ToCombinationalModuleText(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
   EXPECT_THAT(simulator.Run({{"a", Value(UBits(0, 8))},
@@ -708,7 +708,7 @@ TEST_P(CombinationalGeneratorTest, ArrayShapedSel) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           ToCombinationalModuleText(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -766,7 +766,7 @@ TEST_P(CombinationalGeneratorTest, ArrayShapedSelNoDefault) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           ToCombinationalModuleText(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -796,7 +796,7 @@ TEST_P(CombinationalGeneratorTest, ArrayConcatArrayOfBits) {
                            Parser::ParseFunction(ir_text, &package));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, ToCombinationalModuleText(function, UseSystemVerilog()));
+      auto result, GenerateCombinationalModule(function, UseSystemVerilog()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -824,7 +824,7 @@ TEST_P(CombinationalGeneratorTest, ArrayConcatArrayOfBitsMixedOperands) {
                            Parser::ParseFunction(ir_text, &package));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, ToCombinationalModuleText(function, UseSystemVerilog()));
+      auto result, GenerateCombinationalModule(function, UseSystemVerilog()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -854,7 +854,7 @@ TEST_P(CombinationalGeneratorTest, InterpretArrayConcatArraysOfArrays) {
                            Parser::ParseFunction(ir_text, &package));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, ToCombinationalModuleText(function, UseSystemVerilog()));
+      auto result, GenerateCombinationalModule(function, UseSystemVerilog()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -864,6 +864,347 @@ TEST_P(CombinationalGeneratorTest, InterpretArrayConcatArraysOfArrays) {
 
   std::vector<Value> args;
   EXPECT_THAT(simulator.Run(args), IsOkAndHolds(ret));
+}
+
+TEST_P(CombinationalGeneratorTest, SimpleProc) {
+  const std::string ir_text = R"(package test
+
+chan in(my_in: bits[32], id=0, kind=receive_only,
+        metadata="""module_port { flopped: false,  port_order: 1 }""")
+chan out(my_out: bits[32], id=1, kind=send_only,
+         metadata="""module_port { flopped: false,  port_order: 0 }""")
+
+proc my_proc(my_token: token, my_state: (), init=()) {
+  rcv: (token, bits[32]) = receive(my_token, channel_id=0)
+  data: bits[32] = tuple_index(rcv, index=1)
+  negate: bits[32] = neg(data)
+  rcv_token: token = tuple_index(rcv, index=0)
+  send: token = send(rcv_token, data=[negate], channel_id=1)
+  ret next: (token, ()) = tuple(send, my_state)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModuleFromProc(
+                                            proc, UseSystemVerilog()));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput({{"my_in", SBits(10, 32)}}),
+              IsOkAndHolds(SBits(-10, 32)));
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput({{"my_in", SBits(0, 32)}}),
+              IsOkAndHolds(SBits(0, 32)));
+}
+
+TEST_P(CombinationalGeneratorTest, ProcWithMultipleInputChannels) {
+  const std::string ir_text = R"(package test
+
+chan in0(my_in0: bits[32], id=0, kind=receive_only,
+        metadata="""module_port { flopped: false,  port_order: 0 }""")
+chan in1(my_in1: bits[32], id=1, kind=receive_only,
+        metadata="""module_port { flopped: false,  port_order: 2 }""")
+chan in2(my_in2: bits[32], id=2, kind=receive_only,
+        metadata="""module_port { flopped: false,  port_order: 1 }""")
+chan out(my_out: bits[32], id=3, kind=send_only,
+         metadata="""module_port { flopped: false,  port_order: 0 }""")
+
+proc my_proc(my_token: token, my_state: (), init=()) {
+  rcv0: (token, bits[32]) = receive(my_token, channel_id=0)
+  rcv0_token: token = tuple_index(rcv0, index=0)
+  rcv1: (token, bits[32]) = receive(rcv0_token, channel_id=1)
+  rcv1_token: token = tuple_index(rcv1, index=0)
+  rcv2: (token, bits[32]) = receive(rcv1_token, channel_id=2)
+  rcv2_token: token = tuple_index(rcv2, index=0)
+  data0: bits[32] = tuple_index(rcv0, index=1)
+  data1: bits[32] = tuple_index(rcv1, index=1)
+  data2: bits[32] = tuple_index(rcv2, index=1)
+  neg_data1: bits[32] = neg(data1)
+  two: bits[32] = literal(value=2)
+  data2_times_two: bits[32] = umul(data2, two)
+  tmp: bits[32] = add(neg_data1, data2_times_two)
+  sum: bits[32] = add(tmp, data0)
+  send: token = send(rcv2_token, data=[sum], channel_id=3)
+  ret next: (token, ()) = tuple(send, my_state)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModuleFromProc(
+                                            proc, UseSystemVerilog()));
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  // The computed expression is: my_out = my_in0 - my_in1 + 2 * my_in2
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput({{"my_in0", UBits(10, 32)},
+                                                  {"my_in1", SBits(7, 32)},
+                                                  {"my_in2", SBits(42, 32)}}),
+              IsOkAndHolds(UBits(87, 32)));
+}
+
+TEST_P(CombinationalGeneratorTest, ProcWithMultipleOutputChannels) {
+  const std::string ir_text = R"(package test
+
+chan in(my_in: bits[32], id=0, kind=receive_only,
+        metadata="""module_port { flopped: false,  port_order: 1 }""")
+chan out0(my_out0: bits[32], id=1, kind=send_only,
+          metadata="""module_port { flopped: false,  port_order: 0 }""")
+chan out1(my_out1: bits[32], id=2, kind=send_only,
+          metadata="""module_port { flopped: false,  port_order: 2 }""")
+
+proc my_proc(my_token: token, my_state: (), init=()) {
+  rcv: (token, bits[32]) = receive(my_token, channel_id=0)
+  data: bits[32] = tuple_index(rcv, index=1)
+  negate: bits[32] = neg(data)
+  rcv_token: token = tuple_index(rcv, index=0)
+  send0: token = send(rcv_token, data=[data], channel_id=1)
+  send1: token = send(send0, data=[negate], channel_id=2)
+  ret next: (token, ()) = tuple(send1, my_state)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModuleFromProc(
+                                            proc, UseSystemVerilog()));
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(simulator.Run({{"my_in", SBits(10, 32)}}),
+              IsOkAndHolds(ModuleSimulator::BitsMap(
+                  {{"my_out0", SBits(10, 32)}, {"my_out1", SBits(-10, 32)}})));
+}
+
+TEST_P(CombinationalGeneratorTest, NToOneMuxProc) {
+  Package package(TestBaseName());
+  ProcBuilder pb(TestBaseName(), /*init_value=*/Value::Tuple({}),
+                 /*token_name=*/"tkn", /*state_name=*/"st", &package);
+
+  const int64 kInputCount = 4;
+  const int64 kSelectorBitCount = 2;
+
+  Type* data_type = package.GetBitsType(32);
+  Type* bit_type = package.GetBitsType(1);
+  Type* selector_type = package.GetBitsType(kSelectorBitCount);
+
+  int64 port_order = 0;
+  auto make_channel_metadata = [&port_order]() {
+    ChannelMetadataProto metadata;
+    metadata.mutable_module_port()->set_flopped(false);
+    metadata.mutable_module_port()->set_port_order(port_order++);
+    return metadata;
+  };
+
+  BValue token = pb.GetTokenParam();
+
+  // Sends the given data over the given channel. Threads 'token' through the
+  // Send operation.
+  auto make_send = [&](Channel* ch, BValue data) {
+    BValue send = pb.Send(ch, token, {data});
+    token = send;
+    return send;
+  };
+
+  // Adds a receive instruction and returns the data BValue. Threads 'token'
+  // through the Receive operation.
+  auto make_receive = [&](Channel* ch) {
+    BValue receive = pb.Receive(ch, token);
+    token = pb.TupleIndex(receive, 0);
+    return pb.TupleIndex(receive, 1);
+  };
+
+  // Add the selector module port which selects which input to forward.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * selector_channel,
+      package.CreateChannel(
+          "selector", ChannelKind::kReceiveOnly,
+          {DataElement{.name = "selector", .type = selector_type}},
+          make_channel_metadata()));
+  BValue selector = make_receive(selector_channel);
+
+  // Add the output ready channel. It's an input and will be used to generate
+  // the input ready outputs.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_ready_channel,
+      package.CreateChannel("out_rdy", ChannelKind::kReceiveOnly,
+                            {DataElement{.name = "out_rdy", .type = bit_type}},
+                            make_channel_metadata()));
+  BValue output_ready = make_receive(out_ready_channel);
+
+  // Generate all the input ports and their ready/valid signals.
+  std::vector<BValue> input_datas;
+  std::vector<BValue> input_valids;
+  for (int64 i = 0; i < kInputCount; ++i) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Channel * data_channel,
+        package.CreateChannel(absl::StrFormat("in_%d", i),
+                              ChannelKind::kReceiveOnly,
+                              {DataElement{.name = absl::StrFormat("in_%d", i),
+                                           .type = data_type}},
+                              make_channel_metadata()));
+    input_datas.push_back(make_receive(data_channel));
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Channel * valid_channel,
+        package.CreateChannel(
+            absl::StrFormat("in_%d_vld", i), ChannelKind::kReceiveOnly,
+            {DataElement{.name = absl::StrFormat("in_%d_vld", i),
+                         .type = bit_type}},
+            make_channel_metadata()));
+    input_valids.push_back(make_receive(valid_channel));
+
+    BValue ready = pb.And(
+        output_ready, pb.Eq(selector, pb.Literal(UBits(i, kSelectorBitCount))));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Channel * ready_channel,
+        package.CreateChannel(
+            absl::StrFormat("in_%d_rdy", i), ChannelKind::kSendOnly,
+            {DataElement{.name = absl::StrFormat("in_%d_rdy", i),
+                         .type = bit_type}},
+            make_channel_metadata()));
+    make_send(ready_channel, ready);
+  }
+
+  // Output data is a select amongst the input data.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_data_channel,
+      package.CreateChannel("out", ChannelKind::kSendOnly,
+                            {DataElement{.name = "out", .type = data_type}},
+                            make_channel_metadata()));
+  make_send(out_data_channel, pb.Select(selector, /*cases=*/input_datas));
+
+  // Output valid is a select amongs the input valid signals.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_valid_channel,
+      package.CreateChannel("out_vld", ChannelKind::kSendOnly,
+                            {DataElement{.name = "out_vld", .type = bit_type}},
+                            make_channel_metadata()));
+  make_send(out_valid_channel, pb.Select(selector, /*cases=*/input_valids));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(token, pb.GetStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModuleFromProc(
+                                            proc, UseSystemVerilog()));
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
+TEST_P(CombinationalGeneratorTest, OneToNMuxProc) {
+  Package package(TestBaseName());
+  ProcBuilder pb(TestBaseName(), /*init_value=*/Value::Tuple({}),
+                 /*token_name=*/"tkn", /*state_name=*/"st", &package);
+
+  const int64 kOutputCount = 4;
+  const int64 kSelectorBitCount = 2;
+
+  Type* data_type = package.GetBitsType(32);
+  Type* bit_type = package.GetBitsType(1);
+  Type* selector_type = package.GetBitsType(kSelectorBitCount);
+
+  int64 port_order = 0;
+  auto make_channel_metadata = [&port_order]() {
+    ChannelMetadataProto metadata;
+    metadata.mutable_module_port()->set_flopped(false);
+    metadata.mutable_module_port()->set_port_order(port_order++);
+    return metadata;
+  };
+
+  BValue token = pb.GetTokenParam();
+
+  // Sends the given data over the given channel. Threads 'token' through the
+  // Send operation.
+  auto make_send = [&](Channel* ch, BValue data) {
+    BValue send = pb.Send(ch, token, {data});
+    token = send;
+    return send;
+  };
+
+  // Adds a receive instruction and returns the data BValue. Threads 'token'
+  // through the Receive operation.
+  auto make_receive = [&](Channel* ch) {
+    BValue receive = pb.Receive(ch, token);
+    token = pb.TupleIndex(receive, 0);
+    return pb.TupleIndex(receive, 1);
+  };
+
+  // Add the selector module port which selects which input to forward.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * selector_channel,
+      package.CreateChannel(
+          "selector", ChannelKind::kReceiveOnly,
+          {DataElement{.name = "selector", .type = selector_type}},
+          make_channel_metadata()));
+  BValue selector = make_receive(selector_channel);
+
+  // Add the input data channel.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * input_data_channel,
+      package.CreateChannel("in", ChannelKind::kReceiveOnly,
+                            {DataElement{.name = "in", .type = data_type}},
+                            make_channel_metadata()));
+  BValue input = make_receive(input_data_channel);
+
+  // Add the input valid channel. It's an input and will be used to generate
+  // the output valid outputs.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * input_valid_channel,
+      package.CreateChannel("in_vld", ChannelKind::kReceiveOnly,
+                            {DataElement{.name = "in_vld", .type = bit_type}},
+                            make_channel_metadata()));
+  BValue input_valid = make_receive(input_valid_channel);
+
+  // Generate all the output ports and their ready/valid signals.
+  std::vector<BValue> output_readys;
+  for (int64 i = 0; i < kOutputCount; ++i) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Channel * data_channel,
+        package.CreateChannel(absl::StrFormat("out_%d", i),
+                              ChannelKind::kSendOnly,
+                              {DataElement{.name = absl::StrFormat("out_%d", i),
+                                           .type = data_type}},
+                              make_channel_metadata()));
+    make_send(data_channel, input);
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Channel * ready_channel,
+        package.CreateChannel(
+            absl::StrFormat("out_%d_rdy", i), ChannelKind::kReceiveOnly,
+            {DataElement{.name = absl::StrFormat("out_%d_rdy", i),
+                         .type = bit_type}},
+            make_channel_metadata()));
+    output_readys.push_back(make_receive(ready_channel));
+
+    BValue valid = pb.And(
+        input_valid, pb.Eq(selector, pb.Literal(UBits(i, kSelectorBitCount))));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Channel * valid_channel,
+        package.CreateChannel(
+            absl::StrFormat("out_%d_vld", i), ChannelKind::kSendOnly,
+            {DataElement{.name = absl::StrFormat("out_%d_vld", i),
+                         .type = bit_type}},
+            make_channel_metadata()));
+    make_send(valid_channel, valid);
+  }
+
+  // Output ready is a select amongs the input ready signals.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * input_ready_channel,
+      package.CreateChannel("in_rdy", ChannelKind::kSendOnly,
+                            {DataElement{.name = "in_rdy", .type = bit_type}},
+                            make_channel_metadata()));
+  make_send(input_ready_channel, pb.Select(selector, /*cases=*/output_readys));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(token, pb.GetStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModuleFromProc(
+                                            proc, UseSystemVerilog()));
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
 }
 
 INSTANTIATE_TEST_SUITE_P(CombinationalGeneratorTestInstantiation,

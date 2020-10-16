@@ -20,6 +20,17 @@ package xls;
 message ModulePortProto {
   // Whether the port is flopped on entry (exit) to (from) the module.
   optional bool flopped = 1;
+
+  // A number used to determine the ordering of the ports. Within a proc, the
+  // port_order of the channels must be numbered densely from zero. Channels
+  // with lower numbered port_order values will have corresponding ports earlier
+  // in the module declaration. The port_order value does not necessarily
+  // correspond to the position of the port in the Verilog module because a
+  // channel can correspond to multiple ports and the module may have other
+  // ports such as clock and reset.
+  // TODO(meheff): Input ports are ordered separately from output ports. Fix
+  // that.
+  optional int64 port_order = 2;
 }
 
 // Metadata about an XLS channel. Generally, information held in this proto is
