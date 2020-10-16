@@ -48,7 +48,7 @@ class TruthTable {
   // to this truth table with the given input frontier operands.
   absl::StatusOr<Node*> CreateReplacement(
       const absl::optional<SourceLocation>& original_loc,
-      absl::Span<Node* const> operands, Function* f) const;
+      absl::Span<Node* const> operands, FunctionBase* f) const;
 
   // Gets the truth table (input) vector for operand "i".
   static Bits GetInitialVector(int64 i);

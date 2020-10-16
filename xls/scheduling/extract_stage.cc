@@ -51,7 +51,7 @@ absl::StatusOr<Function*> ExtractStage(Function* src,
         }
       }
       XLS_ASSIGN_OR_RETURN(Node * new_node,
-                           node->Clone(new_operands, new_f.get()));
+                           node->CloneInNewFunction(new_operands, new_f.get()));
       node_map[node] = new_node;
       if (std::any_of(node->users().begin(), node->users().end(),
                       [&](Node* u) { return schedule.cycle(u) > stage; })) {

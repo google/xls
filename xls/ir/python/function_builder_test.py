@@ -41,7 +41,16 @@ class FunctionBuilderTest(absltest.TestCase):
     fb.add_or(x, x, loc=loc, name='my_or')
     fb.add_not(x, loc=loc, name='why_not')
 
-    fb.build()
+    f = fb.build()
+    self.assertEqual(f.name, 'test_function')
+    self.assertEqual(
+        f.dump_ir(), """\
+fn test_function(x: bits[32]) -> bits[32] {
+  my_or: bits[32] = or(x, x, id=2, pos=0,42,64)
+  ret why_not: bits[32] = not(x, id=3, pos=0,42,64)
+}
+""")
+
     self.assertMultiLineEqual(
         p.dump_ir(), """\
 package test_package

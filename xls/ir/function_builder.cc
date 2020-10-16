@@ -771,7 +771,11 @@ absl::StatusOr<Function*> FunctionBuilder::BuildWithReturnValue(
   }
   XLS_RET_CHECK_EQ(return_value.builder(), this);
   XLS_RETURN_IF_ERROR(function_->set_return_value(return_value.node()));
-  Function* f = package()->AddFunction(std::move(function_));
+  // down_cast the std::unique_ptr<FunctionBase> to std::unique_ptr<Function>.
+  // We know this is safe because FunctionBuilder constructs and passes a
+  // Function to BuilderBase constructor so function_ is always a Function.
+  Function* f = package()->AddFunction(
+      absl::WrapUnique(down_cast<Function*>(function_.release())));
   if (should_verify_) {
     XLS_RETURN_IF_ERROR(VerifyFunction(f));
   }
@@ -805,11 +809,11 @@ absl::StatusOr<Proc*> ProcBuilder::BuildWithReturnValue(BValue return_value) {
     return absl::InvalidArgumentError("Could not build IR: " + msg);
   }
 
-  // down_cast the std::unique_ptr<Function> to std::unique_ptr<Proc>. We know
-  // this is safe because ProcBuilder constructs and passes a Proc to
+  // down_cast the std::unique_ptr<FunctionBase> to std::unique_ptr<Proc>. We
+  // know this is safe because ProcBuilder constructs and passes a Proc to
   // BuilderBase constructor so function_ is always a Proc.
   Proc* proc = package()->AddProc(
-      absl::WrapUnique<Proc>(down_cast<Proc*>(function_.release())));
+      absl::WrapUnique(down_cast<Proc*>(function_.release())));
   XLS_RETURN_IF_ERROR(proc->set_return_value(return_value.node()));
   if (should_verify_) {
     XLS_RETURN_IF_ERROR(VerifyProc(proc));

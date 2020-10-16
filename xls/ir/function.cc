@@ -70,88 +70,6 @@ std::string Function::DumpIr(bool recursive) const {
   return nested_funcs + res;
 }
 
-FunctionType* Function::GetType() {
-  std::vector<Type*> arg_types;
-  for (Param* param : params()) {
-    arg_types.push_back(param->GetType());
-  }
-  XLS_CHECK(return_value() != nullptr);
-  return package_->GetFunctionType(arg_types, return_value()->GetType());
-}
-
-absl::StatusOr<Param*> Function::GetParamByName(
-    absl::string_view param_name) const {
-  for (Param* param : params()) {
-    if (param->name() == param_name) {
-      return param;
-    }
-  }
-  return absl::NotFoundError(
-      absl::StrFormat("Function '%s' does not have a paramater named '%s'",
-                      name(), param_name));
-}
-
-absl::StatusOr<int64> Function::GetParamIndex(Param* param) const {
-  auto it = std::find(params_.begin(), params_.end(), param);
-  if (it == params_.end()) {
-    return absl::InvalidArgumentError(
-        "Given param is not a member of this function: " + param->ToString());
-  }
-  return std::distance(params_.begin(), it);
-}
-
-absl::StatusOr<Node*> Function::GetNode(absl::string_view standard_node_name) {
-  for (Node* node : nodes()) {
-    if (node->GetName() == standard_node_name) {
-      return node;
-    }
-  }
-  for (auto& param : params()) {
-    if (param->As<Param>()->name() == standard_node_name) {
-      return param;
-    }
-  }
-  return absl::InvalidArgumentError(
-      absl::StrFormat("GetNode(%s) failed.", standard_node_name));
-}
-
-absl::Status Function::RemoveNode(Node* node, bool remove_param_ok) {
-  XLS_RET_CHECK(node->users().empty());
-  XLS_RET_CHECK_NE(node, return_value());
-  if (node->Is<Param>()) {
-    XLS_RET_CHECK(remove_param_ok)
-        << "Attempting to remove parameter when !remove_param_ok: " << *node;
-  }
-  std::vector<Node*> unique_operands;
-  for (Node* operand : node->operands()) {
-    if (!absl::c_linear_search(unique_operands, operand)) {
-      unique_operands.push_back(operand);
-    }
-  }
-  for (Node* operand : unique_operands) {
-    operand->RemoveUser(node);
-  }
-  auto node_it = node_iterators_.find(node);
-  XLS_RET_CHECK(node_it != node_iterators_.end());
-  nodes_.erase(node_it->second);
-  node_iterators_.erase(node_it);
-  if (remove_param_ok) {
-    params_.erase(std::remove(params_.begin(), params_.end(), node),
-                  params_.end());
-  }
-
-  return absl::OkStatus();
-}
-
-absl::Status Function::Accept(DfsVisitor* visitor) {
-  for (Node* node : nodes()) {
-    if (node->users().empty()) {
-      XLS_RETURN_IF_ERROR(node->Accept(visitor));
-    }
-  }
-  return absl::OkStatus();
-}
-
 absl::StatusOr<Function*> Function::Clone(absl::string_view new_name) const {
   absl::flat_hash_map<Node*, Node*> original_to_clone;
   Function* cloned_function =
@@ -161,8 +79,9 @@ absl::StatusOr<Function*> Function::Clone(absl::string_view new_name) const {
     for (Node* operand : node->operands()) {
       cloned_operands.push_back(original_to_clone.at(operand));
     }
-    XLS_ASSIGN_OR_RETURN(original_to_clone[node],
-                         node->Clone(cloned_operands, cloned_function));
+    XLS_ASSIGN_OR_RETURN(
+        original_to_clone[node],
+        node->CloneInNewFunction(cloned_operands, cloned_function));
   }
   XLS_RETURN_IF_ERROR(
       cloned_function->set_return_value(original_to_clone.at(return_value())));
@@ -231,11 +150,6 @@ bool Function::IsDefinitelyEqualTo(const Function* other) const {
   XLS_VLOG_IF(2, result) << absl::StrFormat("Function %s is equal to %s",
                                             name(), other->name());
   return result;
-}
-
-std::ostream& operator<<(std::ostream& os, const Function& function) {
-  os << function.DumpIr();
-  return os;
 }
 
 }  // namespace xls

@@ -48,7 +48,7 @@ absl::StatusOr<bool> MapInliningPass::RunOnFunction(
 }
 
 absl::Status MapInliningPass::ReplaceMap(Map* map) const {
-  Function* function = map->function();
+  FunctionBase* function = map->function();
 
   int map_inputs_size = map->operand(0)->GetType()->AsArrayOrDie()->size();
   std::vector<Node*> invocations;

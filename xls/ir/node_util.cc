@@ -20,7 +20,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits_ops.h"
-#include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 
 namespace xls {
 
@@ -41,7 +41,7 @@ bool IsLiteralWithRunOfSetBits(Node* node, int64* leading_zero_count,
 
 absl::StatusOr<Node*> GatherBits(Node* node, absl::Span<int64 const> indices) {
   XLS_RET_CHECK(node->GetType()->IsBits());
-  Function* f = node->function();
+  FunctionBase* f = node->function();
   if (indices.empty()) {
     // Return a literal with a Bits value of zero width.
     return f->MakeNode<Literal>(node->loc(), Value(Bits()));
@@ -85,7 +85,7 @@ absl::StatusOr<Node*> GatherBits(Node* node, absl::Span<int64 const> indices) {
 }
 
 absl::StatusOr<Node*> AndReduceTrailing(Node* node, int64 bit_count) {
-  Function* f = node->function();
+  FunctionBase* f = node->function();
   // Reducing zero bits should return one (identity of AND).
   if (bit_count == 0) {
     return f->MakeNode<Literal>(node->loc(), Value(UBits(1, 1)));
@@ -101,7 +101,7 @@ absl::StatusOr<Node*> AndReduceTrailing(Node* node, int64 bit_count) {
 }
 
 absl::StatusOr<Node*> OrReduceLeading(Node* node, int64 bit_count) {
-  Function* f = node->function();
+  FunctionBase* f = node->function();
   // Reducing zero bits should return zero (identity of OR).
   if (bit_count == 0) {
     return f->MakeNode<Literal>(node->loc(), Value(UBits(0, 1)));

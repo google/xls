@@ -46,7 +46,7 @@ absl::StatusOr<bool> SqueezeSelect(
     const std::function<absl::StatusOr<SelectT*>(SelectT*, std::vector<Node*>)>&
         make_select,
     SelectT* select) {
-  Function* f = select->function();
+  FunctionBase* f = select->function();
   int64 bit_count = select->BitCountOrDie();
   auto slice = [&](Node* n) -> absl::StatusOr<Node*> {
     int64 new_width = bit_count - const_msb.bit_count() - const_lsb.bit_count();
@@ -367,7 +367,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     OneHotSelect* sel = node->As<OneHotSelect>();
     if (std::all_of(sel->cases().begin(), sel->cases().end(),
                     [&](Node* c) { return c == sel->get_case(0); })) {
-      Function* f = node->function();
+      FunctionBase* f = node->function();
       XLS_ASSIGN_OR_RETURN(
           Node * selector_zero,
           f->MakeNode<Literal>(
@@ -449,7 +449,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 
   // Common out equivalent cases in a one hot select.
   if (node->Is<OneHotSelect>()) {
-    Function* f = node->function();
+    FunctionBase* f = node->function();
     OneHotSelect* sel = node->As<OneHotSelect>();
     if (!sel->cases().empty() &&
         absl::flat_hash_set<Node*>(sel->cases().begin(), sel->cases().end())
@@ -497,8 +497,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     auto ohs = node->As<OneHotSelect>();
     auto bit_slice = node->users()[0]->As<BitSlice>();
     for (Node* ohs_case : ohs->cases()) {
-      XLS_ASSIGN_OR_RETURN(Node * sliced,
-                           bit_slice->Clone({ohs_case}, node->function()));
+      XLS_ASSIGN_OR_RETURN(Node * sliced, bit_slice->Clone({ohs_case}));
       new_cases.push_back(sliced);
     }
     XLS_RETURN_IF_ERROR(
@@ -540,7 +539,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       (node->operand(1)->Is<Literal>() || node->operand(2)->Is<Literal>() ||
        (node->operand(0) == node->operand(1) ||
         node->operand(0) == node->operand(2)))) {
-    Function* f = node->function();
+    FunctionBase* f = node->function();
     Select* select = node->As<Select>();
     XLS_RET_CHECK(!select->default_value().has_value()) << select->ToString();
     Node* s = select->operand(0);
@@ -787,14 +786,13 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
           make_select =
               [](Select* original,
                  std::vector<Node*> new_cases) -> absl::StatusOr<Select*> {
-        Function* f = original->function();
         absl::optional<Node*> new_default;
         if (original->default_value().has_value()) {
           new_default = new_cases.back();
           new_cases.pop_back();
         }
-        return f->MakeNode<Select>(original->loc(), original->selector(),
-                                   new_cases, new_default);
+        return original->function()->MakeNode<Select>(
+            original->loc(), original->selector(), new_cases, new_default);
       };
       return SqueezeSelect(const_msb, const_lsb, make_select,
                            node->As<Select>());

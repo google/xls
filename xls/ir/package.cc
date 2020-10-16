@@ -80,8 +80,8 @@ absl::StatusOr<Proc*> Package::GetProc(absl::string_view proc_name) const {
                     })));
 }
 
-std::vector<Function*> Package::GetFunctionsAndProcs() const {
-  std::vector<Function*> result;
+std::vector<FunctionBase*> Package::GetFunctionsAndProcs() const {
+  std::vector<FunctionBase*> result;
   for (auto& function : functions()) {
     result.push_back(function.get());
   }

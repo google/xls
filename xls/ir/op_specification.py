@@ -303,7 +303,7 @@ class OpClass(object):
     args.extend(self.extra_constructor_args)
     if 'name' not in [a.name for a in self.extra_constructor_args]:
       args.append(ConstructorArgument('name', 'absl::string_view', 'name'))
-    args.append(ConstructorArgument('function', 'Function*', 'function()'))
+    args.append(ConstructorArgument('function', 'FunctionBase*', 'function()'))
     return ', '.join(a.cpp_type + ' ' + a.name for a in args)
 
   def base_constructor_invocation(self):

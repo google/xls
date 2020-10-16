@@ -38,7 +38,7 @@ namespace xls {
 
 class Package;
 class Node;
-class Function;
+class FunctionBase;
 
 // Forward decaration to avoid circular dependency.
 class DfsVisitor;
@@ -70,7 +70,7 @@ class Node {
   int64 BitCountOrDie() const { return GetType()->AsBitsOrDie()->bit_count(); }
 
   Op op() const { return op_; }
-  Function* function() const { return function_; }
+  FunctionBase* function() const { return function_; }
   Package* package() const;
   const absl::optional<SourceLocation> loc() const { return loc_; }
 
@@ -203,18 +203,25 @@ class Node {
   void set_id(int64 id);
 
   // Clones the node with the new operands. Returns the newly created
-  // instruction. The instruction is owned by new_function which must also
-  // contain all of new_operands (if any).
-  virtual absl::StatusOr<Node*> Clone(absl::Span<Node* const> new_operands,
-                                      Function* new_function) const = 0;
+  // instruction.
+  absl::StatusOr<Node*> Clone(absl::Span<Node* const> new_operands) const {
+    return CloneInNewFunction(new_operands, function());
+  }
+
+  // As above but clones the instruction into the function 'new_function'. The
+  // instruction is owned by new_function which must also contain all of
+  // new_operands (if any).
+  virtual absl::StatusOr<Node*> CloneInNewFunction(
+      absl::Span<Node* const> new_operands,
+      FunctionBase* new_function) const = 0;
 
  protected:
   // Function needs to be a friend to access RemoveUser for deleting nodes from
   // the graph.
-  friend class Function;
+  friend class FunctionBase;
 
   Node(Op op, Type* type, absl::optional<SourceLocation> loc,
-       absl::string_view name, Function* function);
+       absl::string_view name, FunctionBase* function);
 
   std::string ToStringInternal(bool include_operand_types) const;
 
@@ -238,7 +245,7 @@ class Node {
   void AddUser(Node* user);
   void RemoveUser(Node* user);
 
-  Function* function_;
+  FunctionBase* function_;
   int64 id_;
   Op op_;
   Type* type_;

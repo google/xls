@@ -149,6 +149,7 @@ cc_library(
         "container_hack_undef.inc",
         "dfs_visitor.cc",
         "function.cc",
+        "function_base.cc",
         "node.cc",
         "node_iterator.cc",
         "nodes.cc",
@@ -159,6 +160,7 @@ cc_library(
     hdrs = [
         "dfs_visitor.h",
         "function.h",
+        "function_base.h",
         "lsb_or_msb.h",
         "node.h",
         "node_iterator.h",

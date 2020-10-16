@@ -85,7 +85,6 @@ py_test(
         ":bits",
         ":function_builder",
         ":package",
-        ":type",
         ":value",
         "@com_google_absl_py//absl/testing:absltest",
     ],
@@ -249,11 +248,8 @@ py_test(
     srcs = ["type_test.py"],
     python_version = "PY3",
     deps = [
-        ":bits",
-        ":function_builder",
         ":package",
         ":type",
-        ":value",
         "//xls/common:test_base",
     ],
 )

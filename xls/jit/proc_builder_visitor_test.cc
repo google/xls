@@ -170,7 +170,7 @@ class ProcBuilderVisitorTest : public ::testing::Test {
   // Packs the input values into the format our LLVM functions expect (i.e.,
   // input params as an array of u8 pointers). The resulting pointers are held
   // as unique_ptrs to auto-magically handle dealloc.
-  absl::StatusOr<std::vector<uint8*>> PackArgs(Function* function,
+  absl::StatusOr<std::vector<uint8*>> PackArgs(FunctionBase* function,
                                                absl::Span<const Value> values) {
     absl::Span<Type* const> param_types = function->GetType()->parameters();
     XLS_RET_CHECK(values.size() == param_types.size());

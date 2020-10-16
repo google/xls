@@ -50,7 +50,7 @@ namespace xls {
 struct PyHolder {};
 
 // Base class for wrapper objects that have objects that are owned by Package.
-// (BValue and FunctionHolder need more than just a shared_ptr to Package so
+// (BValue and FunctionBaseHolder need more than just a shared_ptr to Package so
 // they don't use this.)
 template <typename T>
 class PointerOwnedByPackage : public PyHolder {
@@ -107,6 +107,11 @@ struct TupleTypeHolder : public TypeHolder {
 
 // Wrapper for FunctionType* pointers.
 struct FunctionTypeHolder : public PointerOwnedByPackage<FunctionType> {
+  using PointerOwnedByPackage::PointerOwnedByPackage;
+};
+
+// Wrapper for FunctionBase* pointers.
+struct FunctionBaseHolder : public PointerOwnedByPackage<FunctionBase> {
   using PointerOwnedByPackage::PointerOwnedByPackage;
 };
 
@@ -208,6 +213,11 @@ struct PyHolderTypeTraits<TupleType> {
 template <>
 struct PyHolderTypeTraits<FunctionType> {
   using Holder = FunctionTypeHolder;
+};
+
+template <>
+struct PyHolderTypeTraits<FunctionBase> {
+  using Holder = FunctionBaseHolder;
 };
 
 template <>
@@ -405,18 +415,18 @@ auto PyWrapHelper(MethodPointer method_pointer) {
 // after unwrapping the parameters and then wraps the return value before
 // returning.
 //
-// Example usage (here, FunctionHolder is a PyHolder type that holds a
-// Function*):
+// Example usage (here, FunctionBaseHolder is a PyHolder type that holds a
+// FunctionBase*):
 //
-// py::class_<FunctionHolder>(m, "Function")
-//     .def("dump_ir", PyWrap(&Function::DumpIr));
+// py::class_<FunctionBaseHolder>(m, "FunctionBase")
+//     .def("dump_ir", PyWrap(&FunctionBase::DumpIr));
 //
-// Note that even though Function* is wrapped in FunctionHolder, the type can be
-// declared almost as if the object is not wrapped. For comparison, an unwrapped
-// type would have been defined like this:
+// Note that even though FunctionBase* is wrapped in FunctionBaseHolder, the
+// type can be declared almost as if the object is not wrapped. For comparison,
+// an unwrapped type would have been defined like this:
 //
-// py::class_<Function>(m, "Function")
-//     .def("dump_ir", &Function::DumpIr);
+// py::class_<FunctionBase>(m, "FunctionBase")
+//     .def("dump_ir", &FunctionBase::DumpIr);
 template <typename ReturnT, typename T, typename... Args>
 auto PyWrap(ReturnT (T::*method_pointer)(Args...) const) {
   return PyWrapHelper<decltype(method_pointer), ReturnT, T, Args...>(

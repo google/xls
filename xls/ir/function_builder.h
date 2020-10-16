@@ -115,7 +115,7 @@ class BuilderBase {
   // The given argument 'function' can contain either a Function or Proc.
   // 'should_verify' is a test-only argument which can be set to false in tests
   // that wish to build malformed IR.
-  explicit BuilderBase(std::unique_ptr<Function> function,
+  explicit BuilderBase(std::unique_ptr<FunctionBase> function,
                        bool should_verify = true)
       : function_(std::move(function)),
         error_pending_(false),
@@ -124,7 +124,7 @@ class BuilderBase {
   const std::string& name() const { return function_->name(); }
 
   // Get access to currently built up function (or proc).
-  Function* function() const { return function_.get(); }
+  FunctionBase* function() const { return function_.get(); }
 
   // Declares a parameter to the function being built of type "type".
   BValue Param(absl::string_view name, Type* type,
@@ -550,7 +550,7 @@ class BuilderBase {
   Node* last_node_ = nullptr;
 
   // The function being built by this builder.
-  std::unique_ptr<Function> function_;
+  std::unique_ptr<FunctionBase> function_;
 
   bool error_pending_;
 

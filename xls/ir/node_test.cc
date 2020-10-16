@@ -44,7 +44,7 @@ ret add.3: bits[32] = add(x, y)
   Node* add = func->return_value();
   ASSERT_EQ(add->op(), Op::kAdd);
   XLS_ASSERT_OK_AND_ASSIGN(Node * add_clone,
-                           add->Clone({func->param(1), func->param(0)}, func));
+                           add->Clone({func->param(1), func->param(0)}));
 
   EXPECT_EQ(add_clone->operand(0), add->operand(1));
   EXPECT_EQ(add_clone->operand(1), add->operand(0));
@@ -69,7 +69,7 @@ ret x
   Node* add = func_from->return_value();
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * add_clone,
-      add->Clone({func_to->param(1), func_to->param(0)}, func_to));
+      add->CloneInNewFunction({func_to->param(1), func_to->param(0)}, func_to));
   EXPECT_EQ(add_clone->function(), func_to);
 }
 
@@ -91,7 +91,8 @@ ret x
 
   Node* add = func_from->return_value();
   EXPECT_THAT(
-      add->Clone({func_from->param(0), func_to->param(0)}, func_to),
+      add->CloneInNewFunction({func_from->param(0), func_to->param(0)},
+                              func_to),
       StatusIs(absl::StatusCode::kInternal,
                HasSubstr("Operand x of node add.6 not in same function")));
 }
@@ -110,9 +111,8 @@ fn main() -> bits[11] {
 }
 )"));
   Node* counted_for = FindNode("counted_for.5", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Node * counted_for_clone,
-      counted_for->Clone({counted_for->operand(0)}, counted_for->function()));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * counted_for_clone,
+                           counted_for->Clone({counted_for->operand(0)}));
   EXPECT_EQ(counted_for_clone->As<CountedFor>()->body(),
             counted_for->As<CountedFor>()->body());
 }
@@ -127,7 +127,7 @@ ret literal.1: bits[32] = literal(value=12345)
                                                           p.get()));
 
   Node* literal = func->return_value();
-  XLS_ASSERT_OK_AND_ASSIGN(Node * literal_clone, literal->Clone({}, func));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * literal_clone, literal->Clone({}));
 
   EXPECT_EQ(literal_clone->As<Literal>()->value().bits(), UBits(12345, 32));
 }

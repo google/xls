@@ -30,7 +30,7 @@
 namespace xls {
 
 /* static */ absl::StatusOr<std::unique_ptr<PostDominatorAnalysis>>
-PostDominatorAnalysis::Run(Function* f) {
+PostDominatorAnalysis::Run(FunctionBase* f) {
   auto analysis = absl::WrapUnique(new PostDominatorAnalysis(f));
 
   // Intialize data structs.

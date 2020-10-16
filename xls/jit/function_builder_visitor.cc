@@ -20,7 +20,7 @@ namespace xls {
 
 absl::Status FunctionBuilderVisitor::Visit(llvm::Module* module,
                                            llvm::Function* llvm_fn,
-                                           Function* xls_fn,
+                                           FunctionBase* xls_fn,
                                            LlvmTypeConverter* type_converter,
                                            bool is_top, bool generate_packed) {
   FunctionBuilderVisitor visitor(module, llvm_fn, xls_fn, type_converter,
@@ -29,7 +29,7 @@ absl::Status FunctionBuilderVisitor::Visit(llvm::Module* module,
 }
 
 FunctionBuilderVisitor::FunctionBuilderVisitor(
-    llvm::Module* module, llvm::Function* llvm_fn, Function* xls_fn,
+    llvm::Module* module, llvm::Function* llvm_fn, FunctionBase* xls_fn,
     LlvmTypeConverter* type_converter, bool is_top, bool generate_packed)
     : ctx_(module->getContext()),
       module_(module),

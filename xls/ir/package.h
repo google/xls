@@ -35,6 +35,7 @@
 
 namespace xls {
 
+class FunctionBase;
 class Function;
 class Proc;
 
@@ -140,7 +141,7 @@ class Package {
 
   // Returns the procs and functions in this package.
   // TODO(meheff): Consider holding functions and procs in a common vector.
-  std::vector<Function*> GetFunctionsAndProcs() const;
+  std::vector<FunctionBase*> GetFunctionsAndProcs() const;
 
   const std::string& name() const { return name_; }
 

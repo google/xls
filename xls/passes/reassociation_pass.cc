@@ -180,7 +180,7 @@ absl::StatusOr<bool> ReassociationPass::RunOnFunction(
 
     // Create a clone of 'node' for construcing a reassociated expression.
     auto new_node = [&](Node* lhs, Node* rhs) -> absl::StatusOr<Node*> {
-      return node->Clone({lhs, rhs}, node->function());
+      return node->Clone({lhs, rhs});
     };
 
     if (literals.size() == 1) {

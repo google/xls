@@ -27,7 +27,7 @@ absl::Status Proc::set_return_value(Node* n) {
       "Cannot set proc return value to node %s. Expected type is %s, but "
       "node has type %s",
       n->GetName(), ReturnType()->ToString(), n->GetType()->ToString());
-  return Function::set_return_value(n);
+  return FunctionBase::set_return_value(n);
 }
 
 std::string Proc::DumpIr(bool recursive) const {

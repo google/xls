@@ -71,7 +71,7 @@ absl::StatusOr<Proc*> IrTestBase::ParseProc(absl::string_view text,
 }
 
 Node* IrTestBase::FindNode(absl::string_view name, Package* package) {
-  for (Function* function : package->GetFunctionsAndProcs()) {
+  for (FunctionBase* function : package->GetFunctionsAndProcs()) {
     for (Node* node : function->nodes()) {
       if (node->GetName() == name) {
         return node;
@@ -81,7 +81,7 @@ Node* IrTestBase::FindNode(absl::string_view name, Package* package) {
   XLS_LOG(FATAL) << "No node named " << name << " in package:\n" << *package;
 }
 
-Node* IrTestBase::FindNode(absl::string_view name, Function* function) {
+Node* IrTestBase::FindNode(absl::string_view name, FunctionBase* function) {
   for (Node* node : function->nodes()) {
     if (node->GetName() == name) {
       return node;

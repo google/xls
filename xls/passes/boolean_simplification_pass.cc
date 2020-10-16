@@ -150,7 +150,7 @@ bool TruthTable::MatchesSymmetrical(
 
 absl::StatusOr<Node*> TruthTable::CreateReplacement(
     const absl::optional<SourceLocation>& original_loc,
-    absl::Span<Node* const> operands, Function* f) const {
+    absl::Span<Node* const> operands, FunctionBase* f) const {
   XLS_CHECK_LE(operands.size(), kMaxFrontierNodes);
   std::vector<Node*> this_operands;
   for (int64 i = 0; i < kMaxFrontierNodes; ++i) {
@@ -331,7 +331,7 @@ class BooleanFlowTracker : public DfsVisitorWithDefault {
                                           absl::Span<Node* const> operands,
                                           Node* original) {
     XLS_RET_CHECK(2 <= operands.size() && operands.size() <= 3);
-    Function* f = original->function();
+    FunctionBase* f = original->function();
     if (bits.IsAllOnes()) {
       return f->MakeNode<Literal>(original->loc(),
                                   Value(SBits(-1, original->BitCountOrDie())));

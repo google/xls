@@ -15,20 +15,39 @@
 #include "xls/ir/function.h"
 
 #include "pybind11/pybind11.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/python/wrapper_types.h"
 
 namespace py = pybind11;
 
 namespace xls {
 
+// Wrapper of method defined on FunctionBase for use by Function* objects.
+std::string GetFunctionName(Function* f) { return f->name(); }
+
+// Functions for accessing parameter type information.
+int64 GetParamCount(Function* f) { return f->params().size(); }
+int64 GetParamBitCount(Function* f, int64 i) {
+  return f->param(i)->GetType()->GetFlatBitCount();
+}
+
 PYBIND11_MODULE(function, m) {
   py::module::import("xls.ir.python.type");
 
-  py::class_<FunctionHolder>(m, "Function")
-      .def("dump_ir", PyWrap(&Function::DumpIr),
+  py::class_<FunctionBaseHolder>(m, "FunctionBase")
+      .def("dump_ir", PyWrap(&FunctionBase::DumpIr),
            py::arg("recursive") = false)
-      .def("get_type", PyWrap(&Function::GetType))
+      .def("get_type", PyWrap(&FunctionBase::GetType))
       .def_property_readonly("name", PyWrap(&Function::name));
+
+  py::class_<FunctionHolder>(m, "Function")
+      .def("dump_ir", PyWrap(&Function::DumpIr), py::arg("recursive") = false)
+      // TODO(meheff): Figure out how to add a get_type method on Function.
+      // Attempts to do so fail with "unable to convert to python type" errors.
+      .def("get_param_count", PyWrap(&GetParamCount))
+      .def("get_param_bit_count", PyWrap(&GetParamBitCount),
+           py::arg("param_no"))
+      .def_property_readonly("name", PyWrap(&GetFunctionName));
 }
 
 }  // namespace xls

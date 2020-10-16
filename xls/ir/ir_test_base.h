@@ -19,8 +19,11 @@
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/source_location.h"
+#include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/verifier.h"
 
 namespace xls {
@@ -69,7 +72,7 @@ class IrTestBase : public ::testing::Test {
   // Finds and returns the node in the given package (function) with the given
   // name. Dies if no such node exists.
   static Node* FindNode(absl::string_view name, Package* package);
-  static Node* FindNode(absl::string_view name, Function* function);
+  static Node* FindNode(absl::string_view name, FunctionBase* function);
 
   // Finds and returns the function or proc in the given package with the given
   // name. Dies if no such function or proc  exists.

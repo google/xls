@@ -19,7 +19,6 @@
 from xls.ir.python import bits
 from xls.ir.python import function_builder
 from xls.ir.python import package
-from xls.ir.python import type as type_mod
 from xls.ir.python import value
 from absl.testing import absltest
 
@@ -27,6 +26,7 @@ from absl.testing import absltest
 def build_function(name='function_name'):
   pkg = package.Package('pname')
   builder = function_builder.FunctionBuilder(name, pkg)
+  builder.add_param('x', pkg.get_bits_type(32))
   builder.add_literal_value(value.Value(bits.UBits(7, 8)))
   return builder.build()
 
@@ -37,7 +37,8 @@ class FunctionTest(absltest.TestCase):
     fn = build_function('function_name')
 
     self.assertIn('function_name', fn.dump_ir())
-    self.assertIsInstance(fn.get_type(), type_mod.FunctionType)
+    self.assertEqual(fn.get_param_count(), 1)
+    self.assertEqual(fn.get_param_bit_count(0), 32)
     self.assertEqual('function_name', fn.name)
 
 

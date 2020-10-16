@@ -109,7 +109,7 @@ absl::StatusOr<bool> StrengthReduceNode(
     XLS_CHECK_GE(leading_zeros, 0);
     XLS_CHECK_GE(selected_bits, 0);
     XLS_CHECK_GE(trailing_zeros, 0);
-    Function* f = node->function();
+    FunctionBase* f = node->function();
     XLS_ASSIGN_OR_RETURN(Node * slice,
                          f->MakeNode<BitSlice>(node->loc(), node->operand(0),
                                                /*start=*/trailing_zeros,
@@ -142,7 +142,7 @@ absl::StatusOr<bool> StrengthReduceNode(
       (node->operand(1)->Is<Literal>() || node->operand(2)->Is<Literal>() ||
        (node->operand(0) == node->operand(1) ||
         node->operand(0) == node->operand(2)))) {
-    Function* f = node->function();
+    FunctionBase* f = node->function();
     Select* select = node->As<Select>();
     XLS_RET_CHECK(!select->default_value().has_value()) << select->ToString();
     Node* s = select->operand(0);
@@ -187,11 +187,10 @@ absl::StatusOr<bool> StrengthReduceNode(
   };
   bool invert_selector;
   if (is_signext_mux(&invert_selector)) {
-    Function* f = node->function();
     Node* selector = node->operand(0);
     if (invert_selector) {
-      XLS_ASSIGN_OR_RETURN(selector,
-                           f->MakeNode<UnOp>(node->loc(), selector, Op::kNot));
+      XLS_ASSIGN_OR_RETURN(selector, node->function()->MakeNode<UnOp>(
+                                         node->loc(), selector, Op::kNot));
     }
     XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<ExtendOp>(
                                 selector, node->BitCountOrDie(), Op::kSignExt)
@@ -266,7 +265,7 @@ absl::StatusOr<bool> StrengthReduceNode(
   //  where bits(x) <= 2
   if (node->op() == Op::kEq && node->operand(0)->BitCountOrDie() == 2 &&
       IsLiteralZero(node->operand(1))) {
-    Function* f = node->function();
+    FunctionBase* f = node->function();
     XLS_ASSIGN_OR_RETURN(
         Node * x_0, f->MakeNode<BitSlice>(node->loc(), node->operand(0), 0, 1));
     XLS_ASSIGN_OR_RETURN(

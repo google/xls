@@ -146,15 +146,13 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice,
          operand->op() == Op::kNeg);
     if (OpIsBitWise(operand->op()) || low_bits_of_arith_output) {
       std::vector<Node*> sliced_operands;
-      Function* f = bit_slice->function();
       for (Node* o : operand->operands()) {
         XLS_ASSIGN_OR_RETURN(Node * new_operand,
                              make_bit_slice(o->loc(), o, bit_slice->start(),
                                             bit_slice->width()));
         sliced_operands.push_back(new_operand);
       }
-      XLS_ASSIGN_OR_RETURN(Node * pre_sliced,
-                           operand->Clone(sliced_operands, f));
+      XLS_ASSIGN_OR_RETURN(Node * pre_sliced, operand->Clone(sliced_operands));
       XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(pre_sliced).status());
       return true;
     }

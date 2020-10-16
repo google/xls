@@ -18,6 +18,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/jit/function_builder_visitor.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/llvm_type_converter.h"
@@ -62,8 +63,9 @@ class ProcBuilderVisitor : public FunctionBuilderVisitor {
   using RecvFnT = void (*)(JitChannelQueue*, Receive*, uint8*, int64);
   using SendFnT = void (*)(JitChannelQueue*, Send*, uint8*, int64);
   static absl::Status Visit(llvm::Module* module, llvm::Function* llvm_fn,
-                            Function* xls_fn, LlvmTypeConverter* type_converter,
-                            bool is_top, bool generate_packed,
+                            FunctionBase* xls_fn,
+                            LlvmTypeConverter* type_converter, bool is_top,
+                            bool generate_packed,
                             JitChannelQueueManager* queue_mgr, RecvFnT recv_fn,
                             SendFnT send_fn);
 
@@ -74,7 +76,7 @@ class ProcBuilderVisitor : public FunctionBuilderVisitor {
 
  private:
   ProcBuilderVisitor(llvm::Module* module, llvm::Function* llvm_fn,
-                     Function* xls_fn, LlvmTypeConverter* type_converter,
+                     FunctionBase* xls_fn, LlvmTypeConverter* type_converter,
                      bool is_top, bool generate_packed,
                      JitChannelQueueManager* queue_mgr, RecvFnT recv_fn,
                      SendFnT send_fn);

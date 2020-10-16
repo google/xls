@@ -174,8 +174,6 @@ absl::StatusOr<bool> SimplifyConcat(Concat* concat,
   // If there are multiple reverse users, common-subexpression elimination
   // should combine them later. We can apply the optimization after this.
   if (num_reverse_users == 1 && !concat_has_nonreversible_user) {
-    Function* func = concat->function();
-
     // Get reversed operands in reverse order.
     // BDD common subexpression elimination should eliminate any
     // reversals of single-bit inputs that we produce here,
@@ -185,9 +183,10 @@ absl::StatusOr<bool> SimplifyConcat(Concat* concat,
     for (absl::Span<Node* const>::reverse_iterator riter =
              concat->operands().rbegin();
          riter != concat->operands().rend(); ++riter) {
-      XLS_ASSIGN_OR_RETURN(Node * hoisted_rev,
-                           func->MakeNode<UnOp>(concat->users().at(0)->loc(),
-                                                *riter, Op::kReverse));
+      XLS_ASSIGN_OR_RETURN(
+          Node * hoisted_rev,
+          concat->function()->MakeNode<UnOp>(concat->users().at(0)->loc(),
+                                             *riter, Op::kReverse));
       new_operands.push_back(hoisted_rev);
     }
 
@@ -234,12 +233,11 @@ absl::StatusOr<bool> SimplifyConcat(Concat* concat,
     }
 
     // Create merged slice node.
-    Function* func = concat->function();
     XLS_ASSIGN_OR_RETURN(
         Node * merged_slice,
-        func->MakeNode<BitSlice>(concat->loc(), higher_slice->operand(0),
-                                 lower_slice->start(),
-                                 lower_slice->width() + higher_slice->width()));
+        concat->function()->MakeNode<BitSlice>(
+            concat->loc(), higher_slice->operand(0), lower_slice->start(),
+            lower_slice->width() + higher_slice->width()));
 
     // Collect operands for new concat.
     std::vector<Node*> new_operands;
@@ -344,7 +342,7 @@ absl::StatusOr<bool> TryHoistBitWiseOperation(Node* node) {
   std::map<int64, int64> begin_end_bits_inclusive = union_result.value();
 
   // Make bitwise operations.
-  Function* func = node->function();
+  FunctionBase* func = node->function();
   std::vector<Node*> bitwise_ops;
   for (const auto& [start, end] : begin_end_bits_inclusive) {
     std::vector<Node*> slices;
@@ -356,7 +354,7 @@ absl::StatusOr<bool> TryHoistBitWiseOperation(Node* node) {
                                /*width=*/end - start + 1));
       slices.push_back(new_slice);
     }
-    XLS_ASSIGN_OR_RETURN(Node * new_bitwise, node->Clone(slices, func));
+    XLS_ASSIGN_OR_RETURN(Node * new_bitwise, node->Clone(slices));
     bitwise_ops.push_back(new_bitwise);
   }
 
@@ -375,11 +373,10 @@ absl::StatusOr<bool> TryBypassReductionOfConcatenation(Node* node) {
   }
 
   // Create reductions of concat operands.
-  Function* f = node->function();
   Concat* concat = node->operand(0)->As<Concat>();
   std::vector<Node*> new_reductions;
   for (Node* cat_operand : concat->operands()) {
-    XLS_ASSIGN_OR_RETURN(Node * reduce, node->Clone({cat_operand}, f));
+    XLS_ASSIGN_OR_RETURN(Node * reduce, node->Clone({cat_operand}));
     new_reductions.push_back(reduce);
   }
 
@@ -435,7 +432,7 @@ absl::StatusOr<bool> TryDistributeReducibleOperation(Node* node) {
   // Walk through the concat operands and grab the corresponding slice out of
   // the "other" node, and distribute the operation to occur on those
   // sub-slices.
-  Function* f = concat->function();
+  FunctionBase* f = concat->function();
   Node* result = nullptr;
   for (int64 i = 0; i < concat->operands().size(); ++i) {
     SliceData concat_slice = concat->GetOperandSliceData(i);

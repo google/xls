@@ -100,7 +100,8 @@ absl::Status InlineInvoke(Invoke* invoke, Function* f) {
     for (Node* operand : node->operands()) {
       new_operands.push_back(invoked_node_to_replacement.at(operand));
     }
-    XLS_ASSIGN_OR_RETURN(Node * new_node, node->Clone(new_operands, f));
+    XLS_ASSIGN_OR_RETURN(Node * new_node,
+                         node->CloneInNewFunction(new_operands, f));
     invoked_node_to_replacement[node] = new_node;
   }
 

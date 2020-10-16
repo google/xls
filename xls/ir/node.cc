@@ -30,7 +30,7 @@
 namespace xls {
 
 Node::Node(Op op, Type* type, absl::optional<SourceLocation> loc,
-           absl::string_view name, Function* function)
+           absl::string_view name, FunctionBase* function)
     : function_(function),
       id_(function_->package()->GetNextNodeId()),
       op_(op),

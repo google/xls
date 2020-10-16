@@ -48,7 +48,7 @@ absl::StatusOr<bool> LiteralUncommoningPass::RunOnFunction(
             continue;
           }
           XLS_ASSIGN_OR_RETURN(Node * clone,
-                               literal->Clone(/*new_operands=*/{}, f));
+                               literal->Clone(/*new_operands=*/{}));
           XLS_RETURN_IF_ERROR(use->ReplaceOperandNumber(operand_no, clone));
           changed = true;
         }

@@ -990,7 +990,7 @@ absl::Status VerifyNodeIdUnique(
 }
 
 // Verify common invariants to procs and functions.
-absl::Status VerifyFunctionOrProc(Function* function) {
+absl::Status VerifyFunctionOrProc(FunctionBase* function) {
   XLS_VLOG(2) << "Verifying function:\n";
   XLS_VLOG_LINES(2, function->DumpIr());
 
@@ -1248,7 +1248,7 @@ absl::Status VerifyPackage(Package* package) {
   // package.
   absl::flat_hash_map<int64, absl::optional<SourceLocation>> ids;
   ids.reserve(package->GetNodeCount());
-  for (Function* function : package->GetFunctionsAndProcs()) {
+  for (FunctionBase* function : package->GetFunctionsAndProcs()) {
     XLS_RET_CHECK(function->package() == package);
     for (Node* node : function->nodes()) {
       XLS_RETURN_IF_ERROR(VerifyNodeIdUnique(node, &ids));
@@ -1265,9 +1265,9 @@ absl::Status VerifyPackage(Package* package) {
   XLS_RET_CHECK_GT(package->next_node_id(), max_id_seen);
 
   // Verify function (proc) names are unique within the package.
-  absl::flat_hash_set<Function*> functions;
+  absl::flat_hash_set<FunctionBase*> functions;
   absl::flat_hash_set<std::string> function_names;
-  for (Function* function : package->GetFunctionsAndProcs()) {
+  for (FunctionBase* function : package->GetFunctionsAndProcs()) {
     XLS_RET_CHECK(!function_names.contains(function->name()))
         << "Function or proc with name " << function->name()
         << " is not unique within package " << package->name();

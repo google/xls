@@ -15,7 +15,7 @@
 #ifndef XLS_IR_NODE_ITERATOR_H_
 #define XLS_IR_NODE_ITERATOR_H_
 
-#include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 
 namespace xls {
@@ -27,13 +27,13 @@ namespace xls {
 // (via begin()/end()).
 class NodeIterator {
  public:
-  static NodeIterator Create(Function* f) {
+  static NodeIterator Create(FunctionBase* f) {
     NodeIterator it(f);
     it.Initialize();
     return it;
   }
 
-  static NodeIterator CreateReverse(Function* f) {
+  static NodeIterator CreateReverse(FunctionBase* f) {
     NodeIterator it(f);
     it.Initialize();
     std::reverse(it.ordered_->begin(), it.ordered_->end());
@@ -44,7 +44,7 @@ class NodeIterator {
   std::vector<Node*>::iterator end() { return ordered_->end(); }
 
  private:
-  explicit NodeIterator(Function* f) : f_(f) {}
+  explicit NodeIterator(FunctionBase* f) : f_(f) {}
 
   void Initialize();
 
@@ -52,7 +52,7 @@ class NodeIterator {
   // NodeIterator may be movable but the iterators returned to the
   // caller of begin()/end() are not invalidated by those moves.
   std::unique_ptr<std::vector<Node*>> ordered_;
-  Function* f_;
+  FunctionBase* f_;
 };
 
 // Convenience function for concise use in foreach constructs; e.g.:
@@ -66,10 +66,12 @@ class NodeIterator {
 //
 // Note that the ordering for all nodes is computed up front, *not*
 // incrementally as iteration proceeds.
-inline NodeIterator TopoSort(Function* f) { return NodeIterator::Create(f); }
+inline NodeIterator TopoSort(FunctionBase* f) {
+  return NodeIterator::Create(f);
+}
 
 // As above, but returns a reverse topo order.
-inline NodeIterator ReverseTopoSort(Function* f) {
+inline NodeIterator ReverseTopoSort(FunctionBase* f) {
   return NodeIterator::CreateReverse(f);
 }
 

@@ -40,8 +40,9 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   //     false if this is a function invocation from already inside "LLVM
   //     space".
   static absl::Status Visit(llvm::Module* module, llvm::Function* llvm_fn,
-                            Function* xls_fn, LlvmTypeConverter* type_converter,
-                            bool is_top, bool generate_packed);
+                            FunctionBase* xls_fn,
+                            LlvmTypeConverter* type_converter, bool is_top,
+                            bool generate_packed);
 
   absl::Status DefaultHandler(Node* node) override {
     return absl::UnimplementedError(
@@ -110,8 +111,9 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
 
  protected:
   FunctionBuilderVisitor(llvm::Module* module, llvm::Function* llvm_fn,
-                         Function* xls_fn, LlvmTypeConverter* type_converter,
-                         bool is_top, bool generate_packed);
+                         FunctionBase* xls_fn,
+                         LlvmTypeConverter* type_converter, bool is_top,
+                         bool generate_packed);
 
   llvm::LLVMContext& ctx() { return ctx_; }
   llvm::Module* module() { return module_; }
@@ -177,7 +179,7 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   llvm::LLVMContext& ctx_;
   llvm::Module* module_;
   llvm::Function* llvm_fn_;
-  Function* xls_fn_;
+  FunctionBase* xls_fn_;
   std::unique_ptr<llvm::IRBuilder<>> builder_;
   LlvmTypeConverter* type_converter_;
 

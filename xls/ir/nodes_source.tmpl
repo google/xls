@@ -3,6 +3,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "absl/status/statusor.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
 
@@ -64,8 +65,9 @@ Type* GetMapType(Node* operand, Function* to_apply) {
 }
 
 {% if not op_class.custom_clone_method %}
-absl::StatusOr<Node*> {{ op_class.name }}::Clone(absl::Span<Node* const> new_operands,
-                                    Function* new_function) const {
+absl::StatusOr<Node*> {{ op_class.name }}::CloneInNewFunction(
+    absl::Span<Node* const> new_operands,
+    FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<{{ op_class.name }}>(
       {{ op_class.clone_args_str("new_operands") }});
@@ -105,8 +107,9 @@ SliceData Concat::GetOperandSliceData(int64 operandno) const {
   return SliceData{start, this->operand(operandno)->BitCountOrDie()};
 }
 
-absl::StatusOr<Node*> Send::Clone(absl::Span<Node* const> new_operands,
-                                           Function* new_function) const {
+absl::StatusOr<Node*> Send::CloneInNewFunction(
+    absl::Span<Node* const> new_operands,
+    FunctionBase* new_function) const {
   // TODO(meheff): Choose an appropriate name for the cloned node.
   return new_function->MakeNodeWithName<Send>(loc(),
                                       new_operands[0],
@@ -115,8 +118,9 @@ absl::StatusOr<Node*> Send::Clone(absl::Span<Node* const> new_operands,
                                       name_);
 }
 
-absl::StatusOr<Node*> SendIf::Clone(absl::Span<Node* const> new_operands,
-                                           Function* new_function) const {
+absl::StatusOr<Node*> SendIf::CloneInNewFunction(
+    absl::Span<Node* const> new_operands,
+    FunctionBase* new_function) const {
   // TODO(meheff): Choose an appropriate name for the cloned node.
   return new_function->MakeNodeWithName<SendIf>(loc(),
                                         new_operands[0],
@@ -126,8 +130,9 @@ absl::StatusOr<Node*> SendIf::Clone(absl::Span<Node* const> new_operands,
                                         name_);
 }
 
-absl::StatusOr<Node*> CountedFor::Clone(absl::Span<Node* const> new_operands,
-                                        Function* new_function) const {
+absl::StatusOr<Node*> CountedFor::CloneInNewFunction(
+    absl::Span<Node* const> new_operands,
+    FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   // TODO(meheff): Choose an appropriate name for the cloned node.
   return new_function->MakeNodeWithName<CountedFor>(loc(), new_operands[0],
@@ -138,8 +143,9 @@ absl::StatusOr<Node*> CountedFor::Clone(absl::Span<Node* const> new_operands,
                                             name_);
 }
 
-absl::StatusOr<Node*> Select::Clone(absl::Span<Node* const> new_operands,
-                                    Function* new_function) const {
+absl::StatusOr<Node*> Select::CloneInNewFunction(
+    absl::Span<Node* const> new_operands,
+    FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   absl::optional<Node*> new_default_value =
     default_value().has_value()
@@ -152,8 +158,9 @@ absl::StatusOr<Node*> Select::Clone(absl::Span<Node* const> new_operands,
                                         name_);
 }
 
-absl::StatusOr<Node*> OneHotSelect::Clone(absl::Span<Node* const> new_operands,
-                                          Function* new_function) const {
+absl::StatusOr<Node*> OneHotSelect::CloneInNewFunction(
+    absl::Span<Node* const> new_operands,
+    FunctionBase* new_function) const {
   // TODO(meheff): Choose an appropriate name for the cloned node.
   return new_function->MakeNodeWithName<OneHotSelect>(loc(), new_operands[0],
                                               new_operands.subspan(1),

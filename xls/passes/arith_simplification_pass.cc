@@ -233,9 +233,8 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
         new_operands.push_back(operand);
       }
     }
-    Function* f = n->function();
-    XLS_ASSIGN_OR_RETURN(Node * literal,
-                         f->MakeNode<Literal>(n->loc(), Value(bits)));
+    XLS_ASSIGN_OR_RETURN(Node * literal, n->function()->MakeNode<Literal>(
+                                             n->loc(), Value(bits)));
     new_operands.push_back(literal);
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<NaryOp>(new_operands, n->op()).status());

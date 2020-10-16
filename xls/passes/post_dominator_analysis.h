@@ -28,7 +28,7 @@ class PostDominatorAnalysis {
  public:
   // Performs post-dominator analysis on the function and returns the result.
   static absl::StatusOr<std::unique_ptr<PostDominatorAnalysis>> Run(
-      Function* f);
+      FunctionBase* f);
 
   // Returns the nodes that post-dominate this node.
   absl::Span<Node* const> GetPostDominatorsOfNode(const Node* node) const {
@@ -49,13 +49,13 @@ class PostDominatorAnalysis {
   }
 
  private:
-  explicit PostDominatorAnalysis(Function* f) : func_(f) {}
+  explicit PostDominatorAnalysis(FunctionBase* f) : func_(f) {}
 
   // Adds to return_reaching_nodes_ all nodes from which the return
   // node is reachable.
   void PopulateReturnReachingNodes();
 
-  Function* func_;
+  FunctionBase* func_;
 
   // Maps from a node to all nodes that post-dominate the node.
   absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>

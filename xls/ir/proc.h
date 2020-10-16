@@ -26,12 +26,12 @@ namespace xls {
 // blocks which iterate indefinitely over mutable state of a fixed type. Procs
 // communicate to other components via channels.
 // TODO(meheff): Add link to documentation when we have some.
-class Proc : public Function {
+class Proc : public FunctionBase {
  public:
   Proc(absl::string_view name, const Value& init_value,
        absl::string_view token_param_name, absl::string_view state_param_name,
        Package* package)
-      : Function(name, package),
+      : FunctionBase(name, package),
         init_value_(init_value),
         state_type_(package->GetTypeForValue(init_value_)),
         return_type_(
