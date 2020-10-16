@@ -209,6 +209,7 @@ cc_test(
         ":jit_runtime",
         ":llvm_type_converter",
         ":proc_builder_visitor",
+        "@com_google_absl//absl/base:dynamic_annotations",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:subprocess",
         "//xls/common/file:filesystem",

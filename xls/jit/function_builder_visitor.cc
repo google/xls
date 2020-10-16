@@ -13,6 +13,10 @@
 // limitations under the License.
 #include "xls/jit/function_builder_visitor.h"
 
+#ifdef ABSL_HAVE_MEMORY_SANITIZER
+#include <sanitizer/msan_interface.h>
+#endif
+
 #include "llvm/IR/Constants.h"
 #include "xls/codegen/vast.h"
 
@@ -62,6 +66,8 @@ absl::Status FunctionBuilderVisitor::BuildInternal() {
     }
     return absl::OkStatus();
   }
+
+  UnpoisonOutputBuffer();
 
   int64 return_width = xls_return_type->GetFlatBitCount();
   if (generate_packed_) {
@@ -1223,6 +1229,30 @@ absl::StatusOr<llvm::Value*> FunctionBuilderVisitor::PackElement(
       return absl::InvalidArgumentError(absl::StrCat(
           "Unhandled element kind: ", TypeKindToString(element_type->kind())));
   }
+}
+
+void FunctionBuilderVisitor::UnpoisonOutputBuffer() {
+#ifdef ABSL_HAVE_MEMORY_SANITIZER
+  Type* xls_return_type = xls_fn_->GetType()->return_type();
+  llvm::ConstantInt* fn_addr = llvm::ConstantInt::get(
+      llvm::Type::getInt64Ty(ctx()), reinterpret_cast<uint64>(__msan_unpoison));
+  llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
+  llvm::Type* u8_ptr_type =
+      llvm::PointerType::get(llvm::Type::getInt8Ty(ctx()), /*AddressSpace=*/0);
+  llvm::Type* size_t_type =
+      llvm::Type::getIntNTy(ctx(), sizeof(size_t) * CHAR_BIT);
+  llvm::FunctionType* fn_type =
+      llvm::FunctionType::get(void_type, {u8_ptr_type, size_t_type}, false);
+  llvm::Value* fn_ptr =
+      builder()->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
+
+  llvm::Value* out_param = llvm_fn_->getArg(llvm_fn_->arg_size() - 1);
+  std::vector<llvm::Value*> args(
+      {out_param,
+       llvm::ConstantInt::get(
+           size_t_type, type_converter()->GetTypeByteSize(*xls_return_type))});
+  builder()->CreateCall(fn_type, fn_ptr, args);
+#endif
 }
 
 }  // namespace xls

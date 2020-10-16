@@ -176,6 +176,12 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
                                            llvm::Value* buffer,
                                            int64 bit_offset);
 
+  // Marks the output value as "unpoisoned" for MSAN - in other words, prevent
+  // false positives from being thrown when running under MSAN (since it can't
+  // yet follow values into LLVM space (it might be able to _technically_, but
+  // we've not enabled it).
+  void UnpoisonOutputBuffer();
+
   llvm::LLVMContext& ctx_;
   llvm::Module* module_;
   llvm::Function* llvm_fn_;
