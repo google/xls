@@ -37,7 +37,7 @@ class BddCsePassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Function* f) {
     PassResults results;
-    return BddCsePass().RunOnFunction(f, PassOptions(), &results);
+    return BddCsePass().RunOnFunctionBase(f, PassOptions(), &results);
   }
 };
 

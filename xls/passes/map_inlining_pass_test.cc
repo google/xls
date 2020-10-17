@@ -50,7 +50,7 @@ fn main() -> bits[16][4] {
   MapInliningPass pass;
   PassOptions options;
   XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           pass.RunOnFunction(func, options, nullptr));
+                           pass.RunOnFunctionBase(func, options, nullptr));
   ASSERT_TRUE(changed);
   EXPECT_THAT(func->return_value(),
               m::Array(m::Invoke(m::ArrayIndex(m::Array(), m::Literal(0))),
@@ -79,7 +79,7 @@ fn main(a: bits[32][4]) -> bits[16][4] {
   MapInliningPass pass;
   PassOptions options;
   XLS_ASSERT_OK_AND_ASSIGN(bool changed,
-                           pass.RunOnFunction(func, options, nullptr));
+                           pass.RunOnFunctionBase(func, options, nullptr));
   ASSERT_TRUE(changed);
 
   EXPECT_THAT(func->return_value(),

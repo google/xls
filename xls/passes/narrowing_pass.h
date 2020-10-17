@@ -23,13 +23,14 @@ namespace xls {
 
 // A pass which reduces the width of operations eliminating redundant or unused
 // bits.
-class NarrowingPass : public FunctionPass {
+class NarrowingPass : public FunctionBasePass {
  public:
-  NarrowingPass() : FunctionPass("narrow", "Narrowing") {}
+  NarrowingPass() : FunctionBasePass("narrow", "Narrowing") {}
   ~NarrowingPass() override {}
 
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
+                                         const PassOptions& options,
+                                         PassResults* results) const override;
 };
 
 }  // namespace xls

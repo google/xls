@@ -26,14 +26,16 @@ namespace xls {
 // class IdentityRemovalPass eliminates all identity() expressions
 // by forward substituting it's parameters to the uses of the
 // identity's def.
-class IdentityRemovalPass : public FunctionPass {
+class IdentityRemovalPass : public FunctionBasePass {
  public:
-  IdentityRemovalPass() : FunctionPass("ident_remove", "Identity Removal") {}
+  IdentityRemovalPass()
+      : FunctionBasePass("ident_remove", "Identity Removal") {}
   ~IdentityRemovalPass() override {}
 
   // Iterate all nodes and eliminate identities.
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
+                                         const PassOptions& options,
+                                         PassResults* results) const override;
 };
 
 }  // namespace xls

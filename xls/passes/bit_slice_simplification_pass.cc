@@ -241,8 +241,8 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice,
 
 }  // namespace
 
-absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunction(
-    Function* f, const PassOptions& options, PassResults* results) const {
+absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBase(
+    FunctionBase* f, const PassOptions& options, PassResults* results) const {
   XLS_VLOG(2) << "Running bit-slice simplifier on function " << f->name();
   XLS_VLOG(3) << "Before:";
   XLS_VLOG_LINES(3, f->DumpIr());

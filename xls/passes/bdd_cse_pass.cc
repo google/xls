@@ -45,7 +45,7 @@ namespace {
 //     in the list. This ensures that the CSE replacement does not increase
 //     critical-path
 //
-absl::StatusOr<std::vector<Node*>> GetNodeOrder(Function* f) {
+absl::StatusOr<std::vector<Node*>> GetNodeOrder(FunctionBase* f) {
   // Index of each node in the topological sort.
   absl::flat_hash_map<Node*, int64> topo_index;
   // Critical-path distance from root in the graph to each node.
@@ -91,9 +91,9 @@ absl::StatusOr<std::vector<Node*>> GetNodeOrder(Function* f) {
 
 }  // namespace
 
-absl::StatusOr<bool> BddCsePass::RunOnFunction(Function* f,
-                                               const PassOptions& options,
-                                               PassResults* results) const {
+absl::StatusOr<bool> BddCsePass::RunOnFunctionBase(FunctionBase* f,
+                                                   const PassOptions& options,
+                                                   PassResults* results) const {
   XLS_VLOG(2) << "Running BDD CSE on function " << f->name();
   XLS_VLOG(3) << "Before:";
   XLS_VLOG_LINES(3, f->DumpIr());

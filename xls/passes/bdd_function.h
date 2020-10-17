@@ -41,7 +41,7 @@ using NodeMap = absl::flat_hash_map<const Node*, BddNodeVector>;
 // Node output.
 class BddFunction {
  public:
-  // Construct a BDD representing the given function. 'minterm_limit' is an
+  // Construct a BDD representing the given function/proc. 'minterm_limit' is an
   // upper bound on the number of minterms in an expression. If a BDD node
   // associated with a particular bit in the function ({Node*, bit index} pair)
   // exceeds this value the bit's representation in the BDD is replaced with a
@@ -49,7 +49,7 @@ class BddFunction {
   // bits are modeled as BDD variables. Otherwise, bits are represented as BDD
   // nodes whose values are determined by the values of other BDD nodes.
   static absl::StatusOr<std::unique_ptr<BddFunction>> Run(
-      Function* f, int64 minterm_limit = 0,
+      FunctionBase* f, int64 minterm_limit = 0,
       absl::Span<const Op> do_not_evaluate_ops = {});
 
   // Returns the underlying BDD.
@@ -69,9 +69,9 @@ class BddFunction {
   absl::StatusOr<Value> Evaluate(absl::Span<const Value> args) const;
 
  private:
-  explicit BddFunction(Function* f) : func_(f) {}
+  explicit BddFunction(FunctionBase* f) : func_(f) {}
 
-  Function* func_;
+  FunctionBase* func_;
   BinaryDecisionDiagram bdd_;
 
   // A map from XLS Node to vector of BDD nodes representing the XLS Node's

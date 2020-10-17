@@ -64,13 +64,14 @@ class TruthTable {
 
 // Attempts to simplify bitwise / boolean expressions (e.g. of multiple
 // variables).
-class BooleanSimplificationPass : public FunctionPass {
+class BooleanSimplificationPass : public FunctionBasePass {
  public:
   BooleanSimplificationPass()
-      : FunctionPass("bool_simp", "boolean simplification") {}
+      : FunctionBasePass("bool_simp", "boolean simplification") {}
 
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
+                                         const PassOptions& options,
+                                         PassResults* results) const override;
 };
 
 }  // namespace xls

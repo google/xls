@@ -24,13 +24,14 @@ namespace xls {
 // Pass which performs common subexpression elimination. Equivalent ops with the
 // same operands are commoned. The pass can find arbitrarily large common
 // expressions.
-class CsePass : public FunctionPass {
+class CsePass : public FunctionBasePass {
  public:
-  CsePass() : FunctionPass("cse", "Common subexpression elimination") {}
+  CsePass() : FunctionBasePass("cse", "Common subexpression elimination") {}
   ~CsePass() override {}
 
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
+                                         const PassOptions& options,
+                                         PassResults* results) const override;
 };
 
 }  // namespace xls

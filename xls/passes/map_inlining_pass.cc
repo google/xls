@@ -26,10 +26,10 @@
 namespace xls {
 
 MapInliningPass::MapInliningPass()
-    : FunctionPass("map_inlining", "Inline map operations") {}
+    : FunctionBasePass("map_inlining", "Inline map operations") {}
 
-absl::StatusOr<bool> MapInliningPass::RunOnFunction(
-    Function* function, const PassOptions& options,
+absl::StatusOr<bool> MapInliningPass::RunOnFunctionBase(
+    FunctionBase* function, const PassOptions& options,
     PassResults* results) const {
   bool changed = false;
   std::vector<Node*> map_nodes;

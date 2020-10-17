@@ -21,12 +21,13 @@
 
 namespace xls {
 
-class InliningPass : public FunctionPass {
+class InliningPass : public FunctionBasePass {
  public:
-  InliningPass() : FunctionPass("inlining", "Inlines invocations") {}
+  InliningPass() : FunctionBasePass("inlining", "Inlines invocations") {}
 
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
+                                         const PassOptions& options,
+                                         PassResults* results) const override;
 };
 
 }  // namespace xls

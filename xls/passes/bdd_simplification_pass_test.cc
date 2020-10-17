@@ -45,18 +45,18 @@ class BddSimplificationPassTest : public IrTestBase {
     PassResults results;
     XLS_ASSIGN_OR_RETURN(bool changed,
                          BddSimplificationPass(/*split_ops=*/split_opts)
-                             .RunOnFunction(f, PassOptions(), &results));
+                             .RunOnFunctionBase(f, PassOptions(), &results));
     if (run_cleanup_passes) {
       XLS_RETURN_IF_ERROR(BitSliceSimplificationPass()
-                              .RunOnFunction(f, PassOptions(), &results)
+                              .RunOnFunctionBase(f, PassOptions(), &results)
                               .status());
       XLS_RETURN_IF_ERROR(SelectSimplificationPass(/*split_ops=*/split_opts)
-                              .RunOnFunction(f, PassOptions(), &results)
+                              .RunOnFunctionBase(f, PassOptions(), &results)
                               .status());
       XLS_RETURN_IF_ERROR(
-          BddCsePass().RunOnFunction(f, PassOptions(), &results).status());
+          BddCsePass().RunOnFunctionBase(f, PassOptions(), &results).status());
       XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
-                              .RunOnFunction(f, PassOptions(), &results)
+                              .RunOnFunctionBase(f, PassOptions(), &results)
                               .status());
     }
     return changed;

@@ -25,13 +25,14 @@ namespace xls {
 // Reassociates associative operations to reduce delay by transforming chains of
 // operations to a balanced tree of operations, and gathering together constants
 // in the expression for folding.
-class ReassociationPass : public FunctionPass {
+class ReassociationPass : public FunctionBasePass {
  public:
-  ReassociationPass() : FunctionPass("reassociation", "Reassociation") {}
+  ReassociationPass() : FunctionBasePass("reassociation", "Reassociation") {}
   ~ReassociationPass() override {}
 
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
+                                         const PassOptions& options,
+                                         PassResults* results) const override;
 };
 
 }  // namespace xls

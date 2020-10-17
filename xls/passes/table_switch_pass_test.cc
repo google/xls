@@ -110,7 +110,7 @@ fn main(index: bits[32]) -> bits[32] {
 
   PassResults results;
   TableSwitchPass pass;
-  ASSERT_THAT(pass.RunOnFunction(f, PassOptions(), &results),
+  ASSERT_THAT(pass.RunOnFunctionBase(f, PassOptions(), &results),
               IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Value array,
                            Value::UBitsArray({1, 2, 3, 4, 5, 6, 0}, 32));
@@ -159,7 +159,7 @@ fn main(index: bits[32]) -> bits[32] {
 
   PassResults results;
   TableSwitchPass pass;
-  ASSERT_THAT(pass.RunOnFunction(f, PassOptions(), &results),
+  ASSERT_THAT(pass.RunOnFunctionBase(f, PassOptions(), &results),
               IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Value array,
                            Value::UBitsArray({0, 1, 2, 3, 4, 6, 5}, 32));
@@ -211,7 +211,7 @@ fn main(index: bits[32]) -> bits[32] {
   TableSwitchPass pass;
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Value> before_data,
                            GetBeforeData(f, kNumLiterals));
-  ASSERT_THAT(pass.RunOnFunction(f, PassOptions(), &results),
+  ASSERT_THAT(pass.RunOnFunctionBase(f, PassOptions(), &results),
               IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(
       Value array,
@@ -240,7 +240,7 @@ fn main(index: bits[32]) -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("main"));
   PassResults results;
   TableSwitchPass pass;
-  EXPECT_THAT(pass.RunOnFunction(f, PassOptions(), &results),
+  EXPECT_THAT(pass.RunOnFunctionBase(f, PassOptions(), &results),
               IsOkAndHolds(false));
 }
 
@@ -277,7 +277,7 @@ fn main(index: bits[32], bad_selector: bits[3]) -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("main"));
   PassResults results;
   TableSwitchPass pass;
-  EXPECT_THAT(pass.RunOnFunction(f, PassOptions(), &results),
+  EXPECT_THAT(pass.RunOnFunctionBase(f, PassOptions(), &results),
               IsOkAndHolds(false));
 }
 
@@ -316,7 +316,7 @@ fn main(index: bits[32]) -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("main"));
   PassResults results;
   TableSwitchPass pass;
-  ASSERT_THAT(pass.RunOnFunction(f, PassOptions(), &results),
+  ASSERT_THAT(pass.RunOnFunctionBase(f, PassOptions(), &results),
               IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Value array,
                            Value::UBitsArray({111, 222, 333, 0}, 32));
@@ -378,7 +378,7 @@ fn main(index: bits[32]) -> bits[32] {
 
   PassResults results;
   TableSwitchPass pass;
-  ASSERT_THAT(pass.RunOnFunction(f, PassOptions(), &results),
+  ASSERT_THAT(pass.RunOnFunctionBase(f, PassOptions(), &results),
               IsOkAndHolds(true));
   bool has_array_index = false;
   XLS_ASSERT_OK_AND_ASSIGN(Value array_0,
@@ -443,7 +443,7 @@ fn main(index: bits[32]) -> bits[32] {
 
   PassResults results;
   TableSwitchPass pass;
-  ASSERT_THAT(pass.RunOnFunction(f, PassOptions(), &results),
+  ASSERT_THAT(pass.RunOnFunctionBase(f, PassOptions(), &results),
               IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Value array,
                            Value::UBitsArray({1, 2, 3, 4, 5, 6, 0}, 32));
@@ -501,7 +501,7 @@ fn main(index: bits[128]) -> bits[128] {
 
   PassResults results;
   TableSwitchPass pass;
-  ASSERT_THAT(pass.RunOnFunction(f, PassOptions(), &results),
+  ASSERT_THAT(pass.RunOnFunctionBase(f, PassOptions(), &results),
               IsOkAndHolds(true));
   XLS_ASSERT_OK(CompareBeforeAfter(f, before_data));
 }

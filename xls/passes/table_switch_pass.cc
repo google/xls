@@ -45,7 +45,7 @@ class SelectChain {
   //      0, 3, 1, 2, ... -> 0, 1, 2, 3, ...
   //  - Handle "partial" chains - those that only cover part of the match space
   //    (i.e., table-switch indexes 0-N of a 0-M range (where M > N).
-  static absl::StatusOr<absl::optional<SelectChain>> TryCreate(Function* f,
+  static absl::StatusOr<absl::optional<SelectChain>> TryCreate(FunctionBase* f,
                                                                Select* root) {
     SelectChain chain;
     XLS_ASSIGN_OR_RETURN(bool success, chain.Init(root));
@@ -341,8 +341,8 @@ bool IsInChain(Select* select, const std::vector<SelectChain>& chains) {
   return false;
 }
 
-absl::StatusOr<bool> TableSwitchPass::RunOnFunction(
-    Function* f, const PassOptions& options, PassResults* results) const {
+absl::StatusOr<bool> TableSwitchPass::RunOnFunctionBase(
+    FunctionBase* f, const PassOptions& options, PassResults* results) const {
   // Find all candidate starts - sel(eq, sel, lit). Walk up from each (I guess);
   // but we only need the first in each chain, so let's reverse toposort,
   // and if node X is already in the chain of Y, then skip it.

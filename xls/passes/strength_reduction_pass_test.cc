@@ -39,10 +39,10 @@ class StrengthReductionPassTest : public IrTestBase {
     PassResults results;
     XLS_ASSIGN_OR_RETURN(bool changed,
                          StrengthReductionPass(/*split_ops=*/true)
-                             .RunOnFunction(f, PassOptions(), &results));
+                             .RunOnFunctionBase(f, PassOptions(), &results));
     // Run dce to clean things up.
     XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
-                            .RunOnFunction(f, PassOptions(), &results)
+                            .RunOnFunctionBase(f, PassOptions(), &results)
                             .status());
     // Return whether strength reduction changed anything.
     return changed;

@@ -582,8 +582,8 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
 
 }  // namespace
 
-absl::StatusOr<bool> ArithSimplificationPass::RunOnFunction(
-    Function* f, const PassOptions& options, PassResults* results) const {
+absl::StatusOr<bool> ArithSimplificationPass::RunOnFunctionBase(
+    FunctionBase* f, const PassOptions& options, PassResults* results) const {
   bool modified = false;
   bool local_modified = false;
   for (Node* node : TopoSort(f)) {

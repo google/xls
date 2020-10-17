@@ -49,7 +49,7 @@ Bits TernaryVectorToValueBits(const TernaryEvaluator::Vector& ternary_vector) {
 
 /* static */
 absl::StatusOr<std::unique_ptr<TernaryQueryEngine>> TernaryQueryEngine::Run(
-    Function* f) {
+    FunctionBase* f) {
   TernaryEvaluator evaluator;
   absl::flat_hash_map<Node*, TernaryEvaluator::Vector> values;
   for (Node* node : TopoSort(f)) {

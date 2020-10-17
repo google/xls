@@ -60,7 +60,9 @@ Op CompareOpCommuted(Op op) {
 // Being able to rely on the shape of such nodes greatly simplifies
 // the implementation of transformation passes, as only one pattern needs
 // to be matched, instead of two.
-absl::StatusOr<bool> CanonicalizeNodes(Node* n, Function* f) {
+absl::StatusOr<bool> CanonicalizeNode(Node* n) {
+  FunctionBase* f = n->function();
+
   // Always move kLiteral to right for commutative operators.
   Op op = n->op();
   if (OpIsCommutative(op) && n->operand_count() == 2) {
@@ -120,11 +122,12 @@ absl::StatusOr<bool> CanonicalizeNodes(Node* n, Function* f) {
   return false;
 }
 
-absl::StatusOr<bool> CanonicalizationPass::RunOnFunction(
-    Function* func, const PassOptions& options, PassResults* results) const {
+absl::StatusOr<bool> CanonicalizationPass::RunOnFunctionBase(
+    FunctionBase* func, const PassOptions& options,
+    PassResults* results) const {
   bool changed = false;
   for (Node* node : TopoSort(func)) {
-    XLS_ASSIGN_OR_RETURN(bool node_changed, CanonicalizeNodes(node, func));
+    XLS_ASSIGN_OR_RETURN(bool node_changed, CanonicalizeNode(node));
     changed = changed | node_changed;
   }
   return changed;

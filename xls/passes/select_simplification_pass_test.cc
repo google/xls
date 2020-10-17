@@ -38,7 +38,7 @@ class SelectSimplificationPassTest : public IrTestBase {
     PassResults results;
     XLS_ASSIGN_OR_RETURN(bool changed,
                          SelectSimplificationPass(/*split_ops=*/true)
-                             .RunOnFunction(f, PassOptions(), &results));
+                             .RunOnFunctionBase(f, PassOptions(), &results));
     return changed;
   }
 };

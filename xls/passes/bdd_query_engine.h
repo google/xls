@@ -41,7 +41,7 @@ class BddQueryEngine : public QueryEngine {
   // 'do_not_evaluate_ops', its bits are modeled as BDD variables. See
   // BddFunction for details.
   static absl::StatusOr<std::unique_ptr<BddQueryEngine>> Run(
-      Function* f, int64 minterm_limit = 0,
+      FunctionBase* f, int64 minterm_limit = 0,
       absl::Span<const Op> do_not_evaluate_ops = {});
 
   bool IsTracked(Node* node) const override {

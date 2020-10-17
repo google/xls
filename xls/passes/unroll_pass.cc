@@ -23,7 +23,7 @@ namespace {
 
 // Finds an "effectively used" (has users or is return value) counted for in the
 // function f, or returns nullptr if none is found.
-CountedFor* FindCountedFor(Function* f) {
+CountedFor* FindCountedFor(FunctionBase* f) {
   for (Node* node : TopoSort(f)) {
     if (node->Is<CountedFor>() &&
         (node == f->return_value() || !node->users().empty())) {
@@ -35,7 +35,8 @@ CountedFor* FindCountedFor(Function* f) {
 
 // Unrolls the node "loop" by replacing it with a sequence of dependent
 // invocations.
-absl::Status UnrollCountedFor(CountedFor* loop, Function* f) {
+absl::Status UnrollCountedFor(CountedFor* loop) {
+  FunctionBase* f = loop->function();
   Node* loop_carry = loop->initial_value();
   int64 ivar_bit_count = loop->body()->params()[0]->BitCountOrDie();
   for (int64 trip = 0, iv = 0; trip < loop->trip_count();
@@ -61,16 +62,16 @@ absl::Status UnrollCountedFor(CountedFor* loop, Function* f) {
 
 }  // namespace
 
-absl::StatusOr<bool> UnrollPass::RunOnFunction(Function* f,
-                                               const PassOptions& options,
-                                               PassResults* results) const {
+absl::StatusOr<bool> UnrollPass::RunOnFunctionBase(FunctionBase* f,
+                                                   const PassOptions& options,
+                                                   PassResults* results) const {
   bool changed = false;
   while (true) {
     CountedFor* loop = FindCountedFor(f);
     if (loop == nullptr) {
       break;
     }
-    XLS_RETURN_IF_ERROR(UnrollCountedFor(loop, f));
+    XLS_RETURN_IF_ERROR(UnrollCountedFor(loop));
     changed = true;
   }
   return changed;

@@ -25,16 +25,17 @@ namespace xls {
 // limited set of optimization including one-hot removal and replacement of
 // statically known values with literals.
 // TODO(meheff): Add more BDD-based optimizations.
-class BddSimplificationPass : public FunctionPass {
+class BddSimplificationPass : public FunctionBasePass {
  public:
   explicit BddSimplificationPass(bool split_ops)
-      : FunctionPass("bdd_simp", "BDD-based Simplification"),
+      : FunctionBasePass("bdd_simp", "BDD-based Simplification"),
         split_ops_(split_ops) {}
   ~BddSimplificationPass() override {}
 
   // Run all registered passes in order of registration.
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
+                                         const PassOptions& options,
+                                         PassResults* results) const override;
 
  private:
   bool split_ops_;

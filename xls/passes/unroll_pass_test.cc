@@ -49,7 +49,7 @@ fn unrollable() -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("unrollable"));
   PassResults results;
   UnrollPass pass;
-  EXPECT_THAT(pass.RunOnFunction(f, PassOptions(), &results),
+  EXPECT_THAT(pass.RunOnFunctionBase(f, PassOptions(), &results),
               IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Invoke(m::Literal(2),

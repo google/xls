@@ -459,8 +459,8 @@ absl::StatusOr<bool> TryDistributeReducibleOperation(Node* node) {
 
 }  // namespace
 
-absl::StatusOr<bool> ConcatSimplificationPass::RunOnFunction(
-    Function* f, const PassOptions& options, PassResults* results) const {
+absl::StatusOr<bool> ConcatSimplificationPass::RunOnFunctionBase(
+    FunctionBase* f, const PassOptions& options, PassResults* results) const {
   XLS_VLOG(2) << "Running concat simplifier on function " << f->name();
   XLS_VLOG(3) << "Before:";
   XLS_VLOG_LINES(3, f->DumpIr());

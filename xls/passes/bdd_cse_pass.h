@@ -23,14 +23,16 @@ namespace xls {
 
 // Pass which commons equivalent expressions in the graph using binary decision
 // diagrams.
-class BddCsePass : public FunctionPass {
+class BddCsePass : public FunctionBasePass {
  public:
   explicit BddCsePass()
-      : FunctionPass("bdd_cse", "BDD-based Common Subexpression Elimination") {}
+      : FunctionBasePass("bdd_cse",
+                         "BDD-based Common Subexpression Elimination") {}
   ~BddCsePass() override {}
 
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
+                                         const PassOptions& options,
+                                         PassResults* results) const override;
 };
 
 }  // namespace xls

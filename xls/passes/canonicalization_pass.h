@@ -28,13 +28,15 @@ namespace xls {
 // between a node and a literal, the literal should only be the
 // 2nd operand. This preprocessing of the IR helps to simplify
 // later passes.
-class CanonicalizationPass : public FunctionPass {
+class CanonicalizationPass : public FunctionBasePass {
  public:
-  explicit CanonicalizationPass() : FunctionPass("canon", "Canonicalization") {}
+  explicit CanonicalizationPass()
+      : FunctionBasePass("canon", "Canonicalization") {}
   ~CanonicalizationPass() override {}
 
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
+                                         const PassOptions& options,
+                                         PassResults* results) const override;
 };
 
 }  // namespace xls

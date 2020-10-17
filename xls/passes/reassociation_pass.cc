@@ -77,8 +77,8 @@ int64 GatherExpressionLeaves(Op op, int64 bit_count, Node* node,
   return max_depth;
 }
 
-absl::StatusOr<bool> ReassociationPass::RunOnFunction(
-    Function* f, const PassOptions& options, PassResults* results) const {
+absl::StatusOr<bool> ReassociationPass::RunOnFunctionBase(
+    FunctionBase* f, const PassOptions& options, PassResults* results) const {
   XLS_VLOG(2) << "Running reassociation on function " << f->name();
   XLS_VLOG(3) << "Before:";
   XLS_VLOG_LINES(3, f->DumpIr());

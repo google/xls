@@ -21,12 +21,13 @@
 
 namespace xls {
 
-class UnrollPass : public FunctionPass {
+class UnrollPass : public FunctionBasePass {
  public:
-  UnrollPass() : FunctionPass("loop_unroll", "Unroll counted loops") {}
+  UnrollPass() : FunctionBasePass("loop_unroll", "Unroll counted loops") {}
 
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
+                                         const PassOptions& options,
+                                         PassResults* results) const override;
 };
 
 }  // namespace xls

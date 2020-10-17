@@ -23,14 +23,15 @@ namespace xls {
 
 // Pass which simplifies concats. This includes removing single-operand concats,
 // flattening trees of dependent concats, and others.
-class ConcatSimplificationPass : public FunctionPass {
+class ConcatSimplificationPass : public FunctionBasePass {
  public:
   ConcatSimplificationPass()
-      : FunctionPass("concat_simp", "Concat simplification") {}
+      : FunctionBasePass("concat_simp", "Concat simplification") {}
   ~ConcatSimplificationPass() override {}
 
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
+                                         const PassOptions& options,
+                                         PassResults* results) const override;
 };
 
 }  // namespace xls

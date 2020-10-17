@@ -88,8 +88,9 @@ absl::StatusOr<bool> SimplifyArrayIndex(ArrayIndex* node) {
 }
 }  // namespace
 
-absl::StatusOr<bool> ArraySimplificationPass::RunOnFunction(
-    Function* func, const PassOptions& options, PassResults* results) const {
+absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBase(
+    FunctionBase* func, const PassOptions& options,
+    PassResults* results) const {
   XLS_VLOG(2) << "Running array simplifier on function " << func->name();
   XLS_VLOG(3) << "Before:";
   XLS_VLOG_LINES(3, func->DumpIr());

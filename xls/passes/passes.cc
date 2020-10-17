@@ -20,12 +20,13 @@
 
 namespace xls {
 
-absl::StatusOr<bool> FunctionPass::Run(Package* p, const PassOptions& options,
-                                       PassResults* results) const {
+absl::StatusOr<bool> FunctionBasePass::Run(Package* p,
+                                           const PassOptions& options,
+                                           PassResults* results) const {
   bool changed = false;
-  for (auto& f : p->functions()) {
+  for (FunctionBase* f : p->GetFunctionsAndProcs()) {
     XLS_ASSIGN_OR_RETURN(bool function_changed,
-                         RunOnFunction(f.get(), options, results));
+                         RunOnFunctionBase(f, options, results));
     changed |= function_changed;
   }
   return changed;

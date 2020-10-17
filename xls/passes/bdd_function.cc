@@ -240,7 +240,7 @@ bool ShouldEvaluate(Node* node) {
 }  // namespace
 
 /* static */ absl::StatusOr<std::unique_ptr<BddFunction>> BddFunction::Run(
-    Function* f, int64 minterm_limit,
+    FunctionBase* f, int64 minterm_limit,
     absl::Span<const Op> do_not_evaluate_ops) {
   XLS_VLOG(1) << absl::StreamFormat("BddFunction::Run(%s):", f->name());
   XLS_VLOG_LINES(5, f->DumpIr());

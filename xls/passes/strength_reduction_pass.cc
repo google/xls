@@ -33,7 +33,7 @@ namespace {
 // ORs. These are determined ahead of time rather than being transformed inline
 // to avoid problems with stale information in QueryEngine.
 absl::StatusOr<absl::flat_hash_set<Node*>> FindReducibleAdds(
-    Function* f, const QueryEngine& query_engine) {
+    FunctionBase* f, const QueryEngine& query_engine) {
   absl::flat_hash_set<Node*> reducible_adds;
   for (Node* node : f->nodes()) {
     // An add can be reduced to an OR if there is at least one zero in every bit
@@ -322,8 +322,8 @@ absl::StatusOr<bool> StrengthReduceNode(
 
 }  // namespace
 
-absl::StatusOr<bool> StrengthReductionPass::RunOnFunction(
-    Function* f, const PassOptions& options, PassResults* results) const {
+absl::StatusOr<bool> StrengthReductionPass::RunOnFunctionBase(
+    FunctionBase* f, const PassOptions& options, PassResults* results) const {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<TernaryQueryEngine> query_engine,
                        TernaryQueryEngine::Run(f));
   XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> reducible_adds,

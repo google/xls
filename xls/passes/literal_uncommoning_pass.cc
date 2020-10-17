@@ -20,8 +20,8 @@
 
 namespace xls {
 
-absl::StatusOr<bool> LiteralUncommoningPass::RunOnFunction(
-    Function* f, const PassOptions& options, PassResults* results) const {
+absl::StatusOr<bool> LiteralUncommoningPass::RunOnFunctionBase(
+    FunctionBase* f, const PassOptions& options, PassResults* results) const {
   // Construct separate list of the initial literals to avoid iterator
   // invalidation problems because we will be adding additional nodes during
   // the transformation.

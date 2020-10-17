@@ -23,13 +23,14 @@ namespace xls {
 
 // Pass which simplifies or eliminates some array-type operations such as
 // ArrayIndex.
-class ArraySimplificationPass : public FunctionPass {
+class ArraySimplificationPass : public FunctionBasePass {
  public:
   ArraySimplificationPass()
-      : FunctionPass("array_simp", "Array Simplification") {}
+      : FunctionBasePass("array_simp", "Array Simplification") {}
 
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
+                                         const PassOptions& options,
+                                         PassResults* results) const override;
 };
 
 }  // namespace xls

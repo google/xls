@@ -74,7 +74,7 @@ std::string SelectorToString(Node* node) {
 
 // Collapse chain of selects with disjoint (one-hot or zero) selectors into a
 // single one-hot-select.
-absl::StatusOr<bool> CollapseSelectChains(Function* f,
+absl::StatusOr<bool> CollapseSelectChains(FunctionBase* f,
                                           const QueryEngine& query_engine) {
   auto is_binary_select = [](Node* node) {
     if (!node->Is<Select>()) {
@@ -323,7 +323,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   return false;
 }
 
-absl::StatusOr<bool> SimplifyOneHotMsb(Function* f) {
+absl::StatusOr<bool> SimplifyOneHotMsb(FunctionBase* f) {
   bool changed = false;
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<PostDominatorAnalysis> post_dominator_analysis,
@@ -436,8 +436,8 @@ absl::StatusOr<bool> SimplifyOneHotMsb(Function* f) {
 
 }  // namespace
 
-absl::StatusOr<bool> BddSimplificationPass::RunOnFunction(
-    Function* f, const PassOptions& options, PassResults* results) const {
+absl::StatusOr<bool> BddSimplificationPass::RunOnFunctionBase(
+    FunctionBase* f, const PassOptions& options, PassResults* results) const {
   XLS_VLOG(2) << "Running BDD simplifier on function " << f->name();
   XLS_VLOG(3) << "Before:";
   XLS_VLOG_LINES(3, f->DumpIr());

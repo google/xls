@@ -43,11 +43,11 @@ class BitSliceSimplificationPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Function* f) {
     PassResults results;
-    XLS_ASSIGN_OR_RETURN(
-        bool changed,
-        BitSliceSimplificationPass().RunOnFunction(f, PassOptions(), &results));
+    XLS_ASSIGN_OR_RETURN(bool changed,
+                         BitSliceSimplificationPass().RunOnFunctionBase(
+                             f, PassOptions(), &results));
     XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
-                            .RunOnFunction(f, PassOptions(), &results)
+                            .RunOnFunctionBase(f, PassOptions(), &results)
                             .status());
     return changed;
   }

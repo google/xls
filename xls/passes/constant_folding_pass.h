@@ -23,13 +23,14 @@ namespace xls {
 
 // Pass which performs constant folding. Every op with only literal operands is
 // replaced by a equivalent literal. Runs DCE after constant folding.
-class ConstantFoldingPass : public FunctionPass {
+class ConstantFoldingPass : public FunctionBasePass {
  public:
-  ConstantFoldingPass() : FunctionPass("const_fold", "Constant folding") {}
+  ConstantFoldingPass() : FunctionBasePass("const_fold", "Constant folding") {}
   ~ConstantFoldingPass() override {}
 
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
+                                         const PassOptions& options,
+                                         PassResults* results) const override;
 };
 
 }  // namespace xls

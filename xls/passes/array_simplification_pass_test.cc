@@ -37,8 +37,9 @@ class ArraySimplificationPassTest : public IrTestBase {
  protected:
   absl::StatusOr<bool> Run(Function* f) {
     PassResults results;
-    XLS_ASSIGN_OR_RETURN(bool changed, ArraySimplificationPass().RunOnFunction(
-                                           f, PassOptions(), &results));
+    XLS_ASSIGN_OR_RETURN(bool changed,
+                         ArraySimplificationPass().RunOnFunctionBase(
+                             f, PassOptions(), &results));
     return changed;
   }
 };

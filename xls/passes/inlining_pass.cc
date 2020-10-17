@@ -32,7 +32,7 @@ bool ShouldInline(Invoke* invoke) {
 
 // Finds an "effectively used" (has users or is return value) invoke in the
 // function f, or returns nullptr if none is found.
-Invoke* FindInvoke(Function* f) {
+Invoke* FindInvoke(FunctionBase* f) {
   for (Node* node : TopoSort(f)) {
     if (node->Is<Invoke>() &&
         (node == f->return_value() || !node->users().empty()) &&
@@ -83,7 +83,7 @@ absl::optional<std::string> GetInlinedNodeName(Node* node, Invoke* invoke) {
 
 // Inlines the node "invoke" by replacing it with the contents of the called
 // function.
-absl::Status InlineInvoke(Invoke* invoke, Function* f) {
+absl::Status InlineInvoke(Invoke* invoke) {
   Function* invoked = invoke->to_apply();
   absl::flat_hash_map<Node*, Node*> invoked_node_to_replacement;
   for (int64 i = 0; i < invoked->params().size(); ++i) {
@@ -100,8 +100,9 @@ absl::Status InlineInvoke(Invoke* invoke, Function* f) {
     for (Node* operand : node->operands()) {
       new_operands.push_back(invoked_node_to_replacement.at(operand));
     }
-    XLS_ASSIGN_OR_RETURN(Node * new_node,
-                         node->CloneInNewFunction(new_operands, f));
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_node,
+        node->CloneInNewFunction(new_operands, invoke->function()));
     invoked_node_to_replacement[node] = new_node;
   }
 
@@ -141,21 +142,20 @@ absl::Status InlineInvoke(Invoke* invoke, Function* f) {
                           ->ReplaceUsesWith(invoked_node_to_replacement.at(
                               invoked->return_value()))
                           .status());
-  return f->RemoveNode(invoke);
+  return invoke->function()->RemoveNode(invoke);
 }
 
 }  // namespace
 
-absl::StatusOr<bool> InliningPass::RunOnFunction(Function* f,
-                                                 const PassOptions& options,
-                                                 PassResults* results) const {
+absl::StatusOr<bool> InliningPass::RunOnFunctionBase(
+    FunctionBase* f, const PassOptions& options, PassResults* results) const {
   bool changed = false;
   while (true) {
     Invoke* invoke = FindInvoke(f);
     if (invoke == nullptr) {
       break;
     }
-    XLS_RETURN_IF_ERROR(InlineInvoke(invoke, f));
+    XLS_RETURN_IF_ERROR(InlineInvoke(invoke));
     changed = true;
   }
   return changed;

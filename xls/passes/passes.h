@@ -39,18 +39,19 @@ using CompoundPass = CompoundPassBase<Package>;
 using FixedPointCompoundPass = FixedPointCompoundPassBase<Package>;
 using InvariantChecker = CompoundPass::InvariantChecker;
 
-// Abstract base class for passes operate at function scope. The derived class
-// must define RunOnFunction.
-class FunctionPass : public Pass {
+// Abstract base class for passes operate at function/proc scope. The derived
+// class must define RunOnFunctionBase.
+class FunctionBasePass : public Pass {
  public:
-  FunctionPass(absl::string_view short_name, absl::string_view long_name)
+  FunctionBasePass(absl::string_view short_name, absl::string_view long_name)
       : Pass(short_name, long_name) {}
 
-  virtual absl::StatusOr<bool> RunOnFunction(Function* f,
-                                             const PassOptions& options,
-                                             PassResults* results) const = 0;
+  virtual absl::StatusOr<bool> RunOnFunctionBase(
+      FunctionBase* f, const PassOptions& options,
+      PassResults* results) const = 0;
 
-  // Iterates over each function in the package calling RunOnFunction.
+  // Iterates over each function and proc in the package calling
+  // RunOnFunctionBase.
   absl::StatusOr<bool> Run(Package* p, const PassOptions& options,
                            PassResults* results) const override;
 };

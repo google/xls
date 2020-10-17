@@ -25,14 +25,15 @@ namespace xls {
 
 // class DumpPass simply dumps the IR as is. This pass can be used
 // for debugging purposes.
-class DumpPass : public FunctionPass {
+class DumpPass : public FunctionBasePass {
  public:
-  DumpPass() : FunctionPass("DMP", "Dump IR") {}
+  DumpPass() : FunctionBasePass("DMP", "Dump IR") {}
   ~DumpPass() override = default;
 
   // Dumps the IR and keeps it unmodified.
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
+                                         const PassOptions& options,
+                                         PassResults* results) const override;
 };
 
 }  // namespace xls

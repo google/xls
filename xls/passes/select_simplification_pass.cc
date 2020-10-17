@@ -1002,8 +1002,9 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 
 }  // namespace
 
-absl::StatusOr<bool> SelectSimplificationPass::RunOnFunction(
-    Function* func, const PassOptions& options, PassResults* results) const {
+absl::StatusOr<bool> SelectSimplificationPass::RunOnFunctionBase(
+    FunctionBase* func, const PassOptions& options,
+    PassResults* results) const {
   XLS_VLOG(2) << "Running select simplifier on function " << func->name();
   XLS_VLOG(3) << "Before:";
   XLS_VLOG_LINES(3, func->DumpIr());

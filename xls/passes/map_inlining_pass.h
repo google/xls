@@ -22,12 +22,12 @@ namespace xls {
 
 // A pass to convert map nodes to in-line Invoke nodes. We don't directly lower
 // maps to Verilog.
-class MapInliningPass : public FunctionPass {
+class MapInliningPass : public FunctionBasePass {
  public:
   MapInliningPass();
-  absl::StatusOr<bool> RunOnFunction(Function* function,
-                                     const PassOptions& options,
-                                     PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* function,
+                                         const PassOptions& options,
+                                         PassResults* results) const override;
 
  private:
   // Replaces a single Map node with a CountedFor operation.

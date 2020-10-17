@@ -23,18 +23,19 @@ namespace xls {
 
 // Pass which simplifies selects and one-hot-selects. Example optimizations
 // include removing dead arms and eliminating selects with constant selectors.
-class SelectSimplificationPass : public FunctionPass {
+class SelectSimplificationPass : public FunctionBasePass {
  public:
   // 'split_ops' indicates whether to perform optimizations which split
   // operations into smaller operations. Typically splitting optimizations
   // should be performed later in the optimization pipeline.
   explicit SelectSimplificationPass(bool split_ops)
-      : FunctionPass("select_simp", "Select Simplification"),
+      : FunctionBasePass("select_simp", "Select Simplification"),
         split_ops_(split_ops) {}
   ~SelectSimplificationPass() override {}
 
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
+                                         const PassOptions& options,
+                                         PassResults* results) const override;
 
  private:
   bool split_ops_;

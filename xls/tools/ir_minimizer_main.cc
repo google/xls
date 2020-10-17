@@ -257,7 +257,7 @@ absl::StatusOr<SimplificationResult> Simplify(
     CsePass cse;
     PassResults results;
     XLS_ASSIGN_OR_RETURN(bool changed,
-                         cse.RunOnFunction(f, PassOptions(), &results));
+                         cse.RunOnFunctionBase(f, PassOptions(), &results));
     if (changed) {
       *which_transform = "CSE";
       return SimplificationResult::kDidChange;
@@ -268,8 +268,8 @@ absl::StatusOr<SimplificationResult> Simplify(
     // Attempt to do constant folding.
     ConstantFoldingPass folding_pass;
     PassResults results;
-    XLS_ASSIGN_OR_RETURN(
-        bool changed, folding_pass.RunOnFunction(f, PassOptions(), &results));
+    XLS_ASSIGN_OR_RETURN(bool changed, folding_pass.RunOnFunctionBase(
+                                           f, PassOptions(), &results));
     if (changed) {
       *which_transform = "Constant folding";
       return SimplificationResult::kDidChange;
@@ -333,7 +333,8 @@ absl::Status CleanUp(Function* f, bool can_remove_params) {
   DeadCodeEliminationPass dce;
   DeadFunctionEliminationPass dfe;
   PassResults results;
-  XLS_RETURN_IF_ERROR(dce.RunOnFunction(f, PassOptions(), &results).status());
+  XLS_RETURN_IF_ERROR(
+      dce.RunOnFunctionBase(f, PassOptions(), &results).status());
   if (can_remove_params) {
     XLS_RETURN_IF_ERROR(RemoveDeadParameters(f).status());
   }

@@ -24,14 +24,15 @@ namespace xls {
 // Pass which clones Literals such that each literal has only a single use
 // (inverse of CSE). The motivation is that Literals are trivially and freely
 // materializable so no need to share an instance.
-class LiteralUncommoningPass : public FunctionPass {
+class LiteralUncommoningPass : public FunctionBasePass {
  public:
   LiteralUncommoningPass()
-      : FunctionPass("literal_uncommon", "Literal uncommoning") {}
+      : FunctionBasePass("literal_uncommon", "Literal uncommoning") {}
   ~LiteralUncommoningPass() override {}
 
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
+                                         const PassOptions& options,
+                                         PassResults* results) const override;
 };
 
 }  // namespace xls

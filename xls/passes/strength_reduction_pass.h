@@ -23,16 +23,17 @@ namespace xls {
 
 // Replaces operations with equivalent cheaper operations. For example, multiply
 // by a power-of-two constant may be replaced with a shift left.
-class StrengthReductionPass : public FunctionPass {
+class StrengthReductionPass : public FunctionBasePass {
  public:
   explicit StrengthReductionPass(bool split_ops)
-      : FunctionPass("strength_red", "Strength Reduction"),
+      : FunctionBasePass("strength_red", "Strength Reduction"),
         split_ops_(split_ops) {}
   ~StrengthReductionPass() override {}
 
   // Run all registered passes in order of registration.
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
+                                         const PassOptions& options,
+                                         PassResults* results) const override;
 
  private:
   bool split_ops_;

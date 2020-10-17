@@ -22,8 +22,8 @@
 
 namespace xls {
 
-absl::StatusOr<bool> TupleSimplificationPass::RunOnFunction(
-    Function* f, const PassOptions& options, PassResults* results) const {
+absl::StatusOr<bool> TupleSimplificationPass::RunOnFunctionBase(
+    FunctionBase* f, const PassOptions& options, PassResults* results) const {
   // Replace TupleIndex(Tuple(i{0}, i{1}, ..., i{N}), index=k) with i{k}
   bool changed = false;
   std::deque<absl::variant<TupleIndex*, ArrayIndex*>> worklist;

@@ -24,14 +24,15 @@ namespace xls {
 // class ArithSimplificationPass analyzes the IR and finds some
 // simple patterns it can simplify, e.g., things like mul by 1,
 // add of 0, etc.
-class ArithSimplificationPass : public FunctionPass {
+class ArithSimplificationPass : public FunctionBasePass {
  public:
   ArithSimplificationPass()
-      : FunctionPass("arith_simp", "Arithmetic Simplifications") {}
+      : FunctionBasePass("arith_simp", "Arithmetic Simplifications") {}
   ~ArithSimplificationPass() override {}
 
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
+                                         const PassOptions& options,
+                                         PassResults* results) const override;
 };
 
 }  // namespace xls

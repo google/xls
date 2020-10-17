@@ -23,14 +23,15 @@ namespace xls {
 
 // Pass which simplifies and eliminates tuples. Replaces a tuple instruction
 // followed by a tuple index instruction with the tuple element itself.
-class TupleSimplificationPass : public FunctionPass {
+class TupleSimplificationPass : public FunctionBasePass {
  public:
   TupleSimplificationPass()
-      : FunctionPass("tuple_simp", "Tuple simplification") {}
+      : FunctionBasePass("tuple_simp", "Tuple simplification") {}
   ~TupleSimplificationPass() override {}
 
-  absl::StatusOr<bool> RunOnFunction(Function* f, const PassOptions& options,
-                                     PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
+                                         const PassOptions& options,
+                                         PassResults* results) const override;
 };
 
 }  // namespace xls

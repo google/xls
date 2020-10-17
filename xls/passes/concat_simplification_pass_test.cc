@@ -52,23 +52,23 @@ class ConcatSimplificationPassTest : public IrTestBase {
     while (changed) {
       changed = false;
       PassResults results;
-      XLS_ASSIGN_OR_RETURN(
-          bool concat_changed,
-          ConcatSimplificationPass().RunOnFunction(f, PassOptions(), &results));
+      XLS_ASSIGN_OR_RETURN(bool concat_changed,
+                           ConcatSimplificationPass().RunOnFunctionBase(
+                               f, PassOptions(), &results));
       changed |= concat_changed;
       any_concat_chagned |= concat_changed;
 
       // Run other passes to clean things up.
-      XLS_ASSIGN_OR_RETURN(
-          bool dce_changed,
-          DeadCodeEliminationPass().RunOnFunction(f, PassOptions(), &results));
+      XLS_ASSIGN_OR_RETURN(bool dce_changed,
+                           DeadCodeEliminationPass().RunOnFunctionBase(
+                               f, PassOptions(), &results));
       changed |= dce_changed;
       XLS_ASSIGN_OR_RETURN(bool slice_changed,
-                           BitSliceSimplificationPass().RunOnFunction(
+                           BitSliceSimplificationPass().RunOnFunctionBase(
                                f, PassOptions(), &results));
       changed |= slice_changed;
 
-      XLS_ASSIGN_OR_RETURN(bool cse_changed, BddCsePass().RunOnFunction(
+      XLS_ASSIGN_OR_RETURN(bool cse_changed, BddCsePass().RunOnFunctionBase(
                                                  f, PassOptions(), &results));
       changed |= cse_changed;
     }
