@@ -13,6 +13,8 @@
 // limitations under the License.
 #include "xls/jit/serial_proc_runtime.h"
 
+#include <thread>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"

@@ -738,6 +738,7 @@ cc_test(
     srcs = ["interp_bindings_test.cc"],
     deps = [
         ":interp_bindings",
+        "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
     ],
 )

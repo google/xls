@@ -16,6 +16,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/status/matchers.h"
 
 namespace xls::dslx {
 namespace {
@@ -41,7 +42,7 @@ TEST(InterpBindingsTest, ResolveValueViaParentLnk) {
   InterpBindings child(parent);
   child.ResolveValueFromIdentifier("t").value().IsTrue();
   EXPECT_THAT(child.ResolveModule("t"),
-              testing::status::StatusIs(
+              status_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
                   testing::HasSubstr("identifier \"t\" was bound to a Value")));
 }

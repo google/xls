@@ -16,8 +16,8 @@
 #include <cstddef>
 #include <thread>
 
-#include "absl/cleanup/cleanup.h"
 #include "absl/status/status.h"
+#include "xls/common/cleanup.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/proc.h"
 #include "xls/jit/jit_channel_queue.h"
@@ -125,7 +125,7 @@ absl::Status SerialProcRuntime::Tick() {
   absl::CondVar status_condvar;
 
   std::vector<ThreadData> thread_data(procs_.size());
-  auto cleanup = absl::MakeCleanup([&thread_data]() {
+  auto cleanup = xabsl::MakeCleanup([&thread_data]() {
     for (ThreadData& thread_data : thread_data) {
       thread_data.mutex.Lock();
       thread_data.thread_state = ThreadData::State::kCancelled;
