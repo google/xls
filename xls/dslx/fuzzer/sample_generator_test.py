@@ -66,8 +66,8 @@ class SampleGeneratorTest(test_base.TestCase):
          BitsType(signed=True, size=22))),), rng)
     self.assertLen(args, 1)
     self.assertTrue(args[0].is_tuple())
-    self.assertEqual(args[0].tuple_members[0].get_bit_count(), 123)
-    self.assertEqual(args[0].tuple_members[1].get_bit_count(), 22)
+    self.assertEqual(args[0].get_elements()[0].get_bit_count(), 123)
+    self.assertEqual(args[0].get_elements()[1].get_bit_count(), 22)
 
   def test_generate_array_argument(self):
     rng = random.Random(0)
@@ -75,9 +75,9 @@ class SampleGeneratorTest(test_base.TestCase):
         (ArrayType(BitsType(signed=True, size=4), 24),), rng)
     self.assertLen(args, 1)
     self.assertTrue(args[0].is_array())
-    self.assertLen(args[0].array_payload.elements, 24)
-    self.assertTrue(args[0].array_payload.index(0).is_sbits())
-    self.assertTrue(args[0].array_payload.index(0).get_bit_count(), 4)
+    self.assertLen(args[0].get_elements(), 24)
+    self.assertTrue(args[0].index(0).is_sbits())
+    self.assertTrue(args[0].index(0).get_bit_count(), 4)
 
   def test_generate_basic_sample(self):
     rng = random.Random(0)

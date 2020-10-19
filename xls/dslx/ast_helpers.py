@@ -22,6 +22,7 @@ from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_scanner as scanner_mod
 from xls.dslx.python.cpp_pos import Pos
 from xls.dslx.python.cpp_pos import Span
+from xls.ir.python import bits as ir_bits
 
 ContextType = Any
 GetImportedCallback = Callable[[ast.Import, ContextType], Tuple[ast.Module,
@@ -163,6 +164,12 @@ def get_value_as_int(n: ast.Number) -> int:
   if n.kind == ast.NumberKind.CHARACTER:
     return ord(n.value)
   return _get_value_as_int(n.value)
+
+
+def get_value_as_bits(n: ast.Number, bit_count: int) -> ir_bits.Bits:
+  """Returns the numerical value contained in the AST node as a Python int."""
+  x = get_value_as_int(n)
+  return ir_bits.from_long(x, bit_count)
 
 
 def get_token_value_as_int(t: scanner_mod.Token) -> int:

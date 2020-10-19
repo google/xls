@@ -20,13 +20,15 @@ from typing import Optional
 
 from xls.common.xls_error import XlsError
 from xls.dslx import ast_helpers
-from xls.dslx.interpreter.value import Value
 from xls.dslx.python import cpp_scanner as scanner_mod
 from xls.dslx.python.cpp_scanner import Keyword
 from xls.dslx.python.cpp_scanner import ScanError
 from xls.dslx.python.cpp_scanner import Scanner
 from xls.dslx.python.cpp_scanner import Token
 from xls.dslx.python.cpp_scanner import TokenKind
+from xls.dslx.python.interp_value import Tag
+from xls.dslx.python.interp_value import Value
+from xls.ir.python import bits as ir_bits
 
 
 class ValueParseError(XlsError):
@@ -39,10 +41,12 @@ def _bit_value_from_scanner(s: Scanner, signed: bool) -> Value:
   s.pop_or_error(TokenKind.CBRACK)
   s.pop_or_error(TokenKind.COLON)
   value_tok = s.pop_or_error(TokenKind.NUMBER)
-  constructor = Value.make_sbits if signed else Value.make_ubits
-  return constructor(
-      bit_count=ast_helpers.get_token_value_as_int(bit_count_tok),
-      value=ast_helpers.get_token_value_as_int(value_tok))
+  tag = Tag.SBITS if signed else Tag.UBITS
+  return Value.make_bits(
+      tag,
+      ir_bits.from_long(
+          bit_count=ast_helpers.get_token_value_as_int(bit_count_tok),
+          value=ast_helpers.get_token_value_as_int(value_tok)))
 
 
 class _LookaheadWrapper:

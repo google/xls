@@ -32,12 +32,13 @@ from xls.dslx import parse_and_typecheck
 from xls.dslx import typecheck
 from xls.dslx.fuzzer import sample
 from xls.dslx.interpreter.interpreter import Interpreter
-from xls.dslx.interpreter.value import Value
 from xls.dslx.interpreter.value_parser import value_from_string
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_concrete_type as concrete_type_mod
 from xls.dslx.python import cpp_type_info as type_info_mod
 from xls.dslx.python.cpp_concrete_type import ConcreteType
+from xls.dslx.python.interp_value import Tag
+from xls.dslx.python.interp_value import Value
 from xls.ir.python import ir_parser
 from xls.ir.python import value as ir_value_mod
 from xls.ir.python.format_preference import FormatPreference
@@ -62,8 +63,7 @@ def ir_value_to_interpreter_value(value: ir_value_mod.Value) -> Value:
   """Converts an IR Value to an interpreter Value."""
   if value.is_bits():
     if value.get_bits().bit_count() <= 64:
-      return Value.make_ubits(value.get_bits().bit_count(),
-                              value.get_bits().to_uint())
+      return Value.make_bits(Tag.UBITS, value.get_bits())
     else:
       # For wide values which do not fit in 64 bits, parse value as as string.
       return value_from_string(value.to_str(FormatPreference.HEX))
@@ -107,20 +107,20 @@ def sign_convert_value(concrete_type: ConcreteType, value: Value) -> Value:
   """
   if isinstance(concrete_type, concrete_type_mod.TupleType):
     assert value.is_tuple()
-    assert len(value.tuple_members) == concrete_type.get_tuple_length()
+    assert len(value.get_elements()) == concrete_type.get_tuple_length()
     return Value.make_tuple(
         tuple(
             sign_convert_value(t, a) for t, a in zip(
-                concrete_type.get_unnamed_members(), value.tuple_members)))
+                concrete_type.get_unnamed_members(), value.get_elements())))
   elif isinstance(concrete_type, concrete_type_mod.ArrayType):
     assert value.is_array()
-    assert len(value.array_payload.elements) == concrete_type.size
+    assert len(value.get_elements()) == concrete_type.size
     return Value.make_array(
         tuple(
             sign_convert_value(concrete_type.get_element_type(), v)
-            for v in value.array_payload.elements))
+            for v in value.get_elements()))
   elif concrete_type_mod.is_sbits(concrete_type):
-    return Value.make_sbits(value.get_bit_count(), value.get_bits_value())
+    return Value.make_bits(Tag.SBITS, value.get_bits())
   else:
     assert concrete_type_mod.is_ubits(concrete_type)
     return value
@@ -366,7 +366,7 @@ class SampleRunner:
           # The IR tools and the verilog simulator produce unsigned values while
           # the DSLX interpreter can produce signed values so compare the
           # results ignoring signedness.
-          if not ref_result.eq_ignore_sign(values[i]).is_true():
+          if not ref_result.eq(values[i]).is_true():
             args = '(args unknown)'
             if args_batch:
               args = '; '.join(str(a) for a in args_batch[i])

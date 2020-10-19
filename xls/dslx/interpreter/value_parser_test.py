@@ -16,10 +16,10 @@
 
 """Tests for xls.dslx.interpreter.value_parser."""
 
-from xls.dslx.interpreter.value import Value
+from absl.testing import absltest
 from xls.dslx.interpreter.value_parser import value_from_string
 from xls.dslx.interpreter.value_parser import ValueParseError
-from absl.testing import absltest
+from xls.dslx.python.interp_value import Value
 
 
 class ValueParserTest(absltest.TestCase):

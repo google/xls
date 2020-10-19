@@ -198,14 +198,13 @@ py_library(
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx:typecheck",
         "//xls/dslx/interpreter",
-        "//xls/dslx/interpreter:value",
         "//xls/dslx/interpreter:value_parser",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_type_info",
+        "//xls/dslx/python:interp_value",
         "//xls/ir/python:format_preference",
         "//xls/ir/python:ir_parser",
-        "//xls/ir/python:value",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -222,8 +221,9 @@ py_test(
         "//xls/common:test_base",
         "//xls/dslx:fakefs_test_util",
         "//xls/dslx:parser_helpers",
-        "//xls/dslx/interpreter:value",
         "//xls/dslx/python:cpp_concrete_type",
+        "//xls/dslx/python:interp_value",
+        "//xls/ir/python:bits",
     ],
 )
 
@@ -254,8 +254,8 @@ py_library(
     srcs = ["sample.py"],
     srcs_version = "PY3ONLY",
     deps = [
-        "//xls/dslx/interpreter:value",
         "//xls/dslx/interpreter:value_parser",
+        "//xls/dslx/python:interp_value",
     ],
 )
 
@@ -267,8 +267,9 @@ py_library(
         ":ast_generator",
         ":sample",
         "//xls/dslx:parse_and_typecheck",
-        "//xls/dslx/interpreter:value",
         "//xls/dslx/python:cpp_concrete_type",
+        "//xls/dslx/python:interp_value",
+        "//xls/ir/python:bits",
     ],
 )
 
@@ -326,7 +327,7 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":sample",
-        "//xls/dslx/interpreter:value",
+        "//xls/dslx/python:interp_value",
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )

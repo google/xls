@@ -23,10 +23,12 @@ from xls.dslx import fakefs_test_util
 from xls.dslx import parser_helpers
 from xls.dslx.fuzzer import sample
 from xls.dslx.fuzzer import sample_runner
-from xls.dslx.interpreter.value import Value
 from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType
 from xls.dslx.python.cpp_concrete_type import TupleType
+from xls.dslx.python.interp_value import Tag
+from xls.dslx.python.interp_value import Value
+from xls.ir.python import bits as ir_bits
 
 
 def _read_file(dirname: Text, filename: Text) -> Text:
@@ -119,10 +121,18 @@ class SampleRunnerTest(test_base.TestCase):
     runner.run(
         sample.Sample(
             dslx_text, sample.SampleOptions(optimize_ir=False),
-            [[Value.make_ubits(100, 10**30),
-              Value.make_ubits(100, 10**30)],
-             [Value.make_ubits(100, 2**80),
-              Value.make_ubits(100, 2**81)]]))
+            [[
+                Value.make_bits(Tag.UBITS,
+                                ir_bits.from_long(10**30, bit_count=100)),
+                Value.make_bits(Tag.UBITS,
+                                ir_bits.from_long(10**30, bit_count=100))
+            ],
+             [
+                 Value.make_bits(Tag.UBITS,
+                                 ir_bits.from_long(2**80, bit_count=100)),
+                 Value.make_bits(Tag.UBITS,
+                                 ir_bits.from_long(2**81, bit_count=100))
+             ]]))
     self.assertSequenceEqual(
         _split_nonempty_lines(sample_dir, 'sample.x.results'), [
             'bits[100]:0x9_3e59_39a0_8ce9_dbd4_8000_0000',

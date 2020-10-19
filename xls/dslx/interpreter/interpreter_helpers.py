@@ -59,4 +59,4 @@ def interpret_expr(module: ast.Module,
     bindings.add_value(
         ident,
         interpreter.Value.make_ubits(value=val, bit_count=bit_widths[ident]))
-  return interp.evaluate_expr(expr, bindings).bits_payload.value
+  return interp.evaluate_expr(expr, bindings).get_bit_value_uint64()

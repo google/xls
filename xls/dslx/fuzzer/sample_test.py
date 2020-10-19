@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 The XLS Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,15 +13,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# Lint as: python3
 
 import json
 import textwrap
 
 from xls.dslx.fuzzer import sample
 from absl.testing import absltest
-from xls.dslx.interpreter.value import Value
+from xls.dslx.python.interp_value import Value
 
 
 class SampleTest(absltest.TestCase):

@@ -43,10 +43,6 @@ from xls.dslx.interpreter.concrete_type_helpers import concrete_type_convert_val
 from xls.dslx.interpreter.concrete_type_helpers import concrete_type_from_value
 from xls.dslx.interpreter.errors import EvaluateError
 from xls.dslx.interpreter.errors import FailureError
-from xls.dslx.interpreter.value import Bits
-from xls.dslx.interpreter.value import Nil
-from xls.dslx.interpreter.value import Tag
-from xls.dslx.interpreter.value import Value
 from xls.dslx.parametric_instantiator import SymbolicBindings
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_type_info as type_info_mod
@@ -61,6 +57,10 @@ from xls.dslx.python.cpp_parametric_expression import ParametricAdd
 from xls.dslx.python.cpp_parametric_expression import ParametricSymbol
 from xls.dslx.python.cpp_pos import Pos
 from xls.dslx.python.cpp_pos import Span
+from xls.dslx.python.interp_value import Builtin
+from xls.dslx.python.interp_value import Tag
+from xls.dslx.python.interp_value import Value
+from xls.ir.python import bits as ir_bits
 from xls.ir.python import package as ir_package_mod
 from xls.jit.python import ir_jit
 
@@ -71,6 +71,14 @@ class _WipSentinel(object):
 
 ImportSubject = Tuple[Text, ...]
 ImportInfo = Tuple[ast.Module, type_info_mod.TypeInfo]
+
+
+def _find_first_differing_index(lhs: Sequence[Value],
+                                rhs: Sequence[Value]) -> Optional[int]:
+  for i, (s, o) in enumerate(zip(lhs, rhs)):
+    if s.ne(o).get_bit_value_uint64():
+      return i
+  return None
 
 
 class Interpreter(object):
@@ -112,7 +120,7 @@ class Interpreter(object):
     raw_value = self._evaluate(
         value_node, fresh_bindings,
         self._evaluate_TypeAnnotation(enum.type_, fresh_bindings))
-    return Value.make_enum(raw_value.bits_payload, enum)
+    return Value.make_enum(raw_value.get_bits(), enum)
 
   def _get_enum_values(self, type_: ConcreteType,
                        bindings: Bindings) -> Optional[Tuple[Value, ...]]:
@@ -140,23 +148,31 @@ class Interpreter(object):
     return concrete_type_convert_value(
         self._module, type_, value, expr.span,
         self._get_enum_values(type_, bindings),
-        value.type_.get_signedness() if value.type_ else None)
+        value.get_type().get_signedness() if value.get_type() else None)
 
   def _evaluate_index_widthslice(self, expr: ast.Index, bindings: Bindings,
-                                 bits: Bits) -> Value:
+                                 bits: ir_bits.Bits) -> Value:
     """Evaluates a WidthSlice expression on a bits value."""
     index_slice = expr.index
     assert isinstance(index_slice, ast.WidthSlice), index_slice
     start = self._evaluate(index_slice.start, bindings,
-                           BitsType(signed=False, size=bits.bit_count))
+                           BitsType(signed=False, size=bits.bit_count()))
     width_type = self._evaluate_TypeAnnotation(index_slice.width, bindings)
-    result = (bits >> start.get_bits_value()).slice(
-        0, width_type.get_total_bit_count().value, lsb_is_0=True)
-    return Value(Tag.SBITS if width_type.get_signedness() else Tag.UBITS,  # pytype: disable=attribute-error
-                 result)
+    start_index = start.get_bit_value_uint64()
+    width_value = width_type.get_total_bit_count().value
+    if start_index >= bits.bit_count():
+      # Return early to potentially avoid an unreasonably long zero extend (e.g.
+      # if the start index was a large negative number).
+      return Value.make_ubits(value=0, bit_count=width_value)
+    # Slicing off the end zero-fills, so we zext.
+    if start_index + width_value > bits.bit_count():
+      bits = bits.zero_ext(start_index + width_value)
+    result = bits.slice(start_index, width_value)
+    tag = Tag.SBITS if width_type.get_signedness() else Tag.UBITS
+    return Value.make_bits(tag, result)
 
   def _evaluate_index_bitslice(self, expr: ast.Index, bindings: Bindings,
-                               bits: Bits) -> Value:
+                               bits: ir_bits.Bits) -> Value:
     """Evaluates a slice expression on a bits value."""
     index_slice = expr.index
     assert isinstance(index_slice, ast.Slice), index_slice
@@ -165,7 +181,7 @@ class Interpreter(object):
 
     start, width = self._type_info.get_slice_start_width(
         index_slice, symbolic_bindings)
-    return Value(Tag.UBITS, bits.slice(start, start + width, lsb_is_0=True))
+    return Value.make_bits(Tag.UBITS, bits.slice(start, width))
 
   def _evaluate_Index(  # pylint: disable=invalid-name
       self, expr: ast.Index, bindings: Bindings,
@@ -173,12 +189,12 @@ class Interpreter(object):
     """Evaluates an index expression; e.g. `lhs[index]`."""
     lhs = self._evaluate(expr.lhs, bindings)
     if lhs.is_bits() and isinstance(expr.index, ast.Slice):
-      return self._evaluate_index_bitslice(expr, bindings, lhs.bits_payload)
+      return self._evaluate_index_bitslice(expr, bindings, lhs.get_bits())
     if lhs.is_bits() and isinstance(expr.index, ast.WidthSlice):
-      return self._evaluate_index_widthslice(expr, bindings, lhs.bits_payload)
+      return self._evaluate_index_widthslice(expr, bindings, lhs.get_bits())
     assert lhs.is_tuple() or lhs.is_array(), lhs
     index = self._evaluate(expr.index, bindings)
-    if index.get_bits_value() >= len(lhs):
+    if index.get_bit_value_uint64() >= len(lhs):
       raise EvaluateError(
           expr.span, 'Indexing out of bounds; {} > {}'.format(index, len(lhs)))
     result = lhs.index(index)
@@ -238,7 +254,7 @@ class Interpreter(object):
         return self._evaluate(leaf, bindings) == matched
     else:
       assert isinstance(pattern.tree, tuple)
-      for subtree, member in zip(pattern.tree, matched.tuple_members):
+      for subtree, member in zip(pattern.tree, matched.get_elements()):
         if not self._evaluate_matcher(subtree, member, bindings):
           return False
       return True
@@ -271,6 +287,7 @@ class Interpreter(object):
       self, type_ref: ast.TypeRef,
       bindings: Bindings) -> Union[ast.TypeAnnotation, ast.Enum, ast.Struct]:
     """Resolves the typeref to a type using its identifier via bindings."""
+    logging.vlog(5, 'Dereferencing TypeRef; type_def: %r', type_ref.type_def)
     if isinstance(type_ref.type_def, ast.ModRef):
       return ast_helpers.evaluate_to_struct_or_enum_or_annotation(
           type_ref.type_def, self._get_imported_module_via_bindings, bindings)
@@ -326,6 +343,7 @@ class Interpreter(object):
         bindings = self._bindings_with_struct_parametrics(
             deref, type_.parametrics, bindings)
       type_def = type_.type_ref.type_def
+      logging.vlog(5, 'Type definition referred to: %s', type_def)
       if isinstance(type_def, ast.Enum):
         enum = type_def
         bit_count = self._concretize(enum.type_, bindings).get_total_bit_count()
@@ -359,7 +377,7 @@ class Interpreter(object):
     if isinstance(dim, (ast.ConstRef, ast.NameRef)):
       identifier = dim.identifier
       return bindings.resolve_value_from_identifier(
-          identifier).get_bits_value_signed()
+          identifier).get_bit_value_int64()
     assert isinstance(dim, ConcreteTypeDim), repr(dim)
     value = dim.value
     if isinstance(value, int):
@@ -367,7 +385,7 @@ class Interpreter(object):
     if isinstance(value, ParametricSymbol):
       identifier = value.identifier
       return bindings.resolve_value_from_identifier(
-          identifier).get_bits_value_signed()
+          identifier).get_bit_value_int64()
     if isinstance(value, ParametricAdd):
       return (self._resolve_dim(value.lhs, bindings) +
               self._resolve_dim(value.rhs, bindings))
@@ -377,6 +395,7 @@ class Interpreter(object):
       self, type_: ast.TypeAnnotation, bindings: Bindings) -> ConcreteType:
     """Evaluates TypeAnnotation to a concrete type with dimensions resolved."""
     result = self._concretize(type_, bindings)
+    logging.vlog(3, 'Type annotation %s concretized to %s', type_, result)
 
     # Check deduced type is consistent with what we've interpreted.
     #
@@ -391,6 +410,7 @@ class Interpreter(object):
           (f'Deduced type {deduced} incompatible with '
            f'interp-determined type {result} ({deduced!r} vs {result!r})')
 
+    logging.vlog(3, 'Type annotation %s evaluated to %s', type_, result)
     return result
 
   def _evaluate_Number(  # pylint: disable=invalid-name
@@ -431,10 +451,11 @@ class Interpreter(object):
       raise EvaluateError(
           expr.span, 'Type context for number is a tuple type {} @ {}'.format(
               type_context, expr.span))
+    assert isinstance(type_context, BitsType), type_context
     bit_count = type_context.get_total_bit_count().value
-    signed = type_context.signed  # pytype: disable=attribute-error
-    constructor = Value.make_sbits if signed else Value.make_ubits
-    return constructor(bit_count, ast_helpers.get_value_as_int(expr))
+    signed = type_context.signed
+    tag = Tag.SBITS if signed else Tag.UBITS
+    return Value.make_bits(tag, ast_helpers.get_value_as_bits(expr, bit_count))
 
   def _evaluate_to_struct_or_enum_or_annotation(
       self, node: Union[ast.TypeDef, ast.ModRef, ast.Struct],
@@ -507,7 +528,7 @@ class Interpreter(object):
     for k, v in expr.members:
       new_value = self._evaluate(v, bindings)
       i = struct.member_names.index(k)
-      named_tuple = named_tuple.tuple_replace(i, new_value)
+      named_tuple = named_tuple.update(i, new_value)
 
     assert isinstance(named_tuple, Value), named_tuple
     return named_tuple
@@ -523,7 +544,7 @@ class Interpreter(object):
     index = next(
         i for i, name in enumerate(self._type_info[expr.lhs].tuple_names)  # pytype: disable=attribute-error
         if name == expr.attr.identifier)
-    return lhs_value.tuple_members[index]
+    return lhs_value.get_elements()[index]
 
   def _evaluate_XlsTuple(  # pylint: disable=invalid-name
       self, expr: ast.XlsTuple, bindings: Bindings,
@@ -623,7 +644,7 @@ class Interpreter(object):
     iterable = self._evaluate(expr.iterable, bindings)
     concrete_iteration_type = self._concretize(expr.type_, bindings)
     carry = self._evaluate(expr.init, bindings)
-    for i, x in enumerate(iterable):
+    for i, x in enumerate(iterable.get_elements()):
       iteration = Value.make_tuple((x, carry))
       if not concrete_type_accepts_value(self._module, concrete_iteration_type,
                                          iteration):
@@ -688,7 +709,38 @@ class Interpreter(object):
     """Evaluates a 'ModRef' AST node to a value."""
     mod = bindings.resolve_mod(expr.mod.identifier)
     f = mod.get_function(expr.value)
-    return Value.make_function(functools.partial(self._evaluate_fn, f, mod))
+    return Value.make_function(mod, f)
+
+  def _call_builtin_fn(
+      self,
+      builtin: Builtin,
+      args: Sequence[Value],
+      span: Span,
+      invocation: Optional[ast.Invocation] = None,
+      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
+    """Calls a builtin function identified via a 'builtin' enum value."""
+    name = builtin.to_name()
+    if name in ('slt', 'sgt', 'sge', 'sle'):
+      f = self._builtin_scmp(method=name)
+    else:
+      f = getattr(self, f'_builtin_{name}')
+    return f(args, span, invocation, symbolic_bindings)
+
+  def _call_fn_value(
+      self,
+      fv: Value,
+      args: Sequence[Value],
+      span: Span,
+      invocation: Optional[ast.Invocation] = None,
+      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
+    """Calls function values, either a builtin or a user defined function."""
+    if fv.is_builtin_function():
+      return self._call_builtin_fn(fv.get_builtin_fn(), args, span, invocation,
+                                   symbolic_bindings)
+    else:
+      m, f = fv.get_user_fn_data()
+
+    return self._evaluate_fn(f, m, args, span, invocation, symbolic_bindings)
 
   def _evaluate_Invocation(  # pylint: disable=invalid-name
       self, expr: ast.Invocation, bindings: Bindings,
@@ -713,8 +765,12 @@ class Interpreter(object):
       # typechecking.
       fn_symbolic_bindings = self._type_info.get_invocation_symbolic_bindings(
           expr, bindings.fn_ctx.sym_bindings)
-    return callee_value.function_payload(
-        arg_values, expr.span, expr, symbolic_bindings=fn_symbolic_bindings)
+    return self._call_fn_value(
+        callee_value,
+        arg_values,
+        expr.span,
+        expr,
+        symbolic_bindings=fn_symbolic_bindings)
 
   def _perform_trace(self, lhs: Text, span: Span, value: Value) -> None:
     """Actually writes the tracing output to stderr."""
@@ -812,13 +868,11 @@ class Interpreter(object):
     msg = '\n  lhs: {}\n  rhs:  {}\n  were not equal'.format(lhs.to_human_str(),
                                                              rhs.to_human_str())
 
-    if pred.get_bits_value() == 0 and lhs.tag == rhs.tag == Tag.ARRAY:
-      lhs_a = lhs.array_payload
-      rhs_a = rhs.array_payload
-      i = lhs_a.find_first_differing_index(rhs_a)
+    if pred.get_bit_value_uint64() == 0 and lhs.tag == rhs.tag == Tag.ARRAY:
+      i = _find_first_differing_index(lhs.get_elements(), rhs.get_elements())
       assert i is not None, (lhs, rhs)
       msg += '; first differing index: {} :: {} vs {}'.format(
-          i, lhs_a.index(i), rhs_a.index(i))
+          i, lhs.index(i), rhs.index(i))
 
     return self._fail_unless(pred, msg, span, expr)
 
@@ -847,8 +901,8 @@ class Interpreter(object):
       expr: ast.Invocation,
       symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     # AND: every bit is set, i.e., no bit is unset, i.e., a XOR 0xF...F == 0
-    bits = args[0].bits_payload
-    result = 1 if (bits.value ^ bits.get_mask()) == 0 else 0
+    bits = args[0].get_bits()
+    result = 1 if (bits ^ bits.get_mask_bits()).is_zero() else 0
     return Value.make_ubits(1, result)
 
   def _builtin_or_reduce(
@@ -858,8 +912,8 @@ class Interpreter(object):
       expr: ast.Invocation,
       symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     # OR: Is any bit set, i.e., is the value nonzero?
-    bits = args[0].bits_payload
-    return Value.make_ubits(1, bits.value != 0)
+    bits = args[0].get_bit_value_uint64()
+    return Value.make_ubits(1, bits != 0)
 
   def _builtin_xor_reduce(
       self,
@@ -871,8 +925,8 @@ class Interpreter(object):
     # XOR: Is the number of set bits even (0) or odd (1)?
     # Convert the number to a binary _string_, then count the ones. That's
     # Python popcount, apparently!
-    bits = args[0].bits_payload
-    pop_count = format(bits.value, 'b').count('1')
+    bits = args[0].get_bits()
+    pop_count = format(bits.to_uint(), 'b').count('1')
     return Value.make_ubits(1, pop_count & 1)
 
   def _builtin_map(
@@ -888,10 +942,9 @@ class Interpreter(object):
           'Invalid number of arguments to map; got {} want 2'.format(len(args)))
     inputs, map_fn = args
     outputs = []
-    input_array = inputs.array_payload
-    for input_ in input_array.elements:
-      outputs.append(
-          map_fn.function_payload([input_], span, expr, symbolic_bindings))
+    for input_ in inputs.get_elements():
+      ret = self._call_fn_value(map_fn, [input_], span, expr, symbolic_bindings)
+      outputs.append(ret)
 
     return Value.make_array(tuple(outputs))
 
@@ -954,7 +1007,7 @@ class Interpreter(object):
       raise EvaluateError(
           span,
           'Invalid number of arguments to rev; got {} want 1'.format(len(args)))
-    return Value(Tag.UBITS, args[0].bits_payload.reverse())
+    return Value.make_bits(Tag.UBITS, args[0].get_bits().reverse())
 
   def _builtin_bit_slice(
       self,
@@ -969,12 +1022,10 @@ class Interpreter(object):
           'Invalid number of arguments to bit_slice; got {} want 3'.format(
               len(args)))
     subject, start, width = args
-    return Value(
+    return Value.make_bits(
         Tag.UBITS,
-        subject.bits_payload.slice(
-            start.bits_payload.value,
-            start.bits_payload.value + width.bits_payload.bit_count,
-            lsb_is_0=True))
+        subject.get_bits().slice(start.get_bit_value_uint64(),
+                                 width.get_bit_count()))
 
   def _builtin_enumerate(
       self,
@@ -992,9 +1043,9 @@ class Interpreter(object):
       raise EvaluateError(
           span,
           'Invalid argument to enumerate; want array, got {}'.format(args[0]))
-    array = args[0].array_payload
+    array = args[0].get_elements()
     elements = []
-    for i, v in enumerate(array.elements):
+    for i, v in enumerate(array):
       elements.append(
           Value.make_tuple((Value.make_ubits(bit_count=32, value=i), v)))
     return Value.make_array(tuple(elements))
@@ -1008,7 +1059,7 @@ class Interpreter(object):
     """Implements 'range' builtin; populates an array with a range of values."""
     if len(args) == 1:
       rhs, = args
-      lhs = Value.make_ubits(bit_count=rhs.bits_payload.bit_count, value=0)
+      lhs = Value.make_ubits(bit_count=rhs.get_bit_count(), value=0)
     elif len(args) != 2:
       raise EvaluateError(
           span, 'Invalid number of arguments to range; got {} want 2'.format(
@@ -1018,8 +1069,7 @@ class Interpreter(object):
     elements = []
     while lhs.lt(rhs).is_true():
       elements.append(lhs)
-      lhs = lhs.add(
-          Value.make_ubits(bit_count=rhs.bits_payload.bit_count, value=1))
+      lhs = lhs.add(Value.make_ubits(bit_count=rhs.get_bit_count(), value=1))
     return Value.make_array(tuple(elements))
 
   def _builtin_update(
@@ -1034,7 +1084,7 @@ class Interpreter(object):
           span, 'Invalid number of arguments to update; got {} want 3'.format(
               len(args)))
     original, index, value = args
-    return original.update(index, value, span)
+    return original.update(index, value)
 
   def _builtin_slice(
       self,
@@ -1048,7 +1098,7 @@ class Interpreter(object):
           span, 'Invalid number of arguments to slice; got {} want 3'.format(
               len(args)))
     array, start, length = args
-    return array.slice(start, length, span)
+    return array.slice(start, length)
 
   def _builtin_add_with_carry(
       self,
@@ -1078,13 +1128,13 @@ class Interpreter(object):
     arg, = args
     count = 0
     for char in bit_helpers.to_zext_str(
-        arg.bits_payload.value, bit_count=arg.bits_payload.bit_count):
+        arg.get_bit_value_uint64(), bit_count=arg.get_bit_count()):
       if char == '1':
         break
       assert char == '0'
       count += 1
 
-    return Value(Tag.UBITS, Bits(arg.bits_payload.bit_count, value=count))
+    return Value.make_ubits(bit_count=arg.get_bit_count(), value=count)
 
   def _builtin_ctz(
       self,
@@ -1098,8 +1148,8 @@ class Interpreter(object):
           span,
           'Invalid number of arguments to ctz; got {} want 1'.format(len(args)))
     return self._builtin_clz(
-        [Value(args[0].tag, args[0].bits_payload.reverse())], span, expr,
-        symbolic_bindings)
+        [Value.make_bits(args[0].tag, args[0].get_bits().reverse())], span,
+        expr, symbolic_bindings)
 
   def _builtin_one_hot(
       self,
@@ -1113,27 +1163,8 @@ class Interpreter(object):
           span, 'Invalid number of arguments to one_hot; got {} want 2'.format(
               len(args)))
     arg, lsb_prio = args
-    s = bit_helpers.to_zext_str(
-        arg.bits_payload.value, bit_count=arg.bits_payload.bit_count)
-    lsb_prio = lsb_prio.bits_payload.value == 1
-    if lsb_prio:
-      s = s[::-1]
-
-    bitno = None
-    for i, char in enumerate(s):
-      if char == '1':
-        bitno = i
-        break
-
-    if bitno is None:
-      shamt = arg.bits_payload.bit_count
-    elif not lsb_prio:
-      shamt = arg.bits_payload.bit_count - bitno - 1
-    else:
-      shamt = bitno
-
-    return Value(Tag.UBITS,
-                 Bits(arg.bits_payload.bit_count + 1, value=1 << shamt))
+    assert lsb_prio.get_bit_count() == 1, lsb_prio
+    return arg.one_hot(lsb_prio.is_true())
 
   def _builtin_one_hot_sel(
       self,
@@ -1148,13 +1179,13 @@ class Interpreter(object):
           'Invalid number of arguments to one_hot_sel; got {} want 2'.format(
               len(args)))
     selector, cases = args
-    selector = selector.bits_payload
-    accum = Bits(
-        value=0, bit_count=self._type_info[expr].get_total_bit_count().value)
-    for i in range(selector.bit_count):
-      if selector.get_lsb_index(i).value != 0:
-        accum |= cases.array_payload.index(i).bits_payload
-    result = Value(cases.array_payload.index(0).tag, accum)
+    selector = selector.get_bits()
+    accum = ir_bits.Bits(
+        bit_count=self._type_info[expr].get_total_bit_count().value)
+    for i in range(selector.bit_count()):
+      if selector.get_lsb_index(i).to_int() != 0:
+        accum |= cases.index(i).get_bits()
+    result = Value.make_bits(cases.index(0).tag, accum)
     logging.vlog(3, 'one_hot_sel(%s, %s) -> %s', selector, cases, result)
     return result
 
@@ -1170,17 +1201,19 @@ class Interpreter(object):
           span, 'Invalid number of arguments to signex; got {} want 2'.format(
               len(args)))
     lhs, rhs = args
-    new_bit_count = rhs.bits_payload.bit_count
-    sign = lhs.bits_payload.get_sign_bit()
-    leading_bit_count = new_bit_count - lhs.bits_payload.bit_count
-    leading = Bits(leading_bit_count, value=0)
+    new_bit_count = rhs.get_bit_count()
+    sign = lhs.get_bits().get_msb()
+    leading_bit_count = new_bit_count - lhs.get_bit_count()
+    leading = ir_bits.Bits(leading_bit_count)
     if sign:
       leading = leading.bitwise_negate()
-    return Value(rhs.tag, leading.concat(lhs.bits_payload))
+    return Value.make_bits(rhs.tag, leading.concat(lhs.get_bits()))
 
   def _builtin_scmp(
-      self,
-      method: Text) -> Callable[[Sequence[Value], Span, ast.Invocation], Value]:
+      self, method: Text
+  ) -> Callable[
+      [Sequence[Value], Span, ast.Invocation, Optional[SymbolicBindings]],
+      Value]:
     """Returns a signed-comparison function for use as a builtin."""
 
     def scmp(args: Sequence[Value],
@@ -1197,11 +1230,11 @@ class Interpreter(object):
     return scmp
 
   def _fail_unless(self, pred: Value, msg: Text, span: Span,
-                   expr: ast.Invocation) -> Nil:
+                   expr: ast.Invocation) -> Value:
     if pred.is_false():
       raise FailureError(span,
                          'The program being interpreted failed! {}'.format(msg))
-    return Nil()
+    return Value.make_nil()
 
   def _evaluate_derived_parametrics(self, fn: ast.Function, bindings: Bindings,
                                     bound_dims: Dict[Text, int]):
@@ -1256,6 +1289,7 @@ class Interpreter(object):
         type do not match with the values presented as arguments / the value
         resulting from the function evaluation.
     """
+    assert isinstance(args, (list, tuple)), repr(args)
     if len(args) != len(fn.params):
       raise EvaluateError(
           span,
@@ -1365,35 +1399,14 @@ class Interpreter(object):
       the module.
     """
     b = Bindings()
-    b.add_fn('add_with_carry', self._builtin_add_with_carry)
-    b.add_fn('and_reduce', self._builtin_and_reduce)
-    b.add_fn('assert_eq', self._builtin_assert_eq)
-    b.add_fn('assert_lt', self._builtin_assert_lt)
-    b.add_fn('bit_slice', self._builtin_bit_slice)
-    b.add_fn('clz', self._builtin_clz)
-    b.add_fn('ctz', self._builtin_ctz)
-    b.add_fn('enumerate', self._builtin_enumerate)
-    b.add_fn('fail!', self._builtin_fail)
-    b.add_fn('map', self._builtin_map)
-    b.add_fn('one_hot', self._builtin_one_hot)
-    b.add_fn('one_hot_sel', self._builtin_one_hot_sel)
-    b.add_fn('or_reduce', self._builtin_or_reduce)
-    b.add_fn('range', self._builtin_range)
-    b.add_fn('rev', self._builtin_rev)
-    b.add_fn('select', self._builtin_select)
-    b.add_fn('sge', self._builtin_scmp('sge'))
-    b.add_fn('sgt', self._builtin_scmp('sgt'))
-    b.add_fn('signex', self._builtin_signex)
-    b.add_fn('sle', self._builtin_scmp('sle'))
-    b.add_fn('slice', self._builtin_slice)
-    b.add_fn('slt', self._builtin_scmp('slt'))
-    b.add_fn('trace', self._builtin_trace)
-    b.add_fn('update', self._builtin_update)
-    b.add_fn('xor_reduce', self._builtin_xor_reduce)
+    for name in ('add_with_carry and_reduce assert_eq assert_lt bit_slice clz '
+                 'ctz enumerate fail! map one_hot one_hot_sel or_reduce range '
+                 'rev select sge sgt signex sle slice slt trace update '
+                 'xor_reduce').split():
+      b.add_fn(name, Value.make_function(Builtin.get(name)))
 
     for function in m.get_functions():
-      b.add_fn(function.name.identifier,
-               functools.partial(self._evaluate_fn, function, m))
+      b.add_fn(function.name.identifier, Value.make_function(m, function))
     for typedef in m.get_typedefs():
       b.add_typedef(typedef.identifier, typedef)
 

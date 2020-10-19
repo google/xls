@@ -16,6 +16,8 @@
 
 """Tests for xls.ir.python.bits."""
 
+import pickle
+
 from xls.ir.python import bits
 from absl.testing import absltest
 
@@ -28,6 +30,13 @@ class BitsTest(absltest.TestCase):
     self.assertEqual(33, bits.SBits(33, 8).to_uint())
     self.assertEqual(83, bits.SBits(83, 8).to_int())
     self.assertEqual(-83, bits.SBits(-83, 8).to_int())
+
+  def test_pickle(self):
+    v = bits.from_long(1 << 65, bit_count=66)
+    dumped = pickle.dumps(v, 2)
+    print(dumped)
+    v_prime = pickle.loads(dumped)
+    self.assertEqual(v, v_prime)
 
 
 if __name__ == '__main__':

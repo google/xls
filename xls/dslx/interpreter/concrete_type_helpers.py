@@ -20,10 +20,7 @@ from typing import Tuple, Optional
 
 from absl import logging
 
-from xls.dslx import bit_helpers
 from xls.dslx.interpreter.errors import FailureError
-from xls.dslx.interpreter.value import Tag
-from xls.dslx.interpreter.value import Value
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType
@@ -36,6 +33,8 @@ from xls.dslx.python.cpp_scanner import Keyword
 from xls.dslx.python.cpp_scanner import Token
 from xls.dslx.python.cpp_scanner import TokenKind
 from xls.dslx.python.cpp_scanner import TYPE_KEYWORDS_TO_SIGNEDNESS_AND_BITS
+from xls.dslx.python.interp_value import Tag
+from xls.dslx.python.interp_value import Value
 
 
 def _strength_reduce_enum(type_: ast.Enum, bit_count: int) -> ConcreteType:
@@ -71,16 +70,16 @@ def concrete_type_from_value(value: Value) -> ConcreteType:
   """
   if value.tag in (Tag.UBITS, Tag.SBITS):
     signed = value.tag == Tag.SBITS
-    return BitsType(signed, value.bits_payload.bit_count)
+    return BitsType(signed, value.get_bit_count())
   elif value.tag == Tag.ARRAY:
-    element_type = concrete_type_from_value(value.array_payload.index(0))
+    element_type = concrete_type_from_value(value.index(Value.make_u32(0)))
     return ArrayType(element_type, len(value))
   elif value.tag == Tag.TUPLE:
     return TupleType(
-        tuple(concrete_type_from_value(m) for m in value.tuple_members))
+        tuple(concrete_type_from_value(m) for m in value.get_elements()))
   else:
     assert value.tag == Tag.ENUM, value
-    return _strength_reduce_enum(value.type_, value.bits_payload.bit_count)
+    return _strength_reduce_enum(value.type_, value.get_bit_count())
 
 
 def concrete_type_from_element_type_and_dims(
@@ -133,30 +132,30 @@ def _value_compatible_with_type(module: ast.Module, type_: ConcreteType,
   if isinstance(type_, TupleType) and value.is_tuple():
     return all(
         _value_compatible_with_type(module, ct, m)
-        for ct, m in zip(type_.get_unnamed_members(), value.tuple_members))
+        for ct, m in zip(type_.get_unnamed_members(), value.get_elements()))
 
   if isinstance(type_, ArrayType) and value.is_array():
     et = type_.get_element_type()
     return all(
         _value_compatible_with_type(module, et, m)
-        for m in value.array_payload.elements)
+        for m in value.get_elements())
 
   if isinstance(type_, EnumType) and value.tag == Tag.ENUM:
-    return type_.get_nominal_type(module) == value.type_
+    return type_.get_nominal_type(module) == value.get_type()
 
   if isinstance(type_,
                 BitsType) and not type_.signed and value.tag == Tag.UBITS:
-    return value.bits_payload.bit_count == type_.get_total_bit_count()
+    return value.get_bit_count() == type_.get_total_bit_count()
 
   if isinstance(type_, BitsType) and type_.signed and value.tag == Tag.SBITS:
-    return value.bits_payload.bit_count == type_.get_total_bit_count()
+    return value.get_bit_count() == type_.get_total_bit_count()
 
   if value.tag == Tag.ENUM and isinstance(type_, BitsType):
-    return (value.type_.get_signedness() == type_.signed and
-            value.bits_payload.bit_count == type_.get_total_bit_count())
+    return (value.get_type().get_signedness() == type_.signed and
+            value.get_bit_count() == type_.get_total_bit_count())
 
   if value.tag == Tag.ARRAY and is_ubits(type_):
-    flat_bit_count = value.array_payload.flatten().bits_payload.bit_count
+    flat_bit_count = value.flatten().get_bit_count()
     return flat_bit_count == type_.get_total_bit_count()
 
   if isinstance(type_, EnumType) and value.is_bits():
@@ -171,10 +170,10 @@ def concrete_type_accepts_value(module: ast.Module, type_: ConcreteType,
   """Returns whether 'value' conforms to this concrete type."""
   if value.tag == Tag.UBITS:
     return (isinstance(type_, BitsType) and not type_.signed and
-            value.bits_payload.bit_count == type_.get_total_bit_count())
+            value.get_bit_count() == type_.get_total_bit_count())
   if value.tag == Tag.SBITS:
     return (isinstance(type_, BitsType) and type_.signed and
-            value.bits_payload.bit_count == type_.get_total_bit_count())
+            value.get_bit_count() == type_.get_total_bit_count())
   if value.tag in (Tag.ARRAY, Tag.TUPLE, Tag.ENUM):
     return _value_compatible_with_type(module, type_, value)
   raise NotImplementedError(type_, value)
@@ -188,52 +187,51 @@ def concrete_type_convert_value(module: ast.Module, type_: ConcreteType,
   logging.vlog(3, 'Converting value %s to type %s', value, type_)
   if value.tag == Tag.UBITS and isinstance(type_, ArrayType):
     bits_per_element = type_.get_element_type().get_total_bit_count().value
-    bits = value.bits_payload
+    bits = value.get_bits()
 
-    def bit_slice_value_at_index(i):
-      return Value(
+    def bit_slice_value_at_index(i: int) -> Value:
+      lo = i * bits_per_element
+      return Value.make_bits(
           Tag.UBITS,
-          bits.slice(
-              i * bits_per_element, (i + 1) * bits_per_element, lsb_is_0=False))
+          bits.reverse().slice(lo, bits_per_element).reverse())
 
     return Value.make_array(
         tuple(bit_slice_value_at_index(i) for i in range(type_.size.value)))
 
   if (isinstance(type_, EnumType) and
       value.tag in (Tag.UBITS, Tag.SBITS, Tag.ENUM) and
-      value.get_bit_count() == type_.get_total_bit_count()):
+      value.get_bit_count() == type_.get_total_bit_count().value):
     # Check that the bits we're converting from are present in the enum type
     # we're converting to.
     nominal_type = type_.get_nominal_type(module)
     for enum_value in enum_values:
-      if value.bits_payload == enum_value.bits_payload:
+      if value.get_bits() == enum_value.get_bits():
         break
     else:
       raise FailureError(
           span,
           'Value is not valid for enum {}: {}'.format(nominal_type.identifier,
                                                       value))
-    return Value.make_enum(value.bits_payload, nominal_type)
+    return Value.make_enum(value.get_bits(), nominal_type)
 
   if (value.tag == Tag.ENUM and isinstance(type_, BitsType) and
       type_.get_total_bit_count() == value.get_bit_count()):
-    constructor = Value.make_sbits if type_.signed else Value.make_ubits
-    bit_count = type_.get_total_bit_count().value
-    return constructor(bit_count, value.bits_payload.value)
+    tag = Tag.SBITS if type_.signed else Tag.UBITS
+    return Value.make_bits(tag, value.get_bits())
 
   def zero_ext() -> Value:
     assert isinstance(type_, BitsType)
-    constructor = Value.make_sbits if type_.signed else Value.make_ubits
+    tag = Tag.SBITS if type_.signed else Tag.UBITS
     bit_count = type_.get_total_bit_count().value
-    return constructor(bit_count,
-                       value.get_bits_value() & bit_helpers.to_mask(bit_count))
+    logging.vlog(3, 'Zero extending %s to %s', value, bit_count)
+    return Value.make_bits(tag, value.zero_ext(bit_count).get_bits())
 
   def sign_ext() -> Value:
     assert isinstance(type_, BitsType)
-    constructor = Value.make_sbits if type_.signed else Value.make_ubits
+    tag = Tag.SBITS if type_.signed else Tag.UBITS
     bit_count = type_.get_total_bit_count().value
     logging.vlog(3, 'Sign extending %s to %s', value, bit_count)
-    return constructor(bit_count, value.bits_payload.sign_ext(bit_count).value)
+    return Value.make_bits(tag, value.sign_ext(bit_count).get_bits())
 
   if value.tag == Tag.UBITS:
     return zero_ext()
@@ -247,7 +245,7 @@ def concrete_type_convert_value(module: ast.Module, type_: ConcreteType,
 
   # If we're converting an array into bits, flatten the array payload.
   if value.tag == Tag.ARRAY and isinstance(type_, BitsType):
-    return value.array_payload.flatten()
+    return value.flatten()
 
   if concrete_type_accepts_value(module, type_, value):  # Vacuous conversion.
     return value

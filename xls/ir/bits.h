@@ -79,6 +79,11 @@ class Bits {
   // are ignored.
   static Bits FromBytes(absl::Span<const uint8> bytes, int64 bit_count);
 
+  // Constructs a Bits object from a bitmap.
+  static Bits FromBitmap(InlineBitmap bitmap) {
+    return Bits(std::move(bitmap));
+  }
+
   // Note: we flatten into the pushbuffer with the MSb pushed first.
   void FlattenTo(BitPushBuffer* buffer) const {
     for (int64 i = 0; i < bit_count(); ++i) {

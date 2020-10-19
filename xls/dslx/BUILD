@@ -536,6 +536,7 @@ py_library(
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_scanner",
+        "//xls/ir/python:bits",
     ],
 )
 
@@ -702,5 +703,18 @@ py_library(
     deps = [
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_concrete_type",
+    ],
+)
+
+cc_library(
+    name = "interp_value",
+    srcs = ["interp_value.cc"],
+    hdrs = ["interp_value.h"],
+    deps = [
+        ":cpp_ast",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
     ],
 )

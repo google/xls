@@ -16,17 +16,13 @@
 
 """Datatype for binding of identifiers to interpreter value."""
 
-from typing import Text, Callable, List, Union, Optional, Dict, Set, NamedTuple, cast
+from typing import Text, Union, Optional, Dict, Set, NamedTuple
 
-from xls.dslx.interpreter.value import Value
 from xls.dslx.parametric_instantiator import SymbolicBindings
 from xls.dslx.python import cpp_ast as ast
-from xls.dslx.python.cpp_pos import Span
+from xls.dslx.python.interp_value import Value
 
-
-InterpreterFn = Callable[[List[Value], Span, ast.Invocation], Value]
-BindingEntry = Union[Value, InterpreterFn, ast.TypeDef, ast.Enum, ast.Struct,
-                     ast.Module]
+BindingEntry = Union[Value, ast.TypeDef, ast.Enum, ast.Struct, ast.Module]
 FnCtx = NamedTuple('FnCtx', [('module_name', Text), ('fn_name', Text),
                              ('sym_bindings', SymbolicBindings)])
 
@@ -71,10 +67,12 @@ class Bindings:
       if isinstance(leaf, ast.NameDef):
         self.add_value(leaf.identifier, value)
       return
-    for subtree, subvalue in zip(name_def_tree.tree, value.tuple_members):
+    for subtree, subvalue in zip(name_def_tree.tree, value.get_elements()):
       self.add_value_tree(subtree, subvalue)
 
-  def add_fn(self, identifier: Text, value: InterpreterFn):
+  def add_fn(self, identifier: Text, value: Value):
+    assert isinstance(value, Value), value
+    assert value.is_function(), value
     self._map[identifier] = value
 
   def add_mod(self, identifier: Text, value: ast.Module):
@@ -105,9 +103,8 @@ class Bindings:
 
   def resolve_value_from_identifier(self, identifier: Text) -> Value:
     entry = self._resolve_entry(identifier)
-    if callable(entry):
-      return Value.make_function(entry)
-    elif not isinstance(entry, Value):
+    assert not callable(entry)
+    if not isinstance(entry, Value):
       raise TypeError('Attempted to resolve a value but identifier {} '
                       'was not bound to a value; got: {!r}'.format(
                           identifier, entry))
@@ -127,26 +124,6 @@ class Bindings:
       KeyError: If the name is not bound.
     """
     return self.resolve_value_from_identifier(name_ref.identifier)
-
-  def resolve_fn(self, name_ref: ast.NameRef) -> InterpreterFn:
-    """Resolves a function value from the bindings.
-
-    Args:
-      name_ref: Name reference to resolve.
-
-    Returns:
-      The function value bound to name_ref, if it exists.
-
-    Raises:
-      TypeError: If a value that is not a function is bound to the name.
-      KeyError: If the name is not bound.
-    """
-    entry = self._resolve_entry(name_ref.identifier)
-    if not callable(entry):
-      raise TypeError('Attempted to resolve a function but identifier {} '
-                      'was not bound to a function; got: {!r}'.format(
-                          name_ref.identifier, entry))
-    return cast(InterpreterFn, entry)
 
   def resolve_mod(self, identifier: Text) -> ast.Module:
     entry = self._resolve_entry(identifier)

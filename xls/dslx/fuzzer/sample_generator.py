@@ -22,11 +22,13 @@ from typing import Tuple, Text, Sequence
 from xls.dslx import parse_and_typecheck
 from xls.dslx.fuzzer import ast_generator
 from xls.dslx.fuzzer import sample
-from xls.dslx.interpreter.value import Value
 from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType
 from xls.dslx.python.cpp_concrete_type import ConcreteType
 from xls.dslx.python.cpp_concrete_type import TupleType
+from xls.dslx.python.interp_value import Tag
+from xls.dslx.python.interp_value import Value
+from xls.ir.python import bits as ir_bits
 
 Random = random.Random
 del random  # Avoids accidentally calling module functions, use object methods.
@@ -39,8 +41,9 @@ def _generate_bit_value(bit_count: int, rng: Random, signed: bool) -> Value:
     value = rng.choice(ast_generator.make_bit_patterns(bit_count))
   else:  # 10% of the time use a completely random value.
     value = rng.randrange(0, 2**bit_count)
-  constructor = Value.make_sbits if signed else Value.make_ubits
-  return constructor(value=value, bit_count=bit_count)
+  tag = Tag.SBITS if signed else Tag.UBITS
+  return Value.make_bits(tag,
+                         ir_bits.from_long(value=value, bit_count=bit_count))
 
 
 def _generate_unbiased_argument(concrete_type: ConcreteType,
@@ -74,18 +77,18 @@ def generate_argument(arg_type: ConcreteType, rng: Random,
     if not prior or rng.random() < 0.5:
       return _generate_unbiased_argument(arg_type, rng)
 
-  to_mutate = rng.choice(prior)
+  to_mutate = rng.choice(prior).get_bits()
   bit_count = arg_type.get_total_bit_count().value
-  if bit_count > to_mutate.get_bit_count():
-    to_mutate = to_mutate.bits_payload.concat(
-        _generate_bit_value(
-            bit_count - to_mutate.get_bit_count(), rng,
-            signed=False).bits_payload)
+  if bit_count > to_mutate.bit_count():
+    addendum = _generate_bit_value(
+        bit_count - to_mutate.bit_count(), rng, signed=False)
+    assert addendum.get_bit_count() + to_mutate.bit_count() == bit_count
+    to_mutate = to_mutate.concat(addendum.get_bits())
   else:
-    to_mutate = to_mutate.bits_payload.slice(0, bit_count, lsb_is_0=False)
+    to_mutate = to_mutate.slice(0, bit_count)
 
-  assert to_mutate.bit_count == bit_count
-  value = to_mutate.value
+  assert to_mutate.bit_count() == bit_count, (to_mutate.bit_count(), bit_count)
+  value = to_mutate.to_uint()
   mutation_count = randrange_biased_towards_zero(bit_count, rng)
   for _ in range(mutation_count):
     # Pick a random bit and flip it.
@@ -93,8 +96,9 @@ def generate_argument(arg_type: ConcreteType, rng: Random,
     value ^= 1 << bitno
 
   signed = arg_type.get_signedness()
-  constructor = Value.make_sbits if signed else Value.make_ubits
-  return constructor(value=value, bit_count=bit_count)
+  tag = Tag.SBITS if signed else Tag.UBITS
+  return Value.make_bits(tag,
+                         ir_bits.from_long(value=value, bit_count=bit_count))
 
 
 def generate_arguments(arg_types: Sequence[ConcreteType],

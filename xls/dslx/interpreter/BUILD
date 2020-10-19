@@ -34,56 +34,15 @@ py_library(
 )
 
 py_library(
-    name = "bits",
-    srcs = ["bits.py"],
-    srcs_version = "PY3",
-    deps = [
-        "//xls/dslx:bit_helpers",
-        "@com_google_absl_py//absl/logging",
-    ],
-)
-
-py_test(
-    name = "bits_test",
-    srcs = ["bits_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        ":bits",
-        "@com_google_absl_py//absl/testing:absltest",
-    ],
-)
-
-py_library(
-    name = "array",
-    srcs = ["array.py"],
-    srcs_version = "PY3",
-    deps = [
-        ":errors",
-        "//xls/dslx/python:cpp_pos",
-    ],
-)
-
-py_library(
-    name = "value",
-    srcs = ["value.py"],
-    srcs_version = "PY3",
-    deps = [
-        ":array",
-        ":bits",
-        "//xls/dslx/python:cpp_pos",
-    ],
-)
-
-py_library(
     name = "value_parser",
     srcs = ["value_parser.py"],
     srcs_version = "PY3",
     deps = [
-        ":value",
         "//xls/common:xls_error",
         "//xls/dslx:ast_helpers",
         "//xls/dslx/python:cpp_scanner",
+        "//xls/dslx/python:interp_value",
+        "//xls/ir/python:bits",
     ],
 )
 
@@ -93,7 +52,8 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":value",
+        "//xls/dslx/python:interp_value",
+        "//xls/ir/python:bits",
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )
@@ -104,8 +64,8 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":value",
         ":value_parser",
+        "//xls/dslx/python:interp_value",
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )
@@ -115,10 +75,10 @@ py_library(
     srcs = ["bindings.py"],
     srcs_version = "PY3",
     deps = [
-        ":value",
         "//xls/dslx:parametric_instantiator",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_pos",
+        "//xls/dslx/python:interp_value",
     ],
 )
 
@@ -128,12 +88,13 @@ py_library(
     srcs_version = "PY3",
     deps = [
         ":errors",
-        ":value",
         "//xls/dslx:bit_helpers",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_scanner",
+        "//xls/dslx/python:interp_value",
+        "//xls/ir/python:bits",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -147,7 +108,6 @@ py_library(
         ":concrete_type_helpers",
         ":errors",
         ":jit_comparison",
-        ":value",
         requirement("termcolor"),
         "//xls/dslx:ast_helpers",
         "//xls/dslx:bit_helpers",
@@ -160,6 +120,7 @@ py_library(
         "//xls/dslx/python:cpp_parametric_expression",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_type_info",
+        "//xls/dslx/python:interp_value",
         "//xls/ir/python:package",
         "//xls/jit/python:ir_jit",
         "@com_google_absl_py//absl/logging",
@@ -171,13 +132,12 @@ py_library(
     srcs = ["jit_comparison.py"],
     srcs_version = "PY3",
     deps = [
-        ":value",
         "//xls/dslx:bit_helpers",
         "//xls/dslx/python:cpp_concrete_type",
+        "//xls/dslx/python:interp_value",
         "//xls/ir/python:bits",
         "//xls/ir/python:number_parser",
         "//xls/ir/python:value",
-        "//xls/jit/python:ir_jit",
     ],
 )
 
@@ -188,7 +148,7 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":jit_comparison",
-        ":value",
+        "//xls/dslx/python:interp_value",
         "//xls/ir/python:bits",
         "//xls/ir/python:value",
         "@com_google_absl_py//absl/testing:absltest",
@@ -259,7 +219,6 @@ py_binary(
     srcs_version = "PY3",
     deps = [
         ":interpreter",
-        ":value",
         requirement("pyfakefs"),
         "//xls/dslx:bit_helpers",
         "//xls/dslx:import_routines",
@@ -271,6 +230,7 @@ py_binary(
         "//xls/dslx/python:cpp_parser",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_scanner",
+        "//xls/dslx/python:interp_value",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
     ],

@@ -18,7 +18,7 @@
 from typing import Iterable
 
 from xls.dslx import bit_helpers
-from xls.dslx.interpreter import value as dslx_value
+from xls.dslx.python import interp_value as dslx_value
 from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType
 from xls.dslx.python.cpp_concrete_type import ConcreteType
@@ -43,16 +43,16 @@ def convert_interpreter_value_to_ir(
   """Recursively translates a DSLX Value into an IR Value."""
   if interpreter_value.is_bits() or interpreter_value.is_enum():
     return ir_value.Value(
-        int_to_bits(interpreter_value.get_bits_value_check_sign(),
+        int_to_bits(interpreter_value.get_bit_value_check_sign(),
                     interpreter_value.get_bit_count()))
   elif interpreter_value.is_array():
     ir_arr = []
-    for e in interpreter_value.array_payload.elements:
+    for e in interpreter_value.get_elements():
       ir_arr.append(convert_interpreter_value_to_ir(e))
     return ir_value.Value.make_array(ir_arr)
   elif interpreter_value.is_tuple():
     ir_tuple = []
-    for e in interpreter_value.tuple_members:
+    for e in interpreter_value.get_elements():
       ir_tuple.append(convert_interpreter_value_to_ir(e))
     return ir_value.Value.make_tuple(ir_tuple)
   else:
@@ -110,10 +110,10 @@ def compare_values(interpreter_value: dslx_value.Value,
                                f'jit: {jit_value.bit_count()}')
 
     if interpreter_value.is_ubits():
-      interpreter_bits_value = interpreter_value.get_bits_value()
+      interpreter_bits_value = interpreter_value.get_bit_value_uint64()
       jit_bits_value = bits_to_int(jit_value, signed=False)
     else:
-      interpreter_bits_value = interpreter_value.get_bits_value_signed()
+      interpreter_bits_value = interpreter_value.get_bit_value_int64()
       jit_bits_value = bits_to_int(jit_value, signed=True)
 
     if interpreter_bits_value != jit_bits_value:
@@ -124,7 +124,7 @@ def compare_values(interpreter_value: dslx_value.Value,
   elif interpreter_value.is_array():
     assert jit_value.is_array(), f'Expected array value: {jit_value!r}'
 
-    interpreter_values = interpreter_value.array_payload.elements
+    interpreter_values = interpreter_value.get_elements()
     jit_values = jit_value.get_elements()
     interp_len = len(interpreter_values)
     jit_len = len(jit_values)
@@ -137,7 +137,7 @@ def compare_values(interpreter_value: dslx_value.Value,
   elif interpreter_value.is_tuple():
     assert jit_value.is_tuple(), 'Expected tuple value: {jit_value!r}'
 
-    interpreter_values = interpreter_value.tuple_members
+    interpreter_values = interpreter_value.get_elements()
     jit_values = jit_value.get_elements()
     interp_len = len(interpreter_values)
     jit_len = len(jit_values)

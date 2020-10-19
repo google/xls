@@ -16,7 +16,7 @@
 """Tests for xls.dslx.interpreter.jit_comparison."""
 
 from xls.dslx.interpreter import jit_comparison
-from xls.dslx.interpreter import value as dslx_value
+from xls.dslx.python import interp_value as dslx_value
 from xls.ir.python import bits as ir_bits
 from xls.ir.python import value as ir_value
 from absl.testing import absltest

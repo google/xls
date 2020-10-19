@@ -22,7 +22,7 @@ import re
 from typing import Text, Optional, NamedTuple, Sequence
 
 from xls.dslx.interpreter import value_parser
-from xls.dslx.interpreter.value import Value
+from xls.dslx.python.interp_value import Value
 
 Args = Sequence[Value]
 ArgsBatch = Sequence[Args]

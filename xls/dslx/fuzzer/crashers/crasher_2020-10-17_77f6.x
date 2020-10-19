@@ -12,19 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.interpreter.tests.mod_imported_aliases
-
-type MyEnum = mod_imported_aliases::MyEnumAlias;
-type MyStruct = mod_imported_aliases::MyStructAlias;
-type MyTuple = mod_imported_aliases::MyTupleAlias;
-
-fn main(x: u8) -> MyTuple {
-  let me: MyEnum = x as MyEnum;
-  (MyStruct { me: me }, MyEnum::FOO)
-}
-
-test main {
-  let (ms, me): (MyStruct, MyEnum) = main(u8:64);
-  let _ = assert_eq(MyEnum::BAR, ms.me);
-  assert_eq(MyEnum::FOO, me)
+// options: {"input_is_dslx": true, "convert_to_ir": true, "optimize_ir": true, "use_jit": true, "codegen": false, "codegen_args": null, "simulate": false, "simulator": null, "use_system_verilog": true}
+// args: bits[25]:0x100_9010; bits[36]:0x20; bits[53]:0x4_c2f0_06d1
+fn main(x4: u25, x5: s36, x7: u53) -> (s36, u25, u1) {
+  let x8: u1 = or_reduce(x7);
+  let x9: s36 = one_hot_sel(x8, [x5]);
+  let x10: u25 = (x4)[x8+:u25];
+  (x9, x10, x8)
 }

@@ -16,16 +16,19 @@
 
 """Tests for xls.dslx.interpreter.value."""
 
-from xls.dslx.interpreter import value
+import pickle
+
 from absl.testing import absltest
+from xls.dslx.python import interp_value as value
+from xls.ir.python import bits as ir_bits
 
 
 class ValueTest(absltest.TestCase):
 
   def test_bits_equivalence(self):
-    a = value.Bits(value=4, bit_count=4)
+    a = value.Value.make_ubits(value=4, bit_count=4)
     self.assertEqual(a, a)
-    b = value.Bits(value=5, bit_count=4)
+    b = value.Value.make_ubits(value=5, bit_count=4)
     self.assertEqual(b, b)
     self.assertNotEqual(a, b)
 
@@ -34,8 +37,8 @@ class ValueTest(absltest.TestCase):
     b = value.Value.make_ubits(bit_count=12, value=0xba5)
     array = value.Value.make_array((a, b))
     o = array.flatten()
-    self.assertEqual(24, o.bits_payload.bit_count)
-    self.assertEqual(0xf00ba5, o.bits_payload.value)
+    self.assertEqual(24, o.get_bit_count())
+    self.assertEqual(0xf00ba5, o.get_bit_value_uint64())
 
   def test_bitwise_negate(self):
     v = value.Value.make_ubits(3, 0x7)
@@ -90,6 +93,26 @@ class ValueTest(absltest.TestCase):
                 value.Value.make_u32(4))
     array = value.Value.make_array(elements)
     self.assertEqual(array.to_human_str(), '[2, 3, 4]')
+
+  def test_pickle(self):
+    v = value.Value.make_bits(value.Tag.UBITS,
+                              ir_bits.from_long(1 << 65, bit_count=66))
+    dumped = pickle.dumps(v, 2)
+    print(dumped)
+    v_prime = pickle.loads(dumped)
+    self.assertEqual(v, v_prime)
+
+  def test_predicates(self):
+    false = value.Value.make_bool(False)
+    true = value.Value.make_bool(True)
+    self.assertTrue(false.is_false())
+    self.assertTrue(true.is_true())
+    self.assertFalse(false.is_true())
+    self.assertFalse(true.is_false())
+    # All-zero-bits is not false, has to be single bit.
+    self.assertFalse(value.Value.make_u32(0).is_false())
+    # Ditto, all-one-bits is not true, has to be single bit.
+    self.assertFalse(value.Value.make_u32(0xffff_ffff).is_true())
 
 
 if __name__ == '__main__':

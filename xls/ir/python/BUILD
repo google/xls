@@ -24,8 +24,10 @@ xls_pybind_extension(
     name = "bits",
     srcs = ["bits.cc"],
     deps = [
+        "//xls/common/status:status_macros",
         "//xls/common/status:statusor_pybind_caster",
         "//xls/ir:bits",
+        "//xls/ir:bits_ops",
     ],
 )
 

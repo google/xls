@@ -31,11 +31,11 @@ from xls.dslx import span
 from xls.dslx import typecheck
 from xls.dslx import xls_type_error
 from xls.dslx.interpreter import interpreter as interpreter_mod
-from xls.dslx.interpreter import value as value_mod
 from xls.dslx.python import cpp_concrete_type as concrete_type_mod
 from xls.dslx.python import cpp_parser as parser
 from xls.dslx.python import cpp_pos
 from xls.dslx.python import cpp_scanner as scanner
+from xls.dslx.python import interp_value as value_mod
 
 FLAGS = flags.FLAGS
 FILENAME = '/fake/repl.x'
@@ -126,13 +126,14 @@ def main(argv):
         print('No last result for magic command.')
         continue
       assert isinstance(last_result, value_mod.Value), last_result
-      print(last_result.get_bits_value_signed())
+      print(last_result.get_bit_value_int64())
       continue
     if line == '%bin':
       if last_result is None:
         print('No last result for magic command.')
       assert isinstance(last_result, value_mod.Value), last_result
-      print(bit_helpers.to_bits_string(last_result.get_bits_value()))
+      assert last_result is not None
+      print(bit_helpers.to_bits_string(last_result.get_bit_value_uint64()))
       continue
 
     result = handle_line(line, stmt_index)
