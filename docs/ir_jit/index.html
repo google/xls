@@ -974,14 +974,14 @@ compiler intermediate representation (IR) at native machine speed.</p>
 <li>Creating a JIT object and calling its <code>Run()</code> method. Using the 2-way
     floating-point adder as an example:<p>```c
    # include "xls/modules/fpadd_2x24_jit_wrapper.h"</p>
-<p>xabsl::StatusOr<Value> foo(Value a, Value b) {
+<p>absl::StatusOr<Value> foo(Value a, Value b) {
      ...
      // Only create this once and re-use it; it's created here just as
      // an illustration.
      XLS_ASSIGN_OR_RETURN(Fpadd2x32 adder, Fpadd2x32::Create()); return
      adder.Run(a, b);
    }
-   ```</p>
+  ```</p>
 </li>
 </ol>
 <p>The advantages of JIT compilation (or any
@@ -994,7 +994,7 @@ even exhaustively, across all possible - inputs.</p>
 C/C++ <code>float</code>. In that case, a simplified wrapper call is available:</p>
 <pre><code>#include &quot;xls/modules/fpadd_2x24_jit_wrapper.h&quot;
 
-xabsl::StatusOr&lt;float&gt; foo(float a, float b) {
+absl::StatusOr&lt;float&gt; foo(float a, float b) {
   ...
   // Only create this once and re-use it; it's created here just as
   // an illustration.
@@ -1014,7 +1014,7 @@ types into Views (e.g., a <code>float</code> outside the JIT -&gt; View -&gt; <c
 JIT).</p>
 <h3 id="direct-usage">Direct usage</h3>
 <p>The JIT is also available as a library with a straightforward interface:</p>
-<pre><code>xabsl::StatusOr&lt;Value&gt; RunOnJit(
+<pre><code>absl::StatusOr&lt;Value&gt; RunOnJit(
     Function* function, absl::Span&lt;const Value&gt; args) {
   XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(function));
   return jit-&gt;Run(args);
@@ -1042,12 +1042,12 @@ pointer to the requested entry point (that can be called like any function
 pointer). Calling such a function pointer with concrete-typed arguments, though,
 is difficult: one must either make heavy [ab]use of C++ templates or "hide" the
 argument types behind an opaque pointer. The latter approach is taken here.</p>
-<p>When a compiled function is invoked (via <code>LlvmIrJit::Run()</code>), the typed input
-args are "packed" into an opaque byte buffer which is passed into the new
-function. Inside there, any references to an argument (via
-<code>DfsVisitor::HandleParam()</code>) calculate the offset of that param in the opaque
-buffer and load from there appropriately (this should happen at most once per
-arg; LLVM and/or XLS should optimize away redundant loads).</p>
+<p>When a compiled function is invoked (via <code>IrJit::Run()</code>), the typed input args
+are "packed" into an opaque byte buffer which is passed into the new function.
+Inside there, any references to an argument (via <code>DfsVisitor::HandleParam()</code>)
+calculate the offset of that param in the opaque buffer and load from there
+appropriately (this should happen at most once per arg; LLVM and/or XLS should
+optimize away redundant loads).</p>
 <p>A special case is for function invocations (inside the JITted function): for
 these, the arguments already exist inside "LLVM-space", so there's no need for
 unpacking args, so <code>LlvmFunction::getArg()</code> can be used as usual.</p>
@@ -1133,8 +1133,8 @@ create a <code>main()</code> function to:</p>
 <li>Unpack the output buffer after the entry function completes and print its
     contents.</li>
 </ol>
-<p>For arg packing/unpacking, the functions provided by LlvmIrRuntime are used, but
-in a stateless context wrapped in an <code>extern "C"</code> space, to simplify invocation
+<p>For arg packing/unpacking, the functions provided by JitRuntime are used, but in
+a stateless context wrapped in an <code>extern "C"</code> space, to simplify invocation
 from within LLVM IR.</p>
 <h4 id="output-type-determination">Output type determination</h4>
 <p>Inferring the computation's output type merits special discussion. While it's

@@ -2084,11 +2084,16 @@ same definition (this is called "nominal typing"). For example:</p>
 
 <p>DSLX also supports parametric structs. For more information on how
 type-parametricity works, see the <a href="#parametric-functions">parametric functions</a>
-section. ``` fn double(n: u32) -&gt; u32 { n * u32:2 }</p>
-<p>struct [N: u32, M: u32 = double(N)] Point { x: bits[N], y: bits[M], }</p>
-<p>fn [A: u32, B: u32] make_point(x: bits[A], y: bits[B]) -&gt; Point[A, B] { Point {
+section.</p>
+<pre><code>fn double(n: u32) -&gt; u32 { n * u32:2 }
+
+struct [N: u32, M: u32 = double(N)] Point { x: bits[N], y: bits[M], }
+
+fn [A: u32, B: u32] make_point(x: bits[A], y: bits[B]) -&gt; Point[A, B] { Point {
 x, y } } test struct_construction { let p = make_point(u16:42, u32:42);
-assert_eq(u16:42, p.x) } ```</p>
+assert_eq(u16:42, p.x) }
+</code></pre>
+
 <h3 id="array-type">Array Type</h3>
 <p>Arrays can be constructed via bracket notation. All values that make up the
 array must have the same type. Arrays can be indexed with indexing notation

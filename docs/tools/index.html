@@ -639,6 +639,13 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#booleanify_main" class="md-nav__link">
+    booleanify_main
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#codegen_main" class="md-nav__link">
     codegen_main
   </a>
@@ -676,6 +683,13 @@
         <li class="md-nav__item">
   <a href="#simulate_module_main" class="md-nav__link">
     simulate_module_main
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#smtlib_emitter_main" class="md-nav__link">
+    smtlib_emitter_main
   </a>
   
 </li>
@@ -812,6 +826,13 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#booleanify_main" class="md-nav__link">
+    booleanify_main
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#codegen_main" class="md-nav__link">
     codegen_main
   </a>
@@ -849,6 +870,13 @@
         <li class="md-nav__item">
   <a href="#simulate_module_main" class="md-nav__link">
     simulate_module_main
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#smtlib_emitter_main" class="md-nav__link">
+    smtlib_emitter_main
   </a>
   
 </li>
@@ -900,6 +928,10 @@ total delay, critical path, codegen information, optimization time, etc. This
 tool may be run against arbitrary IR not just the fixed set of XLS benchmarks.
 The output of this tool is scraped by <code>run_benchmarks</code> to construct a table
 comparing metrics against a mint CL across the benchmark suite.</p>
+<h2 id="booleanify_main"><a href="https://github.com/google/xls/tree/main/xls/tools/booleanify_main.cc"><code>booleanify_main</code></a></h2>
+<p>Rewrites an XLS IR function in terms of its ops' fundamental AND/OR/NOT
+constituents, i.e., makes all operations boolean, thus it's "booleanifying" the
+function.</p>
 <h2 id="codegen_main"><a href="https://github.com/google/xls/tree/main/xls/tools/codegen_main.cc"><code>codegen_main</code></a></h2>
 <p>Lowers an XLS IR file into Verilog. Options include emitting a feedforward
 pipeline or a purely combinational block. Emits both a Verilog file and a module
@@ -939,6 +971,9 @@ same source) are logically equivalent.</p>
 <p>Runs an Verilog block emitted by XLS through a Verilog simulator. Requires both
 the Verilog text and the module signature which includes metadata about the
 block.</p>
+<h2 id="smtlib_emitter_main"><a href="https://github.com/google/xls/tree/main/xls/tools/smtlib_emitter_main.cc"><code>smtlib_emitter_main</code></a></h2>
+<p>Simple driver for Z3IrTranslator - converts a given IR function into its Z3
+representation and outputs that translation as SMTLIB2.</p>
 <h2 id="solver"><a href="https://github.com/google/xls/tree/main/xls/tools/solver.cc"><code>solver</code></a></h2>
 <p>Uses a SMT solver (i.e. Z3) to prove properties of an XLS IR program from the
 command line. Currently the set of "predicates" that the solver supports from

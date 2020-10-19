@@ -854,7 +854,7 @@ installed</a>.</p>
 $ bazel --version
 bazel 3.2.0
 
-$ sudo apt install python3-dev python3-distutils python3-dev libtinfo5
+$ sudo apt install python3-distutils python3-dev libtinfo5
 
 # py_binary currently assume they can refer to /usr/bin/env python
 # even though Ubuntu 20.04 has no `python`, only `python3`.
@@ -936,10 +936,15 @@ purpose, and correspond to the components in this XLS stack diagram:</p>
   computations that are tested and executable through the XLS stack.</li>
 <li><a href="https://github.com/google/xls/tree/main/xls/experimental"><code>experimental</code></a>:
   Artifacts captured from experimental explorations.</li>
+<li><a href="https://github.com/google/xls/tree/main/xls/interpreter"><code>interpreter</code></a>:
+  Interpreter for XLS IR - useful for debugging and exploration. For cases
+  needing throughput, consider using the JIT (below).</li>
 <li><a href="https://github.com/google/xls/tree/main/xls/ir"><code>ir</code></a>:
   XLS IR definition, text parser/formatter, and facilities for abstract
-  evaluation and execution engines (<a href="interpreters/">IR interpreter</a>,
-  <a href="ir_jit/">JIT</a>).</li>
+  evaluation.</li>
+<li><a href="https://github.com/google/xls/tree/main/xls/jit"><code>jit</code></a>:
+  LLVM-based JIT for XLS IR. Enables native-speed execution of DSLX and XLS IR
+  programs.</li>
 <li><a href="https://github.com/google/xls/tree/main/xls/modules"><code>modules</code></a>:
   Hardware building block DSLX "libraries" (outside the DSLX standard library)
   that may be easily reused or instantiated in a broader design.</li>
@@ -986,8 +991,10 @@ project, see our
 <a href="https://google.github.io/xls/contributing/">contributing documentation</a> and
 <a href="https://github.com/google/xls/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22">good first issues</a>!</p>
 <ul>
+<li><a href="https://github.com/cbalint13">Balint Christian</a></li>
 <li><a href="https://github.com/Blaok">Blaok</a></li>
 <li><a href="https://github.com/brajiang">Brandon Jiang</a></li>
+<li><a href="https://github.com/cjdrake">Chris Drake</a></li>
 <li><a href="https://github.com/cdleary">Chris Leary</a></li>
 <li><a href="https://github.com/dmlockhart">Derek Lockhart</a></li>
 <li><a href="https://github.com/felixzhuologist">Felix Zhu</a></li>
@@ -996,6 +1003,7 @@ project, see our
 <li><a href="https://github.com/julianviera99">Julian Viera</a></li>
 <li><a href="https://github.com/kevineharlley">Kevin Harlley</a></li>
 <li><a href="https://github.com/meheffernan">Mark Heffernan</a></li>
+<li><a href="https://github.com/grebe">Paul Rigge</a></li>
 <li><a href="https://github.com/per-gron">Per Grön</a></li>
 <li><a href="https://github.com/rchen152">Rebecca Chen (Pytype)</a></li>
 <li><a href="https://github.com/rhundt">Robert Hundt</a></li>
