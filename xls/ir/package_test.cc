@@ -118,6 +118,137 @@ TEST_F(PackageTest, GetTokenType) {
   EXPECT_EQ("token", my_token_type->ToString());
 }
 
+TEST_F(PackageTest, MapTypeFromOtherPackageBitsTypes) {
+  Package p("my_package");
+  Package other_package("other_package");
+
+  BitsType* bits42_p = p.GetBitsType(42);
+  XLS_ASSERT_OK_AND_ASSIGN(Type * mapped_bits42_p,
+                           p.MapTypeFromOtherPackage(bits42_p));
+  EXPECT_EQ(bits42_p, mapped_bits42_p);
+  XLS_ASSERT_OK_AND_ASSIGN(Type * bits42_generic,
+                           other_package.MapTypeFromOtherPackage(bits42_p));
+  BitsType* bits42 = bits42_generic->AsBitsOrDie();
+  EXPECT_FALSE(p.IsOwnedType(bits42));
+  EXPECT_TRUE(other_package.IsOwnedType(bits42));
+  EXPECT_TRUE(bits42->IsBits());
+  EXPECT_EQ(bits42->bit_count(), 42);
+  EXPECT_EQ(bits42, other_package.GetBitsType(42));
+  EXPECT_EQ("bits[42]", bits42->ToString());
+
+  BitsType imposter(42);
+  EXPECT_FALSE(p.IsOwnedType(&imposter));
+  EXPECT_FALSE(other_package.IsOwnedType(&imposter));
+
+  BitsType* bits77_p = p.GetBitsType(77);
+  XLS_ASSERT_OK_AND_ASSIGN(Type * bits77_generic,
+                           other_package.MapTypeFromOtherPackage(bits77_p));
+  BitsType* bits77 = bits77_generic->AsBitsOrDie();
+  EXPECT_FALSE(p.IsOwnedType(bits77));
+  EXPECT_TRUE(other_package.IsOwnedType(bits77));
+  EXPECT_NE(bits77, bits42);
+
+  TypeProto bits77_proto = bits77->ToProto();
+  EXPECT_EQ(bits77_proto.type_enum(), TypeProto::BITS);
+  EXPECT_EQ(bits77_proto.bit_count(), 77);
+  EXPECT_THAT(other_package.GetTypeFromProto(bits77_proto),
+              IsOkAndHolds(bits77));
+}
+
+TEST_F(PackageTest, MapTypeFromOtherPackageArrayTypes) {
+  Package p("my_package");
+  BitsType* bits42 = p.GetBitsType(42);
+  Package other_package("other_package");
+
+  ArrayType* array_bits42_p = p.GetArrayType(123, bits42);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Type * array_bits42_generic,
+      other_package.MapTypeFromOtherPackage(array_bits42_p));
+  ArrayType* array_bits42 = array_bits42_generic->AsArrayOrDie();
+  EXPECT_TRUE(array_bits42->IsArray());
+  EXPECT_EQ(array_bits42->size(), 123);
+  BitsType* bits42_other = other_package.GetBitsType(42);
+  EXPECT_EQ(array_bits42, other_package.GetArrayType(123, bits42_other));
+  EXPECT_EQ(array_bits42->element_type(), other_package.GetBitsType(42));
+  EXPECT_EQ("bits[42][123]", array_bits42->ToString());
+
+  ArrayType* array_array_bits42_p = p.GetArrayType(444, array_bits42_p);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Type * array_array_bits42_generic,
+      other_package.MapTypeFromOtherPackage(array_array_bits42_p));
+  ArrayType* array_array_bits42 = array_array_bits42_generic->AsArrayOrDie();
+  EXPECT_TRUE(array_array_bits42->IsArray());
+  EXPECT_EQ(array_array_bits42->size(), 444);
+  EXPECT_EQ(array_array_bits42->element_type(), array_bits42);
+  EXPECT_EQ(array_array_bits42, other_package.GetArrayType(444, array_bits42));
+
+  EXPECT_EQ("bits[42][123][444]", array_array_bits42->ToString());
+}
+
+TEST_F(PackageTest, MapTypeFromOtherPackageTupleTypes) {
+  Package p("my_package");
+  Package other_package("other_package");
+  BitsType* bits42_p = p.GetBitsType(42);
+  BitsType* bits86_p = p.GetBitsType(86);
+
+  TupleType* tuple1_p = p.GetTupleType({bits42_p});
+  XLS_ASSERT_OK_AND_ASSIGN(Type * tuple1_generic,
+                           other_package.MapTypeFromOtherPackage(tuple1_p));
+  TupleType* tuple1 = tuple1_generic->AsTupleOrDie();
+  EXPECT_EQ("(bits[42])", tuple1->ToString());
+  EXPECT_TRUE(other_package.IsOwnedType(tuple1));
+
+  TupleType* tuple2_p = p.GetTupleType({bits42_p, bits86_p});
+  XLS_ASSERT_OK_AND_ASSIGN(Type * tuple2_generic,
+                           other_package.MapTypeFromOtherPackage(tuple2_p));
+  TupleType* tuple2 = tuple2_generic->AsTupleOrDie();
+  EXPECT_EQ("(bits[42], bits[86])", tuple2->ToString());
+  EXPECT_TRUE(other_package.IsOwnedType(tuple2));
+
+  TupleType* empty_tuple_p = p.GetTupleType({});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Type * empty_tuple_generic,
+      other_package.MapTypeFromOtherPackage(empty_tuple_p));
+  TupleType* empty_tuple = empty_tuple_generic->AsTupleOrDie();
+  EXPECT_EQ("()", empty_tuple->ToString());
+  EXPECT_TRUE(other_package.IsOwnedType(empty_tuple));
+
+  TupleType* tuple_of_arrays_p = p.GetTupleType(
+      {p.GetArrayType(2, bits42_p), p.GetArrayType(4, bits86_p)});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Type * tuple_of_arrays_generic,
+      other_package.MapTypeFromOtherPackage(tuple_of_arrays_p));
+  TupleType* tuple_of_arrays = tuple_of_arrays_generic->AsTupleOrDie();
+  EXPECT_EQ("(bits[42][2], bits[86][4])", tuple_of_arrays->ToString());
+  EXPECT_TRUE(other_package.IsOwnedType(tuple_of_arrays));
+
+  TupleType* nested_tuple_p =
+      p.GetTupleType({empty_tuple_p, tuple2_p, bits86_p});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Type * nested_tuple_generic,
+      other_package.MapTypeFromOtherPackage(nested_tuple_p));
+  TupleType* nested_tuple = nested_tuple_generic->AsTupleOrDie();
+  EXPECT_EQ("((), (bits[42], bits[86]), bits[86])", nested_tuple->ToString());
+  EXPECT_TRUE(other_package.IsOwnedType(nested_tuple));
+  EXPECT_THAT(other_package.GetTypeFromProto(nested_tuple->ToProto()),
+              IsOkAndHolds(nested_tuple));
+}
+
+TEST_F(PackageTest, MapTypeFromOtherPackageTokenType) {
+  Package p("my_package");
+  Package other_package("other_package");
+
+  TokenType* my_token_type_p = p.GetTokenType();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Type * my_token_type_generic,
+      other_package.MapTypeFromOtherPackage(my_token_type_p));
+  TokenType* my_token_type = my_token_type_generic->AsTokenOrDie();
+  EXPECT_TRUE(my_token_type->IsToken());
+  EXPECT_TRUE(other_package.IsOwnedType(my_token_type));
+  EXPECT_EQ(my_token_type, other_package.GetTokenType());
+  EXPECT_EQ("token", my_token_type->ToString());
+}
+
 TEST_F(PackageTest, IsDefinitelyEqualTo) {
   const char text1[] = R"(
 package package1

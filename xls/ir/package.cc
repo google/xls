@@ -181,6 +181,42 @@ std::string Package::SourceLocationToString(const SourceLocation loc) {
   return absl::StrFormat("%s:%d", filename, loc.lineno().value());
 }
 
+absl::StatusOr<Type*> Package::MapTypeFromOtherPackage(
+    Type* other_package_type) {
+  // Package already owns this type.
+  if (IsOwnedType(other_package_type)) {
+    return other_package_type;
+  }
+
+  if (other_package_type->IsBits()) {
+    const BitsType* bits = other_package_type->AsBitsOrDie();
+    return GetBitsType(bits->bit_count());
+
+  } else if (other_package_type->IsArray()) {
+    const ArrayType* array = other_package_type->AsArrayOrDie();
+    XLS_ASSIGN_OR_RETURN(Type * elem_type,
+                         MapTypeFromOtherPackage(array->element_type()));
+    return GetArrayType(array->size(), elem_type);
+
+  } else if (other_package_type->IsTuple()) {
+    const TupleType* tuple = other_package_type->AsTupleOrDie();
+    std::vector<Type*> member_types;
+    member_types.reserve(tuple->size());
+    for (auto* elem_type : tuple->element_types()) {
+      XLS_ASSIGN_OR_RETURN(Type * new_elem_type,
+                           MapTypeFromOtherPackage(elem_type));
+      member_types.push_back(new_elem_type);
+    }
+    return GetTupleType(member_types);
+
+  } else if (other_package_type->IsToken()) {
+    return GetTokenType();
+
+  } else {
+    return absl::InternalError("Unsupported type.");
+  }
+}
+
 BitsType* Package::GetBitsType(int64 bit_count) {
   if (bit_count_to_type_.find(bit_count) != bit_count_to_type_.end()) {
     return &bit_count_to_type_.at(bit_count);

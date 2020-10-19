@@ -70,18 +70,70 @@ std::string Function::DumpIr(bool recursive) const {
   return nested_funcs + res;
 }
 
-absl::StatusOr<Function*> Function::Clone(absl::string_view new_name) const {
+absl::StatusOr<Function*> Function::Clone(
+    absl::string_view new_name, Package* target_package,
+    const absl::flat_hash_map<const Function*, Function*>& call_remapping)
+    const {
   absl::flat_hash_map<Node*, Node*> original_to_clone;
-  Function* cloned_function =
-      package()->AddFunction(absl::make_unique<Function>(new_name, package()));
+  if (target_package == nullptr) {
+    target_package = package();
+  }
+  Function* cloned_function = target_package->AddFunction(
+      absl::make_unique<Function>(new_name, target_package));
   for (Node* node : TopoSort(const_cast<Function*>(this))) {
     std::vector<Node*> cloned_operands;
     for (Node* operand : node->operands()) {
       cloned_operands.push_back(original_to_clone.at(operand));
     }
-    XLS_ASSIGN_OR_RETURN(
-        original_to_clone[node],
-        node->CloneInNewFunction(cloned_operands, cloned_function));
+
+    switch (node->op()) {
+      // Remap CountedFor body.
+      case Op::kCountedFor: {
+        CountedFor* src = node->As<CountedFor>();
+        Function* body = call_remapping.contains(src->body())
+                             ? call_remapping.at(src->body())
+                             : src->body();
+        XLS_ASSIGN_OR_RETURN(
+            original_to_clone[node],
+            cloned_function->MakeNodeWithName<CountedFor>(
+                src->loc(), cloned_operands[0],
+                absl::Span<Node*>(cloned_operands).subspan(1),
+                src->trip_count(), src->stride(), body, src->GetName()));
+        break;
+      }
+      // Remap Map to_apply.
+      case Op::kMap: {
+        Map* src = node->As<Map>();
+        Function* to_apply = call_remapping.contains(src->to_apply())
+                                 ? call_remapping.at(src->to_apply())
+                                 : src->to_apply();
+        XLS_ASSIGN_OR_RETURN(
+            original_to_clone[node],
+            cloned_function->MakeNodeWithName<Map>(
+                src->loc(), cloned_operands[0], to_apply, src->GetName()));
+        break;
+      }
+      // Remap Invoke to_apply.
+      case Op::kInvoke: {
+        Invoke* src = node->As<Invoke>();
+        Function* to_apply = call_remapping.contains(src->to_apply())
+                                 ? call_remapping.at(src->to_apply())
+                                 : src->to_apply();
+        XLS_ASSIGN_OR_RETURN(
+            original_to_clone[node],
+            cloned_function->MakeNodeWithName<Invoke>(
+                src->loc(), cloned_operands, to_apply, src->GetName()));
+        break;
+      }
+      // Default clone.
+      default: {
+        XLS_ASSIGN_OR_RETURN(
+            original_to_clone[node],
+            node->CloneInNewFunction(cloned_operands, cloned_function));
+        auto* clone = original_to_clone[node];
+        break;
+      }
+    }
   }
   XLS_RETURN_IF_ERROR(
       cloned_function->set_return_value(original_to_clone.at(return_value())));
