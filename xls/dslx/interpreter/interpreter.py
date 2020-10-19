@@ -36,8 +36,6 @@ from xls.dslx import import_fn
 from xls.dslx import ir_name_mangler
 from xls.dslx.concrete_type_helpers import map_size
 from xls.dslx.interpreter import jit_comparison
-from xls.dslx.interpreter.bindings import Bindings
-from xls.dslx.interpreter.bindings import FnCtx
 from xls.dslx.interpreter.concrete_type_helpers import concrete_type_accepts_value
 from xls.dslx.interpreter.concrete_type_helpers import concrete_type_convert_value
 from xls.dslx.interpreter.concrete_type_helpers import concrete_type_from_value
@@ -57,6 +55,8 @@ from xls.dslx.python.cpp_parametric_expression import ParametricAdd
 from xls.dslx.python.cpp_parametric_expression import ParametricSymbol
 from xls.dslx.python.cpp_pos import Pos
 from xls.dslx.python.cpp_pos import Span
+from xls.dslx.python.interp_bindings import Bindings
+from xls.dslx.python.interp_bindings import FnCtx
 from xls.dslx.python.interp_value import Builtin
 from xls.dslx.python.interp_value import Tag
 from xls.dslx.python.interp_value import Value
@@ -116,7 +116,7 @@ class Interpreter(object):
     """Evaluates a reference to an enum value."""
     enum = self._evaluate_to_enum(expr.enum, bindings)
     value_node = enum.get_value(expr.value)
-    fresh_bindings = self._make_top_level_bindings(self._module)
+    fresh_bindings = self._make_top_level_bindings(expr.module)
     raw_value = self._evaluate(
         value_node, fresh_bindings,
         self._evaluate_TypeAnnotation(enum.type_, fresh_bindings))
@@ -210,6 +210,7 @@ class Interpreter(object):
       type_ = self._evaluate_TypeAnnotation(expr.type_, bindings)
 
     to_bind = self._evaluate(expr.rhs, bindings, type_)
+    assert to_bind is not None
     if type_ and not concrete_type_accepts_value(self._module, type_, to_bind):
       raise EvaluateError(
           expr.type_.span, 'Type error found at interpreter runtime! '
@@ -280,7 +281,7 @@ class Interpreter(object):
       self, import_: ast.Import,
       bindings: Bindings) -> Tuple[ast.Module, Bindings]:
     """Uses bindings to retrieve the corresponding module of a ModRef."""
-    imported_module = bindings.resolve_mod(import_.identifier)
+    imported_module = bindings.resolve_mod(import_.identifier, import_.module)
     return imported_module, self._make_top_level_bindings(imported_module)
 
   def _deref_typeref(
@@ -292,7 +293,7 @@ class Interpreter(object):
       return ast_helpers.evaluate_to_struct_or_enum_or_annotation(
           type_ref.type_def, self._get_imported_module_via_bindings, bindings)
 
-    result = bindings.resolve_type_annotation_or_enum(type_ref.text)
+    result = bindings.resolve_type_definition(type_ref.text, type_ref.module)
     assert isinstance(result,
                       (ast.TypeAnnotation, ast.Enum, ast.Struct)), result
     return result
@@ -707,8 +708,9 @@ class Interpreter(object):
       self, expr: ast.ModRef, bindings: Bindings,
       _: Optional[ConcreteType]) -> Value:
     """Evaluates a 'ModRef' AST node to a value."""
-    mod = bindings.resolve_mod(expr.mod.identifier)
+    mod = bindings.resolve_mod(expr.mod.identifier, expr.module)
     f = mod.get_function(expr.value)
+    assert f.get_containing_module() == mod, (f, f.get_containing_module(), mod)
     return Value.make_function(mod, f)
 
   def _call_builtin_fn(
@@ -724,7 +726,9 @@ class Interpreter(object):
       f = self._builtin_scmp(method=name)
     else:
       f = getattr(self, f'_builtin_{name}')
-    return f(args, span, invocation, symbolic_bindings)
+    result = f(args, span, invocation, symbolic_bindings)
+    assert isinstance(result, Value), (result, f)
+    return result
 
   def _call_fn_value(
       self,
@@ -738,9 +742,9 @@ class Interpreter(object):
       return self._call_builtin_fn(fv.get_builtin_fn(), args, span, invocation,
                                    symbolic_bindings)
     else:
-      m, f = fv.get_user_fn_data()
+      _, f = fv.get_user_fn_data()
 
-    return self._evaluate_fn(f, m, args, span, invocation, symbolic_bindings)
+    return self._evaluate_fn(f, args, span, invocation, symbolic_bindings)
 
   def _evaluate_Invocation(  # pylint: disable=invalid-name
       self, expr: ast.Invocation, bindings: Bindings,
@@ -751,7 +755,7 @@ class Interpreter(object):
         ast.NameRef) and expr.callee.name_def.identifier == 'trace':
       # Safe to skip this and return nothing if this is a trace invocation;
       # trace isn't an input to any downstream expressions.
-      return None
+      return Value.make_nil()
     arg_values = [self._evaluate(arg, bindings) for arg in expr.args]
     callee_value = self._evaluate(expr.callee, bindings)
     if not callee_value.is_function():
@@ -823,6 +827,7 @@ class Interpreter(object):
       result = handler(expr, bindings, type_context)
       if self._trace_all and result is not None:
         self._optional_trace(expr, result)
+      assert isinstance(result, Value), (result, handler)
       return result
     except (AssertionError, EvaluateError, TypeError) as e:
       # Give some more helpful traceback context in expression evaluation for
@@ -837,7 +842,7 @@ class Interpreter(object):
       raise
 
   def evaluate_literal(self, expr: ast.Expr) -> Value:
-    return self._evaluate(expr, Bindings())
+    return self._evaluate(expr, Bindings(None))
 
   def evaluate_expr(self, expr: ast.Expr, bindings: Bindings) -> Value:
     """Evaluates a stand-alone expression with the given bindings."""
@@ -961,6 +966,7 @@ class Interpreter(object):
               len(args)))
 
     self._perform_trace(expr.format_args(), span, args[0])
+    assert isinstance(args[0], Value), args[0]
     return args[0]
 
   def _builtin_select(
@@ -1267,14 +1273,13 @@ class Interpreter(object):
       bindings.add_value(parametric.name.identifier, wrapped_value)
 
   def _evaluate_fn_with_interpreter(
-      self, fn: ast.Function, m: ast.Module, args: Sequence[Value], span: Span,
+      self, fn: ast.Function, args: Sequence[Value], span: Span,
       expr: Optional[ast.Invocation],
       symbolic_bindings: Optional[SymbolicBindings]) -> Value:
     """Evaluates the user defined function fn as an invocation against args.
 
     Args:
       fn: The user-defined function to evaluate.
-      m: The module containing fn.
       args: The argument with which the user-defined function is being invoked.
       span: The source span of the invocation.
       expr: The invocation node
@@ -1296,6 +1301,7 @@ class Interpreter(object):
           'Argument arity mismatch for invocation; want: {} got: {}'.format(
               len(fn.params), len(args)))
 
+    m = fn.get_containing_module()
     bindings = self._make_top_level_bindings(m)
 
     # Bind all args to the parameter identifiers.
@@ -1312,7 +1318,6 @@ class Interpreter(object):
   def _evaluate_fn(
       self,
       fn: ast.Function,
-      m: ast.Module,
       args: Sequence[Value],
       span: Span,
       expr: Optional[ast.Invocation] = None,
@@ -1330,7 +1335,6 @@ class Interpreter(object):
 
     Args:
       fn: Function to evaluate.
-      m: Module the function is contained within.
       args: Actual arguments used to invoke the function.
       span: Span of the invocation causing this evaluation.
       expr: Invocation AST node causing this evaluation.
@@ -1355,10 +1359,11 @@ class Interpreter(object):
 
     with ntt_swap(invocation_type_info):
       interpreter_value = self._evaluate_fn_with_interpreter(
-          fn, m, args, span, expr, symbolic_bindings)
+          fn, args, span, expr, symbolic_bindings)
 
     ir_name = ir_name_mangler.mangle_dslx_name(fn.name.identifier,
-                                               fn.get_free_parametric_keys(), m,
+                                               fn.get_free_parametric_keys(),
+                                               fn.get_containing_module(),
                                                symbolic_bindings)
 
     if self._ir_package:
@@ -1398,7 +1403,7 @@ class Interpreter(object):
       Bindings containing builtins and function identifiers at the top level of
       the module.
     """
-    b = Bindings()
+    b = Bindings(None)
     for name in ('add_with_carry and_reduce assert_eq assert_lt bit_slice clz '
                  'ctz enumerate fail! map one_hot one_hot_sel or_reduce range '
                  'rev select sge sgt signex sle slice slt trace update '
@@ -1406,9 +1411,17 @@ class Interpreter(object):
       b.add_fn(name, Value.make_function(Builtin.get(name)))
 
     for function in m.get_functions():
+      assert function.get_containing_module() == m, (
+          function, function.get_containing_module(), m)
       b.add_fn(function.name.identifier, Value.make_function(m, function))
     for typedef in m.get_typedefs():
-      b.add_typedef(typedef.identifier, typedef)
+      if isinstance(typedef, ast.TypeDef):
+        b.add_typedef(typedef.identifier, typedef)
+      elif isinstance(typedef, ast.Struct):
+        b.add_struct(typedef.identifier, typedef)
+      else:
+        assert isinstance(typedef, ast.Enum), type(typedef)
+        b.add_enum(typedef.identifier, typedef)
 
     self._top_level_members.setdefault(m, {})
 
@@ -1432,6 +1445,7 @@ class Interpreter(object):
       elif isinstance(member, ast.Import):
         imported_module = self._do_import(member.name, member.span)
         b.add_mod(member.identifier, imported_module)
+
     return b
 
   def run_quickcheck(self, quickcheck: ast.QuickCheck, seed: int) -> None:
@@ -1474,5 +1488,4 @@ class Interpreter(object):
     assert not f.is_parametric()
     fake_pos = Pos('<fake>', 0, 0)
     fake_span = Span(fake_pos, fake_pos)
-    return self._evaluate_fn(
-        f, self._module, args, fake_span, symbolic_bindings=())
+    return self._evaluate_fn(f, args, fake_span, symbolic_bindings=())

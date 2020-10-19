@@ -177,3 +177,21 @@ xls_pybind_extension(
         "//xls/dslx:interp_value",
     ],
 )
+
+xls_pybind_extension(
+    name = "interp_bindings",
+    srcs = [
+        "cpp_ast.h",
+        "interp_bindings.cc",
+    ],
+    py_deps = [
+        ":cpp_ast",  # build_cleaner: keep
+    ],
+    deps = [
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/strings",
+        "//xls/common/status:status_macros",
+        "//xls/common/status:statusor_pybind_caster",
+        "//xls/dslx:interp_bindings",
+    ],
+)

@@ -71,18 +71,6 @@ py_test(
 )
 
 py_library(
-    name = "bindings",
-    srcs = ["bindings.py"],
-    srcs_version = "PY3",
-    deps = [
-        "//xls/dslx:parametric_instantiator",
-        "//xls/dslx/python:cpp_ast",
-        "//xls/dslx/python:cpp_pos",
-        "//xls/dslx/python:interp_value",
-    ],
-)
-
-py_library(
     name = "concrete_type_helpers",
     srcs = ["concrete_type_helpers.py"],
     srcs_version = "PY3",
@@ -104,7 +92,6 @@ py_library(
     srcs = ["interpreter.py"],
     srcs_version = "PY3",
     deps = [
-        ":bindings",
         ":concrete_type_helpers",
         ":errors",
         ":jit_comparison",
@@ -120,6 +107,7 @@ py_library(
         "//xls/dslx/python:cpp_parametric_expression",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_type_info",
+        "//xls/dslx/python:interp_bindings",
         "//xls/dslx/python:interp_value",
         "//xls/ir/python:package",
         "//xls/jit/python:ir_jit",
@@ -160,11 +148,11 @@ py_library(
     srcs = ["interpreter_helpers.py"],
     srcs_version = "PY3",
     deps = [
-        ":bindings",
         ":interpreter",
         "//xls/dslx:deduce",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_type_info",
+        "//xls/dslx/python:interp_bindings",
     ],
 )
 

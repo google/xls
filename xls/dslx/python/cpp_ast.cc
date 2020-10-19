@@ -167,8 +167,12 @@ PYBIND11_MODULE(cpp_ast, m) {
             return Wrap<AstNode*>(self.deref().GetChildren(/*want_types=*/true),
                                   self.module());
           })
-      .def("get_free_variables", [](AstNodeHolder self, Pos start_pos) {
-        return self.deref().GetFreeVariables(start_pos);
+      .def("get_free_variables",
+           [](AstNodeHolder self, Pos start_pos) {
+             return self.deref().GetFreeVariables(start_pos);
+           })
+      .def_property_readonly("module", [](AstNodeHolder self) {
+        return ModuleHolder(self.module().get(), self.module());
       });
 
   // class Expr
@@ -784,7 +788,7 @@ PYBIND11_MODULE(cpp_ast, m) {
                return_type_ptr = &return_type->deref();
              }
              auto* self = module.deref().Make<Function>(
-                 std::move(span), &name_def.deref(),
+                 &module.deref(), std::move(span), &name_def.deref(),
                  Unwrap<ParametricBinding*>(parametric_bindings),
                  Unwrap<Param*>(params), return_type_ptr, &body.deref(),
                  is_public);
@@ -793,6 +797,16 @@ PYBIND11_MODULE(cpp_ast, m) {
            py::arg("module"), py::arg("span"), py::arg("name_def"),
            py::arg("parametric_bindings"), py::arg("params"),
            py::arg("return_type"), py::arg("body"), py::arg("public"))
+      .def("__repr__",
+           [](FunctionHolder self) {
+             return absl::StrFormat("Function(name=\"%s\", id=%p)",
+                                    self.deref().identifier(), &self.deref());
+           })
+      .def("get_containing_module",
+           [](FunctionHolder self) {
+             return ModuleHolder(self.deref().containing_module(),
+                                 self.module());
+           })
       .def("get_free_parametric_keys",
            [](FunctionHolder self) {
              auto keys = self.deref().GetFreeParametricKeys();

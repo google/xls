@@ -47,6 +47,7 @@ class BuiltinNameDef;
 class Enum;
 class Expr;
 class ModRef;
+class Module;
 class NameDef;
 class NameDefTree;
 class NameRef;
@@ -844,11 +845,12 @@ class ParametricBinding : public AstNode {
 // Represents a function definition.
 class Function : public AstNode {
  public:
-  Function(Span span, NameDef* name_def,
+  Function(Module* containing_module, Span span, NameDef* name_def,
            std::vector<ParametricBinding*> parametric_bindings,
            std::vector<Param*> params, TypeAnnotation* return_type, Expr* body,
            bool is_public)
-      : span_(span),
+      : containing_module_(containing_module),
+        span_(span),
         name_def_(XLS_DIE_IF_NULL(name_def)),
         params_(std::move(params)),
         parametric_bindings_(std::move(parametric_bindings)),
@@ -900,7 +902,11 @@ class Function : public AstNode {
     return results;
   }
 
+  // The module that contains this function AST node.
+  Module* containing_module() const { return containing_module_; }
+
  private:
+  Module* containing_module_;
   Span span_;
   NameDef* name_def_;
   std::vector<Param*> params_;

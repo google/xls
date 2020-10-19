@@ -718,3 +718,26 @@ cc_library(
         "//xls/ir:bits_ops",
     ],
 )
+
+cc_library(
+    name = "interp_bindings",
+    srcs = ["interp_bindings.cc"],
+    hdrs = ["interp_bindings.h"],
+    deps = [
+        ":cpp_ast",
+        ":cpp_type_info",
+        ":interp_value",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/types:variant",
+    ],
+)
+
+cc_test(
+    name = "interp_bindings_test",
+    srcs = ["interp_bindings_test.cc"],
+    deps = [
+        ":interp_bindings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
