@@ -60,10 +60,10 @@
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/interpreter/channel_queue.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/keyword_args.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
@@ -83,22 +83,47 @@ void OnceInit() {
 
 }  // namespace
 
-absl::StatusOr<std::unique_ptr<IrJit>> IrJit::Create(
-    Function* xls_function, ChannelQueueManager* queue_mgr, int64 opt_level) {
+absl::StatusOr<std::unique_ptr<IrJit>> IrJit::Create(Function* xls_function,
+                                                     int64 opt_level) {
   absl::call_once(once, OnceInit);
 
-  auto jit = absl::WrapUnique(new IrJit(xls_function, queue_mgr, opt_level));
+  auto jit = absl::WrapUnique(new IrJit(xls_function, opt_level));
   XLS_RETURN_IF_ERROR(jit->Init());
-  XLS_RETURN_IF_ERROR(jit->Compile(absl::nullopt));
+  auto visit_fn = [&jit](llvm::Module* module, llvm::Function* llvm_function,
+                         bool generate_packed) {
+    return FunctionBuilderVisitor::Visit(
+        module, llvm_function, jit->xls_function_, jit->type_converter_.get(),
+        /*is_top=*/true, generate_packed);
+  };
+  XLS_RETURN_IF_ERROR(jit->Compile(visit_fn));
   return jit;
 }
 
-absl::Status IrJit::Compile(absl::optional<ChannelQueueManager*> queue_mgr) {
+absl::StatusOr<std::unique_ptr<IrJit>> IrJit::CreateProc(
+    Proc* proc, JitChannelQueueManager* queue_mgr,
+    ProcBuilderVisitor::RecvFnT recv_fn, ProcBuilderVisitor::SendFnT send_fn,
+    int64 opt_level) {
+  absl::call_once(once, OnceInit);
+
+  auto jit = absl::WrapUnique(new IrJit(proc, opt_level));
+  XLS_RETURN_IF_ERROR(jit->Init());
+  auto visit_fn = [&jit, queue_mgr, recv_fn, send_fn](
+                      llvm::Module* module, llvm::Function* llvm_function,
+                      bool generate_packed) {
+    return ProcBuilderVisitor::Visit(
+        module, llvm_function, jit->xls_function_, jit->type_converter_.get(),
+        /*is_top=*/true, generate_packed, queue_mgr, recv_fn, send_fn);
+  };
+  XLS_RETURN_IF_ERROR(jit->Compile(visit_fn));
+  return jit;
+}
+
+absl::Status IrJit::Compile(VisitFn visit_fn) {
   llvm::LLVMContext* bare_context = context_.getContext();
   auto module = std::make_unique<llvm::Module>("the_module", *bare_context);
   module->setDataLayout(data_layout_);
-  XLS_RETURN_IF_ERROR(CompileFunction(module.get()));
-  XLS_RETURN_IF_ERROR(CompilePackedViewFunction(module.get()));
+  XLS_RETURN_IF_ERROR(CompileFunction(visit_fn, module.get()));
+  XLS_RETURN_IF_ERROR(CompilePackedViewFunction(visit_fn, module.get()));
   llvm::Error error = transform_layer_->add(
       dylib_, llvm::orc::ThreadSafeModule(std::move(module), context_));
   if (error) {
@@ -130,8 +155,7 @@ absl::Status IrJit::Compile(absl::optional<ChannelQueueManager*> queue_mgr) {
   return absl::OkStatus();
 }
 
-IrJit::IrJit(Function* xls_function, ChannelQueueManager* queue_mgr,
-             int64 opt_level)
+IrJit::IrJit(FunctionBase* xls_function, int64 opt_level)
     : context_(std::make_unique<llvm::LLVMContext>()),
       object_layer_(
           execution_session_,
@@ -140,7 +164,6 @@ IrJit::IrJit(Function* xls_function, ChannelQueueManager* queue_mgr,
       data_layout_(""),
       xls_function_(xls_function),
       xls_function_type_(xls_function_->GetType()),
-      queue_mgr_(queue_mgr),
       opt_level_(opt_level),
       invoker_(nullptr) {}
 
@@ -238,7 +261,7 @@ absl::Status IrJit::Init() {
   return absl::OkStatus();
 }
 
-absl::Status IrJit::CompileFunction(llvm::Module* module) {
+absl::Status IrJit::CompileFunction(VisitFn visit_fn, llvm::Module* module) {
   llvm::LLVMContext* bare_context = context_.getContext();
 
   // To return values > 64b in size, we need to copy them into a result buffer,
@@ -265,6 +288,7 @@ absl::Status IrJit::CompileFunction(llvm::Module* module) {
       type_converter_->ConvertToLlvmType(*return_type);
   param_types.push_back(
       llvm::PointerType::get(llvm_return_type, /*AddressSpace=*/0));
+  param_types.push_back(llvm::Type::getInt64Ty(*bare_context));
   llvm::FunctionType* function_type = llvm::FunctionType::get(
       llvm::Type::getVoidTy(*bare_context),
       llvm::ArrayRef<llvm::Type*>(param_types.data(), param_types.size()),
@@ -276,15 +300,14 @@ absl::Status IrJit::CompileFunction(llvm::Module* module) {
   llvm::Function* llvm_function = llvm::cast<llvm::Function>(
       module->getOrInsertFunction(function_name, function_type).getCallee());
   return_type_bytes_ = type_converter_->GetTypeByteSize(*return_type);
-  XLS_RETURN_IF_ERROR(FunctionBuilderVisitor::Visit(
-      module, llvm_function, xls_function_, type_converter_.get(),
-      /*is_top=*/true,
-      /*generate_packed=*/false));
+  XLS_RETURN_IF_ERROR(
+      visit_fn(module, llvm_function, /*generate_packed=*/false));
 
   return absl::OkStatus();
 }
 
-absl::StatusOr<Value> IrJit::Run(absl::Span<const Value> args) {
+absl::StatusOr<Value> IrJit::Run(absl::Span<const Value> args,
+                                 void* user_data) {
   absl::Span<Param* const> params = xls_function_->params();
   if (args.size() != params.size()) {
     return absl::InvalidArgumentError(
@@ -314,21 +337,22 @@ absl::StatusOr<Value> IrJit::Run(absl::Span<const Value> args) {
       args, xls_function_type_->parameters(), absl::MakeSpan(arg_buffers)));
 
   absl::InlinedVector<uint8, 16> outputs(return_type_bytes_);
-  invoker_(arg_buffers.data(), outputs.data());
+  invoker_(arg_buffers.data(), outputs.data(), user_data);
 
   return ir_runtime_->UnpackBuffer(outputs.data(),
                                    xls_function_type_->return_type());
 }
 
 absl::StatusOr<Value> IrJit::Run(
-    const absl::flat_hash_map<std::string, Value>& kwargs) {
+    const absl::flat_hash_map<std::string, Value>& kwargs, void* user_data) {
   XLS_ASSIGN_OR_RETURN(std::vector<Value> positional_args,
                        KeywordArgsToPositional(*xls_function_, kwargs));
-  return Run(positional_args);
+  return Run(positional_args, user_data);
 }
 
 absl::Status IrJit::RunWithViews(absl::Span<const uint8*> args,
-                                 absl::Span<uint8> result_buffer) {
+                                 absl::Span<uint8> result_buffer,
+                                 void* user_data) {
   absl::Span<Param* const> params = xls_function_->params();
   if (args.size() != params.size()) {
     return absl::InvalidArgumentError(
@@ -342,15 +366,14 @@ absl::Status IrJit::RunWithViews(absl::Span<const uint8*> args,
                      return_type_bytes_));
   }
 
-  invoker_(args.data(), result_buffer.data());
+  invoker_(args.data(), result_buffer.data(), user_data);
   return absl::OkStatus();
 }
 
 absl::StatusOr<Value> CreateAndRun(Function* xls_function,
                                    absl::Span<const Value> args) {
   // No proc support from Python yet.
-  XLS_ASSIGN_OR_RETURN(auto jit,
-                       IrJit::Create(xls_function, /*queue_mgr=*/nullptr));
+  XLS_ASSIGN_OR_RETURN(auto jit, IrJit::Create(xls_function));
   XLS_ASSIGN_OR_RETURN(auto result, jit->Run(args));
   return result;
 }
@@ -358,8 +381,7 @@ absl::StatusOr<Value> CreateAndRun(Function* xls_function,
 absl::StatusOr<std::pair<std::vector<std::vector<Value>>, std::vector<Value>>>
 CreateAndQuickCheck(Function* xls_function, int64 seed, int64 num_tests) {
   // No proc support from Python yet.
-  XLS_ASSIGN_OR_RETURN(auto jit,
-                       IrJit::Create(xls_function, /*queue_mgr=*/nullptr));
+  XLS_ASSIGN_OR_RETURN(auto jit, IrJit::Create(xls_function));
   std::vector<Value> results;
   std::vector<std::vector<Value>> argsets;
   std::minstd_rand rng_engine(seed);
@@ -379,7 +401,8 @@ CreateAndQuickCheck(Function* xls_function, int64 seed, int64 num_tests) {
 
 // Much of the core here is the same as in CompileFunction() - refer there for
 // general comments.
-absl::Status IrJit::CompilePackedViewFunction(llvm::Module* module) {
+absl::Status IrJit::CompilePackedViewFunction(VisitFn visit_fn,
+                                              llvm::Module* module) {
   llvm::LLVMContext* bare_context = context_.getContext();
   llvm::Type* i8_type = llvm::Type::getInt8Ty(*bare_context);
 
@@ -401,6 +424,7 @@ absl::Status IrJit::CompilePackedViewFunction(llvm::Module* module) {
     param_types.push_back(
         llvm::PointerType::get(return_type, /*AddressSpace=*/0));
   }
+  param_types.push_back(llvm::Type::getInt64Ty(*bare_context));
   function_type = llvm::FunctionType::get(
       llvm::Type::getVoidTy(*bare_context),
       llvm::ArrayRef<llvm::Type*>(param_types.data(), param_types.size()),
@@ -411,9 +435,8 @@ absl::Status IrJit::CompilePackedViewFunction(llvm::Module* module) {
       "%s::%s_packed", xls_package->name(), xls_function_->name());
   llvm::Function* llvm_function = llvm::cast<llvm::Function>(
       module->getOrInsertFunction(function_name, function_type).getCallee());
-  XLS_RETURN_IF_ERROR(FunctionBuilderVisitor::Visit(
-      module, llvm_function, xls_function_, type_converter_.get(),
-      /*is_top=*/true, /*generate_packed=*/true));
+  XLS_RETURN_IF_ERROR(
+      visit_fn(module, llvm_function, /*generate_packed=*/true));
 
   return absl::OkStatus();
 }

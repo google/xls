@@ -36,32 +36,31 @@ class ProcBuilderVisitor : public FunctionBuilderVisitor {
  public:
   // The receive function has the following prototype:
   // void recv_fn(uint64 queue_ptr, uint64 recv_ptr, uint8* buffer,
-  //              int64 data_sz);
+  //              int64 data_sz, void* user_data);
   // where:
   //  - queue_ptr is a pointer to a JitChannelQueue,
   //  - recv_ptr is a pointer to a Receive node,
   //  - buffer is a pointer to the data to fill (with incoming data), and
   //  - data_sz is the size of the receive buffer.
+  //  - user_data is an opaque pointer to user-provided data needed for
+  //    processing, e.g., thread/queue info.
   //
   // The send function has the following prototype:
   // void send_fn(uint64 queue_ptr, uint64 send_ptr, uint8* buffer,
-  //              int64 data_sz);
+  //              int64 data_sz, void* user_data);
   // where:
   //  - queue_ptr is a pointer to a JitChannelQueue,
   //  - send_ptr is a pointer to a Send node,
   //  - buffer is a pointer to the data to fill (with incoming data), and
   //  - data_sz is the size of the receive buffer.
-  //
-  // Internally, the JIT looks up functions _by_name_, which is why we have
-  // recv_fn_name and send_fn_name instead of function pointers. Needless to
-  // say, these functions must be in-process. It's likely helpful to declare
-  // them with "C" linkage, as well.
+  //  - user_data is an opaque pointer to user-provided data needed for
+  //    processing, e.g., thread/queue info.
 
   // Populates llvm_fn with an LLVM IR translation of the given xls_fn, calling
   // out to the specified receive and send functions when encountering their
   // respective nodes.
-  using RecvFnT = void (*)(JitChannelQueue*, Receive*, uint8*, int64);
-  using SendFnT = void (*)(JitChannelQueue*, Send*, uint8*, int64);
+  using RecvFnT = void (*)(JitChannelQueue*, Receive*, uint8*, int64, void*);
+  using SendFnT = void (*)(JitChannelQueue*, Send*, uint8*, int64, void*);
   static absl::Status Visit(llvm::Module* module, llvm::Function* llvm_fn,
                             FunctionBase* xls_fn,
                             LlvmTypeConverter* type_converter, bool is_top,

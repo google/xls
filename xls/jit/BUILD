@@ -81,8 +81,10 @@ cc_library(
     hdrs = ["ir_jit.h"],
     deps = [
         ":function_builder_visitor",
+        ":jit_channel_queue",
         ":jit_runtime",
         ":llvm_type_converter",
+        ":proc_builder_visitor",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
@@ -139,10 +141,17 @@ cc_test(
 
 cc_library(
     name = "jit_channel_queue",
+    srcs = ["jit_channel_queue.cc"],
     hdrs = ["jit_channel_queue.h"],
     deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:integral_types",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
     ],
 )
 
@@ -206,6 +215,7 @@ cc_test(
     name = "proc_builder_visitor_test",
     srcs = ["proc_builder_visitor_test.cc"],
     deps = [
+        ":jit_channel_queue",
         ":jit_runtime",
         ":llvm_type_converter",
         ":proc_builder_visitor",
@@ -227,5 +237,35 @@ cc_test(
         "@llvm//:MCJIT",
         "@llvm//:OrcJIT",
         "@llvm//:Target",
+    ],
+)
+
+cc_library(
+    name = "serial_proc_runtime",
+    srcs = ["serial_proc_runtime.cc"],
+    hdrs = ["serial_proc_runtime.h"],
+    deps = [
+        ":ir_jit",
+        ":jit_channel_queue",
+        ":proc_builder_visitor",
+        "@com_google_absl//absl/cleanup",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+    ],
+)
+
+cc_test(
+    name = "serial_proc_runtime_test",
+    srcs = ["serial_proc_runtime_test.cc"],
+    deps = [
+        ":jit_channel_queue",
+        ":serial_proc_runtime",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "@com_google_googletest//:gtest_main",
     ],
 )

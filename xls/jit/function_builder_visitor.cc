@@ -13,6 +13,8 @@
 // limitations under the License.
 #include "xls/jit/function_builder_visitor.h"
 
+#include "llvm/IR/DerivedTypes.h"
+
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
 #include <sanitizer/msan_interface.h>
 #endif
@@ -70,6 +72,7 @@ absl::Status FunctionBuilderVisitor::BuildInternal() {
   UnpoisonOutputBuffer();
 
   int64 return_width = xls_return_type->GetFlatBitCount();
+  llvm::Value* output_arg = llvm_fn_->getArg(llvm_fn_->arg_size() - 2);
   if (generate_packed_) {
     if (return_width != 0) {
       // Declare the return argument as an iX, and pack the actual data as such
@@ -79,8 +82,7 @@ absl::Status FunctionBuilderVisitor::BuildInternal() {
       XLS_ASSIGN_OR_RETURN(
           packed_return,
           PackElement(return_value_, xls_return_type, packed_return, 0));
-      builder_->CreateStore(packed_return,
-                            llvm_fn_->getArg(llvm_fn_->arg_size() - 1));
+      builder_->CreateStore(packed_return, output_arg);
     }
     builder_->CreateRetVoid();
     return absl::OkStatus();
@@ -101,12 +103,10 @@ absl::Status FunctionBuilderVisitor::BuildInternal() {
 
     int64 return_type_bytes =
         type_converter_->GetTypeByteSize(*xls_return_type);
-    builder_->CreateMemCpy(llvm_fn_->getArg(llvm_fn_->arg_size() - 1),
-                           llvm::MaybeAlign(0), return_value_,
+    builder_->CreateMemCpy(output_arg, llvm::MaybeAlign(0), return_value_,
                            llvm::MaybeAlign(0), return_type_bytes);
   } else {
-    builder_->CreateStore(return_value_,
-                          llvm_fn_->getArg(llvm_fn_->arg_size() - 1));
+    builder_->CreateStore(return_value_, output_arg);
   }
   builder_->CreateRetVoid();
 
@@ -338,12 +338,13 @@ absl::Status FunctionBuilderVisitor::HandleConcat(Concat* concat) {
 absl::Status FunctionBuilderVisitor::HandleCountedFor(CountedFor* counted_for) {
   XLS_ASSIGN_OR_RETURN(llvm::Function * function,
                        GetModuleFunction(counted_for->body()));
-  // One for the loop carry and one for the index.
-  std::vector<llvm::Value*> args(counted_for->invariant_args().size() + 2);
+  // One for the loop carry, one for the index, and one for user data.
+  std::vector<llvm::Value*> args(counted_for->invariant_args().size() + 3);
   for (int i = 0; i < counted_for->invariant_args().size(); i++) {
     args[i + 2] = node_map_.at(counted_for->invariant_args()[i]);
   }
   args[1] = node_map_.at(counted_for->initial_value());
+  args.back() = llvm_fn_->getArg(llvm_fn_->arg_size() - 1);
 
   llvm::Type* function_type = function->getType()->getPointerElementType();
   for (int i = 0; i < counted_for->trip_count(); ++i) {
@@ -413,10 +414,12 @@ absl::Status FunctionBuilderVisitor::HandleInvoke(Invoke* invoke) {
   XLS_ASSIGN_OR_RETURN(llvm::Function * function,
                        GetModuleFunction(invoke->to_apply()));
 
-  std::vector<llvm::Value*> args(invoke->operand_count());
+  // One extra for user data.
+  std::vector<llvm::Value*> args(invoke->operand_count() + 1);
   for (int i = 0; i < invoke->operand_count(); i++) {
     args[i] = node_map_[invoke->operand(i)];
   }
+  args.back() = llvm_fn_->getArg(llvm_fn_->arg_size() - 1);
 
   llvm::Value* invoke_inst = builder_->CreateCall(function, args);
   return StoreResult(invoke, invoke_inst);
@@ -443,9 +446,11 @@ absl::Status FunctionBuilderVisitor::HandleMap(Map* map) {
   llvm::Value* result = CreateTypedZeroValue(llvm::ArrayType::get(
       function_type->getReturnType(), input_type->getArrayNumElements()));
 
+  llvm::Value* user_data = llvm_fn_->getArg(llvm_fn_->arg_size() - 1);
   for (uint32 i = 0; i < input_type->getArrayNumElements(); ++i) {
     llvm::Value* iter_input = builder_->CreateExtractValue(input, {i});
-    llvm::Value* iter_result = builder_->CreateCall(to_apply, iter_input);
+    llvm::Value* iter_result =
+        builder_->CreateCall(to_apply, {iter_input, user_data});
     result = builder_->CreateInsertValue(result, iter_result, {i});
   }
 
@@ -531,6 +536,7 @@ absl::Status FunctionBuilderVisitor::HandleOneHot(OneHot* one_hot) {
   if (one_hot->priority() == LsbOrMsb::kLsb) {
     llvm::Function* cttz = llvm::Intrinsic::getDeclaration(
         module_, llvm::Intrinsic::cttz, arg_types);
+    // We don't need to pass user data to these intrinsics; they're leaf nodes.
     zeroes = builder_->CreateCall(cttz, {input, llvm_false});
   } else {
     llvm::Function* ctlz = llvm::Intrinsic::getDeclaration(
@@ -735,6 +741,7 @@ absl::Status FunctionBuilderVisitor::HandleReverse(UnOp* reverse) {
   llvm::Value* input = node_map_.at(reverse->operand(0));
   llvm::Function* reverse_fn = llvm::Intrinsic::getDeclaration(
       module_, llvm::Intrinsic::bitreverse, {input->getType()});
+  // Intrinsics don't need user_data ptrs; they're leaf nodes.
   return StoreResult(reverse, builder_->CreateCall(reverse_fn, {input}));
 }
 
@@ -881,6 +888,7 @@ absl::Status FunctionBuilderVisitor::HandleXorReduce(BitwiseReductionOp* op) {
   llvm::Value* operand = node_map_.at(op->operand(0));
   llvm::Function* ctpop = llvm::Intrinsic::getDeclaration(
       module_, llvm::Intrinsic::ctpop, {operand->getType()});
+  // We don't need to pass user data to intrinsics; they're leaf nodes.
   llvm::Value* pop_count = builder_->CreateCall(ctpop, {operand});
 
   // Once we have the pop count, truncate to the first (i.e., "is odd") bit.
@@ -1152,15 +1160,22 @@ absl::StatusOr<llvm::Function*> FunctionBuilderVisitor::GetModuleFunction(
   // There are a couple of differences between this and entry function
   // visitor initialization such that I think it makes slightly more sense
   // to not factor it into a common block, but it's not clear-cut.
-  std::vector<llvm::Type*> param_types(xls_function->params().size());
+  std::vector<llvm::Type*> param_types(xls_function->params().size() + 1);
   for (int i = 0; i < xls_function->params().size(); ++i) {
     param_types[i] =
         type_converter_->ConvertToLlvmType(*xls_function->param(i)->GetType());
   }
+  // We need to add an extra param to every function call to carry our "user
+  // data", i.e., callback info.
+  param_types.back() =
+      // llvm::PointerType::get(llvm::Type::getInt8Ty(ctx()),
+      // /*AddressSpace=*/0);
+      llvm::Type::getInt64Ty(ctx());
 
   Type* return_type = xls_function->return_value()->GetType();
   llvm::Type* llvm_return_type =
       type_converter_->ConvertToLlvmType(*return_type);
+
   llvm::FunctionType* function_type = llvm::FunctionType::get(
       llvm_return_type,
       llvm::ArrayRef<llvm::Type*>(param_types.data(), param_types.size()),
@@ -1170,6 +1185,7 @@ absl::StatusOr<llvm::Function*> FunctionBuilderVisitor::GetModuleFunction(
           ->getOrInsertFunction(xls_function->qualified_name(), function_type)
           .getCallee());
 
+  // TODO(rspringer): Need to override this for Procs.
   XLS_RETURN_IF_ERROR(FunctionBuilderVisitor::Visit(
       module_, llvm_function, xls_function, type_converter_,
       /*is_top=*/false, /*generate_packed=*/false));
@@ -1225,6 +1241,10 @@ absl::StatusOr<llvm::Value*> FunctionBuilderVisitor::PackElement(
       }
       return buffer;
     }
+    case TypeKind::kToken: {
+      // Tokens are zero-bit constructs, so there's nothing to do!
+      return buffer;
+    }
     default:
       return absl::InvalidArgumentError(absl::StrCat(
           "Unhandled element kind: ", TypeKindToString(element_type->kind())));
@@ -1246,7 +1266,7 @@ void FunctionBuilderVisitor::UnpoisonOutputBuffer() {
   llvm::Value* fn_ptr =
       builder()->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
 
-  llvm::Value* out_param = llvm_fn_->getArg(llvm_fn_->arg_size() - 1);
+  llvm::Value* out_param = llvm_fn_->getArg(llvm_fn_->arg_size() - 2);
   std::vector<llvm::Value*> args(
       {out_param,
        llvm::ConstantInt::get(

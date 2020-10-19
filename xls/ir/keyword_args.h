@@ -27,7 +27,7 @@ namespace xls {
 // Converts the given set of keyword args for the given function into a vector
 // of positional arguments.
 absl::StatusOr<std::vector<Value>> KeywordArgsToPositional(
-    const Function& function,
+    const FunctionBase& function,
     const absl::flat_hash_map<std::string, Value>& kwargs);
 
 }  // namespace xls

@@ -37,15 +37,13 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Values(IrEvaluatorTestParam(
         [](Function* function,
            const std::vector<Value>& args) -> absl::StatusOr<Value> {
-          XLS_ASSIGN_OR_RETURN(auto jit,
-                               IrJit::Create(function, /*queue_mgr=*/nullptr));
+          XLS_ASSIGN_OR_RETURN(auto jit, IrJit::Create(function));
           return jit->Run(args);
         },
         [](Function* function,
            const absl::flat_hash_map<std::string, Value>& kwargs)
             -> absl::StatusOr<Value> {
-          XLS_ASSIGN_OR_RETURN(auto jit,
-                               IrJit::Create(function, /*queue_mgr=*/nullptr));
+          XLS_ASSIGN_OR_RETURN(auto jit, IrJit::Create(function));
           return jit->Run(kwargs);
         })));
 
@@ -60,8 +58,7 @@ TEST(IrJitTest, ReuseTest) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit,
-                           IrJit::Create(function, /*queue_mgr=*/nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(function));
   EXPECT_THAT(jit->Run({Value(UBits(2, 8))}), IsOkAndHolds(Value(UBits(2, 8))));
   EXPECT_THAT(jit->Run({Value(UBits(4, 8))}), IsOkAndHolds(Value(UBits(4, 8))));
   EXPECT_THAT(jit->Run({Value(UBits(7, 8))}), IsOkAndHolds(Value(UBits(7, 8))));
@@ -197,8 +194,7 @@ TEST(IrJitTest, PackedSmoke) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit,
-                           IrJit::Create(function, /*queue_mgr=*/nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(function));
   uint8 input_data[] = {0x5a, 0xa5};
   uint8 output_data;
   PackedBitsView<8> input(input_data, 0);
@@ -219,8 +215,7 @@ absl::Status TestPackedBits(std::minstd_rand& bitgen) {
   std::string ir_text = absl::Substitute(ir_template, kBitWidth);
   XLS_ASSIGN_OR_RETURN(Function * function,
                        Parser::ParseFunction(ir_text, &package));
-  XLS_ASSIGN_OR_RETURN(auto jit,
-                       IrJit::Create(function, /*queue_mgr=*/nullptr));
+  XLS_ASSIGN_OR_RETURN(auto jit, IrJit::Create(function));
   Value v = RandomValue(package.GetBitsType(kBitWidth), &bitgen);
   Bits a(v.bits());
   v = RandomValue(package.GetBitsType(kBitWidth), &bitgen);
@@ -338,8 +333,7 @@ absl::Status TestSimpleArray(std::minstd_rand& bitgen) {
   std::string ir_text = absl::Substitute(ir_template, kBitWidth, kNumElements);
   XLS_ASSIGN_OR_RETURN(Function * function,
                        Parser::ParseFunction(ir_text, &package));
-  XLS_ASSIGN_OR_RETURN(auto jit,
-                       IrJit::Create(function, /*queue_mgr=*/nullptr));
+  XLS_ASSIGN_OR_RETURN(auto jit, IrJit::Create(function));
 
   std::vector<Bits> bits_vector;
   for (int i = 0; i < kNumElements; i++) {
@@ -409,8 +403,7 @@ absl::Status TestTuples(std::minstd_rand& bitgen) {
   XLS_ASSIGN_OR_RETURN(
       Function * function,
       CreateTupleFunction(&package, tuple_type, kReplacementIndex));
-  XLS_ASSIGN_OR_RETURN(auto jit,
-                       IrJit::Create(function, /*queue_mgr=*/nullptr));
+  XLS_ASSIGN_OR_RETURN(auto jit, IrJit::Create(function));
 
   Value input_tuple = RandomValue(tuple_type, &bitgen);
   TestData<TupleT> input_tuple_data(input_tuple);
@@ -480,8 +473,7 @@ TEST(IrJitTest, ArrayConcatArrayOfBits) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit,
-                           IrJit::Create(function, /*queue_mgr=*/nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(function));
 
   XLS_ASSERT_OK_AND_ASSIGN(Value a0, Value::UBitsArray({1, 2}, 32));
   XLS_ASSERT_OK_AND_ASSIGN(Value a1, Value::UBitsArray({3, 4, 5}, 32));
@@ -506,8 +498,7 @@ TEST(IrJitTest, ArrayConcatArrayOfBitsMixedOperands) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit,
-                           IrJit::Create(function, /*queue_mgr=*/nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(function));
 
   XLS_ASSERT_OK_AND_ASSIGN(Value a0, Value::UBitsArray({1, 2}, 32));
   XLS_ASSERT_OK_AND_ASSIGN(Value a1, Value::UBitsArray({3, 4, 5}, 32));
@@ -537,8 +528,7 @@ TEST(IrJitTest, ArrayConcatArrayOfArrays) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit,
-                           IrJit::Create(function, /*queue_mgr=*/nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(function));
 
   std::vector<Value> args;
   EXPECT_THAT(jit->Run(args), IsOkAndHolds(ret));

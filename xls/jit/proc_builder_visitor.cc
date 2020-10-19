@@ -54,7 +54,7 @@ absl::StatusOr<llvm::Value*> ProcBuilderVisitor::InvokeRecvCallback(
   //     defining its signature to LLVM,
   // LLVM doesn't like void* types, so we use int64s instead.
   std::vector<llvm::Type*> params(
-      {int64_type, int64_type, int8_ptr_type, int64_type});
+      {int64_type, int64_type, int8_ptr_type, int64_type, int64_type});
   llvm::FunctionType* fn_type =
       llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
 
@@ -66,15 +66,17 @@ absl::StatusOr<llvm::Value*> ProcBuilderVisitor::InvokeRecvCallback(
   //     pointers to our data elements, to avoid recursively defining every
   //     type used by every type and so on.
   static_assert(sizeof(Receive) == sizeof(ReceiveIf));
-  std::vector<llvm::Value*> args(
-      {llvm::ConstantInt::get(int64_type, reinterpret_cast<uint64>(queue)),
-       // This is sinful, I know, but ReceiveIf and Receive are
-       // layout-compatible..._for now_ (hence the static_assert above).
-       // TODO(meheff) : Make Receive & ReceiveIf share a common base
-       // class (also Send & SendIf).
-       llvm::ConstantInt::get(int64_type, reinterpret_cast<uint64>(node)),
-       builder->CreatePointerCast(alloca, int8_ptr_type),
-       llvm::ConstantInt::get(int64_type, recv_bytes)});
+  std::vector<llvm::Value*> args({
+      llvm::ConstantInt::get(int64_type, reinterpret_cast<uint64>(queue)),
+      // This is sinful, I know, but ReceiveIf and Receive are
+      // layout-compatible..._for now_ (hence the static_assert above).
+      // TODO(meheff) : Make Receive & ReceiveIf share a common base
+      // class (also Send & SendIf).
+      llvm::ConstantInt::get(int64_type, reinterpret_cast<uint64>(node)),
+      builder->CreatePointerCast(alloca, int8_ptr_type),
+      llvm::ConstantInt::get(int64_type, recv_bytes),
+      llvm_fn()->getArg(llvm_fn()->arg_size() - 1),
+  });
 
   // 3) finally emit the function call,
   llvm::ConstantInt* fn_addr = llvm::ConstantInt::get(
@@ -161,6 +163,7 @@ absl::Status ProcBuilderVisitor::InvokeSendCallback(
       int64_type,
       int8_ptr_type,
       int64_type,
+      int64_type,
   });
   llvm::FunctionType* fn_type =
       llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
@@ -188,6 +191,7 @@ absl::Status ProcBuilderVisitor::InvokeSendCallback(
       llvm::ConstantInt::get(int64_type, reinterpret_cast<uint64>(node)),
       builder->CreatePointerCast(alloca, int8_ptr_type),
       llvm::ConstantInt::get(int64_type, send_type_size),
+      llvm_fn()->getArg(llvm_fn()->arg_size() - 1),
   });
 
   llvm::ConstantInt* fn_addr = llvm::ConstantInt::get(

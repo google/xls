@@ -136,8 +136,7 @@ absl::StatusOr<std::vector<Value>> Eval(
   if (use_jit) {
     // No support for procs yet.
     XLS_ASSIGN_OR_RETURN(jit,
-                         IrJit::Create(f, /*queue_mgr=*/nullptr,
-                                       absl::GetFlag(FLAGS_llvm_opt_level)));
+                         IrJit::Create(f, absl::GetFlag(FLAGS_llvm_opt_level)));
   }
 
   std::vector<Value> results;

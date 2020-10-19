@@ -139,8 +139,7 @@ absl::StatusOr<bool> StillFails(absl::string_view ir_text,
                        Parser::ParsePackage(ir_text));
   XLS_RET_CHECK(inputs.has_value());
   XLS_ASSIGN_OR_RETURN(Function * main, package->EntryFunction());
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrJit> jit,
-                       IrJit::Create(main, /*queue_mgr=*/nullptr));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrJit> jit, IrJit::Create(main));
   Value jit_result;
   if (absl::GetFlag(FLAGS_test_only_inject_jit_result).empty()) {
     XLS_ASSIGN_OR_RETURN(jit_result, jit->Run(*inputs));

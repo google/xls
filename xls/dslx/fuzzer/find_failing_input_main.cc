@@ -70,8 +70,7 @@ absl::Status RealMain(absl::string_view ir_path,
     inputs.push_back(args);
   }
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrJit> jit,
-                       IrJit::Create(f, /*queue_mgr=*/nullptr));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrJit> jit, IrJit::Create(f));
   for (const std::vector<Value>& args : inputs) {
     Value jit_result;
     if (absl::GetFlag(FLAGS_test_only_inject_jit_result).empty()) {

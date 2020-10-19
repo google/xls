@@ -72,9 +72,8 @@ TEST(BooleanifierTest, Crc32_Jit) {
   XLS_ASSERT_OK_AND_ASSIGN(FunctionData fd,
                            GetFunctionDataFromFile(kIrPath, "__crc32__main"));
   // CRC32 main takes an 8b message.
-  XLS_ASSERT_OK_AND_ASSIGN(auto fancy_jit, IrJit::Create(fd.source, nullptr));
-  XLS_ASSERT_OK_AND_ASSIGN(auto basic_jit,
-                           IrJit::Create(fd.boolified, nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(auto fancy_jit, IrJit::Create(fd.source));
+  XLS_ASSERT_OK_AND_ASSIGN(auto basic_jit, IrJit::Create(fd.boolified));
 
   for (int i = 0; i < 256; i++) {
     std::vector<Value> inputs({Value(UBits(i, 8))});
@@ -108,9 +107,8 @@ fn main(a: (bits[2], bits[3], bits[4]), b: (bits[2], bits[3], bits[4])) -> (bits
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(FunctionData fd, GetFunctionData(kIrText, "main"));
-  XLS_ASSERT_OK_AND_ASSIGN(auto fancy_jit, IrJit::Create(fd.source, nullptr));
-  XLS_ASSERT_OK_AND_ASSIGN(auto basic_jit,
-                           IrJit::Create(fd.boolified, nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(auto fancy_jit, IrJit::Create(fd.source));
+  XLS_ASSERT_OK_AND_ASSIGN(auto basic_jit, IrJit::Create(fd.boolified));
   // Don't cover all 4B samples in the space; just enough to see _some_ values
   // in all elements.
   for (int i = 0; i < 512; i++) {
