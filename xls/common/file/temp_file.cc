@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"

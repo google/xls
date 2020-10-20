@@ -18,6 +18,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"

@@ -14,6 +14,7 @@
 
 #include "xls/ir/function_builder.h"
 
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"

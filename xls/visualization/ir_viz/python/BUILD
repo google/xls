@@ -24,6 +24,7 @@ xls_pybind_extension(
     name = "ir_to_json",
     srcs = ["ir_to_json.cc"],
     deps = [
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common/python:absl_casters",
         "//xls/common/status:statusor_pybind_caster",

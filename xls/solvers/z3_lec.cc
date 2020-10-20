@@ -15,6 +15,7 @@
 #include "xls/solvers/z3_lec.h"
 
 #include "absl/base/internal/sysinfo.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/strip.h"

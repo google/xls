@@ -121,6 +121,7 @@ xls_pybind_extension(
         "//xls/netlist:netlist_cc_proto",
         "//xls/netlist:netlist_parser",
         "//xls/solvers:z3_lec",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_protobuf//:protobuf",
     ],
 )

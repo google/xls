@@ -14,6 +14,7 @@
 
 #include "xls/ir/channel.h"
 
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 

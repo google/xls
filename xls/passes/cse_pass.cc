@@ -15,6 +15,7 @@
 #include "xls/passes/cse_pass.h"
 
 #include "absl/hash/hash.h"
+#include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node_iterator.h"
 

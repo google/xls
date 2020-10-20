@@ -15,6 +15,7 @@
 #include "xls/passes/unroll_pass.h"
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node_iterator.h"
 

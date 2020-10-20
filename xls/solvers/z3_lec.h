@@ -19,6 +19,7 @@
 #include <string>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/types/optional.h"
 #include "xls/ir/package.h"
 #include "xls/netlist/netlist.h"

@@ -85,6 +85,7 @@ cc_test(
     srcs = ["z3_lec_test.cc"],
     deps = [
         ":z3_lec",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:matchers",
         "//xls/ir:ir_parser",
         "//xls/netlist",
@@ -126,6 +127,7 @@ cc_test(
         ":z3_utils",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
         "//xls/common:cleanup",

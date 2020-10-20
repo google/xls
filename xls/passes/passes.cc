@@ -14,6 +14,7 @@
 
 #include "xls/passes/passes.h"
 
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "xls/common/status/status_macros.h"

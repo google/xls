@@ -27,6 +27,7 @@
 
 #include "absl/container/fixed_array.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/file/file_descriptor.h"

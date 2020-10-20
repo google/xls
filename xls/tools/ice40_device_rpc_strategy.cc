@@ -23,6 +23,7 @@
 
 #include <filesystem>
 
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/file/filesystem.h"

@@ -14,6 +14,7 @@
 
 #include "xls/delay_model/analyze_critical_path.h"
 
+#include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"

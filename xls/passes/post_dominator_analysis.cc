@@ -24,6 +24,7 @@
 #include "absl/memory/memory.h"
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/node_iterator.h"
 

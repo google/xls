@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/status/statusor.h"
 namespace xls {
 
 // Exception to throw when we return a non-ok status.

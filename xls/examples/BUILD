@@ -139,6 +139,7 @@ cc_test(
     data = ["matmul_4x4.ir"],
     deps = [
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",

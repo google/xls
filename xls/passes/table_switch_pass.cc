@@ -14,6 +14,7 @@
 #include "xls/passes/table_switch_pass.h"
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"

@@ -17,6 +17,7 @@
 #ifndef XLS_DSLX_CPP_BINDINGS_H_
 #define XLS_DSLX_CPP_BINDINGS_H_
 
+#include "absl/status/statusor.h"
 #include "xls/dslx/cpp_ast.h"
 
 namespace xls::dslx {

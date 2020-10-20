@@ -63,6 +63,7 @@ cc_test(
     shard_count = 10,
     deps = [
         ":combinational_generator",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:matchers",
         "//xls/examples:sample_packages",
         "//xls/interpreter:ir_interpreter",
@@ -173,6 +174,7 @@ cc_library(
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
         "//xls/common:casts",
@@ -362,6 +364,7 @@ cc_test(
     deps = [
         ":flattening",
         ":pipeline_generator",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:matchers",
         "//xls/delay_model:delay_estimator",
         "//xls/ir",

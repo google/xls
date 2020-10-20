@@ -30,6 +30,7 @@ xls_pybind_extension(
     ],
     deps = [
         "@com_google_absl//absl/base",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor_pybind_caster",
         "//xls/dslx:cpp_ast",
@@ -73,6 +74,7 @@ xls_pybind_extension(
     srcs = ["cpp_scanner.cc"],
     deps = [
         "@com_google_absl//absl/base",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor_pybind_caster",
@@ -105,6 +107,7 @@ xls_pybind_extension(
     ],
     deps = [
         "@com_google_absl//absl/base",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor_pybind_caster",
@@ -135,6 +138,7 @@ xls_pybind_extension(
     ],
     deps = [
         "@com_google_absl//absl/base",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor_pybind_caster",

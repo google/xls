@@ -72,6 +72,7 @@ cc_test(
     srcs = ["passes_test.cc"],
     deps = [
         ":passes",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:casts",
         "//xls/common/logging",
@@ -109,6 +110,7 @@ cc_test(
     srcs = ["arith_simplification_pass_test.cc"],
     deps = [
         ":arith_simplification_pass",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:function_builder",
@@ -126,6 +128,7 @@ cc_test(
         ":dce_pass",
         ":dump_pass",
         ":standard_pipeline",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:matchers",
         "//xls/examples:sample_packages",
@@ -145,6 +148,7 @@ cc_test(
     srcs = ["canonicalization_pass_test.cc"],
     deps = [
         ":canonicalization_pass",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:function_builder",
@@ -214,6 +218,7 @@ cc_library(
         ":pass_base",
         ":passes",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
@@ -714,6 +719,7 @@ cc_test(
     deps = [
         ":dce_pass",
         ":inlining_pass",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:matchers",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_parser",
@@ -793,6 +799,7 @@ cc_test(
         ":boolean_simplification_pass",
         ":dce_pass",
         "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/ir:bits_ops",
@@ -847,6 +854,7 @@ cc_test(
     srcs = ["strength_reduction_pass_test.cc"],
     deps = [
         ":strength_reduction_pass",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -863,6 +871,7 @@ cc_test(
         ":ternary_evaluator",
         ":ternary_query_engine",
         "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common/logging",
         "//xls/common/status:matchers",
@@ -973,6 +982,7 @@ cc_test(
         ":ternary_evaluator",
         ":ternary_query_engine",
         "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common/logging",
         "//xls/common/status:matchers",
@@ -1013,6 +1023,7 @@ cc_test(
     deps = [
         ":narrowing_pass",
         ":pass_base",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:matchers",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
@@ -1090,6 +1101,7 @@ cc_test(
     deps = [
         ":pass_base",
         ":table_switch_pass",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",

@@ -17,6 +17,7 @@
 
 #include "xls/passes/standard_pipeline.h"
 
+#include "absl/status/statusor.h"
 #include "xls/passes/arith_simplification_pass.h"
 #include "xls/passes/array_simplification_pass.h"
 #include "xls/passes/bdd_cse_pass.h"

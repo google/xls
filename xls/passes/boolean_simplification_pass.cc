@@ -15,6 +15,7 @@
 #include "xls/passes/boolean_simplification_pass.h"
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"

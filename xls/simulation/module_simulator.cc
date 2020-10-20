@@ -15,6 +15,7 @@
 #include "xls/simulation/module_simulator.h"
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"

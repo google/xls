@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"

@@ -623,6 +623,7 @@ cc_library(
     deps = [
         ":cpp_ast",
         "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -635,6 +636,7 @@ cc_library(
         ":cpp_scanner",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
@@ -647,6 +649,7 @@ cc_library(
         ":cpp_bindings",
         ":cpp_token_parser",
         "@com_google_absl//absl/debugging:demangle_internal",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
@@ -682,6 +685,7 @@ cc_library(
         "//xls/common:integral_types",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:variant",

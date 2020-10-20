@@ -14,6 +14,7 @@
 
 #include "xls/tools/wrap_io.h"
 
+#include "absl/status/statusor.h"
 #include "xls/codegen/finite_state_machine.h"
 #include "xls/common/integral_types.h"
 #include "xls/common/math_util.h"

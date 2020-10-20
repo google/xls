@@ -14,6 +14,7 @@
 
 #include "xls/data_structures/binary_search.h"
 
+#include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"

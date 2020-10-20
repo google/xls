@@ -16,6 +16,7 @@
 
 #include "google/protobuf/repeated_field.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/integral_types.h"
 #include "xls/common/status/ret_check.h"

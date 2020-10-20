@@ -103,6 +103,7 @@ cc_test(
     srcs = ["schedule_bounds_test.cc"],
     deps = [
         ":schedule_bounds",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:matchers",
         "//xls/delay_model:delay_estimator",
         "//xls/ir",

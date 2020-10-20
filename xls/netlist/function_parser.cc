@@ -15,6 +15,7 @@
 #include "xls/netlist/function_parser.h"
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"

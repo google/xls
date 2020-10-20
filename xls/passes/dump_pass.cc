@@ -14,6 +14,8 @@
 
 #include "xls/passes/dump_pass.h"
 
+#include "absl/status/statusor.h"
+
 namespace xls {
 
 // Starting from the return_value(s), call the dumper function.

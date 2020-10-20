@@ -14,6 +14,7 @@
 
 #include "xls/dslx/cpp_ast.h"
 
+#include "absl/status/statusor.h"
 #include "xls/common/indent.h"
 
 namespace xls::dslx {

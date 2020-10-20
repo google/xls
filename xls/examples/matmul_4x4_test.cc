@@ -16,6 +16,7 @@
 
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/init_xls.h"

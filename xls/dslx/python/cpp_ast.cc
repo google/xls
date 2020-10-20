@@ -15,6 +15,7 @@
 #include "xls/dslx/cpp_ast.h"
 
 #include "absl/base/casts.h"
+#include "absl/status/statusor.h"
 #include "pybind11/functional.h"
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"

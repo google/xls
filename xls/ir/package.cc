@@ -16,6 +16,7 @@
 
 #include <utility>
 
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/logging.h"

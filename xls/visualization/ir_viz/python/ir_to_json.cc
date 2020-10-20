@@ -16,6 +16,7 @@
 
 #include <memory>
 
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "pybind11/pybind11.h"
 #include "xls/common/python/absl_casters.h"

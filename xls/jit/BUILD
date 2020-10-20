@@ -88,6 +88,7 @@ cc_library(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:optional",
@@ -128,6 +129,7 @@ cc_test(
     deps = [
         ":ir_jit",
         "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",

@@ -16,6 +16,7 @@
 
 #include "google/protobuf/text_format.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/logging/logging.h"

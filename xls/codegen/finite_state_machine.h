@@ -19,6 +19,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/types/optional.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/casts.h"

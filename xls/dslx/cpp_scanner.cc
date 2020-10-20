@@ -14,6 +14,8 @@
 
 #include "xls/dslx/cpp_scanner.h"
 
+#include "absl/status/statusor.h"
+
 namespace xls::dslx {
 
 absl::StatusOr<int64> Token::GetValueAsInt64() const {

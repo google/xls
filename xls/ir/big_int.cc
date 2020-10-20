@@ -14,6 +14,7 @@
 
 #include "xls/ir/big_int.h"
 
+#include "absl/status/statusor.h"
 #include "openssl/bn.h"
 #include "xls/common/logging/logging.h"
 

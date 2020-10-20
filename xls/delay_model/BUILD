@@ -50,6 +50,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest_main",
     ],
 )

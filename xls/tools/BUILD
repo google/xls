@@ -296,6 +296,7 @@ cc_library(
     hdrs = ["testbench_thread.h"],
     deps = [
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",

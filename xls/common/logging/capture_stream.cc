@@ -19,6 +19,7 @@
 #include <iostream>
 #include <sstream>
 
+#include "absl/status/statusor.h"
 #include "xls/common/file/file_descriptor.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_file.h"

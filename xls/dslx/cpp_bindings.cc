@@ -14,6 +14,7 @@
 
 #include "xls/dslx/cpp_bindings.h"
 
+#include "absl/status/statusor.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/strip.h"
 #include "xls/common/status/status_macros.h"

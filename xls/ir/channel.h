@@ -17,6 +17,7 @@
 
 #include <iosfwd>
 
+#include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/integral_types.h"
 #include "xls/ir/channel.pb.h"

@@ -14,6 +14,7 @@
 
 #include "xls/passes/bdd_query_engine.h"
 
+#include "absl/status/statusor.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"

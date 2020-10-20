@@ -14,6 +14,7 @@
 
 #include "xls/interpreter/ir_evaluator_test.h"
 
+#include "absl/status/statusor.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"

@@ -17,6 +17,7 @@
 #include <limits>
 
 #include "absl/container/inlined_vector.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"

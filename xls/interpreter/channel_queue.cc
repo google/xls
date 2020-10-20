@@ -15,6 +15,7 @@
 #include "xls/interpreter/channel_queue.h"
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"

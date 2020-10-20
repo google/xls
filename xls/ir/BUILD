@@ -240,6 +240,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/examples:sample_packages",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -358,6 +359,7 @@ cc_test(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_googletest//:gtest_main",
     ],
@@ -859,6 +861,7 @@ cc_library(
         ":channel_cc_proto",
         ":type",
         "//xls/common:integral_types",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",

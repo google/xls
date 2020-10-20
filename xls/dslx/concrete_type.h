@@ -26,6 +26,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/status/statusor.h"
 #include "absl/types/variant.h"
 #include "xls/common/integral_types.h"
 #include "xls/dslx/cpp_ast.h"

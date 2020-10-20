@@ -14,6 +14,7 @@
 
 #include "xls/ir/verifier.h"
 
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"

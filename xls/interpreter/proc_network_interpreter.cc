@@ -14,6 +14,7 @@
 
 #include "xls/interpreter/proc_network_interpreter.h"
 
+#include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 
 namespace xls {

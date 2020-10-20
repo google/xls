@@ -23,6 +23,7 @@
 #include "google/protobuf/io/tokenizer.h"
 #include "google/protobuf/text_format.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/error_code_to_status.h"

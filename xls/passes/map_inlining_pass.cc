@@ -15,6 +15,7 @@
 #include "xls/passes/map_inlining_pass.h"
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 #include "xls/common/math_util.h"

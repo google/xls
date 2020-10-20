@@ -15,6 +15,7 @@
 #include "xls/codegen/finite_state_machine.h"
 
 #include "absl/algorithm/container.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/status/status_macros.h"
 

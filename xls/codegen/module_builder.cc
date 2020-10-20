@@ -15,6 +15,7 @@
 #include "xls/codegen/module_builder.h"
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "xls/codegen/flattening.h"
 #include "xls/codegen/lint_annotate.h"

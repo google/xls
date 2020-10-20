@@ -14,6 +14,7 @@
 
 #include "xls/passes/literal_uncommoning_pass.h"
 
+#include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/node_iterator.h"

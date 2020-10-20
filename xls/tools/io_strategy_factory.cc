@@ -14,6 +14,8 @@
 
 #include "xls/tools/io_strategy_factory.h"
 
+#include "absl/status/statusor.h"
+
 namespace xls {
 namespace verilog {
 

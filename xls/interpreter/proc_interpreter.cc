@@ -14,6 +14,7 @@
 
 #include "xls/interpreter/proc_interpreter.h"
 
+#include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/ir/value_helpers.h"

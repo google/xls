@@ -15,6 +15,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "xls/common/file/get_runfile_path.h"

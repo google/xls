@@ -270,6 +270,7 @@ cc_test(
     deps = [
         ":lib_parser",
         "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
     ],

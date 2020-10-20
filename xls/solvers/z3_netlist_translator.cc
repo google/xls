@@ -17,6 +17,7 @@
 #include <variant>
 
 #include "absl/flags/flag.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/logging/logging.h"

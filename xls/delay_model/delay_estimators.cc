@@ -15,6 +15,7 @@
 #include "xls/delay_model/delay_estimators.h"
 
 #include "absl/flags/flag.h"
+#include "absl/status/statusor.h"
 
 namespace xls {
 

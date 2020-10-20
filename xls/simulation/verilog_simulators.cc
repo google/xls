@@ -15,6 +15,7 @@
 #include "xls/simulation/verilog_simulators.h"
 
 #include "absl/flags/flag.h"
+#include "absl/status/statusor.h"
 
 namespace xls {
 namespace verilog {

@@ -14,6 +14,7 @@
 
 #include "xls/passes/array_simplification_pass.h"
 
+#include "absl/status/statusor.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"

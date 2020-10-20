@@ -14,6 +14,7 @@
 
 #include "xls/common/file/path.h"
 
+#include "absl/status/statusor.h"
 #include "xls/common/status/error_code_to_status.h"
 
 namespace xls {

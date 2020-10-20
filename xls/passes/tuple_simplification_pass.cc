@@ -15,6 +15,7 @@
 #include "xls/passes/tuple_simplification_pass.h"
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"

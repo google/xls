@@ -17,6 +17,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"

@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/random/random.h"
+#include "absl/status/statusor.h"
 #include "absl/types/optional.h"
 #include "xls/common/cleanup.h"
 #include "xls/common/logging/logging.h"

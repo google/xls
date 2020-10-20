@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_PARSER_H_
 #define XLS_DSLX_PARSER_H_
 
+#include "absl/status/statusor.h"
 #include "xls/dslx/cpp_ast.h"
 #include "xls/dslx/cpp_bindings.h"
 #include "xls/dslx/token_parser.h"

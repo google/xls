@@ -14,6 +14,7 @@
 #include "xls/netlist/interpreter.h"
 
 #include "absl/flags/flag.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "xls/codegen/flattening.h"

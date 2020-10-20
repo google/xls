@@ -14,6 +14,7 @@
 
 #include "xls/ir/number_parser.h"
 
+#include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_replace.h"
 #include "xls/common/status/ret_check.h"

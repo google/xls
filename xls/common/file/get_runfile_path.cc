@@ -18,6 +18,7 @@
 
 #include "absl/base/const_init.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/logging/logging.h"

@@ -111,6 +111,7 @@ cc_test(
     deps = [
         ":channel_queue",
         ":ir_interpreter",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:matchers",
         "//xls/ir:channel",
         "//xls/ir:channel_cc_proto",

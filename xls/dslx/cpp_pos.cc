@@ -14,6 +14,7 @@
 
 #include "xls/dslx/cpp_pos.h"
 
+#include "absl/status/statusor.h"
 #include "re2/re2.h"
 
 namespace xls::dslx {

@@ -18,6 +18,7 @@
 #include <functional>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"

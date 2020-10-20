@@ -17,6 +17,7 @@
 #include <filesystem>
 
 #include "absl/memory/memory.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/strip.h"
