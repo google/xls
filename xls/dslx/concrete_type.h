@@ -135,9 +135,9 @@ class TupleType : public ConcreteType {
   using NamedMembers = std::vector<NamedMember>;
   using Members = std::variant<UnnamedMembers, NamedMembers>;
 
-  TupleType(Members members, Struct* struct_value = nullptr)
-      : members_(std::move(members)), struct_(struct_value) {
-    XLS_CHECK_EQ(struct_ == nullptr, !is_named());
+  TupleType(Members members, StructDef* struct_def = nullptr)
+      : members_(std::move(members)), struct_def_(struct_def) {
+    XLS_CHECK_EQ(struct_def_ == nullptr, !is_named());
   }
 
   bool operator==(const ConcreteType& other) const override {
@@ -161,7 +161,7 @@ class TupleType : public ConcreteType {
   }
 
   std::unique_ptr<ConcreteType> CloneToUnique() const override {
-    return absl::make_unique<TupleType>(CloneMembers(), struct_);
+    return absl::make_unique<TupleType>(CloneMembers(), struct_def_);
   }
 
   bool empty() const {
@@ -195,7 +195,7 @@ class TupleType : public ConcreteType {
   bool is_named() const {
     return absl::holds_alternative<NamedMembers>(members_);
   }
-  Struct* nominal_type() const { return struct_; }
+  StructDef* nominal_type() const { return struct_def_; }
 
   const Members& members() const { return members_; }
 
@@ -228,7 +228,7 @@ class TupleType : public ConcreteType {
   Members CloneMembers() const;
 
   Members members_;
-  Struct* struct_;  // Note: may be null.
+  StructDef* struct_def_;  // Note: may be null.
 };
 
 // Represents an array type, with an element type and size.
@@ -266,8 +266,8 @@ class ArrayType : public ConcreteType {
 // Represents an enum type.
 class EnumType : public ConcreteType {
  public:
-  EnumType(Enum* enum_, ConcreteTypeDim bit_count)
-      : enum_(XLS_DIE_IF_NULL(enum_)), size_(std::move(bit_count)) {}
+  EnumType(EnumDef* enum_def, ConcreteTypeDim bit_count)
+      : enum_def_(XLS_DIE_IF_NULL(enum_def)), size_(std::move(bit_count)) {}
 
   std::string ToString() const override;
   std::vector<ConcreteTypeDim> GetAllDims() const override;
@@ -278,21 +278,21 @@ class EnumType : public ConcreteType {
   }
   bool operator==(const ConcreteType& other) const override {
     if (auto* o = dynamic_cast<const EnumType*>(&other)) {
-      return enum_ == o->enum_ && size_ == o->size_;
+      return enum_def_ == o->enum_def_ && size_ == o->size_;
     }
     return false;
   }
   std::unique_ptr<ConcreteType> CloneToUnique() const override {
-    return absl::make_unique<EnumType>(enum_, size_.Clone());
+    return absl::make_unique<EnumType>(enum_def_, size_.Clone());
   }
 
-  Enum* nominal_type() const { return enum_; }
+  EnumDef* nominal_type() const { return enum_def_; }
   const ConcreteTypeDim& size() const { return size_; }
 
-  absl::optional<bool> signedness() const { return enum_->signedness(); }
+  absl::optional<bool> signedness() const { return enum_def_->signedness(); }
 
  private:
-  Enum* enum_;
+  EnumDef* enum_def_;
   ConcreteTypeDim size_;
 };
 

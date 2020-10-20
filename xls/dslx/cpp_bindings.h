@@ -25,8 +25,8 @@ namespace xls::dslx {
 // Bindings (name references in the environment that map back to definition
 // points in the AST) resolve to this BoundNode variant, which are all kinds of
 // definitions.
-using BoundNode = absl::variant<Enum*, TypeDef*, ConstantDef*, NameDef*,
-                                BuiltinNameDef*, Struct*, Import*>;
+using BoundNode = absl::variant<EnumDef*, TypeDef*, ConstantDef*, NameDef*,
+                                BuiltinNameDef*, StructDef*, Import*>;
 
 // Checks that n is one of the BoundNode variants shown above, and returns it in
 // the BoundNode variant. Returns an error status if the AST node is not one of
@@ -101,9 +101,9 @@ class Bindings {
     if (!bn) {
       return false;
     }
-    return absl::holds_alternative<Enum*>(*bn) ||
+    return absl::holds_alternative<EnumDef*>(*bn) ||
            absl::holds_alternative<TypeDef*>(*bn) ||
-           absl::holds_alternative<Struct*>(*bn);
+           absl::holds_alternative<StructDef*>(*bn);
   }
 
   // As above, but flags a ParseError() if the binding cannot be resolved,

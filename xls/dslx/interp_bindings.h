@@ -41,7 +41,8 @@ struct FnCtx {
 //   the loop body.
 class InterpBindings {
  public:
-  using Entry = absl::variant<InterpValue, TypeDef*, Enum*, Struct*, Module*>;
+  using Entry =
+      absl::variant<InterpValue, TypeDef*, EnumDef*, StructDef*, Module*>;
 
   // Creates a new bindings object parented to "parent" and with the additional
   // binding given by name_def_tree/value.
@@ -80,10 +81,10 @@ class InterpBindings {
   void AddTypeDef(std::string identifier, TypeDef* value) {
     map_.insert_or_assign(std::move(identifier), Entry(value));
   }
-  void AddEnum(std::string identifier, Enum* value) {
+  void AddEnum(std::string identifier, EnumDef* value) {
     map_.insert_or_assign(std::move(identifier), Entry(value));
   }
-  void AddStruct(std::string identifier, Struct* value) {
+  void AddStruct(std::string identifier, StructDef* value) {
     map_.insert_or_assign(std::move(identifier), Entry(value));
   }
 
@@ -104,7 +105,7 @@ class InterpBindings {
   absl::StatusOr<TypeAnnotation*> ResolveTypeAnnotation(
       absl::string_view identifier) const;
 
-  absl::StatusOr<absl::variant<TypeAnnotation*, Enum*, Struct*>>
+  absl::StatusOr<absl::variant<TypeAnnotation*, EnumDef*, StructDef*>>
   ResolveTypeDefinition(absl::string_view identifier) const;
 
   // Returns all the keys in this bindings object and all transitive parents as

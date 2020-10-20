@@ -45,11 +45,11 @@ AnyNameDef BoundNodeToAnyNameDef(BoundNode bn) {
   if (absl::holds_alternative<TypeDef*>(bn)) {
     return absl::get<TypeDef*>(bn)->name_def();
   }
-  if (absl::holds_alternative<Struct*>(bn)) {
-    return absl::get<Struct*>(bn)->name_def();
+  if (absl::holds_alternative<StructDef*>(bn)) {
+    return absl::get<StructDef*>(bn)->name_def();
   }
-  if (absl::holds_alternative<Enum*>(bn)) {
-    return absl::get<Enum*>(bn)->name_def();
+  if (absl::holds_alternative<EnumDef*>(bn)) {
+    return absl::get<EnumDef*>(bn)->name_def();
   }
   if (absl::holds_alternative<NameDef*>(bn)) {
     return absl::get<NameDef*>(bn);
@@ -68,11 +68,11 @@ Span BoundNodeGetSpan(BoundNode bn) {
   if (absl::holds_alternative<TypeDef*>(bn)) {
     return absl::get<TypeDef*>(bn)->span();
   }
-  if (absl::holds_alternative<Struct*>(bn)) {
-    return absl::get<Struct*>(bn)->span();
+  if (absl::holds_alternative<StructDef*>(bn)) {
+    return absl::get<StructDef*>(bn)->span();
   }
-  if (absl::holds_alternative<Enum*>(bn)) {
-    return absl::get<Enum*>(bn)->span();
+  if (absl::holds_alternative<EnumDef*>(bn)) {
+    return absl::get<EnumDef*>(bn)->span();
   }
   if (absl::holds_alternative<NameDef*>(bn)) {
     return absl::get<NameDef*>(bn)->span();
@@ -87,13 +87,12 @@ Span BoundNodeGetSpan(BoundNode bn) {
 
 std::string BoundNodeGetTypeString(const BoundNode& bn) {
   // clang-format off
-  if (absl::holds_alternative<Enum*>(bn)) { return "Enum"; }
+  if (absl::holds_alternative<EnumDef*>(bn)) { return "EnumDef"; }
   if (absl::holds_alternative<TypeDef*>(bn)) { return "TypeDef"; }
   if (absl::holds_alternative<ConstantDef*>(bn)) { return "ConstantDef"; }
-  if (absl::holds_alternative<Struct*>(bn)) { return "Struct"; }
+  if (absl::holds_alternative<StructDef*>(bn)) { return "StructDef"; }
   if (absl::holds_alternative<NameDef*>(bn)) { return "NameDef"; }
   if (absl::holds_alternative<BuiltinNameDef*>(bn)) { return "BuiltinNameDef"; }
-  if (absl::holds_alternative<Struct*>(bn)) { return "Struct"; }
   if (absl::holds_alternative<Import*>(bn)) { return "Import"; }
   // clang-format on
   XLS_LOG(FATAL) << "Unsupported BoundNode variant: "
@@ -117,12 +116,12 @@ absl::optional<AnyNameDef> Bindings::ResolveNameOrNullopt(
 
 absl::StatusOr<BoundNode> ToBoundNode(AstNode* n) {
   // clang-format off
-  if (auto* bn = dynamic_cast<Enum*>(n)) { return BoundNode(bn); }
+  if (auto* bn = dynamic_cast<EnumDef*>(n)) { return BoundNode(bn); }
   if (auto* bn = dynamic_cast<TypeDef*>(n)) { return BoundNode(bn); }
   if (auto* bn = dynamic_cast<ConstantDef*>(n)) { return BoundNode(bn); }
   if (auto* bn = dynamic_cast<NameDef*>(n)) { return BoundNode(bn); }
   if (auto* bn = dynamic_cast<BuiltinNameDef*>(n)) { return BoundNode(bn); }
-  if (auto* bn = dynamic_cast<Struct*>(n)) { return BoundNode(bn); }
+  if (auto* bn = dynamic_cast<StructDef*>(n)) { return BoundNode(bn); }
   if (auto* bn = dynamic_cast<Import*>(n)) { return BoundNode(bn); }
   // clang-format on
   return absl::InvalidArgumentError("Invalid AST node for use in bindings: " +

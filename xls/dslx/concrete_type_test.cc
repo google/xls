@@ -56,9 +56,9 @@ TEST(ConcreteTypeTest, TestEnum) {
   Pos fake_pos("fake.x", 0, 0);
   Span fake_span(fake_pos, fake_pos);
   auto* my_enum = m.Make<NameDef>(fake_span, "MyEnum");
-  auto* e =
-      m.Make<Enum>(fake_span, my_enum, /*type=*/nullptr,
-                   /*values=*/std::vector<EnumMember>{}, /*is_public=*/false);
+  auto* e = m.Make<EnumDef>(fake_span, my_enum, /*type=*/nullptr,
+                            /*values=*/std::vector<EnumMember>{},
+                            /*is_public=*/false);
   EnumType t(e, /*bit_count=*/ConcreteTypeDim(2));
   EXPECT_TRUE(t.HasEnum());
   EXPECT_EQ(std::vector<ConcreteTypeDim>{ConcreteTypeDim(2)}, t.GetAllDims());

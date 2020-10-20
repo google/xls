@@ -116,10 +116,10 @@ PYBIND11_MODULE(cpp_ast, m) {
         return EnumMember{&name.deref(), &value.deref()};
       }))
       .def("get_name_value",
-           [](EnumMember& self, EnumHolder enum_) {
+           [](EnumMember& self, EnumDefHolder enum_def) {
              return std::make_pair(
-                 NameDefHolder(self.name_def, enum_.module()),
-                 AstNodeHolder(ToAstNode(self.value), enum_.module()));
+                 NameDefHolder(self.name_def, enum_def.module()),
+                 AstNodeHolder(ToAstNode(self.value), enum_def.module()));
            })
       .def_property_readonly("identifier", [](const EnumMember& self) {
         return self.name_def->identifier();
@@ -254,8 +254,8 @@ PYBIND11_MODULE(cpp_ast, m) {
                })
           .def("get_structs",
                [](ModuleHolder module) {
-                 return Wrap<Struct*>(module.deref().GetStructs(),
-                                      module.module());
+                 return Wrap<StructDef*>(module.deref().GetStructs(),
+                                         module.module());
                })
           .def("get_constants",
                [](ModuleHolder module) {
@@ -294,49 +294,49 @@ PYBIND11_MODULE(cpp_ast, m) {
 
   m.attr("AstNodeOwner") = ast_module;
 
-  // class Enum
-  py::class_<EnumHolder, AstNodeHolder>(m, "Enum")
+  // class EnumDef
+  py::class_<EnumDefHolder, AstNodeHolder>(m, "EnumDef")
       .def(py::init([](ModuleHolder module, Span span, NameDefHolder name_def,
                        TypeAnnotationHolder type,
                        std::vector<EnumMember> values, bool is_public) {
-        auto* self = module.deref().Make<Enum>(std::move(span),
-                                               &name_def.deref(), &type.deref(),
-                                               std::move(values), is_public);
-        return EnumHolder(self, module.module());
+        auto* self = module.deref().Make<EnumDef>(
+            std::move(span), &name_def.deref(), &type.deref(),
+            std::move(values), is_public);
+        return EnumDefHolder(self, module.module());
       }))
       .def("set_signedness",
-           [](EnumHolder self, bool is_signed) {
+           [](EnumDefHolder self, bool is_signed) {
              self.deref().set_signedness(is_signed);
            })
       .def("get_signedness",
-           [](EnumHolder self) { return self.deref().signedness(); })
+           [](EnumDefHolder self) { return self.deref().signedness(); })
       .def("has_value",
-           [](EnumHolder self, absl::string_view name) {
+           [](EnumDefHolder self, absl::string_view name) {
              return self.deref().HasValue(name);
            })
       .def("get_value",
-           [](EnumHolder self,
+           [](EnumDefHolder self,
               absl::string_view name) -> absl::StatusOr<AstNodeHolder> {
              XLS_ASSIGN_OR_RETURN(auto value, self.deref().GetValue(name));
              return AstNodeHolder(ToAstNode(value), self.module());
            })
       .def_property_readonly(
-          "public", [](EnumHolder self) { return self.deref().is_public(); })
+          "public", [](EnumDefHolder self) { return self.deref().is_public(); })
       .def_property_readonly(
           "identifier",
-          [](EnumHolder self) { return self.deref().identifier(); })
+          [](EnumDefHolder self) { return self.deref().identifier(); })
       .def_property_readonly("name",
-                             [](EnumHolder self) -> NameDefHolder {
+                             [](EnumDefHolder self) -> NameDefHolder {
                                return NameDefHolder(self.deref().name_def(),
                                                     self.module());
                              })
       .def_property_readonly("type_",
-                             [](EnumHolder self) -> TypeAnnotationHolder {
+                             [](EnumDefHolder self) -> TypeAnnotationHolder {
                                return TypeAnnotationHolder(self.deref().type(),
                                                            self.module());
                              })
       .def_property_readonly(
-          "values", [](EnumHolder self) -> const std::vector<EnumMember>& {
+          "values", [](EnumDefHolder self) -> const std::vector<EnumMember>& {
             return self.deref().values();
           });
 
@@ -394,46 +394,47 @@ PYBIND11_MODULE(cpp_ast, m) {
             return NumberHolder(self.deref().limit(), self.module());
           });
 
-  // class Struct
-  py::class_<StructHolder, AstNodeHolder>(m, "Struct")
+  // class StructDef
+  py::class_<StructDefHolder, AstNodeHolder>(m, "StructDef")
       .def(py::init(
           [](ModuleHolder module, Span span, NameDefHolder name_def,
              std::vector<ParametricBindingHolder> parametric_bindings,
              std::vector<std::pair<NameDefHolder, TypeAnnotationHolder>>
                  members,
              bool is_public) {
-            auto* self = module.deref().Make<Struct>(
+            auto* self = module.deref().Make<StructDef>(
                 std::move(span), &name_def.deref(),
                 Unwrap<ParametricBinding*>(parametric_bindings),
                 UnwrapPair<NameDef*, TypeAnnotation*>(members), is_public);
-            return StructHolder(self, module.module());
+            return StructDefHolder(self, module.module());
           }))
       // TODO(leary): 2020-08-27 Rename to name_def.
       .def_property_readonly("name",
-                             [](StructHolder self) {
+                             [](StructDefHolder self) {
                                return NameDefHolder(self.deref().name_def(),
                                                     self.module());
                              })
       .def_property_readonly("identifier",
-                             [](StructHolder self) {
+                             [](StructDefHolder self) {
                                return self.deref().name_def()->identifier();
                              })
       .def("is_parametric",
-           [](StructHolder self) {
+           [](StructDefHolder self) {
              return !self.deref().parametric_bindings().empty();
            })
       .def_property_readonly(
-          "public", [](StructHolder self) { return self.deref().is_public(); })
+          "public",
+          [](StructDefHolder self) { return self.deref().is_public(); })
       .def_property_readonly(
           "member_names",
-          [](StructHolder self) { return self.deref().GetMemberNames(); })
+          [](StructDefHolder self) { return self.deref().GetMemberNames(); })
       .def_property_readonly(
           "members",
-          [](StructHolder self) {
+          [](StructDefHolder self) {
             return WrapPair<NameDefHolder, TypeAnnotationHolder>(
                 absl::MakeSpan(self.deref().members()), self.module());
           })
-      .def_property_readonly("parametric_bindings", [](StructHolder self) {
+      .def_property_readonly("parametric_bindings", [](StructDefHolder self) {
         return Wrap<ParametricBinding*>(self.deref().parametric_bindings(),
                                         self.module());
       });
@@ -582,13 +583,13 @@ PYBIND11_MODULE(cpp_ast, m) {
         return TypeRefHolder(self, module.module());
       }))
       .def(py::init([](ModuleHolder module, Span span, std::string text,
-                       StructHolder struct_) {
+                       StructDefHolder struct_) {
         auto* self = module.deref().Make<TypeRef>(std::move(span), text,
                                                   &struct_.deref());
         return TypeRefHolder(self, module.module());
       }))
       .def(py::init([](ModuleHolder module, Span span, std::string text,
-                       EnumHolder enum_) {
+                       EnumDefHolder enum_) {
         auto* self =
             module.deref().Make<TypeRef>(std::move(span), text, &enum_.deref());
         return TypeRefHolder(self, module.module());
@@ -928,7 +929,7 @@ PYBIND11_MODULE(cpp_ast, m) {
   // class StructInstance
   py::class_<StructInstanceHolder, ExprHolder>(m, "StructInstance")
       .def(
-          py::init([](ModuleHolder module, Span span, StructHolder struct_,
+          py::init([](ModuleHolder module, Span span, StructDefHolder struct_,
                       std::vector<std::pair<std::string, ExprHolder>> members) {
             std::vector<std::pair<std::string, Expr*>> member_ptrs;
             for (auto& item : members) {
@@ -954,7 +955,7 @@ PYBIND11_MODULE(cpp_ast, m) {
       .def_property_readonly(
           "struct_text",
           [](StructInstanceHolder self) {
-            return StructDefinitionToText(self.deref().struct_def());
+            return StructRefToText(self.deref().struct_def());
           })
       .def_property_readonly("unordered_members",
                              [](StructInstanceHolder self) {
@@ -963,7 +964,7 @@ PYBIND11_MODULE(cpp_ast, m) {
                                    self.module());
                              })
       .def("get_ordered_members",
-           [](StructInstanceHolder self, StructHolder struct_def) {
+           [](StructInstanceHolder self, StructDefHolder struct_def) {
              auto ordered = self.deref().GetOrderedMembers(&struct_def.deref());
              return WrapStringPair<ExprHolder>(
                  absl::Span<const std::pair<std::string, Expr*>>(ordered),
@@ -976,7 +977,7 @@ PYBIND11_MODULE(cpp_ast, m) {
 
   // class SplatStructInstance
   py::class_<SplatStructInstanceHolder, ExprHolder>(m, "SplatStructInstance")
-      .def(py::init([](ModuleHolder module, Span span, StructHolder struct_,
+      .def(py::init([](ModuleHolder module, Span span, StructDefHolder struct_,
                        std::vector<std::pair<std::string, ExprHolder>> members,
                        ExprHolder splatted) {
         std::vector<std::pair<std::string, Expr*>> member_ptrs;
@@ -992,7 +993,7 @@ PYBIND11_MODULE(cpp_ast, m) {
       .def_property_readonly(
           "struct_text",
           [](SplatStructInstanceHolder self) {
-            return StructDefinitionToText(self.deref().struct_def());
+            return StructRefToText(self.deref().struct_ref());
           })
       .def_property_readonly("members",
                              [](SplatStructInstanceHolder self) {
@@ -1003,7 +1004,7 @@ PYBIND11_MODULE(cpp_ast, m) {
       .def_property_readonly("struct",
                              [](SplatStructInstanceHolder self) {
                                return AstNodeHolder(
-                                   ToAstNode(self.deref().struct_def()),
+                                   ToAstNode(self.deref().struct_ref()),
                                    self.module());
                              })
       .def_property_readonly("splatted", [](SplatStructInstanceHolder self) {
@@ -1093,16 +1094,16 @@ PYBIND11_MODULE(cpp_ast, m) {
 
   // class EnumRef
   py::class_<EnumRefHolder, ExprHolder>(m, "EnumRef")
-      .def(py::init([](ModuleHolder module, Span span, EnumHolder enum_,
+      .def(py::init([](ModuleHolder module, Span span, EnumDefHolder enum_def,
                        std::string attr) {
         auto* self = module.deref().Make<EnumRef>(
-            std::move(span), &enum_.deref(), std::move(attr));
+            std::move(span), &enum_def.deref(), std::move(attr));
         return EnumRefHolder(self, module.module());
       }))
-      .def(py::init([](ModuleHolder module, Span span, TypeDefHolder enum_,
+      .def(py::init([](ModuleHolder module, Span span, TypeDefHolder enum_def,
                        std::string attr) {
         auto* self = module.deref().Make<EnumRef>(
-            std::move(span), &enum_.deref(), std::move(attr));
+            std::move(span), &enum_def.deref(), std::move(attr));
         return EnumRefHolder(self, module.module());
       }))
       // TODO(leary): 2020-08-31 Rename from "value" to "attr".

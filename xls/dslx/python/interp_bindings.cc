@@ -72,14 +72,15 @@ PYBIND11_MODULE(interp_bindings, m) {
              self.AddTypeDef(std::move(identifier), &value.deref());
            })
       .def("add_enum",
-           [](InterpBindings& self, std::string identifier, EnumHolder value) {
+           [](InterpBindings& self, std::string identifier,
+              EnumDefHolder value) {
              self.AddEnum(std::move(identifier), &value.deref());
            })
-      .def(
-          "add_struct",
-          [](InterpBindings& self, std::string identifier, StructHolder value) {
-            self.AddStruct(std::move(identifier), &value.deref());
-          })
+      .def("add_struct",
+           [](InterpBindings& self, std::string identifier,
+              StructDefHolder value) {
+             self.AddStruct(std::move(identifier), &value.deref());
+           })
       .def("add_fn", &InterpBindings::AddFn)
       .def("resolve_value_from_identifier",
            [](const InterpBindings& self, absl::string_view identifier) {
@@ -98,7 +99,8 @@ PYBIND11_MODULE(interp_bindings, m) {
       .def("resolve_type_definition",
            [](const InterpBindings& self, absl::string_view identifier,
               ModuleHolder m) -> absl::StatusOr<AstNodeHolder> {
-             using Variant = absl::variant<TypeAnnotation*, Enum*, Struct*>;
+             using Variant =
+                 absl::variant<TypeAnnotation*, EnumDef*, StructDef*>;
              absl::StatusOr<Variant> v_or =
                  self.ResolveTypeDefinition(identifier);
              TryThrowKeyError(v_or.status());

@@ -45,7 +45,7 @@ class AstNodeHolder : public PointerOwnedByModule<AstNode> {
 #define XLS_DSLX_AST_NODE_CHILD_EACH(X) \
   X(BuiltinNameDef)                     \
   X(ConstantDef)                        \
-  X(Enum)                               \
+  X(EnumDef)                            \
   X(Expr)                               \
   X(Function)                           \
   X(Import)                             \
@@ -58,7 +58,7 @@ class AstNodeHolder : public PointerOwnedByModule<AstNode> {
   X(Proc)                               \
   X(QuickCheck)                         \
   X(Slice)                              \
-  X(Struct)                             \
+  X(StructDef)                          \
   X(Test)                               \
   X(TypeAnnotation)                     \
   X(TypeDef)                            \

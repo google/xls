@@ -37,7 +37,7 @@ from xls.dslx.python.interp_value import Tag
 from xls.dslx.python.interp_value import Value
 
 
-def _strength_reduce_enum(type_: ast.Enum, bit_count: int) -> ConcreteType:
+def _strength_reduce_enum(type_: ast.EnumDef, bit_count: int) -> ConcreteType:
   """Turns an enum to corresponding (bits) concrete type (w/signedness).
 
   For example, used in conversion checks.
@@ -50,7 +50,7 @@ def _strength_reduce_enum(type_: ast.Enum, bit_count: int) -> ConcreteType:
   Returns:
     The concrete type that represents the enum's underlying bits type.
   """
-  assert isinstance(type_, ast.Enum), type_
+  assert isinstance(type_, ast.EnumDef), type_
   signed = type_.signed
   assert isinstance(signed, bool), type_
   return BitsType(signed, bit_count)

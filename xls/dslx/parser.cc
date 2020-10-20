@@ -154,14 +154,14 @@ absl::StatusOr<std::shared_ptr<Module>> Parser::ParseModule(
         module_->mutable_top()->push_back(fn);
         continue;
       } else if (peek->IsKeyword(Keyword::kStruct)) {
-        XLS_ASSIGN_OR_RETURN(Struct * struct_,
+        XLS_ASSIGN_OR_RETURN(StructDef * struct_def,
                              ParseStruct(/*is_public=*/true, bindings));
-        module_->mutable_top()->push_back(struct_);
+        module_->mutable_top()->push_back(struct_def);
         continue;
       } else if (peek->IsKeyword(Keyword::kEnum)) {
-        XLS_ASSIGN_OR_RETURN(Enum * enum_,
+        XLS_ASSIGN_OR_RETURN(EnumDef * enum_def,
                              ParseEnum(/*is_public=*/true, bindings));
-        module_->mutable_top()->push_back(enum_);
+        module_->mutable_top()->push_back(enum_def);
         continue;
       } else if (peek->IsKeyword(Keyword::kType)) {
         XLS_ASSIGN_OR_RETURN(TypeDef * type_def,
@@ -227,13 +227,13 @@ absl::StatusOr<std::shared_ptr<Module>> Parser::ParseModule(
         break;
       }
       case Keyword::kStruct: {
-        XLS_ASSIGN_OR_RETURN(Struct * struct_,
+        XLS_ASSIGN_OR_RETURN(StructDef * struct_,
                              ParseStruct(/*is_public=*/false, bindings));
         module_->mutable_top()->push_back(struct_);
         break;
       }
       case Keyword::kEnum: {
-        XLS_ASSIGN_OR_RETURN(Enum * enum_,
+        XLS_ASSIGN_OR_RETURN(EnumDef * enum_,
                              ParseEnum(/*is_public=*/false, bindings));
         module_->mutable_top()->push_back(enum_);
         break;
@@ -365,7 +365,7 @@ absl::StatusOr<Expr*> Parser::ParseDim(Bindings* bindings) {
                                     TokenKindToString(peek->kind())));
 }
 
-absl::StatusOr<StructDef> Parser::ResolveStruct(Bindings* bindings,
+absl::StatusOr<StructRef> Parser::ResolveStruct(Bindings* bindings,
                                                 TypeAnnotation* type) {
   auto type_ref_annotation = dynamic_cast<TypeRefTypeAnnotation*>(type);
   if (type_ref_annotation == nullptr) {
@@ -376,16 +376,16 @@ absl::StatusOr<StructDef> Parser::ResolveStruct(Bindings* bindings,
   TypeRef* type_ref = type_ref_annotation->type_ref();
   TypeDefinition type_defn = type_ref->type_definition();
 
-  if (absl::holds_alternative<Struct*>(type_defn)) {
-    return StructDef(absl::get<Struct*>(type_defn));
+  if (absl::holds_alternative<StructDef*>(type_defn)) {
+    return StructRef(absl::get<StructDef*>(type_defn));
   }
   if (absl::holds_alternative<ModRef*>(type_defn)) {
-    return StructDef(absl::get<ModRef*>(type_defn));
+    return StructRef(absl::get<ModRef*>(type_defn));
   }
   if (absl::holds_alternative<TypeDef*>(type_defn)) {
     return ResolveStruct(bindings, absl::get<TypeDef*>(type_defn)->type());
   }
-  if (absl::holds_alternative<Enum*>(type_defn)) {
+  if (absl::holds_alternative<EnumDef*>(type_defn)) {
     return absl::InvalidArgumentError(
         "Type resolved to an enum definition; expected struct definition: " +
         type->ToString());
@@ -396,8 +396,8 @@ absl::StatusOr<StructDef> Parser::ResolveStruct(Bindings* bindings,
 static absl::StatusOr<TypeDefinition> BoundNodeToTypeDefinition(BoundNode bn) {
   // clang-format off
   if (auto* e = TryGet<TypeDef*>(bn)) { return TypeDefinition(e); }
-  if (auto* e = TryGet<Struct*>(bn)) { return TypeDefinition(e); }
-  if (auto* e = TryGet<Enum*>(bn)) { return TypeDefinition(e); }
+  if (auto* e = TryGet<StructDef*>(bn)) { return TypeDefinition(e); }
+  if (auto* e = TryGet<EnumDef*>(bn)) { return TypeDefinition(e); }
   // clang-format on
 
   return absl::InvalidArgumentError("Could not convert to type definition: " +
@@ -418,7 +418,7 @@ absl::StatusOr<TypeRef*> Parser::ParseTypeRef(Bindings* bindings,
   }
   XLS_ASSIGN_OR_RETURN(BoundNode type_def, bindings->ResolveNodeOrError(
                                                *tok.GetValue(), tok.span()));
-  if (!IsOneOf<TypeDef, Enum, Struct>(ToAstNode(type_def))) {
+  if (!IsOneOf<TypeDef, EnumDef, StructDef>(ToAstNode(type_def))) {
     return ParseError(
         tok.span(),
         absl::StrFormat(
@@ -470,8 +470,8 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(Bindings* bindings,
     XLS_ASSIGN_OR_RETURN(
         BoundNode type,
         bindings->ResolveNodeOrError(type_ref->text(), type_ref->span()));
-    if (absl::holds_alternative<Struct*>(type) &&
-        absl::get<Struct*>(type)->is_parametric()) {
+    if (absl::holds_alternative<StructDef*>(type) &&
+        absl::get<StructDef*>(type)->is_parametric()) {
       XLS_ASSIGN_OR_RETURN(parametrics, ParseParametrics(bindings));
     }
 
@@ -505,7 +505,7 @@ absl::StatusOr<Parser::ColonRefT> Parser::ParseColonRef(
   XLS_ASSIGN_OR_RETURN(BoundNode defn,
                        bindings->ResolveNodeOrError(*subject_tok.GetValue(),
                                                     subject_tok.span()));
-  if (!IsOneOf<Enum, Import, TypeDef>(ToAstNode(defn))) {
+  if (!IsOneOf<EnumDef, Import, TypeDef>(ToAstNode(defn))) {
     return ParseError(
         subject_tok.span(),
         absl::StrFormat(
@@ -523,7 +523,7 @@ absl::StatusOr<Parser::ColonRefT> Parser::ParseColonRef(
         module_->Make<ModRef>(span, import, *value_tok.GetValue()));
   }
 
-  auto enum_def = NarrowVariant<TypeDef*, Enum*>(defn);
+  auto enum_def = NarrowVariant<TypeDef*, EnumDef*>(defn);
   return ColonRefT(
       module_->Make<EnumRef>(span, enum_def, *value_tok.GetValue()));
 }
@@ -553,7 +553,7 @@ absl::StatusOr<Expr*> Parser::ParseStructInstance(Bindings* bindings,
 
   const Pos start_pos = GetPos();
 
-  XLS_ASSIGN_OR_RETURN(StructDef struct_, ResolveStruct(bindings, type));
+  XLS_ASSIGN_OR_RETURN(StructRef struct_ref, ResolveStruct(bindings, type));
 
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace, nullptr,
                                        "Opening brace for struct instance."));
@@ -593,7 +593,7 @@ absl::StatusOr<Expr*> Parser::ParseStructInstance(Bindings* bindings,
           TokenKind::kCBrace, nullptr,
           "Closing brace after struct instance \"splat\" (..) expression."));
       Span span(start_pos, GetPos());
-      return module_->Make<SplatStructInstance>(span, struct_,
+      return module_->Make<SplatStructInstance>(span, struct_ref,
                                                 std::move(members), splatted);
     }
 
@@ -603,7 +603,7 @@ absl::StatusOr<Expr*> Parser::ParseStructInstance(Bindings* bindings,
     must_end = !dropped_comma;
   }
   Span span(start_pos, GetPos());
-  return module_->Make<StructInstance>(span, struct_, std::move(members));
+  return module_->Make<StructInstance>(span, struct_ref, std::move(members));
 }
 
 absl::StatusOr<absl::variant<EnumRef*, NameRef*, ModRef*>>
@@ -1362,7 +1362,7 @@ absl::StatusOr<For*> Parser::ParseFor(Bindings* bindings) {
                             iterable, body, init);
 }
 
-absl::StatusOr<Enum*> Parser::ParseEnum(bool is_public, Bindings* bindings) {
+absl::StatusOr<EnumDef*> Parser::ParseEnum(bool is_public, Bindings* bindings) {
   XLS_ASSIGN_OR_RETURN(Token enum_tok, PopKeywordOrError(Keyword::kEnum));
   XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDef(bindings));
   XLS_RETURN_IF_ERROR(
@@ -1393,10 +1393,10 @@ absl::StatusOr<Enum*> Parser::ParseEnum(bool is_public, Bindings* bindings) {
   XLS_ASSIGN_OR_RETURN(
       std::vector<EnumMember> entries,
       ParseCommaSeq<EnumMember>(parse_enum_entry, TokenKind::kCBrace));
-  auto* enum_ =
-      module_->Make<Enum>(enum_tok.span(), name_def, type, entries, is_public);
-  bindings->Add(name_def->identifier(), enum_);
-  return enum_;
+  auto* enum_def = module_->Make<EnumDef>(enum_tok.span(), name_def, type,
+                                          entries, is_public);
+  bindings->Add(name_def->identifier(), enum_def);
+  return enum_def;
 }
 
 absl::StatusOr<TypeAnnotation*> Parser::MakeBuiltinTypeAnnotation(
@@ -1476,8 +1476,8 @@ absl::StatusOr<Number*> Parser::ParseNumber(Bindings* bindings) {
                                     peek->span().ToString()));
 }
 
-absl::StatusOr<Struct*> Parser::ParseStruct(bool is_public,
-                                            Bindings* bindings) {
+absl::StatusOr<StructDef*> Parser::ParseStruct(bool is_public,
+                                               Bindings* bindings) {
   const Pos start_pos = GetPos();
   XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kStruct));
 
@@ -1505,10 +1505,10 @@ absl::StatusOr<Struct*> Parser::ParseStruct(bool is_public,
       std::vector<StructMember> members,
       ParseCommaSeq<StructMember>(parse_struct_member, TokenKind::kCBrace));
   Span span(start_pos, GetPos());
-  auto* struct_ = module_->Make<Struct>(span, name_def, parametric_bindings,
-                                        members, is_public);
-  bindings->Add(name_def->identifier(), struct_);
-  return struct_;
+  auto* struct_def = module_->Make<StructDef>(
+      span, name_def, parametric_bindings, members, is_public);
+  bindings->Add(name_def->identifier(), struct_def);
+  return struct_def;
 }
 
 absl::StatusOr<NameDefTree*> Parser::ParseTuplePattern(const Pos& start_pos,

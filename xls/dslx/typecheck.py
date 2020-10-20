@@ -227,7 +227,7 @@ class _TypecheckStackRecord:
 
   Attributes:
     name: The name of this top-level node.
-    kind: The class type (ast.Function, ast.Test, ast.Struct, ast.TypeDef).
+    kind: The class type (ast.Function, ast.Test, ast.StructDef, ast.TypeDef).
     user: The node in this module that needs 'name' to be typechecked. Used to
       detect the typechecking of the higher order function in map invocations.
   """
@@ -236,7 +236,7 @@ class _TypecheckStackRecord:
   user: Optional[ast.AstNode] = None
 
 
-def check_top_node_in_module(f: Union[ast.Function, ast.Test, ast.Struct,
+def check_top_node_in_module(f: Union[ast.Function, ast.Test, ast.StructDef,
                                       ast.TypeDef], ctx: deduce.DeduceCtx):
   """Type-checks function f in the given module.
 
@@ -255,7 +255,7 @@ def check_top_node_in_module(f: Union[ast.Function, ast.Test, ast.Struct,
   # {name: (function, wip)}
   seen = {
       (f.name.identifier, type(f)): (f, True)
-  }  # type: Dict[Tuple[Text, type], Tuple[Union[ast.Function, ast.Test, ast.Struct, ast.TypeDef], bool]]
+  }  # type: Dict[Tuple[Text, type], Tuple[Union[ast.Function, ast.Test, ast.StructDef, ast.TypeDef], bool]]
 
   stack = [_TypecheckStackRecord(f.name.identifier,
                                  type(f))]  # type: List[_TypecheckStackRecord]
@@ -269,7 +269,7 @@ def check_top_node_in_module(f: Union[ast.Function, ast.Test, ast.Struct,
       elif isinstance(f, ast.Test):
         check_test(f, ctx)
       else:
-        assert isinstance(f, (ast.Struct, ast.TypeDef))
+        assert isinstance(f, (ast.StructDef, ast.TypeDef))
         # Nothing special, we just want to be able to catch any
         # TypeMissingErrors and try to resolve them.
         deduce.deduce(f, ctx)
@@ -363,10 +363,10 @@ def check_module(module: ast.Module,
       assert isinstance(member.name, tuple), member.name
       imported_module, imported_type_info = f_import(member.name)
       ctx.type_info.add_import(member, (imported_module, imported_type_info))
-    elif isinstance(member, (ast.Constant, ast.Enum)):
+    elif isinstance(member, (ast.Constant, ast.EnumDef)):
       deduce.deduce(member, ctx)
     else:
-      assert isinstance(member, (ast.Function, ast.Test, ast.Struct,
+      assert isinstance(member, (ast.Function, ast.Test, ast.StructDef,
                                  ast.QuickCheck, ast.TypeDef)), member
   ctx.fn_stack.pop()
 
@@ -402,7 +402,7 @@ def check_module(module: ast.Module,
   # we can typecheck function calls in parametric bindings, if any.
   struct_map = {s.name.identifier: s for s in ctx.module.get_structs()}
   for s in struct_map.values():
-    assert isinstance(s, ast.Struct), s
+    assert isinstance(s, ast.StructDef), s
     logging.vlog(2, 'Typechecking struct %s', s)
     ctx.fn_stack.append(('top', dict()))  # No symbolic bindings.
     check_top_node_in_module(s, ctx)

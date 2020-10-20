@@ -610,8 +610,8 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     self._def(node, self.fb.add_tuple, operands)
 
   def _deref_struct_or_enum(
-      self, node: Union[ast.Struct, ast.TypeDef, ast.Enum, ast.ModRef]
-  ) -> Union[ast.Struct, ast.Enum]:
+      self, node: Union[ast.StructDef, ast.TypeDef, ast.EnumDef, ast.ModRef]
+  ) -> Union[ast.StructDef, ast.EnumDef]:
     while isinstance(node, ast.TypeDef):
       annotation = node.type_
       if not isinstance(annotation, ast.TypeRefTypeAnnotation):
@@ -620,7 +620,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
             annotation)
       node = annotation.type_ref.type_def
 
-    if isinstance(node, (ast.Struct, ast.Enum)):
+    if isinstance(node, (ast.StructDef, ast.EnumDef)):
       return node
 
     assert isinstance(node, ast.ModRef), node
@@ -628,17 +628,18 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     td = imported_mod.get_typedef_by_name()[node.value]
     # Recurse to resolve the typedef within the imported module.
     td = self._deref_struct_or_enum(td)
-    assert isinstance(td, (ast.Struct, ast.Enum)), td
+    assert isinstance(td, (ast.StructDef, ast.EnumDef)), td
     return td
 
-  def _deref_struct(self, node: Union[ast.Struct, ast.ModRef]) -> ast.Struct:
+  def _deref_struct(self, node: Union[ast.StructDef,
+                                      ast.ModRef]) -> ast.StructDef:
     result = self._deref_struct_or_enum(node)
-    assert isinstance(result, ast.Struct), result
+    assert isinstance(result, ast.StructDef), result
     return result
 
-  def _deref_enum(self, node: Union[ast.Enum, ast.ModRef]) -> ast.Enum:
+  def _deref_enum(self, node: Union[ast.EnumDef, ast.ModRef]) -> ast.EnumDef:
     result = self._deref_struct_or_enum(node)
-    assert isinstance(result, ast.Enum), result
+    assert isinstance(result, ast.EnumDef), result
     return result
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse

@@ -69,9 +69,9 @@ UNOP_SAME_TYPE_KIND_LIST = [
 
 
 def evaluate_to_struct_or_enum_or_annotation(
-    node: Union[ast.TypeDef, ast.ModRef, ast.Struct],
+    node: Union[ast.TypeDef, ast.ModRef, ast.StructDef],
     get_imported_module: GetImportedCallback, evaluation_context: ContextType
-) -> Union[ast.Struct, ast.Enum, ast.TypeAnnotation]:
+) -> Union[ast.StructDef, ast.EnumDef, ast.TypeAnnotation]:
   """Returns the node dereferenced into a Struct or Enum or TypeAnnotation.
 
   Will produce TypeAnnotation in the case we bottom out in a tuple, for
@@ -90,7 +90,7 @@ def evaluate_to_struct_or_enum_or_annotation(
       return annotation
     node = annotation.type_ref.type_def
 
-  if isinstance(node, (ast.Struct, ast.Enum)):
+  if isinstance(node, (ast.StructDef, ast.EnumDef)):
     return node
 
   assert isinstance(node, ast.ModRef)
@@ -100,7 +100,7 @@ def evaluate_to_struct_or_enum_or_annotation(
   # Recurse to dereference it if it's a typedef in the imported module.
   td = evaluate_to_struct_or_enum_or_annotation(td, get_imported_module,
                                                 evaluation_context)
-  assert isinstance(td, (ast.Struct, ast.Enum, ast.TypeAnnotation)), td
+  assert isinstance(td, (ast.StructDef, ast.EnumDef, ast.TypeAnnotation)), td
   return td
 
 

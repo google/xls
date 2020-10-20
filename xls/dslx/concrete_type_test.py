@@ -95,7 +95,7 @@ class ConcreteTypeTest(absltest.TestCase):
     fake_pos = Pos('fake.x', 0, 0)
     fake_span = Span(fake_pos, fake_pos)
     name_def = ast.NameDef(m, fake_span, 'fake')
-    s = ast.Struct(m, fake_span, name_def, (), (), False)
+    s = ast.StructDef(m, fake_span, name_def, (), (), False)
     named = TupleType((('x', u32), ('y', u8)), struct=s)
     unnamed = TupleType((u32, u8))
     self.assertTrue(named.compatible_with(unnamed))

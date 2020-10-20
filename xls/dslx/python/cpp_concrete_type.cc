@@ -96,7 +96,7 @@ PYBIND11_MODULE(cpp_concrete_type, m) {
           py::init(
               [](const std::vector<std::pair<std::string, const ConcreteType*>>&
                      named,
-                 absl::optional<StructHolder> struct_) {
+                 absl::optional<StructDefHolder> struct_def) {
                 std::vector<TupleType::NamedMember> members;
                 for (const auto& [name, type] : named) {
                   members.push_back(
@@ -104,7 +104,7 @@ PYBIND11_MODULE(cpp_concrete_type, m) {
                 }
                 auto result = absl::make_unique<TupleType>(
                     TupleType::Members(std::move(members)),
-                    struct_.has_value() ? &struct_->deref() : nullptr);
+                    struct_def.has_value() ? &struct_def->deref() : nullptr);
                 XLS_CHECK(result->is_named());
                 return result;
               }),
@@ -117,9 +117,9 @@ PYBIND11_MODULE(cpp_concrete_type, m) {
           py::return_value_policy::reference_internal)
       .def("get_nominal_type",
            [](const TupleType& t,
-              ModuleHolder module) -> absl::optional<StructHolder> {
-             if (Struct* s = t.nominal_type()) {
-               return StructHolder(s, module.module());
+              ModuleHolder module) -> absl::optional<StructDefHolder> {
+             if (StructDef* s = t.nominal_type()) {
+               return StructDefHolder(s, module.module());
              }
              return absl::nullopt;
            })
@@ -225,17 +225,17 @@ PYBIND11_MODULE(cpp_concrete_type, m) {
 
   // class EnumType
   py::class_<EnumType, ConcreteType>(m, "EnumType")
-      .def(py::init([](EnumHolder enum_, const ConcreteTypeDim& bit_count) {
+      .def(py::init([](EnumDefHolder enum_, const ConcreteTypeDim& bit_count) {
         return EnumType(&enum_.deref(), bit_count.Clone());
       }))
-      .def(py::init([](EnumHolder enum_, int64 bit_count) {
+      .def(py::init([](EnumDefHolder enum_, int64 bit_count) {
         return EnumType(&enum_.deref(), ConcreteTypeDim(bit_count));
       }))
       .def("get_nominal_type",
            [](const EnumType& t,
-              ModuleHolder module) -> absl::optional<EnumHolder> {
-             if (Enum* e = t.nominal_type()) {
-               return EnumHolder(e, module.module());
+              ModuleHolder module) -> absl::optional<EnumDefHolder> {
+             if (EnumDef* e = t.nominal_type()) {
+               return EnumDefHolder(e, module.module());
              }
              return absl::nullopt;
            })

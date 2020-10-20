@@ -131,7 +131,7 @@ std::string EnumRef::GetEnumIdentifier() const {
   if (absl::holds_alternative<TypeDef*>(enum_def_)) {
     return absl::get<TypeDef*>(enum_def_)->identifier();
   }
-  return absl::get<Enum*>(enum_def_)->identifier();
+  return absl::get<EnumDef*>(enum_def_)->identifier();
 }
 
 std::string BinopKindFormat(BinopKind kind) {
@@ -227,9 +227,9 @@ absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node) {
   if (auto* n = dynamic_cast<Test*       >(node)) { return ModuleMember(n); }
   if (auto* n = dynamic_cast<QuickCheck* >(node)) { return ModuleMember(n); }
   if (auto* n = dynamic_cast<TypeDef*    >(node)) { return ModuleMember(n); }
-  if (auto* n = dynamic_cast<Struct*     >(node)) { return ModuleMember(n); }
+  if (auto* n = dynamic_cast<StructDef*  >(node)) { return ModuleMember(n); }
   if (auto* n = dynamic_cast<ConstantDef*>(node)) { return ModuleMember(n); }
-  if (auto* n = dynamic_cast<Enum*       >(node)) { return ModuleMember(n); }
+  if (auto* n = dynamic_cast<EnumDef*    >(node)) { return ModuleMember(n); }
   if (auto* n = dynamic_cast<Import*     >(node)) { return ModuleMember(n); }
   // clang-format on
   return absl::InvalidArgumentError("AST node is not a module-level member: " +
@@ -270,7 +270,7 @@ bool IsConstant(AstNode* node) {
 std::vector<AstNode*> SplatStructInstance::GetChildren(bool want_types) const {
   std::vector<AstNode*> results;
   if (want_types) {
-    results.push_back(ToAstNode(struct_def_));
+    results.push_back(ToAstNode(struct_ref_));
   }
   for (auto& item : members_) {
     results.push_back(item.second);
@@ -297,7 +297,7 @@ std::string Match::ToString() const {
   return result;
 }
 
-std::string Struct::ToString() const {
+std::string StructDef::ToString() const {
   std::string parametric_str;
   if (!parametric_bindings_.empty()) {
     std::string guts =
@@ -449,12 +449,12 @@ std::string XlsTuple::ToString() const {
   return result;
 }
 
-std::string StructDefinitionToText(absl::variant<Struct*, ModRef*> struct_) {
-  if (absl::holds_alternative<Struct*>(struct_)) {
-    return absl::get<Struct*>(struct_)->identifier();
+std::string StructRefToText(const StructRef& struct_ref) {
+  if (absl::holds_alternative<StructDef*>(struct_ref)) {
+    return absl::get<StructDef*>(struct_ref)->identifier();
   }
-  if (absl::holds_alternative<ModRef*>(struct_)) {
-    return absl::get<ModRef*>(struct_)->ToString();
+  if (absl::holds_alternative<ModRef*>(struct_ref)) {
+    return absl::get<ModRef*>(struct_ref)->ToString();
   }
   XLS_LOG(FATAL)
       << "Unhandled alternative for converting struct definition to string.";

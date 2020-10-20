@@ -295,7 +295,7 @@ absl::StatusOr<ConcreteTypeDim> ArrayType::GetTotalBitCount() const {
   return elem_bits.Mul(size_);
 }
 
-std::string EnumType::ToString() const { return enum_->identifier(); }
+std::string EnumType::ToString() const { return enum_def_->identifier(); }
 
 std::vector<ConcreteTypeDim> EnumType::GetAllDims() const {
   std::vector<ConcreteTypeDim> result;

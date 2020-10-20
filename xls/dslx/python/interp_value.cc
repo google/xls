@@ -140,9 +140,9 @@ PYBIND11_MODULE(interp_value, m) {
       .def("sign_ext", &InterpValue::SignExt)
       .def("zero_ext", &InterpValue::ZeroExt)
       .def("get_type",
-           [](const InterpValue& self) -> absl::optional<EnumHolder> {
+           [](const InterpValue& self) -> absl::optional<EnumDefHolder> {
              if (self.type() != nullptr) {
-               return EnumHolder(self.type(), self.type_module());
+               return EnumDefHolder(self.type(), self.type_module());
              }
              return absl::nullopt;
            })
@@ -196,7 +196,7 @@ PYBIND11_MODULE(interp_value, m) {
       .def_static("make_array", &InterpValue::MakeArray, py::arg("elements"))
       .def_static("make_tuple", &InterpValue::MakeTuple, py::arg("elements"))
       .def_static("make_enum",
-                  [](Bits value, EnumHolder enum_ast) {
+                  [](Bits value, EnumDefHolder enum_ast) {
                     return InterpValue::MakeEnum(value, &enum_ast.deref(),
                                                  enum_ast.module());
                   })

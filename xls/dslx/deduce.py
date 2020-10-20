@@ -736,7 +736,7 @@ def _deduce_EnumRef(self: ast.EnumRef, ctx: DeduceCtx) -> ConcreteType:  # pytyp
   # Check the name we're accessing is actually defined on the enum.
   assert isinstance(result, EnumType), result
   enum = result.get_nominal_type(ctx.module)
-  assert isinstance(enum, ast.Enum), enum
+  assert isinstance(enum, ast.EnumDef), enum
   name = self.value
   if not enum.has_value(name):
     raise TypeInferenceError(
@@ -813,8 +813,8 @@ def _deduce_TypeRefTypeAnnotation(self: ast.TypeRefTypeAnnotation,
   base_type = deduce(self.type_ref, ctx)
   maybe_struct = ast_helpers.evaluate_to_struct_or_enum_or_annotation(
       self.type_ref.type_def, _get_imported_module_via_type_info, ctx.type_info)
-  if (isinstance(maybe_struct, ast.Struct) and maybe_struct.is_parametric() and
-      self.parametrics):
+  if (isinstance(maybe_struct, ast.StructDef) and
+      maybe_struct.is_parametric() and self.parametrics):
     base_type = _concretize_struct_annotation(ctx.module, self, maybe_struct,
                                               base_type)
   return base_type
@@ -903,8 +903,8 @@ def _deduce_ModRef(self: ast.ModRef, ctx: DeduceCtx) -> ConcreteType:  # pytype:
   return imported_type_info[f.name]
 
 
-@_rule(ast.Enum)
-def _deduce_Enum(self: ast.Enum, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
+@_rule(ast.EnumDef)
+def _deduce_Enum(self: ast.EnumDef, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of a Enum AST node."""
   resolved_type = resolve(deduce(self.type_, ctx), ctx)
   if not isinstance(resolved_type, BitsType):
@@ -1007,8 +1007,8 @@ def _deduce_Binop(self: ast.Binop, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
   return resolved_lhs_type
 
 
-@_rule(ast.Struct)
-def _deduce_Struct(self: ast.Struct, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
+@_rule(ast.StructDef)
+def _deduce_Struct(self: ast.StructDef, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Returns the concrete type for a (potentially parametric) struct."""
   for parametric in self.parametric_bindings:
     parametric_binding_type = deduce(parametric.type_, ctx)
@@ -1097,11 +1097,11 @@ def _deduce_StructInstance(
         suffix='Struct instance is missing member(s): {}'.format(missing))
 
   struct_def = self.struct
-  if not isinstance(struct_def, ast.Struct):
+  if not isinstance(struct_def, ast.StructDef):
     # Traverse TypeDefs and ModRefs until we get the struct AST node.
     struct_def = ast_helpers.evaluate_to_struct_or_enum_or_annotation(
         struct_def, _get_imported_module_via_type_info, ctx.type_info)
-  assert isinstance(struct_def, ast.Struct), struct_def
+  assert isinstance(struct_def, ast.StructDef), struct_def
 
   resolved_struct_type, _ = parametric_instantiator.instantiate_struct(
       self.span, struct_type, arg_types, member_types, ctx,
@@ -1112,7 +1112,7 @@ def _deduce_StructInstance(
 
 def _concretize_struct_annotation(module: ast.Module,
                                   type_annotation: ast.TypeRefTypeAnnotation,
-                                  struct: ast.Struct,
+                                  struct: ast.StructDef,
                                   base_type: ConcreteType) -> ConcreteType:
   """Returns concretized struct type using the provided bindings.
 
@@ -1191,12 +1191,12 @@ def _deduce_SplatStructInstance(
   assert len(arg_types) == len(member_types)
 
   struct_def = self.struct
-  if not isinstance(struct_def, ast.Struct):
+  if not isinstance(struct_def, ast.StructDef):
     # Traverse TypeDefs and ModRefs until we get the struct AST node.
     struct_def = ast_helpers.evaluate_to_struct_or_enum_or_annotation(
         struct_def, _get_imported_module_via_type_info, ctx.type_info)
 
-  assert isinstance(struct_def, ast.Struct), struct_def
+  assert isinstance(struct_def, ast.StructDef), struct_def
 
   resolved_struct_type, _ = parametric_instantiator.instantiate_struct(
       self.span, struct_type, tuple(arg_types), tuple(member_types), ctx,

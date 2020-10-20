@@ -44,14 +44,14 @@ bool IsOneOf(ObjT* obj) {
 
 // Forward decls.
 class BuiltinNameDef;
-class Enum;
+class EnumDef;
 class Expr;
 class ModRef;
 class Module;
 class NameDef;
 class NameDefTree;
 class NameRef;
-class Struct;
+class StructDef;
 class TypeDef;
 class TypeRef;
 
@@ -392,7 +392,8 @@ class ConstRef : public NameRef {
 // something.
 class EnumRef : public Expr {
  public:
-  EnumRef(Span span, absl::variant<TypeDef*, Enum*> enum_def, std::string attr)
+  EnumRef(Span span, absl::variant<TypeDef*, EnumDef*> enum_def,
+          std::string attr)
       : Expr(std::move(span)), enum_def_(enum_def), attr_(std::move(attr)) {}
 
   absl::string_view GetNodeTypeName() const override { return "EnumRef"; }
@@ -404,13 +405,13 @@ class EnumRef : public Expr {
     return {ToAstNode(enum_def_)};
   }
 
-  absl::variant<TypeDef*, Enum*> enum_def() const { return enum_def_; }
+  absl::variant<TypeDef*, EnumDef*> enum_def() const { return enum_def_; }
   const std::string& attr() const { return attr_; }
 
  private:
   std::string GetEnumIdentifier() const;
 
-  absl::variant<TypeDef*, Enum*> enum_def_;
+  absl::variant<TypeDef*, EnumDef*> enum_def_;
   std::string attr_;
 };
 
@@ -545,7 +546,7 @@ class ConstantArray : public Array {
 
 // Several different AST nodes define types that can be referred to by a
 // TypeRef.
-using TypeDefinition = absl::variant<TypeDef*, Struct*, Enum*, ModRef*>;
+using TypeDefinition = absl::variant<TypeDef*, StructDef*, EnumDef*, ModRef*>;
 
 // Represents a name that refers to a defined type.
 //
@@ -1084,17 +1085,17 @@ struct EnumMember {
 //    B = 1,
 //    C = 2,
 //  }
-class Enum : public AstNode {
+class EnumDef : public AstNode {
  public:
-  Enum(Span span, NameDef* name_def, TypeAnnotation* type,
-       std::vector<EnumMember> values, bool is_public)
+  EnumDef(Span span, NameDef* name_def, TypeAnnotation* type,
+          std::vector<EnumMember> values, bool is_public)
       : span_(std::move(span)),
         name_def_(name_def),
         type_(type),
         values_(std::move(values)),
         is_public_(is_public) {}
 
-  absl::string_view GetNodeTypeName() const override { return "Enum"; }
+  absl::string_view GetNodeTypeName() const override { return "EnumDef"; }
   bool HasValue(absl::string_view name) const {
     for (const auto& item : values_) {
       if (item.name_def->identifier() == name) {
@@ -1157,12 +1158,12 @@ class Enum : public AstNode {
 };
 
 // Represents a struct definition.
-class Struct : public AstNode {
+class StructDef : public AstNode {
  public:
-  Struct(Span span, NameDef* name_def,
-         std::vector<ParametricBinding*> parametric_bindings,
-         std::vector<std::pair<NameDef*, TypeAnnotation*>> members,
-         bool is_public)
+  StructDef(Span span, NameDef* name_def,
+            std::vector<ParametricBinding*> parametric_bindings,
+            std::vector<std::pair<NameDef*, TypeAnnotation*>> members,
+            bool is_public)
       : span_(std::move(span)),
         name_def_(name_def),
         parametric_bindings_(std::move(parametric_bindings)),
@@ -1214,19 +1215,22 @@ class Struct : public AstNode {
   bool public_;
 };
 
-using StructDef = absl::variant<Struct*, ModRef*>;
+// Variant that either points at a struct definition or a module reference
+// (which should be backed by a struct definition -- that property will be
+// checked by the typechecker).
+using StructRef = absl::variant<StructDef*, ModRef*>;
 
-std::string StructDefinitionToText(StructDef struct_);
+std::string StructRefToText(const StructRef& struct_ref);
 
 // Represents instantiation of a struct via member expressions.
 //
 // TODO(leary): 2020-09-08 Break out a StructMember type in lieu of the pair.
 class StructInstance : public Expr {
  public:
-  StructInstance(Span span, StructDef struct_def,
+  StructInstance(Span span, StructRef struct_ref,
                  std::vector<std::pair<std::string, Expr*>> members)
       : Expr(std::move(span)),
-        struct_def_(struct_def),
+        struct_ref_(struct_ref),
         members_(std::move(members)) {}
 
   absl::string_view GetNodeTypeName() const override {
@@ -1243,7 +1247,7 @@ class StructInstance : public Expr {
   // Returns the members for the struct instance, ordered by the (resolved)
   // struct definition "struct_def".
   std::vector<std::pair<std::string, Expr*>> GetOrderedMembers(
-      Struct* struct_def) const {
+      StructDef* struct_def) const {
     std::vector<std::pair<std::string, Expr*>> result;
     for (std::string name : struct_def->GetMemberNames()) {
       result.push_back({name, GetExpr(name).value()});
@@ -1261,17 +1265,17 @@ class StructInstance : public Expr {
         "Name is not present in struct instance: \"%s\"", name));
   }
 
-  StructDef struct_def() const { return struct_def_; }
+  StructRef struct_def() const { return struct_ref_; }
 
  private:
   AstNode* GetStructNode() const {
-    if (absl::holds_alternative<ModRef*>(struct_def_)) {
-      return absl::get<ModRef*>(struct_def_);
+    if (absl::holds_alternative<ModRef*>(struct_ref_)) {
+      return absl::get<ModRef*>(struct_ref_);
     }
-    return absl::get<Struct*>(struct_def_);
+    return absl::get<StructDef*>(struct_ref_);
   }
 
-  StructDef struct_def_;
+  StructRef struct_ref_;
   std::vector<std::pair<std::string, Expr*>> members_;
 };
 
@@ -1280,11 +1284,11 @@ class StructInstance : public Expr {
 //    Point { y: new_y, ..orig_p }
 class SplatStructInstance : public Expr {
  public:
-  SplatStructInstance(Span span, StructDef struct_def,
+  SplatStructInstance(Span span, StructRef struct_ref,
                       std::vector<std::pair<std::string, Expr*>> members,
                       Expr* splatted)
       : Expr(std::move(span)),
-        struct_def_(std::move(struct_def)),
+        struct_ref_(std::move(struct_ref)),
         members_(std::move(members)),
         splatted_(splatted) {}
 
@@ -1301,19 +1305,19 @@ class SplatStructInstance : public Expr {
                                 member.second->ToString());
         });
     return absl::StrFormat("%s { %s, ..%s }",
-                           ToAstNode(struct_def_)->ToString(), members_str,
+                           ToAstNode(struct_ref_)->ToString(), members_str,
                            splatted_->ToString());
   }
 
   Expr* splatted() const { return splatted_; }
-  StructDef struct_def() const { return struct_def_; }
+  StructRef struct_ref() const { return struct_ref_; }
   const std::vector<std::pair<std::string, Expr*>>& members() const {
     return members_;
   }
 
  private:
   // The struct being instantiated.
-  StructDef struct_def_;
+  StructRef struct_ref_;
 
   // Sequenc eof members being changed from the splatted original; e.g. in the
   // above example this is [('y', new_y)].
@@ -1825,7 +1829,7 @@ class Let : public Expr {
 };
 
 using ModuleMember = absl::variant<Function*, Test*, QuickCheck*, TypeDef*,
-                                   Struct*, ConstantDef*, Enum*, Import*>;
+                                   StructDef*, ConstantDef*, EnumDef*, Import*>;
 
 absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node);
 
@@ -1898,11 +1902,11 @@ class Module : public AstNode {
       if (absl::holds_alternative<TypeDef*>(member)) {
         TypeDef* td = absl::get<TypeDef*>(member);
         result[td->identifier()] = td;
-      } else if (absl::holds_alternative<Enum*>(member)) {
-        Enum* enum_ = absl::get<Enum*>(member);
+      } else if (absl::holds_alternative<EnumDef*>(member)) {
+        EnumDef* enum_ = absl::get<EnumDef*>(member);
         result[enum_->identifier()] = enum_;
-      } else if (absl::holds_alternative<Struct*>(member)) {
-        Struct* struct_ = absl::get<Struct*>(member);
+      } else if (absl::holds_alternative<StructDef*>(member)) {
+        StructDef* struct_ = absl::get<StructDef*>(member);
         result[struct_->identifier()] = struct_;
       }
     }
@@ -1920,7 +1924,9 @@ class Module : public AstNode {
   std::vector<QuickCheck*> GetQuickChecks() const {
     return GetTopWithT<QuickCheck>();
   }
-  std::vector<Struct*> GetStructs() const { return GetTopWithT<Struct>(); }
+  std::vector<StructDef*> GetStructs() const {
+    return GetTopWithT<StructDef>();
+  }
   std::vector<Function*> GetFunctions() const {
     return GetTopWithT<Function>();
   }

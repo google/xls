@@ -294,7 +294,7 @@ class ParserTest(absltest.TestCase):
     }"""
     m = self.parse_module(program)
     self.assertIsInstance(m, ast.Module)
-    self.assertIsInstance(m.top[0], ast.Enum)
+    self.assertIsInstance(m.top[0], ast.EnumDef)
     enum = m.top[0]
     self.assertEqual(enum.name.identifier, 'MyEnum')
     self.assertEqual([v.identifier for v in enum.values], ['A', 'B', 'C', 'D'])
@@ -990,7 +990,7 @@ class ParserTest(absltest.TestCase):
     typedef_by_name = m.get_typedef_by_name()
     self.assertIn('Point', typedef_by_name)
     c = typedef_by_name['Point']
-    self.assertIsInstance(c, ast.Struct)
+    self.assertIsInstance(c, ast.StructDef)
 
   def test_struct_with_access_fn(self):
     program = """
@@ -1007,7 +1007,7 @@ class ParserTest(absltest.TestCase):
     """
     m = self.parse_module(program)
     c = m.get_typedef_by_name()['Point']
-    self.assertIsInstance(c, ast.Struct)
+    self.assertIsInstance(c, ast.StructDef)
     attr = m.get_function_by_name()['f'].body
     self.assertIsInstance(attr, ast.Attr)
     self.assertIsInstance(attr.lhs, ast.NameRef)
@@ -1026,7 +1026,7 @@ class ParserTest(absltest.TestCase):
     """
     m = self.parse_module(program)
     c = m.get_typedef_by_name()['Point']
-    self.assertIsInstance(c, ast.Struct)
+    self.assertIsInstance(c, ast.StructDef)
     attr = m.get_function_by_name()['f'].body
     self.assertIsInstance(attr, ast.SplatStructInstance)
     self.assertIsInstance(attr.splatted, ast.NameRef)

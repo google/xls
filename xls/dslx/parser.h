@@ -111,7 +111,7 @@ class Parser : public TokenParser {
   absl::StatusOr<TypeRef*> ParseModTypeRef(Bindings* bindings,
                                            const Token& start_tok);
 
-  absl::StatusOr<StructDef> ResolveStruct(Bindings* bindings,
+  absl::StatusOr<StructRef> ResolveStruct(Bindings* bindings,
                                           TypeAnnotation* type);
 
   absl::StatusOr<TypeRef*> ParseTypeRef(Bindings* bindings, const Token& tok);
@@ -348,9 +348,9 @@ class Parser : public TokenParser {
   // ultimately the loop terminates and the final accum value is returned.
   absl::StatusOr<For*> ParseFor(Bindings* bindings);
 
-  absl::StatusOr<Enum*> ParseEnum(bool is_public, Bindings* bindings);
+  absl::StatusOr<EnumDef*> ParseEnum(bool is_public, Bindings* bindings);
 
-  absl::StatusOr<Struct*> ParseStruct(bool is_public, Bindings* bindings);
+  absl::StatusOr<StructDef*> ParseStruct(bool is_public, Bindings* bindings);
 
   absl::StatusOr<Expr*> ParseBlockExpression(Bindings* bindings);
 

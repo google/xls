@@ -276,8 +276,8 @@ class Interpreter(object):
     return imported_module, self._make_top_level_bindings(imported_module)
 
   def _deref_typeref(
-      self, type_ref: ast.TypeRef,
-      bindings: Bindings) -> Union[ast.TypeAnnotation, ast.Enum, ast.Struct]:
+      self, type_ref: ast.TypeRef, bindings: Bindings
+  ) -> Union[ast.TypeAnnotation, ast.EnumDef, ast.StructDef]:
     """Resolves the typeref to a type using its identifier via bindings."""
     logging.vlog(5, 'Dereferencing TypeRef; type_def: %r', type_ref.type_def)
     if isinstance(type_ref.type_def, ast.ModRef):
@@ -286,10 +286,10 @@ class Interpreter(object):
 
     result = bindings.resolve_type_definition(type_ref.text, type_ref.module)
     assert isinstance(result,
-                      (ast.TypeAnnotation, ast.Enum, ast.Struct)), result
+                      (ast.TypeAnnotation, ast.EnumDef, ast.StructDef)), result
     return result
 
-  def _bindings_with_struct_parametrics(self, struct: ast.Struct,
+  def _bindings_with_struct_parametrics(self, struct: ast.StructDef,
                                         parametrics: Tuple[
                                             ast.ParametricBinding, ...],
                                         bindings: Bindings) -> Bindings:
@@ -318,13 +318,15 @@ class Interpreter(object):
 
     return nested_bindings
 
-  def _concretize(self, type_: Union[ast.TypeAnnotation, ast.Enum, ast.Struct],
+  def _concretize(self, type_: Union[ast.TypeAnnotation, ast.EnumDef,
+                                     ast.StructDef],
                   bindings: Bindings) -> ConcreteType:
     """Resolves type_ into a concrete type via expression evaluation."""
-    assert isinstance(type_, (ast.Enum, ast.TypeAnnotation, ast.Struct)), type_
-    if isinstance(type_, ast.Enum):
+    assert isinstance(type_,
+                      (ast.EnumDef, ast.TypeAnnotation, ast.StructDef)), type_
+    if isinstance(type_, ast.EnumDef):
       return self._concretize(type_.type_, bindings)
-    elif isinstance(type_, ast.Struct):
+    elif isinstance(type_, ast.StructDef):
       members = tuple((k.identifier, self._concretize(t, bindings))
                       for k, t in type_.members)
       return TupleType(members, type_)
@@ -336,7 +338,7 @@ class Interpreter(object):
             deref, type_.parametrics, bindings)
       type_def = type_.type_ref.type_def
       logging.vlog(5, 'Type definition referred to: %s', type_def)
-      if isinstance(type_def, ast.Enum):
+      if isinstance(type_def, ast.EnumDef):
         enum = type_def
         bit_count = self._concretize(enum.type_, bindings).get_total_bit_count()
         return EnumType(enum, bit_count)
@@ -450,8 +452,9 @@ class Interpreter(object):
     return Value.make_bits(tag, ast_helpers.get_value_as_bits(expr, bit_count))
 
   def _evaluate_to_struct_or_enum_or_annotation(
-      self, node: Union[ast.TypeDef, ast.ModRef, ast.Struct],
-      bindings: Bindings) -> Union[ast.Struct, ast.Enum, ast.TypeAnnotation]:
+      self, node: Union[ast.TypeDef, ast.ModRef,
+                        ast.StructDef], bindings: Bindings
+  ) -> Union[ast.StructDef, ast.EnumDef, ast.TypeAnnotation]:
     """Returns the node dereferenced into a Struct or Enum or TypeAnnotation.
 
     Will produce TypeAnnotation in the case we bottom out in a tuple, for
@@ -467,7 +470,7 @@ class Interpreter(object):
         return annotation
       node = annotation.type_ref.type_def
 
-    if isinstance(node, (ast.Struct, ast.Enum)):
+    if isinstance(node, (ast.StructDef, ast.EnumDef)):
       return node
 
     assert isinstance(node, ast.ModRef)
@@ -476,22 +479,22 @@ class Interpreter(object):
     # Recurse to dereference it if it's a typedef in the imported module.
     td = self._evaluate_to_struct_or_enum_or_annotation(
         td, self._make_top_level_bindings(imported_module))
-    assert isinstance(td, (ast.Struct, ast.Enum, ast.TypeAnnotation)), td
+    assert isinstance(td, (ast.StructDef, ast.EnumDef, ast.TypeAnnotation)), td
     return td
 
-  def _evaluate_to_enum(self, node: Union[ast.TypeDef, ast.Enum],
-                        bindings: Bindings) -> ast.Enum:
+  def _evaluate_to_enum(self, node: Union[ast.TypeDef, ast.EnumDef],
+                        bindings: Bindings) -> ast.EnumDef:
     type_definition = ast_helpers.evaluate_to_struct_or_enum_or_annotation(
         node, self._get_imported_module_via_bindings, bindings)
-    assert isinstance(type_definition, ast.Enum), type_definition
+    assert isinstance(type_definition, ast.EnumDef), type_definition
     return type_definition
 
-  def _evaluate_to_struct(self, node: Union[ast.ModRef, ast.Struct],
-                          bindings: Bindings) -> ast.Struct:
+  def _evaluate_to_struct(self, node: Union[ast.ModRef, ast.StructDef],
+                          bindings: Bindings) -> ast.StructDef:
     """Evaluates potential module-reference-to-struct to a struct."""
     type_definition = ast_helpers.evaluate_to_struct_or_enum_or_annotation(
         node, self._get_imported_module_via_bindings, bindings)
-    assert isinstance(type_definition, ast.Struct), type_definition
+    assert isinstance(type_definition, ast.StructDef), type_definition
     return type_definition
 
   def _evaluate_StructInstance(  # pylint: disable=invalid-name
@@ -1130,10 +1133,10 @@ class Interpreter(object):
     for typedef in m.get_typedefs():
       if isinstance(typedef, ast.TypeDef):
         b.add_typedef(typedef.identifier, typedef)
-      elif isinstance(typedef, ast.Struct):
+      elif isinstance(typedef, ast.StructDef):
         b.add_struct(typedef.identifier, typedef)
       else:
-        assert isinstance(typedef, ast.Enum), type(typedef)
+        assert isinstance(typedef, ast.EnumDef), type(typedef)
         b.add_enum(typedef.identifier, typedef)
 
     self._top_level_members.setdefault(m, {})
@@ -1153,7 +1156,7 @@ class Interpreter(object):
           break
         b.add_value(constant.name.identifier, result)
         self._top_level_members[m][constant] = result
-      elif isinstance(member, ast.Enum):
+      elif isinstance(member, ast.EnumDef):
         b.add_enum(member.identifier, member)
       elif isinstance(member, ast.Import):
         imported_module = self._do_import(member.name, member.span)

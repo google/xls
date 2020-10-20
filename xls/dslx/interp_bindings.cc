@@ -32,11 +32,11 @@ namespace xls::dslx {
   if (absl::holds_alternative<TypeDef*>(e)) {
     return "TypeDef";
   }
-  if (absl::holds_alternative<Enum*>(e)) {
-    return "Enum";
+  if (absl::holds_alternative<EnumDef*>(e)) {
+    return "EnumDef";
   }
-  if (absl::holds_alternative<Struct*>(e)) {
-    return "Struct";
+  if (absl::holds_alternative<StructDef*>(e)) {
+    return "StructDef";
   }
   if (absl::holds_alternative<Module*>(e)) {
     return "Module";
@@ -107,8 +107,8 @@ absl::StatusOr<TypeAnnotation*> InterpBindings::ResolveTypeAnnotation(
     return absl::NotFoundError(
         absl::StrFormat("No binding for identifier \"%s\"", identifier));
   }
-  if (absl::holds_alternative<Enum*>(entry.value())) {
-    return absl::get<Enum*>(entry.value())->type();
+  if (absl::holds_alternative<EnumDef*>(entry.value())) {
+    return absl::get<EnumDef*>(entry.value())->type();
   }
   if (absl::holds_alternative<TypeDef*>(entry.value())) {
     return absl::get<TypeDef*>(entry.value())->type();
@@ -118,17 +118,17 @@ absl::StatusOr<TypeAnnotation*> InterpBindings::ResolveTypeAnnotation(
       identifier, VariantAsString(entry.value())));
 }
 
-absl::StatusOr<absl::variant<TypeAnnotation*, Enum*, Struct*>>
+absl::StatusOr<absl::variant<TypeAnnotation*, EnumDef*, StructDef*>>
 InterpBindings::ResolveTypeDefinition(absl::string_view identifier) const {
   absl::optional<Entry> entry = ResolveEntry(identifier);
   if (absl::holds_alternative<TypeDef*>(entry.value())) {
     return absl::get<TypeDef*>(entry.value())->type();
   }
-  if (absl::holds_alternative<Enum*>(entry.value())) {
-    return absl::get<Enum*>(entry.value());
+  if (absl::holds_alternative<EnumDef*>(entry.value())) {
+    return absl::get<EnumDef*>(entry.value());
   }
-  if (absl::holds_alternative<Struct*>(entry.value())) {
-    return absl::get<Struct*>(entry.value());
+  if (absl::holds_alternative<StructDef*>(entry.value())) {
+    return absl::get<StructDef*>(entry.value());
   }
   return absl::InvalidArgumentError(
       absl::StrFormat("Attempted to resolve a type definition but identifier "
