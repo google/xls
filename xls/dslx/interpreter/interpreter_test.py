@@ -27,6 +27,7 @@ from pyfakefs import fake_filesystem_unittest as ffu
 from absl.testing import absltest
 from xls.dslx.interpreter import interpreter
 from xls.dslx.interpreter import parse_and_interpret
+from xls.dslx.python.builtins import FailureError
 from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.xls_type_error import XlsTypeError
 
@@ -68,7 +69,7 @@ class InterpreterTest(absltest.TestCase):
       assert_eq(y, expected)
     }
     """)
-    with self.assertRaises(interpreter.FailureError):
+    with self.assertRaises(FailureError):
       self._parse_and_test(program)
 
   def test_pad_bits_via_concat(self):
@@ -313,7 +314,7 @@ class InterpreterTest(absltest.TestCase):
       ()
     }
     """)
-    with self.assertRaises(interpreter.FailureError):
+    with self.assertRaises(FailureError):
       self._parse_and_test(program)
 
   def test_while(self):
@@ -453,7 +454,7 @@ class InterpreterTest(absltest.TestCase):
       assert_eq(true, foo != Foo::FOO)
     }
     """)
-    with self.assertRaises(interpreter.FailureError):
+    with self.assertRaises(FailureError):
       self._parse_and_test(program)
 
   def test_const_array_of_enum_refs(self):
@@ -525,9 +526,10 @@ class InterpreterTest(absltest.TestCase):
       assert_eq(s32[2]:[1, 2], s32[2]:[3, 4])
     }
     """
-    with self.assertRaises(interpreter.FailureError) as cm:
+    with self.assertRaises(FailureError) as cm:
       self._parse_and_test(program)
-    self.assertIn('lhs: [1, 2]\n', str(cm.exception))
+    self.assertIn('lhs: [1, 2]\n', cm.exception.message)
+    self.assertIn('first differing index: 0', cm.exception.message)
 
 
 if __name__ == '__main__':

@@ -126,6 +126,7 @@ py_test(
     python_version = "PY3",
     shard_count = 50,
     srcs_version = "PY3",
+    tags = ["optonly"],  # Times out in fastbuild TAP 2020-10-20.
     deps = [
         ":ast_generator",
         ":run_fuzz",
@@ -224,6 +225,7 @@ py_test(
         "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:interp_value",
         "//xls/ir/python:bits",
+        "@com_google_absl_py//absl/logging",
     ],
 )
 

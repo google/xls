@@ -479,7 +479,7 @@ class AstGenerator(object):
       self, env: Env) -> Tuple[ast.Invocation, ast.TypeAnnotation]:
     """Generates a call to a unary builtin."""
     make_arg, arg_type = self._choose_env_value(env, self._is_builtin_unsigned)
-    choices = ['clz']
+    choices = ['clz', 'ctz', 'rev']
     # Since one_hot adds a bit, only use it when we have head room beneath
     # max_width_bits_types to add another bit.
     one_hot_ok = builtin_type_to_bits(
@@ -487,7 +487,7 @@ class AstGenerator(object):
     if one_hot_ok:
       choices.append('one_hot')
     to_invoke = self.rng.choice(choices)
-    if to_invoke == 'clz':
+    if to_invoke in ('clz', 'ctz', 'rev'):
       invocation = ast.Invocation(
           self.m,
           self.fake_span,

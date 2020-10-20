@@ -75,14 +75,12 @@ py_library(
     srcs = ["concrete_type_helpers.py"],
     srcs_version = "PY3",
     deps = [
-        ":errors",
-        "//xls/dslx:bit_helpers",
+        "//xls/dslx/python:builtins",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_scanner",
         "//xls/dslx/python:interp_value",
-        "//xls/ir/python:bits",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -102,6 +100,7 @@ py_library(
         "//xls/dslx:import_fn",
         "//xls/dslx:ir_name_mangler",
         "//xls/dslx:parametric_instantiator",
+        "//xls/dslx/python:builtins",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_parametric_expression",
@@ -167,8 +166,21 @@ py_library(
         "//xls/dslx:parser_helpers",
         "//xls/dslx:span",
         "//xls/dslx:typecheck",
+        "//xls/dslx/python:builtins",
         "//xls/dslx/python:cpp_parser",
         "//xls/dslx/python:cpp_scanner",
+    ],
+)
+
+py_test(
+    name = "parse_and_interpret_test",
+    srcs = ["parse_and_interpret_test.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        ":parse_and_interpret",
+        requirement("pyfakefs"),  # unittest
+        "@com_google_absl_py//absl/testing:absltest",
     ],
 )
 
@@ -182,6 +194,7 @@ py_test(
         ":parse_and_interpret",
         requirement("pyfakefs"),  # unittest
         "//xls/dslx:xls_type_error",
+        "//xls/dslx/python:builtins",
         "//xls/dslx/python:cpp_concrete_type",
         "@com_google_absl_py//absl/testing:absltest",
     ],

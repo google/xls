@@ -20,16 +20,6 @@ from xls.dslx.python import cpp_pos
 from xls.dslx.span import PositionalError
 
 
-class FailureError(PositionalError):
-  """Raised when expression evaluation fails (as in 'panic' style failure).
-
-  This is used e.g. in tests, but may be reusable for things like fatal errors.
-  """
-
-  def __init__(self, span: cpp_pos.Span, message: str):
-    super(FailureError, self).__init__(message, span)
-
-
 class EvaluateError(PositionalError):
   """Raised when an error is encountered during interpreted evaluation.
 

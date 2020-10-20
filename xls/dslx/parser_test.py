@@ -85,7 +85,7 @@ class ParserTest(absltest.TestCase):
     except parser.CppParseError as e:
       pos = Pos(self.fake_filename, 0, 0)
       want = Span(pos, pos.bump_col())
-      self.assertEqual(parser.get_parse_error_span(str(e)), want)
+      self.assertEqual(e.span, want)
     else:
       raise AssertionError
 
@@ -645,7 +645,8 @@ class ParserTest(absltest.TestCase):
             name=self.fake_filename,
             print_on_error=True,
             filename=self.fake_filename)
-    self.assertIn("Cannot find a definition for name: 'bar'", str(cm.exception))
+    self.assertIn("Cannot find a definition for name: 'bar'",
+                  cm.exception.message)
 
   def test_match(self):
     m = ast.Module('test')
@@ -686,7 +687,7 @@ class ParserTest(absltest.TestCase):
     with self.assertRaises(parser.CppParseError) as cm:
       self.parse_function(program)
     self.assertIn('Cannot have multiple patterns that bind names.',
-                  str(cm.exception))
+                  cm.exception.message)
 
   def test_unittest_directive(self):
     m = self.parse_module("""
@@ -749,7 +750,8 @@ class ParserTest(absltest.TestCase):
     """
     with self.assertRaises(parser.CppParseError) as cm:
       self.parse_function(program)
-    self.assertIn("identifier 'x' doesn't resolve to a type", str(cm.exception))
+    self.assertIn("identifier 'x' doesn't resolve to a type",
+                  cm.exception.message)
 
   def test_double_define_top_level_function(self):
     program = """
@@ -762,7 +764,7 @@ class ParserTest(absltest.TestCase):
     """
     with self.assertRaises(parser.CppParseError) as cm:
       self.parse_module(program)
-    self.assertIn('defined in this module multiple times', str(cm.exception))
+    self.assertIn('defined in this module multiple times', cm.exception.message)
 
   def test_parse_name_def_tree(self):
     text = 'let (a, (b, (c, d), e), f) = x; a'
@@ -807,8 +809,7 @@ class ParserTest(absltest.TestCase):
       self.parse_module(program)
     self.assertIn(
         f'Constant definition is shadowing an existing definition from {self.fake_filename}:1:1-1:20',
-        str(cm.exception),
-    )
+        cm.exception.message)
 
   def test_cast_of_cast(self):
     program = """
@@ -1040,7 +1041,7 @@ class ParserTest(absltest.TestCase):
     with self.assertRaises(parser.CppParseError) as cm:
       self.parse_module(program)
     self.assertIn('Type is annotated in enum value, but enum defines a type',
-                  str(cm.exception))
+                  cm.exception.message)
 
   def test_import(self):
     program = """
@@ -1086,7 +1087,7 @@ class ParserTest(absltest.TestCase):
     with self.assertRaises(CppParseError) as cm:
       self._parse_internal(program, bindings, fparse)
     self.assertIn('Cannot find a definition for name: \'FOO\'',
-                  str(cm.exception))
+                  cm.exception.message)
 
 
 if __name__ == '__main__':

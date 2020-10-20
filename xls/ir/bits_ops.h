@@ -35,7 +35,7 @@ Bits NaryNand(absl::Span<const Bits> operands);
 Bits Nor(const Bits& lhs, const Bits& rhs);
 Bits NaryNor(absl::Span<const Bits> operands);
 
-// Reducing bitwise operations.
+// Reducing bitwise operations. All of these produce single-bit result values.
 Bits AndReduce(const Bits& operand);
 Bits OrReduce(const Bits& operand);
 Bits XorReduce(const Bits& operand);

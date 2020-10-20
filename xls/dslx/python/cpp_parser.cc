@@ -34,6 +34,7 @@ class CppParseError : public std::exception {
   const char* what() const noexcept override { return message_.c_str(); }
 
   const Span& span() const { return span_; }
+  const std::string& message() const { return message_; }
 
  private:
   Span span_;
@@ -54,17 +55,21 @@ PYBIND11_MODULE(cpp_parser, m) {
   py::module::import("xls.dslx.python.cpp_ast");
   py::module::import("xls.dslx.python.cpp_scanner");
 
-  py::register_exception<CppParseError>(m, "CppParseError");
+  static py::exception<CppParseError> parse_exc(m, "CppParseError");
+  py::register_exception_translator([](std::exception_ptr p) {
+    try {
+      if (p) std::rethrow_exception(p);
+    } catch (const CppParseError& e) {
+      py::object& e_type = parse_exc;
+      py::object instance = e_type();
+      instance.attr("message") = e.what();
+      instance.attr("span") = e.span();
+      PyErr_SetObject(parse_exc.ptr(), instance.ptr());
+    }
+  });
 
-  m.def("get_parse_error_span", [](const std::string& s) {
-    return ParseErrorGetSpan(absl::InvalidArgumentError(s));
-  });
-  m.def("get_parse_error_text", [](const std::string& s) {
-    return ParseErrorGetText(absl::InvalidArgumentError(s));
-  });
   m.def("throw_parse_error", [](Span span, const std::string& s) {
-    std::string message =
-        absl::StrFormat("ParseError: %s %s", span.ToString(), s);
+    std::string message = absl::StrFormat("%s @ %s", s, span.ToString());
     throw CppParseError(std::move(span), std::move(message));
   });
 

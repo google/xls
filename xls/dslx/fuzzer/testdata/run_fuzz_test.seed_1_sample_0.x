@@ -13,13 +13,9 @@ fn main(x0: s23) -> u5 {
   let x10: s23 = (x0) - (((x9) as s23));
   let x11: x7[0x2] = (x6) ++ (x6);
   let x12: u2 = (x4)[0x3+:u2];
-  let x13: u6 = one_hot(x4, u1:0x0);
-  let x14: bool = one_hot_sel(x4, [x2, x2, x2, x2, x2]);
-  let x15: s23 = for (i, x): (u4, s23) in range(u4:0x0, u4:0x4) {
-    x
-  }(x0);
-  let x16: bool = for (i, x): (u4, bool) in range(u4:0x0, u4:0x0) {
-    x
-  }(x2);
+  let x13: u5 = rev(x4);
+  let x14: u19 = one_hot(x5, u1:0x1);
+  let x15: u19 = clz(x14);
+  let x16: u1 = (x13)[-0x5:0x1];
   x3
 }

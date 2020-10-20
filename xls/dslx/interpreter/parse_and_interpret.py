@@ -17,16 +17,18 @@
 """Helpers that parse-then-interpret some text with error handler."""
 
 import functools
+import io
 import os
 import sys
 import time
-from typing import Text, Optional
+from typing import Text, Optional, cast
 
 from xls.dslx import import_routines
 from xls.dslx import ir_converter
 from xls.dslx import parser_helpers
 from xls.dslx import typecheck
 from xls.dslx.interpreter.interpreter import Interpreter
+from xls.dslx.python import builtins
 from xls.dslx.python.cpp_parser import Parser
 from xls.dslx.python.cpp_scanner import Scanner
 from xls.dslx.span import PositionalError
@@ -107,9 +109,10 @@ def parse_and_test(program: Text,
         interpreter.run_quickcheck(quickcheck, seed=seed)
         print('[               OK ]', test_name, file=sys.stderr)
 
-  except PositionalError as e:
+  except (PositionalError, builtins.FailureError) as e:
     did_fail = True
-    parser_helpers.pprint_positional_error(e)
+    parser_helpers.pprint_positional_error(
+        e, output=cast(io.IOBase, sys.stderr))
     if test_name:
       print(
           '[           FAILED ]',

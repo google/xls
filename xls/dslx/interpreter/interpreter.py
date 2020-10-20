@@ -31,7 +31,6 @@ from absl import logging
 import termcolor
 
 from xls.dslx import ast_helpers
-from xls.dslx import bit_helpers
 from xls.dslx import import_fn
 from xls.dslx import ir_name_mangler
 from xls.dslx.concrete_type_helpers import map_size
@@ -40,8 +39,8 @@ from xls.dslx.interpreter.concrete_type_helpers import concrete_type_accepts_val
 from xls.dslx.interpreter.concrete_type_helpers import concrete_type_convert_value
 from xls.dslx.interpreter.concrete_type_helpers import concrete_type_from_value
 from xls.dslx.interpreter.errors import EvaluateError
-from xls.dslx.interpreter.errors import FailureError
 from xls.dslx.parametric_instantiator import SymbolicBindings
+from xls.dslx.python import builtins
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_type_info as type_info_mod
 from xls.dslx.python.cpp_concrete_type import ArrayType
@@ -71,14 +70,6 @@ class _WipSentinel(object):
 
 ImportSubject = Tuple[Text, ...]
 ImportInfo = Tuple[ast.Module, type_info_mod.TypeInfo]
-
-
-def _find_first_differing_index(lhs: Sequence[Value],
-                                rhs: Sequence[Value]) -> Optional[int]:
-  for i, (s, o) in enumerate(zip(lhs, rhs)):
-    if s.ne(o).get_bit_value_uint64():
-      return i
-  return None
 
 
 class Interpreter(object):
@@ -273,7 +264,7 @@ class Interpreter(object):
         arm_bindings = Bindings(bindings)
         if self._evaluate_matcher(pattern, matched, arm_bindings):
           return self._evaluate(arm.expr, arm_bindings, type_context)
-    raise FailureError(
+    builtins.throw_fail_error(
         expr.span, 'The program being interpreted failed with an '
         'incomplete match! value: {}'.format(matched))
 
@@ -722,7 +713,9 @@ class Interpreter(object):
       symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     """Calls a builtin function identified via a 'builtin' enum value."""
     name = builtin.to_name()
-    if name in ('slt', 'sgt', 'sge', 'sle'):
+    if hasattr(builtins, name):
+      f = getattr(builtins, name)
+    elif name in ('slt', 'sgt', 'sge', 'sle'):
       f = self._builtin_scmp(method=name)
     else:
       f = getattr(self, f'_builtin_{name}')
@@ -848,92 +841,6 @@ class Interpreter(object):
     """Evaluates a stand-alone expression with the given bindings."""
     return self._evaluate(expr, bindings)
 
-  def _builtin_fail(
-      self,
-      args: Sequence[Value],
-      span: Span,
-      expr: ast.Invocation,
-      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
-    raise FailureError(
-        span, 'The program being interpreted failed! {}'.format(args[0]))
-
-  def _builtin_assert_eq(
-      self,
-      args: Sequence[Value],
-      span: Span,
-      expr: ast.Invocation,
-      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
-    """Implements 'assert_eq' builtin'."""
-    if len(args) != 2:
-      raise ValueError(
-          'Invalid number of arguments to assert_eq; got {} want 2'.format(
-              len(args)))
-    lhs, rhs = args
-    pred = lhs.eq(rhs)
-    msg = '\n  lhs: {}\n  rhs:  {}\n  were not equal'.format(lhs.to_human_str(),
-                                                             rhs.to_human_str())
-
-    if pred.get_bit_value_uint64() == 0 and lhs.tag == rhs.tag == Tag.ARRAY:
-      i = _find_first_differing_index(lhs.get_elements(), rhs.get_elements())
-      assert i is not None, (lhs, rhs)
-      msg += '; first differing index: {} :: {} vs {}'.format(
-          i, lhs.index(i), rhs.index(i))
-
-    return self._fail_unless(pred, msg, span, expr)
-
-  def _builtin_assert_lt(
-      self,
-      args: Sequence[Value],
-      span: Span,
-      expr: ast.Invocation,
-      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
-    """Implements 'assert_lt' builtin'."""
-    if len(args) != 2:
-      raise ValueError(
-          'Invalid number of arguments to assert_lt; got {} want 2'.format(
-              len(args)))
-    lhs, rhs = args
-    pred = lhs.lt(rhs)
-    msg = '\n  want: {} < {} (type {})'.format(lhs, rhs,
-                                               concrete_type_from_value(lhs))
-
-    return self._fail_unless(pred, msg, span, expr)
-
-  def _builtin_and_reduce(
-      self,
-      args: Sequence[Value],
-      span: Span,
-      expr: ast.Invocation,
-      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
-    # AND: every bit is set, i.e., no bit is unset, i.e., a XOR 0xF...F == 0
-    bits = args[0].get_bits()
-    result = 1 if (bits ^ bits.get_mask_bits()).is_zero() else 0
-    return Value.make_ubits(1, result)
-
-  def _builtin_or_reduce(
-      self,
-      args: Sequence[Value],
-      span: Span,
-      expr: ast.Invocation,
-      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
-    # OR: Is any bit set, i.e., is the value nonzero?
-    bits = args[0].get_bit_value_uint64()
-    return Value.make_ubits(1, bits != 0)
-
-  def _builtin_xor_reduce(
-      self,
-      args: Sequence[Value],
-      span: Span,
-      expr: ast.Invocation,
-      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
-    """Implements the 'xor_reduce' builtin."""
-    # XOR: Is the number of set bits even (0) or odd (1)?
-    # Convert the number to a binary _string_, then count the ones. That's
-    # Python popcount, apparently!
-    bits = args[0].get_bits()
-    pop_count = format(bits.to_uint(), 'b').count('1')
-    return Value.make_ubits(1, pop_count & 1)
-
   def _builtin_map(
       self,
       args: Sequence[Value],
@@ -968,70 +875,6 @@ class Interpreter(object):
     self._perform_trace(expr.format_args(), span, args[0])
     assert isinstance(args[0], Value), args[0]
     return args[0]
-
-  def _builtin_select(
-      self,
-      args: Sequence[Value],
-      span: Span,
-      expr: ast.Invocation,
-      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
-    """Implements 'select' builtin.
-
-    Forwards either the true or false argument based on the value of the
-    selector.
-
-    Args:
-      args: Interpreter value arguments given to the select builtin.
-      span: Source position at which the invocation occurs.
-      expr: This select invocation AST node.
-      symbolic_bindings: Parametric bindings used to instantiate this builtin.
-
-    Returns:
-      The interpreter value that results from the selection.
-
-    Raises:
-      EvaluateError: If the wrong number of arguments are passed to the builtin.
-    """
-    if len(args) != 3:
-      raise EvaluateError(
-          span, 'Invalid number of arguments to select; got {} want 3'.format(
-              len(args)))
-    selector, on_true, on_false = args
-    if selector.is_true():
-      return on_true
-    else:
-      return on_false
-
-  def _builtin_rev(
-      self,
-      args: Sequence[Value],
-      span: Span,
-      expr: ast.Invocation,
-      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
-    """Implements the 'rev' builtin."""
-    if len(args) != 1:
-      raise EvaluateError(
-          span,
-          'Invalid number of arguments to rev; got {} want 1'.format(len(args)))
-    return Value.make_bits(Tag.UBITS, args[0].get_bits().reverse())
-
-  def _builtin_bit_slice(
-      self,
-      args: Sequence[Value],
-      span: Span,
-      expr: ast.Invocation,
-      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
-    """Implements 'bit_slice' builtin."""
-    if len(args) != 3:
-      raise EvaluateError(
-          span,
-          'Invalid number of arguments to bit_slice; got {} want 3'.format(
-              len(args)))
-    subject, start, width = args
-    return Value.make_bits(
-        Tag.UBITS,
-        subject.get_bits().slice(start.get_bit_value_uint64(),
-                                 width.get_bit_count()))
 
   def _builtin_enumerate(
       self,
@@ -1092,129 +935,6 @@ class Interpreter(object):
     original, index, value = args
     return original.update(index, value)
 
-  def _builtin_slice(
-      self,
-      args: Sequence[Value],
-      span: Span,
-      expr: ast.Invocation,
-      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
-    """Implements 'slice' builtin."""
-    if len(args) != 3:
-      raise EvaluateError(
-          span, 'Invalid number of arguments to slice; got {} want 3'.format(
-              len(args)))
-    array, start, length = args
-    return array.slice(start, length)
-
-  def _builtin_add_with_carry(
-      self,
-      args: Sequence[Value],
-      span: Span,
-      expr: ast.Invocation,
-      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
-    """Implements 'add_with_carry' builtin."""
-    if len(args) != 2:
-      raise EvaluateError(
-          span, 'Invalid number of arguments to update; got {} want 2'.format(
-              len(args)))
-    lhs, rhs = args
-    return lhs.add_with_carry(rhs)
-
-  def _builtin_clz(
-      self,
-      args: Sequence[Value],
-      span: Span,
-      expr: ast.Invocation,
-      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
-    """Implements 'clz' builtin."""
-    if len(args) != 1:
-      raise EvaluateError(
-          span,
-          'Invalid number of arguments to clz; got {} want 1'.format(len(args)))
-    arg, = args
-    count = 0
-    for char in bit_helpers.to_zext_str(
-        arg.get_bit_value_uint64(), bit_count=arg.get_bit_count()):
-      if char == '1':
-        break
-      assert char == '0'
-      count += 1
-
-    return Value.make_ubits(bit_count=arg.get_bit_count(), value=count)
-
-  def _builtin_ctz(
-      self,
-      args: Sequence[Value],
-      span: Span,
-      expr: ast.Invocation,
-      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
-    """Implements 'ctz' builtin."""
-    if len(args) != 1:
-      raise EvaluateError(
-          span,
-          'Invalid number of arguments to ctz; got {} want 1'.format(len(args)))
-    return self._builtin_clz(
-        [Value.make_bits(args[0].tag, args[0].get_bits().reverse())], span,
-        expr, symbolic_bindings)
-
-  def _builtin_one_hot(
-      self,
-      args: Sequence[Value],
-      span: Span,
-      expr: ast.Invocation,
-      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
-    """Implements 'one_hot' builtin."""
-    if len(args) != 2:
-      raise EvaluateError(
-          span, 'Invalid number of arguments to one_hot; got {} want 2'.format(
-              len(args)))
-    arg, lsb_prio = args
-    assert lsb_prio.get_bit_count() == 1, lsb_prio
-    return arg.one_hot(lsb_prio.is_true())
-
-  def _builtin_one_hot_sel(
-      self,
-      args: Sequence[Value],
-      span: Span,
-      expr: ast.Invocation,
-      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
-    """Interprets 'one_hot_sel' builtin."""
-    if len(args) != 2:
-      raise EvaluateError(
-          span,
-          'Invalid number of arguments to one_hot_sel; got {} want 2'.format(
-              len(args)))
-    selector, cases = args
-    selector = selector.get_bits()
-    accum = ir_bits.Bits(
-        bit_count=self._type_info[expr].get_total_bit_count().value)
-    for i in range(selector.bit_count()):
-      if selector.get_lsb_index(i).to_int() != 0:
-        accum |= cases.index(i).get_bits()
-    result = Value.make_bits(cases.index(0).tag, accum)
-    logging.vlog(3, 'one_hot_sel(%s, %s) -> %s', selector, cases, result)
-    return result
-
-  def _builtin_signex(
-      self,
-      args: Sequence[Value],
-      span: Span,
-      expr: ast.Invocation,
-      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
-    """Implements 'smul' builtin."""
-    if len(args) != 2:
-      raise EvaluateError(
-          span, 'Invalid number of arguments to signex; got {} want 2'.format(
-              len(args)))
-    lhs, rhs = args
-    new_bit_count = rhs.get_bit_count()
-    sign = lhs.get_bits().get_msb()
-    leading_bit_count = new_bit_count - lhs.get_bit_count()
-    leading = ir_bits.Bits(leading_bit_count)
-    if sign:
-      leading = leading.bitwise_negate()
-    return Value.make_bits(rhs.tag, leading.concat(lhs.get_bits()))
-
   def _builtin_scmp(
       self, method: Text
   ) -> Callable[
@@ -1234,13 +954,6 @@ class Interpreter(object):
       return lhs.scmp(rhs, method)
 
     return scmp
-
-  def _fail_unless(self, pred: Value, msg: Text, span: Span,
-                   expr: ast.Invocation) -> Value:
-    if pred.is_false():
-      raise FailureError(span,
-                         'The program being interpreted failed! {}'.format(msg))
-    return Value.make_nil()
 
   def _evaluate_derived_parametrics(self, fn: ast.Function, bindings: Bindings,
                                     bound_dims: Dict[Text, int]):
@@ -1378,7 +1091,7 @@ class Interpreter(object):
         jit_comparison.compare_values(interpreter_value, jit_value)
       except (jit_comparison.UnsupportedJitConversionError,
               jit_comparison.JitMiscompareError) as e:
-        raise FailureError(expr.span if expr else fn.span, str(e))
+        builtins.throw_fail_error(expr.span if expr else fn.span, str(e))
 
     return interpreter_value
 
@@ -1469,7 +1182,7 @@ class Interpreter(object):
           str(jit_comparison.ir_value_to_interpreter_value(arg, arg_type))
           for arg, arg_type in zip(last_argset, fn_param_types)
       ]
-      raise FailureError(
+      builtins.throw_fail_error(
           fn.span, f'Found falsifying example after '
           f'{len(results)} tests: {dslx_argset}')
 

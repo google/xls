@@ -746,3 +746,18 @@ cc_test(
         "@com_google_googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "builtins",
+    srcs = ["builtins.cc"],
+    hdrs = ["builtins.h"],
+    deps = [
+        ":cpp_ast",
+        ":cpp_type_info",
+        ":interp_value",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir:bits_ops",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)

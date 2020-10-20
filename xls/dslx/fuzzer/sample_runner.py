@@ -267,9 +267,13 @@ class SampleRunner:
 
       self._compare_results(results, args_batch)
     except Exception as e:  # pylint: disable=broad-except
-      logging.exception('Exception when running sample: %s', str(e))
-      self._write_file('exception.txt', str(e))
-      raise SampleError(str(e))
+      # Note: this is a bit of a hack because pybind11 doesn't make it very
+      # possible to define custom __str__ on exception types. Our C++ exception
+      # types have a field called "message" generally so we look for that.
+      msg = e.message if hasattr(e, 'message') else str(e)
+      logging.exception('Exception when running sample: %s', msg)
+      self._write_file('exception.txt', msg)
+      raise SampleError(msg)
 
   def _run_command(self, desc: Text, args: Sequence[Text]):
     """Runs the given commands.

@@ -20,8 +20,8 @@ from typing import Tuple, Optional
 
 from absl import logging
 
-from xls.dslx.interpreter.errors import FailureError
 from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python.builtins import throw_fail_error
 from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType
 from xls.dslx.python.cpp_concrete_type import ConcreteType
@@ -208,7 +208,7 @@ def concrete_type_convert_value(module: ast.Module, type_: ConcreteType,
       if value.get_bits() == enum_value.get_bits():
         break
     else:
-      raise FailureError(
+      throw_fail_error(
           span,
           'Value is not valid for enum {}: {}'.format(nominal_type.identifier,
                                                       value))
@@ -250,7 +250,7 @@ def concrete_type_convert_value(module: ast.Module, type_: ConcreteType,
   if concrete_type_accepts_value(module, type_, value):  # Vacuous conversion.
     return value
 
-  raise FailureError(
+  throw_fail_error(
       span,
       'Interpreter failure: cannot convert value %s (of type %s) to type %s' %
       (value, concrete_type_from_value(value), type_))

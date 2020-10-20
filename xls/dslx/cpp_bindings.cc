@@ -22,30 +22,20 @@
 namespace xls::dslx {
 
 absl::StatusOr<std::pair<Span, std::string>> ParseErrorGetData(
-    const absl::Status& status) {
+    const absl::Status& status, absl::string_view prefix) {
   absl::string_view s = status.message();
-  if (absl::ConsumePrefix(&s, "ParseError: ")) {
+  if (absl::ConsumePrefix(&s, prefix)) {
     std::vector<absl::string_view> pieces =
         absl::StrSplit(s, absl::MaxSplits(' ', 1));
     if (pieces.size() < 2) {
       return absl::InvalidArgumentError(
-          "Provided status does not have a standard ParseError message");
+          "Provided status does not have a standard error message");
     }
     XLS_ASSIGN_OR_RETURN(Span span, Span::FromString(pieces[0]));
     return std::make_pair(span, std::string(pieces[1]));
   }
-  return absl::InvalidArgumentError("Provided status is not a ParseError: " +
-                                    status.ToString());
-}
-
-absl::StatusOr<Span> ParseErrorGetSpan(const absl::Status& status) {
-  XLS_ASSIGN_OR_RETURN(auto data, ParseErrorGetData(status));
-  return data.first;
-}
-
-absl::StatusOr<std::string> ParseErrorGetText(const absl::Status& status) {
-  XLS_ASSIGN_OR_RETURN(auto data, ParseErrorGetData(status));
-  return data.second;
+  return absl::InvalidArgumentError(
+      "Provided status is not in recognized error form: " + status.ToString());
 }
 
 AnyNameDef BoundNodeToAnyNameDef(BoundNode bn) {
