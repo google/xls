@@ -73,7 +73,7 @@ class IrJit {
   // (and applying views) can eliminate this overhead and still give access tor
   // result data. Users needing less performance can still use the
   // Value-returning methods above for code simplicity.
-  absl::Status RunWithViews(absl::Span<const uint8*> args,
+  absl::Status RunWithViews(absl::Span<uint8*> args,
                             absl::Span<uint8> result_buffer,
                             void* user_data = nullptr);
 
@@ -114,6 +114,8 @@ class IrJit {
   // buffers.
   int64 GetArgTypeSize(int arg_index) { return arg_type_bytes_[arg_index]; }
   int64 GetReturnTypeSize() { return return_type_bytes_; }
+
+  JitRuntime* runtime() { return ir_runtime_.get(); }
 
  private:
   explicit IrJit(FunctionBase* xls_function, int64 opt_level);

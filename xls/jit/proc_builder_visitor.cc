@@ -58,8 +58,8 @@ absl::StatusOr<llvm::Value*> ProcBuilderVisitor::InvokeRecvCallback(
   llvm::FunctionType* fn_type =
       llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
 
-  llvm::Type* recv_type = type_converter()->ConvertToLlvmType(*node->GetType());
-  int64 recv_bytes = type_converter()->GetTypeByteSize(*node->GetType());
+  llvm::Type* recv_type = type_converter()->ConvertToLlvmType(node->GetType());
+  int64 recv_bytes = type_converter()->GetTypeByteSize(node->GetType());
   llvm::AllocaInst* alloca = builder->CreateAlloca(recv_type);
 
   //  2) create the argument list to pass to the function. We use opaque
@@ -121,7 +121,7 @@ absl::Status ProcBuilderVisitor::HandleReceiveIf(ReceiveIf* recv_if) {
       ctx(), absl::StrCat(recv_if->GetName(), "_false"), llvm_fn(), join_block);
   llvm::IRBuilder<> false_builder(false_block);
   llvm::Type* result_type =
-      type_converter()->ConvertToLlvmType(*recv_if->GetType());
+      type_converter()->ConvertToLlvmType(recv_if->GetType());
   llvm::Value* false_result = CreateTypedZeroValue(result_type);
   llvm::Value* false_token = node_map().at(recv_if->operand(0));
   false_builder.CreateBr(join_block);
@@ -176,8 +176,8 @@ absl::Status ProcBuilderVisitor::InvokeSendCallback(
     tuple_elems.push_back(operand->GetType());
   }
   TupleType tuple_type(tuple_elems);
-  llvm::Type* send_op_types = type_converter()->ConvertToLlvmType(tuple_type);
-  int64 send_type_size = type_converter()->GetTypeByteSize(tuple_type);
+  llvm::Type* send_op_types = type_converter()->ConvertToLlvmType(&tuple_type);
+  int64 send_type_size = type_converter()->GetTypeByteSize(&tuple_type);
   llvm::Value* tuple = CreateTypedZeroValue(send_op_types);
   for (int i = 0; i < operands.size(); i++) {
     tuple = builder->CreateInsertValue(tuple, node_map().at(operands[i]),

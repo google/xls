@@ -51,7 +51,7 @@ class JitRuntime {
 
   // Splats the value into the buffer according to the data layout expected by
   // LLVM.
-  void BlitValueToBuffer(const Value& value, const Type& type,
+  void BlitValueToBuffer(const Value& value, const Type* type,
                          absl::Span<uint8> buffer);
 
   // Returns a textual description of the argument LLVM object.

@@ -37,12 +37,12 @@ class LlvmTypeConverter {
   LlvmTypeConverter(llvm::LLVMContext* context,
                     const llvm::DataLayout& data_layout);
 
-  llvm::Type* ConvertToLlvmType(const Type& type);
+  llvm::Type* ConvertToLlvmType(const Type* type);
 
   // Converts the input XLS Value to an LLVM Constant of the specified type.
   absl::StatusOr<llvm::Constant*> ToLlvmConstant(llvm::Type* type,
                                                  const Value& value);
-  absl::StatusOr<llvm::Constant*> ToLlvmConstant(const Type& type,
+  absl::StatusOr<llvm::Constant*> ToLlvmConstant(const Type* type,
                                                  const Value& value);
 
   // Returns the number of bytes that LLVM will internally use to store the
@@ -51,7 +51,7 @@ class LlvmTypeConverter {
   // instead of the three that the flat bit count would suggest. The type width
   // rules aren't necessarily immediately obvious, but fortunately the
   // DataLayout object can handle ~all of the work for us.
-  int64 GetTypeByteSize(const Type& type);
+  int64 GetTypeByteSize(const Type* type);
 
   // Returns a new Value representing the LLVM form of a Token.
   llvm::Value* GetToken();

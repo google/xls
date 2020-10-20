@@ -25,49 +25,49 @@ LlvmTypeConverter::LlvmTypeConverter(llvm::LLVMContext* context,
                                      const llvm::DataLayout& data_layout)
     : context_(*context), data_layout_(data_layout) {}
 
-llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type& xls_type) {
-  auto it = type_cache_.find(&xls_type);
+llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type* xls_type) {
+  auto it = type_cache_.find(xls_type);
   if (it != type_cache_.end()) {
     return it->second;
   }
   llvm::Type* llvm_type;
-  if (xls_type.IsBits()) {
-    int64 bit_count = xls_type.AsBitsOrDie()->bit_count();
+  if (xls_type->IsBits()) {
+    int64 bit_count = xls_type->AsBitsOrDie()->bit_count();
     XLS_CHECK_GE(bit_count, 0);
     // LLVM does not accept 0-bit types, and we want to be able to JIT-compile
     // unoptimized IR, so for the time being we make a dummy 1-bit value.
     // See https://github.com/google/xls/issues/76
     bit_count = std::max(bit_count, static_cast<int64>(1));
     llvm_type = llvm::IntegerType::get(context_, bit_count);
-  } else if (xls_type.IsTuple()) {
+  } else if (xls_type->IsTuple()) {
     std::vector<llvm::Type*> tuple_types;
 
-    const TupleType* tuple_type = xls_type.AsTupleOrDie();
+    const TupleType* tuple_type = xls_type->AsTupleOrDie();
     for (Type* tuple_elem_type : tuple_type->element_types()) {
-      llvm::Type* llvm_type = ConvertToLlvmType(*tuple_elem_type);
+      llvm::Type* llvm_type = ConvertToLlvmType(tuple_elem_type);
       tuple_types.push_back(llvm_type);
     }
 
     llvm_type = llvm::StructType::get(context_, tuple_types);
-  } else if (xls_type.IsArray()) {
-    const ArrayType* array_type = xls_type.AsArrayOrDie();
-    llvm::Type* element_type = ConvertToLlvmType(*array_type->element_type());
+  } else if (xls_type->IsArray()) {
+    const ArrayType* array_type = xls_type->AsArrayOrDie();
+    llvm::Type* element_type = ConvertToLlvmType(array_type->element_type());
     llvm_type = llvm::ArrayType::get(element_type, array_type->size());
-  } else if (xls_type.IsToken()) {
+  } else if (xls_type->IsToken()) {
     // Token types don't contain any data. A 0-element array is a convenient and
     // low-overhead way to let the rest of the llvm infrastructure treat token
     // like a normal data-type.
     llvm_type = GetTokenType();
   } else {
     XLS_LOG(FATAL) << absl::StrCat("Type not supported for LLVM conversion: %s",
-                                   xls_type.ToString());
+                                   xls_type->ToString());
   }
-  type_cache_.insert({&xls_type, llvm_type});
+  type_cache_.insert({xls_type, llvm_type});
   return llvm_type;
 }
 
 absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToLlvmConstant(
-    const Type& type, const Value& value) {
+    const Type* type, const Value& value) {
   return ToLlvmConstant(ConvertToLlvmType(type), value);
 }
 
@@ -126,7 +126,7 @@ absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToIntegralConstant(
   }
 }
 
-int64 LlvmTypeConverter::GetTypeByteSize(const Type& type) {
+int64 LlvmTypeConverter::GetTypeByteSize(const Type* type) {
   return data_layout_.getTypeAllocSize(ConvertToLlvmType(type)).getFixedSize();
 }
 

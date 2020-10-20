@@ -41,7 +41,7 @@ struct ThreadData {
   // The value of the proc persistent state variable. Not to be confused with
   // "thread_state" below!
   // Owned by SerialProcRuntime::procs_, which should outlive any thread.
-  Value* proc_state;
+  absl::Span<uint8> proc_state;
 
   absl::Mutex mutex;
 
@@ -57,9 +57,12 @@ struct ThreadData {
 };
 
 void ThreadFn(ThreadData* thread_data) {
-  std::vector<Value> args({Value::Token(), *thread_data->proc_state});
-  *thread_data->proc_state =
-      thread_data->proc_jit->Run(args, thread_data).value().element(1);
+  // RunWithViews takes an array of arg view pointers - even if they're unused
+  // during execution, tokens still occupy one of those spots.
+  std::vector<uint8*> args({nullptr, thread_data->proc_state.data()});
+  XLS_CHECK_OK(thread_data->proc_jit->RunWithViews(
+      absl::MakeSpan(args), thread_data->proc_state, thread_data));
+
   absl::MutexLock lock(&thread_data->mutex);
   thread_data->thread_state = ThreadData::State::kDone;
 }
@@ -115,7 +118,12 @@ absl::Status SerialProcRuntime::Init() {
     XLS_ASSIGN_OR_RETURN(
         auto jit,
         IrJit::CreateProc(proc.get(), queue_mgr_.get(), &RecvFn, &SendFn));
-    procs_.push_back({std::move(jit), proc->InitValue()});
+    int64 buffer_size = jit->GetReturnTypeSize();
+    auto buffer = std::make_unique<uint8[]>(buffer_size);
+    jit->runtime()->BlitValueToBuffer(
+        proc->InitValue(), proc->GetType()->return_type(),
+        absl::MakeSpan(buffer.get(), jit->GetReturnTypeSize()));
+    procs_.push_back({std::move(jit), std::move(buffer), buffer_size});
   }
   return absl::OkStatus();
 }
@@ -138,7 +146,8 @@ absl::Status SerialProcRuntime::Tick() {
     ThreadData& curr = thread_data[i];
 
     curr.proc_jit = procs_[i].jit.get();
-    curr.proc_state = &procs_[i].state;
+    curr.proc_state = absl::MakeSpan(procs_[i].value_buffer.get(),
+                                     procs_[i].value_buffer_size);
     absl::MutexLock lock(&curr.mutex);
     curr.sent_data = false;
     curr.thread_state = ThreadData::State::kRunning;
@@ -215,18 +224,6 @@ absl::Status SerialProcRuntime::Tick() {
   }
 
   return absl::OkStatus();
-}
-
-absl::StatusOr<Value> SerialProcRuntime::GetProcState(
-    const std::string& proc_name) const {
-  for (const auto& proc : procs_) {
-    if (proc.jit->function()->name() == proc_name) {
-      return proc.state;
-    }
-  }
-
-  return absl::NotFoundError(
-      absl::StrCat("Proc \"", proc_name, "\" not found in package."));
 }
 
 }  // namespace xls

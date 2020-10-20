@@ -280,13 +280,13 @@ absl::Status IrJit::CompileFunction(VisitFn visit_fn, llvm::Module* module) {
       /*AddressSpace=*/0));
 
   for (const Type* type : xls_function_type_->parameters()) {
-    arg_type_bytes_.push_back(type_converter_->GetTypeByteSize(*type));
+    arg_type_bytes_.push_back(type_converter_->GetTypeByteSize(type));
   }
 
   // Pass the last param as a pointer to the actual return type.
   Type* return_type = xls_function_type_->return_type();
   llvm::Type* llvm_return_type =
-      type_converter_->ConvertToLlvmType(*return_type);
+      type_converter_->ConvertToLlvmType(return_type);
   param_types.push_back(
       llvm::PointerType::get(llvm_return_type, /*AddressSpace=*/0));
   param_types.push_back(llvm::Type::getInt64Ty(*bare_context));
@@ -300,7 +300,7 @@ absl::Status IrJit::CompileFunction(VisitFn visit_fn, llvm::Module* module) {
       absl::StrFormat("%s::%s", xls_package->name(), xls_function_->name());
   llvm::Function* llvm_function = llvm::cast<llvm::Function>(
       module->getOrInsertFunction(function_name, function_type).getCallee());
-  return_type_bytes_ = type_converter_->GetTypeByteSize(*return_type);
+  return_type_bytes_ = type_converter_->GetTypeByteSize(return_type);
   XLS_RETURN_IF_ERROR(
       visit_fn(module, llvm_function, /*generate_packed=*/false));
 
@@ -330,7 +330,7 @@ absl::StatusOr<Value> IrJit::Run(absl::Span<const Value> args,
   arg_buffers.reserve(unique_arg_buffers.size());
   for (const Type* type : xls_function_type_->parameters()) {
     unique_arg_buffers.push_back(
-        std::make_unique<uint8[]>(type_converter_->GetTypeByteSize(*type)));
+        std::make_unique<uint8[]>(type_converter_->GetTypeByteSize(type)));
     arg_buffers.push_back(unique_arg_buffers.back().get());
   }
 
@@ -351,7 +351,7 @@ absl::StatusOr<Value> IrJit::Run(
   return Run(positional_args, user_data);
 }
 
-absl::Status IrJit::RunWithViews(absl::Span<const uint8*> args,
+absl::Status IrJit::RunWithViews(absl::Span<uint8*> args,
                                  absl::Span<uint8> result_buffer,
                                  void* user_data) {
   absl::Span<Param* const> params = xls_function_->params();

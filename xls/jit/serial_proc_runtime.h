@@ -29,9 +29,6 @@ namespace xls {
 // single thread. While basic, this enables steady progression so that a
 // user can see how a proc's internal state (or a proc network's internal state)
 // evolves over time.
-// NOTE: This class currently only works with Value-based IrJit::Run() (instead
-// of more efficient view-based forms). This is only temporary as this design is
-// further fleshed out.
 class SerialProcRuntime {
  public:
   static absl::StatusOr<std::unique_ptr<SerialProcRuntime>> Create(
@@ -40,9 +37,6 @@ class SerialProcRuntime {
   // Execute one cycle of every proc in the network.
   absl::Status Tick();
 
-  // Returns the current internal state for the named proc.
-  absl::StatusOr<Value> GetProcState(const std::string& proc_name) const;
-
   Package* package() { return package_; }
   JitChannelQueueManager* queue_mgr() { return queue_mgr_.get(); }
 
@@ -50,7 +44,8 @@ class SerialProcRuntime {
   // Utility structure to bind a compiled proc with its current state.
   struct ProcData {
     std::unique_ptr<IrJit> jit;
-    Value state;
+    std::unique_ptr<uint8[]> value_buffer;
+    int64 value_buffer_size;
   };
 
   SerialProcRuntime(Package* package);

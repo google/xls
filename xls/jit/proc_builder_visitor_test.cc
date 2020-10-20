@@ -96,7 +96,7 @@ class ProcBuilderVisitorTest : public ::testing::Test {
         std::make_unique<LlvmTypeConverter>(&context_, *data_layout_);
 
     llvm::Type* llvm_return_type =
-        type_converter_->ConvertToLlvmType(*return_type);
+        type_converter_->ConvertToLlvmType(return_type);
     llvm_param_types.push_back(
         llvm::PointerType::get(llvm_return_type, /*AddressSpace=*/0));
 
@@ -144,7 +144,7 @@ class ProcBuilderVisitorTest : public ::testing::Test {
 
     for (const Type* type : function->GetType()->parameters()) {
       unique_arg_buffers_.push_back(
-          std::make_unique<uint8[]>(type_converter()->GetTypeByteSize(*type)));
+          std::make_unique<uint8[]>(type_converter()->GetTypeByteSize(type)));
       arg_buffers.push_back(unique_arg_buffers_.back().get());
     }
 

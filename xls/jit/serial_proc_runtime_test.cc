@@ -210,7 +210,7 @@ proc e(my_token: token, state: (), init=()) {
 // "a" starts with a "0" state and increments it every time, using it as a
 // factor in its umul.
 TEST(SerialProcRuntimeTest, CarriesState) {
-  constexpr int kNumCycles = 8;
+  constexpr int kNumCycles = 16000;
   const std::string kIrText = R"(
 package p
 

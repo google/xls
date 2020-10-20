@@ -59,7 +59,7 @@ absl::Status FunctionBuilderVisitor::BuildInternal() {
   // Store the result to the output pointer.
   Type* xls_return_type = xls_fn_->GetType()->return_type();
   llvm::Type* llvm_return_type =
-      type_converter_->ConvertToLlvmType(*xls_return_type);
+      type_converter_->ConvertToLlvmType(xls_return_type);
   if (!is_top_) {
     if (llvm_return_type->isVoidTy()) {
       builder_->CreateRetVoid();
@@ -101,8 +101,7 @@ absl::Status FunctionBuilderVisitor::BuildInternal() {
       return absl::InternalError(stream.str());
     }
 
-    int64 return_type_bytes =
-        type_converter_->GetTypeByteSize(*xls_return_type);
+    int64 return_type_bytes = type_converter_->GetTypeByteSize(xls_return_type);
     builder_->CreateMemCpy(output_arg, llvm::MaybeAlign(0), return_value_,
                            llvm::MaybeAlign(0), return_type_bytes);
   } else {
@@ -136,8 +135,7 @@ absl::Status FunctionBuilderVisitor::HandleAfterAll(AfterAll* after_all) {
 }
 
 absl::Status FunctionBuilderVisitor::HandleArray(Array* array) {
-  llvm::Type* array_type =
-      type_converter_->ConvertToLlvmType(*array->GetType());
+  llvm::Type* array_type = type_converter_->ConvertToLlvmType(array->GetType());
 
   llvm::Value* result = CreateTypedZeroValue(array_type);
   for (uint32 i = 0; i < array->size(); ++i) {
@@ -231,7 +229,7 @@ absl::Status FunctionBuilderVisitor::HandleArrayUpdate(ArrayUpdate* update) {
 
 absl::Status FunctionBuilderVisitor::HandleArrayConcat(ArrayConcat* concat) {
   llvm::Type* array_type =
-      type_converter_->ConvertToLlvmType(*concat->GetType());
+      type_converter_->ConvertToLlvmType(concat->GetType());
 
   llvm::Value* result = CreateTypedZeroValue(array_type);
 
@@ -314,8 +312,7 @@ absl::Status FunctionBuilderVisitor::HandleDynamicBitSlice(
 }
 
 absl::Status FunctionBuilderVisitor::HandleConcat(Concat* concat) {
-  llvm::Type* dest_type =
-      type_converter_->ConvertToLlvmType(*concat->GetType());
+  llvm::Type* dest_type = type_converter_->ConvertToLlvmType(concat->GetType());
   llvm::Value* base = llvm::ConstantInt::get(dest_type, 0);
 
   int current_shift = dest_type->getIntegerBitWidth();
@@ -377,7 +374,7 @@ absl::Status FunctionBuilderVisitor::HandleEncode(Encode* encode) {
   llvm::Value* input_one = llvm::ConstantInt::get(input_type, 1);
 
   llvm::Type* result_type =
-      type_converter_->ConvertToLlvmType(*encode->GetType());
+      type_converter_->ConvertToLlvmType(encode->GetType());
   llvm::Value* result = llvm::ConstantInt::get(result_type, 0);
 
   llvm::Value* result_zero = llvm::ConstantInt::get(result_type, 0);
@@ -429,7 +426,7 @@ absl::Status FunctionBuilderVisitor::HandleLiteral(Literal* literal) {
   Type* xls_type = literal->GetType();
   XLS_ASSIGN_OR_RETURN(
       llvm::Value * llvm_literal,
-      type_converter_->ToLlvmConstant(*xls_type, literal->value()));
+      type_converter_->ToLlvmConstant(xls_type, literal->value()));
 
   return StoreResult(literal, llvm_literal);
 }
@@ -625,7 +622,7 @@ absl::Status FunctionBuilderVisitor::HandleParam(Param* param) {
   // as a single formal parameter, hence the 0 constant here.
   llvm::Argument* arg_pointer = llvm_function->getArg(0);
 
-  llvm::Type* arg_type = type_converter_->ConvertToLlvmType(*param->GetType());
+  llvm::Type* arg_type = type_converter_->ConvertToLlvmType(param->GetType());
   llvm::Type* llvm_arg_ptr_type =
       llvm::PointerType::get(arg_type, /*AddressSpace=*/0);
 
@@ -703,7 +700,7 @@ absl::StatusOr<llvm::Value*> FunctionBuilderVisitor::UnpackParamBuffer(
       Type* element_type = array_type->element_type();
 
       llvm::Value* array =
-          CreateTypedZeroValue(type_converter_->ConvertToLlvmType(*array_type));
+          CreateTypedZeroValue(type_converter_->ConvertToLlvmType(array_type));
       for (uint32 i = 0; i < array_type->size(); i++) {
         XLS_ASSIGN_OR_RETURN(llvm::Value * element,
                              UnpackParamBuffer(element_type, param_buffer));
@@ -717,7 +714,7 @@ absl::StatusOr<llvm::Value*> FunctionBuilderVisitor::UnpackParamBuffer(
       // Create an empty tuple and plop in every element.
       TupleType* tuple_type = param_type->AsTupleOrDie();
       llvm::Value* tuple =
-          CreateTypedZeroValue(type_converter_->ConvertToLlvmType(*tuple_type));
+          CreateTypedZeroValue(type_converter_->ConvertToLlvmType(tuple_type));
       for (int32 i = tuple_type->size() - 1; i >= 0; i--) {
         // Tuple elements are stored MSB -> LSB, so we need to extract in
         // reverse order to match native layout.
@@ -826,8 +823,7 @@ absl::Status FunctionBuilderVisitor::HandleSub(BinOp* binop) {
 }
 
 absl::Status FunctionBuilderVisitor::HandleTuple(Tuple* tuple) {
-  llvm::Type* tuple_type =
-      type_converter_->ConvertToLlvmType(*tuple->GetType());
+  llvm::Type* tuple_type = type_converter_->ConvertToLlvmType(tuple->GetType());
 
   llvm::Value* result = CreateTypedZeroValue(tuple_type);
   for (uint32 i = 0; i < tuple->operand_count(); ++i) {
@@ -920,7 +916,7 @@ absl::Status FunctionBuilderVisitor::HandleArithOp(ArithOp* arith_op) {
           "Unsupported arithmetic op:", OpToString(arith_op->op())));
   }
   llvm::Type* result_type =
-      type_converter_->ConvertToLlvmType(*arith_op->GetType());
+      type_converter_->ConvertToLlvmType(arith_op->GetType());
   llvm::Value* lhs = builder_->CreateIntCast(
       node_map_.at(arith_op->operands()[0]), result_type, is_signed);
   llvm::Value* rhs = builder_->CreateIntCast(
@@ -1116,32 +1112,32 @@ absl::StatusOr<llvm::Constant*> FunctionBuilderVisitor::ConvertToLlvmConstant(
     Type* type, const Value& value) {
   if (type->IsBits()) {
     return type_converter_->ToLlvmConstant(
-        type_converter_->ConvertToLlvmType(*type), value);
+        type_converter_->ConvertToLlvmType(type), value);
   } else if (type->IsTuple()) {
     TupleType* tuple_type = type->AsTupleOrDie();
     std::vector<llvm::Constant*> llvm_elements;
     for (int i = 0; i < tuple_type->size(); ++i) {
       XLS_ASSIGN_OR_RETURN(llvm::Constant * llvm_element,
                            type_converter_->ToLlvmConstant(
-                               *tuple_type->element_type(i), value.element(i)));
+                               tuple_type->element_type(i), value.element(i)));
       llvm_elements.push_back(llvm_element);
     }
 
-    llvm::Type* llvm_type = type_converter_->ConvertToLlvmType(*type);
+    llvm::Type* llvm_type = type_converter_->ConvertToLlvmType(type);
     return llvm::ConstantStruct::get(llvm::cast<llvm::StructType>(llvm_type),
                                      llvm_elements);
   } else if (type->IsArray()) {
     const ArrayType* array_type = type->AsArrayOrDie();
     std::vector<llvm::Constant*> elements;
     for (const Value& element : value.elements()) {
-      XLS_ASSIGN_OR_RETURN(llvm::Constant * llvm_element,
-                           type_converter_->ToLlvmConstant(
-                               *array_type->element_type(), element));
+      XLS_ASSIGN_OR_RETURN(
+          llvm::Constant * llvm_element,
+          type_converter_->ToLlvmConstant(array_type->element_type(), element));
       elements.push_back(llvm_element);
     }
 
     llvm::Type* element_type =
-        type_converter_->ConvertToLlvmType(*array_type->element_type());
+        type_converter_->ConvertToLlvmType(array_type->element_type());
     return llvm::ConstantArray::get(
         llvm::ArrayType::get(element_type, array_type->size()), elements);
   }
@@ -1163,7 +1159,7 @@ absl::StatusOr<llvm::Function*> FunctionBuilderVisitor::GetModuleFunction(
   std::vector<llvm::Type*> param_types(xls_function->params().size() + 1);
   for (int i = 0; i < xls_function->params().size(); ++i) {
     param_types[i] =
-        type_converter_->ConvertToLlvmType(*xls_function->param(i)->GetType());
+        type_converter_->ConvertToLlvmType(xls_function->param(i)->GetType());
   }
   // We need to add an extra param to every function call to carry our "user
   // data", i.e., callback info.
@@ -1174,7 +1170,7 @@ absl::StatusOr<llvm::Function*> FunctionBuilderVisitor::GetModuleFunction(
 
   Type* return_type = xls_function->return_value()->GetType();
   llvm::Type* llvm_return_type =
-      type_converter_->ConvertToLlvmType(*return_type);
+      type_converter_->ConvertToLlvmType(return_type);
 
   llvm::FunctionType* function_type = llvm::FunctionType::get(
       llvm_return_type,
