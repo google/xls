@@ -41,22 +41,28 @@ class JitChannelQueue {
   void Send(uint8* data, int64 num_bytes) {
     auto buffer = std::make_unique<uint8[]>(num_bytes);
     memcpy(buffer.get(), data, num_bytes);
+    absl::MutexLock lock(&mutex_);
     the_queue_.push_back(std::move(buffer));
   }
 
   // Called to pull data off of this queue/FIFO.
   void Recv(uint8* buffer, int64 num_bytes) {
+    absl::MutexLock lock(&mutex_);
     memcpy(buffer, the_queue_.front().get(), num_bytes);
     the_queue_.pop_front();
   }
 
-  bool Empty() { return the_queue_.empty(); }
+  bool Empty() {
+    absl::MutexLock lock(&mutex_);
+    return the_queue_.empty();
+  }
 
   int64 channel_id() { return channel_id_; }
 
  protected:
   int64 channel_id_;
-  std::deque<std::unique_ptr<uint8[]>> the_queue_;
+  absl::Mutex mutex_;
+  std::deque<std::unique_ptr<uint8[]>> the_queue_ GUARDED_BY(mutex_);
 };
 
 // JitChannelQueue respository. Holds the set of queues known by a given proc.
@@ -69,7 +75,7 @@ class JitChannelQueueManager {
 
   absl::StatusOr<JitChannelQueue*> GetQueueById(int64 channel_id) {
     XLS_RET_CHECK(queues_.contains(channel_id));
-    return &queues_.at(channel_id);
+    return queues_.at(channel_id).get();
   }
 
  private:
@@ -77,7 +83,7 @@ class JitChannelQueueManager {
   absl::Status Init();
 
   Package* package_;
-  absl::flat_hash_map<int64, JitChannelQueue> queues_;
+  absl::flat_hash_map<int64, std::unique_ptr<JitChannelQueue>> queues_;
 };
 
 }  // namespace xls

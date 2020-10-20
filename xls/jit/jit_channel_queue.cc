@@ -30,7 +30,7 @@ JitChannelQueueManager::JitChannelQueueManager(Package* package)
 
 absl::Status JitChannelQueueManager::Init() {
   for (const auto& chan : package_->channels()) {
-    queues_.insert({chan->id(), JitChannelQueue(chan->id())});
+    queues_.insert({chan->id(), std::make_unique<JitChannelQueue>(chan->id())});
   }
   return absl::OkStatus();
 }
