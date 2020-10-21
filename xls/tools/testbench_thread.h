@@ -16,7 +16,6 @@
 #define XLS_TOOLS_TESTBENCH_THREAD_H_
 
 #include <functional>
-#include <thread>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -24,6 +23,7 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/thread.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
 
@@ -149,7 +149,7 @@ class TestbenchThreadBase {
     if (thread_) {
       return;
     }
-    thread_ = absl::make_unique<std::thread>([this]() { RunInternal(); });
+    thread_ = absl::make_unique<Thread>([this]() { RunInternal(); });
   }
 
   void RunInternal() {
@@ -202,7 +202,7 @@ class TestbenchThreadBase {
 
   void Join() {
     if (thread_) {
-      thread_->join();
+      thread_->Join();
     }
     thread_.reset();
   }
@@ -258,7 +258,7 @@ class TestbenchThreadBase {
   std::unique_ptr<Package> package_;
   std::unique_ptr<JitWrapperT> jit_wrapper_;
 
-  std::unique_ptr<std::thread> thread_;
+  std::unique_ptr<Thread> thread_;
 };
 
 }  // namespace xls

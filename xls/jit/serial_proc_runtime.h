@@ -15,11 +15,10 @@
 #define XLS_JIT_SERIAL_PROC_RUNTIME_H_
 
 #include <memory>
-// TODO(rspringer): Replace this with an XLS portability header.
-#include <thread>  // NOLINT
 #include <vector>
 
 #include "absl/status/statusor.h"
+#include "xls/common/thread.h"
 #include "xls/ir/package.h"
 #include "xls/jit/ir_jit.h"
 #include "xls/jit/jit_channel_queue.h"
@@ -59,7 +58,7 @@ class SerialProcRuntime {
       kDone,
       kCancelled,
     };
-    std::thread thread;
+    std::unique_ptr<Thread> thread;
     std::unique_ptr<IrJit> jit;
 
     // The size of and actual buffer used to hold the Proc's carried state.

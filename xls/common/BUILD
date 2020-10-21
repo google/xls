@@ -219,6 +219,12 @@ cc_test(
 )
 
 cc_library(
+    name = "thread",
+    srcs = ["thread.inc"],
+    hdrs = ["thread.h"],
+)
+
+cc_library(
     name = "visitor",
     hdrs = ["visitor.h"],
 )

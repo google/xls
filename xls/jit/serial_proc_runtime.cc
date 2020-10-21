@@ -114,7 +114,7 @@ SerialProcRuntime::~SerialProcRuntime() {
       absl::MutexLock lock(&thread_data->mutex);
       thread_data->thread_state = ThreadData::State::kCancelled;
     }
-    thread_data->thread.join();
+    thread_data->thread->Join();
   }
 }
 
@@ -144,7 +144,8 @@ absl::Status SerialProcRuntime::Init() {
     // either running or cancelled, so it'll be waiting for us when we actually
     // call Tick().
     auto thread_ptr = threads_.back().get();
-    thread_ptr->thread = std::thread([thread_ptr]() { ThreadFn(thread_ptr); });
+    thread_ptr->thread =
+        std::make_unique<Thread>([thread_ptr]() { ThreadFn(thread_ptr); });
   }
 
   return absl::OkStatus();

@@ -13,12 +13,11 @@
 // limitations under the License.
 #include "xls/jit/serial_proc_runtime.h"
 
-#include <thread>
-
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/thread.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
 #include "xls/jit/jit_channel_queue.h"
@@ -327,7 +326,7 @@ proc b(my_token: token, state: (), init=()) {
   XLS_ASSERT_OK_AND_ASSIGN(auto runtime, SerialProcRuntime::Create(p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(auto input_queue,
                            runtime->queue_mgr()->GetQueueById(0));
-  std::thread thread([input_queue]() {
+  Thread thread([input_queue]() {
     // Give enough time for the network to block, then send in the missing data.
     sleep(1);
     int32 data = 42;
@@ -340,7 +339,7 @@ proc b(my_token: token, state: (), init=()) {
   int32 data;
   output_queue->Recv(reinterpret_cast<uint8*>(&data), sizeof(data));
   EXPECT_EQ(data, 42);
-  thread.join();
+  thread.Join();
 }
 
 }  // namespace

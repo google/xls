@@ -253,6 +253,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:cleanup",
+        "//xls/common:thread",
         "//xls/common/status:status_macros",
         "//xls/ir",
     ],
@@ -264,6 +265,7 @@ cc_test(
     deps = [
         ":jit_channel_queue",
         ":serial_proc_runtime",
+        "//xls/common:thread",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/ir",
