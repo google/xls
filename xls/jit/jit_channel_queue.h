@@ -39,6 +39,9 @@ class JitChannelQueue {
 
   // Called to push data onto this queue/FIFO.
   void Send(uint8* data, int64 num_bytes) {
+#ifdef ABSL_HAVE_MEMORY_SANITIZER
+    __msan_unpoison(data, num_bytes);
+#endif
     auto buffer = std::make_unique<uint8[]>(num_bytes);
     memcpy(buffer.get(), data, num_bytes);
     absl::MutexLock lock(&mutex_);
