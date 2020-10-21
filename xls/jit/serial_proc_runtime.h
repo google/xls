@@ -15,6 +15,8 @@
 #define XLS_JIT_SERIAL_PROC_RUNTIME_H_
 
 #include <memory>
+// TODO(rspringer): Replace this with an XLS portability header.
+#include <thread>  // NOLINT
 #include <vector>
 
 #include "absl/status/statusor.h"
@@ -27,12 +29,19 @@ namespace xls {
 // SerialProcRuntime is the "base case" for Proc runtimes. For each clock tick,
 // it iterates through the procs in its package and runs them once, all within a
 // single thread. While basic, this enables steady progression so that a
-// user can see how a proc's internal state (or a proc network's internal state)
+// user can see how a Proc's internal state (or a proc network's internal state)
 // evolves over time.
+// To be able to block/suspect a Proc when waiting on input, we use a thread per
+// Proc. When a receive is done on an empty queue, that Proc thread will
+// conditional-wait until data becomes available, at which point it will
+// continue execution. In this way, a single Tick() may span multiple thread
+// activations and suspends, but will terminate once the cycle has completed or
+// when a deadlock is detected.
 class SerialProcRuntime {
  public:
   static absl::StatusOr<std::unique_ptr<SerialProcRuntime>> Create(
       Package* package);
+  ~SerialProcRuntime();
 
   // Execute one cycle of every proc in the network.
   absl::Status Tick();
@@ -41,18 +50,52 @@ class SerialProcRuntime {
   JitChannelQueueManager* queue_mgr() { return queue_mgr_.get(); }
 
  private:
-  // Utility structure to bind a compiled proc with its current state.
-  struct ProcData {
+  // Utility structure to hold state needed by each proc thread.
+  struct ThreadData {
+    enum class State {
+      kPending,
+      kRunning,
+      kBlocked,
+      kDone,
+      kCancelled,
+    };
+    std::thread thread;
     std::unique_ptr<IrJit> jit;
-    std::unique_ptr<uint8[]> value_buffer;
-    int64 value_buffer_size;
+
+    // The size of and actual buffer used to hold the Proc's carried state.
+    int64 proc_state_size;
+    std::unique_ptr<uint8[]> proc_state;
+
+    absl::Mutex mutex;
+    State thread_state GUARDED_BY(mutex);
+
+    // True if the proc sent out data during its last activation. Used to detect
+    // network deadlock.
+    bool sent_data GUARDED_BY(mutex);
+
+    // True if this proc is blocked on data coming from "outside" the network,
+    // i.e., a receive_only channel. Stops network deadlock false positives.
+    int64 blocking_channel GUARDED_BY(mutex);
   };
 
   SerialProcRuntime(Package* package);
   absl::Status Init();
+  static void ThreadFn(ThreadData* thread_data);
+
+  // Proc Receive/ReceiveIf handler function.
+  static void RecvFn(JitChannelQueue* queue, Receive* recv, uint8* data,
+                     int64 data_bytes, void* user_data);
+
+  // Proc Send/SendIf handler function.
+  static void SendFn(JitChannelQueue* queue, Send* send, uint8* data,
+                     int64 data_bytes, void* user_data);
+  // Blocks the running thread until the given ThreadData is in one of the
+  // states specified by "states".
+  static void AwaitState(ThreadData* thread_data,
+                         const absl::flat_hash_set<ThreadData::State>& states);
 
   Package* package_;
-  std::vector<ProcData> procs_;
+  std::vector<std::unique_ptr<ThreadData>> threads_;
   std::unique_ptr<JitChannelQueueManager> queue_mgr_;
 };
 
