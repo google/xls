@@ -1266,7 +1266,7 @@ void FunctionBuilderVisitor::UnpoisonOutputBuffer() {
   std::vector<llvm::Value*> args(
       {out_param,
        llvm::ConstantInt::get(
-           size_t_type, type_converter()->GetTypeByteSize(*xls_return_type))});
+           size_t_type, type_converter()->GetTypeByteSize(xls_return_type))});
   builder()->CreateCall(fn_type, fn_ptr, args);
 #endif
 }
