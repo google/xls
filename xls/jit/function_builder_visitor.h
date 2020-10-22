@@ -23,7 +23,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "xls/ir/dfs_visitor.h"
-#include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/jit/llvm_type_converter.h"
 
@@ -108,6 +108,11 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   absl::Status HandleULt(CompareOp* lt) override;
   absl::Status HandleXorReduce(BitwiseReductionOp* op) override;
   absl::Status HandleZeroExtend(ExtendOp* zero_ext) override;
+
+  // Returns the node of the function/proc which is used as the return value of
+  // the LLVM function. This is necessary because procs do not have return
+  // values. In this case the recurrent next-state value is used.
+  static Node* GetEffectiveReturnValue(FunctionBase* function_base);
 
  protected:
   FunctionBuilderVisitor(llvm::Module* module, llvm::Function* llvm_fn,
@@ -208,10 +213,6 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   // storage to extract elements (i.e., for GEPs), it makes sense to only create
   // and store the array once.
   absl::flat_hash_map<llvm::Value*, llvm::AllocaInst*> array_storage_;
-
-  // The entry point into LLVM space - the function specified in the constructor
-  // to the top-level IrJit object.
-  absl::optional<Function*> llvm_entry_fn_;
 };
 
 }  // namespace xls

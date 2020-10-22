@@ -549,7 +549,7 @@ absl::Status IrTranslator::HandleParam(Param* param) {
     // Find the index of this param in the function, and pull that one out of
     // the imported set.
     XLS_ASSIGN_OR_RETURN(int64 param_index,
-                         param->function()->GetParamIndex(param));
+                         param->function_base()->GetParamIndex(param));
     value = imported_params_.value().at(param_index);
   } else {
     XLS_ASSIGN_OR_RETURN(value, CreateZ3Param(type, param->name()));

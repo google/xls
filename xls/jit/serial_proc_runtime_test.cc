@@ -56,7 +56,7 @@ proc a(my_token: token, state: (), init=()) {
   tuple_index.4: bits[32] = tuple_index(receive.2, index=1)
   umul.5: bits[32] = umul(literal.1, tuple_index.4)
   send.6: token = send(tuple_index.3, data=[umul.5], channel_id=1)
-  ret tuple.7: (token, ()) = tuple(send.6, state)
+  next (send.6, state)
 }
 
 proc b(my_token: token, state: (), init=()) {
@@ -66,7 +66,7 @@ proc b(my_token: token, state: (), init=()) {
   tuple_index.400: bits[32] = tuple_index(receive.200, index=1)
   umul.500: bits[32] = umul(literal.100, tuple_index.400)
   send.600: token = send(tuple_index.300, data=[umul.500], channel_id=2)
-  ret tuple.700: (token, ()) = tuple(send.600, state)
+  next (send.600, state)
 }
 )";
 
@@ -129,7 +129,7 @@ proc a(my_token: token, state: (), init=()) {
   tuple_index.4: bits[32] = tuple_index(receive.2, index=1)
   umul.5: bits[32] = umul(literal.1, tuple_index.4)
   send.6: token = send(tuple_index.3, data=[umul.5], channel_id=2)
-  ret tuple.7: (token, ()) = tuple(send.6, state)
+  next (send.6, state)
 }
 
 proc b(my_token: token, state: (), init=()) {
@@ -139,7 +139,7 @@ proc b(my_token: token, state: (), init=()) {
   tuple_index.104: bits[32] = tuple_index(receive.102, index=1)
   umul.105: bits[32] = umul(literal.101, tuple_index.104)
   send.106: token = send(tuple_index.103, data=[umul.105], channel_id=3)
-  ret tuple.107: (token, ()) = tuple(send.106, state)
+  next (send.106, state)
 }
 
 proc c(my_token: token, state: (), init=()) {
@@ -154,7 +154,7 @@ proc c(my_token: token, state: (), init=()) {
   umul.209: bits[32] = umul(literal.201, tuple_index.207)
   send.210: token = send(tuple_index.206, data=[umul.208], channel_id=4)
   send.211: token = send(send.210, data=[umul.209], channel_id=5)
-  ret tuple.212: (token, ()) = tuple(send.211, state)
+  next (send.211, state)
 }
 
 proc d(my_token: token, state: (), init=()) {
@@ -164,7 +164,7 @@ proc d(my_token: token, state: (), init=()) {
   tuple_index.304: bits[32] = tuple_index(receive.302, index=1)
   umul.305: bits[32] = umul(literal.301, tuple_index.304)
   send.306: token = send(tuple_index.303, data=[umul.305], channel_id=6)
-  ret tuple.307: (token, ()) = tuple(send.306, state)
+  next (send.306, state)
 }
 
 proc e(my_token: token, state: (), init=()) {
@@ -174,7 +174,7 @@ proc e(my_token: token, state: (), init=()) {
   tuple_index.404: bits[32] = tuple_index(receive.402, index=1)
   umul.405: bits[32] = umul(literal.401, tuple_index.404)
   send.406: token = send(tuple_index.403, data=[umul.405], channel_id=7)
-  ret tuple.407: (token, ()) = tuple(send.406, state)
+  next (send.406, state)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, Parser::ParsePackage(kIrText));
@@ -227,7 +227,7 @@ proc a(my_token: token, state: (bits[32]), init=(1)) {
   literal.7: bits[32] = literal(value=1)
   add.8: bits[32] = add(tuple_index.1, literal.7)
   tuple.9: (bits[32]) = tuple(add.8)
-  ret tuple.10: (token, (bits[32])) = tuple(send.6, tuple.9)
+  next (send.6, tuple.9)
 }
 
 proc b(my_token: token, state: (bits[32]), init=()) {
@@ -237,7 +237,7 @@ proc b(my_token: token, state: (bits[32]), init=()) {
   tuple_index.400: bits[32] = tuple_index(receive.200, index=1)
   umul.500: bits[32] = umul(literal.100, tuple_index.400)
   send.600: token = send(tuple_index.300, data=[umul.500], channel_id=2)
-  ret tuple.700: (token, ()) = tuple(send.600, state)
+  next (send.600, state)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, Parser::ParsePackage(kIrText));
@@ -279,7 +279,7 @@ proc a(my_token: token, state: bits[1], init=0) {
   literal.1: bits[32] = literal(value=1)
   send.3: token = send(my_token, data=[literal.1], channel_id=1)
   send_if.4: token = send_if(send.3, state, data=[literal.1], channel_id=2)
-  ret tuple.5: (token, bits[1]) = tuple(send_if.4, state)
+  next (send_if.4, state)
 }
 
 proc b(my_token: token, state: (), init=()) {
@@ -287,7 +287,7 @@ proc b(my_token: token, state: (), init=()) {
   tuple_index.102: token = tuple_index(receive.101, index=0)
   receive.103: (token, bits[32]) = receive(tuple_index.102, channel_id=2)
   tuple_index.104: token = tuple_index(receive.103, index=0)
-  ret tuple.107: (token, ()) = tuple(tuple_index.104, state)
+  next (tuple_index.104, state)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, Parser::ParsePackage(kIrText));
@@ -311,7 +311,7 @@ proc a(my_token: token, state: (), init=()) {
   tuple_index.2: token = tuple_index(receive.1, index=0)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
   send.4: token = send(tuple_index.2, data=[tuple_index.3], channel_id=1)
-  ret tuple.5: (token, ()) = tuple(send.4, state)
+  next (send.4, state)
 }
 
 proc b(my_token: token, state: (), init=()) {
@@ -319,7 +319,7 @@ proc b(my_token: token, state: (), init=()) {
   tuple_index.102: token = tuple_index(receive.101, index=0)
   tuple_index.103: bits[32] = tuple_index(receive.101, index=1)
   send.104: token = send(tuple_index.102, data=[tuple_index.103], channel_id=2)
-  ret tuple.105: (token, ()) = tuple(send.104, state)
+  next (send.104, state)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, Parser::ParsePackage(kIrText));

@@ -61,7 +61,7 @@ ret add.3: bits[32] = add(x, y)
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_to, ParseFunction(R"(
 fn add_to(x: bits[32], y: bits[32]) -> bits[32] {
-ret x
+ret x: bits[32] = param(name=x)
 }
 )",
                                                              p.get()));
@@ -70,7 +70,7 @@ ret x
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * add_clone,
       add->CloneInNewFunction({func_to->param(1), func_to->param(0)}, func_to));
-  EXPECT_EQ(add_clone->function(), func_to);
+  EXPECT_EQ(add_clone->function_base(), func_to);
 }
 
 TEST_F(NodeTest, CloneWithOperandsInDifferentFunctions) {
@@ -84,7 +84,7 @@ ret add.3: bits[32] = add(x, y)
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_to, ParseFunction(R"(
 fn add_to(x: bits[32], y: bits[32]) -> bits[32] {
-ret x
+ret x: bits[32] = param(name=x)
 }
 )",
                                                              &p));

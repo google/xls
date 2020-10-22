@@ -26,18 +26,19 @@
 #include "xls/ir/function.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/verifier.h"
 
 namespace xls {
 
 Node::Node(Op op, Type* type, absl::optional<SourceLocation> loc,
-           absl::string_view name, FunctionBase* function)
-    : function_(function),
-      id_(function_->package()->GetNextNodeId()),
+           absl::string_view name, FunctionBase* function_base)
+    : function_base_(function_base),
+      id_(function_base_->package()->GetNextNodeId()),
       op_(op),
       type_(type),
       loc_(loc),
-      name_(name.empty() ? "" : function_->UniquifyNodeName(name)) {}
+      name_(name.empty() ? "" : function_base_->UniquifyNodeName(name)) {}
 
 void Node::AddOperand(Node* operand) {
   XLS_VLOG(3) << " Adding operand " << operand->GetName() << " as #"
@@ -62,7 +63,7 @@ void Node::AddOptionalOperand(absl::optional<Node*> operand) {
 
 absl::Status Node::AddNodeToFunctionAndReplace(
     std::unique_ptr<Node> replacement) {
-  Node* replacement_ptr = function()->AddNode(std::move(replacement));
+  Node* replacement_ptr = function_base()->AddNode(std::move(replacement));
   XLS_RETURN_IF_ERROR(VerifyNode(replacement_ptr));
   return ReplaceUsesWith(replacement_ptr).status();
 }
@@ -326,7 +327,7 @@ std::string Node::GetName() const {
 }
 
 void Node::SetName(absl::string_view name) {
-  name_ = function_->UniquifyNodeName(name);
+  name_ = function_base()->UniquifyNodeName(name);
 }
 
 void Node::ClearName() {
@@ -582,10 +583,13 @@ absl::StatusOr<bool> Node::ReplaceUsesWith(Node* replacement) {
     XLS_RET_CHECK(user->ReplaceOperand(this, replacement));
     changed = true;
   }
-  if (this == function()->return_value()) {
-    XLS_RETURN_IF_ERROR(function()->set_return_value(replacement));
-    changed = true;
-  }
+
+  // Handle replacement of nodes which have special positions within the
+  // enclosed FunctionBase (function return value, proc next state, etc).
+  XLS_ASSIGN_OR_RETURN(bool implicit_uses_changed,
+                       ReplaceImplicitUsesWith(replacement));
+  changed |= implicit_uses_changed;
+
   // If the replacement does not have an assigned name but this node does, move
   // the name over to preserve the name. If this is a parameter node then don't
   // move the name because we cannot clear the name of a parameter node.
@@ -594,6 +598,29 @@ absl::StatusOr<bool> Node::ReplaceUsesWith(Node* replacement) {
     // would add a suffix because (clearly) the name already exists.
     replacement->name_ = name_;
     ClearName();
+  }
+  return changed;
+}
+
+absl::StatusOr<bool> Node::ReplaceImplicitUsesWith(Node* replacement) {
+  bool changed = false;
+  if (function_base()->IsFunction()) {
+    Function* function = function_base()->AsFunctionOrDie();
+    if (this == function->return_value()) {
+      XLS_RETURN_IF_ERROR(function->set_return_value(replacement));
+      changed = true;
+    }
+  } else {
+    XLS_RET_CHECK(function_base()->IsProc());
+    Proc* proc = function_base()->AsProcOrDie();
+    if (this == proc->NextToken()) {
+      XLS_RETURN_IF_ERROR(proc->SetNextToken(replacement));
+      changed = true;
+    }
+    if (this == proc->NextState()) {
+      XLS_RETURN_IF_ERROR(proc->SetNextState(replacement));
+      changed = true;
+    }
   }
   return changed;
 }
@@ -607,6 +634,6 @@ bool Node::OpIn(const std::vector<Op>& choices) {
   return false;
 }
 
-Package* Node::package() const { return function()->package(); }
+Package* Node::package() const { return function_base()->package(); }
 
 }  // namespace xls

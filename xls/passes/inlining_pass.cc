@@ -36,7 +36,7 @@ bool ShouldInline(Invoke* invoke) {
 Invoke* FindInvoke(FunctionBase* f) {
   for (Node* node : TopoSort(f)) {
     if (node->Is<Invoke>() &&
-        (node == f->return_value() || !node->users().empty()) &&
+        (f->HasImplicitUse(node) || !node->users().empty()) &&
         ShouldInline(node->As<Invoke>())) {
       return node->As<Invoke>();
     }
@@ -103,7 +103,7 @@ absl::Status InlineInvoke(Invoke* invoke) {
     }
     XLS_ASSIGN_OR_RETURN(
         Node * new_node,
-        node->CloneInNewFunction(new_operands, invoke->function()));
+        node->CloneInNewFunction(new_operands, invoke->function_base()));
     invoked_node_to_replacement[node] = new_node;
   }
 
@@ -143,7 +143,7 @@ absl::Status InlineInvoke(Invoke* invoke) {
                           ->ReplaceUsesWith(invoked_node_to_replacement.at(
                               invoked->return_value()))
                           .status());
-  return invoke->function()->RemoveNode(invoke);
+  return invoke->function_base()->RemoveNode(invoke);
 }
 
 }  // namespace

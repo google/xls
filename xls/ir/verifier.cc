@@ -1113,10 +1113,10 @@ absl::Status VerifyTokenConnectivity(Proc* proc) {
     }
   }
 
-  // Verify connectivity to return value.
+  // Verify connectivity to next token value.
   absl::flat_hash_set<Node*> connected_to_return;
   visited.clear();
-  maybe_add_to_worklist(proc->return_value());
+  maybe_add_to_worklist(proc->NextToken());
   while (!worklist.empty()) {
     Node* node = worklist.front();
     worklist.pop_front();
@@ -1138,18 +1138,18 @@ absl::Status VerifyTokenConnectivity(Proc* proc) {
       }
       if (!connected_to_return.contains(node)) {
         return absl::InternalError(absl::StrFormat(
-            "Send and receive nodes must be connected to the return value "
+            "Send and receive nodes must be connected to the next token value "
             "via a path of tokens: %s.",
             node->GetName()));
       }
     }
   }
 
-  if (!connected_to_param.contains(proc->return_value())) {
+  if (!connected_to_param.contains(proc->NextToken())) {
     return absl::InternalError(absl::StrFormat(
-        "Return value of proc must be connected to the token parameter "
+        "Next token value of proc must be connected to the token parameter "
         "via a path of tokens: %s.",
-        proc->return_value()->GetName()));
+        proc->NextToken()->GetName()));
   }
 
   return absl::OkStatus();
@@ -1313,20 +1313,24 @@ absl::Status VerifyProc(Proc* proc) {
 
   XLS_RETURN_IF_ERROR(VerifyFunctionOrProc(proc));
 
-  // A Proc should have two parameters: the recurent state (parameter 0) and a
-  // token (parameter 1).
+  // A Proc should have two parameters: a token (parameter 0), and the recurent
+  // state (parameter 1).
   XLS_RET_CHECK_EQ(proc->params().size(), 2) << absl::StreamFormat(
       "Proc %s does not have two parameters", proc->name());
 
+  XLS_RET_CHECK_EQ(proc->param(0), proc->TokenParam());
   XLS_RET_CHECK_EQ(proc->param(0)->GetType(), proc->package()->GetTokenType())
       << absl::StreamFormat("Parameter 0 of a proc %s is not token type, is %s",
                             proc->name(),
                             proc->param(1)->GetType()->ToString());
 
-  // Return type of proc must be a 2-tuple of a token and the recurrent state.
-  XLS_RET_CHECK_EQ(proc->return_value()->GetType(),
-                   proc->package()->GetTupleType(
-                       {proc->package()->GetTokenType(), proc->StateType()}));
+  XLS_RET_CHECK_EQ(proc->param(1), proc->StateParam());
+
+  // Next token must be token type.
+  XLS_RET_CHECK(proc->NextToken()->GetType()->IsToken());
+
+  // Next state must be state type.
+  XLS_RET_CHECK_EQ(proc->NextState()->GetType(), proc->StateType());
 
   // Verify that all send/receive nodes are connected to the token parameter and
   // the return value via paths of tokens.
@@ -1342,10 +1346,11 @@ absl::Status VerifyNode(Node* node) {
     XLS_RET_CHECK(operand->HasUser(node))
         << "Expected " << node->GetName() << " to be a user of "
         << operand->GetName();
-    XLS_RET_CHECK(operand->function() == node->function())
+    XLS_RET_CHECK(operand->function_base() == node->function_base())
         << StrFormat("Operand %s of node %s not in same function (%s vs %s).",
                      operand->GetName(), node->GetName(),
-                     operand->function()->name(), node->function()->name());
+                     operand->function_base()->name(),
+                     node->function_base()->name());
   }
   for (Node* user : node->users()) {
     XLS_RET_CHECK(absl::c_linear_search(user->operands(), node))

@@ -25,25 +25,56 @@ namespace m = ::xls::op_matchers;
 namespace xls {
 namespace {
 
+using status_testing::StatusIs;
+using ::testing::HasSubstr;
+
 class ProcTest : public IrTestBase {};
 
 TEST_F(ProcTest, SimpleProc) {
   auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, ParseProc(R"(
-proc foo(in_token: token, in_state: bits[32], init=42) {
-  literal.1: bits[32] = literal(value=1)
-  add.2: bits[32] = add(literal.1, in_state)
-  ret tuple.3: (token, bits[32]) = tuple(in_token, add.2)
-}
-)",
-                                                  p.get()));
-  EXPECT_EQ(proc->name(), "foo");
-  EXPECT_EQ(proc->node_count(), 5);
-  EXPECT_EQ(proc->return_value()->op(), Op::kTuple);
+  ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "st",
+                 p.get());
+  BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetStateParam());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam(), add));
 
-  EXPECT_THAT(proc->return_value(),
-              m::Tuple(m::Param("in_token"),
-                       m::Add(m::Literal(1), m::Param("in_state"))));
+  EXPECT_FALSE(proc->IsFunction());
+  EXPECT_TRUE(proc->IsProc());
+
+  EXPECT_EQ(proc->DumpIr(), R"(proc p(tkn: token, st: bits[32], init=42) {
+  literal.3: bits[32] = literal(value=1, id=3)
+  add.4: bits[32] = add(literal.3, st, id=4)
+  next (tkn, add.4)
+}
+)");
+}
+
+TEST_F(ProcTest, SetTokenState) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "st",
+                 p.get());
+  BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetStateParam());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build(pb.AfterAll({pb.GetTokenParam()}), add));
+
+  EXPECT_THAT(proc->NextToken(), m::AfterAll(m::Param("tkn")));
+  XLS_ASSERT_OK(proc->SetNextToken(proc->TokenParam()));
+  EXPECT_THAT(proc->NextToken(), m::Param("tkn"));
+
+  EXPECT_THAT(proc->NextState(), m::Add());
+  XLS_ASSERT_OK(proc->SetNextState(proc->StateParam()));
+  EXPECT_THAT(proc->NextState(), m::Param("st"));
+
+  // Try setting invalid typed nodes as the next token/state.
+  EXPECT_THAT(
+      proc->SetNextToken(add.node()),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Cannot set next token to add.4, expected token type")));
+
+  EXPECT_THAT(proc->SetNextState(proc->TokenParam()),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Cannot set next state to tkn; type token "
+                                 "does not match proc state type bits[32]")));
 }
 
 }  // namespace

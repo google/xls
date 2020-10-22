@@ -771,12 +771,12 @@ absl::StatusOr<Function*> FunctionBuilder::BuildWithReturnValue(
     return absl::InvalidArgumentError("Could not build IR: " + msg);
   }
   XLS_RET_CHECK_EQ(return_value.builder(), this);
-  XLS_RETURN_IF_ERROR(function_->set_return_value(return_value.node()));
   // down_cast the std::unique_ptr<FunctionBase> to std::unique_ptr<Function>.
   // We know this is safe because FunctionBuilder constructs and passes a
   // Function to BuilderBase constructor so function_ is always a Function.
   Function* f = package()->AddFunction(
       absl::WrapUnique(down_cast<Function*>(function_.release())));
+  XLS_RETURN_IF_ERROR(f->set_return_value(return_value.node()));
   if (should_verify_) {
     XLS_RETURN_IF_ERROR(VerifyFunction(f));
   }
@@ -784,6 +784,16 @@ absl::StatusOr<Function*> FunctionBuilder::BuildWithReturnValue(
 }
 
 absl::StatusOr<Proc*> ProcBuilder::Build(BValue token, BValue next_state) {
+  if (ErrorPending()) {
+    std::string msg = error_msg_ + " ";
+    if (error_loc_.has_value()) {
+      absl::StrAppendFormat(
+          &msg, "File: %d, Line: %d, Col: %d", error_loc_->fileno().value(),
+          error_loc_->lineno().value(), error_loc_->colno().value());
+    }
+    absl::StrAppend(&msg, "\nStack Trace:\n" + error_stacktrace_);
+    return absl::InvalidArgumentError("Could not build IR: " + msg);
+  }
   if (!GetType(token)->IsToken()) {
     return absl::InvalidArgumentError(
         StrFormat("Recurrent token of proc must be token type, is: %s.",
@@ -795,27 +805,14 @@ absl::StatusOr<Proc*> ProcBuilder::Build(BValue token, BValue next_state) {
         "parameter state type %s.",
         GetType(GetStateParam())->ToString(), GetType(next_state)->ToString()));
   }
-  return BuildWithReturnValue(Tuple({token, next_state}));
-}
-
-absl::StatusOr<Proc*> ProcBuilder::BuildWithReturnValue(BValue return_value) {
-  if (ErrorPending()) {
-    std::string msg = error_msg_ + " ";
-    if (error_loc_.has_value()) {
-      absl::StrAppendFormat(
-          &msg, "File: %d, Line: %d, Col: %d", error_loc_->fileno().value(),
-          error_loc_->lineno().value(), error_loc_->colno().value());
-    }
-    absl::StrAppend(&msg, "\nStack Trace:\n" + error_stacktrace_);
-    return absl::InvalidArgumentError("Could not build IR: " + msg);
-  }
 
   // down_cast the std::unique_ptr<FunctionBase> to std::unique_ptr<Proc>. We
   // know this is safe because ProcBuilder constructs and passes a Proc to
   // BuilderBase constructor so function_ is always a Proc.
   Proc* proc = package()->AddProc(
       absl::WrapUnique(down_cast<Proc*>(function_.release())));
-  XLS_RETURN_IF_ERROR(proc->set_return_value(return_value.node()));
+  XLS_RETURN_IF_ERROR(proc->SetNextToken(token.node()));
+  XLS_RETURN_IF_ERROR(proc->SetNextState(next_state.node()));
   if (should_verify_) {
     XLS_RETURN_IF_ERROR(VerifyProc(proc));
   }

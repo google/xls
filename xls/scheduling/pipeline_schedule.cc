@@ -308,7 +308,7 @@ std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64 c) const {
   std::vector<Node*> live_out;
   for (int64 i = 0; i <= c; ++i) {
     for (Node* node : nodes_in_cycle(i)) {
-      if (node == node->function()->return_value() ||
+      if (node->function_base()->HasImplicitUse(node) ||
           absl::c_any_of(node->users(),
                          [&](Node* u) { return cycle(u) > c; })) {
         live_out.push_back(node);

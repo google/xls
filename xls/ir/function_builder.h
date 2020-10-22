@@ -617,10 +617,6 @@ class ProcBuilder : public BuilderBase {
   // of the token and next-state.
   absl::StatusOr<Proc*> Build(BValue token, BValue next_state);
 
-  // Build the proc with the given return value. The return value must be a
-  // two-tuple of a token and value of the state type.
-  absl::StatusOr<Proc*> BuildWithReturnValue(BValue return_value);
-
  private:
   // The BValue of the token parameter (parameter 1).
   BValue token_param_;

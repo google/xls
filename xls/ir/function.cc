@@ -28,6 +28,15 @@ using absl::StrAppend;
 
 namespace xls {
 
+FunctionType* Function::GetType() {
+  std::vector<Type*> arg_types;
+  for (Param* param : params()) {
+    arg_types.push_back(param->GetType());
+  }
+  XLS_CHECK(return_value() != nullptr);
+  return package_->GetFunctionType(arg_types, return_value()->GetType());
+}
+
 std::string Function::DumpIr(bool recursive) const {
   std::string nested_funcs = "";
   std::string res = "fn " + name() + "(";
@@ -152,9 +161,10 @@ static bool IsEqualRecurse(
   }
 
   if (!node->IsDefinitelyEqualTo(other_node)) {
-    XLS_VLOG(2) << absl::StrFormat(
-        "Function %s != %s: node %s != %s", node->function()->name(),
-        other_node->function()->name(), node->GetName(), other_node->GetName());
+    XLS_VLOG(2) << absl::StrFormat("Function %s != %s: node %s != %s",
+                                   node->function_base()->name(),
+                                   other_node->function_base()->name(),
+                                   node->GetName(), other_node->GetName());
     return false;
   }
 

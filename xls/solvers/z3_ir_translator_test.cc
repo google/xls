@@ -984,12 +984,11 @@ package p
 
 fn f() -> bits[32] {
   literal.1: bits[32] = literal(value=0)
-  literal.2: bits[32] = literal(value=1)
+  ret literal.2: bits[32] = literal(value=1)
   array.6: bits[32][2] = array(literal.1, literal.1)
   array_update.8: bits[32][2] = array_update(array.6, literal.1, literal.2)
   array_index.9: bits[32] = array_index(array_update.8, literal.1)
   array_index.10: bits[32] = array_index(array_update.8, literal.2)
-  ret literal.2
 }
 )";
 
@@ -1038,7 +1037,7 @@ package p
 
 fn f() -> bits[32] {
   literal.1: bits[32] = literal(value=0)
-  literal.2: bits[32] = literal(value=1)
+  ret literal.2: bits[32] = literal(value=1)
   array.3: bits[32][2] = array(literal.1, literal.1)
   array.4: bits[32][2] = array(literal.2, literal.2)
   array.6: bits[32][2][2] = array(array.3, array.3)
@@ -1049,7 +1048,6 @@ fn f() -> bits[32] {
   array_index.12: bits[32][2] = array_index(array_update.8, literal.2)
   array_index.13: bits[32] = array_index(array_index.12, literal.1)
   array_index.14: bits[32] = array_index(array_index.12, literal.2)
-  ret literal.2
 }
 )";
 
@@ -1100,7 +1098,7 @@ package p
 
 fn f() -> bits[32] {
   literal.1: bits[32] = literal(value=0)
-  literal.2: bits[32] = literal(value=1)
+  ret literal.2: bits[32] = literal(value=1)
   tuple.3: (bits[32], bits[32]) = tuple(literal.1, literal.2)
   tuple.4: (bits[32], bits[32]) = tuple(literal.2, literal.1)
   array.6: (bits[32], bits[32])[2] = array(tuple.3, tuple.3)
@@ -1111,7 +1109,6 @@ fn f() -> bits[32] {
   array_index.12: (bits[32], bits[32]) = array_index(array_update.8, literal.2)
   tuple_index.13: bits[32] = tuple_index(array_index.12, index=0)
   tuple_index.14: bits[32] = tuple_index(array_index.12, index=1)
-  ret literal.2
 }
 )";
 
@@ -1162,7 +1159,7 @@ package p
 
 fn f() -> bits[32] {
   literal.1: bits[32] = literal(value=0)
-  literal.2: bits[32] = literal(value=1)
+  ret literal.2: bits[32] = literal(value=1)
   array.3: bits[32][2] = array(literal.1, literal.2)
   array.4: bits[32][2] = array(literal.2, literal.1)
   tuple.5: (bits[32][2], bits[32][2]) = tuple(array.3, array.4)
@@ -1183,7 +1180,6 @@ fn f() -> bits[32] {
   array_index.20: bits[32] = array_index(tuple_index.17, literal.2)
   array_index.21: bits[32] = array_index(tuple_index.18, literal.1)
   array_index.22: bits[32] = array_index(tuple_index.18, literal.2)
-  ret literal.2
 }
 )";
 
@@ -1236,13 +1232,12 @@ package p
 
 fn f() -> bits[32] {
   literal.1: bits[32] = literal(value=0)
-  literal.2: bits[32] = literal(value=1)
+  ret literal.2: bits[32] = literal(value=1)
   literal.3: bits[32] = literal(value=99)
   array.6: bits[32][2] = array(literal.1, literal.1)
   array_update.8: bits[32][2] = array_update(array.6, literal.3, literal.2)
   array_index.9: bits[32] = array_index(array_update.8, literal.1)
   array_index.10: bits[32] = array_index(array_update.8, literal.2)
-  ret literal.2
 }
 )";
 
@@ -1291,13 +1286,12 @@ package p
 
 fn f(index: bits[32]) -> bits[32] {
   literal.1: bits[32] = literal(value=0)
-  literal.2: bits[32] = literal(value=1)
+  ret literal.2: bits[32] = literal(value=1)
   literal.3: bits[32] = literal(value=99)
   array.6: bits[32][2] = array(literal.1, literal.1)
   array_update.8: bits[32][2] = array_update(array.6, index, literal.2)
   array_index.9: bits[32] = array_index(array_update.8, literal.1)
   array_index.10: bits[32] = array_index(array_update.8, literal.2)
-  ret literal.2
 }
 )";
 
@@ -1423,7 +1417,7 @@ fn f(x: bits[32], y: bits[16], z: bits[8]) -> bits[16] {
 package p2
 
 fn f(x: bits[32], y: bits[16], z: bits[8]) -> bits[16] {
-  ret y
+  ret y: bits[16] = param(name=y)
 }
 )";
 

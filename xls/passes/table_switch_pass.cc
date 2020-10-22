@@ -64,7 +64,7 @@ class SelectChain {
   // a literal array and ArrayIndex. At this point, the SelectChain should be
   // valid (checked in Init() below), so any failure should be an error.
   absl::Status ReplaceWithArrayIndex() const {
-    FunctionBase* f = nodes_.front()->function();
+    FunctionBase* f = nodes_.front()->function_base();
 
     // If increment_ is -1, that means we reversed the vector, so then the last
     // node in the chain is now the back (remember, we start a chain w/the

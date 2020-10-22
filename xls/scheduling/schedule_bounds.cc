@@ -59,7 +59,7 @@ void ScheduleBounds::Reset() {
 std::string ScheduleBounds::ToString() const {
   std::string out = "Bounds:\n";
   if (!bounds_.empty()) {
-    for (Node* node : TopoSort(bounds_.begin()->first->function())) {
+    for (Node* node : TopoSort(bounds_.begin()->first->function_base())) {
       if (bounds_.contains(node)) {
         absl::StrAppendFormat(&out, "  %s : [%d, %d]\n", node->GetName(),
                               lb(node), ub(node));

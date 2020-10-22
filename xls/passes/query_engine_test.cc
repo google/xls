@@ -443,7 +443,7 @@ TEST_P(QueryEngineTest, NandTruthTable) {
      fn f() -> bits[4] {
         literal.1: bits[4] = literal(value=0b0101)
         literal.2: bits[4] = literal(value=0b0011)
-        nand.3: bits[4] = nand(literal.1, literal.2)
+        ret nand.3: bits[4] = nand(literal.1, literal.2)
      }
   )",
                                                        p.get()));
@@ -458,7 +458,7 @@ TEST_P(QueryEngineTest, NorTruthTable) {
      fn f() -> bits[4] {
         literal.1: bits[4] = literal(value=0b0101)
         literal.2: bits[4] = literal(value=0b0011)
-        nor.3: bits[4] = nor(literal.1, literal.2)
+        ret nor.3: bits[4] = nor(literal.1, literal.2)
      }
   )",
                                                        p.get()));

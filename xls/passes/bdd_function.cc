@@ -316,17 +316,23 @@ bool ShouldEvaluate(Node* node) {
 
 absl::StatusOr<Value> BddFunction::Evaluate(
     absl::Span<const Value> args) const {
+  if (!func_base_->IsFunction()) {
+    return absl::InvalidArgumentError(
+        "Can only evaluate functions with BddFunction , not procs.");
+  }
+  Function* function = func_base_->AsFunctionOrDie();
+
   // Map containing the result of each node.
   absl::flat_hash_map<const Node*, Value> values;
   // Map of the BDD variable values.
   absl::flat_hash_map<BddNodeIndex, bool> bdd_variable_values;
-  XLS_RET_CHECK_EQ(args.size(), func_->params().size());
-  for (Node* node : TopoSort(func_)) {
+  XLS_RET_CHECK_EQ(args.size(), function->params().size());
+  for (Node* node : TopoSort(function)) {
     XLS_VLOG(2) << "node: " << node;
     Value result;
     if (node->Is<Param>()) {
       XLS_ASSIGN_OR_RETURN(int64 param_index,
-                           func_->GetParamIndex(node->As<Param>()));
+                           function->GetParamIndex(node->As<Param>()));
       result = args.at(param_index);
     } else if (!node->GetType()->IsBits() ||
                saturated_expressions_.contains(node)) {
@@ -359,7 +365,7 @@ absl::StatusOr<Value> BddFunction::Evaluate(
       }
     }
   }
-  return values.at(func_->return_value());
+  return values.at(function->return_value());
 }
 
 }  // namespace xls

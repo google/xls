@@ -45,6 +45,20 @@ class Function : public FunctionBase {
       : FunctionBase(name, package) {}
   virtual ~Function() = default;
 
+  // Returns the node that serves as the return value of this function.
+  Node* return_value() const { return return_value_; }
+
+  // Sets the node that serves as the return value of this function.
+  absl::Status set_return_value(Node* n) {
+    XLS_RET_CHECK_EQ(n->function_base(), this) << absl::StreamFormat(
+        "Return value node %s is not in this function %s (is in function %s)",
+        n->GetName(), name(), n->function_base()->name());
+    return_value_ = n;
+    return absl::OkStatus();
+  }
+
+  FunctionType* GetType();
+
   // DumpIr emits the IR in a parsable, hierarchical text format.
   // Parameter:
   //   'recursive' if true, will dump counted-for body functions as well.
@@ -65,6 +79,13 @@ class Function : public FunctionBase {
   // same value as 'other' when run with the same arguments. The analysis is
   // conservative and false may be returned for some "equivalent" functions.
   bool IsDefinitelyEqualTo(const Function* other) const;
+
+  bool HasImplicitUse(Node* node) const override {
+    return node == return_value();
+  }
+
+ private:
+  Node* return_value_ = nullptr;
 };
 
 }  // namespace xls

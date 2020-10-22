@@ -881,7 +881,7 @@ proc my_proc(my_token: token, my_state: (), init=()) {
   negate: bits[32] = neg(data)
   rcv_token: token = tuple_index(rcv, index=0)
   send: token = send(rcv_token, data=[negate], channel_id=1)
-  ret next: (token, ()) = tuple(send, my_state)
+  next (send, my_state)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -930,7 +930,7 @@ proc my_proc(my_token: token, my_state: (), init=()) {
   tmp: bits[32] = add(neg_data1, data2_times_two)
   sum: bits[32] = add(tmp, data0)
   send: token = send(rcv2_token, data=[sum], channel_id=3)
-  ret next: (token, ()) = tuple(send, my_state)
+  next (send, my_state)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -966,7 +966,7 @@ proc my_proc(my_token: token, my_state: (), init=()) {
   rcv_token: token = tuple_index(rcv, index=0)
   send0: token = send(rcv_token, data=[data], channel_id=1)
   send1: token = send(send0, data=[negate], channel_id=2)
-  ret next: (token, ()) = tuple(send1, my_state)
+  next (send1, my_state)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,

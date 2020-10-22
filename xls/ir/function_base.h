@@ -35,6 +35,9 @@
 
 namespace xls {
 
+class Function;
+class Proc;
+
 // Base class for Functions and Procs. A holder of a set of nodes.
 class FunctionBase {
  protected:
@@ -56,20 +59,6 @@ class FunctionBase {
   //   'recursive' if true, will dump counted-for body functions as well.
   //   This is only useful when dumping individual functions, and not packages.
   virtual std::string DumpIr(bool recursive = false) const = 0;
-
-  // Returns the node that serves as the return value of this function.
-  Node* return_value() const { return return_value_; }
-
-  // Sets the node that serves as the return value of this function.
-  virtual absl::Status set_return_value(Node* n) {
-    XLS_RET_CHECK_EQ(n->function(), this) << absl::StreamFormat(
-        "Return value node %s is not in this function %s (is in function %s)",
-        n->GetName(), name(), n->function()->name());
-    return_value_ = n;
-    return absl::OkStatus();
-  }
-
-  FunctionType* GetType();
 
   // Return Span of parameters.
   absl::Span<Param* const> params() const { return params_; }
@@ -152,6 +141,18 @@ class FunctionBase {
     return node_name_uniquer_.GetSanitizedUniqueName(name);
   }
 
+  // Returns whether this FunctionBase is a function or proc.
+  bool IsFunction() const;
+  bool IsProc() const;
+
+  Function* AsFunctionOrDie();
+  Proc* AsProcOrDie();
+
+  // Returns true if the given node has implicit uses in the function. Implicit
+  // uses include return values of functions and the recurrent token/state in
+  // procs.
+  virtual bool HasImplicitUse(Node* node) const = 0;
+
  protected:
   FunctionBase(const FunctionBase& other) = delete;
   void operator=(const FunctionBase& other) = delete;
@@ -167,7 +168,6 @@ class FunctionBase {
   absl::flat_hash_map<const Node*, NodeList::iterator> node_iterators_;
 
   std::vector<Param*> params_;
-  Node* return_value_ = nullptr;
 
   NameUniquer node_name_uniquer_ = NameUniquer(/*separator=*/"__");
 };

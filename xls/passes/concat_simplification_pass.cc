@@ -61,7 +61,7 @@ absl::StatusOr<Concat*> ReplaceConsecutiveLiteralOperands(Concat* concat) {
                      [](Literal* l) { return l->value().bits(); });
       XLS_ASSIGN_OR_RETURN(
           Node * new_literal,
-          concat->function()->MakeNode<Literal>(
+          concat->function_base()->MakeNode<Literal>(
               concat->loc(), Value(bits_ops::Concat(literal_bits))));
       new_operands.push_back(new_literal);
     } else if (consecutive_literals.size() == 1) {
@@ -186,8 +186,8 @@ absl::StatusOr<bool> SimplifyConcat(Concat* concat,
          riter != concat->operands().rend(); ++riter) {
       XLS_ASSIGN_OR_RETURN(
           Node * hoisted_rev,
-          concat->function()->MakeNode<UnOp>(concat->users().at(0)->loc(),
-                                             *riter, Op::kReverse));
+          concat->function_base()->MakeNode<UnOp>(concat->users().at(0)->loc(),
+                                                  *riter, Op::kReverse));
       new_operands.push_back(hoisted_rev);
     }
 
@@ -236,7 +236,7 @@ absl::StatusOr<bool> SimplifyConcat(Concat* concat,
     // Create merged slice node.
     XLS_ASSIGN_OR_RETURN(
         Node * merged_slice,
-        concat->function()->MakeNode<BitSlice>(
+        concat->function_base()->MakeNode<BitSlice>(
             concat->loc(), higher_slice->operand(0), lower_slice->start(),
             lower_slice->width() + higher_slice->width()));
 
@@ -343,7 +343,7 @@ absl::StatusOr<bool> TryHoistBitWiseOperation(Node* node) {
   std::map<int64, int64> begin_end_bits_inclusive = union_result.value();
 
   // Make bitwise operations.
-  FunctionBase* func = node->function();
+  FunctionBase* func = node->function_base();
   std::vector<Node*> bitwise_ops;
   for (const auto& [start, end] : begin_end_bits_inclusive) {
     std::vector<Node*> slices;
@@ -433,7 +433,7 @@ absl::StatusOr<bool> TryDistributeReducibleOperation(Node* node) {
   // Walk through the concat operands and grab the corresponding slice out of
   // the "other" node, and distribute the operation to occur on those
   // sub-slices.
-  FunctionBase* f = concat->function();
+  FunctionBase* f = concat->function_base();
   Node* result = nullptr;
   for (int64 i = 0; i < concat->operands().size(); ++i) {
     SliceData concat_slice = concat->GetOperandSliceData(i);

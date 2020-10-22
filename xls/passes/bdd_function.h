@@ -65,13 +65,14 @@ class BddFunction {
   // Evaluates the function using the BDD with the given argument values.
   // Operations such as arithmetic operations which are not expressed in the BDD
   // are evaluated using the IR interpreter. This method is for testing purposes
-  // only for verifying that the BDD is properly constructed.
+  // only for verifying that the BDD is properly constructed. Prerequisite: the
+  // FunctionBase used to build the BddFunction must be a function not a proc.
   absl::StatusOr<Value> Evaluate(absl::Span<const Value> args) const;
 
  private:
-  explicit BddFunction(FunctionBase* f) : func_(f) {}
+  explicit BddFunction(FunctionBase* f) : func_base_(f) {}
 
-  FunctionBase* func_;
+  FunctionBase* func_base_;
   BinaryDecisionDiagram bdd_;
 
   // A map from XLS Node to vector of BDD nodes representing the XLS Node's

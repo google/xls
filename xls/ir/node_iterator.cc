@@ -18,6 +18,8 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/logging.h"
+#include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 
 namespace xls {
 
@@ -91,18 +93,29 @@ void NodeIterator::Initialize() {
     XLS_CHECK(pending_to_remaining_users.insert({n, -1}).second);
   };
 
+  auto is_return_value = [&](Node* n) {
+    return n->function_base()->IsFunction() &&
+           (n == n->function_base()->AsFunctionOrDie()->return_value());
+  };
+
+  Node* return_value = nullptr;
   for (Node* node : f_->nodes()) {
-    if (node->users().empty() && node != f_->return_value()) {
-      XLS_DCHECK(all_users_scheduled(node));
-      XLS_VLOG(4) << "At start node was ready: " << node;
-      seed_ready(node);
+    if (node->users().empty()) {
+      if (is_return_value(node)) {
+        // Note: we special case the return value so it always comes at the
+        // front.
+        return_value = node;
+      } else {
+        XLS_DCHECK(all_users_scheduled(node));
+        XLS_VLOG(4) << "At start node was ready: " << node;
+        seed_ready(node);
+      }
     }
   }
 
-  // Note: we special case the return value so it always comes at the front.
-  XLS_VLOG(4) << "Maybe marking return value as ready: " << f_->return_value();
-  if (f_->return_value()->users().empty()) {
-    seed_ready(f_->return_value());
+  if (return_value != nullptr) {
+    XLS_VLOG(4) << "Maybe marking return value as ready: " << return_value;
+    seed_ready(return_value);
   }
 
   while (!ready.empty()) {

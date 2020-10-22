@@ -179,8 +179,19 @@ class Parser {
       Op op, BuilderBase* fb, absl::optional<SourceLocation>* loc,
       absl::string_view node_name, ArgParser* arg_parser);
 
-  // Parses the line-statements in the body of a function.
-  absl::StatusOr<BValue> ParseFunctionBody(
+  // Parses a node in a function/proc body. Example: "foo: bits[32] = add(x, y)"
+  absl::StatusOr<BValue> ParseNode(
+      BuilderBase* fb, absl::flat_hash_map<std::string, BValue>* name_to_value);
+
+  struct ProcNext {
+    BValue next_token;
+    BValue next_state;
+  };
+  using BodyResult = absl::variant<BValue, ProcNext>;
+  // Parses the line-statements in the body of a function/proc. Returns the
+  // return value if the body is a function, or the next token/state pair if the
+  // body is a proc.
+  absl::StatusOr<BodyResult> ParseBody(
       BuilderBase* fb, absl::flat_hash_map<std::string, BValue>* name_to_value,
       Package* package);
 

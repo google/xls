@@ -398,11 +398,11 @@ TEST(FunctionBuilderTest, SendAndReceive) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build(after_all, next_state));
 
-  EXPECT_THAT(proc->return_value(),
-              m::Tuple(m::AfterAll(m::Send(), m::TupleIndex(m::Receive()),
-                                   m::SendIf(), m::TupleIndex(m::ReceiveIf())),
-                       m::Add(m::TupleIndex(m::Receive()),
-                              m::TupleIndex(m::ReceiveIf()))));
+  EXPECT_THAT(proc->NextToken(),
+              m::AfterAll(m::Send(), m::TupleIndex(m::Receive()), m::SendIf(),
+                          m::TupleIndex(m::ReceiveIf())));
+  EXPECT_THAT(proc->NextState(), m::Add(m::TupleIndex(m::Receive()),
+                                        m::TupleIndex(m::ReceiveIf())));
 
   EXPECT_EQ(proc->InitValue(), Value(UBits(42, 32)));
   EXPECT_EQ(proc->StateParam()->GetName(), "my_state");

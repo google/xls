@@ -96,8 +96,7 @@ proc tile_0_0(my_token: token, state: (), init=()) {
   // Send our activation east.
   send.7: token = send(send.6, data=[tuple_index.4], channel_id=1)
 
-  // Create a dummy tuple to send
-  ret tuple.8: (token, ()) = tuple(send.7, state)
+  next (send.7, state)
 }
 
 proc tile_0_1(my_token: token, state: (), init=()) {
@@ -108,7 +107,7 @@ proc tile_0_1(my_token: token, state: (), init=()) {
   umul.105: bits[32] = umul(literal.101, tuple_index.104)
   send.106: token = send(tuple_index.103, data=[umul.105], channel_id=15)
   send.107: token = send(send.106, data=[tuple_index.104], channel_id=2)
-  ret tuple.108: (token, ()) = tuple(send.107, state)
+  next (send.107, state)
 }
 
 proc tile_0_2(my_token: token, state: (), init=()) {
@@ -119,7 +118,7 @@ proc tile_0_2(my_token: token, state: (), init=()) {
   umul.205: bits[32] = umul(literal.201, tuple_index.204)
   send.206: token = send(tuple_index.203, data=[umul.205], channel_id=16)
   send.207: token = send(send.206, data=[tuple_index.204], channel_id=3)
-  ret tuple.208: (token, ()) = tuple(send.207, state)
+  next (send.207, state)
 }
 
 proc tile_0_3(my_token: token, state: (), init=()) {
@@ -130,7 +129,7 @@ proc tile_0_3(my_token: token, state: (), init=()) {
   umul.305: bits[32] = umul(literal.301, tuple_index.304)
   send.306: token = send(tuple_index.303, data=[umul.305], channel_id=17)
   // Eastern-most tiles don't send activations any further.
-  ret tuple.308: (token, ()) = tuple(send.306, state)
+  next (send.306, state)
 }
 
 proc tile_1_0(my_token: token, state: (), init=()) {
@@ -145,7 +144,7 @@ proc tile_1_0(my_token: token, state: (), init=()) {
   add.1009: bits[32] = add(umul.1008, tuple_index.1007)
   send.1010: token = send(tuple_index.1006, data=[add.1009], channel_id=24)
   send.1011: token = send(send.1010, data=[tuple_index.1004], channel_id=11)
-  ret tuple.1012: (token, ()) = tuple(send.1011, state)
+  next (send.1011, state)
 }
 
 proc tile_1_1(my_token: token, state: (), init=()) {
@@ -160,7 +159,7 @@ proc tile_1_1(my_token: token, state: (), init=()) {
   add.1109: bits[32] = add(umul.1108, tuple_index.1107)
   send.1110: token = send(tuple_index.1106, data=[add.1109], channel_id=25)
   send.1111: token = send(send.1110, data=[tuple_index.1104], channel_id=12)
-  ret tuple.1112: (token, ()) = tuple(send.1111, state)
+  next (send.1111, state)
 }
 
 proc tile_1_2(my_token: token, state: (), init=()) {
@@ -175,7 +174,7 @@ proc tile_1_2(my_token: token, state: (), init=()) {
   add.1209: bits[32] = add(umul.1208, tuple_index.1207)
   send.1210: token = send(tuple_index.1206, data=[add.1209], channel_id=26)
   send.1211: token = send(send.1210, data=[tuple_index.1204], channel_id=13)
-  ret tuple.1212: (token, ()) = tuple(send.1211, state)
+  next (send.1211, state)
 }
 
 proc tile_1_3(my_token: token, state: (), init=()) {
@@ -190,7 +189,7 @@ proc tile_1_3(my_token: token, state: (), init=()) {
   add.1309: bits[32] = add(umul.1308, tuple_index.1307)
   send.1310: token = send(tuple_index.1306, data=[add.1309], channel_id=27)
   // Eastern-most tiles don't send activations any further.
-  ret tuple.1312: (token, ()) = tuple(send.1310, state)
+  next (send.1310, state)
 }
 
 proc tile_2_0(my_token: token, state: (), init=()) {
@@ -205,7 +204,7 @@ proc tile_2_0(my_token: token, state: (), init=()) {
   add.2009: bits[32] = add(umul.2008, tuple_index.2007)
   send.2010: token = send(tuple_index.2006, data=[add.2009], channel_id=34)
   send.2011: token = send(send.2010, data=[tuple_index.2004], channel_id=21)
-  ret tuple.2012: (token, ()) = tuple(send.2011, state)
+  next (send.2011, state)
 }
 
 proc tile_2_1(my_token: token, state: (), init=()) {
@@ -220,7 +219,7 @@ proc tile_2_1(my_token: token, state: (), init=()) {
   add.2109: bits[32] = add(umul.2108, tuple_index.2107)
   send.2110: token = send(tuple_index.2106, data=[add.2109], channel_id=35)
   send.2111: token = send(send.2110, data=[tuple_index.2104], channel_id=22)
-  ret tuple.2112: (token, ()) = tuple(send.2111, state)
+  next (send.2111, state)
 }
 
 proc tile_2_2(my_token: token, state: (), init=()) {
@@ -235,7 +234,7 @@ proc tile_2_2(my_token: token, state: (), init=()) {
   add.2209: bits[32] = add(umul.2208, tuple_index.2207)
   send.2210: token = send(tuple_index.2206, data=[add.2209], channel_id=36)
   send.2211: token = send(send.2210, data=[tuple_index.2204], channel_id=23)
-  ret tuple.2212: (token, ()) = tuple(send.2211, state)
+  next (send.2211, state)
 }
 
 proc tile_2_3(my_token: token, state: (), init=()) {
@@ -250,7 +249,7 @@ proc tile_2_3(my_token: token, state: (), init=()) {
   add.2309: bits[32] = add(umul.2308, tuple_index.2307)
   send.2310: token = send(tuple_index.2306, data=[add.2309], channel_id=37)
   // Eastern-most tiles don't send activations any further.
-  ret tuple.2312: (token, ()) = tuple(send.2310, state)
+  next (send.2310, state)
 }
 
 proc tile_3_0(my_token: token, state: (), init=()) {
@@ -265,7 +264,7 @@ proc tile_3_0(my_token: token, state: (), init=()) {
   add.3009: bits[32] = add(umul.3008, tuple_index.3007)
   send.3010: token = send(tuple_index.3006, data=[add.3009], channel_id=44)
   send.3011: token = send(send.3010, data=[tuple_index.3004], channel_id=31)
-  ret tuple.3012: (token, ()) = tuple(send.3011, state)
+  next (send.3011, state)
 }
 
 proc tile_3_1(my_token: token, state: (), init=()) {
@@ -280,7 +279,7 @@ proc tile_3_1(my_token: token, state: (), init=()) {
   add.3109: bits[32] = add(umul.3108, tuple_index.3107)
   send.3110: token = send(tuple_index.3106, data=[add.3109], channel_id=45)
   send.3111: token = send(send.3110, data=[tuple_index.3104], channel_id=32)
-  ret tuple.3112: (token, ()) = tuple(send.3111, state)
+  next (send.3111, state)
 }
 
 proc tile_3_2(my_token: token, state: (), init=()) {
@@ -295,7 +294,7 @@ proc tile_3_2(my_token: token, state: (), init=()) {
   add.3209: bits[32] = add(umul.3208, tuple_index.3207)
   send.3210: token = send(tuple_index.3206, data=[add.3209], channel_id=46)
   send.3211: token = send(send.3210, data=[tuple_index.3204], channel_id=33)
-  ret tuple.3212: (token, ()) = tuple(send.3211, state)
+  next (send.3211, state)
 }
 
 proc tile_3_3(my_token: token, state: (), init=()) {
@@ -310,5 +309,5 @@ proc tile_3_3(my_token: token, state: (), init=()) {
   add.3309: bits[32] = add(umul.3308, tuple_index.3307)
   send.3310: token = send(tuple_index.3306, data=[add.3309], channel_id=47)
   // Eastern-most tiles don't send activations any further.
-  ret tuple.3312: (token, ()) = tuple(send.3310, state)
+  next (send.3310, state)
 }

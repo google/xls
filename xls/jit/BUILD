@@ -247,6 +247,7 @@ cc_library(
     srcs = ["serial_proc_runtime.cc"],
     hdrs = ["serial_proc_runtime.h"],
     deps = [
+        ":function_builder_visitor",
         ":ir_jit",
         ":jit_channel_queue",
         ":proc_builder_visitor",

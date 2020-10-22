@@ -164,7 +164,6 @@ IrJit::IrJit(FunctionBase* xls_function, int64 opt_level)
       dylib_(execution_session_.createBareJITDylib("main")),
       data_layout_(""),
       xls_function_(xls_function),
-      xls_function_type_(xls_function_->GetType()),
       opt_level_(opt_level),
       invoker_(nullptr) {}
 
@@ -276,15 +275,17 @@ absl::Status IrJit::CompileFunction(VisitFn visit_fn, llvm::Module* module) {
       llvm::ArrayType::get(
           llvm::PointerType::get(llvm::Type::getInt8Ty(*bare_context),
                                  /*AddressSpace=*/0),
-          xls_function_type_->parameter_count()),
+          xls_function_->params().size()),
       /*AddressSpace=*/0));
 
-  for (const Type* type : xls_function_type_->parameters()) {
-    arg_type_bytes_.push_back(type_converter_->GetTypeByteSize(type));
+  for (const Param* param : xls_function_->params()) {
+    arg_type_bytes_.push_back(
+        type_converter_->GetTypeByteSize(param->GetType()));
   }
 
   // Pass the last param as a pointer to the actual return type.
-  Type* return_type = xls_function_type_->return_type();
+  Type* return_type =
+      FunctionBuilderVisitor::GetEffectiveReturnValue(xls_function_)->GetType();
   llvm::Type* llvm_return_type =
       type_converter_->ConvertToLlvmType(return_type);
   param_types.push_back(
@@ -326,22 +327,26 @@ absl::StatusOr<Value> IrJit::Run(absl::Span<const Value> args,
 
   std::vector<std::unique_ptr<uint8[]>> unique_arg_buffers;
   std::vector<uint8*> arg_buffers;
-  unique_arg_buffers.reserve(xls_function_type_->parameters().size());
+  unique_arg_buffers.reserve(xls_function_->params().size());
   arg_buffers.reserve(unique_arg_buffers.size());
-  for (const Type* type : xls_function_type_->parameters()) {
-    unique_arg_buffers.push_back(
-        std::make_unique<uint8[]>(type_converter_->GetTypeByteSize(type)));
+  std::vector<Type*> param_types;
+  for (const Param* param : xls_function_->params()) {
+    unique_arg_buffers.push_back(std::make_unique<uint8[]>(
+        type_converter_->GetTypeByteSize(param->GetType())));
     arg_buffers.push_back(unique_arg_buffers.back().get());
+    param_types.push_back(param->GetType());
   }
 
-  XLS_RETURN_IF_ERROR(ir_runtime_->PackArgs(
-      args, xls_function_type_->parameters(), absl::MakeSpan(arg_buffers)));
+  XLS_RETURN_IF_ERROR(
+      ir_runtime_->PackArgs(args, param_types, absl::MakeSpan(arg_buffers)));
 
   absl::InlinedVector<uint8, 16> outputs(return_type_bytes_);
   invoker_(arg_buffers.data(), outputs.data(), user_data);
 
-  return ir_runtime_->UnpackBuffer(outputs.data(),
-                                   xls_function_type_->return_type());
+  return ir_runtime_->UnpackBuffer(
+      outputs.data(),
+      FunctionBuilderVisitor::GetEffectiveReturnValue(xls_function_)
+          ->GetType());
 }
 
 absl::StatusOr<Value> IrJit::Run(
@@ -413,11 +418,13 @@ absl::Status IrJit::CompilePackedViewFunction(VisitFn visit_fn,
   // Represent the input args as char/i8 pointers to their data.
   param_types.push_back(llvm::PointerType::get(
       llvm::ArrayType::get(llvm::PointerType::get(i8_type, /*AddressSpace=*/0),
-                           xls_function_type_->parameter_count()),
+                           xls_function_->params().size()),
       /*AddressSpace=*/0));
 
   int64 return_width =
-      xls_function_->return_value()->GetType()->GetFlatBitCount();
+      FunctionBuilderVisitor::GetEffectiveReturnValue(xls_function_)
+          ->GetType()
+          ->GetFlatBitCount();
   if (return_width != 0) {
     // For packed operation, just pass a i8 pointer for the result.
     llvm::Type* return_type =

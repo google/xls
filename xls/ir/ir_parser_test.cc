@@ -29,9 +29,13 @@ using status_testing::StatusIs;
 using ::testing::HasSubstr;
 
 // EXPECTS that the two given strings are similar modulo extra whitespace.
-void ExpectStringsSimilar(absl::string_view a, absl::string_view b) {
+void ExpectStringsSimilar(
+    absl::string_view a, absl::string_view b,
+    xabsl::SourceLocation loc = xabsl::SourceLocation::current()) {
   std::string a_string(a);
   std::string b_string(b);
+  testing::ScopedTrace trace(loc.file_name(), loc.line(),
+                             "ExpectStringsSimilar failed");
 
   // After dumping remove any extra leading, trailing, and consecutive internal
   // whitespace verify that strings are the same.
@@ -50,7 +54,7 @@ void ParseFunctionAndCheckDump(
                              "ParseFunctionAndCheckDump failed");
   Package p("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(auto function, Parser::ParseFunction(in, &p));
-  ExpectStringsSimilar(function->DumpIr(), in);
+  ExpectStringsSimilar(function->DumpIr(), in, loc);
 }
 
 // Parses the given string as a package, dumps the IR and compares that the
@@ -61,7 +65,7 @@ void ParsePackageAndCheckDump(
   testing::ScopedTrace trace(loc.file_name(), loc.line(),
                              "ParsePackageAndCheckDump failed");
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(in));
-  ExpectStringsSimilar(package->DumpIr(), in);
+  ExpectStringsSimilar(package->DumpIr(), in, loc);
 }
 
 TEST(IrParserTest, ParseBitsLiteral) {
@@ -269,7 +273,7 @@ TEST(IrParserTest, DuplicateName) {
       R"(
 fn f(x: bits[42]) -> bits[42] {
  and.1: bits[42] = and(x, x, id=1)
- and.1: bits[42] = and(and.1, and.1)
+ ret and.1: bits[42] = and(and.1, and.1)
 }
 })";
   EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
@@ -1097,7 +1101,7 @@ proc my_proc(my_token: token, my_state: bits[32], init=42) {
   send.1: token = send(my_token, data=[my_state], channel_id=0, id=1)
   receive.2: (token, bits[32]) = receive(send.1, channel_id=0, id=2)
   tuple_index.3: token = tuple_index(receive.2, index=0, id=3)
-  ret tuple.4: (token, bits[32]) = tuple(tuple_index.3, my_state, id=4)
+  next (tuple_index.3, my_state)
 }
 )";
   ParsePackageAndCheckDump(input);
@@ -1277,18 +1281,9 @@ fn foo(x: bits[32]) -> bits[32] {
 }
 )";
 
-  const std::string expected_output = R"(package foobar
-
-fn foo(x: bits[32]) -> bits[32] {
-  ret identity.2: bits[32] = identity(x, id=2)
-}
-)";
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> pkg,
-                           Parser::ParsePackage(input));
-  ASSERT_EQ(pkg->functions().size(), 1);
-  std::string dumped_ir = pkg->DumpIr();
-  EXPECT_EQ(dumped_ir, expected_output);
+  EXPECT_THAT(Parser::ParsePackage(input).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected token of type \":\"")));
 }
 
 TEST(IrParserTest, ParseEndOfLineComment) {
@@ -1348,8 +1343,7 @@ TEST(IrParserTest, ParseNestedTuple) {
 
     fn foo(x: bits[32]) -> ((bits[32], bits[32]), bits[32]) {
        tuple.1: (bits[32], bits[32]) = tuple(x, x, id=1)
-       tuple.2: ((bits[32], bits[32]), bits[32]) = tuple(tuple.1, x, id=2)
-       ret tuple.2
+       ret tuple.2: ((bits[32], bits[32]), bits[32]) = tuple(tuple.1, x, id=2)
     }
   )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> pkg,
@@ -1645,14 +1639,14 @@ TEST(IrParserTest, TrivialProc) {
 package test
 
 proc foo(my_token: token, my_state: bits[32], init=42) {
-  ret tuple.1: (token, bits[32]) = tuple(my_token, my_state, id=1)
+  next (my_token, my_state)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
   EXPECT_EQ(package->functions().size(), 0);
   EXPECT_EQ(package->procs().size(), 1);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("foo"));
-  EXPECT_EQ(proc->node_count(), 3);
+  EXPECT_EQ(proc->node_count(), 2);
   EXPECT_EQ(proc->params().size(), 2);
   EXPECT_EQ(proc->InitValue().ToString(), "bits[32]:42");
   EXPECT_EQ(proc->StateType()->ToString(), "bits[32]");
@@ -1669,7 +1663,7 @@ fn my_function() -> bits[1] {
 }
 
 proc my_proc(my_token: token, my_state: bits[32], init=42) {
-  ret tuple.2: (token, bits[32]) = tuple(my_token, my_state, id=2)
+  next (my_token, my_state)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
@@ -1727,13 +1721,72 @@ TEST(IrParserTest, ProcWrongReturnType) {
 package test
 
 proc foo(my_token: token, my_state: bits[32], init=42) {
+  literal.1: bits[32] = literal(value=123, id=1)
+  next (literal.1, my_state)
+}
+)";
+  EXPECT_THAT(
+      Parser::ParsePackage(program).status(),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "Recurrent token of proc must be token type, is: bits[32]")));
+}
+
+TEST(IrParserTest, ProcWithRet) {
+  std::string program = R"(
+package test
+
+proc foo(my_token: token, my_state: bits[32], init=42) {
   ret literal.1: bits[32] = literal(value=123, id=1)
+}
+)";
+  EXPECT_THAT(Parser::ParsePackage(program).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("ret keyword only supported in functions")));
+}
+
+TEST(IrParserTest, FunctionWithNext) {
+  std::string program = R"(
+package test
+
+fn foo(x: bits[32]) -> bits[32] {
+  next (x, x)
+}
+)";
+  EXPECT_THAT(Parser::ParsePackage(program).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("next keyword only supported in procs")));
+}
+
+TEST(IrParserTest, ProcWithBogusNextToken) {
+  std::string program = R"(
+package test
+
+proc foo(my_token: token, my_state: bits[32], init=42) {
+  next (foobar, my_state)
+}
+)";
+  EXPECT_THAT(
+      Parser::ParsePackage(program).status(),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Proc next token name @ 5:9  was not previously defined")));
+}
+
+TEST(IrParserTest, ProcWithBogusNextState) {
+  std::string program = R"(
+package test
+
+proc foo(my_token: token, my_state: bits[32], init=42) {
+  next (my_token, sfsdfsfd)
 }
 )";
   EXPECT_THAT(
       Parser::ParsePackage(program).status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Type of return value bits[32] does not match")));
+               HasSubstr(
+                   "Proc next state name @ 5:19  was not previously defined")));
 }
 
 TEST(IrParserTest, ParseSendReceiveChannel) {
@@ -1852,7 +1905,7 @@ proc my_proc(my_token: token, my_state: bits[32], init=42) {
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1, id=3)
   add.4: bits[32] = add(my_state, tuple_index.3, id=4)
   send.5: token = send(tuple_index.2, data=[add.4], channel_id=1)
-  ret tuple.6: (token, bits[32]) = tuple(send.5, add.4, id=6)
+  next (send.5, add.4)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
@@ -1877,7 +1930,7 @@ proc my_proc(my_token: token, my_state: bits[32], init=42) {
   tuple_index.4: bits[32] = tuple_index(receive_if.2, index=1, id=4)
   tuple_index.5: bits[1] = tuple_index(receive_if.2, index=2, id=5)
   send_if.6: token = send_if(tuple_index.3, literal.1, data=[tuple_index.4, tuple_index.5], channel_id=1)
-  ret tuple.7: (token, bits[32]) = tuple(send_if.6, my_state, id=7)
+  next (send_if.6, my_state)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));

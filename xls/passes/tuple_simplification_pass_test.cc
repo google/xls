@@ -139,7 +139,7 @@ TEST_F(TupleSimplificationPassTest, UnboxingLiteralArray) {
   literal.3: bits[1] = literal(value=1)
   array_index.4: bits[2] = array_index(literal.1, literal.2)
   array_index.5: bits[2] = array_index(literal.1, literal.3)
-  add.6: bits[2] = add(array_index.4, array_index.5)
+  ret add.6: bits[2] = add(array_index.4, array_index.5)
  }
   )",
                                                        p.get()));

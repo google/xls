@@ -21,6 +21,8 @@
 
 #include "llvm/IR/Constants.h"
 #include "xls/codegen/vast.h"
+#include "xls/ir/function.h"
+#include "xls/ir/proc.h"
 
 namespace xls {
 
@@ -57,7 +59,7 @@ absl::Status FunctionBuilderVisitor::BuildInternal() {
   }
 
   // Store the result to the output pointer.
-  Type* xls_return_type = xls_fn_->GetType()->return_type();
+  Type* xls_return_type = GetEffectiveReturnValue(xls_fn_)->GetType();
   llvm::Type* llvm_return_type =
       type_converter_->ConvertToLlvmType(xls_return_type);
   if (!is_top_) {
@@ -602,7 +604,7 @@ absl::Status FunctionBuilderVisitor::HandleParam(Param* param) {
   //  1. Find out the index of the param we're loading.
   //  2. Get the offset of that param into our arg buffer.
   //  3. Cast that offset/pointer into the target type and load from it.
-  XLS_ASSIGN_OR_RETURN(int index, param->function()->GetParamIndex(param));
+  XLS_ASSIGN_OR_RETURN(int index, param->function_base()->GetParamIndex(param));
   llvm::Function* llvm_function = builder_->GetInsertBlock()->getParent();
 
   if (!is_top_) {
@@ -651,7 +653,7 @@ absl::Status FunctionBuilderVisitor::HandlePackedParam(Param* param) {
   // an i24 in an i32).
   llvm::Function* llvm_function = builder_->GetInsertBlock()->getParent();
   llvm::Argument* arg_pointer = llvm_function->getArg(0);
-  XLS_ASSIGN_OR_RETURN(int index, param->function()->GetParamIndex(param));
+  XLS_ASSIGN_OR_RETURN(int index, param->function_base()->GetParamIndex(param));
 
   // First, load the arg buffer (as an i8*).
   // Then pull out elements from that buffer to make the final type.
@@ -1168,7 +1170,7 @@ absl::StatusOr<llvm::Function*> FunctionBuilderVisitor::GetModuleFunction(
       // /*AddressSpace=*/0);
       llvm::Type::getInt64Ty(ctx());
 
-  Type* return_type = xls_function->return_value()->GetType();
+  Type* return_type = GetEffectiveReturnValue(xls_function)->GetType();
   llvm::Type* llvm_return_type =
       type_converter_->ConvertToLlvmType(return_type);
 
@@ -1193,7 +1195,7 @@ absl::Status FunctionBuilderVisitor::StoreResult(Node* node,
                                                  llvm::Value* value) {
   XLS_RET_CHECK(!node_map_.contains(node));
   value->setName(verilog::SanitizeIdentifier(node->GetName()));
-  if (node->function()->return_value() == node) {
+  if (node == GetEffectiveReturnValue(node->function_base())) {
     return_value_ = value;
   }
   node_map_[node] = value;
@@ -1249,7 +1251,7 @@ absl::StatusOr<llvm::Value*> FunctionBuilderVisitor::PackElement(
 
 void FunctionBuilderVisitor::UnpoisonOutputBuffer() {
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
-  Type* xls_return_type = xls_fn_->GetType()->return_type();
+  Type* xls_return_type = GetEffectiveReturnValue(xls_fn_)->GetType();
   llvm::ConstantInt* fn_addr = llvm::ConstantInt::get(
       llvm::Type::getInt64Ty(ctx()), reinterpret_cast<uint64>(__msan_unpoison));
   llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
@@ -1269,6 +1271,15 @@ void FunctionBuilderVisitor::UnpoisonOutputBuffer() {
            size_t_type, type_converter()->GetTypeByteSize(xls_return_type))});
   builder()->CreateCall(fn_type, fn_ptr, args);
 #endif
+}
+
+/* static */ Node* FunctionBuilderVisitor::GetEffectiveReturnValue(
+    FunctionBase* function_base) {
+  if (function_base->IsFunction()) {
+    return function_base->AsFunctionOrDie()->return_value();
+  }
+  XLS_CHECK(function_base->IsProc());
+  return function_base->AsProcOrDie()->NextState();
 }
 
 }  // namespace xls

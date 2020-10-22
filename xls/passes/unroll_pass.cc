@@ -27,7 +27,7 @@ namespace {
 CountedFor* FindCountedFor(FunctionBase* f) {
   for (Node* node : TopoSort(f)) {
     if (node->Is<CountedFor>() &&
-        (node == f->return_value() || !node->users().empty())) {
+        (f->HasImplicitUse(node) || !node->users().empty())) {
       return node->As<CountedFor>();
     }
   }
@@ -37,7 +37,7 @@ CountedFor* FindCountedFor(FunctionBase* f) {
 // Unrolls the node "loop" by replacing it with a sequence of dependent
 // invocations.
 absl::Status UnrollCountedFor(CountedFor* loop) {
-  FunctionBase* f = loop->function();
+  FunctionBase* f = loop->function_base();
   Node* loop_carry = loop->initial_value();
   int64 ivar_bit_count = loop->body()->params()[0]->BitCountOrDie();
   for (int64 trip = 0, iv = 0; trip < loop->trip_count();

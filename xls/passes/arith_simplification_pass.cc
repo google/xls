@@ -234,7 +234,7 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
         new_operands.push_back(operand);
       }
     }
-    XLS_ASSIGN_OR_RETURN(Node * literal, n->function()->MakeNode<Literal>(
+    XLS_ASSIGN_OR_RETURN(Node * literal, n->function_base()->MakeNode<Literal>(
                                              n->loc(), Value(bits)));
     new_operands.push_back(literal);
     XLS_RETURN_IF_ERROR(
@@ -279,11 +279,11 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
       return node;
     }
     if (node->BitCountOrDie() > bit_count) {
-      return node->function()->MakeNode<BitSlice>(node->loc(), node,
-                                                  /*start=*/0,
-                                                  /*width=*/bit_count);
+      return node->function_base()->MakeNode<BitSlice>(node->loc(), node,
+                                                       /*start=*/0,
+                                                       /*width=*/bit_count);
     }
-    return node->function()->MakeNode<ExtendOp>(
+    return node->function_base()->MakeNode<ExtendOp>(
         node->loc(), node,
         /*new_bit_count=*/bit_count, is_signed ? Op::kSignExt : Op::kZeroExt);
   };
@@ -303,7 +303,7 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
           Node * adjusted_lhs,
           maybe_extend_or_trunc(n->operand(0), n->BitCountOrDie(), is_signed));
       XLS_ASSIGN_OR_RETURN(Node * shift_amount,
-                           n->function()->MakeNode<Literal>(
+                           n->function_base()->MakeNode<Literal>(
                                n->loc(), Value(UBits(rhs.CountTrailingZeros(),
                                                      rhs.bit_count()))));
       Op shift_op;
@@ -346,7 +346,7 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
       Bits one = UBits(1, adjusted_lhs->BitCountOrDie());
       Bits bits_mask = bits_ops::Sub(
           bits_ops::ShiftLeftLogical(one, rhs.CountTrailingZeros()), one);
-      XLS_ASSIGN_OR_RETURN(Node * mask, n->function()->MakeNode<Literal>(
+      XLS_ASSIGN_OR_RETURN(Node * mask, n->function_base()->MakeNode<Literal>(
                                             n->loc(), Value(bits_mask)));
       XLS_RETURN_IF_ERROR(
           n->ReplaceUsesWithNew<NaryOp>(
@@ -386,12 +386,12 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
     }
     XLS_ASSIGN_OR_RETURN(uint64 shift_amount, shift_bits.ToUint64());
     XLS_ASSIGN_OR_RETURN(Node * zero,
-                         n->function()->MakeNode<Literal>(
+                         n->function_base()->MakeNode<Literal>(
                              n->loc(), Value(UBits(0, shift_amount))));
     int64 slice_start = (n->op() == Op::kShll) ? 0 : shift_amount;
     int64 slice_width = bit_count - shift_amount;
     XLS_ASSIGN_OR_RETURN(
-        Node * slice, n->function()->MakeNode<BitSlice>(
+        Node * slice, n->function_base()->MakeNode<BitSlice>(
                           n->loc(), n->operand(0), slice_start, slice_width));
     auto concat_operands = (n->op() == Op::kShll)
                                ? std::vector<Node*>{slice, zero}
@@ -430,7 +430,7 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
     }
     XLS_ASSIGN_OR_RETURN(
         Node * sign_bit,
-        n->function()->MakeNode<BitSlice>(
+        n->function_base()->MakeNode<BitSlice>(
             n->loc(), n->operand(0), /*start=*/bit_count - 1, /*width=*/1));
     if (bits_ops::UGreaterThanOrEqual(shift_bits, bit_count)) {
       // Replace with all sign bits.
@@ -442,10 +442,10 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
     XLS_ASSIGN_OR_RETURN(uint64 shift_amount, shift_bits.ToUint64());
     XLS_RET_CHECK_LT(shift_amount, bit_count);
     XLS_ASSIGN_OR_RETURN(Node * all_sign_bits,
-                         n->function()->MakeNode<ExtendOp>(
+                         n->function_base()->MakeNode<ExtendOp>(
                              n->loc(), sign_bit, shift_amount, Op::kSignExt));
     XLS_ASSIGN_OR_RETURN(Node * slice,
-                         n->function()->MakeNode<BitSlice>(
+                         n->function_base()->MakeNode<BitSlice>(
                              n->loc(), n->operand(0), /*start=*/shift_amount,
                              /*width=*/bit_count - shift_amount));
     std::vector<Node*> concat_args = {all_sign_bits, slice};
@@ -535,7 +535,7 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
       XLS_VLOG(2) << "FOUND: SGe(x, 0)";
       XLS_ASSIGN_OR_RETURN(
           Node * sign_bit,
-          n->function()->MakeNode<BitSlice>(
+          n->function_base()->MakeNode<BitSlice>(
               n->loc(), n->operand(0),
               /*start=*/n->operand(0)->BitCountOrDie() - 1, /*width=*/1));
       XLS_RETURN_IF_ERROR(

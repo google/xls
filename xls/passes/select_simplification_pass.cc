@@ -47,7 +47,7 @@ absl::StatusOr<bool> SqueezeSelect(
     const std::function<absl::StatusOr<SelectT*>(SelectT*, std::vector<Node*>)>&
         make_select,
     SelectT* select) {
-  FunctionBase* f = select->function();
+  FunctionBase* f = select->function_base();
   int64 bit_count = select->BitCountOrDie();
   auto slice = [&](Node* n) -> absl::StatusOr<Node*> {
     int64 new_width = bit_count - const_msb.bit_count() - const_lsb.bit_count();
@@ -161,14 +161,14 @@ absl::StatusOr<OneHotSelect*> SliceOneHotSelect(OneHotSelect* ohs, int64 start,
                                                 int64 width) {
   std::vector<Node*> case_slices;
   for (Node* cas : ohs->cases()) {
-    XLS_ASSIGN_OR_RETURN(
-        Node * case_slice,
-        ohs->function()->MakeNode<BitSlice>(ohs->loc(), cas, /*start=*/start,
-                                            /*width=*/width));
+    XLS_ASSIGN_OR_RETURN(Node * case_slice,
+                         ohs->function_base()->MakeNode<BitSlice>(
+                             ohs->loc(), cas, /*start=*/start,
+                             /*width=*/width));
     case_slices.push_back(case_slice);
   }
-  return ohs->function()->MakeNode<OneHotSelect>(ohs->loc(), ohs->selector(),
-                                                 case_slices);
+  return ohs->function_base()->MakeNode<OneHotSelect>(
+      ohs->loc(), ohs->selector(), case_slices);
 }
 
 // Returns the length of the run of bit indices starting at 'start' for which
@@ -336,7 +336,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
         } else {
           XLS_ASSIGN_OR_RETURN(
               replacement,
-              node->function()->MakeNode<NaryOp>(
+              node->function_base()->MakeNode<NaryOp>(
                   node->loc(),
                   std::vector<Node*>{replacement, sel->get_case(i)}, Op::kOr));
         }
@@ -345,7 +345,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     if (replacement == nullptr) {
       XLS_ASSIGN_OR_RETURN(
           replacement,
-          node->function()->MakeNode<Literal>(
+          node->function_base()->MakeNode<Literal>(
               node->loc(), Value(UBits(0, node->BitCountOrDie()))));
     }
     XLS_RETURN_IF_ERROR(sel->ReplaceUsesWith(replacement).status());
@@ -368,7 +368,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     OneHotSelect* sel = node->As<OneHotSelect>();
     if (std::all_of(sel->cases().begin(), sel->cases().end(),
                     [&](Node* c) { return c == sel->get_case(0); })) {
-      FunctionBase* f = node->function();
+      FunctionBase* f = node->function_base();
       XLS_ASSIGN_OR_RETURN(
           Node * selector_zero,
           f->MakeNode<Literal>(
@@ -401,7 +401,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       std::vector<Node*> elements;
       for (Node* n : nodes) {
         XLS_ASSIGN_OR_RETURN(Node * element,
-                             node->function()->MakeNode<TupleIndex>(
+                             node->function_base()->MakeNode<TupleIndex>(
                                  node->loc(), n, tuple_index));
         elements.push_back(element);
       }
@@ -415,7 +415,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
         XLS_ASSIGN_OR_RETURN(std::vector<Node*> case_elements,
                              elements_at_tuple_index(sel->cases(), i));
         XLS_ASSIGN_OR_RETURN(Node * selected_element,
-                             node->function()->MakeNode<OneHotSelect>(
+                             node->function_base()->MakeNode<OneHotSelect>(
                                  node->loc(), sel->selector(), case_elements));
         selected_elements.push_back(selected_element);
       }
@@ -433,13 +433,13 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
         absl::optional<Node*> default_element = absl::nullopt;
         if (sel->default_value().has_value()) {
           XLS_ASSIGN_OR_RETURN(default_element,
-                               node->function()->MakeNode<TupleIndex>(
+                               node->function_base()->MakeNode<TupleIndex>(
                                    node->loc(), *sel->default_value(), i));
         }
         XLS_ASSIGN_OR_RETURN(
             Node * selected_element,
-            node->function()->MakeNode<Select>(node->loc(), sel->selector(),
-                                               case_elements, default_element));
+            node->function_base()->MakeNode<Select>(
+                node->loc(), sel->selector(), case_elements, default_element));
         selected_elements.push_back(selected_element);
       }
       XLS_RETURN_IF_ERROR(
@@ -450,7 +450,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 
   // Common out equivalent cases in a one hot select.
   if (node->Is<OneHotSelect>()) {
-    FunctionBase* f = node->function();
+    FunctionBase* f = node->function_base();
     OneHotSelect* sel = node->As<OneHotSelect>();
     if (!sel->cases().empty() &&
         absl::flat_hash_set<Node*>(sel->cases().begin(), sel->cases().end())
@@ -540,7 +540,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       (node->operand(1)->Is<Literal>() || node->operand(2)->Is<Literal>() ||
        (node->operand(0) == node->operand(1) ||
         node->operand(0) == node->operand(2)))) {
-    FunctionBase* f = node->function();
+    FunctionBase* f = node->function_base();
     Select* select = node->As<Select>();
     XLS_RET_CHECK(!select->default_value().has_value()) << select->ToString();
     Node* s = select->operand(0);
@@ -593,7 +593,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     if (is_signext_mux(&invert_selector)) {
       Node* selector = node->operand(0);
       if (invert_selector) {
-        XLS_ASSIGN_OR_RETURN(selector, node->function()->MakeNode<UnOp>(
+        XLS_ASSIGN_OR_RETURN(selector, node->function_base()->MakeNode<UnOp>(
                                            node->loc(), selector, Op::kNot));
       }
       XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<ExtendOp>(
@@ -625,7 +625,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       auto add_unhandled_selector_bits = [&](int64 index) -> absl::Status {
         if (unhandled_selector_bits != 0) {
           XLS_ASSIGN_OR_RETURN(Node * selector_part,
-                               node->function()->MakeNode<BitSlice>(
+                               node->function_base()->MakeNode<BitSlice>(
                                    select->loc(), select->selector(),
                                    /*start=*/index - unhandled_selector_bits,
                                    /*width=*/
@@ -658,16 +658,16 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
           //     cases=[..., A, B, C, ...])
           //
           XLS_ASSIGN_OR_RETURN(Node * selector_bit,
-                               node->function()->MakeNode<BitSlice>(
+                               node->function_base()->MakeNode<BitSlice>(
                                    select->loc(), select->selector(),
                                    /*start=*/i, /*width=*/1));
           XLS_ASSIGN_OR_RETURN(
               Node * selector_bit_mask,
-              node->function()->MakeNode<ExtendOp>(
+              node->function_base()->MakeNode<ExtendOp>(
                   select->loc(), selector_bit,
                   /*new_bit_count=*/ohs_operand->cases().size(), Op::kSignExt));
           XLS_ASSIGN_OR_RETURN(Node * masked_selector,
-                               node->function()->MakeNode<NaryOp>(
+                               node->function_base()->MakeNode<NaryOp>(
                                    select->loc(),
                                    std::vector<Node*>{selector_bit_mask,
                                                       ohs_operand->selector()},
@@ -684,7 +684,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       // Reverse selector parts because concat operand zero is the msb.
       std::reverse(new_selector_parts.begin(), new_selector_parts.end());
       XLS_ASSIGN_OR_RETURN(Node * new_selector,
-                           node->function()->MakeNode<Concat>(
+                           node->function_base()->MakeNode<Concat>(
                                select->loc(), new_selector_parts));
       XLS_RETURN_IF_ERROR(
           node->ReplaceUsesWithNew<OneHotSelect>(new_selector, new_cases)
@@ -735,12 +735,12 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     int64 nonzero_case_no = IsLiteralZero(sel->get_case(0)) ? 1 : 0;
     Node* selector = sel->selector();
     if (nonzero_case_no == 0) {
-      XLS_ASSIGN_OR_RETURN(selector, sel->function()->MakeNode<UnOp>(
+      XLS_ASSIGN_OR_RETURN(selector, sel->function_base()->MakeNode<UnOp>(
                                          sel->loc(), selector, Op::kNot));
     }
     XLS_ASSIGN_OR_RETURN(
         Node * sign_ext_selector,
-        node->function()->MakeNode<ExtendOp>(
+        node->function_base()->MakeNode<ExtendOp>(
             node->loc(), selector,
             /*new_bit_count=*/sel->BitCountOrDie(), Op::kSignExt));
     XLS_RETURN_IF_ERROR(
@@ -792,7 +792,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
           new_default = new_cases.back();
           new_cases.pop_back();
         }
-        return original->function()->MakeNode<Select>(
+        return original->function_base()->MakeNode<Select>(
             original->loc(), original->selector(), new_cases, new_default);
       };
       return SqueezeSelect(const_msb, const_lsb, make_select,
@@ -844,10 +844,11 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
         // p_x = p0 | !p1
         x = sel0->get_case(1);
         y = sel1->get_case(1);
-        XLS_ASSIGN_OR_RETURN(Node * not_p1, sel0->function()->MakeNode<UnOp>(
-                                                sel0->loc(), p1, Op::kNot));
         XLS_ASSIGN_OR_RETURN(
-            p_x, sel0->function()->MakeNode<NaryOp>(
+            Node * not_p1,
+            sel0->function_base()->MakeNode<UnOp>(sel0->loc(), p1, Op::kNot));
+        XLS_ASSIGN_OR_RETURN(
+            p_x, sel0->function_base()->MakeNode<NaryOp>(
                      sel0->loc(), std::vector<Node*>{p0, not_p1}, Op::kOr));
       } else if (sel0->get_case(1) == sel1->get_case(1)) {
         //         y   x
@@ -860,7 +861,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
         x = sel0->get_case(1);
         y = sel1->get_case(0);
         XLS_ASSIGN_OR_RETURN(
-            p_x, sel0->function()->MakeNode<NaryOp>(
+            p_x, sel0->function_base()->MakeNode<NaryOp>(
                      sel0->loc(), std::vector<Node*>{p0, p1}, Op::kOr));
       }
     } else if (is_2way_select(sel0->get_case(1))) {
@@ -877,7 +878,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
         x = sel0->get_case(0);
         y = sel1->get_case(1);
         XLS_ASSIGN_OR_RETURN(
-            p_x, sel0->function()->MakeNode<NaryOp>(
+            p_x, sel0->function_base()->MakeNode<NaryOp>(
                      sel0->loc(), std::vector<Node*>{p0, p1}, Op::kNand));
       } else if (sel0->get_case(0) == sel1->get_case(1)) {
         //  x    y   x
@@ -889,10 +890,11 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
         // p_x = !p0 | p1
         x = sel0->get_case(0);
         y = sel1->get_case(0);
-        XLS_ASSIGN_OR_RETURN(Node * not_p0, sel0->function()->MakeNode<UnOp>(
-                                                sel0->loc(), p0, Op::kNot));
         XLS_ASSIGN_OR_RETURN(
-            p_x, sel0->function()->MakeNode<NaryOp>(
+            Node * not_p0,
+            sel0->function_base()->MakeNode<UnOp>(sel0->loc(), p0, Op::kNot));
+        XLS_ASSIGN_OR_RETURN(
+            p_x, sel0->function_base()->MakeNode<NaryOp>(
                      sel0->loc(), std::vector<Node*>{not_p0, p1}, Op::kOr));
       }
     }
@@ -910,20 +912,20 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       node->As<OneHotSelect>()->cases().size() == 2) {
     OneHotSelect* ohs = node->As<OneHotSelect>();
     XLS_ASSIGN_OR_RETURN(Node * sel0,
-                         node->function()->MakeNode<BitSlice>(
+                         node->function_base()->MakeNode<BitSlice>(
                              node->loc(), ohs->selector(), /*start=*/0,
                              /*width=*/1));
     XLS_ASSIGN_OR_RETURN(Node * sel1,
-                         node->function()->MakeNode<BitSlice>(
+                         node->function_base()->MakeNode<BitSlice>(
                              node->loc(), ohs->selector(), /*start=*/1,
                              /*width=*/1));
     XLS_ASSIGN_OR_RETURN(
         Node * and0,
-        node->function()->MakeNode<NaryOp>(
+        node->function_base()->MakeNode<NaryOp>(
             node->loc(), std::vector<Node*>{sel0, ohs->get_case(0)}, Op::kAnd));
     XLS_ASSIGN_OR_RETURN(
         Node * and1,
-        node->function()->MakeNode<NaryOp>(
+        node->function_base()->MakeNode<NaryOp>(
             node->loc(), std::vector<Node*>{sel1, ohs->get_case(1)}, Op::kAnd));
     XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<NaryOp>(
                                 std::vector<Node*>{and0, and1}, Op::kOr)
@@ -935,7 +937,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   // inverse.
   if (node->Is<OneHot>() && node->BitCountOrDie() == 2) {
     XLS_ASSIGN_OR_RETURN(Node * inv_operand,
-                         node->function()->MakeNode<UnOp>(
+                         node->function_base()->MakeNode<UnOp>(
                              node->loc(), node->operand(0), Op::kNot));
     XLS_RETURN_IF_ERROR(
         node->ReplaceUsesWithNew<Concat>(
@@ -949,12 +951,12 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     if (query_engine.AtMostOneBitTrue(node->operand(0))) {
       XLS_ASSIGN_OR_RETURN(
           Node * zero,
-          node->function()->MakeNode<Literal>(
+          node->function_base()->MakeNode<Literal>(
               node->loc(),
               Value(
                   UBits(0, /*bit_count=*/node->operand(0)->BitCountOrDie()))));
       XLS_ASSIGN_OR_RETURN(Node * operand_eq_zero,
-                           node->function()->MakeNode<CompareOp>(
+                           node->function_base()->MakeNode<CompareOp>(
                                node->loc(), node->operand(0), zero, Op::kEq));
       XLS_RETURN_IF_ERROR(
           node->ReplaceUsesWithNew<Concat>(
@@ -969,7 +971,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   if (node->Is<Select>()) {
     XLS_ASSIGN_OR_RETURN(
         std::unique_ptr<PostDominatorAnalysis> post_dominator_analysis,
-        PostDominatorAnalysis::Run(node->function()));
+        PostDominatorAnalysis::Run(node->function_base()));
     Select* sel = node->As<Select>();
     int64 selr_width = sel->selector()->BitCountOrDie();
     bool changed = false;
@@ -988,7 +990,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
         }
         XLS_ASSIGN_OR_RETURN(
             Literal * literal,
-            node->function()->MakeNode<Literal>(
+            node->function_base()->MakeNode<Literal>(
                 sel->selector()->loc(), Value(UBits(selr_value, selr_width))));
         if (selr_user->ReplaceOperand(sel->selector(), literal)) {
           changed = true;

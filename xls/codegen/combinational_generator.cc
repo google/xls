@@ -137,7 +137,7 @@ absl::Status GenerateCombinationalLogic(
     // If the node has an assigned name then don't emit as an inline
     // expression. This ensures the name appears in the generated Verilog.
     if (node->HasAssignedName() || node->users().size() > 1 ||
-        node == node->function()->return_value() ||
+        node->function_base()->HasImplicitUse(node) ||
         !mb->CanEmitAsInlineExpression(node)) {
       XLS_ASSIGN_OR_RETURN((*node_exprs)[node],
                            mb->EmitAsAssignment(node->GetName(), node, inputs));

@@ -168,7 +168,6 @@ class IrJit {
   std::unique_ptr<llvm::orc::IRTransformLayer> transform_layer_;
 
   FunctionBase* xls_function_;
-  FunctionType* xls_function_type_;
   int64 opt_level_;
 
   // Size of the function's args or return type as flat bytes.

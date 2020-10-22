@@ -39,11 +39,11 @@ class Proc : public FunctionBase {
         token_param_(AddNode(absl::make_unique<Param>(
             absl::nullopt, token_param_name, package->GetTokenType(), this))),
         state_param_(AddNode(absl::make_unique<Param>(
-            absl::nullopt, state_param_name, state_type_, this))) {}
+            absl::nullopt, state_param_name, state_type_, this))),
+        next_token_(token_param_),
+        next_state_(state_param_) {}
 
   virtual ~Proc() = default;
-
-  absl::Status set_return_value(Node* n) override;
 
   // Returns the initial value of the state variable.
   const Value& InitValue() const { return init_value_; }
@@ -51,14 +51,22 @@ class Proc : public FunctionBase {
   // Returns the type of the recurrent state variable.
   Type* StateType() const { return state_type_; }
 
-  // Returns the return type of the Proc. The return type is a 2-tuple
-  // containing the state type and a token.
-  Type* ReturnType() const { return return_type_; }
-
   // Returns the state (or token) parameter node. These are the only Params of
   // the Proc.
   Param* StateParam() const { return state_param_; }
   Param* TokenParam() const { return token_param_; }
+
+  // Returns the node holding the next recurrent token/state value.
+  Node* NextToken() const { return next_token_; }
+  Node* NextState() const { return next_state_; }
+
+  // Sets the next recurrent token/state value.
+  absl::Status SetNextToken(Node* next);
+  absl::Status SetNextState(Node* next);
+
+  bool HasImplicitUse(Node* node) const override {
+    return node == NextToken() || node == NextState();
+  }
 
   std::string DumpIr(bool recursive = false) const override;
 
@@ -71,6 +79,11 @@ class Proc : public FunctionBase {
   // and an input token) which are added at construction time.
   Param* token_param_;
   Param* state_param_;
+
+  // The nodes representing the token/state values for the next iteration of the
+  // proc.
+  Node* next_token_;
+  Node* next_state_;
 };
 
 }  // namespace xls

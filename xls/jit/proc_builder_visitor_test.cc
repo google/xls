@@ -110,14 +110,6 @@ class ProcBuilderVisitorTest : public ::testing::Test {
     return absl::OkStatus();
   }
 
-  // Wraps a single input param in a Tuple with a first Token member.
-  Type* ProcWrapStateParam(Type* state_param_type) {
-    std::vector<Type*> param_types;
-    param_types.push_back(package_->GetTokenType());
-    param_types.push_back(state_param_type);
-    return package_->GetTupleType(param_types);
-  }
-
   // Caution! This invalidates module_!
   EntryFunctionT BuildEntryFn(std::unique_ptr<llvm::Module> module,
                               const std::string& fn_name) {
@@ -133,7 +125,10 @@ class ProcBuilderVisitorTest : public ::testing::Test {
   // as unique_ptrs to auto-magically handle dealloc.
   absl::StatusOr<std::vector<uint8*>> PackArgs(FunctionBase* function,
                                                absl::Span<const Value> values) {
-    absl::Span<Type* const> param_types = function->GetType()->parameters();
+    std::vector<Type*> param_types;
+    for (Param* param : function->params()) {
+      param_types.push_back(param->GetType());
+    }
     XLS_RET_CHECK(values.size() == param_types.size());
 
     JitRuntime runtime(*data_layout(), type_converter());
@@ -142,15 +137,14 @@ class ProcBuilderVisitorTest : public ::testing::Test {
     unique_arg_buffers_.reserve(param_types.size());
     arg_buffers.reserve(param_types.size());
 
-    for (const Type* type : function->GetType()->parameters()) {
+    for (const Type* type : param_types) {
       unique_arg_buffers_.push_back(
           std::make_unique<uint8[]>(type_converter()->GetTypeByteSize(type)));
       arg_buffers.push_back(unique_arg_buffers_.back().get());
     }
 
-    XLS_RETURN_IF_ERROR(runtime.PackArgs(values,
-                                         function->GetType()->parameters(),
-                                         absl::MakeSpan(arg_buffers)));
+    XLS_RETURN_IF_ERROR(
+        runtime.PackArgs(values, param_types, absl::MakeSpan(arg_buffers)));
     return arg_buffers;
   }
 
@@ -247,13 +241,12 @@ proc the_proc(my_token: token, state: (), init=()) {
   tuple_index.4: bits[32] = tuple_index(receive.2, index=1)
   umul.5: bits[32] = umul(literal.1, tuple_index.4)
   send.6: token = send(tuple_index.3, data=[umul.5], channel_id=1)
-  ret tuple.7: (token, ()) = tuple(send.6, state)
+  next (send.6, state)
 }
 )";
   XLS_ASSERT_OK(InitPackage(kIrText));
   auto module = std::make_unique<llvm::Module>(kModuleName, ctx());
-  XLS_ASSERT_OK(
-      InitLlvm(module.get(), ProcWrapStateParam(package()->GetTupleType({}))));
+  XLS_ASSERT_OK(InitLlvm(module.get(), package()->GetTupleType({})));
   XLS_ASSERT_OK_AND_ASSIGN(auto xls_fn, package()->GetProc("the_proc"));
 
   XLS_ASSERT_OK_AND_ASSIGN(auto queue_mgr,
@@ -292,13 +285,12 @@ proc the_proc(my_token: token, state: bits[1], init=0) {
   tuple_index.3: token = tuple_index(receive_if.2, index=0)
   tuple_index.4: bits[32] = tuple_index(receive_if.2, index=1)
   send.5: token = send(tuple_index.3, data=[tuple_index.4], channel_id=1)
-  ret tuple.6: (token, bits[1]) = tuple(send.5, state)
+  next (send.5, state)
 }
 )";
   XLS_ASSERT_OK(InitPackage(kIrText));
   auto module = std::make_unique<llvm::Module>(kModuleName, ctx());
-  XLS_ASSERT_OK(
-      InitLlvm(module.get(), ProcWrapStateParam(package()->GetBitsType(1))));
+  XLS_ASSERT_OK(InitLlvm(module.get(), package()->GetBitsType(1)));
   XLS_ASSERT_OK_AND_ASSIGN(auto xls_fn, package()->GetProc("the_proc"));
 
   constexpr uint32 kQueueData = 0xbeef;
@@ -339,13 +331,12 @@ proc the_proc(my_token: token, state: bits[1], init=0) {
   tuple_index.3: token = tuple_index(receive.2, index=0)
   tuple_index.4: bits[32] = tuple_index(receive.2, index=1)
   send_if.5: token = send_if(tuple_index.3, state, data=[tuple_index.4], channel_id=1)
-  ret tuple.6: (token, bits[1]) = tuple(send_if.5, state)
+  next (send_if.5, state)
 }
 )";
   XLS_ASSERT_OK(InitPackage(kIrText));
   auto module = std::make_unique<llvm::Module>(kModuleName, ctx());
-  XLS_ASSERT_OK(
-      InitLlvm(module.get(), ProcWrapStateParam(package()->GetBitsType(1))));
+  XLS_ASSERT_OK(InitLlvm(module.get(), package()->GetBitsType(1)));
   XLS_ASSERT_OK_AND_ASSIGN(auto xls_fn, package()->GetProc("the_proc"));
 
   constexpr uint32 kQueueData = 0xbeef;
@@ -406,14 +397,13 @@ proc the_proc(my_token: token, state: (), init=()) {
   tuple_index.4: bits[32] = tuple_index(receive.2, index=1)
   umul.5: bits[32] = umul(literal.1, tuple_index.4)
   send.6: token = send(tuple_index.3, data=[umul.5], channel_id=1)
-  ret tuple.7: (token, ()) = tuple(send.6, state)
+  next (send.6, state)
 }
 )";
 
   XLS_ASSERT_OK(InitPackage(kIrText));
   auto module = std::make_unique<llvm::Module>(kModuleName, ctx());
-  XLS_ASSERT_OK(
-      InitLlvm(module.get(), ProcWrapStateParam(package()->GetTupleType({}))));
+  XLS_ASSERT_OK(InitLlvm(module.get(), package()->GetTupleType({})));
   XLS_ASSERT_OK_AND_ASSIGN(auto xls_fn, package()->GetProc("the_proc"));
 
   XLS_ASSERT_OK_AND_ASSIGN(auto queue_mgr,

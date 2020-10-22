@@ -61,7 +61,7 @@ Op CompareOpCommuted(Op op) {
 // the implementation of transformation passes, as only one pattern needs
 // to be matched, instead of two.
 absl::StatusOr<bool> CanonicalizeNode(Node* n) {
-  FunctionBase* f = n->function();
+  FunctionBase* f = n->function_base();
 
   // Always move kLiteral to right for commutative operators.
   Op op = n->op();

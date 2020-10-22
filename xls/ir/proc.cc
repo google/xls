@@ -22,14 +22,6 @@
 
 namespace xls {
 
-absl::Status Proc::set_return_value(Node* n) {
-  XLS_RET_CHECK_EQ(n->GetType(), ReturnType()) << absl::StreamFormat(
-      "Cannot set proc return value to node %s. Expected type is %s, but "
-      "node has type %s",
-      n->GetName(), ReturnType()->ToString(), n->GetType()->ToString());
-  return FunctionBase::set_return_value(n);
-}
-
 std::string Proc::DumpIr(bool recursive) const {
   // TODO(meheff): Remove recursive argument. Recursively dumping multiple
   // functions should be a method at the Package level, not the function/proc
@@ -43,20 +35,36 @@ std::string Proc::DumpIr(bool recursive) const {
 
   for (Node* node : TopoSort(const_cast<Proc*>(this))) {
     if (node->op() == Op::kParam) {
-      // A param can never be the return value of a proc because of the type
-      // restrictions and should never be printed (in functions parameters can
-      // be return values and are printed in this case).
-      XLS_CHECK(node != return_value())
-          << "A parameter cannot be the return value of a proc: "
-          << node->GetName();
       continue;
     }
-    absl::StrAppend(&res, "  ", node == return_value() ? "ret " : "",
-                    node->ToString(), "\n");
+    absl::StrAppend(&res, "  ", node->ToString(), "\n");
   }
+  absl::StrAppend(&res, "  next (", NextToken()->GetName(), ", ",
+                  NextState()->GetName(), ")\n");
 
   absl::StrAppend(&res, "}\n");
   return res;
+}
+
+absl::Status Proc::SetNextToken(Node* next) {
+  if (!next->GetType()->IsToken()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Cannot set next token to %s, expected token type but has type %s",
+        next->GetName(), next->GetType()->ToString()));
+  }
+  next_token_ = next;
+  return absl::OkStatus();
+}
+
+absl::Status Proc::SetNextState(Node* next) {
+  if (next->GetType() != StateType()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Cannot set next state to %s; type %s does not match "
+        "proc state type %s",
+        next->GetName(), next->GetType()->ToString(), StateType()->ToString()));
+  }
+  next_state_ = next;
+  return absl::OkStatus();
 }
 
 }  // namespace xls

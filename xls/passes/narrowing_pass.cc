@@ -85,10 +85,10 @@ absl::StatusOr<bool> MaybeNarrowCompare(CompareOp* compare,
   auto narrow_compare_operands = [](CompareOp* c, int64 start,
                                     int64 bit_count) -> absl::Status {
     XLS_ASSIGN_OR_RETURN(Node * narrowed_lhs,
-                         c->function()->MakeNode<BitSlice>(
+                         c->function_base()->MakeNode<BitSlice>(
                              c->loc(), c->operand(0), start, bit_count));
     XLS_ASSIGN_OR_RETURN(Node * narrowed_rhs,
-                         c->function()->MakeNode<BitSlice>(
+                         c->function_base()->MakeNode<BitSlice>(
                              c->loc(), c->operand(1), start, bit_count));
     return c->ReplaceUsesWithNew<CompareOp>(narrowed_lhs, narrowed_rhs, c->op())
         .status();
@@ -178,7 +178,7 @@ absl::StatusOr<bool> MaybeNarrowShiftAmount(Node* shift,
     // Prune the leading zeros from the shift amount.
     XLS_ASSIGN_OR_RETURN(
         Node * narrowed_shift_amount,
-        shift->function()->MakeNode<BitSlice>(
+        shift->function_base()->MakeNode<BitSlice>(
             shift->loc(), shift->operand(1), /*start=*/0,
             /*width=*/shift->operand(1)->BitCountOrDie() - leading_zeros));
     XLS_RETURN_IF_ERROR(shift
@@ -204,13 +204,13 @@ absl::StatusOr<bool> MaybeNarrowArrayIndex(ArrayIndex* array_index,
   int64 leading_zeros = CountLeadingKnownZeros(index, query_engine);
   if (leading_zeros == index_width) {
     XLS_ASSIGN_OR_RETURN(Node * zero,
-                         array_index->function()->MakeNode<Literal>(
+                         array_index->function_base()->MakeNode<Literal>(
                              array_index->loc(), Value(UBits(0, index_width))));
     XLS_RETURN_IF_ERROR(array_index->ReplaceOperandNumber(1, zero));
     return true;
   } else if (leading_zeros > 0) {
     XLS_ASSIGN_OR_RETURN(Node * narrowed_index,
-                         array_index->function()->MakeNode<BitSlice>(
+                         array_index->function_base()->MakeNode<BitSlice>(
                              array_index->loc(), index, /*start=*/0,
                              /*width=*/index_width - leading_zeros));
     XLS_RETURN_IF_ERROR(array_index
@@ -254,14 +254,14 @@ absl::StatusOr<bool> MaybeNarrowAdd(Node* add,
     int64 narrowed_bit_count = bit_count - common_leading_zeros + 1;
     XLS_ASSIGN_OR_RETURN(
         Node * narrowed_lhs,
-        lhs->function()->MakeNode<BitSlice>(lhs->loc(), lhs, /*start=*/0,
-                                            /*width=*/narrowed_bit_count));
+        lhs->function_base()->MakeNode<BitSlice>(lhs->loc(), lhs, /*start=*/0,
+                                                 /*width=*/narrowed_bit_count));
     XLS_ASSIGN_OR_RETURN(
         Node * narrowed_rhs,
-        rhs->function()->MakeNode<BitSlice>(rhs->loc(), rhs, /*start=*/0,
-                                            /*width=*/narrowed_bit_count));
+        rhs->function_base()->MakeNode<BitSlice>(rhs->loc(), rhs, /*start=*/0,
+                                                 /*width=*/narrowed_bit_count));
     XLS_ASSIGN_OR_RETURN(Node * narrowed_add,
-                         add->function()->MakeNode<BinOp>(
+                         add->function_base()->MakeNode<BinOp>(
                              add->loc(), narrowed_lhs, narrowed_rhs, Op::kAdd));
     XLS_RETURN_IF_ERROR(
         add->ReplaceUsesWithNew<ExtendOp>(narrowed_add, bit_count, Op::kZeroExt)
@@ -297,7 +297,7 @@ absl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
     if (node->BitCountOrDie() == bit_count) {
       return node;
     }
-    return node->function()->MakeNode<ExtendOp>(
+    return node->function_base()->MakeNode<ExtendOp>(
         node->loc(), node,
         /*new_bit_count=*/bit_count,
         /*op=*/mul->op() == Op::kSMul ? Op::kSignExt : Op::kZeroExt);
@@ -311,8 +311,9 @@ absl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
     if (node->BitCountOrDie() == bit_count) {
       return node;
     }
-    return node->function()->MakeNode<BitSlice>(node->loc(), node, /*start=*/0,
-                                                /*width=*/bit_count);
+    return node->function_base()->MakeNode<BitSlice>(node->loc(), node,
+                                                     /*start=*/0,
+                                                     /*width=*/bit_count);
   };
 
   // The result can be unconditionally narrowed to the sum of the operand
@@ -321,7 +322,7 @@ absl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
     XLS_VLOG(3) << "Result is wider than sum of operands. Narrowing multiply.";
     XLS_ASSIGN_OR_RETURN(
         Node * narrowed_mul,
-        mul->function()->MakeNode<ArithOp>(
+        mul->function_base()->MakeNode<ArithOp>(
             mul->loc(), lhs, rhs,
             /*width=*/lhs_bit_count + rhs_bit_count, mul->op()));
     XLS_ASSIGN_OR_RETURN(Node * replacement,
@@ -360,7 +361,7 @@ absl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
         return operand;
       }
       operand_narrowed = true;
-      return mul->function()->MakeNode<BitSlice>(
+      return mul->function_base()->MakeNode<BitSlice>(
           mul->loc(), operand, /*start=*/0,
           /*width=*/operand->BitCountOrDie() - leading_zeros);
     };

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -20,64 +20,14 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/function.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc.h"
 
 using absl::StrAppend;
 
 namespace xls {
-
-std::string FunctionBase::DumpIr(bool recursive) const {
-  std::string nested_funcs = "";
-  std::string res = "fn " + name() + "(";
-  std::vector<std::string> param_strings;
-  for (Param* param : params_) {
-    param_strings.push_back(
-        absl::StrFormat("%s: %s", param->name(), param->GetType()->ToString()));
-  }
-  StrAppend(&res, absl::StrJoin(param_strings, ", "));
-  StrAppend(&res, ") -> ");
-
-  if (return_value() != nullptr) {
-    StrAppend(&res, return_value()->GetType()->ToString());
-  }
-  StrAppend(&res, " {\n");
-
-  for (Node* node : TopoSort(const_cast<FunctionBase*>(this))) {
-    if (node->op() == Op::kParam && node == return_value()) {
-      absl::StrAppendFormat(&res, "  ret %s: %s = param(name=%s)\n",
-                            node->GetName(), node->GetType()->ToString(),
-                            node->As<Param>()->name());
-      continue;
-    }
-    if (node->op() == Op::kParam) {
-      continue;  // Already accounted for in the signature.
-    }
-    if (recursive && (node->op() == Op::kCountedFor)) {
-      nested_funcs += node->As<CountedFor>()->body()->DumpIr() + "\n";
-    }
-    if (recursive && (node->op() == Op::kMap)) {
-      nested_funcs += node->As<Map>()->to_apply()->DumpIr() + "\n";
-    }
-    if (recursive && (node->op() == Op::kInvoke)) {
-      nested_funcs += node->As<Invoke>()->to_apply()->DumpIr() + "\n";
-    }
-    StrAppend(&res, "  ", node == return_value() ? "ret " : "",
-              node->ToString(), "\n");
-  }
-
-  StrAppend(&res, "}\n");
-  return nested_funcs + res;
-}
-
-FunctionType* FunctionBase::GetType() {
-  std::vector<Type*> arg_types;
-  for (Param* param : params()) {
-    arg_types.push_back(param->GetType());
-  }
-  XLS_CHECK(return_value() != nullptr);
-  return package_->GetFunctionType(arg_types, return_value()->GetType());
-}
 
 absl::StatusOr<Param*> FunctionBase::GetParamByName(
     absl::string_view param_name) const {
@@ -118,7 +68,7 @@ absl::StatusOr<Node*> FunctionBase::GetNode(
 
 absl::Status FunctionBase::RemoveNode(Node* node, bool remove_param_ok) {
   XLS_RET_CHECK(node->users().empty());
-  XLS_RET_CHECK_NE(node, return_value());
+  XLS_RET_CHECK(!HasImplicitUse(node));
   if (node->Is<Param>()) {
     XLS_RET_CHECK(remove_param_ok)
         << "Attempting to remove parameter when !remove_param_ok: " << *node;
@@ -151,6 +101,24 @@ absl::Status FunctionBase::Accept(DfsVisitor* visitor) {
     }
   }
   return absl::OkStatus();
+}
+
+bool FunctionBase::IsFunction() const {
+  return dynamic_cast<const Function*>(this) != nullptr;
+}
+
+bool FunctionBase::IsProc() const {
+  return dynamic_cast<const Proc*>(this) != nullptr;
+}
+
+Function* FunctionBase::AsFunctionOrDie() {
+  XLS_CHECK(IsFunction());
+  return down_cast<Function*>(this);
+}
+
+Proc* FunctionBase::AsProcOrDie() {
+  XLS_CHECK(IsProc());
+  return down_cast<Proc*>(this);
 }
 
 std::ostream& operator<<(std::ostream& os, const FunctionBase& function) {

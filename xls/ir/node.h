@@ -70,7 +70,7 @@ class Node {
   int64 BitCountOrDie() const { return GetType()->AsBitsOrDie()->bit_count(); }
 
   Op op() const { return op_; }
-  FunctionBase* function() const { return function_; }
+  FunctionBase* function_base() const { return function_base_; }
   Package* package() const;
   const absl::optional<SourceLocation> loc() const { return loc_; }
 
@@ -105,11 +105,18 @@ class Node {
   template <typename NodeT, typename... Args>
   absl::StatusOr<NodeT*> ReplaceUsesWithNew(Args&&... args) {
     std::unique_ptr<NodeT> new_node = absl::make_unique<NodeT>(
-        loc(), std::forward<Args>(args)..., /*name=*/"", function());
+        loc(), std::forward<Args>(args)..., /*name=*/"", function_base());
     NodeT* ptr = new_node.get();
     XLS_RETURN_IF_ERROR(AddNodeToFunctionAndReplace(std::move(new_node)));
     return ptr;
   }
+
+  // Replaces any implicit uses of this node with the given
+  // replacement. Implicit uses include function return values and proc next
+  // state and tokens. For example, if this node is the return value of a
+  // function, then calling ReplaceImplicitUsesWith(foo) will make foo the
+  // return value. Returns whether any implicit uses were replaced.
+  absl::StatusOr<bool> ReplaceImplicitUsesWith(Node* replacement);
 
   // Swaps the operands at indices 'a' and 'b' in the operands sequence.
   void SwapOperands(int64 a, int64 b) {
@@ -205,7 +212,7 @@ class Node {
   // Clones the node with the new operands. Returns the newly created
   // instruction.
   absl::StatusOr<Node*> Clone(absl::Span<Node* const> new_operands) const {
-    return CloneInNewFunction(new_operands, function());
+    return CloneInNewFunction(new_operands, function_base());
   }
 
   // As above but clones the instruction into the function 'new_function'. The
@@ -245,7 +252,7 @@ class Node {
   void AddUser(Node* user);
   void RemoveUser(Node* user);
 
-  FunctionBase* function_;
+  FunctionBase* function_base_;
   int64 id_;
   Op op_;
   Type* type_;

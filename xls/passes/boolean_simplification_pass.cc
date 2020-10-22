@@ -332,7 +332,7 @@ class BooleanFlowTracker : public DfsVisitorWithDefault {
                                           absl::Span<Node* const> operands,
                                           Node* original) {
     XLS_RET_CHECK(2 <= operands.size() && operands.size() <= 3);
-    FunctionBase* f = original->function();
+    FunctionBase* f = original->function_base();
     if (bits.IsAllOnes()) {
       return f->MakeNode<Literal>(original->loc(),
                                   Value(SBits(-1, original->BitCountOrDie())));

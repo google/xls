@@ -26,9 +26,26 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/ir/function.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/proc.h"
 
 namespace xls {
+namespace {
+
+// Returns the exit nodes of the function/proc. These are the nodes which have
+// implicit uses (are live out of the graph).
+std::vector<Node*> GetExitNodes(FunctionBase* f) {
+  return f->IsFunction()
+             ? std::vector<Node*>({f->AsFunctionOrDie()->return_value()})
+             : std::vector<Node*>({f->AsProcOrDie()->NextToken(),
+                                   f->AsProcOrDie()->NextState()});
+}
+
+// Returns whether n is an exit node as defined above.
+bool IsExitNode(Node* n) { return n->function_base()->HasImplicitUse(n); }
+
+}  // namespace
 
 /* static */ absl::StatusOr<std::unique_ptr<PostDominatorAnalysis>>
 PostDominatorAnalysis::Run(FunctionBase* f) {
@@ -40,8 +57,6 @@ PostDominatorAnalysis::Run(FunctionBase* f) {
     analysis->post_dominator_to_dominated_nodes_[current_node] = {};
     analysis->dominated_node_to_post_dominators_[current_node] = {};
   }
-  Node* return_node = f->return_value();
-
   // Find post-dominators of all nodes.
   // Note: We assume there are no backwards edges in the graph,
   // making it safe to just iterate over the nodes once in reverse
@@ -49,8 +64,9 @@ PostDominatorAnalysis::Run(FunctionBase* f) {
   for (Node* dominated_node : ReverseTopoSort(f)) {
     absl::flat_hash_set<Node*>& node_post_dominators =
         analysis->dominated_node_to_post_dominators_.at(dominated_node);
-    if (dominated_node == return_node) {
-      analysis->dominated_node_to_post_dominators_[return_node] = {return_node};
+    if (IsExitNode(dominated_node)) {
+      analysis->dominated_node_to_post_dominators_[dominated_node] = {
+          dominated_node};
     } else if (!dominated_node->users().empty()) {
       // Calculate post-dominators of dominated_node.
       // new_post_dominators = union(dominated_node,
@@ -121,7 +137,9 @@ PostDominatorAnalysis::Run(FunctionBase* f) {
 }
 
 void PostDominatorAnalysis::PopulateReturnReachingNodes() {
-  return_reaching_nodes_.insert(func_->return_value());
+  for (Node* node : GetExitNodes(func_)) {
+    return_reaching_nodes_.insert(node);
+  }
   for (const Node* node : ReverseTopoSort(func_)) {
     if (std::any_of(node->users().begin(), node->users().end(),
                     [&](Node* user) {

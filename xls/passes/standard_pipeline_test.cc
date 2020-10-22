@@ -53,8 +53,7 @@ class StandardPipelineTest : public IrTestBase {
         lit1: bits[8] = literal(value=7)
         lit2: bits[8] = literal(value=12)
         %s1: bits[8] = %s(lit1, x)
-        res: bits[8] = %s(%s1, lit2)
-        ret res
+        ret res: bits[8] = %s(%s1, lit2)
      }
   )",
                                            xls_op, xls_op, xls_op, xls_op);
@@ -74,8 +73,7 @@ class StandardPipelineTest : public IrTestBase {
         lit1: bits[8] = literal(value=7)
         lit2: bits[8] = literal(value=12)
         %s1: bits[8] = %s(x, lit1)
-        res: bits[8] = %s(%s1, lit2)
-        ret res
+        ret res: bits[8] = %s(%s1, lit2)
      }
   )",
                                            xls_op1, xls_op1, xls_op2, xls_op1);
@@ -104,8 +102,7 @@ TEST_F(StandardPipelineTest, IdentityRemoval) {
         v7:  bits[8] = identity(v6)
         v8:  bits[8] = identity(v7)
         v9:  bits[8] = identity(v8)
-        add2:bits[8] = sub(v9, one)
-        ret add2
+        ret add2:bits[8] = sub(v9, one)
      }
   )",
                                                        p.get()));

@@ -129,7 +129,8 @@ ProcInterpreter::ProcInterpreter(Proc* proc, ChannelQueueManager* queue_manager)
       current_iteration_(0) {}
 
 bool ProcInterpreter::IsIterationComplete() const {
-  return visitor_ == nullptr || visitor_->IsVisited(proc_->return_value());
+  return visitor_ == nullptr || (visitor_->IsVisited(proc_->NextState()) &&
+                                 visitor_->IsVisited(proc_->NextToken()));
 }
 
 absl::StatusOr<ProcInterpreter::RunResult>
@@ -149,13 +150,9 @@ ProcInterpreter::RunIterationUntilCompleteOrBlocked() {
       visitor_ = absl::make_unique<ProcIrInterpreter>(proc_->InitValue(),
                                                       queue_manager_);
     } else {
-      // This not the first time the proc has run. Proc state is the second
-      // element of the return value of the previous iteration.
-      const Value& return_value =
-          visitor_->ResolveAsValue(proc_->return_value());
-      XLS_RET_CHECK(return_value.IsTuple());
-      visitor_ = absl::make_unique<ProcIrInterpreter>(return_value.element(1),
-                                                      queue_manager_);
+      const Value& next_state = visitor_->ResolveAsValue(proc_->NextState());
+      visitor_ =
+          absl::make_unique<ProcIrInterpreter>(next_state, queue_manager_);
       ++current_iteration_;
     }
   }

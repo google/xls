@@ -26,7 +26,7 @@ absl::StatusOr<bool> DeadCodeEliminationPass::RunOnFunctionBase(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
   std::deque<Node*> worklist;
   for (Node* n : f->nodes()) {
-    if (n->users().empty() && n != f->return_value() && !n->Is<Param>()) {
+    if (n->users().empty() && !f->HasImplicitUse(n) && !n->Is<Param>()) {
       worklist.push_back(n);
     }
   }
@@ -41,7 +41,7 @@ absl::StatusOr<bool> DeadCodeEliminationPass::RunOnFunctionBase(
     unique_operands.clear();
     for (Node* operand : node->operands()) {
       if (unique_operands.insert(operand).second) {
-        if (operand->users().size() == 1 && operand != f->return_value() &&
+        if (operand->users().size() == 1 && !f->HasImplicitUse(operand) &&
             !operand->Is<Param>()) {
           worklist.push_back(operand);
         }

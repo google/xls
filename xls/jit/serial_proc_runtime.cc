@@ -17,6 +17,7 @@
 #include "xls/common/cleanup.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/proc.h"
+#include "xls/jit/function_builder_visitor.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/proc_builder_visitor.h"
 
@@ -132,7 +133,8 @@ absl::Status SerialProcRuntime::Init() {
     thread->proc_state_size = jit->GetReturnTypeSize();
     thread->proc_state = std::make_unique<uint8[]>(thread->proc_state_size);
     jit->runtime()->BlitValueToBuffer(
-        proc->InitValue(), proc->GetType()->return_type(),
+        proc->InitValue(),
+        FunctionBuilderVisitor::GetEffectiveReturnValue(proc)->GetType(),
         absl::MakeSpan(thread->proc_state.get(), jit->GetReturnTypeSize()));
 
     absl::MutexLock lock(&thread->mutex);

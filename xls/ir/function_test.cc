@@ -30,6 +30,19 @@ using ::testing::HasSubstr;
 
 class FunctionTest : public IrTestBase {};
 
+TEST_F(FunctionTest, BasicPropertiesTest) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, ParseFunction(R"(
+fn foo(x: bits[32], y: bits[32]) -> bits[32] {
+ret add.3: bits[32] = add(x, y)
+}
+)",
+                                                          p.get()));
+  EXPECT_EQ(func->name(), "foo");
+  EXPECT_TRUE(func->IsFunction());
+  EXPECT_FALSE(func->IsProc());
+}
+
 TEST_F(FunctionTest, CloneSimpleFunction) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, ParseFunction(R"(

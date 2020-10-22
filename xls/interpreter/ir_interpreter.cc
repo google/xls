@@ -463,7 +463,8 @@ absl::Status IrInterpreter::HandleOneHotSel(OneHotSelect* sel) {
 }
 
 absl::Status IrInterpreter::HandleParam(Param* param) {
-  XLS_ASSIGN_OR_RETURN(int64 index, param->function()->GetParamIndex(param));
+  XLS_ASSIGN_OR_RETURN(int64 index,
+                       param->function_base()->GetParamIndex(param));
   if (index >= args_.size()) {
     return absl::InternalError(absl::StrFormat(
         "Parameter %s at index %d does not exist in args (of length %d)",

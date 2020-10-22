@@ -37,7 +37,6 @@ PYBIND11_MODULE(function, m) {
   py::class_<FunctionBaseHolder>(m, "FunctionBase")
       .def("dump_ir", PyWrap(&FunctionBase::DumpIr),
            py::arg("recursive") = false)
-      .def("get_type", PyWrap(&FunctionBase::GetType))
       .def_property_readonly("name", PyWrap(&Function::name));
 
   py::class_<FunctionHolder>(m, "Function")

@@ -153,14 +153,14 @@ absl::StatusOr<bool> CollapseSelectChains(FunctionBase* f,
       // selectors.
       XLS_VLOG(4) << "All selectors may be false.";
       XLS_ASSIGN_OR_RETURN(Node * nor_of_selectors,
-                           node->function()->MakeNode<NaryOp>(
+                           node->function_base()->MakeNode<NaryOp>(
                                node->loc(), std::vector{selectors}, Op::kNor));
       selectors.push_back(nor_of_selectors);
       cases.push_back(select_chain.back()->get_case(0));
     }
     XLS_VLOG(4) << "Replacing select chain with one-hot-select.";
     XLS_ASSIGN_OR_RETURN(Node * ohs_selector,
-                         node->function()->MakeNode<Concat>(
+                         node->function_base()->MakeNode<Concat>(
                              node->loc(), std::vector{selectors}));
 
     // Reverse the direction of the cases so cases[0] which is at bottom of the
@@ -245,13 +245,13 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
           XLS_VLOG(1) << node->GetName()
                       << " has known bits prefix: " << Bits(known_prefix);
           XLS_ASSIGN_OR_RETURN(Node * prefix_literal,
-                               node->function()->MakeNode<Literal>(
+                               node->function_base()->MakeNode<Literal>(
                                    node->loc(), Value(Bits(known_prefix))));
           concat_elements.push_back(prefix_literal);
         }
         XLS_ASSIGN_OR_RETURN(
             Node * sliced_node,
-            node->function()->MakeNode<BitSlice>(
+            node->function_base()->MakeNode<BitSlice>(
                 node->loc(), node, /*start=*/known_suffix.size(),
                 /*width=*/node->BitCountOrDie() - known_prefix.size() -
                     known_suffix.size()));
@@ -260,19 +260,18 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
           XLS_VLOG(1) << node->GetName()
                       << " has known bits suffix: " << Bits(known_suffix);
           XLS_ASSIGN_OR_RETURN(Node * suffix_literal,
-                               node->function()->MakeNode<Literal>(
+                               node->function_base()->MakeNode<Literal>(
                                    node->loc(), Value(Bits(known_suffix))));
           concat_elements.push_back(suffix_literal);
         }
-        XLS_ASSIGN_OR_RETURN(
-            Node * replacement,
-            node->function()->MakeNode<Concat>(node->loc(), concat_elements));
+        XLS_ASSIGN_OR_RETURN(Node * replacement,
+                             node->function_base()->MakeNode<Concat>(
+                                 node->loc(), concat_elements));
         for (Node* user : old_users) {
           user->ReplaceOperand(node, replacement);
         }
-        if (node == node->function()->return_value()) {
-          XLS_RETURN_IF_ERROR(node->function()->set_return_value(replacement));
-        }
+        XLS_RETURN_IF_ERROR(
+            node->ReplaceImplicitUsesWith(replacement).status());
       }
       return true;
     }
@@ -285,10 +284,10 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     OneHotSelect* ohs = node->As<OneHotSelect>();
     if (query_engine.AtLeastOneBitTrue(ohs->selector()) &&
         query_engine.AtMostOneBitTrue(ohs->selector())) {
-      XLS_ASSIGN_OR_RETURN(
-          Node * bit0_selector,
-          node->function()->MakeNode<BitSlice>(node->loc(), ohs->selector(),
-                                               /*start=*/0, /*width=*/1));
+      XLS_ASSIGN_OR_RETURN(Node * bit0_selector,
+                           node->function_base()->MakeNode<BitSlice>(
+                               node->loc(), ohs->selector(),
+                               /*start=*/0, /*width=*/1));
       XLS_RETURN_IF_ERROR(
           node->ReplaceUsesWithNew<Select>(
                   /*selector=*/bit0_selector,
@@ -306,12 +305,12 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     if (node->Is<OneHot>() && query_engine.AtMostOneBitTrue(node->operand(0))) {
       XLS_ASSIGN_OR_RETURN(
           Node * zero,
-          node->function()->MakeNode<Literal>(
+          node->function_base()->MakeNode<Literal>(
               node->loc(),
               Value(
                   UBits(0, /*bit_count=*/node->operand(0)->BitCountOrDie()))));
       XLS_ASSIGN_OR_RETURN(Node * operand_eq_zero,
-                           node->function()->MakeNode<CompareOp>(
+                           node->function_base()->MakeNode<CompareOp>(
                                node->loc(), node->operand(0), zero, Op::kEq));
       XLS_RETURN_IF_ERROR(
           node->ReplaceUsesWithNew<Concat>(
@@ -415,7 +414,6 @@ absl::StatusOr<bool> SimplifyOneHotMsb(FunctionBase* f) {
 
           // Not safe to iterate over users() span while modifying underlying
           // users, so postpone modification.
-          XLS_CHECK_NE(f->return_value(), node);
           std::vector<Node*> users_to_modify;
           for (Node* user : node->users()) {
             if (user != lsb_slice) {

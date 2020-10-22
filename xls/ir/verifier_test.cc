@@ -162,7 +162,7 @@ TEST_F(VerifierTest, WellFormedProc) {
 package test_package
 
 proc my_proc(t: token, s: bits[42], init=45) {
-  ret tuple.1: (token, bits[42]) = tuple(t, s)
+  next (t, s)
 }
 
 )";
@@ -179,7 +179,7 @@ chan ch(data: bits[32], id=42, kind=send_receive, metadata="""module_port { flop
 
 proc my_proc(t: token, s: bits[42], init=45) {
   send.1: token = send(t, data=[s], channel_id=42)
-  ret tuple.2: (token, bits[42]) = tuple(send.1, s)
+  next (send.1, s)
 }
 
 )";
@@ -200,7 +200,7 @@ chan ch(data: bits[32], id=42, kind=send_only, metadata="""module_port { flopped
 proc my_proc(t: token, s: bits[42], init=45) {
   send.1: token = send(t, data=[s], channel_id=42)
   send.2: token = send(send.1, data=[s], channel_id=42)
-  ret tuple.3: (token, bits[42]) = tuple(send.2, s)
+  next (send.2, s)
 }
 
 )";
@@ -220,7 +220,7 @@ chan ch(data: bits[32], id=42, kind=send_only, metadata="""module_port { flopped
 proc my_proc(t: token, s: bits[42], init=45) {
   after_all.1: token = after_all()
   send.2: token = send(after_all.1, data=[s], channel_id=42)
-  ret tuple.3: (token, bits[42]) = tuple(send.2, s)
+  next (send.2, s)
 }
 
 )";
@@ -240,7 +240,7 @@ chan ch(data: bits[32], id=42, kind=receive_only, metadata="""module_port { flop
 
 proc my_proc(t: token, s: bits[42], init=45) {
   receive.1: (token, bits[32]) = receive(t, channel_id=42)
-  ret tuple.2: (token, bits[42]) = tuple(t, s)
+  next (t, s)
 }
 
 )";
@@ -249,7 +249,7 @@ proc my_proc(t: token, s: bits[42], init=45) {
       VerifyPackage(p.get()),
       StatusIs(absl::StatusCode::kInternal,
                HasSubstr("Send and receive nodes must be connected to the "
-                         "return value via a path of tokens: receive.")));
+                         "next token value via a path of tokens: receive.")));
 }
 
 TEST_F(VerifierTest, DisconnectedReturnValueInProc) {
@@ -258,16 +258,17 @@ package test_package
 
 proc my_proc(t: token, s: bits[42], init=45) {
   after_all.1: token = after_all()
-  ret tuple.2: (token, bits[42]) = tuple(after_all.1, s)
+  next (after_all.1, s)
 }
 
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
   EXPECT_THAT(
       VerifyPackage(p.get()),
-      StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("Return value of proc must be connected to the token "
-                         "parameter via a path of tokens: tuple.2")));
+      StatusIs(
+          absl::StatusCode::kInternal,
+          HasSubstr("Next token value of proc must be connected to the token "
+                    "parameter via a path of tokens")));
 }
 
 TEST_F(VerifierTest, SendOnReceiveOnlyChannel) {
@@ -280,7 +281,7 @@ proc my_proc(t: token, s: bits[42], init=45) {
   send.1: token = send(t, data=[s], channel_id=42)
   receive.2: (token, bits[32]) = receive(send.1, channel_id=42)
   tuple_index.3: token = tuple_index(receive.2, index=0)
-  ret tuple.4: (token, bits[42]) = tuple(tuple_index.3, s)
+  next (tuple_index.3, s)
 }
 
 )";

@@ -64,8 +64,7 @@ TEST_F(IdentityRemovalPassTest, IdentityChainRemoval) {
         v7:  bits[8] = identity(v6)
         v8:  bits[8] = identity(v7)
         v9:  bits[8] = identity(v8)
-        add2:bits[8] = sub(v9, one)
-        ret add2
+        ret add2:bits[8] = sub(v9, one)
      }
   )",
                                                        p.get()));

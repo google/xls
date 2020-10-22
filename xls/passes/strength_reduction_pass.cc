@@ -110,7 +110,7 @@ absl::StatusOr<bool> StrengthReduceNode(
     XLS_CHECK_GE(leading_zeros, 0);
     XLS_CHECK_GE(selected_bits, 0);
     XLS_CHECK_GE(trailing_zeros, 0);
-    FunctionBase* f = node->function();
+    FunctionBase* f = node->function_base();
     XLS_ASSIGN_OR_RETURN(Node * slice,
                          f->MakeNode<BitSlice>(node->loc(), node->operand(0),
                                                /*start=*/trailing_zeros,
@@ -143,7 +143,7 @@ absl::StatusOr<bool> StrengthReduceNode(
       (node->operand(1)->Is<Literal>() || node->operand(2)->Is<Literal>() ||
        (node->operand(0) == node->operand(1) ||
         node->operand(0) == node->operand(2)))) {
-    FunctionBase* f = node->function();
+    FunctionBase* f = node->function_base();
     Select* select = node->As<Select>();
     XLS_RET_CHECK(!select->default_value().has_value()) << select->ToString();
     Node* s = select->operand(0);
@@ -190,7 +190,7 @@ absl::StatusOr<bool> StrengthReduceNode(
   if (is_signext_mux(&invert_selector)) {
     Node* selector = node->operand(0);
     if (invert_selector) {
-      XLS_ASSIGN_OR_RETURN(selector, node->function()->MakeNode<UnOp>(
+      XLS_ASSIGN_OR_RETURN(selector, node->function_base()->MakeNode<UnOp>(
                                          node->loc(), selector, Op::kNot));
     }
     XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<ExtendOp>(
@@ -248,12 +248,13 @@ absl::StatusOr<bool> StrengthReduceNode(
                            op1_literal_bits.CountLeadingZeros() - 1;
       int64 width = op1_literal_bits.bit_count() - one_position;
       Op new_op = node->op() == Op::kUGe ? Op::kNe : Op::kEq;
-      XLS_ASSIGN_OR_RETURN(Node * slice, node->function()->MakeNode<BitSlice>(
-                                             node->loc(), node->operand(0),
-                                             /*start=*/one_position,
-                                             /*width=*/width));
+      XLS_ASSIGN_OR_RETURN(Node * slice,
+                           node->function_base()->MakeNode<BitSlice>(
+                               node->loc(), node->operand(0),
+                               /*start=*/one_position,
+                               /*width=*/width));
       XLS_ASSIGN_OR_RETURN(Node * zero,
-                           node->function()->MakeNode<Literal>(
+                           node->function_base()->MakeNode<Literal>(
                                node->loc(), Value(UBits(/*value=*/0,
                                                         /*bit_count=*/width))));
       XLS_RETURN_IF_ERROR(
@@ -266,7 +267,7 @@ absl::StatusOr<bool> StrengthReduceNode(
   //  where bits(x) <= 2
   if (node->op() == Op::kEq && node->operand(0)->BitCountOrDie() == 2 &&
       IsLiteralZero(node->operand(1))) {
-    FunctionBase* f = node->function();
+    FunctionBase* f = node->function_base();
     XLS_ASSIGN_OR_RETURN(
         Node * x_0, f->MakeNode<BitSlice>(node->loc(), node->operand(0), 0, 1));
     XLS_ASSIGN_OR_RETURN(
@@ -298,7 +299,7 @@ absl::StatusOr<bool> StrengthReduceNode(
           op0_known_zero > op1_known_zero ? node->operand(1) : node->operand(0);
       int64 narrow_amt = std::max(op0_known_zero, op1_known_zero);
       auto narrow = [&](Node* n) -> absl::StatusOr<Node*> {
-        return node->function()->MakeNode<BitSlice>(
+        return node->function_base()->MakeNode<BitSlice>(
             node->loc(), n, /*start=*/narrow_amt,
             /*width=*/n->BitCountOrDie() - narrow_amt);
       };
@@ -306,11 +307,12 @@ absl::StatusOr<bool> StrengthReduceNode(
       XLS_ASSIGN_OR_RETURN(Node * op1_narrowed, narrow(node->operand(1)));
       XLS_ASSIGN_OR_RETURN(
           Node * narrowed_add,
-          node->function()->MakeNode<BinOp>(node->loc(), op0_narrowed,
-                                            op1_narrowed, Op::kAdd));
-      XLS_ASSIGN_OR_RETURN(Node * lsb, node->function()->MakeNode<BitSlice>(
-                                           node->loc(), nonzero_operand,
-                                           /*start=*/0, /*width=*/narrow_amt));
+          node->function_base()->MakeNode<BinOp>(node->loc(), op0_narrowed,
+                                                 op1_narrowed, Op::kAdd));
+      XLS_ASSIGN_OR_RETURN(Node * lsb,
+                           node->function_base()->MakeNode<BitSlice>(
+                               node->loc(), nonzero_operand,
+                               /*start=*/0, /*width=*/narrow_amt));
       XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<Concat>(
                                   std::vector<Node*>{narrowed_add, lsb})
                               .status());
