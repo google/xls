@@ -19,6 +19,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/node_util.h"
 
 namespace xls {
 namespace {
@@ -41,6 +42,23 @@ ret add.3: bits[32] = add(x, y)
   EXPECT_EQ(func_clone->name(), "foobar");
   EXPECT_EQ(func_clone->node_count(), 3);
   EXPECT_EQ(func_clone->return_value()->op(), Op::kAdd);
+}
+
+TEST_F(FunctionTest, CloneSimpleFunctionToDifferentPackage) {
+  auto p = CreatePackage();
+  FunctionBuilder b("f", p.get());
+  auto x = b.Param("x", p->GetBitsType(32));
+  auto y = b.Param("y", p->GetBitsType(32));
+  auto arr = b.Array({x, y}, x.GetType());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, b.BuildWithReturnValue(arr));
+
+  auto new_package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func_clone,
+                           func->Clone("newbar", new_package.get()));
+  EXPECT_EQ(func_clone->name(), "newbar");
+  EXPECT_EQ(func_clone->node_count(), 3);
+  EXPECT_EQ(func_clone->return_value()->op(), Op::kArray);
+  EXPECT_EQ(func_clone->package(), new_package.get());
 }
 
 TEST_F(FunctionTest, DumpIrWhenParamIsRetval) {
@@ -164,6 +182,125 @@ fn id(x: bits[16], y: bits[32]) -> bits[16] {
       StatusIs(absl::StatusCode::kInternal,
                HasSubstr("Type of operand 1 (bits[32] via y) does not "
                          "match type of xor")));
+}
+
+TEST_F(FunctionTest, IsLiteralMask) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto seven_3b = fb.Literal(UBits(0b111, 3));
+  auto two_3b = fb.Literal(UBits(0b011, 3));
+  auto one_1b = fb.Literal(UBits(0b1, 1));
+  auto zero_1b = fb.Literal(UBits(0b0, 1));
+  auto zero_0b = fb.Literal(UBits(0b0, 0));
+
+  int64 leading_zeros, trailing_ones;
+  EXPECT_TRUE(IsLiteralMask(seven_3b.node(), &leading_zeros, &trailing_ones));
+  EXPECT_EQ(0, leading_zeros);
+  EXPECT_EQ(3, trailing_ones);
+
+  EXPECT_TRUE(IsLiteralMask(two_3b.node(), &leading_zeros, &trailing_ones));
+  EXPECT_EQ(1, leading_zeros);
+  EXPECT_EQ(2, trailing_ones);
+
+  EXPECT_TRUE(IsLiteralMask(one_1b.node(), &leading_zeros, &trailing_ones));
+  EXPECT_EQ(0, leading_zeros);
+  EXPECT_EQ(1, trailing_ones);
+
+  EXPECT_FALSE(IsLiteralMask(zero_1b.node(), &leading_zeros, &trailing_ones));
+  EXPECT_FALSE(IsLiteralMask(zero_0b.node(), &leading_zeros, &trailing_ones));
+}
+
+TEST_F(FunctionTest, CloneCountedForRemap) {
+  auto p = CreatePackage();
+  FunctionBuilder fb_body("body_a", p.get());
+  fb_body.Param("index", p->GetBitsType(2));
+  fb_body.Param("acc", p->GetBitsType(2));
+  fb_body.Literal(UBits(0b11, 2));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * body_a, fb_body.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * body_b, body_a->Clone("body_b"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * body_c, body_a->Clone("body_c"));
+
+  FunctionBuilder fb_main("main", p.get());
+  auto init = fb_main.Param("init_acc", p->GetBitsType(2));
+  fb_main.CountedFor(init, /*trip_count=*/4, /*stride=*/1, body_a,
+                     /*invariant_args=*/{}, /*loc=*/std::nullopt, "counted_a");
+  fb_main.CountedFor(init, /*trip_count=*/4, /*stride=*/1, body_b,
+                     /*invariant_args=*/{}, /*loc=*/std::nullopt, "counted_b");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * main, fb_main.Build());
+
+  absl::flat_hash_map<const Function*, Function*> remap;
+  remap[body_a] = body_c;
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * main_clone,
+      main->Clone("main_clone", /*target_package=*/p.get(), remap));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * node_a_clone,
+                           main_clone->GetNode("counted_a"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * node_b_clone,
+                           main_clone->GetNode("counted_b"));
+  CountedFor* counted_a_clone = node_a_clone->As<CountedFor>();
+  CountedFor* counted_b_clone = node_b_clone->As<CountedFor>();
+  EXPECT_EQ(counted_a_clone->body(), body_c);
+  EXPECT_EQ(counted_b_clone->body(), body_b);
+}
+
+TEST_F(FunctionTest, CloneMapRemap) {
+  auto p = CreatePackage();
+  FunctionBuilder fb_body("apply_a", p.get());
+  fb_body.Param("in", p->GetBitsType(2));
+  fb_body.Literal(UBits(0b11, 2));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * apply_a, fb_body.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * apply_b, apply_a->Clone("apply_b"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * apply_c, apply_a->Clone("apply_c"));
+
+  FunctionBuilder fb_main("main", p.get());
+  auto input = fb_main.Param("input", p->GetArrayType(2, p->GetBitsType(2)));
+  fb_main.Map(input, apply_a, /*loc=*/std::nullopt, "map_a");
+  fb_main.Map(input, apply_b, /*loc=*/std::nullopt, "map_b");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * main, fb_main.Build());
+
+  absl::flat_hash_map<const Function*, Function*> remap;
+  remap[apply_a] = apply_c;
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * main_clone,
+      main->Clone("main_clone", /*target_package=*/p.get(), remap));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * node_a_clone, main_clone->GetNode("map_a"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * node_b_clone, main_clone->GetNode("map_b"));
+  Map* map_a_clone = node_a_clone->As<Map>();
+  Map* map_b_clone = node_b_clone->As<Map>();
+  EXPECT_EQ(map_a_clone->to_apply(), apply_c);
+  EXPECT_EQ(map_b_clone->to_apply(), apply_b);
+}
+
+TEST_F(FunctionTest, CloneInvokeForRemap) {
+  auto p = CreatePackage();
+  FunctionBuilder fb_body("body_a", p.get());
+  fb_body.Literal(UBits(0b11, 2));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * apply_a, fb_body.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * apply_b, apply_a->Clone("apply_b"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * apply_c, apply_a->Clone("apply_c"));
+
+  FunctionBuilder fb_main("main", p.get());
+  // TODO finish
+  fb_main.Invoke(/*args=*/{}, apply_a, /*loc=*/std::nullopt, "invoke_a");
+  fb_main.Invoke(/*args=*/{}, apply_b, /*loc=*/std::nullopt, "invoke_b");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * main, fb_main.Build());
+
+  absl::flat_hash_map<const Function*, Function*> remap;
+  remap[apply_a] = apply_c;
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * main_clone,
+      main->Clone("main_clone", /*target_package=*/p.get(), remap));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * node_a_clone,
+                           main_clone->GetNode("invoke_a"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * node_b_clone,
+                           main_clone->GetNode("invoke_b"));
+  Invoke* invoke_a_clone = node_a_clone->As<Invoke>();
+  Invoke* invoke_b_clone = node_b_clone->As<Invoke>();
+  EXPECT_EQ(invoke_a_clone->to_apply(), apply_c);
+  EXPECT_EQ(invoke_b_clone->to_apply(), apply_b);
 }
 
 }  // namespace

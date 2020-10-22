@@ -67,6 +67,10 @@ class Package {
   FunctionType* GetFunctionType(absl::Span<Type* const> args_types,
                                 Type* return_type);
 
+  // Returns a pointer to a type owned by this package that is of the same
+  // type as 'other_package_type', which may be owned by another package.
+  absl::StatusOr<Type*> MapTypeFromOtherPackage(Type* other_package_type);
+
   // Creates and returned an owned type constructed from the given proto.
   absl::StatusOr<Type*> GetTypeFromProto(const TypeProto& proto);
   absl::StatusOr<FunctionType*> GetFunctionTypeFromProto(

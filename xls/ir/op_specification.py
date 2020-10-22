@@ -391,7 +391,8 @@ OpClass.kinds['ARRAY'] = OpClass(
     attributes=[TypeAttribute('element_type')],
     extra_methods=[Method(name='size',
                           return_cpp_type='int64',
-                          expression='operand_count()')]
+                          expression='operand_count()')],
+    custom_clone_method=True
 )
 
 OpClass.kinds['ARRAY_INDEX'] = OpClass(
@@ -641,7 +642,9 @@ OpClass.kinds['PARAM'] = OpClass(
                           return_cpp_type='absl::string_view',
                           expression='name_')],
     # Params are never equivalent to other nodes.
-    custom_equivalence_expression='false')
+    custom_equivalence_expression='false',
+    custom_clone_method=True
+)
 
 OpClass.kinds['SELECT'] = OpClass(
     name='Select',

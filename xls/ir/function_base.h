@@ -90,6 +90,11 @@ class FunctionBase {
     return xabsl::make_range(MakeUnwrappingIterator(nodes_.begin()),
                              MakeUnwrappingIterator(nodes_.end()));
   }
+  xabsl::iterator_range<UnwrappingIterator<NodeList::const_iterator>> nodes()
+      const {
+    return xabsl::make_range(MakeUnwrappingIterator(nodes_.begin()),
+                             MakeUnwrappingIterator(nodes_.end()));
+  }
 
   // Adds a node to the set owned by this function.
   template <typename T>

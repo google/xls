@@ -51,9 +51,15 @@ class Function : public FunctionBase {
   //   This is only useful when dumping individual functions, and not packages.
   std::string DumpIr(bool recursive = false) const override;
 
-  // Creates a clone of the function with the new name 'new_name'. FunctionBase
-  // is owned by the same package.
-  absl::StatusOr<Function*> Clone(absl::string_view new_name) const;
+  // Creates a clone of the function with the new name 'new_name'. Function is
+  // owned by targt_package.  call_remapping specifies any function
+  // substitutions to be used in the cloned function, e.g. If call_remapping
+  // holds {funcA, funcB}, any references to funcA in the function will be
+  // references to funcB in the cloned function.
+  absl::StatusOr<Function*> Clone(
+      absl::string_view new_name, Package* target_package = nullptr,
+      const absl::flat_hash_map<const Function*, Function*>& call_remapping =
+          {}) const;
 
   // Returns true if analysis indicates that this function always produces the
   // same value as 'other' when run with the same arguments. The analysis is
