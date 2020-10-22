@@ -84,6 +84,12 @@ void OnceInit() {
 
 }  // namespace
 
+IrJit::~IrJit() {
+  if (auto err = execution_session_.endSession()) {
+    execution_session_.reportError(std::move(err));
+  }
+}
+
 absl::StatusOr<std::unique_ptr<IrJit>> IrJit::Create(Function* xls_function,
                                                      int64 opt_level) {
   absl::call_once(once, OnceInit);

@@ -44,6 +44,8 @@ namespace xls {
 // converting it to LLVM IR, compiling it, and finally executing it.
 class IrJit {
  public:
+  ~IrJit();
+
   // Returns an object containing a host-compiled version of the specified XLS
   // function.
   static absl::StatusOr<std::unique_ptr<IrJit>> Create(Function* xls_function,
