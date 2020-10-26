@@ -176,6 +176,27 @@ TEST_F(BddSimplificationPassTest, SelectChainOneHot) {
                                m::Param("x3")}));
 }
 
+TEST_F(BddSimplificationPassTest, SelectChainOneHotArray) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(2));
+  BValue pred0 = fb.Eq(s, fb.Literal(UBits(0, 2)));
+  BValue pred1 = fb.Eq(s, fb.Literal(UBits(1, 2)));
+  BValue pred2 = fb.Eq(s, fb.Literal(UBits(2, 2)));
+  BValue pred3 = fb.Eq(s, fb.Literal(UBits(3, 2)));
+  auto param = [&](absl::string_view s) {
+    return fb.Param(s, p->GetArrayType(8, p->GetBitsType(32)));
+  };
+  fb.Select(pred3, param("x3"),
+            fb.Select(pred2, param("x2"),
+                      fb.Select(pred1, param("x1"),
+                                fb.Select(pred0, param("x0"), param("y")))));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  // Transform was not applied to an array type.
+  // This should not be done because it's not supported in codegen.
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+}
+
 TEST_F(BddSimplificationPassTest, SelectChainOneHotOrZeroSelectors) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

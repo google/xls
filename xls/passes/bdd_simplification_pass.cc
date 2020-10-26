@@ -117,7 +117,8 @@ absl::StatusOr<bool> CollapseSelectChains(FunctionBase* f,
   // TODO(meheff): Also merge OneHotSelects.
   for (Node* node : ReverseTopoSort(f)) {
     if (!is_binary_select(node) ||
-        collapsed_selects.contains(node->As<Select>())) {
+        collapsed_selects.contains(node->As<Select>()) ||
+        !node->GetType()->IsBits()) {
       continue;
     }
     std::vector<Select*> select_chain;
