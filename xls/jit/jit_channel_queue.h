@@ -42,7 +42,13 @@ class JitChannelQueue {
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
     __msan_unpoison(data, num_bytes);
 #endif
-    auto buffer = std::make_unique<uint8[]>(num_bytes);
+    std::unique_ptr<uint8[]> buffer;
+    if (buffer_pool_.empty()) {
+      buffer = std::make_unique<uint8[]>(num_bytes);
+    } else {
+      buffer = std::move(buffer_pool_.back());
+      buffer_pool_.pop_back();
+    }
     memcpy(buffer.get(), data, num_bytes);
     absl::MutexLock lock(&mutex_);
     the_queue_.push_back(std::move(buffer));
@@ -52,6 +58,7 @@ class JitChannelQueue {
   void Recv(uint8* buffer, int64 num_bytes) {
     absl::MutexLock lock(&mutex_);
     memcpy(buffer, the_queue_.front().get(), num_bytes);
+    buffer_pool_.push_back(std::move(the_queue_.front()));
     the_queue_.pop_front();
   }
 
@@ -66,6 +73,7 @@ class JitChannelQueue {
   int64 channel_id_;
   absl::Mutex mutex_;
   std::deque<std::unique_ptr<uint8[]>> the_queue_ GUARDED_BY(mutex_);
+  std::vector<std::unique_ptr<uint8[]>> buffer_pool_;
 };
 
 // JitChannelQueue respository. Holds the set of queues known by a given proc.
