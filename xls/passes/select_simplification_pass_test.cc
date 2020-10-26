@@ -771,5 +771,20 @@ fn f(a: bits[32], x: bits[32], y: bits[32]) -> bits[32] {
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
+TEST_F(SelectSimplificationPassTest, SpecializeSelectWithDuplicateCaseArms) {
+  // If an expression is used as more than one arm of the select it should not
+  // be transformed because the same expression is used for multiple case
+  // values.
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+fn f(a: bits[32], y: bits[32]) -> bits[32] {
+  add: bits[32] = add(a, y)
+  ret sel: bits[32] = sel(a, cases=[add, add], default=a)
+}
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+}
+
 }  // namespace
 }  // namespace xls

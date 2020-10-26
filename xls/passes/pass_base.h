@@ -261,7 +261,7 @@ absl::StatusOr<bool> CompoundPassBase<IrT, OptionsT, ResultsT>::RunInternal(
     absl::Span<const InvariantChecker* const> invariant_checkers) const {
   XLS_VLOG(1) << "Running " << this->short_name()
               << " compound pass on package " << ir->name();
-  XLS_VLOG(2) << "Start of compound pass " << this->long_name() << ":";
+  XLS_VLOG(2) << "Start of compound pass " << this->short_name() << ":";
   XLS_VLOG_LINES(5, ir->DumpIr());
 
   // Invariant checkers may be passed in from parent compound passes or
@@ -342,8 +342,10 @@ absl::StatusOr<bool> CompoundPassBase<IrT, OptionsT, ResultsT>::RunInternal(
     }
 #endif
     changed |= pass_changed;
-    XLS_VLOG(1) << "Pass " << pass->short_name()
-                << (pass_changed ? " changed IR" : " did not change IR");
+    XLS_VLOG(1) << absl::StreamFormat(
+        "[elapsed %s] Pass %s %s.", FormatDuration(duration),
+        pass->short_name(),
+        (pass_changed ? "changed IR" : "did not change IR"));
     if (!pass->IsCompound()) {
       results->invocations.push_back(
           {pass->short_name(), pass_changed, duration});
@@ -354,9 +356,13 @@ absl::StatusOr<bool> CompoundPassBase<IrT, OptionsT, ResultsT>::RunInternal(
                                  /*ordinal=*/results->invocations.size(),
                                  /*changed=*/pass_changed));
     }
+    absl::Time checker_start = absl::Now();
     XLS_RETURN_IF_ERROR(run_invariant_checkers(
         absl::StrFormat("after '%s' pass, dynamic pass #%d", pass->long_name(),
                         results->invocations.size() - 1)));
+    XLS_VLOG(1) << absl::StreamFormat(
+        "Ran invariant checkers [elapsed %s]",
+        FormatDuration(absl::Now() - checker_start));
 
     XLS_VLOG(5) << "After " << pass->long_name() << ":";
     XLS_VLOG_LINES(5, ir->DumpIr());

@@ -966,41 +966,87 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     }
   }
 
-  // Specialize the arms of the select based on the selector value which chooses
-  // the arm.
-  if (node->Is<Select>()) {
-    XLS_ASSIGN_OR_RETURN(
-        std::unique_ptr<PostDominatorAnalysis> post_dominator_analysis,
-        PostDominatorAnalysis::Run(node->function_base()));
-    Select* sel = node->As<Select>();
-    int64 selr_width = sel->selector()->BitCountOrDie();
-    bool changed = false;
-    for (int64 selr_value = 0; selr_value < sel->cases().size(); ++selr_value) {
-      Node* arm = sel->cases()[selr_value];
-      // Skip any cases where the select arm is used other than just in the
-      // select statement
-      if (arm->users().size() != 1) {
-        continue;
+  return false;
+}
+
+// Specialize select arms based on the selector value. Specifically, in the
+// expression for case N of a select instruction, the selector value can be
+// assumed to be N. This operation is safe because if the selector is not N,
+// then that case is not selected.
+absl::StatusOr<bool> SpecializeSelectArms(FunctionBase* func) {
+  // To avoid having to recompute post-dominator analysis which is expensive,
+  // gather all opporunities in the graph before making any changes.
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<PostDominatorAnalysis> post_dominator_analysis,
+      PostDominatorAnalysis::Run(func));
+
+  // Gather all the selectors of all the Select nodes. Create a map from the
+  // selector to the associated Select nodes. A selector may be used in more
+  // than one select node so store a vector of Select nodes as the map value.
+  std::vector<Node*> selectors;
+  absl::flat_hash_map<Node*, std::vector<Select*>> selector_to_select;
+  for (Node* node : func->nodes()) {
+    if (node->Is<Select>()) {
+      Select* select = node->As<Select>();
+      if (!selector_to_select.contains(select->selector())) {
+        selectors.push_back(select->selector());
       }
-      std::vector<Node*> users(sel->selector()->users().begin(),
-                               sel->selector()->users().end());
-      for (Node* selr_user : users) {
-        if (!post_dominator_analysis->NodeIsPostDominatedBy(selr_user, arm)) {
-          continue;
-        }
-        XLS_ASSIGN_OR_RETURN(
-            Literal * literal,
-            node->function_base()->MakeNode<Literal>(
-                sel->selector()->loc(), Value(UBits(selr_value, selr_width))));
-        if (selr_user->ReplaceOperand(sel->selector(), literal)) {
-          changed = true;
+      selector_to_select[select->selector()].push_back(select);
+    }
+  }
+
+  // Encapsulates a select arm specialization transformation opportunity.
+  struct SelectorUse {
+    // Selector node of a select instruction.
+    Node* selector;
+
+    // A use of the selector above in which the selector value may be replaced
+    // with literal.
+    Node* use;
+
+    // The literal value to replace the selector with in the selector use.
+    int64 selector_value;
+  };
+
+  // Iterate through all selector-select nodes and collect transformation
+  // opportunities as a vector of SelectorUses. Each instance represents a use
+  // of a particular selector which can be replaced with a literal value (held
+  // in selector_value).
+  std::vector<SelectorUse> selector_uses;
+  for (Node* selector : selectors) {
+    for (Node* selector_user : selector->users()) {
+      for (Select* select : selector_to_select.at(selector)) {
+        for (int64 selector_value = 0; selector_value < select->cases().size();
+             ++selector_value) {
+          Node* arm = select->get_case(selector_value);
+          // The arm should have a single user (the select instruction) and it
+          // should only appear once as an operand of the select.
+          if (arm->users().size() != 1 ||
+              arm->users().front()->OperandInstanceCount(arm) != 1) {
+            continue;
+          }
+          if (post_dominator_analysis->NodeIsPostDominatedBy(selector_user,
+                                                             arm)) {
+            selector_uses.push_back(
+                SelectorUse{.selector = selector,
+                            .use = selector_user,
+                            .selector_value = selector_value});
+          }
         }
       }
     }
-    if (changed) return true;
   }
 
-  return false;
+  for (const SelectorUse& selector_use : selector_uses) {
+    XLS_ASSIGN_OR_RETURN(
+        Literal * literal,
+        func->MakeNode<Literal>(
+            selector_use.selector->loc(),
+            Value(UBits(selector_use.selector_value,
+                        selector_use.selector->BitCountOrDie()))));
+    selector_use.use->ReplaceOperand(selector_use.selector, literal);
+  }
+  return !selector_uses.empty();
 }
 
 }  // namespace
@@ -1020,6 +1066,9 @@ absl::StatusOr<bool> SelectSimplificationPass::RunOnFunctionBase(
                          SimplifyNode(node, *query_engine, split_ops_));
     changed = changed | node_changed;
   }
+
+  XLS_ASSIGN_OR_RETURN(bool specialization_changed, SpecializeSelectArms(func));
+  changed |= specialization_changed;
 
   // Use a worklist to split OneHotSelects based on common bits in the cases
   // because this transformation creates many more OneHotSelects exposing

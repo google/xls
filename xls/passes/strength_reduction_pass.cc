@@ -64,7 +64,7 @@ absl::StatusOr<bool> StrengthReduceNode(
     const QueryEngine& query_engine, bool split_ops) {
   if (!node->Is<Literal>() && node->GetType()->IsBits() &&
       query_engine.AllBitsKnown(node)) {
-    XLS_VLOG(1) << "Replacing node with its (entirely known) bits: " << node
+    XLS_VLOG(2) << "Replacing node with its (entirely known) bits: " << node
                 << " as "
                 << query_engine.GetKnownBitsValues(node).ToString(
                        FormatPreference::kBinary);
