@@ -324,6 +324,25 @@ additional selector which is the logical NOR of all of the original `Select`
 selector bits is appended to the `OneHotSelect` selector and the respective case
 is the value selected when all selector bits are zero (`case_0` in the diagram).
 
+### Simplifying select arms
+
+Within any given arm of a `Select` multiplexer, we can assume that the
+selector has the specific value required to select that arm. This assumption
+is safe because in the event that the selector has a different value, the
+arm is dead.
+
+![drawing](./selector_substitution.png)
+
+This makes it possible to try specialize the arms based on the selector
+value. In the above example, a LHS of `Selector + x` could be simplified to
+`0 + x`.
+
+The current optimization simply substitutes any usages of the selector in a
+`Select` arm with its known value in that arm. Future improvements could use
+range based analysis or other techniques to narrow down the possible values of
+any variables within the selector, and use that information to optimize the
+select arms.
+
 ## Binary Decision Diagram based optimizations
 
 A binary decision diagram (BDD) is a data structure that can represent arbitrary
