@@ -75,8 +75,10 @@ class RunFuzzTest(parameterized.TestCase):
         random.Random(7), self._get_ast_options(), **self.KWARGS)
     self.assertEqual(samples0, samples1)
 
+  # TODO(leary): Bump up the number of seeds when the interpreter is ported to
+  # C++.
   @parameterized.named_parameters(*tuple(
-      dict(testcase_name='seed_{}'.format(x), seed=x) for x in range(47)))
+      dict(testcase_name='seed_{}'.format(x), seed=x) for x in range(11)))
   def test_first_n_seeds(self, seed):
     if FLAGS.update_golden and seed >= self.SEED_TO_CHECK_LIMIT:
       # Skip running unnecessary tests if updating golden because the test is
