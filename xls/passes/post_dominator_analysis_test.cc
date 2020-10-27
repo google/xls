@@ -172,12 +172,12 @@ TEST_F(PostDominatorAnalysisTest, DanglingNode) {
                            PostDominatorAnalysis::Run(f));
 
   EXPECT_THAT(analysis->GetPostDominatorsOfNode(x.node()),
-              ElementsAre(x.node(), z.node()));
+              ElementsAre(x.node()));
   EXPECT_THAT(analysis->GetNodesPostDominatedByNode(x.node()),
               ElementsAre(x.node()));
 
   EXPECT_THAT(analysis->GetPostDominatorsOfNode(dangling_intermediate.node()),
-              ElementsAre(dangling_intermediate.node()));
+              ElementsAre(dangling_intermediate.node(), dangling_tail.node()));
   EXPECT_THAT(
       analysis->GetNodesPostDominatedByNode(dangling_intermediate.node()),
       ElementsAre(dangling_intermediate.node()));
@@ -185,12 +185,12 @@ TEST_F(PostDominatorAnalysisTest, DanglingNode) {
   EXPECT_THAT(analysis->GetPostDominatorsOfNode(dangling_tail.node()),
               ElementsAre(dangling_tail.node()));
   EXPECT_THAT(analysis->GetNodesPostDominatedByNode(dangling_tail.node()),
-              ElementsAre(dangling_tail.node()));
+              ElementsAre(dangling_intermediate.node(), dangling_tail.node()));
 
   EXPECT_THAT(analysis->GetPostDominatorsOfNode(z.node()),
               ElementsAre(z.node()));
   EXPECT_THAT(analysis->GetNodesPostDominatedByNode(z.node()),
-              ElementsAre(x.node(), z.node()));
+              ElementsAre(z.node()));
 }
 
 TEST_F(PostDominatorAnalysisTest, DisconnectedNode) {

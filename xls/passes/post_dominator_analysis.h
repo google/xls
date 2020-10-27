@@ -51,10 +51,6 @@ class PostDominatorAnalysis {
  private:
   explicit PostDominatorAnalysis(FunctionBase* f) : func_(f) {}
 
-  // Adds to return_reaching_nodes_ all nodes from which the return
-  // node is reachable.
-  void PopulateReturnReachingNodes();
-
   FunctionBase* func_;
 
   // Maps from a node to all nodes that post-dominate the node.
@@ -68,10 +64,6 @@ class PostDominatorAnalysis {
       post_dominator_to_dominated_nodes_;
   absl::flat_hash_map<Node*, std::vector<Node*>>
       post_dominator_to_dominated_nodes_ordered_by_id_;
-
-  // Contains all nodes from which the return node is reachable (i.e. the nodes
-  // output is input to the return node or another node in the set).
-  absl::flat_hash_set<const Node*> return_reaching_nodes_;
 };
 
 }  // namespace xls

@@ -33,17 +33,56 @@
 namespace xls {
 namespace {
 
-// Returns the exit nodes of the function/proc. These are the nodes which have
-// implicit uses (are live out of the graph).
-std::vector<Node*> GetExitNodes(FunctionBase* f) {
-  return f->IsFunction()
-             ? std::vector<Node*>({f->AsFunctionOrDie()->return_value()})
-             : std::vector<Node*>({f->AsProcOrDie()->NextToken(),
-                                   f->AsProcOrDie()->NextState()});
-}
+using NodeIndex = int64;
 
-// Returns whether n is an exit node as defined above.
-bool IsExitNode(Node* n) { return n->function_base()->HasImplicitUse(n); }
+// Returns the intersection of the given sorted lists. Lists should be sorted in
+// ascending order.
+std::vector<NodeIndex> IntersectSortedLists(
+    absl::Span<const absl::Span<const NodeIndex>> lists) {
+  std::vector<NodeIndex> intersection;
+  if (lists.empty()) {
+    return intersection;
+  }
+  std::vector<int64> indices(lists.size(), 0);
+
+  // Returns true if any of the indices are at the end of their respective
+  // lists.
+  auto at_end_of_a_list = [&]() {
+    for (int64 i = 0; i < indices.size(); ++i) {
+      if (indices[i] == lists[i].size()) {
+        return true;
+      }
+    }
+    return false;
+  };
+  while (!at_end_of_a_list()) {
+    // Find the minimum value among the list elements at their respective
+    // indices.
+    NodeIndex min_value = lists[0][indices[0]];
+    for (int64 i = 1; i < lists.size(); ++i) {
+      NodeIndex value = lists[i][indices[i]];
+      if (value < min_value) {
+        min_value = value;
+      }
+    }
+
+    // Advance all list indices which hold the minimum value.
+    int64 match_count = 0;
+    for (int64 i = 0; i < lists.size(); ++i) {
+      if (lists[i][indices[i]] == min_value) {
+        indices[i]++;
+        match_count++;
+      }
+    }
+
+    // If all lists contained the minimum value then add the value to the
+    // intersection.
+    if (match_count == lists.size()) {
+      intersection.push_back(min_value);
+    }
+  }
+  return intersection;
+}
 
 }  // namespace
 
@@ -51,62 +90,37 @@ bool IsExitNode(Node* n) { return n->function_base()->HasImplicitUse(n); }
 PostDominatorAnalysis::Run(FunctionBase* f) {
   auto analysis = absl::WrapUnique(new PostDominatorAnalysis(f));
 
-  // Intialize data structs.
-  analysis->PopulateReturnReachingNodes();
-  for (Node* current_node : f->nodes()) {
-    analysis->post_dominator_to_dominated_nodes_[current_node] = {};
-    analysis->dominated_node_to_post_dominators_[current_node] = {};
-  }
-  // Find post-dominators of all nodes.
-  // Note: We assume there are no backwards edges in the graph,
-  // making it safe to just iterate over the nodes once in reverse
-  // topological order.
-  for (Node* dominated_node : ReverseTopoSort(f)) {
-    absl::flat_hash_set<Node*>& node_post_dominators =
-        analysis->dominated_node_to_post_dominators_.at(dominated_node);
-    if (IsExitNode(dominated_node)) {
-      analysis->dominated_node_to_post_dominators_[dominated_node] = {
-          dominated_node};
-    } else if (!dominated_node->users().empty()) {
-      // Calculate post-dominators of dominated_node.
-      // new_post_dominators = union(dominated_node,
-      // intersection(post-dominators of dominated_node users / consumers))
-      const absl::flat_hash_set<Node*>& user_post_dominators =
-          analysis->dominated_node_to_post_dominators_.at(
-              dominated_node->users().front());
-      node_post_dominators.insert(user_post_dominators.begin(),
-                                  user_post_dominators.end());
+  // A reverse topological sort of the function nodes.
+  NodeIterator r = ReverseTopoSort(f);
+  std::vector<Node*> reverse_toposort(r.begin(), r.end());
 
-      // Note: No native intersection operation for absl::flat_hash_set
-      for (const auto* user_node_itr =
-               std::next(dominated_node->users().begin());
-           user_node_itr != dominated_node->users().end(); ++user_node_itr) {
-        absl::erase_if(node_post_dominators, [&](const Node* node) {
-          return !analysis->NodeIsPostDominatedBy(*user_node_itr, node);
-        });
-      }
-      node_post_dominators.insert(dominated_node);
-    } else {
-      // For userless nodes, we temporarily add all nodes as postdominaters.
-      // This way, nodes which feed both the userless node and a non-userless
-      // node only have their post-dominators set by the non-userless node.
-      node_post_dominators.insert(f->nodes().begin(), f->nodes().end());
+  // Map from node to index in a reverse topo sort.
+  absl::flat_hash_map<Node*, NodeIndex> node_index;
+  for (NodeIndex i = 0; i < reverse_toposort.size(); ++i) {
+    node_index[reverse_toposort[i]] = i;
+  }
+
+  // Construct the postdominators for each node. Postdominators are gathered as
+  // a sorted vector containing the node indices (in a reverse toposort) of the
+  // post dominator nodes.
+  absl::flat_hash_map<Node*, std::vector<NodeIndex>> postdominators;
+  for (NodeIndex i = 0; i < reverse_toposort.size(); ++i) {
+    Node* node = reverse_toposort[i];
+    std::vector<absl::Span<const NodeIndex>> user_postdominators;
+    for (Node* user : node->users()) {
+      user_postdominators.push_back(postdominators.at(user));
     }
+    // The postdominators of a node is the intersection of the lists of
+    // postdominators for its users plus the node itself.
+    postdominators[node] = IntersectSortedLists(user_postdominators);
+    postdominators[node].push_back(i);
   }
 
-  // Handle non-return-reaching nodes.
-  for (auto* node : f->nodes()) {
-    if (!analysis->return_reaching_nodes_.contains(node)) {
-      analysis->dominated_node_to_post_dominators_[node] = {node};
-    }
-  }
-
-  // Enable look-up in both directions (dominated <-> dominator).
-  for (auto& [dominated_node, all_post_dominators] :
-       analysis->dominated_node_to_post_dominators_) {
-    for (const Node* post_dominator : all_post_dominators) {
-      analysis->post_dominator_to_dominated_nodes_.at(post_dominator)
-          .insert(dominated_node);
+  for (Node* node : f->nodes()) {
+    for (NodeIndex postdominator_index : postdominators[node]) {
+      Node* postdominator = reverse_toposort.at(postdominator_index);
+      analysis->dominated_node_to_post_dominators_[node].insert(postdominator);
+      analysis->post_dominator_to_dominated_nodes_[postdominator].insert(node);
     }
   }
 
@@ -134,20 +148,6 @@ PostDominatorAnalysis::Run(FunctionBase* f) {
       &analysis->post_dominator_to_dominated_nodes_ordered_by_id_);
 
   return std::move(analysis);
-}
-
-void PostDominatorAnalysis::PopulateReturnReachingNodes() {
-  for (Node* node : GetExitNodes(func_)) {
-    return_reaching_nodes_.insert(node);
-  }
-  for (const Node* node : ReverseTopoSort(func_)) {
-    if (std::any_of(node->users().begin(), node->users().end(),
-                    [&](Node* user) {
-                      return return_reaching_nodes_.contains(user);
-                    })) {
-      return_reaching_nodes_.insert(node);
-    }
-  }
 }
 
 }  // namespace xls
