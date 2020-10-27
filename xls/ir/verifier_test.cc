@@ -103,12 +103,12 @@ fn graph(p: bits[2], q: bits[42], r: bits[42]) -> bits[42] {
   FindNode("and.1", f)->ReplaceOperand(FindNode("q", f), FindNode("p", f));
   EXPECT_THAT(VerifyFunction(f),
               StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("Type of operand 0 (bits[2] via p) "
-                                 "does not match type of and.1")));
+                       HasSubstr("Expected operand 0 of and.1 to have type "
+                                 "bits[42], has type bits[2].")));
   EXPECT_THAT(VerifyPackage(p.get()),
               StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("Type of operand 0 (bits[2] via p) does not "
-                                 "match type of and.1")));
+                       HasSubstr("Expected operand 0 of and.1 to have type "
+                                 "bits[42], has type bits[2].")));
 }
 
 TEST_F(VerifierTest, SelectWithUselessDefault) {

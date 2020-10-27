@@ -185,9 +185,7 @@ class NodeChecker : public DfsVisitor {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(array, array_type->size()));
     Type* element_type = array_type->element_type();
     for (int64 i = 0; i < array->operand_count(); ++i) {
-      XLS_RETURN_IF_ERROR(ExpectSameType(
-          array->operand(i), array->operand(i)->GetType(), array, element_type,
-          StrCat("operand ", i), "array element type"));
+      XLS_RETURN_IF_ERROR(ExpectOperandHasType(array, i, element_type));
     }
     return absl::OkStatus();
   }
@@ -335,9 +333,7 @@ class NodeChecker : public DfsVisitor {
       }
     }
 
-    return ExpectSameType(
-        counted_for->operand(0), counted_for->operand(0)->GetType(),
-        counted_for, counted_for->GetType(), "operand", counted_for->GetName());
+    return ExpectOperandHasType(counted_for, 0, counted_for->GetType());
   }
 
   absl::Status HandleDecode(Decode* decode) override {
@@ -491,10 +487,8 @@ class NodeChecker : public DfsVisitor {
           invoke->operand_count(), func->params().size()));
     }
     for (int64 i = 0; i < invoke->operand_count(); ++i) {
-      XLS_RETURN_IF_ERROR(ExpectSameType(
-          invoke->operand(i), invoke->operand(i)->GetType(), func->param(i),
-          func->params()[i]->GetType(), StrFormat("invoke operand %d", i),
-          StrFormat("invoked function argument %d", i)));
+      XLS_RETURN_IF_ERROR(
+          ExpectOperandHasType(invoke, i, func->param(i)->GetType()));
     }
 
     XLS_RETURN_IF_ERROR(
@@ -698,9 +692,7 @@ class NodeChecker : public DfsVisitor {
     }
     for (int64 i = 0; i < tuple->operand_count(); ++i) {
       XLS_RETURN_IF_ERROR(
-          ExpectSameType(tuple->operand(i), tuple->operand(i)->GetType(), tuple,
-                         type->element_type(i), StrFormat("operand %d", i),
-                         StrFormat("tuple node %s", tuple->ToString())));
+          ExpectOperandHasType(tuple, i, type->element_type(i)));
     }
     return absl::OkStatus();
   }
@@ -772,15 +764,30 @@ class NodeChecker : public DfsVisitor {
   }
 
   // Verifies that the given two types match. The argument desc_a (desc_b) is a
-  // description of type_a (type_b) used in the error message.
+  // description of type_a (type_b) used in the error message. The arguments are
+  // intentionally const char* rather than string_view because we want to avoid
+  // *eagerly* constructing potentially expensive strings to include in the
+  // error message.
   absl::Status ExpectSameType(Node* a_source, Type* type_a, Node* b_source,
-                              Type* type_b, absl::string_view desc_a,
-                              absl::string_view desc_b) const {
+                              Type* type_b, const char* desc_a,
+                              const char* desc_b) const {
     if (type_a != type_b) {
       return absl::InternalError(StrFormat(
           "Type of %s (%s via %s) does not match type of %s (%s via %s)",
           desc_a, type_a->ToString(), a_source->GetName(), desc_b,
           type_b->ToString(), b_source->GetName()));
+    }
+    return absl::OkStatus();
+  }
+
+  // Verifies that a particular operand of the given node has the given type.
+  absl::Status ExpectOperandHasType(Node* node, int64 operand_no,
+                                    Type* type) const {
+    if (node->operand(operand_no)->GetType() != type) {
+      return absl::InternalError(
+          StrFormat("Expected operand %d of %s to have type %s, has type %s.",
+                    operand_no, node->GetName(), type->ToString(),
+                    node->operand(operand_no)->GetType()->ToString()));
     }
     return absl::OkStatus();
   }
@@ -917,9 +924,7 @@ class NodeChecker : public DfsVisitor {
   // Verifies all operands and the node itself are the same type.
   absl::Status ExpectAllSameType(Node* node) const {
     for (int64 i = 0; i < node->operand_count(); ++i) {
-      XLS_RETURN_IF_ERROR(ExpectSameType(
-          node->operand(i), node->operand(i)->GetType(), node, node->GetType(),
-          StrFormat("operand %d", i), node->GetName()));
+      XLS_RETURN_IF_ERROR(ExpectOperandHasType(node, i, node->GetType()));
     }
     return absl::OkStatus();
   }
@@ -931,9 +936,7 @@ class NodeChecker : public DfsVisitor {
     }
     Type* type = node->operand(0)->GetType();
     for (int64 i = 1; i < node->operand_count(); ++i) {
-      XLS_RETURN_IF_ERROR(ExpectSameType(
-          node->operand(i), node->operand(i)->GetType(), node->operand(0), type,
-          StrFormat("operand %d", i), "operand 0"));
+      XLS_RETURN_IF_ERROR(ExpectOperandHasType(node, i, type));
     }
     return absl::OkStatus();
   }

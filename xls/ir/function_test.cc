@@ -193,8 +193,8 @@ fn id(x: bits[16], y: bits[32]) -> bits[16] {
           FindNode("x", &p)->loc(),
           std::vector<Node*>{FindNode("x", &p), FindNode("y", &p)}, Op::kXor),
       StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("Type of operand 1 (bits[32] via y) does not "
-                         "match type of xor")));
+               HasSubstr("Expected operand 1 of xor.3 to have type bits[16], "
+                         "has type bits[32]")));
 }
 
 TEST_F(FunctionTest, IsLiteralMask) {

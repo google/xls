@@ -412,8 +412,8 @@ fn ReplaceUses(x: bits[8], y: bits[16]) -> bits[16] {
           ->ReplaceUsesWithNew<NaryOp>(
               std::vector<Node*>{FindNode("x", f), FindNode("y", f)}, Op::kXor),
       StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("Type of operand 1 (bits[16] via y) does not "
-                         "match type of xor.5 (bits[8] via xor.5)")));
+               HasSubstr("Expected operand 1 of xor.5 to have type bits[8], "
+                         "has type bits[16].")));
 }
 
 TEST_F(NodeTest, ConcatOperandSliceData) {
