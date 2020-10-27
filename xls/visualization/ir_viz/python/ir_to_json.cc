@@ -30,24 +30,44 @@ namespace py = pybind11;
 
 namespace xls {
 
+namespace {
+
+// Returns the particular function/proc to view in the visualizer.
+absl::StatusOr<FunctionBase*> GetFunctionBaseToView(Package* package) {
+  if (package->procs().size() == 1) {
+    return package->procs().front().get();
+  }
+  // TODO(meheff): Support more than one proc.
+  if (package->procs().size() > 1) {
+    return absl::UnimplementedError(
+        "Visualizing more than one proc not supported.");
+  }
+  return package->EntryFunction();
+}
+
+}  // namespace
+
 // IR to JSON conversion function which takes strings rather than objects.
 absl::StatusOr<std::string> IrToJsonWrapper(
     absl::string_view ir_text, absl::string_view delay_model_name,
     absl::optional<int64> pipeline_stages) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(ir_text));
-  XLS_ASSIGN_OR_RETURN(Function * entry, package->EntryFunction());
+  XLS_ASSIGN_OR_RETURN(FunctionBase * func_base,
+                       GetFunctionBaseToView(package.get()));
   XLS_ASSIGN_OR_RETURN(DelayEstimator * delay_estimator,
                        GetDelayEstimator(delay_model_name));
   if (pipeline_stages.has_value()) {
+    // TODO(meheff): Support scheduled procs.
+    XLS_RET_CHECK(func_base->IsFunction());
     XLS_ASSIGN_OR_RETURN(
         PipelineSchedule schedule,
         PipelineSchedule::Run(
-            entry, *delay_estimator,
+            func_base->AsFunctionOrDie(), *delay_estimator,
             SchedulingOptions().pipeline_stages(pipeline_stages.value())));
-    return IrToJson(entry, *delay_estimator, &schedule);
+    return IrToJson(func_base, *delay_estimator, &schedule);
   } else {
-    return IrToJson(entry, *delay_estimator);
+    return IrToJson(func_base, *delay_estimator);
   }
 }
 

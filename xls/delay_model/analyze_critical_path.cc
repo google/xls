@@ -18,12 +18,14 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
+#include "xls/ir/function.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/proc.h"
 
 namespace xls {
 
 absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
-    Function* f, absl::optional<int64> clock_period_ps,
+    FunctionBase* f, absl::optional<int64> clock_period_ps,
     const DelayEstimator& delay_estimator) {
   absl::flat_hash_map<Node*, std::pair<int64, bool>> node_to_output_delay;
 
@@ -56,7 +58,8 @@ absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
 
   std::vector<CriticalPathEntry> critical_path;
 
-  Node* n = f->return_value();
+  Node* n = f->IsFunction() ? f->AsFunctionOrDie()->return_value()
+                            : f->AsProcOrDie()->NextState();
   while (true) {
     critical_path.push_back(CriticalPathEntry{
         n, delay_estimator.GetOperationDelayInPs(n).value(),

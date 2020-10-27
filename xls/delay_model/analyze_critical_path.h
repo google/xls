@@ -20,7 +20,7 @@
 #include "absl/status/statusor.h"
 #include "xls/common/integral_types.h"
 #include "xls/delay_model/delay_estimator.h"
-#include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 
 namespace xls {
@@ -51,9 +51,10 @@ struct CriticalPathEntry {
 // target clock period. As is, this function is doing scheduling again and it
 // likely does not match what schedule is used in codegen.
 //
-// The return value for the function is at the front of the returned vector.
+// The return value for the function (or recurrent state value of a proc) is at
+// the front of the returned vector.
 absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
-    Function* f, absl::optional<int64> clock_period_ps,
+    FunctionBase* f, absl::optional<int64> clock_period_ps,
     const DelayEstimator& delay_estimator);
 
 }  // namespace xls

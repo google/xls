@@ -28,7 +28,7 @@ namespace xls {
 // the client is responsible for constructing the appropriate representation for
 // the web view.
 absl::StatusOr<std::string> IrToJson(
-    Function* function, const DelayEstimator& delay_estimator,
+    FunctionBase* function, const DelayEstimator& delay_estimator,
     const PipelineSchedule* schedule = nullptr);
 
 }  // namespace xls

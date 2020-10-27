@@ -98,7 +98,7 @@ absl::StatusOr<IrForVisualization::Attributes> NodeAttributes(
 
 }  // namespace
 
-absl::StatusOr<std::string> IrToJson(Function* function,
+absl::StatusOr<std::string> IrToJson(FunctionBase* function,
                                      const DelayEstimator& delay_estimator,
                                      const PipelineSchedule* schedule) {
   IrForVisualization ir;
