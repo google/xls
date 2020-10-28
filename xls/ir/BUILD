@@ -145,8 +145,6 @@ xls_py_proto_library(
 cc_library(
     name = "ir",
     srcs = [
-        "container_hack.inc",
-        "container_hack_undef.inc",
         "dfs_visitor.cc",
         "function.cc",
         "function_base.cc",

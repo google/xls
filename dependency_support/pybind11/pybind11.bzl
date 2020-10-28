@@ -19,7 +19,14 @@ load("@pybind11_bazel//:build_defs.bzl", "pybind_extension")
 def xls_pybind_extension(**kwargs):
     name = kwargs["name"]
     py_deps = kwargs.pop("py_deps", [])
-    pybind_extension(**kwargs)
+    pybind_extension(
+        # We want our Python extension sharedlibs to resolve their symbols
+        # against the main binary; otherwise very odd effects will be observed
+        # due to the duplication of rodata; e.g. the absl hash routines rely on
+        # a symbol's address to be randomized via ASLR for use as a seed!
+        linkstatic = False,
+        **kwargs
+    )
     native.py_library(
         name = name,
         data = [name + ".so"],
