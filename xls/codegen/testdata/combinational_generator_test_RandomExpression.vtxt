@@ -5,7 +5,7 @@ module RandomExpression(
   output wire [7:0] out
 );
   // lint_off MULTIPLY
-  function automatic reg [7:0] umul8b_8b_x_8b (input reg [7:0] lhs, input reg [7:0] rhs);
+  function automatic [7:0] umul8b_8b_x_8b (input reg [7:0] lhs, input reg [7:0] rhs);
     begin
       umul8b_8b_x_8b = lhs * rhs;
     end

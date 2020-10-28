@@ -715,7 +715,7 @@ TEST(VastTest, VerilogFunction) {
                                               f.Literal(UBits(2, 3))}));
   EXPECT_EQ(m->Emit(),
             R"(module top;
-  function automatic reg [41:0] func (input reg [31:0] foo, input reg [2:0] bar);
+  function automatic [41:0] func (input reg [31:0] foo, input reg [2:0] bar);
     begin
       func = foo << bar;
     end
@@ -737,7 +737,7 @@ TEST(VastTest, VerilogFunctionNoArguments) {
       qux, f.Make<VerilogFunctionCall>(func, std::vector<Expression*>{}));
   EXPECT_EQ(m->Emit(),
             R"(module top;
-  function automatic reg [41:0] func ();
+  function automatic [41:0] func ();
     begin
       func = 42'h000_0000_0042;
     end
@@ -762,7 +762,7 @@ TEST(VastTest, VerilogFunctionWithRegDefs) {
       qux, f.Make<VerilogFunctionCall>(func, std::vector<Expression*>{}));
   EXPECT_EQ(m->Emit(),
             R"(module top;
-  function automatic reg [41:0] func ();
+  function automatic [41:0] func ();
     reg [41:0] foo;
     reg [41:0] bar;
     begin
@@ -772,6 +772,28 @@ TEST(VastTest, VerilogFunctionWithRegDefs) {
     end
   endfunction
   wire [31:0] qux;
+  assign qux = func();
+endmodule)");
+}
+
+TEST(VastTest, VerilogFunctionWithSingleBitReturn) {
+  VerilogFile f;
+  Module* m = f.AddModule("top");
+  VerilogFunction* func = m->Add<VerilogFunction>("func", 1, &f);
+  func->AddStatement<BlockingAssignment>(func->return_value_ref(),
+                                         f.PlainLiteral(1));
+
+  LogicRef* qux = m->AddWire("qux", 1);
+  m->Add<ContinuousAssignment>(
+      qux, f.Make<VerilogFunctionCall>(func, std::vector<Expression*>{}));
+  EXPECT_EQ(m->Emit(),
+            R"(module top;
+  function automatic [0:0] func ();
+    begin
+      func = 1;
+    end
+  endfunction
+  wire qux;
   assign qux = func();
 endmodule)");
 }

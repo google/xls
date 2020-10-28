@@ -190,6 +190,26 @@ LogicRef* VerilogFunction::return_value_ref() {
   return file_->Make<LogicRef>(return_value_def_);
 }
 
+// For the given expression returns a string " [e - 1:0]". As a special case if
+// 'e' is the literal 1, then returns the empty string.
+static std::string WidthToString(Expression* e) {
+  if (e->IsLiteral()) {
+    uint64 value = e->AsLiteralOrDie()->bits().ToUint64().value();
+    // Elide the width if it is one.
+    // TODO(https://github.com/google/xls/issues/43): Avoid this special case
+    // and perform the equivalent logic at a higher abstraction level than VAST.
+    return value == 1 ? ""
+                      : absl::StrFormat(" [%s:0]", absl::StrCat(value - 1));
+  }
+  Literal literal(UBits(1, 32), FormatPreference::kDefault,
+                  /*emit_bit_count=*/false);
+  // TODO(meheff): It'd be better to use VerilogFile::Sub here to keep
+  // precedence values in one place but we don't have a VerilogFile.
+  const int64 kBinarySubPrecedence = 9;
+  BinaryInfix b(e, "-", &literal, /*precedence=*/kBinarySubPrecedence);
+  return absl::StrFormat(" [%s:0]", b.Emit());
+}
+
 std::string VerilogFunction::Emit() {
   std::vector<std::string> lines;
   for (RegDef* reg_def : block_reg_defs_) {
@@ -197,12 +217,18 @@ std::string VerilogFunction::Emit() {
   }
   lines.push_back(statement_block_->Emit());
   return absl::StrCat(
-      absl::StrFormat(
-          "function automatic %s (%s);\n", return_value_def_->EmitNoSemi(),
-          absl::StrJoin(argument_defs_, ", ",
-                        [](std::string* out, RegDef* d) {
-                          absl::StrAppend(out, "input ", d->EmitNoSemi());
-                        })),
+      absl::StrFormat("function automatic%s %s (%s);\n",
+                      // Special case a single bit return value because
+                      // WidthToString returns the empty string in this case.
+                      return_value_ref()->IsScalarReg()
+                          ? " [0:0]"
+                          : WidthToString(return_value_ref()->width()),
+                      name(),
+                      absl::StrJoin(argument_defs_, ", ",
+                                    [](std::string* out, RegDef* d) {
+                                      absl::StrAppend(out, "input ",
+                                                      d->EmitNoSemi());
+                                    })),
       Indent(absl::StrJoin(lines, "\n")), "\nendfunction");
 }
 
@@ -340,26 +366,6 @@ std::string ToString(const RegInit& init) {
                                return std::string("<uninitialized>");
                              }},
                      init);
-}
-
-// For the given expression returns a string " [e - 1:0]". As a special case if
-// 'e' is the literal 1, then returns the empty string.
-static std::string WidthToString(Expression* e) {
-  if (e->IsLiteral()) {
-    uint64 value = e->AsLiteralOrDie()->bits().ToUint64().value();
-    // Elide the width if it is one.
-    // TODO(https://github.com/google/xls/issues/43): Avoid this special case
-    // and perform the equivalent logic at a higher abstraction level than VAST.
-    return value == 1 ? ""
-                      : absl::StrFormat(" [%s:0]", absl::StrCat(value - 1));
-  }
-  Literal literal(UBits(1, 32), FormatPreference::kDefault,
-                  /*emit_bit_count=*/false);
-  // TODO(meheff): It'd be better to use VerilogFile::Sub here to keep
-  // precedence values in one place but we don't have a VerilogFile.
-  const int64 kBinarySubPrecedence = 9;
-  BinaryInfix b(e, "-", &literal, /*precedence=*/kBinarySubPrecedence);
-  return absl::StrFormat(" [%s:0]", b.Emit());
 }
 
 std::string WireDef::Emit() {
