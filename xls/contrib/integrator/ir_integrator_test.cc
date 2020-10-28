@@ -129,8 +129,7 @@ TEST_F(IntegratorTest, MappingTestSimple) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<IntegrationFunction> integration,
-      std::move(IntegrationFunction::MakeIntegrationFunctionWithParamTuples(
-          p.get(), {})));
+      IntegrationFunction::MakeIntegrationFunctionWithParamTuples(p.get(), {}));
   Function& internal_func = *integration->function();
   Function external_func("external", p.get());
 

@@ -22,18 +22,24 @@
 namespace xls {
 
 // Class that represents an integration function i.e. a function combining the
-// IR of other functions. This class tracks which orignal function nodes are
+// IR of other functions. This class tracks which original function nodes are
 // mapped to which integration function nodes. It also provides some utilities
 // that are useful for constructing the integrated function.
 class IntegrationFunction {
  public:
   IntegrationFunction() {}
 
+  IntegrationFunction(const IntegrationFunction& other) = delete;
+  void operator=(const IntegrationFunction& other) = delete;
+
   // Create an IntegrationFunction object that is empty expect for
-  // paramters.
+  // parameters. Each initial parameter of the function is a tuple
+  // which holds inputs corresponding to the paramters of one
+  // of the source_functions.
   static absl::StatusOr<std::unique_ptr<IntegrationFunction>>
   MakeIntegrationFunctionWithParamTuples(
-      Package* package, absl::Span<const Function* const> source_functions);
+      Package* package, absl::Span<const Function* const> source_functions,
+      std::string function_name = "IntegrationFunction");
 
   Function* function() const { return function_.get(); }
 

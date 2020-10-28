@@ -20,17 +20,13 @@ namespace xls {
 
 absl::StatusOr<std::unique_ptr<IntegrationFunction>>
 IntegrationFunction::MakeIntegrationFunctionWithParamTuples(
-    Package* package, absl::Span<const Function* const> source_functions) {
+    Package* package, absl::Span<const Function* const> source_functions,
+    std::string function_name) {
   // Create integration function object.
-  std::unique_ptr<IntegrationFunction> integration_function =
-      absl::make_unique<IntegrationFunction>();
+  auto integration_function = absl::make_unique<IntegrationFunction>();
   integration_function->package_ = package;
 
   // Create ir function.
-  // TODO(jbaileyhandle): Make function name an optional argument.
-  static int64 integration_functions_count = 0;
-  std::string function_name = std::string("IntegrationFunction") +
-                              std::to_string(integration_functions_count++);
   integration_function->function_ =
       absl::make_unique<Function>(function_name, package);
 
@@ -50,15 +46,15 @@ IntegrationFunction::MakeIntegrationFunctionWithParamTuples(
             /*loc=*/std::nullopt, tuple_name, args_tuple_type));
 
     // Add TupleIndex nodes inside function to unpack tuple parameter.
-    int64 paramter_index = 0;
+    int64 parameter_index = 0;
     for (const Node* param : source_func->params()) {
       XLS_ASSIGN_OR_RETURN(
           Node * tuple_index,
           integration_function->function_->MakeNode<TupleIndex>(
-              /*loc=*/std::nullopt, args_tuple, paramter_index));
+              /*loc=*/std::nullopt, args_tuple, parameter_index));
       XLS_RETURN_IF_ERROR(
           integration_function->SetNodeMapping(param, tuple_index));
-      paramter_index++;
+      parameter_index++;
     }
   }
 
@@ -68,20 +64,10 @@ IntegrationFunction::MakeIntegrationFunctionWithParamTuples(
 absl::Status IntegrationFunction::SetNodeMapping(const Node* source,
                                                  Node* map_target) {
   // Validate map pairing.
-  if (source == map_target) {
-    return absl::InternalError("Tried to map a node to itself");
-  }
-  if (!IntegrationFunctionOwnsNode(map_target)) {
-    return absl::InternalError(
-        "Tried to map to a node not owned by the integration function");
-  }
-  // TODO(jbaileyhandle): Reasonable assumption for short-term use cases.  May
-  // be worth relaxing to enable some optimizations of some sort?
-  if (IntegrationFunctionOwnsNode(source) && !IsMappingTarget(source)) {
-    return absl::InternalError(
-        "Tried to map an integration function node that is not itself a "
-        "mapping target");
-  }
+  XLS_RET_CHECK_NE(source, map_target);
+  XLS_RET_CHECK(IntegrationFunctionOwnsNode(map_target));
+  XLS_RET_CHECK(
+      !(IntegrationFunctionOwnsNode(source) && !IsMappingTarget(source)));
 
   // 'original' is itself a member of the integrated function.
   if (IntegrationFunctionOwnsNode(source)) {
@@ -130,8 +116,7 @@ bool IntegrationFunction::HasMapping(const Node* node) const {
 }
 
 bool IntegrationFunction::IsMappingTarget(const Node* node) const {
-  return integrated_node_to_original_nodes_map_.find(node) !=
-         integrated_node_to_original_nodes_map_.end();
+  return integrated_node_to_original_nodes_map_.contains(node);
 }
 
 absl::StatusOr<Function*> IntegrationBuilder::CloneFunctionRecursive(
