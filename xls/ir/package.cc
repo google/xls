@@ -412,10 +412,8 @@ std::ostream& operator<<(std::ostream& os, const Package& package) {
   return os;
 }
 
-#include "xls/ir/container_hack.inc"
-
-UnorderedMap<std::string, Function*> Package::GetFunctionByName() {
-  UnorderedMap<std::string, Function*> name_to_function;
+absl::flat_hash_map<std::string, Function*> Package::GetFunctionByName() {
+  absl::flat_hash_map<std::string, Function*> name_to_function;
   for (std::unique_ptr<Function>& function : functions_) {
     name_to_function[function->name()] = function.get();
   }

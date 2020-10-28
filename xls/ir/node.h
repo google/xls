@@ -261,9 +261,7 @@ class Node {
 
   std::vector<Node*> operands_;
 
-#include "xls/ir/container_hack.inc"
-  UnorderedSet<Node*> users_set_;
-#include "xls/ir/container_hack_undef.inc"
+  absl::flat_hash_set<Node*> users_set_;
   std::vector<Node*> users_;
 };
 

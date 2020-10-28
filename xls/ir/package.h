@@ -201,11 +201,9 @@ class Package {
 
   absl::optional<std::string> entry_;
 
-#include "xls/ir/container_hack.inc"
-
   // Helper that returns a map from the names of functions inside this package
   // to the functions themselves.
-  UnorderedMap<std::string, Function*> GetFunctionByName();
+  absl::flat_hash_map<std::string, Function*> GetFunctionByName();
 
   // Name of this package.
   std::string name_;
@@ -217,42 +215,42 @@ class Package {
   std::vector<std::unique_ptr<Proc>> procs_;
 
   // Set of owned types in this package.
-  UnorderedSet<const Type*> owned_types_;
+  absl::flat_hash_set<const Type*> owned_types_;
 
   // Set of owned function types in this package.
-  UnorderedSet<const FunctionType*> owned_function_types_;
+  absl::flat_hash_set<const FunctionType*> owned_function_types_;
 
   // Mapping from bit count to the owned "bits" type with that many bits. Use
   // node_hash_map for pointer stability.
-  StableMap<int64, BitsType> bit_count_to_type_;
+  absl::node_hash_map<int64, BitsType> bit_count_to_type_;
 
   // Mapping from the size and element type of an array type to the owned
   // ArrayType. Use node_hash_map for pointer stability.
   using ArrayKey = std::pair<int64, const Type*>;
-  StableMap<ArrayKey, ArrayType> array_types_;
+  absl::node_hash_map<ArrayKey, ArrayType> array_types_;
 
   // Mapping from elements to the owned tuple type.
   //
   // Uses node_hash_map for pointer stability.
   using TypeVec = absl::InlinedVector<const Type*, 4>;
-  StableMap<TypeVec, TupleType> tuple_types_;
+  absl::node_hash_map<TypeVec, TupleType> tuple_types_;
 
   // Owned token type.
   TokenType token_type_;
 
   // Mapping from Type:ToString to the owned function type. Use
   // node_hash_map for pointer stability.
-  StableMap<std::string, FunctionType> function_types_;
+  absl::node_hash_map<std::string, FunctionType> function_types_;
 
   // Mapping of Fileno ids to string filenames, and vice-versa for reverse
   // lookups. These two data structures must be updated together for consistency
   // and should always contain the same number of entries.
-  UnorderedMap<Fileno, std::string> fileno_to_filename_;
-  UnorderedMap<std::string, Fileno> filename_to_fileno_;
+  absl::flat_hash_map<Fileno, std::string> fileno_to_filename_;
+  absl::flat_hash_map<std::string, Fileno> filename_to_fileno_;
 
   // Channels owned by this package. Indexed by channel id. Stored as
   // unique_ptrs for pointer stability.
-  UnorderedMap<int64, std::unique_ptr<Channel>> channels_;
+  absl::flat_hash_map<int64, std::unique_ptr<Channel>> channels_;
 
   // Vector of channel pointers. Kept in sync with the channels_ map. Enables
   // easy, stable iteration over channels.
@@ -260,8 +258,6 @@ class Package {
 
   // The next channel ID to assign.
   int64 next_channel_id_ = 0;
-
-#include "xls/ir/container_hack_undef.inc"
 };
 
 std::ostream& operator<<(std::ostream& os, const Package& package);
