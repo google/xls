@@ -42,6 +42,7 @@ from xls.dslx.interpreter.errors import EvaluateError
 from xls.dslx.parametric_instantiator import SymbolicBindings
 from xls.dslx.python import builtins
 from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python import cpp_evaluate
 from xls.dslx.python import cpp_type_info as type_info_mod
 from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType
@@ -88,16 +89,6 @@ class Interpreter(object):
     self._f_import = f_import
     self._trace_all = trace_all
     self._ir_package = ir_package
-
-  def _evaluate_NameRef(  # pylint: disable=invalid-name
-      self, expr: ast.NameRef, bindings: Bindings,
-      _type_context: Optional[ConcreteType]) -> Value:
-    return bindings.resolve_value(expr)
-
-  def _evaluate_ConstRef(  # pylint: disable=invalid-name
-      self, expr: ast.ConstRef, bindings: Bindings,
-      _type_context: Optional[ConcreteType]) -> Value:
-    return bindings.resolve_value(expr)
 
   def _evaluate_EnumRef(  # pylint: disable=invalid-name
       self,
@@ -162,25 +153,14 @@ class Interpreter(object):
     tag = Tag.SBITS if width_type.get_signedness() else Tag.UBITS
     return Value.make_bits(tag, result)
 
-  def _evaluate_index_bitslice(self, expr: ast.Index, bindings: Bindings,
-                               bits: ir_bits.Bits) -> Value:
-    """Evaluates a slice expression on a bits value."""
-    index_slice = expr.index
-    assert isinstance(index_slice, ast.Slice), index_slice
-
-    symbolic_bindings = bindings.fn_ctx.sym_bindings
-
-    start, width = self._type_info.get_slice_start_width(
-        index_slice, symbolic_bindings)
-    return Value.make_bits(Tag.UBITS, bits.slice(start, width))
-
   def _evaluate_Index(  # pylint: disable=invalid-name
       self, expr: ast.Index, bindings: Bindings,
       _: Optional[ConcreteType]) -> Value:
     """Evaluates an index expression; e.g. `lhs[index]`."""
     lhs = self._evaluate(expr.lhs, bindings)
     if lhs.is_bits() and isinstance(expr.index, ast.Slice):
-      return self._evaluate_index_bitslice(expr, bindings, lhs.get_bits())
+      return cpp_evaluate.evaluate_index_bitslice(self._type_info, expr,
+                                                  bindings, lhs.get_bits())
     if lhs.is_bits() and isinstance(expr.index, ast.WidthSlice):
       return self._evaluate_index_widthslice(expr, bindings, lhs.get_bits())
     assert lhs.is_tuple() or lhs.is_array(), lhs
@@ -818,7 +798,10 @@ class Interpreter(object):
         print a rough expression-stack-trace for determining the provenance of
         an error to stderr.
     """
-    handler = getattr(self, '_evaluate_{}'.format(expr.__class__.__name__))
+    clsname = expr.__class__.__name__
+    handler = getattr(cpp_evaluate, f'evaluate_{clsname}', None)
+    if handler is None:
+      handler = getattr(self, '_evaluate_{}'.format(clsname))
     try:
       result = handler(expr, bindings, type_context)
       if self._trace_all and result is not None:

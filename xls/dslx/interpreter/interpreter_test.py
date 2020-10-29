@@ -357,6 +357,17 @@ class InterpreterTest(absltest.TestCase):
     self.assertIn('4:14-4:29: bits[32]:0x1', mock_stderr.getvalue())
     self.assertIn('4:14-4:29: bits[32]:0x2', mock_stderr.getvalue())
 
+  def test_bitslice_syntax(self):
+    program = """
+    test slice {
+      let x = u4:0b1001;
+      let _ = assert_eq(x[0:2], u2:0b01);
+      let _ = assert_eq(x[2:4], u2:0b10);
+      ()
+    }
+    """
+    self._parse_and_test(program, compare_jit=True)
+
   def test_slice_builtin(self):
     program = """
     fn non_test_slice(x: u8[4], start: u32) -> u8[3] {

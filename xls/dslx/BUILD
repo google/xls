@@ -761,3 +761,17 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
     ],
 )
+
+cc_library(
+    name = "cpp_evaluate",
+    srcs = ["cpp_evaluate.cc"],
+    hdrs = ["cpp_evaluate.h"],
+    deps = [
+        ":cpp_type_info",
+        ":interp_bindings",
+        ":interp_value",
+        "//xls/common/status:ret_check",
+        "//xls/ir:bits",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
