@@ -95,5 +95,28 @@ TEST(NameUniquerTest, CornerCases) {
   EXPECT_EQ("name__5", uniquer.GetSanitizedUniqueName("__2"));
 }
 
+TEST(NameUniquerTest, IsValidIdentifier) {
+  EXPECT_TRUE(NameUniquer::IsValidIdentifier("foo"));
+  EXPECT_TRUE(NameUniquer::IsValidIdentifier("foo_bar"));
+  EXPECT_TRUE(NameUniquer::IsValidIdentifier("foo_bar33"));
+  EXPECT_TRUE(NameUniquer::IsValidIdentifier("_baz"));
+  EXPECT_TRUE(NameUniquer::IsValidIdentifier("_"));
+  EXPECT_TRUE(NameUniquer::IsValidIdentifier("___"));
+  EXPECT_TRUE(NameUniquer::IsValidIdentifier("_42"));
+  EXPECT_TRUE(NameUniquer::IsValidIdentifier("_42abc"));
+
+  EXPECT_FALSE(NameUniquer::IsValidIdentifier(""));
+  EXPECT_FALSE(NameUniquer::IsValidIdentifier(" "));
+  EXPECT_FALSE(NameUniquer::IsValidIdentifier("\n"));
+  EXPECT_FALSE(NameUniquer::IsValidIdentifier("1"));
+  EXPECT_FALSE(NameUniquer::IsValidIdentifier("42"));
+  EXPECT_FALSE(NameUniquer::IsValidIdentifier("42abcd"));
+  EXPECT_FALSE(NameUniquer::IsValidIdentifier("42_"));
+  EXPECT_FALSE(NameUniquer::IsValidIdentifier("foo-bar"));
+  EXPECT_FALSE(NameUniquer::IsValidIdentifier("foo bar"));
+  EXPECT_FALSE(NameUniquer::IsValidIdentifier("foo&bar"));
+  EXPECT_FALSE(NameUniquer::IsValidIdentifier("foo+bar"));
+}
+
 }  // namespace
 }  // namespace xls

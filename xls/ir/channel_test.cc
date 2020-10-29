@@ -25,6 +25,7 @@ namespace {
 
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 
 TEST(ChannelTest, ChannelKindToString) {
@@ -61,6 +62,35 @@ TEST(ChannelTest, ConstructChannel) {
   EXPECT_EQ(ch.data_element(0).type, p.GetBitsType(32));
   EXPECT_EQ(ch.data_element(1).name, "bar");
   EXPECT_EQ(ch.data_element(1).type, p.GetBitsType(123));
+  EXPECT_TRUE(ch.initial_values().empty());
+}
+
+TEST(ChannelTest, ConstructChannelWithInitialValues) {
+  Package p("my_package");
+  ChannelMetadataProto metadata;
+  metadata.mutable_module_port()->set_flopped(true);
+  std::vector<Value> bar_initial_values = {Value(UBits(11, 32)),
+                                           Value(UBits(22, 32))};
+  std::vector<Value> foo_initial_values = {Value(UBits(44, 123)),
+                                           Value(UBits(55, 123))};
+  Channel ch("my_channel", 42, ChannelKind::kSendReceive,
+             {DataElement{"foo", p.GetBitsType(32), bar_initial_values},
+              DataElement{"bar", p.GetBitsType(123), foo_initial_values}},
+             metadata);
+
+  EXPECT_EQ(ch.name(), "my_channel");
+  EXPECT_EQ(ch.id(), 42);
+  EXPECT_EQ(ch.kind(), ChannelKind::kSendReceive);
+  EXPECT_EQ(ch.data_elements().size(), 2);
+  EXPECT_EQ(ch.data_element(0).name, "foo");
+  EXPECT_EQ(ch.data_element(0).type, p.GetBitsType(32));
+  EXPECT_EQ(ch.data_element(1).name, "bar");
+  EXPECT_EQ(ch.data_element(1).type, p.GetBitsType(123));
+  ASSERT_EQ(ch.initial_values().size(), 2);
+  EXPECT_THAT(ch.initial_values()[0],
+              ElementsAre(Value(UBits(11, 32)), Value(UBits(44, 123))));
+  EXPECT_THAT(ch.initial_values()[1],
+              ElementsAre(Value(UBits(22, 32)), Value(UBits(55, 123))));
 }
 
 TEST(ChannelTest, ToStringParses) {

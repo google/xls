@@ -22,6 +22,7 @@
 #include "xls/common/integral_types.h"
 #include "xls/ir/channel.pb.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 
@@ -47,6 +48,9 @@ std::ostream& operator<<(std::ostream& os, ChannelKind kind);
 struct DataElement {
   std::string name;
   Type* type;
+  // The initial values (if any) in the channel for this data element. All
+  // DataElements in a channel must have the same number of elements.
+  std::vector<Value> initial_values;
 
   std::string ToString() const;
 };
@@ -62,12 +66,7 @@ class Channel {
  public:
   Channel(absl::string_view name, int64 id, ChannelKind kind,
           absl::Span<const DataElement> data_elements,
-          const ChannelMetadataProto& metadata)
-      : name_(name),
-        id_(id),
-        kind_(kind),
-        data_elements_(data_elements.begin(), data_elements.end()),
-        metadata_(metadata) {}
+          const ChannelMetadataProto& metadata);
 
   // Returns the name of the channel.
   const std::string& name() const { return name_; }
@@ -86,6 +85,13 @@ class Channel {
   // Returns the i-th data element.
   const DataElement& data_element(int64 i) const {
     return data_elements_.at(i);
+  }
+
+  // Returns the initial values held in the channel. The inner span holds the
+  // values across data elements. The outer span holds the entries in the
+  // channel FIFO.
+  const std::vector<std::vector<Value>>& initial_values() const {
+    return initial_values_;
   }
 
   // Returns the metadata associated with this channel.
@@ -109,6 +115,7 @@ class Channel {
   ChannelKind kind_;
   std::vector<DataElement> data_elements_;
   ChannelMetadataProto metadata_;
+  std::vector<std::vector<Value>> initial_values_;
 };
 
 }  // namespace xls

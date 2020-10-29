@@ -57,6 +57,33 @@ std::ostream& operator<<(std::ostream& os, ChannelKind kind) {
   return os;
 }
 
+Channel::Channel(absl::string_view name, int64 id, ChannelKind kind,
+                 absl::Span<const DataElement> data_elements,
+                 const ChannelMetadataProto& metadata)
+    : name_(name),
+      id_(id),
+      kind_(kind),
+      data_elements_(data_elements.begin(), data_elements.end()),
+      metadata_(metadata) {
+  XLS_CHECK(!data_elements_.empty());
+  // Verify the number of initial values across data elements are all the same.
+  for (int64 i = 1; i < data_elements_.size(); ++i) {
+    XLS_CHECK_EQ(data_elements_[0].initial_values.size(),
+                 data_elements_[i].initial_values.size());
+  }
+  // Transpose the initial values held in each DataElement to a vector
+  // containing the initial values across data elements.
+  // TODO(meheff): Consider passing in the initial values in this transposed
+  // form.
+  for (int64 i = 0; i < data_elements_[0].initial_values.size(); ++i) {
+    std::vector<Value> values;
+    for (const DataElement& data_element : data_elements_) {
+      values.push_back(data_element.initial_values[i]);
+    }
+    initial_values_.push_back(std::move(values));
+  }
+}
+
 std::string Channel::ToString() const {
   std::string result = absl::StrFormat("chan %s(", name());
   absl::StrAppend(&result,

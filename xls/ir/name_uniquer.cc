@@ -92,4 +92,19 @@ std::string NameUniquer::GetSanitizedUniqueName(absl::string_view prefix) {
   }
 }
 
+/* static */ bool NameUniquer::IsValidIdentifier(absl::string_view str) {
+  if (str.empty()) {
+    return false;
+  }
+  if (!absl::ascii_isalpha(str[0]) && str[0] != '_') {
+    return false;
+  }
+  for (int64 i = 1; i < str.size(); ++i) {
+    if (!absl::ascii_isalnum(str[i]) && str[i] != '_' != 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
 }  // namespace xls

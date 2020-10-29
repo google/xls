@@ -119,6 +119,8 @@ class IrJit {
 
   JitRuntime* runtime() { return ir_runtime_.get(); }
 
+  LlvmTypeConverter* type_converter() { return type_converter_.get(); }
+
  private:
   explicit IrJit(FunctionBase* xls_function, int64 opt_level);
 

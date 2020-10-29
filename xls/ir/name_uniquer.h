@@ -44,6 +44,9 @@ class NameUniquer {
   // available.
   std::string GetSanitizedUniqueName(absl::string_view prefix);
 
+  // Returns true if the given str is a valid identifier.
+  static bool IsValidIdentifier(absl::string_view str);
+
  private:
   // Used to track and generate new identifiers for the same instruction name
   // root.

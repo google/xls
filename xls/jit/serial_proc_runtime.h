@@ -48,6 +48,16 @@ class SerialProcRuntime {
   Package* package() { return package_; }
   JitChannelQueueManager* queue_mgr() { return queue_mgr_.get(); }
 
+  // Enqueues the given set of values into the given channel. 'values' must
+  // match the number and type of the data elements of the channel.
+  absl::Status EnqueueValuesToChannel(Channel* channel,
+                                      absl::Span<const Value> values);
+
+  // Dequeues a set of values into the given channel. The number and type of the
+  // returned values matches the number and type of the data elements of the
+  // channel.
+  absl::StatusOr<std::vector<Value>> DequeueValuesFromChannel(Channel* channel);
+
  private:
   // Utility structure to hold state needed by each proc thread.
   struct ThreadData {

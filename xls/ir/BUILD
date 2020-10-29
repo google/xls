@@ -860,6 +860,7 @@ cc_library(
     deps = [
         ":channel_cc_proto",
         ":type",
+        ":value",
         "//xls/common:integral_types",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

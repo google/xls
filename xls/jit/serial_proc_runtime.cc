@@ -150,6 +150,13 @@ absl::Status SerialProcRuntime::Init() {
         std::make_unique<Thread>([thread_ptr]() { ThreadFn(thread_ptr); });
   }
 
+  // Enqueue initial values into channels.
+  for (Channel* channel : package_->channels()) {
+    for (const std::vector<Value>& values : channel->initial_values()) {
+      XLS_RETURN_IF_ERROR(EnqueueValuesToChannel(channel, values));
+    }
+  }
+
   return absl::OkStatus();
 }
 
@@ -207,6 +214,53 @@ absl::Status SerialProcRuntime::Tick() {
   }
 
   return absl::OkStatus();
+}
+
+absl::Status SerialProcRuntime::EnqueueValuesToChannel(
+    Channel* channel, absl::Span<const Value> values) {
+  XLS_RET_CHECK_EQ(values.size(), channel->data_elements().size());
+  for (int64 i = 0; i < values.size(); ++i) {
+    XLS_RET_CHECK_EQ(package_->GetTypeForValue(values[i]),
+                     channel->data_element(i).type);
+  }
+  if (values.size() != 1) {
+    return absl::UnimplementedError(
+        "Multiple-element channels not supported in JIT.");
+  }
+  const Value& value = values.front();
+  Type* type = package_->GetTypeForValue(value);
+
+  XLS_RET_CHECK(!threads_.empty());
+  IrJit* jit = threads_.front()->jit.get();
+  int64 size = jit->type_converter()->GetTypeByteSize(type);
+  auto buffer = absl::make_unique<uint8[]>(size);
+  jit->runtime()->BlitValueToBuffer(value, type,
+                                    absl::MakeSpan(buffer.get(), size));
+
+  XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
+                       queue_mgr()->GetQueueById(channel->id()));
+  queue->Send(buffer.get(), size);
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::vector<Value>> SerialProcRuntime::DequeueValuesFromChannel(
+    Channel* channel) {
+  if (channel->data_elements().size() != 1) {
+    return absl::UnimplementedError(
+        "Multiple-element channels not supported in JIT.");
+  }
+  Type* type = channel->data_elements().front().type;
+
+  XLS_RET_CHECK(!threads_.empty());
+  IrJit* jit = threads_.front()->jit.get();
+  int64 size = jit->type_converter()->GetTypeByteSize(type);
+  auto buffer = absl::make_unique<uint8[]>(size);
+
+  XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
+                       queue_mgr()->GetQueueById(channel->id()));
+  queue->Recv(buffer.get(), size);
+
+  return std::vector<Value>({jit->runtime()->UnpackBuffer(buffer.get(), type)});
 }
 
 }  // namespace xls

@@ -450,6 +450,19 @@ absl::StatusOr<Channel*> Package::CreateChannelWithId(
   }
   // TODO(meheff): Verify the name is unique as well.
 
+  // The channel name and all data element names must be valid identifiers.
+  if (!NameUniquer::IsValidIdentifier(name)) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Invalid channel name: \"%s\"", name));
+  }
+  for (const DataElement& data_element : data_elements) {
+    if (!NameUniquer::IsValidIdentifier(data_element.name)) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Invalid data element name \"%s\" in channel \"%s\"",
+                          data_element.name, name));
+    }
+  }
+
   // Add pointer to newly added channel to the channel vector and resort it by
   // ID.
   channel_vec_.push_back(channel_it->second.get());

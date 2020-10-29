@@ -167,10 +167,11 @@ class Package {
   // Create a channel. A unique channel ID will be automatically
   // allocated. Channels are used with send/receive nodes in communicate between
   // procs or between procs and external (to XLS) components.
+  // TODO(meheff): Consider using a builder for constructing a channel.
   absl::StatusOr<Channel*> CreateChannel(
       absl::string_view name, ChannelKind kind,
       absl::Span<const DataElement> data_elements,
-      const ChannelMetadataProto& metadata);
+      const ChannelMetadataProto& metadata = ChannelMetadataProto());
 
   // Create a channel with the given ID. Can be used when parsing a package file
   // where ID's are specified in the file. Otherwise CreateChannel should be
@@ -178,7 +179,7 @@ class Package {
   absl::StatusOr<Channel*> CreateChannelWithId(
       absl::string_view name, int64 id, ChannelKind kind,
       absl::Span<const DataElement> data_elements,
-      const ChannelMetadataProto& metadata);
+      const ChannelMetadataProto& metadata = ChannelMetadataProto());
 
   // Returns a span of the channels owned by the package. Sorted by channel ID.
   absl::Span<Channel* const> channels() const { return channel_vec_; }

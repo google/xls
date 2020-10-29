@@ -25,6 +25,8 @@
 namespace xls {
 namespace {
 
+using status_testing::IsOkAndHolds;
+
 template <typename T>
 void EnqueueData(JitChannelQueue* queue, T data) {
   queue->Send(reinterpret_cast<uint8*>(&data), sizeof(T));
@@ -340,6 +342,115 @@ proc b(my_token: token, state: (), init=()) {
   output_queue->Recv(reinterpret_cast<uint8*>(&data), sizeof(data));
   EXPECT_EQ(data, 42);
   thread.Join();
+}
+
+// This test verifies that wide types may be passed via send/receive.
+TEST(SerialProcRuntimeTest, WideTypes) {
+  const std::string kIrText = R"(
+package p
+
+chan in(data: (bits[132], bits[217]), id=0, kind=receive_only, metadata="")
+chan out(data: (bits[132], bits[217]), id=1, kind=send_only, metadata="")
+
+proc a(my_token: token, state: (), init=()) {
+  rcv: (token, (bits[132], bits[217])) = receive(my_token, channel_id=0)
+  rcv_tkn: token = tuple_index(rcv, index=0)
+  rcv_data: (bits[132], bits[217]) = tuple_index(rcv, index=1)
+  elem_0: bits[132] = tuple_index(rcv_data, index=0)
+  elem_1: bits[217] = tuple_index(rcv_data, index=1)
+  one: bits[132] = literal(value=1)
+  two: bits[217] = literal(value=2)
+  mod_elem_0: bits[132] = add(elem_0, one)
+  mod_elem_1: bits[217] = add(elem_1, two)
+  to_send: (bits[132], bits[217]) = tuple(mod_elem_0, mod_elem_1)
+  snd: token = send(rcv_tkn, data=[to_send], channel_id=1)
+
+  next (snd, state)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, Parser::ParsePackage(kIrText));
+  XLS_ASSERT_OK_AND_ASSIGN(auto runtime, SerialProcRuntime::Create(p.get()));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value input,
+      Parser::ParseTypedValue(
+          "(bits[132]: 0xf_abcd_1234_9876_1010_aaaa_beeb_c12c_defd, "
+          "bits[217]: 0x1111_2222_3333_4444_abcd_4321_4444_2468_3579)"));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * input_channel, p->GetChannel(0));
+  XLS_ASSERT_OK(runtime->EnqueueValuesToChannel(input_channel, {input}));
+
+  XLS_ASSERT_OK(runtime->Tick());
+
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * output_channel, p->GetChannel(1));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Value> output,
+                           runtime->DequeueValuesFromChannel(output_channel));
+
+  ASSERT_EQ(output.size(), 1);
+  EXPECT_EQ(output.front().ToString(),
+            "(bits[132]:0xf_abcd_1234_9876_1010_aaaa_beeb_c12c_defe, "
+            "bits[217]:0x1111_2222_3333_4444_abcd_4321_4444_2468_357b)");
+}
+
+// TODO(meheff): This test is a duplicate of one in
+// proc_network_interpreter_test. Unify the set of tests in one location.
+TEST(SerialProcRuntimeTest, ChannelInitValues) {
+  auto p = absl::make_unique<Package>("init_value");
+  // Create an iota proc which uses a channel to convey the state rather than
+  // using the explicit proc state. However, the state channel has multiple
+  // initial values which results in interleaving of difference sequences of
+  // iota values.
+  ProcBuilder pb("backedge_proc", /*init_value=*/Value::Tuple({}),
+                 /*token_name=*/"tok", /*state_name=*/"nil_state", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * state_channel,
+      p->CreateChannel(
+          "backedge", ChannelKind::kSendReceive,
+          {DataElement{
+              "state", p->GetBitsType(32),
+              // Initial value of iotas are 42, 55, 100. Three sequences of
+              // interleaved numbers will be generated starting at these
+              // values.
+              std::vector<Value>({Value(UBits(42, 32)), Value(UBits(55, 32)),
+                                  Value(UBits(100, 32))})}},
+          ChannelMetadataProto()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * output_channel,
+      p->CreateChannel("out", ChannelKind::kSendOnly,
+                       {DataElement{"out", p->GetBitsType(32)}},
+                       ChannelMetadataProto()));
+
+  BValue state_receive = pb.Receive(state_channel, pb.GetTokenParam());
+  BValue receive_token = pb.TupleIndex(state_receive, /*idx=*/0);
+  BValue state = pb.TupleIndex(state_receive, /*idx=*/1);
+  BValue next_state = pb.Add(state, pb.Literal(UBits(1, 32)));
+  BValue out_send = pb.Send(output_channel, pb.GetTokenParam(), {state});
+  BValue state_send = pb.Send(state_channel, receive_token, {next_state});
+  XLS_ASSERT_OK(
+      pb.Build(pb.AfterAll({out_send, state_send}), pb.GetStateParam())
+          .status());
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto runtime, SerialProcRuntime::Create(p.get()));
+
+  for (int64 i = 0; i < 9; ++i) {
+    XLS_ASSERT_OK(runtime->Tick());
+  }
+
+  auto get_output = [&]() -> absl::StatusOr<Value> {
+    XLS_ASSIGN_OR_RETURN(std::vector<Value> output,
+                         runtime->DequeueValuesFromChannel(output_channel));
+    return output.front();
+  };
+
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(42, 32))));
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(55, 32))));
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(100, 32))));
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(43, 32))));
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(56, 32))));
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(101, 32))));
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(44, 32))));
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(57, 32))));
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(102, 32))));
 }
 
 }  // namespace

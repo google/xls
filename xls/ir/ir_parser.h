@@ -143,6 +143,10 @@ class Parser {
   // produced by Value::ToHumanString. For example: "(0x23, 0x1)".
   absl::StatusOr<Value> ParseValueInternal(absl::optional<Type*> expected_type);
 
+  // Parses a comma-separated sequence of values of the given type. Must have at
+  // least one element in the sequence.
+  absl::StatusOr<std::vector<Value>> ParseCommaSeparatedValues(Type* type);
+
   // Parses a comma-delimited list of names surrounded by brackets; e.g.
   //
   //    "[foo, bar, baz]"

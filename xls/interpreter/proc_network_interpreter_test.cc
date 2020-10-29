@@ -413,5 +413,118 @@ TEST_F(ProcNetworkInterpreterTest, RunLengthDecodingFilter) {
               IsOkAndHolds(ElementsAre(Value(UBits(20, 8)))));
 }
 
+TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedge) {
+  // Create an iota proc which uses a channel to convey the state rather than
+  // using the explicit proc state. The state channel has an initial value, just
+  // like a proc's state.
+  auto package = CreatePackage();
+  ProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
+                 /*token_name=*/"tok", /*state_name=*/"nil_state",
+                 package.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * state_channel,
+      package->CreateChannel(
+          "backedge", ChannelKind::kSendReceive,
+          {DataElement{"state", package->GetBitsType(32),
+                       // Initial value of iota is 42.
+                       std::vector<Value>({Value(UBits(42, 32))})}},
+          ChannelMetadataProto()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * output_channel,
+      package->CreateChannel("out", ChannelKind::kSendOnly,
+                             {DataElement{"out", package->GetBitsType(32)}},
+                             ChannelMetadataProto()));
+
+  BValue state_receive = pb.Receive(state_channel, pb.GetTokenParam());
+  BValue receive_token = pb.TupleIndex(state_receive, /*idx=*/0);
+  BValue state = pb.TupleIndex(state_receive, /*idx=*/1);
+  BValue next_state = pb.Add(state, pb.Literal(UBits(1, 32)));
+  BValue out_send = pb.Send(output_channel, pb.GetTokenParam(), {state});
+  BValue state_send = pb.Send(state_channel, receive_token, {next_state});
+  XLS_ASSERT_OK(
+      pb.Build(pb.AfterAll({out_send, state_send}), pb.GetStateParam())
+          .status());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
+                           ProcNetworkInterpreter::Create(package.get(), {}));
+
+  ChannelQueue& output_queue =
+      interpreter->queue_manager().GetQueue(output_channel);
+  while (output_queue.size() < 3) {
+    XLS_ASSERT_OK(interpreter->Tick());
+  }
+
+  EXPECT_THAT(output_queue.Dequeue(),
+              IsOkAndHolds(ElementsAre(Value(UBits(42, 32)))));
+  EXPECT_THAT(output_queue.Dequeue(),
+              IsOkAndHolds(ElementsAre(Value(UBits(43, 32)))));
+  EXPECT_THAT(output_queue.Dequeue(),
+              IsOkAndHolds(ElementsAre(Value(UBits(44, 32)))));
+}
+
+TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedgeAndTwoInitialValues) {
+  auto package = CreatePackage();
+  // Create an iota proc which uses a channel to convey the state rather than
+  // using the explicit proc state. However, the state channel has multiple
+  // initial values which results in interleaving of difference sequences of
+  // iota values.
+  ProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
+                 /*token_name=*/"tok", /*state_name=*/"nil_state",
+                 package.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * state_channel,
+      package->CreateChannel(
+          "backedge", ChannelKind::kSendReceive,
+          {DataElement{
+              "state", package->GetBitsType(32),
+              // Initial value of iotas are 42, 55, 100. Three sequences of
+              // interleaved numbers will be generated starting at these
+              // values.
+              std::vector<Value>({Value(UBits(42, 32)), Value(UBits(55, 32)),
+                                  Value(UBits(100, 32))})}},
+          ChannelMetadataProto()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * output_channel,
+      package->CreateChannel("out", ChannelKind::kSendOnly,
+                             {DataElement{"out", package->GetBitsType(32)}},
+                             ChannelMetadataProto()));
+
+  BValue state_receive = pb.Receive(state_channel, pb.GetTokenParam());
+  BValue receive_token = pb.TupleIndex(state_receive, /*idx=*/0);
+  BValue state = pb.TupleIndex(state_receive, /*idx=*/1);
+  BValue next_state = pb.Add(state, pb.Literal(UBits(1, 32)));
+  BValue out_send = pb.Send(output_channel, pb.GetTokenParam(), {state});
+  BValue state_send = pb.Send(state_channel, receive_token, {next_state});
+  XLS_ASSERT_OK(
+      pb.Build(pb.AfterAll({out_send, state_send}), pb.GetStateParam())
+          .status());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
+                           ProcNetworkInterpreter::Create(package.get(), {}));
+
+  ChannelQueue& output_queue =
+      interpreter->queue_manager().GetQueue(output_channel);
+  while (output_queue.size() < 9) {
+    XLS_ASSERT_OK(interpreter->Tick());
+  }
+
+  EXPECT_THAT(output_queue.Dequeue(),
+              IsOkAndHolds(ElementsAre(Value(UBits(42, 32)))));
+  EXPECT_THAT(output_queue.Dequeue(),
+              IsOkAndHolds(ElementsAre(Value(UBits(55, 32)))));
+  EXPECT_THAT(output_queue.Dequeue(),
+              IsOkAndHolds(ElementsAre(Value(UBits(100, 32)))));
+  EXPECT_THAT(output_queue.Dequeue(),
+              IsOkAndHolds(ElementsAre(Value(UBits(43, 32)))));
+  EXPECT_THAT(output_queue.Dequeue(),
+              IsOkAndHolds(ElementsAre(Value(UBits(56, 32)))));
+  EXPECT_THAT(output_queue.Dequeue(),
+              IsOkAndHolds(ElementsAre(Value(UBits(101, 32)))));
+  EXPECT_THAT(output_queue.Dequeue(),
+              IsOkAndHolds(ElementsAre(Value(UBits(44, 32)))));
+  EXPECT_THAT(output_queue.Dequeue(),
+              IsOkAndHolds(ElementsAre(Value(UBits(57, 32)))));
+  EXPECT_THAT(output_queue.Dequeue(),
+              IsOkAndHolds(ElementsAre(Value(UBits(102, 32)))));
+}
+
 }  // namespace
 }  // namespace xls

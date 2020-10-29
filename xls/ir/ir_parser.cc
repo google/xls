@@ -405,6 +405,16 @@ absl::StatusOr<Value> Parser::ParseValueInternal(absl::optional<Type*> type) {
       absl::StrFormat("Unsupported type %s", TypeKindToString(type_kind)));
 }
 
+absl::StatusOr<std::vector<Value>> Parser::ParseCommaSeparatedValues(
+    Type* type) {
+  std::vector<Value> values;
+  do {
+    XLS_ASSIGN_OR_RETURN(Value value, ParseValueInternal(type));
+    values.push_back(value);
+  } while (scanner_.TryDropToken(LexicalTokenType::kComma));
+  return values;
+}
+
 absl::StatusOr<std::vector<BValue>> Parser::ParseNameList(
     const absl::flat_hash_map<std::string, BValue>& name_to_value) {
   XLS_RETURN_IF_ERROR(
@@ -1174,9 +1184,13 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
   bool must_end = false;
 
   // Iterate through the comma-separated elements in the channel definition.
-  // Example:
+  // Examples:
   //
+  //  // No initial values.
   //  chan my_channel(foo: bits[32], id=42, ...)
+  //
+  //  // Initial values.
+  //  chan my_channel(foo: bits[32] = {1, 2, 3}, id=42, ...)
   //
   while (true) {
     if (must_end || scanner_.PeekTokenIs(LexicalTokenType::kParenClose)) {
@@ -1190,7 +1204,18 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
       // Data element: "<name>: <type>"
       XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kColon));
       XLS_ASSIGN_OR_RETURN(Type * type, ParseType(package));
-      data_elements.push_back(DataElement{field_name.value(), type});
+      std::vector<Value> initial_values;
+      if (scanner_.TryDropToken(LexicalTokenType::kEquals)) {
+        XLS_RETURN_IF_ERROR(
+            scanner_.DropTokenOrError(LexicalTokenType::kCurlOpen));
+        if (!scanner_.PeekTokenIs(LexicalTokenType::kCurlClose)) {
+          XLS_ASSIGN_OR_RETURN(initial_values, ParseCommaSeparatedValues(type));
+        }
+        XLS_RETURN_IF_ERROR(
+            scanner_.DropTokenOrError(LexicalTokenType::kCurlClose));
+      }
+      data_elements.push_back(
+          DataElement{field_name.value(), type, initial_values});
     } else if (scanner_.TryDropToken(LexicalTokenType::kEquals)) {
       // Attribute: "<name>=<value>"
       if (field_name.value() == "id") {
