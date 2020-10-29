@@ -201,7 +201,7 @@ project, see our
 * [Jonathan Bailey](https://github.com/jbaileyhandle)
 * [Julian Viera](https://github.com/julianviera99)
 * [Kevin Harlley](https://github.com/kevineharlley)
-* [Mark Heffernan](https://github.com/meheffernan)
+* [Mark Heffernan](https://github.com/meheff)
 * [Paul Rigge](https://github.com/grebe)
 * [Per Grön](https://github.com/per-gron)
 * [Rebecca Chen (Pytype)](https://github.com/rchen152)
