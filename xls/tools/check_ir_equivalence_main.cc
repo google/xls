@@ -16,6 +16,7 @@
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_join.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/init_xls.h"
@@ -41,6 +42,10 @@ prove that optimizations are safe - that they don't change program outputs.
 
 Example invocation:
   check_ir_equivalence_main <IR file> <IR file>
+
+If there are multiple functions in the specified files, then it's _strongly_
+recommended that you specify --function to ensure that the right functions are
+compared. If the tool picks the wrong one, a crash may result.
 )";
 
 ABSL_FLAG(std::string, function, "",
@@ -91,8 +96,11 @@ absl::Status RealMain(const std::vector<absl::string_view>& ir_paths,
   PassOptions options;
   PassResults results;
   for (const auto& package : packages) {
-    XLS_RETURN_IF_ERROR(
-        inlining_passes.Run(package.get(), options, &results).status());
+    bool keep_going = true;
+    while (keep_going) {
+      XLS_ASSIGN_OR_RETURN(
+          keep_going, inlining_passes.Run(package.get(), options, &results));
+    }
   }
 
   std::vector<Function*> functions;

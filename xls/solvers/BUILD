@@ -48,6 +48,7 @@ cc_test(
         ":z3_utils",
         "@com_google_absl//absl/strings",
         "//xls/common/status:matchers",
+        "//xls/ir:bits_ops",
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
         "@z3//:api",

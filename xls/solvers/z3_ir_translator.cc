@@ -24,6 +24,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/abstract_evaluator.h"
 #include "xls/ir/abstract_node_evaluator.h"
+#include "xls/ir/nodes.h"
 #include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3_api.h"
 #include "../z3/src/api/z3_fpa.h"
@@ -1069,6 +1070,23 @@ absl::Status IrTranslator::HandleSel(Select* sel) {
   });
 }
 
+absl::Status IrTranslator::HandleOrReduce(BitwiseReductionOp* or_reduce) {
+  ScopedErrorHandler seh(ctx_);
+  // OrReduce == is any bit set in the value? That's the same as "node != 0".
+  Z3_ast operand = GetValue(or_reduce->operand(0));
+  Z3_ast long_zero = Z3_mk_int(ctx_, 0, Z3_get_sort(ctx_, operand));
+
+  Z3_sort bit_sort = Z3_mk_bv_sort(ctx_, 1);
+  Z3_ast one = Z3_mk_int(ctx_, 1, bit_sort);
+  Z3_ast zero = Z3_mk_int(ctx_, 0, bit_sort);
+
+  Z3_ast eq = Z3_mk_eq(ctx_, operand, long_zero);
+  Z3_ast result = Z3_mk_ite(ctx_, eq, zero, one);
+
+  NoteTranslation(or_reduce, result);
+  return seh.status();
+}
+
 void IrTranslator::HandleMul(ArithOp* mul, bool is_signed) {
   // In XLS IR, multiply operands can potentially be of different widths. In Z3,
   // they can't, so we need to zext (for a umul) the operands to the size of the
@@ -1079,31 +1097,27 @@ void IrTranslator::HandleMul(ArithOp* mul, bool is_signed) {
   int rhs_size = Z3_get_bv_sort_size(ctx_, Z3_get_sort(ctx_, rhs));
 
   int result_size = mul->BitCountOrDie();
-  int operand_size = std::max(lhs_size, rhs_size);
+  int operation_size = std::max(result_size, std::max(lhs_size, rhs_size));
+  // Do the mul at maximum width, then truncate if necessary to the result
+  // width.
   if (is_signed) {
-    if (lhs_size < operand_size) {
-      lhs = Z3_mk_sign_ext(ctx_, operand_size - lhs_size, lhs);
+    if (lhs_size < operation_size) {
+      lhs = Z3_mk_sign_ext(ctx_, operation_size - lhs_size, lhs);
     }
-    if (rhs_size < operand_size) {
-      rhs = Z3_mk_sign_ext(ctx_, operand_size - rhs_size, rhs);
+    if (rhs_size < operation_size) {
+      rhs = Z3_mk_sign_ext(ctx_, operation_size - rhs_size, rhs);
     }
   } else {
     // If we're doing unsigned multiplication, add an extra 0 MSb to make sure
     // Z3 knows that.
-    operand_size += 1;
-    lhs = Z3_mk_zero_ext(ctx_, operand_size - lhs_size, lhs);
-    rhs = Z3_mk_zero_ext(ctx_, operand_size - rhs_size, rhs);
+    operation_size += 1;
+    lhs = Z3_mk_zero_ext(ctx_, operation_size - lhs_size, lhs);
+    rhs = Z3_mk_zero_ext(ctx_, operation_size - rhs_size, rhs);
   }
 
   Z3_ast result = Z3_mk_bvmul(ctx_, lhs, rhs);
-  if (operand_size > result_size) {
+  if (operation_size > result_size) {
     result = Z3_mk_extract(ctx_, result_size - 1, 0, result);
-  } else if (operand_size < result_size) {
-    if (is_signed) {
-      result = Z3_mk_sign_ext(ctx_, result_size - operand_size, result);
-    } else {
-      result = Z3_mk_zero_ext(ctx_, result_size - operand_size, result);
-    }
   }
 
   NoteTranslation(mul, result);

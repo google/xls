@@ -347,7 +347,6 @@ def dslx_test(
                     ":" + name + "_all_ir",
                     "//xls/tools:check_ir_equivalence_main",
                 ],
-                #tags = tags + ["manual", "optonly"],
                 tags = tags + ["optonly"],
             )
 

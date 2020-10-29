@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/solvers/z3_utils.h"
@@ -1544,6 +1545,8 @@ fn f() -> bits[6] {
       {-1, -5},
       {6, -5},
       {-5, 7},
+      {-1, -1},
+      {0, -0},
   });
 
   for (std::pair<int, int> test_case : test_cases) {
@@ -1556,12 +1559,59 @@ fn f() -> bits[6] {
                              IrTranslator::CreateAndTranslate(f));
     Z3_context ctx = translator->ctx();
     Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
-    // To avoid boom in the last case (-35 requires 7 bits to represent), put
-    // everything in a 7-bit Bits and truncate by one.
-    Bits expected_bits = SBits(test_case.first * test_case.second, 7);
-    expected_bits = expected_bits.Slice(0, 6);
+    Bits lhs = SBits(test_case.first, 4);
+    Bits rhs = SBits(test_case.second, 8);
+    Bits expected_bits = bits_ops::SMul(lhs, rhs);
+
     Z3_ast expected =
         Z3_mk_int(ctx, expected_bits.ToInt64().value(), Z3_mk_bv_sort(ctx, 6));
+    Z3_ast objective = Z3_mk_eq(ctx, translator->GetReturnNode(), expected);
+    Z3_solver_assert(ctx, solver, objective);
+    Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
+    EXPECT_EQ(satisfiable, Z3_L_TRUE);
+    Z3_solver_dec_ref(ctx, solver);
+  }
+}
+
+TEST(Z3IrTranslatorTest, HandlesSMulOverflow) {
+  const std::string tmpl = R"(
+package p
+
+fn f() -> bits[64] {
+  literal.1: bits[8] = literal(value=$0)
+  literal.2: bits[8] = literal(value=$1)
+  ret smul.3: bits[64] = smul(literal.1, literal.2)
+}
+)";
+
+  std::vector<std::pair<int, int>> test_cases({
+      {0, 5},
+      {1, 5},
+      {-1, 5},
+      {1, -5},
+      {-1, -5},
+      {6, -5},
+      {-5, 7},
+      {-1, -1},
+      {0x7f, 0x7f},
+  });
+
+  for (std::pair<int, int> test_case : test_cases) {
+    std::string program =
+        absl::Substitute(tmpl, test_case.first, test_case.second);
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                             Parser::ParsePackage(program));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+    XLS_ASSERT_OK_AND_ASSIGN(auto translator,
+                             IrTranslator::CreateAndTranslate(f));
+    Z3_context ctx = translator->ctx();
+    Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
+    Bits lhs = SBits(test_case.first, 8);
+    Bits rhs = SBits(test_case.second, 8);
+    Bits expected_bits = bits_ops::SMul(lhs, rhs);
+
+    Z3_ast expected =
+        Z3_mk_int(ctx, expected_bits.ToInt64().value(), Z3_mk_bv_sort(ctx, 64));
     Z3_ast objective = Z3_mk_eq(ctx, translator->GetReturnNode(), expected);
     Z3_solver_assert(ctx, solver, objective);
     Z3_lbool satisfiable = Z3_solver_check(ctx, solver);

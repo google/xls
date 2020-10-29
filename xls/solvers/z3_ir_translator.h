@@ -23,6 +23,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/function.h"
+#include "xls/ir/nodes.h"
 #include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3.h"
 
@@ -134,6 +135,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::Status HandleParam(Param* param) override;
   absl::Status HandleOneHot(OneHot* one_hot) override;
   absl::Status HandleOneHotSel(OneHotSelect* one_hot) override;
+  absl::Status HandleOrReduce(BitwiseReductionOp* or_reduce) override;
   absl::Status HandleReverse(UnOp* reverse) override;
   absl::Status HandleSel(Select* sel) override;
   absl::Status HandleSignExtend(ExtendOp* sign_ext) override;
