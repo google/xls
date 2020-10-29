@@ -48,7 +48,7 @@ TEST_F(ProcTest, SimpleProc) {
 )");
 }
 
-TEST_F(ProcTest, SetTokenState) {
+TEST_F(ProcTest, MutateProc) {
   auto p = CreatePackage();
   ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "st",
                  p.get());
@@ -64,17 +64,63 @@ TEST_F(ProcTest, SetTokenState) {
   XLS_ASSERT_OK(proc->SetNextState(proc->StateParam()));
   EXPECT_THAT(proc->NextState(), m::Param("st"));
 
+  // Replace the state with a new type. First need to delete the (dead) use of
+  // the existing state param.
+  XLS_ASSERT_OK(proc->RemoveNode(add.node()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * new_state,
+      proc->MakeNode<Literal>(/*loc=*/absl::nullopt, Value(UBits(100, 100))));
+  XLS_ASSERT_OK(proc->ReplaceState("new_state", new_state));
+
+  EXPECT_THAT(proc->NextState(), m::Literal(UBits(100, 100)));
+  EXPECT_THAT(proc->StateParam(), m::Type("bits[100]"));
+}
+
+TEST_F(ProcTest, InvalidTokenType) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "st",
+                 p.get());
+  BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetStateParam());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build(pb.AfterAll({pb.GetTokenParam()}), add));
+
   // Try setting invalid typed nodes as the next token/state.
   EXPECT_THAT(
       proc->SetNextToken(add.node()),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr("Cannot set next token to add.4, expected token type")));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr(
+                   "Cannot set next token to \"add.4\", expected token type")));
+}
+
+TEST_F(ProcTest, InvalidStateType) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "st",
+                 p.get());
+  BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetStateParam());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build(pb.AfterAll({pb.GetTokenParam()}), add));
 
   EXPECT_THAT(proc->SetNextState(proc->TokenParam()),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Cannot set next state to tkn; type token "
+                       HasSubstr("Cannot set next state to \"tkn\"; type token "
                                  "does not match proc state type bits[32]")));
+}
+
+TEST_F(ProcTest, ReplaceStateThatStillHasUse) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "st",
+                 p.get());
+  BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetStateParam());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build(pb.AfterAll({pb.GetTokenParam()}), add));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * new_state,
+      proc->MakeNode<Literal>(/*loc=*/absl::nullopt, Value(UBits(100, 100))));
+  EXPECT_THAT(
+      proc->ReplaceState("new_state", new_state),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Existing state param \"st\" still has uses")));
 }
 
 }  // namespace

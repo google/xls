@@ -49,7 +49,7 @@ std::string Proc::DumpIr(bool recursive) const {
 absl::Status Proc::SetNextToken(Node* next) {
   if (!next->GetType()->IsToken()) {
     return absl::InvalidArgumentError(absl::StrFormat(
-        "Cannot set next token to %s, expected token type but has type %s",
+        "Cannot set next token to \"%s\", expected token type but has type %s",
         next->GetName(), next->GetType()->ToString()));
   }
   next_token_ = next;
@@ -59,11 +59,32 @@ absl::Status Proc::SetNextToken(Node* next) {
 absl::Status Proc::SetNextState(Node* next) {
   if (next->GetType() != StateType()) {
     return absl::InvalidArgumentError(absl::StrFormat(
-        "Cannot set next state to %s; type %s does not match "
+        "Cannot set next state to \"%s\"; type %s does not match "
         "proc state type %s",
         next->GetName(), next->GetType()->ToString(), StateType()->ToString()));
   }
   next_state_ = next;
+  return absl::OkStatus();
+}
+
+absl::Status Proc::ReplaceState(absl::string_view state_param_name,
+                                Node* next_state) {
+  Param* old_state_param = StateParam();
+  if (!old_state_param->users().empty()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Existing state param \"%s\" still has uses",
+                        old_state_param->GetName()));
+  }
+
+  // Add a new state param node.
+  XLS_ASSIGN_OR_RETURN(
+      state_param_,
+      MakeNodeWithName<Param>(/*loc=*/absl::nullopt, state_param_name,
+                              next_state->GetType()));
+  next_state_ = next_state;
+
+  XLS_RET_CHECK(!HasImplicitUse(old_state_param));
+  XLS_RETURN_IF_ERROR(RemoveNode(old_state_param, /*remove_param_ok=*/true));
   return absl::OkStatus();
 }
 

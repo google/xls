@@ -33,13 +33,11 @@ class Proc : public FunctionBase {
        Package* package)
       : FunctionBase(name, package),
         init_value_(init_value),
-        state_type_(package->GetTypeForValue(init_value_)),
-        return_type_(
-            package->GetTupleType({package->GetTokenType(), state_type_})),
         token_param_(AddNode(absl::make_unique<Param>(
             absl::nullopt, token_param_name, package->GetTokenType(), this))),
         state_param_(AddNode(absl::make_unique<Param>(
-            absl::nullopt, state_param_name, state_type_, this))),
+            absl::nullopt, state_param_name,
+            package->GetTypeForValue(init_value_), this))),
         next_token_(token_param_),
         next_state_(state_param_) {}
 
@@ -49,7 +47,7 @@ class Proc : public FunctionBase {
   const Value& InitValue() const { return init_value_; }
 
   // Returns the type of the recurrent state variable.
-  Type* StateType() const { return state_type_; }
+  Type* StateType() const { return StateParam()->GetType(); }
 
   // Returns the state (or token) parameter node. These are the only Params of
   // the Proc.
@@ -60,9 +58,19 @@ class Proc : public FunctionBase {
   Node* NextToken() const { return next_token_; }
   Node* NextState() const { return next_state_; }
 
-  // Sets the next recurrent token/state value.
+  // Sets the next recurrent token value. Node must be token typed.
   absl::Status SetNextToken(Node* next);
+
+  // Sets the next recurrent state value. Node type must match the type of the
+  // state of the proc.
   absl::Status SetNextState(Node* next);
+
+  // Removes the existing state param node and creates a new one with the given
+  // name and type matching next_state (which may be any type). Replaces the
+  // proc's next recurrent state with the given next_state. The existing state
+  // param must have no uses.
+  absl::Status ReplaceState(absl::string_view state_param_name,
+                            Node* next_state);
 
   bool HasImplicitUse(Node* node) const override {
     return node == NextToken() || node == NextState();
@@ -72,8 +80,6 @@ class Proc : public FunctionBase {
 
  private:
   Value init_value_;
-  Type* state_type_;
-  Type* return_type_;
 
   // State and token parameters. Procs have fixed set of parameters (state data
   // and an input token) which are added at construction time.

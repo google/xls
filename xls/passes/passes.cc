@@ -33,4 +33,15 @@ absl::StatusOr<bool> FunctionBasePass::Run(Package* p,
   return changed;
 }
 
+absl::StatusOr<bool> ProcPass::Run(Package* p, const PassOptions& options,
+                                   PassResults* results) const {
+  bool changed = false;
+  for (const auto& proc : p->procs()) {
+    XLS_ASSIGN_OR_RETURN(bool proc_changed,
+                         RunOnProc(proc.get(), options, results));
+    changed |= proc_changed;
+  }
+  return changed;
+}
+
 }  // namespace xls

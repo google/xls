@@ -56,6 +56,21 @@ class FunctionBasePass : public Pass {
                            PassResults* results) const override;
 };
 
+// Abstract base class for passes operate on procs. The derived
+// class must define RunOnProc.
+class ProcPass : public Pass {
+ public:
+  ProcPass(absl::string_view short_name, absl::string_view long_name)
+      : Pass(short_name, long_name) {}
+
+  virtual absl::StatusOr<bool> RunOnProc(Proc* proc, const PassOptions& options,
+                                         PassResults* results) const = 0;
+
+  // Iterates over each proc in the package calling RunOnProc.
+  absl::StatusOr<bool> Run(Package* p, const PassOptions& options,
+                           PassResults* results) const override;
+};
+
 }  // namespace xls
 
 #endif  // XLS_PASSES_PASSES_H_

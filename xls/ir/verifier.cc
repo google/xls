@@ -1328,6 +1328,11 @@ absl::Status VerifyProc(Proc* proc) {
                             proc->param(1)->GetType()->ToString());
 
   XLS_RET_CHECK_EQ(proc->param(1), proc->StateParam());
+  XLS_RET_CHECK_EQ(proc->param(1)->GetType(), proc->StateType())
+      << absl::StreamFormat(
+             "Parameter 1 of a proc %s does not match state type %s, is %s",
+             proc->name(), proc->StateType()->ToString(),
+             proc->param(1)->GetType()->ToString());
 
   // Next token must be token type.
   XLS_RET_CHECK(proc->NextToken()->GetType()->IsToken());

@@ -331,6 +331,21 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "state_removal_pass",
+    srcs = ["state_removal_pass.cc"],
+    hdrs = ["state_removal_pass.h"],
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/passes",
+        "//xls/passes:pass_base",
+    ],
+)
+
 proto_library(
     name = "module_signature_proto",
     srcs = ["module_signature.proto"],
@@ -416,6 +431,18 @@ cc_test(
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/simulation:verilog_test_base",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "state_removal_pass_test",
+    srcs = ["state_removal_pass_test.cc"],
+    deps = [
+        ":state_removal_pass",
+        "//xls/common/status:matchers",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest_main",
     ],
 )
