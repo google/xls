@@ -18,6 +18,107 @@
 
 namespace xls {
 
+absl::StatusOr<std::unique_ptr<IntegrationFunction>>
+IntegrationFunction::MakeIntegrationFunctionWithParamTuples(
+    Package* package, absl::Span<const Function* const> source_functions,
+    std::string function_name) {
+  // Create integration function object.
+  auto integration_function = absl::make_unique<IntegrationFunction>();
+  integration_function->package_ = package;
+
+  // Create ir function.
+  integration_function->function_ =
+      absl::make_unique<Function>(function_name, package);
+
+  // Package source function parameters as tuple parameters to integration
+  // function.
+  for (const auto* source_func : source_functions) {
+    // Add tuple paramter for source function.
+    std::vector<Type*> arg_types;
+    for (const Node* param : source_func->params()) {
+      arg_types.push_back(param->GetType());
+    }
+    Type* args_tuple_type = package->GetTupleType(arg_types);
+    std::string tuple_name = source_func->name() + std::string("ParamTuple");
+    XLS_ASSIGN_OR_RETURN(
+        Node * args_tuple,
+        integration_function->function_->MakeNodeWithName<Param>(
+            /*loc=*/std::nullopt, tuple_name, args_tuple_type));
+
+    // Add TupleIndex nodes inside function to unpack tuple parameter.
+    int64 parameter_index = 0;
+    for (const Node* param : source_func->params()) {
+      XLS_ASSIGN_OR_RETURN(
+          Node * tuple_index,
+          integration_function->function_->MakeNode<TupleIndex>(
+              /*loc=*/std::nullopt, args_tuple, parameter_index));
+      XLS_RETURN_IF_ERROR(
+          integration_function->SetNodeMapping(param, tuple_index));
+      parameter_index++;
+    }
+  }
+
+  return std::move(integration_function);
+}
+
+absl::Status IntegrationFunction::SetNodeMapping(const Node* source,
+                                                 Node* map_target) {
+  // Validate map pairing.
+  XLS_RET_CHECK_NE(source, map_target);
+  XLS_RET_CHECK(IntegrationFunctionOwnsNode(map_target));
+  XLS_RET_CHECK(
+      !(IntegrationFunctionOwnsNode(source) && !IsMappingTarget(source)));
+
+  // 'original' is itself a member of the integrated function.
+  if (IntegrationFunctionOwnsNode(source)) {
+    absl::flat_hash_set<const Node*>& nodes_that_map_to_source =
+        integrated_node_to_original_nodes_map_.at(source);
+
+    // Nodes that previously mapped to original now map to map_target.
+    for (const Node* original_node : nodes_that_map_to_source) {
+      integrated_node_to_original_nodes_map_[map_target].insert(original_node);
+      XLS_RET_CHECK(HasMapping(original_node));
+      original_node_to_integrated_node_map_[original_node] = map_target;
+    }
+
+    // No nodes map to source anymore.
+    integrated_node_to_original_nodes_map_.erase(source);
+
+    // 'source' is an external node.
+  } else {
+    original_node_to_integrated_node_map_[source] = map_target;
+    integrated_node_to_original_nodes_map_[map_target].insert(source);
+  }
+
+  return absl::OkStatus();
+}
+
+absl::StatusOr<Node*> IntegrationFunction::GetNodeMapping(
+    const Node* original) const {
+  XLS_RET_CHECK(!IntegrationFunctionOwnsNode(original));
+  if (!HasMapping(original)) {
+    return absl::InternalError("No mapping found for original node");
+  }
+  return original_node_to_integrated_node_map_.at(original);
+}
+
+absl::StatusOr<const absl::flat_hash_set<const Node*>*>
+IntegrationFunction::GetNodesMappedToNode(const Node* map_target) const {
+  XLS_RET_CHECK(IntegrationFunctionOwnsNode(map_target));
+  if (!IsMappingTarget(map_target)) {
+    return absl::InternalError("No mappings found for map target node");
+  }
+  return &integrated_node_to_original_nodes_map_.at(map_target);
+}
+
+bool IntegrationFunction::HasMapping(const Node* node) const {
+  return original_node_to_integrated_node_map_.contains(node);
+}
+
+bool IntegrationFunction::IsMappingTarget(const Node* node) const {
+  return integrated_node_to_original_nodes_map_.contains(node);
+}
+
 absl::StatusOr<Function*> IntegrationBuilder::CloneFunctionRecursive(
     const Function* function,
     absl::flat_hash_map<const Function*, Function*>* call_remapping) {

@@ -35,6 +35,7 @@ cc_test(
         ":ir_integrator",
         "//xls/common/status:matchers",
         "//xls/ir",
+        "//xls/ir:ir_matcher",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest_main",
