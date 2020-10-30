@@ -1,8 +1,10 @@
 build --action_env=PYTHON_BIN_PATH=/usr/bin/python3
 build --action_env=BAZEL_CXXOPTS=-std=c++17
-build --cxxopt=-std=c++17
-build --copt=-Wno-sign-compare
-build --copt=-Wno-comment
+build --cxxopt "-std=c++17"
+build --copt "-Wno-sign-compare"
+build --copt "-Wno-comment"
+build --host_copt "-Wno-sign-compare"
+build --host_copt "-Wno-comment"
 
 # TODO(leary): 2020-09-09 Make it possible to enable this option.
 # Currently m4 doesn't seem to work as a dependency.

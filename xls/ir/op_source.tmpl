@@ -12,6 +12,7 @@ Op FromOpProto(OpProto op_proto) {
     case OP_{{ op.name.upper() }}: return Op::{{ op.enum_name }};
 {% endfor -%}
   }
+  XLS_LOG(FATAL) << "Invalid OpProto: " << static_cast<int64>(op_proto);
 }
 
 OpProto ToOpProto(Op op) {
@@ -20,6 +21,7 @@ OpProto ToOpProto(Op op) {
     case Op::{{ op.enum_name }}: return OP_{{ op.name.upper() }};
 {% endfor -%}
   }
+  XLS_LOG(FATAL) << "Invalid Op: " << static_cast<int64>(op);
 }
 
 std::string OpToString(Op op) {

@@ -389,7 +389,8 @@ void LogMessage::DieIfFatal() {
   } else {
     if (!data_->extra_sinks_only) {
       std::string message = "*** Check failure stack trace: ***\n";
-      (void)write(STDERR_FILENO, message.c_str(), message.length());
+      ssize_t retcode = write(STDERR_FILENO, message.c_str(), message.length());
+      (void)retcode;
       std::string stack_trace =
           GetSymbolizedStackTraceAsString(/*max_depth=*/50,
                                           /*skip_count=*/1);

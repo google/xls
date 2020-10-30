@@ -49,10 +49,6 @@ class PostDominatorAnalysis {
   }
 
  private:
-  explicit PostDominatorAnalysis(FunctionBase* f) : func_(f) {}
-
-  FunctionBase* func_;
-
   // Maps from a node to all nodes that post-dominate the node.
   absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>
       dominated_node_to_post_dominators_;

@@ -100,7 +100,7 @@ std::string NameUniquer::GetSanitizedUniqueName(absl::string_view prefix) {
     return false;
   }
   for (int64 i = 1; i < str.size(); ++i) {
-    if (!absl::ascii_isalnum(str[i]) && str[i] != '_' != 0) {
+    if (!absl::ascii_isalnum(str[i]) && str[i] != '_') {
       return false;
     }
   }

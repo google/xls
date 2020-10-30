@@ -88,7 +88,7 @@ std::vector<NodeIndex> IntersectSortedLists(
 
 /* static */ absl::StatusOr<std::unique_ptr<PostDominatorAnalysis>>
 PostDominatorAnalysis::Run(FunctionBase* f) {
-  auto analysis = absl::WrapUnique(new PostDominatorAnalysis(f));
+  auto analysis = absl::make_unique<PostDominatorAnalysis>();
 
   // A reverse topological sort of the function nodes.
   NodeIterator r = ReverseTopoSort(f);

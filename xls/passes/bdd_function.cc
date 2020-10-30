@@ -236,6 +236,7 @@ bool ShouldEvaluate(Node* node) {
     case Op::kShrl:
       return false;
   }
+  XLS_LOG(FATAL) << "Invalid op: " << static_cast<int64>(node->op());
 }
 
 }  // namespace

@@ -329,6 +329,7 @@ fn main(index: bits[32]) -> bits[32] {
                                                 op_matchers::Param()));
     }
   }
+  EXPECT_TRUE(has_array_index);
 }
 
 // This test verifies that two separate table-switches can still be combined in
@@ -396,6 +397,7 @@ fn main(index: bits[32]) -> bits[32] {
                                                 op_matchers::Param())));
     }
   }
+  EXPECT_TRUE(has_array_index);
   XLS_ASSERT_OK(CompareBeforeAfter(f, before_data));
 }
 

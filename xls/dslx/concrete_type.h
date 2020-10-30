@@ -273,7 +273,7 @@ class EnumType : public ConcreteType {
   std::vector<ConcreteTypeDim> GetAllDims() const override;
   bool HasEnum() const override { return true; }
   std::string GetDebugTypeName() const override { return "enum"; }
-  absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const {
+  absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const override {
     return size_.Clone();
   }
   bool operator==(const ConcreteType& other) const override {
@@ -371,7 +371,7 @@ class FunctionType : public ConcreteType {
   std::vector<const ConcreteType*> GetParams() const;
   int64 GetParamCount() const { return params_.size(); }
 
-  bool HasEnum() const {
+  bool HasEnum() const override {
     auto has_enum = [](const auto& param) { return param->HasEnum(); };
     return std::any_of(params_.begin(), params_.end(), has_enum) ||
            return_type_->HasEnum();

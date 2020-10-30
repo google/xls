@@ -39,6 +39,7 @@ std::string BuiltinToString(Builtin builtin) {
     XLS_DSLX_BUILTIN_EACH(CASIFY)
 #undef CASIFY
   }
+  return absl::StrFormat("<invalid Builtin(%d)>", static_cast<int64>(builtin));
 }
 
 std::string TagToString(InterpValueTag tag) {
@@ -56,7 +57,8 @@ std::string TagToString(InterpValueTag tag) {
     case InterpValueTag::kFunction:
       return "function";
   }
-  return absl::StrFormat("<invalid InterpValueTag(%d)>", static_cast<int>(tag));
+  return absl::StrFormat("<invalid InterpValueTag(%d)>",
+                         static_cast<int64>(tag));
 }
 
 /* static */ InterpValue InterpValue::MakeTuple(
@@ -149,9 +151,13 @@ bool InterpValue::Eq(const InterpValue& other) const {
       }
       return values_equal();
     }
-    default:
-      XLS_LOG(FATAL) << "Unhandled tag: " << tag_;
+    // Note: functions are ephemeral values in the interpreter (not first class
+    // values users can hold / manipulate) and cannot currently be compared for
+    // equality.
+    case InterpValueTag::kFunction:
+      break;
   }
+  XLS_LOG(FATAL) << "Unhandled tag: " << tag_;
 }
 
 /* static */ absl::StatusOr<InterpValue> InterpValue::Compare(

@@ -589,6 +589,7 @@ absl::StatusOr<Expression*> NodeToExpression(
       return file->Concat({file->Literal(0, bits_added), inputs[0]});
     }
   }
+  XLS_LOG(FATAL) << "Invalid op: " << static_cast<int64>(node->op());
 }
 
 bool ShouldInlineExpressionIntoMultipleUses(Node* node) {

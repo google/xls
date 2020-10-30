@@ -366,8 +366,9 @@ def check_module(module: ast.Module,
     elif isinstance(member, (ast.Constant, ast.EnumDef)):
       deduce.deduce(member, ctx)
     else:
-      assert isinstance(member, (ast.Function, ast.Test, ast.StructDef,
-                                 ast.QuickCheck, ast.TypeDef)), member
+      assert isinstance(member,
+                        (ast.Function, ast.Test, ast.StructDef, ast.QuickCheck,
+                         ast.TypeDef)), (type(member), member)
   ctx.fn_stack.pop()
 
   quickcheck_map = {

@@ -103,12 +103,12 @@ class ParametricConstant : public ParametricExpression {
     return false;
   }
 
-  Evaluated Evaluate(const Env& env) const { return value_; }
+  Evaluated Evaluate(const Env& env) const override { return value_; }
   absl::flat_hash_set<std::string> GetFreeVariables() const override {
     return {};
   }
 
-  std::unique_ptr<ParametricExpression> Clone() const {
+  std::unique_ptr<ParametricExpression> Clone() const override {
     return absl::make_unique<ParametricConstant>(value_);
   }
 
@@ -144,7 +144,7 @@ class ParametricAdd : public ParametricExpression {
     return result;
   }
 
-  bool operator==(const ParametricExpression& other) const {
+  bool operator==(const ParametricExpression& other) const override {
     if (auto* o = dynamic_cast<const ParametricAdd*>(&other)) {
       return *lhs_ == *o->lhs_ && *rhs_ == *o->rhs_;
     }
@@ -167,7 +167,7 @@ class ParametricMul : public ParametricExpression {
                 std::unique_ptr<ParametricExpression> rhs)
       : lhs_(std::move(lhs)), rhs_(std::move(rhs)) {}
 
-  Evaluated Evaluate(const Env& env) const {
+  Evaluated Evaluate(const Env& env) const override {
     Evaluated lhs = lhs_->Evaluate(env);
     Evaluated rhs = rhs_->Evaluate(env);
     return TryUnwrapConstant(
@@ -222,7 +222,7 @@ class ParametricSymbol : public ParametricExpression {
     return false;
   }
 
-  Evaluated Evaluate(const Env& env) const {
+  Evaluated Evaluate(const Env& env) const override {
     auto it = env.find(identifier_);
     if (it == env.end()) {
       return Clone();

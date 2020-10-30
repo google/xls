@@ -232,6 +232,7 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
       XLS_RETURN_IF_ERROR(check_operand_count(1));
       return evaluator->ZeroExtend(operands[0], node->BitCountOrDie());
   }
+  XLS_LOG(FATAL) << "Invalid op: " << static_cast<int64>(node->op());
 }
 
 }  // namespace xls

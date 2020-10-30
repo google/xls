@@ -234,10 +234,10 @@ absl::StatusOr<bool> ReassociationPass::RunOnFunctionBase(
     XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(inputs[0]).status());
     changed = true;
   }
-  return changed;
 
   XLS_VLOG(3) << "After:";
   XLS_VLOG_LINES(3, f->DumpIr());
+  return changed;
 }
 
 }  // namespace xls

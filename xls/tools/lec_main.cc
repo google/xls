@@ -114,29 +114,6 @@ absl::StatusOr<std::unique_ptr<netlist::rtl::Netlist>> GetNetlist(
   return netlist::rtl::Parser::ParseNetlist(cell_library, &scanner);
 }
 
-// Dumps all Z3 values corresponding to IR nodes in the input function.
-void DumpTree(Z3_context ctx, Z3_model model, IrTranslator* translator) {
-  std::deque<const Node*> to_process;
-  to_process.push_back(translator->xls_function()->return_value());
-
-  absl::flat_hash_set<const Node*> seen;
-  while (!to_process.empty()) {
-    const Node* node = to_process.front();
-    to_process.pop_front();
-    Z3_ast translation = translator->GetTranslation(node);
-    std::cout << "IR: " << node->ToString() << std::endl;
-    std::cout << "Z3: " << solvers::z3::QueryNode(ctx, model, translation)
-              << std::endl
-              << std::endl;
-    seen.insert(node);
-    for (const Node* operand : node->operands()) {
-      if (!seen.contains(operand)) {
-        to_process.push_back(operand);
-      }
-    }
-  }
-}
-
 }  // namespace
 
 absl::Status RealMain(absl::string_view ir_path,

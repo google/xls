@@ -489,17 +489,6 @@ absl::StatusOr<BValue> Parser::BuildBinaryOrUnaryOp(
 
 namespace {
 
-// GetLocalNode finds function-local BValues by name.
-absl::StatusOr<Node*> GetLocalNode(
-    std::string name, absl::flat_hash_map<std::string, BValue>* name_to_value) {
-  auto it = name_to_value->find(name);
-  if (it == name_to_value->end()) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Referred to a name that was not previously defined: %s", name));
-  }
-  return it->second.node();
-}
-
 // Splits node names of the form (.*)\.([0-9]+) into the string and integer
 // components and returns them. For example, "add.42" will be returned
 // as {"add", 42}. If the name does not match the pattern then nullopt is

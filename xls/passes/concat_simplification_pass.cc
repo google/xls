@@ -156,7 +156,7 @@ absl::StatusOr<bool> SimplifyConcat(Concat* concat,
   // order:
   //   reverse(concat(a, b, c)) => concat(reverse(c), reverse(b), reverse(a))
   int64 num_reverse_users = 0;
-  Node* reverse_user;
+  Node* reverse_user = nullptr;
   bool concat_has_nonreversible_user = false;
   for (Node* user : concat->users()) {
     switch (user->op()) {

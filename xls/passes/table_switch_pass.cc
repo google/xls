@@ -71,10 +71,8 @@ class SelectChain {
     // "last" node, i.e., the one on which no other chain element depends), and
     // the first is in front.
     int first_chain_index = nodes_.size() - 1;
-    int last_chain_index = 0;
     if (bits_ops::SLessThan(increment_, 0)) {
       first_chain_index = 0;
-      last_chain_index = nodes_.size() - 1;
     }
 
     std::vector<Value> values;
