@@ -24,6 +24,18 @@ package(
 )
 
 py_library(
+    name = "import_helpers",
+    srcs = ["import_helpers.py"],
+    srcs_version = "PY3",
+    deps = [
+        ":typecheck",
+        "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_type_info",
+        "//xls/dslx/python:import_routines",
+    ],
+)
+
+py_library(
     name = "bit_helpers",
     srcs = ["bit_helpers.py"],
     srcs_version = "PY3",
@@ -186,10 +198,10 @@ py_binary(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":import_routines",
+        ":import_helpers",
         ":parse_and_typecheck",
+        "//xls/dslx/python:import_routines",
         "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
     ],
 )
 
@@ -400,12 +412,14 @@ py_binary(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":import_routines",
+        ":import_helpers",
         ":ir_converter",
         ":parser_helpers",
         ":span",
         ":typecheck",
+        "//xls/common/python:init_xls",
         "//xls/dslx/python:cpp_parser",
+        "//xls/dslx/python:import_routines",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
     ],
@@ -476,20 +490,6 @@ py_library(
     srcs = ["debug_utils.py"],
     srcs_version = "PY3",
     deps = [
-        "@com_google_absl_py//absl/logging",
-    ],
-)
-
-py_library(
-    name = "import_routines",
-    srcs = ["import_routines.py"],
-    data = ["//xls/dslx/stdlib:x_files"],
-    srcs_version = "PY3",
-    deps = [
-        ":deduce",
-        ":import_fn",
-        ":parse_and_typecheck",
-        "//xls/common:runfiles",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -773,5 +773,20 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/ir:bits",
         "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "import_routines",
+    srcs = ["import_routines.cc"],
+    hdrs = ["import_routines.h"],
+    data = ["//xls/dslx/stdlib:x_files"],
+    deps = [
+        ":cpp_ast",
+        ":cpp_parser",
+        ":cpp_scanner",
+        ":cpp_type_info",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
     ],
 )

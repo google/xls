@@ -241,3 +241,28 @@ xls_pybind_extension(
         "//xls/dslx:cpp_evaluate",
     ],
 )
+
+xls_pybind_extension(
+    name = "import_routines",
+    srcs = [
+        "cpp_ast.h",
+        "import_routines.cc",
+    ],
+    py_deps = [
+        ":cpp_ast",  # build_cleaner: keep
+        ":cpp_type_info",  # build_cleaner: keep
+        ":interp_value",  # build_cleaner: keep
+    ],
+    deps = [
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "//xls/common/status:status_macros",
+        "//xls/common/status:statusor_pybind_caster",
+        "//xls/dslx:cpp_ast",
+        "//xls/dslx:cpp_bindings",
+        "//xls/dslx:cpp_evaluate",
+        "//xls/dslx:cpp_type_info",
+        "//xls/dslx:import_routines",
+    ],
+)

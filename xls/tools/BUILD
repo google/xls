@@ -853,7 +853,8 @@ py_binary(
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
         "//xls/common:runfiles",
-        "//xls/dslx:import_routines",
+        "//xls/dslx:import_helpers",
+        "//xls/dslx/python:import_routines",
     ],
 )
 

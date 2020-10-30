@@ -60,8 +60,9 @@ PYBIND11_MODULE(cpp_type_info, m) {
   py::class_<TypeInfo, std::shared_ptr<TypeInfo>>(m, "TypeInfo")
       .def(py::init([](ModuleHolder& module,
                        absl::optional<std::shared_ptr<TypeInfo>> parent) {
-             return TypeInfo(module.module(),
-                             parent.has_value() ? parent.value() : nullptr);
+             return std::make_shared<TypeInfo>(
+                 module.module(),
+                 parent.has_value() ? parent.value() : nullptr);
            }),
            py::arg("module"), py::arg("parent") = absl::nullopt)
       .def("__contains__",

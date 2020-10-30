@@ -16,7 +16,6 @@
 
 """Minimal read-eval-print-loop (REPL) for DSL input, just for expressions."""
 
-import functools
 import readline  # pylint: disable=unused-import
 import sys
 
@@ -24,8 +23,9 @@ from absl import app
 from absl import flags
 from pyfakefs import fake_filesystem
 
+from xls.common.python import init_xls
 from xls.dslx import bit_helpers
-from xls.dslx import import_routines
+from xls.dslx import import_helpers
 from xls.dslx import parser_helpers
 from xls.dslx import span
 from xls.dslx import typecheck
@@ -62,7 +62,7 @@ def handle_line(line: str, stmt_index: int):
     fs.CreateFile(FILENAME, module_text)
     return fake_filesystem.FakeFileOpen(fs)
 
-  import_cache = import_routines.ImportCache()
+  importer = import_helpers.Importer()
 
   while True:
     try:
@@ -75,9 +75,7 @@ def handle_line(line: str, stmt_index: int):
     # First attempt at type checking, we expect this may fail the first time
     # around and we'll substitute the real return type we observe.
     try:
-      f_import = functools.partial(
-          import_routines.do_import, cache=import_cache)
-      type_info = typecheck.check_module(fake_module, f_import=f_import)
+      type_info = typecheck.check_module(fake_module, f_import=importer)
     except xls_type_error.XlsTypeError as e:
       # We use nil as a placeholder, and swap it with the type that was expected
       # and retry once we determine what that should be.
@@ -96,15 +94,18 @@ def handle_line(line: str, stmt_index: int):
   # TODO(leary): 2020-06-20 No let bindings for the moment, just useful for
   # evaluating expressions -- could put them into the module scope as consts.
   interpreter = interpreter_mod.Interpreter(
-      fake_module, type_info, f_import=f_import, trace_all=False)
+      fake_module, type_info, f_import=importer, trace_all=False)
   result = interpreter.run_function(fn_name, args=())
   print(result)
+  type_info.clear_type_info_refs_for_gc()
   return result
 
 
 def main(argv):
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
+
+  init_xls.init_xls(sys.argv)
 
   stmt_index = 0
 

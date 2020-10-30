@@ -16,13 +16,12 @@
 
 """Command line runner that parses file to AST and optionally typechecks it."""
 
-import functools
 import os
 import pprint
 
 from absl import app
 
-from xls.dslx import import_routines
+from xls.dslx import import_helpers
 from xls.dslx import parse_and_typecheck
 
 
@@ -37,15 +36,10 @@ def main(argv):
   name = os.path.basename(path)
   name, _ = os.path.splitext(name)
 
-  import_cache = {}
-  f_import = functools.partial(import_routines.do_import, cache=import_cache)
+  importer = import_helpers.Importer()
 
   module = parse_and_typecheck.parse_text(
-      text,
-      name,
-      filename=path,
-      print_on_error=True,
-      f_import=f_import)
+      text, name, filename=path, print_on_error=True, f_import=importer)
   pprint.pprint(module)
 
 

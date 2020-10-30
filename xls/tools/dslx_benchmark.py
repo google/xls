@@ -19,7 +19,6 @@
 Usage: $prog <dslx-text>
 """
 
-import functools
 import subprocess
 import tempfile
 
@@ -27,7 +26,7 @@ from absl import app
 from absl import flags
 
 from xls.common import runfiles
-from xls.dslx import import_routines
+from xls.dslx import import_helpers
 from xls.tools import convert_helpers
 
 FLAGS = flags.FLAGS
@@ -38,8 +37,7 @@ def main(argv):
   if len(argv) != 2:
     raise app.UsageError('Too many command-line arguments.')
 
-  import_cache = {}
-  f_import = functools.partial(import_routines.do_import, cache=import_cache)
+  f_import = import_helpers.Importer()
 
   text = argv[1]
   p = convert_helpers.convert_dslx_to_package(

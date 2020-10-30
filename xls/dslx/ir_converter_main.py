@@ -19,14 +19,14 @@
 The IR is suitable for feeding to the XLS backend.
 """
 
-import functools
 import os
 import sys
 
 from absl import app
 from absl import flags
 
-from xls.dslx import import_routines
+from xls.common.python import init_xls
+from xls.dslx import import_helpers
 from xls.dslx import ir_converter
 from xls.dslx import parser_helpers
 from xls.dslx import typecheck
@@ -50,6 +50,8 @@ def main(argv):
     raise app.UsageError('Wrong number of command-line arguments; '
                          'expect %s <input-file>' % binary)
 
+  init_xls.init_xls(sys.argv)
+
   path = argv[1]
   with open(path, 'r') as f:
     text = f.read()
@@ -59,22 +61,22 @@ def main(argv):
   module = parser_helpers.parse_text(
       text, name, print_on_error=True, filename=path)
 
-  import_cache = import_routines.ImportCache()
-  f_import = functools.partial(import_routines.do_import, cache=import_cache)
+  importer = import_helpers.Importer()
 
   try:
-    node_to_type = typecheck.check_module(module, f_import)
+    type_info = typecheck.check_module(module, importer)
     if FLAGS.entry:
-      print(
-          ir_converter.convert_one_function(module, FLAGS.entry, node_to_type))
+      print(ir_converter.convert_one_function(module, FLAGS.entry, type_info))
     else:
-      print(ir_converter.convert_module(module, node_to_type))
+      print(ir_converter.convert_module(module, type_info))
   except (PositionalError, cpp_parser.CppParseError) as e:
     parser_helpers.pprint_positional_error(e)
     if FLAGS.raise_exception:
       raise
     else:
       sys.exit(1)
+  finally:
+    type_info.clear_type_info_refs_for_gc()
 
 
 if __name__ == '__main__':

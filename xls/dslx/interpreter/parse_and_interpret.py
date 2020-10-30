@@ -16,19 +16,19 @@
 
 """Helpers that parse-then-interpret some text with error handler."""
 
-import functools
 import io
 import os
 import sys
 import time
 from typing import Text, Optional, cast
 
-from xls.dslx import import_routines
+from xls.dslx import import_helpers
 from xls.dslx import ir_converter
 from xls.dslx import parser_helpers
 from xls.dslx import typecheck
 from xls.dslx.interpreter.interpreter import Interpreter
 from xls.dslx.python import builtins
+from xls.dslx.python.cpp_parser import CppParseError
 from xls.dslx.python.cpp_parser import Parser
 from xls.dslx.python.cpp_scanner import Scanner
 from xls.dslx.span import PositionalError
@@ -75,20 +75,20 @@ def parse_and_test(program: Text,
   """
   did_fail = False
   test_name = None
-  import_cache = import_routines.ImportCache()
-  f_import = functools.partial(import_routines.do_import, cache=import_cache)
   type_info = None
+
+  importer = import_helpers.Importer()
 
   try:
     module = Parser(Scanner(filename, program), name).parse_module()
-    type_info = typecheck.check_module(module, f_import)
+    type_info = typecheck.check_module(module, importer)
 
     ir_package = (
         ir_converter.convert_module_to_package(
             module, type_info, traverse_tests=True) if compare_jit else None)
 
     interpreter = Interpreter(
-        module, type_info, f_import, trace_all=trace_all, ir_package=ir_package)
+        module, type_info, importer, trace_all=trace_all, ir_package=ir_package)
     for test_name in module.get_test_names():
       if not _matches(test_name, test_filter):
         continue
@@ -109,7 +109,7 @@ def parse_and_test(program: Text,
         interpreter.run_quickcheck(quickcheck, seed=seed)
         print('[               OK ]', test_name, file=sys.stderr)
 
-  except (PositionalError, builtins.FailureError) as e:
+  except (PositionalError, builtins.FailureError, CppParseError) as e:
     did_fail = True
     parser_helpers.pprint_positional_error(
         e, output=cast(io.IOBase, sys.stderr))

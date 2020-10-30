@@ -14,6 +14,7 @@
 
 # Interpreter-based standalone tests.
 
+# pytype tests are present in this file
 load("//xls/build:build_defs.bzl", "dslx_test")
 
 package(
@@ -341,4 +342,20 @@ dslx_test(
     # Only a parametric entry point, so no benchmark.
     generate_benchmark = False,
     prove_unopt_eq_opt = False,
+)
+
+py_test(
+    name = "import_module_with_type_error_test",
+    srcs = ["import_module_with_type_error_test.py"],
+    data = [
+        "has_type_error.x",
+        "imports_has_type_error.x",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "@com_google_absl_py//absl/testing:absltest",
+        "//xls/common:runfiles",
+        "//xls/dslx/interpreter:parse_and_interpret",
+    ],
 )

@@ -351,6 +351,7 @@ def check_module(module: ast.Module,
   Raises:
     XlsTypeError: If any of the function in f have typecheck errors.
   """
+  assert f_import is None or callable(f_import), f_import
   ti = type_info.TypeInfo(module)
   interpreter_callback = functools.partial(interpret_expr, f_import=f_import)
   ctx = deduce.DeduceCtx(ti, module, interpreter_callback,

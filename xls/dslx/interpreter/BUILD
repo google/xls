@@ -161,7 +161,7 @@ py_library(
     srcs_version = "PY3",
     deps = [
         ":interpreter",
-        "//xls/dslx:import_routines",
+        "//xls/dslx:import_helpers",
         "//xls/dslx:ir_converter",
         "//xls/dslx:parser_helpers",
         "//xls/dslx:span",
@@ -221,8 +221,9 @@ py_binary(
     deps = [
         ":interpreter",
         requirement("pyfakefs"),
+        "//xls/common/python:init_xls",
         "//xls/dslx:bit_helpers",
-        "//xls/dslx:import_routines",
+        "//xls/dslx:import_helpers",
         "//xls/dslx:parser_helpers",
         "//xls/dslx:span",
         "//xls/dslx:typecheck",
@@ -231,6 +232,7 @@ py_binary(
         "//xls/dslx/python:cpp_parser",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_scanner",
+        "//xls/dslx/python:import_routines",
         "//xls/dslx/python:interp_value",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
