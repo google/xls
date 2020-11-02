@@ -210,3 +210,4 @@ project, see our
 * [Sean Purser-Haskell](https://github.com/spurserh)
 * [Ted Hong](https://github.com/hongted)
 * [Ted Xie](https://github.com/ted-xie)
+* [Vincent Mirian](https://github.com/vincent-mirian-google)
