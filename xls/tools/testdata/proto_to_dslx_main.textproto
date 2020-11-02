@@ -1,0 +1,38 @@
+# proto-file: xls/tools/testdata/proto_to_dslx_main.proto
+# proto-message: Fields
+fields {
+  index: 0
+  bit_offset: 0
+  width: 4
+  foo: 1
+  foo: 2
+  foo: 3
+  foo: 4
+}
+fields {
+  index: 1
+  bit_offset: 4
+  width: 5
+  foo: 1
+  foo: 2
+  foo: 3
+}
+fields {
+  index: 2
+  bit_offset: 9
+  width: 1000
+  foo: 1
+  foo: 2
+}
+fields {
+  index: 3
+  bit_offset: 1009
+  width: 1
+  foo: 1
+}
+loner {
+  index: 400
+  bit_offset: 400
+  width: 400
+  foo: 400
+}

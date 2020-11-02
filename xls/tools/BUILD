@@ -258,6 +258,41 @@ cc_binary(
 )
 
 cc_binary(
+    name = "proto_to_dslx_main",
+    srcs = ["proto_to_dslx_main.cc"],
+    deps = [
+        # protobuf compiler import
+        # protobuf descriptor import
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:variant",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "@com_google_protobuf//:protobuf",
+    ],
+)
+
+sh_test(
+    name = "proto_to_dslx_main_test",
+    srcs = ["proto_to_dslx_main_test.sh"],
+    data = [
+        "testdata/proto_to_dslx_main.proto",
+        "testdata/proto_to_dslx_main.textproto",
+        "testdata/proto_to_dslx_main.x",
+        ":proto_to_dslx_main",
+        "//xls/dslx:parser_main",
+        "//xls/dslx/interpreter:interpreter_main",
+    ],
+)
+
+cc_binary(
     name = "smtlib_emitter_main",
     srcs = ["smtlib_emitter_main.cc"],
     deps = [
