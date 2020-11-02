@@ -1,5 +1,3 @@
-<!--* freshness: { owner: 'leary' reviewed: '2019-09-01' } *-->
-
 # XLS Style Guide
 
 The Google style guides recommend enforcing local consistency where stylistic
