@@ -147,5 +147,75 @@ TEST_F(TupleSimplificationPassTest, UnboxingLiteralArray) {
   EXPECT_THAT(f->return_value(), m::Add(m::Literal(0), m::Literal(1)));
 }
 
+TEST_F(TupleSimplificationPassTest, TupleReductionEmptyTuple) {
+  Package p("p");
+  FunctionBuilder fb(TestName(), &p);
+  fb.Tuple({});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_EQ(f->node_count(), 1);
+}
+
+TEST_F(TupleSimplificationPassTest, TupleReductionDifferentSize) {
+  const int64 kTupleIndex = 0;
+  Package p("p");
+  FunctionBuilder fb(TestName(), &p);
+  Type* u32 = p.GetBitsType(32);
+  BValue x = fb.Param("x", p.GetTupleType({u32, u32}));
+  fb.Tuple({fb.TupleIndex(x, kTupleIndex)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::TupleIndex(m::Param("x"), kTupleIndex)));
+}
+
+TEST_F(TupleSimplificationPassTest, TupleReductionDifferentIndex) {
+  const int64 kTupleIndex0 = 0;
+  const int64 kTupleIndex1 = 1;
+  Package p("p");
+  FunctionBuilder fb(TestName(), &p);
+  Type* u32 = p.GetBitsType(32);
+  BValue x = fb.Param("x", p.GetTupleType({u32, u32}));
+  fb.Tuple({fb.TupleIndex(x, kTupleIndex1), fb.TupleIndex(x, kTupleIndex0)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::TupleIndex(m::Param("x"), kTupleIndex1),
+                       m::TupleIndex(m::Param("x"), kTupleIndex0)));
+}
+
+TEST_F(TupleSimplificationPassTest, TupleReductionDifferentSubject) {
+  const int64 kTupleIndex0 = 0;
+  const int64 kTupleIndex1 = 1;
+  Package p("p");
+  FunctionBuilder fb(TestName(), &p);
+  Type* u32 = p.GetBitsType(32);
+  BValue x = fb.Param("x", p.GetTupleType({u32, u32}));
+  BValue y = fb.Param("y", p.GetTupleType({u32, u32}));
+  fb.Tuple({fb.TupleIndex(x, kTupleIndex0), fb.TupleIndex(y, kTupleIndex1)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::TupleIndex(m::Param("x"), kTupleIndex0),
+                       m::TupleIndex(m::Param("y"), kTupleIndex1)));
+}
+
+TEST_F(TupleSimplificationPassTest, TupleReductionTupleIndex) {
+  Package p("p");
+  FunctionBuilder fb(TestName(), &p);
+  Type* u32 = p.GetBitsType(32);
+  BValue x = fb.Param("x", p.GetTupleType({u32, u32, u32}));
+  fb.Tuple({fb.TupleIndex(x, 0), fb.TupleIndex(x, 1), fb.TupleIndex(x, 2)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_EQ(f->node_count(), 1);
+  EXPECT_THAT(f->return_value(), m::Param("x"));
+}
+
 }  // namespace
 }  // namespace xls

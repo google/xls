@@ -23,16 +23,56 @@
 
 namespace xls {
 
+// Returns a pointer to a node for the replacement. Otherwise,
+// if no replacement is possible, returns nullptr.
+//
+// Replace:
+// tuple_index.0(bar, 0)
+// tuple_index.1(bar, 1)
+// ...
+// x = tuple(tuple_index.0, tuple_index.1, ...)
+// with:
+// x = bar
+Node* FindEquivalentTuple(Tuple* tuple) {
+  Node* common_subject = nullptr;
+  for (int64 operand_number = 0; operand_number < tuple->operand_count();
+       operand_number++) {
+    Node* node = tuple->operand(operand_number);
+    if (
+        // Each of its operands is a TupleIndex operation.
+        !node->Is<TupleIndex>() ||
+        // The index of each TupleIndex operand matches the operand number.
+        node->As<TupleIndex>()->index() != operand_number) {
+      return nullptr;
+    }
+    Node* subject = node->As<TupleIndex>()->operand(0);
+    if (common_subject == nullptr) {
+      // Tuples should be of same size.
+      if (subject->GetType() != tuple->GetType()) {
+        return nullptr;
+      }
+      common_subject = subject;
+    } else if (common_subject != subject) {
+      // The operand of all the TupleIndex operands is the same
+      // (nodes should be equivalent).
+      return nullptr;
+    }
+  }
+  return common_subject;
+}
+
 absl::StatusOr<bool> TupleSimplificationPass::RunOnFunctionBase(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
   // Replace TupleIndex(Tuple(i{0}, i{1}, ..., i{N}), index=k) with i{k}
   bool changed = false;
-  std::deque<absl::variant<TupleIndex*, ArrayIndex*>> worklist;
+  std::deque<absl::variant<TupleIndex*, ArrayIndex*, Tuple*>> worklist;
   for (Node* node : f->nodes()) {
     if (node->Is<TupleIndex>()) {
       worklist.push_back(node->As<TupleIndex>());
     } else if (node->Is<ArrayIndex>()) {
       worklist.push_back(node->As<ArrayIndex>());
+    } else if (node->Is<Tuple>()) {
+      worklist.push_back(node->As<Tuple>());
     }
   }
   while (!worklist.empty()) {
@@ -88,11 +128,18 @@ absl::StatusOr<bool> TupleSimplificationPass::RunOnFunctionBase(
             array_index->ReplaceUsesWithNew<Literal>(element).status());
         changed = true;
       }
+    } else if (absl::holds_alternative<Tuple*>(index)) {
+      Tuple* tuple = absl::get<Tuple*>(index);
+      Node* common_subject = FindEquivalentTuple(tuple);
+      if (common_subject != nullptr) {
+        XLS_ASSIGN_OR_RETURN(bool node_changed,
+                             tuple->ReplaceUsesWith(common_subject));
+        changed |= node_changed;
+      }
     } else {
       return absl::InternalError("Unknown index type in worklist.");
     }
   }
-
   return changed;
 }
 
