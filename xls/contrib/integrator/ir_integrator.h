@@ -43,6 +43,22 @@ class IntegrationFunction {
 
   Function* function() const { return function_.get(); }
 
+  // Add the external node 'to_insert' into the integration function. Mapped
+  // operands are automatically discovered and connected.
+  absl::StatusOr<Node*> InsertNode(const Node* to_insert);
+
+  // For the integration function nodes node_a and node_b,
+  // returns a UnifiedNode. UnifiedNode.node points to a single integration
+  // function node that combines the two nodes. This may involve adding a mux
+  // and a parameter to serve as the mux select signal.
+  // UnifiedNode.new_mux_added will be be set to true if this call added a new
+  // mux. Otherwise, false.
+  struct UnifiedNode {
+    Node* node;
+    bool new_mux_added;
+  };
+  absl::StatusOr<UnifiedNode> UnifyIntegrationNodes(Node* node_a, Node* node_b);
+
   // Declares that node 'source' from a source function maps
   // to node 'map_target' in the integrated_function.
   absl::Status SetNodeMapping(const Node* source, Node* map_target);
@@ -55,6 +71,14 @@ class IntegrationFunction {
   // function.
   absl::StatusOr<const absl::flat_hash_set<const Node*>*> GetNodesMappedToNode(
       const Node* map_target) const;
+
+  // Returns a vector of Nodes to which the operands of the node
+  // 'node' map. If node is owned by the integrated function, these are just
+  // node's operands. If an operand does not yet have a mapping, the operand is
+  // temporarily mapped to a new parameter(not yet implemented). Use of this
+  // temporary will be replaced with the real mapping when it is set.
+  absl::StatusOr<std::vector<Node*>> GetIntegratedOperands(
+      const Node* node) const;
 
   // Returns true if 'node' is mapped to a node in the integrated function.
   bool HasMapping(const Node* node) const;
@@ -72,6 +96,10 @@ class IntegrationFunction {
   absl::flat_hash_map<const Node*, Node*> original_node_to_integrated_node_map_;
   absl::flat_hash_map<const Node*, absl::flat_hash_set<const Node*>>
       integrated_node_to_original_nodes_map_;
+
+  // Track which node-pairs have an associated mux.
+  absl::flat_hash_map<std::pair<const Node*, const Node*>, Node*>
+      node_pair_to_mux_;
 
   // Integrated function.
   std::unique_ptr<Function> function_;
@@ -105,6 +133,7 @@ class IntegrationBuilder {
     package_ = absl::make_unique<Package>("IntegrationPackage");
   }
 
+ private:
   // Copy the source functions into a common package.
   absl::Status CopySourcesToIntegrationPackage();
 
