@@ -12,19 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn p<N: u8>(_: bits[N]) -> u8 {
-  N
+// Tests various forms of parametric fns.
+
+fn basic<X: u32>(x: bits[X]) -> bits[X] {
+  5 as bits[X]
 }
 
-fn f() -> u8 {
-  match false {
-    // TODO(cdleary): 2020-08-05 Turn this match arm into a wildcard match when
-    // https://github.com/google/xls/issues/75 is resolved.
-    false => p(u8:0),
-    _ => u8:0
-  }
-}
-
-test t {
-  assert_eq(u8:8, f())
+fn empty_param_list<X: u32 = u32: 5>() -> bits[5] {
+  bits[X]: 1
 }

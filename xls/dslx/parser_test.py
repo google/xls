@@ -149,7 +149,7 @@ class ParserTest(absltest.TestCase):
 
   def test_derived_parametric(self):
     program = textwrap.dedent("""\
-    fn [X: u32, Y: u32 = X+X] parametric() -> (u32, u32) {
+    fn parametric<X: u32, Y: u32 = X+X>() -> (u32, u32) {
       (X, Y)
     }""")
     f = self.parse_function(program)
@@ -399,7 +399,7 @@ class ParserTest(absltest.TestCase):
 
   def test_invalid_parameter_cast(self):
     program = """
-    fn [N: u32]addN(x: u32) -> u32 {
+    fn add<N: u32>(x: u32) -> u32 {
       x + u32: N
     }
     """

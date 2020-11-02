@@ -648,6 +648,7 @@ cc_library(
         ":cpp_ast",
         ":cpp_bindings",
         ":cpp_token_parser",
+        "//xls/common:cleanup",
         "@com_google_absl//absl/debugging:demangle_internal",
         "@com_google_absl//absl/status:statusor",
     ],

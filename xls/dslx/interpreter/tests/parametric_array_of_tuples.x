@@ -14,7 +14,7 @@
 
 type MyTuple = (u8,);
 
-fn [N: u32] f(xs: MyTuple[N]) -> u32 {
+fn f<N: u32>(xs: MyTuple[N]) -> u32 {
   N
 }
 

@@ -30,8 +30,8 @@ class TokenParser {
   // Returns the current position of the parser in the text, via its current
   // position the token stream.
   Pos GetPos() const {
-    if (lookahead_.has_value()) {
-      return lookahead_->span().start();
+    if (!lookahead_.empty()) {
+      return lookahead_.front().span().start();
     }
     return scanner_->GetPos();
   }
@@ -88,23 +88,25 @@ class TokenParser {
   }
 
   absl::StatusOr<const Token*> PeekToken() {
-    if (lookahead_.has_value()) {
-      return &*lookahead_;
+    if (!lookahead_.empty()) {
+      return &lookahead_.front();
     }
 
-    XLS_ASSIGN_OR_RETURN(lookahead_, scanner_->Pop());
-    XLS_CHECK(lookahead_.has_value());
-    return &*lookahead_;
+    XLS_ASSIGN_OR_RETURN(Token token, scanner_->Pop());
+    lookahead_.push_back(token);
+    XLS_CHECK(!lookahead_.empty());
+    return &lookahead_.front();
   }
+
+  // Puts the given token back in the stream (at the head).
+  void PushToken(Token token) { lookahead_.push_front(token); }
 
   // Returns a token that has been popped destructively from the token stream.
   absl::StatusOr<Token> PopToken() {
-    XLS_ASSIGN_OR_RETURN(const Token* unused, PeekToken());
-    (void)unused;
-    XLS_CHECK(lookahead_.has_value());
-    Token tok = std::move(lookahead_).value();
-    lookahead_ = absl::nullopt;
-    XLS_CHECK(!lookahead_.has_value());
+    XLS_RETURN_IF_ERROR(PeekToken().status());
+    XLS_CHECK(!lookahead_.empty());
+    Token tok = lookahead_.front();
+    lookahead_.pop_front();
     return tok;
   }
 
@@ -117,7 +119,7 @@ class TokenParser {
   // case we don't need to check for errors in potentially scanning the next
   // token).
   Token PopTokenOrDie() {
-    XLS_CHECK(lookahead_.has_value());
+    XLS_CHECK(!lookahead_.empty());
     return PopToken().value();
   }
 
@@ -210,7 +212,8 @@ class TokenParser {
 
  private:
   Scanner* scanner_;
-  absl::optional<Token> lookahead_;
+  // absl::optional<Token> lookahead_;
+  std::deque<Token> lookahead_;
 };
 
 }  // namespace xls::dslx

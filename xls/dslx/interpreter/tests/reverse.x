@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // (Dummy) wrapper around reverse.
-fn [N: u32] wrapper(x: bits[N]) -> bits[N] {
+fn wrapper<N: u32>(x: bits[N]) -> bits[N] {
   rev(x)
 }
 

@@ -15,12 +15,12 @@
 // DSLX standard library routines.
 
 // Returns unsigned mul of x (N bits) and y (M bits) as an N+M bit value.
-pub fn [N: u32, M: u32, R: u32 = N + M] umul(x: uN[N], y: uN[M]) -> uN[R] {
+pub fn umul<N: u32, M: u32, R: u32 = N + M>(x: uN[N], y: uN[M]) -> uN[R] {
   (x as uN[R]) * (y as uN[R])
 }
 
 // Returns signed mul of x (N bits) and y (M bits) as an N+M bit value.
-pub fn [N: u32, M: u32, R: u32 = N + M] smul(x: sN[N], y: sN[M]) -> sN[R] {
+pub fn smul<N: u32, M: u32, R: u32 = N + M>(x: sN[N], y: sN[M]) -> sN[R] {
   (x as sN[R]) * (y as sN[R])
 }
 
@@ -38,12 +38,12 @@ test umul {
 }
 
 // Returns the value of x-1 with saturation at 0.
-pub fn [N: u32] bounded_minus_1(x: uN[N]) -> uN[N] {
+pub fn bounded_minus_1<N: u32>(x: uN[N]) -> uN[N] {
   x if x == uN[N]:0 else x-uN[N]:1
 }
 
 // Extracts the LSb (least significant bit) from the value `x` and returns it.
-pub fn [N: u32] lsb(x: uN[N]) -> u1 {
+pub fn lsb<N: u32>(x: uN[N]) -> u1 {
   x as u1
 }
 
@@ -56,12 +56,12 @@ test lsb {
 }
 
 // Returns the absolute value of x as a signed number.
-pub fn [BITS: u32] abs(x: sN[BITS]) -> sN[BITS] {
+pub fn abs<BITS: u32>(x: sN[BITS]) -> sN[BITS] {
   -x if x < sN[BITS]:0 else x
 }
 
 // Converts an array of N bools to a bits[N] value.
-pub fn [N: u32] convert_to_bits(x: bool[N]) -> uN[N] {
+pub fn convert_to_bits<N: u32>(x: bool[N]) -> uN[N] {
   for (i, accum): (u32, uN[N]) in range(u32:0, N) {
    accum | (x[i] as uN[N]) << ((N-i-u32:1) as uN[N])
   }(uN[N]:0)
@@ -80,7 +80,7 @@ test convert_to_bits {
 // is used in a match expression (which will eagerly evaluate all of its arms),
 // to prevent it from creating an error at simulation time if the value is
 // ultimately discarded from the unselected match arm.
-pub fn [BITS: u32, ELEMS: u32] find_index(
+pub fn find_index<BITS: u32, ELEMS: u32>(
     array: uN[BITS][ELEMS], x: uN[BITS]) -> (bool, u32) {
   // Compute all the positions that are equal to our target.
   let bools: bool[ELEMS] = for (i, accum): (u32, bool[ELEMS]) in range(u32:0, ELEMS) {
@@ -102,7 +102,7 @@ test find_index {
 }
 
 // Concatenates 3 values of potentially different bitwidths to a single value.
-pub fn [X: u32, Y: u32, Z: u32, R: u32 = X + Y + Z] concat3(
+pub fn concat3<X: u32, Y: u32, Z: u32, R: u32 = X + Y + Z>(
     x: bits[X], y: bits[Y], z: bits[Z]) -> bits[R] {
   x ++ y ++ z
 }
@@ -135,7 +135,7 @@ test round_up_to_nearest {
   _
 }
 
-pub fn [N: u32] rrot(x: bits[N], y: bits[N]) -> bits[N] {
+pub fn rrot<N: u32>(x: bits[N], y: bits[N]) -> bits[N] {
   (x >> y) | (x << ((N as bits[N]) - y))
 }
 
@@ -145,7 +145,7 @@ test rrot {
   _
 }
 
-pub fn [N: u32] umin(x: uN[N], y: uN[N]) -> uN[N] {
+pub fn umin<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
   x if x < y else y
 }
 
@@ -156,7 +156,7 @@ test umin {
   ()
 }
 
-pub fn [N: u32] clog2(x: bits[N]) -> bits[N] {
+pub fn clog2<N: u32>(x: bits[N]) -> bits[N] {
   (N as bits[N]) - clz(x-bits[N]:1) if x >= bits[N]:1 else bits[N]:0
 }
 
@@ -175,7 +175,7 @@ test clog2 {
 }
 
 // Returns x % y where y must be a non-zero power-of-two.
-pub fn [N: u32] mod_pow2(x: bits[N], y: bits[N]) -> bits[N] {
+pub fn mod_pow2<N: u32>(x: bits[N], y: bits[N]) -> bits[N] {
   // TODO(leary): 2020-06-11 Add assertion y is a power of two and non-zero.
   x & (y-bits[N]:1)
 }
@@ -188,7 +188,7 @@ test mod_pow2 {
 }
 
 // Returns x / y where y must be a non-zero power-of-two.
-pub fn [N: u32] div_pow2(x: bits[N], y: bits[N]) -> bits[N] {
+pub fn div_pow2<N: u32>(x: bits[N], y: bits[N]) -> bits[N] {
   // TODO(leary): 2020-06-11 Add assertion y is a power of two and non-zero.
   x >> clog2(y)
 }

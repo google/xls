@@ -288,10 +288,7 @@ class Parser : public TokenParser {
                            bar);
   }
 
-  absl::StatusOr<Expr*> ParseComparisonExpression(Bindings* bindings) {
-    return ParseBinopChain(BindFront(&Parser::ParseOrExpression, bindings),
-                           kComparisonKinds);
-  }
+  absl::StatusOr<Expr*> ParseComparisonExpression(Bindings* bindings);
 
   absl::StatusOr<Expr*> ParseLogicalAndExpression(Bindings* bindings) {
     std::initializer_list<TokenKind> kinds = {TokenKind::kDoubleAmpersand};
@@ -372,12 +369,12 @@ class Parser : public TokenParser {
   //
   // For example:
   //
-  //    x: ParametricStruct[32, N]
+  //    x: ParametricStruct<32, N>
   //                       ^-----^
   absl::StatusOr<std::vector<Expr*>> ParseParametrics(Bindings* bindings) {
-    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrack));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOAngle));
     return ParseCommaSeq<Expr*>(BindFront(&Parser::ParseDim, bindings),
-                                TokenKind::kCBrack);
+                                TokenKind::kCAngle);
   }
 
   // Parses a function out of the token stream.

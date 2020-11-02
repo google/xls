@@ -96,6 +96,12 @@ dslx_test(
 )
 
 dslx_test(
+    name = "parametric_functions",
+    srcs = ["parametric_functions.x"],
+    convert_ir = False,
+)
+
+dslx_test(
     name = "bit_slice",
     srcs = ["bit_slice.x"],
     # Note: no meaningful function to convert.
@@ -169,6 +175,12 @@ dslx_test(
     name = "cast_to_array",
     srcs = ["cast_to_array.x"],
     # TODO(leary); 2019-10-24 Enable when we have ConcatArray op.
+    convert_ir = False,
+)
+
+dslx_test(
+    name = "parametric_with_comparison",
+    srcs = ["parametric_with_comparison.x"],
     convert_ir = False,
 )
 

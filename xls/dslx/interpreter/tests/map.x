@@ -22,7 +22,7 @@ fn umul_2_widening(x: u4) -> u6 {
   std::umul(x, u2:2)
 }
 
-fn [N: u4] umul_2_parametric(x: uN[N]) -> uN[N] {
+fn umul_2_parametric<N: u4>(x: uN[N]) -> uN[N] {
   std::umul(x, uN[N]:2) as uN[N]
 }
 

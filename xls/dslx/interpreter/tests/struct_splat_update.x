@@ -18,7 +18,7 @@ struct Point3 {
   z: u32,
 }
 
-struct [X: u32, Y: u32, Z: u32] ParametricPoint3 {
+struct ParametricPoint3<X: u32, Y: u32, Z: u32> {
   x: bits[X],
   y: bits[Y],
   z: bits[Z]

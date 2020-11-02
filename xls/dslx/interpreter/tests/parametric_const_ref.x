@@ -14,7 +14,7 @@
 
 const DIM = u32:3;
 
-fn [N: u32] f(_: u32[N]) -> u32[DIM] {
+fn f<N: u32>(_: u32[N]) -> u32[DIM] {
   u32[DIM]:[N, N, N]
 }
 

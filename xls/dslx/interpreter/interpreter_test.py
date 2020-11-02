@@ -103,7 +103,7 @@ class InterpreterTest(absltest.TestCase):
 
   def test_parametric_invocation(self):
     program = textwrap.dedent("""\
-    fn [N: u32] id(x: bits[N]) -> bits[N] { x }
+    fn id<N: u32>(x: bits[N]) -> bits[N] { x }
     test different_parametric_invocations {
       assert_eq(bits[5]:0b01111, id(bits[2]:0b01) ++ id(bits[3]:0b111))
     }
@@ -112,7 +112,7 @@ class InterpreterTest(absltest.TestCase):
 
   def test_parametric_binding(self):
     program = textwrap.dedent("""\
-    fn [N: u32] add_num_bits(x: bits[N]) -> bits[N] { x+(N as bits[N]) }
+    fn add_num_bits<N: u32>(x: bits[N]) -> bits[N] { x+(N as bits[N]) }
     test different_parametric_invocations {
       assert_eq(bits[2]:3, add_num_bits(bits[2]:1))
     }
@@ -243,7 +243,7 @@ class InterpreterTest(absltest.TestCase):
 
   def test_conflicting_parametric_bindings(self):
     program = textwrap.dedent("""\
-    fn [N: u32] parametric(x: bits[N], y: bits[N]) -> bits[1] {
+    fn parametric<N: u32>(x: bits[N], y: bits[N]) -> bits[1] {
       x == bits[N]:1 && y == bits[N]:2
     }
     test parametric_conflict {
@@ -281,7 +281,7 @@ class InterpreterTest(absltest.TestCase):
 
   def test_derived_parametric(self):
     program = textwrap.dedent("""\
-    fn [X: u32, Y: u32 = X+X, Z: u32 = Y+u32:1] parametric(
+    fn parametric<X: u32, Y: u32 = X+X, Z: u32 = Y+u32:1>(
           x: bits[X]) -> (u32, u32, u32) {
       (X, Y, Z)
     }

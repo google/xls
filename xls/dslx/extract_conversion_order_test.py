@@ -72,7 +72,7 @@ class ExtractConversionOrderTest(absltest.TestCase):
 
   def test_parametric(self):
     program = """
-    fn [N: u32] f(x: bits[N]) -> u32 { N }
+    fn f<N: u32>(x: bits[N]) -> u32 { N }
     fn main() -> u32 { f(u2:0) }
     """
     m, type_info = self._get_module(program)
@@ -90,8 +90,8 @@ class ExtractConversionOrderTest(absltest.TestCase):
 
   def test_transitive_parametric(self):
     program = """
-    fn [M: u32] g(x: bits[M]) -> u32 { M }
-    fn [N: u32] f(x: bits[N]) -> u32 { g(x) }
+    fn g<M: u32>(x: bits[M]) -> u32 { M }
+    fn f<N: u32>(x: bits[N]) -> u32 { g(x) }
     fn main() -> u32 { f(u2:0) }
     """
     m, type_info = self._get_module(program)

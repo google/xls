@@ -16,7 +16,7 @@ type TypeX = u6;
 type TypeY = u3;
 
 // Identity function for a two-dimensional array of arbitrary bit count.
-fn [L: u32, M: u32, N: u32] id(x: uN[L][M][N]) -> uN[L][M][N] {
+fn id<L: u32, M: u32, N: u32>(x: uN[L][M][N]) -> uN[L][M][N] {
   x
 }
 

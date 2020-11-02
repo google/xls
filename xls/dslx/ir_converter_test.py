@@ -337,7 +337,7 @@ class IrConverterTest(test_base.TestCase):
 
   def test_counted_for_parametric_const(self):
     m = self.parse_dsl_text("""\
-    fn [N: u32] f(x: bits[N]) -> u32 {
+    fn f<N: u32>(x: bits[N]) -> u32 {
       for (i, accum): (u32, u32) in range(u32:0, N) {
         accum + i
       }(u32:0)
@@ -863,7 +863,7 @@ class IrConverterTest(test_base.TestCase):
 
   def test_parametric_invocation(self):
     m = self.parse_dsl_text("""\
-    fn [N: u32] parametric_id(x: bits[N]) -> bits[N] {
+    fn parametric_id<N: u32>(x: bits[N]) -> bits[N] {
       x+(N as bits[N])
     }
 
@@ -890,10 +890,10 @@ class IrConverterTest(test_base.TestCase):
 
   def test_transitive_parametric_invocation(self):
     m = self.parse_dsl_text("""\
-    fn [N: u32] parametric_id(x: bits[N]) -> bits[N] {
+    fn parametric_id<N: u32>(x: bits[N]) -> bits[N] {
       x+(N as bits[N])
     }
-    fn [M: u32] parametric_id_wrapper(x: bits[M]) -> bits[M] {
+    fn parametric_id_wrapper<M: u32>(x: bits[M]) -> bits[M] {
       parametric_id(x)
     }
     fn main(x: u8) -> u8 {
@@ -924,7 +924,7 @@ class IrConverterTest(test_base.TestCase):
 
   def test_invocation_multi_symbol(self):
     m = self.parse_dsl_text("""\
-    fn [M: u32, N: u32, R: u32 = M + N] parametric(x: bits[M], y: bits[N]) -> bits[R] {
+    fn parametric<M: u32, N: u32, R: u32 = M + N>(x: bits[M], y: bits[N]) -> bits[R] {
       x ++ y
     }
     fn main() -> u8 {
@@ -937,9 +937,9 @@ class IrConverterTest(test_base.TestCase):
         package test_module
 
         fn __test_module__parametric__3_5_8(x: bits[3], y: bits[5]) -> bits[8] {
-          literal.3: bits[32] = literal(value=3, id=3, pos=0,0,4)
-          literal.4: bits[32] = literal(value=5, id=4, pos=0,0,12)
-          literal.5: bits[32] = literal(value=8, id=5, pos=0,0,20)
+          literal.3: bits[32] = literal(value=3, id=3, pos=0,0,14)
+          literal.4: bits[32] = literal(value=5, id=4, pos=0,0,22)
+          literal.5: bits[32] = literal(value=8, id=5, pos=0,0,30)
           ret concat.6: bits[8] = concat(x, y, id=6, pos=0,1,4)
         }
 
@@ -1065,7 +1065,7 @@ class IrConverterTest(test_base.TestCase):
 
   def test_parametric_ir_conversion(self):
     m = self.parse_dsl_text("""
-    fn [N: u32] parametric(x: bits[N]) -> u32 {
+    fn parametric<N: u32>(x: bits[N]) -> u32 {
       N
     }
 
@@ -1241,7 +1241,7 @@ class IrConverterTest(test_base.TestCase):
 
   def test_counted_for_parametric_ref_in_body(self):
     m = self.parse_dsl_text("""\
-    fn [N: u32] f(init: bits[N]) -> bits[N] {
+    fn f<N:u32>(init: bits[N]) -> bits[N] {
       for (i, accum): (u32, bits[N]) in range(u32:0, u32:4) {
         accum as bits[N]
       }(init)
