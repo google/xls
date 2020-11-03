@@ -787,17 +787,20 @@ absl::StatusOr<Expr*> Parser::ParseComparisonExpression(Bindings* bindings) {
       break;
     }
 
+    ScannerCheckpoint checkpoint = SaveScannerCheckpoint();
+    Bindings child_bindings(bindings);
     Token op = PopTokenOrDie();
-    auto status_or_rhs = ParseOrExpression(bindings);
+    auto status_or_rhs = ParseOrExpression(&child_bindings);
     if (status_or_rhs.ok()) {
       XLS_ASSIGN_OR_RETURN(BinopKind kind,
                            BinopKindFromString(TokenKindToString(op.kind())));
       lhs = module_->Make<Binop>(op.span(), kind, lhs, status_or_rhs.value());
+      bindings->ConsumeChild(&child_bindings);
     } else {
       // Push the op back on the queue in case we fair to handle this as a
       // comparison op - it could be that we're in a parametric binding (so '>'
       // could be a closing character, not a "greater than").
-      PushToken(op);
+      RestoreScannerCheckpoint(checkpoint);
       break;
     }
   }
@@ -1089,8 +1092,6 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* bindings) {
       Span span(start_pos, GetPos());
       lhs = module_->Make<XlsTuple>(span, std::vector<Expr*>{});
     } else {
-      auto cleanup =
-          xabsl::MakeCleanup([this, &oparen]() { PushToken(oparen); });
       XLS_ASSIGN_OR_RETURN(lhs, ParseExpression(bindings));
       XLS_ASSIGN_OR_RETURN(bool peek_is_comma, PeekTokenIs(TokenKind::kComma));
       if (peek_is_comma) {  // Singleton tuple.
@@ -1100,7 +1101,6 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* bindings) {
         XLS_RETURN_IF_ERROR(
             DropTokenOrError(TokenKind::kCParen, /*start=*/&oparen));
       }
-      cleanup.Cancel();
     }
   } else if (peek->IsKeyword(Keyword::kMatch)) {  // Match expression.
     XLS_ASSIGN_OR_RETURN(lhs, ParseMatch(bindings));

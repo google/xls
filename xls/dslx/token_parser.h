@@ -24,14 +24,29 @@ namespace xls::dslx {
 
 class TokenParser {
  public:
-  explicit TokenParser(Scanner* scanner) : scanner_(XLS_DIE_IF_NULL(scanner)) {}
+  explicit TokenParser(Scanner* scanner)
+      : scanner_(XLS_DIE_IF_NULL(scanner)), index_(0) {}
 
  protected:
+  // Currently just a plain integer, representing the index into the token
+  // stream, but this could be swapped out for a different representation as
+  // designs get larger.
+  using ScannerCheckpoint = int64;
+
+  // Returns the current location in the token stream. Used when "backtracking"
+  // from a bad production in the parser.
+  ScannerCheckpoint SaveScannerCheckpoint() const { return index_; }
+
+  // Resets the current location in the token stream to that indicated.
+  void RestoreScannerCheckpoint(ScannerCheckpoint checkpoint) {
+    index_ = checkpoint;
+  }
+
   // Returns the current position of the parser in the text, via its current
   // position the token stream.
   Pos GetPos() const {
-    if (!lookahead_.empty()) {
-      return lookahead_.front().span().start();
+    if (index_ < tokens_.size()) {
+      return tokens_[index_].span().start();
     }
     return scanner_->GetPos();
   }
@@ -88,26 +103,27 @@ class TokenParser {
   }
 
   absl::StatusOr<const Token*> PeekToken() {
-    if (!lookahead_.empty()) {
-      return &lookahead_.front();
+    if (index_ >= tokens_.size()) {
+      XLS_ASSIGN_OR_RETURN(Token token, scanner_->Pop());
+      tokens_.push_back(token);
     }
-
-    XLS_ASSIGN_OR_RETURN(Token token, scanner_->Pop());
-    lookahead_.push_back(token);
-    XLS_CHECK(!lookahead_.empty());
-    return &lookahead_.front();
+    return &tokens_[index_];
   }
 
   // Puts the given token back in the stream (at the head).
-  void PushToken(Token token) { lookahead_.push_front(token); }
+  void PushToken(Token token) {
+    index_ -= 1;
+    XLS_CHECK_GE(index_, 0);
+  }
 
   // Returns a token that has been popped destructively from the token stream.
   absl::StatusOr<Token> PopToken() {
-    XLS_RETURN_IF_ERROR(PeekToken().status());
-    XLS_CHECK(!lookahead_.empty());
-    Token tok = lookahead_.front();
-    lookahead_.pop_front();
-    return tok;
+    if (index_ >= tokens_.size()) {
+      XLS_RETURN_IF_ERROR(PeekToken().status());
+    }
+    Token token = tokens_[index_];
+    index_ += 1;
+    return token;
   }
 
   absl::StatusOr<std::string> PopIdentifierOrError() {
@@ -119,7 +135,6 @@ class TokenParser {
   // case we don't need to check for errors in potentially scanning the next
   // token).
   Token PopTokenOrDie() {
-    XLS_CHECK(!lookahead_.empty());
     return PopToken().value();
   }
 
@@ -212,8 +227,8 @@ class TokenParser {
 
  private:
   Scanner* scanner_;
-  // absl::optional<Token> lookahead_;
-  std::deque<Token> lookahead_;
+  int64 index_;
+  std::vector<Token> tokens_;
 };
 
 }  // namespace xls::dslx

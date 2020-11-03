@@ -622,6 +622,7 @@ cc_library(
     hdrs = ["cpp_bindings.h"],
     deps = [
         ":cpp_ast",
+        "//xls/common/logging",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

@@ -18,6 +18,7 @@
 #define XLS_DSLX_CPP_BINDINGS_H_
 
 #include "absl/status/statusor.h"
+#include "xls/common/logging/logging.h"
 #include "xls/dslx/cpp_ast.h"
 
 namespace xls::dslx {
@@ -72,7 +73,14 @@ absl::StatusOr<std::pair<Span, std::string>> ParseErrorGetData(
 // scope; new bindings in the worst case only shadow previous bindings.
 class Bindings {
  public:
-  Bindings(Bindings* parent = nullptr) : parent_(parent) {}
+  explicit Bindings(Bindings* parent = nullptr) : parent_(parent) {}
+
+  // The "Cronus" method. This adds a child's bindings to this object, i.e., it
+  // "commits" changes made in a child Bindings to this parent object.
+  void ConsumeChild(Bindings* child) {
+    XLS_CHECK_EQ(child->parent_, this);
+    local_bindings_.merge(child->local_bindings_);
+  }
 
   // Returns whether there are any local bindings (i.e. bindings that are not
   // set in parent/ancestors).
