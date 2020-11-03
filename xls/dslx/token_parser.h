@@ -110,12 +110,6 @@ class TokenParser {
     return &tokens_[index_];
   }
 
-  // Puts the given token back in the stream (at the head).
-  void PushToken(Token token) {
-    index_ -= 1;
-    XLS_CHECK_GE(index_, 0);
-  }
-
   // Returns a token that has been popped destructively from the token stream.
   absl::StatusOr<Token> PopToken() {
     if (index_ >= tokens_.size()) {

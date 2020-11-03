@@ -489,6 +489,7 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(Bindings* bindings,
 
 absl::StatusOr<NameRef*> Parser::ParseNameRef(Bindings* bindings,
                                               const Token* tok) {
+  ScannerCheckpoint checkpoint = SaveScannerCheckpoint();
   absl::optional<Token> popped;
   if (tok == nullptr) {
     XLS_ASSIGN_OR_RETURN(popped, PopTokenOrError(TokenKind::kIdentifier));
@@ -499,10 +500,7 @@ absl::StatusOr<NameRef*> Parser::ParseNameRef(Bindings* bindings,
   auto status_or_bound_node =
       bindings->ResolveNodeOrError(*tok->GetValue(), tok->span());
   if (!status_or_bound_node.ok()) {
-    if (popped.has_value()) {
-      PushToken(popped.value());
-    }
-    PushToken(*tok);
+    RestoreScannerCheckpoint(checkpoint);
     return status_or_bound_node.status();
   }
   BoundNode bn = status_or_bound_node.value();
@@ -1023,7 +1021,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* bindings) {
   const Pos start_pos = peek->span().start();
 
   // Holds popped tokens for rewinding the scanner in case of bad productions.
-  std::deque<Token> popped;
+  ScannerCheckpoint checkpoint = SaveScannerCheckpoint();
   Expr* lhs = nullptr;
   if (peek->IsKindIn({TokenKind::kNumber, TokenKind::kCharacter}) ||
       peek->IsKeywordIn({Keyword::kTrue, Keyword::kFalse})) {
@@ -1083,12 +1081,10 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* bindings) {
     }
     lhs = ToExprNode(nocr);
   } else if (peek->kind() == TokenKind::kOParen) {  // Parenthesized expression.
-    popped.push_front(*peek);
     Token oparen = PopTokenOrDie();
     XLS_ASSIGN_OR_RETURN(bool next_is_cparen, PeekTokenIs(TokenKind::kCParen));
     if (next_is_cparen) {  // Empty tuple.
       XLS_ASSIGN_OR_RETURN(Token tok, PopToken());
-      popped.push_front(tok);
       Span span(start_pos, GetPos());
       lhs = module_->Make<XlsTuple>(span, std::vector<Expr*>{});
     } else {
@@ -1175,9 +1171,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* bindings) {
       case TokenKind::kArrow:
         // If we're a term followed by an arrow...then we followed the wrong
         // production, as arrows are only allowed after fn decls. Rewind.
-        for (const Token& tok : popped) {
-          PushToken(tok);
-        }
+        RestoreScannerCheckpoint(checkpoint);
         // Should this be something else, like a "wrong production" error?
         return ParseError(lhs->span(),
                           "Parenthesized expression cannot precede an arrow.");
