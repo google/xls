@@ -29,14 +29,18 @@ class NetworkConfigBuilderFactory {
   typedef std::function<std::unique_ptr<NetworkConfigBuilder>()> factory_item;
 
  public:
-  static NetworkConfigBuilderFactory& Get() {
-    static NetworkConfigBuilderFactory instance;
-    return instance;
+  static NetworkConfigBuilderFactory& GetInstance() {
+    static NetworkConfigBuilderFactory* instance =
+        new NetworkConfigBuilderFactory;
+    return *instance;
   }
+
   absl::StatusOr<std::unique_ptr<NetworkConfigBuilder>> GetNetworkConfigBuilder(
       absl::string_view name) const;
+
   absl::Status RegisterNetworkConfigBuilder(
       const std::string& name, factory_item network_config_builder);
+
   // Returns a list of network config builder names in sorted order from the
   // factory.
   std::vector<absl::string_view> GetNetworkConfigBuilderNames() const;
@@ -64,10 +68,11 @@ class NetworkConfigBuilderFactory {
   };                                                                          \
   XLS_REGISTER_MODULE_INITIALIZER(__network_config_builder_name##_registry, { \
     absl::Status __network_config_builder_name##_registered_ =                \
-        NetworkConfigBuilderFactory::Get().RegisterNetworkConfigBuilder(      \
-            __network_config_builder_class::GetName(), []() {                 \
-              return absl::make_unique<__network_config_builder_class>();     \
-            });                                                               \
+        NetworkConfigBuilderFactory::GetInstance()                            \
+            .RegisterNetworkConfigBuilder(                                    \
+                __network_config_builder_class::GetName(), []() {             \
+                  return absl::make_unique<__network_config_builder_class>(); \
+                });                                                           \
   });
 
 }  // namespace xls::noc

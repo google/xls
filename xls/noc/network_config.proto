@@ -1,5 +1,9 @@
 syntax = "proto2";
 
+// The proto file contains components used for describing a network
+// configuration. These components will be serialized on disks for use by other
+// NoC generation libraries and tools.
+
 package xls.noc;
 
 // A Connection is a link between two ports: a source port and a sink port.

@@ -1,5 +1,10 @@
 syntax = "proto2";
 
+// The proto file contains option descriptions for a network configuration
+// builder. Options for a network configuration builder have two components: 1)
+// common network configuration options, and, 2) custom network configuration
+// options for the given network builder.
+
 package xls.noc;
 
 // Custom Network Config Builder Options for the Ring topology

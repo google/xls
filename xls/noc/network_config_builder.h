@@ -28,18 +28,28 @@ namespace xls::noc {
 // configuration builder options.
 class NetworkConfigBuilder {
  public:
+  // Returns either: 1) an error from the argument validation phase or the
+  // network configuration generation phase, or, 2) the network configuration
+  // from the network configuration generation phase.
+  //
+  // The method is a wrapper around two other methods that, in the following
+  // order: 1) validates arguments defined in the parameter options, and, 2)
+  // generates a network configuration.
   absl::StatusOr<NetworkConfigProto> ValidateArgumentsGenerateNetworkConfig(
       const NetworkConfigBuilderOptions& options) const {
     XLS_RETURN_IF_ERROR(ValidateArguments(options));
     return GenerateNetworkConfig(options);
   }
+
   // Returns a description of the usage for the network config builder.
   virtual std::string GetUsage() const = 0;
+
   virtual ~NetworkConfigBuilder() = default;
 
  protected:
   virtual absl::Status ValidateArguments(
       const NetworkConfigBuilderOptions& options) const = 0;
+
   virtual absl::StatusOr<NetworkConfigProto> GenerateNetworkConfig(
       const NetworkConfigBuilderOptions& options) const = 0;
 };
