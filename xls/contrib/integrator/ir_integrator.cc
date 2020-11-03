@@ -33,7 +33,7 @@ IntegrationFunction::MakeIntegrationFunctionWithParamTuples(
   // Package source function parameters as tuple parameters to integration
   // function.
   for (const auto* source_func : source_functions) {
-    // Add tuple paramter for source function.
+    // Add tuple parameter for source function.
     std::vector<Type*> arg_types;
     for (const Node* param : source_func->params()) {
       arg_types.push_back(param->GetType());
@@ -111,12 +111,87 @@ IntegrationFunction::GetNodesMappedToNode(const Node* map_target) const {
   return &integrated_node_to_original_nodes_map_.at(map_target);
 }
 
+absl::StatusOr<std::vector<Node*>> IntegrationFunction::GetIntegratedOperands(
+    const Node* node) const {
+  std::vector<Node*> operand_mappings;
+  operand_mappings.reserve(node->operands().size());
+
+  if (IntegrationFunctionOwnsNode(node)) {
+    operand_mappings.insert(operand_mappings.end(), node->operands().begin(),
+                            node->operands().end());
+    return operand_mappings;
+  }
+
+  for (const auto* operand : node->operands()) {
+    if (!HasMapping(operand)) {
+      // TODO(jbaileyhandle): Implement.
+      return absl::UnimplementedError(
+          "GetIntegratedOperands for unmapped operands not yet implemented");
+    }
+    XLS_ASSIGN_OR_RETURN(Node * operand_map_target, GetNodeMapping(operand));
+    operand_mappings.push_back(operand_map_target);
+  }
+  return operand_mappings;
+}
+
+absl::StatusOr<IntegrationFunction::UnifiedNode>
+IntegrationFunction::UnifyIntegrationNodes(Node* node_a, Node* node_b) {
+  XLS_RET_CHECK(IntegrationFunctionOwnsNode(node_a));
+  XLS_RET_CHECK(IntegrationFunctionOwnsNode(node_b));
+  XLS_RET_CHECK_EQ(node_a->GetType(), node_b->GetType());
+
+  // Same node.
+  if (node_a == node_b) {
+    return UnifiedNode({node_a, /*new_mux_added=*/false});
+  }
+
+  // Already created a mux to select between these nodes.
+  // Note that we search for (node_a, node_b) but not for
+  // (node_b, node_a) because a reversed pair implies
+  // an inverted select signal.
+  // TODO(jbaileyhandle): Create a canonical ordering among nodes to avoid
+  // this issue.
+  std::pair<const Node*, const Node*> key = std::make_pair(node_a, node_b);
+  if (node_pair_to_mux_.contains(key)) {
+    return UnifiedNode({node_pair_to_mux_.at(key), /*new_mux_added=*/false});
+  }
+
+  // Create a new mux.
+  // TODO(jbaileyhandle): Currently create a new select line per mux
+  // to maximize programmability. May want to have a single set
+  // of select bits for the integrated function such that we can
+  // only configure to one of the input functions.
+  std::string select_name =
+      node_a->GetName() + "_" + node_b->GetName() + "_mux_sel";
+  XLS_ASSIGN_OR_RETURN(Node * select, function_->MakeNodeWithName<Param>(
+                                          /*loc=*/std::nullopt, select_name,
+                                          package_->GetBitsType(1)));
+  std::vector<Node*> elements = {node_a, node_b};
+  XLS_ASSIGN_OR_RETURN(Node * mux, function_->MakeNode<Select>(
+                                       /*loc=*/std::nullopt, select, elements,
+                                       /*default_value=*/std::nullopt));
+
+  node_pair_to_mux_[key] = mux;
+  return UnifiedNode({mux, /*new_mux_added=*/true});
+}
+
 bool IntegrationFunction::HasMapping(const Node* node) const {
   return original_node_to_integrated_node_map_.contains(node);
 }
 
 bool IntegrationFunction::IsMappingTarget(const Node* node) const {
   return integrated_node_to_original_nodes_map_.contains(node);
+}
+
+absl::StatusOr<Node*> IntegrationFunction::InsertNode(const Node* to_insert) {
+  XLS_RET_CHECK(!IntegrationFunctionOwnsNode(to_insert));
+  XLS_RET_CHECK(!HasMapping(to_insert));
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> mapped_operands,
+                       GetIntegratedOperands(to_insert));
+  XLS_ASSIGN_OR_RETURN(Node * inserted, to_insert->CloneInNewFunction(
+                                            mapped_operands, function()));
+  XLS_RETURN_IF_ERROR(SetNodeMapping(to_insert, inserted));
+  return inserted;
 }
 
 absl::StatusOr<Function*> IntegrationBuilder::CloneFunctionRecursive(
