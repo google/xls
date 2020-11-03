@@ -61,8 +61,7 @@ Package "fpadd_2x32"
     Nodes: 252
 ```
 
-\##
-[`check_ir_equivalence`](https://github.com/google/xls/tree/main/xls/tools/check_ir_equivalence_main.cc)
+## [`check_ir_equivalence`](https://github.com/google/xls/tree/main/xls/tools/check_ir_equivalence_main.cc)
 
 Verifies that two IR files (for example, optimized and unoptimized IR from the
 same source) are logically equivalent.
@@ -70,6 +69,50 @@ same source) are logically equivalent.
 ## [`opt_main`](https://github.com/google/xls/tree/main/xls/tools/opt_main.cc)
 
 Runs XLS IR through the optimization pipeline.
+
+## [`proto_to_dslx_main`](https://github.com/google/xls/tree/main/xls/tools/proto_to_dslx_main.cc)
+
+Takes in a proto schema and a textproto instance thereof and outputs a DSLX
+module containing a DSLX type and constant matching both inputs, respectively.
+
+Not all protocol buffer types map to DSLX types, so there are some restrictions
+or other behaviors requiring explanation:
+
+1.  Only scalar and repeated fields are supported (i.e., no maps or oneofs,
+    etc.).
+1.  Only recursively-integral messages are supported, that is to say, a message
+    may contain submessages, as long as all non-Message fields are integral.
+1.  Since DSLX doesn't support variable arrays and Protocol Buffers don't
+    support fixed-length repeated fields. To unify this, all instances of
+    repeated-field-containing Messages must have the same size of their repeated
+    members (declared as arrays in DSLX). This size will be calculated as the
+    maximum size of any instance of that repeated field across all instances in
+    the input textproto. For example, if a message `Foo` has a repeated field
+    `bar`, and this message is present multiple times in the input textproto,
+    say as:
+
+    ```
+      foo: {
+        bar: 1
+      }
+      foo: {
+        bar: 1
+        bar: 2
+      }
+      foo: {
+        bar: 1
+        bar: 2
+        bar: 3
+      }
+    ```
+
+    the DSLX version of `Foo` will declare `bar` has a 3-element array. An
+    accessory field, `bar_count`, will also be created, which will contain the
+    number of valid entries in an actual instance of `Foo::bar`.
+
+    The "Fields" example in
+    `xls/tools/testdata/proto_to_dslx_main.*` demonstrates this
+    behavior.
 
 ## [`simulate_module_main`](https://github.com/google/xls/tree/main/xls/tools/simulate_module_main.cc)
 
