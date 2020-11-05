@@ -800,7 +800,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     }
   }
 
-  // Collapse consecutivee two-ways selects which have share a common case. For
+  // Collapse consecutive two-ways selects which have share a common case. For
 
   // example:
   //
@@ -903,6 +903,49 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                                     p_x, std::vector<Node*>{y, x},
                                     /*default_value=*/absl::nullopt));
       return true;
+    }
+  }
+
+  // Consecutive selects which share a selector can be collapsed into a single
+  // select. If sel0 selects sel1 on when p is false:
+  //
+  //  a   b
+  //   \ /
+  //   sel1 ----+-- p       a   c
+  //    |       |       =>   \ /
+  //    |  c    |            sel -- p
+  //    | /     |             |
+  //   sel0 ----+
+  //    |
+  //
+  // If sel0 selects sel1 on when p is true:
+  //
+  //    a   b
+  //     \ /
+  //     sel1 -+-- p       c   b
+  //      |    |       =>   \ /
+  //   c  |    |            sel -- p
+  //    \ |    |             |
+  //     sel0 -+
+  //      |
+  //
+  // TODO(meheff): Generalize this to multi-way selects and possibly
+  // one-hot-selects.
+  if (is_2way_select(node)) {
+    Select* sel0 = node->As<Select>();
+    if (is_2way_select(sel0->get_case(0))) {
+      Select* sel1 = sel0->get_case(0)->As<Select>();
+      if (sel0->selector() == sel1->selector()) {
+        XLS_RETURN_IF_ERROR(sel0->ReplaceOperandNumber(1, sel1->get_case(0)));
+        return true;
+      }
+    }
+    if (is_2way_select(sel0->get_case(1))) {
+      Select* sel1 = sel0->get_case(1)->As<Select>();
+      if (sel0->selector() == sel1->selector()) {
+        XLS_RETURN_IF_ERROR(sel0->ReplaceOperandNumber(2, sel1->get_case(1)));
+        return true;
+      }
     }
   }
 

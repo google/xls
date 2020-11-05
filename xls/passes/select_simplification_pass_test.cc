@@ -671,9 +671,9 @@ TEST_F(SelectSimplificationPassTest, SelectsWithCommonCase3) {
 TEST_F(SelectSimplificationPassTest, SpecializeSelectSimple) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-fn f(a: bits[1], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
-  sel.1: bits[32] = sel(a, cases=[x, y])
-  ret sel.2: bits[32] = sel(a, cases=[z, sel.1])
+fn f(a: bits[1], b: bits[31], z: bits[32]) -> bits[32] {
+  concat: bits[32] = concat(a, b)
+  ret sel.2: bits[32] = sel(a, cases=[z, concat])
 }
   )",
                                                        p.get()));
@@ -681,8 +681,7 @@ fn f(a: bits[1], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
   EXPECT_THAT(
       f->return_value(),
       m::Select(m::Param("a"),
-                {m::Param("z"),
-                 m::Select(m::Literal(1), {m::Param("x"), m::Param("y")})}));
+                {m::Param("z"), m::Concat(m::Literal(1), m::Param("b"))}));
 }
 
 TEST_F(SelectSimplificationPassTest, SpecializeSelectMultipleBranches) {
@@ -784,6 +783,68 @@ fn f(a: bits[32], y: bits[32]) -> bits[32] {
   )",
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_F(SelectSimplificationPassTest, Consecutive2WaySelects) {
+  //
+  //  a   b
+  //   \ /
+  //   sel1 ----+-- p       a   c
+  //    |       |       =>   \ /
+  //    |  c    |            sel -- p
+  //    | /     |             |
+  //   sel0 ----+
+  //    |
+  //
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue c = fb.Param("c", u32);
+  BValue pred = fb.Param("pred", p->GetBitsType(1));
+
+  BValue sel1 = fb.Select(pred, {a, b});
+  fb.Select(pred, {sel1, c});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::Param("pred"),
+                        /*cases=*/{m::Param("a"), m::Param("c")}));
+}
+
+TEST_F(SelectSimplificationPassTest, Consecutive2WaySelectsCase2) {
+  //
+  //    a   b
+  //     \ /
+  //     sel1 -+-- p       c   b
+  //      |    |       =>   \ /
+  //   c  |    |            sel -- p
+  //    \ |    |             |
+  //     sel0 -+
+  //      |
+  //
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue c = fb.Param("c", u32);
+  BValue pred = fb.Param("pred", p->GetBitsType(1));
+
+  BValue sel1 = fb.Select(pred, {a, b});
+  fb.Select(pred, {c, sel1});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::Param("pred"),
+                        /*cases=*/{m::Param("c"), m::Param("b")}));
 }
 
 }  // namespace

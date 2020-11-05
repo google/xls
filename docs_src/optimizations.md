@@ -343,6 +343,18 @@ range based analysis or other techniques to narrow down the possible values of
 any variables within the selector, and use that information to optimize the
 select arms.
 
+## Consecutive selects with identical selectors
+
+Two consecutive two-way selects which use the same selector can be compacted
+into a single select statement. The selector only has two states so only two of
+the three different cases may be selected. The third is dead. Visually, the
+transformation looks like:
+
+![drawing](./consecutive_selects.png)
+
+The specific cases which remain in the new select instruction depends on whether
+the upper select feeds the true or false input of the lower select.
+
 ## Binary Decision Diagram based optimizations
 
 A binary decision diagram (BDD) is a data structure that can represent arbitrary
