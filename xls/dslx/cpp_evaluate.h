@@ -16,6 +16,7 @@
 #define XLS_DSLX_CPP_EVALUATE_H_
 
 #include "absl/status/statusor.h"
+#include "xls/dslx/cpp_ast.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/interp_value.h"
@@ -59,6 +60,15 @@ using NoteWipFn = std::function<absl::optional<InterpValue>(
 using EvaluateFn = std::function<absl::StatusOr<InterpValue>(
     const std::shared_ptr<Module>&, Expr*, InterpBindings*)>;
 
+// Bundles up the above callbacks so they can be passed around as a unit.
+struct InterpCallbackData {
+  TypecheckFn typecheck;
+  EvaluateFn eval;
+  IsWipFn is_wip;
+  NoteWipFn note_wip;
+  ImportCache* cache;
+};
+
 // Creates the top level bindings for a given module. We may not be able to
 // create a *complete* set of bindings if we've re-entered this routine; e.g. in
 // evaluating a top-level constant we recur to ask what enums (or similar) are
@@ -66,17 +76,22 @@ using EvaluateFn = std::function<absl::StatusOr<InterpValue>(
 // bindings as we can before we reach the work-in-progress point.
 //
 // Args:
-//  typecheck: Typecheck callback, as we may need to typecheck imported modules.
-//  eval: Evaluation callback, as we may need to evaluate top level constants.
-//  is_wip: Query for whether a constant is in the process of being evaluated
-//    (re-entrancy check).
-//  note_wip: Notes the evaluation state for a constant (either marks it as work
-//    in progress via nullopt, or provides its value).
-//  cache: Cache of imported modules and their type information.
+//   module: The top-level module to make bindings for.
+//   callbacks: Provide ability to call back into the interpreter facilities
+//    e.g. on import or for evaluating constant value expressions.
 absl::StatusOr<InterpBindings> MakeTopLevelBindings(
-    const std::shared_ptr<Module>& module, const TypecheckFn& typecheck,
-    const EvaluateFn& eval, const IsWipFn& is_wip, const NoteWipFn& note_wip,
-    ImportCache* cache);
+    const std::shared_ptr<Module>& module, InterpCallbackData* callbacks);
+
+using ConcretizeVariant = absl::variant<TypeAnnotation*, EnumDef*, StructDef*>;
+
+// Resolve "type" into a concrete type via expression evaluation.
+absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeType(
+    ConcretizeVariant type, InterpBindings* bindings,
+    InterpCallbackData* callbacks);
+
+// Resolves (parametric) dimensions from deduction vs the current bindings.
+absl::StatusOr<int64> ResolveDim(
+    absl::variant<Expr*, int64, ConcreteTypeDim> dim, InterpBindings* bindings);
 
 }  // namespace xls::dslx
 

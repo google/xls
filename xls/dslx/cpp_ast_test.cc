@@ -16,9 +16,14 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/status/matchers.h"
 
 namespace xls::dslx {
 namespace {
+
+using status_testing::IsOkAndHolds;
+using status_testing::StatusIs;
+using testing::HasSubstr;
 
 TEST(CppAst, ModuleWithConstant) {
   Module m("test");
@@ -30,6 +35,38 @@ TEST(CppAst, ModuleWithConstant) {
   m.AddTop(constant_def);
 
   EXPECT_EQ(m.ToString(), "const MOL = 42;");
+}
+
+TEST(CppAst, GetNumberAsInt64) {
+  struct Example {
+    std::string text;
+    int64 want;
+  } kCases[] = {
+      {"0b0", 0},
+      {"0b1", 1},
+      {"0b10", 2},
+      {"0b11", 3},
+      {"0b100", 4},
+      {"0b1000", 8},
+      {"0b1011", 11},
+      {"0b1_1000", 24},
+      {"0b1_1001", 25},
+      {"0b1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_"
+       "1111_1111_1111",
+       -1},
+  };
+  auto make_num = [](std::string text) {
+    const Span fake_span;
+    return Number(fake_span, text, NumberKind::kOther, /*type=*/nullptr);
+  };
+  for (const Example& example : kCases) {
+    EXPECT_THAT(make_num(example.text).GetAsInt64(),
+                IsOkAndHolds(example.want));
+  }
+
+  EXPECT_THAT(make_num("0b").GetAsInt64(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Require binary digits")));
 }
 
 }  // namespace

@@ -236,6 +236,7 @@ class TypeRefTypeAnnotation : public TypeAnnotation {
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   const std::vector<Expr*>& parametrics() const { return parametrics_; }
+  bool HasParametrics() const { return !parametrics_.empty(); }
 
  private:
   TypeRef* type_ref_;
@@ -453,6 +454,8 @@ class Number : public Expr {
   void set_type(TypeAnnotation* type) { type_ = type; }
 
   const std::string& text() const { return text_; }
+
+  absl::StatusOr<int64> GetAsInt64() const;
 
   NumberKind kind() const { return kind_; }
 
@@ -798,13 +801,15 @@ class Ternary : public Expr {
 // That is, in:
 //
 //  fn [X: u32, Y: u32 = X+X] f(x: bits[X]) -> bits[Y] {
+//     ^~~~~~~~~~~~~~~~~~~~~^
 //    x ++ x
 //  }
 //
 // There are two parametric bindings:
 //
 // * X is a u32.
-// * Y is a value derived from the parametric binding of X.
+// * Y is a value derived from the parametric binding of X (whose expression is
+//   `X+X`)
 class ParametricBinding : public AstNode {
  public:
   ParametricBinding(NameDef* name_def, TypeAnnotation* type, Expr* expr)
@@ -1907,6 +1912,9 @@ class Module : public AstNode, public std::enable_shared_from_this<Module> {
 
   // Obtains all the type definition nodes in the module in module-member order.
   std::vector<TypeDefinition> GetTypeDefinitions() const;
+
+  absl::StatusOr<TypeDefinition> GetTypeDefinition(
+      absl::string_view name) const;
 
   absl::flat_hash_map<std::string, ConstantDef*> GetConstantByName() const {
     return GetTopWithTByName<ConstantDef>();

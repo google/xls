@@ -21,6 +21,8 @@
 #include "pybind11/stl.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
+#include "xls/dslx/concrete_type.h"
+#include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/python/callback_converters.h"
 #include "xls/dslx/python/cpp_ast.h"
 
@@ -36,8 +38,35 @@ void TryThrowKeyError(const absl::Status& status) {
   }
 }
 
+// Python version of the InterpCallbackData -- the std::functions contained in
+// here need to be converted (via callback_converts.h helpers) to pass them to
+// C++ routines with the appropriate interfaces.
+struct PyInterpCallbackData {
+  absl::optional<PyTypecheckFn> typecheck;
+  PyEvaluateFn eval;
+  PyIsWipFn is_wip;
+  PyNoteWipFn note_wip;
+  absl::optional<ImportCache*> cache;
+};
+
+// Converts a PyInterpCallbackData to a InterpCallbackData.
+InterpCallbackData ToCpp(const PyInterpCallbackData& py) {
+  TypecheckFn typecheck;
+  if (py.typecheck.has_value()) {
+    typecheck = ToCppTypecheck(py.typecheck.value());
+  }
+  ImportCache* cache = py.cache.has_value() ? py.cache.value() : nullptr;
+  return InterpCallbackData{typecheck, ToCppEval(py.eval),
+                            ToCppIsWip(py.is_wip), ToCppNoteWip(py.note_wip),
+                            cache};
+}
+
 PYBIND11_MODULE(cpp_evaluate, m) {
   ImportStatusModule();
+
+  py::class_<PyInterpCallbackData>(m, "InterpCallbackData")
+      .def(py::init<absl::optional<PyTypecheckFn>, PyEvaluateFn, PyIsWipFn,
+                    PyNoteWipFn, absl::optional<ImportCache*>>());
 
   m.def("evaluate_index_bitslice", [](TypeInfo* type_info, IndexHolder expr,
                                       InterpBindings* bindings,
@@ -57,18 +86,18 @@ PYBIND11_MODULE(cpp_evaluate, m) {
     return statusor;
   });
   m.def("make_top_level_bindings",
-        [](ModuleHolder module, absl::optional<PyTypecheckFn> py_typecheck,
-           const PyEvaluateFn& eval, const PyIsWipFn& is_wip,
-           const PyNoteWipFn& note_wip, absl::optional<ImportCache*> py_cache) {
-          TypecheckFn typecheck;
-          if (py_typecheck.has_value()) {
-            typecheck = ToCppTypecheck(*py_typecheck);
-          }
-          ImportCache* cache = py_cache.has_value() ? *py_cache : nullptr;
-          return MakeTopLevelBindings(module.module(), typecheck,
-                                      ToCppEval(eval), ToCppIsWip(is_wip),
-                                      ToCppNoteWip(note_wip), cache);
+        [](ModuleHolder module, PyInterpCallbackData* py_callbacks) {
+          InterpCallbackData callbacks = ToCpp(*py_callbacks);
+          return MakeTopLevelBindings(module.module(), &callbacks);
         });
+  m.def("concretize_type",
+        [](TypeAnnotationHolder type, InterpBindings* bindings,
+           PyInterpCallbackData* py_callbacks) {
+          InterpCallbackData callbacks = ToCpp(*py_callbacks);
+          return ConcretizeType(&type.deref(), bindings, &callbacks);
+        });
+
+  m.def("resolve_dim", &ResolveDim, py::arg("dim"), py::arg("bindings"));
 }
 
 }  // namespace xls::dslx

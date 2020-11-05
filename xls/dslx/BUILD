@@ -567,6 +567,7 @@ cc_library(
         ":cpp_pos",
         "//xls/common:indent",
         "//xls/common/logging",
+        "//xls/common/status:ret_check",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status:statusor",
@@ -582,6 +583,7 @@ cc_test(
     srcs = ["cpp_ast_test.cc"],
     deps = [
         ":cpp_ast",
+        "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -769,6 +771,7 @@ cc_library(
     srcs = ["cpp_evaluate.cc"],
     hdrs = ["cpp_evaluate.h"],
     deps = [
+        ":cpp_ast",
         ":cpp_type_info",
         ":import_routines",
         ":interp_bindings",

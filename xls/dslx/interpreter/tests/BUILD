@@ -356,6 +356,11 @@ dslx_test(
     prove_unopt_eq_opt = False,
 )
 
+dslx_test(
+    name = "array_with_binary_dim",
+    srcs = ["array_with_binary_dim.x"],
+)
+
 py_test(
     name = "import_module_with_type_error_test",
     srcs = ["import_module_with_type_error_test.py"],

@@ -47,12 +47,9 @@ from xls.dslx.python import cpp_type_info as type_info_mod
 from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType
 from xls.dslx.python.cpp_concrete_type import ConcreteType
-from xls.dslx.python.cpp_concrete_type import ConcreteTypeDim
 from xls.dslx.python.cpp_concrete_type import EnumType
 from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.python.cpp_concrete_type import TupleType
-from xls.dslx.python.cpp_parametric_expression import ParametricAdd
-from xls.dslx.python.cpp_parametric_expression import ParametricSymbol
 from xls.dslx.python.cpp_pos import Pos
 from xls.dslx.python.cpp_pos import Span
 from xls.dslx.python.interp_bindings import Bindings
@@ -256,115 +253,9 @@ class Interpreter(object):
     logging.vlog(3, 'Resolved import %s to %r', import_, imported_module)
     return imported_module, self._make_top_level_bindings(imported_module)
 
-  def _deref_typeref(
-      self, type_ref: ast.TypeRef, bindings: Bindings
-  ) -> Union[ast.TypeAnnotation, ast.EnumDef, ast.StructDef]:
-    """Resolves the typeref to a type using its identifier via bindings."""
-    logging.vlog(5, 'Dereferencing TypeRef; type_def: %r', type_ref.type_def)
-    if isinstance(type_ref.type_def, ast.ModRef):
-      return ast_helpers.evaluate_to_struct_or_enum_or_annotation(
-          type_ref.type_def, self._get_imported_module_via_bindings, bindings)
-
-    result = bindings.resolve_type_definition(type_ref.text, type_ref.module)
-    assert isinstance(result,
-                      (ast.TypeAnnotation, ast.EnumDef, ast.StructDef)), result
-    return result
-
-  def _bindings_with_struct_parametrics(self, struct: ast.StructDef,
-                                        parametrics: Tuple[
-                                            ast.ParametricBinding, ...],
-                                        bindings: Bindings) -> Bindings:
-    """Returns new (derived) Bindings populated with `parametrics`.
-
-    For example, if we have a struct defined as `struct [N: u32, M: u32] Foo`,
-    and provided parametrics with values [A, 16], we'll create a new set of
-    Bindings out of `bindings` and add (N, A) and (M, 16) to that.
-
-    Args:
-      struct: The struct that may have parametric bindings.
-      parametrics: The parametric bindings that correspond to those on the
-        struct.
-      bindings: Bindings to use as the parent.
-    """
-    nested_bindings = Bindings(parent=bindings)
-    for p, d in zip(struct.parametric_bindings, parametrics):
-      if isinstance(d, ast.Number):
-        nested_bindings.add_value(p.name.identifier,
-                                  Value.make_ubits(p.type_.bits, int(d.value)))
-      else:
-        assert isinstance(p, ast.ParametricBinding), p
-        nested_bindings.add_value(
-            p.name.identifier,
-            nested_bindings.resolve_value_from_identifier(d.identifier))
-
-    return nested_bindings
-
-  def _concretize(self, type_: Union[ast.TypeAnnotation, ast.EnumDef,
-                                     ast.StructDef],
-                  bindings: Bindings) -> ConcreteType:
+  def _concretize(self, type_, bindings: Bindings) -> ConcreteType:
     """Resolves type_ into a concrete type via expression evaluation."""
-    assert isinstance(type_,
-                      (ast.EnumDef, ast.TypeAnnotation, ast.StructDef)), type_
-    if isinstance(type_, ast.EnumDef):
-      return self._concretize(type_.type_, bindings)
-    elif isinstance(type_, ast.StructDef):
-      members = tuple((k.identifier, self._concretize(t, bindings))
-                      for k, t in type_.members)
-      return TupleType(members, type_)
-    elif isinstance(type_, ast.TypeRefTypeAnnotation):
-      logging.vlog(5, 'Concretizing typeref: %s', type_)
-      deref = self._deref_typeref(type_.type_ref, bindings)
-      if type_.parametrics:
-        bindings = self._bindings_with_struct_parametrics(
-            deref, type_.parametrics, bindings)
-      type_def = type_.type_ref.type_def
-      logging.vlog(5, 'Type definition referred to: %s', type_def)
-      if isinstance(type_def, ast.EnumDef):
-        enum = type_def
-        bit_count = self._concretize(enum.type_, bindings).get_total_bit_count()
-        return EnumType(enum, bit_count)
-      return self._concretize(
-          self._deref_typeref(type_.type_ref, bindings), bindings)
-    elif isinstance(type_, ast.TupleTypeAnnotation):
-      return TupleType(
-          tuple(self._concretize(m, bindings) for m in type_.members))
-    elif isinstance(type_, ast.ArrayTypeAnnotation):
-      dim = self._resolve_dim(type_.dim, bindings)
-      if (isinstance(type_.element_type, ast.BuiltinTypeAnnotation) and
-          type_.element_type.bits == 0):
-        return BitsType(type_.element_type.signedness, dim)
-      elem_type = self._concretize(type_.element_type, bindings)
-      return ArrayType(elem_type, dim)
-    elif isinstance(type_, ast.BuiltinTypeAnnotation):
-      signed, bits = type_.signedness_and_bits
-      return BitsType(signed, bits)
-    else:
-      raise NotImplementedError('Unknown type for concretization: %r' % type_)
-
-  def _resolve_dim(self, dim: Union[ConcreteTypeDim, ast.Number, ast.ConstRef,
-                                    ast.NameRef, int],
-                   bindings: Bindings) -> int:
-    """Resolves (parametric) dim from deduction vs current bindings."""
-    if isinstance(dim, int):
-      return dim
-    if isinstance(dim, ast.Number):
-      return ast_helpers.get_value_as_int(dim)
-    if isinstance(dim, (ast.ConstRef, ast.NameRef)):
-      identifier = dim.identifier
-      return bindings.resolve_value_from_identifier(
-          identifier).get_bit_value_int64()
-    assert isinstance(dim, ConcreteTypeDim), repr(dim)
-    value = dim.value
-    if isinstance(value, int):
-      return value
-    if isinstance(value, ParametricSymbol):
-      identifier = value.identifier
-      return bindings.resolve_value_from_identifier(
-          identifier).get_bit_value_int64()
-    if isinstance(value, ParametricAdd):
-      return (self._resolve_dim(value.lhs, bindings) +
-              self._resolve_dim(value.rhs, bindings))
-    raise NotImplementedError(f'Unhandled dim for resolution: {dim!r}')
+    return cpp_evaluate.concretize_type(type_, bindings, self._get_callbacks())
 
   def _evaluate_TypeAnnotation(  # pylint: disable=invalid-name
       self, type_: ast.TypeAnnotation, bindings: Bindings) -> ConcreteType:
@@ -378,8 +269,9 @@ class Interpreter(object):
     # with the corresponding bits-type value -- we should be using enum-based
     # ConcreteTypes in the interpreter instead of their bits equivalents.
     deduced = self._type_info[type_]
-    deduced = map_size(deduced, self._module,
-                       functools.partial(self._resolve_dim, bindings=bindings))
+    deduced = map_size(
+        deduced, self._module,
+        functools.partial(cpp_evaluate.resolve_dim, bindings=bindings))
     if not deduced.has_enum():
       assert deduced.compatible_with(result), \
           (f'Deduced type {deduced} incompatible with '
@@ -1099,16 +991,11 @@ class Interpreter(object):
     self._type_info.update(imported_type_info)
     return imported_module
 
-  def _make_top_level_bindings(self, m: ast.Module) -> Bindings:
-    """Creates a fresh set of bindings for use in module-level evaluation.
+  def _get_callbacks(self) -> cpp_evaluate.InterpCallbackData:
+    """Returns a set of callbacks that cpp_evaluate can use.
 
-    Args:
-      m: The module that the top level bindings are being made for, used to
-        populate constants / enums.
-
-    Returns:
-      Bindings containing builtins and function identifiers at the top level of
-      the module.
+    This allows cpp_evaluate to request assist from the (Python) interpreter
+    before things have been fully ported over.
     """
 
     def is_wip(m: ast.Module, c: ast.Constant) -> Optional[Value]:
@@ -1140,8 +1027,21 @@ class Interpreter(object):
     typecheck = getattr(self._f_import, '_typecheck', None)
     cache = getattr(self._f_import, '_cache', None)
 
-    result = cpp_evaluate.make_top_level_bindings(m, typecheck, self._evaluate,
-                                                  is_wip, note_wip, cache)
+    return cpp_evaluate.InterpCallbackData(typecheck, self._evaluate, is_wip,
+                                           note_wip, cache)
+
+  def _make_top_level_bindings(self, m: ast.Module) -> Bindings:
+    """Creates a fresh set of bindings for use in module-level evaluation.
+
+    Args:
+      m: The module that the top level bindings are being made for, used to
+        populate constants / enums.
+
+    Returns:
+      Bindings containing builtins and function identifiers at the top level of
+      the module.
+    """
+    result = cpp_evaluate.make_top_level_bindings(m, self._get_callbacks())
     assert '__top_level_bindings_' + m.name in result.keys(), (m, result.keys())
     return result
 

@@ -15,7 +15,9 @@
 #include "xls/dslx/cpp_ast.h"
 
 #include "absl/status/statusor.h"
+#include "absl/strings/strip.h"
 #include "xls/common/indent.h"
+#include "xls/common/status/ret_check.h"
 
 namespace xls::dslx {
 
@@ -254,6 +256,18 @@ std::vector<AstNode*> Module::GetChildren(bool want_types) const {
     results.push_back(ToAstNode(member));
   }
   return results;
+}
+
+absl::StatusOr<TypeDefinition> Module::GetTypeDefinition(
+    absl::string_view name) const {
+  absl::flat_hash_map<std::string, TypeDefinition> map =
+      GetTypeDefinitionByName();
+  auto it = map.find(name);
+  if (it == map.end()) {
+    return absl::NotFoundError(
+        absl::StrCat("Could not find type definition for name: ", name));
+  }
+  return it->second;
 }
 
 absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node) {
@@ -513,6 +527,55 @@ std::string Let::ToString() const {
                          name_def_tree_->ToString(),
                          type_ == nullptr ? "" : ": " + type_->ToString(),
                          rhs_->ToString(), body_->ToString());
+}
+
+absl::StatusOr<int64> Number::GetAsInt64() const {
+  switch (kind_) {
+    case NumberKind::kBool:
+      return text_ == "true";
+    case NumberKind::kCharacter: {
+      XLS_RET_CHECK_EQ(text_.size(), 1);
+      return text_[0];
+    }
+    case NumberKind::kOther: {
+      absl::string_view text = text_;
+      int64 result = -1;
+      if (absl::ConsumePrefix(&text, "0b")) {
+        if (text.empty()) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Require binary digits after '0b' prefix; got `%s`", text));
+        }
+        result = 0;
+        while (!text.empty()) {
+          char c = text[0];
+          text.remove_prefix(1);
+          int64 bit;
+          if (c == '0') {
+            bit = 0;
+          } else if (c == '1') {
+            bit = 1;
+          } else if (c == '_') {  // Spacer.
+            continue;
+          } else {
+            return absl::InvalidArgumentError(absl::StrFormat(
+                "Invalid binary digit: %c (%#x) in number `%s`", c, c, text_));
+          }
+          result <<= 1;
+          result |= bit;
+        }
+        return result;
+      }
+      // Note: safe_strto64_base does not handle binary numbers.
+      if (!absl::numbers_internal::safe_strto64_base(text, &result,
+                                                     /*base=*/0)) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Could not convert number to int64: `%s`", text_));
+      }
+      return result;
+    }
+  }
+  return absl::InternalError(
+      absl::StrFormat("Invalid NumberKind: %d", static_cast<int64>(kind_)));
 }
 
 }  // namespace xls::dslx

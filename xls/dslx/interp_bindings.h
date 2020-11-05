@@ -39,7 +39,7 @@ struct FnCtx {
 //   set of bindings when you enter a new binding scope; e.g. new bindings may
 //   be created in a loop body that you want to discard when you proceed past
 //   the loop body.
-class InterpBindings {
+class InterpBindings : public std::enable_shared_from_this<InterpBindings> {
  public:
   using Entry =
       absl::variant<InterpValue, TypeDef*, EnumDef*, StructDef*, Module*>;
