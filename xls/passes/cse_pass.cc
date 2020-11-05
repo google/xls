@@ -21,6 +21,34 @@
 
 namespace xls {
 
+namespace {
+
+// Returns the operands of the given node for the purposes of the CSE
+// optimization. The order of the nodes may not match the order of the node's
+// actual operands. Motivation: generally for nodes to be considered equivalent
+// the operands must be in the same order. However, commutative operations are
+// agnostic to operand order. So to expand the CSE optimization, compare
+// operands as an unordered set for commutative operands. This is done be
+// ordered commutative operation operands by id prior to comparison. To avoid
+// having to construct a vector every time, a span is returned by this
+// function. If the operation is not commutative, the node's own operand span is
+// simply returned. For the commutative case, a vector of sorted operands is
+// constructed in span_backing_store from which a span is constructed.
+absl::Span<Node* const> GetOperandsForCse(
+    Node* node, std::vector<Node*>* span_backing_store) {
+  XLS_CHECK(span_backing_store->empty());
+  if (!OpIsCommutative(node->op())) {
+    return node->operands();
+  }
+  span_backing_store->insert(span_backing_store->begin(),
+                             node->operands().begin(), node->operands().end());
+  std::sort(span_backing_store->begin(), span_backing_store->end(),
+            [](Node* a, Node* b) { return a->id() < b->id(); });
+  return *span_backing_store;
+}
+
+}  // namespace
+
 absl::StatusOr<bool> CsePass::RunOnFunctionBase(FunctionBase* f,
                                                 const PassOptions& options,
                                                 PassResults* results) const {
@@ -30,13 +58,15 @@ absl::StatusOr<bool> CsePass::RunOnFunctionBase(FunctionBase* f,
   auto hasher = absl::Hash<std::vector<int64>>();
   auto node_hash = [&](Node* n) {
     std::vector<int64> values_to_hash = {static_cast<int64>(n->op())};
-    for (Node* operand : n->operands()) {
+    std::vector<Node*> span_backing_store;
+    for (Node* operand : GetOperandsForCse(n, &span_backing_store)) {
       values_to_hash.push_back(operand->id());
     }
     // If this is slow because of many literals, the Literal values could be
     // combined into the hash. As is, all literals get the same hash value.
     return hasher(values_to_hash);
   };
+
   bool changed = false;
   absl::flat_hash_map<int64, std::vector<Node*>> node_buckets;
   node_buckets.reserve(f->node_count());
@@ -47,8 +77,13 @@ absl::StatusOr<bool> CsePass::RunOnFunctionBase(FunctionBase* f,
       continue;
     }
     bool replaced = false;
+    std::vector<Node*> node_span_backing_store;
+    absl::Span<Node* const> node_operands_for_cse =
+        GetOperandsForCse(node, &node_span_backing_store);
     for (Node* candidate : node_buckets.at(hash)) {
-      if (node->operands() == candidate->operands() &&
+      std::vector<Node*> candidate_span_backing_store;
+      if (node_operands_for_cse ==
+              GetOperandsForCse(candidate, &candidate_span_backing_store) &&
           node->IsDefinitelyEqualTo(candidate)) {
         XLS_ASSIGN_OR_RETURN(bool node_changed,
                              node->ReplaceUsesWith(candidate));

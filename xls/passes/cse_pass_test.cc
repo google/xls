@@ -20,9 +20,13 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_builder.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/passes/dce_pass.h"
+
+namespace m = ::xls::op_matchers;
 
 namespace xls {
 namespace {
@@ -96,11 +100,12 @@ TEST_F(CsePassTest, NontrivialCommonSubexpressions) {
   EXPECT_EQ(FindNode("y", f)->users().size(), 2);
 
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-
   EXPECT_EQ(f->node_count(), 7);
   EXPECT_EQ(f->return_value()->operand(0), f->return_value()->operand(1));
-  EXPECT_EQ(FindNode("x", f)->users().size(), 1);
-  EXPECT_EQ(FindNode("y", f)->users().size(), 1);
+  EXPECT_THAT(
+      f->return_value(),
+      m::Add(m::Or(m::Neg(m::And(m::Param("x"), m::Param("y"))), m::Param("z")),
+             m::Or()));
 }
 
 TEST_F(CsePassTest, CountedFor) {
@@ -167,6 +172,44 @@ fn main(x: bits[11]) -> (bits[11], bits[11], bits[11]) {
             entry->return_value()->operand(1));
   EXPECT_EQ(entry->return_value()->operand(0),
             entry->return_value()->operand(2));
+}
+
+TEST_F(CsePassTest, CommutativeOperands) {
+  // Commutative operations can be equivalent irrespective of operand order.
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue x = fb.Param("x", u32);
+  BValue y = fb.Param("y", u32);
+  BValue z = fb.Param("z", u32);
+  BValue and_xyz = fb.AddNaryOp(Op::kAnd, {x, y, z});
+  BValue and_xzy = fb.AddNaryOp(Op::kAnd, {x, z, y});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Add(and_xyz, and_xzy)));
+
+  EXPECT_NE(f->return_value()->operand(0), f->return_value()->operand(1));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_EQ(f->return_value()->operand(0), f->return_value()->operand(1));
+
+  EXPECT_THAT(f->return_value(), m::Add(m::And(), m::And()));
+}
+
+TEST_F(CsePassTest, NonCommutativeOperands) {
+  // Operand order is significant for non-commutative operations.
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue x = fb.Param("x", u32);
+  BValue y = fb.Param("y", u32);
+  BValue z = fb.Param("z", u32);
+  BValue concat_xyz = fb.Concat({x, y, z});
+  BValue concat_xzy = fb.Concat({x, z, y});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Add(concat_xyz, concat_xzy)));
+
+  EXPECT_NE(f->return_value()->operand(0), f->return_value()->operand(1));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_NE(f->return_value()->operand(0), f->return_value()->operand(1));
 }
 
 }  // namespace
