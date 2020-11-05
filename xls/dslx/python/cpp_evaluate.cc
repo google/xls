@@ -98,6 +98,20 @@ PYBIND11_MODULE(cpp_evaluate, m) {
         });
 
   m.def("resolve_dim", &ResolveDim, py::arg("dim"), py::arg("bindings"));
+  m.def(
+      "evaluate_to_struct_or_enum_or_annotation",
+      [](AstNodeHolder node, InterpBindings* bindings,
+         PyInterpCallbackData* py_callbacks) -> absl::StatusOr<AstNodeHolder> {
+        InterpCallbackData callbacks = ToCpp(*py_callbacks);
+        XLS_ASSIGN_OR_RETURN(TypeDefinition td,
+                             ToTypeDefinition(&node.deref()));
+        XLS_ASSIGN_OR_RETURN(
+            DerefVariant deref,
+            EvaluateToStructOrEnumOrAnnotation(td, bindings, &callbacks));
+        AstNode* deref_node = ToAstNode(deref);
+        return AstNodeHolder(deref_node,
+                             deref_node->owner()->shared_from_this());
+      });
 }
 
 }  // namespace xls::dslx

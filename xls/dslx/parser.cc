@@ -962,9 +962,9 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
       Token end_brace,
       PopTokenOrError(TokenKind::kCBrace, nullptr,
                       "Expected '}' at end of function body."));
-  return module_->Make<Function>(
-      module_.get(), Span(start_pos, end_brace.span().limit()), name_def,
-      parametric_bindings, params, return_type, body, is_public);
+  return module_->Make<Function>(Span(start_pos, end_brace.span().limit()),
+                                 name_def, parametric_bindings, params,
+                                 return_type, body, is_public);
 }
 
 absl::StatusOr<QuickCheck*> Parser::ParseQuickCheck(

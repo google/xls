@@ -21,6 +21,22 @@
 
 namespace xls::dslx {
 
+absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node) {
+  if (auto* n = dynamic_cast<TypeDef*>(node)) {
+    return TypeDefinition(n);
+  }
+  if (auto* n = dynamic_cast<StructDef*>(node)) {
+    return TypeDefinition(n);
+  }
+  if (auto* n = dynamic_cast<EnumDef*>(node)) {
+    return TypeDefinition(n);
+  }
+  if (auto* n = dynamic_cast<ModRef*>(node)) {
+    return TypeDefinition(n);
+  }
+  return absl::InvalidArgumentError("AST node is not a type definition.");
+}
+
 FreeVariables FreeVariables::DropBuiltinDefs() const {
   FreeVariables result;
   for (const auto& [identifier, name_refs] : values_) {
@@ -206,9 +222,9 @@ std::string ConstantDef::ToString() const {
                          value_->ToString());
 }
 
-ConstantArray::ConstantArray(Span span, std::vector<Expr*> members,
-                             bool has_ellipsis)
-    : Array(std::move(span), std::move(members), has_ellipsis) {
+ConstantArray::ConstantArray(Module* owner, Span span,
+                             std::vector<Expr*> members, bool has_ellipsis)
+    : Array(owner, std::move(span), std::move(members), has_ellipsis) {
   for (Expr* expr : members) {
     XLS_CHECK(IsConstant(expr))
         << "non-constant in constant array: " << expr->ToString();

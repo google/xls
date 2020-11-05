@@ -82,7 +82,6 @@ class Interpreter(object):
     self._module = module
     self._type_info = type_info
     self._wip = {}  # Work-in-progress constant evaluation annotations.
-    self._started_top_level_index = None
     self._f_import = f_import
     self._trace_all = trace_all
     self._ir_package = ir_package
@@ -328,45 +327,23 @@ class Interpreter(object):
       self, node: Union[ast.TypeDef, ast.ModRef,
                         ast.StructDef], bindings: Bindings
   ) -> Union[ast.StructDef, ast.EnumDef, ast.TypeAnnotation]:
-    """Returns the node dereferenced into a Struct or Enum or TypeAnnotation.
-
-    Will produce TypeAnnotation in the case we bottom out in a tuple, for
-    example.
-
-    Args:
-      node: Node to resolve to a struct/enum/annotation.
-      bindings: Current bindings for evaluating the node.
-    """
-    while isinstance(node, ast.TypeDef):
-      annotation = node.type_
-      if not isinstance(annotation, ast.TypeRefTypeAnnotation):
-        return annotation
-      node = annotation.type_ref.type_def
-
-    if isinstance(node, (ast.StructDef, ast.EnumDef)):
-      return node
-
-    assert isinstance(node, ast.ModRef)
-    imported_module = bindings.resolve_mod(node.mod.identifier)
-    td = imported_module.get_typedef(node.value)
-    # Recurse to dereference it if it's a typedef in the imported module.
-    td = self._evaluate_to_struct_or_enum_or_annotation(
-        td, self._make_top_level_bindings(imported_module))
-    assert isinstance(td, (ast.StructDef, ast.EnumDef, ast.TypeAnnotation)), td
-    return td
+    result = cpp_evaluate.evaluate_to_struct_or_enum_or_annotation(
+        node, bindings, self._get_callbacks())
+    assert isinstance(result, (ast.StructDef, ast.EnumDef, ast.TypeAnnotation))
+    return result
 
   def _evaluate_to_enum(self, node: Union[ast.TypeDef, ast.EnumDef],
                         bindings: Bindings) -> ast.EnumDef:
-    type_definition = ast_helpers.evaluate_to_struct_or_enum_or_annotation(
-        node, self._get_imported_module_via_bindings, bindings)
+    type_definition = self._evaluate_to_struct_or_enum_or_annotation(
+        node, bindings)
     assert isinstance(type_definition, ast.EnumDef), type_definition
     return type_definition
 
   def _evaluate_to_struct(self, node: Union[ast.ModRef, ast.StructDef],
                           bindings: Bindings) -> ast.StructDef:
     """Evaluates potential module-reference-to-struct to a struct."""
-    type_definition = ast_helpers.evaluate_to_struct_or_enum_or_annotation(
-        node, self._get_imported_module_via_bindings, bindings)
+    type_definition = self._evaluate_to_struct_or_enum_or_annotation(
+        node, bindings)
     assert isinstance(type_definition, ast.StructDef), type_definition
     return type_definition
 

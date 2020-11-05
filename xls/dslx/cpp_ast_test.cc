@@ -55,16 +55,18 @@ TEST(CppAst, GetNumberAsInt64) {
        "1111_1111_1111",
        -1},
   };
-  auto make_num = [](std::string text) {
+  Module m("test");
+  auto make_num = [&m](std::string text) {
     const Span fake_span;
-    return Number(fake_span, text, NumberKind::kOther, /*type=*/nullptr);
+    return m.Make<Number>(fake_span, text, NumberKind::kOther,
+                          /*type=*/nullptr);
   };
   for (const Example& example : kCases) {
-    EXPECT_THAT(make_num(example.text).GetAsInt64(),
+    EXPECT_THAT(make_num(example.text)->GetAsInt64(),
                 IsOkAndHolds(example.want));
   }
 
-  EXPECT_THAT(make_num("0b").GetAsInt64(),
+  EXPECT_THAT(make_num("0b")->GetAsInt64(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Require binary digits")));
 }

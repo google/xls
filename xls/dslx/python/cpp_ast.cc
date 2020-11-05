@@ -791,11 +791,11 @@ PYBIND11_MODULE(cpp_ast, m) {
                return_type_ptr = &return_type->deref();
              }
              auto* self = module.deref().Make<Function>(
-                 &module.deref(), std::move(span), &name_def.deref(),
+                 std::move(span), &name_def.deref(),
                  Unwrap<ParametricBinding*>(parametric_bindings),
                  Unwrap<Param*>(params), return_type_ptr, &body.deref(),
                  is_public);
-             XLS_CHECK_EQ(module.module().get(), self->containing_module());
+             XLS_CHECK_EQ(module.module().get(), self->owner());
              return FunctionHolder(self, module.module());
            }),
            py::arg("module"), py::arg("span"), py::arg("name_def"),
@@ -808,8 +808,7 @@ PYBIND11_MODULE(cpp_ast, m) {
            })
       .def("get_containing_module",
            [](FunctionHolder self) {
-             return ModuleHolder(self.deref().containing_module(),
-                                 self.module());
+             return ModuleHolder(self.deref().owner(), self.module());
            })
       .def("get_free_parametric_keys",
            [](FunctionHolder self) {

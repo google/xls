@@ -93,6 +93,21 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeType(
 absl::StatusOr<int64> ResolveDim(
     absl::variant<Expr*, int64, ConcreteTypeDim> dim, InterpBindings* bindings);
 
+using DerefVariant = absl::variant<TypeAnnotation*, EnumDef*, StructDef*>;
+
+// Returns the type_definition dereferenced into a Struct or Enum or
+// TypeAnnotation.
+//
+// Will produce TypeAnnotation in the case we bottom out in a tuple, for
+// example.
+//
+// Args:
+//   node: Node to resolve to a struct/enum/annotation.
+//   bindings: Current bindings for evaluating the node.
+absl::StatusOr<DerefVariant> EvaluateToStructOrEnumOrAnnotation(
+    TypeDefinition type_definition, InterpBindings* bindings,
+    InterpCallbackData* callbacks);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_CPP_EVALUATE_H_

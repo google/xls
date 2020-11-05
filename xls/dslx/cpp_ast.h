@@ -98,6 +98,7 @@ class FreeVariables {
 // Abstract base class for AST nodes.
 class AstNode {
  public:
+  explicit AstNode(Module* owner) : owner_(owner) {}
   virtual ~AstNode() = default;
 
   // Retrieves the name of the leafmost-derived class, suitable for debugging;
@@ -117,6 +118,11 @@ class AstNode {
   // Retrieves all the free variables (references to names that are defined
   // prior to start_pos) that are transitively in this AST subtree.
   FreeVariables GetFreeVariables(Pos start_pos);
+
+  Module* owner() const { return owner_; }
+
+ private:
+  Module* owner_;
 };
 
 // Helpers for converting variants of "AstNode subtype" pointers and their
@@ -146,7 +152,8 @@ inline std::vector<AstNode*> ToAstNodes(absl::Span<NodeT* const> source) {
 // Abstract base class for type annotations.
 class TypeAnnotation : public AstNode {
  public:
-  explicit TypeAnnotation(Span span) : span_(std::move(span)) {}
+  TypeAnnotation(Module* owner, Span span)
+      : AstNode(owner), span_(std::move(span)) {}
 
   const Span& span() const { return span_; }
 
@@ -169,8 +176,8 @@ absl::StatusOr<BuiltinType> BuiltinTypeFromString(absl::string_view s);
 // Represents a built-in type annotation; e.g. `u32`, `bits`, etc.
 class BuiltinTypeAnnotation : public TypeAnnotation {
  public:
-  BuiltinTypeAnnotation(Span span, BuiltinType builtin_type)
-      : TypeAnnotation(std::move(span)), builtin_type_(builtin_type) {}
+  BuiltinTypeAnnotation(Module* owner, Span span, BuiltinType builtin_type)
+      : TypeAnnotation(owner, std::move(span)), builtin_type_(builtin_type) {}
 
   absl::string_view GetNodeTypeName() const override {
     return "BuiltinTypeAnnotation";
@@ -193,8 +200,9 @@ class BuiltinTypeAnnotation : public TypeAnnotation {
 // Represents a tuple type annotation; e.g. `(u32, s42)`.
 class TupleTypeAnnotation : public TypeAnnotation {
  public:
-  TupleTypeAnnotation(Span span, std::vector<TypeAnnotation*> members)
-      : TypeAnnotation(std::move(span)), members_(std::move(members)) {}
+  TupleTypeAnnotation(Module* owner, Span span,
+                      std::vector<TypeAnnotation*> members)
+      : TypeAnnotation(owner, std::move(span)), members_(std::move(members)) {}
 
   absl::string_view GetNodeTypeName() const override {
     return "TupleTypeAnnotation";
@@ -220,9 +228,9 @@ class TupleTypeAnnotation : public TypeAnnotation {
 // Represents a type reference annotation.
 class TypeRefTypeAnnotation : public TypeAnnotation {
  public:
-  TypeRefTypeAnnotation(Span span, TypeRef* type_ref,
+  TypeRefTypeAnnotation(Module* owner, Span span, TypeRef* type_ref,
                         std::vector<Expr*> parametrics)
-      : TypeAnnotation(std::move(span)),
+      : TypeAnnotation(owner, std::move(span)),
         type_ref_(type_ref),
         parametrics_(std::move(parametrics)) {}
 
@@ -246,8 +254,9 @@ class TypeRefTypeAnnotation : public TypeAnnotation {
 // Represents an array type annotation; e.g. `u32[5]`.
 class ArrayTypeAnnotation : public TypeAnnotation {
  public:
-  ArrayTypeAnnotation(Span span, TypeAnnotation* element_type, Expr* dim)
-      : TypeAnnotation(std::move(span)),
+  ArrayTypeAnnotation(Module* owner, Span span, TypeAnnotation* element_type,
+                      Expr* dim)
+      : TypeAnnotation(owner, std::move(span)),
         element_type_(element_type),
         dim_(dim) {}
 
@@ -274,8 +283,8 @@ class ArrayTypeAnnotation : public TypeAnnotation {
 // definition points for them.
 class BuiltinNameDef : public AstNode {
  public:
-  explicit BuiltinNameDef(std::string identifier)
-      : identifier_(std::move(identifier)) {}
+  BuiltinNameDef(Module* owner, std::string identifier)
+      : AstNode(owner), identifier_(std::move(identifier)) {}
 
   absl::string_view GetNodeTypeName() const override {
     return "BuiltinNameDef";
@@ -295,7 +304,8 @@ class BuiltinNameDef : public AstNode {
 // Represents a wildcard pattern in a 'match' construct.
 class WildcardPattern : public AstNode {
  public:
-  WildcardPattern(Span span) : span_(std::move(span)) {}
+  WildcardPattern(Module* owner, Span span)
+      : AstNode(owner), span_(std::move(span)) {}
 
   absl::string_view GetNodeTypeName() const override {
     return "WildcardPattern";
@@ -315,8 +325,8 @@ class WildcardPattern : public AstNode {
 // Represents the definition of a name (identifier).
 class NameDef : public AstNode {
  public:
-  NameDef(Span span, std::string identifier)
-      : span_(span), identifier_(std::move(identifier)) {}
+  NameDef(Module* owner, Span span, std::string identifier)
+      : AstNode(owner), span_(span), identifier_(std::move(identifier)) {}
 
   absl::string_view GetNodeTypeName() const override { return "NameDef"; }
   const Span& span() const { return span_; }
@@ -339,7 +349,7 @@ class NameDef : public AstNode {
 // (i.e. can produce runtime values).
 class Expr : public AstNode {
  public:
-  explicit Expr(Span span) : span_(span) {}
+  Expr(Module* owner, Span span) : AstNode(owner), span_(span) {}
   virtual ~Expr() = default;
 
   const Span& span() const { return span_; }
@@ -352,8 +362,8 @@ class Expr : public AstNode {
 // Represents a reference to a name (identifier).
 class NameRef : public Expr {
  public:
-  NameRef(Span span, std::string identifier, AnyNameDef name_def)
-      : Expr(std::move(span)),
+  NameRef(Module* owner, Span span, std::string identifier, AnyNameDef name_def)
+      : Expr(owner, std::move(span)),
         name_def_(name_def),
         identifier_(std::move(identifier)) {}
 
@@ -396,9 +406,11 @@ class ConstRef : public NameRef {
 // something.
 class EnumRef : public Expr {
  public:
-  EnumRef(Span span, absl::variant<TypeDef*, EnumDef*> enum_def,
+  EnumRef(Module* owner, Span span, absl::variant<TypeDef*, EnumDef*> enum_def,
           std::string attr)
-      : Expr(std::move(span)), enum_def_(enum_def), attr_(std::move(attr)) {}
+      : Expr(owner, std::move(span)),
+        enum_def_(enum_def),
+        attr_(std::move(attr)) {}
 
   absl::string_view GetNodeTypeName() const override { return "EnumRef"; }
   std::string ToString() const override {
@@ -428,9 +440,9 @@ enum class NumberKind {
 // Represents a literal number value.
 class Number : public Expr {
  public:
-  explicit Number(Span span, std::string text, NumberKind kind,
+  explicit Number(Module* owner, Span span, std::string text, NumberKind kind,
                   TypeAnnotation* type)
-      : Expr(std::move(span)),
+      : Expr(owner, std::move(span)),
         text_(std::move(text)),
         kind_(kind),
         type_(type) {}
@@ -472,8 +484,10 @@ class Number : public Expr {
 // TODO(leary): 2020-09-15 Rename to TypeAlias, less of a loaded term.
 class TypeDef : public AstNode {
  public:
-  TypeDef(Span span, NameDef* name_def, TypeAnnotation* type, bool is_public)
-      : span_(std::move(span)),
+  TypeDef(Module* owner, Span span, NameDef* name_def, TypeAnnotation* type,
+          bool is_public)
+      : AstNode(owner),
+        span_(std::move(span)),
         name_def_(name_def),
         type_(type),
         is_public_(is_public) {}
@@ -504,8 +518,8 @@ class TypeDef : public AstNode {
 // Represents an array expression.
 class Array : public Expr {
  public:
-  Array(Span span, std::vector<Expr*> members, bool has_ellipsis)
-      : Expr(std::move(span)),
+  Array(Module* owner, Span span, std::vector<Expr*> members, bool has_ellipsis)
+      : Expr(owner, std::move(span)),
         members_(std::move(members)),
         has_ellipsis_(has_ellipsis) {}
 
@@ -547,12 +561,15 @@ class ConstantArray : public Array {
  public:
   // Adds checking for constant-expression-ness of the members beyond
   // Array::Array.
-  ConstantArray(Span span, std::vector<Expr*> members, bool has_ellipsis);
+  ConstantArray(Module* owner, Span span, std::vector<Expr*> members,
+                bool has_ellipsis);
 };
 
 // Several different AST nodes define types that can be referred to by a
 // TypeRef.
 using TypeDefinition = absl::variant<TypeDef*, StructDef*, EnumDef*, ModRef*>;
+
+absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node);
 
 // Represents a name that refers to a defined type.
 //
@@ -560,8 +577,9 @@ using TypeDefinition = absl::variant<TypeDef*, StructDef*, EnumDef*, ModRef*>;
 // AstNode.
 class TypeRef : public Expr {
  public:
-  TypeRef(Span span, std::string text, TypeDefinition type_definition)
-      : Expr(std::move(span)),
+  TypeRef(Module* owner, Span span, std::string text,
+          TypeDefinition type_definition)
+      : Expr(owner, std::move(span)),
         text_(std::move(text)),
         type_definition_(type_definition) {}
 
@@ -584,9 +602,10 @@ class TypeRef : public Expr {
 //  import std as my_std
 class Import : public AstNode {
  public:
-  Import(Span span, std::vector<std::string> subject, NameDef* name_def,
-         absl::optional<std::string> alias)
-      : span_(std::move(span)),
+  Import(Module* owner, Span span, std::vector<std::string> subject,
+         NameDef* name_def, absl::optional<std::string> alias)
+      : AstNode(owner),
+        span_(std::move(span)),
         subject_(std::move(subject)),
         name_def_(name_def),
         alias_(std::move(alias)) {
@@ -628,8 +647,8 @@ class Import : public AstNode {
 // Represents a module-value reference (via `::` i.e. `std::FOO`).
 class ModRef : public Expr {
  public:
-  ModRef(Span span, Import* mod, std::string attr)
-      : Expr(std::move(span)), mod_(mod), attr_(std::move(attr)) {}
+  ModRef(Module* owner, Span span, Import* mod, std::string attr)
+      : Expr(owner, std::move(span)), mod_(mod), attr_(std::move(attr)) {}
 
   absl::string_view GetNodeTypeName() const override { return "ModRef"; }
   std::string ToString() const override {
@@ -651,8 +670,9 @@ class ModRef : public Expr {
 // Represents a function parameter.
 class Param : public AstNode {
  public:
-  Param(NameDef* name_def, TypeAnnotation* type)
-      : name_def_(name_def),
+  Param(Module* owner, NameDef* name_def, TypeAnnotation* type)
+      : AstNode(owner),
+        name_def_(name_def),
         type_(type),
         span_(name_def_->span().start(), type_->span().limit()) {}
 
@@ -686,8 +706,8 @@ std::string UnopKindToString(UnopKind k);
 // Represents a unary operation expression; e.g. `!x`.
 class Unop : public Expr {
  public:
-  Unop(Span span, UnopKind kind, Expr* operand)
-      : Expr(std::move(span)), kind_(kind), operand_(operand) {}
+  Unop(Module* owner, Span span, UnopKind kind, Expr* operand)
+      : Expr(owner, std::move(span)), kind_(kind), operand_(operand) {}
 
   absl::string_view GetNodeTypeName() const override { return "Unop"; }
   std::string ToString() const override {
@@ -742,8 +762,8 @@ std::string BinopKindFormat(BinopKind kind);
 // Represents a binary operation expression; e.g. `x + y`.
 class Binop : public Expr {
  public:
-  Binop(Span span, BinopKind kind, Expr* lhs, Expr* rhs)
-      : Expr(span), kind_(kind), lhs_(lhs), rhs_(rhs) {}
+  Binop(Module* owner, Span span, BinopKind kind, Expr* lhs, Expr* rhs)
+      : Expr(owner, span), kind_(kind), lhs_(lhs), rhs_(rhs) {}
 
   absl::string_view GetNodeTypeName() const override { return "Binop"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -770,8 +790,9 @@ class Binop : public Expr {
 //  consequent if test else alternate
 class Ternary : public Expr {
  public:
-  Ternary(Span span, Expr* test, Expr* consequent, Expr* alternate)
-      : Expr(std::move(span)),
+  Ternary(Module* owner, Span span, Expr* test, Expr* consequent,
+          Expr* alternate)
+      : Expr(owner, std::move(span)),
         test_(test),
         consequent_(consequent),
         alternate_(alternate) {}
@@ -812,8 +833,9 @@ class Ternary : public Expr {
 //   `X+X`)
 class ParametricBinding : public AstNode {
  public:
-  ParametricBinding(NameDef* name_def, TypeAnnotation* type, Expr* expr)
-      : name_def_(name_def), type_(type), expr_(expr) {}
+  ParametricBinding(Module* owner, NameDef* name_def, TypeAnnotation* type,
+                    Expr* expr)
+      : AstNode(owner), name_def_(name_def), type_(type), expr_(expr) {}
 
   // TODO(leary): 2020-08-21 Fix this, the span is more than just the name def's
   // span, it must include the type/expr.
@@ -855,11 +877,11 @@ class ParametricBinding : public AstNode {
 // Represents a function definition.
 class Function : public AstNode {
  public:
-  Function(Module* containing_module, Span span, NameDef* name_def,
+  Function(Module* owner, Span span, NameDef* name_def,
            std::vector<ParametricBinding*> parametric_bindings,
            std::vector<Param*> params, TypeAnnotation* return_type, Expr* body,
            bool is_public)
-      : containing_module_(containing_module),
+      : AstNode(owner),
         span_(span),
         name_def_(XLS_DIE_IF_NULL(name_def)),
         params_(std::move(params)),
@@ -912,11 +934,7 @@ class Function : public AstNode {
     return results;
   }
 
-  // The module that contains this function AST node.
-  Module* containing_module() const { return containing_module_; }
-
  private:
-  Module* containing_module_;
   Span span_;
   NameDef* name_def_;
   std::vector<Param*> params_;
@@ -934,8 +952,12 @@ class Function : public AstNode {
 //   span: The span of the match arm (both matcher and expr).
 class MatchArm : public AstNode {
  public:
-  MatchArm(Span span, std::vector<NameDefTree*> patterns, Expr* expr)
-      : span_(std::move(span)), patterns_(std::move(patterns)), expr_(expr) {}
+  MatchArm(Module* owner, Span span, std::vector<NameDefTree*> patterns,
+           Expr* expr)
+      : AstNode(owner),
+        span_(std::move(span)),
+        patterns_(std::move(patterns)),
+        expr_(expr) {}
 
   absl::string_view GetNodeTypeName() const override { return "MatchArm"; }
   std::string ToString() const override;
@@ -955,8 +977,10 @@ class MatchArm : public AstNode {
 // Represents a match (pattern match) expression.
 class Match : public Expr {
  public:
-  Match(Span span, Expr* matched, std::vector<MatchArm*> arms)
-      : Expr(std::move(span)), matched_(matched), arms_(std::move(arms)) {}
+  Match(Module* owner, Span span, Expr* matched, std::vector<MatchArm*> arms)
+      : Expr(owner, std::move(span)),
+        matched_(matched),
+        arms_(std::move(arms)) {}
 
   absl::string_view GetNodeTypeName() const override { return "Match"; }
   std::string ToString() const override;
@@ -980,8 +1004,8 @@ class Match : public Expr {
 // Represents an attribute access expression; e.g. `a.x`.
 class Attr : public Expr {
  public:
-  Attr(Span span, Expr* lhs, NameDef* attr)
-      : Expr(std::move(span)), lhs_(lhs), attr_(attr) {}
+  Attr(Module* owner, Span span, Expr* lhs, NameDef* attr)
+      : Expr(owner, std::move(span)), lhs_(lhs), attr_(attr) {}
 
   absl::string_view GetNodeTypeName() const override { return "Attr"; }
   std::string ToString() const override {
@@ -1003,8 +1027,8 @@ class Attr : public Expr {
 // Represents an invocation expression; e.g. `f(a, b, c)`
 class Invocation : public Expr {
  public:
-  Invocation(Span span, Expr* callee, std::vector<Expr*> args)
-      : Expr(std::move(span)), callee_(callee), args_(std::move(args)) {}
+  Invocation(Module* owner, Span span, Expr* callee, std::vector<Expr*> args)
+      : Expr(owner, std::move(span)), callee_(callee), args_(std::move(args)) {}
 
   absl::string_view GetNodeTypeName() const override { return "Invocation"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -1042,8 +1066,8 @@ class Invocation : public Expr {
 // For example, we can have `x[-4:-2]`, where x is of bit width N.
 class Slice : public AstNode {
  public:
-  Slice(Span span, Number* start, Number* limit)
-      : span_(std::move(span)), start_(start), limit_(limit) {}
+  Slice(Module* owner, Span span, Number* start, Number* limit)
+      : AstNode(owner), span_(std::move(span)), start_(start), limit_(limit) {}
 
   absl::string_view GetNodeTypeName() const override { return "Slice"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -1096,9 +1120,10 @@ struct EnumMember {
 //  }
 class EnumDef : public AstNode {
  public:
-  EnumDef(Span span, NameDef* name_def, TypeAnnotation* type,
+  EnumDef(Module* owner, Span span, NameDef* name_def, TypeAnnotation* type,
           std::vector<EnumMember> values, bool is_public)
-      : span_(std::move(span)),
+      : AstNode(owner),
+        span_(std::move(span)),
         name_def_(name_def),
         type_(type),
         values_(std::move(values)),
@@ -1169,11 +1194,12 @@ class EnumDef : public AstNode {
 // Represents a struct definition.
 class StructDef : public AstNode {
  public:
-  StructDef(Span span, NameDef* name_def,
+  StructDef(Module* owner, Span span, NameDef* name_def,
             std::vector<ParametricBinding*> parametric_bindings,
             std::vector<std::pair<NameDef*, TypeAnnotation*>> members,
             bool is_public)
-      : span_(std::move(span)),
+      : AstNode(owner),
+        span_(std::move(span)),
         name_def_(name_def),
         parametric_bindings_(std::move(parametric_bindings)),
         members_(std::move(members)),
@@ -1236,9 +1262,9 @@ std::string StructRefToText(const StructRef& struct_ref);
 // TODO(leary): 2020-09-08 Break out a StructMember type in lieu of the pair.
 class StructInstance : public Expr {
  public:
-  StructInstance(Span span, StructRef struct_ref,
+  StructInstance(Module* owner, Span span, StructRef struct_ref,
                  std::vector<std::pair<std::string, Expr*>> members)
-      : Expr(std::move(span)),
+      : Expr(owner, std::move(span)),
         struct_ref_(struct_ref),
         members_(std::move(members)) {}
 
@@ -1293,10 +1319,10 @@ class StructInstance : public Expr {
 //    Point { y: new_y, ..orig_p }
 class SplatStructInstance : public Expr {
  public:
-  SplatStructInstance(Span span, StructRef struct_ref,
+  SplatStructInstance(Module* owner, Span span, StructRef struct_ref,
                       std::vector<std::pair<std::string, Expr*>> members,
                       Expr* splatted)
-      : Expr(std::move(span)),
+      : Expr(owner, std::move(span)),
         struct_ref_(std::move(struct_ref)),
         members_(std::move(members)),
         splatted_(splatted) {}
@@ -1340,8 +1366,8 @@ class SplatStructInstance : public Expr {
 // Represents a slice in the AST; e.g. `-4+:u2`
 class WidthSlice : public AstNode {
  public:
-  WidthSlice(Span span, Expr* start, TypeAnnotation* width)
-      : span_(std::move(span)), start_(start), width_(width) {}
+  WidthSlice(Module* owner, Span span, Expr* start, TypeAnnotation* width)
+      : AstNode(owner), span_(std::move(span)), start_(start), width_(width) {}
 
   absl::string_view GetNodeTypeName() const override { return "WidthSlice"; }
   std::string ToString() const override {
@@ -1370,8 +1396,8 @@ absl::StatusOr<IndexRhs> AstNodeToIndexRhs(AstNode* node);
 // Represents an index expression; e.g. `a[i]`
 class Index : public Expr {
  public:
-  Index(Span span, Expr* lhs, IndexRhs rhs)
-      : Expr(std::move(span)), lhs_(lhs), rhs_(rhs) {}
+  Index(Module* owner, Span span, Expr* lhs, IndexRhs rhs)
+      : Expr(owner, std::move(span)), lhs_(lhs), rhs_(rhs) {}
 
   absl::string_view GetNodeTypeName() const override { return "Index"; }
   std::string ToString() const override {
@@ -1396,9 +1422,11 @@ class Index : public Expr {
 // Represents a parsed 'process' specification in the DSL.
 class Proc : public AstNode {
  public:
-  Proc(Span span, NameDef* name_def, std::vector<Param*> proc_params,
-       std::vector<Param*> iter_params, Expr* iter_body, bool is_public)
-      : span_(std::move(span)),
+  Proc(Module* owner, Span span, NameDef* name_def,
+       std::vector<Param*> proc_params, std::vector<Param*> iter_params,
+       Expr* iter_body, bool is_public)
+      : AstNode(owner),
+        span_(std::move(span)),
         name_def_(name_def),
         proc_params_(std::move(proc_params)),
         iter_params_(std::move(iter_params)),
@@ -1437,7 +1465,8 @@ class Proc : public AstNode {
 // TODO(leary): 2020-08-21 Delete this in favor of test directives on functions.
 class Test : public AstNode {
  public:
-  Test(NameDef* name_def, Expr* body) : name_def_(name_def), body_(body) {}
+  Test(Module* owner, NameDef* name_def, Expr* body)
+      : AstNode(owner), name_def_(name_def), body_(body) {}
 
   absl::string_view GetNodeTypeName() const override { return "Test"; }
   std::string ToString() const override {
@@ -1470,8 +1499,8 @@ class Test : public AstNode {
 // We keep Test for backwards compatibility with old-style test constructs.
 class TestFunction : public Test {
  public:
-  explicit TestFunction(Function* fn)
-      : Test(fn->name_def(), fn->body()) {}
+  explicit TestFunction(Module* owner, Function* fn)
+      : Test(owner, fn->name_def(), fn->body()) {}
 
   absl::string_view GetNodeTypeName() const override { return "TestFunction"; }
 };
@@ -1481,9 +1510,10 @@ class QuickCheck : public AstNode {
  public:
   static constexpr int64 kDefaultTestCount = 1000;
 
-  QuickCheck(Span span, Function* f,
+  QuickCheck(Module* owner, Span span, Function* f,
              absl::optional<int64> test_count = absl::nullopt)
-      : span_(span),
+      : AstNode(owner),
+        span_(span),
         f_(f),
         test_count_(test_count ? *test_count : kDefaultTestCount) {}
 
@@ -1510,8 +1540,8 @@ class QuickCheck : public AstNode {
 // Represents an XLS tuple expression.
 class XlsTuple : public Expr {
  public:
-  XlsTuple(Span span, std::vector<Expr*> members)
-      : Expr(std::move(span)), members_(members) {}
+  XlsTuple(Module* owner, Span span, std::vector<Expr*> members)
+      : Expr(owner, std::move(span)), members_(members) {}
 
   absl::string_view GetNodeTypeName() const override { return "XlsTuple"; }
   absl::Span<Expr* const> members() const { return members_; }
@@ -1529,9 +1559,9 @@ class XlsTuple : public Expr {
 // Represents a for-loop expression.
 class For : public Expr {
  public:
-  For(Span span, NameDefTree* names, TypeAnnotation* type, Expr* iterable,
-      Expr* body, Expr* init)
-      : Expr(std::move(span)),
+  For(Module* owner, Span span, NameDefTree* names, TypeAnnotation* type,
+      Expr* iterable, Expr* body, Expr* init)
+      : Expr(owner, std::move(span)),
         names_(names),
         type_(type),
         iterable_(iterable),
@@ -1560,7 +1590,7 @@ class For : public Expr {
 // Represents a while-loop expression.
 class While : public Expr {
  public:
-  While(Span span) : Expr(std::move(span)) {}
+  While(Module* owner, Span span) : Expr(owner, std::move(span)) {}
 
   absl::string_view GetNodeTypeName() const override { return "While"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -1594,8 +1624,8 @@ class While : public Expr {
 // Casts the result of the foo() invocation to a u32 value.
 class Cast : public Expr {
  public:
-  Cast(Span span, Expr* expr, TypeAnnotation* type)
-      : Expr(std::move(span)), expr_(expr), type_(type) {}
+  Cast(Module* owner, Span span, Expr* expr, TypeAnnotation* type)
+      : Expr(owner, std::move(span)), expr_(expr), type_(type) {}
 
   absl::string_view GetNodeTypeName() const override { return "Cast"; }
   std::string ToString() const override {
@@ -1635,7 +1665,8 @@ class Next : public Expr {
 // `While`.
 class Carry : public Expr {
  public:
-  Carry(Span span, While* loop) : Expr(std::move(span)), loop_(loop) {}
+  Carry(Module* owner, Span span, While* loop)
+      : Expr(owner, std::move(span)), loop_(loop) {}
 
   absl::string_view GetNodeTypeName() const override { return "Carry"; }
   std::string ToString() const override { return "carry"; }
@@ -1654,8 +1685,11 @@ class Carry : public Expr {
 // Represents a constant definition.
 class ConstantDef : public AstNode {
  public:
-  ConstantDef(Span span, NameDef* name_def, Expr* value)
-      : span_(std::move(span)), name_def_(name_def), value_(value) {}
+  ConstantDef(Module* owner, Span span, NameDef* name_def, Expr* value)
+      : AstNode(owner),
+        span_(std::move(span)),
+        name_def_(name_def),
+        value_(value) {}
 
   absl::string_view GetNodeTypeName() const override { return "ConstantDef"; }
   std::string ToString() const override;
@@ -1708,8 +1742,8 @@ class NameDefTree : public AstNode {
   using Leaf = absl::variant<NameDef*, NameRef*, EnumRef*, ModRef*,
                              WildcardPattern*, Number*>;
 
-  NameDefTree(Span span, absl::variant<Nodes, Leaf> tree)
-      : span_(std::move(span)), tree_(tree) {}
+  NameDefTree(Module* owner, Span span, absl::variant<Nodes, Leaf> tree)
+      : AstNode(owner), span_(std::move(span)), tree_(tree) {}
 
   absl::string_view GetNodeTypeName() const override { return "NameDefTree"; }
   std::string ToString() const override;
@@ -1786,9 +1820,9 @@ class NameDefTree : public AstNode {
 // Represents a let-binding expression.
 class Let : public Expr {
  public:
-  Let(Span span, NameDefTree* name_def_tree, TypeAnnotation* type, Expr* rhs,
-      Expr* body, ConstantDef* const_def)
-      : Expr(std::move(span)),
+  Let(Module* owner, Span span, NameDefTree* name_def_tree,
+      TypeAnnotation* type, Expr* rhs, Expr* body, ConstantDef* const_def)
+      : Expr(owner, std::move(span)),
         name_def_tree_(name_def_tree),
         type_(type),
         rhs_(rhs),
@@ -1857,7 +1891,7 @@ absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node);
 //     level (e.g. metadata, docstrings).
 class Module : public AstNode, public std::enable_shared_from_this<Module> {
  public:
-  explicit Module(std::string name) : name_(std::move(name)) {}
+  explicit Module(std::string name) : AstNode(this), name_(std::move(name)) {}
 
   absl::string_view GetNodeTypeName() const override { return "Module"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
@@ -1871,7 +1905,8 @@ class Module : public AstNode, public std::enable_shared_from_this<Module> {
 
   template <typename T, typename... Args>
   T* Make(Args&&... args) {
-    std::unique_ptr<T> node = absl::make_unique<T>(std::forward<Args>(args)...);
+    std::unique_ptr<T> node =
+        absl::make_unique<T>(this, std::forward<Args>(args)...);
     T* ptr = node.get();
     nodes_.push_back(std::move(node));
     return ptr;

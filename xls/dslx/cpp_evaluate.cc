@@ -177,18 +177,7 @@ absl::StatusOr<int64> ResolveDim(
   return absl::UnimplementedError("Resolve dim");
 }
 
-using DerefVariant = absl::variant<TypeAnnotation*, EnumDef*, StructDef*>;
-
-// Returns the type_definition dereferenced into a Struct or Enum or
-// TypeAnnotation.
-//
-// Will produce TypeAnnotation in the case we bottom out in a tuple, for
-// example.
-//
-// Args:
-//   node: Node to resolve to a struct/enum/annotation.
-//   bindings: Current bindings for evaluating the node.
-static absl::StatusOr<DerefVariant> EvaluateToStructOrEnumOrAnnotation(
+absl::StatusOr<DerefVariant> EvaluateToStructOrEnumOrAnnotation(
     TypeDefinition type_definition, InterpBindings* bindings,
     InterpCallbackData* callbacks) {
   while (absl::holds_alternative<TypeDef*>(type_definition)) {
