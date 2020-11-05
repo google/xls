@@ -770,6 +770,7 @@ cc_library(
     hdrs = ["cpp_evaluate.h"],
     deps = [
         ":cpp_type_info",
+        ":import_routines",
         ":interp_bindings",
         ":interp_value",
         "//xls/common/status:ret_check",

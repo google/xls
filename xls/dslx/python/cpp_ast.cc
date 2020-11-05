@@ -454,11 +454,12 @@ PYBIND11_MODULE(cpp_ast, m) {
       .def_property_readonly(
           "identifier",
           [](ImportHolder self) { return self.deref().identifier(); })
+      // TODO(leary): 2020-11-02 Rename this attribute to "subject".
       .def_property_readonly("name", [](ImportHolder self) {
-        const std::vector<std::string>& name = self.deref().name();
-        py::tuple t(name.size());
-        for (int64 i = 0; i < name.size(); ++i) {
-          t[i] = name[i];
+        const std::vector<std::string>& subject = self.deref().subject();
+        py::tuple t(subject.size());
+        for (int64 i = 0; i < subject.size(); ++i) {
+          t[i] = subject[i];
         }
         return t;
       });
@@ -794,6 +795,7 @@ PYBIND11_MODULE(cpp_ast, m) {
                  Unwrap<ParametricBinding*>(parametric_bindings),
                  Unwrap<Param*>(params), return_type_ptr, &body.deref(),
                  is_public);
+             XLS_CHECK_EQ(module.module().get(), self->containing_module());
              return FunctionHolder(self, module.module());
            }),
            py::arg("module"), py::arg("span"), py::arg("name_def"),
@@ -903,6 +905,9 @@ PYBIND11_MODULE(cpp_ast, m) {
         auto* self = module.deref().Make<NameDef>(span, identifier);
         return NameDefHolder(self, module.module());
       }))
+      .def(
+          "__repr__",
+          [](const NameDefHolder& self) { return self.deref().ToReprString(); })
       .def_property_readonly(
           "identifier",
           [](NameDefHolder self) { return self.deref().identifier(); })
@@ -1445,6 +1450,10 @@ PYBIND11_MODULE(cpp_ast, m) {
             std::move(span), &name_def.deref(), &expr.deref());
         return ConstantDefHolder(self, module.module());
       }))
+      .def("__repr__",
+           [](const ConstantDefHolder& self) {
+             return self.deref().ToReprString();
+           })
       .def_property_readonly("value",
                              [](ConstantDefHolder self) {
                                return ExprHolder(self.deref().value(),

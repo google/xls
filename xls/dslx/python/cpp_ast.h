@@ -50,7 +50,6 @@ class AstNodeHolder : public PointerOwnedByModule<AstNode> {
   X(Function)                           \
   X(Import)                             \
   X(MatchArm)                           \
-  X(Module)                             \
   X(NameDef)                            \
   X(NameDefTree)                        \
   X(Param)                              \
@@ -64,6 +63,14 @@ class AstNodeHolder : public PointerOwnedByModule<AstNode> {
   X(TypeDef)                            \
   X(WidthSlice)                         \
   X(WildcardPattern)
+
+struct ModuleHolder : public AstNodeHolder {
+  ModuleHolder(Module* pointer, const std::shared_ptr<Module>& owner)
+      : AstNodeHolder(pointer, owner) {
+    XLS_CHECK_EQ(pointer, owner.get());
+  }
+  Module& deref() const { return static_cast<Module&>(AstNodeHolder::deref()); }
+};
 
 #define DEFINE_AST_NODE_HOLDER(__subtype)                     \
   struct __subtype##Holder : public AstNodeHolder {           \

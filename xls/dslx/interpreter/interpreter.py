@@ -84,7 +84,7 @@ class Interpreter(object):
                ir_package: Optional[ir_package_mod.Package] = None):
     self._module = module
     self._type_info = type_info
-    self._top_level_members = {}
+    self._wip = {}  # Work-in-progress constant evaluation annotations.
     self._started_top_level_index = None
     self._f_import = f_import
     self._trace_all = trace_all
@@ -252,7 +252,8 @@ class Interpreter(object):
       self, import_: ast.Import,
       bindings: Bindings) -> Tuple[ast.Module, Bindings]:
     """Uses bindings to retrieve the corresponding module of a ModRef."""
-    imported_module = bindings.resolve_mod(import_.identifier, import_.module)
+    imported_module = bindings.resolve_mod(import_.identifier)
+    logging.vlog(3, 'Resolved import %s to %r', import_, imported_module)
     return imported_module, self._make_top_level_bindings(imported_module)
 
   def _deref_typeref(
@@ -682,7 +683,9 @@ class Interpreter(object):
       self, expr: ast.ModRef, bindings: Bindings,
       _: Optional[ConcreteType]) -> Value:
     """Evaluates a 'ModRef' AST node to a value."""
-    mod = bindings.resolve_mod(expr.mod.identifier, expr.module)
+    logging.vlog(3, 'Evaluating ModRef %s @ %s; bindings: %s', expr, expr.span,
+                 bindings.keys())
+    mod = bindings.resolve_mod(expr.mod.identifier)
     f = mod.get_function(expr.value)
     assert f.get_containing_module() == mod, (f, f.get_containing_module(), mod)
     return Value.make_function(mod, f)
@@ -799,11 +802,13 @@ class Interpreter(object):
         an error to stderr.
     """
     clsname = expr.__class__.__name__
+    logging.vlog(3, 'Evaluating %s: %s', clsname, expr)
     handler = getattr(cpp_evaluate, f'evaluate_{clsname}', None)
     if handler is None:
       handler = getattr(self, '_evaluate_{}'.format(clsname))
     try:
       result = handler(expr, bindings, type_context)
+      logging.vlog(3, 'Evaluated %s: %s => %s', clsname, expr, result)
       if self._trace_all and result is not None:
         self._optional_trace(expr, result)
       assert isinstance(result, Value), (result, handler)
@@ -1002,6 +1007,9 @@ class Interpreter(object):
 
     m = fn.get_containing_module()
     bindings = self._make_top_level_bindings(m)
+    logging.vlog(3, 'Module %r was containing function %r; bindings: %s', m, fn,
+                 bindings.keys())
+    assert '__top_level_bindings_' + m.name in bindings.keys()
 
     # Bind all args to the parameter identifiers.
     bound_dims = {} if not symbolic_bindings else dict(
@@ -1102,50 +1110,40 @@ class Interpreter(object):
       Bindings containing builtins and function identifiers at the top level of
       the module.
     """
-    b = Bindings(None)
-    for name in ('add_with_carry and_reduce assert_eq assert_lt bit_slice clz '
-                 'ctz enumerate fail! map one_hot one_hot_sel or_reduce range '
-                 'rev select sge sgt signex sle slice slt trace update '
-                 'xor_reduce').split():
-      b.add_fn(name, Value.make_function(Builtin.get(name)))
 
-    for function in m.get_functions():
-      assert function.get_containing_module() == m, (
-          function, function.get_containing_module(), m)
-      b.add_fn(function.name.identifier, Value.make_function(m, function))
-    for typedef in m.get_typedefs():
-      if isinstance(typedef, ast.TypeDef):
-        b.add_typedef(typedef.identifier, typedef)
-      elif isinstance(typedef, ast.StructDef):
-        b.add_struct(typedef.identifier, typedef)
-      else:
-        assert isinstance(typedef, ast.EnumDef), type(typedef)
-        b.add_enum(typedef.identifier, typedef)
+    def is_wip(m: ast.Module, c: ast.Constant) -> Optional[Value]:
+      """Returns whether the constant is in the process of being computed."""
+      status = self._wip.get((m, c))
+      logging.vlog(3, 'Constant eval status %r %r: %r', m, c, status)
+      return status is _WipSentinel
 
-    self._top_level_members.setdefault(m, {})
+    def note_wip(m: ast.Module, c: ast.Constant,
+                 v: Optional[Value]) -> Optional[Value]:
+      assert isinstance(m, ast.Module), repr(m)
+      assert isinstance(c, ast.Constant), repr(c)
+      assert v is None or isinstance(v, Value), repr(v)
 
-    for member in m.top:
-      if isinstance(member, ast.Constant):
-        constant = member
-        result = self._top_level_members[m].get(constant)
-        # Note: to evaluate a constant value we call _evaluate, but that call to
-        # _evaluate may re-enter to ask about the top level bindings. As a
-        # result we drop a _WipSentinel to note that we don't need to consider
-        # any further top level bindings on any re-entrant call.
-        if result is None:
-          self._top_level_members[m][constant] = _WipSentinel
-          result = self._evaluate(constant.value, b)
-        elif result is _WipSentinel:
-          break
-        b.add_value(constant.name.identifier, result)
-        self._top_level_members[m][constant] = result
-      elif isinstance(member, ast.EnumDef):
-        b.add_enum(member.identifier, member)
-      elif isinstance(member, ast.Import):
-        imported_module = self._do_import(member.name, member.span)
-        b.add_mod(member.identifier, imported_module)
+      if v is None:  # Starting evaluation, attempting to mark as WIP.
+        current = self._wip.get((m, c))
+        if current is not None and current is not _WipSentinel:
+          assert isinstance(current, Value), repr(current)
+          return current  # Already computed.
+        logging.vlog(3, 'Noting WIP constant eval: %r %r', m, c)
+        self._wip[(m, c)] = _WipSentinel
+        return None
 
-    return b
+      logging.vlog(3, 'Noting complete constant eval: %r %r => %r', m, c, v)
+      self._wip[(m, c)] = v
+      return v
+
+    # Hack to avoid circular dependency on the importer definition.
+    typecheck = getattr(self._f_import, '_typecheck', None)
+    cache = getattr(self._f_import, '_cache', None)
+
+    result = cpp_evaluate.make_top_level_bindings(m, typecheck, self._evaluate,
+                                                  is_wip, note_wip, cache)
+    assert '__top_level_bindings_' + m.name in result.keys(), (m, result.keys())
+    return result
 
   def run_quickcheck(self, quickcheck: ast.QuickCheck, seed: int) -> None:
     """Runs a quickcheck AST node (via the LLVM JIT)."""

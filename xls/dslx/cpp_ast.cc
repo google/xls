@@ -213,6 +213,41 @@ ConstantArray::ConstantArray(Span span, std::vector<Expr*> members,
   }
 }
 
+absl::flat_hash_map<std::string, TypeDefinition>
+Module::GetTypeDefinitionByName() const {
+  absl::flat_hash_map<std::string, TypeDefinition> result;
+  for (auto& member : top_) {
+    if (absl::holds_alternative<TypeDef*>(member)) {
+      TypeDef* td = absl::get<TypeDef*>(member);
+      result[td->identifier()] = td;
+    } else if (absl::holds_alternative<EnumDef*>(member)) {
+      EnumDef* enum_ = absl::get<EnumDef*>(member);
+      result[enum_->identifier()] = enum_;
+    } else if (absl::holds_alternative<StructDef*>(member)) {
+      StructDef* struct_ = absl::get<StructDef*>(member);
+      result[struct_->identifier()] = struct_;
+    }
+  }
+  return result;
+}
+
+std::vector<TypeDefinition> Module::GetTypeDefinitions() const {
+  std::vector<TypeDefinition> results;
+  for (auto& member : top_) {
+    if (absl::holds_alternative<TypeDef*>(member)) {
+      TypeDef* td = absl::get<TypeDef*>(member);
+      results.push_back(td);
+    } else if (absl::holds_alternative<EnumDef*>(member)) {
+      EnumDef* enum_def = absl::get<EnumDef*>(member);
+      results.push_back(enum_def);
+    } else if (absl::holds_alternative<StructDef*>(member)) {
+      StructDef* struct_def = absl::get<StructDef*>(member);
+      results.push_back(struct_def);
+    }
+  }
+  return results;
+}
+
 std::vector<AstNode*> Module::GetChildren(bool want_types) const {
   std::vector<AstNode*> results;
   for (ModuleMember member : top_) {

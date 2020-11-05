@@ -24,7 +24,7 @@ from typing import Text
 import unittest.mock as mock
 from pyfakefs import fake_filesystem_unittest as ffu
 
-from absl.testing import absltest
+from xls.common import test_base
 from xls.dslx.interpreter import interpreter
 from xls.dslx.interpreter import parse_and_interpret
 from xls.dslx.python.builtins import FailureError
@@ -32,7 +32,7 @@ from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.xls_type_error import XlsTypeError
 
 
-class InterpreterTest(absltest.TestCase):
+class InterpreterTest(test_base.TestCase):
 
   def _parse_and_test(self,
                       program: Text,
@@ -544,4 +544,4 @@ class InterpreterTest(absltest.TestCase):
 
 
 if __name__ == '__main__':
-  absltest.main()
+  test_base.main()

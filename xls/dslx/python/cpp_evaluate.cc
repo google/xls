@@ -21,6 +21,7 @@
 #include "pybind11/stl.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
+#include "xls/dslx/python/callback_converters.h"
 #include "xls/dslx/python/cpp_ast.h"
 
 namespace py = pybind11;
@@ -55,6 +56,19 @@ PYBIND11_MODULE(cpp_evaluate, m) {
     TryThrowKeyError(statusor.status());
     return statusor;
   });
+  m.def("make_top_level_bindings",
+        [](ModuleHolder module, absl::optional<PyTypecheckFn> py_typecheck,
+           const PyEvaluateFn& eval, const PyIsWipFn& is_wip,
+           const PyNoteWipFn& note_wip, absl::optional<ImportCache*> py_cache) {
+          TypecheckFn typecheck;
+          if (py_typecheck.has_value()) {
+            typecheck = ToCppTypecheck(*py_typecheck);
+          }
+          ImportCache* cache = py_cache.has_value() ? *py_cache : nullptr;
+          return MakeTopLevelBindings(module.module(), typecheck,
+                                      ToCppEval(eval), ToCppIsWip(is_wip),
+                                      ToCppNoteWip(note_wip), cache);
+        });
 }
 
 }  // namespace xls::dslx

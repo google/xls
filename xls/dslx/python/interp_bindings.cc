@@ -64,7 +64,7 @@ PYBIND11_MODULE(interp_bindings, m) {
       .def(
           "add_mod",
           [](InterpBindings& self, std::string identifier, ModuleHolder value) {
-            self.AddMod(std::move(identifier), &value.deref());
+            self.AddModule(std::move(identifier), &value.deref());
           })
       .def("add_typedef",
            [](InterpBindings& self, std::string identifier,
@@ -74,12 +74,12 @@ PYBIND11_MODULE(interp_bindings, m) {
       .def("add_enum",
            [](InterpBindings& self, std::string identifier,
               EnumDefHolder value) {
-             self.AddEnum(std::move(identifier), &value.deref());
+             self.AddEnumDef(std::move(identifier), &value.deref());
            })
       .def("add_struct",
            [](InterpBindings& self, std::string identifier,
               StructDefHolder value) {
-             self.AddStruct(std::move(identifier), &value.deref());
+             self.AddStructDef(std::move(identifier), &value.deref());
            })
       .def("add_fn", &InterpBindings::AddFn)
       .def("resolve_value_from_identifier",
@@ -108,12 +108,12 @@ PYBIND11_MODULE(interp_bindings, m) {
              return AstNodeHolder(ToAstNode(v), m.module());
            })
       .def("resolve_mod",
-           [](const InterpBindings& self, absl::string_view identifier,
-              ModuleHolder m) -> absl::StatusOr<ModuleHolder> {
+           [](const InterpBindings& self,
+              absl::string_view identifier) -> absl::StatusOr<ModuleHolder> {
              absl::StatusOr<Module*> v_or = self.ResolveModule(identifier);
              TryThrowKeyError(v_or.status());
              XLS_ASSIGN_OR_RETURN(Module * v, v_or);
-             return ModuleHolder(v, m.module());
+             return ModuleHolder(v, v->shared_from_this());
            })
       .def("clone_with",
            [](std::shared_ptr<InterpBindings>& self,

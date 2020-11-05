@@ -325,6 +325,9 @@ class NameDef : public AstNode {
     return {};
   }
   std::string ToString() const override { return identifier_; }
+  std::string ToReprString() const {
+    return absl::StrFormat("NameDef(identifier=\"%s\")", identifier_);
+  }
 
  private:
   Span span_;
@@ -578,31 +581,32 @@ class TypeRef : public Expr {
 //  import std as my_std
 class Import : public AstNode {
  public:
-  Import(Span span, std::vector<std::string> name, NameDef* name_def,
+  Import(Span span, std::vector<std::string> subject, NameDef* name_def,
          absl::optional<std::string> alias)
       : span_(std::move(span)),
-        name_(std::move(name)),
+        subject_(std::move(subject)),
         name_def_(name_def),
         alias_(std::move(alias)) {
-    XLS_CHECK(!name_.empty());
+    XLS_CHECK(!subject_.empty());
+    XLS_CHECK(name_def != nullptr);
   }
 
   absl::string_view GetNodeTypeName() const override { return "Import"; }
   const std::string& identifier() const { return name_def_->identifier(); }
 
   std::string ToString() const override {
-    if (alias_) {
-      return absl::StrFormat("import %s as %s", absl::StrJoin(name_, "."),
+    if (alias_.has_value()) {
+      return absl::StrFormat("import %s as %s", absl::StrJoin(subject_, "."),
                              *alias_);
     }
-    return absl::StrFormat("import %s", absl::StrJoin(name_, "."));
+    return absl::StrFormat("import %s", absl::StrJoin(subject_, "."));
   }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {name_def_};
   }
 
-  const std::vector<std::string>& name() const { return name_; }
+  const std::vector<std::string>& subject() const { return subject_; }
   NameDef* name_def() const { return name_def_; }
   const Span& span() const { return span_; }
 
@@ -611,7 +615,7 @@ class Import : public AstNode {
   Span span_;
   // Name of the module being imported ("original" name before aliasing); e.g.
   // "std". Only present if the import is aliased.
-  std::vector<std::string> name_;
+  std::vector<std::string> subject_;
   // The name definition we bind the import to.
   NameDef* name_def_;
   // The identifier text we bind the import to.
@@ -1650,6 +1654,9 @@ class ConstantDef : public AstNode {
 
   absl::string_view GetNodeTypeName() const override { return "ConstantDef"; }
   std::string ToString() const override;
+  std::string ToReprString() const {
+    return absl::StrFormat("ConstantDef(%s)", name_def_->ToReprString());
+  }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {name_def_, value_};
@@ -1843,7 +1850,7 @@ absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node);
 //   sequence
 //     instead of a mapping in case there are unnamed constructs at the module
 //     level (e.g. metadata, docstrings).
-class Module : public AstNode {
+class Module : public AstNode, public std::enable_shared_from_this<Module> {
  public:
   explicit Module(std::string name) : name_(std::move(name)) {}
 
@@ -1896,22 +1903,10 @@ class Module : public AstNode {
   // Obtains all the type definition nodes in the module:
   //    TypeDef, Struct, Enum
   absl::flat_hash_map<std::string, TypeDefinition> GetTypeDefinitionByName()
-      const {
-    absl::flat_hash_map<std::string, TypeDefinition> result;
-    for (auto& member : top_) {
-      if (absl::holds_alternative<TypeDef*>(member)) {
-        TypeDef* td = absl::get<TypeDef*>(member);
-        result[td->identifier()] = td;
-      } else if (absl::holds_alternative<EnumDef*>(member)) {
-        EnumDef* enum_ = absl::get<EnumDef*>(member);
-        result[enum_->identifier()] = enum_;
-      } else if (absl::holds_alternative<StructDef*>(member)) {
-        StructDef* struct_ = absl::get<StructDef*>(member);
-        result[struct_->identifier()] = struct_;
-      }
-    }
-    return result;
-  }
+      const;
+
+  // Obtains all the type definition nodes in the module in module-member order.
+  std::vector<TypeDefinition> GetTypeDefinitions() const;
 
   absl::flat_hash_map<std::string, ConstantDef*> GetConstantByName() const {
     return GetTopWithTByName<ConstantDef>();

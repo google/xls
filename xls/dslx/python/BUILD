@@ -223,6 +223,8 @@ xls_pybind_extension(
 xls_pybind_extension(
     name = "cpp_evaluate",
     srcs = [
+        "callback_converters.cc",
+        "callback_converters.h",
         "cpp_ast.h",
         "cpp_evaluate.cc",
     ],
@@ -245,6 +247,8 @@ xls_pybind_extension(
 xls_pybind_extension(
     name = "import_routines",
     srcs = [
+        "callback_converters.cc",
+        "callback_converters.h",
         "cpp_ast.h",
         "import_routines.cc",
     ],

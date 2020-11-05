@@ -75,16 +75,16 @@ class InterpBindings {
     XLS_CHECK(value.IsFunction());
     map_.insert_or_assign(std::move(identifier), Entry(std::move(value)));
   }
-  void AddMod(std::string identifier, Module* value) {
+  void AddModule(std::string identifier, Module* value) {
     map_.insert_or_assign(std::move(identifier), Entry(value));
   }
   void AddTypeDef(std::string identifier, TypeDef* value) {
     map_.insert_or_assign(std::move(identifier), Entry(value));
   }
-  void AddEnum(std::string identifier, EnumDef* value) {
+  void AddEnumDef(std::string identifier, EnumDef* value) {
     map_.insert_or_assign(std::move(identifier), Entry(value));
   }
-  void AddStruct(std::string identifier, StructDef* value) {
+  void AddStructDef(std::string identifier, StructDef* value) {
     map_.insert_or_assign(std::move(identifier), Entry(value));
   }
 

@@ -28,6 +28,8 @@ absl::StatusOr<const ModuleInfo*> DoImport(const TypecheckFn& ftypecheck,
     return cache->Get(subject);
   }
 
+  XLS_VLOG(3) << "DoImport (uncached) subject: " << subject.ToString();
+
   const std::vector<std::string>& pieces = subject.pieces();
   std::filesystem::path path;
   std::filesystem::path parent_path;

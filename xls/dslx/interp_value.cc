@@ -104,6 +104,15 @@ std::string InterpValue::ToString(bool humanize) const {
     case InterpValueTag::kEnum:
       return absl::StrFormat("%s:%s", type_->identifier(),
                              GetBitsOrDie().ToString());
+    case InterpValueTag::kFunction:
+      if (absl::holds_alternative<Builtin>(GetFunctionOrDie())) {
+        return absl::StrCat(
+            "builtin:",
+            BuiltinToString(absl::get<Builtin>(GetFunctionOrDie())));
+      }
+      return absl::StrCat(
+          "function:",
+          absl::get<UserFnData>(GetFunctionOrDie()).function->identifier());
     default:
       XLS_LOG(FATAL) << "Unhandled tag: " << tag_;
   }

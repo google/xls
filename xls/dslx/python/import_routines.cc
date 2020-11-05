@@ -21,15 +21,13 @@
 #include "pybind11/stl.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
+#include "xls/dslx/python/callback_converters.h"
 #include "xls/dslx/python/cpp_ast.h"
 #include "xls/dslx/type_info.h"
 
 namespace py = pybind11;
 
 namespace xls::dslx {
-
-using PyTypecheckFn =
-    std::function<std::shared_ptr<TypeInfo>(ModuleHolder module)>;
 
 PYBIND11_MODULE(import_routines, m) {
   ImportStatusModule();
@@ -59,31 +57,15 @@ PYBIND11_MODULE(import_routines, m) {
 
   m.def(
       "do_import",
-      [](PyTypecheckFn py_ftypecheck, const ImportTokens& subject,
+      [](PyTypecheckFn py_typecheck, const ImportTokens& subject,
          ImportCache* cache) -> absl::StatusOr<ModuleInfo> {
-        // The typecheck callback we get from Python uses the "ModuleHolder"
-        // type -- make a conversion lambda that turns a std::shared_ptr<Module>
-        // into its "Holder" form so we can invoke the Python-provided
-        // typechecking callback.
-        auto ftypecheck = [&](std::shared_ptr<Module> module)
-            -> absl::StatusOr<std::shared_ptr<TypeInfo>> {
-          ModuleHolder holder(module.get(), module);
-          try {
-            return py_ftypecheck(holder);
-          } catch (std::exception& e) {
-            // Note: normally we would throw a Python positional error, but
-            // since this is a somewhat rare condition and everything is being
-            // ported to C++ we don't do the super-nice thing and instead throw
-            // a status error if you have a typecheck-failure-under-import.
-            return absl::InternalError(e.what());
-          }
-        };
         // With the appropriately typed callback we can now call DoImport().
-        XLS_ASSIGN_OR_RETURN(const ModuleInfo* info,
-                             DoImport(ftypecheck, subject, cache));
+        XLS_ASSIGN_OR_RETURN(
+            const ModuleInfo* info,
+            DoImport(ToCppTypecheck(py_typecheck), subject, cache));
         return *info;
       },
-      py::arg("ftypecheck"), py::arg("subject"), py::arg("cache"));
+      py::arg("typecheck"), py::arg("subject"), py::arg("cache"));
 }
 
 }  // namespace xls::dslx

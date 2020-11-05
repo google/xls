@@ -61,6 +61,12 @@ absl::StatusOr<Builtin> BuiltinFromString(absl::string_view name);
 
 std::string BuiltinToString(Builtin builtin);
 
+static const Builtin kAllBuiltins[] = {
+#define ELEMIFY(__str, __enum, ...) Builtin::__enum,
+    XLS_DSLX_BUILTIN_EACH(ELEMIFY)
+#undef ELEMIFY
+};
+
 // Tags a value to denote its payload.
 //
 // Note this goes beyond InterpValue::Payload annotating things like whether the
