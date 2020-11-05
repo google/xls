@@ -102,6 +102,48 @@ class QueryEngineTest : public IrTestBase,
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
     return engine->ToString(f->return_value());
   }
+
+  absl::StatusOr<std::string> GetMaxUnsignedValue(
+      absl::string_view known_bits) {
+    Package p("test_package");
+    FunctionBuilder fb("f", &p);
+    BValue n = MakeValueWithKnownBits(
+        "value", StringToTernaryVector(known_bits).value(), &fb);
+    XLS_ASSIGN_OR_RETURN(Function * f, fb.Build());
+    XLS_VLOG(3) << f->DumpIr();
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
+    return absl::StrCat(
+        "0b", engine->MaxUnsignedValue(n.node()).ToRawDigits(
+                  FormatPreference::kBinary, /*emit_leading_zeros=*/true));
+  }
+
+  absl::StatusOr<bool> GetNodesKnownUnsignedNotEquals(
+      absl::string_view lhs_known_bits, absl::string_view rhs_known_bits) {
+    Package p("test_package");
+    FunctionBuilder fb("f", &p);
+    BValue lhs = MakeValueWithKnownBits(
+        "lhs", StringToTernaryVector(lhs_known_bits).value(), &fb);
+    BValue rhs = MakeValueWithKnownBits(
+        "rhs", StringToTernaryVector(rhs_known_bits).value(), &fb);
+    XLS_ASSIGN_OR_RETURN(Function * f, fb.Build());
+    XLS_VLOG(3) << f->DumpIr();
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
+    return engine->NodesKnownUnsignedNotEquals(lhs.node(), rhs.node());
+  }
+
+  absl::StatusOr<bool> GetNodesKnownUnsignedEquals(
+      absl::string_view lhs_known_bits, absl::string_view rhs_known_bits) {
+    Package p("test_package");
+    FunctionBuilder fb("f", &p);
+    BValue lhs = MakeValueWithKnownBits(
+        "lhs", StringToTernaryVector(lhs_known_bits).value(), &fb);
+    BValue rhs = MakeValueWithKnownBits(
+        "rhs", StringToTernaryVector(rhs_known_bits).value(), &fb);
+    XLS_ASSIGN_OR_RETURN(Function * f, fb.Build());
+    XLS_VLOG(3) << f->DumpIr();
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
+    return engine->NodesKnownUnsignedEquals(lhs.node(), rhs.node());
+  }
 };
 
 TEST_P(QueryEngineTest, SimpleBinaryOp) {
@@ -545,6 +587,76 @@ TEST_P(QueryEngineTest, Reverse) {
   EXPECT_THAT(RunOnUnaryOp("0bXX10", make_reverse), IsOkAndHolds("0b01XX"));
   EXPECT_THAT(RunOnUnaryOp("0bX1X0", make_reverse), IsOkAndHolds("0b0X1X"));
   EXPECT_THAT(RunOnUnaryOp("0bX0X0", make_reverse), IsOkAndHolds("0b0X0X"));
+}
+
+TEST_P(QueryEngineTest, MaxUnsignedValue) {
+  EXPECT_THAT(GetMaxUnsignedValue("0b"), IsOkAndHolds("0b0"));
+  EXPECT_THAT(GetMaxUnsignedValue("0b0"), IsOkAndHolds("0b0"));
+  EXPECT_THAT(GetMaxUnsignedValue("0b1"), IsOkAndHolds("0b1"));
+  EXPECT_THAT(GetMaxUnsignedValue("0bX"), IsOkAndHolds("0b1"));
+  EXPECT_THAT(GetMaxUnsignedValue("0b0000"), IsOkAndHolds("0b0000"));
+  EXPECT_THAT(GetMaxUnsignedValue("0b1111"), IsOkAndHolds("0b1111"));
+  EXPECT_THAT(GetMaxUnsignedValue("0b0101"), IsOkAndHolds("0b0101"));
+  EXPECT_THAT(GetMaxUnsignedValue("0b1010"), IsOkAndHolds("0b1010"));
+  EXPECT_THAT(GetMaxUnsignedValue("0bXX10"), IsOkAndHolds("0b1110"));
+  EXPECT_THAT(GetMaxUnsignedValue("0b10XX"), IsOkAndHolds("0b1011"));
+  EXPECT_THAT(GetMaxUnsignedValue("0bXXXX"), IsOkAndHolds("0b1111"));
+}
+
+TEST_P(QueryEngineTest, NodesKnownUnsignedNotEquals) {
+  EXPECT_THAT(GetNodesKnownUnsignedNotEquals("0b", "0b"), IsOkAndHolds(false));
+
+  EXPECT_THAT(GetNodesKnownUnsignedNotEquals("0b0", "0b0"),
+              IsOkAndHolds(false));
+  EXPECT_THAT(GetNodesKnownUnsignedNotEquals("0b0", "0b1"), IsOkAndHolds(true));
+  EXPECT_THAT(GetNodesKnownUnsignedNotEquals("0b0", "0bX"),
+              IsOkAndHolds(false));
+  EXPECT_THAT(GetNodesKnownUnsignedNotEquals("0b1", "0bX"),
+              IsOkAndHolds(false));
+
+  EXPECT_THAT(GetNodesKnownUnsignedNotEquals("0b00X0", "0b0010"),
+              IsOkAndHolds(false));
+  EXPECT_THAT(GetNodesKnownUnsignedNotEquals("0b00X0", "0b1010"),
+              IsOkAndHolds(true));
+  EXPECT_THAT(GetNodesKnownUnsignedNotEquals("0bXXX0", "0b1010"),
+              IsOkAndHolds(false));
+  EXPECT_THAT(GetNodesKnownUnsignedNotEquals("0bXXX0", "0b1011"),
+              IsOkAndHolds(true));
+
+  EXPECT_THAT(GetNodesKnownUnsignedNotEquals("0bXXXX", "0b11"),
+              IsOkAndHolds(false));
+  EXPECT_THAT(GetNodesKnownUnsignedNotEquals("0bX1XX", "0b11"),
+              IsOkAndHolds(true));
+  EXPECT_THAT(GetNodesKnownUnsignedNotEquals("0bX0XX", "0b11"),
+              IsOkAndHolds(false));
+  EXPECT_THAT(GetNodesKnownUnsignedNotEquals("0b10XX", "0bXX"),
+              IsOkAndHolds(true));
+}
+
+TEST_P(QueryEngineTest, NodesKnownUnsignedEquals) {
+  EXPECT_THAT(GetNodesKnownUnsignedEquals("0b", "0b"), IsOkAndHolds(true));
+  EXPECT_THAT(GetNodesKnownUnsignedEquals("0b", "0b00000"), IsOkAndHolds(true));
+
+  EXPECT_THAT(GetNodesKnownUnsignedEquals("0b0", "0b0"), IsOkAndHolds(true));
+  EXPECT_THAT(GetNodesKnownUnsignedEquals("0b0", "0b1"), IsOkAndHolds(false));
+  EXPECT_THAT(GetNodesKnownUnsignedEquals("0b0", "0bX"), IsOkAndHolds(false));
+  EXPECT_THAT(GetNodesKnownUnsignedEquals("0b1", "0bX"), IsOkAndHolds(false));
+
+  EXPECT_THAT(GetNodesKnownUnsignedEquals("0b00X0", "0b0010"),
+              IsOkAndHolds(false));
+  EXPECT_THAT(GetNodesKnownUnsignedEquals("0b00X0", "0b1010"),
+              IsOkAndHolds(false));
+  EXPECT_THAT(GetNodesKnownUnsignedEquals("0bXXX0", "0b1010"),
+              IsOkAndHolds(false));
+  EXPECT_THAT(GetNodesKnownUnsignedEquals("0bXXX0", "0b1011"),
+              IsOkAndHolds(false));
+
+  EXPECT_THAT(GetNodesKnownUnsignedEquals("0bXXXX", "0b11"),
+              IsOkAndHolds(false));
+  EXPECT_THAT(GetNodesKnownUnsignedEquals("0bXX11", "0b11"),
+              IsOkAndHolds(false));
+  EXPECT_THAT(GetNodesKnownUnsignedEquals("0b0011", "0b11"),
+              IsOkAndHolds(true));
 }
 
 INSTANTIATE_TEST_SUITE_P(

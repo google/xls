@@ -15,6 +15,8 @@
 #include "xls/passes/query_engine.h"
 
 #include "xls/common/logging/logging.h"
+#include "xls/ir/bits_ops.h"
+#include "xls/ir/ternary.h"
 
 namespace xls {
 namespace {
@@ -95,6 +97,50 @@ bool QueryEngine::IsAllOnes(Node* node) const {
 
 bool QueryEngine::AllBitsKnown(Node* node) const {
   return IsTracked(node) && GetKnownBits(node).IsAllOnes();
+}
+
+Bits QueryEngine::MaxUnsignedValue(Node* node) const {
+  absl::InlinedVector<bool, 1> bits(node->BitCountOrDie());
+  for (int64 i = 0; i < node->BitCountOrDie(); ++i) {
+    bits[i] = IsZero(BitLocation{node, i}) ? false : true;
+  }
+  return Bits(bits);
+}
+
+bool QueryEngine::NodesKnownUnsignedNotEquals(Node* a, Node* b) const {
+  XLS_CHECK(a->GetType()->IsBits());
+  XLS_CHECK(b->GetType()->IsBits());
+  int64 max_width = std::max(a->BitCountOrDie(), b->BitCountOrDie());
+  auto get_known_bit = [this](Node* n, int64 index) {
+    if (index >= n->BitCountOrDie()) {
+      return TernaryValue::kKnownZero;
+    }
+    BitLocation location(n, index);
+    if (IsZero(location)) {
+      return TernaryValue::kKnownZero;
+    }
+    if (IsOne(location)) {
+      return TernaryValue::kKnownOne;
+    }
+    return TernaryValue::kUnknown;
+  };
+
+  for (int64 i = 0; i < max_width; ++i) {
+    TernaryValue a_bit = get_known_bit(a, i);
+    TernaryValue b_bit = get_known_bit(b, i);
+    if (a_bit != b_bit && a_bit != TernaryValue::kUnknown &&
+        b_bit != TernaryValue::kUnknown) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool QueryEngine::NodesKnownUnsignedEquals(Node* a, Node* b) const {
+  XLS_CHECK(a->GetType()->IsBits());
+  XLS_CHECK(b->GetType()->IsBits());
+  return AllBitsKnown(a) && AllBitsKnown(b) &&
+         bits_ops::UEqual(GetKnownBitsValues(a), GetKnownBitsValues(b));
 }
 
 std::string QueryEngine::ToString(Node* node) const {

@@ -120,6 +120,18 @@ class QueryEngine {
   // Returns whether *all* the bits are known for "node".
   bool AllBitsKnown(Node* node) const;
 
+  // Returns the maximum unsigned value that the node can be.
+  Bits MaxUnsignedValue(Node* node) const;
+
+  // Returns true if the values of the two nodes are known to be equal when
+  // interpreted as unsigned numbers. The nodes can be of different widths.
+  bool NodesKnownUnsignedEquals(Node* a, Node* b) const;
+
+  // Returns true if the values of the two nodes are known *NOT* to be equal
+  // when interpreted as unsigned numbers. The nodes can be of different
+  // widths.
+  bool NodesKnownUnsignedNotEquals(Node* a, Node* b) const;
+
   // Returns the known bits information of the given node as a string of ternary
   // symbols (0, 1, or X) with a '0b' prefix. For example: 0b1XX0.
   std::string ToString(Node* node) const;

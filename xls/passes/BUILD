@@ -563,6 +563,8 @@ cc_library(
         "//xls/common/logging",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+        "//xls/ir:ternary",
     ],
 )
 
