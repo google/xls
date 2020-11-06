@@ -422,6 +422,12 @@ absl::StatusOr<Expression*> NodeToExpression(
     case Op::kArrayUpdate: {
       return absl::UnimplementedError("ArrayUpdate not yet implemented");
     }
+    case Op::kMultiArrayIndex: {
+      return absl::UnimplementedError("MultiArrayIndex not yet implemented");
+    }
+    case Op::kMultiArrayUpdate: {
+      return absl::UnimplementedError("MultiArrayUpdate not yet implemented");
+    }
     case Op::kArrayConcat: {
       return absl::UnimplementedError("ArrayConcat not yet implemented");
     }

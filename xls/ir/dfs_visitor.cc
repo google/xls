@@ -71,6 +71,16 @@ absl::Status DfsVisitorWithDefault::HandleArrayUpdate(ArrayUpdate* update) {
   return DefaultHandler(update);
 }
 
+absl::Status DfsVisitorWithDefault::HandleMultiArrayIndex(
+    MultiArrayIndex* index) {
+  return DefaultHandler(index);
+}
+
+absl::Status DfsVisitorWithDefault::HandleMultiArrayUpdate(
+    MultiArrayUpdate* update) {
+  return DefaultHandler(update);
+}
+
 absl::Status DfsVisitorWithDefault::HandleArrayConcat(
     ArrayConcat* array_concat) {
   return DefaultHandler(array_concat);

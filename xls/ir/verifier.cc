@@ -441,6 +441,14 @@ class NodeChecker : public DfsVisitor {
                           "array update operation elements", "update value");
   }
 
+  absl::Status HandleMultiArrayIndex(MultiArrayIndex* index) override {
+    return absl::UnimplementedError("MultiArrayIndex not implemented yet.");
+  }
+
+  absl::Status HandleMultiArrayUpdate(MultiArrayUpdate* update) override {
+    return absl::UnimplementedError("MultiArrayUpdate not implemented yet.");
+  }
+
   absl::Status HandleArrayConcat(ArrayConcat* array_concat) override {
     // Must have at least one operand
     XLS_RETURN_IF_ERROR(ExpectOperandCountGt(array_concat, 0));

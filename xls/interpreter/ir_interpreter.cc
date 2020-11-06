@@ -327,6 +327,14 @@ absl::Status IrInterpreter::HandleArrayUpdate(ArrayUpdate* update) {
   return SetValueResult(update, result);
 }
 
+absl::Status IrInterpreter::HandleMultiArrayIndex(MultiArrayIndex* index) {
+  return absl::UnimplementedError("MultiArrayIndex not implemented yet.");
+}
+
+absl::Status IrInterpreter::HandleMultiArrayUpdate(MultiArrayUpdate* update) {
+  return absl::UnimplementedError("MultiArrayUpdate not implemented yet.");
+}
+
 absl::Status IrInterpreter::HandleArrayConcat(ArrayConcat* concat) {
   std::vector<Value> array_elements;
 

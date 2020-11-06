@@ -149,6 +149,14 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
       XLS_RETURN_IF_ERROR(
           visitor->HandleArrayUpdate(down_cast<ArrayUpdate*>(this)));
       break;
+    case Op::kMultiArrayIndex:
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleMultiArrayIndex(down_cast<MultiArrayIndex*>(this)));
+      break;
+    case Op::kMultiArrayUpdate:
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleMultiArrayUpdate(down_cast<MultiArrayUpdate*>(this)));
+      break;
     case Op::kArrayConcat:
       XLS_RETURN_IF_ERROR(
           visitor->HandleArrayConcat(down_cast<ArrayConcat*>(this)));

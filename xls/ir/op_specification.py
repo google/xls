@@ -426,6 +426,34 @@ OpClass.kinds['ARRAY_UPDATE'] = OpClass(
                           expression='operand(2)')],
 )
 
+OpClass.kinds['MULTIARRAY_INDEX'] = OpClass(
+    name='MultiArrayIndex',
+    op='Op::kMultiArrayIndex',
+    operands=[Operand('arg'), Operand('index')],
+    xls_type_expression='arg->GetType()->AsArrayOrDie()->element_type()',
+    extra_methods=[Method(name='array',
+                          return_cpp_type='Node*',
+                          expression='operand(0)'),
+                   Method(name='index',
+                          return_cpp_type='Node*',
+                          expression='operand(1)')])
+
+OpClass.kinds['MULTIARRAY_UPDATE'] = OpClass(
+    name='MultiArrayUpdate',
+    op='Op::kMultiArrayUpdate',
+    operands=[Operand('arg'), Operand('index'), Operand('update_value')],
+    xls_type_expression='arg->GetType()',
+    extra_methods=[Method(name='array_to_update',
+                          return_cpp_type='Node*',
+                          expression='operand(0)'),
+                   Method(name='index',
+                          return_cpp_type='Node*',
+                          expression='operand(1)'),
+                   Method(name='update_value',
+                          return_cpp_type='Node*',
+                          expression='operand(2)')],
+)
+
 OpClass.kinds['ARRAY_CONCAT'] = OpClass(
     name='ArrayConcat',
     op='Op::kArrayConcat',
@@ -829,6 +857,18 @@ OPS = [
         enum_name='kArrayUpdate',
         name='array_update',
         op_class=OpClass.kinds['ARRAY_UPDATE'],
+        properties=[],
+    ),
+    Op(
+        enum_name='kMultiArrayIndex',
+        name='multiarray_index',
+        op_class=OpClass.kinds['MULTIARRAY_INDEX'],
+        properties=[],
+    ),
+    Op(
+        enum_name='kMultiArrayUpdate',
+        name='multiarray_update',
+        op_class=OpClass.kinds['MULTIARRAY_UPDATE'],
         properties=[],
     ),
     Op(
