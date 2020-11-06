@@ -707,6 +707,7 @@ cc_library(
     hdrs = ["array_simplification_pass.h"],
     deps = [
         ":passes",
+        ":ternary_query_engine",
         "@com_google_absl//absl/status:statusor",
         "//xls/ir",
         "//xls/ir:bits_ops",

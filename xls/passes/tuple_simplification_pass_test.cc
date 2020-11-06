@@ -116,37 +116,6 @@ TEST_F(TupleSimplificationPassTest, ChainOfTuplesSimplification) {
   EXPECT_THAT(f->return_value(), m::Param("x"));
 }
 
-TEST_F(TupleSimplificationPassTest, SimpleUnboxingArray) {
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
- fn func(x: bits[2]) -> bits[2] {
-  array.2: bits[2][1] = array(x)
-  literal.3: bits[1] = literal(value=0)
-  ret array_index.4: bits[2] = array_index(array.2, literal.3)
- }
-  )",
-                                                       p.get()));
-  EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(), m::Param("x"));
-}
-
-TEST_F(TupleSimplificationPassTest, UnboxingLiteralArray) {
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
- fn func() -> bits[2] {
-  literal.1: bits[2][2] = literal(value=[0b00, 0b01])
-  literal.2: bits[1] = literal(value=0)
-  literal.3: bits[1] = literal(value=1)
-  array_index.4: bits[2] = array_index(literal.1, literal.2)
-  array_index.5: bits[2] = array_index(literal.1, literal.3)
-  ret add.6: bits[2] = add(array_index.4, array_index.5)
- }
-  )",
-                                                       p.get()));
-  EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(), m::Add(m::Literal(0), m::Literal(1)));
-}
-
 TEST_F(TupleSimplificationPassTest, TupleReductionEmptyTuple) {
   Package p("p");
   FunctionBuilder fb(TestName(), &p);

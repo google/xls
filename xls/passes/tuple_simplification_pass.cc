@@ -65,12 +65,10 @@ absl::StatusOr<bool> TupleSimplificationPass::RunOnFunctionBase(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
   // Replace TupleIndex(Tuple(i{0}, i{1}, ..., i{N}), index=k) with i{k}
   bool changed = false;
-  std::deque<absl::variant<TupleIndex*, ArrayIndex*, Tuple*>> worklist;
+  std::deque<absl::variant<TupleIndex*, Tuple*>> worklist;
   for (Node* node : f->nodes()) {
     if (node->Is<TupleIndex>()) {
       worklist.push_back(node->As<TupleIndex>());
-    } else if (node->Is<ArrayIndex>()) {
-      worklist.push_back(node->As<ArrayIndex>());
     } else if (node->Is<Tuple>()) {
       worklist.push_back(node->As<Tuple>());
     }
@@ -98,35 +96,6 @@ absl::StatusOr<bool> TupleSimplificationPass::RunOnFunctionBase(
             worklist.push_back(user->As<TupleIndex>());
           }
         }
-      }
-    } else if (absl::holds_alternative<ArrayIndex*>(index)) {
-      ArrayIndex* array_index = absl::get<ArrayIndex*>(index);
-      if (!array_index->operand(1)->Is<Literal>()) {
-        continue;
-      }
-      Literal* rhs = array_index->operand(1)->As<Literal>();
-      if (!rhs->value().bits().FitsInUint64()) {
-        continue;
-      }
-      XLS_ASSIGN_OR_RETURN(uint64 index, rhs->value().bits().ToUint64());
-      if (index >= array_index->operand(0)->GetType()->AsArrayOrDie()->size()) {
-        // Punt on optimizing OOB accesses.
-        continue;
-      }
-      if (array_index->operand(0)->Is<Array>()) {
-        Array* array = array_index->operand(0)->As<Array>();
-        Node* array_element = array->operand(index);
-        XLS_ASSIGN_OR_RETURN(bool node_changed,
-                             array_index->ReplaceUsesWith(array_element));
-        changed |= node_changed;
-      } else if (array_index->operand(0)->Is<Literal>()) {
-        Literal* array = array_index->operand(0)->As<Literal>();
-        XLS_RET_CHECK(array->GetType()->IsArray());
-        XLS_RET_CHECK_LT(index, array->value().size());
-        const Value& element = array->value().element(index);
-        XLS_RETURN_IF_ERROR(
-            array_index->ReplaceUsesWithNew<Literal>(element).status());
-        changed = true;
       }
     } else if (absl::holds_alternative<Tuple*>(index)) {
       Tuple* tuple = absl::get<Tuple*>(index);
