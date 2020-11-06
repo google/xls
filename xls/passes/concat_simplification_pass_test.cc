@@ -433,6 +433,21 @@ fn f(x: bits[1], y: bits[1], z: bits[1]) -> bits[4] {
 }
 
 TEST_F(ConcatSimplificationPassTest,
+       ReverseConcatenationOfBitsWithReverseAsRoot) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+fn f(x: bits[1], y: bits[1], z: bits[1]) -> bits[3] {
+  concat: bits[3] = concat(x, y, z)
+  ret rev: bits[3] = reverse(concat)
+}
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Param("z"), m::Param("y"), m::Param("x")));
+}
+
+TEST_F(ConcatSimplificationPassTest,
        ReverseConcatenationOfBitsWithOtherUnreversibleUser) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -465,7 +480,7 @@ TEST_F(ConcatSimplificationPassTest, ReverseConcatenationOfBitsWithReduction) {
   EXPECT_THAT(
       f->return_value(),
       m::Xor(m::Concat(m::Param("z"), m::Param("y"), m::Param("x")),
-             m::SignExt(m::Or(m::Param("z"), m::Param("y"), m::Param("x")))));
+             m::SignExt(m::Or(m::Param("x"), m::Param("y"), m::Param("z")))));
 }
 
 TEST_F(ConcatSimplificationPassTest,
@@ -487,7 +502,7 @@ TEST_F(ConcatSimplificationPassTest,
   EXPECT_THAT(
       f->return_value(),
       m::Xor(m::Concat(m::Param("z"), m::Param("y"), m::Param("x")),
-             m::SignExt(m::Or(m::Param("z"), m::Param("y"), m::Param("x")))));
+             m::SignExt(m::Or(m::Param("x"), m::Param("y"), m::Param("z")))));
 }
 
 TEST_F(ConcatSimplificationPassTest, ReverseConcatenationMultiReverse) {

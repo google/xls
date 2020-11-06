@@ -175,10 +175,9 @@ absl::StatusOr<bool> SimplifyConcat(Concat* concat,
   // If there are multiple reverse users, common-subexpression elimination
   // should combine them later. We can apply the optimization after this.
   if (num_reverse_users == 1 && !concat_has_nonreversible_user) {
-    // Get reversed operands in reverse order.
-    // BDD common subexpression elimination should eliminate any
-    // reversals of single-bit inputs that we produce here,
-    // so we do not check for this case.
+    // Get reversed operands in reverse order.  Simplification should eliminate
+    // any reversals of single-bit inputs that we produce here, so we do not
+    // check for this case.
     std::vector<Node*> new_operands;
     new_operands.reserve(concat->operands().size());
     for (absl::Span<Node* const>::reverse_iterator riter =
@@ -192,15 +191,9 @@ absl::StatusOr<bool> SimplifyConcat(Concat* concat,
     }
 
     // Add new concat to function, replace uses of original reverse.
-    XLS_ASSIGN_OR_RETURN(Concat * new_concat,
-                         concat->ReplaceUsesWithNew<Concat>(new_operands));
-    XLS_ASSIGN_OR_RETURN(bool function_changed,
-                         reverse_user->ReplaceUsesWith(new_concat));
-    if (!function_changed) {
-      return absl::InternalError(
-          "Replacing reverse operation with reversed-input concatenation did "
-          "not change function");
-    }
+    XLS_ASSIGN_OR_RETURN(
+        Concat * new_concat,
+        reverse_user->ReplaceUsesWithNew<Concat>(new_operands));
     worklist->push_back(new_concat);
     return true;
   }
