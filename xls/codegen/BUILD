@@ -441,6 +441,8 @@ cc_test(
     deps = [
         ":state_removal_pass",
         "//xls/common/status:matchers",
+        "//xls/interpreter:channel_queue",
+        "//xls/interpreter:proc_network_interpreter",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest_main",

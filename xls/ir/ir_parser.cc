@@ -1167,11 +1167,11 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenOpen,
                                                 "'(' in channel definition"));
   absl::optional<int64> id;
-  absl::optional<ChannelKind> kind;
+  absl::optional<Channel::SupportedOps> supported_ops;
   absl::optional<ChannelMetadataProto> metadata;
   std::vector<DataElement> data_elements;
   bool must_end = false;
-
+  absl::optional<bool> is_single_value;
   // Iterate through the comma-separated elements in the channel definition.
   // Examples:
   //
@@ -1214,17 +1214,31 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
       } else if (field_name.value() == "kind") {
         XLS_ASSIGN_OR_RETURN(Token kind_token, scanner_.PopTokenOrError(
                                                    LexicalTokenType::kIdent));
-        if (kind_token.value() == "send_only") {
-          kind = ChannelKind::kSendOnly;
-        } else if (kind_token.value() == "receive_only") {
-          kind = ChannelKind::kReceiveOnly;
-        } else if (kind_token.value() == "send_receive") {
-          kind = ChannelKind::kSendReceive;
+        if (kind_token.value() == "single_value") {
+          is_single_value = true;
+        } else if (kind_token.value() == "streaming") {
+          is_single_value = false;
         } else {
           return absl::InvalidArgumentError(absl::StrFormat(
-              "Invalid channel kind \"%s\" @ %s. Expected: send_only, "
-              "receive_only, or send_receive",
+              "Invalid channel kind \"%s\" @ %s. Expected: single_value, or "
+              "streaming",
               kind_token.value(), field_name.pos().ToHumanString()));
+        }
+      } else if (field_name.value() == "ops") {
+        XLS_ASSIGN_OR_RETURN(
+            Token supported_ops_token,
+            scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+        if (supported_ops_token.value() == "send_only") {
+          supported_ops = Channel::SupportedOps::kSendOnly;
+        } else if (supported_ops_token.value() == "receive_only") {
+          supported_ops = Channel::SupportedOps::kReceiveOnly;
+        } else if (supported_ops_token.value() == "send_receive") {
+          supported_ops = Channel::SupportedOps::kSendReceive;
+        } else {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Invalid channel attribute ops \"%s\" @ %s. Expected: send_only,"
+              "receive_only, or send_receive",
+              supported_ops_token.value(), field_name.pos().ToHumanString()));
         }
       } else if (field_name.value() == "metadata") {
         // The metadata is serialized as a text proto.
@@ -1256,8 +1270,8 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
   if (!id.has_value()) {
     return error("Missing channel id");
   }
-  if (!kind.has_value()) {
-    return error("Missing channel kind");
+  if (!supported_ops.has_value()) {
+    return error("Missing channel ops");
   }
   if (!metadata.has_value()) {
     return error("Missing channel metadata");
@@ -1265,9 +1279,17 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
   if (data_elements.empty()) {
     return error("Channel has no data elements");
   }
+  if (!is_single_value.has_value()) {
+    return error("Missing channel kind");
+  }
 
-  return package->CreateChannelWithId(channel_name.value(), *id, *kind,
-                                      data_elements, *metadata);
+  if (is_single_value.value()) {
+    return package->CreateSingleValueChannel(
+        channel_name.value(), *supported_ops, data_elements, *id, *metadata);
+  } else {
+    return package->CreateStreamingChannel(channel_name.value(), *supported_ops,
+                                           data_elements, *id, *metadata);
+  }
 }
 
 absl::StatusOr<FunctionType*> Parser::ParseFunctionType(Package* package) {

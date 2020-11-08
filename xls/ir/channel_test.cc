@@ -28,91 +28,139 @@ using status_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 
-TEST(ChannelTest, ChannelKindToString) {
-  EXPECT_EQ(ChannelKindToString(ChannelKind::kSendOnly), "send_only");
-  EXPECT_EQ(ChannelKindToString(ChannelKind::kReceiveOnly), "receive_only");
-  EXPECT_EQ(ChannelKindToString(ChannelKind::kSendReceive), "send_receive");
+TEST(ChannelTest, SupportedOpsToString) {
+  EXPECT_EQ(SupportedOpsToString(Channel::SupportedOps::kSendOnly),
+            "send_only");
+  EXPECT_EQ(SupportedOpsToString(Channel::SupportedOps::kReceiveOnly),
+            "receive_only");
+  EXPECT_EQ(SupportedOpsToString(Channel::SupportedOps::kSendReceive),
+            "send_receive");
 
-  EXPECT_THAT(StringToChannelKind("send_only"),
-              IsOkAndHolds(ChannelKind::kSendOnly));
-  EXPECT_THAT(StringToChannelKind("receive_only"),
-              IsOkAndHolds(ChannelKind::kReceiveOnly));
-  EXPECT_THAT(StringToChannelKind("send_receive"),
-              IsOkAndHolds(ChannelKind::kSendReceive));
+  EXPECT_THAT(StringToSupportedOps("send_only"),
+              IsOkAndHolds(Channel::SupportedOps::kSendOnly));
+  EXPECT_THAT(StringToSupportedOps("receive_only"),
+              IsOkAndHolds(Channel::SupportedOps::kReceiveOnly));
+  EXPECT_THAT(StringToSupportedOps("send_receive"),
+              IsOkAndHolds(Channel::SupportedOps::kSendReceive));
 
-  EXPECT_THAT(StringToChannelKind("send"),
+  EXPECT_THAT(StringToSupportedOps("send"),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Unknown channel kind")));
 }
 
-TEST(ChannelTest, ConstructChannel) {
+TEST(ChannelTest, ConstructStreamingChannel) {
   Package p("my_package");
   ChannelMetadataProto metadata;
   metadata.mutable_module_port()->set_flopped(true);
-  Channel ch("my_channel", 42, ChannelKind::kReceiveOnly,
-             {DataElement{"foo", p.GetBitsType(32)},
-              DataElement{"bar", p.GetBitsType(123)}},
-             metadata);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<StreamingChannel> ch,
+      StreamingChannel::Create("my_channel", 42,
+                               Channel::SupportedOps::kReceiveOnly,
+                               {DataElement{"foo", p.GetBitsType(32)},
+                                DataElement{"bar", p.GetBitsType(123)}},
+                               metadata));
 
-  EXPECT_EQ(ch.name(), "my_channel");
-  EXPECT_EQ(ch.id(), 42);
-  EXPECT_EQ(ch.kind(), ChannelKind::kReceiveOnly);
-  EXPECT_EQ(ch.data_elements().size(), 2);
-  EXPECT_EQ(ch.data_element(0).name, "foo");
-  EXPECT_EQ(ch.data_element(0).type, p.GetBitsType(32));
-  EXPECT_EQ(ch.data_element(1).name, "bar");
-  EXPECT_EQ(ch.data_element(1).type, p.GetBitsType(123));
-  EXPECT_TRUE(ch.initial_values().empty());
+  EXPECT_EQ(ch->name(), "my_channel");
+  EXPECT_TRUE(ch->IsStreaming());
+  EXPECT_FALSE(ch->IsSingleValue());
+  EXPECT_EQ(ch->id(), 42);
+  EXPECT_EQ(ch->supported_ops(), Channel::SupportedOps::kReceiveOnly);
+  EXPECT_EQ(ch->data_elements().size(), 2);
+  EXPECT_EQ(ch->data_element(0).name, "foo");
+  EXPECT_EQ(ch->data_element(0).type, p.GetBitsType(32));
+  EXPECT_EQ(ch->data_element(1).name, "bar");
+  EXPECT_EQ(ch->data_element(1).type, p.GetBitsType(123));
+  EXPECT_TRUE(ch->initial_values().empty());
 }
 
-TEST(ChannelTest, ConstructChannelWithInitialValues) {
+TEST(ChannelTest, ConstructSingleValueChannel) {
   Package p("my_package");
-  ChannelMetadataProto metadata;
-  metadata.mutable_module_port()->set_flopped(true);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<SingleValueChannel> ch,
+      SingleValueChannel::Create("my_channel", 42,
+                                 Channel::SupportedOps::kSendOnly,
+                                 {DataElement{"foo", p.GetBitsType(32)}}));
+
+  EXPECT_EQ(ch->name(), "my_channel");
+  EXPECT_FALSE(ch->IsStreaming());
+  EXPECT_TRUE(ch->IsSingleValue());
+}
+
+TEST(ChannelTest, StreamingChannelWithInitialValues) {
+  Package p("my_package");
   std::vector<Value> bar_initial_values = {Value(UBits(11, 32)),
                                            Value(UBits(22, 32))};
   std::vector<Value> foo_initial_values = {Value(UBits(44, 123)),
                                            Value(UBits(55, 123))};
-  Channel ch("my_channel", 42, ChannelKind::kSendReceive,
-             {DataElement{"foo", p.GetBitsType(32), bar_initial_values},
-              DataElement{"bar", p.GetBitsType(123), foo_initial_values}},
-             metadata);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<StreamingChannel> ch,
+      StreamingChannel::Create(
+          "my_channel", 42, Channel::SupportedOps::kSendReceive,
+          {DataElement{"foo", p.GetBitsType(32), bar_initial_values},
+           DataElement{"bar", p.GetBitsType(123), foo_initial_values}}));
 
-  EXPECT_EQ(ch.name(), "my_channel");
-  EXPECT_EQ(ch.id(), 42);
-  EXPECT_EQ(ch.kind(), ChannelKind::kSendReceive);
-  EXPECT_EQ(ch.data_elements().size(), 2);
-  EXPECT_EQ(ch.data_element(0).name, "foo");
-  EXPECT_EQ(ch.data_element(0).type, p.GetBitsType(32));
-  EXPECT_EQ(ch.data_element(1).name, "bar");
-  EXPECT_EQ(ch.data_element(1).type, p.GetBitsType(123));
-  ASSERT_EQ(ch.initial_values().size(), 2);
-  EXPECT_THAT(ch.initial_values()[0],
+  EXPECT_EQ(ch->name(), "my_channel");
+  EXPECT_EQ(ch->id(), 42);
+  EXPECT_EQ(ch->supported_ops(), Channel::SupportedOps::kSendReceive);
+  EXPECT_EQ(ch->data_elements().size(), 2);
+  EXPECT_EQ(ch->data_element(0).name, "foo");
+  EXPECT_EQ(ch->data_element(0).type, p.GetBitsType(32));
+  EXPECT_EQ(ch->data_element(1).name, "bar");
+  EXPECT_EQ(ch->data_element(1).type, p.GetBitsType(123));
+  ASSERT_EQ(ch->initial_values().size(), 2);
+  EXPECT_THAT(ch->initial_values()[0],
               ElementsAre(Value(UBits(11, 32)), Value(UBits(44, 123))));
-  EXPECT_THAT(ch.initial_values()[1],
+  EXPECT_THAT(ch->initial_values()[1],
               ElementsAre(Value(UBits(22, 32)), Value(UBits(55, 123))));
 }
 
-TEST(ChannelTest, ToStringParses) {
+TEST(ChannelTest, StreamingToStringParses) {
   Package p("my_package");
   ChannelMetadataProto metadata;
   metadata.mutable_module_port()->set_flopped(true);
-  Channel ch("my_channel", 42, ChannelKind::kReceiveOnly,
-             {DataElement{"foo", p.GetBitsType(32)},
-              DataElement{"bar", p.GetBitsType(123)}},
-             metadata);
-  std::string ch_to_string = ch.ToString();
-  EXPECT_EQ(
-      ch_to_string,
-      "chan my_channel(foo: bits[32], bar: bits[123], id=42, "
-      "kind=receive_only, metadata=\"\"\"module_port { flopped: true }\"\"\")");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<StreamingChannel> ch,
+      StreamingChannel::Create("my_channel", 42,
+                               Channel::SupportedOps::kReceiveOnly,
+                               {DataElement{"foo", p.GetBitsType(32)},
+                                DataElement{"bar", p.GetBitsType(123)}},
+                               metadata));
+  std::string channel_str = ch->ToString();
+  EXPECT_EQ(channel_str,
+            "chan my_channel(foo: bits[32], bar: bits[123], id=42, "
+            "kind=streaming, ops=receive_only, "
+            "metadata=\"\"\"module_port { flopped: true }\"\"\")");
 
   // Create another package and try to parse the channel into the other
   // package. We can't use the existing package because adding the channel will
   // fail because the id already exists.
   Package other_p("other_package");
   XLS_ASSERT_OK_AND_ASSIGN(Channel * parsed_ch,
-                           Parser::ParseChannel(ch_to_string, &other_p));
+                           Parser::ParseChannel(channel_str, &other_p));
+  EXPECT_EQ(parsed_ch->name(), "my_channel");
+  EXPECT_EQ(parsed_ch->id(), 42);
+}
+
+TEST(ChannelTest, SingleValueToStringParses) {
+  Package p("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<SingleValueChannel> ch,
+      SingleValueChannel::Create("my_channel", 42,
+                                 Channel::SupportedOps::kReceiveOnly,
+                                 {DataElement{"foo", p.GetBitsType(32)},
+                                  DataElement{"bar", p.GetBitsType(123)}}));
+  std::string channel_str = ch->ToString();
+  EXPECT_EQ(channel_str,
+            "chan my_channel(foo: bits[32], bar: bits[123], id=42, "
+            "kind=single_value, ops=receive_only, "
+            "metadata=\"\"\"\"\"\")");
+
+  // Create another package and try to parse the channel into the other
+  // package. We can't use the existing package because adding the channel will
+  // fail because the id already exists.
+  Package other_p("other_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * parsed_ch,
+                           Parser::ParseChannel(channel_str, &other_p));
   EXPECT_EQ(parsed_ch->name(), "my_channel");
   EXPECT_EQ(parsed_ch->id(), 42);
 }

@@ -116,10 +116,9 @@ absl::StatusOr<Proc*> CreateRunLengthDecoderProc(absl::string_view proc_name,
 TEST_F(ProcNetworkInterpreterTest, ProcIota) {
   auto package = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * channel,
-      package->CreateChannel("iota_out", ChannelKind::kSendOnly,
-                             {DataElement{"data", package->GetBitsType(32)}},
-                             ChannelMetadataProto()));
+      Channel * channel, package->CreateStreamingChannel(
+                             "iota_out", Channel::SupportedOps::kSendOnly,
+                             {DataElement{"data", package->GetBitsType(32)}}));
   XLS_ASSERT_OK(CreateIotaProc("iota", /*starting_value=*/5, /*step=*/10,
                                channel, package.get())
                     .status());
@@ -151,14 +150,14 @@ TEST_F(ProcNetworkInterpreterTest, IotaFeedingAccumulator) {
   auto package = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * iota_accum_channel,
-      package->CreateChannel("iota_accum", ChannelKind::kSendReceive,
-                             {DataElement{"data", package->GetBitsType(32)}},
-                             ChannelMetadataProto()));
+      package->CreateStreamingChannel(
+          "iota_accum", Channel::SupportedOps::kSendReceive,
+          {DataElement{"data", package->GetBitsType(32)}}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out_channel,
-      package->CreateChannel("out", ChannelKind::kSendOnly,
-                             {DataElement{"data", package->GetBitsType(32)}},
-                             ChannelMetadataProto()));
+      package->CreateStreamingChannel(
+          "out", Channel::SupportedOps::kSendOnly,
+          {DataElement{"data", package->GetBitsType(32)}}));
   XLS_ASSERT_OK(CreateIotaProc("iota", /*starting_value=*/0, /*step=*/1,
                                iota_accum_channel, package.get())
                     .status());
@@ -211,24 +210,24 @@ TEST_F(ProcNetworkInterpreterTest, WrappedProc) {
   auto package = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * in_channel,
-      package->CreateChannel("input", ChannelKind::kReceiveOnly,
-                             {DataElement{"data", package->GetBitsType(32)}},
-                             ChannelMetadataProto()));
+      package->CreateStreamingChannel(
+          "input", Channel::SupportedOps::kReceiveOnly,
+          {DataElement{"data", package->GetBitsType(32)}}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * in_accum_channel,
-      package->CreateChannel("accum_in", ChannelKind::kSendReceive,
-                             {DataElement{"data", package->GetBitsType(32)}},
-                             ChannelMetadataProto()));
+      package->CreateStreamingChannel(
+          "accum_in", Channel::SupportedOps::kSendReceive,
+          {DataElement{"data", package->GetBitsType(32)}}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out_accum_channel,
-      package->CreateChannel("accum_out", ChannelKind::kSendReceive,
-                             {DataElement{"data", package->GetBitsType(32)}},
-                             ChannelMetadataProto()));
+      package->CreateStreamingChannel(
+          "accum_out", Channel::SupportedOps::kSendReceive,
+          {DataElement{"data", package->GetBitsType(32)}}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out_channel,
-      package->CreateChannel("out", ChannelKind::kSendOnly,
-                             {DataElement{"data", package->GetBitsType(32)}},
-                             ChannelMetadataProto()));
+      package->CreateStreamingChannel(
+          "out", Channel::SupportedOps::kSendOnly,
+          {DataElement{"data", package->GetBitsType(32)}}));
 
   ProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
                  /*token_name=*/"tok", /*state_name=*/"prev", package.get());
@@ -275,10 +274,9 @@ TEST_F(ProcNetworkInterpreterTest, DeadlockedProc) {
   // from it's send operation to its receive.
   auto package = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * channel,
-      package->CreateChannel("my_channel", ChannelKind::kSendReceive,
-                             {DataElement{"data", package->GetBitsType(32)}},
-                             ChannelMetadataProto()));
+      Channel * channel, package->CreateStreamingChannel(
+                             "my_channel", Channel::SupportedOps::kSendReceive,
+                             {DataElement{"data", package->GetBitsType(32)}}));
   XLS_ASSERT_OK(CreatePassThroughProc("feedback", /*in_channel=*/channel,
                                       /*out_channel=*/channel, package.get())
                     .status());
@@ -303,15 +301,14 @@ TEST_F(ProcNetworkInterpreterTest, RunLengthDecoding) {
   auto package = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * input_channel,
-      package->CreateChannel("in", ChannelKind::kReceiveOnly,
-                             {DataElement{"length", package->GetBitsType(32)},
-                              DataElement{"value", package->GetBitsType(8)}},
-                             ChannelMetadataProto()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * output_channel,
-      package->CreateChannel("output", ChannelKind::kSendOnly,
-                             {DataElement{"data", package->GetBitsType(8)}},
-                             ChannelMetadataProto()));
+      package->CreateStreamingChannel(
+          "in", Channel::SupportedOps::kReceiveOnly,
+          {DataElement{"length", package->GetBitsType(32)},
+           DataElement{"value", package->GetBitsType(8)}}));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * output_channel,
+                           package->CreateStreamingChannel(
+                               "output", Channel::SupportedOps::kSendOnly,
+                               {DataElement{"data", package->GetBitsType(8)}}));
 
   XLS_ASSERT_OK(CreateRunLengthDecoderProc("decoder", input_channel,
                                            output_channel, package.get())
@@ -356,20 +353,18 @@ TEST_F(ProcNetworkInterpreterTest, RunLengthDecodingFilter) {
   auto package = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * input_channel,
-      package->CreateChannel("in", ChannelKind::kReceiveOnly,
-                             {DataElement{"length", package->GetBitsType(32)},
-                              DataElement{"value", package->GetBitsType(8)}},
-                             ChannelMetadataProto()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * decoded_channel,
-      package->CreateChannel("decoded", ChannelKind::kSendReceive,
-                             {DataElement{"data", package->GetBitsType(8)}},
-                             ChannelMetadataProto()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * output_channel,
-      package->CreateChannel("output", ChannelKind::kSendOnly,
-                             {DataElement{"data", package->GetBitsType(8)}},
-                             ChannelMetadataProto()));
+      package->CreateStreamingChannel(
+          "in", Channel::SupportedOps::kReceiveOnly,
+          {DataElement{"length", package->GetBitsType(32)},
+           DataElement{"value", package->GetBitsType(8)}}));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * decoded_channel,
+                           package->CreateStreamingChannel(
+                               "decoded", Channel::SupportedOps::kSendReceive,
+                               {DataElement{"data", package->GetBitsType(8)}}));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * output_channel,
+                           package->CreateStreamingChannel(
+                               "output", Channel::SupportedOps::kSendOnly,
+                               {DataElement{"data", package->GetBitsType(8)}}));
 
   XLS_ASSERT_OK(CreateRunLengthDecoderProc("decoder", input_channel,
                                            decoded_channel, package.get())
@@ -423,17 +418,15 @@ TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedge) {
                  package.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * state_channel,
-      package->CreateChannel(
-          "backedge", ChannelKind::kSendReceive,
+      package->CreateStreamingChannel(
+          "backedge", Channel::SupportedOps::kSendReceive,
           {DataElement{"state", package->GetBitsType(32),
                        // Initial value of iota is 42.
-                       std::vector<Value>({Value(UBits(42, 32))})}},
-          ChannelMetadataProto()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * output_channel,
-      package->CreateChannel("out", ChannelKind::kSendOnly,
-                             {DataElement{"out", package->GetBitsType(32)}},
-                             ChannelMetadataProto()));
+                       std::vector<Value>({Value(UBits(42, 32))})}}));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * output_channel,
+                           package->CreateStreamingChannel(
+                               "out", Channel::SupportedOps::kSendOnly,
+                               {DataElement{"out", package->GetBitsType(32)}}));
 
   BValue state_receive = pb.Receive(state_channel, pb.GetTokenParam());
   BValue receive_token = pb.TupleIndex(state_receive, /*idx=*/0);
@@ -472,21 +465,19 @@ TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedgeAndTwoInitialValues) {
                  package.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * state_channel,
-      package->CreateChannel(
-          "backedge", ChannelKind::kSendReceive,
+      package->CreateStreamingChannel(
+          "backedge", Channel::SupportedOps::kSendReceive,
           {DataElement{
               "state", package->GetBitsType(32),
               // Initial value of iotas are 42, 55, 100. Three sequences of
               // interleaved numbers will be generated starting at these
               // values.
               std::vector<Value>({Value(UBits(42, 32)), Value(UBits(55, 32)),
-                                  Value(UBits(100, 32))})}},
-          ChannelMetadataProto()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * output_channel,
-      package->CreateChannel("out", ChannelKind::kSendOnly,
-                             {DataElement{"out", package->GetBitsType(32)}},
-                             ChannelMetadataProto()));
+                                  Value(UBits(100, 32))})}}));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * output_channel,
+                           package->CreateStreamingChannel(
+                               "out", Channel::SupportedOps::kSendOnly,
+                               {DataElement{"out", package->GetBitsType(32)}}));
 
   BValue state_receive = pb.Receive(state_channel, pb.GetTokenParam());
   BValue receive_token = pb.TupleIndex(state_receive, /*idx=*/0);

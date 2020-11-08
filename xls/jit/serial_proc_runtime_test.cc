@@ -47,9 +47,9 @@ TEST(SerialProcRuntimeTest, SimpleNetwork) {
   const std::string kIrText = R"(
 package p
 
-chan a_in(data: bits[32], id=0, kind=receive_only, metadata="")
-chan a_to_b(data: bits[32], id=1, kind=send_receive, metadata="")
-chan b_out(data: bits[32], id=2, kind=send_only, metadata="")
+chan a_in(data: bits[32], id=0, kind=streaming, ops=receive_only, metadata="")
+chan a_to_b(data: bits[32], id=1, kind=streaming, ops=send_receive, metadata="")
+chan b_out(data: bits[32], id=2, kind=streaming, ops=send_only, metadata="")
 
 proc a(my_token: token, state: (), init=()) {
   literal.1: bits[32] = literal(value=2)
@@ -115,14 +115,14 @@ TEST(SerialProcRuntimeTest, XNetwork) {
   const std::string kIrText = R"(
 package p
 
-chan i_a(data: bits[32], id=0, kind=receive_only, metadata="")
-chan i_b(data: bits[32], id=1, kind=receive_only, metadata="")
-chan a_c(data: bits[32], id=2, kind=send_receive, metadata="")
-chan b_c(data: bits[32], id=3, kind=send_receive, metadata="")
-chan c_d(data: bits[32], id=4, kind=send_receive, metadata="")
-chan c_e(data: bits[32], id=5, kind=send_receive, metadata="")
-chan d_o(data: bits[32], id=6, kind=send_only, metadata="")
-chan e_o(data: bits[32], id=7, kind=send_only, metadata="")
+chan i_a(data: bits[32], id=0, kind=streaming, ops=receive_only, metadata="")
+chan i_b(data: bits[32], id=1, kind=streaming, ops=receive_only, metadata="")
+chan a_c(data: bits[32], id=2, kind=streaming, ops=send_receive, metadata="")
+chan b_c(data: bits[32], id=3, kind=streaming, ops=send_receive, metadata="")
+chan c_d(data: bits[32], id=4, kind=streaming, ops=send_receive, metadata="")
+chan c_e(data: bits[32], id=5, kind=streaming, ops=send_receive, metadata="")
+chan d_o(data: bits[32], id=6, kind=streaming, ops=send_only, metadata="")
+chan e_o(data: bits[32], id=7, kind=streaming, ops=send_only, metadata="")
 
 proc a(my_token: token, state: (), init=()) {
   literal.1: bits[32] = literal(value=1)
@@ -215,9 +215,9 @@ TEST(SerialProcRuntimeTest, CarriesState) {
   const std::string kIrText = R"(
 package p
 
-chan a_in(data: bits[32], id=0, kind=receive_only, metadata="")
-chan a_to_b(data: bits[32], id=1, kind=send_receive, metadata="")
-chan b_out(data: bits[32], id=2, kind=send_only, metadata="")
+chan a_in(data: bits[32], id=0, kind=streaming, ops=receive_only, metadata="")
+chan a_to_b(data: bits[32], id=1, kind=streaming, ops=send_receive, metadata="")
+chan b_out(data: bits[32], id=2, kind=streaming, ops=send_only, metadata="")
 
 proc a(my_token: token, state: (bits[32]), init=(1)) {
   tuple_index.1: bits[32] = tuple_index(state, index=0)
@@ -274,8 +274,8 @@ TEST(SerialProcRuntimeTest, DetectsDeadlock) {
   const std::string kIrText = R"(
 package p
 
-chan first(data: bits[32], id=1, kind=send_receive, metadata="")
-chan second(data: bits[32], id=2, kind=send_receive, metadata="")
+chan first(data: bits[32], id=1, kind=streaming, ops=send_receive, metadata="")
+chan second(data: bits[32], id=2, kind=streaming, ops=send_receive, metadata="")
 
 proc a(my_token: token, state: bits[1], init=0) {
   literal.1: bits[32] = literal(value=1)
@@ -304,9 +304,9 @@ TEST(SerialProcRuntimeTest, FinishesDelayedCycle) {
   const std::string kIrText = R"(
 package p
 
-chan input(data: bits[32], id=0, kind=receive_only, metadata="")
-chan a_to_b(data: bits[32], id=1, kind=send_receive, metadata="")
-chan output(data: bits[32], id=2, kind=send_only, metadata="")
+chan input(data: bits[32], id=0, kind=streaming, ops=receive_only, metadata="")
+chan a_to_b(data: bits[32], id=1, kind=streaming, ops=send_receive, metadata="")
+chan output(data: bits[32], id=2, kind=streaming, ops=send_only, metadata="")
 
 proc a(my_token: token, state: (), init=()) {
   receive.1: (token, bits[32]) = receive(my_token, channel_id=0)
@@ -349,8 +349,8 @@ TEST(SerialProcRuntimeTest, WideTypes) {
   const std::string kIrText = R"(
 package p
 
-chan in(data: (bits[132], bits[217]), id=0, kind=receive_only, metadata="")
-chan out(data: (bits[132], bits[217]), id=1, kind=send_only, metadata="")
+chan in(data: (bits[132], bits[217]), id=0, kind=streaming, ops=receive_only, metadata="")
+chan out(data: (bits[132], bits[217]), id=1, kind=streaming, ops=send_only, metadata="")
 
 proc a(my_token: token, state: (), init=()) {
   rcv: (token, (bits[132], bits[217])) = receive(my_token, channel_id=0)
@@ -404,21 +404,19 @@ TEST(SerialProcRuntimeTest, ChannelInitValues) {
                  /*token_name=*/"tok", /*state_name=*/"nil_state", p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * state_channel,
-      p->CreateChannel(
-          "backedge", ChannelKind::kSendReceive,
+      p->CreateStreamingChannel(
+          "backedge", Channel::SupportedOps::kSendReceive,
           {DataElement{
               "state", p->GetBitsType(32),
               // Initial value of iotas are 42, 55, 100. Three sequences of
               // interleaved numbers will be generated starting at these
               // values.
               std::vector<Value>({Value(UBits(42, 32)), Value(UBits(55, 32)),
-                                  Value(UBits(100, 32))})}},
-          ChannelMetadataProto()));
+                                  Value(UBits(100, 32))})}}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * output_channel,
-      p->CreateChannel("out", ChannelKind::kSendOnly,
-                       {DataElement{"out", p->GetBitsType(32)}},
-                       ChannelMetadataProto()));
+      p->CreateStreamingChannel("out", Channel::SupportedOps::kSendOnly,
+                                {DataElement{"out", p->GetBitsType(32)}}));
 
   BValue state_receive = pb.Receive(state_channel, pb.GetTokenParam());
   BValue receive_token = pb.TupleIndex(state_receive, /*idx=*/0);

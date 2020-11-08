@@ -281,14 +281,14 @@ TEST(IrMatchersTest, SendOps) {
   Package p("p");
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch42,
-      p.CreateChannelWithId("ch42", 42, ChannelKind ::kSendReceive,
-                            {DataElement{"data", p.GetBitsType(32)}},
-                            ChannelMetadataProto()));
+      p.CreateStreamingChannel("ch42", Channel::SupportedOps ::kSendReceive,
+                               {DataElement{"data", p.GetBitsType(32)}}, 42,
+                               ChannelMetadataProto()));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch123,
-      p.CreateChannelWithId("ch123", 123, ChannelKind::kSendReceive,
-                            {DataElement{"data", p.GetBitsType(32)}},
-                            ChannelMetadataProto()));
+      p.CreateSingleValueChannel("ch123", Channel::SupportedOps::kSendReceive,
+                                 {DataElement{"data", p.GetBitsType(32)}}, 123,
+                                 ChannelMetadataProto()));
 
   ProcBuilder b("proc", Value(UBits(333, 32)), "my_token", "my_state", &p);
   auto send = b.Send(ch42, b.GetTokenParam(), {b.GetStateParam()});
@@ -313,14 +313,14 @@ TEST(IrMatchersTest, ReceiveOps) {
   Package p("p");
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch42,
-      p.CreateChannelWithId("ch42", 42, ChannelKind ::kSendReceive,
-                            {DataElement{"data", p.GetBitsType(32)}},
-                            ChannelMetadataProto()));
+      p.CreateStreamingChannel("ch42", Channel::SupportedOps ::kSendReceive,
+                               {DataElement{"data", p.GetBitsType(32)}}, 42,
+                               ChannelMetadataProto()));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch123,
-      p.CreateChannelWithId("ch123", 123, ChannelKind::kSendReceive,
-                            {DataElement{"data", p.GetBitsType(32)}},
-                            ChannelMetadataProto()));
+      p.CreateSingleValueChannel("ch123", Channel::SupportedOps::kSendReceive,
+                                 {DataElement{"data", p.GetBitsType(32)}}, 123,
+                                 ChannelMetadataProto()));
 
   ProcBuilder b("proc", Value(UBits(333, 32)), "my_token", "my_state", &p);
   auto receive = b.Receive(ch42, b.GetTokenParam());

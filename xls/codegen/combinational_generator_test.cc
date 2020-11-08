@@ -870,9 +870,9 @@ TEST_P(CombinationalGeneratorTest, InterpretArrayConcatArraysOfArrays) {
 TEST_P(CombinationalGeneratorTest, SimpleProc) {
   const std::string ir_text = R"(package test
 
-chan in(my_in: bits[32], id=0, kind=receive_only,
+chan in(my_in: bits[32], id=0, kind=single_value, ops=receive_only,
         metadata="""module_port { flopped: false,  port_order: 1 }""")
-chan out(my_out: bits[32], id=1, kind=send_only,
+chan out(my_out: bits[32], id=1, kind=single_value, ops=send_only,
          metadata="""module_port { flopped: false,  port_order: 0 }""")
 
 proc my_proc(my_token: token, my_state: (), init=()) {
@@ -905,13 +905,13 @@ proc my_proc(my_token: token, my_state: (), init=()) {
 TEST_P(CombinationalGeneratorTest, ProcWithMultipleInputChannels) {
   const std::string ir_text = R"(package test
 
-chan in0(my_in0: bits[32], id=0, kind=receive_only,
+chan in0(my_in0: bits[32], id=0, kind=single_value, ops=receive_only,
         metadata="""module_port { flopped: false,  port_order: 0 }""")
-chan in1(my_in1: bits[32], id=1, kind=receive_only,
+chan in1(my_in1: bits[32], id=1, kind=single_value, ops=receive_only,
         metadata="""module_port { flopped: false,  port_order: 2 }""")
-chan in2(my_in2: bits[32], id=2, kind=receive_only,
+chan in2(my_in2: bits[32], id=2, kind=single_value, ops=receive_only,
         metadata="""module_port { flopped: false,  port_order: 1 }""")
-chan out(my_out: bits[32], id=3, kind=send_only,
+chan out(my_out: bits[32], id=3, kind=single_value, ops=send_only,
          metadata="""module_port { flopped: false,  port_order: 0 }""")
 
 proc my_proc(my_token: token, my_state: (), init=()) {
@@ -952,11 +952,11 @@ proc my_proc(my_token: token, my_state: (), init=()) {
 TEST_P(CombinationalGeneratorTest, ProcWithMultipleOutputChannels) {
   const std::string ir_text = R"(package test
 
-chan in(my_in: bits[32], id=0, kind=receive_only,
+chan in(my_in: bits[32], id=0, kind=single_value, ops=receive_only,
         metadata="""module_port { flopped: false,  port_order: 1 }""")
-chan out0(my_out0: bits[32], id=1, kind=send_only,
+chan out0(my_out0: bits[32], id=1, kind=single_value, ops=send_only,
           metadata="""module_port { flopped: false,  port_order: 0 }""")
-chan out1(my_out1: bits[32], id=2, kind=send_only,
+chan out1(my_out1: bits[32], id=2, kind=single_value, ops=send_only,
           metadata="""module_port { flopped: false,  port_order: 2 }""")
 
 proc my_proc(my_token: token, my_state: (), init=()) {
@@ -1024,19 +1024,20 @@ TEST_P(CombinationalGeneratorTest, NToOneMuxProc) {
   // Add the selector module port which selects which input to forward.
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * selector_channel,
-      package.CreateChannel(
-          "selector", ChannelKind::kReceiveOnly,
+      package.CreateSingleValueChannel(
+          "selector", Channel::SupportedOps::kReceiveOnly,
           {DataElement{.name = "selector", .type = selector_type}},
-          make_channel_metadata()));
+          /*id=*/absl::nullopt, make_channel_metadata()));
   BValue selector = make_receive(selector_channel);
 
   // Add the output ready channel. It's an input and will be used to generate
   // the input ready outputs.
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out_ready_channel,
-      package.CreateChannel("out_rdy", ChannelKind::kReceiveOnly,
-                            {DataElement{.name = "out_rdy", .type = bit_type}},
-                            make_channel_metadata()));
+      package.CreateSingleValueChannel(
+          "out_rdy", Channel::SupportedOps::kReceiveOnly,
+          {DataElement{.name = "out_rdy", .type = bit_type}},
+          /*id=*/absl::nullopt, make_channel_metadata()));
   BValue output_ready = make_receive(out_ready_channel);
 
   // Generate all the input ports and their ready/valid signals.
@@ -1045,48 +1046,50 @@ TEST_P(CombinationalGeneratorTest, NToOneMuxProc) {
   for (int64 i = 0; i < kInputCount; ++i) {
     XLS_ASSERT_OK_AND_ASSIGN(
         Channel * data_channel,
-        package.CreateChannel(absl::StrFormat("in_%d", i),
-                              ChannelKind::kReceiveOnly,
-                              {DataElement{.name = absl::StrFormat("in_%d", i),
-                                           .type = data_type}},
-                              make_channel_metadata()));
+        package.CreateSingleValueChannel(
+            absl::StrFormat("in_%d", i), Channel::SupportedOps::kReceiveOnly,
+            {DataElement{.name = absl::StrFormat("in_%d", i),
+                         .type = data_type}},
+            /*id=*/absl::nullopt, make_channel_metadata()));
     input_datas.push_back(make_receive(data_channel));
 
     XLS_ASSERT_OK_AND_ASSIGN(
         Channel * valid_channel,
-        package.CreateChannel(
-            absl::StrFormat("in_%d_vld", i), ChannelKind::kReceiveOnly,
+        package.CreateSingleValueChannel(
+            absl::StrFormat("in_%d_vld", i),
+            Channel::SupportedOps::kReceiveOnly,
             {DataElement{.name = absl::StrFormat("in_%d_vld", i),
                          .type = bit_type}},
-            make_channel_metadata()));
+            /*id=*/absl::nullopt, make_channel_metadata()));
     input_valids.push_back(make_receive(valid_channel));
 
     BValue ready = pb.And(
         output_ready, pb.Eq(selector, pb.Literal(UBits(i, kSelectorBitCount))));
     XLS_ASSERT_OK_AND_ASSIGN(
         Channel * ready_channel,
-        package.CreateChannel(
-            absl::StrFormat("in_%d_rdy", i), ChannelKind::kSendOnly,
+        package.CreateSingleValueChannel(
+            absl::StrFormat("in_%d_rdy", i), Channel::SupportedOps::kSendOnly,
             {DataElement{.name = absl::StrFormat("in_%d_rdy", i),
                          .type = bit_type}},
-            make_channel_metadata()));
+            /*id=*/absl::nullopt, make_channel_metadata()));
     make_send(ready_channel, ready);
   }
 
   // Output data is a select amongst the input data.
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * out_data_channel,
-      package.CreateChannel("out", ChannelKind::kSendOnly,
-                            {DataElement{.name = "out", .type = data_type}},
-                            make_channel_metadata()));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * out_data_channel,
+                           package.CreateSingleValueChannel(
+                               "out", Channel::SupportedOps::kSendOnly,
+                               {DataElement{.name = "out", .type = data_type}},
+                               /*id=*/absl::nullopt, make_channel_metadata()));
   make_send(out_data_channel, pb.Select(selector, /*cases=*/input_datas));
 
   // Output valid is a select amongs the input valid signals.
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out_valid_channel,
-      package.CreateChannel("out_vld", ChannelKind::kSendOnly,
-                            {DataElement{.name = "out_vld", .type = bit_type}},
-                            make_channel_metadata()));
+      package.CreateSingleValueChannel(
+          "out_vld", Channel::SupportedOps::kSendOnly,
+          {DataElement{.name = "out_vld", .type = bit_type}},
+          /*id=*/absl::nullopt, make_channel_metadata()));
   make_send(out_valid_channel, pb.Select(selector, /*cases=*/input_valids));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(token, pb.GetStateParam()));
@@ -1137,27 +1140,28 @@ TEST_P(CombinationalGeneratorTest, OneToNMuxProc) {
   // Add the selector module port which selects which input to forward.
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * selector_channel,
-      package.CreateChannel(
-          "selector", ChannelKind::kReceiveOnly,
+      package.CreateSingleValueChannel(
+          "selector", Channel::SupportedOps::kReceiveOnly,
           {DataElement{.name = "selector", .type = selector_type}},
-          make_channel_metadata()));
+          /*id=*/absl::nullopt, make_channel_metadata()));
   BValue selector = make_receive(selector_channel);
 
   // Add the input data channel.
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * input_data_channel,
-      package.CreateChannel("in", ChannelKind::kReceiveOnly,
-                            {DataElement{.name = "in", .type = data_type}},
-                            make_channel_metadata()));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * input_data_channel,
+                           package.CreateSingleValueChannel(
+                               "in", Channel::SupportedOps::kReceiveOnly,
+                               {DataElement{.name = "in", .type = data_type}},
+                               /*id=*/absl::nullopt, make_channel_metadata()));
   BValue input = make_receive(input_data_channel);
 
   // Add the input valid channel. It's an input and will be used to generate
   // the output valid outputs.
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * input_valid_channel,
-      package.CreateChannel("in_vld", ChannelKind::kReceiveOnly,
-                            {DataElement{.name = "in_vld", .type = bit_type}},
-                            make_channel_metadata()));
+      package.CreateSingleValueChannel(
+          "in_vld", Channel::SupportedOps::kReceiveOnly,
+          {DataElement{.name = "in_vld", .type = bit_type}},
+          /*id=*/absl::nullopt, make_channel_metadata()));
   BValue input_valid = make_receive(input_valid_channel);
 
   // Generate all the output ports and their ready/valid signals.
@@ -1165,40 +1169,42 @@ TEST_P(CombinationalGeneratorTest, OneToNMuxProc) {
   for (int64 i = 0; i < kOutputCount; ++i) {
     XLS_ASSERT_OK_AND_ASSIGN(
         Channel * data_channel,
-        package.CreateChannel(absl::StrFormat("out_%d", i),
-                              ChannelKind::kSendOnly,
-                              {DataElement{.name = absl::StrFormat("out_%d", i),
-                                           .type = data_type}},
-                              make_channel_metadata()));
+        package.CreateSingleValueChannel(
+            absl::StrFormat("out_%d", i), Channel::SupportedOps::kSendOnly,
+            {DataElement{.name = absl::StrFormat("out_%d", i),
+                         .type = data_type}},
+            /*id=*/absl::nullopt, make_channel_metadata()));
     make_send(data_channel, input);
 
     XLS_ASSERT_OK_AND_ASSIGN(
         Channel * ready_channel,
-        package.CreateChannel(
-            absl::StrFormat("out_%d_rdy", i), ChannelKind::kReceiveOnly,
+        package.CreateSingleValueChannel(
+            absl::StrFormat("out_%d_rdy", i),
+            Channel::SupportedOps::kReceiveOnly,
             {DataElement{.name = absl::StrFormat("out_%d_rdy", i),
                          .type = bit_type}},
-            make_channel_metadata()));
+            /*id=*/absl::nullopt, make_channel_metadata()));
     output_readys.push_back(make_receive(ready_channel));
 
     BValue valid = pb.And(
         input_valid, pb.Eq(selector, pb.Literal(UBits(i, kSelectorBitCount))));
     XLS_ASSERT_OK_AND_ASSIGN(
         Channel * valid_channel,
-        package.CreateChannel(
-            absl::StrFormat("out_%d_vld", i), ChannelKind::kSendOnly,
+        package.CreateSingleValueChannel(
+            absl::StrFormat("out_%d_vld", i), Channel::SupportedOps::kSendOnly,
             {DataElement{.name = absl::StrFormat("out_%d_vld", i),
                          .type = bit_type}},
-            make_channel_metadata()));
+            /*id=*/absl::nullopt, make_channel_metadata()));
     make_send(valid_channel, valid);
   }
 
   // Output ready is a select amongs the input ready signals.
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * input_ready_channel,
-      package.CreateChannel("in_rdy", ChannelKind::kSendOnly,
-                            {DataElement{.name = "in_rdy", .type = bit_type}},
-                            make_channel_metadata()));
+      package.CreateSingleValueChannel(
+          "in_rdy", Channel::SupportedOps::kSendOnly,
+          {DataElement{.name = "in_rdy", .type = bit_type}},
+          /*id=*/absl::nullopt, make_channel_metadata()));
   make_send(input_ready_channel, pb.Select(selector, /*cases=*/output_readys));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(token, pb.GetStateParam()));

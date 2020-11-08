@@ -1096,7 +1096,7 @@ fn foo(x: bits[32]) -> bits[32] {
 TEST(IrParserTest, ParseSimpleProc) {
   const std::string input = R"(package test
 
-chan ch(data: bits[32], id=0, kind=send_receive, metadata="""module_port { flopped: true }""")
+chan ch(data: bits[32], id=0, kind=streaming, ops=send_receive, metadata="""module_port { flopped: true }""")
 
 proc my_proc(my_token: token, my_state: bits[32], init=42) {
   send.1: token = send(my_token, data=[my_state], channel_id=0, id=1)
@@ -1795,12 +1795,13 @@ TEST(IrParserTest, ParseSendReceiveChannel) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch,
       Parser::ParseChannel(
-          R"(chan foo(foo_data: bits[32], id=42, kind=send_receive,
-                         metadata="module_port { flopped: true }"))",
+          R"(chan foo(foo_data: bits[32], id=42, kind=single_value,
+                      ops=send_receive,
+                      metadata="module_port { flopped: true }"))",
           &p));
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_EQ(ch->id(), 42);
-  EXPECT_EQ(ch->kind(), ChannelKind::kSendReceive);
+  EXPECT_EQ(ch->supported_ops(), Channel::SupportedOps::kSendReceive);
   EXPECT_EQ(ch->data_elements().size(), 1);
   EXPECT_EQ(ch->data_elements().front().name, "foo_data");
   EXPECT_EQ(ch->data_elements().front().type, p.GetBitsType(32));
@@ -1815,12 +1816,12 @@ TEST(IrParserTest, ParseSendReceiveChannelWithInitialValues) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch,
       Parser::ParseChannel(
-          R"(chan foo(foo_data: bits[32] = {2, 4, 5}, id=42, kind=send_receive,
+          R"(chan foo(foo_data: bits[32] = {2, 4, 5}, id=42, kind=streaming, ops=send_receive,
                          metadata="module_port { flopped: true }"))",
           &p));
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_EQ(ch->id(), 42);
-  EXPECT_EQ(ch->kind(), ChannelKind::kSendReceive);
+  EXPECT_EQ(ch->supported_ops(), Channel::SupportedOps::kSendReceive);
   EXPECT_EQ(ch->data_elements().size(), 1);
   EXPECT_EQ(ch->data_elements().front().name, "foo_data");
   EXPECT_EQ(ch->data_elements().front().type, p.GetBitsType(32));
@@ -1837,8 +1838,9 @@ TEST(IrParserTest, ParseSendReceiveChannelWithEmptyInitialValues) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch,
       Parser::ParseChannel(
-          R"(chan foo(foo_data: bits[32] = {}, id=42, kind=send_receive,
-                         metadata="module_port { flopped: true }"))",
+          R"(chan foo(foo_data: bits[32] = {}, id=42, kind=single_value,
+                      ops=send_receive,
+                      metadata="module_port { flopped: true }"))",
           &p));
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_EQ(ch->data_elements().size(), 1);
@@ -1850,8 +1852,9 @@ TEST(IrParserTest, ParseSendReceiveChannelWithTupleType) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch,
       Parser::ParseChannel(
-          R"(chan foo(foo_data: (bits[32], bits[1]) = {(123, 1), (42, 0)}, id=42, kind=send_receive,
-                         metadata="module_port { flopped: true }"))",
+          R"(chan foo(foo_data: (bits[32], bits[1]) = {(123, 1), (42, 0)},
+                      id=42, kind=streaming,  ops=send_receive,
+                      metadata="module_port { flopped: true }"))",
           &p));
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_EQ(ch->data_elements().size(), 1);
@@ -1867,12 +1870,12 @@ TEST(IrParserTest, ParseMultipleDataSendReceiveChannelWithInitialValues) {
                            Parser::ParseChannel(
                                R"(chan foo(foo_data: bits[32] = {2, 4},
                       bar_data: bits[8] = {0, 42},
-                      id=42, kind=send_receive,
+                      id=42, kind=streaming, ops=send_receive,
                       metadata="module_port { flopped: true }"))",
                                &p));
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_EQ(ch->id(), 42);
-  EXPECT_EQ(ch->kind(), ChannelKind::kSendReceive);
+  EXPECT_EQ(ch->supported_ops(), Channel::SupportedOps::kSendReceive);
   EXPECT_EQ(ch->data_elements().size(), 2);
 
   EXPECT_EQ(ch->data_element(0).name, "foo_data");
@@ -1895,12 +1898,12 @@ TEST(IrParserTest, ParseSendOnlyChannel) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch, Parser::ParseChannel(
                         R"(chan bar(baz: (bits[32], bits[1]), qux: bits[123],
-                         id=7, kind=send_only,
+                         id=7, kind=single_value, ops=send_only,
                          metadata="module_port { flopped: false }"))",
                         &p));
   EXPECT_EQ(ch->name(), "bar");
   EXPECT_EQ(ch->id(), 7);
-  EXPECT_EQ(ch->kind(), ChannelKind::kSendOnly);
+  EXPECT_EQ(ch->supported_ops(), Channel::SupportedOps::kSendOnly);
   EXPECT_EQ(ch->data_elements().size(), 2);
   EXPECT_EQ(ch->data_elements()[0].name, "baz");
   EXPECT_EQ(ch->data_elements()[0].type,
@@ -1914,14 +1917,14 @@ TEST(IrParserTest, ParseSendOnlyChannel) {
 
 TEST(IrParserTest, ParseReceiveOnlyChannel) {
   Package p("my_package");
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch, Parser::ParseChannel(
-                        R"(chan meh(huh: bits[32][4], id=0, kind=receive_only,
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * ch, Parser::ParseChannel(
+                                             R"(chan meh(huh: bits[32][4], id=0,
+                         kind=single_value, ops=receive_only,
                          metadata="module_port { flopped: true }"))",
-                        &p));
+                                             &p));
   EXPECT_EQ(ch->name(), "meh");
   EXPECT_EQ(ch->id(), 0);
-  EXPECT_EQ(ch->kind(), ChannelKind::kReceiveOnly);
+  EXPECT_EQ(ch->supported_ops(), Channel::SupportedOps::kReceiveOnly);
   EXPECT_EQ(ch->data_elements().size(), 1);
   EXPECT_EQ(ch->data_elements().front().name, "huh");
   EXPECT_EQ(ch->data_elements().front().type,
@@ -1934,7 +1937,8 @@ TEST(IrParserTest, ParseReceiveOnlyChannel) {
 TEST(IrParserTest, ChannelParsingErrors) {
   Package p("my_package");
   EXPECT_THAT(Parser::ParseChannel(
-                  R"(chan meh(huh: bits[32][4], kind=receive_only,
+                  R"(chan meh(huh: bits[32][4], kind=single_value,
+                         ops=receive_only,
                          metadata="module_port { flopped: true }"))",
                   &p)
                   .status(),
@@ -1942,16 +1946,34 @@ TEST(IrParserTest, ChannelParsingErrors) {
                        HasSubstr("Missing channel id")));
 
   EXPECT_THAT(Parser::ParseChannel(
-                  R"(chan meh(huh: bits[32][4], id=7,
+                  R"(chan meh(huh: bits[32][4], id=42, ops=receive_only,
                          metadata="module_port { flopped: true }"))",
                   &p)
                   .status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Missing channel kind")));
 
+  EXPECT_THAT(Parser::ParseChannel(
+                  R"(chan meh(huh: bits[32][4], id=42, kind=bogus,
+                         ops=receive_only,
+                         metadata="module_port { flopped: true }"))",
+                  &p)
+                  .status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Invalid channel kind \"bogus\"")));
+
+  EXPECT_THAT(Parser::ParseChannel(
+                  R"(chan meh(huh: bits[32][4], id=7, kind=streaming,
+                         metadata="module_port { flopped: true }"))",
+                  &p)
+                  .status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Missing channel ops")));
+
   // Unrepresentable initial value.
   EXPECT_THAT(Parser::ParseChannel(
-                  R"(chan meh(huh: bits[4] = {128}, kind=send_receive, id=7
+                  R"(chan meh(huh: bits[4] = {128}, kind=streaming,
+                         ops=send_receive, id=7,
                          metadata="module_port { flopped: true }"))",
                   &p)
                   .status(),
@@ -1960,7 +1982,8 @@ TEST(IrParserTest, ChannelParsingErrors) {
 
   // Wrong initial value type.
   EXPECT_THAT(Parser::ParseChannel(
-                  R"(chan meh(huh: bits[4] = {(1, 2)}, kind=send_receive, id=7
+                  R"(chan meh(huh: bits[4] = {(1, 2)}, kind=streaming,
+                         ops=send_receive, id=7
                          metadata="module_port { flopped: true }"))",
                   &p)
                   .status(),
@@ -1968,13 +1991,15 @@ TEST(IrParserTest, ChannelParsingErrors) {
                        HasSubstr("Expected token of type \"literal\"")));
 
   EXPECT_THAT(Parser::ParseChannel(
-                  R"(chan meh(huh: bits[32][4], id=7, kind=receive_only))", &p)
+                  R"(chan meh(huh: bits[32][4], id=7, kind=streaming,
+                     ops=receive_only))",
+                  &p)
                   .status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Missing channel metadata")));
 
   EXPECT_THAT(Parser::ParseChannel(
-                  R"(chan meh(id=44, kind=receive_only,
+                  R"(chan meh(id=44, kind=streaming, ops=receive_only,
                          metadata="module_port { flopped: true }"))",
                   &p)
                   .status(),
@@ -1982,8 +2007,8 @@ TEST(IrParserTest, ChannelParsingErrors) {
                        HasSubstr("Channel has no data elements")));
 
   EXPECT_THAT(Parser::ParseChannel(
-                  R"(chan meh(foo: bits[32], id=44, kind=receive_only,
-                         bogus="totally!",
+                  R"(chan meh(foo: bits[32], id=44, kind=streaming,
+                         ops=receive_only, bogus="totally!",
                          metadata="module_port { flopped: true }"))",
                   &p)
                   .status(),
@@ -1991,31 +2016,31 @@ TEST(IrParserTest, ChannelParsingErrors) {
                        HasSubstr("Invalid channel attribute \"bogus\"")));
 
   // Bad data element name.
-  EXPECT_THAT(
-      Parser::ParseChannel(
-          R"(chan meh(123badname: bits[32][4], id=7, kind=receive_only, metadata=""))",
-          &p)
-          .status(),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Expected token of type \"ident\"")));
+  EXPECT_THAT(Parser::ParseChannel(
+                  R"(chan meh(123badname: bits[32][4], id=7, kind=streaming,
+             ops=receive_only, metadata=""))",
+                  &p)
+                  .status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected token of type \"ident\"")));
 
   // Bad channel name.
-  EXPECT_THAT(
-      Parser::ParseChannel(
-          R"(chan 444meh(foo: bits[32], id=7, kind=receive_only, metadata=""))",
-          &p)
-          .status(),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Expected token of type \"ident\"")));
+  EXPECT_THAT(Parser::ParseChannel(
+                  R"(chan 444meh(foo: bits[32], id=7, kind=streaming,
+                         ops=receive_only, metadata=""))",
+                  &p)
+                  .status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected token of type \"ident\"")));
 }
 
 TEST(IrParserTest, PackageWithSingleDataElementChannels) {
   std::string program = R"(
 package test
 
-chan hbo(junk: bits[32], id=0, kind=receive_only,
+chan hbo(junk: bits[32], id=0, kind=streaming, ops=receive_only,
             metadata="module_port { flopped: true }")
-chan mtv(stuff: bits[32], id=1, kind=send_only,
+chan mtv(stuff: bits[32], id=1, kind=streaming, ops=send_only,
             metadata="module_port { flopped: true }")
 
 proc my_proc(my_token: token, my_state: bits[32], init=42) {
@@ -2037,10 +2062,11 @@ TEST(IrParserTest, PackageWithMultipleDataElementChannels) {
   std::string program = R"(
 package test
 
-chan hbo(junk: bits[32], garbage: bits[1], id=0, kind=receive_only,
-            metadata="module_port { flopped: true }")
-chan mtv(stuff: bits[32], zzz: bits[1], id=1, kind=send_only,
-            metadata="module_port { flopped: true }")
+chan hbo(junk: bits[32], garbage: bits[1], kind=streaming, id=0,
+         ops=receive_only,
+         metadata="module_port { flopped: true }")
+chan mtv(stuff: bits[32], zzz: bits[1], kind=streaming, id=1, ops=send_only,
+          metadata="module_port { flopped: true }")
 
 proc my_proc(my_token: token, my_state: bits[32], init=42) {
   literal.1: bits[1] = literal(value=1, id=1)

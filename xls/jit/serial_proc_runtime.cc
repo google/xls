@@ -152,6 +152,10 @@ absl::Status SerialProcRuntime::Init() {
 
   // Enqueue initial values into channels.
   for (Channel* channel : package_->channels()) {
+    if (channel->IsSingleValue()) {
+      return absl::UnimplementedError(
+          "Single-value channels not supported in serial proc runtime.");
+    }
     for (const std::vector<Value>& values : channel->initial_values()) {
       XLS_RETURN_IF_ERROR(EnqueueValuesToChannel(channel, values));
     }
@@ -186,12 +190,9 @@ absl::Status SerialProcRuntime::Tick() {
       }
 
       if (thread->thread_state == ThreadData::State::kBlocked) {
-        auto status_or_chan = package_->GetChannel(thread->blocking_channel);
-        if (!status_or_chan.ok()) {
-          return status_or_chan.status();
-        }
-
-        if (status_or_chan.value()->kind() == ChannelKind::kReceiveOnly) {
+        XLS_ASSIGN_OR_RETURN(Channel * chan,
+                             package_->GetChannel(thread->blocking_channel));
+        if (chan->supported_ops() == Channel::SupportedOps::kReceiveOnly) {
           blocked_by_external = true;
         }
       }

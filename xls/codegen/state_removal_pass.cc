@@ -36,14 +36,13 @@ absl::StatusOr<bool> StateRemovalPass::RunOnProc(Proc* proc,
   }
 
   // Replace state param with single-value register channel.
-  // TODO(meheff): Add initial state as an initial entry in the channel when
-  // channel initial entries are supported.
   XLS_ASSIGN_OR_RETURN(
       Channel * state_channel,
-      proc->package()->CreateChannel(
-          kStateChannelName, ChannelKind::kSendReceive,
-          {DataElement{proc->StateParam()->GetName(), proc->StateType()}},
-          ChannelMetadataProto()));
+      proc->package()->CreateStreamingChannel(
+          kStateChannelName, Channel::SupportedOps::kSendReceive,
+          {DataElement{.name = proc->StateParam()->GetName(),
+                       .type = proc->StateType(),
+                       .initial_values = {proc->InitValue()}}}));
 
   // Create a receive of the recurrent state and replace current uses of the
   // state param with the received state data.

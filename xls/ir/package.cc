@@ -429,48 +429,71 @@ std::vector<std::string> Package::GetFunctionNames() const {
   return names;
 }
 
-absl::StatusOr<Channel*> Package::CreateChannel(
-    absl::string_view name, ChannelKind kind,
-    absl::Span<const DataElement> data_elements,
+absl::StatusOr<StreamingChannel*> Package::CreateStreamingChannel(
+    absl::string_view name, Channel::SupportedOps supported_ops,
+    absl::Span<const DataElement> data_elements, absl::optional<int64> id,
     const ChannelMetadataProto& metadata) {
-  return CreateChannelWithId(name, next_channel_id_, kind, data_elements,
-                             metadata);
+  int64 actual_id = id.has_value() ? id.value() : next_channel_id_;
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<StreamingChannel> channel,
+                       StreamingChannel::Create(name, actual_id, supported_ops,
+                                                data_elements, metadata));
+  StreamingChannel* channel_ptr = channel.get();
+  XLS_RETURN_IF_ERROR(AddChannel(std::move(channel)));
+  return channel_ptr;
 }
 
-absl::StatusOr<Channel*> Package::CreateChannelWithId(
-    absl::string_view name, int64 id, ChannelKind kind,
-    absl::Span<const DataElement> data_elements,
+absl::StatusOr<SingleValueChannel*> Package::CreateSingleValueChannel(
+    absl::string_view name, Channel::SupportedOps supported_ops,
+    absl::Span<const DataElement> data_elements, absl::optional<int64> id,
     const ChannelMetadataProto& metadata) {
-  auto [channel_it, inserted] =
-      channels_.insert({id, absl::make_unique<Channel>(
-                                name, id, kind, data_elements, metadata)});
+  int64 actual_id = id.has_value() ? id.value() : next_channel_id_;
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<SingleValueChannel> channel,
+      SingleValueChannel::Create(name, actual_id, supported_ops, data_elements,
+                                 metadata));
+  SingleValueChannel* channel_ptr = channel.get();
+  XLS_RETURN_IF_ERROR(AddChannel(std::move(channel)));
+  return channel_ptr;
+}
+
+absl::Status Package::AddChannel(std::unique_ptr<Channel> channel) {
+  int64 id = channel->id();
+  auto [channel_it, inserted] = channels_.insert({id, std::move(channel)});
   if (!inserted) {
     return absl::InternalError(
         absl::StrFormat("Channel already exists with id %d.", id));
   }
-  // TODO(meheff): Verify the name is unique as well.
+  Channel* channel_ptr = channel_it->second.get();
+
+  // Verify the channel name is unique.
+  for (Channel* ch : channel_vec_) {
+    if (ch->name() == channel_ptr->name()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Channel already exists with name \"%s\"", ch->name()));
+    }
+  }
 
   // The channel name and all data element names must be valid identifiers.
-  if (!NameUniquer::IsValidIdentifier(name)) {
+  if (!NameUniquer::IsValidIdentifier(channel_ptr->name())) {
     return absl::InvalidArgumentError(
-        absl::StrFormat("Invalid channel name: \"%s\"", name));
+        absl::StrFormat("Invalid channel name: \"%s\"", channel_ptr->name()));
   }
-  for (const DataElement& data_element : data_elements) {
+  for (const DataElement& data_element : channel_ptr->data_elements()) {
     if (!NameUniquer::IsValidIdentifier(data_element.name)) {
       return absl::InvalidArgumentError(
           absl::StrFormat("Invalid data element name \"%s\" in channel \"%s\"",
-                          data_element.name, name));
+                          data_element.name, channel_ptr->name()));
     }
   }
 
   // Add pointer to newly added channel to the channel vector and resort it by
   // ID.
-  channel_vec_.push_back(channel_it->second.get());
+  channel_vec_.push_back(channel_ptr);
   std::sort(channel_vec_.begin(), channel_vec_.end(),
             [](Channel* a, Channel* b) { return a->id() < b->id(); });
 
   next_channel_id_ = std::max(next_channel_id_, id + 1);
-  return channel_it->second.get();
+  return absl::OkStatus();
 }
 
 absl::StatusOr<Channel*> Package::GetChannel(int64 id) const {

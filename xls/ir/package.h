@@ -164,21 +164,20 @@ class Package {
   // Intended for use by the parser when node ids are suggested by the IR text.
   void set_next_node_id(int64 value) { next_node_id_ = value; }
 
-  // Create a channel. A unique channel ID will be automatically
-  // allocated. Channels are used with send/receive nodes in communicate between
-  // procs or between procs and external (to XLS) components.
-  // TODO(meheff): Consider using a builder for constructing a channel.
-  absl::StatusOr<Channel*> CreateChannel(
-      absl::string_view name, ChannelKind kind,
+  // Create a streaming or single-value channel. Channels are used with
+  // send/receive nodes in communicate between procs or between procs and
+  // external (to XLS) components. If no channel ID is specified, a unique
+  // channel ID will be automatically allocated.  TODO(meheff): Consider using a
+  // builder for constructing a channel.
+  absl::StatusOr<StreamingChannel*> CreateStreamingChannel(
+      absl::string_view name, Channel::SupportedOps supported_ops,
       absl::Span<const DataElement> data_elements,
+      absl::optional<int64> id = absl::nullopt,
       const ChannelMetadataProto& metadata = ChannelMetadataProto());
-
-  // Create a channel with the given ID. Can be used when parsing a package file
-  // where ID's are specified in the file. Otherwise CreateChannel should be
-  // used.
-  absl::StatusOr<Channel*> CreateChannelWithId(
-      absl::string_view name, int64 id, ChannelKind kind,
+  absl::StatusOr<SingleValueChannel*> CreateSingleValueChannel(
+      absl::string_view name, Channel::SupportedOps supported_ops,
       absl::Span<const DataElement> data_elements,
+      absl::optional<int64> id = absl::nullopt,
       const ChannelMetadataProto& metadata = ChannelMetadataProto());
 
   // Returns a span of the channels owned by the package. Sorted by channel ID.
@@ -198,6 +197,9 @@ class Package {
   Type* GetReceiveType(Channel* channel);
 
  private:
+  // Adds the given channel to the package.
+  absl::Status AddChannel(std::unique_ptr<Channel> channel);
+
   friend class FunctionBuilder;
 
   absl::optional<std::string> entry_;

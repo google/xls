@@ -27,10 +27,6 @@
 
 namespace xls {
 
-// Data structure holding a set of concrete values to send over a channel in one
-// transaction. This represents a single entry in the FIFO backing a channel.
-using ChannelData = std::vector<Value>;
-
 // A queue (arbitrary depth-FIFO) backing a particular channel during
 // interpretation. During interpretation of a network of procs each channel is
 // backed by exactly one ChannelQueue. ChannelQueues are thread-compatible, but

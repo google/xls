@@ -862,6 +862,7 @@ cc_library(
         ":type",
         ":value",
         "//xls/common:integral_types",
+        "//xls/common/status:ret_check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",

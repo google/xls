@@ -368,21 +368,21 @@ TEST(FunctionBuilderTest, BuildTwiceFails) {
 TEST(FunctionBuilderTest, SendAndReceive) {
   Package p("p");
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch0, p.CreateChannel("ch0", ChannelKind::kSendReceive,
-                                     {DataElement{"data", p.GetBitsType(32)}},
-                                     ChannelMetadataProto()));
+      Channel * ch0,
+      p.CreateStreamingChannel("ch0", Channel::SupportedOps::kSendReceive,
+                               {DataElement{"data", p.GetBitsType(32)}}));
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch1, p.CreateChannel("ch1", ChannelKind::kSendReceive,
-                                     {DataElement{"data", p.GetBitsType(32)}},
-                                     ChannelMetadataProto()));
+      Channel * ch1,
+      p.CreateStreamingChannel("ch1", Channel::SupportedOps::kSendReceive,
+                               {DataElement{"data", p.GetBitsType(32)}}));
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch2, p.CreateChannel("ch2", ChannelKind::kSendReceive,
-                                     {DataElement{"data", p.GetBitsType(32)}},
-                                     ChannelMetadataProto()));
+      Channel * ch2,
+      p.CreateStreamingChannel("ch2", Channel::SupportedOps::kSendReceive,
+                               {DataElement{"data", p.GetBitsType(32)}}));
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch3, p.CreateChannel("ch3", ChannelKind::kSendReceive,
-                                     {DataElement{"data", p.GetBitsType(32)}},
-                                     ChannelMetadataProto()));
+      Channel * ch3,
+      p.CreateStreamingChannel("ch3", Channel::SupportedOps::kSendReceive,
+                               {DataElement{"data", p.GetBitsType(32)}}));
 
   ProcBuilder b("sending_receiving", Value(UBits(42, 32)),
                 /*token_name=*/"my_token", /*state_name=*/"my_state", &p);

@@ -36,10 +36,9 @@ class ChannelQueueTest : public IrTestBase {};
 TEST_F(ChannelQueueTest, SingleDataElementEnqueueDequeue) {
   Package package(TestName());
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * channel,
-      package.CreateChannel("my_channel", ChannelKind::kSendReceive,
-                            {DataElement{"data", package.GetBitsType(32)}},
-                            ChannelMetadataProto()));
+      Channel * channel, package.CreateStreamingChannel(
+                             "my_channel", Channel::SupportedOps::kSendReceive,
+                             {DataElement{"data", package.GetBitsType(32)}}));
   ChannelQueue queue(channel, &package);
   EXPECT_EQ(queue.channel(), channel);
   EXPECT_EQ(queue.size(), 0);
@@ -66,11 +65,10 @@ TEST_F(ChannelQueueTest, SingleDataElementEnqueueDequeue) {
 TEST_F(ChannelQueueTest, MultipleDataElementEnqueueDequeue) {
   Package package(TestName());
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * channel,
-      package.CreateChannel("my_channel", ChannelKind::kSendReceive,
-                            {DataElement{"bool", package.GetBitsType(1)},
-                             DataElement{"int", package.GetBitsType(32)}},
-                            ChannelMetadataProto()));
+      Channel * channel, package.CreateStreamingChannel(
+                             "my_channel", Channel::SupportedOps::kSendReceive,
+                             {DataElement{"bool", package.GetBitsType(1)},
+                              DataElement{"int", package.GetBitsType(32)}}));
   ChannelQueue queue(channel, &package);
   XLS_ASSERT_OK(queue.Enqueue({Value(UBits(0, 1)), Value(UBits(42, 32))}));
   XLS_ASSERT_OK(queue.Enqueue({Value(UBits(1, 1)), Value(UBits(123, 32))}));
@@ -87,11 +85,10 @@ TEST_F(ChannelQueueTest, MultipleDataElementEnqueueDequeue) {
 TEST_F(ChannelQueueTest, ErrorConditions) {
   Package package(TestName());
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * channel,
-      package.CreateChannel("my_channel", ChannelKind::kSendReceive,
-                            {DataElement{"bool", package.GetBitsType(1)},
-                             DataElement{"int", package.GetBitsType(32)}},
-                            ChannelMetadataProto()));
+      Channel * channel, package.CreateStreamingChannel(
+                             "my_channel", Channel::SupportedOps::kSendReceive,
+                             {DataElement{"bool", package.GetBitsType(1)},
+                              DataElement{"int", package.GetBitsType(32)}}));
 
   ChannelQueue queue(channel, &package);
 
@@ -116,10 +113,9 @@ TEST_F(ChannelQueueTest, ErrorConditions) {
 TEST_F(ChannelQueueTest, InputQueue) {
   Package package(TestName());
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * channel,
-      package.CreateChannel("my_channel", ChannelKind::kReceiveOnly,
-                            {DataElement{"int", package.GetBitsType(32)}},
-                            ChannelMetadataProto()));
+      Channel * channel, package.CreateStreamingChannel(
+                             "my_channel", Channel::SupportedOps::kReceiveOnly,
+                             {DataElement{"int", package.GetBitsType(32)}}));
   int64 counter = 42;
   RxOnlyChannelQueue queue(channel, &package,
                            [&]() -> absl::StatusOr<ChannelData> {
@@ -144,10 +140,9 @@ TEST_F(ChannelQueueTest, InputQueue) {
 TEST_F(ChannelQueueTest, FixedInputQueue) {
   Package package(TestName());
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * channel,
-      package.CreateChannel("my_channel", ChannelKind::kReceiveOnly,
-                            {DataElement{"int", package.GetBitsType(32)}},
-                            ChannelMetadataProto()));
+      Channel * channel, package.CreateStreamingChannel(
+                             "my_channel", Channel::SupportedOps::kReceiveOnly,
+                             {DataElement{"int", package.GetBitsType(32)}}));
   FixedRxOnlyChannelQueue queue(
       channel, &package,
       {ChannelData({Value(UBits(22, 32))}), ChannelData({Value(UBits(44, 32))}),
@@ -163,10 +158,9 @@ TEST_F(ChannelQueueTest, FixedInputQueue) {
 TEST_F(ChannelQueueTest, EmptyFixedInputQueue) {
   Package package(TestName());
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * channel,
-      package.CreateChannel("my_channel", ChannelKind::kReceiveOnly,
-                            {DataElement{"int", package.GetBitsType(32)}},
-                            ChannelMetadataProto()));
+      Channel * channel, package.CreateStreamingChannel(
+                             "my_channel", Channel::SupportedOps::kReceiveOnly,
+                             {DataElement{"int", package.GetBitsType(32)}}));
   FixedRxOnlyChannelQueue queue(channel, &package, {});
   EXPECT_EQ(queue.size(), 0);
   EXPECT_TRUE(queue.empty());
@@ -174,21 +168,18 @@ TEST_F(ChannelQueueTest, EmptyFixedInputQueue) {
 
 TEST_F(ChannelQueueTest, SimpleChannelQueueManager) {
   Package package(TestName());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * channel_a,
-      package.CreateChannel("a", ChannelKind::kReceiveOnly,
-                            {DataElement{"data", package.GetBitsType(32)}},
-                            ChannelMetadataProto()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * channel_b,
-      package.CreateChannel("b", ChannelKind::kReceiveOnly,
-                            {DataElement{"data", package.GetBitsType(32)}},
-                            ChannelMetadataProto()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * channel_c,
-      package.CreateChannel("c", ChannelKind::kSendReceive,
-                            {DataElement{"data", package.GetBitsType(32)}},
-                            ChannelMetadataProto()));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * channel_a,
+                           package.CreateStreamingChannel(
+                               "a", Channel::SupportedOps::kReceiveOnly,
+                               {DataElement{"data", package.GetBitsType(32)}}));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * channel_b,
+                           package.CreateStreamingChannel(
+                               "b", Channel::SupportedOps::kReceiveOnly,
+                               {DataElement{"data", package.GetBitsType(32)}}));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * channel_c,
+                           package.CreateStreamingChannel(
+                               "c", Channel::SupportedOps::kSendReceive,
+                               {DataElement{"data", package.GetBitsType(32)}}));
 
   std::vector<std::unique_ptr<RxOnlyChannelQueue>> rx_only_queues;
   rx_only_queues.push_back(absl::make_unique<RxOnlyChannelQueue>(
@@ -226,23 +217,33 @@ TEST_F(ChannelQueueTest, ChannelQueueManagerNoChannels) {
   EXPECT_EQ(manager->queues().size(), 0);
 }
 
+TEST_F(ChannelQueueTest, ChannelQueueManagerSingleValueChannel) {
+  Package package(TestName());
+  XLS_ASSERT_OK(package
+                    .CreateSingleValueChannel(
+                        "ch", Channel::SupportedOps::kSendReceive,
+                        {DataElement{"data", package.GetBitsType(32)}})
+                    .status());
+  EXPECT_THAT(
+      ChannelQueueManager::Create(/*rx_only_queues=*/{}, &package).status(),
+      StatusIs(absl::StatusCode::kUnimplemented,
+               HasSubstr("Only streaming channels are supported.")));
+}
+
 TEST_F(ChannelQueueTest, ChannelQueueManagerErrorConditions) {
   Package package(TestName());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * channel_a,
-      package.CreateChannel("a", ChannelKind::kReceiveOnly,
-                            {DataElement{"data", package.GetBitsType(32)}},
-                            ChannelMetadataProto()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * channel_b,
-      package.CreateChannel("b", ChannelKind::kReceiveOnly,
-                            {DataElement{"data", package.GetBitsType(32)}},
-                            ChannelMetadataProto()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * channel_c,
-      package.CreateChannel("c", ChannelKind::kSendReceive,
-                            {DataElement{"data", package.GetBitsType(32)}},
-                            ChannelMetadataProto()));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * channel_a,
+                           package.CreateStreamingChannel(
+                               "a", Channel::SupportedOps::kReceiveOnly,
+                               {DataElement{"data", package.GetBitsType(32)}}));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * channel_b,
+                           package.CreateStreamingChannel(
+                               "b", Channel::SupportedOps::kReceiveOnly,
+                               {DataElement{"data", package.GetBitsType(32)}}));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * channel_c,
+                           package.CreateStreamingChannel(
+                               "c", Channel::SupportedOps::kSendReceive,
+                               {DataElement{"data", package.GetBitsType(32)}}));
 
   EXPECT_THAT(
       ChannelQueueManager::Create(/*rx_only_queues=*/{}, &package).status(),

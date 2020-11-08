@@ -106,11 +106,12 @@ ChannelQueueManager::Create(
   // Verify there is an receive-only queue for every ReceiveOnly channel in the
   // package.
   for (auto& rx_only_queue : rx_only_queues) {
-    if (rx_only_queue->channel()->kind() != ChannelKind::kReceiveOnly) {
+    if (rx_only_queue->channel()->supported_ops() !=
+        Channel::SupportedOps::kReceiveOnly) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "receive-only queues only can be used with receive_only "
           "channels, used with %s channel %s",
-          ChannelKindToString(rx_only_queue->channel()->kind()),
+          SupportedOpsToString(rx_only_queue->channel()->supported_ops()),
           rx_only_queue->channel()->name()));
     }
     if (manager->queues_.contains(rx_only_queue->channel())) {
@@ -124,7 +125,10 @@ ChannelQueueManager::Create(
   // Verify that every receive-only channel has an receive-only queue and create
   // queues for the remaining non-receive-only channels.
   for (Channel* channel : package->channels()) {
-    if (channel->kind() == ChannelKind::kReceiveOnly) {
+    if (!channel->IsStreaming()) {
+      return absl::UnimplementedError("Only streaming channels are supported.");
+    }
+    if (channel->supported_ops() == Channel::SupportedOps::kReceiveOnly) {
       if (!manager->queues_.contains(channel)) {
         return absl::InvalidArgumentError(absl::StrFormat(
             "No receive-only queue specified for receive_only channel %s (%d)",
