@@ -20,15 +20,16 @@ early experimentation, but they are quickly being removed to converge on Rust
 syntax.
 
 Dataflow DSLs are a good fit for describing hardware, compared to languages
-designed assume
+whose design assumes
 [von Neumann style computation](https://en.wikipedia.org/wiki/Von_Neumann_architecture)
 (global mutable state, sequential mutation by a sequential thread of control).
-Using a DSL provides a more hardware-oriented representation of a given
-computation that matches XLS compiler (IR) constructs closely. The DSL also
-allows an exploration of HLS without being encumbered by C++ language or
-compiler limitations such as non-portable pragmas, magic macros, or semantically
-important syntactic conventions. The language is still experimental and likely
-to change, but it is already useful for experimentation and exploration.
+Using a Domain Specific Language (DSL) provides a more hardware-oriented
+representation of a given computation that matches XLS compiler (IR) constructs
+closely. The DSL also allows an exploration of HLS without being encumbered by
+C++ language or compiler limitations such as non-portable pragmas, magic macros,
+or semantically important syntactic conventions. The language is still
+experimental and likely to change, but it is already useful for experimentation
+and exploration.
 
 This document provides a reference for DSLX, mostly by example. After perusing
 it and learning about the language features, we recommend exploring the
@@ -104,8 +105,8 @@ fn add1(x: u32) -> u32 {
 ```
 
 Functions return the result of their last computed expression as their return
-value. There are no explicit return statements. Functions also don't have
-multiple return statements.
+value. There are no explicit return statements. By implication, functions return
+exactly one expression; they can't return multiple expressions (but this may change in the future as we migrate towards some Rust semantics).
 
 Tuples should be returned if a function should return multiple values.
 
@@ -206,13 +207,12 @@ u32       // convenient shorthand for bits[32]
 bits[256] // a 256-bit datatype
 ```
 
-DSLX introduces shortcuts for commonly used types, such as `u8` for an 8-wide
-bit type, or `u32` for a 32-bit wide bit type. These are defined up to `u64`.
+DSLX introduces aliases for commonly used types, such as `u8` for an 8-wide bit
+type, or `u32` for a 32-bit wide bit type. These are defined up to `u64`.
 
-All ``u*`` and ``bits[*]`` types are interpreted as unsigned numbers. Signed
-numbers are specified via ``sN[*]``, which is analogous to ``bits[*]`` and
-``uN[*]`` which are the corresponding unsigned version of the bit width ``*``.
-For example:
+All `u*`, `uN[*]`, and `bits[*]` types are interpreted as unsigned integers.
+Signed integers are specified via `s*` and `sN[*]`. Similarly to unsigned
+numbers, the `s*` shorthands are defined up to `s64`. For example:
 
 ```
 sN[0]
@@ -226,8 +226,6 @@ s64
 
 sN[256]
 ```
-
-Similarly to unsigned numbers, the `s*` shorthands are defined up to `s64`.
 
 Signed numbers differ in their behavior from unsigned numbers primarily via
 operations like comparisons, (variable width) multiplications, and divisions.
@@ -274,7 +272,7 @@ fn next_in_sequence(x: Opcode, y: Opcode) -> bool {
 }
 ```
 
-As mentioned above casting of enum-values works with the same casting/extension
+As mentioned above, casting of enum-values works with the same casting/extension
 rules that apply to the underlying enum type definition. For example, this cast
 will sign extend because the source type for the enum is signed. (See
 [numerical conversions](#numerical-conversions) for the full description of
@@ -303,15 +301,19 @@ avoid such casts as much as possible.
 
 ### Tuple Type
 
-A tuple is an ordered set of fixed size containing elements of potentially
-different types. Tuples can contain bits, arrays, or other tuples.
+A tuple is a fixed-size ordered set, containing elements of heterogeneous types.
+Tuples elements can be any type, e.g. bits, arrays, structs, tuples. Tuples may
+be empty (an empty tuple is also known as the unit type), or contain one or more
+types.
 
 Examples:
 
 ```
-(0b100, 0b101) a tuple containing two bits elements
+() // the unit type, carries no information
 
-// A tuple with 2 elements.
+let pair = (0b100, 0b101) // a tuple containing two bits elements
+
+// The type of a tuple with 2 elements.
 //   the 1st element is of type u32
 //   the 2nd element is a tuple with 3 elements
 //       the 1st element is of type u8
@@ -320,16 +322,16 @@ Examples:
 (u32, (u8, (u16,), u8)
 ```
 
-To access individual tuple elements use simple indices, starting
-at 0 (Member access by field names is work in progress). For example, to
-access the 2nd element of a tuple (index 1):
+To access individual tuple elements use simple indices, starting at 0. For
+example, to access the second element of a tuple (index 1):
 
 ```
 let t = (u32:2, u8:3);
 assert_eq(u8:3, t[u32:1])
 ```
 
-Another way to "destructure" a tuple into names is to use tuple assignment:
+Tuples can be destructured, which provides a convenient syntax to name elements
+of a tuple, if only at the use site:
 
 ```
 let t = (u32:2, u8:3);
@@ -339,7 +341,7 @@ assert_eq(u8:3, b)
 ```
 
 Just as values can be discarded in a `let` by using the "black hole identifier"
-`_`, don't care values can also be discarded when destructuring a tuple:
+`_`, don't-care values can also be discarded when destructuring a tuple:
 
 ```
 let t = (u32:2, u8:3, true);
@@ -349,8 +351,9 @@ assert_eq(v, true)
 
 ### Struct Type
 
-Structs are "sugar" on top of tuples that give names to the various slots and
-have convenient ways of constructing / accessing the members.
+Structures are similar to tuples, but provide two additional capabilities: we
+name the slots (i.e. struct fields have names while tuple elements only have
+positions), and we introduce a new type.
 
 The following syntax is used to define a struct:
 
@@ -377,15 +380,19 @@ test struct_equality {
 }
 ```
 
-There is a simple syntax when defining fields with names that are the same as
-the specified values:
+There is a simple syntax when creating a struct whose field names match the
+names of in-scope values:
 
 ```
 struct Point { x: u32, y: u32, }
 
-test struct_equality { let x = u32:42; let y = u32:64;
-
-let p0 = Point { x, y }; let p1 = Point { y, x }; assert_eq(p0, p1) }
+test struct_equality {
+  let x = u32:42;
+  let y = u32:64;
+  let p0 = Point { x, y };
+  let p1 = Point { y, x };
+  assert_eq(p0, p1)
+}
 ```
 
 Struct fields can also be accessed with "dot" syntax:
@@ -436,8 +443,7 @@ test main {
 ```
 
 The DSL has syntax for conveniently producing a new value with a subset of
-fields updated to "feel" like the convenience of mutation. The "struct update"
-syntax is:
+fields updated to reduce verbosity. The "struct update" syntax is:
 
 ```
 fn update_y(p: Point3) -> Point3 {
@@ -449,31 +455,35 @@ fn update_x_and_y(p: Point3) -> Point3 {
 }
 ```
 
-Note that structs are not compatible with other structs that happen to have the
-same definition (this is called "nominal typing"). For example:
+As mentioned above, a struct definition introduces a new type. Structs are
+nominally typed, as opposed to structurally typed (note that tuples are
+structurally typed). This means that structs with different names have different
+types, regardless of whether those structs have the same structure (i.e. even
+when all the fields of two structures are identical, those structures are a
+different type when they have a different name).
 
 ```
-  def test_nominal_typing(self):
-    # Nominal typing not structural, e.g. OtherPoint cannot be passed where we
-    # want a Point, even though their members are the same.
-    self._typecheck(
-        """
-        struct Point {
-          x: s8,
-          y: u32,
-        }
-        struct OtherPoint {
-          x: s8,
-          y: u32
-        }
-        fn f(x: Point) -> Point { x }
-        fn g() -> Point {
-          let shp = OtherPoint { x: s8:255, y: u32:1024 };
-          f(shp)
-        }
-        """,
-        error='parameter type name: \'Point\'; argument type name: \'OtherPoint\''
-    )
+struct Point {
+  x: u32,
+  y: u32,
+}
+
+struct Coordinate {
+  x: u32,
+  y: u32,
+}
+
+fn f(p: Point) -> u32 {
+  p.x + p.y
+}
+
+test ok {
+  assert_eq(f(Point { x: u32:42, y: u32:64 }), u32:106)
+}
+
+test type_checker_error {
+  assert_eq(f(Coordinate { x: u32:42, y: u32:64 }), u32:106)
+}
 ```
 
 DSLX also supports parametric structs. For more information on how
