@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "xls/common/logging/log_lines.h"
 #include "grpcpp/grpcpp.h"
 #include "grpcpp/security/server_credentials.h"
 #include "grpcpp/server.h"
@@ -46,6 +47,7 @@ Invocation:
 ABSL_FLAG(int32, port, 10000, "Port to listen on.");
 ABSL_FLAG(std::string, yosys_path, "", "The path to the yosys binary.");
 ABSL_FLAG(std::string, nextpnr_path, "", "The path to the nextpnr binary.");
+ABSL_FLAG(std::string, synthesis_target, "", "The backend to target for synthesis; e.g. ice40, ecp5.");
 ABSL_FLAG(bool, save_temps, false, "Do not delete temporary files.");
 
 namespace xls {
@@ -55,8 +57,9 @@ namespace {
 class YosysSynthesisServiceImpl : public SynthesisService::Service {
  public:
   explicit YosysSynthesisServiceImpl(absl::string_view yosys_path,
-                                     absl::string_view nextpnr_path)
-      : yosys_path_(yosys_path), nextpnr_path_(nextpnr_path) {}
+                                     absl::string_view nextpnr_path,
+                                     absl::string_view synthesis_target)
+      : yosys_path_(yosys_path), nextpnr_path_(nextpnr_path), synthesis_target_(synthesis_target) {}
 
   ::grpc::Status Compile(::grpc::ServerContext* server_context,
                          const CompileRequest* request,
@@ -120,16 +123,17 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
     XLS_RETURN_IF_ERROR(SetFileContents(verilog_path, request->module_text()));
 
     // Invoke yosys to generate netlist.
-    // TODO(meheff): Allow selecting synthesis targets (e.g., ecp5, ice40,
-    // etc.).
     std::filesystem::path netlist_path = temp_dir_path / "netlist.json";
     std::pair<std::string, std::string> string_pair;
+    std::string yosys_cmd = absl::StrFormat("synth_%s -top %s -json %s",
+                             synthesis_target_,
+                             request->top_module_name(), netlist_path.string());
+    XLS_LOG(INFO) << "yosys cmd: " << yosys_cmd;
     XLS_ASSIGN_OR_RETURN(
         string_pair,
         RunSubprocess(
             {yosys_path_, "-p",
-             absl::StrFormat("synth_ecp5 -top %s -json %s",
-                             request->top_module_name(), netlist_path.string()),
+             yosys_cmd,
              verilog_path.string()}));
     auto [yosys_stdout, yosys_stderr] = string_pair;
     if (absl::GetFlag(FLAGS_save_temps)) {
@@ -142,11 +146,20 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
     result->set_netlist(netlist);
 
     // Invoke nextpnr for place and route.
-    // TODO(meheff): Allow selecting different targets.
-    std::filesystem::path pnr_path = temp_dir_path / "pnr.cfg";
+    absl::optional<std::filesystem::path> pnr_path;
     std::vector<std::string> nextpnr_args = {
-        nextpnr_path_,         "--45k",     "--json",
-        netlist_path.string(), "--textcfg", pnr_path.string()};
+        nextpnr_path_,         "--json",
+        netlist_path.string()};
+
+    if (synthesis_target_ == "ecp5") {
+      nextpnr_args.push_back("--45k");
+      nextpnr_args.push_back("--textcfg");
+      pnr_path = temp_dir_path / "pnr.cfg";
+      nextpnr_args.push_back(pnr_path->string());
+    } else if (synthesis_target_ == "ice40") {
+      nextpnr_args.push_back("--hx8k");
+    }
+
     if (request->has_target_frequency_hz()) {
       nextpnr_args.push_back("--freq");
       nextpnr_args.push_back(
@@ -161,13 +174,16 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
           SetFileContents(temp_dir_path / "nextpnr.stderr", nextpnr_stderr));
     }
 
-    XLS_ASSIGN_OR_RETURN(std::string pnr_result, GetFileContents(pnr_path));
-    result->set_place_and_route_result(pnr_result);
+    if (pnr_path.has_value()) {
+      XLS_ASSIGN_OR_RETURN(std::string pnr_result, GetFileContents(*pnr_path));
+      result->set_place_and_route_result(pnr_result);
+    }
 
     // Parse the stderr from nextpnr to get the maximum frequency.
     XLS_ASSIGN_OR_RETURN(int64 max_frequency_hz,
                          ParseNextpnrOutput(nextpnr_stderr));
     result->set_max_frequency_hz(max_frequency_hz);
+    XLS_LOG(INFO) << "max_frequency_mhz: " << (max_frequency_hz/1e6);
 
     return absl::OkStatus();
   }
@@ -175,6 +191,7 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
  private:
   std::string yosys_path_;
   std::string nextpnr_path_;
+  std::string synthesis_target_;
 };
 
 void RealMain() {
@@ -184,7 +201,9 @@ void RealMain() {
   XLS_QCHECK_OK(FileExists(yosys_path));
   std::string nextpnr_path = absl::GetFlag(FLAGS_nextpnr_path);
   XLS_QCHECK_OK(FileExists(nextpnr_path));
-  YosysSynthesisServiceImpl service(yosys_path, nextpnr_path);
+  std::string synthesis_target = absl::GetFlag(FLAGS_synthesis_target);
+  XLS_QCHECK(!synthesis_target.empty()) << "-synthesis_target must be provided";
+  YosysSynthesisServiceImpl service(yosys_path, nextpnr_path, synthesis_target);
 
   ::grpc::ServerBuilder builder;
   std::shared_ptr<::grpc::ServerCredentials> creds = GetServerCredentials();
@@ -192,6 +211,7 @@ void RealMain() {
   builder.RegisterService(&service);
   std::unique_ptr<::grpc::Server> server(builder.BuildAndStart());
   XLS_LOG(INFO) << "Serving on port: " << port;
+  XLS_LOG(INFO) << "synthesis_target: " << synthesis_target;
   server->Wait();
 }
 

@@ -121,8 +121,8 @@ GENERATED_HEADERS = [
 ]
 
 YOSYS_COPTS = [
-  "-DYOSYS_SRC='\"third_party/yosys\"'",
-  "-DYOSYS_DATDIR='\"third_party/yosys\"'",
+  "-DYOSYS_SRC='\"./\"'",
+  "-DYOSYS_DATDIR='\"./\"'",
   "-fexceptions",
   "-Wno-error",
   "-Wno-implicit-fallthrough",
@@ -199,6 +199,7 @@ cc_library(
         "@org_sourceware_libffi//:libffi",
         "@tk_tcl_tcl//:tcl",
     ],
+    alwayslink = True,
 )
 
 cc_binary(

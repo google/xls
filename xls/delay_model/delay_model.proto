@@ -26,6 +26,7 @@ enum SpecializationKind {
   NO_SPECIALIZATION = 0;
 
   // All of the operands of the operation are the same.
+  // e.g. "square" for mul, "double" for add
   OPERANDS_IDENTICAL = 1;
 
   // The operation includes a literal operand.

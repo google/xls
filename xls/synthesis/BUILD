@@ -91,6 +91,23 @@ py_binary(
     ],
 )
 
+py_binary(
+    name = "timing_characterization_client_main",
+    srcs = ["timing_characterization_client_main.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        ":client_credentials",
+        ":synthesis_py_pb2",
+        ":synthesis_service_py_pb2_grpc",
+        "//xls/delay_model:delay_model_py_pb2",
+        "//xls/delay_model:op_module_generator",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_absl_py//absl/logging",
+    ],
+)
+
 cc_binary(
     name = "dummy_synthesis_server_main",
     srcs = ["dummy_synthesis_server_main.cc"],

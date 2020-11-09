@@ -46,7 +46,8 @@ class SynthesisServerTest(absltest.TestCase):
     port = portpicker.pick_unused_port()
     proc = subprocess.Popen([
         runfiles.get_path(SERVER_PATH), f'--port={port}',
-        f'--yosys_path={YOSYS_PATH}', f'--nextpnr_path={NEXTPNR_PATH}'
+        f'--yosys_path={YOSYS_PATH}', f'--nextpnr_path={NEXTPNR_PATH}',
+        '--synthesis_target=ecp5',
     ])
     return port, proc
 

@@ -43,6 +43,7 @@ message Path {
   optional string output_bit = 4;
 }
 
+// Response to a CompileRequest.
 message CompileResponse {
   optional int64 elapsed_runtime_ms = 1;
   optional int64 slack_ps = 2;
