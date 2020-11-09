@@ -725,6 +725,12 @@ PYBIND11_MODULE(cpp_ast, m) {
             &name_def.deref(), &type.deref(), expr_ptr);
         return ParametricBindingHolder(self, module.module());
       }))
+      .def("clone",
+           [](ParametricBindingHolder self, ExprHolder expr) {
+             auto* clone = self.module()->Make<ParametricBinding>(
+                 self.deref().name_def(), self.deref().type(), &expr.deref());
+             return ParametricBindingHolder(clone, self.module());
+           })
       // TODO(leary): 2020-08-28 Switch to name_def.
       .def_property_readonly("name",
                              [](ParametricBindingHolder self) {
@@ -1075,8 +1081,13 @@ PYBIND11_MODULE(cpp_ast, m) {
                              [](InvocationHolder self) {
                                return self.deref().symbolic_bindings();
                              })
-      .def_property_readonly("args", [](InvocationHolder self) {
-        return WrapExprs(self.deref().args(), self.module());
+      .def_property_readonly("args",
+                             [](InvocationHolder self) {
+                               return WrapExprs(self.deref().args(),
+                                                self.module());
+                             })
+      .def_property_readonly("parametrics", [](InvocationHolder self) {
+        return WrapExprs(self.deref().parametrics(), self.module());
       });
 
   // class Cast

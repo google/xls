@@ -1027,8 +1027,12 @@ class Attr : public Expr {
 // Represents an invocation expression; e.g. `f(a, b, c)`
 class Invocation : public Expr {
  public:
-  Invocation(Module* owner, Span span, Expr* callee, std::vector<Expr*> args)
-      : Expr(owner, std::move(span)), callee_(callee), args_(std::move(args)) {}
+  Invocation(Module* owner, Span span, Expr* callee, std::vector<Expr*> args,
+             std::vector<Expr*> parametrics = std::vector<Expr*>({}))
+      : Expr(owner, std::move(span)),
+        callee_(callee),
+        args_(std::move(args)),
+        parametrics_(std::move(parametrics)) {}
 
   absl::string_view GetNodeTypeName() const override { return "Invocation"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -1054,10 +1058,12 @@ class Invocation : public Expr {
   const std::vector<std::pair<std::string, int64>> symbolic_bindings() const {
     return symbolic_bindings_;
   }
+  const std::vector<Expr*>& parametrics() const { return parametrics_; }
 
  private:
   Expr* callee_;
   std::vector<Expr*> args_;
+  std::vector<Expr*> parametrics_;
   std::vector<std::pair<std::string, int64>> symbolic_bindings_;
 };
 

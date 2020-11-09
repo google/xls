@@ -54,6 +54,57 @@ class Parser : public TokenParser {
   const std::shared_ptr<Module>& module() const { return module_; }
 
  private:
+  // Simple helper class to wrap the operations necessary to evaluate [parser]
+  // productions as transactions - with "Commit" or "Rollback" operations.
+  class Transaction {
+   public:
+    Transaction(Parser* parser, Bindings* bindings)
+        : parser_(parser),
+          checkpoint_(parser->SaveScannerCheckpoint()),
+          parent_bindings_(bindings),
+          child_bindings_(bindings),
+          completed_(false) {}
+    ~Transaction() {
+      XLS_CHECK(completed_) << "Uncompleted state transaction!";
+    }
+
+    // Call on successful production: saves the changes from this
+    // transaction to the parent bindings.
+    void Commit() {
+      XLS_CHECK(!completed_) << "Doubly-completed transaction!";
+      parent_bindings_->ConsumeChild(&child_bindings_);
+      completed_ = true;
+    }
+
+    // Convenience call to cancel a cleanup (usually one that invokes
+    // Rollback()) on commit.
+    template <typename CleanupT>
+    void CommitAndCancelCleanup(CleanupT* cleanup) {
+      Commit();
+      if (cleanup) {
+        cleanup->Cancel();
+      }
+    }
+
+    // Call on failed production: un-does changes to bindings and scanner state.
+    void Rollback() {
+      XLS_CHECK(!completed_) << "Doubly-completed transaction!";
+      parser_->RestoreScannerCheckpoint(checkpoint_);
+      child_bindings_ = Bindings(parent_bindings_);
+      completed_ = true;
+    }
+
+    Bindings* bindings() { return &child_bindings_; }
+
+   private:
+    Parser* parser_;
+    ScannerCheckpoint checkpoint_;
+    Bindings* parent_bindings_;
+    Bindings child_bindings_;
+    // True if this transaction has been either committed or rolled back.
+    bool completed_;
+  };
+
   // Helper that parses a comma-delimited sequence of grammatical productions.
   //
   // Expects the caller to have popped the "initiator" token; however, this
@@ -369,13 +420,9 @@ class Parser : public TokenParser {
   //
   // For example:
   //
-  //    x: ParametricStruct<32, N>
-  //                       ^-----^
-  absl::StatusOr<std::vector<Expr*>> ParseParametrics(Bindings* bindings) {
-    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOAngle));
-    return ParseCommaSeq<Expr*>(BindFront(&Parser::ParseDim, bindings),
-                                TokenKind::kCAngle);
-  }
+  //    x: ParametricStruct<u32:4, N as u64>
+  //                       ^---------------^
+  absl::StatusOr<std::vector<Expr*>> ParseParametrics(Bindings* bindings);
 
   // Parses a function out of the token stream.
   absl::StatusOr<Function*> ParseFunctionInternal(bool is_public,

@@ -139,7 +139,7 @@ fn double(n: bits[32]) -> bits[32] {
   n * bits[32]:2
 }
 
-fn [A: u32, B: u32 = double(A)] self_append(x: bits[A]) -> bits[B] {
+fn self_append<A: u32, B: u32 = double(A)>(x: bits[A]) -> bits[B] {
   x++x
 }
 
@@ -154,6 +154,19 @@ evaluated at that point in compilation.
 See
 [advanced understanding](#advanced-understanding-parametricity-constraints-and-unification)
 for more information on parametricity.
+
+Functions and structs can also be explicitly parameterized, as in:
+
+```
+struct Foo<X:u32, Y:u32> {
+  a: bits[X],
+  b: bits[Y]
+}
+
+fun MakeFoo<X: u64>(input: bits[4]) -> Foo<X as u32, u32:8> {
+  Foo<X as u32, u32:8>{ a: input as bits[X], b: bits[8]:1 }
+}
+```
 
 ### Function Calls
 
@@ -365,11 +378,15 @@ test struct_equality {
 ```
 
 There is a simple syntax when defining fields with names that are the same as
-the specified values: ``` struct Point { x: u32, y: u32, }
+the specified values:
+
+```
+struct Point { x: u32, y: u32, }
 
 test struct_equality { let x = u32:42; let y = u32:64;
 
-let p0 = Point { x, y }; let p1 = Point { y, x }; assert_eq(p0, p1) } ```
+let p0 = Point { x, y }; let p1 = Point { y, x }; assert_eq(p0, p1) }
+```
 
 Struct fields can also be accessed with "dot" syntax:
 
@@ -466,11 +483,16 @@ section.
 ```
 fn double(n: u32) -> u32 { n * u32:2 }
 
-struct [N: u32, M: u32 = double(N)] Point { x: bits[N], y: bits[M], }
+struct Point<N: u32, M: u32 = double(N)> Point { x: bits[N], y: bits[M], }
 
-fn [A: u32, B: u32] make_point(x: bits[A], y: bits[B]) -> Point[A, B] { Point {
-x, y } } test struct_construction { let p = make_point(u16:42, u32:42);
-assert_eq(u16:42, p.x) }
+fn make_point<A: u32, B: u32> make_point(x: bits[A], y: bits[B]) -> Point[A, B] {
+  Point{ x, y }
+}
+
+test struct_construction {
+  let p = make_point(u16:42, u32:42);
+  assert_eq(u16:42, p.x)
+}
 ```
 
 ### Array Type
@@ -1021,7 +1043,7 @@ An infamous wrinkle is introduced for parametric functions: consider the
 following function:
 
 ```
-fn [T: type, U: type] add_wrapper(x: T, y: U) -> T {
+fn add_wrapper<T: type, U: type>(x: T, y: U) -> T {
   x + y
 }
 ```
@@ -1268,7 +1290,7 @@ Here are many more examples:
 
 ```
 // Identity function helper.
-fn [N: u32] id(x: bits[N]) -> bits[N] { x }
+fn id<N: u32>(x: bits[N]) -> bits[N] { x }
 
 test bit_slice_syntax {
   let x = u6:0b100111;
@@ -1369,7 +1391,7 @@ result, and so on.
 
 ```
 // (Dummy) wrapper around reverse.
-fn [N: u32] wrapper(x: bits[N]) -> bits[N] {
+fn wrapper<N: u32>(x: bits[N]) -> bits[N] {
   rev(x)
 }
 

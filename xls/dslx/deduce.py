@@ -323,9 +323,28 @@ def _deduce_Invocation(self: ast.Invocation, ctx: DeduceCtx) -> ConcreteType:  #
     callee_name = self.callee.identifier
     callee_fn = ctx.module.get_function(callee_name)
 
+  # We need to deduce the type of all Invocation parametrics so they're in the
+  # type cache.
+  for parametric in self.parametrics:
+    deduce(parametric, ctx)
+
+  # Create new parametric bindings that capture the constraints from
+  # the specified parametrics.
+  new_bindings = list(callee_fn.parametric_bindings)
+  for i, (binding, value) in enumerate(
+      zip(callee_fn.parametric_bindings, self.parametrics)):
+    assert isinstance(value, ast.Expr)
+    binding_type = deduce(binding.type_, ctx)
+    value_type = deduce(value, ctx)
+    if binding_type != value_type:
+      raise XlsTypeError(self.callee.span, binding.type_, value.type_,
+                         'Explicit parametric type did not match its binding.')
+
+    new_binding = binding.clone(value)
+    new_bindings[i] = new_binding
+
   self_type, callee_sym_bindings = parametric_instantiator.instantiate_function(
-      self.span, callee_type, tuple(arg_types), ctx,
-      callee_fn.parametric_bindings)
+      self.span, callee_type, tuple(arg_types), ctx, tuple(new_bindings))
 
   caller_sym_bindings = tuple(fn_symbolic_bindings.items())
   ctx.type_info.add_invocation_symbolic_bindings(self, caller_sym_bindings,
@@ -1133,7 +1152,16 @@ def _concretize_struct_annotation(module: ast.Module,
       struct.parametric_bindings, type_annotation.parametrics):
     assert isinstance(defined_parametric,
                       ast.ParametricBinding), defined_parametric
-    if isinstance(annotated_parametric, ast.Number):
+    if isinstance(annotated_parametric, ast.Cast):
+      # Casts are "X as <type_annot>"; X can be a symbol or a number.
+      expr = annotated_parametric.expr
+      value = None
+      if isinstance(expr, ast.Number):
+        value = ast_helpers.get_value_as_int(expr.value)
+      elif isinstance(expr, ast.NameRef):
+        value = ParametricSymbol(expr.identifier, annotated_parametric.span)
+      defined_to_annotated[defined_parametric.name.identifier] = value
+    elif isinstance(annotated_parametric, ast.Number):
       defined_to_annotated[defined_parametric.name.identifier] = \
           int(annotated_parametric.value)
     else:

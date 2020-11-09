@@ -41,6 +41,13 @@ dslx_test(
 )
 
 dslx_test(
+    name = "explicit_parametric",
+    srcs = ["explicit_parametric.x"],
+    generate_benchmark = False,
+    prove_unopt_eq_opt = False,
+)
+
+dslx_test(
     name = "signed_comparisons",
     srcs = ["signed_comparisons.x"],
     generate_benchmark = False,

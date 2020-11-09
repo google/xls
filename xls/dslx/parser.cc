@@ -489,7 +489,9 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(Bindings* bindings,
 
 absl::StatusOr<NameRef*> Parser::ParseNameRef(Bindings* bindings,
                                               const Token* tok) {
-  ScannerCheckpoint checkpoint = SaveScannerCheckpoint();
+  Transaction txn(this, bindings);
+  auto cleanup = xabsl::MakeCleanup([&txn]() { txn.Rollback(); });
+
   absl::optional<Token> popped;
   if (tok == nullptr) {
     XLS_ASSIGN_OR_RETURN(popped, PopTokenOrError(TokenKind::kIdentifier));
@@ -497,14 +499,10 @@ absl::StatusOr<NameRef*> Parser::ParseNameRef(Bindings* bindings,
 
   // If we failed to parse this ref, then put it back on the queue, in case
   // we try another production.
-  auto status_or_bound_node =
-      bindings->ResolveNodeOrError(*tok->GetValue(), tok->span());
-  if (!status_or_bound_node.ok()) {
-    RestoreScannerCheckpoint(checkpoint);
-    return status_or_bound_node.status();
-  }
-  BoundNode bn = status_or_bound_node.value();
+  XLS_ASSIGN_OR_RETURN(BoundNode bn, txn.bindings()->ResolveNodeOrError(
+                                         *tok->GetValue(), tok->span()));
   AnyNameDef name_def = BoundNodeToAnyNameDef(bn);
+  txn.CommitAndCancelCleanup(&cleanup);
   if (absl::holds_alternative<ConstantDef*>(bn)) {
     return module_->Make<ConstRef>(tok->span(), *tok->GetValue(), name_def);
   }
@@ -565,6 +563,14 @@ absl::StatusOr<Expr*> Parser::ParseStructInstance(Bindings* bindings,
   const Pos start_pos = GetPos();
 
   XLS_ASSIGN_OR_RETURN(StructRef struct_ref, ResolveStruct(bindings, type));
+
+  Transaction txn(this, bindings);
+  auto status_or_parametrics = ParseParametrics(txn.bindings());
+  if (status_or_parametrics.ok()) {
+    txn.Commit();
+  } else {
+    txn.Rollback();
+  }
 
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace, nullptr,
                                        "Opening brace for struct instance."));
@@ -785,20 +791,19 @@ absl::StatusOr<Expr*> Parser::ParseComparisonExpression(Bindings* bindings) {
       break;
     }
 
-    ScannerCheckpoint checkpoint = SaveScannerCheckpoint();
-    Bindings child_bindings(bindings);
+    Transaction txn(this, bindings);
     Token op = PopTokenOrDie();
-    auto status_or_rhs = ParseOrExpression(&child_bindings);
+    auto status_or_rhs = ParseOrExpression(txn.bindings());
     if (status_or_rhs.ok()) {
       XLS_ASSIGN_OR_RETURN(BinopKind kind,
                            BinopKindFromString(TokenKindToString(op.kind())));
       lhs = module_->Make<Binop>(op.span(), kind, lhs, status_or_rhs.value());
-      bindings->ConsumeChild(&child_bindings);
+      txn.Commit();
     } else {
       // Push the op back on the queue in case we fair to handle this as a
       // comparison op - it could be that we're in a parametric binding (so '>'
       // could be a closing character, not a "greater than").
-      RestoreScannerCheckpoint(checkpoint);
+      txn.Rollback();
       break;
     }
   }
@@ -1016,16 +1021,17 @@ absl::StatusOr<XlsTuple*> Parser::ParseTupleRemainder(const Pos& start_pos,
   return module_->Make<XlsTuple>(span, std::move(es));
 }
 
-absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* bindings) {
+absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
   const Pos start_pos = peek->span().start();
 
   // Holds popped tokens for rewinding the scanner in case of bad productions.
-  ScannerCheckpoint checkpoint = SaveScannerCheckpoint();
+  Transaction txn(this, outer_bindings);
+  auto cleanup = xabsl::MakeCleanup([&txn]() { txn.Rollback(); });
   Expr* lhs = nullptr;
   if (peek->IsKindIn({TokenKind::kNumber, TokenKind::kCharacter}) ||
       peek->IsKeywordIn({Keyword::kTrue, Keyword::kFalse})) {
-    XLS_ASSIGN_OR_RETURN(lhs, ParseNumber(bindings));
+    XLS_ASSIGN_OR_RETURN(lhs, ParseNumber(txn.bindings()));
   } else if (peek->IsKeyword(Keyword::kCarry)) {
     Token tok = PopTokenOrDie();
     if (loop_stack_.empty()) {
@@ -1035,7 +1041,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* bindings) {
     lhs = module_->Make<Carry>(tok.span(), loop_stack_.back());
   } else if (peek->IsKindIn({TokenKind::kBang, TokenKind::kMinus})) {
     Token tok = PopTokenOrDie();
-    XLS_ASSIGN_OR_RETURN(Expr * arg, ParseTerm(bindings));
+    XLS_ASSIGN_OR_RETURN(Expr * arg, ParseTerm(txn.bindings()));
     UnopKind unop_kind;
     switch (tok.kind()) {
       // clang-format off
@@ -1049,23 +1055,23 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* bindings) {
     lhs = module_->Make<Unop>(span, unop_kind, arg);
   } else if (peek->IsTypeKeyword() ||
              (peek->kind() == TokenKind::kIdentifier &&
-              bindings->ResolveNodeIsTypeDefinition(*peek->GetValue()))) {
+              txn.bindings()->ResolveNodeIsTypeDefinition(*peek->GetValue()))) {
     Token tok = PopTokenOrDie();
-    XLS_ASSIGN_OR_RETURN(lhs,
-                         ParseCastOrEnumRefOrStructInstance(tok, bindings));
+    XLS_ASSIGN_OR_RETURN(
+        lhs, ParseCastOrEnumRefOrStructInstance(tok, txn.bindings()));
   } else if (peek->IsKeyword(Keyword::kNext)) {
     Token next = PopTokenOrDie();
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
     XLS_ASSIGN_OR_RETURN(
         std::vector<Expr*> args,
-        ParseCommaSeq(BindFront(&Parser::ParseExpression, bindings),
+        ParseCommaSeq(BindFront(&Parser::ParseExpression, txn.bindings()),
                       TokenKind::kCParen));
     lhs = module_->Make<Next>(next.span());
     lhs = module_->Make<Invocation>(Span(next.span().start(), GetPos()), lhs,
                                     std::move(args));
   } else if (peek->kind() == TokenKind::kIdentifier) {
     std::string lhs_str = *peek->GetValue();
-    XLS_ASSIGN_OR_RETURN(auto nocr, ParseNameOrColonRef(bindings));
+    XLS_ASSIGN_OR_RETURN(auto nocr, ParseNameOrColonRef(txn.bindings()));
     if (absl::holds_alternative<ModRef*>(nocr)) {
       XLS_ASSIGN_OR_RETURN(bool peek_is_obrace,
                            PeekTokenIs(TokenKind::kOBrace));
@@ -1076,7 +1082,11 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* bindings) {
         XLS_ASSIGN_OR_RETURN(
             TypeAnnotation * type,
             MakeTypeRefTypeAnnotation(mod_ref->span(), type_ref, {}, {}));
-        return ParseStructInstance(bindings, type);
+        auto status_or_struct = ParseStructInstance(txn.bindings(), type);
+        if (status_or_struct.ok()) {
+          txn.CommitAndCancelCleanup(&cleanup);
+        }
+        return status_or_struct;
       }
     }
     lhs = ToExprNode(nocr);
@@ -1088,20 +1098,20 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* bindings) {
       Span span(start_pos, GetPos());
       lhs = module_->Make<XlsTuple>(span, std::vector<Expr*>{});
     } else {
-      XLS_ASSIGN_OR_RETURN(lhs, ParseExpression(bindings));
+      XLS_ASSIGN_OR_RETURN(lhs, ParseExpression(txn.bindings()));
       XLS_ASSIGN_OR_RETURN(bool peek_is_comma, PeekTokenIs(TokenKind::kComma));
       if (peek_is_comma) {  // Singleton tuple.
-        XLS_ASSIGN_OR_RETURN(
-            lhs, ParseTupleRemainder(oparen.span().start(), lhs, bindings));
+        XLS_ASSIGN_OR_RETURN(lhs, ParseTupleRemainder(oparen.span().start(),
+                                                      lhs, txn.bindings()));
       } else {
         XLS_RETURN_IF_ERROR(
             DropTokenOrError(TokenKind::kCParen, /*start=*/&oparen));
       }
     }
   } else if (peek->IsKeyword(Keyword::kMatch)) {  // Match expression.
-    XLS_ASSIGN_OR_RETURN(lhs, ParseMatch(bindings));
+    XLS_ASSIGN_OR_RETURN(lhs, ParseMatch(txn.bindings()));
   } else if (peek->kind() == TokenKind::kOBrack) {  // Array expression.
-    XLS_ASSIGN_OR_RETURN(lhs, ParseArray(bindings));
+    XLS_ASSIGN_OR_RETURN(lhs, ParseArray(txn.bindings()));
   } else {
     return ParseError(
         peek->span(),
@@ -1118,7 +1128,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* bindings) {
         DropTokenOrDie();
         XLS_ASSIGN_OR_RETURN(
             std::vector<Expr*> args,
-            ParseCommaSeq(BindFront(&Parser::ParseExpression, bindings),
+            ParseCommaSeq(BindFront(&Parser::ParseExpression, txn.bindings()),
                           TokenKind::kCParen));
         lhs = module_->Make<Invocation>(Span(new_pos, GetPos()), lhs,
                                         std::move(args));
@@ -1138,18 +1148,18 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* bindings) {
         XLS_ASSIGN_OR_RETURN(bool dropped_colon,
                              TryDropToken(TokenKind::kColon));
         if (dropped_colon) {  // Slice-from-beginning.
-          XLS_ASSIGN_OR_RETURN(
-              lhs, ParseBitSlice(new_pos, lhs, bindings, /*start=*/nullptr));
+          XLS_ASSIGN_OR_RETURN(lhs, ParseBitSlice(new_pos, lhs, txn.bindings(),
+                                                  /*start=*/nullptr));
           break;
         }
-        XLS_ASSIGN_OR_RETURN(Expr * index, ParseExpression(bindings));
+        XLS_ASSIGN_OR_RETURN(Expr * index, ParseExpression(txn.bindings()));
         XLS_ASSIGN_OR_RETURN(peek, PeekToken());
         switch (peek->kind()) {
           case TokenKind::kPlusColon: {  // Explicit width slice.
             DropTokenOrDie();
             Expr* start = index;
             XLS_ASSIGN_OR_RETURN(TypeAnnotation * width,
-                                 ParseTypeAnnotation(bindings));
+                                 ParseTypeAnnotation(txn.bindings()));
             Span span(new_pos, GetPos());
             auto* width_slice = module_->Make<WidthSlice>(span, start, width);
             lhs = module_->Make<Index>(span, lhs, width_slice);
@@ -1158,8 +1168,8 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* bindings) {
           }
           case TokenKind::kColon: {  // Slice to end.
             DropTokenOrDie();
-            XLS_ASSIGN_OR_RETURN(lhs,
-                                 ParseBitSlice(new_pos, lhs, bindings, index));
+            XLS_ASSIGN_OR_RETURN(
+                lhs, ParseBitSlice(new_pos, lhs, txn.bindings(), index));
             break;
           }
           default:
@@ -1168,10 +1178,31 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* bindings) {
         }
         break;
       }
+      case TokenKind::kOAngle: {
+        // Comparison op or parametric function invocation.
+        Transaction sub_txn(this, txn.bindings());
+        auto sub_cleanup =
+            xabsl::MakeCleanup([&sub_txn]() { sub_txn.Rollback(); });
+
+        auto status_or_parametrics = ParseParametrics(sub_txn.bindings());
+        if (!status_or_parametrics.ok()) {
+          goto done;
+        }
+
+        XLS_ASSIGN_OR_RETURN(Token tok, PopTokenOrError(TokenKind::kOParen));
+        XLS_ASSIGN_OR_RETURN(std::vector<Expr*> args,
+                             ParseCommaSeq(BindFront(&Parser::ParseExpression,
+                                                     sub_txn.bindings()),
+                                           TokenKind::kCParen));
+        lhs = module_->Make<Invocation>(Span(new_pos, GetPos()), lhs,
+                                        std::move(args),
+                                        status_or_parametrics.value());
+        sub_txn.CommitAndCancelCleanup(&sub_cleanup);
+        break;
+      }
       case TokenKind::kArrow:
         // If we're a term followed by an arrow...then we followed the wrong
         // production, as arrows are only allowed after fn decls. Rewind.
-        RestoreScannerCheckpoint(checkpoint);
         // Should this be something else, like a "wrong production" error?
         return ParseError(lhs->span(),
                           "Parenthesized expression cannot precede an arrow.");
@@ -1181,6 +1212,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* bindings) {
   }
 
 done:
+  txn.CommitAndCancelCleanup(&cleanup);
   return lhs;
 }
 
@@ -1614,6 +1646,46 @@ absl::StatusOr<std::vector<ParametricBinding*>> Parser::ParseParametricBindings(
   };
   return ParseCommaSeq<ParametricBinding*>(parse_parametric_binding,
                                            TokenKind::kCAngle);
+}
+
+absl::StatusOr<std::vector<Expr*>> Parser::ParseParametrics(
+    Bindings* bindings) {
+  // We need two levels of bindings - one per-parse-parametrics call and one at
+  // top-level.
+  Transaction txn(this, bindings);
+  auto cleanup = xabsl::MakeCleanup([&txn]() { txn.Rollback(); });
+
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOAngle));
+  auto parse_parametric = [this, &txn]() -> absl::StatusOr<Expr*> {
+    // We can't mess with the top-level transation, or else rolling back/trying
+    // a different production would undo ALL updates, so we need to create a
+    // sub-transaction in here.
+    {
+      Transaction sub_txn(this, txn.bindings());
+      auto status_or_cast = ParseCast(sub_txn.bindings());
+      if (status_or_cast.ok()) {
+        sub_txn.Commit();
+        return status_or_cast;
+      }
+      sub_txn.Rollback();
+    }
+
+    Transaction sub_txn(this, txn.bindings());
+    auto status_or_as = ParseCastAsExpression(sub_txn.bindings());
+    if (status_or_as.ok()) {
+      sub_txn.Commit();
+    } else {
+      sub_txn.Rollback();
+    }
+    return status_or_as;
+  };
+
+  auto status_or_exprs =
+      ParseCommaSeq<Expr*>(parse_parametric, TokenKind::kCAngle);
+  if (status_or_exprs.ok()) {
+    txn.CommitAndCancelCleanup(&cleanup);
+  }
+  return status_or_exprs;
 }
 
 absl::StatusOr<TestFunction*> Parser::ParseTestFunction(
