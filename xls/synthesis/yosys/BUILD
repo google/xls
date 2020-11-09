@@ -32,6 +32,7 @@ cc_binary(
         "//xls/common/file:temp_directory",
         "//xls/common/file:temp_file",
         "//xls/common/logging",
+        "//xls/common/logging:log_lines",
         "//xls/common/status:status_macros",
         "//xls/synthesis:server_credentials",
         "//xls/synthesis:synthesis_cc_proto",
