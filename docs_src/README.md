@@ -195,6 +195,7 @@ project, see our
 * [Brandon Jiang](https://github.com/brajiang)
 * [Chris Drake](https://github.com/cjdrake)
 * [Chris Leary](https://github.com/cdleary)
+* [Dan Killebrew](https://github.com/dkillebrew-g)
 * [Derek Lockhart](https://github.com/dmlockhart)
 * [Felix Zhu](https://github.com/felixzhuologist)
 * [Hans Montero](https://github.com/hmontero1205)
