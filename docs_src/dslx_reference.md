@@ -552,23 +552,19 @@ and how it affects arrays of bits etc.
 
 DLSX supports the definition of type aliases.
 
-For example, to define a tuple type to represent a float number with a sign bit,
-an 8-bit mantissa, and a 23-bit mantissa, one would write:
+For example, to define a tuple type that represents a float number with a sign
+bit, an 8-bit mantissa, and a 23-bit mantissa, one could write:
 
 ```
-type F32 = {
-  u1,
-  u8,
-  u23,
-}
+type F32 = (u1, u8, u23)
 ```
 
 After this definition, the `F32` may be used as a type annotation
 interchangeably with `(u1, u8, u23)`.
 
 Note, however, that structs are generally preferred as described above, as they
-are more readable and users do not need to rely on tuple indices remaining the
-same in the future.
+are more readable and users do not need to rely on tuple elements having a
+stable order in the future (i.e., they are resilient to refactoring).
 
 For direct type aliasing, users can use the following coding style (similar to
 the C++ `typedef` keyword):
@@ -579,28 +575,43 @@ type TypeWeight = u6;
 
 ### Type Casting
 
-Bit types can be cast from one bit-width to another. To cast a given value to a
-different bit-width, the required code looks similar to how other types are
-being specified in DSLX: Simply prefix the value with the desired type, followed
-by a `:`. In this example:
+Bit types can be cast from one bit-width to another with the `as` keyword. Types
+can be widened (increasing bit-width), narrowed (decreasing bit-width) and/or
+changed between signed and unsigned. Some examples are found below. See
+[Numerical Conversions](#numerical-conversions) for a description of the
+semantics.
 
 ```
-fn add_with_carry(x: bits[24], y: bits[24]) -> (u1, bits[24]) {
-  let result = (u1:0 ++ x) + (u1:0 ++ y);
-  (u1:(result >> bits[25]:24), bits[24]:result)
+test narrow_cast {
+  let twelve = u4:0b1100;
+  assert_eq(twelve as u2, u2:0)
+}
+
+test widen_cast {
+  let three = u2:0b11;
+  assert_eq(three as u4, u4:3)
+}
+
+test narrow_signed_cast {
+  let negative_seven = s4:0b1001;
+  assert_eq(negative_seven as u2, u2:1)
+}
+
+test widen_signed_cast {
+  let negative_one = s2:0b11;
+  assert_eq(negative_one as s4, s4:-1)
+}
+
+test widen_to_unsigned {
+  let negative_one = s2:0b11;
+  assert_eq(negative_one as u3, u3:0b111)
+}
+
+test widen_to_signed {
+  let three = u2:0b11;
+  assert_eq(three as u3, u3:0b011)
 }
 ```
-
-The type of `result` is inferred to be of type `bits[25]` (concatenation of a
-24-bit value with an additional 1-bit value in the front).
-
-The expression `bits[25]:24` specifies the type of the value `24` to be of
-`bits[25]`. The larger expression `(u1:(result >> bits[25]:24)` casts the result
-of the shift expression to a `u1`. Only a single bit is returned, the least
-significant bit (the right-most bit).
-
-The expression `bits[24]:result` casts the 25-bit value 'result' down to a
-24-bit value, basically chopping off the leading bit.
 
 ### Type Checking and Inference
 
@@ -957,7 +968,7 @@ for ((i, e), (prior, count, result)): ((u32, u32), (u32, u3, bits[8,3]))
 ```
 
 
-### Numerical Conversions
+### Numerical Conversions {#numerical-conversions}
 
 DSLX adopts the
 [Rust rules](https://doc.rust-lang.org/1.30.0/book/first-edition/casting-between-types.html)
