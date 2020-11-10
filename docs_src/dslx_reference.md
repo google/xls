@@ -1435,11 +1435,24 @@ test reverse {
 
 These are unary reduction operations applied to a bits-typed value:
 
-*   `and_reduce`: evaluates to bits[N]:1 if all bits are set
-*   `or_reduce`: evaluates to bits[N]:1 if any bit is set in the input, and 0
+*   `and_reduce`: evaluates to bool:1 if all bits of the input are set, and 0
     otherwise.
-*   `xor_reduce`: evaluates to bits[N]:1 if there is an odd number of bits set
-    in the input, and 0 otherwise.
+*   `or_reduce`: evaluates to bool:1 if any bit of the input is set, and 0
+    otherwise.
+*   `xor_reduce`: evaluates to bool:1 if there is an odd number of bits set in
+    the input, and 0 otherwise.
+
+These functions return the identity element of the respective operation for
+trivial (0 bit wide) inputs:
+
+```
+test trivial_reduce {
+  let _ = assert_eq(and_reduce(bits[0]:0), true);
+  let _ = assert_eq(or_reduce(bits[0]:0), false);
+  let _ = assert_eq(xor_reduce(bits[0]:0), false);
+  ()
+}
+```
 
 ### update
 
