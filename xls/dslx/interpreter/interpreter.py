@@ -160,7 +160,9 @@ class Interpreter(object):
     if lhs.is_bits() and isinstance(expr.index, ast.WidthSlice):
       return self._evaluate_index_widthslice(expr, bindings, lhs.get_bits())
     assert lhs.is_tuple() or lhs.is_array(), lhs
-    index = self._evaluate(expr.index, bindings)
+    # Note: since we permit a type-unannotated literal number we provide a type
+    # context here.
+    index = self._evaluate(expr.index, bindings, ConcreteType.U32)
     if index.get_bit_value_uint64() >= len(lhs):
       raise EvaluateError(
           expr.span, 'Indexing out of bounds; {} > {}'.format(index, len(lhs)))

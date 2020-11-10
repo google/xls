@@ -437,6 +437,37 @@ def _deduce_slice_type(self: ast.Index, ctx: DeduceCtx,
   return BitsType(signed=False, size=width)
 
 
+def _deduce_tuple_index(self: ast.Index, ctx: DeduceCtx,
+                        lhs_type: TupleType) -> ConcreteType:
+  """Deduces the resulting type for a tuple indexing operation."""
+  index = self.index
+
+  # TODO(leary): 2020-11-09 When we add unifying type inference this will also
+  # be able to be a ConstRef.
+  if isinstance(index, ast.Number):
+    if index.type_:
+      # If the number has an annotated type, flag it as unnecessary.
+      deduce(index, ctx)
+      logging.warning(
+          'Warning: type annotation for tuple index is unnecessary @ %s: %s',
+          self.span, self)
+    else:
+      ctx.type_info[index] = ConcreteType.U32
+    index_value = ast_helpers.get_value_as_int(index)
+  else:
+    raise TypeInferenceError(
+        index.span, lhs_type,
+        'Tuple index is not a literal number or named constant.')
+
+  assert isinstance(index_value, int), index_value
+  if index_value < 0 or index_value >= lhs_type.get_tuple_length():
+    raise XlsTypeError(
+        index.span, lhs_type, None,
+        'Tuple index {} is out of range for this tuple type.'.format(
+            index_value))
+  return lhs_type.get_unnamed_members()[index_value]
+
+
 @_rule(ast.Index)
 def _deduce_Index(self: ast.Index, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of an Index AST node."""
@@ -446,23 +477,14 @@ def _deduce_Index(self: ast.Index, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
   if isinstance(self.index, (ast.Slice, ast.WidthSlice)):
     return _deduce_slice_type(self, ctx, lhs_type)
 
-  index_type = deduce(self.index, ctx)
   if isinstance(lhs_type, TupleType):
-    if not isinstance(self.index, ast.Number):
-      raise XlsTypeError(self.index.span, index_type, None,
-                         'Tuple index is not a literal number.')
-    index_value = ast_helpers.get_value_as_int(self.index)
-    if index_value >= lhs_type.get_tuple_length():
-      raise XlsTypeError(
-          self.index.span, lhs_type, None,
-          'Tuple index {} is out of range for this tuple type.'.format(
-              index_value))
-    return lhs_type.get_unnamed_members()[index_value]
+    return _deduce_tuple_index(self, ctx, lhs_type)
 
   if not isinstance(lhs_type, ArrayType):
     raise TypeInferenceError(self.lhs.span, lhs_type,
                              'Value to index is not an array.')
 
+  index_type = deduce(self.index, ctx)
   index_ok = isinstance(index_type,
                         BitsType) and not isinstance(index_type, ArrayType)
   if not index_ok:

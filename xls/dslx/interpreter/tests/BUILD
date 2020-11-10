@@ -123,6 +123,13 @@ dslx_test(
 )
 
 dslx_test(
+    name = "tuple_indexing",
+    srcs = ["tuple_indexing.x"],
+    # Note: no meaningful function to convert.
+    convert_ir = False,
+)
+
+dslx_test(
     name = "clz",
     srcs = ["clz.x"],
 )

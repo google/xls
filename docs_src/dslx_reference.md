@@ -327,7 +327,7 @@ example, to access the second element of a tuple (index 1):
 
 ```
 let t = (u32:2, u8:3);
-assert_eq(u8:3, t[u32:1])
+assert_eq(u8:3, t[1])
 ```
 
 Tuples can be destructured, which provides a convenient syntax to name elements

@@ -303,7 +303,7 @@ class IrConverterTest(test_base.TestCase):
       let t = for (i, (x, y)): (u32, (u32, u8)) in range(u32:0, u32:4) {
         (x + i, y)
       }((u32:0, u8:0));
-      t[u32:0]
+      t[0]
     }""")
     node_to_type = typecheck.check_module(m, f_import=None)
     converted = ir_converter.convert_one_function(
@@ -995,7 +995,7 @@ class IrConverterTest(test_base.TestCase):
     m = self.parse_dsl_text("""
     fn main() -> u8 {
       let t = (u32:3, u8:4);
-      t[u32:1]
+      t[1]
     }
     """)
     node_to_type = typecheck.check_module(m, f_import=None)
@@ -1414,7 +1414,7 @@ class IrConverterTest(test_base.TestCase):
       u32[THING_COUNT]
     );
     fn get_thing(x: Foo, i: u32) -> u32 {
-      let things: u32[THING_COUNT] = x[u32:0];
+      let things: u32[THING_COUNT] = x[0];
       things[i]
     }
     """)
