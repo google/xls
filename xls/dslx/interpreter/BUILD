@@ -99,6 +99,7 @@ py_library(
         "//xls/dslx:import_fn",
         "//xls/dslx:ir_name_mangler",
         "//xls/dslx:parametric_instantiator",
+        "//xls/dslx:symbolic_bindings",
         "//xls/dslx/python:builtins",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_concrete_type",

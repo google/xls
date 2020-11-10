@@ -330,23 +330,39 @@ def _deduce_Invocation(self: ast.Invocation, ctx: DeduceCtx) -> ConcreteType:  #
 
   # Create new parametric bindings that capture the constraints from
   # the specified parametrics.
-  new_bindings = list(callee_fn.parametric_bindings)
-  for i, (binding, value) in enumerate(
-      zip(callee_fn.parametric_bindings, self.parametrics)):
+  new_bindings = []
+  for binding, value in zip(callee_fn.parametric_bindings, self.parametrics):
     assert isinstance(value, ast.Expr)
     binding_type = deduce(binding.type_, ctx)
     value_type = deduce(value, ctx)
     if binding_type != value_type:
       raise XlsTypeError(self.callee.span, binding.type_, value.type_,
                          'Explicit parametric type did not match its binding.')
-
     new_binding = binding.clone(value)
-    new_bindings[i] = new_binding
+    new_bindings.append(new_binding)
 
-  self_type, callee_sym_bindings = parametric_instantiator.instantiate_function(
-      self.span, callee_type, tuple(arg_types), ctx, tuple(new_bindings))
+  for remaining_binding in callee_fn.parametric_bindings[len(self.parametrics
+                                                            ):]:
+    new_bindings.append(remaining_binding)
 
   caller_sym_bindings = tuple(fn_symbolic_bindings.items())
+  csb_dict = {}
+  for csb in caller_sym_bindings:
+    csb_dict[csb[0]] = csb[1]
+
+  # Map resolved parametrics from the caller's context onto the corresponding
+  # symbols in the callee's.
+  explicit_bindings = {}
+  for new_binding in new_bindings:
+    if isinstance(new_binding.expr,
+                  ast.NameRef) and new_binding.expr.identifier in csb_dict:
+      explicit_bindings[new_binding.name.identifier] = csb_dict[
+          new_binding.expr.identifier]
+
+  self_type, callee_sym_bindings = parametric_instantiator.instantiate_function(
+      self.span, callee_type, tuple(arg_types), ctx, tuple(new_bindings),
+      explicit_bindings)
+
   ctx.type_info.add_invocation_symbolic_bindings(self, caller_sym_bindings,
                                                  callee_sym_bindings)
 

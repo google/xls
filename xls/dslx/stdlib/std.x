@@ -200,3 +200,13 @@ test div_pow2 {
   ()
 }
 
+// Returns a value with X bits set (of type bits[X]).
+pub fn mask_bits<X: u32, Y:u32= X + u32:1>() -> bits[X] {
+  !bits[X]:0
+}
+
+test mask_bits {
+  let _ = assert_eq(u8:0xff, mask_bits<u32:8>());
+  let _ = assert_eq(u13:0x1fff, mask_bits<u32:13>());
+  ()
+}

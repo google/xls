@@ -1049,8 +1049,11 @@ class Invocation : public Expr {
     });
   }
 
+  std::string FormatParametrics() const;
+
   std::string ToString() const override {
-    return absl::StrFormat("%s(%s)", callee_->ToString(), FormatArgs());
+    return absl::StrFormat("%s%s(%s)", callee_->ToString(), FormatParametrics(),
+                           FormatArgs());
   };
 
   const std::vector<Expr*> args() const { return args_; }

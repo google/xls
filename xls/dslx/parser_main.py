@@ -21,11 +21,13 @@ import pprint
 
 from absl import app
 
+from xls.common.python import init_xls
 from xls.dslx import import_helpers
 from xls.dslx import parse_and_typecheck
 
 
 def main(argv):
+  init_xls.init_xls(argv)
   if len(argv) > 2:
     raise app.UsageError('Too many command-line arguments.')
 

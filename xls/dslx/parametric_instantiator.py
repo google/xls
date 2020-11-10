@@ -44,13 +44,18 @@ Expr = Any
 class _ParametricInstantiator:
   """Abstract base class for parametric instantiation of fns and structs."""
 
-  def __init__(self, span: Span, arg_types: Tuple[ConcreteType,
-                                                  ...], ctx: DeduceCtx,
-               parametric_constraints: Optional[ParametricBindings]):
+  def __init__(
+      self,
+      span: Span,
+      arg_types: Tuple[ConcreteType, ...],
+      ctx: DeduceCtx,
+      parametric_constraints: Optional[ParametricBindings],
+      explicit_constraints: Optional[Dict[str, int]],
+  ):
     self.span = span
     self.arg_types = arg_types
     self.ctx = ctx
-    self.symbolic_bindings = {}  # type: Dict[Text, int]
+    self.symbolic_bindings = explicit_constraints if explicit_constraints else {}
     self.constraints = {}  # type: Dict[Text, Optional[Expr]]
     self.bit_widths = {}  # type: Dict[Text, int]
 
@@ -275,8 +280,10 @@ class _FunctionInstantiator(_ParametricInstantiator):
 
   def __init__(self, span: Span, function_type: ConcreteType,
                arg_types: Tuple[ConcreteType, ...], ctx: DeduceCtx,
-               parametric_constraints: Optional[ParametricBindings]):
-    super().__init__(span, arg_types, ctx, parametric_constraints)
+               parametric_constraints: Optional[ParametricBindings],
+               explicit_constraints: Optional[Dict[str, int]]):
+    super().__init__(span, arg_types, ctx, parametric_constraints,
+                     explicit_constraints)
     self.function_type = function_type
     param_types = self.function_type.params
     if len(self.arg_types) != len(param_types):
@@ -340,7 +347,7 @@ class _StructInstantiator(_ParametricInstantiator):
                                 ...], member_types: Tuple[ConcreteType,
                                                           ...], ctx: DeduceCtx,
                parametric_constraints: Optional[ParametricBindings]):
-    super().__init__(span, arg_types, ctx, parametric_constraints)
+    super().__init__(span, arg_types, ctx, parametric_constraints, {})
     self.struct_type = struct_type
     self.member_types = member_types
 
@@ -381,12 +388,17 @@ class _StructInstantiator(_ParametricInstantiator):
 
 
 def instantiate_function(
-    span: Span, callee_type: ConcreteType, arg_types: Tuple[ConcreteType, ...],
-    ctx: DeduceCtx, parametric_bindings: Optional[ParametricBindings]
+    span: Span,
+    callee_type: ConcreteType,
+    arg_types: Tuple[ConcreteType, ...],
+    ctx: DeduceCtx,
+    parametric_bindings: Optional[ParametricBindings],
+    explicit_bindings: Optional[Dict[str, int]],
 ) -> Tuple[ConcreteType, SymbolicBindings]:
   """Instantiates a fn invocation using the bindings derived from arg_types."""
   return _FunctionInstantiator(span, callee_type, arg_types, ctx,
-                               parametric_bindings).instantiate()
+                               parametric_bindings,
+                               explicit_bindings).instantiate()
 
 
 def instantiate_struct(

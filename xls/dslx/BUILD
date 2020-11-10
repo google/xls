@@ -200,6 +200,7 @@ py_binary(
     deps = [
         ":import_helpers",
         ":parse_and_typecheck",
+        "//xls/common/python:init_xls",
         "//xls/dslx/python:import_routines",
         "@com_google_absl_py//absl:app",
     ],

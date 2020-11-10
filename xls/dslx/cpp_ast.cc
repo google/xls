@@ -403,6 +403,19 @@ std::string EnumDef::ToString() const {
   return result;
 }
 
+std::string Invocation::FormatParametrics() const {
+  if (parametrics_.empty()) {
+    return "";
+  }
+
+  return absl::StrCat("<",
+                      absl::StrJoin(parametrics_, ", ",
+                                    [](std::string* out, Expr* e) {
+                                      absl::StrAppend(out, e->ToString());
+                                    }),
+                      ">");
+}
+
 std::string StructDef::ToString() const {
   std::string parametric_str;
   if (!parametric_bindings_.empty()) {

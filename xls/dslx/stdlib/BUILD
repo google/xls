@@ -33,6 +33,13 @@ dslx_test(
     convert_ir = False,
 )
 
+dslx_test(
+    name = "apfloat",
+    srcs = ["apfloat.x"],
+    # No meaningful entry point to convert.
+    convert_ir = False,
+)
+
 filegroup(
     name = "x_files",
     srcs = glob(["*.x"]),

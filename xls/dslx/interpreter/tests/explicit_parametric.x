@@ -13,19 +13,32 @@
 // limitations under the License.
 
 // Tests for explicit instantiations of parametric structs and functions.
-struct Foo<X:u32, Y:u32> {
+struct Generic<X:u32, Y:u32> {
   a: bits[X],
   b: bits[Y]
 }
 
-pub fn FooZero(a: bits[4]) -> Foo<u32:4, u32:8> {
-  Foo<u32:4, u32:8>{ a: a, b: bits[8]:0 }
+pub fn foo(a: bits[4]) -> Generic<u32:4, u32:8> {
+  Generic<u32:4, u32:8>{ a: a, b: bits[8]:0 }
 }
 
-pub fn IndirectFoo<X:u64, Y: u32 = (X * X) as u32>(a: bits[4]) -> Foo<X as u32, u32:8> {
-  Foo<X as u32, u32:8>{ a: a as bits[X], b: bits[8]:32 }
+pub fn indirect_foo<X:u64, Y: u32 = (X * X) as u32>(a: bits[4]) -> Generic<X as u32, u32:8> {
+  Generic<X as u32, u32:8>{ a: a as bits[X], b: bits[8]:32 }
 }
 
-pub fn InstantiatesIndirectFoo(a: bits[16]) -> Foo<u32:16, u32:8> {
-  IndirectFoo<u64:16>(a as bits[4])
+pub fn instantiates_indirect_foo(a: bits[16]) -> Generic<u32:16, u32:8> {
+  indirect_foo<u64:16>(a as bits[4])
+}
+
+pub fn parameterized_zero<C:u32, D:u32>(x: bits[C]) -> Generic<C, D> {
+  Generic<C, D>{ a: bits[C]:0, b:bits[D]:1 }
+}
+
+pub fn two_param_indirect<E:u32, F:u32>(value: bits[E]) -> Generic<E, F> {
+  parameterized_zero<E, F>(value)
+}
+
+test generic {
+  let actual = two_param_indirect<u32:1, u32:2>(u1:0);
+  ()
 }
