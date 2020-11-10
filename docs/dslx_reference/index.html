@@ -668,8 +668,8 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#numerical-conversions" class="md-nav__link">
-    Numerical Conversions
+  <a href="#numerical-conversions-numerical-conversions" class="md-nav__link">
+    Numerical Conversions {#numerical-conversions}
   </a>
   
 </li>
@@ -711,13 +711,6 @@
           <li class="md-nav__item">
   <a href="#public-module-members" class="md-nav__link">
     Public module members
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#typedefs" class="md-nav__link">
-    Typedefs
   </a>
   
 </li>
@@ -1390,8 +1383,8 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#numerical-conversions" class="md-nav__link">
-    Numerical Conversions
+  <a href="#numerical-conversions-numerical-conversions" class="md-nav__link">
+    Numerical Conversions {#numerical-conversions}
   </a>
   
 </li>
@@ -1433,13 +1426,6 @@
           <li class="md-nav__item">
   <a href="#public-module-members" class="md-nav__link">
     Public module members
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#typedefs" class="md-nav__link">
-    Typedefs
   </a>
   
 </li>
@@ -1653,7 +1639,7 @@
 <li><a href="#ternary-if-expression">Ternary If Expression</a></li>
 <li><a href="#iterable-expression">Iterable Expression</a></li>
 <li><a href="#for-expression">for Expression</a></li>
-<li><a href="#numerical-conversions">Numerical Conversions</a></li>
+<li><a href="#numerical-conversions-numerical-conversions">Numerical Conversions {#numerical-conversions}</a></li>
 <li><a href="#array-conversions">Array Conversions</a></li>
 <li><a href="#advanced-understanding-parametricity-constraints-and-unification">Advanced Understanding: Parametricity, Constraints, and Unification</a></li>
 </ul>
@@ -1661,7 +1647,6 @@
 <li><a href="#statements">Statements</a><ul>
 <li><a href="#imports">Imports</a></li>
 <li><a href="#public-module-members">Public module members</a></li>
-<li><a href="#typedefs">Typedefs</a></li>
 <li><a href="#const">Const</a></li>
 </ul>
 </li>
@@ -1710,15 +1695,16 @@ for example, integer conversions all follow the same semantics as Rust.</p>
 early experimentation, but they are quickly being removed to converge on Rust
 syntax.</p>
 <p>Dataflow DSLs are a good fit for describing hardware, compared to languages
-designed assume
+whose design assumes
 <a href="https://en.wikipedia.org/wiki/Von_Neumann_architecture">von Neumann style computation</a>
 (global mutable state, sequential mutation by a sequential thread of control).
-Using a DSL provides a more hardware-oriented representation of a given
-computation that matches XLS compiler (IR) constructs closely. The DSL also
-allows an exploration of HLS without being encumbered by C++ language or
-compiler limitations such as non-portable pragmas, magic macros, or semantically
-important syntactic conventions. The language is still experimental and likely
-to change, but it is already useful for experimentation and exploration.</p>
+Using a Domain Specific Language (DSL) provides a more hardware-oriented
+representation of a given computation that matches XLS compiler (IR) constructs
+closely. The DSL also allows an exploration of HLS without being encumbered by
+C++ language or compiler limitations such as non-portable pragmas, magic macros,
+or semantically important syntactic conventions. The language is still
+experimental and likely to change, but it is already useful for experimentation
+and exploration.</p>
 <p>This document provides a reference for DSLX, mostly by example. After perusing
 it and learning about the language features, we recommend exploring the
 following, detailed examples to learn how the language features are put to
@@ -1788,8 +1774,8 @@ fn add1(x: u32) -&gt; u32 {
 </code></pre>
 
 <p>Functions return the result of their last computed expression as their return
-value. There are no explicit return statements. Functions also don't have
-multiple return statements.</p>
+value. There are no explicit return statements. By implication, functions return
+exactly one expression; they can't return multiple expressions (but this may change in the future as we migrate towards some Rust semantics).</p>
 <p>Tuples should be returned if a function should return multiple values.</p>
 <h3 id="parameters">Parameters</h3>
 <p>Parameters are written as pairs <code>name</code> followed by a colon <code>:</code> followed by the
@@ -1814,7 +1800,7 @@ in terms of types derived from other parametric values. For instance:</p>
   n * bits[32]:2
 }
 
-fn [A: u32, B: u32 = double(A)] self_append(x: bits[A]) -&gt; bits[B] {
+fn self_append&lt;A: u32, B: u32 = double(A)&gt;(x: bits[A]) -&gt; bits[B] {
   x++x
 }
 
@@ -1828,6 +1814,17 @@ evaluated at that point in compilation.</p>
 <p>See
 <a href="#advanced-understanding-parametricity-constraints-and-unification">advanced understanding</a>
 for more information on parametricity.</p>
+<p>Functions and structs can also be explicitly parameterized, as in:</p>
+<pre><code>struct Foo&lt;X:u32, Y:u32&gt; {
+  a: bits[X],
+  b: bits[Y]
+}
+
+fun MakeFoo&lt;X: u64&gt;(input: bits[4]) -&gt; Foo&lt;X as u32, u32:8&gt; {
+  Foo&lt;X as u32, u32:8&gt;{ a: input as bits[X], b: bits[8]:1 }
+}
+</code></pre>
+
 <h3 id="function-calls">Function Calls</h3>
 <p>Function calls are expressions and look and feel just like one would expect from
 other languages. For example:</p>
@@ -1858,12 +1855,11 @@ u32       // convenient shorthand for bits[32]
 bits[256] // a 256-bit datatype
 </code></pre>
 
-<p>DSLX introduces shortcuts for commonly used types, such as <code>u8</code> for an 8-wide
-bit type, or <code>u32</code> for a 32-bit wide bit type. These are defined up to <code>u64</code>.</p>
-<p>All <code>u*</code> and <code>bits[*]</code> types are interpreted as unsigned numbers. Signed
-numbers are specified via <code>sN[*]</code>, which is analogous to <code>bits[*]</code> and
-<code>uN[*]</code> which are the corresponding unsigned version of the bit width <code>*</code>.
-For example:</p>
+<p>DSLX introduces aliases for commonly used types, such as <code>u8</code> for an 8-wide bit
+type, or <code>u32</code> for a 32-bit wide bit type. These are defined up to <code>u64</code>.</p>
+<p>All <code>u*</code>, <code>uN[*]</code>, and <code>bits[*]</code> types are interpreted as unsigned integers.
+Signed integers are specified via <code>s*</code> and <code>sN[*]</code>. Similarly to unsigned
+numbers, the <code>s*</code> shorthands are defined up to <code>s64</code>. For example:</p>
 <pre><code>sN[0]
 s0
 
@@ -1876,7 +1872,6 @@ s64
 sN[256]
 </code></pre>
 
-<p>Similarly to unsigned numbers, the <code>s*</code> shorthands are defined up to <code>s64</code>.</p>
 <p>Signed numbers differ in their behavior from unsigned numbers primarily via
 operations like comparisons, (variable width) multiplications, and divisions.</p>
 <h3 id="enum-types">Enum Types</h3>
@@ -1914,7 +1909,7 @@ fn next_in_sequence(x: Opcode, y: Opcode) -&gt; bool {
 }
 </code></pre>
 
-<p>As mentioned above casting of enum-values works with the same casting/extension
+<p>As mentioned above, casting of enum-values works with the same casting/extension
 rules that apply to the underlying enum type definition. For example, this cast
 will sign extend because the source type for the enum is signed. (See
 <a href="#numerical-conversions">numerical conversions</a> for the full description of
@@ -1939,12 +1934,16 @@ invalid casting can only be found at runtime, e.g., in the DSL interpreter or
 flagging a fatal error from hardware. Because of that, it is recommended to
 avoid such casts as much as possible.</p>
 <h3 id="tuple-type">Tuple Type</h3>
-<p>A tuple is an ordered set of fixed size containing elements of potentially
-different types. Tuples can contain bits, arrays, or other tuples.</p>
+<p>A tuple is a fixed-size ordered set, containing elements of heterogeneous types.
+Tuples elements can be any type, e.g. bits, arrays, structs, tuples. Tuples may
+be empty (an empty tuple is also known as the unit type), or contain one or more
+types.</p>
 <p>Examples:</p>
-<pre><code>(0b100, 0b101) a tuple containing two bits elements
+<pre><code>() // the unit type, carries no information
 
-// A tuple with 2 elements.
+let pair = (0b100, 0b101) // a tuple containing two bits elements
+
+// The type of a tuple with 2 elements.
 //   the 1st element is of type u32
 //   the 2nd element is a tuple with 3 elements
 //       the 1st element is of type u8
@@ -1953,14 +1952,14 @@ different types. Tuples can contain bits, arrays, or other tuples.</p>
 (u32, (u8, (u16,), u8)
 </code></pre>
 
-<p>To access individual tuple elements use simple indices, starting
-at 0 (Member access by field names is work in progress). For example, to
-access the 2nd element of a tuple (index 1):</p>
+<p>To access individual tuple elements use simple indices, starting at 0. For
+example, to access the second element of a tuple (index 1):</p>
 <pre><code>let t = (u32:2, u8:3);
-assert_eq(u8:3, t[u32:1])
+assert_eq(u8:3, t[1])
 </code></pre>
 
-<p>Another way to "destructure" a tuple into names is to use tuple assignment:</p>
+<p>Tuples can be destructured, which provides a convenient syntax to name elements
+of a tuple, if only at the use site:</p>
 <pre><code>let t = (u32:2, u8:3);
 let (a, b) = t;
 let _ = assert_eq(u32:2, a);
@@ -1968,15 +1967,16 @@ assert_eq(u8:3, b)
 </code></pre>
 
 <p>Just as values can be discarded in a <code>let</code> by using the "black hole identifier"
-<code>_</code>, don't care values can also be discarded when destructuring a tuple:</p>
+<code>_</code>, don't-care values can also be discarded when destructuring a tuple:</p>
 <pre><code>let t = (u32:2, u8:3, true);
 let (_, _, v) = t;
 assert_eq(v, true)
 </code></pre>
 
 <h3 id="struct-type">Struct Type</h3>
-<p>Structs are "sugar" on top of tuples that give names to the various slots and
-have convenient ways of constructing / accessing the members.</p>
+<p>Structures are similar to tuples, but provide two additional capabilities: we
+name the slots (i.e. struct fields have names while tuple elements only have
+positions), and we introduce a new type.</p>
 <p>The following syntax is used to define a struct:</p>
 <pre><code>struct Point {
   x: u32,
@@ -1998,10 +1998,19 @@ test struct_equality {
 }
 </code></pre>
 
-<p>There is a simple syntax when defining fields with names that are the same as
-the specified values: ``` struct Point { x: u32, y: u32, }</p>
-<p>test struct_equality { let x = u32:42; let y = u32:64;</p>
-<p>let p0 = Point { x, y }; let p1 = Point { y, x }; assert_eq(p0, p1) } ```</p>
+<p>There is a simple syntax when creating a struct whose field names match the
+names of in-scope values:</p>
+<pre><code>struct Point { x: u32, y: u32, }
+
+test struct_equality {
+  let x = u32:42;
+  let y = u32:64;
+  let p0 = Point { x, y };
+  let p1 = Point { y, x };
+  assert_eq(p0, p1)
+}
+</code></pre>
+
 <p>Struct fields can also be accessed with "dot" syntax:</p>
 <pre><code>struct Point {
   x: u32,
@@ -2046,8 +2055,7 @@ test main {
 </code></pre>
 
 <p>The DSL has syntax for conveniently producing a new value with a subset of
-fields updated to "feel" like the convenience of mutation. The "struct update"
-syntax is:</p>
+fields updated to reduce verbosity. The "struct update" syntax is:</p>
 <pre><code>fn update_y(p: Point3) -&gt; Point3 {
   Point3 { y: u32:42, ..p }
 }
@@ -2057,29 +2065,33 @@ fn update_x_and_y(p: Point3) -&gt; Point3 {
 }
 </code></pre>
 
-<p>Note that structs are not compatible with other structs that happen to have the
-same definition (this is called "nominal typing"). For example:</p>
-<pre><code>  def test_nominal_typing(self):
-    # Nominal typing not structural, e.g. OtherPoint cannot be passed where we
-    # want a Point, even though their members are the same.
-    self._typecheck(
-        &quot;&quot;&quot;
-        struct Point {
-          x: s8,
-          y: u32,
-        }
-        struct OtherPoint {
-          x: s8,
-          y: u32
-        }
-        fn f(x: Point) -&gt; Point { x }
-        fn g() -&gt; Point {
-          let shp = OtherPoint { x: s8:255, y: u32:1024 };
-          f(shp)
-        }
-        &quot;&quot;&quot;,
-        error='parameter type name: \'Point\'; argument type name: \'OtherPoint\''
-    )
+<p>As mentioned above, a struct definition introduces a new type. Structs are
+nominally typed, as opposed to structurally typed (note that tuples are
+structurally typed). This means that structs with different names have different
+types, regardless of whether those structs have the same structure (i.e. even
+when all the fields of two structures are identical, those structures are a
+different type when they have a different name).</p>
+<pre><code>struct Point {
+  x: u32,
+  y: u32,
+}
+
+struct Coordinate {
+  x: u32,
+  y: u32,
+}
+
+fn f(p: Point) -&gt; u32 {
+  p.x + p.y
+}
+
+test ok {
+  assert_eq(f(Point { x: u32:42, y: u32:64 }), u32:106)
+}
+
+test type_checker_error {
+  assert_eq(f(Coordinate { x: u32:42, y: u32:64 }), u32:106)
+}
 </code></pre>
 
 <p>DSLX also supports parametric structs. For more information on how
@@ -2087,11 +2099,16 @@ type-parametricity works, see the <a href="#parametric-functions">parametric fun
 section.</p>
 <pre><code>fn double(n: u32) -&gt; u32 { n * u32:2 }
 
-struct [N: u32, M: u32 = double(N)] Point { x: bits[N], y: bits[M], }
+struct Point&lt;N: u32, M: u32 = double(N)&gt; Point { x: bits[N], y: bits[M], }
 
-fn [A: u32, B: u32] make_point(x: bits[A], y: bits[B]) -&gt; Point[A, B] { Point {
-x, y } } test struct_construction { let p = make_point(u16:42, u32:42);
-assert_eq(u16:42, p.x) }
+fn make_point&lt;A: u32, B: u32&gt; make_point(x: bits[A], y: bits[B]) -&gt; Point[A, B] {
+  Point{ x, y }
+}
+
+test struct_construction {
+  let p = make_point(u16:42, u32:42);
+  assert_eq(u16:42, p.x)
+}
 </code></pre>
 
 <h3 id="array-type">Array Type</h3>
@@ -2133,44 +2150,76 @@ test make_array {
 and how it affects arrays of bits etc.</p>
 <h3 id="type-aliases">Type Aliases</h3>
 <p>DLSX supports the definition of type aliases.</p>
-<p>For example, to define a tuple type to represent a float number with a sign bit,
-an 8-bit mantissa, and a 23-bit mantissa, one would write:</p>
-<pre><code>type F32 = {
-  u1,
-  u8,
-  u23,
+<p>Type aliases can be used to provide a more human-readable name for an existing
+type. The new name is on the left, the existing name on the right:</p>
+<pre><code>type Weight = u6;
+</code></pre>
+
+<p>We can create an alias for an imported type:</p>
+<pre><code>import xls.dslx.interpreter.tests.mod_imported
+
+type MyEnum = mod_imported::MyEnum;
+
+fn main(x: u8) -&gt; MyEnum {
+  x as MyEnum
 }
+
+test main {
+  let _ = assert_eq(main(u8:42), MyEnum::FOO);
+  let _ = assert_eq(main(u8:64), MyEnum::BAR);
+  ()
+}
+</code></pre>
+
+<p>Type aliases can also provide a descriptive name for a tuple type (which is
+otherwise anonymous). For example, to define a tuple type that represents a
+float number with a sign bit, an 8-bit mantissa, and a 23-bit mantissa, one
+would write:</p>
+<pre><code>type F32 = (u1, u8, u23)
 </code></pre>
 
 <p>After this definition, the <code>F32</code> may be used as a type annotation
 interchangeably with <code>(u1, u8, u23)</code>.</p>
-<p>Note, however, that structs are generally preferred as described above, as they
-are more readable and users do not need to rely on tuple indices remaining the
-same in the future.</p>
-<p>For direct type aliasing, users can use the following coding style (similar to
-the C++ <code>typedef</code> keyword):</p>
-<pre><code>type TypeWeight = u6;
-</code></pre>
-
+<p>Note, however, that structs are generally preferred for this purpose, as they
+are more readable and users do not need to rely on tuple elements having a
+stable order in the future (i.e., they are resilient to refactoring).</p>
 <h3 id="type-casting">Type Casting</h3>
-<p>Bit types can be cast from one bit-width to another. To cast a given value to a
-different bit-width, the required code looks similar to how other types are
-being specified in DSLX: Simply prefix the value with the desired type, followed
-by a <code>:</code>. In this example:</p>
-<pre><code>fn add_with_carry(x: bits[24], y: bits[24]) -&gt; (u1, bits[24]) {
-  let result = (u1:0 ++ x) + (u1:0 ++ y);
-  (u1:(result &gt;&gt; bits[25]:24), bits[24]:result)
+<p>Bit types can be cast from one bit-width to another with the <code>as</code> keyword. Types
+can be widened (increasing bit-width), narrowed (decreasing bit-width) and/or
+changed between signed and unsigned. Some examples are found below. See
+<a href="#numerical-conversions">Numerical Conversions</a> for a description of the
+semantics.</p>
+<pre><code>test narrow_cast {
+  let twelve = u4:0b1100;
+  assert_eq(twelve as u2, u2:0)
+}
+
+test widen_cast {
+  let three = u2:0b11;
+  assert_eq(three as u4, u4:3)
+}
+
+test narrow_signed_cast {
+  let negative_seven = s4:0b1001;
+  assert_eq(negative_seven as u2, u2:1)
+}
+
+test widen_signed_cast {
+  let negative_one = s2:0b11;
+  assert_eq(negative_one as s4, s4:-1)
+}
+
+test widen_to_unsigned {
+  let negative_one = s2:0b11;
+  assert_eq(negative_one as u3, u3:0b111)
+}
+
+test widen_to_signed {
+  let three = u2:0b11;
+  assert_eq(three as u3, u3:0b011)
 }
 </code></pre>
 
-<p>The type of <code>result</code> is inferred to be of type <code>bits[25]</code> (concatenation of a
-24-bit value with an additional 1-bit value in the front).</p>
-<p>The expression <code>bits[25]:24</code> specifies the type of the value <code>24</code> to be of
-<code>bits[25]</code>. The larger expression <code>(u1:(result &gt;&gt; bits[25]:24)</code> casts the result
-of the shift expression to a <code>u1</code>. Only a single bit is returned, the least
-significant bit (the right-most bit).</p>
-<p>The expression <code>bits[24]:result</code> casts the 25-bit value 'result' down to a
-24-bit value, basically chopping off the leading bit.</p>
 <h3 id="type-checking-and-inference">Type Checking and Inference</h3>
 <p>DSLX performs type checking and produces an error if types in an expression
 don't match up.</p>
@@ -2441,7 +2490,7 @@ be tuple types. For example:</p>
 <pre><code>for ((i, e), (prior, count, result)): ((u32, u32), (u32, u3, bits[8,3]))
 </code></pre>
 
-<h3 id="numerical-conversions">Numerical Conversions</h3>
+<h3 id="numerical-conversions-numerical-conversions">Numerical Conversions {#numerical-conversions}</h3>
 <p>DSLX adopts the
 <a href="https://doc.rust-lang.org/1.30.0/book/first-edition/casting-between-types.html">Rust rules</a>
 for semantics of numeric casts:</p>
@@ -2527,7 +2576,7 @@ test cast_to_array {
 <h3 id="advanced-understanding-parametricity-constraints-and-unification">Advanced Understanding: Parametricity, Constraints, and Unification</h3>
 <p>An infamous wrinkle is introduced for parametric functions: consider the
 following function:</p>
-<pre><code>fn [T: type, U: type] add_wrapper(x: T, y: U) -&gt; T {
+<pre><code>fn add_wrapper&lt;T: type, U: type&gt;(x: T, y: U) -&gt; T {
   x + y
 }
 </code></pre>
@@ -2608,7 +2657,7 @@ pub const BAR = u32:64;  // Accessible to importing modules.
 </code></pre>
 
 <p>This applies to other things defined at module scope as well: functions, enums,
-typedefs, etc.</p>
+type aliases, etc.</p>
 <pre><code>import xls.dslx.interpreter.tests.mod_imported
 import xls.dslx.interpreter.tests.mod_imported as mi
 
@@ -2618,25 +2667,6 @@ fn main(x: u3) -&gt; u1 {
 
 test main {
   assert_eq(u1:0b1, main(u3:0b001))
-}
-</code></pre>
-
-<h3 id="typedefs">Typedefs</h3>
-<p>To import a type defined in an imported module or make a convenient shorthand
-for an existing type, the <code>typedef</code> construct can be used at module scope; e.g.
-for the case of an enum:</p>
-<pre><code>import xls.dslx.interpreter.tests.mod_imported
-
-type MyEnum = mod_imported::MyEnum;
-
-fn main(x: u8) -&gt; MyEnum {
-  x as MyEnum
-}
-
-test main {
-  let _ = assert_eq(main(u8:42), MyEnum::FOO);
-  let _ = assert_eq(main(u8:64), MyEnum::BAR);
-  ()
 }
 </code></pre>
 
@@ -2727,7 +2757,7 @@ will produce an 8-bit signed value starting at <code>start</code>, whereas <code
 will produce a 4-bit unsigned number starting at <code>start</code>.</p>
 <p>Here are many more examples:</p>
 <pre><code>// Identity function helper.
-fn [N: u32] id(x: bits[N]) -&gt; bits[N] { x }
+fn id&lt;N: u32&gt;(x: bits[N]) -&gt; bits[N] { x }
 
 test bit_slice_syntax {
   let x = u6:0b100111;
@@ -2817,7 +2847,7 @@ only its type is used to determine the result type of the sign extension.</p>
 input becomes the MSb in the result, the 2nd LSb becomes the 2nd MSb in the
 result, and so on.</p>
 <pre><code>// (Dummy) wrapper around reverse.
-fn [N: u32] wrapper(x: bits[N]) -&gt; bits[N] {
+fn wrapper&lt;N: u32&gt;(x: bits[N]) -&gt; bits[N] {
   rev(x)
 }
 

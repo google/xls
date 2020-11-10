@@ -394,8 +394,22 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#specializing-select-arms" class="md-nav__link">
+    Specializing select arms
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#consecutive-selects-with-identical-selectors" class="md-nav__link">
+    Consecutive selects with identical selectors
+  </a>
   
 </li>
       
@@ -1060,8 +1074,22 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#specializing-select-arms" class="md-nav__link">
+    Specializing select arms
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#consecutive-selects-with-identical-selectors" class="md-nav__link">
+    Consecutive selects with identical selectors
+  </a>
   
 </li>
       
@@ -1180,8 +1208,10 @@
 </li>
 <li><a href="#select-optimizations">Select optimizations</a><ul>
 <li><a href="#converting-chains-of-selects-to-into-a-single-onehotselect">Converting chains of Selects to into a single OneHotSelect</a></li>
+<li><a href="#specializing-select-arms">Specializing select arms</a></li>
 </ul>
 </li>
+<li><a href="#consecutive-selects-with-identical-selectors">Consecutive selects with identical selectors</a></li>
 <li><a href="#binary-decision-diagram-based-optimizations">Binary Decision Diagram based optimizations</a><ul>
 <li><a href="#bdd-common-subexpression-elimination">BDD common subexpression elimination</a></li>
 <li><a href="#onehot-msb-elimination">OneHot MSB elimination</a></li>
@@ -1469,6 +1499,28 @@ at most one selector is asserted) the transformation is slightly modified. An
 additional selector which is the logical NOR of all of the original <code>Select</code>
 selector bits is appended to the <code>OneHotSelect</code> selector and the respective case
 is the value selected when all selector bits are zero (<code>case_0</code> in the diagram).</p>
+<h3 id="specializing-select-arms">Specializing select arms</h3>
+<p>Within any given arm of a <code>Select</code> multiplexer, we can assume that the
+selector has the specific value required to select that arm. This assumption
+is safe because in the event that the selector has a different value, the
+arm is dead.</p>
+<p><img alt="drawing" src="../selector_substitution.png" /></p>
+<p>This makes it possible to try specialize the arms based on the selector
+value. In the above example, a LHS of <code>Selector + x</code> could be simplified to
+<code>0 + x</code>.</p>
+<p>The current optimization simply substitutes any usages of the selector in a
+<code>Select</code> arm with its known value in that arm. Future improvements could use
+range based analysis or other techniques to narrow down the possible values of
+any variables within the selector, and use that information to optimize the
+select arms.</p>
+<h2 id="consecutive-selects-with-identical-selectors">Consecutive selects with identical selectors</h2>
+<p>Two consecutive two-way selects which use the same selector can be compacted
+into a single select statement. The selector only has two states so only two of
+the three different cases may be selected. The third is dead. Visually, the
+transformation looks like:</p>
+<p><img alt="drawing" src="../consecutive_selects.png" /></p>
+<p>The specific cases which remain in the new select instruction depends on whether
+the upper select feeds the true or false input of the lower select.</p>
 <h2 id="binary-decision-diagram-based-optimizations">Binary Decision Diagram based optimizations</h2>
 <p>A binary decision diagram (BDD) is a data structure that can represent arbitrary
 boolean expressions. Properties of the BDD enable easy determination of
