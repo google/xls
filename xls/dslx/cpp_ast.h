@@ -1936,7 +1936,10 @@ class Module : public AstNode, public std::enable_shared_from_this<Module> {
   absl::StatusOr<Test*> GetTest(absl::string_view target_name) {
     for (ModuleMember& member : top_) {
       if (absl::holds_alternative<Test*>(member)) {
-        return absl::get<Test*>(member);
+        Test* t = absl::get<Test*>(member);
+        if (t->identifier() == target_name) {
+          return t;
+        }
       }
     }
     return absl::NotFoundError(absl::StrFormat(

@@ -25,4 +25,6 @@ dslx_test(
     entry = "__idct_chen__idct",
     # Note: times out.
     prove_unopt_eq_opt = False,
+    # Note: times out in fastbuild 2020-11-09.
+    tags = ["optonly"],
 )

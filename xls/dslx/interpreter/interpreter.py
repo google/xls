@@ -1050,6 +1050,8 @@ class Interpreter(object):
   def run_test(self, name: Text) -> None:
     bindings = self._make_top_level_bindings(self._module)
     test = self._module.get_test(name)
+    assert test.name.identifier == name
+    logging.vlog(1, 'Running test: %s', test)
     bindings.fn_ctx = FnCtx(self._module.name, '{}_test'.format(name), ())
     result = self._evaluate(test.body, bindings)
     if not result.is_nil_tuple():

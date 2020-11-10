@@ -542,6 +542,39 @@ class InterpreterTest(test_base.TestCase):
     self.assertIn('lhs: [1, 2]\n', cm.exception.message)
     self.assertIn('first differing index: 0', cm.exception.message)
 
+  def test_first_failing_test(self):
+    program = textwrap.dedent("""\
+    test first { assert_eq(false, true) }
+    test second { assert_eq(true, true) }
+    test third { assert_eq(true, true) }
+    """)
+    with self.assertRaises(FailureError) as cm:
+      self._parse_and_test(program)
+    self.assertEqual(cm.exception.span.start.lineno, 0)
+    self.assertIn('were not equal', cm.exception.message)
+
+  def test_second_failing_test(self):
+    program = textwrap.dedent("""\
+    test first { assert_eq(true, true) }
+    test second { assert_eq(false, true) }
+    test third { assert_eq(true, true) }
+    """)
+    with self.assertRaises(FailureError) as cm:
+      self._parse_and_test(program)
+    self.assertEqual(cm.exception.span.start.lineno, 1)
+    self.assertIn('were not equal', cm.exception.message)
+
+  def test_third_failing_test(self):
+    program = textwrap.dedent("""\
+    test first { assert_eq(true, true) }
+    test second { assert_eq(true, true) }
+    test third { assert_eq(false, true) }
+    """)
+    with self.assertRaises(FailureError) as cm:
+      self._parse_and_test(program)
+    self.assertEqual(cm.exception.span.start.lineno, 2)
+    self.assertIn('were not equal', cm.exception.message)
+
 
 if __name__ == '__main__':
   test_base.main()

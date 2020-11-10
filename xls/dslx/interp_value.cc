@@ -414,10 +414,12 @@ absl::StatusOr<InterpValue> InterpValue::Shra(const InterpValue& other) const {
 
 absl::StatusOr<InterpValue> InterpValue::ZeroExt(int64 new_bit_count) const {
   XLS_ASSIGN_OR_RETURN(Bits b, GetBits());
+  InterpValueTag new_tag =
+      IsSigned() ? InterpValueTag::kSBits : InterpValueTag::kUBits;
   if (new_bit_count < b.bit_count()) {
-    return MakeBits(tag_, b.Slice(0, new_bit_count));
+    return MakeBits(new_tag, b.Slice(0, new_bit_count));
   }
-  return InterpValue(tag_, bits_ops::ZeroExtend(b, new_bit_count));
+  return InterpValue(new_tag, bits_ops::ZeroExtend(b, new_bit_count));
 }
 
 absl::StatusOr<InterpValue> InterpValue::OneHot(bool lsb_prio) const {
@@ -430,10 +432,12 @@ absl::StatusOr<InterpValue> InterpValue::OneHot(bool lsb_prio) const {
 
 absl::StatusOr<InterpValue> InterpValue::SignExt(int64 new_bit_count) const {
   XLS_ASSIGN_OR_RETURN(Bits b, GetBits());
+  InterpValueTag new_tag =
+      IsSigned() ? InterpValueTag::kSBits : InterpValueTag::kUBits;
   if (new_bit_count < b.bit_count()) {
-    return MakeBits(tag_, b.Slice(0, new_bit_count));
+    return MakeBits(new_tag, b.Slice(0, new_bit_count));
   }
-  return InterpValue(tag_, bits_ops::SignExtend(b, new_bit_count));
+  return InterpValue(new_tag, bits_ops::SignExtend(b, new_bit_count));
 }
 
 absl::StatusOr<InterpValue> InterpValue::FloorDiv(

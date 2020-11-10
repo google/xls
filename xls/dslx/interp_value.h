@@ -118,13 +118,16 @@ class InterpValue {
   static absl::StatusOr<InterpValue> MakeArray(
       std::vector<InterpValue> elements);
   static InterpValue MakeBool(bool value) { return MakeUBits(1, value); }
+
   static absl::StatusOr<InterpValue> MakeBits(InterpValueTag tag, Bits bits) {
     if (tag != InterpValueTag::kUBits && tag != InterpValueTag::kSBits) {
       return absl::InvalidArgumentError(
-          "Bits tag is required to make a bits Value");
+          "Bits tag is required to make a bits Value; got: " +
+          TagToString(tag));
     }
     return InterpValue(tag, std::move(bits));
   }
+
   static InterpValue MakeFunction(Builtin b) {
     return InterpValue(InterpValueTag::kFunction, b);
   }
@@ -148,6 +151,11 @@ class InterpValue {
 
   bool IsFalse() const { return IsBool() && GetBitsOrDie().IsZero(); }
   bool IsTrue() const { return IsBool() && GetBitsOrDie().IsAllOnes(); }
+
+  bool IsSigned() const {
+    XLS_CHECK(IsBits() || IsEnum());
+    return IsSBits() || (IsEnum() && type()->signedness().value());
+  }
 
   // Note that this equality for bit value holding tags ignores the tag and just
   // checks bit pattern equivalence. We expect that the type checker will

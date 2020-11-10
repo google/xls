@@ -165,6 +165,13 @@ dslx_test(
 )
 
 dslx_test(
+    name = "numerical_conversions2",
+    srcs = ["numerical_conversions2.x"],
+    # Note: no meaningful function to convert.
+    convert_ir = False,
+)
+
+dslx_test(
     name = "signex_builtin",
     srcs = ["signex_builtin.x"],
     # Note: no meaningful function to convert.

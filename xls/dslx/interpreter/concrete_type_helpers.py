@@ -223,14 +223,16 @@ def concrete_type_convert_value(module: ast.Module, type_: ConcreteType,
     assert isinstance(type_, BitsType)
     tag = Tag.SBITS if type_.signed else Tag.UBITS
     bit_count = type_.get_total_bit_count().value
-    logging.vlog(3, 'Zero extending %s to %s', value, bit_count)
-    return Value.make_bits(tag, value.zero_ext(bit_count).get_bits())
+    logging.vlog(3, 'Zero extending %s to %s @ %s; tag: %s', value, bit_count,
+                 span, tag)
+    bits = value.zero_ext(bit_count).get_bits()
+    return Value.make_bits(tag, bits)
 
   def sign_ext() -> Value:
     assert isinstance(type_, BitsType)
     tag = Tag.SBITS if type_.signed else Tag.UBITS
     bit_count = type_.get_total_bit_count().value
-    logging.vlog(3, 'Sign extending %s to %s', value, bit_count)
+    logging.vlog(3, 'Sign extending %s to %s @ %s', value, bit_count, span)
     return Value.make_bits(tag, value.sign_ext(bit_count).get_bits())
 
   if value.tag == Tag.UBITS:

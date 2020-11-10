@@ -112,44 +112,6 @@ class JitComparisonTest(absltest.TestCase):
     with self.assertRaises(jit_comparison.JitMiscompareError):
       jit_comparison.compare_values(dslx_tuple, ir_tuple_different_member)
 
-  def test_bits_to_int(self):
-    """Tests IR bit-value retrieval done at one 64-bit word at a time."""
-    bit_count_0 = jit_comparison.int_to_bits(value=0, bit_count=0)
-    self.assertEqual(0, jit_comparison.bits_to_int(bit_count_0, signed=False))
-
-    bit_count_1 = jit_comparison.int_to_bits(value=0, bit_count=1)
-    self.assertEqual(0, jit_comparison.bits_to_int(bit_count_1, signed=False))
-
-    bit_count_63 = jit_comparison.int_to_bits(value=(2**63 - 1), bit_count=63)
-    self.assertEqual((2**63 - 1),
-                     jit_comparison.bits_to_int(bit_count_63, signed=False))
-    bit_count_63_signed = jit_comparison.int_to_bits(value=-1, bit_count=63)
-    self.assertEqual(
-        -1, jit_comparison.bits_to_int(bit_count_63_signed, signed=True))
-
-    bit_count_64 = jit_comparison.int_to_bits(value=(2**64 - 1), bit_count=64)
-    self.assertEqual((2**64 - 1),
-                     jit_comparison.bits_to_int(bit_count_64, signed=False))
-    bit_count_64_signed = jit_comparison.int_to_bits(value=-1, bit_count=64)
-    self.assertEqual(
-        -1, jit_comparison.bits_to_int(bit_count_64_signed, signed=True))
-
-    bit_count_127 = jit_comparison.int_to_bits(
-        value=(2**127 - 1), bit_count=127)
-    self.assertEqual((2**127 - 1),
-                     jit_comparison.bits_to_int(bit_count_127, signed=False))
-    bit_count_127_signed = jit_comparison.int_to_bits(value=-1, bit_count=127)
-    self.assertEqual(
-        -1, jit_comparison.bits_to_int(bit_count_127_signed, signed=True))
-
-    bit_count_128 = jit_comparison.int_to_bits(
-        value=(2**128 - 1), bit_count=128)
-    self.assertEqual((2**128 - 1),
-                     jit_comparison.bits_to_int(bit_count_128, signed=False))
-    bit_count_128_signed = jit_comparison.int_to_bits(value=-1, bit_count=128)
-    self.assertEqual(
-        -1, jit_comparison.bits_to_int(bit_count_128_signed, signed=True))
-
 
 if __name__ == '__main__':
   absltest.main()
