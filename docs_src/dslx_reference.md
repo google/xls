@@ -552,8 +552,35 @@ and how it affects arrays of bits etc.
 
 DLSX supports the definition of type aliases.
 
-For example, to define a tuple type that represents a float number with a sign
-bit, an 8-bit mantissa, and a 23-bit mantissa, one could write:
+Type aliases can be used to provide a more human-readable name for an existing
+type. The new name is on the left, the existing name on the right:
+
+```
+type Weight = u6;
+```
+
+We can create an alias for an imported type:
+
+```
+import xls.dslx.interpreter.tests.mod_imported
+
+type MyEnum = mod_imported::MyEnum;
+
+fn main(x: u8) -> MyEnum {
+  x as MyEnum
+}
+
+test main {
+  let _ = assert_eq(main(u8:42), MyEnum::FOO);
+  let _ = assert_eq(main(u8:64), MyEnum::BAR);
+  ()
+}
+```
+
+Type aliases can also provide a descriptive name for a tuple type (which is
+otherwise anonymous). For example, to define a tuple type that represents a
+float number with a sign bit, an 8-bit mantissa, and a 23-bit mantissa, one
+would write:
 
 ```
 type F32 = (u1, u8, u23)
@@ -562,16 +589,9 @@ type F32 = (u1, u8, u23)
 After this definition, the `F32` may be used as a type annotation
 interchangeably with `(u1, u8, u23)`.
 
-Note, however, that structs are generally preferred as described above, as they
+Note, however, that structs are generally preferred for this purpose, as they
 are more readable and users do not need to rely on tuple elements having a
 stable order in the future (i.e., they are resilient to refactoring).
-
-For direct type aliasing, users can use the following coding style (similar to
-the C++ `typedef` keyword):
-
-```
-type TypeWeight = u6;
-```
 
 ### Type Casting
 
@@ -1165,7 +1185,7 @@ pub const BAR = u32:64;  // Accessible to importing modules.
 ```
 
 This applies to other things defined at module scope as well: functions, enums,
-typedefs, etc.
+type aliases, etc.
 
 ```
 import xls.dslx.interpreter.tests.mod_imported
@@ -1177,28 +1197,6 @@ fn main(x: u3) -> u1 {
 
 test main {
   assert_eq(u1:0b1, main(u3:0b001))
-}
-```
-
-### Typedefs
-
-To import a type defined in an imported module or make a convenient shorthand
-for an existing type, the `typedef` construct can be used at module scope; e.g.
-for the case of an enum:
-
-```
-import xls.dslx.interpreter.tests.mod_imported
-
-type MyEnum = mod_imported::MyEnum;
-
-fn main(x: u8) -> MyEnum {
-  x as MyEnum
-}
-
-test main {
-  let _ = assert_eq(main(u8:42), MyEnum::FOO);
-  let _ = assert_eq(main(u8:64), MyEnum::BAR);
-  ()
 }
 ```
 
