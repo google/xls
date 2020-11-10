@@ -720,51 +720,6 @@ class Interpreter(object):
     assert isinstance(args[0], Value), args[0]
     return args[0]
 
-  def _builtin_enumerate(
-      self,
-      args: Sequence[Value],
-      span: Span,
-      expr: ast.Invocation,
-      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
-    """Implements 'enumerate' builtin; decorates array with range of indices."""
-    if len(args) != 1:
-      raise EvaluateError(
-          span,
-          'Invalid number of arguments to enumerate; got {} want 1'.format(
-              len(args)))
-    if not args[0].is_array():
-      raise EvaluateError(
-          span,
-          'Invalid argument to enumerate; want array, got {}'.format(args[0]))
-    array = args[0].get_elements()
-    elements = []
-    for i, v in enumerate(array):
-      elements.append(
-          Value.make_tuple((Value.make_ubits(bit_count=32, value=i), v)))
-    return Value.make_array(tuple(elements))
-
-  def _builtin_range(
-      self,
-      args: Sequence[Value],
-      span: Span,
-      expr: ast.Invocation,
-      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
-    """Implements 'range' builtin; populates an array with a range of values."""
-    if len(args) == 1:
-      rhs, = args
-      lhs = Value.make_ubits(bit_count=rhs.get_bit_count(), value=0)
-    elif len(args) != 2:
-      raise EvaluateError(
-          span, 'Invalid number of arguments to range; got {} want 2'.format(
-              len(args)))
-    else:
-      lhs, rhs = args
-    elements = []
-    while lhs.lt(rhs).is_true():
-      elements.append(lhs)
-      lhs = lhs.add(Value.make_ubits(bit_count=rhs.get_bit_count(), value=1))
-    return Value.make_array(tuple(elements))
-
   def _builtin_update(
       self,
       args: Sequence[Value],

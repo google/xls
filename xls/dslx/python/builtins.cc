@@ -116,9 +116,11 @@ PYBIND11_MODULE(builtins, m) {
   m.def("bit_slice", WrapBuiltin(BuiltinBitSlice));
   m.def("clz", WrapBuiltin(BuiltinClz));
   m.def("ctz", WrapBuiltin(BuiltinCtz));
+  m.def("enumerate", WrapBuiltin(BuiltinEnumerate));
   m.def("one_hot_sel", WrapBuiltin(BuiltinOneHotSel));
   m.def("one_hot", WrapBuiltin(BuiltinOneHot));
   m.def("or_reduce", WrapBuiltin(BuiltinOrReduce));
+  m.def("range", WrapBuiltin(BuiltinRange));
   m.def("rev", WrapBuiltin(BuiltinRev));
   m.def("signex", WrapBuiltin(BuiltinSignex));
   m.def("slice", WrapBuiltin(BuiltinSlice));

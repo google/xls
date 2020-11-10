@@ -60,6 +60,16 @@ absl::StatusOr<InterpValue> BuiltinRev(absl::Span<const InterpValue> args,
                                        const Span& span, Invocation* expr,
                                        SymbolicBindings* symbolic_bindings);
 
+// Implements 'enumerate' builtin function.
+absl::StatusOr<InterpValue> BuiltinEnumerate(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    SymbolicBindings* symbolic_bindings);
+
+// Implements 'range' builtin function.
+absl::StatusOr<InterpValue> BuiltinRange(absl::Span<const InterpValue> args,
+                                         const Span& span, Invocation* expr,
+                                         SymbolicBindings* symbolic_bindings);
+
 // Implements 'bit_slice' builtin function.
 absl::StatusOr<InterpValue> BuiltinBitSlice(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,

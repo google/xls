@@ -30,8 +30,36 @@ class ArgChecker {
 
   ArgChecker& size(int64 target) {
     if (args_.size() != target) {
-      status_.Update(absl::InvalidArgumentError(absl::StrFormat(
-          "Expect a single argument to %s(); got %d", name_, args_.size())));
+      status_.Update(absl::InvalidArgumentError(
+          absl::StrFormat("Expect %d argument(s) to %s(); got %d", target,
+                          name_, args_.size())));
+    }
+    return *this;
+  }
+
+  ArgChecker& size_ge(int64 target) {
+    if (args_.size() < target) {
+      status_.Update(absl::InvalidArgumentError(
+          absl::StrFormat("Expect >= %d argument(s) to %s(); got %d", target,
+                          name_, args_.size())));
+    }
+    return *this;
+  }
+
+  ArgChecker& array(int64 argno) {
+    if (!args_[argno].IsArray()) {
+      status_.Update(absl::InvalidArgumentError(
+          absl::StrFormat("Expect argument %d to %s to be an array; got: %s",
+                          argno, name_, TagToString(args_[argno].tag()))));
+    }
+    return *this;
+  }
+
+  ArgChecker& bits(int64 argno) {
+    if (!args_[argno].IsBits()) {
+      status_.Update(absl::InvalidArgumentError(
+          absl::StrFormat("Expect argument %d to %s to be bits; got: %s", argno,
+                          name_, TagToString(args_[argno].tag()))));
     }
     return *this;
   }
@@ -159,6 +187,49 @@ absl::StatusOr<InterpValue> BuiltinRev(absl::Span<const InterpValue> args,
   XLS_RETURN_IF_ERROR(ArgChecker("rev", args).size(1).status());
   XLS_ASSIGN_OR_RETURN(Bits bits, args[0].GetBits());
   return InterpValue::MakeBits(InterpValueTag::kUBits, bits_ops::Reverse(bits));
+}
+
+absl::StatusOr<InterpValue> BuiltinEnumerate(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    SymbolicBindings* symbolic_bindings) {
+  XLS_RETURN_IF_ERROR(ArgChecker("enumerate", args).size(1).array(0).status());
+  auto& values = args[0].GetValuesOrDie();
+  std::vector<InterpValue> results;
+  for (int64 i = 0; i < values.size(); ++i) {
+    auto ordinal = InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/i);
+    auto tuple = InterpValue::MakeTuple({ordinal, values[i]});
+    results.push_back(tuple);
+  }
+  return InterpValue::MakeArray(results);
+}
+
+absl::StatusOr<InterpValue> BuiltinRange(absl::Span<const InterpValue> args,
+                                         const Span& span, Invocation* expr,
+                                         SymbolicBindings* symbolic_bindings) {
+  XLS_RETURN_IF_ERROR(ArgChecker("range", args).size_ge(1).bits(0).status());
+  absl::optional<InterpValue> start;
+  absl::optional<InterpValue> limit;
+  if (args.size() == 1) {
+    limit = args[0];
+    start = InterpValue::MakeUBits(/*bit_count=*/limit->GetBitCount().value(),
+                                   /*value=*/0);
+  } else if (args.size() == 2) {
+    start = args[0];
+    limit = args[1];
+  } else {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Expected 1 or 2 arguments to range; got: %d", args.size()));
+  }
+
+  std::vector<InterpValue> elements;
+  while (start->Lt(*limit).value().IsTrue()) {
+    elements.push_back(*start);
+    start = start
+                ->Add(InterpValue::MakeUBits(
+                    /*bit_count=*/limit->GetBitCount().value(), /*value=*/1))
+                .value();
+  }
+  return InterpValue::MakeArray(std::move(elements));
 }
 
 absl::StatusOr<InterpValue> BuiltinBitSlice(
