@@ -148,17 +148,29 @@ absl::Status FunctionBuilderVisitor::HandleArray(Array* array) {
   return StoreResult(array, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleArrayIndex(ArrayIndex* index) {
-  // Get the pointer to the element of interest, then load it. Easy peasy.
-  llvm::Value* array = node_map_.at(index->operand(0));
-  llvm::Value* index_value = node_map_.at(index->operand(1));
-  int64 index_width = index_value->getType()->getIntegerBitWidth();
+absl::StatusOr<llvm::Value*> FunctionBuilderVisitor::IndexIntoArray(
+    llvm::Value* array, llvm::Value* index, int64 array_size) {
+  int64 index_width = index->getType()->getIntegerBitWidth();
+
+  // Check for out-of-bounds access. If the index is out of bounds it is set to
+  // the maximum index value.
+  int64 index_bitwidth = index->getType()->getIntegerBitWidth();
+  int64 comparison_bitwidth = std::max(index_bitwidth, int64{64});
+  llvm::Value* array_size_comparison_bitwidth = llvm::ConstantInt::get(
+      llvm::Type::getIntNTy(ctx_, comparison_bitwidth), array_size);
+  llvm::Value* index_value_comparison_bitwidth = builder_->CreateZExt(
+      index, llvm::Type::getIntNTy(ctx_, comparison_bitwidth));
+  llvm::Value* is_index_inbounds = builder_->CreateICmpULT(
+      index_value_comparison_bitwidth, array_size_comparison_bitwidth);
+  llvm::Value* inbounds_index = builder_->CreateSelect(
+      is_index_inbounds, index,
+      llvm::ConstantInt::get(index->getType(), array_size - 1));
 
   // Our IR does not use negative indices, so we add a
   // zero MSb to prevent LLVM from interpreting this as such.
   std::vector<llvm::Value*> gep_indices = {
       llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx_), 0),
-      builder_->CreateZExt(index_value,
+      builder_->CreateZExt(inbounds_index,
                            llvm::IntegerType::get(ctx_, index_width + 1))};
 
   // Ideally, we'd use IRBuilder::CreateExtractValue here, but that requires
@@ -175,7 +187,33 @@ absl::Status FunctionBuilderVisitor::HandleArrayIndex(ArrayIndex* index) {
   }
 
   llvm::Value* gep = builder_->CreateGEP(alloca, gep_indices);
-  return StoreResult(index, builder_->CreateLoad(gep));
+  return builder_->CreateLoad(gep);
+}
+
+absl::Status FunctionBuilderVisitor::HandleArrayIndex(ArrayIndex* index) {
+  llvm::Value* array = node_map_.at(index->operand(0));
+  llvm::Value* index_value = node_map_.at(index->operand(1));
+  XLS_ASSIGN_OR_RETURN(
+      llvm::Value * result,
+      IndexIntoArray(array, index_value,
+                     index->array()->GetType()->AsArrayOrDie()->size()));
+  return StoreResult(index, result);
+}
+
+absl::Status FunctionBuilderVisitor::HandleMultiArrayIndex(
+    MultiArrayIndex* index) {
+  Type* element_type = index->array()->GetType();
+  llvm::Value* element = node_map_.at(index->array());
+  for (int64 i = 0; i < index->index()->GetType()->AsTupleOrDie()->size();
+       ++i) {
+    XLS_ASSIGN_OR_RETURN(element,
+                         IndexIntoArray(element,
+                                        builder_->CreateExtractValue(
+                                            node_map_.at(index->index()), i),
+                                        element_type->AsArrayOrDie()->size()));
+    element_type = element_type->AsArrayOrDie()->element_type();
+  }
+  return StoreResult(index, element);
 }
 
 absl::Status FunctionBuilderVisitor::HandleArrayUpdate(ArrayUpdate* update) {
@@ -226,6 +264,87 @@ absl::Status FunctionBuilderVisitor::HandleArrayUpdate(ArrayUpdate* update) {
   }
   array_storage_[update_array] = alloca;
 
+  return StoreResult(update, update_array);
+}
+
+absl::StatusOr<FunctionBuilderVisitor::LlvmIndices>
+FunctionBuilderVisitor::TupleIndicesToLlvmIndices(llvm::Value* tuple_value,
+                                                  TupleType* tuple_type,
+                                                  ArrayType* array_type) {
+  LlvmIndices result{.indices = {}, .is_inbounds = builder_->getTrue()};
+  Type* element_type = array_type;
+
+  for (int64 i = 0; i < tuple_type->size(); ++i) {
+    llvm::Value* index =
+        builder_->CreateExtractValue(tuple_value, i, absl::StrCat("idx_", i));
+
+    int64 index_bitwidth = index->getType()->getIntegerBitWidth();
+    int64 comparison_bitwidth = std::max(index_bitwidth, int64{64});
+    llvm::Value* array_size_comparison_bitwidth =
+        llvm::ConstantInt::get(llvm::Type::getIntNTy(ctx_, comparison_bitwidth),
+                               element_type->AsArrayOrDie()->size());
+    llvm::Value* index_value_comparison_bitwidth = builder_->CreateZExt(
+        index, llvm::Type::getIntNTy(ctx_, comparison_bitwidth));
+    llvm::Value* is_index_inbounds = builder_->CreateICmpULT(
+        index_value_comparison_bitwidth, array_size_comparison_bitwidth,
+        absl::StrCat("idx_", i, "_inbounds"));
+
+    result.indices.push_back(index_value_comparison_bitwidth);
+    result.is_inbounds =
+        builder_->CreateAnd(result.is_inbounds, is_index_inbounds, "inbounds");
+
+    element_type = element_type->AsArrayOrDie()->element_type();
+  }
+  return result;
+}
+
+absl::Status FunctionBuilderVisitor::HandleMultiArrayUpdate(
+    MultiArrayUpdate* update) {
+  if (update->index()->GetType()->AsTupleOrDie()->size() == 0) {
+    // An empty index replaces the entire array value.
+    return StoreResult(update, node_map_.at(update->update_value()));
+  }
+
+  llvm::Value* original_array = node_map_.at(update->array_to_update());
+  llvm::Type* array_type = original_array->getType();
+  llvm::AllocaInst* alloca = builder_->CreateAlloca(array_type);
+  builder_->CreateStore(original_array, alloca);
+
+  XLS_ASSIGN_OR_RETURN(
+      LlvmIndices indices,
+      TupleIndicesToLlvmIndices(
+          node_map_.at(update->index()),
+          update->index()->GetType()->AsTupleOrDie(),
+          update->array_to_update()->GetType()->AsArrayOrDie()));
+
+  // Create the join block which occurs after the conditional block (conditioned
+  // on whether the index is inbounds).
+  llvm::BasicBlock* join_block = llvm::BasicBlock::Create(
+      ctx(), absl::StrCat(update->GetName(), "_join"), llvm_fn());
+
+  // Create the inbounds block and fill with a store to the array elemnt.
+  llvm::BasicBlock* inbounds_block = llvm::BasicBlock::Create(
+      ctx(), absl::StrCat(update->GetName(), "_inbounds"), llvm_fn(),
+      /*InsertBefore=*/join_block);
+  llvm::IRBuilder<> inbounds_builder(inbounds_block);
+  std::vector<llvm::Value*> gep_indices = {
+      llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx_), 0)};
+  gep_indices.insert(gep_indices.end(), indices.indices.begin(),
+                     indices.indices.end());
+  llvm::Value* gep = inbounds_builder.CreateGEP(alloca, gep_indices);
+  inbounds_builder.CreateStore(node_map_.at(update->update_value()), gep);
+  inbounds_builder.CreateBr(join_block);
+
+  // Create a conditional branch using the original builder (end of the BB
+  // before the if/then).
+  builder()->CreateCondBr(indices.is_inbounds, inbounds_block, join_block);
+
+  // Create a new BB at the join point.
+  auto join_builder = std::make_unique<llvm::IRBuilder<>>(join_block);
+  set_builder(std::move(join_builder));
+
+  llvm::Value* update_array = builder_->CreateLoad(array_type, alloca);
+  array_storage_[update_array] = alloca;
   return StoreResult(update, update_array);
 }
 

@@ -31,6 +31,36 @@ using ::testing::HasSubstr;
 
 using ArgMap = absl::flat_hash_map<std::string, Value>;
 
+TEST_P(IrEvaluatorTest, InterpretLiteral) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn literal() -> bits[34] {
+    ret result: bits[34] = literal(value=42)
+  }
+  )"));
+
+  IrEvaluatorTestParam param = GetParam();
+  EXPECT_THAT(param.evaluator(function, {}),
+              IsOkAndHolds(Value(UBits(42, 34))));
+}
+
+TEST_P(IrEvaluatorTest, InterpretWideLiteral) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn literal() -> bits[123] {
+    ret result: bits[123] = literal(value=0xabcd_1234_5678_0011_dead_beef_bcde)
+  }
+  )"));
+
+  IrEvaluatorTestParam param = GetParam();
+  EXPECT_THAT(param.evaluator(function, {}),
+              IsOkAndHolds(Parser::ParseTypedValue(
+                               "bits[123]:0xabcd_1234_5678_0011_dead_beef_bcde")
+                               .value()));
+}
+
 TEST_P(IrEvaluatorTest, InterpretIdentity) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
@@ -1638,16 +1668,15 @@ TEST_P(IrEvaluatorTest, InterpretTupleIndexReturnsBits) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
-  fn tuple_index() -> bits[33] {
-    literal.1: bits[32] = literal(value=5)
-    literal.2: bits[33] = literal(value=123)
-    tuple.3: (bits[32], bits[33]) = tuple(literal.1, literal.2)
-    ret tuple_index.4: bits[33] = tuple_index(tuple.3, index=1)
+  fn tuple_index(input: (bits[32], bits[33])) -> bits[33] {
+    ret tuple_index.4: bits[33] = tuple_index(input, index=1)
   }
   )"));
 
-  EXPECT_THAT(GetParam().evaluator(function, /*args=*/{}),
-              IsOkAndHolds(Value(UBits(123, 33))));
+  EXPECT_THAT(
+      GetParam().evaluator(function, /*args=*/{Value::Tuple(
+                               {Value(UBits(11, 32)), Value(UBits(22, 33))})}),
+      IsOkAndHolds(Value(UBits(22, 33))));
 }
 
 TEST_P(IrEvaluatorTest, InterpretTupleIndexReturnsTuple) {
@@ -1706,6 +1735,22 @@ TEST_P(IrEvaluatorTest, InterpretArrayLiteral) {
                                               }));
   EXPECT_THAT(GetParam().evaluator(function, /*args=*/{}),
               IsOkAndHolds(array_value));
+}
+
+TEST_P(IrEvaluatorTest, Interpret2DArrayLiteral) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn literal() -> bits[17][3][2] {
+    ret result: bits[17][3][2] = literal(value=[[11,22,33], [55,44,77]])
+  }
+  )"));
+
+  IrEvaluatorTestParam param = GetParam();
+  EXPECT_THAT(
+      param.evaluator(function, {}),
+      IsOkAndHolds(
+          Value::UBits2DArray({{11, 22, 33}, {55, 44, 77}}, 17).value()));
 }
 
 TEST_P(IrEvaluatorTest, InterpretArrayIndex) {
@@ -2569,6 +2614,294 @@ TEST_P(IrEvaluatorTest, InterpretXorReduce) {
     XLS_ASSERT_OK(RunBitwiseReduceTest(GetParam(), "xor_reduce", gen_expected,
                                        test_case));
   }
+}
+
+TEST_P(IrEvaluatorTest, MultiArrayIndex) {
+  auto package = CreatePackage();
+  std::string input = R"(
+  fn main(a: bits[13][3], idx: (bits[3])) -> bits[13] {
+    ret result: bits[13] = multiarray_index(a, idx)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseFunction(input, package.get()));
+
+  EXPECT_THAT(
+      GetParam().evaluator(
+          function, {Value::UBitsArray({11, 22, 33}, /*bit_count=*/13).value(),
+                     Value::Tuple({Value(UBits(1, 3))})}),
+      IsOkAndHolds(Value(UBits(22, 13))));
+  EXPECT_THAT(
+      GetParam().evaluator(
+          function, {Value::UBitsArray({11, 22, 33}, /*bit_count=*/13).value(),
+                     Value::Tuple({Value(UBits(2, 3))})}),
+      IsOkAndHolds(Value(UBits(33, 13))));
+  // Out of bounds access should return last element.
+  EXPECT_THAT(
+      GetParam().evaluator(
+          function, {Value::UBitsArray({11, 22, 33}, /*bit_count=*/13).value(),
+                     Value::Tuple({Value(UBits(6, 3))})}),
+      IsOkAndHolds(Value(UBits(33, 13))));
+}
+
+TEST_P(IrEvaluatorTest, MultiArrayIndex2DArray) {
+  auto package = CreatePackage();
+  std::string input = R"(
+  fn main(a: bits[13][3][2], idx: (bits[3], bits[7])) -> bits[13] {
+    ret result: bits[13] = multiarray_index(a, idx)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseFunction(input, package.get()));
+
+  EXPECT_THAT(
+      GetParam().evaluator(
+          function,
+          {Value::UBits2DArray({{44, 55, 66}, {11, 22, 33}}, /*bit_count=*/13)
+               .value(),
+           Value::Tuple({Value(UBits(1, 3)), Value(UBits(2, 7))})}),
+      IsOkAndHolds(Value(UBits(33, 13))));
+  EXPECT_THAT(
+      GetParam().evaluator(
+          function,
+          {Value::UBits2DArray({{44, 55, 66}, {11, 22, 33}}, /*bit_count=*/13)
+               .value(),
+           Value::Tuple({Value(UBits(0, 3)), Value(UBits(1, 7))})}),
+      IsOkAndHolds(Value(UBits(55, 13))));
+
+  // Out of bounds access should return last element of respective array.
+  EXPECT_THAT(
+      GetParam().evaluator(
+          function,
+          {Value::UBits2DArray({{44, 55, 66}, {11, 22, 33}}, /*bit_count=*/13)
+               .value(),
+           Value::Tuple({Value(UBits(6, 3)), Value(UBits(1, 7))})}),
+      IsOkAndHolds(Value(UBits(22, 13))));
+  EXPECT_THAT(
+      GetParam().evaluator(
+          function,
+          {Value::UBits2DArray({{44, 55, 66}, {11, 22, 33}}, /*bit_count=*/13)
+               .value(),
+           Value::Tuple({Value(UBits(0, 3)), Value(UBits(100, 7))})}),
+      IsOkAndHolds(Value(UBits(66, 13))));
+}
+
+TEST_P(IrEvaluatorTest, MultiArrayIndex2DArrayReturnArray) {
+  auto package = CreatePackage();
+  std::string input = R"(
+  fn main(a: bits[13][3][2], idx: (bits[3])) -> bits[13][3] {
+    ret result: bits[13][3] = multiarray_index(a, idx)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseFunction(input, package.get()));
+
+  EXPECT_THAT(
+      GetParam().evaluator(
+          function,
+          {Value::UBits2DArray({{44, 55, 66}, {11, 22, 33}}, /*bit_count=*/13)
+               .value(),
+           Value::Tuple({Value(UBits(1, 3))})}),
+      IsOkAndHolds(Value::UBitsArray({11, 22, 33}, /*bit_count=*/13).value()));
+  EXPECT_THAT(
+      GetParam().evaluator(
+          function,
+          {Value::UBits2DArray({{44, 55, 66}, {11, 22, 33}}, /*bit_count=*/13)
+               .value(),
+           Value::Tuple({Value(UBits(0, 3))})}),
+      IsOkAndHolds(Value::UBitsArray({44, 55, 66}, /*bit_count=*/13).value()));
+
+  // Out of bounds access should return last element of respective array.
+  EXPECT_THAT(
+      GetParam().evaluator(
+          function,
+          {Value::UBits2DArray({{44, 55, 66}, {11, 22, 33}}, /*bit_count=*/13)
+               .value(),
+           Value::Tuple({Value(UBits(7, 3))})}),
+      IsOkAndHolds(Value::UBitsArray({11, 22, 33}, /*bit_count=*/13).value()));
+}
+
+TEST_P(IrEvaluatorTest, MultiArrayIndex2DArrayNilIndex) {
+  auto package = CreatePackage();
+  std::string input = R"(
+  fn main(a: bits[13][3][2], idx: ()) -> bits[13][3][2] {
+    ret result: bits[13][3][2] = multiarray_index(a, idx)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseFunction(input, package.get()));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value array,
+      Value::UBits2DArray({{44, 55, 66}, {11, 22, 33}}, /*bit_count=*/13));
+  EXPECT_THAT(GetParam().evaluator(function, {array, Value::Tuple({})}),
+              IsOkAndHolds(array));
+}
+
+TEST_P(IrEvaluatorTest, MultiArrayUpdate) {
+  auto package = CreatePackage();
+  std::string input = R"(
+  fn main(a: bits[13][3], idx: (bits[7]), value: bits[13]) -> bits[13][3] {
+    ret result: bits[13][3] = multiarray_update(a, idx, value)
+ }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseFunction(input, package.get()));
+
+  EXPECT_THAT(
+      GetParam().evaluator(
+          function,
+          {Value::UBitsArray({11, 22, 33}, /*bit_count=*/13).value(),
+           Value::Tuple({Value(UBits(1, 7))}), Value(UBits(123, 13))}),
+      IsOkAndHolds(Value::UBitsArray({11, 123, 33}, /*bit_count=*/13).value()));
+  EXPECT_THAT(GetParam().evaluator(
+                  function,
+                  {Value::UBitsArray({11, 22, 33}, /*bit_count=*/13).value(),
+                   Value::Tuple({Value(UBits(2, 7))}), Value(UBits(123, 13))}),
+              IsOkAndHolds(Value::UBitsArray({11, 22, 123},
+                                             /*bit_count=*/13)
+                               .value()));
+  // Out of bounds access should update no element.
+  EXPECT_THAT(GetParam().evaluator(
+                  function,
+                  {Value::UBitsArray({11, 22, 33}, /*bit_count=*/13).value(),
+                   Value::Tuple({Value(UBits(3, 7))}), Value(UBits(123, 13))}),
+              IsOkAndHolds(Value::UBitsArray({11, 22, 33},
+                                             /*bit_count=*/13)
+                               .value()));
+  EXPECT_THAT(GetParam().evaluator(
+                  function,
+                  {Value::UBitsArray({11, 22, 33}, /*bit_count=*/13).value(),
+                   Value::Tuple({Value(UBits(55, 7))}), Value(UBits(123, 13))}),
+              IsOkAndHolds(Value::UBitsArray({11, 22, 33},
+                                             /*bit_count=*/13)
+                               .value()));
+}
+
+TEST_P(IrEvaluatorTest, MultiArrayUpdate2DArray) {
+  auto package = CreatePackage();
+  std::string input = R"(
+  fn main(a: bits[13][3][2], idx: (bits[3], bits[7]), value: bits[13]) -> bits[13][3][2] {
+    ret result: bits[13][3][2] = multiarray_update(a, idx, value)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseFunction(input, package.get()));
+
+  EXPECT_THAT(
+      GetParam().evaluator(
+          function,
+          {Value::UBits2DArray({{44, 55, 66}, {11, 22, 33}}, /*bit_count=*/13)
+               .value(),
+           Value::Tuple({Value(UBits(1, 3)), Value(UBits(2, 7))}),
+           Value(UBits(999, 13))}),
+      IsOkAndHolds(
+          Value::UBits2DArray({{44, 55, 66}, {11, 22, 999}}, /*bit_count=*/13)
+              .value()));
+  EXPECT_THAT(
+      GetParam().evaluator(
+          function,
+          {Value::UBits2DArray({{44, 55, 66}, {11, 22, 33}}, /*bit_count=*/13)
+               .value(),
+           Value::Tuple({Value(UBits(0, 3)), Value(UBits(1, 7))}),
+           Value(UBits(999, 13))}),
+      IsOkAndHolds(
+          Value::UBits2DArray({{44, 999, 66}, {11, 22, 33}}, /*bit_count=*/13)
+              .value()));
+  // Out of bounds on either index should update no element.
+  EXPECT_THAT(
+      GetParam().evaluator(
+          function,
+          {Value::UBits2DArray({{44, 55, 66}, {11, 22, 33}}, /*bit_count=*/13)
+               .value(),
+           Value::Tuple({Value(UBits(4, 3)), Value(UBits(1, 7))}),
+           Value(UBits(999, 13))}),
+      IsOkAndHolds(
+          Value::UBits2DArray({{44, 55, 66}, {11, 22, 33}}, /*bit_count=*/13)
+              .value()));
+  EXPECT_THAT(
+      GetParam().evaluator(
+          function,
+          {Value::UBits2DArray({{44, 55, 66}, {11, 22, 33}}, /*bit_count=*/13)
+               .value(),
+           Value::Tuple({Value(UBits(1, 3)), Value(UBits(3, 7))}),
+           Value(UBits(999, 13))}),
+      IsOkAndHolds(
+          Value::UBits2DArray({{44, 55, 66}, {11, 22, 33}}, /*bit_count=*/13)
+              .value()));
+}
+
+TEST_P(IrEvaluatorTest, MultiArrayUpdate2DArrayWithArray) {
+  auto package = CreatePackage();
+  std::string input = R"(
+  fn main(a: bits[13][3][2], idx: (bits[3]), value: bits[13][3]) -> bits[13][3][2] {
+    ret result: bits[13][3][2] = multiarray_update(a, idx, value)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseFunction(input, package.get()));
+
+  EXPECT_THAT(
+      GetParam().evaluator(
+          function,
+          {Value::UBits2DArray({{44, 55, 66}, {11, 22, 33}}, /*bit_count=*/13)
+               .value(),
+           Value::Tuple({Value(UBits(1, 3))}),
+           Value::UBitsArray({999, 888, 777}, /*bit_count=*/13).value()}),
+      IsOkAndHolds(
+          Value::UBits2DArray({{44, 55, 66}, {999, 888, 777}}, /*bit_count=*/13)
+              .value()));
+
+  // Out of bounds should update no element.
+  EXPECT_THAT(
+      GetParam().evaluator(
+          function,
+          {Value::UBits2DArray({{44, 55, 66}, {11, 22, 33}}, /*bit_count=*/13)
+               .value(),
+           Value::Tuple({Value(UBits(2, 3))}),
+           Value::UBitsArray({999, 888, 777}, /*bit_count=*/13).value()}),
+      IsOkAndHolds(
+          Value::UBits2DArray({{44, 55, 66}, {11, 22, 33}}, /*bit_count=*/13)
+              .value()));
+}
+
+TEST_P(IrEvaluatorTest, MultiArrayUpdate2DArrayNilIndex) {
+  auto package = CreatePackage();
+  std::string input = R"(
+  fn main(a: bits[13][3][2], idx: (), value: bits[13][3][2]) -> bits[13][3][2] {
+    ret result: bits[13][3][2] = multiarray_update(a, idx, value)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseFunction(input, package.get()));
+
+  EXPECT_THAT(
+      GetParam().evaluator(
+          function,
+          {Value::UBits2DArray({{44, 55, 66}, {11, 22, 33}}, /*bit_count=*/13)
+               .value(),
+           Value::Tuple({}),
+           Value::UBits2DArray({{99, 123, 4}, {432, 7, 42}}, /*bit_count=*/13)
+               .value()}),
+      IsOkAndHolds(
+          Value::UBits2DArray({{99, 123, 4}, {432, 7, 42}}, /*bit_count=*/13)
+              .value()));
+}
+
+TEST_P(IrEvaluatorTest, MultiArrayUpdateBitsValueNilIndex) {
+  auto package = CreatePackage();
+  std::string input = R"(
+  fn main(a: bits[1234], idx: (), value: bits[1234]) -> bits[1234] {
+    ret result: bits[1234] = multiarray_update(a, idx, value)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseFunction(input, package.get()));
+
+  EXPECT_THAT(
+      GetParam().evaluator(function, {Value(UBits(42, 1234)), Value::Tuple({}),
+                                      Value(UBits(888, 1234))}),
+      IsOkAndHolds(Value(UBits(888, 1234))));
 }
 
 }  // namespace xls

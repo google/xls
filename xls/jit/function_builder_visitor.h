@@ -55,6 +55,8 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   absl::Status HandleArray(Array* array) override;
   absl::Status HandleArrayIndex(ArrayIndex* index) override;
   absl::Status HandleArrayUpdate(ArrayUpdate* update) override;
+  absl::Status HandleMultiArrayIndex(MultiArrayIndex* index) override;
+  absl::Status HandleMultiArrayUpdate(MultiArrayUpdate* update) override;
   absl::Status HandleArrayConcat(ArrayConcat* concat) override;
   absl::Status HandleBitSlice(BitSlice* bit_slice) override;
   absl::Status HandleDynamicBitSlice(
@@ -186,6 +188,22 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   // yet follow values into LLVM space (it might be able to _technically_, but
   // we've not enabled it).
   void UnpoisonOutputBuffer();
+
+  // Returns the result of indexing into 'array' using the scalar index value
+  // 'index'. 'array_size' is the number of elements in the array.
+  absl::StatusOr<llvm::Value*> IndexIntoArray(llvm::Value* array,
+                                              llvm::Value* index,
+                                              int64 array_size);
+
+  // Converts a tuple index of values (as is used by multiarrayindex and
+  // multiarrayupate operations) into gep indices. The field 'is_inbounds' is
+  // the condition that all indices are inbounds.
+  struct LlvmIndices {
+    std::vector<llvm::Value*> indices;
+    llvm::Value* is_inbounds;
+  };
+  absl::StatusOr<LlvmIndices> TupleIndicesToLlvmIndices(
+      llvm::Value* tuple_value, TupleType* tuple_type, ArrayType* array_type);
 
   llvm::LLVMContext& ctx_;
   llvm::Module* module_;

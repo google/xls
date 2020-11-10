@@ -187,6 +187,13 @@ llvm::Expected<llvm::orc::ThreadSafeModule> IrJit::Optimizer(
   builder.LibraryInfo =
       new llvm::TargetLibraryInfoImpl(target_machine_->getTargetTriple());
 
+  // The ostream and its buffer must be declared before the module_pass_manager
+  // because the destrutor of the pass manager calls flush on the ostream so
+  // these must be destructed *after* the pass manager. C++ guarantees that the
+  // destructors are called in reverse order the obects are declared.
+  llvm::SmallVector<char, 0> stream_buffer;
+  llvm::raw_svector_ostream ostream(stream_buffer);
+
   llvm::legacy::PassManager module_pass_manager;
   builder.populateModulePassManager(module_pass_manager);
   module_pass_manager.add(llvm::createTargetTransformInfoWrapperPass(
@@ -201,8 +208,6 @@ llvm::Expected<llvm::orc::ThreadSafeModule> IrJit::Optimizer(
   function_pass_manager.doFinalization();
 
   bool dump_asm = false;
-  llvm::SmallVector<char, 0> stream_buffer;
-  llvm::raw_svector_ostream ostream(stream_buffer);
   if (XLS_VLOG_IS_ON(3)) {
     dump_asm = true;
     if (target_machine_->addPassesToEmitFile(

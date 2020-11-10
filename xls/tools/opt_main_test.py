@@ -56,6 +56,16 @@ class OptMainTest(test_base.TestCase):
     # The add with zero should be eliminated.
     self.assertIn('ret x', optimized_ir)
 
+  def test_with_vlog(self):
+    # Checks that enabling vlog doesn't crash.
+    ir_file = self.create_tempfile(content=ADD_ZERO_IR)
+
+    optimized_ir = subprocess.check_output(
+        [OPT_MAIN_PATH, '-v=5', ir_file.full_path]).decode('utf-8')
+
+    # The add with zero should be eliminated.
+    self.assertIn('ret x', optimized_ir)
+
   def test_run_only_arith_simp_and_dce_passes(self):
     ir_file = self.create_tempfile(content=ADD_ZERO_IR)
 
