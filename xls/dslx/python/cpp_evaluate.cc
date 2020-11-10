@@ -73,18 +73,38 @@ PYBIND11_MODULE(cpp_evaluate, m) {
                                       const Bits& bits) {
     return EvaluateIndexBitslice(type_info, &expr.deref(), bindings, bits);
   });
-  m.def("evaluate_ConstRef", [](ConstRefHolder expr, InterpBindings* bindings,
-                                ConcreteType* type_context) {
-    auto statusor = EvaluateConstRef(&expr.deref(), bindings, type_context);
-    TryThrowKeyError(statusor.status());
-    return statusor;
-  });
-  m.def("evaluate_NameRef", [](NameRefHolder expr, InterpBindings* bindings,
-                               ConcreteType* type_context) {
-    auto statusor = EvaluateNameRef(&expr.deref(), bindings, type_context);
-    TryThrowKeyError(statusor.status());
-    return statusor;
-  });
+  m.def(
+      "evaluate_ConstRef",
+      [](ConstRefHolder expr, InterpBindings* bindings,
+         ConcreteType* type_context, PyInterpCallbackData* py_callbacks) {
+        auto statusor = EvaluateConstRef(&expr.deref(), bindings, type_context);
+        TryThrowKeyError(statusor.status());
+        return statusor;
+      },
+      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
+      py::arg("callbacks"));
+  m.def(
+      "evaluate_NameRef",
+      [](NameRefHolder expr, InterpBindings* bindings,
+         ConcreteType* type_context, PyInterpCallbackData* py_callbacks) {
+        auto statusor = EvaluateNameRef(&expr.deref(), bindings, type_context);
+        TryThrowKeyError(statusor.status());
+        return statusor;
+      },
+      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
+      py::arg("callbacks"));
+  m.def(
+      "evaluate_EnumRef",
+      [](EnumRefHolder expr, InterpBindings* bindings,
+         ConcreteType* type_context, PyInterpCallbackData* py_callbacks) {
+        InterpCallbackData callbacks = ToCpp(*py_callbacks);
+        auto statusor =
+            EvaluateEnumRef(&expr.deref(), bindings, type_context, &callbacks);
+        TryThrowKeyError(statusor.status());
+        return statusor;
+      },
+      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
+      py::arg("callbacks"));
   m.def("make_top_level_bindings",
         [](ModuleHolder module, PyInterpCallbackData* py_callbacks) {
           InterpCallbackData callbacks = ToCpp(*py_callbacks);

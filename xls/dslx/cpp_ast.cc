@@ -362,6 +362,47 @@ std::string Match::ToString() const {
   return result;
 }
 
+EnumDef::EnumDef(Module* owner, Span span, NameDef* name_def,
+                 TypeAnnotation* type, std::vector<EnumMember> values,
+                 bool is_public)
+    : AstNode(owner),
+      span_(std::move(span)),
+      name_def_(name_def),
+      type_(type),
+      values_(std::move(values)),
+      is_public_(is_public) {}
+
+bool EnumDef::HasValue(absl::string_view name) const {
+  for (const auto& item : values_) {
+    if (item.name_def->identifier() == name) {
+      return true;
+    }
+  }
+  return false;
+}
+
+absl::StatusOr<absl::variant<Number*, NameRef*>> EnumDef::GetValue(
+    absl::string_view name) const {
+  for (const EnumMember& item : values_) {
+    if (item.name_def->identifier() == name) {
+      return item.value;
+    }
+  }
+  return absl::NotFoundError(absl::StrFormat(
+      "Enum %s has no value with name \"%s\"", identifier(), name));
+}
+
+std::string EnumDef::ToString() const {
+  std::string result =
+      absl::StrFormat("enum %s : %s {\n", identifier(), type_->ToString());
+  for (const auto& item : values_) {
+    absl::StrAppendFormat(&result, "  %s = %s,\n", item.name_def->identifier(),
+                          ToAstNode(item.value)->ToString());
+  }
+  absl::StrAppend(&result, "}");
+  return result;
+}
+
 std::string StructDef::ToString() const {
   std::string parametric_str;
   if (!parametric_bindings_.empty()) {

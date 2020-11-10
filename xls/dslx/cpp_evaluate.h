@@ -69,6 +69,12 @@ struct InterpCallbackData {
   ImportCache* cache;
 };
 
+// Evaluates an enum reference expression; e.g. `Foo::BAR`.
+absl::StatusOr<InterpValue> EvaluateEnumRef(EnumRef* expr,
+                                            InterpBindings* bindings,
+                                            ConcreteType* type_context,
+                                            InterpCallbackData* callbacks);
+
 // Creates the top level bindings for a given module. We may not be able to
 // create a *complete* set of bindings if we've re-entered this routine; e.g. in
 // evaluating a top-level constant we recur to ask what enums (or similar) are
@@ -89,6 +95,11 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeType(
     ConcretizeVariant type, InterpBindings* bindings,
     InterpCallbackData* callbacks);
 
+// As above, but specifically for concretizing TypeAnnotation nodes.
+absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
+    TypeAnnotation* type, InterpBindings* bindings,
+    InterpCallbackData* callbacks);
+
 // Resolves (parametric) dimensions from deduction vs the current bindings.
 absl::StatusOr<int64> ResolveDim(
     absl::variant<Expr*, int64, ConcreteTypeDim> dim, InterpBindings* bindings);
@@ -107,6 +118,11 @@ using DerefVariant = absl::variant<TypeAnnotation*, EnumDef*, StructDef*>;
 absl::StatusOr<DerefVariant> EvaluateToStructOrEnumOrAnnotation(
     TypeDefinition type_definition, InterpBindings* bindings,
     InterpCallbackData* callbacks);
+
+// As above, but checks that the DerefVariant is an EnumDef.
+absl::StatusOr<EnumDef*> EvaluateToEnum(TypeDefinition type_definition,
+                                        InterpBindings* bindings,
+                                        InterpCallbackData* callbacks);
 
 }  // namespace xls::dslx
 

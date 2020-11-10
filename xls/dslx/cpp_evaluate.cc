@@ -54,6 +54,29 @@ absl::StatusOr<InterpValue> EvaluateConstRef(ConstRef* expr,
   return bindings->ResolveValue(expr);
 }
 
+absl::StatusOr<InterpValue> EvaluateEnumRef(EnumRef* expr,
+                                            InterpBindings* bindings,
+                                            ConcreteType* type_context,
+                                            InterpCallbackData* callbacks) {
+  XLS_ASSIGN_OR_RETURN(
+      EnumDef * enum_def,
+      EvaluateToEnum(ToTypeDefinition(ToAstNode(expr->enum_def())).value(),
+                     bindings, callbacks));
+  XLS_ASSIGN_OR_RETURN(auto value_node, enum_def->GetValue(expr->attr()));
+  XLS_ASSIGN_OR_RETURN(
+      InterpBindings fresh_bindings,
+      MakeTopLevelBindings(expr->owner()->shared_from_this(), callbacks));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<ConcreteType> concrete_type,
+      ConcretizeTypeAnnotation(enum_def->type(), &fresh_bindings, callbacks));
+  Expr* value_expr = ToExprNode(value_node);
+  XLS_ASSIGN_OR_RETURN(InterpValue raw_value,
+                       callbacks->eval(value_expr->owner()->shared_from_this(),
+                                       value_expr, &fresh_bindings));
+  return InterpValue::MakeEnum(raw_value.GetBitsOrDie(), enum_def,
+                               enum_def->owner()->shared_from_this());
+}
+
 absl::StatusOr<InterpBindings> MakeTopLevelBindings(
     const std::shared_ptr<Module>& module, InterpCallbackData* callbacks) {
   XLS_VLOG(3) << "Making top level bindings for module: " << module->name();
@@ -270,7 +293,7 @@ static absl::StatusOr<InterpBindings> BindingsWithStructParametrics(
 
 // Turns the various possible subtypes for a TypeAnnotation AST node into a
 // concrete type.
-static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
+absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
     TypeAnnotation* type, InterpBindings* bindings,
     InterpCallbackData* callbacks) {
   XLS_VLOG(3) << "Concretizing type annotation: " << type->ToString();
@@ -360,6 +383,20 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeType(
   // class TypeAnnotation
   return ConcretizeTypeAnnotation(absl::get<TypeAnnotation*>(type), bindings,
                                   callbacks);
+}
+
+absl::StatusOr<EnumDef*> EvaluateToEnum(TypeDefinition type_definition,
+                                        InterpBindings* bindings,
+                                        InterpCallbackData* callbacks) {
+  XLS_ASSIGN_OR_RETURN(
+      DerefVariant deref,
+      EvaluateToStructOrEnumOrAnnotation(type_definition, bindings, callbacks));
+  if (absl::holds_alternative<EnumDef*>(deref)) {
+    return absl::get<EnumDef*>(deref);
+  }
+  return absl::InvalidArgumentError(
+      absl::StrCat("Type definition did not dereference to an enum, found: ",
+                   ToAstNode(deref)->GetNodeTypeName()));
 }
 
 }  // namespace xls::dslx

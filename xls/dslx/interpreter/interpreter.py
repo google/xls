@@ -86,20 +86,6 @@ class Interpreter(object):
     self._trace_all = trace_all
     self._ir_package = ir_package
 
-  def _evaluate_EnumRef(  # pylint: disable=invalid-name
-      self,
-      expr: ast.EnumRef,
-      bindings: Bindings,  # pylint: disable=unused-argument
-      _type_context: Optional[ConcreteType]) -> Value:
-    """Evaluates a reference to an enum value."""
-    enum = self._evaluate_to_enum(expr.enum, bindings)
-    value_node = enum.get_value(expr.value)
-    fresh_bindings = self._make_top_level_bindings(expr.module)
-    raw_value = self._evaluate(
-        value_node, fresh_bindings,
-        self._evaluate_TypeAnnotation(enum.type_, fresh_bindings))
-    return Value.make_enum(raw_value.get_bits(), enum)
-
   def _get_enum_values(self, type_: ConcreteType,
                        bindings: Bindings) -> Optional[Tuple[Value, ...]]:
     """Retrieves the flat/evaluated members of enum if type_ is an EnumType."""
@@ -333,13 +319,6 @@ class Interpreter(object):
         node, bindings, self._get_callbacks())
     assert isinstance(result, (ast.StructDef, ast.EnumDef, ast.TypeAnnotation))
     return result
-
-  def _evaluate_to_enum(self, node: Union[ast.TypeDef, ast.EnumDef],
-                        bindings: Bindings) -> ast.EnumDef:
-    type_definition = self._evaluate_to_struct_or_enum_or_annotation(
-        node, bindings)
-    assert isinstance(type_definition, ast.EnumDef), type_definition
-    return type_definition
 
   def _evaluate_to_struct(self, node: Union[ast.ModRef, ast.StructDef],
                           bindings: Bindings) -> ast.StructDef:
@@ -677,6 +656,9 @@ class Interpreter(object):
     handler = getattr(cpp_evaluate, f'evaluate_{clsname}', None)
     if handler is None:
       handler = getattr(self, '_evaluate_{}'.format(clsname))
+    else:  # We give the callback data to the C++ handlers.
+      handler = functools.partial(handler, callbacks=self._get_callbacks())
+
     try:
       result = handler(expr, bindings, type_context)
       logging.vlog(3, 'Evaluated %s: %s => %s', clsname, expr, result)

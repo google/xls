@@ -1127,46 +1127,20 @@ struct EnumMember {
 class EnumDef : public AstNode {
  public:
   EnumDef(Module* owner, Span span, NameDef* name_def, TypeAnnotation* type,
-          std::vector<EnumMember> values, bool is_public)
-      : AstNode(owner),
-        span_(std::move(span)),
-        name_def_(name_def),
-        type_(type),
-        values_(std::move(values)),
-        is_public_(is_public) {}
+          std::vector<EnumMember> values, bool is_public);
 
   absl::string_view GetNodeTypeName() const override { return "EnumDef"; }
-  bool HasValue(absl::string_view name) const {
-    for (const auto& item : values_) {
-      if (item.name_def->identifier() == name) {
-        return true;
-      }
-    }
-    return false;
-  }
 
+  // Returns whether this enum definition has a member named "name".
+  bool HasValue(absl::string_view name) const;
+
+  // Returns the value bound to the given enum definition name.
+  //
+  // Currently, a value can either be a number literal or a name reference.
   absl::StatusOr<absl::variant<Number*, NameRef*>> GetValue(
-      absl::string_view name) const {
-    for (const EnumMember& item : values_) {
-      if (item.name_def->identifier() == name) {
-        return item.value;
-      }
-    }
-    return absl::NotFoundError(absl::StrFormat(
-        "Enum %s has no value with name \"%s\"", identifier(), name));
-  }
+      absl::string_view name) const;
 
-  std::string ToString() const override {
-    std::string result =
-        absl::StrFormat("enum %s : %s {\n", identifier(), type_->ToString());
-    for (const auto& item : values_) {
-      absl::StrAppendFormat(&result, "  %s = %s,\n",
-                            item.name_def->identifier(),
-                            ToAstNode(item.value)->ToString());
-    }
-    absl::StrAppend(&result, "}");
-    return result;
-  }
+  std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     std::vector<AstNode*> results = {name_def_, type_};
@@ -1184,6 +1158,9 @@ class EnumDef : public AstNode {
   const std::vector<EnumMember>& values() const { return values_; }
   TypeAnnotation* type() const { return type_; }
   bool is_public() const { return is_public_; }
+
+  // The signedness of the enum is populated in the type inference phase, it is
+  // not known at parse time (hence absl::optional<bool> / set_signedness).
 
   void set_signedness(bool is_signed) { is_signed_ = is_signed; }
   absl::optional<bool> signedness() const { return is_signed_; }
