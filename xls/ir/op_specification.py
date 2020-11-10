@@ -430,7 +430,7 @@ OpClass.kinds['MULTIARRAY_INDEX'] = OpClass(
     name='MultiArrayIndex',
     op='Op::kMultiArrayIndex',
     operands=[Operand('arg'), Operand('index')],
-    xls_type_expression='arg->GetType()->AsArrayOrDie()->element_type()',
+    xls_type_expression='GetIndexedElementType(arg->GetType(), index->GetType()).value()',
     extra_methods=[Method(name='array',
                           return_cpp_type='Node*',
                           expression='operand(0)'),

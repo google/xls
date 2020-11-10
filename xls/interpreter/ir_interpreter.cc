@@ -31,6 +31,21 @@
 
 namespace xls {
 
+namespace {
+
+// Returns the given bits value as a uint64 value. If the value exceeds
+// upper_limit, then upper_limit is returned.
+uint64 BitsToBoundedUint64(const Bits& bits, uint64 upper_limit) {
+  if (Bits::MinBitCountUnsigned(upper_limit) <= bits.bit_count() &&
+      bits_ops::UGreaterThan(bits, UBits(upper_limit, bits.bit_count()))) {
+    return upper_limit;
+  }
+  // Necessarily the bits value fits in a uint64 so the value() call is safe.
+  return bits.ToUint64().value();
+}
+
+}  // namespace
+
 /* static */ absl::StatusOr<Value> IrInterpreter::Run(
     Function* function, absl::Span<const Value> args, InterpreterStats* stats) {
   XLS_VLOG(3) << "Interpreting function " << function->name();
@@ -316,6 +331,8 @@ absl::Status IrInterpreter::HandleArrayIndex(ArrayIndex* index) {
 absl::Status IrInterpreter::HandleArrayUpdate(ArrayUpdate* update) {
   XLS_ASSIGN_OR_RETURN(std::vector<Value> array_elements,
                        ResolveAsValue(update->operand(0)).GetElements());
+  // Bound the index to one beyond the end of the array to identify cases where
+  // the index is out of bounds.
   uint64 index =
       ResolveAsBoundedUint64(update->operand(1), array_elements.size());
   const Value& update_value = ResolveAsValue(update->operand(2));
@@ -327,12 +344,84 @@ absl::Status IrInterpreter::HandleArrayUpdate(ArrayUpdate* update) {
   return SetValueResult(update, result);
 }
 
+namespace {
+
+// Returns the tuple index value (tuple of bits values used in multiarray
+// index/update operations) as a vector of bits values. Returns an error if
+// index_value is not a tuple of bits-typed values (multiarray index/update
+// operations do no flattening in the case of a single element tuple index).
+absl::StatusOr<std::vector<Bits>> IndexValueToBitsVector(
+    const Value& index_value) {
+  XLS_RET_CHECK(index_value.IsTuple());
+  std::vector<Bits> bits_vec;
+  for (const Value& element : index_value.elements()) {
+    XLS_RET_CHECK(element.IsBits());
+    bits_vec.push_back(element.bits());
+  }
+  return bits_vec;
+}
+
+// Recursive function for setting an element of a multidimensional array to a
+// particular value. 'indices' is a multidimensional array index of type tuple
+// of bits. 'value' is what to assign at the array element at the particular
+// index. 'elements' is a vector of the outer-most elements of the array being
+// indexed into.
+absl::Status SetArrayElement(absl::Span<const Bits> indices, const Value& value,
+                             std::vector<Value>* elements) {
+  XLS_RET_CHECK(!indices.empty());
+  uint64 index = BitsToBoundedUint64(indices.front(), elements->size());
+  if (index >= elements->size()) {
+    // Out-of-bounds access it a no-op.
+    return absl::OkStatus();
+  }
+  if (indices.size() == 1) {
+    (*elements)[index] = value;
+    return absl::OkStatus();
+  }
+
+  // Index has multiple element. Peel off the first index and recurse into that
+  // element.
+  const Value& selected_element = (*elements)[index];
+  std::vector<Value> subelements(selected_element.elements().begin(),
+                                 selected_element.elements().end());
+  XLS_RETURN_IF_ERROR(SetArrayElement(indices.subspan(1), value, &subelements));
+  // Reconstruct the affected element as an array and assign it to the indexed
+  // slot.
+  XLS_ASSIGN_OR_RETURN(Value array_element, Value::Array(subelements));
+  (*elements)[index] = array_element;
+  return absl::OkStatus();
+}
+
+}  // namespace
+
 absl::Status IrInterpreter::HandleMultiArrayIndex(MultiArrayIndex* index) {
-  return absl::UnimplementedError("MultiArrayIndex not implemented yet.");
+  const Value* array = &ResolveAsValue(index->array());
+  XLS_ASSIGN_OR_RETURN(std::vector<Bits> index_vector,
+                       IndexValueToBitsVector(ResolveAsValue(index->index())));
+  for (const Bits& index_bits : index_vector) {
+    uint64 idx = BitsToBoundedUint64(index_bits, array->size() - 1);
+    array = &array->element(idx);
+  }
+  return SetValueResult(index, *array);
 }
 
 absl::Status IrInterpreter::HandleMultiArrayUpdate(MultiArrayUpdate* update) {
-  return absl::UnimplementedError("MultiArrayUpdate not implemented yet.");
+  const Value& input_array = ResolveAsValue(update->array_to_update());
+  const Value& update_value = ResolveAsValue(update->update_value());
+
+  if (update->index()->GetType()->AsTupleOrDie()->size() == 0) {
+    // Index is empty. The *entire* array is replaced with the update value.
+    return SetValueResult(update, update_value);
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::vector<Value> array_elements,
+                       input_array.GetElements());
+  XLS_ASSIGN_OR_RETURN(std::vector<Bits> index_vector,
+                       IndexValueToBitsVector(ResolveAsValue(update->index())));
+  XLS_RETURN_IF_ERROR(
+      SetArrayElement(index_vector, update_value, &array_elements));
+  XLS_ASSIGN_OR_RETURN(Value result, Value::Array(array_elements));
+  return SetValueResult(update, result);
 }
 
 absl::Status IrInterpreter::HandleArrayConcat(ArrayConcat* concat) {
@@ -581,13 +670,7 @@ std::vector<Bits> IrInterpreter::ResolveAsBitsVector(
 }
 
 uint64 IrInterpreter::ResolveAsBoundedUint64(Node* node, uint64 upper_limit) {
-  const Bits& bits = ResolveAsBits(node);
-  if (Bits::MinBitCountUnsigned(upper_limit) <= bits.bit_count() &&
-      bits_ops::UGreaterThan(bits, UBits(upper_limit, bits.bit_count()))) {
-    return upper_limit;
-  }
-  // Necessarily the bits value fits in a uint64 so the value() call is safe.
-  return bits.ToUint64().value();
+  return BitsToBoundedUint64(ResolveAsBits(node), upper_limit);
 }
 
 absl::Status IrInterpreter::SetUint64Result(Node* node, uint64 result) {

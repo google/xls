@@ -16,11 +16,16 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/status/matchers.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 
 namespace xls {
 namespace {
+
+using status_testing::IsOkAndHolds;
+using status_testing::StatusIs;
+using ::testing::HasSubstr;
 
 TEST(TypeTest, TestVariousTypes) {
   BitsType b42(42);
@@ -124,6 +129,64 @@ TEST(TypeTest, TestVariousTypes) {
   EXPECT_FALSE(f_type1.IsEqualTo(&f_type3));
   EXPECT_FALSE(f_type1.IsEqualTo(&f_type4));
   EXPECT_FALSE(f_type1.IsEqualTo(&f_type5));
+}
+
+TEST(TypeTest, ArrayDimensionAndIndex) {
+  BitsType b32(32);
+  TokenType token;
+  ArrayType a_1d(7, &b32);
+  ArrayType a_2d(123, &a_1d);
+  ArrayType a_3d(1, &a_2d);
+  TupleType t({&b32, &a_2d, &b32});
+  ArrayType a_of_tuple(22, &t);
+  ArrayType a_2d_of_tuple(22, &a_of_tuple);
+
+  EXPECT_EQ(GetArrayDimensionCount(&b32), 0);
+  EXPECT_EQ(GetArrayDimensionCount(&token), 0);
+  EXPECT_EQ(GetArrayDimensionCount(&a_1d), 1);
+  EXPECT_EQ(GetArrayDimensionCount(&a_2d), 2);
+  EXPECT_EQ(GetArrayDimensionCount(&a_3d), 3);
+  EXPECT_EQ(GetArrayDimensionCount(&t), 0);
+  EXPECT_EQ(GetArrayDimensionCount(&a_of_tuple), 1);
+  EXPECT_EQ(GetArrayDimensionCount(&a_2d_of_tuple), 2);
+
+  BitsType b123(123);
+  TupleType index_0 = TupleType({});
+  TupleType index_1 = TupleType({&b32});
+  TupleType index_2 = TupleType({&b32, &b123});
+  TupleType index_3 = TupleType({&b32, &b123, &b32});
+
+  EXPECT_THAT(GetIndexedElementType(&b32, &index_0), IsOkAndHolds(&b32));
+  EXPECT_THAT(
+      GetIndexedElementType(&b32, &index_1),
+      status_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          testing::HasSubstr("Index type (bits[32]) has more elements than "
+                             "type bits[32] has array dimensions (0)")));
+
+  EXPECT_THAT(GetIndexedElementType(&a_1d, &index_0), IsOkAndHolds(&a_1d));
+  EXPECT_THAT(GetIndexedElementType(&a_1d, &index_1), IsOkAndHolds(&b32));
+  EXPECT_THAT(GetIndexedElementType(&a_1d, &index_2),
+              status_testing::StatusIs(
+                  absl::StatusCode::kInvalidArgument,
+                  testing::HasSubstr(
+                      "Index type (bits[32], bits[123]) has more elements than "
+                      "type bits[32][7] has array dimensions (1)")));
+
+  EXPECT_THAT(GetIndexedElementType(&a_3d, &index_3), IsOkAndHolds(&b32));
+
+  EXPECT_THAT(
+      GetIndexedElementType(&b32, &b32),
+      status_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          testing::HasSubstr(
+              "Invalid index type bits[32], expected tuple of bits type")));
+  EXPECT_THAT(
+      GetIndexedElementType(&a_3d, &t),
+      status_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          testing::HasSubstr("Invalid index type (bits[32], bits[32][7][123], "
+                             "bits[32]), expected tuple of bits type")));
 }
 
 }  // namespace

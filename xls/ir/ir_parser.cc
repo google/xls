@@ -708,6 +708,17 @@ absl::StatusOr<BValue> Parser::ParseNode(
                                node_name);
       break;
     }
+    case Op::kMultiArrayIndex: {
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
+      bvalue = fb->MultiArrayIndex(operands[0], operands[1], *loc, node_name);
+      break;
+    }
+    case Op::kMultiArrayUpdate: {
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/3));
+      bvalue = fb->MultiArrayUpdate(operands[0], operands[1], operands[2], *loc,
+                                    node_name);
+      break;
+    }
     case Op::kArrayConcat: {
       // fb->ArrayConcat will check that all operands are of an array
       // type and that all concat'ed arrays have the same element type.

@@ -518,6 +518,7 @@ cc_test(
         ":function_builder",
         ":ir",
         ":type",
+        "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
     ],
 )

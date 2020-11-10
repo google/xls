@@ -270,6 +270,35 @@ inline TokenType* Type::AsTokenOrDie() {
   return down_cast<TokenType*>(this);
 }
 
+// Returns type of the nested element inside of "type_to_index" resulting from
+// indexing that type with a value of "index_type". Where "index_type" is a
+// multi-dimensional index value represented as a tuple. As a degenerate case,
+// "type_to_index" need not be an array type if "index_type" is the empty
+// tuple. In this case, indexing is the identity operation.
+//
+// Examples:
+//   GetIndexedElementType(bits[32][3][4][5], ())
+//     => bits[32][3][4][5]
+//   GetIndexedElementType(bits[32][3][4][5], (bits[8], bits[8]))
+//     => bits[32][3]
+//   GetIndexedElementType(bits[32][3][4][5], (bits[8], bits[8], bits[32]))
+//     => bits[32]
+//   GetIndexedElementType(bits[42], ())
+//     => bits[42]
+absl::StatusOr<Type*> GetIndexedElementType(Type* type_to_index,
+                                            Type* index_type);
+
+// Returns the number of array dimensions of the given type. A non-array type is
+// considered to have zero array dimensions.
+//
+// Examples:
+//   GetArrayDimensionCount(bits[32]) => 0
+//   GetArrayDimensionCount((bits[32], bits[111])) => 0
+//   GetArrayDimensionCount(bits[8][9]) => 1
+//   GetArrayDimensionCount(bits[8][9][10]) => 2
+//   GetArrayDimensionCount((bits[8][10], token)[42]) => 1
+int64 GetArrayDimensionCount(Type* type);
+
 }  // namespace xls
 
 #endif  // XLS_IR_TYPE_H_

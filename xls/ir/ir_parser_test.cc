@@ -843,6 +843,24 @@ fn array_and_array(p: bits[2][5][4], q: bits[32]) -> bits[2][5] {
   ParseFunctionAndCheckDump(input);
 }
 
+TEST(IrParserTest, ParseNestedBitsMultiArrayIndex) {
+  std::string input = R"(
+fn array_and_array(p: bits[2][5][4][42], q: (bits[32], bits[2])) -> bits[2][5] {
+  ret multiarray_index.1: bits[2][5] = multiarray_index(p, q, id=1)
+}
+)";
+  ParseFunctionAndCheckDump(input);
+}
+
+TEST(IrParserTest, ParseNestedBitsMultiArrayUpdate) {
+  std::string input = R"(
+fn array_and_array(p: bits[2][5][4][42], q: (bits[32]), r: bits[2][5][4]) -> bits[2][5][4][42] {
+  ret multiarray_update.1: bits[2][5][4][42] = multiarray_update(p, q, r, id=1)
+}
+)";
+  ParseFunctionAndCheckDump(input);
+}
+
 TEST(IrParserTest, DifferentWidthMultiplies) {
   std::string input = R"(
 fn multiply(x: bits[32], y: bits[7]) -> bits[42] {

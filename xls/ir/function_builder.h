@@ -425,6 +425,18 @@ class BuilderBase {
                      absl::optional<SourceLocation> loc = absl::nullopt,
                      absl::string_view name = "");
 
+  // Adds an multi-dimensional array index expression. The index should be a
+  // tuple of bits types.
+  BValue MultiArrayIndex(BValue arg, BValue idx,
+                         absl::optional<SourceLocation> loc = absl::nullopt,
+                         absl::string_view name = "");
+
+  // Updates the array element at index "idx" to update_value. The index should
+  // be a tuple of bits types.
+  BValue MultiArrayUpdate(BValue arg, BValue idx, BValue update_value,
+                          absl::optional<SourceLocation> loc = absl::nullopt,
+                          absl::string_view name = "");
+
   // Concatenates array operands into a single array.  zero-th
   // element is the zero-th element of the zero-th (left-most) array.
   BValue ArrayConcat(absl::Span<const BValue> operands,

@@ -132,6 +132,8 @@ NODE_MATCHER(AndReduce);
 NODE_MATCHER(Array);
 NODE_MATCHER(ArrayIndex);
 NODE_MATCHER(ArrayUpdate);
+NODE_MATCHER(MultiArrayIndex);
+NODE_MATCHER(MultiArrayUpdate);
 NODE_MATCHER(Concat);
 NODE_MATCHER(Decode);
 NODE_MATCHER(Encode);
