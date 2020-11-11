@@ -14,11 +14,11 @@
 
 #include "xls/ir/ir_parser.h"
 
-#include "google/protobuf/text_format.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "google/protobuf/text_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -606,6 +606,17 @@ absl::StatusOr<BValue> Parser::ParseNode(
       XLS_ASSIGN_OR_RETURN(Function * body, package->GetFunction(*body_name));
       bvalue = fb->CountedFor(operands[0], *trip_count, *stride, body,
                               *invariant_args, *loc, node_name);
+      break;
+    }
+    case Op::kDynamicCountedFor: {
+      std::string* body_name = arg_parser.AddKeywordArg<std::string>("body");
+      std::vector<BValue>* invariant_args =
+          arg_parser.AddOptionalKeywordArg<std::vector<BValue>>(
+              "invariant_args", /*default_value=*/{});
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/3));
+      XLS_ASSIGN_OR_RETURN(Function * body, package->GetFunction(*body_name));
+      bvalue = fb->DynamicCountedFor(operands[0], operands[1], operands[2],
+                                     body, *invariant_args, *loc, node_name);
       break;
     }
     case Op::kOneHot: {
@@ -1261,8 +1272,8 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
             Token metadata_token,
             scanner_.PopTokenOrError(LexicalTokenType::kQuotedString));
         ChannelMetadataProto proto;
-        bool success =
-            google::protobuf::TextFormat::ParseFromString(metadata_token.value(), &proto);
+        bool success = google::protobuf::TextFormat::ParseFromString(
+            metadata_token.value(), &proto);
         if (!success) {
           return absl::InvalidArgumentError(
               absl::StrFormat("Invalid channel metadata @ %s",

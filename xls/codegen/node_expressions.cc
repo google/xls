@@ -466,6 +466,8 @@ absl::StatusOr<Expression*> NodeToExpression(
       return unimplemented();
     case Op::kCountedFor:
       return unimplemented();
+    case Op::kDynamicCountedFor:
+      return unimplemented();
     case Op::kLiteral:
       return ValueToVastLiteral(node->As<xls::Literal>()->value(), file);
     case Op::kULe:

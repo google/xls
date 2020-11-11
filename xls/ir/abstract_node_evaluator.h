@@ -100,6 +100,8 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
       Decode* decode = node->As<Decode>();
       return evaluator->Decode(operands[0], decode->width());
     }
+    case Op::kDynamicCountedFor:
+      return default_handler(node);
     case Op::kEncode:
       XLS_RETURN_IF_ERROR(check_operand_count(1));
       return evaluator->Encode(operands[0]);

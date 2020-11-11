@@ -122,6 +122,12 @@ absl::Status DfsVisitorWithDefault::HandleCountedFor(CountedFor* counted_for) {
 absl::Status DfsVisitorWithDefault::HandleDecode(Decode* decode) {
   return DefaultHandler(decode);
 }
+
+absl::Status DfsVisitorWithDefault::HandleDynamicCountedFor(
+    DynamicCountedFor* dynamic_counted_for) {
+  return DefaultHandler(dynamic_counted_for);
+}
+
 absl::Status DfsVisitorWithDefault::HandleEncode(Encode* encode) {
   return DefaultHandler(encode);
 }

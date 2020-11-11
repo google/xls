@@ -69,6 +69,8 @@ class IrInterpreter : public DfsVisitor {
   absl::Status HandleDecode(Decode* decode) override;
   absl::Status HandleDynamicBitSlice(
       DynamicBitSlice* dynamic_bit_slice) override;
+  absl::Status HandleDynamicCountedFor(
+      DynamicCountedFor* dynamic_counted_for) override;
   absl::Status HandleEncode(Encode* encode) override;
   absl::Status HandleEq(CompareOp* eq) override;
   absl::Status HandleIdentity(UnOp* identity) override;

@@ -166,6 +166,19 @@ absl::StatusOr<Node*> CountedFor::CloneInNewFunction(
                                             name_);
 }
 
+absl::StatusOr<Node*> DynamicCountedFor::CloneInNewFunction(
+    absl::Span<Node* const> new_operands,
+    FunctionBase* new_function) const {
+  XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
+  // TODO(meheff): Choose an appropriate name for the cloned node.
+  return new_function->MakeNodeWithName<DynamicCountedFor>(loc(), new_operands[0],
+                                            new_operands[1],
+                                            new_operands[2],
+                                            new_operands.subspan(3),
+                                            body(),
+                                            name_);
+}
+
 absl::StatusOr<Node*> Select::CloneInNewFunction(
     absl::Span<Node* const> new_operands,
     FunctionBase* new_function) const {

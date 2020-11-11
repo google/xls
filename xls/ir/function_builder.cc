@@ -308,6 +308,23 @@ BValue BuilderBase::CountedFor(BValue init_value, int64 trip_count,
                                   trip_count, stride, body, name);
 }
 
+BValue BuilderBase::DynamicCountedFor(BValue init_value, BValue trip_count,
+                                      BValue stride, Function* body,
+                                      absl::Span<const BValue> invariant_args,
+                                      absl::optional<SourceLocation> loc,
+                                      absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  std::vector<Node*> invariant_arg_nodes;
+  for (const BValue& arg : invariant_args) {
+    invariant_arg_nodes.push_back(arg.node());
+  }
+  return AddNode<xls::DynamicCountedFor>(loc, init_value.node(),
+                                         trip_count.node(), stride.node(),
+                                         invariant_arg_nodes, body, name);
+}
+
 BValue BuilderBase::Map(BValue operand, Function* to_apply,
                         absl::optional<SourceLocation> loc,
                         absl::string_view name) {

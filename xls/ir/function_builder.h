@@ -396,6 +396,29 @@ class BuilderBase {
                     absl::optional<SourceLocation> loc = absl::nullopt,
                     absl::string_view name = "");
 
+  // Adds a "dynamic counted for-loop" to the computation, having a
+  // dynamically determined number of loop iterations and stride.
+  //
+  // Args:
+  //  trip_count: Of bits type, number of iterations to execute "body".
+  //  stride: Of bits type, count by which to increment induction variable.
+  //  init_value: Of type "T", the starting value for the loop carry data.
+  //  body: Of type "(u32, T) -> T": the body that is invoked on the loop carry
+  //    data decorated with the iteration number, producing new loop carry data
+  //    (of the same type) each iteration.
+  //  invariant_args: Arguments that are passed to the body function in a
+  //    loop-invariant fashion (for each of these arguments, the same value is
+  //    passed as an argument on every trip and the value does not change).
+  //  loc: Source location for this counted for-loop.
+  //
+  // Returns the value that results from this counted for loop after it has
+  // completed all of its trips.
+  BValue DynamicCountedFor(BValue init_value, BValue trip_count, BValue stride,
+                           Function* body,
+                           absl::Span<const BValue> invariant_args = {},
+                           absl::optional<SourceLocation> loc = absl::nullopt,
+                           absl::string_view name = "");
+
   // Adds a map to the computation.
   // Applies the function to_apply to each element of the array-typed operand
   // and returns the result as an array

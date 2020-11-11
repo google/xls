@@ -215,6 +215,7 @@ bool ShouldEvaluate(Node* node) {
     case Op::kSend:
     case Op::kSendIf:
     case Op::kCountedFor:
+    case Op::kDynamicCountedFor:
     case Op::kInvoke:
     case Op::kMap:
     case Op::kParam:

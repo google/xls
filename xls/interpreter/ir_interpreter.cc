@@ -254,6 +254,11 @@ absl::Status IrInterpreter::HandleDecode(Decode* decode) {
   }
 }
 
+absl::Status IrInterpreter::HandleDynamicCountedFor(
+    DynamicCountedFor* dynamic_counted_for) {
+  return absl::UnimplementedError("DynamicCountedFor not yet implemented");
+}
+
 absl::Status IrInterpreter::HandleEncode(Encode* encode) {
   const Bits& input = ResolveAsBits(encode->operand(0));
   Bits result(encode->BitCountOrDie());

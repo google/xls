@@ -174,6 +174,18 @@ bool LiteralMatcher::MatchAndExplain(
   return true;
 }
 
+bool DynamicCountedForMatcher::MatchAndExplain(
+    const Node* node, ::testing::MatchResultListener* listener) const {
+  if (!NodeMatcher::MatchAndExplain(node, listener)) {
+    return false;
+  }
+  if (node->As<::xls::DynamicCountedFor>()->body() != body_) {
+    *listener << " has incorrect body function, expected: " << body_->name();
+    return false;
+  }
+  return true;
+}
+
 bool SelectMatcher::MatchAndExplain(
     const Node* node, ::testing::MatchResultListener* listener) const {
   if (!NodeMatcher::MatchAndExplain(node, listener)) {

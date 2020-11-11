@@ -351,6 +351,109 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleDynamicCountedFor(
+      DynamicCountedFor* dynamic_counted_for) override {
+    Function* body = dynamic_counted_for->body();
+    // Verify function has signature
+    //  body(i: bits[N], loop_carry_data: T, [inv_arg0, ..., inv_argN]) -> T
+    //  where T is an arbitrary type
+    //  where inv_argX each have arbitrary types
+    int64 invariant_args_count = dynamic_counted_for->operand_count() - 3;
+
+    // Verify number of parameters
+    int64 expected_param_count = 2 + invariant_args_count;
+    int64 actual_param_count = body->params().size();
+    if (actual_param_count != expected_param_count) {
+      return absl::InternalError(
+          StrFormat("Function %s used as dynamic_counted_for body should have "
+                    "%d parameters, got %d instead: %s",
+                    body->name(), expected_param_count, actual_param_count,
+                    dynamic_counted_for->ToString()));
+    }
+
+    // Verify index is of type bits.
+    Type* index_type = body->param(0)->GetType();
+    if (!index_type->IsBits()) {
+      return absl::InternalError(StrFormat(
+          "Parameter 0 (%s) of function %s used as dynamic_counted_for "
+          "body should have bits type.",
+          body->param(0)->GetName(), body->name()));
+    }
+
+    // Verify return type and loop_carry_data are of the correct type
+    Type* data_type = dynamic_counted_for->initial_value()->GetType();
+    Type* body_ret_type = body->return_value()->GetType();
+    Type* body_data_param_type = body->param(1)->GetType();
+
+    if (data_type != body_ret_type) {
+      return absl::InternalError(StrFormat(
+          "Return type of function %s used as dynamic_counted_for "
+          "body should have %s type, got %s instead: %s",
+          body->name(), data_type->ToString(), body_ret_type->ToString(),
+          dynamic_counted_for->ToString()));
+    }
+
+    if (data_type != body_data_param_type) {
+      return absl::InternalError(StrFormat(
+          "Parameter 1 (%s) of function %s used as dynamic_counted_for "
+          "body should have %s type, got %s instead: %s",
+          body->param(1)->GetName(), body->name(), data_type->ToString(),
+          body_data_param_type->ToString(), dynamic_counted_for->ToString()));
+    }
+
+    // Verify invariant arg type matches corresponding function param type
+    for (int64 i = 0; i < invariant_args_count; ++i) {
+      Type* inv_arg_type = dynamic_counted_for->invariant_args().at(i)->GetType();
+      Type* body_inv_param_type = body->param(i + 2)->GetType();
+
+      if (inv_arg_type != body_inv_param_type) {
+        return absl::InternalError(StrFormat(
+            "Parameter %d (%s) of function %s used as dynamic_counted_for "
+            "body should have %s type from %s, got %s instead: %s",
+            i + 2, body->param(i + 2)->GetName(), body->name(),
+            inv_arg_type->ToString(),
+            dynamic_counted_for->invariant_args().at(i)->ToString(),
+            body_inv_param_type->ToString(), dynamic_counted_for->ToString()));
+      }
+    }
+
+    // Verify that trip_count and stride are bit types of acceptable size.
+    Type* trip_count_type = dynamic_counted_for->trip_count()->GetType();
+    if (!trip_count_type->IsBits()) {
+      return absl::InternalError(
+          StrFormat("Operand 1 / trip_count of dynamic_counted_for "
+                    "should have bits type."));
+    }
+    if (!(trip_count_type->AsBitsOrDie()->bit_count() <
+          index_type->AsBitsOrDie()->bit_count())) {
+      return absl::InternalError(
+          StrFormat("Operand 1 / trip_count of dynamic_counted_for "
+                    "should have < the number of bits of the function body "
+                    "index parameter / function body Operand 0"));
+    }
+
+    Type* stride_type = dynamic_counted_for->stride()->GetType();
+    if (!stride_type->IsBits()) {
+      return absl::InternalError(
+          StrFormat("Operand 2 / stride of dynamic_counted_for "
+                    "should have bits type."));
+    }
+    // Trip count should have fewer bits than the index because index (and
+    // stride) are treated as signed values while trip count is an unsigned
+    // value. If trip count had the same number of bits as the index, it would
+    // end up with 1 more bit than the index after adding a 0 sign bit.
+    if (!(stride_type->AsBitsOrDie()->bit_count() <=
+          index_type->AsBitsOrDie()->bit_count())) {
+      return absl::InternalError(
+          StrFormat("Operand 2 / stride of dynamic_counted_for "
+                    "should have <= the number of bits of the function body "
+                    "index parameter / function body Operand 0"));
+    }
+
+    return ExpectOperandHasType(dynamic_counted_for, 0,
+                                dynamic_counted_for->GetType());
+  }
+
   absl::Status HandleEncode(Encode* encode) override {
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(encode, 0));
     // Width of the encode output must be ceil(log_2(operand_width)). Subtract
