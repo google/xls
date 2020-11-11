@@ -195,16 +195,6 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
                                               llvm::Value* index,
                                               int64 array_size);
 
-  // Converts a tuple index of values (as is used by multiarrayindex and
-  // multiarrayupate operations) into gep indices. The field 'is_inbounds' is
-  // the condition that all indices are inbounds.
-  struct LlvmIndices {
-    std::vector<llvm::Value*> indices;
-    llvm::Value* is_inbounds;
-  };
-  absl::StatusOr<LlvmIndices> TupleIndicesToLlvmIndices(
-      llvm::Value* tuple_value, TupleType* tuple_type, ArrayType* array_type);
-
   llvm::LLVMContext& ctx_;
   llvm::Module* module_;
   llvm::Function* llvm_fn_;

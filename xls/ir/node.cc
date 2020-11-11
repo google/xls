@@ -475,6 +475,27 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
     case Op::kDecode:
       args.push_back(absl::StrFormat("width=%d", As<Decode>()->width()));
       break;
+    case Op::kMultiArrayIndex: {
+      const MultiArrayIndex* index = As<MultiArrayIndex>();
+      args = {operand(0)->GetName()};
+      args.push_back(absl::StrFormat(
+          "indices=[%s]", absl::StrJoin(index->indices(), ", ",
+                                        [](std::string* out, const Node* node) {
+                                          absl::StrAppend(out, node->GetName());
+                                        })));
+      break;
+    }
+    case Op::kMultiArrayUpdate: {
+      const MultiArrayUpdate* update = As<MultiArrayUpdate>();
+      args = {update->array_to_update()->GetName(),
+              update->update_value()->GetName()};
+      args.push_back(absl::StrFormat(
+          "indices=[%s]", absl::StrJoin(update->indices(), ", ",
+                                        [](std::string* out, const Node* node) {
+                                          absl::StrAppend(out, node->GetName());
+                                        })));
+      break;
+    }
     default:
       break;
   }

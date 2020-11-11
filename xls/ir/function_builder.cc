@@ -375,79 +375,67 @@ BValue BuilderBase::ArrayUpdate(BValue arg, BValue idx, BValue update_value,
                                    update_value.node(), name);
 }
 
-BValue BuilderBase::MultiArrayIndex(BValue arg, BValue idx,
+BValue BuilderBase::MultiArrayIndex(BValue arg,
+                                    absl::Span<const BValue> indices,
                                     absl::optional<SourceLocation> loc,
                                     absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
-  if (!idx.node()->GetType()->IsTuple()) {
-    return SetError(
-        absl::StrFormat(
-            "Index to multi-array index operation must be a tuple, is: %s",
-            idx.node()->GetType()->ToString()),
-        loc);
-  }
-  TupleType* index_type = idx.node()->GetType()->AsTupleOrDie();
-  for (Type* element_type : index_type->element_types()) {
-    if (!element_type->IsBits()) {
-      return SetError(absl::StrFormat("Index to multi-array index operation "
-                                      "must be a tuple of bits types, is: %s",
-                                      idx.node()->GetType()->ToString()),
+  for (int64 i = 0; i < indices.size(); ++i) {
+    const BValue& index = indices[i];
+    if (!index.node()->GetType()->IsBits()) {
+      return SetError(absl::StrFormat("Indices to multi-array index operation "
+                                      "must all be bits types, index %d is: %s",
+                                      i, index.node()->GetType()->ToString()),
                       loc);
     }
   }
-  if (index_type->size() > GetArrayDimensionCount(arg.node()->GetType())) {
-    return SetError(absl::StrFormat("Index of type %s has too many elements "
-                                    "to index into array of type %s",
-                                    idx.node()->GetType()->ToString(),
-                                    arg.node()->GetType()->ToString()),
-                    loc);
+  if (indices.size() > GetArrayDimensionCount(arg.node()->GetType())) {
+    return SetError(
+        absl::StrFormat("Too many indices (%d) to index into array of type %s",
+                        indices.size(), arg.node()->GetType()->ToString()),
+        loc);
   }
 
-  return AddNode<xls::MultiArrayIndex>(loc, arg.node(), idx.node(), name);
+  std::vector<Node*> index_operands;
+  for (const BValue& index : indices) {
+    index_operands.push_back(index.node());
+  }
+  return AddNode<xls::MultiArrayIndex>(loc, arg.node(), index_operands, name);
 }
 
-BValue BuilderBase::MultiArrayUpdate(BValue arg, BValue idx,
-                                     BValue update_value,
+BValue BuilderBase::MultiArrayUpdate(BValue arg, BValue update_value,
+                                     absl::Span<const BValue> indices,
                                      absl::optional<SourceLocation> loc,
                                      absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
-  if (!idx.node()->GetType()->IsTuple()) {
-    return SetError(
-        absl::StrFormat(
-            "Index to multi-array update operation must be a tuple, is: %s",
-            idx.node()->GetType()->ToString()),
-        loc);
-  }
-  TupleType* index_type = idx.node()->GetType()->AsTupleOrDie();
-  for (Type* element_type : index_type->element_types()) {
-    if (!element_type->IsBits()) {
-      return SetError(absl::StrFormat("Index to multi-array update operation "
-                                      "must be a tuple of bits types, is: %s",
-                                      idx.node()->GetType()->ToString()),
+  for (int64 i = 0; i < indices.size(); ++i) {
+    const BValue& index = indices[i];
+    if (!index.node()->GetType()->IsBits()) {
+      return SetError(absl::StrFormat("Indices to multi-array update operation "
+                                      "must all be bits types, index %d is: %s",
+                                      i, index.node()->GetType()->ToString()),
                       loc);
     }
   }
-  if (index_type->size() > GetArrayDimensionCount(arg.node()->GetType())) {
-    return SetError(absl::StrFormat("Index of type %s has too many elements "
-                                    "to index into array of type %s",
-                                    idx.node()->GetType()->ToString(),
-                                    arg.node()->GetType()->ToString()),
-                    loc);
+  if (indices.size() > GetArrayDimensionCount(arg.node()->GetType())) {
+    return SetError(
+        absl::StrFormat("Too many indices (%d) to index into array of type %s",
+                        indices.size(), arg.node()->GetType()->ToString()),
+        loc);
   }
   absl::StatusOr<Type*> indexed_type_status =
-      GetIndexedElementType(arg.node()->GetType(), idx.node()->GetType());
+      GetIndexedElementType(arg.node()->GetType(), indices.size());
   // With the check above against the array dimension count, this should never
   // fail but check for it anyway.
   if (!indexed_type_status.ok()) {
     return SetError(
-        absl::StrFormat(
-            "Unable to determing indexed element type; indexing %s with %s",
-            arg.node()->GetType()->ToString(),
-            idx.node()->GetType()->ToString()),
+        absl::StrFormat("Unable to determing indexed element type; indexing %s "
+                        "with %d indices",
+                        arg.node()->GetType()->ToString(), indices.size()),
         loc);
   }
   Type* indexed_type = indexed_type_status.value();
@@ -458,8 +446,12 @@ BValue BuilderBase::MultiArrayUpdate(BValue arg, BValue idx,
                         update_value.node()->GetType()->ToString()),
         loc);
   }
-  return AddNode<xls::MultiArrayUpdate>(loc, arg.node(), idx.node(),
-                                        update_value.node(), name);
+  std::vector<Node*> index_operands;
+  for (const BValue& index : indices) {
+    index_operands.push_back(index.node());
+  }
+  return AddNode<xls::MultiArrayUpdate>(loc, arg.node(), update_value.node(),
+                                        index_operands, name);
 }
 
 BValue BuilderBase::ArrayConcat(absl::Span<const BValue> operands,

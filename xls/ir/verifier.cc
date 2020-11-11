@@ -442,14 +442,12 @@ class NodeChecker : public DfsVisitor {
   }
 
   absl::Status HandleMultiArrayIndex(MultiArrayIndex* index) override {
-    XLS_RETURN_IF_ERROR(ExpectOperandCount(index, 2));
-    XLS_RETURN_IF_ERROR(ExpectOperandHasTupleType(index, 1));
+    XLS_RETURN_IF_ERROR(ExpectOperandCountGt(index, 0));
     XLS_RETURN_IF_ERROR(VerifyMultidimensionalArrayIndex(
-        index->index()->GetType()->AsTupleOrDie(), index->array()->GetType(),
-        index));
+        index->indices(), index->array()->GetType(), index));
     XLS_ASSIGN_OR_RETURN(Type * indexed_type,
                          GetIndexedElementType(index->array()->GetType(),
-                                               index->index()->GetType()));
+                                               index->indices().size()));
     if (index->GetType() != indexed_type) {
       return absl::InvalidArgumentError(
           absl::StrFormat("Expected array index operation %s to have type %s",
@@ -459,24 +457,18 @@ class NodeChecker : public DfsVisitor {
   }
 
   absl::Status HandleMultiArrayUpdate(MultiArrayUpdate* update) override {
-    XLS_RETURN_IF_ERROR(ExpectOperandCount(update, 3));
+    XLS_RETURN_IF_ERROR(ExpectOperandCountGt(update, 1));
     XLS_RETURN_IF_ERROR(
         ExpectSameType(update, update->GetType(), update->array_to_update(),
                        update->array_to_update()->GetType(),
                        "array update operation", "input array"));
-    XLS_RETURN_IF_ERROR(
-        ExpectSameType(update, update->GetType(), update->array_to_update(),
-                       update->array_to_update()->GetType(),
-                       "array update operation", "input array"));
-    XLS_RETURN_IF_ERROR(ExpectOperandHasTupleType(update, 1));
 
     XLS_RETURN_IF_ERROR(VerifyMultidimensionalArrayIndex(
-        update->index()->GetType()->AsTupleOrDie(),
-        update->array_to_update()->GetType(), update));
+        update->indices(), update->array_to_update()->GetType(), update));
     XLS_ASSIGN_OR_RETURN(
         Type * indexed_type,
         GetIndexedElementType(update->array_to_update()->GetType(),
-                              update->index()->GetType()));
+                              update->indices().size()));
 
     if (update->update_value()->GetType() != indexed_type) {
       return absl::InvalidArgumentError(
@@ -1039,23 +1031,25 @@ class NodeChecker : public DfsVisitor {
   // Verifies that the given index_type can be used as a multi-dimensional index
   // into type_to_index (as in multi-array index/update operations). index_type
   // should be a tuple of bits types.
-  absl::Status VerifyMultidimensionalArrayIndex(TupleType* index_type,
+  absl::Status VerifyMultidimensionalArrayIndex(absl::Span<Node* const> indices,
                                                 Type* type_to_index,
                                                 Node* node) {
     // All elements of the index must be bits type.
-    for (Type* element_type : index_type->element_types()) {
-      if (!element_type->IsBits()) {
+    for (int64 i = 0; i < indices.size(); ++i) {
+      Node* index = indices[i];
+      if (!index->GetType()->IsBits()) {
         return absl::InvalidArgumentError(
             absl::StrFormat("All elements of index of node %s must be bits "
-                            "type; index type: %s",
-                            node->GetName(), index_type->ToString()));
+                            "type; index element %d type: %s",
+                            node->GetName(), i, index->GetType()->ToString()));
       }
     }
-    if (index_type->size() > GetArrayDimensionCount(type_to_index)) {
+    if (indices.size() > GetArrayDimensionCount(type_to_index)) {
       return absl::InvalidArgumentError(absl::StrFormat(
-          "Index of node %s has more elements than the array dimensions; index "
-          "type: %s; array type: %s",
-          node->GetName(), index_type->ToString(), type_to_index->ToString()));
+          "Index of node %s has more elements (%d) than the array dimensions "
+          "(%d); array type: %s",
+          node->GetName(), indices.size(),
+          GetArrayDimensionCount(type_to_index), type_to_index->ToString()));
     }
     return absl::OkStatus();
   }

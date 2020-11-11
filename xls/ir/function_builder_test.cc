@@ -475,8 +475,8 @@ TEST(FunctionBuilderTest, MultiArrayIndex) {
   Package p("p");
   FunctionBuilder b("f", &p);
   BValue a = b.Param("a", p.GetArrayType(42, p.GetBitsType(123)));
-  BValue idx = b.Param("idx", p.GetTupleType({p.GetBitsType(123)}));
-  b.MultiArrayIndex(a, idx);
+  BValue idx = b.Param("idx", p.GetBitsType(123));
+  b.MultiArrayIndex(a, {idx});
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, b.Build());
   EXPECT_THAT(func->return_value(),
@@ -490,13 +490,14 @@ TEST(FunctionBuilderTest, MultiArrayIndexMultipleDimensions) {
   Type* element_type = p.GetArrayType(42, p.GetBitsType(123));
   BValue a =
       b.Param("a", p.GetArrayType(3333, p.GetArrayType(123, element_type)));
-  BValue idx =
-      b.Param("idx", p.GetTupleType({p.GetBitsType(123), p.GetBitsType(1)}));
-  b.MultiArrayIndex(a, idx);
+  BValue idx0 = b.Param("idx0", p.GetBitsType(123));
+  BValue idx1 = b.Param("idx1", p.GetBitsType(1));
+  b.MultiArrayIndex(a, {idx0, idx1});
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, b.Build());
-  EXPECT_THAT(func->return_value(),
-              m::MultiArrayIndex(m::Param("a"), m::Param("idx")));
+  EXPECT_THAT(
+      func->return_value(),
+      m::MultiArrayIndex(m::Param("a"), m::Param("idx0"), m::Param("idx1")));
   EXPECT_EQ(func->return_value()->GetType(), element_type);
 }
 
@@ -504,12 +505,10 @@ TEST(FunctionBuilderTest, MultiArrayIndexNilIndex) {
   Package p("p");
   FunctionBuilder b("f", &p);
   BValue a = b.Param("a", p.GetBitsType(123));
-  BValue idx = b.Param("idx", p.GetTupleType({}));
-  b.MultiArrayIndex(a, idx);
+  b.MultiArrayIndex(a, {});
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, b.Build());
-  EXPECT_THAT(func->return_value(),
-              m::MultiArrayIndex(m::Param("a"), m::Param("idx")));
+  EXPECT_THAT(func->return_value(), m::MultiArrayIndex(m::Param("a")));
   EXPECT_EQ(func->return_value()->GetType(), p.GetBitsType(123));
 }
 
@@ -517,43 +516,41 @@ TEST(FunctionBuilderTest, MultiArrayIndexWrongIndexType) {
   Package p("p");
   FunctionBuilder b("f", &p);
   BValue a = b.Param("a", p.GetBitsType(123));
-  BValue idx = b.Param("idx", p.GetBitsType(1));
-  b.MultiArrayIndex(a, idx);
+  BValue idx = b.Param("idx", p.GetTupleType({p.GetBitsType(123)}));
+  b.MultiArrayIndex(a, {idx});
 
-  EXPECT_THAT(b.Build().status(),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Index to multi-array index operation must be "
-                                 "a tuple, is: bits[1]")));
+  EXPECT_THAT(
+      b.Build().status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Indices to multi-array index operation must all be "
+                         "bits types, index 0 is: (bits[123])")));
 }
 
 TEST(FunctionBuilderTest, MultiArrayIndexTooManyElementsInIndex) {
   Package p("p");
   FunctionBuilder b("f", &p);
   BValue a = b.Param("a", p.GetArrayType(42, p.GetBitsType(123)));
-  BValue idx =
-      b.Param("idx", p.GetTupleType({p.GetBitsType(123), p.GetBitsType(3)}));
-  b.MultiArrayIndex(a, idx);
+  BValue idx = b.Param("idx", p.GetBitsType(123));
+  b.MultiArrayIndex(a, {idx, idx});
 
-  EXPECT_THAT(
-      b.Build().status(),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr("Index of type (bits[123], bits[3]) has too many elements "
-                    "to index into array of type bits[123][42]")));
+  EXPECT_THAT(b.Build().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Too many indices (2) to index into array of "
+                                 "type bits[123][42]")));
 }
 
 TEST(FunctionBuilderTest, MultiArrayUpdate) {
   Package p("p");
   FunctionBuilder b("f", &p);
   BValue a = b.Param("a", p.GetArrayType(42, p.GetBitsType(123)));
-  BValue idx = b.Param("idx", p.GetTupleType({p.GetBitsType(123)}));
+  BValue idx = b.Param("idx", p.GetBitsType(123));
   BValue value = b.Param("value", p.GetBitsType(123));
-  b.MultiArrayUpdate(a, idx, value);
+  b.MultiArrayUpdate(a, value, {idx});
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, b.Build());
   EXPECT_THAT(
       func->return_value(),
-      m::MultiArrayUpdate(m::Param("a"), m::Param("idx"), m::Param("value")));
+      m::MultiArrayUpdate(m::Param("a"), m::Param("value"), m::Param("idx")));
   EXPECT_EQ(func->return_value()->GetType(),
             p.GetArrayType(42, p.GetBitsType(123)));
 }
@@ -562,14 +559,12 @@ TEST(FunctionBuilderTest, MultiArrayUpdateNilIndex) {
   Package p("p");
   FunctionBuilder b("f", &p);
   BValue a = b.Param("a", p.GetBitsType(123));
-  BValue idx = b.Param("idx", p.GetTupleType({}));
   BValue value = b.Param("value", p.GetBitsType(123));
-  b.MultiArrayUpdate(a, idx, value);
+  b.MultiArrayUpdate(a, value, {});
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, b.Build());
-  EXPECT_THAT(
-      func->return_value(),
-      m::MultiArrayUpdate(m::Param("a"), m::Param("idx"), m::Param("value")));
+  EXPECT_THAT(func->return_value(),
+              m::MultiArrayUpdate(m::Param("a"), m::Param("value")));
   EXPECT_EQ(func->return_value()->GetType(), p.GetBitsType(123));
 }
 
@@ -577,32 +572,29 @@ TEST(FunctionBuilderTest, MultiArrayUpdateTooManyElementsInIndex) {
   Package p("p");
   FunctionBuilder b("f", &p);
   BValue a = b.Param("a", p.GetArrayType(42, p.GetBitsType(123)));
-  BValue idx =
-      b.Param("idx", p.GetTupleType({p.GetBitsType(123), p.GetBitsType(3)}));
+  BValue idx = b.Param("idx", p.GetBitsType(123));
   BValue value = b.Param("value", p.GetBitsType(123));
-  b.MultiArrayUpdate(a, idx, value);
+  b.MultiArrayUpdate(a, value, {idx, idx});
 
-  EXPECT_THAT(
-      b.Build().status(),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr("Index of type (bits[123], bits[3]) has too many elements "
-                    "to index into array of type bits[123][42]")));
+  EXPECT_THAT(b.Build().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Too many indices (2) to index into array of "
+                                 "type bits[123][42]")));
 }
 
 TEST(FunctionBuilderTest, MultiArrayUpdateInvalidIndexType) {
   Package p("p");
   FunctionBuilder b("f", &p);
   BValue a = b.Param("a", p.GetArrayType(42, p.GetBitsType(123)));
-  BValue idx = b.Param("idx", p.GetTokenType());
   BValue value = b.Param("value", p.GetBitsType(123));
-  b.MultiArrayUpdate(a, idx, value);
+  BValue idx = b.Param("idx", p.GetTupleType({p.GetBitsType(123)}));
+  b.MultiArrayUpdate(a, value, {idx});
 
   EXPECT_THAT(
       b.Build().status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Index to multi-array update operation must be "
-                         "a tuple, is: token")));
+               HasSubstr("Indices to multi-array update operation must all be "
+                         "bits types, index 0 is: (bits[123])")));
 }
 
 }  // namespace xls

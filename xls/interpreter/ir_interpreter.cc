@@ -396,10 +396,9 @@ absl::Status SetArrayElement(absl::Span<const Bits> indices, const Value& value,
 
 absl::Status IrInterpreter::HandleMultiArrayIndex(MultiArrayIndex* index) {
   const Value* array = &ResolveAsValue(index->array());
-  XLS_ASSIGN_OR_RETURN(std::vector<Bits> index_vector,
-                       IndexValueToBitsVector(ResolveAsValue(index->index())));
-  for (const Bits& index_bits : index_vector) {
-    uint64 idx = BitsToBoundedUint64(index_bits, array->size() - 1);
+  for (Node* index_operand : index->indices()) {
+    uint64 idx =
+        BitsToBoundedUint64(ResolveAsBits(index_operand), array->size() - 1);
     array = &array->element(idx);
   }
   return SetValueResult(index, *array);
@@ -409,15 +408,17 @@ absl::Status IrInterpreter::HandleMultiArrayUpdate(MultiArrayUpdate* update) {
   const Value& input_array = ResolveAsValue(update->array_to_update());
   const Value& update_value = ResolveAsValue(update->update_value());
 
-  if (update->index()->GetType()->AsTupleOrDie()->size() == 0) {
+  if (update->indices().empty()) {
     // Index is empty. The *entire* array is replaced with the update value.
     return SetValueResult(update, update_value);
   }
 
   XLS_ASSIGN_OR_RETURN(std::vector<Value> array_elements,
                        input_array.GetElements());
-  XLS_ASSIGN_OR_RETURN(std::vector<Bits> index_vector,
-                       IndexValueToBitsVector(ResolveAsValue(update->index())));
+  std::vector<Bits> index_vector;
+  for (Node* index_operand : update->indices()) {
+    index_vector.push_back(ResolveAsBits(index_operand));
+  }
   XLS_RETURN_IF_ERROR(
       SetArrayElement(index_vector, update_value, &array_elements));
   XLS_ASSIGN_OR_RETURN(Value result, Value::Array(array_elements));

@@ -199,27 +199,14 @@ std::ostream& operator<<(std::ostream& os, const Type* type) {
 }
 
 absl::StatusOr<Type*> GetIndexedElementType(Type* type_to_index,
-                                            Type* index_type) {
-  if (!index_type->IsTuple()) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Invalid index type %s, expected tuple of bits type",
-                        index_type->ToString()));
-  }
-  TupleType* tuple_type = index_type->AsTupleOrDie();
-  for (Type* element_type : tuple_type->element_types()) {
-    if (!element_type->IsBits()) {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Invalid index type %s, expected tuple of bits type",
-                          index_type->ToString()));
-    }
-  }
+                                            int64 index_size) {
   Type* indexed_element_type = type_to_index;
-  for (int64 i = 0; i < tuple_type->size(); ++i) {
+  for (int64 i = 0; i < index_size; ++i) {
     if (!indexed_element_type->IsArray()) {
       return absl::InvalidArgumentError(
-          absl::StrFormat("Index type %s has more elements than type %s has "
+          absl::StrFormat("Index has more elements (%d) than type %s has "
                           "array dimensions (%d)",
-                          index_type->ToString(), type_to_index->ToString(),
+                          index_size, type_to_index->ToString(),
                           GetArrayDimensionCount(type_to_index)));
     }
     indexed_element_type = indexed_element_type->AsArrayOrDie()->element_type();

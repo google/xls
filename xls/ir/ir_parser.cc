@@ -709,13 +709,17 @@ absl::StatusOr<BValue> Parser::ParseNode(
       break;
     }
     case Op::kMultiArrayIndex: {
-      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
-      bvalue = fb->MultiArrayIndex(operands[0], operands[1], *loc, node_name);
+      std::vector<BValue>* index_args =
+          arg_parser.AddKeywordArg<std::vector<BValue>>("indices");
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
+      bvalue = fb->MultiArrayIndex(operands[0], *index_args, *loc, node_name);
       break;
     }
     case Op::kMultiArrayUpdate: {
-      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/3));
-      bvalue = fb->MultiArrayUpdate(operands[0], operands[1], operands[2], *loc,
+      std::vector<BValue>* index_args =
+          arg_parser.AddKeywordArg<std::vector<BValue>>("indices");
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
+      bvalue = fb->MultiArrayUpdate(operands[0], operands[1], *index_args, *loc,
                                     node_name);
       break;
     }

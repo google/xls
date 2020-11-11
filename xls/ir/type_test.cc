@@ -150,43 +150,22 @@ TEST(TypeTest, ArrayDimensionAndIndex) {
   EXPECT_EQ(GetArrayDimensionCount(&a_of_tuple), 1);
   EXPECT_EQ(GetArrayDimensionCount(&a_2d_of_tuple), 2);
 
-  BitsType b123(123);
-  TupleType index_0 = TupleType({});
-  TupleType index_1 = TupleType({&b32});
-  TupleType index_2 = TupleType({&b32, &b123});
-  TupleType index_3 = TupleType({&b32, &b123, &b32});
-
-  EXPECT_THAT(GetIndexedElementType(&b32, &index_0), IsOkAndHolds(&b32));
-  EXPECT_THAT(
-      GetIndexedElementType(&b32, &index_1),
-      status_testing::StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          testing::HasSubstr("Index type (bits[32]) has more elements than "
-                             "type bits[32] has array dimensions (0)")));
-
-  EXPECT_THAT(GetIndexedElementType(&a_1d, &index_0), IsOkAndHolds(&a_1d));
-  EXPECT_THAT(GetIndexedElementType(&a_1d, &index_1), IsOkAndHolds(&b32));
-  EXPECT_THAT(GetIndexedElementType(&a_1d, &index_2),
+  EXPECT_THAT(GetIndexedElementType(&b32, 0), IsOkAndHolds(&b32));
+  EXPECT_THAT(GetIndexedElementType(&b32, 1),
               status_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
-                  testing::HasSubstr(
-                      "Index type (bits[32], bits[123]) has more elements than "
-                      "type bits[32][7] has array dimensions (1)")));
+                  testing::HasSubstr("Index has more elements (1) than type "
+                                     "bits[32] has array dimensions (0)")));
 
-  EXPECT_THAT(GetIndexedElementType(&a_3d, &index_3), IsOkAndHolds(&b32));
+  EXPECT_THAT(GetIndexedElementType(&a_1d, 0), IsOkAndHolds(&a_1d));
+  EXPECT_THAT(GetIndexedElementType(&a_1d, 1), IsOkAndHolds(&b32));
+  EXPECT_THAT(GetIndexedElementType(&a_1d, 2),
+              status_testing::StatusIs(
+                  absl::StatusCode::kInvalidArgument,
+                  testing::HasSubstr("Index has more elements (2) than type "
+                                     "bits[32][7] has array dimensions (1)")));
 
-  EXPECT_THAT(
-      GetIndexedElementType(&b32, &b32),
-      status_testing::StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          testing::HasSubstr(
-              "Invalid index type bits[32], expected tuple of bits type")));
-  EXPECT_THAT(
-      GetIndexedElementType(&a_3d, &t),
-      status_testing::StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          testing::HasSubstr("Invalid index type (bits[32], bits[32][7][123], "
-                             "bits[32]), expected tuple of bits type")));
+  EXPECT_THAT(GetIndexedElementType(&a_3d, 3), IsOkAndHolds(&b32));
 }
 
 }  // namespace

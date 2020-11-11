@@ -271,22 +271,21 @@ inline TokenType* Type::AsTokenOrDie() {
 }
 
 // Returns type of the nested element inside of "type_to_index" resulting from
-// indexing that type with a value of "index_type". Where "index_type" is a
-// multi-dimensional index value represented as a tuple. As a degenerate case,
-// "type_to_index" need not be an array type if "index_type" is the empty
-// tuple. In this case, indexing is the identity operation.
+// indexing that type with an index containing "index_size" elements. As a
+// degenerate case, "type_to_index" need not be an array type if "index_size" is
+// zero. In this case, indexing is the identity operation.
 //
 // Examples:
-//   GetIndexedElementType(bits[32][3][4][5], ())
+//   GetIndexedElementType(bits[32][3][4][5], 0)
 //     => bits[32][3][4][5]
-//   GetIndexedElementType(bits[32][3][4][5], (bits[8], bits[8]))
+//   GetIndexedElementType(bits[32][3][4][5], 2)
 //     => bits[32][3]
-//   GetIndexedElementType(bits[32][3][4][5], (bits[8], bits[8], bits[32]))
+//   GetIndexedElementType(bits[32][3][4][5], 3)
 //     => bits[32]
-//   GetIndexedElementType(bits[42], ())
+//   GetIndexedElementType(bits[42], 0)
 //     => bits[42]
 absl::StatusOr<Type*> GetIndexedElementType(Type* type_to_index,
-                                            Type* index_type);
+                                            int64 index_size);
 
 // Returns the number of array dimensions of the given type. A non-array type is
 // considered to have zero array dimensions.

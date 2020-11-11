@@ -429,29 +429,32 @@ OpClass.kinds['ARRAY_UPDATE'] = OpClass(
 OpClass.kinds['MULTIARRAY_INDEX'] = OpClass(
     name='MultiArrayIndex',
     op='Op::kMultiArrayIndex',
-    operands=[Operand('arg'), Operand('index')],
-    xls_type_expression='GetIndexedElementType(arg->GetType(), index->GetType()).value()',
+    operands=[Operand('arg'), OperandSpan('indices')],
+    xls_type_expression='GetIndexedElementType(arg->GetType(), indices.size()).value()',
     extra_methods=[Method(name='array',
                           return_cpp_type='Node*',
                           expression='operand(0)'),
-                   Method(name='index',
-                          return_cpp_type='Node*',
-                          expression='operand(1)')])
+                   Method(name='indices',
+                          return_cpp_type='absl::Span<Node* const>',
+                          expression='operands().subspan(1)')],
+    custom_clone_method=True,
+)
 
 OpClass.kinds['MULTIARRAY_UPDATE'] = OpClass(
     name='MultiArrayUpdate',
     op='Op::kMultiArrayUpdate',
-    operands=[Operand('arg'), Operand('index'), Operand('update_value')],
+    operands=[Operand('arg'), Operand('update_value'), OperandSpan('indices')],
     xls_type_expression='arg->GetType()',
     extra_methods=[Method(name='array_to_update',
                           return_cpp_type='Node*',
                           expression='operand(0)'),
-                   Method(name='index',
-                          return_cpp_type='Node*',
-                          expression='operand(1)'),
+                   Method(name='indices',
+                          return_cpp_type='absl::Span<Node* const>',
+                          expression='operands().subspan(2)'),
                    Method(name='update_value',
                           return_cpp_type='Node*',
-                          expression='operand(2)')],
+                          expression='operand(1)')],
+    custom_clone_method=True,
 )
 
 OpClass.kinds['ARRAY_CONCAT'] = OpClass(
