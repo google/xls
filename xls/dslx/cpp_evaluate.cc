@@ -151,6 +151,18 @@ absl::StatusOr<InterpValue> EvaluateBinop(Binop* expr, InterpBindings* bindings,
                                           static_cast<int64>(expr->kind())));
 }
 
+absl::StatusOr<InterpValue> EvaluateTernary(Ternary* expr,
+                                            InterpBindings* bindings,
+                                            ConcreteType* type_context,
+                                            InterpCallbackData* callbacks) {
+  XLS_ASSIGN_OR_RETURN(InterpValue test,
+                       callbacks->eval(expr->test(), bindings));
+  if (test.IsTrue()) {
+    return callbacks->eval(expr->consequent(), bindings);
+  }
+  return callbacks->eval(expr->alternate(), bindings);
+}
+
 absl::StatusOr<InterpValue> EvaluateAttr(Attr* expr, InterpBindings* bindings,
                                          ConcreteType* type_context,
                                          InterpCallbackData* callbacks) {

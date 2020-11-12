@@ -88,6 +88,12 @@ absl::StatusOr<InterpValue> EvaluateBinop(Binop* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
                                           InterpCallbackData* callbacks);
 
+// Evaluates a ternary expression; e.g. `foo if bar else baz`.
+absl::StatusOr<InterpValue> EvaluateTernary(Ternary* expr,
+                                            InterpBindings* bindings,
+                                            ConcreteType* type_context,
+                                            InterpCallbackData* callbacks);
+
 // Evaluates an attribute expression; e.g. `x.y`.
 absl::StatusOr<InterpValue> EvaluateAttr(Attr* expr, InterpBindings* bindings,
                                          ConcreteType* type_context,

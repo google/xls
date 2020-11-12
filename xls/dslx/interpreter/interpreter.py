@@ -385,15 +385,6 @@ class Interpreter:
     logging.vlog(3, 'tuple: %s', result)
     return result
 
-  def _evaluate_Ternary(  # pylint: disable=invalid-name
-      self, expr: ast.Ternary, bindings: Bindings,
-      _: Optional[ConcreteType]) -> Value:
-    test_value = self._evaluate(expr.test, bindings)
-    if test_value.is_true():
-      return self._evaluate(expr.consequent, bindings)
-    else:
-      return self._evaluate(expr.alternate, bindings)
-
   def _evaluate_For(  # pylint: disable=invalid-name
       self, expr: ast.For, bindings: Bindings,
       _: Optional[ConcreteType]) -> Value:

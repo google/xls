@@ -134,6 +134,18 @@ PYBIND11_MODULE(cpp_evaluate, m) {
       py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
       py::arg("callbacks"));
   m.def(
+      "evaluate_Ternary",
+      [](TernaryHolder expr, InterpBindings* bindings,
+         ConcreteType* type_context, PyInterpCallbackData* py_callbacks) {
+        InterpCallbackData callbacks = ToCpp(*py_callbacks);
+        auto statusor =
+            EvaluateTernary(&expr.deref(), bindings, type_context, &callbacks);
+        TryThrowKeyError(statusor.status());
+        return statusor;
+      },
+      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
+      py::arg("callbacks"));
+  m.def(
       "evaluate_Attr",
       [](AttrHolder expr, InterpBindings* bindings, ConcreteType* type_context,
          PyInterpCallbackData* py_callbacks) {

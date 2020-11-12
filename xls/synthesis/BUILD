@@ -172,10 +172,9 @@ py_library(
 py_test(
     name = "synthesis_utils_test",
     srcs = ["synthesis_utils_test.py"],
-    data = [
-        ":dummy_synthesis_server_main",
-    ],
+    data = [":dummy_synthesis_server_main"],
     python_version = "PY3",
+    shard_count = 7,
     srcs_version = "PY3",
     deps = [
         ":client_credentials",
