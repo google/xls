@@ -75,6 +75,21 @@ absl::StatusOr<InterpValue> EvaluateEnumRef(EnumRef* expr,
   return InterpValue::MakeEnum(raw_value.GetBitsOrDie(), enum_def);
 }
 
+absl::StatusOr<InterpValue> EvaluateUnop(Unop* expr, InterpBindings* bindings,
+                                         ConcreteType* type_context,
+                                         InterpCallbackData* callbacks) {
+  XLS_ASSIGN_OR_RETURN(InterpValue arg,
+                       callbacks->eval(expr->operand(), bindings));
+  switch (expr->kind()) {
+    case UnopKind::kInvert:
+      return arg.BitwiseNegate();
+    case UnopKind::kNegate:
+      return arg.ArithmeticNegate();
+  }
+  return absl::InternalError(absl::StrCat("Invalid unary operation kind: ",
+                                          static_cast<int64>(expr->kind())));
+}
+
 absl::StatusOr<InterpValue> EvaluateBinop(Binop* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
                                           InterpCallbackData* callbacks) {

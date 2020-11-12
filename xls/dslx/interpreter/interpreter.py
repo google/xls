@@ -394,17 +394,6 @@ class Interpreter:
     else:
       return self._evaluate(expr.alternate, bindings)
 
-  def _evaluate_Unop(  # pylint: disable=invalid-name
-      self, expr: ast.Unop, bindings: Bindings,
-      _: Optional[ConcreteType]) -> Value:
-    """Evaluates a 'Unop' AST node to a Value."""
-    operand_value = self._evaluate(expr.operand, bindings)
-    if expr.kind == ast.UnopKind.INV:
-      return operand_value.bitwise_negate()
-    if expr.kind == ast.UnopKind.NEG:
-      return operand_value.arithmetic_negate()
-    raise NotImplementedError('Unimplemented unop.', expr.kind)
-
   def _evaluate_For(  # pylint: disable=invalid-name
       self, expr: ast.For, bindings: Bindings,
       _: Optional[ConcreteType]) -> Value:
