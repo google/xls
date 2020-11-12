@@ -25,6 +25,7 @@
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/python/callback_converters.h"
 #include "xls/dslx/python/cpp_ast.h"
+#include "xls/dslx/python/errors.h"
 
 namespace py = pybind11;
 
@@ -152,6 +153,19 @@ PYBIND11_MODULE(cpp_evaluate, m) {
         InterpCallbackData callbacks = ToCpp(*py_callbacks);
         auto statusor =
             EvaluateAttr(&expr.deref(), bindings, type_context, &callbacks);
+        TryThrowKeyError(statusor.status());
+        return statusor;
+      },
+      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
+      py::arg("callbacks"));
+  m.def(
+      "evaluate_Match",
+      [](MatchHolder expr, InterpBindings* bindings, ConcreteType* type_context,
+         PyInterpCallbackData* py_callbacks) {
+        InterpCallbackData callbacks = ToCpp(*py_callbacks);
+        auto statusor =
+            EvaluateMatch(&expr.deref(), bindings, type_context, &callbacks);
+        TryThrowFailureError(statusor.status());
         TryThrowKeyError(statusor.status());
         return statusor;
       },

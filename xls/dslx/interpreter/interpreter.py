@@ -175,62 +175,6 @@ class Interpreter:
     result = self._evaluate(expr.body, new_bindings, type_context)
     return result
 
-  def _evaluate_matcher(self, pattern: ast.NameDefTree, matched: Value,
-                        bindings: Bindings) -> bool:
-    """Returns whether this matcher pattern is accepted.
-
-    Note that refutable patterns don't always match; e.g. in
-
-      match (u32:3, u32:4) {
-        (u32:2, y) => y;
-        (x, _) => x;
-      }
-
-    The first pattern will not match, and so this method would return false for
-    that match arm.
-
-    Args:
-      pattern: Decribes the pattern to attempt to match.
-      matched: The value being matched against.
-      bindings: The bindings to populate if the pattern has bindings associated
-        with it.
-    """
-    if pattern.is_leaf():
-      leaf = pattern.get_leaf()
-      if isinstance(leaf, ast.NameDef):
-        bindings.add_value(leaf.identifier, matched)
-        return True
-      elif isinstance(leaf, ast.WildcardPattern):
-        return True
-      elif isinstance(leaf, (ast.Number, ast.EnumRef)):
-        return self._evaluate(leaf, bindings) == matched
-      else:
-        assert isinstance(leaf, ast.NameRef), repr(leaf)
-        return self._evaluate(leaf, bindings) == matched
-    else:
-      assert isinstance(pattern.tree, tuple)
-      for subtree, member in zip(pattern.tree, matched.get_elements()):
-        if not self._evaluate_matcher(subtree, member, bindings):
-          return False
-      return True
-
-  def _evaluate_Match(  # pylint: disable=invalid-name
-      self, expr: ast.Match, bindings: Bindings,
-      type_context: Optional[ConcreteType]) -> Value:
-    """Resolves expr into a value via expression evaluation."""
-    matched = self._evaluate(expr.matched, bindings)
-    for arm in expr.arms:
-      for pattern in arm.patterns:
-        if isinstance(pattern, ast.WildcardPattern):
-          return self._evaluate(arm.expr, bindings, type_context)
-
-        arm_bindings = Bindings(bindings)
-        if self._evaluate_matcher(pattern, matched, arm_bindings):
-          return self._evaluate(arm.expr, arm_bindings, type_context)
-    builtins.throw_fail_error(
-        expr.span, 'The program being interpreted failed with an '
-        'incomplete match! value: {}'.format(matched))
-
   def _get_imported_module_via_bindings(
       self, import_: ast.Import,
       bindings: Bindings) -> Tuple[ast.Module, Bindings]:

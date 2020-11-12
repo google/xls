@@ -23,6 +23,7 @@
 #include "xls/common/status/statusor_pybind_caster.h"
 #include "xls/dslx/cpp_bindings.h"
 #include "xls/dslx/python/cpp_ast.h"
+#include "xls/dslx/python/errors.h"
 
 namespace py = pybind11;
 
@@ -35,34 +36,6 @@ using BuiltinFn = absl::StatusOr<InterpValue> (*)(absl::Span<const InterpValue>,
 
 // Python type used for representing symbolic bindings.
 using PySymbolicBindings = std::vector<std::pair<std::string, int64>>;
-
-// Raised when expression evaluation fails (as in 'panic' style failure).
-//
-// This is used e.g. in tests, but may be reusable for things like fatal errors.
-class FailureError : public std::exception {
- public:
-  explicit FailureError(std::string message, Span span)
-      : message_(std::move(message)), span_(std::move(span)) {}
-
-  const char* what() const noexcept override { return message_.c_str(); }
-
-  const Span& span() const { return span_; }
-
- private:
-  std::string message_;
-  Span span_;
-};
-
-// Sees if the status contains a stylized FailureError -- if so, throws it as a
-// Python exception.
-void TryThrowFailureError(const absl::Status& status) {
-  if (status.code() == absl::StatusCode::kInternal &&
-      absl::StartsWith(status.message(), "FailureError")) {
-    std::pair<Span, std::string> data =
-        ParseErrorGetData(status, "FailureError: ").value();
-    throw FailureError(data.second, data.first);
-  }
-}
 
 // Wraps the C++ defined DSLX builtin function f so it conforms to the
 // pybind11-desired signature, and does standard things like throw FailureError

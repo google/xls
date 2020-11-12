@@ -186,6 +186,86 @@ absl::StatusOr<InterpValue> EvaluateAttr(Attr* expr, InterpBindings* bindings,
   return lhs.GetValuesOrDie().at(*index);
 }
 
+// Returns whether this matcher pattern is accepted.
+//
+// Note that some patterns don't always match -- we call those "refutable"; e.g.
+// in:
+//
+//       match (u32:3, u32:4) {
+//         (u32:2, y) => y;
+//         (x, _) => x;
+//       }
+//
+// The first pattern will not match, and so this method would return false for
+// that match arm. If you had a pattern that was just `_` it would match
+// everything, and thus it is "irrefutable".
+//
+// Args:
+//  pattern: Decribes the pattern attempting to match against the value.
+//  to_match: The value being matched against.
+//  bindings: The bindings to populate if the pattern has bindings associated
+//    with it.
+static absl::StatusOr<bool> EvaluateMatcher(NameDefTree* pattern,
+                                            const InterpValue& to_match,
+                                            InterpBindings* bindings,
+                                            InterpCallbackData* callbacks) {
+  if (pattern->is_leaf()) {
+    NameDefTree::Leaf leaf = pattern->leaf();
+    if (absl::holds_alternative<WildcardPattern*>(leaf)) {
+      return true;
+    }
+    if (absl::holds_alternative<NameDef*>(leaf)) {
+      bindings->AddValue(absl::get<NameDef*>(leaf)->identifier(), to_match);
+      return true;
+    }
+    if (absl::holds_alternative<Number*>(leaf) ||
+        absl::holds_alternative<EnumRef*>(leaf)) {
+      XLS_ASSIGN_OR_RETURN(InterpValue target,
+                           callbacks->eval(ToExprNode(leaf), bindings));
+      return target.Eq(to_match);
+    }
+    XLS_RET_CHECK(absl::holds_alternative<NameRef*>(leaf));
+    XLS_ASSIGN_OR_RETURN(InterpValue target,
+                         callbacks->eval(absl::get<NameRef*>(leaf), bindings));
+    return target.Eq(to_match);
+  }
+
+  XLS_RET_CHECK_EQ(to_match.GetLength().value(), pattern->nodes().size());
+  for (int64 i = 0; i < pattern->nodes().size(); ++i) {
+    NameDefTree* subtree = pattern->nodes()[i];
+    const InterpValue& member = to_match.GetValuesOrDie().at(i);
+    XLS_ASSIGN_OR_RETURN(bool matched,
+                         EvaluateMatcher(subtree, member, bindings, callbacks));
+    if (!matched) {
+      return false;
+    }
+  }
+  return true;
+}
+
+absl::StatusOr<InterpValue> EvaluateMatch(Match* expr, InterpBindings* bindings,
+                                          ConcreteType* type_context,
+                                          InterpCallbackData* callbacks) {
+  XLS_ASSIGN_OR_RETURN(InterpValue to_match,
+                       callbacks->eval(expr->matched(), bindings));
+  for (MatchArm* arm : expr->arms()) {
+    for (NameDefTree* pattern : arm->patterns()) {
+      auto arm_bindings = std::make_shared<InterpBindings>(
+          /*parent=*/bindings->shared_from_this());
+      XLS_ASSIGN_OR_RETURN(
+          bool did_match,
+          EvaluateMatcher(pattern, to_match, arm_bindings.get(), callbacks));
+      if (did_match) {
+        return callbacks->eval(arm->expr(), arm_bindings.get());
+      }
+    }
+  }
+  return absl::InternalError(
+      absl::StrFormat("FailureError: %s The program being interpreted failed "
+                      "with an incomplete match; value: %s",
+                      expr->span().ToString(), to_match.ToString()));
+}
+
 absl::StatusOr<InterpBindings> MakeTopLevelBindings(
     const std::shared_ptr<Module>& module, InterpCallbackData* callbacks) {
   XLS_VLOG(3) << "Making top level bindings for module: " << module->name();

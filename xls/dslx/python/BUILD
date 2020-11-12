@@ -37,6 +37,19 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "errors",
+    hdrs = ["errors.h"],
+    copts = ["-fexceptions"],
+    features = ["-use_header_modules"],
+    deps = [
+        "@com_google_absl//absl/base",
+        "//xls/dslx:cpp_ast",
+        "//xls/dslx:cpp_bindings",
+        "@pybind11",
+    ],
+)
+
 xls_pybind_extension(
     name = "cpp_ast",
     srcs = [
@@ -226,6 +239,7 @@ xls_pybind_extension(
     ],
     deps = [
         ":cpp_ast_header",
+        ":errors",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/strings",
         "//xls/common/status:status_macros",
@@ -290,6 +304,7 @@ xls_pybind_extension(
     deps = [
         ":callback_converters",
         ":cpp_ast_header",
+        ":errors",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

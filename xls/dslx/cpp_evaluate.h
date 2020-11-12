@@ -99,6 +99,11 @@ absl::StatusOr<InterpValue> EvaluateAttr(Attr* expr, InterpBindings* bindings,
                                          ConcreteType* type_context,
                                          InterpCallbackData* callbacks);
 
+// Evaluates a match expression; e.g. `match x { ... }`.
+absl::StatusOr<InterpValue> EvaluateMatch(Match* expr, InterpBindings* bindings,
+                                          ConcreteType* type_context,
+                                          InterpCallbackData* callbacks);
+
 // Creates the top level bindings for a given module. We may not be able to
 // create a *complete* set of bindings if we've re-entered this routine; e.g. in
 // evaluating a top-level constant we recur to ask what enums (or similar) are
