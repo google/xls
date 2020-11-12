@@ -1456,12 +1456,12 @@ test trivial_reduce {
 
 ### update
 
-`update(array, index, new_value)` updates `array` by replacing the value
-previously at `index` with `new_value` and returns the updated array. Note that
-this is not an in-place update of the array, it is an "evolution" of the array
-value and it is up to the compiler to find places in which an in-place
-replacement is viable.
-
+`update(array, index, new_value)` returns a copy of `array` where `array[index]`
+has been replaced with `new_value`, and all other elements are unchanged. Note
+that this is *not* an in-place update of the array, it is an "evolution" of
+`array`. It is the compiler's responsibility to optimize by using mutation
+instead of copying, when it's safe to do. The compiler makes a best effort to do
+this, but can't guarantee the optimization is always made.
 
 ## Testing and Debugging
 

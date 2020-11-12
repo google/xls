@@ -215,7 +215,7 @@ Operation | Opcode      | Semantics
 `smul`    | `Op::kSMul` | `result = $signed(lhs) * $signed(rhs)`
 `sub`     | `Op::kSub`  | `result = lhs - rhs`
 `udiv`    | `Op::kUDiv` | `result = lhs / rhs` * **
-`umod`    | `Op::kUMod` | `result = lhs % rhs` * ***
+`umod`    | `Op::kUMod` | `result = lhs % rhs` *
 `umul`    | `Op::kUMul` | `result = lhs * rhs`
 
 \* Synthesizing division or modulus can lead to failing synthesis and/or
@@ -228,8 +228,8 @@ positive value. For signed division, if the divisor is zero the result is the
 maximal positive value if the dividend is non-negative or the maximal negative
 value if the dividend is negative.
 
-\*** For signed modulus, the sign of the result of modulus matches the sign of
-the left operand. If the right operand is zero the result is zero.
+\*** The sign of the result of modulus matches the sign of the left operand. If
+the right operand is zero the result is zero.
 
 ### Comparison operations
 
