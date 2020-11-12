@@ -46,6 +46,7 @@ struct PyInterpCallbackData {
   PyEvaluateFn eval;
   PyIsWipFn is_wip;
   PyNoteWipFn note_wip;
+  PyGetTypeFn get_type_info;
   absl::optional<ImportCache*> cache;
 };
 
@@ -56,8 +57,11 @@ InterpCallbackData ToCpp(const PyInterpCallbackData& py) {
     typecheck = ToCppTypecheck(py.typecheck.value());
   }
   ImportCache* cache = py.cache.has_value() ? py.cache.value() : nullptr;
-  return InterpCallbackData{typecheck, ToCppEval(py.eval),
-                            ToCppIsWip(py.is_wip), ToCppNoteWip(py.note_wip),
+  return InterpCallbackData{typecheck,
+                            ToCppEval(py.eval),
+                            ToCppIsWip(py.is_wip),
+                            ToCppNoteWip(py.note_wip),
+                            py.get_type_info,
                             cache};
 }
 
@@ -66,7 +70,7 @@ PYBIND11_MODULE(cpp_evaluate, m) {
 
   py::class_<PyInterpCallbackData>(m, "InterpCallbackData")
       .def(py::init<absl::optional<PyTypecheckFn>, PyEvaluateFn, PyIsWipFn,
-                    PyNoteWipFn, absl::optional<ImportCache*>>());
+                    PyNoteWipFn, PyGetTypeFn, absl::optional<ImportCache*>>());
 
   m.def("evaluate_index_bitslice", [](TypeInfo* type_info, IndexHolder expr,
                                       InterpBindings* bindings,
@@ -112,6 +116,18 @@ PYBIND11_MODULE(cpp_evaluate, m) {
         InterpCallbackData callbacks = ToCpp(*py_callbacks);
         auto statusor =
             EvaluateBinop(&expr.deref(), bindings, type_context, &callbacks);
+        TryThrowKeyError(statusor.status());
+        return statusor;
+      },
+      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
+      py::arg("callbacks"));
+  m.def(
+      "evaluate_Attr",
+      [](AttrHolder expr, InterpBindings* bindings, ConcreteType* type_context,
+         PyInterpCallbackData* py_callbacks) {
+        InterpCallbackData callbacks = ToCpp(*py_callbacks);
+        auto statusor =
+            EvaluateAttr(&expr.deref(), bindings, type_context, &callbacks);
         TryThrowKeyError(statusor.status());
         return statusor;
       },

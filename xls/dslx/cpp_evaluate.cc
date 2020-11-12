@@ -136,6 +136,29 @@ absl::StatusOr<InterpValue> EvaluateBinop(Binop* expr, InterpBindings* bindings,
                                           static_cast<int64>(expr->kind())));
 }
 
+absl::StatusOr<InterpValue> EvaluateAttr(Attr* expr, InterpBindings* bindings,
+                                         ConcreteType* type_context,
+                                         InterpCallbackData* callbacks) {
+  XLS_ASSIGN_OR_RETURN(InterpValue lhs, callbacks->eval(expr->lhs(), bindings));
+  std::shared_ptr<TypeInfo> type_info = callbacks->get_type_info();
+  absl::optional<ConcreteType*> maybe_type = type_info->GetItem(expr->lhs());
+  XLS_RET_CHECK(maybe_type.has_value()) << "LHS of attr should have type info";
+  TupleType* tuple_type = dynamic_cast<TupleType*>(maybe_type.value());
+  XLS_RET_CHECK(tuple_type != nullptr) << (*maybe_type)->ToString();
+  absl::optional<int64> index;
+  for (int64 i = 0; i < tuple_type->size(); ++i) {
+    absl::string_view name = tuple_type->GetMemberName(i);
+    if (name == expr->attr()->identifier()) {
+      index = i;
+      break;
+    }
+  }
+  XLS_RET_CHECK(index.has_value())
+      << "Unable to find attribute " << expr->attr()
+      << ": should be caught by type inference";
+  return lhs.GetValuesOrDie().at(*index);
+}
+
 absl::StatusOr<InterpBindings> MakeTopLevelBindings(
     const std::shared_ptr<Module>& module, InterpCallbackData* callbacks) {
   XLS_VLOG(3) << "Making top level bindings for module: " << module->name();

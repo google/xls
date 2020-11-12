@@ -199,7 +199,15 @@ class TupleType : public ConcreteType {
 
   const Members& members() const { return members_; }
 
-  absl::StatusOr<std::vector<std::string>> GetNames() const {
+  // Precondition: this TupleType must have named members and i must be <
+  // members().size().
+  const std::string& GetMemberName(int64 i) const {
+    XLS_CHECK(absl::holds_alternative<NamedMembers>(members_));
+    return absl::get<NamedMembers>(members_).at(i).name;
+  }
+
+  // Returns an error status if this TupleType does not have named members.
+  absl::StatusOr<std::vector<std::string>> GetMemberNames() const {
     if (!absl::holds_alternative<NamedMembers>(members_)) {
       return absl::InvalidArgumentError(
           "Tuple has unnamed members; cannot retrieve names.");

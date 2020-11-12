@@ -22,13 +22,28 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
+# Usually the pybind extension modules don't need shared definitions, but the
+# "Holder" wrapper objects for AST nodes are used across a few different pybind
+# extensions, so it's broken out here.
+cc_library(
+    name = "cpp_ast_header",
+    hdrs = ["cpp_ast.h"],
+    copts = ["-fexceptions"],
+    features = ["-use_header_modules"],
+    deps = [
+        "@com_google_absl//absl/base",
+        "//xls/dslx:cpp_ast",
+        "@pybind11",
+    ],
+)
+
 xls_pybind_extension(
     name = "cpp_ast",
     srcs = [
         "cpp_ast.cc",
-        "cpp_ast.h",
     ],
     deps = [
+        ":cpp_ast_header",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/status:status_macros",
@@ -98,7 +113,6 @@ xls_pybind_extension(
 xls_pybind_extension(
     name = "cpp_parser",
     srcs = [
-        "cpp_ast.h",
         "cpp_parser.cc",
     ],
     py_deps = [
@@ -106,6 +120,7 @@ xls_pybind_extension(
         ":cpp_scanner",  # build_cleaner: keep
     ],
     deps = [
+        ":cpp_ast_header",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -130,13 +145,13 @@ xls_pybind_extension(
 xls_pybind_extension(
     name = "cpp_concrete_type",
     srcs = [
-        "cpp_ast.h",
         "cpp_concrete_type.cc",
     ],
     py_deps = [
         ":cpp_ast",  # build_cleaner: keep
     ],
     deps = [
+        ":cpp_ast_header",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -149,13 +164,13 @@ xls_pybind_extension(
 xls_pybind_extension(
     name = "cpp_type_info",
     srcs = [
-        "cpp_ast.h",
         "cpp_type_info.cc",
     ],
     py_deps = [
         ":cpp_ast",  # build_cleaner: keep
     ],
     deps = [
+        ":cpp_ast_header",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/strings",
         "//xls/common/status:status_macros",
@@ -167,13 +182,13 @@ xls_pybind_extension(
 xls_pybind_extension(
     name = "interp_value",
     srcs = [
-        "cpp_ast.h",
         "interp_value.cc",
     ],
     py_deps = [
         ":cpp_ast",  # build_cleaner: keep
     ],
     deps = [
+        ":cpp_ast_header",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/strings",
         "//xls/common/status:status_macros",
@@ -185,13 +200,13 @@ xls_pybind_extension(
 xls_pybind_extension(
     name = "interp_bindings",
     srcs = [
-        "cpp_ast.h",
         "interp_bindings.cc",
     ],
     py_deps = [
         ":cpp_ast",  # build_cleaner: keep
     ],
     deps = [
+        ":cpp_ast_header",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/strings",
         "//xls/common/status:status_macros",
@@ -204,13 +219,13 @@ xls_pybind_extension(
     name = "builtins",
     srcs = [
         "builtins.cc",
-        "cpp_ast.h",
     ],
     py_deps = [
         ":cpp_ast",  # build_cleaner: keep
         ":interp_value",  # build_cleaner: keep
     ],
     deps = [
+        ":cpp_ast_header",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/strings",
         "//xls/common/status:status_macros",
@@ -220,12 +235,24 @@ xls_pybind_extension(
     ],
 )
 
+cc_library(
+    name = "callback_converters",
+    srcs = ["callback_converters.cc"],
+    hdrs = ["callback_converters.h"],
+    copts = ["-fexceptions"],
+    features = ["-use_header_modules"],
+    deps = [
+        ":cpp_ast_header",
+        "//xls/common/status:ret_check",
+        "//xls/dslx:cpp_evaluate",
+        "//xls/dslx:cpp_type_info",
+        "//xls/dslx:interp_value",
+    ],
+)
+
 xls_pybind_extension(
     name = "import_routines",
     srcs = [
-        "callback_converters.cc",
-        "callback_converters.h",
-        "cpp_ast.h",
         "import_routines.cc",
     ],
     py_deps = [
@@ -234,6 +261,8 @@ xls_pybind_extension(
         ":interp_value",  # build_cleaner: keep
     ],
     deps = [
+        ":callback_converters",
+        ":cpp_ast_header",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -250,9 +279,6 @@ xls_pybind_extension(
 xls_pybind_extension(
     name = "cpp_evaluate",
     srcs = [
-        "callback_converters.cc",
-        "callback_converters.h",
-        "cpp_ast.h",
         "cpp_evaluate.cc",
     ],
     py_deps = [
@@ -262,6 +288,8 @@ xls_pybind_extension(
         ":cpp_concrete_type",  # build_cleaner: keep
     ],
     deps = [
+        ":callback_converters",
+        ":cpp_ast_header",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

@@ -358,19 +358,6 @@ class Interpreter:
     assert isinstance(named_tuple, Value), named_tuple
     return named_tuple
 
-  def _evaluate_Attr(  # pylint: disable=invalid-name
-      self,
-      expr: ast.Attr,
-      bindings: Bindings,
-      type_context: Optional[ConcreteType]  # pylint: disable=unused-argument
-  ) -> Value:
-    """Evaluates an attribute-accessing AST node to a value."""
-    lhs_value = self._evaluate(expr.lhs, bindings)
-    index = next(
-        i for i, name in enumerate(self._type_info[expr.lhs].tuple_names)  # pytype: disable=attribute-error
-        if name == expr.attr.identifier)
-    return lhs_value.get_elements()[index]
-
   def _evaluate_XlsTuple(  # pylint: disable=invalid-name
       self, expr: ast.XlsTuple, bindings: Bindings,
       type_context: Optional[ConcreteType]) -> Value:
@@ -886,8 +873,11 @@ class Interpreter:
     typecheck = getattr(self._f_import, '_typecheck', None)
     cache = getattr(self._f_import, '_cache', None)
 
+    def get_type_info() -> type_info_mod.TypeInfo:
+      return self._type_info
+
     return cpp_evaluate.InterpCallbackData(typecheck, self._evaluate, is_wip,
-                                           note_wip, cache)
+                                           note_wip, get_type_info, cache)
 
   def _make_top_level_bindings(self, m: ast.Module) -> Bindings:
     """Creates a fresh set of bindings for use in module-level evaluation.

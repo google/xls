@@ -169,7 +169,8 @@ PYBIND11_MODULE(cpp_concrete_type, m) {
           })
       .def_property_readonly(
           "tuple_names", [](const TupleType& t) -> absl::StatusOr<py::tuple> {
-            XLS_ASSIGN_OR_RETURN(std::vector<std::string> names, t.GetNames());
+            XLS_ASSIGN_OR_RETURN(std::vector<std::string> names,
+                                 t.GetMemberNames());
             py::tuple result(names.size());
             for (int64 i = 0; i < names.size(); ++i) {
               result[i] = names[i];

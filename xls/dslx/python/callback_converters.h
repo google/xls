@@ -31,6 +31,7 @@ using PyIsWipFn = std::function<bool(ConstantDefHolder)>;
 using PyNoteWipFn = std::function<absl::optional<InterpValue>(
     ConstantDefHolder, absl::optional<InterpValue>)>;
 using PyEvaluateFn = std::function<InterpValue(ExprHolder, InterpBindings*)>;
+using PyGetTypeFn = std::function<std::shared_ptr<TypeInfo>()>;
 
 // Converts a Python typecheck callback into a "C++ signature" function.
 TypecheckFn ToCppTypecheck(const PyTypecheckFn& py);

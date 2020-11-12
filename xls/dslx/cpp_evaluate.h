@@ -59,12 +59,16 @@ using NoteWipFn = std::function<absl::optional<InterpValue>(
 using EvaluateFn =
     std::function<absl::StatusOr<InterpValue>(Expr*, InterpBindings*)>;
 
+// Callback used to retrieve type information (from the interpreter state).
+using GetTypeFn = std::function<std::shared_ptr<TypeInfo>()>;
+
 // Bundles up the above callbacks so they can be passed around as a unit.
 struct InterpCallbackData {
   TypecheckFn typecheck;
   EvaluateFn eval;
   IsWipFn is_wip;
   NoteWipFn note_wip;
+  GetTypeFn get_type_info;
   ImportCache* cache;
 };
 
@@ -78,6 +82,11 @@ absl::StatusOr<InterpValue> EvaluateEnumRef(EnumRef* expr,
 absl::StatusOr<InterpValue> EvaluateBinop(Binop* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
                                           InterpCallbackData* callbacks);
+
+// Evaluates an attribute expression; e.g. `x.y`.
+absl::StatusOr<InterpValue> EvaluateAttr(Attr* expr, InterpBindings* bindings,
+                                         ConcreteType* type_context,
+                                         InterpCallbackData* callbacks);
 
 // Creates the top level bindings for a given module. We may not be able to
 // create a *complete* set of bindings if we've re-entered this routine; e.g. in
