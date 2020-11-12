@@ -45,8 +45,7 @@ absl::StatusOr<InterpValue> EvaluateNameRef(NameRef* expr,
 // in the process of being evaluated -- this lets us detect re-entry (i.e. a top
 // level constant that wants our top-level bindings to do the evaluation needs
 // to make forward progress using definitions previous to it in the file).
-using IsWipFn =
-    std::function<bool(const std::shared_ptr<Module>&, ConstantDef*)>;
+using IsWipFn = std::function<bool(ConstantDef*)>;
 
 // Callback used to note that a constant evaluation is "work in progress"
 // (underway) -- this is noted by passing nullopt before a call to evaluate it.
@@ -54,11 +53,11 @@ using IsWipFn =
 // given value. If this callback returns a non-nullopt value, the constant had
 // already been evaluated (and was cached).
 using NoteWipFn = std::function<absl::optional<InterpValue>(
-    const std::shared_ptr<Module>&, ConstantDef*, absl::optional<InterpValue>)>;
+    ConstantDef*, absl::optional<InterpValue>)>;
 
 // Callback used to evaluate an expression (e.g. a constant at the top level).
-using EvaluateFn = std::function<absl::StatusOr<InterpValue>(
-    const std::shared_ptr<Module>&, Expr*, InterpBindings*)>;
+using EvaluateFn =
+    std::function<absl::StatusOr<InterpValue>(Expr*, InterpBindings*)>;
 
 // Bundles up the above callbacks so they can be passed around as a unit.
 struct InterpCallbackData {
@@ -74,6 +73,11 @@ absl::StatusOr<InterpValue> EvaluateEnumRef(EnumRef* expr,
                                             InterpBindings* bindings,
                                             ConcreteType* type_context,
                                             InterpCallbackData* callbacks);
+
+// Evaluates a binary operation expression; e.g. `x + y`.
+absl::StatusOr<InterpValue> EvaluateBinop(Binop* expr, InterpBindings* bindings,
+                                          ConcreteType* type_context,
+                                          InterpCallbackData* callbacks);
 
 // Creates the top level bindings for a given module. We may not be able to
 // create a *complete* set of bindings if we've re-entered this routine; e.g. in

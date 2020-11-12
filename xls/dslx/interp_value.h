@@ -110,9 +110,8 @@ class InterpValue {
   static InterpValue MakeU64(uint64 value) {
     return MakeUBits(/*bit_count=*/64, value);
   }
-  static InterpValue MakeEnum(const Bits& bits, EnumDef* type,
-                              const std::shared_ptr<Module>& type_module) {
-    return InterpValue(InterpValueTag::kEnum, bits, type, type_module);
+  static InterpValue MakeEnum(const Bits& bits, EnumDef* type) {
+    return InterpValue(InterpValueTag::kEnum, bits, type);
   }
   static InterpValue MakeTuple(std::vector<InterpValue> members);
   static absl::StatusOr<InterpValue> MakeArray(
@@ -248,7 +247,6 @@ class InterpValue {
   // For enum values, the enum that the bit pattern is interpreted by is
   // referred to by the interpreter value.
   EnumDef* type() const { return type_; }
-  const std::shared_ptr<Module>& type_module() const { return type_module_; }
 
   // Note: different from IsBits() which is checking whether the tag is sbits or
   // ubits; this is checking whether there are bits in the payload, which would
@@ -263,14 +261,8 @@ class InterpValue {
 
   using Payload = absl::variant<Bits, std::vector<InterpValue>, FnData>;
 
-  InterpValue(InterpValueTag tag, Payload payload, EnumDef* type = nullptr,
-              std::shared_ptr<Module> type_module = nullptr)
-      : tag_(tag),
-        payload_(std::move(payload)),
-        type_(type),
-        type_module_(type_module) {
-    XLS_CHECK((type_ == nullptr) == (type_module_ == nullptr));
-  }
+  InterpValue(InterpValueTag tag, Payload payload, EnumDef* type = nullptr)
+      : tag_(tag), payload_(std::move(payload)), type_(type) {}
 
   using CompareF = bool (*)(const Bits& lhs, const Bits& rhs);
 
@@ -289,7 +281,6 @@ class InterpValue {
   // migrated to C++ we can use lifetime assumptions as is more typical in C++
   // land, this is done for Python interop.
   EnumDef* type_ = nullptr;
-  std::shared_ptr<Module> type_module_ = nullptr;
 };
 
 }  // namespace xls::dslx

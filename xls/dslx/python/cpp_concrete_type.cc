@@ -116,10 +116,9 @@ PYBIND11_MODULE(cpp_concrete_type, m) {
           },
           py::return_value_policy::reference_internal)
       .def("get_nominal_type",
-           [](const TupleType& t,
-              ModuleHolder module) -> absl::optional<StructDefHolder> {
+           [](const TupleType& t) -> absl::optional<StructDefHolder> {
              if (StructDef* s = t.nominal_type()) {
-               return StructDefHolder(s, module.module());
+               return StructDefHolder(s, s->owner()->shared_from_this());
              }
              return absl::nullopt;
            })
@@ -232,10 +231,9 @@ PYBIND11_MODULE(cpp_concrete_type, m) {
         return EnumType(&enum_.deref(), ConcreteTypeDim(bit_count));
       }))
       .def("get_nominal_type",
-           [](const EnumType& t,
-              ModuleHolder module) -> absl::optional<EnumDefHolder> {
+           [](const EnumType& t) -> absl::optional<EnumDefHolder> {
              if (EnumDef* e = t.nominal_type()) {
-               return EnumDefHolder(e, module.module());
+               return EnumDefHolder(e, e->owner()->shared_from_this());
              }
              return absl::nullopt;
            })

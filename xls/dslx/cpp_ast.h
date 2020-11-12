@@ -1877,7 +1877,13 @@ absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node);
 //     level (e.g. metadata, docstrings).
 class Module : public AstNode, public std::enable_shared_from_this<Module> {
  public:
-  explicit Module(std::string name) : AstNode(this), name_(std::move(name)) {}
+  explicit Module(std::string name) : AstNode(this), name_(std::move(name)) {
+    XLS_VLOG(3) << "Created module \"" << name_ << "\" @ " << this;
+  }
+
+  ~Module() {
+    XLS_VLOG(3) << "Destroying module \"" << name_ << "\" @ " << this;
+  }
 
   absl::string_view GetNodeTypeName() const override { return "Module"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;

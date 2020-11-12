@@ -71,10 +71,69 @@ absl::StatusOr<InterpValue> EvaluateEnumRef(EnumRef* expr,
       ConcretizeTypeAnnotation(enum_def->type(), &fresh_bindings, callbacks));
   Expr* value_expr = ToExprNode(value_node);
   XLS_ASSIGN_OR_RETURN(InterpValue raw_value,
-                       callbacks->eval(value_expr->owner()->shared_from_this(),
-                                       value_expr, &fresh_bindings));
-  return InterpValue::MakeEnum(raw_value.GetBitsOrDie(), enum_def,
-                               enum_def->owner()->shared_from_this());
+                       callbacks->eval(value_expr, &fresh_bindings));
+  return InterpValue::MakeEnum(raw_value.GetBitsOrDie(), enum_def);
+}
+
+absl::StatusOr<InterpValue> EvaluateBinop(Binop* expr, InterpBindings* bindings,
+                                          ConcreteType* type_context,
+                                          InterpCallbackData* callbacks) {
+  XLS_ASSIGN_OR_RETURN(InterpValue lhs, callbacks->eval(expr->lhs(), bindings));
+  XLS_ASSIGN_OR_RETURN(InterpValue rhs, callbacks->eval(expr->rhs(), bindings));
+
+  // Check some preconditions; e.g. all logical operands are guaranteed to have
+  // single-bit inputs by type checking so we can share the implementation with
+  // bitwise or/and.
+  switch (expr->kind()) {
+    case BinopKind::kLogicalOr:
+    case BinopKind::kLogicalAnd:
+      XLS_RET_CHECK_EQ(lhs.GetBitCount().value(), 1);
+      XLS_RET_CHECK_EQ(rhs.GetBitCount().value(), 1);
+      break;
+    default:
+      break;
+  }
+
+  switch (expr->kind()) {
+    case BinopKind::kAdd:
+      return lhs.Add(rhs);
+    case BinopKind::kSub:
+      return lhs.Sub(rhs);
+    case BinopKind::kConcat:
+      return lhs.Concat(rhs);
+    case BinopKind::kMul:
+      return lhs.Mul(rhs);
+    case BinopKind::kDiv:
+      return lhs.FloorDiv(rhs);
+    case BinopKind::kOr:
+    case BinopKind::kLogicalOr:
+      return lhs.BitwiseOr(rhs);
+    case BinopKind::kAnd:
+    case BinopKind::kLogicalAnd:
+      return lhs.BitwiseAnd(rhs);
+    case BinopKind::kXor:
+      return lhs.BitwiseXor(rhs);
+    case BinopKind::kShll:
+      return lhs.Shll(rhs);
+    case BinopKind::kShrl:
+      return lhs.Shrl(rhs);
+    case BinopKind::kShra:
+      return lhs.Shra(rhs);
+    case BinopKind::kEq:
+      return Value::MakeBool(lhs.Eq(rhs));
+    case BinopKind::kNe:
+      return Value::MakeBool(lhs.Ne(rhs));
+    case BinopKind::kGt:
+      return lhs.Gt(rhs);
+    case BinopKind::kLt:
+      return lhs.Lt(rhs);
+    case BinopKind::kLe:
+      return lhs.Le(rhs);
+    case BinopKind::kGe:
+      return lhs.Ge(rhs);
+  }
+  return absl::InternalError(absl::StrCat("Invalid binary operation kind: ",
+                                          static_cast<int64>(expr->kind())));
 }
 
 absl::StatusOr<InterpBindings> MakeTopLevelBindings(
@@ -114,7 +173,7 @@ absl::StatusOr<InterpBindings> MakeTopLevelBindings(
                 << ToAstNode(member)->ToString();
     if (absl::holds_alternative<ConstantDef*>(member)) {
       auto* constant_def = absl::get<ConstantDef*>(member);
-      if (callbacks->is_wip(module, constant_def)) {
+      if (callbacks->is_wip(constant_def)) {
         XLS_VLOG(3) << "Saw WIP constant definition; breaking early! "
                     << constant_def->ToString();
         break;
@@ -122,14 +181,14 @@ absl::StatusOr<InterpBindings> MakeTopLevelBindings(
       XLS_VLOG(3) << "MakeTopLevelBindings evaluating: "
                   << constant_def->ToString();
       absl::optional<InterpValue> precomputed =
-          callbacks->note_wip(module, constant_def, absl::nullopt);
+          callbacks->note_wip(constant_def, absl::nullopt);
       absl::optional<InterpValue> result;
       if (precomputed.has_value()) {  // If we already computed it, use that.
         result = precomputed.value();
       } else {  // Otherwise, evaluate it and make a note.
-        XLS_ASSIGN_OR_RETURN(
-            result, callbacks->eval(module, constant_def->value(), &b));
-        callbacks->note_wip(module, constant_def, *result);
+        XLS_ASSIGN_OR_RETURN(result,
+                             callbacks->eval(constant_def->value(), &b));
+        callbacks->note_wip(constant_def, *result);
       }
       XLS_CHECK(result.has_value());
       b.AddValue(constant_def->identifier(), *result);

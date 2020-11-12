@@ -93,7 +93,7 @@ class _ParametricInstantiator:
             self.bit_widths,
             constraint,
             fn_ctx=fn_ctx)
-      except KeyError as e:
+      except KeyError:
         # We haven't seen enough bindings to evaluate this constraint.
         continue
 
@@ -190,14 +190,13 @@ class _ParametricInstantiator:
     if isinstance(param_type, BitsType):
       self._symbolic_bind_bits(param_type, arg_type)
     elif isinstance(param_type, EnumType):
-      assert param_type.get_nominal_type(
-          self.ctx.module) == arg_type.get_nominal_type(self.ctx.module)
+      assert param_type.get_nominal_type() == arg_type.get_nominal_type()
       # If the enums are the same, we do the same thing as we do with bits
       # (ignore the primitive and symbolic bind the dims).
       self._symbolic_bind_bits(param_type, arg_type)
     elif isinstance(param_type, TupleType):
-      param_nominal = param_type.get_nominal_type(self.ctx.module)
-      arg_nominal = arg_type.get_nominal_type(self.ctx.module)
+      param_nominal = param_type.get_nominal_type()
+      arg_nominal = arg_type.get_nominal_type()
       logging.vlog(3, 'param nominal %s arg nominal %s', param_nominal,
                    arg_nominal)
       if param_nominal != arg_nominal:

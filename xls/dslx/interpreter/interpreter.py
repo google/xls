@@ -31,7 +31,6 @@ from absl import logging
 import termcolor
 
 from xls.dslx import ast_helpers
-from xls.dslx import import_fn
 from xls.dslx import ir_name_mangler
 from xls.dslx.concrete_type_helpers import map_size
 from xls.dslx.interpreter import jit_comparison
@@ -62,7 +61,7 @@ from xls.ir.python import package as ir_package_mod
 from xls.jit.python import ir_jit
 
 
-class _WipSentinel(object):
+class _WipSentinel:
   """Marker to show that something is the in process of being evaluated."""
 
 
@@ -70,7 +69,7 @@ ImportSubject = Tuple[Text, ...]
 ImportInfo = Tuple[ast.Module, type_info_mod.TypeInfo]
 
 
-class Interpreter(object):
+class Interpreter:
   """Object that interprets an AST of expressions to evaluate it to a value."""
 
   def __init__(self,
@@ -92,7 +91,7 @@ class Interpreter(object):
     if not isinstance(type_, EnumType):
       return None
 
-    enum = type_.get_nominal_type(self._module)
+    enum = type_.get_nominal_type()
     result = []
     for member in enum.values:
       _, value = member.get_name_value(enum)
@@ -418,50 +417,6 @@ class Interpreter(object):
     if expr.kind == ast.UnopKind.NEG:
       return operand_value.arithmetic_negate()
     raise NotImplementedError('Unimplemented unop.', expr.kind)
-
-  def _evaluate_Binop(  # pylint: disable=invalid-name
-      self, expr: ast.Binop, bindings: Bindings,
-      _: Optional[ConcreteType]) -> Value:
-    """Evaluates a 'Binop' AST node to a value."""
-    lhs_value = self._evaluate(expr.lhs, bindings)
-    rhs_value = self._evaluate(expr.rhs, bindings)
-    if expr.kind == ast.BinopKind.ADD:
-      result = lhs_value.add(rhs_value)
-    elif expr.kind == ast.BinopKind.SUB:
-      result = lhs_value.sub(rhs_value)
-    elif expr.kind == ast.BinopKind.CONCAT:
-      result = lhs_value.concat(rhs_value)
-    elif expr.kind == ast.BinopKind.MUL:
-      result = lhs_value.mul(rhs_value)
-    elif expr.kind == ast.BinopKind.DIV:
-      result = lhs_value.floordiv(rhs_value)
-    elif expr.kind in (ast.BinopKind.OR, ast.BinopKind.LOGICAL_OR):
-      result = lhs_value.bitwise_or(rhs_value)
-    elif expr.kind in (ast.BinopKind.AND, ast.BinopKind.LOGICAL_AND):
-      result = lhs_value.bitwise_and(rhs_value)
-    elif expr.kind == ast.BinopKind.XOR:
-      result = lhs_value.bitwise_xor(rhs_value)
-    elif expr.kind == ast.BinopKind.SHLL:  # <<
-      result = lhs_value.shll(rhs_value)
-    elif expr.kind == ast.BinopKind.SHRL:  # >>
-      result = lhs_value.shrl(rhs_value)
-    elif expr.kind == ast.BinopKind.SHRA:  # >>>
-      result = lhs_value.shra(rhs_value)
-    elif expr.kind == ast.BinopKind.EQ:  # ==
-      result = lhs_value.eq(rhs_value)
-    elif expr.kind == ast.BinopKind.NE:  # !=
-      result = lhs_value.ne(rhs_value)
-    elif expr.kind == ast.BinopKind.GT:  # >
-      result = lhs_value.gt(rhs_value)
-    elif expr.kind == ast.BinopKind.LT:  # <
-      result = lhs_value.lt(rhs_value)
-    elif expr.kind == ast.BinopKind.LE:  # <=
-      result = lhs_value.le(rhs_value)
-    elif expr.kind == ast.BinopKind.GE:  # >=
-      result = lhs_value.ge(rhs_value)
-    else:
-      raise NotImplementedError('Unimplemented binop', expr.kind)
-    return result
 
   def _evaluate_For(  # pylint: disable=invalid-name
       self, expr: ast.For, bindings: Bindings,
@@ -897,16 +852,6 @@ class Interpreter(object):
 
     return interpreter_value
 
-  def _do_import(self, subject: import_fn.ImportTokens,
-                 span: Span) -> ast.Module:
-    """Handles an import as specified by a top level module statement."""
-    if self._f_import is None:
-      raise EvaluateError(span,
-                          'Cannot import, no import capability was provided.')
-    imported_module, imported_type_info = self._f_import(subject)
-    self._type_info.update(imported_type_info)
-    return imported_module
-
   def _get_callbacks(self) -> cpp_evaluate.InterpCallbackData:
     """Returns a set of callbacks that cpp_evaluate can use.
 
@@ -914,29 +859,27 @@ class Interpreter(object):
     before things have been fully ported over.
     """
 
-    def is_wip(m: ast.Module, c: ast.Constant) -> Optional[Value]:
+    def is_wip(c: ast.Constant) -> Optional[Value]:
       """Returns whether the constant is in the process of being computed."""
-      status = self._wip.get((m, c))
-      logging.vlog(3, 'Constant eval status %r %r: %r', m, c, status)
+      status = self._wip.get(c)
+      logging.vlog(3, 'Constant eval status %r: %r', c, status)
       return status is _WipSentinel
 
-    def note_wip(m: ast.Module, c: ast.Constant,
-                 v: Optional[Value]) -> Optional[Value]:
-      assert isinstance(m, ast.Module), repr(m)
+    def note_wip(c: ast.Constant, v: Optional[Value]) -> Optional[Value]:
       assert isinstance(c, ast.Constant), repr(c)
       assert v is None or isinstance(v, Value), repr(v)
 
       if v is None:  # Starting evaluation, attempting to mark as WIP.
-        current = self._wip.get((m, c))
+        current = self._wip.get(c)
         if current is not None and current is not _WipSentinel:
           assert isinstance(current, Value), repr(current)
           return current  # Already computed.
-        logging.vlog(3, 'Noting WIP constant eval: %r %r', m, c)
-        self._wip[(m, c)] = _WipSentinel
+        logging.vlog(3, 'Noting WIP constant eval: %r', c)
+        self._wip[c] = _WipSentinel
         return None
 
-      logging.vlog(3, 'Noting complete constant eval: %r %r => %r', m, c, v)
-      self._wip[(m, c)] = v
+      logging.vlog(3, 'Noting complete constant eval: %r => %r', c, v)
+      self._wip[c] = v
       return v
 
     # Hack to avoid circular dependency on the importer definition.

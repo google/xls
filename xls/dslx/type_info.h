@@ -134,7 +134,15 @@ class TypeInfo {
   //    then performed in the parent, and so on transitively).
   explicit TypeInfo(const std::shared_ptr<Module>& module,
                     std::shared_ptr<TypeInfo> parent = nullptr)
-      : module_(module), parent_(parent) {}
+      : module_(module), parent_(parent) {
+    XLS_VLOG(3) << "Created type info for module \"" << module_->name()
+                << "\" @ " << this << " parent " << parent.get();
+  }
+
+  ~TypeInfo() {
+    XLS_VLOG(3) << "Destroying type info for module \"" << module_->name()
+                << "\" @ " << this << " parent " << parent_.get();
+  }
 
   // Type information can be "differential"; e.g. when we obtain type
   // information for a particular parametric instantiation the type information

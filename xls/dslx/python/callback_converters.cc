@@ -37,26 +37,25 @@ TypecheckFn ToCppTypecheck(const PyTypecheckFn& py_typecheck) {
 }
 
 EvaluateFn ToCppEval(const PyEvaluateFn& py) {
-  return [py](const std::shared_ptr<Module>& module, Expr* expr,
-              InterpBindings* bindings) {
-    return py(ExprHolder(expr, module), bindings);
+  return [py](Expr* expr, InterpBindings* bindings) {
+    return py(ExprHolder(expr, expr->owner()->shared_from_this()), bindings);
   };
 }
 
 IsWipFn ToCppIsWip(const PyIsWipFn& py) {
-  return [py](const std::shared_ptr<Module>& module,
-              ConstantDef* constant_def) -> bool {
-    return py(ModuleHolder(module.get(), module),
-              ConstantDefHolder(constant_def, module));
+  return [py](ConstantDef* constant_def) -> bool {
+    return py(ConstantDefHolder(constant_def,
+                                constant_def->owner()->shared_from_this()));
   };
 }
 
 NoteWipFn ToCppNoteWip(const PyNoteWipFn& py) {
   return
-      [py](const std::shared_ptr<Module>& module, ConstantDef* constant_def,
+      [py](ConstantDef* constant_def,
            absl::optional<InterpValue> value) -> absl::optional<InterpValue> {
-        return py(ModuleHolder(module.get(), module),
-                  ConstantDefHolder(constant_def, module), value);
+        return py(ConstantDefHolder(constant_def,
+                                    constant_def->owner()->shared_from_this()),
+                  value);
       };
 }
 

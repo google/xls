@@ -27,9 +27,9 @@ namespace xls::dslx {
 
 using PyTypecheckFn =
     std::function<std::shared_ptr<TypeInfo>(ModuleHolder module)>;
-using PyIsWipFn = std::function<bool(ModuleHolder, ConstantDefHolder)>;
+using PyIsWipFn = std::function<bool(ConstantDefHolder)>;
 using PyNoteWipFn = std::function<absl::optional<InterpValue>(
-    ModuleHolder, ConstantDefHolder, absl::optional<InterpValue>)>;
+    ConstantDefHolder, absl::optional<InterpValue>)>;
 using PyEvaluateFn = std::function<InterpValue(ExprHolder, InterpBindings*)>;
 
 // Converts a Python typecheck callback into a "C++ signature" function.

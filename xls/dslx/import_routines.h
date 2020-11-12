@@ -70,7 +70,12 @@ class ImportTokens {
 // into.
 class ImportCache {
  public:
-  ~ImportCache() { Clear(); }
+  ImportCache() { XLS_VLOG(3) << "Creating ImportCache @ " << this; }
+
+  ~ImportCache() {
+    XLS_VLOG(3) << "Destroying ImportCache @ " << this;
+    Clear();
+  }
 
   bool Contains(const ImportTokens& target) const {
     return cache_.find(target) != cache_.end();

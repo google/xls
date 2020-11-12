@@ -792,7 +792,7 @@ def _deduce_EnumRef(self: ast.EnumRef, ctx: DeduceCtx) -> ConcreteType:  # pytyp
 
   # Check the name we're accessing is actually defined on the enum.
   assert isinstance(result, EnumType), result
-  enum = result.get_nominal_type(ctx.module)
+  enum = result.get_nominal_type()
   assert isinstance(enum, ast.EnumDef), enum
   name = self.value
   if not enum.has_value(name):
@@ -1056,7 +1056,7 @@ def _deduce_Binop(self: ast.Binop, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
         self.span, resolved_lhs_type, None,
         "Cannot use '{}' on values with enum type {}".format(
             self.kind.value,
-            lhs_type.get_nominal_type(ctx.module).identifier))
+            lhs_type.get_nominal_type().identifier))
 
   if self.kind in ast_helpers.BINOP_COMPARISON_KINDS:
     return ConcreteType.U1

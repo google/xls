@@ -141,7 +141,7 @@ def _value_compatible_with_type(module: ast.Module, type_: ConcreteType,
         for m in value.get_elements())
 
   if isinstance(type_, EnumType) and value.tag == Tag.ENUM:
-    return type_.get_nominal_type(module) == value.get_type()
+    return type_.get_nominal_type() == value.get_type()
 
   if isinstance(type_,
                 BitsType) and not type_.signed and value.tag == Tag.UBITS:
@@ -203,7 +203,7 @@ def concrete_type_convert_value(module: ast.Module, type_: ConcreteType,
       value.get_bit_count() == type_.get_total_bit_count().value):
     # Check that the bits we're converting from are present in the enum type
     # we're converting to.
-    nominal_type = type_.get_nominal_type(module)
+    nominal_type = type_.get_nominal_type()
     for enum_value in enum_values:
       if value.get_bits() == enum_value.get_bits():
         break

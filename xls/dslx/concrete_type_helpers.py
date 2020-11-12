@@ -41,14 +41,14 @@ def map_size(t: ConcreteType, m: ast.Module, f: Callable[[Dim],
   elif isinstance(t, BitsType):
     return BitsType(t.signed, f(t.size))
   elif isinstance(t, TupleType):
-    nominal = t.get_nominal_type(m)
+    nominal = t.get_nominal_type()
     if t.named:
       return TupleType(
           tuple((name, rec(type_)) for name, type_ in t.members), nominal)
     assert nominal is None, nominal
     return TupleType(tuple(rec(e) for e in t.members))
   elif isinstance(t, EnumType):
-    return EnumType(t.get_nominal_type(m), f(t.size))
+    return EnumType(t.get_nominal_type(), f(t.size))
   elif isinstance(t, FunctionType):
     mapped_params = tuple(rec(p) for p in t.params)
     mapped_return_type = rec(t.return_type)
