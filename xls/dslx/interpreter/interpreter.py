@@ -56,7 +56,6 @@ from xls.dslx.python.interp_bindings import FnCtx
 from xls.dslx.python.interp_value import Builtin
 from xls.dslx.python.interp_value import Tag
 from xls.dslx.python.interp_value import Value
-from xls.ir.python import bits as ir_bits
 from xls.ir.python import package as ir_package_mod
 from xls.jit.python import ir_jit
 
@@ -113,47 +112,6 @@ class Interpreter:
         self._get_enum_values(type_, bindings),
         value.get_type().get_signedness() if value.get_type() else None)
 
-  def _evaluate_index_widthslice(self, expr: ast.Index, bindings: Bindings,
-                                 bits: ir_bits.Bits) -> Value:
-    """Evaluates a WidthSlice expression on a bits value."""
-    index_slice = expr.index
-    assert isinstance(index_slice, ast.WidthSlice), index_slice
-    start = self._evaluate(index_slice.start, bindings,
-                           BitsType(signed=False, size=bits.bit_count()))
-    width_type = self._evaluate_TypeAnnotation(index_slice.width, bindings)
-    start_index = start.get_bit_value_uint64()
-    width_value = width_type.get_total_bit_count().value
-    if start_index >= bits.bit_count():
-      # Return early to potentially avoid an unreasonably long zero extend (e.g.
-      # if the start index was a large negative number).
-      return Value.make_ubits(value=0, bit_count=width_value)
-    # Slicing off the end zero-fills, so we zext.
-    if start_index + width_value > bits.bit_count():
-      bits = bits.zero_ext(start_index + width_value)
-    result = bits.slice(start_index, width_value)
-    tag = Tag.SBITS if width_type.get_signedness() else Tag.UBITS
-    return Value.make_bits(tag, result)
-
-  def _evaluate_Index(  # pylint: disable=invalid-name
-      self, expr: ast.Index, bindings: Bindings,
-      _: Optional[ConcreteType]) -> Value:
-    """Evaluates an index expression; e.g. `lhs[index]`."""
-    lhs = self._evaluate(expr.lhs, bindings)
-    if lhs.is_bits() and isinstance(expr.index, ast.Slice):
-      return cpp_evaluate.evaluate_index_bitslice(self._type_info, expr,
-                                                  bindings, lhs.get_bits())
-    if lhs.is_bits() and isinstance(expr.index, ast.WidthSlice):
-      return self._evaluate_index_widthslice(expr, bindings, lhs.get_bits())
-    assert lhs.is_tuple() or lhs.is_array(), lhs
-    # Note: since we permit a type-unannotated literal number we provide a type
-    # context here.
-    index = self._evaluate(expr.index, bindings, ConcreteType.U32)
-    if index.get_bit_value_uint64() >= len(lhs):
-      raise EvaluateError(
-          expr.span, 'Indexing out of bounds; {} > {}'.format(index, len(lhs)))
-    result = lhs.index(index)
-    return result
-
   def _evaluate_Let(  # pylint: disable=invalid-name
       self, expr: ast.Let, bindings: Bindings,
       type_context: Optional[ConcreteType]) -> Value:
@@ -174,14 +132,6 @@ class Interpreter:
     new_bindings = bindings.clone_with(expr.name_def_tree, to_bind)
     result = self._evaluate(expr.body, new_bindings, type_context)
     return result
-
-  def _get_imported_module_via_bindings(
-      self, import_: ast.Import,
-      bindings: Bindings) -> Tuple[ast.Module, Bindings]:
-    """Uses bindings to retrieve the corresponding module of a ModRef."""
-    imported_module = bindings.resolve_mod(import_.identifier)
-    logging.vlog(3, 'Resolved import %s to %r', import_, imported_module)
-    return imported_module, self._make_top_level_bindings(imported_module)
 
   def _concretize(self, type_, bindings: Bindings) -> ConcreteType:
     """Resolves type_ into a concrete type via expression evaluation."""

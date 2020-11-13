@@ -73,11 +73,6 @@ PYBIND11_MODULE(cpp_evaluate, m) {
       .def(py::init<absl::optional<PyTypecheckFn>, PyEvaluateFn, PyIsWipFn,
                     PyNoteWipFn, PyGetTypeFn, absl::optional<ImportCache*>>());
 
-  m.def("evaluate_index_bitslice", [](TypeInfo* type_info, IndexHolder expr,
-                                      InterpBindings* bindings,
-                                      const Bits& bits) {
-    return EvaluateIndexBitslice(type_info, &expr.deref(), bindings, bits);
-  });
   m.def(
       "evaluate_ConstRef",
       [](ConstRefHolder expr, InterpBindings* bindings,
@@ -165,6 +160,19 @@ PYBIND11_MODULE(cpp_evaluate, m) {
         InterpCallbackData callbacks = ToCpp(*py_callbacks);
         auto statusor =
             EvaluateMatch(&expr.deref(), bindings, type_context, &callbacks);
+        TryThrowFailureError(statusor.status());
+        TryThrowKeyError(statusor.status());
+        return statusor;
+      },
+      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
+      py::arg("callbacks"));
+  m.def(
+      "evaluate_Index",
+      [](IndexHolder expr, InterpBindings* bindings, ConcreteType* type_context,
+         PyInterpCallbackData* py_callbacks) {
+        InterpCallbackData callbacks = ToCpp(*py_callbacks);
+        auto statusor =
+            EvaluateIndex(&expr.deref(), bindings, type_context, &callbacks);
         TryThrowFailureError(statusor.status());
         TryThrowKeyError(statusor.status());
         return statusor;

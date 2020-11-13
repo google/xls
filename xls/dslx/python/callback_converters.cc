@@ -37,8 +37,10 @@ TypecheckFn ToCppTypecheck(const PyTypecheckFn& py_typecheck) {
 }
 
 EvaluateFn ToCppEval(const PyEvaluateFn& py) {
-  return [py](Expr* expr, InterpBindings* bindings) {
-    return py(ExprHolder(expr, expr->owner()->shared_from_this()), bindings);
+  return [py](Expr* expr, InterpBindings* bindings,
+              std::unique_ptr<ConcreteType> type_context) {
+    return py(ExprHolder(expr, expr->owner()->shared_from_this()), bindings,
+              std::move(type_context));
   };
 }
 

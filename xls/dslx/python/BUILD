@@ -43,10 +43,8 @@ cc_library(
     copts = ["-fexceptions"],
     features = ["-use_header_modules"],
     deps = [
-        "@com_google_absl//absl/base",
-        "//xls/dslx:cpp_ast",
+        "@com_google_absl//absl/strings",
         "//xls/dslx:cpp_bindings",
-        "@pybind11",
     ],
 )
 

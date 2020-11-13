@@ -16,6 +16,7 @@
 
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/type_info.h"
+#include "xls/ir/bits_ops.h"
 
 namespace xls::dslx {
 namespace {
@@ -24,23 +25,6 @@ using Value = InterpValue;
 using Tag = InterpValueTag;
 
 }  // namespace
-
-absl::StatusOr<InterpValue> EvaluateIndexBitslice(TypeInfo* type_info,
-                                                  Index* expr,
-                                                  InterpBindings* bindings,
-                                                  const Bits& bits) {
-  IndexRhs index = expr->rhs();
-  XLS_RET_CHECK(absl::holds_alternative<Slice*>(index));
-  auto index_slice = absl::get<Slice*>(index);
-
-  const SymbolicBindings& sym_bindings = bindings->fn_ctx()->sym_bindings;
-
-  absl::optional<SliceData::StartWidth> maybe_saw =
-      type_info->GetSliceStartWidth(index_slice, sym_bindings);
-  XLS_RET_CHECK(maybe_saw.has_value());
-  const auto& saw = maybe_saw.value();
-  return Value::MakeBits(Tag::kUBits, bits.Slice(saw.start, saw.width));
-}
 
 absl::StatusOr<InterpValue> EvaluateNameRef(NameRef* expr,
                                             InterpBindings* bindings,
@@ -71,7 +55,7 @@ absl::StatusOr<InterpValue> EvaluateEnumRef(EnumRef* expr,
       ConcretizeTypeAnnotation(enum_def->type(), &fresh_bindings, callbacks));
   Expr* value_expr = ToExprNode(value_node);
   XLS_ASSIGN_OR_RETURN(InterpValue raw_value,
-                       callbacks->eval(value_expr, &fresh_bindings));
+                       callbacks->Eval(value_expr, &fresh_bindings));
   return InterpValue::MakeEnum(raw_value.GetBitsOrDie(), enum_def);
 }
 
@@ -79,7 +63,7 @@ absl::StatusOr<InterpValue> EvaluateUnop(Unop* expr, InterpBindings* bindings,
                                          ConcreteType* type_context,
                                          InterpCallbackData* callbacks) {
   XLS_ASSIGN_OR_RETURN(InterpValue arg,
-                       callbacks->eval(expr->operand(), bindings));
+                       callbacks->Eval(expr->operand(), bindings));
   switch (expr->kind()) {
     case UnopKind::kInvert:
       return arg.BitwiseNegate();
@@ -93,8 +77,8 @@ absl::StatusOr<InterpValue> EvaluateUnop(Unop* expr, InterpBindings* bindings,
 absl::StatusOr<InterpValue> EvaluateBinop(Binop* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
                                           InterpCallbackData* callbacks) {
-  XLS_ASSIGN_OR_RETURN(InterpValue lhs, callbacks->eval(expr->lhs(), bindings));
-  XLS_ASSIGN_OR_RETURN(InterpValue rhs, callbacks->eval(expr->rhs(), bindings));
+  XLS_ASSIGN_OR_RETURN(InterpValue lhs, callbacks->Eval(expr->lhs(), bindings));
+  XLS_ASSIGN_OR_RETURN(InterpValue rhs, callbacks->Eval(expr->rhs(), bindings));
 
   // Check some preconditions; e.g. all logical operands are guaranteed to have
   // single-bit inputs by type checking so we can share the implementation with
@@ -156,17 +140,17 @@ absl::StatusOr<InterpValue> EvaluateTernary(Ternary* expr,
                                             ConcreteType* type_context,
                                             InterpCallbackData* callbacks) {
   XLS_ASSIGN_OR_RETURN(InterpValue test,
-                       callbacks->eval(expr->test(), bindings));
+                       callbacks->Eval(expr->test(), bindings));
   if (test.IsTrue()) {
-    return callbacks->eval(expr->consequent(), bindings);
+    return callbacks->Eval(expr->consequent(), bindings);
   }
-  return callbacks->eval(expr->alternate(), bindings);
+  return callbacks->Eval(expr->alternate(), bindings);
 }
 
 absl::StatusOr<InterpValue> EvaluateAttr(Attr* expr, InterpBindings* bindings,
                                          ConcreteType* type_context,
                                          InterpCallbackData* callbacks) {
-  XLS_ASSIGN_OR_RETURN(InterpValue lhs, callbacks->eval(expr->lhs(), bindings));
+  XLS_ASSIGN_OR_RETURN(InterpValue lhs, callbacks->Eval(expr->lhs(), bindings));
   std::shared_ptr<TypeInfo> type_info = callbacks->get_type_info();
   absl::optional<ConcreteType*> maybe_type = type_info->GetItem(expr->lhs());
   XLS_RET_CHECK(maybe_type.has_value()) << "LHS of attr should have type info";
@@ -184,6 +168,86 @@ absl::StatusOr<InterpValue> EvaluateAttr(Attr* expr, InterpBindings* bindings,
       << "Unable to find attribute " << expr->attr()
       << ": should be caught by type inference";
   return lhs.GetValuesOrDie().at(*index);
+}
+
+static absl::StatusOr<InterpValue> EvaluateIndexBitSlice(
+    Index* expr, InterpBindings* bindings, InterpCallbackData* callbacks,
+    const Bits& bits) {
+  IndexRhs index = expr->rhs();
+  XLS_RET_CHECK(absl::holds_alternative<Slice*>(index));
+  auto index_slice = absl::get<Slice*>(index);
+
+  const SymbolicBindings& sym_bindings = bindings->fn_ctx()->sym_bindings;
+
+  std::shared_ptr<TypeInfo> type_info = callbacks->get_type_info();
+  absl::optional<SliceData::StartWidth> maybe_saw =
+      type_info->GetSliceStartWidth(index_slice, sym_bindings);
+  XLS_RET_CHECK(maybe_saw.has_value());
+  const auto& saw = maybe_saw.value();
+  return Value::MakeBits(Tag::kUBits, bits.Slice(saw.start, saw.width));
+}
+
+static absl::StatusOr<InterpValue> EvaluateIndexWidthSlice(
+    Index* expr, InterpBindings* bindings, InterpCallbackData* callbacks,
+    Bits bits) {
+  auto width_slice = absl::get<WidthSlice*>(expr->rhs());
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue start,
+      callbacks->Eval(
+          width_slice->start(), bindings,
+          std::make_unique<BitsType>(/*is_signed=*/false, bits.bit_count())));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<ConcreteType> width_type,
+      ConcretizeTypeAnnotation(width_slice->width(), bindings, callbacks));
+  XLS_ASSIGN_OR_RETURN(uint64 start_index, start.GetBitValueUint64());
+  auto* width_bits_type = dynamic_cast<BitsType*>(width_type.get());
+  XLS_RET_CHECK(width_bits_type != nullptr);
+  int64 width_value = absl::get<int64>(width_bits_type->size().value());
+
+  if (start_index >= bits.bit_count()) {
+    // Return early  to potentially avoid an unreasonably long zero extend (e.g.
+    // if the start index was a large negative number).
+    return Value::MakeUBits(/*bit_count=*/width_value, /*value=*/0);
+  }
+
+  if (start_index + width_value > bits.bit_count()) {
+    // Slicing off the end zero-fills, so we zext.
+    bits = bits_ops::ZeroExtend(bits, start_index + width_value);
+  }
+
+  Bits result = bits.Slice(start_index, width_value);
+  InterpValueTag tag = width_bits_type->is_signed() ? InterpValueTag::kSBits
+                                                    : InterpValueTag::kUBits;
+  return InterpValue::MakeBits(tag, result);
+}
+
+absl::StatusOr<InterpValue> EvaluateIndex(Index* expr, InterpBindings* bindings,
+                                          ConcreteType* type_context,
+                                          InterpCallbackData* callbacks) {
+  XLS_ASSIGN_OR_RETURN(InterpValue lhs, callbacks->Eval(expr->lhs(), bindings));
+  if (lhs.IsBits()) {
+    if (absl::holds_alternative<Slice*>(expr->rhs())) {
+      return EvaluateIndexBitSlice(expr, bindings, callbacks,
+                                   lhs.GetBitsOrDie());
+    }
+    XLS_RET_CHECK(absl::holds_alternative<WidthSlice*>(expr->rhs()));
+    return EvaluateIndexWidthSlice(expr, bindings, callbacks,
+                                   lhs.GetBitsOrDie());
+  }
+
+  Expr* index = absl::get<Expr*>(expr->rhs());
+  // Note: since we permit a type-unannotated literal number we provide a type
+  // context here.
+  XLS_ASSIGN_OR_RETURN(InterpValue index_value,
+                       callbacks->Eval(index, bindings, BitsType::MakeU32()));
+  XLS_ASSIGN_OR_RETURN(uint64 index_int, index_value.GetBitValueUint64());
+  int64 length = lhs.GetLength().value();
+  if (index_int >= length) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "FailureError: %s Indexing out of bounds: %d vs size %d",
+        expr->span().ToString(), index_int, length));
+  }
+  return lhs.GetValuesOrDie().at(index_int);
 }
 
 // Returns whether this matcher pattern is accepted.
@@ -221,12 +285,12 @@ static absl::StatusOr<bool> EvaluateMatcher(NameDefTree* pattern,
     if (absl::holds_alternative<Number*>(leaf) ||
         absl::holds_alternative<EnumRef*>(leaf)) {
       XLS_ASSIGN_OR_RETURN(InterpValue target,
-                           callbacks->eval(ToExprNode(leaf), bindings));
+                           callbacks->Eval(ToExprNode(leaf), bindings));
       return target.Eq(to_match);
     }
     XLS_RET_CHECK(absl::holds_alternative<NameRef*>(leaf));
     XLS_ASSIGN_OR_RETURN(InterpValue target,
-                         callbacks->eval(absl::get<NameRef*>(leaf), bindings));
+                         callbacks->Eval(absl::get<NameRef*>(leaf), bindings));
     return target.Eq(to_match);
   }
 
@@ -247,7 +311,7 @@ absl::StatusOr<InterpValue> EvaluateMatch(Match* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
                                           InterpCallbackData* callbacks) {
   XLS_ASSIGN_OR_RETURN(InterpValue to_match,
-                       callbacks->eval(expr->matched(), bindings));
+                       callbacks->Eval(expr->matched(), bindings));
   for (MatchArm* arm : expr->arms()) {
     for (NameDefTree* pattern : arm->patterns()) {
       auto arm_bindings = std::make_shared<InterpBindings>(
@@ -256,7 +320,7 @@ absl::StatusOr<InterpValue> EvaluateMatch(Match* expr, InterpBindings* bindings,
           bool did_match,
           EvaluateMatcher(pattern, to_match, arm_bindings.get(), callbacks));
       if (did_match) {
-        return callbacks->eval(arm->expr(), arm_bindings.get());
+        return callbacks->Eval(arm->expr(), arm_bindings.get());
       }
     }
   }
@@ -317,7 +381,7 @@ absl::StatusOr<InterpBindings> MakeTopLevelBindings(
         result = precomputed.value();
       } else {  // Otherwise, evaluate it and make a note.
         XLS_ASSIGN_OR_RETURN(result,
-                             callbacks->eval(constant_def->value(), &b));
+                             callbacks->Eval(constant_def->value(), &b));
         callbacks->note_wip(constant_def, *result);
       }
       XLS_CHECK(result.has_value());

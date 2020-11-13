@@ -311,7 +311,11 @@ class EnumType : public ConcreteType {
 // respectively.
 class BitsType : public ConcreteType {
  public:
-  BitsType(bool is_signed, int size)
+  static std::unique_ptr<BitsType> MakeU32() {
+    return absl::make_unique<BitsType>(false, 32);
+  }
+
+  BitsType(bool is_signed, int64 size)
       : BitsType(is_signed, ConcreteTypeDim(size)) {}
   BitsType(bool is_signed, ConcreteTypeDim size)
       : is_signed_(is_signed), size_(std::move(size)) {}

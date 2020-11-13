@@ -779,6 +779,7 @@ cc_library(
         ":interp_value",
         "//xls/common/status:ret_check",
         "//xls/ir:bits",
+        "//xls/ir:bits_ops",
         "@com_google_absl//absl/status:statusor",
     ],
 )

@@ -24,13 +24,6 @@
 
 namespace xls::dslx {
 
-// Evaluates an index bit-slicing operation (as opposed to a width-slice), of
-// the form `x[2:4]`.
-absl::StatusOr<InterpValue> EvaluateIndexBitslice(TypeInfo* type_info,
-                                                  Index* expr,
-                                                  InterpBindings* bindings,
-                                                  const Bits& bits);
-
 // Note: all interpreter "node evaluators" have the same signature.
 
 absl::StatusOr<InterpValue> EvaluateConstRef(ConstRef* expr,
@@ -56,8 +49,8 @@ using NoteWipFn = std::function<absl::optional<InterpValue>(
     ConstantDef*, absl::optional<InterpValue>)>;
 
 // Callback used to evaluate an expression (e.g. a constant at the top level).
-using EvaluateFn =
-    std::function<absl::StatusOr<InterpValue>(Expr*, InterpBindings*)>;
+using EvaluateFn = std::function<absl::StatusOr<InterpValue>(
+    Expr*, InterpBindings*, std::unique_ptr<ConcreteType>)>;
 
 // Callback used to retrieve type information (from the interpreter state).
 using GetTypeFn = std::function<std::shared_ptr<TypeInfo>()>;
@@ -65,11 +58,19 @@ using GetTypeFn = std::function<std::shared_ptr<TypeInfo>()>;
 // Bundles up the above callbacks so they can be passed around as a unit.
 struct InterpCallbackData {
   TypecheckFn typecheck;
-  EvaluateFn eval;
+  EvaluateFn eval_fn;
   IsWipFn is_wip;
   NoteWipFn note_wip;
   GetTypeFn get_type_info;
   ImportCache* cache;
+
+  // Wraps eval_fn to provide a default argument for type_context (as it is
+  // often nullptr).
+  absl::StatusOr<InterpValue> Eval(
+      Expr* expr, InterpBindings* bindings,
+      std::unique_ptr<ConcreteType> type_context = nullptr) {
+    return this->eval_fn(expr, bindings, std::move(type_context));
+  }
 };
 
 // Evaluates an enum reference expression; e.g. `Foo::BAR`.
@@ -101,6 +102,11 @@ absl::StatusOr<InterpValue> EvaluateAttr(Attr* expr, InterpBindings* bindings,
 
 // Evaluates a match expression; e.g. `match x { ... }`.
 absl::StatusOr<InterpValue> EvaluateMatch(Match* expr, InterpBindings* bindings,
+                                          ConcreteType* type_context,
+                                          InterpCallbackData* callbacks);
+
+// Evaluates an index expression; e.g. `a[i]`.
+absl::StatusOr<InterpValue> EvaluateIndex(Index* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
                                           InterpCallbackData* callbacks);
 
