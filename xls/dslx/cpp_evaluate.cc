@@ -38,6 +38,72 @@ absl::StatusOr<InterpValue> EvaluateConstRef(ConstRef* expr,
   return bindings->ResolveValue(expr);
 }
 
+static absl::StatusOr<EnumDef*> EvaluateToEnum(TypeDefinition type_definition,
+                                               InterpBindings* bindings,
+                                               InterpCallbackData* callbacks) {
+  XLS_ASSIGN_OR_RETURN(
+      DerefVariant deref,
+      EvaluateToStructOrEnumOrAnnotation(type_definition, bindings, callbacks));
+  if (absl::holds_alternative<EnumDef*>(deref)) {
+    return absl::get<EnumDef*>(deref);
+  }
+  return absl::InvalidArgumentError(
+      absl::StrCat("Type definition did not dereference to an enum, found: ",
+                   ToAstNode(deref)->GetNodeTypeName()));
+}
+
+static absl::StatusOr<StructDef*> EvaluateToStruct(
+    StructRef struct_ref, InterpBindings* bindings,
+    InterpCallbackData* callbacks) {
+  XLS_ASSIGN_OR_RETURN(TypeDefinition type_definition,
+                       ToTypeDefinition(ToAstNode(struct_ref)));
+  XLS_ASSIGN_OR_RETURN(
+      DerefVariant deref,
+      EvaluateToStructOrEnumOrAnnotation(type_definition, bindings, callbacks));
+  if (absl::holds_alternative<StructDef*>(deref)) {
+    return absl::get<StructDef*>(deref);
+  }
+  return absl::InvalidArgumentError(
+      absl::StrCat("Type definition did not dereference to a struct, found: ",
+                   ToAstNode(deref)->GetNodeTypeName()));
+}
+
+absl::StatusOr<InterpValue> EvaluateStructInstance(
+    StructInstance* expr, InterpBindings* bindings, ConcreteType* type_context,
+    InterpCallbackData* callbacks) {
+  XLS_ASSIGN_OR_RETURN(
+      StructDef * struct_def,
+      EvaluateToStruct(expr->struct_def(), bindings, callbacks));
+  std::vector<InterpValue> members;
+  for (auto [name, field_expr] : expr->GetOrderedMembers(struct_def)) {
+    XLS_ASSIGN_OR_RETURN(InterpValue member,
+                         callbacks->Eval(field_expr, bindings));
+    members.push_back(member);
+  }
+  return InterpValue::MakeTuple(std::move(members));
+}
+
+absl::StatusOr<InterpValue> EvaluateSplatStructInstance(
+    SplatStructInstance* expr, InterpBindings* bindings,
+    ConcreteType* type_context, InterpCallbackData* callbacks) {
+  // First we grab the "basis" struct value (the subject of the 'splat') that
+  // we're going to update with the modified fields.
+  XLS_ASSIGN_OR_RETURN(InterpValue named_tuple,
+                       callbacks->Eval(expr->splatted(), bindings));
+  XLS_ASSIGN_OR_RETURN(
+      StructDef * struct_def,
+      EvaluateToStruct(expr->struct_ref(), bindings, callbacks));
+  for (auto [name, field_expr] : expr->members()) {
+    XLS_ASSIGN_OR_RETURN(InterpValue new_value,
+                         callbacks->Eval(field_expr, bindings));
+    int64 i = struct_def->GetMemberIndex(name).value();
+    XLS_ASSIGN_OR_RETURN(
+        named_tuple, named_tuple.Update(InterpValue::MakeU64(i), new_value));
+  }
+
+  return named_tuple;
+}
+
 absl::StatusOr<InterpValue> EvaluateEnumRef(EnumRef* expr,
                                             InterpBindings* bindings,
                                             ConcreteType* type_context,
@@ -636,20 +702,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeType(
   // class TypeAnnotation
   return ConcretizeTypeAnnotation(absl::get<TypeAnnotation*>(type), bindings,
                                   callbacks);
-}
-
-absl::StatusOr<EnumDef*> EvaluateToEnum(TypeDefinition type_definition,
-                                        InterpBindings* bindings,
-                                        InterpCallbackData* callbacks) {
-  XLS_ASSIGN_OR_RETURN(
-      DerefVariant deref,
-      EvaluateToStructOrEnumOrAnnotation(type_definition, bindings, callbacks));
-  if (absl::holds_alternative<EnumDef*>(deref)) {
-    return absl::get<EnumDef*>(deref);
-  }
-  return absl::InvalidArgumentError(
-      absl::StrCat("Type definition did not dereference to an enum, found: ",
-                   ToAstNode(deref)->GetNodeTypeName()));
 }
 
 }  // namespace xls::dslx

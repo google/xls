@@ -73,6 +73,17 @@ struct InterpCallbackData {
   }
 };
 
+// Evaluates a struct instance expression; e.g. `Foo { field: stuff }`.
+absl::StatusOr<InterpValue> EvaluateStructInstance(
+    StructInstance* expr, InterpBindings* bindings, ConcreteType* type_context,
+    InterpCallbackData* callbacks);
+
+// Evaluates a struct instance expression;
+// e.g. `Foo { field: stuff, ..other_foo }`.
+absl::StatusOr<InterpValue> EvaluateSplatStructInstance(
+    SplatStructInstance* expr, InterpBindings* bindings,
+    ConcreteType* type_context, InterpCallbackData* callbacks);
+
 // Evaluates an enum reference expression; e.g. `Foo::BAR`.
 absl::StatusOr<InterpValue> EvaluateEnumRef(EnumRef* expr,
                                             InterpBindings* bindings,
@@ -153,11 +164,6 @@ using DerefVariant = absl::variant<TypeAnnotation*, EnumDef*, StructDef*>;
 absl::StatusOr<DerefVariant> EvaluateToStructOrEnumOrAnnotation(
     TypeDefinition type_definition, InterpBindings* bindings,
     InterpCallbackData* callbacks);
-
-// As above, but checks that the DerefVariant is an EnumDef.
-absl::StatusOr<EnumDef*> EvaluateToEnum(TypeDefinition type_definition,
-                                        InterpBindings* bindings,
-                                        InterpCallbackData* callbacks);
 
 }  // namespace xls::dslx
 

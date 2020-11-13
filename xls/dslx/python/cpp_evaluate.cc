@@ -179,6 +179,32 @@ PYBIND11_MODULE(cpp_evaluate, m) {
       },
       py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
       py::arg("callbacks"));
+  m.def(
+      "evaluate_StructInstance",
+      [](StructInstanceHolder expr, InterpBindings* bindings,
+         ConcreteType* type_context, PyInterpCallbackData* py_callbacks) {
+        InterpCallbackData callbacks = ToCpp(*py_callbacks);
+        auto statusor = EvaluateStructInstance(&expr.deref(), bindings,
+                                               type_context, &callbacks);
+        TryThrowFailureError(statusor.status());
+        TryThrowKeyError(statusor.status());
+        return statusor;
+      },
+      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
+      py::arg("callbacks"));
+  m.def(
+      "evaluate_SplatStructInstance",
+      [](SplatStructInstanceHolder expr, InterpBindings* bindings,
+         ConcreteType* type_context, PyInterpCallbackData* py_callbacks) {
+        InterpCallbackData callbacks = ToCpp(*py_callbacks);
+        auto statusor = EvaluateSplatStructInstance(&expr.deref(), bindings,
+                                                    type_context, &callbacks);
+        TryThrowFailureError(statusor.status());
+        TryThrowKeyError(statusor.status());
+        return statusor;
+      },
+      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
+      py::arg("callbacks"));
   m.def("make_top_level_bindings",
         [](ModuleHolder module, PyInterpCallbackData* py_callbacks) {
           InterpCallbackData callbacks = ToCpp(*py_callbacks);

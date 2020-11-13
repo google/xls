@@ -344,6 +344,17 @@ std::vector<AstNode*> SplatStructInstance::GetChildren(bool want_types) const {
   return results;
 }
 
+std::string SplatStructInstance::ToString() const {
+  std::string members_str = absl::StrJoin(
+      members_, ", ",
+      [](std::string* out, const std::pair<std::string, Expr*>& member) {
+        absl::StrAppendFormat(out, "%s: %s", member.first,
+                              member.second->ToString());
+      });
+  return absl::StrFormat("%s { %s, ..%s }", ToAstNode(struct_ref_)->ToString(),
+                         members_str, splatted_->ToString());
+}
+
 std::vector<AstNode*> MatchArm::GetChildren(bool want_types) const {
   std::vector<AstNode*> results;
   for (NameDefTree* ndt : patterns_) {

@@ -25,7 +25,7 @@ optimized forms of execution.
 import contextlib
 import functools
 import sys
-from typing import Text, Optional, Dict, Tuple, Callable, Sequence, Union
+from typing import Text, Optional, Dict, Tuple, Callable, Sequence
 
 from absl import logging
 import termcolor
@@ -203,54 +203,6 @@ class Interpreter:
     signed = type_context.signed
     tag = Tag.SBITS if signed else Tag.UBITS
     return Value.make_bits(tag, ast_helpers.get_value_as_bits(expr, bit_count))
-
-  def _evaluate_to_struct_or_enum_or_annotation(
-      self, node: Union[ast.TypeDef, ast.ModRef,
-                        ast.StructDef], bindings: Bindings
-  ) -> Union[ast.StructDef, ast.EnumDef, ast.TypeAnnotation]:
-    result = cpp_evaluate.evaluate_to_struct_or_enum_or_annotation(
-        node, bindings, self._get_callbacks())
-    assert isinstance(result, (ast.StructDef, ast.EnumDef, ast.TypeAnnotation))
-    return result
-
-  def _evaluate_to_struct(self, node: Union[ast.ModRef, ast.StructDef],
-                          bindings: Bindings) -> ast.StructDef:
-    """Evaluates potential module-reference-to-struct to a struct."""
-    type_definition = self._evaluate_to_struct_or_enum_or_annotation(
-        node, bindings)
-    assert isinstance(type_definition, ast.StructDef), type_definition
-    return type_definition
-
-  def _evaluate_StructInstance(  # pylint: disable=invalid-name
-      self,
-      expr: ast.StructInstance,
-      bindings: Bindings,
-      type_context: Optional[ConcreteType]  # pylint: disable=unused-argument
-  ) -> Value:
-    """Evaluates a struct instance AST node to a value."""
-    struct = self._evaluate_to_struct(expr.struct, bindings)
-    result = Value.make_tuple(
-        tuple(
-            self._evaluate(e, bindings)
-            for _, e in expr.get_ordered_members(struct)))
-    return result
-
-  def _evaluate_SplatStructInstance(  # pylint: disable=invalid-name
-      self,
-      expr: ast.SplatStructInstance,
-      bindings: Bindings,
-      type_context: Optional[ConcreteType]  # pylint: disable=unused-argument
-  ) -> Value:
-    """Evaluates a 'splat' struct instance AST node to a value."""
-    named_tuple = self._evaluate(expr.splatted, bindings)
-    struct = self._evaluate_to_struct(expr.struct, bindings)
-    for k, v in expr.members:
-      new_value = self._evaluate(v, bindings)
-      i = struct.member_names.index(k)
-      named_tuple = named_tuple.update(i, new_value)
-
-    assert isinstance(named_tuple, Value), named_tuple
-    return named_tuple
 
   def _evaluate_XlsTuple(  # pylint: disable=invalid-name
       self, expr: ast.XlsTuple, bindings: Bindings,

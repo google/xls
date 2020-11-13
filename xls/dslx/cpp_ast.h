@@ -1228,6 +1228,16 @@ class StructDef : public AstNode {
     return names;
   }
 
+  // Returns the index at which the member name is "name".
+  absl::optional<int64> GetMemberIndex(absl::string_view name) const {
+    for (int64 i = 0; i < members_.size(); ++i) {
+      if (members_[i].first->identifier() == name) {
+        return i;
+      }
+    }
+    return absl::nullopt;
+  }
+
  private:
   Span span_;
   NameDef* name_def_;
@@ -1318,17 +1328,7 @@ class SplatStructInstance : public Expr {
   }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
-  std::string ToString() const override {
-    std::string members_str = absl::StrJoin(
-        members_, ", ",
-        [](std::string* out, const std::pair<std::string, Expr*>& member) {
-          absl::StrAppendFormat(out, "%s: %s", member.first,
-                                member.second->ToString());
-        });
-    return absl::StrFormat("%s { %s, ..%s }",
-                           ToAstNode(struct_ref_)->ToString(), members_str,
-                           splatted_->ToString());
-  }
+  std::string ToString() const override;
 
   Expr* splatted() const { return splatted_; }
   StructRef struct_ref() const { return struct_ref_; }
