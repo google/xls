@@ -26,7 +26,9 @@ namespace xls::dslx {
 
 PYBIND11_MODULE(cpp_parametric_expression, m) {
   py::class_<ParametricExpression>(m, "ParametricExpression")
+      .def("__eq__", &ParametricExpression::operator==)
       .def("__str__", &ParametricExpression::ToString)
+      .def("__repr__", &ParametricExpression::ToRepr)
       .def("__add__", &ParametricExpression::Add)
       .def("__radd__", &ParametricExpression::Add)
       .def("get_freevars",

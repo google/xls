@@ -46,6 +46,7 @@ class ParametricExpression {
 
   virtual ~ParametricExpression() = default;
 
+  virtual std::string ToRepr() const = 0;
   virtual std::string ToString() const = 0;
   virtual absl::flat_hash_set<std::string> GetFreeVariables() const = 0;
   virtual Evaluated Evaluate(const Env& env) const = 0;
@@ -96,6 +97,9 @@ class ParametricConstant : public ParametricExpression {
   explicit ParametricConstant(int64 value) : value_(value) {}
 
   std::string ToString() const override { return absl::StrCat(value_); }
+  std::string ToRepr() const override {
+    return absl::StrFormat("ParametricConstant(%d)", value_);
+  }
   bool operator==(const ParametricExpression& other) const override {
     if (auto* o = dynamic_cast<const ParametricConstant*>(&other)) {
       return value_ == o->value_;
@@ -127,6 +131,10 @@ class ParametricAdd : public ParametricExpression {
 
   std::string ToString() const override {
     return absl::StrFormat("(%s+%s)", lhs_->ToString(), rhs_->ToString());
+  }
+  std::string ToRepr() const override {
+    return absl::StrFormat("ParametricAdd(%s, %s)", lhs_->ToRepr(),
+                           rhs_->ToRepr());
   }
 
   Evaluated Evaluate(const Env& env) const override {
@@ -196,6 +204,10 @@ class ParametricMul : public ParametricExpression {
   std::string ToString() const override {
     return absl::StrFormat("(%s*%s)", lhs_->ToString(), rhs_->ToString());
   }
+  std::string ToRepr() const override {
+    return absl::StrFormat("ParametricMul(%s, %s)", lhs_->ToRepr(),
+                           rhs_->ToRepr());
+  }
 
  private:
   std::unique_ptr<ParametricExpression> lhs_;
@@ -215,6 +227,9 @@ class ParametricSymbol : public ParametricExpression {
       : identifier_(std::move(identifier)), span_(std::move(span)) {}
 
   std::string ToString() const override { return identifier_; }
+  std::string ToRepr() const override {
+    return absl::StrFormat("ParametricSymbol(\"%s\")", identifier_);
+  }
   bool operator==(const ParametricExpression& other) const override {
     if (auto* o = dynamic_cast<const ParametricSymbol*>(&other)) {
       return identifier_ == o->identifier_;

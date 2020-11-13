@@ -52,6 +52,7 @@ class _ParametricInstantiator:
       parametric_constraints: Optional[ParametricBindings],
       explicit_constraints: Optional[Dict[str, int]],
   ):
+    logging.vlog(3, 'Parametric instantiator @ %s', span)
     self.span = span
     self.arg_types = arg_types
     self.ctx = ctx

@@ -27,18 +27,30 @@ from absl.testing import absltest
 
 class ParametricExpressionTest(absltest.TestCase):
 
+  fake_pos = Pos('<fake>', 0, 0)
+  fake_span = Span(fake_pos, fake_pos)
+
   def test_sample_evaluation(self):
-    fake_pos = Pos('<fake>', 0, 0)
-    fake_span = Span(fake_pos, fake_pos)
     e = ParametricMul(
         ParametricConstant(3),
         ParametricAdd(
-            ParametricSymbol('M', fake_span), ParametricSymbol('N', fake_span)))
+            ParametricSymbol('M', self.fake_span),
+            ParametricSymbol('N', self.fake_span)))
     self.assertEqual(e, e)
     self.assertEqual('(3*(M+N))', str(e))
     self.assertEqual(6, e.evaluate(dict(N=2, M=0)))
     self.assertEqual(12, e.evaluate(dict(N=1, M=3)))
     self.assertEqual(set(['N', 'M']), e.get_freevars())
+
+  def test_non_identity_equality(self):
+    s0 = ParametricSymbol('s', self.fake_span)
+    s1 = ParametricSymbol('s', self.fake_span)
+    self.assertEqual(s0, s1)
+    self.assertEqual(repr(s0), 'ParametricSymbol("s")')
+    add = ParametricAdd(s0, s1)
+    self.assertEqual(
+        repr(add),
+        'ParametricAdd(ParametricSymbol("s"), ParametricSymbol("s"))')
 
 
 if __name__ == '__main__':
