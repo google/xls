@@ -109,6 +109,12 @@ absl::StatusOr<InterpValue> EvaluateEnumRef(EnumRef* expr,
                                             ConcreteType* type_context,
                                             InterpCallbackData* callbacks);
 
+// Evaluates a tuple expression; e.g. `(x, y)`.
+absl::StatusOr<InterpValue> EvaluateXlsTuple(XlsTuple* expr,
+                                             InterpBindings* bindings,
+                                             ConcreteType* type_context,
+                                             InterpCallbackData* callbacks);
+
 // Evaluates a unary operation expression; e.g. `-x`.
 absl::StatusOr<InterpValue> EvaluateUnop(Unop* expr, InterpBindings* bindings,
                                          ConcreteType* type_context,

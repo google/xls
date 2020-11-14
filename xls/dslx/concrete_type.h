@@ -205,6 +205,13 @@ class TupleType : public ConcreteType {
     XLS_CHECK(absl::holds_alternative<NamedMembers>(members_));
     return absl::get<NamedMembers>(members_).at(i).name;
   }
+  ConcreteType& GetMemberType(int64 i) {
+    if (absl::holds_alternative<NamedMembers>(members_)) {
+      return *absl::get<NamedMembers>(members_).at(i).type;
+    } else {
+      return *absl::get<UnnamedMembers>(members_).at(i);
+    }
+  }
 
   // Returns an error status if this TupleType does not have named members.
   absl::StatusOr<std::vector<std::string>> GetMemberNames() const {

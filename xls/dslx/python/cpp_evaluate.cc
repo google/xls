@@ -218,6 +218,19 @@ PYBIND11_MODULE(cpp_evaluate, m) {
       },
       py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
       py::arg("callbacks"));
+  m.def(
+      "evaluate_XlsTuple",
+      [](XlsTupleHolder expr, InterpBindings* bindings,
+         ConcreteType* type_context, PyInterpCallbackData* py_callbacks) {
+        InterpCallbackData callbacks = ToCpp(*py_callbacks);
+        auto statusor =
+            EvaluateXlsTuple(&expr.deref(), bindings, type_context, &callbacks);
+        TryThrowFailureError(statusor.status());
+        TryThrowKeyError(statusor.status());
+        return statusor;
+      },
+      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
+      py::arg("callbacks"));
   m.def("make_top_level_bindings",
         [](ModuleHolder module, PyInterpCallbackData* py_callbacks) {
           InterpCallbackData callbacks = ToCpp(*py_callbacks);

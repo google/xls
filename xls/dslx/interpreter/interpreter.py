@@ -46,7 +46,6 @@ from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import ConcreteType
 from xls.dslx.python.cpp_concrete_type import EnumType
 from xls.dslx.python.cpp_concrete_type import FunctionType
-from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.dslx.python.cpp_pos import Pos
 from xls.dslx.python.cpp_pos import Span
 from xls.dslx.python.interp_bindings import Bindings
@@ -155,33 +154,6 @@ class Interpreter:
            f'interp-determined type {result} ({deduced!r} vs {result!r})')
 
     logging.vlog(3, 'Type annotation %s evaluated to %s', type_, result)
-    return result
-
-  def _evaluate_XlsTuple(  # pylint: disable=invalid-name
-      self, expr: ast.XlsTuple, bindings: Bindings,
-      type_context: Optional[ConcreteType]) -> Value:
-    """Evaluates an XlsTuple expression AST node to a value."""
-
-    def get_type_context(i: int) -> Optional[ConcreteType]:
-      """Retrieves the type context for a tuple member.
-
-      Args:
-        i: Which tuple member.
-
-      Returns:
-        The type context for the ith tuple member, if a type context is
-        available at all.
-      """
-      if type_context is None:
-        return None
-      assert isinstance(type_context, TupleType), type_context
-      return type_context.get_tuple_member(i)
-
-    result = Value.make_tuple(
-        tuple(
-            self._evaluate(e, bindings, get_type_context(i))
-            for i, e in enumerate(expr.members)))
-    logging.vlog(3, 'tuple: %s', result)
     return result
 
   def _evaluate_For(  # pylint: disable=invalid-name

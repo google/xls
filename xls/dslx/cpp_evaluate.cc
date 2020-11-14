@@ -106,6 +106,29 @@ static absl::StatusOr<StructDef*> EvaluateToStruct(
                    ToAstNode(deref)->GetNodeTypeName()));
 }
 
+absl::StatusOr<InterpValue> EvaluateXlsTuple(XlsTuple* expr,
+                                             InterpBindings* bindings,
+                                             ConcreteType* type_context,
+                                             InterpCallbackData* callbacks) {
+  auto get_type_context =
+      [type_context](int64 i) -> std::unique_ptr<ConcreteType> {
+    if (type_context == nullptr) {
+      return nullptr;
+    }
+    auto tuple_type_context = dynamic_cast<TupleType*>(type_context);
+    return tuple_type_context->GetMemberType(i).CloneToUnique();
+  };
+
+  std::vector<InterpValue> members;
+  for (int64 i = 0; i < expr->members().size(); ++i) {
+    Expr* m = expr->members()[i];
+    XLS_ASSIGN_OR_RETURN(InterpValue value,
+                         callbacks->Eval(m, bindings, get_type_context(i)));
+    members.push_back(std::move(value));
+  }
+  return InterpValue::MakeTuple(std::move(members));
+}
+
 absl::StatusOr<InterpValue> EvaluateStructInstance(
     StructInstance* expr, InterpBindings* bindings, ConcreteType* type_context,
     InterpCallbackData* callbacks) {
