@@ -99,6 +99,7 @@ xls_pybind_extension(
     name = "cpp_scanner",
     srcs = ["cpp_scanner.cc"],
     deps = [
+        ":errors",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -132,6 +133,7 @@ xls_pybind_extension(
     ],
     deps = [
         ":cpp_ast_header",
+        ":errors",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

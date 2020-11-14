@@ -16,6 +16,7 @@
 #define XLS_DSLX_PYTHON_ERRORS_H_
 
 #include "absl/strings/match.h"
+#include "absl/strings/str_split.h"
 #include "xls/dslx/cpp_bindings.h"
 
 namespace xls::dslx {
@@ -37,6 +38,39 @@ class FailureError : public std::exception {
   Span span_;
 };
 
+// Raised when there is an error in token scanning.
+class ScanError : public std::exception {
+ public:
+  ScanError(Pos pos, std::string message)
+      : pos_(std::move(pos)), message_(std::move(message)) {}
+
+  const char* what() const noexcept override { return message_.c_str(); }
+
+  const Pos& pos() const { return pos_; }
+
+ private:
+  Pos pos_;
+  std::string message_;
+};
+
+// Raised when there is an error in parsing.
+//
+// TODO(leary): 2020-11-13 Rename to ParseError now that parser is all C++.
+class CppParseError : public std::exception {
+ public:
+  CppParseError(Span span, std::string message)
+      : span_(std::move(span)), message_(std::move(message)) {}
+
+  const char* what() const noexcept override { return message_.c_str(); }
+
+  const Span& span() const { return span_; }
+  const std::string& message() const { return message_; }
+
+ private:
+  Span span_;
+  std::string message_;
+};
+
 // Sees if the status contains a stylized FailureError -- if so, throws it as a
 // Python exception.
 inline void TryThrowFailureError(const absl::Status& status) {
@@ -46,6 +80,33 @@ inline void TryThrowFailureError(const absl::Status& status) {
         ParseErrorGetData(status, "FailureError: ").value();
     throw FailureError(data.second, data.first);
   }
+}
+
+// As above, but ScanErrors have positions (single points) in lieu of spans
+// (position ranges).
+inline void TryThrowScanError(const absl::Status& status) {
+  absl::string_view s = status.message();
+  if (absl::ConsumePrefix(&s, "ScanError: ")) {
+    std::vector<absl::string_view> pieces =
+        absl::StrSplit(s, absl::MaxSplits(" ", 1));
+    if (pieces.size() < 2) {
+      return;
+    }
+    absl::StatusOr<Pos> pos = Pos::FromString(pieces[0]);
+    throw ScanError(std::move(pos.value()), std::string(pieces[1]));
+  }
+}
+
+// Since the parser can encounter ScanErrors in the course of parsing, this also
+// checks for ScanErrors via TryThrowScanError.
+inline void TryThrowCppParseError(const absl::Status& status) {
+  TryThrowScanError(status);
+  auto data_status = ParseErrorGetData(status);
+  if (!data_status.ok()) {
+    return;
+  }
+  auto [span, unused] = data_status.value();
+  throw CppParseError(std::move(span), std::string(status.message()));
 }
 
 }  // namespace xls::dslx

@@ -39,7 +39,7 @@ namespace xls::dslx {
   std::string filename;
   int64 lineno, colno;
   if (RE2::FullMatch(s, "(.*):(\\d+):(\\d+)", &filename, &lineno, &colno)) {
-    return Pos(filename, lineno, colno);
+    return Pos(filename, lineno - 1, colno - 1);
   }
 
   return absl::InvalidArgumentError(

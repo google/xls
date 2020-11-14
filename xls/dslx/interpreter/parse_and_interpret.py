@@ -30,6 +30,7 @@ from xls.dslx.interpreter.interpreter import Interpreter
 from xls.dslx.python import builtins
 from xls.dslx.python.cpp_parser import CppParseError
 from xls.dslx.python.cpp_parser import Parser
+from xls.dslx.python.cpp_scanner import ScanError
 from xls.dslx.python.cpp_scanner import Scanner
 from xls.dslx.span import PositionalError
 
@@ -109,7 +110,8 @@ def parse_and_test(program: Text,
         interpreter.run_quickcheck(quickcheck, seed=seed)
         print('[               OK ]', test_name, file=sys.stderr)
 
-  except (PositionalError, builtins.FailureError, CppParseError) as e:
+  except (PositionalError, builtins.FailureError, CppParseError,
+          ScanError) as e:
     did_fail = True
     parser_helpers.pprint_positional_error(
         e, output=cast(io.IOBase, sys.stderr))

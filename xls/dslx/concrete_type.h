@@ -314,6 +314,12 @@ class BitsType : public ConcreteType {
   static std::unique_ptr<BitsType> MakeU32() {
     return absl::make_unique<BitsType>(false, 32);
   }
+  static std::unique_ptr<BitsType> MakeU8() {
+    return absl::make_unique<BitsType>(false, 8);
+  }
+  static std::unique_ptr<BitsType> MakeU1() {
+    return absl::make_unique<BitsType>(false, 1);
+  }
 
   BitsType(bool is_signed, int64 size)
       : BitsType(is_signed, ConcreteTypeDim(size)) {}

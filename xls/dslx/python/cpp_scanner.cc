@@ -24,37 +24,11 @@
 #include "xls/common/status/statusor_pybind_caster.h"
 #include "xls/dslx/cpp_ast_builtin_types.inc"
 #include "xls/dslx/cpp_pos.h"
+#include "xls/dslx/python/errors.h"
 
 namespace py = pybind11;
 
 namespace xls::dslx {
-
-class ScanError : public std::exception {
- public:
-  ScanError(Pos pos, std::string message)
-      : pos_(std::move(pos)), message_(std::move(message)) {}
-
-  const char* what() const noexcept override { return message_.c_str(); }
-
-  const Pos& pos() const { return pos_; }
-
- private:
-  Pos pos_;
-  std::string message_;
-};
-
-void TryThrowScanError(const absl::Status& status) {
-  absl::string_view s = status.message();
-  if (absl::ConsumePrefix(&s, "ScanError: ")) {
-    std::vector<absl::string_view> pieces =
-        absl::StrSplit(s, absl::MaxSplits(" ", 1));
-    if (pieces.size() < 2) {
-      return;
-    }
-    absl::StatusOr<Pos> pos = Pos::FromString(pieces[0]);
-    throw ScanError(std::move(pos.value()), std::string(pieces[1]));
-  }
-}
 
 const absl::Status& GetStatus(const absl::Status& status) { return status; }
 template <typename T>
@@ -121,7 +95,18 @@ PYBIND11_MODULE(cpp_scanner, m) {
   m.def("TokenKindFromString",
         [](absl::string_view s) { return TokenKindFromString(s); });
 
-  py::register_exception<ScanError>(m, "ScanError");
+  static py::exception<ScanError> parse_exc(m, "ScanError");
+  py::register_exception_translator([](std::exception_ptr p) {
+    try {
+      if (p) std::rethrow_exception(p);
+    } catch (const ScanError& e) {
+      py::object& e_type = parse_exc;
+      py::object instance = e_type();
+      instance.attr("message") = e.what();
+      instance.attr("span") = Span(e.pos(), e.pos());
+      PyErr_SetObject(parse_exc.ptr(), instance.ptr());
+    }
+  });
 
   py::class_<Token>(m, "Token")
       .def(py::init([](TokenKind kind, Span span,

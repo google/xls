@@ -68,7 +68,7 @@ TEST(CppAst, GetNumberAsInt64) {
 
   EXPECT_THAT(make_num("0b")->GetAsInt64(),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Require binary digits")));
+                       HasSubstr("Could not convert 0b to a number")));
 }
 
 }  // namespace

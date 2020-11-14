@@ -33,7 +33,6 @@ absl::StatusOr<InterpValue> EvaluateConstRef(ConstRef* expr,
 absl::StatusOr<InterpValue> EvaluateNameRef(NameRef* expr,
                                             InterpBindings* bindings,
                                             ConcreteType* type_context);
-
 // Callback used to determine if a constant definition (at the module scope) is
 // in the process of being evaluated -- this lets us detect re-entry (i.e. a top
 // level constant that wants our top-level bindings to do the evaluation needs
@@ -72,6 +71,26 @@ struct InterpCallbackData {
     return this->eval_fn(expr, bindings, std::move(type_context));
   }
 };
+
+// Evaluates a Number AST node to a value.
+//
+// Args:
+//  expr: Number AST node.
+//  bindings: Name bindings for this evaluation.
+//  type_context: Type context for evaluating this number; since numbers
+//    literals are agnostic of their bit width this allows us to create the
+//    proper-width value.
+//
+// Returns:
+//   The resulting interpreter value.
+//
+// Raises:
+//   EvaluateError: If the type context is missing or inappropriate (e.g. a
+//     tuple cannot be the type for a number).
+absl::StatusOr<InterpValue> EvaluateNumber(Number* expr,
+                                           InterpBindings* bindings,
+                                           ConcreteType* type_context,
+                                           InterpCallbackData* callbacks);
 
 // Evaluates a struct instance expression; e.g. `Foo { field: stuff }`.
 absl::StatusOr<InterpValue> EvaluateStructInstance(

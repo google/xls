@@ -554,6 +554,16 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "cpp_pos_test",
+    srcs = ["cpp_pos_test.cc"],
+    deps = [
+        ":cpp_pos",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
 cc_library(
     name = "cpp_ast_builtin_types",
     hdrs = ["cpp_ast_builtin_types.inc"],
@@ -569,6 +579,10 @@ cc_library(
         "//xls/common:indent",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+        "//xls/ir:number_parser",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status:statusor",
@@ -597,13 +611,13 @@ cc_library(
         "cpp_scanner_keywords.inc",
     ],
     deps = [
-        ":cpp_ast",
         ":cpp_pos",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:variant",
     ],

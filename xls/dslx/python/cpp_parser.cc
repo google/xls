@@ -21,34 +21,11 @@
 #include "xls/common/status/statusor_pybind_caster.h"
 #include "xls/dslx/parser.h"
 #include "xls/dslx/python/cpp_ast.h"
+#include "xls/dslx/python/errors.h"
 
 namespace py = pybind11;
 
 namespace xls::dslx {
-
-class CppParseError : public std::exception {
- public:
-  CppParseError(Span span, std::string message)
-      : span_(std::move(span)), message_(std::move(message)) {}
-
-  const char* what() const noexcept override { return message_.c_str(); }
-
-  const Span& span() const { return span_; }
-  const std::string& message() const { return message_; }
-
- private:
-  Span span_;
-  std::string message_;
-};
-
-void TryThrowCppParseError(const absl::Status& status) {
-  auto data_status = ParseErrorGetData(status);
-  if (!data_status.ok()) {
-    return;
-  }
-  auto [span, unused] = data_status.value();
-  throw CppParseError(std::move(span), std::string(status.message()));
-}
 
 PYBIND11_MODULE(cpp_parser, m) {
   ImportStatusModule();

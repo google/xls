@@ -107,14 +107,14 @@ class ScannerTest(absltest.TestCase):
     self.assertLen(tokens, 1)
     self.assertTrue(tokens[0].is_number('0b10'), msg=str(tokens))
 
-    with self.assertRaisesRegex(scanner.ScanError,
-                                'Invalid digit for binary number: \'2\'') as cm:
+    with self.assertRaises(scanner.ScanError) as cm:
       s = self.make_scanner('0b102')
       tokens = s.pop_all()
 
+    self.assertIn('Invalid digit for binary number: \'2\'',
+                  cm.exception.message)
     self.assertIsInstance(cm.exception, scanner.ScanError)
     self.assertIsInstance(cm.exception, Exception)
-    self.assertEqual(str(cm.exception), "Invalid digit for binary number: '2'")
 
   def test_negative_number_bin(self):
     s = self.make_scanner('-0b10')
@@ -140,20 +140,28 @@ class ScannerTest(absltest.TestCase):
     self.assertGreaterEqual(
         cpp_pos.Pos('<fake>', 0, 0), cpp_pos.Pos('<fake>', 0, 0))
 
-  def test_scan_incomplete_number(self):
-    with self.assertRaisesRegex(scanner.ScanError, 'Expected hex characters'):
+  def test_scan_incomplete_hex(self):
+    with self.assertRaises(scanner.ScanError) as cm:
       self.make_scanner('0x').pop_all()
-    with self.assertRaisesRegex(scanner.ScanError,
-                                'Expected binary characters'):
+    self.assertIn('Expected hex characters', cm.exception.message)
+
+  def test_scan_implement_bin(self):
+    with self.assertRaises(scanner.ScanError) as cm:
       self.make_scanner('0b').pop_all()
+    self.assertIn('Expected binary characters', cm.exception.message)
+
+  def test_badly_formed_number(self):
+    with self.assertRaises(scanner.ScanError) as cm:
+      self.make_scanner('u1:01').pop_all()
+    self.assertIn('Invalid radix for number', cm.exception.message)
 
   def test_scan_incomplete_character(self):
-    with self.assertRaisesRegex(scanner.ScanError,
-                                'Expected closing single quote'):
+    with self.assertRaises(scanner.ScanError) as cm:
       self.make_scanner("'a").pop_all()
-    with self.assertRaisesRegex(scanner.ScanError,
-                                'Expected character after single quote'):
+    self.assertIn('Expected closing single quote', cm.exception.message)
+    with self.assertRaises(scanner.ScanError) as cm:
       self.make_scanner("'").pop_all()
+    self.assertIn('Expected character after single quote', cm.exception.message)
 
   def test_scan_in_whitespace_and_comments_mode(self):
     program = """// Hello comment world.

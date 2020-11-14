@@ -18,6 +18,8 @@
 #include "absl/strings/strip.h"
 #include "xls/common/indent.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/ir/bits_ops.h"
+#include "xls/ir/number_parser.h"
 
 namespace xls::dslx {
 
@@ -610,49 +612,26 @@ std::string Let::ToString() const {
                          rhs_->ToString(), body_->ToString());
 }
 
-absl::StatusOr<int64> Number::GetAsInt64() const {
+absl::StatusOr<Bits> Number::GetBits(int64 bit_count) const {
   switch (kind_) {
-    case NumberKind::kBool:
-      return text_ == "true";
+    case NumberKind::kBool: {
+      Bits result(bit_count);
+      return result.UpdateWithSet(0, text_ == "true");
+    }
     case NumberKind::kCharacter: {
       XLS_RET_CHECK_EQ(text_.size(), 1);
-      return text_[0];
+      Bits result =
+          Bits::FromBytes(/*bytes=*/{text_[0]}, /*bit_count=*/CHAR_BIT);
+      return bits_ops::ZeroExtend(result, bit_count);
     }
     case NumberKind::kOther: {
-      absl::string_view text = text_;
-      int64 result = -1;
-      if (absl::ConsumePrefix(&text, "0b")) {
-        if (text.empty()) {
-          return absl::InvalidArgumentError(absl::StrFormat(
-              "Require binary digits after '0b' prefix; got `%s`", text));
-        }
-        result = 0;
-        while (!text.empty()) {
-          char c = text[0];
-          text.remove_prefix(1);
-          int64 bit;
-          if (c == '0') {
-            bit = 0;
-          } else if (c == '1') {
-            bit = 1;
-          } else if (c == '_') {  // Spacer.
-            continue;
-          } else {
-            return absl::InvalidArgumentError(absl::StrFormat(
-                "Invalid binary digit: %c (%#x) in number `%s`", c, c, text_));
-          }
-          result <<= 1;
-          result |= bit;
-        }
-        return result;
+      XLS_ASSIGN_OR_RETURN(auto sm, GetSignAndMagnitude(text_));
+      auto [sign, bits] = sm;
+      bits = bits_ops::ZeroExtend(bits, bit_count);
+      if (sign) {
+        bits = bits_ops::Negate(bits);
       }
-      // Note: safe_strto64_base does not handle binary numbers.
-      if (!absl::numbers_internal::safe_strto64_base(text, &result,
-                                                     /*base=*/0)) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("Could not convert number to int64: `%s`", text_));
-      }
-      return result;
+      return bits;
     }
   }
   return absl::InternalError(

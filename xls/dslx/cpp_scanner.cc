@@ -15,6 +15,7 @@
 #include "xls/dslx/cpp_scanner.h"
 
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 
 namespace xls::dslx {
 
@@ -155,7 +156,7 @@ absl::StatusOr<Token> Scanner::ScanNumber(char startc, const Pos& start_pos) {
   }
 
   std::string s;
-  if (startc == '0' && TryDropChar('x')) {  // Hex prefix.
+  if (startc == '0' && TryDropChar('x')) {  // Hex radix.
     s = ScanWhile("0x", [](char c) {
       return ('0' <= c && c <= '9') || ('a' <= c && c <= 'f') ||
              ('A' <= c && c <= 'F') || c == '_';
@@ -178,6 +179,11 @@ absl::StatusOr<Token> Scanner::ScanNumber(char startc, const Pos& start_pos) {
     }
   } else {
     s = ScanWhile(startc, [](char c) { return std::isdigit(c); });
+    if (absl::StartsWith(s, "0") && s.size() != 1) {
+      return ScanError(
+          start_pos,
+          "Invalid radix for number, expect 0b or 0x because of leading 0.");
+    }
     XLS_CHECK(!s.empty())
         << "Must have seen numerical digits to attempt to scan a number.";
   }

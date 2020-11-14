@@ -38,6 +38,44 @@ absl::StatusOr<InterpValue> EvaluateConstRef(ConstRef* expr,
   return bindings->ResolveValue(expr);
 }
 
+absl::StatusOr<InterpValue> EvaluateNumber(Number* expr,
+                                           InterpBindings* bindings,
+                                           ConcreteType* type_context,
+                                           InterpCallbackData* callbacks) {
+  XLS_VLOG(4) << "Evaluating number: " << expr->ToString() << " @ "
+              << expr->span();
+  std::unique_ptr<ConcreteType> type_context_value;
+  if (type_context == nullptr && expr->kind() == NumberKind::kCharacter) {
+    type_context_value = BitsType::MakeU8();
+    type_context = type_context_value.get();
+  }
+  if (type_context == nullptr && expr->kind() == NumberKind::kBool) {
+    type_context_value = BitsType::MakeU1();
+    type_context = type_context_value.get();
+  }
+  if (type_context == nullptr && expr->type() == nullptr) {
+    return absl::InternalError(
+        absl::StrFormat("FailureError: %s No type context for expression, "
+                        "should be caught by type inference.",
+                        expr->span().ToString()));
+  }
+  if (type_context == nullptr) {
+    XLS_ASSIGN_OR_RETURN(
+        type_context_value,
+        ConcretizeTypeAnnotation(expr->type(), bindings, callbacks));
+    type_context = type_context_value.get();
+  }
+
+  BitsType* bits_type = dynamic_cast<BitsType*>(type_context);
+  XLS_RET_CHECK(bits_type != nullptr)
+      << "Type for number should be 'bits' kind.";
+  InterpValueTag tag =
+      bits_type->is_signed() ? InterpValueTag::kSBits : InterpValueTag::kUBits;
+  int64 bit_count = absl::get<int64>(bits_type->size().value());
+  XLS_ASSIGN_OR_RETURN(Bits bits, expr->GetBits(bit_count));
+  return InterpValue::MakeBits(tag, std::move(bits));
+}
+
 static absl::StatusOr<EnumDef*> EvaluateToEnum(TypeDefinition type_definition,
                                                InterpBindings* bindings,
                                                InterpCallbackData* callbacks) {

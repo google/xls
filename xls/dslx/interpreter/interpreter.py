@@ -30,7 +30,6 @@ from typing import Text, Optional, Dict, Tuple, Callable, Sequence
 from absl import logging
 import termcolor
 
-from xls.dslx import ast_helpers
 from xls.dslx import ir_name_mangler
 from xls.dslx.concrete_type_helpers import map_size
 from xls.dslx.interpreter import jit_comparison
@@ -44,7 +43,6 @@ from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_evaluate
 from xls.dslx.python import cpp_type_info as type_info_mod
 from xls.dslx.python.cpp_concrete_type import ArrayType
-from xls.dslx.python.cpp_concrete_type import BitsType
 from xls.dslx.python.cpp_concrete_type import ConcreteType
 from xls.dslx.python.cpp_concrete_type import EnumType
 from xls.dslx.python.cpp_concrete_type import FunctionType
@@ -54,7 +52,6 @@ from xls.dslx.python.cpp_pos import Span
 from xls.dslx.python.interp_bindings import Bindings
 from xls.dslx.python.interp_bindings import FnCtx
 from xls.dslx.python.interp_value import Builtin
-from xls.dslx.python.interp_value import Tag
 from xls.dslx.python.interp_value import Value
 from xls.ir.python import package as ir_package_mod
 from xls.jit.python import ir_jit
@@ -159,50 +156,6 @@ class Interpreter:
 
     logging.vlog(3, 'Type annotation %s evaluated to %s', type_, result)
     return result
-
-  def _evaluate_Number(  # pylint: disable=invalid-name
-      self, expr: ast.Number, bindings: Bindings,
-      type_context: Optional[ConcreteType]) -> Value:
-    """Evaluates a Number AST node to a value.
-
-    Args:
-      expr: Number AST node.
-      bindings: Name bindings for this evaluation.
-      type_context: Type context for evaluating this number; since numbers
-        literals are agnostic of their bit width this allows us to create the
-        proper-width value.
-
-    Returns:
-      The resulting interpreter value.
-
-    Raises:
-      EvaluateError: If the type context is missing or inappropriate (e.g. a
-        tuple cannot be the type for a number).
-    """
-    logging.vlog(4, 'number: %s @ %s', expr, expr.span)
-    if not type_context and expr.kind == ast.NumberKind.CHARACTER:
-      type_context = ConcreteType.U8
-    if not type_context and expr.kind == ast.NumberKind.BOOL:
-      type_context = ConcreteType.U1  # Boolean.
-    if not type_context and expr.type_ is None:
-      raise EvaluateError(
-          expr.span,
-          'Internal error: no type context for expression, should be caught '
-          'by type inference!')
-    type_context = type_context or self._evaluate_TypeAnnotation(
-        expr.type_, bindings)
-    if type_context is None:
-      raise EvaluateError(
-          expr.span, 'Missing type context for number @ {}'.format(expr.span))
-    elif isinstance(type_context, TupleType):
-      raise EvaluateError(
-          expr.span, 'Type context for number is a tuple type {} @ {}'.format(
-              type_context, expr.span))
-    assert isinstance(type_context, BitsType), type_context
-    bit_count = type_context.get_total_bit_count().value
-    signed = type_context.signed
-    tag = Tag.SBITS if signed else Tag.UBITS
-    return Value.make_bits(tag, ast_helpers.get_value_as_bits(expr, bit_count))
 
   def _evaluate_XlsTuple(  # pylint: disable=invalid-name
       self, expr: ast.XlsTuple, bindings: Bindings,

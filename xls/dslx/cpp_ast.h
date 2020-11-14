@@ -23,7 +23,9 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/cpp_pos.h"
+#include "xls/ir/bits.h"
 
 namespace xls::dslx {
 
@@ -467,7 +469,11 @@ class Number : public Expr {
 
   const std::string& text() const { return text_; }
 
-  absl::StatusOr<int64> GetAsInt64() const;
+  absl::StatusOr<Bits> GetBits(int64 bit_count) const;
+  absl::StatusOr<int64> GetAsInt64() const {
+    XLS_ASSIGN_OR_RETURN(Bits bits, GetBits(64));
+    return bits.ToInt64();
+  }
 
   NumberKind kind() const { return kind_; }
 
