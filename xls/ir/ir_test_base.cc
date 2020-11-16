@@ -112,7 +112,8 @@ Proc* IrTestBase::FindProc(absl::string_view name, Package* package) {
 
 void IrTestBase::RunAndExpectEq(
     const absl::flat_hash_map<std::string, uint64>& args, uint64 expected,
-    absl::string_view package_text, xabsl::SourceLocation loc) {
+    absl::string_view package_text, bool run_optimized, bool simulate,
+    xabsl::SourceLocation loc) {
   // Emit the filename/line of the test code in any failure message. The
   // location is captured as a default argument to RunAndExpectEq.
   testing::ScopedTrace trace(loc.file_name(), loc.line(),
@@ -125,12 +126,14 @@ void IrTestBase::RunAndExpectEq(
   XLS_ASSERT_OK_AND_ASSIGN(Value expected_value,
                            UInt64ResultToValue(expected, package.get()));
 
-  RunAndExpectEq(arg_values, expected_value, std::move(package));
+  RunAndExpectEq(arg_values, expected_value, std::move(package), run_optimized,
+                 simulate);
 }
 
 void IrTestBase::RunAndExpectEq(
     const absl::flat_hash_map<std::string, Bits>& args, Bits expected,
-    absl::string_view package_text, xabsl::SourceLocation loc) {
+    absl::string_view package_text, bool run_optimized, bool simulate,
+    xabsl::SourceLocation loc) {
   // Emit the filename/line of the test code in any failure message. The
   // location is captured as a default argument to RunAndExpectEq.
   testing::ScopedTrace trace(loc.file_name(), loc.line(),
@@ -141,19 +144,21 @@ void IrTestBase::RunAndExpectEq(
   for (const auto& pair : args) {
     args_as_values[pair.first] = Value(pair.second);
   }
-  RunAndExpectEq(args_as_values, Value(expected), std::move(package));
+  RunAndExpectEq(args_as_values, Value(expected), std::move(package),
+                 run_optimized, simulate);
 }
 
 void IrTestBase::RunAndExpectEq(
     const absl::flat_hash_map<std::string, Value>& args, Value expected,
-    absl::string_view package_text, xabsl::SourceLocation loc) {
+    absl::string_view package_text, bool run_optimized, bool simulate,
+    xabsl::SourceLocation loc) {
   // Emit the filename/line of the test code in any failure message. The
   // location is captured as a default argument to RunAndExpectEq.
   testing::ScopedTrace trace(loc.file_name(), loc.line(),
                              "RunAndExpectEq failed");
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            ParsePackage(package_text));
-  RunAndExpectEq(args, expected, std::move(package));
+  RunAndExpectEq(args, expected, std::move(package), run_optimized, simulate);
 }
 
 absl::StatusOr<absl::flat_hash_map<std::string, Value>>
@@ -196,7 +201,7 @@ absl::StatusOr<Value> IrTestBase::UInt64ResultToValue(uint64 value,
 
 void IrTestBase::RunAndExpectEq(
     const absl::flat_hash_map<std::string, Value>& args, const Value& expected,
-    std::unique_ptr<Package>&& package) {
+    std::unique_ptr<Package>&& package, bool run_optimized, bool simulate) {
   // Run interpreter on unoptimized IR.
   {
     XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
@@ -206,19 +211,22 @@ void IrTestBase::RunAndExpectEq(
         << "(interpreted unoptimized IR)";
   }
 
-  // Run main pipeline.
-  XLS_ASSERT_OK(RunStandardPassPipeline(package.get()));
+  if (run_optimized) {
+    // Run main pipeline.
+    XLS_ASSERT_OK(RunStandardPassPipeline(package.get()));
 
-  // Run interpreter on optimized IR.
-  {
-    XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
-    XLS_ASSERT_OK_AND_ASSIGN(Value actual,
-                             IrInterpreter::RunKwargs(main, args));
-    ASSERT_TRUE(ValuesEqual(expected, actual)) << "(interpreted optimized IR)";
+    // Run interpreter on optimized IR.
+    {
+      XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
+      XLS_ASSERT_OK_AND_ASSIGN(Value actual,
+                               IrInterpreter::RunKwargs(main, args));
+      ASSERT_TRUE(ValuesEqual(expected, actual))
+          << "(interpreted optimized IR)";
+    }
   }
 
   // Emit Verilog with combinational generator and run with ModuleSimulator.
-  {
+  if (simulate) {
     ASSERT_EQ(package->functions().size(), 1);
     XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
 

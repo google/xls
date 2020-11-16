@@ -82,23 +82,27 @@ class IrTestBase : public ::testing::Test {
   // Runs the given package (passed as IR text) and EXPECTs the result to equal
   // 'expected'. Runs the package in several ways:
   // (1) unoptimized IR through the interpreter.
-  // (2) optimized IR through the interpreter.
+  // (2) optimized IR through the interpreter. (enabled with run_optimized)
   // (3) pipeline generator emitted Verilog through a Verilog simulator.
+  //          (enabled with simulate)
   static void RunAndExpectEq(
       const absl::flat_hash_map<std::string, uint64>& args, uint64 expected,
-      absl::string_view package_text,
+      absl::string_view package_text, bool run_optimized = true,
+      bool simulate = true,
       xabsl::SourceLocation loc = xabsl::SourceLocation::current());
 
   // Overload which takes Bits as arguments and the expected result.
   static void RunAndExpectEq(
       const absl::flat_hash_map<std::string, Bits>& args, Bits expected,
-      absl::string_view package_text,
+      absl::string_view package_text, bool run_optimized = true,
+      bool simulate = true,
       xabsl::SourceLocation loc = xabsl::SourceLocation::current());
 
   // Overload which takes Values as arguments and the expected result.
   static void RunAndExpectEq(
       const absl::flat_hash_map<std::string, Value>& args, Value expected,
-      absl::string_view package_text,
+      absl::string_view package_text, bool run_optimized = true,
+      bool simulate = true,
       xabsl::SourceLocation loc = xabsl::SourceLocation::current());
 
  private:
@@ -106,7 +110,8 @@ class IrTestBase : public ::testing::Test {
   // and takes a std::unique_ptr<Package>.
   static void RunAndExpectEq(
       const absl::flat_hash_map<std::string, Value>& args,
-      const Value& expected, std::unique_ptr<Package>&& package);
+      const Value& expected, std::unique_ptr<Package>&& package,
+      bool run_optimized = true, bool simulate = true);
 
   // Converts the given map of uint64 arguments into a map of Value argument
   // with the appropriate bit widths as determined by the package.
