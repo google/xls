@@ -20,35 +20,35 @@ package(
 )
 
 proto_library(
-    name = "network_proto",
+    name = "network_config_proto",
     srcs = ["network_config.proto"],
 )
 
 cc_proto_library(
-    name = "network_cc_proto",
+    name = "network_config_cc_proto",
     deps = [
-        ":network_proto",
+        ":network_config_proto",
     ],
 )
 
 proto_library(
-    name = "network_builder_arguments_proto",
-    srcs = ["network_config_builder_arguments.proto"],
+    name = "network_config_builder_options_proto",
+    srcs = ["network_config_builder_options.proto"],
 )
 
 cc_proto_library(
-    name = "network_builder_arguments_cc_proto",
+    name = "network_config_builder_options_cc_proto",
     deps = [
-        ":network_builder_arguments_proto",
+        ":network_config_builder_options_proto",
     ],
 )
 
 cc_library(
-    name = "network",
+    name = "network_config_builder",
     hdrs = ["network_config_builder.h"],
     deps = [
-        ":network_builder_arguments_cc_proto",
-        ":network_cc_proto",
+        ":network_config_builder_options_cc_proto",
+        ":network_config_cc_proto",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/status:status_macros",
@@ -56,17 +56,50 @@ cc_library(
 )
 
 cc_library(
-    name = "network_factory",
+    name = "network_config_builder_factory",
     srcs = [
         "network_config_builder_factory.cc",
     ],
     hdrs = ["network_config_builder_factory.h"],
     deps = [
-        ":network",
-        ":network_cc_proto",
+        ":network_config_builder",
+        ":network_config_cc_proto",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:module_initializer",
     ],
+)
+
+cc_library(
+    name = "network_config_builder_util",
+    srcs = [
+        "network_config_builder_util.cc",
+    ],
+    hdrs = ["network_config_builder_util.h"],
+    deps = [
+        ":network_config_builder_options_cc_proto",
+        ":network_config_cc_proto",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common:integral_types",
+        "//xls/common:math_util",
+    ],
+)
+
+cc_library(
+    name = "ring",
+    srcs = [
+        "ring.cc",
+    ],
+    deps = [
+        ":network_config_builder",
+        ":network_config_builder_factory",
+        ":network_config_builder_options_cc_proto",
+        ":network_config_builder_util",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common:math_util",
+        "@com_google_protobuf//:protobuf",
+    ],
+    alwayslink = True,
 )

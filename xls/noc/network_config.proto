@@ -43,11 +43,13 @@ message RouterConfigProto {
 // A Network Configuration
 message NetworkConfigProto {
   optional string name = 1;
-  optional uint64 flit_data_width = 2;
-  repeated PortConfigProto send_ports = 3;
-  repeated PortConfigProto recv_ports = 4;
-  repeated RouterConfigProto routers = 5;
-  // source_port_name: name of source port
-  // sink_port_name: name of sink port
-  repeated ConnectionConfigProto connections = 6;
+  optional string description = 2;
+  optional uint64 flit_bit_width = 3;
+  repeated PortConfigProto send_ports = 4;
+  repeated PortConfigProto recv_ports = 5;
+  repeated RouterConfigProto routers = 6;
+  // The source port of a connection is either a source port or a router
+  // output port. The sink port of a connection is either a receive port or a
+  // router input port.
+  repeated ConnectionConfigProto connections = 7;
 }

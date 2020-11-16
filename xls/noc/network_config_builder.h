@@ -19,7 +19,8 @@
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/noc/network_config.pb.h"
-#include "xls/noc/network_config_builder_arguments.pb.h"
+#include "xls/noc/network_config_builder_options.pb.h"
+
 namespace xls::noc {
 
 // Represents a network config builder.
