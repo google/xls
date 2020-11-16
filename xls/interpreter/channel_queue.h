@@ -72,7 +72,7 @@ class ChannelQueue {
   Package* package_;
 
   // Data values are enqueued to the back, and dequeued from the front.
-  std::deque<ChannelData> queue_ GUARDED_BY(mutex_);
+  std::deque<ChannelData> queue_ ABSL_GUARDED_BY(mutex_);
 
   mutable absl::Mutex mutex_;
 };

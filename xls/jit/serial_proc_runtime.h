@@ -76,15 +76,15 @@ class SerialProcRuntime {
     std::unique_ptr<uint8[]> proc_state;
 
     absl::Mutex mutex;
-    State thread_state GUARDED_BY(mutex);
+    State thread_state ABSL_GUARDED_BY(mutex);
 
     // True if the proc sent out data during its last activation. Used to detect
     // network deadlock.
-    bool sent_data GUARDED_BY(mutex);
+    bool sent_data ABSL_GUARDED_BY(mutex);
 
     // True if this proc is blocked on data coming from "outside" the network,
     // i.e., a receive_only channel. Stops network deadlock false positives.
-    int64 blocking_channel GUARDED_BY(mutex);
+    int64 blocking_channel ABSL_GUARDED_BY(mutex);
   };
 
   SerialProcRuntime(Package* package);

@@ -72,7 +72,7 @@ class JitChannelQueue {
  protected:
   int64 channel_id_;
   absl::Mutex mutex_;
-  std::deque<std::unique_ptr<uint8[]>> the_queue_ GUARDED_BY(mutex_);
+  std::deque<std::unique_ptr<uint8[]>> the_queue_ ABSL_GUARDED_BY(mutex_);
   std::vector<std::unique_ptr<uint8[]>> buffer_pool_;
 };
 

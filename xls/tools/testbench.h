@@ -305,7 +305,7 @@ class TestbenchBase {
   // The main thread sleeps while tests are running. As worker threads finish,
   // they'll wake us up via this condvar.
   absl::Mutex mutex_;
-  absl::CondVar wake_me_ GUARDED_BY(mutex_);
+  absl::CondVar wake_me_ ABSL_GUARDED_BY(mutex_);
 };
 
 }  // namespace internal
