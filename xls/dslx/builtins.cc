@@ -106,6 +106,49 @@ absl::optional<int64> FindFirstDifferingIndex(
 
 }  // namespace
 
+std::string SignedCmpToString(SignedCmp cmp) {
+  switch (cmp) {
+    case SignedCmp::kLt:
+      return "slt";
+    case SignedCmp::kLe:
+      return "sle";
+    case SignedCmp::kGt:
+      return "sgt";
+    case SignedCmp::kGe:
+      return "sge";
+  }
+  return absl::StrFormat("<invalid SignedCmp(%d)>", static_cast<int64>(cmp));
+}
+
+absl::StatusOr<InterpValue> BuiltinScmp(SignedCmp cmp,
+                                        absl::Span<const InterpValue> args,
+                                        const Span& span, Invocation* expr,
+                                        SymbolicBindings* symbolic_bindings) {
+  XLS_RETURN_IF_ERROR(ArgChecker(SignedCmpToString(cmp), args)
+                          .size(2)
+                          .bits(0)
+                          .bits(1)
+                          .status());
+  const Bits& lhs = args[0].GetBitsOrDie();
+  const Bits& rhs = args[1].GetBitsOrDie();
+  bool result = false;
+  switch (cmp) {
+    case SignedCmp::kLt:
+      result = bits_ops::SLessThan(lhs, rhs);
+      break;
+    case SignedCmp::kLe:
+      result = bits_ops::SLessThanOrEqual(lhs, rhs);
+      break;
+    case SignedCmp::kGt:
+      result = bits_ops::SGreaterThan(lhs, rhs);
+      break;
+    case SignedCmp::kGe:
+      result = bits_ops::SGreaterThanOrEqual(lhs, rhs);
+      break;
+  }
+  return InterpValue::MakeBool(result);
+}
+
 absl::StatusOr<InterpValue> BuiltinFail(absl::Span<const InterpValue> args,
                                         const Span& span, Invocation* expr,
                                         SymbolicBindings* symbolic_bindings) {

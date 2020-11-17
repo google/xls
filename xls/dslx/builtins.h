@@ -25,6 +25,22 @@
 
 namespace xls::dslx {
 
+// Enumerates signed comparisons available via builtin functionality.
+enum SignedCmp {
+  kLt,
+  kLe,
+  kGe,
+  kGt,
+};
+
+std::string SignedCmpToString(SignedCmp cmp);
+
+// Implements signed comparison family of builtin functions.
+absl::StatusOr<InterpValue> BuiltinScmp(SignedCmp cmp,
+                                        absl::Span<const InterpValue> args,
+                                        const Span& span, Invocation* expr,
+                                        SymbolicBindings* symbolic_bindings);
+
 // Implements 'fail!' builtin function.
 absl::StatusOr<InterpValue> BuiltinFail(absl::Span<const InterpValue> args,
                                         const Span& span, Invocation* expr,

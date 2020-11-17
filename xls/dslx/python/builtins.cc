@@ -30,9 +30,9 @@ namespace py = pybind11;
 namespace xls::dslx {
 
 // Signature for a DSLX interpreter builtin function defined in C++.
-using BuiltinFn = absl::StatusOr<InterpValue> (*)(absl::Span<const InterpValue>,
-                                                  const Span&, Invocation*,
-                                                  SymbolicBindings*);
+using BuiltinFn = std::function<absl::StatusOr<InterpValue>(
+    absl::Span<const InterpValue>, const Span&, Invocation*,
+    SymbolicBindings*)>;
 
 // Python type used for representing symbolic bindings.
 using PySymbolicBindings = std::vector<std::pair<std::string, int64>>;
@@ -79,6 +79,14 @@ PYBIND11_MODULE(builtins, m) {
     }
   });
 
+  // Gets the signed comparator builtin curried for "cmp".
+  auto get_scmp = [](SignedCmp cmp) {
+    return [cmp](absl::Span<const InterpValue> args, const Span& span,
+                 Invocation* expr, SymbolicBindings* sym_bindings) {
+      return BuiltinScmp(cmp, args, span, expr, sym_bindings);
+    };
+  };
+
   m.def("throw_fail_error",
         [](Span span, const std::string& s) { throw FailureError(s, span); });
 
@@ -98,6 +106,11 @@ PYBIND11_MODULE(builtins, m) {
   m.def("signex", WrapBuiltin(BuiltinSignex));
   m.def("slice", WrapBuiltin(BuiltinSlice));
   m.def("xor_reduce", WrapBuiltin(BuiltinXorReduce));
+  // Signed comparison builtins.
+  m.def("slt", WrapBuiltin(get_scmp(SignedCmp::kLt)));
+  m.def("sle", WrapBuiltin(get_scmp(SignedCmp::kLe)));
+  m.def("sgt", WrapBuiltin(get_scmp(SignedCmp::kGt)));
+  m.def("sge", WrapBuiltin(get_scmp(SignedCmp::kGe)));
 }
 
 }  // namespace xls::dslx

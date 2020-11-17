@@ -95,8 +95,6 @@ class Interpreter:
     name = builtin.to_name()
     if hasattr(builtins, name):
       f = getattr(builtins, name)
-    elif name in ('slt', 'sgt', 'sge', 'sle'):
-      f = self._builtin_scmp(method=name)
     else:
       f = getattr(self, f'_builtin_{name}')
     result = f(args, span, invocation, symbolic_bindings)
@@ -277,26 +275,6 @@ class Interpreter:
               len(args)))
     original, index, value = args
     return original.update(index, value)
-
-  def _builtin_scmp(
-      self, method: Text
-  ) -> Callable[
-      [Sequence[Value], Span, ast.Invocation, Optional[SymbolicBindings]],
-      Value]:
-    """Returns a signed-comparison function for use as a builtin."""
-
-    def scmp(args: Sequence[Value],
-             span: Span,
-             expr: ast.Invocation,
-             symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
-      if len(args) != 2:
-        raise EvaluateError(
-            span, 'Invalid number of arguments to {}; got {} want 2'.format(
-                method, len(args)))
-      lhs, rhs = args
-      return lhs.scmp(rhs, method)
-
-    return scmp
 
   def _evaluate_fn_with_interpreter(
       self, fn: ast.Function, args: Sequence[Value], span: Span,
