@@ -144,6 +144,11 @@ absl::StatusOr<InterpValue> EvaluateLet(Let* expr, InterpBindings* bindings,
                                         ConcreteType* type_context,
                                         InterpCallbackData* callbacks);
 
+// Evaluates a for expression.
+absl::StatusOr<InterpValue> EvaluateFor(For* expr, InterpBindings* bindings,
+                                        ConcreteType* type_context,
+                                        InterpCallbackData* callbacks);
+
 // Evaluates a cast expression; e.g. `x as u32`.
 absl::StatusOr<InterpValue> EvaluateCast(Cast* expr, InterpBindings* bindings,
                                          ConcreteType* type_context,

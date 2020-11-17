@@ -525,6 +525,40 @@ absl::StatusOr<InterpValue> EvaluateLet(Let* expr, InterpBindings* bindings,
   return callbacks->Eval(expr->body(), new_bindings.get());
 }
 
+absl::StatusOr<InterpValue> EvaluateFor(For* expr, InterpBindings* bindings,
+                                        ConcreteType* type_context,
+                                        InterpCallbackData* callbacks) {
+  XLS_ASSIGN_OR_RETURN(InterpValue iterable,
+                       callbacks->Eval(expr->iterable(), bindings));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<ConcreteType> concrete_iteration_type,
+      ConcretizeTypeAnnotation(expr->type(), bindings, callbacks));
+  XLS_ASSIGN_OR_RETURN(InterpValue carry,
+                       callbacks->Eval(expr->init(), bindings));
+  XLS_ASSIGN_OR_RETURN(int64 length, iterable.GetLength());
+  for (int64 i = 0; i < length; ++i) {
+    const InterpValue& x = iterable.GetValuesOrDie().at(i);
+    InterpValue iteration = InterpValue::MakeTuple({x, carry});
+    XLS_ASSIGN_OR_RETURN(
+        bool type_checks,
+        ConcreteTypeAcceptsValue(*concrete_iteration_type, iteration));
+    if (!type_checks) {
+      return absl::InternalError(absl::StrFormat(
+          "EvaluateError: %s Type error found! Iteration value does not "
+          "conform to type annotation at top of iteration %d:\n  got value: "
+          "%s\n  type: %s\n  want: %s",
+          expr->span().ToString(), i, iteration.ToString(),
+          ConcreteTypeFromValue(iteration)->ToString(),
+          concrete_iteration_type->ToString()));
+    }
+    std::shared_ptr<InterpBindings> new_bindings = InterpBindings::CloneWith(
+        bindings->shared_from_this(), expr->names(), iteration);
+    XLS_ASSIGN_OR_RETURN(carry,
+                         callbacks->Eval(expr->body(), new_bindings.get()));
+  }
+  return carry;
+}
+
 absl::StatusOr<InterpValue> EvaluateStructInstance(
     StructInstance* expr, InterpBindings* bindings, ConcreteType* type_context,
     InterpCallbackData* callbacks) {

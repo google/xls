@@ -33,7 +33,6 @@ import termcolor
 from xls.dslx import ir_name_mangler
 from xls.dslx.concrete_type_helpers import map_size
 from xls.dslx.interpreter import jit_comparison
-from xls.dslx.interpreter.concrete_type_helpers import concrete_type_from_value
 from xls.dslx.interpreter.errors import EvaluateError
 from xls.dslx.parametric_instantiator import SymbolicBindings
 from xls.dslx.python import builtins
@@ -102,27 +101,6 @@ class Interpreter:
 
     logging.vlog(3, 'Type annotation %s evaluated to %s', type_, result)
     return result
-
-  def _evaluate_For(  # pylint: disable=invalid-name
-      self, expr: ast.For, bindings: Bindings,
-      _: Optional[ConcreteType]) -> Value:
-    """Evaluates a 'For' AST node to a value."""
-    iterable = self._evaluate(expr.iterable, bindings)
-    concrete_iteration_type = self._concretize(expr.type_, bindings)
-    carry = self._evaluate(expr.init, bindings)
-    for i, x in enumerate(iterable.get_elements()):
-      iteration = Value.make_tuple((x, carry))
-      if not cpp_evaluate.concrete_type_accepts_value(concrete_iteration_type,
-                                                      iteration):
-        raise EvaluateError(
-            expr.type_.span,
-            'type error found at interpreter runtime! iteration value does not conform to type annotation '
-            'at top of iteration {}:\n  got value: {}\n  type: {};\n  want: {}'
-            .format(i, iteration, concrete_type_from_value(iteration),
-                    concrete_iteration_type))
-      new_bindings = bindings.clone_with(expr.names, iteration)
-      carry = self._evaluate(expr.body, new_bindings)
-    return carry
 
   # This function signature conforms to an abstract interface.
   # pylint: disable=unused-argument

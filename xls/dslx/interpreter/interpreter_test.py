@@ -25,10 +25,8 @@ import unittest.mock as mock
 from pyfakefs import fake_filesystem_unittest as ffu
 
 from xls.common import test_base
-from xls.dslx.interpreter import interpreter
 from xls.dslx.interpreter import parse_and_interpret
 from xls.dslx.python.builtins import FailureError
-from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.xls_type_error import XlsTypeError
 
 
@@ -196,16 +194,6 @@ class InterpreterTest(test_base.TestCase):
     }
     """)
     self._parse_and_test(program)
-
-  def test_concrete_type_from_array_of_u32s(self):
-    elements = (
-        interpreter.Value.make_u32(0xf00),
-        interpreter.Value.make_u32(0xba5),
-    )
-    v = interpreter.Value.make_array(elements)
-    concrete_type = interpreter.concrete_type_from_value(v)
-    self.assertIsInstance(concrete_type, ArrayType)
-    self.assertEqual((2, 32), concrete_type.get_all_dims())
 
   def test_for_over_array(self):
     program = textwrap.dedent("""\
