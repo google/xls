@@ -28,13 +28,15 @@ using Tag = InterpValueTag;
 
 absl::StatusOr<InterpValue> EvaluateNameRef(NameRef* expr,
                                             InterpBindings* bindings,
-                                            ConcreteType* type_context) {
+                                            ConcreteType* type_context,
+                                            InterpCallbackData* callbacks) {
   return bindings->ResolveValue(expr);
 }
 
 absl::StatusOr<InterpValue> EvaluateConstRef(ConstRef* expr,
                                              InterpBindings* bindings,
-                                             ConcreteType* type_context) {
+                                             ConcreteType* type_context,
+                                             InterpCallbackData* callbacks) {
   return bindings->ResolveValue(expr);
 }
 

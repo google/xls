@@ -73,216 +73,41 @@ PYBIND11_MODULE(cpp_evaluate, m) {
       .def(py::init<absl::optional<PyTypecheckFn>, PyEvaluateFn, PyIsWipFn,
                     PyNoteWipFn, PyGetTypeFn, absl::optional<ImportCache*>>());
 
-  m.def(
-      "evaluate_ConstRef",
-      [](ConstRefHolder expr, InterpBindings* bindings,
-         ConcreteType* type_context, PyInterpCallbackData* py_callbacks) {
-        auto statusor = EvaluateConstRef(&expr.deref(), bindings, type_context);
-        TryThrowKeyError(statusor.status());
-        return statusor;
-      },
-      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
-      py::arg("callbacks"));
-  m.def(
-      "evaluate_NameRef",
-      [](NameRefHolder expr, InterpBindings* bindings,
-         ConcreteType* type_context, PyInterpCallbackData* py_callbacks) {
-        auto statusor = EvaluateNameRef(&expr.deref(), bindings, type_context);
-        TryThrowKeyError(statusor.status());
-        return statusor;
-      },
-      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
-      py::arg("callbacks"));
-  m.def(
-      "evaluate_EnumRef",
-      [](EnumRefHolder expr, InterpBindings* bindings,
-         ConcreteType* type_context, PyInterpCallbackData* py_callbacks) {
-        InterpCallbackData callbacks = ToCpp(*py_callbacks);
-        auto statusor =
-            EvaluateEnumRef(&expr.deref(), bindings, type_context, &callbacks);
-        TryThrowKeyError(statusor.status());
-        return statusor;
-      },
-      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
-      py::arg("callbacks"));
-  m.def(
-      "evaluate_Unop",
-      [](UnopHolder expr, InterpBindings* bindings, ConcreteType* type_context,
-         PyInterpCallbackData* py_callbacks) {
-        InterpCallbackData callbacks = ToCpp(*py_callbacks);
-        auto statusor =
-            EvaluateUnop(&expr.deref(), bindings, type_context, &callbacks);
-        TryThrowKeyError(statusor.status());
-        return statusor;
-      },
-      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
-      py::arg("callbacks"));
-  m.def(
-      "evaluate_Binop",
-      [](BinopHolder expr, InterpBindings* bindings, ConcreteType* type_context,
-         PyInterpCallbackData* py_callbacks) {
-        InterpCallbackData callbacks = ToCpp(*py_callbacks);
-        auto statusor =
-            EvaluateBinop(&expr.deref(), bindings, type_context, &callbacks);
-        TryThrowKeyError(statusor.status());
-        return statusor;
-      },
-      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
-      py::arg("callbacks"));
-  m.def(
-      "evaluate_Ternary",
-      [](TernaryHolder expr, InterpBindings* bindings,
-         ConcreteType* type_context, PyInterpCallbackData* py_callbacks) {
-        InterpCallbackData callbacks = ToCpp(*py_callbacks);
-        auto statusor =
-            EvaluateTernary(&expr.deref(), bindings, type_context, &callbacks);
-        TryThrowKeyError(statusor.status());
-        return statusor;
-      },
-      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
-      py::arg("callbacks"));
-  m.def(
-      "evaluate_Attr",
-      [](AttrHolder expr, InterpBindings* bindings, ConcreteType* type_context,
-         PyInterpCallbackData* py_callbacks) {
-        InterpCallbackData callbacks = ToCpp(*py_callbacks);
-        auto statusor =
-            EvaluateAttr(&expr.deref(), bindings, type_context, &callbacks);
-        TryThrowKeyError(statusor.status());
-        return statusor;
-      },
-      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
-      py::arg("callbacks"));
-  m.def(
-      "evaluate_Match",
-      [](MatchHolder expr, InterpBindings* bindings, ConcreteType* type_context,
-         PyInterpCallbackData* py_callbacks) {
-        InterpCallbackData callbacks = ToCpp(*py_callbacks);
-        auto statusor =
-            EvaluateMatch(&expr.deref(), bindings, type_context, &callbacks);
-        TryThrowFailureError(statusor.status());
-        TryThrowKeyError(statusor.status());
-        return statusor;
-      },
-      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
-      py::arg("callbacks"));
-  m.def(
-      "evaluate_Index",
-      [](IndexHolder expr, InterpBindings* bindings, ConcreteType* type_context,
-         PyInterpCallbackData* py_callbacks) {
-        InterpCallbackData callbacks = ToCpp(*py_callbacks);
-        auto statusor =
-            EvaluateIndex(&expr.deref(), bindings, type_context, &callbacks);
-        TryThrowFailureError(statusor.status());
-        TryThrowKeyError(statusor.status());
-        return statusor;
-      },
-      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
-      py::arg("callbacks"));
-  m.def(
-      "evaluate_StructInstance",
-      [](StructInstanceHolder expr, InterpBindings* bindings,
-         ConcreteType* type_context, PyInterpCallbackData* py_callbacks) {
-        InterpCallbackData callbacks = ToCpp(*py_callbacks);
-        auto statusor = EvaluateStructInstance(&expr.deref(), bindings,
-                                               type_context, &callbacks);
-        TryThrowFailureError(statusor.status());
-        TryThrowKeyError(statusor.status());
-        return statusor;
-      },
-      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
-      py::arg("callbacks"));
-  m.def(
-      "evaluate_SplatStructInstance",
-      [](SplatStructInstanceHolder expr, InterpBindings* bindings,
-         ConcreteType* type_context, PyInterpCallbackData* py_callbacks) {
-        InterpCallbackData callbacks = ToCpp(*py_callbacks);
-        auto statusor = EvaluateSplatStructInstance(&expr.deref(), bindings,
-                                                    type_context, &callbacks);
-        TryThrowFailureError(statusor.status());
-        TryThrowKeyError(statusor.status());
-        return statusor;
-      },
-      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
-      py::arg("callbacks"));
-  m.def(
-      "evaluate_Number",
-      [](NumberHolder expr, InterpBindings* bindings,
-         ConcreteType* type_context, PyInterpCallbackData* py_callbacks) {
-        InterpCallbackData callbacks = ToCpp(*py_callbacks);
-        auto statusor =
-            EvaluateNumber(&expr.deref(), bindings, type_context, &callbacks);
-        TryThrowFailureError(statusor.status());
-        TryThrowKeyError(statusor.status());
-        return statusor;
-      },
-      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
-      py::arg("callbacks"));
-  m.def(
-      "evaluate_XlsTuple",
-      [](XlsTupleHolder expr, InterpBindings* bindings,
-         ConcreteType* type_context, PyInterpCallbackData* py_callbacks) {
-        InterpCallbackData callbacks = ToCpp(*py_callbacks);
-        auto statusor =
-            EvaluateXlsTuple(&expr.deref(), bindings, type_context, &callbacks);
-        TryThrowFailureError(statusor.status());
-        TryThrowKeyError(statusor.status());
-        return statusor;
-      },
-      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
-      py::arg("callbacks"));
-  m.def(
-      "evaluate_Let",
-      [](LetHolder expr, InterpBindings* bindings, ConcreteType* type_context,
-         PyInterpCallbackData* py_callbacks) {
-        InterpCallbackData callbacks = ToCpp(*py_callbacks);
-        auto statusor =
-            EvaluateLet(&expr.deref(), bindings, type_context, &callbacks);
-        TryThrowFailureError(statusor.status());
-        TryThrowKeyError(statusor.status());
-        return statusor;
-      },
-      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
-      py::arg("callbacks"));
-  m.def(
-      "evaluate_Cast",
-      [](CastHolder expr, InterpBindings* bindings, ConcreteType* type_context,
-         PyInterpCallbackData* py_callbacks) {
-        InterpCallbackData callbacks = ToCpp(*py_callbacks);
-        auto statusor =
-            EvaluateCast(&expr.deref(), bindings, type_context, &callbacks);
-        TryThrowFailureError(statusor.status());
-        TryThrowKeyError(statusor.status());
-        return statusor;
-      },
-      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
-      py::arg("callbacks"));
-  m.def(
-      "evaluate_Array",
-      [](ArrayHolder expr, InterpBindings* bindings, ConcreteType* type_context,
-         PyInterpCallbackData* py_callbacks) {
-        InterpCallbackData callbacks = ToCpp(*py_callbacks);
-        auto statusor =
-            EvaluateArray(&expr.deref(), bindings, type_context, &callbacks);
-        TryThrowFailureError(statusor.status());
-        TryThrowKeyError(statusor.status());
-        return statusor;
-      },
-      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
-      py::arg("callbacks"));
-  m.def(
-      "evaluate_For",
-      [](ForHolder expr, InterpBindings* bindings, ConcreteType* type_context,
-         PyInterpCallbackData* py_callbacks) {
-        InterpCallbackData callbacks = ToCpp(*py_callbacks);
-        auto statusor =
-            EvaluateFor(&expr.deref(), bindings, type_context, &callbacks);
-        TryThrowFailureError(statusor.status());
-        TryThrowKeyError(statusor.status());
-        return statusor;
-      },
-      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
-      py::arg("callbacks"));
+  // Note: this could be more properly formulated as a generic lambda, but since
+  // this code will all likely go away when the interpreter is fully ported to
+  // C++ we hackily use a macro for now.
+#define ADD_EVAL(__cls)                                                        \
+  m.def(                                                                       \
+      "evaluate_" #__cls,                                                      \
+      [](__cls##Holder expr, InterpBindings* bindings,                         \
+         ConcreteType* type_context, PyInterpCallbackData* py_callbacks) {     \
+        InterpCallbackData callbacks = ToCpp(*py_callbacks);                   \
+        auto statusor = Evaluate##__cls(&expr.deref(), bindings, type_context, \
+                                        &callbacks);                           \
+        TryThrowFailureError(statusor.status());                               \
+        TryThrowKeyError(statusor.status());                                   \
+        return statusor;                                                       \
+      },                                                                       \
+      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),           \
+      py::arg("callbacks"))
+
+  ADD_EVAL(ConstRef);
+  ADD_EVAL(NameRef);
+  ADD_EVAL(EnumRef);
+  ADD_EVAL(Unop);
+  ADD_EVAL(Binop);
+  ADD_EVAL(Ternary);
+  ADD_EVAL(Attr);
+  ADD_EVAL(Match);
+  ADD_EVAL(Index);
+  ADD_EVAL(StructInstance);
+  ADD_EVAL(SplatStructInstance);
+  ADD_EVAL(Number);
+  ADD_EVAL(XlsTuple);
+  ADD_EVAL(Let);
+  ADD_EVAL(Cast);
+  ADD_EVAL(Array);
+  ADD_EVAL(For);
   m.def("make_top_level_bindings",
         [](ModuleHolder module, PyInterpCallbackData* py_callbacks) {
           InterpCallbackData callbacks = ToCpp(*py_callbacks);

@@ -48,15 +48,6 @@ absl::StatusOr<InterpValue> ConcreteTypeConvertValue(
     absl::optional<std::vector<InterpValue>> enum_values,
     absl::optional<bool> enum_signed);
 
-// Note: all interpreter "node evaluators" have the same signature.
-
-absl::StatusOr<InterpValue> EvaluateConstRef(ConstRef* expr,
-                                             InterpBindings* bindings,
-                                             ConcreteType* type_context);
-
-absl::StatusOr<InterpValue> EvaluateNameRef(NameRef* expr,
-                                            InterpBindings* bindings,
-                                            ConcreteType* type_context);
 // Callback used to determine if a constant definition (at the module scope) is
 // in the process of being evaluated -- this lets us detect re-entry (i.e. a top
 // level constant that wants our top-level bindings to do the evaluation needs
@@ -95,6 +86,18 @@ struct InterpCallbackData {
     return this->eval_fn(expr, bindings, std::move(type_context));
   }
 };
+
+// Note: all interpreter "node evaluators" have the same signature.
+
+absl::StatusOr<InterpValue> EvaluateConstRef(ConstRef* expr,
+                                             InterpBindings* bindings,
+                                             ConcreteType* type_context,
+                                             InterpCallbackData* callbacks);
+
+absl::StatusOr<InterpValue> EvaluateNameRef(NameRef* expr,
+                                            InterpBindings* bindings,
+                                            ConcreteType* type_context,
+                                            InterpCallbackData* callbacks);
 
 // Evaluates a Number AST node to a value.
 //
