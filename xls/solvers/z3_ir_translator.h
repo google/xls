@@ -88,7 +88,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   // reconstructs them into a single value of the specified type.
   // If little-endian is true, then for each leaf "Bits"-type element, the input
   // will be assumed to have the least-significant element in the lowest index.
-  Z3_ast UnflattenZ3Ast(Type* type, absl::Span<Z3_ast> flat,
+  Z3_ast UnflattenZ3Ast(Type* type, absl::Span<const Z3_ast> flat,
                         bool little_endian = false);
 
   // Floating-point routines.
@@ -101,7 +101,7 @@ class IrTranslator : public DfsVisitorWithDefault {
 
   // Converts three AST nodes (u1:sign, u8:bexp, u23:sfd) to a Z3-internal
   // floating-point number.
-  absl::StatusOr<Z3_ast> ToFloat32(absl::Span<Z3_ast> nodes);
+  absl::StatusOr<Z3_ast> ToFloat32(absl::Span<const Z3_ast> nodes);
 
   // Same as above, but for a tuple-typed value.
   absl::StatusOr<Z3_ast> ToFloat32(Z3_ast tuple);
@@ -115,6 +115,8 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::Status HandleArray(Array* array) override;
   absl::Status HandleArrayIndex(ArrayIndex* array_index) override;
   absl::Status HandleArrayUpdate(ArrayUpdate* array_update) override;
+  absl::Status HandleMultiArrayIndex(MultiArrayIndex* array_index) override;
+  absl::Status HandleMultiArrayUpdate(MultiArrayUpdate* array_update) override;
   absl::Status HandleArrayConcat(ArrayConcat* array_concat) override;
   absl::Status HandleBitSlice(BitSlice* bit_slice) override;
   absl::Status HandleConcat(Concat* concat) override;
@@ -218,14 +220,23 @@ class IrTranslator : public DfsVisitorWithDefault {
   void NoteTranslation(Node* node, Z3_ast translated);
 
   // Creates a Z3 tuple from the given XLS type or Z3 sort and Z3 elements.
-  Z3_ast CreateTuple(Type* tuple_type, absl::Span<Z3_ast> elements);
-  Z3_ast CreateTuple(Z3_sort tuple_sort, absl::Span<Z3_ast> elements);
+  Z3_ast CreateTuple(Type* tuple_type, absl::Span<const Z3_ast> elements);
+  Z3_ast CreateTuple(Z3_sort tuple_sort, absl::Span<const Z3_ast> elements);
 
   // Creates a Z3 array from the given XLS type and Z3 elements.
-  Z3_ast CreateArray(ArrayType* type, absl::Span<Z3_ast> elements);
+  Z3_ast CreateArray(ArrayType* type, absl::Span<const Z3_ast> elements);
 
   // Extracts a value from an array type.
   Z3_ast GetArrayElement(ArrayType* type, Z3_ast array, Z3_ast index);
+
+  // Conditionally (based on 'cond') replaces the element in 'array' indexed by
+  // 'indices' with 'value' and returns the result. 'array' may be a
+  // multi-dimensional array in which case 'indices' may have more than one
+  // element. In the sequence of indices 'indices' the first element is the
+  // outermost index as in MultiArrayIndex and MultiArrayUpdate. 'type' is the
+  // XLS type corresponding to 'array'.
+  Z3_ast UpdateArrayElement(Type* type, Z3_ast array, Z3_ast value, Z3_ast cond,
+                            absl::Span<const Z3_ast> indices);
 
   // Z3 version of xls::ZeroOfType() - creates a zero-valued element.
   Z3_ast ZeroOfSort(Z3_sort sort);

@@ -51,6 +51,7 @@ cc_test(
         "//xls/ir:bits_ops",
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
+        "//xls/ir:ir_test_base",
         "@z3//:api",
         "@com_google_googletest//:gtest_main",
     ],

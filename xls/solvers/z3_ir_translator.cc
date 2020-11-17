@@ -139,7 +139,7 @@ class Z3OpTranslator {
   // Concatenates args such that arg[0]'s most significant bit is the most
   // significant bit of the result, and arg[args.size()-1]'s least significant
   // bit is the least significant bit of the result.
-  Z3_ast ConcatN(absl::Span<Z3_ast const> args) {
+  Z3_ast ConcatN(absl::Span<const Z3_ast> args) {
     Z3_ast accum = args[0];
     for (int64 i = 1; i < args.size(); ++i) {
       accum = Z3_mk_concat(z3_ctx_, accum, args[i]);
@@ -296,7 +296,7 @@ absl::StatusOr<Z3_ast> IrTranslator::FloatFlushSubnormal(Z3_ast value) {
   return Z3_mk_ite(ctx_, is_subnormal, FloatZero(sort), value);
 }
 
-absl::StatusOr<Z3_ast> IrTranslator::ToFloat32(absl::Span<Z3_ast> nodes) {
+absl::StatusOr<Z3_ast> IrTranslator::ToFloat32(absl::Span<const Z3_ast> nodes) {
   if (nodes.size() != 3) {
     return absl::InvalidArgumentError(absl::StrCat(
         "Incorrect number of arguments - need 3, got ", nodes.size()));
@@ -338,7 +338,7 @@ absl::StatusOr<Z3_ast> IrTranslator::ToFloat32(Z3_ast tuple) {
     components.push_back(Z3_mk_app(ctx_, func_decl, 1, &tuple));
   }
 
-  return ToFloat32(absl::MakeSpan(components));
+  return ToFloat32(components);
 }
 
 template <typename OpT, typename FnT>
@@ -520,13 +520,13 @@ absl::Status IrTranslator::HandleConcat(Concat* concat) {
 }
 
 Z3_ast IrTranslator::CreateTuple(Z3_sort tuple_sort,
-                                 absl::Span<Z3_ast> elements) {
+                                 absl::Span<const Z3_ast> elements) {
   Z3_func_decl mk_tuple_decl = Z3_get_tuple_sort_mk_decl(ctx_, tuple_sort);
   return Z3_mk_app(ctx_, mk_tuple_decl, elements.size(), elements.data());
 }
 
 Z3_ast IrTranslator::CreateTuple(Type* tuple_type,
-                                 absl::Span<Z3_ast> elements) {
+                                 absl::Span<const Z3_ast> elements) {
   Z3_sort tuple_sort = TypeToSort(ctx_, *tuple_type);
   Z3_func_decl mk_tuple_decl = Z3_get_tuple_sort_mk_decl(ctx_, tuple_sort);
   return Z3_mk_app(ctx_, mk_tuple_decl, elements.size(), elements.data());
@@ -579,7 +579,7 @@ Z3_ast IrTranslator::ZeroOfSort(Z3_sort sort) {
         elements.push_back(ZeroOfSort(
             Z3_get_range(ctx_, Z3_get_tuple_sort_field_decl(ctx_, sort, i))));
       }
-      return CreateTuple(sort, absl::MakeSpan(elements));
+      return CreateTuple(sort, elements);
     }
     default:
       XLS_LOG(FATAL) << "Unknown/unsupported sort kind: "
@@ -587,7 +587,8 @@ Z3_ast IrTranslator::ZeroOfSort(Z3_sort sort) {
   }
 }
 
-Z3_ast IrTranslator::CreateArray(ArrayType* type, absl::Span<Z3_ast> elements) {
+Z3_ast IrTranslator::CreateArray(ArrayType* type,
+                                 absl::Span<const Z3_ast> elements) {
   Z3_sort element_sort = TypeToSort(ctx_, *type->element_type());
 
   // Zero-element arrays are A Thing, so we need to synthesize a Z3 zero value
@@ -624,8 +625,8 @@ absl::Status IrTranslator::HandleArray(Array* array) {
     elements.push_back(GetValue(array->operand(i)));
   }
 
-  NoteTranslation(array, CreateArray(array->GetType()->AsArrayOrDie(),
-                                     absl::MakeSpan(elements)));
+  NoteTranslation(array,
+                  CreateArray(array->GetType()->AsArrayOrDie(), elements));
   return seh.status();
 }
 
@@ -635,8 +636,7 @@ absl::Status IrTranslator::HandleTuple(Tuple* tuple) {
   for (int i = 0; i < tuple->operand_count(); i++) {
     elements.push_back(GetValue(tuple->operand(i)));
   }
-  NoteTranslation(tuple,
-                  CreateTuple(tuple->GetType(), absl::MakeSpan(elements)));
+  NoteTranslation(tuple, CreateTuple(tuple->GetType(), elements));
 
   return absl::OkStatus();
 }
@@ -682,6 +682,19 @@ absl::Status IrTranslator::HandleArrayIndex(ArrayIndex* array_index) {
   return seh.status();
 }
 
+absl::Status IrTranslator::HandleMultiArrayIndex(MultiArrayIndex* array_index) {
+  ScopedErrorHandler seh(ctx_);
+  Type* array_type = array_index->array()->GetType();
+  Z3_ast element = GetValue(array_index->array());
+  for (Node* index : array_index->indices()) {
+    element =
+        GetArrayElement(array_type->AsArrayOrDie(), element, GetValue(index));
+    array_type = array_type->AsArrayOrDie()->element_type();
+  }
+  NoteTranslation(array_index, element);
+  return seh.status();
+}
+
 absl::Status IrTranslator::HandleArrayUpdate(ArrayUpdate* array_update) {
   ScopedErrorHandler seh(ctx_);
 
@@ -707,7 +720,52 @@ absl::Status IrTranslator::HandleArrayUpdate(ArrayUpdate* array_update) {
   }
 
   // Finalize.
-  Z3_ast new_array = CreateArray(array_type, absl::MakeSpan(elements));
+  Z3_ast new_array = CreateArray(array_type, elements);
+  NoteTranslation(array_update, new_array);
+  return seh.status();
+}
+
+Z3_ast IrTranslator::UpdateArrayElement(Type* type, Z3_ast array, Z3_ast value,
+                                        Z3_ast cond,
+                                        absl::Span<const Z3_ast> indices) {
+  if (indices.empty()) {
+    return Z3_mk_ite(ctx_, cond, value, array);
+  }
+  ArrayType* array_type = type->AsArrayOrDie();
+  Z3_sort index_sort =
+      Z3_mk_bv_sort(ctx_, Bits::MinBitCountUnsigned(array_type->size()));
+  std::vector<Z3_ast> elements;
+  for (int64 i = 0; i < array_type->size(); ++i) {
+    Z3_ast this_index =
+        GetAsFormattedArrayIndex(Z3_mk_int64(ctx_, i, index_sort), array_type);
+    Z3_ast updated_index =
+        GetAsFormattedArrayIndex(indices.front(), array_type);
+    // In the recursive call, the condition is updated by whether the current
+    // index matches.
+    Z3_ast and_args[] = {cond, Z3_mk_eq(ctx_, this_index, updated_index)};
+    Z3_ast new_cond = Z3_mk_and(ctx_, 2, and_args);
+    elements.push_back(UpdateArrayElement(
+        /*type=*/array_type->element_type(),
+        /*array=*/Z3_mk_select(ctx_, array, this_index),
+        /*value=*/value, /*cond=*/new_cond, indices.subspan(1)));
+  }
+  return CreateArray(array_type, elements);
+}
+
+absl::Status IrTranslator::HandleMultiArrayUpdate(
+    MultiArrayUpdate* array_update) {
+  ScopedErrorHandler seh(ctx_);
+
+  std::vector<Z3_ast> indices;
+  for (Node* index : array_update->indices()) {
+    indices.push_back(GetValue(index));
+  }
+  Z3_ast new_array = UpdateArrayElement(
+      /*type=*/array_update->GetType(),
+      /*array=*/GetValue(array_update->array_to_update()),
+      /*value=*/GetValue(array_update->update_value()),
+      /*cond=*/Z3_mk_true(ctx_),
+      /*indices=*/indices);
   NoteTranslation(array_update, new_array);
   return seh.status();
 }
@@ -733,9 +791,9 @@ absl::Status IrTranslator::HandleArrayConcat(ArrayConcat* array_concat) {
     }
   }
 
-  NoteTranslation(array_concat,
-                  CreateArray(array_concat->GetType()->AsArrayOrDie(),
-                              absl::MakeSpan(elements)));
+  NoteTranslation(
+      array_concat,
+      CreateArray(array_concat->GetType()->AsArrayOrDie(), elements));
   return seh.status();
 }
 
@@ -894,7 +952,7 @@ absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(Type* value_type,
       elements.push_back(translated);
     }
 
-    return CreateArray(array_type, absl::MakeSpan(elements));
+    return CreateArray(array_type, elements);
   }
 
   // Tuples!
@@ -909,7 +967,7 @@ absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(Type* value_type,
     elements.push_back(translated);
   }
 
-  return CreateTuple(tuple_type, absl::MakeSpan(elements));
+  return CreateTuple(tuple_type, elements);
 }
 
 absl::Status IrTranslator::HandleLiteral(Literal* literal) {
@@ -967,15 +1025,18 @@ std::vector<Z3_ast> IrTranslator::FlattenValue(Type* type, Z3_ast value,
   }
 }
 
-Z3_ast IrTranslator::UnflattenZ3Ast(Type* type, absl::Span<Z3_ast> flat,
+Z3_ast IrTranslator::UnflattenZ3Ast(Type* type, absl::Span<const Z3_ast> flat,
                                     bool little_endian) {
   Z3OpTranslator op_translator(ctx_);
   switch (type->kind()) {
     case TypeKind::kBits:
       if (little_endian) {
-        std::reverse(flat.begin(), flat.end());
+        std::vector<Z3_ast> flat_vec(flat.begin(), flat.end());
+        std::reverse(flat_vec.begin(), flat_vec.end());
+        return op_translator.ConcatN(flat_vec);
+      } else {
+        return op_translator.ConcatN(flat);
       }
-      return op_translator.ConcatN(flat);
     case TypeKind::kArray: {
       ArrayType* array_type = type->AsArrayOrDie();
       int num_elements = array_type->size();
@@ -987,13 +1048,13 @@ Z3_ast IrTranslator::UnflattenZ3Ast(Type* type, absl::Span<Z3_ast> flat,
 
       int high = array_type->GetFlatBitCount();
       for (int i = 0; i < num_elements; i++) {
-        absl::Span<Z3_ast> subspan =
+        absl::Span<const Z3_ast> subspan =
             flat.subspan(high - element_bits, element_bits);
         elements.push_back(
             UnflattenZ3Ast(element_type, subspan, little_endian));
         high -= element_bits;
       }
-      return CreateArray(array_type, absl::MakeSpan(elements));
+      return CreateArray(array_type, elements);
     }
     case TypeKind::kTuple: {
       // For each tuple element, extract the sub-type's bits and unflatten, then
@@ -1003,13 +1064,13 @@ Z3_ast IrTranslator::UnflattenZ3Ast(Type* type, absl::Span<Z3_ast> flat,
       int high = tuple_type->GetFlatBitCount();
       for (Type* element_type : tuple_type->element_types()) {
         int64 element_bits = element_type->GetFlatBitCount();
-        absl::Span<Z3_ast> subspan =
+        absl::Span<const Z3_ast> subspan =
             flat.subspan(high - element_bits, element_bits);
         elements.push_back(
             UnflattenZ3Ast(element_type, subspan, little_endian));
         high -= element_bits;
       }
-      return CreateTuple(tuple_type, absl::MakeSpan(elements));
+      return CreateTuple(tuple_type, elements);
     }
     default:
       XLS_LOG(FATAL) << "Unsupported type kind: "
@@ -1038,7 +1099,7 @@ absl::Status IrTranslator::HandleSelect(
 
   std::vector<Z3_ast> flat_results = evaluator(selector, case_elements);
   std::reverse(flat_results.begin(), flat_results.end());
-  Z3_ast result = UnflattenZ3Ast(node->GetType(), absl::MakeSpan(flat_results));
+  Z3_ast result = UnflattenZ3Ast(node->GetType(), flat_results);
 
   NoteTranslation(node, result);
   return seh.status();
