@@ -78,6 +78,7 @@ py_library(
         "//xls/dslx/python:builtins",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_concrete_type",
+        "//xls/dslx/python:cpp_evaluate",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_scanner",
         "//xls/dslx/python:interp_value",

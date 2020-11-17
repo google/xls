@@ -21,12 +21,12 @@ from typing import Tuple, Optional
 from absl import logging
 
 from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python import cpp_evaluate
 from xls.dslx.python.builtins import throw_fail_error
 from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType
 from xls.dslx.python.cpp_concrete_type import ConcreteType
 from xls.dslx.python.cpp_concrete_type import EnumType
-from xls.dslx.python.cpp_concrete_type import is_ubits
 from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.dslx.python.cpp_pos import Span
 from xls.dslx.python.cpp_scanner import Keyword
@@ -124,63 +124,7 @@ def concrete_type_from_dims(primitive: Token,
   return result
 
 
-def _value_compatible_with_type(module: ast.Module, type_: ConcreteType,
-                                value: Value) -> bool:
-  """Returns whether value is compatible with type_ (recursively)."""
-  assert isinstance(value, Value), value
-
-  if isinstance(type_, TupleType) and value.is_tuple():
-    return all(
-        _value_compatible_with_type(module, ct, m)
-        for ct, m in zip(type_.get_unnamed_members(), value.get_elements()))
-
-  if isinstance(type_, ArrayType) and value.is_array():
-    et = type_.get_element_type()
-    return all(
-        _value_compatible_with_type(module, et, m)
-        for m in value.get_elements())
-
-  if isinstance(type_, EnumType) and value.tag == Tag.ENUM:
-    return type_.get_nominal_type() == value.get_type()
-
-  if isinstance(type_,
-                BitsType) and not type_.signed and value.tag == Tag.UBITS:
-    return value.get_bit_count() == type_.get_total_bit_count()
-
-  if isinstance(type_, BitsType) and type_.signed and value.tag == Tag.SBITS:
-    return value.get_bit_count() == type_.get_total_bit_count()
-
-  if value.tag == Tag.ENUM and isinstance(type_, BitsType):
-    return (value.get_type().get_signedness() == type_.signed and
-            value.get_bit_count() == type_.get_total_bit_count())
-
-  if value.tag == Tag.ARRAY and is_ubits(type_):
-    flat_bit_count = value.flatten().get_bit_count()
-    return flat_bit_count == type_.get_total_bit_count()
-
-  if isinstance(type_, EnumType) and value.is_bits():
-    return (type_.signed == (value.tag == Tag.SBITS) and
-            type_.get_total_bit_count() == value.get_bit_count())
-
-  raise NotImplementedError(type_, value)
-
-
-def concrete_type_accepts_value(module: ast.Module, type_: ConcreteType,
-                                value: Value) -> bool:
-  """Returns whether 'value' conforms to this concrete type."""
-  if value.tag == Tag.UBITS:
-    return (isinstance(type_, BitsType) and not type_.signed and
-            value.get_bit_count() == type_.get_total_bit_count())
-  if value.tag == Tag.SBITS:
-    return (isinstance(type_, BitsType) and type_.signed and
-            value.get_bit_count() == type_.get_total_bit_count())
-  if value.tag in (Tag.ARRAY, Tag.TUPLE, Tag.ENUM):
-    return _value_compatible_with_type(module, type_, value)
-  raise NotImplementedError(type_, value)
-
-
-def concrete_type_convert_value(module: ast.Module, type_: ConcreteType,
-                                value: Value, span: Span,
+def concrete_type_convert_value(type_: ConcreteType, value: Value, span: Span,
                                 enum_values: Optional[Tuple[Value, ...]],
                                 enum_signed: Optional[bool]) -> Value:
   """Converts 'value' into a value of this concrete type."""
@@ -249,7 +193,8 @@ def concrete_type_convert_value(module: ast.Module, type_: ConcreteType,
   if value.tag == Tag.ARRAY and isinstance(type_, BitsType):
     return value.flatten()
 
-  if concrete_type_accepts_value(module, type_, value):  # Vacuous conversion.
+  if cpp_evaluate.concrete_type_accepts_value(type_,
+                                              value):  # Vacuous conversion.
     return value
 
   throw_fail_error(

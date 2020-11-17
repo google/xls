@@ -33,7 +33,6 @@ import termcolor
 from xls.dslx import ir_name_mangler
 from xls.dslx.concrete_type_helpers import map_size
 from xls.dslx.interpreter import jit_comparison
-from xls.dslx.interpreter.concrete_type_helpers import concrete_type_accepts_value
 from xls.dslx.interpreter.concrete_type_helpers import concrete_type_convert_value
 from xls.dslx.interpreter.concrete_type_helpers import concrete_type_from_value
 from xls.dslx.interpreter.errors import EvaluateError
@@ -100,34 +99,12 @@ class Interpreter:
     type_ = self._evaluate_TypeAnnotation(expr.type_, bindings)
     logging.vlog(3, 'Cast to type: %s @ %s', type_, expr.span)
     value = self._evaluate(expr.expr, bindings, type_)
-    type_accepts_value = concrete_type_accepts_value(self._module, type_, value)
+    type_accepts_value = cpp_evaluate.concrete_type_accepts_value(type_, value)
     logging.vlog(3, 'Type %s accepts value %s? %s', type_, value,
                  type_accepts_value)
     return concrete_type_convert_value(
-        self._module, type_, value, expr.span,
-        self._get_enum_values(type_, bindings),
+        type_, value, expr.span, self._get_enum_values(type_, bindings),
         value.get_type().get_signedness() if value.get_type() else None)
-
-  def _evaluate_Let(  # pylint: disable=invalid-name
-      self, expr: ast.Let, bindings: Bindings,
-      type_context: Optional[ConcreteType]) -> Value:
-    """Evaluates a let expression to its body value."""
-    if expr.type_ is None:
-      type_ = None
-    else:
-      type_ = self._evaluate_TypeAnnotation(expr.type_, bindings)
-
-    to_bind = self._evaluate(expr.rhs, bindings, type_)
-    assert to_bind is not None
-    if type_ and not concrete_type_accepts_value(self._module, type_, to_bind):
-      raise EvaluateError(
-          expr.type_.span, 'Type error found at interpreter runtime! '
-          'Let-expression right hand side did not conform to annotated type'
-          '\n\twant: {}\n\tgot:  {}\n\tvalue: {}'.format(
-              type_, concrete_type_from_value(to_bind), to_bind))
-    new_bindings = bindings.clone_with(expr.name_def_tree, to_bind)
-    result = self._evaluate(expr.body, new_bindings, type_context)
-    return result
 
   def _concretize(self, type_, bindings: Bindings) -> ConcreteType:
     """Resolves type_ into a concrete type via expression evaluation."""
@@ -165,8 +142,8 @@ class Interpreter:
     carry = self._evaluate(expr.init, bindings)
     for i, x in enumerate(iterable.get_elements()):
       iteration = Value.make_tuple((x, carry))
-      if not concrete_type_accepts_value(self._module, concrete_iteration_type,
-                                         iteration):
+      if not cpp_evaluate.concrete_type_accepts_value(concrete_iteration_type,
+                                                      iteration):
         raise EvaluateError(
             expr.type_.span,
             'type error found at interpreter runtime! iteration value does not conform to type annotation '

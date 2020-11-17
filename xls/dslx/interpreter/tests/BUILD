@@ -193,6 +193,13 @@ dslx_test(
 )
 
 dslx_test(
+    name = "casts",
+    srcs = ["casts.x"],
+    # TODO(leary); 2019-10-24 Enable when we have ConcatArray op.
+    convert_ir = False,
+)
+
+dslx_test(
     name = "cast_to_array",
     srcs = ["cast_to_array.x"],
     # TODO(leary); 2019-10-24 Enable when we have ConcatArray op.

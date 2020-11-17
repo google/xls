@@ -90,6 +90,8 @@ class ConcreteTypeDim {
 // dealing with ConcreteTypeDims that hold ints.
 class ConcreteType {
  public:
+  static std::unique_ptr<ConcreteType> MakeNil();
+
   virtual ~ConcreteType() = default;
 
   virtual bool operator==(const ConcreteType& other) const = 0;
@@ -211,6 +213,9 @@ class TupleType : public ConcreteType {
     } else {
       return *absl::get<UnnamedMembers>(members_).at(i);
     }
+  }
+  const ConcreteType& GetMemberType(int64 i) const {
+    return const_cast<TupleType*>(this)->GetMemberType(i);
   }
 
   // Returns an error status if this TupleType does not have named members.
@@ -431,6 +436,10 @@ inline bool IsSBits(const ConcreteType& c) {
     return b->is_signed();
   }
   return false;
+}
+
+inline std::unique_ptr<ConcreteType> ConcreteType::MakeNil() {
+  return absl::make_unique<TupleType>(TupleType::UnnamedMembers{});
 }
 
 }  // namespace xls::dslx

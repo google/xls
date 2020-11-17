@@ -46,9 +46,9 @@ class InterpBindings : public std::enable_shared_from_this<InterpBindings> {
 
   // Creates a new bindings object parented to "parent" and with the additional
   // binding given by name_def_tree/value.
-  static InterpBindings CloneWith(std::shared_ptr<InterpBindings> parent,
-                                  NameDefTree* name_def_tree,
-                                  InterpValue value);
+  static std::shared_ptr<InterpBindings> CloneWith(
+      std::shared_ptr<InterpBindings> parent, NameDefTree* name_def_tree,
+      InterpValue value);
 
   static absl::string_view VariantAsString(const Entry& e);
 

@@ -24,6 +24,16 @@
 
 namespace xls::dslx {
 
+// Returns whether 'value' conforms to the given concrete type.
+absl::StatusOr<bool> ConcreteTypeAcceptsValue(const ConcreteType& type,
+                                              const InterpValue& value);
+
+// Returns whether the value is compatible with type (recursively).
+//
+// This compatibility test is used for e.g. casting validity purposes.
+absl::StatusOr<bool> ValueCompatibleWithType(const ConcreteType& type,
+                                             const InterpValue& value);
+
 // Note: all interpreter "node evaluators" have the same signature.
 
 absl::StatusOr<InterpValue> EvaluateConstRef(ConstRef* expr,
@@ -114,6 +124,11 @@ absl::StatusOr<InterpValue> EvaluateXlsTuple(XlsTuple* expr,
                                              InterpBindings* bindings,
                                              ConcreteType* type_context,
                                              InterpCallbackData* callbacks);
+
+// Evaluates a let expression; e.g. `let x = y in z`
+absl::StatusOr<InterpValue> EvaluateLet(Let* expr, InterpBindings* bindings,
+                                        ConcreteType* type_context,
+                                        InterpCallbackData* callbacks);
 
 // Evaluates a unary operation expression; e.g. `-x`.
 absl::StatusOr<InterpValue> EvaluateUnop(Unop* expr, InterpBindings* bindings,

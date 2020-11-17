@@ -16,12 +16,12 @@
 
 namespace xls::dslx {
 
-/* static */ InterpBindings InterpBindings::CloneWith(
+/* static */ std::shared_ptr<InterpBindings> InterpBindings::CloneWith(
     std::shared_ptr<InterpBindings> parent, NameDefTree* name_def_tree,
     InterpValue value) {
-  InterpBindings new_bindings(/*parent=*/parent);
-  new_bindings.AddValueTree(name_def_tree, value);
-  new_bindings.set_fn_ctx(parent->fn_ctx_);
+  auto new_bindings = std::make_shared<InterpBindings>(/*parent=*/parent);
+  new_bindings->AddValueTree(name_def_tree, value);
+  new_bindings->set_fn_ctx(parent->fn_ctx_);
   return new_bindings;
 }
 

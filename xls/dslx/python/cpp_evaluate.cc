@@ -231,6 +231,19 @@ PYBIND11_MODULE(cpp_evaluate, m) {
       },
       py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
       py::arg("callbacks"));
+  m.def(
+      "evaluate_Let",
+      [](LetHolder expr, InterpBindings* bindings, ConcreteType* type_context,
+         PyInterpCallbackData* py_callbacks) {
+        InterpCallbackData callbacks = ToCpp(*py_callbacks);
+        auto statusor =
+            EvaluateLet(&expr.deref(), bindings, type_context, &callbacks);
+        TryThrowFailureError(statusor.status());
+        TryThrowKeyError(statusor.status());
+        return statusor;
+      },
+      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
+      py::arg("callbacks"));
   m.def("make_top_level_bindings",
         [](ModuleHolder module, PyInterpCallbackData* py_callbacks) {
           InterpCallbackData callbacks = ToCpp(*py_callbacks);
@@ -242,6 +255,7 @@ PYBIND11_MODULE(cpp_evaluate, m) {
           InterpCallbackData callbacks = ToCpp(*py_callbacks);
           return ConcretizeType(&type.deref(), bindings, &callbacks);
         });
+  m.def("concrete_type_accepts_value", &ConcreteTypeAcceptsValue);
 
   m.def("resolve_dim", &ResolveDim, py::arg("dim"), py::arg("bindings"));
   m.def(

@@ -798,6 +798,16 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "cpp_evaluate_test",
+    srcs = ["cpp_evaluate_test.cc"],
+    deps = [
+        ":cpp_evaluate",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
 cc_library(
     name = "import_routines",
     srcs = ["import_routines.cc"],

@@ -620,8 +620,8 @@ absl::StatusOr<Bits> Number::GetBits(int64 bit_count) const {
     }
     case NumberKind::kCharacter: {
       XLS_RET_CHECK_EQ(text_.size(), 1);
-      Bits result =
-          Bits::FromBytes(/*bytes=*/{text_[0]}, /*bit_count=*/CHAR_BIT);
+      Bits result = Bits::FromBytes(/*bytes=*/{static_cast<uint8>(text_[0])},
+                                    /*bit_count=*/CHAR_BIT);
       return bits_ops::ZeroExtend(result, bit_count);
     }
     case NumberKind::kOther: {

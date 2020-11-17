@@ -129,6 +129,217 @@ absl::StatusOr<InterpValue> EvaluateXlsTuple(XlsTuple* expr,
   return InterpValue::MakeTuple(std::move(members));
 }
 
+// Turns an enum to corresponding (bits) concrete type (w/signedness).
+//
+// For example, used in conversion checks.
+//
+// Args:
+//  enum_def: AST node (enum definition) to convert.
+//  bit_count: The bit count of the underlying bits type for the enum
+//    definition, as determined by type inference or interpretation.
+static std::unique_ptr<ConcreteType> StrengthReduceEnum(EnumDef* enum_def,
+                                                        int64 bit_count) {
+  bool is_signed = enum_def->signedness().value();
+  return absl::make_unique<BitsType>(is_signed, bit_count);
+}
+
+// Returns the concrete type of 'value'.
+//
+// Note that:
+// * Non-zero-length arrays are assumed (for zero length arrays we can't
+//    currently deduce the type from the value because the concrete element type
+//    is not reified in the array value.
+// * Enums are strength-reduced to their underlying bits (storage) type.
+//
+// Args:
+//   value: Value to determine the concrete type for.
+static std::unique_ptr<ConcreteType> ConcreteTypeFromValue(
+    const InterpValue& value) {
+  switch (value.tag()) {
+    case InterpValueTag::kUBits:
+    case InterpValueTag::kSBits: {
+      bool signedness = value.tag() == InterpValueTag::kSBits;
+      return absl::make_unique<BitsType>(signedness,
+                                         value.GetBitCount().value());
+    }
+    case InterpValueTag::kArray: {
+      std::unique_ptr<ConcreteType> element_type;
+      if (value.GetLength().value() == 0) {
+        // Can't determine the type from the value of a 0-element array, so we
+        // just use nil.
+        element_type = ConcreteType::MakeNil();
+      } else {
+        element_type =
+            ConcreteTypeFromValue(value.Index(Value::MakeU32(0)).value());
+      }
+      return std::make_unique<ArrayType>(
+          std::move(element_type), ConcreteTypeDim(value.GetLength().value()));
+    }
+    case InterpValueTag::kTuple: {
+      std::vector<std::unique_ptr<ConcreteType>> members;
+      for (const InterpValue& m : value.GetValuesOrDie()) {
+        members.push_back(ConcreteTypeFromValue(m));
+      }
+      return absl::make_unique<TupleType>(std::move(members));
+    }
+    case InterpValueTag::kEnum:
+      return StrengthReduceEnum(value.type(), value.GetBitCount().value());
+    case InterpValueTag::kFunction:
+      break;
+  }
+  XLS_LOG(FATAL) << "Invalid value tag for ConcreteTypeFromValue: "
+                 << static_cast<int64>(value.tag());
+}
+
+absl::StatusOr<bool> ValueCompatibleWithType(const ConcreteType& type,
+                                             const InterpValue& value) {
+  if (auto* tuple_type = dynamic_cast<const TupleType*>(&type)) {
+    XLS_RET_CHECK_EQ(value.tag(), InterpValueTag::kTuple);
+    int64 member_count = tuple_type->size();
+    const auto& elements = value.GetValuesOrDie();
+    if (member_count != elements.size()) {
+      return false;
+    }
+    for (int64 i = 0; i < member_count; ++i) {
+      const ConcreteType& member_type = tuple_type->GetMemberType(i);
+      const InterpValue& member_value = elements[i];
+      XLS_ASSIGN_OR_RETURN(bool compatible,
+                           ValueCompatibleWithType(member_type, member_value));
+      if (!compatible) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  if (auto* array_type = dynamic_cast<const ArrayType*>(&type)) {
+    // For arrays, we check the first value in the array conforms to the element
+    // type to determine compatibility.
+    const ConcreteType& element_type = array_type->element_type();
+    const auto& elements = value.GetValuesOrDie();
+    int64 array_size = absl::get<int64>(array_type->size().value());
+    if (elements.size() != array_size) {
+      return false;
+    }
+    if (elements.empty()) {
+      return true;
+    }
+    const InterpValue& member_value = elements[0];
+    XLS_ASSIGN_OR_RETURN(bool compatible,
+                         ValueCompatibleWithType(element_type, member_value));
+    return compatible;
+  }
+
+  // For enum type and enum value we just compare the nominal type to see if
+  // they're identical.
+  if (auto* enum_type = dynamic_cast<const EnumType*>(&type);
+      enum_type != nullptr && value.tag() == InterpValueTag::kEnum) {
+    return enum_type->nominal_type() == value.type();
+  }
+
+  if (auto* bits_type = dynamic_cast<const BitsType*>(&type)) {
+    if (!bits_type->is_signed() && value.tag() == InterpValueTag::kUBits) {
+      return value.GetBitCount().value() ==
+             absl::get<int64>(bits_type->size().value());
+    }
+
+    if (bits_type->is_signed() && value.tag() == InterpValueTag::kSBits) {
+      return value.GetBitCount().value() ==
+             absl::get<int64>(bits_type->size().value());
+    }
+
+    // Enum values can be converted to bits type if the signedness/bit counts
+    // line up.
+    if (value.tag() == InterpValueTag::kEnum) {
+      return value.type()->signedness().value() == bits_type->is_signed() &&
+             value.GetBitCount().value() ==
+                 absl::get<int64>(bits_type->size().value());
+    }
+
+    // Arrays can be converted to unsigned bits types by flattening, but we must
+    // check the flattened bit count is the same as the target bit type.
+    if (!bits_type->is_signed() && value.tag() == InterpValueTag::kArray) {
+      int64 flat_bit_count = value.Flatten().value().GetBitCount().value();
+      return flat_bit_count == absl::get<int64>(bits_type->size().value());
+    }
+  }
+
+  if (auto* enum_type = dynamic_cast<const EnumType*>(&type);
+      enum_type != nullptr && value.IsBits()) {
+    return enum_type->signedness().value() ==
+               (value.tag() == InterpValueTag::kSBits) &&
+           enum_type->GetTotalBitCount().value() == value.GetBitCount().value();
+  }
+
+  return absl::UnimplementedError(absl::StrFormat(
+      "Cannot determine type/value compatibility; type: %s value: %s",
+      type.ToString(), value.ToString()));
+}
+
+absl::StatusOr<bool> ConcreteTypeAcceptsValue(const ConcreteType& type,
+                                              const InterpValue& value) {
+  switch (value.tag()) {
+    case InterpValueTag::kUBits: {
+      auto* bits_type = dynamic_cast<const BitsType*>(&type);
+      if (bits_type == nullptr) {
+        return false;
+      }
+      return !bits_type->is_signed() &&
+             value.GetBitCount().value() ==
+                 absl::get<int64>(bits_type->size().value());
+    }
+    case InterpValueTag::kSBits: {
+      auto* bits_type = dynamic_cast<const BitsType*>(&type);
+      if (bits_type == nullptr) {
+        return false;
+      }
+      return bits_type->is_signed() &&
+             value.GetBitCount().value() ==
+                 absl::get<int64>(bits_type->size().value());
+    }
+    case InterpValueTag::kArray:
+    case InterpValueTag::kTuple:
+    case InterpValueTag::kEnum:
+      // TODO(leary): 2020-11-16 We should be able to use stricter checks here
+      // than "can I cast value to type".
+      return ValueCompatibleWithType(type, value);
+    case InterpValueTag::kFunction:
+      break;
+  }
+  return absl::UnimplementedError(
+      absl::StrCat("ConcreteTypeAcceptsValue not implemented for tag: ",
+                   static_cast<int64>(value.tag())));
+}
+
+absl::StatusOr<InterpValue> EvaluateLet(Let* expr, InterpBindings* bindings,
+                                        ConcreteType* type_context,
+                                        InterpCallbackData* callbacks) {
+  std::unique_ptr<ConcreteType> want_type;
+  if (expr->type() != nullptr) {
+    XLS_ASSIGN_OR_RETURN(
+        want_type, ConcretizeTypeAnnotation(expr->type(), bindings, callbacks));
+  }
+
+  XLS_ASSIGN_OR_RETURN(InterpValue to_bind,
+                       callbacks->Eval(expr->rhs(), bindings));
+  if (want_type != nullptr) {
+    XLS_ASSIGN_OR_RETURN(bool accepted,
+                         ConcreteTypeAcceptsValue(*want_type, to_bind));
+    if (!accepted) {
+      return absl::InternalError(absl::StrFormat(
+          "EvaluateError: %s Type error found! Let-expression right hand side "
+          "did not "
+          "conform to annotated type\n\twant: %s\n\tgot:  %s\n\tvalue: %s",
+          expr->span().ToString(), want_type->ToString(),
+          ConcreteTypeFromValue(to_bind)->ToString(), to_bind.ToString()));
+    }
+  }
+
+  std::shared_ptr<InterpBindings> new_bindings = InterpBindings::CloneWith(
+      bindings->shared_from_this(), expr->name_def_tree(), to_bind);
+  return callbacks->Eval(expr->body(), new_bindings.get());
+}
+
 absl::StatusOr<InterpValue> EvaluateStructInstance(
     StructInstance* expr, InterpBindings* bindings, ConcreteType* type_context,
     InterpCallbackData* callbacks) {
