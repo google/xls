@@ -313,7 +313,30 @@ absl::StatusOr<bool> ConcreteTypeAcceptsValue(const ConcreteType& type,
                    static_cast<int64>(value.tag())));
 }
 
-// Converts 'value' into a value of "type".
+absl::Status EvaluateDerivedParametrics(
+    Function* fn, InterpBindings* bindings, InterpCallbackData* callbacks,
+    const absl::flat_hash_map<std::string, int64>& bound_dims) {
+  XLS_RET_CHECK_EQ(bound_dims.size(), fn->parametric_bindings().size());
+  for (ParametricBinding* parametric : fn->parametric_bindings()) {
+    if (bindings->Contains(parametric->identifier())) {
+      continue;  // Already bound.
+    }
+
+    XLS_ASSIGN_OR_RETURN(
+        std::unique_ptr<ConcreteType> type,
+        ConcretizeTypeAnnotation(parametric->type(), bindings, callbacks));
+    // We already computed derived parametrics in the parametric instantiator.
+    // All that's left is to add it to the current bindings.
+    int64 raw_value = bound_dims.at(parametric->identifier());
+    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim dim, type->GetTotalBitCount());
+    int64 bit_count = absl::get<int64>(dim.value());
+    auto wrapped =
+        InterpValue::MakeUBits(/*bit_count=*/bit_count, /*value=*/raw_value);
+    bindings->AddValue(parametric->identifier(), wrapped);
+  }
+  return absl::OkStatus();
+}
+
 absl::StatusOr<InterpValue> ConcreteTypeConvertValue(
     const ConcreteType& type, const InterpValue& value, const Span& span,
     absl::optional<std::vector<InterpValue>> enum_values,

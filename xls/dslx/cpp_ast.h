@@ -874,6 +874,8 @@ class ParametricBinding : public AstNode {
   TypeAnnotation* type() const { return type_; }
   Expr* expr() const { return expr_; }
 
+  const std::string& identifier() const { return name_def_->identifier(); }
+
  private:
   NameDef* name_def_;
   TypeAnnotation* type_;

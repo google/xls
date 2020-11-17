@@ -31,7 +31,6 @@ from absl import logging
 import termcolor
 
 from xls.dslx import ir_name_mangler
-from xls.dslx.concrete_type_helpers import map_size
 from xls.dslx.interpreter import jit_comparison
 from xls.dslx.interpreter.errors import EvaluateError
 from xls.dslx.parametric_instantiator import SymbolicBindings
@@ -78,29 +77,6 @@ class Interpreter:
   def _concretize(self, type_, bindings: Bindings) -> ConcreteType:
     """Resolves type_ into a concrete type via expression evaluation."""
     return cpp_evaluate.concretize_type(type_, bindings, self._get_callbacks())
-
-  def _evaluate_TypeAnnotation(  # pylint: disable=invalid-name
-      self, type_: ast.TypeAnnotation, bindings: Bindings) -> ConcreteType:
-    """Evaluates TypeAnnotation to a concrete type with dimensions resolved."""
-    result = self._concretize(type_, bindings)
-    logging.vlog(3, 'Type annotation %s concretized to %s', type_, result)
-
-    # Check deduced type is consistent with what we've interpreted.
-    #
-    # TODO(leary): 2019-12-03 We don't have a way to check enum compatibility
-    # with the corresponding bits-type value -- we should be using enum-based
-    # ConcreteTypes in the interpreter instead of their bits equivalents.
-    deduced = self._type_info[type_]
-    deduced = map_size(
-        deduced, self._module,
-        functools.partial(cpp_evaluate.resolve_dim, bindings=bindings))
-    if not deduced.has_enum():
-      assert deduced.compatible_with(result), \
-          (f'Deduced type {deduced} incompatible with '
-           f'interp-determined type {result} ({deduced!r} vs {result!r})')
-
-    logging.vlog(3, 'Type annotation %s evaluated to %s', type_, result)
-    return result
 
   # This function signature conforms to an abstract interface.
   # pylint: disable=unused-argument
@@ -353,36 +329,6 @@ class Interpreter:
 
     return scmp
 
-  def _evaluate_derived_parametrics(self, fn: ast.Function, bindings: Bindings,
-                                    bound_dims: Dict[Text, int]):
-    """Evaluates the parametric values derived from other parametric values.
-
-    Populates the "bindings" mapping with results computed by the typechecker.
-
-    For example, in:
-
-      fn [X: u32, Y: u32 = X+X] f(x: bits[X]) { ... }
-
-    Args:
-      fn: Function to evaluate parametric bindings for.
-      bindings: Bindings mapping to populate with newly evaluated parametric
-        binding names.
-      bound_dims: Parametric bindings computed by the typechecker.
-    """
-    # All symbolic bindings should have been computed by the typechecker
-    assert len(bound_dims) == len(fn.parametric_bindings)
-    for parametric in fn.parametric_bindings:
-      if parametric.name.identifier in bindings.keys():
-        # Already bound.
-        continue
-      type_ = self._evaluate_TypeAnnotation(parametric.type_, bindings)
-      # We already computed derived parametrics in parametric_instantiator.py
-      # All that's left is to add it to the current Bindings
-      raw_value = bound_dims[parametric.name.identifier]
-      wrapped_value = Value.make_ubits(type_.get_total_bit_count().value,
-                                       raw_value)
-      bindings.add_value(parametric.name.identifier, wrapped_value)
-
   def _evaluate_fn_with_interpreter(
       self, fn: ast.Function, args: Sequence[Value], span: Span,
       expr: Optional[ast.Invocation],
@@ -421,7 +367,8 @@ class Interpreter:
     # Bind all args to the parameter identifiers.
     bound_dims = {} if not symbolic_bindings else dict(
         symbolic_bindings)  # type: Dict[Text, int]
-    self._evaluate_derived_parametrics(fn, bindings, bound_dims)
+    cpp_evaluate.evaluate_derived_parametrics(fn, bindings,
+                                              self._get_callbacks(), bound_dims)
     bindings.fn_ctx = FnCtx(m.name, fn.name.identifier, symbolic_bindings)
     for param, arg in zip(fn.params, args):
       bindings.add_value(param.name.identifier, arg)

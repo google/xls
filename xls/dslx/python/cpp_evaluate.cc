@@ -134,6 +134,16 @@ PYBIND11_MODULE(cpp_evaluate, m) {
           TryThrowFailureError(statusor.status());
           return statusor;
         });
+  m.def("evaluate_derived_parametrics",
+        [](FunctionHolder f, InterpBindings* bindings,
+           PyInterpCallbackData* py_callbacks,
+           const std::unordered_map<std::string, int64>& bound_dims) {
+          InterpCallbackData callbacks = ToCpp(*py_callbacks);
+          return EvaluateDerivedParametrics(
+              &f.deref(), bindings, &callbacks,
+              absl::flat_hash_map<std::string, int64>(bound_dims.begin(),
+                                                      bound_dims.end()));
+        });
 
   m.def("resolve_dim", &ResolveDim, py::arg("dim"), py::arg("bindings"));
   m.def(

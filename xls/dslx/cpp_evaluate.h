@@ -87,6 +87,23 @@ struct InterpCallbackData {
   }
 };
 
+// Evaluates the parametric values derived from other parametric values.
+//
+// Populates the "bindings" mapping with results computed by the typechecker.
+//
+// For example, in:
+//
+//  fn [X: u32, Y: u32 = X+X] f(x: bits[X]) { ... }
+//
+// Args:
+//  fn: Function to evaluate parametric bindings for.
+//  bindings: Bindings mapping to populate with newly evaluated parametric
+//    binding names.
+//  bound_dims: Parametric bindings computed by the typechecker.
+absl::Status EvaluateDerivedParametrics(
+    Function* fn, InterpBindings* bindings, InterpCallbackData* callbacks,
+    const absl::flat_hash_map<std::string, int64>& bound_dims);
+
 // Note: all interpreter "node evaluators" have the same signature.
 
 absl::StatusOr<InterpValue> EvaluateConstRef(ConstRef* expr,

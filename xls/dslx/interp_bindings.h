@@ -112,6 +112,10 @@ class InterpBindings : public std::enable_shared_from_this<InterpBindings> {
   // a set.
   absl::flat_hash_set<std::string> GetKeys() const;
 
+  bool Contains(absl::string_view key) const {
+    return map_.contains(key) || (parent_ != nullptr && parent_->Contains(key));
+  }
+
   void set_fn_ctx(absl::optional<FnCtx> value) { fn_ctx_ = std::move(value); }
   const absl::optional<FnCtx>& fn_ctx() const { return fn_ctx_; }
 
