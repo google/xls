@@ -289,7 +289,8 @@ fn extend_to_32b(x: MySignedEnum) -> u32 {
   u32:x  // Sign-extends because the source type is signed.
 }
 
-test extend_to_32b {
+#![test]
+fn extend_to_32b {
   assert_eq(extend_to_32b(MySignedEnum::LOW), u32:-1)
 }
 ```
@@ -373,7 +374,8 @@ struct Point {
   y: u32,
 }
 
-test struct_equality {
+#![test]
+fn struct_equality {
   let p0 = Point { x: u32:42, y: u32:64 };
   let p1 = Point { y: u32:64, x: u32:42 };
   assert_eq(p0, p1)
@@ -386,7 +388,8 @@ names of in-scope values:
 ```
 struct Point { x: u32, y: u32, }
 
-test struct_equality {
+#![test]
+fn struct_equality {
   let x = u32:42;
   let y = u32:64;
   let p0 = Point { x, y };
@@ -411,7 +414,8 @@ fn main() -> u32 {
   f(Point { x: u32:42, y: u32:64 })
 }
 
-test main {
+#![test]
+fn main {
   assert_eq(u32:106, main())
 }
 ```
@@ -436,7 +440,8 @@ fn main() -> Point3 {
   update_y(p, u32:128)
 }
 
-test main {
+#![test]
+fn main {
   let want = Point3 { x: u32:42, y: u32:128, z: u32:256 };
   assert_eq(want, main())
 }
@@ -477,11 +482,13 @@ fn f(p: Point) -> u32 {
   p.x + p.y
 }
 
-test ok {
+#![test]
+fn ok {
   assert_eq(f(Point { x: u32:42, y: u32:64 }), u32:106)
 }
 
-test type_checker_error {
+#![test]
+fn type_checker_error {
   assert_eq(f(Coordinate { x: u32:42, y: u32:64 }), u32:106)
 }
 ```
@@ -499,7 +506,8 @@ fn make_point<A: u32, B: u32> make_point(x: bits[A], y: bits[B]) -> Point[A, B] 
   Point{ x, y }
 }
 
-test struct_construction {
+#![test]
+fn struct_construction {
   let p = make_point(u16:42, u32:42);
   assert_eq(u16:42, p.x)
 }
@@ -516,7 +524,8 @@ fn main(a: u32[2], i: u1) -> u32 {
   a[i]
 }
 
-test main {
+#![test]
+fn main {
   let x = u32:42;
   let y = u32:64;
   // Make an array with "bracket notation".
@@ -538,7 +547,8 @@ fn make_array(x: u32) -> u32[3] {
   u32[3]:[u32:42, x, ...]
 }
 
-test make_array {
+#![test]
+fn make_array {
   let _ = assert_eq(u32[3]:[u32:42, u32:42, u32:42], make_array(u32:42));
   let _ = assert_eq(u32[3]:[u32:42, u32:64, u32:64], make_array(u32:64));
   ()
@@ -570,7 +580,8 @@ fn main(x: u8) -> MyEnum {
   x as MyEnum
 }
 
-test main {
+#![test]
+fn main {
   let _ = assert_eq(main(u8:42), MyEnum::FOO);
   let _ = assert_eq(main(u8:64), MyEnum::BAR);
   ()
@@ -602,32 +613,38 @@ changed between signed and unsigned. Some examples are found below. See
 semantics.
 
 ```
-test narrow_cast {
+#![test]
+fn narrow_cast {
   let twelve = u4:0b1100;
   assert_eq(twelve as u2, u2:0)
 }
 
-test widen_cast {
+#![test]
+fn widen_cast {
   let three = u2:0b11;
   assert_eq(three as u4, u4:3)
 }
 
-test narrow_signed_cast {
+#![test]
+fn narrow_signed_cast {
   let negative_seven = s4:0b1001;
   assert_eq(negative_seven as u2, u2:1)
 }
 
-test widen_signed_cast {
+#![test]
+fn widen_signed_cast {
   let negative_one = s2:0b11;
   assert_eq(negative_one as s4, s4:-1)
 }
 
-test widen_to_unsigned {
+#![test]
+fn widen_to_unsigned {
   let negative_one = s2:0b11;
   assert_eq(negative_one as u3, u3:0b111)
 }
 
-test widen_to_signed {
+#![test]
+fn widen_to_signed {
   let three = u2:0b11;
   assert_eq(three as u3, u3:0b011)
 }
@@ -1002,7 +1019,8 @@ for semantics of numeric casts:
     no-op.
 
 ```
-test numerical_conversions {
+#![test]
+fn numerical_conversions {
   let s8_m2 = s8:-2;
   let u8_m2 = u8:-2;
   // Sign extension (source type is signed).
@@ -1046,7 +1064,8 @@ fn concat_arrays(a: u2[3], b: u2[3]) -> u2[6] {
   a ++ b
 }
 
-test cast_to_array {
+#![test]
+fn cast_to_array {
   let a_value: u6 = u6:0b011011;
   let a: u2[3] = cast_to_array(a_value);
   let a_array = u2[3]:[1, 2, 3];
@@ -1168,7 +1187,8 @@ fn main(x: u3) -> u1 {
   mod_imported::my_lsb(x) || mi::my_lsb(x)
 }
 
-test main {
+#![test]
+fn main {
   assert_eq(u1:0b1, main(u3:0b001))
 }
 ```
@@ -1195,7 +1215,8 @@ fn main(x: u3) -> u1 {
   mod_imported::my_lsb(x) || mi::my_lsb(x)
 }
 
-test main {
+#![test]
+fn main {
   assert_eq(u1:0b1, main(u3:0b001))
 }
 ```
@@ -1215,7 +1236,8 @@ fn match_const(x: u8) -> u8 {
   }
 }
 
-test match_const_not_binding {
+#![test]
+fn match_const_not_binding {
   let _ = assert_eq(u8:42, match_const(u8:0));
   let _ = assert_eq(u8:42, match_const(u8:1));
   let _ = assert_eq(u8:0, match_const(u8:42));
@@ -1230,7 +1252,8 @@ fn h(t: (u8, (u16, u32))) -> u32 {
   }
 }
 
-test match_nested {
+#![test]
+fn match_nested {
   let _ = assert_eq(u32:3, h((u8:42, (u16:1, u32:2))));
   let _ = assert_eq(u32:1, h((u8:0, (u16:1, u32:42))));
   let _ = assert_eq(u32:7, h((u8:0, (u16:1, u32:0))));
@@ -1311,7 +1334,8 @@ Here are many more examples:
 // Identity function helper.
 fn id<N: u32>(x: bits[N]) -> bits[N] { x }
 
-test bit_slice_syntax {
+#![test]
+fn bit_slice_syntax {
   let x = u6:0b100111;
   // Slice out two bits.
   let _ = assert_eq(u2:0b11, x[0:2]);
@@ -1420,7 +1444,8 @@ fn main(x: u3) -> u3 {
 }
 
 // Reverse examples.
-test reverse {
+#![test]
+fn reverse {
   let _ = assert_eq(u3:0b100, main(u3:0b001));
   let _ = assert_eq(u3:0b001, main(u3:0b100));
   let _ = assert_eq(bits[0]:0, rev(bits[0]:0));
@@ -1446,7 +1471,8 @@ These functions return the identity element of the respective operation for
 trivial (0 bit wide) inputs:
 
 ```
-test trivial_reduce {
+#![test]
+fn trivial_reduce {
   let _ = assert_eq(and_reduce(bits[0]:0), true);
   let _ = assert_eq(or_reduce(bits[0]:0), false);
   let _ = assert_eq(xor_reduce(bits[0]:0), false);
