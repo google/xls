@@ -43,6 +43,7 @@ bool OperandMustBeNamedReference(Node* node, int64 operand_no) {
   auto operand_is_indexable = [&]() {
     switch (node->operand(operand_no)->op()) {
       case Op::kArrayIndex:
+      case Op::kMultiArrayIndex:
       case Op::kParam:
         // These operations are emitted as VAST Index operations which
         // can be indexed.
@@ -58,6 +59,9 @@ bool OperandMustBeNamedReference(Node* node, int64 operand_no) {
     case Op::kDynamicBitSlice:
       return operand_no == 0 && !operand_is_indexable();
     case Op::kArrayIndex:
+    case Op::kMultiArrayIndex:
+    case Op::kArrayUpdate:
+    case Op::kMultiArrayUpdate:
       return operand_no == 0 && !operand_is_indexable();
     case Op::kOneHot:
     case Op::kOneHotSel:
@@ -423,10 +427,24 @@ absl::StatusOr<Expression*> NodeToExpression(
       return absl::UnimplementedError("ArrayUpdate not yet implemented");
     }
     case Op::kMultiArrayIndex: {
-      return absl::UnimplementedError("MultiArrayIndex not yet implemented");
+      IndexableExpression* subexpr = inputs[0]->AsIndexableExpressionOrDie();
+      for (Expression* index : inputs.subspan(1)) {
+        // TODO(meheff): Handle out-of-bounds index.
+        subexpr = file->Index(subexpr, index);
+      }
+      return subexpr;
     }
     case Op::kMultiArrayUpdate: {
-      return absl::UnimplementedError("MultiArrayUpdate not yet implemented");
+      // This is only reachable as a corner case where the "array" operand of
+      // the array update is not an array type. This is only possible with empty
+      // indices in which case the result of the array update is the "array"
+      // operand.
+      MultiArrayUpdate* update = node->As<MultiArrayUpdate>();
+      XLS_RET_CHECK(update->GetType()->IsBits());
+      XLS_RET_CHECK(update->indices().empty());
+      // The index is empty so the result of the update operation is simply the
+      // update value.
+      return inputs[1];
     }
     case Op::kArrayConcat: {
       return absl::UnimplementedError("ArrayConcat not yet implemented");

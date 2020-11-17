@@ -52,6 +52,12 @@ BValue BuilderBase::Param(absl::string_view name, Type* type,
   if (ErrorPending()) {
     return BValue();
   }
+  for (xls::Param* param : function()->params()) {
+    if (name == param->GetName()) {
+      return SetError(StrFormat("Parameter named \"%s\" already exists", name),
+                      loc);
+    }
+  }
   return AddNode<xls::Param>(loc, name, type);
 }
 

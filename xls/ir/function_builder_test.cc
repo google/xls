@@ -597,4 +597,15 @@ TEST(FunctionBuilderTest, MultiArrayUpdateInvalidIndexType) {
                          "bits types, index 0 is: (bits[123])")));
 }
 
+TEST(FunctionBuilderTest, MultipleParametersWithSameName) {
+  Package p("p");
+  FunctionBuilder b("f", &p);
+  b.Param("idx", p.GetBitsType(123));
+  b.Param("idx", p.GetBitsType(123));
+
+  EXPECT_THAT(b.Build().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Parameter named \"idx\" already exists")));
+}
+
 }  // namespace xls

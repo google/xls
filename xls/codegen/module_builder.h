@@ -214,14 +214,35 @@ class ModuleBuilder {
       Expression* lhs, Expression* rhs, Type* xls_type,
       std::function<void(Expression*, Expression*)> add_assignment_statement);
 
+  // Assigns to 'lhs' from 'on_true_rhs' and 'on_false_rhs' based on the
+  // condition. Depending upon the type this may require multiple assignment
+  // statements (e.g., for array assignments in Verilog). The function
+  // add_assignment_statement should add a single assignment statement. This
+  // function argument enables customization of the type of assignment
+  // (continuous, blocking, or non-blocking) as well as the location where the
+  // assignment statements are added.
+  absl::Status AddConditionalAssignment(
+      Expression* condition, Expression* lhs, Expression* on_true_rhs,
+      Expression* on_false_rhs, Type* xls_type,
+      std::function<void(Expression*, Expression*)> add_assignment_statement);
+
+  // Emits a copy and update of an array as a sequence of assignments. See
+  // method definition for details and examples.
+  using IndexMatch = absl::variant<bool, Expression*>;
+  absl::Status EmitArrayCopyAndUpdate(IndexableExpression* lhs,
+                                      IndexableExpression* rhs,
+                                      Expression* update_value,
+                                      absl::Span<Expression* const> indices,
+                                      IndexMatch index_match, Type* xls_type);
+
   // Assigns the select operation of 'selector' among 'cases' to the 'rhs' as in
   // the Op kSelect. 'default_value' is selected if the value of selector is
-  // greater than or equal to the size of 'cases'. Depending upon the type this
-  // may require multiple assignments (e.g., for array assignments in
+  // greater than or equal to the size of 'cases'. Depending upon the type
+  // this may require multiple assignments (e.g., for array assignments in
   // Verilog). The function add_assignment_statement should add a single
-  // assignment statement. This function argument enables customization of the
-  // type of assignment (continuous, blocking, or non-blocking) as well as the
-  // location where the assignment statements are added.
+  // assignment statement. This function argument enables customization of
+  // the type of assignment (continuous, blocking, or non-blocking) as well
+  // as the location where the assignment statements are added.
   absl::Status AddSelectAssignment(
       Expression* lhs, Type* xls_type, Expression* selector,
       int64 selector_width, absl::Span<Expression* const> cases,

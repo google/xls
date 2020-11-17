@@ -316,7 +316,9 @@ TEST_P(ModuleBuilderTest, SmulAsFunction) {
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u32 = package.GetBitsType(32);
   BValue x_smul_y = fb.SMul(fb.Param("x", u32), fb.Param("y", u32));
-  BValue z_smul_z = fb.SMul(fb.Param("z", u32), fb.Param("z", u32));
+  BValue z_param = fb.Param("z", u32);
+  BValue z_smul_z = fb.SMul(z_param, z_param);
+  XLS_ASSERT_OK(fb.Build());
 
   ModuleBuilder mb(TestBaseName(), &file,
                    /*use_system_verilog=*/UseSystemVerilog());
@@ -338,12 +340,12 @@ TEST_P(ModuleBuilderTest, DynamicBitSliceAsFunction) {
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u32 = package.GetBitsType(32);
   Type* u16 = package.GetBitsType(16);
-  BValue dyn_slice_x_y_5 =
-      fb.DynamicBitSlice(fb.Param("x", u32), fb.Param("y", u32), 5);
-  BValue dyn_slice_y_z_5 =
-      fb.DynamicBitSlice(fb.Param("y", u32), fb.Param("z", u32), 5);
-  BValue dyn_slice_w_z_10 =
-      fb.DynamicBitSlice(fb.Param("w", u16), fb.Param("z", u32), 10);
+  BValue y_param = fb.Param("y", u32);
+  BValue z_param = fb.Param("z", u32);
+  BValue dyn_slice_x_y_5 = fb.DynamicBitSlice(fb.Param("x", u32), y_param, 5);
+  BValue dyn_slice_y_z_5 = fb.DynamicBitSlice(y_param, z_param, 5);
+  BValue dyn_slice_w_z_10 = fb.DynamicBitSlice(fb.Param("w", u16), z_param, 10);
+  XLS_ASSERT_OK(fb.Build());
 
   ModuleBuilder mb(TestBaseName(), &file,
                    /*use_system_verilog=*/UseSystemVerilog());

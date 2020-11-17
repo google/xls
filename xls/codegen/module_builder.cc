@@ -140,6 +140,28 @@ absl::Status ModuleBuilder::AddAssignment(
   return absl::OkStatus();
 }
 
+absl::Status ModuleBuilder::AddConditionalAssignment(
+    Expression* condition, Expression* lhs, Expression* on_true_rhs,
+    Expression* on_false_rhs, Type* xls_type,
+    std::function<void(Expression*, Expression*)> add_assignment_statement) {
+  // Array assignment is only supported in SystemVerilog. In Verilog, arrays
+  // must be assigned element-by-element.
+  if (!use_system_verilog_ && xls_type != nullptr && xls_type->IsArray()) {
+    ArrayType* array_type = xls_type->AsArrayOrDie();
+    for (int64 i = 0; i < array_type->size(); ++i) {
+      XLS_RETURN_IF_ERROR(AddConditionalAssignment(
+          condition, file_->Index(lhs->AsIndexableExpressionOrDie(), i),
+          file_->Index(on_true_rhs->AsIndexableExpressionOrDie(), i),
+          file_->Index(on_false_rhs->AsIndexableExpressionOrDie(), i),
+          array_type->element_type(), add_assignment_statement));
+    }
+  } else {
+    add_assignment_statement(
+        lhs, file_->Ternary(condition, on_true_rhs, on_false_rhs));
+  }
+  return absl::OkStatus();
+}
+
 absl::Status ModuleBuilder::AddSelectAssignment(
     Expression* lhs, Type* xls_type, Expression* selector, int64 selector_width,
     absl::Span<Expression* const> cases, Expression* default_value,
@@ -431,6 +453,139 @@ absl::Status ModuleBuilder::EmitArrayUpdateElement(Expression* lhs,
   return absl::OkStatus();
 }
 
+// Emits a copy and update of an array as a sequence of assignments.
+// Specifically, 'rhs' is copied to 'lhs' with the element at the indices
+// 'indices' replaced with 'update_value'.  Examples of emitted verilog:
+//
+//   // lhs: bits[32][3] = array_update(rhs, value, indices=[1]):
+//   assign lhs[0] = rhs[0];
+//   assign lhs[1] = value;
+//   assign lhs[2] = rhs[1];
+//
+//   // lhs: bits[32][3] = array_update(rhs, value, indices=[x]):
+//   assign lhs[0] = x == 0 ? value : rhs[0];
+//   assign lhs[1] = x == 1 ? value : rhs[1];
+//   assign lhs[2] = x == 2 ? value : rhs[2];
+//
+//   // lhs: bits[32][3][2] = array_update(rhs, value, indices=[x, 1]):
+//   assign lhs[0][0] = rhs[0][0];
+//   assign lhs[0][1] = x == 0 ? value : rhs[0][1];
+//   assign lhs[0][2] = rhs[0][2];
+//   assign lhs[1][0] = rhs[1][0];
+//   assign lhs[1][1] = x == 1 ? value : rhs[0][1];
+//   assign lhs[1][2] = rhs[0][2];
+//
+//   // lhs: bits[32][3][2] = array_update(rhs, value, indices=[x, y]):
+//   assign lhs[0][0] = (x == 0 && y == 0) ? value : rhs[0][0];
+//   assign lhs[0][1] = (x == 0 && y == 1) ? value : rhs[0][1];
+//   assign lhs[0][2] = (x == 0 && y == 2) ? value : rhs[0][2];
+//   assign lhs[1][0] = (x == 1 && y == 0) ? value : rhs[1][0];
+//   assign lhs[1][1] = (x == 1 && y == 1) ? value : rhs[1][1];
+//   assign lhs[1][2] = (x == 1 && y == 2) ? value : rhs[1][2];
+//
+//   // lhs: bits[32][3][2] = array_update(rhs, value, indices=[x]):
+//   assign lhs[0][0] = x == 0 ? value[0] : rhs[0][0];
+//   assign lhs[0][1] = x == 0 ? value[1] : rhs[0][1];
+//   assign lhs[0][2] = x == 0 ? value[2] : rhs[0][2];
+//   assign lhs[1][0] = x == 1 ? value[0] : rhs[1][0];
+//   assign lhs[1][1] = x == 1 ? value[1] : rhs[1][1];
+//   assign lhs[1][2] = x == 1 ? value[2] : rhs[1][2];
+//
+// EmitArrayCopyAndUpdate recursively constructs the assignments. 'index_match'
+// is the index match expression (or explicit true/false value) used in ternary
+// expression to select element(s) from the update value or the rhs.
+absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
+    IndexableExpression* lhs, IndexableExpression* rhs,
+    Expression* update_value, absl::Span<Expression* const> indices,
+    IndexMatch index_match, Type* xls_type) {
+  auto is_statically_true = [](const IndexMatch& im) {
+    return absl::holds_alternative<bool>(im) && absl::get<bool>(im);
+  };
+  auto is_statically_false = [](const IndexMatch& im) {
+    return absl::holds_alternative<bool>(im) && !absl::get<bool>(im);
+  };
+  auto combine_index_matches = [&](const IndexMatch& a,
+                                   const IndexMatch& b) -> IndexMatch {
+    if (is_statically_false(a) || is_statically_false(b)) {
+      return false;
+    }
+    if (is_statically_true(a)) {
+      return b;
+    }
+    if (is_statically_true(b)) {
+      return a;
+    }
+    return file_->LogicalAnd(absl::get<Expression*>(a),
+                             absl::get<Expression*>(b));
+  };
+
+  if (indices.empty()) {
+    if (is_statically_true(index_match)) {
+      // Indices definitely *do* match the subarray/element being replaced with
+      // update value. Assign from update value exclusively. E.g.:
+      //   assign lhs[i][j] = update_value[j]
+      return AddAssignment(
+          /*lhs=*/lhs,
+          /*rhs=*/update_value,
+          /*xls_type=*/xls_type,
+          /*add_assignment_statement=*/
+          [&](Expression* lhs, Expression* rhs) {
+            assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
+          });
+    } else if (is_statically_false(index_match)) {
+      // Indices definitely do *NOT* match the subarray/element being replaced
+      // with update value. Assign from rhs exclusively. E.g.:
+      //   assign lhs[i][j] = rhs[j]
+      return AddAssignment(
+          /*lhs=*/lhs,
+          /*rhs=*/rhs,
+          /*xls_type=*/xls_type,
+          /*add_assignment_statement=*/
+          [&](Expression* lhs, Expression* rhs) {
+            assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
+          });
+    } else {
+      // Indices may or may not match the subarray/element being replaced with
+      // update value. Use a ternary expression to pick from rhs or update
+      // value. E.g:
+      //   assign lhs[i][j] = (i == idx) ? update_value[j] : rhs[j]
+      return AddConditionalAssignment(
+          /*condition=*/absl::get<Expression*>(index_match),
+          /*lhs=*/lhs,
+          /*on_true_rhs=*/update_value,
+          /*on_false_rhs=*/rhs,
+          /*xls_type=*/xls_type,
+          /*add_assignment_statement=*/
+          [&](Expression* lhs, Expression* rhs) {
+            assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
+          });
+    }
+  }
+
+  // Iterate through array elements and recurse.
+  ArrayType* array_type = xls_type->AsArrayOrDie();
+  Expression* index = indices.front();
+  for (int64 i = 0; i < array_type->size(); ++i) {
+    // Compute the current index match expression for this index element.
+    IndexMatch current_index_match;
+    if (index->IsLiteral()) {
+      // Index element is a literal. The condition is statically known (true or
+      // false).
+      current_index_match = index->IsLiteralWithValue(i);
+    } else {
+      // Index element is a not literal. The condition is not statically known.
+      current_index_match = file_->Equals(index, file_->PlainLiteral(i));
+    }
+    XLS_RETURN_IF_ERROR(EmitArrayCopyAndUpdate(
+        file_->Index(lhs, i), file_->Index(rhs, i), update_value,
+        indices.subspan(1),
+        combine_index_matches(current_index_match, index_match),
+        array_type->element_type()));
+  }
+
+  return absl::OkStatus();
+}
+
 absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
     absl::string_view name, Node* node, absl::Span<Expression* const> inputs) {
   LogicRef* ref = DeclareVariable(name, node->GetType());
@@ -459,6 +614,18 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
               assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
             }));
         break;
+      case Op::kMultiArrayIndex: {
+        IndexableExpression* element = inputs[0]->AsIndexableExpressionOrDie();
+        for (Expression* index : inputs.subspan(1)) {
+          // TODO(meheff): Handle out-of-bounds index.
+          element = file_->Index(element, index);
+        }
+        XLS_RETURN_IF_ERROR(AddAssignment(
+            ref, element, array_type, [&](Expression* lhs, Expression* rhs) {
+              assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
+            }));
+        break;
+      }
       case Op::kArrayUpdate:
         for (int64 i = 0; i < array_type->size(); ++i) {
           XLS_RETURN_IF_ERROR(EmitArrayUpdateElement(
@@ -469,6 +636,15 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
               file_->Index(inputs[0]->AsIndexableExpressionOrDie(), i),
               /*element_type=*/array_type->element_type()));
         }
+        break;
+      case Op::kMultiArrayUpdate:
+        XLS_RETURN_IF_ERROR(EmitArrayCopyAndUpdate(
+            /*lhs=*/ref,
+            /*rhs=*/inputs[0]->AsIndexableExpressionOrDie(),
+            /*update_value=*/inputs[1],
+            /*indices=*/inputs.subspan(2),
+            /*index_match=*/true,
+            /*xls_type=*/array_type));
         break;
       case Op::kArrayConcat: {
         if (inputs.size() != node->operands().size()) {

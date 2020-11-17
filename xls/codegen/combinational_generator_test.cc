@@ -1214,6 +1214,365 @@ TEST_P(CombinationalGeneratorTest, OneToNMuxProc) {
                                  result.verilog_text);
 }
 
+TEST_P(CombinationalGeneratorTest, MultiArrayIndexSimpleArray) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u8 = package.GetBitsType(8);
+  Type* u16 = package.GetBitsType(16);
+  auto a = fb.Param("a", package.GetArrayType(3, u8));
+  auto idx = fb.Param("idx", u16);
+  auto ret = fb.MultiArrayIndex(a, {idx});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(simulator.Run({{"a", Value::UBitsArray({11, 22, 33}, 8).value()},
+                             {"idx", Value(UBits(2, 16))}}),
+              IsOkAndHolds(Value(UBits(33, 8))));
+}
+
+TEST_P(CombinationalGeneratorTest, MultiArrayIndexNilIndex) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u8 = package.GetBitsType(8);
+  auto a = fb.Param("a", package.GetArrayType(3, u8));
+  auto ret = fb.MultiArrayIndex(a, {});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(
+      simulator.Run({{"a", Value::UBitsArray({11, 22, 33}, 8).value()}}),
+      IsOkAndHolds(Value::UBitsArray({11, 22, 33}, 8).value()));
+}
+
+TEST_P(CombinationalGeneratorTest, MultiArrayIndex2DArrayIndexSingleElement) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u8 = package.GetBitsType(8);
+  Type* u16 = package.GetBitsType(16);
+  auto a = fb.Param("a", package.GetArrayType(2, package.GetArrayType(3, u8)));
+  auto idx0 = fb.Param("idx0", u16);
+  auto idx1 = fb.Param("idx1", u16);
+  auto ret = fb.MultiArrayIndex(a, {idx0, idx1});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(
+      simulator.Run(
+          {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
+           {"idx0", Value(UBits(0, 16))},
+           {"idx1", Value(UBits(1, 16))}}),
+      IsOkAndHolds(Value(UBits(22, 8))));
+}
+
+TEST_P(CombinationalGeneratorTest, MultiArrayIndex2DArrayIndexSubArray) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u8 = package.GetBitsType(8);
+  Type* u16 = package.GetBitsType(16);
+  auto a = fb.Param("a", package.GetArrayType(2, package.GetArrayType(3, u8)));
+  auto idx = fb.Param("idx", u16);
+  auto ret = fb.MultiArrayIndex(a, {idx});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(
+      simulator.Run(
+          {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
+           {"idx", Value(UBits(0, 16))}}),
+      IsOkAndHolds(Value::UBitsArray({11, 22, 33}, 8).value()));
+  EXPECT_THAT(
+      simulator.Run(
+          {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
+           {"idx", Value(UBits(1, 16))}}),
+      IsOkAndHolds(Value::UBitsArray({44, 55, 66}, 8).value()));
+  // Out-of-bounds index should return the max element.
+  // TODO(meheff): Handle when out-of-bounds access is handled.
+  // EXPECT_THAT(
+  //     simulator.Run(
+  //         {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}},
+  //         8).value()},
+  //          {"idx", Value(UBits(42, 16))}}),
+  //     IsOkAndHolds(
+  //         Value::UBitsArray({44, 55, 66}, 8).value()));
+}
+
+TEST_P(CombinationalGeneratorTest, MultiArrayUpdateLiteralIndex) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u8 = package.GetBitsType(8);
+  auto a = fb.Param("a", package.GetArrayType(3, u8));
+  auto update_value = fb.Param("value", u8);
+  auto idx = fb.Literal(UBits(1, 16));
+  auto ret = fb.MultiArrayUpdate(a, update_value, {idx});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(simulator.Run({{"a", Value::UBitsArray({11, 22, 33}, 8).value()},
+                             {"value", Value(UBits(123, 8))}}),
+              IsOkAndHolds(Value::UBitsArray({11, 123, 33}, 8).value()));
+}
+
+TEST_P(CombinationalGeneratorTest, MultiArrayUpdateVariableIndex) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u8 = package.GetBitsType(8);
+  auto a = fb.Param("a", package.GetArrayType(3, u8));
+  auto update_value = fb.Param("value", u8);
+  auto idx = fb.Param("idx", package.GetBitsType(32));
+  auto ret = fb.MultiArrayUpdate(a, update_value, {idx});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(simulator.Run({{"a", Value::UBitsArray({11, 22, 33}, 8).value()},
+                             {"idx", Value(UBits(0, 32))},
+                             {"value", Value(UBits(123, 8))}}),
+              IsOkAndHolds(Value::UBitsArray({123, 22, 33}, 8).value()));
+  // Out-of-bounds should just return the original array.
+  EXPECT_THAT(simulator.Run({{"a", Value::UBitsArray({11, 22, 33}, 8).value()},
+                             {"idx", Value(UBits(3, 32))},
+                             {"value", Value(UBits(123, 8))}}),
+              IsOkAndHolds(Value::UBitsArray({11, 22, 33}, 8).value()));
+}
+
+TEST_P(CombinationalGeneratorTest, MultiArrayUpdate2DLiteralIndex) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u8 = package.GetBitsType(8);
+  auto a = fb.Param("a", package.GetArrayType(2, package.GetArrayType(3, u8)));
+  auto update_value = fb.Param("value", u8);
+  auto idx0 = fb.Literal(UBits(0, 32));
+  auto idx1 = fb.Literal(UBits(2, 14));
+  auto ret = fb.MultiArrayUpdate(a, update_value, {idx0, idx1});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(
+      simulator.Run(
+          {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
+           {"value", Value(UBits(123, 8))}}),
+      IsOkAndHolds(
+          Value::UBits2DArray({{11, 22, 123}, {44, 55, 66}}, 8).value()));
+}
+
+TEST_P(CombinationalGeneratorTest, MultiArrayUpdate2DVariableIndex) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u8 = package.GetBitsType(8);
+  auto a = fb.Param("a", package.GetArrayType(2, package.GetArrayType(3, u8)));
+  auto update_value = fb.Param("value", u8);
+  auto idx0 = fb.Param("idx0", package.GetBitsType(32));
+  auto idx1 = fb.Param("idx1", package.GetBitsType(32));
+  auto ret = fb.MultiArrayUpdate(a, update_value, {idx0, idx1});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(
+      simulator.Run(
+          {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
+           {"value", Value(UBits(123, 8))},
+           {"idx0", Value(UBits(1, 32))},
+           {"idx1", Value(UBits(0, 32))}}),
+      IsOkAndHolds(
+          Value::UBits2DArray({{11, 22, 33}, {123, 55, 66}}, 8).value()));
+  // Out-of-bounds should just return the original array.
+  EXPECT_THAT(
+      simulator.Run(
+          {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
+           {"value", Value(UBits(123, 8))},
+           {"idx0", Value(UBits(1, 32))},
+           {"idx1", Value(UBits(44, 32))}}),
+      IsOkAndHolds(
+          Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()));
+  EXPECT_THAT(
+      simulator.Run(
+          {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
+           {"value", Value(UBits(123, 8))},
+           {"idx0", Value(UBits(11, 32))},
+           {"idx1", Value(UBits(0, 32))}}),
+      IsOkAndHolds(
+          Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()));
+}
+
+TEST_P(CombinationalGeneratorTest, MultiArrayUpdate2DLiteralAndVariableIndex) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u8 = package.GetBitsType(8);
+  auto a = fb.Param("a", package.GetArrayType(2, package.GetArrayType(3, u8)));
+  auto update_value = fb.Param("value", u8);
+  auto idx0 = fb.Param("idx", package.GetBitsType(32));
+  auto idx1 = fb.Literal(UBits(2, 14));
+  auto ret = fb.MultiArrayUpdate(a, update_value, {idx0, idx1});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(
+      simulator.Run(
+          {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
+           {"value", Value(UBits(123, 8))},
+           {"idx", Value(UBits(0, 32))}}),
+      IsOkAndHolds(
+          Value::UBits2DArray({{11, 22, 123}, {44, 55, 66}}, 8).value()));
+  // Out-of-bounds should just return the original array.
+  EXPECT_THAT(
+      simulator.Run(
+          {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
+           {"value", Value(UBits(123, 8))},
+           {"idx", Value(UBits(10, 32))}}),
+      IsOkAndHolds(
+          Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()));
+}
+
+TEST_P(CombinationalGeneratorTest, MultiArrayUpdate2DUpdateArrayLiteralIndex) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u8 = package.GetBitsType(8);
+  auto a = fb.Param("a", package.GetArrayType(2, package.GetArrayType(3, u8)));
+  auto update_value = fb.Param("value", package.GetArrayType(3, u8));
+  auto idx = fb.Literal(UBits(1, 14));
+  auto ret = fb.MultiArrayUpdate(a, update_value, {idx});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(
+      simulator.Run(
+          {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
+           {"value", Value::UBitsArray({101, 102, 103}, 8).value()}}),
+      IsOkAndHolds(
+          Value::UBits2DArray({{11, 22, 33}, {101, 102, 103}}, 8).value()));
+}
+
+TEST_P(CombinationalGeneratorTest, MultiArrayUpdate2DUpdateArrayVariableIndex) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u8 = package.GetBitsType(8);
+  auto a = fb.Param("a", package.GetArrayType(2, package.GetArrayType(3, u8)));
+  auto update_value = fb.Param("value", package.GetArrayType(3, u8));
+  auto idx = fb.Param("idx", package.GetBitsType(37));
+  auto ret = fb.MultiArrayUpdate(a, update_value, {idx});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(
+      simulator.Run(
+          {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
+           {"value", Value::UBitsArray({101, 102, 103}, 8).value()},
+           {"idx", Value(UBits(1, 37))}}),
+      IsOkAndHolds(
+          Value::UBits2DArray({{11, 22, 33}, {101, 102, 103}}, 8).value()));
+  // Out-of-bounds should just return the original array.
+  EXPECT_THAT(
+      simulator.Run(
+          {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
+           {"value", Value::UBitsArray({101, 102, 103}, 8).value()},
+           {"idx", Value(UBits(2, 37))}}),
+      IsOkAndHolds(
+          Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()));
+}
+
+TEST_P(CombinationalGeneratorTest, MultiArrayUpdate2DUpdateArrayNilIndex) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u8 = package.GetBitsType(8);
+  auto a = fb.Param("a", package.GetArrayType(2, package.GetArrayType(3, u8)));
+  auto update_value =
+      fb.Param("value", package.GetArrayType(2, package.GetArrayType(3, u8)));
+  auto ret = fb.MultiArrayUpdate(a, update_value, {});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(
+      simulator.Run(
+          {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
+           {"value", Value::UBits2DArray({{101, 102, 103}, {104, 105, 106}}, 8)
+                         .value()}}),
+      IsOkAndHolds(
+          Value::UBits2DArray({{101, 102, 103}, {104, 105, 106}}, 8).value()));
+}
+
+TEST_P(CombinationalGeneratorTest, MultiArrayUpdateBitsNilIndex) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u8 = package.GetBitsType(8);
+  auto a = fb.Param("a", u8);
+  auto update_value = fb.Param("value", u8);
+  auto ret = fb.MultiArrayUpdate(a, update_value, {});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"a", UBits(11, 8)}, {"value", UBits(22, 8)}}),
+              IsOkAndHolds(UBits(22, 8)));
+}
+
 INSTANTIATE_TEST_SUITE_P(CombinationalGeneratorTestInstantiation,
                          CombinationalGeneratorTest,
                          testing::ValuesIn(kDefaultSimulationTargets),

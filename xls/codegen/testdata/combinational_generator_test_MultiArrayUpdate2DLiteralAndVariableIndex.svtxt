@@ -1,0 +1,22 @@
+module MultiArrayUpdate2DLiteralAndVariableIndex(
+  input wire [47:0] a,
+  input wire [7:0] value,
+  input wire [31:0] idx,
+  output wire [47:0] out
+);
+  wire [7:0] a_unflattened[2][3];
+  assign a_unflattened[0][0] = a[47:40];
+  assign a_unflattened[0][1] = a[39:32];
+  assign a_unflattened[0][2] = a[31:24];
+  assign a_unflattened[1][0] = a[23:16];
+  assign a_unflattened[1][1] = a[15:8];
+  assign a_unflattened[1][2] = a[7:0];
+  wire [7:0] multiarray_update_5[2][3];
+  assign multiarray_update_5[0][0] = a_unflattened[0][0];
+  assign multiarray_update_5[0][1] = a_unflattened[0][1];
+  assign multiarray_update_5[0][2] = idx == 0 ? value : a_unflattened[0][2];
+  assign multiarray_update_5[1][0] = a_unflattened[1][0];
+  assign multiarray_update_5[1][1] = a_unflattened[1][1];
+  assign multiarray_update_5[1][2] = idx == 1 ? value : a_unflattened[1][2];
+  assign out = {{multiarray_update_5[0][0], multiarray_update_5[0][1], multiarray_update_5[0][2]}, {multiarray_update_5[1][0], multiarray_update_5[1][1], multiarray_update_5[1][2]}};
+endmodule
