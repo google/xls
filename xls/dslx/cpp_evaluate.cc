@@ -438,6 +438,46 @@ static absl::StatusOr<absl::optional<std::vector<InterpValue>>> GetEnumValues(
   return absl::make_optional(std::move(result));
 }
 
+absl::StatusOr<InterpValue> EvaluateArray(Array* expr, InterpBindings* bindings,
+                                          ConcreteType* type_context,
+                                          InterpCallbackData* callbacks) {
+  std::unique_ptr<ConcreteType> type;
+  if (type_context == nullptr && expr->type() != nullptr) {
+    XLS_ASSIGN_OR_RETURN(
+        type, ConcretizeTypeAnnotation(expr->type(), bindings, callbacks));
+    type_context = type.get();
+  }
+
+  auto* array_type = dynamic_cast<ArrayType*>(type_context);
+
+  const ConcreteType* element_type = nullptr;
+  if (type_context != nullptr) {
+    // If we have a type context it must be an array.
+    XLS_RET_CHECK(array_type != nullptr);
+    element_type = &array_type->element_type();
+  }
+
+  std::vector<InterpValue> elements;
+  elements.reserve(expr->members().size());
+  for (Expr* m : expr->members()) {
+    std::unique_ptr<ConcreteType> type_context;
+    if (element_type != nullptr) {
+      type_context = element_type->CloneToUnique();
+    }
+    XLS_ASSIGN_OR_RETURN(InterpValue e,
+                         callbacks->Eval(m, bindings, std::move(type_context)));
+    elements.push_back(std::move(e));
+  }
+  if (expr->has_ellipsis()) {
+    XLS_RET_CHECK(array_type != nullptr);
+    int64 target_size = absl::get<int64>(array_type->size().value());
+    while (elements.size() < target_size) {
+      elements.push_back(elements.back());
+    }
+  }
+  return InterpValue::MakeArray(std::move(elements));
+}
+
 absl::StatusOr<InterpValue> EvaluateCast(Cast* expr, InterpBindings* bindings,
                                          ConcreteType* type_context,
                                          InterpCallbackData* callbacks) {

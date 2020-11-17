@@ -40,7 +40,6 @@ from xls.dslx.python import builtins
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_evaluate
 from xls.dslx.python import cpp_type_info as type_info_mod
-from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import ConcreteType
 from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.python.cpp_pos import Pos
@@ -144,31 +143,12 @@ class Interpreter:
       new_bindings.add_value('carry', carry)
     return carry
 
-  def _evaluate_Array(  # pylint: disable=invalid-name
-      self, expr: ast.Array, bindings: Bindings,
-      type_context: Optional[ConcreteType]) -> Value:
-    """Evaluates an 'Array' AST node to a value."""
-    element_type = None
-    if type_context is None and expr.type_:
-      type_context = self._evaluate_TypeAnnotation(expr.type_, bindings)
-    if type_context is not None:
-      assert isinstance(type_context, ArrayType), type_context
-      element_type = type_context.get_element_type()
-      logging.vlog(3, 'element type for array members: %s @ %s', element_type,
-                   expr.span)
-    elements = tuple(
-        self._evaluate(e, bindings, element_type) for e in expr.members)
-    if expr.has_ellipsis:
-      assert type_context is not None, type_context
-      elements = elements + elements[-1:] * (
-          type_context.size.value - len(elements))
-    return Value.make_array(elements)
-
   def _evaluate_ConstantArray(  # pylint: disable=invalid-name
       self, expr: ast.ConstantArray, bindings: Bindings,
       type_context: Optional[ConcreteType]) -> Value:
     """Evaluates a 'ConstantArray' AST node to a value."""
-    return self._evaluate_Array(expr, bindings, type_context)
+    return cpp_evaluate.evaluate_Array(expr, bindings, type_context,
+                                       self._get_callbacks())
 
   def _evaluate_ModRef(  # pylint: disable=invalid-name
       self, expr: ast.ModRef, bindings: Bindings,

@@ -154,6 +154,11 @@ absl::StatusOr<InterpValue> EvaluateUnop(Unop* expr, InterpBindings* bindings,
                                          ConcreteType* type_context,
                                          InterpCallbackData* callbacks);
 
+// Evaluates an array expression; e.g. `[a, b, c]`.
+absl::StatusOr<InterpValue> EvaluateArray(Array* expr, InterpBindings* bindings,
+                                          ConcreteType* type_context,
+                                          InterpCallbackData* callbacks);
+
 // Evaluates a binary operation expression; e.g. `x + y`.
 absl::StatusOr<InterpValue> EvaluateBinop(Binop* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
