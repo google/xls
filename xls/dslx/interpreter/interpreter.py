@@ -74,28 +74,8 @@ class Interpreter:
     self._trace_all = trace_all
     self._ir_package = ir_package
 
-  def _concretize(self, type_, bindings: Bindings) -> ConcreteType:
-    """Resolves type_ into a concrete type via expression evaluation."""
-    return cpp_evaluate.concretize_type(type_, bindings, self._get_callbacks())
-
-  # This function signature conforms to an abstract interface.
+  # Functions in the interpreter conform to shared abstract signatures.
   # pylint: disable=unused-argument
-  def _evaluate_Carry(  # pylint: disable=invalid-name
-      self, expr: ast.Carry, bindings: Bindings,
-      type_context: Optional[ConcreteType]) -> Value:
-    assert isinstance(expr, ast.Carry), expr
-    return bindings.resolve_value_from_identifier('carry')
-
-  def _evaluate_While(  # pylint: disable=invalid-name
-      self, expr: ast.While, bindings: Bindings,
-      type_context: Optional[ConcreteType]) -> Value:
-    carry = self._evaluate(expr.init, bindings)
-    new_bindings = Bindings(bindings)
-    new_bindings.add_value('carry', carry)
-    while self._evaluate(expr.test, new_bindings).is_true():
-      carry = self._evaluate(expr.body, new_bindings)
-      new_bindings.add_value('carry', carry)
-    return carry
 
   def _evaluate_ConstantArray(  # pylint: disable=invalid-name
       self, expr: ast.ConstantArray, bindings: Bindings,
@@ -103,17 +83,6 @@ class Interpreter:
     """Evaluates a 'ConstantArray' AST node to a value."""
     return cpp_evaluate.evaluate_Array(expr, bindings, type_context,
                                        self._get_callbacks())
-
-  def _evaluate_ModRef(  # pylint: disable=invalid-name
-      self, expr: ast.ModRef, bindings: Bindings,
-      _: Optional[ConcreteType]) -> Value:
-    """Evaluates a 'ModRef' AST node to a value."""
-    logging.vlog(3, 'Evaluating ModRef %s @ %s; bindings: %s', expr, expr.span,
-                 bindings.keys())
-    mod = bindings.resolve_mod(expr.mod.identifier)
-    f = mod.get_function(expr.value)
-    assert f.get_containing_module() == mod, (f, f.get_containing_module(), mod)
-    return Value.make_function(mod, f)
 
   def _call_builtin_fn(
       self,

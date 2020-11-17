@@ -40,6 +40,44 @@ absl::StatusOr<InterpValue> EvaluateConstRef(ConstRef* expr,
   return bindings->ResolveValue(expr);
 }
 
+absl::StatusOr<InterpValue> EvaluateModRef(ModRef* expr,
+                                           InterpBindings* bindings,
+                                           ConcreteType* type_context,
+                                           InterpCallbackData* callbacks) {
+  XLS_ASSIGN_OR_RETURN(Module * module,
+                       bindings->ResolveModule(expr->import()->identifier()));
+  XLS_ASSIGN_OR_RETURN(Function * f, module->GetFunction(expr->attr()));
+  return InterpValue::MakeFunction(
+      InterpValue::UserFnData{module->shared_from_this(), f});
+}
+
+absl::StatusOr<InterpValue> EvaluateCarry(Carry* expr, InterpBindings* bindings,
+                                          ConcreteType* type_context,
+                                          InterpCallbackData* callbacks) {
+  return bindings->ResolveValueFromIdentifier("carry");
+}
+
+absl::StatusOr<InterpValue> EvaluateWhile(While* expr, InterpBindings* bindings,
+                                          ConcreteType* type_context,
+                                          InterpCallbackData* callbacks) {
+  XLS_ASSIGN_OR_RETURN(InterpValue carry,
+                       callbacks->Eval(expr->init(), bindings));
+  auto new_bindings =
+      std::make_shared<InterpBindings>(bindings->shared_from_this());
+  new_bindings->AddValue("carry", carry);
+  while (true) {
+    XLS_ASSIGN_OR_RETURN(InterpValue test,
+                         callbacks->Eval(expr->test(), new_bindings.get()));
+    if (!test.IsTrue()) {
+      break;
+    }
+    XLS_ASSIGN_OR_RETURN(carry,
+                         callbacks->Eval(expr->body(), new_bindings.get()));
+    new_bindings->AddValue("carry", carry);
+  }
+  return carry;
+}
+
 absl::StatusOr<InterpValue> EvaluateNumber(Number* expr,
                                            InterpBindings* bindings,
                                            ConcreteType* type_context,

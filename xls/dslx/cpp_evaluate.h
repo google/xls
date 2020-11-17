@@ -116,6 +116,19 @@ absl::StatusOr<InterpValue> EvaluateNameRef(NameRef* expr,
                                             ConcreteType* type_context,
                                             InterpCallbackData* callbacks);
 
+absl::StatusOr<InterpValue> EvaluateModRef(ModRef* expr,
+                                           InterpBindings* bindings,
+                                           ConcreteType* type_context,
+                                           InterpCallbackData* callbacks);
+
+absl::StatusOr<InterpValue> EvaluateWhile(While* expr, InterpBindings* bindings,
+                                          ConcreteType* type_context,
+                                          InterpCallbackData* callbacks);
+
+absl::StatusOr<InterpValue> EvaluateCarry(Carry* expr, InterpBindings* bindings,
+                                          ConcreteType* type_context,
+                                          InterpCallbackData* callbacks);
+
 // Evaluates a Number AST node to a value.
 //
 // Args:

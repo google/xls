@@ -108,6 +108,9 @@ PYBIND11_MODULE(cpp_evaluate, m) {
   ADD_EVAL(Cast);
   ADD_EVAL(Array);
   ADD_EVAL(For);
+  ADD_EVAL(While);
+  ADD_EVAL(ModRef);
+  ADD_EVAL(Carry);
   m.def("make_top_level_bindings",
         [](ModuleHolder module, PyInterpCallbackData* py_callbacks) {
           InterpCallbackData callbacks = ToCpp(*py_callbacks);
