@@ -244,6 +244,19 @@ PYBIND11_MODULE(cpp_evaluate, m) {
       },
       py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
       py::arg("callbacks"));
+  m.def(
+      "evaluate_Cast",
+      [](CastHolder expr, InterpBindings* bindings, ConcreteType* type_context,
+         PyInterpCallbackData* py_callbacks) {
+        InterpCallbackData callbacks = ToCpp(*py_callbacks);
+        auto statusor =
+            EvaluateCast(&expr.deref(), bindings, type_context, &callbacks);
+        TryThrowFailureError(statusor.status());
+        TryThrowKeyError(statusor.status());
+        return statusor;
+      },
+      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),
+      py::arg("callbacks"));
   m.def("make_top_level_bindings",
         [](ModuleHolder module, PyInterpCallbackData* py_callbacks) {
           InterpCallbackData callbacks = ToCpp(*py_callbacks);
@@ -255,7 +268,21 @@ PYBIND11_MODULE(cpp_evaluate, m) {
           InterpCallbackData callbacks = ToCpp(*py_callbacks);
           return ConcretizeType(&type.deref(), bindings, &callbacks);
         });
-  m.def("concrete_type_accepts_value", &ConcreteTypeAcceptsValue);
+  m.def("concrete_type_accepts_value",
+        [](const ConcreteType& type, const InterpValue& value) {
+          auto statusor = ConcreteTypeAcceptsValue(type, value);
+          TryThrowFailureError(statusor.status());
+          return statusor;
+        });
+  m.def("concrete_type_convert_value",
+        [](const ConcreteType& type, const InterpValue& value, const Span& span,
+           absl::optional<std::vector<InterpValue>> enum_values,
+           absl::optional<bool> enum_signed) {
+          auto statusor = ConcreteTypeConvertValue(type, value, span,
+                                                   enum_values, enum_signed);
+          TryThrowFailureError(statusor.status());
+          return statusor;
+        });
 
   m.def("resolve_dim", &ResolveDim, py::arg("dim"), py::arg("bindings"));
   m.def(

@@ -34,6 +34,20 @@ absl::StatusOr<bool> ConcreteTypeAcceptsValue(const ConcreteType& type,
 absl::StatusOr<bool> ValueCompatibleWithType(const ConcreteType& type,
                                              const InterpValue& value);
 
+// Converts "value" into a value of "type".
+//
+// Args:
+//  type: Type to convert value into.
+//  value: Value to convert into "type".
+//  span: The span of the expression performing the conversion (used for error
+//    reporting).
+//  enum_values: If type is an enum, provides the evaluated values for it.
+//  enum_signed: If type is an enum, provides whether it is signed.
+absl::StatusOr<InterpValue> ConcreteTypeConvertValue(
+    const ConcreteType& type, const InterpValue& value, const Span& span,
+    absl::optional<std::vector<InterpValue>> enum_values,
+    absl::optional<bool> enum_signed);
+
 // Note: all interpreter "node evaluators" have the same signature.
 
 absl::StatusOr<InterpValue> EvaluateConstRef(ConstRef* expr,
@@ -129,6 +143,11 @@ absl::StatusOr<InterpValue> EvaluateXlsTuple(XlsTuple* expr,
 absl::StatusOr<InterpValue> EvaluateLet(Let* expr, InterpBindings* bindings,
                                         ConcreteType* type_context,
                                         InterpCallbackData* callbacks);
+
+// Evaluates a cast expression; e.g. `x as u32`.
+absl::StatusOr<InterpValue> EvaluateCast(Cast* expr, InterpBindings* bindings,
+                                         ConcreteType* type_context,
+                                         InterpCallbackData* callbacks);
 
 // Evaluates a unary operation expression; e.g. `-x`.
 absl::StatusOr<InterpValue> EvaluateUnop(Unop* expr, InterpBindings* bindings,

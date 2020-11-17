@@ -16,19 +16,15 @@
 
 """Functions for dealing with concrete types and interpreter values."""
 
-from typing import Tuple, Optional
+from typing import Tuple
 
 from absl import logging
 
 from xls.dslx.python import cpp_ast as ast
-from xls.dslx.python import cpp_evaluate
-from xls.dslx.python.builtins import throw_fail_error
 from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType
 from xls.dslx.python.cpp_concrete_type import ConcreteType
-from xls.dslx.python.cpp_concrete_type import EnumType
 from xls.dslx.python.cpp_concrete_type import TupleType
-from xls.dslx.python.cpp_pos import Span
 from xls.dslx.python.cpp_scanner import Keyword
 from xls.dslx.python.cpp_scanner import Token
 from xls.dslx.python.cpp_scanner import TokenKind
@@ -122,82 +118,3 @@ def concrete_type_from_dims(primitive: Token,
   result = concrete_type_from_element_type_and_dims(base_type, dims[:-1])
   logging.vlog(4, '%r %r => %r', primitive, dims, result)
   return result
-
-
-def concrete_type_convert_value(type_: ConcreteType, value: Value, span: Span,
-                                enum_values: Optional[Tuple[Value, ...]],
-                                enum_signed: Optional[bool]) -> Value:
-  """Converts 'value' into a value of this concrete type."""
-  logging.vlog(3, 'Converting value %s to type %s', value, type_)
-  if value.tag == Tag.UBITS and isinstance(type_, ArrayType):
-    bits_per_element = type_.get_element_type().get_total_bit_count().value
-    bits = value.get_bits()
-
-    def bit_slice_value_at_index(i: int) -> Value:
-      lo = i * bits_per_element
-      return Value.make_bits(
-          Tag.UBITS,
-          bits.reverse().slice(lo, bits_per_element).reverse())
-
-    return Value.make_array(
-        tuple(bit_slice_value_at_index(i) for i in range(type_.size.value)))
-
-  if (isinstance(type_, EnumType) and
-      value.tag in (Tag.UBITS, Tag.SBITS, Tag.ENUM) and
-      value.get_bit_count() == type_.get_total_bit_count().value):
-    # Check that the bits we're converting from are present in the enum type
-    # we're converting to.
-    nominal_type = type_.get_nominal_type()
-    for enum_value in enum_values:
-      if value.get_bits() == enum_value.get_bits():
-        break
-    else:
-      throw_fail_error(
-          span,
-          'Value is not valid for enum {}: {}'.format(nominal_type.identifier,
-                                                      value))
-    return Value.make_enum(value.get_bits(), nominal_type)
-
-  if (value.tag == Tag.ENUM and isinstance(type_, BitsType) and
-      type_.get_total_bit_count() == value.get_bit_count()):
-    tag = Tag.SBITS if type_.signed else Tag.UBITS
-    return Value.make_bits(tag, value.get_bits())
-
-  def zero_ext() -> Value:
-    assert isinstance(type_, BitsType)
-    tag = Tag.SBITS if type_.signed else Tag.UBITS
-    bit_count = type_.get_total_bit_count().value
-    logging.vlog(3, 'Zero extending %s to %s @ %s; tag: %s', value, bit_count,
-                 span, tag)
-    bits = value.zero_ext(bit_count).get_bits()
-    return Value.make_bits(tag, bits)
-
-  def sign_ext() -> Value:
-    assert isinstance(type_, BitsType)
-    tag = Tag.SBITS if type_.signed else Tag.UBITS
-    bit_count = type_.get_total_bit_count().value
-    logging.vlog(3, 'Sign extending %s to %s @ %s', value, bit_count, span)
-    return Value.make_bits(tag, value.sign_ext(bit_count).get_bits())
-
-  if value.tag == Tag.UBITS:
-    return zero_ext()
-
-  if value.tag == Tag.SBITS:
-    return sign_ext()
-
-  if value.tag == Tag.ENUM:
-    assert enum_signed is not None
-    return sign_ext() if enum_signed else zero_ext()
-
-  # If we're converting an array into bits, flatten the array payload.
-  if value.tag == Tag.ARRAY and isinstance(type_, BitsType):
-    return value.flatten()
-
-  if cpp_evaluate.concrete_type_accepts_value(type_,
-                                              value):  # Vacuous conversion.
-    return value
-
-  throw_fail_error(
-      span,
-      'Interpreter failure: cannot convert value %s (of type %s) to type %s' %
-      (value, concrete_type_from_value(value), type_))

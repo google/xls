@@ -33,7 +33,6 @@ import termcolor
 from xls.dslx import ir_name_mangler
 from xls.dslx.concrete_type_helpers import map_size
 from xls.dslx.interpreter import jit_comparison
-from xls.dslx.interpreter.concrete_type_helpers import concrete_type_convert_value
 from xls.dslx.interpreter.concrete_type_helpers import concrete_type_from_value
 from xls.dslx.interpreter.errors import EvaluateError
 from xls.dslx.parametric_instantiator import SymbolicBindings
@@ -43,7 +42,6 @@ from xls.dslx.python import cpp_evaluate
 from xls.dslx.python import cpp_type_info as type_info_mod
 from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import ConcreteType
-from xls.dslx.python.cpp_concrete_type import EnumType
 from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.python.cpp_pos import Pos
 from xls.dslx.python.cpp_pos import Span
@@ -78,33 +76,6 @@ class Interpreter:
     self._f_import = f_import
     self._trace_all = trace_all
     self._ir_package = ir_package
-
-  def _get_enum_values(self, type_: ConcreteType,
-                       bindings: Bindings) -> Optional[Tuple[Value, ...]]:
-    """Retrieves the flat/evaluated members of enum if type_ is an EnumType."""
-    if not isinstance(type_, EnumType):
-      return None
-
-    enum = type_.get_nominal_type()
-    result = []
-    for member in enum.values:
-      _, value = member.get_name_value(enum)
-      result.append(self._evaluate(value, bindings))
-    return tuple(result)
-
-  def _evaluate_Cast(  # pylint: disable=invalid-name
-      self, expr: ast.Cast, bindings: Bindings,
-      _: Optional[ConcreteType]) -> Value:
-    """Evaluates a 'Cast' AST node to a value."""
-    type_ = self._evaluate_TypeAnnotation(expr.type_, bindings)
-    logging.vlog(3, 'Cast to type: %s @ %s', type_, expr.span)
-    value = self._evaluate(expr.expr, bindings, type_)
-    type_accepts_value = cpp_evaluate.concrete_type_accepts_value(type_, value)
-    logging.vlog(3, 'Type %s accepts value %s? %s', type_, value,
-                 type_accepts_value)
-    return concrete_type_convert_value(
-        type_, value, expr.span, self._get_enum_values(type_, bindings),
-        value.get_type().get_signedness() if value.get_type() else None)
 
   def _concretize(self, type_, bindings: Bindings) -> ConcreteType:
     """Resolves type_ into a concrete type via expression evaluation."""

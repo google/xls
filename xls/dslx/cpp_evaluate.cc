@@ -311,6 +311,151 @@ absl::StatusOr<bool> ConcreteTypeAcceptsValue(const ConcreteType& type,
                    static_cast<int64>(value.tag())));
 }
 
+// Converts 'value' into a value of "type".
+absl::StatusOr<InterpValue> ConcreteTypeConvertValue(
+    const ConcreteType& type, const InterpValue& value, const Span& span,
+    absl::optional<std::vector<InterpValue>> enum_values,
+    absl::optional<bool> enum_signed) {
+  // Converting unsigned bits to an array.
+  if (auto* array_type = dynamic_cast<const ArrayType*>(&type);
+      array_type != nullptr && value.IsUBits()) {
+    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim element_bit_count,
+                         array_type->element_type().GetTotalBitCount());
+    int64 bits_per_element = absl::get<int64>(element_bit_count.value());
+    const Bits& bits = value.GetBitsOrDie();
+
+    auto bit_slice_value_at_index = [&](int64 i) -> InterpValue {
+      int64 lo = i * bits_per_element;
+      Bits rev = bits_ops::Reverse(bits);
+      Bits slice = rev.Slice(lo, bits_per_element);
+      Bits result = bits_ops::Reverse(slice);
+      return InterpValue::MakeBits(InterpValueTag::kUBits, result).value();
+    };
+
+    std::vector<InterpValue> values;
+    for (int64 i = 0; i < absl::get<int64>(array_type->size().value()); ++i) {
+      values.push_back(bit_slice_value_at_index(i));
+    }
+
+    return Value::MakeArray(values);
+  }
+
+  // Converting bits-having-thing into an enum.
+  if (auto* enum_type = dynamic_cast<const EnumType*>(&type);
+      enum_type != nullptr && value.HasBits() &&
+      value.GetBitCount().value() ==
+          absl::get<int64>(type.GetTotalBitCount().value().value())) {
+    EnumDef* enum_def = enum_type->nominal_type();
+    bool found = false;
+    for (const InterpValue& enum_value : *enum_values) {
+      if (value.GetBitsOrDie() == enum_value.GetBitsOrDie()) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      return absl::InternalError(absl::StrFormat(
+          "FailureError: %s Value is not valid for enum %s: %s",
+          span.ToString(), enum_def->identifier(), value.ToString()));
+    }
+    return Value::MakeEnum(value.GetBitsOrDie(), enum_def);
+  }
+
+  // Converting enum value to bits.
+  if (auto* bits_type = dynamic_cast<const BitsType*>(&type);
+      value.IsEnum() && bits_type != nullptr &&
+      type.GetTotalBitCount().value() == value.GetBitCount().value()) {
+    auto tag = bits_type->is_signed() ? InterpValueTag::kSBits
+                                      : InterpValueTag::kUBits;
+    return InterpValue::MakeBits(tag, value.GetBitsOrDie());
+  }
+
+  auto zero_ext = [&]() -> InterpValue {
+    auto* bits_type = dynamic_cast<const BitsType*>(&type);
+    XLS_CHECK(bits_type != nullptr);
+    InterpValueTag tag = bits_type->is_signed() ? InterpValueTag::kSBits
+                                                : InterpValueTag::kUBits;
+    int64 bit_count = absl::get<int64>(bits_type->size().value());
+    return InterpValue::MakeBits(tag, value.ZeroExt(bit_count)->GetBitsOrDie())
+        .value();
+  };
+
+  auto sign_ext = [&]() -> InterpValue {
+    auto* bits_type = dynamic_cast<const BitsType*>(&type);
+    XLS_CHECK(bits_type != nullptr);
+    InterpValueTag tag = bits_type->is_signed() ? InterpValueTag::kSBits
+                                                : InterpValueTag::kUBits;
+    int64 bit_count = absl::get<int64>(bits_type->size().value());
+    return InterpValue::MakeBits(
+               tag, value.SignExt(bit_count).value().GetBitsOrDie())
+        .value();
+  };
+
+  if (value.IsUBits()) {
+    return zero_ext();
+  }
+
+  if (value.IsSBits()) {
+    return sign_ext();
+  }
+
+  if (value.IsEnum()) {
+    return enum_signed.value() ? sign_ext() : zero_ext();
+  }
+
+  if (value.IsArray() && dynamic_cast<const BitsType*>(&type) != nullptr) {
+    return value.Flatten();
+  }
+
+  XLS_ASSIGN_OR_RETURN(bool type_accepts_value,
+                       ConcreteTypeAcceptsValue(type, value));
+  if (type_accepts_value) {
+    // Vacuous conversion.
+    return value;
+  }
+
+  return absl::InvalidArgumentError(
+      absl::StrFormat("FailureError: %s Cannot convert value %s to type %s",
+                      span.ToString(), value.ToString(), type.ToString()));
+}
+
+// Retrieves the flat/evaluated members of enum if type_ is an EnumType.
+static absl::StatusOr<absl::optional<std::vector<InterpValue>>> GetEnumValues(
+    const ConcreteType& type, InterpBindings* bindings,
+    InterpCallbackData* callbacks) {
+  auto* enum_type = dynamic_cast<const EnumType*>(&type);
+  if (enum_type == nullptr) {
+    return absl::nullopt;
+  }
+
+  EnumDef* enum_def = enum_type->nominal_type();
+  std::vector<InterpValue> result;
+  for (const EnumMember& member : enum_def->values()) {
+    XLS_ASSIGN_OR_RETURN(InterpValue value,
+                         callbacks->Eval(ToExprNode(member.value), bindings));
+    result.push_back(std::move(value));
+  }
+  return absl::make_optional(std::move(result));
+}
+
+absl::StatusOr<InterpValue> EvaluateCast(Cast* expr, InterpBindings* bindings,
+                                         ConcreteType* type_context,
+                                         InterpCallbackData* callbacks) {
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<ConcreteType> type,
+      ConcretizeTypeAnnotation(expr->type(), bindings, callbacks));
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue value,
+      callbacks->Eval(expr->expr(), bindings, type->CloneToUnique()));
+  XLS_ASSIGN_OR_RETURN(absl::optional<std::vector<InterpValue>> enum_values,
+                       GetEnumValues(*type, bindings, callbacks));
+  return ConcreteTypeConvertValue(
+      *type, value, expr->span(), std::move(enum_values),
+      value.type() == nullptr
+          ? absl::nullopt
+          : absl::make_optional(value.type()->signedness().value()));
+}
+
 absl::StatusOr<InterpValue> EvaluateLet(Let* expr, InterpBindings* bindings,
                                         ConcreteType* type_context,
                                         InterpCallbackData* callbacks) {
