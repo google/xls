@@ -105,7 +105,9 @@ PYBIND11_MODULE(builtins, m) {
   m.def("rev", WrapBuiltin(BuiltinRev));
   m.def("signex", WrapBuiltin(BuiltinSignex));
   m.def("slice", WrapBuiltin(BuiltinSlice));
+  m.def("update", WrapBuiltin(BuiltinUpdate));
   m.def("xor_reduce", WrapBuiltin(BuiltinXorReduce));
+
   // Signed comparison builtins.
   m.def("slt", WrapBuiltin(get_scmp(SignedCmp::kLt)));
   m.def("sle", WrapBuiltin(get_scmp(SignedCmp::kLe)));

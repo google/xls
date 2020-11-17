@@ -262,20 +262,6 @@ class Interpreter:
     assert isinstance(args[0], Value), args[0]
     return args[0]
 
-  def _builtin_update(
-      self,
-      args: Sequence[Value],
-      span: Span,
-      expr: ast.Invocation,
-      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
-    """Implements 'update' builtin."""
-    if len(args) != 3:
-      raise EvaluateError(
-          span, 'Invalid number of arguments to update; got {} want 3'.format(
-              len(args)))
-    original, index, value = args
-    return original.update(index, value)
-
   def _evaluate_fn_with_interpreter(
       self, fn: ast.Function, args: Sequence[Value], span: Span,
       expr: Optional[ast.Invocation],

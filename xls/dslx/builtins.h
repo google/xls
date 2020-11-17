@@ -46,6 +46,11 @@ absl::StatusOr<InterpValue> BuiltinFail(absl::Span<const InterpValue> args,
                                         const Span& span, Invocation* expr,
                                         SymbolicBindings* symbolic_bindings);
 
+// Implements 'update' builtin function.
+absl::StatusOr<InterpValue> BuiltinUpdate(absl::Span<const InterpValue> args,
+                                          const Span& span, Invocation* expr,
+                                          SymbolicBindings* symbolic_bindings);
+
 // Implements 'assert_eq' builtin function.
 absl::StatusOr<InterpValue> BuiltinAssertEq(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,

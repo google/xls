@@ -156,6 +156,17 @@ absl::StatusOr<InterpValue> BuiltinFail(absl::Span<const InterpValue> args,
   return FailureError(span, args[0].ToString());
 }
 
+absl::StatusOr<InterpValue> BuiltinUpdate(absl::Span<const InterpValue> args,
+                                          const Span& span, Invocation* expr,
+                                          SymbolicBindings* symbolic_bindings) {
+  XLS_RETURN_IF_ERROR(
+      ArgChecker("update", args).size(3).array(0).bits(1).status());
+  const InterpValue& array = args[0];
+  const InterpValue& index = args[1];
+  const InterpValue& value = args[2];
+  return array.Update(index, value);
+}
+
 absl::StatusOr<InterpValue> BuiltinAssertEq(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
     SymbolicBindings* symbolic_bindings) {
