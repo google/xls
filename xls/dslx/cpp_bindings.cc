@@ -39,17 +39,14 @@ absl::StatusOr<std::pair<Span, std::string>> ParseErrorGetData(
 }
 
 AnyNameDef BoundNodeToAnyNameDef(BoundNode bn) {
-  if (absl::holds_alternative<ConstantDef*>(bn)) {
-    return absl::get<ConstantDef*>(bn)->name_def();
+  if (absl::holds_alternative<EnumDef*>(bn)) {
+    return absl::get<EnumDef*>(bn)->name_def();
   }
   if (absl::holds_alternative<TypeDef*>(bn)) {
     return absl::get<TypeDef*>(bn)->name_def();
   }
-  if (absl::holds_alternative<StructDef*>(bn)) {
-    return absl::get<StructDef*>(bn)->name_def();
-  }
-  if (absl::holds_alternative<EnumDef*>(bn)) {
-    return absl::get<EnumDef*>(bn)->name_def();
+  if (absl::holds_alternative<ConstantDef*>(bn)) {
+    return absl::get<ConstantDef*>(bn)->name_def();
   }
   if (absl::holds_alternative<NameDef*>(bn)) {
     return absl::get<NameDef*>(bn);
@@ -57,8 +54,15 @@ AnyNameDef BoundNodeToAnyNameDef(BoundNode bn) {
   if (absl::holds_alternative<BuiltinNameDef*>(bn)) {
     return absl::get<BuiltinNameDef*>(bn);
   }
+  if (absl::holds_alternative<StructDef*>(bn)) {
+    return absl::get<StructDef*>(bn)->name_def();
+  }
+  if (absl::holds_alternative<Import*>(bn)) {
+    return absl::get<Import*>(bn)->name_def();
+  }
   XLS_LOG(FATAL) << "Unsupported BoundNode variant: "
-                 << ToAstNode(bn)->ToString();
+                 << ToAstNode(bn)->ToString() << " "
+                 << ToAstNode(bn)->GetNodeTypeName();
 }
 
 Span BoundNodeGetSpan(BoundNode bn) {

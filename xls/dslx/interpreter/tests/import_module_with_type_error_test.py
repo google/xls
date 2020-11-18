@@ -17,6 +17,7 @@
 
 from xls.common import runfiles
 from xls.dslx.interpreter import parse_and_interpret
+from xls.dslx.python.cpp_parser import CppParseError
 from absl.testing import absltest
 
 
@@ -31,6 +32,17 @@ class ImportModuleWithTypeErrorTest(absltest.TestCase):
     self.assertIn('XlsTypeError', str(cm.exception))
     self.assertIn('xls/dslx/interpreter/tests/has_type_error.x:16:3-16:4',
                   str(cm.exception))
+
+  def test_imports_and_causes_ref_error(self):
+    path = runfiles.get_path(
+        'xls/dslx/interpreter/tests/imports_and_causes_ref_error.x')
+    with self.assertRaises(CppParseError) as cm:
+      parse_and_interpret.parse_and_test_path(path)
+
+    self.assertIn('ParseError', str(cm.exception.message))
+    self.assertIn(
+        'xls/dslx/interpreter/tests/imports_and_causes_ref_error.x:17:29-17:31',
+        str(cm.exception.message))
 
 
 if __name__ == '__main__':

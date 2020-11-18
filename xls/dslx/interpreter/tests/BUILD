@@ -394,6 +394,7 @@ py_test(
     srcs = ["import_module_with_type_error_test.py"],
     data = [
         "has_type_error.x",
+        "imports_and_causes_ref_error.x",
         "imports_has_type_error.x",
     ],
     python_version = "PY3",
@@ -402,5 +403,6 @@ py_test(
         "@com_google_absl_py//absl/testing:absltest",
         "//xls/common:runfiles",
         "//xls/dslx/interpreter:parse_and_interpret",
+        "//xls/dslx/python:cpp_parser",
     ],
 )
