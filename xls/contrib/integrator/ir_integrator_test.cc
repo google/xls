@@ -22,6 +22,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/package.h"
+#include "xls/ir/verifier.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -741,6 +742,903 @@ TEST_F(IntegratorTest, InsertNodeRepeatedly) {
   XLS_ASSERT_OK(integration->InsertNode(add_node));
   auto repeat_result = integration->InsertNode(add_node);
   EXPECT_FALSE(repeat_result.ok());
+}
+
+TEST_F(IntegratorTest, DeUnifyIntegrationNodesExternalNode) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<IntegrationFunction> integration,
+      IntegrationFunction::MakeIntegrationFunctionWithParamTuples(p.get(), {}));
+  Function external_func("external", p.get());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * external_1,
+      external_func.MakeNodeWithName<Param>(/*loc=*/std::nullopt, "external_1",
+                                            p->GetBitsType(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * external_2,
+      external_func.MakeNodeWithName<Param>(/*loc=*/std::nullopt, "external_2",
+                                            p->GetBitsType(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * external_sel,
+      external_func.MakeNodeWithName<Param>(/*loc=*/std::nullopt,
+                                            "external_sel", p->GetBitsType(1)));
+  std::vector<Node*> elements = {external_1, external_2};
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * external_mux,
+      external_func.MakeNode<Select>(/*loc=*/std::nullopt, external_sel,
+                                     elements, /*default_value=*/std::nullopt));
+
+  // Can't DeUnify external node.
+  auto result = integration->DeUnifyIntegrationNodes(external_mux);
+  EXPECT_FALSE(result.ok());
+}
+
+TEST_F(IntegratorTest, DeUnifyIntegrationNodesNonUnifyNonMux) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<IntegrationFunction> integration,
+      IntegrationFunction::MakeIntegrationFunctionWithParamTuples(p.get(), {}));
+  Function& internal_func = *integration->function();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * internal_1,
+      internal_func.MakeNodeWithName<Param>(/*loc=*/std::nullopt, "internal_1",
+                                            p->GetBitsType(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * internal_cat,
+      internal_func.MakeNode<Concat>(
+          /*loc=*/std::nullopt, std::vector<Node*>({internal_1, internal_1})));
+
+  auto result = integration->DeUnifyIntegrationNodes(internal_cat);
+  EXPECT_FALSE(result.ok());
+}
+
+TEST_F(IntegratorTest, DeUnifyIntegrationNodesNonUnifyMuxDoesNotHaveTwoCases) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<IntegrationFunction> integration,
+      IntegrationFunction::MakeIntegrationFunctionWithParamTuples(p.get(), {}));
+  Function& internal_func = *integration->function();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * internal_1,
+      internal_func.MakeNodeWithName<Param>(/*loc=*/std::nullopt, "internal_1",
+                                            p->GetBitsType(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * internal_sel,
+      internal_func.MakeNodeWithName<Param>(/*loc=*/std::nullopt,
+                                            "internal_sel", p->GetBitsType(1)));
+  std::vector<Node*> elements = {internal_1};
+  XLS_ASSERT_OK_AND_ASSIGN(Node * internal_mux,
+                           integration->function()->MakeNode<Select>(
+                               /*loc=*/std::nullopt, internal_sel, elements,
+                               /*default_value=*/internal_sel));
+
+  auto result = integration->DeUnifyIntegrationNodes(internal_mux);
+  EXPECT_FALSE(result.ok());
+}
+
+TEST_F(IntegratorTest, DeUnifyIntegrationNodesNonUnifyMuxSameOperands) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<IntegrationFunction> integration,
+      IntegrationFunction::MakeIntegrationFunctionWithParamTuples(p.get(), {}));
+  Function& internal_func = *integration->function();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * internal_1,
+      internal_func.MakeNodeWithName<Param>(/*loc=*/std::nullopt, "internal_1",
+                                            p->GetBitsType(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * internal_2,
+      internal_func.MakeNodeWithName<Param>(/*loc=*/std::nullopt, "internal_2",
+                                            p->GetBitsType(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * internal_sel,
+      internal_func.MakeNodeWithName<Param>(/*loc=*/std::nullopt,
+                                            "internal_sel", p->GetBitsType(1)));
+  XLS_ASSERT_OK(integration->UnifyIntegrationNodes(internal_1, internal_2));
+  std::vector<Node*> elements = {internal_1, internal_2};
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * internal_mux,
+      internal_func.MakeNode<Select>(/*loc=*/std::nullopt, internal_sel,
+                                     elements, /*default_value=*/std::nullopt));
+
+  auto result = integration->DeUnifyIntegrationNodes(internal_mux);
+  EXPECT_FALSE(result.ok());
+}
+
+TEST_F(IntegratorTest, DeUnifyIntegrationNodesNonUnifyMuxDifferentOperands) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<IntegrationFunction> integration,
+      IntegrationFunction::MakeIntegrationFunctionWithParamTuples(p.get(), {}));
+  Function& internal_func = *integration->function();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * internal_1,
+      internal_func.MakeNodeWithName<Param>(/*loc=*/std::nullopt, "internal_1",
+                                            p->GetBitsType(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * internal_2,
+      internal_func.MakeNodeWithName<Param>(/*loc=*/std::nullopt, "internal_2",
+                                            p->GetBitsType(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * internal_3,
+      internal_func.MakeNodeWithName<Param>(/*loc=*/std::nullopt, "internal_3",
+                                            p->GetBitsType(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * internal_4,
+      internal_func.MakeNodeWithName<Param>(/*loc=*/std::nullopt, "internal_4",
+                                            p->GetBitsType(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * internal_sel,
+      internal_func.MakeNodeWithName<Param>(/*loc=*/std::nullopt,
+                                            "internal_sel", p->GetBitsType(1)));
+  XLS_ASSERT_OK(integration->UnifyIntegrationNodes(internal_1, internal_2));
+  std::vector<Node*> elements = {internal_3, internal_4};
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * internal_mux,
+      internal_func.MakeNode<Select>(/*loc=*/std::nullopt, internal_sel,
+                                     elements, /*default_value=*/std::nullopt));
+
+  auto result = integration->DeUnifyIntegrationNodes(internal_mux);
+  EXPECT_FALSE(result.ok());
+}
+
+TEST_F(IntegratorTest, DeUnifyIntegrationNodesMuxHasUsers) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<IntegrationFunction> integration,
+      IntegrationFunction::MakeIntegrationFunctionWithParamTuples(p.get(), {}));
+  Function& internal_func = *integration->function();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * internal_1,
+      internal_func.MakeNodeWithName<Param>(/*loc=*/std::nullopt, "internal_1",
+                                            p->GetBitsType(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * internal_2,
+      internal_func.MakeNodeWithName<Param>(/*loc=*/std::nullopt, "internal_2",
+                                            p->GetBitsType(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      IntegrationFunction::UnifiedNode unify_mux,
+      integration->UnifyIntegrationNodes(internal_1, internal_2));
+  XLS_ASSERT_OK(internal_func.MakeNode<Concat>(
+      /*loc=*/std::nullopt,
+      std::vector<Node*>({unify_mux.node, unify_mux.node})));
+
+  auto result = integration->DeUnifyIntegrationNodes(unify_mux.node);
+  EXPECT_FALSE(result.ok());
+}
+
+TEST_F(IntegratorTest, DeUnifyIntegrationNodesRemoveMuxAndParam) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<IntegrationFunction> integration,
+      IntegrationFunction::MakeIntegrationFunctionWithParamTuples(p.get(), {}));
+  Function& internal_func = *integration->function();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * internal_1,
+      internal_func.MakeNodeWithName<Param>(/*loc=*/std::nullopt, "internal_1",
+                                            p->GetBitsType(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * internal_2,
+      internal_func.MakeNodeWithName<Param>(/*loc=*/std::nullopt, "internal_2",
+                                            p->GetBitsType(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      IntegrationFunction::UnifiedNode unify_mux,
+      integration->UnifyIntegrationNodes(internal_1, internal_2));
+  Node* sel = unify_mux.node->As<Select>()->selector();
+
+  EXPECT_EQ(integration->function()->node_count(), 4);
+  XLS_ASSERT_OK(integration->DeUnifyIntegrationNodes(unify_mux.node));
+
+  auto integration_contains = [&integration](Node* target_node) {
+    for (Node* node : integration->function()->nodes()) {
+      if (target_node == node) {
+        return true;
+      }
+    }
+    return false;
+  };
+  EXPECT_EQ(integration->function()->node_count(), 2);
+  EXPECT_FALSE(integration_contains(unify_mux.node));
+  EXPECT_FALSE(integration_contains(sel));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      IntegrationFunction::UnifiedNode unity,
+      integration->UnifyIntegrationNodes(internal_1, internal_2));
+  EXPECT_TRUE(unity.new_mux_added);
+}
+
+TEST_F(IntegratorTest, DeUnifyIntegrationNodesParamHasUsers) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<IntegrationFunction> integration,
+      IntegrationFunction::MakeIntegrationFunctionWithParamTuples(p.get(), {}));
+  Function& internal_func = *integration->function();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * internal_1,
+      internal_func.MakeNodeWithName<Param>(/*loc=*/std::nullopt, "internal_1",
+                                            p->GetBitsType(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * internal_2,
+      internal_func.MakeNodeWithName<Param>(/*loc=*/std::nullopt, "internal_2",
+                                            p->GetBitsType(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      IntegrationFunction::UnifiedNode unify_mux,
+      integration->UnifyIntegrationNodes(internal_1, internal_2));
+
+  Node* sel = unify_mux.node->As<Select>()->selector();
+  XLS_ASSERT_OK(internal_func.MakeNode<Concat>(/*loc=*/std::nullopt,
+                                               std::vector<Node*>({sel, sel})));
+
+  EXPECT_EQ(integration->function()->node_count(), 5);
+  auto result = integration->DeUnifyIntegrationNodes(unify_mux.node);
+  EXPECT_FALSE(result.ok());
+}
+
+TEST_F(IntegratorTest, UnifyNodeOperands) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("func", p.get());
+  auto in1 = fb.Param("in1", p->GetBitsType(2));
+  auto in2 = fb.Param("in2", p->GetBitsType(2));
+  fb.Add(in1, in2);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func_a, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func_b, func_a->Clone("clone"));
+  Node* a_in1 = FindNode("in1", func_a);
+  Node* a_in2 = FindNode("in2", func_a);
+  Node* a_add = a_in1->users().at(0);
+  Node* b_in1 = FindNode("in1", func_b);
+  Node* b_in2 = FindNode("in2", func_b);
+  Node* b_add = b_in1->users().at(0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<IntegrationFunction> integration,
+      IntegrationFunction::MakeIntegrationFunctionWithParamTuples(p.get(), {}));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * a_in1_map, integration->InsertNode(a_in1));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * a_in2_map, integration->InsertNode(a_in2));
+  XLS_ASSERT_OK(integration->SetNodeMapping(b_in1, a_in1_map));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * b_in2_map, integration->InsertNode(b_in2));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      IntegrationFunction::UnifiedOperands unified_operands,
+      integration->UnifyNodeOperands(a_add, b_add));
+  EXPECT_EQ(unified_operands.added_muxes.size(), 1);
+  Select* mux = unified_operands.added_muxes.at(0)->As<Select>();
+  EXPECT_THAT(mux->cases(), ElementsAre(a_in2_map, b_in2_map));
+  EXPECT_THAT(unified_operands.operands, ElementsAre(a_in1_map, mux));
+}
+
+TEST_F(IntegratorTest, UnifyNodeOperandsMultipleMux) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("func", p.get());
+  auto in1 = fb.Param("in1", p->GetBitsType(2));
+  auto in2 = fb.Param("in2", p->GetBitsType(2));
+  fb.Add(in1, in2);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func_a, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func_b, func_a->Clone("clone"));
+  Node* a_in1 = FindNode("in1", func_a);
+  Node* a_in2 = FindNode("in2", func_a);
+  Node* a_add = a_in1->users().at(0);
+  Node* b_in1 = FindNode("in1", func_b);
+  Node* b_in2 = FindNode("in2", func_b);
+  Node* b_add = b_in1->users().at(0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<IntegrationFunction> integration,
+      IntegrationFunction::MakeIntegrationFunctionWithParamTuples(p.get(), {}));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * a_in1_map, integration->InsertNode(a_in1));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * a_in2_map, integration->InsertNode(a_in2));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * b_in1_map, integration->InsertNode(b_in1));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * b_in2_map, integration->InsertNode(b_in2));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      IntegrationFunction::UnifiedOperands unified_operands,
+      integration->UnifyNodeOperands(a_add, b_add));
+  EXPECT_EQ(unified_operands.added_muxes.size(), 2);
+  Select* mux1 = unified_operands.added_muxes.at(0)->As<Select>();
+  EXPECT_THAT(mux1->cases(), ElementsAre(a_in1_map, b_in1_map));
+  Select* mux2 = unified_operands.added_muxes.at(1)->As<Select>();
+  EXPECT_THAT(mux2->cases(), ElementsAre(a_in2_map, b_in2_map));
+  EXPECT_THAT(unified_operands.operands, ElementsAre(mux1, mux2));
+}
+
+TEST_F(IntegratorTest, UnifyNodeOperandsReapeatedMux) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("func", p.get());
+  auto in1 = fb.Param("in1", p->GetBitsType(2));
+  fb.Add(in1, in1);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func_a, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func_b, func_a->Clone("clone"));
+  Node* a_in1 = FindNode("in1", func_a);
+  Node* a_add = a_in1->users().at(0);
+  Node* b_in1 = FindNode("in1", func_b);
+  Node* b_add = b_in1->users().at(0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<IntegrationFunction> integration,
+      IntegrationFunction::MakeIntegrationFunctionWithParamTuples(p.get(), {}));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * a_in1_map, integration->InsertNode(a_in1));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * b_in1_map, integration->InsertNode(b_in1));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      IntegrationFunction::UnifiedOperands unified_operands,
+      integration->UnifyNodeOperands(a_add, b_add));
+  EXPECT_EQ(unified_operands.added_muxes.size(), 1);
+  Select* mux = unified_operands.added_muxes.at(0)->As<Select>();
+  EXPECT_THAT(mux->cases(), ElementsAre(a_in1_map, b_in1_map));
+  EXPECT_THAT(unified_operands.operands, ElementsAre(mux, mux));
+}
+
+TEST_F(IntegratorTest, UnifyNodeOperandsNoAddedMuxes) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("func", p.get());
+  auto in1 = fb.Param("in1", p->GetBitsType(2));
+  auto in2 = fb.Param("in2", p->GetBitsType(2));
+  fb.Add(in1, in2);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func_a, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func_b, func_a->Clone("clone"));
+  Node* a_in1 = FindNode("in1", func_a);
+  Node* a_in2 = FindNode("in2", func_a);
+  Node* a_add = a_in1->users().at(0);
+  Node* b_in1 = FindNode("in1", func_b);
+  Node* b_in2 = FindNode("in2", func_b);
+  Node* b_add = b_in1->users().at(0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<IntegrationFunction> integration,
+      IntegrationFunction::MakeIntegrationFunctionWithParamTuples(p.get(), {}));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * a_in1_map, integration->InsertNode(a_in1));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * a_in2_map, integration->InsertNode(a_in2));
+  XLS_ASSERT_OK(integration->SetNodeMapping(b_in1, a_in1_map));
+  XLS_ASSERT_OK(integration->SetNodeMapping(b_in2, a_in2_map));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      IntegrationFunction::UnifiedOperands unified_operands,
+      integration->UnifyNodeOperands(a_add, b_add));
+  EXPECT_EQ(a_in1_map->users().size(), 0);
+  EXPECT_EQ(a_in2_map->users().size(), 0);
+  EXPECT_EQ(unified_operands.added_muxes.size(), 0);
+  EXPECT_THAT(unified_operands.operands, ElementsAre(a_in1_map, a_in2_map));
+}
+
+TEST_F(IntegratorTest, MergeBackendErrorNonMappedInternal) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("func", p.get());
+  auto in1 = fb.Param("in1", p->GetBitsType(2));
+  auto in2 = fb.Param("in2", p->GetBitsType(2));
+  fb.Add(in1, in2);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func_a, fb.Build());
+  Node* a_in1 = FindNode("in1", func_a);
+  Node* a_in2 = FindNode("in2", func_a);
+  Node* a_add = a_in1->users().at(0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<IntegrationFunction> integration,
+      IntegrationFunction::MakeIntegrationFunctionWithParamTuples(p.get(), {}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Node * a_in1_target, integration->InsertNode(a_in1));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * a_in2_target, integration->InsertNode(a_in2));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * internal_add,
+                           a_add->CloneInNewFunction(
+                               std::vector<Node*>({a_in1_target, a_in2_target}),
+                               integration->function()));
+
+  auto result1 = integration->GetMergeNodesCost(a_add, internal_add);
+  EXPECT_FALSE(result1.ok());
+  auto result2 = integration->GetMergeNodesCost(internal_add, a_add);
+  EXPECT_FALSE(result2.ok());
+}
+
+TEST_F(IntegratorTest, MergeBackendErrorMappedExternal) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("func", p.get());
+  auto in1 = fb.Param("in1", p->GetBitsType(2));
+  auto in2 = fb.Param("in2", p->GetBitsType(2));
+  fb.Add(in1, in2);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func_a, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func_b, func_a->Clone("clone"));
+  Node* a_in1 = FindNode("in1", func_a);
+  Node* a_in2 = FindNode("in2", func_a);
+  Node* a_add = a_in1->users().at(0);
+  Node* b_in1 = FindNode("in1", func_b);
+  Node* b_in2 = FindNode("in2", func_b);
+  Node* b_add = b_in1->users().at(0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<IntegrationFunction> integration,
+      IntegrationFunction::MakeIntegrationFunctionWithParamTuples(p.get(), {}));
+
+  XLS_ASSERT_OK(integration->InsertNode(a_in1));
+  XLS_ASSERT_OK(integration->InsertNode(a_in2));
+  XLS_ASSERT_OK(integration->InsertNode(a_add));
+  XLS_ASSERT_OK(integration->InsertNode(b_in1));
+  XLS_ASSERT_OK(integration->InsertNode(b_in2));
+
+  auto result1 = integration->GetMergeNodesCost(a_add, b_add);
+  EXPECT_FALSE(result1.ok());
+  auto result2 = integration->GetMergeNodesCost(b_add, a_add);
+  EXPECT_FALSE(result2.ok());
+}
+
+TEST_F(IntegratorTest, MergeBackendErrorNodesFromSameFunction) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("func", p.get());
+  auto in1 = fb.Param("in1", p->GetBitsType(2));
+  auto in2 = fb.Param("in2", p->GetBitsType(2));
+  auto in3 = fb.Param("in3", p->GetBitsType(2));
+  fb.Add(in1, in2);
+  fb.Add(in1, in3);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func_a, fb.Build());
+  Node* a_in1 = FindNode("in1", func_a);
+  Node* a_in2 = FindNode("in2", func_a);
+  Node* a_in3 = FindNode("in3", func_a);
+  Node* a_add1 = a_in1->users().at(0);
+  Node* a_add2 = a_in3->users().at(0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<IntegrationFunction> integration,
+      IntegrationFunction::MakeIntegrationFunctionWithParamTuples(p.get(), {}));
+
+  XLS_ASSERT_OK(integration->InsertNode(a_in1));
+  XLS_ASSERT_OK(integration->InsertNode(a_in2));
+  XLS_ASSERT_OK(integration->InsertNode(a_in3));
+
+  auto result1 = integration->GetMergeNodesCost(a_add1, a_add2);
+  EXPECT_FALSE(result1.ok());
+}
+
+TEST_F(IntegratorTest, MergeBackendDoNotMergeIncompatible) {
+  auto p = CreatePackage();
+  FunctionBuilder fb_a("func_a", p.get());
+  auto a_in1 = fb_a.Param("in1", p->GetBitsType(2));
+  auto a_in2 = fb_a.Param("in2", p->GetBitsType(2));
+  fb_a.Add(a_in1, a_in2);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func_a, fb_a.Build());
+  FunctionBuilder fb_b("func_b", p.get());
+  auto b_in1 = fb_b.Param("in1", p->GetBitsType(2));
+  auto b_in2 = fb_b.Param("in2", p->GetBitsType(2));
+  fb_b.Concat({b_in1, b_in2});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func_b, fb_b.Build());
+  Node* a_in1_node = FindNode("in1", func_a);
+  Node* a_in2_node = FindNode("in2", func_a);
+  Node* a_add_node = a_in1_node->users().at(0);
+  Node* b_in1_node = FindNode("in1", func_b);
+  Node* b_in2_node = FindNode("in2", func_b);
+  Node* b_cat_node = b_in1_node->users().at(0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<IntegrationFunction> integration,
+      IntegrationFunction::MakeIntegrationFunctionWithParamTuples(p.get(), {}));
+
+  XLS_ASSERT_OK(integration->InsertNode(a_in1_node));
+  XLS_ASSERT_OK(integration->InsertNode(a_in2_node));
+  XLS_ASSERT_OK(integration->InsertNode(b_in1_node));
+  XLS_ASSERT_OK(integration->InsertNode(b_in2_node));
+
+  // Cost frontend.
+  XLS_ASSERT_OK_AND_ASSIGN(auto optional_cost, integration->GetMergeNodesCost(
+                                                   a_add_node, b_cat_node));
+  EXPECT_FALSE(optional_cost.has_value());
+
+  // Merge frontend.
+  EXPECT_FALSE(integration->MergeNodes(a_add_node, b_cat_node).ok());
+}
+
+TEST_F(IntegratorTest, MergeCostExternalExternaTwoMux) {
+  auto p = CreatePackage();
+  FunctionBuilder fb_a("func_a", p.get());
+  auto a_in1 = fb_a.Param("in1", p->GetBitsType(2));
+  auto a_in2 = fb_a.Param("in2", p->GetBitsType(2));
+  fb_a.Add(a_in1, a_in2,
+           /*loc=*/absl::nullopt, "add");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func_a, fb_a.Build());
+  FunctionBuilder fb_b("func_b", p.get());
+  auto b_in1 = fb_b.Param("in1", p->GetBitsType(2));
+  auto b_in2 = fb_b.Param("in2", p->GetBitsType(2));
+  auto b_sel = fb_b.Param("sel", p->GetBitsType(1));
+  fb_b.Add(b_in1, b_in2,
+           /*loc=*/absl::nullopt, "add");
+  fb_b.Select(b_sel, {b_in1, b_in2},
+              /*default_value=*/absl::nullopt,
+              /*loc=*/absl::nullopt, "mux");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func_b, fb_b.Build());
+  Node* a_in1_node = FindNode("in1", func_a);
+  Node* a_in2_node = FindNode("in2", func_a);
+  Node* a_add_node = FindNode("add", func_a);
+  Node* b_in1_node = FindNode("in1", func_b);
+  Node* b_in2_node = FindNode("in2", func_b);
+  Node* b_add_node = FindNode("add", func_b);
+  Node* ref_mux_node = FindNode("mux", func_b);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<IntegrationFunction> integration,
+      IntegrationFunction::MakeIntegrationFunctionWithParamTuples(p.get(), {}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Node * a_in1_target,
+                           integration->InsertNode(a_in1_node));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * a_in2_target,
+                           integration->InsertNode(a_in2_node));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * b_in1_target,
+                           integration->InsertNode(b_in1_node));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * b_in2_target,
+                           integration->InsertNode(b_in2_node));
+
+  // Get cost.
+  XLS_ASSERT_OK_AND_ASSIGN(auto optional_cost, integration->GetMergeNodesCost(
+                                                   a_add_node, b_add_node));
+  XLS_ASSERT_OK(VerifyFunction(integration->function()));
+
+  // Check cost.
+  EXPECT_TRUE(optional_cost.has_value());
+  float expected_cost = integration->GetNodeCost(a_add_node) +
+                        2 * integration->GetNodeCost(ref_mux_node);
+  EXPECT_FLOAT_EQ(optional_cost.value(), expected_cost);
+
+  // Reverse order of merged nodes.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      optional_cost, integration->GetMergeNodesCost(b_add_node, a_add_node));
+  EXPECT_TRUE(optional_cost.has_value());
+  EXPECT_FLOAT_EQ(optional_cost.value(), expected_cost);
+
+  // Check function un-altered and mappings preserved.
+  EXPECT_EQ(integration->function()->node_count(), 4);
+  absl::flat_hash_set<Node*> found_nodes;
+  for (auto* node : integration->function()->nodes()) {
+    found_nodes.insert(node);
+  }
+  auto check_param = [&](const Node* src, const Node* target) {
+    XLS_ASSERT_OK_AND_ASSIGN(Node * observed_target,
+                             integration->GetNodeMapping(src));
+    EXPECT_EQ(target, observed_target);
+    EXPECT_TRUE(found_nodes.contains(target));
+    EXPECT_TRUE(target->users().empty());
+    XLS_ASSERT_OK_AND_ASSIGN(auto nodes_map_to_target,
+                             integration->GetNodesMappedToNode(target));
+    EXPECT_EQ(nodes_map_to_target->size(), 1);
+    EXPECT_TRUE(nodes_map_to_target->contains(src));
+  };
+  check_param(a_in1_node, a_in1_target);
+  check_param(a_in2_node, a_in2_target);
+  check_param(b_in1_node, b_in1_target);
+  check_param(b_in2_node, b_in2_target);
+
+  // Check that mux tracking was not updated.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      IntegrationFunction::UnifiedOperands unified_operands,
+      integration->UnifyNodeOperands(a_add_node, b_add_node));
+  EXPECT_EQ(unified_operands.added_muxes.size(), 2);
+}
+
+TEST_F(IntegratorTest, MergeCostInternalExternalOneMux) {
+  auto p = CreatePackage();
+  FunctionBuilder fb_a("func_a", p.get());
+  auto a_in1 = fb_a.Param("in1", p->GetBitsType(2));
+  auto a_in2 = fb_a.Param("in2", p->GetBitsType(2));
+  fb_a.Add(a_in1, a_in2,
+           /*loc=*/absl::nullopt, "add");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func_a, fb_a.Build());
+  FunctionBuilder fb_b("func_b", p.get());
+  auto b_in1 = fb_b.Param("in1", p->GetBitsType(2));
+  auto b_in2 = fb_b.Param("in2", p->GetBitsType(2));
+  auto b_sel = fb_b.Param("sel", p->GetBitsType(1));
+  fb_b.Add(b_in1, b_in2,
+           /*loc=*/absl::nullopt, "add");
+  fb_b.Select(b_sel, {b_in1, b_in2},
+              /*default_value=*/absl::nullopt,
+              /*loc=*/absl::nullopt, "mux");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func_b, fb_b.Build());
+  Node* a_in1_node = FindNode("in1", func_a);
+  Node* a_in2_node = FindNode("in2", func_a);
+  Node* a_add_node = FindNode("add", func_a);
+  Node* b_in1_node = FindNode("in1", func_b);
+  Node* b_in2_node = FindNode("in2", func_b);
+  Node* b_add_node = FindNode("add", func_b);
+  Node* ref_mux_node = FindNode("mux", func_b);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<IntegrationFunction> integration,
+      IntegrationFunction::MakeIntegrationFunctionWithParamTuples(p.get(), {}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Node * a_in1_target,
+                           integration->InsertNode(a_in1_node));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * a_in2_target,
+                           integration->InsertNode(a_in2_node));
+  XLS_ASSERT_OK(integration->SetNodeMapping(b_in1_node, a_in1_target));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * b_in2_target,
+                           integration->InsertNode(b_in2_node));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * a_add_target,
+                           integration->InsertNode(a_add_node));
+
+  // Get cost.
+  XLS_ASSERT_OK_AND_ASSIGN(auto optional_cost, integration->GetMergeNodesCost(
+                                                   a_add_target, b_add_node));
+  XLS_ASSERT_OK(VerifyFunction(integration->function()));
+
+  // Check cost.
+  EXPECT_TRUE(optional_cost.has_value());
+  float expected_cost = integration->GetNodeCost(ref_mux_node);
+  EXPECT_FLOAT_EQ(optional_cost.value(), expected_cost);
+
+  // Reverse order of merged nodes.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      optional_cost, integration->GetMergeNodesCost(b_add_node, a_add_target));
+  EXPECT_TRUE(optional_cost.has_value());
+  EXPECT_FLOAT_EQ(optional_cost.value(), expected_cost);
+
+  // Check function un-altered and mappings preserved.
+  EXPECT_EQ(integration->function()->node_count(), 4);
+  absl::flat_hash_set<Node*> found_nodes;
+  for (auto* node : integration->function()->nodes()) {
+    found_nodes.insert(node);
+  }
+  auto check_param = [&](std::vector<const Node*> srcs, const Node* target,
+                         bool used_by_add) {
+    EXPECT_TRUE(found_nodes.contains(target));
+    if (used_by_add) {
+      EXPECT_EQ(target->users().size(), 1);
+      EXPECT_EQ(target->users().front(), a_add_target);
+    } else {
+      EXPECT_TRUE(target->users().empty());
+    }
+    XLS_ASSERT_OK_AND_ASSIGN(auto nodes_map_to_target,
+                             integration->GetNodesMappedToNode(target));
+    for (auto src : srcs) {
+      XLS_ASSERT_OK_AND_ASSIGN(Node * observed_target,
+                               integration->GetNodeMapping(src));
+      EXPECT_EQ(target, observed_target);
+      EXPECT_TRUE(nodes_map_to_target->contains(src));
+    }
+    EXPECT_EQ(nodes_map_to_target->size(), srcs.size());
+  };
+  check_param({a_in1_node, b_in1_node}, a_in1_target, true);
+  check_param({a_in2_node}, a_in2_target, true);
+  check_param({b_in2_node}, b_in2_target, false);
+  EXPECT_TRUE(found_nodes.contains(a_add_target));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * a_add_observed_target,
+                           integration->GetNodeMapping(a_add_node));
+  EXPECT_EQ(a_add_observed_target, a_add_target);
+  XLS_ASSERT_OK_AND_ASSIGN(auto nodes_mapped_to_add,
+                           integration->GetNodesMappedToNode(a_add_target));
+  EXPECT_EQ(nodes_mapped_to_add->size(), 1);
+  EXPECT_TRUE(nodes_mapped_to_add->contains(a_add_node));
+
+  // Check that mux tracking was not updated.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      IntegrationFunction::UnifiedOperands unified_operands,
+      integration->UnifyNodeOperands(a_add_node, b_add_node));
+  EXPECT_EQ(unified_operands.added_muxes.size(), 1);
+}
+
+TEST_F(IntegratorTest, MergeNodesExternalExternaTwoMux) {
+  auto p = CreatePackage();
+  FunctionBuilder fb_a("func_a", p.get());
+  auto a_in1 = fb_a.Param("a_in1", p->GetBitsType(2));
+  auto a_in2 = fb_a.Param("a_in2", p->GetBitsType(2));
+  fb_a.Add(a_in1, a_in2,
+           /*loc=*/absl::nullopt, "a_add");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func_a, fb_a.Build());
+  FunctionBuilder fb_b("func_b", p.get());
+  auto b_in1 = fb_b.Param("b_in1", p->GetBitsType(2));
+  auto b_in2 = fb_b.Param("b_in2", p->GetBitsType(2));
+  fb_b.Add(b_in1, b_in2,
+           /*loc=*/absl::nullopt, "b_add");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func_b, fb_b.Build());
+  Node* a_in1_node = FindNode("a_in1", func_a);
+  Node* a_in2_node = FindNode("a_in2", func_a);
+  Node* a_add_node = FindNode("a_add", func_a);
+  Node* b_in1_node = FindNode("b_in1", func_b);
+  Node* b_in2_node = FindNode("b_in2", func_b);
+  Node* b_add_node = FindNode("b_add", func_b);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<IntegrationFunction> integration,
+      IntegrationFunction::MakeIntegrationFunctionWithParamTuples(p.get(), {}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Node * a_in1_target,
+                           integration->InsertNode(a_in1_node));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * a_in2_target,
+                           integration->InsertNode(a_in2_node));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * b_in1_target,
+                           integration->InsertNode(b_in1_node));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * b_in2_target,
+                           integration->InsertNode(b_in2_node));
+
+  // Merge.
+  XLS_ASSERT_OK_AND_ASSIGN(auto generated_nodes,
+                           integration->MergeNodes(a_add_node, b_add_node));
+  XLS_ASSERT_OK(VerifyFunction(integration->function()));
+
+  // Check merge.
+  EXPECT_EQ(integration->function()->node_count(), 9);
+  EXPECT_EQ(generated_nodes.size(), 1);
+  Node* add_target = generated_nodes.front();
+  EXPECT_THAT(add_target,
+              m::Add(m::Select(m::Param("a_in1_b_in1_mux_sel"),
+                               {m::Param("a_in1"), m::Param("b_in1")}),
+                     m::Select(m::Param("a_in2_b_in2_mux_sel"),
+                               {m::Param("a_in2"), m::Param("b_in2")})));
+
+  // Check mapping.
+  auto check_mapping = [&](std::vector<const Node*> srcs, const Node* target) {
+    XLS_ASSERT_OK_AND_ASSIGN(auto nodes_map_to_target,
+                             integration->GetNodesMappedToNode(target));
+    EXPECT_EQ(nodes_map_to_target->size(), srcs.size());
+    for (auto src : srcs) {
+      XLS_ASSERT_OK_AND_ASSIGN(Node * observed_target,
+                               integration->GetNodeMapping(src));
+      EXPECT_EQ(target, observed_target);
+      EXPECT_TRUE(nodes_map_to_target->contains(src));
+    }
+  };
+  check_mapping({a_in1_node}, a_in1_target);
+  check_mapping({a_in2_node}, a_in2_target);
+  check_mapping({b_in1_node}, b_in1_target);
+  check_mapping({b_in2_node}, b_in2_target);
+  check_mapping({a_add_node, b_add_node}, add_target);
+
+  // Check that mux tracking was updated.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      IntegrationFunction::UnifiedOperands unified_operands,
+      integration->UnifyNodeOperands(a_add_node, b_add_node));
+  EXPECT_EQ(unified_operands.added_muxes.size(), 0);
+}
+
+TEST_F(IntegratorTest, MergeNodesInternalExternalOneMux) {
+  auto p = CreatePackage();
+  FunctionBuilder fb_a("func_a", p.get());
+  auto a_in1 = fb_a.Param("a_in1", p->GetBitsType(2));
+  auto a_in2 = fb_a.Param("a_in2", p->GetBitsType(2));
+  fb_a.Add(a_in1, a_in2,
+           /*loc=*/absl::nullopt, "a_add");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func_a, fb_a.Build());
+  FunctionBuilder fb_b("func_b", p.get());
+  auto b_in1 = fb_b.Param("b_in1", p->GetBitsType(2));
+  auto b_in2 = fb_b.Param("b_in2", p->GetBitsType(2));
+  fb_b.Add(b_in1, b_in2,
+           /*loc=*/absl::nullopt, "b_add");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func_b, fb_b.Build());
+  Node* a_in1_node = FindNode("a_in1", func_a);
+  Node* a_in2_node = FindNode("a_in2", func_a);
+  Node* a_add_node = FindNode("a_add", func_a);
+  Node* b_in1_node = FindNode("b_in1", func_b);
+  Node* b_in2_node = FindNode("b_in2", func_b);
+  Node* b_add_node = FindNode("b_add", func_b);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<IntegrationFunction> integration,
+      IntegrationFunction::MakeIntegrationFunctionWithParamTuples(p.get(), {}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Node * a_in1_target,
+                           integration->InsertNode(a_in1_node));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * a_in2_target,
+                           integration->InsertNode(a_in2_node));
+  XLS_ASSERT_OK(integration->SetNodeMapping(b_in1_node, a_in1_target));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * b_in2_target,
+                           integration->InsertNode(b_in2_node));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * a_add_initial_target,
+                           integration->InsertNode(a_add_node));
+
+  // Merge.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto generated_nodes,
+      integration->MergeNodes(a_add_initial_target, b_add_node));
+  XLS_ASSERT_OK(VerifyFunction(integration->function()));
+
+  // Check merge.
+  EXPECT_EQ(integration->function()->node_count(), 6);
+  EXPECT_EQ(generated_nodes.size(), 1);
+  Node* add_target = generated_nodes.front();
+  EXPECT_THAT(add_target,
+              m::Add(m::Param("a_in1"),
+                     m::Select(m::Param("a_in2_b_in2_mux_sel"),
+                               {m::Param("a_in2"), m::Param("b_in2")})));
+
+  // Check mapping.
+  auto check_mapping = [&](std::vector<const Node*> srcs, const Node* target) {
+    XLS_ASSERT_OK_AND_ASSIGN(auto nodes_map_to_target,
+                             integration->GetNodesMappedToNode(target));
+    EXPECT_EQ(nodes_map_to_target->size(), srcs.size());
+    for (auto src : srcs) {
+      XLS_ASSERT_OK_AND_ASSIGN(Node * observed_target,
+                               integration->GetNodeMapping(src));
+      EXPECT_EQ(target, observed_target);
+      EXPECT_TRUE(nodes_map_to_target->contains(src));
+    }
+  };
+  check_mapping({a_in1_node, b_in1_node}, a_in1_target);
+  check_mapping({a_in2_node}, a_in2_target);
+  check_mapping({b_in2_node}, b_in2_target);
+  check_mapping({a_add_node, b_add_node}, add_target);
+  EXPECT_FALSE(integration->HasMapping(a_add_initial_target));
+  EXPECT_FALSE(integration->IsMappingTarget(a_add_initial_target));
+
+  // Check that mux tracking was updated.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      IntegrationFunction::UnifiedOperands unified_operands,
+      integration->UnifyNodeOperands(a_add_node, b_add_node));
+  EXPECT_EQ(unified_operands.added_muxes.size(), 0);
+}
+
+TEST_F(IntegratorTest, MergeNodesExternalInternalOneMux) {
+  auto p = CreatePackage();
+  FunctionBuilder fb_a("func_a", p.get());
+  auto a_in1 = fb_a.Param("a_in1", p->GetBitsType(2));
+  auto a_in2 = fb_a.Param("a_in2", p->GetBitsType(2));
+  fb_a.Add(a_in1, a_in2,
+           /*loc=*/absl::nullopt, "a_add");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func_a, fb_a.Build());
+  FunctionBuilder fb_b("func_b", p.get());
+  auto b_in1 = fb_b.Param("b_in1", p->GetBitsType(2));
+  auto b_in2 = fb_b.Param("b_in2", p->GetBitsType(2));
+  fb_b.Add(b_in1, b_in2,
+           /*loc=*/absl::nullopt, "b_add");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func_b, fb_b.Build());
+  Node* a_in1_node = FindNode("a_in1", func_a);
+  Node* a_in2_node = FindNode("a_in2", func_a);
+  Node* a_add_node = FindNode("a_add", func_a);
+  Node* b_in1_node = FindNode("b_in1", func_b);
+  Node* b_in2_node = FindNode("b_in2", func_b);
+  Node* b_add_node = FindNode("b_add", func_b);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<IntegrationFunction> integration,
+      IntegrationFunction::MakeIntegrationFunctionWithParamTuples(p.get(), {}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Node * a_in1_target,
+                           integration->InsertNode(a_in1_node));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * a_in2_target,
+                           integration->InsertNode(a_in2_node));
+  XLS_ASSERT_OK(integration->SetNodeMapping(b_in1_node, a_in1_target));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * b_in2_target,
+                           integration->InsertNode(b_in2_node));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * a_add_initial_target,
+                           integration->InsertNode(a_add_node));
+
+  // Merge.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto generated_nodes,
+      integration->MergeNodes(b_add_node, a_add_initial_target));
+  XLS_ASSERT_OK(VerifyFunction(integration->function()));
+
+  // Check merge.
+  EXPECT_EQ(integration->function()->node_count(), 6);
+  EXPECT_EQ(generated_nodes.size(), 1);
+  Node* add_target = generated_nodes.front();
+  EXPECT_THAT(add_target,
+              m::Add(m::Param("a_in1"),
+                     m::Select(m::Param("b_in2_a_in2_mux_sel"),
+                               {m::Param("b_in2"), m::Param("a_in2")})));
+
+  // Check mapping.
+  auto check_mapping = [&](std::vector<const Node*> srcs, const Node* target) {
+    XLS_ASSERT_OK_AND_ASSIGN(auto nodes_map_to_target,
+                             integration->GetNodesMappedToNode(target));
+    EXPECT_EQ(nodes_map_to_target->size(), srcs.size());
+    for (auto src : srcs) {
+      XLS_ASSERT_OK_AND_ASSIGN(Node * observed_target,
+                               integration->GetNodeMapping(src));
+      EXPECT_EQ(target, observed_target);
+      EXPECT_TRUE(nodes_map_to_target->contains(src));
+    }
+  };
+  check_mapping({a_in1_node, b_in1_node}, a_in1_target);
+  check_mapping({a_in2_node}, a_in2_target);
+  check_mapping({b_in2_node}, b_in2_target);
+  check_mapping({a_add_node, b_add_node}, add_target);
+  EXPECT_FALSE(integration->HasMapping(a_add_initial_target));
+  EXPECT_FALSE(integration->IsMappingTarget(a_add_initial_target));
+
+  // Check that mux tracking was updated.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      IntegrationFunction::UnifiedOperands unified_operands,
+      integration->UnifyNodeOperands(b_add_node, a_add_node));
+  EXPECT_EQ(unified_operands.added_muxes.size(), 0);
 }
 
 }  // namespace

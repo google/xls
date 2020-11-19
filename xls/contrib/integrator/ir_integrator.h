@@ -47,6 +47,16 @@ class IntegrationFunction {
   // operands are automatically discovered and connected.
   absl::StatusOr<Node*> InsertNode(const Node* to_insert);
 
+  // Estimate the cost of merging node_a and node_b. If nodes cannot be
+  // merged, not value is returned.
+  absl::StatusOr<std::optional<int64>> GetMergeNodesCost(const Node* node_a,
+                                                         const Node* node_b);
+
+  // Merge node_a and node_b. Returns the nodes that node_a and node_b
+  // map to after merging (vector contains a single node if they map
+  // to the same node).
+  absl::StatusOr<std::vector<Node*>> MergeNodes(Node* node_a, Node* node_b);
+
   // For the integration function nodes node_a and node_b,
   // returns a UnifiedNode. UnifiedNode.node points to a single integration
   // function node that combines the two nodes. This may involve adding a mux
@@ -58,6 +68,23 @@ class IntegrationFunction {
     bool new_mux_added;
   };
   absl::StatusOr<UnifiedNode> UnifyIntegrationNodes(Node* node_a, Node* node_b);
+
+  // Return a UnifiedOperands struct in which the 'operands' vector holds nodes
+  // where each node unifies the corresponding operands of 'node_a' and
+  // 'node_b'.  The 'added_muxes' field lists all new muxes created by this
+  // call.
+  struct UnifiedOperands {
+    std::vector<Node*> operands;
+    std::vector<Node*> added_muxes;
+  };
+  absl::StatusOr<UnifiedOperands> UnifyNodeOperands(const Node* node_a,
+                                                    const Node* node_b);
+
+  // For a mux produced by UnifyIntegrationNodes, remove the mux and
+  // the select paramter. Updates internal unification / mux book-keeping
+  // accordingly. This function should only be called if the mux has no users
+  // and mux's select signal is only used by the mux.
+  absl::Status DeUnifyIntegrationNodes(Node* node);
 
   // Declares that node 'source' from a source function maps
   // to node 'map_target' in the integrated_function.
@@ -91,7 +118,35 @@ class IntegrationFunction {
     return function_.get() == node->function_base();
   }
 
+  // Returns an estimate of the (gate count? area?) cost of a node.
+  int64 GetNodeCost(const Node* node) const;
+
  private:
+  // Helper function that implements the logic for merging nodes,
+  // allowing for either the merge to be performed or for the cost
+  // of the merge to be estimated.  A MergeNodesBackendResult struct is
+  // returned. The 'can_merge' field indicates if the nodes can be merged. If
+  // they can be merged, target_a and target_b point to resulting nodes that
+  // represent the values of 'node_a' and 'node_b' in the integrated graph
+  // (note: these will not necessarily point to the same merged node e.g. if the
+  // merge node has a wider bitwidth than one of the original nodes, the target
+  // pointer may instead point to a bitslice that takes in the wider node as an
+  // operand). New muxes created by this call are placed in 'added_muxes'. Other
+  // nodes created by this call are placed in 'other_added_nodes'.
+  struct MergeNodesBackendResult {
+    bool can_merge;
+    Node* target_a = nullptr;
+    Node* target_b = nullptr;
+    std::vector<Node*> added_muxes;
+    // We use a list rather than a vector here because
+    // we will later want to remove elements in a (currently)
+    // unknown order.  This would involve wastefule data copying
+    // if we used a vector.
+    std::list<Node*> other_added_nodes;
+  };
+  absl::StatusOr<MergeNodesBackendResult> MergeNodesBackend(const Node* node_a,
+                                                            const Node* node_b);
+
   // Track mapping of original function nodes to integrated function nodes.
   absl::flat_hash_map<const Node*, Node*> original_node_to_integrated_node_map_;
   absl::flat_hash_map<const Node*, absl::flat_hash_set<const Node*>>
