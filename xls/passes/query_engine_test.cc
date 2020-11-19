@@ -117,6 +117,20 @@ class QueryEngineTest : public IrTestBase,
                   FormatPreference::kBinary, /*emit_leading_zeros=*/true));
   }
 
+  absl::StatusOr<std::string> GetMinUnsignedValue(
+      absl::string_view known_bits) {
+    Package p("test_package");
+    FunctionBuilder fb("f", &p);
+    BValue n = MakeValueWithKnownBits(
+        "value", StringToTernaryVector(known_bits).value(), &fb);
+    XLS_ASSIGN_OR_RETURN(Function * f, fb.Build());
+    XLS_VLOG(3) << f->DumpIr();
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
+    return absl::StrCat(
+        "0b", engine->MinUnsignedValue(n.node()).ToRawDigits(
+                  FormatPreference::kBinary, /*emit_leading_zeros=*/true));
+  }
+
   absl::StatusOr<bool> GetNodesKnownUnsignedNotEquals(
       absl::string_view lhs_known_bits, absl::string_view rhs_known_bits) {
     Package p("test_package");
@@ -603,6 +617,20 @@ TEST_P(QueryEngineTest, MaxUnsignedValue) {
   EXPECT_THAT(GetMaxUnsignedValue("0bXXXX"), IsOkAndHolds("0b1111"));
 }
 
+TEST_P(QueryEngineTest, MinUnsignedValue) {
+  EXPECT_THAT(GetMinUnsignedValue("0b"), IsOkAndHolds("0b0"));
+  EXPECT_THAT(GetMinUnsignedValue("0b0"), IsOkAndHolds("0b0"));
+  EXPECT_THAT(GetMinUnsignedValue("0b1"), IsOkAndHolds("0b1"));
+  EXPECT_THAT(GetMinUnsignedValue("0bX"), IsOkAndHolds("0b0"));
+  EXPECT_THAT(GetMinUnsignedValue("0b0000"), IsOkAndHolds("0b0000"));
+  EXPECT_THAT(GetMinUnsignedValue("0b1111"), IsOkAndHolds("0b1111"));
+  EXPECT_THAT(GetMinUnsignedValue("0b0101"), IsOkAndHolds("0b0101"));
+  EXPECT_THAT(GetMinUnsignedValue("0b1010"), IsOkAndHolds("0b1010"));
+  EXPECT_THAT(GetMinUnsignedValue("0bXX10"), IsOkAndHolds("0b0010"));
+  EXPECT_THAT(GetMinUnsignedValue("0b10XX"), IsOkAndHolds("0b1000"));
+  EXPECT_THAT(GetMinUnsignedValue("0bXXXX"), IsOkAndHolds("0b0000"));
+}
+
 TEST_P(QueryEngineTest, NodesKnownUnsignedNotEquals) {
   EXPECT_THAT(GetNodesKnownUnsignedNotEquals("0b", "0b"), IsOkAndHolds(false));
 
@@ -657,6 +685,15 @@ TEST_P(QueryEngineTest, NodesKnownUnsignedEquals) {
               IsOkAndHolds(false));
   EXPECT_THAT(GetNodesKnownUnsignedEquals("0b0011", "0b11"),
               IsOkAndHolds(true));
+
+  // Verify that a node is equal to itself even if nothing is known about the
+  // node's value.
+  Package p("test_package");
+  FunctionBuilder fb("f", &p);
+  BValue a = fb.Param("a", p.GetBitsType(42));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
+  EXPECT_TRUE(engine->NodesKnownUnsignedEquals(a.node(), a.node()));
 }
 
 INSTANTIATE_TEST_SUITE_P(

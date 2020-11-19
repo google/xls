@@ -26,117 +26,283 @@
 namespace xls {
 namespace {
 
-// Try to simplify the given array index node with a literal index by replacing
-// it with a simpler/earlier expression. Specifically, if the index is a literal
-// and the element at that index can be determined statically, the ArrayIndex
-// operation is replaced with that value. Returns true if the IR was changed.
-absl::StatusOr<bool> SimplifyArrayIndexWithLiteralOperand(ArrayIndex* node) {
-  XLS_RET_CHECK(node->index()->Is<Literal>());
-  const Bits& bits_index = node->index()->As<Literal>()->value().bits();
-  Node* source_array = node->operand(0);
-
-  int64 int_index;
-  // If index is out of bounds, clamp to maximum index value.
-  if (bits_ops::UGreaterThanOrEqual(
-          bits_index, source_array->GetType()->AsArrayOrDie()->size())) {
-    int_index = source_array->GetType()->AsArrayOrDie()->size() - 1;
-  } else {
-    // The index should fit in 64-bits because the the array index is in bounds.
-    XLS_ASSIGN_OR_RETURN(int_index, bits_index.ToUint64());
+// Returns true if the given node is a binary select (two cases, no default).
+bool IsBinarySelect(Node* node) {
+  if (!node->Is<Select>()) {
+    return false;
   }
+  Select* sel = node->As<Select>();
+  return sel->cases().size() == 2 && !sel->default_value().has_value();
+}
 
-  // Walk the chain of the array-typed operands backwards to try to find the
-  // source of the element being indexed by the ArrayIndex operation.
-  while (true) {
-    if (source_array->Is<Literal>()) {
-      // Source array is a literal. Replace the array-index operation with a
-      // literal equal to the indexed element.
-      return node->ReplaceUsesWithNew<Literal>(
-          source_array->As<Literal>()->value().element(int_index));
+// Returns true if the given index value is definitely out of bounds for the
+// given array type.
+bool IndexIsDefinitelyOutOfBounds(Node* index, ArrayType* array_type,
+                                  const QueryEngine& query_engine) {
+  return bits_ops::UGreaterThanOrEqual(query_engine.MinUnsignedValue(index),
+                                       array_type->size());
+}
+
+// Returns true if the given index is definitely in bounds for the given array
+// type.
+bool IndexIsDefinitelyInBounds(Node* index, ArrayType* array_type,
+                               const QueryEngine& query_engine) {
+  return bits_ops::ULessThan(query_engine.MaxUnsignedValue(index),
+                             array_type->size());
+}
+
+// Returns true if the given (multidimensional) indices are definitely in bounds
+// for the given (multidimensional) array type. A multidimensional index is in
+// bounds iff *every one* of the indices are in bounds.
+bool IndicesAreDefinitelyInBounds(absl::Span<Node* const> indices, Type* type,
+                                  const QueryEngine& query_engine) {
+  Type* subtype = type;
+  for (Node* index : indices) {
+    if (!IndexIsDefinitelyInBounds(index, subtype->AsArrayOrDie(),
+                                   query_engine)) {
+      return false;
     }
+    subtype = subtype->AsArrayOrDie()->element_type();
+  }
+  return true;
+}
 
-    if (source_array->Is<Array>()) {
-      // Source array is a kArray operation. Replace the array-index operation
-      // with the index-th operand of the kArray operation with is the index-th
-      // element of the array.
-      return node->ReplaceUsesWith(source_array->operand(int_index));
+// Returns true if the given sequences of nodes necessarily have the same
+// values. I.e., a[0] == b[0] and a[1] == b[1], etc.
+bool IndicesAreDefinitelyEqual(absl::Span<Node* const> a,
+                               absl::Span<Node* const> b,
+                               const QueryEngine& query_engine) {
+  if (a.size() != b.size()) {
+    return false;
+  }
+  for (int64 i = 0; i < a.size(); ++i) {
+    if (!query_engine.NodesKnownUnsignedEquals(a[i], b[i])) {
+      return false;
     }
+  }
+  return true;
+}
 
-    if (source_array->Is<ArrayUpdate>() &&
-        source_array->operand(1)->Is<Literal>()) {
-      // Source array is an ArrayUpdate operation with a literal index. Compare
-      // the ArrayUpdate index value with the ArrayIndex index value.
-      const Bits& update_index =
-          source_array->operand(1)->As<Literal>()->value().bits();
-      if (bits_ops::UEqual(update_index, int_index)) {
-        // Element indexed by ArrayIndex is updated by ArrayUpdate. Replace
-        // ArrayIndex operation with the update value from ArrayUpdate.
-        return node->ReplaceUsesWith(source_array->operand(2));
-      }
-      // Element indexed by ArrayIndex is not updated by ArrayUpdate. Set
-      // source array to array operand of ArrayUpdate and keep walking.
-      source_array = source_array->operand(0);
-      continue;
+// Returns true iff the given sequences of nodes necessarily are not all equal.
+// That is, a[i] is definitely not equal to b[i] for some i.
+bool IndicesDefinitelyNotEqual(absl::Span<Node* const> a,
+                               absl::Span<Node* const> b,
+                               const QueryEngine& query_engine) {
+  for (int64 i = 0; i < std::min(a.size(), b.size()); ++i) {
+    if (query_engine.NodesKnownUnsignedNotEquals(a[i], b[i])) {
+      return true;
     }
-
-    // Can't determine the source of the array element so no transformation is
-    // possible. Fall through and return.
-    break;
   }
   return false;
 }
 
+// Returns true the if indices 'prefix' is necessarily equal to the first
+// prefix.size() elements of indices.
+bool IndicesAreDefinitelyPrefixOf(absl::Span<Node* const> prefix,
+                                  absl::Span<Node* const> indices,
+                                  const QueryEngine& query_engine) {
+  if (prefix.size() > indices.size()) {
+    return false;
+  }
+  return IndicesAreDefinitelyEqual(prefix, indices.subspan(0, prefix.size()),
+                                   query_engine);
+}
+
+// Clamp any known OOB indices in MultiArrayIndex ops. In this case the index is
+// replaced with a literal value equal to the maximum in-bounds index value
+// (size of array minus one). Only known-OOB are clamped. Maybe OOB indices
+// cannot be replaced because the index might be a different in-bounds value.
+absl::StatusOr<bool> ClampMultiArrayIndexIndices(FunctionBase* func) {
+  // This transformation may add nodes to the graph which invalidates the query
+  // engine for later use, so create a private engine for exclusive use of this
+  // transformation.
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<TernaryQueryEngine> query_engine,
+                       TernaryQueryEngine::Run(func));
+  bool changed = false;
+  for (Node* node : TopoSort(func)) {
+    if (node->Is<MultiArrayIndex>()) {
+      MultiArrayIndex* array_index = node->As<MultiArrayIndex>();
+      Type* subtype = array_index->array()->GetType();
+      for (int64 i = 0; i < array_index->indices().size(); ++i) {
+        Node* index = array_index->indices()[i];
+        ArrayType* array_type = subtype->AsArrayOrDie();
+        if (IndexIsDefinitelyOutOfBounds(index, array_type, *query_engine)) {
+          XLS_ASSIGN_OR_RETURN(
+              Literal * new_index,
+              func->MakeNode<Literal>(index->loc(),
+                                      Value(UBits(array_type->size() - 1,
+                                                  index->BitCountOrDie()))));
+          // Index operands start at one so operand number is i + 1.
+          XLS_RETURN_IF_ERROR(
+              array_index->ReplaceOperandNumber(i + 1, new_index));
+          changed = true;
+        }
+        subtype = array_type->element_type();
+      }
+    }
+  }
+  return changed;
+}
+
 // Try to simplify the given array index operation. Returns true if the node was
 // changed.
-absl::StatusOr<bool> SimplifyArrayIndex(ArrayIndex* node,
-                                        const QueryEngine& query_engine) {
-  if (node->index()->Is<Literal>()) {
-    XLS_ASSIGN_OR_RETURN(bool changed,
-                         SimplifyArrayIndexWithLiteralOperand(node));
-    if (changed) {
+absl::StatusOr<bool> SimplifyMultiArrayIndex(MultiArrayIndex* array_index,
+                                             const QueryEngine& query_engine) {
+  // An array index with a nil index (no index operands) can be replaced by the
+  // array operand:
+  //
+  //   array_index(A, {}) => A
+  //
+  if (array_index->indices().empty()) {
+    return array_index->ReplaceUsesWith(array_index->array());
+  }
+
+  // An array index which indexes into a kArray operation and whose first
+  // index element is a literal can be simplified by bypassing the kArray
+  // operation:
+  //
+  //   array_index(array(a, b, c, d), {2, i, j, k, ...}
+  //     => array_index(c, {i, j, k, ...})
+  //
+  if (array_index->array()->Is<Array>() && !array_index->indices().empty() &&
+      array_index->indices().front()->Is<Literal>()) {
+    Array* array = array_index->array()->As<Array>();
+    Node* first_index = array_index->indices().front();
+    if (IndexIsDefinitelyInBounds(first_index, array->GetType()->AsArrayOrDie(),
+                                  query_engine)) {
+      // Indices are always interpreted as unsigned numbers.
+      XLS_ASSIGN_OR_RETURN(
+          uint64 operand_no,
+          first_index->As<Literal>()->value().bits().ToUint64());
+      XLS_RETURN_IF_ERROR(
+          array_index
+              ->ReplaceUsesWithNew<MultiArrayIndex>(
+                  array->operand(operand_no), array_index->indices().subspan(1))
+              .status());
       return true;
     }
   }
 
+  // Consecutive multiarray index operations can be combined. For example:
+  //
+  //   array_index(array_index(A, {a, b}), {c, d})
+  //     => array_index(A, {a, b, c, d})
+  //
+  if (array_index->array()->Is<MultiArrayIndex>()) {
+    MultiArrayIndex* operand = array_index->array()->As<MultiArrayIndex>();
+    std::vector<Node*> combined_indices(operand->indices().begin(),
+                                        operand->indices().end());
+    combined_indices.insert(combined_indices.end(),
+                            array_index->indices().begin(),
+                            array_index->indices().end());
+    XLS_RETURN_IF_ERROR(array_index
+                            ->ReplaceUsesWithNew<MultiArrayIndex>(
+                                operand->array(), combined_indices)
+                            .status());
+    return true;
+  }
+
+  // Convert a select of arrays to an array of selects:
+  //
+  //   array_index(select(p, cases=[A0, A1]), {idx})
+  //     => select(p, array_index(A0, {idx}), array_index(A1, {idx}))
+  //
+  // This reduces the width of the resulting mux.
+  // TODO(meheff): generalize to arbitrary selects.
+  if (IsBinarySelect(array_index->array())) {
+    Select* select = array_index->array()->As<Select>();
+    XLS_ASSIGN_OR_RETURN(
+        MultiArrayIndex * on_false_index,
+        array_index->function_base()->MakeNode<MultiArrayIndex>(
+            select->loc(), select->get_case(0), array_index->indices()));
+    XLS_ASSIGN_OR_RETURN(
+        MultiArrayIndex * on_true_index,
+        array_index->function_base()->MakeNode<MultiArrayIndex>(
+            select->loc(), select->get_case(1), array_index->indices()));
+    XLS_RETURN_IF_ERROR(
+        array_index
+            ->ReplaceUsesWithNew<Select>(
+                select->selector(),
+                /*cases=*/std::vector<Node*>({on_false_index, on_true_index}),
+                /*default=*/absl::nullopt)
+            .status());
+    return true;
+  }
+
   // If this array index operation indexes into the output of an array update
   // operation it may be possible to bypass the array update operation in the
-  // graph if the index of the array index is known to be different than the
-  // array update. That is, the following:
+  // graph if the index of the array index is known to be the same or
+  // known to be different than the array update. That is, consider the
+  // following:
   //
-  //             A        value
-  //              \      /
-  //  index_0 -> array_update
-  //                  |
-  //  index_1 -> array_index
+  //                           A        value
+  //                            \      /
+  //  index {i_0, ... i_m} -> multiarray_update
+  //                               |
+  //  index {j_0, ... j_n} -> multiarray_index
   //
-  // maybe transformed into the following if index_0 != index_1:
+  // This might be transformed into the one of the following if both sets of
+  // indices are definitely inbounds.
   //
-  //                  A
-  //                  |
-  //  index_1 -> array_index
+  //  (1) {i_0, ... i_m} is a prefix of {j_0, ... j_n}, i.e.:
   //
-  // The transformation may be applied iteratively to bypass multiple
-  // consecutive array_update operations.
+  //        i_0 == j_0 && i_1 == j_1 && ... && i_m == j_m
+  //
+  //      Where n >= m. The array index necessarily indexes into the subarray
+  //      updated with value so the index can directly index into value.
+  //
+  //                                     value
+  //                                       |
+  //        index {j_m+1, ... j_n} -> multiarray_index
+  //
+  //
+  //  (2) {i_0, ..., i_m} is definitely *not* a prefix of {j_0, ..., j_n}. The
+  //      array index does *not* index into the updated part of the array. The
+  //      original array can be indexed directly:
+  //
+  //                                       A
+  //                                       |
+  //        index {j_0, ... j_n} -> multiarray_index
+  //
+  if (!array_index->array()->Is<MultiArrayUpdate>()) {
+    return false;
+  }
+  auto* array_update = array_index->array()->As<MultiArrayUpdate>();
 
-  // The transformation cannot be done in the index might be out of bounds (or
+  // The transformation cannot be done if the indices might be out of bounds (or
   // at least it is more complicated to do correctly).
-  if (bits_ops::UGreaterThanOrEqual(
-          query_engine.MaxUnsignedValue(node->index()),
-          node->array()->GetType()->AsArrayOrDie()->size())) {
-    // Index might be out of bounds.
+  if (!IndicesAreDefinitelyInBounds(array_index->indices(),
+                                    array_index->array()->GetType(),
+                                    query_engine) ||
+      !IndicesAreDefinitelyInBounds(array_update->indices(),
+                                    array_update->array_to_update()->GetType(),
+                                    query_engine)) {
     return false;
   }
 
-  Node* source_array = node->array();
-  while (source_array->Is<ArrayUpdate>() &&
-         query_engine.NodesKnownUnsignedNotEquals(
-             source_array->As<ArrayUpdate>()->index(), node->index())) {
-    source_array = source_array->As<ArrayUpdate>()->array_to_update();
-  }
-  if (source_array != node->array()) {
-    XLS_RETURN_IF_ERROR(node->ReplaceOperandNumber(0, source_array));
+  // Consider case (1) above, where the array_update indices are a prefix of the
+  // array_index indices.
+  if (IndicesAreDefinitelyPrefixOf(array_update->indices(),
+                                   array_index->indices(), query_engine)) {
+    // Index directly in the update value. Remove the matching prefix from the
+    // front of the array-index indices because the new array-index indexes into
+    // the lower dimensional update value. so
+    XLS_RETURN_IF_ERROR(
+        array_index
+            ->ReplaceUsesWithNew<MultiArrayIndex>(
+                array_update->update_value(),
+                array_index->indices().subspan(array_update->indices().size()))
+            .status());
     return true;
   }
+
+  if (IndicesDefinitelyNotEqual(array_update->indices(), array_index->indices(),
+                                query_engine)) {
+    XLS_RETURN_IF_ERROR(
+        array_index->ReplaceOperandNumber(0, array_update->array_to_update()));
+    return true;
+  }
+
   return false;
 }
 
@@ -282,41 +448,85 @@ absl::StatusOr<bool> SimplifyArrayUpdate(ArrayUpdate* array_update) {
 }
 
 // Try to simplify the given array operation. Returns true if successful.
-absl::StatusOr<bool> SimplifyArray(Array* array) {
+absl::StatusOr<bool> SimplifyArray(Array* array,
+                                   const QueryEngine& query_engine) {
   // Simplify a subgraph which simply decomposes an array into it's elements and
-  // recomposes them into the same array. For example, the following expression
-  // is equivalent to A if A has n elements:
+  // recomposes them into the same array. For example, the following
+  // transformation can be performed if A has N elements:
   //
-  //  Array(A[0], A[1], .... , A[n-1])
+  //   Array(ArrayIndex(A, {i, j, 0}),
+  //         ArrayIndex(A, {i, j, 1}),
+  //         ...
+  //         ArrayIndex(A, {i, j, N}))
   //
-  // "origin_array" is the he original array ("A" in the above example).
+  //     =>
+  //
+  //   ArrayIndex(A, {i, j})
+  //
   Node* origin_array = nullptr;
+  absl::optional<std::vector<Node*>> common_index_prefix;
   for (int64 i = 0; i < array->operand_count(); ++i) {
-    if (!array->operand(i)->Is<ArrayIndex>()) {
+    if (!array->operand(i)->Is<MultiArrayIndex>()) {
       return false;
     }
-    ArrayIndex* array_index = array->operand(i)->As<ArrayIndex>();
-    // Returns true if the given array index node's index operand has the value
-    // v.
-    auto index_has_value = [](ArrayIndex* n, uint64 v) {
-      if (!n->index()->Is<Literal>()) {
+    MultiArrayIndex* array_index = array->operand(i)->As<MultiArrayIndex>();
+    if (array_index->indices().empty()) {
+      return false;
+    }
+
+    // Extract the last element of the index as a uint64.
+    Node* last_index_node = array_index->indices().back();
+    if (!last_index_node->Is<Literal>()) {
+      return false;
+    }
+    const Bits& last_index_bits =
+        last_index_node->As<Literal>()->value().bits();
+    if (!last_index_bits.FitsInUint64()) {
+      return false;
+    }
+    uint64 last_index = last_index_bits.ToUint64().value();
+
+    // The final index element (0 .. N in the example above) must be sequential.
+    if (last_index != i) {
+      return false;
+    }
+
+    // The prefix of the index ({i, j} in the example above must match the
+    // prefixes of the other array index operations.
+    absl::Span<Node* const> prefix_span =
+        array_index->indices().subspan(0, array_index->indices().size() - 1);
+    if (common_index_prefix.has_value()) {
+      if (!IndicesAreDefinitelyEqual(common_index_prefix.value(), prefix_span,
+                                     query_engine)) {
         return false;
       }
-      const Bits& index = n->index()->As<Literal>()->value().bits();
-      return index.FitsInUint64() && index.ToUint64().value() == v;
-    };
-
-    if (!index_has_value(array_index, i)) {
-      return false;
+    } else {
+      common_index_prefix =
+          std::vector<Node*>(prefix_span.begin(), prefix_span.end());
     }
+
+    // The array index operations must all index into the same array ("A" in
+    // the example above).
     if (origin_array == nullptr) {
       origin_array = array_index->array();
     } else if (origin_array != array_index->array()) {
       return false;
     }
   }
-  if (origin_array->GetType() == array->GetType()) {
-    return array->ReplaceUsesWith(origin_array);
+
+  XLS_RET_CHECK(common_index_prefix.has_value());
+  XLS_ASSIGN_OR_RETURN(Type * origin_array_subtype,
+                       GetIndexedElementType(origin_array->GetType(),
+                                             common_index_prefix->size()));
+  if (array->GetType() == origin_array_subtype) {
+    if (common_index_prefix->empty()) {
+      return array->ReplaceUsesWith(origin_array);
+    }
+    XLS_RETURN_IF_ERROR(array
+                            ->ReplaceUsesWithNew<MultiArrayIndex>(
+                                origin_array, common_index_prefix.value())
+                            .status());
+    return true;
   }
   return false;
 }
@@ -330,21 +540,39 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBase(
   XLS_VLOG(3) << "Before:";
   XLS_VLOG_LINES(3, func->DumpIr());
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<TernaryQueryEngine> query_engine,
-                       TernaryQueryEngine::Run(func));
-
   bool changed = false;
+
+  // Convert array index operations into multiarray index operations.
   for (Node* node : TopoSort(func)) {
     if (node->Is<ArrayIndex>()) {
       ArrayIndex* array_index = node->As<ArrayIndex>();
+      XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<MultiArrayIndex>(
+                                  array_index->array(),
+                                  std::vector<Node*>({array_index->index()}))
+                              .status());
+      changed = true;
+    }
+  }
+
+  XLS_ASSIGN_OR_RETURN(bool clamp_changed, ClampMultiArrayIndexIndices(func));
+  changed |= clamp_changed;
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<TernaryQueryEngine> query_engine,
+                       TernaryQueryEngine::Run(func));
+
+  for (Node* node : TopoSort(func)) {
+    if (node->Is<MultiArrayIndex>()) {
+      MultiArrayIndex* array_index = node->As<MultiArrayIndex>();
       XLS_ASSIGN_OR_RETURN(bool node_changed,
-                           SimplifyArrayIndex(array_index, *query_engine));
+                           SimplifyMultiArrayIndex(array_index, *query_engine));
       changed = changed | node_changed;
     } else if (node->Is<Array>()) {
-      XLS_ASSIGN_OR_RETURN(bool node_changed, SimplifyArray(node->As<Array>()));
+      XLS_ASSIGN_OR_RETURN(bool node_changed,
+                           SimplifyArray(node->As<Array>(), *query_engine));
       changed = changed | node_changed;
     }
   }
+
   for (Node* node : ReverseTopoSort(func)) {
     if (node->Is<ArrayUpdate>()) {
       XLS_ASSIGN_OR_RETURN(bool node_changed,

@@ -123,6 +123,9 @@ class QueryEngine {
   // Returns the maximum unsigned value that the node can be.
   Bits MaxUnsignedValue(Node* node) const;
 
+  // Returns the minimum unsigned value that the node can be.
+  Bits MinUnsignedValue(Node* node) const;
+
   // Returns true if the values of the two nodes are known to be equal when
   // interpreted as unsigned numbers. The nodes can be of different widths.
   bool NodesKnownUnsignedEquals(Node* a, Node* b) const;

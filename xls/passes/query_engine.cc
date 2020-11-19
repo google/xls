@@ -107,6 +107,14 @@ Bits QueryEngine::MaxUnsignedValue(Node* node) const {
   return Bits(bits);
 }
 
+Bits QueryEngine::MinUnsignedValue(Node* node) const {
+  absl::InlinedVector<bool, 16> bits(node->BitCountOrDie());
+  for (int64 i = 0; i < node->BitCountOrDie(); ++i) {
+    bits[i] = IsOne(BitLocation{node, i});
+  }
+  return Bits(bits);
+}
+
 bool QueryEngine::NodesKnownUnsignedNotEquals(Node* a, Node* b) const {
   XLS_CHECK(a->GetType()->IsBits());
   XLS_CHECK(b->GetType()->IsBits());
@@ -139,8 +147,9 @@ bool QueryEngine::NodesKnownUnsignedNotEquals(Node* a, Node* b) const {
 bool QueryEngine::NodesKnownUnsignedEquals(Node* a, Node* b) const {
   XLS_CHECK(a->GetType()->IsBits());
   XLS_CHECK(b->GetType()->IsBits());
-  return AllBitsKnown(a) && AllBitsKnown(b) &&
-         bits_ops::UEqual(GetKnownBitsValues(a), GetKnownBitsValues(b));
+  return a == b ||
+         (AllBitsKnown(a) && AllBitsKnown(b) &&
+          bits_ops::UEqual(GetKnownBitsValues(a), GetKnownBitsValues(b)));
 }
 
 std::string QueryEngine::ToString(Node* node) const {
