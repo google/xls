@@ -306,145 +306,339 @@ absl::StatusOr<bool> SimplifyMultiArrayIndex(MultiArrayIndex* array_index,
   return false;
 }
 
-// Returns the literal index of the given array_update operation as a uint64. If
-// the array update does not have a literal index or it does not fit in a uint64
-// then nullopt is returned.
-absl::optional<uint64> MaybeGetLiteralIndex(ArrayUpdate* array_update) {
-  if (!array_update->index()->Is<Literal>()) {
-    return absl::nullopt;
-  }
-  const Bits& index_bits = array_update->index()->As<Literal>()->value().bits();
-  if (!index_bits.FitsInUint64()) {
-    return absl::nullopt;
-  }
-  return index_bits.ToUint64().value();
-}
-
 // Try to simplify the given array update operation. Returns true if successful.
-absl::StatusOr<bool> SimplifyArrayUpdate(ArrayUpdate* array_update) {
+absl::StatusOr<bool> SimplifyMultiArrayUpdate(MultiArrayUpdate* array_update,
+                                              const QueryEngine& query_engine) {
+  FunctionBase* func = array_update->function_base();
+
+  // An array update with a nil index (no index operands) can be replaced by the
+  // the update value (the "array" operand is unused).
+  //
+  //   array_update(A, v, {}) => v
+  //
+  if (array_update->indices().empty()) {
+    return array_update->ReplaceUsesWith(array_update->update_value());
+  }
+
   // Try to simplify a kArray operation followed by an ArrayUpdate operation
   // into a single kArray operation which uses the updated value. For example:
   //
-  //     a  b  c
-  //      \ | /
-  //      Array
-  //  idx   |   Value
-  //     \  |  /
-  //   ArrayUpdate
-  //        |
+  //           a  b  c
+  //            \ | /
+  //            Array
+  // {idx, ...}   |   Value
+  //          \   |  /
+  //          ArrayUpdate
+  //              |
   //
   // Might be transformed into:
   //
-  //     a  b  Value
+  //          {...}  c   Value
+  //             \   |   /
+  //     a  b  ArrayUpdate
   //      \ | /
   //      Array
   //        |
   //
-  // Assuming the index 'idx' corresponds to element 'c'. The single user
-  // requirement is because 'Value' might be derived from 'Array' otherwise and
-  // the transformation would introduce a loop in the grpah.
+  // Assuming the index 'idx' a literal corresponding to element 'c'. The
+  // advantage is the array update is operating on a smaller array, and if the
+  // index is empty after this operation the array update can be removed.
+  //
+  // The single user requirement on Array is because 'Value' or '{idx, ...}'
+  // might be derived from 'Array' otherwise and the transformation would
+  // introduce a loop in the graph.
   if (array_update->array_to_update()->Is<Array>() &&
       array_update->array_to_update()->users().size() == 1 &&
-      array_update->index()->Is<Literal>()) {
-    int64 index;
-    if (bits_ops::UGreaterThanOrEqual(
-            array_update->index()->As<Literal>()->value().bits(),
-            array_update->GetType()->AsArrayOrDie()->size())) {
-      index = array_update->GetType()->AsArrayOrDie()->size() - 1;
-    } else {
-      index = array_update->index()
-                  ->As<Literal>()
-                  ->value()
-                  .bits()
-                  .ToUint64()
-                  .value();
-    }
-    Array* array = array_update->array_to_update()->As<Array>();
-    XLS_RETURN_IF_ERROR(
-        array->ReplaceOperandNumber(index, array_update->update_value()));
-    return array_update->ReplaceUsesWith(array);
-  }
+      !array_update->indices().empty() &&
+      array_update->indices().front()->Is<Literal>()) {
+    Node* idx = array_update->indices().front();
+    if (IndexIsDefinitelyInBounds(idx, array_update->GetType()->AsArrayOrDie(),
+                                  query_engine)) {
+      // Indices are always interpreted as unsigned numbers.
+      XLS_ASSIGN_OR_RETURN(uint64 operand_no,
+                           idx->As<Literal>()->value().bits().ToUint64());
+      Array* array = array_update->array_to_update()->As<Array>();
 
-  // Try to optimize multiple consecutive array updates.
-  if (array_update->array_to_update()->Is<ArrayUpdate>()) {
-    ArrayUpdate* prev_array_update =
-        array_update->array_to_update()->As<ArrayUpdate>();
-    auto updates_same_index = [](ArrayUpdate* a, ArrayUpdate* b) {
-      if (a->index() == b->index()) {
-        return true;
+      Node* replacement_array_operand;
+      if (array_update->indices().size() == 1) {
+        // idx was the only element of the index. The array-update operation can
+        // be elided.
+        replacement_array_operand = array_update->update_value();
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+            replacement_array_operand,
+            func->MakeNode<MultiArrayUpdate>(
+                array_update->loc(), array->operand(operand_no),
+                array_update->update_value(),
+                array_update->indices().subspan(1)));
       }
-      if (a->index()->Is<Literal>() && b->index()->Is<Literal>()) {
-        return bits_ops::UEqual(a->index()->As<Literal>()->value().bits(),
-                                b->index()->As<Literal>()->value().bits());
-      }
-      return false;
-    };
-    if (updates_same_index(array_update, prev_array_update)) {
-      // The seqeuential array update operations are updating the same
-      // element. The earlier array update (prev_array_update) has no effect on
-      // the result of this array update, so skip the earlier array update by
-      // setting the array operand of this array update to the array prior to
-      // the two array updates.
-      // TODO(meheff): This could be generalized to the case where the are
-      // intermediate updates at arbitrary indices in between the two updates at
-      // the same index.
-      Node* original_array = prev_array_update->array_to_update();
       XLS_RETURN_IF_ERROR(
-          array_update->ReplaceOperandNumber(0, original_array));
+          array->ReplaceOperandNumber(operand_no, replacement_array_operand));
+      XLS_RETURN_IF_ERROR(array_update->ReplaceUsesWith(array).status());
       return true;
     }
   }
 
+  // Replace sequential updates which effectively update one element with a
+  // single array update.
+  //
+  //  array_update(A, array_update(array_index(A, {i}), v, {j}), {i}) =>
+  //     array_update(A, v, {i, j})
+  //
+  if (array_update->update_value()->Is<MultiArrayUpdate>()) {
+    MultiArrayUpdate* subupdate =
+        array_update->update_value()->As<MultiArrayUpdate>();
+    if (subupdate->array_to_update()->Is<MultiArrayIndex>()) {
+      MultiArrayIndex* subindex =
+          subupdate->array_to_update()->As<MultiArrayIndex>();
+      if (subindex->array() == array_update->array_to_update() &&
+          IndicesAreDefinitelyInBounds(subindex->indices(),
+                                       subindex->array()->GetType(),
+                                       query_engine) &&
+          IndicesAreDefinitelyEqual(subindex->indices(),
+                                    array_update->indices(), query_engine)) {
+        std::vector<Node*> new_update_indices(subindex->indices().begin(),
+                                              subindex->indices().end());
+        new_update_indices.insert(new_update_indices.end(),
+                                  subupdate->indices().begin(),
+                                  subupdate->indices().end());
+        XLS_RETURN_IF_ERROR(array_update
+                                ->ReplaceUsesWithNew<MultiArrayUpdate>(
+                                    array_update->array_to_update(),
+                                    subupdate->update_value(),
+                                    new_update_indices)
+                                .status());
+        return true;
+      }
+    }
+  }
+
+  // Try to optimize a chain of single-use consecutive array updates. If the
+  // later array update necessarily overwrites elements updated by the earlier
+  // array update, then the earlier array update may be elided.
+  {
+    MultiArrayUpdate* current = array_update;
+    while (current->array_to_update()->Is<MultiArrayUpdate>()) {
+      MultiArrayUpdate* prev =
+          current->array_to_update()->As<MultiArrayUpdate>();
+      if (current != array_update && prev->users().size() > 1) {
+        break;
+      }
+      if (IndicesAreDefinitelyPrefixOf(array_update->indices(), prev->indices(),
+                                       query_engine)) {
+        // array_update necessarily overwrites the values updated in the
+        // array update 'prev'. 'prev' update can be elided.
+        XLS_RETURN_IF_ERROR(
+            current->ReplaceOperandNumber(0, prev->array_to_update()));
+        return true;
+      }
+      current = prev;
+    }
+  }
+
+  // If the array to update is a literal and the first index is a literal, the
+  // array update can be replaced with a kArray operation which assembles the
+  // updated value with element literals. Example:
+  //
+  //          [A, B, C, D]
+  //               |
+  //  {idx, ...}   |    value
+  //           \   |   /
+  //        array_update
+  //
+  // If idx is 2, this might be transformed into:
+  //
+  //      {...}  C    value
+  //         \   |   /
+  //         array_update
+  //             |
+  //         A B | D
+  //          \ \|/
+  //           Array
+  //
+  //
+  // The advantage is that a smaller array is updated. This can result in
+  // elimination of the array update entirely as well if the index is empty
+  // after the transformation.
+  if (array_update->array_to_update()->Is<Literal>() &&
+      !array_update->indices().empty() &&
+      array_update->indices().front()->Is<Literal>()) {
+    Node* idx = array_update->indices().front();
+    if (IndexIsDefinitelyInBounds(idx, array_update->GetType()->AsArrayOrDie(),
+                                  query_engine)) {
+      // Indices are always interpreted as unsigned numbers.
+      XLS_ASSIGN_OR_RETURN(uint64 operand_no,
+                           idx->As<Literal>()->value().bits().ToUint64());
+      const Value& array_literal =
+          array_update->array_to_update()->As<Literal>()->value();
+      XLS_RET_CHECK_LT(operand_no, array_literal.size());
+
+      std::vector<Node*> array_operands;
+      for (int64 i = 0; i < array_literal.size(); ++i) {
+        XLS_ASSIGN_OR_RETURN(Literal * array_element,
+                             func->MakeNode<Literal>(array_update->loc(),
+                                                     array_literal.element(i)));
+        if (i == operand_no) {
+          XLS_ASSIGN_OR_RETURN(MultiArrayUpdate * new_array_update,
+                               func->MakeNode<MultiArrayUpdate>(
+                                   array_update->loc(), array_element,
+                                   array_update->update_value(),
+                                   array_update->indices().subspan(1)));
+          array_operands.push_back(new_array_update);
+        } else {
+          array_operands.push_back(array_element);
+        }
+      }
+      XLS_RETURN_IF_ERROR(
+          array_update
+              ->ReplaceUsesWithNew<Array>(
+                  array_operands,
+                  /*element_type=*/array_operands.front()->GetType())
+              .status());
+      return true;
+    }
+  }
+  return false;
+}
+
+// Tries to flatten a chain of consecutive array update operations into a single
+// kArray op which gathers the elements written into the array. Returns a vector
+// of the optimized away update operations or nullopt is no optimization was
+// performed.
+absl::StatusOr<absl::optional<std::vector<MultiArrayUpdate*>>>
+FlattenArrayUpdateChain(MultiArrayUpdate* array_update,
+                        const QueryEngine& query_engine) {
   // Identify cases where an array is constructed via a sequence of array update
   // operations and replace with a flat kArray operation gathering all the array
   // values.
   absl::flat_hash_map<uint64, Node*> index_to_element;
 
+  if (array_update->indices().empty()) {
+    return absl::nullopt;
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      Type * subarray_type,
+      GetIndexedElementType(array_update->GetType(),
+                            array_update->indices().size() - 1));
+  int64 subarray_size = subarray_type->AsArrayOrDie()->size();
+
   // Walk up the chain of array updates.
-  ArrayUpdate* current = array_update;
+  MultiArrayUpdate* current = array_update;
+  Node* source_array = nullptr;
+  absl::optional<absl::Span<Node* const>> common_index_prefix;
+  std::vector<MultiArrayUpdate*> update_chain;
   while (true) {
-    absl::optional<uint64> index = MaybeGetLiteralIndex(current);
-    if (!index.has_value()) {
+    if (!current->indices().back()->Is<Literal>()) {
       break;
     }
+
+    const Bits& index_bits =
+        current->indices().back()->As<Literal>()->value().bits();
+    if (bits_ops::UGreaterThanOrEqual(index_bits, subarray_size)) {
+      // Index is out of bound
+      break;
+    }
+    uint64 index = index_bits.ToUint64().value();
+
+    absl::Span<Node* const> index_prefix =
+        current->indices().subspan(0, current->indices().size() - 1);
+    if (common_index_prefix.has_value()) {
+      if (common_index_prefix.value() != index_prefix) {
+        break;
+      }
+    } else {
+      common_index_prefix = index_prefix;
+    }
+
     // If this element is already in the map, then it has already been set by a
     // later array update, this operation (current) can be ignored.
-    if (!index_to_element.contains(index.value())) {
-      index_to_element[index.value()] = current->update_value();
+    if (!index_to_element.contains(index)) {
+      index_to_element[index] = current->update_value();
     }
-    if (!current->array_to_update()->Is<ArrayUpdate>()) {
+    update_chain.push_back(current);
+    source_array = current->array_to_update();
+    if (!source_array->Is<MultiArrayUpdate>()) {
       break;
     }
-    current = current->array_to_update()->As<ArrayUpdate>();
+    current = source_array->As<MultiArrayUpdate>();
   }
 
-  // If the map of indices is dense from 0 to array_size-1, then we can replace
-  // the sequence of array-updates with a single kArray instruction which
-  // gathers the array elements.
-  auto indices_are_dense = [](const absl::flat_hash_map<uint64, Node*> m) {
-    for (int64 i = 0; i < m.size(); ++i) {
-      if (!m.contains(i)) {
-        return false;
-      }
-    }
-    return true;
-  };
-  if (index_to_element.size() ==
-          array_update->GetType()->AsArrayOrDie()->size() &&
-      indices_are_dense(index_to_element)) {
-    std::vector<Node*> array_elements;
-    for (int64 i = 0; i < index_to_element.size(); ++i) {
+  if (!common_index_prefix.has_value()) {
+    // No transformation possible.
+    return absl::nullopt;
+  }
+  XLS_RET_CHECK(source_array != nullptr);
+  XLS_RET_CHECK(!update_chain.empty());
+
+  // TODO(meheff): If at least half (>=) of the values are set then replace.
+  if (index_to_element.size() < (subarray_size + 1) / 2) {
+    return absl::nullopt;
+  }
+
+  std::vector<Node*> array_elements;
+  for (int64 i = 0; i < subarray_size; ++i) {
+    if (index_to_element.contains(i)) {
       array_elements.push_back(index_to_element.at(i));
+    } else {
+      XLS_ASSIGN_OR_RETURN(Literal * literal_index,
+                           array_update->function_base()->MakeNode<Literal>(
+                               array_update->loc(), Value(UBits(i, 64))));
+      std::vector<Node*> indices(common_index_prefix.value().begin(),
+                                 common_index_prefix.value().end());
+      indices.push_back(literal_index);
+      XLS_ASSIGN_OR_RETURN(
+          MultiArrayIndex * array_index,
+          array_update->function_base()->MakeNode<MultiArrayIndex>(
+              array_update->loc(), source_array, indices));
+      array_elements.push_back(array_index);
     }
+  }
+  XLS_ASSIGN_OR_RETURN(Array * array,
+                       array_update->function_base()->MakeNode<Array>(
+                           array_update->loc(), array_elements,
+                           array_elements.front()->GetType()));
+
+  if (common_index_prefix->empty()) {
+    XLS_RETURN_IF_ERROR(array_update->ReplaceUsesWith(array).status());
+  } else {
     XLS_RETURN_IF_ERROR(
         array_update
-            ->ReplaceUsesWithNew<Array>(array_elements,
-                                        array_elements.front()->GetType())
+            ->ReplaceUsesWithNew<MultiArrayUpdate>(source_array, array,
+                                                   common_index_prefix.value())
             .status());
-    return true;
   }
 
-  return false;
+  return update_chain;
+}
+
+// Walk the function and replace chains of sequential array updates with kArray
+// operations with gather the update values.
+absl::StatusOr<bool> FlattenSequentialUpdates(FunctionBase* func) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<TernaryQueryEngine> query_engine,
+                       TernaryQueryEngine::Run(func));
+  absl::flat_hash_set<MultiArrayUpdate*> flattened_updates;
+  bool changed = false;
+  // Perform this optimization in reverse topo sort order because we are looking
+  // for a seqence of array update operations and the search progress upwards
+  // (toward parameters).
+  for (Node* node : ReverseTopoSort(func)) {
+    if (!node->Is<MultiArrayUpdate>()) {
+      continue;
+    }
+    MultiArrayUpdate* array_update = node->As<MultiArrayUpdate>();
+    if (flattened_updates.contains(array_update)) {
+      continue;
+    }
+    XLS_ASSIGN_OR_RETURN(
+        absl::optional<std::vector<MultiArrayUpdate*>> flattened_vec,
+        FlattenArrayUpdateChain(array_update, *query_engine));
+    if (flattened_vec.has_value()) {
+      changed = true;
+      flattened_updates.insert(flattened_vec->begin(), flattened_vec->end());
+    }
+  }
+  return changed;
 }
 
 // Try to simplify the given array operation. Returns true if successful.
@@ -531,6 +725,141 @@ absl::StatusOr<bool> SimplifyArray(Array* array,
   return false;
 }
 
+// Simplify the conditional updating of an array element of the following form:
+//
+//   Select(p, cases=[A, array_update(A, v {idx})])
+//
+// This pattern is replaced with:
+//
+//   array_update(A, select(p, cases=[array_index(A, {idx}), v]), {idx})
+//
+// The advantage is the select (mux) is only selecting an array element rather
+// than the entire array.
+absl::StatusOr<bool> SimplifyConditionalAssign(Select* select) {
+  XLS_RET_CHECK(IsBinarySelect(select));
+  bool update_on_true;
+  MultiArrayUpdate* array_update;
+  if (select->get_case(0)->Is<MultiArrayUpdate>() &&
+      select->get_case(0)->As<MultiArrayUpdate>()->array_to_update() ==
+          select->get_case(1)) {
+    array_update = select->get_case(0)->As<MultiArrayUpdate>();
+    update_on_true = false;
+  } else if (select->get_case(1)->Is<MultiArrayUpdate>() &&
+             select->get_case(1)->As<MultiArrayUpdate>()->array_to_update() ==
+                 select->get_case(0)) {
+    array_update = select->get_case(1)->As<MultiArrayUpdate>();
+    update_on_true = true;
+  } else {
+    return false;
+  }
+  if (array_update->users().size() != 1) {
+    return false;
+  }
+
+  XLS_ASSIGN_OR_RETURN(MultiArrayIndex * original_value,
+                       select->function_base()->MakeNode<MultiArrayIndex>(
+                           array_update->loc(), array_update->array_to_update(),
+                           array_update->indices()));
+  XLS_ASSIGN_OR_RETURN(
+      Select * selected_value,
+      select->function_base()->MakeNode<Select>(
+          select->loc(), select->selector(),
+          /*cases=*/
+          std::vector<Node*>(
+              {update_on_true ? original_value : array_update->update_value(),
+               update_on_true ? array_update->update_value() : original_value}),
+          /*default_value=*/absl::nullopt));
+
+  XLS_RETURN_IF_ERROR(array_update->ReplaceOperandNumber(1, selected_value));
+  return select->ReplaceUsesWith(array_update);
+}
+
+// Simplify a select of arrays to an array of select.
+//
+//   Sel(p, cases=[Array(), Array()]) => Array(Sel(p, ...), Sel(p, ...))
+//
+// The advantage is that hoisting the selects may be open opportunities for
+// further optimization.
+absl::StatusOr<bool> SimplifySelectOfArrays(Select* select) {
+  for (Node* sel_case : select->cases()) {
+    if (!sel_case->Is<Array>()) {
+      return false;
+    }
+  }
+  // TODO(meheff): Handle default.
+  if (select->default_value().has_value()) {
+    return false;
+  }
+
+  ArrayType* array_type = select->GetType()->AsArrayOrDie();
+  std::vector<Node*> selected_elements;
+  for (int64 i = 0; i < array_type->size(); ++i) {
+    std::vector<Node*> elements;
+    for (Node* sel_case : select->cases()) {
+      elements.push_back(sel_case->operand(i));
+    }
+    XLS_ASSIGN_OR_RETURN(Node * selected_element,
+                         select->function_base()->MakeNode<Select>(
+                             select->loc(), select->selector(),
+                             /*cases=*/elements, /*default=*/absl::nullopt));
+    selected_elements.push_back(selected_element);
+  }
+  XLS_RETURN_IF_ERROR(select
+                          ->ReplaceUsesWithNew<Array>(
+                              selected_elements, array_type->element_type())
+                          .status());
+  return true;
+}
+
+// Simplify various forms of a binary select of array-typed values.
+absl::StatusOr<bool> SimplifyBinarySelect(Select* select,
+                                          const QueryEngine& query_engine) {
+  XLS_RET_CHECK(IsBinarySelect(select));
+  bool changed = false;
+  XLS_ASSIGN_OR_RETURN(changed, SimplifyConditionalAssign(select));
+  if (changed) {
+    return true;
+  }
+
+  XLS_ASSIGN_OR_RETURN(changed, SimplifySelectOfArrays(select));
+  if (changed) {
+    return true;
+  }
+
+  // Simplify a select between two array update operations which update the same
+  // index of the same array:
+  //
+  //   Sel(p, {ArrayUpdate(A, v0, {idx}), ArrayUpdate(A, v1, {idx})})
+  //
+  //     => ArrayUpdate(A, Select(p, {v0, v1}), {idx})
+  if (!select->get_case(0)->Is<MultiArrayUpdate>() ||
+      !select->get_case(1)->Is<MultiArrayUpdate>()) {
+    return false;
+  }
+  MultiArrayUpdate* false_update = select->get_case(0)->As<MultiArrayUpdate>();
+  MultiArrayUpdate* true_update = select->get_case(1)->As<MultiArrayUpdate>();
+  if (false_update->array_to_update() != true_update->array_to_update() ||
+      !IndicesAreDefinitelyEqual(false_update->indices(),
+                                 true_update->indices(), query_engine)) {
+    return false;
+  }
+
+  XLS_ASSIGN_OR_RETURN(Select * selected_value,
+                       select->function_base()->MakeNode<Select>(
+                           select->loc(), select->selector(),
+                           /*cases=*/
+                           std::vector<Node*>({false_update->update_value(),
+                                               true_update->update_value()}),
+                           /*default_value=*/absl::nullopt));
+
+  XLS_RETURN_IF_ERROR(select
+                          ->ReplaceUsesWithNew<MultiArrayUpdate>(
+                              false_update->array_to_update(), selected_value,
+                              false_update->indices())
+                          .status());
+  return true;
+}
+
 }  // namespace
 
 absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBase(
@@ -542,13 +871,22 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBase(
 
   bool changed = false;
 
-  // Convert array index operations into multiarray index operations.
+  // Convert array index and array update into multiarray index and multiarray
+  // update.
   for (Node* node : TopoSort(func)) {
     if (node->Is<ArrayIndex>()) {
       ArrayIndex* array_index = node->As<ArrayIndex>();
       XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<MultiArrayIndex>(
                                   array_index->array(),
                                   std::vector<Node*>({array_index->index()}))
+                              .status());
+      changed = true;
+    } else if (node->Is<ArrayUpdate>()) {
+      ArrayUpdate* array_update = node->As<ArrayUpdate>();
+      XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<MultiArrayUpdate>(
+                                  array_update->array_to_update(),
+                                  array_update->update_value(),
+                                  std::vector<Node*>({array_update->index()}))
                               .status());
       changed = true;
     }
@@ -566,20 +904,25 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBase(
       XLS_ASSIGN_OR_RETURN(bool node_changed,
                            SimplifyMultiArrayIndex(array_index, *query_engine));
       changed = changed | node_changed;
+    } else if (node->Is<MultiArrayUpdate>()) {
+      XLS_ASSIGN_OR_RETURN(bool node_changed,
+                           SimplifyMultiArrayUpdate(
+                               node->As<MultiArrayUpdate>(), *query_engine));
+      changed = changed | node_changed;
     } else if (node->Is<Array>()) {
       XLS_ASSIGN_OR_RETURN(bool node_changed,
                            SimplifyArray(node->As<Array>(), *query_engine));
       changed = changed | node_changed;
-    }
-  }
-
-  for (Node* node : ReverseTopoSort(func)) {
-    if (node->Is<ArrayUpdate>()) {
-      XLS_ASSIGN_OR_RETURN(bool node_changed,
-                           SimplifyArrayUpdate(node->As<ArrayUpdate>()));
+    } else if (IsBinarySelect(node)) {
+      XLS_ASSIGN_OR_RETURN(
+          bool node_changed,
+          SimplifyBinarySelect(node->As<Select>(), *query_engine));
       changed = changed | node_changed;
     }
   }
+
+  XLS_ASSIGN_OR_RETURN(bool flatten_changed, FlattenSequentialUpdates(func));
+  changed = changed | flatten_changed;
 
   XLS_VLOG(3) << "After:";
   XLS_VLOG_LINES(3, func->DumpIr());

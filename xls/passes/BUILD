@@ -1088,6 +1088,7 @@ cc_test(
     srcs = ["array_simplification_pass_test.cc"],
     deps = [
         ":array_simplification_pass",
+        ":constant_folding_pass",
         ":dce_pass",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/status:matchers",
