@@ -111,6 +111,20 @@ PYBIND11_MODULE(cpp_evaluate, m) {
   ADD_EVAL(While);
   ADD_EVAL(ModRef);
   ADD_EVAL(Carry);
+
+  using PySymbolicBindings = std::vector<std::pair<std::string, int64>>;
+
+  m.def("evaluate_function",
+        [](FunctionHolder f, const std::vector<InterpValue>& args,
+           const Span& span, PySymbolicBindings* symbolic_bindings,
+           PyInterpCallbackData* py_callbacks) {
+          InterpCallbackData callbacks = ToCpp(*py_callbacks);
+          return EvaluateFunction(&f.deref(), args, span,
+                                  symbolic_bindings == nullptr
+                                      ? SymbolicBindings()
+                                      : SymbolicBindings(*symbolic_bindings),
+                                  &callbacks);
+        });
   m.def("make_top_level_bindings",
         [](ModuleHolder module, PyInterpCallbackData* py_callbacks) {
           InterpCallbackData callbacks = ToCpp(*py_callbacks);

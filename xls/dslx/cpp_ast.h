@@ -694,6 +694,7 @@ class Param : public AstNode {
   const Span& span() const { return span_; }
   NameDef* name_def() const { return name_def_; }
   TypeAnnotation* type() const { return type_; }
+  const std::string& identifier() const { return name_def_->identifier(); }
 
  private:
   NameDef* name_def_;

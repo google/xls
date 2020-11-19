@@ -25,7 +25,7 @@ optimized forms of execution.
 import contextlib
 import functools
 import sys
-from typing import Text, Optional, Dict, Tuple, Callable, Sequence
+from typing import Text, Optional, Tuple, Callable, Sequence
 
 from absl import logging
 import termcolor
@@ -262,53 +262,6 @@ class Interpreter:
     assert isinstance(args[0], Value), args[0]
     return args[0]
 
-  def _evaluate_fn_with_interpreter(
-      self, fn: ast.Function, args: Sequence[Value], span: Span,
-      expr: Optional[ast.Invocation],
-      symbolic_bindings: Optional[SymbolicBindings]) -> Value:
-    """Evaluates the user defined function fn as an invocation against args.
-
-    Args:
-      fn: The user-defined function to evaluate.
-      args: The argument with which the user-defined function is being invoked.
-      span: The source span of the invocation.
-      expr: The invocation node
-      symbolic_bindings: Tuple containing the symbolic bindings to use in
-        the evaluation of this function body (computed by the typechecker)
-
-    Returns:
-      The value that results from evaluating the function on the arguments.
-
-    Raises:
-      EvaluateError: If the types annotated on either parameters or the return
-        type do not match with the values presented as arguments / the value
-        resulting from the function evaluation.
-    """
-    assert isinstance(args, (list, tuple)), repr(args)
-    if len(args) != len(fn.params):
-      raise EvaluateError(
-          span,
-          'Argument arity mismatch for invocation; want: {} got: {}'.format(
-              len(fn.params), len(args)))
-
-    m = fn.get_containing_module()
-    bindings = self._make_top_level_bindings(m)
-    logging.vlog(3, 'Module %r was containing function %r; bindings: %s', m, fn,
-                 bindings.keys())
-    assert '__top_level_bindings_' + m.name in bindings.keys()
-
-    # Bind all args to the parameter identifiers.
-    bound_dims = {} if not symbolic_bindings else dict(
-        symbolic_bindings)  # type: Dict[Text, int]
-    cpp_evaluate.evaluate_derived_parametrics(fn, bindings,
-                                              self._get_callbacks(), bound_dims)
-    bindings.fn_ctx = FnCtx(m.name, fn.name.identifier, symbolic_bindings)
-    for param, arg in zip(fn.params, args):
-      bindings.add_value(param.name.identifier, arg)
-
-    result = self._evaluate(fn.body, bindings)
-    return result
-
   def _evaluate_fn(
       self,
       fn: ast.Function,
@@ -352,8 +305,8 @@ class Interpreter:
       self._type_info = old_ntt
 
     with ntt_swap(invocation_type_info):
-      interpreter_value = self._evaluate_fn_with_interpreter(
-          fn, args, span, expr, symbolic_bindings)
+      interpreter_value = cpp_evaluate.evaluate_function(
+          fn, args, span, symbolic_bindings, self._get_callbacks())
 
     ir_name = ir_name_mangler.mangle_dslx_name(fn.name.identifier,
                                                fn.get_free_parametric_keys(),

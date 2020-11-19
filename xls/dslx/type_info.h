@@ -47,6 +47,8 @@ struct SymbolicBinding {
 // storage to make it immutable, hashable, among other utility functions).
 class SymbolicBindings {
  public:
+  SymbolicBindings() = default;
+
   explicit SymbolicBindings(
       absl::Span<std::pair<std::string, int64> const> items) {
     for (const auto& item : items) {
@@ -68,6 +70,14 @@ class SymbolicBindings {
   // Returns a string representation of the contained symbolic bindings suitable
   // for debugging.
   std::string ToString() const;
+
+  absl::flat_hash_map<std::string, int64> ToMap() const {
+    absl::flat_hash_map<std::string, int64> map;
+    for (const SymbolicBinding& binding : bindings_) {
+      map.insert({binding.identifier, binding.value});
+    }
+    return map;
+  }
 
   int64 size() const { return bindings_.size(); }
   absl::Span<SymbolicBinding const> bindings() const { return bindings_; }

@@ -104,6 +104,26 @@ absl::Status EvaluateDerivedParametrics(
     Function* fn, InterpBindings* bindings, InterpCallbackData* callbacks,
     const absl::flat_hash_map<std::string, int64>& bound_dims);
 
+// Evaluates the user defined function fn as an invocation against args.
+//
+// Args:
+//   fn: The user-defined function to evaluate.
+//   args: The argument with which the user-defined function is being invoked.
+//   span: The source span of the invocation.
+//   symbolic_bindings: Tuple containing the symbolic bindings to use in
+//     the evaluation of this function body (computed by the typechecker)
+//
+// Returns:
+//   The value that results from evaluating the function on the arguments.
+//
+// Raises:
+//   EvaluateError: If the types annotated on either parameters or the return
+//     type do not match with the values presented as arguments / the value
+//     resulting from the function evaluation.
+absl::StatusOr<InterpValue> EvaluateFunction(
+    Function* f, absl::Span<const InterpValue> args, const Span& span,
+    const SymbolicBindings& symbolic_bindings, InterpCallbackData* callbacks);
+
 // Note: all interpreter "node evaluators" have the same signature.
 
 absl::StatusOr<InterpValue> EvaluateConstRef(ConstRef* expr,
@@ -233,7 +253,7 @@ absl::StatusOr<InterpValue> EvaluateIndex(Index* expr, InterpBindings* bindings,
 //   module: The top-level module to make bindings for.
 //   callbacks: Provide ability to call back into the interpreter facilities
 //    e.g. on import or for evaluating constant value expressions.
-absl::StatusOr<InterpBindings> MakeTopLevelBindings(
+absl::StatusOr<std::shared_ptr<InterpBindings>> MakeTopLevelBindings(
     const std::shared_ptr<Module>& module, InterpCallbackData* callbacks);
 
 using ConcretizeVariant = absl::variant<TypeAnnotation*, EnumDef*, StructDef*>;
