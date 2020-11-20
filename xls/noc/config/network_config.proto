@@ -1,0 +1,181 @@
+syntax = "proto2";
+
+// The proto file contains components used for describing a network
+// configuration. These components will be serialized on disks for use by other
+// NoC generation libraries and tools.
+
+package xls.noc;
+
+// A link is a connection between two ports: a source port and a sink port.
+message LinkConfigProto {
+  // The peek flow control exposes the virtual channel(s) that are ready to
+  // accept flits. It is analogous to the 'full' signal of a FIFO.
+  message PeekFlowControlConfigProto {}
+
+  // In the token credit based flow control, the sink sends a credit to the
+  // source. The credit signifies that a virtual channel can accept an
+  // additional flit.
+  message TokenCreditBasedFlowControlConfigProto {}
+
+  // In the total credit based flow control, the sink sends the total available
+  // slots within a virtual channel to the source.
+  message TotalCreditBasedFlowControlConfigProto {
+    // The bit width to store the value of total available slots.
+    optional uint64 credit_bit_width = 1;
+  }
+
+  // The FlowControlConfigProto contains available flow control configuration.
+  // Only a single configuration can be enabled at a time.
+  message FlowControlConfigProto {
+    oneof FlowControlConfig {
+      PeekFlowControlConfigProto peek = 1;
+      TokenCreditBasedFlowControlConfigProto token_credit_based = 2;
+      TotalCreditBasedFlowControlConfigProto total_credit_based = 3;
+    }
+  }
+
+  // The name of the link. It is a unique identifier for the link. The name must
+  // be set and cannot be empty.
+  optional string name = 1;
+  // The name of the source port.
+  optional string source_port_name = 2;
+  // The name of the sink port.
+  optional string sink_port_name = 3;
+  // The physical bit width of the link (phit). The amount of data transferred
+  // in parallel in a 'cycle' over the physical wires.
+  optional uint64 phit_bit_width = 4;
+  // The number of pipeline stages for metadata sent from the source to the
+  // sink.
+  optional uint64 source_sink_pipeline_stage = 5;
+  // The number of pipeline stages for metadata sent from the sink to the
+  // source.
+  optional uint64 sink_source_pipeline_stage = 6;
+  // The control flow configuration for the link.
+  optional FlowControlConfigProto flow_control = 7;
+}
+
+// A virtual channel configuration associated to a router's port. A virtual
+// channel is analogous to a buffer.
+message VirtualChannelConfigProto {
+  // The name of the virtual channel. It is a unique identifier for the virtual
+  // channel. The name must be set and cannot be empty.
+  optional string name = 1;
+  // The bit width of the user raw data within a flit.
+  optional uint64 flit_bit_width = 2;
+  // The depth of the virtual channel.
+  optional uint64 depth = 3;
+}
+
+// A port is a physical gateway to a component (input port) or from a component
+// (output port).
+message PortConfigProto {
+  // The name of the port. It is a unique identifier for the port. The name must
+  // be set and cannot be empty.
+  optional string name = 1;
+  enum Direction {
+    INVALID = 0;
+    INPUT = 1;
+    OUTPUT = 2;
+  }
+  // The port direction. The direction is from the perspective as viewed by an
+  // entity outside of the component that the port is attached.
+  optional Direction direction = 2 [default = INVALID];
+  // The list of virtual channels associated with the port.
+  repeated string virtual_channels = 3;
+}
+
+// A router is responsible for moving a flit from the router's input port to its
+// output port using a set of definitions and rules.
+message RouterConfigProto {
+  // A Port-Virtual-Channel Tuple.
+  message PortVirtualChannelTupleConfig {
+    // The name of a port in the router.
+    optional string port_name = 1;
+    // The name of a virtual channel associated with the port.
+    optional string virtual_channel_name = 2;
+  }
+
+  // An entry in the routing table defines the route from a router's input port
+  // to a network's receive-port-virtual-channel tuple by defining the router's
+  // output-port-virtual-channel tuple for the flit to exit the router.
+  message RoutingTableEntryConfig {
+    // When routing a flit, the flit has a destination endpoint port (receive
+    // port). The flit may also be associated with a dedicated destination
+    // virtual channel. The destination is defined as a network
+    // receive-port-virtual-channel tuple.
+    optional PortVirtualChannelTupleConfig network_receive_port = 1;
+    // The router's output-port-virtual-channel tuple to exit the router.
+    optional PortVirtualChannelTupleConfig router_output_port = 2;
+  }
+
+  // The distributed routing scheme is composed of a set of routing table
+  // entries. One entry for each network receive-port-virtual-channel tuple.
+  message DistributedRoutingConfig {
+    repeated RoutingTableEntryConfig entries = 1;
+  }
+
+  // The RoutingSchemeConfigProto contains the available routing schemes for the
+  // router.  Only a single configuration can be enabled at a time.
+  message RoutingSchemeConfigProto {
+    oneof RoutingSchemeConfig {
+      DistributedRoutingConfig routing_table = 1;
+    }
+  }
+
+  // An entry for the priority arbiter scheme defines the priority amongst the
+  // router's input-port-virtual-channel tuple for a router output port.
+  message ArbiterPriorityEntryConfig {
+    // The router output port.
+    optional string output_port_name = 1;
+    // The list of input-port-virtual-channel tuple. A higher priority is
+    // associated to the element with a lower index within the list.
+    repeated PortVirtualChannelTupleConfig input_port_tuples = 2;
+  }
+
+  // The priority arbiter is composed of an entry for each output port of the
+  // router.
+  message ArbiterPriorityConfig {
+    repeated ArbiterPriorityEntryConfig entries = 1;
+  }
+
+  // The ArbiterSchemeConfigProto contains the available arbitration schemes for
+  // the router.  Only a single configuration can be enabled at a time.
+  message ArbiterSchemeConfigProto {
+    oneof ArbiterSchemeConfig {
+      ArbiterPriorityConfig priority = 1;
+    }
+  }
+  // The name of the router. It is a unique identifier for the router. The name
+  // must be set and cannot be empty.
+  optional string name = 1;
+  // The list of ports (input ports and output ports).
+  repeated PortConfigProto ports = 2;
+  // The routing scheme of the router.
+  optional RoutingSchemeConfigProto routing_scheme = 3;
+  // The arbitration scheme of the router.
+  optional ArbiterSchemeConfigProto arbiter_scheme = 4;
+}
+
+// A network is composed of ports (send ports and receive ports), routers, links
+// and virtual channels.
+message NetworkConfigProto {
+  // The name of the network. It is a unique identifier for the network. The
+  // name must be set and cannot be empty.
+  optional string name = 1;
+  // A description of network in detail. For example, "Network for shared memory
+  // architecture composed of three routers in a ring topology, created on
+  // September 27th 1998".
+  optional string description = 2;
+  // An endpoint is a component connected to a NoC through a port. An endpoint
+  // can send to a network through a send port and/or receives from a network
+  // through a receive port.
+  repeated PortConfigProto ports = 3;
+  // The list of routers in the network.
+  repeated RouterConfigProto routers = 4;
+  // The source port of a link is either a network input port or a router
+  // output port. The sink port of a connection is either a network output port
+  // or a router input port.
+  repeated LinkConfigProto links = 5;
+  // The list of virtual channels in the network.
+  repeated VirtualChannelConfigProto virtual_channels = 6;
+}
