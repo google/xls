@@ -145,6 +145,7 @@ test rrot {
   _
 }
 
+// Returns the minimum of two unsigned integers.
 pub fn umin<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
   x if x < y else y
 }
