@@ -608,4 +608,37 @@ TEST(FunctionBuilderTest, MultipleParametersWithSameName) {
                        HasSubstr("Parameter named \"idx\" already exists")));
 }
 
+TEST(FunctionBuilderTest, DynamicCountedForTest) {
+  Package p("p");
+  BitsType* int32_type = p.GetBitsType(32);
+  BitsType* int16_type = p.GetBitsType(16);
+  Function* body;
+  {
+    FunctionBuilder b("body", &p);
+    auto index = b.Param("index", int32_type);
+    auto accumulator = b.Param("accumulator", int32_type);
+    b.Param("invariant_1", int16_type);
+    b.Param("invariant_2", int16_type);
+    b.Add(index, accumulator);
+    XLS_ASSERT_OK_AND_ASSIGN(body, b.Build());
+  }
+  Function* top;
+  {
+    FunctionBuilder b("top", &p);
+    b.DynamicCountedFor(b.Param("init", int32_type),
+                        b.Param("trip_count", int16_type),
+                        b.Param("stride", int16_type), body,
+                        {b.Param("invariant_1", int16_type),
+                         b.Param("invariant_2", int16_type)});
+    XLS_ASSERT_OK_AND_ASSIGN(top, b.Build());
+  }
+  Node* dynamic_for = top->return_value();
+  EXPECT_EQ(dynamic_for->op(), Op::kDynamicCountedFor);
+  EXPECT_EQ(body->return_value()->GetType(), p.GetBitsType(32));
+  EXPECT_THAT(dynamic_for,
+              m::DynamicCountedFor(
+                  m::Param("init"), m::Param("trip_count"), m::Param("stride"),
+                  body, {m::Param("invariant_1"), m::Param("invariant_2")}));
+}
+
 }  // namespace xls

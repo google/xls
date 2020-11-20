@@ -413,6 +413,7 @@ cc_test(
     srcs = ["verifier_test.cc"],
     deps = [
         ":ir",
+        ":ir_matcher",
         ":ir_test_base",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",

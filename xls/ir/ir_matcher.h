@@ -20,6 +20,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "xls/ir/format_preference.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/node.h"
@@ -292,6 +293,45 @@ inline ::testing::Matcher<const ::xls::Node*> DynamicBitSlice(
     ::testing::Matcher<const Node*> start, int64 width) {
   return ::testing::MakeMatcher(
       new ::xls::op_matchers::DynamicBitSliceMatcher(operand, start, width));
+}
+
+// DynamicCountedFor mather. Supported forms:
+//   EXPECT_THAT(foo, op::DynamicCountedForMatcher(op::Param(), op::Param(),
+//   op::Param(), {op::Xor(), bar); where bar is a FunctionBase*
+class DynamicCountedForMatcher : public NodeMatcher {
+ public:
+  explicit DynamicCountedForMatcher(
+      ::testing::Matcher<const Node*> init,
+      ::testing::Matcher<const Node*> trip_count,
+      ::testing::Matcher<const Node*> stride, FunctionBase* body,
+      std::vector<::testing::Matcher<const Node*>> invariant_args)
+      : NodeMatcher(Op::kDynamicCountedFor,
+                    [&]() {
+                      std::vector<::testing::Matcher<const Node*>> operands;
+                      operands.push_back(init);
+                      operands.push_back(trip_count);
+                      operands.push_back(stride);
+                      operands.insert(operands.end(), invariant_args.begin(),
+                                      invariant_args.end());
+                      return operands;
+                    }()),
+        body_(body) {}
+
+  bool MatchAndExplain(const Node* node,
+                       ::testing::MatchResultListener* listener) const override;
+
+ private:
+  FunctionBase* body_;
+};
+
+inline ::testing::Matcher<const ::xls::Node*> DynamicCountedFor(
+    ::testing::Matcher<const Node*> init,
+    ::testing::Matcher<const Node*> trip_count,
+    ::testing::Matcher<const Node*> stride, FunctionBase* body,
+    std::vector<::testing::Matcher<const Node*>> invariant_args) {
+  return ::testing::MakeMatcher(
+      new ::xls::op_matchers::DynamicCountedForMatcher(init, trip_count, stride,
+                                                       body, invariant_args));
 }
 
 // Literal matcher. Supported forms:

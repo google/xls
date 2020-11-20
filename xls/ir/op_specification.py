@@ -607,6 +607,30 @@ OpClass.kinds['COUNTED_FOR'] = OpClass(
     custom_clone_method=True
 )
 
+OpClass.kinds['DYNAMIC_COUNTED_FOR'] = OpClass(
+    name='DynamicCountedFor',
+    op='Op::kDynamicCountedFor',
+    operands=[Operand('initial_value'),
+              Operand('trip_count'),
+              Operand('stride'),
+              OperandSpan('invariant_args')],
+    xls_type_expression='initial_value->GetType()',
+    attributes=[FunctionAttribute('body')],
+    extra_methods=[Method(name='initial_value',
+                          return_cpp_type='Node*',
+                          expression='operand(0)'),
+                   Method(name='trip_count',
+                          return_cpp_type='Node*',
+                          expression='operand(1)'),
+                   Method(name='stride',
+                          return_cpp_type='Node*',
+                          expression='operand(2)'),
+                   Method(name='invariant_args',
+                          return_cpp_type='absl::Span<Node* const>',
+                          expression='operands().subspan(3)')],
+    custom_clone_method=True
+)
+
 OpClass.kinds['EXTEND_OP'] = OpClass(
     name='ExtendOp',
     op='op',
@@ -908,6 +932,12 @@ OPS = [
         enum_name='kDecode',
         name='decode',
         op_class=OpClass.kinds['DECODE'],
+        properties=[],
+    ),
+    Op(
+        enum_name='kDynamicCountedFor',
+        name='dynamic_counted_for',
+        op_class=OpClass.kinds['DYNAMIC_COUNTED_FOR'],
         properties=[],
     ),
     Op(

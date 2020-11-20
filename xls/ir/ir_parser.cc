@@ -608,6 +608,17 @@ absl::StatusOr<BValue> Parser::ParseNode(
                               *invariant_args, *loc, node_name);
       break;
     }
+    case Op::kDynamicCountedFor: {
+      std::string* body_name = arg_parser.AddKeywordArg<std::string>("body");
+      std::vector<BValue>* invariant_args =
+          arg_parser.AddOptionalKeywordArg<std::vector<BValue>>(
+              "invariant_args", /*default_value=*/{});
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/3));
+      XLS_ASSIGN_OR_RETURN(Function * body, package->GetFunction(*body_name));
+      bvalue = fb->DynamicCountedFor(operands[0], operands[1], operands[2],
+                                     body, *invariant_args, *loc, node_name);
+      break;
+    }
     case Op::kOneHot: {
       bool* lsb_prio = arg_parser.AddKeywordArg<bool>("lsb_prio");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
