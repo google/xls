@@ -470,6 +470,113 @@ absl::Status FunctionBuilderVisitor::HandleDecode(Decode* decode) {
   return StoreResult(decode, result);
 }
 
+absl::Status FunctionBuilderVisitor::HandleDynamicCountedFor(
+    DynamicCountedFor* dynamic_counted_for) {
+  // Grab loop body.
+  XLS_ASSIGN_OR_RETURN(llvm::Function * loop_body_function,
+                       GetModuleFunction(dynamic_counted_for->body()));
+  llvm::Type* loop_body_function_type =
+      loop_body_function->getType()->getPointerElementType();
+
+  // Add invariants to loop body args.
+  // One extra arg for the loop carry, one for the index, and one for user data.
+  std::vector<llvm::Value*> args(dynamic_counted_for->invariant_args().size() +
+                                 3);
+  for (int i = 0; i < dynamic_counted_for->invariant_args().size(); i++) {
+    args[i + 2] = node_map_.at(dynamic_counted_for->invariant_args()[i]);
+  }
+  // Add user data arg.
+  args.back() = llvm_fn_->getArg(llvm_fn_->arg_size() - 1);
+
+  // Create basic blocks and corresponding builders. We have 4 blocks:
+  // Entry     - the code executed before the loop.
+  // Preheader - checks the loop condition.
+  // Loop      - calls the loop body, updates the loop carry and index.
+  // Exit      - the block we jump to after the loop.
+  // ------------------------------------------------------------------
+  // Entry
+  llvm::Function* llvm_function = builder_->GetInsertBlock()->getParent();
+  llvm::BasicBlock* entry_block = builder_->GetInsertBlock();
+  llvm::IRBuilder<>* entry_builder = builder_.get();
+  // Preheader
+  llvm::BasicBlock* preheader_block = llvm::BasicBlock::Create(
+      ctx_, absl::StrCat(dynamic_counted_for->GetName(), "_preheader"),
+      llvm_function);
+  std::unique_ptr<llvm::IRBuilder<>> preheader_builder =
+      std::make_unique<llvm::IRBuilder<>>(preheader_block);
+  // Loop
+  llvm::BasicBlock* loop_block = llvm::BasicBlock::Create(
+      ctx_, absl::StrCat(dynamic_counted_for->GetName(), "_loop_block"),
+      llvm_function);
+  std::unique_ptr<llvm::IRBuilder<>> loop_builder =
+      std::make_unique<llvm::IRBuilder<>>(loop_block);
+  // Exit
+  llvm::BasicBlock* exit_block = llvm::BasicBlock::Create(
+      ctx_, absl::StrCat(dynamic_counted_for->GetName(), "_exit_block"),
+      llvm_function);
+  std::unique_ptr<llvm::IRBuilder<>> exit_builder =
+      std::make_unique<llvm::IRBuilder<>>(exit_block);
+
+  // Get initial index, loop carry.
+  llvm::Type* index_type = loop_body_function_type->getFunctionParamType(0);
+  llvm::Value* init_index = llvm::ConstantInt::get(index_type, 0);
+  llvm::Value* init_loop_carry =
+      node_map_.at(dynamic_counted_for->initial_value());
+
+  // In entry, grab trip_count and stride, extended to match index type.
+  // trip_count is zero-extended because the input trip_count is treated as
+  // to be unsigned while stride is treated as signed.
+  llvm::Value* trip_count = entry_builder->CreateZExt(
+      node_map_.at(dynamic_counted_for->trip_count()), index_type);
+  llvm::Value* stride = entry_builder->CreateSExt(
+      node_map_.at(dynamic_counted_for->stride()), index_type);
+
+  // Calculate index limit and jump entry loop predheader.
+  llvm::Value* index_limit = entry_builder->CreateMul(trip_count, stride);
+  entry_builder->CreateBr(preheader_block);
+
+  // Preheader
+  // Check if trip_count interations completed.
+  // If so, exit loop. Otherwise, keep looping.
+  llvm::PHINode* index_phi = preheader_builder->CreatePHI(index_type, 2);
+  args[0] = index_phi;
+  llvm::PHINode* loop_carry_phi =
+      preheader_builder->CreatePHI(init_loop_carry->getType(), 2);
+  args[1] = loop_carry_phi;
+  llvm::Value* index_limit_reached =
+      preheader_builder->CreateICmpEQ(index_phi, index_limit);
+  preheader_builder->CreateCondBr(index_limit_reached, exit_block, loop_block);
+
+  // Loop
+  // Call loop body function and increment index before returning to
+  // preheader_builder.
+  llvm::Value* loop_carry =
+      loop_builder->CreateCall(loop_body_function, {args});
+  llvm::Value* inc_index = loop_builder->CreateAdd(index_phi, stride);
+  loop_builder->CreateBr(preheader_block);
+
+  // Set predheader Phi node inputs.
+  index_phi->addIncoming(init_index, entry_block);
+  index_phi->addIncoming(inc_index, loop_block);
+  loop_carry_phi->addIncoming(init_loop_carry, entry_block);
+  loop_carry_phi->addIncoming(loop_carry, loop_block);
+
+  // Add a single-input PHI node for loop carry output so that,
+  // under single static assignment, the loop carry is only used
+  // in the loop. Llvm should do this for us in llvm::formLCSSA when we JIT
+  // compile, but for some reason that functions fails it's own assertion
+  // (L.isLCSSAForm(DT)) after its transformation is applied. So, we do this
+  // manually here.
+  llvm::PHINode* loop_carry_out =
+      exit_builder->CreatePHI(init_loop_carry->getType(), 1);
+  loop_carry_out->addIncoming(loop_carry_phi, preheader_block);
+
+  // Set the builder to build in the exit block.
+  set_builder(std::move(exit_builder));
+
+  return StoreResult(dynamic_counted_for, loop_carry_out);
+}
+
 absl::Status FunctionBuilderVisitor::HandleEncode(Encode* encode) {
   llvm::Value* input = node_map_.at(encode->operand(0));
   llvm::Type* input_type = input->getType();

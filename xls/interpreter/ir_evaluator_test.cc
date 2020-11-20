@@ -1622,6 +1622,162 @@ fn main() -> bits[32] {
               IsOkAndHolds(Value(UBits(expected, 32))));
 }
 
+TEST_P(IrEvaluatorTest, InterpretDynamicCountedFor) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(R"(
+  package test
+
+  fn body(iv: bits[16], y: bits[16], invar: bits[16]) -> bits[16] {
+    sign_ext.1: bits[16] = sign_ext(iv, new_bit_count=16)
+    add.3: bits[16] = add(sign_ext.1, y)
+    ret add.9: bits[16] = add(add.3, invar)
+  }
+
+  fn main() -> bits[16] {
+    literal.4: bits[16] = literal(value=0)
+    literal.5: bits[8] = literal(value=4)
+    literal.6: bits[8] = literal(value=1)
+    literal.7: bits[16] = literal(value=1)
+    ret dynamic_counted_for.8: bits[16] = dynamic_counted_for(literal.4, literal.5, literal.6, body=body, invariant_args=[literal.7])
+  }
+  )"));
+  XLS_ASSERT_OK(VerifyPackage(package.get()));
+
+  // Expected execution behavior:
+  //  initial_value = 0, trip_count = 6, stride = 1
+  //  iteration 0: body(iv = 0, x =  0) ->  1
+  //  iteration 1: body(iv = 1, x =  1) ->  3
+  //  iteration 2: body(iv = 2, x =  3) ->  6
+  //  iteration 3: body(iv = 3, x =  6) ->  10
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  EXPECT_THAT(GetParam().evaluator(function, /*args=*/{}),
+              IsOkAndHolds(Value(SBits(10, 16))));
+}
+
+TEST_P(IrEvaluatorTest, InterpretDynamicCountedForZeroTrip) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(R"(
+  package test
+
+  fn body(iv: bits[16], y: bits[16], invar: bits[16]) -> bits[16] {
+    sign_ext.1: bits[16] = sign_ext(iv, new_bit_count=16)
+    add.3: bits[16] = add(sign_ext.1, y)
+    ret add.9: bits[16] = add(add.3, invar)
+  }
+
+  fn main() -> bits[16] {
+    literal.4: bits[16] = literal(value=0)
+    literal.5: bits[8] = literal(value=0)
+    literal.6: bits[8] = literal(value=1)
+    literal.7: bits[16] = literal(value=1)
+    ret dynamic_counted_for.8: bits[16] = dynamic_counted_for(literal.4, literal.5, literal.6, body=body, invariant_args=[literal.7])
+  }
+  )"));
+  XLS_ASSERT_OK(VerifyPackage(package.get()));
+
+  // Expected execution behavior:
+  //  initial_value = 0, trip_count = 0, stride = 1 -> 0
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  EXPECT_THAT(GetParam().evaluator(function, /*args=*/{}),
+              IsOkAndHolds(Value(SBits(0, 16))));
+}
+
+TEST_P(IrEvaluatorTest, InterpretDynamicCountedForMultiStride) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(R"(
+  package test
+
+  fn body(iv: bits[16], y: bits[16], invar: bits[16]) -> bits[16] {
+    sign_ext.1: bits[16] = sign_ext(iv, new_bit_count=16)
+    add.3: bits[16] = add(sign_ext.1, y)
+    ret add.9: bits[16] = add(add.3, invar)
+  }
+
+  fn main() -> bits[16] {
+    literal.4: bits[16] = literal(value=0)
+    literal.5: bits[8] = literal(value=4)
+    literal.6: bits[8] = literal(value=2)
+    literal.7: bits[16] = literal(value=1)
+    ret dynamic_counted_for.8: bits[16] = dynamic_counted_for(literal.4, literal.5, literal.6, body=body, invariant_args=[literal.7])
+  }
+  )"));
+  XLS_ASSERT_OK(VerifyPackage(package.get()));
+
+  // Expected execution behavior:
+  //  initial_value = 0, trip_count = 6, stride = 1
+  //  iteration 0: body(iv = 0, x =  0) ->  1
+  //  iteration 1: body(iv = 2, x =  1) ->  4
+  //  iteration 2: body(iv = 4, x =  4) ->  9
+  //  iteration 3: body(iv = 6, x =  9) ->  16
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  EXPECT_THAT(GetParam().evaluator(function, /*args=*/{}),
+              IsOkAndHolds(Value(SBits(16, 16))));
+}
+
+TEST_P(IrEvaluatorTest, InterpretDynamicCountedForMaxTripAndStrideBitsValues) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(R"(
+  package test
+
+  fn body(iv: bits[5], y: bits[16], invar: bits[16]) -> bits[16] {
+    sign_ext.1: bits[16] = sign_ext(iv, new_bit_count=16)
+    add.3: bits[16] = add(sign_ext.1, y)
+    ret add.9: bits[16] = add(add.3, invar)
+  }
+
+  fn main() -> bits[16] {
+    literal.4: bits[16] = literal(value=0)
+    literal.5: bits[2] = literal(value=3)
+    literal.6: bits[3] = literal(value=3)
+    literal.7: bits[16] = literal(value=1)
+    ret dynamic_counted_for.8: bits[16] = dynamic_counted_for(literal.4, literal.5, literal.6, body=body, invariant_args=[literal.7])
+  }
+  )"));
+  XLS_ASSERT_OK(VerifyPackage(package.get()));
+
+  // Expected execution behavior:
+  //  initial_value = 0, trip_count = 3, stride = 3
+  //  iteration 0: body(iv = 0, x =  0) ->  1
+  //  iteration 1: body(iv = 3, x =  1) ->  5
+  //  iteration 2: body(iv = 6, x =  5) ->  12
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  EXPECT_THAT(GetParam().evaluator(function, /*args=*/{}),
+              IsOkAndHolds(Value(SBits(12, 16))));
+}
+
+
+TEST_P(IrEvaluatorTest, InterpretDynamicCountedForNegativeStride) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(R"(
+  package test
+
+  fn body(iv: bits[16], y: bits[16], invar: bits[16]) -> bits[16] {
+    sign_ext.1: bits[16] = sign_ext(iv, new_bit_count=16)
+    add.3: bits[16] = add(sign_ext.1, y)
+    ret add.9: bits[16] = add(add.3, invar)
+  }
+
+  fn main() -> bits[16] {
+    literal.4: bits[16] = literal(value=0)
+    literal.5: bits[8] = literal(value=4)
+    literal.6: bits[8] = literal(value=-2)
+    literal.7: bits[16] = literal(value=1)
+    ret dynamic_counted_for.8: bits[16] = dynamic_counted_for(literal.4, literal.5, literal.6, body=body, invariant_args=[literal.7])
+  }
+  )"));
+  XLS_ASSERT_OK(VerifyPackage(package.get()));
+
+  // Expected execution behavior:
+  //  initial_value = 0, trip_count = 6, stride = 1
+  //  iteration 0: body(iv = 0, x =  0) ->  1
+  //  iteration 1: body(iv = -2, x =  1) ->  0
+  //  iteration 2: body(iv = -4, x =  0) ->  -3
+  //  iteration 3: body(iv = -6, x = -3) ->  -8
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  EXPECT_THAT(GetParam().evaluator(function, /*args=*/{}),
+              IsOkAndHolds(Value(SBits(-8, 16))));
+}
+
 TEST_P(IrEvaluatorTest, InterpretTuple) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
