@@ -157,6 +157,17 @@ test umin {
   ()
 }
 
+// Returns `ceiling(log2(x))`, with one exception:
+//
+// When x=0, this function differs from the true mathematical function:
+// clog2(0) = 0
+// ceiling(log2(0)) = -infinity
+//
+// This function is frequently used to calculate the number of bits required to
+// represent `x` possibilities. With this interpretation, it is sensible
+// to define clog2(0) = 0.
+//
+// Example: clog2(7) = 3
 pub fn clog2<N: u32>(x: bits[N]) -> bits[N] {
   (N as bits[N]) - clz(x-bits[N]:1) if x >= bits[N]:1 else bits[N]:0
 }
