@@ -480,7 +480,7 @@ TEST(FunctionBuilderTest, MultiArrayIndex) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, b.Build());
   EXPECT_THAT(func->return_value(),
-              m::MultiArrayIndex(m::Param("a"), m::Param("idx")));
+              m::MultiArrayIndex(m::Param("a"), /*indices=*/{m::Param("idx")}));
   EXPECT_EQ(func->return_value()->GetType(), p.GetBitsType(123));
 }
 
@@ -495,9 +495,9 @@ TEST(FunctionBuilderTest, MultiArrayIndexMultipleDimensions) {
   b.MultiArrayIndex(a, {idx0, idx1});
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, b.Build());
-  EXPECT_THAT(
-      func->return_value(),
-      m::MultiArrayIndex(m::Param("a"), m::Param("idx0"), m::Param("idx1")));
+  EXPECT_THAT(func->return_value(),
+              m::MultiArrayIndex(m::Param("a"), /*indices=*/{
+                                     m::Param("idx0"), m::Param("idx1")}));
   EXPECT_EQ(func->return_value()->GetType(), element_type);
 }
 
@@ -508,7 +508,8 @@ TEST(FunctionBuilderTest, MultiArrayIndexNilIndex) {
   b.MultiArrayIndex(a, {});
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, b.Build());
-  EXPECT_THAT(func->return_value(), m::MultiArrayIndex(m::Param("a")));
+  EXPECT_THAT(func->return_value(),
+              m::MultiArrayIndex(m::Param("a"), /*indices=*/{}));
   EXPECT_EQ(func->return_value()->GetType(), p.GetBitsType(123));
 }
 
@@ -548,9 +549,9 @@ TEST(FunctionBuilderTest, MultiArrayUpdate) {
   b.MultiArrayUpdate(a, value, {idx});
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, b.Build());
-  EXPECT_THAT(
-      func->return_value(),
-      m::MultiArrayUpdate(m::Param("a"), m::Param("value"), m::Param("idx")));
+  EXPECT_THAT(func->return_value(),
+              m::MultiArrayUpdate(m::Param("a"), m::Param("value"),
+                                  /*indices=*/{m::Param("idx")}));
   EXPECT_EQ(func->return_value()->GetType(),
             p.GetArrayType(42, p.GetBitsType(123)));
 }
@@ -563,8 +564,9 @@ TEST(FunctionBuilderTest, MultiArrayUpdateNilIndex) {
   b.MultiArrayUpdate(a, value, {});
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, b.Build());
-  EXPECT_THAT(func->return_value(),
-              m::MultiArrayUpdate(m::Param("a"), m::Param("value")));
+  EXPECT_THAT(
+      func->return_value(),
+      m::MultiArrayUpdate(m::Param("a"), m::Param("value"), /*indices=*/{}));
   EXPECT_EQ(func->return_value()->GetType(), p.GetBitsType(123));
 }
 

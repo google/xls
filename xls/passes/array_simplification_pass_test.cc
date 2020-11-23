@@ -68,7 +68,7 @@ TEST_F(ArraySimplificationPassTest, ConvertArrayIndexToMultiArrayIndex) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
-              m::MultiArrayIndex(m::Param("a"), m::Param("idx")));
+              m::MultiArrayIndex(m::Param("a"), /*indices=*/{m::Param("idx")}));
 }
 
 TEST_F(ArraySimplificationPassTest, ConvertArrayUpdateToMultiArrayUpdate) {
@@ -80,9 +80,9 @@ TEST_F(ArraySimplificationPassTest, ConvertArrayUpdateToMultiArrayUpdate) {
   fb.ArrayUpdate(a, idx, v);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(
-      f->return_value(),
-      m::MultiArrayUpdate(m::Param("a"), m::Param("v"), m::Param("idx")));
+  EXPECT_THAT(f->return_value(),
+              m::MultiArrayUpdate(m::Param("a"), m::Param("v"),
+                                  /*indices=*/{m::Param("idx")}));
 }
 
 TEST_F(ArraySimplificationPassTest, ArrayWithOOBLiteralIndex) {
@@ -95,7 +95,7 @@ TEST_F(ArraySimplificationPassTest, ArrayWithOOBLiteralIndex) {
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   // Index should be clipped at the max legal index.
   EXPECT_THAT(f->return_value(),
-              m::MultiArrayIndex(m::Param("a"), m::Literal(2)));
+              m::MultiArrayIndex(m::Param("a"), /*indices=*/{m::Literal(2)}));
 }
 
 TEST_F(ArraySimplificationPassTest, ArrayWithWideOOBLiteralIndex) {
@@ -108,7 +108,7 @@ TEST_F(ArraySimplificationPassTest, ArrayWithWideOOBLiteralIndex) {
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   // Index should be clipped at the max legal index.
   EXPECT_THAT(f->return_value(),
-              m::MultiArrayIndex(m::Param("a"), m::Literal(41)));
+              m::MultiArrayIndex(m::Param("a"), /*indices=*/{m::Literal(41)}));
 }
 
 TEST_F(ArraySimplificationPassTest, ArrayWithWideInBoundsLiteralIndex) {
@@ -230,7 +230,7 @@ TEST_F(ArraySimplificationPassTest, IndexingArrayUpdateOperationUnknownIndex) {
 
   ASSERT_THAT(Run(f), IsOkAndHolds(false));
   EXPECT_THAT(f->return_value(),
-              m::MultiArrayIndex(m::MultiArrayUpdate(), m::Literal(1)));
+              m::MultiArrayIndex(m::MultiArrayUpdate(), {m::Literal(1)}));
 }
 
 TEST_F(ArraySimplificationPassTest,
@@ -249,8 +249,8 @@ TEST_F(ArraySimplificationPassTest,
   // index, we can't optimize this because of different behaviors of OOB access
   // for array_index and array_update operations.
   ASSERT_THAT(Run(f), IsOkAndHolds(false));
-  EXPECT_THAT(f->return_value(),
-              m::MultiArrayIndex(m::MultiArrayUpdate(), m::Param()));
+  EXPECT_THAT(f->return_value(), m::MultiArrayIndex(m::MultiArrayUpdate(),
+                                                    /*indices=*/{m::Param()}));
 }
 
 TEST_F(ArraySimplificationPassTest, IndexingArrayParameter) {
@@ -261,9 +261,11 @@ TEST_F(ArraySimplificationPassTest, IndexingArrayParameter) {
   BValue index = fb.Literal(Value(UBits(1, 16)));
   fb.MultiArrayIndex(a, {index});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  EXPECT_THAT(f->return_value(), m::MultiArrayIndex(m::Param(), m::Literal()));
+  EXPECT_THAT(f->return_value(),
+              m::MultiArrayIndex(m::Param(), /*indices=*/{m::Literal()}));
   ASSERT_THAT(Run(f), IsOkAndHolds(false));
-  EXPECT_THAT(f->return_value(), m::MultiArrayIndex(m::Param(), m::Literal()));
+  EXPECT_THAT(f->return_value(),
+              m::MultiArrayIndex(m::Param(), /*indices=*/{m::Literal()}));
 }
 
 TEST_F(ArraySimplificationPassTest, SimpleUnboxingArray) {
@@ -307,9 +309,9 @@ TEST_F(ArraySimplificationPassTest, SequentialArrayUpdatesToSameLocation) {
   )",
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(
-      f->return_value(),
-      m::MultiArrayUpdate(m::Param("a"), m::Param("y"), m::Param("idx")));
+  EXPECT_THAT(f->return_value(),
+              m::MultiArrayUpdate(m::Param("a"), m::Param("y"),
+                                  /*indices=*/{m::Param("idx")}));
 }
 
 TEST_F(ArraySimplificationPassTest,
@@ -324,8 +326,9 @@ TEST_F(ArraySimplificationPassTest,
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
-              m::MultiArrayUpdate(m::Param("a"), m::Param("y"), m::Param("i"),
-                                  m::Param("j"), m::Param("k")));
+              m::MultiArrayUpdate(
+                  m::Param("a"), m::Param("y"),
+                  /*indices=*/{m::Param("i"), m::Param("j"), m::Param("k")}));
 }
 
 TEST_F(ArraySimplificationPassTest,
@@ -360,9 +363,11 @@ TEST_F(ArraySimplificationPassTest,
   EXPECT_THAT(
       f->return_value(),
       m::MultiArrayUpdate(
-          m::MultiArrayUpdate(m::Param("a"), m::Param("x"), m::Literal(2),
-                              m::Param("i"), m::Param("j")),
-          m::Param("y"), m::Literal(1), m::Param("i"), m::Param("j")));
+          m::MultiArrayUpdate(
+              m::Param("a"), m::Param("x"),
+              /*indices=*/{m::Literal(2), m::Param("i"), m::Param("j")}),
+          m::Param("y"),
+          /*indices=*/{m::Literal(1), m::Param("i"), m::Param("j")}));
 }
 
 TEST_F(ArraySimplificationPassTest,
@@ -384,9 +389,10 @@ TEST_F(ArraySimplificationPassTest,
   EXPECT_THAT(
       f->return_value(),
       m::MultiArrayUpdate(
-          m::MultiArrayUpdate(m::Param("a"), m::Param("x"), m::Literal(2),
-                              m::Param("i"), m::Param("j")),
-          m::Param("y"), m::Literal(1), m::Param("i")));
+          m::MultiArrayUpdate(
+              m::Param("a"), m::Param("x"),
+              /*indices=*/{m::Literal(2), m::Param("i"), m::Param("j")}),
+          m::Param("y"), /*indices=*/{m::Literal(1), m::Param("i")}));
 }
 
 TEST_F(ArraySimplificationPassTest,
@@ -403,7 +409,8 @@ TEST_F(ArraySimplificationPassTest,
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
-              m::MultiArrayUpdate(m::Param("a"), m::Param("y"), m::Literal(1)));
+              m::MultiArrayUpdate(m::Param("a"), m::Param("y"),
+                                  /*indices=*/{m::Literal(1)}));
 }
 
 TEST_F(ArraySimplificationPassTest, ArrayConstructedBySequenceOfArrayUpdates) {
@@ -512,7 +519,7 @@ TEST_F(ArraySimplificationPassTest,
               m::MultiArrayUpdate(m::Param("a"),
                                   m::Array(m::Param("w"), m::Param("x"),
                                            m::Param("y"), m::Param("z")),
-                                  m::Literal(2)));
+                                  /*indices=*/{m::Literal(2)}));
 }
 
 TEST_F(
@@ -615,9 +622,9 @@ TEST_F(ArraySimplificationPassTest, SimplifyDecomposedNestedArray) {
   )",
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(
-      f->return_value(),
-      m::MultiArrayIndex(m::Param("a"), m::Literal(40), m::Literal(50)));
+  EXPECT_THAT(f->return_value(),
+              m::MultiArrayIndex(m::Param("a"),
+                                 /*indices=*/{m::Literal(40), m::Literal(50)}));
 }
 
 TEST_F(ArraySimplificationPassTest, SimplifyDecomposedArraySwizzledElements) {
@@ -669,8 +676,9 @@ TEST_F(ArraySimplificationPassTest, ChainedArrayUpdate) {
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
-              m::MultiArrayUpdate(m::Param("a"), m::Literal(42), m::Param("x"),
-                                  m::Param("y"), m::Param("z")));
+              m::MultiArrayUpdate(
+                  m::Param("a"), m::Literal(42),
+                  /*indices=*/{m::Param("x"), m::Param("y"), m::Param("z")}));
 }
 
 TEST_F(ArraySimplificationPassTest, SelectAmongArrayUpdates) {
@@ -690,7 +698,7 @@ TEST_F(ArraySimplificationPassTest, SelectAmongArrayUpdates) {
                   m::Param("a"),
                   m::Select(m::Param("pred"),
                             /*cases=*/{m::Param("value0"), m::Param("value1")}),
-                  m::Param("x"), m::Param("y")));
+                  /*indices=*/{m::Param("x"), m::Param("y")}));
 }
 
 TEST_F(ArraySimplificationPassTest, SelectAmongArrayUpdatesOfDifferentArray) {
@@ -745,11 +753,11 @@ TEST_F(ArraySimplificationPassTest, UpdateOfArrayOpMultidimensional) {
   )",
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(
-      f->return_value(),
-      m::Array(m::Param("x"),
-               m::MultiArrayUpdate(m::Param("y"), m::Param("v"), m::Param("i")),
-               m::Param("z")));
+  EXPECT_THAT(f->return_value(),
+              m::Array(m::Param("x"),
+                       m::MultiArrayUpdate(m::Param("y"), m::Param("v"),
+                                           /*indices=*/{m::Param("i")}),
+                       m::Param("z")));
 }
 
 TEST_F(ArraySimplificationPassTest, NestedArrayUpdate) {
@@ -766,8 +774,8 @@ TEST_F(ArraySimplificationPassTest, NestedArrayUpdate) {
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
-              m::MultiArrayUpdate(m::Param("a"), m::Param("v"), m::Literal(1),
-                                  m::Literal(2)));
+              m::MultiArrayUpdate(m::Param("a"), m::Param("v"),
+                                  /*indices=*/{m::Literal(1), m::Literal(2)}));
 }
 
 TEST_F(ArraySimplificationPassTest, NestedArrayUpdateDifferentIndices) {
@@ -814,8 +822,9 @@ TEST_F(ArraySimplificationPassTest, NestedArrayUpdateMultidimensional) {
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
-              m::MultiArrayUpdate(m::Param("a"), m::Param("v"), m::Literal(1),
-                                  m::Literal(2), m::Param("i")));
+              m::MultiArrayUpdate(
+                  m::Param("a"), m::Param("v"),
+                  /*indices=*/{m::Literal(1), m::Literal(2), m::Param("i")}));
 }
 
 TEST_F(ArraySimplificationPassTest, UpdateOfLiteralArray) {
@@ -868,9 +877,10 @@ TEST_F(ArraySimplificationPassTest,
       m::MultiArrayUpdate(
           m::Param("a"),
           m::Select(m::Param("p"),
-                    /*cases=*/{m::MultiArrayIndex(m::Param("a"), m::Literal(1)),
+                    /*cases=*/{m::MultiArrayIndex(m::Param("a"),
+                                                  /*indices=*/{m::Literal(1)}),
                                m::Param("v")}),
-          m::Literal(1)));
+          /*indices=*/{m::Literal(1)}));
 }
 
 TEST_F(ArraySimplificationPassTest,
@@ -905,9 +915,10 @@ TEST_F(ArraySimplificationPassTest,
                   m::Param("a"),
                   m::Select(m::Param("p"),
                             /*cases=*/{m::Param("v"),
-                                       m::MultiArrayIndex(m::Param("a"),
-                                                          m::Param("i"))}),
-                  m::Param("i")));
+                                       m::MultiArrayIndex(
+                                           m::Param("a"),
+                                           /*indices=*/{m::Param("i")})}),
+                  /*indices=*/{m::Param("i")}));
 }
 
 TEST_F(ArraySimplificationPassTest, SimplifySelectOfArrays) {
