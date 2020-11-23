@@ -16,6 +16,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/common/cleanup.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/dslx/cpp_ast.h"
 
 namespace xls::dslx {
@@ -98,7 +99,7 @@ absl::variant<ToTypes...> NarrowVariant(const absl::variant<FromTypes...>& v) {
 template <typename... FromTypes>
 NameDefTree::Leaf WidenToNameDefTreeLeaf(const absl::variant<FromTypes...>& v) {
   return WidenVariant<NameDef*, NameRef*, EnumRef*, ModRef*, WildcardPattern*,
-                      Number*>(v);
+                      Number*, ColonRef*>(v);
 }
 
 absl::StatusOr<BuiltinType> Parser::TokenToBuiltinType(const Token& tok) {
@@ -161,7 +162,7 @@ absl::StatusOr<std::shared_ptr<Module>> Parser::ParseModule(
         continue;
       } else if (peek->IsKeyword(Keyword::kEnum)) {
         XLS_ASSIGN_OR_RETURN(EnumDef * enum_def,
-                             ParseEnum(/*is_public=*/true, bindings));
+                             ParseEnumDef(/*is_public=*/true, bindings));
         module_->mutable_top()->push_back(enum_def);
         continue;
       } else if (peek->IsKeyword(Keyword::kType)) {
@@ -235,7 +236,7 @@ absl::StatusOr<std::shared_ptr<Module>> Parser::ParseModule(
       }
       case Keyword::kEnum: {
         XLS_ASSIGN_OR_RETURN(EnumDef * enum_,
-                             ParseEnum(/*is_public=*/false, bindings));
+                             ParseEnumDef(/*is_public=*/false, bindings));
         module_->mutable_top()->push_back(enum_);
         break;
       }
@@ -331,6 +332,7 @@ absl::StatusOr<TypeDef*> Parser::ParseTypeDefinition(bool is_public,
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
   Span span(start_pos, GetPos());
   auto* type_def = module_->Make<TypeDef>(span, name_def, type, is_public);
+  name_def->set_definer(type_def);
   bindings->Add(name_def->identifier(), type_def);
   return type_def;
 }
@@ -382,6 +384,9 @@ absl::StatusOr<StructRef> Parser::ResolveStruct(Bindings* bindings,
   }
   if (absl::holds_alternative<ModRef*>(type_defn)) {
     return StructRef(absl::get<ModRef*>(type_defn));
+  }
+  if (absl::holds_alternative<ColonRef*>(type_defn)) {
+    return StructRef(absl::get<ColonRef*>(type_defn));
   }
   if (absl::holds_alternative<TypeDef*>(type_defn)) {
     return ResolveStruct(bindings, absl::get<TypeDef*>(type_defn)->type());
@@ -509,32 +514,23 @@ absl::StatusOr<NameRef*> Parser::ParseNameRef(Bindings* bindings,
   return module_->Make<NameRef>(tok->span(), *tok->GetValue(), name_def);
 }
 
-absl::StatusOr<Parser::ColonRefT> Parser::ParseColonRef(
-    Bindings* bindings, const Token& subject_tok) {
-  XLS_ASSIGN_OR_RETURN(BoundNode defn,
-                       bindings->ResolveNodeOrError(*subject_tok.GetValue(),
-                                                    subject_tok.span()));
-  if (!IsOneOf<EnumDef, Import, TypeDef>(ToAstNode(defn))) {
-    return ParseError(
-        subject_tok.span(),
-        absl::StrFormat(
-            "Name %s does not refer to a module or type, expected module or "
-            "type for (left hand side of) '::' value reference.",
-            subject_tok.ToErrorString()));
-  }
+absl::StatusOr<ColonRef*> Parser::ParseColonRef(Bindings* bindings,
+                                                ColonRef::Subject subject) {
+  Pos start = GetPos();
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kDoubleColon));
-  XLS_ASSIGN_OR_RETURN(Token value_tok,
-                       PopTokenOrError(TokenKind::kIdentifier));
-  Span span(subject_tok.span().start(), value_tok.span().limit());
-  if (absl::holds_alternative<Import*>(defn)) {
-    Import* import = absl::get<Import*>(defn);
-    return ColonRefT(
-        module_->Make<ModRef>(span, import, *value_tok.GetValue()));
+  while (true) {
+    XLS_ASSIGN_OR_RETURN(Token value_tok,
+                         PopTokenOrError(TokenKind::kIdentifier));
+    Span span(start, GetPos());
+    subject = module_->Make<ColonRef>(span, subject, *value_tok.GetValue());
+    start = GetPos();
+    XLS_ASSIGN_OR_RETURN(bool dropped_colon,
+                         TryDropToken(TokenKind::kDoubleColon));
+    if (dropped_colon) {
+      continue;
+    }
+    return absl::get<ColonRef*>(subject);
   }
-
-  auto enum_def = NarrowVariant<TypeDef*, EnumDef*>(defn);
-  return ColonRefT(
-      module_->Make<EnumRef>(span, enum_def, *value_tok.GetValue()));
 }
 
 absl::StatusOr<Expr*> Parser::ParseCastOrEnumRefOrStructInstance(
@@ -542,8 +538,9 @@ absl::StatusOr<Expr*> Parser::ParseCastOrEnumRefOrStructInstance(
   XLS_ASSIGN_OR_RETURN(bool peek_is_double_colon,
                        PeekTokenIs(TokenKind::kDoubleColon));
   if (peek_is_double_colon) {
-    XLS_ASSIGN_OR_RETURN(auto ref, ParseColonRef(bindings, tok));
-    return ToExprNode(ref);
+    XLS_ASSIGN_OR_RETURN(NameRef * subject, ParseNameRef(bindings, &tok));
+    XLS_ASSIGN_OR_RETURN(ColonRef * ref, ParseColonRef(bindings, subject));
+    return ref;
   }
   XLS_ASSIGN_OR_RETURN(TypeAnnotation * type,
                        ParseTypeAnnotation(bindings, &tok));
@@ -623,16 +620,14 @@ absl::StatusOr<Expr*> Parser::ParseStructInstance(Bindings* bindings,
   return module_->Make<StructInstance>(span, struct_ref, std::move(members));
 }
 
-absl::StatusOr<absl::variant<EnumRef*, NameRef*, ModRef*>>
-Parser::ParseNameOrColonRef(Bindings* bindings) {
+absl::StatusOr<absl::variant<NameRef*, ColonRef*>> Parser::ParseNameOrColonRef(
+    Bindings* bindings) {
   XLS_ASSIGN_OR_RETURN(Token tok, PopTokenOrError(TokenKind::kIdentifier));
   XLS_ASSIGN_OR_RETURN(bool peek_is_double_colon,
                        PeekTokenIs(TokenKind::kDoubleColon));
   if (peek_is_double_colon) {
-    using EnumRefOrModRef = absl::variant<EnumRef*, ModRef*>;
-    XLS_ASSIGN_OR_RETURN(EnumRefOrModRef colon_ref,
-                         ParseColonRef(bindings, tok));
-    return WidenVariant<EnumRef*, NameRef*, ModRef*>(colon_ref);
+    XLS_ASSIGN_OR_RETURN(NameRef * subject, ParseNameRef(bindings, &tok));
+    return ParseColonRef(bindings, subject);
   }
   return ParseNameRef(bindings, &tok);
 }
@@ -827,9 +822,10 @@ absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings* bindings) {
     XLS_ASSIGN_OR_RETURN(bool peek_is_double_colon,
                          PeekTokenIs(TokenKind::kDoubleColon));
     if (peek_is_double_colon) {  // Mod or enum ref.
-      XLS_ASSIGN_OR_RETURN(auto colon_ref, ParseColonRef(bindings, tok));
-      return module_->Make<NameDefTree>(tok.span(),
-                                        WidenToNameDefTreeLeaf(colon_ref));
+      XLS_ASSIGN_OR_RETURN(NameRef * subject, ParseNameRef(bindings, &tok));
+      XLS_ASSIGN_OR_RETURN(ColonRef * colon_ref,
+                           ParseColonRef(bindings, subject));
+      return module_->Make<NameDefTree>(tok.span(), colon_ref);
     }
 
     absl::optional<BoundNode> resolved = bindings->ResolveNode(*tok.GetValue());
@@ -845,9 +841,12 @@ absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings* bindings) {
       return module_->Make<NameDefTree>(tok.span(), ref);
     }
 
+    // If the name is not bound, this pattern is creating a binding.
     XLS_ASSIGN_OR_RETURN(NameDef * name_def, TokenToNameDef(tok));
     bindings->Add(name_def->identifier(), name_def);
-    return module_->Make<NameDefTree>(tok.span(), name_def);
+    auto* result = module_->Make<NameDefTree>(tok.span(), name_def);
+    name_def->set_definer(result);
+    return result;
   }
 
   if (peek->IsKindIn({TokenKind::kNumber, TokenKind::kCharacter, Keyword::kTrue,
@@ -865,6 +864,7 @@ absl::StatusOr<Match*> Parser::ParseMatch(Bindings* bindings) {
   XLS_ASSIGN_OR_RETURN(Token match, PopKeywordOrError(Keyword::kMatch));
   XLS_ASSIGN_OR_RETURN(Expr * matched, ParseExpression(bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
+
   std::vector<MatchArm*> arms;
   bool must_end = false;
   while (true) {
@@ -933,6 +933,7 @@ absl::StatusOr<Import*> Parser::ParseImport(Bindings* bindings) {
     XLS_ASSIGN_OR_RETURN(name_def, TokenToNameDef(toks.back()));
   }
   auto* import = module_->Make<Import>(kw.span(), subject, name_def, alias);
+  name_def->set_definer(import);
   bindings->Add(name_def->identifier(), import);
   return import;
 }
@@ -1072,16 +1073,16 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
   } else if (peek->kind() == TokenKind::kIdentifier) {
     std::string lhs_str = *peek->GetValue();
     XLS_ASSIGN_OR_RETURN(auto nocr, ParseNameOrColonRef(txn.bindings()));
-    if (absl::holds_alternative<ModRef*>(nocr)) {
+    if (absl::holds_alternative<ColonRef*>(nocr)) {
       XLS_ASSIGN_OR_RETURN(bool peek_is_obrace,
                            PeekTokenIs(TokenKind::kOBrace));
       if (peek_is_obrace) {
-        auto* mod_ref = absl::get<ModRef*>(nocr);
+        ColonRef* colon_ref = absl::get<ColonRef*>(nocr);
         TypeRef* type_ref =
-            module_->Make<TypeRef>(mod_ref->span(), lhs_str, mod_ref);
+            module_->Make<TypeRef>(colon_ref->span(), lhs_str, colon_ref);
         XLS_ASSIGN_OR_RETURN(
             TypeAnnotation * type,
-            MakeTypeRefTypeAnnotation(mod_ref->span(), type_ref, {}, {}));
+            MakeTypeRefTypeAnnotation(colon_ref->span(), type_ref, {}, {}));
         auto status_or_struct = ParseStructInstance(txn.bindings(), type);
         if (status_or_struct.ok()) {
           txn.CommitAndCancelCleanup(&cleanup);
@@ -1444,7 +1445,8 @@ absl::StatusOr<For*> Parser::ParseFor(Bindings* bindings) {
                             iterable, body, init);
 }
 
-absl::StatusOr<EnumDef*> Parser::ParseEnum(bool is_public, Bindings* bindings) {
+absl::StatusOr<EnumDef*> Parser::ParseEnumDef(bool is_public,
+                                              Bindings* bindings) {
   XLS_ASSIGN_OR_RETURN(Token enum_tok, PopKeywordOrError(Keyword::kEnum));
   XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDef(bindings));
   XLS_RETURN_IF_ERROR(
@@ -1478,6 +1480,7 @@ absl::StatusOr<EnumDef*> Parser::ParseEnum(bool is_public, Bindings* bindings) {
   auto* enum_def = module_->Make<EnumDef>(enum_tok.span(), name_def, type,
                                           entries, is_public);
   bindings->Add(name_def->identifier(), enum_def);
+  name_def->set_definer(enum_def);
   return enum_def;
 }
 
@@ -1491,6 +1494,7 @@ absl::StatusOr<TypeAnnotation*> Parser::MakeBuiltinTypeAnnotation(
   }
   return elem_type;
 }
+
 absl::StatusOr<TypeAnnotation*> Parser::MakeTypeRefTypeAnnotation(
     const Span& span, TypeRef* type_ref, std::vector<Expr*> dims,
     std::vector<Expr*> parametrics) {

@@ -920,8 +920,8 @@ class ParserTest(absltest.TestCase):
     self.assertIsInstance(c, ast.Constant)
     self.assertIsInstance(c.value, ast.XlsTuple)
     t = c.value
-    self.assertIsInstance(t.members[0], ast.EnumRef)
-    self.assertIsInstance(t.members[1], ast.EnumRef)
+    self.assertIsInstance(t.members[0], ast.ColonRef)
+    self.assertIsInstance(t.members[1], ast.ColonRef)
 
   def test_module_const_array_of_const_refs(self):
     program = """
@@ -974,8 +974,8 @@ class ParserTest(absltest.TestCase):
     self.assertIsInstance(c, ast.Constant)
     self.assertIsInstance(c.value, ast.ConstantArray)
     self.assertLen(c.value.members, 2)
-    self.assertIsInstance(c.value.members[0], ast.EnumRef)
-    self.assertIsInstance(c.value.members[1], ast.EnumRef)
+    self.assertIsInstance(c.value.members[0], ast.ColonRef)
+    self.assertIsInstance(c.value.members[1], ast.ColonRef)
 
   def test_struct(self):
     program = """
@@ -987,7 +987,7 @@ class ParserTest(absltest.TestCase):
     m = self.parse_module(program)
     self.assertLen(m.top, 1)
 
-    typedef_by_name = m.get_typedef_by_name()
+    typedef_by_name = m.get_type_definition_by_name()
     self.assertIn('Point', typedef_by_name)
     c = typedef_by_name['Point']
     self.assertIsInstance(c, ast.StructDef)
@@ -1006,7 +1006,7 @@ class ParserTest(absltest.TestCase):
     }
     """
     m = self.parse_module(program)
-    c = m.get_typedef_by_name()['Point']
+    c = m.get_type_definition_by_name()['Point']
     self.assertIsInstance(c, ast.StructDef)
     attr = m.get_function_by_name()['f'].body
     self.assertIsInstance(attr, ast.Attr)
@@ -1025,7 +1025,7 @@ class ParserTest(absltest.TestCase):
     }
     """
     m = self.parse_module(program)
-    c = m.get_typedef_by_name()['Point']
+    c = m.get_type_definition_by_name()['Point']
     self.assertIsInstance(c, ast.StructDef)
     attr = m.get_function_by_name()['f'].body
     self.assertIsInstance(attr, ast.SplatStructInstance)

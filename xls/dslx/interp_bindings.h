@@ -108,6 +108,10 @@ class InterpBindings : public std::enable_shared_from_this<InterpBindings> {
   absl::StatusOr<absl::variant<TypeAnnotation*, EnumDef*, StructDef*>>
   ResolveTypeDefinition(absl::string_view identifier) const;
 
+  // Resolves an entry for "identifier" via local mapping and transitive binding
+  // parents. Returns nullopt if it is not found.
+  absl::optional<Entry> ResolveEntry(absl::string_view identifier) const;
+
   // Returns all the keys in this bindings object and all transitive parents as
   // a set.
   absl::flat_hash_set<std::string> GetKeys() const;
@@ -120,10 +124,6 @@ class InterpBindings : public std::enable_shared_from_this<InterpBindings> {
   const absl::optional<FnCtx>& fn_ctx() const { return fn_ctx_; }
 
  private:
-  // Resolves an entry for "identifier" via local mapping and transitive binding
-  // parents. Returns nullopt if it is not found.
-  absl::optional<Entry> ResolveEntry(absl::string_view identifier) const;
-
   // Bindings from the outer scope, may be nullptr.
   std::shared_ptr<InterpBindings> parent_;
 

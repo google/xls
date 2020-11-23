@@ -141,7 +141,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
                 element_count))
       result = self.package.get_array_type(element_count, element_type)
       logging.vlog(
-          4, 'Converted type to IR; concrete type: %s ir: %s element_count: %d',
+          4, 'Converted type to IR; concrete type: %s ir: %s element_count: %s',
           concrete_type, result, concrete_type.size)
       return result
     elif isinstance(concrete_type, BitsType) or isinstance(
@@ -383,7 +383,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       if isinstance(leaf, ast.WildcardPattern):
         return self._def(matcher, self.fb.add_literal_bits,
                          bits_mod.UBits(1, 1))
-      elif isinstance(leaf, (ast.Number, ast.EnumRef)):
+      elif isinstance(leaf, (ast.Number, ast.EnumRef, ast.ColonRef)):
         visit(leaf, self)
         return self._def(matcher, self.fb.add_eq, self._use(leaf),
                          matched_value)
@@ -623,9 +623,21 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     if isinstance(node, (ast.StructDef, ast.EnumDef)):
       return node
 
-    assert isinstance(node, ast.ModRef), node
-    imported_mod, _ = dict(self.type_info.get_imports())[node.mod]
-    td = imported_mod.get_typedef_by_name()[node.value]
+    if isinstance(node, ast.NameRef):
+      logging.vlog(3, 'Resolving NameRef %s to struct or enum', node)
+      definer = node.name_def.definer
+      assert isinstance(definer, (ast.StructDef, ast.TypeDef, ast.EnumDef,
+                                  ast.ModRef)), (definer, type(definer))
+      return self._deref_struct_or_enum(definer)
+
+    if not isinstance(node, (ast.ColonRef, ast.ModRef)):
+      raise TypeError(f'Cannot resolve enum for node: {node!r}')
+
+    import_node = (
+        node.mod
+        if isinstance(node, ast.ModRef) else node.subject.name_def.definer)
+    imported_mod, _ = dict(self.type_info.get_imports())[import_node]
+    td = imported_mod.get_type_definition_by_name()[node.attr]
     # Recurse to resolve the typedef within the imported module.
     td = self._deref_struct_or_enum(td)
     assert isinstance(td, (ast.StructDef, ast.EnumDef)), td
@@ -737,12 +749,12 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
         flat[0], ast.NameDef
     ), 'Induction variable was not a NameDef: {0} ({0!r})'.format(flat[0])
     body_converter.node_to_ir[flat[0]] = body_converter.fb.add_param(
-        flat[0].identifier.encode('utf-8'), self._resolve_type_to_ir(flat[0]))
+        flat[0].identifier, self._resolve_type_to_ir(flat[0]))
 
     # Add the loop carry value.
     if isinstance(flat[1], ast.NameDef):
       body_converter.node_to_ir[flat[1]] = body_converter.fb.add_param(
-          flat[1].identifier.encode('utf-8'), self._resolve_type_to_ir(flat[1]))
+          flat[1].identifier, self._resolve_type_to_ir(flat[1]))
     else:
       # For tuple loop carries we have to destructure names on entry.
       carry_type = self._resolve_type_to_ir(flat[1])
@@ -754,14 +766,20 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     # Free variables are suffixes on the function parameters.
     freevars = node.body.get_free_variables(node.span.start)
     freevars = freevars.drop_builtin_defs()
+    relevant_name_defs = []
     for name_def in freevars.get_name_defs(self.module):
-      type_ = self.type_info[name_def]
+      try:
+        type_ = self.type_info[name_def]
+      except deduce.TypeMissingError:
+        continue
       if isinstance(type_, FunctionType):
         continue
+      if isinstance(name_def.definer, ast.EnumDef):
+        continue
+      relevant_name_defs.append(name_def)
       logging.vlog(3, 'Converting freevar name: %s', name_def)
       body_converter.node_to_ir[name_def] = body_converter.fb.add_param(
-          name_def.identifier.encode('utf-8'),
-          self._resolve_type_to_ir(name_def))
+          name_def.identifier, self._resolve_type_to_ir(name_def))
 
     visit(node.body, body_converter)
     body_function = body_converter.fb.build()
@@ -770,7 +788,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     stride = 1
     invariant_args = tuple(
         self._use(name_def)
-        for name_def in freevars.get_name_defs(self.module)
+        for name_def in relevant_name_defs
         if not isinstance(self.type_info[name_def], FunctionType))
     self._def(node, self.fb.add_counted_for, self._use(node.init), trip_count,
               stride, body_function, invariant_args)
@@ -813,6 +831,10 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     elif isinstance(node.callee, ast.ModRef):
       m = dict(self.type_info.get_imports())[node.callee.mod][0]
       callee_name = node.callee.value
+    elif isinstance(node.callee, ast.ColonRef):
+      m = dict(
+          self.type_info.get_imports())[node.callee.subject.name_def.definer][0]
+      callee_name = node.callee.attr
     else:
       raise NotImplementedError('Callee not currently supported @ {}'.format(
           node.span))
@@ -868,10 +890,13 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       else:
         lookup_module = self.module
         fn = lookup_module.get_function(map_fn_name)
-    elif isinstance(fn_node, ast.ModRef):
-      map_fn_name = fn_node.value
+    elif isinstance(fn_node, (ast.ModRef, ast.ColonRef)):
+      map_fn_name = fn_node.attr
       imports = dict(self.type_info.get_imports())
-      lookup_module, _ = imports[fn_node.mod]
+      import_node = (
+          fn_node.mod if isinstance(fn_node, ast.ModRef) else
+          fn_node.subject.name_def.definer)
+      lookup_module, _ = imports[import_node]
       fn = lookup_module.get_function(map_fn_name)
     else:
       raise NotImplementedError(
@@ -1023,6 +1048,19 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     self._def_alias(from_=value, to=node)
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
+  def visit_ColonRef(self, node: ast.ColonRef) -> None:
+    try:
+      enum = self._deref_enum(node.subject)
+    except TypeError as e:
+      logging.vlog(3, 'ColonRef was not an enum ref: %s @ %s', node, node.span)
+      if 'Cannot resolve enum for node' in str(e):
+        return
+      raise
+    value = enum.get_value(node.attr)
+    visit(value, self)
+    self._def_alias(from_=value, to=node)
+
+  @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Let(self, node: ast.Let):
     visit(node.rhs, self)
     if node.name_def_tree.is_leaf():
@@ -1150,6 +1188,8 @@ def _convert_one_function(package: ir_package.Package,
   """
   function_by_name = module.get_function_by_name()
   constant_by_name = module.get_constant_by_name()
+  type_definition_by_name = module.get_type_definition_by_name()
+  import_by_name = module.get_import_by_name()
   converter = _IrConverterFb(
       package, module, type_info, emit_positions=emit_positions)
 
@@ -1158,8 +1198,9 @@ def _convert_one_function(package: ir_package.Package,
   logging.vlog(2, 'Free variables for function %s: %s', function.identifier,
                freevars)
   for identifier, name_def in freevars:
-    if identifier in function_by_name or isinstance(name_def,
-                                                    ast.BuiltinNameDef):
+    if (identifier in function_by_name or
+        identifier in type_definition_by_name or identifier in import_by_name or
+        isinstance(name_def, ast.BuiltinNameDef)):
       pass
     elif identifier in constant_by_name:
       converter.add_constant_dep(constant_by_name[identifier])

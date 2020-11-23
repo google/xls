@@ -93,10 +93,13 @@ def evaluate_to_struct_or_enum_or_annotation(
   if isinstance(node, (ast.StructDef, ast.EnumDef)):
     return node
 
-  assert isinstance(node, ast.ModRef)
+  assert isinstance(node, (ast.ModRef, ast.ColonRef))
+  import_node = (
+      node.mod
+      if isinstance(node, ast.ModRef) else node.subject.name_def.definer)
   imported_module, evaluation_context = get_imported_module(
-      node.mod, evaluation_context)
-  td = imported_module.get_typedef_by_name()[node.value]
+      import_node, evaluation_context)
+  td = imported_module.get_type_definition_by_name()[node.attr]
   # Recurse to dereference it if it's a typedef in the imported module.
   td = evaluate_to_struct_or_enum_or_annotation(td, get_imported_module,
                                                 evaluation_context)

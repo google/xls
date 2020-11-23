@@ -207,7 +207,18 @@ PYBIND11_MODULE(cpp_ast, m) {
                  }
                  return FunctionHolder(f.value(), module.module());
                })
-          .def("get_typedef_by_name",
+          .def("find_member_with_name",
+               [](ModuleHolder module,
+                  absl::string_view target) -> absl::optional<AstNodeHolder> {
+                 absl::optional<ModuleMember*> result =
+                     module.deref().FindMemberWithName(target);
+                 if (!result.has_value()) {
+                   return absl::nullopt;
+                 }
+                 return AstNodeHolder(ToAstNode(*result.value()),
+                                      module.module());
+               })
+          .def("get_type_definition_by_name",
                [](ModuleHolder module) {
                  auto map = module.deref().GetTypeDefinitionByName();
                  std::unordered_map<std::string, AstNodeHolder> m;
@@ -234,6 +245,16 @@ PYBIND11_MODULE(cpp_ast, m) {
                  for (auto& item : map) {
                    m.insert({item.first,
                              ConstantDefHolder(item.second, module.module())});
+                 }
+                 return m;
+               })
+          .def("get_import_by_name",
+               [](ModuleHolder module) {
+                 auto map = module.deref().GetImportByName();
+                 std::unordered_map<std::string, ImportHolder> m;
+                 for (auto& item : map) {
+                   m.insert({item.first,
+                             ImportHolder(item.second, module.module())});
                  }
                  return m;
                })
@@ -478,9 +499,26 @@ PYBIND11_MODULE(cpp_ast, m) {
                                return ImportHolder(self.deref().import(),
                                                    self.module());
                              })
-      // TODO(leary): 2020-09-04 Rename to attr.
       .def_property_readonly(
-          "value", [](ModRefHolder self) { return self.deref().attr(); });
+          "attr", [](ModRefHolder self) { return self.deref().attr(); });
+
+  // class ColonRef
+  py::class_<ColonRefHolder, ExprHolder>(m, "ColonRef")
+      .def(py::init([](ModuleHolder module, Span span, ExprHolder subject,
+                       std::string attr) {
+        auto cr_subject = ToColonRefSubject(&subject.deref()).value();
+        auto* self = module.deref().Make<ColonRef>(std::move(span), cr_subject,
+                                                   std::move(attr));
+        return ColonRefHolder(self, module.module());
+      }))
+      .def_property_readonly("subject",
+                             [](ColonRefHolder self) {
+                               return ExprHolder(
+                                   ToExprNode(self.deref().subject()),
+                                   self.module());
+                             })
+      .def_property_readonly(
+          "attr", [](ColonRefHolder self) { return self.deref().attr(); });
 
   // class BuiltinNameDef
   py::class_<BuiltinNameDefHolder, AstNodeHolder>(m, "BuiltinNameDef")
@@ -907,7 +945,7 @@ PYBIND11_MODULE(cpp_ast, m) {
   // class NameDef
   py::class_<NameDefHolder, AstNodeHolder>(m, "NameDef")
       .def(py::init([](ModuleHolder module, Span span, std::string identifier) {
-        auto* self = module.deref().Make<NameDef>(span, identifier);
+        auto* self = module.deref().Make<NameDef>(span, identifier, nullptr);
         return NameDefHolder(self, module.module());
       }))
       .def(
@@ -916,6 +954,15 @@ PYBIND11_MODULE(cpp_ast, m) {
       .def_property_readonly(
           "identifier",
           [](NameDefHolder self) { return self.deref().identifier(); })
+      .def_property_readonly(
+          "definer",
+          [](NameDefHolder self) -> absl::optional<AstNodeHolder> {
+            AstNode* definer = self.deref().definer();
+            if (definer == nullptr) {
+              return absl::nullopt;
+            }
+            return AstNodeHolder(definer, self.module());
+          })
       .def_property_readonly(
           "span", [](NameDefHolder self) { return self.deref().span(); });
 

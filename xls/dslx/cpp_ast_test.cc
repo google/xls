@@ -28,10 +28,11 @@ using testing::HasSubstr;
 TEST(CppAst, ModuleWithConstant) {
   Module m("test");
   const Span fake_span;
-  NameDef* name_def = m.Make<NameDef>(fake_span, std::string("MOL"));
   Number* number = m.Make<Number>(fake_span, std::string("42"),
                                   NumberKind::kOther, /*type=*/nullptr);
+  NameDef* name_def = m.Make<NameDef>(fake_span, std::string("MOL"), nullptr);
   ConstantDef* constant_def = m.Make<ConstantDef>(fake_span, name_def, number);
+  name_def->set_definer(constant_def);
   m.AddTop(constant_def);
 
   EXPECT_EQ(m.ToString(), "const MOL = 42;");

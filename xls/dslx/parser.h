@@ -173,9 +173,9 @@ class Parser : public TokenParser {
   absl::StatusOr<NameRef*> ParseNameRef(Bindings* bindings,
                                         const Token* tok = nullptr);
 
-  using ColonRefT = absl::variant<EnumRef*, ModRef*>;
-  absl::StatusOr<ColonRefT> ParseColonRef(Bindings* bindings,
-                                          const Token& subject_tok);
+  // Precondition: token cursor should be over a double colon '::' token.
+  absl::StatusOr<ColonRef*> ParseColonRef(Bindings* bindings,
+                                          ColonRef::Subject subject);
 
   absl::StatusOr<Expr*> ParseCastOrEnumRefOrStructInstance(const Token& tok,
                                                            Bindings* bindings);
@@ -185,8 +185,8 @@ class Parser : public TokenParser {
 
   absl::StatusOr<Expr*> ParseCastOrStructInstance(Bindings* bindings);
 
-  absl::StatusOr<absl::variant<EnumRef*, NameRef*, ModRef*>>
-  ParseNameOrColonRef(Bindings* bindings);
+  absl::StatusOr<absl::variant<NameRef*, ColonRef*>> ParseNameOrColonRef(
+      Bindings* bindings);
 
   absl::StatusOr<NameDef*> ParseNameDef(Bindings* bindings);
 
@@ -204,7 +204,7 @@ class Parser : public TokenParser {
 
   absl::StatusOr<Number*> TokenToNumber(const Token& tok);
   absl::StatusOr<NameDef*> TokenToNameDef(const Token& tok) {
-    return module_->Make<NameDef>(tok.span(), *tok.GetValue());
+    return module_->Make<NameDef>(tok.span(), *tok.GetValue(), nullptr);
   }
   absl::StatusOr<BuiltinType> TokenToBuiltinType(const Token& tok);
   absl::StatusOr<TypeAnnotation*> MakeBuiltinTypeAnnotation(
@@ -378,6 +378,14 @@ class Parser : public TokenParser {
                                                  Bindings* bindings);
 
   // Returns a parsed pattern; e.g. one that would guard a match arm.
+  //
+  //  Pattern ::= TuplePattern
+  //            | WildcardPattern
+  //            | ColonRef
+  //            | NameDef
+  //            | NameRef
+  //            | ConstRef
+  //            | Number
   absl::StatusOr<NameDefTree*> ParsePattern(Bindings* bindings);
 
   // Parses a match expression.
@@ -396,7 +404,13 @@ class Parser : public TokenParser {
   // ultimately the loop terminates and the final accum value is returned.
   absl::StatusOr<For*> ParseFor(Bindings* bindings);
 
-  absl::StatusOr<EnumDef*> ParseEnum(bool is_public, Bindings* bindings);
+  // Parses an enum definition; e.g.
+  //
+  //  enum Foo : u2 {
+  //    A = 0,
+  //    B = 1,
+  //  }
+  absl::StatusOr<EnumDef*> ParseEnumDef(bool is_public, Bindings* bindings);
 
   absl::StatusOr<StructDef*> ParseStruct(bool is_public, Bindings* bindings);
 

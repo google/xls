@@ -682,15 +682,10 @@ absl::StatusOr<InterpValue> EvaluateSplatStructInstance(
   return named_tuple;
 }
 
-absl::StatusOr<InterpValue> EvaluateEnumRef(EnumRef* expr,
-                                            InterpBindings* bindings,
-                                            ConcreteType* type_context,
-                                            InterpCallbackData* callbacks) {
-  XLS_ASSIGN_OR_RETURN(
-      EnumDef * enum_def,
-      EvaluateToEnum(ToTypeDefinition(ToAstNode(expr->enum_def())).value(),
-                     bindings, callbacks));
-  XLS_ASSIGN_OR_RETURN(auto value_node, enum_def->GetValue(expr->attr()));
+static absl::StatusOr<InterpValue> EvaluateEnumRefHelper(
+    Expr* expr, EnumDef* enum_def, absl::string_view attr,
+    InterpCallbackData* callbacks) {
+  XLS_ASSIGN_OR_RETURN(auto value_node, enum_def->GetValue(attr));
   XLS_ASSIGN_OR_RETURN(
       std::shared_ptr<InterpBindings> fresh_bindings,
       MakeTopLevelBindings(expr->owner()->shared_from_this(), callbacks));
@@ -701,6 +696,104 @@ absl::StatusOr<InterpValue> EvaluateEnumRef(EnumRef* expr,
   XLS_ASSIGN_OR_RETURN(InterpValue raw_value,
                        callbacks->Eval(value_expr, fresh_bindings.get()));
   return InterpValue::MakeEnum(raw_value.GetBitsOrDie(), enum_def);
+}
+
+absl::StatusOr<InterpValue> EvaluateEnumRef(EnumRef* expr,
+                                            InterpBindings* bindings,
+                                            ConcreteType* type_context,
+                                            InterpCallbackData* callbacks) {
+  XLS_ASSIGN_OR_RETURN(
+      EnumDef * enum_def,
+      EvaluateToEnum(ToTypeDefinition(ToAstNode(expr->enum_def())).value(),
+                     bindings, callbacks));
+  return EvaluateEnumRefHelper(expr, enum_def, expr->attr(), callbacks);
+}
+
+// This resolves the "LHS" entity for this colon ref -- following resolving the
+// left hand side, we do an attribute access, either evaluating to an enum
+// value, or to a function/constant in the case of a module.
+//
+// Note that the LHS of a colon ref may be another colon ref, so in:
+//
+//    some_module::SomeEnum::VALUE
+//
+// We'll have the grouping:
+//
+//    ColonRef(subject: ColonRef(subject: NameRef(some_module), attr: SomeEnum),
+//             attr:VALUE)
+//
+// In that case the inner ColonRef will resolve the module, then the subsequent
+// step will resolve the EnumDef inside of that module.
+static absl::StatusOr<absl::variant<EnumDef*, Module*>> ResolveColonRefSubject(
+    ColonRef* expr, InterpBindings* bindings, InterpCallbackData* callbacks) {
+  if (absl::holds_alternative<NameRef*>(expr->subject())) {
+    auto* name_ref = absl::get<NameRef*>(expr->subject());
+    absl::optional<InterpBindings::Entry> entry =
+        bindings->ResolveEntry(name_ref->identifier());
+    XLS_RET_CHECK(entry.has_value());
+    // Subject resolves directly to an enum definition.
+    if (absl::holds_alternative<EnumDef*>(*entry)) {
+      return absl::get<EnumDef*>(*entry);
+    }
+    // Subject resolves to an (imported) module.
+    if (absl::holds_alternative<Module*>(*entry)) {
+      return absl::get<Module*>(*entry);
+    }
+    // Subject resolves to a typedef.
+    if (absl::holds_alternative<TypeDef*>(*entry)) {
+      auto* type_def = absl::get<TypeDef*>(*entry);
+      XLS_ASSIGN_OR_RETURN(EnumDef * enum_def,
+                           EvaluateToEnum(type_def, bindings, callbacks));
+      return enum_def;
+    }
+    return absl::InternalError(absl::StrFormat(
+        "EvaluateError: %s Unsupported colon-reference subject.",
+        expr->span().ToString()));
+  }
+
+  XLS_RET_CHECK(absl::holds_alternative<ColonRef*>(expr->subject()));
+  auto* subject = absl::get<ColonRef*>(expr->subject());
+  XLS_ASSIGN_OR_RETURN(auto subject_resolved,
+                       ResolveColonRefSubject(subject, bindings, callbacks));
+  // Has to be a module as the subject, since it's a nested colon-reference.
+  XLS_RET_CHECK(absl::holds_alternative<Module*>(subject_resolved));
+  auto* subject_module = absl::get<Module*>(subject_resolved);
+
+  XLS_ASSIGN_OR_RETURN(TypeDefinition type_definition,
+                       subject_module->GetTypeDefinition(subject->attr()));
+  XLS_ASSIGN_OR_RETURN(
+      std::shared_ptr<InterpBindings> fresh_bindings,
+      MakeTopLevelBindings(subject_module->shared_from_this(), callbacks));
+  XLS_ASSIGN_OR_RETURN(
+      EnumDef * enum_def,
+      EvaluateToEnum(type_definition, fresh_bindings.get(), callbacks));
+  return enum_def;
+}
+
+absl::StatusOr<InterpValue> EvaluateColonRef(ColonRef* expr,
+                                             InterpBindings* bindings,
+                                             ConcreteType* type_context,
+                                             InterpCallbackData* callbacks) {
+  XLS_ASSIGN_OR_RETURN(auto subject,
+                       ResolveColonRefSubject(expr, bindings, callbacks));
+  if (absl::holds_alternative<EnumDef*>(subject)) {
+    auto* enum_def = absl::get<EnumDef*>(subject);
+    return EvaluateEnumRefHelper(expr, enum_def, expr->attr(), callbacks);
+  }
+
+  auto* module = absl::get<Module*>(subject);
+  absl::optional<ModuleMember*> member =
+      module->FindMemberWithName(expr->attr());
+  XLS_RET_CHECK(member.has_value());
+  if (absl::holds_alternative<Function*>(*member.value())) {
+    auto* f = absl::get<Function*>(*member.value());
+    return InterpValue::MakeFunction(
+        InterpValue::UserFnData{f->owner()->shared_from_this(), f});
+  }
+  // TODO(leary): 2020-11-17 Implement constant definition resolution.
+  return absl::InternalError(
+      absl::StrFormat("EvaluateError: %s Unsupported module reference.",
+                      expr->span().ToString()));
 }
 
 absl::StatusOr<InterpValue> EvaluateUnop(Unop* expr, InterpBindings* bindings,
@@ -927,7 +1020,8 @@ static absl::StatusOr<bool> EvaluateMatcher(NameDefTree* pattern,
       return true;
     }
     if (absl::holds_alternative<Number*>(leaf) ||
-        absl::holds_alternative<EnumRef*>(leaf)) {
+        absl::holds_alternative<EnumRef*>(leaf) ||
+        absl::holds_alternative<ColonRef*>(leaf)) {
       XLS_ASSIGN_OR_RETURN(InterpValue target,
                            callbacks->Eval(ToExprNode(leaf), bindings));
       return target.Eq(to_match);
@@ -1117,11 +1211,21 @@ absl::StatusOr<DerefVariant> EvaluateToStructOrEnumOrAnnotation(
     return absl::get<EnumDef*>(type_definition);
   }
 
-  ModRef* modref = absl::get<ModRef*>(type_definition);
+  std::string identifier;
+  std::string attr;
+  if (absl::holds_alternative<ModRef*>(type_definition)) {
+    auto* mod_ref = absl::get<ModRef*>(type_definition);
+    identifier = mod_ref->import()->identifier();
+    attr = mod_ref->attr();
+  } else {
+    auto* colon_ref = absl::get<ColonRef*>(type_definition);
+    identifier = absl::get<NameRef*>(colon_ref->subject())->identifier();
+    attr = colon_ref->attr();
+  }
   XLS_ASSIGN_OR_RETURN(Module * imported_module,
-                       bindings->ResolveModule(modref->import()->identifier()));
+                       bindings->ResolveModule(identifier));
   XLS_ASSIGN_OR_RETURN(TypeDefinition td,
-                       imported_module->GetTypeDefinition(modref->attr()));
+                       imported_module->GetTypeDefinition(attr));
   XLS_ASSIGN_OR_RETURN(
       std::shared_ptr<InterpBindings> imported_bindings,
       MakeTopLevelBindings(imported_module->shared_from_this(), callbacks));

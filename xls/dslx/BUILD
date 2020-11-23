@@ -244,6 +244,7 @@ py_library(
         ":xls_type_error",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_concrete_type",
+        "//xls/dslx/python:cpp_evaluate",
         "//xls/dslx/python:cpp_parametric_expression",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_scanner",
@@ -667,7 +668,7 @@ cc_library(
         ":cpp_bindings",
         ":cpp_token_parser",
         "//xls/common:cleanup",
-        "@com_google_absl//absl/debugging:demangle_internal",
+        "//xls/common/status:ret_check",
         "@com_google_absl//absl/status:statusor",
     ],
 )

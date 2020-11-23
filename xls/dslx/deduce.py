@@ -130,6 +130,15 @@ def resolve(type_: ConcreteType, ctx: DeduceCtx) -> ConcreteType:
   return concrete_type_helpers.map_size(type_, ctx.module, resolver)
 
 
+def _resolve_colon_ref_to_fn(ref: ast.ColonRef, ctx: DeduceCtx) -> ast.Function:
+  """Resolves ref to an AST function."""
+  assert isinstance(ref.subject, ast.NameRef), ref.subject
+  definer = ref.subject.name_def.definer
+  assert isinstance(definer, ast.Import), definer
+  imported_module, _ = ctx.type_info.get_imported(definer)
+  return imported_module.get_function(ref.attr)
+
+
 @_rule(ast.Param)
 def _deduce_Param(self: ast.Param, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   return deduce(self.type_, ctx)
@@ -222,7 +231,7 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
                                  symbolic_bindings: SymbolicBindings,
                                  ctx: DeduceCtx):
   """Checks the parametric fn body using the invocation's symbolic bindings."""
-  if isinstance(invocation.callee, ast.ModRef):
+  if isinstance(invocation.callee, (ast.ModRef, ast.ColonRef)):
     # We need to typecheck this function with respect to its own module.
     # Let's use typecheck._check_function_or_test_in_module() to do this
     # in case we run into more dependencies in that module.
@@ -231,8 +240,13 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
       # these symbolic bindings.
       return
 
+    import_node = (
+        invocation.callee.mod if isinstance(invocation.callee, ast.ModRef) else
+        invocation.callee.subject.name_def.definer)
+    assert isinstance(import_node, ast.Import)
+
     imported_module, imported_type_info = ctx.type_info.get_imported(
-        invocation.callee.mod)
+        import_node)
     invocation_imported_type_info = TypeInfo(
         imported_module, parent=imported_type_info)
     imported_ctx = DeduceCtx(invocation_imported_type_info, imported_module,
@@ -318,6 +332,9 @@ def _deduce_Invocation(self: ast.Invocation, ctx: DeduceCtx) -> ConcreteType:  #
     imported_module, _ = ctx.type_info.get_imported(self.callee.mod)
     callee_name = self.callee.value
     callee_fn = imported_module.get_function(callee_name)
+  elif isinstance(self.callee, ast.ColonRef):
+    callee_fn = _resolve_colon_ref_to_fn(self.callee, ctx)
+    callee_name = callee_fn.identifier
   else:
     assert isinstance(self.callee, ast.NameRef), self.callee
     callee_name = self.callee.identifier
@@ -582,7 +599,7 @@ def _unify_NameDefTree(self: ast.NameDefTree, type_: ConcreteType,
       ctx.type_info[leaf] = resolved_rhs_type
     elif isinstance(leaf, ast.WildcardPattern):
       pass
-    elif isinstance(leaf, (ast.Number, ast.EnumRef)):
+    elif isinstance(leaf, (ast.Number, ast.EnumRef, ast.ColonRef)):
       resolved_leaf_type = resolve(deduce(leaf, ctx), ctx)
       if resolved_leaf_type != resolved_rhs_type:
         raise TypeInferenceError(
@@ -779,29 +796,78 @@ def _deduce_NameRef(self: ast.NameRef, ctx: DeduceCtx) -> ConcreteType:  # pytyp
   return result
 
 
+def _deduce_enum_ref_internal(span: Span, enum_type: EnumType,
+                              attr: str) -> ConcreteType:
+  """Checks that attr is available on the enum being colon-referenced."""
+  # Check the name we're accessing is actually defined on the enum.
+  enum = enum_type.get_nominal_type()
+  assert isinstance(enum, ast.EnumDef), enum
+  if not enum.has_value(attr):
+    raise TypeInferenceError(
+        span=span,
+        type_=None,
+        suffix=f'Name {attr!r} is not defined by the enum {enum.identifier}')
+  return enum_type
+
+
 @_rule(ast.EnumRef)
 def _deduce_EnumRef(self: ast.EnumRef, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of an EnumRef AST node."""
   try:
     result = ctx.type_info[self.enum]
   except TypeMissingError as e:
-    logging.vlog(3, 'Could not resolve enum to type: %s', self.enum)
+    logging.vlog(3, 'Could not resolve enum to type: %s @ %s', self.enum,
+                 self.span)
     e.span = self.span
     e.user = self
     raise
 
-  # Check the name we're accessing is actually defined on the enum.
-  assert isinstance(result, EnumType), result
-  enum = result.get_nominal_type()
-  assert isinstance(enum, ast.EnumDef), enum
-  name = self.value
-  if not enum.has_value(name):
-    raise TypeInferenceError(
-        span=self.span,
-        type_=None,
-        suffix='Name {!r} is not defined by the enum {}'.format(
-            name, enum.identifier))
-  return result
+  return _deduce_enum_ref_internal(self.span, result, self.attr)
+
+
+@_rule(ast.ColonRef)
+def _deduce_ColonRef(self: ast.ColonRef, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
+  """Deduces the concrete type of a ColonRef AST node."""
+  if isinstance(self.subject, ast.NameRef) and isinstance(
+      self.subject.name_def.definer, ast.Import):
+    import_node: ast.Import = self.subject.name_def.definer
+    imported_module, imported_type_info = ctx.type_info.get_imported(
+        import_node)
+    elem = imported_module.find_member_with_name(self.attr)
+    logging.vlog(
+        3, 'Resolving type info for module element: %s referred to by %s', elem,
+        self)
+
+    if isinstance(elem, ast.Function) and elem.name not in imported_type_info:
+      logging.vlog(
+          2, 'Function name not in imported_type_info; must be parametric: %r',
+          elem.name)
+      assert elem.is_parametric()
+      # We don't type check parametric functions until invocations.
+      # Let's typecheck this imported parametric function with respect to its
+      # module (this will only get the type signature, body gets typechecked
+      # after parametric instantiation).
+      imported_ctx = DeduceCtx(imported_type_info, imported_module,
+                               ctx.interpret_expr, ctx.check_function_in_module)
+      imported_ctx.fn_stack.append(ctx.fn_stack[-1])
+      ctx.check_function_in_module(elem, imported_ctx)
+      ctx.type_info.update(imported_ctx.type_info)
+      imported_type_info = imported_ctx.type_info
+
+    return imported_type_info[elem]
+
+  try:
+    subject_type = deduce(self.subject, ctx)
+  except TypeMissingError as e:
+    logging.vlog(3, 'Could not resolve ColonRef subject to type: %s @ %s',
+                 self.subject, self.span)
+    e.span = self.span
+    e.user = self
+    raise
+
+  if isinstance(subject_type, EnumType):
+    return _deduce_enum_ref_internal(self.span, subject_type, self.attr)
+  raise NotImplementedError(self, subject_type)
 
 
 @_rule(ast.Number)
@@ -914,11 +980,11 @@ def _deduce_ArrayTypeAnnotation(self: ast.ArrayTypeAnnotation,
 def _deduce_ModRef(self: ast.ModRef, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the type of an entity referenced via module reference."""
   imported_module, imported_type_info = ctx.type_info.get_imported(self.mod)
-  leaf_name = self.value
+  leaf_name = self.attr
 
   # May be a type definition reference.
-  if leaf_name in imported_module.get_typedef_by_name():
-    td = imported_module.get_typedef_by_name()[leaf_name]
+  if leaf_name in imported_module.get_type_definition_by_name():
+    td = imported_module.get_type_definition_by_name()[leaf_name]
     if not td.public:
       raise TypeInferenceError(
           self.span,

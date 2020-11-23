@@ -23,6 +23,17 @@
 
 namespace xls::dslx {
 
+absl::StatusOr<ColonRef::Subject> ToColonRefSubject(Expr* e) {
+  if (auto* n = dynamic_cast<NameRef*>(e)) {
+    return ColonRef::Subject(n);
+  }
+  if (auto* n = dynamic_cast<ColonRef*>(e)) {
+    return ColonRef::Subject(n);
+  }
+  return absl::InvalidArgumentError(
+      "Expression AST node is not a ColonRef subject.");
+}
+
 absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node) {
   if (auto* n = dynamic_cast<TypeDef*>(node)) {
     return TypeDefinition(n);
@@ -34,6 +45,9 @@ absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node) {
     return TypeDefinition(n);
   }
   if (auto* n = dynamic_cast<ModRef*>(node)) {
+    return TypeDefinition(n);
+  }
+  if (auto* n = dynamic_cast<ColonRef*>(node)) {
     return TypeDefinition(n);
   }
   return absl::InvalidArgumentError("AST node is not a type definition.");
@@ -233,6 +247,49 @@ ConstantArray::ConstantArray(Module* owner, Span span,
   }
 }
 
+absl::optional<ModuleMember*> Module::FindMemberWithName(
+    absl::string_view target) {
+  for (ModuleMember& member : top_) {
+    if (absl::holds_alternative<Function*>(member)) {
+      if (absl::get<Function*>(member)->identifier() == target) {
+        return &member;
+      }
+    } else if (absl::holds_alternative<Test*>(member)) {
+      if (absl::get<Test*>(member)->identifier() == target) {
+        return &member;
+      }
+    } else if (absl::holds_alternative<QuickCheck*>(member)) {
+      if (absl::get<QuickCheck*>(member)->identifier() == target) {
+        return &member;
+      }
+    } else if (absl::holds_alternative<TypeDef*>(member)) {
+      if (absl::get<TypeDef*>(member)->identifier() == target) {
+        return &member;
+      }
+    } else if (absl::holds_alternative<StructDef*>(member)) {
+      if (absl::get<StructDef*>(member)->identifier() == target) {
+        return &member;
+      }
+    } else if (absl::holds_alternative<ConstantDef*>(member)) {
+      if (absl::get<ConstantDef*>(member)->identifier() == target) {
+        return &member;
+      }
+    } else if (absl::holds_alternative<EnumDef*>(member)) {
+      if (absl::get<EnumDef*>(member)->identifier() == target) {
+        return &member;
+      }
+    } else if (absl::holds_alternative<Import*>(member)) {
+      if (absl::get<Import*>(member)->identifier() == target) {
+        return &member;
+      }
+    } else {
+      XLS_LOG(FATAL) << "Unhandled module member variant: "
+                     << ToAstNode(member)->GetNodeTypeName();
+    }
+  }
+  return absl::nullopt;
+}
+
 absl::flat_hash_map<std::string, TypeDefinition>
 Module::GetTypeDefinitionByName() const {
   absl::flat_hash_map<std::string, TypeDefinition> result;
@@ -322,7 +379,7 @@ std::string ArrayTypeAnnotation::ToString() const {
 }
 
 bool IsConstant(AstNode* node) {
-  if (IsOneOf<ConstantArray, EnumRef, Number, ConstRef>(node)) {
+  if (IsOneOf<ConstantArray, EnumRef, Number, ConstRef, ColonRef>(node)) {
     return true;
   }
   if (Cast* n = dynamic_cast<Cast*>(node)) {
@@ -588,8 +645,11 @@ std::string StructRefToText(const StructRef& struct_ref) {
   if (absl::holds_alternative<ModRef*>(struct_ref)) {
     return absl::get<ModRef*>(struct_ref)->ToString();
   }
+  if (absl::holds_alternative<ColonRef*>(struct_ref)) {
+    return absl::get<ColonRef*>(struct_ref)->ToString();
+  }
   XLS_LOG(FATAL)
-      << "Unhandled alternative for converting struct definition to string.";
+      << "Unhandled alternative for converting struct reference to string.";
 }
 
 std::string NameDefTree::ToString() const {

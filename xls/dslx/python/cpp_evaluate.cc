@@ -91,26 +91,27 @@ PYBIND11_MODULE(cpp_evaluate, m) {
       py::arg("expr"), py::arg("bindings"), py::arg("type_context"),           \
       py::arg("callbacks"))
 
-  ADD_EVAL(ConstRef);
-  ADD_EVAL(NameRef);
-  ADD_EVAL(EnumRef);
-  ADD_EVAL(Unop);
-  ADD_EVAL(Binop);
-  ADD_EVAL(Ternary);
-  ADD_EVAL(Attr);
-  ADD_EVAL(Match);
-  ADD_EVAL(Index);
-  ADD_EVAL(StructInstance);
-  ADD_EVAL(SplatStructInstance);
-  ADD_EVAL(Number);
-  ADD_EVAL(XlsTuple);
-  ADD_EVAL(Let);
-  ADD_EVAL(Cast);
   ADD_EVAL(Array);
-  ADD_EVAL(For);
-  ADD_EVAL(While);
-  ADD_EVAL(ModRef);
+  ADD_EVAL(Attr);
+  ADD_EVAL(Binop);
   ADD_EVAL(Carry);
+  ADD_EVAL(Cast);
+  ADD_EVAL(ColonRef);
+  ADD_EVAL(ConstRef);
+  ADD_EVAL(EnumRef);
+  ADD_EVAL(For);
+  ADD_EVAL(Index);
+  ADD_EVAL(Let);
+  ADD_EVAL(Match);
+  ADD_EVAL(ModRef);
+  ADD_EVAL(NameRef);
+  ADD_EVAL(Number);
+  ADD_EVAL(SplatStructInstance);
+  ADD_EVAL(StructInstance);
+  ADD_EVAL(Ternary);
+  ADD_EVAL(Unop);
+  ADD_EVAL(While);
+  ADD_EVAL(XlsTuple);
 
   using PySymbolicBindings = std::vector<std::pair<std::string, int64>>;
 

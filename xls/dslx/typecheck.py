@@ -152,10 +152,13 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
   map_fn_name = None
   if builtin_name.identifier == 'map':
     map_fn_ref = invocation.args[1]
-    if isinstance(map_fn_ref, ast.ModRef):
+    if isinstance(map_fn_ref, (ast.ModRef, ast.ColonRef)):
+      import_node = (
+          map_fn_ref.mod if isinstance(map_fn_ref, ast.ModRef) else
+          map_fn_ref.subject.name_def.definer)
       imported_module, imported_type_info = ctx.type_info.get_imported(
-          map_fn_ref.mod)
-      map_fn_name = map_fn_ref.value
+          import_node)
+      map_fn_name = map_fn_ref.attr
       map_fn = imported_module.get_function(map_fn_name)
       higher_order_parametric_bindings = map_fn.parametric_bindings
     else:
@@ -187,7 +190,7 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
 
     # If the higher order function is parametric, we need to typecheck its body
     # with the symbolic bindings we just computed.
-    if isinstance(map_fn_ref, ast.ModRef):
+    if isinstance(map_fn_ref, (ast.ModRef, ast.ColonRef)):
       if ctx.type_info.has_instantiation(invocation, symbolic_bindings):
         # We've already typechecked this imported parametric function using
         # these bindings.

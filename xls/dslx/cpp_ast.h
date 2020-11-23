@@ -46,6 +46,7 @@ bool IsOneOf(ObjT* obj) {
 
 // Forward decls.
 class BuiltinNameDef;
+class ColonRef;
 class EnumDef;
 class Expr;
 class ModRef;
@@ -327,8 +328,11 @@ class WildcardPattern : public AstNode {
 // Represents the definition of a name (identifier).
 class NameDef : public AstNode {
  public:
-  NameDef(Module* owner, Span span, std::string identifier)
-      : AstNode(owner), span_(span), identifier_(std::move(identifier)) {}
+  NameDef(Module* owner, Span span, std::string identifier, AstNode* definer)
+      : AstNode(owner),
+        span_(span),
+        identifier_(std::move(identifier)),
+        definer_(definer) {}
 
   absl::string_view GetNodeTypeName() const override { return "NameDef"; }
   const Span& span() const { return span_; }
@@ -342,9 +346,17 @@ class NameDef : public AstNode {
     return absl::StrFormat("NameDef(identifier=\"%s\")", identifier_);
   }
 
+  void set_definer(AstNode* definer) { definer_ = definer; }
+  AstNode* definer() const { return definer_; }
+
  private:
   Span span_;
   std::string identifier_;
+  // Node that caused this name to be defined.
+  // May be null, generally because we make NameDefs then wrap those in the
+  // defining nodes, and have to "circle back" and note what that resulting
+  // "definer" node was.
+  AstNode* definer_;
 };
 
 // Abstract base class for AST node that can appear in expression positions
@@ -573,14 +585,15 @@ class ConstantArray : public Array {
 
 // Several different AST nodes define types that can be referred to by a
 // TypeRef.
-using TypeDefinition = absl::variant<TypeDef*, StructDef*, EnumDef*, ModRef*>;
+using TypeDefinition =
+    absl::variant<TypeDef*, StructDef*, EnumDef*, ModRef*, ColonRef*>;
 
 absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node);
 
 // Represents a name that refers to a defined type.
 //
-// TODO(leary): 2020-09-04 This should not be an expr, change the base class to
-// AstNode.
+// TODO(leary): 2020-09-04 This should not be an expr because it does not yield
+// a value, change the base class to AstNode.
 class TypeRef : public Expr {
  public:
   TypeRef(Module* owner, Span span, std::string text,
@@ -672,6 +685,44 @@ class ModRef : public Expr {
   Import* mod_;
   std::string attr_;
 };
+
+// Represents a module-value or enum-value style reference when the LHS
+// expression is unknown; e.g. when accessing a member in a module:
+//
+//    some_mod::SomeEnum::VALUE
+//
+// Then the ColonRef `some_mod::SomeEnum` is the LHS.
+//
+// TODO(leary): 2020-11-17 Unify with EnumRef and ModRef -- all EnumRefs can be
+// ColonRefs, and information can be determined at type inference time when all
+// imported modules are available for type checking.
+class ColonRef : public Expr {
+ public:
+  using Subject = absl::variant<NameRef*, ColonRef*>;
+
+  ColonRef(Module* owner, Span span, Subject subject, std::string attr)
+      : Expr(owner, std::move(span)),
+        subject_(subject),
+        attr_(std::move(attr)) {}
+
+  absl::string_view GetNodeTypeName() const override { return "ColonRef"; }
+  std::string ToString() const override {
+    return absl::StrFormat("%s::%s", ToAstNode(subject_)->ToString(), attr_);
+  }
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {ToAstNode(subject_)};
+  }
+
+  Subject subject() const { return subject_; }
+  const std::string& attr() const { return attr_; }
+
+ private:
+  Subject subject_;
+  std::string attr_;
+};
+
+absl::StatusOr<ColonRef::Subject> ToColonRefSubject(Expr* e);
 
 // Represents a function parameter.
 class Param : public AstNode {
@@ -1258,7 +1309,7 @@ class StructDef : public AstNode {
 // Variant that either points at a struct definition or a module reference
 // (which should be backed by a struct definition -- that property will be
 // checked by the typechecker).
-using StructRef = absl::variant<StructDef*, ModRef*>;
+using StructRef = absl::variant<StructDef*, ModRef*, ColonRef*>;
 
 std::string StructRefToText(const StructRef& struct_ref);
 
@@ -1308,12 +1359,7 @@ class StructInstance : public Expr {
   StructRef struct_def() const { return struct_ref_; }
 
  private:
-  AstNode* GetStructNode() const {
-    if (absl::holds_alternative<ModRef*>(struct_ref_)) {
-      return absl::get<ModRef*>(struct_ref_);
-    }
-    return absl::get<StructDef*>(struct_ref_);
-  }
+  AstNode* GetStructNode() const { return ToAstNode(struct_ref_); }
 
   StructRef struct_ref_;
   std::vector<std::pair<std::string, Expr*>> members_;
@@ -1735,7 +1781,7 @@ class NameDefTree : public AstNode {
  public:
   using Nodes = std::vector<NameDefTree*>;
   using Leaf = absl::variant<NameDef*, NameRef*, EnumRef*, ModRef*,
-                             WildcardPattern*, Number*>;
+                             WildcardPattern*, Number*, ColonRef*>;
 
   NameDefTree(Module* owner, Span span, absl::variant<Nodes, Leaf> tree)
       : AstNode(owner), span_(std::move(span)), tree_(tree) {}
@@ -1944,6 +1990,10 @@ class Module : public AstNode, public std::enable_shared_from_this<Module> {
   absl::Span<ModuleMember const> top() const { return top_; }
   std::vector<ModuleMember>* mutable_top() { return &top_; }
 
+  // Finds the first top-level member in top() with the given "target" name as
+  // an identifier.
+  absl::optional<ModuleMember*> FindMemberWithName(absl::string_view target);
+
   // Obtains all the type definition nodes in the module:
   //    TypeDef, Struct, Enum
   absl::flat_hash_map<std::string, TypeDefinition> GetTypeDefinitionByName()
@@ -1957,6 +2007,9 @@ class Module : public AstNode, public std::enable_shared_from_this<Module> {
 
   absl::flat_hash_map<std::string, ConstantDef*> GetConstantByName() const {
     return GetTopWithTByName<ConstantDef>();
+  }
+  absl::flat_hash_map<std::string, Import*> GetImportByName() const {
+    return GetTopWithTByName<Import>();
   }
 
   absl::flat_hash_map<std::string, Function*> GetFunctionByName() const {

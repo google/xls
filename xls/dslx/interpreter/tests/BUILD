@@ -406,3 +406,30 @@ py_test(
         "//xls/dslx/python:cpp_parser",
     ],
 )
+
+dslx_test(
+    name = "mod_simple_enum_importer",
+    srcs = ["mod_simple_enum_importer.x"],
+    deps = ["mod_simple_enum.x"],
+)
+
+dslx_test(
+    name = "mod_simple_enum_alias_importer",
+    srcs = ["mod_simple_enum_alias_importer.x"],
+    deps = ["mod_simple_enum.x"],
+)
+
+dslx_test(
+    name = "simple_enum_usage",
+    srcs = ["simple_enum_usage.x"],
+)
+
+dslx_test(
+    name = "for_rotate",
+    srcs = ["for_rotate.x"],
+)
+
+dslx_test(
+    name = "for_enum_ref",
+    srcs = ["for_enum_ref.x"],
+)
