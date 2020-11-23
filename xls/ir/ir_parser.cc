@@ -687,38 +687,6 @@ absl::StatusOr<BValue> Parser::ParseNode(
       bvalue = fb->TupleIndex(operands[0], *index, *loc, node_name);
       break;
     }
-    case Op::kArrayIndex: {
-      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
-      if (operands[0].valid() && !operands[0].GetType()->IsArray()) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "array_index operand is not an array; got %s @ %s",
-            operands[0].GetType()->ToString(), op_token.pos().ToHumanString()));
-      }
-      bvalue = fb->ArrayIndex(operands[0], operands[1], *loc, node_name);
-      break;
-    }
-    case Op::kArrayUpdate: {
-      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/3));
-      if (operands[0].valid() && !operands[0].GetType()->IsArray()) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "array_update operand is not an array; got %s @ %s",
-            operands[0].GetType()->ToString(), op_token.pos().ToHumanString()));
-      }
-      if (operands[0].valid() && operands[2].valid()) {
-        Type* element_type =
-            operands[0].GetType()->AsArrayOrDie()->element_type();
-        if (operands[2].GetType() != element_type) {
-          return absl::InvalidArgumentError(
-              absl::StrFormat("array_update update value is not the same type "
-                              "as the array elements; got %s @ %s",
-                              operands[2].GetType()->ToString(),
-                              op_token.pos().ToHumanString()));
-        }
-      }
-      bvalue = fb->ArrayUpdate(operands[0], operands[1], operands[2], *loc,
-                               node_name);
-      break;
-    }
     case Op::kMultiArrayIndex: {
       std::vector<BValue>* index_args =
           arg_parser.AddKeywordArg<std::vector<BValue>>("indices");

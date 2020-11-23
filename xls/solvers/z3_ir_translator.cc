@@ -672,16 +672,6 @@ Z3_ast IrTranslator::GetArrayElement(ArrayType* array_type, Z3_ast array,
   return Z3_mk_select(ctx_, array, index);
 }
 
-absl::Status IrTranslator::HandleArrayIndex(ArrayIndex* array_index) {
-  ScopedErrorHandler seh(ctx_);
-  ArrayType* array_type = array_index->operand(0)->GetType()->AsArrayOrDie();
-  Z3_ast element =
-      GetArrayElement(array_type, GetValue(array_index->operand(0)),
-                      GetValue(array_index->operand(1)));
-  NoteTranslation(array_index, element);
-  return seh.status();
-}
-
 absl::Status IrTranslator::HandleMultiArrayIndex(MultiArrayIndex* array_index) {
   ScopedErrorHandler seh(ctx_);
   Type* array_type = array_index->array()->GetType();
@@ -692,36 +682,6 @@ absl::Status IrTranslator::HandleMultiArrayIndex(MultiArrayIndex* array_index) {
     array_type = array_type->AsArrayOrDie()->element_type();
   }
   NoteTranslation(array_index, element);
-  return seh.status();
-}
-
-absl::Status IrTranslator::HandleArrayUpdate(ArrayUpdate* array_update) {
-  ScopedErrorHandler seh(ctx_);
-
-  // Grab input arguments.
-  ArrayType* array_type = array_update->GetType()->AsArrayOrDie();
-  Z3_sort index_sort =
-      Z3_mk_bv_sort(ctx_, Bits::MinBitCountUnsigned(array_type->size()));
-  Z3_ast update_index =
-      GetAsFormattedArrayIndex(GetValue(array_update->operand(1)), array_type);
-  Z3_ast new_value = GetValue(array_update->operand(2));
-
-  // Compute updated array elements.
-  std::vector<Z3_ast> elements;
-  elements.reserve(array_type->size());
-  for (int idx = 0; idx < array_type->size(); ++idx) {
-    Z3_ast current_index = Z3_mk_int64(ctx_, idx, index_sort);
-    Z3_ast original_value = GetArrayElement(
-        array_type, GetValue(array_update->operand(0)), current_index);
-    Z3_ast array_entry =
-        Z3_mk_ite(ctx_, Z3_mk_eq(ctx_, current_index, update_index), new_value,
-                  original_value);
-    elements.push_back(array_entry);
-  }
-
-  // Finalize.
-  Z3_ast new_array = CreateArray(array_type, elements);
-  NoteTranslation(array_update, new_array);
   return seh.status();
 }
 

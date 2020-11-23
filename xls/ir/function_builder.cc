@@ -367,7 +367,8 @@ BValue BuilderBase::ArrayIndex(BValue arg, BValue idx,
             arg.node()->ToString(), arg.node()->GetType()->ToString()),
         loc);
   }
-  return AddNode<xls::ArrayIndex>(loc, arg.node(), idx.node(), name);
+  return AddNode<xls::MultiArrayIndex>(
+      loc, arg.node(), /*indices=*/std::vector<Node*>({idx.node()}), name);
 }
 
 BValue BuilderBase::ArrayUpdate(BValue arg, BValue idx, BValue update_value,
@@ -394,8 +395,8 @@ BValue BuilderBase::ArrayUpdate(BValue arg, BValue idx, BValue update_value,
             update_value.node()->GetType()->ToString()),
         loc);
   }
-  return AddNode<xls::ArrayUpdate>(loc, arg.node(), idx.node(),
-                                   update_value.node(), name);
+  return AddNode<xls::MultiArrayUpdate>(loc, arg.node(), update_value.node(),
+                                        std::vector<Node*>({idx.node()}), name);
 }
 
 BValue BuilderBase::MultiArrayIndex(BValue arg,

@@ -53,8 +53,6 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   absl::Status HandleAndReduce(BitwiseReductionOp* op) override;
   absl::Status HandleAfterAll(AfterAll* after_all) override;
   absl::Status HandleArray(Array* array) override;
-  absl::Status HandleArrayIndex(ArrayIndex* index) override;
-  absl::Status HandleArrayUpdate(ArrayUpdate* update) override;
   absl::Status HandleMultiArrayIndex(MultiArrayIndex* index) override;
   absl::Status HandleMultiArrayUpdate(MultiArrayUpdate* update) override;
   absl::Status HandleArrayConcat(ArrayConcat* concat) override;

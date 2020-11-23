@@ -59,32 +59,6 @@ class ArraySimplificationPassTest : public IrTestBase {
   }
 };
 
-TEST_F(ArraySimplificationPassTest, ConvertArrayIndexToMultiArrayIndex) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  BValue a = fb.Param("a", p->GetArrayType(42, p->GetBitsType(100)));
-  BValue idx = fb.Param("idx", p->GetBitsType(32));
-  fb.ArrayIndex(a, idx);
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  ASSERT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              m::MultiArrayIndex(m::Param("a"), /*indices=*/{m::Param("idx")}));
-}
-
-TEST_F(ArraySimplificationPassTest, ConvertArrayUpdateToMultiArrayUpdate) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  BValue a = fb.Param("a", p->GetArrayType(42, p->GetBitsType(100)));
-  BValue v = fb.Param("v", p->GetBitsType(100));
-  BValue idx = fb.Param("idx", p->GetBitsType(32));
-  fb.ArrayUpdate(a, idx, v);
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  ASSERT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              m::MultiArrayUpdate(m::Param("a"), m::Param("v"),
-                                  /*indices=*/{m::Param("idx")}));
-}
-
 TEST_F(ArraySimplificationPassTest, ArrayWithOOBLiteralIndex) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

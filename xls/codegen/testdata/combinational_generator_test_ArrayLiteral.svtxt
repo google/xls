@@ -5,9 +5,9 @@ module main(
 );
   wire [43:0] literal_1[2][3];
   assign literal_1 = '{'{44'h000_0000_0001, 44'h000_0000_0002, 44'h000_0000_0003}, '{44'h000_0000_0004, 44'h000_0000_0005, 44'h000_0000_0006}};
-  wire [43:0] array_index_2[3];
+  wire [43:0] multiarray_index_2[3];
   wire [43:0] result;
-  assign array_index_2 = literal_1[x];
-  assign result = array_index_2[y];
+  assign multiarray_index_2 = literal_1[x];
+  assign result = multiarray_index_2[y];
   assign out = result;
 endmodule

@@ -64,10 +64,6 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
       return default_handler(node);
     case Op::kArray:
       return default_handler(node);
-    case Op::kArrayIndex:
-      return default_handler(node);
-    case Op::kArrayUpdate:
-      return default_handler(node);
     case Op::kMultiArrayIndex:
       return default_handler(node);
     case Op::kMultiArrayUpdate:

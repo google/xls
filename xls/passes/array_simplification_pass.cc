@@ -871,27 +871,6 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBase(
 
   bool changed = false;
 
-  // Convert array index and array update into multiarray index and multiarray
-  // update.
-  for (Node* node : TopoSort(func)) {
-    if (node->Is<ArrayIndex>()) {
-      ArrayIndex* array_index = node->As<ArrayIndex>();
-      XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<MultiArrayIndex>(
-                                  array_index->array(),
-                                  std::vector<Node*>({array_index->index()}))
-                              .status());
-      changed = true;
-    } else if (node->Is<ArrayUpdate>()) {
-      ArrayUpdate* array_update = node->As<ArrayUpdate>();
-      XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<MultiArrayUpdate>(
-                                  array_update->array_to_update(),
-                                  array_update->update_value(),
-                                  std::vector<Node*>({array_update->index()}))
-                              .status());
-      changed = true;
-    }
-  }
-
   XLS_ASSIGN_OR_RETURN(bool clamp_changed, ClampMultiArrayIndexIndices(func));
   changed |= clamp_changed;
 

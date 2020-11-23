@@ -395,37 +395,6 @@ OpClass.kinds['ARRAY'] = OpClass(
     custom_clone_method=True
 )
 
-OpClass.kinds['ARRAY_INDEX'] = OpClass(
-    name='ArrayIndex',
-    op='Op::kArrayIndex',
-    operands=[Operand('arg'), Operand('index')],
-    xls_type_expression='arg->GetType()->AsArrayOrDie()->element_type()',
-    extra_methods=[Method(name='array',
-                          return_cpp_type='Node*',
-                          expression='operand(0)'),
-                   Method(name='index',
-                          return_cpp_type='Node*',
-                          expression='operand(1)')])
-
-OpClass.kinds['ARRAY_UPDATE'] = OpClass(
-    name='ArrayUpdate',
-    op='Op::kArrayUpdate',
-    operands=[Operand('arg'), Operand('index'), Operand('update_value')],
-    xls_type_expression='arg->GetType()',
-    extra_methods=[Method(name='size',
-                          return_cpp_type='int64',
-                          expression='GetType()->AsArrayOrDie()->size()'),
-                   Method(name='array_to_update',
-                          return_cpp_type='Node*',
-                          expression='operand(0)'),
-                   Method(name='index',
-                          return_cpp_type='Node*',
-                          expression='operand(1)'),
-                   Method(name='update_value',
-                          return_cpp_type='Node*',
-                          expression='operand(2)')],
-)
-
 OpClass.kinds['MULTIARRAY_INDEX'] = OpClass(
     name='MultiArrayIndex',
     op='Op::kMultiArrayIndex',
@@ -872,18 +841,6 @@ OPS = [
         enum_name='kArray',
         name='array',
         op_class=OpClass.kinds['ARRAY'],
-        properties=[],
-    ),
-    Op(
-        enum_name='kArrayIndex',
-        name='array_index',
-        op_class=OpClass.kinds['ARRAY_INDEX'],
-        properties=[],
-    ),
-    Op(
-        enum_name='kArrayUpdate',
-        name='array_update',
-        op_class=OpClass.kinds['ARRAY_UPDATE'],
         properties=[],
     ),
     Op(

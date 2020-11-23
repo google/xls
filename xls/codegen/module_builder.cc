@@ -606,14 +606,6 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
         }
         break;
       }
-      case Op::kArrayIndex:
-        XLS_RETURN_IF_ERROR(AddAssignment(
-            ref,
-            file_->Index(inputs[0]->AsIndexableExpressionOrDie(), inputs[1]),
-            array_type, [&](Expression* lhs, Expression* rhs) {
-              assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
-            }));
-        break;
       case Op::kMultiArrayIndex: {
         IndexableExpression* element = inputs[0]->AsIndexableExpressionOrDie();
         for (Expression* index : inputs.subspan(1)) {
@@ -626,17 +618,6 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
             }));
         break;
       }
-      case Op::kArrayUpdate:
-        for (int64 i = 0; i < array_type->size(); ++i) {
-          XLS_RETURN_IF_ERROR(EmitArrayUpdateElement(
-              /*lhs=*/file_->Index(ref, i),
-              /*condition=*/file_->Equals(inputs[1], file_->PlainLiteral(i)),
-              /*new_value=*/inputs[2],
-              /*original_value=*/
-              file_->Index(inputs[0]->AsIndexableExpressionOrDie(), i),
-              /*element_type=*/array_type->element_type()));
-        }
-        break;
       case Op::kMultiArrayUpdate:
         XLS_RETURN_IF_ERROR(EmitArrayCopyAndUpdate(
             /*lhs=*/ref,

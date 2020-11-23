@@ -30,6 +30,8 @@
 #include "xls/ir/package.h"
 #include "xls/passes/pass_base.h"
 
+namespace m = ::xls::op_matchers;
+
 namespace xls {
 namespace {
 
@@ -115,9 +117,8 @@ fn main(index: bits[32]) -> bits[32] {
               IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Value array,
                            Value::UBitsArray({1, 2, 3, 4, 5, 6, 0}, 32));
-  EXPECT_THAT(f->return_value(),
-              op_matchers::ArrayIndex(op_matchers::Literal(array),
-                                      op_matchers::Param()));
+  EXPECT_THAT(f->return_value(), m::MultiArrayIndex(m::Literal(array),
+                                                    /*indices=*/{m::Param()}));
 
   XLS_ASSERT_OK(CompareBeforeAfter(f, before_data));
 }
@@ -164,9 +165,8 @@ fn main(index: bits[32]) -> bits[32] {
               IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Value array,
                            Value::UBitsArray({0, 1, 2, 3, 4, 6, 5}, 32));
-  EXPECT_THAT(f->return_value(),
-              op_matchers::ArrayIndex(op_matchers::Literal(array),
-                                      op_matchers::Param()));
+  EXPECT_THAT(f->return_value(), m::MultiArrayIndex(m::Literal(array),
+                                                    /*indices=*/{m::Param()}));
   XLS_ASSERT_OK(CompareBeforeAfter(f, before_data));
 }
 
@@ -217,9 +217,8 @@ fn main(index: bits[32]) -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(
       Value array,
       Value::UBitsArray({3335, 2, 889798, 436, 1235, 555, 434}, 32));
-  EXPECT_THAT(f->return_value(),
-              op_matchers::ArrayIndex(op_matchers::Literal(array),
-                                      op_matchers::Param()));
+  EXPECT_THAT(f->return_value(), m::MultiArrayIndex(m::Literal(array),
+                                                    /*indices=*/{m::Param()}));
 }
 
 // Verifies that a single literal switch is _not_ converted into a table
@@ -323,10 +322,10 @@ fn main(index: bits[32]) -> bits[32] {
                            Value::UBitsArray({111, 222, 333, 0}, 32));
   bool has_array_index = false;
   for (const Node* node : f->nodes()) {
-    if (node->op() == Op::kArrayIndex) {
+    if (node->op() == Op::kMultiArrayIndex) {
       has_array_index = true;
-      EXPECT_THAT(node, op_matchers::ArrayIndex(op_matchers::Literal(array),
-                                                op_matchers::Param()));
+      EXPECT_THAT(node, m::MultiArrayIndex(m::Literal(array),
+                                           /*indices=*/{m::Param()}));
     }
   }
   EXPECT_TRUE(has_array_index);
@@ -388,13 +387,12 @@ fn main(index: bits[32]) -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(Value array_1,
                            Value::UBitsArray({555, 666, 777, 444}, 32));
   for (const Node* node : f->nodes()) {
-    if (node->op() == Op::kArrayIndex) {
+    if (node->op() == Op::kMultiArrayIndex) {
       has_array_index = true;
-      EXPECT_THAT(node,
-                  AnyOf(op_matchers::ArrayIndex(op_matchers::Literal(array_0),
-                                                op_matchers::Param()),
-                        op_matchers::ArrayIndex(op_matchers::Literal(array_1),
-                                                op_matchers::Param())));
+      EXPECT_THAT(node, AnyOf(m::MultiArrayIndex(m::Literal(array_0),
+                                                 /*indices=*/{m::Param()}),
+                              m::MultiArrayIndex(m::Literal(array_1),
+                                                 /*indices=*/{m::Param()})));
     }
   }
   EXPECT_TRUE(has_array_index);
@@ -450,9 +448,8 @@ fn main(index: bits[32]) -> bits[32] {
               IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Value array,
                            Value::UBitsArray({1, 2, 3, 4, 5, 6, 0}, 32));
-  EXPECT_THAT(f->return_value(),
-              op_matchers::ArrayIndex(op_matchers::Literal(array),
-                                      op_matchers::Param()));
+  EXPECT_THAT(f->return_value(), m::MultiArrayIndex(m::Literal(array),
+                                                    /*indices=*/{m::Param()}));
   XLS_ASSERT_OK(CompareBeforeAfter(f, before_data));
 }
 

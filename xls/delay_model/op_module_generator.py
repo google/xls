@@ -65,14 +65,14 @@ def generate_ir_package(op: str,
     package add_characterization
 
     fn main(op0: bits[8], op1: bits[8]) -> bits[8] {
-      ret add.1: bits[8] = add(op0, op1)
+      ret result: bits[8] = add(op0, op1)
     }
 
   Arguments:
     op: The op of the operation. For example: "add".
     output_type: The type of the output of the operation. For example:
       "bits[32]".
-    operand_types: The types of the output of the operation. For example:
+    operand_types: The types of the operands of the operation. For example:
       ("bits[32]", "bits[16]").
     attributes: Attributes to include in the operation mnemonic. For example,
       "new_bit_count" in extend operations.
@@ -87,38 +87,55 @@ def generate_ir_package(op: str,
       f'op{i}: {operand_types[i]}' for i in range(len(operand_types))
       if i != literal_operand
   ]
+  # Some ops have named operands which appear in the argument list as
+  # attributes. For example, the 'indices' attributes of array_index:
+  #
+  #   array_index: bits[32] = array_index(a, indices=[i, j])
+  #
+  # Extract these out as a separate element in the argument list.
+  args = [f'op{i}' for i in range(len(operand_types))]
+  if op == 'multiarray_index':
+    indices = args[1:]
+    args = args[0:1]
+    args.append('indices=[%s]' % ', '.join(indices))
+  elif op == 'multiarray_update':
+    indices = args[2:]
+    args = args[0:2]
+    args.append('indices=[%s]' % ', '.join(indices))
+  elif op == 'sel':
+    cases = args[1:]
+    args = args[0:1]
+    args.append('cases=[%s]' % ', '.join(cases))
+  args.extend(f'{k}={v}' for k, v in attributes)
+
   if literal_operand is None:
-    operands = [f'op{i}' for i in range(len(operand_types))]
     ir_text = textwrap.dedent("""\
     package {op}_characterization
 
     fn main({params}) -> {output_type} {{
-      ret {op}.1: {output_type} = {op}({operands}{attributes})
+      ret result: {output_type} = {op}({args})
     }}""").format(
         op=op,
         output_type=output_type,
         params=', '.join(params),
-        operands=', '.join(operands),
-        attributes=''.join(f', {k}={v}' for k, v in attributes))
+        args=', '.join(args))
   else:
     literal_type = operand_types[literal_operand]
     literal_value = _generate_literal(literal_type)
-    operands = ('literal.1' if i == literal_operand else f'op{i}'
-                for i in range(len(operand_types)))
     ir_text = textwrap.dedent("""\
     package {op}_characterization
 
     fn main({params}) -> {output_type} {{
-      literal.1: {literal_type} = literal(value={literal_value})
-      ret {op}.2: {output_type} = {op}({operands}{attributes})
+      op{literal_operand}: {literal_type} = literal(value={literal_value})
+      ret result: {output_type} = {op}({args})
     }}""").format(
         op=op,
         output_type=output_type,
         params=', '.join(params),
-        operands=', '.join(operands),
         literal_type=literal_type,
         literal_value=literal_value,
-        attributes=''.join(f', {k}={v}' for k, v in attributes))
+        literal_operand=literal_operand,
+        args=', '.join(args))
 
   # Verify the IR parses and verifies.
   ir_parser_mod.Parser.parse_package(ir_text)

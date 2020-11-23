@@ -91,9 +91,9 @@ TEST_F(NarrowingPassTest, NarrowableArrayIndex) {
       fb.ZeroExtend(fb.Param("idx", p->GetBitsType(8)), /*new_bit_count=*/123));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(
-      f->return_value(),
-      m::ArrayIndex(m::Param("a"), m::BitSlice(/*start=*/0, /*width=*/8)));
+  EXPECT_THAT(f->return_value(),
+              m::MultiArrayIndex(m::Param("a"), /*indices=*/{
+                                     m::BitSlice(/*start=*/0, /*width=*/8)}));
 }
 
 TEST_F(NarrowingPassTest, NarrowableArrayIndexAllZeros) {
@@ -104,7 +104,8 @@ TEST_F(NarrowingPassTest, NarrowableArrayIndexAllZeros) {
                        fb.Literal(Value(UBits(0, 8)))));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(), m::ArrayIndex(m::Param("a"), m::Literal(0)));
+  EXPECT_THAT(f->return_value(),
+              m::MultiArrayIndex(m::Param("a"), /*indices=*/{m::Literal(0)}));
 }
 
 TEST_F(NarrowingPassTest, LiteralArrayIndex) {
@@ -115,8 +116,9 @@ TEST_F(NarrowingPassTest, LiteralArrayIndex) {
                 fb.Literal(Value(UBits(0x0f, 8))));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
-  EXPECT_THAT(f->return_value(),
-              m::ArrayIndex(m::Param("a"), m::Literal(0x0f)));
+  EXPECT_THAT(
+      f->return_value(),
+      m::MultiArrayIndex(m::Param("a"), /*indices=*/{m::Literal(0x0f)}));
 }
 
 TEST_F(NarrowingPassTest, MultiplyWiderThanSumOfOperands) {

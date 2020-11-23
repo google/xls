@@ -834,15 +834,6 @@ fn array_and_array(x: (bits[32], bits[1]), y: (bits[32], bits[1])) -> (bits[32],
   ParseFunctionAndCheckDump(input);
 }
 
-TEST(IrParserTest, ParseNestedBitsArrayIndex) {
-  std::string input = R"(
-fn array_and_array(p: bits[2][5][4], q: bits[32]) -> bits[2][5] {
-  ret array_index.1: bits[2][5] = array_index(p, q, id=1)
-}
-)";
-  ParseFunctionAndCheckDump(input);
-}
-
 TEST(IrParserTest, ParseNestedBitsMultiArrayIndex) {
   std::string input = R"(
 fn array_and_array(p: bits[2][5][4][42], q: bits[32], r: bits[2]) -> bits[2][5] {
@@ -1130,7 +1121,7 @@ TEST(IrParserTest, ParseArrayIndex) {
   const std::string input = R"(
 fn foo(x: bits[32][6]) -> bits[32] {
   literal.1: bits[32] = literal(value=5, id=1)
-  ret array_index.2: bits[32] = array_index(x, literal.1, id=2)
+  ret multiarray_index.2: bits[32] = multiarray_index(x, indices=[literal.1], id=2)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -1139,7 +1130,7 @@ fn foo(x: bits[32][6]) -> bits[32] {
 TEST(IrParserTest, ParseArrayUpdate) {
   const std::string input = R"(
 fn foo(array: bits[32][3], idx: bits[32], newval: bits[32]) -> bits[32][3] {
-  ret array_update.4: bits[32][3] = array_update(array, idx, newval, id=4)
+  ret multiarray_update.4: bits[32][3] = multiarray_update(array, newval, indices=[idx], id=4)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -1148,26 +1139,29 @@ fn foo(array: bits[32][3], idx: bits[32], newval: bits[32]) -> bits[32][3] {
 TEST(IrParserTest, ParseArrayUpdateNonArary) {
   const std::string input = R"(
 fn foo(array: bits[32], idx: bits[32], newval: bits[32]) -> bits[32][3] {
-  ret array_update.4: bits[32][3] = array_update(array, idx, newval, id=4)
+  ret multiarray_update.4: bits[32][3] = multiarray_update(array, newval, indices=[idx],  id=4)
 }
 )";
   Package p("my_package");
-  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("array_update operand is not an array")));
+  EXPECT_THAT(
+      Parser::ParseFunction(input, &p).status(),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "Too many indices (1) to index into array of type bits[32]")));
 }
 
 TEST(IrParserTest, ParseArrayUpdateIncompatibleTypes) {
   const std::string input = R"(
 fn foo(array: bits[32][3], idx: bits[32], newval: bits[64]) -> bits[32][3] {
-  ret array_update.4: bits[32][3] = array_update(array, idx, newval, id=4)
+  ret multiarray_update.4: bits[32][3] = multiarray_update(array, newval, indices=[idx], id=4)
 }
 )";
   Package p("my_package");
   EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("array_update update value is not the same "
-                                 "type as the array elements")));
+                       HasSubstr("Expected update value to have type bits[32]; "
+                                 "has type bits[64]")));
 }
 
 TEST(IrParserTest, ParseArrayConcat0) {
@@ -1381,7 +1375,7 @@ TEST(IrParserTest, ParseArrayLiterals) {
 fn foo(x: bits[32]) -> bits[32] {
   literal.1: bits[32][2] = literal(value=[0, 1], id=1)
   literal.2: bits[3] = literal(value=1, id=2)
-  ret array_index.3: bits[32] = array_index(literal.1, literal.2, id=3)
+  ret multiarray_index.3: bits[32] = multiarray_index(literal.1, indices=[literal.2], id=3)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -1537,13 +1531,16 @@ TEST(IrParserTest, ArrayIndexOfTuple) {
   const std::string input = R"(
 fn foo(x: (bits[8])) -> bits[32] {
   literal.1: bits[32] = literal(value=0, id=1)
-  ret array_index.2: bits[8] = array_index(x, literal.1, id=2)
+  ret multiarray_index.2: bits[8] = multiarray_index(x, indices=[literal.1], id=2)
 }
 )";
   Package p("my_package");
-  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("array_index operand is not an array")));
+  EXPECT_THAT(
+      Parser::ParseFunction(input, &p).status(),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "Too many indices (1) to index into array of type (bits[8])")));
 }
 
 TEST(IrParserTest, TupleIndexOfArray) {
@@ -2107,53 +2104,6 @@ TEST(IrParserTest, ParseTupleIndexWithInvalidBValue) {
 fn f(x: bits[4], y: bits[4][1]) -> bits[4] {
   onehot.10: bits[16] = decode(y, width=16, id=10)
   ret ind.20: bits[4] = tuple_index(onehot.10, index=0, id=20)
-}
-)";
-
-  Package p("my_package");
-  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Decode argument must be of Bits type")));
-}
-
-TEST(IrParserTest, ParseArrayIndexWithInvalidBValue) {
-  const std::string input = R"(
-fn f(x: bits[4], y: bits[4][1]) -> bits[4] {
-  literal.10: bits[32] = literal(value=0, id=10)
-  onehot.20: bits[16] = decode(y, width=16, id=20)
-  ret ind.30: bits[4] = array_index(onehot.20, literal.10, id=30)
-}
-)";
-
-  Package p("my_package");
-  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Decode argument must be of Bits type")));
-}
-
-TEST(IrParserTest, ParseArrayUpdateWithInvalidOp0BValue) {
-  const std::string input = R"(
-fn f(x: bits[4], y: bits[4][1]) -> bits[4][1] {
-  literal.10: bits[32] = literal(value=0, id=10)
-  literal.20: bits[32] = literal(value=0, id=20)
-
-  onehot.30: bits[16] = decode(y, width=16, id=30)
-  ret arr.40: bits[4][1] = array_update(onehot.30, literal.10, literal.20, id=40)
-}
-)";
-
-  Package p("my_package");
-  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Decode argument must be of Bits type")));
-}
-
-TEST(IrParserTest, ParseArrayUpdateWithInvalidOp2BValue) {
-  const std::string input = R"(
-fn f(x: bits[4], y: bits[4][1]) -> bits[4][1] {
-  literal.10: bits[32] = literal(value=0, id=10)
-  onehot.20: bits[16] = decode(y, width=16, id=20)
-  ret arr.30: bits[4][1] = array_update(y, literal.10, onehot.20, id=30)
 }
 )";
 

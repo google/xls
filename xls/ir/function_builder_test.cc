@@ -247,10 +247,10 @@ TEST(FunctionBuilderTest, ArrayUpdate) {
       b.Literal(Value(UBits(0, 32))), b.Literal(Value(UBits(99, 32))));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
   EXPECT_THAT(f->return_value(), m::Type("bits[32][2]"));
-  EXPECT_THAT(
-      f->return_value(),
-      m::ArrayUpdate(m::Literal("[bits[32]: 1, bits[32]: 2]"),
-                     m::Literal("bits[32]: 0"), m::Literal("bits[32]: 99")));
+  EXPECT_THAT(f->return_value(),
+              m::MultiArrayUpdate(m::Literal("[bits[32]: 1, bits[32]: 2]"),
+                                  m::Literal("bits[32]: 99"),
+                                  /*indices=*/{m::Literal("bits[32]: 0")}));
 }
 
 TEST(FunctionBuilderTest, ArrayUpdateOnNonArray) {

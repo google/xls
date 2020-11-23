@@ -110,7 +110,7 @@ package ArrayConstant
 
 fn main(x: bits[32]) -> bits[13] {
   literal.1: bits[13][3] = literal(value=[42, 44, 77])
-  ret array_index.2: bits[13] = array_index(literal.1, x)
+  ret multiarray_index.2: bits[13] = multiarray_index(literal.1, indices=[x])
 }
 )";
 
@@ -126,8 +126,8 @@ package NestedArrayConstant
 
 fn main(x: bits[32], y: bits[32]) -> bits[13] {
   literal.1: bits[13][3][2] = literal(value=[[42, 44, 77], [11, 22, 33]])
-  array_index.2: bits[13][3] = array_index(literal.1, x)
-  ret array_index.3: bits[13] = array_index(array_index.2, y)
+  multiarray_index.2: bits[13][3] = multiarray_index(literal.1, indices=[x])
+  ret multiarray_index.3: bits[13] = multiarray_index(multiarray_index.2, indices=[y])
 }
 )";
 
@@ -143,10 +143,10 @@ TEST_F(IrTypeTests, ArraysAsInputsAndOutputs) {
 package ArraysAsInputsAndOutputs
 
 fn main(in: bits[16][3][2], x: bits[16], y0: bits[16], y1:bits[16]) -> bits[16][2] {
-  array_index.2: bits[16][3] = array_index(in, x)
-  array_index.3: bits[16] = array_index(array_index.2, y0)
-  array_index.4: bits[16] = array_index(array_index.2, y1)
-  ret array.5: bits[16][2] = array(array_index.3, array_index.4)
+  multiarray_index.2: bits[16][3] = multiarray_index(in, indices=[x])
+  multiarray_index.3: bits[16] = multiarray_index(multiarray_index.2, indices=[y0])
+  multiarray_index.4: bits[16] = multiarray_index(multiarray_index.2, indices=[y1])
+  ret array.5: bits[16][2] = array(multiarray_index.3, multiarray_index.4)
 }
 )";
 
@@ -181,9 +181,9 @@ package ArrayOfTuplesConstant
 
 fn main(x: bits[32]) -> (bits[17], bits[13])[3] {
   literal.1: (bits[13], bits[17])[2] = literal(value=[(12, 34), (56, 78)])
-  array_index.2: (bits[13], bits[17]) = array_index(literal.1, x)
-  tuple_index.3: bits[13] = tuple_index(array_index.2, index=0)
-  tuple_index.4: bits[17] = tuple_index(array_index.2, index=1)
+  multiarray_index.2: (bits[13], bits[17]) = multiarray_index(literal.1, indices=[x])
+  tuple_index.3: bits[13] = tuple_index(multiarray_index.2, index=0)
+  tuple_index.4: bits[17] = tuple_index(multiarray_index.2, index=1)
   tuple.5: (bits[17], bits[13]) = tuple(tuple_index.4, tuple_index.3)
   ret array.6: (bits[17], bits[13])[3] = array(tuple.5, tuple.5, tuple.5)
 }
@@ -211,9 +211,9 @@ fn main(x: bits[32], y: bits[32]) -> bits[13] {
   literal.1: (bits[13][3], bits[13][2]) = literal(value=([1, 2, 3], [55, 66]))
   tuple_index.2: bits[13][3] = tuple_index(literal.1, index=0)
   tuple_index.3: bits[13][2] = tuple_index(literal.1, index=1)
-  array_index.4: bits[13] = array_index(tuple_index.2, x)
-  array_index.5: bits[13] = array_index(tuple_index.3, y)
-  ret add.6: bits[13] = add(array_index.4, array_index.5)
+  multiarray_index.4: bits[13] = multiarray_index(tuple_index.2, indices=[x])
+  multiarray_index.5: bits[13] = multiarray_index(tuple_index.3, indices=[y])
+  ret add.6: bits[13] = add(multiarray_index.4, multiarray_index.5)
 }
 )";
 

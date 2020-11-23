@@ -15,15 +15,15 @@ module add8_module(
   end
 
   // ===== Pipe stage 1:
-  wire [7:0] p1_add_1_comb;
-  assign p1_add_1_comb = p0_op0 + p0_op1;
+  wire [7:0] p1_result_comb;
+  assign p1_result_comb = p0_op0 + p0_op1;
 
   // Registers for pipe stage 1:
-  reg [7:0] p1_add_1;
+  reg [7:0] p1_result;
   always @ (posedge clk) begin
-    p1_add_1 <= p1_add_1_comb;
+    p1_result <= p1_result_comb;
   end
-  assign out = p1_add_1;
+  assign out = p1_result;
 endmodule
 
 
@@ -44,15 +44,15 @@ module add16_module(
   end
 
   // ===== Pipe stage 1:
-  wire [15:0] p1_add_1_comb;
-  assign p1_add_1_comb = p0_op0 + p0_op1;
+  wire [15:0] p1_result_comb;
+  assign p1_result_comb = p0_op0 + p0_op1;
 
   // Registers for pipe stage 1:
-  reg [15:0] p1_add_1;
+  reg [15:0] p1_result;
   always @ (posedge clk) begin
-    p1_add_1 <= p1_add_1_comb;
+    p1_result <= p1_result_comb;
   end
-  assign out = p1_add_1;
+  assign out = p1_result;
 endmodule
 
 
@@ -73,15 +73,15 @@ module add24_module(
   end
 
   // ===== Pipe stage 1:
-  wire [23:0] p1_add_1_comb;
-  assign p1_add_1_comb = p0_op0 + p0_op1;
+  wire [23:0] p1_result_comb;
+  assign p1_result_comb = p0_op0 + p0_op1;
 
   // Registers for pipe stage 1:
-  reg [23:0] p1_add_1;
+  reg [23:0] p1_result;
   always @ (posedge clk) begin
-    p1_add_1 <= p1_add_1_comb;
+    p1_result <= p1_result_comb;
   end
-  assign out = p1_add_1;
+  assign out = p1_result;
 endmodule
 
 

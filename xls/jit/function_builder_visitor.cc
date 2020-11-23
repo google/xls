@@ -190,16 +190,6 @@ absl::StatusOr<llvm::Value*> FunctionBuilderVisitor::IndexIntoArray(
   return builder_->CreateLoad(gep);
 }
 
-absl::Status FunctionBuilderVisitor::HandleArrayIndex(ArrayIndex* index) {
-  llvm::Value* array = node_map_.at(index->operand(0));
-  llvm::Value* index_value = node_map_.at(index->operand(1));
-  XLS_ASSIGN_OR_RETURN(
-      llvm::Value * result,
-      IndexIntoArray(array, index_value,
-                     index->array()->GetType()->AsArrayOrDie()->size()));
-  return StoreResult(index, result);
-}
-
 absl::Status FunctionBuilderVisitor::HandleMultiArrayIndex(
     MultiArrayIndex* index) {
   Type* element_type = index->array()->GetType();
@@ -212,57 +202,6 @@ absl::Status FunctionBuilderVisitor::HandleMultiArrayIndex(
     element_type = element_type->AsArrayOrDie()->element_type();
   }
   return StoreResult(index, element);
-}
-
-absl::Status FunctionBuilderVisitor::HandleArrayUpdate(ArrayUpdate* update) {
-  llvm::Value* original_array = node_map_.at(update->operand(0));
-  llvm::Type* array_type = original_array->getType();
-  llvm::Value* index_value = node_map_.at(update->operand(1));
-  llvm::Value* update_value = node_map_.at(update->operand(2));
-  llvm::AllocaInst* alloca = builder_->CreateAlloca(array_type);
-  builder_->CreateStore(original_array, alloca);
-
-  // We must compare the index to the size of the array. Both arguments
-  // for this comparison must have the same bitwidth, so we will cast the
-  // arguments using the maximum bitwidth of the two. Value::size()  - used
-  // to get the array size  - returns an int64, so the bitwidth of the array
-  // size can be no larger than 64 bits. The index could have an arbitrarily
-  // large bitwidth.
-  int64 index_bitwidth = index_value->getType()->getIntegerBitWidth();
-  int64 comparison_bitwidth = std::max(index_bitwidth, (int64)64);
-  llvm::Value* array_size_comparison_bitwidth = llvm::ConstantInt::get(
-      llvm::Type::getIntNTy(ctx_, comparison_bitwidth), update->size());
-  llvm::Value* index_value_comparison_bitwidth = builder_->CreateZExt(
-      index_value, llvm::Type::getIntNTy(ctx_, comparison_bitwidth));
-  llvm::Value* index_inbounds = builder_->CreateICmpULT(
-      index_value_comparison_bitwidth, array_size_comparison_bitwidth);
-
-  // Update array.
-  llvm::Value* bounds_safe_index_value =
-      builder_->CreateSelect(index_inbounds, index_value,
-                             llvm::ConstantInt::get(index_value->getType(), 0));
-  // Our IR does not use negative indices, so we add a
-  // zero MSb to prevent LLVM from interpreting this as such.
-  std::vector<llvm::Value*> gep_indices = {
-      llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx_), 0),
-      builder_->CreateZExt(bounds_safe_index_value,
-                           llvm::IntegerType::get(ctx_, index_bitwidth + 1))};
-  llvm::Value* gep = builder_->CreateGEP(alloca, gep_indices);
-  llvm::Value* original_element_value = builder_->CreateLoad(gep);
-  llvm::Value* bounds_safe_update_value = builder_->CreateSelect(
-      index_inbounds, update_value, original_element_value);
-  builder_->CreateStore(bounds_safe_update_value, gep);
-
-  llvm::Value* update_array = builder_->CreateLoad(array_type, alloca);
-  // Record allocated memory for updated array.
-  if (array_storage_.contains(update_array)) {
-    return absl::InternalError(absl::StrFormat(
-        "Newly created update array %s was already allocated memory somehow.",
-        update->ToString()));
-  }
-  array_storage_[update_array] = alloca;
-
-  return StoreResult(update, update_array);
 }
 
 absl::Status FunctionBuilderVisitor::HandleMultiArrayUpdate(

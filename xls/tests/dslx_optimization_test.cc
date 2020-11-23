@@ -75,8 +75,8 @@ fn main(i: u32) -> (bool, u32) {
   // TODO(b/159035667): The optimized IR is much more complicated than it should
   // be. When optimizations have been added which simplify the IR, add stricter
   // tests here.
-  EXPECT_FALSE(FunctionHasOp(entry, Op::kArrayIndex));
-  EXPECT_FALSE(FunctionHasOp(entry, Op::kArrayUpdate));
+  EXPECT_FALSE(FunctionHasOp(entry, Op::kMultiArrayIndex));
+  EXPECT_FALSE(FunctionHasOp(entry, Op::kMultiArrayUpdate));
   EXPECT_FALSE(FunctionHasOp(entry, Op::kReverse));
   EXPECT_FALSE(FunctionHasOp(entry, Op::kSignExt));
   EXPECT_FALSE(FunctionHasOp(entry, Op::kAnd));

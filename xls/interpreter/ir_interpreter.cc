@@ -324,31 +324,6 @@ absl::Status IrInterpreter::HandleIdentity(UnOp* identity) {
   return SetValueResult(identity, ResolveAsValue(identity->operand(0)));
 }
 
-absl::Status IrInterpreter::HandleArrayIndex(ArrayIndex* index) {
-  const Value& input_array = ResolveAsValue(index->operand(0));
-  // Out-of-bounds accesses are clamped to the highest index.
-  // TODO(meheff): Figure out what the right thing to do here is including
-  // potentially making the behavior an option.
-  uint64 i = ResolveAsBoundedUint64(index->operand(1), input_array.size() - 1);
-  return SetValueResult(index, input_array.elements().at(i));
-}
-
-absl::Status IrInterpreter::HandleArrayUpdate(ArrayUpdate* update) {
-  XLS_ASSIGN_OR_RETURN(std::vector<Value> array_elements,
-                       ResolveAsValue(update->operand(0)).GetElements());
-  // Bound the index to one beyond the end of the array to identify cases where
-  // the index is out of bounds.
-  uint64 index =
-      ResolveAsBoundedUint64(update->operand(1), array_elements.size());
-  const Value& update_value = ResolveAsValue(update->operand(2));
-  // Out-of-bounds accesses have no effect.
-  if (index < array_elements.size()) {
-    array_elements[index] = update_value;
-  }
-  XLS_ASSIGN_OR_RETURN(Value result, Value::Array(array_elements));
-  return SetValueResult(update, result);
-}
-
 namespace {
 
 // Returns the tuple index value (tuple of bits values used in multiarray

@@ -519,32 +519,6 @@ class NodeChecker : public DfsVisitor {
     return ExpectAllSameType(identity);
   }
 
-  absl::Status HandleArrayIndex(ArrayIndex* index) override {
-    XLS_RETURN_IF_ERROR(ExpectOperandCount(index, 2));
-    XLS_RETURN_IF_ERROR(ExpectHasArrayType(index->operand(0)));
-    XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(index, 1));
-    Type* element_type =
-        index->operand(0)->GetType()->AsArrayOrDie()->element_type();
-    return ExpectSameType(index, index->GetType(), index->operand(0),
-                          element_type, "array index operation",
-                          "array operand element type");
-  }
-
-  absl::Status HandleArrayUpdate(ArrayUpdate* update) override {
-    XLS_RETURN_IF_ERROR(ExpectOperandCount(update, 3));
-    XLS_RETURN_IF_ERROR(ExpectHasArrayType(update));
-    XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(update, 1));
-    XLS_RETURN_IF_ERROR(
-        ExpectSameType(update, update->GetType(), update->operand(0),
-                       update->operand(0)->GetType(), "array update operation",
-                       "input array"));
-    XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(update, 1));
-    Type* element_type = update->GetType()->AsArrayOrDie()->element_type();
-    return ExpectSameType(update, element_type, update->operand(2),
-                          update->operand(2)->GetType(),
-                          "array update operation elements", "update value");
-  }
-
   absl::Status HandleMultiArrayIndex(MultiArrayIndex* index) override {
     XLS_RETURN_IF_ERROR(ExpectOperandCountGt(index, 0));
     XLS_RETURN_IF_ERROR(VerifyMultidimensionalArrayIndex(

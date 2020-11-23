@@ -192,30 +192,44 @@ absl::StatusOr<bool> MaybeNarrowShiftAmount(Node* shift,
 }
 
 // Try to narrow the index value of an array index operation.
-absl::StatusOr<bool> MaybeNarrowArrayIndex(ArrayIndex* array_index,
+absl::StatusOr<bool> MaybeNarrowArrayIndex(MultiArrayIndex* array_index,
                                            const QueryEngine& query_engine) {
-  Node* index = array_index->operand(1);
-  // TODO(b/148457283): Unconditionally narrow the width of the index to the
-  // minimum number of bits require to index the entire array.
-  if (index->Is<Literal>()) {
-    return false;
+  bool changed = false;
+  std::vector<Node*> new_indices;
+  for (int64 i = 0; i < array_index->indices().size(); ++i) {
+    Node* index = array_index->indices()[i];
+
+    // TODO(b/148457283): Unconditionally narrow the width of the index to the
+    // minimum number of bits require to index the entire array.
+    if (index->Is<Literal>()) {
+      continue;
+    }
+
+    int64 index_width = index->BitCountOrDie();
+    int64 leading_zeros = CountLeadingKnownZeros(index, query_engine);
+    if (leading_zeros == index_width) {
+      XLS_ASSIGN_OR_RETURN(
+          Node * zero, array_index->function_base()->MakeNode<Literal>(
+                           array_index->loc(), Value(UBits(0, index_width))));
+      new_indices.push_back(zero);
+      changed = true;
+      continue;
+    }
+    if (leading_zeros > 0) {
+      XLS_ASSIGN_OR_RETURN(Node * narrowed_index,
+                           array_index->function_base()->MakeNode<BitSlice>(
+                               array_index->loc(), index, /*start=*/0,
+                               /*width=*/index_width - leading_zeros));
+      new_indices.push_back(narrowed_index);
+      changed = true;
+      continue;
+    }
+    new_indices.push_back(index);
   }
-  int64 index_width = index->BitCountOrDie();
-  int64 leading_zeros = CountLeadingKnownZeros(index, query_engine);
-  if (leading_zeros == index_width) {
-    XLS_ASSIGN_OR_RETURN(Node * zero,
-                         array_index->function_base()->MakeNode<Literal>(
-                             array_index->loc(), Value(UBits(0, index_width))));
-    XLS_RETURN_IF_ERROR(array_index->ReplaceOperandNumber(1, zero));
-    return true;
-  } else if (leading_zeros > 0) {
-    XLS_ASSIGN_OR_RETURN(Node * narrowed_index,
-                         array_index->function_base()->MakeNode<BitSlice>(
-                             array_index->loc(), index, /*start=*/0,
-                             /*width=*/index_width - leading_zeros));
+  if (changed) {
     XLS_RETURN_IF_ERROR(array_index
-                            ->ReplaceUsesWithNew<ArrayIndex>(
-                                array_index->operand(0), narrowed_index)
+                            ->ReplaceUsesWithNew<MultiArrayIndex>(
+                                array_index->array(), new_indices)
                             .status());
     return true;
   }
@@ -441,10 +455,10 @@ absl::StatusOr<bool> NarrowingPass::RunOnFunctionBase(
                              MaybeNarrowShiftAmount(node, *query_engine));
         break;
       }
-      case Op::kArrayIndex: {
+      case Op::kMultiArrayIndex: {
         XLS_ASSIGN_OR_RETURN(
             node_modified,
-            MaybeNarrowArrayIndex(node->As<ArrayIndex>(), *query_engine));
+            MaybeNarrowArrayIndex(node->As<MultiArrayIndex>(), *query_engine));
         break;
       }
       case Op::kSMul:

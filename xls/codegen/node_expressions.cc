@@ -34,15 +34,14 @@ bool OperandMustBeNamedReference(Node* node, int64 operand_no) {
   // then there is no need to make the operand a declared expression because
   // indexing/slicing can be chained.
   //
-  // For example a kArrayIndex of a kArrayIndex can be emitted as a chained VAST
-  // Index expression like so:
+  // For example, a kArrayIndex of a kArrayIndex can be emitted as a chained
+  // VAST Index expression like so:
   //
   // reg [42:0] foo = bar[42][7]
   //
   // In this case, no need to make bar[42] a named temporary.
   auto operand_is_indexable = [&]() {
     switch (node->operand(operand_no)->op()) {
-      case Op::kArrayIndex:
       case Op::kMultiArrayIndex:
       case Op::kParam:
         // These operations are emitted as VAST Index operations which
@@ -58,9 +57,7 @@ bool OperandMustBeNamedReference(Node* node, int64 operand_no) {
       return !operand_is_indexable();
     case Op::kDynamicBitSlice:
       return operand_no == 0 && !operand_is_indexable();
-    case Op::kArrayIndex:
     case Op::kMultiArrayIndex:
-    case Op::kArrayUpdate:
     case Op::kMultiArrayUpdate:
       return operand_no == 0 && !operand_is_indexable();
     case Op::kOneHot:
@@ -412,19 +409,6 @@ absl::StatusOr<Expression*> NodeToExpression(
     case Op::kArray: {
       std::vector<Expression*> elements(inputs.begin(), inputs.end());
       return file->ArrayAssignmentPattern(elements);
-    }
-    case Op::kArrayIndex: {
-      // Hack to avoid indexing scalar registers, this can be removed when we
-      // support querying types of definitions in the VAST AST.
-      if (node->operand(1)->Is<xls::Literal>() &&
-          node->operand(1)->As<xls::Literal>()->IsZero()) {
-        return file->Index(inputs[0]->AsIndexableExpressionOrDie(),
-                           file->PlainLiteral(0));
-      }
-      return file->Index(inputs[0]->AsIndexableExpressionOrDie(), inputs[1]);
-    }
-    case Op::kArrayUpdate: {
-      return absl::UnimplementedError("ArrayUpdate not yet implemented");
     }
     case Op::kMultiArrayIndex: {
       IndexableExpression* subexpr = inputs[0]->AsIndexableExpressionOrDie();

@@ -60,7 +60,7 @@ class LecCharacterizerTest(absltest.TestCase):
     ir_text, netlist_text = self._lc._generate_sources(
         op_pb2.OpProto.OP_ADD, [self._byte_type, self._byte_type],
         self._byte_type)
-    self.assertIn('ret add.1: bits[8]', ir_text)
+    self.assertIn('ret result: bits[8]', ir_text)
     self.assertEqual(netlist_text, '// NETLIST')
 
   # Tests that an extremely simple case runs without exploding.
@@ -129,7 +129,7 @@ class LecCharacterizerTest(absltest.TestCase):
 
     self._lc.run(
         results=results,
-        op=op_pb2.OpProto.OP_ARRAY_UPDATE,
+        op=op_pb2.OpProto.OP_MULTIARRAY_UPDATE,
         function_type=function_type,
         num_iters=num_iters,
         cell_library_textproto=self._cell_lib_text,

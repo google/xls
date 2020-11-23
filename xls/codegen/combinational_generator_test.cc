@@ -267,8 +267,8 @@ package ArrayLiterals
 
 fn main(x: bits[32], y: bits[32]) -> bits[44] {
   literal.1: bits[44][3][2] = literal(value=[[1, 2, 3], [4, 5, 6]])
-  array_index.2: bits[44][3] = array_index(literal.1, x)
-  ret result: bits[44] = array_index(array_index.2, y)
+  multiarray_index.2: bits[44][3] = multiarray_index(literal.1, indices=[x])
+  ret result: bits[44] = multiarray_index(multiarray_index.2, indices=[y])
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -374,12 +374,12 @@ fn main(a: bits[32],
         g: bits[1]) -> bits[32] {
   tuple_index.1: bits[32] = tuple_index(b, index=0)
   literal.2: bits[32] = literal(value=0)
-  array_index.3: bits[32] = array_index(c, g)
-  array_index.4: (bits[32], bits[32]) = array_index(d, literal.2)
-  tuple_index.5: bits[32] = tuple_index(array_index.4, index=1)
+  multiarray_index.3: bits[32] = multiarray_index(c, indices=[g])
+  multiarray_index.4: (bits[32], bits[32]) = multiarray_index(d, indices=[literal.2])
+  tuple_index.5: bits[32] = tuple_index(multiarray_index.4, index=1)
   tuple_index.6: bits[32][2] = tuple_index(e, index=0)
-  array_index.7: bits[32] = array_index(tuple_index.6, g)
-  ret or.8: bits[32] = or(a, tuple_index.1, array_index.3, tuple_index.5, array_index.7)
+  multiarray_index.7: bits[32] = multiarray_index(tuple_index.6, indices=[g])
+  ret or.8: bits[32] = or(a, tuple_index.1, multiarray_index.3, tuple_index.5, multiarray_index.7)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -461,7 +461,7 @@ package ArrayUpdate
 fn main(idx: bits[2]) -> bits[32][3] {
   literal.5: bits[32][3] = literal(value=[1, 2, 3])
   literal.6: bits[32] = literal(value=99)
-  ret updated_array: bits[32][3] = array_update(literal.5, idx, literal.6)
+  ret updated_array: bits[32][3] = multiarray_update(literal.5, literal.6, indices=[idx])
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -501,7 +501,7 @@ package ArrayUpdate
 fn main(idx: bits[2]) -> bits[32][2][3] {
   literal.17: bits[32][2][3] = literal(value=[[1, 2], [3, 4], [5, 6]])
   literal.14: bits[32][2] = literal(value=[98, 99])
-  ret updated_array: bits[32][2][3] = array_update(literal.17, idx, literal.14)
+  ret updated_array: bits[32][2][3] = multiarray_update(literal.17, literal.14, indices=[idx])
 }
 
 )";
@@ -560,7 +560,7 @@ package ArrayUpdate
 fn main(idx: bits[2]) -> (bits[32], bits[32])[3] {
   literal.17: (bits[32], bits[32])[3] = literal(value=[(1,2),(3,4),(5,6)])
   literal.14: (bits[32], bits[32]) = literal(value=(98, 99))
-  ret array_update.15: (bits[32], bits[32])[3] = array_update(literal.17, idx, literal.14)
+  ret multiarray_update.15: (bits[32], bits[32])[3] = multiarray_update(literal.17, literal.14, indices=[idx])
 }
 
 )";
@@ -619,7 +619,7 @@ package ArrayUpdate
 fn main(idx: bits[2]) -> (bits[32], bits[8][2])[2] {
   literal.17: (bits[32], bits[8][2])[2] = literal(value=[(1,[2,3]),(4,[5,6])])
   literal.14: (bits[32], bits[8][2]) = literal(value=(98, [99, 100]))
-  ret array_update.15: (bits[32], bits[8][2])[2] = array_update(literal.17, idx, literal.14)
+  ret multiarray_update.15: (bits[32], bits[8][2])[2] = multiarray_update(literal.17, literal.14, indices=[idx])
 }
 
 )";
