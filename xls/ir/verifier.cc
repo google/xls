@@ -519,7 +519,7 @@ class NodeChecker : public DfsVisitor {
     return ExpectAllSameType(identity);
   }
 
-  absl::Status HandleMultiArrayIndex(MultiArrayIndex* index) override {
+  absl::Status HandleArrayIndex(ArrayIndex* index) override {
     XLS_RETURN_IF_ERROR(ExpectOperandCountGt(index, 0));
     XLS_RETURN_IF_ERROR(VerifyMultidimensionalArrayIndex(
         index->indices(), index->array()->GetType(), index));
@@ -534,7 +534,7 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleMultiArrayUpdate(MultiArrayUpdate* update) override {
+  absl::Status HandleArrayUpdate(ArrayUpdate* update) override {
     XLS_RETURN_IF_ERROR(ExpectOperandCountGt(update, 1));
     XLS_RETURN_IF_ERROR(
         ExpectSameType(update, update->GetType(), update->array_to_update(),

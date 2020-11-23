@@ -511,7 +511,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     else:
       visit(node.index, self)
       self._def(node, self.fb.add_array_index, self._use(node.lhs),
-                self._use(node.index))
+                [self._use(node.index)])
 
   def visit_Number(self, node: ast.Number):
     type_ = self._resolve_type(node)
@@ -574,7 +574,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     for i in range(array_type.get_size()):
       pieces.append(
           self.fb.add_array_index(
-              array, self.fb.add_literal_bits(bits_mod.UBits(i, 32))))
+              array, [self.fb.add_literal_bits(bits_mod.UBits(i, 32))]))
     self._def(node, self.fb.add_concat, pieces)
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
@@ -887,8 +887,8 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
   def _visit_update(self, node: ast.Invocation, args: Tuple[BValue,
                                                             ...]) -> BValue:
     array, target_index, update_value = args
-    return self._def(node, self.fb.add_array_update, array, target_index,
-                     update_value)
+    return self._def(node, self.fb.add_array_update, array, update_value,
+                     [target_index])
 
   def _visit_bitwise_reduction(self, node: ast.Invocation, args: Tuple[BValue,
                                                                        ...],
@@ -949,7 +949,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     for i in range(array_type.get_size()):
       rhs_elements.append(
           self.fb.add_array_index(
-              array, self.fb.add_literal_bits(bits_mod.UBits(i, 32))))
+              array, [self.fb.add_literal_bits(bits_mod.UBits(i, 32))]))
     return self._def(node, self.fb.add_one_hot_sel, lhs, rhs_elements)
 
   def _visit_scmp(self, node: ast.Invocation, args: Tuple[BValue, ...],

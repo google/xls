@@ -47,8 +47,8 @@ class DfsVisitor {
   virtual absl::Status HandleInvoke(Invoke* invoke) = 0;
   virtual absl::Status HandleLiteral(Literal* literal) = 0;
   virtual absl::Status HandleMap(Map* map) = 0;
-  virtual absl::Status HandleMultiArrayIndex(MultiArrayIndex* index) = 0;
-  virtual absl::Status HandleMultiArrayUpdate(MultiArrayUpdate* update) = 0;
+  virtual absl::Status HandleArrayIndex(ArrayIndex* index) = 0;
+  virtual absl::Status HandleArrayUpdate(ArrayUpdate* update) = 0;
   virtual absl::Status HandleNaryAnd(NaryOp* and_op) = 0;
   virtual absl::Status HandleNaryNand(NaryOp* nand_op) = 0;
   virtual absl::Status HandleNaryNor(NaryOp* nor_op) = 0;
@@ -150,8 +150,8 @@ class DfsVisitorWithDefault : public DfsVisitor {
   absl::Status HandleInvoke(Invoke* invoke) override;
   absl::Status HandleLiteral(Literal* literal) override;
   absl::Status HandleMap(Map* map) override;
-  absl::Status HandleMultiArrayIndex(MultiArrayIndex* index) override;
-  absl::Status HandleMultiArrayUpdate(MultiArrayUpdate* update) override;
+  absl::Status HandleArrayIndex(ArrayIndex* index) override;
+  absl::Status HandleArrayUpdate(ArrayUpdate* update) override;
   absl::Status HandleNaryAnd(NaryOp* and_op) override;
   absl::Status HandleNaryNand(NaryOp* and_op) override;
   absl::Status HandleNaryNor(NaryOp* nor_op) override;

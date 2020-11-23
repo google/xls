@@ -141,13 +141,13 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
     case Op::kIdentity:
       XLS_RETURN_IF_ERROR(visitor->HandleIdentity(down_cast<UnOp*>(this)));
       break;
-    case Op::kMultiArrayIndex:
+    case Op::kArrayIndex:
       XLS_RETURN_IF_ERROR(
-          visitor->HandleMultiArrayIndex(down_cast<MultiArrayIndex*>(this)));
+          visitor->HandleArrayIndex(down_cast<ArrayIndex*>(this)));
       break;
-    case Op::kMultiArrayUpdate:
+    case Op::kArrayUpdate:
       XLS_RETURN_IF_ERROR(
-          visitor->HandleMultiArrayUpdate(down_cast<MultiArrayUpdate*>(this)));
+          visitor->HandleArrayUpdate(down_cast<ArrayUpdate*>(this)));
       break;
     case Op::kArrayConcat:
       XLS_RETURN_IF_ERROR(
@@ -487,8 +487,8 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
     case Op::kDecode:
       args.push_back(absl::StrFormat("width=%d", As<Decode>()->width()));
       break;
-    case Op::kMultiArrayIndex: {
-      const MultiArrayIndex* index = As<MultiArrayIndex>();
+    case Op::kArrayIndex: {
+      const ArrayIndex* index = As<ArrayIndex>();
       args = {operand(0)->GetName()};
       args.push_back(absl::StrFormat(
           "indices=[%s]", absl::StrJoin(index->indices(), ", ",
@@ -497,8 +497,8 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
                                         })));
       break;
     }
-    case Op::kMultiArrayUpdate: {
-      const MultiArrayUpdate* update = As<MultiArrayUpdate>();
+    case Op::kArrayUpdate: {
+      const ArrayUpdate* update = As<ArrayUpdate>();
       args = {update->array_to_update()->GetName(),
               update->update_value()->GetName()};
       args.push_back(absl::StrFormat(

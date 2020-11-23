@@ -687,19 +687,19 @@ absl::StatusOr<BValue> Parser::ParseNode(
       bvalue = fb->TupleIndex(operands[0], *index, *loc, node_name);
       break;
     }
-    case Op::kMultiArrayIndex: {
+    case Op::kArrayIndex: {
       std::vector<BValue>* index_args =
           arg_parser.AddKeywordArg<std::vector<BValue>>("indices");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
-      bvalue = fb->MultiArrayIndex(operands[0], *index_args, *loc, node_name);
+      bvalue = fb->ArrayIndex(operands[0], *index_args, *loc, node_name);
       break;
     }
-    case Op::kMultiArrayUpdate: {
+    case Op::kArrayUpdate: {
       std::vector<BValue>* index_args =
           arg_parser.AddKeywordArg<std::vector<BValue>>("indices");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
-      bvalue = fb->MultiArrayUpdate(operands[0], operands[1], *index_args, *loc,
-                                    node_name);
+      bvalue = fb->ArrayUpdate(operands[0], operands[1], *index_args, *loc,
+                               node_name);
       break;
     }
     case Op::kArrayConcat: {

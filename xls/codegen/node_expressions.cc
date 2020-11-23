@@ -42,7 +42,7 @@ bool OperandMustBeNamedReference(Node* node, int64 operand_no) {
   // In this case, no need to make bar[42] a named temporary.
   auto operand_is_indexable = [&]() {
     switch (node->operand(operand_no)->op()) {
-      case Op::kMultiArrayIndex:
+      case Op::kArrayIndex:
       case Op::kParam:
         // These operations are emitted as VAST Index operations which
         // can be indexed.
@@ -57,8 +57,8 @@ bool OperandMustBeNamedReference(Node* node, int64 operand_no) {
       return !operand_is_indexable();
     case Op::kDynamicBitSlice:
       return operand_no == 0 && !operand_is_indexable();
-    case Op::kMultiArrayIndex:
-    case Op::kMultiArrayUpdate:
+    case Op::kArrayIndex:
+    case Op::kArrayUpdate:
       return operand_no == 0 && !operand_is_indexable();
     case Op::kOneHot:
     case Op::kOneHotSel:
@@ -410,7 +410,7 @@ absl::StatusOr<Expression*> NodeToExpression(
       std::vector<Expression*> elements(inputs.begin(), inputs.end());
       return file->ArrayAssignmentPattern(elements);
     }
-    case Op::kMultiArrayIndex: {
+    case Op::kArrayIndex: {
       IndexableExpression* subexpr = inputs[0]->AsIndexableExpressionOrDie();
       for (Expression* index : inputs.subspan(1)) {
         // TODO(meheff): Handle out-of-bounds index.
@@ -418,12 +418,12 @@ absl::StatusOr<Expression*> NodeToExpression(
       }
       return subexpr;
     }
-    case Op::kMultiArrayUpdate: {
+    case Op::kArrayUpdate: {
       // This is only reachable as a corner case where the "array" operand of
       // the array update is not an array type. This is only possible with empty
       // indices in which case the result of the array update is the "array"
       // operand.
-      MultiArrayUpdate* update = node->As<MultiArrayUpdate>();
+      ArrayUpdate* update = node->As<ArrayUpdate>();
       XLS_RET_CHECK(update->GetType()->IsBits());
       XLS_RET_CHECK(update->indices().empty());
       // The index is empty so the result of the update operation is simply the

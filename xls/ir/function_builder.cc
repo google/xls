@@ -354,55 +354,9 @@ BValue BuilderBase::Invoke(absl::Span<const BValue> args, Function* to_apply,
   return AddNode<xls::Invoke>(loc, arg_nodes, to_apply, name);
 }
 
-BValue BuilderBase::ArrayIndex(BValue arg, BValue idx,
+BValue BuilderBase::ArrayIndex(BValue arg, absl::Span<const BValue> indices,
                                absl::optional<SourceLocation> loc,
                                absl::string_view name) {
-  if (ErrorPending()) {
-    return BValue();
-  }
-  if (!arg.node()->GetType()->IsArray()) {
-    return SetError(
-        absl::StrFormat(
-            "Cannot array-index the node %s because it has non-array type %s",
-            arg.node()->ToString(), arg.node()->GetType()->ToString()),
-        loc);
-  }
-  return AddNode<xls::MultiArrayIndex>(
-      loc, arg.node(), /*indices=*/std::vector<Node*>({idx.node()}), name);
-}
-
-BValue BuilderBase::ArrayUpdate(BValue arg, BValue idx, BValue update_value,
-                                absl::optional<SourceLocation> loc,
-                                absl::string_view name) {
-  if (ErrorPending()) {
-    return BValue();
-  }
-  if (!arg.node()->GetType()->IsArray()) {
-    return SetError(
-        absl::StrFormat(
-            "Cannot array-update the node %s because it has non-array type %s",
-            arg.node()->ToString(), arg.node()->GetType()->ToString()),
-        loc);
-  }
-  if (arg.node()->GetType()->AsArrayOrDie()->element_type() !=
-      update_value.node()->GetType()) {
-    return SetError(
-        absl::StrFormat(
-            "Cannot array-update the node %s because array elements have type "
-            "%s but the update value is of type %s",
-            arg.node()->ToString(),
-            arg.node()->GetType()->AsArrayOrDie()->element_type()->ToString(),
-            update_value.node()->GetType()->ToString()),
-        loc);
-  }
-  return AddNode<xls::MultiArrayUpdate>(loc, arg.node(), update_value.node(),
-                                        std::vector<Node*>({idx.node()}), name);
-}
-
-BValue BuilderBase::MultiArrayIndex(BValue arg,
-                                    absl::Span<const BValue> indices,
-                                    absl::optional<SourceLocation> loc,
-                                    absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -426,13 +380,13 @@ BValue BuilderBase::MultiArrayIndex(BValue arg,
   for (const BValue& index : indices) {
     index_operands.push_back(index.node());
   }
-  return AddNode<xls::MultiArrayIndex>(loc, arg.node(), index_operands, name);
+  return AddNode<xls::ArrayIndex>(loc, arg.node(), index_operands, name);
 }
 
-BValue BuilderBase::MultiArrayUpdate(BValue arg, BValue update_value,
-                                     absl::Span<const BValue> indices,
-                                     absl::optional<SourceLocation> loc,
-                                     absl::string_view name) {
+BValue BuilderBase::ArrayUpdate(BValue arg, BValue update_value,
+                                absl::Span<const BValue> indices,
+                                absl::optional<SourceLocation> loc,
+                                absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -474,8 +428,8 @@ BValue BuilderBase::MultiArrayUpdate(BValue arg, BValue update_value,
   for (const BValue& index : indices) {
     index_operands.push_back(index.node());
   }
-  return AddNode<xls::MultiArrayUpdate>(loc, arg.node(), update_value.node(),
-                                        index_operands, name);
+  return AddNode<xls::ArrayUpdate>(loc, arg.node(), update_value.node(),
+                                   index_operands, name);
 }
 
 BValue BuilderBase::ArrayConcat(absl::Span<const BValue> operands,

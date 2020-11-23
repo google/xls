@@ -86,26 +86,26 @@ TEST_F(NarrowingPassTest, ShiftWithKnownOnePrefix) {
 TEST_F(NarrowingPassTest, NarrowableArrayIndex) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
-  fb.ArrayIndex(
-      fb.Param("a", p->GetArrayType(42, p->GetBitsType(32))),
-      fb.ZeroExtend(fb.Param("idx", p->GetBitsType(8)), /*new_bit_count=*/123));
+  fb.ArrayIndex(fb.Param("a", p->GetArrayType(42, p->GetBitsType(32))),
+                {fb.ZeroExtend(fb.Param("idx", p->GetBitsType(8)),
+                               /*new_bit_count=*/123)});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
-              m::MultiArrayIndex(m::Param("a"), /*indices=*/{
-                                     m::BitSlice(/*start=*/0, /*width=*/8)}));
+              m::ArrayIndex(m::Param("a"), /*indices=*/{
+                                m::BitSlice(/*start=*/0, /*width=*/8)}));
 }
 
 TEST_F(NarrowingPassTest, NarrowableArrayIndexAllZeros) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.ArrayIndex(fb.Param("a", p->GetArrayType(42, p->GetBitsType(32))),
-                fb.And(fb.Param("idx", p->GetBitsType(8)),
-                       fb.Literal(Value(UBits(0, 8)))));
+                {fb.And(fb.Param("idx", p->GetBitsType(8)),
+                        fb.Literal(Value(UBits(0, 8))))});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
-              m::MultiArrayIndex(m::Param("a"), /*indices=*/{m::Literal(0)}));
+              m::ArrayIndex(m::Param("a"), /*indices=*/{m::Literal(0)}));
 }
 
 TEST_F(NarrowingPassTest, LiteralArrayIndex) {
@@ -113,12 +113,11 @@ TEST_F(NarrowingPassTest, LiteralArrayIndex) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.ArrayIndex(fb.Param("a", p->GetArrayType(42, p->GetBitsType(32))),
-                fb.Literal(Value(UBits(0x0f, 8))));
+                {fb.Literal(Value(UBits(0x0f, 8)))});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
-  EXPECT_THAT(
-      f->return_value(),
-      m::MultiArrayIndex(m::Param("a"), /*indices=*/{m::Literal(0x0f)}));
+  EXPECT_THAT(f->return_value(),
+              m::ArrayIndex(m::Param("a"), /*indices=*/{m::Literal(0x0f)}));
 }
 
 TEST_F(NarrowingPassTest, MultiplyWiderThanSumOfOperands) {

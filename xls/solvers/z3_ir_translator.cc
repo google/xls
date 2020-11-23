@@ -672,7 +672,7 @@ Z3_ast IrTranslator::GetArrayElement(ArrayType* array_type, Z3_ast array,
   return Z3_mk_select(ctx_, array, index);
 }
 
-absl::Status IrTranslator::HandleMultiArrayIndex(MultiArrayIndex* array_index) {
+absl::Status IrTranslator::HandleArrayIndex(ArrayIndex* array_index) {
   ScopedErrorHandler seh(ctx_);
   Type* array_type = array_index->array()->GetType();
   Z3_ast element = GetValue(array_index->array());
@@ -712,8 +712,7 @@ Z3_ast IrTranslator::UpdateArrayElement(Type* type, Z3_ast array, Z3_ast value,
   return CreateArray(array_type, elements);
 }
 
-absl::Status IrTranslator::HandleMultiArrayUpdate(
-    MultiArrayUpdate* array_update) {
+absl::Status IrTranslator::HandleArrayUpdate(ArrayUpdate* array_update) {
   ScopedErrorHandler seh(ctx_);
 
   std::vector<Z3_ast> indices;

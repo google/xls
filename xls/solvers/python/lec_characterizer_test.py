@@ -129,7 +129,7 @@ class LecCharacterizerTest(absltest.TestCase):
 
     self._lc.run(
         results=results,
-        op=op_pb2.OpProto.OP_MULTIARRAY_UPDATE,
+        op=op_pb2.OpProto.OP_ARRAY_UPDATE,
         function_type=function_type,
         num_iters=num_iters,
         cell_library_textproto=self._cell_lib_text,

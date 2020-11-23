@@ -94,13 +94,12 @@ class SelectChain {
                          f->MakeNode<Literal>(nodes_.front()->loc(), array));
     if (bits_ops::SGreaterThan(increment_, 0)) {
       return nodes_.front()
-          ->ReplaceUsesWithNew<MultiArrayIndex>(literal,
-                                                std::vector<Node*>({eq_var_}))
+          ->ReplaceUsesWithNew<ArrayIndex>(literal,
+                                           std::vector<Node*>({eq_var_}))
           .status();
     }
     return nodes_.back()
-        ->ReplaceUsesWithNew<MultiArrayIndex>(literal,
-                                              std::vector<Node*>({eq_var_}))
+        ->ReplaceUsesWithNew<ArrayIndex>(literal, std::vector<Node*>({eq_var_}))
         .status();
   }
 

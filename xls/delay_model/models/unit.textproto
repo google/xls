@@ -29,8 +29,8 @@ op_models { op: "kEncode" estimator { fixed: 1 } }
 op_models { op: "kEq" estimator { fixed: 1 } }
 op_models { op: "kIdentity" estimator { fixed: 1 } }
 op_models { op: "kLiteral" estimator { fixed: 1 } }
-op_models { op: "kMultiArrayIndex" estimator { fixed: 1 } }
-op_models { op: "kMultiArrayUpdate" estimator { fixed: 1 } }
+op_models { op: "kArrayIndex" estimator { fixed: 1 } }
+op_models { op: "kArrayUpdate" estimator { fixed: 1 } }
 op_models { op: "kNand" estimator { fixed: 1 } }
 op_models { op: "kNe" estimator { fixed: 1 } }
 op_models { op: "kNeg" estimator { fixed: 1 } }

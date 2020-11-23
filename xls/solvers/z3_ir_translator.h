@@ -113,8 +113,8 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::Status HandleAdd(BinOp* add) override;
   absl::Status HandleAfterAll(AfterAll* after_all) override;
   absl::Status HandleArray(Array* array) override;
-  absl::Status HandleMultiArrayIndex(MultiArrayIndex* array_index) override;
-  absl::Status HandleMultiArrayUpdate(MultiArrayUpdate* array_update) override;
+  absl::Status HandleArrayIndex(ArrayIndex* array_index) override;
+  absl::Status HandleArrayUpdate(ArrayUpdate* array_update) override;
   absl::Status HandleArrayConcat(ArrayConcat* array_concat) override;
   absl::Status HandleBitSlice(BitSlice* bit_slice) override;
   absl::Status HandleConcat(Concat* concat) override;
@@ -231,7 +231,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   // 'indices' with 'value' and returns the result. 'array' may be a
   // multi-dimensional array in which case 'indices' may have more than one
   // element. In the sequence of indices 'indices' the first element is the
-  // outermost index as in MultiArrayIndex and MultiArrayUpdate. 'type' is the
+  // outermost index as in ArrayIndex and ArrayUpdate. 'type' is the
   // XLS type corresponding to 'array'.
   Z3_ast UpdateArrayElement(Type* type, Z3_ast array, Z3_ast value, Z3_ast cond,
                             absl::Span<const Z3_ast> indices);

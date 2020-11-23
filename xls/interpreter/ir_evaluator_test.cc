@@ -1761,8 +1761,8 @@ TEST_P(IrEvaluatorTest, InterpretArrayIndex) {
     literal.1: bits[32][2] = literal(value=[5, 123])
     literal.2: bits[3] = literal(value=0)
     literal.3: bits[3] = literal(value=1)
-    multiarray_index.4: bits[32] = multiarray_index(literal.1, indices=[literal.2])
-    ret multiarray_index.5: bits[32] = multiarray_index(literal.1, indices=[literal.3])
+    array_index.4: bits[32] = array_index(literal.1, indices=[literal.2])
+    ret array_index.5: bits[32] = array_index(literal.1, indices=[literal.3])
   }
   )"));
 
@@ -1777,8 +1777,8 @@ TEST_P(IrEvaluatorTest, InterpretArrayOfArrayIndex) {
   fn array_index() -> bits[32] {
     literal.1: bits[32][2][2] = literal(value=[[1, 2], [3, 4]])
     literal.2: bits[3] = literal(value=1)
-    multiarray_index.3: bits[32][2] = multiarray_index(literal.1, indices=[literal.2])
-    ret multiarray_index.4: bits[32] = multiarray_index(multiarray_index.3, indices=[literal.2])
+    array_index.3: bits[32][2] = array_index(literal.1, indices=[literal.2])
+    ret array_index.4: bits[32] = array_index(array_index.3, indices=[literal.2])
   }
   )"));
 
@@ -1801,7 +1801,7 @@ TEST_P(IrEvaluatorTest, InterpretArrayUpdateInBounds) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
   fn array_update(array: bits[32][3], idx: bits[32], new_value: bits[32]) -> bits[32][3] {
-    ret multiarray_update.4: bits[32][3] = multiarray_update(array, new_value, indices=[idx])
+    ret array_update.4: bits[32][3] = array_update(array, new_value, indices=[idx])
   }
   )"));
 
@@ -1836,7 +1836,7 @@ TEST_P(IrEvaluatorTest, InterpretArrayUpdateOutOfBounds) {
     literal.1: bits[32][3] = literal(value=[1, 2, 3])
     literal.2: bits[2] = literal(value=3)
     literal.3: bits[32] = literal(value=99)
-    ret multiarray_update.4: bits[32][3] = multiarray_update(literal.1, literal.3, indices=[literal.2])
+    ret array_update.4: bits[32][3] = array_update(literal.1, literal.3, indices=[literal.2])
   }
   )"));
 
@@ -1857,7 +1857,7 @@ TEST_P(IrEvaluatorTest, InterpretArrayOfArraysUpdate) {
     literal.1: bits[32][2][2] = literal(value=[[1, 2], [3, 4]])
     literal.2: bits[2] = literal(value=1)
     literal.3: bits[32][2] = literal(value=[98,99])
-    ret multiarray_update.4: bits[32][2][2] = multiarray_update(literal.1, literal.3, indices=[literal.2])
+    ret array_update.4: bits[32][2][2] = array_update(literal.1, literal.3, indices=[literal.2])
   }
   )"));
 
@@ -1885,7 +1885,7 @@ TEST_P(IrEvaluatorTest, InterpretArrayOfTuplesUpdate) {
     literal.1: (bits[2], bits[32])[2] = literal(value=[(1, 20), (3, 40)])
     literal.2: bits[2] = literal(value=1)
     literal.3: (bits[2], bits[32]) = literal(value=(0,99))
-    ret multiarray_update.4: (bits[2], bits[32])[2] = multiarray_update(literal.1, literal.3, indices=[literal.2])
+    ret array_update.4: (bits[2], bits[32])[2] = array_update(literal.1, literal.3, indices=[literal.2])
   }
   )"));
 
@@ -1913,8 +1913,8 @@ TEST_P(IrEvaluatorTest, InterpretArrayUpdateOriginalNotMutated) {
     literal.1: bits[32][3] = literal(value=[1, 2, 3])
     literal.2: bits[2] = literal(value=0)
     literal.3: bits[32] = literal(value=99)
-    multiarray_update.4: bits[32][3] = multiarray_update(literal.1, literal.3, indices=[literal.2])
-    ret tuple.5: (bits[32][3], bits[32][3]) =  tuple(literal.1, multiarray_update.4)
+    array_update.4: bits[32][3] = array_update(literal.1, literal.3, indices=[literal.2])
+    ret tuple.5: (bits[32][3], bits[32][3]) =  tuple(literal.1, array_update.4)
   }
   )"));
 
@@ -1941,8 +1941,8 @@ TEST_P(IrEvaluatorTest, InterpretArrayUpdateIndex) {
     literal.1: bits[32][3] = literal(value=[1, 2, 3])
     literal.2: bits[2] = literal(value=0)
     literal.3: bits[32] = literal(value=99)
-    multiarray_update.4: bits[32][3] = multiarray_update(literal.1, literal.3, indices=[literal.2])
-    ret multiarray_index.5: bits[32] = multiarray_index(multiarray_update.4, indices=[literal.2])
+    array_update.4: bits[32][3] = array_update(literal.1, literal.3, indices=[literal.2])
+    ret array_index.5: bits[32] = array_index(array_update.4, indices=[literal.2])
   }
   )"));
 
@@ -1958,9 +1958,9 @@ TEST_P(IrEvaluatorTest, InterpretArrayUpdateUpdate) {
     literal.1: bits[32][3] = literal(value=[1, 2, 3])
     literal.2: bits[2] = literal(value=0)
     literal.3: bits[32] = literal(value=99)
-    multiarray_update.4: bits[32][3] = multiarray_update(literal.1, literal.3, indices=[literal.2])
+    array_update.4: bits[32][3] = array_update(literal.1, literal.3, indices=[literal.2])
     literal.5: bits[2] = literal(value=2)
-    ret multiarray_update.6: bits[32][3] = multiarray_update(multiarray_update.4, literal.3, indices=[literal.5])
+    ret array_update.6: bits[32][3] = array_update(array_update.4, literal.3, indices=[literal.5])
   }
   )"));
 
@@ -1981,7 +1981,7 @@ TEST_P(IrEvaluatorTest, InterpretArrayUpdateWideElements) {
     literal.1: bits[1000][3] = literal(value=[1, 2, 3])
     literal.2: bits[2] = literal(value=0)
     literal.3: bits[1000] = literal(value=99)
-    ret multiarray_update.4: bits[1000][3] = multiarray_update(literal.1, literal.3, indices=[literal.2])
+    ret array_update.4: bits[1000][3] = array_update(literal.1, literal.3, indices=[literal.2])
   }
   )"));
 
@@ -2001,7 +2001,7 @@ TEST_P(IrEvaluatorTest, InterpretArrayUpdateWideIndexInbounds) {
   fn array_update(index: bits[1000]) -> bits[32][3] {
     literal.1: bits[32][3] = literal(value=[1, 2, 3])
     literal.2: bits[32] = literal(value=99)
-    ret multiarray_update.3: bits[32][3] = multiarray_update(literal.1, literal.2, indices=[index])
+    ret array_update.3: bits[32][3] = array_update(literal.1, literal.2, indices=[index])
   }
   )"));
 
@@ -2023,7 +2023,7 @@ TEST_P(IrEvaluatorTest, InterpretArrayUpdateWideIndexOutOfBounds) {
   fn array_update(index: bits[1000]) -> bits[32][3] {
     literal.1: bits[32][3] = literal(value=[1, 2, 3])
     literal.2: bits[32] = literal(value=99)
-    ret multiarray_update.3: bits[32][3] = multiarray_update(literal.1, literal.2, indices=[index])
+    ret array_update.3: bits[32][3] = array_update(literal.1, literal.2, indices=[index])
   }
   )"));
 
@@ -2616,11 +2616,11 @@ TEST_P(IrEvaluatorTest, InterpretXorReduce) {
   }
 }
 
-TEST_P(IrEvaluatorTest, MultiArrayIndex) {
+TEST_P(IrEvaluatorTest, ArrayIndex) {
   auto package = CreatePackage();
   std::string input = R"(
   fn main(a: bits[13][3], idx: bits[3]) -> bits[13] {
-    ret result: bits[13] = multiarray_index(a, indices=[idx])
+    ret result: bits[13] = array_index(a, indices=[idx])
   }
   )";
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
@@ -2644,11 +2644,11 @@ TEST_P(IrEvaluatorTest, MultiArrayIndex) {
       IsOkAndHolds(Value(UBits(33, 13))));
 }
 
-TEST_P(IrEvaluatorTest, MultiArrayIndex2DArray) {
+TEST_P(IrEvaluatorTest, ArrayIndex2DArray) {
   auto package = CreatePackage();
   std::string input = R"(
   fn main(a: bits[13][3][2], idx0: bits[3], idx1: bits[7]) -> bits[13] {
-    ret result: bits[13] = multiarray_index(a, indices=[idx0, idx1])
+    ret result: bits[13] = array_index(a, indices=[idx0, idx1])
   }
   )";
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
@@ -2682,11 +2682,11 @@ TEST_P(IrEvaluatorTest, MultiArrayIndex2DArray) {
               IsOkAndHolds(Value(UBits(66, 13))));
 }
 
-TEST_P(IrEvaluatorTest, MultiArrayIndex2DArrayReturnArray) {
+TEST_P(IrEvaluatorTest, ArrayIndex2DArrayReturnArray) {
   auto package = CreatePackage();
   std::string input = R"(
   fn main(a: bits[13][3][2], idx: bits[3]) -> bits[13][3] {
-    ret result: bits[13][3] = multiarray_index(a, indices=[idx])
+    ret result: bits[13][3] = array_index(a, indices=[idx])
   }
   )";
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
@@ -2717,11 +2717,11 @@ TEST_P(IrEvaluatorTest, MultiArrayIndex2DArrayReturnArray) {
       IsOkAndHolds(Value::UBitsArray({11, 22, 33}, /*bit_count=*/13).value()));
 }
 
-TEST_P(IrEvaluatorTest, MultiArrayIndex2DArrayNilIndex) {
+TEST_P(IrEvaluatorTest, ArrayIndex2DArrayNilIndex) {
   auto package = CreatePackage();
   std::string input = R"(
   fn main(a: bits[13][3][2]) -> bits[13][3][2] {
-    ret result: bits[13][3][2] = multiarray_index(a, indices=[])
+    ret result: bits[13][3][2] = array_index(a, indices=[])
   }
   )";
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
@@ -2733,11 +2733,11 @@ TEST_P(IrEvaluatorTest, MultiArrayIndex2DArrayNilIndex) {
   EXPECT_THAT(GetParam().evaluator(function, {array}), IsOkAndHolds(array));
 }
 
-TEST_P(IrEvaluatorTest, MultiArrayUpdate) {
+TEST_P(IrEvaluatorTest, ArrayUpdate) {
   auto package = CreatePackage();
   std::string input = R"(
   fn main(a: bits[13][3], idx: bits[7], value: bits[13]) -> bits[13][3] {
-    ret result: bits[13][3] = multiarray_update(a, value, indices=[idx])
+    ret result: bits[13][3] = array_update(a, value, indices=[idx])
  }
   )";
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
@@ -2772,11 +2772,11 @@ TEST_P(IrEvaluatorTest, MultiArrayUpdate) {
                        .value()));
 }
 
-TEST_P(IrEvaluatorTest, MultiArrayUpdate2DArray) {
+TEST_P(IrEvaluatorTest, ArrayUpdate2DArray) {
   auto package = CreatePackage();
   std::string input = R"(
   fn main(a: bits[13][3][2], idx0: bits[3], idx1: bits[7], value: bits[13]) -> bits[13][3][2] {
-    ret result: bits[13][3][2] = multiarray_update(a, value, indices=[idx0, idx1])
+    ret result: bits[13][3][2] = array_update(a, value, indices=[idx0, idx1])
   }
   )";
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
@@ -2821,11 +2821,11 @@ TEST_P(IrEvaluatorTest, MultiArrayUpdate2DArray) {
               .value()));
 }
 
-TEST_P(IrEvaluatorTest, MultiArrayUpdate2DArrayWithArray) {
+TEST_P(IrEvaluatorTest, ArrayUpdate2DArrayWithArray) {
   auto package = CreatePackage();
   std::string input = R"(
   fn main(a: bits[13][3][2], idx: bits[3], value: bits[13][3]) -> bits[13][3][2] {
-    ret result: bits[13][3][2] = multiarray_update(a, value, indices=[idx])
+    ret result: bits[13][3][2] = array_update(a, value, indices=[idx])
   }
   )";
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
@@ -2855,11 +2855,11 @@ TEST_P(IrEvaluatorTest, MultiArrayUpdate2DArrayWithArray) {
               .value()));
 }
 
-TEST_P(IrEvaluatorTest, MultiArrayUpdate2DArrayNilIndex) {
+TEST_P(IrEvaluatorTest, ArrayUpdate2DArrayNilIndex) {
   auto package = CreatePackage();
   std::string input = R"(
   fn main(a: bits[13][3][2], value: bits[13][3][2]) -> bits[13][3][2] {
-    ret result: bits[13][3][2] = multiarray_update(a, value, indices=[])
+    ret result: bits[13][3][2] = array_update(a, value, indices=[])
   }
   )";
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
@@ -2877,11 +2877,11 @@ TEST_P(IrEvaluatorTest, MultiArrayUpdate2DArrayNilIndex) {
               .value()));
 }
 
-TEST_P(IrEvaluatorTest, MultiArrayUpdateBitsValueNilIndex) {
+TEST_P(IrEvaluatorTest, ArrayUpdateBitsValueNilIndex) {
   auto package = CreatePackage();
   std::string input = R"(
   fn main(a: bits[1234], value: bits[1234]) -> bits[1234] {
-    ret result: bits[1234] = multiarray_update(a, value, indices=[])
+    ret result: bits[1234] = array_update(a, value, indices=[])
   }
   )";
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,

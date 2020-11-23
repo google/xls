@@ -10,11 +10,11 @@ module main(
   assign literal_1[1][0] = 44'h000_0000_0004;
   assign literal_1[1][1] = 44'h000_0000_0005;
   assign literal_1[1][2] = 44'h000_0000_0006;
-  wire [43:0] multiarray_index_2[0:2];
+  wire [43:0] array_index_2[0:2];
   wire [43:0] result;
-  assign multiarray_index_2[0] = literal_1[x][0];
-  assign multiarray_index_2[1] = literal_1[x][1];
-  assign multiarray_index_2[2] = literal_1[x][2];
-  assign result = multiarray_index_2[y];
+  assign array_index_2[0] = literal_1[x][0];
+  assign array_index_2[1] = literal_1[x][1];
+  assign array_index_2[2] = literal_1[x][2];
+  assign result = array_index_2[y];
   assign out = result;
 endmodule

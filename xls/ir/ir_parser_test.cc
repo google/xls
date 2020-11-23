@@ -834,19 +834,19 @@ fn array_and_array(x: (bits[32], bits[1]), y: (bits[32], bits[1])) -> (bits[32],
   ParseFunctionAndCheckDump(input);
 }
 
-TEST(IrParserTest, ParseNestedBitsMultiArrayIndex) {
+TEST(IrParserTest, ParseNestedBitsArrayIndex) {
   std::string input = R"(
 fn array_and_array(p: bits[2][5][4][42], q: bits[32], r: bits[2]) -> bits[2][5] {
-  ret multiarray_index.1: bits[2][5] = multiarray_index(p, indices=[q, r], id=1)
+  ret array_index.1: bits[2][5] = array_index(p, indices=[q, r], id=1)
 }
 )";
   ParseFunctionAndCheckDump(input);
 }
 
-TEST(IrParserTest, ParseNestedBitsMultiArrayUpdate) {
+TEST(IrParserTest, ParseNestedBitsArrayUpdate) {
   std::string input = R"(
 fn array_and_array(p: bits[2][5][4][42], q: bits[32], v: bits[2][5][4]) -> bits[2][5][4][42] {
-  ret multiarray_update.1: bits[2][5][4][42] = multiarray_update(p, v, indices=[q], id=1)
+  ret array_update.1: bits[2][5][4][42] = array_update(p, v, indices=[q], id=1)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -1121,7 +1121,7 @@ TEST(IrParserTest, ParseArrayIndex) {
   const std::string input = R"(
 fn foo(x: bits[32][6]) -> bits[32] {
   literal.1: bits[32] = literal(value=5, id=1)
-  ret multiarray_index.2: bits[32] = multiarray_index(x, indices=[literal.1], id=2)
+  ret array_index.2: bits[32] = array_index(x, indices=[literal.1], id=2)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -1130,7 +1130,7 @@ fn foo(x: bits[32][6]) -> bits[32] {
 TEST(IrParserTest, ParseArrayUpdate) {
   const std::string input = R"(
 fn foo(array: bits[32][3], idx: bits[32], newval: bits[32]) -> bits[32][3] {
-  ret multiarray_update.4: bits[32][3] = multiarray_update(array, newval, indices=[idx], id=4)
+  ret array_update.4: bits[32][3] = array_update(array, newval, indices=[idx], id=4)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -1139,7 +1139,7 @@ fn foo(array: bits[32][3], idx: bits[32], newval: bits[32]) -> bits[32][3] {
 TEST(IrParserTest, ParseArrayUpdateNonArary) {
   const std::string input = R"(
 fn foo(array: bits[32], idx: bits[32], newval: bits[32]) -> bits[32][3] {
-  ret multiarray_update.4: bits[32][3] = multiarray_update(array, newval, indices=[idx],  id=4)
+  ret array_update.4: bits[32][3] = array_update(array, newval, indices=[idx],  id=4)
 }
 )";
   Package p("my_package");
@@ -1154,7 +1154,7 @@ fn foo(array: bits[32], idx: bits[32], newval: bits[32]) -> bits[32][3] {
 TEST(IrParserTest, ParseArrayUpdateIncompatibleTypes) {
   const std::string input = R"(
 fn foo(array: bits[32][3], idx: bits[32], newval: bits[64]) -> bits[32][3] {
-  ret multiarray_update.4: bits[32][3] = multiarray_update(array, newval, indices=[idx], id=4)
+  ret array_update.4: bits[32][3] = array_update(array, newval, indices=[idx], id=4)
 }
 )";
   Package p("my_package");
@@ -1375,7 +1375,7 @@ TEST(IrParserTest, ParseArrayLiterals) {
 fn foo(x: bits[32]) -> bits[32] {
   literal.1: bits[32][2] = literal(value=[0, 1], id=1)
   literal.2: bits[3] = literal(value=1, id=2)
-  ret multiarray_index.3: bits[32] = multiarray_index(literal.1, indices=[literal.2], id=3)
+  ret array_index.3: bits[32] = array_index(literal.1, indices=[literal.2], id=3)
 }
 )";
   ParseFunctionAndCheckDump(input);
@@ -1531,7 +1531,7 @@ TEST(IrParserTest, ArrayIndexOfTuple) {
   const std::string input = R"(
 fn foo(x: (bits[8])) -> bits[32] {
   literal.1: bits[32] = literal(value=0, id=1)
-  ret multiarray_index.2: bits[8] = multiarray_index(x, indices=[literal.1], id=2)
+  ret array_index.2: bits[8] = array_index(x, indices=[literal.1], id=2)
 }
 )";
   Package p("my_package");

@@ -681,16 +681,16 @@ inline ::testing::Matcher<const ::xls::Node*> ReceiveIf(
       new ::xls::op_matchers::ReceiveIfMatcher(token, pred, channel_id));
 }
 
-// MultiArrayIndex matcher. Supported forms:
+// ArrayIndex matcher. Supported forms:
 //
-//   EXPECT_THAT(foo, op::MultiArrayIndex());
-//   EXPECT_THAT(foo, op::MultiArrayIndex(op::Param(),
+//   EXPECT_THAT(foo, op::ArrayIndex());
+//   EXPECT_THAT(foo, op::ArrayIndex(op::Param(),
 //                                        /*indices=*/{op::Xor(), op::And});
-class MultiArrayIndexMatcher : public NodeMatcher {
+class ArrayIndexMatcher : public NodeMatcher {
  public:
-  MultiArrayIndexMatcher(::testing::Matcher<const Node*> array,
-                         std::vector<::testing::Matcher<const Node*>> indices)
-      : NodeMatcher(Op::kMultiArrayIndex, [&]() {
+  ArrayIndexMatcher(::testing::Matcher<const Node*> array,
+                    std::vector<::testing::Matcher<const Node*>> indices)
+      : NodeMatcher(Op::kArrayIndex, [&]() {
           std::vector<::testing::Matcher<const Node*>> operands;
           operands.push_back(array);
           operands.insert(operands.end(), indices.begin(), indices.end());
@@ -698,29 +698,29 @@ class MultiArrayIndexMatcher : public NodeMatcher {
         }()) {}
 };
 
-inline ::testing::Matcher<const ::xls::Node*> MultiArrayIndex(
+inline ::testing::Matcher<const ::xls::Node*> ArrayIndex(
     ::testing::Matcher<const Node*> array,
     std::vector<::testing::Matcher<const Node*>> indices) {
   return ::testing::MakeMatcher(
-      new ::xls::op_matchers::MultiArrayIndexMatcher(array, indices));
+      new ::xls::op_matchers::ArrayIndexMatcher(array, indices));
 }
 
-inline ::testing::Matcher<const ::xls::Node*> MultiArrayIndex() {
+inline ::testing::Matcher<const ::xls::Node*> ArrayIndex() {
   return ::testing::MakeMatcher(
-      new ::xls::op_matchers::NodeMatcher(Op::kMultiArrayIndex, {}));
+      new ::xls::op_matchers::NodeMatcher(Op::kArrayIndex, {}));
 }
 
-// MultiArrayUpdate matcher. Supported forms:
+// ArrayUpdate matcher. Supported forms:
 //
-//   EXPECT_THAT(foo, op::MultiArrayUpdate());
-//   EXPECT_THAT(foo, op::MultiArrayUpdate(op::Param(),
+//   EXPECT_THAT(foo, op::ArrayUpdate());
+//   EXPECT_THAT(foo, op::ArrayUpdate(op::Param(),
 //                                        /*indices=*/{op::Xor(), op::And});
-class MultiArrayUpdateMatcher : public NodeMatcher {
+class ArrayUpdateMatcher : public NodeMatcher {
  public:
-  MultiArrayUpdateMatcher(::testing::Matcher<const Node*> array,
-                          ::testing::Matcher<const Node*> value,
-                          std::vector<::testing::Matcher<const Node*>> indices)
-      : NodeMatcher(Op::kMultiArrayUpdate, [&]() {
+  ArrayUpdateMatcher(::testing::Matcher<const Node*> array,
+                     ::testing::Matcher<const Node*> value,
+                     std::vector<::testing::Matcher<const Node*>> indices)
+      : NodeMatcher(Op::kArrayUpdate, [&]() {
           std::vector<::testing::Matcher<const Node*>> operands;
           operands.push_back(array);
           operands.push_back(value);
@@ -729,17 +729,17 @@ class MultiArrayUpdateMatcher : public NodeMatcher {
         }()) {}
 };
 
-inline ::testing::Matcher<const ::xls::Node*> MultiArrayUpdate(
+inline ::testing::Matcher<const ::xls::Node*> ArrayUpdate(
     ::testing::Matcher<const Node*> array,
     ::testing::Matcher<const Node*> value,
     std::vector<::testing::Matcher<const Node*>> indices) {
   return ::testing::MakeMatcher(
-      new ::xls::op_matchers::MultiArrayUpdateMatcher(array, value, indices));
+      new ::xls::op_matchers::ArrayUpdateMatcher(array, value, indices));
 }
 
-inline ::testing::Matcher<const ::xls::Node*> MultiArrayUpdate() {
+inline ::testing::Matcher<const ::xls::Node*> ArrayUpdate() {
   return ::testing::MakeMatcher(
-      new ::xls::op_matchers::NodeMatcher(Op::kMultiArrayUpdate, {}));
+      new ::xls::op_matchers::NodeMatcher(Op::kArrayUpdate, {}));
 }
 
 }  // namespace op_matchers

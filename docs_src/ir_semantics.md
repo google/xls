@@ -496,20 +496,39 @@ Returns a single element from an array.
 **Syntax**
 
 ```
-result = array_index(data, index)
+result = array_index(array, indices=[idx_{0}, ... , idx_{N-1}])
 ```
 
 **Types**
 
-Value    | Type
--------- | -----------------------------
-`lhs`    | Array of elements of type `T`
-`rhs`    | `bits[M]`
-`result` | `T`
+Value     | Type
+--------- | --------------------------------
+`array`   | Array of at least `N` dimensions
+`idx_{i}` | Arbitrary bits type
+`result`  | `T`
 
-Returns the element at the index given by operand `index` from the array `data`.
+Returns the element of `array` indexed by the indices `idx_{0} ... idx_{N-1}`.
+The array must have at least as many dimensions as number of index elements `N`.
+Each element `idx_{i}` indexes a dimension of `array`. The first element
+`idx_{0}` indexes the outer most dimension, the second element `idx_{1}` indexes
+the second outer most dimension, etc. The result type `T` is the type of `array`
+with the `N` outer most dimensions removed.
 
-TODO: Define out of bounds semantics for array_index.
+Any out-of-bounds indices `idx_{i}` are clamped to the maximum in bounds index
+for the respective dimension.
+
+The table below shows examples of the result type `T` and the result expression
+assuming input array operand `A`.
+
+| Indices   | Array type      | result type `T` | Result expression            |
+| --------- | --------------- | --------------- | ---------------------------- |
+| `{1, 2}`  | `bits[3][4][5]` | `bits[3]`       | `A[1][2]`                    |
+| `{10, 2}` | `bits[3][4][5]` | `bits[3]`       | `A[4][2]` (first index is    |
+:           :                 :                 : out-of-bounds and clamped at :
+:           :                 :                 : the maximum index)           :
+| `{1}`     | `bits[3][4][5]` | `bits[3][4]`    | `A[1]`                       |
+| `{}`      | `bits[3][4][5]` | `bits[3][4][5]` | `A`                          |
+| `{}`      | `bits[32]`      | `bits[32]`      | `A`                          |
 
 #### **`array_update`**
 
@@ -518,23 +537,22 @@ Returns a modified copy of an array.
 **Syntax**
 
 ```
-result = array_update(array, index, value)
+result = array_update(array, value, indices=[idx_{0}, ... , idx_{N-1}])
 ```
 
 **Types**
 
-Value    | Type
--------- | -----------------------------
-`array`  | Array of elements of type `T`
-`index`  | `bits[M]`*
-`value`  | `T`
-`result` | Array of elements of type `T`
+Value     | Type
+--------- | --------------------------------
+`array`   | Array of at least `N` dimensions
+`value`   | `T`
+`idx_{i}` | Arbitrary bits type
+`result`  | Same type as `array`
 
-\* M is arbitrary.
-
-Returns a copy of the input array with the element at the index replaced with
-the given value. If index is out of bounds, the returned array is identical to
-the input array.
+Returns a copy of the input array with the element at the given indices replaced
+with the given value. If any index is out of bounds, the result is identical to
+the input `array`. The indexing semantics is identical to `array_index` with the
+exception of out-of-bounds behavior.
 
 #### **`bit_slice`**
 

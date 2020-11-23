@@ -203,21 +203,21 @@ absl::StatusOr<Node*> OneHotSelect::CloneInNewFunction(
                                               name_);
 }
 
-absl::StatusOr<Node*> MultiArrayIndex::CloneInNewFunction(
+absl::StatusOr<Node*> ArrayIndex::CloneInNewFunction(
     absl::Span<Node* const> new_operands,
     FunctionBase* new_function) const {
   // TODO(meheff): Choose an appropriate name for the cloned node.
-  return new_function->MakeNodeWithName<MultiArrayIndex>(loc(),
+  return new_function->MakeNodeWithName<ArrayIndex>(loc(),
                                       new_operands[0],
                                       new_operands.subspan(1),
                                       name_);
 }
 
-absl::StatusOr<Node*> MultiArrayUpdate::CloneInNewFunction(
+absl::StatusOr<Node*> ArrayUpdate::CloneInNewFunction(
     absl::Span<Node* const> new_operands,
     FunctionBase* new_function) const {
   // TODO(meheff): Choose an appropriate name for the cloned node.
-  return new_function->MakeNodeWithName<MultiArrayUpdate>(loc(),
+  return new_function->MakeNodeWithName<ArrayUpdate>(loc(),
                                       new_operands[0],
                                       new_operands[1],
                                       new_operands.subspan(2),

@@ -52,25 +52,25 @@ fn main(op0: bits[27], op1: bits[5]) -> bits[42] {
 
   def test_array_update(self):
     self.assertEqual(
-        """package multiarray_update_characterization
+        """package array_update_characterization
 
 fn main(op0: bits[17][42], op1: bits[17], op2: bits[3]) -> bits[17][42] {
-  ret result: bits[17][42] = multiarray_update(op0, op1, indices=[op2])
+  ret result: bits[17][42] = array_update(op0, op1, indices=[op2])
 }""",
         opgen.generate_ir_package(
-            'multiarray_update',
+            'array_update',
             output_type='bits[17][42]',
             operand_types=('bits[17][42]', 'bits[17]', 'bits[3]')))
 
   def test_array_index(self):
     self.assertEqual(
-        """package multiarray_index_characterization
+        """package array_index_characterization
 
 fn main(op0: bits[17][42][10], op1: bits[32], op2: bits[3]) -> bits[17] {
-  ret result: bits[17] = multiarray_index(op0, indices=[op1, op2])
+  ret result: bits[17] = array_index(op0, indices=[op1, op2])
 }""",
         opgen.generate_ir_package(
-            'multiarray_index',
+            'array_index',
             output_type='bits[17]',
             operand_types=('bits[17][42][10]', 'bits[32]', 'bits[3]')))
 
@@ -115,14 +115,14 @@ fn main(op0: bits[32]) -> bits[32] {
 
   def test_array_update_with_literal_operand(self):
     self.assertEqual(
-        """package multiarray_update_characterization
+        """package array_update_characterization
 
 fn main(op1: bits[17], op2: bits[3]) -> bits[17][4] {
   op0: bits[17][4] = literal(value=[0x1b058, 0xc53e, 0x18412, 0x1c7ce])
-  ret result: bits[17][4] = multiarray_update(op0, op1, indices=[op2])
+  ret result: bits[17][4] = array_update(op0, op1, indices=[op2])
 }""",
         opgen.generate_ir_package(
-            'multiarray_update',
+            'array_update',
             output_type='bits[17][4]',
             operand_types=('bits[17][4]', 'bits[17]', 'bits[3]'),
             literal_operand=0))

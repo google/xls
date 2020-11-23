@@ -192,7 +192,7 @@ absl::StatusOr<bool> MaybeNarrowShiftAmount(Node* shift,
 }
 
 // Try to narrow the index value of an array index operation.
-absl::StatusOr<bool> MaybeNarrowArrayIndex(MultiArrayIndex* array_index,
+absl::StatusOr<bool> MaybeNarrowArrayIndex(ArrayIndex* array_index,
                                            const QueryEngine& query_engine) {
   bool changed = false;
   std::vector<Node*> new_indices;
@@ -227,10 +227,10 @@ absl::StatusOr<bool> MaybeNarrowArrayIndex(MultiArrayIndex* array_index,
     new_indices.push_back(index);
   }
   if (changed) {
-    XLS_RETURN_IF_ERROR(array_index
-                            ->ReplaceUsesWithNew<MultiArrayIndex>(
-                                array_index->array(), new_indices)
-                            .status());
+    XLS_RETURN_IF_ERROR(
+        array_index
+            ->ReplaceUsesWithNew<ArrayIndex>(array_index->array(), new_indices)
+            .status());
     return true;
   }
   return false;
@@ -455,10 +455,10 @@ absl::StatusOr<bool> NarrowingPass::RunOnFunctionBase(
                              MaybeNarrowShiftAmount(node, *query_engine));
         break;
       }
-      case Op::kMultiArrayIndex: {
+      case Op::kArrayIndex: {
         XLS_ASSIGN_OR_RETURN(
             node_modified,
-            MaybeNarrowArrayIndex(node->As<MultiArrayIndex>(), *query_engine));
+            MaybeNarrowArrayIndex(node->As<ArrayIndex>(), *query_engine));
         break;
       }
       case Op::kSMul:

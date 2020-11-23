@@ -1,0 +1,16 @@
+module ArrayUpdateVariableIndex(
+  input wire [23:0] a,
+  input wire [7:0] value,
+  input wire [31:0] idx,
+  output wire [23:0] out
+);
+  wire [7:0] a_unflattened[0:2];
+  assign a_unflattened[0] = a[23:16];
+  assign a_unflattened[1] = a[15:8];
+  assign a_unflattened[2] = a[7:0];
+  wire [7:0] array_update_4[0:2];
+  assign array_update_4[0] = idx == 0 ? value : a_unflattened[0];
+  assign array_update_4[1] = idx == 1 ? value : a_unflattened[1];
+  assign array_update_4[2] = idx == 2 ? value : a_unflattened[2];
+  assign out = {array_update_4[0], array_update_4[1], array_update_4[2]};
+endmodule

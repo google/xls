@@ -110,9 +110,9 @@ TEST_F(LiteralUncommoningPassTest, DoNotUncommonArrays) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn single_literal(x: bits[32], y: bits[32]) -> bits[32] {
         literal.1: bits[32][4] = literal(value=[1, 2, 3, 4])
-        multiarray_index.2: bits[32] = multiarray_index(literal.1, indices=[x])
-        multiarray_index.3: bits[32] = multiarray_index(literal.1, indices=[y])
-        ret add.4: bits[32] = add(multiarray_index.2, multiarray_index.3)
+        array_index.2: bits[32] = array_index(literal.1, indices=[x])
+        array_index.3: bits[32] = array_index(literal.1, indices=[y])
+        ret add.4: bits[32] = add(array_index.2, array_index.3)
      }
   )",
                                                        p.get()));

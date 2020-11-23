@@ -1,0 +1,9 @@
+module ArrayUpdateBitsNilIndex(
+  input wire [7:0] a,
+  input wire [7:0] value,
+  output wire [7:0] out
+);
+  wire [7:0] array_update_3;
+  assign array_update_3 = value;
+  assign out = array_update_3;
+endmodule

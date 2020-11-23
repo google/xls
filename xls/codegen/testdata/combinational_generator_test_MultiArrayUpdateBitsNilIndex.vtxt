@@ -1,9 +1,0 @@
-module MultiArrayUpdateBitsNilIndex(
-  input wire [7:0] a,
-  input wire [7:0] value,
-  output wire [7:0] out
-);
-  wire [7:0] multiarray_update_3;
-  assign multiarray_update_3 = value;
-  assign out = multiarray_update_3;
-endmodule

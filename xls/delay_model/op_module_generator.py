@@ -94,11 +94,11 @@ def generate_ir_package(op: str,
   #
   # Extract these out as a separate element in the argument list.
   args = [f'op{i}' for i in range(len(operand_types))]
-  if op == 'multiarray_index':
+  if op == 'array_index':
     indices = args[1:]
     args = args[0:1]
     args.append('indices=[%s]' % ', '.join(indices))
-  elif op == 'multiarray_update':
+  elif op == 'array_update':
     indices = args[2:]
     args = args[0:2]
     args.append('indices=[%s]' % ', '.join(indices))

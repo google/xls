@@ -231,7 +231,7 @@ fn f(pred_x: bits[1], x: bits[32], pred_y: bits[1], y: bits[32], default: bits[3
     input_function = input_function_builder.build()
     fb.add_invoke([x], input_function, loc=loc)
 
-    fb.add_array_index(fb.add_array([x], t, loc=loc), x, loc=loc)
+    fb.add_array_index(fb.add_array([x], t, loc=loc), [x], loc=loc)
     fb.add_reverse(x, loc=loc)
     fb.add_identity(x, loc=loc)
     fb.add_signext(x, 100, loc=loc)

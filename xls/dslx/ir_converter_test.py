@@ -481,7 +481,7 @@ class IrConverterTest(test_base.TestCase):
 
         fn __test_module__f(x: bits[32][4]) -> bits[32] {
           literal.2: bits[32] = literal(value=0, id=2, pos=0,1,8)
-          ret multiarray_index.3: bits[32] = multiarray_index(x, indices=[literal.2], id=3, pos=0,1,3)
+          ret array_index.3: bits[32] = array_index(x, indices=[literal.2], id=3, pos=0,1,3)
         }
         """)
 
@@ -603,7 +603,7 @@ class IrConverterTest(test_base.TestCase):
           literal.4: bits[32] = literal(value=0, id=4)
           literal.1: bits[8] = literal(value=1, id=1)
           literal.2: bits[8] = literal(value=2, id=2)
-          ret multiarray_index.5: bits[8] = multiarray_index(FOO, indices=[literal.4], id=5)
+          ret array_index.5: bits[8] = array_index(FOO, indices=[literal.4], id=5)
         }
 
         fn __test_module__g() -> bits[8] {
@@ -611,7 +611,7 @@ class IrConverterTest(test_base.TestCase):
           literal.9: bits[32] = literal(value=1, id=9)
           literal.6: bits[8] = literal(value=1, id=6)
           literal.7: bits[8] = literal(value=2, id=7)
-          ret multiarray_index.10: bits[8] = multiarray_index(FOO, indices=[literal.9], id=10)
+          ret array_index.10: bits[8] = array_index(FOO, indices=[literal.9], id=10)
         }
         """)
 
@@ -1059,7 +1059,7 @@ class IrConverterTest(test_base.TestCase):
 
         fn __test_module__main(x: bits[32][17]) -> bits[32] {
           literal.2: bits[32] = literal(value=16, id=2)
-          ret multiarray_index.3: bits[32] = multiarray_index(x, indices=[literal.2], id=3)
+          ret array_index.3: bits[32] = array_index(x, indices=[literal.2], id=3)
         }
         """)
 
@@ -1171,7 +1171,7 @@ class IrConverterTest(test_base.TestCase):
         fn __test_module__main(input: bits[8][2]) -> bits[8][2] {
           literal.3: bits[8] = literal(value=66, id=3)
           literal.2: bits[32] = literal(value=1, id=2)
-          ret multiarray_update.4: bits[8][2] = multiarray_update(input, literal.3, indices=[literal.2], id=4)
+          ret array_update.4: bits[8][2] = array_update(input, literal.3, indices=[literal.2], id=4)
         }
         """)
 
@@ -1192,7 +1192,7 @@ class IrConverterTest(test_base.TestCase):
 
         fn ____test_module__main_counted_for_0_body(i: bits[32], accum: bits[8][2]) -> bits[8][2] {
           bit_slice.7: bits[8] = bit_slice(i, start=0, width=8, id=7)
-          ret multiarray_update.8: bits[8][2] = multiarray_update(accum, bit_slice.7, indices=[i], id=8)
+          ret array_update.8: bits[8][2] = array_update(accum, bit_slice.7, indices=[i], id=8)
         }
 
         fn __test_module__main() -> bits[8][2] {
@@ -1399,11 +1399,11 @@ class IrConverterTest(test_base.TestCase):
           literal.4: bits[32][2] = literal(value=[2, 3], id=4)
           literal.5: bits[32] = literal(value=0, id=5)
           literal.7: bits[32] = literal(value=1, id=7)
-          multiarray_index.6: bits[32] = multiarray_index(literal.4, indices=[literal.5], id=6)
-          multiarray_index.8: bits[32] = multiarray_index(literal.4, indices=[literal.7], id=8)
+          array_index.6: bits[32] = array_index(literal.4, indices=[literal.5], id=6)
+          array_index.8: bits[32] = array_index(literal.4, indices=[literal.7], id=8)
           literal.2: bits[32] = literal(value=2, id=2)
           literal.3: bits[32] = literal(value=3, id=3)
-          ret one_hot_sel.9: bits[32] = one_hot_sel(s, cases=[multiarray_index.6, multiarray_index.8], id=9)
+          ret one_hot_sel.9: bits[32] = one_hot_sel(s, cases=[array_index.6, array_index.8], id=9)
         }
         """)
 
@@ -1428,7 +1428,7 @@ class IrConverterTest(test_base.TestCase):
         fn __test_module__get_thing(x: (bits[32][2]), i: bits[32]) -> bits[32] {
           things: bits[32][2] = tuple_index(x, index=0, id=4)
           literal.3: bits[32] = literal(value=0, id=3)
-          ret multiarray_index.5: bits[32] = multiarray_index(things, indices=[i], id=5)
+          ret array_index.5: bits[32] = array_index(things, indices=[i], id=5)
         }
         """)
 
@@ -1606,7 +1606,7 @@ class IrConverterTest(test_base.TestCase):
         fn __test_module__f(in1: bits[32][2]) -> bits[32] {
           x: bits[32][4] = array_concat(in1, in1, id=2)
           literal.3: bits[32] = literal(value=0, id=3)
-          ret multiarray_index.4: bits[32] = multiarray_index(x, indices=[literal.3], id=4)
+          ret array_index.4: bits[32] = array_index(x, indices=[literal.3], id=4)
         }
         """)
 

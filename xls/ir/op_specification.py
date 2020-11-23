@@ -395,9 +395,9 @@ OpClass.kinds['ARRAY'] = OpClass(
     custom_clone_method=True
 )
 
-OpClass.kinds['MULTIARRAY_INDEX'] = OpClass(
-    name='MultiArrayIndex',
-    op='Op::kMultiArrayIndex',
+OpClass.kinds['ARRAY_INDEX'] = OpClass(
+    name='ArrayIndex',
+    op='Op::kArrayIndex',
     operands=[Operand('arg'), OperandSpan('indices')],
     xls_type_expression='GetIndexedElementType(arg->GetType(), indices.size()).value()',
     extra_methods=[Method(name='array',
@@ -409,9 +409,9 @@ OpClass.kinds['MULTIARRAY_INDEX'] = OpClass(
     custom_clone_method=True,
 )
 
-OpClass.kinds['MULTIARRAY_UPDATE'] = OpClass(
-    name='MultiArrayUpdate',
-    op='Op::kMultiArrayUpdate',
+OpClass.kinds['ARRAY_UPDATE'] = OpClass(
+    name='ArrayUpdate',
+    op='Op::kArrayUpdate',
     operands=[Operand('arg'), Operand('update_value'), OperandSpan('indices')],
     xls_type_expression='arg->GetType()',
     extra_methods=[Method(name='array_to_update',
@@ -844,15 +844,15 @@ OPS = [
         properties=[],
     ),
     Op(
-        enum_name='kMultiArrayIndex',
-        name='multiarray_index',
-        op_class=OpClass.kinds['MULTIARRAY_INDEX'],
+        enum_name='kArrayIndex',
+        name='array_index',
+        op_class=OpClass.kinds['ARRAY_INDEX'],
         properties=[],
     ),
     Op(
-        enum_name='kMultiArrayUpdate',
-        name='multiarray_update',
-        op_class=OpClass.kinds['MULTIARRAY_UPDATE'],
+        enum_name='kArrayUpdate',
+        name='array_update',
+        op_class=OpClass.kinds['ARRAY_UPDATE'],
         properties=[],
     ),
     Op(

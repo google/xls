@@ -52,15 +52,13 @@ fn main() -> bits[16][4] {
   XLS_ASSERT_OK_AND_ASSIGN(bool changed,
                            pass.RunOnFunctionBase(func, options, nullptr));
   ASSERT_TRUE(changed);
-  EXPECT_THAT(func->return_value(),
-              m::Array(m::Invoke(m::MultiArrayIndex(
-                           m::Array(), /*indices=*/{m::Literal(0)})),
-                       m::Invoke(m::MultiArrayIndex(
-                           m::Array(), /*indices=*/{m::Literal(1)})),
-                       m::Invoke(m::MultiArrayIndex(
-                           m::Array(), /*indices=*/{m::Literal(2)})),
-                       m::Invoke(m::MultiArrayIndex(
-                           m::Array(), /*indices=*/{m::Literal(3)}))));
+  EXPECT_THAT(
+      func->return_value(),
+      m::Array(
+          m::Invoke(m::ArrayIndex(m::Array(), /*indices=*/{m::Literal(0)})),
+          m::Invoke(m::ArrayIndex(m::Array(), /*indices=*/{m::Literal(1)})),
+          m::Invoke(m::ArrayIndex(m::Array(), /*indices=*/{m::Literal(2)})),
+          m::Invoke(m::ArrayIndex(m::Array(), /*indices=*/{m::Literal(3)}))));
 
   XLS_VLOG(1) << package->DumpIr();
 }
@@ -86,15 +84,13 @@ fn main(a: bits[32][4]) -> bits[16][4] {
                            pass.RunOnFunctionBase(func, options, nullptr));
   ASSERT_TRUE(changed);
 
-  EXPECT_THAT(func->return_value(),
-              m::Array(m::Invoke(m::MultiArrayIndex(
-                           m::Param(), /*indices=*/{m::Literal(0)})),
-                       m::Invoke(m::MultiArrayIndex(
-                           m::Param(), /*indices=*/{m::Literal(1)})),
-                       m::Invoke(m::MultiArrayIndex(
-                           m::Param(), /*indices=*/{m::Literal(2)})),
-                       m::Invoke(m::MultiArrayIndex(
-                           m::Param(), /*indices=*/{m::Literal(3)}))));
+  EXPECT_THAT(
+      func->return_value(),
+      m::Array(
+          m::Invoke(m::ArrayIndex(m::Param(), /*indices=*/{m::Literal(0)})),
+          m::Invoke(m::ArrayIndex(m::Param(), /*indices=*/{m::Literal(1)})),
+          m::Invoke(m::ArrayIndex(m::Param(), /*indices=*/{m::Literal(2)})),
+          m::Invoke(m::ArrayIndex(m::Param(), /*indices=*/{m::Literal(3)}))));
 }
 
 }  // namespace

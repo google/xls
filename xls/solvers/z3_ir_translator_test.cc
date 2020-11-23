@@ -675,7 +675,7 @@ fn f() -> bits[32] {
   after_all.13: token = after_all(after_all.10, after_all.11, after_all.12)
   literal.5: bits[32] = literal(value=16)
   array.6: bits[32][5] = array(literal.1, literal.2, literal.3, literal.4, literal.5)
-  ret result: bits[32] = multiarray_index(array.6, indices=[literal.3])
+  ret result: bits[32] = array_index(array.6, indices=[literal.3])
 }
 )";
 
@@ -799,7 +799,7 @@ fn f() -> bits[32] {
   literal.4: bits[32] = literal(value=8)
   literal.5: bits[32] = literal(value=16)
   array.6: bits[32][5] = array(literal.1, literal.2, literal.3, literal.4, literal.5)
-  ret result: bits[32] = multiarray_index(array.6, indices=[literal.3])
+  ret result: bits[32] = array_index(array.6, indices=[literal.3])
 }
 )";
 
@@ -818,7 +818,7 @@ package p
 
 fn f() -> bits[32] {
   eight: bits[32] = literal(value=8)
-  ret result: bits[32] = multiarray_index(eight, indices=[])
+  ret result: bits[32] = array_index(eight, indices=[])
 }
 )";
 
@@ -848,7 +848,7 @@ fn f() -> bits[32] {
   array.9: bits[32][5] = array(literal.4, literal.5, literal.1, literal.2, literal.3)
   array.10: bits[32][5] = array(literal.5, literal.1, literal.2, literal.3, literal.4)
   array.11: bits[32][5][5] = array(array.6, array.7, array.8, array.9, array.10)
-  ret result: bits[32] = multiarray_index(array.11, indices=[literal.3, literal.2])
+  ret result: bits[32] = array_index(array.11, indices=[literal.3, literal.2])
 }
 )";
 
@@ -877,8 +877,8 @@ fn f() -> bits[32] {
   array.9: bits[32][5] = array(literal.4, literal.5, literal.1, literal.2, literal.3)
   array.10: bits[32][5] = array(literal.5, literal.1, literal.2, literal.3, literal.4)
   array.11: bits[32][5][5] = array(array.6, array.7, array.8, array.9, array.10)
-  subarray: bits[32][5] = multiarray_index(array.11, indices=[literal.3])
-  ret result: bits[32] = multiarray_index(subarray, indices=[literal.2])
+  subarray: bits[32][5] = array_index(array.11, indices=[literal.3])
+  ret result: bits[32] = array_index(subarray, indices=[literal.2])
 }
 )";
 
@@ -908,7 +908,7 @@ fn f() -> bits[32] {
   tuple.9: (bits[32], bits[32], bits[32]) = tuple(literal.4, literal.5, literal.1)
   tuple.10: (bits[32], bits[32], bits[32]) = tuple(literal.5, literal.1, literal.2)
   array.11: (bits[32], bits[32], bits[32])[5] = array(tuple.6, tuple.7, tuple.8, tuple.9, tuple.10)
-  element_4: (bits[32], bits[32], bits[32]) = multiarray_index(array.11, indices=[literal.4])
+  element_4: (bits[32], bits[32], bits[32]) = array_index(array.11, indices=[literal.4])
   ret tuple_index.13: bits[32] = tuple_index(element_4, index=0)
 }
   )";
@@ -943,9 +943,9 @@ fn f() -> bits[32] {
   tuple.14: (bits[32][5], bits[32][5], bits[32][5]) = tuple(array.9, array.10, array.6)
   tuple.15: (bits[32][5], bits[32][5], bits[32][5]) = tuple(array.10, array.6, array.7)
   array.16: (bits[32][5], bits[32][5], bits[32][5])[5] = array(tuple.11, tuple.12, tuple.13, tuple.14, tuple.15)
-  element_2: (bits[32][5], bits[32][5], bits[32][5]) = multiarray_index(array.16, indices=[literal.2])
+  element_2: (bits[32][5], bits[32][5], bits[32][5]) = array_index(array.16, indices=[literal.2])
   tuple_index.18: bits[32][5] = tuple_index(element_2, index=1)
-  ret result: bits[32] = multiarray_index(tuple_index.18, indices=[literal.3])
+  ret result: bits[32] = array_index(tuple_index.18, indices=[literal.3])
 }
 )";
 
@@ -969,7 +969,7 @@ fn f() -> bits[32] {
   literal.4: bits[32] = literal(value=4)
   literal.5: bits[32] = literal(value=5)
   array.6: bits[32][5] = array(literal.1, literal.2, literal.3, literal.4, literal.5)
-  ret result: bits[32] = multiarray_index(array.6, indices=[literal.5])
+  ret result: bits[32] = array_index(array.6, indices=[literal.5])
 }
   )";
 
@@ -992,9 +992,9 @@ fn f() -> bits[32] {
   one: bits[32] = literal(value=1)
   forty_two: bits[32] = literal(value=42)
   array: bits[32][2] = array(zero, zero)
-  updated_array: bits[32][2] = multiarray_update(array, forty_two, indices=[one])
-  element_0: bits[32] = multiarray_index(updated_array, indices=[zero])
-  ret element_1: bits[32] = multiarray_index(updated_array, indices=[one])
+  updated_array: bits[32][2] = array_update(array, forty_two, indices=[one])
+  element_0: bits[32] = array_index(updated_array, indices=[zero])
+  ret element_1: bits[32] = array_index(updated_array, indices=[one])
 }
 )";
 
@@ -1023,9 +1023,9 @@ fn f() -> bits[32] {
   one: bits[32] = literal(value=1)
   forty_two: bits[32] = literal(value=42)
   array: bits[32][2] = array(zero, zero)
-  updated_array: bits[32][2] = multiarray_update(array, forty_two, indices=[forty_two])
-  element_0: bits[32] = multiarray_index(updated_array, indices=[zero])
-  ret element_1: bits[32] = multiarray_index(updated_array, indices=[one])
+  updated_array: bits[32][2] = array_update(array, forty_two, indices=[forty_two])
+  element_0: bits[32] = array_index(updated_array, indices=[zero])
+  ret element_1: bits[32] = array_index(updated_array, indices=[one])
 }
 )";
 
@@ -1052,7 +1052,7 @@ package p
 fn f() -> bits[32] {
   one: bits[32] = literal(value=1)
   forty_two: bits[32] = literal(value=42)
-  ret result: bits[32] = multiarray_update(one, forty_two, indices=[])
+  ret result: bits[32] = array_update(one, forty_two, indices=[])
 }
 )";
 
@@ -1076,13 +1076,13 @@ fn f() -> bits[32] {
   array.3: bits[32][2] = array(literal.1, literal.1)
   array.4: bits[32][2] = array(literal.2, literal.2)
   array.6: bits[32][2][2] = array(array.3, array.3)
-  updated_array: bits[32][2][2] = multiarray_update(array.6, array.4, indices=[literal.2])
-  subarray_0: bits[32][2] = multiarray_index(updated_array, indices=[literal.1])
-  element_0_0: bits[32] = multiarray_index(subarray_0, indices=[literal.1])
-  element_0_1: bits[32] = multiarray_index(subarray_0, indices=[literal.2])
-  subarray_1: bits[32][2] = multiarray_index(updated_array, indices=[literal.2])
-  element_1_0: bits[32] = multiarray_index(subarray_1, indices=[literal.1])
-  element_1_1: bits[32] = multiarray_index(subarray_1, indices=[literal.2])
+  updated_array: bits[32][2][2] = array_update(array.6, array.4, indices=[literal.2])
+  subarray_0: bits[32][2] = array_index(updated_array, indices=[literal.1])
+  element_0_0: bits[32] = array_index(subarray_0, indices=[literal.1])
+  element_0_1: bits[32] = array_index(subarray_0, indices=[literal.2])
+  subarray_1: bits[32][2] = array_index(updated_array, indices=[literal.2])
+  element_1_0: bits[32] = array_index(subarray_1, indices=[literal.1])
+  element_1_1: bits[32] = array_index(subarray_1, indices=[literal.2])
 }
 )";
 
@@ -1114,13 +1114,13 @@ fn f() -> bits[32] {
   array.3: bits[32][2] = array(zero, zero)
   array.6: bits[32][2][2] = array(array.3, array.3)
   forty_two: bits[32] = literal(value=42)
-  updated_array: bits[32][2][2] = multiarray_update(array.6, forty_two, indices=[one, zero])
-  subarray_0: bits[32][2] = multiarray_index(updated_array, indices=[zero])
-  element_0_0: bits[32] = multiarray_index(subarray_0, indices=[zero])
-  element_0_1: bits[32] = multiarray_index(subarray_0, indices=[one])
-  subarray_1: bits[32][2] = multiarray_index(updated_array, indices=[one])
-  element_1_0: bits[32] = multiarray_index(subarray_1, indices=[zero])
-  ret element_1_1: bits[32] = multiarray_index(subarray_1, indices=[one])
+  updated_array: bits[32][2][2] = array_update(array.6, forty_two, indices=[one, zero])
+  subarray_0: bits[32][2] = array_index(updated_array, indices=[zero])
+  element_0_0: bits[32] = array_index(subarray_0, indices=[zero])
+  element_0_1: bits[32] = array_index(subarray_0, indices=[one])
+  subarray_1: bits[32][2] = array_index(updated_array, indices=[one])
+  element_1_0: bits[32] = array_index(subarray_1, indices=[zero])
+  ret element_1_1: bits[32] = array_index(subarray_1, indices=[one])
 }
 )";
 
@@ -1152,13 +1152,13 @@ fn f() -> bits[32] {
   tuple.3: (bits[32], bits[32]) = tuple(literal.1, literal.2)
   tuple.4: (bits[32], bits[32]) = tuple(literal.2, literal.1)
   array.6: (bits[32], bits[32])[2] = array(tuple.3, tuple.3)
-  multiarray_update.8:(bits[32], bits[32])[2] = multiarray_update(array.6, tuple.4, indices=[literal.2])
-  element_0: (bits[32], bits[32]) = multiarray_index(multiarray_update.8, indices=[literal.1])
+  array_update.8:(bits[32], bits[32])[2] = array_update(array.6, tuple.4, indices=[literal.2])
+  element_0: (bits[32], bits[32]) = array_index(array_update.8, indices=[literal.1])
   tuple_index.10: bits[32] = tuple_index(element_0, index=0)
   tuple_index.11: bits[32] = tuple_index(element_0, index=1)
-  multiarray_index.12: (bits[32], bits[32]) = multiarray_index(multiarray_update.8, indices=[literal.2])
-  tuple_index.13: bits[32] = tuple_index(multiarray_index.12, index=0)
-  tuple_index.14: bits[32] = tuple_index(multiarray_index.12, index=1)
+  array_index.12: (bits[32], bits[32]) = array_index(array_update.8, indices=[literal.2])
+  tuple_index.13: bits[32] = tuple_index(array_index.12, index=0)
+  tuple_index.14: bits[32] = tuple_index(array_index.12, index=1)
 }
 )";
 
@@ -1193,21 +1193,21 @@ fn f() -> bits[32] {
   tuple.5: (bits[32][2], bits[32][2]) = tuple(array.3, array.4)
   tuple.6: (bits[32][2], bits[32][2]) = tuple(array.4, array.3)
   array.7: (bits[32][2], bits[32][2])[2] = array(tuple.5, tuple.5)
-  multiarray_update.8: (bits[32][2], bits[32][2])[2] = multiarray_update(array.7, tuple.6, indices=[literal.2])
-  element_0: (bits[32][2], bits[32][2]) = multiarray_index(multiarray_update.8, indices=[literal.1])
+  array_update.8: (bits[32][2], bits[32][2])[2] = array_update(array.7, tuple.6, indices=[literal.2])
+  element_0: (bits[32][2], bits[32][2]) = array_index(array_update.8, indices=[literal.1])
   tuple_index.10: bits[32][2] = tuple_index(element_0, index=0)
   tuple_index.11: bits[32][2] = tuple_index(element_0, index=1)
-  multiarray_index.12: bits[32] = multiarray_index(tuple_index.10, indices=[literal.1])
-  multiarray_index.13: bits[32] = multiarray_index(tuple_index.10, indices=[literal.2])
-  multiarray_index.14: bits[32] = multiarray_index(tuple_index.11, indices=[literal.1])
-  multiarray_index.15: bits[32] = multiarray_index(tuple_index.11, indices=[literal.2])
-  multiarray_index.16: (bits[32][2], bits[32][2]) = multiarray_index(multiarray_update.8, indices=[literal.2])
-  tuple_index.17: bits[32][2] = tuple_index(multiarray_index.16, index=0)
-  tuple_index.18: bits[32][2] = tuple_index(multiarray_index.16, index=1)
-  multiarray_index.19: bits[32] = multiarray_index(tuple_index.17, indices=[literal.1])
-  multiarray_index.20: bits[32] = multiarray_index(tuple_index.17, indices=[literal.2])
-  multiarray_index.21: bits[32] = multiarray_index(tuple_index.18, indices=[literal.1])
-  multiarray_index.22: bits[32] = multiarray_index(tuple_index.18, indices=[literal.2])
+  array_index.12: bits[32] = array_index(tuple_index.10, indices=[literal.1])
+  array_index.13: bits[32] = array_index(tuple_index.10, indices=[literal.2])
+  array_index.14: bits[32] = array_index(tuple_index.11, indices=[literal.1])
+  array_index.15: bits[32] = array_index(tuple_index.11, indices=[literal.2])
+  array_index.16: (bits[32][2], bits[32][2]) = array_index(array_update.8, indices=[literal.2])
+  tuple_index.17: bits[32][2] = tuple_index(array_index.16, index=0)
+  tuple_index.18: bits[32][2] = tuple_index(array_index.16, index=1)
+  array_index.19: bits[32] = array_index(tuple_index.17, indices=[literal.1])
+  array_index.20: bits[32] = array_index(tuple_index.17, indices=[literal.2])
+  array_index.21: bits[32] = array_index(tuple_index.18, indices=[literal.1])
+  array_index.22: bits[32] = array_index(tuple_index.18, indices=[literal.2])
 }
 )";
 
@@ -1218,9 +1218,8 @@ fn f() -> bits[32] {
                                      "literal.1", "literal.2", "literal.1",
                                      "literal.1", "literal.2"};
   std::vector<std::string> observe = {
-      "multiarray_index.12", "multiarray_index.13", "multiarray_index.14",
-      "multiarray_index.15", "multiarray_index.19", "multiarray_index.20",
-      "multiarray_index.21", "multiarray_index.22"};
+      "array_index.12", "array_index.13", "array_index.14", "array_index.15",
+      "array_index.19", "array_index.20", "array_index.21", "array_index.22"};
 
   for (int idx = 0; idx < expect.size(); ++idx) {
     XLS_ASSERT_OK_AND_ASSIGN(
@@ -1242,9 +1241,9 @@ fn f() -> bits[32] {
   ret literal.2: bits[32] = literal(value=1)
   literal.3: bits[32] = literal(value=99)
   array.6: bits[32][2] = array(literal.1, literal.1)
-  multiarray_update.8: bits[32][2] = multiarray_update(array.6, literal.2, indices=[literal.3])
-  element_0: bits[32] = multiarray_index(multiarray_update.8, indices=[literal.1])
-  multiarray_index.10: bits[32] = multiarray_index(multiarray_update.8, indices=[literal.2])
+  array_update.8: bits[32][2] = array_update(array.6, literal.2, indices=[literal.3])
+  element_0: bits[32] = array_index(array_update.8, indices=[literal.1])
+  array_index.10: bits[32] = array_index(array_update.8, indices=[literal.2])
 }
 )";
 
@@ -1252,7 +1251,7 @@ fn f() -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
 
   std::vector<std::string> expect = {"literal.1", "literal.1"};
-  std::vector<std::string> observe = {"element_0", "multiarray_index.10"};
+  std::vector<std::string> observe = {"element_0", "array_index.10"};
 
   for (int idx = 0; idx < expect.size(); ++idx) {
     XLS_ASSERT_OK_AND_ASSIGN(
@@ -1274,9 +1273,9 @@ fn f(index: bits[32]) -> bits[32] {
   ret literal.2: bits[32] = literal(value=1)
   literal.3: bits[32] = literal(value=99)
   array.6: bits[32][2] = array(literal.1, literal.1)
-  multiarray_update.8: bits[32][2] = multiarray_update(array.6, literal.2, indices=[index])
-  element_0: bits[32] = multiarray_index(multiarray_update.8, indices=[literal.1])
-  multiarray_index.10: bits[32] = multiarray_index(multiarray_update.8, indices=[literal.2])
+  array_update.8: bits[32][2] = array_update(array.6, literal.2, indices=[index])
+  element_0: bits[32] = array_index(array_update.8, indices=[literal.1])
+  array_index.10: bits[32] = array_index(array_update.8, indices=[literal.2])
 }
 )";
 
@@ -1285,8 +1284,8 @@ fn f(index: bits[32]) -> bits[32] {
 
   std::vector<std::string> in_str = {"literal.1", "literal.2", "literal.1",
                                      "literal.2"};
-  std::vector<std::string> out_str = {
-      "element_0", "element_0", "multiarray_index.10", "multiarray_index.10"};
+  std::vector<std::string> out_str = {"element_0", "element_0",
+                                      "array_index.10", "array_index.10"};
 
   // If we don't know the update index, we don't know if the final
   // value at an index is 0 or 1.
@@ -1311,14 +1310,14 @@ fn f(x: bits[4][1], y: bits[4][1]) -> bits[4] {
   literal.6: bits[32] = literal(value=2)
   literal.7: bits[32] = literal(value=3)
 
-  multiarray_index.8: bits[4] = multiarray_index(array_concat.3, indices=[literal.4])
-  element_0: bits[4] = multiarray_index(array_concat.3, indices=[literal.5])
-  multiarray_index.10: bits[4] = multiarray_index(array_concat.3, indices=[literal.6])
-  multiarray_index.11: bits[4] = multiarray_index(array_concat.3, indices=[literal.7])
+  array_index.8: bits[4] = array_index(array_concat.3, indices=[literal.4])
+  element_0: bits[4] = array_index(array_concat.3, indices=[literal.5])
+  array_index.10: bits[4] = array_index(array_concat.3, indices=[literal.6])
+  array_index.11: bits[4] = array_index(array_concat.3, indices=[literal.7])
 
-  xor.12: bits[4] = xor(multiarray_index.8, multiarray_index.11)
+  xor.12: bits[4] = xor(array_index.8, array_index.11)
   xor.13: bits[4] = xor(xor.12, element_0)
-  ret result: bits[4] = xor(xor.13, multiarray_index.10)
+  ret result: bits[4] = xor(xor.13, array_index.10)
 }
 )";
 
@@ -1341,18 +1340,18 @@ fn f(x: bits[4][1], y: bits[4][1]) -> bits[1] {
   literal.6: bits[32] = literal(value=2)
   literal.7: bits[32] = literal(value=3)
 
-  multiarray_index.8: bits[4] = multiarray_index(array_concat.3, indices=[literal.4])
-  element_0: bits[4] = multiarray_index(array_concat.3, indices=[literal.5])
-  multiarray_index.10: bits[4] = multiarray_index(array_concat.3, indices=[literal.6])
-  multiarray_index.11: bits[4] = multiarray_index(array_concat.3, indices=[literal.7])
+  array_index.8: bits[4] = array_index(array_concat.3, indices=[literal.4])
+  element_0: bits[4] = array_index(array_concat.3, indices=[literal.5])
+  array_index.10: bits[4] = array_index(array_concat.3, indices=[literal.6])
+  array_index.11: bits[4] = array_index(array_concat.3, indices=[literal.7])
 
-  xor.12: bits[4] = xor(multiarray_index.8, multiarray_index.11)
+  xor.12: bits[4] = xor(array_index.8, array_index.11)
   xor.13: bits[4] = xor(xor.12, element_0)
 
-  multiarray_index.14: bits[4] = multiarray_index(x, indices=[literal.4])
-  multiarray_index.15: bits[4] = multiarray_index(y, indices=[literal.4])
+  array_index.14: bits[4] = array_index(x, indices=[literal.4])
+  array_index.15: bits[4] = array_index(y, indices=[literal.4])
 
-  ret result: bits[1] = eq(xor.13, multiarray_index.15)
+  ret result: bits[1] = eq(xor.13, array_index.15)
 }
 )";
 

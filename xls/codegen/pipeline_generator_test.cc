@@ -349,7 +349,7 @@ TEST_P(PipelineGeneratorTest, MultidimensionalArray) {
       "a",
       package.GetArrayType(2, package.GetArrayType(3, package.GetBitsType(8))));
   BValue index = fb.Param("index", package.GetBitsType(16));
-  fb.ArrayIndex(a, index);
+  fb.ArrayIndex(a, {index});
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(

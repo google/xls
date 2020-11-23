@@ -1323,7 +1323,7 @@ class Translator(object):
       left_expr, left_type = self.gen_expr_ir(stmt_ast.name, condition)
       if left_expr is not None:
         if isinstance(left_type, ArrayType):
-          return self.fb.add_array_index(left_expr, index_expr,
+          return self.fb.add_array_index(left_expr, [index_expr],
                                          loc), left_type.get_element_type()
         elif isinstance(left_type, IntType):
           # TODO(seanhaskell): Allow variable offset.
@@ -1342,7 +1342,7 @@ class Translator(object):
         # Re-use literals
         array_literal, element_type = self.get_global_constant(
             stmt_ast.name.name, translate_loc(stmt_ast.name))
-        return self.fb.add_array_index(array_literal, index_expr,
+        return self.fb.add_array_index(array_literal, [index_expr],
                                        loc), element_type
     elif isinstance(stmt_ast, c_ast.StructRef):
       left_expr, left_type = self.gen_expr_ir(stmt_ast.name, condition)
@@ -1655,12 +1655,11 @@ class Translator(object):
               element_values.append(r_expr)
             else:
               element_values.append(
-                  self.fb.add_array_index(
-                      left_expr,
+                  self.fb.add_array_index(left_expr, [
                       self.fb.add_literal_bits(
-                          bits_mod.UBits(value=index,
-                                         bit_count=elem_type.bit_width),
-                          loc), loc))
+                          bits_mod.UBits(
+                              value=index, bit_count=elem_type.bit_width), loc)
+                  ], loc))
 
           r_expr = self.fb.add_array(
               element_values,

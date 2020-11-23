@@ -1,17 +1,17 @@
-module MultiArrayIndex2DArrayIndexSingleElement(
+module ArrayIndex2DArrayIndexSingleElement(
   input wire [47:0] a,
   input wire [15:0] idx0,
   input wire [15:0] idx1,
   output wire [7:0] out
 );
-  wire [7:0] a_unflattened[2][3];
+  wire [7:0] a_unflattened[0:1][0:2];
   assign a_unflattened[0][0] = a[47:40];
   assign a_unflattened[0][1] = a[39:32];
   assign a_unflattened[0][2] = a[31:24];
   assign a_unflattened[1][0] = a[23:16];
   assign a_unflattened[1][1] = a[15:8];
   assign a_unflattened[1][2] = a[7:0];
-  wire [7:0] multiarray_index_4;
-  assign multiarray_index_4 = a_unflattened[idx0][idx1];
-  assign out = multiarray_index_4;
+  wire [7:0] array_index_4;
+  assign array_index_4 = a_unflattened[idx0][idx1];
+  assign out = array_index_4;
 endmodule

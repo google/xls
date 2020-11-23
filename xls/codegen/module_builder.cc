@@ -606,7 +606,7 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
         }
         break;
       }
-      case Op::kMultiArrayIndex: {
+      case Op::kArrayIndex: {
         IndexableExpression* element = inputs[0]->AsIndexableExpressionOrDie();
         for (Expression* index : inputs.subspan(1)) {
           // TODO(meheff): Handle out-of-bounds index.
@@ -618,7 +618,7 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
             }));
         break;
       }
-      case Op::kMultiArrayUpdate:
+      case Op::kArrayUpdate:
         XLS_RETURN_IF_ERROR(EmitArrayCopyAndUpdate(
             /*lhs=*/ref,
             /*rhs=*/inputs[0]->AsIndexableExpressionOrDie(),

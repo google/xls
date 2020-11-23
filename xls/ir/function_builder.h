@@ -438,28 +438,18 @@ class BuilderBase {
                 absl::optional<SourceLocation> loc = absl::nullopt,
                 absl::string_view name = "");
 
-  // Adds an array index expression.
-  BValue ArrayIndex(BValue arg, BValue idx,
+  // Adds an multi-dimensional array index expression. The indices should be all
+  // bits types.
+  BValue ArrayIndex(BValue arg, absl::Span<const BValue> indices,
                     absl::optional<SourceLocation> loc = absl::nullopt,
                     absl::string_view name = "");
 
-  // Updates the array element at index "idx" to update_value.
-  BValue ArrayUpdate(BValue arg, BValue idx, BValue update_value,
-                     absl::optional<SourceLocation> loc = absl::nullopt,
-                     absl::string_view name = "");
-
-  // Adds an multi-dimensional array index expression. The indices should be all
-  // bits types.
-  BValue MultiArrayIndex(BValue arg, absl::Span<const BValue> indices,
-                         absl::optional<SourceLocation> loc = absl::nullopt,
-                         absl::string_view name = "");
-
   // Updates the array element at index "idx" to update_value. The indices
   // should be all bits types.
-  BValue MultiArrayUpdate(BValue arg, BValue update_value,
-                          absl::Span<const BValue> indices,
-                          absl::optional<SourceLocation> loc = absl::nullopt,
-                          absl::string_view name = "");
+  BValue ArrayUpdate(BValue arg, BValue update_value,
+                     absl::Span<const BValue> indices,
+                     absl::optional<SourceLocation> loc = absl::nullopt,
+                     absl::string_view name = "");
 
   // Concatenates array operands into a single array.  zero-th
   // element is the zero-th element of the zero-th (left-most) array.

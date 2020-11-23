@@ -190,8 +190,7 @@ absl::StatusOr<llvm::Value*> FunctionBuilderVisitor::IndexIntoArray(
   return builder_->CreateLoad(gep);
 }
 
-absl::Status FunctionBuilderVisitor::HandleMultiArrayIndex(
-    MultiArrayIndex* index) {
+absl::Status FunctionBuilderVisitor::HandleArrayIndex(ArrayIndex* index) {
   Type* element_type = index->array()->GetType();
   llvm::Value* element = node_map_.at(index->array());
   for (Node* index_operand : index->indices()) {
@@ -204,8 +203,7 @@ absl::Status FunctionBuilderVisitor::HandleMultiArrayIndex(
   return StoreResult(index, element);
 }
 
-absl::Status FunctionBuilderVisitor::HandleMultiArrayUpdate(
-    MultiArrayUpdate* update) {
+absl::Status FunctionBuilderVisitor::HandleArrayUpdate(ArrayUpdate* update) {
   if (update->indices().empty()) {
     // An empty index replaces the entire array value.
     return StoreResult(update, node_map_.at(update->update_value()));

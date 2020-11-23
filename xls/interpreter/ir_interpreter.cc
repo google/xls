@@ -326,9 +326,9 @@ absl::Status IrInterpreter::HandleIdentity(UnOp* identity) {
 
 namespace {
 
-// Returns the tuple index value (tuple of bits values used in multiarray
+// Returns the tuple index value (tuple of bits values used in array
 // index/update operations) as a vector of bits values. Returns an error if
-// index_value is not a tuple of bits-typed values (multiarray index/update
+// index_value is not a tuple of bits-typed values (array index/update
 // operations do no flattening in the case of a single element tuple index).
 absl::StatusOr<std::vector<Bits>> IndexValueToBitsVector(
     const Value& index_value) {
@@ -374,7 +374,7 @@ absl::Status SetArrayElement(absl::Span<const Bits> indices, const Value& value,
 
 }  // namespace
 
-absl::Status IrInterpreter::HandleMultiArrayIndex(MultiArrayIndex* index) {
+absl::Status IrInterpreter::HandleArrayIndex(ArrayIndex* index) {
   const Value* array = &ResolveAsValue(index->array());
   for (Node* index_operand : index->indices()) {
     uint64 idx =
@@ -384,7 +384,7 @@ absl::Status IrInterpreter::HandleMultiArrayIndex(MultiArrayIndex* index) {
   return SetValueResult(index, *array);
 }
 
-absl::Status IrInterpreter::HandleMultiArrayUpdate(MultiArrayUpdate* update) {
+absl::Status IrInterpreter::HandleArrayUpdate(ArrayUpdate* update) {
   const Value& input_array = ResolveAsValue(update->array_to_update());
   const Value& update_value = ResolveAsValue(update->update_value());
 

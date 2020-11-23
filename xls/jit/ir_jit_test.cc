@@ -96,8 +96,8 @@ TEST(IrJitTest, QuickCheckArray) {
   fn adjacent_elements(x: bits[8][5]) -> bits[1] {
     zero: bits[32] = literal(value=0)
     one: bits[32] = literal(value=1)
-    first_element: bits[8] = multiarray_index(x, indices=[zero])
-    second_element: bits[8] = multiarray_index(x, indices=[one])
+    first_element: bits[8] = array_index(x, indices=[zero])
+    second_element: bits[8] = array_index(x, indices=[one])
     ret eq_value: bits[1] = eq(first_element, second_element)
   }
   )";
@@ -328,7 +328,7 @@ absl::Status TestSimpleArray(std::minstd_rand& bitgen) {
   Package package("my_package");
   std::string ir_template = R"(
   fn array_update(array: bits[$0][$1], idx: bits[$0], new_value: bits[$0]) -> bits[$0][$1] {
-    ret multiarray_update.4: bits[$0][$1] = multiarray_update(array, new_value, indices=[idx])
+    ret array_update.4: bits[$0][$1] = array_update(array, new_value, indices=[idx])
   }
   )";
   std::string ir_text = absl::Substitute(ir_template, kBitWidth, kNumElements);

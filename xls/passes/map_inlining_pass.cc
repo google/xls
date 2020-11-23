@@ -59,10 +59,9 @@ absl::Status MapInliningPass::ReplaceMap(Map* map) const {
         Value(UBits(i, Bits::MinBitCountUnsigned(map_inputs_size)));
     XLS_ASSIGN_OR_RETURN(Node * index,
                          function->MakeNode<Literal>(map->loc(), index_value));
-    XLS_ASSIGN_OR_RETURN(
-        Node * array_index,
-        function->MakeNode<MultiArrayIndex>(map->loc(), map->operand(0),
-                                            std::vector<Node*>({index})));
+    XLS_ASSIGN_OR_RETURN(Node * array_index, function->MakeNode<ArrayIndex>(
+                                                 map->loc(), map->operand(0),
+                                                 std::vector<Node*>({index})));
     XLS_ASSIGN_OR_RETURN(
         Node * node,
         function->MakeNode<Invoke>(map->loc(), absl::MakeSpan(&array_index, 1),

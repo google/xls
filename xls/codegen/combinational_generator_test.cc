@@ -267,8 +267,8 @@ package ArrayLiterals
 
 fn main(x: bits[32], y: bits[32]) -> bits[44] {
   literal.1: bits[44][3][2] = literal(value=[[1, 2, 3], [4, 5, 6]])
-  multiarray_index.2: bits[44][3] = multiarray_index(literal.1, indices=[x])
-  ret result: bits[44] = multiarray_index(multiarray_index.2, indices=[y])
+  array_index.2: bits[44][3] = array_index(literal.1, indices=[x])
+  ret result: bits[44] = array_index(array_index.2, indices=[y])
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -374,12 +374,12 @@ fn main(a: bits[32],
         g: bits[1]) -> bits[32] {
   tuple_index.1: bits[32] = tuple_index(b, index=0)
   literal.2: bits[32] = literal(value=0)
-  multiarray_index.3: bits[32] = multiarray_index(c, indices=[g])
-  multiarray_index.4: (bits[32], bits[32]) = multiarray_index(d, indices=[literal.2])
-  tuple_index.5: bits[32] = tuple_index(multiarray_index.4, index=1)
+  array_index.3: bits[32] = array_index(c, indices=[g])
+  array_index.4: (bits[32], bits[32]) = array_index(d, indices=[literal.2])
+  tuple_index.5: bits[32] = tuple_index(array_index.4, index=1)
   tuple_index.6: bits[32][2] = tuple_index(e, index=0)
-  multiarray_index.7: bits[32] = multiarray_index(tuple_index.6, indices=[g])
-  ret or.8: bits[32] = or(a, tuple_index.1, multiarray_index.3, tuple_index.5, multiarray_index.7)
+  array_index.7: bits[32] = array_index(tuple_index.6, indices=[g])
+  ret or.8: bits[32] = or(a, tuple_index.1, array_index.3, tuple_index.5, array_index.7)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -414,10 +414,10 @@ TEST_P(CombinationalGeneratorTest, TwoDArray) {
   auto row_0 = fb.Array({a, b, c}, a.GetType());
   auto row_1 = fb.Array({a, b, c}, a.GetType());
   auto two_d = fb.Array({row_0, row_1}, row_0.GetType());
-  fb.Add(fb.ArrayIndex(fb.ArrayIndex(two_d, fb.Literal(UBits(0, 8))),
-                       fb.Literal(UBits(2, 8))),
-         fb.ArrayIndex(fb.ArrayIndex(two_d, fb.Literal(UBits(1, 8))),
-                       fb.Literal(UBits(1, 8))));
+  fb.Add(fb.ArrayIndex(fb.ArrayIndex(two_d, {fb.Literal(UBits(0, 8))}),
+                       {fb.Literal(UBits(2, 8))}),
+         fb.ArrayIndex(fb.ArrayIndex(two_d, {fb.Literal(UBits(1, 8))}),
+                       {fb.Literal(UBits(1, 8))}));
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
@@ -461,7 +461,7 @@ package ArrayUpdate
 fn main(idx: bits[2]) -> bits[32][3] {
   literal.5: bits[32][3] = literal(value=[1, 2, 3])
   literal.6: bits[32] = literal(value=99)
-  ret updated_array: bits[32][3] = multiarray_update(literal.5, literal.6, indices=[idx])
+  ret updated_array: bits[32][3] = array_update(literal.5, literal.6, indices=[idx])
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -501,7 +501,7 @@ package ArrayUpdate
 fn main(idx: bits[2]) -> bits[32][2][3] {
   literal.17: bits[32][2][3] = literal(value=[[1, 2], [3, 4], [5, 6]])
   literal.14: bits[32][2] = literal(value=[98, 99])
-  ret updated_array: bits[32][2][3] = multiarray_update(literal.17, literal.14, indices=[idx])
+  ret updated_array: bits[32][2][3] = array_update(literal.17, literal.14, indices=[idx])
 }
 
 )";
@@ -560,7 +560,7 @@ package ArrayUpdate
 fn main(idx: bits[2]) -> (bits[32], bits[32])[3] {
   literal.17: (bits[32], bits[32])[3] = literal(value=[(1,2),(3,4),(5,6)])
   literal.14: (bits[32], bits[32]) = literal(value=(98, 99))
-  ret multiarray_update.15: (bits[32], bits[32])[3] = multiarray_update(literal.17, literal.14, indices=[idx])
+  ret array_update.15: (bits[32], bits[32])[3] = array_update(literal.17, literal.14, indices=[idx])
 }
 
 )";
@@ -619,7 +619,7 @@ package ArrayUpdate
 fn main(idx: bits[2]) -> (bits[32], bits[8][2])[2] {
   literal.17: (bits[32], bits[8][2])[2] = literal(value=[(1,[2,3]),(4,[5,6])])
   literal.14: (bits[32], bits[8][2]) = literal(value=(98, [99, 100]))
-  ret multiarray_update.15: (bits[32], bits[8][2])[2] = multiarray_update(literal.17, literal.14, indices=[idx])
+  ret array_update.15: (bits[32], bits[8][2])[2] = array_update(literal.17, literal.14, indices=[idx])
 }
 
 )";
@@ -683,7 +683,7 @@ TEST_P(CombinationalGeneratorTest, BuildComplicatedType) {
   auto ar = fb.Array({row_0, row_1}, row_0.GetType());
   auto tuple = fb.Tuple({ar, a});
   // Deconstruct it and return some scalar element.
-  fb.ArrayIndex(fb.ArrayIndex(fb.TupleIndex(tuple, 0), a), c);
+  fb.ArrayIndex(fb.ArrayIndex(fb.TupleIndex(tuple, 0), {a}), {c});
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
@@ -1214,14 +1214,14 @@ TEST_P(CombinationalGeneratorTest, OneToNMuxProc) {
                                  result.verilog_text);
 }
 
-TEST_P(CombinationalGeneratorTest, MultiArrayIndexSimpleArray) {
+TEST_P(CombinationalGeneratorTest, ArrayIndexSimpleArray) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u8 = package.GetBitsType(8);
   Type* u16 = package.GetBitsType(16);
   auto a = fb.Param("a", package.GetArrayType(3, u8));
   auto idx = fb.Param("idx", u16);
-  auto ret = fb.MultiArrayIndex(a, {idx});
+  auto ret = fb.ArrayIndex(a, {idx});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            GenerateCombinationalModule(f, UseSystemVerilog()));
@@ -1236,12 +1236,12 @@ TEST_P(CombinationalGeneratorTest, MultiArrayIndexSimpleArray) {
               IsOkAndHolds(Value(UBits(33, 8))));
 }
 
-TEST_P(CombinationalGeneratorTest, MultiArrayIndexNilIndex) {
+TEST_P(CombinationalGeneratorTest, ArrayIndexNilIndex) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u8 = package.GetBitsType(8);
   auto a = fb.Param("a", package.GetArrayType(3, u8));
-  auto ret = fb.MultiArrayIndex(a, {});
+  auto ret = fb.ArrayIndex(a, {});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            GenerateCombinationalModule(f, UseSystemVerilog()));
@@ -1256,7 +1256,7 @@ TEST_P(CombinationalGeneratorTest, MultiArrayIndexNilIndex) {
       IsOkAndHolds(Value::UBitsArray({11, 22, 33}, 8).value()));
 }
 
-TEST_P(CombinationalGeneratorTest, MultiArrayIndex2DArrayIndexSingleElement) {
+TEST_P(CombinationalGeneratorTest, ArrayIndex2DArrayIndexSingleElement) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u8 = package.GetBitsType(8);
@@ -1264,7 +1264,7 @@ TEST_P(CombinationalGeneratorTest, MultiArrayIndex2DArrayIndexSingleElement) {
   auto a = fb.Param("a", package.GetArrayType(2, package.GetArrayType(3, u8)));
   auto idx0 = fb.Param("idx0", u16);
   auto idx1 = fb.Param("idx1", u16);
-  auto ret = fb.MultiArrayIndex(a, {idx0, idx1});
+  auto ret = fb.ArrayIndex(a, {idx0, idx1});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            GenerateCombinationalModule(f, UseSystemVerilog()));
@@ -1282,14 +1282,14 @@ TEST_P(CombinationalGeneratorTest, MultiArrayIndex2DArrayIndexSingleElement) {
       IsOkAndHolds(Value(UBits(22, 8))));
 }
 
-TEST_P(CombinationalGeneratorTest, MultiArrayIndex2DArrayIndexSubArray) {
+TEST_P(CombinationalGeneratorTest, ArrayIndex2DArrayIndexSubArray) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u8 = package.GetBitsType(8);
   Type* u16 = package.GetBitsType(16);
   auto a = fb.Param("a", package.GetArrayType(2, package.GetArrayType(3, u8)));
   auto idx = fb.Param("idx", u16);
-  auto ret = fb.MultiArrayIndex(a, {idx});
+  auto ret = fb.ArrayIndex(a, {idx});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            GenerateCombinationalModule(f, UseSystemVerilog()));
@@ -1319,14 +1319,14 @@ TEST_P(CombinationalGeneratorTest, MultiArrayIndex2DArrayIndexSubArray) {
   //         Value::UBitsArray({44, 55, 66}, 8).value()));
 }
 
-TEST_P(CombinationalGeneratorTest, MultiArrayUpdateLiteralIndex) {
+TEST_P(CombinationalGeneratorTest, ArrayUpdateLiteralIndex) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u8 = package.GetBitsType(8);
   auto a = fb.Param("a", package.GetArrayType(3, u8));
   auto update_value = fb.Param("value", u8);
   auto idx = fb.Literal(UBits(1, 16));
-  auto ret = fb.MultiArrayUpdate(a, update_value, {idx});
+  auto ret = fb.ArrayUpdate(a, update_value, {idx});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            GenerateCombinationalModule(f, UseSystemVerilog()));
@@ -1341,14 +1341,14 @@ TEST_P(CombinationalGeneratorTest, MultiArrayUpdateLiteralIndex) {
               IsOkAndHolds(Value::UBitsArray({11, 123, 33}, 8).value()));
 }
 
-TEST_P(CombinationalGeneratorTest, MultiArrayUpdateVariableIndex) {
+TEST_P(CombinationalGeneratorTest, ArrayUpdateVariableIndex) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u8 = package.GetBitsType(8);
   auto a = fb.Param("a", package.GetArrayType(3, u8));
   auto update_value = fb.Param("value", u8);
   auto idx = fb.Param("idx", package.GetBitsType(32));
-  auto ret = fb.MultiArrayUpdate(a, update_value, {idx});
+  auto ret = fb.ArrayUpdate(a, update_value, {idx});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            GenerateCombinationalModule(f, UseSystemVerilog()));
@@ -1368,7 +1368,7 @@ TEST_P(CombinationalGeneratorTest, MultiArrayUpdateVariableIndex) {
               IsOkAndHolds(Value::UBitsArray({11, 22, 33}, 8).value()));
 }
 
-TEST_P(CombinationalGeneratorTest, MultiArrayUpdate2DLiteralIndex) {
+TEST_P(CombinationalGeneratorTest, ArrayUpdate2DLiteralIndex) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u8 = package.GetBitsType(8);
@@ -1376,7 +1376,7 @@ TEST_P(CombinationalGeneratorTest, MultiArrayUpdate2DLiteralIndex) {
   auto update_value = fb.Param("value", u8);
   auto idx0 = fb.Literal(UBits(0, 32));
   auto idx1 = fb.Literal(UBits(2, 14));
-  auto ret = fb.MultiArrayUpdate(a, update_value, {idx0, idx1});
+  auto ret = fb.ArrayUpdate(a, update_value, {idx0, idx1});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            GenerateCombinationalModule(f, UseSystemVerilog()));
@@ -1393,7 +1393,7 @@ TEST_P(CombinationalGeneratorTest, MultiArrayUpdate2DLiteralIndex) {
           Value::UBits2DArray({{11, 22, 123}, {44, 55, 66}}, 8).value()));
 }
 
-TEST_P(CombinationalGeneratorTest, MultiArrayUpdate2DVariableIndex) {
+TEST_P(CombinationalGeneratorTest, ArrayUpdate2DVariableIndex) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u8 = package.GetBitsType(8);
@@ -1401,7 +1401,7 @@ TEST_P(CombinationalGeneratorTest, MultiArrayUpdate2DVariableIndex) {
   auto update_value = fb.Param("value", u8);
   auto idx0 = fb.Param("idx0", package.GetBitsType(32));
   auto idx1 = fb.Param("idx1", package.GetBitsType(32));
-  auto ret = fb.MultiArrayUpdate(a, update_value, {idx0, idx1});
+  auto ret = fb.ArrayUpdate(a, update_value, {idx0, idx1});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            GenerateCombinationalModule(f, UseSystemVerilog()));
@@ -1437,7 +1437,7 @@ TEST_P(CombinationalGeneratorTest, MultiArrayUpdate2DVariableIndex) {
           Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()));
 }
 
-TEST_P(CombinationalGeneratorTest, MultiArrayUpdate2DLiteralAndVariableIndex) {
+TEST_P(CombinationalGeneratorTest, ArrayUpdate2DLiteralAndVariableIndex) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u8 = package.GetBitsType(8);
@@ -1445,7 +1445,7 @@ TEST_P(CombinationalGeneratorTest, MultiArrayUpdate2DLiteralAndVariableIndex) {
   auto update_value = fb.Param("value", u8);
   auto idx0 = fb.Param("idx", package.GetBitsType(32));
   auto idx1 = fb.Literal(UBits(2, 14));
-  auto ret = fb.MultiArrayUpdate(a, update_value, {idx0, idx1});
+  auto ret = fb.ArrayUpdate(a, update_value, {idx0, idx1});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            GenerateCombinationalModule(f, UseSystemVerilog()));
@@ -1469,14 +1469,14 @@ TEST_P(CombinationalGeneratorTest, MultiArrayUpdate2DLiteralAndVariableIndex) {
           Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()));
 }
 
-TEST_P(CombinationalGeneratorTest, MultiArrayUpdate2DUpdateArrayLiteralIndex) {
+TEST_P(CombinationalGeneratorTest, ArrayUpdate2DUpdateArrayLiteralIndex) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u8 = package.GetBitsType(8);
   auto a = fb.Param("a", package.GetArrayType(2, package.GetArrayType(3, u8)));
   auto update_value = fb.Param("value", package.GetArrayType(3, u8));
   auto idx = fb.Literal(UBits(1, 14));
-  auto ret = fb.MultiArrayUpdate(a, update_value, {idx});
+  auto ret = fb.ArrayUpdate(a, update_value, {idx});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            GenerateCombinationalModule(f, UseSystemVerilog()));
@@ -1493,14 +1493,14 @@ TEST_P(CombinationalGeneratorTest, MultiArrayUpdate2DUpdateArrayLiteralIndex) {
           Value::UBits2DArray({{11, 22, 33}, {101, 102, 103}}, 8).value()));
 }
 
-TEST_P(CombinationalGeneratorTest, MultiArrayUpdate2DUpdateArrayVariableIndex) {
+TEST_P(CombinationalGeneratorTest, ArrayUpdate2DUpdateArrayVariableIndex) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u8 = package.GetBitsType(8);
   auto a = fb.Param("a", package.GetArrayType(2, package.GetArrayType(3, u8)));
   auto update_value = fb.Param("value", package.GetArrayType(3, u8));
   auto idx = fb.Param("idx", package.GetBitsType(37));
-  auto ret = fb.MultiArrayUpdate(a, update_value, {idx});
+  auto ret = fb.ArrayUpdate(a, update_value, {idx});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            GenerateCombinationalModule(f, UseSystemVerilog()));
@@ -1526,14 +1526,14 @@ TEST_P(CombinationalGeneratorTest, MultiArrayUpdate2DUpdateArrayVariableIndex) {
           Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()));
 }
 
-TEST_P(CombinationalGeneratorTest, MultiArrayUpdate2DUpdateArrayNilIndex) {
+TEST_P(CombinationalGeneratorTest, ArrayUpdate2DUpdateArrayNilIndex) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u8 = package.GetBitsType(8);
   auto a = fb.Param("a", package.GetArrayType(2, package.GetArrayType(3, u8)));
   auto update_value =
       fb.Param("value", package.GetArrayType(2, package.GetArrayType(3, u8)));
-  auto ret = fb.MultiArrayUpdate(a, update_value, {});
+  auto ret = fb.ArrayUpdate(a, update_value, {});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            GenerateCombinationalModule(f, UseSystemVerilog()));
@@ -1552,13 +1552,13 @@ TEST_P(CombinationalGeneratorTest, MultiArrayUpdate2DUpdateArrayNilIndex) {
           Value::UBits2DArray({{101, 102, 103}, {104, 105, 106}}, 8).value()));
 }
 
-TEST_P(CombinationalGeneratorTest, MultiArrayUpdateBitsNilIndex) {
+TEST_P(CombinationalGeneratorTest, ArrayUpdateBitsNilIndex) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u8 = package.GetBitsType(8);
   auto a = fb.Param("a", u8);
   auto update_value = fb.Param("value", u8);
-  auto ret = fb.MultiArrayUpdate(a, update_value, {});
+  auto ret = fb.ArrayUpdate(a, update_value, {});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            GenerateCombinationalModule(f, UseSystemVerilog()));

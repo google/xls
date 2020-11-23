@@ -1,4 +1,4 @@
-module MultiArrayUpdate2DUpdateArrayNilIndex(
+module ArrayUpdate2DUpdateArrayNilIndex(
   input wire [47:0] a,
   input wire [47:0] value,
   output wire [47:0] out
@@ -17,7 +17,7 @@ module MultiArrayUpdate2DUpdateArrayNilIndex(
   assign value_unflattened[1][0] = value[23:16];
   assign value_unflattened[1][1] = value[15:8];
   assign value_unflattened[1][2] = value[7:0];
-  wire [7:0] multiarray_update_3[2][3];
-  assign multiarray_update_3 = value_unflattened;
-  assign out = {{multiarray_update_3[0][0], multiarray_update_3[0][1], multiarray_update_3[0][2]}, {multiarray_update_3[1][0], multiarray_update_3[1][1], multiarray_update_3[1][2]}};
+  wire [7:0] array_update_3[2][3];
+  assign array_update_3 = value_unflattened;
+  assign out = {{array_update_3[0][0], array_update_3[0][1], array_update_3[0][2]}, {array_update_3[1][0], array_update_3[1][1], array_update_3[1][2]}};
 endmodule

@@ -1,4 +1,4 @@
-module MultiArrayUpdate2DUpdateArrayLiteralIndex(
+module ArrayUpdate2DUpdateArrayLiteralIndex(
   input wire [47:0] a,
   input wire [23:0] value,
   output wire [47:0] out
@@ -14,8 +14,8 @@ module MultiArrayUpdate2DUpdateArrayLiteralIndex(
   assign value_unflattened[0] = value[23:16];
   assign value_unflattened[1] = value[15:8];
   assign value_unflattened[2] = value[7:0];
-  wire [7:0] multiarray_update_4[2][3];
-  assign multiarray_update_4[0] = a_unflattened[0];
-  assign multiarray_update_4[1] = value_unflattened;
-  assign out = {{multiarray_update_4[0][0], multiarray_update_4[0][1], multiarray_update_4[0][2]}, {multiarray_update_4[1][0], multiarray_update_4[1][1], multiarray_update_4[1][2]}};
+  wire [7:0] array_update_4[2][3];
+  assign array_update_4[0] = a_unflattened[0];
+  assign array_update_4[1] = value_unflattened;
+  assign out = {{array_update_4[0][0], array_update_4[0][1], array_update_4[0][2]}, {array_update_4[1][0], array_update_4[1][1], array_update_4[1][2]}};
 endmodule
