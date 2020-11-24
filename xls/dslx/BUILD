@@ -774,10 +774,25 @@ cc_library(
     deps = [
         ":cpp_ast",
         ":cpp_type_info",
+        ":interp_callback_data",
         ":interp_value",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir:bits_ops",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "interp_callback_data",
+    hdrs = ["interp_callback_data.h"],
+    deps = [
+        ":cpp_ast",
+        ":cpp_concrete_type",
+        ":cpp_type_info",
+        ":import_routines",
+        ":interp_bindings",
+        ":interp_value",
         "@com_google_absl//absl/status:statusor",
     ],
 )
@@ -791,6 +806,7 @@ cc_library(
         ":cpp_type_info",
         ":import_routines",
         ":interp_bindings",
+        ":interp_callback_data",
         ":interp_value",
         "//xls/common/status:ret_check",
         "//xls/ir:bits",

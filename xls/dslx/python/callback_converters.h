@@ -25,6 +25,8 @@
 
 namespace xls::dslx {
 
+using PySymbolicBindings = std::vector<std::pair<std::string, int64>>;
+
 using PyTypecheckFn =
     std::function<std::shared_ptr<TypeInfo>(ModuleHolder module)>;
 using PyIsWipFn = std::function<bool(ConstantDefHolder)>;
@@ -32,6 +34,9 @@ using PyNoteWipFn = std::function<absl::optional<InterpValue>(
     ConstantDefHolder, absl::optional<InterpValue>)>;
 using PyEvaluateFn = std::function<InterpValue(ExprHolder, InterpBindings*,
                                                std::unique_ptr<ConcreteType>)>;
+using PyCallValueFn = std::function<InterpValue(
+    InterpValue, const std::vector<InterpValue>&, const Span&, InvocationHolder,
+    absl::optional<PySymbolicBindings>)>;
 using PyGetTypeFn = std::function<std::shared_ptr<TypeInfo>()>;
 
 // Converts a Python typecheck callback into a "C++ signature" function.
@@ -40,11 +45,31 @@ TypecheckFn ToCppTypecheck(const PyTypecheckFn& py);
 // Converts a Python evaluate callback into a "C++ signature" function.
 EvaluateFn ToCppEval(const PyEvaluateFn& py);
 
+// Converts a Python 'call function value' callback into a "C++ signature"
+// function.
+CallValueFn ToCppCallValue(const PyCallValueFn& py);
+
 // Converts a Python "is_wip" callback into a "C++ signature" function.
 IsWipFn ToCppIsWip(const PyIsWipFn& py);
 
 // Converts a Python "is_wip" callback into a "C++ signature" function.
 NoteWipFn ToCppNoteWip(const PyNoteWipFn& py);
+
+// Python version of the InterpCallbackData -- the std::functions contained in
+// here need to be converted (via callback_converts.h helpers) to pass them to
+// C++ routines with the appropriate interfaces.
+struct PyInterpCallbackData {
+  absl::optional<PyTypecheckFn> typecheck;
+  PyEvaluateFn eval;
+  PyCallValueFn call_value;
+  PyIsWipFn is_wip;
+  PyNoteWipFn note_wip;
+  PyGetTypeFn get_type_info;
+  absl::optional<ImportCache*> cache;
+};
+
+// Converts a PyInterpCallbackData to a InterpCallbackData.
+InterpCallbackData ToCpp(const PyInterpCallbackData& py);
 
 }  // namespace xls::dslx
 

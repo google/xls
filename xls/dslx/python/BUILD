@@ -238,6 +238,7 @@ xls_pybind_extension(
         ":interp_value",  # build_cleaner: keep
     ],
     deps = [
+        ":callback_converters",
         ":cpp_ast_header",
         ":errors",
         "@com_google_absl//absl/base",

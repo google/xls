@@ -191,6 +191,24 @@ absl::StatusOr<InterpValue> BuiltinTrace(absl::Span<const InterpValue> args,
   return args[0];
 }
 
+absl::StatusOr<InterpValue> BuiltinMap(absl::Span<const InterpValue> args,
+                                       const Span& span, Invocation* expr,
+                                       SymbolicBindings* symbolic_bindings,
+                                       InterpCallbackData* callbacks) {
+  XLS_RETURN_IF_ERROR(ArgChecker("map", args).size(2).status());
+  const InterpValue& inputs = args[0];
+  const InterpValue& map_fn = args[1];
+  std::vector<InterpValue> outputs;
+  for (const InterpValue& v : inputs.GetValuesOrDie()) {
+    std::vector<InterpValue> args = {v};
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue result,
+        callbacks->call_value_fn(map_fn, args, span, expr, symbolic_bindings));
+    outputs.push_back(result);
+  }
+  return InterpValue::MakeArray(std::move(outputs));
+}
+
 absl::StatusOr<InterpValue> BuiltinFail(absl::Span<const InterpValue> args,
                                         const Span& span, Invocation* expr,
                                         SymbolicBindings* symbolic_bindings) {

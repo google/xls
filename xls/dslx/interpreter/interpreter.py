@@ -93,11 +93,9 @@ class Interpreter:
     if fv.is_builtin_function():
       builtin = fv.get_builtin_fn()
       name = builtin.to_name()
-      if hasattr(builtins, name):
-        f = getattr(builtins, name)
-      else:
-        f = getattr(self, f'_builtin_{name}')
-      result = f(args, span, invocation, symbolic_bindings)
+      f = getattr(builtins, name)
+      result = f(args, span, invocation, symbolic_bindings,
+                 self._get_callbacks())
       assert isinstance(result, Value), (result, f)
       return result
     else:
@@ -180,25 +178,6 @@ class Interpreter:
         kind = 'evaluation'
       print('{} error @ {}: {}'.format(kind, expr.span, e), file=sys.stderr)
       raise
-
-  def _builtin_map(
-      self,
-      args: Sequence[Value],
-      span: Span,
-      expr: ast.Invocation,
-      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
-    """Implements the 'map' builtin."""
-    if len(args) != 2:
-      raise EvaluateError(
-          span,
-          'Invalid number of arguments to map; got {} want 2'.format(len(args)))
-    inputs, map_fn = args
-    outputs = []
-    for input_ in inputs.get_elements():
-      ret = self._call_fn_value(map_fn, [input_], span, expr, symbolic_bindings)
-      outputs.append(ret)
-
-    return Value.make_array(tuple(outputs))
 
   def _evaluate_fn(
       self,
@@ -304,7 +283,8 @@ class Interpreter:
     def get_type_info() -> type_info_mod.TypeInfo:
       return self._type_info
 
-    return cpp_evaluate.InterpCallbackData(typecheck, self._evaluate, is_wip,
+    return cpp_evaluate.InterpCallbackData(typecheck, self._evaluate,
+                                           self._call_fn_value, is_wip,
                                            note_wip, get_type_info, cache)
 
   def _make_top_level_bindings(self, m: ast.Module) -> Bindings:

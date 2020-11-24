@@ -20,6 +20,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/dslx/cpp_ast.h"
+#include "xls/dslx/interp_callback_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_info.h"
 
@@ -38,6 +39,17 @@ std::string SignedCmpToString(SignedCmp cmp);
 // Traces the given expression/result to stderr if it meets the bar for "not too
 // noisy an AST node" (and is not itself a trace).
 void OptionalTrace(Expr* expr, const InterpValue& result);
+
+// Implements 'map' builtin function.
+//
+// Map is special in that it's one of the only builtins that re-enters back into
+// interpretation, most builtins can work just using the values that have been
+// provided as parameters (i.e. they are not higher order functions or lazy
+// evaluators).
+absl::StatusOr<InterpValue> BuiltinMap(absl::Span<const InterpValue> args,
+                                       const Span& span, Invocation* expr,
+                                       SymbolicBindings* symbolic_bindings,
+                                       InterpCallbackData* callbacks);
 
 // Implements signed comparison family of builtin functions.
 absl::StatusOr<InterpValue> BuiltinScmp(SignedCmp cmp,

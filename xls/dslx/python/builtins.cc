@@ -22,6 +22,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
 #include "xls/dslx/cpp_bindings.h"
+#include "xls/dslx/python/callback_converters.h"
 #include "xls/dslx/python/cpp_ast.h"
 #include "xls/dslx/python/errors.h"
 
@@ -40,13 +41,14 @@ using PySymbolicBindings = std::vector<std::pair<std::string, int64>>;
 // Wraps the C++ defined DSLX builtin function f so it conforms to the
 // pybind11-desired signature, and does standard things like throw FailureError
 // statuses as exceptions.
-std::function<absl::StatusOr<InterpValue>(const std::vector<InterpValue>&,
-                                          const Span&, InvocationHolder,
-                                          absl::optional<PySymbolicBindings>)>
+std::function<absl::StatusOr<InterpValue>(
+    const std::vector<InterpValue>&, const Span&, InvocationHolder,
+    absl::optional<PySymbolicBindings>, PyInterpCallbackData*)>
 WrapBuiltin(BuiltinFn f) {
   return [f](const std::vector<InterpValue>& args, const Span& span,
              InvocationHolder invocation,
-             absl::optional<PySymbolicBindings> py_sym_bindings) {
+             absl::optional<PySymbolicBindings> py_sym_bindings,
+             PyInterpCallbackData* py_callbacks) {
     absl::optional<SymbolicBindings> sym_bindings;
     SymbolicBindings* psym_bindings;
     if (py_sym_bindings.has_value()) {
@@ -118,6 +120,25 @@ PYBIND11_MODULE(builtins, m) {
   m.def("sle", WrapBuiltin(get_scmp(SignedCmp::kLe)));
   m.def("sgt", WrapBuiltin(get_scmp(SignedCmp::kGt)));
   m.def("sge", WrapBuiltin(get_scmp(SignedCmp::kGe)));
+
+  m.def("map", [](const std::vector<InterpValue>& args, const Span& span,
+                  InvocationHolder invocation,
+                  absl::optional<PySymbolicBindings> py_sym_bindings,
+                  PyInterpCallbackData* py_callbacks) {
+    absl::optional<SymbolicBindings> sym_bindings;
+    SymbolicBindings* psym_bindings;
+    if (py_sym_bindings.has_value()) {
+      sym_bindings.emplace(*py_sym_bindings);
+      psym_bindings = &sym_bindings.value();
+    } else {
+      psym_bindings = nullptr;
+    }
+    InterpCallbackData callbacks = ToCpp(*py_callbacks);
+    absl::StatusOr<InterpValue> v =
+        BuiltinMap(args, span, &invocation.deref(), psym_bindings, &callbacks);
+    TryThrowFailureError(v.status());
+    return v;
+  });
 }
 
 }  // namespace xls::dslx

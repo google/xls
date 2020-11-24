@@ -39,39 +39,13 @@ void TryThrowKeyError(const absl::Status& status) {
   }
 }
 
-// Python version of the InterpCallbackData -- the std::functions contained in
-// here need to be converted (via callback_converts.h helpers) to pass them to
-// C++ routines with the appropriate interfaces.
-struct PyInterpCallbackData {
-  absl::optional<PyTypecheckFn> typecheck;
-  PyEvaluateFn eval;
-  PyIsWipFn is_wip;
-  PyNoteWipFn note_wip;
-  PyGetTypeFn get_type_info;
-  absl::optional<ImportCache*> cache;
-};
-
-// Converts a PyInterpCallbackData to a InterpCallbackData.
-InterpCallbackData ToCpp(const PyInterpCallbackData& py) {
-  TypecheckFn typecheck;
-  if (py.typecheck.has_value()) {
-    typecheck = ToCppTypecheck(py.typecheck.value());
-  }
-  ImportCache* cache = py.cache.has_value() ? py.cache.value() : nullptr;
-  return InterpCallbackData{typecheck,
-                            ToCppEval(py.eval),
-                            ToCppIsWip(py.is_wip),
-                            ToCppNoteWip(py.note_wip),
-                            py.get_type_info,
-                            cache};
-}
-
 PYBIND11_MODULE(cpp_evaluate, m) {
   ImportStatusModule();
 
   py::class_<PyInterpCallbackData>(m, "InterpCallbackData")
-      .def(py::init<absl::optional<PyTypecheckFn>, PyEvaluateFn, PyIsWipFn,
-                    PyNoteWipFn, PyGetTypeFn, absl::optional<ImportCache*>>());
+      .def(py::init<absl::optional<PyTypecheckFn>, PyEvaluateFn, PyCallValueFn,
+                    PyIsWipFn, PyNoteWipFn, PyGetTypeFn,
+                    absl::optional<ImportCache*>>());
 
   // Note: this could be more properly formulated as a generic lambda, but since
   // this code will all likely go away when the interpreter is fully ported to

@@ -19,6 +19,7 @@
 #include "xls/dslx/cpp_ast.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_bindings.h"
+#include "xls/dslx/interp_callback_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/ir/bits.h"
 
@@ -47,45 +48,6 @@ absl::StatusOr<InterpValue> ConcreteTypeConvertValue(
     const ConcreteType& type, const InterpValue& value, const Span& span,
     absl::optional<std::vector<InterpValue>> enum_values,
     absl::optional<bool> enum_signed);
-
-// Callback used to determine if a constant definition (at the module scope) is
-// in the process of being evaluated -- this lets us detect re-entry (i.e. a top
-// level constant that wants our top-level bindings to do the evaluation needs
-// to make forward progress using definitions previous to it in the file).
-using IsWipFn = std::function<bool(ConstantDef*)>;
-
-// Callback used to note that a constant evaluation is "work in progress"
-// (underway) -- this is noted by passing nullopt before a call to evaluate it.
-// Once the constant is fully evaluated, the callback will be invoked with the
-// given value. If this callback returns a non-nullopt value, the constant had
-// already been evaluated (and was cached).
-using NoteWipFn = std::function<absl::optional<InterpValue>(
-    ConstantDef*, absl::optional<InterpValue>)>;
-
-// Callback used to evaluate an expression (e.g. a constant at the top level).
-using EvaluateFn = std::function<absl::StatusOr<InterpValue>(
-    Expr*, InterpBindings*, std::unique_ptr<ConcreteType>)>;
-
-// Callback used to retrieve type information (from the interpreter state).
-using GetTypeFn = std::function<std::shared_ptr<TypeInfo>()>;
-
-// Bundles up the above callbacks so they can be passed around as a unit.
-struct InterpCallbackData {
-  TypecheckFn typecheck;
-  EvaluateFn eval_fn;
-  IsWipFn is_wip;
-  NoteWipFn note_wip;
-  GetTypeFn get_type_info;
-  ImportCache* cache;
-
-  // Wraps eval_fn to provide a default argument for type_context (as it is
-  // often nullptr).
-  absl::StatusOr<InterpValue> Eval(
-      Expr* expr, InterpBindings* bindings,
-      std::unique_ptr<ConcreteType> type_context = nullptr) {
-    return this->eval_fn(expr, bindings, std::move(type_context));
-  }
-};
 
 // Evaluates the parametric values derived from other parametric values.
 //

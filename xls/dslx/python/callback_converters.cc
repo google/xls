@@ -44,6 +44,30 @@ EvaluateFn ToCppEval(const PyEvaluateFn& py) {
   };
 }
 
+static absl::optional<PySymbolicBindings> ToPy(
+    SymbolicBindings* symbolic_bindings) {
+  if (symbolic_bindings == nullptr) {
+    return absl::nullopt;
+  }
+
+  std::vector<std::pair<std::string, int64>> py;
+  for (const SymbolicBinding& binding : symbolic_bindings->bindings()) {
+    py.push_back({binding.identifier, binding.value});
+  }
+  return py;
+}
+
+CallValueFn ToCppCallValue(const PyCallValueFn& py) {
+  return [py](const InterpValue& fv, absl::Span<const InterpValue> args,
+              const Span& span, Invocation* invocation,
+              SymbolicBindings* symbolic_bindings) {
+    return py(
+        fv, std::vector<InterpValue>(args.begin(), args.end()), span,
+        InvocationHolder(invocation, invocation->owner()->shared_from_this()),
+        ToPy(symbolic_bindings));
+  };
+}
+
 IsWipFn ToCppIsWip(const PyIsWipFn& py) {
   return [py](ConstantDef* constant_def) -> bool {
     return py(ConstantDefHolder(constant_def,
@@ -59,6 +83,21 @@ NoteWipFn ToCppNoteWip(const PyNoteWipFn& py) {
                                     constant_def->owner()->shared_from_this()),
                   value);
       };
+}
+
+InterpCallbackData ToCpp(const PyInterpCallbackData& py) {
+  TypecheckFn typecheck;
+  if (py.typecheck.has_value()) {
+    typecheck = ToCppTypecheck(py.typecheck.value());
+  }
+  ImportCache* cache = py.cache.has_value() ? py.cache.value() : nullptr;
+  return InterpCallbackData{typecheck,
+                            ToCppEval(py.eval),
+                            ToCppCallValue(py.call_value),
+                            ToCppIsWip(py.is_wip),
+                            ToCppNoteWip(py.note_wip),
+                            py.get_type_info,
+                            cache};
 }
 
 }  // namespace xls::dslx
