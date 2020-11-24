@@ -189,16 +189,19 @@ py_test(
 py_test(
     name = "interpreter_test",
     srcs = ["interpreter_test.py"],
+    data = [
+        ":interpreter_main",
+    ],
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":interpreter",
         ":parse_and_interpret",
         requirement("pyfakefs"),  # unittest
+        "//xls/common:runfiles",
         "//xls/common:test_base",
         "//xls/dslx:xls_type_error",
         "//xls/dslx/python:builtins",
-        "//xls/dslx/python:cpp_concrete_type",
+        "@com_google_absl_py//absl/logging",
     ],
 )
 

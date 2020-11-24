@@ -28,7 +28,6 @@ import sys
 from typing import Text, Optional, Tuple, Callable, Sequence
 
 from absl import logging
-import termcolor
 
 from xls.dslx import ir_name_mangler
 from xls.dslx.interpreter import jit_comparison
@@ -44,7 +43,6 @@ from xls.dslx.python.cpp_pos import Pos
 from xls.dslx.python.cpp_pos import Span
 from xls.dslx.python.interp_bindings import Bindings
 from xls.dslx.python.interp_bindings import FnCtx
-from xls.dslx.python.interp_value import Builtin
 from xls.dslx.python.interp_value import Value
 from xls.ir.python import package as ir_package_mod
 from xls.jit.python import ir_jit
@@ -84,23 +82,6 @@ class Interpreter:
     return cpp_evaluate.evaluate_Array(expr, bindings, type_context,
                                        self._get_callbacks())
 
-  def _call_builtin_fn(
-      self,
-      builtin: Builtin,
-      args: Sequence[Value],
-      span: Span,
-      invocation: Optional[ast.Invocation] = None,
-      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
-    """Calls a builtin function identified via a 'builtin' enum value."""
-    name = builtin.to_name()
-    if hasattr(builtins, name):
-      f = getattr(builtins, name)
-    else:
-      f = getattr(self, f'_builtin_{name}')
-    result = f(args, span, invocation, symbolic_bindings)
-    assert isinstance(result, Value), (result, f)
-    return result
-
   def _call_fn_value(
       self,
       fv: Value,
@@ -110,12 +91,18 @@ class Interpreter:
       symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
     """Calls function values, either a builtin or a user defined function."""
     if fv.is_builtin_function():
-      return self._call_builtin_fn(fv.get_builtin_fn(), args, span, invocation,
-                                   symbolic_bindings)
+      builtin = fv.get_builtin_fn()
+      name = builtin.to_name()
+      if hasattr(builtins, name):
+        f = getattr(builtins, name)
+      else:
+        f = getattr(self, f'_builtin_{name}')
+      result = f(args, span, invocation, symbolic_bindings)
+      assert isinstance(result, Value), (result, f)
+      return result
     else:
       _, f = fv.get_user_fn_data()
-
-    return self._evaluate_fn(f, args, span, invocation, symbolic_bindings)
+      return self._evaluate_fn(f, args, span, invocation, symbolic_bindings)
 
   def _evaluate_Invocation(  # pylint: disable=invalid-name
       self, expr: ast.Invocation, bindings: Bindings,
@@ -146,32 +133,6 @@ class Interpreter:
         expr.span,
         expr,
         symbolic_bindings=fn_symbolic_bindings)
-
-  def _perform_trace(self, lhs: Text, span: Span, value: Value) -> None:
-    """Actually writes the tracing output to stderr."""
-    leader = 'trace of {} @ {}:'.format(lhs, span)
-    if sys.stderr.isatty():
-      print(termcolor.colored(leader, color='blue'), value, file=sys.stderr)
-    else:
-      print(leader, value, file=sys.stderr)
-
-  def _optional_trace(self, expr: ast.Expr, result: Value) -> None:
-    """Traces the current experession if "trace all" mode is active.
-
-    Args:
-      expr: The expression to trace.
-      result: The result of evaluating the given expression.
-    """
-    # We don't need to trace trace (obv), or Lets - we just want to see the
-    # non-Let bodies.
-    # NameRefs and ModRefs also add a lot of noise w/o a lot of value.
-    is_trace_instance = isinstance(expr, ast.Invocation) and isinstance(
-        expr.callee, ast.NameRef) and expr.callee.name_def.identifier == 'trace'
-    is_let_instance = isinstance(expr, ast.Let)
-
-    if (not is_trace_instance and not is_let_instance and
-        not result.is_function()):
-      self._perform_trace(str(expr), expr.span, result)
 
   def _evaluate(self,
                 expr: ast.Expr,
@@ -205,7 +166,7 @@ class Interpreter:
       result = handler(expr, bindings, type_context)
       logging.vlog(3, 'Evaluated %s: %s => %s', clsname, expr, result)
       if self._trace_all and result is not None:
-        self._optional_trace(expr, result)
+        builtins.optional_trace(expr, result)
       assert isinstance(result, Value), (result, handler)
       return result
     except (AssertionError, EvaluateError, TypeError) as e:
@@ -219,13 +180,6 @@ class Interpreter:
         kind = 'evaluation'
       print('{} error @ {}: {}'.format(kind, expr.span, e), file=sys.stderr)
       raise
-
-  def evaluate_literal(self, expr: ast.Expr) -> Value:
-    return self._evaluate(expr, Bindings(None))
-
-  def evaluate_expr(self, expr: ast.Expr, bindings: Bindings) -> Value:
-    """Evaluates a stand-alone expression with the given bindings."""
-    return self._evaluate(expr, bindings)
 
   def _builtin_map(
       self,
@@ -245,22 +199,6 @@ class Interpreter:
       outputs.append(ret)
 
     return Value.make_array(tuple(outputs))
-
-  def _builtin_trace(
-      self,
-      args: Sequence[Value],
-      span: Span,
-      expr: ast.Invocation,
-      symbolic_bindings: Optional[SymbolicBindings] = None) -> Value:
-    """Implements the 'trace' builtin."""
-    if len(args) != 1:
-      raise ValueError(
-          'Invalid number of arguments to trace; got {} want 1'.format(
-              len(args)))
-
-    self._perform_trace(expr.format_args(), span, args[0])
-    assert isinstance(args[0], Value), args[0]
-    return args[0]
 
   def _evaluate_fn(
       self,
@@ -383,6 +321,15 @@ class Interpreter:
     result = cpp_evaluate.make_top_level_bindings(m, self._get_callbacks())
     assert '__top_level_bindings_' + m.name in result.keys(), (m, result.keys())
     return result
+
+  # -- Public API
+
+  def evaluate_literal(self, expr: ast.Expr) -> Value:
+    return self._evaluate(expr, Bindings(None))
+
+  def evaluate_expr(self, expr: ast.Expr, bindings: Bindings) -> Value:
+    """Evaluates a stand-alone expression with the given bindings."""
+    return self._evaluate(expr, bindings)
 
   def run_quickcheck(self, quickcheck: ast.QuickCheck, seed: int) -> None:
     """Runs a quickcheck AST node (via the LLVM JIT)."""

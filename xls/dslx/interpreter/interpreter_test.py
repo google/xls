@@ -16,18 +16,19 @@
 
 """Tests for xls.dslx.interpreter."""
 
-import io
-import sys
+import subprocess
 import textwrap
 from typing import Text
 
-import unittest.mock as mock
 from pyfakefs import fake_filesystem_unittest as ffu
 
+from xls.common import runfiles
 from xls.common import test_base
 from xls.dslx.interpreter import parse_and_interpret
 from xls.dslx.python.builtins import FailureError
 from xls.dslx.xls_type_error import XlsTypeError
+
+INTERP_PATH = runfiles.get_path('xls/dslx/interpreter/interpreter_main')
 
 
 class InterpreterTest(test_base.TestCase):
@@ -338,12 +339,12 @@ class InterpreterTest(test_base.TestCase):
       assert_eq(u32:2, fut())
     }
     """
-    mock_stderr = io.StringIO()
-    with mock.patch('sys.stderr', mock_stderr):
-      self._parse_and_test(program, compare_jit=False)
-
-    self.assertIn('4:14-4:29: bits[32]:0x1', mock_stderr.getvalue())
-    self.assertIn('4:14-4:29: bits[32]:0x2', mock_stderr.getvalue())
+    program_file = self.create_tempfile(content=program)
+    cmd = [INTERP_PATH, '--compare_jit=false', program_file.full_path]
+    result = subprocess.run(
+        cmd, stderr=subprocess.PIPE, encoding='utf-8', check=True, env={})
+    self.assertIn('4:14-4:29: bits[32]:0x1', result.stderr)
+    self.assertIn('4:14-4:29: bits[32]:0x2', result.stderr)
 
   def test_bitslice_syntax(self):
     program = """
@@ -503,21 +504,23 @@ class InterpreterTest(test_base.TestCase):
       assert_eq(x2, u8:34)
     }
     """
-
-    # Capture stderr.
-    old_stderr = sys.stderr
-    sys.stderr = captured_stderr = io.StringIO()
-    self._parse_and_test(program, trace_all=True, compare_jit=False)
-    sys.stderr = old_stderr
+    program_file = self.create_tempfile(content=program)
+    cmd = [
+        INTERP_PATH, '--compare_jit=false', '--trace_all=true',
+        program_file.full_path
+    ]
+    result = subprocess.run(
+        cmd, stderr=subprocess.PIPE, encoding='utf-8', check=True, env={})
+    stderr = result.stderr
 
     # Verify x0, x1, and x2 are traced.
-    self.assertIn('trace of x0', captured_stderr.getvalue())
-    self.assertIn('trace of x1', captured_stderr.getvalue())
-    self.assertIn('trace of x2', captured_stderr.getvalue())
+    self.assertIn('trace of x0', stderr)
+    self.assertIn('trace of x1', stderr)
+    self.assertIn('trace of x2', stderr)
 
     # Now verify no "trace" or "let" lines or function references.
-    self.assertNotIn('Tag.FUNCTION', captured_stderr.getvalue())
-    self.assertNotIn('trace of trace', captured_stderr.getvalue())
+    self.assertNotIn('Tag.FUNCTION', stderr)
+    self.assertNotIn('trace of trace', stderr)
 
   def test_assert_eq_failure_arrays(self):
     program = """

@@ -39,17 +39,20 @@ def main(argv):
   if len(argv) > 3:
     raise app.UsageError('Too many command-line arguments. {}'.format(argv))
 
+  if len(argv) < 2:
+    raise app.UsageError('Path to a .x file (to interpret) is required.')
+
   path = argv[1]
 
   test_only = os.environ.get('TESTBRIDGE_TEST_ONLY')
-  sys.exit(
-      parse_and_interpret.parse_and_test_path(
-          path,
-          raise_on_error=False,
-          test_filter=test_only,
-          trace_all=FLAGS.trace_all,
-          compare_jit=FLAGS.compare_jit,
-          seed=FLAGS.seed))
+  saw_error: bool = parse_and_interpret.parse_and_test_path(
+      path,
+      raise_on_error=False,
+      test_filter=test_only,
+      trace_all=FLAGS.trace_all,
+      compare_jit=FLAGS.compare_jit,
+      seed=FLAGS.seed)
+  sys.exit(saw_error)
 
 
 if __name__ == '__main__':

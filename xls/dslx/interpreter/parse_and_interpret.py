@@ -79,6 +79,7 @@ def parse_and_test(program: Text,
   type_info = None
 
   importer = import_helpers.Importer()
+  ran = 0
 
   try:
     module = Parser(Scanner(filename, program), name).parse_module()
@@ -93,6 +94,7 @@ def parse_and_test(program: Text,
     for test_name in module.get_test_names():
       if not _matches(test_name, test_filter):
         continue
+      ran += 1
       print('[ RUN UNITTEST     ]', test_name, file=sys.stderr)
       interpreter.run_test(test_name)
       print('[               OK ]', test_name, file=sys.stderr)
@@ -127,6 +129,7 @@ def parse_and_test(program: Text,
     if type_info is not None:
       type_info.clear_type_info_refs_for_gc()
 
+  print('[==================]', ran, 'test(s) ran.', file=sys.stderr)
   return did_fail
 
 

@@ -35,11 +35,20 @@ enum SignedCmp {
 
 std::string SignedCmpToString(SignedCmp cmp);
 
+// Traces the given expression/result to stderr if it meets the bar for "not too
+// noisy an AST node" (and is not itself a trace).
+void OptionalTrace(Expr* expr, const InterpValue& result);
+
 // Implements signed comparison family of builtin functions.
 absl::StatusOr<InterpValue> BuiltinScmp(SignedCmp cmp,
                                         absl::Span<const InterpValue> args,
                                         const Span& span, Invocation* expr,
                                         SymbolicBindings* symbolic_bindings);
+
+// Implements 'trace' builtin function.
+absl::StatusOr<InterpValue> BuiltinTrace(absl::Span<const InterpValue> args,
+                                         const Span& span, Invocation* expr,
+                                         SymbolicBindings* symbolic_bindings);
 
 // Implements 'fail!' builtin function.
 absl::StatusOr<InterpValue> BuiltinFail(absl::Span<const InterpValue> args,

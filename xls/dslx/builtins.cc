@@ -149,6 +149,48 @@ absl::StatusOr<InterpValue> BuiltinScmp(SignedCmp cmp,
   return InterpValue::MakeBool(result);
 }
 
+static void PerformTrace(absl::string_view text, const Span& span,
+                         const InterpValue& value) {
+  std::cerr << absl::StreamFormat("trace of %s @ %s: %s", text, span.ToString(),
+                                  value.ToString())
+            << std::endl;
+}
+
+void OptionalTrace(Expr* expr, const InterpValue& result) {
+  // Implementation note: We don't need to trace the 'trace' invocation, or Let
+  // nodes -- we just want to see the non-Let bodies.
+  //
+  // NameRefs and ColonRefs/ModRefs also add a lot of noise without a lot of
+  // value.
+
+  auto query_is_trace_instance = [expr] {
+    auto* invocation = dynamic_cast<Invocation*>(expr);
+    if (invocation == nullptr) {
+      return false;
+    }
+    auto* callee = dynamic_cast<NameRef*>(invocation->callee());
+    if (callee == nullptr) {
+      return false;
+    }
+    return callee->identifier() == "trace";
+  };
+
+  bool is_trace_instance = query_is_trace_instance();
+  bool is_let_isntance = dynamic_cast<Let*>(expr) != nullptr;
+
+  if (!is_trace_instance && !is_let_isntance && !result.IsFunction()) {
+    PerformTrace(expr->ToString(), expr->span(), result);
+  }
+}
+
+absl::StatusOr<InterpValue> BuiltinTrace(absl::Span<const InterpValue> args,
+                                         const Span& span, Invocation* expr,
+                                         SymbolicBindings* symbolic_bindings) {
+  XLS_RETURN_IF_ERROR(ArgChecker("trace", args).size(1).status());
+  PerformTrace(expr->FormatArgs(), span, args[0]);
+  return args[0];
+}
+
 absl::StatusOr<InterpValue> BuiltinFail(absl::Span<const InterpValue> args,
                                         const Span& span, Invocation* expr,
                                         SymbolicBindings* symbolic_bindings) {

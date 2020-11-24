@@ -90,6 +90,10 @@ PYBIND11_MODULE(builtins, m) {
   m.def("throw_fail_error",
         [](Span span, const std::string& s) { throw FailureError(s, span); });
 
+  m.def("optional_trace", [](ExprHolder expr, const InterpValue& result) {
+    OptionalTrace(&expr.deref(), result);
+  });
+
   m.def("add_with_carry", WrapBuiltin(BuiltinAddWithCarry));
   m.def("and_reduce", WrapBuiltin(BuiltinAndReduce));
   m.def("assert_eq", WrapBuiltin(BuiltinAssertEq));
@@ -105,6 +109,7 @@ PYBIND11_MODULE(builtins, m) {
   m.def("rev", WrapBuiltin(BuiltinRev));
   m.def("signex", WrapBuiltin(BuiltinSignex));
   m.def("slice", WrapBuiltin(BuiltinSlice));
+  m.def("trace", WrapBuiltin(BuiltinTrace));
   m.def("update", WrapBuiltin(BuiltinUpdate));
   m.def("xor_reduce", WrapBuiltin(BuiltinXorReduce));
 
