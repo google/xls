@@ -17,6 +17,7 @@
 
 #include "absl/strings/match.h"
 #include "absl/strings/str_split.h"
+#include "pybind11/pybind11.h"
 #include "xls/dslx/cpp_bindings.h"
 
 namespace xls::dslx {
@@ -107,6 +108,14 @@ inline void TryThrowCppParseError(const absl::Status& status) {
   }
   auto [span, unused] = data_status.value();
   throw CppParseError(std::move(span), std::string(status.message()));
+}
+
+// If the status is "not found" throws a key error with the given status
+// message.
+inline void TryThrowKeyError(const absl::Status& status) {
+  if (status.code() == absl::StatusCode::kNotFound) {
+    throw pybind11::key_error(std::string(status.message()));
+  }
 }
 
 }  // namespace xls::dslx

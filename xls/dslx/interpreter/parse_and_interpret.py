@@ -26,12 +26,13 @@ from xls.dslx import import_helpers
 from xls.dslx import ir_converter
 from xls.dslx import parser_helpers
 from xls.dslx import typecheck
-from xls.dslx.interpreter.interpreter import Interpreter
-from xls.dslx.python import builtins
+from xls.dslx.interpreter import quickcheck_helpers
 from xls.dslx.python.cpp_parser import CppParseError
 from xls.dslx.python.cpp_parser import Parser
 from xls.dslx.python.cpp_scanner import ScanError
 from xls.dslx.python.cpp_scanner import Scanner
+from xls.dslx.python.interpreter import FailureError
+from xls.dslx.python.interpreter import Interpreter
 from xls.dslx.span import PositionalError
 
 
@@ -90,7 +91,12 @@ def parse_and_test(program: Text,
             module, type_info, traverse_tests=True) if compare_jit else None)
 
     interpreter = Interpreter(
-        module, type_info, importer, trace_all=trace_all, ir_package=ir_package)
+        module,
+        type_info,
+        importer.typecheck,
+        importer.cache,
+        trace_all=trace_all,
+        ir_package=ir_package)
     for test_name in module.get_test_names():
       if not _matches(test_name, test_filter):
         continue
@@ -109,11 +115,11 @@ def parse_and_test(program: Text,
       for quickcheck in module.get_quickchecks():
         test_name = quickcheck.f.name.identifier
         print('[ RUN QUICKCHECK   ]', test_name, file=sys.stderr)
-        interpreter.run_quickcheck(quickcheck, seed=seed)
+        quickcheck_helpers.run_quickcheck(
+            interpreter, ir_package, quickcheck, seed=seed)
         print('[               OK ]', test_name, file=sys.stderr)
 
-  except (PositionalError, builtins.FailureError, CppParseError,
-          ScanError) as e:
+  except (PositionalError, FailureError, CppParseError, ScanError) as e:
     did_fail = True
     parser_helpers.pprint_positional_error(
         e, output=cast(io.IOBase, sys.stderr))

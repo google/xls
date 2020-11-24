@@ -21,7 +21,7 @@ from typing import Text, Optional
 
 from absl import logging
 
-from absl.testing import absltest
+from xls.common import test_base
 from xls.common.xls_error import XlsError
 from xls.dslx import fakefs_test_util
 from xls.dslx import parser_helpers
@@ -33,7 +33,7 @@ from xls.dslx.xls_type_error import TypeInferenceError
 from xls.dslx.xls_type_error import XlsTypeError
 
 
-class TypecheckTest(absltest.TestCase):
+class TypecheckTest(test_base.TestCase):
 
   def _typecheck(self,
                  text: Text,
@@ -755,16 +755,18 @@ fn f() -> Foo {
     logging.info('typechecking: %s', program)
     self._typecheck(program, *args, **kwargs)
 
-  def test_parametric_struct_instance(self):
-    # Wrong derived type.
+  def test_parametric_struct_wrong_derived_type(self):
     self._typecheck_parametric_si(
         'fn f() -> Point<32, 63> { Point { x: u32:5, y: u63:255 } }',
         error='Types are not compatible: uN[64] vs uN[63]')
+
+  def test_parametric_struct_instance(self):
     # Out of order, this is OK.
     self._typecheck_parametric_si("""
       fn f() -> Point<32, 64> { Point { y: u64:42, x: u32:255 } }
     """)
 
+  def test_parametric_struct_ok(self):
     # OK struct type-parametric instantiation in parametric function.
     self._typecheck_parametric_si("""
       fn f<A: u32, B: u32>(x: bits[A], y: bits[B]) -> Point<A, B> {
@@ -777,11 +779,13 @@ fn f() -> Foo {
         ()
       }""")
 
+  def test_parametric_struct_bad_return_type(self):
     # Bad return type.
     self._typecheck_parametric_si(
         'fn f() -> Point<5, 10> { Point { x: u32:5, y: u64:255 } }',
         error='(x: uN[32], y: uN[64]) vs (x: uN[5], y: uN[10])')
 
+  def test_parametric_struct_bad_struct_type_parametric_instantiation(self):
     # Bad struct type-parametric instantiation in parametric function.
     self._typecheck_parametric_si(
         """
@@ -796,7 +800,8 @@ fn f() -> Foo {
       }""",
         error='Types are not compatible: uN[28] vs uN[15]')
 
-    # Bad struct type-parametric splat instantiation.
+  def test_parametric_struct_bad_struct_type_parametric_splat_instantiation(
+      self):
     self._typecheck_parametric_si(
         """
       fn f<A: u32, B: u32>(x: bits[A], y: bits[B]) -> Point<A, B> {
@@ -893,4 +898,4 @@ fn f() -> Foo {
 
 
 if __name__ == '__main__':
-  absltest.main()
+  test_base.main()

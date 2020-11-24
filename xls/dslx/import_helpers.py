@@ -32,13 +32,13 @@ class Importer:
   """
 
   def __init__(self):
-    self._cache: Optional[import_routines.ImportCache] = \
+    self.cache: Optional[import_routines.ImportCache] = \
         import_routines.ImportCache()
 
-  def _typecheck(self, module: ast.Module) -> type_info_mod.TypeInfo:
+  def typecheck(self, module: ast.Module) -> type_info_mod.TypeInfo:
     return typecheck.check_module(module, f_import=self)
 
   def __call__(self, subject: Tuple[str, ...]) -> import_routines.ModuleInfo:
     assert isinstance(subject, tuple), subject
     subject = import_routines.ImportTokens(subject)
-    return import_routines.do_import(self._typecheck, subject, self._cache)
+    return import_routines.do_import(self.typecheck, subject, self.cache)

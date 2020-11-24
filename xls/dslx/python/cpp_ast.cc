@@ -188,10 +188,7 @@ PYBIND11_MODULE(cpp_ast, m) {
             return ModuleHolder(module.get(), module);
           }))
           .def("__repr__",
-               [](ModuleHolder module) {
-                 return absl::StrFormat("Module(name='%s', id=%p)",
-                                        module.deref().name(), &module.deref());
-               })
+               [](ModuleHolder module) { return module.deref().ToRepr(); })
           .def("__str__",
                [](ModuleHolder module) { return module.deref().ToString(); })
           .def_property_readonly(

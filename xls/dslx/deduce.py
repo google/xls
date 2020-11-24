@@ -31,6 +31,7 @@ from xls.dslx import dslx_builtins
 from xls.dslx import parametric_instantiator
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_scanner as scanner
+from xls.dslx.python import import_routines
 from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType
 from xls.dslx.python.cpp_concrete_type import ConcreteType
@@ -78,7 +79,14 @@ ImportFn = Callable[[Tuple[Text, ...]], Tuple[ast.Module, TypeInfo]]
 # This is an abstract interface to break circular dependencies; see
 # interpreter_helpers.py
 InterpCallbackType = Callable[[
-    ast.Module, TypeInfo, Dict[Text, int], Dict[Text, int], ast.Expr, ImportFn
+    ast.Module,
+    TypeInfo,
+    Callable[[ast.Module], TypeInfo],  # typecheck
+    import_routines.ImportCache,  # import_cache
+    Dict[Text, int],  # env
+    Dict[Text, int],  # bit_widths
+    ast.Expr,
+    ImportFn
 ], int]
 
 # Type for stack of functions deduction is running on.
@@ -97,14 +105,38 @@ class DeduceCtx:
       evaluate bindings with complex expressions (eg. function calls).
     check_function_in_module: A callback to typecheck parametric functions that
       are not in this module.
+    typecheck: callback that can be used to typecheck a module and get its type
+      info (e.g. on import)
+    import_cache: cache used for imported modules
     fn_stack: Keeps track of the function we're currently typechecking and the
       symbolic bindings we should be using.
   """
   type_info: TypeInfo
   module: ast.Module
+  # Callbacks.
   interpret_expr: InterpCallbackType
   check_function_in_module: Callable[[ast.Function, 'DeduceCtx'], None]
+  typecheck: Callable[[ast.Module], TypeInfo]
+  import_cache: import_routines.ImportCache
+  # Metadata.
   fn_stack: FnStack = dataclasses.field(default_factory=list)
+
+  def make_ctx(self, new_type_info: TypeInfo,
+               new_module: ast.Module) -> 'DeduceCtx':
+    """Creates a new DeduceCtx reflecting the given type info and module.
+
+    Uses the same callbacks as this current context.
+
+    Args:
+      new_type_info: Type info to use in lieu of self.type_info
+      new_module: Module to use in lieu of self.module
+
+    Returns:
+      The resulting (new) DeduceCtx instance.
+    """
+    return DeduceCtx(new_type_info, new_module, self.interpret_expr,
+                     self.check_function_in_module, self.typecheck,
+                     self.import_cache)
 
 
 def resolve(type_: ConcreteType, ctx: DeduceCtx) -> ConcreteType:
@@ -249,8 +281,7 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
         import_node)
     invocation_imported_type_info = TypeInfo(
         imported_module, parent=imported_type_info)
-    imported_ctx = DeduceCtx(invocation_imported_type_info, imported_module,
-                             ctx.interpret_expr, ctx.check_function_in_module)
+    imported_ctx = ctx.make_ctx(invocation_imported_type_info, imported_module)
     imported_ctx.fn_stack.append(
         (parametric_fn.name.identifier, dict(symbolic_bindings)))
     ctx.check_function_in_module(parametric_fn, imported_ctx)
@@ -847,8 +878,7 @@ def _deduce_ColonRef(self: ast.ColonRef, ctx: DeduceCtx) -> ConcreteType:  # pyt
       # Let's typecheck this imported parametric function with respect to its
       # module (this will only get the type signature, body gets typechecked
       # after parametric instantiation).
-      imported_ctx = DeduceCtx(imported_type_info, imported_module,
-                               ctx.interpret_expr, ctx.check_function_in_module)
+      imported_ctx = ctx.make_ctx(imported_type_info, imported_module)
       imported_ctx.fn_stack.append(ctx.fn_stack[-1])
       ctx.check_function_in_module(elem, imported_ctx)
       ctx.type_info.update(imported_ctx.type_info)
@@ -1017,8 +1047,7 @@ def _deduce_ModRef(self: ast.ModRef, ctx: DeduceCtx) -> ConcreteType:  # pytype:
     # Let's typecheck this imported parametric function with respect to its
     # module (this will only get the type signature, body gets typechecked
     # after parametric instantiation).
-    imported_ctx = DeduceCtx(imported_type_info, imported_module,
-                             ctx.interpret_expr, ctx.check_function_in_module)
+    imported_ctx = ctx.make_ctx(imported_type_info, imported_module)
     imported_ctx.fn_stack.append(ctx.fn_stack[-1])
     ctx.check_function_in_module(f, imported_ctx)
     ctx.type_info.update(imported_ctx.type_info)

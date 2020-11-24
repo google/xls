@@ -30,12 +30,12 @@ from xls.dslx import parser_helpers
 from xls.dslx import span
 from xls.dslx import typecheck
 from xls.dslx import xls_type_error
-from xls.dslx.interpreter import interpreter as interpreter_mod
 from xls.dslx.python import cpp_concrete_type as concrete_type_mod
 from xls.dslx.python import cpp_parser as parser
 from xls.dslx.python import cpp_pos
 from xls.dslx.python import cpp_scanner as scanner
 from xls.dslx.python import interp_value as value_mod
+from xls.dslx.python import interpreter as interpreter_mod
 
 FLAGS = flags.FLAGS
 FILENAME = '/fake/repl.x'
@@ -94,7 +94,11 @@ def handle_line(line: str, stmt_index: int):
   # TODO(leary): 2020-06-20 No let bindings for the moment, just useful for
   # evaluating expressions -- could put them into the module scope as consts.
   interpreter = interpreter_mod.Interpreter(
-      fake_module, type_info, f_import=importer, trace_all=False)
+      fake_module,
+      type_info,
+      importer.typecheck,
+      importer.cache,
+      trace_all=False)
   result = interpreter.run_function(fn_name, args=())
   print(result)
   type_info.clear_type_info_refs_for_gc()

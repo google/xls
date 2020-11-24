@@ -16,6 +16,7 @@
 
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/dslx/cpp_scanner.h"
 #include "xls/dslx/parser.h"
 
@@ -24,6 +25,7 @@ namespace xls::dslx {
 absl::StatusOr<const ModuleInfo*> DoImport(const TypecheckFn& ftypecheck,
                                            const ImportTokens& subject,
                                            ImportCache* cache) {
+  XLS_RET_CHECK(cache != nullptr);
   if (cache->Contains(subject)) {
     return cache->Get(subject);
   }

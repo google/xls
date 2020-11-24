@@ -75,43 +75,12 @@ py_library(
     srcs = ["concrete_type_helpers.py"],
     srcs_version = "PY3",
     deps = [
-        "//xls/dslx/python:builtins",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_evaluate",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_scanner",
         "//xls/dslx/python:interp_value",
-        "@com_google_absl_py//absl/logging",
-    ],
-)
-
-py_library(
-    name = "interpreter",
-    srcs = ["interpreter.py"],
-    srcs_version = "PY3",
-    deps = [
-        ":concrete_type_helpers",
-        ":errors",
-        ":jit_comparison",
-        requirement("termcolor"),
-        "//xls/dslx:ast_helpers",
-        "//xls/dslx:concrete_type_helpers",
-        "//xls/dslx:import_fn",
-        "//xls/dslx:ir_name_mangler",
-        "//xls/dslx:parametric_instantiator",
-        "//xls/dslx:symbolic_bindings",
-        "//xls/dslx/python:builtins",
-        "//xls/dslx/python:cpp_ast",
-        "//xls/dslx/python:cpp_concrete_type",
-        "//xls/dslx/python:cpp_evaluate",
-        "//xls/dslx/python:cpp_parametric_expression",
-        "//xls/dslx/python:cpp_pos",
-        "//xls/dslx/python:cpp_type_info",
-        "//xls/dslx/python:interp_bindings",
-        "//xls/dslx/python:interp_value",
-        "//xls/ir/python:package",
-        "//xls/jit/python:ir_jit",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -149,11 +118,26 @@ py_library(
     srcs = ["interpreter_helpers.py"],
     srcs_version = "PY3",
     deps = [
-        ":interpreter",
         "//xls/dslx:deduce",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_type_info",
+        "//xls/dslx/python:import_routines",
         "//xls/dslx/python:interp_bindings",
+        "//xls/dslx/python:interpreter",
+    ],
+)
+
+py_library(
+    name = "quickcheck_helpers",
+    srcs = ["quickcheck_helpers.py"],
+    srcs_version = "PY3",
+    deps = [
+        ":jit_comparison",
+        "//xls/dslx:ir_name_mangler",
+        "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:interpreter",
+        "//xls/ir/python:package",
+        "//xls/jit/python:ir_jit",
     ],
 )
 
@@ -162,15 +146,15 @@ py_library(
     srcs = ["parse_and_interpret.py"],
     srcs_version = "PY3",
     deps = [
-        ":interpreter",
+        ":quickcheck_helpers",
         "//xls/dslx:import_helpers",
         "//xls/dslx:ir_converter",
         "//xls/dslx:parser_helpers",
         "//xls/dslx:span",
         "//xls/dslx:typecheck",
-        "//xls/dslx/python:builtins",
         "//xls/dslx/python:cpp_parser",
         "//xls/dslx/python:cpp_scanner",
+        "//xls/dslx/python:interpreter",
     ],
 )
 
@@ -200,8 +184,7 @@ py_test(
         "//xls/common:runfiles",
         "//xls/common:test_base",
         "//xls/dslx:xls_type_error",
-        "//xls/dslx/python:builtins",
-        "@com_google_absl_py//absl/logging",
+        "//xls/dslx/python:interpreter",
     ],
 )
 
@@ -224,7 +207,6 @@ py_binary(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":interpreter",
         requirement("pyfakefs"),
         "//xls/common/python:init_xls",
         "//xls/dslx:bit_helpers",
@@ -237,8 +219,8 @@ py_binary(
         "//xls/dslx/python:cpp_parser",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_scanner",
-        "//xls/dslx/python:import_routines",
         "//xls/dslx/python:interp_value",
+        "//xls/dslx/python:interpreter",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
     ],

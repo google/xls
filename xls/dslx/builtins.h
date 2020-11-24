@@ -40,117 +40,121 @@ std::string SignedCmpToString(SignedCmp cmp);
 // noisy an AST node" (and is not itself a trace).
 void OptionalTrace(Expr* expr, const InterpValue& result);
 
+// NOTE on the signature for builtin functions: symbolic_bindings may be null
+// e.g. in the entry function.
+//
+// TODO(leary): 2020-11-24 Would be nice to eliminate this and use const ref
+// everywhere.
+
 // Implements 'map' builtin function.
 //
 // Map is special in that it's one of the only builtins that re-enters back into
 // interpretation, most builtins can work just using the values that have been
 // provided as parameters (i.e. they are not higher order functions or lazy
 // evaluators).
-absl::StatusOr<InterpValue> BuiltinMap(absl::Span<const InterpValue> args,
-                                       const Span& span, Invocation* expr,
-                                       SymbolicBindings* symbolic_bindings,
-                                       InterpCallbackData* callbacks);
+absl::StatusOr<InterpValue> BuiltinMap(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings, InterpCallbackData* callbacks);
 
 // Implements signed comparison family of builtin functions.
-absl::StatusOr<InterpValue> BuiltinScmp(SignedCmp cmp,
-                                        absl::Span<const InterpValue> args,
-                                        const Span& span, Invocation* expr,
-                                        SymbolicBindings* symbolic_bindings);
+absl::StatusOr<InterpValue> BuiltinScmp(
+    SignedCmp cmp, absl::Span<const InterpValue> args, const Span& span,
+    Invocation* expr, const SymbolicBindings* symbolic_bindings);
 
 // Implements 'trace' builtin function.
-absl::StatusOr<InterpValue> BuiltinTrace(absl::Span<const InterpValue> args,
-                                         const Span& span, Invocation* expr,
-                                         SymbolicBindings* symbolic_bindings);
+absl::StatusOr<InterpValue> BuiltinTrace(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings);
 
 // Implements 'fail!' builtin function.
-absl::StatusOr<InterpValue> BuiltinFail(absl::Span<const InterpValue> args,
-                                        const Span& span, Invocation* expr,
-                                        SymbolicBindings* symbolic_bindings);
+absl::StatusOr<InterpValue> BuiltinFail(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings);
 
 // Implements 'update' builtin function.
-absl::StatusOr<InterpValue> BuiltinUpdate(absl::Span<const InterpValue> args,
-                                          const Span& span, Invocation* expr,
-                                          SymbolicBindings* symbolic_bindings);
+absl::StatusOr<InterpValue> BuiltinUpdate(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings);
 
 // Implements 'assert_eq' builtin function.
 absl::StatusOr<InterpValue> BuiltinAssertEq(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    SymbolicBindings* symbolic_bindings);
+    const SymbolicBindings* symbolic_bindings);
 
 // Implements 'assert_lt' builtin function.
 absl::StatusOr<InterpValue> BuiltinAssertLt(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    SymbolicBindings* symbolic_bindings);
+    const SymbolicBindings* symbolic_bindings);
 
 // Implements 'and_reduce' builtin function.
 absl::StatusOr<InterpValue> BuiltinAndReduce(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    SymbolicBindings* symbolic_bindings);
+    const SymbolicBindings* symbolic_bindings);
 
 // Implements 'or_reduce' builtin function.
 absl::StatusOr<InterpValue> BuiltinOrReduce(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    SymbolicBindings* symbolic_bindings);
+    const SymbolicBindings* symbolic_bindings);
 
 // Implements 'xor_reduce' builtin function.
 absl::StatusOr<InterpValue> BuiltinXorReduce(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    SymbolicBindings* symbolic_bindings);
+    const SymbolicBindings* symbolic_bindings);
 
 // Implements 'rev' builtin function.
-absl::StatusOr<InterpValue> BuiltinRev(absl::Span<const InterpValue> args,
-                                       const Span& span, Invocation* expr,
-                                       SymbolicBindings* symbolic_bindings);
+absl::StatusOr<InterpValue> BuiltinRev(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings);
 
 // Implements 'enumerate' builtin function.
 absl::StatusOr<InterpValue> BuiltinEnumerate(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    SymbolicBindings* symbolic_bindings);
+    const SymbolicBindings* symbolic_bindings);
 
 // Implements 'range' builtin function.
-absl::StatusOr<InterpValue> BuiltinRange(absl::Span<const InterpValue> args,
-                                         const Span& span, Invocation* expr,
-                                         SymbolicBindings* symbolic_bindings);
+absl::StatusOr<InterpValue> BuiltinRange(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings);
 
 // Implements 'bit_slice' builtin function.
 absl::StatusOr<InterpValue> BuiltinBitSlice(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    SymbolicBindings* symbolic_bindings);
+    const SymbolicBindings* symbolic_bindings);
 
 // Implements 'slice' builtin function.
-absl::StatusOr<InterpValue> BuiltinSlice(absl::Span<const InterpValue> args,
-                                         const Span& span, Invocation* expr,
-                                         SymbolicBindings* symbolic_bindings);
+absl::StatusOr<InterpValue> BuiltinSlice(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings);
 
 // Implements 'add_with_carry' builtin function.
 absl::StatusOr<InterpValue> BuiltinAddWithCarry(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    SymbolicBindings* symbolic_bindings);
+    const SymbolicBindings* symbolic_bindings);
 
 // Implements 'clz' builtin function.
-absl::StatusOr<InterpValue> BuiltinClz(absl::Span<const InterpValue> args,
-                                       const Span& span, Invocation* expr,
-                                       SymbolicBindings* symbolic_bindings);
+absl::StatusOr<InterpValue> BuiltinClz(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings);
 
 // Implements 'ctz' builtin function.
-absl::StatusOr<InterpValue> BuiltinCtz(absl::Span<const InterpValue> args,
-                                       const Span& span, Invocation* expr,
-                                       SymbolicBindings* symbolic_bindings);
+absl::StatusOr<InterpValue> BuiltinCtz(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings);
 
 // Implements 'one_hot' builtin function.
-absl::StatusOr<InterpValue> BuiltinOneHot(absl::Span<const InterpValue> args,
-                                          const Span& span, Invocation* expr,
-                                          SymbolicBindings* symbolic_bindings);
+absl::StatusOr<InterpValue> BuiltinOneHot(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings);
 
 // Implements 'one_hot_sel' builtin function.
 absl::StatusOr<InterpValue> BuiltinOneHotSel(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    SymbolicBindings* symbolic_bindings);
+    const SymbolicBindings* symbolic_bindings);
 
 // Implements 'signex' builtin function.
-absl::StatusOr<InterpValue> BuiltinSignex(absl::Span<const InterpValue> args,
-                                          const Span& span, Invocation* expr,
-                                          SymbolicBindings* symbolic_bindings);
+absl::StatusOr<InterpValue> BuiltinSignex(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings);
 
 }  // namespace xls::dslx
 

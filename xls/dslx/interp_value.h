@@ -32,7 +32,7 @@ namespace xls::dslx {
   X("fail!", kFail)                  \
   X("map", kMap)                     \
   X("one_hot", kOneHot)              \
-  X("one_hot_sel", kOneSel)          \
+  X("one_hot_sel", kOneHotSel)       \
   X("or_reduce", kOrReduce)          \
   X("range", kRange)                 \
   X("rev", kRev)                     \
@@ -40,7 +40,7 @@ namespace xls::dslx {
   X("sge", kSGe)                     \
   X("sgt", kSGt)                     \
   X("signex", kSignex)               \
-  X("sle", kSle)                     \
+  X("sle", kSLe)                     \
   X("slice", kSlice)                 \
   X("slt", kSLt)                     \
   X("trace", kTrace)                 \
@@ -146,6 +146,11 @@ class InterpValue {
   bool IsFunction() const { return tag_ == InterpValueTag::kFunction; }
   bool IsBuiltinFunction() const {
     return IsFunction() && absl::holds_alternative<Builtin>(GetFunctionOrDie());
+  }
+
+  bool IsTraceBuiltin() const {
+    return IsBuiltinFunction() &&
+           absl::get<Builtin>(GetFunctionOrDie()) == Builtin::kTrace;
   }
 
   bool IsFalse() const { return IsBool() && GetBitsOrDie().IsZero(); }

@@ -90,9 +90,11 @@ class _ParametricInstantiator:
         result = self.ctx.interpret_expr(
             self.ctx.module,
             self.ctx.type_info,
-            self.symbolic_bindings,
-            self.bit_widths,
+            self.ctx.typecheck,
+            self.ctx.import_cache,
             constraint,
+            env=self.symbolic_bindings,
+            bit_widths=self.bit_widths,
             fn_ctx=fn_ctx)
       except KeyError:
         # We haven't seen enough bindings to evaluate this constraint.
@@ -112,6 +114,8 @@ class _ParametricInstantiator:
   def _symbolic_bind_dims(self, param_type: ConcreteType,
                           arg_type: ConcreteType) -> None:
     """Binds parametric symbols in param_type according to arg_type."""
+    logging.vlog(3, 'Symbolic bindings dims; param: %s arg: %s', param_type,
+                 arg_type)
     # Create bindings for symbolic parameter dimensions based on argument
     # values passed.
     param_dim = param_type.size.value
@@ -142,7 +146,7 @@ class _ParametricInstantiator:
             'different places in invocation; saw: {!r}; then: {!r}'.format(
                 pdim_name, self.symbolic_bindings[pdim_name], arg_dim))
 
-    logging.vlog(2, 'Binding %r to %s', pdim_name, arg_dim)
+    logging.vlog(3, 'Binding %r to %s', pdim_name, arg_dim)
     self.symbolic_bindings[pdim_name] = arg_dim
 
   def _symbolic_bind_bits(self, param_type: ConcreteType,
@@ -188,6 +192,7 @@ class _ParametricInstantiator:
     """Binds symbols present in param_type according to value of arg_type."""
     assert isinstance(param_type, ConcreteType), repr(param_type)
     assert isinstance(arg_type, ConcreteType), repr(arg_type)
+    logging.vlog(3, 'Symbolic binding; param: %s arg: %s', param_type, arg_type)
     if isinstance(param_type, BitsType):
       self._symbolic_bind_bits(param_type, arg_type)
     elif isinstance(param_type, EnumType):
@@ -302,6 +307,8 @@ class _FunctionInstantiator(_ParametricInstantiator):
       The return type of the function_type, with parametric types instantiated
       in accordance with the presented argument types.
     """
+    logging.vlog(3, '_FunctionInstantiator; ft params: %s arg types: %s',
+                 self.function_type.params, self.arg_types)
     # Walk through all the params/args to collect symbolic bindings.
     for i, (param_type, arg_type) in enumerate(
         zip(self.function_type.params, self.arg_types)):
@@ -367,6 +374,8 @@ class _StructInstantiator(_ParametricInstantiator):
       The return type of the struct_type, with parametric types instantiated
       in accordance with the presented argument types.
     """
+    logging.vlog(3, '_StructInstantiator; member types: %s arg types: %s',
+                 self.member_types, self.arg_types)
     # Walk through all the members/args to collect symbolic bindings.
     for i, (member_type,
             arg_type) in enumerate(zip(self.member_types, self.arg_types)):

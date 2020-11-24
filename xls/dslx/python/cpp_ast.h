@@ -61,6 +61,7 @@ class AstNodeHolder : public PointerOwnedByModule<AstNode> {
   X(Test)                               \
   X(TypeAnnotation)                     \
   X(TypeDef)                            \
+  X(TypeRef)                            \
   X(WidthSlice)                         \
   X(WildcardPattern)
 
@@ -104,7 +105,6 @@ XLS_DSLX_AST_NODE_CHILD_EACH(DEFINE_AST_NODE_HOLDER)
   X(SplatStructInstance)            \
   X(StructInstance)                 \
   X(Ternary)                        \
-  X(TypeRef)                        \
   X(Unop)                           \
   X(While)                          \
   X(XlsTuple)

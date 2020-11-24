@@ -249,6 +249,7 @@ py_library(
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_scanner",
         "//xls/dslx/python:cpp_type_info",
+        "//xls/dslx/python:import_routines",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -295,10 +296,10 @@ py_test(
         ":span",
         ":typecheck",
         ":xls_type_error",
+        "//xls/common:test_base",
         "//xls/common:xls_error",
         "//xls/dslx/python:cpp_parser",
         "@com_google_absl_py//absl/logging",
-        "@com_google_absl_py//absl/testing:absltest",
     ],
 )
 
@@ -837,5 +838,34 @@ cc_library(
         ":cpp_type_info",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
+        "//xls/common/status:ret_check",
+    ],
+)
+
+cc_library(
+    name = "interpreter",
+    srcs = ["interpreter.cc"],
+    hdrs = ["interpreter.h"],
+    deps = [
+        ":builtins",
+        ":cpp_ast",
+        ":cpp_evaluate",
+        ":cpp_type_info",
+        ":import_routines",
+        ":interp_bindings",
+        ":interp_callback_data",
+        ":interp_value",
+        "//xls/common/status:ret_check",
+        "//xls/ir",
+    ],
+)
+
+cc_test(
+    name = "interpreter_test",
+    srcs = ["interpreter_test.cc"],
+    deps = [
+        ":interpreter",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest_main",
     ],
 )

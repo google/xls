@@ -120,10 +120,9 @@ std::string SignedCmpToString(SignedCmp cmp) {
   return absl::StrFormat("<invalid SignedCmp(%d)>", static_cast<int64>(cmp));
 }
 
-absl::StatusOr<InterpValue> BuiltinScmp(SignedCmp cmp,
-                                        absl::Span<const InterpValue> args,
-                                        const Span& span, Invocation* expr,
-                                        SymbolicBindings* symbolic_bindings) {
+absl::StatusOr<InterpValue> BuiltinScmp(
+    SignedCmp cmp, absl::Span<const InterpValue> args, const Span& span,
+    Invocation* expr, const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker(SignedCmpToString(cmp), args)
                           .size(2)
                           .bits(0)
@@ -176,25 +175,24 @@ void OptionalTrace(Expr* expr, const InterpValue& result) {
   };
 
   bool is_trace_instance = query_is_trace_instance();
-  bool is_let_isntance = dynamic_cast<Let*>(expr) != nullptr;
+  bool is_let_instance = dynamic_cast<Let*>(expr) != nullptr;
 
-  if (!is_trace_instance && !is_let_isntance && !result.IsFunction()) {
+  if (!is_trace_instance && !is_let_instance && !result.IsFunction()) {
     PerformTrace(expr->ToString(), expr->span(), result);
   }
 }
 
-absl::StatusOr<InterpValue> BuiltinTrace(absl::Span<const InterpValue> args,
-                                         const Span& span, Invocation* expr,
-                                         SymbolicBindings* symbolic_bindings) {
+absl::StatusOr<InterpValue> BuiltinTrace(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("trace", args).size(1).status());
   PerformTrace(expr->FormatArgs(), span, args[0]);
   return args[0];
 }
 
-absl::StatusOr<InterpValue> BuiltinMap(absl::Span<const InterpValue> args,
-                                       const Span& span, Invocation* expr,
-                                       SymbolicBindings* symbolic_bindings,
-                                       InterpCallbackData* callbacks) {
+absl::StatusOr<InterpValue> BuiltinMap(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings, InterpCallbackData* callbacks) {
   XLS_RETURN_IF_ERROR(ArgChecker("map", args).size(2).status());
   const InterpValue& inputs = args[0];
   const InterpValue& map_fn = args[1];
@@ -209,16 +207,16 @@ absl::StatusOr<InterpValue> BuiltinMap(absl::Span<const InterpValue> args,
   return InterpValue::MakeArray(std::move(outputs));
 }
 
-absl::StatusOr<InterpValue> BuiltinFail(absl::Span<const InterpValue> args,
-                                        const Span& span, Invocation* expr,
-                                        SymbolicBindings* symbolic_bindings) {
+absl::StatusOr<InterpValue> BuiltinFail(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("fail!", args).size(1).status());
   return FailureError(span, args[0].ToString());
 }
 
-absl::StatusOr<InterpValue> BuiltinUpdate(absl::Span<const InterpValue> args,
-                                          const Span& span, Invocation* expr,
-                                          SymbolicBindings* symbolic_bindings) {
+absl::StatusOr<InterpValue> BuiltinUpdate(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(
       ArgChecker("update", args).size(3).array(0).bits(1).status());
   const InterpValue& array = args[0];
@@ -229,7 +227,7 @@ absl::StatusOr<InterpValue> BuiltinUpdate(absl::Span<const InterpValue> args,
 
 absl::StatusOr<InterpValue> BuiltinAssertEq(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    SymbolicBindings* symbolic_bindings) {
+    const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("assert_eq", args).size(2).status());
   const InterpValue& lhs = args[0];
   const InterpValue& rhs = args[1];
@@ -257,7 +255,7 @@ absl::StatusOr<InterpValue> BuiltinAssertEq(
 
 absl::StatusOr<InterpValue> BuiltinAssertLt(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    SymbolicBindings* symbolic_bindings) {
+    const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("assert_lt", args).size(2).status());
   const InterpValue& lhs = args[0];
   const InterpValue& rhs = args[1];
@@ -270,7 +268,7 @@ absl::StatusOr<InterpValue> BuiltinAssertLt(
 
 absl::StatusOr<InterpValue> BuiltinAndReduce(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    SymbolicBindings* symbolic_bindings) {
+    const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("and_reduce", args).size(1).status());
   XLS_ASSIGN_OR_RETURN(Bits bits, args[0].GetBits());
   return InterpValue::MakeBits(InterpValueTag::kUBits,
@@ -279,7 +277,7 @@ absl::StatusOr<InterpValue> BuiltinAndReduce(
 
 absl::StatusOr<InterpValue> BuiltinOrReduce(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    SymbolicBindings* symbolic_bindings) {
+    const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("or_reduce", args).size(1).status());
   XLS_ASSIGN_OR_RETURN(Bits bits, args[0].GetBits());
   return InterpValue::MakeBits(InterpValueTag::kUBits,
@@ -288,16 +286,16 @@ absl::StatusOr<InterpValue> BuiltinOrReduce(
 
 absl::StatusOr<InterpValue> BuiltinXorReduce(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    SymbolicBindings* symbolic_bindings) {
+    const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("xor_reduce", args).size(1).status());
   XLS_ASSIGN_OR_RETURN(Bits bits, args[0].GetBits());
   return InterpValue::MakeBits(InterpValueTag::kUBits,
                                bits_ops::XorReduce(bits));
 }
 
-absl::StatusOr<InterpValue> BuiltinRev(absl::Span<const InterpValue> args,
-                                       const Span& span, Invocation* expr,
-                                       SymbolicBindings* symbolic_bindings) {
+absl::StatusOr<InterpValue> BuiltinRev(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("rev", args).size(1).status());
   XLS_ASSIGN_OR_RETURN(Bits bits, args[0].GetBits());
   return InterpValue::MakeBits(InterpValueTag::kUBits, bits_ops::Reverse(bits));
@@ -305,7 +303,7 @@ absl::StatusOr<InterpValue> BuiltinRev(absl::Span<const InterpValue> args,
 
 absl::StatusOr<InterpValue> BuiltinEnumerate(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    SymbolicBindings* symbolic_bindings) {
+    const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("enumerate", args).size(1).array(0).status());
   auto& values = args[0].GetValuesOrDie();
   std::vector<InterpValue> results;
@@ -317,9 +315,9 @@ absl::StatusOr<InterpValue> BuiltinEnumerate(
   return InterpValue::MakeArray(results);
 }
 
-absl::StatusOr<InterpValue> BuiltinRange(absl::Span<const InterpValue> args,
-                                         const Span& span, Invocation* expr,
-                                         SymbolicBindings* symbolic_bindings) {
+absl::StatusOr<InterpValue> BuiltinRange(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("range", args).size_ge(1).bits(0).status());
   absl::optional<InterpValue> start;
   absl::optional<InterpValue> limit;
@@ -348,7 +346,7 @@ absl::StatusOr<InterpValue> BuiltinRange(absl::Span<const InterpValue> args,
 
 absl::StatusOr<InterpValue> BuiltinBitSlice(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    SymbolicBindings* symbolic_bindings) {
+    const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("bit_slice", args).size(3).status());
   const InterpValue& subject = args[0];
   const InterpValue& start = args[1];
@@ -369,9 +367,9 @@ absl::StatusOr<InterpValue> BuiltinBitSlice(
                                subject_bits.Slice(start_index, bit_count));
 }
 
-absl::StatusOr<InterpValue> BuiltinSlice(absl::Span<const InterpValue> args,
-                                         const Span& span, Invocation* expr,
-                                         SymbolicBindings* symbolic_bindings) {
+absl::StatusOr<InterpValue> BuiltinSlice(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("slice", args).size(3).status());
   const InterpValue& array = args[0];
   const InterpValue& start = args[1];
@@ -381,16 +379,16 @@ absl::StatusOr<InterpValue> BuiltinSlice(absl::Span<const InterpValue> args,
 
 absl::StatusOr<InterpValue> BuiltinAddWithCarry(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    SymbolicBindings* symbolic_bindings) {
+    const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("add_with_carry", args).size(2).status());
   const InterpValue& lhs = args[0];
   const InterpValue& rhs = args[1];
   return lhs.AddWithCarry(rhs);
 }
 
-absl::StatusOr<InterpValue> BuiltinClz(absl::Span<const InterpValue> args,
-                                       const Span& span, Invocation* expr,
-                                       SymbolicBindings* symbolic_bindings) {
+absl::StatusOr<InterpValue> BuiltinClz(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("clz", args).size(1).status());
   const InterpValue& arg = args[0];
   XLS_ASSIGN_OR_RETURN(Bits bits, arg.GetBits());
@@ -398,9 +396,9 @@ absl::StatusOr<InterpValue> BuiltinClz(absl::Span<const InterpValue> args,
                                 /*value=*/bits.CountLeadingZeros());
 }
 
-absl::StatusOr<InterpValue> BuiltinCtz(absl::Span<const InterpValue> args,
-                                       const Span& span, Invocation* expr,
-                                       SymbolicBindings* symbolic_bindings) {
+absl::StatusOr<InterpValue> BuiltinCtz(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("ctz", args).size(1).status());
   const InterpValue& arg = args[0];
   XLS_ASSIGN_OR_RETURN(Bits bits, arg.GetBits());
@@ -408,9 +406,9 @@ absl::StatusOr<InterpValue> BuiltinCtz(absl::Span<const InterpValue> args,
                                 /*value=*/bits.CountTrailingZeros());
 }
 
-absl::StatusOr<InterpValue> BuiltinOneHot(absl::Span<const InterpValue> args,
-                                          const Span& span, Invocation* expr,
-                                          SymbolicBindings* symbolic_bindings) {
+absl::StatusOr<InterpValue> BuiltinOneHot(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("one_hot", args).size(2).status());
   const InterpValue& arg = args[0];
   const InterpValue& lsb_prio = args[1];
@@ -424,7 +422,7 @@ absl::StatusOr<InterpValue> BuiltinOneHot(absl::Span<const InterpValue> args,
 
 absl::StatusOr<InterpValue> BuiltinOneHotSel(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    SymbolicBindings* symbolic_bindings) {
+    const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("one_hot_sel", args).size(2).status());
   const InterpValue& selector = args[0];
   const InterpValue& cases = args[1];
@@ -447,9 +445,9 @@ absl::StatusOr<InterpValue> BuiltinOneHotSel(
   return InterpValue::MakeBits((*values)[0].tag(), accum);
 }
 
-absl::StatusOr<InterpValue> BuiltinSignex(absl::Span<const InterpValue> args,
-                                          const Span& span, Invocation* expr,
-                                          SymbolicBindings* symbolic_bindings) {
+absl::StatusOr<InterpValue> BuiltinSignex(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("signex", args).size(2).status());
   const InterpValue& lhs = args[0];
   const InterpValue& rhs = args[1];

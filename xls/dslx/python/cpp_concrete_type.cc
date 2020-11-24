@@ -60,6 +60,7 @@ PYBIND11_MODULE(cpp_concrete_type, m) {
   // class ConcreteType
   py::class_<ConcreteType>(m, "ConcreteType")
       .def("__str__", &ConcreteType::ToString)
+      .def("__repr__", &ConcreteType::ToRepr)
       .def("__eq__", &ConcreteType::operator==)
       .def("__ne__", &ConcreteType::operator!=)
       .def("has_enum", &ConcreteType::HasEnum)

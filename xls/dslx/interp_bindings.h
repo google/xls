@@ -31,6 +31,12 @@ struct FnCtx {
   std::string module_name;
   std::string fn_name;
   SymbolicBindings sym_bindings;
+
+  std::string ToString() const {
+    return absl::StrFormat(
+        "FnCtx{module_name=\"%s\", fn_name=\"%s\", sym_bindings=%s}",
+        module_name, fn_name, sym_bindings.ToString());
+  }
 };
 
 // Represents the set of bindings (ident: value mappings) for evaluation.

@@ -58,6 +58,15 @@ class ConcreteTypeDim {
   absl::StatusOr<ConcreteTypeDim> Add(const ConcreteTypeDim& rhs) const;
 
   std::string ToString() const;
+  std::string ToRepr() const {
+    std::string guts;
+    if (absl::holds_alternative<int64>(value_)) {
+      guts = absl::StrCat(absl::get<int64>(value_));
+    } else {
+      guts = absl::get<OwnedParametric>(value_)->ToRepr();
+    }
+    return absl::StrFormat("ConcreteTypeDim(%s)", guts);
+  }
   bool operator==(const ConcreteTypeDim& other) const;
   bool operator==(
       const absl::variant<int64, const ParametricExpression*>& other) const;
@@ -98,6 +107,7 @@ class ConcreteType {
   bool operator!=(const ConcreteType& other) const { return !(*this == other); }
 
   virtual std::string ToString() const = 0;
+  virtual std::string ToRepr() const { return ToString(); }
 
   // Returns whether this type contains an enum type (transitively).
   virtual bool HasEnum() const = 0;
@@ -346,6 +356,10 @@ class BitsType : public ConcreteType {
     return false;
   }
   std::string ToString() const override;
+  std::string ToRepr() const override {
+    return absl::StrFormat("BitsType(is_signed=%s, size=%s)",
+                           is_signed_ ? "true" : "false", size_.ToRepr());
+  }
   std::string GetDebugTypeName() const override;
   bool HasEnum() const override { return false; }
 

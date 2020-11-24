@@ -199,7 +199,8 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
           imported_module, parent=imported_type_info)
       imported_ctx = deduce.DeduceCtx(invocation_imported_type_info,
                                       imported_module, ctx.interpret_expr,
-                                      ctx.check_function_in_module)
+                                      ctx.check_function_in_module,
+                                      ctx.typecheck, ctx.import_cache)
       imported_ctx.fn_stack.append((map_fn_name, dict(symbolic_bindings)))
       # We need to typecheck this imported function with respect to its module
       ctx.check_function_in_module(map_fn, imported_ctx)
@@ -356,9 +357,10 @@ def check_module(module: ast.Module,
   """
   assert f_import is None or callable(f_import), f_import
   ti = type_info.TypeInfo(module)
-  interpreter_callback = functools.partial(interpret_expr, f_import=f_import)
-  ctx = deduce.DeduceCtx(ti, module, interpreter_callback,
-                         check_top_node_in_module)
+  import_cache = None if f_import is None else getattr(f_import, 'cache')
+  ftypecheck = functools.partial(check_module, f_import=f_import)
+  ctx = deduce.DeduceCtx(ti, module, interpret_expr, check_top_node_in_module,
+                         ftypecheck, import_cache)
 
   # First populate type_info with constants, enums, and resolved imports.
   ctx.fn_stack.append(('top', dict()))  # No sym bindings in the global scope.

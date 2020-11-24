@@ -16,33 +16,32 @@
 
 """Helper utilities for use with the interpreter.Interpreter."""
 
-from typing import Tuple, Optional, Dict
-from xls.dslx import deduce
-from xls.dslx.interpreter import interpreter
+from typing import Tuple, Dict, Callable
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_type_info as type_info_mod
+from xls.dslx.python import import_routines
+from xls.dslx.python import interpreter
 from xls.dslx.python.interp_bindings import FnCtx
 
 SymbolicBindings = Tuple[Tuple[str, int], ...]
 
 
-def interpret_expr(module: ast.Module,
-                   type_info: type_info_mod.TypeInfo,
-                   env: Dict[str, int],
-                   bit_widths: Dict[str, int],
-                   expr: ast.Expr,
-                   f_import: Optional[deduce.ImportFn],
-                   fn_ctx=Tuple[str, str, SymbolicBindings]) -> int:
+def interpret_expr(module: ast.Module, type_info: type_info_mod.TypeInfo,
+                   typecheck: Callable[[ast.Module], type_info_mod.TypeInfo],
+                   import_cache: import_routines.ImportCache, expr: ast.Expr, *,
+                   env: Dict[str, int], bit_widths: Dict[str, int],
+                   fn_ctx: Tuple[str, str, SymbolicBindings]) -> int:
   """Interprets expr using env and module's top level bindings.
 
   Args:
     module: The module that this expression is inside of.
     type_info: Mapping from AST node to its deduced/checked type.
-    env: Mapping from symbols to their integer values.
-    bit_widths: Mapping from symbols to their bitwidths.
+    typecheck: Callback that can be used to get type info for a module.
+    import_cache: Caches imported module info.
     expr: Expression to evaluate using the values from env and top level
       bindings (e.g. constants, other functions).
-    f_import: Import routine callback for the interpreter to use.
+    env: Mapping from symbols to their integer values.
+    bit_widths: Mapping from symbols to their bitwidths.
     fn_ctx: The (module name, function name, symbolic bindings) we are currently
       using.
 
@@ -52,11 +51,6 @@ def interpret_expr(module: ast.Module,
   Raises:
     KeyError: Occurs when the interpreter encounters a symbol that isn't in env.
   """
-  interp = interpreter.Interpreter(module, type_info, f_import=f_import)
-  bindings = interp._make_top_level_bindings(module)  # pylint: disable=protected-access
-  bindings.fn_ctx = FnCtx(*fn_ctx)
-  for ident, val in env.items():
-    bindings.add_value(
-        ident,
-        interpreter.Value.make_ubits(value=val, bit_count=bit_widths[ident]))
-  return interp.evaluate_expr(expr, bindings).get_bit_value_uint64()
+  return interpreter.Interpreter.interpret_expr(module, type_info, typecheck,
+                                                import_cache, env, bit_widths,
+                                                expr, FnCtx(*fn_ctx))

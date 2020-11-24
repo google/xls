@@ -25,7 +25,7 @@ from pyfakefs import fake_filesystem_unittest as ffu
 from xls.common import runfiles
 from xls.common import test_base
 from xls.dslx.interpreter import parse_and_interpret
-from xls.dslx.python.builtins import FailureError
+from xls.dslx.python.interpreter import FailureError
 from xls.dslx.xls_type_error import XlsTypeError
 
 INTERP_PATH = runfiles.get_path('xls/dslx/interpreter/interpreter_main')
@@ -510,7 +510,11 @@ class InterpreterTest(test_base.TestCase):
         program_file.full_path
     ]
     result = subprocess.run(
-        cmd, stderr=subprocess.PIPE, encoding='utf-8', check=True, env={})
+        cmd,
+        stderr=subprocess.PIPE,  # Only capture stderr
+        encoding='utf-8',
+        check=True,
+        env={})
     stderr = result.stderr
 
     # Verify x0, x1, and x2 are traced.

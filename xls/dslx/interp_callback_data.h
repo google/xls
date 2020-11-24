@@ -47,7 +47,7 @@ using EvaluateFn = std::function<absl::StatusOr<InterpValue>(
 // function.
 using CallValueFn = std::function<absl::StatusOr<InterpValue>(
     const InterpValue&, absl::Span<const InterpValue>, const Span&, Invocation*,
-    SymbolicBindings*)>;
+    const SymbolicBindings*)>;
 
 // Callback used to retrieve type information (from the interpreter state).
 using GetTypeFn = std::function<std::shared_ptr<TypeInfo>()>;

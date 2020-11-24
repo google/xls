@@ -31,7 +31,6 @@ from xls.common.xls_error import XlsError
 from xls.dslx import parse_and_typecheck
 from xls.dslx import typecheck
 from xls.dslx.fuzzer import sample
-from xls.dslx.interpreter.interpreter import Interpreter
 from xls.dslx.interpreter.value_parser import value_from_string
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_concrete_type as concrete_type_mod
@@ -39,6 +38,7 @@ from xls.dslx.python import cpp_type_info as type_info_mod
 from xls.dslx.python.cpp_concrete_type import ConcreteType
 from xls.dslx.python.interp_value import Tag
 from xls.dslx.python.interp_value import Value
+from xls.dslx.python.interpreter import Interpreter
 from xls.ir.python import ir_parser
 from xls.ir.python import value as ir_value_mod
 from xls.ir.python.format_preference import FormatPreference
@@ -382,7 +382,7 @@ class SampleRunner:
   def _interpret_dslx(self, m: ast.Module, type_info: type_info_mod.TypeInfo,
                       args_batch: sample.ArgsBatch) -> Tuple[Value, ...]:
     """Interprets the DSLX module returns the result Values."""
-    interp = Interpreter(m, type_info, f_import=None)
+    interp = Interpreter(m, type_info, typecheck=None, import_cache=None)
     dslx_results = []
     f = m.get_function('main')
     for args in sign_convert_args_batch(f, m, args_batch):

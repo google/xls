@@ -31,86 +31,11 @@ namespace py = pybind11;
 
 namespace xls::dslx {
 
-// If the status is "not found" throws a key error with the given status
-// message.
-void TryThrowKeyError(const absl::Status& status) {
-  if (status.code() == absl::StatusCode::kNotFound) {
-    throw py::key_error(std::string(status.message()));
-  }
-}
-
 PYBIND11_MODULE(cpp_evaluate, m) {
   ImportStatusModule();
 
-  py::class_<PyInterpCallbackData>(m, "InterpCallbackData")
-      .def(py::init<absl::optional<PyTypecheckFn>, PyEvaluateFn, PyCallValueFn,
-                    PyIsWipFn, PyNoteWipFn, PyGetTypeFn,
-                    absl::optional<ImportCache*>>());
-
-  // Note: this could be more properly formulated as a generic lambda, but since
-  // this code will all likely go away when the interpreter is fully ported to
-  // C++ we hackily use a macro for now.
-#define ADD_EVAL(__cls)                                                        \
-  m.def(                                                                       \
-      "evaluate_" #__cls,                                                      \
-      [](__cls##Holder expr, InterpBindings* bindings,                         \
-         ConcreteType* type_context, PyInterpCallbackData* py_callbacks) {     \
-        InterpCallbackData callbacks = ToCpp(*py_callbacks);                   \
-        auto statusor = Evaluate##__cls(&expr.deref(), bindings, type_context, \
-                                        &callbacks);                           \
-        TryThrowFailureError(statusor.status());                               \
-        TryThrowKeyError(statusor.status());                                   \
-        return statusor;                                                       \
-      },                                                                       \
-      py::arg("expr"), py::arg("bindings"), py::arg("type_context"),           \
-      py::arg("callbacks"))
-
-  ADD_EVAL(Array);
-  ADD_EVAL(Attr);
-  ADD_EVAL(Binop);
-  ADD_EVAL(Carry);
-  ADD_EVAL(Cast);
-  ADD_EVAL(ColonRef);
-  ADD_EVAL(ConstRef);
-  ADD_EVAL(EnumRef);
-  ADD_EVAL(For);
-  ADD_EVAL(Index);
-  ADD_EVAL(Let);
-  ADD_EVAL(Match);
-  ADD_EVAL(ModRef);
-  ADD_EVAL(NameRef);
-  ADD_EVAL(Number);
-  ADD_EVAL(SplatStructInstance);
-  ADD_EVAL(StructInstance);
-  ADD_EVAL(Ternary);
-  ADD_EVAL(Unop);
-  ADD_EVAL(While);
-  ADD_EVAL(XlsTuple);
-
   using PySymbolicBindings = std::vector<std::pair<std::string, int64>>;
 
-  m.def("evaluate_function",
-        [](FunctionHolder f, const std::vector<InterpValue>& args,
-           const Span& span, PySymbolicBindings* symbolic_bindings,
-           PyInterpCallbackData* py_callbacks) {
-          InterpCallbackData callbacks = ToCpp(*py_callbacks);
-          return EvaluateFunction(&f.deref(), args, span,
-                                  symbolic_bindings == nullptr
-                                      ? SymbolicBindings()
-                                      : SymbolicBindings(*symbolic_bindings),
-                                  &callbacks);
-        });
-  m.def("make_top_level_bindings",
-        [](ModuleHolder module, PyInterpCallbackData* py_callbacks) {
-          InterpCallbackData callbacks = ToCpp(*py_callbacks);
-          return MakeTopLevelBindings(module.module(), &callbacks);
-        });
-  m.def("concretize_type",
-        [](TypeAnnotationHolder type, InterpBindings* bindings,
-           PyInterpCallbackData* py_callbacks) {
-          InterpCallbackData callbacks = ToCpp(*py_callbacks);
-          return ConcretizeType(&type.deref(), bindings, &callbacks);
-        });
   m.def("concrete_type_accepts_value",
         [](const ConcreteType& type, const InterpValue& value) {
           auto statusor = ConcreteTypeAcceptsValue(type, value);
@@ -126,32 +51,8 @@ PYBIND11_MODULE(cpp_evaluate, m) {
           TryThrowFailureError(statusor.status());
           return statusor;
         });
-  m.def("evaluate_derived_parametrics",
-        [](FunctionHolder f, InterpBindings* bindings,
-           PyInterpCallbackData* py_callbacks,
-           const std::unordered_map<std::string, int64>& bound_dims) {
-          InterpCallbackData callbacks = ToCpp(*py_callbacks);
-          return EvaluateDerivedParametrics(
-              &f.deref(), bindings, &callbacks,
-              absl::flat_hash_map<std::string, int64>(bound_dims.begin(),
-                                                      bound_dims.end()));
-        });
 
   m.def("resolve_dim", &ResolveDim, py::arg("dim"), py::arg("bindings"));
-  m.def(
-      "evaluate_to_struct_or_enum_or_annotation",
-      [](AstNodeHolder node, InterpBindings* bindings,
-         PyInterpCallbackData* py_callbacks) -> absl::StatusOr<AstNodeHolder> {
-        InterpCallbackData callbacks = ToCpp(*py_callbacks);
-        XLS_ASSIGN_OR_RETURN(TypeDefinition td,
-                             ToTypeDefinition(&node.deref()));
-        XLS_ASSIGN_OR_RETURN(
-            DerefVariant deref,
-            EvaluateToStructOrEnumOrAnnotation(td, bindings, &callbacks));
-        AstNode* deref_node = ToAstNode(deref);
-        return AstNodeHolder(deref_node,
-                             deref_node->owner()->shared_from_this());
-      });
 }
 
 }  // namespace xls::dslx
