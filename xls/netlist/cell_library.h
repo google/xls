@@ -88,6 +88,9 @@ class StateTable {
   // Constructs a StateTable object from the matching proto.
   static absl::StatusOr<StateTable> FromProto(const StateTableProto& proto);
 
+  // Create a StateTable object for the equivalent LUT4 cell and mask.
+  static StateTable FromLutMask(uint16_t lut_mask);
+
   // Gets the value of the given signal when the table is presented with the
   // specified stimulus.
   // return true/false
@@ -114,7 +117,7 @@ class StateTable {
  private:
   StateTable(const std::vector<Row>& rows,
              const absl::flat_hash_set<std::string>& signals,
-             const StateTableProto& proto);
+             const absl::flat_hash_set<std::string>& internal_names);
 
   // Returns true if the given input stimulus matches the given table row.
   absl::StatusOr<bool> MatchRow(const Row& row,
@@ -131,10 +134,11 @@ class StateTable {
   // Subset of signals_ - the output/internal signals.
   absl::flat_hash_set<std::string> internal_signals_;
 
+  absl::flat_hash_set<std::string> internal_names_;
+
   // We preprocess the proto to combine input signals (both true inputs and
   // internal state signals) for ease-of-lookup.
   std::vector<Row> rows_;
-  StateTableProto proto_;
 };
 
 // Represents an entry in the cell library, listing inputs/outputs an the name

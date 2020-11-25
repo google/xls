@@ -196,8 +196,13 @@ class Netlist {
   void AddModule(std::unique_ptr<Module> module);
   absl::StatusOr<const Module*> GetModule(const std::string& module_name) const;
   const absl::Span<const std::unique_ptr<Module>> modules() { return modules_; }
+  absl::StatusOr<const CellLibraryEntry*> GetOrCreateLut4CellEntry(int64 lut_mask);
 
  private:
+  // The Netlist itself manages the CellLibraryEntries corresponding to the LUT4
+  // cells that are used, which are identified by their LUT mask (i.e. the 16
+  // bit LUT_INIT parameter).
+  absl::flat_hash_map<uint16_t, CellLibraryEntry> lut_cells_;
   std::vector<std::unique_ptr<Module>> modules_;
 };
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 # Copyright 2020 The XLS Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,11 +14,16 @@
 # limitations under the License.
 
 
-# Find input files
+# Test with an cell library
 echo 'entries: { kind: INVERTER, name: "INV" input_names: "A" output_pin_list { pins { name: "ZN" function: "F" } } }' > "${TEST_TMPDIR}/fake_cell_library.textproto"
 echo 'module main(i, o); input i; output o; INV inv_0(.A(i), .ZN(o)); endmodule' > "${TEST_TMPDIR}/netlist.v"
 
 BINPATH=./xls/netlist/parse_netlist_main
-$BINPATH "${TEST_TMPDIR}/netlist.v" "${TEST_TMPDIR}/fake_cell_library.textproto" || exit -1
+$BINPATH "${TEST_TMPDIR}/netlist.v" "${TEST_TMPDIR}/fake_cell_library.textproto"
+
+# Test without a cell library
+echo 'module main(a0, a1, a2, a3, q0); input a0, a1, a2, a3; output q0; SB_LUT4 #(.LUT_INIT(16'"'"'h8000)) q0_lut (.I0(a0), .I1(a1), .I2(a2), .I3(a3), .O(q0)); endmodule' > "${TEST_TMPDIR}/netlist2.v"
+
+$BINPATH "${TEST_TMPDIR}/netlist2.v"
 
 echo "PASS"

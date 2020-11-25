@@ -16,16 +16,18 @@
 
 #include <memory>
 
-#include "google/protobuf/text_format.h"
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/memory/memory.h"
+#include "gmock/gmock.h"
+#include "google/protobuf/text_format.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/netlist/netlist.pb.h"
 
 namespace xls {
 namespace netlist {
 namespace {
+
+using status_testing::IsOkAndHolds;
 
 TEST(CellLibraryTest, SerializeToProto) {
   CellLibrary cell_library;
@@ -109,7 +111,8 @@ TEST(CellLibraryTest, EvaluateStateTable) {
   }
   )";
   StateTableProto proto;
-  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(proto_text, &proto));
+  ASSERT_TRUE(
+      google::protobuf::TextFormat::ParseFromString(proto_text, &proto));
 
   XLS_ASSERT_OK_AND_ASSIGN(StateTable table, StateTable::FromProto(proto));
   StateTable::InputStimulus stimulus;
@@ -138,6 +141,27 @@ TEST(CellLibraryTest, EvaluateStateTable) {
       table.GetSignalValue(stimulus, "ham_sandwich"),
       status_testing::StatusIs(absl::StatusCode::kNotFound,
                                ::testing::HasSubstr("No matching row")));
+
+  EXPECT_THAT(table.GetSignalValue(stimulus, "PB&J"),
+              status_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(CellLibraryTest, LutStateTable) {
+  // 4-way AND
+  StateTable table = StateTable::FromLutMask(0x8000);
+  StateTable::InputStimulus stimulus;
+  stimulus["I0"] = true;
+  stimulus["I1"] = true;
+  stimulus["I2"] = true;
+  stimulus["I3"] = true;
+  EXPECT_THAT(table.GetSignalValue(stimulus, "X"), IsOkAndHolds(true));
+
+  stimulus.clear();
+  stimulus["I0"] = true;
+  stimulus["I1"] = false;
+  stimulus["I2"] = true;
+  stimulus["I3"] = true;
+  EXPECT_THAT(table.GetSignalValue(stimulus, "X"), IsOkAndHolds(false));
 }
 
 }  // namespace

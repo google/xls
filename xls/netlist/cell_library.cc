@@ -14,10 +14,10 @@
 
 #include "xls/netlist/cell_library.h"
 
-#include "google/protobuf/repeated_field.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "google/protobuf/repeated_field.h"
 #include "xls/common/integral_types.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -169,13 +169,60 @@ std::string CellKindToString(CellKind kind) {
     rows.push_back({stimulus, response});
   }
 
-  return StateTable(rows, signals, proto);
+  absl::flat_hash_set<std::string> internal_names;
+  for (const auto& name : proto.internal_names()) {
+    internal_names.insert(name);
+  }
+  return StateTable(rows, signals, internal_names);
+}
+
+/* static */ StateTable StateTable::FromLutMask(uint16_t lut_mask) {
+  std::vector<Row> rows;
+  // For a mask with bits b_15, b_14, ... b_1, b_0, the LUT4 with that mask
+  // implements the following truth table:
+  //
+  // I3 | I2 | I1 | I0 | out
+  // -----------------------
+  // 0  | 0  | 0  | 0  | b_0
+  // 0  | 0  | 0  | 1  | b_1
+  // 0  | 0  | 1  | 0  | b_2
+  // ... etc.
+  //
+  // Note that this specifically for the iCE40 FPGA, other vendors may have
+  // different conventions.
+  rows.reserve(16);
+  for (int row = 0; row < 16; ++row) {
+    StateTableSignal i0 =
+        (row & 0b0001) > 0 ? StateTableSignal::kHigh : StateTableSignal::kLow;
+    StateTableSignal i1 =
+        (row & 0b0010) > 0 ? StateTableSignal::kHigh : StateTableSignal::kLow;
+    StateTableSignal i2 =
+        (row & 0b0100) > 0 ? StateTableSignal::kHigh : StateTableSignal::kLow;
+    StateTableSignal i3 =
+        (row & 0b1000) > 0 ? StateTableSignal::kHigh : StateTableSignal::kLow;
+    StateTableSignal out = ((lut_mask >> row) & 1) == 1
+                               ? StateTableSignal::kHigh
+                               : StateTableSignal::kLow;
+    // "X" comes from the specified function_name in
+    // Netlist::GetOrCreateLut4CellEntry
+    rows.push_back(Row{
+        .stimulus = {{"I0", i0},
+                     {"I1", i1},
+                     {"I2", i2},
+                     {"I3", i3},
+                     {"X", StateTableSignal::kDontCare}},
+        .response = {{"X", out}},
+    });
+  }
+
+  return StateTable(rows, /*signals*/ {"I0", "I1", "I2", "I3", "X"},
+                    /*internal_names*/ {"X"});
 }
 
 StateTable::StateTable(const std::vector<Row>& rows,
                        const absl::flat_hash_set<std::string>& signals,
-                       const StateTableProto& proto)
-    : signals_(signals), rows_(rows), proto_(proto) {
+                       const absl::flat_hash_set<std::string>& internal_names)
+    : signals_(signals), internal_names_(internal_names), rows_(rows) {
   // Get the "output" side ("RowResponse") of the first row in the table,
   // and cache the signal names from there.
   for (const auto& kv : rows_[0].response) {
@@ -236,10 +283,9 @@ absl::StatusOr<bool> StateTable::MatchRow(
 absl::StatusOr<bool> StateTable::GetSignalValue(
     const InputStimulus& input_stimulus, absl::string_view signal) const {
   // Find a row matching the stimulus or return error.
-  XLS_RET_CHECK(std::find(proto_.internal_names().begin(),
-                          proto_.internal_names().end(),
-                          signal) != proto_.internal_names().end())
-      << "Can't find internal signal \"" << signal << "\"";
+  if (!internal_names_.contains(signal)) {
+    return absl::InvalidArgumentError("No internal name matched signal");
+  }
 
   for (const Row& row : rows_) {
     XLS_ASSIGN_OR_RETURN(bool match, MatchRow(row, input_stimulus));
