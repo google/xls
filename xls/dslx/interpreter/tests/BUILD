@@ -295,6 +295,18 @@ dslx_test(
 )
 
 dslx_test(
+    name = "mod_importer_typedef",
+    srcs = ["mod_importer_typedef.x"],
+    deps = ["mod_imported_typedef.x"],
+)
+
+dslx_test(
+    name = "mod_importer_struct_of_enum",
+    srcs = ["mod_importer_struct_of_enum.x"],
+    deps = ["mod_imported_struct_of_enum.x"],
+)
+
+dslx_test(
     name = "mod_importer_simple",
     srcs = ["mod_importer_simple.x"],
     deps = ["mod_imported.x"],

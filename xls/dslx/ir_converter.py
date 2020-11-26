@@ -235,7 +235,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     try:
       record = self.node_to_ir[node]
     except KeyError:
-      logging.error('Exception resolving %s node @%s: %s',
+      logging.error('Exception resolving %s node @ %s: %s',
                     node.__class__.__name__, ast_helpers.get_span_or_fake(node),
                     node)
       raise

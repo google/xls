@@ -686,12 +686,16 @@ static absl::StatusOr<InterpValue> EvaluateEnumRefHelper(
     Expr* expr, EnumDef* enum_def, absl::string_view attr,
     InterpCallbackData* callbacks) {
   XLS_ASSIGN_OR_RETURN(auto value_node, enum_def->GetValue(attr));
+  // Note: we have grab bindings from the underlying type (not from the expr,
+  // which may have been in a different module from the enum_def).
+  TypeAnnotation* underlying_type = enum_def->type();
   XLS_ASSIGN_OR_RETURN(
       std::shared_ptr<InterpBindings> fresh_bindings,
-      MakeTopLevelBindings(expr->owner()->shared_from_this(), callbacks));
+      MakeTopLevelBindings(underlying_type->owner()->shared_from_this(),
+                           callbacks));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> concrete_type,
                        ConcretizeTypeAnnotation(
-                           enum_def->type(), fresh_bindings.get(), callbacks));
+                           underlying_type, fresh_bindings.get(), callbacks));
   Expr* value_expr = ToExprNode(value_node);
   XLS_ASSIGN_OR_RETURN(InterpValue raw_value,
                        callbacks->Eval(value_expr, fresh_bindings.get()));
@@ -776,6 +780,8 @@ absl::StatusOr<InterpValue> EvaluateColonRef(ColonRef* expr,
                                              InterpCallbackData* callbacks) {
   XLS_ASSIGN_OR_RETURN(auto subject,
                        ResolveColonRefSubject(expr, bindings, callbacks));
+  XLS_VLOG(3) << "ColonRef resolved subject: " << ToAstNode(subject)->ToString()
+              << " attr: " << expr->attr();
   if (absl::holds_alternative<EnumDef*>(subject)) {
     auto* enum_def = absl::get<EnumDef*>(subject);
     return EvaluateEnumRefHelper(expr, enum_def, expr->attr(), callbacks);
@@ -1070,7 +1076,7 @@ absl::StatusOr<InterpValue> EvaluateMatch(Match* expr, InterpBindings* bindings,
 
 absl::StatusOr<std::shared_ptr<InterpBindings>> MakeTopLevelBindings(
     const std::shared_ptr<Module>& module, InterpCallbackData* callbacks) {
-  XLS_VLOG(3) << "Making top level bindings for module: " << module->name();
+  XLS_VLOG(4) << "Making top level bindings for module: " << module->name();
   auto b = std::make_shared<InterpBindings>(/*parent=*/nullptr);
 
   // Add all the builtin functions.
@@ -1241,6 +1247,10 @@ static absl::StatusOr<DerefVariant> DerefTypeRef(
     return EvaluateToStructOrEnumOrAnnotation(mod_ref, bindings, callbacks);
   }
 
+  XLS_VLOG(3) << "Resolving type ref: " << type_ref->ToString()
+              << " (definition is: "
+              << ToAstNode(type_ref->type_definition())->GetNodeTypeName()
+              << ") in module: " << type_ref->owner()->name();
   XLS_ASSIGN_OR_RETURN(auto result,
                        bindings->ResolveTypeDefinition(type_ref->text()));
   return result;
@@ -1298,7 +1308,8 @@ static absl::StatusOr<InterpBindings> BindingsWithStructParametrics(
 absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
     TypeAnnotation* type, InterpBindings* bindings,
     InterpCallbackData* callbacks) {
-  XLS_VLOG(3) << "Concretizing type annotation: " << type->ToString();
+  XLS_VLOG(3) << "Concretizing type annotation: " << type->ToString()
+              << " in module " << type->owner()->name();
 
   // class TypeRefTypeAnnotation
   if (auto* type_ref = dynamic_cast<TypeRefTypeAnnotation*>(type)) {
@@ -1322,6 +1333,18 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
       XLS_ASSIGN_OR_RETURN(ConcreteTypeDim bit_count,
                            underlying_type->GetTotalBitCount());
       return absl::make_unique<EnumType>(enum_def, bit_count);
+    }
+
+    // We may have resolved to a deref'd definition outside of the current
+    // module, in which case we need to get the top level bindings for that
+    // (dereferenced) module.
+    std::shared_ptr<InterpBindings> derefd_top_level;
+    Module* derefd_module = ToAstNode(deref)->owner();
+    if (derefd_module != type->owner()) {
+      XLS_ASSIGN_OR_RETURN(
+          derefd_top_level,
+          MakeTopLevelBindings(derefd_module->shared_from_this(), callbacks));
+      bindings = derefd_top_level.get();
     }
     return ConcretizeType(deref, bindings, callbacks);
   }

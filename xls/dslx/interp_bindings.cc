@@ -121,6 +121,11 @@ absl::StatusOr<TypeAnnotation*> InterpBindings::ResolveTypeAnnotation(
 absl::StatusOr<absl::variant<TypeAnnotation*, EnumDef*, StructDef*>>
 InterpBindings::ResolveTypeDefinition(absl::string_view identifier) const {
   absl::optional<Entry> entry = ResolveEntry(identifier);
+  if (!entry.has_value()) {
+    return absl::NotFoundError(absl::StrFormat(
+        "Could not resolve type definition for identifier: \"%s\"",
+        identifier));
+  }
   if (absl::holds_alternative<TypeDef*>(entry.value())) {
     return absl::get<TypeDef*>(entry.value())->type();
   }

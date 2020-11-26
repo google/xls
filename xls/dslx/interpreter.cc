@@ -132,6 +132,7 @@ absl::Status Interpreter::RunTest(absl::string_view name) {
         "EvaluateError: Want test %s to return nil tuple; got: %s",
         test->identifier(), result.ToString()));
   }
+  XLS_VLOG(2) << "Ran test " << name << " successfully.";
   return absl::OkStatus();
 }
 
