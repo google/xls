@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Build rules for DSLX modules.
-load("//xls/build:build_defs.bzl", "dslx_jit_wrapper", "dslx_test")
+load("//xls/build_rules:build_defs.bzl", "dslx_jit_wrapper", "dslx_test")
 
 package(
     default_visibility = ["//xls:xls_internal"],

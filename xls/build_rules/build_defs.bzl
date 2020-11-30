@@ -14,7 +14,7 @@
 
 """Contains macros for DSLX test targets."""
 
-load("//xls/build:genrule_wrapper.bzl", "genrule_wrapper")
+load("//xls/build_rules:genrule_wrapper.bzl", "genrule_wrapper")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 
 _IR_CONVERTER_MAIN = "//xls/dslx:ir_converter_main"

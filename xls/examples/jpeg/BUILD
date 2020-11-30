@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//xls/build:build_defs.bzl", "dslx_test")
+load("//xls/build_rules:build_defs.bzl", "dslx_test")
 
 package(
     default_visibility = ["//xls:xls_internal"],

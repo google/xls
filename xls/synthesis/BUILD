@@ -18,7 +18,7 @@ load("@com_github_grpc_grpc//bazel:cc_grpc_library.bzl", "cc_grpc_library")
 
 # cc_proto_library is used in this file
 # pytype binary, test, library
-load("//xls/build:py_proto_library.bzl", "xls_py_proto_library")
+load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
 
 package(
     default_visibility = ["//xls:xls_internal"],

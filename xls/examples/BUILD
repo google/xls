@@ -14,7 +14,7 @@
 
 # Build rules for XLS examples.
 
-load("//xls/build:build_defs.bzl", "dslx_jit_wrapper", "dslx_test")
+load("//xls/build_rules:build_defs.bzl", "dslx_jit_wrapper", "dslx_test")
 load("//xls/examples:list_filegroup_files.bzl", "list_filegroup_files")
 
 package(

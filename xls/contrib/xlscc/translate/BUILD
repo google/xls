@@ -13,7 +13,7 @@
 # limitations under the License.
 
 load("@xls_pip_deps//:requirements.bzl", "requirement")
-load("//xls/build:py_proto_library.bzl", "xls_py_proto_library")
+load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
 
 package(
     default_visibility = ["//xls/contrib/xlscc:xlscc_internal"],

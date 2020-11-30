@@ -14,7 +14,7 @@
 
 # Build rules for XLS examples.
 
-load("//xls/build:build_defs.bzl", "dslx_test")
+load("//xls/build_rules:build_defs.bzl", "dslx_test")
 
 package(
     default_visibility = ["//xls:xls_internal"],

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//xls/build:iverilog_test.bzl", "iverilog_test")
+load("//xls/build_rules:iverilog_test.bzl", "iverilog_test")
 
 package(
     default_visibility = ["//xls:xls_internal"],

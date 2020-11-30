@@ -14,7 +14,7 @@
 
 """Contains internal XLS macros."""
 
-load("//xls/build:elab_test.bzl", "elab_test")
+load("//xls/build_rules:elab_test.bzl", "elab_test")
 
 def iverilog_test(name, top, main, srcs, execute = True, tick_defines = None):
     """Defines Icarus Verilog test, with associated elaboration test.

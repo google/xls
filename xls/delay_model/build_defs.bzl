@@ -14,7 +14,7 @@
 
 """Contains macros for creating XLS delay models."""
 
-load("//xls/build:genrule_wrapper.bzl", "genrule_wrapper")
+load("//xls/build_rules:genrule_wrapper.bzl", "genrule_wrapper")
 
 def delay_model(
         name,
