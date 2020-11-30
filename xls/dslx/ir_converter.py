@@ -775,6 +775,8 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
         continue
       if isinstance(name_def.definer, ast.EnumDef):
         continue
+      if isinstance(name_def.definer, ast.TypeDef):
+        continue
       relevant_name_defs.append(name_def)
       logging.vlog(3, 'Converting freevar name: %s', name_def)
       body_converter.node_to_ir[name_def] = body_converter.fb.add_param(
@@ -1198,8 +1200,9 @@ def _convert_one_function(package: ir_package.Package,
 
   freevars = function.body.get_free_variables(
       function.span.start).get_name_def_tups(module)
-  logging.vlog(2, 'Free variables for function %s: %s', function.identifier,
-               freevars)
+  logging.vlog(2, 'Unfiltered free variables for function %s: %s',
+               function.identifier, freevars)
+  logging.vlog(3, 'Type definition by name: %r', type_definition_by_name)
   for identifier, name_def in freevars:
     if (identifier in function_by_name or
         identifier in type_definition_by_name or identifier in import_by_name or
