@@ -1441,11 +1441,16 @@ PYBIND11_MODULE(cpp_ast, m) {
   // TODO(leary): 2020-08-27 Rename to ConstantDef.
   py::class_<ConstantDefHolder, AstNodeHolder>(m, "Constant")
       .def(py::init([](ModuleHolder module, Span span, NameDefHolder name_def,
-                       ExprHolder expr) {
-        auto* self = module.deref().Make<ConstantDef>(
-            std::move(span), &name_def.deref(), &expr.deref());
-        return ConstantDefHolder(self, module.module());
-      }))
+                       ExprHolder expr, bool is_public) {
+             auto* self = module.deref().Make<ConstantDef>(
+                 std::move(span), &name_def.deref(), &expr.deref(), is_public);
+             return ConstantDefHolder(self, module.module());
+           }),
+           py::arg("module"), py::arg("span"), py::arg("name_def"),
+           py::arg("expr"), py::arg("is_public"))
+      .def_property_readonly(
+          "public",
+          [](ConstantDefHolder self) { return self.deref().is_public(); })
       .def("__repr__",
            [](const ConstantDefHolder& self) {
              return self.deref().ToReprString();

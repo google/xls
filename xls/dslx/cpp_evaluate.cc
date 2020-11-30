@@ -774,7 +774,13 @@ absl::StatusOr<InterpValue> EvaluateColonRef(ColonRef* expr,
     return InterpValue::MakeFunction(
         InterpValue::UserFnData{f->owner()->shared_from_this(), f});
   }
-  // TODO(leary): 2020-11-17 Implement constant definition resolution.
+  if (absl::holds_alternative<ConstantDef*>(*member.value())) {
+    auto* cd = absl::get<ConstantDef*>(*member.value());
+    XLS_ASSIGN_OR_RETURN(
+        std::shared_ptr<InterpBindings> module_top,
+        MakeTopLevelBindings(module->shared_from_this(), callbacks));
+    return callbacks->Eval(cd->value(), module_top.get());
+  }
   return absl::InternalError(
       absl::StrFormat("EvaluateError: %s Unsupported module reference.",
                       expr->span().ToString()));

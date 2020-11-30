@@ -17,6 +17,7 @@
 
 from xls.common import runfiles
 from xls.dslx.interpreter import parse_and_interpret
+from xls.dslx.python.cpp_deduce import TypeInferenceError
 from xls.dslx.python.cpp_parser import CppParseError
 from absl.testing import absltest
 
@@ -43,6 +44,16 @@ class ImportModuleWithTypeErrorTest(absltest.TestCase):
     self.assertIn(
         'xls/dslx/interpreter/tests/imports_and_causes_ref_error.x:17:29-17:31',
         str(cm.exception.message))
+
+  def test_imports_private_enum(self):
+    path = runfiles.get_path(
+        'xls/dslx/interpreter/tests/imports_private_enum.x')
+    with self.assertRaises(TypeInferenceError) as cm:
+      parse_and_interpret.parse_and_test_path(path)
+
+    self.assertIn(
+        'xls/dslx/interpreter/tests/imports_private_enum.x:17:14-17:40',
+        str(cm.exception.span))
 
 
 if __name__ == '__main__':

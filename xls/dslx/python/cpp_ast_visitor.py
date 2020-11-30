@@ -50,5 +50,6 @@ def visit(node: ast.AstNode, visitor: AstVisitor) -> None:
     logging.vlog(5, 'No handler in %s for node: %s', visitor.__class__.__name__,
                  class_name)
   else:
-    logging.vlog(5, 'Visiting %s: %s', class_name, node)
+    logging.vlog(5, 'Visiting %s: %s @ %s', class_name, node,
+                 getattr(node, 'span', None))
     handler(node)

@@ -47,6 +47,8 @@ pub fn bias(unbiased_exponent_in: u9) -> u8 { (unbiased_exponent_in + u9:127) as
 
 pub fn flatten(x: F32) -> u32 { x.sign ++ x.bexp ++ x.sfd }
 
+pub const F32_ONE_FLAT = u32:0x3f800000;
+
 pub fn unflatten(x: u32) -> F32 {
   F32 { sign: (x >> u32:31) as u1, bexp: (x >> u32:23) as u8, sfd: x as u23 }
 }

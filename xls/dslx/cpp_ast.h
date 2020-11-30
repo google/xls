@@ -1761,11 +1761,13 @@ class Carry : public Expr {
 // Represents a constant definition.
 class ConstantDef : public AstNode {
  public:
-  ConstantDef(Module* owner, Span span, NameDef* name_def, Expr* value)
+  ConstantDef(Module* owner, Span span, NameDef* name_def, Expr* value,
+              bool is_public)
       : AstNode(owner),
         span_(std::move(span)),
         name_def_(name_def),
-        value_(value) {}
+        value_(value),
+        is_public_(is_public) {}
 
   absl::string_view GetNodeTypeName() const override { return "ConstantDef"; }
   std::string ToString() const override;
@@ -1781,11 +1783,13 @@ class ConstantDef : public AstNode {
   NameDef* name_def() const { return name_def_; }
   Expr* value() const { return value_; }
   const Span& span() const { return span_; }
+  bool is_public() const { return is_public_; }
 
  private:
   Span span_;
   NameDef* name_def_;
   Expr* value_;
+  bool is_public_;
 };
 
 // Tree of name definition nodes; e.g.

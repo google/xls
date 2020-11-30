@@ -113,6 +113,15 @@ PYBIND11_MODULE(cpp_deduce, m) {
     }
   });
 
+  m.def("type_inference_error",
+        [](const Span& span, ConcreteType* type, const std::string& suffix) {
+          std::unique_ptr<ConcreteType> t;
+          if (type != nullptr) {
+            t = type->CloneToUnique();
+          }
+          throw TypeInferenceError(span, std::move(t), suffix);
+        });
+
   py::class_<DeduceCtx, std::shared_ptr<DeduceCtx>>(m, "DeduceCtx")
       .def(py::init([](const std::shared_ptr<TypeInfo>& type_info,
                        ModuleHolder module,

@@ -415,6 +415,8 @@ py_test(
         "has_type_error.x",
         "imports_and_causes_ref_error.x",
         "imports_has_type_error.x",
+        "imports_private_enum.x",
+        "mod_private_enum.x",
     ],
     python_version = "PY3",
     srcs_version = "PY3",
@@ -422,6 +424,7 @@ py_test(
         "@com_google_absl_py//absl/testing:absltest",
         "//xls/common:runfiles",
         "//xls/dslx/interpreter:parse_and_interpret",
+        "//xls/dslx/python:cpp_deduce",
         "//xls/dslx/python:cpp_parser",
     ],
 )
@@ -433,9 +436,27 @@ dslx_test(
 )
 
 dslx_test(
+    name = "mod_const_importer",
+    srcs = ["mod_const_importer.x"],
+    deps = ["mod_simple_const.x"],
+)
+
+dslx_test(
+    name = "mod_const_enum_importer",
+    srcs = ["mod_const_enum_importer.x"],
+    deps = ["mod_simple_const_enum.x"],
+)
+
+dslx_test(
     name = "mod_simple_enum_alias_importer",
     srcs = ["mod_simple_enum_alias_importer.x"],
     deps = ["mod_simple_enum.x"],
+)
+
+dslx_test(
+    name = "mod_simple_const_array_of_enums_importer",
+    srcs = ["mod_const_array_of_enum_importer.x"],
+    deps = ["mod_simple_const_array_of_enums.x"],
 )
 
 dslx_test(

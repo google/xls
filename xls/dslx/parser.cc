@@ -165,6 +165,11 @@ absl::StatusOr<std::shared_ptr<Module>> Parser::ParseModule(
                              ParseEnumDef(/*is_public=*/true, bindings));
         module_->mutable_top()->push_back(enum_def);
         continue;
+      } else if (peek->IsKeyword(Keyword::kConst)) {
+        XLS_ASSIGN_OR_RETURN(ConstantDef * def,
+                             ParseConstantDef(/*is_public=*/true, bindings));
+        module_->mutable_top()->push_back(def);
+        continue;
       } else if (peek->IsKeyword(Keyword::kType)) {
         XLS_ASSIGN_OR_RETURN(TypeDef * type_def,
                              ParseTypeDefinition(/*is_public=*/true, bindings));
@@ -242,7 +247,7 @@ absl::StatusOr<std::shared_ptr<Module>> Parser::ParseModule(
       }
       case Keyword::kConst: {
         XLS_ASSIGN_OR_RETURN(ConstantDef * const_def,
-                             ParseConstantDef(bindings));
+                             ParseConstantDef(/*is_public=*/false, bindings));
         module_->mutable_top()->push_back(const_def);
         break;
       }
@@ -1258,7 +1263,8 @@ absl::StatusOr<Expr*> Parser::ParseCastAsExpression(Bindings* bindings) {
   return lhs;
 }
 
-absl::StatusOr<ConstantDef*> Parser::ParseConstantDef(Bindings* bindings) {
+absl::StatusOr<ConstantDef*> Parser::ParseConstantDef(bool is_public,
+                                                      Bindings* bindings) {
   const Pos start_pos = GetPos();
   XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kConst));
   Bindings new_bindings(/*parent=*/bindings);
@@ -1274,7 +1280,9 @@ absl::StatusOr<ConstantDef*> Parser::ParseConstantDef(Bindings* bindings) {
   }
 
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
-  XLS_ASSIGN_OR_RETURN(Expr * expr, ParseCast(bindings));
+  XLS_ASSIGN_OR_RETURN(Token tok, PopToken());
+  XLS_ASSIGN_OR_RETURN(Expr * expr,
+                       ParseCastOrEnumRefOrStructInstance(tok, bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
   if (!IsConstant(expr)) {
     return ParseError(expr->span(),
@@ -1282,7 +1290,7 @@ absl::StatusOr<ConstantDef*> Parser::ParseConstantDef(Bindings* bindings) {
                                       expr->ToString()));
   }
   Span span(start_pos, GetPos());
-  auto* result = module_->Make<ConstantDef>(span, name_def, expr);
+  auto* result = module_->Make<ConstantDef>(span, name_def, expr, is_public);
   bindings->Add(name_def->identifier(), result);
   return result;
 }
@@ -1405,7 +1413,8 @@ absl::StatusOr<Let*> Parser::ParseLet(Bindings* bindings) {
   ConstantDef* const_def = nullptr;
   if (const_ && name_def != nullptr) {
     Span span(name_def->span().start(), rhs->span().limit());
-    const_def = module_->Make<ConstantDef>(span, name_def, rhs);
+    const_def =
+        module_->Make<ConstantDef>(span, name_def, rhs, /*is_public=*/false);
     new_bindings.Add(name_def->identifier(), const_def);
   }
   XLS_ASSIGN_OR_RETURN(Expr * body, ParseExpression(&new_bindings));

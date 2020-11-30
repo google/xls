@@ -39,7 +39,7 @@ from xls.dslx.python.cpp_concrete_type import EnumType
 from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.dslx.python.cpp_deduce import DeduceCtx
-from xls.dslx.python.cpp_deduce import TypeInferenceError
+from xls.dslx.python.cpp_deduce import type_inference_error as TypeInferenceError
 from xls.dslx.python.cpp_parametric_expression import ParametricAdd
 from xls.dslx.python.cpp_parametric_expression import ParametricExpression
 from xls.dslx.python.cpp_parametric_expression import ParametricSymbol
@@ -751,6 +751,7 @@ def _deduce_ColonRef(self: ast.ColonRef, ctx: DeduceCtx) -> ConcreteType:  # pyt
   """Deduces the concrete type of a ColonRef AST node."""
   if isinstance(self.subject, ast.NameRef) and isinstance(
       self.subject.name_def.definer, ast.Import):
+    # Importing from an (imported) module.
     import_node: ast.Import = self.subject.name_def.definer
     imported_module, imported_type_info = ctx.type_info.get_imported(
         import_node)
@@ -758,6 +759,11 @@ def _deduce_ColonRef(self: ast.ColonRef, ctx: DeduceCtx) -> ConcreteType:  # pyt
     logging.vlog(
         3, 'Resolving type info for module element: %s referred to by %s', elem,
         self)
+
+    if not elem.public:
+      raise TypeInferenceError(
+          self.span, None,
+          f'Attempted to refer to module type {elem} that is not public.')
 
     if isinstance(elem, ast.Function) and elem.name not in imported_type_info:
       logging.vlog(

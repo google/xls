@@ -1038,6 +1038,20 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_ColonRef(self, node: ast.ColonRef) -> None:
+    # Implementation note: ColonRef *invocations* are handled in Invocation (by
+    # resolving the mangled callee name, which should have been IR converted in
+    # dependency order).
+
+    if isinstance(node.subject, ast.NameRef) and isinstance(
+        node.subject.name_def.definer, ast.Import):
+      definer = node.subject.name_def.definer
+      imported_mod, _ = dict(self.type_info.get_imports())[definer]
+      constant_def = imported_mod.get_constant_by_name()[node.attr]
+      assert isinstance(constant_def, ast.Constant), repr(constant_def)
+      self.visit_Constant(constant_def)
+      self._def_alias(constant_def.name, to=node)
+      return
+
     try:
       enum = self._deref_enum(node.subject)
     except TypeError as e:

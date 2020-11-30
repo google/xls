@@ -33,7 +33,8 @@ class CppAstTest(absltest.TestCase):
     m = cpp_ast.Module('test')
     name_def = cpp_ast.NameDef(m, self.fake_span, 'MOL')
     number = cpp_ast.Number(m, self.fake_span, '42')
-    constant_def = cpp_ast.Constant(m, self.fake_span, name_def, number)
+    constant_def = cpp_ast.Constant(
+        m, self.fake_span, name_def, number, is_public=False)
     m.add_top(constant_def)
     self.assertEqual(str(m), 'const MOL = 42;')
 

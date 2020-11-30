@@ -457,7 +457,8 @@ class Parser : public TokenParser {
 
   // Parses a constant definition (e.g. at the top level of a module). Token
   // cursor should be over the `const` keyword.
-  absl::StatusOr<ConstantDef*> ParseConstantDef(Bindings* bindings);
+  absl::StatusOr<ConstantDef*> ParseConstantDef(bool is_public,
+                                                Bindings* bindings);
 
   absl::StatusOr<QuickCheck*> ParseQuickCheck(
       absl::flat_hash_map<std::string, Function*>* name_to_fn,

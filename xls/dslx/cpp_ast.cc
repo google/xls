@@ -224,7 +224,11 @@ std::string For::ToString() const {
 }
 
 std::string ConstantDef::ToString() const {
-  return absl::StrFormat("const %s = %s;", name_def_->ToString(),
+  std::string privacy;
+  if (is_public_) {
+    privacy = "pub ";
+  }
+  return absl::StrFormat("%sconst %s = %s;", privacy, name_def_->ToString(),
                          value_->ToString());
 }
 
