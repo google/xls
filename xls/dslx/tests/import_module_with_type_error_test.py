@@ -25,35 +25,30 @@ from absl.testing import absltest
 class ImportModuleWithTypeErrorTest(absltest.TestCase):
 
   def test_imports_module_with_type_error(self):
-    path = runfiles.get_path(
-        'xls/dslx/interpreter/tests/imports_has_type_error.x')
+    path = runfiles.get_path('xls/dslx/tests/imports_has_type_error.x')
     with self.assertRaises(Exception) as cm:
       parse_and_interpret.parse_and_test_path(path)
 
     self.assertIn('XlsTypeError', str(cm.exception))
-    self.assertIn('xls/dslx/interpreter/tests/has_type_error.x:16:3-16:4',
+    self.assertIn('xls/dslx/tests/has_type_error.x:16:3-16:4',
                   str(cm.exception))
 
   def test_imports_and_causes_ref_error(self):
-    path = runfiles.get_path(
-        'xls/dslx/interpreter/tests/imports_and_causes_ref_error.x')
+    path = runfiles.get_path('xls/dslx/tests/imports_and_causes_ref_error.x')
     with self.assertRaises(CppParseError) as cm:
       parse_and_interpret.parse_and_test_path(path)
 
     self.assertIn('ParseError', str(cm.exception.message))
-    self.assertIn(
-        'xls/dslx/interpreter/tests/imports_and_causes_ref_error.x:17:29-17:31',
-        str(cm.exception.message))
+    self.assertIn('xls/dslx/tests/imports_and_causes_ref_error.x:17:29-17:31',
+                  str(cm.exception.message))
 
   def test_imports_private_enum(self):
-    path = runfiles.get_path(
-        'xls/dslx/interpreter/tests/imports_private_enum.x')
+    path = runfiles.get_path('xls/dslx/tests/imports_private_enum.x')
     with self.assertRaises(TypeInferenceError) as cm:
       parse_and_interpret.parse_and_test_path(path)
 
-    self.assertIn(
-        'xls/dslx/interpreter/tests/imports_private_enum.x:17:14-17:40',
-        str(cm.exception.span))
+    self.assertIn('xls/dslx/tests/imports_private_enum.x:17:14-17:40',
+                  str(cm.exception.span))
 
 
 if __name__ == '__main__':

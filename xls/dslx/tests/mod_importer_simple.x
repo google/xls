@@ -12,19 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.interpreter.tests.mod_simple_enum
+import xls.dslx.tests.mod_imported
 
-fn main(et: mod_simple_enum::EnumType) -> u32 {
-  match et {
-    mod_simple_enum::EnumType::FIRST => u32:0,
-    mod_simple_enum::EnumType::SECOND => u32:1,
-    _ => u32:2
-  }
+fn main(x: u3) -> u1 {
+  mod_imported::my_lsb(x)
 }
 
-#![test]
-fn test_main() {
-  let _ = assert_eq(u32:0, main(mod_simple_enum::EnumType::FIRST));
-  let _ = assert_eq(u32:1, main(mod_simple_enum::EnumType::SECOND));
-  ()
+test main {
+  assert_eq(u1:0b1, main(u3:0b001))
 }

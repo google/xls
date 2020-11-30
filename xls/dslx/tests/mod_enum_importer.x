@@ -12,12 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.interpreter.tests.mod_imported
+import xls.dslx.tests.mod_imported
 
-fn main(x: u3) -> u1 {
-  mod_imported::my_lsb(x)
+type MyEnum = mod_imported::MyEnum;
+
+fn main(x: u8) -> MyEnum {
+  x as MyEnum
 }
 
 test main {
-  assert_eq(u1:0b1, main(u3:0b001))
+  let _ = assert_eq(main(u8:42), MyEnum::FOO);
+  let _ = assert_eq(main(u8:64), MyEnum::BAR);
+  ()
 }

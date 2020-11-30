@@ -12,9 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This import should blow up!
-import xls.dslx.interpreter.tests.has_type_error
+import xls.dslx.tests.mod_imported_aliases
 
-fn main(x: u32) -> u8 {
-  has_type_error::f(x)
+type MyEnum = mod_imported_aliases::MyEnumAlias;
+type MyStruct = mod_imported_aliases::MyStructAlias;
+type MyTuple = mod_imported_aliases::MyTupleAlias;
+
+fn main(x: u8) -> MyTuple {
+  let me: MyEnum = x as MyEnum;
+  (MyStruct { me: me }, MyEnum::FOO)
+}
+
+test main {
+  let (ms, me): (MyStruct, MyEnum) = main(u8:64);
+  let _ = assert_eq(MyEnum::BAR, ms.me);
+  assert_eq(MyEnum::FOO, me)
 }

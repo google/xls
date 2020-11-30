@@ -12,16 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.interpreter.tests.mod_imported
-import xls.dslx.interpreter.tests.mod_imported as mi
+import xls.dslx.tests.mod_simple_const
 
-fn main(x: u3) -> u1 {
-  let lhs: u1 = mod_imported::my_lsb(x);
-  let rhs: u1 = mi::my_lsb(x);
-  let ehs: u1 = mi::my_lsb_uses_const(x);
-  lhs || rhs || ehs
+const LOCAL_FOO = u32:42;
+
+fn main(x: u32) -> u32 {
+  x + mod_simple_const::FOO
 }
 
 test main {
-  assert_eq(u1:0b1, main(u3:0b001))
+  let _ = assert_eq(main(u32:0), u32:42);
+  let _ = assert_eq(main(u32:1), u32:43);
+  let _ = assert_eq(LOCAL_FOO, mod_simple_const::FOO);
+  ()
 }

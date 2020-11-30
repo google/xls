@@ -12,6 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.interpreter.tests.mod_imported
+import xls.dslx.tests.mod_imported_struct_of_enum
 
-type Foo = bits[mod_imported::MyEnum];  // Nonsenical!
+type MyEnum2 = mod_imported_struct_of_enum::MyEnum;
+type MyStruct2 = mod_imported_struct_of_enum::MyStruct;
+
+fn main(x: u8) -> MyStruct2 {
+  MyStruct2 { x: x as MyEnum2 }
+}
+
+test main {
+  let s: MyStruct2 = main(u8:42);
+  assert_eq(s.x, MyEnum2::FOO)
+}

@@ -12,19 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.interpreter.tests.mod_imported_aliases
+import xls.dslx.tests.mod_simple_const_enum
 
-type MyEnum = mod_imported_aliases::MyEnumAlias;
-type MyStruct = mod_imported_aliases::MyStructAlias;
-type MyTuple = mod_imported_aliases::MyTupleAlias;
+type MyEnum = mod_simple_const_enum::MyEnum;
 
-fn main(x: u8) -> MyTuple {
-  let me: MyEnum = x as MyEnum;
-  (MyStruct { me: me }, MyEnum::FOO)
+fn main(x: MyEnum) -> bool {
+  x == mod_simple_const_enum::MY_FOO
 }
 
 test main {
-  let (ms, me): (MyStruct, MyEnum) = main(u8:64);
-  let _ = assert_eq(MyEnum::BAR, ms.me);
-  assert_eq(MyEnum::FOO, me)
+  let _ = assert_eq(main(MyEnum::FOO), true);
+  let _ = assert_eq(main(MyEnum::BAR), false);
+  ()
 }

@@ -12,17 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.interpreter.tests.mod_simple_const
+import xls.dslx.tests.mod_simple_enum
 
-const LOCAL_FOO = u32:42;
-
-fn main(x: u32) -> u32 {
-  x + mod_simple_const::FOO
+fn main(et: mod_simple_enum::EnumTypeAlias) -> u32 {
+  match et {
+    mod_simple_enum::EnumTypeAlias::FIRST => u32:0,
+    mod_simple_enum::EnumTypeAlias::SECOND => u32:1,
+    _ => u32:2
+  }
 }
 
-test main {
-  let _ = assert_eq(main(u32:0), u32:42);
-  let _ = assert_eq(main(u32:1), u32:43);
-  let _ = assert_eq(LOCAL_FOO, mod_simple_const::FOO);
+#![test]
+fn test_main() {
+  let _ = assert_eq(u32:0, main(mod_simple_enum::EnumType::FIRST));
+  let _ = assert_eq(u32:1, main(mod_simple_enum::EnumType::SECOND));
   ()
 }
