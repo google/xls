@@ -30,6 +30,7 @@ from xls.dslx.python.cpp_concrete_type import ConcreteTypeDim
 from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.dslx.python.cpp_pos import Span
+from xls.dslx.python.cpp_type_info import SymbolicBindings
 
 ParametricBinding = Any
 ParametricBindings = Tuple[ParametricBinding, ...]
@@ -363,7 +364,7 @@ def fsig(arg_types: ArgTypes, name: Text, span: Span, ctx: DeduceCtx,
 def fsig(
     arg_types: ArgTypes, name: Text, span: Span, ctx: DeduceCtx,
     parametric_bindings: Optional[ParametricBindings]
-) -> Tuple[ConcreteType, parametric_instantiator.SymbolicBindings]:
+) -> Tuple[ConcreteType, SymbolicBindings]:
   """Returns the inferred/checked return type for a map-style signature."""
   logging.vlog(5, 'Instantiating for builtin %r @ %s', name, span)
   _Checker(arg_types, name, span).len(2).is_array(0).is_fn(1, argc=1)
@@ -376,7 +377,7 @@ def fsig(
 
 SignatureFn = Callable[
     [ArgTypes, Text, Span, DeduceCtx, Optional[ParametricBindings]],
-    Tuple[ConcreteType, parametric_instantiator.SymbolicBindings]]
+    Tuple[ConcreteType, SymbolicBindings]]
 
 
 def get_fsignature(builtin_name: Text) -> SignatureFn:
@@ -410,12 +411,12 @@ def get_fsignature(builtin_name: Text) -> SignatureFn:
   def wrapper(
       arg_types: ArgTypes, name: Text, span: Span, ctx: DeduceCtx,
       parametric_bindings: Optional[ParametricBindings]
-  ) -> Tuple[ConcreteType, parametric_instantiator.SymbolicBindings]:
+  ) -> Tuple[ConcreteType, SymbolicBindings]:
     result = f(arg_types, name, span, ctx, parametric_bindings)
     if isinstance(result, tuple):
       return result
     assert isinstance(result, ConcreteType), result
-    return result, ()
+    return result, SymbolicBindings()
 
   return wrapper
 

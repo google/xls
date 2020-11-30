@@ -34,8 +34,6 @@ namespace xls::dslx {
 PYBIND11_MODULE(cpp_evaluate, m) {
   ImportStatusModule();
 
-  using PySymbolicBindings = std::vector<std::pair<std::string, int64>>;
-
   m.def("concrete_type_accepts_value",
         [](const ConcreteType& type, const InterpValue& value) {
           auto statusor = ConcreteTypeAcceptsValue(type, value);

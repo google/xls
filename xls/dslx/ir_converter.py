@@ -29,7 +29,6 @@ from xls.dslx import deduce
 from xls.dslx import dslx_builtins
 from xls.dslx import extract_conversion_order
 from xls.dslx.ir_name_mangler import mangle_dslx_name
-from xls.dslx.parametric_instantiator import SymbolicBindings
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_ast_visitor
 from xls.dslx.python import cpp_type_info as type_info_mod
@@ -43,6 +42,7 @@ from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.dslx.python.cpp_parametric_expression import ParametricExpression
 from xls.dslx.python.cpp_pos import Span
+from xls.dslx.python.cpp_type_info import SymbolicBindings
 from xls.dslx.span import PositionalError
 from xls.ir.python import bits as bits_mod
 from xls.ir.python import fileno as fileno_mod
@@ -801,9 +801,10 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
         for c in self.module.get_constants()
         if isinstance(c.value, ast.Number)
     }
-    return tuple((k, v)
-                 for k, v in self.symbolic_bindings.items()
-                 if k not in module_level_constants)
+    return SymbolicBindings(
+        tuple((k, v)
+              for k, v in self.symbolic_bindings.items()
+              if k not in module_level_constants))
 
   def _get_invocation_bindings(self,
                                invocation: ast.Invocation) -> SymbolicBindings:
@@ -859,6 +860,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
                             node: ast.NameRef, arg: ast.AstNode,
                             symbolic_bindings: SymbolicBindings) -> BValue:
     """Makes the specified builtin available to the package."""
+    assert isinstance(symbolic_bindings, SymbolicBindings), symbolic_bindings
     mangled_name = mangle_dslx_name(node.name_def.identifier, set(),
                                     self.module, symbolic_bindings)
 
@@ -1110,8 +1112,8 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
   def _visit_Function(
       self, node: ast.Function,
       symbolic_bindings: Optional[SymbolicBindings]) -> ir_function.Function:
-    self.symbolic_bindings = {} if symbolic_bindings is None else dict(
-        symbolic_bindings)
+    self.symbolic_bindings = {} if symbolic_bindings is None else (
+        symbolic_bindings.to_dict())
     self._extract_module_level_constants(self.module)
     # We use a function builder for the duration of converting this
     # ast.Function. When it's done being built, we drop the reference to it (by
@@ -1209,7 +1211,7 @@ def _convert_one_function(package: ir_package.Package,
           f'Cannot convert free variable: {identifier}; not a function nor constant'
       )
 
-  symbolic_binding_keys = set(k for k, _ in symbolic_bindings or ())
+  symbolic_binding_keys = set(b.identifier for b in symbolic_bindings or ())
   f_parametric_keys = function.get_free_parametric_keys()
   if f_parametric_keys > symbolic_binding_keys:
     raise ValueError(
@@ -1247,6 +1249,7 @@ def convert_module_to_package(
                                              traverse_tests)
   logging.vlog(3, 'Convert order: %s', pprint.pformat(order))
   for record in order:
+    logging.vlog(1, 'Converting to IR: %r', record)
     emitted.append(
         _convert_one_function(
             package,

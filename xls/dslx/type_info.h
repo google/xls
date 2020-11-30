@@ -45,6 +45,8 @@ struct SymbolicBinding {
 
 // Sequence of symbolic bindings in stable order (wraps the backing vector
 // storage to make it immutable, hashable, among other utility functions).
+//
+// Stable order is that bindings are sorted as (identifier, value) tuples.
 class SymbolicBindings {
  public:
   SymbolicBindings() = default;
@@ -54,6 +56,12 @@ class SymbolicBindings {
     for (const auto& item : items) {
       bindings_.push_back(SymbolicBinding{item.first, item.second});
     }
+    std::sort(
+        bindings_.begin(), bindings_.end(),
+        [](const auto& lhs, const auto& rhs) {
+          return lhs.identifier < rhs.identifier ||
+                 (lhs.identifier == rhs.identifier && lhs.value < rhs.value);
+        });
   }
 
   template <typename H>
@@ -80,7 +88,7 @@ class SymbolicBindings {
   }
 
   int64 size() const { return bindings_.size(); }
-  absl::Span<SymbolicBinding const> bindings() const { return bindings_; }
+  const std::vector<SymbolicBinding>& bindings() const { return bindings_; }
 
  private:
   std::vector<SymbolicBinding> bindings_;

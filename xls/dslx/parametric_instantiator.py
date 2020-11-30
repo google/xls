@@ -30,9 +30,9 @@ from xls.dslx.python.cpp_concrete_type import EnumType
 from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.dslx.python.cpp_pos import Span
+from xls.dslx.python.cpp_type_info import SymbolicBindings
 from xls.dslx.python.interp_bindings import FnCtx
 from xls.dslx.python.interpreter import Interpreter
-from xls.dslx.symbolic_bindings import SymbolicBindings
 from xls.dslx.xls_type_error import ArgCountMismatchError
 from xls.dslx.xls_type_error import XlsTypeError
 
@@ -86,14 +86,14 @@ class _ParametricInstantiator:
         # e.g. [X: u32]
         continue
       try:
-        fn_name, fn_symbolic_bindings = self.ctx.fn_stack[-1]
-        fn_ctx = FnCtx(self.ctx.module.name, fn_name,
-                       tuple(fn_symbolic_bindings.items()))
+        entry = self.ctx.peek_fn_stack()
+        fn_ctx = FnCtx(self.ctx.module.name, entry.name,
+                       entry.symbolic_bindings)
         result = Interpreter.interpret_expr(
             self.ctx.module,
             self.ctx.type_info,
-            self.ctx.typecheck,
-            self.ctx.import_cache,
+            typecheck=self.ctx.typecheck_module,
+            import_cache=self.ctx.import_cache,
             expr=constraint,
             env=self.symbolic_bindings,
             bit_widths=self.bit_widths,
@@ -328,7 +328,8 @@ class _FunctionInstantiator(_ParametricInstantiator):
     orig = self.function_type.return_type
     resolved = self._resolve(orig)
     logging.vlog(2, 'Resolved return type from %s to %s', orig, resolved)
-    return resolved, tuple(sorted(self.symbolic_bindings.items()))
+    return resolved, SymbolicBindings(
+        tuple(sorted(self.symbolic_bindings.items())))
 
 
 class _StructInstantiator(_ParametricInstantiator):
@@ -395,7 +396,8 @@ class _StructInstantiator(_ParametricInstantiator):
     resolved = self._resolve(self.struct_type)
     logging.vlog(3, 'Resolved struct type from %s to %s', self.struct_type,
                  resolved)
-    return resolved, tuple(sorted(self.symbolic_bindings.items()))
+    return resolved, SymbolicBindings(
+        tuple(sorted(self.symbolic_bindings.items())))
 
 
 def instantiate_function(

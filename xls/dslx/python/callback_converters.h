@@ -19,19 +19,30 @@
 #define XLS_DSLX_PYTHON_CALLBACK_CONVERTERS_H_
 
 #include "xls/dslx/cpp_evaluate.h"
+#include "xls/dslx/deduce.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/python/cpp_ast.h"
 #include "xls/dslx/type_info.h"
 
 namespace xls::dslx {
 
-using PySymbolicBindings = std::vector<std::pair<std::string, int64>>;
+class DeduceCtx;
 
 using PyTypecheckFn =
     std::function<std::shared_ptr<TypeInfo>(ModuleHolder module)>;
 
+using PyTypecheckFunctionFn =
+    std::function<void(FunctionHolder module, DeduceCtx*)>;
+
 // Converts a Python typecheck callback into a "C++ signature" function.
 TypecheckFn ToCppTypecheck(const PyTypecheckFn& py);
+
+// Converts a C++ typecheck callback into a "Python signature" function.
+PyTypecheckFn ToPyTypecheck(const TypecheckFn& cpp);
+
+// Converts a Python "typecheck function" callback into a "C++ signature"
+// function.
+TypecheckFunctionFn ToCppTypecheckFunction(const PyTypecheckFunctionFn& py);
 
 }  // namespace xls::dslx
 

@@ -29,6 +29,7 @@ from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_type_info as type_info
 from xls.dslx.python.cpp_concrete_type import ConcreteType
 from xls.dslx.python.cpp_concrete_type import FunctionType
+from xls.dslx.python.cpp_type_info import SymbolicBindings
 from xls.dslx.span import PositionalError
 from xls.dslx.xls_type_error import XlsTypeError
 
@@ -75,7 +76,7 @@ def _check_function(f: ast.Function, ctx: deduce.DeduceCtx) -> None:
     XlsTypeError: When the return type deduced is inconsistent with the return
       type annotation on "f".
   """
-  fn_name, _ = ctx.fn_stack[-1]
+  fn_name = ctx.peek_fn_stack().name
   # First, get the types of the function's parametrics, args, and return type
   if f.is_parametric() and f.name.identifier == fn_name:
     # Parametric functions are evaluated per invocation. If we're currently
@@ -172,9 +173,10 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
                                           invocation.span, ctx,
                                           higher_order_parametric_bindings)
 
-  _, fn_symbolic_bindings = ctx.fn_stack[-1]
-  ctx.type_info.add_invocation_symbolic_bindings(
-      invocation, tuple(fn_symbolic_bindings.items()), symbolic_bindings)
+  fn_symbolic_bindings = ctx.peek_fn_stack().symbolic_bindings
+  ctx.type_info.add_invocation_symbolic_bindings(invocation,
+                                                 fn_symbolic_bindings,
+                                                 symbolic_bindings)
   ctx.type_info[invocation.callee] = fn_type
   ctx.type_info[invocation] = fn_type.return_type  # pytype: disable=attribute-error
 
@@ -196,13 +198,11 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
         return None
       invocation_imported_type_info = type_info.TypeInfo(
           imported_module, parent=imported_type_info)
-      imported_ctx = deduce.DeduceCtx(invocation_imported_type_info,
-                                      imported_module,
-                                      ctx.check_function_in_module,
-                                      ctx.typecheck, ctx.import_cache)
-      imported_ctx.fn_stack.append((map_fn_name, dict(symbolic_bindings)))
+      imported_ctx = ctx.make_ctx(invocation_imported_type_info,
+                                  imported_module)
+      imported_ctx.add_fn_stack_entry(map_fn_name, symbolic_bindings)
       # We need to typecheck this imported function with respect to its module
-      ctx.check_function_in_module(map_fn, imported_ctx)
+      ctx.typecheck_function(map_fn, imported_ctx)
       ctx.type_info.add_instantiation(invocation, symbolic_bindings,
                                       invocation_imported_type_info)
     else:
@@ -213,12 +213,15 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
         # bindings.
         return None
 
-      ctx.fn_stack.append((map_fn_name, dict(symbolic_bindings)))
-      invocation_type_info = type_info.TypeInfo(
-          ctx.module, parent=ctx.type_info)
-      ctx.type_info.add_instantiation(invocation, symbolic_bindings,
-                                      invocation_type_info)
-      ctx.type_info = invocation_type_info
+      ctx.add_fn_stack_entry(map_fn_name, symbolic_bindings)
+
+      # Create a "derived" type info (a child type info with the current type
+      # info as a parent), and note that it exists for an instantiation (in the
+      # parent type info).
+      parent_type_info = ctx.type_info
+      ctx.add_derived_type_info()
+      parent_type_info.add_instantiation(invocation, symbolic_bindings,
+                                         ctx.type_info)
       return map_fn_ref.name_def
 
   return None
@@ -279,7 +282,7 @@ def check_top_node_in_module(f: Union[ast.Function, ast.Test, ast.StructDef,
 
       seen[(f.name.identifier, type(f))] = (f, False)  # Mark as done.
       stack_record = stack.pop()
-      fn_name, _ = ctx.fn_stack[-1]
+      fn_name = ctx.peek_fn_stack().name
 
       def is_callee_map(n: Optional[ast.AstNode]) -> bool:
         return (n and isinstance(n, ast.Invocation) and
@@ -290,7 +293,7 @@ def check_top_node_in_module(f: Union[ast.Function, ast.Test, ast.StructDef,
         assert isinstance(f, ast.Function) and f.is_parametric()
         # We just typechecked a higher-order parametric function (from map()).
         # Let's go back to our parent type_info mapping.
-        ctx.type_info = ctx.type_info.parent
+        ctx.pop_derived_type_info()
 
       if stack_record.name == fn_name:
         # i.e. we just finished typechecking the body of the function we're
@@ -300,11 +303,11 @@ def check_top_node_in_module(f: Union[ast.Function, ast.Test, ast.StructDef,
         # parent type_info until deduce._check_parametric_invocation() to
         # avoid entering an infite loop. See the try-catch in that function for
         # more details.
-        ctx.fn_stack.pop()
+        ctx.pop_fn_stack_entry()
 
     except deduce.TypeMissingError as e:
       while True:
-        fn_name, _ = ctx.fn_stack[-1]
+        fn_name = ctx.peek_fn_stack().name
         if (isinstance(e.node, ast.NameDef) and
             e.node.identifier in function_map):
           # If it's seen and not-done, we're recursing.
@@ -362,7 +365,8 @@ def check_module(module: ast.Module,
                          import_cache)
 
   # First populate type_info with constants, enums, and resolved imports.
-  ctx.fn_stack.append(('top', dict()))  # No sym bindings in the global scope.
+  ctx.add_fn_stack_entry(
+      'top', SymbolicBindings())  # No sym bindings in the global scope.
   for member in ctx.module.top:
     if isinstance(member, ast.Import):
       assert isinstance(member.name, tuple), member.name
@@ -374,7 +378,7 @@ def check_module(module: ast.Module,
       assert isinstance(member,
                         (ast.Function, ast.Test, ast.StructDef, ast.QuickCheck,
                          ast.TypeDef)), (type(member), member)
-  ctx.fn_stack.pop()
+  ctx.pop_fn_stack_entry()
 
   quickcheck_map = {
       qc.f.name.identifier: qc for qc in ctx.module.get_quickchecks()
@@ -391,7 +395,8 @@ def check_module(module: ast.Module,
           'functions is unsupported.', f.span)
 
     logging.vlog(2, 'Typechecking function: %s', f)
-    ctx.fn_stack.append((f.name.identifier, dict()))  # No symbolic bindings.
+    ctx.add_fn_stack_entry(f.name.identifier,
+                           SymbolicBindings())  # No symbolic bindings.
     check_top_node_in_module(f, ctx)
 
     quickcheck_f_body_type = ctx.type_info[f.body]
@@ -410,7 +415,7 @@ def check_module(module: ast.Module,
   for s in struct_map.values():
     assert isinstance(s, ast.StructDef), s
     logging.vlog(2, 'Typechecking struct %s', s)
-    ctx.fn_stack.append(('top', dict()))  # No symbolic bindings.
+    ctx.add_fn_stack_entry('top', SymbolicBindings())  # No symbolic bindings.
     check_top_node_in_module(s, ctx)
     logging.vlog(2, 'Finished typechecking struct: %s', s)
 
@@ -422,7 +427,7 @@ def check_module(module: ast.Module,
   for t in typedef_map.values():
     assert isinstance(t, ast.TypeDef), t
     logging.vlog(2, 'Typechecking typedef %s', t)
-    ctx.fn_stack.append(('top', dict()))  # No symbolic bindings.
+    ctx.add_fn_stack_entry('top', SymbolicBindings())  # No symbolic bindings.
     check_top_node_in_module(t, ctx)
     logging.vlog(2, 'Finished typechecking typedef: %s', t)
 
@@ -434,7 +439,8 @@ def check_module(module: ast.Module,
       continue
 
     logging.vlog(2, 'Typechecking function: %s', f)
-    ctx.fn_stack.append((f.name.identifier, dict()))  # No symbolic bindings.
+    ctx.add_fn_stack_entry(f.name.identifier,
+                           SymbolicBindings())  # No symbolic bindings.
     check_top_node_in_module(f, ctx)
     logging.vlog(2, 'Finished typechecking function: %s', f)
 
@@ -454,7 +460,8 @@ def check_module(module: ast.Module,
                               t.fn.span)
 
     # No symbolic bindings inside of a test.
-    ctx.fn_stack.append(('{}_test'.format(t.name.identifier), dict()))
+    ctx.add_fn_stack_entry('{}_test'.format(t.name.identifier),
+                           SymbolicBindings())
     logging.vlog(2, 'Typechecking test: %s', t)
     if isinstance(t, ast.TestFunction):
       # New-style tests are wrapped in a function.

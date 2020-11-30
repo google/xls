@@ -57,22 +57,25 @@ PYBIND11_MODULE(interpreter, m) {
         [](Span span, const std::string& s) { throw FailureError(s, span); });
 
   py::class_<Interpreter>(m, "Interpreter")
-      .def(py::init([](ModuleHolder module,
-                       const std::shared_ptr<TypeInfo>& type_info,
-                       PyTypecheckFn typecheck, ImportCache* import_cache,
-                       bool trace_all,
-                       absl::optional<PackageHolder> ir_package) {
-             Package* package = nullptr;
-             if (ir_package.has_value()) {
-               package = &ir_package->deref();
-             }
-             return absl::make_unique<Interpreter>(
-                 &module.deref(), type_info, ToCppTypecheck(typecheck),
-                 import_cache, trace_all, package);
-           }),
-           py::arg("module"), py::arg("type_info"), py::arg("typecheck"),
-           py::arg("import_cache"), py::arg("trace_all") = false,
-           py::arg("ir_package") = absl::nullopt)
+      .def(
+          py::init([](ModuleHolder module,
+                      const std::shared_ptr<TypeInfo>& type_info,
+                      absl::optional<PyTypecheckFn> typecheck,
+                      absl::optional<ImportCache*> import_cache, bool trace_all,
+                      absl::optional<PackageHolder> ir_package) {
+            Package* package = ir_package ? &ir_package->deref() : nullptr;
+            ImportCache* pimport_cache = import_cache ? *import_cache : nullptr;
+            TypecheckFn typecheck_fn;
+            if (typecheck) {
+              typecheck_fn = ToCppTypecheck(*typecheck);
+            }
+            return absl::make_unique<Interpreter>(&module.deref(), type_info,
+                                                  typecheck_fn, pimport_cache,
+                                                  trace_all, package);
+          }),
+          py::arg("module"), py::arg("type_info"), py::arg("typecheck"),
+          py::arg("import_cache"), py::arg("trace_all") = false,
+          py::arg("ir_package") = absl::nullopt)
       .def(
           "run_function",
           [](Interpreter* self, absl::string_view name,
@@ -97,13 +100,15 @@ PYBIND11_MODULE(interpreter, m) {
       .def_static(
           "interpret_expr",
           [](ModuleHolder module, const std::shared_ptr<TypeInfo>& type_info,
-             PyTypecheckFn py_typecheck, ImportCache* import_cache,
+             PyTypecheckFn py_typecheck,
+             absl::optional<ImportCache*> import_cache,
              const std::unordered_map<std::string, int64>& env,
              const std::unordered_map<std::string, int64>& bit_widths,
              ExprHolder expr, const FnCtx& fn_ctx) {
+            ImportCache* pimport_cache = import_cache ? *import_cache : nullptr;
             auto statusor = Interpreter::InterpretExpr(
                 &module.deref(), type_info, ToCppTypecheck(py_typecheck),
-                import_cache, ToAbsl(env), ToAbsl(bit_widths), &expr.deref(),
+                pimport_cache, ToAbsl(env), ToAbsl(bit_widths), &expr.deref(),
                 fn_ctx);
             TryThrowKeyError(statusor.status());
             return statusor;

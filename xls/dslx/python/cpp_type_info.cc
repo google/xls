@@ -40,6 +40,50 @@ class TypeMissingError : public std::exception {
 PYBIND11_MODULE(cpp_type_info, m) {
   ImportStatusModule();
 
+  py::class_<SymbolicBinding>(m, "SymbolicBinding")
+      .def("__getitem__",
+           [](const SymbolicBinding& self,
+              int64 i) -> absl::variant<std::string, int64> {
+             switch (i) {
+               case 0:
+                 return self.identifier;
+               case 1:
+                 return self.value;
+               default:
+                 throw py::index_error("Index out of bounds");
+             }
+           })
+      .def_property_readonly(
+          "identifier",
+          [](const SymbolicBinding& self) { return self.identifier; })
+      .def_property_readonly(
+          "value", [](const SymbolicBinding& self) { return self.value; });
+
+  py::class_<SymbolicBindings>(m, "SymbolicBindings")
+      .def(py::init<>())
+      .def(
+          py::init([](const std::vector<std::pair<std::string, int64>>& items) {
+            return SymbolicBindings(items);
+          }))
+      .def("bindings", &SymbolicBindings::bindings)
+      .def("to_dict",
+           [](const SymbolicBindings& self) {
+             std::unordered_map<std::string, int64> result;
+             for (const SymbolicBinding& b : self.bindings()) {
+               result[b.identifier] = b.value;
+             }
+             return result;
+           })
+      .def("__eq__", &SymbolicBindings::operator==)
+      .def("__ne__", &SymbolicBindings::operator!=)
+      .def("__len__", &SymbolicBindings::size)
+      .def("__getitem__", [](const SymbolicBindings& self, int64 i) {
+        if (i >= self.bindings().size() || i < 0) {
+          throw py::index_error("Index out of bounds");
+        }
+        return self.bindings()[i];
+      });
+
   static py::exception<TypeMissingError> type_missing_exc(m,
                                                           "TypeMissingError");
 
@@ -54,8 +98,6 @@ PYBIND11_MODULE(cpp_type_info, m) {
       PyErr_SetObject(type_missing_exc.ptr(), instance.ptr());
     }
   });
-
-  using PySymbolicBindings = std::vector<std::pair<std::string, int64>>;
 
   py::class_<TypeInfo, std::shared_ptr<TypeInfo>>(m, "TypeInfo")
       .def(py::init([](ModuleHolder& module,
@@ -84,52 +126,41 @@ PYBIND11_MODULE(cpp_type_info, m) {
           })
       .def("add_instantiation",
            [](TypeInfo& self, InvocationHolder invocation,
-              const PySymbolicBindings& caller,
+              const SymbolicBindings& caller,
               std::shared_ptr<TypeInfo> type_info) {
-             self.AddInstantiation(&invocation.deref(),
-                                   SymbolicBindings(caller), type_info);
+             self.AddInstantiation(&invocation.deref(), caller, type_info);
            })
       .def("add_invocation_symbolic_bindings",
            [](TypeInfo& self, InvocationHolder invocation,
-              const PySymbolicBindings& caller,
-              const PySymbolicBindings& callee) {
-             self.AddInvocationSymbolicBindings(&invocation.deref(),
-                                                SymbolicBindings(caller),
-                                                SymbolicBindings(callee));
+              const SymbolicBindings& caller, const SymbolicBindings& callee) {
+             self.AddInvocationSymbolicBindings(&invocation.deref(), caller,
+                                                callee);
            })
       .def("get_invocation_symbolic_bindings",
            [](TypeInfo& self, InvocationHolder invocation,
-              const PySymbolicBindings& caller) {
+              const SymbolicBindings& caller) -> const SymbolicBindings& {
              absl::optional<const SymbolicBindings*> result =
                  self.GetInvocationSymbolicBindings(&invocation.deref(),
-                                                    SymbolicBindings(caller));
+                                                    caller);
              if (!result.has_value()) {
                throw py::key_error(
                    "Could not find symbolic bindings for invocation: " +
                    invocation.deref().ToString());
              }
-             const auto& bindings = result.value()->bindings();
-             py::tuple ret(bindings.size());
-             for (int64 i = 0; i < bindings.size(); ++i) {
-               const SymbolicBinding& b = bindings[i];
-               ret[i] = std::make_pair(b.identifier, b.value);
-             }
-             return ret;
+             return **result;
            })
       .def("update",
            [](TypeInfo& self, const TypeInfo& other) { self.Update(other); })
       .def("has_instantiation",
            [](const TypeInfo& self, InvocationHolder invocation,
-              const PySymbolicBindings& caller) {
-             return self.HasInstantiation(&invocation.deref(),
-                                          SymbolicBindings(caller));
+              const SymbolicBindings& caller) {
+             return self.HasInstantiation(&invocation.deref(), caller);
            })
       .def("get_instantiation",
            [](const TypeInfo& self, InvocationHolder invocation,
-              const PySymbolicBindings& caller) {
+              const SymbolicBindings& caller) {
              absl::optional<std::shared_ptr<TypeInfo>> result =
-                 self.GetInstantiation(&invocation.deref(),
-                                       SymbolicBindings(caller));
+                 self.GetInstantiation(&invocation.deref(), caller);
              if (!result.has_value()) {
                throw py::key_error("Could not resolve instantiation.");
              }
@@ -137,18 +168,17 @@ PYBIND11_MODULE(cpp_type_info, m) {
            })
       .def("add_slice_start_width",
            [](TypeInfo& self, SliceHolder slice,
-              const PySymbolicBindings& symbolic_bindings,
+              const SymbolicBindings& symbolic_bindings,
               std::pair<int, int> start_width) {
              self.AddSliceStartWidth(
-                 &slice.deref(), SymbolicBindings(symbolic_bindings),
+                 &slice.deref(), symbolic_bindings,
                  SliceData::StartWidth{start_width.first, start_width.second});
            })
       .def("get_slice_start_width",
            [](const TypeInfo& self, SliceHolder slice,
-              const PySymbolicBindings& symbolic_bindings) {
+              const SymbolicBindings& symbolic_bindings) {
              absl::optional<SliceData::StartWidth> result =
-                 self.GetSliceStartWidth(&slice.deref(),
-                                         SymbolicBindings(symbolic_bindings));
+                 self.GetSliceStartWidth(&slice.deref(), symbolic_bindings);
              if (!result.has_value()) {
                throw py::key_error("Could not resolve slice to TypeInfo data.");
              }

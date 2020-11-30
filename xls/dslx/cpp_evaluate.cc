@@ -925,7 +925,8 @@ static absl::StatusOr<InterpValue> EvaluateIndexBitSlice(
   std::shared_ptr<TypeInfo> type_info = callbacks->get_type_info();
   absl::optional<SliceData::StartWidth> maybe_saw =
       type_info->GetSliceStartWidth(index_slice, sym_bindings);
-  XLS_RET_CHECK(maybe_saw.has_value());
+  XLS_RET_CHECK(maybe_saw.has_value())
+      << "Slice start/width missing for slice @ " << expr->span();
   const auto& saw = maybe_saw.value();
   return Value::MakeBits(Tag::kUBits, bits.Slice(saw.start, saw.width));
 }

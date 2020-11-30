@@ -36,4 +36,26 @@ TypecheckFn ToCppTypecheck(const PyTypecheckFn& py_typecheck) {
   };
 }
 
+PyTypecheckFn ToPyTypecheck(const TypecheckFn& cpp) {
+  return [cpp](ModuleHolder module) -> std::shared_ptr<TypeInfo> {
+    return cpp(module.module()).value();
+  };
+}
+
+TypecheckFunctionFn ToCppTypecheckFunction(const PyTypecheckFunctionFn& py) {
+  return [py](Function* function, DeduceCtx* ctx) -> absl::Status {
+    FunctionHolder holder(function, function->owner()->shared_from_this());
+    try {
+      py(holder, ctx);
+    } catch (std::exception& e) {
+      // Note: normally we would throw a Python positional error, but
+      // since this is a somewhat rare condition and everything is being
+      // ported to C++ we don't do the super-nice thing and instead throw
+      // a status error if you have a typecheck-failure-under-import.
+      return absl::InternalError(e.what());
+    }
+    return absl::OkStatus();
+  };
+}
+
 }  // namespace xls::dslx

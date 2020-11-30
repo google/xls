@@ -37,26 +37,17 @@ void TryThrowKeyError(const absl::Status& status) {
 PYBIND11_MODULE(interp_bindings, m) {
   ImportStatusModule();
 
-  using PySymbolicBindings = std::vector<std::pair<std::string, int64>>;
-
   py::class_<FnCtx>(m, "FnCtx")
       .def(py::init([](std::string module_name, std::string fn_name,
-                       PySymbolicBindings sym_bindings) {
-        return FnCtx{module_name, fn_name, SymbolicBindings(sym_bindings)};
+                       const SymbolicBindings& sym_bindings) {
+        return FnCtx{module_name, fn_name, sym_bindings};
       }))
       .def_property_readonly("module_name",
                              [](const FnCtx& self) { return self.module_name; })
       .def_property_readonly("fn_name",
                              [](const FnCtx& self) { return self.fn_name; })
-      .def_property_readonly("sym_bindings", [](const FnCtx& self) {
-        const SymbolicBindings& bindings = self.sym_bindings;
-        py::tuple ret(bindings.size());
-        for (int64 i = 0; i < bindings.size(); ++i) {
-          const SymbolicBinding& b = bindings.bindings()[i];
-          ret[i] = std::make_pair(b.identifier, b.value);
-        }
-        return ret;
-      });
+      .def_property_readonly(
+          "sym_bindings", [](const FnCtx& self) { return self.sym_bindings; });
 
   py::class_<InterpBindings, std::shared_ptr<InterpBindings>>(m, "Bindings")
       .def(py::init<std::shared_ptr<InterpBindings>>(), py::arg("parent"))

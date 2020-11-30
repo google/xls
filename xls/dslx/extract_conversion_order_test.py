@@ -25,6 +25,7 @@ from xls.dslx import extract_conversion_order
 from xls.dslx import fakefs_test_util
 from xls.dslx import parse_and_typecheck
 from xls.dslx.python import cpp_type_info as type_info_mod
+from xls.dslx.python.cpp_type_info import SymbolicBindings
 
 
 class ExtractConversionOrderTest(absltest.TestCase):
@@ -48,14 +49,14 @@ class ExtractConversionOrderTest(absltest.TestCase):
     """
     m, type_info = self._get_module(program)
     callee = extract_conversion_order.Callee(
-        m.get_function('f'), m, type_info, ())
+        m.get_function('f'), m, type_info, SymbolicBindings())
     self.assertEqual((callee,),
                      extract_conversion_order.get_callees(
                          m.get_function('main'),
                          m,
                          type_info,
                          imports={},
-                         bindings=()))
+                         bindings=SymbolicBindings()))
 
   def test_simple_linear_callgraph(self):
     program = """
@@ -79,14 +80,14 @@ class ExtractConversionOrderTest(absltest.TestCase):
     order = extract_conversion_order.get_order(m, type_info, imports={})
     self.assertLen(order, 2)
     self.assertEqual(order[0].f.identifier, 'f')
-    self.assertEqual(order[0].bindings, (('N', 2),))
+    self.assertEqual(order[0].bindings, SymbolicBindings([('N', 2)]))
     self.assertEqual(order[0].callees, ())
     self.assertEqual(order[1].f.identifier, 'main')
-    self.assertEqual(order[1].bindings, ())
+    self.assertEqual(order[1].bindings, SymbolicBindings())
     f = m.get_function('f')
     self.assertEqual(
         tuple((c.f, c.m, c.sym_bindings) for c in order[1].callees),
-        ((f, m, (('N', 2),)),))
+        ((f, m, SymbolicBindings([('N', 2)])),))
 
   def test_transitive_parametric(self):
     program = """
@@ -98,11 +99,11 @@ class ExtractConversionOrderTest(absltest.TestCase):
     order = extract_conversion_order.get_order(m, type_info, imports={})
     self.assertLen(order, 3)
     self.assertEqual(order[0].f.identifier, 'g')
-    self.assertEqual(order[0].bindings, (('M', 2),))
+    self.assertEqual(order[0].bindings, SymbolicBindings([('M', 2)]))
     self.assertEqual(order[1].f.identifier, 'f')
-    self.assertEqual(order[1].bindings, (('N', 2),))
+    self.assertEqual(order[1].bindings, SymbolicBindings([('N', 2)]))
     self.assertEqual(order[2].f.identifier, 'main')
-    self.assertEqual(order[2].bindings, ())
+    self.assertEqual(order[2].bindings, SymbolicBindings())
 
   def test_builtin_is_elided(self):
     program = """
@@ -112,7 +113,7 @@ class ExtractConversionOrderTest(absltest.TestCase):
     order = extract_conversion_order.get_order(m, type_info, imports={})
     self.assertLen(order, 1)
     self.assertEqual(order[0].f.identifier, 'main')
-    self.assertEqual(order[0].bindings, ())
+    self.assertEqual(order[0].bindings, SymbolicBindings())
 
 
 if __name__ == '__main__':

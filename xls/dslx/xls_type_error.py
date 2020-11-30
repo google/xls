@@ -16,7 +16,7 @@
 
 """Defines the type error that DSLX can produce during type checking."""
 
-from typing import Text, Optional, Any, Tuple
+from typing import Text, Optional, Tuple
 
 from xls.dslx.python import cpp_pos
 from xls.dslx.python.cpp_concrete_type import ConcreteType
@@ -57,8 +57,9 @@ class TypeInferenceError(PositionalError):
 
   def __init__(self,
                span: cpp_pos.Span,
-               type_: Optional[Any] = None,
+               type_: Optional[ConcreteType] = None,
                suffix: Text = ''):
+    assert type_ is None or isinstance(type_, ConcreteType), type_
     msg = 'Could not infer type{}{} @ {}'.format(
         ' for {}'.format(type_) if type_ else '',
         ': ' + suffix if suffix else '', span)

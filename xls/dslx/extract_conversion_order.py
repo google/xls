@@ -93,6 +93,7 @@ def get_callees(func: Union[ast.Function, ast.Test], m: ast.Module,
     Callee functions invoked by f, and the parametric bindings used in each of
     those invocations.
   """
+  assert isinstance(bindings, SymbolicBindings), bindings
   callees = []
 
   class InvocationVisitor(cpp_ast_visitor.AstVisitor):
@@ -147,6 +148,8 @@ def get_callees(func: Union[ast.Function, ast.Test], m: ast.Module,
       except KeyError:
         invocation_type_info = type_info
       assert invocation_type_info is not None
+      assert isinstance(node_symbolic_bindings,
+                        SymbolicBindings), node_symbolic_bindings
       callees.append(
           Callee(f, this_m, invocation_type_info, node_symbolic_bindings))
 
@@ -159,6 +162,7 @@ def get_callees(func: Union[ast.Function, ast.Test], m: ast.Module,
 
 def _is_ready(ready: List[ConversionRecord], f: ast.Function, m: ast.Module,
               bindings: SymbolicBindings) -> bool:
+  assert isinstance(bindings, SymbolicBindings), bindings
   return any(
       cr.f == f and cr.m == m and cr.bindings == bindings for cr in ready)
 
@@ -169,6 +173,7 @@ def _add_to_ready(ready: List[ConversionRecord], imports: Dict[ast.Import,
                   type_info: type_info_mod.TypeInfo,
                   bindings: SymbolicBindings) -> None:
   """Adds (f, bindings) to conversion order after deps have been added."""
+  assert isinstance(bindings, SymbolicBindings), bindings
   if _is_ready(ready, f, m, bindings):
     return
 
@@ -220,16 +225,29 @@ def get_order(module: ast.Module,
     function = quickcheck.f
     assert not function.is_parametric(), function
 
-    _add_to_ready(ready, imports, function, module, type_info, bindings=())
+    _add_to_ready(
+        ready,
+        imports,
+        function,
+        module,
+        type_info,
+        bindings=SymbolicBindings())
 
   for function in module.get_functions():
     if function.is_parametric():
       continue
 
-    _add_to_ready(ready, imports, function, module, type_info, bindings=())
+    _add_to_ready(
+        ready,
+        imports,
+        function,
+        module,
+        type_info,
+        bindings=SymbolicBindings())
 
   if traverse_tests:
     for test in module.get_tests():
-      _add_to_ready(ready, imports, test, module, type_info, bindings=())
+      _add_to_ready(
+          ready, imports, test, module, type_info, bindings=SymbolicBindings())
 
   return ready

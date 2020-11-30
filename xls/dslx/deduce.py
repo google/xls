@@ -19,10 +19,9 @@
 """Type system deduction rules for AST nodes."""
 
 import typing
-from typing import Text, Dict, Union, Callable, Type, Tuple, List, Set
+from typing import Union, Callable, Type, Tuple, Set
 
 from absl import logging
-import dataclasses
 
 from xls.dslx import ast_helpers
 from xls.dslx import bit_helpers
@@ -31,7 +30,6 @@ from xls.dslx import dslx_builtins
 from xls.dslx import parametric_instantiator
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_scanner as scanner
-from xls.dslx.python import import_routines
 from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType
 from xls.dslx.python.cpp_concrete_type import ConcreteType
@@ -39,10 +37,12 @@ from xls.dslx.python.cpp_concrete_type import ConcreteTypeDim
 from xls.dslx.python.cpp_concrete_type import EnumType
 from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.python.cpp_concrete_type import TupleType
+from xls.dslx.python.cpp_deduce import DeduceCtx
 from xls.dslx.python.cpp_parametric_expression import ParametricAdd
 from xls.dslx.python.cpp_parametric_expression import ParametricExpression
 from xls.dslx.python.cpp_parametric_expression import ParametricSymbol
 from xls.dslx.python.cpp_pos import Span
+from xls.dslx.python.cpp_type_info import SymbolicBindings
 from xls.dslx.python.cpp_type_info import TypeInfo
 from xls.dslx.python.cpp_type_info import TypeMissingError
 from xls.dslx.xls_type_error import TypeInferenceError
@@ -53,8 +53,7 @@ from xls.dslx.xls_type_error import XlsTypeError
 RULES = {}
 
 
-SymbolicBindings = parametric_instantiator.SymbolicBindings
-RuleFunction = Callable[[ast.AstNode, 'DeduceCtx'], ConcreteType]
+RuleFunction = Callable[[ast.AstNode, DeduceCtx], ConcreteType]
 
 
 def _rule(cls: Type[ast.AstNode]):
@@ -66,52 +65,6 @@ def _rule(cls: Type[ast.AstNode]):
     return f
 
   return register
-
-
-# Type for stack of functions deduction is running on.
-# [(name, symbolic_bindings), ...]
-FnStack = List[Tuple[Text, Dict[Text, int]]]
-
-
-@dataclasses.dataclass
-class DeduceCtx:
-  """A wrapper over useful objects for typechecking.
-
-  Attributes:
-    type_info: Maps an AST node to its deduced type.
-    module: The (entry point) module we are typechecking.
-    check_function_in_module: A callback to typecheck parametric functions that
-      are not in this module.
-    typecheck: callback that can be used to typecheck a module and get its type
-      info (e.g. on import)
-    import_cache: cache used for imported modules
-    fn_stack: Keeps track of the function we're currently typechecking and the
-      symbolic bindings we should be using.
-  """
-  type_info: TypeInfo
-  module: ast.Module
-  # Callbacks.
-  check_function_in_module: Callable[[ast.Function, 'DeduceCtx'], None]
-  typecheck: Callable[[ast.Module], TypeInfo]
-  import_cache: import_routines.ImportCache
-  # Metadata.
-  fn_stack: FnStack = dataclasses.field(default_factory=list)
-
-  def make_ctx(self, new_type_info: TypeInfo,
-               new_module: ast.Module) -> 'DeduceCtx':
-    """Creates a new DeduceCtx reflecting the given type info and module.
-
-    Uses the same callbacks as this current context.
-
-    Args:
-      new_type_info: Type info to use in lieu of self.type_info
-      new_module: Module to use in lieu of self.module
-
-    Returns:
-      The resulting (new) DeduceCtx instance.
-    """
-    return DeduceCtx(new_type_info, new_module, self.check_function_in_module,
-                     self.typecheck, self.import_cache)
 
 
 def resolve(type_: ConcreteType, ctx: DeduceCtx) -> ConcreteType:
@@ -127,11 +80,12 @@ def resolve(type_: ConcreteType, ctx: DeduceCtx) -> ConcreteType:
   Returns:
     "type_" with dimensions resolved according to bindings in "ctx".
   """
-  _, fn_symbolic_bindings = ctx.fn_stack[-1]
+  entry = ctx.peek_fn_stack()
+  fn_symbolic_bindings = entry.symbolic_bindings
 
   def resolver(dim: ConcreteTypeDim) -> ConcreteTypeDim:
     if isinstance(dim.value, ParametricExpression):
-      return ConcreteTypeDim(dim.value.evaluate(fn_symbolic_bindings))
+      return ConcreteTypeDim(dim.value.evaluate(fn_symbolic_bindings.to_dict()))
     return dim
 
   return concrete_type_helpers.map_size(type_, ctx.module, resolver)
@@ -257,9 +211,9 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
     invocation_imported_type_info = TypeInfo(
         imported_module, parent=imported_type_info)
     imported_ctx = ctx.make_ctx(invocation_imported_type_info, imported_module)
-    imported_ctx.fn_stack.append(
-        (parametric_fn.name.identifier, dict(symbolic_bindings)))
-    ctx.check_function_in_module(parametric_fn, imported_ctx)
+    imported_ctx.add_fn_stack_entry(parametric_fn.name.identifier,
+                                    symbolic_bindings)
+    ctx.typecheck_function(parametric_fn, imported_ctx)
 
     ctx.type_info.add_instantiation(invocation, symbolic_bindings,
                                     invocation_imported_type_info)
@@ -283,9 +237,8 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
       # Let's typecheck this parametric function using the symbolic bindings
       # we just derived to make sure they check out ok.
       e.node = invocation.callee.name_def
-      ctx.fn_stack.append(
-          (parametric_fn.name.identifier, dict(symbolic_bindings)))
-      ctx.type_info = TypeInfo(ctx.type_info.module, parent=ctx.type_info)
+      ctx.add_fn_stack_entry(parametric_fn.name.identifier, symbolic_bindings)
+      ctx.add_derived_type_info()
       raise
 
   if not has_instantiation:
@@ -294,7 +247,7 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
     # the parametric function. Let's store the results.
     ctx.type_info.parent.add_instantiation(invocation, symbolic_bindings,
                                            ctx.type_info)
-    ctx.type_info = ctx.type_info.parent
+    ctx.pop_derived_type_info()
 
 
 @_rule(ast.Invocation)
@@ -302,7 +255,7 @@ def _deduce_Invocation(self: ast.Invocation, ctx: DeduceCtx) -> ConcreteType:  #
   """Deduces the concrete type of an Invocation AST node."""
   logging.vlog(5, 'Deducing type for invocation: %s', self)
   arg_types = []
-  _, fn_symbolic_bindings = ctx.fn_stack[-1]
+  fn_symbolic_bindings = ctx.peek_fn_stack().symbolic_bindings
   for arg in self.args:
     try:
       arg_types.append(resolve(deduce(arg, ctx), ctx))
@@ -368,10 +321,8 @@ def _deduce_Invocation(self: ast.Invocation, ctx: DeduceCtx) -> ConcreteType:  #
                                                             ):]:
     new_bindings.append(remaining_binding)
 
-  caller_sym_bindings = tuple(fn_symbolic_bindings.items())
-  csb_dict = {}
-  for csb in caller_sym_bindings:
-    csb_dict[csb[0]] = csb[1]
+  caller_sym_bindings = fn_symbolic_bindings
+  csb_dict = caller_sym_bindings.to_dict()
 
   # Map resolved parametrics from the caller's context onto the corresponding
   # symbols in the callee's.
@@ -467,12 +418,12 @@ def _deduce_slice_type(self: ast.Index, ctx: DeduceCtx,
   assert isinstance(start, (ast.Number, type(None)))
   start = ast_helpers.get_value_as_int(start) if start else None
 
-  _, fn_symbolic_bindings = ctx.fn_stack[-1]
+  fn_symbolic_bindings = ctx.peek_fn_stack().symbolic_bindings
   if isinstance(bit_count, ParametricExpression):
-    bit_count = bit_count.evaluate(fn_symbolic_bindings)
+    bit_count = bit_count.evaluate(fn_symbolic_bindings.to_dict())
   start, width = bit_helpers.resolve_bit_slice_indices(bit_count, start, limit)
-  key = tuple(fn_symbolic_bindings.items())
-  ctx.type_info.add_slice_start_width(index_slice, key, (start, width))
+  ctx.type_info.add_slice_start_width(index_slice, fn_symbolic_bindings,
+                                      (start, width))
   return BitsType(signed=False, size=width)
 
 
@@ -854,8 +805,10 @@ def _deduce_ColonRef(self: ast.ColonRef, ctx: DeduceCtx) -> ConcreteType:  # pyt
       # module (this will only get the type signature, body gets typechecked
       # after parametric instantiation).
       imported_ctx = ctx.make_ctx(imported_type_info, imported_module)
-      imported_ctx.fn_stack.append(ctx.fn_stack[-1])
-      ctx.check_function_in_module(elem, imported_ctx)
+      peek_entry = ctx.peek_fn_stack()
+      imported_ctx.add_fn_stack_entry(peek_entry.name,
+                                      peek_entry.symbolic_bindings)
+      ctx.typecheck_function(elem, imported_ctx)
       ctx.type_info.update(imported_ctx.type_info)
       imported_type_info = imported_ctx.type_info
 
@@ -1023,8 +976,8 @@ def _deduce_ModRef(self: ast.ModRef, ctx: DeduceCtx) -> ConcreteType:  # pytype:
     # module (this will only get the type signature, body gets typechecked
     # after parametric instantiation).
     imported_ctx = ctx.make_ctx(imported_type_info, imported_module)
-    imported_ctx.fn_stack.append(ctx.fn_stack[-1])
-    ctx.check_function_in_module(f, imported_ctx)
+    imported_ctx.add_fn_stack_entry(ctx.peek_fn_stack())
+    ctx.typecheck_function(f, imported_ctx)
     ctx.type_info.update(imported_ctx.type_info)
     imported_type_info = imported_ctx.type_info
   return imported_type_info[f.name]

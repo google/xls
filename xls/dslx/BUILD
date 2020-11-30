@@ -101,22 +101,17 @@ py_test(
 )
 
 py_library(
-    name = "symbolic_bindings",
-    srcs = ["symbolic_bindings.py"],
-    srcs_version = "PY3",
-)
-
-py_library(
     name = "parametric_instantiator",
     srcs = ["parametric_instantiator.py"],
     srcs_version = "PY3",
     deps = [
         ":concrete_type_helpers",
-        ":symbolic_bindings",
         ":xls_type_error",
         "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_parametric_expression",
         "//xls/dslx/python:cpp_pos",
+        "//xls/dslx/python:cpp_type_info",
+        "//xls/dslx/python:interp_bindings",
         "//xls/dslx/python:interpreter",
         "@com_google_absl_py//absl/logging",
     ],
@@ -245,7 +240,7 @@ py_library(
         ":xls_type_error",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_concrete_type",
-        "//xls/dslx/python:cpp_evaluate",
+        "//xls/dslx/python:cpp_deduce",
         "//xls/dslx/python:cpp_parametric_expression",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_scanner",
@@ -264,6 +259,7 @@ py_library(
         ":xls_type_error",
         "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_pos",
+        "//xls/dslx/python:cpp_type_info",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -278,10 +274,10 @@ py_library(
         ":span",
         ":xls_type_error",
         "//xls/common:xls_error",
-        "//xls/dslx/interpreter:interpreter_helpers",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_type_info",
+        "//xls/dslx/python:interp_bindings",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -868,5 +864,22 @@ cc_test(
         ":interpreter",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "cpp_deduce",
+    hdrs = ["deduce.h"],
+    deps = [
+        ":builtins",
+        ":cpp_ast",
+        ":cpp_evaluate",
+        ":cpp_type_info",
+        ":import_routines",
+        ":interp_bindings",
+        ":interp_callback_data",
+        ":interp_value",
+        "//xls/common/status:ret_check",
+        "//xls/ir",
     ],
 )
