@@ -645,7 +645,6 @@ PYBIND11_MODULE(cpp_ast, m) {
   py::class_<NameDefTreeHolder, AstNodeHolder>(m, "NameDefTree")
       INIT_OVERLOAD(NameDef)          //
       INIT_OVERLOAD(NameRef)          //
-      INIT_OVERLOAD(EnumRef)          //
       INIT_OVERLOAD(WildcardPattern)  //
       INIT_OVERLOAD(Number)
           .def(py::init([](ModuleHolder module, Span span,
@@ -1113,27 +1112,6 @@ PYBIND11_MODULE(cpp_ast, m) {
                              })
       .def_property_readonly("type_", [](CastHolder self) {
         return TypeAnnotationHolder(self.deref().type(), self.module());
-      });
-
-  // class EnumRef
-  py::class_<EnumRefHolder, ExprHolder>(m, "EnumRef")
-      .def(py::init([](ModuleHolder module, Span span, EnumDefHolder enum_def,
-                       std::string attr) {
-        auto* self = module.deref().Make<EnumRef>(
-            std::move(span), &enum_def.deref(), std::move(attr));
-        return EnumRefHolder(self, module.module());
-      }))
-      .def(py::init([](ModuleHolder module, Span span, TypeDefHolder enum_def,
-                       std::string attr) {
-        auto* self = module.deref().Make<EnumRef>(
-            std::move(span), &enum_def.deref(), std::move(attr));
-        return EnumRefHolder(self, module.module());
-      }))
-      // TODO(leary): 2020-08-31 Rename from "value" to "attr".
-      .def_property_readonly(
-          "value", [](EnumRefHolder self) { return self.deref().attr(); })
-      .def_property_readonly("enum", [](EnumRefHolder self) {
-        return AstNodeHolder(ToAstNode(self.deref().enum_def()), self.module());
       });
 
   // Ternary

@@ -63,7 +63,6 @@ class Attr;
 class Carry;
 class Cast;
 class ConstRef;
-class EnumRef;
 class For;
 class Index;
 class Invocation;
@@ -392,7 +391,6 @@ class ExprVisitor {
   virtual void HandleCast(Cast* expr) = 0;
   virtual void HandleConstRef(ConstRef* expr) = 0;
   virtual void HandleColonRef(ColonRef* expr) = 0;
-  virtual void HandleEnumRef(EnumRef* expr) = 0;
   virtual void HandleFor(For* expr) = 0;
   virtual void HandleIndex(Index* expr) = 0;
   virtual void HandleInvocation(Invocation* expr) = 0;
@@ -468,39 +466,6 @@ class ConstRef : public NameRef {
   void Accept(ExprVisitor* v) override { v->HandleConstRef(this); }
 
   absl::string_view GetNodeTypeName() const override { return "ConstRef"; }
-};
-
-// Represents an enum-value reference (via `::`, i.e. `Foo::BAR`).
-//
-// TODO(leary): 2020-08-27 More appropriate name would be EnumMemberRef or
-// something.
-class EnumRef : public Expr {
- public:
-  EnumRef(Module* owner, Span span, absl::variant<TypeDef*, EnumDef*> enum_def,
-          std::string attr)
-      : Expr(owner, std::move(span)),
-        enum_def_(enum_def),
-        attr_(std::move(attr)) {}
-
-  void Accept(ExprVisitor* v) override { v->HandleEnumRef(this); }
-
-  absl::string_view GetNodeTypeName() const override { return "EnumRef"; }
-  std::string ToString() const override {
-    return absl::StrFormat("%s::%s", GetEnumIdentifier(), attr_);
-  }
-
-  std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {ToAstNode(enum_def_)};
-  }
-
-  absl::variant<TypeDef*, EnumDef*> enum_def() const { return enum_def_; }
-  const std::string& attr() const { return attr_; }
-
- private:
-  std::string GetEnumIdentifier() const;
-
-  absl::variant<TypeDef*, EnumDef*> enum_def_;
-  std::string attr_;
 };
 
 enum class NumberKind {
@@ -734,10 +699,6 @@ class Import : public AstNode {
 //    some_mod::SomeEnum::VALUE
 //
 // Then the ColonRef `some_mod::SomeEnum` is the LHS.
-//
-// TODO(leary): 2020-11-17 Unify with EnumRef and ModRef -- all EnumRefs can be
-// ColonRefs, and information can be determined at type inference time when all
-// imported modules are available for type checking.
 class ColonRef : public Expr {
  public:
   using Subject = absl::variant<NameRef*, ColonRef*>;
@@ -1854,8 +1815,8 @@ class ConstantDef : public AstNode {
 class NameDefTree : public AstNode {
  public:
   using Nodes = std::vector<NameDefTree*>;
-  using Leaf = absl::variant<NameDef*, NameRef*, EnumRef*, WildcardPattern*,
-                             Number*, ColonRef*>;
+  using Leaf =
+      absl::variant<NameDef*, NameRef*, WildcardPattern*, Number*, ColonRef*>;
 
   NameDefTree(Module* owner, Span span, absl::variant<Nodes, Leaf> tree)
       : AstNode(owner), span_(std::move(span)), tree_(tree) {}

@@ -98,8 +98,8 @@ absl::variant<ToTypes...> NarrowVariant(const absl::variant<FromTypes...>& v) {
 
 template <typename... FromTypes>
 NameDefTree::Leaf WidenToNameDefTreeLeaf(const absl::variant<FromTypes...>& v) {
-  return WidenVariant<NameDef*, NameRef*, EnumRef*, WildcardPattern*, Number*,
-                      ColonRef*>(v);
+  return WidenVariant<NameDef*, NameRef*, WildcardPattern*, Number*, ColonRef*>(
+      v);
 }
 
 absl::StatusOr<BuiltinType> Parser::TokenToBuiltinType(const Token& tok) {

@@ -538,7 +538,7 @@ def _unify_NameDefTree(self: ast.NameDefTree, type_: ConcreteType,
       ctx.type_info[leaf] = resolved_rhs_type
     elif isinstance(leaf, ast.WildcardPattern):
       pass
-    elif isinstance(leaf, (ast.Number, ast.EnumRef, ast.ColonRef)):
+    elif isinstance(leaf, (ast.Number, ast.ColonRef)):
       resolved_leaf_type = resolve(deduce(leaf, ctx), ctx)
       if resolved_leaf_type != resolved_rhs_type:
         raise TypeInferenceError(
@@ -744,21 +744,6 @@ def _deduce_enum_ref_internal(span: Span, enum_type: EnumType,
         span, None,
         f'Name {attr!r} is not defined by the enum {enum.identifier}')
   return enum_type
-
-
-@_rule(ast.EnumRef)
-def _deduce_EnumRef(self: ast.EnumRef, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  """Deduces the concrete type of an EnumRef AST node."""
-  try:
-    result = ctx.type_info[self.enum]
-  except TypeMissingError as e:
-    logging.vlog(3, 'Could not resolve enum to type: %s @ %s', self.enum,
-                 self.span)
-    e.span = self.span
-    e.user = self
-    raise
-
-  return _deduce_enum_ref_internal(self.span, result, self.attr)
 
 
 @_rule(ast.ColonRef)

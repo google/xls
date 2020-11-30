@@ -142,12 +142,6 @@ absl::StatusOr<InterpValue> EvaluateSplatStructInstance(
     SplatStructInstance* expr, InterpBindings* bindings,
     ConcreteType* type_context, InterpCallbackData* callbacks);
 
-// Evaluates an enum reference expression; e.g. `Foo::BAR`.
-absl::StatusOr<InterpValue> EvaluateEnumRef(EnumRef* expr,
-                                            InterpBindings* bindings,
-                                            ConcreteType* type_context,
-                                            InterpCallbackData* callbacks);
-
 // Evaluates a tuple expression; e.g. `(x, y)`.
 absl::StatusOr<InterpValue> EvaluateXlsTuple(XlsTuple* expr,
                                              InterpBindings* bindings,

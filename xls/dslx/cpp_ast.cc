@@ -158,13 +158,6 @@ FreeVariables AstNode::GetFreeVariables(Pos start_pos) {
   return freevars;
 }
 
-std::string EnumRef::GetEnumIdentifier() const {
-  if (absl::holds_alternative<TypeDef*>(enum_def_)) {
-    return absl::get<TypeDef*>(enum_def_)->identifier();
-  }
-  return absl::get<EnumDef*>(enum_def_)->identifier();
-}
-
 std::string BinopKindFormat(BinopKind kind) {
   switch (kind) {
     // clang-format off
@@ -376,7 +369,7 @@ std::string ArrayTypeAnnotation::ToString() const {
 }
 
 bool IsConstant(AstNode* node) {
-  if (IsOneOf<ConstantArray, EnumRef, Number, ConstRef, ColonRef>(node)) {
+  if (IsOneOf<ConstantArray, Number, ConstRef, ColonRef>(node)) {
     return true;
   }
   if (Cast* n = dynamic_cast<Cast*>(node)) {

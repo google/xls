@@ -691,17 +691,6 @@ static absl::StatusOr<InterpValue> EvaluateEnumRefHelper(
   return InterpValue::MakeEnum(raw_value.GetBitsOrDie(), enum_def);
 }
 
-absl::StatusOr<InterpValue> EvaluateEnumRef(EnumRef* expr,
-                                            InterpBindings* bindings,
-                                            ConcreteType* type_context,
-                                            InterpCallbackData* callbacks) {
-  XLS_ASSIGN_OR_RETURN(
-      EnumDef * enum_def,
-      EvaluateToEnum(ToTypeDefinition(ToAstNode(expr->enum_def())).value(),
-                     bindings, callbacks));
-  return EvaluateEnumRefHelper(expr, enum_def, expr->attr(), callbacks);
-}
-
 // This resolves the "LHS" entity for this colon ref -- following resolving the
 // left hand side, we do an attribute access, either evaluating to an enum
 // value, or to a function/constant in the case of a module.
@@ -1016,7 +1005,6 @@ static absl::StatusOr<bool> EvaluateMatcher(NameDefTree* pattern,
       return true;
     }
     if (absl::holds_alternative<Number*>(leaf) ||
-        absl::holds_alternative<EnumRef*>(leaf) ||
         absl::holds_alternative<ColonRef*>(leaf)) {
       XLS_ASSIGN_OR_RETURN(InterpValue target,
                            callbacks->Eval(ToExprNode(leaf), bindings));

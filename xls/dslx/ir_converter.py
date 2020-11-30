@@ -383,7 +383,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       if isinstance(leaf, ast.WildcardPattern):
         return self._def(matcher, self.fb.add_literal_bits,
                          bits_mod.UBits(1, 1))
-      elif isinstance(leaf, (ast.Number, ast.EnumRef, ast.ColonRef)):
+      elif isinstance(leaf, (ast.Number, ast.ColonRef)):
         visit(leaf, self)
         return self._def(matcher, self.fb.add_eq, self._use(leaf),
                          matched_value)
@@ -1035,13 +1035,6 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
 
   def visit_NameRef(self, node: ast.NameRef) -> None:
     self._def_alias(node.name_def, node)
-
-  @cpp_ast_visitor.AstVisitor.no_auto_traverse
-  def visit_EnumRef(self, node: ast.EnumRef) -> None:
-    enum = self._deref_enum(node.enum)
-    value = enum.get_value(node.value)
-    visit(value, self)
-    self._def_alias(from_=value, to=node)
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_ColonRef(self, node: ast.ColonRef) -> None:

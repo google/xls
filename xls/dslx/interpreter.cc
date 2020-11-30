@@ -42,7 +42,6 @@ class Evaluator : public ExprVisitor {
   DISPATCH(Cast)
   DISPATCH(ColonRef)
   DISPATCH(ConstRef)
-  DISPATCH(EnumRef)
   DISPATCH(For)
   DISPATCH(Index)
   DISPATCH(Let)

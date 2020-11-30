@@ -92,7 +92,6 @@ XLS_DSLX_AST_NODE_CHILD_EACH(DEFINE_AST_NODE_HOLDER)
   X(Carry)                          \
   X(Cast)                           \
   X(ColonRef)                       \
-  X(EnumRef)                        \
   X(For)                            \
   X(Index)                          \
   X(Invocation)                     \
