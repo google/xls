@@ -68,27 +68,6 @@ def _rule(cls: Type[ast.AstNode]):
   return register
 
 
-# Type signature for the import function callback:
-# (import_tokens) -> (module, type_info)
-ImportFn = Callable[[Tuple[Text, ...]], Tuple[ast.Module, TypeInfo]]
-
-# Type signature for interpreter function callback:
-# (module, type_info, env, bit_widths, expr, f_import, fn_ctx) ->
-#   value_as_int
-#
-# This is an abstract interface to break circular dependencies; see
-# interpreter_helpers.py
-InterpCallbackType = Callable[[
-    ast.Module,
-    TypeInfo,
-    Callable[[ast.Module], TypeInfo],  # typecheck
-    import_routines.ImportCache,  # import_cache
-    Dict[Text, int],  # env
-    Dict[Text, int],  # bit_widths
-    ast.Expr,
-    ImportFn
-], int]
-
 # Type for stack of functions deduction is running on.
 # [(name, symbolic_bindings), ...]
 FnStack = List[Tuple[Text, Dict[Text, int]]]
@@ -101,8 +80,6 @@ class DeduceCtx:
   Attributes:
     type_info: Maps an AST node to its deduced type.
     module: The (entry point) module we are typechecking.
-    interpret_expr: An Interpreter wrapper that parametric_instantiator uses to
-      evaluate bindings with complex expressions (eg. function calls).
     check_function_in_module: A callback to typecheck parametric functions that
       are not in this module.
     typecheck: callback that can be used to typecheck a module and get its type
@@ -114,7 +91,6 @@ class DeduceCtx:
   type_info: TypeInfo
   module: ast.Module
   # Callbacks.
-  interpret_expr: InterpCallbackType
   check_function_in_module: Callable[[ast.Function, 'DeduceCtx'], None]
   typecheck: Callable[[ast.Module], TypeInfo]
   import_cache: import_routines.ImportCache
@@ -134,9 +110,8 @@ class DeduceCtx:
     Returns:
       The resulting (new) DeduceCtx instance.
     """
-    return DeduceCtx(new_type_info, new_module, self.interpret_expr,
-                     self.check_function_in_module, self.typecheck,
-                     self.import_cache)
+    return DeduceCtx(new_type_info, new_module, self.check_function_in_module,
+                     self.typecheck, self.import_cache)
 
 
 def resolve(type_: ConcreteType, ctx: DeduceCtx) -> ConcreteType:

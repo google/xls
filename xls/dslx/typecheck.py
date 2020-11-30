@@ -25,7 +25,6 @@ import dataclasses
 from xls.common.xls_error import XlsError
 from xls.dslx import deduce
 from xls.dslx import dslx_builtins
-from xls.dslx.interpreter.interpreter_helpers import interpret_expr
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_type_info as type_info
 from xls.dslx.python.cpp_concrete_type import ConcreteType
@@ -198,7 +197,7 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
       invocation_imported_type_info = type_info.TypeInfo(
           imported_module, parent=imported_type_info)
       imported_ctx = deduce.DeduceCtx(invocation_imported_type_info,
-                                      imported_module, ctx.interpret_expr,
+                                      imported_module,
                                       ctx.check_function_in_module,
                                       ctx.typecheck, ctx.import_cache)
       imported_ctx.fn_stack.append((map_fn_name, dict(symbolic_bindings)))
@@ -359,8 +358,8 @@ def check_module(module: ast.Module,
   ti = type_info.TypeInfo(module)
   import_cache = None if f_import is None else getattr(f_import, 'cache')
   ftypecheck = functools.partial(check_module, f_import=f_import)
-  ctx = deduce.DeduceCtx(ti, module, interpret_expr, check_top_node_in_module,
-                         ftypecheck, import_cache)
+  ctx = deduce.DeduceCtx(ti, module, check_top_node_in_module, ftypecheck,
+                         import_cache)
 
   # First populate type_info with constants, enums, and resolved imports.
   ctx.fn_stack.append(('top', dict()))  # No sym bindings in the global scope.

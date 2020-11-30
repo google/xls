@@ -117,6 +117,7 @@ py_library(
         "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_parametric_expression",
         "//xls/dslx/python:cpp_pos",
+        "//xls/dslx/python:interpreter",
         "@com_google_absl_py//absl/logging",
     ],
 )

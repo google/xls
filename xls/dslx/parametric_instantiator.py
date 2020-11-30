@@ -30,6 +30,8 @@ from xls.dslx.python.cpp_concrete_type import EnumType
 from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.dslx.python.cpp_pos import Span
+from xls.dslx.python.interp_bindings import FnCtx
+from xls.dslx.python.interpreter import Interpreter
 from xls.dslx.symbolic_bindings import SymbolicBindings
 from xls.dslx.xls_type_error import ArgCountMismatchError
 from xls.dslx.xls_type_error import XlsTypeError
@@ -85,14 +87,14 @@ class _ParametricInstantiator:
         continue
       try:
         fn_name, fn_symbolic_bindings = self.ctx.fn_stack[-1]
-        fn_ctx = (self.ctx.module.name, fn_name,
-                  tuple(fn_symbolic_bindings.items()))
-        result = self.ctx.interpret_expr(
+        fn_ctx = FnCtx(self.ctx.module.name, fn_name,
+                       tuple(fn_symbolic_bindings.items()))
+        result = Interpreter.interpret_expr(
             self.ctx.module,
             self.ctx.type_info,
             self.ctx.typecheck,
             self.ctx.import_cache,
-            constraint,
+            expr=constraint,
             env=self.symbolic_bindings,
             bit_widths=self.bit_widths,
             fn_ctx=fn_ctx)

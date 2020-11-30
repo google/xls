@@ -107,7 +107,10 @@ PYBIND11_MODULE(interpreter, m) {
                 fn_ctx);
             TryThrowKeyError(statusor.status());
             return statusor;
-          });
+          },
+          py::arg("module"), py::arg("type_info"), py::arg("typecheck"),
+          py::arg("import_cache"), py::arg("env"), py::arg("bit_widths"),
+          py::arg("expr"), py::arg("fn_ctx"));
 }
 
 }  // namespace xls::dslx
