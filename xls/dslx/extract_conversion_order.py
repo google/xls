@@ -104,11 +104,7 @@ def get_callees(func: Union[ast.Function, ast.Test], m: ast.Module,
       pass
 
     def visit_Invocation(self, node: ast.Invocation) -> None:
-      if isinstance(node.callee, ast.ModRef):
-        this_m, _ = imports[node.callee.mod]
-        f = this_m.get_function(node.callee.value)
-        fn_identifier = f.identifier
-      elif isinstance(node.callee, ast.ColonRef):
+      if isinstance(node.callee, ast.ColonRef):
         this_m, _ = imports[node.callee.subject.name_def.definer]
         f = this_m.get_function(node.callee.attr)
         fn_identifier = f.identifier
@@ -118,11 +114,9 @@ def get_callees(func: Union[ast.Function, ast.Test], m: ast.Module,
         if fn_identifier == 'map':
           # We need to make sure we convert the mapped function!
           fn_node = node.args[1]
-          if isinstance(fn_node, (ast.ModRef, ast.ColonRef)):
+          if isinstance(fn_node, ast.ColonRef):
             fn_identifier = fn_node.attr
-            import_node = (
-                fn_node.mod if isinstance(fn_node, ast.ModRef) else
-                fn_node.subject.name_def.definer)
+            import_node = fn_node.subject.name_def.definer
             this_m = imports[import_node][0]
           else:
             fn_identifier = fn_node.name_def.identifier

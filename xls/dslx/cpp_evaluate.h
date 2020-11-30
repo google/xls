@@ -103,11 +103,6 @@ absl::StatusOr<InterpValue> EvaluateColonRef(ColonRef* expr,
                                              ConcreteType* type_context,
                                              InterpCallbackData* callbacks);
 
-absl::StatusOr<InterpValue> EvaluateModRef(ModRef* expr,
-                                           InterpBindings* bindings,
-                                           ConcreteType* type_context,
-                                           InterpCallbackData* callbacks);
-
 absl::StatusOr<InterpValue> EvaluateWhile(While* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
                                           InterpCallbackData* callbacks);

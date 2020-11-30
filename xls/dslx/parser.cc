@@ -98,8 +98,8 @@ absl::variant<ToTypes...> NarrowVariant(const absl::variant<FromTypes...>& v) {
 
 template <typename... FromTypes>
 NameDefTree::Leaf WidenToNameDefTreeLeaf(const absl::variant<FromTypes...>& v) {
-  return WidenVariant<NameDef*, NameRef*, EnumRef*, ModRef*, WildcardPattern*,
-                      Number*, ColonRef*>(v);
+  return WidenVariant<NameDef*, NameRef*, EnumRef*, WildcardPattern*, Number*,
+                      ColonRef*>(v);
 }
 
 absl::StatusOr<BuiltinType> Parser::TokenToBuiltinType(const Token& tok) {
@@ -381,9 +381,6 @@ absl::StatusOr<StructRef> Parser::ResolveStruct(Bindings* bindings,
 
   if (absl::holds_alternative<StructDef*>(type_defn)) {
     return StructRef(absl::get<StructDef*>(type_defn));
-  }
-  if (absl::holds_alternative<ModRef*>(type_defn)) {
-    return StructRef(absl::get<ModRef*>(type_defn));
   }
   if (absl::holds_alternative<ColonRef*>(type_defn)) {
     return StructRef(absl::get<ColonRef*>(type_defn));
@@ -1359,14 +1356,15 @@ absl::StatusOr<TypeRef*> Parser::ParseModTypeRef(Bindings* bindings,
         absl::StrFormat("Expected module for module-reference; got %s",
                         ToAstNode(bn)->ToString()));
   }
-  Import* import = absl::get<Import*>(bn);
+  XLS_ASSIGN_OR_RETURN(NameRef * subject, ParseNameRef(bindings, &start_tok));
   XLS_ASSIGN_OR_RETURN(Token type_name,
                        PopTokenOrError(TokenKind::kIdentifier));
   const Span span(start_tok.span().start(), type_name.span().limit());
-  ModRef* mod_ref = module_->Make<ModRef>(span, import, *type_name.GetValue());
+  ColonRef* mod_ref =
+      module_->Make<ColonRef>(span, subject, *type_name.GetValue());
   std::string composite =
       absl::StrFormat("%s::%s", *start_tok.GetValue(), *type_name.GetValue());
-  return module_->Make<TypeRef>(span, composite, mod_ref);
+  return module_->Make<TypeRef>(span, /*text=*/composite, mod_ref);
 }
 
 absl::StatusOr<Let*> Parser::ParseLet(Bindings* bindings) {

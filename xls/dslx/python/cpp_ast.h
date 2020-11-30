@@ -98,7 +98,6 @@ XLS_DSLX_AST_NODE_CHILD_EACH(DEFINE_AST_NODE_HOLDER)
   X(Invocation)                     \
   X(Let)                            \
   X(Match)                          \
-  X(ModRef)                         \
   X(NameRef)                        \
   X(Next)                           \
   X(Number)                         \

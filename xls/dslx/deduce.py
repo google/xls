@@ -145,7 +145,7 @@ def _deduce_ConstantArray(
 
 
 def _create_element_invocation(owner: ast.AstNodeOwner, span_: Span,
-                               callee: Union[ast.NameRef, ast.ModRef],
+                               callee: ast.NameRef,
                                arg_array: ast.Expr) -> ast.Invocation:
   """Creates a function invocation on the first element of the given array.
 
@@ -168,6 +168,7 @@ def _create_element_invocation(owner: ast.AstNodeOwner, span_: Span,
     An invocation node for the given function when called with an element in the
     argument array.
   """
+  assert isinstance(callee, ast.NameRef), callee
   annotation = ast_helpers.make_builtin_type_annotation(
       owner, span_, scanner.Token(span_, scanner.Keyword.U32), ())
   index_number = ast.Number(owner, span_, '32', ast.NumberKind.OTHER,
@@ -181,7 +182,7 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
                                  symbolic_bindings: SymbolicBindings,
                                  ctx: DeduceCtx):
   """Checks the parametric fn body using the invocation's symbolic bindings."""
-  if isinstance(invocation.callee, (ast.ModRef, ast.ColonRef)):
+  if isinstance(invocation.callee, ast.ColonRef):
     # We need to typecheck this function with respect to its own module.
     # Let's use typecheck._check_function_or_test_in_module() to do this
     # in case we run into more dependencies in that module.
@@ -190,9 +191,7 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
       # these symbolic bindings.
       return
 
-    import_node = (
-        invocation.callee.mod if isinstance(invocation.callee, ast.ModRef) else
-        invocation.callee.subject.name_def.definer)
+    import_node = invocation.callee.subject.name_def.definer
     assert isinstance(import_node, ast.Import)
 
     imported_module, imported_type_info = ctx.type_info.get_imported(
@@ -249,7 +248,7 @@ def _deduce_Invocation(self: ast.Invocation, ctx: DeduceCtx) -> ConcreteType:  #
     try:
       arg_types.append(resolve(deduce(arg, ctx), ctx))
     except TypeMissingError as e:
-      # These nodes could be ModRefs or NameRefs.
+      # These nodes could be ColonRefs or NameRefs.
       callee_is_map = isinstance(
           self.callee, ast.NameRef) and self.callee.name_def.identifier == 'map'
       arg_is_builtin = isinstance(
@@ -276,11 +275,7 @@ def _deduce_Invocation(self: ast.Invocation, ctx: DeduceCtx) -> ConcreteType:  #
     raise XlsTypeError(self.callee.span, callee_type, None,
                        'Callee does not have a function type.')
 
-  if isinstance(self.callee, ast.ModRef):
-    imported_module, _ = ctx.type_info.get_imported(self.callee.mod)
-    callee_name = self.callee.value
-    callee_fn = imported_module.get_function(callee_name)
-  elif isinstance(self.callee, ast.ColonRef):
+  if isinstance(self.callee, ast.ColonRef):
     callee_fn = _resolve_colon_ref_to_fn(self.callee, ctx)
     callee_name = callee_fn.identifier
   else:
@@ -918,55 +913,6 @@ def _deduce_ArrayTypeAnnotation(self: ast.ArrayTypeAnnotation,
   return result
 
 
-@_rule(ast.ModRef)
-def _deduce_ModRef(self: ast.ModRef, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  """Deduces the type of an entity referenced via module reference."""
-  imported_module, imported_type_info = ctx.type_info.get_imported(self.mod)
-  leaf_name = self.attr
-
-  # May be a type definition reference.
-  if leaf_name in imported_module.get_type_definition_by_name():
-    td = imported_module.get_type_definition_by_name()[leaf_name]
-    if not td.public:
-      raise TypeInferenceError(
-          self.span,
-          type_=None,
-          suffix='Attempted to refer to module type that is not public.')
-    return imported_type_info[td.name]
-
-  # May be a function reference.
-  try:
-    f = imported_module.get_function(leaf_name)
-  except KeyError:
-    raise TypeInferenceError(
-        self.span,
-        type_=None,
-        suffix='Module {!r} function {!r} does not exist.'.format(
-            imported_module.name, leaf_name))
-
-  if not f.public:
-    raise TypeInferenceError(
-        self.span,
-        type_=None,
-        suffix='Attempted to refer to module {!r} function {!r} that is not public.'
-        .format(imported_module.name, f.name))
-  if f.name not in imported_type_info:
-    logging.vlog(
-        2, 'Function name not in imported_type_info; must be parametric: %r',
-        f.name)
-    assert f.is_parametric()
-    # We don't type check parametric functions until invocations.
-    # Let's typecheck this imported parametric function with respect to its
-    # module (this will only get the type signature, body gets typechecked
-    # after parametric instantiation).
-    imported_ctx = ctx.make_ctx(imported_type_info, imported_module)
-    imported_ctx.add_fn_stack_entry(ctx.peek_fn_stack())
-    ctx.typecheck_function(f, imported_ctx)
-    ctx.type_info.update(imported_ctx.type_info)
-    imported_type_info = imported_ctx.type_info
-  return imported_type_info[f.name]
-
-
 @_rule(ast.EnumDef)
 def _deduce_Enum(self: ast.EnumDef, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of a Enum AST node."""
@@ -1158,7 +1104,7 @@ def _deduce_StructInstance(
 
   struct_def = self.struct
   if not isinstance(struct_def, ast.StructDef):
-    # Traverse TypeDefs and ModRefs until we get the struct AST node.
+    # Traverse TypeDefs and ColonRefs until we get the struct AST node.
     struct_def = ast_helpers.evaluate_to_struct_or_enum_or_annotation(
         struct_def, _get_imported_module_via_type_info, ctx.type_info)
   assert isinstance(struct_def, ast.StructDef), struct_def
@@ -1222,7 +1168,7 @@ def _concretize_struct_annotation(module: ast.Module,
 
 def _get_imported_module_via_type_info(
     import_: ast.Import, type_info: TypeInfo) -> Tuple[ast.Module, TypeInfo]:
-  """Uses type_info to retrieve the corresponding module of a ModRef."""
+  """Uses type_info to retrieve the corresponding module of a ColonRef."""
   return type_info.get_imported(import_)
 
 
@@ -1261,7 +1207,7 @@ def _deduce_SplatStructInstance(
 
   struct_def = self.struct
   if not isinstance(struct_def, ast.StructDef):
-    # Traverse TypeDefs and ModRefs until we get the struct AST node.
+    # Traverse TypeDefs and ColonRefs until we get the struct AST node.
     struct_def = ast_helpers.evaluate_to_struct_or_enum_or_annotation(
         struct_def, _get_imported_module_via_type_info, ctx.type_info)
 

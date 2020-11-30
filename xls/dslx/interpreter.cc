@@ -47,7 +47,6 @@ class Evaluator : public ExprVisitor {
   DISPATCH(Index)
   DISPATCH(Let)
   DISPATCH(Match)
-  DISPATCH(ModRef)
   DISPATCH(NameRef)
   DISPATCH(Number)
   DISPATCH(SplatStructInstance)

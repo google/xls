@@ -40,17 +40,6 @@ absl::StatusOr<InterpValue> EvaluateConstRef(ConstRef* expr,
   return bindings->ResolveValue(expr);
 }
 
-absl::StatusOr<InterpValue> EvaluateModRef(ModRef* expr,
-                                           InterpBindings* bindings,
-                                           ConcreteType* type_context,
-                                           InterpCallbackData* callbacks) {
-  XLS_ASSIGN_OR_RETURN(Module * module,
-                       bindings->ResolveModule(expr->import()->identifier()));
-  XLS_ASSIGN_OR_RETURN(Function * f, module->GetFunction(expr->attr()));
-  return InterpValue::MakeFunction(
-      InterpValue::UserFnData{module->shared_from_this(), f});
-}
-
 absl::StatusOr<InterpValue> EvaluateCarry(Carry* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
                                           InterpCallbackData* callbacks) {
@@ -1218,17 +1207,10 @@ absl::StatusOr<DerefVariant> EvaluateToStructOrEnumOrAnnotation(
     return absl::get<EnumDef*>(type_definition);
   }
 
-  std::string identifier;
-  std::string attr;
-  if (absl::holds_alternative<ModRef*>(type_definition)) {
-    auto* mod_ref = absl::get<ModRef*>(type_definition);
-    identifier = mod_ref->import()->identifier();
-    attr = mod_ref->attr();
-  } else {
-    auto* colon_ref = absl::get<ColonRef*>(type_definition);
-    identifier = absl::get<NameRef*>(colon_ref->subject())->identifier();
-    attr = colon_ref->attr();
-  }
+  auto* colon_ref = absl::get<ColonRef*>(type_definition);
+  std::string identifier =
+      absl::get<NameRef*>(colon_ref->subject())->identifier();
+  std::string attr = colon_ref->attr();
   XLS_ASSIGN_OR_RETURN(Module * imported_module,
                        bindings->ResolveModule(identifier));
   XLS_ASSIGN_OR_RETURN(TypeDefinition td,
@@ -1240,21 +1222,12 @@ absl::StatusOr<DerefVariant> EvaluateToStructOrEnumOrAnnotation(
                                             callbacks);
 }
 
+// Helper that grabs the type_definition field out of a TypeRef and resolves it.
 static absl::StatusOr<DerefVariant> DerefTypeRef(
     TypeRef* type_ref, InterpBindings* bindings,
     InterpCallbackData* callbacks) {
-  if (absl::holds_alternative<ModRef*>(type_ref->type_definition())) {
-    auto* mod_ref = absl::get<ModRef*>(type_ref->type_definition());
-    return EvaluateToStructOrEnumOrAnnotation(mod_ref, bindings, callbacks);
-  }
-
-  XLS_VLOG(3) << "Resolving type ref: " << type_ref->ToString()
-              << " (definition is: "
-              << ToAstNode(type_ref->type_definition())->GetNodeTypeName()
-              << ") in module: " << type_ref->owner()->name();
-  XLS_ASSIGN_OR_RETURN(auto result,
-                       bindings->ResolveTypeDefinition(type_ref->text()));
-  return result;
+  return EvaluateToStructOrEnumOrAnnotation(type_ref->type_definition(),
+                                            bindings, callbacks);
 }
 
 // Returns new (derived) Bindings populated with `parametrics`.
@@ -1310,12 +1283,15 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
     TypeAnnotation* type, InterpBindings* bindings,
     InterpCallbackData* callbacks) {
   XLS_VLOG(3) << "Concretizing type annotation: " << type->ToString()
-              << " in module " << type->owner()->name();
+              << " node type: " << type->GetNodeTypeName() << " in module "
+              << type->owner()->name();
 
   // class TypeRefTypeAnnotation
   if (auto* type_ref = dynamic_cast<TypeRefTypeAnnotation*>(type)) {
     XLS_ASSIGN_OR_RETURN(DerefVariant deref, DerefTypeRef(type_ref->type_ref(),
                                                           bindings, callbacks));
+    XLS_VLOG(3) << "Dereferenced type ref to "
+                << ToAstNode(deref)->GetNodeTypeName();
     absl::optional<InterpBindings> struct_parametric_bindings;
     if (type_ref->HasParametrics()) {
       XLS_RET_CHECK(absl::holds_alternative<StructDef*>(deref));

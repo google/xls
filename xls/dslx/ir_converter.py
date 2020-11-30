@@ -610,7 +610,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     self._def(node, self.fb.add_tuple, operands)
 
   def _deref_struct_or_enum(
-      self, node: Union[ast.StructDef, ast.TypeDef, ast.EnumDef, ast.ModRef]
+      self, node: Union[ast.StructDef, ast.TypeDef, ast.EnumDef]
   ) -> Union[ast.StructDef, ast.EnumDef]:
     while isinstance(node, ast.TypeDef):
       annotation = node.type_
@@ -626,16 +626,15 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     if isinstance(node, ast.NameRef):
       logging.vlog(3, 'Resolving NameRef %s to struct or enum', node)
       definer = node.name_def.definer
-      assert isinstance(definer, (ast.StructDef, ast.TypeDef, ast.EnumDef,
-                                  ast.ModRef)), (definer, type(definer))
+      assert isinstance(
+          definer,
+          (ast.StructDef, ast.TypeDef, ast.EnumDef)), (definer, type(definer))
       return self._deref_struct_or_enum(definer)
 
-    if not isinstance(node, (ast.ColonRef, ast.ModRef)):
+    if not isinstance(node, ast.ColonRef):
       raise TypeError(f'Cannot resolve enum for node: {node!r}')
 
-    import_node = (
-        node.mod
-        if isinstance(node, ast.ModRef) else node.subject.name_def.definer)
+    import_node = node.subject.name_def.definer
     imported_mod, _ = dict(self.type_info.get_imports())[import_node]
     td = imported_mod.get_type_definition_by_name()[node.attr]
     # Recurse to resolve the typedef within the imported module.
@@ -644,12 +643,12 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     return td
 
   def _deref_struct(self, node: Union[ast.StructDef,
-                                      ast.ModRef]) -> ast.StructDef:
+                                      ast.ColonRef]) -> ast.StructDef:
     result = self._deref_struct_or_enum(node)
     assert isinstance(result, ast.StructDef), result
     return result
 
-  def _deref_enum(self, node: Union[ast.EnumDef, ast.ModRef]) -> ast.EnumDef:
+  def _deref_enum(self, node: Union[ast.EnumDef, ast.ColonRef]) -> ast.EnumDef:
     result = self._deref_struct_or_enum(node)
     assert isinstance(result, ast.EnumDef), result
     return result
@@ -829,9 +828,6 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     if isinstance(node.callee, ast.NameRef):
       callee_name = node.callee.identifier
       m = self.module
-    elif isinstance(node.callee, ast.ModRef):
-      m = dict(self.type_info.get_imports())[node.callee.mod][0]
-      callee_name = node.callee.value
     elif isinstance(node.callee, ast.ColonRef):
       m = dict(
           self.type_info.get_imports())[node.callee.subject.name_def.definer][0]
@@ -892,12 +888,10 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       else:
         lookup_module = self.module
         fn = lookup_module.get_function(map_fn_name)
-    elif isinstance(fn_node, (ast.ModRef, ast.ColonRef)):
+    elif isinstance(fn_node, ast.ColonRef):
       map_fn_name = fn_node.attr
       imports = dict(self.type_info.get_imports())
-      import_node = (
-          fn_node.mod if isinstance(fn_node, ast.ModRef) else
-          fn_node.subject.name_def.definer)
+      import_node = fn_node.subject.name_def.definer
       lookup_module, _ = imports[import_node]
       fn = lookup_module.get_function(map_fn_name)
     else:

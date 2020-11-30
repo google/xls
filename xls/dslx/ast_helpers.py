@@ -69,7 +69,7 @@ UNOP_SAME_TYPE_KIND_LIST = [
 
 
 def evaluate_to_struct_or_enum_or_annotation(
-    node: Union[ast.TypeDef, ast.ModRef, ast.StructDef],
+    node: Union[ast.TypeDef, ast.StructDef],
     get_imported_module: GetImportedCallback, evaluation_context: ContextType
 ) -> Union[ast.StructDef, ast.EnumDef, ast.TypeAnnotation]:
   """Returns the node dereferenced into a Struct or Enum or TypeAnnotation.
@@ -79,8 +79,8 @@ def evaluate_to_struct_or_enum_or_annotation(
 
   Args:
     node: Node to resolve to a struct/enum/annotation.
-    get_imported_module: Callback that returns the referenced module given a
-      ModRef using the provided evaluation_context.
+    get_imported_module: Callback that returns the referenced module given an
+      Import using the provided evaluation_context.
     evaluation_context: Evaluation information being kept by the caller (either
       NodeToType in type deduction or Bindings in interpreter evaluation).
   """
@@ -93,10 +93,9 @@ def evaluate_to_struct_or_enum_or_annotation(
   if isinstance(node, (ast.StructDef, ast.EnumDef)):
     return node
 
-  assert isinstance(node, (ast.ModRef, ast.ColonRef))
-  import_node = (
-      node.mod
-      if isinstance(node, ast.ModRef) else node.subject.name_def.definer)
+  assert isinstance(node, ast.ColonRef)
+  import_node = node.subject.name_def.definer
+  assert isinstance(import_node, ast.Import), import_node
   imported_module, evaluation_context = get_imported_module(
       import_node, evaluation_context)
   td = imported_module.get_type_definition_by_name()[node.attr]

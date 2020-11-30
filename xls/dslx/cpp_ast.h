@@ -69,7 +69,6 @@ class Index;
 class Invocation;
 class Let;
 class Match;
-class ModRef;
 class NameRef;
 class Next;
 class Number;
@@ -399,7 +398,6 @@ class ExprVisitor {
   virtual void HandleInvocation(Invocation* expr) = 0;
   virtual void HandleLet(Let* expr) = 0;
   virtual void HandleMatch(Match* expr) = 0;
-  virtual void HandleModRef(ModRef* expr) = 0;
   virtual void HandleNameRef(NameRef* expr) = 0;
   virtual void HandleNext(Next* expr) = 0;
   virtual void HandleNumber(Number* expr) = 0;
@@ -649,12 +647,15 @@ class ConstantArray : public Array {
 
 // Several different AST nodes define types that can be referred to by a
 // TypeRef.
-using TypeDefinition =
-    absl::variant<TypeDef*, StructDef*, EnumDef*, ModRef*, ColonRef*>;
+using TypeDefinition = absl::variant<TypeDef*, StructDef*, EnumDef*, ColonRef*>;
 
 absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node);
 
-// Represents a name that refers to a defined type.
+// Represents an AST construct that refers to a defined type.
+//
+// Attrs:
+//  type_definition: The resolved type if it can be resolved locally, or a
+//    ColonRef if the type lives in an external module.
 class TypeRef : public AstNode {
  public:
   TypeRef(Module* owner, Span span, std::string text,
@@ -725,31 +726,6 @@ class Import : public AstNode {
   NameDef* name_def_;
   // The identifier text we bind the import to.
   absl::optional<std::string> alias_;
-};
-
-// Represents a module-value reference (via `::` i.e. `std::FOO`).
-class ModRef : public Expr {
- public:
-  ModRef(Module* owner, Span span, Import* mod, std::string attr)
-      : Expr(owner, std::move(span)), mod_(mod), attr_(std::move(attr)) {}
-
-  void Accept(ExprVisitor* v) override { v->HandleModRef(this); }
-
-  absl::string_view GetNodeTypeName() const override { return "ModRef"; }
-  std::string ToString() const override {
-    return absl::StrFormat("%s::%s", mod_->identifier(), attr_);
-  }
-
-  std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {mod_};
-  }
-
-  Import* import() const { return mod_; }
-  const std::string& attr() const { return attr_; }
-
- private:
-  Import* mod_;
-  std::string attr_;
 };
 
 // Represents a module-value or enum-value style reference when the LHS
@@ -1389,7 +1365,7 @@ class StructDef : public AstNode {
 // Variant that either points at a struct definition or a module reference
 // (which should be backed by a struct definition -- that property will be
 // checked by the typechecker).
-using StructRef = absl::variant<StructDef*, ModRef*, ColonRef*>;
+using StructRef = absl::variant<StructDef*, ColonRef*>;
 
 std::string StructRefToText(const StructRef& struct_ref);
 
@@ -1878,8 +1854,8 @@ class ConstantDef : public AstNode {
 class NameDefTree : public AstNode {
  public:
   using Nodes = std::vector<NameDefTree*>;
-  using Leaf = absl::variant<NameDef*, NameRef*, EnumRef*, ModRef*,
-                             WildcardPattern*, Number*, ColonRef*>;
+  using Leaf = absl::variant<NameDef*, NameRef*, EnumRef*, WildcardPattern*,
+                             Number*, ColonRef*>;
 
   NameDefTree(Module* owner, Span span, absl::variant<Nodes, Leaf> tree)
       : AstNode(owner), span_(std::move(span)), tree_(tree) {}

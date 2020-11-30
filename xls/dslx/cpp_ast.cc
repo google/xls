@@ -44,9 +44,6 @@ absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node) {
   if (auto* n = dynamic_cast<EnumDef*>(node)) {
     return TypeDefinition(n);
   }
-  if (auto* n = dynamic_cast<ModRef*>(node)) {
-    return TypeDefinition(n);
-  }
   if (auto* n = dynamic_cast<ColonRef*>(node)) {
     return TypeDefinition(n);
   }
@@ -641,9 +638,6 @@ std::string XlsTuple::ToString() const {
 std::string StructRefToText(const StructRef& struct_ref) {
   if (absl::holds_alternative<StructDef*>(struct_ref)) {
     return absl::get<StructDef*>(struct_ref)->identifier();
-  }
-  if (absl::holds_alternative<ModRef*>(struct_ref)) {
-    return absl::get<ModRef*>(struct_ref)->ToString();
   }
   if (absl::holds_alternative<ColonRef*>(struct_ref)) {
     return absl::get<ColonRef*>(struct_ref)->ToString();

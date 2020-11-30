@@ -482,23 +482,6 @@ PYBIND11_MODULE(cpp_ast, m) {
         return t;
       });
 
-  // class ModRef
-  py::class_<ModRefHolder, ExprHolder>(m, "ModRef")
-      .def(py::init([](ModuleHolder module, Span span, ImportHolder mod,
-                       std::string attr) {
-        auto* self = module.deref().Make<ModRef>(std::move(span), &mod.deref(),
-                                                 std::move(attr));
-        return ModRefHolder(self, module.module());
-      }))
-      // TODO(leary): 2020-09-04 Rename to import_.
-      .def_property_readonly("mod",
-                             [](ModRefHolder self) {
-                               return ImportHolder(self.deref().import(),
-                                                   self.module());
-                             })
-      .def_property_readonly(
-          "attr", [](ModRefHolder self) { return self.deref().attr(); });
-
   // class ColonRef
   py::class_<ColonRefHolder, ExprHolder>(m, "ColonRef")
       .def(py::init([](ModuleHolder module, Span span, ExprHolder subject,
@@ -630,12 +613,6 @@ PYBIND11_MODULE(cpp_ast, m) {
             module.deref().Make<TypeRef>(std::move(span), text, &enum_.deref());
         return TypeRefHolder(self, module.module());
       }))
-      .def(py::init([](ModuleHolder module, Span span, std::string text,
-                       ModRefHolder mod_ref) {
-        auto* self = module.deref().Make<TypeRef>(std::move(span), text,
-                                                  &mod_ref.deref());
-        return TypeRefHolder(self, module.module());
-      }))
       .def_property_readonly("type_def",
                              [](TypeRefHolder self) {
                                return AstNodeHolder(
@@ -669,7 +646,6 @@ PYBIND11_MODULE(cpp_ast, m) {
       INIT_OVERLOAD(NameDef)          //
       INIT_OVERLOAD(NameRef)          //
       INIT_OVERLOAD(EnumRef)          //
-      INIT_OVERLOAD(ModRef)           //
       INIT_OVERLOAD(WildcardPattern)  //
       INIT_OVERLOAD(Number)
           .def(py::init([](ModuleHolder module, Span span,
@@ -984,18 +960,6 @@ PYBIND11_MODULE(cpp_ast, m) {
   py::class_<StructInstanceHolder, ExprHolder>(m, "StructInstance")
       .def(
           py::init([](ModuleHolder module, Span span, StructDefHolder struct_,
-                      std::vector<std::pair<std::string, ExprHolder>> members) {
-            std::vector<std::pair<std::string, Expr*>> member_ptrs;
-            for (auto& item : members) {
-              member_ptrs.push_back({item.first, &item.second.deref()});
-            }
-
-            auto* self = module.deref().Make<StructInstance>(
-                std::move(span), &struct_.deref(), std::move(member_ptrs));
-            return StructInstanceHolder(self, module.module());
-          }))
-      .def(
-          py::init([](ModuleHolder module, Span span, ModRefHolder struct_,
                       std::vector<std::pair<std::string, ExprHolder>> members) {
             std::vector<std::pair<std::string, Expr*>> member_ptrs;
             for (auto& item : members) {
