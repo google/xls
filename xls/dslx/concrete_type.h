@@ -99,6 +99,7 @@ class ConcreteTypeDim {
 // dealing with ConcreteTypeDims that hold ints.
 class ConcreteType {
  public:
+  // Creates a "nil tuple" type (a tuple type with no members).
   static std::unique_ptr<ConcreteType> MakeNil();
 
   virtual ~ConcreteType() = default;
@@ -452,9 +453,12 @@ inline bool IsSBits(const ConcreteType& c) {
   return false;
 }
 
-inline std::unique_ptr<ConcreteType> ConcreteType::MakeNil() {
-  return absl::make_unique<TupleType>(TupleType::UnnamedMembers{});
-}
+// Parses the given string (that is expected to come from a
+// ConcreteType::ToString() invocation) back into a ConcreteType object.
+//
+// Returns an error if the string cannot be parsed.
+absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteTypeFromString(
+    absl::string_view);
 
 }  // namespace xls::dslx
 

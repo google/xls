@@ -29,6 +29,7 @@ from xls.dslx import concrete_type_helpers
 from xls.dslx import dslx_builtins
 from xls.dslx import parametric_instantiator
 from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python import cpp_deduce
 from xls.dslx.python import cpp_scanner as scanner
 from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType
@@ -38,6 +39,7 @@ from xls.dslx.python.cpp_concrete_type import EnumType
 from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.dslx.python.cpp_deduce import DeduceCtx
+from xls.dslx.python.cpp_deduce import TypeInferenceError
 from xls.dslx.python.cpp_parametric_expression import ParametricAdd
 from xls.dslx.python.cpp_parametric_expression import ParametricExpression
 from xls.dslx.python.cpp_parametric_expression import ParametricSymbol
@@ -45,7 +47,6 @@ from xls.dslx.python.cpp_pos import Span
 from xls.dslx.python.cpp_type_info import SymbolicBindings
 from xls.dslx.python.cpp_type_info import TypeInfo
 from xls.dslx.python.cpp_type_info import TypeMissingError
-from xls.dslx.xls_type_error import TypeInferenceError
 from xls.dslx.xls_type_error import XlsTypeError
 
 
@@ -112,18 +113,6 @@ def _deduce_Constant(self: ast.Constant, ctx: DeduceCtx) -> ConcreteType:  # pyt
   return result
 
 
-def _check_bitwidth(n: ast.Number, concrete_type: ConcreteType) -> None:
-  if (isinstance(concrete_type, BitsType) and
-      isinstance(concrete_type.get_total_bit_count().value, int) and
-      not bit_helpers.fits_in_bits(
-          ast_helpers.get_value_as_int(n),
-          concrete_type.get_total_bit_count().value)):
-    msg = 'value {!r} does not fit in the bitwidth of a {} ({})'.format(
-        n.value, concrete_type,
-        concrete_type.get_total_bit_count().value)
-    raise TypeInferenceError(span=n.span, type_=concrete_type, suffix=msg)
-
-
 @_rule(ast.ConstantArray)
 def _deduce_ConstantArray(
     self: ast.ConstantArray, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
@@ -149,7 +138,7 @@ def _deduce_ConstantArray(
     assert ast.is_constant(member)
     if isinstance(member, ast.Number) and not member.type_:
       ctx.type_info[member] = element_type
-      _check_bitwidth(member, element_type)
+      cpp_deduce.check_bitwidth(member, element_type)
   # Use the base class to check all members are compatible.
   _deduce_Array(self, ctx)
   return concrete_type
@@ -383,9 +372,8 @@ def _deduce_slice_type(self: ast.Index, ctx: DeduceCtx,
     # Check the start is unsigned.
     if start_type.signed:
       raise TypeInferenceError(
-          start.span,
-          type_=start_type,
-          suffix='Start index for width-based slice must be unsigned.')
+          start.span, start_type,
+          'Start index for width-based slice must be unsigned.')
 
     width_type = deduce(index_slice.width, ctx)
     if isinstance(width_type.get_total_bit_count().value, int) and isinstance(
@@ -402,9 +390,8 @@ def _deduce_slice_type(self: ast.Index, ctx: DeduceCtx,
     # of range of the enum values).
     if not isinstance(width_type, BitsType):
       raise TypeInferenceError(
-          self.span,
-          type_=width_type,
-          suffix='Require a bits-based type for width-based slice.')
+          self.span, width_type,
+          'Require a bits-based type for width-based slice.')
 
     # The width type is the thing returned from the width-slice.
     return width_type
@@ -560,9 +547,8 @@ def _unify_NameDefTree(self: ast.NameDefTree, type_: ConcreteType,
       resolved_leaf_type = resolve(deduce(leaf, ctx), ctx)
       if resolved_leaf_type != resolved_rhs_type:
         raise TypeInferenceError(
-            span=self.span,
-            type_=resolved_rhs_type,
-            suffix='Conflicting types; pattern expects {} but got {} from value'
+            self.span, resolved_rhs_type,
+            'Conflicting types; pattern expects {} but got {} from value'
             .format(resolved_rhs_type, resolved_leaf_type))
     else:
       assert isinstance(leaf, ast.NameRef), repr(leaf)
@@ -570,9 +556,8 @@ def _unify_NameDefTree(self: ast.NameDefTree, type_: ConcreteType,
       resolved_ref_type = resolve(ref_type, ctx)
       if resolved_ref_type != resolved_rhs_type:
         raise TypeInferenceError(
-            span=self.span,
-            type_=resolved_rhs_type,
-            suffix='Conflicting types; pattern expects {} but got {} from reference'
+            self.span, resolved_rhs_type,
+            'Conflicting types; pattern expects {} but got {} from reference'
             .format(resolved_rhs_type, resolved_ref_type))
   else:
     assert isinstance(self.tree, tuple)
@@ -761,9 +746,8 @@ def _deduce_enum_ref_internal(span: Span, enum_type: EnumType,
   assert isinstance(enum, ast.EnumDef), enum
   if not enum.has_value(attr):
     raise TypeInferenceError(
-        span=span,
-        type_=None,
-        suffix=f'Name {attr!r} is not defined by the enum {enum.identifier}')
+        span, None,
+        f'Name {attr!r} is not defined by the enum {enum.identifier}')
   return enum_type
 
 
@@ -842,7 +826,7 @@ def _deduce_Number(self: ast.Number, ctx: DeduceCtx) -> ConcreteType:  # pytype:
         suffix='Could not infer a type for this number, please annotate a type.'
     )
   concrete_type = resolve(deduce(self.type_, ctx), ctx)
-  _check_bitwidth(self, concrete_type)
+  cpp_deduce.check_bitwidth(self, concrete_type)
   return concrete_type
 
 
@@ -1137,10 +1121,9 @@ def _validate_struct_members_subset(
   for k, v in members:
     if k in seen_names:
       raise TypeInferenceError(
-          v.span,
-          type_=None,
-          suffix='Duplicate value seen for {!r} in this {!r} struct instance.'
-          .format(k, struct_text))
+          v.span, None,
+          'Duplicate value seen for {!r} in this {!r} struct instance.'.format(
+              k, struct_text))
     seen_names.add(k)
     expr_type = resolve(deduce(v, ctx), ctx)
     arg_types.append(expr_type)
@@ -1149,10 +1132,8 @@ def _validate_struct_members_subset(
       member_types.append(member_type)
     except KeyError:
       raise TypeInferenceError(
-          v.span,
-          None,
-          suffix='Struct {!r} has no member {!r}, but it was provided by this instance.'
-          .format(struct_text, k))
+          v.span, None, f'Struct {struct_text!r} has no member {k!r}, '
+          'but it was provided by this instance.')
 
   return seen_names, tuple(arg_types), tuple(member_types)
 
@@ -1172,9 +1153,8 @@ def _deduce_StructInstance(
     missing = ', '.join(
         repr(s) for s in sorted(list(expected_names - seen_names)))
     raise TypeInferenceError(
-        self.span,
-        None,
-        suffix='Struct instance is missing member(s): {}'.format(missing))
+        self.span, None,
+        'Struct instance is missing member(s): {}'.format(missing))
 
   struct_def = self.struct
   if not isinstance(struct_def, ast.StructDef):
@@ -1301,10 +1281,8 @@ def _deduce_Attr(self: ast.Attr, ctx: DeduceCtx) -> ConcreteType:  # pytype: dis
   assert isinstance(struct, TupleType), struct
   if not struct.has_named_member(self.attr.identifier):
     raise TypeInferenceError(
-        span=self.span,
-        type_=None,
-        suffix='Struct does not have a member with name {!r}.'.format(
-            self.attr))
+        self.span, None,
+        'Struct does not have a member with name {!r}.'.format(self.attr))
 
   return struct.get_member_type_by_name(self.attr.identifier)
 

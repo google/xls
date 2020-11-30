@@ -45,29 +45,6 @@ class XlsTypeError(PositionalError):
     self.suffix = suffix
 
 
-class TypeInferenceError(PositionalError):
-  """Error raised when an error occurs during deductive type inference.
-
-  Attributes:
-    span: The span at which the type deduction error occurred.
-    type_: The (AST) type that failed to deduce. We avoid annotating the
-      ast.Type here to break a circular dependency.
-    suffix: Message suffix to use when displaying the error.
-  """
-
-  def __init__(self,
-               span: cpp_pos.Span,
-               type_: Optional[ConcreteType] = None,
-               suffix: Text = ''):
-    assert type_ is None or isinstance(type_, ConcreteType), type_
-    msg = 'Could not infer type{}{} @ {}'.format(
-        ' for {}'.format(type_) if type_ else '',
-        ': ' + suffix if suffix else '', span)
-    super(TypeInferenceError, self).__init__(msg, span)
-    self.type_ = type_
-    self.suffix = suffix
-
-
 class ArgCountMismatchError(PositionalError):
   """Raised when argument count != parameter count in an invocation."""
 

@@ -295,6 +295,7 @@ py_test(
         ":xls_type_error",
         "//xls/common:test_base",
         "//xls/common:xls_error",
+        "//xls/dslx/python:cpp_deduce",
         "//xls/dslx/python:cpp_parser",
         "@com_google_absl_py//absl/logging",
     ],
@@ -701,12 +702,14 @@ cc_library(
         ":cpp_ast",
         ":cpp_parametric_expression",
         "//xls/common:integral_types",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:variant",
+        "@com_google_re2//:re2",
     ],
 )
 
@@ -715,6 +718,7 @@ cc_test(
     srcs = ["concrete_type_test.cc"],
     deps = [
         ":cpp_concrete_type",
+        "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -869,6 +873,7 @@ cc_test(
 
 cc_library(
     name = "cpp_deduce",
+    srcs = ["deduce.cc"],
     hdrs = ["deduce.h"],
     deps = [
         ":builtins",

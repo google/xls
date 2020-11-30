@@ -687,6 +687,11 @@ absl::StatusOr<Bits> Number::GetBits(int64 bit_count) const {
     case NumberKind::kOther: {
       XLS_ASSIGN_OR_RETURN(auto sm, GetSignAndMagnitude(text_));
       auto [sign, bits] = sm;
+      if (bit_count < bits.bit_count()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Cannot fit number value %s in %d bits; %d required", text_,
+            bit_count, bits.bit_count()));
+      }
       bits = bits_ops::ZeroExtend(bits, bit_count);
       if (sign) {
         bits = bits_ops::Negate(bits);

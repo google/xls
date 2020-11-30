@@ -124,6 +124,13 @@ class DeduceCtx : public std::enable_shared_from_this<DeduceCtx> {
   std::vector<FnStackEntry> fn_stack_;
 };
 
+// Checks that the given "number" AST node fits inside the bitwidth of "type".
+//
+// After type inference we may have determined the type of some numbers, and we
+// need to then make sure they actually fit within that inferred type's
+// bit width.
+absl::Status CheckBitwidth(const Number& number, const ConcreteType& type);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_DEDUCE_H_

@@ -30,6 +30,60 @@
 namespace py = pybind11;
 
 namespace xls::dslx {
+namespace {
+
+// Error raised when an error occurs during deductive type inference.
+//
+// Attributes:
+//   span: The span at which the type deduction error occurred.
+//   type: The (AST) type that failed to deduce. May be null.
+class TypeInferenceError : public std::exception {
+ public:
+  // Args:
+  //  suffix: Message suffix to use when displaying the error.
+  TypeInferenceError(Span span, std::unique_ptr<ConcreteType> type,
+                     std::string suffix)
+      : span_(std::move(span)), type_(std::move(type)) {
+    std::string type_str;
+    if (type != nullptr) {
+      type_str = " for " + type->ToString();
+    }
+    message_ = absl::StrFormat("Could not infer type%s @ %s", type_str,
+                               span.ToString());
+    if (!suffix.empty()) {
+      message_ += ": " + suffix;
+    }
+  }
+
+  const char* what() const noexcept override { return message_.c_str(); }
+
+  const Span& span() const { return span_; }
+  const ConcreteType* type() const { return type_.get(); }
+  const std::string& message() const { return message_; }
+
+ private:
+  Span span_;
+  std::unique_ptr<ConcreteType> type_;
+  std::string message_;
+};
+
+void TryThrowTypeInferenceError(const absl::Status& status) {
+  absl::string_view s = status.message();
+  if (absl::ConsumePrefix(&s, "TypeInferenceError: ")) {
+    std::vector<absl::string_view> pieces =
+        absl::StrSplit(s, absl::MaxSplits(" ", 2));
+    if (pieces.size() < 3) {
+      return;
+    }
+    absl::StatusOr<Span> span = Span::FromString(pieces[0]);
+    absl::StatusOr<std::unique_ptr<ConcreteType>> type =
+        ConcreteTypeFromString(pieces[1]);
+    throw TypeInferenceError(std::move(span.value()), std::move(type).value(),
+                             std::string(pieces[2]));
+  }
+}
+
+}  // namespace
 
 PYBIND11_MODULE(cpp_deduce, m) {
   ImportStatusModule();
@@ -40,6 +94,24 @@ PYBIND11_MODULE(cpp_deduce, m) {
       .def_property_readonly(
           "symbolic_bindings",
           [](const FnStackEntry& entry) { return entry.symbolic_bindings; });
+
+  static py::exception<TypeInferenceError> type_inference_exc(
+      m, "TypeInferenceError");
+
+  py::register_exception_translator([](std::exception_ptr p) {
+    try {
+      if (p) std::rethrow_exception(p);
+    } catch (const TypeInferenceError& e) {
+      type_inference_exc.attr("span") = e.span();
+      if (e.type() == nullptr) {
+        type_inference_exc.attr("type_") = nullptr;
+      } else {
+        type_inference_exc.attr("type_") = e.type()->CloneToUnique();
+      }
+      type_inference_exc.attr("message") = e.message();
+      type_inference_exc(e.what());
+    }
+  });
 
   py::class_<DeduceCtx, std::shared_ptr<DeduceCtx>>(m, "DeduceCtx")
       .def(py::init([](const std::shared_ptr<TypeInfo>& type_info,
@@ -101,6 +173,12 @@ PYBIND11_MODULE(cpp_deduce, m) {
                           ModuleHolder new_module) {
         return self.MakeCtx(new_type_info, new_module.module());
       });
+
+  m.def("check_bitwidth", [](NumberHolder number, const ConcreteType& type) {
+    auto status = CheckBitwidth(number.deref(), type);
+    TryThrowTypeInferenceError(status);
+    return status;
+  });
 }
 
 }  // namespace xls::dslx

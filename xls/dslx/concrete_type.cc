@@ -18,9 +18,16 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/strip.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "re2/re2.h"
 
 namespace xls::dslx {
+
+std::unique_ptr<ConcreteType> ConcreteType::MakeNil() {
+  return absl::make_unique<TupleType>(TupleType::UnnamedMembers{});
+}
 
 ConcreteTypeDim::ConcreteTypeDim(const ConcreteTypeDim& other)
     : value_(std::move(other.Clone().value_)) {}
@@ -338,6 +345,59 @@ absl::StatusOr<ConcreteTypeDim> FunctionType::GetTotalBitCount() const {
     XLS_ASSIGN_OR_RETURN(sum, sum.Add(param_bits));
   }
   return sum;
+}
+
+static absl::StatusOr<std::unique_ptr<ConcreteType>> ConsumeArraySuffix(
+    absl::string_view* s, std::unique_ptr<ConcreteType> element_type) {
+  int64 size;
+  if (RE2::Consume(s, R"(\[(\d+)\])", &size)) {
+    return absl::make_unique<ArrayType>(std::move(element_type),
+                                        ConcreteTypeDim(size));
+  }
+  return std::move(element_type);
+}
+
+static absl::StatusOr<std::unique_ptr<ConcreteType>> ConsumeConcreteType(
+    absl::string_view* s) {
+  char signedness;
+  int64 size;
+  if (RE2::Consume(s, R"(([us])N\[(\d+)\])", &signedness, &size)) {
+    std::unique_ptr<ConcreteType> t =
+        absl::make_unique<BitsType>(signedness == 's', ConcreteTypeDim(size));
+    return ConsumeArraySuffix(s, std::move(t));
+  }
+  if (absl::ConsumePrefix(s, "(")) {
+    std::vector<std::unique_ptr<ConcreteType>> members;
+    while (true) {
+      if (absl::ConsumePrefix(s, ")")) {
+        std::unique_ptr<ConcreteType> t =
+            absl::make_unique<TupleType>(std::move(members));
+        return ConsumeArraySuffix(s, std::move(t));
+      }
+      if (!members.empty()) {
+        if (!absl::ConsumePrefix(s, ", ")) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Expected ',' between tuple members; saw: \"...%s\"", *s));
+        }
+      }
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> t,
+                           ConsumeConcreteType(s));
+      members.push_back(std::move(t));
+    }
+  }
+  return absl::InvalidArgumentError(
+      absl::StrFormat("Unrecognized concrete type: \"%s\"", *s));
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteTypeFromString(
+    absl::string_view s) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> t,
+                       ConsumeConcreteType(&s));
+  if (!s.empty()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Unrecognized trailing text in concrete type: \"%s\"", s));
+  }
+  return t;
 }
 
 }  // namespace xls::dslx

@@ -28,8 +28,8 @@ from xls.dslx import parser_helpers
 from xls.dslx import span
 from xls.dslx import typecheck
 from xls.dslx.python import cpp_parser
+from xls.dslx.python.cpp_deduce import TypeInferenceError
 from xls.dslx.xls_type_error import ArgCountMismatchError
-from xls.dslx.xls_type_error import TypeInferenceError
 from xls.dslx.xls_type_error import XlsTypeError
 
 
@@ -568,13 +568,13 @@ fn f(x: u32) -> (u1, u32) {
     self._typecheck('fn f() -> u8 { u8:-2 }')  # In range, no error.
     self._typecheck(
         'fn f() -> u8 { u8:256 }',
-        error="value '256' does not fit in the bitwidth of a uN[8]",
+        error="Value '256' does not fit in the bitwidth of a uN[8]",
         error_type=TypeInferenceError)
 
   def test_out_of_range_number_in_constant_array(self):
     self._typecheck(
         'fn f() -> u8[3] { u8[3]:[1, 2, 256] }',
-        error="value '256' does not fit in the bitwidth of a uN[8]",
+        error="Value '256' does not fit in the bitwidth of a uN[8]",
         error_type=TypeInferenceError)
 
   def test_missing_annotation(self):
@@ -629,7 +629,7 @@ enum Foo : u1 {
   C = 2,
 }
 """,
-        error="value '2' does not fit in the bitwidth of a uN[1]",
+        error="Value '2' does not fit in the bitwidth of a uN[1]",
         error_type=TypeInferenceError)
 
   def test_cannot_add_enums(self):
