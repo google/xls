@@ -760,6 +760,12 @@ def _deduce_ColonRef(self: ast.ColonRef, ctx: DeduceCtx) -> ConcreteType:  # pyt
         3, 'Resolving type info for module element: %s referred to by %s', elem,
         self)
 
+    if elem is None:
+      raise TypeInferenceError(
+          self.span, None,
+          f'Attempted to refer to module {imported_module.name} member {self.attr!r} which does not exist.'
+      )
+
     if not elem.public:
       raise TypeInferenceError(
           self.span, None,

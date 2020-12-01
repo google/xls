@@ -50,6 +50,17 @@ class ImportModuleWithTypeErrorTest(absltest.TestCase):
     self.assertIn('xls/dslx/tests/imports_private_enum.x:17:14-17:40',
                   str(cm.exception.span))
 
+  def test_imports_dne(self):
+    path = runfiles.get_path('xls/dslx/tests/imports_and_typedefs_dne_type.x')
+    with self.assertRaises(TypeInferenceError) as cm:
+      parse_and_interpret.parse_and_test_path(path)
+
+    self.assertIn('xls/dslx/tests/imports_and_typedefs_dne_type.x:17:12-17:48',
+                  str(cm.exception.span))
+    self.assertIn(
+        "xls.dslx.tests.mod_private_enum member 'ReallyDoesNotExist' which does not exist",
+        str(cm.exception))
+
 
 if __name__ == '__main__':
   absltest.main()

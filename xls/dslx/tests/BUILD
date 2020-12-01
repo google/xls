@@ -414,6 +414,7 @@ py_test(
     data = [
         "has_type_error.x",
         "imports_and_causes_ref_error.x",
+        "imports_and_typedefs_dne_type.x",
         "imports_has_type_error.x",
         "imports_private_enum.x",
         "mod_private_enum.x",
