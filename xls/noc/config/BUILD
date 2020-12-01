@@ -42,6 +42,7 @@ cc_library(
     hdrs = ["link_config_proto_builder.h"],
     deps = [
         ":network_config_cc_proto",
+        "//xls/common:proto_adaptor_utils",
         "//xls/common/logging",
     ],
 )
@@ -61,6 +62,7 @@ cc_library(
     hdrs = ["virtual_channel_config_proto_builder.h"],
     deps = [
         ":network_config_cc_proto",
+        "//xls/common:proto_adaptor_utils",
         "//xls/common/logging",
     ],
 )
@@ -80,6 +82,7 @@ cc_library(
     hdrs = ["port_config_proto_builder.h"],
     deps = [
         ":network_config_cc_proto",
+        "//xls/common:proto_adaptor_utils",
         "//xls/common/logging",
     ],
 )
@@ -120,6 +123,7 @@ cc_library(
     deps = [
         ":network_config_cc_proto",
         ":network_config_proto_builder_utils",
+        "//xls/common:proto_adaptor_utils",
         "//xls/common/logging",
     ],
 )

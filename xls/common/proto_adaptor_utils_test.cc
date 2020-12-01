@@ -12,28 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/noc/config/virtual_channel_config_proto_builder.h"
-
 #include "xls/common/proto_adaptor_utils.h"
 
-namespace xls::noc {
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 
-VirtualChannelConfigProtoBuilder& VirtualChannelConfigProtoBuilder::WithName(
-    absl::string_view name) {
-  proto_->set_name(xls::ToProtoString(name));
-  return *this;
+namespace xls {
+
+// Test the ToProtoString function.
+TEST(ProtoAdaptorUtilsTest, ToProtoString) {
+  const char* kString = "Test";
+  absl::string_view string_view_value = {kString};
+  std::string string_result = ToProtoString(string_view_value);
+
+  EXPECT_EQ(string_result, kString);
 }
 
-VirtualChannelConfigProtoBuilder&
-VirtualChannelConfigProtoBuilder::WithFlitBitWidth(int64 flit_bit_width) {
-  proto_->set_flit_bit_width(flit_bit_width);
-  return *this;
-}
-
-VirtualChannelConfigProtoBuilder& VirtualChannelConfigProtoBuilder::WithDepth(
-    int64 depth) {
-  proto_->set_depth(depth);
-  return *this;
-}
-
-}  // namespace xls::noc
+}  // namespace xls

@@ -14,23 +14,25 @@
 
 #include "xls/noc/config/link_config_proto_builder.h"
 
+#include "xls/common/proto_adaptor_utils.h"
+
 namespace xls::noc {
 
 LinkConfigProtoBuilder& LinkConfigProtoBuilder::WithName(
     absl::string_view name) {
-  proto_->set_name(name);
+  proto_->set_name(xls::ToProtoString(name));
   return *this;
 }
 
 LinkConfigProtoBuilder& LinkConfigProtoBuilder::WithSourcePort(
     absl::string_view port_name) {
-  proto_->set_source_port_name(port_name);
+  proto_->set_source_port_name(xls::ToProtoString(port_name));
   return *this;
 }
 
 LinkConfigProtoBuilder& LinkConfigProtoBuilder::WithSinkPort(
     absl::string_view port_name) {
-  proto_->set_sink_port_name(port_name);
+  proto_->set_sink_port_name(xls::ToProtoString(port_name));
   return *this;
 }
 
