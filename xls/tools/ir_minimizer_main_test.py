@@ -54,8 +54,8 @@ class IrMinimizerMainTest(absltest.TestCase):
         minimized_ir.decode('utf-8'), """package foo
 
 fn foo(x: bits[32], y: bits[32]) -> bits[32] {
-  literal.5: bits[32] = literal(value=0, id=5)
-  ret add.2: bits[32] = add(literal.5, literal.5, id=2)
+  literal.13: bits[32] = literal(value=0, id=13)
+  ret add.2: bits[32] = add(literal.13, literal.13, id=2)
 }
 """)
 
@@ -71,8 +71,8 @@ fn foo(x: bits[32], y: bits[32]) -> bits[32] {
         minimized_ir.decode('utf-8'), """package foo
 
 fn foo() -> bits[32] {
-  literal.5: bits[32] = literal(value=0, id=5)
-  ret add.2: bits[32] = add(literal.5, literal.5, id=2)
+  literal.11: bits[32] = literal(value=0, id=11)
+  ret add.2: bits[32] = add(literal.11, literal.11, id=2)
 }
 """)
 
@@ -107,8 +107,7 @@ fn foo() -> bits[32] {
     ir_file = self.create_tempfile(content=ADD_IR)
     minimized_ir = subprocess.check_output([
         IR_MINIMIZER_MAIN_PATH, '--test_llvm_jit',
-        '--simplify_with_optimization_pipeline',
-        '--input=bits[32]:0x42; bits[32]:0x123',
+        '--use_optimization_pipeline', '--input=bits[32]:0x42; bits[32]:0x123',
         '--test_only_inject_jit_result=bits[32]:0x22', ir_file.full_path
     ],
                                            stderr=subprocess.PIPE)
@@ -119,8 +118,8 @@ fn foo() -> bits[32] {
     ir_file = self.create_tempfile(content=ADD_IR)
     comp = subprocess.run([
         IR_MINIMIZER_MAIN_PATH, '--test_llvm_jit',
-        '--simplify_with_optimization_pipeline',
-        '--input=bits[32]:0x42; bits[32]:0x123', ir_file.full_path
+        '--use_optimization_pipeline', '--input=bits[32]:0x42; bits[32]:0x123',
+        ir_file.full_path
     ],
                           stderr=subprocess.PIPE,
                           check=False)

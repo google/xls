@@ -184,8 +184,8 @@ def minimize_ir(smp: sample.Sample,
         comp = subprocess.run(
             [
                 IR_MINIMIZER_MAIN_PATH, '--logtostderr', '--test_llvm_jit',
-                '--simplify_with_optimization_pipeline',
-                '--input=' + failed_input, 'sample.ir'
+                '--use_optimization_pipeline', '--input=' + failed_input,
+                'sample.ir'
             ] + extra_args,
             cwd=run_dir,
             stdout=subprocess.PIPE,

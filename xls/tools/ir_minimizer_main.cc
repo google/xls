@@ -34,13 +34,18 @@
 #include "xls/ir/value_helpers.h"
 #include "xls/ir/verifier.h"
 #include "xls/jit/ir_jit.h"
+#include "xls/passes/arith_simplification_pass.h"
 #include "xls/passes/array_simplification_pass.h"
+#include "xls/passes/bit_slice_simplification_pass.h"
+#include "xls/passes/concat_simplification_pass.h"
 #include "xls/passes/constant_folding_pass.h"
 #include "xls/passes/cse_pass.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/dfe_pass.h"
+#include "xls/passes/passes.h"
 #include "xls/passes/standard_pipeline.h"
 #include "xls/passes/tuple_simplification_pass.h"
+#include "xls/passes/unroll_pass.h"
 
 const char* kUsage = R"(
 Tool for reducing IR to a minimal test case based on an external test.
@@ -65,7 +70,7 @@ exhibits the bug. Example invocation:
 The second mode specifically reduces a test case where the JIT results differ
 from the interpreter results. Example invocation:
 
-  ir_minimizer_main --test_llvm_jit --simplify_with_optimization_pipeline \
+  ir_minimizer_main --test_llvm_jit --use_optimization_pipeline \
     --input='bits[32]:42; bits[1]:0' IR_FILE
 
 )";
@@ -97,11 +102,21 @@ ABSL_FLAG(
     std::string, test_only_inject_jit_result, "",
     "Test-only flag for injecting the result produced by the JIT. Used to "
     "force mismatches between JIT and interpreter for testing purposed.");
-ABSL_FLAG(bool, simplify_with_optimization_pipeline, false,
+ABSL_FLAG(bool, use_optimization_pipeline, false,
           "If true, then include the standard optimization pipeline as a "
           "simplification option during reduction. This option should *not* be "
           "used if trying to reduce a crash in the optimization pipeline "
           "itself as the minimizer will then crash.");
+ABSL_FLAG(
+    bool, use_optimization_passes, true,
+    "If true, then as a simplification option, run a pass selected randomly "
+    "from a subset of optimization passes. This flag differs from"
+    "--use_optimization_pipeline in that only a subset of passes is "
+    "used rather than the entire pipeline. So this flag can be used to reduce "
+    "an input which crashes an optimization outside this selected subset. "
+    "Also, because this option runs a single pass at a time it often results "
+    "in more minimization than --use_optimization_pipeline which "
+    "which might optimize away the problematic bit of IR entirely.");
 
 namespace xls {
 namespace {
@@ -194,33 +209,41 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
     Function* f, std::mt19937* rng, std::string* which_transform) {
   Node* orig = f->return_value();
   SimplificationResult result = SimplificationResult::kDidNotChange;
-  if (orig->Is<Tuple>()) {
-    Tuple* orig_tup = orig->As<Tuple>();
-    const int64 orig_tuple_size = orig_tup->operands().size();
-    if (orig_tuple_size == 1) {
-      // Unbox the singleton tuple.
-      XLS_RETURN_IF_ERROR(f->set_return_value(orig_tup->operand(0)));
-      *which_transform = "unbox singleton tuple return value";
+  // If the return value is a tuple or a concat, try to knock out some of the
+  // operands.
+  if (orig->Is<Tuple>() || orig->Is<Concat>()) {
+    if (orig->operand_count() == 1) {
+      // Unbox the singleton tuple/concat.
+      XLS_RETURN_IF_ERROR(f->set_return_value(orig->operand(0)));
+      *which_transform = "unbox singleton tuple/concat return value";
       return SimplificationResult::kDidChange;
     }
-    std::vector<Node*> new_members;
-    for (Node* member : orig_tup->operands()) {
+    std::vector<Node*> new_operands;
+    for (Node* operand : orig->operands()) {
       float p = absl::Uniform<float>(*rng, 0.0f, 1.0f);
-      if (p >= 1.0 / orig_tuple_size) {
-        new_members.push_back(member);
+      if (p >= 1.0 / orig->operand_count()) {
+        new_operands.push_back(operand);
       } else {
         result = SimplificationResult::kDidChange;
       }
     }
     if (result != SimplificationResult::kDidChange) {
-      // We got through all the members without changing any.
+      // We got through all the operands without changing any.
       return result;
     }
-    *which_transform = absl::StrFormat("return tuple reduction: %d => %d ",
-                                       orig_tuple_size, new_members.size());
-    XLS_ASSIGN_OR_RETURN(Tuple * new_t,
-                         f->MakeNode<Tuple>(orig->loc(), new_members));
-    XLS_RETURN_IF_ERROR(f->set_return_value(new_t));
+    *which_transform =
+        absl::StrFormat("return tuple/concat reduction: %d => %d",
+                        orig->operand_count(), new_operands.size());
+    Node* new_return_value;
+    if (orig->Is<Tuple>()) {
+      XLS_ASSIGN_OR_RETURN(new_return_value,
+                           f->MakeNode<Tuple>(orig->loc(), new_operands));
+    } else {
+      XLS_ASSIGN_OR_RETURN(new_return_value,
+                           f->MakeNode<Concat>(orig->loc(), new_operands));
+    }
+
+    XLS_RETURN_IF_ERROR(f->set_return_value(new_return_value));
     return result;
   }
 
@@ -241,59 +264,49 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
   return SimplificationResult::kCannotChange;
 }
 
+// Runs a randomly selected optimization pass and returns whether the graph
+// changed.
+absl::StatusOr<SimplificationResult> RunRandomPass(
+    Function* f, std::mt19937* rng, std::string* which_transform) {
+  // All these passes have trivial construction costs.
+  std::vector<std::unique_ptr<FunctionBasePass>> passes;
+  passes.push_back(absl::make_unique<ArithSimplificationPass>());
+  passes.push_back(absl::make_unique<ArraySimplificationPass>());
+  passes.push_back(absl::make_unique<BitSliceSimplificationPass>());
+  passes.push_back(absl::make_unique<ConcatSimplificationPass>());
+  passes.push_back(absl::make_unique<ConstantFoldingPass>());
+  passes.push_back(absl::make_unique<CsePass>());
+  passes.push_back(absl::make_unique<TupleSimplificationPass>());
+  passes.push_back(absl::make_unique<UnrollPass>());
+
+  int64 pass_no = absl::Uniform<int64>(*rng, 0, passes.size());
+  PassResults results;
+  XLS_ASSIGN_OR_RETURN(bool changed, passes.at(pass_no)->RunOnFunctionBase(
+                                         f, PassOptions(), &results));
+  if (changed) {
+    *which_transform = passes.at(pass_no)->short_name();
+    return SimplificationResult::kDidChange;
+  }
+  XLS_LOG(INFO) << "Running " << passes.at(pass_no)->short_name()
+                << " did not change graph.";
+  return SimplificationResult::kDidNotChange;
+}
+
 absl::StatusOr<SimplificationResult> Simplify(
     Function* f, absl::optional<std::vector<Value>> inputs, std::mt19937* rng,
     std::string* which_transform) {
   // Return a uniform random number over the interval [0, 1).
   auto rand_0_to_1 = [&]() { return absl::Uniform<float>(*rng, 0.0f, 1.0f); };
 
-  if (rand_0_to_1() < 0.5) {
-    // Attempt to CSE the function and see if it still fails.
-    // If so, we'll have a much tidier graph.
-    //
-    // TODO(leary): 2019-09-25 We could do a "CSE this one node" and randomly
-    // select the node to get this to be more incremental, which would likely
-    // help avoid perturbing away any essential part of the graph while cleaning
-    // it up some.
-    CsePass cse;
-    PassResults results;
-    XLS_ASSIGN_OR_RETURN(bool changed,
-                         cse.RunOnFunctionBase(f, PassOptions(), &results));
-    if (changed) {
-      *which_transform = "CSE";
-      return SimplificationResult::kDidChange;
+  if (absl::GetFlag(FLAGS_use_optimization_passes) && rand_0_to_1() < 0.3) {
+    XLS_ASSIGN_OR_RETURN(SimplificationResult pass_result,
+                         RunRandomPass(f, rng, which_transform));
+    if (pass_result != SimplificationResult::kDidNotChange) {
+      return pass_result;
     }
   }
 
-  if (rand_0_to_1() < 0.1) {
-    // Attempt to do constant folding.
-    ConstantFoldingPass folding_pass;
-    PassResults results;
-    XLS_ASSIGN_OR_RETURN(bool changed, folding_pass.RunOnFunctionBase(
-                                           f, PassOptions(), &results));
-    if (changed) {
-      *which_transform = "Constant folding";
-      return SimplificationResult::kDidChange;
-    }
-  }
-
-  if (rand_0_to_1() < 0.05) {
-    // Attempt to do array and tuple simplification.
-    ArraySimplificationPass array_simp_pass;
-    TupleSimplificationPass tuple_simp_pass;
-    PassResults results;
-    XLS_ASSIGN_OR_RETURN(bool array_changed, array_simp_pass.RunOnFunctionBase(
-                                                 f, PassOptions(), &results));
-    XLS_ASSIGN_OR_RETURN(bool tuple_changed, tuple_simp_pass.RunOnFunctionBase(
-                                                 f, PassOptions(), &results));
-    if (array_changed || tuple_changed) {
-      *which_transform = "Array/tuple simplification";
-      return SimplificationResult::kDidChange;
-    }
-  }
-
-  if (absl::GetFlag(FLAGS_simplify_with_optimization_pipeline) &&
-      rand_0_to_1() < 0.05) {
+  if (absl::GetFlag(FLAGS_use_optimization_pipeline) && rand_0_to_1() < 0.05) {
     // Try to run the sample through the entire optimization pipeline.
     XLS_ASSIGN_OR_RETURN(bool changed, RunStandardPassPipeline(f->package()));
     if (changed) {
@@ -445,7 +458,6 @@ absl::Status RealMain(absl::string_view path, const int64 failed_attempt_limit,
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                          Parser::ParsePackage(knownf_ir_text));
     XLS_ASSIGN_OR_RETURN(Function * main, package->EntryFunction());
-    // const int64 original_node_count = main->node_count();
     XLS_RETURN_IF_ERROR(CleanUp(main, can_remove_params));
     XLS_RETURN_IF_ERROR(VerifyPackage(package.get()));
     knownf_ir_text = package->DumpIr();
@@ -515,7 +527,8 @@ absl::Status RealMain(absl::string_view path, const int64 failed_attempt_limit,
                          StillFails(candidate_ir_text, inputs));
     if (!still_fails) {
       failed_simplification_attempts++;
-      XLS_LOG(INFO) << "Tried " << which_transform;
+      XLS_LOG(INFO) << "Tried " << which_transform
+                    << ", but sample no longer fails.";
       XLS_LOG(INFO) << "Failed simplification attempts now: "
                     << failed_simplification_attempts;
       // That simplification caused it to stop failing, but keep going with the
@@ -569,11 +582,11 @@ int main(int argc, char** argv) {
       << "Must specify either --test_executable or --test_llvm_jit";
 
   // If minimizing a mismatch between the JIT and the interpreter then
-  // --simplify_with_optimization_pipeline really should be specified as it much
+  // --use_optimization_pipeline really should be specified as it much
   // improves the minimization performance and results.
   XLS_QCHECK(!absl::GetFlag(FLAGS_test_llvm_jit) ||
-             absl::GetFlag(FLAGS_simplify_with_optimization_pipeline))
-      << "Must specify --simplify_with_optimization_pipeline with "
+             absl::GetFlag(FLAGS_use_optimization_pipeline))
+      << "Must specify --use_optimization_pipeline with "
          "--test_llvm_jit";
 
   XLS_QCHECK_OK(xls::RealMain(positional_arguments[0],
