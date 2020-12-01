@@ -62,6 +62,7 @@ def main(argv):
       text, name, print_on_error=True, filename=path)
 
   importer = import_helpers.Importer()
+  type_info = None
 
   try:
     type_info = typecheck.check_module(module, importer)
@@ -76,7 +77,8 @@ def main(argv):
     else:
       sys.exit(1)
   finally:
-    type_info.clear_type_info_refs_for_gc()
+    if type_info is not None:
+      type_info.clear_type_info_refs_for_gc()
 
 
 if __name__ == '__main__':
