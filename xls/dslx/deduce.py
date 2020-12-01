@@ -52,7 +52,12 @@ from xls.dslx.xls_type_error import XlsTypeError
 
 # Dictionary used as registry for rule dispatch based on AST node class.
 RULES = {
+    ast.Constant: cpp_deduce.deduce_ConstantDef,
+    ast.Param: cpp_deduce.deduce_Param,
+    ast.TypeDef: cpp_deduce.deduce_TypeDef,
+    ast.TypeRef: cpp_deduce.deduce_TypeRef,
     ast.Unop: cpp_deduce.deduce_Unop,
+    ast.XlsTuple: cpp_deduce.deduce_XlsTuple,
 }
 
 
@@ -101,18 +106,6 @@ def _resolve_colon_ref_to_fn(ref: ast.ColonRef, ctx: DeduceCtx) -> ast.Function:
   assert isinstance(definer, ast.Import), definer
   imported_module, _ = ctx.type_info.get_imported(definer)
   return imported_module.get_function(ref.attr)
-
-
-@_rule(ast.Param)
-def _deduce_Param(self: ast.Param, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  return deduce(self.type_, ctx)
-
-
-@_rule(ast.Constant)
-def _deduce_Constant(self: ast.Constant, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  result = ctx.type_info[self.name] = deduce(self.value, ctx)
-  ctx.type_info.note_constant(self.name, self)
-  return result
 
 
 @_rule(ast.ConstantArray)
@@ -226,7 +219,7 @@ def _check_parametric_invocation(parametric_fn: ast.Function,
     if not has_instantiation:
       # Let's typecheck this parametric function using the symbolic bindings
       # we just derived to make sure they check out ok.
-      e.node = invocation.callee.name_def
+      cpp_deduce.type_missing_error_set_node(e, invocation.callee.name_def)
       ctx.add_fn_stack_entry(parametric_fn.name.identifier, symbolic_bindings)
       ctx.add_derived_type_info()
       raise
@@ -269,8 +262,8 @@ def _deduce_Invocation(self: ast.Invocation, ctx: DeduceCtx) -> ConcreteType:  #
     # until after we have symbolic bindings for it
     callee_type = deduce(self.callee, ctx)
   except TypeMissingError as e:
-    e.span = self.span
-    e.user = self
+    cpp_deduce.type_missing_error_set_span(e, self.span)
+    cpp_deduce.type_missing_error_set_user(e, self)
     raise
 
   if not isinstance(callee_type, FunctionType):
@@ -465,12 +458,6 @@ def _deduce_Index(self: ast.Index, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
     raise XlsTypeError(self.index.span, index_type, None,
                        'Index type is not scalar bits.')
   return lhs_type.get_element_type()
-
-
-@_rule(ast.XlsTuple)
-def _deduce_XlsTuple(self: ast.XlsTuple, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  members = tuple(deduce(m, ctx) for m in self.members)
-  return TupleType(members)
 
 
 def _bind_names(name_def_tree: ast.NameDefTree, type_: ConcreteType,
@@ -711,11 +698,6 @@ def _deduce_Array(self: ast.Array, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
     return inferred
 
 
-@_rule(ast.TypeRef)
-def _deduce_TypeRef(self: ast.TypeRef, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  return deduce(self.type_def, ctx)
-
-
 @_rule(ast.ConstRef)
 @_rule(ast.NameRef)
 def _deduce_NameRef(self: ast.NameRef, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
@@ -724,8 +706,8 @@ def _deduce_NameRef(self: ast.NameRef, ctx: DeduceCtx) -> ConcreteType:  # pytyp
     result = ctx.type_info[self.name_def]
   except TypeMissingError as e:
     logging.vlog(3, 'Could not resolve name def: %s', self.name_def)
-    e.span = self.span
-    e.user = self
+    cpp_deduce.type_missing_error_set_span(e, self.span)
+    cpp_deduce.type_missing_error_set_user(e, self)
     raise
   return result
 
@@ -792,8 +774,8 @@ def _deduce_ColonRef(self: ast.ColonRef, ctx: DeduceCtx) -> ConcreteType:  # pyt
   except TypeMissingError as e:
     logging.vlog(3, 'Could not resolve ColonRef subject to type: %s @ %s',
                  self.subject, self.span)
-    e.span = self.span
-    e.user = self
+    cpp_deduce.type_missing_error_set_span(e, self.span)
+    cpp_deduce.type_missing_error_set_user(e, self)
     raise
 
   if isinstance(subject_type, EnumType):
@@ -816,13 +798,6 @@ def _deduce_Number(self: ast.Number, ctx: DeduceCtx) -> ConcreteType:  # pytype:
     )
   concrete_type = resolve(deduce(self.type_, ctx), ctx)
   cpp_deduce.check_bitwidth(self, concrete_type)
-  return concrete_type
-
-
-@_rule(ast.TypeDef)
-def _deduce_TypeDef(self: ast.TypeDef, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  concrete_type = deduce(self.type_, ctx)
-  ctx.type_info[self.name] = concrete_type
   return concrete_type
 
 

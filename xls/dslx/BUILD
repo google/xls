@@ -875,16 +875,15 @@ cc_library(
     name = "cpp_deduce",
     srcs = ["deduce.cc"],
     hdrs = ["deduce.h"],
+    # We throw exceptions that come from PyBind through this code (the
+    # deduction rules) so we have to enable exceptions for this translation
+    # unit for now to get proper cleanup.
+    copts = ["-fexceptions"],
+    features = ["-use_header_modules"],
     deps = [
-        ":builtins",
-        ":cpp_ast",
-        ":cpp_evaluate",
-        ":cpp_type_info",
+        ":cpp_concrete_type",
         ":import_routines",
         ":interp_bindings",
-        ":interp_callback_data",
-        ":interp_value",
         "//xls/common/status:ret_check",
-        "//xls/ir",
     ],
 )

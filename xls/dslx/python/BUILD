@@ -185,6 +185,7 @@ xls_pybind_extension(
     ],
     deps = [
         ":cpp_ast_header",
+        ":errors",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/strings",
         "//xls/common/status:status_macros",
@@ -237,11 +238,12 @@ cc_library(
     features = ["-use_header_modules"],
     deps = [
         ":cpp_ast_header",
-        "//xls/common/status:ret_check",
+        ":errors",
         "//xls/dslx:cpp_deduce",
         "//xls/dslx:cpp_evaluate",
         "//xls/dslx:cpp_type_info",
         "//xls/dslx:interp_value",
+        "@pybind11",
     ],
 )
 

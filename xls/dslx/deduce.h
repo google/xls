@@ -16,6 +16,7 @@
 #define XLS_DSLX_DEDUCE_H_
 
 #include "xls/common/status/ret_check.h"
+#include "xls/dslx/concrete_type.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_bindings.h"
 
@@ -149,6 +150,21 @@ absl::Status CheckBitwidth(const Number& number, const ConcreteType& type);
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceUnop(Unop* node,
                                                          DeduceCtx* ctx);
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceParam(Param* node,
+                                                          DeduceCtx* ctx);
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
+    ConstantDef* node, DeduceCtx* ctx);
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeRef(TypeRef* node,
+                                                            DeduceCtx* ctx);
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeDef(TypeDef* node,
+                                                            DeduceCtx* ctx);
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceXlsTuple(XlsTuple* node,
+                                                             DeduceCtx* ctx);
 
 }  // namespace xls::dslx
 

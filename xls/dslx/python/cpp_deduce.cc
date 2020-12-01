@@ -32,6 +32,8 @@ namespace py = pybind11;
 namespace xls::dslx {
 namespace {
 
+static const char* kNoTypeIndicator = "<>";
+
 // Error raised when an error occurs during deductive type inference.
 //
 // Attributes:
@@ -44,12 +46,12 @@ class TypeInferenceError : public std::exception {
   TypeInferenceError(Span span, std::unique_ptr<ConcreteType> type,
                      std::string suffix)
       : span_(std::move(span)), type_(std::move(type)) {
-    std::string type_str;
+    std::string type_str = kNoTypeIndicator;
     if (type != nullptr) {
-      type_str = " for " + type->ToString();
+      type_str = type->ToString();
     }
-    message_ = absl::StrFormat("Could not infer type%s @ %s", type_str,
-                               span.ToString());
+    message_ = absl::StrFormat("%s %s Could not infer type", span_.ToString(),
+                               type_str);
     if (!suffix.empty()) {
       message_ += ": " + suffix;
     }
@@ -76,8 +78,15 @@ void TryThrowTypeInferenceError(const absl::Status& status) {
       return;
     }
     absl::StatusOr<Span> span = Span::FromString(pieces[0]);
-    absl::StatusOr<std::unique_ptr<ConcreteType>> type =
-        ConcreteTypeFromString(pieces[1]);
+    absl::StatusOr<std::unique_ptr<ConcreteType>> type;
+    if (pieces[1] == kNoTypeIndicator) {
+      type = nullptr;
+    } else {
+      type = ConcreteTypeFromString(pieces[1]);
+    }
+    XLS_CHECK(span.ok() && type.ok())
+        << "Could not parse type inference error string: \"" << status.message()
+        << "\" span: " << span.status() << " type: " << type.status();
     throw TypeInferenceError(std::move(span.value()), std::move(type).value(),
                              std::string(pieces[2]));
   }
@@ -114,13 +123,21 @@ PYBIND11_MODULE(cpp_deduce, m) {
   });
 
   m.def("type_inference_error",
-        [](const Span& span, ConcreteType* type, const std::string& suffix) {
+        [](const Span& span, ConcreteType* type,
+           const std::string& suffix) -> absl::Status {
           std::unique_ptr<ConcreteType> t;
           if (type != nullptr) {
             t = type->CloneToUnique();
           }
           throw TypeInferenceError(span, std::move(t), suffix);
         });
+
+  m.def("type_missing_error_set_node",
+        [](py::object self, AstNodeHolder node) { self.attr("node") = node; });
+  m.def("type_missing_error_set_span",
+        [](py::object self, const Span& span) { self.attr("span") = span; });
+  m.def("type_missing_error_set_user",
+        [](py::object self, AstNodeHolder node) { self.attr("user") = node; });
 
   py::class_<DeduceCtx, std::shared_ptr<DeduceCtx>>(m, "DeduceCtx")
       .def(py::init([](const std::shared_ptr<TypeInfo>& type_info,
@@ -190,9 +207,19 @@ PYBIND11_MODULE(cpp_deduce, m) {
     return status;
   });
 
-  m.def("deduce_Unop", [](UnopHolder node, DeduceCtx* ctx) {
-    return DeduceUnop(&node.deref(), ctx);
-  });
+#define DELEGATE_DEDUCE(__type)                                      \
+  m.def("deduce_" #__type, [](__type##Holder node, DeduceCtx* ctx) { \
+    auto statusor = Deduce##__type(&node.deref(), ctx);              \
+    TryThrowTypeInferenceError(statusor.status());                   \
+    return statusor;                                                 \
+  })
+
+  DELEGATE_DEDUCE(ConstantDef);
+  DELEGATE_DEDUCE(Param);
+  DELEGATE_DEDUCE(TypeDef);
+  DELEGATE_DEDUCE(TypeRef);
+  DELEGATE_DEDUCE(Unop);
+  DELEGATE_DEDUCE(XlsTuple);
 }
 
 }  // namespace xls::dslx

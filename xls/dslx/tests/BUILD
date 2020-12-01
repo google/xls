@@ -480,3 +480,11 @@ dslx_test(
     name = "for_enum_ref",
     srcs = ["for_enum_ref.x"],
 )
+
+dslx_test(
+    name = "update_within_parametric",
+    srcs = ["update_within_parametric.x"],
+    # Only a parametric entry point, so no benchmark.
+    generate_benchmark = False,
+    prove_unopt_eq_opt = False,
+)

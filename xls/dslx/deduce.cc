@@ -36,4 +36,41 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceUnop(Unop* node,
   return ctx->Deduce(node->operand());
 }
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceParam(Param* node,
+                                                          DeduceCtx* ctx) {
+  return ctx->Deduce(node->type());
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
+    ConstantDef* node, DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> result,
+                       ctx->Deduce(node->value()));
+  ctx->type_info()->SetItem(node->name_def(), *result);
+  ctx->type_info()->NoteConstant(node->name_def(), node);
+  return result;
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeRef(TypeRef* node,
+                                                            DeduceCtx* ctx) {
+  return ctx->Deduce(ToAstNode(node->type_definition()));
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeDef(TypeDef* node,
+                                                            DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
+                       ctx->Deduce(node->type()));
+  ctx->type_info()->SetItem(node->name_def(), *type);
+  return type;
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceXlsTuple(XlsTuple* node,
+                                                             DeduceCtx* ctx) {
+  std::vector<std::unique_ptr<ConcreteType>> members;
+  for (Expr* e : node->members()) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> m, ctx->Deduce(e));
+    members.push_back(std::move(m));
+  }
+  return absl::make_unique<TupleType>(std::move(members));
+}
+
 }  // namespace xls::dslx

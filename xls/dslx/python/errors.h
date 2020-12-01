@@ -72,6 +72,41 @@ class CppParseError : public std::exception {
   std::string message_;
 };
 
+// Raised when a type is missing from a TypeInfo mapping.
+class TypeMissingError : public std::exception {
+ public:
+  explicit TypeMissingError(AstNode* node)
+      : module_(node->owner()->shared_from_this()), node_(node) {
+    message_ = absl::StrFormat("AST node is missing a corresponding type: %s",
+                               node->ToString());
+  }
+
+  std::shared_ptr<Module> module() const { return module_; }
+
+  AstNode* node() const { return node_; }
+  void set_node(AstNode* node) { node_ = node; }
+
+  AstNode* user() const { return user_; }
+  void set_user(AstNode* user) { user_ = user; }
+  void set_span(const Span& span) { span_ = span; }
+  const absl::optional<Span>& span() const { return span_; }
+
+  const char* what() const noexcept override { return message_.c_str(); }
+
+ private:
+  // Module reference is held so we ensure the AST node is not deallocated.
+  std::shared_ptr<Module> module_;
+
+  // AST node that was missing from the mapping.
+  AstNode* node_;
+
+  AstNode* user_ = nullptr;
+  absl::optional<Span> span_;
+
+  // Message to display when raised to Python.
+  std::string message_;
+};
+
 // Sees if the status contains a stylized FailureError -- if so, throws it as a
 // Python exception.
 inline void TryThrowFailureError(const absl::Status& status) {

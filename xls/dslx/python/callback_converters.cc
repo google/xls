@@ -14,6 +14,8 @@
 
 #include "xls/dslx/python/callback_converters.h"
 
+#include "xls/dslx/python/errors.h"
+
 namespace xls::dslx {
 
 TypecheckFn ToCppTypecheck(const PyTypecheckFn& py_typecheck) {
@@ -64,16 +66,8 @@ DeduceFn ToCppDeduce(const PyDeduceFn& py) {
               DeduceCtx* ctx) -> absl::StatusOr<std::unique_ptr<ConcreteType>> {
     XLS_RET_CHECK(node != nullptr);
     AstNodeHolder holder(node, node->owner()->shared_from_this());
-    try {
-      pybind11::object retval = py(holder, ctx);
-      return retval.cast<ConcreteType*>()->CloneToUnique();
-    } catch (std::exception& e) {
-      // Note: normally we would throw a Python positional error, but
-      // since this is a somewhat rare condition and everything is being
-      // ported to C++ we don't do the super-nice thing and instead throw
-      // a status error if you have a typecheck-failure-under-import.
-      return absl::InternalError(e.what());
-    }
+    pybind11::object retval = py(holder, ctx);
+    return pybind11::cast<ConcreteType*>(*retval)->CloneToUnique();
   };
 }
 

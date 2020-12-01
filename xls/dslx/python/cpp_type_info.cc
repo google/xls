@@ -19,23 +19,12 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
 #include "xls/dslx/python/cpp_ast.h"
+#include "xls/dslx/python/errors.h"
 #include "xls/dslx/type_info.h"
 
 namespace py = pybind11;
 
 namespace xls::dslx {
-
-class TypeMissingError : public std::exception {
- public:
-  TypeMissingError(AstNode* node) : node_(node) {}
-
-  std::shared_ptr<Module> module() const { return module_; }
-  AstNode* node() const { return node_; }
-
- private:
-  std::shared_ptr<Module> module_;
-  AstNode* node_;
-};
 
 PYBIND11_MODULE(cpp_type_info, m) {
   ImportStatusModule();
@@ -91,11 +80,9 @@ PYBIND11_MODULE(cpp_type_info, m) {
     try {
       if (p) std::rethrow_exception(p);
     } catch (const TypeMissingError& e) {
-      py::object& tme = type_missing_exc;
-      py::object instance = tme();
-      instance.attr("node") = AstNodeHolder(e.node(), e.module());
-      instance.attr("user") = absl::nullopt;
-      PyErr_SetObject(type_missing_exc.ptr(), instance.ptr());
+      type_missing_exc.attr("node") = AstNodeHolder(e.node(), e.module());
+      type_missing_exc.attr("user") = absl::nullopt;
+      type_missing_exc(e.what());
     }
   });
 

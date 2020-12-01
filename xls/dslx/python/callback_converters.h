@@ -18,6 +18,7 @@
 #ifndef XLS_DSLX_PYTHON_CALLBACK_CONVERTERS_H_
 #define XLS_DSLX_PYTHON_CALLBACK_CONVERTERS_H_
 
+#include "pybind11/pybind11.h"
 #include "xls/dslx/cpp_evaluate.h"
 #include "xls/dslx/deduce.h"
 #include "xls/dslx/interp_value.h"
@@ -41,8 +42,7 @@ using PyTypecheckFunctionFn =
 // Implementation note: we take a pybind11 object as the retval here so we can
 // retain the reference to the unique ConcreteType (and clone it to unique) in
 // our callback wrapper.
-using PyDeduceFn =
-    std::function<pybind11::object(AstNodeHolder, DeduceCtx* ctx)>;
+using PyDeduceFn = std::function<pybind11::object(AstNodeHolder, DeduceCtx*)>;
 
 // Converts a Python typecheck callback into a "C++ signature" function.
 XLS_DSLX_PY_PUBLIC TypecheckFn ToCppTypecheck(const PyTypecheckFn& py);
