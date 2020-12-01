@@ -1,0 +1,118 @@
+// Copyright 2020 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "xls/noc/config/network_config_proto_builder.h"
+
+#include "xls/common/proto_adaptor_utils.h"
+
+namespace xls::noc {
+
+NetworkConfigProtoBuilder::NetworkConfigProtoBuilder(absl::string_view name) {
+  proto_.set_name(xls::ToProtoString(name));
+}
+
+NetworkConfigProtoBuilder& NetworkConfigProtoBuilder::WithDescription(
+    absl::string_view description) {
+  proto_.set_description(xls::ToProtoString(description));
+  return *this;
+}
+
+NetworkConfigProtoBuilder&
+NetworkConfigProtoBuilder::SetDefaultLinkPhitBitWidth(
+    absl::optional<int64> phit_bit_width) {
+  link_phit_bit_width_ = phit_bit_width;
+  return *this;
+}
+
+NetworkConfigProtoBuilder&
+NetworkConfigProtoBuilder::SetDefaultLinkSourceSinkPipelineStage(
+    absl::optional<int64> pipeline_stage) {
+  link_source_sink_pipeline_stage_ = pipeline_stage;
+  return *this;
+}
+
+NetworkConfigProtoBuilder&
+NetworkConfigProtoBuilder::SetDefaultLinkSinkSourcePipelineStage(
+    absl::optional<int64> pipeline_stage) {
+  link_sink_source_pipeline_stage_ = pipeline_stage;
+  return *this;
+}
+
+NetworkConfigProtoBuilder&
+NetworkConfigProtoBuilder::SetDefaultVirtualChannelFlitBitWidth(
+    absl::optional<int64> flit_bit_width) {
+  virtual_channel_flit_bit_width_ = flit_bit_width;
+  return *this;
+}
+
+NetworkConfigProtoBuilder&
+NetworkConfigProtoBuilder::SetDefaultVirtualChannelDepth(
+    absl::optional<int64> depth) {
+  virtual_channel_depth_ = depth;
+  return *this;
+}
+
+PortConfigProtoBuilder NetworkConfigProtoBuilder::WithPort(
+    absl::string_view name) {
+  PortConfigProto* port = proto_.add_ports();
+  port->set_name(xls::ToProtoString(name));
+  return PortConfigProtoBuilder(port);
+}
+
+RouterConfigProtoBuilder NetworkConfigProtoBuilder::WithRouter(
+    absl::string_view name) {
+  RouterConfigProto* router = proto_.add_routers();
+  router->set_name(xls::ToProtoString(name));
+  return RouterConfigProtoBuilder(router);
+}
+
+LinkConfigProtoBuilder NetworkConfigProtoBuilder::WithLink(
+    absl::string_view name) {
+  LinkConfigProto* link = proto_.add_links();
+  link->set_name(xls::ToProtoString(name));
+  LinkConfigProtoBuilder link_builder(link);
+  if (link_phit_bit_width_.has_value()) {
+    link_builder.WithPhitBitWidth(link_phit_bit_width_.value());
+  }
+  if (link_source_sink_pipeline_stage_.has_value()) {
+    link_builder.WithSourceSinkPipelineStage(
+        link_source_sink_pipeline_stage_.value());
+  }
+  if (link_sink_source_pipeline_stage_.has_value()) {
+    link_builder.WithSinkSourcePipelineStage(
+        link_sink_source_pipeline_stage_.value());
+  }
+  return link_builder;
+}
+
+VirtualChannelConfigProtoBuilder NetworkConfigProtoBuilder::WithVirtualChannel(
+    absl::string_view name) {
+  VirtualChannelConfigProto* virtual_channel = proto_.add_virtual_channels();
+  virtual_channel->set_name(xls::ToProtoString(name));
+  VirtualChannelConfigProtoBuilder virtual_channel_builder(virtual_channel);
+  if (virtual_channel_flit_bit_width_.has_value()) {
+    virtual_channel_builder.WithFlitBitWidth(
+        virtual_channel_flit_bit_width_.value());
+  }
+  if (virtual_channel_depth_.has_value()) {
+    virtual_channel_builder.WithDepth(virtual_channel_depth_.value());
+  }
+  return virtual_channel_builder;
+}
+
+absl::StatusOr<NetworkConfigProto> NetworkConfigProtoBuilder::Build() {
+  return proto_;
+}
+
+}  // namespace xls::noc

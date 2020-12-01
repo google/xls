@@ -136,3 +136,52 @@ cc_test(
         "@com_google_googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "router_config_proto_builder",
+    srcs = ["router_config_proto_builder.cc"],
+    hdrs = ["router_config_proto_builder.h"],
+    deps = [
+        ":arbiter_scheme_config_proto_builder",
+        ":network_config_cc_proto",
+        ":port_config_proto_builder",
+        ":routing_scheme_config_proto_builder",
+        "//xls/common:proto_adaptor_utils",
+        "//xls/common/logging",
+    ],
+)
+
+cc_test(
+    name = "router_config_proto_builder_test",
+    srcs = ["router_config_proto_builder_test.cc"],
+    deps = [
+        ":router_config_proto_builder",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "network_config_proto_builder",
+    srcs = ["network_config_proto_builder.cc"],
+    hdrs = ["network_config_proto_builder.h"],
+    deps = [
+        ":link_config_proto_builder",
+        ":network_config_cc_proto",
+        ":port_config_proto_builder",
+        ":router_config_proto_builder",
+        ":virtual_channel_config_proto_builder",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:proto_adaptor_utils",
+        "//xls/common/logging",
+    ],
+)
+
+cc_test(
+    name = "network_config_proto_builder_test",
+    srcs = ["network_config_proto_builder_test.cc"],
+    deps = [
+        ":network_config_proto_builder",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
