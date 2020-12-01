@@ -51,7 +51,9 @@ from xls.dslx.xls_type_error import XlsTypeError
 
 
 # Dictionary used as registry for rule dispatch based on AST node class.
-RULES = {}
+RULES = {
+    ast.Unop: cpp_deduce.deduce_Unop,
+}
 
 
 RuleFunction = Callable[[ast.AstNode, DeduceCtx], ConcreteType]
@@ -666,11 +668,6 @@ def _deduce_Cast(self: ast.Cast, ctx: DeduceCtx) -> ConcreteType:  # pytype: dis
         'Cannot cast from expression type {} to {}.'.format(
             resolved_expr_type, resolved_type_result))
   return resolved_type_result
-
-
-@_rule(ast.Unop)
-def _deduce_Unop(self: ast.Unop, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  return deduce(self.operand, ctx)
 
 
 @_rule(ast.Array)

@@ -29,6 +29,10 @@ struct FnStackEntry {
 
 class DeduceCtx;  // Forward decl.
 
+// Callback signature for the "top level" of the node type-deduction process.
+using DeduceFn = std::function<absl::StatusOr<std::unique_ptr<ConcreteType>>(
+    AstNode*, DeduceCtx*)>;
+
 // Signature used for typechecking a single function within a module (this is
 // generally used for typechecking parametric instantiations).
 using TypecheckFunctionFn = std::function<absl::Status(Function*, DeduceCtx*)>;
@@ -38,11 +42,12 @@ using TypecheckFunctionFn = std::function<absl::Status(Function*, DeduceCtx*)>;
 class DeduceCtx : public std::enable_shared_from_this<DeduceCtx> {
  public:
   DeduceCtx(const std::shared_ptr<TypeInfo>& type_info,
-            const std::shared_ptr<Module>& module,
+            const std::shared_ptr<Module>& module, DeduceFn deduce_function,
             TypecheckFunctionFn typecheck_function,
             TypecheckFn typecheck_module, ImportCache* import_cache)
       : type_info_(type_info),
         module_(module),
+        deduce_function_(std::move(XLS_DIE_IF_NULL(deduce_function))),
         typecheck_function_(std::move(typecheck_function)),
         typecheck_module_(std::move(typecheck_module)),
         import_cache_(import_cache) {}
@@ -53,8 +58,14 @@ class DeduceCtx : public std::enable_shared_from_this<DeduceCtx> {
   // Note that the resulting DeduceCtx has an empty fn_stack.
   DeduceCtx MakeCtx(const std::shared_ptr<TypeInfo>& new_type_info,
                     const std::shared_ptr<Module>& new_module) const {
-    return DeduceCtx(new_type_info, new_module, typecheck_function_,
-                     typecheck_module_, import_cache_);
+    return DeduceCtx(new_type_info, new_module, deduce_function_,
+                     typecheck_function_, typecheck_module_, import_cache_);
+  }
+
+  // Helper that calls back to the top-level deduce procedure for the given
+  // node.
+  absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(AstNode* node) {
+    return deduce_function_(node, this);
   }
 
   std::vector<FnStackEntry>& fn_stack() { return fn_stack_; }
@@ -108,6 +119,9 @@ class DeduceCtx : public std::enable_shared_from_this<DeduceCtx> {
 
   // -- Callbacks
 
+  // Callback used to enter the top-level deduction routine.
+  DeduceFn deduce_function_;
+
   // Typechecks parametric functions that are not in this module.
   TypecheckFunctionFn typecheck_function_;
 
@@ -130,6 +144,11 @@ class DeduceCtx : public std::enable_shared_from_this<DeduceCtx> {
 // need to then make sure they actually fit within that inferred type's
 // bit width.
 absl::Status CheckBitwidth(const Number& number, const ConcreteType& type);
+
+// -- Deduction rules, determine the concrete type of the node and return it.
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceUnop(Unop* node,
+                                                         DeduceCtx* ctx);
 
 }  // namespace xls::dslx
 

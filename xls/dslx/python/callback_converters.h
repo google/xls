@@ -24,6 +24,10 @@
 #include "xls/dslx/python/cpp_ast.h"
 #include "xls/dslx/type_info.h"
 
+// Prevent symbols from being stripped from the callback_converters helper DSO
+// if they appear to be unused.
+#define XLS_DSLX_PY_PUBLIC __attribute__((visibility("default")))
+
 namespace xls::dslx {
 
 class DeduceCtx;
@@ -34,15 +38,25 @@ using PyTypecheckFn =
 using PyTypecheckFunctionFn =
     std::function<void(FunctionHolder module, DeduceCtx*)>;
 
+// Implementation note: we take a pybind11 object as the retval here so we can
+// retain the reference to the unique ConcreteType (and clone it to unique) in
+// our callback wrapper.
+using PyDeduceFn =
+    std::function<pybind11::object(AstNodeHolder, DeduceCtx* ctx)>;
+
 // Converts a Python typecheck callback into a "C++ signature" function.
-TypecheckFn ToCppTypecheck(const PyTypecheckFn& py);
+XLS_DSLX_PY_PUBLIC TypecheckFn ToCppTypecheck(const PyTypecheckFn& py);
+
+// Converts a Python deduce callback into a "C++ signature" function.
+XLS_DSLX_PY_PUBLIC DeduceFn ToCppDeduce(const PyDeduceFn& py);
 
 // Converts a C++ typecheck callback into a "Python signature" function.
-PyTypecheckFn ToPyTypecheck(const TypecheckFn& cpp);
+XLS_DSLX_PY_PUBLIC PyTypecheckFn ToPyTypecheck(const TypecheckFn& cpp);
 
 // Converts a Python "typecheck function" callback into a "C++ signature"
 // function.
-TypecheckFunctionFn ToCppTypecheckFunction(const PyTypecheckFunctionFn& py);
+XLS_DSLX_PY_PUBLIC TypecheckFunctionFn
+ToCppTypecheckFunction(const PyTypecheckFunctionFn& py);
 
 }  // namespace xls::dslx
 

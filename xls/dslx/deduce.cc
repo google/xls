@@ -31,4 +31,9 @@ absl::Status CheckBitwidth(const Number& number, const ConcreteType& type) {
   return absl::OkStatus();
 }
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceUnop(Unop* node,
+                                                         DeduceCtx* ctx) {
+  return ctx->Deduce(node->operand());
+}
+
 }  // namespace xls::dslx

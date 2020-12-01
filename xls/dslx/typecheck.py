@@ -359,8 +359,8 @@ def check_module(module: ast.Module,
   ti = type_info.TypeInfo(module)
   import_cache = None if f_import is None else getattr(f_import, 'cache')
   ftypecheck = functools.partial(check_module, f_import=f_import)
-  ctx = deduce.DeduceCtx(ti, module, check_top_node_in_module, ftypecheck,
-                         import_cache)
+  ctx = deduce.DeduceCtx(ti, module, deduce.deduce, check_top_node_in_module,
+                         ftypecheck, import_cache)
 
   # First populate type_info with constants, enums, and resolved imports.
   ctx.add_fn_stack_entry(

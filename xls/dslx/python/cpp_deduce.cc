@@ -124,13 +124,14 @@ PYBIND11_MODULE(cpp_deduce, m) {
 
   py::class_<DeduceCtx, std::shared_ptr<DeduceCtx>>(m, "DeduceCtx")
       .def(py::init([](const std::shared_ptr<TypeInfo>& type_info,
-                       ModuleHolder module,
+                       ModuleHolder module, PyDeduceFn deduce_function,
                        PyTypecheckFunctionFn typecheck_function,
                        PyTypecheckFn typecheck_module,
                        absl::optional<ImportCache*> import_cache) {
         ImportCache* pimport_cache = import_cache ? *import_cache : nullptr;
         return std::make_shared<DeduceCtx>(
             type_info, module.deref().shared_from_this(),
+            ToCppDeduce(deduce_function),
             ToCppTypecheckFunction(typecheck_function),
             ToCppTypecheck(typecheck_module), pimport_cache);
       }))
@@ -187,6 +188,10 @@ PYBIND11_MODULE(cpp_deduce, m) {
     auto status = CheckBitwidth(number.deref(), type);
     TryThrowTypeInferenceError(status);
     return status;
+  });
+
+  m.def("deduce_Unop", [](UnopHolder node, DeduceCtx* ctx) {
+    return DeduceUnop(&node.deref(), ctx);
   });
 }
 
