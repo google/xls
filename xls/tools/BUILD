@@ -603,11 +603,13 @@ cc_binary(
         "//xls/ir:value",
         "//xls/ir:value_helpers",
         "//xls/jit:ir_jit",
+        "//xls/passes:array_simplification_pass",
         "//xls/passes:constant_folding_pass",
         "//xls/passes:cse_pass",
         "//xls/passes:dce_pass",
         "//xls/passes:dfe_pass",
         "//xls/passes:standard_pipeline",
+        "//xls/passes:tuple_simplification_pass",
     ],
 )
 

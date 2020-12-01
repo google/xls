@@ -541,6 +541,11 @@ bool Node::HasUser(const Node* target) const {
   return users_set_.find(const_cast<Node*>(target)) != users_set_.end();
 }
 
+bool Node::IsDead() const {
+  return users().empty() &&
+         !function_base()->HasImplicitUse(const_cast<Node*>(this));
+}
+
 bool Node::HasOperand(const Node* target) const {
   for (const Node* operand : operands_) {
     if (operand == target) {

@@ -54,8 +54,8 @@ class IrMinimizerMainTest(absltest.TestCase):
         minimized_ir.decode('utf-8'), """package foo
 
 fn foo(x: bits[32], y: bits[32]) -> bits[32] {
-  literal.6: bits[32] = literal(value=0, id=6)
-  ret add.2: bits[32] = add(literal.6, literal.6, id=2)
+  literal.5: bits[32] = literal(value=0, id=5)
+  ret add.2: bits[32] = add(literal.5, literal.5, id=2)
 }
 """)
 
@@ -71,8 +71,8 @@ fn foo(x: bits[32], y: bits[32]) -> bits[32] {
         minimized_ir.decode('utf-8'), """package foo
 
 fn foo() -> bits[32] {
-  literal.6: bits[32] = literal(value=0, id=6)
-  ret add.2: bits[32] = add(literal.6, literal.6, id=2)
+  literal.5: bits[32] = literal(value=0, id=5)
+  ret add.2: bits[32] = add(literal.5, literal.5, id=2)
 }
 """)
 

@@ -101,7 +101,6 @@ class Node {
   // variadic args are the constructor arguments with the exception of the first
   // loc argument and the final Function* argument which are inherited from this
   // node. Returns a pointer to the newly constructed node.
-  // TODO(meheff): Propagate the name of the replaced node.
   template <typename NodeT, typename... Args>
   absl::StatusOr<NodeT*> ReplaceUsesWithNew(Args&&... args) {
     std::unique_ptr<NodeT> new_node = absl::make_unique<NodeT>(
@@ -186,6 +185,10 @@ class Node {
 
   // Helper for querying whether "target" is a user of this node.
   bool HasUser(const Node* target) const;
+
+  // Returns true if the node has no explicit uses (users() is empty) and no
+  // implicit uses (e.g., is root node of a function).
+  bool IsDead() const;
 
   // Returns true when the Op is in the list of choices
   bool OpIn(const std::vector<Op>& choices);

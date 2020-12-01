@@ -34,11 +34,13 @@
 #include "xls/ir/value_helpers.h"
 #include "xls/ir/verifier.h"
 #include "xls/jit/ir_jit.h"
+#include "xls/passes/array_simplification_pass.h"
 #include "xls/passes/constant_folding_pass.h"
 #include "xls/passes/cse_pass.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/dfe_pass.h"
 #include "xls/passes/standard_pipeline.h"
+#include "xls/passes/tuple_simplification_pass.h"
 
 const char* kUsage = R"(
 Tool for reducing IR to a minimal test case based on an external test.
@@ -72,7 +74,7 @@ ABSL_FLAG(bool, can_remove_params, false,
           "Whether parameters can be removed during the minimization process. "
           "If the test executable interprets the IR using a fixed set of "
           "arguments, parameters should not be removed.");
-ABSL_FLAG(int64, failed_attempt_limit, 128,
+ABSL_FLAG(int64, failed_attempt_limit, 256,
           "Failed simplification attempts (in a row) before we conclude we're "
           "done reducing.");
 ABSL_FLAG(int64, total_attempt_limit, 16384,
@@ -125,11 +127,11 @@ absl::StatusOr<bool> StillFails(absl::string_view ir_text,
 
     if (result.ok()) {
       const auto& [stdout_str, stderr_str] = *result;
-      XLS_LOG(INFO) << "stdout:  \"\"\"" << stdout_str << "\"\"\"";
-      XLS_LOG(INFO) << "stderr:  \"\"\"" << stderr_str << "\"\"\"";
-      XLS_LOG(INFO) << "retcode: 0";
+      XLS_VLOG(1) << "stdout:  \"\"\"" << stdout_str << "\"\"\"";
+      XLS_VLOG(1) << "stderr:  \"\"\"" << stderr_str << "\"\"\"";
+      XLS_VLOG(1) << "retcode: 0";
     } else {
-      XLS_LOG(INFO) << result.status();
+      XLS_VLOG(1) << result.status();
     }
     return result.ok();
   }
@@ -275,6 +277,21 @@ absl::StatusOr<SimplificationResult> Simplify(
     }
   }
 
+  if (rand_0_to_1() < 0.05) {
+    // Attempt to do array and tuple simplification.
+    ArraySimplificationPass array_simp_pass;
+    TupleSimplificationPass tuple_simp_pass;
+    PassResults results;
+    XLS_ASSIGN_OR_RETURN(bool array_changed, array_simp_pass.RunOnFunctionBase(
+                                                 f, PassOptions(), &results));
+    XLS_ASSIGN_OR_RETURN(bool tuple_changed, tuple_simp_pass.RunOnFunctionBase(
+                                                 f, PassOptions(), &results));
+    if (array_changed || tuple_changed) {
+      *which_transform = "Array/tuple simplification";
+      return SimplificationResult::kDidChange;
+    }
+  }
+
   if (absl::GetFlag(FLAGS_simplify_with_optimization_pipeline) &&
       rand_0_to_1() < 0.05) {
     // Try to run the sample through the entire optimization pipeline.
@@ -298,7 +315,7 @@ absl::StatusOr<SimplificationResult> Simplify(
     // value.
     int64 param_no = absl::Uniform<int64>(*rng, 0, f->params().size());
     Param* param = f->params()[param_no];
-    if (!param->users().empty() || param == f->return_value()) {
+    if (!param->IsDead()) {
       XLS_RETURN_IF_ERROR(
           param->ReplaceUsesWithNew<Literal>(inputs->at(param_no)).status());
       *which_transform = absl::StrFormat(
@@ -308,15 +325,72 @@ absl::StatusOr<SimplificationResult> Simplify(
     }
   }
 
+  // Pick a random node and try to do something with it.
   int64 i = absl::Uniform<int64>(*rng, 0, f->node_count());
   Node* n = *std::next(f->nodes().begin(), i);
-  if (n->Is<Literal>() && n->As<Literal>()->value().IsAllZeros()) {
-    XLS_VLOG(1) << "Candidate for zero-replacement already a literal zero.";
+
+  if (!n->operands().empty() && rand_0_to_1() < 0.3) {
+    // Try to replace a node with one of its (potentially truncated/extended)
+    // operands.
+    int64 operand_no = absl::Uniform<int64>(*rng, 0, n->operand_count());
+    Node* operand = n->operand(operand_no);
+
+    // If the chosen operand is the same type, just replace it.
+    if (operand->GetType() == n->GetType()) {
+      XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(operand).status());
+      *which_transform = "random replace with operand: " + n->GetName();
+      return SimplificationResult::kDidChange;
+    }
+
+    // If the operand and node type are both bits, we can finagle the operand
+    // type to match the node type.
+    if (n->GetType()->IsBits() && operand->GetType()->IsBits()) {
+      // If the chosen operand is a wider bits type, and this is not a bitslice
+      // already, replace the node with a bitslice of its operand.
+      if (operand->BitCountOrDie() > n->BitCountOrDie() && !n->Is<BitSlice>()) {
+        XLS_RETURN_IF_ERROR(
+            n->ReplaceUsesWithNew<BitSlice>(operand, /*start=*/0,
+                                            /*width=*/n->BitCountOrDie())
+                .status());
+        *which_transform =
+            "random replace with bitslice(operand): " + n->GetName();
+        return SimplificationResult::kDidChange;
+      }
+
+      // If the chosen operand is a narrower bits type, and this is not a
+      // zero-extend already, replace the node with a zero-extend of its
+      // operand.
+      if (operand->BitCountOrDie() < n->BitCountOrDie() &&
+          n->op() != Op::kZeroExt) {
+        XLS_RETURN_IF_ERROR(
+            n->ReplaceUsesWithNew<ExtendOp>(
+                 operand, /*new_bit_count=*/n->BitCountOrDie(), Op::kZeroExt)
+                .status());
+        *which_transform = "random replace with zext(operand): " + n->GetName();
+        return SimplificationResult::kDidChange;
+      }
+    }
+  }
+
+  // Replace node with a constant (all zeros or all ones).
+  if (n->Is<Param>() && n->IsDead()) {
+    // Can't replace unused params with constant.
+    XLS_VLOG(1)
+        << "Candidate for constant-replacement is a dead parameter.";
     return SimplificationResult::kDidNotChange;
   }
-  if (n->Is<Param>() && n->users().empty()) {
-    // Can't replace unused params with zero.
-    XLS_VLOG(1) << "Candidate for zero-replacement is a user-less parameter.";
+
+  // (Rarely) replace non-literal node with an all ones.
+  if (!n->Is<Literal>() && rand_0_to_1() < 0.1) {
+    XLS_RETURN_IF_ERROR(
+        n->ReplaceUsesWithNew<Literal>(AllOnesOfType(n->GetType())).status());
+    *which_transform = "random replace with all-ones: " + n->GetName();
+    return SimplificationResult::kDidChange;
+  }
+
+  // Otherwise replace with all zeros.
+  if (n->Is<Literal>() && n->As<Literal>()->value().IsAllZeros()) {
+    XLS_VLOG(1) << "Candidate for zero-replacement already a literal zero.";
     return SimplificationResult::kDidNotChange;
   }
   XLS_RETURN_IF_ERROR(
@@ -441,8 +515,9 @@ absl::Status RealMain(absl::string_view path, const int64 failed_attempt_limit,
                          StillFails(candidate_ir_text, inputs));
     if (!still_fails) {
       failed_simplification_attempts++;
-      XLS_VLOG(1) << "Failed simplification attempts now: "
-                  << failed_simplification_attempts;
+      XLS_LOG(INFO) << "Tried " << which_transform;
+      XLS_LOG(INFO) << "Failed simplification attempts now: "
+                    << failed_simplification_attempts;
       // That simplification caused it to stop failing, but keep going with the
       // last known failing version and seeing if we can find something else
       // from there.

@@ -459,5 +459,20 @@ TEST_F(NodeTest, NodeNames) {
   EXPECT_TRUE(f->return_value()->HasAssignedName());
 }
 
+TEST_F(NodeTest, IsDead) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+fn ReplaceUses(x: bits[8], y: bits[8]) -> bits[8] {
+  so_dead: bits[8] = and(x, x)
+  ret n: bits[8] = not(x)
+}
+)",
+                                                       p.get()));
+  EXPECT_FALSE(FindNode("x", f)->IsDead());
+  EXPECT_FALSE(FindNode("n", f)->IsDead());
+  EXPECT_TRUE(FindNode("so_dead", f)->IsDead());
+  EXPECT_TRUE(FindNode("y", f)->IsDead());
+}
+
 }  // namespace
 }  // namespace xls
