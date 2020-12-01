@@ -260,11 +260,58 @@ with the default optimization level of 3, there is likely a bug in the LLVM
 optimizer or the XLS-generated LLVM program has undefined behavior.
 
 Unoptimized and optimized LLVM IR are dumped by the JIT with vlog level of 2 or
-higher. The assembly at level 3 or higher. For example:
+higher, and the assembly is dumped at level 3 or higher. For example:
 
 ```
   eval_ir_main -v=3 --logtostderr sample.opt.ir
 ```
+
+Extract the unoptimized LLVM IR to file to enable working with it in isolation.
+
+##### Building LLVM tools
+
+The various LLVM tools such as `opt` and `lli` can be built with:
+
+```
+  bazel build /llvm/llvm-project/llvm:all
+```
+
+Build in fastbuild mode to get checks and debug features in LLVM.
+
+##### Isolating the bug
+
+To inspect the optimized LLVM IR, run:
+
+```
+  opt sample.ll -O3 -S
+```
+
+To print the IR before and after each pass:
+
+```
+ opt sample.ll -S -print-after-all -print-before-all -O3
+```
+
+##### Instcombine
+
+Instcombine is an LLVM optimization pass which is a common source of bugs in
+code generated from XLS because XLS uses unusual bit widths which exercise
+little used paths in this optimization. To run instcombine alone:
+
+```
+ opt /tmp/bad.ll -S --instcombine
+```
+
+Instcombine is a large monolithic pass and it can be difficult to isolate the
+exact transformation which caused the problem. Fortunately, this pass includes a
+"compiler fuel" option which can be used to limit the number of transformations
+performed by the pass. Example usage (fastbuild of LLVM is required):
+
+```
+opt -S --instcombine sample.ll --debug-counter=instcombine-visit-skip=0,instcombine-visit-count=42
+```
+
+##### Evaluating LLVM IR
 
 The LLVM tool `lli` evaluates LLVM IR. The tool expects the IR to include a
 entry function `main`. See the uploaded file in this
@@ -276,6 +323,21 @@ The LLVM tool `opt` optimizes the LLVM IR and can be piped to `lli` like so:
 
 ```
   opt sample.ll --O2 | lli
+```
+
+##### Building LLVM at head
+
+Although the internal Google mirror of LLVM is updated frequently, prior to
+filing an LLVM bug it's a good idea to verify the failure against LLVM head.
+Steps to build:
+
+```
+git clone https://github.com/llvm/llvm-project.git
+cd llvm
+mkdir build
+cd build
+cmake -G Ninja ../llvm/
+cmake --build . -- opt
 ```
 
 ### Result miscomparison: simulated Verilog
