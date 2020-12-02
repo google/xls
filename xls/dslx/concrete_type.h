@@ -123,7 +123,17 @@ class ConcreteType {
   // etc.
   virtual std::string GetDebugTypeName() const = 0;
 
+  // Creates a new unique clone of this ConcreteType.
+  //
+  // Postcondition: *retval == *this.
   virtual std::unique_ptr<ConcreteType> CloneToUnique() const = 0;
+
+  // Maps all the dimensions contained (transitively) within this ConcreteType
+  // (and any concrete types held herein) with "f" and returns the new
+  // (resulting) ConcreteType.
+  virtual absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
+      const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
+      const = 0;
 
   // Type equality, but ignores tuple member naming discrepancies.
   bool CompatibleWith(const ConcreteType& other) const;
@@ -152,6 +162,10 @@ class TupleType : public ConcreteType {
       : members_(std::move(members)), struct_def_(struct_def) {
     XLS_CHECK_EQ(struct_def_ == nullptr, !is_named());
   }
+
+  absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
+      const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
+      const override;
 
   bool operator==(const ConcreteType& other) const override {
     if (auto* t = dynamic_cast<const TupleType*>(&other)) {
@@ -270,6 +284,10 @@ class ArrayType : public ConcreteType {
   ArrayType(std::unique_ptr<ConcreteType> element_type, ConcreteTypeDim size)
       : element_type_(std::move(element_type)), size_(std::move(size)) {}
 
+  absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
+      const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
+      const override;
+
   std::string ToString() const override;
   std::vector<ConcreteTypeDim> GetAllDims() const override;
   absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const override;
@@ -299,6 +317,10 @@ class EnumType : public ConcreteType {
  public:
   EnumType(EnumDef* enum_def, ConcreteTypeDim bit_count)
       : enum_def_(XLS_DIE_IF_NULL(enum_def)), size_(std::move(bit_count)) {}
+
+  absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
+      const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
+      const override;
 
   std::string ToString() const override;
   std::vector<ConcreteTypeDim> GetAllDims() const override;
@@ -350,6 +372,10 @@ class BitsType : public ConcreteType {
       : is_signed_(is_signed), size_(std::move(size)) {}
   ~BitsType() override = default;
 
+  absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
+      const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
+      const override;
+
   bool operator==(const ConcreteType& other) const override {
     if (auto* t = dynamic_cast<const BitsType*>(&other)) {
       return t->is_signed_ == is_signed_ && t->size_ == size_;
@@ -398,20 +424,11 @@ class FunctionType : public ConcreteType {
   std::vector<ConcreteTypeDim> GetAllDims() const override;
   absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const override;
 
-  bool operator==(const ConcreteType& other) const override {
-    if (auto* o = dynamic_cast<const FunctionType*>(&other)) {
-      if (params_.size() != o->params_.size()) {
-        return false;
-      }
-      for (int64 i = 0; i < params_.size(); ++i) {
-        if (*params_[i] != *o->params_[i]) {
-          return false;
-        }
-      }
-      return *return_type_ == *o->return_type_;
-    }
-    return false;
-  }
+  absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
+      const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
+      const override;
+
+  bool operator==(const ConcreteType& other) const override;
 
   std::vector<const ConcreteType*> GetParams() const;
   int64 GetParamCount() const { return params_.size(); }

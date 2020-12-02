@@ -73,4 +73,49 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceXlsTuple(XlsTuple* node,
   return absl::make_unique<TupleType>(std::move(members));
 }
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> Resolve(const ConcreteType& type,
+                                                      DeduceCtx* ctx) {
+  XLS_RET_CHECK(!ctx->fn_stack().empty());
+  const FnStackEntry& entry = ctx->fn_stack().back();
+  const SymbolicBindings& fn_symbolic_bindings = entry.symbolic_bindings;
+  return type.MapSize([&fn_symbolic_bindings](ConcreteTypeDim dim)
+                          -> absl::StatusOr<ConcreteTypeDim> {
+    if (absl::holds_alternative<ConcreteTypeDim::OwnedParametric>(
+            dim.value())) {
+      const auto& parametric =
+          absl::get<ConcreteTypeDim::OwnedParametric>(dim.value());
+      ParametricExpression::Env env;
+      for (const SymbolicBinding& binding : fn_symbolic_bindings.bindings()) {
+        env[binding.identifier] = binding.value;
+      }
+      return ConcreteTypeDim(parametric->Evaluate(env));
+    }
+    return dim;
+  });
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(Number* node,
+                                                           DeduceCtx* ctx) {
+  if (node->type() == nullptr) {
+    switch (node->kind()) {
+      case NumberKind::kBool:
+        return BitsType::MakeU1();
+      case NumberKind::kCharacter:
+        return BitsType::MakeU8();
+      default:
+        break;
+    }
+    return absl::InternalError(
+        absl::StrFormat("TypeInferenceError: %s <> Could not infer a type for "
+                        "this number, please annotate a type.",
+                        node->span().ToString()));
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> concrete_type,
+                       ctx->Deduce(node->type()));
+  XLS_ASSIGN_OR_RETURN(concrete_type, Resolve(*concrete_type, ctx));
+  XLS_RETURN_IF_ERROR(CheckBitwidth(*node, *concrete_type));
+  return concrete_type;
+}
+
 }  // namespace xls::dslx

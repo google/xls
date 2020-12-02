@@ -276,8 +276,8 @@ py_library(
         "//xls/common:xls_error",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_concrete_type",
+        "//xls/dslx/python:cpp_deduce",
         "//xls/dslx/python:cpp_type_info",
-        "//xls/dslx/python:interp_bindings",
         "@com_google_absl_py//absl/logging",
     ],
 )

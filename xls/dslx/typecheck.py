@@ -26,6 +26,7 @@ from xls.common.xls_error import XlsError
 from xls.dslx import deduce
 from xls.dslx import dslx_builtins
 from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python import cpp_deduce
 from xls.dslx.python import cpp_type_info as type_info
 from xls.dslx.python.cpp_concrete_type import ConcreteType
 from xls.dslx.python.cpp_concrete_type import FunctionType
@@ -107,11 +108,11 @@ def _check_function(f: ast.Function, ctx: deduce.DeduceCtx) -> None:
   # NOTE: if there is no annotated return type, we assume NIL.
   annotated_return_type = (
       deduce.deduce(f.return_type, ctx) if f.return_type else ConcreteType.NIL)
-  resolved_return_type = deduce.resolve(annotated_return_type, ctx)
+  resolved_return_type = cpp_deduce.resolve(annotated_return_type, ctx)
 
   # Third, typecheck the body of the function
   body_return_type = deduce.deduce(f.body, ctx)
-  resolved_body_type = deduce.resolve(body_return_type, ctx)
+  resolved_body_type = cpp_deduce.resolve(body_return_type, ctx)
 
   # Finally, assert type consistency between body and annotated return type.
   logging.vlog(3, 'resolved return type: %s => %s resolved body type: %s => %s',
@@ -146,7 +147,7 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
                  ctx: deduce.DeduceCtx) -> Optional[ast.NameDef]:
   """Instantiates a builtin parametric invocation; e.g. 'update'."""
   arg_types = tuple(
-      deduce.resolve(ctx.type_info[arg], ctx) for arg in invocation.args)
+      cpp_deduce.resolve(ctx.type_info[arg], ctx) for arg in invocation.args)
 
   higher_order_parametric_bindings = None
   map_fn_name = None

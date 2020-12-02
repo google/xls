@@ -53,6 +53,7 @@ from xls.dslx.xls_type_error import XlsTypeError
 # Dictionary used as registry for rule dispatch based on AST node class.
 RULES = {
     ast.Constant: cpp_deduce.deduce_ConstantDef,
+    ast.Number: cpp_deduce.deduce_Number,
     ast.Param: cpp_deduce.deduce_Param,
     ast.TypeDef: cpp_deduce.deduce_TypeDef,
     ast.TypeRef: cpp_deduce.deduce_TypeRef,
@@ -73,30 +74,6 @@ def _rule(cls: Type[ast.AstNode]):
     return f
 
   return register
-
-
-def resolve(type_: ConcreteType, ctx: DeduceCtx) -> ConcreteType:
-  """Resolves "type_" via provided symbolic bindings.
-
-  Uses the symbolic bindings of the function we're currently inside of to
-  resolve parametric types.
-
-  Args:
-    type_: Type to resolve any contained dims for.
-    ctx: Deduction context to use in resolving the dims.
-
-  Returns:
-    "type_" with dimensions resolved according to bindings in "ctx".
-  """
-  entry = ctx.peek_fn_stack()
-  fn_symbolic_bindings = entry.symbolic_bindings
-
-  def resolver(dim: ConcreteTypeDim) -> ConcreteTypeDim:
-    if isinstance(dim.value, ParametricExpression):
-      return ConcreteTypeDim(dim.value.evaluate(fn_symbolic_bindings.to_dict()))
-    return dim
-
-  return concrete_type_helpers.map_size(type_, ctx.module, resolver)
 
 
 def _resolve_colon_ref_to_fn(ref: ast.ColonRef, ctx: DeduceCtx) -> ast.Function:
@@ -241,7 +218,7 @@ def _deduce_Invocation(self: ast.Invocation, ctx: DeduceCtx) -> ConcreteType:  #
   fn_symbolic_bindings = ctx.peek_fn_stack().symbolic_bindings
   for arg in self.args:
     try:
-      arg_types.append(resolve(deduce(arg, ctx), ctx))
+      arg_types.append(cpp_deduce.resolve(deduce(arg, ctx), ctx))
     except TypeMissingError as e:
       # These nodes could be ColonRefs or NameRefs.
       callee_is_map = isinstance(
@@ -252,7 +229,7 @@ def _deduce_Invocation(self: ast.Invocation, ctx: DeduceCtx) -> ConcreteType:  #
       if callee_is_map and arg_is_builtin:
         invocation = _create_element_invocation(ctx.module, self.span, arg,
                                                 self.args[0])
-        arg_types.append(resolve(deduce(invocation, ctx), ctx))
+        arg_types.append(cpp_deduce.resolve(deduce(invocation, ctx), ctx))
       else:
         raise
 
@@ -345,7 +322,7 @@ def _deduce_slice_type(self: ast.Index, ctx: DeduceCtx,
     start = index_slice.start
     if isinstance(start, ast.Number) and start.type_ is None:
       start_type = lhs_type.to_ubits()
-      resolved_start_type = resolve(start_type, ctx)
+      resolved_start_type = cpp_deduce.resolve(start_type, ctx)
       start_int = ast_helpers.get_value_as_int(start)
       if not bit_helpers.fits_in_bits(
           start_int,
@@ -493,11 +470,11 @@ def _deduce_Let(self: ast.Let, ctx: DeduceCtx) -> ConcreteType:  # pytype: disab
   """Deduces the concrete type of a Let AST node."""
 
   rhs_type = deduce(self.rhs, ctx)
-  resolved_rhs_type = resolve(rhs_type, ctx)
+  resolved_rhs_type = cpp_deduce.resolve(rhs_type, ctx)
 
   if self.type_ is not None:
     concrete_type = deduce(self.type_, ctx)
-    resolved_concrete_type = resolve(concrete_type, ctx)
+    resolved_concrete_type = cpp_deduce.resolve(concrete_type, ctx)
 
     if resolved_rhs_type != resolved_concrete_type:
       raise XlsTypeError(
@@ -520,7 +497,7 @@ def _unify_WildcardPattern(_self: ast.WildcardPattern, _type: ConcreteType,
 def _unify_NameDefTree(self: ast.NameDefTree, type_: ConcreteType,
                        ctx: DeduceCtx) -> None:
   """Unifies the NameDefTree AST node with the observed RHS type type_."""
-  resolved_rhs_type = resolve(type_, ctx)
+  resolved_rhs_type = cpp_deduce.resolve(type_, ctx)
   if self.is_leaf():
     leaf = self.get_leaf()
     if isinstance(leaf, ast.NameDef):
@@ -528,7 +505,7 @@ def _unify_NameDefTree(self: ast.NameDefTree, type_: ConcreteType,
     elif isinstance(leaf, ast.WildcardPattern):
       pass
     elif isinstance(leaf, (ast.Number, ast.ColonRef)):
-      resolved_leaf_type = resolve(deduce(leaf, ctx), ctx)
+      resolved_leaf_type = cpp_deduce.resolve(deduce(leaf, ctx), ctx)
       if resolved_leaf_type != resolved_rhs_type:
         raise TypeInferenceError(
             self.span, resolved_rhs_type,
@@ -537,7 +514,7 @@ def _unify_NameDefTree(self: ast.NameDefTree, type_: ConcreteType,
     else:
       assert isinstance(leaf, ast.NameRef), repr(leaf)
       ref_type = ctx.type_info[leaf.name_def]
-      resolved_ref_type = resolve(ref_type, ctx)
+      resolved_ref_type = cpp_deduce.resolve(ref_type, ctx)
       if resolved_ref_type != resolved_rhs_type:
         raise TypeInferenceError(
             self.span, resolved_rhs_type,
@@ -567,10 +544,10 @@ def _deduce_Match(self: ast.Match, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
 
   arm_types = tuple(deduce(arm, ctx) for arm in self.arms)
 
-  resolved_arm0_type = resolve(arm_types[0], ctx)
+  resolved_arm0_type = cpp_deduce.resolve(arm_types[0], ctx)
 
   for i, arm_type in enumerate(arm_types[1:], 1):
-    resolved_arm_type = resolve(arm_type, ctx)
+    resolved_arm_type = cpp_deduce.resolve(arm_type, ctx)
     if resolved_arm_type != resolved_arm0_type:
       raise XlsTypeError(
           self.arms[i].span, resolved_arm_type, resolved_arm0_type,
@@ -592,8 +569,8 @@ def _deduce_For(self: ast.For, ctx: DeduceCtx) -> ConcreteType:  # pytype: disab
   body_type = deduce(self.body, ctx)
   deduce(self.iterable, ctx)
 
-  resolved_init_type = resolve(init_type, ctx)
-  resolved_body_type = resolve(body_type, ctx)
+  resolved_init_type = cpp_deduce.resolve(init_type, ctx)
+  resolved_body_type = cpp_deduce.resolve(body_type, ctx)
 
   if resolved_init_type != resolved_body_type:
     raise XlsTypeError(
@@ -611,15 +588,15 @@ def _deduce_While(self: ast.While, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
   init_type = deduce(self.init, ctx)
   test_type = deduce(self.test, ctx)
 
-  resolved_init_type = resolve(init_type, ctx)
-  resolved_test_type = resolve(test_type, ctx)
+  resolved_init_type = cpp_deduce.resolve(init_type, ctx)
+  resolved_test_type = cpp_deduce.resolve(test_type, ctx)
 
   if resolved_test_type != ConcreteType.U1:
     raise XlsTypeError(self.test.span, test_type, ConcreteType.U1,
                        'Expect while-loop test to be a bool value.')
 
   body_type = deduce(self.body, ctx)
-  resolved_body_type = resolve(body_type, ctx)
+  resolved_body_type = cpp_deduce.resolve(body_type, ctx)
 
   if resolved_init_type != resolved_body_type:
     raise XlsTypeError(
@@ -646,8 +623,8 @@ def _deduce_Cast(self: ast.Cast, ctx: DeduceCtx) -> ConcreteType:  # pytype: dis
   type_result = deduce(self.type_, ctx)
   expr_type = deduce(self.expr, ctx)
 
-  resolved_type_result = resolve(type_result, ctx)
-  resolved_expr_type = resolve(expr_type, ctx)
+  resolved_type_result = cpp_deduce.resolve(type_result, ctx)
+  resolved_expr_type = cpp_deduce.resolve(expr_type, ctx)
 
   if not _is_acceptable_cast(from_=resolved_type_result, to=resolved_expr_type):
     raise XlsTypeError(
@@ -661,9 +638,9 @@ def _deduce_Cast(self: ast.Cast, ctx: DeduceCtx) -> ConcreteType:  # pytype: dis
 def _deduce_Array(self: ast.Array, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of an Array AST node."""
   member_types = [deduce(m, ctx) for m in self.members]
-  resolved_type0 = resolve(member_types[0], ctx)
+  resolved_type0 = cpp_deduce.resolve(member_types[0], ctx)
   for i, x in enumerate(member_types[1:], 1):
-    resolved_x = resolve(x, ctx)
+    resolved_x = cpp_deduce.resolve(x, ctx)
     logging.vlog(5, 'array member type %d: %s', i, resolved_x)
     if resolved_x != resolved_type0:
       raise XlsTypeError(
@@ -679,7 +656,7 @@ def _deduce_Array(self: ast.Array, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
   if not isinstance(annotated, ArrayType):
     raise XlsTypeError(self.span, annotated, None,
                        'Array was not annotated with an array type.')
-  resolved_element_type = resolve(annotated.get_element_type(), ctx)
+  resolved_element_type = cpp_deduce.resolve(annotated.get_element_type(), ctx)
   if resolved_element_type != resolved_type0:
     raise XlsTypeError(
         self.span, resolved_element_type, resolved_type0,
@@ -783,24 +760,6 @@ def _deduce_ColonRef(self: ast.ColonRef, ctx: DeduceCtx) -> ConcreteType:  # pyt
   raise NotImplementedError(self, subject_type)
 
 
-@_rule(ast.Number)
-def _deduce_Number(self: ast.Number, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  """Deduces the concrete type of a Number AST node."""
-  if not self.type_:
-    if self.kind == ast.NumberKind.BOOL:
-      return ConcreteType.U1
-    if self.kind == ast.NumberKind.CHARACTER:
-      return ConcreteType.U8
-    raise TypeInferenceError(
-        span=self.span,
-        type_=None,
-        suffix='Could not infer a type for this number, please annotate a type.'
-    )
-  concrete_type = resolve(deduce(self.type_, ctx), ctx)
-  cpp_deduce.check_bitwidth(self, concrete_type)
-  return concrete_type
-
-
 def _dim_to_parametric(self: ast.TypeAnnotation,
                        expr: ast.Expr) -> ParametricExpression:
   """Converts a dimension expression to a 'parametric' AST node."""
@@ -885,7 +844,7 @@ def _deduce_ArrayTypeAnnotation(self: ast.ArrayTypeAnnotation,
 @_rule(ast.EnumDef)
 def _deduce_Enum(self: ast.EnumDef, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   """Deduces the concrete type of a Enum AST node."""
-  resolved_type = resolve(deduce(self.type_, ctx), ctx)
+  resolved_type = cpp_deduce.resolve(deduce(self.type_, ctx), ctx)
   if not isinstance(resolved_type, BitsType):
     raise XlsTypeError(self.span, resolved_type, None,
                        'Underlying type for an enum must be a bits type.')
@@ -908,14 +867,14 @@ def _deduce_Ternary(self: ast.Ternary, ctx: DeduceCtx) -> ConcreteType:  # pytyp
   """Deduces the concrete type of a Ternary AST node."""
 
   test_type = deduce(self.test, ctx)
-  resolved_test_type = resolve(test_type, ctx)
+  resolved_test_type = cpp_deduce.resolve(test_type, ctx)
   if resolved_test_type != ConcreteType.U1:
     raise XlsTypeError(self.span, resolved_test_type, ConcreteType.U1,
                        'Test type for conditional expression is not "bool"')
   cons_type = deduce(self.consequent, ctx)
-  resolved_cons_type = resolve(cons_type, ctx)
+  resolved_cons_type = cpp_deduce.resolve(cons_type, ctx)
   alt_type = deduce(self.alternate, ctx)
-  resolved_alt_type = resolve(alt_type, ctx)
+  resolved_alt_type = cpp_deduce.resolve(alt_type, ctx)
   if resolved_cons_type != resolved_alt_type:
     raise XlsTypeError(
         self.span, resolved_cons_type, resolved_alt_type,
@@ -927,9 +886,9 @@ def _deduce_Ternary(self: ast.Ternary, ctx: DeduceCtx) -> ConcreteType:  # pytyp
 def _deduce_Concat(self: ast.Binop, ctx: DeduceCtx) -> ConcreteType:
   """Deduces the concrete type of a concatenate Binop AST node."""
   lhs_type = deduce(self.lhs, ctx)
-  resolved_lhs_type = resolve(lhs_type, ctx)
+  resolved_lhs_type = cpp_deduce.resolve(lhs_type, ctx)
   rhs_type = deduce(self.rhs, ctx)
-  resolved_rhs_type = resolve(rhs_type, ctx)
+  resolved_rhs_type = cpp_deduce.resolve(rhs_type, ctx)
 
   # Array-ness must be the same on both sides.
   if (isinstance(resolved_lhs_type, ArrayType) != isinstance(
@@ -962,8 +921,8 @@ def _deduce_Binop(self: ast.Binop, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
   lhs_type = deduce(self.lhs, ctx)
   rhs_type = deduce(self.rhs, ctx)
 
-  resolved_lhs_type = resolve(lhs_type, ctx)
-  resolved_rhs_type = resolve(rhs_type, ctx)
+  resolved_lhs_type = cpp_deduce.resolve(lhs_type, ctx)
+  resolved_rhs_type = cpp_deduce.resolve(rhs_type, ctx)
 
   if resolved_lhs_type != resolved_rhs_type:
     raise XlsTypeError(
@@ -1003,8 +962,8 @@ def _deduce_Struct(self: ast.StructDef, ctx: DeduceCtx) -> ConcreteType:  # pyty
             'value did not match inferred type.')
     ctx.type_info[parametric.name] = parametric_binding_type
 
-  members = tuple(
-      (k.identifier, resolve(deduce(m, ctx), ctx)) for k, m in self.members)
+  members = tuple((k.identifier, cpp_deduce.resolve(deduce(m, ctx), ctx))
+                  for k, m in self.members)
   result = ctx.type_info[self.name] = TupleType(members, self)
   logging.vlog(5, 'Deduced type for struct %s => %s; type_info: %r', self,
                result, ctx.type_info)
@@ -1040,7 +999,7 @@ def _validate_struct_members_subset(
           'Duplicate value seen for {!r} in this {!r} struct instance.'.format(
               k, struct_text))
     seen_names.add(k)
-    expr_type = resolve(deduce(v, ctx), ctx)
+    expr_type = cpp_deduce.resolve(deduce(v, ctx), ctx)
     arg_types.append(expr_type)
     try:
       member_type = struct_type.get_member_type_by_name(k)

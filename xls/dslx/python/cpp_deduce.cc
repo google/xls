@@ -206,6 +206,7 @@ PYBIND11_MODULE(cpp_deduce, m) {
     TryThrowTypeInferenceError(status);
     return status;
   });
+  m.def("resolve", &Resolve);
 
 #define DELEGATE_DEDUCE(__type)                                      \
   m.def("deduce_" #__type, [](__type##Holder node, DeduceCtx* ctx) { \
@@ -215,11 +216,14 @@ PYBIND11_MODULE(cpp_deduce, m) {
   })
 
   DELEGATE_DEDUCE(ConstantDef);
+  DELEGATE_DEDUCE(Number);
   DELEGATE_DEDUCE(Param);
   DELEGATE_DEDUCE(TypeDef);
   DELEGATE_DEDUCE(TypeRef);
   DELEGATE_DEDUCE(Unop);
   DELEGATE_DEDUCE(XlsTuple);
+
+#undef DELEGATE_DEDUCE
 }
 
 }  // namespace xls::dslx

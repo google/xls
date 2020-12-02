@@ -157,6 +157,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceParam(Param* node,
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
     ConstantDef* node, DeduceCtx* ctx);
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(Number* node,
+                                                           DeduceCtx* ctx);
+
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeRef(TypeRef* node,
                                                             DeduceCtx* ctx);
 
@@ -165,6 +168,20 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeDef(TypeDef* node,
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceXlsTuple(XlsTuple* node,
                                                              DeduceCtx* ctx);
+
+// Resolves "type_" via provided symbolic bindings.
+//
+// Uses the symbolic bindings of the function we're currently inside of to
+// resolve parametric types.
+//
+// Args:
+//  type: Type to resolve any contained dims for.
+//  ctx: Deduction context to use in resolving the dims.
+//
+// Returns:
+//  "type" with dimensions resolved according to bindings in "ctx".
+absl::StatusOr<std::unique_ptr<ConcreteType>> Resolve(const ConcreteType& type,
+                                                      DeduceCtx* ctx);
 
 }  // namespace xls::dslx
 
