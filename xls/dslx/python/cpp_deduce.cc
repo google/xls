@@ -283,14 +283,15 @@ PYBIND11_MODULE(cpp_deduce, m) {
     return statusor;                                                 \
   })
 
+  DELEGATE_DEDUCE(Binop);
   DELEGATE_DEDUCE(ConstantDef);
   DELEGATE_DEDUCE(Number);
   DELEGATE_DEDUCE(Param);
+  DELEGATE_DEDUCE(Ternary);
   DELEGATE_DEDUCE(TypeDef);
   DELEGATE_DEDUCE(TypeRef);
   DELEGATE_DEDUCE(Unop);
   DELEGATE_DEDUCE(XlsTuple);
-  DELEGATE_DEDUCE(Ternary);
 
 #undef DELEGATE_DEDUCE
 }

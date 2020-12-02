@@ -172,6 +172,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceXlsTuple(XlsTuple* node,
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTernary(Ternary* node,
                                                             DeduceCtx* ctx);
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBinop(Binop* node,
+                                                          DeduceCtx* ctx);
+
 // Resolves "type_" via provided symbolic bindings.
 //
 // Uses the symbolic bindings of the function we're currently inside of to

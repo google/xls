@@ -94,6 +94,13 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> Resolve(const ConcreteType& type,
   });
 }
 
+static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAndResolve(
+    AstNode* node, DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> deduced,
+                       ctx->Deduce(node));
+  return Resolve(*deduced, ctx);
+}
+
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(Number* node,
                                                            DeduceCtx* ctx) {
   if (node->type() == nullptr) {
@@ -146,6 +153,105 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTernary(Ternary* node,
         alternate_type->ToString()));
   }
   return consequent_type;
+}
+
+static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConcat(
+    Binop* node, DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> lhs,
+                       DeduceAndResolve(node->lhs(), ctx));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> rhs,
+                       DeduceAndResolve(node->rhs(), ctx));
+
+  auto* lhs_array = dynamic_cast<ArrayType*>(lhs.get());
+  auto* rhs_array = dynamic_cast<ArrayType*>(rhs.get());
+  bool lhs_is_array = lhs_array != nullptr;
+  bool rhs_is_array = rhs_array != nullptr;
+
+  if (lhs_is_array != rhs_is_array) {
+    return absl::InternalError(absl::StrFormat(
+        "XlsTypeError: %s %s %s Attempting to concatenate array/non-array "
+        "values together.",
+        node->span().ToString(), lhs->ToString(), rhs->ToString()));
+  }
+
+  if (lhs_is_array && lhs_array->element_type() != rhs_array->element_type()) {
+    return absl::InternalError(absl::StrFormat(
+        "XlsTypeError: %s %s %s Array concatenation requires element types to "
+        "be the same.",
+        node->span().ToString(), lhs->ToString(), rhs->ToString()));
+  }
+
+  if (lhs_is_array) {
+    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim new_size,
+                         lhs_array->size().Add(rhs_array->size()));
+    return absl::make_unique<ArrayType>(
+        lhs_array->element_type().CloneToUnique(), new_size);
+  }
+
+  auto* lhs_bits = dynamic_cast<BitsType*>(lhs.get());
+  auto* rhs_bits = dynamic_cast<BitsType*>(rhs.get());
+  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim new_size,
+                       lhs_bits->size().Add(rhs_bits->size()));
+  return absl::make_unique<BitsType>(/*signed=*/false, /*size=*/new_size);
+}
+
+// Returns a set of the kinds of binary operations that are comparisons; that
+// is, they are `(T, T) -> bool` typed.
+static const absl::flat_hash_set<BinopKind>& GetBinopComparisonKinds() {
+  static const auto* set = [] {
+    return new absl::flat_hash_set<BinopKind>{
+        BinopKind::kEq, BinopKind::kNe, BinopKind::kGt,
+        BinopKind::kGe, BinopKind::kLt, BinopKind::kLe,
+    };
+  }();
+  return *set;
+}
+
+// Returns a set of the kinds of binary operations that it's ok to use on an
+// enum value.
+static const absl::flat_hash_set<BinopKind>& GetEnumOkKinds() {
+  static const auto* set = []() {
+    return new absl::flat_hash_set<BinopKind>{
+        BinopKind::kEq,
+        BinopKind::kNe,
+    };
+  }();
+  return *set;
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBinop(Binop* node,
+                                                          DeduceCtx* ctx) {
+  if (node->kind() == BinopKind::kConcat) {
+    return DeduceConcat(node, ctx);
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> lhs,
+                       DeduceAndResolve(node->lhs(), ctx));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> rhs,
+                       DeduceAndResolve(node->rhs(), ctx));
+
+  if (*lhs != *rhs) {
+    return absl::InternalError(
+        absl::StrFormat("XlsTypeError: %s %s %s Could not deduce type for "
+                        "binary operation '%s'",
+                        node->span().ToString(), lhs->ToString(),
+                        rhs->ToString(), BinopKindFormat(node->kind())));
+  }
+
+  if (auto* enum_type = dynamic_cast<EnumType*>(lhs.get());
+      enum_type != nullptr && !GetEnumOkKinds().contains(node->kind())) {
+    return absl::InternalError(absl::StrFormat(
+        "TypeInferenceError: %s <> Cannot use '%s' on values with enum type "
+        "%s.",
+        node->span().ToString(), BinopKindFormat(node->kind()),
+        enum_type->nominal_type()->identifier()));
+  }
+
+  if (GetBinopComparisonKinds().contains(node->kind())) {
+    return BitsType::MakeU1();
+  }
+
+  return lhs;
 }
 
 }  // namespace xls::dslx

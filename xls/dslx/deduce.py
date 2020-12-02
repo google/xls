@@ -52,14 +52,15 @@ from xls.dslx.python.cpp_type_info import TypeMissingError
 
 # Dictionary used as registry for rule dispatch based on AST node class.
 RULES = {
+    ast.Binop: cpp_deduce.deduce_Binop,
     ast.Constant: cpp_deduce.deduce_ConstantDef,
     ast.Number: cpp_deduce.deduce_Number,
     ast.Param: cpp_deduce.deduce_Param,
+    ast.Ternary: cpp_deduce.deduce_Ternary,
     ast.TypeDef: cpp_deduce.deduce_TypeDef,
     ast.TypeRef: cpp_deduce.deduce_TypeRef,
     ast.Unop: cpp_deduce.deduce_Unop,
     ast.XlsTuple: cpp_deduce.deduce_XlsTuple,
-    ast.Ternary: cpp_deduce.deduce_Ternary,
 }
 
 
@@ -861,68 +862,6 @@ def _deduce_Enum(self: ast.EnumDef, ctx: DeduceCtx) -> ConcreteType:  # pytype: 
     ctx.type_info[name] = ctx.type_info[value] = result
   ctx.type_info[self.name] = ctx.type_info[self] = result
   return result
-
-
-def _deduce_Concat(self: ast.Binop, ctx: DeduceCtx) -> ConcreteType:
-  """Deduces the concrete type of a concatenate Binop AST node."""
-  lhs_type = deduce(self.lhs, ctx)
-  resolved_lhs_type = cpp_deduce.resolve(lhs_type, ctx)
-  rhs_type = deduce(self.rhs, ctx)
-  resolved_rhs_type = cpp_deduce.resolve(rhs_type, ctx)
-
-  # Array-ness must be the same on both sides.
-  if (isinstance(resolved_lhs_type, ArrayType) != isinstance(
-      resolved_rhs_type, ArrayType)):
-    raise XlsTypeError(
-        self.span, resolved_lhs_type, resolved_rhs_type,
-        'Attempting to concatenate array/non-array values together.')
-
-  if (isinstance(resolved_lhs_type, ArrayType) and
-      resolved_lhs_type.get_element_type() !=
-      resolved_rhs_type.get_element_type()):
-    raise XlsTypeError(
-        self.span, resolved_lhs_type, resolved_rhs_type,
-        'Array concatenation requires element types to be the same.')
-
-  new_size = resolved_lhs_type.size + resolved_rhs_type.size  # pytype: disable=attribute-error
-  if isinstance(resolved_lhs_type, ArrayType):
-    return ArrayType(resolved_lhs_type.get_element_type(), new_size)
-
-  return BitsType(signed=False, size=new_size)
-
-
-@_rule(ast.Binop)
-def _deduce_Binop(self: ast.Binop, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  """Deduces the concrete type of a Binop AST node."""
-  # Concatenation is handled differently from other binary operations.
-  if self.kind == ast.BinopKind.CONCAT:
-    return _deduce_Concat(self, ctx)
-
-  lhs_type = deduce(self.lhs, ctx)
-  rhs_type = deduce(self.rhs, ctx)
-
-  resolved_lhs_type = cpp_deduce.resolve(lhs_type, ctx)
-  resolved_rhs_type = cpp_deduce.resolve(rhs_type, ctx)
-
-  if resolved_lhs_type != resolved_rhs_type:
-    raise XlsTypeError(
-        self.span, resolved_lhs_type, resolved_rhs_type,
-        'Could not deduce type for binary operation {0} ({0!r}).'.format(
-            self.kind))
-
-  # Enums only support a more limited set of binary operations.
-  if isinstance(lhs_type,
-                EnumType) and self.kind not in ast_helpers.BINOP_ENUM_OK_KINDS:
-    raise TypeInferenceError(
-        self.span, resolved_lhs_type,
-        "Cannot use '{}' on values with enum type {}".format(
-            self.kind.value,
-            lhs_type.get_nominal_type().identifier))
-
-  if self.kind in ast_helpers.BINOP_COMPARISON_KINDS:
-    return ConcreteType.U1
-
-  return resolved_lhs_type
 
 
 @_rule(ast.StructDef)

@@ -822,6 +822,8 @@ enum class BinopKind {
 
 absl::StatusOr<BinopKind> BinopKindFromString(absl::string_view s);
 
+// Returns the "operator token" corresponding to the given binop kind; e.g. "+"
+// for kAdd.
 std::string BinopKindFormat(BinopKind kind);
 
 // Represents a binary operation expression; e.g. `x + y`.
