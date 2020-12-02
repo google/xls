@@ -27,7 +27,8 @@ from xls.dslx import typecheck
 from xls.dslx.import_fn import ImportFn
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_type_info as type_info_mod
-from xls.dslx.xls_type_error import XlsTypeError
+from xls.dslx.python.cpp_deduce import TypeInferenceError
+from xls.dslx.python.cpp_deduce import XlsTypeError
 
 
 def _run_typecheck(
@@ -35,7 +36,7 @@ def _run_typecheck(
     fs_open: Callable[[Text], io.IOBase]) -> type_info_mod.TypeInfo:
   try:
     return typecheck.check_module(module, f_import)
-  except XlsTypeError as e:
+  except (XlsTypeError, TypeInferenceError) as e:
     if print_on_error:
       # If the typecheck fails, pretty-print the error.
       parser_helpers.pprint_positional_error(e, fs_open=fs_open)

@@ -29,12 +29,12 @@ from xls.dslx.python.cpp_concrete_type import ConcreteTypeDim
 from xls.dslx.python.cpp_concrete_type import EnumType
 from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.python.cpp_concrete_type import TupleType
+from xls.dslx.python.cpp_deduce import xls_type_error as XlsTypeError
 from xls.dslx.python.cpp_pos import Span
 from xls.dslx.python.cpp_type_info import SymbolicBindings
 from xls.dslx.python.interp_bindings import FnCtx
 from xls.dslx.python.interpreter import Interpreter
 from xls.dslx.xls_type_error import ArgCountMismatchError
-from xls.dslx.xls_type_error import XlsTypeError
 
 Invocation = Any  # pylint: disable=invalid-name
 ParametricBinding = Any

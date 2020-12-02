@@ -25,8 +25,8 @@ from pyfakefs import fake_filesystem_unittest as ffu
 from xls.common import runfiles
 from xls.common import test_base
 from xls.dslx.interpreter import parse_and_interpret
+from xls.dslx.python.cpp_deduce import XlsTypeError
 from xls.dslx.python.interpreter import FailureError
-from xls.dslx.xls_type_error import XlsTypeError
 
 INTERP_PATH = runfiles.get_path('xls/dslx/interpreter/interpreter_main')
 

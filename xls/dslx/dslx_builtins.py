@@ -22,15 +22,16 @@ from typing import Text, Tuple, Callable, Union, Optional, Any
 from absl import logging
 
 from xls.dslx import parametric_instantiator
-from xls.dslx import xls_type_error
 from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType
 from xls.dslx.python.cpp_concrete_type import ConcreteType
 from xls.dslx.python.cpp_concrete_type import ConcreteTypeDim
 from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.python.cpp_concrete_type import TupleType
+from xls.dslx.python.cpp_deduce import xls_type_error as XlsTypeError
 from xls.dslx.python.cpp_pos import Span
 from xls.dslx.python.cpp_type_info import SymbolicBindings
+from xls.dslx.xls_type_error import ArgCountMismatchError
 
 ParametricBinding = Any
 ParametricBindings = Tuple[ParametricBinding, ...]
@@ -97,26 +98,25 @@ class _Checker(object):
 
   def len(self, target: int) -> '_Checker':
     if len(self.arg_types) != target:
-      raise xls_type_error.ArgCountMismatchError(
+      raise ArgCountMismatchError(
           self.span, self.arg_types, target, None,
           'Invalid number of arguments passed to {!r}'.format(self.name))
     return self
 
   def eq(self, lhs: ConcreteType, rhs: ConcreteType, fmt: Text) -> '_Checker':
     if lhs != rhs:
-      raise xls_type_error.XlsTypeError(self.span, lhs, rhs,
-                                        fmt.format(lhs, rhs))
+      raise XlsTypeError(self.span, lhs, rhs, fmt.format(lhs, rhs))
     return self
 
   def is_fn(self, argno: int, argc: int) -> '_Checker':
     """Checks arg argno is a function with argc parameters."""
     t = self.arg_types[argno]
     if not isinstance(t, FunctionType):
-      raise xls_type_error.XlsTypeError(
+      raise XlsTypeError(
           self.span, t, None,
           'Want argument {} to be a function; got {}'.format(argno, t))
     if len(t.params) != argc:
-      raise xls_type_error.XlsTypeError(
+      raise XlsTypeError(
           self.span, t, None,
           'Want argument {} to be a function with {} parameters; got {}'.format(
               argno, argc, t))
@@ -125,7 +125,7 @@ class _Checker(object):
   def is_array(self, argno: int) -> '_Checker':
     t = self.arg_types[argno]
     if not isinstance(t, ArrayType):
-      raise xls_type_error.XlsTypeError(
+      raise XlsTypeError(
           self.span, t, None,
           'Want argument {} to be an array; got {}'.format(argno, t))
     return self
@@ -139,9 +139,8 @@ class _Checker(object):
 
     t = self.arg_types[argno]
     if not isinstance(t, BitsType):
-      raise xls_type_error.XlsTypeError(
-          self.span, t, None,
-          'Want argument {} to be bits; got {}'.format(argno, t))
+      raise XlsTypeError(self.span, t, None,
+                         'Want argument {} to be bits; got {}'.format(argno, t))
     return self
 
   def is_uN(self, argno: Union[int, Tuple[int, ...]]) -> '_Checker':  # pylint: disable=invalid-name
@@ -154,26 +153,25 @@ class _Checker(object):
     assert isinstance(argno, int), argno
     t = self.arg_types[argno]
     if not isinstance(t, BitsType) or t.signed:
-      raise xls_type_error.XlsTypeError(
+      raise XlsTypeError(
           self.span, t, None,
           'Want argument {} to be unsigned bits; got {}'.format(argno, t))
     return self
 
   def check_is_bits(self, t: ConcreteType, fmt: Text) -> '_Checker':
     if not isinstance(t, BitsType):
-      raise xls_type_error.XlsTypeError(self.span, t, None, fmt.format(t))
+      raise XlsTypeError(self.span, t, None, fmt.format(t))
     return self
 
   def check_is_len(self, t: ArrayType, target: int, fmt: str) -> '_Checker':
     if t.size != target:
-      raise xls_type_error.XlsTypeError(self.span, t, None,
-                                        fmt.format(t=t, target=target))
+      raise XlsTypeError(self.span, t, None, fmt.format(t=t, target=target))
     return self
 
   def check_is_same(self, t: ConcreteType, u: ConcreteType,
                     fmt: Text) -> '_Checker':
     if t != u:
-      raise xls_type_error.XlsTypeError(self.span, t, u, fmt.format(t, u))
+      raise XlsTypeError(self.span, t, u, fmt.format(t, u))
     return self
 
   def is_u1(self, argno: int) -> '_Checker':

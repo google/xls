@@ -23,28 +23,6 @@ from xls.dslx.python.cpp_concrete_type import ConcreteType
 from xls.dslx.span import PositionalError
 
 
-class XlsTypeError(PositionalError):
-  """Error that is raised when there is a type checking error for DSLX code."""
-
-  def __init__(self,
-               span: cpp_pos.Span,
-               lhs_type: Optional[ConcreteType],
-               rhs_type: Optional[ConcreteType],
-               suffix: Text = ''):
-    msg = ('Types are not compatible: {0} vs {1}{suffix} @ {span}').format(
-        '<none>' if lhs_type is None else lhs_type,
-        '<none>' if rhs_type is None else rhs_type,
-        span=span,
-        suffix=': ' + suffix if suffix else '')
-    super(XlsTypeError, self).__init__(msg, span)
-    # TODO(leary): 2019-01-22 Break out AST into its own module so we can
-    # annotate these as types without circular dependency between parser and
-    # type error.
-    self.lhs_type = lhs_type
-    self.rhs_type = rhs_type
-    self.suffix = suffix
-
-
 class ArgCountMismatchError(PositionalError):
   """Raised when argument count != parameter count in an invocation."""
 

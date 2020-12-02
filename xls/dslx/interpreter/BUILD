@@ -183,7 +183,7 @@ py_test(
         requirement("pyfakefs"),  # unittest
         "//xls/common:runfiles",
         "//xls/common:test_base",
-        "//xls/dslx:xls_type_error",
+        "//xls/dslx/python:cpp_deduce",
         "//xls/dslx/python:interpreter",
     ],
 )
@@ -214,8 +214,8 @@ py_binary(
         "//xls/dslx:parser_helpers",
         "//xls/dslx:span",
         "//xls/dslx:typecheck",
-        "//xls/dslx:xls_type_error",
         "//xls/dslx/python:cpp_concrete_type",
+        "//xls/dslx/python:cpp_deduce",
         "//xls/dslx/python:cpp_parser",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_scanner",

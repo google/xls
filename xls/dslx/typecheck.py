@@ -30,9 +30,9 @@ from xls.dslx.python import cpp_deduce
 from xls.dslx.python import cpp_type_info as type_info
 from xls.dslx.python.cpp_concrete_type import ConcreteType
 from xls.dslx.python.cpp_concrete_type import FunctionType
+from xls.dslx.python.cpp_deduce import xls_type_error as XlsTypeError
 from xls.dslx.python.cpp_type_info import SymbolicBindings
 from xls.dslx.span import PositionalError
-from xls.dslx.xls_type_error import XlsTypeError
 
 
 def _check_function_params(f: ast.Function,

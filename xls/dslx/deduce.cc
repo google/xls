@@ -118,4 +118,34 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(Number* node,
   return concrete_type;
 }
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTernary(Ternary* node,
+                                                            DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> test_type,
+                       ctx->Deduce(node->test()));
+  XLS_ASSIGN_OR_RETURN(test_type, Resolve(*test_type, ctx));
+  auto test_want = BitsType::MakeU1();
+  if (*test_type != *test_want) {
+    return absl::InternalError(absl::StrFormat(
+        "XlsTypeError: %s %s %s Test type for conditional expression is not "
+        "\"bool\"",
+        node->span().ToString(), test_type->ToString(), test_want->ToString()));
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> consequent_type,
+                       ctx->Deduce(node->consequent()));
+  XLS_ASSIGN_OR_RETURN(consequent_type, Resolve(*consequent_type, ctx));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> alternate_type,
+                       ctx->Deduce(node->alternate()));
+  XLS_ASSIGN_OR_RETURN(alternate_type, Resolve(*alternate_type, ctx));
+
+  if (*consequent_type != *alternate_type) {
+    return absl::InternalError(absl::StrFormat(
+        "XlsTypeError: %s %s %s Ternary consequent type (in the 'then' clause) "
+        "did not match alternative type (in the 'else' clause)",
+        node->span().ToString(), consequent_type->ToString(),
+        alternate_type->ToString()));
+  }
+  return consequent_type;
+}
+
 }  // namespace xls::dslx

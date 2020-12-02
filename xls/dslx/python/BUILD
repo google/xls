@@ -45,6 +45,7 @@ cc_library(
     deps = [
         "@com_google_absl//absl/strings",
         "//xls/dslx:cpp_bindings",
+        "//xls/dslx:cpp_concrete_type",
         "@pybind11",
     ],
 )

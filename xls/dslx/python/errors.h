@@ -18,6 +18,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_split.h"
 #include "pybind11/pybind11.h"
+#include "xls/dslx/concrete_type.h"
 #include "xls/dslx/cpp_bindings.h"
 
 namespace xls::dslx {
@@ -104,6 +105,37 @@ class TypeMissingError : public std::exception {
   absl::optional<Span> span_;
 
   // Message to display when raised to Python.
+  std::string message_;
+};
+
+// Raised when there is a type checking error in DSLX code (e.g. two types
+// should match up by the typechecking rules, but they did not).
+class XlsTypeError : public std::exception {
+ public:
+  XlsTypeError(Span span, std::unique_ptr<ConcreteType> lhs,
+               std::unique_ptr<ConcreteType> rhs, absl::string_view suffix)
+      : span_(std::move(span)), lhs_(std::move(lhs)), rhs_(std::move(rhs)) {
+    std::string suffix_str;
+    if (!suffix.empty()) {
+      suffix_str = absl::StrCat(": ", suffix);
+    }
+    std::string lhs_str = lhs_ == nullptr ? "<none>" : lhs_->ToString();
+    std::string rhs_str = rhs_ == nullptr ? "<none>" : rhs_->ToString();
+    message_ = absl::StrFormat("%s Types are not compatible: %s vs %s%s",
+                               span_.ToString(), lhs_str, rhs_str, suffix_str);
+  }
+
+  const Span& span() const { return span_; }
+  const std::unique_ptr<ConcreteType>& lhs() const { return lhs_; }
+  const std::unique_ptr<ConcreteType>& rhs() const { return rhs_; }
+  const std::string& message() const { return message_; }
+
+  const char* what() const noexcept override { return message_.c_str(); }
+
+ private:
+  Span span_;
+  std::unique_ptr<ConcreteType> lhs_;
+  std::unique_ptr<ConcreteType> rhs_;
   std::string message_;
 };
 

@@ -40,6 +40,7 @@ from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.dslx.python.cpp_deduce import DeduceCtx
 from xls.dslx.python.cpp_deduce import type_inference_error as TypeInferenceError
+from xls.dslx.python.cpp_deduce import xls_type_error as XlsTypeError
 from xls.dslx.python.cpp_parametric_expression import ParametricAdd
 from xls.dslx.python.cpp_parametric_expression import ParametricExpression
 from xls.dslx.python.cpp_parametric_expression import ParametricSymbol
@@ -47,7 +48,6 @@ from xls.dslx.python.cpp_pos import Span
 from xls.dslx.python.cpp_type_info import SymbolicBindings
 from xls.dslx.python.cpp_type_info import TypeInfo
 from xls.dslx.python.cpp_type_info import TypeMissingError
-from xls.dslx.xls_type_error import XlsTypeError
 
 
 # Dictionary used as registry for rule dispatch based on AST node class.
@@ -59,6 +59,7 @@ RULES = {
     ast.TypeRef: cpp_deduce.deduce_TypeRef,
     ast.Unop: cpp_deduce.deduce_Unop,
     ast.XlsTuple: cpp_deduce.deduce_XlsTuple,
+    ast.Ternary: cpp_deduce.deduce_Ternary,
 }
 
 
@@ -862,27 +863,6 @@ def _deduce_Enum(self: ast.EnumDef, ctx: DeduceCtx) -> ConcreteType:  # pytype: 
   return result
 
 
-@_rule(ast.Ternary)
-def _deduce_Ternary(self: ast.Ternary, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  """Deduces the concrete type of a Ternary AST node."""
-
-  test_type = deduce(self.test, ctx)
-  resolved_test_type = cpp_deduce.resolve(test_type, ctx)
-  if resolved_test_type != ConcreteType.U1:
-    raise XlsTypeError(self.span, resolved_test_type, ConcreteType.U1,
-                       'Test type for conditional expression is not "bool"')
-  cons_type = deduce(self.consequent, ctx)
-  resolved_cons_type = cpp_deduce.resolve(cons_type, ctx)
-  alt_type = deduce(self.alternate, ctx)
-  resolved_alt_type = cpp_deduce.resolve(alt_type, ctx)
-  if resolved_cons_type != resolved_alt_type:
-    raise XlsTypeError(
-        self.span, resolved_cons_type, resolved_alt_type,
-        'Ternary consequent type (in the "then" clause) did not match '
-        'alternate type (in the "else" clause)')
-  return resolved_cons_type
-
-
 def _deduce_Concat(self: ast.Binop, ctx: DeduceCtx) -> ConcreteType:
   """Deduces the concrete type of a concatenate Binop AST node."""
   lhs_type = deduce(self.lhs, ctx)
@@ -933,8 +913,8 @@ def _deduce_Binop(self: ast.Binop, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
   # Enums only support a more limited set of binary operations.
   if isinstance(lhs_type,
                 EnumType) and self.kind not in ast_helpers.BINOP_ENUM_OK_KINDS:
-    raise XlsTypeError(
-        self.span, resolved_lhs_type, None,
+    raise TypeInferenceError(
+        self.span, resolved_lhs_type,
         "Cannot use '{}' on values with enum type {}".format(
             self.kind.value,
             lhs_type.get_nominal_type().identifier))

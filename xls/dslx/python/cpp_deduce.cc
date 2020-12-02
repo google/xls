@@ -92,6 +92,36 @@ void TryThrowTypeInferenceError(const absl::Status& status) {
   }
 }
 
+void TryThrowXlsTypeError(const absl::Status& status) {
+  absl::string_view s = status.message();
+  if (absl::ConsumePrefix(&s, "XlsTypeError: ")) {
+    std::vector<absl::string_view> pieces =
+        absl::StrSplit(s, absl::MaxSplits(" ", 3));
+    if (pieces.size() < 4) {
+      return;
+    }
+    absl::StatusOr<Span> span = Span::FromString(pieces[0]);
+    absl::StatusOr<std::unique_ptr<ConcreteType>> lhs;
+    if (pieces[1] == "<none>") {
+      lhs = nullptr;
+    } else {
+      lhs = ConcreteTypeFromString(pieces[1]);
+    }
+    absl::StatusOr<std::unique_ptr<ConcreteType>> rhs;
+    if (pieces[2] == "<none>") {
+      rhs = nullptr;
+    } else {
+      rhs = ConcreteTypeFromString(pieces[2]);
+    }
+    XLS_CHECK(span.ok() && lhs.ok() && rhs.ok())
+        << "Could not parse type inference error string: \"" << status.message()
+        << "\" span: " << span.status() << " lhs: " << lhs.status()
+        << " rhs: " << rhs.status();
+    throw XlsTypeError(std::move(span.value()), std::move(lhs).value(),
+                       std::move(rhs).value(), std::string(pieces[3]));
+  }
+}
+
 }  // namespace
 
 PYBIND11_MODULE(cpp_deduce, m) {
@@ -122,6 +152,27 @@ PYBIND11_MODULE(cpp_deduce, m) {
     }
   });
 
+  static py::exception<XlsTypeError> xls_type_exc(m, "XlsTypeError");
+  py::register_exception_translator([](std::exception_ptr p) {
+    try {
+      if (p) std::rethrow_exception(p);
+    } catch (const XlsTypeError& e) {
+      xls_type_exc.attr("span") = e.span();
+      if (e.lhs() == nullptr) {
+        xls_type_exc.attr("lhs_type") = nullptr;
+      } else {
+        xls_type_exc.attr("lhs_type") = e.lhs()->CloneToUnique();
+      }
+      if (e.rhs() == nullptr) {
+        xls_type_exc.attr("rhs_type") = nullptr;
+      } else {
+        xls_type_exc.attr("rhs_type") = e.rhs()->CloneToUnique();
+      }
+      xls_type_exc.attr("message") = e.message();
+      xls_type_exc(e.what());
+    }
+  });
+
   m.def("type_inference_error",
         [](const Span& span, ConcreteType* type,
            const std::string& suffix) -> absl::Status {
@@ -131,6 +182,22 @@ PYBIND11_MODULE(cpp_deduce, m) {
           }
           throw TypeInferenceError(span, std::move(t), suffix);
         });
+  m.def(
+      "xls_type_error",
+      [](const Span& span, ConcreteType* plhs, ConcreteType* prhs,
+         const std::string& suffix) {
+        std::unique_ptr<ConcreteType> lhs;
+        std::unique_ptr<ConcreteType> rhs;
+        if (plhs != nullptr) {
+          lhs = plhs->CloneToUnique();
+        }
+        if (prhs != nullptr) {
+          rhs = prhs->CloneToUnique();
+        }
+        throw XlsTypeError(span, std::move(lhs), std::move(rhs), suffix);
+      },
+      py::arg("span"), py::arg("lhs_type"), py::arg("rhs_type"),
+      py::arg("suffix"));
 
   m.def("type_missing_error_set_node",
         [](py::object self, AstNodeHolder node) { self.attr("node") = node; });
@@ -212,6 +279,7 @@ PYBIND11_MODULE(cpp_deduce, m) {
   m.def("deduce_" #__type, [](__type##Holder node, DeduceCtx* ctx) { \
     auto statusor = Deduce##__type(&node.deref(), ctx);              \
     TryThrowTypeInferenceError(statusor.status());                   \
+    TryThrowXlsTypeError(statusor.status());                         \
     return statusor;                                                 \
   })
 
@@ -222,6 +290,7 @@ PYBIND11_MODULE(cpp_deduce, m) {
   DELEGATE_DEDUCE(TypeRef);
   DELEGATE_DEDUCE(Unop);
   DELEGATE_DEDUCE(XlsTuple);
+  DELEGATE_DEDUCE(Ternary);
 
 #undef DELEGATE_DEDUCE
 }

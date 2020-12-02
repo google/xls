@@ -29,13 +29,13 @@ from xls.dslx import import_helpers
 from xls.dslx import parser_helpers
 from xls.dslx import span
 from xls.dslx import typecheck
-from xls.dslx import xls_type_error
 from xls.dslx.python import cpp_concrete_type as concrete_type_mod
 from xls.dslx.python import cpp_parser as parser
 from xls.dslx.python import cpp_pos
 from xls.dslx.python import cpp_scanner as scanner
 from xls.dslx.python import interp_value as value_mod
 from xls.dslx.python import interpreter as interpreter_mod
+from xls.dslx.python.cpp_deduce import XlsTypeError
 
 FLAGS = flags.FLAGS
 FILENAME = '/fake/repl.x'
@@ -76,7 +76,7 @@ def handle_line(line: str, stmt_index: int):
     # around and we'll substitute the real return type we observe.
     try:
       type_info = typecheck.check_module(fake_module, f_import=importer)
-    except xls_type_error.XlsTypeError as e:
+    except XlsTypeError as e:
       # We use nil as a placeholder, and swap it with the type that was expected
       # and retry once we determine what that should be.
       if e.rhs_type == concrete_type_mod.ConcreteType.NIL:

@@ -29,8 +29,8 @@ from xls.dslx import span
 from xls.dslx import typecheck
 from xls.dslx.python import cpp_parser
 from xls.dslx.python.cpp_deduce import TypeInferenceError
+from xls.dslx.python.cpp_deduce import XlsTypeError
 from xls.dslx.xls_type_error import ArgCountMismatchError
-from xls.dslx.xls_type_error import XlsTypeError
 
 
 class TypecheckTest(test_base.TestCase):
@@ -643,7 +643,8 @@ fn f() -> Foo {
   Foo::A + Foo::B
 }
 """,
-        error="Cannot use '+' on values with enum type Foo @ /fake/test_module.x:7:10"
+        error="Cannot use '+' on values with enum type Foo",
+        error_type=TypeInferenceError,
     )
 
   def test_width_slices(self):
