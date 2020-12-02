@@ -21,7 +21,7 @@
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
 #include "xls/interpreter/ir_interpreter.h"
-#include "xls/ir/ir_parser.h"
+#include "xls/ir/ir_test_base.h"
 #include "xls/jit/ir_jit.h"
 
 namespace xls {
@@ -34,25 +34,28 @@ struct FunctionData {
   Function* boolified;
 };
 
-absl::StatusOr<FunctionData> GetFunctionData(const std::string& ir_text,
-                                             const std::string& fn_name) {
-  XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(ir_text));
-  XLS_ASSIGN_OR_RETURN(Function * fancy, package->GetFunction(fn_name));
-  XLS_ASSIGN_OR_RETURN(Function * basic, Booleanifier::Booleanify(fancy));
+class BooleanifierTest : public IrTestBase {
+ protected:
+  absl::StatusOr<FunctionData> GetFunctionData(const std::string& ir_text,
+                                               const std::string& fn_name) {
+    XLS_ASSIGN_OR_RETURN(auto package, ParsePackage(ir_text));
+    XLS_ASSIGN_OR_RETURN(Function * fancy, package->GetFunction(fn_name));
+    XLS_ASSIGN_OR_RETURN(Function * basic, Booleanifier::Booleanify(fancy));
 
-  return FunctionData{std::move(package), fancy, basic};
-}
+    return FunctionData{std::move(package), fancy, basic};
+  }
 
-absl::StatusOr<FunctionData> GetFunctionDataFromFile(
-    const std::string& ir_path, const std::string& fn_name) {
-  XLS_ASSIGN_OR_RETURN(std::string runfile_path, GetXlsRunfilePath(ir_path));
-  XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(runfile_path));
-  return GetFunctionData(ir_text, fn_name);
-}
+  absl::StatusOr<FunctionData> GetFunctionDataFromFile(
+      const std::string& ir_path, const std::string& fn_name) {
+    XLS_ASSIGN_OR_RETURN(std::string runfile_path, GetXlsRunfilePath(ir_path));
+    XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(runfile_path));
+    return GetFunctionData(ir_text, fn_name);
+  }
+};
 
 // This test verifies that the CRC32 example can be correctly boolified, as a
 // decently-broad example.
-TEST(BooleanifierTest, Crc32) {
+TEST_F(BooleanifierTest, Crc32) {
   const std::string kIrPath = "xls/examples/crc32.opt.ir";
   XLS_ASSERT_OK_AND_ASSIGN(FunctionData fd,
                            GetFunctionDataFromFile(kIrPath, "__crc32__main"));
@@ -67,7 +70,7 @@ TEST(BooleanifierTest, Crc32) {
   }
 }
 
-TEST(BooleanifierTest, Crc32_Jit) {
+TEST_F(BooleanifierTest, Crc32_Jit) {
   const std::string kIrPath = "xls/examples/crc32.opt.ir";
   XLS_ASSERT_OK_AND_ASSIGN(FunctionData fd,
                            GetFunctionDataFromFile(kIrPath, "__crc32__main"));
@@ -85,7 +88,7 @@ TEST(BooleanifierTest, Crc32_Jit) {
 
 // This test verifies that the Boolifier can properly handle extracting from
 // and packing into tuples.
-TEST(BooleanifierTest, MarshalsTuples) {
+TEST_F(BooleanifierTest, MarshalsTuples) {
   const std::string kIrText = R"(
 package p
 
@@ -129,6 +132,21 @@ fn main(a: (bits[2], bits[3], bits[4]), b: (bits[2], bits[3], bits[4])) -> (bits
       ASSERT_EQ(fancy_value, basic_value);
     }
   }
+}
+
+TEST_F(BooleanifierTest, BooleanFunctionName) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("foo", p.get());
+  fb.Param("x", p->GetBitsType(32));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * default_name_f,
+                           Booleanifier::Booleanify(f));
+  EXPECT_EQ(default_name_f->name(), "foo_boolean");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * given_name_f,
+                           Booleanifier::Booleanify(f, "baz"));
+  EXPECT_EQ(given_name_f->name(), "baz");
 }
 
 }  // namespace

@@ -80,6 +80,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/interpreter:ir_interpreter",
         "//xls/ir:ir_parser",
+        "//xls/ir:ir_test_base",
         "//xls/jit:ir_jit",
         "@com_google_googletest//:gtest_main",
     ],

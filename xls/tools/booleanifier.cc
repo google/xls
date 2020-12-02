@@ -57,14 +57,17 @@ class BitEvaluator : public AbstractEvaluator<Node*> {
   BValue zero_;
 };
 
-absl::StatusOr<Function*> Booleanifier::Booleanify(Function* f) {
-  Booleanifier b(f);
+absl::StatusOr<Function*> Booleanifier::Booleanify(
+    Function* f, absl::string_view boolean_function_name) {
+  Booleanifier b(f, boolean_function_name);
   return b.Run();
 }
 
-Booleanifier::Booleanifier(Function* f)
+Booleanifier::Booleanifier(Function* f, absl::string_view boolean_function_name)
     : input_fn_(f),
-      builder_(absl::StrCat(input_fn_->name(), "_boolean"),
+      builder_(boolean_function_name.empty()
+                   ? absl::StrCat(input_fn_->name(), "_boolean")
+                   : boolean_function_name,
                input_fn_->package()),
       evaluator_(std::make_unique<BitEvaluator>(&builder_)) {}
 

@@ -38,12 +38,14 @@ class Booleanifier {
   using Element = Node*;
   using Vector = std::vector<Node*>;
 
-  // The resulting function will be named "<f->name()>_boolean", and be placed
-  // in the same Package as f.
-  static absl::StatusOr<Function*> Booleanify(Function* f);
+  // Return a booleanified function equivalent to the given function. The
+  // function is placed in the same Package as f. boolean_function_name, if
+  // given, is the name of the generated boolean function.
+  static absl::StatusOr<Function*> Booleanify(
+      Function* f, absl::string_view boolean_function_name = "");
 
  private:
-  Booleanifier(Function* f);
+  Booleanifier(Function* f, absl::string_view boolean_function_name);
 
   // Driver for doing the actual conversion.
   absl::StatusOr<Function*> Run();
