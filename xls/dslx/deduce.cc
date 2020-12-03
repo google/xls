@@ -78,16 +78,23 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> Resolve(const ConcreteType& type,
   XLS_RET_CHECK(!ctx->fn_stack().empty());
   const FnStackEntry& entry = ctx->fn_stack().back();
   const SymbolicBindings& fn_symbolic_bindings = entry.symbolic_bindings;
+
   return type.MapSize([&fn_symbolic_bindings](ConcreteTypeDim dim)
                           -> absl::StatusOr<ConcreteTypeDim> {
+    // Helper that converts the symbolic bindings to a parametric expression
+    // environment (for parametric evaluation).
+    auto to_parametric_env = [](const SymbolicBindings& symbolic_bindings) {
+      ParametricExpression::Env env;
+      for (const SymbolicBinding& binding : symbolic_bindings.bindings()) {
+        env[binding.identifier] = binding.value;
+      }
+      return env;
+    };
     if (absl::holds_alternative<ConcreteTypeDim::OwnedParametric>(
             dim.value())) {
       const auto& parametric =
           absl::get<ConcreteTypeDim::OwnedParametric>(dim.value());
-      ParametricExpression::Env env;
-      for (const SymbolicBinding& binding : fn_symbolic_bindings.bindings()) {
-        env[binding.identifier] = binding.value;
-      }
+      ParametricExpression::Env env = to_parametric_env(fn_symbolic_bindings);
       return ConcreteTypeDim(parametric->Evaluate(env));
     }
     return dim;
@@ -500,6 +507,37 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(Array* node,
   }
 
   return inferred;
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAttr(Attr* node,
+                                                         DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> struct_type,
+                       ctx->Deduce(node->lhs()));
+  auto* tuple_type = dynamic_cast<TupleType*>(struct_type.get());
+  if (tuple_type == nullptr ||
+      // If the (concrete) tuple type is unnamed, then it's not a struct, it's a
+      // tuple.
+      !tuple_type->is_named()) {
+    return absl::InternalError(
+        absl::StrFormat("TypeInferenceError: %s <> Expected a struct for "
+                        "attribute access; got %s",
+                        node->span().ToString(), struct_type->ToString()));
+  }
+
+  const std::string& attr_name = node->attr()->identifier();
+  if (!tuple_type->HasNamedMember(attr_name)) {
+    return absl::InternalError(
+        absl::StrFormat("TypeInferenceError: %s <> Struct '%s' does not have a "
+                        "member with name "
+                        "'%s'",
+                        node->span().ToString(),
+                        tuple_type->nominal_type()->identifier(), attr_name));
+  }
+
+  absl::optional<const ConcreteType*> result =
+      tuple_type->GetMemberTypeByName(attr_name);
+  XLS_RET_CHECK(result.has_value());  // We checked above we had named member.
+  return result.value()->CloneToUnique();
 }
 
 }  // namespace xls::dslx

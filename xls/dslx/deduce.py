@@ -53,6 +53,7 @@ from xls.dslx.python.cpp_type_info import TypeMissingError
 # Dictionary used as registry for rule dispatch based on AST node class.
 RULES = {
     ast.Array: cpp_deduce.deduce_Array,
+    ast.Attr: cpp_deduce.deduce_Attr,
     ast.Binop: cpp_deduce.deduce_Binop,
     ast.Cast: cpp_deduce.deduce_Cast,
     ast.Constant: cpp_deduce.deduce_ConstantDef,
@@ -887,19 +888,6 @@ def _deduce_SplatStructInstance(
       struct_def.parametric_bindings)
 
   return resolved_struct_type
-
-
-@_rule(ast.Attr)
-def _deduce_Attr(self: ast.Attr, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  """Deduces the type of a struct attribute access expression."""
-  struct = deduce(self.lhs, ctx)
-  assert isinstance(struct, TupleType), struct
-  if not struct.has_named_member(self.attr.identifier):
-    raise TypeInferenceError(
-        self.span, None,
-        'Struct does not have a member with name {!r}.'.format(self.attr))
-
-  return struct.get_member_type_by_name(self.attr.identifier)
 
 
 def _deduce(n: ast.AstNode, ctx: DeduceCtx) -> ConcreteType:

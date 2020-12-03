@@ -1077,6 +1077,8 @@ class Match : public Expr {
 };
 
 // Represents an attribute access expression; e.g. `a.x`.
+//                                                   ^
+//                       (this dot makes an attr) ---+
 class Attr : public Expr {
  public:
   Attr(Module* owner, Span span, Expr* lhs, NameDef* attr)
@@ -1094,6 +1096,9 @@ class Attr : public Expr {
   }
 
   Expr* lhs() const { return lhs_; }
+
+  // TODO(leary): 2020-12-02 This probably can just be a string, because the
+  // attribute access is not really defining a name.
   NameDef* attr() const { return attr_; }
 
  private:

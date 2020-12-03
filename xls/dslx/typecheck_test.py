@@ -677,6 +677,12 @@ fn f() -> Foo {
     logging.info('typechecking: %s', program)
     self._typecheck(program, *args, **kwargs)
 
+  def test_access_missing_member(self):
+    self._typecheck_si(
+        'fn f(p: Point) -> () { p.z }',
+        error="Could not infer type: Struct 'Point' does not have a member with name 'z'",
+        error_type=TypeInferenceError)
+
   def test_struct_instance(self):
     # Wrong type.
     self._typecheck_si(
@@ -872,6 +878,30 @@ fn f() -> Foo {
     }
     """
     self._typecheck(program, error='must return a bool')
+
+  def test_bad_attribute_access_on_bits(self):
+    program = """
+    fn main() -> () {
+      let x = u32:42;
+      x.a
+    }
+    """
+    self._typecheck(
+        program,
+        error='Expected a struct for attribute access',
+        error_type=TypeInferenceError)
+
+  def test_bad_attribute_access_on_tuple(self):
+    program = """
+    fn main() -> () {
+      let x: (u32,) = (u32:42,);
+      x.a
+    }
+    """
+    self._typecheck(
+        program,
+        error='Expected a struct for attribute access',
+        error_type=TypeInferenceError)
 
   def test_bad_quickcheck_function_parametrics(self):
     program = """
