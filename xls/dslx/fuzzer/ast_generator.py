@@ -182,11 +182,13 @@ class AstGenerator(object):
     raise NotImplementedError(signed, width)
 
   def _get_type_bit_count(self, type_: ast.TypeAnnotation) -> int:
-    """Returns the bit count of the given type."""
+    """Returns the (flattened) bit count of the given type."""
     if isinstance(type_, ast.BuiltinTypeAnnotation):
       return type_.bits
     if isinstance(type_, ast.ArrayTypeAnnotation):
-      return self._get_type_bit_count(type_.element_type)
+      assert isinstance(type_.dim, ast.Number), type_.dim
+      array_size = ast_helpers.get_value_as_int(type_.dim)
+      return array_size * self._get_type_bit_count(type_.element_type)
     assert str(type_) in self._type_bit_counts, (str(type_),
                                                  self._type_bit_counts)
     return self._type_bit_counts[str(type_)]
@@ -597,11 +599,17 @@ class AstGenerator(object):
         env, lambda t: isinstance(t, ast.ArrayTypeAnnotation))
     assert isinstance(lhs_type, ast.ArrayTypeAnnotation), lhs_type
 
-    def array_same_elem_type(t: ast.TypeAnnotation) -> bool:
+    # Returns true if the type 't' is an array with the same element type as the
+    # lhs and when concatentated, the type does not exceed bit count limits.
+    def array_compatible(t: ast.TypeAnnotation) -> bool:
       return (isinstance(t, ast.ArrayTypeAnnotation) and
-              t.element_type == lhs_type.element_type)
+              t.element_type == lhs_type.element_type and
+              (self._get_type_bit_count(lhs_type) +
+               self._get_type_bit_count(t) <
+               self.options.max_width_aggregate_types))
 
-    make_rhs, rhs_type = self._choose_env_value(env, array_same_elem_type)
+    make_rhs, rhs_type = self._choose_env_value(env, array_compatible)
+
     result = ast.Binop(self.m, self.fake_span, ast.BinopKind.CONCAT, make_lhs(),
                        make_rhs())
     lhs_size = self._get_array_size(lhs_type)
