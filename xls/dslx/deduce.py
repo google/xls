@@ -52,6 +52,7 @@ from xls.dslx.python.cpp_type_info import TypeMissingError
 
 # Dictionary used as registry for rule dispatch based on AST node class.
 RULES = {
+    ast.Array: cpp_deduce.deduce_Array,
     ast.Binop: cpp_deduce.deduce_Binop,
     ast.Cast: cpp_deduce.deduce_Cast,
     ast.Constant: cpp_deduce.deduce_ConstantDef,
@@ -102,7 +103,7 @@ def _deduce_ConstantArray(
   # just fall back to normal array type inference, if we encounter a number
   # without a type annotation we'll flag an error per usual.
   if self.type_ is None:
-    return _deduce_Array(self, ctx)
+    return cpp_deduce.deduce_Array(self, ctx)
 
   # Determine the element type that corresponds to the annotation and go mark
   # any un-typed numbers in the constant array as having that type.
@@ -119,7 +120,7 @@ def _deduce_ConstantArray(
       ctx.type_info[member] = element_type
       cpp_deduce.check_bitwidth(member, element_type)
   # Use the base class to check all members are compatible.
-  _deduce_Array(self, ctx)
+  cpp_deduce.deduce_Array(self, ctx)
   return concrete_type
 
 
@@ -542,47 +543,6 @@ def _deduce_While(self: ast.While, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
 @_rule(ast.Carry)
 def _deduce_Carry(self: ast.Carry, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   return deduce(self.loop.init, ctx)
-
-
-@_rule(ast.Array)
-def _deduce_Array(self: ast.Array, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  """Deduces the concrete type of an Array AST node."""
-  member_types = [deduce(m, ctx) for m in self.members]
-  resolved_type0 = cpp_deduce.resolve(member_types[0], ctx)
-  for i, x in enumerate(member_types[1:], 1):
-    resolved_x = cpp_deduce.resolve(x, ctx)
-    logging.vlog(5, 'array member type %d: %s', i, resolved_x)
-    if resolved_x != resolved_type0:
-      raise XlsTypeError(
-          self.members[i].span, resolved_type0, resolved_x,
-          'Array member did not have same type as other members.')
-
-  inferred = ArrayType(resolved_type0, len(member_types))
-
-  if not self.type_:
-    return inferred
-
-  annotated = deduce(self.type_, ctx)
-  if not isinstance(annotated, ArrayType):
-    raise XlsTypeError(self.span, annotated, None,
-                       'Array was not annotated with an array type.')
-  resolved_element_type = cpp_deduce.resolve(annotated.get_element_type(), ctx)
-  if resolved_element_type != resolved_type0:
-    raise XlsTypeError(
-        self.span, resolved_element_type, resolved_type0,
-        'Annotated element type did not match inferred element type.')
-
-  if self.has_ellipsis:
-    # Since there are ellipsis, we determine the size from the annotated type.
-    # We've already checked the element types lined up.
-    return annotated
-  else:
-    if annotated.size != len(member_types):
-      raise XlsTypeError(
-          self.span, annotated, inferred,
-          'Annotated array size {!r} does not match inferred array size {!r}.'
-          .format(annotated.size, len(member_types)))
-    return inferred
 
 
 @_rule(ast.ConstRef)

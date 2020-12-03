@@ -50,6 +50,16 @@ std::string ConcreteTypeDim::ToString() const {
   return absl::StrCat(absl::get<int64>(value_));
 }
 
+std::string ConcreteTypeDim::ToRepr() const {
+  std::string guts;
+  if (absl::holds_alternative<int64>(value_)) {
+    guts = absl::StrCat(absl::get<int64>(value_));
+  } else {
+    guts = absl::get<OwnedParametric>(value_)->ToRepr();
+  }
+  return absl::StrFormat("ConcreteTypeDim(%s)", guts);
+}
+
 bool ConcreteTypeDim::operator==(
     const absl::variant<int64, const ParametricExpression*>& other) const {
   if (absl::holds_alternative<int64>(other)) {

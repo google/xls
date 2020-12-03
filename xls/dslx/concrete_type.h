@@ -57,19 +57,20 @@ class ConcreteTypeDim {
   absl::StatusOr<ConcreteTypeDim> Mul(const ConcreteTypeDim& rhs) const;
   absl::StatusOr<ConcreteTypeDim> Add(const ConcreteTypeDim& rhs) const;
 
+  // Returns a string representation of this dimension, which is either the
+  // integral string or the parametric expression string conversion.
   std::string ToString() const;
-  std::string ToRepr() const {
-    std::string guts;
-    if (absl::holds_alternative<int64>(value_)) {
-      guts = absl::StrCat(absl::get<int64>(value_));
-    } else {
-      guts = absl::get<OwnedParametric>(value_)->ToRepr();
-    }
-    return absl::StrFormat("ConcreteTypeDim(%s)", guts);
-  }
+
+  // Returns a Python-style "representation" string that shows the construction
+  // of this value; e.g. "ConcreteTypeDim(42)".
+  std::string ToRepr() const;
+
   bool operator==(const ConcreteTypeDim& other) const;
   bool operator==(
       const absl::variant<int64, const ParametricExpression*>& other) const;
+  bool operator!=(const ConcreteTypeDim& other) const {
+    return !(*this == other);
+  }
 
   const Variant& value() const { return value_; }
 

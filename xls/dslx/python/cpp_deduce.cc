@@ -292,6 +292,7 @@ PYBIND11_MODULE(cpp_deduce, m) {
     return statusor;                                                 \
   })
 
+  DELEGATE_DEDUCE(Array);
   DELEGATE_DEDUCE(Binop);
   DELEGATE_DEDUCE(Cast);
   DELEGATE_DEDUCE(ConstantDef);

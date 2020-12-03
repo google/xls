@@ -440,4 +440,66 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructDef(StructDef* node,
   return result;
 }
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(Array* node,
+                                                          DeduceCtx* ctx) {
+  std::vector<std::unique_ptr<ConcreteType>> member_types;
+  for (Expr* member : node->members()) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> member_type,
+                         DeduceAndResolve(member, ctx));
+    member_types.push_back(std::move(member_type));
+  }
+
+  for (int64 i = 1; i < member_types.size(); ++i) {
+    if (*member_types[0] != *member_types[i]) {
+      return absl::InternalError(
+          absl::StrFormat("XlsTypeError: %s %s %s Array member did not have "
+                          "same type as other members.",
+                          node->span().ToString(), member_types[0]->ToString(),
+                          member_types[i]->ToString()));
+    }
+  }
+
+  auto inferred = absl::make_unique<ArrayType>(
+      member_types[0]->CloneToUnique(),
+      ConcreteTypeDim(static_cast<int64>(member_types.size())));
+
+  if (node->type() == nullptr) {
+    return inferred;
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> annotated,
+                       ctx->Deduce(node->type()));
+  auto* array_type = dynamic_cast<ArrayType*>(annotated.get());
+  if (array_type == nullptr) {
+    return absl::InternalError(absl::StrFormat(
+        "TypeInferenceError: %s %s Array was not annotated with an array type.",
+        node->span().ToString(), annotated->ToString()));
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved_element_type,
+                       Resolve(array_type->element_type(), ctx));
+  if (*resolved_element_type != *member_types[0]) {
+    return absl::InternalError(absl::StrFormat(
+        "XlsTypeError: %s %s %s Annotated element type did not match inferred "
+        "element type.",
+        node->span().ToString(), resolved_element_type->ToString(),
+        member_types[0]->ToString()));
+  }
+
+  if (node->has_ellipsis()) {
+    return annotated;
+  }
+
+  if (array_type->size() !=
+      ConcreteTypeDim(static_cast<int64>(member_types.size()))) {
+    return absl::InternalError(absl::StrFormat(
+        "XlsTypeError: %s %s %s Annotated array size %s does not match "
+        "inferred array size %d.",
+        node->span().ToString(), array_type->ToString(), inferred->ToString(),
+        array_type->size().ToString(), member_types.size()));
+  }
+
+  return inferred;
+}
+
 }  // namespace xls::dslx
