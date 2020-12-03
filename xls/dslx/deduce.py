@@ -53,6 +53,7 @@ from xls.dslx.python.cpp_type_info import TypeMissingError
 # Dictionary used as registry for rule dispatch based on AST node class.
 RULES = {
     ast.Binop: cpp_deduce.deduce_Binop,
+    ast.Cast: cpp_deduce.deduce_Cast,
     ast.Constant: cpp_deduce.deduce_ConstantDef,
     ast.EnumDef: cpp_deduce.deduce_EnumDef,
     ast.For: cpp_deduce.deduce_For,
@@ -540,29 +541,6 @@ def _deduce_While(self: ast.While, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
 @_rule(ast.Carry)
 def _deduce_Carry(self: ast.Carry, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   return deduce(self.loop.init, ctx)
-
-
-def _is_acceptable_cast(from_: ConcreteType, to: ConcreteType) -> bool:
-  if {type(from_), type(to)} == {ArrayType, BitsType}:
-    return from_.get_total_bit_count() == to.get_total_bit_count()
-  return True
-
-
-@_rule(ast.Cast)
-def _deduce_Cast(self: ast.Cast, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  """Deduces the concrete type of a Cast AST node."""
-  type_result = deduce(self.type_, ctx)
-  expr_type = deduce(self.expr, ctx)
-
-  resolved_type_result = cpp_deduce.resolve(type_result, ctx)
-  resolved_expr_type = cpp_deduce.resolve(expr_type, ctx)
-
-  if not _is_acceptable_cast(from_=resolved_type_result, to=resolved_expr_type):
-    raise XlsTypeError(
-        self.span, expr_type, type_result,
-        'Cannot cast from expression type {} to {}.'.format(
-            resolved_expr_type, resolved_type_result))
-  return resolved_type_result
 
 
 @_rule(ast.Array)

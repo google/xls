@@ -377,4 +377,35 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFor(For* node,
   return init_type;
 }
 
+// TODO(leary): 2020-12-02 Seems like acceptable casts should be much more
+// restrictive than this...
+static bool IsAcceptableCast(const ConcreteType& from, const ConcreteType& to) {
+  auto is_array = [](const ConcreteType& ct) -> bool {
+    return dynamic_cast<const ArrayType*>(&ct) != nullptr;
+  };
+  auto is_bits = [](const ConcreteType& ct) -> bool {
+    return dynamic_cast<const BitsType*>(&ct) != nullptr;
+  };
+  if ((is_array(from) && is_bits(to)) || (is_bits(from) && is_array(to))) {
+    return from.GetTotalBitCount() == to.GetTotalBitCount();
+  }
+  return true;
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCast(Cast* node,
+                                                         DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
+                       DeduceAndResolve(node->type(), ctx));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> expr,
+                       DeduceAndResolve(node->expr(), ctx));
+
+  if (!IsAcceptableCast(/*from=*/*expr, /*to=*/*type)) {
+    return absl::InternalError(absl::StrFormat(
+        "XlsTypeError: %s %s %s Cannot cast from expression type %s to %s.",
+        node->span().ToString(), expr->ToString(), type->ToString(),
+        expr->ToString(), type->ToString()));
+  }
+  return type;
+}
+
 }  // namespace xls::dslx
