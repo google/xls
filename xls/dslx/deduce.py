@@ -55,6 +55,7 @@ RULES = {
     ast.Binop: cpp_deduce.deduce_Binop,
     ast.Constant: cpp_deduce.deduce_ConstantDef,
     ast.EnumDef: cpp_deduce.deduce_EnumDef,
+    ast.Let: cpp_deduce.deduce_Let,
     ast.Number: cpp_deduce.deduce_Number,
     ast.Param: cpp_deduce.deduce_Param,
     ast.Ternary: cpp_deduce.deduce_Ternary,
@@ -440,58 +441,6 @@ def _deduce_Index(self: ast.Index, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
   return lhs_type.get_element_type()
 
 
-def _bind_names(name_def_tree: ast.NameDefTree, type_: ConcreteType,
-                ctx: DeduceCtx) -> None:
-  """Binds names in name_def_tree to corresponding type given in type_."""
-  if name_def_tree.is_leaf():
-    name_def = name_def_tree.get_leaf()
-    ctx.type_info[name_def] = type_
-    return
-
-  if not isinstance(type_, TupleType):
-    raise XlsTypeError(
-        name_def_tree.span,
-        type_,
-        rhs_type=None,
-        suffix='Expected a tuple type for these names, but got {}.'.format(
-            type_))
-
-  if len(name_def_tree.tree) != type_.get_tuple_length():
-    raise TypeInferenceError(
-        name_def_tree.span, type_,
-        'Could not bind names, names are mismatched in number vs type; at '
-        'this level of the tuple: {} names, {} types.'.format(
-            len(name_def_tree.tree), type_.get_tuple_length()))
-
-  for subtree, subtype in zip(name_def_tree.tree, type_.get_unnamed_members()):
-    ctx.type_info[subtree] = subtype
-    _bind_names(subtree, subtype, ctx)
-
-
-@_rule(ast.Let)
-def _deduce_Let(self: ast.Let, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  """Deduces the concrete type of a Let AST node."""
-
-  rhs_type = deduce(self.rhs, ctx)
-  resolved_rhs_type = cpp_deduce.resolve(rhs_type, ctx)
-
-  if self.type_ is not None:
-    concrete_type = deduce(self.type_, ctx)
-    resolved_concrete_type = cpp_deduce.resolve(concrete_type, ctx)
-
-    if resolved_rhs_type != resolved_concrete_type:
-      raise XlsTypeError(
-          self.rhs.span, resolved_concrete_type, resolved_rhs_type,
-          'Annotated type did not match inferred type of right hand side.')
-
-  _bind_names(self.name_def_tree, resolved_rhs_type, ctx)
-
-  if self.const:
-    deduce(self.const, ctx)
-
-  return deduce(self.body, ctx)
-
-
 def _unify_WildcardPattern(_self: ast.WildcardPattern, _type: ConcreteType,
                            _ctx: DeduceCtx) -> None:
   pass  # Wildcard matches any type.
@@ -568,7 +517,7 @@ def _deduce_For(self: ast.For, ctx: DeduceCtx) -> ConcreteType:  # pytype: disab
   """Deduces the concrete type of a For AST node."""
   init_type = deduce(self.init, ctx)
   annotated_type = deduce(self.type_, ctx)
-  _bind_names(self.names, annotated_type, ctx)
+  cpp_deduce.bind_names(self.names, annotated_type, ctx)
   body_type = deduce(self.body, ctx)
   deduce(self.iterable, ctx)
 

@@ -263,7 +263,8 @@ fn f(x: u32) -> (u32, u8) {
   }((x, u8:42))
 }
 """,
-        error='Expected a tuple type for these names, but got uN[8].')
+        error='Expected a tuple type for these names, but got uN[8].',
+        error_type=TypeInferenceError)
 
   def test_parametric_derived_expr_type_mismatch(self):
     self._typecheck(

@@ -14,6 +14,7 @@
 
 #include "absl/base/casts.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
 #include "pybind11/functional.h"
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
@@ -44,7 +45,7 @@ class TypeInferenceError : public std::exception {
   // Args:
   //  suffix: Message suffix to use when displaying the error.
   TypeInferenceError(Span span, std::unique_ptr<ConcreteType> type,
-                     std::string suffix)
+                     absl::string_view suffix)
       : span_(std::move(span)), type_(std::move(type)) {
     std::string type_str = kNoTypeIndicator;
     if (type != nullptr) {
@@ -53,7 +54,7 @@ class TypeInferenceError : public std::exception {
     message_ = absl::StrFormat("%s %s Could not infer type", span_.ToString(),
                                type_str);
     if (!suffix.empty()) {
-      message_ += ": " + suffix;
+      message_ += absl::StrCat(": ", suffix);
     }
   }
 
@@ -73,22 +74,23 @@ void TryThrowTypeInferenceError(const absl::Status& status) {
   absl::string_view s = status.message();
   if (absl::ConsumePrefix(&s, "TypeInferenceError: ")) {
     std::vector<absl::string_view> pieces =
-        absl::StrSplit(s, absl::MaxSplits(" ", 2));
-    if (pieces.size() < 3) {
-      return;
-    }
+        absl::StrSplit(s, absl::MaxSplits(" ", 1));
+    XLS_CHECK_EQ(pieces.size(), 2);
     absl::StatusOr<Span> span = Span::FromString(pieces[0]);
+    absl::string_view rest = pieces[1];
+
     absl::StatusOr<std::unique_ptr<ConcreteType>> type;
-    if (pieces[1] == kNoTypeIndicator) {
+    if (absl::ConsumePrefix(&rest, kNoTypeIndicator)) {
       type = nullptr;
     } else {
-      type = ConcreteTypeFromString(pieces[1]);
+      type = ConcreteTypeFromString(&rest);
     }
+    rest = absl::StripAsciiWhitespace(rest);
     XLS_CHECK(span.ok() && type.ok())
         << "Could not parse type inference error string: \"" << status.message()
         << "\" span: " << span.status() << " type: " << type.status();
     throw TypeInferenceError(std::move(span.value()), std::move(type).value(),
-                             std::string(pieces[2]));
+                             rest);
   }
 }
 
@@ -96,29 +98,36 @@ void TryThrowXlsTypeError(const absl::Status& status) {
   absl::string_view s = status.message();
   if (absl::ConsumePrefix(&s, "XlsTypeError: ")) {
     std::vector<absl::string_view> pieces =
-        absl::StrSplit(s, absl::MaxSplits(" ", 3));
-    if (pieces.size() < 4) {
-      return;
-    }
+        absl::StrSplit(s, absl::MaxSplits(" ", 1));
+    XLS_CHECK_EQ(pieces.size(), 2);
     absl::StatusOr<Span> span = Span::FromString(pieces[0]);
+    absl::string_view rest = pieces[1];
+    rest = absl::StripAsciiWhitespace(rest);
+
     absl::StatusOr<std::unique_ptr<ConcreteType>> lhs;
-    if (pieces[1] == "<none>") {
+    if (absl::ConsumePrefix(&rest, "<none>")) {
       lhs = nullptr;
     } else {
-      lhs = ConcreteTypeFromString(pieces[1]);
+      lhs = ConcreteTypeFromString(&rest);
     }
+
+    rest = absl::StripAsciiWhitespace(rest);
+
     absl::StatusOr<std::unique_ptr<ConcreteType>> rhs;
-    if (pieces[2] == "<none>") {
+    if (absl::ConsumePrefix(&rest, "<none>")) {
       rhs = nullptr;
     } else {
-      rhs = ConcreteTypeFromString(pieces[2]);
+      rhs = ConcreteTypeFromString(&rest);
     }
+
+    rest = absl::StripAsciiWhitespace(rest);
+
     XLS_CHECK(span.ok() && lhs.ok() && rhs.ok())
         << "Could not parse type inference error string: \"" << status.message()
         << "\" span: " << span.status() << " lhs: " << lhs.status()
         << " rhs: " << rhs.status();
     throw XlsTypeError(std::move(span.value()), std::move(lhs).value(),
-                       std::move(rhs).value(), std::string(pieces[3]));
+                       std::move(rhs).value(), rest);
   }
 }
 
@@ -274,6 +283,13 @@ PYBIND11_MODULE(cpp_deduce, m) {
     return status;
   });
   m.def("resolve", &Resolve);
+  m.def("bind_names", [](NameDefTreeHolder name_def_tree,
+                         const ConcreteType& type, DeduceCtx* ctx) {
+    absl::Status status = BindNames(&name_def_tree.deref(), type, ctx);
+    TryThrowTypeInferenceError(status);
+    TryThrowXlsTypeError(status);
+    return status;
+  });
 
 #define DELEGATE_DEDUCE(__type)                                      \
   m.def("deduce_" #__type, [](__type##Holder node, DeduceCtx* ctx) { \
@@ -284,8 +300,9 @@ PYBIND11_MODULE(cpp_deduce, m) {
   })
 
   DELEGATE_DEDUCE(Binop);
-  DELEGATE_DEDUCE(EnumDef);
   DELEGATE_DEDUCE(ConstantDef);
+  DELEGATE_DEDUCE(EnumDef);
+  DELEGATE_DEDUCE(Let);
   DELEGATE_DEDUCE(Number);
   DELEGATE_DEDUCE(Param);
   DELEGATE_DEDUCE(Ternary);

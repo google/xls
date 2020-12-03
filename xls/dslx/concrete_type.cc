@@ -157,6 +157,55 @@ std::unique_ptr<BitsType> BitsType::ToUBits() const {
 
 // -- TupleType
 
+TupleType::TupleType(Members members, StructDef* struct_def)
+    : members_(std::move(members)), struct_def_(struct_def) {
+  XLS_CHECK_EQ(struct_def_ == nullptr, !is_named());
+}
+
+bool TupleType::operator==(const ConcreteType& other) const {
+  if (auto* t = dynamic_cast<const TupleType*>(&other)) {
+    return MembersEqual(members_, t->members_);
+  }
+  return false;
+}
+
+bool TupleType::HasEnum() const {
+  for (const ConcreteType* t : GetUnnamedMembers()) {
+    if (t->HasEnum()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool TupleType::empty() const {
+  if (absl::holds_alternative<NamedMembers>(members_)) {
+    return absl::get<NamedMembers>(members_).empty();
+  }
+  return absl::get<UnnamedMembers>(members_).empty();
+}
+int64_t TupleType::size() const {
+  if (absl::holds_alternative<NamedMembers>(members_)) {
+    return absl::get<NamedMembers>(members_).size();
+  }
+  return absl::get<UnnamedMembers>(members_).size();
+}
+
+bool TupleType::CompatibleWith(const TupleType& other) const {
+  std::vector<const ConcreteType*> self_members = GetUnnamedMembers();
+  std::vector<const ConcreteType*> other_members = GetUnnamedMembers();
+  if (self_members.size() != other_members.size()) {
+    return false;
+  }
+  for (int64 i = 0; i < self_members.size(); ++i) {
+    if (!self_members[i]->CompatibleWith(*other_members[i])) {
+      return false;
+    }
+  }
+  // Same member count and all compatible members.
+  return true;
+}
+
 absl::optional<const ConcreteType*> TupleType::GetMemberTypeByName(
     absl::string_view target) const {
   if (!is_named()) {
@@ -449,6 +498,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConsumeArraySuffix(
 
 static absl::StatusOr<std::unique_ptr<ConcreteType>> ConsumeConcreteType(
     absl::string_view* s) {
+  absl::string_view orig = *s;
   char signedness;
   int64 size;
   if (RE2::Consume(s, R"(([us])N\[(\d+)\])", &signedness, &size)) {
@@ -466,8 +516,10 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConsumeConcreteType(
       }
       if (!members.empty()) {
         if (!absl::ConsumePrefix(s, ", ")) {
-          return absl::InvalidArgumentError(absl::StrFormat(
-              "Expected ',' between tuple members; saw: \"...%s\"", *s));
+          return absl::InvalidArgumentError(
+              absl::StrFormat("Expected ',' between tuple members; saw: '%s' "
+                              "after %d members in original \"%s\"",
+                              *s, members.size(), orig));
         }
       }
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> t,
@@ -480,14 +532,8 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConsumeConcreteType(
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteTypeFromString(
-    absl::string_view s) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> t,
-                       ConsumeConcreteType(&s));
-  if (!s.empty()) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Unrecognized trailing text in concrete type: \"%s\"", s));
-  }
-  return t;
+    absl::string_view* s) {
+  return ConsumeConcreteType(s);
 }
 
 }  // namespace xls::dslx

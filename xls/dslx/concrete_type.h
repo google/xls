@@ -158,66 +158,28 @@ class TupleType : public ConcreteType {
   using NamedMembers = std::vector<NamedMember>;
   using Members = std::variant<UnnamedMembers, NamedMembers>;
 
-  TupleType(Members members, StructDef* struct_def = nullptr)
-      : members_(std::move(members)), struct_def_(struct_def) {
-    XLS_CHECK_EQ(struct_def_ == nullptr, !is_named());
-  }
+  TupleType(Members members, StructDef* struct_def = nullptr);
 
   absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
       const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
       const override;
 
-  bool operator==(const ConcreteType& other) const override {
-    if (auto* t = dynamic_cast<const TupleType*>(&other)) {
-      return MembersEqual(members_, t->members_);
-    }
-    return false;
-  }
+  bool operator==(const ConcreteType& other) const override;
   std::string ToString() const override;
   std::vector<ConcreteTypeDim> GetAllDims() const override;
   absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const override;
   std::string GetDebugTypeName() const override { return "tuple"; }
 
-  bool HasEnum() const override {
-    for (const ConcreteType* t : GetUnnamedMembers()) {
-      if (t->HasEnum()) {
-        return true;
-      }
-    }
-    return false;
-  }
+  bool HasEnum() const override;
 
   std::unique_ptr<ConcreteType> CloneToUnique() const override {
     return absl::make_unique<TupleType>(CloneMembers(), struct_def_);
   }
 
-  bool empty() const {
-    if (absl::holds_alternative<NamedMembers>(members_)) {
-      return absl::get<NamedMembers>(members_).empty();
-    }
-    return absl::get<UnnamedMembers>(members_).empty();
-  }
-  int64_t size() const {
-    if (absl::holds_alternative<NamedMembers>(members_)) {
-      return absl::get<NamedMembers>(members_).size();
-    }
-    return absl::get<UnnamedMembers>(members_).size();
-  }
+  bool empty() const;
+  int64_t size() const;
 
-  bool CompatibleWith(const TupleType& other) const {
-    std::vector<const ConcreteType*> self_members = GetUnnamedMembers();
-    std::vector<const ConcreteType*> other_members = GetUnnamedMembers();
-    if (self_members.size() != other_members.size()) {
-      return false;
-    }
-    for (int64 i = 0; i < self_members.size(); ++i) {
-      if (!self_members[i]->CompatibleWith(*other_members[i])) {
-        return false;
-      }
-    }
-    // Same member count and all compatible members.
-    return true;
-  }
+  bool CompatibleWith(const TupleType& other) const;
 
   bool is_named() const {
     return absl::holds_alternative<NamedMembers>(members_);
@@ -472,10 +434,12 @@ inline bool IsSBits(const ConcreteType& c) {
 
 // Parses the given string (that is expected to come from a
 // ConcreteType::ToString() invocation) back into a ConcreteType object.
+// Trailing text that is not part of the resulting parsed type is left in "s".
 //
-// Returns an error if the string cannot be parsed.
+// Returns an error if the string cannot be parsed, and the state of s is not
+// defined (make a defensive copy if s will be used in the case of error).
 absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteTypeFromString(
-    absl::string_view);
+    absl::string_view* s);
 
 }  // namespace xls::dslx
 

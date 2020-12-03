@@ -283,4 +283,63 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(EnumDef* node,
   return result;
 }
 
+absl::Status BindNames(NameDefTree* name_def_tree, const ConcreteType& type,
+                       DeduceCtx* ctx) {
+  if (name_def_tree->is_leaf()) {
+    AstNode* name_def = ToAstNode(name_def_tree->leaf());
+    ctx->type_info()->SetItem(name_def, type);
+    return absl::OkStatus();
+  }
+
+  auto* tuple_type = dynamic_cast<const TupleType*>(&type);
+  if (tuple_type == nullptr) {
+    return absl::InternalError(absl::StrFormat(
+        "TypeInferenceError: %s %s Expected a tuple type for these names, but "
+        "got %s.",
+        name_def_tree->span().ToString(), type.ToString(), type.ToString()));
+  }
+
+  if (name_def_tree->nodes().size() != tuple_type->size()) {
+    return absl::InternalError(absl::StrFormat(
+        "TypeInferenceError: %s %s Could not bind names, names are mismatched "
+        "in number vs type; at this level of the tuple: %d names, %d types.",
+        name_def_tree->span().ToString(), type.ToString(),
+        name_def_tree->nodes().size(), tuple_type->size()));
+  }
+
+  for (int64 i = 0; i < name_def_tree->nodes().size(); ++i) {
+    NameDefTree* subtree = name_def_tree->nodes()[i];
+    const ConcreteType& subtype = tuple_type->GetMemberType(i);
+    ctx->type_info()->SetItem(subtree, subtype);
+    XLS_RETURN_IF_ERROR(BindNames(subtree, subtype, ctx));
+  }
+
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceLet(Let* node,
+                                                        DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> rhs,
+                       DeduceAndResolve(node->rhs(), ctx));
+
+  if (node->type() != nullptr) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> annotated,
+                         DeduceAndResolve(node->type(), ctx));
+    if (*rhs != *annotated) {
+      return absl::InternalError(absl::StrFormat(
+          "XlsTypeError: %s %s %s Annotated type did not match inferred type "
+          "of right hand side expression.",
+          node->span().ToString(), annotated->ToString(), rhs->ToString()));
+    }
+  }
+
+  XLS_RETURN_IF_ERROR(BindNames(node->name_def_tree(), *rhs, ctx));
+
+  if (node->constant_def() != nullptr) {
+    XLS_RETURN_IF_ERROR(ctx->Deduce(node->constant_def()).status());
+  }
+
+  return ctx->Deduce(node->body());
+}
+
 }  // namespace xls::dslx

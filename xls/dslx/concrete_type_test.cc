@@ -21,6 +21,7 @@
 namespace xls::dslx {
 namespace {
 
+// Vector of various types to use in table-based tests.
 std::vector<std::unique_ptr<ConcreteType>> GetConcreteTypesForTesting() {
   std::vector<std::unique_ptr<ConcreteType>> results;
   results.push_back(BitsType::MakeU1());
@@ -60,10 +61,20 @@ std::vector<std::unique_ptr<ConcreteType>> GetConcreteTypesForTesting() {
 TEST(ConcreteTypeTest, RoundTripToString) {
   for (auto& ct : GetConcreteTypesForTesting()) {
     std::string s = ct->ToString();
+    absl::string_view sv = s;
     XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ConcreteType> parsed,
-                             ConcreteTypeFromString(s));
+                             ConcreteTypeFromString(&sv));
     EXPECT_EQ(*parsed, *ct);
+    EXPECT_EQ(sv, "");
   }
+}
+
+TEST(ConcreteTypeTest, ConcreteTypeFromString) {
+  absl::string_view s = "(uN[32], uN[8]) trailing";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ConcreteType> ct,
+                           ConcreteTypeFromString(&s));
+  EXPECT_EQ(ct->ToString(), "(uN[32], uN[8])");
+  EXPECT_EQ(s, " trailing");
 }
 
 TEST(ConcreteTypeTest, TestU32) {
