@@ -60,6 +60,7 @@ RULES = {
     ast.Let: cpp_deduce.deduce_Let,
     ast.Number: cpp_deduce.deduce_Number,
     ast.Param: cpp_deduce.deduce_Param,
+    ast.StructDef: cpp_deduce.deduce_StructDef,
     ast.Ternary: cpp_deduce.deduce_Ternary,
     ast.TypeDef: cpp_deduce.deduce_TypeDef,
     ast.TypeRef: cpp_deduce.deduce_TypeRef,
@@ -747,31 +748,6 @@ def _deduce_ArrayTypeAnnotation(self: ast.ArrayTypeAnnotation,
   element_type = deduce(self.element_type, ctx)
   result = ArrayType(element_type, dim)
   logging.vlog(4, 'array type annotation: %s => %s', self, result)
-  return result
-
-
-@_rule(ast.StructDef)
-def _deduce_Struct(self: ast.StructDef, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  """Returns the concrete type for a (potentially parametric) struct."""
-  for parametric in self.parametric_bindings:
-    parametric_binding_type = deduce(parametric.type_, ctx)
-    assert isinstance(parametric_binding_type, ConcreteType)
-    if parametric.expr:
-      expr_type = deduce(parametric.expr, ctx)
-      if expr_type != parametric_binding_type:
-        raise XlsTypeError(
-            parametric.span,
-            parametric_binding_type,
-            expr_type,
-            suffix='Annotated type of derived parametric '
-            'value did not match inferred type.')
-    ctx.type_info[parametric.name] = parametric_binding_type
-
-  members = tuple((k.identifier, cpp_deduce.resolve(deduce(m, ctx), ctx))
-                  for k, m in self.members)
-  result = ctx.type_info[self.name] = TupleType(members, self)
-  logging.vlog(5, 'Deduced type for struct %s => %s; type_info: %r', self,
-               result, ctx.type_info)
   return result
 
 

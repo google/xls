@@ -408,4 +408,36 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCast(Cast* node,
   return type;
 }
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructDef(StructDef* node,
+                                                              DeduceCtx* ctx) {
+  for (const ParametricBinding* parametric : node->parametric_bindings()) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_binding_type,
+                         ctx->Deduce(parametric->type()));
+    if (parametric->expr() != nullptr) {
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> expr_type,
+                           ctx->Deduce(parametric->expr()));
+      if (*expr_type != *parametric_binding_type) {
+        return absl::InternalError(
+            absl::StrFormat("XlsTypeError: %s %s %s Annotated type of "
+                            "parametric value did not match inferred type.",
+                            node->span().ToString(), expr_type->ToString(),
+                            parametric_binding_type->ToString()));
+      }
+    }
+    ctx->type_info()->SetItem(parametric->name_def(), *parametric_binding_type);
+  }
+
+  TupleType::NamedMembers members;
+  for (auto [name_def, type] : node->members()) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> concrete,
+                         DeduceAndResolve(type, ctx));
+    members.push_back({name_def->identifier(), std::move(concrete)});
+  }
+  auto result = absl::make_unique<TupleType>(std::move(members), node);
+  ctx->type_info()->SetItem(node->name_def(), *result);
+  XLS_VLOG(5) << absl::StreamFormat("Deduced type for struct %s => %s",
+                                    node->ToString(), result->ToString());
+  return result;
+}
+
 }  // namespace xls::dslx

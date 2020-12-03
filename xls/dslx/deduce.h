@@ -187,6 +187,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFor(For* node,
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCast(Cast* node,
                                                          DeduceCtx* ctx);
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructDef(StructDef* node,
+                                                              DeduceCtx* ctx);
+
 // Resolves "type_" via provided symbolic bindings.
 //
 // Uses the symbolic bindings of the function we're currently inside of to
