@@ -181,6 +181,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(EnumDef* node,
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceLet(Let* node,
                                                         DeduceCtx* ctx);
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFor(For* node,
+                                                        DeduceCtx* ctx);
+
 // Resolves "type_" via provided symbolic bindings.
 //
 // Uses the symbolic bindings of the function we're currently inside of to
@@ -194,18 +197,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceLet(Let* node,
 //  "type" with dimensions resolved according to bindings in "ctx".
 absl::StatusOr<std::unique_ptr<ConcreteType>> Resolve(const ConcreteType& type,
                                                       DeduceCtx* ctx);
-
-// Typechecks the name def tree items against type, putting the corresponding
-// type information for the AST nodes within the name_def_tree as corresponding
-// to the types within "type" (recursively).
-//
-// For example:
-//
-//    (a, (b, c))  vs (u8, (u4, u2))
-//
-// Will put a correspondence of {a: u8, b: u4, c: u2} into the mapping in ctx.
-absl::Status BindNames(NameDefTree* name_def_tree, const ConcreteType& type,
-                       DeduceCtx* ctx);
 
 }  // namespace xls::dslx
 

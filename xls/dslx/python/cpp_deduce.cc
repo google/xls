@@ -283,13 +283,6 @@ PYBIND11_MODULE(cpp_deduce, m) {
     return status;
   });
   m.def("resolve", &Resolve);
-  m.def("bind_names", [](NameDefTreeHolder name_def_tree,
-                         const ConcreteType& type, DeduceCtx* ctx) {
-    absl::Status status = BindNames(&name_def_tree.deref(), type, ctx);
-    TryThrowTypeInferenceError(status);
-    TryThrowXlsTypeError(status);
-    return status;
-  });
 
 #define DELEGATE_DEDUCE(__type)                                      \
   m.def("deduce_" #__type, [](__type##Holder node, DeduceCtx* ctx) { \
@@ -302,6 +295,7 @@ PYBIND11_MODULE(cpp_deduce, m) {
   DELEGATE_DEDUCE(Binop);
   DELEGATE_DEDUCE(ConstantDef);
   DELEGATE_DEDUCE(EnumDef);
+  DELEGATE_DEDUCE(For);
   DELEGATE_DEDUCE(Let);
   DELEGATE_DEDUCE(Number);
   DELEGATE_DEDUCE(Param);

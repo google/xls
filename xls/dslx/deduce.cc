@@ -283,8 +283,17 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(EnumDef* node,
   return result;
 }
 
-absl::Status BindNames(NameDefTree* name_def_tree, const ConcreteType& type,
-                       DeduceCtx* ctx) {
+// Typechecks the name def tree items against type, putting the corresponding
+// type information for the AST nodes within the name_def_tree as corresponding
+// to the types within "type" (recursively).
+//
+// For example:
+//
+//    (a, (b, c))  vs (u8, (u4, u2))
+//
+// Will put a correspondence of {a: u8, b: u4, c: u2} into the mapping in ctx.
+static absl::Status BindNames(NameDefTree* name_def_tree,
+                              const ConcreteType& type, DeduceCtx* ctx) {
   if (name_def_tree->is_leaf()) {
     AstNode* name_def = ToAstNode(name_def_tree->leaf());
     ctx->type_info()->SetItem(name_def, type);
@@ -340,6 +349,32 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceLet(Let* node,
   }
 
   return ctx->Deduce(node->body());
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFor(For* node,
+                                                        DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> init_type,
+                       DeduceAndResolve(node->init(), ctx));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> annotated_type,
+                       ctx->Deduce(node->type()));
+
+  XLS_RETURN_IF_ERROR(BindNames(node->names(), *annotated_type, ctx));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> body_type,
+                       DeduceAndResolve(node->body(), ctx));
+
+  XLS_RETURN_IF_ERROR(ctx->Deduce(node->iterable()).status());
+
+  if (*init_type != *body_type) {
+    return absl::InternalError(absl::StrFormat(
+        "XlsTypeError: %s %s %s For-loop init value type did not match "
+        "for-loop body's result type.",
+        node->span().ToString(), init_type->ToString(), body_type->ToString()));
+  }
+
+  // TODO(leary): 2019-02-19 Type check annotated_type (the bound names each
+  // iteration) against init_type/body_type -- this requires us to understand
+  // how iterables turn into induction values.
+  return init_type;
 }
 
 }  // namespace xls::dslx

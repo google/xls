@@ -55,6 +55,7 @@ RULES = {
     ast.Binop: cpp_deduce.deduce_Binop,
     ast.Constant: cpp_deduce.deduce_ConstantDef,
     ast.EnumDef: cpp_deduce.deduce_EnumDef,
+    ast.For: cpp_deduce.deduce_For,
     ast.Let: cpp_deduce.deduce_Let,
     ast.Number: cpp_deduce.deduce_Number,
     ast.Param: cpp_deduce.deduce_Param,
@@ -510,28 +511,6 @@ def _deduce_Match(self: ast.Match, ctx: DeduceCtx) -> ConcreteType:  # pytype: d
 @_rule(ast.MatchArm)
 def _deduce_MatchArm(self: ast.MatchArm, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
   return deduce(self.expr, ctx)
-
-
-@_rule(ast.For)
-def _deduce_For(self: ast.For, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  """Deduces the concrete type of a For AST node."""
-  init_type = deduce(self.init, ctx)
-  annotated_type = deduce(self.type_, ctx)
-  cpp_deduce.bind_names(self.names, annotated_type, ctx)
-  body_type = deduce(self.body, ctx)
-  deduce(self.iterable, ctx)
-
-  resolved_init_type = cpp_deduce.resolve(init_type, ctx)
-  resolved_body_type = cpp_deduce.resolve(body_type, ctx)
-
-  if resolved_init_type != resolved_body_type:
-    raise XlsTypeError(
-        self.span, resolved_init_type, resolved_body_type,
-        "For-loop init value type did not match for-loop body's result type.")
-  # TODO(leary): 2019-02-19 Type check annotated_type (the bound names each
-  # iteration) against init_type/body_type -- this requires us to understand
-  # how iterables turn into induction values.
-  return resolved_init_type
 
 
 @_rule(ast.While)
