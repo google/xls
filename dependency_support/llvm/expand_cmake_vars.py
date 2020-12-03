@@ -52,7 +52,6 @@ def _expand_variables(input_str, cmake_vars):
     if match.group(1) in cmake_vars:
       return cmake_vars[match.group(1)]
     return ""
-
   return _CMAKE_ATVAR_REGEX.sub(replace,
                                 _CMAKE_VAR_REGEX.sub(replace, input_str))
 

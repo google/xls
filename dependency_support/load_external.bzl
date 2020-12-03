@@ -91,9 +91,8 @@ def load_external_repositories():
 
     http_archive(
         name = "llvm",
-        urls = ["https://github.com/llvm/llvm-project/archive/c89447b65984c97145f63be21e42cfa98da60dd2.tar.gz"],
-        strip_prefix = "llvm-project-c89447b65984c97145f63be21e42cfa98da60dd2/llvm",
-        sha256 = "b35dd27eace459897c07faa333b0cb9ddc0ef260b20582dd04b6910d548a7e08",
+        urls = ["https://github.com/llvm/llvm-project/archive/baa005c96ce610e9ee91ef55a3a1b1eacd5a0a27.tar.gz"],
+        strip_prefix = "llvm-project-baa005c96ce610e9ee91ef55a3a1b1eacd5a0a27/llvm",
         build_file = "@//dependency_support/llvm:bundled.BUILD.bazel",
     )
 
