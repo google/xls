@@ -54,6 +54,7 @@ from xls.dslx.python.cpp_type_info import TypeMissingError
 RULES = {
     ast.Binop: cpp_deduce.deduce_Binop,
     ast.Constant: cpp_deduce.deduce_ConstantDef,
+    ast.EnumDef: cpp_deduce.deduce_EnumDef,
     ast.Number: cpp_deduce.deduce_Number,
     ast.Param: cpp_deduce.deduce_Param,
     ast.Ternary: cpp_deduce.deduce_Ternary,
@@ -840,27 +841,6 @@ def _deduce_ArrayTypeAnnotation(self: ast.ArrayTypeAnnotation,
   element_type = deduce(self.element_type, ctx)
   result = ArrayType(element_type, dim)
   logging.vlog(4, 'array type annotation: %s => %s', self, result)
-  return result
-
-
-@_rule(ast.EnumDef)
-def _deduce_Enum(self: ast.EnumDef, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  """Deduces the concrete type of a Enum AST node."""
-  resolved_type = cpp_deduce.resolve(deduce(self.type_, ctx), ctx)
-  if not isinstance(resolved_type, BitsType):
-    raise XlsTypeError(self.span, resolved_type, None,
-                       'Underlying type for an enum must be a bits type.')
-  # Grab the bit count of the Enum's underlying type.
-  bit_count = resolved_type.get_total_bit_count()
-  self.set_signedness(resolved_type.get_signedness())
-  result = EnumType(self, bit_count)
-  for member in self.values:
-    name, value = member.get_name_value(self)
-    # Note: the parser places the type_ from the enum on the value when it is
-    # a number, so this deduction flags inappropriate numbers.
-    deduce(value, ctx)
-    ctx.type_info[name] = ctx.type_info[value] = result
-  ctx.type_info[self.name] = ctx.type_info[self] = result
   return result
 
 

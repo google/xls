@@ -254,4 +254,33 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBinop(Binop* node,
   return lhs;
 }
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(EnumDef* node,
+                                                            DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
+                       DeduceAndResolve(node->type(), ctx));
+  auto* bits_type = dynamic_cast<BitsType*>(type.get());
+  if (bits_type == nullptr) {
+    return absl::InternalError(
+        absl::StrFormat("TypeInferenceError: %s %s Underlying type for an enum "
+                        "must be a bits type.",
+                        node->span().ToString(), bits_type->ToString()));
+  }
+
+  // Grab the bit count of the Enum's underlying type.
+  const ConcreteTypeDim& bit_count = bits_type->size();
+  node->set_signedness(bits_type->is_signed());
+
+  auto result = absl::make_unique<EnumType>(node, bit_count);
+  for (const EnumMember& member : node->values()) {
+    // Note: the parser places the type from the enum on the value when it is a
+    // number, so this deduction flags inappropriate numbers.
+    XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(member.value)).status());
+    ctx->type_info()->SetItem(ToAstNode(member.value), *result);
+    ctx->type_info()->SetItem(member.name_def, *result);
+  }
+  ctx->type_info()->SetItem(node->name_def(), *result);
+  ctx->type_info()->SetItem(node, *result);
+  return result;
+}
+
 }  // namespace xls::dslx

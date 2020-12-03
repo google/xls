@@ -284,6 +284,7 @@ PYBIND11_MODULE(cpp_deduce, m) {
   })
 
   DELEGATE_DEDUCE(Binop);
+  DELEGATE_DEDUCE(EnumDef);
   DELEGATE_DEDUCE(ConstantDef);
   DELEGATE_DEDUCE(Number);
   DELEGATE_DEDUCE(Param);
