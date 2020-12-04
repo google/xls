@@ -61,6 +61,15 @@ class ImportModuleWithTypeErrorTest(absltest.TestCase):
         "xls.dslx.tests.mod_private_enum member 'ReallyDoesNotExist' which does not exist",
         str(cm.exception))
 
+  def test_colon_ref_builtin(self):
+    path = runfiles.get_path('xls/dslx/tests/colon_ref_builtin.x')
+    with self.assertRaises(TypeInferenceError) as cm:
+      parse_and_interpret.parse_and_test_path(path)
+
+    self.assertIn('xls/dslx/tests/colon_ref_builtin.x:16:9-16:25',
+                  str(cm.exception.span))
+    self.assertIn("Builtin 'update' has no attributes", str(cm.exception))
+
 
 if __name__ == '__main__':
   absltest.main()

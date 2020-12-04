@@ -412,6 +412,7 @@ py_test(
     name = "import_module_with_type_error_test",
     srcs = ["import_module_with_type_error_test.py"],
     data = [
+        "colon_ref_builtin.x",
         "has_type_error.x",
         "imports_and_causes_ref_error.x",
         "imports_and_typedefs_dne_type.x",
