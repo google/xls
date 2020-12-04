@@ -385,12 +385,21 @@ absl::StatusOr<Bits> InterpValue::GetBits() const {
   return absl::InvalidArgumentError("Value does not contain bits.");
 }
 
+// Returns the given bits value as an nonnegative int64. If the bits value is
+// negative or doesn't fit in an int64 then 'else_value' is returned.
+static int64 BitsToNonNegInt64OrElse(const Bits& bits, int64 else_value) {
+  if (!bits.FitsInInt64()) {
+    return else_value;
+  }
+  int64 result = bits.ToInt64().value();
+  return result < 0 ? else_value : result;
+}
+
 absl::StatusOr<InterpValue> InterpValue::Shll(const InterpValue& other) const {
   // TODO(leary): 2020-10-18 Make typechecker require RHS is unsigned.
   XLS_ASSIGN_OR_RETURN(Bits lhs, GetBits());
   XLS_ASSIGN_OR_RETURN(Bits rhs, other.GetBits());
-  XLS_ASSIGN_OR_RETURN(int64 amount64, rhs.ToInt64());
-  amount64 = amount64 < 0 ? lhs.bit_count() : amount64;
+  int64 amount64 = BitsToNonNegInt64OrElse(rhs, lhs.bit_count());
   return InterpValue(tag_, bits_ops::ShiftLeftLogical(lhs, amount64));
 }
 
@@ -398,8 +407,7 @@ absl::StatusOr<InterpValue> InterpValue::Shrl(const InterpValue& other) const {
   // TODO(leary): 2020-10-18 Make typechecker require RHS is unsigned.
   XLS_ASSIGN_OR_RETURN(Bits lhs, GetBits());
   XLS_ASSIGN_OR_RETURN(Bits rhs, other.GetBits());
-  XLS_ASSIGN_OR_RETURN(int64 amount64, rhs.ToInt64());
-  amount64 = amount64 < 0 ? lhs.bit_count() : amount64;
+  int64 amount64 = BitsToNonNegInt64OrElse(rhs, lhs.bit_count());
   return InterpValue(tag_, bits_ops::ShiftRightLogical(lhs, amount64));
 }
 
@@ -407,8 +415,7 @@ absl::StatusOr<InterpValue> InterpValue::Shra(const InterpValue& other) const {
   // TODO(leary): 2020-10-18 Make typechecker require RHS is unsigned.
   XLS_ASSIGN_OR_RETURN(Bits lhs, GetBits());
   XLS_ASSIGN_OR_RETURN(Bits rhs, other.GetBits());
-  XLS_ASSIGN_OR_RETURN(int64 amount64, rhs.ToInt64());
-  amount64 = amount64 < 0 ? lhs.bit_count() : amount64;
+  int64 amount64 = BitsToNonNegInt64OrElse(rhs, lhs.bit_count());
   return InterpValue(tag_, bits_ops::ShiftRightArith(lhs, amount64));
 }
 
@@ -520,9 +527,17 @@ absl::StatusOr<uint64> InterpValue::GetBitValueUint64() const {
   return b.ToUint64();
 }
 
+bool InterpValue::FitsInUint64() const {
+  return HasBits() && GetBitsOrDie().FitsInUint64();
+}
+
 absl::StatusOr<int64> InterpValue::GetBitValueInt64() const {
   XLS_ASSIGN_OR_RETURN(Bits b, GetBits());
   return b.ToInt64();
+}
+
+bool InterpValue::FitsInInt64() const {
+  return HasBits() && GetBitsOrDie().FitsInInt64();
 }
 
 }  // namespace xls::dslx

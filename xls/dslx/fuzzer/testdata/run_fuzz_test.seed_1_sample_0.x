@@ -1,4 +1,4 @@
-type x7 = uN[0x1];
+type x7 = u1;
 fn main(x0: s23) -> u5 {
   let x1: s23 = !(x0);
   let x2: bool = bool:true;

@@ -16,6 +16,7 @@
 
 """Tests for shll-specific fuzzing."""
 
+import os
 import random
 
 from absl import flags
@@ -29,6 +30,10 @@ from xls.dslx.python import cpp_ast as ast
 
 flags.DEFINE_boolean('update_golden', False,
                      'Whether to update golden reference files.')
+flags.DEFINE_string(
+    'xls_source_dir', '',
+    'Absolute path to the root of XLS source directory to '
+    'modify when --update_golden is given.')
 FLAGS = flags.FLAGS
 
 
@@ -62,7 +67,8 @@ class RunFuzzShllTest(parameterized.TestCase):
       if seed < self.SEED_TO_CHECK_LIMIT and i < self.SAMPLE_TO_CHECK_LIMIT:
         path = self.GOLDEN_REFERENCE_FMT.format(seed=seed, sample=i)
         if FLAGS.update_golden:
-          with open(path, 'w') as f:
+          abs_path = os.path.join(FLAGS.xls_source_dir, path.lstrip('xls/'))
+          with open(abs_path, 'w') as f:
             f.write(samples[i].input_text)
         else:
           # rstrip to avoid miscompares from trailing newline at EOF.

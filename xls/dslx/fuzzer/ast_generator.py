@@ -59,20 +59,6 @@ def make_bit_patterns(bit_count: int) -> Tuple[int, ...]:
   return result
 
 
-def builtin_type_to_bits(type_annotation: ast.TypeAnnotation) -> int:
-  """Converts a type annotation (array of builtin or builtin) to a bit count."""
-  if isinstance(type_annotation, ast.ArrayTypeAnnotation):
-    assert isinstance(type_annotation.element_type, ast.BuiltinTypeAnnotation)
-    dim = type_annotation.dim
-    assert isinstance(dim, ast.Number), dim
-    return builtin_type_to_bits(
-        type_annotation.element_type) * ast_helpers.get_value_as_int(dim)
-
-  assert isinstance(type_annotation,
-                    ast.BuiltinTypeAnnotation), repr(type_annotation)
-  return type_annotation.bits
-
-
 class AstGeneratorOptions(object):
   """Options that are used to configure the AST generator."""
 
@@ -179,26 +165,34 @@ class AstGenerator(object):
     if width <= 64:
       return ast.BuiltinTypeAnnotation(
           self.m, self.fake_span, ast_helpers.get_builtin_type(signed, width))
-    raise NotImplementedError(signed, width)
+    else:
+      token = scanner.Token(self.fake_span,
+                            scanner.KeywordFromString('sN' if signed else 'uN'))
+      return ast_helpers.make_builtin_type_annotation(
+          self.m, self.fake_span, token, dims=(self._make_number(width, None),))
 
   def _get_type_bit_count(self, type_: ast.TypeAnnotation) -> int:
     """Returns the (flattened) bit count of the given type."""
+    if str(type_) == 'uN' or str(type_) == 'sN' or str(type_) == 'bits':
+      # These types are not valid alone, but as the element type of an array
+      # (e.g., uN[42]) where they effectively have a width of one bit.
+      return 1
     if isinstance(type_, ast.BuiltinTypeAnnotation):
       return type_.bits
     if isinstance(type_, ast.ArrayTypeAnnotation):
       assert isinstance(type_.dim, ast.Number), type_.dim
       array_size = ast_helpers.get_value_as_int(type_.dim)
       return array_size * self._get_type_bit_count(type_.element_type)
-    assert str(type_) in self._type_bit_counts, (str(type_),
-                                                 self._type_bit_counts)
+    if isinstance(type_, ast.TupleTypeAnnotation):
+      return sum(self._get_type_bit_count(m) for m in type_.members)
+
+    assert (str(type_) in self._type_bit_counts), str(type_)
     return self._type_bit_counts[str(type_)]
 
   def _make_tuple_type(
       self, members: Tuple[ast.TypeAnnotation, ...]) -> ast.TypeAnnotation:
     """Creates a tuple type with the given `members`."""
     tuple_type = ast.TupleTypeAnnotation(self.m, self.fake_span, members)
-    self._type_bit_counts[str(tuple_type)] = sum(
-        self._get_type_bit_count(t) for t in members)
     return tuple_type
 
   def _make_array_type(self, element_type: ast.TypeAnnotation,
@@ -207,8 +201,6 @@ class AstGenerator(object):
     array_type = ast_helpers.make_type_ref_type_annotation(
         self.m, self.fake_span, self._create_type_ref(element_type),
         (self._make_number(array_size, None),))
-    self._type_bit_counts[str(
-        array_type)] = self._get_type_bit_count(element_type) * array_size
     return array_type
 
   def _get_array_size(self, array_type: ast.TypeAnnotation) -> int:
@@ -220,7 +212,7 @@ class AstGenerator(object):
     Args:
       array_type: The type to extract the array size/length from.
     """
-    assert isinstance(array_type, ast.ArrayTypeAnnotation), array_type
+    assert self._is_array(array_type), array_type
     dim = array_type.dim
     assert isinstance(dim, ast.Number), dim
     return ast_helpers.get_value_as_int(dim)
@@ -292,8 +284,8 @@ class AstGenerator(object):
       op = self.rng.choice(self._binops)
       if op in ast_helpers.BINOP_SHIFTS and self.rng.random() < 0.8:
         # Clamp the RHS to be in range most of the time.
-        assert isinstance(input_type, ast.BuiltinTypeAnnotation), input_type
-        bit_count = builtin_type_to_bits(input_type)
+        assert self._is_bit_vector(input_type), input_type
+        bit_count = self._get_type_bit_count(input_type)
         new_upper = self.rng.randrange(bit_count)
         rhs = self._generate_umin(rhs, input_type, new_upper)
       output_type = input_type
@@ -316,25 +308,40 @@ class AstGenerator(object):
         isinstance(type_, ast.TupleTypeAnnotation)
         for (_, type_, _) in env.values())
 
+  def _is_bits_base_builtin(self, t: ast.TypeAnnotation) -> bool:
+    return str(t) in ('bits', 'uN', 'sN')
+
+  def _is_array(self, t: ast.TypeAnnotation) -> bool:
+    return (isinstance(t, ast.ArrayTypeAnnotation) and
+            not self._is_bits_base_builtin(t.element_type))
+
   def _not_array(self, t: ast.TypeAnnotation) -> bool:
-    return not isinstance(t, ast.ArrayTypeAnnotation)
+    return not self._is_array(t)
 
   def _not_tuple_or_array(self, t: ast.TypeAnnotation) -> bool:
-    return not isinstance(t, (ast.TupleTypeAnnotation, ast.ArrayTypeAnnotation))
+    return not (self._is_tuple(t) or self._is_array(t))
 
   def _is_tuple(self, t: ast.TypeAnnotation) -> bool:
     return isinstance(t, ast.TupleTypeAnnotation)
 
-  def _is_builtin_unsigned(self, t: ast.TypeAnnotation) -> bool:
-    return isinstance(t, ast.BuiltinTypeAnnotation) and not t.signedness
+  def _is_unsigned_bit_vector(self, t: ast.TypeAnnotation) -> bool:
+    return ((isinstance(t, ast.BuiltinTypeAnnotation) and
+             not self._is_bits_base_builtin(t) and not t.signedness) or
+            (isinstance(t, ast.ArrayTypeAnnotation) and
+             self._is_bits_base_builtin(t.element_type) and
+             not t.element_type.signedness))
+
+  def _is_bit_vector(self, t: ast.TypeAnnotation) -> bool:
+    return ((isinstance(t, ast.BuiltinTypeAnnotation) and
+             not self._is_bits_base_builtin(t)) or
+            (isinstance(t, ast.ArrayTypeAnnotation) and
+             self._is_bits_base_builtin(t.element_type)))
 
   def _is_builtin_bool(self, t: ast.TypeAnnotation) -> bool:
     return str(t) == 'bool'
 
   def _env_contains_array(self, env: Env) -> bool:
-    return any(
-        isinstance(type_, ast.ArrayTypeAnnotation)
-        for (_, type_, _) in env.values())
+    return any(self._is_array(type_) for (_, type_, _) in env.values())
 
   def _generate_logical_binop(self,
                               env: Env) -> Tuple[ast.Binop, ast.TypeAnnotation]:
@@ -407,11 +414,14 @@ class AstGenerator(object):
     self._functions.append(map_fn)
 
     map_arg_type = map_fn.params[0].type_
-    assert isinstance(map_arg_type, ast.BuiltinTypeAnnotation), map_arg_type
-    map_arg_signedness, map_arg_bits = map_arg_type.signedness_and_bits
+    assert self._is_bit_vector(map_arg_type), map_arg_type
+    map_arg_signedness = not self._is_unsigned_bit_vector(map_arg_type)
+    map_arg_bits = self._get_type_bit_count(map_arg_type)
 
-    array_size = self.rng.randrange(
-        1, max(2, self.options.max_width_aggregate_types // map_arg_bits))
+    max_array_size = (
+        self.options.max_width_aggregate_types //
+        self._get_type_bit_count(map_fn.return_type))
+    array_size = self.rng.randint(1, max(1, max_array_size))
     return_type = self._make_array_type(map_fn.return_type, array_size)
 
     # Seems pretty unlikely that we'll have the exact array we need, so we'll
@@ -445,7 +455,8 @@ class AstGenerator(object):
     # We need to choose a selector with a certain number of bits, then form an
     # array from that many values in the environment.
     def choose_value(t: ast.TypeAnnotation) -> bool:
-      return isinstance(t, ast.BuiltinTypeAnnotation) and 0 < t.bits <= 8
+      return self._is_unsigned_bit_vector(
+          t) and 0 < self._get_type_bit_count(t) <= 8
 
     try:
       make_lhs, lhs_type = self._choose_env_value(env, choose_value)
@@ -458,8 +469,8 @@ class AstGenerator(object):
 
     make_rhs, rhs_type = self._choose_env_value(env, self._not_tuple_or_array)
     cases = [make_rhs]
-    assert isinstance(lhs_type, ast.BuiltinTypeAnnotation), lhs_type
-    total_operands = lhs_type.bits
+    assert self._is_unsigned_bit_vector(lhs_type), lhs_type
+    total_operands = self._get_type_bit_count(lhs_type)
     for _ in range(total_operands - 1):
       make_rhs, rhs_type = self._choose_env_value(env, lambda t: t == rhs_type)
       cases.append(make_rhs)
@@ -480,11 +491,12 @@ class AstGenerator(object):
   def _generate_unop_builtin(
       self, env: Env) -> Tuple[ast.Invocation, ast.TypeAnnotation]:
     """Generates a call to a unary builtin."""
-    make_arg, arg_type = self._choose_env_value(env, self._is_builtin_unsigned)
+    make_arg, arg_type = self._choose_env_value(env,
+                                                self._is_unsigned_bit_vector)
     choices = ['clz', 'ctz', 'rev']
     # Since one_hot adds a bit, only use it when we have head room beneath
     # max_width_bits_types to add another bit.
-    one_hot_ok = builtin_type_to_bits(
+    one_hot_ok = self._get_type_bit_count(
         arg_type) < self.options.max_width_bits_types
     if one_hot_ok:
       choices.append('one_hot')
@@ -504,7 +516,7 @@ class AstGenerator(object):
           self.fake_span,
           self._builtin_name_ref(to_invoke),
           args=(make_arg(), self._make_bool(lsb_or_msb)))
-      result_bits = builtin_type_to_bits(arg_type) + 1
+      result_bits = self._get_type_bit_count(arg_type) + 1
       result_type = self._make_type_annotation(False, result_bits)
     return invocation, result_type
 
@@ -512,7 +524,7 @@ class AstGenerator(object):
                           env: Env) -> Tuple[ast.Index, ast.TypeAnnotation]:
     """Generates a bit slice AST node."""
     make_arg, arg_type = self._choose_env_value(env, self._not_tuple_or_array)
-    bit_count = builtin_type_to_bits(arg_type)
+    bit_count = self._get_type_bit_count(arg_type)
     slice_type = self.rng.choice(['bit_slice', 'width_slice', 'dynamic_slice'])
     while True:
       start_low = 0 if slice_type == 'width_slice' else -bit_count - 1
@@ -537,7 +549,7 @@ class AstGenerator(object):
           None if start is None else self._make_number(start, None),
           None if limit is None else self._make_number(limit, None))
     else:
-      start_arg, _ = self._choose_env_value(env, self._is_builtin_unsigned)
+      start_arg, _ = self._choose_env_value(env, self._is_unsigned_bit_vector)
       index_slice = ast.WidthSlice(self.m, self.fake_span, start_arg(),
                                    self._make_type_annotation(False, width))
     type_ = self._make_type_annotation(False, width)
@@ -546,7 +558,7 @@ class AstGenerator(object):
   def _generate_bitwise_reduction(
       self, env: Env) -> Tuple[ast.Invocation, ast.TypeAnnotation]:
     """Generates one of the bitwise reductions as an Invocation node."""
-    make_arg, _ = self._choose_env_value(env, self._is_builtin_unsigned)
+    make_arg, _ = self._choose_env_value(env, self._is_unsigned_bit_vector)
     ops = ['and_reduce', 'or_reduce', 'xor_reduce']
     callee = self._builtin_name_ref(self.rng.choice(ops))
     type_ = self._make_type_annotation(False, 1)
@@ -563,21 +575,18 @@ class AstGenerator(object):
     """Generates a cast from bits to array type."""
 
     # Get a random bits-typed element from the environment.
-    make_arg, arg_type = self._choose_env_value(env, self._is_builtin_unsigned)
+    make_arg, arg_type = self._choose_env_value(env,
+                                                self._is_unsigned_bit_vector)
 
     # Next, find factors of the bit count and select one pair.
-    bit_count = builtin_type_to_bits(arg_type)
+    bit_count = self._get_type_bit_count(arg_type)
     factors = []
     for i in range(1, bit_count + 1):
       if bit_count % i == 0:
         factors.append((i, bit_count // i))
 
     element_size, array_size = self.rng.choice(factors)
-    element_type = ast_helpers.make_builtin_type_annotation(
-        self.m, self.fake_span,
-        scanner.Token(
-            value=scanner.Keyword.UN,
-            span=self.fake_span), (self._make_number(element_size, None),))
+    element_type = self._make_type_annotation(False, element_size)
 
     outer_array_type = self._make_array_type(element_type, array_size)
 
@@ -595,9 +604,7 @@ class AstGenerator(object):
         concatenation.
     Precondition: There must be an array value present in env.
     """
-    make_lhs, lhs_type = self._choose_env_value(
-        env, lambda t: isinstance(t, ast.ArrayTypeAnnotation))
-    assert isinstance(lhs_type, ast.ArrayTypeAnnotation), lhs_type
+    make_lhs, lhs_type = self._choose_env_value(env, self._is_array)
 
     # Returns true if the type 't' is an array with the same element type as the
     # lhs and when concatentated, the type does not exceed bit count limits.
@@ -612,13 +619,11 @@ class AstGenerator(object):
 
     result = ast.Binop(self.m, self.fake_span, ast.BinopKind.CONCAT, make_lhs(),
                        make_rhs())
-    lhs_size = self._get_array_size(lhs_type)
-    bits_per_elem = self._get_type_bit_count(lhs_type) // lhs_size
-    result_size = lhs_size + self._get_array_size(rhs_type)
+    result_size = (
+        self._get_array_size(lhs_type) + self._get_array_size(rhs_type))
     dim = self._make_number(result_size, None)
     result_type = ast.ArrayTypeAnnotation(self.m, self.fake_span,
                                           lhs_type.element_type, dim)
-    self._type_bit_counts[str(result_type)] = bits_per_elem * result_size
     return (result, result_type)
 
   def _generate_concat(self, env: Env) -> Tuple[ast.Expr, ast.TypeAnnotation]:
@@ -637,20 +642,21 @@ class AstGenerator(object):
     operand_types = []
     for i in range(count):
       make_arg, arg_type = self._choose_env_value(env,
-                                                  self._is_builtin_unsigned)
+                                                  self._is_unsigned_bit_vector)
       operands.append(make_arg())
       operand_types.append(arg_type)
     result = operands[0]
-    result_bits = builtin_type_to_bits(operand_types[0])
+    result_bits = self._get_type_bit_count(operand_types[0])
     for i in range(1, count):
-      this_bits = builtin_type_to_bits(operand_types[i])
+      this_bits = self._get_type_bit_count(operand_types[i])
       if result_bits + this_bits > self.options.max_width_bits_types:
         break
       result = ast.Binop(self.m, self.fake_span, ast.BinopKind.CONCAT, result,
                          operands[i])
       result_bits += this_bits
     assert result_bits <= self.options.max_width_bits_types, result_bits
-    return (result, self._make_type_annotation(False, result_bits))
+    return_type = self._make_type_annotation(False, result_bits)
+    return (result, return_type)
 
   def _make_number(self, value: int,
                    type_: Optional[ast.TypeAnnotation]) -> ast.Number:
@@ -677,7 +683,7 @@ class AstGenerator(object):
       type_ = self._make_type_annotation(signedness, bits)
     else:
       type_ = self._generate_primitive_type()
-    bit_count = builtin_type_to_bits(type_)
+    bit_count = self._get_type_bit_count(type_)
     value = self.rng.choice(make_bit_patterns(bit_count))
     return (self._make_number(value, type_), type_)
 
@@ -755,8 +761,7 @@ class AstGenerator(object):
       # the environment to use as an index.
       assert isinstance(tuple_type, ast.TupleTypeAnnotation), tuple_type
       i = self.randrange(len(tuple_type.members))
-      index_expr = self._make_number(
-          i, type_=self._make_type_annotation(False, 32))
+      index_expr = self._make_number(i, type_=None)
       tuple_expr = make_tuple_expr()
       assert isinstance(tuple_type, ast.TupleTypeAnnotation), tuple_type
       return ast.Index(self.m, self.fake_span, tuple_expr,

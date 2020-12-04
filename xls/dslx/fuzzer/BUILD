@@ -50,10 +50,12 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":ast_generator",
+        "//xls/dslx:ast_helpers",
         "//xls/dslx:fakefs_test_util",
         "//xls/dslx:parser_helpers",
         "//xls/dslx:span",
         "//xls/dslx:typecheck",
+        "//xls/dslx/python:cpp_scanner",
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )

@@ -1,4 +1,4 @@
-type x24 = uN[0x9];
+type x24 = u9;
 fn main(x0: u48, x1: s18, x2: u10, x3: u63, x4: u44, x5: u20, x6: u61) -> (u61, s6, u12, u61, u20, u20, u10, u61, u61, u20, u44, u61, s6, u44, u44, u10, u61, s6, u58, x24[0x1], u61, x24[0x1]) {
   let x7: u58 = (x2) ++ (x0);
   let x8: u61 = ctz(x6);
@@ -14,7 +14,7 @@ fn main(x0: u48, x1: s18, x2: u10, x3: u63, x4: u44, x5: u20, x6: u61) -> (u61, 
   let x18: u12 = (x5)[x7+:u12];
   let x19: u61 = one_hot_sel(x16, [x10]);
   let x20: u10 = ctz(x2);
-  let x21: u10 = (x13)[u32:0x0];
+  let x21: u10 = (x13)[0x0];
   let x22: s6 = s6:0x3f;
   let x23: x24[0x1] = ((x9) as x24[0x1]);
   let x25: (u61,) = (x10,);

@@ -1,5 +1,5 @@
-type x4 = uN[0xa];
-type x8 = uN[0x2];
+type x4 = u10;
+type x8 = u2;
 fn main(x0: s23) -> u1 {
   let x1: u20 = (x0)[:0x14];
   let x2: u60 = ((x1) ++ (x1)) ++ (x1);

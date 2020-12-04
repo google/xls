@@ -177,6 +177,10 @@ class InterpValue {
   absl::StatusOr<uint64> GetBitValueUint64() const;
   absl::StatusOr<int64> GetBitValueInt64() const;
 
+  // Returns true iff the value HasBits and the bits values fits in a (u)int64.
+  bool FitsInUint64() const;
+  bool FitsInInt64() const;
+
   absl::StatusOr<int64> GetLength() const {
     if (IsTuple() || IsArray()) {
       return GetValuesOrDie().size();

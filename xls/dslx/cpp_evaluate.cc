@@ -927,15 +927,25 @@ static absl::StatusOr<InterpValue> EvaluateIndexWidthSlice(
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ConcreteType> width_type,
       ConcretizeTypeAnnotation(width_slice->width(), bindings, callbacks));
-  XLS_ASSIGN_OR_RETURN(uint64 start_index, start.GetBitValueUint64());
+
   auto* width_bits_type = dynamic_cast<BitsType*>(width_type.get());
   XLS_RET_CHECK(width_bits_type != nullptr);
   int64 width_value = absl::get<int64>(width_bits_type->size().value());
 
+  // Make a value which corresponds to the slice being completely out of bounds.
+  auto make_oob_value = [&]() {
+    return Value::MakeUBits(/*bit_count=*/width_value, /*value=*/0);
+  };
+
+  if (!start.FitsInUint64()) {
+    return make_oob_value();
+  }
+
+  XLS_ASSIGN_OR_RETURN(uint64 start_index, start.GetBitValueUint64());
   if (start_index >= bits.bit_count()) {
     // Return early  to potentially avoid an unreasonably long zero extend (e.g.
     // if the start index was a large negative number).
-    return Value::MakeUBits(/*bit_count=*/width_value, /*value=*/0);
+    return make_oob_value();
   }
 
   if (start_index + width_value > bits.bit_count()) {

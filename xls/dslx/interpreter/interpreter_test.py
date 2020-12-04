@@ -570,6 +570,29 @@ class InterpreterTest(test_base.TestCase):
     self.assertEqual(cm.exception.span.start.lineno, 2)
     self.assertIn('were not equal', cm.exception.message)
 
+  def test_wide_shifts(self):
+    program = textwrap.dedent("""\
+    test simple_add {
+      let x: uN[96] = uN[96]:0xaaaa_bbbb_cccc_dddd_eeee_ffff;
+      let big: uN[96] = uN[96]:0x9999_9999_9999_9999_9999_9999;
+      let four: uN[96] = uN[96]:0x4;
+      let _ = assert_eq(x >> big, uN[96]:0);
+      let _ = assert_eq(x >> four, uN[96]:0x0aaa_abbb_bccc_cddd_deee_efff);
+      let _ = assert_eq(x << big, uN[96]:0);
+      assert_eq(x << four, uN[96]:0xaaab_bbbc_cccd_ddde_eeef_fff0)
+    }
+    """)
+    self._parse_and_test(program)
+
+  def test_wide_ashr(self):
+    program = textwrap.dedent("""\
+    test simple_add {
+      let x: sN[80] = sN[80]:0x8000_0000_0000_0000_0000 >>> sN[80]:0x0aaa_bbbb_cccc_dddd_eeee;
+      assert_eq(sN[80]:0xffff_ffff_ffff_ffff_ffff, x)
+    }
+    """)
+    self._parse_and_test(program)
+
 
 if __name__ == '__main__':
   test_base.main()

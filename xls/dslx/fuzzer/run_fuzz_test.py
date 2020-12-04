@@ -34,6 +34,10 @@ flags.DEFINE_boolean('codegen', True,
                      'Whether to generate Verilog for generated samples.')
 flags.DEFINE_boolean('update_golden', False,
                      'Whether to update golden reference files.')
+flags.DEFINE_string(
+    'xls_source_dir', '',
+    'Absolute path to the root of XLS source directory to '
+    'modify when --update_golden is given.')
 FLAGS = flags.FLAGS
 
 X_SUB_Y_IR = """package x_sub_y
@@ -91,7 +95,8 @@ class RunFuzzTest(parameterized.TestCase):
         path = self.GOLDEN_REFERENCE_FMT.format(
             seed=seed, sample=i, codegen='' if FLAGS.codegen else '_no_codegen')
         if FLAGS.update_golden:
-          with open(path, 'w') as f:
+          abs_path = os.path.join(FLAGS.xls_source_dir, path.lstrip('xls/'))
+          with open(abs_path, 'w') as f:
             f.write(samples[i].input_text)
         else:
           # rstrip to avoid miscompares from trailing newline at EOF.
