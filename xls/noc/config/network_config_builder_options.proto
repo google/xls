@@ -1,0 +1,234 @@
+syntax = "proto2";
+
+// The proto file contains option descriptions for a network configuration
+// builder. Options for a network configuration builder have common network
+// configuration options, and, custom network configuration options.
+
+package xls.noc;
+
+import "xls/noc/config/network_config.proto";
+
+// Custom network config builder options for the grid topology.
+// To define a linear topology, the number of rows must be one and the number of
+// columns must be greater than one, or, the number of rows must be greater than
+// one and the number of columns must be one. In addition, the row loopback and
+// the column loopback must be false. For an example, please refer to
+// xls/noc/config/examples/linear_network_config_builder_options.textproto.
+// To define a ring topology, the number of rows must be one and the number of
+// columns must be greater than one, or, the number of rows must be greater than
+// one and the number of columns must be one. If the number of rows is one, then
+// the column loopback must be true. If the number of columns is one, then the
+// row loopback must be true. For an example, please refer to
+// xls/noc/config/examples/ring_network_config_builder_options.textproto.
+// To define a mesh topology, the number of rows and the number of columns must
+// be greater than 1, and, the row loopback and the column loopback must be
+// false. For an example, please refer to
+// xls/noc/config/examples/mesh_network_config_builder_options.textproto.
+// To define the torus topology, the number of rows and the number of columns
+// must be greater than 1, and, the row loopback and the column loopback must be
+// true. For an example, please refer to
+// xls/noc/config/examples/torus_network_config_builder_options.textproto.
+// To define a grid with row loopback topology, the number of rows and the
+// number of columns must be greater than 1, and, the row loopback must be set
+// to true and the column loopback must be false. For an example, please refer
+// to
+// xls/noc/config/examples/grid_with_row_loopback_network_config_builder_options.textproto.
+// To define a grid with column loopback topology, the number of rows and the
+// number  of columns must be greater than 1, and, the row loopback must be set
+// to false and the column loopback must be true. For an example, please refer
+// to
+// xls/noc/config/examples/grid_with_column_loopback_network_config_builder_options.textproto.
+// To define a single switch, the number of rows and the
+// number of columns must be equal to 1, and, the row loopback and the column
+// loopback must be false.
+message GridNetworkConfigOptionsProto {
+  // The number of rows in the network.
+  optional int64 num_rows = 1;
+  // The number of columns in the network.
+  optional int64 num_columns = 2;
+  // Defines the generation of links between the routers on the perimeter of the
+  // same row. If true, links between the routers on the perimeter of the same
+  // row are generated. Otherwise, these links are not generated.
+  optional bool row_loopback = 3;
+  // Defines the generation of links between the routers on the perimeter of the
+  // same column. If true, links between the routers on the perimeter of the
+  // same column are generated. Otherwise, these links are not generated.
+  optional bool column_loopback = 4;
+}
+
+// Custom network config builder options for the unidirectional tree topology.
+// In the unidirectional tree, the traffic flows in a single direction: from the
+// root to the leaves of the tree or from the leaves of the tree to the root.
+// For traffic that flows in both directions (from the root to the leaves of the
+// tree and from the leaves of the tree to the root), please see
+// xls.noc.BidirectionalTreeNetworkConfigOptionsProto.
+// The unidirectional tree has two types: distribution and aggregation.
+// In the distribution type, the send ports are connected to the root of the
+// tree, and the receive ports are connected to the leaves of the tree. As a
+// result, the traffic flows in a single direction from the root to the leaves
+// of the tree.
+// In the aggregation type, the receive ports are connected to the root of the
+// tree, the send ports are connected to the leaves of the tree. As a result,
+// the traffic flows in a single direction from the leaves to the root of the
+// tree.
+// To define a distribution tree topology, the distribution type must be
+// enabled and the radix must be less than the number of receive ports defined
+// in the endpoints options (please refer to xls.noc.EndpointOptionsProto). For
+// an example, please refer to
+// xls/noc/config/examples/distribution_tree_network_config_builder_options.textproto.
+// To define a aggregation tree topology, the aggregation type must be enabled
+// and the radix must be less than the number of send ports defined in the
+// endpoints options (please refer to xls.noc.EndpointOptionsProto). For an
+// example, please refer to
+// xls/noc/config/examples/aggregation_tree_network_config_builder_options.textproto.
+// To define a single switch, the distribution type must be enabled, and the
+// radix must be greater than or equal to than the number of receive ports
+// defined in the endpoints options (please refer to
+// xls.noc.EndpointOptionsProto). Alternatively, to define a single switch, the
+// aggregation type must be enabled, and the radix must be greater than or equal
+// to than the number of send ports defined in the endpoints options (please
+// refer to xls.noc.EndpointOptionsProto). For an
+// example, please refer to
+// xls/noc/config/examples/single_switch_network_config_builder_options.textproto.
+message UnidirectionalTreeNetworkConfigOptionsProto {
+  // The maximum number of inflow or outflow links per router towards the
+  // leaves.
+  optional int64 radix = 1;
+  enum Type {
+    INVALID = 0;
+    // In the distribution type, the send ports are connected to the root of the
+    // tree.
+    DISTRIBUTION = 1;
+    // In the aggregation type, the receive ports are connected to the root of
+    // the tree.
+    AGGREGATION = 2;
+  }
+  optional Type type = 2 [default = INVALID];
+}
+
+// Custom network config builder options for the bidirectional tree topology.
+// In the bidirectional tree, the traffic flows in two directions: from the root
+// to the leaves of the tree and from the leaves of the tree to the root. For
+// traffic that flows in a single direction (from the root to the leaves of the
+// tree or from the leaves of the tree to the root), please see
+// xls.noc.UnidirectionalTreeNetworkConfigOptionsProto.
+// To define a bidirectional tree, there must be at least one send port and one
+// receive port connected to the root in addition to at least one send port and
+// one receive port connected to the leaves of the tree. Moreover, the number of
+// send ports connected to the leaves of the tree must be greater than the
+// radix, and, the number of receive ports connected to the leaves of the tree
+// must be greater than the radix. The number of send ports connected to the
+// leaves of the tree is equivalent to the number of send ports defined in the
+// endpoints options (please refer to xls.noc.EndpointOptionsProto) minus the
+// number of send ports connected to the root. The number of receive ports
+// connected to the leaves of the tree is equivalent to the number of receive
+// ports defined in the endpoints options (please refer to
+// xls.noc.EndpointOptionsProto) minus the number of receive ports connected to
+// the root. For an example, please refer to
+// xls/noc/config/examples/bidirectional_tree_network_config_builder_options.textproto.
+// To define a single switch, the number of send ports connected to the leaves
+// are less than and equal to the radix, and, the number of receive ports
+// connected to the leaves are less than and equal to the radix.
+message BidirectionalTreeNetworkConfigOptionsProto {
+  // The maximum number of inflow and outflow links per router towards the
+  // leaves.
+  optional int64 radix = 1;
+  // The number of send port connections at root.
+  optional int64 num_send_ports_at_root = 2;
+  // The number of receive port connections at root.
+  optional int64 num_recv_ports_at_root = 3;
+}
+
+// Custom network config builder options for the fully connected topology.
+// In the fully connected topology, each router has a direct link to other
+// routers. To define a fully connected topology, the number of send ports and
+// receive ports defined in the endpoints options (please refer to
+// xls.noc.EndpointOptionsProto) must be greater than one.
+// To define a single switch, the number of send ports and define ports defined
+// in the endpoints options (please refer to xls.noc.EndpointOptionsProto) must
+// be equal to one. For an example, please refer to
+// xls/noc/config/examples/fully_connected_network_config_builder_options.textproto.
+message FullyConnectedNetworkConfigOptionsProto {}
+
+// Endpoint options.
+message EndpointOptionsProto {
+  // The number of endpoint send ports.
+  optional int64 num_send_ports = 1;
+  // The number of endpoint receive ports.
+  optional int64 num_recv_ports = 2;
+}
+
+// Data options.
+message DataOptionsProto {
+  // The bit width for user data.
+  optional int64 data_bit_width = 1;
+}
+
+// Link options.
+message LinkOptionsProto {
+  // The number of of pipeline stages for metadata sent from the source to the
+  // sink.
+  optional int64 source_sink_pipeline_stage = 1;
+  // The number of of pipeline stages for metadata sent from the sink to the
+  // source.
+  optional int64 sink_source_pipeline_stage = 2;
+  // The flow control mechanism for the links in the network.
+  optional LinkConfigProto.FlowControlConfigProto flow_control = 3;
+}
+
+// Virtual channel options.
+message VirtualChannelOptionsProto {
+  // The depth of each virtual channel.
+  // The length of the repeated field defines the number of virtual channels.
+  // The value at index 'i' defines the depth of the virtual channel with id
+  // 'i'.
+  repeated int64 virtual_channel_depth = 1;
+}
+
+// Router options.
+message RouterOptionsProto {
+  // For a description of the routing schemes, please refer to
+  // xls.noc.RouterConfigProto.RoutingSchemeConfigProto.
+  message RoutingSchemeOptionsProto {
+    message DistributedRoutingOptionProto {}
+    oneof RoutingSchemeOptionProto {
+      DistributedRoutingOptionProto routing_table = 1;
+    }
+  }
+
+  // For a description of the arbiter schemes, please refer to
+  // xls.noc.RouterConfigProto.ArbiterSchemeConfigProto.
+  message ArbiterSchemeOptionsProto {
+    message PriorityOptionProto {}
+    oneof ArbiterSchemeOption {
+      PriorityOptionProto priority = 1;
+    }
+  }
+  // The routing scheme for the routers in the network.
+  optional RoutingSchemeOptionsProto routing_scheme = 2;
+  // The arbiter scheme for the routers in the network.
+  optional ArbiterSchemeOptionsProto arbiter_scheme = 3;
+}
+
+// Common network options.
+message CommonNetworkConfigBuilderOptionsProto {
+  optional EndpointOptionsProto endpoint_options = 1;
+  optional DataOptionsProto data_options = 2;
+  optional LinkOptionsProto link_options = 3;
+  optional VirtualChannelOptionsProto virtual_channel_options = 4;
+  optional RouterOptionsProto router_options = 5;
+}
+
+// Complete options consisting of common network options and custom network
+// options.
+message NetworkConfigBuilderOptionsProto {
+  optional CommonNetworkConfigBuilderOptionsProto common_options = 1;
+  // For more details on the individual custom options, please see the custom
+  // network options.
+  oneof CustomNetworkConfigBuilderOptionsProto {
+    GridNetworkConfigOptionsProto grid = 2;
+    UnidirectionalTreeNetworkConfigOptionsProto unidirectional_tree = 3;
+    BidirectionalTreeNetworkConfigOptionsProto bidirectional_tree = 4;
+    FullyConnectedNetworkConfigOptionsProto fully_connected = 5;
+  }
+}

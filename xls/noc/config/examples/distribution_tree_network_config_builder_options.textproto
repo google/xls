@@ -1,0 +1,44 @@
+# proto-file: xls/noc/config/network_config_builder_options.proto
+# proto-message: NetworkConfigBuilderOptionsProto
+
+# The following is an example of a NetworkConfigBuilderOptionsProto message
+# defining a distribution tree topology. There are two send ports and eight
+# receive ports. In a distribution tree, the send ports are connected to the
+# root of the tree, and, the receive ports are connected to the leaves of the
+# tree.
+# With a radix of two, there are at most two receive ports or two routers
+# connected to a router. With a radix of two and eight receive ports, the tree
+# forms a binary tree with three levels.
+common_options {
+  endpoint_options {
+    num_send_ports: 2
+    num_recv_ports: 8
+  }
+  data_options {
+    data_bit_width: 64
+  }
+  link_options {
+    source_sink_pipeline_stage: 0
+    sink_source_pipeline_stage: 0
+    flow_control {
+      peek {}
+    }
+  }
+  virtual_channel_options {
+    virtual_channel_depth: 16
+    virtual_channel_depth: 8
+  }
+  router_options {
+    routing_scheme {
+      routing_table {}
+    }
+    arbiter_scheme {
+      priority {}
+    }
+  }
+}
+# distribution tree topology
+unidirectional_tree {
+  radix: 2
+  type: DISTRIBUTION
+}

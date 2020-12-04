@@ -1,0 +1,47 @@
+# proto-file: xls/noc/config/network_config_builder_options.proto
+# proto-message: NetworkConfigBuilderOptionsProto
+
+# The single switch topology contains a router connected to the send ports and
+# receive ports.
+# In an aggregation tree, the receive ports are connected to the root of the
+# tree, and, the send ports are connected to the leaves of the tree. The root of
+# the tree can be a leaf with the number of send ports being less than or equal
+# to the radix. With the root also being the leaf, the send ports and receive
+# ports are connected to the root. As a result, the root represents a single
+# switch.
+# The following is an example of a NetworkConfigBuilderOptionsProto message
+# defining a single switch topology. The message defines an aggregation tree
+# with a radix of eight. There are eight send ports and the radix is eight. As a
+# result, a single switch is represented through this message.
+common_options {
+  endpoint_options {
+    num_send_ports: 8
+    num_recv_ports: 2
+  }
+  data_options {
+    data_bit_width: 64
+  }
+  link_options {
+    source_sink_pipeline_stage: 0
+    sink_source_pipeline_stage: 0
+    flow_control {
+      peek {}
+    }
+  }
+  virtual_channel_options {
+    virtual_channel_depth: 16
+    virtual_channel_depth: 8
+  }
+  router_options {
+    routing_scheme {
+      routing_table {}
+    }
+    arbiter_scheme {
+      priority {}
+    }
+  }
+}
+unidirectional_tree {
+  radix: 8
+  type: AGGREGATION
+}

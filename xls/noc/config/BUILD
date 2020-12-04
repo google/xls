@@ -185,3 +185,18 @@ cc_test(
         "@com_google_googletest//:gtest_main",
     ],
 )
+
+proto_library(
+    name = "network_config_builder_options_proto",
+    srcs = ["network_config_builder_options.proto"],
+    deps = [
+        ":network_config_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "network_config_builder_options_cc_proto",
+    deps = [
+        ":network_config_builder_options_proto",
+    ],
+)

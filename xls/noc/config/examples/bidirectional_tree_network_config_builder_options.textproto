@@ -1,0 +1,47 @@
+# proto-file: xls/noc/config/network_config_builder_options.proto
+# proto-message: NetworkConfigBuilderOptionsProto
+
+# The following is an example of a NetworkConfigBuilderOptionsProto message
+# defining a bidirectional tree topology. There are nine send ports and nine
+# receive ports. In a bidirectional tree, the send ports and receive ports are
+# connected to the root of the tree and to the leaves of the tree.
+# With one send port and one receive port connected to the root of the tree,
+# eight send ports and eight receive ports are connected to the leaves of the
+# tree.
+# With a radix of two, there are at most two receive ports or two routers
+# connected to a router. With a radix of two and eight send ports and eight
+# receive ports, the tree forms a binary tree with three levels.
+common_options {
+  endpoint_options {
+    num_send_ports: 9
+    num_recv_ports: 9
+  }
+  data_options {
+    data_bit_width: 64
+  }
+  link_options {
+    source_sink_pipeline_stage: 0
+    sink_source_pipeline_stage: 0
+    flow_control {
+      peek {}
+    }
+  }
+  virtual_channel_options {
+    virtual_channel_depth: 16
+    virtual_channel_depth: 8
+  }
+  router_options {
+    routing_scheme {
+      routing_table {}
+    }
+    arbiter_scheme {
+      priority {}
+    }
+  }
+}
+# bidirectional tree topology
+bidirectional_tree {
+  radix: 2
+  num_send_ports_at_root: 1
+  num_recv_ports_at_root: 1
+}

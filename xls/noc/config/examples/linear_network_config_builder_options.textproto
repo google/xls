@@ -1,0 +1,47 @@
+# proto-file: xls/noc/config/network_config_builder_options.proto
+# proto-message: NetworkConfigBuilderOptionsProto
+
+# The following is an example of a NetworkConfigBuilderOptionsProto message
+# defining a linear topology. There are eight send ports and eight receive
+# ports. With the maximum number of send ports per router equal to one and
+# the maximum number of receive ports per router equal to one, eight routers are
+# sufficient to connect the send and receive ports.
+# To define a linear topology with eight routers, the grid custom network config
+# builder options proto is defined with the number of rows equivalent to one,
+# the number of columns equivalent to eight, and, the row loopback and column
+# loopback set to false.
+common_options {
+  endpoint_options {
+    num_send_ports: 8
+    num_recv_ports: 8
+  }
+  data_options {
+    data_bit_width: 64
+  }
+  link_options {
+    source_sink_pipeline_stage: 0
+    sink_source_pipeline_stage: 0
+    flow_control {
+      peek {}
+    }
+  }
+  virtual_channel_options {
+    virtual_channel_depth: 16
+    virtual_channel_depth: 8
+  }
+  router_options {
+    routing_scheme {
+      routing_table {}
+    }
+    arbiter_scheme {
+      priority {}
+    }
+  }
+}
+# linear topology definition
+grid {
+  num_rows: 1
+  num_columns: 8
+  row_loopback: false
+  column_loopback: false
+}
