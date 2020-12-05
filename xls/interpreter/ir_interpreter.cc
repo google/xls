@@ -256,7 +256,44 @@ absl::Status IrInterpreter::HandleDecode(Decode* decode) {
 
 absl::Status IrInterpreter::HandleDynamicCountedFor(
     DynamicCountedFor* dynamic_counted_for) {
-  return absl::UnimplementedError("DynamicCountedFor not yet implemented");
+  Function* body = dynamic_counted_for->body();
+
+  // Set the loop invariant args (from the fourth operand on up).
+  std::vector<Value> invariant_args;
+  for (int64 i = 3; i < dynamic_counted_for->operand_count(); ++i) {
+    invariant_args.push_back(ResolveAsValue(dynamic_counted_for->operand(i)));
+  }
+
+  // Grab initial accumulator value, trip count, and stride.
+  Value loop_state = ResolveAsValue(dynamic_counted_for->operand(0));
+  BitsType* index_type = body->param(0)->GetType()->AsBitsOrDie();
+  const Bits& trip_count_unsigned =
+      ResolveAsBits(dynamic_counted_for->operand(1));
+  Bits trip_count = bits_ops::ZeroExtend(trip_count_unsigned,
+                                         trip_count_unsigned.bit_count() + 1);
+  const Bits& stride = ResolveAsBits(dynamic_counted_for->operand(2));
+
+  // Setup index, extend stride for addition with index.
+  Bits index_limit = bits_ops::SMul(trip_count, stride);
+  Bits index(index_type->bit_count());
+  XLS_RET_CHECK(index.IsZero());
+  const Bits& extended_stride = bits_ops::SignExtend(stride, index.bit_count());
+
+  // For each iteration of dynamic_counted_for, update the induction variable
+  // and loop state arguments (params 0 and 1) and recursively call the
+  // interpreter Run() on the body function -- the new accumulator value is the
+  // return value of interpreting body.
+  while (!bits_ops::SEqual(index, index_limit)) {
+    std::vector<Value> args_for_body = {Value(index), loop_state};
+    for (const auto& value : invariant_args) {
+      args_for_body.push_back(value);
+    }
+    XLS_ASSIGN_OR_RETURN(loop_state, Run(body, args_for_body, stats_));
+
+    index = bits_ops::Add(index, extended_stride);
+  }
+
+  return SetValueResult(dynamic_counted_for, loop_state);
 }
 
 absl::Status IrInterpreter::HandleEncode(Encode* encode) {
