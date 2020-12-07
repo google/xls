@@ -22,6 +22,7 @@ cc_test(
     srcs = ["custom_network_config_builder_options_textproto_test.cc"],
     data = glob(["*.textproto"]),
     deps = [
+        "@com_google_absl//absl/strings",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:matchers",
