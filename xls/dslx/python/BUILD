@@ -275,33 +275,6 @@ xls_pybind_extension(
 )
 
 xls_pybind_extension(
-    name = "cpp_evaluate",
-    srcs = [
-        "cpp_evaluate.cc",
-    ],
-    py_deps = [
-        ":cpp_ast",  # build_cleaner: keep
-        ":interp_value",  # build_cleaner: keep
-        ":interp_bindings",  # build_cleaner: keep
-        ":cpp_concrete_type",  # build_cleaner: keep
-    ],
-    deps = [
-        ":callback_converters",
-        ":cpp_ast_header",
-        ":errors",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "//xls/common/status:status_macros",
-        "//xls/common/status:statusor_pybind_caster",
-        "//xls/dslx:cpp_ast",
-        "//xls/dslx:cpp_concrete_type",
-        "//xls/dslx:cpp_evaluate",
-        "//xls/dslx:interp_bindings",
-    ],
-)
-
-xls_pybind_extension(
     name = "interpreter",
     srcs = ["interpreter.cc"],
     py_deps = [
