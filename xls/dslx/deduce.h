@@ -197,6 +197,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(Array* node,
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAttr(Attr* node,
                                                          DeduceCtx* ctx);
 
+// See ConstantArray in the AST.
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantArray(
+    ConstantArray* node, DeduceCtx* ctx);
+
 // Resolves "type_" via provided symbolic bindings.
 //
 // Uses the symbolic bindings of the function we're currently inside of to

@@ -57,6 +57,7 @@ RULES = {
     ast.Binop: cpp_deduce.deduce_Binop,
     ast.Cast: cpp_deduce.deduce_Cast,
     ast.Constant: cpp_deduce.deduce_ConstantDef,
+    ast.ConstantArray: cpp_deduce.deduce_ConstantArray,
     ast.EnumDef: cpp_deduce.deduce_EnumDef,
     ast.For: cpp_deduce.deduce_For,
     ast.Let: cpp_deduce.deduce_Let,
@@ -92,37 +93,6 @@ def _resolve_colon_ref_to_fn(ref: ast.ColonRef, ctx: DeduceCtx) -> ast.Function:
   assert isinstance(definer, ast.Import), definer
   imported_module, _ = ctx.type_info.get_imported(definer)
   return imported_module.get_function(ref.attr)
-
-
-@_rule(ast.ConstantArray)
-def _deduce_ConstantArray(
-    self: ast.ConstantArray, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  """Deduces the concrete type of a ConstantArray AST node."""
-  # We permit constant arrays to drop annotations for numbers as a convenience
-  # (before we have unifying type inference) by allowing constant arrays to have
-  # a leading type annotation. If they don't have a leading type annotation,
-  # just fall back to normal array type inference, if we encounter a number
-  # without a type annotation we'll flag an error per usual.
-  if self.type_ is None:
-    return cpp_deduce.deduce_Array(self, ctx)
-
-  # Determine the element type that corresponds to the annotation and go mark
-  # any un-typed numbers in the constant array as having that type.
-  concrete_type = deduce(self.type_, ctx)
-  if not isinstance(concrete_type, ArrayType):
-    raise TypeInferenceError(
-        self.type_.span, concrete_type,
-        f'Annotated type for array literal must be an array type; got {concrete_type.get_debug_type_name()} {self.type_}'
-    )
-  element_type = concrete_type.get_element_type()
-  for member in self.members:
-    assert ast.is_constant(member)
-    if isinstance(member, ast.Number) and not member.type_:
-      ctx.type_info[member] = element_type
-      cpp_deduce.check_bitwidth(member, element_type)
-  # Use the base class to check all members are compatible.
-  cpp_deduce.deduce_Array(self, ctx)
-  return concrete_type
 
 
 def _create_element_invocation(owner: ast.AstNodeOwner, span_: Span,

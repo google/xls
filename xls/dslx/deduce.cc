@@ -540,4 +540,35 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAttr(Attr* node,
   return result.value()->CloneToUnique();
 }
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantArray(
+    ConstantArray* node, DeduceCtx* ctx) {
+  if (node->type() == nullptr) {
+    return DeduceArray(node, ctx);
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
+                       ctx->Deduce(node->type()));
+  auto* array_type = dynamic_cast<ArrayType*>(type.get());
+  if (array_type == nullptr) {
+    return absl::InternalError(
+        absl::StrFormat("TypeInferenceError: %s %s Annotated type for array "
+                        "literal must be an array type; got %s %s",
+                        node->type()->span().ToString(), type->ToString(),
+                        type->GetDebugTypeName(), node->type()->ToString()));
+  }
+
+  const ConcreteType& element_type = array_type->element_type();
+  for (Expr* member : node->members()) {
+    XLS_RET_CHECK(IsConstant(member));
+    if (Number* number = dynamic_cast<Number*>(member);
+        number != nullptr && number->type() == nullptr) {
+      ctx->type_info()->SetItem(member, element_type);
+      XLS_RETURN_IF_ERROR(CheckBitwidth(*number, element_type));
+    }
+  }
+
+  XLS_RETURN_IF_ERROR(DeduceArray(node, ctx).status());
+  return type;
+}
+
 }  // namespace xls::dslx
