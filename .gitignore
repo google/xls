@@ -1,2 +1,3 @@
 bazel-*
 .*.sw[a-z]
+__pycache__

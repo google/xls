@@ -25,6 +25,7 @@ namespace rtl {
 
 // Kinds of tokens the scanner emits.
 enum class TokenKind {
+  kStartParams,   // #(
   kOpenParen,     // (
   kCloseParen,    // )
   kOpenBracket,   // [
@@ -33,6 +34,8 @@ enum class TokenKind {
   kComma,
   kColon,
   kSemicolon,
+  kEquals,
+  kQuote,
   kName,
   kNumber,
 };
@@ -67,7 +70,7 @@ class Scanner {
   absl::StatusOr<Token> Pop();
 
   bool AtEof() {
-    DropCommentsAndWhitespace();
+    DropIgnoredChars();
     return index_ >= text_.size();
   }
 
@@ -76,7 +79,13 @@ class Scanner {
   absl::StatusOr<Token> ScanNumber(char startc, Pos pos);
   absl::StatusOr<Token> PeekInternal();
 
-  void DropCommentsAndWhitespace();
+  // Drops any characters that should not be converted to Tokens, including
+  // whitespace, comments, and attributes.
+  // Note that we may eventually want to expose attributes to the Parser, but
+  // until then it's much simpler to treat attributes like block comments and
+  // ignore everything inside of them. This also means that the Scanner will
+  // accept attributes that are in invalid positions.
+  void DropIgnoredChars();
 
   char PeekCharOrDie() const;
   char PeekChar2OrDie() const;

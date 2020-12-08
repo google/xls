@@ -33,6 +33,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "//xls/common:bits_util",
         "//xls/common:integral_types",
         "//xls/common/logging",
         "//xls/common/status:status_macros",

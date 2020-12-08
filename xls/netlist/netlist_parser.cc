@@ -37,6 +37,8 @@ std::string Pos::ToHumanString() const {
 
 std::string TokenKindToString(TokenKind kind) {
   switch (kind) {
+    case TokenKind::kStartParams:
+      return "start-params";
     case TokenKind::kOpenParen:
       return "open-paren";
     case TokenKind::kCloseParen:
@@ -53,6 +55,10 @@ std::string TokenKindToString(TokenKind kind) {
       return "semicolon";
     case TokenKind::kColon:
       return "colon";
+    case TokenKind::kEquals:
+      return "equals";
+    case TokenKind::kQuote:
+      return "quote";
     case TokenKind::kName:
       return "name";
     case TokenKind::kNumber:
@@ -92,9 +98,31 @@ char Scanner::PopCharOrDie() {
   return c;
 }
 
-void Scanner::DropCommentsAndWhitespace() {
+void Scanner::DropIgnoredChars() {
   auto drop_to_eol_or_eof = [this] {
     while (!AtEofInternal() && PeekCharOrDie() != '\n') {
+      DropCharOrDie();
+    }
+  };
+  auto drop_to_block_comment_end_or_eof = [this] {
+    char previous_char = '0';  // arbitrary char that is not '*'
+    while (!AtEofInternal()) {
+      if (PeekCharOrDie() == '/' && previous_char == '*') {
+        DropCharOrDie();
+        break;
+      }
+      previous_char = PeekCharOrDie();
+      DropCharOrDie();
+    }
+  };
+  auto drop_to_attr_end_or_eof = [this] {
+    char previous_char = '0';  // arbitrary char that is not '*'
+    while (!AtEofInternal()) {
+      if (PeekCharOrDie() == ')' && previous_char == '*') {
+        DropCharOrDie();
+        break;
+      }
+      previous_char = PeekCharOrDie();
       DropCharOrDie();
     }
   };
@@ -105,6 +133,21 @@ void Scanner::DropCommentsAndWhitespace() {
           DropCharOrDie();
           DropCharOrDie();
           drop_to_eol_or_eof();
+          continue;
+        }
+        if (PeekChar2OrDie() == '*') {
+          DropCharOrDie();
+          DropCharOrDie();
+          drop_to_block_comment_end_or_eof();
+          continue;
+        }
+        return;
+      }
+      case '(': {
+        if (PeekChar2OrDie() == '*') {
+          DropCharOrDie();
+          DropCharOrDie();
+          drop_to_attr_end_or_eof();
           continue;
         }
         return;
@@ -197,12 +240,12 @@ absl::StatusOr<Token> Scanner::ScanName(char startc, Pos pos, bool is_escaped) {
 }
 
 absl::StatusOr<Token> Scanner::PeekInternal() {
-  DropCommentsAndWhitespace();
+  DropIgnoredChars();
   if (index_ >= text_.size()) {
     return absl::FailedPreconditionError("Scan has reached EOF.");
   }
   auto pos = GetPos();
-  char c = text_[index_++];
+  char c = PopCharOrDie();
   switch (c) {
     case '(':
       return Token{TokenKind::kOpenParen, pos};
@@ -220,6 +263,16 @@ absl::StatusOr<Token> Scanner::PeekInternal() {
       return Token{TokenKind::kSemicolon, pos};
     case ':':
       return Token{TokenKind::kColon, pos};
+    case '=':
+      return Token{TokenKind::kEquals, pos};
+    case '"':
+      return Token{TokenKind::kQuote, pos};
+    case '#':
+      if (index_ < text_.size() && text_[index_] == '(') {
+        DropCharOrDie();
+        return Token{TokenKind::kStartParams, GetPos()};
+      }
+      [[fallthrough]];
     default:
       if (isdigit(c)) {
         return ScanNumber(c, pos);
@@ -346,6 +399,20 @@ absl::StatusOr<const CellLibraryEntry*> Parser::ParseCellModule(
   auto status_or_module = netlist.GetModule(name);
   if (status_or_module.ok()) {
     return status_or_module.value()->AsCellLibraryEntry();
+  }
+  if (name == "SB_LUT4") {
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kStartParams));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kDot));
+    XLS_ASSIGN_OR_RETURN(std::string param_name, PopNameOrError());
+    if (param_name != "LUT_INIT") {
+      return absl::InvalidArgumentError(
+          "Expected a single .LUT_INIT named parameter, got: " + param_name);
+    }
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOpenParen));
+    XLS_ASSIGN_OR_RETURN(int64 lut_mask, PopNumberOrError());
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCloseParen));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCloseParen));
+    return netlist.GetOrCreateLut4CellEntry(lut_mask);
   }
   return cell_library_->GetEntry(name);
 }

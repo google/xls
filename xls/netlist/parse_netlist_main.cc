@@ -28,13 +28,17 @@ namespace xls {
 namespace {
 
 absl::Status RealMain(absl::string_view netlist_path,
-                      absl::string_view cell_library_path) {
+                      absl::optional<absl::string_view> cell_library_path) {
+  netlist::CellLibrary cell_library;
+  if (cell_library_path) {
+    XLS_ASSIGN_OR_RETURN(
+        netlist::CellLibraryProto cell_library_proto,
+        ParseTextProtoFile<netlist::CellLibraryProto>(*cell_library_path));
+    XLS_ASSIGN_OR_RETURN(cell_library,
+                         netlist::CellLibrary::FromProto(cell_library_proto));
+  }
+
   XLS_ASSIGN_OR_RETURN(std::string netlist_text, GetFileContents(netlist_path));
-  XLS_ASSIGN_OR_RETURN(
-      netlist::CellLibraryProto cell_library_proto,
-      ParseTextProtoFile<netlist::CellLibraryProto>(cell_library_path));
-  XLS_ASSIGN_OR_RETURN(auto cell_library,
-                       netlist::CellLibrary::FromProto(cell_library_proto));
   netlist::rtl::Scanner scanner(netlist_text);
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<netlist::rtl::Netlist> netlist,
@@ -73,14 +77,18 @@ int main(int argc, char** argv) {
   std::vector<absl::string_view> positional_arguments =
       xls::InitXls(argv[0], argc, argv);
 
-  if (positional_arguments.size() < 2) {
-    std::cerr << "Usage: " << argv[0]
-              << " <netlist.gv> <cell_library.textproto>" << std::endl;
+  if (positional_arguments.empty()) {
+    std::cerr << "Usage: " << argv[0] << " netlist.gv [cell_library.textproto]"
+              << std::endl;
     return EXIT_FAILURE;
   }
 
-  XLS_QCHECK_OK(
-      xls::RealMain(positional_arguments[0], positional_arguments[1]));
+  absl::optional<std::string_view> cell_library_path;
+  if (positional_arguments.size() == 2) {
+    cell_library_path = positional_arguments[1];
+  }
+
+  XLS_QCHECK_OK(xls::RealMain(positional_arguments[0], cell_library_path));
 
   return EXIT_SUCCESS;
 }

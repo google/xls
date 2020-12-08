@@ -20,6 +20,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "xls/common/bits_util.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/netlist/cell_library.h"
 
@@ -212,6 +213,28 @@ absl::StatusOr<const Module*> Netlist::GetModule(
   }
   return absl::NotFoundError(
       absl::StrFormat("Module %s not found in netlist.", module_name));
+}
+
+absl::StatusOr<const CellLibraryEntry*> Netlist::GetOrCreateLut4CellEntry(
+    int64 lut_mask) {
+  if ((lut_mask & Mask(16)) != lut_mask) {
+    return absl::InvalidArgumentError("Mask for LUT4 must be 16 bits");
+  }
+  uint16_t mask = static_cast<uint16_t>(lut_mask);
+  auto it = lut_cells_.find(mask);
+  if (it == lut_cells_.end()) {
+    CellLibraryEntry entry = CellLibraryEntry(
+        // The resulting LUT could represent a defined CellKind e.g. kXor
+        // but since we currently don't "pattern match" the mask against known
+        // functions, we just use kOther for every mask.
+        CellKind::kOther,
+        /*name*/ absl::StrFormat("<lut_0x%04x>", mask),
+        /*input_names*/ std::vector<std::string>{"I0", "I1", "I3"},
+        /*output_pin_to_function*/ {{"O", "X"}}, StateTable::FromLutMask(mask));
+    auto result = lut_cells_.insert({mask, entry});
+    return &(result.first->second);
+  }
+  return &it->second;
 }
 
 }  // namespace rtl

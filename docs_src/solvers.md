@@ -100,10 +100,10 @@ BAR p1_and_2 ( .A(p0_i2), .B(p0_i3), .Z(p1_and_2_comb) );
 
 These lines describe, in order:
 
--   One cell, called `AND`, that takes two inputs, .A and .B, provided by the
+-   One cell, called `FOO`, that takes two inputs, .A and .B, provided by the
     wires `p0_i0` and `p0_i1`, respectively, and one output, .Z, which will be
     assigned to the wire `p1_and_1_comb.
--   One cell, called `OR`, that takes two inputs, .A and .B, provided by the
+-   One cell, called `BAR`, that takes two inputs, .A and .B, provided by the
     wires `p0_i2` and `p0_i2`, respectively, and one output, .Z, which will be
     assigned to the wire `p1_and_2_comb.
 
@@ -112,7 +112,7 @@ Note that the _values_ computed by the cells wasn't mentioned - that's because
 used to generate the netlist. Thus, to be able to model these gates in a solver,
 we need to take that cell library as input to the LEC tool. The netlist
 describes how cells are laid out, and the cell library indicates what cells
-actually `do`. With both of these in hand, preparing the netlist half of a LEC
+actually *do*. With both of these in hand, preparing the netlist half of a LEC
 is a [relatively] straightforward matter of parsing a netlist and cell library
 and converting those together into a description of logic. See
 [z3_netlist_translator.cc](https://github.com/google/xls/tree/main/xls/solvers/z3_netlist_translator.cc)
@@ -129,9 +129,9 @@ for full details.
 
 ### Time-to-result
 
-Under the hood, Z3 (and many other tools in this space) is an (SMT
-solver)[https://en.wikipedia.org/wiki/Satisfiability_modulo_theories]. At a high
-level, think of an SMT solver as a SAT solver that has special handling for
+Under the hood, Z3 (and many other tools in this space) is an
+[SMT solver](https://en.wikipedia.org/wiki/Satisfiability_modulo_theories). At a
+high level, think of an SMT solver as a SAT solver that has special handling for
 certain classes of data (bit vectors, floating-point numbers). Many sufficiently
 complicated problems will reduce to raw SAT solving (especially those involving
 netlists, which have to implement complex logic at the gate level. Consider what
