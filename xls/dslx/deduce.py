@@ -35,7 +35,6 @@ from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType
 from xls.dslx.python.cpp_concrete_type import ConcreteType
 from xls.dslx.python.cpp_concrete_type import ConcreteTypeDim
-from xls.dslx.python.cpp_concrete_type import EnumType
 from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.dslx.python.cpp_deduce import DeduceCtx
@@ -56,6 +55,7 @@ RULES = {
     ast.Attr: cpp_deduce.deduce_Attr,
     ast.Binop: cpp_deduce.deduce_Binop,
     ast.Cast: cpp_deduce.deduce_Cast,
+    ast.ColonRef: cpp_deduce.deduce_ColonRef,
     ast.Constant: cpp_deduce.deduce_ConstantDef,
     ast.ConstantArray: cpp_deduce.deduce_ConstantArray,
     ast.EnumDef: cpp_deduce.deduce_EnumDef,
@@ -528,83 +528,6 @@ def _deduce_NameRef(self: ast.NameRef, ctx: DeduceCtx) -> ConcreteType:  # pytyp
     cpp_deduce.type_missing_error_set_user(e, self)
     raise
   return result
-
-
-def _deduce_enum_ref_internal(span: Span, enum_type: EnumType,
-                              attr: str) -> ConcreteType:
-  """Checks that attr is available on the enum being colon-referenced."""
-  # Check the name we're accessing is actually defined on the enum.
-  enum = enum_type.get_nominal_type()
-  assert isinstance(enum, ast.EnumDef), enum
-  if not enum.has_value(attr):
-    raise TypeInferenceError(
-        span, None,
-        f'Name {attr!r} is not defined by the enum {enum.identifier}')
-  return enum_type
-
-
-@_rule(ast.ColonRef)
-def _deduce_ColonRef(self: ast.ColonRef, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  """Deduces the concrete type of a ColonRef AST node."""
-  if isinstance(self.subject, ast.NameRef):
-    if not isinstance(self.subject.name_def, ast.NameDef):
-      # Note: can be BuiltinNameDef!
-      raise TypeInferenceError(
-          self.span, None,
-          f'Builtin {self.subject.identifier!r} has no attributes')
-    if isinstance(self.subject.name_def.definer, ast.Import):
-      # Importing from an (imported) module.
-      import_node: ast.Import = self.subject.name_def.definer
-      imported_module, imported_type_info = ctx.type_info.get_imported(
-          import_node)
-      elem = imported_module.find_member_with_name(self.attr)
-      logging.vlog(
-          3, 'Resolving type info for module element: %s referred to by %s',
-          elem, self)
-
-      if elem is None:
-        raise TypeInferenceError(
-            self.span, None,
-            f'Attempted to refer to module {imported_module.name} member {self.attr!r} which does not exist.'
-        )
-
-      if not elem.public:
-        raise TypeInferenceError(
-            self.span, None,
-            f'Attempted to refer to module type {elem} that is not public.')
-
-      if isinstance(elem, ast.Function) and elem.name not in imported_type_info:
-        logging.vlog(
-            2,
-            'Function name not in imported_type_info; must be parametric: %r',
-            elem.name)
-        assert elem.is_parametric()
-        # We don't type check parametric functions until invocations.
-        # Let's typecheck this imported parametric function with respect to its
-        # module (this will only get the type signature, body gets typechecked
-        # after parametric instantiation).
-        imported_ctx = ctx.make_ctx(imported_type_info, imported_module)
-        peek_entry = ctx.peek_fn_stack()
-        imported_ctx.add_fn_stack_entry(peek_entry.name,
-                                        peek_entry.symbolic_bindings)
-        ctx.typecheck_function(elem, imported_ctx)
-        ctx.type_info.update(imported_ctx.type_info)
-        imported_type_info = imported_ctx.type_info
-
-      return imported_type_info[elem]
-
-  try:
-    subject_type = deduce(self.subject, ctx)
-  except TypeMissingError as e:
-    logging.vlog(3, 'Could not resolve ColonRef subject to type: %s @ %s',
-                 self.subject, self.span)
-    cpp_deduce.type_missing_error_set_span(e, self.span)
-    cpp_deduce.type_missing_error_set_user(e, self)
-    raise
-
-  if isinstance(subject_type, EnumType):
-    return _deduce_enum_ref_internal(self.span, subject_type, self.attr)
-  raise NotImplementedError(self, subject_type)
 
 
 def _dim_to_parametric(self: ast.TypeAnnotation,

@@ -571,4 +571,115 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantArray(
   return type;
 }
 
+static bool IsPublic(const ModuleMember& member) {
+  if (absl::holds_alternative<Function*>(member)) {
+    return absl::get<Function*>(member)->is_public();
+  }
+  if (absl::holds_alternative<TypeDef*>(member)) {
+    return absl::get<TypeDef*>(member)->is_public();
+  }
+  if (absl::holds_alternative<StructDef*>(member)) {
+    return absl::get<StructDef*>(member)->is_public();
+  }
+  if (absl::holds_alternative<ConstantDef*>(member)) {
+    return absl::get<ConstantDef*>(member)->is_public();
+  }
+  if (absl::holds_alternative<EnumDef*>(member)) {
+    return absl::get<EnumDef*>(member)->is_public();
+  }
+  if (absl::holds_alternative<Test*>(member)) {
+    return false;
+  }
+  if (absl::holds_alternative<QuickCheck*>(member)) {
+    return false;
+  }
+  if (absl::holds_alternative<Import*>(member)) {
+    return false;
+  }
+  XLS_LOG(FATAL) << "Unhandled ModuleMember variant.";
+}
+
+// Deduces a colon-ref in the particular case when the subject is known to be an
+// import.
+static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRefImport(
+    ColonRef* node, Import* import, DeduceCtx* ctx) {
+  // Referring to something within an (imported) module.
+  absl::optional<const ImportedInfo*> imported =
+      ctx->type_info()->GetImported(import);
+  XLS_RET_CHECK(imported.has_value());
+  const std::shared_ptr<Module>& imported_module = (*imported)->module;
+  absl::optional<ModuleMember*> elem =
+      imported_module->FindMemberWithName(node->attr());
+  if (!elem.has_value()) {
+    return absl::InternalError(absl::StrFormat(
+        "TypeInferenceError: %s <> Attempted to refer to module %s member '%s' "
+        "which does not exist.",
+        node->span().ToString(), imported_module->name(), node->attr()));
+  }
+  if (!IsPublic(*elem.value())) {
+    return absl::InternalError(absl::StrFormat(
+        "TypeInferenceError: %s <> Attempted to refer to module member %s that "
+        "is not public.",
+        node->span().ToString(), ToAstNode(*elem.value())->ToString()));
+  }
+
+  std::shared_ptr<TypeInfo> imported_type_info = (*imported)->type_info;
+  if (absl::holds_alternative<Function*>(*elem.value())) {
+    auto* function = absl::get<Function*>(*elem.value());
+    if (!imported_type_info->Contains(function->name_def())) {
+      XLS_VLOG(2) << "Function name not in imported_type_info; indicates it is "
+                     "parametric.";
+      XLS_RET_CHECK(function->is_parametric());
+      // We don't type check parametric functions until invocations.
+      // Let's typecheck this imported parametric function with respect to its
+      // module (this will only get the type signature, the body gets
+      // typechecked after parametric instantiation).
+      DeduceCtx imported_ctx =
+          ctx->MakeCtx(imported_type_info, imported_module);
+      const FnStackEntry& peek_entry = ctx->fn_stack().back();
+      imported_ctx.fn_stack().push_back(
+          FnStackEntry{peek_entry.name, peek_entry.symbolic_bindings});
+      XLS_RETURN_IF_ERROR(ctx->typecheck_function()(function, &imported_ctx));
+      ctx->type_info()->Update(*imported_ctx.type_info());
+      imported_type_info = imported_ctx.type_info();
+    }
+  }
+
+  AstNode* member_node = ToAstNode(*elem.value());
+  absl::optional<ConcreteType*> type = imported_type_info->GetItem(member_node);
+  XLS_RET_CHECK(type.has_value()) << member_node->ToString();
+  return type.value()->CloneToUnique();
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRef(ColonRef* node,
+                                                             DeduceCtx* ctx) {
+  bool subject_is_name_ref = absl::holds_alternative<NameRef*>(node->subject());
+  if (subject_is_name_ref) {
+    NameRef* name_ref = absl::get<NameRef*>(node->subject());
+    if (absl::holds_alternative<BuiltinNameDef*>(name_ref->name_def())) {
+      auto* builtin_name_def = absl::get<BuiltinNameDef*>(name_ref->name_def());
+      return absl::InternalError(absl::StrFormat(
+          "TypeInferenceError: %s <> Builtin '%s' has no attributes.",
+          node->span().ToString(), builtin_name_def->identifier()));
+    }
+    NameDef* name_def = absl::get<NameDef*>(name_ref->name_def());
+    Import* import = dynamic_cast<Import*>(name_def->definer());
+    if (import != nullptr) {
+      return DeduceColonRefImport(node, import, ctx);
+    }
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> subject_type,
+                       ctx->Deduce(ToAstNode(node->subject())));
+  auto* enum_type = dynamic_cast<EnumType*>(subject_type.get());
+  XLS_RET_CHECK(enum_type != nullptr);
+  EnumDef* enum_def = enum_type->nominal_type();
+  if (!enum_def->HasValue(node->attr())) {
+    return absl::InternalError(absl::StrFormat(
+        "TypeInferenceError: %s <> Name '%s' is not defined by the enum %s.",
+        node->span().ToString(), node->attr(), enum_def->identifier()));
+  }
+  return subject_type;
+}
+
 }  // namespace xls::dslx
