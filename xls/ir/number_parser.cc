@@ -19,6 +19,7 @@
 #include "absl/strings/str_replace.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/string_to_int.h"
 #include "xls/ir/bits_ops.h"
 
 namespace xls {
@@ -75,13 +76,14 @@ static absl::StatusOr<Bits> ParseUnsignedNumberHelper(
   std::vector<Bits> chunks;
   for (int64 i = 0; i < numeric_string.size(); i = i + step_size) {
     int64 chunk_length = std::min<int64>(step_size, numeric_string.size() - i);
-    uint64 chunk_value;
-    if (!absl::numbers_internal::safe_strtoi_base(
-            numeric_string.substr(i, chunk_length), &chunk_value, base)) {
-      return absl::InvalidArgumentError(StrFormat(
-          "Could not convert %s to %s number", orig_string, base_name));
+    absl::StatusOr<uint64> chunk_value_or =
+        StrTo64Base(numeric_string.substr(i, chunk_length), base);
+    if (!chunk_value_or.ok()) {
+      return absl::InvalidArgumentError(
+          StrFormat("Could not convert %s to %s number: %s", orig_string,
+                    base_name, chunk_value_or.status().message()));
     }
-    chunks.push_back(UBits(chunk_value, chunk_length * base_bits));
+    chunks.push_back(UBits(*chunk_value_or, chunk_length * base_bits));
   }
 
   Bits unnarrowed = bits_ops::Concat(chunks);

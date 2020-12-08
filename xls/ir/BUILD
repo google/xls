@@ -650,6 +650,7 @@ cc_library(
         ":bits_ops",
         ":format_preference",
         "//xls/common:integral_types",
+        "//xls/common:string_to_int",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/status:statusor",

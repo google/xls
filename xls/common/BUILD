@@ -202,6 +202,34 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "string_to_int",
+    srcs = ["string_to_int.cc"],
+    hdrs = ["string_to_int.h"],
+    deps = [
+        ":integral_types",
+        "@com_google_absl//absl/numeric:int128",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+    ],
+)
+
+cc_test(
+    name = "string_to_int_test",
+    srcs = ["string_to_int_test.cc"],
+    deps = [
+        ":string_to_int",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
 cc_test(
     name = "strong_int_test",
     srcs = ["strong_int_test.cc"],

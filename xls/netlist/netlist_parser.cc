@@ -23,6 +23,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/string_to_int.h"
 #include "xls/ir/bits.h"
 #include "re2/re2.h"
 
@@ -250,8 +251,8 @@ absl::StatusOr<int64> Parser::PopNumberOrError() {
             token.value, R"(([0-9]+)'([Ss]?)([bodhBODH])([0-9a-f]+))",
             &width_string, &signed_string, &base_string, &value_string)) {
       int64 width;
-      XLS_RET_CHECK(absl::numbers_internal::safe_strto64_base(
-          width_string, reinterpret_cast<int64_t*>(&width), 10))
+      XLS_RET_CHECK(
+          absl::SimpleAtoi(width_string, reinterpret_cast<int64_t*>(&width)))
           << "Unable to parse number width: " << width_string;
       int base;
       if (base_string == "b" || base_string == "B") {
@@ -267,10 +268,7 @@ absl::StatusOr<int64> Parser::PopNumberOrError() {
             absl::StrCat("Invalid numeric base: ", base_string));
       }
 
-      uint64_t temp;
-      XLS_RET_CHECK(
-          absl::numbers_internal::safe_strtou64_base(value_string, &temp, base))
-          << "Unable to parse number value: " << value_string;
+      XLS_ASSIGN_OR_RETURN(uint64 temp, StrTo64Base(value_string, base));
       if (signed_string.empty()) {
         return static_cast<int64>(temp);
       }
