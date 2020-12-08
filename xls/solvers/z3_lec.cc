@@ -14,6 +14,8 @@
 
 #include "xls/solvers/z3_lec.h"
 
+#include <thread>  // NOLINT(build/c++11)
+
 #include "absl/base/internal/sysinfo.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -140,7 +142,7 @@ absl::Status Lec::Init() {
 
   Z3_ast eval_node = Z3_mk_and(ctx(), eq_nodes.size(), eq_nodes.data());
   eval_node = Z3_mk_not(ctx(), eval_node);
-  solver_ = CreateSolver(ctx(), absl::base_internal::NumCPUs());
+  solver_ = CreateSolver(ctx(), std::thread::hardware_concurrency());
   Z3_solver_assert(ctx(), solver_.value(), eval_node);
 
   return absl::OkStatus();

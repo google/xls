@@ -19,7 +19,9 @@
 //
 // With default flags, it proves that results are _exactly_ identical when
 // subnormals are flushed to zero.
+
 #include <filesystem>
+#include <thread>  // NOLINT(build/c++11)
 
 #include "absl/base/internal/sysinfo.h"
 #include "absl/flags/flag.h"
@@ -159,7 +161,7 @@ absl::Status CompareToReference(bool use_opt_ir, uint32 error_bound,
   translator->SetTimeout(timeout);
 
   Z3_solver solver =
-      solvers::z3::CreateSolver(ctx, absl::base_internal::NumCPUs());
+      solvers::z3::CreateSolver(ctx, std::thread::hardware_concurrency());
   Z3_ast objective = Z3_mk_fpa_gt(ctx, error, bounds);
   Z3_solver_assert(ctx, solver, objective);
 

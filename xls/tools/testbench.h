@@ -16,6 +16,7 @@
 #define XLS_TOOLS_TESTBENCH_H_
 
 #include <functional>
+#include <thread>  // NOLINT(build/c++11)
 #include <type_traits>
 
 #include "absl/base/internal/sysinfo.h"
@@ -142,7 +143,7 @@ class TestbenchBase {
                 std::function<InputT(uint64)> index_to_input,
                 std::function<bool(ResultT, ResultT)> compare_results)
       : started_(false),
-        num_threads_(absl::base_internal::NumCPUs()),
+        num_threads_(std::thread::hardware_concurrency()),
         start_(start),
         end_(end),
         max_failures_(max_failures),

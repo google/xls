@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <thread>  // NOLINT(build/c++11)
+
 #include "absl/base/internal/sysinfo.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
@@ -141,7 +143,7 @@ absl::Status RealMain(const std::vector<absl::string_view>& ir_paths,
   translators[0]->SetTimeout(timeout);
 
   Z3_solver solver =
-      solvers::z3::CreateSolver(ctx, absl::base_internal::NumCPUs());
+      solvers::z3::CreateSolver(ctx, std::thread::hardware_concurrency());
 
   // Remember: we try to prove the condition by searching for a model that
   // produces the opposite result. Thus, we want to find a model where the
