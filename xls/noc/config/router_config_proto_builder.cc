@@ -24,10 +24,19 @@ RouterConfigProtoBuilder& RouterConfigProtoBuilder::WithName(
   return *this;
 }
 
-PortConfigProtoBuilder RouterConfigProtoBuilder::WithPort(
+PortConfigProtoBuilder RouterConfigProtoBuilder::WithInputPort(
     absl::string_view name) {
   PortConfigProto* port = proto_->add_ports();
   port->set_name(xls::ToProtoString(name));
+  port->set_direction(PortConfigProto::INPUT);
+  return PortConfigProtoBuilder(port);
+}
+
+PortConfigProtoBuilder RouterConfigProtoBuilder::WithOutputPort(
+    absl::string_view name) {
+  PortConfigProto* port = proto_->add_ports();
+  port->set_name(xls::ToProtoString(name));
+  port->set_direction(PortConfigProto::OUTPUT);
   return PortConfigProtoBuilder(port);
 }
 

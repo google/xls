@@ -19,16 +19,41 @@
 
 namespace xls::noc {
 
-// Test the field values of a router.
-TEST(RouterConfigBuilderTest, FieldValues) {
+// Test the field values of a router with an input port.
+TEST(RouterConfigBuilderTest, InputPortFieldValues) {
   const char* kName = "Test";
   const char* kRouterPortName = "RouterPort";
   RouterConfigProto proto;
   RouterConfigProtoBuilder builder(&proto);
   builder.WithName(kName);
-  PortConfigProtoBuilder port_config_builder =
-      builder.WithPort(kRouterPortName);
-  port_config_builder.AsOutputDirection();
+  builder.WithInputPort(kRouterPortName);
+  RoutingSchemeConfigProtoBuilder routing_scheme_config_builder =
+      builder.GetRoutingSchemeConfigProtoBuilder();
+  routing_scheme_config_builder.WithDistributedRoutingEntry(
+      {"NetworkPort", "VC0"}, {"RouterPort", "VC0"});
+  ArbiterSchemeConfigProtoBuilder arbiter_scheme_config_builder =
+      builder.GetArbiterSchemeConfigProtoBuilder();
+  std::vector<PortVirtualChannelTuple> priority_list;
+  priority_list.push_back({"RouterInputPort", "VC0"});
+  arbiter_scheme_config_builder.WithPriorityEntry(kRouterPortName,
+                                                  priority_list);
+
+  EXPECT_TRUE(proto.has_name());
+  EXPECT_EQ(proto.ports_size(), 1);
+  EXPECT_THAT(proto.ports(0).name(), kRouterPortName);
+  EXPECT_TRUE(proto.has_routing_scheme());
+  EXPECT_TRUE(proto.has_arbiter_scheme());
+  EXPECT_THAT(proto.name(), kName);
+}
+
+// Test the field values of a router with an output port.
+TEST(RouterConfigBuilderTest, OutputPortFieldValues) {
+  const char* kName = "Test";
+  const char* kRouterPortName = "RouterPort";
+  RouterConfigProto proto;
+  RouterConfigProtoBuilder builder(&proto);
+  builder.WithName(kName);
+  builder.WithOutputPort(kRouterPortName);
   RoutingSchemeConfigProtoBuilder routing_scheme_config_builder =
       builder.GetRoutingSchemeConfigProtoBuilder();
   routing_scheme_config_builder.WithDistributedRoutingEntry(

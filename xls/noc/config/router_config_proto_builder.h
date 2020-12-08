@@ -32,8 +32,11 @@ class RouterConfigProtoBuilder {
   // Adds the name of the router.
   RouterConfigProtoBuilder& WithName(absl::string_view name);
 
-  // Adds a port to this object. Returns its builder.
-  PortConfigProtoBuilder WithPort(absl::string_view name);
+  // Adds an input port to this object. Returns its builder.
+  PortConfigProtoBuilder WithInputPort(absl::string_view name);
+
+  // Adds an output port to this object. Returns its builder.
+  PortConfigProtoBuilder WithOutputPort(absl::string_view name);
 
   // Returns the routing scheme configuration builder of this builder.
   RoutingSchemeConfigProtoBuilder GetRoutingSchemeConfigProtoBuilder();
