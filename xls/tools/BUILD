@@ -613,6 +613,7 @@ cc_binary(
         "//xls/passes:cse_pass",
         "//xls/passes:dce_pass",
         "//xls/passes:dfe_pass",
+        "//xls/passes:inlining_pass",
         "//xls/passes:standard_pipeline",
         "//xls/passes:tuple_simplification_pass",
         "//xls/passes:unroll_pass",

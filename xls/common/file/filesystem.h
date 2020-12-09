@@ -52,6 +52,12 @@ namespace xls {
 //    }
 absl::Status FileExists(const std::filesystem::path& path);
 
+// Returns true if any of the executable bits (owner, group, or other) are set
+// to true. The may not exactly correspond to whether the file is executable
+// because the user may not have sufficient permissions (e.g., not an owner) to
+// take advantage of the set executable bit.
+absl::StatusOr<bool> FileIsExecutable(const std::filesystem::path& path);
+
 // Recursively creates the directory path. Returns OK if the directory already
 // exists.
 absl::Status RecursivelyCreateDir(const std::filesystem::path& path);

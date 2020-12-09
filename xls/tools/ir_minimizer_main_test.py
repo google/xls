@@ -54,8 +54,8 @@ class IrMinimizerMainTest(absltest.TestCase):
         minimized_ir.decode('utf-8'), """package foo
 
 fn foo(x: bits[32], y: bits[32]) -> bits[32] {
-  literal.13: bits[32] = literal(value=0, id=13)
-  ret add.2: bits[32] = add(literal.13, literal.13, id=2)
+  literal.11: bits[32] = literal(value=0, id=11)
+  ret add.2: bits[32] = add(literal.11, literal.11, id=2)
 }
 """)
 
@@ -71,8 +71,8 @@ fn foo(x: bits[32], y: bits[32]) -> bits[32] {
         minimized_ir.decode('utf-8'), """package foo
 
 fn foo() -> bits[32] {
-  literal.11: bits[32] = literal(value=0, id=11)
-  ret add.2: bits[32] = add(literal.11, literal.11, id=2)
+  literal.6: bits[32] = literal(value=0, id=6)
+  ret add.2: bits[32] = add(literal.6, literal.6, id=2)
 }
 """)
 
@@ -90,6 +90,46 @@ fn foo() -> bits[32] {
         '--can_remove_params', ir_file.full_path
     ])
     self.assertEqual(minimized_ir.decode('utf-8'), ADD_IR)
+
+  def test_simplify_and_unbox_array(self):
+    input_ir = """package foo
+
+fn foo(x: bits[32], y: bits[32]) -> bits[32][3] {
+  not: bits[32] = not(x, id=3)
+  ret a: bits[32][3] = array(x, y, not)
+}
+"""
+    ir_file = self.create_tempfile(content=input_ir)
+    test_sh_file = self.create_tempfile()
+    # The test script only checks to see if a not(x) instruction is in the IR.
+    self._write_sh_script(test_sh_file.full_path, ['/bin/grep not.*x $1'])
+    minimized_ir = subprocess.check_output([
+        IR_MINIMIZER_MAIN_PATH, '--test_executable=' + test_sh_file.full_path,
+        ir_file.full_path
+    ])
+    # The array operation should have been stripped from the function.
+    self.assertIn('array(', input_ir)
+    self.assertNotIn('array(', minimized_ir.decode('utf-8'))
+
+  def test_simplify_tuple(self):
+    input_ir = """package foo
+
+fn foo(x: bits[32], y: bits[32], z: bits[32]) -> (bits[32], (bits[32], bits[32]), bits[32]) {
+  tmp: (bits[32], bits[32]) = tuple(y, x)
+  ret a: (bits[32], (bits[32], bits[32]), bits[32]) = tuple(y, tmp, z)
+}
+"""
+    ir_file = self.create_tempfile(content=input_ir)
+    test_sh_file = self.create_tempfile()
+    # The test script only checks to see if a tuple(... x ...) instruction is in
+    # the IR. A single element tuple containing x should remain.
+    self._write_sh_script(test_sh_file.full_path, ['/bin/grep "tuple(.*x" $1'])
+    minimized_ir = subprocess.check_output([
+        IR_MINIMIZER_MAIN_PATH, '--test_executable=' + test_sh_file.full_path,
+        ir_file.full_path
+    ])
+    self.assertIn('ret tuple.9: (bits[32]) = tuple(x, id=9)',
+                  minimized_ir.decode('utf-8'))
 
   def test_verify_return_code(self):
     # If the test script never successfully runs, then ir_minimizer_main should

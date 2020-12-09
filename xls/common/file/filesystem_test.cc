@@ -48,6 +48,39 @@ TEST(FilesystemTest, FileExistsReturnsTrueIfTheFileExists) {
               StatusIs(absl::StatusCode::kNotFound));
 }
 
+TEST(FilesystemTest, FileIsExecutable) {
+  absl::StatusOr<TempFile> temp_file = TempFile::Create();
+  XLS_ASSERT_OK(temp_file);
+
+  ASSERT_THAT(FileIsExecutable(temp_file->path()), IsOkAndHolds(false));
+  ASSERT_THAT(FileIsExecutable(temp_file->path().parent_path()),
+              IsOkAndHolds(true));
+
+  // Set the owner and group execute bit.
+  std::filesystem::permissions(temp_file->path(),
+                               std::filesystem::perms::owner_read |
+                                   std::filesystem::perms::owner_write |
+                                   std::filesystem::perms::owner_exec |
+                                   std::filesystem::perms::group_exec);
+  ASSERT_THAT(FileIsExecutable(temp_file->path()), IsOkAndHolds(true));
+
+  // Unset the group execute bit but leave the owner execute bit.
+  std::filesystem::permissions(temp_file->path(),
+                               std::filesystem::perms::owner_read |
+                                   std::filesystem::perms::owner_write |
+                                   std::filesystem::perms::owner_exec);
+  ASSERT_THAT(FileIsExecutable(temp_file->path()), IsOkAndHolds(true));
+
+  // Unset the owner execute bit.
+  std::filesystem::permissions(
+      temp_file->path(),
+      std::filesystem::perms::owner_read | std::filesystem::perms::owner_write);
+  ASSERT_THAT(FileIsExecutable(temp_file->path()), IsOkAndHolds(false));
+
+  EXPECT_THAT(FileIsExecutable("/nonexistent/garbage"),
+              StatusIs(absl::StatusCode::kNotFound));
+}
+
 TEST(FilesystemTest, RecursivelyCreateDirCreatesDirectory) {
   absl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
   XLS_ASSERT_OK(temp_dir);

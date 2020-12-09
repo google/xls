@@ -42,6 +42,7 @@
 #include "xls/passes/cse_pass.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/dfe_pass.h"
+#include "xls/passes/inlining_pass.h"
 #include "xls/passes/passes.h"
 #include "xls/passes/standard_pipeline.h"
 #include "xls/passes/tuple_simplification_pass.h"
@@ -121,13 +122,32 @@ ABSL_FLAG(
 namespace xls {
 namespace {
 
+// Return a uniform random number over the interval [0, 1).
+float Random0To1(std::mt19937* rng) {
+  return absl::Uniform<float>(*rng, 0.0f, 1.0f);
+}
+
 // Checks whether we still fail when attempting to run function "f". Optional
 // 'inputs' is required if --test_llvm_jit is used.
-absl::StatusOr<bool> StillFails(absl::string_view ir_text,
-                                absl::optional<std::vector<Value>> inputs) {
-  XLS_VLOG_LINES(
-      1, absl::StrCat("=== Verifying contents still fails:\n", ir_text));
+absl::StatusOr<bool> StillFailsHelper(
+    absl::string_view ir_text, absl::optional<std::vector<Value>> inputs) {
   if (!absl::GetFlag(FLAGS_test_executable).empty()) {
+    // Verify script exists and is executable.
+    absl::Status exists_status =
+        FileExists(absl::GetFlag(FLAGS_test_executable));
+    XLS_QCHECK(exists_status.ok() || absl::IsNotFound(exists_status))
+        << absl::StreamFormat("Unable to access test executable %s: %s",
+                              absl::GetFlag(FLAGS_test_executable),
+                              exists_status.message());
+    XLS_QCHECK(!absl::IsNotFound(exists_status)) << absl::StreamFormat(
+        "Test executable %s not found", absl::GetFlag(FLAGS_test_executable));
+    XLS_ASSIGN_OR_RETURN(
+        bool is_executable,
+        FileIsExecutable(absl::GetFlag(FLAGS_test_executable)));
+    XLS_QCHECK(is_executable)
+        << absl::StreamFormat("Test executable %s is not executable",
+                              absl::GetFlag(FLAGS_test_executable));
+
     // Test for bug using external executable.
     XLS_ASSIGN_OR_RETURN(TempFile temp_file,
                          TempFile::CreateWithContent(ir_text));
@@ -166,18 +186,42 @@ absl::StatusOr<bool> StillFails(absl::string_view ir_text,
   }
   XLS_ASSIGN_OR_RETURN(Value interpreter_result,
                        IrInterpreter::Run(main, *inputs));
-  if (jit_result != interpreter_result) {
-    return true;
+  return jit_result != interpreter_result;
+}
+
+// Wrapper around StillFails which memoizes the result. Optional test_cache is
+// used to memoize the results of testing the given IR.
+absl::StatusOr<bool> StillFails(
+    absl::string_view ir_text, absl::optional<std::vector<Value>> inputs,
+    absl::flat_hash_map<std::string, bool>* test_cache) {
+  XLS_VLOG(1) << "=== Verifying contents still fails";
+  XLS_VLOG_LINES(2, ir_text);
+
+  if (test_cache != nullptr) {
+    auto it = test_cache->find(ir_text);
+    if (it != test_cache->end()) {
+      XLS_LOG(INFO) << absl::StreamFormat("Found result in cache (failed = %d)",
+                                          it->second);
+      return it->second;
+    }
   }
-  return false;
+
+  XLS_ASSIGN_OR_RETURN(bool result, StillFailsHelper(ir_text, inputs));
+  if (test_cache != nullptr) {
+    (*test_cache)[ir_text] = result;
+  }
+  return result;
 }
 
 // Writes the IR out to a temporary file, runs the test executable on it, and
-// returns 'true' if the test (still) fails on that IR text.
-absl::Status VerifyStillFails(absl::string_view ir_text,
-                              absl::optional<std::vector<Value>> inputs,
-                              absl::string_view description) {
-  XLS_ASSIGN_OR_RETURN(bool still_fails, StillFails(ir_text, inputs));
+// returns 'true' if the test (still) fails on that IR text.  Optional test
+// cache is used to memoize the results of testing the given IR.
+absl::Status VerifyStillFails(
+    absl::string_view ir_text, absl::optional<std::vector<Value>> inputs,
+    absl::string_view description,
+    absl::flat_hash_map<std::string, bool>* test_cache) {
+  XLS_ASSIGN_OR_RETURN(bool still_fails,
+                       StillFails(ir_text, inputs, test_cache));
 
   if (!still_fails) {
     return absl::FailedPreconditionError(
@@ -205,48 +249,61 @@ enum class SimplificationResult {
   kDidChange,     // Did simplify in some way.
 };
 
+// Return a random subset of the given input.
+std::vector<Node*> PickRandomSubset(absl::Span<Node* const> input,
+                                    std::mt19937* rng) {
+  std::vector<Node*> result;
+  // About half the time drop about 1 element, and otherwise drop about half of
+  // the elements.
+  bool drop_half = Random0To1(rng) < 0.5;
+  for (Node* element : input) {
+    float p = Random0To1(rng);
+    float threshold = drop_half ? 0.5 : (1.0 / input.size());
+    if (p > threshold) {
+      result.push_back(element);
+    }
+  }
+  return result;
+}
+
 absl::StatusOr<SimplificationResult> SimplifyReturnValue(
     Function* f, std::mt19937* rng, std::string* which_transform) {
   Node* orig = f->return_value();
-  SimplificationResult result = SimplificationResult::kDidNotChange;
-  // If the return value is a tuple or a concat, try to knock out some of the
-  // operands.
-  if (orig->Is<Tuple>() || orig->Is<Concat>()) {
-    if (orig->operand_count() == 1) {
-      // Unbox the singleton tuple/concat.
-      XLS_RETURN_IF_ERROR(f->set_return_value(orig->operand(0)));
-      *which_transform = "unbox singleton tuple/concat return value";
+
+  // If the return value is a tuple, concat, or array, try to knock out some of
+  // the operands which then become dead.
+  if ((orig->Is<Tuple>() || orig->Is<Concat>() || orig->Is<Array>()) &&
+      Random0To1(rng) < 0.5) {
+    std::vector<Node*> new_operands = PickRandomSubset(orig->operands(), rng);
+    if (new_operands.size() < orig->operand_count()) {
+      *which_transform =
+          absl::StrFormat("return tuple/concat/array reduction: %d => %d",
+                          orig->operand_count(), new_operands.size());
+      Node* new_return_value;
+      if (orig->Is<Tuple>()) {
+        XLS_ASSIGN_OR_RETURN(new_return_value,
+                             f->MakeNode<Tuple>(orig->loc(), new_operands));
+      } else if (orig->Is<Array>()) {
+        // XLS does not support empty arrays.
+        if (new_operands.empty()) {
+          return SimplificationResult::kDidNotChange;
+        }
+        XLS_ASSIGN_OR_RETURN(
+            new_return_value,
+            f->MakeNode<Array>(orig->loc(), new_operands,
+                               new_operands.front()->GetType()));
+      } else {
+        XLS_RET_CHECK(orig->Is<Concat>());
+        XLS_ASSIGN_OR_RETURN(new_return_value,
+                             f->MakeNode<Concat>(orig->loc(), new_operands));
+      }
+
+      XLS_RETURN_IF_ERROR(f->set_return_value(new_return_value));
       return SimplificationResult::kDidChange;
     }
-    std::vector<Node*> new_operands;
-    for (Node* operand : orig->operands()) {
-      float p = absl::Uniform<float>(*rng, 0.0f, 1.0f);
-      if (p >= 1.0 / orig->operand_count()) {
-        new_operands.push_back(operand);
-      } else {
-        result = SimplificationResult::kDidChange;
-      }
-    }
-    if (result != SimplificationResult::kDidChange) {
-      // We got through all the operands without changing any.
-      return result;
-    }
-    *which_transform =
-        absl::StrFormat("return tuple/concat reduction: %d => %d",
-                        orig->operand_count(), new_operands.size());
-    Node* new_return_value;
-    if (orig->Is<Tuple>()) {
-      XLS_ASSIGN_OR_RETURN(new_return_value,
-                           f->MakeNode<Tuple>(orig->loc(), new_operands));
-    } else {
-      XLS_ASSIGN_OR_RETURN(new_return_value,
-                           f->MakeNode<Concat>(orig->loc(), new_operands));
-    }
-
-    XLS_RETURN_IF_ERROR(f->set_return_value(new_return_value));
-    return result;
   }
 
+  // Try to replace the return value with an operand of the return value.
   if (orig->operand_count() > 0) {
     int64 which_operand = absl::Uniform<int>(*rng, 0, orig->operand_count());
     XLS_RETURN_IF_ERROR(f->set_return_value(orig->operand(which_operand)));
@@ -255,13 +312,8 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
     return SimplificationResult::kDidChange;
   }
 
-  if (orig->Is<Literal>()) {
-    return SimplificationResult::kCannotChange;
-  }
-
-  XLS_LOG(WARNING) << "Cannot yet simplify return value node: "
-                   << orig->ToString();
-  return SimplificationResult::kCannotChange;
+  XLS_VLOG(1) << "Unable to simplify return value node";
+  return SimplificationResult::kDidNotChange;
 }
 
 // Runs a randomly selected optimization pass and returns whether the graph
@@ -269,7 +321,7 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
 absl::StatusOr<SimplificationResult> RunRandomPass(
     Function* f, std::mt19937* rng, std::string* which_transform) {
   // All these passes have trivial construction costs.
-  std::vector<std::unique_ptr<FunctionBasePass>> passes;
+  std::vector<std::unique_ptr<Pass>> passes;
   passes.push_back(absl::make_unique<ArithSimplificationPass>());
   passes.push_back(absl::make_unique<ArraySimplificationPass>());
   passes.push_back(absl::make_unique<BitSliceSimplificationPass>());
@@ -278,11 +330,13 @@ absl::StatusOr<SimplificationResult> RunRandomPass(
   passes.push_back(absl::make_unique<CsePass>());
   passes.push_back(absl::make_unique<TupleSimplificationPass>());
   passes.push_back(absl::make_unique<UnrollPass>());
+  passes.push_back(absl::make_unique<InliningPass>());
 
   int64 pass_no = absl::Uniform<int64>(*rng, 0, passes.size());
   PassResults results;
-  XLS_ASSIGN_OR_RETURN(bool changed, passes.at(pass_no)->RunOnFunctionBase(
-                                         f, PassOptions(), &results));
+  XLS_ASSIGN_OR_RETURN(
+      bool changed,
+      passes.at(pass_no)->Run(f->package(), PassOptions(), &results));
   if (changed) {
     *which_transform = passes.at(pass_no)->short_name();
     return SimplificationResult::kDidChange;
@@ -295,10 +349,7 @@ absl::StatusOr<SimplificationResult> RunRandomPass(
 absl::StatusOr<SimplificationResult> Simplify(
     Function* f, absl::optional<std::vector<Value>> inputs, std::mt19937* rng,
     std::string* which_transform) {
-  // Return a uniform random number over the interval [0, 1).
-  auto rand_0_to_1 = [&]() { return absl::Uniform<float>(*rng, 0.0f, 1.0f); };
-
-  if (absl::GetFlag(FLAGS_use_optimization_passes) && rand_0_to_1() < 0.3) {
+  if (absl::GetFlag(FLAGS_use_optimization_passes) && Random0To1(rng) < 0.3) {
     XLS_ASSIGN_OR_RETURN(SimplificationResult pass_result,
                          RunRandomPass(f, rng, which_transform));
     if (pass_result != SimplificationResult::kDidNotChange) {
@@ -306,7 +357,8 @@ absl::StatusOr<SimplificationResult> Simplify(
     }
   }
 
-  if (absl::GetFlag(FLAGS_use_optimization_pipeline) && rand_0_to_1() < 0.05) {
+  if (absl::GetFlag(FLAGS_use_optimization_pipeline) &&
+      Random0To1(rng) < 0.05) {
     // Try to run the sample through the entire optimization pipeline.
     XLS_ASSIGN_OR_RETURN(bool changed, RunStandardPassPipeline(f->package()));
     if (changed) {
@@ -315,7 +367,7 @@ absl::StatusOr<SimplificationResult> Simplify(
     }
   }
 
-  if (rand_0_to_1() < 0.1) {
+  if (Random0To1(rng) < 0.2) {
     XLS_ASSIGN_OR_RETURN(auto result,
                          SimplifyReturnValue(f, rng, which_transform));
     if (result == SimplificationResult::kDidChange) {
@@ -323,7 +375,7 @@ absl::StatusOr<SimplificationResult> Simplify(
     }
   }
 
-  if (inputs.has_value() && rand_0_to_1() < 0.3) {
+  if (inputs.has_value() && Random0To1(rng) < 0.3) {
     // Try to replace a parameter with a literal equal to the respective input
     // value.
     int64 param_no = absl::Uniform<int64>(*rng, 0, f->params().size());
@@ -342,7 +394,7 @@ absl::StatusOr<SimplificationResult> Simplify(
   int64 i = absl::Uniform<int64>(*rng, 0, f->node_count());
   Node* n = *std::next(f->nodes().begin(), i);
 
-  if (!n->operands().empty() && rand_0_to_1() < 0.3) {
+  if (!n->operands().empty() && Random0To1(rng) < 0.3) {
     // Try to replace a node with one of its (potentially truncated/extended)
     // operands.
     int64 operand_no = absl::Uniform<int64>(*rng, 0, n->operand_count());
@@ -394,7 +446,7 @@ absl::StatusOr<SimplificationResult> Simplify(
   }
 
   // (Rarely) replace non-literal node with an all ones.
-  if (!n->Is<Literal>() && rand_0_to_1() < 0.1) {
+  if (!n->Is<Literal>() && Random0To1(rng) < 0.1) {
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<Literal>(AllOnesOfType(n->GetType())).status());
     *which_transform = "random replace with all-ones: " + n->GetName();
@@ -431,6 +483,9 @@ absl::Status CleanUp(Function* f, bool can_remove_params) {
 absl::Status RealMain(absl::string_view path, const int64 failed_attempt_limit,
                       const int64 total_attempt_limit) {
   XLS_ASSIGN_OR_RETURN(std::string knownf_ir_text, GetFileContents(path));
+  // Cache of test results to avoid duplicate invocations of the
+  // test_executable.
+  absl::flat_hash_map<std::string, bool> test_cache;
 
   // Parse inputs, if specified.
   absl::optional<std::vector<xls::Value>> inputs;
@@ -448,7 +503,7 @@ absl::Status RealMain(absl::string_view path, const int64 failed_attempt_limit,
   // Check what the user gave us actually fails.
   XLS_RETURN_IF_ERROR(VerifyStillFails(
       knownf_ir_text, inputs,
-      "Originally-provided main function provided does not fail"));
+      "Originally-provided main function provided does not fail", &test_cache));
 
   const bool can_remove_params = absl::GetFlag(FLAGS_can_remove_params);
 
@@ -461,9 +516,9 @@ absl::Status RealMain(absl::string_view path, const int64 failed_attempt_limit,
     XLS_RETURN_IF_ERROR(CleanUp(main, can_remove_params));
     XLS_RETURN_IF_ERROR(VerifyPackage(package.get()));
     knownf_ir_text = package->DumpIr();
-    XLS_RETURN_IF_ERROR(
-        VerifyStillFails(knownf_ir_text, inputs,
-                         "Original main function does not fail after cleanup"));
+    XLS_RETURN_IF_ERROR(VerifyStillFails(
+        knownf_ir_text, inputs,
+        "Original main function does not fail after cleanup", &test_cache));
     XLS_LOG(INFO) << "=== Done cleaning up initial garbage";
   }
 
@@ -492,7 +547,7 @@ absl::Status RealMain(absl::string_view path, const int64 failed_attempt_limit,
 
     XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(knownf_ir_text));
     XLS_ASSIGN_OR_RETURN(Function * candidate, package->EntryFunction());
-    XLS_VLOG_LINES(1,
+    XLS_VLOG_LINES(2,
                    "=== Candidate for simplification:\n" + candidate->DumpIr());
 
     // Simplify the function.
@@ -514,21 +569,21 @@ absl::Status RealMain(absl::string_view path, const int64 failed_attempt_limit,
       failed_simplification_attempts++;
       continue;
     }
+    XLS_LOG(INFO) << "Trying " << which_transform;
 
     // When we changed (simplified) it, clean it up then see if it still fails.
     XLS_CHECK(simplification == SimplificationResult::kDidChange);
     XLS_RETURN_IF_ERROR(CleanUp(candidate, can_remove_params));
 
-    XLS_VLOG_LINES(1, "=== After simplification [" + which_transform + "]\n" +
+    XLS_VLOG_LINES(2, "=== After simplification [" + which_transform + "]\n" +
                           candidate->DumpIr());
 
     std::string candidate_ir_text = package->DumpIr();
     XLS_ASSIGN_OR_RETURN(bool still_fails,
-                         StillFails(candidate_ir_text, inputs));
+                         StillFails(candidate_ir_text, inputs, &test_cache));
     if (!still_fails) {
       failed_simplification_attempts++;
-      XLS_LOG(INFO) << "Tried " << which_transform
-                    << ", but sample no longer fails.";
+      XLS_LOG(INFO) << "Sample no longer fails.";
       XLS_LOG(INFO) << "Failed simplification attempts now: "
                     << failed_simplification_attempts;
       // That simplification caused it to stop failing, but keep going with the
@@ -543,7 +598,8 @@ absl::Status RealMain(absl::string_view path, const int64 failed_attempt_limit,
     XLS_RETURN_IF_ERROR(CleanUp(candidate, can_remove_params));
 
     XLS_RETURN_IF_ERROR(VerifyStillFails(
-        knownf_ir_text, inputs, "Known failure does not fail after cleanup!"));
+        knownf_ir_text, inputs, "Known failure does not fail after cleanup!",
+        &test_cache));
 
     knownf_ir_text = candidate_ir_text;
 
@@ -554,13 +610,12 @@ absl::Status RealMain(absl::string_view path, const int64 failed_attempt_limit,
     failed_simplification_attempts = 0;
   }
 
+  // Run the last test verification without the cache.
   XLS_RETURN_IF_ERROR(VerifyStillFails(knownf_ir_text, inputs,
-                                       "Minimized function does not fail!"));
+                                       "Minimized function does not fail!",
+                                       /*test_cache=*/nullptr));
 
   std::cout << knownf_ir_text;
-
-  XLS_ASSIGN_OR_RETURN(bool fails, StillFails(knownf_ir_text, inputs));
-  XLS_RET_CHECK(fails);
 
   return absl::OkStatus();
 }
@@ -580,14 +635,6 @@ int main(int argc, char** argv) {
   XLS_QCHECK(!absl::GetFlag(FLAGS_test_executable).empty() ^
              absl::GetFlag(FLAGS_test_llvm_jit))
       << "Must specify either --test_executable or --test_llvm_jit";
-
-  // If minimizing a mismatch between the JIT and the interpreter then
-  // --use_optimization_pipeline really should be specified as it much
-  // improves the minimization performance and results.
-  XLS_QCHECK(!absl::GetFlag(FLAGS_test_llvm_jit) ||
-             absl::GetFlag(FLAGS_use_optimization_pipeline))
-      << "Must specify --use_optimization_pipeline with "
-         "--test_llvm_jit";
 
   XLS_QCHECK_OK(xls::RealMain(positional_arguments[0],
                               absl::GetFlag(FLAGS_failed_attempt_limit),
