@@ -198,9 +198,9 @@ absl::StatusOr<bool> SimplifyConcat(Concat* concat,
     return true;
   }
 
-  // If consecutive concat inputs are consectuive bit slices, create a new,
+  // If consecutive concat inputs are consecutive bit slices, create a new,
   // merged bit slice and a new concat that consumees the merged bit slice.
-  for (int64 idx = 0; idx < concat->operands().size() - 1; ++idx) {
+  for (int64 idx = 0; idx < concat->operand_count() - 1; ++idx) {
     // Check if consecutive operands are bit slices.
     const Node* higher_op = concat->operands().at(idx);
     const Node* lower_op = concat->operands().at(idx + 1);

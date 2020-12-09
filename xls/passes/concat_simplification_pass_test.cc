@@ -757,5 +757,18 @@ TEST_F(ConcatSimplificationPassTest, BypassConcatReductionMultibit) {
                                        m::OrReduce(m::Param("b_var"))));
 }
 
+TEST_F(ConcatSimplificationPassTest, ZeroElementConcat) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+fn __sample__x5(x: bits[32]) -> bits[32] {
+  zero_concat: bits[0] = concat()
+  ret result: bits[32] = concat(zero_concat, x)
+}
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Param("x"));
+}
+
 }  // namespace
 }  // namespace xls
