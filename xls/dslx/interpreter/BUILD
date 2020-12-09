@@ -151,6 +151,7 @@ py_library(
         "//xls/dslx:parser_helpers",
         "//xls/dslx:span",
         "//xls/dslx:typecheck",
+        "//xls/dslx/python:cpp_deduce",
         "//xls/dslx/python:cpp_parser",
         "//xls/dslx/python:cpp_scanner",
         "//xls/dslx/python:interpreter",

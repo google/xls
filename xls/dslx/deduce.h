@@ -205,6 +205,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantArray(
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRef(ColonRef* node,
                                                              DeduceCtx* ctx);
 
+// See Index in the AST.
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceIndex(Index* node,
+                                                          DeduceCtx* ctx);
+
 // Resolves "type_" via provided symbolic bindings.
 //
 // Uses the symbolic bindings of the function we're currently inside of to

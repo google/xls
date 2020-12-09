@@ -161,9 +161,9 @@ absl::optional<const SymbolicBindings*> TypeInfo::GetInvocationSymbolicBindings(
   return result;
 }
 
-void TypeInfo::AddSliceStartWidth(Slice* node,
-                                  const SymbolicBindings& symbolic_bindings,
-                                  SliceData::StartWidth start_width) {
+void TypeInfo::AddSliceStartAndWidth(Slice* node,
+                                     const SymbolicBindings& symbolic_bindings,
+                                     StartAndWidth start_width) {
   TypeInfo* top = GetTop();
   auto it = top->slices_.find(node);
   if (it == top->slices_.end()) {
@@ -175,7 +175,7 @@ void TypeInfo::AddSliceStartWidth(Slice* node,
   }
 }
 
-absl::optional<SliceData::StartWidth> TypeInfo::GetSliceStartWidth(
+absl::optional<StartAndWidth> TypeInfo::GetSliceStartAndWidth(
     Slice* node, const SymbolicBindings& symbolic_bindings) const {
   const TypeInfo* top = GetTop();
   auto it = top->slices_.find(node);

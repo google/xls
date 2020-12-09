@@ -157,15 +157,15 @@ PYBIND11_MODULE(cpp_type_info, m) {
            [](TypeInfo& self, SliceHolder slice,
               const SymbolicBindings& symbolic_bindings,
               std::pair<int, int> start_width) {
-             self.AddSliceStartWidth(
+             self.AddSliceStartAndWidth(
                  &slice.deref(), symbolic_bindings,
-                 SliceData::StartWidth{start_width.first, start_width.second});
+                 StartAndWidth{start_width.first, start_width.second});
            })
       .def("get_slice_start_width",
            [](const TypeInfo& self, SliceHolder slice,
               const SymbolicBindings& symbolic_bindings) {
-             absl::optional<SliceData::StartWidth> result =
-                 self.GetSliceStartWidth(&slice.deref(), symbolic_bindings);
+             absl::optional<StartAndWidth> result =
+                 self.GetSliceStartAndWidth(&slice.deref(), symbolic_bindings);
              if (!result.has_value()) {
                throw py::key_error("Could not resolve slice to TypeInfo data.");
              }

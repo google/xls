@@ -450,42 +450,42 @@ fn f(x: u32) -> (u32, u8) {
         make_u1(u10: 5) ^ make_u1(u2: 1)
     }
         """,
-        error='Cannot fit 4 in 2 bits',
+        error='Cannot fit slice start 4 in 2 bits',
         error_type=TypeInferenceError)
 
   def test_bit_slice_on_parametric_width(self):
     self._typecheck("""
-  fn get_middle_bits<N: u32, R: u32 = N - u32:2>(x: bits[N]) -> bits[R] {
+    fn get_middle_bits<N: u32, R: u32 = N - u32:2>(x: bits[N]) -> bits[R] {
       x[1:-1]
-  }
+    }
 
-  fn caller() {
+    fn caller() {
       let x1: u2 = get_middle_bits(u4:15);
       let x2: u4 = get_middle_bits(u6:63);
       ()
-  }""")
+    }""")
 
   def test_parametric_map_non_polymorphic(self):
     self._typecheck(
         """
-  fn add_one<N: u32>(x: bits[N]) -> bits[N] { x + bits[5]:1 }
+        fn add_one<N: u32>(x: bits[N]) -> bits[N] { x + bits[5]:1 }
 
-  fn main() {
-      let arr = [u5:1, u5:2, u5:3];
-      let mapped_arr = map(arr, add_one);
-      let type_error = add_one(u6:1);
-      ()
-  }""",
+        fn main() {
+            let arr = [u5:1, u5:2, u5:3];
+            let mapped_arr = map(arr, add_one);
+            let type_error = add_one(u6:1);
+            ()
+        }""",
         error='Types are not compatible: uN[6] vs uN[5]')
 
   def test_let_binding_inferred_does_not_match_annotation(self):
     self._typecheck(
         """
-    fn f() -> u32 {
-      let x: u32 = bits[4]:7;
-      x
-    }
-    """,
+        fn f() -> u32 {
+          let x: u32 = bits[4]:7;
+          x
+        }
+        """,
         error='Annotated type did not match inferred type of right hand side')
 
   def test_update_builtin(self):
@@ -561,7 +561,9 @@ fn f(x: u32) -> (u1, u32) {
         error='not an array',
         error_type=TypeInferenceError)
     self._typecheck(
-        'fn f(x: u32[5], i: u8[5]) -> u32 { x[i] }', error='not scalar bits')
+        'fn f(x: u32[5], i: u8[5]) -> u32 { x[i] }',
+        error='not (scalar) bits',
+        error_type=TypeInferenceError)
 
   def test_out_of_range_number(self):
     self._typecheck('fn f() -> u8 { u8:255 }')  # In range, no error.
@@ -636,35 +638,55 @@ enum Foo : u1 {
   def test_cannot_add_enums(self):
     self._typecheck(
         """
-enum Foo : u2 {
-  A = 0,
-  B = 1,
-}
-fn f() -> Foo {
-  Foo::A + Foo::B
-}
-""",
+        enum Foo : u2 {
+          A = 0,
+          B = 1,
+        }
+        fn f() -> Foo {
+          Foo::A + Foo::B
+        }
+        """,
         error="Cannot use '+' on values with enum type Foo",
         error_type=TypeInferenceError,
     )
 
   def test_width_slices(self):
     self._typecheck('fn f(x: u32) -> bits[0] { x[0+:bits[0]] }')
-    self._typecheck(
-        'fn f(x: u32) -> u33 { x[0+:u33] }',
-        error='Slice type must have <= original number of bits; attempted slice from 32 to 33 bits.'
-    )
     self._typecheck('fn f(x: u32) -> u2 { x[32+:u2] }')
     self._typecheck('fn f(x: u32) -> u1 { x[31+:u1] }')
+
+  def test_width_slice_negative_start_number(self):
     # Start literal is treated as unsigned.
     self._typecheck('fn f(x: u32) -> u1 { x[-1+:u1] }')
     self._typecheck('fn f(x: u32) -> u2 { x[-1+:u2] }')
     self._typecheck('fn f(x: u32) -> u3 { x[-2+:u3] }')
+
+  def test_width_slice_signed_start(self):
     # We reject signed start literals.
     self._typecheck(
         'fn f(start: s32, x: u32) -> u3 { x[start+:u3] }',
         error='Start index for width-based slice must be unsigned.',
         error_type=TypeInferenceError)
+
+  def test_width_slice_tuple_start(self):
+    # We reject signed start literals.
+    self._typecheck(
+        'fn f(start: (s32), x: u32) -> u3 { x[start+:u3] }',
+        error='Start expression for width slice must be bits typed',
+        error_type=TypeInferenceError)
+
+  def test_width_slice_tuple_subject(self):
+    # We reject signed start literals.
+    self._typecheck(
+        'fn f(start: s32, x: (u32)) -> u3 { x[start+:u3] }',
+        error="Value to slice is not of 'bits' type",
+        error_type=TypeInferenceError)
+
+  def test_overlarge_width_slice(self):
+    self._typecheck(
+        'fn f(x: u32) -> u33 { x[0+:u33] }',
+        error='Slice type must have <= original number of bits; attempted slice from 32 to 33 bits.'
+    )
 
   def _typecheck_si(self, s: Text, *args, **kwargs):
     """Shorthand for 'typecheck struct instance'."""

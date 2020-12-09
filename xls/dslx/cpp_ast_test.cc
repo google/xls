@@ -42,7 +42,7 @@ TEST(CppAst, ModuleWithConstant) {
 TEST(CppAst, GetNumberAsInt64) {
   struct Example {
     std::string text;
-    int64 want;
+    uint64 want;
   } kCases[] = {
       {"0b0", 0},
       {"0b1", 1},
@@ -55,7 +55,8 @@ TEST(CppAst, GetNumberAsInt64) {
       {"0b1_1001", 25},
       {"0b1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_"
        "1111_1111_1111",
-       -1},
+       static_cast<uint64>(-1)},
+      {"-1", static_cast<uint64>(-1)},
   };
   Module m("test");
   auto make_num = [&m](std::string text) {
@@ -64,11 +65,11 @@ TEST(CppAst, GetNumberAsInt64) {
                           /*type=*/nullptr);
   };
   for (const Example& example : kCases) {
-    EXPECT_THAT(make_num(example.text)->GetAsInt64(),
+    EXPECT_THAT(make_num(example.text)->GetAsUint64(),
                 IsOkAndHolds(example.want));
   }
 
-  EXPECT_THAT(make_num("0b")->GetAsInt64(),
+  EXPECT_THAT(make_num("0b")->GetAsUint64(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Could not convert 0b to a number")));
 }

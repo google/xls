@@ -907,8 +907,8 @@ static absl::StatusOr<InterpValue> EvaluateIndexBitSlice(
   const SymbolicBindings& sym_bindings = bindings->fn_ctx()->sym_bindings;
 
   std::shared_ptr<TypeInfo> type_info = callbacks->get_type_info();
-  absl::optional<SliceData::StartWidth> maybe_saw =
-      type_info->GetSliceStartWidth(index_slice, sym_bindings);
+  absl::optional<StartAndWidth> maybe_saw =
+      type_info->GetSliceStartAndWidth(index_slice, sym_bindings);
   XLS_RET_CHECK(maybe_saw.has_value())
       << "Slice start/width missing for slice @ " << expr->span();
   const auto& saw = maybe_saw.value();
@@ -1159,7 +1159,7 @@ absl::StatusOr<int64> ResolveDim(
   if (absl::holds_alternative<Expr*>(dim)) {
     Expr* expr = absl::get<Expr*>(dim);
     if (Number* number = dynamic_cast<Number*>(expr)) {
-      return number->GetAsInt64();
+      return number->GetAsUint64();
     }
     if (NameRef* name_ref = dynamic_cast<NameRef*>(expr)) {
       const std::string& identifier = name_ref->identifier();
@@ -1254,7 +1254,7 @@ static absl::StatusOr<InterpBindings> BindingsWithStructParametrics(
     ParametricBinding* p = struct_def->parametric_bindings()[i];
     Expr* d = parametrics[i];
     if (Number* n = dynamic_cast<Number*>(d)) {
-      int64 value = n->GetAsInt64().value();
+      int64 value = n->GetAsUint64().value();
       TypeAnnotation* type = n->type();
       if (type == nullptr) {
         // If the number didn't have a type annotation, use the one from the

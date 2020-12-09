@@ -100,16 +100,18 @@ struct ImportedInfo {
   std::shared_ptr<TypeInfo> type_info;
 };
 
+// Represents a (start, width) pair used for a bit-slice operation, as
+// determined at type inference time.
+struct StartAndWidth {
+  int64 start;
+  int64 width;
+};
+
 // Data associated with a slice AST node, associating it with concrete
 // start/width values determined at type inferencing time.
 struct SliceData {
-  struct StartWidth {
-    int64 start;
-    int64 width;
-  };
-
   Slice* node;
-  absl::flat_hash_map<SymbolicBindings, StartWidth> bindings_to_start_width;
+  absl::flat_hash_map<SymbolicBindings, StartAndWidth> bindings_to_start_width;
 
   void Update(const SliceData& other) {
     XLS_CHECK_EQ(node, other.node);
@@ -177,12 +179,12 @@ class TypeInfo {
                         const SymbolicBindings& caller) const;
 
   // Notes start/width for a slice operation found during type inference.
-  void AddSliceStartWidth(Slice* node,
-                          const SymbolicBindings& symbolic_bindings,
-                          SliceData::StartWidth start_width);
+  void AddSliceStartAndWidth(Slice* node,
+                             const SymbolicBindings& symbolic_bindings,
+                             StartAndWidth start_width);
 
   // Retrieves the start/width pair for a given slice, see comment on SliceData.
-  absl::optional<SliceData::StartWidth> GetSliceStartWidth(
+  absl::optional<StartAndWidth> GetSliceStartAndWidth(
       Slice* node, const SymbolicBindings& symbolic_bindings) const;
 
   // Notes caller/callee relation of symbolic bindings at an invocation.

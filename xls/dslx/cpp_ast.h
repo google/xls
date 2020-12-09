@@ -506,10 +506,13 @@ class Number : public Expr {
 
   const std::string& text() const { return text_; }
 
+  // Turns the text for this number into a Bits object with the given bit_count.
   absl::StatusOr<Bits> GetBits(int64 bit_count) const;
-  absl::StatusOr<int64> GetAsInt64() const {
+
+  // Note: fails if the value doesn't fit in 64 bits.
+  absl::StatusOr<uint64> GetAsUint64() const {
     XLS_ASSIGN_OR_RETURN(Bits bits, GetBits(64));
-    return bits.ToInt64();
+    return bits.ToUint64();
   }
 
   NumberKind kind() const { return kind_; }

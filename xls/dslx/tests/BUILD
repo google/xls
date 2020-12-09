@@ -489,3 +489,8 @@ dslx_test(
     generate_benchmark = False,
     prove_unopt_eq_opt = False,
 )
+
+dslx_test(
+    name = "width_slice_to_parametric",
+    srcs = ["width_slice_to_parametric.x"],
+)

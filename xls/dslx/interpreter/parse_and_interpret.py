@@ -27,6 +27,8 @@ from xls.dslx import ir_converter
 from xls.dslx import parser_helpers
 from xls.dslx import typecheck
 from xls.dslx.interpreter import quickcheck_helpers
+from xls.dslx.python.cpp_deduce import TypeInferenceError
+from xls.dslx.python.cpp_deduce import XlsTypeError
 from xls.dslx.python.cpp_parser import CppParseError
 from xls.dslx.python.cpp_parser import Parser
 from xls.dslx.python.cpp_scanner import ScanError
@@ -119,7 +121,8 @@ def parse_and_test(program: Text,
             interpreter, ir_package, quickcheck, seed=seed)
         print('[               OK ]', test_name, file=sys.stderr)
 
-  except (PositionalError, FailureError, CppParseError, ScanError) as e:
+  except (PositionalError, FailureError, CppParseError, ScanError,
+          TypeInferenceError, XlsTypeError) as e:
     did_fail = True
     parser_helpers.pprint_positional_error(
         e, output=cast(io.IOBase, sys.stderr))

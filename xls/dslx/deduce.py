@@ -24,7 +24,6 @@ from typing import Union, Callable, Type, Tuple, Set
 from absl import logging
 
 from xls.dslx import ast_helpers
-from xls.dslx import bit_helpers
 from xls.dslx import concrete_type_helpers
 from xls.dslx import dslx_builtins
 from xls.dslx import parametric_instantiator
@@ -60,6 +59,7 @@ RULES = {
     ast.ConstantArray: cpp_deduce.deduce_ConstantArray,
     ast.EnumDef: cpp_deduce.deduce_EnumDef,
     ast.For: cpp_deduce.deduce_For,
+    ast.Index: cpp_deduce.deduce_Index,
     ast.Let: cpp_deduce.deduce_Let,
     ast.Number: cpp_deduce.deduce_Number,
     ast.Param: cpp_deduce.deduce_Param,
@@ -281,139 +281,6 @@ def _deduce_Invocation(self: ast.Invocation, ctx: DeduceCtx) -> ConcreteType:  #
     _check_parametric_invocation(callee_fn, self, callee_sym_bindings, ctx)
 
   return self_type
-
-
-def _deduce_slice_type(self: ast.Index, ctx: DeduceCtx,
-                       lhs_type: ConcreteType) -> ConcreteType:
-  """Deduces the concrete type of an Index AST node with a slice spec."""
-  index_slice = self.index
-  assert isinstance(index_slice, (ast.Slice, ast.WidthSlice)), index_slice
-
-  # TODO(leary): 2019-10-28 Only slicing bits types for now, and only with
-  # number ast nodes, generalize to arrays and constant expressions.
-  if not isinstance(lhs_type, BitsType):
-    raise XlsTypeError(self.span, lhs_type, None,
-                       'Value to slice is not of "bits" type.')
-
-  bit_count = lhs_type.get_total_bit_count().value
-
-  if isinstance(index_slice, ast.WidthSlice):
-    start = index_slice.start
-    if isinstance(start, ast.Number) and start.type_ is None:
-      start_type = lhs_type.to_ubits()
-      resolved_start_type = cpp_deduce.resolve(start_type, ctx)
-      start_int = ast_helpers.get_value_as_int(start)
-      if not bit_helpers.fits_in_bits(
-          start_int,
-          resolved_start_type.get_total_bit_count().value):
-        raise TypeInferenceError(
-            start.span, resolved_start_type,
-            'Cannot fit {} in {} bits (inferred from bits to slice).'.format(
-                start_int,
-                resolved_start_type.get_total_bit_count().value))
-      ctx.type_info[start] = start_type
-    else:
-      start_type = deduce(start, ctx)
-
-    # Check the start is unsigned.
-    if start_type.signed:
-      raise TypeInferenceError(
-          start.span, start_type,
-          'Start index for width-based slice must be unsigned.')
-
-    width_type = deduce(index_slice.width, ctx)
-    if isinstance(width_type.get_total_bit_count().value, int) and isinstance(
-        lhs_type.get_total_bit_count().value,
-        int) and width_type.get_total_bit_count(
-        ).value > lhs_type.get_total_bit_count().value:
-      raise XlsTypeError(
-          start.span, lhs_type, width_type,
-          'Slice type must have <= original number of bits; attempted slice from {} to {} bits.'
-          .format(lhs_type.get_total_bit_count().value,
-                  width_type.get_total_bit_count().value))
-
-    # Check the width type is bits-based (no enums, since value could be out
-    # of range of the enum values).
-    if not isinstance(width_type, BitsType):
-      raise TypeInferenceError(
-          self.span, width_type,
-          'Require a bits-based type for width-based slice.')
-
-    # The width type is the thing returned from the width-slice.
-    return width_type
-
-  assert isinstance(index_slice, ast.Slice), index_slice
-  limit = ast_helpers.get_value_as_int(
-      index_slice.limit) if index_slice.limit else None
-  # PyType has trouble figuring out that start is definitely an Number at this
-  # point.
-  start = index_slice.start
-  assert isinstance(start, (ast.Number, type(None)))
-  start = ast_helpers.get_value_as_int(start) if start else None
-
-  fn_symbolic_bindings = ctx.peek_fn_stack().symbolic_bindings
-  if isinstance(bit_count, ParametricExpression):
-    bit_count = bit_count.evaluate(fn_symbolic_bindings.to_dict())
-  start, width = bit_helpers.resolve_bit_slice_indices(bit_count, start, limit)
-  ctx.type_info.add_slice_start_width(index_slice, fn_symbolic_bindings,
-                                      (start, width))
-  return BitsType(signed=False, size=width)
-
-
-def _deduce_tuple_index(self: ast.Index, ctx: DeduceCtx,
-                        lhs_type: TupleType) -> ConcreteType:
-  """Deduces the resulting type for a tuple indexing operation."""
-  index = self.index
-
-  # TODO(leary): 2020-11-09 When we add unifying type inference this will also
-  # be able to be a ConstRef.
-  if isinstance(index, ast.Number):
-    if index.type_:
-      # If the number has an annotated type, flag it as unnecessary.
-      deduce(index, ctx)
-      logging.warning(
-          'Warning: type annotation for tuple index is unnecessary @ %s: %s',
-          self.span, self)
-    else:
-      ctx.type_info[index] = ConcreteType.U32
-    index_value = ast_helpers.get_value_as_int(index)
-  else:
-    raise TypeInferenceError(
-        index.span, lhs_type,
-        'Tuple index is not a literal number or named constant.')
-
-  assert isinstance(index_value, int), index_value
-  if index_value < 0 or index_value >= lhs_type.get_tuple_length():
-    raise XlsTypeError(
-        index.span, lhs_type, None,
-        'Tuple index {} is out of range for this tuple type.'.format(
-            index_value))
-  return lhs_type.get_unnamed_members()[index_value]
-
-
-@_rule(ast.Index)
-def _deduce_Index(self: ast.Index, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  """Deduces the concrete type of an Index AST node."""
-  lhs_type = deduce(self.lhs, ctx)
-
-  # Check whether this is a slice-based indexing operations.
-  if isinstance(self.index, (ast.Slice, ast.WidthSlice)):
-    return _deduce_slice_type(self, ctx, lhs_type)
-
-  if isinstance(lhs_type, TupleType):
-    return _deduce_tuple_index(self, ctx, lhs_type)
-
-  if not isinstance(lhs_type, ArrayType):
-    raise TypeInferenceError(self.lhs.span, lhs_type,
-                             'Value to index is not an array.')
-
-  index_type = deduce(self.index, ctx)
-  index_ok = isinstance(index_type,
-                        BitsType) and not isinstance(index_type, ArrayType)
-  if not index_ok:
-    raise XlsTypeError(self.index.span, index_type, None,
-                       'Index type is not scalar bits.')
-  return lhs_type.get_element_type()
 
 
 def _unify_WildcardPattern(_self: ast.WildcardPattern, _type: ConcreteType,
