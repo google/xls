@@ -61,6 +61,7 @@ RULES = {
     ast.For: cpp_deduce.deduce_For,
     ast.Index: cpp_deduce.deduce_Index,
     ast.Let: cpp_deduce.deduce_Let,
+    ast.Match: cpp_deduce.deduce_Match,
     ast.Number: cpp_deduce.deduce_Number,
     ast.Param: cpp_deduce.deduce_Param,
     ast.StructDef: cpp_deduce.deduce_StructDef,
@@ -281,72 +282,6 @@ def _deduce_Invocation(self: ast.Invocation, ctx: DeduceCtx) -> ConcreteType:  #
     _check_parametric_invocation(callee_fn, self, callee_sym_bindings, ctx)
 
   return self_type
-
-
-def _unify_WildcardPattern(_self: ast.WildcardPattern, _type: ConcreteType,
-                           _ctx: DeduceCtx) -> None:
-  pass  # Wildcard matches any type.
-
-
-def _unify_NameDefTree(self: ast.NameDefTree, type_: ConcreteType,
-                       ctx: DeduceCtx) -> None:
-  """Unifies the NameDefTree AST node with the observed RHS type type_."""
-  resolved_rhs_type = cpp_deduce.resolve(type_, ctx)
-  if self.is_leaf():
-    leaf = self.get_leaf()
-    if isinstance(leaf, ast.NameDef):
-      ctx.type_info[leaf] = resolved_rhs_type
-    elif isinstance(leaf, ast.WildcardPattern):
-      pass
-    elif isinstance(leaf, (ast.Number, ast.ColonRef)):
-      resolved_leaf_type = cpp_deduce.resolve(deduce(leaf, ctx), ctx)
-      if resolved_leaf_type != resolved_rhs_type:
-        raise TypeInferenceError(
-            self.span, resolved_rhs_type,
-            'Conflicting types; pattern expects {} but got {} from value'
-            .format(resolved_rhs_type, resolved_leaf_type))
-    else:
-      assert isinstance(leaf, ast.NameRef), repr(leaf)
-      ref_type = ctx.type_info[leaf.name_def]
-      resolved_ref_type = cpp_deduce.resolve(ref_type, ctx)
-      if resolved_ref_type != resolved_rhs_type:
-        raise TypeInferenceError(
-            self.span, resolved_rhs_type,
-            'Conflicting types; pattern expects {} but got {} from reference'
-            .format(resolved_rhs_type, resolved_ref_type))
-  else:
-    assert isinstance(self.tree, tuple)
-    if isinstance(type_, TupleType) and type_.get_tuple_length() == len(
-        self.tree):
-      for subtype, subtree in zip(type_.get_unnamed_members(), self.tree):
-        _unify(subtree, subtype, ctx)
-
-
-def _unify(n: ast.AstNode, other: ConcreteType, ctx: DeduceCtx) -> None:
-  f = globals()['_unify_{}'.format(n.__class__.__name__)]
-  f(n, other, ctx)
-
-
-@_rule(ast.Match)
-def _deduce_Match(self: ast.Match, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  """Deduces the concrete type of a Match AST node."""
-  matched = deduce(self.matched, ctx)
-
-  for arm in self.arms:
-    for pattern in arm.patterns:
-      _unify(pattern, matched, ctx)
-
-  arm_types = tuple(deduce(arm, ctx) for arm in self.arms)
-
-  resolved_arm0_type = cpp_deduce.resolve(arm_types[0], ctx)
-
-  for i, arm_type in enumerate(arm_types[1:], 1):
-    resolved_arm_type = cpp_deduce.resolve(arm_type, ctx)
-    if resolved_arm_type != resolved_arm0_type:
-      raise XlsTypeError(
-          self.arms[i].span, resolved_arm_type, resolved_arm0_type,
-          'This match arm did not have the same type as preceding match arms.')
-  return resolved_arm0_type
 
 
 @_rule(ast.MatchArm)

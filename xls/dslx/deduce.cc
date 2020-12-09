@@ -935,4 +935,72 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceIndex(Index* node,
   return array_type->element_type().CloneToUnique();
 }
 
+// Ensures that the name_def_tree bindings are aligned with the type "other"
+// (which is the type for the matched value at this name_def_tree level).
+static absl::Status Unify(NameDefTree* name_def_tree, const ConcreteType& other,
+                          DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved_rhs_type,
+                       Resolve(other, ctx));
+  if (name_def_tree->is_leaf()) {
+    NameDefTree::Leaf leaf = name_def_tree->leaf();
+    if (absl::holds_alternative<NameDef*>(leaf)) {
+      // Defining a name in the pattern match, we accept all types.
+      ctx->type_info()->SetItem(ToAstNode(leaf), *resolved_rhs_type);
+    } else if (absl::holds_alternative<WildcardPattern*>(leaf)) {
+      // Nothing to do.
+    } else if (absl::holds_alternative<Number*>(leaf) ||
+               absl::holds_alternative<ColonRef*>(leaf)) {
+      // For a reference (or literal) the types must be consistent.
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved_leaf_type,
+                           DeduceAndResolve(ToAstNode(leaf), ctx));
+      if (*resolved_leaf_type != *resolved_rhs_type) {
+        return XlsTypeError(
+            name_def_tree->span(), *resolved_rhs_type, *resolved_leaf_type,
+            absl::StrFormat(
+                "Conflicting types; pattern expects %s but got %s from value",
+                resolved_rhs_type->ToString(), resolved_leaf_type->ToString()));
+      }
+    }
+  } else {
+    const NameDefTree::Nodes& nodes = name_def_tree->nodes();
+    if (auto* type = dynamic_cast<const TupleType*>(&other);
+        type != nullptr && type->size() == nodes.size()) {
+      for (int64 i = 0; i < nodes.size(); ++i) {
+        const ConcreteType& subtype = type->GetMemberType(i);
+        NameDefTree* subtree = nodes[i];
+        XLS_RETURN_IF_ERROR(Unify(subtree, subtype, ctx));
+      }
+    }
+  }
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMatch(Match* node,
+                                                          DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> matched,
+                       ctx->Deduce(node->matched()));
+
+  for (MatchArm* arm : node->arms()) {
+    for (NameDefTree* pattern : arm->patterns()) {
+      XLS_RETURN_IF_ERROR(Unify(pattern, *matched, ctx));
+    }
+  }
+
+  std::vector<std::unique_ptr<ConcreteType>> arm_types;
+  for (MatchArm* arm : node->arms()) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> arm_type,
+                         DeduceAndResolve(arm, ctx));
+    arm_types.push_back(std::move(arm_type));
+  }
+
+  for (int64 i = 1; i < arm_types.size(); ++i) {
+    if (*arm_types[i] != *arm_types[0]) {
+      return XlsTypeError(node->arms()[i]->span(), *arm_types[i], *arm_types[0],
+                          "This match arm did not have the same type as the "
+                          "preceding match arms.");
+    }
+  }
+  return std::move(arm_types[0]);
+}
+
 }  // namespace xls::dslx
