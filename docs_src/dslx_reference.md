@@ -960,35 +960,59 @@ fn prefix_scan_eq(x: u32[8]) -> bits[8,3] {
 
 ### for Expression
 
-DSLX currently supports counted loops.
+DSLX currently supports synthesis of "counted" for loops (loops that have a
+clear upper bound on their number of iterations). These loops are capable of
+being generated as unrolled pipeline stages: when generating a pipeline, the XLS
+compiler will unroll and specialize the iterations.
 
-Blueprint:
+NOTE In the future support for loops with an unbounded number of iterations may
+be permitted, but will only be possible to synthesize as a time-multiplexed
+implementation, since pipelines cannot be unrolled indefinitely.
+
+#### Blueprint
 
 ```
-for (index, accumulator): (type-of-index, type-of-accumulator) in
-        iterable {
-           body-expression
-        } (initial-accumulator-value)
+for (index, accumulator): (type-of-index, type-of-accumulator) in iterable {
+   body-expression
+} (initial-accumulator-value)
 ```
 
-Examples:
+Because DSLX is a pure dataflow description, a for loop is an
+expression that produces a value. As a result, you grab the output of a for loop
+just like any other expression:
+
+```
+let final_accum = for (i, accum) in range(u32:0, u32:8) {
+  let new_accum = f(accum);
+  new_accum
+}(init_accum);
+```
+
+Conceptually the for loop "evolves" the accumulator as it iterates, and
+ultimately pops it out as the result of its evaluation.
+
+#### Examples
 
 Add up all values from 0 to 4 (exclusive). Note that we pass the accumulator's
 initial value in as a parameter to this expression.
 
 ```
-for (i, accum): (u32, u32)
-in range(u32:0, u32:4) { accum + i }(u32:0)
+for (i, accum): (u32, u32) in range(u32:0, u32:4) {
+  accum + i
+}(u32:0)
 ```
 
 To add up values from 7 to 11 (exclusive), one would write:
 
 ```
-let base: u32 = u32:7;
-for (i, accum): (u32, u32) in range(u32:0, u32:4) { accum + base + i }(u32:0)
+let base = u32:7;
+for (i, accum): (u32, u32) in range(u32:0, u32:4) {
+  accum + base + i
+}(u32:0)
 ```
 
-Invariants can be used in the loop body, for example:
+"Loop invariant" values (values that do not change as the loop runs) can be used
+in the loop body, for example, note the use of `outer_thing` below:
 
 ```
 let outer_thing: u32 = u32:42;
@@ -997,13 +1021,25 @@ for (i, accum): (u32, u32) in range(u32:0, u32:4) {
 }(u32:0)
 ```
 
-Both the index and accumulator can be of any valid type, in particular, they can
-be tuple types. For example:
+Both the index and accumulator can be of any valid type, in particular, the
+accumulator can be a tuple type, which is useful for evolving a bunch of values.
+For example, this for loop "evolves" two arrays:
 
 ```
-for ((i, e), (prior, count, result)): ((u32, u32), (u32, u3, bits[8,3]))
+for (i, (xs, ys)): (u32, (u16[3], u8[3])) in range(u32:0, u32:4) {
+  ...
+}((init_xs, init_ys))
 ```
 
+Note in the above example arrays are dataflow values just like anything else. To
+conditionally update an array every other iteration:
+
+```
+let result: u4[8] = for (i, array) in range(u32:0, u32:8) {
+  // Update every other cell with the square of the index.
+  update(array, i, i*i) if i % 2 == 0 else array
+}(u4[8]:[0, ...]);
+```
 
 ### Numerical Conversions {#numerical-conversions}
 
