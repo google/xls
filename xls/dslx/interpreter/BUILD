@@ -193,6 +193,7 @@ py_binary(
     srcs = ["interpreter_main.py"],
     python_version = "PY3",
     srcs_version = "PY3",
+    visibility = ["//xls:xls_users"],
     deps = [
         ":parse_and_interpret",
         "//xls/common/python:init_xls",
@@ -241,4 +242,5 @@ py_test(
 filegroup(
     name = "dslx_test",
     srcs = ["dslx_test.sh"],
+    visibility = ["//xls:xls_users"],
 )

@@ -401,6 +401,7 @@ py_binary(
     srcs = ["ir_converter_main.py"],
     python_version = "PY3",
     srcs_version = "PY3",
+    visibility = ["//xls:xls_users"],
     deps = [
         ":import_helpers",
         ":ir_converter",
@@ -461,6 +462,7 @@ py_test(
 filegroup(
     name = "ir_converter_test_sh",
     srcs = ["ir_converter_test.sh"],
+    visibility = ["//xls:xls_users"],
 )
 
 py_library(

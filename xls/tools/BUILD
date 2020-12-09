@@ -150,6 +150,7 @@ cc_binary(
 cc_binary(
     name = "check_ir_equivalence_main",
     srcs = ["check_ir_equivalence_main.cc"],
+    visibility = ["//xls:xls_users"],
     deps = [
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
@@ -178,6 +179,7 @@ cc_binary(
 filegroup(
     name = "check_ir_equivalence_sh",
     srcs = ["check_ir_equivalence.sh"],
+    visibility = ["//xls:xls_users"],
 )
 
 cc_binary(
@@ -465,6 +467,7 @@ sh_test(
 cc_binary(
     name = "eval_ir_main",
     srcs = ["eval_ir_main.cc"],
+    visibility = ["//xls:xls_users"],
     deps = [
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
@@ -553,6 +556,7 @@ cc_library(
 cc_binary(
     name = "opt_main",
     srcs = ["opt_main.cc"],
+    visibility = ["//xls:xls_users"],
     deps = [
         "@com_google_absl//absl/status",
         "//xls/common:init_xls",
@@ -795,16 +799,19 @@ py_test(
 filegroup(
     name = "benchmark_test_sh",
     srcs = ["benchmark_test.sh"],
+    visibility = ["//xls:xls_users"],
 )
 
 filegroup(
     name = "benchmark_eval_test_sh",
     srcs = ["benchmark_eval_test.sh"],
+    visibility = ["//xls:xls_users"],
 )
 
 cc_binary(
     name = "benchmark_main",
     srcs = ["benchmark_main.cc"],
+    visibility = ["//xls:xls_users"],
     deps = [
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

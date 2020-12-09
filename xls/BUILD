@@ -14,19 +14,21 @@
 
 # XLS: Accelerator Synthesis
 
+# XLS-internal-only.
+package_group(
+    name = "xls_internal",
+    packages = ["//xls/..."],
+)
+
 # TODO(leary): 2020-06-29 This structure is a work-around to publically expose
 # XLS APIs. Once the public XLS API is determined, those packages should be
 # explicitly marked with 'xls_public' visibility, and this should be changed so
 # that 'xls_public' includes 'xls_internal' and not vice versa.
 package_group(
-    name = "xls_public",
+    name = "xls_users",
+    # Everything users can see is also visible internally.
+    includes = [":xls_internal"],
     packages = ["//..."],
-)
-
-package_group(
-    name = "xls_internal",
-    includes = [":xls_public"],
-    packages = ["//xls/..."],
 )
 
 package(
