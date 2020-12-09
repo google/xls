@@ -672,18 +672,17 @@ absl::Status FunctionBuilderVisitor::HandleOneHot(OneHot* one_hot) {
   llvm::Type* input_type = input->getType();
   int input_width = input_type->getIntegerBitWidth();
   llvm::Type* int1_type = llvm::Type::getInt1Ty(ctx_);
-  std::vector<llvm::Type*> arg_types = {input_type, int1_type};
   llvm::Value* llvm_false = llvm::ConstantInt::getFalse(int1_type);
 
   llvm::Value* zeroes;
   if (one_hot->priority() == LsbOrMsb::kLsb) {
     llvm::Function* cttz = llvm::Intrinsic::getDeclaration(
-        module_, llvm::Intrinsic::cttz, arg_types);
+        module_, llvm::Intrinsic::cttz, {input_type});
     // We don't need to pass user data to these intrinsics; they're leaf nodes.
     zeroes = builder_->CreateCall(cttz, {input, llvm_false});
   } else {
     llvm::Function* ctlz = llvm::Intrinsic::getDeclaration(
-        module_, llvm::Intrinsic::ctlz, arg_types);
+        module_, llvm::Intrinsic::ctlz, {input_type});
     zeroes = builder_->CreateCall(ctlz, {input, llvm_false});
     zeroes = builder_->CreateSub(
         llvm::ConstantInt::get(input_type, input_width - 1), zeroes);
