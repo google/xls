@@ -476,6 +476,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#dynamic_counted_for" class="md-nav__link">
+    dynamic_counted_for
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#decode" class="md-nav__link">
     decode
   </a>
@@ -1261,6 +1268,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#dynamic_counted_for" class="md-nav__link">
+    dynamic_counted_for
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#decode" class="md-nav__link">
     decode
   </a>
@@ -1406,6 +1420,7 @@
 <li><a href="#dynamic_bit_slice">dynamic_bit_slice</a></li>
 <li><a href="#concat">concat</a></li>
 <li><a href="#counted_for">counted_for</a></li>
+<li><a href="#dynamic_counted_for">dynamic_counted_for</a></li>
 <li><a href="#decode">decode</a></li>
 <li><a href="#encode">encode</a></li>
 <li><a href="#invoke">invoke</a></li>
@@ -1761,7 +1776,7 @@ support arbitrary widths.</p>
 <tr>
 <td><code>umod</code></td>
 <td><code>Op::kUMod</code></td>
-<td><code>result = lhs % rhs</code> * ***</td>
+<td><code>result = lhs % rhs</code> *</td>
 </tr>
 <tr>
 <td><code>umul</code></td>
@@ -1778,8 +1793,8 @@ truncation. If the divisor is zero, unsigned division produces a maximal
 positive value. For signed division, if the divisor is zero the result is the
 maximal positive value if the dividend is non-negative or the maximal negative
 value if the dividend is negative.</p>
-<p>*** For signed modulus, the sign of the result of modulus matches the sign of
-the left operand. If the right operand is zero the result is zero.</p>
+<p>*** The sign of the result of modulus matches the sign of the left operand. If
+the right operand is zero the result is zero.</p>
 <h3 id="comparison-operations">Comparison operations</h3>
 <p>Performs a comparison on a pair of identically-typed bits operands. Unsigned
 operations are prefixed with a 'u', and signed operations are prefixed with a
@@ -2259,38 +2274,7 @@ empty array).</p>
 <h4 id="array_index"><strong><code>array_index</code></strong></h4>
 <p>Returns a single element from an array.</p>
 <p><strong>Syntax</strong></p>
-<pre><code>result = array_index(data, index)
-</code></pre>
-
-<p><strong>Types</strong></p>
-<table>
-<thead>
-<tr>
-<th>Value</th>
-<th>Type</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>lhs</code></td>
-<td>Array of elements of type <code>T</code></td>
-</tr>
-<tr>
-<td><code>rhs</code></td>
-<td><code>bits[M]</code></td>
-</tr>
-<tr>
-<td><code>result</code></td>
-<td><code>T</code></td>
-</tr>
-</tbody>
-</table>
-<p>Returns the element at the index given by operand <code>index</code> from the array <code>data</code>.</p>
-<p>TODO: Define out of bounds semantics for array_index.</p>
-<h4 id="array_update"><strong><code>array_update</code></strong></h4>
-<p>Returns a modified copy of an array.</p>
-<p><strong>Syntax</strong></p>
-<pre><code>result = array_update(array, index, value)
+<pre><code>result = array_index(array, indices=[idx_{0}, ... , idx_{N-1}])
 </code></pre>
 
 <p><strong>Types</strong></p>
@@ -2304,26 +2288,119 @@ empty array).</p>
 <tbody>
 <tr>
 <td><code>array</code></td>
-<td>Array of elements of type <code>T</code></td>
+<td>Array of at least <code>N</code> dimensions</td>
 </tr>
 <tr>
-<td><code>index</code></td>
-<td><code>bits[M]</code>*</td>
+<td><code>idx_{i}</code></td>
+<td>Arbitrary bits type</td>
+</tr>
+<tr>
+<td><code>result</code></td>
+<td><code>T</code></td>
+</tr>
+</tbody>
+</table>
+<p>Returns the element of <code>array</code> indexed by the indices <code>idx_{0} ... idx_{N-1}</code>.
+The array must have at least as many dimensions as number of index elements <code>N</code>.
+Each element <code>idx_{i}</code> indexes a dimension of <code>array</code>. The first element
+<code>idx_{0}</code> indexes the outer most dimension, the second element <code>idx_{1}</code> indexes
+the second outer most dimension, etc. The result type <code>T</code> is the type of <code>array</code>
+with the <code>N</code> outer most dimensions removed.</p>
+<p>Any out-of-bounds indices <code>idx_{i}</code> are clamped to the maximum in bounds index
+for the respective dimension.</p>
+<p>The table below shows examples of the result type <code>T</code> and the result expression
+assuming input array operand <code>A</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Indices</th>
+<th>Array type</th>
+<th>result type <code>T</code></th>
+<th>Result expression</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>{1, 2}</code></td>
+<td><code>bits[3][4][5]</code></td>
+<td><code>bits[3]</code></td>
+<td><code>A[1][2]</code></td>
+</tr>
+<tr>
+<td><code>{10, 2}</code></td>
+<td><code>bits[3][4][5]</code></td>
+<td><code>bits[3]</code></td>
+<td><code>A[4][2]</code> (first index is</td>
+</tr>
+<tr>
+<td>:           :                 :                 : out-of-bounds and clamped at :</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>:           :                 :                 : the maximum index)           :</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>{1}</code></td>
+<td><code>bits[3][4][5]</code></td>
+<td><code>bits[3][4]</code></td>
+<td><code>A[1]</code></td>
+</tr>
+<tr>
+<td><code>{}</code></td>
+<td><code>bits[3][4][5]</code></td>
+<td><code>bits[3][4][5]</code></td>
+<td><code>A</code></td>
+</tr>
+<tr>
+<td><code>{}</code></td>
+<td><code>bits[32]</code></td>
+<td><code>bits[32]</code></td>
+<td><code>A</code></td>
+</tr>
+</tbody>
+</table>
+<h4 id="array_update"><strong><code>array_update</code></strong></h4>
+<p>Returns a modified copy of an array.</p>
+<p><strong>Syntax</strong></p>
+<pre><code>result = array_update(array, value, indices=[idx_{0}, ... , idx_{N-1}])
+</code></pre>
+
+<p><strong>Types</strong></p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>array</code></td>
+<td>Array of at least <code>N</code> dimensions</td>
 </tr>
 <tr>
 <td><code>value</code></td>
 <td><code>T</code></td>
 </tr>
 <tr>
+<td><code>idx_{i}</code></td>
+<td>Arbitrary bits type</td>
+</tr>
+<tr>
 <td><code>result</code></td>
-<td>Array of elements of type <code>T</code></td>
+<td>Same type as <code>array</code></td>
 </tr>
 </tbody>
 </table>
-<p>* M is arbitrary.</p>
-<p>Returns a copy of the input array with the element at the index replaced with
-the given value. If index is out of bounds, the returned array is identical to
-the input array.</p>
+<p>Returns a copy of the input array with the element at the given indices replaced
+with the given value. If any index is out of bounds, the result is identical to
+the input <code>array</code>. The indexing semantics is identical to <code>array_index</code> with the
+exception of out-of-bounds behavior.</p>
 <h4 id="bit_slice"><strong><code>bit_slice</code></strong></h4>
 <p>Slices a contiguous range of bits from a bits-typed operand.</p>
 <p><strong>Syntax</strong></p>
@@ -2650,6 +2727,106 @@ loop-carried data that starts with value <code>init</code>.</p>
 
 <p>Note that we currently inspect the <code>body</code> function to see what type of induction
 variable (<code>i</code> above) it accepts in order to pass an <code>i</code> value of that type.</p>
+<h4 id="dynamic_counted_for"><strong><code>dynamic_counted_for</code></strong></h4>
+<p>Invokes a dynamic-trip count loop.</p>
+<p><strong>Syntax</strong></p>
+<pre><code>result = counted_for(init, trip_count, stride, body=&lt;body&gt;, invariant_args=&lt;inv_args&gt;)
+</code></pre>
+
+<p><strong>Types</strong></p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>init</code></td>
+<td><code>T</code></td>
+</tr>
+<tr>
+<td><code>trip_count</code></td>
+<td><code>bits[N], treated as unsigned</code></td>
+</tr>
+<tr>
+<td><code>stride</code></td>
+<td><code>bits[M], treated as signed</code>,</td>
+</tr>
+<tr>
+<td><code>result</code></td>
+<td><code>T</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Keyword arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Keyword</th>
+<th>Type</th>
+<th>Required</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>invariant_args</code></td>
+<td>array of</td>
+<td>yes</td>
+<td></td>
+<td>Names of the invariant</td>
+</tr>
+<tr>
+<td>:                  : operands :          :         : operands as the loop body :</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>body</code></td>
+<td><code>string</code></td>
+<td>yes</td>
+<td></td>
+<td>Name of the function to</td>
+</tr>
+<tr>
+<td>:                  :          :          :         : use as the loop body      :</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><code>dynamic_counted_for</code> invokes the function <code>body</code> <code>trip_count</code> times, passing
+loop-carried data that starts with value <code>init</code>. The induction variable is
+incremented by <code>stride</code> after each iteration.</p>
+<ul>
+<li>The first argument passed to <code>body</code> is the induction variable -- presently,
+    the induction variable always starts at zero and increments by <code>stride</code>
+    after every trip.</li>
+<li>The second argument passed to <code>body</code> is the loop-carry data. The return type
+    of <code>body</code> must be the same as the type of the <code>init</code> loop carry data. The
+    value returned from the last trip is the result of the <code>counted_for</code>
+    expression.</li>
+<li>All subsequent arguments passed to <code>body</code> are passed from <code>invariant_args</code>;
+    e.g. if there are two members in <code>invariant_args</code> those values are passed as
+    the third and fourth arguments.</li>
+</ul>
+<p>Therefore <code>body</code> should have a signature that matches the following:</p>
+<pre><code>body(i, loop_carry_data, [invariant_arg0, invariant_arg1, ...])
+</code></pre>
+
+<p>Note that we currently inspect the <code>body</code> function to see what type of induction
+variable (<code>i</code> above) it accepts in order to pass an <code>i</code> value of that type.
+<code>trip_count</code> must have fewer bits than <code>i</code> and <code>stride</code> should have fewer than
+or equal number of bits to <code>i</code>.</p>
+<p>Code generation support for <code>dynamic_counted_for</code> is limited because the
+pipeline generator cannot handle an unkown trip count.</p>
 <h4 id="decode"><strong><code>decode</code></strong></h4>
 <p>Implements a binary decoder.</p>
 <pre><code>result = decode(operand, width=&lt;width&gt;)

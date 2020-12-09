@@ -585,6 +585,47 @@
     Debugging the LLVM JIT
   </a>
   
+    <nav class="md-nav" aria-label="Debugging the LLVM JIT">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#building-llvm-tools" class="md-nav__link">
+    Building LLVM tools
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#isolating-the-bug" class="md-nav__link">
+    Isolating the bug
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#instcombine" class="md-nav__link">
+    Instcombine
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#evaluating-llvm-ir" class="md-nav__link">
+    Evaluating LLVM IR
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#building-llvm-at-head" class="md-nav__link">
+    Building LLVM at head
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
       </ul>
@@ -884,6 +925,47 @@
     Debugging the LLVM JIT
   </a>
   
+    <nav class="md-nav" aria-label="Debugging the LLVM JIT">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#building-llvm-tools" class="md-nav__link">
+    Building LLVM tools
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#isolating-the-bug" class="md-nav__link">
+    Isolating the bug
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#instcombine" class="md-nav__link">
+    Instcombine
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#evaluating-llvm-ir" class="md-nav__link">
+    Evaluating LLVM IR
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#building-llvm-at-head" class="md-nav__link">
+    Building LLVM at head
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
       </ul>
@@ -937,7 +1019,14 @@
 <li><a href="#debugging-a-tool-crash">Debugging a tool crash</a></li>
 <li><a href="#result-miscomparison-unoptimized-ir">Result miscomparison: unoptimized IR</a></li>
 <li><a href="#result-miscomparison-optimized-ir">Result miscomparison: optimized IR</a><ul>
-<li><a href="#debugging-the-llvm-jit">Debugging the LLVM JIT</a></li>
+<li><a href="#debugging-the-llvm-jit">Debugging the LLVM JIT</a><ul>
+<li><a href="#building-llvm-tools">Building LLVM tools</a></li>
+<li><a href="#isolating-the-bug">Isolating the bug</a></li>
+<li><a href="#instcombine">Instcombine</a></li>
+<li><a href="#evaluating-llvm-ir">Evaluating LLVM IR</a></li>
+<li><a href="#building-llvm-at-head">Building LLVM at head</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li><a href="#result-miscomparison-simulated-verilog">Result miscomparison: simulated Verilog</a></li>
@@ -1156,10 +1245,41 @@ input IR is flagged. Invocation:</p>
 with the default optimization level of 3, there is likely a bug in the LLVM
 optimizer or the XLS-generated LLVM program has undefined behavior.</p>
 <p>Unoptimized and optimized LLVM IR are dumped by the JIT with vlog level of 2 or
-higher. The assembly at level 3 or higher. For example:</p>
+higher, and the assembly is dumped at level 3 or higher. For example:</p>
 <pre><code>  eval_ir_main -v=3 --logtostderr sample.opt.ir
 </code></pre>
 
+<p>Extract the unoptimized LLVM IR to file to enable working with it in isolation.</p>
+<h5 id="building-llvm-tools">Building LLVM tools</h5>
+<p>The various LLVM tools such as <code>opt</code> and <code>lli</code> can be built with:</p>
+<pre><code>  bazel build /llvm/llvm-project/llvm:all
+</code></pre>
+
+<p>Build in fastbuild mode to get checks and debug features in LLVM.</p>
+<h5 id="isolating-the-bug">Isolating the bug</h5>
+<p>To inspect the optimized LLVM IR, run:</p>
+<pre><code>  opt sample.ll -O3 -S
+</code></pre>
+
+<p>To print the IR before and after each pass:</p>
+<pre><code> opt sample.ll -S -print-after-all -print-before-all -O3
+</code></pre>
+
+<h5 id="instcombine">Instcombine</h5>
+<p>Instcombine is an LLVM optimization pass which is a common source of bugs in
+code generated from XLS because XLS uses unusual bit widths which exercise
+little used paths in this optimization. To run instcombine alone:</p>
+<pre><code> opt /tmp/bad.ll -S --instcombine
+</code></pre>
+
+<p>Instcombine is a large monolithic pass and it can be difficult to isolate the
+exact transformation which caused the problem. Fortunately, this pass includes a
+"compiler fuel" option which can be used to limit the number of transformations
+performed by the pass. Example usage (fastbuild of LLVM is required):</p>
+<pre><code>opt -S --instcombine sample.ll --debug-counter=instcombine-visit-skip=0,instcombine-visit-count=42
+</code></pre>
+
+<h5 id="evaluating-llvm-ir">Evaluating LLVM IR</h5>
 <p>The LLVM tool <code>lli</code> evaluates LLVM IR. The tool expects the IR to include a
 entry function <code>main</code>. See the uploaded file in this
 <a href="https://bugs.llvm.org/show_bug.cgi?id=45762">LLVM bug</a> for an example LLVM IR
@@ -1167,6 +1287,18 @@ file which includes a main function that calls a (slightly modified)
 XLS-generated function.</p>
 <p>The LLVM tool <code>opt</code> optimizes the LLVM IR and can be piped to <code>lli</code> like so:</p>
 <pre><code>  opt sample.ll --O2 | lli
+</code></pre>
+
+<h5 id="building-llvm-at-head">Building LLVM at head</h5>
+<p>Although the internal Google mirror of LLVM is updated frequently, prior to
+filing an LLVM bug it's a good idea to verify the failure against LLVM head.
+Steps to build:</p>
+<pre><code>git clone https://github.com/llvm/llvm-project.git
+cd llvm
+mkdir build
+cd build
+cmake -G Ninja ../llvm/
+cmake --build . -- opt
 </code></pre>
 
 <h3 id="result-miscomparison-simulated-verilog">Result miscomparison: simulated Verilog</h3>

@@ -665,6 +665,26 @@
     for Expression
   </a>
   
+    <nav class="md-nav" aria-label="for Expression">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#blueprint" class="md-nav__link">
+    Blueprint
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    Examples
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -1380,6 +1400,26 @@
     for Expression
   </a>
   
+    <nav class="md-nav" aria-label="for Expression">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#blueprint" class="md-nav__link">
+    Blueprint
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    Examples
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -1638,7 +1678,11 @@
 <li><a href="#let-expression">let Expression</a></li>
 <li><a href="#ternary-if-expression">Ternary If Expression</a></li>
 <li><a href="#iterable-expression">Iterable Expression</a></li>
-<li><a href="#for-expression">for Expression</a></li>
+<li><a href="#for-expression">for Expression</a><ul>
+<li><a href="#blueprint">Blueprint</a></li>
+<li><a href="#examples">Examples</a></li>
+</ul>
+</li>
 <li><a href="#numerical-conversions-numerical-conversions">Numerical Conversions {#numerical-conversions}</a></li>
 <li><a href="#array-conversions">Array Conversions</a></li>
 <li><a href="#advanced-understanding-parametricity-constraints-and-unification">Advanced Understanding: Parametricity, Constraints, and Unification</a></li>
@@ -1924,7 +1968,8 @@ fn extend_to_32b(x: MySignedEnum) -&gt; u32 {
   u32:x  // Sign-extends because the source type is signed.
 }
 
-test extend_to_32b {
+#![test]
+fn extend_to_32b {
   assert_eq(extend_to_32b(MySignedEnum::LOW), u32:-1)
 }
 </code></pre>
@@ -1991,7 +2036,8 @@ order:</p>
   y: u32,
 }
 
-test struct_equality {
+#![test]
+fn struct_equality {
   let p0 = Point { x: u32:42, y: u32:64 };
   let p1 = Point { y: u32:64, x: u32:42 };
   assert_eq(p0, p1)
@@ -2002,7 +2048,8 @@ test struct_equality {
 names of in-scope values:</p>
 <pre><code>struct Point { x: u32, y: u32, }
 
-test struct_equality {
+#![test]
+fn struct_equality {
   let x = u32:42;
   let y = u32:64;
   let p0 = Point { x, y };
@@ -2025,7 +2072,8 @@ fn main() -&gt; u32 {
   f(Point { x: u32:42, y: u32:64 })
 }
 
-test main {
+#![test]
+fn main {
   assert_eq(u32:106, main())
 }
 </code></pre>
@@ -2048,7 +2096,8 @@ fn main() -&gt; Point3 {
   update_y(p, u32:128)
 }
 
-test main {
+#![test]
+fn main {
   let want = Point3 { x: u32:42, y: u32:128, z: u32:256 };
   assert_eq(want, main())
 }
@@ -2085,11 +2134,13 @@ fn f(p: Point) -&gt; u32 {
   p.x + p.y
 }
 
-test ok {
+#![test]
+fn ok {
   assert_eq(f(Point { x: u32:42, y: u32:64 }), u32:106)
 }
 
-test type_checker_error {
+#![test]
+fn type_checker_error {
   assert_eq(f(Coordinate { x: u32:42, y: u32:64 }), u32:106)
 }
 </code></pre>
@@ -2105,7 +2156,8 @@ fn make_point&lt;A: u32, B: u32&gt; make_point(x: bits[A], y: bits[B]) -&gt; Poi
   Point{ x, y }
 }
 
-test struct_construction {
+#![test]
+fn struct_construction {
   let p = make_point(u16:42, u32:42);
   assert_eq(u16:42, p.x)
 }
@@ -2119,7 +2171,8 @@ array must have the same type. Arrays can be indexed with indexing notation
   a[i]
 }
 
-test main {
+#![test]
+fn main {
   let x = u32:42;
   let y = u32:64;
   // Make an array with &quot;bracket notation&quot;.
@@ -2139,7 +2192,8 @@ shown.</p>
   u32[3]:[u32:42, x, ...]
 }
 
-test make_array {
+#![test]
+fn make_array {
   let _ = assert_eq(u32[3]:[u32:42, u32:42, u32:42], make_array(u32:42));
   let _ = assert_eq(u32[3]:[u32:42, u32:64, u32:64], make_array(u32:64));
   ()
@@ -2164,7 +2218,8 @@ fn main(x: u8) -&gt; MyEnum {
   x as MyEnum
 }
 
-test main {
+#![test]
+fn main {
   let _ = assert_eq(main(u8:42), MyEnum::FOO);
   let _ = assert_eq(main(u8:64), MyEnum::BAR);
   ()
@@ -2189,32 +2244,38 @@ can be widened (increasing bit-width), narrowed (decreasing bit-width) and/or
 changed between signed and unsigned. Some examples are found below. See
 <a href="#numerical-conversions">Numerical Conversions</a> for a description of the
 semantics.</p>
-<pre><code>test narrow_cast {
+<pre><code>#![test]
+fn narrow_cast {
   let twelve = u4:0b1100;
   assert_eq(twelve as u2, u2:0)
 }
 
-test widen_cast {
+#![test]
+fn widen_cast {
   let three = u2:0b11;
   assert_eq(three as u4, u4:3)
 }
 
-test narrow_signed_cast {
+#![test]
+fn narrow_signed_cast {
   let negative_seven = s4:0b1001;
   assert_eq(negative_seven as u2, u2:1)
 }
 
-test widen_signed_cast {
+#![test]
+fn widen_signed_cast {
   let negative_one = s2:0b11;
   assert_eq(negative_one as s4, s4:-1)
 }
 
-test widen_to_unsigned {
+#![test]
+fn widen_to_unsigned {
   let negative_one = s2:0b11;
   assert_eq(negative_one as u3, u3:0b111)
 }
 
-test widen_to_signed {
+#![test]
+fn widen_to_signed {
   let three = u2:0b11;
   assert_eq(three as u3, u3:0b011)
 }
@@ -2458,36 +2519,67 @@ ranging from 0 to 7) and the value at the index (<code>e = x[i]</code>).</p>
 </code></pre>
 
 <h3 id="for-expression">for Expression</h3>
-<p>DSLX currently supports counted loops.</p>
-<p>Blueprint:</p>
-<pre><code>for (index, accumulator): (type-of-index, type-of-accumulator) in
-        iterable {
-           body-expression
-        } (initial-accumulator-value)
+<p>DSLX currently supports synthesis of "counted" for loops (loops that have a
+clear upper bound on their number of iterations). These loops are capable of
+being generated as unrolled pipeline stages: when generating a pipeline, the XLS
+compiler will unroll and specialize the iterations.</p>
+<p>NOTE In the future support for loops with an unbounded number of iterations may
+be permitted, but will only be possible to synthesize as a time-multiplexed
+implementation, since pipelines cannot be unrolled indefinitely.</p>
+<h4 id="blueprint">Blueprint</h4>
+<pre><code>for (index, accumulator): (type-of-index, type-of-accumulator) in iterable {
+   body-expression
+} (initial-accumulator-value)
 </code></pre>
 
-<p>Examples:</p>
+<p>Because DSLX is a pure dataflow description, a for loop is an
+expression that produces a value. As a result, you grab the output of a for loop
+just like any other expression:</p>
+<pre><code>let final_accum = for (i, accum) in range(u32:0, u32:8) {
+  let new_accum = f(accum);
+  new_accum
+}(init_accum);
+</code></pre>
+
+<p>Conceptually the for loop "evolves" the accumulator as it iterates, and
+ultimately pops it out as the result of its evaluation.</p>
+<h4 id="examples">Examples</h4>
 <p>Add up all values from 0 to 4 (exclusive). Note that we pass the accumulator's
 initial value in as a parameter to this expression.</p>
-<pre><code>for (i, accum): (u32, u32)
-in range(u32:0, u32:4) { accum + i }(u32:0)
+<pre><code>for (i, accum): (u32, u32) in range(u32:0, u32:4) {
+  accum + i
+}(u32:0)
 </code></pre>
 
 <p>To add up values from 7 to 11 (exclusive), one would write:</p>
-<pre><code>let base: u32 = u32:7;
-for (i, accum): (u32, u32) in range(u32:0, u32:4) { accum + base + i }(u32:0)
+<pre><code>let base = u32:7;
+for (i, accum): (u32, u32) in range(u32:0, u32:4) {
+  accum + base + i
+}(u32:0)
 </code></pre>
 
-<p>Invariants can be used in the loop body, for example:</p>
+<p>"Loop invariant" values (values that do not change as the loop runs) can be used
+in the loop body, for example, note the use of <code>outer_thing</code> below:</p>
 <pre><code>let outer_thing: u32 = u32:42;
 for (i, accum): (u32, u32) in range(u32:0, u32:4) {
     accum + i + outer_thing
 }(u32:0)
 </code></pre>
 
-<p>Both the index and accumulator can be of any valid type, in particular, they can
-be tuple types. For example:</p>
-<pre><code>for ((i, e), (prior, count, result)): ((u32, u32), (u32, u3, bits[8,3]))
+<p>Both the index and accumulator can be of any valid type, in particular, the
+accumulator can be a tuple type, which is useful for evolving a bunch of values.
+For example, this for loop "evolves" two arrays:</p>
+<pre><code>for (i, (xs, ys)): (u32, (u16[3], u8[3])) in range(u32:0, u32:4) {
+  ...
+}((init_xs, init_ys))
+</code></pre>
+
+<p>Note in the above example arrays are dataflow values just like anything else. To
+conditionally update an array every other iteration:</p>
+<pre><code>let result: u4[8] = for (i, array) in range(u32:0, u32:8) {
+  // Update every other cell with the square of the index.
+  update(array, i, i*i) if i % 2 == 0 else array
+}(u4[8]:[0, ...]);
 </code></pre>
 
 <h3 id="numerical-conversions-numerical-conversions">Numerical Conversions {#numerical-conversions}</h3>
@@ -2502,7 +2594,8 @@ for semantics of numeric casts:</p>
 <li>Casting from a bit-width to its own bit-width, between signed/unsigned, is a
     no-op.</li>
 </ul>
-<pre><code>test numerical_conversions {
+<pre><code>#![test]
+fn numerical_conversions {
   let s8_m2 = s8:-2;
   let u8_m2 = u8:-2;
   // Sign extension (source type is signed).
@@ -2541,7 +2634,8 @@ fn concat_arrays(a: u2[3], b: u2[3]) -&gt; u2[6] {
   a ++ b
 }
 
-test cast_to_array {
+#![test]
+fn cast_to_array {
   let a_value: u6 = u6:0b011011;
   let a: u2[3] = cast_to_array(a_value);
   let a_array = u2[3]:[1, 2, 3];
@@ -2643,7 +2737,8 @@ fn main(x: u3) -&gt; u1 {
   mod_imported::my_lsb(x) || mi::my_lsb(x)
 }
 
-test main {
+#![test]
+fn main {
   assert_eq(u1:0b1, main(u3:0b001))
 }
 </code></pre>
@@ -2665,7 +2760,8 @@ fn main(x: u3) -&gt; u1 {
   mod_imported::my_lsb(x) || mi::my_lsb(x)
 }
 
-test main {
+#![test]
+fn main {
   assert_eq(u1:0b1, main(u3:0b001))
 }
 </code></pre>
@@ -2682,7 +2778,8 @@ fn match_const(x: u8) -&gt; u8 {
   }
 }
 
-test match_const_not_binding {
+#![test]
+fn match_const_not_binding {
   let _ = assert_eq(u8:42, match_const(u8:0));
   let _ = assert_eq(u8:42, match_const(u8:1));
   let _ = assert_eq(u8:0, match_const(u8:42));
@@ -2697,7 +2794,8 @@ fn h(t: (u8, (u16, u32))) -&gt; u32 {
   }
 }
 
-test match_nested {
+#![test]
+fn match_nested {
   let _ = assert_eq(u32:3, h((u8:42, (u16:1, u32:2))));
   let _ = assert_eq(u32:1, h((u8:0, (u16:1, u32:42))));
   let _ = assert_eq(u32:7, h((u8:0, (u16:1, u32:0))));
@@ -2759,7 +2857,8 @@ will produce a 4-bit unsigned number starting at <code>start</code>.</p>
 <pre><code>// Identity function helper.
 fn id&lt;N: u32&gt;(x: bits[N]) -&gt; bits[N] { x }
 
-test bit_slice_syntax {
+#![test]
+fn bit_slice_syntax {
   let x = u6:0b100111;
   // Slice out two bits.
   let _ = assert_eq(u2:0b11, x[0:2]);
@@ -2857,7 +2956,8 @@ fn main(x: u3) -&gt; u3 {
 }
 
 // Reverse examples.
-test reverse {
+#![test]
+fn reverse {
   let _ = assert_eq(u3:0b100, main(u3:0b001));
   let _ = assert_eq(u3:0b001, main(u3:0b100));
   let _ = assert_eq(bits[0]:0, rev(bits[0]:0));
@@ -2871,18 +2971,31 @@ test reverse {
 <h3 id="bitwise-reductions">Bitwise reductions</h3>
 <p>These are unary reduction operations applied to a bits-typed value:</p>
 <ul>
-<li><code>and_reduce</code>: evaluates to bits[N]:1 if all bits are set</li>
-<li><code>or_reduce</code>: evaluates to bits[N]:1 if any bit is set in the input, and 0
+<li><code>and_reduce</code>: evaluates to bool:1 if all bits of the input are set, and 0
     otherwise.</li>
-<li><code>xor_reduce</code>: evaluates to bits[N]:1 if there is an odd number of bits set
-    in the input, and 0 otherwise.</li>
+<li><code>or_reduce</code>: evaluates to bool:1 if any bit of the input is set, and 0
+    otherwise.</li>
+<li><code>xor_reduce</code>: evaluates to bool:1 if there is an odd number of bits set in
+    the input, and 0 otherwise.</li>
 </ul>
+<p>These functions return the identity element of the respective operation for
+trivial (0 bit wide) inputs:</p>
+<pre><code>#![test]
+fn trivial_reduce {
+  let _ = assert_eq(and_reduce(bits[0]:0), true);
+  let _ = assert_eq(or_reduce(bits[0]:0), false);
+  let _ = assert_eq(xor_reduce(bits[0]:0), false);
+  ()
+}
+</code></pre>
+
 <h3 id="update">update</h3>
-<p><code>update(array, index, new_value)</code> updates <code>array</code> by replacing the value
-previously at <code>index</code> with <code>new_value</code> and returns the updated array. Note that
-this is not an in-place update of the array, it is an "evolution" of the array
-value and it is up to the compiler to find places in which an in-place
-replacement is viable.</p>
+<p><code>update(array, index, new_value)</code> returns a copy of <code>array</code> where <code>array[index]</code>
+has been replaced with <code>new_value</code>, and all other elements are unchanged. Note
+that this is <em>not</em> an in-place update of the array, it is an "evolution" of
+<code>array</code>. It is the compiler's responsibility to optimize by using mutation
+instead of copying, when it's safe to do. The compiler makes a best effort to do
+this, but can't guarantee the optimization is always made.</p>
 <h2 id="testing-and-debugging">Testing and Debugging</h2>
 <p>DSLX allows specifying tests right in the implementation file via the <code>test</code> and
 <code>quickcheck</code> directives.</p>
