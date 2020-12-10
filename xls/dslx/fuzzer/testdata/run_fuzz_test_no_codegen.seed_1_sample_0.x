@@ -1,29 +1,28 @@
+const W2_V2 = u2:0x2;
 type x4 = u10;
-type x8 = u2;
-fn main(x0: s23) -> u60 {
+fn main(x0: s23) -> u1 {
   let x1: u20 = (x0)[:0x14];
   let x2: u60 = ((x1) ++ (x1)) ++ (x1);
-  let x3: x4[0x2] = ((x1) as x4[0x2]);
-  let x5: u20 = rev(x1);
-  let x6: u60 = clz(x2);
-  let x7: x8[0xa] = ((x1) as x8[0xa]);
-  let x9: u60 = (x6) + (((x5) as u60));
-  let x10: u20 = one_hot_sel(u1:0x0, [x5]);
-  let x11: u35 = u35:0x10;
-  let x12: u15 = (x1)[0x5+:u15];
-  let x13: u61 = one_hot(x2, u1:0x1);
-  let x14: u60 = for (i, x): (u4, u60) in range(u4:0x0, u4:0x3) {
+  let x3: x4[W2_V2] = ((x1) as x4[W2_V2]);
+  let x5: x4[0x4] = (x3) ++ (x3);
+  let x6: u60 = !(x2);
+  let x7: u1 = xor_reduce(x1);
+  let x8: u49 = u49:0x200000;
+  let x9: u1 = (((x6) as u1)) & (x7);
+  let x10: u49 = !(x8);
+  let x11: u1 = (x7)[:];
+  let x12: u49 = for (i, x): (u4, u49) in range(u4:0x0, u4:0x6) {
     x
-  }(x6);
-  let x15: u1 = or_reduce(x14);
-  let x16: u60 = one_hot_sel(x15, [x14]);
-  let x17: u1 = xor_reduce(x9);
-  let x18: s23 = one_hot_sel(x17, [x0]);
-  let x19: u1 = one_hot_sel(x17, [x15]);
-  let x20: u60 = for (i, x): (u4, u60) in range(u4:0x0, u4:0x5) {
+  }(x10);
+  let x13: u49 = for (i, x): (u4, u49) in range(u4:0x0, u4:0x3) {
     x
-  }(x6);
-  let x21: u61 = one_hot_sel(x19, [x13]);
-  let x22: u47 = (x16)[-0x33:-0x4];
-  x9
+  }(x8);
+  let x14: u1 = or_reduce(x2);
+  let x15: u1 = one_hot_sel(x11, [x14]);
+  let x16: u1 = xor_reduce(x9);
+  let x17: s23 = one_hot_sel(x16, [x0]);
+  let x18: u1 = one_hot_sel(x7, [x14]);
+  let x19: u1 = (x18) << ((u1:0x0) if ((((x8) as u1)) >= (u1:0x0)) else (((x8) as u1)));
+  let x20: u1 = (x16)[-0x2:0x1];
+  x14
 }

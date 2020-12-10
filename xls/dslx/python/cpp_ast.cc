@@ -926,7 +926,7 @@ PYBIND11_MODULE(cpp_ast, m) {
       .def_property_readonly(
           "identifier",
           [](NameDefHolder self) { return self.deref().identifier(); })
-      .def_property_readonly(
+      .def_property(
           "definer",
           [](NameDefHolder self) -> absl::optional<AstNodeHolder> {
             AstNode* definer = self.deref().definer();
@@ -934,6 +934,9 @@ PYBIND11_MODULE(cpp_ast, m) {
               return absl::nullopt;
             }
             return AstNodeHolder(definer, self.module());
+          },
+          [](NameDefHolder self, AstNodeHolder definer) {
+            self.deref().set_definer(&definer.deref());
           })
       .def_property_readonly(
           "span", [](NameDefHolder self) { return self.deref().span(); });
@@ -1448,6 +1451,11 @@ PYBIND11_MODULE(cpp_ast, m) {
            }),
            py::arg("module"), py::arg("span"), py::arg("name_def"),
            py::arg("expr"), py::arg("is_public"))
+      .def_property_readonly("name_def",
+                             [](ConstantDefHolder self) {
+                               return NameDefHolder(self.deref().name_def(),
+                                                    self.module());
+                             })
       .def_property_readonly(
           "public",
           [](ConstantDefHolder self) { return self.deref().is_public(); })

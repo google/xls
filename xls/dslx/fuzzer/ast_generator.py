@@ -127,6 +127,9 @@ class AstGenerator(object):
     # Set of types defined during module generation.
     self._type_defs = []
 
+    # Set of constants defined during module generation.
+    self._constants = collections.OrderedDict()
+
     # Widths of the aggregate types, indexed by str(TypeAnnotation).
     self._type_bit_counts = {}
 
@@ -135,6 +138,7 @@ class AstGenerator(object):
     self.rng.seed(seed)
     self._functions = []
     self._type_defs = []
+    self._constants = collections.OrderedDict()
 
   def _name_generator(self):
     i = 0
@@ -180,8 +184,7 @@ class AstGenerator(object):
     if isinstance(type_, ast.BuiltinTypeAnnotation):
       return type_.bits
     if isinstance(type_, ast.ArrayTypeAnnotation):
-      assert isinstance(type_.dim, ast.Number), type_.dim
-      array_size = ast_helpers.get_value_as_int(type_.dim)
+      array_size = self._get_array_size(type_)
       return array_size * self._get_type_bit_count(type_.element_type)
     if isinstance(type_, ast.TupleTypeAnnotation):
       return sum(self._get_type_bit_count(m) for m in type_.members)
@@ -198,12 +201,36 @@ class AstGenerator(object):
   def _make_array_type(self, element_type: ast.TypeAnnotation,
                        array_size: int) -> ast.TypeAnnotation:
     """Creates an array type with the given size and element type."""
+    assert array_size > 0, array_size
+
+    size_type = None
+    if self.rng.random() < 0.5:
+      # Get-or-create a module level constant for the array size.
+      width = max(1, int(math.ceil(math.log(array_size + 1, 2))))
+      identifier = f'W{width}_V{array_size}'
+      if identifier in self._constants:
+        constant_def = self._constants[identifier]
+      else:
+        size_type = self._make_type_annotation(signed=False, width=width)
+        name_def = ast.NameDef(self.m, self.fake_span, identifier)
+        constant_def = ast.Constant(
+            self.m,
+            self.fake_span,
+            name_def,
+            self._make_number(array_size, size_type),
+            is_public=False)
+        name_def.definer = constant_def
+        self._constants[identifier] = constant_def
+      dim = ast.ConstRef(self.m, self.fake_span, identifier,
+                         constant_def.name_def)
+    else:
+      dim = self._make_number(array_size, None)
+
     array_type = ast_helpers.make_type_ref_type_annotation(
-        self.m, self.fake_span, self._create_type_ref(element_type),
-        (self._make_number(array_size, None),))
+        self.m, self.fake_span, self._create_type_ref(element_type), (dim,))
     return array_type
 
-  def _get_array_size(self, array_type: ast.TypeAnnotation) -> int:
+  def _get_array_size(self, array_type: ast.ArrayTypeAnnotation) -> int:
     """Returns the (constant) size of an array type.
 
     Since those are the only array types the generator currently produces, this
@@ -211,11 +238,19 @@ class AstGenerator(object):
 
     Args:
       array_type: The type to extract the array size/length from.
+
+    Note: uN[42] is an ArrayTypeAnnotation, and this function will return 42 for
+    it, since it's just evaluating-to-int the value in the "dim" field of the
+    ArrayTypeAnnotation.
     """
-    assert self._is_array(array_type), array_type
+    assert isinstance(array_type, ast.ArrayTypeAnnotation), array_type
     dim = array_type.dim
-    assert isinstance(dim, ast.Number), dim
-    return ast_helpers.get_value_as_int(dim)
+    if isinstance(dim, ast.Number):
+      return ast_helpers.get_value_as_int(dim)
+
+    assert isinstance(dim, ast.ConstRef)
+    const_def = self._constants[dim.identifier]
+    return ast_helpers.get_value_as_int(const_def.value)
 
   def _generate_primitive_type(self) -> ast.TypeAnnotation:
     """Generates a random primitive-based type (no extra dims or tuples)."""
@@ -876,7 +911,9 @@ class AstGenerator(object):
     """Generates a function named "fname" in a module named "mname"."""
     self.m = ast.Module(mname)
     f = self.generate_function(fname)
-    top = tuple(self._type_defs) + tuple(self._functions) + (f,)
+    constants = [v for _, v in sorted(self._constants.items())]
+    top = tuple(constants) + tuple(self._type_defs) + tuple(
+        self._functions) + (f,)
     for item in top:
       self.m.add_top(item)
     return f, self.m

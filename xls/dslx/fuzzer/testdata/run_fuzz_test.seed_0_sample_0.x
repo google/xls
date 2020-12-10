@@ -1,5 +1,6 @@
+const W1_V1 = u1:0x1;
 type x24 = u9;
-fn main(x0: u48, x1: s18, x2: u10, x3: u63, x4: u44, x5: u20, x6: u61) -> (u61, s6, u12, u61, u20, u20, u10, u61, u61, u20, u44, u61, s6, u44, u44, u10, u61, s6, u58, x24[0x1], u61, x24[0x1]) {
+fn main(x0: u48, x1: s18, x2: u10, x3: u63, x4: u44, x5: u20, x6: u61) -> (u61, s6, u12, u61, u61, bool, u61, u61, u61, u58, u9, u61, s6, u9, u44, u10, u61, s6, u58, bool, u58, bool) {
   let x7: u58 = (x2) ++ (x0);
   let x8: u61 = ctz(x6);
   let x9: u9 = (x5)[0xb+:u9];
@@ -16,17 +17,12 @@ fn main(x0: u48, x1: s18, x2: u10, x3: u63, x4: u44, x5: u20, x6: u61) -> (u61, 
   let x20: u10 = ctz(x2);
   let x21: u10 = (x13)[0x0];
   let x22: s6 = s6:0x3f;
-  let x23: x24[0x1] = ((x9) as x24[0x1]);
-  let x25: (u61,) = (x10,);
-  let x26: u61 = for (i, x): (u4, u61) in range(u4:0x0, u4:0x0) {
+  let x23: x24[W1_V1] = ((x9) as x24[W1_V1]);
+  let x25: u1 = (x11)[0x0+:u1];
+  let x26: u61 = for (i, x): (u4, u61) in range(u4:0x0, u4:0x1) {
     x
-  }(x14);
-  let x27: u44 = (x8)[:0x2c];
-  let x28: u10 = one_hot_sel(x16, [x21]);
-  let x29: u20 = for (i, x): (u4, u20) in range(u4:0x0, u4:0x1) {
-    x
-  }(x5);
-  let x30: u7 = (x29)[-0x12:-0xb];
-  let x31: u44 = ctz(x27);
-  (x19, x22, x18, x8, x5, x5, x2, x26, x19, x29, x31, x14, x22, x31, x4, x20, x17, x22, x7, x23, x6, x23)
+  }(x8);
+  let x27: u13 = (x4)[-0x26:-0x19];
+  let x28: u61 = ctz(x26);
+  (x19, x22, x18, x10, x12, x11, x14, x26, x19, x7, x9, x14, x22, x9, x4, x20, x17, x22, x7, x11, x7, x11)
 }
