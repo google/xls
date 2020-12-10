@@ -148,6 +148,8 @@ bool FieldIsIntegral(FieldDescriptor::Type type) {
     case FieldDescriptor::Type::TYPE_SFIXED64:
     case FieldDescriptor::Type::TYPE_SINT32:
     case FieldDescriptor::Type::TYPE_SINT64:
+    case FieldDescriptor::Type::TYPE_UINT32:
+    case FieldDescriptor::Type::TYPE_UINT64:
       return true;
     default:
       return false;
@@ -162,11 +164,13 @@ int GetFieldWidth(FieldDescriptor::Type type) {
     case FieldDescriptor::Type::TYPE_INT32:
     case FieldDescriptor::Type::TYPE_SFIXED32:
     case FieldDescriptor::Type::TYPE_SINT32:
+    case FieldDescriptor::Type::TYPE_UINT32:
       return 32;
     case FieldDescriptor::Type::TYPE_FIXED64:
     case FieldDescriptor::Type::TYPE_INT64:
     case FieldDescriptor::Type::TYPE_SFIXED64:
     case FieldDescriptor::Type::TYPE_SINT64:
+    case FieldDescriptor::Type::TYPE_UINT64:
       return 64;
     default:
       XLS_LOG(FATAL) << "Should not get here!";
@@ -185,7 +189,6 @@ uint64 GetFieldValue(const Message& message, const Reflection& reflection,
         return reflection.GetRepeatedBool(message, &fd, *index);
       }
       return reflection.GetBool(message, &fd);
-    case FieldDescriptor::Type::TYPE_FIXED32:
     case FieldDescriptor::Type::TYPE_INT32:
     case FieldDescriptor::Type::TYPE_SFIXED32:
     case FieldDescriptor::Type::TYPE_SINT32:
@@ -193,10 +196,18 @@ uint64 GetFieldValue(const Message& message, const Reflection& reflection,
         return reflection.GetRepeatedInt32(message, &fd, *index);
       }
       return reflection.GetInt32(message, &fd);
+    case FieldDescriptor::Type::TYPE_FIXED32:
+    case FieldDescriptor::Type::TYPE_UINT32:
+      if (index) {
+        return reflection.GetRepeatedUInt32(message, &fd, *index);
+      }
+      return reflection.GetUInt32(message, &fd);
+
     case FieldDescriptor::Type::TYPE_FIXED64:
     case FieldDescriptor::Type::TYPE_INT64:
     case FieldDescriptor::Type::TYPE_SFIXED64:
     case FieldDescriptor::Type::TYPE_SINT64:
+    case FieldDescriptor::Type::TYPE_UINT64:
       if (index) {
         return reflection.GetRepeatedInt64(message, &fd, *index);
       }
