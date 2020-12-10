@@ -139,6 +139,8 @@ absl::StatusOr<InterpValue> EvaluateXlsTuple(XlsTuple* expr,
                                              InterpBindings* bindings,
                                              ConcreteType* type_context,
                                              InterpCallbackData* callbacks) {
+  XLS_VLOG(5) << "Evaluating tuple @ " << expr->span()
+              << " :: " << expr->ToString();
   auto get_type_context =
       [type_context](int64 i) -> std::unique_ptr<ConcreteType> {
     if (type_context == nullptr) {
@@ -517,6 +519,8 @@ static absl::StatusOr<absl::optional<std::vector<InterpValue>>> GetEnumValues(
 absl::StatusOr<InterpValue> EvaluateArray(Array* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
                                           InterpCallbackData* callbacks) {
+  XLS_VLOG(5) << "Evaluating array @ " << expr->span()
+              << " :: " << expr->ToString();
   std::unique_ptr<ConcreteType> type;
   if (type_context == nullptr && expr->type() != nullptr) {
     XLS_ASSIGN_OR_RETURN(
@@ -547,6 +551,9 @@ absl::StatusOr<InterpValue> EvaluateArray(Array* expr, InterpBindings* bindings,
   if (expr->has_ellipsis()) {
     XLS_RET_CHECK(array_type != nullptr);
     int64 target_size = absl::get<int64>(array_type->size().value());
+    XLS_RET_CHECK_GE(target_size, 0);
+    XLS_VLOG(5) << "Array has ellipsis @ " << expr->span()
+                << ": repeating to target size: " << target_size;
     while (elements.size() < target_size) {
       elements.push_back(elements.back());
     }
@@ -1150,14 +1157,19 @@ absl::StatusOr<std::shared_ptr<InterpBindings>> MakeTopLevelBindings(
   return b;
 }
 
+// Resolves a dimension (e.g. as present in a type annotation) to an int64.
 absl::StatusOr<int64> ResolveDim(
     absl::variant<Expr*, int64, ConcreteTypeDim> dim,
     InterpBindings* bindings) {
   if (absl::holds_alternative<int64>(dim)) {
-    return absl::get<int64>(dim);
+    int64 result = absl::get<int64>(dim);
+    XLS_RET_CHECK_GE(result, 0);
+    return result;
   }
   if (absl::holds_alternative<Expr*>(dim)) {
     Expr* expr = absl::get<Expr*>(dim);
+    XLS_VLOG(5) << "Resolving dim @ " << expr->span()
+                << " :: " << expr->ToString();
     if (Number* number = dynamic_cast<Number*>(expr)) {
       return number->GetAsUint64();
     }
@@ -1165,7 +1177,9 @@ absl::StatusOr<int64> ResolveDim(
       const std::string& identifier = name_ref->identifier();
       XLS_ASSIGN_OR_RETURN(InterpValue value,
                            bindings->ResolveValueFromIdentifier(identifier));
-      return value.GetBitValueInt64();
+      XLS_ASSIGN_OR_RETURN(int64 result, value.GetBitValueUint64());
+      XLS_RET_CHECK_GE(result, 0);
+      return result;
     }
     return absl::UnimplementedError(
         "Resolve dim expression: " + expr->ToString() + " @ " +

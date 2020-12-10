@@ -494,3 +494,8 @@ dslx_test(
     name = "width_slice_to_parametric",
     srcs = ["width_slice_to_parametric.x"],
 )
+
+dslx_test(
+    name = "array_size_all_bits_set_ellipsis",
+    srcs = ["array_size_all_bits_set_ellipsis.x"],
+)
