@@ -113,9 +113,8 @@ absl::StatusOr<std::unique_ptr<DescriptorPool>> ProcessProtoDef(
 
   // Our proto might have other dependencies, so we have to let the proto
   // compiler know about the layout of our source tree.
-  source_tree.MapPath("xls",
-                      absl::StrCat(source_root_path, "/xls"));
   source_tree.MapPath("/", "/");
+  source_tree.MapPath("", "./");
 
   SourceTreeDescriptorDatabase db(&source_tree);
   FileDescriptorProto descriptor_proto;

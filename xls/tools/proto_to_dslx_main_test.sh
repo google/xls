@@ -14,24 +14,25 @@
 # limitations under the License.
 set -x
 
-XLS_HOME=$TEST_SRCDIR/com_google_xls/xls
+XLS_HOME_ABS=$TEST_SRCDIR/com_google_xls/xls
+XLS_HOME_REL=xls
 OUTPUT_PATH=$TEST_TMPDIR/generated.x
 
-./xls/tools/proto_to_dslx_main \
-  -proto_def_path $XLS_HOME/tools/testdata/proto_to_dslx_main.proto     \
-  -proto_name xls.Fields                                                \
-  -textproto_path $XLS_HOME/tools/testdata/proto_to_dslx_main.textproto \
-  -var_name Foo                                                         \
+${XLS_HOME_REL}/tools/proto_to_dslx_main \
+  -proto_def_path ${XLS_HOME_REL}/tools/testdata/proto_to_dslx_main.proto     \
+  -proto_name xls.Fields                                                      \
+  -textproto_path ${XLS_HOME_REL}/tools/testdata/proto_to_dslx_main.textproto \
+  -var_name Foo                                                               \
   -output_path $OUTPUT_PATH || exit -1
 
 # Verify the output matches the expected.
-diff $XLS_HOME/tools/testdata/proto_to_dslx_main.x \
+diff $XLS_HOME_ABS/tools/testdata/proto_to_dslx_main.x \
      $OUTPUT_PATH || exit -1
 
 # Verify it parses..
-$XLS_HOME/dslx/parser_main $OUTPUT_PATH || exit -1
+$XLS_HOME_ABS/dslx/parser_main $OUTPUT_PATH || exit -1
 
 # And verify it interprets.
-$XLS_HOME/dslx/interpreter/interpreter_main $OUTPUT_PATH || exit -1
+$XLS_HOME_ABS/dslx/interpreter/interpreter_main $OUTPUT_PATH || exit -1
 
 echo "PASS!"
