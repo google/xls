@@ -263,6 +263,7 @@ cc_binary(
 cc_binary(
     name = "proto_to_dslx_main",
     srcs = ["proto_to_dslx_main.cc"],
+    visibility = ["//xls:xls_users"],
     deps = [
         # protobuf compiler import
         # protobuf descriptor import
