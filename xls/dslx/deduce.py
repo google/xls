@@ -19,7 +19,7 @@
 """Type system deduction rules for AST nodes."""
 
 import typing
-from typing import Callable, Type, Tuple
+from typing import Callable, Type
 
 from absl import logging
 
@@ -47,6 +47,8 @@ RULES = {
         cpp_deduce.deduce_Attr,
     ast.Binop:
         cpp_deduce.deduce_Binop,
+    ast.Carry:
+        cpp_deduce.deduce_Carry,
     ast.Cast:
         cpp_deduce.deduce_Cast,
     ast.ColonRef:
@@ -65,6 +67,8 @@ RULES = {
         cpp_deduce.deduce_Let,
     ast.Match:
         cpp_deduce.deduce_Match,
+    ast.MatchArm:
+        cpp_deduce.deduce_MatchArm,
     ast.Number:
         cpp_deduce.deduce_Number,
     ast.Param:
@@ -83,6 +87,8 @@ RULES = {
         cpp_deduce.deduce_TypeRef,
     ast.Unop:
         cpp_deduce.deduce_Unop,
+    ast.While:
+        cpp_deduce.deduce_While,
     ast.XlsTuple:
         cpp_deduce.deduce_XlsTuple,
 
@@ -309,40 +315,6 @@ def _deduce_Invocation(self: ast.Invocation, ctx: DeduceCtx) -> ConcreteType:  #
   return self_type
 
 
-@_rule(ast.MatchArm)
-def _deduce_MatchArm(self: ast.MatchArm, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  return deduce(self.expr, ctx)
-
-
-@_rule(ast.While)
-def _deduce_While(self: ast.While, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  """Deduces the concrete type of a While AST node."""
-  init_type = deduce(self.init, ctx)
-  test_type = deduce(self.test, ctx)
-
-  resolved_init_type = cpp_deduce.resolve(init_type, ctx)
-  resolved_test_type = cpp_deduce.resolve(test_type, ctx)
-
-  if resolved_test_type != ConcreteType.U1:
-    raise XlsTypeError(self.test.span, test_type, ConcreteType.U1,
-                       'Expect while-loop test to be a bool value.')
-
-  body_type = deduce(self.body, ctx)
-  resolved_body_type = cpp_deduce.resolve(body_type, ctx)
-
-  if resolved_init_type != resolved_body_type:
-    raise XlsTypeError(
-        self.span, init_type, body_type,
-        "While-loop init value type did not match while-loop body's "
-        'result type.')
-  return resolved_init_type
-
-
-@_rule(ast.Carry)
-def _deduce_Carry(self: ast.Carry, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  return deduce(self.loop.init, ctx)
-
-
 @_rule(ast.ConstRef)
 @_rule(ast.NameRef)
 def _deduce_NameRef(self: ast.NameRef, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
@@ -355,12 +327,6 @@ def _deduce_NameRef(self: ast.NameRef, ctx: DeduceCtx) -> ConcreteType:  # pytyp
     cpp_deduce.type_missing_error_set_user(e, self)
     raise
   return result
-
-
-def _get_imported_module_via_type_info(
-    import_: ast.Import, type_info: TypeInfo) -> Tuple[ast.Module, TypeInfo]:
-  """Uses type_info to retrieve the corresponding module of a ColonRef."""
-  return type_info.get_imported(import_)
 
 
 def _deduce(n: ast.AstNode, ctx: DeduceCtx) -> ConcreteType:

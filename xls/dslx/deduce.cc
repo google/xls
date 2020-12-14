@@ -1346,6 +1346,9 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeStructAnnotation(
     }
   }
 
+  // Convert the defined_to_annotated map to use borrowed pointers for the
+  // ParametricExpressions, as required by `ParametricExpression::Env` (so we
+  // can `ParametricExpression::Evaluate()`).
   ParametricExpression::Env env;
   for (auto& item : defined_to_annotated) {
     if (absl::holds_alternative<int64>(item.second)) {
@@ -1384,6 +1387,39 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeRefTypeAnnotation(
     }
   }
   return base_type;
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMatchArm(MatchArm* node,
+                                                             DeduceCtx* ctx) {
+  return ctx->Deduce(node->expr());
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWhile(While* node,
+                                                          DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> init_type,
+                       DeduceAndResolve(node->init(), ctx));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> test_type,
+                       DeduceAndResolve(node->test(), ctx));
+
+  auto u1 = BitsType::MakeU1();
+  if (*test_type != *u1) {
+    return XlsTypeErrorStatus(node->test()->span(), *test_type, *u1,
+                              "Expect while-loop test to be a bool value.");
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> body_type,
+                       DeduceAndResolve(node->body(), ctx));
+  if (*init_type != *body_type) {
+    return XlsTypeErrorStatus(
+        node->span(), *init_type, *body_type,
+        "While-loop init value did not match while-loop body's result type.");
+  }
+  return init_type;
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCarry(Carry* node,
+                                                          DeduceCtx* ctx) {
+  return ctx->Deduce(node->loop()->init());
 }
 
 }  // namespace xls::dslx

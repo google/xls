@@ -121,6 +121,18 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleTypeAnnotation(
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeRefTypeAnnotation(
     TypeRefTypeAnnotation* node, DeduceCtx* ctx);
 
+// See MatchArm in the AST.
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMatchArm(MatchArm* node,
+                                                             DeduceCtx* ctx);
+
+// See While in the AST.
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWhile(While* node,
+                                                          DeduceCtx* ctx);
+
+// See Carry in the AST.
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCarry(Carry* node,
+                                                          DeduceCtx* ctx);
+
 // Resolves "type_" via provided symbolic bindings.
 //
 // Uses the symbolic bindings of the function we're currently inside of to
