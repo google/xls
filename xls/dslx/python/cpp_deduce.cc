@@ -219,6 +219,7 @@ PYBIND11_MODULE(cpp_deduce, m) {
   DELEGATE_DEDUCE(BuiltinTypeAnnotation);
   DELEGATE_DEDUCE(ArrayTypeAnnotation);
   DELEGATE_DEDUCE(TupleTypeAnnotation);
+  DELEGATE_DEDUCE(TypeRefTypeAnnotation);
 
 #undef DELEGATE_DEDUCE
 }

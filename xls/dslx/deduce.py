@@ -24,19 +24,15 @@ from typing import Callable, Type, Tuple
 from absl import logging
 
 from xls.dslx import ast_helpers
-from xls.dslx import concrete_type_helpers
 from xls.dslx import dslx_builtins
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_deduce
 from xls.dslx.python import cpp_parametric_instantiator as parametric_instantiator
 from xls.dslx.python import cpp_scanner as scanner
 from xls.dslx.python.cpp_concrete_type import ConcreteType
-from xls.dslx.python.cpp_concrete_type import ConcreteTypeDim
 from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.python.cpp_deduce import DeduceCtx
 from xls.dslx.python.cpp_deduce import xls_type_error as XlsTypeError
-from xls.dslx.python.cpp_parametric_expression import ParametricExpression
-from xls.dslx.python.cpp_parametric_expression import ParametricSymbol
 from xls.dslx.python.cpp_pos import Span
 from xls.dslx.python.cpp_type_info import SymbolicBindings
 from xls.dslx.python.cpp_type_info import TypeInfo
@@ -97,6 +93,8 @@ RULES = {
         cpp_deduce.deduce_BuiltinTypeAnnotation,
     ast.TupleTypeAnnotation:
         cpp_deduce.deduce_TupleTypeAnnotation,
+    ast.TypeRefTypeAnnotation:
+        cpp_deduce.deduce_TypeRefTypeAnnotation,
 }
 
 
@@ -357,70 +355,6 @@ def _deduce_NameRef(self: ast.NameRef, ctx: DeduceCtx) -> ConcreteType:  # pytyp
     cpp_deduce.type_missing_error_set_user(e, self)
     raise
   return result
-
-
-@_rule(ast.TypeRefTypeAnnotation)
-def _deduce_TypeRefTypeAnnotation(self: ast.TypeRefTypeAnnotation,
-                                  ctx: DeduceCtx) -> ConcreteType:
-  """Dedeuces the concrete type of a TypeRef type annotation."""
-  base_type = deduce(self.type_ref, ctx)
-  maybe_struct = ast_helpers.evaluate_to_struct_or_enum_or_annotation(
-      self.type_ref.type_def, _get_imported_module_via_type_info, ctx.type_info)
-  if (isinstance(maybe_struct, ast.StructDef) and
-      maybe_struct.is_parametric() and self.parametrics):
-    base_type = _concretize_struct_annotation(ctx.module, self, maybe_struct,
-                                              base_type)
-  return base_type
-
-
-def _concretize_struct_annotation(module: ast.Module,
-                                  type_annotation: ast.TypeRefTypeAnnotation,
-                                  struct: ast.StructDef,
-                                  base_type: ConcreteType) -> ConcreteType:
-  """Returns concretized struct type using the provided bindings.
-
-  For example, if we have a struct defined as `struct [N: u32, M: u32] Foo`,
-  the default TupleType will be (N, M). If a type annotation provides bindings,
-  (e.g. Foo[A, 16]), we will replace N, M with those values. In the case above,
-  we will return (A, 16) instead.
-
-  Args:
-    module: Owning AST module for the nodes.
-    type_annotation: The provided type annotation for this parametric struct.
-    struct: The corresponding struct AST node.
-    base_type: The TupleType of the struct, based only on the struct definition.
-  """
-  assert len(struct.parametric_bindings) == len(type_annotation.parametrics)
-  defined_to_annotated = {}
-  for defined_parametric, annotated_parametric in zip(
-      struct.parametric_bindings, type_annotation.parametrics):
-    assert isinstance(defined_parametric,
-                      ast.ParametricBinding), defined_parametric
-    if isinstance(annotated_parametric, ast.Cast):
-      # Casts are "X as <type_annot>"; X can be a symbol or a number.
-      expr = annotated_parametric.expr
-      value = None
-      if isinstance(expr, ast.Number):
-        value = ast_helpers.get_value_as_int(expr.value)
-      elif isinstance(expr, ast.NameRef):
-        value = ParametricSymbol(expr.identifier, annotated_parametric.span)
-      defined_to_annotated[defined_parametric.name.identifier] = value
-    elif isinstance(annotated_parametric, ast.Number):
-      defined_to_annotated[defined_parametric.name.identifier] = \
-          int(annotated_parametric.value)
-    else:
-      assert isinstance(annotated_parametric,
-                        ast.NameRef), repr(annotated_parametric)
-      defined_to_annotated[defined_parametric.name.identifier] = \
-          ParametricSymbol(annotated_parametric.identifier,
-                           annotated_parametric.span)
-
-  def resolver(dim: ConcreteTypeDim) -> ConcreteTypeDim:
-    if isinstance(dim.value, ParametricExpression):
-      return ConcreteTypeDim(dim.value.evaluate(defined_to_annotated))
-    return dim
-
-  return concrete_type_helpers.map_size(base_type, module, resolver)
 
 
 def _get_imported_module_via_type_info(

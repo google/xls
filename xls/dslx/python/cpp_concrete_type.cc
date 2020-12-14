@@ -275,6 +275,7 @@ PYBIND11_MODULE(cpp_concrete_type, m) {
   cls.attr("U32") = BitsType(false, 32);
   cls.attr("U8") = BitsType(false, 8);
   cls.attr("U1") = BitsType(false, 1);
+  cls.attr("NIL") = absl::make_unique<TupleType>(TupleType::Members{});
 }
 
 }  // namespace xls::dslx

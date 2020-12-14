@@ -1045,10 +1045,9 @@ static absl::StatusOr<ValidatedStructMembers> ValidateStructMembersSubset(
 //    definition (note there can be multiple levels of typedefs and such).
 //  type_info: The type information that the "current" TypeDefinition resolves
 //    against.
-static absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
-                                                const StructRef& original,
-                                                TypeDefinition current,
-                                                TypeInfo* type_info) {
+static absl::StatusOr<StructDef*> DerefToStruct(
+    const Span& span, absl::string_view original_ref_text,
+    TypeDefinition current, TypeInfo* type_info) {
   while (true) {
     if (absl::holds_alternative<StructDef*>(current)) {  // Done dereferencing.
       return absl::get<StructDef*>(current);
@@ -1062,7 +1061,7 @@ static absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
         return TypeInferenceErrorStatus(
             span, nullptr,
             absl::StrFormat("Could not resolve struct from %s; found: %s @ %s",
-                            StructRefToText(original), annotation->ToString(),
+                            original_ref_text, annotation->ToString(),
                             annotation->span().ToString()));
       }
       current = type_ref->type_ref()->type_definition();
@@ -1085,7 +1084,7 @@ static absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
         return TypeInferenceErrorStatus(
             span, nullptr,
             absl::StrFormat("Could not resolve struct from %s; found: %s @ %s",
-                            StructRefToText(original), name_ref->ToString(),
+                            original_ref_text, name_ref->ToString(),
                             name_ref->span().ToString()));
       }
       absl::optional<const ImportedInfo*> imported =
@@ -1094,9 +1093,15 @@ static absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
       const std::shared_ptr<Module>& module = imported.value()->module;
       XLS_ASSIGN_OR_RETURN(current,
                            module->GetTypeDefinition(colon_ref->attr()));
-      return DerefToStruct(span, original, current,
+      return DerefToStruct(span, original_ref_text, current,
                            imported.value()->type_info.get());
     }
+    XLS_RET_CHECK(absl::holds_alternative<EnumDef*>(current));
+    auto* enum_def = absl::get<EnumDef*>(current);
+    return TypeInferenceErrorStatus(
+        span, nullptr,
+        absl::StrFormat("Expected struct reference, but found enum: %s",
+                        enum_def->identifier()));
   }
 }
 
@@ -1137,8 +1142,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructInstance(
   StructRef struct_ref = node->struct_def();
   XLS_ASSIGN_OR_RETURN(
       StructDef * struct_def,
-      DerefToStruct(node->span(), struct_ref, ToTypeDefinition(struct_ref),
-                    ctx->type_info().get()));
+      DerefToStruct(node->span(), StructRefToText(struct_ref),
+                    ToTypeDefinition(struct_ref), ctx->type_info().get()));
 
   XLS_ASSIGN_OR_RETURN(
       TypeAndBindings tab,
@@ -1202,8 +1207,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSplatStructInstance(
   StructRef struct_ref = node->struct_ref();
   XLS_ASSIGN_OR_RETURN(
       StructDef * struct_def,
-      DerefToStruct(node->span(), struct_ref, ToTypeDefinition(struct_ref),
-                    ctx->type_info().get()));
+      DerefToStruct(node->span(), StructRefToText(struct_ref),
+                    ToTypeDefinition(struct_ref), ctx->type_info().get()));
 
   XLS_ASSIGN_OR_RETURN(
       TypeAndBindings tab,
@@ -1248,7 +1253,7 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
                                                      DeduceCtx* ctx) {
   if (auto* number = dynamic_cast<Number*>(dim_expr)) {
     ctx->type_info()->SetItem(number, *BitsType::MakeU32());
-    XLS_ASSIGN_OR_RETURN(uint64 value, number->GetAsUint64());
+    XLS_ASSIGN_OR_RETURN(int64 value, number->GetAsUint64());
     return ConcreteTypeDim(value);
   }
   if (auto* const_ref = dynamic_cast<ConstRef*>(dim_expr)) {
@@ -1263,7 +1268,7 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
                           const_ref->identifier(),
                           const_expr.value()->ToString()));
     }
-    XLS_ASSIGN_OR_RETURN(uint64 value, number->GetAsUint64());
+    XLS_ASSIGN_OR_RETURN(int64 value, number->GetAsUint64());
     return ConcreteTypeDim(value);
   }
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ParametricExpression> e,
@@ -1288,6 +1293,97 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArrayTypeAnnotation(
   XLS_VLOG(4) << absl::StreamFormat("Array type annotation: %s => %s",
                                     node->ToString(), result->ToString());
   return result;
+}
+
+// Returns concretized struct type using the provided bindings.
+//
+// For example, if we have a struct defined as `struct Foo<N: u32, M: u32>`,
+// the default TupleType will be (N, M). If a type annotation provides bindings,
+// (e.g. `Foo<A, 16>`), we will replace N, M with those values. In the case
+// above, we will return `(A, 16)` instead.
+//
+// Args:
+//   module: Owning AST module for the nodes.
+//   type_annotation: The provided type annotation for this parametric struct.
+//   struct: The corresponding struct AST node.
+//   base_type: The TupleType of the struct, based only on the struct
+//   definition.
+static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeStructAnnotation(
+    Module* module, TypeRefTypeAnnotation* type_annotation,
+    StructDef* struct_def, const ConcreteType& base_type) {
+  XLS_RET_CHECK_EQ(struct_def->parametric_bindings().size(),
+                   type_annotation->parametrics().size());
+  absl::flat_hash_map<
+      std::string, absl::variant<int64, std::unique_ptr<ParametricExpression>>>
+      defined_to_annotated;
+  for (int64 i = 0; i < struct_def->parametric_bindings().size(); ++i) {
+    ParametricBinding* defined_parametric =
+        struct_def->parametric_bindings()[i];
+    Expr* annotated_parametric = type_annotation->parametrics()[i];
+    // TODO(leary): 2020-12-13 This is kind of an ad hoc
+    // constexpr-evaluate-to-int implementation, unify and consolidate it.
+    if (auto* cast = dynamic_cast<Cast*>(annotated_parametric)) {
+      Expr* expr = cast->expr();
+      if (auto* number = dynamic_cast<Number*>(expr)) {
+        XLS_ASSIGN_OR_RETURN(int64 value, number->GetAsUint64());
+        defined_to_annotated[defined_parametric->identifier()] = value;
+      } else {
+        auto* name_ref = dynamic_cast<NameRef*>(expr);
+        XLS_RET_CHECK(name_ref != nullptr);
+        defined_to_annotated[defined_parametric->identifier()] =
+            absl::make_unique<ParametricSymbol>(name_ref->identifier(),
+                                                name_ref->span());
+      }
+    } else if (auto* number = dynamic_cast<Number*>(annotated_parametric)) {
+      XLS_ASSIGN_OR_RETURN(int value, number->GetAsUint64());
+      defined_to_annotated[defined_parametric->identifier()] = value;
+    } else {
+      auto* name_ref = dynamic_cast<NameRef*>(annotated_parametric);
+      XLS_RET_CHECK(name_ref != nullptr);
+      defined_to_annotated[defined_parametric->identifier()] =
+          absl::make_unique<ParametricSymbol>(name_ref->identifier(),
+                                              name_ref->span());
+    }
+  }
+
+  ParametricExpression::Env env;
+  for (auto& item : defined_to_annotated) {
+    if (absl::holds_alternative<int64>(item.second)) {
+      env[item.first] = absl::get<int64>(item.second);
+    } else {
+      env[item.first] =
+          absl::get<std::unique_ptr<ParametricExpression>>(item.second).get();
+    }
+  }
+  return base_type.MapSize([&env](ConcreteTypeDim dim) -> ConcreteTypeDim {
+    if (absl::holds_alternative<ConcreteTypeDim::OwnedParametric>(
+            dim.value())) {
+      auto& parametric =
+          absl::get<ConcreteTypeDim::OwnedParametric>(dim.value());
+      return ConcreteTypeDim(parametric->Evaluate(env));
+    }
+    return dim;
+  });
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeRefTypeAnnotation(
+    TypeRefTypeAnnotation* node, DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> base_type,
+                       ctx->Deduce(node->type_ref()));
+  TypeRef* type_ref = node->type_ref();
+  TypeDefinition type_definition = type_ref->type_definition();
+  absl::StatusOr<StructDef*> struct_def_or =
+      DerefToStruct(node->span(), type_ref->ToString(), type_definition,
+                    ctx->type_info().get());
+  if (struct_def_or.ok()) {
+    auto* struct_def = struct_def_or.value();
+    if (struct_def->IsParametric() && !node->parametrics().empty()) {
+      XLS_ASSIGN_OR_RETURN(base_type,
+                           ConcretizeStructAnnotation(ctx->module().get(), node,
+                                                      struct_def, *base_type));
+    }
+  }
+  return base_type;
 }
 
 }  // namespace xls::dslx

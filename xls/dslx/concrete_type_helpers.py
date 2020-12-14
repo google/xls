@@ -26,7 +26,6 @@ from xls.dslx.python.cpp_concrete_type import EnumType
 from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.python.cpp_concrete_type import TupleType
 
-ConcreteType.NIL = TupleType(())
 Dim = Union[str, int]
 
 

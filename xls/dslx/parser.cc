@@ -480,7 +480,7 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(Bindings* bindings,
         BoundNode type,
         bindings->ResolveNodeOrError(type_ref->text(), type_ref->span()));
     if (absl::holds_alternative<StructDef*>(type) &&
-        absl::get<StructDef*>(type)->is_parametric()) {
+        absl::get<StructDef*>(type)->IsParametric()) {
       XLS_ASSIGN_OR_RETURN(parametrics, ParseParametrics(bindings));
     }
   }

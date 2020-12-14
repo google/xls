@@ -1288,7 +1288,7 @@ class StructDef : public AstNode {
         members_(std::move(members)),
         public_(is_public) {}
 
-  bool is_parametric() const { return !parametric_bindings_.empty(); }
+  bool IsParametric() const { return !parametric_bindings_.empty(); }
 
   const std::string& identifier() const { return name_def_->identifier(); }
 

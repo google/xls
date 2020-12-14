@@ -117,6 +117,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArrayTypeAnnotation(
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleTypeAnnotation(
     TupleTypeAnnotation* node, DeduceCtx* ctx);
 
+// See TypeRefTypeAnnotation in the AST.
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeRefTypeAnnotation(
+    TypeRefTypeAnnotation* node, DeduceCtx* ctx);
+
 // Resolves "type_" via provided symbolic bindings.
 //
 // Uses the symbolic bindings of the function we're currently inside of to
