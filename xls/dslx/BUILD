@@ -858,10 +858,12 @@ cc_library(
     features = ["-use_header_modules"],
     deps = [
         ":cpp_concrete_type",
+        ":cpp_parametric_instantiator",
         ":deduce_ctx",
         ":import_routines",
         ":interp_bindings",
         "//xls/common/status:ret_check",
+        "@com_google_absl//absl/container:btree",
     ],
 )
 

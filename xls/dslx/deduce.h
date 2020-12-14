@@ -97,6 +97,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceIndex(Index* node,
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMatch(Match* node,
                                                           DeduceCtx* ctx);
 
+// See StructInstance in the AST.
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructInstance(
+    StructInstance* node, DeduceCtx* ctx);
+
 // Resolves "type_" via provided symbolic bindings.
 //
 // Uses the symbolic bindings of the function we're currently inside of to

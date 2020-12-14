@@ -447,6 +447,16 @@ inline std::vector<std::unique_ptr<ConcreteType>> CloneToUnique(
   return result;
 }
 
+// As above, but works on a vector of ConcreteType unique pointers.
+inline std::vector<std::unique_ptr<ConcreteType>> CloneToUnique(
+    const std::vector<const ConcreteType*>& types) {
+  std::vector<std::unique_ptr<ConcreteType>> result;
+  for (const auto* item : types) {
+    result.push_back(item->CloneToUnique());
+  }
+  return result;
+}
+
 // Returns whether the given concrete type is a unsigned/signed BitsType (for
 // IsUBits/IsSBits respectively).
 inline bool IsUBits(const ConcreteType& c) {

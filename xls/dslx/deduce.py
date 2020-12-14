@@ -65,6 +65,7 @@ RULES = {
     ast.Number: cpp_deduce.deduce_Number,
     ast.Param: cpp_deduce.deduce_Param,
     ast.StructDef: cpp_deduce.deduce_StructDef,
+    ast.StructInstance: cpp_deduce.deduce_StructInstance,
     ast.Ternary: cpp_deduce.deduce_Ternary,
     ast.TypeDef: cpp_deduce.deduce_TypeDef,
     ast.TypeRef: cpp_deduce.deduce_TypeRef,
@@ -453,38 +454,6 @@ def _validate_struct_members_subset(
           'but it was provided by this instance.')
 
   return seen_names, tuple(arg_types), tuple(member_types)
-
-
-@_rule(ast.StructInstance)
-def _deduce_StructInstance(
-    self: ast.StructInstance, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  """Deduces the type of the struct instantiation expression and its members."""
-  logging.vlog(5, 'Deducing type for struct instance: %s', self)
-  struct_type = deduce(self.struct, ctx)
-  assert isinstance(struct_type, TupleType), struct_type
-  assert struct_type.named, struct_type
-  expected_names = set(struct_type.tuple_names)
-  seen_names, arg_types, member_types = _validate_struct_members_subset(
-      self.unordered_members, struct_type, self.struct_text, ctx)
-  if seen_names != expected_names:
-    missing = ', '.join(
-        repr(s) for s in sorted(list(expected_names - seen_names)))
-    raise TypeInferenceError(
-        self.span, None,
-        'Struct instance is missing member(s): {}'.format(missing))
-
-  struct_def = self.struct
-  if not isinstance(struct_def, ast.StructDef):
-    # Traverse TypeDefs and ColonRefs until we get the struct AST node.
-    struct_def = ast_helpers.evaluate_to_struct_or_enum_or_annotation(
-        struct_def, _get_imported_module_via_type_info, ctx.type_info)
-  assert isinstance(struct_def, ast.StructDef), struct_def
-
-  resolved_struct_type, _ = parametric_instantiator.instantiate_struct(
-      self.span, struct_type, arg_types, member_types, ctx,
-      struct_def.parametric_bindings)
-
-  return resolved_struct_type
 
 
 def _concretize_struct_annotation(module: ast.Module,

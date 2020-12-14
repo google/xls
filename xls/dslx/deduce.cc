@@ -14,6 +14,9 @@
 
 #include "xls/dslx/deduce.h"
 
+#include "absl/container/btree_set.h"
+#include "xls/dslx/cpp_parametric_instantiator.h"
+
 namespace xls::dslx {
 
 absl::Status CheckBitwidth(const Number& number, const ConcreteType& type) {
@@ -971,6 +974,179 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMatch(Match* node,
     }
   }
   return std::move(arm_types[0]);
+}
+
+struct ValidatedStructMembers {
+  // Names seen in the struct instance; e.g. for a SplatStructInstance can be a
+  // subset of the struct member names.
+  //
+  // Note: we use a btree set so we can do set differencing via c_set_difference
+  // (which works on ordered sets).
+  absl::btree_set<std::string> seen_names;
+
+  std::vector<std::unique_ptr<ConcreteType>> arg_types;
+  std::vector<std::unique_ptr<ConcreteType>> member_types;
+};
+
+// Validates a struct instantiation is a subset of 'members' with no dups.
+//
+// Args:
+//  members: Sequence of members used in instantiation. Note this may be a
+//    subset; e.g. in the case of splat instantiation.
+//  struct_type: The deduced type for the struct (instantiation).
+//  struct_text: Display name to use for the struct in case of an error.
+//  ctx: Wrapper containing node to type mapping context.
+//
+// Returns:
+//  A tuple containing:
+//  * The set of struct member names that were instantiated
+//  * The ConcreteTypes of the provided arguments
+//  * The ConcreteTypes of the corresponding struct member definition.
+static absl::StatusOr<ValidatedStructMembers> ValidateStructMembersSubset(
+    absl::Span<const std::pair<std::string, Expr*>> members,
+    const TupleType& struct_type, absl::string_view struct_text,
+    DeduceCtx* ctx) {
+  ValidatedStructMembers result;
+  for (auto& [name, expr] : members) {
+    if (!result.seen_names.insert(name).second) {
+      return TypeInferenceErrorStatus(
+          expr->span(), nullptr,
+          absl::StrFormat(
+              "Duplicate value seen for '%s' in this '%s' struct instance.",
+              name, struct_text));
+    }
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> expr_type,
+                         DeduceAndResolve(expr, ctx));
+    result.arg_types.push_back(std::move(expr_type));
+    absl::optional<const ConcreteType*> maybe_type =
+        struct_type.GetMemberTypeByName(name);
+    if (maybe_type.has_value()) {
+      result.member_types.push_back(maybe_type.value()->CloneToUnique());
+    } else {
+      return TypeInferenceErrorStatus(
+          expr->span(), nullptr,
+          absl::StrFormat("Struct '%s' has no member '%s', but it was provided "
+                          "by this instance.",
+                          struct_text, name));
+    }
+  }
+
+  return result;
+}
+
+// Dereferences the "original" struct reference to a struct definition or
+// returns an error.
+//
+// Args:
+//  span: The span of the original construct trying to dereference the struct
+//    (e.g. a StructInstance).
+//  original: The original struct reference value (used in error reporting).
+//  current: The current type definition being dereferenced towards a struct
+//    definition (note there can be multiple levels of typedefs and such).
+//  type_info: The type information that the "current" TypeDefinition resolves
+//    against.
+static absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
+                                                const StructRef& original,
+                                                TypeDefinition current,
+                                                TypeInfo* type_info) {
+  while (true) {
+    if (absl::holds_alternative<StructDef*>(current)) {  // Done dereferencing.
+      return absl::get<StructDef*>(current);
+    }
+    if (absl::holds_alternative<TypeDef*>(current)) {
+      auto* type_def = absl::get<TypeDef*>(current);
+      TypeAnnotation* annotation = type_def->type();
+      TypeRefTypeAnnotation* type_ref =
+          dynamic_cast<TypeRefTypeAnnotation*>(annotation);
+      if (type_ref == nullptr) {
+        return TypeInferenceErrorStatus(
+            span, nullptr,
+            absl::StrFormat("Could not resolve struct from %s; found: %s @ %s",
+                            StructRefToText(original), annotation->ToString(),
+                            annotation->span().ToString()));
+      }
+      current = type_ref->type_ref()->type_definition();
+      continue;
+    }
+    if (absl::holds_alternative<ColonRef*>(current)) {
+      auto* colon_ref = absl::get<ColonRef*>(current);
+      // Colon ref has to be dereferenced, may be a module reference.
+      ColonRef::Subject subject = colon_ref->subject();
+      // TODO(leary): 2020-12-12 Original logic was this way, but we should be
+      // able to violate this assertion.
+      XLS_RET_CHECK(absl::holds_alternative<NameRef*>(subject));
+      auto* name_ref = absl::get<NameRef*>(subject);
+      AnyNameDef any_name_def = name_ref->name_def();
+      XLS_RET_CHECK(absl::holds_alternative<NameDef*>(any_name_def));
+      NameDef* name_def = absl::get<NameDef*>(any_name_def);
+      AstNode* definer = name_def->definer();
+      auto* import = dynamic_cast<Import*>(definer);
+      if (import == nullptr) {
+        return TypeInferenceErrorStatus(
+            span, nullptr,
+            absl::StrFormat("Could not resolve struct from %s; found: %s @ %s",
+                            StructRefToText(original), name_ref->ToString(),
+                            name_ref->span().ToString()));
+      }
+      absl::optional<const ImportedInfo*> imported =
+          type_info->GetImported(import);
+      XLS_RET_CHECK(imported.has_value());
+      const std::shared_ptr<Module>& module = imported.value()->module;
+      XLS_ASSIGN_OR_RETURN(current,
+                           module->GetTypeDefinition(colon_ref->attr()));
+      return DerefToStruct(span, original, current,
+                           imported.value()->type_info.get());
+    }
+  }
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructInstance(
+    StructInstance* node, DeduceCtx* ctx) {
+  XLS_VLOG(5) << "Deducing type for struct instance: " << node->ToString();
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> struct_type,
+                       ctx->Deduce(ToAstNode(node->struct_def())));
+  TupleType* tuple_type = dynamic_cast<TupleType*>(struct_type.get());
+  XLS_RET_CHECK(tuple_type != nullptr) << struct_type->ToString();
+
+  // Note what names we expect to be present.
+  XLS_ASSIGN_OR_RETURN(std::vector<std::string> names,
+                       tuple_type->GetMemberNames());
+  absl::btree_set<std::string> expected_names(names.begin(), names.end());
+
+  XLS_ASSIGN_OR_RETURN(
+      ValidatedStructMembers validated,
+      ValidateStructMembersSubset(node->GetUnorderedMembers(), *tuple_type,
+                                  StructRefToText(node->struct_def()), ctx));
+  if (validated.seen_names != expected_names) {
+    absl::btree_set<std::string> missing_set;
+    absl::c_set_difference(expected_names, validated.seen_names,
+                           std::inserter(missing_set, missing_set.begin()));
+    std::vector<std::string> missing(missing_set.begin(), missing_set.end());
+    std::sort(missing.begin(), missing.end());
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        absl::StrFormat(
+            "Struct instance is missing member(s): %s",
+            absl::StrJoin(missing, ", ",
+                          [](std::string* out, const std::string& piece) {
+                            absl::StrAppendFormat(out, "'%s'", piece);
+                          })));
+  }
+
+  StructRef struct_ref = node->struct_def();
+  XLS_ASSIGN_OR_RETURN(
+      StructDef * struct_def,
+      DerefToStruct(node->span(), struct_ref, ToTypeDefinition(struct_ref),
+                    ctx->type_info().get()));
+
+  XLS_ASSIGN_OR_RETURN(
+      TypeAndBindings tab,
+      InstantiateStruct(node->span(), *tuple_type, validated.arg_types,
+                        validated.member_types, ctx,
+                        struct_def->parametric_bindings()));
+
+  return std::move(tab.type);
 }
 
 }  // namespace xls::dslx

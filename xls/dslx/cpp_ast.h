@@ -1304,7 +1304,7 @@ class StructDef : public AstNode {
   }
 
   NameDef* name_def() const { return name_def_; }
-  const std::vector<ParametricBinding*> parametric_bindings() const {
+  const std::vector<ParametricBinding*>& parametric_bindings() const {
     return parametric_bindings_;
   }
   const std::vector<std::pair<NameDef*, TypeAnnotation*>> members() const {
@@ -1345,6 +1345,10 @@ class StructDef : public AstNode {
 using StructRef = absl::variant<StructDef*, ColonRef*>;
 
 std::string StructRefToText(const StructRef& struct_ref);
+
+inline TypeDefinition ToTypeDefinition(const StructRef& struct_ref) {
+  return ToTypeDefinition(ToAstNode(struct_ref)).value();
+}
 
 // Represents instantiation of a struct via member expressions.
 //
