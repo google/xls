@@ -30,7 +30,7 @@ from xls.dslx import typecheck
 from xls.dslx.python import cpp_parser
 from xls.dslx.python.cpp_deduce import TypeInferenceError
 from xls.dslx.python.cpp_deduce import XlsTypeError
-from xls.dslx.xls_type_error import ArgCountMismatchError
+from xls.dslx.python.cpp_parametric_instantiator import ArgCountMismatchError
 
 
 class TypecheckTest(test_base.TestCase):

@@ -345,6 +345,8 @@ absl::StatusOr<bool> ConcreteTypeAcceptsValue(const ConcreteType& type,
 absl::Status EvaluateDerivedParametrics(
     Function* fn, InterpBindings* bindings, InterpCallbackData* callbacks,
     const absl::flat_hash_map<std::string, int64>& bound_dims) {
+  XLS_VLOG(5) << "fn: " << fn->identifier() << " bound_dims: "
+              << absl::StrJoin(bound_dims, ", ", absl::PairFormatter(":"));
   XLS_RET_CHECK_EQ(bound_dims.size(), fn->parametric_bindings().size());
   for (ParametricBinding* parametric : fn->parametric_bindings()) {
     if (bindings->Contains(parametric->identifier())) {
@@ -369,6 +371,8 @@ absl::Status EvaluateDerivedParametrics(
 absl::StatusOr<InterpValue> EvaluateFunction(
     Function* f, absl::Span<const InterpValue> args, const Span& span,
     const SymbolicBindings& symbolic_bindings, InterpCallbackData* callbacks) {
+  XLS_VLOG(5) << "Evaluating function: " << f->identifier()
+              << " symbolic_bindings: " << symbolic_bindings;
   if (args.size() != f->params().size()) {
     return absl::InternalError(
         absl::StrFormat("EvaluateError: %s Argument arity mismatch for "

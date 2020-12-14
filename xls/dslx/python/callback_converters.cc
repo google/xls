@@ -18,6 +18,21 @@
 
 namespace xls::dslx {
 
+static absl::Status ConvertException(std::exception& e, const char* caller) {
+  absl::string_view message = e.what();
+  XLS_VLOG(5) << "Caught exception from " << caller << "; message: \""
+              << message.substr(0, 16) << "\"";
+  if (absl::ConsumePrefix(&message, "KeyError: ")) {
+    XLS_VLOG(5) << "Converted exception to NotFoundError";
+    return absl::NotFoundError(message);
+  }
+  // Note: normally we would throw a Python positional error, but
+  // since this is a somewhat rare condition and everything is being
+  // ported to C++ we don't do the super-nice thing and instead throw
+  // a status error if you have a typecheck-failure-under-import.
+  return absl::InternalError(e.what());
+}
+
 TypecheckFn ToCppTypecheck(const PyTypecheckFn& py_typecheck) {
   // The typecheck callback we get from Python uses the "ModuleHolder"
   // type -- make a conversion lambda that turns a std::shared_ptr<Module>
@@ -28,12 +43,10 @@ TypecheckFn ToCppTypecheck(const PyTypecheckFn& py_typecheck) {
     ModuleHolder holder(module.get(), module);
     try {
       return py_typecheck(holder);
+    } catch (pybind11::error_already_set& e) {
+      throw;
     } catch (std::exception& e) {
-      // Note: normally we would throw a Python positional error, but
-      // since this is a somewhat rare condition and everything is being
-      // ported to C++ we don't do the super-nice thing and instead throw
-      // a status error if you have a typecheck-failure-under-import.
-      return absl::InternalError(e.what());
+      return ConvertException(e, "PyTypecheckFn");
     }
   };
 }
@@ -49,12 +62,10 @@ TypecheckFunctionFn ToCppTypecheckFunction(const PyTypecheckFunctionFn& py) {
     FunctionHolder holder(function, function->owner()->shared_from_this());
     try {
       py(holder, ctx);
+    } catch (pybind11::error_already_set& e) {
+      throw;
     } catch (std::exception& e) {
-      // Note: normally we would throw a Python positional error, but
-      // since this is a somewhat rare condition and everything is being
-      // ported to C++ we don't do the super-nice thing and instead throw
-      // a status error if you have a typecheck-failure-under-import.
-      return absl::InternalError(e.what());
+      return ConvertException(e, "PyTypecheckFunctionFn");
     }
     return absl::OkStatus();
   };
@@ -66,8 +77,14 @@ DeduceFn ToCppDeduce(const PyDeduceFn& py) {
               DeduceCtx* ctx) -> absl::StatusOr<std::unique_ptr<ConcreteType>> {
     XLS_RET_CHECK(node != nullptr);
     AstNodeHolder holder(node, node->owner()->shared_from_this());
-    pybind11::object retval = py(holder, ctx);
-    return pybind11::cast<ConcreteType*>(*retval)->CloneToUnique();
+    try {
+      pybind11::object retval = py(holder, ctx);
+      return pybind11::cast<ConcreteType*>(*retval)->CloneToUnique();
+    } catch (pybind11::error_already_set& e) {
+      throw;
+    } catch (std::exception& e) {
+      return ConvertException(e, "PyDeduceFn");
+    }
   };
 }
 

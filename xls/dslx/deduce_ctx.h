@@ -139,6 +139,23 @@ class DeduceCtx : public std::enable_shared_from_this<DeduceCtx> {
   std::vector<FnStackEntry> fn_stack_;
 };
 
+// Helper that converts the symbolic bindings to a parametric expression
+// environment (for parametric evaluation).
+ParametricExpression::Env ToParametricEnv(
+    const SymbolicBindings& symbolic_bindings);
+
+// Creates a (stylized) TypeInferenceError status message that will be thrown as
+// an exception when it reaches the Python pybind boundary.
+absl::Status TypeInferenceErrorStatus(const Span& span,
+                                      const ConcreteType* type,
+                                      absl::string_view message);
+
+// Creates a (stylized) XlsTypeError status message that will be thrown as an
+// exception when it reaches the Python pybind boundary.
+absl::Status XlsTypeErrorStatus(const Span& span, const ConcreteType& lhs,
+                                const ConcreteType& rhs,
+                                absl::string_view message);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_DEDUCE_CTX_H_

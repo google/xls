@@ -735,6 +735,12 @@ PYBIND11_MODULE(cpp_ast, m) {
             &name_def.deref(), &type.deref(), expr_ptr);
         return ParametricBindingHolder(self, module.module());
       }))
+      .def("__str__",
+           [](ParametricBindingHolder self) { return self.deref().ToString(); })
+      .def("__repr__",
+           [](ParametricBindingHolder self) {
+             return self.deref().ToReprString();
+           })
       .def("clone",
            [](ParametricBindingHolder self, ExprHolder expr) {
              auto* clone = self.module()->Make<ParametricBinding>(

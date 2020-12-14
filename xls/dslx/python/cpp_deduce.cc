@@ -31,107 +31,6 @@
 namespace py = pybind11;
 
 namespace xls::dslx {
-namespace {
-
-static const char* kNoTypeIndicator = "<>";
-
-// Error raised when an error occurs during deductive type inference.
-//
-// Attributes:
-//   span: The span at which the type deduction error occurred.
-//   type: The (AST) type that failed to deduce. May be null.
-class TypeInferenceError : public std::exception {
- public:
-  // Args:
-  //  suffix: Message suffix to use when displaying the error.
-  TypeInferenceError(Span span, std::unique_ptr<ConcreteType> type,
-                     absl::string_view suffix)
-      : span_(std::move(span)), type_(std::move(type)) {
-    std::string type_str = kNoTypeIndicator;
-    if (type != nullptr) {
-      type_str = type->ToString();
-    }
-    message_ = absl::StrFormat("%s %s Could not infer type", span_.ToString(),
-                               type_str);
-    if (!suffix.empty()) {
-      message_ += absl::StrCat(": ", suffix);
-    }
-  }
-
-  const char* what() const noexcept override { return message_.c_str(); }
-
-  const Span& span() const { return span_; }
-  const ConcreteType* type() const { return type_.get(); }
-  const std::string& message() const { return message_; }
-
- private:
-  Span span_;
-  std::unique_ptr<ConcreteType> type_;
-  std::string message_;
-};
-
-void TryThrowTypeInferenceError(const absl::Status& status) {
-  absl::string_view s = status.message();
-  if (absl::ConsumePrefix(&s, "TypeInferenceError: ")) {
-    std::vector<absl::string_view> pieces =
-        absl::StrSplit(s, absl::MaxSplits(" ", 1));
-    XLS_CHECK_EQ(pieces.size(), 2);
-    absl::StatusOr<Span> span = Span::FromString(pieces[0]);
-    absl::string_view rest = pieces[1];
-
-    absl::StatusOr<std::unique_ptr<ConcreteType>> type;
-    if (absl::ConsumePrefix(&rest, kNoTypeIndicator)) {
-      type = nullptr;
-    } else {
-      type = ConcreteTypeFromString(&rest);
-    }
-    rest = absl::StripAsciiWhitespace(rest);
-    XLS_CHECK(span.ok() && type.ok())
-        << "Could not parse type inference error string: \"" << status.message()
-        << "\" span: " << span.status() << " type: " << type.status();
-    throw TypeInferenceError(std::move(span.value()), std::move(type).value(),
-                             rest);
-  }
-}
-
-void TryThrowXlsTypeError(const absl::Status& status) {
-  absl::string_view s = status.message();
-  if (absl::ConsumePrefix(&s, "XlsTypeError: ")) {
-    std::vector<absl::string_view> pieces =
-        absl::StrSplit(s, absl::MaxSplits(" ", 1));
-    XLS_CHECK_EQ(pieces.size(), 2);
-    absl::StatusOr<Span> span = Span::FromString(pieces[0]);
-    absl::string_view rest = pieces[1];
-    rest = absl::StripAsciiWhitespace(rest);
-
-    absl::StatusOr<std::unique_ptr<ConcreteType>> lhs;
-    if (absl::ConsumePrefix(&rest, "<none>")) {
-      lhs = nullptr;
-    } else {
-      lhs = ConcreteTypeFromString(&rest);
-    }
-
-    rest = absl::StripAsciiWhitespace(rest);
-
-    absl::StatusOr<std::unique_ptr<ConcreteType>> rhs;
-    if (absl::ConsumePrefix(&rest, "<none>")) {
-      rhs = nullptr;
-    } else {
-      rhs = ConcreteTypeFromString(&rest);
-    }
-
-    rest = absl::StripAsciiWhitespace(rest);
-
-    XLS_CHECK(span.ok() && lhs.ok() && rhs.ok())
-        << "Could not parse type inference error string: \"" << status.message()
-        << "\" span: " << span.status() << " lhs: " << lhs.status()
-        << " rhs: " << rhs.status();
-    throw XlsTypeError(std::move(span.value()), std::move(lhs).value(),
-                       std::move(rhs).value(), rest);
-  }
-}
-
-}  // namespace
 
 PYBIND11_MODULE(cpp_deduce, m) {
   ImportStatusModule();
@@ -289,6 +188,8 @@ PYBIND11_MODULE(cpp_deduce, m) {
     auto statusor = Deduce##__type(&node.deref(), ctx);              \
     TryThrowTypeInferenceError(statusor.status());                   \
     TryThrowXlsTypeError(statusor.status());                         \
+    TryThrowKeyError(statusor.status());                             \
+    TryThrowTypeMissingError(statusor.status());                     \
     return statusor;                                                 \
   })
 

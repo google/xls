@@ -85,6 +85,7 @@ inline std::ostream& operator<<(std::ostream& os, const Pos& pos) {
 class Span {
  public:
   static absl::StatusOr<Span> FromString(absl::string_view s);
+  static Span Fake() { return Span(Pos(), Pos()); }
 
   Span(Pos start, Pos limit)
       : start_(std::move(start)), limit_(std::move(limit)) {

@@ -77,6 +77,22 @@ TEST(ConcreteTypeTest, ConcreteTypeFromString) {
   EXPECT_EQ(s, " trailing");
 }
 
+TEST(ConcreteTypeTest, ConcreteTypeFromStringNamedTuple) {
+  absl::string_view s = "(x: uN[32], y: uN[8]) trailing";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ConcreteType> ct,
+                           ConcreteTypeFromString(&s));
+  EXPECT_EQ(ct->ToString(), "(x: uN[32], y: uN[8])");
+  EXPECT_EQ(s, " trailing");
+}
+
+TEST(ConcreteTypeTest, ConcreteTypeFromStringNamedTupleParametric) {
+  absl::string_view s = "(x: uN[M], y: uN[N]) trailing";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ConcreteType> ct,
+                           ConcreteTypeFromString(&s));
+  EXPECT_EQ(ct->ToString(), "(x: uN[M], y: uN[N])");
+  EXPECT_EQ(s, " trailing");
+}
+
 TEST(ConcreteTypeTest, TestU32) {
   BitsType t(false, 32);
   EXPECT_EQ("uN[32]", t.ToString());

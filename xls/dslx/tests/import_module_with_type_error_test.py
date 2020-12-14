@@ -29,9 +29,9 @@ class ImportModuleWithTypeErrorTest(absltest.TestCase):
     with self.assertRaises(Exception) as cm:
       parse_and_interpret.parse_and_test_path(path)
 
-    self.assertIn('XlsTypeError', str(cm.exception))
     self.assertIn('xls/dslx/tests/has_type_error.x:16:3-16:4',
                   str(cm.exception))
+    self.assertIn('did not match the annotated return type', str(cm.exception))
 
   def test_imports_and_causes_ref_error(self):
     path = runfiles.get_path('xls/dslx/tests/imports_and_causes_ref_error.x')

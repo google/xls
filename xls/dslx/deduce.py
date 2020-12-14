@@ -26,9 +26,9 @@ from absl import logging
 from xls.dslx import ast_helpers
 from xls.dslx import concrete_type_helpers
 from xls.dslx import dslx_builtins
-from xls.dslx import parametric_instantiator
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_deduce
+from xls.dslx.python import cpp_parametric_instantiator as parametric_instantiator
 from xls.dslx.python import cpp_scanner as scanner
 from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType

@@ -927,6 +927,12 @@ class ParametricBinding : public AstNode {
                            suffix);
   }
 
+  std::string ToReprString() const {
+    return absl::StrFormat("ParametricBinding(name_def=%s, type=%s, expr=%s)",
+                           name_def_->ToReprString(), type_->ToString(),
+                           expr_ == nullptr ? "null" : expr_->ToString());
+  }
+
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     std::vector<AstNode*> results = {name_def_};
     if (want_types) {

@@ -18,6 +18,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_split.h"
 #include "pybind11/pybind11.h"
+#include "xls/common/string_to_int.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/cpp_bindings.h"
 
@@ -76,10 +77,9 @@ class CppParseError : public std::exception {
 // Raised when a type is missing from a TypeInfo mapping.
 class TypeMissingError : public std::exception {
  public:
-  explicit TypeMissingError(AstNode* node)
-      : module_(node->owner()->shared_from_this()), node_(node) {
-    message_ = absl::StrFormat("AST node is missing a corresponding type: %s",
-                               node->ToString());
+  explicit TypeMissingError(AstNode* node, AstNode* user)
+      : module_(node->owner()->shared_from_this()), node_(node), user_(user) {
+    ResetMessage();
   }
 
   std::shared_ptr<Module> module() const { return module_; }
@@ -88,13 +88,22 @@ class TypeMissingError : public std::exception {
   void set_node(AstNode* node) { node_ = node; }
 
   AstNode* user() const { return user_; }
-  void set_user(AstNode* user) { user_ = user; }
+  void set_user(AstNode* user) {
+    user_ = user;
+    ResetMessage();
+  }
   void set_span(const Span& span) { span_ = span; }
   const absl::optional<Span>& span() const { return span_; }
 
   const char* what() const noexcept override { return message_.c_str(); }
 
  private:
+  void ResetMessage() {
+    message_ =
+        absl::StrFormat("%p %p AST node is missing a corresponding type: %s",
+                        node_, user_, node_->ToString());
+  }
+
   // Module reference is held so we ensure the AST node is not deallocated.
   std::shared_ptr<Module> module_;
 
@@ -139,6 +148,58 @@ class XlsTypeError : public std::exception {
   std::string message_;
 };
 
+static const char* kNoTypeIndicator = "<>";
+
+// Error raised when an error occurs during deductive type inference.
+//
+// Attributes:
+//   span: The span at which the type deduction error occurred.
+//   type: The (AST) type that failed to deduce. May be null.
+class TypeInferenceError : public std::exception {
+ public:
+  // Args:
+  //  suffix: Message suffix to use when displaying the error.
+  TypeInferenceError(Span span, std::unique_ptr<ConcreteType> type,
+                     absl::string_view suffix)
+      : span_(std::move(span)), type_(std::move(type)) {
+    std::string type_str = kNoTypeIndicator;
+    if (type != nullptr) {
+      type_str = type->ToString();
+    }
+    message_ = absl::StrFormat("%s %s Could not infer type", span_.ToString(),
+                               type_str);
+    if (!suffix.empty()) {
+      message_ += absl::StrCat(": ", suffix);
+    }
+  }
+
+  const char* what() const noexcept override { return message_.c_str(); }
+
+  const Span& span() const { return span_; }
+  const ConcreteType* type() const { return type_.get(); }
+  const std::string& message() const { return message_; }
+
+ private:
+  Span span_;
+  std::unique_ptr<ConcreteType> type_;
+  std::string message_;
+};
+
+class ArgCountMismatchError : public std::exception {
+ public:
+  ArgCountMismatchError(Span span, std::string message)
+      : span_(std::move(span)), message_(std::move(message)) {}
+
+  const char* what() const noexcept override { return message_.c_str(); }
+
+  const Span& span() const { return span_; }
+  const std::string& message() const { return message_; }
+
+ private:
+  Span span_;
+  std::string message_;
+};
+
 // Sees if the status contains a stylized FailureError -- if so, throws it as a
 // Python exception.
 inline void TryThrowFailureError(const absl::Status& status) {
@@ -147,6 +208,15 @@ inline void TryThrowFailureError(const absl::Status& status) {
     std::pair<Span, std::string> data =
         ParseErrorGetData(status, "FailureError: ").value();
     throw FailureError(data.second, data.first);
+  }
+}
+
+inline void TryThrowArgCountMismatchError(const absl::Status& status) {
+  if (!status.ok() &&
+      absl::StartsWith(status.message(), "ArgCountMismatchError")) {
+    auto [span, message] =
+        ParseErrorGetData(status, "ArgCountMismatchError: ").value();
+    throw ArgCountMismatchError(span, message);
   }
 }
 
@@ -182,6 +252,87 @@ inline void TryThrowCppParseError(const absl::Status& status) {
 inline void TryThrowKeyError(const absl::Status& status) {
   if (status.code() == absl::StatusCode::kNotFound) {
     throw pybind11::key_error(std::string(status.message()));
+  }
+}
+
+inline void TryThrowTypeMissingError(const absl::Status& status) {
+  absl::string_view s = status.message();
+  if (status.code() == absl::StatusCode::kInternal &&
+      absl::ConsumePrefix(&s, "TypeMissingError: ")) {
+    std::vector<absl::string_view> pieces =
+        absl::StrSplit(s, absl::MaxSplits(" ", 2));
+    XLS_CHECK_EQ(pieces.size(), 3);
+    int64 node = 0;
+    if (pieces[0] != "(nil)") {
+      node = StrTo64Base(pieces[0], 16).value();
+    }
+    int64 user = 0;
+    if (pieces[1] != "(nil)") {
+      user = StrTo64Base(pieces[1], 16).value();
+    }
+    throw TypeMissingError(absl::bit_cast<AstNode*>(node),
+                           absl::bit_cast<AstNode*>(user));
+  }
+}
+
+inline void TryThrowTypeInferenceError(const absl::Status& status) {
+  absl::string_view s = status.message();
+  if (absl::ConsumePrefix(&s, "TypeInferenceError: ")) {
+    std::vector<absl::string_view> pieces =
+        absl::StrSplit(s, absl::MaxSplits(" ", 1));
+    XLS_CHECK_EQ(pieces.size(), 2);
+    absl::StatusOr<Span> span = Span::FromString(pieces[0]);
+    absl::string_view rest = pieces[1];
+
+    absl::StatusOr<std::unique_ptr<ConcreteType>> type;
+    if (absl::ConsumePrefix(&rest, kNoTypeIndicator)) {
+      type = nullptr;
+    } else {
+      type = ConcreteTypeFromString(&rest);
+    }
+    rest = absl::StripAsciiWhitespace(rest);
+    XLS_CHECK(span.ok() && type.ok())
+        << "Could not parse type inference error string: \"" << status.message()
+        << "\" span: " << span.status() << " type: " << type.status();
+    throw TypeInferenceError(std::move(span.value()), std::move(type).value(),
+                             rest);
+  }
+}
+
+inline void TryThrowXlsTypeError(const absl::Status& status) {
+  absl::string_view s = status.message();
+  if (absl::ConsumePrefix(&s, "XlsTypeError: ")) {
+    std::vector<absl::string_view> pieces =
+        absl::StrSplit(s, absl::MaxSplits(" ", 1));
+    XLS_CHECK_EQ(pieces.size(), 2);
+    absl::StatusOr<Span> span = Span::FromString(pieces[0]);
+    absl::string_view rest = pieces[1];
+    rest = absl::StripAsciiWhitespace(rest);
+
+    absl::StatusOr<std::unique_ptr<ConcreteType>> lhs;
+    if (absl::ConsumePrefix(&rest, "<none>")) {
+      lhs = nullptr;
+    } else {
+      lhs = ConcreteTypeFromString(&rest);
+    }
+
+    rest = absl::StripAsciiWhitespace(rest);
+
+    absl::StatusOr<std::unique_ptr<ConcreteType>> rhs;
+    if (absl::ConsumePrefix(&rest, "<none>")) {
+      rhs = nullptr;
+    } else {
+      rhs = ConcreteTypeFromString(&rest);
+    }
+
+    rest = absl::StripAsciiWhitespace(rest);
+
+    XLS_CHECK(span.ok() && lhs.ok() && rhs.ok())
+        << "Could not parse type inference error string: \"" << status.message()
+        << "\" span: " << span.status() << " lhs: " << lhs.status()
+        << " rhs: " << rhs.status();
+    throw XlsTypeError(std::move(span.value()), std::move(lhs).value(),
+                       std::move(rhs).value(), rest);
   }
 }
 

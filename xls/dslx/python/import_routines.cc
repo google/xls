@@ -23,6 +23,7 @@
 #include "xls/common/status/statusor_pybind_caster.h"
 #include "xls/dslx/python/callback_converters.h"
 #include "xls/dslx/python/cpp_ast.h"
+#include "xls/dslx/python/errors.h"
 #include "xls/dslx/type_info.h"
 
 namespace py = pybind11;
@@ -60,10 +61,13 @@ PYBIND11_MODULE(import_routines, m) {
       [](PyTypecheckFn py_typecheck, const ImportTokens& subject,
          ImportCache* cache) -> absl::StatusOr<ModuleInfo> {
         // With the appropriately typed callback we can now call DoImport().
-        XLS_ASSIGN_OR_RETURN(
-            const ModuleInfo* info,
-            DoImport(ToCppTypecheck(py_typecheck), subject, cache));
-        return *info;
+        absl::StatusOr<const ModuleInfo*> info_or =
+            DoImport(ToCppTypecheck(py_typecheck), subject, cache);
+        TryThrowKeyError(info_or.status());
+        TryThrowTypeMissingError(info_or.status());
+        XLS_VLOG(5) << "do_import status: " << info_or.status();
+        XLS_RETURN_IF_ERROR(info_or.status());
+        return *info_or.value();
       },
       py::arg("typecheck"), py::arg("subject"), py::arg("cache"));
 }

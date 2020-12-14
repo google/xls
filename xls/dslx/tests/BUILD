@@ -499,3 +499,11 @@ dslx_test(
     name = "array_size_all_bits_set_ellipsis",
     srcs = ["array_size_all_bits_set_ellipsis.x"],
 )
+
+dslx_test(
+    name = "mask_bits",
+    srcs = ["mask_bits.x"],
+    # Only a parametric entry point, so no benchmark.
+    generate_benchmark = False,
+    prove_unopt_eq_opt = False,
+)

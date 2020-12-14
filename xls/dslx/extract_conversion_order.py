@@ -22,10 +22,10 @@ from absl import logging
 import dataclasses
 
 from xls.dslx import dslx_builtins
-from xls.dslx.parametric_instantiator import SymbolicBindings
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_ast_visitor
 from xls.dslx.python import cpp_type_info as type_info_mod
+from xls.dslx.python.cpp_type_info import SymbolicBindings
 
 
 @dataclasses.dataclass

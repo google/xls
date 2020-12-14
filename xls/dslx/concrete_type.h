@@ -220,6 +220,11 @@ class TupleType : public ConcreteType {
   }
 
   std::vector<const ConcreteType*> GetUnnamedMembers() const;
+  const ConcreteType& GetUnnamedMember(int64 i) const {
+    const ConcreteType* result = GetUnnamedMembers()[i];
+    XLS_CHECK(result != nullptr);
+    return *result;
+  }
 
   absl::optional<const ConcreteType*> GetMemberTypeByName(
       absl::string_view target) const;
@@ -355,7 +360,10 @@ class BitsType : public ConcreteType {
 
   std::unique_ptr<BitsType> ToUBits() const;
 
+  // Returns whether this bits type is a signed type.
   bool is_signed() const { return is_signed_; }
+
+  // Returns the dize (dimension) for this bits type.
   const ConcreteTypeDim& size() const { return size_; }
 
   std::vector<ConcreteTypeDim> GetAllDims() const override {
@@ -393,6 +401,9 @@ class FunctionType : public ConcreteType {
 
   bool operator==(const ConcreteType& other) const override;
 
+  const std::vector<std::unique_ptr<ConcreteType>>& params() const {
+    return params_;
+  }
   std::vector<const ConcreteType*> GetParams() const;
   int64 GetParamCount() const { return params_.size(); }
 
@@ -417,6 +428,24 @@ class FunctionType : public ConcreteType {
   std::vector<std::unique_ptr<ConcreteType>> params_;
   std::unique_ptr<ConcreteType> return_type_;
 };
+
+// Helper for the case where we have a derived (i.e. non-abstract) ConcreteType,
+// and want the clone to also be a unique_ptr of the derived type.
+template <typename T>
+inline std::unique_ptr<T> CloneToUnique(const T& type) {
+  std::unique_ptr<ConcreteType> cloned = type.CloneToUnique();
+  return absl::WrapUnique<T>(dynamic_cast<T*>(cloned.release()));
+}
+
+// As above, but works on a vector of ConcreteType unique pointers.
+inline std::vector<std::unique_ptr<ConcreteType>> CloneToUnique(
+    const std::vector<std::unique_ptr<ConcreteType>>& types) {
+  std::vector<std::unique_ptr<ConcreteType>> result;
+  for (const auto& item : types) {
+    result.push_back(item->CloneToUnique());
+  }
+  return result;
+}
 
 // Returns whether the given concrete type is a unsigned/signed BitsType (for
 // IsUBits/IsSBits respectively).

@@ -100,24 +100,6 @@ py_test(
     ],
 )
 
-py_library(
-    name = "parametric_instantiator",
-    srcs = ["parametric_instantiator.py"],
-    srcs_version = "PY3",
-    deps = [
-        ":concrete_type_helpers",
-        ":xls_type_error",
-        "//xls/dslx/python:cpp_concrete_type",
-        "//xls/dslx/python:cpp_deduce",
-        "//xls/dslx/python:cpp_parametric_expression",
-        "//xls/dslx/python:cpp_pos",
-        "//xls/dslx/python:cpp_type_info",
-        "//xls/dslx/python:interp_bindings",
-        "//xls/dslx/python:interpreter",
-        "@com_google_absl_py//absl/logging",
-    ],
-)
-
 py_test(
     name = "ast_test",
     srcs = ["ast_test.py"],
@@ -237,12 +219,11 @@ py_library(
         ":bit_helpers",
         ":concrete_type_helpers",
         ":dslx_builtins",
-        ":parametric_instantiator",
-        ":xls_type_error",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_deduce",
         "//xls/dslx/python:cpp_parametric_expression",
+        "//xls/dslx/python:cpp_parametric_instantiator",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_scanner",
         "//xls/dslx/python:cpp_type_info",
@@ -256,10 +237,9 @@ py_library(
     srcs = ["dslx_builtins.py"],
     srcs_version = "PY3",
     deps = [
-        ":parametric_instantiator",
-        ":xls_type_error",
         "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_deduce",
+        "//xls/dslx/python:cpp_parametric_instantiator",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_type_info",
         "@com_google_absl_py//absl/logging",
@@ -274,7 +254,6 @@ py_library(
         ":deduce",
         ":dslx_builtins",
         ":span",
-        ":xls_type_error",
         "//xls/common:xls_error",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_concrete_type",
@@ -294,23 +273,12 @@ py_test(
         ":parser_helpers",
         ":span",
         ":typecheck",
-        ":xls_type_error",
         "//xls/common:test_base",
         "//xls/common:xls_error",
         "//xls/dslx/python:cpp_deduce",
+        "//xls/dslx/python:cpp_parametric_instantiator",
         "//xls/dslx/python:cpp_parser",
         "@com_google_absl_py//absl/logging",
-    ],
-)
-
-py_library(
-    name = "xls_type_error",
-    srcs = ["xls_type_error.py"],
-    srcs_version = "PY3",
-    deps = [
-        ":span",
-        "//xls/dslx/python:cpp_concrete_type",
-        "//xls/dslx/python:cpp_pos",
     ],
 )
 
@@ -340,13 +308,13 @@ py_library(
         ":dslx_builtins",
         ":extract_conversion_order",
         ":ir_name_mangler",
-        ":parametric_instantiator",
         ":span",
         "//xls/common:xls_error",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_ast_visitor",
         "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_parametric_expression",
+        "//xls/dslx/python:cpp_parametric_instantiator",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_type_info",
         "//xls/ir/python:bits",
@@ -435,9 +403,9 @@ py_library(
     srcs_version = "PY3",
     deps = [
         ":dslx_builtins",
-        ":parametric_instantiator",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_ast_visitor",
+        "//xls/dslx/python:cpp_parametric_instantiator",
         "//xls/dslx/python:cpp_type_info",
         "@com_google_absl_py//absl/logging",
     ],
@@ -864,6 +832,7 @@ cc_test(
 
 cc_library(
     name = "deduce_ctx",
+    srcs = ["deduce_ctx.cc"],
     hdrs = ["deduce_ctx.h"],
     # We throw exceptions that come from PyBind through this code (the
     # deduction rules) so we have to enable exceptions for this translation
@@ -893,5 +862,18 @@ cc_library(
         ":import_routines",
         ":interp_bindings",
         "//xls/common/status:ret_check",
+    ],
+)
+
+cc_library(
+    name = "cpp_parametric_instantiator",
+    srcs = ["cpp_parametric_instantiator.cc"],
+    hdrs = ["cpp_parametric_instantiator.h"],
+    deps = [
+        ":cpp_concrete_type",
+        ":cpp_type_info",
+        ":deduce_ctx",
+        ":interpreter",
+        "@com_google_absl//absl/strings",
     ],
 )

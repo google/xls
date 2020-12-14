@@ -56,12 +56,14 @@ class SymbolicBindings {
     for (const auto& item : items) {
       bindings_.push_back(SymbolicBinding{item.first, item.second});
     }
-    std::sort(
-        bindings_.begin(), bindings_.end(),
-        [](const auto& lhs, const auto& rhs) {
-          return lhs.identifier < rhs.identifier ||
-                 (lhs.identifier == rhs.identifier && lhs.value < rhs.value);
-        });
+    Sort();
+  }
+  explicit SymbolicBindings(
+      const absl::flat_hash_map<std::string, int64>& mapping) {
+    for (const auto& item : mapping) {
+      bindings_.push_back(SymbolicBinding{item.first, item.second});
+    }
+    Sort();
   }
 
   template <typename H>
@@ -91,8 +93,23 @@ class SymbolicBindings {
   const std::vector<SymbolicBinding>& bindings() const { return bindings_; }
 
  private:
+  void Sort() {
+    std::sort(
+        bindings_.begin(), bindings_.end(),
+        [](const auto& lhs, const auto& rhs) {
+          return lhs.identifier < rhs.identifier ||
+                 (lhs.identifier == rhs.identifier && lhs.value < rhs.value);
+        });
+  }
+
   std::vector<SymbolicBinding> bindings_;
 };
+
+inline std::ostream& operator<<(std::ostream& os,
+                                const SymbolicBindings& symbolic_bindings) {
+  os << symbolic_bindings.ToString();
+  return os;
+}
 
 // Information associated with an import node in the AST.
 struct ImportedInfo {

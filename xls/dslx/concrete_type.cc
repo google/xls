@@ -169,7 +169,9 @@ std::unique_ptr<BitsType> BitsType::ToUBits() const {
 
 TupleType::TupleType(Members members, StructDef* struct_def)
     : members_(std::move(members)), struct_def_(struct_def) {
-  XLS_CHECK_EQ(struct_def_ == nullptr, !is_named());
+  // TODO(leary): 2020-12-11 Reintroduce this when we're not plumbing types
+  // through strings for Python interop.
+  // XLS_CHECK_EQ(struct_def_ == nullptr, !is_named());
 }
 
 bool TupleType::operator==(const ConcreteType& other) const {
@@ -496,12 +498,31 @@ absl::StatusOr<ConcreteTypeDim> FunctionType::GetTotalBitCount() const {
 
 // -- ConcreteTypeFromString
 
+static absl::StatusOr<ConcreteTypeDim> ConsumeConcreteTypeDim(
+    absl::string_view* s) {
+  int64 size;
+  if (RE2::Consume(s, R"((\d+))", &size)) {
+    return ConcreteTypeDim(size);
+  }
+  std::string symbol;
+  if (RE2::Consume(s, R"((\w+))", &symbol)) {
+    return ConcreteTypeDim(
+        absl::make_unique<ParametricSymbol>(std::move(symbol), Span::Fake()));
+  }
+  return absl::InvalidArgumentError(
+      absl::StrFormat("Could not parse dimension from \"%s\"", *s));
+}
+
 static absl::StatusOr<std::unique_ptr<ConcreteType>> ConsumeArraySuffix(
     absl::string_view* s, std::unique_ptr<ConcreteType> element_type) {
-  int64 size;
-  if (RE2::Consume(s, R"(\[(\d+)\])", &size)) {
+  if (absl::ConsumePrefix(s, "[")) {
+    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim size, ConsumeConcreteTypeDim(s));
+    if (!absl::ConsumePrefix(s, "]")) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Could not parse ']' after dimension in \"%s\"", *s));
+    }
     return absl::make_unique<ArrayType>(std::move(element_type),
-                                        ConcreteTypeDim(size));
+                                        std::move(size));
   }
   return std::move(element_type);
 }
@@ -510,18 +531,38 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConsumeConcreteType(
     absl::string_view* s) {
   absl::string_view orig = *s;
   char signedness;
-  int64 size;
-  if (RE2::Consume(s, R"(([us])N\[(\d+)\])", &signedness, &size)) {
+  if (RE2::Consume(s, R"(([us])N\[)", &signedness)) {
+    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim size, ConsumeConcreteTypeDim(s));
+    if (!absl::ConsumePrefix(s, "]")) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Could not parse ']' after dimension in \"%s\"", *s));
+    }
     std::unique_ptr<ConcreteType> t =
-        absl::make_unique<BitsType>(signedness == 's', ConcreteTypeDim(size));
+        absl::make_unique<BitsType>(signedness == 's', std::move(size));
     return ConsumeArraySuffix(s, std::move(t));
   }
   if (absl::ConsumePrefix(s, "(")) {
+    std::vector<std::string> names;
     std::vector<std::unique_ptr<ConcreteType>> members;
     while (true) {
       if (absl::ConsumePrefix(s, ")")) {
-        std::unique_ptr<ConcreteType> t =
-            absl::make_unique<TupleType>(std::move(members));
+        std::unique_ptr<ConcreteType> t;
+        if (names.empty()) {
+          t = absl::make_unique<TupleType>(std::move(members));
+        } else {
+          if (names.size() != members.size()) {
+            return absl::InvalidArgumentError(
+                absl::StrFormat("Differing numbers of names and members seen "
+                                "in tuple type: \"%s\"",
+                                orig));
+          }
+          TupleType::NamedMembers named;
+          for (int64 i = 0; i < names.size(); ++i) {
+            named.push_back(TupleType::NamedMember{std::move(names[i]),
+                                                   std::move(members[i])});
+          }
+          t = absl::make_unique<TupleType>(std::move(named));
+        }
         return ConsumeArraySuffix(s, std::move(t));
       }
       if (!members.empty()) {
@@ -532,9 +573,24 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConsumeConcreteType(
                               *s, members.size(), orig));
         }
       }
-      XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> t,
-                           ConsumeConcreteType(s));
-      members.push_back(std::move(t));
+
+      // We don't know if it's a named tuple or not, so try to parse a type and
+      // roll back if not.
+      absl::string_view snapshot = *s;
+      absl::StatusOr<std::unique_ptr<ConcreteType>> t = ConsumeConcreteType(s);
+      if (t.ok()) {
+        members.push_back(std::move(t.value()));
+      } else {
+        *s = snapshot;
+        std::string name;
+        if (!RE2::Consume(s, "(\\w+): ", &name)) {
+          return t.status();
+        }
+        names.push_back(name);
+        XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> t,
+                             ConsumeConcreteType(s));
+        members.push_back(std::move(t));
+      }
     }
   }
   return absl::InvalidArgumentError(

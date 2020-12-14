@@ -21,7 +21,7 @@
 from typing import Text, Tuple, Callable, Union, Optional, Any
 from absl import logging
 
-from xls.dslx import parametric_instantiator
+from xls.dslx.python import cpp_parametric_instantiator as parametric_instantiator
 from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType
 from xls.dslx.python.cpp_concrete_type import ConcreteType
@@ -29,9 +29,9 @@ from xls.dslx.python.cpp_concrete_type import ConcreteTypeDim
 from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.dslx.python.cpp_deduce import xls_type_error as XlsTypeError
+from xls.dslx.python.cpp_parametric_instantiator import ArgCountMismatchError
 from xls.dslx.python.cpp_pos import Span
 from xls.dslx.python.cpp_type_info import SymbolicBindings
-from xls.dslx.xls_type_error import ArgCountMismatchError
 
 ParametricBinding = Any
 ParametricBindings = Tuple[ParametricBinding, ...]

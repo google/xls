@@ -59,10 +59,12 @@ PYBIND11_MODULE(cpp_type_info, m) {
            [](const SymbolicBindings& self) {
              std::unordered_map<std::string, int64> result;
              for (const SymbolicBinding& b : self.bindings()) {
+               XLS_CHECK_EQ(result.count(b.identifier), 0);
                result[b.identifier] = b.value;
              }
              return result;
            })
+      .def("__str__", &SymbolicBindings::ToString)
       .def("__eq__", &SymbolicBindings::operator==)
       .def("__ne__", &SymbolicBindings::operator!=)
       .def("__len__", &SymbolicBindings::size)
@@ -81,7 +83,11 @@ PYBIND11_MODULE(cpp_type_info, m) {
       if (p) std::rethrow_exception(p);
     } catch (const TypeMissingError& e) {
       type_missing_exc.attr("node") = AstNodeHolder(e.node(), e.module());
-      type_missing_exc.attr("user") = absl::nullopt;
+      absl::optional<AstNodeHolder> user;
+      if (e.user() != nullptr) {
+        user = AstNodeHolder(e.user(), e.module());
+      }
+      type_missing_exc.attr("user") = user;
       type_missing_exc(e.what());
     }
   });
@@ -109,7 +115,7 @@ PYBIND11_MODULE(cpp_type_info, m) {
             if (result.has_value()) {
               return (*result)->CloneToUnique();
             }
-            throw TypeMissingError(&n.deref());
+            throw TypeMissingError(&n.deref(), nullptr);
           })
       .def("add_instantiation",
            [](TypeInfo& self, InvocationHolder invocation,

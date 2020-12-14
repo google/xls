@@ -15,41 +15,6 @@
 #include "xls/dslx/deduce.h"
 
 namespace xls::dslx {
-namespace {
-
-// Creates a (stylized) TypeInferenceError status message that will be thrown as
-// an exception when it reaches the Python pybind boundary.
-absl::Status TypeInferenceError(const Span& span, const ConcreteType* type,
-                                absl::string_view message) {
-  std::string type_str = "<>";
-  if (type != nullptr) {
-    type_str = type->ToString();
-  }
-  return absl::InternalError(absl::StrFormat(
-      "TypeInferenceError: %s %s %s", span.ToString(), type_str, message));
-}
-
-// Creates a (stylized) XlsTypeError status message that will be thrown as an
-// exception when it reaches the Python pybind boundary.
-absl::Status XlsTypeError(const Span& span, const ConcreteType& lhs,
-                          const ConcreteType& rhs, absl::string_view message) {
-  return absl::InternalError(absl::StrFormat("XlsTypeError: %s %s %s %s",
-                                             span.ToString(), lhs.ToString(),
-                                             rhs.ToString(), message));
-}
-
-// Helper that converts the symbolic bindings to a parametric expression
-// environment (for parametric evaluation).
-ParametricExpression::Env ToParametricEnv(
-    const SymbolicBindings& symbolic_bindings) {
-  ParametricExpression::Env env;
-  for (const SymbolicBinding& binding : symbolic_bindings.bindings()) {
-    env[binding.identifier] = binding.value;
-  }
-  return env;
-}
-
-}  // namespace
 
 absl::Status CheckBitwidth(const Number& number, const ConcreteType& type) {
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim bits_dim, type.GetTotalBitCount());
@@ -57,7 +22,7 @@ absl::Status CheckBitwidth(const Number& number, const ConcreteType& type) {
   int64 bit_count = absl::get<int64>(bits_dim.value());
   absl::StatusOr<Bits> bits = number.GetBits(bit_count);
   if (!bits.ok()) {
-    return TypeInferenceError(
+    return TypeInferenceErrorStatus(
         number.span(), &type,
         absl::StrFormat("Value '%s' does not fit in "
                         "the bitwidth of a %s (%d)",
@@ -145,9 +110,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(Number* node,
       default:
         break;
     }
-    return TypeInferenceError(node->span(), nullptr,
-                              "Could not infer a type for "
-                              "this number, please annotate a type.");
+    return TypeInferenceErrorStatus(node->span(), nullptr,
+                                    "Could not infer a type for "
+                                    "this number, please annotate a type.");
   }
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> concrete_type,
@@ -164,9 +129,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTernary(Ternary* node,
   XLS_ASSIGN_OR_RETURN(test_type, Resolve(*test_type, ctx));
   auto test_want = BitsType::MakeU1();
   if (*test_type != *test_want) {
-    return XlsTypeError(node->span(), *test_type, *test_want,
-                        "Test type for conditional expression is not "
-                        "\"bool\"");
+    return XlsTypeErrorStatus(node->span(), *test_type, *test_want,
+                              "Test type for conditional expression is not "
+                              "\"bool\"");
   }
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> consequent_type,
@@ -177,7 +142,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTernary(Ternary* node,
   XLS_ASSIGN_OR_RETURN(alternate_type, Resolve(*alternate_type, ctx));
 
   if (*consequent_type != *alternate_type) {
-    return XlsTypeError(
+    return XlsTypeErrorStatus(
         node->span(), *consequent_type, *alternate_type,
         "Ternary consequent type (in the 'then' clause) "
         "did not match alternative type (in the 'else' clause)");
@@ -198,13 +163,13 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConcat(
   bool rhs_is_array = rhs_array != nullptr;
 
   if (lhs_is_array != rhs_is_array) {
-    return XlsTypeError(node->span(), *lhs, *rhs,
-                        "Attempting to concatenate array/non-array "
-                        "values together.");
+    return XlsTypeErrorStatus(node->span(), *lhs, *rhs,
+                              "Attempting to concatenate array/non-array "
+                              "values together.");
   }
 
   if (lhs_is_array && lhs_array->element_type() != rhs_array->element_type()) {
-    return XlsTypeError(
+    return XlsTypeErrorStatus(
         node->span(), *lhs, *rhs,
         "Array concatenation requires element types to be the same.");
   }
@@ -259,15 +224,15 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBinop(Binop* node,
                        DeduceAndResolve(node->rhs(), ctx));
 
   if (*lhs != *rhs) {
-    return XlsTypeError(node->span(), *lhs, *rhs,
-                        absl::StrFormat("Could not deduce type for "
-                                        "binary operation '%s'",
-                                        BinopKindFormat(node->kind())));
+    return XlsTypeErrorStatus(node->span(), *lhs, *rhs,
+                              absl::StrFormat("Could not deduce type for "
+                                              "binary operation '%s'",
+                                              BinopKindFormat(node->kind())));
   }
 
   if (auto* enum_type = dynamic_cast<EnumType*>(lhs.get());
       enum_type != nullptr && !GetEnumOkKinds().contains(node->kind())) {
-    return TypeInferenceError(
+    return TypeInferenceErrorStatus(
         node->span(), nullptr,
         absl::StrFormat("Cannot use '%s' on values with enum type %s.",
                         BinopKindFormat(node->kind()),
@@ -287,9 +252,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(EnumDef* node,
                        DeduceAndResolve(node->type(), ctx));
   auto* bits_type = dynamic_cast<BitsType*>(type.get());
   if (bits_type == nullptr) {
-    return TypeInferenceError(node->span(), bits_type,
-                              "Underlying type for an enum "
-                              "must be a bits type.");
+    return TypeInferenceErrorStatus(node->span(), bits_type,
+                                    "Underlying type for an enum "
+                                    "must be a bits type.");
   }
 
   // Grab the bit count of the Enum's underlying type.
@@ -328,7 +293,7 @@ static absl::Status BindNames(NameDefTree* name_def_tree,
 
   auto* tuple_type = dynamic_cast<const TupleType*>(&type);
   if (tuple_type == nullptr) {
-    return TypeInferenceError(
+    return TypeInferenceErrorStatus(
         name_def_tree->span(), &type,
         absl::StrFormat("Expected a tuple type for these names, but "
                         "got %s.",
@@ -336,7 +301,7 @@ static absl::Status BindNames(NameDefTree* name_def_tree,
   }
 
   if (name_def_tree->nodes().size() != tuple_type->size()) {
-    return TypeInferenceError(
+    return TypeInferenceErrorStatus(
         name_def_tree->span(), &type,
         absl::StrFormat("Could not bind names, names are mismatched "
                         "in number vs type; at this level of the tuple: %d "
@@ -363,9 +328,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceLet(Let* node,
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> annotated,
                          DeduceAndResolve(node->type(), ctx));
     if (*rhs != *annotated) {
-      return XlsTypeError(node->span(), *annotated, *rhs,
-                          "Annotated type did not match inferred type "
-                          "of right hand side expression.");
+      return XlsTypeErrorStatus(node->span(), *annotated, *rhs,
+                                "Annotated type did not match inferred type "
+                                "of right hand side expression.");
     }
   }
 
@@ -392,9 +357,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFor(For* node,
   XLS_RETURN_IF_ERROR(ctx->Deduce(node->iterable()).status());
 
   if (*init_type != *body_type) {
-    return XlsTypeError(node->span(), *init_type, *body_type,
-                        "For-loop init value type did not match "
-                        "for-loop body's result type.");
+    return XlsTypeErrorStatus(node->span(), *init_type, *body_type,
+                              "For-loop init value type did not match "
+                              "for-loop body's result type.");
   }
 
   // TODO(leary): 2019-02-19 Type check annotated_type (the bound names each
@@ -426,7 +391,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCast(Cast* node,
                        DeduceAndResolve(node->expr(), ctx));
 
   if (!IsAcceptableCast(/*from=*/*expr, /*to=*/*type)) {
-    return XlsTypeError(
+    return XlsTypeErrorStatus(
         node->span(), *expr, *type,
         absl::StrFormat("Cannot cast from expression type %s to %s.",
                         expr->ToString(), type->ToString()));
@@ -443,9 +408,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructDef(StructDef* node,
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> expr_type,
                            ctx->Deduce(parametric->expr()));
       if (*expr_type != *parametric_binding_type) {
-        return XlsTypeError(node->span(), *expr_type, *parametric_binding_type,
-                            "Annotated type of "
-                            "parametric value did not match inferred type.");
+        return XlsTypeErrorStatus(
+            node->span(), *expr_type, *parametric_binding_type,
+            "Annotated type of "
+            "parametric value did not match inferred type.");
       }
     }
     ctx->type_info()->SetItem(parametric->name_def(), *parametric_binding_type);
@@ -475,7 +441,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(Array* node,
 
   for (int64 i = 1; i < member_types.size(); ++i) {
     if (*member_types[0] != *member_types[i]) {
-      return XlsTypeError(
+      return XlsTypeErrorStatus(
           node->span(), *member_types[0], *member_types[i],
           "Array member did not have same type as other members.");
     }
@@ -493,16 +459,18 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(Array* node,
                        ctx->Deduce(node->type()));
   auto* array_type = dynamic_cast<ArrayType*>(annotated.get());
   if (array_type == nullptr) {
-    return TypeInferenceError(node->span(), annotated.get(),
-                              "Array was not annotated with an array type.");
+    return TypeInferenceErrorStatus(
+        node->span(), annotated.get(),
+        "Array was not annotated with an array type.");
   }
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved_element_type,
                        Resolve(array_type->element_type(), ctx));
   if (*resolved_element_type != *member_types[0]) {
-    return XlsTypeError(node->span(), *resolved_element_type, *member_types[0],
-                        "Annotated element type did not match inferred "
-                        "element type.");
+    return XlsTypeErrorStatus(node->span(), *resolved_element_type,
+                              *member_types[0],
+                              "Annotated element type did not match inferred "
+                              "element type.");
   }
 
   if (node->has_ellipsis()) {
@@ -511,7 +479,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(Array* node,
 
   if (array_type->size() !=
       ConcreteTypeDim(static_cast<int64>(member_types.size()))) {
-    return XlsTypeError(
+    return XlsTypeErrorStatus(
         node->span(), *array_type, *inferred,
         absl::StrFormat("Annotated array size %s does not match "
                         "inferred array size %d.",
@@ -530,15 +498,15 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAttr(Attr* node,
       // If the (concrete) tuple type is unnamed, then it's not a struct, it's a
       // tuple.
       !tuple_type->is_named()) {
-    return TypeInferenceError(node->span(), struct_type.get(),
-                              absl::StrFormat("Expected a struct for "
-                                              "attribute access; got %s",
-                                              struct_type->ToString()));
+    return TypeInferenceErrorStatus(node->span(), struct_type.get(),
+                                    absl::StrFormat("Expected a struct for "
+                                                    "attribute access; got %s",
+                                                    struct_type->ToString()));
   }
 
   const std::string& attr_name = node->attr()->identifier();
   if (!tuple_type->HasNamedMember(attr_name)) {
-    return TypeInferenceError(
+    return TypeInferenceErrorStatus(
         node->span(), nullptr,
         absl::StrFormat("Struct '%s' does not have a "
                         "member with name "
@@ -562,7 +530,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantArray(
                        ctx->Deduce(node->type()));
   auto* array_type = dynamic_cast<ArrayType*>(type.get());
   if (array_type == nullptr) {
-    return TypeInferenceError(
+    return TypeInferenceErrorStatus(
         node->type()->span(), type.get(),
         absl::StrFormat("Annotated type for array "
                         "literal must be an array type; got %s %s",
@@ -623,14 +591,14 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRefImport(
   absl::optional<ModuleMember*> elem =
       imported_module->FindMemberWithName(node->attr());
   if (!elem.has_value()) {
-    return TypeInferenceError(
+    return TypeInferenceErrorStatus(
         node->span(), nullptr,
         absl::StrFormat("Attempted to refer to module %s member '%s' "
                         "which does not exist.",
                         imported_module->name(), node->attr()));
   }
   if (!IsPublic(*elem.value())) {
-    return TypeInferenceError(
+    return TypeInferenceErrorStatus(
         node->span(), nullptr,
         absl::StrFormat("Attempted to refer to module member %s that "
                         "is not public.",
@@ -672,7 +640,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRef(ColonRef* node,
     NameRef* name_ref = absl::get<NameRef*>(node->subject());
     if (absl::holds_alternative<BuiltinNameDef*>(name_ref->name_def())) {
       auto* builtin_name_def = absl::get<BuiltinNameDef*>(name_ref->name_def());
-      return TypeInferenceError(
+      return TypeInferenceErrorStatus(
           node->span(), nullptr,
           absl::StrFormat("Builtin '%s' has no attributes.",
                           builtin_name_def->identifier()));
@@ -690,7 +658,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRef(ColonRef* node,
   XLS_RET_CHECK(enum_type != nullptr);
   EnumDef* enum_def = enum_type->nominal_type();
   if (!enum_def->HasValue(node->attr())) {
-    return TypeInferenceError(
+    return TypeInferenceErrorStatus(
         node->span(), nullptr,
         absl::StrFormat("Name '%s' is not defined by the enum %s.",
                         node->attr(), enum_def->identifier()));
@@ -708,7 +676,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleIndex(
   // be able to be a ConstRef.
   auto* number = dynamic_cast<Number*>(expr);
   if (number == nullptr) {
-    return TypeInferenceError(
+    return TypeInferenceErrorStatus(
         node->span(), &lhs_type,
         "Tuple index is not a literal number or named constant.");
   }
@@ -725,10 +693,11 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleIndex(
 
   XLS_ASSIGN_OR_RETURN(int64 value, number->GetAsUint64());
   if (value >= lhs_type.size()) {
-    return TypeInferenceError(node->span(), &lhs_type,
-                              absl::StrFormat("Tuple index %d is out of "
-                                              "range for this tuple type.",
-                                              value));
+    return TypeInferenceErrorStatus(
+        node->span(), &lhs_type,
+        absl::StrFormat("Tuple index %d is out of "
+                        "range for this tuple type.",
+                        value));
   }
   return lhs_type.GetMemberType(value).CloneToUnique();
 }
@@ -794,7 +763,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
     // Make sure the start_int literal fits in the type we determined.
     absl::Status fits_status = SBitsWithStatus(start_int, bit_count).status();
     if (!fits_status.ok()) {
-      return TypeInferenceError(
+      return TypeInferenceErrorStatus(
           node->span(), resolved_start_type.get(),
           absl::StrFormat("Cannot fit slice start %d in %d bits (width "
                           "inferred from slice subject).",
@@ -807,7 +776,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
     XLS_ASSIGN_OR_RETURN(start_type_owned, ctx->Deduce(start));
     start_type = dynamic_cast<BitsType*>(start_type_owned.get());
     if (start_type == nullptr) {
-      return TypeInferenceError(
+      return TypeInferenceErrorStatus(
           start->span(), start_type,
           "Start expression for width slice must be bits typed.");
     }
@@ -815,7 +784,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
 
   // Check the start is unsigned.
   if (start_type->is_signed()) {
-    return TypeInferenceError(
+    return TypeInferenceErrorStatus(
         node->span(), start_type,
         "Start index for width-based slice must be unsigned.");
   }
@@ -832,7 +801,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
     int64 width_bits = absl::get<int64>(width_ctd.value());
     int64 subject_bits = absl::get<int64>(subject_ctd.value());
     if (width_bits > subject_bits) {
-      return XlsTypeError(
+      return XlsTypeErrorStatus(
           start->span(), subject_type, *width_type,
           absl::StrFormat("Slice type must have <= original number of bits; "
                           "attempted slice from %d to %d bits.",
@@ -843,7 +812,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
   // Check the width type is bits-based (e.g. no enums, since sliced value
   // could be out of range of the valid enum values).
   if (dynamic_cast<BitsType*>(width_type.get()) == nullptr) {
-    return TypeInferenceError(
+    return TypeInferenceErrorStatus(
         node->span(), width_type.get(),
         "A bits type is required for a width-based slice.");
   }
@@ -861,8 +830,8 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
   if (bits_type == nullptr) {
     // TODO(leary): 2019-10-28 Only slicing bits types for now, and only with
     // Number AST nodes, generalize to arrays and constant expressions.
-    return TypeInferenceError(node->span(), lhs_type.get(),
-                              "Value to slice is not of 'bits' type.");
+    return TypeInferenceErrorStatus(node->span(), lhs_type.get(),
+                                    "Value to slice is not of 'bits' type.");
   }
 
   if (absl::holds_alternative<WidthSlice*>(node->rhs())) {
@@ -920,8 +889,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceIndex(Index* node,
 
   auto* array_type = dynamic_cast<ArrayType*>(lhs_type.get());
   if (array_type == nullptr) {
-    return TypeInferenceError(node->span(), lhs_type.get(),
-                              "Value to index is not an array.");
+    return TypeInferenceErrorStatus(node->span(), lhs_type.get(),
+                                    "Value to index is not an array.");
   }
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> index_type,
@@ -929,8 +898,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceIndex(Index* node,
   XLS_RET_CHECK(index_type != nullptr);
   auto* index_bits = dynamic_cast<BitsType*>(index_type.get());
   if (index_bits == nullptr) {
-    return TypeInferenceError(node->span(), index_type.get(),
-                              "Index is not (scalar) bits typed.");
+    return TypeInferenceErrorStatus(node->span(), index_type.get(),
+                                    "Index is not (scalar) bits typed.");
   }
   return array_type->element_type().CloneToUnique();
 }
@@ -954,7 +923,7 @@ static absl::Status Unify(NameDefTree* name_def_tree, const ConcreteType& other,
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved_leaf_type,
                            DeduceAndResolve(ToAstNode(leaf), ctx));
       if (*resolved_leaf_type != *resolved_rhs_type) {
-        return XlsTypeError(
+        return XlsTypeErrorStatus(
             name_def_tree->span(), *resolved_rhs_type, *resolved_leaf_type,
             absl::StrFormat(
                 "Conflicting types; pattern expects %s but got %s from value",
@@ -995,9 +964,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMatch(Match* node,
 
   for (int64 i = 1; i < arm_types.size(); ++i) {
     if (*arm_types[i] != *arm_types[0]) {
-      return XlsTypeError(node->arms()[i]->span(), *arm_types[i], *arm_types[0],
-                          "This match arm did not have the same type as the "
-                          "preceding match arms.");
+      return XlsTypeErrorStatus(
+          node->arms()[i]->span(), *arm_types[i], *arm_types[0],
+          "This match arm did not have the same type as the "
+          "preceding match arms.");
     }
   }
   return std::move(arm_types[0]);
