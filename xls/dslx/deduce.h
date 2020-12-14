@@ -105,6 +105,18 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructInstance(
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSplatStructInstance(
     SplatStructInstance* node, DeduceCtx* ctx);
 
+// See BuiltinTypeAnnotation in the AST.
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBuiltinTypeAnnotation(
+    BuiltinTypeAnnotation* node, DeduceCtx* ctx);
+
+// See ArrayTypeAnnotation in the AST.
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArrayTypeAnnotation(
+    ArrayTypeAnnotation* node, DeduceCtx* ctx);
+
+// See TupleTypeAnnotation in the AST.
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleTypeAnnotation(
+    TupleTypeAnnotation* node, DeduceCtx* ctx);
+
 // Resolves "type_" via provided symbolic bindings.
 //
 // Uses the symbolic bindings of the function we're currently inside of to

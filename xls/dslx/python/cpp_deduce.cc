@@ -216,6 +216,10 @@ PYBIND11_MODULE(cpp_deduce, m) {
   DELEGATE_DEDUCE(Unop);
   DELEGATE_DEDUCE(XlsTuple);
 
+  DELEGATE_DEDUCE(BuiltinTypeAnnotation);
+  DELEGATE_DEDUCE(ArrayTypeAnnotation);
+  DELEGATE_DEDUCE(TupleTypeAnnotation);
+
 #undef DELEGATE_DEDUCE
 }
 

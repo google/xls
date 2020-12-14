@@ -1214,4 +1214,80 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSplatStructInstance(
   return std::move(tab.type);
 }
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBuiltinTypeAnnotation(
+    BuiltinTypeAnnotation* node, DeduceCtx* ctx) {
+  return absl::make_unique<BitsType>(node->GetSignedness(),
+                                     node->GetBitCount());
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleTypeAnnotation(
+    TupleTypeAnnotation* node, DeduceCtx* ctx) {
+  std::vector<std::unique_ptr<ConcreteType>> members;
+  for (TypeAnnotation* member : node->members()) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
+                         ctx->Deduce(member));
+    members.push_back(std::move(type));
+  }
+  return absl::make_unique<TupleType>(std::move(members));
+}
+
+static absl::StatusOr<std::unique_ptr<ParametricExpression>> DimToParametric(
+    TypeAnnotation* node, Expr* dim_expr) {
+  if (auto* name_ref = dynamic_cast<NameRef*>(dim_expr)) {
+    return absl::make_unique<ParametricSymbol>(name_ref->identifier(),
+                                               dim_expr->span());
+  }
+  return TypeInferenceErrorStatus(
+      node->span(), nullptr,
+      absl::StrFormat("Could not concretize type with dimension: %s",
+                      dim_expr->ToString()));
+}
+
+static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
+                                                     Expr* dim_expr,
+                                                     DeduceCtx* ctx) {
+  if (auto* number = dynamic_cast<Number*>(dim_expr)) {
+    ctx->type_info()->SetItem(number, *BitsType::MakeU32());
+    XLS_ASSIGN_OR_RETURN(uint64 value, number->GetAsUint64());
+    return ConcreteTypeDim(value);
+  }
+  if (auto* const_ref = dynamic_cast<ConstRef*>(dim_expr)) {
+    absl::optional<Expr*> const_expr =
+        ctx->type_info()->GetConstInt(const_ref->name_def());
+    auto* number = dynamic_cast<Number*>(const_expr.value());
+    if (number == nullptr) {
+      return TypeInferenceErrorStatus(
+          node->span(), nullptr,
+          absl::StrFormat("Expected a constant integral value for dimension "
+                          "with name '%s'; got %s",
+                          const_ref->identifier(),
+                          const_expr.value()->ToString()));
+    }
+    XLS_ASSIGN_OR_RETURN(uint64 value, number->GetAsUint64());
+    return ConcreteTypeDim(value);
+  }
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ParametricExpression> e,
+                       DimToParametric(node, dim_expr));
+  return ConcreteTypeDim(std::move(e));
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArrayTypeAnnotation(
+    ArrayTypeAnnotation* node, DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim dim,
+                       DimToConcrete(node, node->dim(), ctx));
+  if (auto* element_type =
+          dynamic_cast<BuiltinTypeAnnotation*>(node->element_type());
+      element_type != nullptr && element_type->GetBitCount() == 0) {
+    return absl::make_unique<BitsType>(element_type->GetSignedness(),
+                                       std::move(dim));
+  }
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> element_type,
+                       ctx->Deduce(node->element_type()));
+  auto result =
+      absl::make_unique<ArrayType>(std::move(element_type), std::move(dim));
+  XLS_VLOG(4) << absl::StreamFormat("Array type annotation: %s => %s",
+                                    node->ToString(), result->ToString());
+  return result;
+}
+
 }  // namespace xls::dslx

@@ -19,7 +19,7 @@
 """Type system deduction rules for AST nodes."""
 
 import typing
-from typing import Union, Callable, Type, Tuple
+from typing import Callable, Type, Tuple
 
 from absl import logging
 
@@ -30,16 +30,11 @@ from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_deduce
 from xls.dslx.python import cpp_parametric_instantiator as parametric_instantiator
 from xls.dslx.python import cpp_scanner as scanner
-from xls.dslx.python.cpp_concrete_type import ArrayType
-from xls.dslx.python.cpp_concrete_type import BitsType
 from xls.dslx.python.cpp_concrete_type import ConcreteType
 from xls.dslx.python.cpp_concrete_type import ConcreteTypeDim
 from xls.dslx.python.cpp_concrete_type import FunctionType
-from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.dslx.python.cpp_deduce import DeduceCtx
-from xls.dslx.python.cpp_deduce import type_inference_error as TypeInferenceError
 from xls.dslx.python.cpp_deduce import xls_type_error as XlsTypeError
-from xls.dslx.python.cpp_parametric_expression import ParametricAdd
 from xls.dslx.python.cpp_parametric_expression import ParametricExpression
 from xls.dslx.python.cpp_parametric_expression import ParametricSymbol
 from xls.dslx.python.cpp_pos import Span
@@ -50,28 +45,58 @@ from xls.dslx.python.cpp_type_info import TypeMissingError
 
 # Dictionary used as registry for rule dispatch based on AST node class.
 RULES = {
-    ast.Array: cpp_deduce.deduce_Array,
-    ast.Attr: cpp_deduce.deduce_Attr,
-    ast.Binop: cpp_deduce.deduce_Binop,
-    ast.Cast: cpp_deduce.deduce_Cast,
-    ast.ColonRef: cpp_deduce.deduce_ColonRef,
-    ast.Constant: cpp_deduce.deduce_ConstantDef,
-    ast.ConstantArray: cpp_deduce.deduce_ConstantArray,
-    ast.EnumDef: cpp_deduce.deduce_EnumDef,
-    ast.For: cpp_deduce.deduce_For,
-    ast.Index: cpp_deduce.deduce_Index,
-    ast.Let: cpp_deduce.deduce_Let,
-    ast.Match: cpp_deduce.deduce_Match,
-    ast.Number: cpp_deduce.deduce_Number,
-    ast.Param: cpp_deduce.deduce_Param,
-    ast.StructDef: cpp_deduce.deduce_StructDef,
-    ast.StructInstance: cpp_deduce.deduce_StructInstance,
-    ast.SplatStructInstance: cpp_deduce.deduce_SplatStructInstance,
-    ast.Ternary: cpp_deduce.deduce_Ternary,
-    ast.TypeDef: cpp_deduce.deduce_TypeDef,
-    ast.TypeRef: cpp_deduce.deduce_TypeRef,
-    ast.Unop: cpp_deduce.deduce_Unop,
-    ast.XlsTuple: cpp_deduce.deduce_XlsTuple,
+    ast.Array:
+        cpp_deduce.deduce_Array,
+    ast.Attr:
+        cpp_deduce.deduce_Attr,
+    ast.Binop:
+        cpp_deduce.deduce_Binop,
+    ast.Cast:
+        cpp_deduce.deduce_Cast,
+    ast.ColonRef:
+        cpp_deduce.deduce_ColonRef,
+    ast.Constant:
+        cpp_deduce.deduce_ConstantDef,
+    ast.ConstantArray:
+        cpp_deduce.deduce_ConstantArray,
+    ast.EnumDef:
+        cpp_deduce.deduce_EnumDef,
+    ast.For:
+        cpp_deduce.deduce_For,
+    ast.Index:
+        cpp_deduce.deduce_Index,
+    ast.Let:
+        cpp_deduce.deduce_Let,
+    ast.Match:
+        cpp_deduce.deduce_Match,
+    ast.Number:
+        cpp_deduce.deduce_Number,
+    ast.Param:
+        cpp_deduce.deduce_Param,
+    ast.StructDef:
+        cpp_deduce.deduce_StructDef,
+    ast.StructInstance:
+        cpp_deduce.deduce_StructInstance,
+    ast.SplatStructInstance:
+        cpp_deduce.deduce_SplatStructInstance,
+    ast.Ternary:
+        cpp_deduce.deduce_Ternary,
+    ast.TypeDef:
+        cpp_deduce.deduce_TypeDef,
+    ast.TypeRef:
+        cpp_deduce.deduce_TypeRef,
+    ast.Unop:
+        cpp_deduce.deduce_Unop,
+    ast.XlsTuple:
+        cpp_deduce.deduce_XlsTuple,
+
+    # Various type annotations.
+    ast.ArrayTypeAnnotation:
+        cpp_deduce.deduce_ArrayTypeAnnotation,
+    ast.BuiltinTypeAnnotation:
+        cpp_deduce.deduce_BuiltinTypeAnnotation,
+    ast.TupleTypeAnnotation:
+        cpp_deduce.deduce_TupleTypeAnnotation,
 }
 
 
@@ -334,40 +359,6 @@ def _deduce_NameRef(self: ast.NameRef, ctx: DeduceCtx) -> ConcreteType:  # pytyp
   return result
 
 
-def _dim_to_parametric(self: ast.TypeAnnotation,
-                       expr: ast.Expr) -> ParametricExpression:
-  """Converts a dimension expression to a 'parametric' AST node."""
-  assert not isinstance(expr, ast.ConstRef), expr
-  if isinstance(expr, ast.NameRef):
-    return ParametricSymbol(expr.name_def.identifier, expr.span)
-  if isinstance(expr, ast.Binop):
-    if expr.kind == ast.BinopKind.ADD:
-      return ParametricAdd(
-          _dim_to_parametric(self, expr.lhs),
-          _dim_to_parametric(self, expr.rhs))
-  msg = 'Could not concretize type with dimension: {}.'.format(expr)
-  raise TypeInferenceError(self.span, self, suffix=msg)
-
-
-def _dim_to_parametric_or_int(
-    self: ast.TypeAnnotation, expr: ast.Expr,
-    ctx: DeduceCtx) -> Union[int, ParametricExpression]:
-  """Converts dimension expression within an annotation to int or parametric."""
-  if isinstance(expr, ast.Number):
-    ctx.type_info[expr] = ConcreteType.U32
-    return ast_helpers.get_value_as_int(expr)
-  if isinstance(expr, ast.ConstRef):
-    n = ctx.type_info.get_const_int(expr.name_def)
-    if not isinstance(n, ast.Number):
-      raise TypeInferenceError(
-          span=expr.span,
-          type_=None,
-          suffix=f'Expected a constant integral value with the name {expr.name_def}; got {n}'
-      )
-    return ast_helpers.get_value_as_int(n)
-  return _dim_to_parametric(self, expr)
-
-
 @_rule(ast.TypeRefTypeAnnotation)
 def _deduce_TypeRefTypeAnnotation(self: ast.TypeRefTypeAnnotation,
                                   ctx: DeduceCtx) -> ConcreteType:
@@ -380,39 +371,6 @@ def _deduce_TypeRefTypeAnnotation(self: ast.TypeRefTypeAnnotation,
     base_type = _concretize_struct_annotation(ctx.module, self, maybe_struct,
                                               base_type)
   return base_type
-
-
-@_rule(ast.BuiltinTypeAnnotation)
-def _deduce_BuiltinTypeAnnotation(
-    self: ast.BuiltinTypeAnnotation,
-    ctx: DeduceCtx,  # pylint: disable=unused-argument
-) -> ConcreteType:
-  signedness, bits = self.signedness_and_bits
-  return BitsType(signedness, bits)
-
-
-@_rule(ast.TupleTypeAnnotation)
-def _deduce_TupleTypeAnnotation(self: ast.TupleTypeAnnotation,
-                                ctx: DeduceCtx) -> ConcreteType:
-  members = []
-  for member in self.members:
-    members.append(deduce(member, ctx))
-  return TupleType(tuple(members))
-
-
-@_rule(ast.ArrayTypeAnnotation)
-def _deduce_ArrayTypeAnnotation(self: ast.ArrayTypeAnnotation,
-                                ctx: DeduceCtx) -> ConcreteType:
-  """Deduces the concrete type of an Array type annotation."""
-  dim = _dim_to_parametric_or_int(self, self.dim, ctx)
-  if (isinstance(self.element_type, ast.BuiltinTypeAnnotation) and
-      self.element_type.bits == 0):
-    # No-volume builtin types like bits, uN, and sN.
-    return BitsType(self.element_type.signedness, dim)
-  element_type = deduce(self.element_type, ctx)
-  result = ArrayType(element_type, dim)
-  logging.vlog(4, 'array type annotation: %s => %s', self, result)
-  return result
 
 
 def _concretize_struct_annotation(module: ast.Module,

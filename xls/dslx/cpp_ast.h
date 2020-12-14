@@ -466,6 +466,10 @@ class ConstRef : public NameRef {
   void Accept(ExprVisitor* v) override { v->HandleConstRef(this); }
 
   absl::string_view GetNodeTypeName() const override { return "ConstRef"; }
+
+  // When holding a ConstRef we know that the corresponding NameDef cannot be
+  // builtin (since consts are user constructs).
+  NameDef* name_def() { return absl::get<NameDef*>(NameRef::name_def()); }
 };
 
 enum class NumberKind {
