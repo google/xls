@@ -207,6 +207,7 @@ PYBIND11_MODULE(cpp_deduce, m) {
   DELEGATE_DEDUCE(Match);
   DELEGATE_DEDUCE(Number);
   DELEGATE_DEDUCE(Param);
+  DELEGATE_DEDUCE(SplatStructInstance);
   DELEGATE_DEDUCE(StructDef);
   DELEGATE_DEDUCE(StructInstance);
   DELEGATE_DEDUCE(Ternary);

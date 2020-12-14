@@ -1436,7 +1436,7 @@ class SplatStructInstance : public Expr {
   // The struct being instantiated.
   StructRef struct_ref_;
 
-  // Sequenc eof members being changed from the splatted original; e.g. in the
+  // Sequence of members being changed from the splatted original; e.g. in the
   // above example this is [('y', new_y)].
   std::vector<std::pair<std::string, Expr*>> members_;
 

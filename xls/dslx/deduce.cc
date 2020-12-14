@@ -1149,4 +1149,69 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructInstance(
   return std::move(tab.type);
 }
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSplatStructInstance(
+    SplatStructInstance* node, DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> struct_type_ct,
+                       ctx->Deduce(ToAstNode(node->struct_ref())));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> splatted_type_ct,
+                       ctx->Deduce(node->splatted()));
+
+  TupleType* struct_type = dynamic_cast<TupleType*>(struct_type_ct.get());
+  TupleType* splatted_type = dynamic_cast<TupleType*>(splatted_type_ct.get());
+
+  // TODO(leary): 2020-12-13 Create a test case that hits this assertion, this
+  // is a type error users can make.
+  XLS_RET_CHECK(struct_type != nullptr);
+  XLS_RET_CHECK(splatted_type != nullptr);
+  if (struct_type->nominal_type() != splatted_type->nominal_type()) {
+    return XlsTypeErrorStatus(
+        node->span(), *struct_type, *splatted_type,
+        absl::StrFormat("Attempting to fill values in '%s' instantiation from "
+                        "a value of type '%s'",
+                        struct_type->nominal_type()->identifier(),
+                        splatted_type->nominal_type()->identifier()));
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      ValidatedStructMembers validated,
+      ValidateStructMembersSubset(node->members(), *struct_type,
+                                  StructRefToText(node->struct_ref()), ctx));
+
+  XLS_ASSIGN_OR_RETURN(std::vector<std::string> all_names,
+                       struct_type->GetMemberNames());
+  XLS_VLOG(5) << "SplatStructInstance @ " << node->span() << " seen names: ["
+              << absl::StrJoin(validated.seen_names, ", ") << "] "
+              << " all names: [" << absl::StrJoin(all_names, ", ") << "]";
+
+  for (const std::string& name : all_names) {
+    if (!validated.seen_names.contains(name)) {
+      const ConcreteType& splatted_member_type =
+          *splatted_type->GetMemberTypeByName(name).value();
+      const ConcreteType& struct_member_type =
+          *struct_type->GetMemberTypeByName(name).value();
+
+      validated.arg_types.push_back(splatted_member_type.CloneToUnique());
+      validated.member_types.push_back(struct_member_type.CloneToUnique());
+    }
+  }
+
+  // At this point, we should have the same number of args compared to the
+  // number of members defined in the struct.
+  XLS_RET_CHECK_EQ(validated.arg_types.size(), validated.member_types.size());
+
+  StructRef struct_ref = node->struct_ref();
+  XLS_ASSIGN_OR_RETURN(
+      StructDef * struct_def,
+      DerefToStruct(node->span(), struct_ref, ToTypeDefinition(struct_ref),
+                    ctx->type_info().get()));
+
+  XLS_ASSIGN_OR_RETURN(
+      TypeAndBindings tab,
+      InstantiateStruct(node->span(), *struct_type, validated.arg_types,
+                        validated.member_types, ctx,
+                        struct_def->parametric_bindings()));
+
+  return std::move(tab.type);
+}
+
 }  // namespace xls::dslx

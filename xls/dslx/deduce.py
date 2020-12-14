@@ -19,7 +19,7 @@
 """Type system deduction rules for AST nodes."""
 
 import typing
-from typing import Union, Callable, Type, Tuple, Set
+from typing import Union, Callable, Type, Tuple
 
 from absl import logging
 
@@ -66,6 +66,7 @@ RULES = {
     ast.Param: cpp_deduce.deduce_Param,
     ast.StructDef: cpp_deduce.deduce_StructDef,
     ast.StructInstance: cpp_deduce.deduce_StructInstance,
+    ast.SplatStructInstance: cpp_deduce.deduce_SplatStructInstance,
     ast.Ternary: cpp_deduce.deduce_Ternary,
     ast.TypeDef: cpp_deduce.deduce_TypeDef,
     ast.TypeRef: cpp_deduce.deduce_TypeRef,
@@ -414,48 +415,6 @@ def _deduce_ArrayTypeAnnotation(self: ast.ArrayTypeAnnotation,
   return result
 
 
-def _validate_struct_members_subset(
-    members: ast_helpers.StructInstanceMembers, struct_type: ConcreteType,
-    struct_text: str, ctx: DeduceCtx
-) -> Tuple[Set[str], Tuple[ConcreteType], Tuple[ConcreteType]]:
-  """Validates a struct instantiation is a subset of members with no dups.
-
-  Args:
-    members: Sequence of members used in instantiation. Note this may be a
-      subset; e.g. in the case of splat instantiation.
-    struct_type: The deduced type for the struct (instantiation).
-    struct_text: Display name to use for the struct in case of an error.
-    ctx: Wrapper containing node to type mapping context.
-
-  Returns:
-    A tuple containing the set of struct member names that were instantiated,
-    the ConcreteTypes of the provided arguments, and the ConcreteTypes of the
-    corresponding struct member definition.
-  """
-  assert isinstance(struct_type, TupleType), struct_type
-  seen_names = set()
-  arg_types = []
-  member_types = []
-  for k, v in members:
-    if k in seen_names:
-      raise TypeInferenceError(
-          v.span, None,
-          'Duplicate value seen for {!r} in this {!r} struct instance.'.format(
-              k, struct_text))
-    seen_names.add(k)
-    expr_type = cpp_deduce.resolve(deduce(v, ctx), ctx)
-    arg_types.append(expr_type)
-    try:
-      member_type = struct_type.get_member_type_by_name(k)
-      member_types.append(member_type)
-    except KeyError:
-      raise TypeInferenceError(
-          v.span, None, f'Struct {struct_text!r} has no member {k!r}, '
-          'but it was provided by this instance.')
-
-  return seen_names, tuple(arg_types), tuple(member_types)
-
-
 def _concretize_struct_annotation(module: ast.Module,
                                   type_annotation: ast.TypeRefTypeAnnotation,
                                   struct: ast.StructDef,
@@ -510,54 +469,6 @@ def _get_imported_module_via_type_info(
     import_: ast.Import, type_info: TypeInfo) -> Tuple[ast.Module, TypeInfo]:
   """Uses type_info to retrieve the corresponding module of a ColonRef."""
   return type_info.get_imported(import_)
-
-
-@_rule(ast.SplatStructInstance)
-def _deduce_SplatStructInstance(
-    self: ast.SplatStructInstance, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  """Deduces the type of the struct instantiation expression and its members."""
-  struct_type = deduce(self.struct, ctx)
-  splatted_type = deduce(self.splatted, ctx)
-
-  assert isinstance(struct_type, TupleType), struct_type
-  assert isinstance(splatted_type, TupleType), splatted_type
-
-  # We will make sure this splat typechecks during instantiation. Let's just
-  # ensure the same number of elements for now.
-  assert len(struct_type.tuple_names) == len(splatted_type.tuple_names)
-
-  (seen_names, seen_arg_types,
-   seen_member_types) = _validate_struct_members_subset(self.members,
-                                                        struct_type,
-                                                        self.struct_text, ctx)
-
-  arg_types = list(seen_arg_types)
-  member_types = list(seen_member_types)
-  for m in struct_type.tuple_names:
-    if m not in seen_names:
-      splatted_member_type = splatted_type.get_member_type_by_name(m)
-      struct_member_type = struct_type.get_member_type_by_name(m)
-
-      arg_types.append(splatted_member_type)
-      member_types.append(struct_member_type)
-
-  # At this point, we should have the same number of args compared to the
-  # number of members defined in the struct.
-  assert len(arg_types) == len(member_types)
-
-  struct_def = self.struct
-  if not isinstance(struct_def, ast.StructDef):
-    # Traverse TypeDefs and ColonRefs until we get the struct AST node.
-    struct_def = ast_helpers.evaluate_to_struct_or_enum_or_annotation(
-        struct_def, _get_imported_module_via_type_info, ctx.type_info)
-
-  assert isinstance(struct_def, ast.StructDef), struct_def
-
-  resolved_struct_type, _ = parametric_instantiator.instantiate_struct(
-      self.span, struct_type, tuple(arg_types), tuple(member_types), ctx,
-      struct_def.parametric_bindings)
-
-  return resolved_struct_type
 
 
 def _deduce(n: ast.AstNode, ctx: DeduceCtx) -> ConcreteType:
