@@ -133,6 +133,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWhile(While* node,
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCarry(Carry* node,
                                                           DeduceCtx* ctx);
 
+// See Invocation in the AST.
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
+                                                               DeduceCtx* ctx);
+
 // Resolves "type_" via provided symbolic bindings.
 //
 // Uses the symbolic bindings of the function we're currently inside of to

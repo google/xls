@@ -915,6 +915,11 @@ class ParametricBinding : public AstNode {
                     Expr* expr)
       : AstNode(owner), name_def_(name_def), type_(type), expr_(expr) {}
 
+  // Creates a cloned version of this ParametricBinding with the given new_expr
+  // replacing this' `expr_`. (The owner() is the same, and used for
+  // allocation.)
+  ParametricBinding* Clone(Expr* new_expr) const;
+
   // TODO(leary): 2020-08-21 Fix this, the span is more than just the name def's
   // span, it must include the type/expr.
   const Span& span() const { return name_def_->span(); }
@@ -1005,7 +1010,7 @@ class Function : public AstNode {
   const std::vector<ParametricBinding*>& parametric_bindings() const {
     return parametric_bindings_;
   }
-  bool is_parametric() const { return !parametric_bindings_.empty(); }
+  bool IsParametric() const { return !parametric_bindings_.empty(); }
   bool is_public() const { return is_public_; }
 
   TypeAnnotation* return_type() const { return return_type_; }
@@ -1158,6 +1163,12 @@ class Invocation : public Expr {
   const std::vector<std::pair<std::string, int64>> symbolic_bindings() const {
     return symbolic_bindings_;
   }
+
+  // Any parametric expressions given in this invocation; e.g. in:
+  //
+  //    f<a, b, c>()
+  //
+  // The expressions a, b, c would be in this sequence.
   const std::vector<Expr*>& parametrics() const { return parametrics_; }
 
  private:

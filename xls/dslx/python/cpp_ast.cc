@@ -838,7 +838,7 @@ PYBIND11_MODULE(cpp_ast, m) {
              return std::unordered_set<std::string>(keys.begin(), keys.end());
            })
       .def("is_parametric",
-           [](FunctionHolder self) { return self.deref().is_parametric(); })
+           [](FunctionHolder self) { return self.deref().IsParametric(); })
       .def("is_public",
            [](FunctionHolder self) { return self.deref().is_public(); })
       .def_property_readonly(

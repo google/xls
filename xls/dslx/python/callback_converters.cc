@@ -18,19 +18,9 @@
 
 namespace xls::dslx {
 
-static absl::Status ConvertException(std::exception& e, const char* caller) {
-  absl::string_view message = e.what();
-  XLS_VLOG(5) << "Caught exception from " << caller << "; message: \""
-              << message.substr(0, 16) << "\"";
-  if (absl::ConsumePrefix(&message, "KeyError: ")) {
-    XLS_VLOG(5) << "Converted exception to NotFoundError";
-    return absl::NotFoundError(message);
-  }
-  // Note: normally we would throw a Python positional error, but
-  // since this is a somewhat rare condition and everything is being
-  // ported to C++ we don't do the super-nice thing and instead throw
-  // a status error if you have a typecheck-failure-under-import.
-  return absl::InternalError(e.what());
+static absl::Status ConvertToTypeMissingStatus(absl::string_view message) {
+  auto [node, user] = ParseTypeMissingErrorMessage(message);
+  return TypeMissingErrorStatus(node, user);
 }
 
 TypecheckFn ToCppTypecheck(const PyTypecheckFn& py_typecheck) {
@@ -44,9 +34,9 @@ TypecheckFn ToCppTypecheck(const PyTypecheckFn& py_typecheck) {
     try {
       return py_typecheck(holder);
     } catch (pybind11::error_already_set& e) {
+      // Indicates exception was thrown from Python land. We just throw through
+      // the calling C++ code, back to Python land.
       throw;
-    } catch (std::exception& e) {
-      return ConvertException(e, "PyTypecheckFn");
     }
   };
 }
@@ -63,9 +53,9 @@ TypecheckFunctionFn ToCppTypecheckFunction(const PyTypecheckFunctionFn& py) {
     try {
       py(holder, ctx);
     } catch (pybind11::error_already_set& e) {
+      // Indicates exception was thrown from Python land. We just throw through
+      // the calling C++ code, back to Python land.
       throw;
-    } catch (std::exception& e) {
-      return ConvertException(e, "PyTypecheckFunctionFn");
     }
     return absl::OkStatus();
   };
@@ -81,9 +71,18 @@ DeduceFn ToCppDeduce(const PyDeduceFn& py) {
       pybind11::object retval = py(holder, ctx);
       return pybind11::cast<ConcreteType*>(*retval)->CloneToUnique();
     } catch (pybind11::error_already_set& e) {
+      // Indicates exception was thrown from Python land. This is the one place
+      // we trap an exception thrown from Python land into a
+      // TypeMissingErrorStatus -- some deduction rules want to trap these and
+      // annotate which node was the user of the node who had their type missing
+      // (e.g. for invocation nodes marking they wanted a parametric
+      // instantiation).
+      if (std::string(pybind11::str(e.type().attr("__name__"))) ==
+          "TypeMissingError") {
+        return ConvertToTypeMissingStatus(
+            std::string(pybind11::str(e.value())));
+      }
       throw;
-    } catch (std::exception& e) {
-      return ConvertException(e, "PyDeduceFn");
     }
   };
 }

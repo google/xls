@@ -48,8 +48,13 @@ class TypecheckTest(test_base.TestCase):
     """
     filename = '/fake/test_module.x'
     with fakefs_test_util.scoped_fakefs(filename, text):
-      m = parser_helpers.parse_text(
-          text, 'test_module', print_on_error=True, filename=filename)
+      try:
+        m = parser_helpers.parse_text(
+            text, 'test_module', print_on_error=True, filename=filename)
+      except cpp_parser.CppParseError as e:
+        parser_helpers.pprint_positional_error(e)
+        raise
+
       if error:
         with self.assertRaises(error_type) as cm:
           typecheck.check_module(m, f_import=None)
@@ -171,6 +176,15 @@ class TypecheckTest(test_base.TestCase):
         error='Recursion detected while typechecking',
         error_type=XlsError)
 
+  def test_typecheck_parametric_too_many_explicit_supplied(self):
+    self._typecheck(
+        """
+    fn id<X: u32>(x: bits[X]) -> bits[X] { x }
+    fn main() -> u32 { id<u32:32, u32:64>(u32:5) }
+    """,
+        error='Too many parametric values supplied; limit: 1 given: 2',
+        error_type=ArgCountMismatchError)
+
   def test_typecheck_parametric_recursion_causes_error(self):
     self._typecheck(
         """
@@ -290,8 +304,8 @@ fn f(x: u32) -> (u32, u8) {
 
   def test_parametric_instantiation_vs_body_ok(self):
     self._typecheck("""
-    fn foo<X: u32 = u32: 5>() -> bits[5] { bits[X]: 1 + bits[5]: 1 }
-    fn bar() -> bits[5] { foo() }
+    fn parametric<X: u32 = u32:5>() -> bits[5] { bits[X]:1 + bits[5]:1 }
+    fn main() -> bits[5] { parametric() }
         """)
 
   def test_parametric_instantiation_vs_body_error(self):
@@ -304,8 +318,8 @@ fn f(x: u32) -> (u32, u8) {
 
   def test_parametric_instantiation_vs_return_ok(self):
     self._typecheck("""
-    fn foo<X: u32 = u32: 5>() -> bits[5] { bits[X]: 1 }
-    fn bar() -> bits[5] { foo() }
+    fn parametric<X: u32 = u32: 5>() -> bits[5] { bits[X]: 1 }
+    fn main() -> bits[5] { parametric() }
         """)
 
   def test_parametric_instantiation_vs_return_error(self):

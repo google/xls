@@ -15,13 +15,17 @@
 #include "xls/dslx/deduce.h"
 
 #include "absl/container/btree_set.h"
+#include "absl/strings/match.h"
 #include "xls/dslx/cpp_parametric_instantiator.h"
+#include "xls/dslx/cpp_scanner.h"
 
 namespace xls::dslx {
 
 absl::Status CheckBitwidth(const Number& number, const ConcreteType& type) {
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim bits_dim, type.GetTotalBitCount());
-  XLS_RET_CHECK(absl::holds_alternative<int64>(bits_dim.value()));
+  XLS_RET_CHECK(absl::holds_alternative<int64>(bits_dim.value()))
+      << bits_dim.ToString() << " within " << number.ToString() << " @ "
+      << number.span();
   int64 bit_count = absl::get<int64>(bits_dim.value());
   absl::StatusOr<Bits> bits = number.GetBits(bit_count);
   if (!bits.ok()) {
@@ -614,19 +618,20 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRefImport(
     if (!imported_type_info->Contains(function->name_def())) {
       XLS_VLOG(2) << "Function name not in imported_type_info; indicates it is "
                      "parametric.";
-      XLS_RET_CHECK(function->is_parametric());
+      XLS_RET_CHECK(function->IsParametric());
       // We don't type check parametric functions until invocations.
       // Let's typecheck this imported parametric function with respect to its
       // module (this will only get the type signature, the body gets
       // typechecked after parametric instantiation).
-      DeduceCtx imported_ctx =
+      std::shared_ptr<DeduceCtx> imported_ctx =
           ctx->MakeCtx(imported_type_info, imported_module);
       const FnStackEntry& peek_entry = ctx->fn_stack().back();
-      imported_ctx.fn_stack().push_back(
+      imported_ctx->fn_stack().push_back(
           FnStackEntry{peek_entry.name, peek_entry.symbolic_bindings});
-      XLS_RETURN_IF_ERROR(ctx->typecheck_function()(function, &imported_ctx));
-      ctx->type_info()->Update(*imported_ctx.type_info());
-      imported_type_info = imported_ctx.type_info();
+      XLS_RETURN_IF_ERROR(
+          ctx->typecheck_function()(function, imported_ctx.get()));
+      ctx->type_info()->Update(*imported_ctx->type_info());
+      imported_type_info = imported_ctx->type_info();
     }
   }
 
@@ -1420,6 +1425,329 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWhile(While* node,
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCarry(Carry* node,
                                                           DeduceCtx* ctx) {
   return ctx->Deduce(node->loop()->init());
+}
+
+// Checks the parametric function body using the invocation's symbolic bindings.
+static absl::Status CheckParametricInvocation(
+    Function* parametric_fn, Invocation* invocation,
+    const SymbolicBindings& symbolic_bindings, DeduceCtx* ctx) {
+  if (auto* colon_ref = dynamic_cast<ColonRef*>(invocation->callee())) {
+    // We need to typecheck this function with respect to its own module.
+
+    if (ctx->type_info()->HasInstantiation(invocation, symbolic_bindings)) {
+      return absl::OkStatus();
+    }
+
+    ColonRef::Subject subject = colon_ref->subject();
+    // TODO(leary): 2020-12-14 Seems possible to violate this assertion? Attempt
+    // to make a test that hits it.
+    XLS_RET_CHECK(absl::holds_alternative<NameRef*>(subject));
+    auto* subject_name_ref = absl::get<NameRef*>(subject);
+    AstNode* definer =
+        absl::get<NameDef*>(subject_name_ref->name_def())->definer();
+    auto* import_node = dynamic_cast<Import*>(definer);
+    XLS_RET_CHECK(import_node != nullptr);
+    absl::optional<const ImportedInfo*> imported =
+        ctx->type_info()->GetImported(import_node);
+    XLS_RET_CHECK(imported.has_value());
+    auto invocation_imported_type_info = std::make_shared<TypeInfo>(
+        (*imported)->module, /*parent=*/(*imported)->type_info);
+    std::shared_ptr<DeduceCtx> imported_ctx =
+        ctx->MakeCtx(invocation_imported_type_info, (*imported)->module);
+    imported_ctx->fn_stack().push_back(
+        FnStackEntry{parametric_fn->identifier(), symbolic_bindings});
+
+    XLS_VLOG(5) << "Typechecking parametric function: "
+                << parametric_fn->identifier() << " via " << symbolic_bindings;
+
+    // Use typecheck_function callback to do this, in case we run into more
+    // dependencies in that module.
+    XLS_RETURN_IF_ERROR(
+        ctx->typecheck_function()(parametric_fn, imported_ctx.get()));
+
+    ctx->type_info()->AddInstantiation(invocation, symbolic_bindings,
+                                       invocation_imported_type_info);
+    return absl::OkStatus();
+  }
+
+  auto* name_ref = dynamic_cast<NameRef*>(invocation->callee());
+  if (ctx->type_info()->HasInstantiation(invocation, symbolic_bindings)) {
+    // If we've already typechecked the parametric function with the current
+    // symbolic bindings, no need to do it again.
+    return absl::OkStatus();
+  }
+
+  if (!ctx->type_info()->Contains(parametric_fn->body())) {
+    // Typecheck this parametric function using the symbolic bindings we just
+    // derived to make sure they check out ok.
+    AstNode* type_missing_error_node = ToAstNode(name_ref->name_def());
+    ctx->fn_stack().push_back(
+        FnStackEntry{parametric_fn->identifier(), symbolic_bindings});
+    ctx->AddDerivedTypeInfo();
+    XLS_VLOG(5) << "Throwing to typecheck parametric function: "
+                << parametric_fn->identifier() << " via " << symbolic_bindings;
+    return TypeMissingErrorStatus(type_missing_error_node, nullptr);
+  }
+
+  // If we haven't yet stored a type_info for these symbolic bindings and
+  // we're at this point, it means we've just finished typechecking the
+  // parametric function. Let's store the results.
+  ctx->type_info()->parent()->AddInstantiation(invocation, symbolic_bindings,
+                                               ctx->type_info());
+  XLS_RETURN_IF_ERROR(ctx->PopDerivedTypeInfo());
+  return absl::OkStatus();
+}
+
+// Creates a function invocation on the first element of the given array.
+//
+// We need to create a fake invocation to deduce the type of a function
+// in the case where map is called with a builtin as the map function. Normally,
+// map functions (including parametric ones) have their types deduced when their
+// ast.Function nodes are encountered (where a similar fake ast.Invocation node
+// is created).
+//
+// Builtins don't have ast.Function nodes, so that inference can't occur, so we
+// essentually perform that synthesis and deduction here.
+//
+// Args:
+//   module: AST node owner.
+//   span_: The location in the code where analysis is occurring.
+//   callee: The function to be invoked.
+//   arg_array: The array of arguments (at least one) to the function.
+//
+// Returns:
+//   An invocation node for the given function when called with an element in
+//   the argument array.
+static Invocation* CreateElementInvocation(Module* module, const Span& span,
+                                           NameRef* callee, Expr* arg_array) {
+  auto* annotation =
+      module->Make<BuiltinTypeAnnotation>(span, BuiltinType::kU32);
+  auto* index_number =
+      module->Make<Number>(span, "32", NumberKind::kOther, annotation);
+  auto* index = module->Make<Index>(span, arg_array, index_number);
+  return module->Make<Invocation>(span, callee, std::vector<Expr*>{index});
+}
+
+// Returns the names of all the builtin functions that are parametric (as a
+// singleton set).
+static const absl::flat_hash_set<std::string>& GetParametricBuiltinNames() {
+  static const auto* set = new absl::flat_hash_set<std::string>{
+      "add_with_carry",
+      "assert_eq",
+      "assert_lt",
+      "bit_slice",
+      "clz",
+      "ctz",
+      "concat",
+      "fail!",
+      "map",
+      "one_hot",
+      "one_hot_sel",
+      "rev",
+      "select",
+      // Bitwise reduction ops.
+      "and_reduce",
+      "or_reduce",
+      "xor_reduce",
+      // Signed comparisons.
+      "sge",
+      "sgt",
+      "sle",
+      "slt",
+      // Use a dummy value to determine size.
+      "signex",
+      "slice",
+      "trace",
+      "update",
+      "enumerate",
+      // Require-const-argument.
+      "range",
+  };
+  return *set;
+}
+
+static bool IsTypeMissingErrorStatus(const absl::Status& status) {
+  return !status.ok() &&
+         absl::StartsWith(status.message(), "TypeMissingError:");
+}
+
+// Updates the "user" field of the given TypeMissingError status, and returns
+// the new (updated) status.
+static absl::Status TypeMissingErrorStatusUpdateUser(const absl::Status& status,
+                                                     const Span& span,
+                                                     AstNode* new_user) {
+  auto [node, user] = ParseTypeMissingErrorMessage(status.message());
+  auto result = TypeMissingErrorStatus(node, new_user);
+  XLS_VLOG(5) << "Updated from " << status << " to " << result;
+  return result;
+}
+
+// Resolves "ref" to an AST function.
+static absl::StatusOr<Function*> ResolveColonRefToFn(ColonRef* ref,
+                                                     DeduceCtx* ctx) {
+  XLS_RET_CHECK(absl::holds_alternative<NameRef*>(ref->subject()));
+  auto* name_ref = absl::get<NameRef*>(ref->subject());
+  XLS_RET_CHECK(absl::holds_alternative<NameDef*>(name_ref->name_def()));
+  auto* name_def = absl::get<NameDef*>(name_ref->name_def());
+  AstNode* definer = name_def->definer();
+  Import* import = dynamic_cast<Import*>(definer);
+  XLS_RET_CHECK(import != nullptr);
+  absl::optional<const ImportedInfo*> imported_info =
+      ctx->type_info()->GetImported(import);
+  return imported_info.value()->module->GetFunction(ref->attr());
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
+                                                               DeduceCtx* ctx) {
+  const SymbolicBindings& caller_symbolic_bindings =
+      ctx->fn_stack().back().symbolic_bindings;
+  XLS_VLOG(5) << "Deducing type for invocation: " << node->ToString()
+              << " caller symbolic bindings: " << caller_symbolic_bindings;
+
+  std::vector<std::unique_ptr<ConcreteType>> arg_types;
+  for (Expr* arg : node->args()) {
+    absl::StatusOr<std::unique_ptr<ConcreteType>> type =
+        DeduceAndResolve(arg, ctx);
+    if (IsTypeMissingErrorStatus(type.status())) {
+      auto* callee_name_ref = dynamic_cast<NameRef*>(node->callee());
+      auto* arg_name_ref = dynamic_cast<NameRef*>(arg);
+      // TODO(leary): 2020-12-13 This is not very general, but right now there's
+      // not a way to write a custom higher order function (e.g. that wraps
+      // 'map'), so it may be reasonably workable.
+      bool callee_is_map =
+          callee_name_ref != nullptr && callee_name_ref->identifier() == "map";
+      bool arg_is_builtin_parametric =
+          arg_name_ref != nullptr &&
+          absl::holds_alternative<BuiltinNameDef*>(arg_name_ref->name_def()) &&
+          GetParametricBuiltinNames().contains(arg_name_ref->identifier());
+      if (callee_is_map && arg_is_builtin_parametric) {
+        Invocation* invocation = CreateElementInvocation(
+            ctx->module().get(), node->span(), arg_name_ref, node->args()[0]);
+        XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> invocation_type,
+                             DeduceAndResolve(invocation, ctx));
+        arg_types.push_back(std::move(invocation_type));
+      } else {
+        return type.status();
+      }
+    } else {
+      arg_types.push_back(std::move(type).value());
+    }
+  }
+
+  // This will get us the type signature of the function. If the function is
+  // parametric, we won't check its body until after we have symbolic bindings
+  // for it.
+  absl::StatusOr<std::unique_ptr<ConcreteType>> callee_type_or =
+      ctx->Deduce(node->callee());
+  if (IsTypeMissingErrorStatus(callee_type_or.status())) {
+    XLS_VLOG(5) << "TypeMissingError status: " << callee_type_or.status();
+    return TypeMissingErrorStatusUpdateUser(callee_type_or.status(),
+                                            node->span(), node);
+  }
+
+  FunctionType* callee_type =
+      dynamic_cast<FunctionType*>(callee_type_or.value().get());
+  if (callee_type == nullptr) {
+    return TypeInferenceErrorStatus(node->callee()->span(), callee_type,
+                                    "Callee does not have a function type.");
+  }
+
+  Expr* callee = node->callee();
+  std::string callee_name;
+  Function* callee_fn;
+  if (auto* colon_ref = dynamic_cast<ColonRef*>(callee)) {
+    XLS_ASSIGN_OR_RETURN(callee_fn, ResolveColonRefToFn(colon_ref, ctx));
+    callee_name = callee_fn->identifier();
+  } else {
+    auto* name_ref = dynamic_cast<NameRef*>(callee);
+    XLS_RET_CHECK(name_ref != nullptr);
+    callee_name = name_ref->identifier();
+    XLS_ASSIGN_OR_RETURN(callee_fn, ctx->module()->GetFunction(callee_name));
+  }
+
+  // We need to deduce the type of all Invocation parametrics so they're in the
+  // type cache.
+  for (Expr* parametric : node->parametrics()) {
+    XLS_RETURN_IF_ERROR(ctx->Deduce(parametric).status());
+  }
+
+  if (node->parametrics().size() > callee_fn->parametric_bindings().size()) {
+    return ArgCountMismatchErrorStatus(
+        node->span(),
+        absl::StrFormat(
+            "Too many parametric values supplied; limit: %d given: %d",
+            callee_fn->parametric_bindings().size(),
+            node->parametrics().size()));
+  }
+
+  // Create new parametric bindings that capture the constraints from the
+  // specified parametrics.
+  std::vector<ParametricBinding*> new_bindings;
+  for (int64 i = 0; i < node->parametrics().size(); ++i) {
+    ParametricBinding* binding = callee_fn->parametric_bindings()[i];
+    Expr* value = node->parametrics()[i];
+
+    XLS_VLOG(5) << "Populating callee parametric " << binding->ToString()
+                << " via invocation expression: " << value->ToString();
+
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> binding_type,
+                         ctx->Deduce(binding->type()));
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> value_type,
+                         ctx->Deduce(value));
+    if (*binding_type != *value_type) {
+      return XlsTypeErrorStatus(node->callee()->span(), *binding_type,
+                                *value_type,
+                                "Explicit parametric type mismatch.");
+    }
+    ParametricBinding* new_binding = binding->Clone(value);
+    new_bindings.push_back(new_binding);
+  }
+
+  // The bindings that were not explicitly filled by the caller are taken from
+  // the callee directly; e.g. if caller invokes as `parametric()` it supplies
+  // 0 parmetrics directly, but callee may have:
+  //
+  //    `fn parametric<N: u32 = 5>() { ... }`
+  //
+  // and thus needs the `N: u32 = 5` to be filled here.
+  for (ParametricBinding* remaining_binding :
+       absl::MakeSpan(callee_fn->parametric_bindings())
+           .subspan(node->parametrics().size())) {
+    new_bindings.push_back(remaining_binding);
+  }
+
+  absl::flat_hash_map<std::string, int64> caller_symbolic_bindings_map =
+      caller_symbolic_bindings.ToMap();
+
+  // Map resolved parametrics from the caller's context onto the corresponding
+  // symbols in the callee's.
+  absl::flat_hash_map<std::string, int64> explicit_bindings;
+  for (ParametricBinding* new_binding : new_bindings) {
+    if (auto* name_ref = dynamic_cast<NameRef*>(new_binding->expr());
+        name_ref != nullptr &&
+        caller_symbolic_bindings_map.contains(name_ref->identifier())) {
+      explicit_bindings[new_binding->name_def()->identifier()] =
+          caller_symbolic_bindings_map[name_ref->identifier()];
+    }
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      TypeAndBindings tab,
+      InstantiateFunction(node->span(), *callee_type, arg_types, ctx,
+                          new_bindings, &explicit_bindings));
+  const SymbolicBindings& callee_symbolic_bindings = tab.symbolic_bindings;
+
+  ctx->type_info()->AddInvocationSymbolicBindings(
+      node, caller_symbolic_bindings, callee_symbolic_bindings);
+
+  if (callee_fn->IsParametric()) {
+    // Now that we have callee_symbolic_bindings, let's use them to typecheck
+    // the body of callee_fn to make sure these values actually work.
+    XLS_RETURN_IF_ERROR(CheckParametricInvocation(
+        callee_fn, node, callee_symbolic_bindings, ctx));
+  }
+
+  return std::move(tab.type);
 }
 
 }  // namespace xls::dslx

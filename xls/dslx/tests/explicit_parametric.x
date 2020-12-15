@@ -31,7 +31,7 @@ pub fn instantiates_indirect_foo(a: bits[16]) -> Generic<u32:16, u32:8> {
 }
 
 pub fn parameterized_zero<C:u32, D:u32>(x: bits[C]) -> Generic<C, D> {
-  Generic<C, D>{ a: bits[C]:0, b:bits[D]:1 }
+  Generic<C, D>{ a: bits[C]:0, b: bits[D]:1 }
 }
 
 pub fn two_param_indirect<E:u32, F:u32>(value: bits[E]) -> Generic<E, F> {

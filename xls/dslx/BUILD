@@ -843,7 +843,9 @@ cc_library(
         ":cpp_concrete_type",
         ":import_routines",
         ":interp_bindings",
+        "//xls/common:string_to_int",
         "//xls/common/status:ret_check",
+        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -859,11 +861,13 @@ cc_library(
     deps = [
         ":cpp_concrete_type",
         ":cpp_parametric_instantiator",
+        ":cpp_scanner",
         ":deduce_ctx",
         ":import_routines",
         ":interp_bindings",
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/strings",
     ],
 )
 

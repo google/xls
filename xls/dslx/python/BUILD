@@ -47,6 +47,7 @@ cc_library(
         "//xls/common:string_to_int",
         "//xls/dslx:cpp_bindings",
         "//xls/dslx:cpp_concrete_type",
+        "//xls/dslx:deduce_ctx",
         "@pybind11",
     ],
 )

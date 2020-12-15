@@ -185,6 +185,10 @@ std::string BinopKindFormat(BinopKind kind) {
   return absl::StrFormat("<invalid BinopKind(%d)>", static_cast<int>(kind));
 }
 
+ParametricBinding* ParametricBinding::Clone(Expr* new_expr) const {
+  return owner()->Make<ParametricBinding>(name_def_, type_, new_expr);
+}
+
 std::string MatchArm::ToString() const {
   std::string patterns_or = absl::StrJoin(
       patterns_, " | ", [](std::string* out, NameDefTree* name_def_tree) {

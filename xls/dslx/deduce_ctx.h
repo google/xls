@@ -26,6 +26,9 @@ namespace xls::dslx {
 struct FnStackEntry {
   std::string name;
   SymbolicBindings symbolic_bindings;
+
+  // Represents a "representation" string for use in debugging, as in Python.
+  std::string ToReprString() const;
 };
 
 class DeduceCtx;  // Forward decl.
@@ -57,10 +60,12 @@ class DeduceCtx : public std::enable_shared_from_this<DeduceCtx> {
   // Uses the same callbacks as this current context.
   //
   // Note that the resulting DeduceCtx has an empty fn_stack.
-  DeduceCtx MakeCtx(const std::shared_ptr<TypeInfo>& new_type_info,
-                    const std::shared_ptr<Module>& new_module) const {
-    return DeduceCtx(new_type_info, new_module, deduce_function_,
-                     typecheck_function_, typecheck_module_, import_cache_);
+  std::shared_ptr<DeduceCtx> MakeCtx(
+      const std::shared_ptr<TypeInfo>& new_type_info,
+      const std::shared_ptr<Module>& new_module) const {
+    return std::make_shared<DeduceCtx>(new_type_info, new_module,
+                                       deduce_function_, typecheck_function_,
+                                       typecheck_module_, import_cache_);
   }
 
   // Helper that calls back to the top-level deduce procedure for the given
@@ -155,6 +160,22 @@ absl::Status TypeInferenceErrorStatus(const Span& span,
 absl::Status XlsTypeErrorStatus(const Span& span, const ConcreteType& lhs,
                                 const ConcreteType& rhs,
                                 absl::string_view message);
+
+// Parses the AST node values out of the TypeMissingError message.
+//
+// TODO(leary): 2020-12-14 This is totally horrific (laundering these pointer
+// values through Statuses that get thrown as Python exceptions), but it will
+// get us through the port...
+std::pair<AstNode*, AstNode*> ParseTypeMissingErrorMessage(absl::string_view s);
+
+// Creates a TypeMissingError status value referencing the given node (which has
+// its type missing) and user (which found that its type was missing). User will
+// often be null at the start, and the using deduction rule will later populate
+// it into an updated status.
+absl::Status TypeMissingErrorStatus(AstNode* node, AstNode* user);
+
+absl::Status ArgCountMismatchErrorStatus(const Span& span,
+                                         absl::string_view message);
 
 }  // namespace xls::dslx
 

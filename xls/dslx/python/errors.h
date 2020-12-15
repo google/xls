@@ -21,6 +21,7 @@
 #include "xls/common/string_to_int.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/cpp_bindings.h"
+#include "xls/dslx/deduce_ctx.h"
 
 namespace xls::dslx {
 
@@ -259,17 +260,7 @@ inline void TryThrowTypeMissingError(const absl::Status& status) {
   absl::string_view s = status.message();
   if (status.code() == absl::StatusCode::kInternal &&
       absl::ConsumePrefix(&s, "TypeMissingError: ")) {
-    std::vector<absl::string_view> pieces =
-        absl::StrSplit(s, absl::MaxSplits(" ", 2));
-    XLS_CHECK_EQ(pieces.size(), 3);
-    int64 node = 0;
-    if (pieces[0] != "(nil)") {
-      node = StrTo64Base(pieces[0], 16).value();
-    }
-    int64 user = 0;
-    if (pieces[1] != "(nil)") {
-      user = StrTo64Base(pieces[1], 16).value();
-    }
+    auto [node, user] = ParseTypeMissingErrorMessage(s);
     throw TypeMissingError(absl::bit_cast<AstNode*>(node),
                            absl::bit_cast<AstNode*>(user));
   }

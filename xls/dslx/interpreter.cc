@@ -107,7 +107,7 @@ Interpreter::Interpreter(Module* module,
 absl::StatusOr<InterpValue> Interpreter::RunFunction(
     absl::string_view name, absl::Span<const InterpValue> args) {
   XLS_ASSIGN_OR_RETURN(Function * f, module_->GetFunction(name));
-  XLS_RET_CHECK(!f->is_parametric());
+  XLS_RET_CHECK(!f->IsParametric());
   Pos fake_pos("<fake>", 0, 0);
   Span fake_span(fake_pos, fake_pos);
   SymbolicBindings symbolic_bindings;

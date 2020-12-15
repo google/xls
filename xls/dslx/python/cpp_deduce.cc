@@ -36,6 +36,7 @@ PYBIND11_MODULE(cpp_deduce, m) {
   ImportStatusModule();
 
   py::class_<FnStackEntry>(m, "FnStackEntry")
+      .def("__repr__", &FnStackEntry::ToReprString)
       .def_property_readonly(
           "name", [](const FnStackEntry& entry) { return entry.name; })
       .def_property_readonly(
@@ -190,6 +191,7 @@ PYBIND11_MODULE(cpp_deduce, m) {
     TryThrowXlsTypeError(statusor.status());                         \
     TryThrowKeyError(statusor.status());                             \
     TryThrowTypeMissingError(statusor.status());                     \
+    TryThrowArgCountMismatchError(statusor.status());                \
     return statusor;                                                 \
   })
 
@@ -204,6 +206,7 @@ PYBIND11_MODULE(cpp_deduce, m) {
   DELEGATE_DEDUCE(EnumDef);
   DELEGATE_DEDUCE(For);
   DELEGATE_DEDUCE(Index);
+  DELEGATE_DEDUCE(Invocation);
   DELEGATE_DEDUCE(Let);
   DELEGATE_DEDUCE(Match);
   DELEGATE_DEDUCE(MatchArm);
