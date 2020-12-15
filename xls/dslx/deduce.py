@@ -19,7 +19,7 @@
 """Type system deduction rules for AST nodes."""
 
 import typing
-from typing import Callable, Type
+from typing import Callable
 
 from absl import logging
 
@@ -27,11 +27,10 @@ from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_deduce
 from xls.dslx.python.cpp_concrete_type import ConcreteType
 from xls.dslx.python.cpp_deduce import DeduceCtx
-from xls.dslx.python.cpp_type_info import TypeMissingError
 
 
 # Dictionary used as registry for rule dispatch based on AST node class.
-RULES = {
+_RULES = {
     ast.Array:
         cpp_deduce.deduce_Array,
     ast.Attr:
@@ -46,6 +45,8 @@ RULES = {
         cpp_deduce.deduce_ColonRef,
     ast.Constant:
         cpp_deduce.deduce_ConstantDef,
+    ast.ConstRef:
+        cpp_deduce.deduce_ConstRef,
     ast.ConstantArray:
         cpp_deduce.deduce_ConstantArray,
     ast.EnumDef:
@@ -62,6 +63,8 @@ RULES = {
         cpp_deduce.deduce_Match,
     ast.MatchArm:
         cpp_deduce.deduce_MatchArm,
+    ast.NameRef:
+        cpp_deduce.deduce_NameRef,
     ast.Number:
         cpp_deduce.deduce_Number,
     ast.Param:
@@ -97,36 +100,8 @@ RULES = {
 }
 
 
-RuleFunction = Callable[[ast.AstNode, DeduceCtx], ConcreteType]
-
-
-def _rule(cls: Type[ast.AstNode]):
-  """Decorator for a type inference rule that pertains to class 'cls'."""
-
-  def register(f):
-    # Register the checked function as the rule.
-    RULES[cls] = f
-    return f
-
-  return register
-
-
-@_rule(ast.ConstRef)
-@_rule(ast.NameRef)
-def _deduce_NameRef(self: ast.NameRef, ctx: DeduceCtx) -> ConcreteType:  # pytype: disable=wrong-arg-types
-  """Deduces the concrete type of a NameDef AST node."""
-  try:
-    result = ctx.type_info[self.name_def]
-  except TypeMissingError as e:
-    logging.vlog(3, 'Could not resolve name def: %s', self.name_def)
-    cpp_deduce.type_missing_error_set_span(e, self.span)
-    cpp_deduce.type_missing_error_set_user(e, self)
-    raise
-  return result
-
-
 def _deduce(n: ast.AstNode, ctx: DeduceCtx) -> ConcreteType:
-  f = RULES[n.__class__]
+  f = _RULES[n.__class__]
   f = typing.cast(Callable[[ast.AstNode, DeduceCtx], ConcreteType], f)
   result = f(n, ctx)
   ctx.type_info[n] = result

@@ -1750,4 +1750,20 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
   return std::move(tab.type);
 }
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNameRef(NameRef* node,
+                                                            DeduceCtx* ctx) {
+  AstNode* name_def = ToAstNode(node->name_def());
+  absl::optional<ConcreteType*> item = ctx->type_info()->GetItem(name_def);
+  if (item.has_value()) {
+    return (*item)->CloneToUnique();
+  }
+  return TypeMissingErrorStatus(name_def, node);
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstRef(ConstRef* node,
+                                                             DeduceCtx* ctx) {
+  // ConstRef is a subtype of NameRef, same deduction rule works.
+  return DeduceNameRef(node, ctx);
+}
+
 }  // namespace xls::dslx

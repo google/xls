@@ -36,7 +36,7 @@ from xls.dslx.span import PositionalError
 
 
 def _check_function_params(f: ast.Function,
-                           ctx: deduce.DeduceCtx) -> List[ConcreteType]:
+                           ctx: cpp_deduce.DeduceCtx) -> List[ConcreteType]:
   """Checks the function's parametrics' and arguments' types."""
   for parametric in f.parametric_bindings:
     parametric_binding_type = deduce.deduce(parametric.type_, ctx)
@@ -65,7 +65,7 @@ def _check_function_params(f: ast.Function,
   return param_types
 
 
-def _check_function(f: ast.Function, ctx: deduce.DeduceCtx) -> None:
+def _check_function(f: ast.Function, ctx: cpp_deduce.DeduceCtx) -> None:
   """Validates type annotations on parameters/return type of f are consistent.
 
   Args:
@@ -130,7 +130,7 @@ def _check_function(f: ast.Function, ctx: deduce.DeduceCtx) -> None:
       tuple(param_types), body_return_type)
 
 
-def check_test(t: ast.Test, ctx: deduce.DeduceCtx) -> None:
+def check_test(t: ast.Test, ctx: cpp_deduce.DeduceCtx) -> None:
   """Typechecks a test (body) within a module."""
   body_return_type = deduce.deduce(t.body, ctx)
   nil = ConcreteType.NIL
@@ -144,7 +144,7 @@ def check_test(t: ast.Test, ctx: deduce.DeduceCtx) -> None:
 
 
 def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
-                 ctx: deduce.DeduceCtx) -> Optional[ast.NameDef]:
+                 ctx: cpp_deduce.DeduceCtx) -> Optional[ast.NameDef]:
   """Instantiates a builtin parametric invocation; e.g. 'update'."""
   arg_types = tuple(
       cpp_deduce.resolve(ctx.type_info[arg], ctx) for arg in invocation.args)
@@ -242,7 +242,7 @@ class _TypecheckStackRecord:
 
 
 def check_top_node_in_module(f: Union[ast.Function, ast.Test, ast.StructDef,
-                                      ast.TypeDef], ctx: deduce.DeduceCtx):
+                                      ast.TypeDef], ctx: cpp_deduce.DeduceCtx):
   """Type-checks function f in the given module.
 
   Args:
@@ -304,7 +304,7 @@ def check_top_node_in_module(f: Union[ast.Function, ast.Test, ast.StructDef,
         # more details.
         ctx.pop_fn_stack_entry()
 
-    except deduce.TypeMissingError as e:
+    except type_info.TypeMissingError as e:
       while True:
         fn_name = ctx.peek_fn_stack().name
         if (isinstance(e.node, ast.NameDef) and
@@ -360,8 +360,8 @@ def check_module(module: ast.Module,
   ti = type_info.TypeInfo(module)
   import_cache = None if f_import is None else getattr(f_import, 'cache')
   ftypecheck = functools.partial(check_module, f_import=f_import)
-  ctx = deduce.DeduceCtx(ti, module, deduce.deduce, check_top_node_in_module,
-                         ftypecheck, import_cache)
+  ctx = cpp_deduce.DeduceCtx(ti, module, deduce.deduce,
+                             check_top_node_in_module, ftypecheck, import_cache)
 
   # First populate type_info with constants, enums, and resolved imports.
   ctx.add_fn_stack_entry(

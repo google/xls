@@ -137,6 +137,14 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCarry(Carry* node,
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
                                                                DeduceCtx* ctx);
 
+// See ConstRef in the AST.
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstRef(ConstRef* node,
+                                                             DeduceCtx* ctx);
+
+// See NameRef in the AST.
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNameRef(NameRef* node,
+                                                            DeduceCtx* ctx);
+
 // Resolves "type_" via provided symbolic bindings.
 //
 // Uses the symbolic bindings of the function we're currently inside of to

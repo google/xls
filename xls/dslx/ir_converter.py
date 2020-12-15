@@ -25,7 +25,6 @@ from xls.common.xls_error import XlsError
 from xls.dslx import ast_helpers
 from xls.dslx import bit_helpers
 from xls.dslx import concrete_type_helpers
-from xls.dslx import deduce
 from xls.dslx import dslx_builtins
 from xls.dslx import extract_conversion_order
 from xls.dslx.ir_name_mangler import mangle_dslx_name
@@ -263,7 +262,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
   def _resolve_type(self, node: ast.AstNode) -> ConcreteType:
     try:
       concrete_type = self.type_info[node]
-    except deduce.TypeMissingError:
+    except type_info_mod.TypeMissingError:
       raise ConversionError(
           f'Failed to convert to IR because type was missing for AST node: '
           f'{node} :: {node!r}', ast_helpers.get_span_or_fake(node))
@@ -769,7 +768,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     for name_def in freevars.get_name_defs(self.module):
       try:
         type_ = self.type_info[name_def]
-      except deduce.TypeMissingError:
+      except type_info_mod.TypeMissingError:
         continue
       if isinstance(type_, FunctionType):
         continue
