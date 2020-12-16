@@ -382,7 +382,12 @@ class SampleRunner:
   def _interpret_dslx(self, m: ast.Module, type_info: type_info_mod.TypeInfo,
                       args_batch: sample.ArgsBatch) -> Tuple[Value, ...]:
     """Interprets the DSLX module returns the result Values."""
-    interp = Interpreter(m, type_info, typecheck=None, import_cache=None)
+    interp = Interpreter(
+        m,
+        type_info,
+        typecheck=None,
+        additional_search_paths=(),
+        import_cache=None)
     dslx_results = []
     f = m.get_function('main')
     for args in sign_convert_args_batch(f, m, args_batch):

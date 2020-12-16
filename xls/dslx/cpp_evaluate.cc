@@ -1145,7 +1145,7 @@ absl::StatusOr<std::shared_ptr<InterpBindings>> MakeTopLevelBindings(
       XLS_ASSIGN_OR_RETURN(
           const ModuleInfo* imported,
           DoImport(callbacks->typecheck, ImportTokens(import->subject()),
-                   callbacks->cache));
+                   callbacks->additional_search_paths, callbacks->cache));
       XLS_VLOG(3) << "MakeTopLevelBindings adding import " << import->ToString()
                   << " as \"" << import->identifier() << "\"";
       b->AddModule(import->identifier(), imported->module.get());

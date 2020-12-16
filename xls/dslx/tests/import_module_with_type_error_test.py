@@ -16,13 +16,13 @@
 """Tests for importing a DSLX module that has a type error (from another module)."""
 
 from xls.common import runfiles
+from xls.common import test_base
 from xls.dslx.interpreter import parse_and_interpret
 from xls.dslx.python.cpp_deduce import TypeInferenceError
 from xls.dslx.python.cpp_parser import CppParseError
-from absl.testing import absltest
 
 
-class ImportModuleWithTypeErrorTest(absltest.TestCase):
+class ImportModuleWithTypeErrorTest(test_base.TestCase):
 
   def test_imports_module_with_type_error(self):
     path = runfiles.get_path('xls/dslx/tests/imports_has_type_error.x')
@@ -72,4 +72,4 @@ class ImportModuleWithTypeErrorTest(absltest.TestCase):
 
 
 if __name__ == '__main__':
-  absltest.main()
+  test_base.main()

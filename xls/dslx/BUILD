@@ -355,9 +355,9 @@ py_binary(
         ":typecheck",
         "//xls/common/python:init_xls",
         "//xls/dslx/python:cpp_parser",
-        "//xls/dslx/python:import_routines",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
+        "@com_google_absl_py//absl/logging",
     ],
 )
 

@@ -59,17 +59,20 @@ PYBIND11_MODULE(import_routines, m) {
   m.def(
       "do_import",
       [](PyTypecheckFn py_typecheck, const ImportTokens& subject,
+         const std::vector<std::string>& additional_search_paths,
          ImportCache* cache) -> absl::StatusOr<ModuleInfo> {
         // With the appropriately typed callback we can now call DoImport().
         absl::StatusOr<const ModuleInfo*> info_or =
-            DoImport(ToCppTypecheck(py_typecheck), subject, cache);
+            DoImport(ToCppTypecheck(py_typecheck), subject,
+                     additional_search_paths, cache);
         TryThrowKeyError(info_or.status());
         TryThrowTypeMissingError(info_or.status());
         XLS_VLOG(5) << "do_import status: " << info_or.status();
         XLS_RETURN_IF_ERROR(info_or.status());
         return *info_or.value();
       },
-      py::arg("typecheck"), py::arg("subject"), py::arg("cache"));
+      py::arg("typecheck"), py::arg("subject"),
+      py::arg("additional_search_paths"), py::arg("cache"));
 }
 
 }  // namespace xls::dslx

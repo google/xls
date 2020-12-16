@@ -62,6 +62,9 @@ struct InterpCallbackData {
   GetTypeFn get_type_info;
   ImportCache* cache;
 
+  // Additional search paths to use on import.
+  std::vector<std::string> additional_search_paths;
+
   // Wraps eval_fn to provide a default argument for type_context (as it is
   // often nullptr).
   absl::StatusOr<InterpValue> Eval(

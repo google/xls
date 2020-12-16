@@ -45,7 +45,7 @@ def _convert_ir(
         name = name + "_ir",
         srcs = srcs + deps,
         outs = [name + ".ir"],
-        cmd = "$(location //xls/dslx:ir_converter_main) $(SRCS) > $@",
+        cmd = "$(location //xls/dslx:ir_converter_main) --dslx_path=$(GENDIR) $(SRCS) > $@",
         exec_tools = ["//xls/dslx:ir_converter_main"],
         tags = tags,
         **kwargs
@@ -54,7 +54,7 @@ def _convert_ir(
         name = name + "_opt_ir",
         srcs = srcs + deps,
         outs = [name + ".opt.ir"],
-        cmd = ("$(location //xls/dslx:ir_converter_main) $(SRCS) " +
+        cmd = ("$(location //xls/dslx:ir_converter_main) --dslx_path=$(GENDIR) $(SRCS) " +
                " | $(location //xls/tools:opt_main) --entry=%s - " +
                " > $@") % (entry or ""),
         exec_tools = [

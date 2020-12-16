@@ -97,7 +97,8 @@ def handle_line(line: str, stmt_index: int):
       fake_module,
       type_info,
       importer.typecheck,
-      importer.cache,
+      import_cache=importer.cache,
+      additional_search_paths=(),
       trace_all=False)
   result = interpreter.run_function(fn_name, args=())
   print(result)

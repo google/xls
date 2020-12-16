@@ -120,13 +120,15 @@ PYBIND11_MODULE(cpp_deduce, m) {
                        ModuleHolder module, PyDeduceFn deduce_function,
                        PyTypecheckFunctionFn typecheck_function,
                        PyTypecheckFn typecheck_module,
+                       const std::vector<std::string>& additional_search_paths,
                        absl::optional<ImportCache*> import_cache) {
         ImportCache* pimport_cache = import_cache ? *import_cache : nullptr;
         return std::make_shared<DeduceCtx>(
             type_info, module.deref().shared_from_this(),
             ToCppDeduce(deduce_function),
             ToCppTypecheckFunction(typecheck_function),
-            ToCppTypecheck(typecheck_module), pimport_cache);
+            ToCppTypecheck(typecheck_module), additional_search_paths,
+            pimport_cache);
       }))
       .def("add_fn_stack_entry",
            [](DeduceCtx& self, std::string name,

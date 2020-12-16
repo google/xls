@@ -61,6 +61,7 @@ PYBIND11_MODULE(interpreter, m) {
           py::init([](ModuleHolder module,
                       const std::shared_ptr<TypeInfo>& type_info,
                       absl::optional<PyTypecheckFn> typecheck,
+                      const std::vector<std::string>& additional_search_paths,
                       absl::optional<ImportCache*> import_cache, bool trace_all,
                       absl::optional<PackageHolder> ir_package) {
             Package* package = ir_package ? &ir_package->deref() : nullptr;
@@ -69,13 +70,13 @@ PYBIND11_MODULE(interpreter, m) {
             if (typecheck) {
               typecheck_fn = ToCppTypecheck(*typecheck);
             }
-            return absl::make_unique<Interpreter>(&module.deref(), type_info,
-                                                  typecheck_fn, pimport_cache,
-                                                  trace_all, package);
+            return absl::make_unique<Interpreter>(
+                &module.deref(), type_info, typecheck_fn,
+                additional_search_paths, pimport_cache, trace_all, package);
           }),
           py::arg("module"), py::arg("type_info"), py::arg("typecheck"),
-          py::arg("import_cache"), py::arg("trace_all") = false,
-          py::arg("ir_package") = absl::nullopt)
+          py::arg("additional_search_paths"), py::arg("import_cache"),
+          py::arg("trace_all") = false, py::arg("ir_package") = absl::nullopt)
       .def(
           "run_function",
           [](Interpreter* self, absl::string_view name,
@@ -91,31 +92,9 @@ PYBIND11_MODULE(interpreter, m) {
              TryThrowFailureError(result);
              return result;
            })
-      .def_property_readonly("module",
-                             [](Interpreter* self) {
-                               return ModuleHolder(
-                                   self->module(),
-                                   self->module()->shared_from_this());
-                             })
-      .def_static(
-          "interpret_expr",
-          [](ModuleHolder module, const std::shared_ptr<TypeInfo>& type_info,
-             PyTypecheckFn py_typecheck,
-             absl::optional<ImportCache*> import_cache,
-             const std::unordered_map<std::string, int64>& env,
-             const std::unordered_map<std::string, int64>& bit_widths,
-             ExprHolder expr, const FnCtx& fn_ctx) {
-            ImportCache* pimport_cache = import_cache ? *import_cache : nullptr;
-            auto statusor = Interpreter::InterpretExpr(
-                &module.deref(), type_info, ToCppTypecheck(py_typecheck),
-                pimport_cache, ToAbsl(env), ToAbsl(bit_widths), &expr.deref(),
-                fn_ctx);
-            TryThrowKeyError(statusor.status());
-            return statusor;
-          },
-          py::arg("module"), py::arg("type_info"), py::arg("typecheck"),
-          py::arg("import_cache"), py::arg("env"), py::arg("bit_widths"),
-          py::arg("expr"), py::arg("fn_ctx"));
+      .def_property_readonly("module", [](Interpreter* self) {
+        return ModuleHolder(self->module(), self->module()->shared_from_this());
+      });
 }
 
 }  // namespace xls::dslx

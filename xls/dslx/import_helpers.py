@@ -31,7 +31,8 @@ class Importer:
   checking and the import_routines and provides that lambda.
   """
 
-  def __init__(self):
+  def __init__(self, additional_search_paths: Tuple[str, ...] = ()):
+    self.additional_search_paths = additional_search_paths
     self.cache: Optional[import_routines.ImportCache] = \
         import_routines.ImportCache()
 
@@ -41,4 +42,5 @@ class Importer:
   def __call__(self, subject: Tuple[str, ...]) -> import_routines.ModuleInfo:
     assert isinstance(subject, tuple), subject
     subject = import_routines.ImportTokens(subject)
-    return import_routines.do_import(self.typecheck, subject, self.cache)
+    return import_routines.do_import(self.typecheck, subject,
+                                     self.additional_search_paths, self.cache)

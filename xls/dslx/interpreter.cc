@@ -77,8 +77,10 @@ class Evaluator : public ExprVisitor {
 
 Interpreter::Interpreter(Module* module,
                          const std::shared_ptr<TypeInfo>& type_info,
-                         TypecheckFn typecheck, ImportCache* import_cache,
-                         bool trace_all, Package* ir_package)
+                         TypecheckFn typecheck,
+                         absl::Span<std::string const> additional_search_paths,
+                         ImportCache* import_cache, bool trace_all,
+                         Package* ir_package)
     : module_(module),
       type_info_(type_info),
       typecheck_(std::move(typecheck)),
@@ -102,6 +104,8 @@ Interpreter::Interpreter(Module* module,
   };
   callbacks_.get_type_info = [this] { return type_info_; };
   callbacks_.cache = import_cache;
+  callbacks_.additional_search_paths = std::vector(
+      additional_search_paths.begin(), additional_search_paths.end());
 }
 
 absl::StatusOr<InterpValue> Interpreter::RunFunction(
@@ -161,14 +165,17 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
 
 /* static */ absl::StatusOr<int64> Interpreter::InterpretExpr(
     Module* entry_module, const std::shared_ptr<TypeInfo>& type_info,
-    TypecheckFn typecheck, ImportCache* import_cache,
+    TypecheckFn typecheck,
+    absl::Span<std::string const> additional_search_paths,
+    ImportCache* import_cache,
     const absl::flat_hash_map<std::string, int64>& env,
     const absl::flat_hash_map<std::string, int64>& bit_widths, Expr* expr,
     const FnCtx& fn_ctx) {
   XLS_VLOG(3) << "InterpretExpr: " << expr->ToString() << " env: {"
               << absl::StrJoin(env, ", ", absl::PairFormatter(":")) << "}";
 
-  Interpreter interp(entry_module, type_info, typecheck, import_cache);
+  Interpreter interp(entry_module, type_info, typecheck,
+                     additional_search_paths, import_cache);
   XLS_ASSIGN_OR_RETURN(std::shared_ptr<InterpBindings> bindings,
                        MakeTopLevelBindings(entry_module->shared_from_this(),
                                             &interp.callbacks_));

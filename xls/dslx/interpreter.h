@@ -45,7 +45,9 @@ class Interpreter {
   // C++, or at least consolidate the env/bit_widths maps.
   static absl::StatusOr<int64> InterpretExpr(
       Module* entry_module, const std::shared_ptr<TypeInfo>& type_info,
-      TypecheckFn typecheck, ImportCache* import_cache,
+      TypecheckFn typecheck,
+      absl::Span<std::string const> additional_search_path,
+      ImportCache* import_cache,
       const absl::flat_hash_map<std::string, int64>& env,
       const absl::flat_hash_map<std::string, int64>& bit_widths, Expr* expr,
       const FnCtx& fn_ctx);
@@ -63,14 +65,17 @@ class Interpreter {
   //  type_info: Type information associated with the given module -- evaluation
   //    of some AST nodes relies on this type information.
   //  typecheck: Optional, callback used to check modules on import.
+  //  additional_search_paths: Additional paths to search for imported modules.
   //  import_cache: Optional, cache for imported modules.
   //  trace_all: Whether to trace "all" (really most "non-noisy") expressions in
   //    the interpreter evaluation.
   //  ir_package: IR-converted form of the given module, used for JIT execution
   //    engine comparison purposes when provided.
   Interpreter(Module* module, const std::shared_ptr<TypeInfo>& type_info,
-              TypecheckFn typecheck, ImportCache* import_cache,
-              bool trace_all = false, Package* ir_package = nullptr);
+              TypecheckFn typecheck,
+              absl::Span<std::string const> additional_search_paths,
+              ImportCache* import_cache, bool trace_all = false,
+              Package* ir_package = nullptr);
 
   // Since we capture pointers to "this" in lambdas, we don't want this object
   // to move/copy/assign.

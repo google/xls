@@ -20,7 +20,7 @@ import io
 import os
 import sys
 import time
-from typing import Text, Optional, cast
+from typing import Text, Optional, cast, Tuple
 
 from xls.dslx import import_helpers
 from xls.dslx import ir_converter
@@ -49,6 +49,7 @@ def parse_and_test(program: Text,
                    name: Text,
                    *,
                    filename: Text,
+                   additional_search_paths: Tuple[str, ...] = (),
                    raise_on_error: bool = True,
                    test_filter: Optional[Text] = None,
                    trace_all: bool = False,
@@ -60,6 +61,8 @@ def parse_and_test(program: Text,
     program: The program text to parse.
     name: Name for the module.
     filename: The filename from which "program" text originates.
+    additional_search_paths: Additional paths at which we search for imported
+      module files.
     raise_on_error: When true, raises exceptions that happen in tests;
       otherwise, simply returns a boolean to the caller when all test have run.
     test_filter: Test filter specification (e.g. as passed from bazel test
@@ -81,7 +84,7 @@ def parse_and_test(program: Text,
   test_name = None
   type_info = None
 
-  importer = import_helpers.Importer()
+  importer = import_helpers.Importer(additional_search_paths)
   ran = 0
 
   try:
@@ -96,6 +99,7 @@ def parse_and_test(program: Text,
         module,
         type_info,
         importer.typecheck,
+        importer.additional_search_paths,
         importer.cache,
         trace_all=trace_all,
         ir_package=ir_package)

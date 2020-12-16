@@ -250,9 +250,12 @@ def check_module(module: ast.Module,
   assert f_import is None or callable(f_import), f_import
   ti = type_info.TypeInfo(module)
   import_cache = None if f_import is None else getattr(f_import, 'cache')
+  additional_search_paths = () if f_import is None else getattr(
+      f_import, 'additional_search_paths')
   ftypecheck = functools.partial(check_module, f_import=f_import)
   ctx = cpp_deduce.DeduceCtx(ti, module, cpp_deduce.deduce,
-                             check_top_node_in_module, ftypecheck, import_cache)
+                             check_top_node_in_module, ftypecheck,
+                             additional_search_paths, import_cache)
 
   # First populate type_info with constants, enums, and resolved imports.
   ctx.add_fn_stack_entry(

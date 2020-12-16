@@ -37,7 +37,8 @@ TEST(InterpreterTest, RunIdentityFn) {
   module->AddTop(function);
 
   auto type_info = std::make_shared<TypeInfo>(/*parent=*/nullptr);
-  Interpreter interp(module.get(), type_info, nullptr, nullptr);
+  Interpreter interp(module.get(), type_info, /*typecheck=*/nullptr,
+                     /*additional_search_paths=*/{}, /*import_cache=*/nullptr);
   InterpValue mol = InterpValue::MakeU32(42);
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue result, interp.RunFunction("id", {mol}));
   EXPECT_TRUE(mol.Eq(result));

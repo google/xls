@@ -41,6 +41,7 @@ flags.DEFINE_string(
 flags.DEFINE_bool(
     'raise_exception', False,
     'Raise exception on unsuccessful conversion, by default simply exits.')
+flags.DEFINE_list('dslx_path', [], 'Additional paths to search for modules.')
 FLAGS = flags.FLAGS
 
 
@@ -61,7 +62,7 @@ def main(argv):
   module = parser_helpers.parse_text(
       text, name, print_on_error=True, filename=path)
 
-  importer = import_helpers.Importer()
+  importer = import_helpers.Importer(tuple(FLAGS.dslx_path))
   type_info = None
 
   try:

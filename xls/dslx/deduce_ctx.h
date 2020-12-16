@@ -48,13 +48,9 @@ class DeduceCtx : public std::enable_shared_from_this<DeduceCtx> {
   DeduceCtx(const std::shared_ptr<TypeInfo>& type_info,
             const std::shared_ptr<Module>& module, DeduceFn deduce_function,
             TypecheckFunctionFn typecheck_function,
-            TypecheckFn typecheck_module, ImportCache* import_cache)
-      : type_info_(type_info),
-        module_(module),
-        deduce_function_(std::move(XLS_DIE_IF_NULL(deduce_function))),
-        typecheck_function_(std::move(typecheck_function)),
-        typecheck_module_(std::move(typecheck_module)),
-        import_cache_(import_cache) {}
+            TypecheckFn typecheck_module,
+            absl::Span<std::string const> additional_search_paths,
+            ImportCache* import_cache);
 
   // Creates a new DeduceCtx reflecting the given type info and module.
   // Uses the same callbacks as this current context.
@@ -63,9 +59,9 @@ class DeduceCtx : public std::enable_shared_from_this<DeduceCtx> {
   std::shared_ptr<DeduceCtx> MakeCtx(
       const std::shared_ptr<TypeInfo>& new_type_info,
       const std::shared_ptr<Module>& new_module) const {
-    return std::make_shared<DeduceCtx>(new_type_info, new_module,
-                                       deduce_function_, typecheck_function_,
-                                       typecheck_module_, import_cache_);
+    return std::make_shared<DeduceCtx>(
+        new_type_info, new_module, deduce_function_, typecheck_function_,
+        typecheck_module_, additional_search_paths_, import_cache_);
   }
 
   // Helper that calls back to the top-level deduce procedure for the given
@@ -114,6 +110,9 @@ class DeduceCtx : public std::enable_shared_from_this<DeduceCtx> {
     return typecheck_function_;
   }
 
+  absl::Span<std::string const> additional_search_paths() const {
+    return additional_search_paths_;
+  }
   ImportCache* import_cache() const { return import_cache_; }
 
  private:
@@ -133,6 +132,9 @@ class DeduceCtx : public std::enable_shared_from_this<DeduceCtx> {
 
   // Callback used to typecheck a module and get its type info (e.g. on import).
   TypecheckFn typecheck_module_;
+
+  // Additional paths to search on import.
+  std::vector<std::string> additional_search_paths_;
 
   // Cache used for imported modules, may be nullptr.
   ImportCache* import_cache_;

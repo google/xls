@@ -26,6 +26,22 @@ std::string FnStackEntry::ToReprString() const {
                          symbolic_bindings.ToString());
 }
 
+DeduceCtx::DeduceCtx(const std::shared_ptr<TypeInfo>& type_info,
+                     const std::shared_ptr<Module>& module,
+                     DeduceFn deduce_function,
+                     TypecheckFunctionFn typecheck_function,
+                     TypecheckFn typecheck_module,
+                     absl::Span<std::string const> additional_search_paths,
+                     ImportCache* import_cache)
+    : type_info_(type_info),
+      module_(module),
+      deduce_function_(std::move(XLS_DIE_IF_NULL(deduce_function))),
+      typecheck_function_(std::move(typecheck_function)),
+      typecheck_module_(std::move(typecheck_module)),
+      additional_search_paths_(additional_search_paths.begin(),
+                               additional_search_paths.end()),
+      import_cache_(import_cache) {}
+
 // Helper that converts the symbolic bindings to a parametric expression
 // environment (for parametric evaluation).
 ParametricExpression::Env ToParametricEnv(

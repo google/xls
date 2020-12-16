@@ -96,7 +96,8 @@ absl::Status ParametricInstantiator::VerifyConstraints() {
     FnCtx fn_ctx{ctx_->module()->name(), entry.name, entry.symbolic_bindings};
     absl::StatusOr<int64> result = Interpreter::InterpretExpr(
         ctx_->module().get(), ctx_->type_info(), ctx_->typecheck_module(),
-        ctx_->import_cache(), symbolic_bindings_, bit_widths_, expr, fn_ctx);
+        ctx_->additional_search_paths(), ctx_->import_cache(),
+        symbolic_bindings_, bit_widths_, expr, fn_ctx);
     XLS_VLOG(5) << "Interpreted expr: " << expr->ToString() << " @ "
                 << expr->span() << " to status: " << result.status();
     if (!result.ok() && result.status().code() == absl::StatusCode::kNotFound &&
