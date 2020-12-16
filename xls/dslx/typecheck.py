@@ -27,41 +27,12 @@ from xls.dslx import dslx_builtins
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_deduce
 from xls.dslx.python import cpp_type_info as type_info
+from xls.dslx.python import cpp_typecheck
 from xls.dslx.python.cpp_concrete_type import ConcreteType
 from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.python.cpp_deduce import xls_type_error as XlsTypeError
 from xls.dslx.python.cpp_type_info import SymbolicBindings
 from xls.dslx.span import PositionalError
-
-
-def _check_function_params(f: ast.Function,
-                           ctx: cpp_deduce.DeduceCtx) -> List[ConcreteType]:
-  """Checks the function's parametrics' and arguments' types."""
-  for parametric in f.parametric_bindings:
-    parametric_binding_type = cpp_deduce.deduce(parametric.type_, ctx)
-    assert isinstance(parametric_binding_type, ConcreteType)
-    if parametric.expr:
-      # TODO(hjmontero): 2020-07-06 fully document the behavior of parametric
-      # function calls in parametric expressions.
-      expr_type = cpp_deduce.deduce(parametric.expr, ctx)
-      if expr_type != parametric_binding_type:
-        raise XlsTypeError(
-            parametric.span,
-            parametric_binding_type,
-            expr_type,
-            suffix='Annotated type of derived parametric '
-            'value did not match inferred type.')
-    ctx.type_info[parametric.name] = parametric_binding_type
-
-  param_types = []
-  for param in f.params:
-    logging.vlog(2, 'Checking param: %s', param)
-    param_type = cpp_deduce.deduce(param, ctx)
-    assert isinstance(param_type, ConcreteType), param_type
-    param_types.append(param_type)
-    ctx.type_info[param.name] = param_type
-
-  return param_types
 
 
 def _check_function(f: ast.Function, ctx: cpp_deduce.DeduceCtx) -> None:
@@ -89,7 +60,7 @@ def _check_function(f: ast.Function, ctx: cpp_deduce.DeduceCtx) -> None:
     param_types = list(ctx.type_info[f].params)
   else:
     logging.vlog(1, 'Type-checking sig for function: %s', f)
-    param_types = _check_function_params(f, ctx)
+    param_types = cpp_typecheck.check_function_params(f, ctx)
     if f.is_parametric():
       # We just needed the type signature so that we can instantiate this
       # invocation. Let's return this for now and typecheck the body once we

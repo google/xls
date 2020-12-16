@@ -236,6 +236,7 @@ py_library(
         "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_deduce",
         "//xls/dslx/python:cpp_type_info",
+        "//xls/dslx/python:cpp_typecheck",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -812,6 +813,8 @@ cc_library(
     # We throw exceptions that come from PyBind through this code (the
     # deduction rules) so we have to enable exceptions for this translation
     # unit for now to get proper cleanup.
+    # TODO(leary): 2020-12-15 We can remove this when the port to C++ is
+    # completed.
     copts = ["-fexceptions"],
     features = ["-use_header_modules"],
     deps = [
@@ -831,6 +834,8 @@ cc_library(
     # We throw exceptions that come from PyBind through this code (the
     # deduction rules) so we have to enable exceptions for this translation
     # unit for now to get proper cleanup.
+    # TODO(leary): 2020-12-15 We can remove this when the port to C++ is
+    # completed.
     copts = ["-fexceptions"],
     features = ["-use_header_modules"],
     deps = [
@@ -856,5 +861,23 @@ cc_library(
         ":deduce_ctx",
         ":interpreter",
         "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "cpp_typecheck",
+    srcs = ["typecheck.cc"],
+    hdrs = ["typecheck.h"],
+    # We throw exceptions that come from PyBind through this code (the
+    # deduction rules) so we have to enable exceptions for this translation
+    # unit for now to get proper cleanup.
+    # TODO(leary): 2020-12-15 We can remove this when the port to C++ is
+    # completed.
+    copts = ["-fexceptions"],
+    features = ["-use_header_modules"],
+    deps = [
+        ":deduce_ctx",
+        "//xls/dslx/python:cpp_ast_header",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
