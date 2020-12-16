@@ -20,6 +20,7 @@
 #include "xls/dslx/cpp_scanner.h"
 
 namespace xls::dslx {
+namespace {
 
 absl::Status CheckBitwidth(const Number& number, const ConcreteType& type) {
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim bits_dim, type.GetTotalBitCount());
@@ -78,25 +79,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceXlsTuple(XlsTuple* node,
     members.push_back(std::move(m));
   }
   return absl::make_unique<TupleType>(std::move(members));
-}
-
-absl::StatusOr<std::unique_ptr<ConcreteType>> Resolve(const ConcreteType& type,
-                                                      DeduceCtx* ctx) {
-  XLS_RET_CHECK(!ctx->fn_stack().empty());
-  const FnStackEntry& entry = ctx->fn_stack().back();
-  const SymbolicBindings& fn_symbolic_bindings = entry.symbolic_bindings;
-
-  return type.MapSize([&fn_symbolic_bindings](ConcreteTypeDim dim)
-                          -> absl::StatusOr<ConcreteTypeDim> {
-    if (absl::holds_alternative<ConcreteTypeDim::OwnedParametric>(
-            dim.value())) {
-      const auto& parametric =
-          absl::get<ConcreteTypeDim::OwnedParametric>(dim.value());
-      ParametricExpression::Env env = ToParametricEnv(fn_symbolic_bindings);
-      return ConcreteTypeDim(parametric->Evaluate(env));
-    }
-    return dim;
-  });
 }
 
 static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAndResolve(
@@ -1764,6 +1746,142 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstRef(ConstRef* node,
                                                              DeduceCtx* ctx) {
   // ConstRef is a subtype of NameRef, same deduction rule works.
   return DeduceNameRef(node, ctx);
+}
+
+class DeduceVisitor : public AstNodeVisitor {
+ public:
+  explicit DeduceVisitor(DeduceCtx* ctx) : ctx_(ctx) {}
+
+  void HandleUnop(Unop* n) override { result_ = DeduceUnop(n, ctx_); }
+  void HandleParam(Param* n) override { result_ = DeduceParam(n, ctx_); }
+  void HandleConstantDef(ConstantDef* n) override {
+    result_ = DeduceConstantDef(n, ctx_);
+  }
+  void HandleNumber(Number* n) override { result_ = DeduceNumber(n, ctx_); }
+  void HandleTypeRef(TypeRef* n) override { result_ = DeduceTypeRef(n, ctx_); }
+  void HandleTypeDef(TypeDef* n) override { result_ = DeduceTypeDef(n, ctx_); }
+  void HandleXlsTuple(XlsTuple* n) override {
+    result_ = DeduceXlsTuple(n, ctx_);
+  }
+  void HandleTernary(Ternary* n) override { result_ = DeduceTernary(n, ctx_); }
+  void HandleBinop(Binop* n) override { result_ = DeduceBinop(n, ctx_); }
+  void HandleEnumDef(EnumDef* n) override { result_ = DeduceEnumDef(n, ctx_); }
+  void HandleLet(Let* n) override { result_ = DeduceLet(n, ctx_); }
+  void HandleFor(For* n) override { result_ = DeduceFor(n, ctx_); }
+  void HandleCast(Cast* n) override { result_ = DeduceCast(n, ctx_); }
+  void HandleStructDef(StructDef* n) override {
+    result_ = DeduceStructDef(n, ctx_);
+  }
+  void HandleArray(Array* n) override { result_ = DeduceArray(n, ctx_); }
+  void HandleAttr(Attr* n) override { result_ = DeduceAttr(n, ctx_); }
+  void HandleConstantArray(ConstantArray* n) override {
+    result_ = DeduceConstantArray(n, ctx_);
+  }
+  void HandleColonRef(ColonRef* n) override {
+    result_ = DeduceColonRef(n, ctx_);
+  }
+  void HandleIndex(Index* n) override { result_ = DeduceIndex(n, ctx_); }
+  void HandleMatch(Match* n) override { result_ = DeduceMatch(n, ctx_); }
+  void HandleStructInstance(StructInstance* n) override {
+    result_ = DeduceStructInstance(n, ctx_);
+  }
+  void HandleSplatStructInstance(SplatStructInstance* n) override {
+    result_ = DeduceSplatStructInstance(n, ctx_);
+  }
+  void HandleBuiltinTypeAnnotation(BuiltinTypeAnnotation* n) override {
+    result_ = DeduceBuiltinTypeAnnotation(n, ctx_);
+  }
+  void HandleArrayTypeAnnotation(ArrayTypeAnnotation* n) override {
+    result_ = DeduceArrayTypeAnnotation(n, ctx_);
+  }
+  void HandleTupleTypeAnnotation(TupleTypeAnnotation* n) override {
+    result_ = DeduceTupleTypeAnnotation(n, ctx_);
+  }
+  void HandleTypeRefTypeAnnotation(TypeRefTypeAnnotation* n) override {
+    result_ = DeduceTypeRefTypeAnnotation(n, ctx_);
+  }
+  void HandleMatchArm(MatchArm* n) override {
+    result_ = DeduceMatchArm(n, ctx_);
+  }
+  void HandleWhile(While* n) override { result_ = DeduceWhile(n, ctx_); }
+  void HandleCarry(Carry* n) override { result_ = DeduceCarry(n, ctx_); }
+  void HandleInvocation(Invocation* n) override {
+    result_ = DeduceInvocation(n, ctx_);
+  }
+  void HandleConstRef(ConstRef* n) override {
+    result_ = DeduceConstRef(n, ctx_);
+  }
+  void HandleNameRef(NameRef* n) override { result_ = DeduceNameRef(n, ctx_); }
+
+  // Unhandled nodes for deduction, either they are custom visited or not
+  // visited "automatically" in the traversal process (e.g. top level module
+  // members).
+  void HandleNext(Next* n) override { Fatal(n); }
+  void HandleProc(Proc* n) override { Fatal(n); }
+  void HandleSlice(Slice* n) override { Fatal(n); }
+  void HandleImport(Import* n) override { Fatal(n); }
+  void HandleTest(Test* n) override { Fatal(n); }
+  void HandleFunction(Function* n) override { Fatal(n); }
+  void HandleQuickCheck(QuickCheck* n) override { Fatal(n); }
+  void HandleTestFunction(TestFunction* n) override { Fatal(n); }
+  void HandleModule(Module* n) override { Fatal(n); }
+  void HandleWidthSlice(WidthSlice* n) override { Fatal(n); }
+  void HandleNameDefTree(NameDefTree* n) override { Fatal(n); }
+  void HandleNameDef(NameDef* n) override { Fatal(n); }
+  void HandleBuiltinNameDef(BuiltinNameDef* n) override { Fatal(n); }
+  void HandleParametricBinding(ParametricBinding* n) override { Fatal(n); }
+  void HandleWildcardPattern(WildcardPattern* n) override { Fatal(n); }
+
+  absl::StatusOr<std::unique_ptr<ConcreteType>>& result() { return result_; }
+
+ private:
+  void Fatal(AstNode* n) {
+    XLS_LOG(FATAL) << "Got unhandled AST node for deduction: " << n->ToString();
+  }
+
+  DeduceCtx* ctx_;
+  absl::StatusOr<std::unique_ptr<ConcreteType>> result_;
+};
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInternal(AstNode* node,
+                                                             DeduceCtx* ctx) {
+  DeduceVisitor visitor(ctx);
+  node->Accept(&visitor);
+  return std::move(visitor.result());
+}
+
+}  // namespace
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> Resolve(const ConcreteType& type,
+                                                      DeduceCtx* ctx) {
+  XLS_RET_CHECK(!ctx->fn_stack().empty());
+  const FnStackEntry& entry = ctx->fn_stack().back();
+  const SymbolicBindings& fn_symbolic_bindings = entry.symbolic_bindings;
+
+  return type.MapSize([&fn_symbolic_bindings](ConcreteTypeDim dim)
+                          -> absl::StatusOr<ConcreteTypeDim> {
+    if (absl::holds_alternative<ConcreteTypeDim::OwnedParametric>(
+            dim.value())) {
+      const auto& parametric =
+          absl::get<ConcreteTypeDim::OwnedParametric>(dim.value());
+      ParametricExpression::Env env = ToParametricEnv(fn_symbolic_bindings);
+      return ConcreteTypeDim(parametric->Evaluate(env));
+    }
+    return dim;
+  });
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(AstNode* node,
+                                                     DeduceCtx* ctx) {
+  if (absl::optional<ConcreteType*> type = ctx->type_info()->GetItem(node)) {
+    return (*type)->CloneToUnique();
+  }
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
+                       DeduceInternal(node, ctx));
+  ctx->type_info()->SetItem(node, *type);
+  XLS_VLOG(5) << "Deduced type of " << node->ToString() << " => "
+              << type->ToString();
+  return type;
 }
 
 }  // namespace xls::dslx

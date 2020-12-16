@@ -143,7 +143,7 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
                                                   InterpBindings* bindings,
                                                   ConcreteType* type_context) {
   Evaluator evaluator(this, bindings, type_context, &callbacks_);
-  expr->Accept(&evaluator);
+  expr->AcceptExpr(&evaluator);
   absl::StatusOr<InterpValue> result_or = std::move(evaluator.value());
   if (!result_or.ok()) {
     if (result_or.status().code() != absl::StatusCode::kNotFound) {

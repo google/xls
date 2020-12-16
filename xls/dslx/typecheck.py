@@ -23,7 +23,6 @@ from absl import logging
 import dataclasses
 
 from xls.common.xls_error import XlsError
-from xls.dslx import deduce
 from xls.dslx import dslx_builtins
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_deduce
@@ -39,12 +38,12 @@ def _check_function_params(f: ast.Function,
                            ctx: cpp_deduce.DeduceCtx) -> List[ConcreteType]:
   """Checks the function's parametrics' and arguments' types."""
   for parametric in f.parametric_bindings:
-    parametric_binding_type = deduce.deduce(parametric.type_, ctx)
+    parametric_binding_type = cpp_deduce.deduce(parametric.type_, ctx)
     assert isinstance(parametric_binding_type, ConcreteType)
     if parametric.expr:
       # TODO(hjmontero): 2020-07-06 fully document the behavior of parametric
       # function calls in parametric expressions.
-      expr_type = deduce.deduce(parametric.expr, ctx)
+      expr_type = cpp_deduce.deduce(parametric.expr, ctx)
       if expr_type != parametric_binding_type:
         raise XlsTypeError(
             parametric.span,
@@ -57,7 +56,7 @@ def _check_function_params(f: ast.Function,
   param_types = []
   for param in f.params:
     logging.vlog(2, 'Checking param: %s', param)
-    param_type = deduce.deduce(param, ctx)
+    param_type = cpp_deduce.deduce(param, ctx)
     assert isinstance(param_type, ConcreteType), param_type
     param_types.append(param_type)
     ctx.type_info[param.name] = param_type
@@ -96,7 +95,7 @@ def _check_function(f: ast.Function, ctx: cpp_deduce.DeduceCtx) -> None:
       # invocation. Let's return this for now and typecheck the body once we
       # have symbolic bindings.
       annotated_return_type = (
-          deduce.deduce(f.return_type, ctx)
+          cpp_deduce.deduce(f.return_type, ctx)
           if f.return_type else ConcreteType.NIL)
       ctx.type_info[f.name] = ctx.type_info[f] = FunctionType(
           tuple(param_types), annotated_return_type)
@@ -107,11 +106,12 @@ def _check_function(f: ast.Function, ctx: cpp_deduce.DeduceCtx) -> None:
   # Second, typecheck the return type of the function.
   # NOTE: if there is no annotated return type, we assume NIL.
   annotated_return_type = (
-      deduce.deduce(f.return_type, ctx) if f.return_type else ConcreteType.NIL)
+      cpp_deduce.deduce(f.return_type, ctx)
+      if f.return_type else ConcreteType.NIL)
   resolved_return_type = cpp_deduce.resolve(annotated_return_type, ctx)
 
   # Third, typecheck the body of the function
-  body_return_type = deduce.deduce(f.body, ctx)
+  body_return_type = cpp_deduce.deduce(f.body, ctx)
   resolved_body_type = cpp_deduce.resolve(body_return_type, ctx)
 
   # Finally, assert type consistency between body and annotated return type.
@@ -132,7 +132,7 @@ def _check_function(f: ast.Function, ctx: cpp_deduce.DeduceCtx) -> None:
 
 def check_test(t: ast.Test, ctx: cpp_deduce.DeduceCtx) -> None:
   """Typechecks a test (body) within a module."""
-  body_return_type = deduce.deduce(t.body, ctx)
+  body_return_type = cpp_deduce.deduce(t.body, ctx)
   nil = ConcreteType.NIL
   if body_return_type != nil:
     raise XlsTypeError(
@@ -277,7 +277,7 @@ def check_top_node_in_module(f: Union[ast.Function, ast.Test, ast.StructDef,
         assert isinstance(f, (ast.StructDef, ast.TypeDef))
         # Nothing special, we just want to be able to catch any
         # TypeMissingErrors and try to resolve them.
-        deduce.deduce(f, ctx)
+        cpp_deduce.deduce(f, ctx)
 
       seen[(f.name.identifier, type(f))] = (f, False)  # Mark as done.
       stack_record = stack.pop()
@@ -360,7 +360,7 @@ def check_module(module: ast.Module,
   ti = type_info.TypeInfo(module)
   import_cache = None if f_import is None else getattr(f_import, 'cache')
   ftypecheck = functools.partial(check_module, f_import=f_import)
-  ctx = cpp_deduce.DeduceCtx(ti, module, deduce.deduce,
+  ctx = cpp_deduce.DeduceCtx(ti, module, cpp_deduce.deduce,
                              check_top_node_in_module, ftypecheck, import_cache)
 
   # First populate type_info with constants, enums, and resolved imports.
@@ -372,7 +372,7 @@ def check_module(module: ast.Module,
       imported_module, imported_type_info = f_import(member.name)
       ctx.type_info.add_import(member, (imported_module, imported_type_info))
     elif isinstance(member, (ast.Constant, ast.EnumDef)):
-      deduce.deduce(member, ctx)
+      cpp_deduce.deduce(member, ctx)
     else:
       assert isinstance(member,
                         (ast.Function, ast.Test, ast.StructDef, ast.QuickCheck,

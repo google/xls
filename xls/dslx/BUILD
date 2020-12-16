@@ -211,28 +211,6 @@ cc_test(
 )
 
 py_library(
-    name = "deduce",
-    srcs = ["deduce.py"],
-    srcs_version = "PY3",
-    deps = [
-        ":ast_helpers",
-        ":bit_helpers",
-        ":concrete_type_helpers",
-        ":dslx_builtins",
-        "//xls/dslx/python:cpp_ast",
-        "//xls/dslx/python:cpp_concrete_type",
-        "//xls/dslx/python:cpp_deduce",
-        "//xls/dslx/python:cpp_parametric_expression",
-        "//xls/dslx/python:cpp_parametric_instantiator",
-        "//xls/dslx/python:cpp_pos",
-        "//xls/dslx/python:cpp_scanner",
-        "//xls/dslx/python:cpp_type_info",
-        "//xls/dslx/python:import_routines",
-        "@com_google_absl_py//absl/logging",
-    ],
-)
-
-py_library(
     name = "dslx_builtins",
     srcs = ["dslx_builtins.py"],
     srcs_version = "PY3",
@@ -251,7 +229,6 @@ py_library(
     srcs = ["typecheck.py"],
     srcs_version = "PY3",
     deps = [
-        ":deduce",
         ":dslx_builtins",
         ":span",
         "//xls/common:xls_error",
@@ -481,7 +458,6 @@ py_library(
     srcs = ["import_fn.py"],
     srcs_version = "PY3",
     deps = [
-        ":deduce",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_type_info",
     ],

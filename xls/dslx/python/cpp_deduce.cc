@@ -177,59 +177,17 @@ PYBIND11_MODULE(cpp_deduce, m) {
         return self.MakeCtx(new_type_info, new_module.module());
       });
 
-  m.def("check_bitwidth", [](NumberHolder number, const ConcreteType& type) {
-    auto status = CheckBitwidth(number.deref(), type);
-    TryThrowTypeInferenceError(status);
-    return status;
-  });
   m.def("resolve", &Resolve);
 
-#define DELEGATE_DEDUCE(__type)                                      \
-  m.def("deduce_" #__type, [](__type##Holder node, DeduceCtx* ctx) { \
-    auto statusor = Deduce##__type(&node.deref(), ctx);              \
-    TryThrowTypeInferenceError(statusor.status());                   \
-    TryThrowXlsTypeError(statusor.status());                         \
-    TryThrowKeyError(statusor.status());                             \
-    TryThrowTypeMissingError(statusor.status());                     \
-    TryThrowArgCountMismatchError(statusor.status());                \
-    return statusor;                                                 \
-  })
-
-  DELEGATE_DEDUCE(Array);
-  DELEGATE_DEDUCE(Attr);
-  DELEGATE_DEDUCE(Binop);
-  DELEGATE_DEDUCE(Carry);
-  DELEGATE_DEDUCE(Cast);
-  DELEGATE_DEDUCE(ColonRef);
-  DELEGATE_DEDUCE(ConstRef);
-  DELEGATE_DEDUCE(ConstantArray);
-  DELEGATE_DEDUCE(ConstantDef);
-  DELEGATE_DEDUCE(EnumDef);
-  DELEGATE_DEDUCE(For);
-  DELEGATE_DEDUCE(Index);
-  DELEGATE_DEDUCE(Invocation);
-  DELEGATE_DEDUCE(Let);
-  DELEGATE_DEDUCE(Match);
-  DELEGATE_DEDUCE(MatchArm);
-  DELEGATE_DEDUCE(NameRef);
-  DELEGATE_DEDUCE(Number);
-  DELEGATE_DEDUCE(Param);
-  DELEGATE_DEDUCE(SplatStructInstance);
-  DELEGATE_DEDUCE(StructDef);
-  DELEGATE_DEDUCE(StructInstance);
-  DELEGATE_DEDUCE(Ternary);
-  DELEGATE_DEDUCE(TypeDef);
-  DELEGATE_DEDUCE(TypeRef);
-  DELEGATE_DEDUCE(Unop);
-  DELEGATE_DEDUCE(While);
-  DELEGATE_DEDUCE(XlsTuple);
-
-  DELEGATE_DEDUCE(BuiltinTypeAnnotation);
-  DELEGATE_DEDUCE(ArrayTypeAnnotation);
-  DELEGATE_DEDUCE(TupleTypeAnnotation);
-  DELEGATE_DEDUCE(TypeRefTypeAnnotation);
-
-#undef DELEGATE_DEDUCE
+  m.def("deduce", [](AstNodeHolder node, DeduceCtx* ctx) {
+    auto statusor = Deduce(&node.deref(), ctx);
+    TryThrowTypeInferenceError(statusor.status());
+    TryThrowXlsTypeError(statusor.status());
+    TryThrowKeyError(statusor.status());
+    TryThrowTypeMissingError(statusor.status());
+    TryThrowArgCountMismatchError(statusor.status());
+    return statusor;
+  });
 }
 
 }  // namespace xls::dslx
