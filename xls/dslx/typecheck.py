@@ -34,19 +34,6 @@ from xls.dslx.python.cpp_type_info import SymbolicBindings
 from xls.dslx.span import PositionalError
 
 
-def check_test(t: ast.Test, ctx: cpp_deduce.DeduceCtx) -> None:
-  """Typechecks a test (body) within a module."""
-  body_return_type = cpp_deduce.deduce(t.body, ctx)
-  nil = ConcreteType.NIL
-  if body_return_type != nil:
-    raise XlsTypeError(
-        t.body.span,
-        body_return_type,
-        nil,
-        suffix='Return type of test body for "{}" did not match the '
-        'expected test return type (nil).'.format(t.name.identifier))
-
-
 def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
                  ctx: cpp_deduce.DeduceCtx) -> Optional[ast.NameDef]:
   """Instantiates a builtin parametric invocation; e.g. 'update'."""
@@ -176,7 +163,7 @@ def check_top_node_in_module(f: Union[ast.Function, ast.Test, ast.StructDef,
       if isinstance(f, ast.Function):
         cpp_typecheck.check_function(f, ctx)
       elif isinstance(f, ast.Test):
-        check_test(f, ctx)
+        cpp_typecheck.check_test(f, ctx)
       else:
         assert isinstance(f, (ast.StructDef, ast.TypeDef))
         # Nothing special, we just want to be able to catch any
@@ -371,7 +358,7 @@ def check_module(module: ast.Module,
       check_top_node_in_module(t.fn, ctx)
     else:
       # Old-style tests are specified in a construct with a body
-      # (see check_test()).
+      # (see cpp_typecheck.check_test()).
       check_top_node_in_module(t, ctx)
     logging.vlog(2, 'Finished typechecking test: %s', t)
 

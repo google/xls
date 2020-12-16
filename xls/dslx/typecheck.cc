@@ -123,4 +123,17 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
   return absl::OkStatus();
 }
 
+absl::Status CheckTest(Test* t, DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> body_return_type,
+                       ctx->Deduce(t->body()));
+  if (body_return_type->IsNil()) {
+    return absl::OkStatus();
+  }
+  return XlsTypeErrorStatus(
+      t->body()->span(), *body_return_type, *ConcreteType::MakeNil(),
+      absl::StrFormat("Return type of test body for '%s' did not match the "
+                      "expected test return type `()`.",
+                      t->identifier()));
+}
+
 }  // namespace xls::dslx

@@ -30,6 +30,9 @@ namespace xls::dslx {
 // with the return type annotation on `f`.
 absl::Status CheckFunction(Function* f, DeduceCtx* ctx);
 
+// Validates a test (body) within a module.
+absl::Status CheckTest(Test* t, DeduceCtx* ctx);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPECHECK_H_

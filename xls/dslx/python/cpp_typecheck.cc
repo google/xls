@@ -33,16 +33,29 @@ namespace py = pybind11;
 
 namespace xls::dslx {
 
+static void TryThrowErrors(const absl::Status& status) {
+  TryThrowTypeInferenceError(status);
+  TryThrowXlsTypeError(status);
+  TryThrowKeyError(status);
+  TryThrowTypeMissingError(status);
+  TryThrowArgCountMismatchError(status);
+}
+
 PYBIND11_MODULE(cpp_typecheck, m) {
   ImportStatusModule();
 
+  // Helper that sees if "status" is one of the various types of errors to be
+  // thrown as explicit Python exceptions (vs a fallback StatusOr exception
+  // type).
+  m.def("check_test", [](TestHolder node, DeduceCtx* ctx) {
+    auto status = CheckTest(&node.deref(), ctx);
+    TryThrowErrors(status);
+    return status;
+  });
+
   m.def("check_function", [](FunctionHolder node, DeduceCtx* ctx) {
     auto status = CheckFunction(&node.deref(), ctx);
-    TryThrowTypeInferenceError(status);
-    TryThrowXlsTypeError(status);
-    TryThrowKeyError(status);
-    TryThrowTypeMissingError(status);
-    TryThrowArgCountMismatchError(status);
+    TryThrowErrors(status);
     return status;
   });
 }
