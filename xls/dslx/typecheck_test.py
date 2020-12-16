@@ -328,7 +328,7 @@ fn f(x: u32) -> (u32, u8) {
     fn foo<X: u32 = u32: 5>() -> bits[10] { bits[X]: 1 }
     fn bar() -> bits[10] { foo() }
         """,
-        error='Return type of function body for "foo" did not match')
+        error="Return type of function body for 'foo' did not match")
 
   def test_parametric_indirect_instantiation_vs_arg_ok(self):
     self._typecheck("""
@@ -382,7 +382,7 @@ fn f(x: u32) -> (u32, u8) {
     fn fazz<Y: u32, T: u32 = Y + Y>(y: bits[Y]) -> bits[T] { foo(y) }
     fn bar() -> bits[10] { fazz(u5: 1) }
         """,
-        error='Return type of function body for "foo" did not match')
+        error="Return type of function body for 'foo' did not match")
 
   def test_parametric_derived_instantiation_vs_arg_ok(self):
     self._typecheck("""
@@ -432,7 +432,7 @@ fn f(x: u32) -> (u32, u8) {
     fn foo<W: u32, Z: u32 = W + W>(w: bits[W]) -> bits[Z] { double(w) }
     fn bar() -> bits[10] { foo(u5: 1) }
         """,
-        error='Return type of function body for "double" did not match')
+        error="Return type of function body for 'double' did not match")
 
   def test_parametric_derived_instantiation_via_fn_call(self):
     self._typecheck("""

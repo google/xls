@@ -81,13 +81,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceXlsTuple(XlsTuple* node,
   return absl::make_unique<TupleType>(std::move(members));
 }
 
-static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAndResolve(
-    AstNode* node, DeduceCtx* ctx) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> deduced,
-                       ctx->Deduce(node));
-  return Resolve(*deduced, ctx);
-}
-
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(Number* node,
                                                            DeduceCtx* ctx) {
   if (node->type() == nullptr) {
@@ -1882,6 +1875,13 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(AstNode* node,
   XLS_VLOG(5) << "Deduced type of " << node->ToString() << " => "
               << type->ToString();
   return type;
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAndResolve(AstNode* node,
+                                                               DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> deduced,
+                       ctx->Deduce(node));
+  return Resolve(*deduced, ctx);
 }
 
 }  // namespace xls::dslx

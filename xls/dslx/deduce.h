@@ -48,6 +48,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(AstNode* node,
 absl::StatusOr<std::unique_ptr<ConcreteType>> Resolve(const ConcreteType& type,
                                                       DeduceCtx* ctx);
 
+// Helpers that sequences Deduce, then Resolve.
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAndResolve(AstNode* node,
+                                                               DeduceCtx* ctx);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_DEDUCE_H_

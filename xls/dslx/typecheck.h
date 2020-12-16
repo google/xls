@@ -24,11 +24,11 @@
 
 namespace xls::dslx {
 
-// Checks the function's parametrics' and arguments' types.
+// Validates type annotations on parameters / return type of `f` are consistent.
 //
-// Returns the sequence of parameter types.
-absl::StatusOr<std::vector<std::unique_ptr<ConcreteType>>> CheckFunctionParams(
-    Function* f, DeduceCtx* ctx);
+// Returns a XlsTypeErrorStatus when the return type deduced is inconsistent
+// with the return type annotation on `f`.
+absl::Status CheckFunction(Function* f, DeduceCtx* ctx);
 
 }  // namespace xls::dslx
 

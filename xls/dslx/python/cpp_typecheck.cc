@@ -36,14 +36,14 @@ namespace xls::dslx {
 PYBIND11_MODULE(cpp_typecheck, m) {
   ImportStatusModule();
 
-  m.def("check_function_params", [](FunctionHolder node, DeduceCtx* ctx) {
-    auto statusor = CheckFunctionParams(&node.deref(), ctx);
-    TryThrowTypeInferenceError(statusor.status());
-    TryThrowXlsTypeError(statusor.status());
-    TryThrowKeyError(statusor.status());
-    TryThrowTypeMissingError(statusor.status());
-    TryThrowArgCountMismatchError(statusor.status());
-    return statusor;
+  m.def("check_function", [](FunctionHolder node, DeduceCtx* ctx) {
+    auto status = CheckFunction(&node.deref(), ctx);
+    TryThrowTypeInferenceError(status);
+    TryThrowXlsTypeError(status);
+    TryThrowKeyError(status);
+    TryThrowTypeMissingError(status);
+    TryThrowArgCountMismatchError(status);
+    return status;
   });
 }
 

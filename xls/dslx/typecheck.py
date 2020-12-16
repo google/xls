@@ -29,76 +29,9 @@ from xls.dslx.python import cpp_deduce
 from xls.dslx.python import cpp_type_info as type_info
 from xls.dslx.python import cpp_typecheck
 from xls.dslx.python.cpp_concrete_type import ConcreteType
-from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.python.cpp_deduce import xls_type_error as XlsTypeError
 from xls.dslx.python.cpp_type_info import SymbolicBindings
 from xls.dslx.span import PositionalError
-
-
-def _check_function(f: ast.Function, ctx: cpp_deduce.DeduceCtx) -> None:
-  """Validates type annotations on parameters/return type of f are consistent.
-
-  Args:
-    f: The function to type check.
-    ctx: Wraps a type_info, a mapping of AST node to its deduced type;
-      (free-variable) references are resolved via this dictionary.
-
-  Raises:
-    XlsTypeError: When the return type deduced is inconsistent with the return
-      type annotation on "f".
-  """
-  fn_name = ctx.peek_fn_stack().name
-  # First, get the types of the function's parametrics, args, and return type
-  if f.is_parametric() and f.name.identifier == fn_name:
-    # Parametric functions are evaluated per invocation. If we're currently
-    # inside of this function, it must mean that we already have the type
-    # signature and now we just need to evaluate the body.
-    assert f in ctx.type_info, f
-    f_type = ctx.type_info[f]
-    assert isinstance(f_type, FunctionType), f_type
-    annotated_return_type = f_type.return_type
-    param_types = list(ctx.type_info[f].params)
-  else:
-    logging.vlog(1, 'Type-checking sig for function: %s', f)
-    param_types = cpp_typecheck.check_function_params(f, ctx)
-    if f.is_parametric():
-      # We just needed the type signature so that we can instantiate this
-      # invocation. Let's return this for now and typecheck the body once we
-      # have symbolic bindings.
-      annotated_return_type = (
-          cpp_deduce.deduce(f.return_type, ctx)
-          if f.return_type else ConcreteType.NIL)
-      ctx.type_info[f.name] = ctx.type_info[f] = FunctionType(
-          tuple(param_types), annotated_return_type)
-      return
-
-  logging.vlog(1, 'Type-checking body for function: %s', f)
-
-  # Second, typecheck the return type of the function.
-  # NOTE: if there is no annotated return type, we assume NIL.
-  annotated_return_type = (
-      cpp_deduce.deduce(f.return_type, ctx)
-      if f.return_type else ConcreteType.NIL)
-  resolved_return_type = cpp_deduce.resolve(annotated_return_type, ctx)
-
-  # Third, typecheck the body of the function
-  body_return_type = cpp_deduce.deduce(f.body, ctx)
-  resolved_body_type = cpp_deduce.resolve(body_return_type, ctx)
-
-  # Finally, assert type consistency between body and annotated return type.
-  logging.vlog(3, 'resolved return type: %s => %s resolved body type: %s => %s',
-               annotated_return_type, resolved_return_type, body_return_type,
-               resolved_body_type)
-  if resolved_return_type != resolved_body_type:
-    raise XlsTypeError(
-        f.body.span,
-        resolved_body_type,
-        resolved_return_type,
-        suffix='Return type of function body for "{}" did not match the '
-        'annotated return type.'.format(f.name.identifier))
-
-  ctx.type_info[f.name] = ctx.type_info[f] = FunctionType(
-      tuple(param_types), body_return_type)
 
 
 def check_test(t: ast.Test, ctx: cpp_deduce.DeduceCtx) -> None:
@@ -241,7 +174,7 @@ def check_top_node_in_module(f: Union[ast.Function, ast.Test, ast.StructDef,
     try:
       f = seen[(stack[-1].name, stack[-1].kind)][0]
       if isinstance(f, ast.Function):
-        _check_function(f, ctx)
+        cpp_typecheck.check_function(f, ctx)
       elif isinstance(f, ast.Test):
         check_test(f, ctx)
       else:

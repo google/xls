@@ -876,6 +876,7 @@ cc_library(
     copts = ["-fexceptions"],
     features = ["-use_header_modules"],
     deps = [
+        ":cpp_deduce",
         ":deduce_ctx",
         "//xls/dslx/python:cpp_ast_header",
         "@com_google_absl//absl/status:statusor",
