@@ -74,21 +74,28 @@ class ScheduleBounds {
   }
 
   // Sets the lower bound of the given node to the maximum of its existing value
-  // and the given value. Raises an error if the new value results in infeasible
-  // bounds (lower bound is greater than upper bound).
+  // and the given value. Raises a ResourceExhaustedError if the new value
+  // results in infeasible bounds (lower bound is greater than upper bound).
   absl::Status TightenNodeLb(Node* node, int64 value) {
-    XLS_RET_CHECK_GE(ub(node), value) << node;
+    if (value > ub(node)) {
+      return absl::ResourceExhaustedError(
+          absl::StrFormat("Unable to tighten the lower bound of node %s to %d.",
+                          node->GetName(), value));
+    }
     bounds_.at(node).first = std::max(bounds_.at(node).first, value);
     max_lower_bound_ = std::max(max_lower_bound_, value);
     return absl::OkStatus();
   }
 
   // Sets the upper bound of the given node to the minimum of its existing value
-  // and the given value. Raises an error if the new value results in infeasible
-  // bounds (lower bound is greater than upper bound).
+  // and the given value. Raises a ResourceExhaustedError if the new value
+  // results in infeasible bounds (lower bound is greater than upper bound).
   absl::Status TightenNodeUb(Node* node, int64 value) {
-    XLS_CHECK_LE(lb(node), value);
-    XLS_RET_CHECK_LE(lb(node), value) << node;
+    if (value < lb(node)) {
+      return absl::ResourceExhaustedError(
+          absl::StrFormat("Unable to tighten the upper bound of node %s to %d.",
+                          node->GetName(), value));
+    }
     bounds_.at(node).second = std::min(bounds_.at(node).second, value);
     min_upper_bound_ = std::min(min_upper_bound_, value);
     return absl::OkStatus();

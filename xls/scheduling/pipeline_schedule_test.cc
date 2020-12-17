@@ -34,7 +34,9 @@ namespace xls {
 namespace {
 
 using ::testing::ElementsAre;
+using ::testing::HasSubstr;
 using ::testing::UnorderedElementsAre;
+using xls::status_testing::StatusIs;
 
 class TestDelayEstimator : public DelayEstimator {
  public:
@@ -45,6 +47,9 @@ class TestDelayEstimator : public DelayEstimator {
       case Op::kBitSlice:
       case Op::kConcat:
         return 0;
+      case Op::kUDiv:
+      case Op::kSDiv:
+        return 2;
       default:
         return 1;
     }
@@ -67,6 +72,48 @@ TEST_F(PipelineScheduleTest, AsapScheduleTrivial) {
 
   EXPECT_EQ(schedule.length(), 1);
   EXPECT_THAT(schedule.nodes_in_cycle(0), UnorderedElementsAre(m::Param()));
+}
+
+TEST_F(PipelineScheduleTest, OutrightInfeasibleSchedule) {
+  // Create a schedule in which the critical path doesn't even fit in the
+  // requested clock_period * stages.
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  fb.Not(fb.Not(fb.Not(fb.Not(x))));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ASSERT_THAT(
+      PipelineSchedule::Run(
+          f, TestDelayEstimator(),
+          SchedulingOptions(SchedulingStrategy::MINIMIZE_REGISTERS)
+              .clock_period_ps(1)
+              .pipeline_stages(2))
+          .status(),
+      StatusIs(
+          absl::StatusCode::kResourceExhausted,
+          HasSubstr(
+              "Cannot be scheduled in 2 stages. Computed lower bound is 3.")));
+}
+
+TEST_F(PipelineScheduleTest, InfeasiableScheduleWithBinPacking) {
+  // Create a schedule in which the critical path fits in the requested
+  // clock_period * stages, but there is no way to bin pack the instructions
+  // into the stages such that the schedule is met.
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  fb.Not(fb.UDiv(fb.Not(x), fb.Not(x)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ASSERT_THAT(PipelineSchedule::Run(
+                  f, TestDelayEstimator(),
+                  SchedulingOptions(SchedulingStrategy::MINIMIZE_REGISTERS)
+                      .clock_period_ps(2)
+                      .pipeline_stages(2))
+                  .status(),
+              StatusIs(absl::StatusCode::kResourceExhausted,
+                       HasSubstr("Unable to tighten the ")));
 }
 
 TEST_F(PipelineScheduleTest, AsapScheduleNoParameters) {

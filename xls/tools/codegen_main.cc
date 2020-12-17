@@ -148,9 +148,26 @@ absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
     SchedulingPassResults results;
     SchedulingUnit scheduling_unit = {p.get(),
                                       /*schedule=*/absl::nullopt};
-    XLS_RETURN_IF_ERROR(
+    absl::Status scheduling_status =
         scheduling_pipeline->Run(&scheduling_unit, sched_options, &results)
-            .status());
+            .status();
+    if (!scheduling_status.ok()) {
+      if (absl::IsResourceExhausted(scheduling_status)) {
+        // Resource exhausted error indicates that the schedule was
+        // infeasible. Emit a meaningful error in this case.
+        if (sched_options.scheduling_options.pipeline_stages().has_value() &&
+            sched_options.scheduling_options.clock_period_ps().has_value()) {
+          // TODO(meheff): Add link to documentation with more information and
+          // guidance.
+          XLS_LOG(QFATAL) << absl::StreamFormat(
+              "Design cannot be scheduled in %d stages with a %dps clock.",
+              sched_options.scheduling_options.pipeline_stages().value(),
+              sched_options.scheduling_options.clock_period_ps().value());
+        }
+
+        return scheduling_status;
+      }
+    }
     XLS_RET_CHECK(scheduling_unit.schedule.has_value());
 
     verilog::PipelineOptions pipeline_options;

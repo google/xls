@@ -352,7 +352,11 @@ std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64 c) const {
 
   int64 max_ub;
   if (options.pipeline_stages().has_value()) {
-    XLS_RET_CHECK_GE(*options.pipeline_stages(), bounds.max_lower_bound());
+    if (*options.pipeline_stages() < bounds.max_lower_bound()) {
+      return absl::ResourceExhaustedError(absl::StrFormat(
+          "Cannot be scheduled in %d stages. Computed lower bound is %d.",
+          *options.pipeline_stages(), bounds.max_lower_bound()));
+    }
     max_ub = *options.pipeline_stages() - 1;
   } else {
     max_ub = bounds.max_lower_bound();
