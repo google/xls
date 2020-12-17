@@ -595,7 +595,8 @@ class TypeDef : public AstNode {
   const std::string& identifier() const { return name_def_->identifier(); }
 
   std::string ToString() const override {
-    return absl::StrFormat("type %s = %s;", identifier(), type_->ToString());
+    return absl::StrFormat("%stype %s = %s;", is_public_ ? "pub " : "",
+                           identifier(), type_->ToString());
   }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {

@@ -42,16 +42,22 @@ static absl::StatusOr<Bits> ParseUnsignedNumberHelper(
   }
 
   if (format == FormatPreference::kDecimal) {
-    uint64 magnitude;
-    if (!absl::SimpleAtoi(numeric_string, &magnitude)) {
-      return absl::InvalidArgumentError(StrFormat(
-          "Could not convert %s to 64-bit decimal number", orig_string));
-    }
+    Bits result(UBits(0, 32));
+    Bits bits_10(UBits(10, 8));
+    for (int i = 0; i < numeric_string.size(); i++) {
+      result = bits_ops::UMul(result, bits_10);
+      uint32 magnitude;
+      std::string digit_str(1, numeric_string.at(i));
+      if (!absl::SimpleAtoi(digit_str, &magnitude)) {
+        return absl::InvalidArgumentError(StrFormat(
+            "Could not convert %s to 32-bit decimal number", orig_string));
+      }
+      Bits new_char(UBits(magnitude, result.bit_count()));
 
-    if (bit_count == kMinimumBitCount) {
-      return UBits(magnitude, Bits::MinBitCountUnsigned(magnitude));
+      result = bits_ops::Add(result, new_char);
+      result = bits_ops::DropLeadingZeroes(result);
     }
-    return UBits(magnitude, bit_count);
+    return result;
   }
 
   int base;

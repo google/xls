@@ -480,6 +480,21 @@ Bits Reverse(const Bits& bits) {
   return Bits(bits_vector);
 }
 
+Bits DropLeadingZeroes(const Bits& bits) {
+  int64 first_one;
+  for (first_one = bits.bit_count() - 1; first_one >= 0; first_one--) {
+    if (bits.Get(first_one) == 1) {
+      break;
+    }
+  }
+
+  if (first_one == -1) {
+    return Bits();
+  }
+
+  return bits.Slice(0, first_one + 1);
+}
+
 }  // namespace bits_ops
 
 Bits LogicalOpIdentity(Op op, int64 width) {

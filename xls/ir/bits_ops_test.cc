@@ -730,5 +730,16 @@ TEST(BitsOpsTest, ReductionOps) {
   EXPECT_EQ(bits_ops::XorReduce(UBits(127, 128)), UBits(1, 1));
 }
 
+TEST(BitsOpsTest, DropLeadingZeroes) {
+  EXPECT_EQ(bits_ops::DropLeadingZeroes(Bits()), Bits());
+  EXPECT_EQ(bits_ops::DropLeadingZeroes(UBits(0, 1)), Bits());
+  EXPECT_EQ(bits_ops::DropLeadingZeroes(UBits(1, 1)), UBits(1, 1));
+  EXPECT_EQ(bits_ops::DropLeadingZeroes(UBits(0, 2)), Bits());
+  EXPECT_EQ(bits_ops::DropLeadingZeroes(UBits(1, 2)), UBits(1, 1));
+  EXPECT_EQ(bits_ops::DropLeadingZeroes(UBits(0x5a5a, 16)), UBits(0x5a5a, 15));
+  EXPECT_EQ(bits_ops::DropLeadingZeroes(UBits(0x0, 16)), Bits());
+  EXPECT_EQ(bits_ops::DropLeadingZeroes(UBits(0xFFF0, 16)), UBits(0xFFF0, 16));
+}
+
 }  // namespace
 }  // namespace xls

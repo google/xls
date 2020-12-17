@@ -135,6 +135,11 @@ inline int64 CountTrailingOnes(const Bits& bits) {
 // is, most-significant bit becomes least-significant bit, etc.
 Bits Reverse(const Bits& bits);
 
+// Returns a Bits object with leading zeroes stripped off, e.g.,
+// bits[8]:0b00001010 would become bits[4]:1010.
+// Returns a zero-bit/empty Bits for a zero-valued input.
+Bits DropLeadingZeroes(const Bits& bits);
+
 }  // namespace bits_ops
 
 // Returns the identity value of the given width for the given logical Op (e.g.,

@@ -138,7 +138,7 @@ TEST(NumberParserTest, ParseNumberErrors) {
   EXPECT_THAT(ParseNumberAsUint64("123b").status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        ::testing::HasSubstr(
-                           "Could not convert 123b to 64-bit decimal number")));
+                           "Could not convert 123b to 32-bit decimal number")));
   EXPECT_THAT(
       ParseNumberAsUint64("0b").status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
