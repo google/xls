@@ -401,10 +401,16 @@ class FunctionType : public ConcreteType {
 
   bool operator==(const ConcreteType& other) const override;
 
+  // Accessor for owned parameter (formal argument) type vector.
   const std::vector<std::unique_ptr<ConcreteType>>& params() const {
     return params_;
   }
+
+  // Returns a (new value) vector of pointers to parameter types owned by this
+  // FunctionType.
   std::vector<const ConcreteType*> GetParams() const;
+
+  // Number of parameters (formal arguments) to this function.
   int64 GetParamCount() const { return params_.size(); }
 
   bool HasEnum() const override {
@@ -413,6 +419,7 @@ class FunctionType : public ConcreteType {
            return_type_->HasEnum();
   }
 
+  // Return type of the function.
   const ConcreteType& return_type() const { return *return_type_; }
 
   std::unique_ptr<ConcreteType> CloneToUnique() const override {
@@ -431,15 +438,28 @@ class FunctionType : public ConcreteType {
 
 // Helper for the case where we have a derived (i.e. non-abstract) ConcreteType,
 // and want the clone to also be a unique_ptr of the derived type.
+//
+// Note: we explicitly instantiate it so we get better type error messages than
+// exposing the parametric version directly to callers.
 template <typename T>
-inline std::unique_ptr<T> CloneToUnique(const T& type) {
+inline std::unique_ptr<T> CloneToUniqueInternal(const T& type) {
+  static_assert(std::is_base_of<ConcreteType, T>::value);
   std::unique_ptr<ConcreteType> cloned = type.CloneToUnique();
   return absl::WrapUnique<T>(dynamic_cast<T*>(cloned.release()));
+}
+inline std::unique_ptr<BitsType> CloneToUnique(const BitsType& type) {
+  return CloneToUniqueInternal(type);
+}
+inline std::unique_ptr<TupleType> CloneToUnique(const TupleType& type) {
+  return CloneToUniqueInternal(type);
+}
+inline std::unique_ptr<FunctionType> CloneToUnique(const FunctionType& type) {
+  return CloneToUniqueInternal(type);
 }
 
 // As above, but works on a vector of ConcreteType unique pointers.
 inline std::vector<std::unique_ptr<ConcreteType>> CloneToUnique(
-    const std::vector<std::unique_ptr<ConcreteType>>& types) {
+    absl::Span<const std::unique_ptr<ConcreteType>> types) {
   std::vector<std::unique_ptr<ConcreteType>> result;
   for (const auto& item : types) {
     result.push_back(item->CloneToUnique());
@@ -449,7 +469,7 @@ inline std::vector<std::unique_ptr<ConcreteType>> CloneToUnique(
 
 // As above, but works on a vector of ConcreteType unique pointers.
 inline std::vector<std::unique_ptr<ConcreteType>> CloneToUnique(
-    const std::vector<const ConcreteType*>& types) {
+    absl::Span<const ConcreteType* const> types) {
   std::vector<std::unique_ptr<ConcreteType>> result;
   for (const auto* item : types) {
     result.push_back(item->CloneToUnique());

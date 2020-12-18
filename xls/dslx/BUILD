@@ -192,12 +192,35 @@ py_library(
 )
 
 cc_library(
+    name = "symbolic_bindings",
+    srcs = ["symbolic_bindings.cc"],
+    hdrs = ["symbolic_bindings.h"],
+    deps = [
+        "//xls/common:integral_types",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "type_and_bindings",
+    hdrs = ["type_and_bindings.h"],
+    deps = [
+        ":cpp_concrete_type",
+        ":symbolic_bindings",
+    ],
+)
+
+cc_library(
     name = "cpp_type_info",
     srcs = ["type_info.cc"],
     hdrs = ["type_info.h"],
     deps = [
         ":cpp_ast",
         ":cpp_concrete_type",
+        ":symbolic_bindings",
     ],
 )
 
@@ -211,30 +234,16 @@ cc_test(
 )
 
 py_library(
-    name = "dslx_builtins",
-    srcs = ["dslx_builtins.py"],
-    srcs_version = "PY3",
-    deps = [
-        "//xls/dslx/python:cpp_concrete_type",
-        "//xls/dslx/python:cpp_deduce",
-        "//xls/dslx/python:cpp_parametric_instantiator",
-        "//xls/dslx/python:cpp_pos",
-        "//xls/dslx/python:cpp_type_info",
-        "@com_google_absl_py//absl/logging",
-    ],
-)
-
-py_library(
     name = "typecheck",
     srcs = ["typecheck.py"],
     srcs_version = "PY3",
     deps = [
-        ":dslx_builtins",
         ":span",
         "//xls/common:xls_error",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_deduce",
+        "//xls/dslx/python:cpp_dslx_builtins",
         "//xls/dslx/python:cpp_type_info",
         "//xls/dslx/python:cpp_typecheck",
         "@com_google_absl_py//absl/logging",
@@ -282,7 +291,6 @@ py_library(
         ":ast_helpers",
         ":bit_helpers",
         ":concrete_type_helpers",
-        ":dslx_builtins",
         ":extract_conversion_order",
         ":ir_name_mangler",
         ":span",
@@ -291,6 +299,7 @@ py_library(
         "//xls/dslx/python:cpp_ast_visitor",
         "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_deduce",
+        "//xls/dslx/python:cpp_dslx_builtins",
         "//xls/dslx/python:cpp_parametric_expression",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_type_info",
@@ -379,9 +388,9 @@ py_library(
     srcs = ["extract_conversion_order.py"],
     srcs_version = "PY3",
     deps = [
-        ":dslx_builtins",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_ast_visitor",
+        "//xls/dslx/python:cpp_dslx_builtins",
         "//xls/dslx/python:cpp_parametric_instantiator",
         "//xls/dslx/python:cpp_type_info",
         "@com_google_absl_py//absl/logging",
@@ -860,6 +869,7 @@ cc_library(
         ":cpp_type_info",
         ":deduce_ctx",
         ":interpreter",
+        ":type_and_bindings",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -879,6 +889,21 @@ cc_library(
         ":cpp_deduce",
         ":deduce_ctx",
         "//xls/dslx/python:cpp_ast_header",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "cpp_dslx_builtins",
+    srcs = ["dslx_builtins.cc"],
+    hdrs = ["dslx_builtins.h"],
+    deps = [
+        ":cpp_ast",
+        ":cpp_concrete_type",
+        ":cpp_parametric_instantiator",
+        ":deduce_ctx",
+        ":type_and_bindings",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
     ],
 )

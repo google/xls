@@ -17,14 +17,10 @@
 
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/deduce_ctx.h"
+#include "xls/dslx/type_and_bindings.h"
 #include "xls/dslx/type_info.h"
 
 namespace xls::dslx {
-
-struct TypeAndBindings {
-  std::unique_ptr<ConcreteType> type;
-  SymbolicBindings symbolic_bindings;
-};
 
 // Instantiates a function invocation using the bindings derived from arg_types.
 absl::StatusOr<TypeAndBindings> InstantiateFunction(

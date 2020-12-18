@@ -532,7 +532,16 @@ fn f(x: bool) -> u32 {
   select(x, u32:1, u8:0)
 }
 """,
-        error='Want arguments 1 and 2 to be of the same type')
+        error="Want arguments 1 and 2 to 'select' to be of the same type; got uN[32] vs uN[8]"
+    )
+
+  def test_enumerate_builtin(self):
+    self._typecheck("""
+        type MyTup = (u32, u2);
+        fn f(x: u2[7]) -> MyTup[7] {
+          enumerate(x)
+        }
+        """)
 
   def test_ternary_non_boolean_test(self):
     self._typecheck(
@@ -566,7 +575,8 @@ fn f(x: u32) -> (u1, u32) {
           update(x, i, u32[6]:0)
         }
         """),
-        error='Want argument 1 to be unsigned bits')
+        error='Want argument 1 to be unsigned bits',
+        error_type=TypeInferenceError)
 
   def test_typecheck_index(self):
     self._typecheck('fn f(x: u32[5], i: u8) -> u32 { x[i] }')
@@ -626,6 +636,15 @@ fn f() -> u4 {
   a
 }
 """)
+
+  def test_one_hot_bad_prio_type(self):
+    self._typecheck(
+        """
+    fn f(x: u7, prio: u2) -> u8 {
+      one_hot(x, prio)
+    }""",
+        error="Expected argument 1 to 'one_hot' to be a u1; got uN[2]",
+        error_type=TypeInferenceError)
 
   def test_one_hot_sel_of_signed(self):
     self._typecheck("""

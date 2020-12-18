@@ -66,7 +66,7 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
     auto* function_type = dynamic_cast<FunctionType*>(f_type.value());
     XLS_RET_CHECK(function_type != nullptr);
     annotated_return_type = function_type->return_type().CloneToUnique();
-    param_types = CloneToUnique(function_type->params());
+    param_types = CloneToUnique(absl::MakeSpan(function_type->params()));
   } else {
     XLS_VLOG(1) << "Type-checking signature for function: " << f->identifier();
     XLS_ASSIGN_OR_RETURN(param_types, CheckFunctionParams(f, ctx));

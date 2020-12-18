@@ -21,9 +21,9 @@ from typing import Tuple, Text, List, Dict, Union
 from absl import logging
 import dataclasses
 
-from xls.dslx import dslx_builtins
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_ast_visitor
+from xls.dslx.python import cpp_dslx_builtins
 from xls.dslx.python import cpp_type_info as type_info_mod
 from xls.dslx.python.cpp_type_info import SymbolicBindings
 
@@ -123,7 +123,7 @@ def get_callees(func: Union[ast.Function, ast.Test], m: ast.Module,
         try:
           f = this_m.get_function(fn_identifier)
         except KeyError:
-          if node.callee.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
+          if node.callee.identifier in cpp_dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
             return
           raise
       else:

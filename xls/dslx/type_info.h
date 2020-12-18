@@ -19,97 +19,11 @@
 
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/cpp_ast.h"
+#include "xls/dslx/symbolic_bindings.h"
 
 namespace xls::dslx {
 
 class TypeInfo;
-
-// A single symbolic binding entry (binds a parametric integral typed variable
-// name to a value). For example, in:
-//
-//    fn [N: u32] id(x: uN[N]) -> uN[N] { x }
-//    fn main() -> u32 { id(u32:0) }
-//
-// The symbolic binding for N given id invoked in main is `{"N", 42}`.
-struct SymbolicBinding {
-  std::string identifier;
-  int64 value;
-
-  bool operator==(const SymbolicBinding& other) const {
-    return identifier == other.identifier && value == other.value;
-  }
-  bool operator!=(const SymbolicBinding& other) const {
-    return !(*this == other);
-  }
-};
-
-// Sequence of symbolic bindings in stable order (wraps the backing vector
-// storage to make it immutable, hashable, among other utility functions).
-//
-// Stable order is that bindings are sorted as (identifier, value) tuples.
-class SymbolicBindings {
- public:
-  SymbolicBindings() = default;
-
-  explicit SymbolicBindings(
-      absl::Span<std::pair<std::string, int64> const> items) {
-    for (const auto& item : items) {
-      bindings_.push_back(SymbolicBinding{item.first, item.second});
-    }
-    Sort();
-  }
-  explicit SymbolicBindings(
-      const absl::flat_hash_map<std::string, int64>& mapping) {
-    for (const auto& item : mapping) {
-      bindings_.push_back(SymbolicBinding{item.first, item.second});
-    }
-    Sort();
-  }
-
-  template <typename H>
-  friend H AbslHashValue(H h, const SymbolicBindings& self) {
-    for (const SymbolicBinding& sb : self.bindings_) {
-      h = H::combine(std::move(h), sb.identifier, sb.value);
-    }
-    return h;
-  }
-
-  bool operator==(const SymbolicBindings& other) const;
-  bool operator!=(const SymbolicBindings& other) const;
-
-  // Returns a string representation of the contained symbolic bindings suitable
-  // for debugging.
-  std::string ToString() const;
-
-  absl::flat_hash_map<std::string, int64> ToMap() const {
-    absl::flat_hash_map<std::string, int64> map;
-    for (const SymbolicBinding& binding : bindings_) {
-      map.insert({binding.identifier, binding.value});
-    }
-    return map;
-  }
-
-  int64 size() const { return bindings_.size(); }
-  const std::vector<SymbolicBinding>& bindings() const { return bindings_; }
-
- private:
-  void Sort() {
-    std::sort(
-        bindings_.begin(), bindings_.end(),
-        [](const auto& lhs, const auto& rhs) {
-          return lhs.identifier < rhs.identifier ||
-                 (lhs.identifier == rhs.identifier && lhs.value < rhs.value);
-        });
-  }
-
-  std::vector<SymbolicBinding> bindings_;
-};
-
-inline std::ostream& operator<<(std::ostream& os,
-                                const SymbolicBindings& symbolic_bindings) {
-  os << symbolic_bindings.ToString();
-  return os;
-}
 
 // Information associated with an import node in the AST.
 struct ImportedInfo {

@@ -23,9 +23,9 @@ from absl import logging
 import dataclasses
 
 from xls.common.xls_error import XlsError
-from xls.dslx import dslx_builtins
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_deduce
+from xls.dslx.python import cpp_dslx_builtins
 from xls.dslx.python import cpp_type_info as type_info
 from xls.dslx.python import cpp_typecheck
 from xls.dslx.python.cpp_concrete_type import ConcreteType
@@ -54,11 +54,11 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
     else:
       assert isinstance(map_fn_ref, ast.NameRef), map_fn_ref
       map_fn_name = map_fn_ref.identifier
-      if map_fn_ref.identifier not in dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
+      if map_fn_ref.identifier not in cpp_dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
         map_fn = ctx.module.get_function(map_fn_name)
         higher_order_parametric_bindings = map_fn.parametric_bindings
 
-  fsignature = dslx_builtins.get_fsignature(builtin_name.identifier)
+  fsignature = cpp_dslx_builtins.get_fsignature(builtin_name.identifier)
   fn_type, symbolic_bindings = fsignature(arg_types, builtin_name.identifier,
                                           invocation.span, ctx,
                                           higher_order_parametric_bindings)
@@ -72,7 +72,7 @@ def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
 
   if builtin_name.identifier == 'map':
     assert isinstance(map_fn_name, str), map_fn_name
-    if (map_fn_name in dslx_builtins.PARAMETRIC_BUILTIN_NAMES or
+    if (map_fn_name in cpp_dslx_builtins.PARAMETRIC_BUILTIN_NAMES or
         not map_fn.is_parametric()):
       # A builtin higher-order parametric fn would've been typechecked when we
       # were going through the arguments of this invocation.
@@ -213,7 +213,7 @@ def check_top_node_in_module(f: Union[ast.Function, ast.Test, ast.StructDef,
                                     e.user))
           break
         if (isinstance(e.node, ast.BuiltinNameDef) and
-            e.node.identifier in dslx_builtins.PARAMETRIC_BUILTIN_NAMES):
+            e.node.identifier in cpp_dslx_builtins.PARAMETRIC_BUILTIN_NAMES):
           logging.vlog(2, 'node: %r; identifier: %r, exception user: %r',
                        e.node, e.node.identifier, e.user)
 

@@ -25,11 +25,11 @@ from xls.common.xls_error import XlsError
 from xls.dslx import ast_helpers
 from xls.dslx import bit_helpers
 from xls.dslx import concrete_type_helpers
-from xls.dslx import dslx_builtins
 from xls.dslx import extract_conversion_order
 from xls.dslx.ir_name_mangler import mangle_dslx_name
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_ast_visitor
+from xls.dslx.python import cpp_dslx_builtins
 from xls.dslx.python import cpp_type_info as type_info_mod
 from xls.dslx.python.cpp_ast_visitor import visit
 from xls.dslx.python.cpp_concrete_type import ArrayType
@@ -866,10 +866,11 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       fb = function_builder.FunctionBuilder(mangled_name, self.package)
       param = fb.add_param('arg', arg.get_type().get_element_type())
       builtin_name = node.name_def.identifier
-      assert builtin_name in dslx_builtins.UNARY_BUILTIN_NAMES, dslx_builtins.UNARY_BUILTIN_NAMES
+      assert builtin_name in cpp_dslx_builtins.UNARY_PARAMETRIC_BUILTIN_NAMES, cpp_dslx_builtins.UNARY_PARAMETRIC_BUILTIN_NAMES
       fbuilds = {'clz': fb.add_clz, 'ctz': fb.add_ctz}
-      assert set(fbuilds.keys()) == dslx_builtins.UNARY_BUILTIN_NAMES, set(
-          fbuilds.keys())
+      assert set(fbuilds.keys()
+                ) == cpp_dslx_builtins.UNARY_PARAMETRIC_BUILTIN_NAMES, set(
+                    fbuilds.keys())
       fbuilds[builtin_name](param)
       fb.build()
     return self._def(parent_node, self.fb.add_map, arg,
@@ -883,7 +884,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
 
     if isinstance(fn_node, ast.NameRef):
       map_fn_name = fn_node.name_def.identifier
-      if map_fn_name in dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
+      if map_fn_name in cpp_dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
         return self._def_map_with_builtin(node, fn_node, node.args[0],
                                           self._get_invocation_bindings(node))
       else:

@@ -100,8 +100,8 @@ PYBIND11_MODULE(cpp_parametric_instantiator, m) {
             pparametric_constraints = absl::MakeSpan(parametric_constraints);
           }
           auto statusor = InstantiateFunction(
-              span, function_type, CloneToUnique(arg_types), ctx,
-              pparametric_constraints, pexplicit_constraints);
+              span, function_type, CloneToUnique(absl::MakeSpan(arg_types)),
+              ctx, pparametric_constraints, pexplicit_constraints);
           XLS_VLOG(5) << "instantiate_function status: " << statusor.status();
           TryThrowKeyError(statusor.status());
           TryThrowXlsTypeError(statusor.status());
@@ -123,8 +123,9 @@ PYBIND11_MODULE(cpp_parametric_instantiator, m) {
             pparametric_bindings = absl::MakeSpan(parametric_bindings);
           }
           auto statusor = InstantiateStruct(
-              span, struct_type, CloneToUnique(arg_types),
-              CloneToUnique(member_types), ctx, pparametric_bindings);
+              span, struct_type, CloneToUnique(absl::MakeSpan(arg_types)),
+              CloneToUnique(absl::MakeSpan(member_types)), ctx,
+              pparametric_bindings);
           TryThrowKeyError(statusor.status());
           TryThrowXlsTypeError(statusor.status());
           TryThrowArgCountMismatchError(statusor.status());

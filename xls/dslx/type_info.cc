@@ -16,30 +16,6 @@
 
 namespace xls::dslx {
 
-bool SymbolicBindings::operator==(const SymbolicBindings& other) const {
-  if (bindings_.size() != other.bindings_.size()) {
-    return false;
-  }
-  for (int64 i = 0; i < bindings_.size(); ++i) {
-    if (bindings_[i] != other.bindings_[i]) {
-      return false;
-    }
-  }
-  return true;
-}
-bool SymbolicBindings::operator!=(const SymbolicBindings& other) const {
-  return !(*this == other);
-}
-
-std::string SymbolicBindings::ToString() const {
-  return absl::StrFormat(
-      "(%s)", absl::StrJoin(bindings_, ", ",
-                            [](std::string* out, const SymbolicBinding& sb) {
-                              absl::StrAppendFormat(out, "%s: %d",
-                                                    sb.identifier, sb.value);
-                            }));
-}
-
 void TypeInfo::Update(const TypeInfo& other) {
   for (const auto& [node, type] : other.dict_) {
     dict_[node] = type->CloneToUnique();
