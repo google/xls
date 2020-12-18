@@ -58,6 +58,19 @@ PYBIND11_MODULE(cpp_typecheck, m) {
     TryThrowErrors(status);
     return status;
   });
+
+  m.def("instantiate_builtin_parametric",
+        [](BuiltinNameDefHolder builtin_name, InvocationHolder invocation,
+           DeduceCtx* ctx) -> absl::StatusOr<absl::optional<NameDefHolder>> {
+          auto statusor = InstantiateBuiltinParametric(
+              &builtin_name.deref(), &invocation.deref(), ctx);
+          TryThrowErrors(statusor.status());
+          XLS_ASSIGN_OR_RETURN(NameDef * name_def, statusor);
+          if (name_def == nullptr) {
+            return absl::nullopt;
+          }
+          return NameDefHolder(name_def, name_def->owner()->shared_from_this());
+        });
 }
 
 }  // namespace xls::dslx

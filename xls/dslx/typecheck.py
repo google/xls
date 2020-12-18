@@ -34,89 +34,6 @@ from xls.dslx.python.cpp_type_info import SymbolicBindings
 from xls.dslx.span import PositionalError
 
 
-def _instantiate(builtin_name: ast.BuiltinNameDef, invocation: ast.Invocation,
-                 ctx: cpp_deduce.DeduceCtx) -> Optional[ast.NameDef]:
-  """Instantiates a builtin parametric invocation; e.g. 'update'."""
-  arg_types = tuple(
-      cpp_deduce.resolve(ctx.type_info[arg], ctx) for arg in invocation.args)
-
-  higher_order_parametric_bindings = None
-  map_fn_name = None
-  if builtin_name.identifier == 'map':
-    map_fn_ref = invocation.args[1]
-    if isinstance(map_fn_ref, ast.ColonRef):
-      import_node = map_fn_ref.subject.name_def.definer
-      imported_module, imported_type_info = ctx.type_info.get_imported(
-          import_node)
-      map_fn_name = map_fn_ref.attr
-      map_fn = imported_module.get_function(map_fn_name)
-      higher_order_parametric_bindings = map_fn.parametric_bindings
-    else:
-      assert isinstance(map_fn_ref, ast.NameRef), map_fn_ref
-      map_fn_name = map_fn_ref.identifier
-      if map_fn_ref.identifier not in cpp_dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
-        map_fn = ctx.module.get_function(map_fn_name)
-        higher_order_parametric_bindings = map_fn.parametric_bindings
-
-  fsignature = cpp_dslx_builtins.get_fsignature(builtin_name.identifier)
-  fn_type, symbolic_bindings = fsignature(arg_types, builtin_name.identifier,
-                                          invocation.span, ctx,
-                                          higher_order_parametric_bindings)
-
-  fn_symbolic_bindings = ctx.peek_fn_stack().symbolic_bindings
-  ctx.type_info.add_invocation_symbolic_bindings(invocation,
-                                                 fn_symbolic_bindings,
-                                                 symbolic_bindings)
-  ctx.type_info[invocation.callee] = fn_type
-  ctx.type_info[invocation] = fn_type.return_type  # pytype: disable=attribute-error
-
-  if builtin_name.identifier == 'map':
-    assert isinstance(map_fn_name, str), map_fn_name
-    if (map_fn_name in cpp_dslx_builtins.PARAMETRIC_BUILTIN_NAMES or
-        not map_fn.is_parametric()):
-      # A builtin higher-order parametric fn would've been typechecked when we
-      # were going through the arguments of this invocation.
-      # If the function wasn't parametric, then we're good to go.
-      return None
-
-    # If the higher order function is parametric, we need to typecheck its body
-    # with the symbolic bindings we just computed.
-    if isinstance(map_fn_ref, ast.ColonRef):
-      if ctx.type_info.has_instantiation(invocation, symbolic_bindings):
-        # We've already typechecked this imported parametric function using
-        # these bindings.
-        return None
-      invocation_imported_type_info = type_info.TypeInfo(
-          imported_module, parent=imported_type_info)
-      imported_ctx = ctx.make_ctx(invocation_imported_type_info,
-                                  imported_module)
-      imported_ctx.add_fn_stack_entry(map_fn_name, symbolic_bindings)
-      # We need to typecheck this imported function with respect to its module
-      ctx.typecheck_function(map_fn, imported_ctx)
-      ctx.type_info.add_instantiation(invocation, symbolic_bindings,
-                                      invocation_imported_type_info)
-    else:
-      # If the higher-order parametric fn is in this module, let's try to push
-      # it onto the typechecking stack.
-      if ctx.type_info.has_instantiation(invocation, symbolic_bindings):
-        # We've already typecheck this parametric function using these
-        # bindings.
-        return None
-
-      ctx.add_fn_stack_entry(map_fn_name, symbolic_bindings)
-
-      # Create a "derived" type info (a child type info with the current type
-      # info as a parent), and note that it exists for an instantiation (in the
-      # parent type info).
-      parent_type_info = ctx.type_info
-      ctx.add_derived_type_info()
-      parent_type_info.add_instantiation(invocation, symbolic_bindings,
-                                         ctx.type_info)
-      return map_fn_ref.name_def
-
-  return None
-
-
 @dataclasses.dataclass
 class _TypecheckStackRecord:
   """A wrapper over information used to typecheck a top level AST node.
@@ -218,7 +135,8 @@ def check_top_node_in_module(f: Union[ast.Function, ast.Test, ast.StructDef,
                        e.node, e.node.identifier, e.user)
 
           if isinstance(e.user, ast.Invocation):
-            func = _instantiate(e.node, e.user, ctx)
+            func = cpp_typecheck.instantiate_builtin_parametric(
+                e.node, e.user, ctx)
             if func:
               # We need to figure out what to do with this higher order
               # parametric function.

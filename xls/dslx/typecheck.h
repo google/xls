@@ -33,6 +33,10 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx);
 // Validates a test (body) within a module.
 absl::Status CheckTest(Test* t, DeduceCtx* ctx);
 
+// Instantiates a builtin parametric invocation; e.g. `update()`.
+absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
+    BuiltinNameDef* builtin_name, Invocation* invocation, DeduceCtx* ctx);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPECHECK_H_

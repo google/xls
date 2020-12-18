@@ -887,6 +887,7 @@ cc_library(
     features = ["-use_header_modules"],
     deps = [
         ":cpp_deduce",
+        ":cpp_dslx_builtins",
         ":deduce_ctx",
         "//xls/dslx/python:cpp_ast_header",
         "@com_google_absl//absl/status:statusor",

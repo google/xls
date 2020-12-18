@@ -301,6 +301,24 @@ std::string Import::ToString() const {
 ColonRef::ColonRef(Module* owner, Span span, Subject subject, std::string attr)
     : Expr(owner, std::move(span)), subject_(subject), attr_(std::move(attr)) {}
 
+absl::optional<Import*> ColonRef::ResolveImportSubject() const {
+  if (!absl::holds_alternative<NameRef*>(subject_)) {
+    return absl::nullopt;
+  }
+  auto* name_ref = absl::get<NameRef*>(subject_);
+  AnyNameDef any_name_def = name_ref->name_def();
+  if (!absl::holds_alternative<NameDef*>(any_name_def)) {
+    return absl::nullopt;
+  }
+  auto* name_def = absl::get<NameDef*>(any_name_def);
+  AstNode* definer = name_def->definer();
+  Import* import = dynamic_cast<Import*>(definer);
+  if (import == nullptr) {
+    return absl::nullopt;
+  }
+  return import;
+}
+
 // -- class Param
 
 Param::Param(Module* owner, NameDef* name_def, TypeAnnotation* type)

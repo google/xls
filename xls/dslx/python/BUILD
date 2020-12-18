@@ -418,7 +418,6 @@ xls_pybind_extension(
         "//xls/dslx:cpp_deduce",
         "//xls/dslx:cpp_dslx_builtins",
         "//xls/dslx:cpp_evaluate",
-        "//xls/dslx:cpp_typecheck",
         "//xls/dslx:import_routines",
         "//xls/dslx:interp_bindings",
         "//xls/dslx:interpreter",

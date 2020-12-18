@@ -479,8 +479,8 @@ static void PopulateSignatureToLambdaMap(
       [](ArgTypes arg_types, absl::string_view name, const Span& span,
          DeduceCtx* ctx, ParametricBindings parametric_bindings)
       -> absl::StatusOr<TypeAndBindings> {
-    const ArrayType* a;
-    const FunctionType* f;
+    const ArrayType* a = nullptr;
+    const FunctionType* f = nullptr;
     XLS_RETURN_IF_ERROR(Checker(arg_types, name, span)
                             .Len(2)
                             .IsArray(0, &a)

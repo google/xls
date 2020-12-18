@@ -747,6 +747,13 @@ class ColonRef : public Expr {
   Subject subject() const { return subject_; }
   const std::string& attr() const { return attr_; }
 
+  // Resolves the subject of this ColonRef to an import node, or returns a
+  // nullopt if the subject is not an imported module.
+  //
+  // Note: if the value is not nullopt, it will be a valid pointer (not
+  // nullptr).
+  absl::optional<Import*> ResolveImportSubject() const;
+
  private:
   Subject subject_;
   std::string attr_;
