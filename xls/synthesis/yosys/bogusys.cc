@@ -32,6 +32,10 @@ const char kUsage[] =
 const char kYosysOutput[] = R"(
 ....
 
+Top module:  \__input__fun
+
+....
+
 2.49. Printing statistics.
 
 === __input__fun ===

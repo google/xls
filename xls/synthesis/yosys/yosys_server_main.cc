@@ -12,22 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "grpcpp/grpcpp.h"
-#include "grpcpp/security/server_credentials.h"
-#include "grpcpp/server.h"
-#include "grpcpp/server_builder.h"
-#include "grpcpp/server_context.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/time/time.h"
+#include "grpcpp/grpcpp.h"
+#include "grpcpp/security/server_credentials.h"
+#include "grpcpp/server.h"
+#include "grpcpp/server_builder.h"
+#include "grpcpp/server_context.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/subprocess.h"
 #include "xls/synthesis/server_credentials.h"
@@ -50,6 +51,8 @@ ABSL_FLAG(std::string, nextpnr_path, "", "The path to the nextpnr binary.");
 ABSL_FLAG(std::string, synthesis_target, "",
           "The backend to target for synthesis; e.g. ice40, ecp5.");
 ABSL_FLAG(bool, save_temps, false, "Do not delete temporary files.");
+ABSL_FLAG(bool, synthesis_only, false,
+          "Perform synthesis but not place and route");
 
 namespace xls {
 namespace synthesis {
@@ -144,6 +147,20 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
     }
     XLS_ASSIGN_OR_RETURN(std::string netlist, GetFileContents(netlist_path));
     result->set_netlist(netlist);
+
+    // Add stats in response.
+    XLS_ASSIGN_OR_RETURN(YosysSynthesisStatistics parse_stats,
+                         ParseYosysOutput(yosys_stdout));
+    XLS_RET_CHECK(!result->has_instance_count());
+    for (const auto name_count : parse_stats.cell_histogram) {
+      (*result->mutable_instance_count()
+            ->mutable_cell_histogram())[name_count.first] = name_count.second;
+    }
+
+    // If only synthesis requested, done.
+    if (absl::GetFlag(FLAGS_synthesis_only)) {
+      return absl::OkStatus();
+    }
 
     // Invoke nextpnr for place and route.
     absl::optional<std::filesystem::path> pnr_path;
