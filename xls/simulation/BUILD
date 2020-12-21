@@ -50,7 +50,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir:bits",
         "//xls/tools:verilog_include",
-        "@com_google_re2//:re2",
+        "@com_github_google_re2//:re2",
     ],
 )
 
@@ -115,7 +115,7 @@ cc_library(
         "//xls/ir:bits_ops",
         "//xls/ir:ir_parser",
         "//xls/ir:number_parser",
-        "@com_google_re2//:re2",
+        "@com_github_google_re2//:re2",
     ],
 )
 

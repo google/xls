@@ -133,8 +133,12 @@ def load_external_repositories():
         sha256 = "6ace3cd8921804aaabc37970590edce05c6664901cc98d30010d09f2811dc56f",
     )
 
+    # Note - use @com_github_google_re2 instead of more canonical
+    #        @com_google_re2 for consistency with dependency grpc
+    #        which uses @com_github_google_re2.
+    #          (see https://github.com/google/xls/issues/234)
     http_archive(
-        name = "com_google_re2",
+        name = "com_github_google_re2",
         sha256 = "d070e2ffc5476c496a6a872a6f246bfddce8e7797d6ba605a7c8d72866743bf9",
         strip_prefix = "re2-506cfa4bffd060c06ec338ce50ea3468daa6c814",
         urls = [

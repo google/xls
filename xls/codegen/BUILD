@@ -161,7 +161,7 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/ir:bits",
-        "@com_google_re2//:re2",
+        "@com_github_google_re2//:re2",
     ],
 )
 

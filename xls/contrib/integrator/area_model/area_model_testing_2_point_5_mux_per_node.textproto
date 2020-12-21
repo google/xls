@@ -1,0 +1,78 @@
+# Copyright 2020 The XLS Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# proto-file: xls/delay_model/delay_model.proto
+# proto-message: xls.delay_model.DelayModel
+
+# Dummy model for testing. All nodes except select have the same
+# fixed cost. 
+# The cost of regular node is 2.5X a mux.
+
+# Free nodes.
+op_models { op: "kArray" estimator { fixed: 0 } }
+op_models { op: "kArrayConcat" estimator { fixed: 0 } }
+op_models { op: "kArrayIndex" estimator { fixed: 0 } }
+op_models { op: "kArrayUpdate" estimator { fixed: 0 } }
+op_models { op: "kBitSlice" estimator { fixed: 0 } }
+op_models { op: "kConcat" estimator { fixed: 0 } }
+op_models { op: "kIdentity" estimator { fixed: 0 } }
+op_models { op: "kLiteral" estimator { fixed: 0 } }
+op_models { op: "kParam" estimator { fixed: 0 } }
+op_models { op: "kReverse" estimator { fixed: 0 } }
+op_models { op: "kTuple" estimator { fixed: 0 } }
+op_models { op: "kTupleIndex" estimator { fixed: 0 } }
+op_models { op: "kZeroExt" estimator { fixed: 0 } }
+
+# Select - sepcial case
+op_models { op: "kSel" estimator { fixed: 2 } }
+
+# Costly nodes.
+op_models { op: "kAdd" estimator { fixed: 5 } }
+op_models { op: "kAnd" estimator { fixed: 5 } }
+op_models { op: "kAndReduce" estimator { fixed: 5 } }
+op_models { op: "kDecode" estimator { fixed: 5 } }
+op_models { op: "kDynamicBitSlice" estimator { fixed: 5 } }
+op_models { op: "kEncode" estimator { fixed: 5 } }
+op_models { op: "kEq" estimator { fixed: 5 } }
+# Note sure about these two...
+op_models { op: "kNand" estimator { fixed: 5 } }
+op_models { op: "kNe" estimator { fixed: 5 } }
+op_models { op: "kNeg" estimator { fixed: 5 } }
+op_models { op: "kNor" estimator { fixed: 5 } }
+op_models { op: "kNot" estimator { fixed: 5 } }
+op_models { op: "kOneHot" estimator { fixed: 5 } }
+op_models { op: "kOneHotSel" estimator { fixed: 5 } }
+op_models { op: "kOr" estimator { fixed: 5 } }
+op_models { op: "kOrReduce" estimator { fixed: 5 } }
+op_models { op: "kSDiv" estimator { fixed: 5 } }
+op_models { op: "kSGe" estimator { fixed: 5 } }
+op_models { op: "kSGt" estimator { fixed: 5 } }
+op_models { op: "kSLe" estimator { fixed: 5 } }
+op_models { op: "kSLt" estimator { fixed: 5 } }
+op_models { op: "kSMul" estimator { fixed: 5 } }
+op_models { op: "kSMod" estimator { fixed: 5 } }
+op_models { op: "kShll" estimator { fixed: 5 } }
+op_models { op: "kShra" estimator { fixed: 5 } }
+op_models { op: "kShrl" estimator { fixed: 5 } }
+op_models { op: "kSignExt" estimator { fixed: 5 } }
+op_models { op: "kSub" estimator { fixed: 5 } }
+op_models { op: "kUDiv" estimator { fixed: 5 } }
+op_models { op: "kUGe" estimator { fixed: 5 } }
+op_models { op: "kUGt" estimator { fixed: 5 } }
+op_models { op: "kULe" estimator { fixed: 5 } }
+op_models { op: "kULt" estimator { fixed: 5 } }
+op_models { op: "kUMul" estimator { fixed: 5 } }
+op_models { op: "kUMod" estimator { fixed: 5 } }
+op_models { op: "kXor" estimator { fixed: 5 } }
+op_models { op: "kXorReduce" estimator { fixed: 5 } }

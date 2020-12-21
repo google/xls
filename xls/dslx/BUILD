@@ -492,9 +492,9 @@ cc_library(
     deps = [
         "//xls/common:integral_types",
         "//xls/common/logging",
+        "@com_github_google_re2//:re2",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_re2//:re2",
     ],
 )
 
@@ -648,12 +648,12 @@ cc_library(
         "//xls/common:integral_types",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "@com_github_google_re2//:re2",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:variant",
-        "@com_google_re2//:re2",
     ],
 )
 

@@ -33,6 +33,7 @@ cc_binary(
         "//xls/common/file:temp_file",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/synthesis:server_credentials",
         "//xls/synthesis:synthesis_cc_proto",
@@ -107,6 +108,9 @@ cc_library(
     hdrs = ["yosys_util.h"],
     deps = [
         "//xls/common:integral_types",
+        "//xls/common/status:ret_check",
+        "@com_github_google_re2//:re2",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

@@ -130,6 +130,8 @@ PYBIND11_MODULE(bits, m) {
            })
       .def("to_int", &Bits::ToInt64);
 
+  m.def("min_bit_count_unsigned", &Bits::MinBitCountUnsigned);
+
   m.def("UBits", &UBitsWithStatus, py::arg("value"), py::arg("bit_count"));
   m.def("SBits", &SBitsWithStatus, py::arg("value"), py::arg("bit_count"));
 

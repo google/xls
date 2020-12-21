@@ -15,6 +15,7 @@
 #ifndef XLS_SYNTHESIS_YOSYS_UTIL_H_
 #define XLS_SYNTHESIS_YOSYS_UTIL_H_
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/integral_types.h"
@@ -26,6 +27,15 @@ namespace synthesis {
 // in Hz.
 // TODO(meheff): Extract more information from the nextpnr output.
 absl::StatusOr<int64> ParseNextpnrOutput(absl::string_view nextpnr_output);
+
+// Parses the given string output of yosys and returns information about the
+// synthesis results.
+struct YosysSynthesisStatistics {
+  // Could add other fields for things like wires / memory...
+  absl::flat_hash_map<std::string, int64> cell_histogram;
+};
+absl::StatusOr<YosysSynthesisStatistics> ParseYosysOutput(
+    absl::string_view yosys_output);
 
 }  // namespace synthesis
 }  // namespace xls

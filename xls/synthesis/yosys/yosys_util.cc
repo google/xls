@@ -17,6 +17,8 @@
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_split.h"
+#include "xls/common/status/ret_check.h"
+#include "re2/re2.h"
 
 namespace xls {
 namespace synthesis {
@@ -51,6 +53,62 @@ absl::StatusOr<int64> ParseNextpnrOutput(absl::string_view nextpnr_output) {
   }
 
   return static_cast<int64>(max_mhz * 1e6);
+}
+
+absl::StatusOr<YosysSynthesisStatistics> ParseYosysOutput(
+    absl::string_view yosys_output) {
+  YosysSynthesisStatistics stats;
+  std::vector<std::string> lines = absl::StrSplit(yosys_output, '\n');
+  std::vector<std::string>::iterator parse_line_itr = lines.begin();
+
+  // Advance parse_line_index until a line containing 'key' is found.
+  // Return false if 'key' is not found, otherwise true.
+  auto parse_until_found = [&](absl::string_view key) {
+    for (; parse_line_itr != lines.end(); ++parse_line_itr) {
+      if (absl::StrContains(*parse_line_itr, key)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // This function requies the top level module to have been identified
+  // in order to work correctly (however, we do not need to parse
+  // the name of the top level module).
+  if (!parse_until_found("Top module:")) {
+    return absl::FailedPreconditionError(
+        "ParseYosysOutput could not find the term \"Top module\" in the yosys "
+        "output");
+  }
+
+  // Find the last printed statistics - these describe the whole design rather
+  // than a single module.
+  std::optional<std::vector<std::string>::iterator> last_num_cell_itr;
+  while (parse_until_found("Number of cells:")) {
+    last_num_cell_itr = parse_line_itr;
+    ++parse_line_itr;
+  }
+  if (!last_num_cell_itr.has_value()) {
+    return absl::InternalError(
+        "ParseYosysOutput could not find the term \"Number of cells:\" in the "
+        "yosys output");
+  }
+
+  // Process cell histogram.
+  for (parse_line_itr = last_num_cell_itr.value() + 1;
+       parse_line_itr != lines.end(); ++parse_line_itr) {
+    int64 cell_count;
+    std::string cell_name;
+    if (RE2::FullMatch(*parse_line_itr, "\\s+(\\w+)\\s+(\\d+)\\s*", &cell_name,
+                       &cell_count)) {
+      XLS_RET_CHECK(!stats.cell_histogram.contains(cell_name));
+      stats.cell_histogram[cell_name] = cell_count;
+    } else {
+      break;
+    }
+  }
+
+  return stats;
 }
 
 }  // namespace synthesis
