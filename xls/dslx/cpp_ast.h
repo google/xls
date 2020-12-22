@@ -1546,13 +1546,18 @@ class Test : public AstNode {
 class TestFunction : public Test {
  public:
   explicit TestFunction(Module* owner, Function* fn)
-      : Test(owner, fn->name_def(), fn->body()) {}
+      : Test(owner, fn->name_def(), fn->body()), fn_(fn) {}
 
   void Accept(AstNodeVisitor* v) override {
     return v->HandleTestFunction(this);
   }
 
   absl::string_view GetNodeTypeName() const override { return "TestFunction"; }
+
+  Function* fn() const { return fn_; }
+
+ private:
+  Function* fn_;
 };
 
 // Represents a function to be quick-check'd.
@@ -1990,31 +1995,13 @@ class Module : public AstNode, public std::enable_shared_from_this<Module> {
 
   void AddTop(ModuleMember member) { top_.push_back(member); }
 
-  absl::StatusOr<Function*> GetFunction(absl::string_view target_name) {
-    for (ModuleMember& member : top_) {
-      if (absl::holds_alternative<Function*>(member)) {
-        Function* f = absl::get<Function*>(member);
-        if (f->identifier() == target_name) {
-          return f;
-        }
-      }
-    }
-    return absl::NotFoundError(absl::StrFormat(
-        "No function in module %s with name \"%s\"", name_, target_name));
-  }
+  // Gets a function in this module with the given "target_name", or returns a
+  // NotFoundError.
+  absl::StatusOr<Function*> GetFunction(absl::string_view target_name);
 
-  absl::StatusOr<Test*> GetTest(absl::string_view target_name) {
-    for (ModuleMember& member : top_) {
-      if (absl::holds_alternative<Test*>(member)) {
-        Test* t = absl::get<Test*>(member);
-        if (t->identifier() == target_name) {
-          return t;
-        }
-      }
-    }
-    return absl::NotFoundError(absl::StrFormat(
-        "No test in module %s with name \"%s\"", name_, target_name));
-  }
+  // Gets a test construct in this module with the given "target_name", or
+  // returns a NotFoundError.
+  absl::StatusOr<Test*> GetTest(absl::string_view target_name);
 
   absl::Span<ModuleMember const> top() const { return top_; }
   std::vector<ModuleMember>* mutable_top() { return &top_; }
@@ -2045,10 +2032,11 @@ class Module : public AstNode, public std::enable_shared_from_this<Module> {
     return GetTopWithTByName<Function>();
   }
 
+  std::vector<TypeDef*> GetTypeDefs() const { return GetTopWithT<TypeDef>(); }
   std::vector<QuickCheck*> GetQuickChecks() const {
     return GetTopWithT<QuickCheck>();
   }
-  std::vector<StructDef*> GetStructs() const {
+  std::vector<StructDef*> GetStructDefs() const {
     return GetTopWithT<StructDef>();
   }
   std::vector<Function*> GetFunctions() const {

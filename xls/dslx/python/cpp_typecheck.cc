@@ -87,6 +87,19 @@ PYBIND11_MODULE(cpp_typecheck, m) {
         [](TypeDefHolder f, DeduceCtx* ctx) -> absl::Status {
           return TryThrowErrors(CheckTopNodeInModule(&f.deref(), ctx));
         });
+
+  m.def("check_module",
+        [](ModuleHolder module, absl::optional<ImportCache*> import_cache,
+           const std::vector<std::string>& additional_search_paths)
+            -> absl::StatusOr<std::shared_ptr<TypeInfo>> {
+          ImportCache* pimport_cache =
+              import_cache.has_value() ? import_cache.value() : nullptr;
+          auto statusor = CheckModule(&module.deref(), pimport_cache,
+                                      additional_search_paths);
+          TryThrowErrors(statusor.status());
+          XLS_RETURN_IF_ERROR(statusor.status());
+          return statusor;
+        });
 }
 
 }  // namespace xls::dslx

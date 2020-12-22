@@ -41,6 +41,20 @@ absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
 absl::Status CheckTopNodeInModule(
     absl::variant<Function*, Test*, StructDef*, TypeDef*> f, DeduceCtx* ctx);
 
+// Validates type annotations on all functions within "module".
+//
+// Args:
+//   module: The module to type check functions for.
+//   import_cache: Import cache to use if an import is encountered in the
+//      module.
+//  additional_search_paths: Additional paths to search for modules on import.
+//
+// Returns type information mapping from AST nodes in the module to their
+//  deduced/checked type.
+absl::StatusOr<std::shared_ptr<TypeInfo>> CheckModule(
+    Module* module, ImportCache* import_cache,
+    absl::Span<const std::string> additional_search_paths);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPECHECK_H_

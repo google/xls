@@ -16,6 +16,7 @@
 
 #include "xls/dslx/deduce.h"
 #include "xls/dslx/dslx_builtins.h"
+#include "xls/dslx/import_routines.h"
 
 namespace xls::dslx {
 
@@ -499,6 +500,137 @@ absl::Status CheckTopNodeInModule(TopNode f, DeduceCtx* ctx) {
     }
   }
   return absl::OkStatus();
+}
+
+absl::StatusOr<std::shared_ptr<TypeInfo>> CheckModule(
+    Module* module, ImportCache* import_cache,
+    absl::Span<const std::string> additional_search_paths) {
+  std::vector<std::string> additional_search_paths_copy(
+      additional_search_paths.begin(), additional_search_paths.end());
+  auto type_info = std::make_shared<TypeInfo>(module->shared_from_this());
+  auto ftypecheck = [import_cache,
+                     additional_search_paths_copy](std::shared_ptr<Module> m)
+      -> absl::StatusOr<std::shared_ptr<TypeInfo>> {
+    return CheckModule(m.get(), import_cache, additional_search_paths_copy);
+  };
+  auto ctx_shared = std::make_shared<DeduceCtx>(
+      type_info, module->shared_from_this(),
+      /*deduce_function=*/&Deduce,
+      /*typecheck_function=*/&CheckTopNodeInModule,
+      /*typecheck_module=*/ftypecheck, additional_search_paths, import_cache);
+  DeduceCtx* ctx = ctx_shared.get();
+
+  // First, populate type info with constants, enums, and resolved imports.
+  ctx->fn_stack().push_back(FnStackEntry{"top", SymbolicBindings()});
+  for (ModuleMember& member : *ctx->module()->mutable_top()) {
+    if (absl::holds_alternative<Import*>(member)) {
+      Import* import = absl::get<Import*>(member);
+      XLS_ASSIGN_OR_RETURN(const ModuleInfo* imported,
+                           DoImport(ftypecheck, ImportTokens(import->subject()),
+                                    additional_search_paths, import_cache));
+      ctx->type_info()->AddImport(import, imported->module,
+                                  imported->type_info);
+    } else if (absl::holds_alternative<ConstantDef*>(member) ||
+               absl::holds_alternative<EnumDef*>(member)) {
+      XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(member)).status());
+    }
+  }
+  // TODO(leary): 2020-12-21 Tighten up invariants around the function stack,
+  // make this a scoped push and generally make callers not put new entries onto
+  // the function stack all willy nilly.
+  ctx->fn_stack().pop_back();
+
+  for (QuickCheck* qc : ctx->module()->GetQuickChecks()) {
+    Function* f = qc->f();
+    if (f->IsParametric()) {
+      // TODO(leary): 2020-08-09 Add support for quickchecking parametric
+      // functions.
+      return TypeInferenceErrorStatus(
+          f->span(), nullptr,
+          "Quickchecking parametric functions is unsupported; see "
+          "https://github.com/google/xls/issues/81");
+    }
+
+    XLS_VLOG(2) << "Typechecking function: " << f->ToString();
+    ctx->fn_stack().push_back(
+        FnStackEntry{f->identifier(), SymbolicBindings()});
+    XLS_RETURN_IF_ERROR(CheckTopNodeInModule(f, ctx));
+    absl::optional<const ConcreteType*> quickcheck_f_body_type =
+        ctx->type_info()->GetItem(f->body());
+    XLS_RET_CHECK(quickcheck_f_body_type.has_value());
+    auto u1 = BitsType::MakeU1();
+    if (*quickcheck_f_body_type.value() != *u1) {
+      return XlsTypeErrorStatus(f->span(), *quickcheck_f_body_type.value(), *u1,
+                                "Quickcheck functions must return a bool.");
+    }
+
+    XLS_VLOG(2) << "Finished typechecking function: " << f->ToString();
+  }
+
+  // Typecheck struct definitions using CheckTopNodeInModule() so that we can
+  // typecheck function calls in parametric bindings, if there are any.
+  for (StructDef* struct_def : module->GetStructDefs()) {
+    XLS_VLOG(2) << "Typechecking struct: " << struct_def->ToString();
+    ctx->fn_stack().push_back(FnStackEntry{"top", SymbolicBindings()});
+    XLS_RETURN_IF_ERROR(CheckTopNodeInModule(struct_def, ctx));
+    XLS_VLOG(2) << "Finished typechecking struct: " << struct_def->ToString();
+  }
+
+  // Typedefs.
+  for (TypeDef* type_def : module->GetTypeDefs()) {
+    XLS_VLOG(2) << "Typechecking typedef: " << type_def->ToString();
+    ctx->fn_stack().push_back(FnStackEntry{"top", SymbolicBindings()});
+    XLS_RETURN_IF_ERROR(CheckTopNodeInModule(type_def, ctx));
+    XLS_VLOG(2) << "Finished typechecking typedef: " << type_def->ToString();
+  }
+
+  // Functions.
+  for (Function* f : ctx->module()->GetFunctions()) {
+    if (f->IsParametric()) {
+      // Defer until later: we typecheck parametric functions on a
+      // per-invocation basis.
+      continue;
+    }
+
+    XLS_VLOG(2) << "Typechecking function: " << f->ToString();
+    ctx->fn_stack().push_back(
+        FnStackEntry{f->identifier(), SymbolicBindings()});
+    XLS_RETURN_IF_ERROR(CheckTopNodeInModule(f, ctx));
+    XLS_VLOG(2) << "Finished typechecking function: " << f->ToString();
+  }
+
+  // Tests.
+  for (Test* test : ctx->module()->GetTests()) {
+    if (auto* test_function = dynamic_cast<TestFunction*>(test)) {
+      // New-style test constructs are specified using a function.
+      // This function shouldn't be parametric and shouldn't take any arguments.
+      if (!test_function->fn()->params().empty()) {
+        return TypeInferenceErrorStatus(
+            test_function->fn()->span(), nullptr,
+            "Test functions shouldn't take arguments.");
+      }
+      if (test_function->fn()->IsParametric()) {
+        return TypeInferenceErrorStatus(
+            test_function->fn()->span(), nullptr,
+            "Test functions shouldn't be parametric.");
+      }
+    }
+
+    // TODO(leary): 2020-12-19 Seems like we can collide with this, should use
+    // some symbol that can't appear in a valid identifier. Need a test to
+    // demonstrate.
+    ctx->fn_stack().push_back(FnStackEntry{
+        absl::StrCat(test->identifier(), "_test"), SymbolicBindings()});
+    XLS_VLOG(2) << "Typechecking test: " << test->ToString();
+    if (auto* test_function = dynamic_cast<TestFunction*>(test)) {
+      XLS_RETURN_IF_ERROR(CheckTopNodeInModule(test_function->fn(), ctx));
+    } else {
+      XLS_RETURN_IF_ERROR(CheckTopNodeInModule(test, ctx));
+    }
+    XLS_VLOG(2) << "Finished typechecking test: " << test->ToString();
+  }
+
+  return ctx->type_info();
 }
 
 }  // namespace xls::dslx

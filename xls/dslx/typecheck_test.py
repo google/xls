@@ -972,7 +972,7 @@ enum Foo : u1 {
     """
     self._typecheck(
         program,
-        error_type=span.PositionalError,
+        error_type=TypeInferenceError,
         error='Quickchecking parametric functions is unsupported')
 
   def test_array_ellipsis(self):

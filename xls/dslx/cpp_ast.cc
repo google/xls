@@ -327,6 +327,34 @@ Param::Param(Module* owner, NameDef* name_def, TypeAnnotation* type)
       type_(type),
       span_(name_def_->span().start(), type_->span().limit()) {}
 
+// -- class Module
+
+absl::StatusOr<Function*> Module::GetFunction(absl::string_view target_name) {
+  for (ModuleMember& member : top_) {
+    if (absl::holds_alternative<Function*>(member)) {
+      Function* f = absl::get<Function*>(member);
+      if (f->identifier() == target_name) {
+        return f;
+      }
+    }
+  }
+  return absl::NotFoundError(absl::StrFormat(
+      "No function in module %s with name \"%s\"", name_, target_name));
+}
+
+absl::StatusOr<Test*> Module::GetTest(absl::string_view target_name) {
+  for (ModuleMember& member : top_) {
+    if (absl::holds_alternative<Test*>(member)) {
+      Test* t = absl::get<Test*>(member);
+      if (t->identifier() == target_name) {
+        return t;
+      }
+    }
+  }
+  return absl::NotFoundError(absl::StrFormat(
+      "No test in module %s with name \"%s\"", name_, target_name));
+}
+
 absl::optional<ModuleMember*> Module::FindMemberWithName(
     absl::string_view target) {
   for (ModuleMember& member : top_) {

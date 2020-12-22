@@ -272,7 +272,7 @@ PYBIND11_MODULE(cpp_ast, m) {
                })
           .def("get_structs",
                [](ModuleHolder module) {
-                 return Wrap<StructDef*>(module.deref().GetStructs(),
+                 return Wrap<StructDef*>(module.deref().GetStructDefs(),
                                          module.module());
                })
           .def("get_constants",

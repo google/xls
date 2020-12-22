@@ -889,6 +889,7 @@ cc_library(
         ":cpp_deduce",
         ":cpp_dslx_builtins",
         ":deduce_ctx",
+        ":import_routines",
         "//xls/dslx/python:cpp_ast_header",
         "@com_google_absl//absl/status:statusor",
     ],

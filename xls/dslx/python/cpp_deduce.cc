@@ -34,6 +34,7 @@ namespace xls::dslx {
 
 PYBIND11_MODULE(cpp_deduce, m) {
   ImportStatusModule();
+  py::module::import("xls.dslx.python.cpp_concrete_type");
 
   py::class_<FnStackEntry>(m, "FnStackEntry")
       .def("__repr__", &FnStackEntry::ToReprString)
@@ -51,10 +52,10 @@ PYBIND11_MODULE(cpp_deduce, m) {
       if (p) std::rethrow_exception(p);
     } catch (const TypeInferenceError& e) {
       type_inference_exc.attr("span") = e.span();
-      if (e.type() == nullptr) {
-        type_inference_exc.attr("type_") = nullptr;
+      if (const ConcreteType* type = e.type()) {
+        type_inference_exc.attr("type_") = type->CloneToUnique();
       } else {
-        type_inference_exc.attr("type_") = e.type()->CloneToUnique();
+        type_inference_exc.attr("type_") = py::none();
       }
       type_inference_exc.attr("message") = e.message();
       type_inference_exc(e.what());
@@ -66,16 +67,19 @@ PYBIND11_MODULE(cpp_deduce, m) {
     try {
       if (p) std::rethrow_exception(p);
     } catch (const XlsTypeError& e) {
+      XLS_VLOG(5) << "Translating XlsTypeError: " << e.what();
       xls_type_exc.attr("span") = e.span();
       if (e.lhs() == nullptr) {
-        xls_type_exc.attr("lhs_type") = nullptr;
+        pybind11::setattr(xls_type_exc, "lhs_type", nullptr);
       } else {
-        xls_type_exc.attr("lhs_type") = e.lhs()->CloneToUnique();
+        pybind11::setattr(xls_type_exc, "lhs_type",
+                          pybind11::cast(e.lhs()->CloneToUnique()));
       }
       if (e.rhs() == nullptr) {
-        xls_type_exc.attr("rhs_type") = nullptr;
+        pybind11::setattr(xls_type_exc, "rhs_type", nullptr);
       } else {
-        xls_type_exc.attr("rhs_type") = e.rhs()->CloneToUnique();
+        pybind11::setattr(xls_type_exc, "rhs_type",
+                          pybind11::cast(e.rhs()->CloneToUnique()));
       }
       xls_type_exc.attr("message") = e.message();
       xls_type_exc(e.what());
@@ -91,29 +95,6 @@ PYBIND11_MODULE(cpp_deduce, m) {
           }
           throw TypeInferenceError(span, std::move(t), suffix);
         });
-  m.def(
-      "xls_type_error",
-      [](const Span& span, ConcreteType* plhs, ConcreteType* prhs,
-         const std::string& suffix) {
-        std::unique_ptr<ConcreteType> lhs;
-        std::unique_ptr<ConcreteType> rhs;
-        if (plhs != nullptr) {
-          lhs = plhs->CloneToUnique();
-        }
-        if (prhs != nullptr) {
-          rhs = prhs->CloneToUnique();
-        }
-        throw XlsTypeError(span, std::move(lhs), std::move(rhs), suffix);
-      },
-      py::arg("span"), py::arg("lhs_type"), py::arg("rhs_type"),
-      py::arg("suffix"));
-
-  m.def("type_missing_error_set_node",
-        [](py::object self, AstNodeHolder node) { self.attr("node") = node; });
-  m.def("type_missing_error_set_span",
-        [](py::object self, const Span& span) { self.attr("span") = span; });
-  m.def("type_missing_error_set_user",
-        [](py::object self, AstNodeHolder node) { self.attr("user") = node; });
 
   py::class_<DeduceCtx, std::shared_ptr<DeduceCtx>>(m, "DeduceCtx")
       .def(py::init([](const std::shared_ptr<TypeInfo>& type_info,

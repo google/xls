@@ -1628,6 +1628,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
         return type.status();
       }
     } else {
+      XLS_RETURN_IF_ERROR(type.status());
       arg_types.push_back(std::move(type).value());
     }
   }
