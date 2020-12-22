@@ -28,9 +28,9 @@ py_library(
     srcs = ["import_helpers.py"],
     srcs_version = "PY3",
     deps = [
-        ":typecheck",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_type_info",
+        "//xls/dslx/python:cpp_typecheck",
         "//xls/dslx/python:import_routines",
     ],
 )
@@ -161,13 +161,14 @@ py_library(
     srcs_version = "PY3",
     deps = [
         ":fakefs_util",
-        ":import_fn",
         ":parser_helpers",
-        ":typecheck",
         requirement("pyfakefs"),
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_deduce",
         "//xls/dslx/python:cpp_type_info",
+        "//xls/dslx/python:cpp_typecheck",
+        "//xls/dslx/python:import_routines",
+        "@com_google_absl_py//absl/logging",
     ],
 )
 
@@ -233,23 +234,6 @@ cc_test(
     ],
 )
 
-py_library(
-    name = "typecheck",
-    srcs = ["typecheck.py"],
-    srcs_version = "PY3",
-    deps = [
-        ":span",
-        "//xls/common:xls_error",
-        "//xls/dslx/python:cpp_ast",
-        "//xls/dslx/python:cpp_concrete_type",
-        "//xls/dslx/python:cpp_deduce",
-        "//xls/dslx/python:cpp_dslx_builtins",
-        "//xls/dslx/python:cpp_type_info",
-        "//xls/dslx/python:cpp_typecheck",
-        "@com_google_absl_py//absl/logging",
-    ],
-)
-
 py_test(
     name = "typecheck_test",
     srcs = ["typecheck_test.py"],
@@ -259,12 +243,11 @@ py_test(
         ":fakefs_test_util",
         ":parser_helpers",
         ":span",
-        ":typecheck",
         "//xls/common:test_base",
-        "//xls/common:xls_error",
         "//xls/dslx/python:cpp_deduce",
         "//xls/dslx/python:cpp_parametric_instantiator",
         "//xls/dslx/python:cpp_parser",
+        "//xls/dslx/python:cpp_typecheck",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -340,11 +323,11 @@ py_test(
         ":ir_converter",
         ":parser_helpers",
         ":span",
-        ":typecheck",
         "//xls/common:runfiles",
         "//xls/common:test_base",
         "//xls/dslx/python:cpp_parser",
-        "@com_google_absl_py//absl/testing:absltest",
+        "//xls/dslx/python:cpp_typecheck",
+        "//xls/dslx/python:import_routines",
     ],
 )
 
@@ -361,12 +344,11 @@ py_binary(
         ":ir_converter",
         ":parser_helpers",
         ":span",
-        ":typecheck",
         "//xls/common/python:init_xls",
         "//xls/dslx/python:cpp_parser",
+        "//xls/dslx/python:cpp_typecheck",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
-        "@com_google_absl_py//absl/logging",
     ],
 )
 
@@ -409,6 +391,7 @@ py_test(
         "//xls/common:test_base",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_type_info",
+        "//xls/dslx/python:import_routines",
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )
@@ -417,18 +400,6 @@ filegroup(
     name = "ir_converter_test_sh",
     srcs = ["ir_converter_test.sh"],
     visibility = ["//xls:xls_users"],
-)
-
-py_library(
-    name = "ir_converter_helpers",
-    srcs = ["ir_converter_helpers.py"],
-    srcs_version = "PY3",
-    deps = [
-        ":import_fn",
-        ":ir_converter",
-        ":parse_and_typecheck",
-        "//xls/ir/python:package",
-    ],
 )
 
 py_library(

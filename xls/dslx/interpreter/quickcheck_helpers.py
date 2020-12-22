@@ -38,7 +38,7 @@ def run_quickcheck(interp: interpreter.Interpreter, ir_package: package.Package,
   last_result = results[-1].get_bits().to_uint()
   if not last_result:
     last_argset = argsets[-1]
-    fn_type = interp.type_info[fn]
+    fn_type = interp.type_info.get_type(fn)
     assert isinstance(fn_type, concrete_type.FunctionType), fn_type
     fn_param_types = fn_type.params
     dslx_argset = [

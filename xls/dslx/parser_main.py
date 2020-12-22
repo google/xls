@@ -41,7 +41,12 @@ def main(argv):
   importer = import_helpers.Importer()
 
   module = parse_and_typecheck.parse_text(
-      text, name, filename=path, print_on_error=True, f_import=importer)
+      text,
+      name,
+      filename=path,
+      print_on_error=True,
+      import_cache=importer.cache,
+      additional_search_paths=importer.additional_search_paths)
   pprint.pprint(module)
 
 

@@ -37,11 +37,14 @@ def main(argv):
   if len(argv) != 2:
     raise app.UsageError('Too many command-line arguments.')
 
-  f_import = import_helpers.Importer()
+  importer = import_helpers.Importer()
 
   text = argv[1]
   p = convert_helpers.convert_dslx_to_package(
-      text, name='cli', f_import=f_import)
+      text,
+      name='cli',
+      import_cache=importer.cache,
+      additional_search_paths=importer.additional_search_paths)
   entry = p.get_function_names()[0]
   opt_ir = convert_helpers.optimize_and_dump(p)
   benchmark_main_path = runfiles.get_path(BENCHMARK_MAIN_PATH)

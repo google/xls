@@ -261,7 +261,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
 
   def _resolve_type(self, node: ast.AstNode) -> ConcreteType:
     try:
-      concrete_type = self.type_info[node]
+      concrete_type = self.type_info.get_type(node)
     except type_info_mod.TypeMissingError:
       raise ConversionError(
           f'Failed to convert to IR because type was missing for AST node: '
@@ -313,7 +313,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     self._def(node, self.fb.add_array_concat, (lhs, rhs))
 
   def visit_Binop(self, node: ast.Binop):
-    lhs_type = self.type_info[node.lhs]
+    lhs_type = self.type_info.get_type(node.lhs)
     signed_input = isinstance(lhs_type, BitsType) and lhs_type.signed
 
     # Concat is handled specially since the array-typed operation has no
@@ -477,7 +477,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
               self._resolve_type(node).get_total_bit_count().value)
 
   def visit_Attr(self, node: ast.Attr) -> None:
-    lhs_type = self.type_info[node.lhs]
+    lhs_type = self.type_info.get_type(node.lhs)
     identifier = node.attr.identifier
     assert isinstance(lhs_type, TupleType)
     index = lhs_type.tuple_names.index(identifier)
@@ -493,7 +493,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Index(self, node: ast.Index) -> None:
     visit(node.lhs, self)
-    lhs_type = self.type_info[node.lhs]
+    lhs_type = self.type_info.get_type(node.lhs)
     if isinstance(lhs_type, TupleType):
       visit(node.index, self)
       self._def(node, self.fb.add_tuple_index, self._use(node.lhs),
@@ -767,7 +767,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     relevant_name_defs = []
     for name_def in freevars.get_name_defs(self.module):
       try:
-        type_ = self.type_info[name_def]
+        type_ = self.type_info.get_type(name_def)
       except type_info_mod.TypeMissingError:
         continue
       if isinstance(type_, FunctionType):
@@ -789,7 +789,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     invariant_args = tuple(
         self._use(name_def)
         for name_def in relevant_name_defs
-        if not isinstance(self.type_info[name_def], FunctionType))
+        if not isinstance(self.type_info.get_type(name_def), FunctionType))
     self._def(node, self.fb.add_counted_for, self._use(node.init), trip_count,
               stride, body_function, invariant_args)
 
@@ -1279,6 +1279,7 @@ def convert_one_function(module: ast.Module,
                          type_info: type_info_mod.TypeInfo,
                          emit_positions: bool = True) -> Text:
   """Returns function named entry_function_name in module as IR text."""
+  logging.vlog(1, 'IR-converting entry function: %r', entry_function_name)
   package = ir_package.Package(module.name)
   _convert_one_function(
       package,

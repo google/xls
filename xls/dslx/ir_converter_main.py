@@ -29,8 +29,8 @@ from xls.common.python import init_xls
 from xls.dslx import import_helpers
 from xls.dslx import ir_converter
 from xls.dslx import parser_helpers
-from xls.dslx import typecheck
 from xls.dslx.python import cpp_parser
+from xls.dslx.python import cpp_typecheck
 from xls.dslx.span import PositionalError
 
 
@@ -66,7 +66,8 @@ def main(argv):
   type_info = None
 
   try:
-    type_info = typecheck.check_module(module, importer)
+    type_info = cpp_typecheck.check_module(module, importer.cache,
+                                           importer.additional_search_paths)
     if FLAGS.entry:
       print(ir_converter.convert_one_function(module, FLAGS.entry, type_info))
     else:

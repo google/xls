@@ -25,11 +25,12 @@ from xls.common import test_base
 from xls.dslx import fakefs_test_util
 from xls.dslx import parser_helpers
 from xls.dslx import span
-from xls.dslx import typecheck
 from xls.dslx.python import cpp_parser
+from xls.dslx.python import cpp_typecheck
 from xls.dslx.python.cpp_deduce import TypeInferenceError
 from xls.dslx.python.cpp_deduce import XlsTypeError
 from xls.dslx.python.cpp_parametric_instantiator import ArgCountMismatchError
+from xls.dslx.python.import_routines import ImportCache
 
 
 class TypecheckTest(test_base.TestCase):
@@ -54,13 +55,16 @@ class TypecheckTest(test_base.TestCase):
         parser_helpers.pprint_positional_error(e)
         raise
 
+      import_cache = ImportCache()
+      additional_search_paths = ()
+
       if error:
         with self.assertRaises(error_type) as cm:
-          typecheck.check_module(m, f_import=None)
+          cpp_typecheck.check_module(m, import_cache, additional_search_paths)
         self.assertIn(error, str(cm.exception))
       else:
         try:
-          typecheck.check_module(m, f_import=None)
+          cpp_typecheck.check_module(m, import_cache, additional_search_paths)
         except (span.PositionalError, cpp_parser.CppParseError) as e:
           parser_helpers.pprint_positional_error(e)
           raise

@@ -17,30 +17,19 @@
 """Helpers for parsing-and-typechecking."""
 
 import io
-from typing import Text, Optional, Tuple, Callable
+from typing import Text, Tuple, Callable
 
+from absl import logging
 from pyfakefs import fake_filesystem as fakefs
 
 from xls.dslx import fakefs_util
 from xls.dslx import parser_helpers
-from xls.dslx import typecheck
-from xls.dslx.import_fn import ImportFn
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_type_info as type_info_mod
+from xls.dslx.python import cpp_typecheck
 from xls.dslx.python.cpp_deduce import TypeInferenceError
 from xls.dslx.python.cpp_deduce import XlsTypeError
-
-
-def _run_typecheck(
-    module: ast.Module, print_on_error: bool, f_import: ImportFn,
-    fs_open: Callable[[Text], io.IOBase]) -> type_info_mod.TypeInfo:
-  try:
-    return typecheck.check_module(module, f_import)
-  except (XlsTypeError, TypeInferenceError) as e:
-    if print_on_error:
-      # If the typecheck fails, pretty-print the error.
-      parser_helpers.pprint_positional_error(e, fs_open=fs_open)
-    raise
+from xls.dslx.python.import_routines import ImportCache
 
 
 def parse_text(
@@ -48,26 +37,36 @@ def parse_text(
     name: Text,
     print_on_error: bool,
     *,
-    f_import: Optional[Callable],
+    import_cache: ImportCache,
+    additional_search_paths: Tuple[str, ...],
     filename: Text,
     fs_open: Callable[[Text], io.IOBase] = None,
 ) -> Tuple[ast.Module, type_info_mod.TypeInfo]:
   """Parses text into a module with name "name" and typechecks it."""
+  logging.vlog(1, 'Parsing text; name: %r', name)
   module = parser_helpers.parse_text(
       text,
       name,
       print_on_error=print_on_error,
       filename=filename,
       fs_open=fs_open)
+  logging.vlog(1, 'Parsed text; name: %r', name)
 
-  type_info = _run_typecheck(module, print_on_error, f_import, fs_open=fs_open)
+  try:
+    type_info = cpp_typecheck.check_module(module, import_cache,
+                                           additional_search_paths)
+  except (XlsTypeError, TypeInferenceError) as e:
+    if print_on_error:
+      # If the typecheck fails, pretty-print the error.
+      parser_helpers.pprint_positional_error(e, fs_open=fs_open)
+    raise
 
   return module, type_info
 
 
 def parse_text_fakefs(
-    text: Text, name: Text, print_on_error: bool, *,
-    f_import: Optional[Callable],
+    text: Text, name: Text, print_on_error: bool, *, import_cache: ImportCache,
+    additional_search_paths: Tuple[str, ...],
     filename: Text) -> Tuple[ast.Module, type_info_mod.TypeInfo]:
   """Wraps parse_text with a *fake filesystem* holding "text" in "filename".
 
@@ -79,8 +78,8 @@ def parse_text_fakefs(
     name: Name to use for the module.
     print_on_error: Whether to print to stderr if an error is encountered
       parsing/typechecking the DSLX text.
-    f_import: Hook used when a module needs to import another module it depends
-      upon.
+    import_cache: Import cache to use for any module dependencies.
+    additional_search_paths: Additional search paths to use on import.
     filename: Path to use in the fake filesystem for the contexts of the fake
       file (with DSLX text).
 
@@ -94,6 +93,7 @@ def parse_text_fakefs(
       text,
       name,
       print_on_error=print_on_error,
-      f_import=f_import,
+      import_cache=import_cache,
+      additional_search_paths=additional_search_paths,
       filename=filename,
       fs_open=fake_open)

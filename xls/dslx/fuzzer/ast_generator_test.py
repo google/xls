@@ -18,17 +18,18 @@
 
 import random
 
+from xls.common import test_base
 from xls.dslx import ast_helpers
 from xls.dslx import fakefs_test_util
 from xls.dslx import parser_helpers
-from xls.dslx import typecheck
 from xls.dslx.fuzzer import ast_generator
 from xls.dslx.python import cpp_scanner as scanner
+from xls.dslx.python import cpp_typecheck
+from xls.dslx.python.import_routines import ImportCache
 from xls.dslx.span import PositionalError
-from absl.testing import absltest
 
 
-class AstGeneratorTest(absltest.TestCase):
+class AstGeneratorTest(test_base.TestCase):
 
   def test_generates_valid_functions(self):
     g = ast_generator.AstGenerator(
@@ -38,11 +39,14 @@ class AstGeneratorTest(absltest.TestCase):
       _, m = g.generate_function_in_module('main', 'test')
       text = str(m)
       filename = '/fake/test_sample.x'
+      import_cache = ImportCache()
+      additional_search_paths = ()
       with fakefs_test_util.scoped_fakefs(filename, text):
         try:
           module = parser_helpers.parse_text(
               text, name='test_sample', print_on_error=True, filename=filename)
-          typecheck.check_module(module, f_import=None)
+          cpp_typecheck.check_module(module, import_cache,
+                                     additional_search_paths)
         except PositionalError as e:
           parser_helpers.pprint_positional_error(e)
           raise
@@ -188,4 +192,4 @@ class AstGeneratorTest(absltest.TestCase):
 
 
 if __name__ == '__main__':
-  absltest.main()
+  test_base.main()

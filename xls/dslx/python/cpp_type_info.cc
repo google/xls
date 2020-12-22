@@ -109,7 +109,7 @@ PYBIND11_MODULE(cpp_type_info, m) {
              self.SetItem(&n.deref(), type);
            })
       .def(
-          "__getitem__",
+          "get_type",
           [](TypeInfo& self, AstNodeHolder n) -> std::unique_ptr<ConcreteType> {
             absl::optional<ConcreteType*> result = self.GetItem(&n.deref());
             if (result.has_value()) {

@@ -25,8 +25,8 @@ from typing import Text, Optional, cast, Tuple
 from xls.dslx import import_helpers
 from xls.dslx import ir_converter
 from xls.dslx import parser_helpers
-from xls.dslx import typecheck
 from xls.dslx.interpreter import quickcheck_helpers
+from xls.dslx.python import cpp_typecheck
 from xls.dslx.python.cpp_deduce import TypeInferenceError
 from xls.dslx.python.cpp_deduce import XlsTypeError
 from xls.dslx.python.cpp_parser import CppParseError
@@ -89,7 +89,8 @@ def parse_and_test(program: Text,
 
   try:
     module = Parser(Scanner(filename, program), name).parse_module()
-    type_info = typecheck.check_module(module, importer)
+    type_info = cpp_typecheck.check_module(module, importer.cache,
+                                           importer.additional_search_paths)
 
     ir_package = (
         ir_converter.convert_module_to_package(

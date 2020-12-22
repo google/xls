@@ -44,6 +44,7 @@ static absl::Status TryThrowErrors(const absl::Status& status) {
 
 PYBIND11_MODULE(cpp_typecheck, m) {
   ImportStatusModule();
+  py::module::import("xls.dslx.python.cpp_type_info");
 
   // Helper that sees if "status" is one of the various types of errors to be
   // thrown as explicit Python exceptions (vs a fallback StatusOr exception
@@ -63,7 +64,7 @@ PYBIND11_MODULE(cpp_typecheck, m) {
            DeduceCtx* ctx) -> absl::StatusOr<absl::optional<NameDefHolder>> {
           auto statusor = InstantiateBuiltinParametric(
               &builtin_name.deref(), &invocation.deref(), ctx);
-          TryThrowErrors(statusor.status());
+          (void)TryThrowErrors(statusor.status());
           XLS_ASSIGN_OR_RETURN(NameDef * name_def, statusor);
           if (name_def == nullptr) {
             return absl::nullopt;
@@ -88,18 +89,20 @@ PYBIND11_MODULE(cpp_typecheck, m) {
           return TryThrowErrors(CheckTopNodeInModule(&f.deref(), ctx));
         });
 
-  m.def("check_module",
-        [](ModuleHolder module, absl::optional<ImportCache*> import_cache,
-           const std::vector<std::string>& additional_search_paths)
-            -> absl::StatusOr<std::shared_ptr<TypeInfo>> {
-          ImportCache* pimport_cache =
-              import_cache.has_value() ? import_cache.value() : nullptr;
-          auto statusor = CheckModule(&module.deref(), pimport_cache,
-                                      additional_search_paths);
-          TryThrowErrors(statusor.status());
-          XLS_RETURN_IF_ERROR(statusor.status());
-          return statusor;
-        });
+  m.def(
+      "check_module",
+      [](ModuleHolder module, absl::optional<ImportCache*> import_cache,
+         const std::vector<std::string>& additional_search_paths)
+          -> absl::StatusOr<std::shared_ptr<TypeInfo>> {
+        ImportCache* pimport_cache =
+            import_cache.has_value() ? import_cache.value() : nullptr;
+        auto statusor = CheckModule(&module.deref(), pimport_cache,
+                                    additional_search_paths);
+        (void)TryThrowErrors(statusor.status());
+        return statusor;
+      },
+      py::arg("module"), py::arg("import_cache"),
+      py::arg("additional_search_paths"));
 }
 
 }  // namespace xls::dslx

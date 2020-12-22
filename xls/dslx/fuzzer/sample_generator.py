@@ -26,6 +26,7 @@ from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType
 from xls.dslx.python.cpp_concrete_type import ConcreteType
 from xls.dslx.python.cpp_concrete_type import TupleType
+from xls.dslx.python.import_routines import ImportCache
 from xls.dslx.python.interp_value import Tag
 from xls.dslx.python.interp_value import Value
 from xls.ir.python import bits as ir_bits
@@ -149,15 +150,16 @@ def generate_sample(rng: Random, ast_options: ast_generator.AstGeneratorOptions,
   dslx_text = str(m)
 
   # Re-parse so we can get real positions in error messages.
-  m, node_to_type = parse_and_typecheck.parse_text_fakefs(
+  m, type_info = parse_and_typecheck.parse_text_fakefs(
       dslx_text,
       m.name,
       print_on_error=True,
-      f_import=None,
+      import_cache=ImportCache(),
+      additional_search_paths=(),
       filename='/fake/test.x')
   f = m.get_function('main')
 
-  arg_types = tuple(node_to_type[p.type_] for p in f.params)
+  arg_types = tuple(type_info.get_type(p.type_) for p in f.params)
   args_batch = tuple(
       generate_arguments(arg_types, rng) for _ in range(calls_per_sample))
   # The generated sample is DSLX so input_is_dslx must be true.

@@ -889,6 +889,7 @@ py_library(
     deps = [
         "//xls/dslx:ir_converter",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/python:import_routines",
         "//xls/ir/python:package",
         "//xls/passes/python:standard_pipeline",
     ],

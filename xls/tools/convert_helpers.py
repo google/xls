@@ -14,13 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """Helpers that convert various XLS text/IR forms as a tools library."""
 
-from typing import Text, Optional
+from typing import Text, Optional, Tuple
 
 from xls.dslx import ir_converter
 from xls.dslx import parse_and_typecheck
+from xls.dslx.python.import_routines import ImportCache
 from xls.ir.python import package as ir_package_mod
 from xls.passes.python import standard_pipeline as standard_pipeline_mod
 
@@ -28,7 +28,9 @@ from xls.passes.python import standard_pipeline as standard_pipeline_mod
 def convert_dslx_to_package(
     text: Text,
     name: Text,
-    f_import,
+    *,
+    import_cache: ImportCache,
+    additional_search_paths: Tuple[str, ...] = (),
     print_on_error: bool = True,
     filename: Optional[Text] = None) -> ir_package_mod.Package:
   """Converts the given DSLX text to an IR package.
@@ -36,7 +38,8 @@ def convert_dslx_to_package(
   Args:
     text: DSLX text.
     name: Name of the DSLX module / resulting package.
-    f_import: Function for resolving import dependencies.
+    import_cache: Cache used for imported modules.
+    additional_search_paths: Additional import module search paths.
     print_on_error: Whether to print (to stderr) when an error occurs with the
       DSLX text.
     filename: Filename to use when displaying error messages, a fake filesystem
@@ -51,7 +54,8 @@ def convert_dslx_to_package(
       text,
       name,
       print_on_error=print_on_error,
-      f_import=f_import,
+      import_cache=import_cache,
+      additional_search_paths=additional_search_paths,
       filename=filename)
   p = ir_converter.convert_module_to_package(m, node_to_type)
   return p

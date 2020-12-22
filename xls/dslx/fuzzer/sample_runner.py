@@ -29,13 +29,14 @@ from xls.common import revision
 from xls.common import runfiles
 from xls.common.xls_error import XlsError
 from xls.dslx import parse_and_typecheck
-from xls.dslx import typecheck
 from xls.dslx.fuzzer import sample
 from xls.dslx.interpreter.value_parser import value_from_string
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_concrete_type as concrete_type_mod
 from xls.dslx.python import cpp_type_info as type_info_mod
+from xls.dslx.python import cpp_typecheck
 from xls.dslx.python.cpp_concrete_type import ConcreteType
+from xls.dslx.python.import_routines import ImportCache
 from xls.dslx.python.interp_value import Tag
 from xls.dslx.python.interp_value import Value
 from xls.dslx.python.interpreter import Interpreter
@@ -130,8 +131,11 @@ def sign_convert_args_batch(f: ast.Function, m: ast.Module,
                             args_batch: sample.ArgsBatch) -> sample.ArgsBatch:
   """Sign-converts ArgsBatch to match the signedness of function arguments."""
   f = m.get_function('main')
-  type_info = typecheck.check_module(m, f_import=None)
-  arg_types = tuple(type_info[p.type_] for p in f.params)
+  import_cache = ImportCache()
+  additional_search_paths = ()
+  type_info = cpp_typecheck.check_module(m, import_cache,
+                                         additional_search_paths)
+  arg_types = tuple(type_info.get_type(p.type_) for p in f.params)
   converted_batch = []
   for args in args_batch:
     assert len(arg_types) == len(args)
@@ -208,6 +212,7 @@ class SampleRunner:
     # Gather results in an OrderedDict because the first entered result is used
     # as a reference.
     results = collections.OrderedDict()  # type: Dict[Text, Sequence[Value]]
+    import_cache = ImportCache()
 
     try:
       logging.vlog(1, 'Parsing DSLX file.')
@@ -216,7 +221,8 @@ class SampleRunner:
         m, type_info = parse_and_typecheck.parse_text_fakefs(
             input_text,
             'test_module',
-            f_import=None,
+            import_cache=import_cache,
+            additional_search_paths=(),
             print_on_error=True,
             filename='/fake/test_module.x')
         logging.vlog(1, 'Parsing DSLX file complete, elapsed %0.2fs',

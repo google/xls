@@ -26,6 +26,7 @@ from xls.dslx import fakefs_test_util
 from xls.dslx import parse_and_typecheck
 from xls.dslx.python import cpp_type_info as type_info_mod
 from xls.dslx.python.cpp_type_info import SymbolicBindings
+from xls.dslx.python.import_routines import ImportCache
 
 
 class ExtractConversionOrderTest(absltest.TestCase):
@@ -38,7 +39,8 @@ class ExtractConversionOrderTest(absltest.TestCase):
           program,
           'test_program',
           print_on_error=True,
-          f_import=None,
+          import_cache=ImportCache(),
+          additional_search_paths=(),
           filename=filename)
       return m, type_info
 

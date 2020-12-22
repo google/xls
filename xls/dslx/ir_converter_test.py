@@ -27,8 +27,11 @@ from xls.dslx import fakefs_test_util
 from xls.dslx import ir_converter
 from xls.dslx import parser_helpers
 from xls.dslx import span
-from xls.dslx import typecheck
+from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_parser
+from xls.dslx.python import cpp_type_info
+from xls.dslx.python import cpp_typecheck
+from xls.dslx.python.import_routines import ImportCache
 
 
 # IR parser binary. Reads from stdin and tries to parse the text as a package.
@@ -54,7 +57,8 @@ class IrConverterTest(test_base.TestCase):
         m = parser_helpers.parse_text(
             program, name='test_module', print_on_error=True, filename=filename)
         self.assertEqual(m.name, 'test_module')
-        node_to_type = typecheck.check_module(m, f_import=None)
+        node_to_type = cpp_typecheck.check_module(
+            m, ImportCache(), additional_search_paths=())
         return ir_converter.convert_module(
             m, node_to_type, emit_positions=False)
       except (span.PositionalError, cpp_parser.CppParseError) as e:
@@ -76,12 +80,17 @@ class IrConverterTest(test_base.TestCase):
       raise
     self.assertEqual(process.returncode, 0, pstderr.decode('utf-8'))
 
+  def _typecheck(self, m: ast.Module) -> cpp_type_info.TypeInfo:
+    import_cache = ImportCache()
+    return cpp_typecheck.check_module(
+        m, import_cache, additional_search_paths=())
+
   def test_two_plus_two(self):
     m = self.parse_dsl_text("""\
     fn two_plus_two() -> u32 {
       u32:2 + u32:2
     }""")
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_one_function(m, 'two_plus_two',
                                                   node_to_type)
     self.assert_ir_equals_and_parses(
@@ -100,7 +109,7 @@ class IrConverterTest(test_base.TestCase):
     fn negate(x: u32) -> u32 {
       -x
     }""")
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_one_function(m, 'negate', node_to_type)
     self.assert_ir_equals_and_parses(
         converted, """\
@@ -117,7 +126,7 @@ class IrConverterTest(test_base.TestCase):
       let x: u32 = u32:2;
       x+x
     }""")
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_one_function(m, 'f', node_to_type)
     self.assert_ir_equals_and_parses(
         converted, """\
@@ -136,7 +145,7 @@ class IrConverterTest(test_base.TestCase):
       let (x, y) = t;
       x+y
     }""")
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_one_function(m, 'f', node_to_type)
     self.assert_ir_equals_and_parses(
         converted, """\
@@ -159,7 +168,7 @@ class IrConverterTest(test_base.TestCase):
       let (x, (y, (z,), a)) = t;
       x+y+z+a
     }""")
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_one_function(
         m, 'f', node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -198,7 +207,7 @@ class IrConverterTest(test_base.TestCase):
       (S { zub: u8:42, qux: u8:0 }).zub + (S { zub: u8:22, qux: u8:11 }).zub
 
     }""")
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_one_function(
         m, 'f', node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -226,7 +235,7 @@ class IrConverterTest(test_base.TestCase):
     fn f(x: bits[31]) -> u32 {
       bits[1]:1 ++ x
     }""")
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_one_function(m, 'f', node_to_type)
     self.assert_ir_equals_and_parses(
         converted, """\
@@ -243,7 +252,7 @@ class IrConverterTest(test_base.TestCase):
     fn f(x: u8, y: u8) -> (u8, u8) {
       (x, y)
     }""")
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_one_function(m, 'f', node_to_type)
     self.assert_ir_equals_and_parses(
         converted, """\
@@ -259,7 +268,7 @@ class IrConverterTest(test_base.TestCase):
     fn f() -> (u8, u8) {
       (u8:0xaa, u8:0x55)
     }""")
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_one_function(m, 'f', node_to_type)
     self.assert_ir_equals_and_parses(
         converted, """\
@@ -279,7 +288,7 @@ class IrConverterTest(test_base.TestCase):
         accum + i
       }(u32:0)
     }""")
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_one_function(
         m, 'f', node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -305,7 +314,7 @@ class IrConverterTest(test_base.TestCase):
       }((u32:0, u8:0));
       t[0]
     }""")
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_one_function(
         m, 'f', node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -346,7 +355,7 @@ class IrConverterTest(test_base.TestCase):
       f(bits[2]:0)
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -377,7 +386,7 @@ class IrConverterTest(test_base.TestCase):
         my_id(accum + i)
       }(u32:0)
     }""")
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -409,7 +418,7 @@ class IrConverterTest(test_base.TestCase):
         accum + i + outer_thing + other_outer_thing
       }(u32:0)
     }""")
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_one_function(
         m, 'f', node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -438,7 +447,7 @@ class IrConverterTest(test_base.TestCase):
         (a+b, b+u32:1)
       }((u32:0, u32:1))
     }""")
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_one_function(
         m, 'f', node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -473,7 +482,7 @@ class IrConverterTest(test_base.TestCase):
     fn f(x: uN[32][4]) -> u32 {
       x[u32:0]
     }""")
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_one_function(m, 'f', node_to_type)
     self.assert_ir_equals_and_parses(
         converted, """\
@@ -493,7 +502,7 @@ class IrConverterTest(test_base.TestCase):
     fn caller() -> u32 {
       callee()
     }""")
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(m, node_to_type)
     self.assert_ir_equals_and_parses(
         converted, """\
@@ -516,7 +525,7 @@ class IrConverterTest(test_base.TestCase):
     fn caller() -> u32 {
       callee(u32:2, u32:3)
     }""")
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(m, node_to_type)
     self.assert_ir_equals_and_parses(
         converted, """\
@@ -538,7 +547,7 @@ class IrConverterTest(test_base.TestCase):
     fn main(x: u8, y: u8) -> u32 {
       (x + y) as u32
     }""")
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -556,7 +565,7 @@ class IrConverterTest(test_base.TestCase):
     fn main(x: u8) -> u8 {
       x
     }""")
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(m, node_to_type)
     self.assert_ir_equals_and_parses(
         converted, """\
@@ -572,7 +581,7 @@ class IrConverterTest(test_base.TestCase):
     fn main(x: bool) -> u8 {
       u8:42 if x else u8:24
     }""")
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(m, node_to_type)
     self.assert_ir_equals_and_parses(
         converted, """\
@@ -591,7 +600,7 @@ class IrConverterTest(test_base.TestCase):
     fn f() -> u8 { FOO[u32:0] }
     fn g() -> u8 { FOO[u32:1] }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -621,7 +630,7 @@ class IrConverterTest(test_base.TestCase):
     fn f() -> u8[2] { FOO }
     fn g() -> u8[2] { FOO }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(m, node_to_type)
     self.assert_ir_equals_and_parses(
         converted, """\
@@ -652,7 +661,7 @@ class IrConverterTest(test_base.TestCase):
       }
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -685,7 +694,7 @@ class IrConverterTest(test_base.TestCase):
       }
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -725,7 +734,7 @@ class IrConverterTest(test_base.TestCase):
       }
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -760,7 +769,7 @@ class IrConverterTest(test_base.TestCase):
       }
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -791,7 +800,7 @@ class IrConverterTest(test_base.TestCase):
       }
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -820,7 +829,7 @@ class IrConverterTest(test_base.TestCase):
       }
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -845,7 +854,7 @@ class IrConverterTest(test_base.TestCase):
       true if x == u8:42 else false
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -870,7 +879,7 @@ class IrConverterTest(test_base.TestCase):
     fn main(x: u8) -> u8 {
       parametric_id(x)
     }""")
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -899,7 +908,7 @@ class IrConverterTest(test_base.TestCase):
     fn main(x: u8) -> u8 {
       parametric_id_wrapper(x)
     }""")
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -930,7 +939,7 @@ class IrConverterTest(test_base.TestCase):
     fn main() -> u8 {
       parametric(bits[3]:0, bits[5]:1)
     }""")
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(m, node_to_type)
     self.assert_ir_equals_and_parses(
         converted, """\
@@ -958,7 +967,7 @@ class IrConverterTest(test_base.TestCase):
         x3
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -979,7 +988,7 @@ class IrConverterTest(test_base.TestCase):
       x as u1
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -998,7 +1007,7 @@ class IrConverterTest(test_base.TestCase):
       t[1]
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -1024,7 +1033,7 @@ class IrConverterTest(test_base.TestCase):
       t
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -1050,7 +1059,7 @@ class IrConverterTest(test_base.TestCase):
       x[u32:16]
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -1073,7 +1082,7 @@ class IrConverterTest(test_base.TestCase):
       parametric(bits[2]:0) + parametric(bits[3]:0)
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -1105,7 +1114,7 @@ class IrConverterTest(test_base.TestCase):
       fail!(u32:42)
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -1138,7 +1147,7 @@ class IrConverterTest(test_base.TestCase):
       (u9:0, u10:0, (u64:0, u1:0))
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -1161,7 +1170,7 @@ class IrConverterTest(test_base.TestCase):
       update(input, u32:1, u8:0x42)
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -1183,7 +1192,7 @@ class IrConverterTest(test_base.TestCase):
       }(u8[2]:[0, 0])
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -1226,7 +1235,7 @@ class IrConverterTest(test_base.TestCase):
       u8[4]:[u8:0, x, ...]
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -1251,7 +1260,7 @@ class IrConverterTest(test_base.TestCase):
       f(u32:0)
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -1280,7 +1289,7 @@ class IrConverterTest(test_base.TestCase):
       sgt(x, y) && slt(x, y) && sge(x, y) && sle(x, y)
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -1304,7 +1313,7 @@ class IrConverterTest(test_base.TestCase):
       x > y && x < y && x >= y && x <= y
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -1328,7 +1337,7 @@ class IrConverterTest(test_base.TestCase):
       signex(x, u32:0)
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -1347,7 +1356,7 @@ class IrConverterTest(test_base.TestCase):
       signex(x, s32:0)
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -1366,7 +1375,7 @@ class IrConverterTest(test_base.TestCase):
       (x as u32, y as u32, x as s32, y as s32)
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -1388,7 +1397,7 @@ class IrConverterTest(test_base.TestCase):
       one_hot_sel(s, u32[2]:[2, 3])
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -1418,7 +1427,7 @@ class IrConverterTest(test_base.TestCase):
       things[i]
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -1442,7 +1451,7 @@ class IrConverterTest(test_base.TestCase):
       Foo::OTHER if x == Foo::THING else Foo::THING
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -1464,7 +1473,7 @@ class IrConverterTest(test_base.TestCase):
       x
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -1483,7 +1492,7 @@ class IrConverterTest(test_base.TestCase):
       x
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -1501,7 +1510,7 @@ class IrConverterTest(test_base.TestCase):
       x[:2]+x[-2:]+x[1:3]+x[-3:-1]+x[0:-2]
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -1527,7 +1536,7 @@ class IrConverterTest(test_base.TestCase):
       x[2+:u8]+x[y+:u8]
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -1553,7 +1562,7 @@ class IrConverterTest(test_base.TestCase):
       Point { x: xy, y: xy }
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -1576,7 +1585,7 @@ class IrConverterTest(test_base.TestCase):
       Point { y: new_y, ..p }
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(
@@ -1596,7 +1605,7 @@ class IrConverterTest(test_base.TestCase):
       x[u32:0]
     }
     """)
-    node_to_type = typecheck.check_module(m, f_import=None)
+    node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
         m, node_to_type, emit_positions=False)
     self.assert_ir_equals_and_parses(

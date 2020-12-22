@@ -17,9 +17,9 @@
 
 from typing import Tuple, Optional
 
-from xls.dslx import typecheck
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_type_info as type_info_mod
+from xls.dslx.python import cpp_typecheck
 from xls.dslx.python import import_routines
 
 
@@ -37,7 +37,8 @@ class Importer:
         import_routines.ImportCache()
 
   def typecheck(self, module: ast.Module) -> type_info_mod.TypeInfo:
-    return typecheck.check_module(module, f_import=self)
+    return cpp_typecheck.check_module(module, self.cache,
+                                      self.additional_search_paths)
 
   def __call__(self, subject: Tuple[str, ...]) -> import_routines.ModuleInfo:
     assert isinstance(subject, tuple), subject
