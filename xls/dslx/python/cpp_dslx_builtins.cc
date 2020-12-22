@@ -32,54 +32,9 @@
 namespace py = pybind11;
 
 namespace xls::dslx {
-namespace {
-
-using PyTypeAndBindings =
-    std::pair<std::unique_ptr<ConcreteType>, SymbolicBindings>;
-
-using PySignatureFn = std::function<absl::StatusOr<PyTypeAndBindings>(
-    const std::vector<const ConcreteType*>& arg_types, absl::string_view name,
-    const Span& span, DeduceCtx* ctx,
-    absl::optional<std::vector<ParametricBindingHolder>>
-        py_parametric_bindings)>;
-
-// Wraps up fsignature with an exception throwing layer (for throwing exceptions
-// to Python land).
-PySignatureFn ToPy(SignatureFn fsignature) {
-  return [fsignature](
-             const std::vector<const ConcreteType*>& arg_types,
-             absl::string_view name, const Span& span, DeduceCtx* ctx,
-             absl::optional<std::vector<ParametricBindingHolder>>
-                 py_parametric_bindings) -> absl::StatusOr<PyTypeAndBindings> {
-    absl::optional<std::vector<ParametricBinding*>> parametric_bindings;
-    if (py_parametric_bindings.has_value()) {
-      parametric_bindings.emplace();
-      for (ParametricBindingHolder& pbh : py_parametric_bindings.value()) {
-        parametric_bindings.value().push_back(&pbh.deref());
-      }
-    }
-    auto statusor = fsignature(arg_types, name, span, ctx, parametric_bindings);
-    TryThrowArgCountMismatchError(statusor.status());
-    TryThrowXlsTypeError(statusor.status());
-    TryThrowTypeInferenceError(statusor.status());
-    XLS_RETURN_IF_ERROR(statusor.status());
-    TypeAndBindings& tab = statusor.value();
-    return std::make_pair(std::move(tab.type),
-                          std::move(tab.symbolic_bindings));
-  };
-}
-
-}  // namespace
 
 PYBIND11_MODULE(cpp_dslx_builtins, m) {
   ImportStatusModule();
-
-  m.def("get_fsignature",
-        [](absl::string_view builtin_name) -> absl::StatusOr<PySignatureFn> {
-          XLS_ASSIGN_OR_RETURN(SignatureFn fsignature,
-                               GetParametricBuiltinSignature(builtin_name));
-          return ToPy(std::move(fsignature));
-        });
 
   {
     std::set<std::string> parametric_builtin_names;

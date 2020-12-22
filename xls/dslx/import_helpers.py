@@ -37,11 +37,6 @@ class Importer:
         import_routines.ImportCache()
 
   def typecheck(self, module: ast.Module) -> type_info_mod.TypeInfo:
+    """Typechecks 'module' (using this Importer's cache and search paths)."""
     return cpp_typecheck.check_module(module, self.cache,
                                       self.additional_search_paths)
-
-  def __call__(self, subject: Tuple[str, ...]) -> import_routines.ModuleInfo:
-    assert isinstance(subject, tuple), subject
-    subject = import_routines.ImportTokens(subject)
-    return import_routines.do_import(self.typecheck, subject,
-                                     self.additional_search_paths, self.cache)

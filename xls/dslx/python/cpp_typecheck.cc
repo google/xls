@@ -46,49 +46,6 @@ PYBIND11_MODULE(cpp_typecheck, m) {
   ImportStatusModule();
   py::module::import("xls.dslx.python.cpp_type_info");
 
-  // Helper that sees if "status" is one of the various types of errors to be
-  // thrown as explicit Python exceptions (vs a fallback StatusOr exception
-  // type).
-  m.def("check_test", [](TestHolder node, DeduceCtx* ctx) {
-    auto status = CheckTest(&node.deref(), ctx);
-    return TryThrowErrors(status);
-  });
-
-  m.def("check_function", [](FunctionHolder node, DeduceCtx* ctx) {
-    auto status = CheckFunction(&node.deref(), ctx);
-    return TryThrowErrors(status);
-  });
-
-  m.def("instantiate_builtin_parametric",
-        [](BuiltinNameDefHolder builtin_name, InvocationHolder invocation,
-           DeduceCtx* ctx) -> absl::StatusOr<absl::optional<NameDefHolder>> {
-          auto statusor = InstantiateBuiltinParametric(
-              &builtin_name.deref(), &invocation.deref(), ctx);
-          (void)TryThrowErrors(statusor.status());
-          XLS_ASSIGN_OR_RETURN(NameDef * name_def, statusor);
-          if (name_def == nullptr) {
-            return absl::nullopt;
-          }
-          return NameDefHolder(name_def, name_def->owner()->shared_from_this());
-        });
-
-  m.def("check_top_node_in_module",
-        [](FunctionHolder f, DeduceCtx* ctx) -> absl::Status {
-          return TryThrowErrors(CheckTopNodeInModule(&f.deref(), ctx));
-        });
-  m.def("check_top_node_in_module",
-        [](TestHolder f, DeduceCtx* ctx) -> absl::Status {
-          return TryThrowErrors(CheckTopNodeInModule(&f.deref(), ctx));
-        });
-  m.def("check_top_node_in_module",
-        [](StructDefHolder f, DeduceCtx* ctx) -> absl::Status {
-          return TryThrowErrors(CheckTopNodeInModule(&f.deref(), ctx));
-        });
-  m.def("check_top_node_in_module",
-        [](TypeDefHolder f, DeduceCtx* ctx) -> absl::Status {
-          return TryThrowErrors(CheckTopNodeInModule(&f.deref(), ctx));
-        });
-
   m.def(
       "check_module",
       [](ModuleHolder module, absl::optional<ImportCache*> import_cache,
