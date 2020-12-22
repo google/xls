@@ -183,6 +183,51 @@ absl::StatusOr<bool> SimplifyArrayIndex(ArrayIndex* array_index,
     }
   }
 
+  // An array index which indexes into a kArrayConcat operation and whose first
+  // index element is a literal can be simplified by bypassing the kArrayConcat
+  // operation:
+  //
+  //   array_index(array_concat(A, B, C), {20, i, j, k, ...}
+  //     => array_index(B, {10, i, j, k, ...})
+  //
+  // This assumes array A has a size 10, and B has a size of greater than 10.
+  if (array_index->array()->Is<ArrayConcat>() &&
+      !array_index->indices().empty() &&
+      array_index->indices().front()->Is<Literal>()) {
+    Node* first_index = array_index->indices().front();
+    if (IndexIsDefinitelyInBounds(
+            first_index, array_index->array()->GetType()->AsArrayOrDie(),
+            query_engine)) {
+      const Value& orig_first_index_value = first_index->As<Literal>()->value();
+      XLS_ASSIGN_OR_RETURN(int64 index,
+                           orig_first_index_value.bits().ToUint64());
+      Node* indexed_operand = nullptr;
+      for (Node* operand : array_index->array()->operands()) {
+        XLS_RET_CHECK(operand->GetType()->IsArray());
+        int64 array_size = operand->GetType()->AsArrayOrDie()->size();
+        if (index < array_size) {
+          indexed_operand = operand;
+          break;
+        }
+        index = index - array_size;
+      }
+      XLS_RET_CHECK(indexed_operand != nullptr);
+      std::vector<Node*> new_indices(array_index->indices().begin(),
+                                     array_index->indices().end());
+      XLS_ASSIGN_OR_RETURN(
+          new_indices[0],
+          array_index->function_base()->MakeNode<Literal>(
+              array_index->loc(),
+              Value(UBits(index, orig_first_index_value.bits().bit_count()))));
+
+      XLS_RETURN_IF_ERROR(
+          array_index
+              ->ReplaceUsesWithNew<ArrayIndex>(indexed_operand, new_indices)
+              .status());
+      return true;
+    }
+  }
+
   // Consecutive array index operations can be combined. For example:
   //
   //   array_index(array_index(A, {a, b}), {c, d})

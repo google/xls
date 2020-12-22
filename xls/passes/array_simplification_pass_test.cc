@@ -910,5 +910,41 @@ TEST_F(ArraySimplificationPassTest, SimplifySelectOfArrays) {
                                  /*cases=*/{m::Param("x"), m::Param("z")})));
 }
 
+TEST_F(ArraySimplificationPassTest, IndexingArrayConcat) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* subarray_type = p->GetArrayType(42, p->GetBitsType(10));
+  BValue a = fb.Param("A", p->GetArrayType(10, subarray_type));
+  BValue b = fb.Param("B", p->GetArrayType(20, subarray_type));
+  BValue c = fb.Param("C", p->GetArrayType(30, subarray_type));
+  BValue concat = fb.ArrayConcat({a, b, c});
+  fb.ArrayIndex(concat,
+                /*indices=*/{fb.Literal(Value(UBits(15, 32))),
+                             fb.Param("x", p->GetBitsType(32))});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::ArrayIndex(m::Param("B"), {m::Literal(5), m::Param("x")}));
+}
+
+TEST_F(ArraySimplificationPassTest, IndexingArrayConcatNonConstant) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* subarray_type = p->GetArrayType(42, p->GetBitsType(10));
+  BValue a = fb.Param("A", p->GetArrayType(10, subarray_type));
+  BValue b = fb.Param("B", p->GetArrayType(20, subarray_type));
+  BValue c = fb.Param("C", p->GetArrayType(30, subarray_type));
+  BValue concat = fb.ArrayConcat({a, b, c});
+  fb.ArrayIndex(concat,
+                /*indices=*/{fb.Param("x", p->GetBitsType(32)),
+                             fb.Param("y", p->GetBitsType(32))});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(),
+              m::ArrayIndex(m::ArrayConcat(), {m::Param(), m::Param()}));
+}
+
 }  // namespace
 }  // namespace xls
