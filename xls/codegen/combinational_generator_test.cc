@@ -388,7 +388,6 @@ fn main(a: bits[32],
   XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
   XLS_ASSERT_OK_AND_ASSIGN(
       auto result, GenerateCombinationalModule(entry, UseSystemVerilog()));
-
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
 
@@ -782,6 +781,38 @@ TEST_P(CombinationalGeneratorTest, ArrayShapedSelNoDefault) {
   EXPECT_THAT(
       simulator.Run({{"p", Value(UBits(1, 1))}, {"x", x_in}, {"y", y_in}}),
       IsOkAndHolds(y_in));
+}
+
+TEST_P(CombinationalGeneratorTest, ArrayShapedOneHotSelect) {
+  VerilogFile file;
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  BValue s = fb.Param("s", package.GetBitsType(2));
+  BValue x = fb.Param("x", package.GetArrayType(2, package.GetBitsType(8)));
+  BValue y = fb.Param("y", package.GetArrayType(2, package.GetBitsType(8)));
+  fb.OneHotSelect(s, {x, y});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value x_in, Parser::ParseTypedValue("[bits[8]:0x0f, bits[8]:0xf0]"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value y_in, Parser::ParseTypedValue("[bits[8]:0xab, bits[8]:0xcd]"));
+  EXPECT_THAT(
+      simulator.Run({{"s", Value(UBits(0b00, 2))}, {"x", x_in}, {"y", y_in}}),
+      IsOkAndHolds(Value::UBitsArray({0x0, 0x0}, 8).value()));
+  EXPECT_THAT(
+      simulator.Run({{"s", Value(UBits(0b01, 2))}, {"x", x_in}, {"y", y_in}}),
+      IsOkAndHolds(Value::UBitsArray({0x0f, 0xf0}, 8).value()));
+  EXPECT_THAT(
+      simulator.Run({{"s", Value(UBits(0b10, 2))}, {"x", x_in}, {"y", y_in}}),
+      IsOkAndHolds(Value::UBitsArray({0xab, 0xcd}, 8).value()));
+  EXPECT_THAT(
+      simulator.Run({{"s", Value(UBits(0b11, 2))}, {"x", x_in}, {"y", y_in}}),
+      IsOkAndHolds(Value::UBitsArray({0xaf, 0xfd}, 8).value()));
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayConcatArrayOfBits) {
