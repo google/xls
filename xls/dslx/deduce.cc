@@ -1291,12 +1291,24 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArrayTypeAnnotation(
 static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeStructAnnotation(
     Module* module, TypeRefTypeAnnotation* type_annotation,
     StructDef* struct_def, const ConcreteType& base_type) {
-  XLS_RET_CHECK_EQ(struct_def->parametric_bindings().size(),
-                   type_annotation->parametrics().size());
+  // Note: if there are too *few* annotated parametrics, some of them may be
+  // derived.
+  if (type_annotation->parametrics().size() >
+      struct_def->parametric_bindings().size()) {
+    return TypeInferenceErrorStatus(
+        type_annotation->span(), &base_type,
+        absl::StrFormat("Expected %d parametric arguments for '%s'; got %d in "
+                        "type annotation",
+                        struct_def->parametric_bindings().size(),
+                        struct_def->identifier(),
+                        type_annotation->parametrics().size()));
+  }
+
   absl::flat_hash_map<
       std::string, absl::variant<int64, std::unique_ptr<ParametricExpression>>>
       defined_to_annotated;
-  for (int64 i = 0; i < struct_def->parametric_bindings().size(); ++i) {
+
+  for (int64 i = 0; i < type_annotation->parametrics().size(); ++i) {
     ParametricBinding* defined_parametric =
         struct_def->parametric_bindings()[i];
     Expr* annotated_parametric = type_annotation->parametrics()[i];
@@ -1323,6 +1335,22 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeStructAnnotation(
       defined_to_annotated[defined_parametric->identifier()] =
           absl::make_unique<ParametricSymbol>(name_ref->identifier(),
                                               name_ref->span());
+    }
+  }
+
+  // For the remainder (after the annotated ones) we have to see if they're
+  // derived parametrics. If they're not derived via an expression, we should
+  // have been supplied some value in the annotation!
+  for (int64 i = type_annotation->parametrics().size();
+       i < struct_def->parametric_bindings().size(); ++i) {
+    ParametricBinding* defined_parametric =
+        struct_def->parametric_bindings()[i];
+    if (defined_parametric->expr() == nullptr) {
+      return TypeInferenceErrorStatus(
+          type_annotation->span(), &base_type,
+          absl::StrFormat("No parametric value provided for '%s' in '%s'",
+                          defined_parametric->identifier(),
+                          struct_def->identifier()));
     }
   }
 
@@ -1539,11 +1567,6 @@ static const absl::flat_hash_set<std::string>& GetParametricBuiltinNames() {
       "range",
   };
   return *set;
-}
-
-static bool IsTypeMissingErrorStatus(const absl::Status& status) {
-  return !status.ok() &&
-         absl::StartsWith(status.message(), "TypeMissingError:");
 }
 
 // Updates the "user" field of the given TypeMissingError status, and returns

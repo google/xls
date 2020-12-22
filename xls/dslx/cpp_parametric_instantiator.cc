@@ -235,8 +235,11 @@ absl::Status ParametricInstantiator::SymbolicBind(
     auto* arg_tuple = dynamic_cast<const TupleType*>(&arg_type);
     StructDef* param_nominal = param_tuple->nominal_type();
     StructDef* arg_nominal = arg_tuple->nominal_type();
-    XLS_VLOG(5) << "param nominal " << param_nominal->ToString()
-                << " arg nominal " << arg_nominal->ToString();
+    XLS_VLOG(5) << "param nominal "
+                << (param_nominal == nullptr ? "none"
+                                             : param_nominal->ToString())
+                << " arg nominal "
+                << (arg_nominal == nullptr ? "none" : arg_nominal->ToString());
     if (param_nominal != arg_nominal) {
       std::string message = absl::StrFormat(
           "parameter type name: '%s'; argument type name: '%s'",

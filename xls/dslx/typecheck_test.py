@@ -22,7 +22,6 @@ from typing import Text, Optional
 from absl import logging
 
 from xls.common import test_base
-from xls.common.xls_error import XlsError
 from xls.dslx import fakefs_test_util
 from xls.dslx import parser_helpers
 from xls.dslx import span
@@ -174,7 +173,7 @@ class TypecheckTest(test_base.TestCase):
     fn f(x: u32) -> u32 { f(x) }
     """,
         error='Recursion detected while typechecking',
-        error_type=XlsError)
+        error_type=TypeInferenceError)
 
   def test_typecheck_parametric_too_many_explicit_supplied(self):
     self._typecheck(
@@ -192,7 +191,7 @@ class TypecheckTest(test_base.TestCase):
     fn g() -> u32 { f(u32: 5) }
     """,
         error='Recursion detected while typechecking',
-        error_type=XlsError)
+        error_type=TypeInferenceError)
 
   def test_typecheck_higher_order_recursion_causes_error(self):
     self._typecheck(
@@ -204,7 +203,7 @@ class TypecheckTest(test_base.TestCase):
     }
     """,
         error='Recursion detected while typechecking',
-        error_type=XlsError)
+        error_type=TypeInferenceError)
 
   def test_invoke_wrong_arg(self):
     self._typecheck(
@@ -290,8 +289,8 @@ fn f(x: u32) -> (u32, u8) {
 
   def test_parametric_instantiation_vs_arg_ok(self):
     self._typecheck("""
-    fn foo<X: u32 = u32: 5> (x: bits[X]) -> bits[X] { x }
-    fn bar() -> bits[5] { foo(u5: 1) }
+    fn parametric<X: u32 = u32:5> (x: bits[X]) -> bits[X] { x }
+    fn main() -> bits[5] { parametric(u5:1) }
         """)
 
   def test_parametric_instantiation_vs_arg_error(self):
@@ -822,6 +821,12 @@ enum Foo : u1 {
     self._typecheck_parametric_si(
         'fn f() -> Point<32, 63> { Point { x: u32:5, y: u63:255 } }',
         error='Types are not compatible: uN[64] vs uN[63]')
+
+  def test_parametric_struct_too_many_parametric_args(self):
+    self._typecheck_parametric_si(
+        'fn f() -> Point<u32:5, u32:10, u32:15> { Point { x: u5:5, y: u10:255 } }',
+        error="Expected 2 parametric arguments for 'Point'; got 3",
+        error_type=TypeInferenceError)
 
   def test_parametric_struct_instance(self):
     # Out of order, this is OK.

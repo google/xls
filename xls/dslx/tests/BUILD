@@ -514,3 +514,18 @@ dslx_test(
     generate_benchmark = False,
     prove_unopt_eq_opt = False,
 )
+
+dslx_test(
+    name = "function_called_in_derived_parametric_simple",
+    srcs = ["function_called_in_derived_parametric_simple.x"],
+)
+
+dslx_test(
+    name = "non_parametric_called_solely_from_parametric",
+    srcs = ["non_parametric_called_solely_from_parametric.x"],
+)
+
+dslx_test(
+    name = "function_called_in_derived_parametric_struct_simple",
+    srcs = ["function_called_in_derived_parametric_struct_simple.x"],
+)

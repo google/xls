@@ -107,8 +107,10 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
   // Finally, assert type consistency between body and annotated return type.
   XLS_VLOG(3) << absl::StrFormat(
       "Resolved return type: %s => %s resolved body type: %s => %s",
-      annotated_return_type->ToString(), return_type->ToString(),
-      body_return_type->ToString(), body_return_type->ToString());
+      (annotated_return_type == nullptr ? "none"
+                                        : annotated_return_type->ToString()),
+      return_type->ToString(), body_return_type->ToString(),
+      body_return_type->ToString());
   if (*return_type != *body_return_type) {
     return XlsTypeErrorStatus(
         f->body()->span(), *body_return_type, *return_type,
@@ -244,11 +246,259 @@ absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
       parent_type_info->AddInstantiation(invocation, tab.symbolic_bindings,
                                          ctx->type_info());
       auto* name_ref = dynamic_cast<NameRef*>(map_fn_ref);
+      XLS_RET_CHECK(absl::holds_alternative<NameDef*>(name_ref->name_def()));
       return absl::get<NameDef*>(name_ref->name_def());
     }
   }
 
   return nullptr;
+}
+
+// -- Type checking "driver loop"
+//
+// Implementation note: CheckTopNodeInModule() currrently drives the
+// typechecking process for some top level node (aliased as TopNode below for
+// convenience).
+//
+// It keeps a stack of records called "seen" to note which functions are in the
+// process of being typechecked (wip = Work In Progress), so we can determine if
+// we're recursing (before typechecking has completed for a function).
+//
+// Normal deduction is attempted for the top level node, and if a type is
+// missing, it is because parametric instantiation is left until invocations are
+// observed. The TypeMissingError notes the node that had its type missing and
+// its user (which would often be an invocation), which allows us to drive the
+// appropriate instantiation of that parametric.
+
+using TopNode = absl::variant<Function*, Test*, StructDef*, TypeDef*>;
+struct WipRecord {
+  TopNode f;
+  bool wip;
+};
+
+// Wrapper for information used to typecheck a top-level AST node.
+struct TypecheckStackRecord {
+  // Name of this top level node.
+  std::string name;
+
+  // AstNode::GetNodeTypeName() value for the node.
+  std::string kind;
+
+  // The node that needs 'name' to be typechecked. Used to detect the
+  // typechecking of the higher order function in map invocations.
+  AstNode* user = nullptr;
+};
+
+// Does the normal deduction processing for a given top level node.
+//
+// Note: This may end up in a TypeMissingError() that gets handled in the outer
+// loop.
+static absl::Status ProcessTopNode(TopNode f, DeduceCtx* ctx) {
+  if (absl::holds_alternative<Function*>(f)) {
+    XLS_RETURN_IF_ERROR(CheckFunction(absl::get<Function*>(f), ctx));
+  } else if (absl::holds_alternative<Test*>(f)) {
+    XLS_RETURN_IF_ERROR(CheckTest(absl::get<Test*>(f), ctx));
+  } else {
+    // Nothing special to do for these other variants, we just want to be able
+    // to catch any TypeMissingErrors and try to resolve them.
+    XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(f)).status());
+  }
+  return absl::OkStatus();
+}
+
+// Returns the identifier for the top level node.
+static const std::string& Identifier(const TopNode& f) {
+  if (absl::holds_alternative<Function*>(f)) {
+    return absl::get<Function*>(f)->identifier();
+  } else if (absl::holds_alternative<Test*>(f)) {
+    return absl::get<Test*>(f)->identifier();
+  } else if (absl::holds_alternative<StructDef*>(f)) {
+    return absl::get<StructDef*>(f)->identifier();
+  } else {
+    XLS_CHECK(absl::holds_alternative<TypeDef*>(f))
+        << ToAstNode(f)->GetNodeTypeName() << ": " << ToAstNode(f)->ToString();
+    return absl::get<TypeDef*>(f)->identifier();
+  }
+}
+
+// Helper that returns whether "n" is an invocation node that is calling the
+// BuiltinNameDef "map" as the callee.
+static bool IsCalleeMap(AstNode* n) {
+  if (n == nullptr) {
+    return false;
+  }
+  auto* invocation = dynamic_cast<Invocation*>(n);
+  if (invocation == nullptr) {
+    return false;
+  }
+  auto* name_ref = dynamic_cast<NameRef*>(invocation->callee());
+  if (name_ref == nullptr) {
+    return false;
+  }
+  AnyNameDef name_def = name_ref->name_def();
+  return absl::holds_alternative<BuiltinNameDef*>(name_def) &&
+         absl::get<BuiltinNameDef*>(name_def)->identifier() == "map";
+}
+
+static void VLogStack(absl::Span<const TypecheckStackRecord> stack) {
+  XLS_VLOG(5) << "typecheck stack:";
+  for (const TypecheckStackRecord& record : stack) {
+    XLS_VLOG(5) << absl::StreamFormat(
+        "  name: '%s' kind: %s user: %s", record.name, record.kind,
+        record.user == nullptr ? "none" : record.user->ToString());
+  }
+}
+
+static void VLogSeen(
+    const absl::flat_hash_map<std::pair<std::string, std::string>, WipRecord>&
+        map) {
+  XLS_VLOG(5) << "seen map:";
+  for (const auto& item : map) {
+    XLS_VLOG(5) << absl::StreamFormat(
+        "  %s :: %s => %s wip: %s", item.first.first, item.first.second,
+        Identifier(item.second.f), item.second.wip ? "true" : "false");
+  }
+}
+
+// Handles a TypeMissingError() that results from an attempt at deductive
+// typechecking of a TopNode.
+//
+// * For a name that refers to a function in the "function_map", we push that
+//   onto the top of the processing stack.
+static absl::Status HandleMissingType(
+    const absl::Status& status,
+    const absl::flat_hash_map<std::string, Function*>& function_map,
+    const TopNode& f,
+    absl::flat_hash_map<std::pair<std::string, std::string>, WipRecord>& seen,
+    std::vector<TypecheckStackRecord>& stack, DeduceCtx* ctx) {
+  NodeAndUser e = ParseTypeMissingErrorMessage(status.message());
+  while (true) {
+    XLS_VLOG(5) << absl::StreamFormat(
+        "Handling TypeMissingError; node: %s (%s); user: %s (%s)",
+        (e.node == nullptr ? "none" : e.node->ToString()),
+        (e.node == nullptr ? "none" : e.node->GetNodeTypeName()),
+        (e.user == nullptr ? "none" : e.user->ToString()),
+        (e.user == nullptr ? "none" : e.user->GetNodeTypeName()));
+
+    // Referring to a function name in the same module.
+    if (auto* name_def = dynamic_cast<NameDef*>(e.node);
+        name_def != nullptr && function_map.contains(name_def->identifier())) {
+      // If the callee is seen-and-not-done, we're recursing.
+      const std::pair<std::string, std::string> seen_key{name_def->identifier(),
+                                                         "Function"};
+      auto it = seen.find(seen_key);
+      if (it != seen.end() && it->second.wip) {
+        return TypeInferenceErrorStatus(
+            name_def->span(), nullptr,
+            absl::StrFormat("Recursion detected while typechecking; name: '%s'",
+                            name_def->identifier()));
+      }
+      // Note: the callees will often be parametric (where we've deferred
+      // determining their concrete type signature until invocation time), but
+      // they can *also* be concrete functions that are only invoked via these
+      // "lazily checked" parametrics.
+      Function* callee = function_map.at(name_def->identifier());
+      seen[seen_key] = WipRecord{callee, /*wip=*/true};
+      stack.push_back(TypecheckStackRecord{
+          callee->identifier(),
+          std::string(ToAstNode(callee)->GetNodeTypeName()), e.user});
+      break;
+    }
+
+    // Refering to a parametric builtin.
+    if (auto* builtin_name_def = dynamic_cast<BuiltinNameDef*>(e.node);
+        builtin_name_def != nullptr &&
+        GetParametricBuiltins().contains(builtin_name_def->identifier())) {
+      XLS_VLOG(5) << absl::StreamFormat(
+          "node: %s; identifier %s; exception user: %s",
+          e.node == nullptr ? "none" : e.node->ToString(),
+          builtin_name_def->identifier(),
+          e.user == nullptr ? "none" : e.user->ToString());
+      if (auto* invocation = dynamic_cast<Invocation*>(e.user)) {
+        XLS_ASSIGN_OR_RETURN(
+            NameDef * func,
+            InstantiateBuiltinParametric(builtin_name_def, invocation, ctx));
+        if (func != nullptr) {
+          // We need to figure out what to do with this higher order
+          // parametric function.
+          //
+          // TODO(leary): 2020-12-18 I think there's no way this returning a
+          // NameDef here is fully correct now that functions can come from
+          // ColonRefs.
+          e.node = func;
+          continue;
+        }
+        break;
+      }
+    }
+
+    // Raise if this wasn't a) a function in this module or b) a builtin.
+    return status;
+  }
+
+  return absl::OkStatus();
+}
+
+absl::Status CheckTopNodeInModule(TopNode f, DeduceCtx* ctx) {
+  XLS_RET_CHECK(ToAstNode(f) != nullptr);
+  absl::flat_hash_map<std::pair<std::string, std::string>, WipRecord> seen;
+
+  auto to_seen_key =
+      [](const TopNode& top_node) -> std::pair<std::string, std::string> {
+    return std::pair<std::string, std::string>{
+        Identifier(top_node), ToAstNode(top_node)->GetNodeTypeName()};
+  };
+
+  seen.emplace(to_seen_key(f), WipRecord{f, /*wip=*/true});
+
+  std::vector<TypecheckStackRecord> stack = {TypecheckStackRecord{
+      Identifier(f), std::string(ToAstNode(f)->GetNodeTypeName())}};
+
+  const absl::flat_hash_map<std::string, Function*>& function_map =
+      ctx->module()->GetFunctionByName();
+  while (!stack.empty()) {
+    XLS_VLOG(5) << "Stack still not empty...";
+    VLogStack(stack);
+    VLogSeen(seen);
+    const TypecheckStackRecord& record = stack.back();
+    const TopNode f = seen.at({record.name, record.kind}).f;
+
+    absl::Status status = ProcessTopNode(f, ctx);
+    XLS_VLOG(5) << "Process top node status: " << status
+                << "; f: " << ToAstNode(f)->ToString();
+
+    if (IsTypeMissingErrorStatus(status)) {
+      XLS_RETURN_IF_ERROR(
+          HandleMissingType(status, function_map, f, seen, stack, ctx));
+      continue;
+    }
+
+    XLS_RETURN_IF_ERROR(status);
+
+    XLS_VLOG(5) << "Marking as done: " << Identifier(f);
+    seen[to_seen_key(f)] = WipRecord{f, /*wip=*/false};  // Mark as done.
+    const TypecheckStackRecord stack_record = stack.back();
+    stack.pop_back();
+    const std::string& fn_name = ctx->fn_stack().back().name;
+
+    if (IsCalleeMap(stack_record.user)) {
+      // We just typechecked a higher-order parametric function (from map()).
+      // Let's go back to our parent type_info mapping.
+      XLS_RETURN_IF_ERROR(ctx->PopDerivedTypeInfo());
+    }
+
+    if (stack_record.name == fn_name) {
+      // i.e. we just finished typechecking the body of the function we're
+      // currently inside of.
+      //
+      // Note: if this is a local parametric function, we don't refer to our
+      // parent type_info until deduce._check_parametric_invocation() to avoid
+      // entering an infinite loop. See the try-catch in that function for more
+      // details.
+      ctx->fn_stack().pop_back();
+    }
+  }
+  return absl::OkStatus();
 }
 
 }  // namespace xls::dslx

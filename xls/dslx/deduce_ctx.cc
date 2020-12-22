@@ -72,8 +72,7 @@ absl::Status XlsTypeErrorStatus(const Span& span, const ConcreteType& lhs,
                                              rhs.ToString(), message));
 }
 
-std::pair<AstNode*, AstNode*> ParseTypeMissingErrorMessage(
-    absl::string_view s) {
+NodeAndUser ParseTypeMissingErrorMessage(absl::string_view s) {
   (void)absl::ConsumePrefix(&s, "TypeMissingError: ");
   std::vector<absl::string_view> pieces =
       absl::StrSplit(s, absl::MaxSplits(' ', 2));
@@ -93,6 +92,11 @@ absl::Status TypeMissingErrorStatus(AstNode* node, AstNode* user) {
   return absl::InternalError(absl::StrFormat(
       "TypeMissingError: %p %p AST node is missing a corresponding type: %s",
       node, user, node->ToString()));
+}
+
+bool IsTypeMissingErrorStatus(const absl::Status& status) {
+  return !status.ok() &&
+         absl::StartsWith(status.message(), "TypeMissingError:");
 }
 
 absl::Status ArgCountMismatchErrorStatus(const Span& span,

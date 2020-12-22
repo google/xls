@@ -37,6 +37,10 @@ absl::Status CheckTest(Test* t, DeduceCtx* ctx);
 absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
     BuiltinNameDef* builtin_name, Invocation* invocation, DeduceCtx* ctx);
 
+// Type-checks function f in the given module.
+absl::Status CheckTopNodeInModule(
+    absl::variant<Function*, Test*, StructDef*, TypeDef*> f, DeduceCtx* ctx);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPECHECK_H_

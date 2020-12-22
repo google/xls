@@ -33,12 +33,13 @@ namespace py = pybind11;
 
 namespace xls::dslx {
 
-static void TryThrowErrors(const absl::Status& status) {
+static absl::Status TryThrowErrors(const absl::Status& status) {
   TryThrowTypeInferenceError(status);
   TryThrowXlsTypeError(status);
   TryThrowKeyError(status);
   TryThrowTypeMissingError(status);
   TryThrowArgCountMismatchError(status);
+  return status;
 }
 
 PYBIND11_MODULE(cpp_typecheck, m) {
@@ -49,14 +50,12 @@ PYBIND11_MODULE(cpp_typecheck, m) {
   // type).
   m.def("check_test", [](TestHolder node, DeduceCtx* ctx) {
     auto status = CheckTest(&node.deref(), ctx);
-    TryThrowErrors(status);
-    return status;
+    return TryThrowErrors(status);
   });
 
   m.def("check_function", [](FunctionHolder node, DeduceCtx* ctx) {
     auto status = CheckFunction(&node.deref(), ctx);
-    TryThrowErrors(status);
-    return status;
+    return TryThrowErrors(status);
   });
 
   m.def("instantiate_builtin_parametric",
@@ -70,6 +69,23 @@ PYBIND11_MODULE(cpp_typecheck, m) {
             return absl::nullopt;
           }
           return NameDefHolder(name_def, name_def->owner()->shared_from_this());
+        });
+
+  m.def("check_top_node_in_module",
+        [](FunctionHolder f, DeduceCtx* ctx) -> absl::Status {
+          return TryThrowErrors(CheckTopNodeInModule(&f.deref(), ctx));
+        });
+  m.def("check_top_node_in_module",
+        [](TestHolder f, DeduceCtx* ctx) -> absl::Status {
+          return TryThrowErrors(CheckTopNodeInModule(&f.deref(), ctx));
+        });
+  m.def("check_top_node_in_module",
+        [](StructDefHolder f, DeduceCtx* ctx) -> absl::Status {
+          return TryThrowErrors(CheckTopNodeInModule(&f.deref(), ctx));
+        });
+  m.def("check_top_node_in_module",
+        [](TypeDefHolder f, DeduceCtx* ctx) -> absl::Status {
+          return TryThrowErrors(CheckTopNodeInModule(&f.deref(), ctx));
         });
 }
 

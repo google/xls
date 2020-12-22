@@ -163,18 +163,35 @@ absl::Status XlsTypeErrorStatus(const Span& span, const ConcreteType& lhs,
                                 const ConcreteType& rhs,
                                 absl::string_view message);
 
+// Pair of:
+// * A node whose type is missing, and:
+// * Optionally, what we observed was the user of that node.
+//
+// For example, a NameDef node may be missing a type, and the user of the
+// NameDef may be an Invocation node.
+struct NodeAndUser {
+  AstNode* node;
+  AstNode* user;
+};
+
 // Parses the AST node values out of the TypeMissingError message.
 //
 // TODO(leary): 2020-12-14 This is totally horrific (laundering these pointer
 // values through Statuses that get thrown as Python exceptions), but it will
 // get us through the port...
-std::pair<AstNode*, AstNode*> ParseTypeMissingErrorMessage(absl::string_view s);
+NodeAndUser ParseTypeMissingErrorMessage(absl::string_view s);
 
 // Creates a TypeMissingError status value referencing the given node (which has
 // its type missing) and user (which found that its type was missing). User will
 // often be null at the start, and the using deduction rule will later populate
 // it into an updated status.
 absl::Status TypeMissingErrorStatus(AstNode* node, AstNode* user);
+
+// Returns whether the "status" is a TypeMissingErrorStatus().
+//
+// If so, it should be possible to call ParseTypeMissingErrorMessage() on its
+// message contents.
+bool IsTypeMissingErrorStatus(const absl::Status& status);
 
 absl::Status ArgCountMismatchErrorStatus(const Span& span,
                                          absl::string_view message);
