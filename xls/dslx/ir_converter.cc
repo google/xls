@@ -151,6 +151,20 @@ absl::Status IrConverter::HandleAttr(Attr* node) {
   return absl::OkStatus();
 }
 
+absl::Status IrConverter::HandleTernary(Ternary* node) {
+  using IrFunc =
+      std::function<BValue(FunctionBuilder&, absl::optional<SourceLocation>,
+                           BValue, BValue, BValue)>;
+  IrFunc ir_func = [](FunctionBuilder& fb, absl::optional<SourceLocation> loc,
+                      BValue arg0, BValue arg1,
+                      BValue arg2) { return fb.Select(arg0, arg1, arg2, loc); };
+  XLS_ASSIGN_OR_RETURN(BValue arg0, Use(node->test()));
+  XLS_ASSIGN_OR_RETURN(BValue arg1, Use(node->consequent()));
+  XLS_ASSIGN_OR_RETURN(BValue arg2, Use(node->alternate()));
+  Def(node, ir_func, arg0, arg1, arg2);
+  return absl::OkStatus();
+}
+
 absl::StatusOr<std::string> MangleDslxName(
     absl::string_view function_name,
     const absl::btree_set<std::string>& free_keys, Module* module,

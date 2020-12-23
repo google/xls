@@ -141,6 +141,7 @@ class IrConverter {
   // AstNode handlers.
   absl::Status HandleUnop(Unop* node);
   absl::Status HandleAttr(Attr* node);
+  absl::Status HandleTernary(Ternary* node);
 
  private:
   static std::string SpanToString(const absl::optional<Span>& span) {

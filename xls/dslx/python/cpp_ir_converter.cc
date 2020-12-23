@@ -187,6 +187,10 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
            [](IrConverter& self, AttrHolder node) {
              return self.HandleAttr(&node.deref());
            })
+      .def("handle_ternary",
+           [](IrConverter& self, TernaryHolder node) {
+             return self.HandleTernary(&node.deref());
+           })
       .def("handle_unop", [](IrConverter& self, UnopHolder node) {
         return self.HandleUnop(&node.deref());
       });

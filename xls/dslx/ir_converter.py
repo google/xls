@@ -317,8 +317,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     pass
 
   def visit_Ternary(self, node: ast.Ternary):
-    self._def(node, self.fb.add_sel, self._use(node.test),
-              self._use(node.consequent), self._use(node.alternate))
+    self.state.handle_ternary(node)
 
   def _visit_concat(self, node: ast.Binop):
     output_type = self._resolve_type(node)
