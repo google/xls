@@ -29,6 +29,19 @@ class BitsTest(absltest.TestCase):
     self.assertEqual(53, bits.UBits(53, 7).to_int())
     self.assertEqual(33, bits.SBits(33, 8).to_uint())
     self.assertEqual(83, bits.SBits(83, 8).to_int())
+
+    self.assertEqual(255, bits.UBits(255, 8).to_uint())
+    self.assertEqual(-1, bits.UBits(255, 8).to_int())
+    self.assertEqual(-1, bits.UBits(2**64 - 1, 64).to_int())
+    self.assertEqual(-2**63, bits.SBits(-2**63, 64).to_int())
+    self.assertEqual(-2**31, bits.SBits(-2**31, 32).to_int())
+    self.assertEqual(2**31 - 1, bits.SBits(2**31 - 1, 32).to_int())
+    self.assertEqual(-2**31, bits.UBits(2**31, 32).to_int())
+
+    self.assertEqual(-1, bits.SBits(-1, 1).to_int())
+    self.assertEqual(-1, bits.SBits(-1, 8).to_int())
+    self.assertEqual(-1, bits.SBits(-1, 63).to_int())
+    self.assertEqual(-2, bits.SBits(-2, 64).to_int())
     self.assertEqual(-83, bits.SBits(-83, 8).to_int())
 
   def test_pickle(self):

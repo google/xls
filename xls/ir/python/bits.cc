@@ -46,16 +46,23 @@ static Bits BitsFromPyInt(py::int_ x, int64 bit_count) {
   return result;
 }
 
-static py::int_ BitsToPyInt(Bits x) {
+static py::int_ BitsToPyInt(Bits x, bool is_signed) {
   py::int_ result;
   py::int_ sixty_four(64);
   int64 word_count = CeilOfRatio(x.bit_count(), int64{64});
+  bool input_sign = x.msb();
+  if (is_signed && input_sign) {
+    x = bits_ops::Negate(x);
+  }
   for (int64 i = 0; i < word_count; ++i) {
     uint64 word = x.WordToUint64(word_count - i - 1).value();
     result = py::reinterpret_steal<py::int_>(
         PyNumber_Lshift(result.ptr(), sixty_four.ptr()));
     result = py::reinterpret_steal<py::int_>(
         PyNumber_Or(result.ptr(), py::int_(word).ptr()));
+  }
+  if (is_signed && input_sign) {
+    result = -result;
   }
   return result;
 }
@@ -83,7 +90,7 @@ PYBIND11_MODULE(bits, m) {
       .def("__invert__", [](const Bits& self) { return ~self; })
       .def(py::pickle(
           [](const Bits& self) {
-            py::int_ value = BitsToPyInt(self);
+            py::int_ value = BitsToPyInt(self, /*is_signed=*/false);
             return std::make_tuple(value, self.bit_count());
           },
           [](std::tuple<py::int_, int64> t) {
@@ -104,7 +111,6 @@ PYBIND11_MODULE(bits, m) {
       // TODO(leary): 2020-10-15 Switch to get_bit_count or make a readonly
       // property.
       .def("bit_count", &Bits::bit_count)
-      .def("to_uint", BitsToPyInt)
       .def("word_to_uint", &Bits::WordToUint64, py::arg("word_number") = 0)
       .def("get_msb", &Bits::msb)
       .def("get_mask_bits",
@@ -128,7 +134,13 @@ PYBIND11_MODULE(bits, m) {
              }
              return UBits(/*value=*/self.Get(i), /*bit_count=*/1);
            })
-      .def("to_int", &Bits::ToInt64);
+      .def("to_uint",
+           [](const Bits& self) {
+             return BitsToPyInt(self, /*is_signed=*/false);
+           })
+      .def("to_int", [](const Bits& self) {
+        return BitsToPyInt(self, /*is_signed=*/true);
+      });
 
   m.def("min_bit_count_unsigned", &Bits::MinBitCountUnsigned);
 

@@ -424,3 +424,35 @@ xls_pybind_extension(
         "//xls/ir/python:wrapper_types",
     ],
 )
+
+xls_pybind_extension(
+    name = "cpp_ir_converter",
+    srcs = ["cpp_ir_converter.cc"],
+    py_deps = [
+        ":cpp_ast",  # build_cleaner: keep
+        ":cpp_deduce",  # build_cleaner: keep
+        ":cpp_type_info",  # build_cleaner: keep
+        ":cpp_concrete_type",  # build_cleaner: keep
+        ":import_routines",  # build_cleaner: keep
+    ],
+    deps = [
+        ":callback_converters",
+        ":cpp_ast_header",
+        ":errors",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "//xls/common/status:status_macros",
+        "//xls/common/status:statusor_pybind_caster",
+        "//xls/dslx:cpp_ast",
+        "//xls/dslx:cpp_concrete_type",
+        "//xls/dslx:cpp_deduce",
+        "//xls/dslx:cpp_evaluate",
+        "//xls/dslx:cpp_ir_converter",
+        "//xls/dslx:cpp_typecheck",
+        "//xls/dslx:import_routines",
+        "//xls/dslx:interp_bindings",
+        "//xls/dslx:interpreter",
+        "//xls/ir/python:wrapper_types",
+    ],
+)

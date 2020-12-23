@@ -77,6 +77,8 @@ class SymbolicBindings {
   bool operator==(const SymbolicBindings& other) const;
   bool operator!=(const SymbolicBindings& other) const;
 
+  bool empty() const { return bindings_.empty(); }
+
   // Returns a string representation of the contained symbolic bindings suitable
   // for debugging.
   std::string ToString() const;

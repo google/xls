@@ -13,12 +13,15 @@
 // limitations under the License.
 
 // Contains a for loop that iterates up to a CONST value.
+//
+// We fill all the bits of the const to show the value is interpreted as an
+// unsigned limit.
 
-const FOO = u32:3;
+const FOO = u2:3;
 
 fn f() -> u32 {
-  for (i, accum): (u32, u32) in range(u32:0, FOO) {
-    accum+i
+  for (i, accum): (u2, u32) in range(u2:0, FOO) {
+    accum + (i as u32)
   }(u32:0)
 }
 

@@ -594,8 +594,8 @@ class FunctionBuilder : public BuilderBase {
  public:
   // Builder for xls::Functions. 'should_verify' is a test-only argument which
   // can be set to false in tests that wish to build malformed IR.
-  explicit FunctionBuilder(absl::string_view name, Package* package,
-                           bool should_verify = true)
+  FunctionBuilder(absl::string_view name, Package* package,
+                  bool should_verify = true)
       : BuilderBase(absl::make_unique<Function>(std::string(name), package),
                     should_verify) {}
 

@@ -281,8 +281,8 @@ py_library(
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_ast_visitor",
         "//xls/dslx/python:cpp_concrete_type",
-        "//xls/dslx/python:cpp_deduce",
         "//xls/dslx/python:cpp_dslx_builtins",
+        "//xls/dslx/python:cpp_ir_converter",
         "//xls/dslx/python:cpp_parametric_expression",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_type_info",
@@ -878,5 +878,19 @@ cc_library(
         ":type_and_bindings",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "cpp_ir_converter",
+    srcs = ["ir_converter.cc"],
+    hdrs = ["ir_converter.h"],
+    deps = [
+        ":cpp_ast",
+        ":cpp_type_info",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/strings",
     ],
 )

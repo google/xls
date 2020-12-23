@@ -17,7 +17,7 @@
 """Module for converting AST to IR text dumps."""
 
 import pprint
-from typing import Text, List, Dict, Optional, Tuple, Callable, Union
+from typing import Text, List, Optional, Tuple, Callable, Union
 
 from absl import logging
 
@@ -26,10 +26,10 @@ from xls.dslx import ast_helpers
 from xls.dslx import bit_helpers
 from xls.dslx import concrete_type_helpers
 from xls.dslx import extract_conversion_order
-from xls.dslx.ir_name_mangler import mangle_dslx_name
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_ast_visitor
 from xls.dslx.python import cpp_dslx_builtins
+from xls.dslx.python import cpp_ir_converter
 from xls.dslx.python import cpp_type_info as type_info_mod
 from xls.dslx.python.cpp_ast_visitor import visit
 from xls.dslx.python.cpp_concrete_type import ArrayType
@@ -89,7 +89,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       `fn [N: u32] id(x: bits[N]) -> bits[N]`) to its value in this conversion.
     type_info: Type information for the AstNodes determined during the type
       checking phase (that must precede IR conversion).
-    _constant_deps: Externally-noted constant dependencies that this function
+    constant_deps: Externally-noted constant dependencies that this function
       has (as free variables); noted via add_constant_dep().
     emit_positions: Whether or not we should emit position data based on the AST
       node source positions.
@@ -97,20 +97,40 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
 
   def __init__(self, package: ir_package.Package, module: ast.Module,
                type_info: type_info_mod.TypeInfo, emit_positions: bool):
-    self.module = module
-    self.type_info = type_info
-    self.emit_positions = emit_positions
-    self.package = package
-    self.node_to_ir = {
-    }  # type: Dict[ast.AstNode, Union[BValue, Tuple[int, BValue]]]
-    self.symbolic_bindings = {}  # type: Dict[Text, int]
-    self._constant_deps = []
-    self.fb = None  # Optional[function_builder.FunctionBuilder]
-    # TODO(leary): 2019-07-19 Create a way to get the file path from the module.
-    self.fileno = self.package.get_or_create_fileno('fake_file.x')
-    # Number of "counted for" nodes we've observed in this function.
-    self.counted_for_count = 0
-    self.last_expression = None  # Optional[ast.Expr]
+    self.state = cpp_ir_converter.IrConverter(package, module, type_info,
+                                              emit_positions)
+
+  @property
+  def fb(self):
+    return self.state.function_builder
+
+  @property
+  def fileno(self):
+    return self.state.fileno
+
+  @property
+  def module(self):
+    return self.state.module
+
+  @property
+  def type_info(self):
+    return self.state.type_info
+
+  @property
+  def package(self):
+    return self.state.package
+
+  @property
+  def emit_positions(self):
+    return self.state.emit_positions
+
+  @property
+  def last_expression(self):
+    return self.state.last_expression
+
+  @last_expression.setter
+  def set_last_expression(self, value):
+    self.state.last_expression = value
 
   def _extract_module_level_constants(self, m: ast.Module):
     """Populates `self.symbolic_bindings` with module-level constant values."""
@@ -120,12 +140,10 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
         logging.vlog(
             3, 'Found module-level constant %s for symbolic bindings: %s',
             constant.name.identifier, value)
-        self.symbolic_bindings[constant.name.identifier] = value
-    logging.vlog(2, 'Symbolic bindings now: %s', self.symbolic_bindings)
+        self.state.set_symbolic_binding(constant.name.identifier, value)
 
   def add_constant_dep(self, constant: ast.Constant) -> None:
-    logging.vlog(2, 'Adding constant dep: %s', constant)
-    self._constant_deps.append(constant)
+    self.state.add_constant_dep(constant)
 
   def _type_to_ir(self, concrete_type: ConcreteType) -> type_mod.Type:
     """Converts a concrete type to its corresponding IR representation."""
@@ -197,51 +215,58 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     logging.vlog(4, 'Define node "%s" (%s) to be %s @ %s',
                  node, node.__class__.__name__, ir,
                  ast_helpers.get_span_or_fake(node))
-    self.node_to_ir[node] = ir
+    self.state.set_node_to_ir(node, ir)
     return ir
-
-  def _def_alias(self, from_: ast.AstNode, to: ast.AstNode) -> BValue:
-    self.node_to_ir[to] = self.node_to_ir[from_]
-    logging.vlog(4, 'Alias node "%s" to be same as %s', to, from_)
-    if isinstance(to, ast.NameDef):
-      # Name the aliased node based on the identifier in the NameDef.
-      if isinstance(self.node_to_ir[from_], BValue):
-        ir_node: BValue = self.node_to_ir[from_]
-        ir_node.set_name(to.identifier.encode('utf-8'))
-    return self._use(to)
 
   def _def_const(self, node: ast.AstNode, value: int, bit_count: int) -> BValue:
     bits = _int_to_bits(value, bit_count)
     ir = self._def(node, self.fb.add_literal_bits, bits)
-    self.node_to_ir[node] = (value, ir)
+    self.state.set_node_to_ir(node, (bits_mod.from_long(value, bit_count), ir))
     return ir
 
   def _is_const(self, node: ast.AstNode) -> bool:
     """Returns whether "node" corresponds to a known-constant (int) value."""
-    record = self.node_to_ir[node]
+    record = self.state.get_node_to_ir(node)
     return isinstance(record, tuple)
 
-  def _get_const(self, node: ast.AstNode) -> int:
-    """Retrieves the known-constant (int) value associated with "node"."""
-    record = self.node_to_ir[node]
+  def _get_const_bits(self, node: ast.AstNode) -> bits_mod.Bits:
+    """Retrieves the known-constant bits value associated with "node"."""
+    record = self.state.get_node_to_ir(node)
     if not isinstance(record, tuple):
       raise ConversionError(
           'Expected a constant, but value does not appear constant.',
           ast_helpers.get_span_or_fake(node))
+    assert isinstance(record[0], bits_mod.Bits), record[0]
     return record[0]
 
+  def _get_const(self, node: ast.AstNode, *, signed: bool) -> int:
+    """Retrieves the known-constant (int) value associated with "node".
+
+    Args:
+      node: Node to retrieve the constant value for.
+      signed: Whether or not the constant value should be converted as a signed
+        number (to Python int type). That is, if all bits are set, should it be
+        -1 or a positive value?
+
+    Returns:
+      A Python integer representing the resulting value. If signed is False,
+      this value will always be >= 0.
+
+    Raises:
+      ConversionError: If the node was not registered as a constant during IR
+        conversion.
+    """
+    bits = self._get_const_bits(node)
+    result = bits.to_int() if signed else bits.to_uint()
+    if not signed:
+      assert result >= 0
+    return result
+
   def _use(self, node: ast.AstNode) -> BValue:
-    try:
-      record = self.node_to_ir[node]
-    except KeyError:
-      logging.error('Exception resolving %s node @ %s: %s',
-                    node.__class__.__name__, ast_helpers.get_span_or_fake(node),
-                    node)
-      raise
-    if isinstance(record, tuple):
-      return record[1]
-    else:
-      return record
+    return self.state.use(node)
+
+  def _def_alias(self, from_: ast.AstNode, to: ast.AstNode) -> BValue:
+    return self.state.def_alias(from_, to)
 
   def _resolve_dim(self, dim: ConcreteTypeDim) -> ConcreteTypeDim:
     assert isinstance(dim, ConcreteTypeDim), dim
@@ -249,13 +274,10 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       try:
         orig = dim.value
         assert isinstance(orig, ParametricExpression), orig
-        evaluated = orig.evaluate(self.symbolic_bindings)
-        logging.vlog(4, 'Evaluated dim %s to %s via %s', orig, evaluated,
-                     self.symbolic_bindings)
+        evaluated = orig.evaluate(
+            dict(self.state.get_symbolic_bindings_items()))
         dim = ConcreteTypeDim(evaluated)
       except KeyError:
-        logging.vlog(4, 'Could not resolve %s dim %s via symbolic bindings %r',
-                     dim, self.symbolic_bindings)
         return dim
     return dim
 
@@ -270,8 +292,6 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     assert isinstance(concrete_type, ConcreteType), concrete_type
     result = concrete_type_helpers.map_size(concrete_type, self.module,
                                             self._resolve_dim)
-    logging.vlog(4, 'Resolved concrete type from %s to %s via %s',
-                 concrete_type, result, self.symbolic_bindings)
     return result
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
@@ -369,13 +389,12 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     self._def(node, f, self._use(node.lhs), self._use(node.rhs))
 
   def _next_counted_for_ordinal(self) -> int:
-    result = self.counted_for_count
-    self.counted_for_count += 1
-    return result
+    return self.state.get_and_bump_counted_for_count()
 
   def _visit_matcher(self, matcher: ast.NameDefTree, index: Tuple[int, ...],
                      matched_value: BValue,
                      matched_type: ConcreteType) -> BValue:
+    assert isinstance(matched_value, BValue), matched_value
     if matcher.is_leaf():
       leaf = matcher.get_leaf()
       logging.vlog(5, 'Matcher is leaf: %s (%s)', leaf, leaf.__class__.__name__)
@@ -397,7 +416,8 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
         ), 'Expected leaf to be wildcard, number, or name; got: {!r}'.format(
             leaf)
         ok = self._def(leaf, self.fb.add_literal_bits, bits_mod.UBits(1, 1))
-        self.node_to_ir[matcher] = self.node_to_ir[leaf] = matched_value
+        self.state.set_node_to_ir(matcher, matched_value)
+        self.state.set_node_to_ir(leaf, matched_value)
         return ok
     else:
       ok = self.fb.add_literal_bits(bits_mod.UBits(value=1, bit_count=1))
@@ -457,9 +477,11 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     #   selectors:     [x==42, x==64, x==128]
     #   values:        [blah,  snarf,    yep]
     #   default_value: burp
-    self.node_to_ir[node] = self.fb.add_match_true(arm_selectors, arm_values,
-                                                   self._use(default_arm.expr))
-    self.last_expression = node
+    self.state.set_node_to_ir(
+        node,
+        self.fb.add_match_true(arm_selectors, arm_values,
+                               self._use(default_arm.expr)))
+    self.state.last_expression = node
 
   def visit_Unop(self, node: ast.Unop):
     if node.kind == ast.UnopKind.NEG:
@@ -497,7 +519,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     if isinstance(lhs_type, TupleType):
       visit(node.index, self)
       self._def(node, self.fb.add_tuple_index, self._use(node.lhs),
-                self._get_const(node.index))
+                self._get_const(node.index, signed=False))
     elif isinstance(lhs_type, BitsType):
       index_slice = node.index
       if isinstance(index_slice, ast.WidthSlice):
@@ -539,13 +561,10 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
   # Note: need to traverse to define constants for members.
   def visit_ConstantArray(self, node: ast.ConstantArray) -> None:
     array_type = self._resolve_type(node)
-    e_type = array_type.get_element_type()
     values = []
     for n in node.members:
-      e = self._get_const(n)
-      values.append(
-          ir_value.Value(_int_to_bits(e,
-                                      e_type.get_total_bit_count().value)))
+      e = self._get_const_bits(n)
+      values.append(ir_value.Value(e))
     if node.has_ellipsis:
       while len(values) < array_type.size.value:
         values.append(values[-1])
@@ -716,7 +735,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
             'For-loop is of an unsupported form for IR conversion; only a '
             "'range(const)' call is supported, did not find a const value "
             f'for {arg} ({arg!r}).', node.span)
-      return self._get_const(arg)
+      return self._get_const(arg, signed=False)
 
     # TODO(leary): We currently only support counted loops of the form:
     #
@@ -731,11 +750,11 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
         self.module,
         self.type_info,
         emit_positions=self.emit_positions)
-    body_converter.symbolic_bindings = dict(self.symbolic_bindings)
+    body_converter.state.set_symbolic_bindings(
+        self.state.get_symbolic_bindings())
     body_fn_name = ('__' + self.fb.name + '_counted_for_{}_body').format(
         self._next_counted_for_ordinal()).replace('.', '_')
-    body_converter.fb = function_builder.FunctionBuilder(
-        body_fn_name, self.package)
+    body_converter.state.instantiate_function_builder(body_fn_name)
     flat = node.names.flatten1()
     assert len(
         flat
@@ -746,18 +765,22 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     assert isinstance(
         flat[0], ast.NameDef
     ), 'Induction variable was not a NameDef: {0} ({0!r})'.format(flat[0])
-    body_converter.node_to_ir[flat[0]] = body_converter.fb.add_param(
-        flat[0].identifier, self._resolve_type_to_ir(flat[0]))
+    body_converter.state.set_node_to_ir(
+        flat[0],
+        body_converter.fb.add_param(flat[0].identifier,
+                                    self._resolve_type_to_ir(flat[0])))
 
     # Add the loop carry value.
     if isinstance(flat[1], ast.NameDef):
-      body_converter.node_to_ir[flat[1]] = body_converter.fb.add_param(
-          flat[1].identifier, self._resolve_type_to_ir(flat[1]))
+      body_converter.state.set_node_to_ir(
+          flat[1],
+          body_converter.fb.add_param(flat[1].identifier,
+                                      self._resolve_type_to_ir(flat[1])))
     else:
       # For tuple loop carries we have to destructure names on entry.
       carry_type = self._resolve_type_to_ir(flat[1])
-      carry = body_converter.node_to_ir[flat[1]] = body_converter.fb.add_param(
-          '__loop_carry', carry_type)
+      carry = body_converter.fb.add_param('__loop_carry', carry_type)
+      body_converter.state.set_node_to_ir(flat[1], carry)
       body_converter._visit_matcher(  # pylint: disable=protected-access
           flat[1], (), carry, self._resolve_type(flat[1]))
 
@@ -778,8 +801,10 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
         continue
       relevant_name_defs.append(name_def)
       logging.vlog(3, 'Converting freevar name: %s', name_def)
-      body_converter.node_to_ir[name_def] = body_converter.fb.add_param(
-          name_def.identifier, self._resolve_type_to_ir(name_def))
+      body_converter.state.set_node_to_ir(
+          name_def,
+          body_converter.fb.add_param(name_def.identifier,
+                                      self._resolve_type_to_ir(name_def)))
 
     visit(node.body, body_converter)
     body_function = body_converter.fb.build()
@@ -803,7 +828,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     }
     return SymbolicBindings(
         tuple((k, v)
-              for k, v in self.symbolic_bindings.items()
+              for k, v in self.state.get_symbolic_bindings_items()
               if k not in module_level_constants))
 
   def _get_invocation_bindings(self,
@@ -843,23 +868,25 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       # directly.
       return callee_name
     if not function.is_parametric():
-      return mangle_dslx_name(function.name.identifier,
-                              function.get_free_parametric_keys(), m, None)
+      return cpp_ir_converter.mangle_dslx_name(
+          function.name.identifier, function.get_free_parametric_keys(), m,
+          None)
     resolved_symbolic_bindings = self._get_invocation_bindings(node)
     logging.vlog(2, 'Node %s @ %s symbolic bindings %r', node, node.span,
                  resolved_symbolic_bindings)
     assert resolved_symbolic_bindings, node
-    return mangle_dslx_name(function.name.identifier,
-                            function.get_free_parametric_keys(), m,
-                            resolved_symbolic_bindings)
+    return cpp_ir_converter.mangle_dslx_name(
+        function.name.identifier, function.get_free_parametric_keys(), m,
+        resolved_symbolic_bindings)
 
   def _def_map_with_builtin(self, parent_node: ast.Invocation,
                             node: ast.NameRef, arg: ast.AstNode,
                             symbolic_bindings: SymbolicBindings) -> BValue:
     """Makes the specified builtin available to the package."""
     assert isinstance(symbolic_bindings, SymbolicBindings), symbolic_bindings
-    mangled_name = mangle_dslx_name(node.name_def.identifier, set(),
-                                    self.module, symbolic_bindings)
+    mangled_name = cpp_ir_converter.mangle_dslx_name(node.name_def.identifier,
+                                                     set(), self.module,
+                                                     symbolic_bindings)
 
     arg = self._use(arg)
     if mangled_name not in self.package.get_function_names():
@@ -901,8 +928,9 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
           'Unhandled function mapping: {!r}'.format(fn_node))
 
     node_sym_bindings = self._get_invocation_bindings(node)
-    mangled_name = mangle_dslx_name(fn.name, fn.get_free_parametric_keys(),
-                                    lookup_module, node_sym_bindings)
+    mangled_name = cpp_ir_converter.mangle_dslx_name(
+        fn.name.identifier, fn.get_free_parametric_keys(), lookup_module,
+        node_sym_bindings)
 
     return self._def(node, self.fb.add_map, arg,
                      self.package.get_function(mangled_name))
@@ -933,7 +961,8 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     lhs, _, width = args
     width_type = width.get_type()
     return self._def(node, self.fb.add_bit_slice, lhs,
-                     self._get_const(node.args[1]), width_type.get_bit_count())
+                     self._get_const(node.args[1], signed=False),
+                     width_type.get_bit_count())
 
   def _visit_rev(self, node: ast.Invocation, args: Tuple[BValue,
                                                          ...]) -> BValue:
@@ -959,7 +988,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
   def _visit_one_hot(self, node: ast.Invocation, args: Tuple[BValue,
                                                              ...]) -> BValue:
     lhs, _ = args
-    lsb_prio = self._get_const(node.args[1])
+    lsb_prio = self._get_const(node.args[1], signed=False)
     return self._def(
         node, self.fb.add_one_hot, lhs,
         lsb_or_msb.LsbOrMsb.LSB if lsb_prio else lsb_or_msb.LsbOrMsb.MSB)
@@ -1104,8 +1133,8 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       visit(node.body, self)
       self._def_alias(node.body, to=node)
 
-    if self.last_expression is None:
-      self.last_expression = node.body
+    if self.state.last_expression is None:
+      self.state.last_expression = node.body
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Param(self, node: ast.Param):
@@ -1115,48 +1144,47 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
   def _visit_Function(
       self, node: ast.Function,
       symbolic_bindings: Optional[SymbolicBindings]) -> ir_function.Function:
-    self.symbolic_bindings = {} if symbolic_bindings is None else (
-        symbolic_bindings.to_dict())
+    self.state.set_symbolic_bindings(symbolic_bindings)
     self._extract_module_level_constants(self.module)
     # We use a function builder for the duration of converting this
     # ast.Function. When it's done being built, we drop the reference to it (by
     # setting self.fb to None).
-    self.fb = function_builder.FunctionBuilder(
-        mangle_dslx_name(node.name.identifier, node.get_free_parametric_keys(),
-                         self.module, symbolic_bindings), self.package)
-    try:
-      for param in node.params:
-        visit(param, self)
+    mangled_name = cpp_ir_converter.mangle_dslx_name(
+        node.name.identifier, node.get_free_parametric_keys(), self.module,
+        symbolic_bindings)
+    self.state.instantiate_function_builder(mangled_name)
 
-      for parametric_binding in node.parametric_bindings:
-        logging.vlog(4, 'Resolving parametric binding %s', parametric_binding)
+    for param in node.params:
+      visit(param, self)
 
-        sb_value = self.symbolic_bindings[parametric_binding.name.identifier]
-        value = self._resolve_dim(ConcreteTypeDim(sb_value))
-        assert isinstance(value.value, int), \
-            'Expect integral parametric binding; got {!r}'.format(value)
-        self._def_const(
-            parametric_binding, value.value,
-            self._resolve_type(
-                parametric_binding.type_).get_total_bit_count().value)
-        self._def_alias(parametric_binding, to=parametric_binding.name)
+    for parametric_binding in node.parametric_bindings:
+      logging.vlog(4, 'Resolving parametric binding %s', parametric_binding)
 
-      for dep in self._constant_deps:
-        visit(dep, self)
-      del self._constant_deps[:]
+      sb_value = self.state.get_symbolic_binding(
+          parametric_binding.name.identifier)
+      value = self._resolve_dim(ConcreteTypeDim(sb_value))
+      assert isinstance(value.value, int), \
+          'Expect integral parametric binding; got {!r}'.format(value)
+      self._def_const(
+          parametric_binding, value.value,
+          self._resolve_type(
+              parametric_binding.type_).get_total_bit_count().value)
+      self._def_alias(parametric_binding, to=parametric_binding.name)
 
-      visit(node.body, self)
+    for dep in self.state.constant_deps:
+      visit(dep, self)
+    self.state.clear_constant_deps()
 
-      last_expression = self.last_expression or node.body
-      if isinstance(last_expression, ast.NameRef):
-        self._def(last_expression, self.fb.add_identity,
-                  self._use(last_expression))
-      f = self.fb.build()
-      logging.vlog(3, 'Built function: %s', f.name)
-      verifier_mod.verify_function(f)
-      return f
-    finally:
-      self.fb = None
+    visit(node.body, self)
+
+    last_expression = self.state.last_expression or node.body
+    if isinstance(last_expression, ast.NameRef):
+      self._def(last_expression, self.fb.add_identity,
+                self._use(last_expression))
+    f = self.fb.build()
+    logging.vlog(3, 'Built function: %s', f.name)
+    verifier_mod.verify_function(f)
+    return f
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Function(
