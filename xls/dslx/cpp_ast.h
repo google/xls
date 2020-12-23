@@ -171,6 +171,8 @@ class AstNode {
   virtual absl::string_view GetNodeTypeName() const = 0;
   virtual std::string ToString() const = 0;
 
+  virtual absl::optional<Span> GetSpan() const = 0;
+
   // Retrieves all the child nodes for this AST node.
   //
   // If want_types is false, then type annotations should be excluded from the
@@ -225,6 +227,7 @@ class TypeAnnotation : public AstNode {
       : AstNode(owner), span_(std::move(span)) {}
 
   const Span& span() const { return span_; }
+  absl::optional<Span> GetSpan() const override { return span_; }
 
  private:
   Span span_;
@@ -358,6 +361,7 @@ class BuiltinNameDef : public AstNode {
       : AstNode(owner), identifier_(std::move(identifier)) {}
 
   void Accept(AstNodeVisitor* v) override { v->HandleBuiltinNameDef(this); }
+  absl::optional<Span> GetSpan() const override { return absl::nullopt; }
 
   absl::string_view GetNodeTypeName() const override {
     return "BuiltinNameDef";
@@ -392,6 +396,7 @@ class WildcardPattern : public AstNode {
   }
 
   const Span& span() const { return span_; }
+  absl::optional<Span> GetSpan() const override { return span_; }
 
  private:
   Span span_;
@@ -410,6 +415,7 @@ class NameDef : public AstNode {
 
   absl::string_view GetNodeTypeName() const override { return "NameDef"; }
   const Span& span() const { return span_; }
+  absl::optional<Span> GetSpan() const override { return span_; }
   const std::string& identifier() const { return identifier_; }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -470,6 +476,7 @@ class Expr : public AstNode {
 
   const Span& span() const { return span_; }
   void set_span(const Span& span) { span_ = span; }
+  absl::optional<Span> GetSpan() const override { return span_; }
 
   virtual void AcceptExpr(ExprVisitor* v) = 0;
 
@@ -607,6 +614,7 @@ class TypeDef : public AstNode {
   TypeAnnotation* type() const { return type_; }
   bool is_public() const { return is_public_; }
   const Span& span() const { return span_; }
+  absl::optional<Span> GetSpan() const override { return span_; }
 
  private:
   Span span_;
@@ -680,6 +688,7 @@ class TypeRef : public AstNode {
   const std::string& text() const { return text_; }
   const TypeDefinition& type_definition() const { return type_definition_; }
   const Span& span() const { return span_; }
+  absl::optional<Span> GetSpan() const override { return span_; }
 
  private:
   Span span_;
@@ -707,6 +716,7 @@ class Import : public AstNode {
   const std::vector<std::string>& subject() const { return subject_; }
   NameDef* name_def() const { return name_def_; }
   const Span& span() const { return span_; }
+  absl::optional<Span> GetSpan() const override { return span_; }
 
  private:
   // Span of the import in the text.
@@ -781,6 +791,7 @@ class Param : public AstNode {
   NameDef* name_def() const { return name_def_; }
   TypeAnnotation* type() const { return type_; }
   const std::string& identifier() const { return name_def_->identifier(); }
+  absl::optional<Span> GetSpan() const override { return span_; }
 
  private:
   NameDef* name_def_;
@@ -946,6 +957,7 @@ class ParametricBinding : public AstNode {
   // TODO(leary): 2020-08-21 Fix this, the span is more than just the name def's
   // span, it must include the type/expr.
   const Span& span() const { return name_def_->span(); }
+  absl::optional<Span> GetSpan() const override { return span(); }
 
   absl::string_view GetNodeTypeName() const override {
     return "ParametricBinding";
@@ -1009,6 +1021,7 @@ class Function : public AstNode {
   NameDef* name_def() const { return name_def_; }
   Expr* body() const { return body_; }
   const Span& span() const { return span_; }
+  absl::optional<Span> GetSpan() const override { return span_; }
 
   const std::string& identifier() const { return name_def_->identifier(); }
   const std::vector<Param*>& params() const { return params_; }
@@ -1052,6 +1065,7 @@ class MatchArm : public AstNode {
   const std::vector<NameDefTree*>& patterns() const { return patterns_; }
   Expr* expr() const { return expr_; }
   const Span& span() const { return span_; }
+  absl::optional<Span> GetSpan() const override { return span_; }
 
  private:
   Span span_;
@@ -1182,6 +1196,7 @@ class Slice : public AstNode {
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   std::string ToString() const override;
+  absl::optional<Span> GetSpan() const override { return span_; }
 
   Number* start() const { return start_; }
   Number* limit() const { return limit_; }
@@ -1239,6 +1254,7 @@ class EnumDef : public AstNode {
   const std::string& identifier() const { return name_def_->identifier(); }
 
   const Span& span() const { return span_; }
+  absl::optional<Span> GetSpan() const override { return span_; }
   NameDef* name_def() const { return name_def_; }
   const std::vector<EnumMember>& values() const { return values_; }
   TypeAnnotation* type() const { return type_; }
@@ -1287,6 +1303,7 @@ class StructDef : public AstNode {
   }
   bool is_public() const { return public_; }
   const Span& span() const { return span_; }
+  absl::optional<Span> GetSpan() const override { return span_; }
 
   std::vector<std::string> GetMemberNames() const {
     std::vector<std::string> names;
@@ -1437,6 +1454,7 @@ class WidthSlice : public AstNode {
 
   Expr* start() const { return start_; }
   TypeAnnotation* width() const { return width_; }
+  absl::optional<Span> GetSpan() const override { return span_; }
 
  private:
   Span span_;
@@ -1494,6 +1512,7 @@ class Proc : public AstNode {
 
   NameDef* name_def() const { return name_def_; }
   bool is_public() const { return is_public_; }
+  absl::optional<Span> GetSpan() const override { return span_; }
 
  private:
   Span span_;
@@ -1527,6 +1546,7 @@ class Test : public AstNode {
 
   const std::string& identifier() const { return name_def_->identifier(); }
   Expr* body() const { return body_; }
+  absl::optional<Span> GetSpan() const override { return body_->span(); }
 
  private:
   NameDef* name_def_;
@@ -1555,6 +1575,7 @@ class TestFunction : public Test {
   absl::string_view GetNodeTypeName() const override { return "TestFunction"; }
 
   Function* fn() const { return fn_; }
+  absl::optional<Span> GetSpan() const override { return fn_->span(); }
 
  private:
   Function* fn_;
@@ -1583,6 +1604,7 @@ class QuickCheck : public AstNode {
 
   Function* f() const { return f_; }
   int64 test_count() const { return test_count_; }
+  absl::optional<Span> GetSpan() const override { return f_->span(); }
 
  private:
   Span span_;
@@ -1767,6 +1789,7 @@ class ConstantDef : public AstNode {
   NameDef* name_def() const { return name_def_; }
   Expr* value() const { return value_; }
   const Span& span() const { return span_; }
+  absl::optional<Span> GetSpan() const override { return span_; }
   bool is_public() const { return is_public_; }
 
  private:
@@ -1877,6 +1900,7 @@ class NameDefTree : public AstNode {
 
   const absl::variant<Nodes, Leaf>& tree() const { return tree_; }
   const Span& span() const { return span_; }
+  absl::optional<Span> GetSpan() const override { return span_; }
 
  private:
   Span span_;
@@ -1969,6 +1993,7 @@ class Module : public AstNode, public std::enable_shared_from_this<Module> {
   }
 
   void Accept(AstNodeVisitor* v) override { v->HandleModule(this); }
+  absl::optional<Span> GetSpan() const override { return absl::nullopt; }
 
   absl::string_view GetNodeTypeName() const override { return "Module"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;

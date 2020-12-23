@@ -206,18 +206,15 @@ class TupleType : public ConcreteType {
     return const_cast<TupleType*>(this)->GetMemberType(i);
   }
 
-  // Returns an error status if this TupleType does not have named members.
-  absl::StatusOr<std::vector<std::string>> GetMemberNames() const {
-    if (!absl::holds_alternative<NamedMembers>(members_)) {
-      return absl::InvalidArgumentError(
-          "Tuple has unnamed members; cannot retrieve names.");
-    }
-    std::vector<std::string> results;
-    for (const NamedMember& m : absl::get<NamedMembers>(members_)) {
-      results.push_back(m.name);
-    }
-    return results;
-  }
+  // Returns an InvalidArgument error status if this TupleType does not have
+  // named members.
+  absl::StatusOr<std::vector<std::string>> GetMemberNames() const;
+
+  // Returns the index of the member with name "name" -- returns a NotFound
+  // error if the member is not found (i.e. it is generally expected that the
+  // caller knows the name is present), and an InvalidArgument error status if
+  // this TupleType does not have named members.
+  absl::StatusOr<int64> GetMemberIndex(absl::string_view name) const;
 
   std::vector<const ConcreteType*> GetUnnamedMembers() const;
   const ConcreteType& GetUnnamedMember(int64 i) const {

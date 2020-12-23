@@ -35,6 +35,7 @@ namespace {
 using IrValue = IrConverter::IrValue;
 using CValue = IrConverter::CValue;
 
+// Wraps a BValue into a (pybind convertible) BValueHolder type.
 BValueHolder Wrap(IrConverter& self, const BValue& value) {
   return BValueHolder(value, self.package(), self.function_builder());
 }
@@ -181,7 +182,14 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
              return result;
            })
       .def("get_and_bump_counted_for_count",
-           &IrConverter::GetAndBumpCountedForCount);
+           &IrConverter::GetAndBumpCountedForCount)
+      .def("handle_attr",
+           [](IrConverter& self, AttrHolder node) {
+             return self.HandleAttr(&node.deref());
+           })
+      .def("handle_unop", [](IrConverter& self, UnopHolder node) {
+        return self.HandleUnop(&node.deref());
+      });
 
   m.def("mangle_dslx_name",
         [](absl::string_view function_name,

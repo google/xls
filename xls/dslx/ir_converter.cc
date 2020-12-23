@@ -18,6 +18,8 @@
 
 namespace xls::dslx {
 
+using IrOp = xls::Op;
+
 /* static */ std::string IrConverter::ToString(const IrValue& value) {
   if (absl::holds_alternative<BValue>(value)) {
     return absl::StrFormat("%p", absl::get<BValue>(value).node());
@@ -100,6 +102,53 @@ absl::optional<IrConverter::IrValue> IrConverter::GetNodeToIr(
     return absl::nullopt;
   }
   return it->second;
+}
+
+absl::Status IrConverter::HandleUnop(Unop* node) {
+  XLS_ASSIGN_OR_RETURN(BValue operand, Use(node->operand()));
+  using IrFunc = std::function<BValue(FunctionBuilder&,
+                                      absl::optional<SourceLocation>, BValue)>;
+  switch (node->kind()) {
+    case UnopKind::kNegate: {
+      IrFunc add_neg = [](FunctionBuilder& fb,
+                          absl::optional<SourceLocation> loc,
+                          BValue x) { return fb.AddUnOp(IrOp::kNeg, x, loc); };
+      Def(node, add_neg, operand);
+      return absl::OkStatus();
+    }
+    case UnopKind::kInvert: {
+      IrFunc add_not = [](FunctionBuilder& fb,
+                          absl::optional<SourceLocation> loc,
+                          BValue x) { return fb.AddUnOp(IrOp::kNot, x, loc); };
+      Def(node, add_not, operand);
+      return absl::OkStatus();
+    }
+  }
+  return absl::InternalError(
+      absl::StrCat("Invalid UnopKind: ", static_cast<int64>(node->kind())));
+}
+
+absl::Status IrConverter::HandleAttr(Attr* node) {
+  absl::optional<const ConcreteType*> lhs_type =
+      type_info()->GetItem(node->lhs());
+  XLS_RET_CHECK(lhs_type.has_value());
+  auto* tuple_type = dynamic_cast<const TupleType*>(lhs_type.value());
+  const std::string& identifier = node->attr()->identifier();
+  XLS_ASSIGN_OR_RETURN(int64 index, tuple_type->GetMemberIndex(identifier));
+  XLS_ASSIGN_OR_RETURN(BValue lhs, Use(node->lhs()));
+  using IrFunc = std::function<BValue(
+      FunctionBuilder&, absl::optional<SourceLocation>, BValue, int64)>;
+  IrFunc ir_func = [](FunctionBuilder& fb, absl::optional<SourceLocation> loc,
+                      BValue lhs,
+                      int64 rhs) { return fb.TupleIndex(lhs, rhs, loc); };
+  BValue ir = Def(node, ir_func, lhs, index);
+  // Give the tuple-index instruction a meaningful name based on the identifier.
+  if (lhs.HasAssignedName()) {
+    ir.SetName(absl::StrCat(lhs.GetName(), "_", identifier));
+  } else {
+    ir.SetName(identifier);
+  }
+  return absl::OkStatus();
 }
 
 absl::StatusOr<std::string> MangleDslxName(

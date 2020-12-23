@@ -203,6 +203,28 @@ int64_t TupleType::size() const {
   return absl::get<UnnamedMembers>(members_).size();
 }
 
+absl::StatusOr<std::vector<std::string>> TupleType::GetMemberNames() const {
+  if (!absl::holds_alternative<NamedMembers>(members_)) {
+    return absl::InvalidArgumentError(
+        "Tuple has unnamed members; cannot retrieve names.");
+  }
+  std::vector<std::string> results;
+  for (const NamedMember& m : absl::get<NamedMembers>(members_)) {
+    results.push_back(m.name);
+  }
+  return results;
+}
+
+absl::StatusOr<int64> TupleType::GetMemberIndex(absl::string_view name) const {
+  XLS_ASSIGN_OR_RETURN(std::vector<std::string> names, GetMemberNames());
+  auto it = std::find(names.begin(), names.end(), name);
+  if (it == names.end()) {
+    return absl::NotFoundError(absl::StrFormat(
+        "Name not present in tuple type %s: %s", ToString(), name));
+  }
+  return std::distance(names.begin(), it);
+}
+
 bool TupleType::CompatibleWith(const TupleType& other) const {
   std::vector<const ConcreteType*> self_members = GetUnnamedMembers();
   std::vector<const ConcreteType*> other_members = GetUnnamedMembers();

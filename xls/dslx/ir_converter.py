@@ -484,12 +484,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     self.state.last_expression = node
 
   def visit_Unop(self, node: ast.Unop):
-    if node.kind == ast.UnopKind.NEG:
-      self._def(node, self.fb.add_neg, self._use(node.operand))
-    elif node.kind == ast.UnopKind.INV:
-      self._def(node, self.fb.add_not, self._use(node.operand))
-    else:
-      raise NotImplementedError(node.kind)
+    self.state.handle_unop(node)
 
   def _visit_width_slice(self, node: ast.Index, width_slice: ast.WidthSlice,
                          lhs_type: ConcreteType) -> None:
@@ -499,18 +494,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
               self._resolve_type(node).get_total_bit_count().value)
 
   def visit_Attr(self, node: ast.Attr) -> None:
-    lhs_type = self.type_info.get_type(node.lhs)
-    identifier = node.attr.identifier
-    assert isinstance(lhs_type, TupleType)
-    index = lhs_type.tuple_names.index(identifier)
-    lhs = self._use(node.lhs)
-    ir = self._def(node, self.fb.add_tuple_index, lhs, index)
-    # Give the tuple-index instruction a meaningful name based on the
-    # identifier.
-    if lhs.has_assigned_name():
-      ir.set_name(lhs.get_name() + '_' + identifier)
-    else:
-      ir.set_name(identifier)
+    self.state.handle_attr(node)
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Index(self, node: ast.Index) -> None:
