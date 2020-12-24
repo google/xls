@@ -17,6 +17,7 @@
 
 #include <string>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/name_to_bit_count.h"
@@ -33,11 +34,19 @@ namespace verilog {
 absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
     Function* func, bool use_system_verilog = true);
 
+enum class ProcPortType {
+  kNull = 0,
+  kSimple = 1,
+  kReadyValid = 2,
+};
+
 // Emits the given proc as a combinational Verilog module. To ensure no
 // combinational loops, the proc can have no state (state type is empty
 // tuple). Also, all channels must be of the module port type and unflopped.
 absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModuleFromProc(
-    Proc* proc, bool use_system_verilog = true);
+    Proc* proc,
+    const absl::flat_hash_map<const Channel*, ProcPortType>& channel_gen_types,
+    bool use_system_verilog = true);
 
 }  // namespace verilog
 }  // namespace xls

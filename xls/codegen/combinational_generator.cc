@@ -14,6 +14,8 @@
 
 #include "xls/codegen/combinational_generator.h"
 
+#include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -22,13 +24,18 @@
 #include "xls/codegen/flattening.h"
 #include "xls/codegen/module_builder.h"
 #include "xls/codegen/node_expressions.h"
+#include "xls/codegen/vast.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/dfs_visitor.h"
+#include "xls/ir/function.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/type.h"
 
 namespace xls {
 namespace verilog {
@@ -73,7 +80,8 @@ bool HasUnrepresentedType(Type* type) {
 absl::StatusOr<NodeRepresentation> CodegenNodeWithUnrepresentedOperands(
     Node* node, ModuleBuilder* mb,
     const absl::flat_hash_map<Node*, NodeRepresentation>& node_exprs) {
-  if (node->Is<TupleIndex>() && node->operand(0)->Is<Receive>()) {
+  if (node->Is<TupleIndex>() &&
+      (node->operand(0)->Is<Receive>() || node->operand(0)->Is<ReceiveIf>())) {
     // A tuple-index into a receive node. Only indexing into the data elements
     // (index 1 and up) is supported.
     XLS_RET_CHECK(
@@ -256,7 +264,9 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
 }
 
 absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModuleFromProc(
-    Proc* proc, bool use_system_verilog) {
+    Proc* proc,
+    const absl::flat_hash_map<const Channel*, ProcPortType>& channel_gen_types,
+    bool use_system_verilog) {
   XLS_VLOG(2) << "Generating combinational module for proc:";
   XLS_VLOG_LINES(2, proc->DumpIr());
 
@@ -272,6 +282,9 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModuleFromProc(
         proc->StateType()->ToString()));
   }
 
+  ModuleSignatureBuilder sig_builder(mb.module()->name());
+  sig_builder.WithCombinationalInterface();
+
   // Gather the send/receive nodes and their associated channels.
   struct ChannelNode {
     Node* node;
@@ -279,8 +292,10 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModuleFromProc(
   };
   std::vector<ChannelNode> channel_nodes;
   for (Node* node : proc->nodes()) {
-    if (node->Is<Send>() || node->Is<Receive>()) {
+    if (node->Is<Send>() || node->Is<Receive>() || node->Is<SendIf>() ||
+        node->Is<ReceiveIf>()) {
       XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
+      XLS_CHECK(channel_gen_types.contains(channel));
       if (channel->data_elements().size() != 1) {
         return absl::UnimplementedError(
             absl::StrFormat("Only single data element channels supported: %s",
@@ -302,73 +317,194 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModuleFromProc(
       channel_nodes.push_back(ChannelNode{node, channel});
       continue;
     }
-    if (node->Is<SendIf>() || node->Is<ReceiveIf>()) {
-      return absl::UnimplementedError(
-          "SendIf/ReceiveIf not yet implemented in combinational generator");
-    }
   }
 
-  // Sort the channels by port_order field. Currently inputs are ordered among
-  // inputs, and same with outputs.
-  // TODO(meheff): Allow arbitrary ordering of inputs and outputs.
-  auto port_order_lt = [](const ChannelNode& a, const ChannelNode& b) {
-    return a.channel->metadata().module_port().port_order() <
-           b.channel->metadata().module_port().port_order();
-  };
-  std::sort(channel_nodes.begin(), channel_nodes.end(), port_order_lt);
-
-  ModuleSignatureBuilder sig_builder(mb.module()->name());
-
-  // Adds the port associated with the given Channel and Node to the signature.
-  auto add_port_to_signature = [&](const ChannelNode& cn) -> absl::Status {
-    std::string name = cn.channel->data_element(0).name;
-    int64 width = cn.channel->data_element(0).type->GetFlatBitCount();
-    if (cn.node->Is<Send>()) {
-      sig_builder.AddDataOutput(name, width);
-    } else {
-      XLS_RET_CHECK(cn.node->Is<Receive>());
-      sig_builder.AddDataInput(name, width);
-    }
-    return absl::OkStatus();
-  };
-
-  // Map from Node* to the Verilog expression representing its value.
-  absl::flat_hash_map<Node*, NodeRepresentation> node_exprs;
-
-  // Add the input ports.
-  for (const ChannelNode& cn : channel_nodes) {
-    XLS_RET_CHECK_EQ(cn.channel->data_elements().size(), 1);
-    if (cn.node->Is<Receive>()) {
-      XLS_ASSIGN_OR_RETURN(Expression * input_port,
-                           mb.AddInputPort(cn.channel->data_element(0).name,
-                                           cn.channel->data_element(0).type));
-      node_exprs[cn.node] = ReceiveData({input_port});
-      XLS_RETURN_IF_ERROR(add_port_to_signature(cn));
-    }
-  }
+  xls::Type* single_bit_type = proc->package()->GetBitsType(1);
 
   // Generate list of nodes to emit as combinational logic.
   std::vector<Node*> nodes;
   for (Node* node : TopoSort(proc)) {
-    if (node->Is<Param>() || node->Is<Send>() || node->Is<Receive>()) {
+    if (node->Is<Param>() || node->Is<Send>() || node->Is<SendIf>() ||
+        node->Is<Receive>() || node->Is<ReceiveIf>()) {
       continue;
     }
     nodes.push_back(node);
   }
-  XLS_RETURN_IF_ERROR(GenerateCombinationalLogic(nodes, &mb, &node_exprs));
 
-  // Add the output ports.
+  // Map from Node* to the Verilog expression representing its value.
+  absl::flat_hash_map<Node*, NodeRepresentation> node_exprs;
+
+  // Add the data input ports
   for (const ChannelNode& cn : channel_nodes) {
-    if (cn.node->Is<Send>()) {
-      Send* send = cn.node->As<Send>();
-      XLS_RETURN_IF_ERROR(mb.AddOutputPort(
-          cn.channel->data_element(0).name, cn.channel->data_element(0).type,
-          absl::get<Expression*>(node_exprs.at(send->data_operands()[0]))));
-      XLS_RETURN_IF_ERROR(add_port_to_signature(cn));
+    XLS_RET_CHECK_EQ(cn.channel->data_elements().size(), 1);
+
+    if (cn.node->Is<Receive>() || cn.node->Is<ReceiveIf>()) {
+      XLS_ASSIGN_OR_RETURN(Expression * input_port,
+                           mb.AddInputPort(cn.channel->data_element(0).name,
+                                           cn.channel->data_element(0).type));
+
+      node_exprs[cn.node] = ReceiveData({input_port});
+
+      sig_builder.AddDataInput(
+          cn.channel->data_element(0).name,
+          cn.channel->data_element(0).type->GetFlatBitCount());
     }
   }
 
-  sig_builder.WithCombinationalInterface();
+  XLS_RETURN_IF_ERROR(GenerateCombinationalLogic(nodes, &mb, &node_exprs));
+
+  // These expressions determine whether or not an operation "blocks"
+  //  the proc from processing / generating IO transactions.
+  // The form ~(!pred) is used because if predicate is 0 then the IO operation
+  //  won't block. If the predicate is 1, then it can block depending on the
+  //  the input ready/valids.
+  // If there is no external ready/valid signal to block, then the predicate
+  //  doesn't matter to whether or not processing blocks.
+  std::vector<verilog::Expression*> sends_blocking;
+  std::vector<verilog::Expression*> receives_blocking;
+
+  // Add the rdy/vld inputs
+  for (const ChannelNode& cn : channel_nodes) {
+    XLS_CHECK(channel_gen_types.contains(cn.channel));
+    const ProcPortType port_type = channel_gen_types.at(cn.channel);
+
+    // Non ready/valid channels don't block
+    if (port_type == ProcPortType::kSimple) continue;
+
+    XLS_CHECK(port_type == ProcPortType::kReadyValid);
+
+    // Get the predicate
+    verilog::Expression* pred_expr = nullptr;
+
+    if (cn.node->Is<ReceiveIf>() || cn.node->Is<SendIf>()) {
+      Node* pred_node = nullptr;
+      if (cn.node->Is<ReceiveIf>()) {
+        ReceiveIf* recv = cn.node->As<ReceiveIf>();
+        pred_node = recv->predicate();
+      } else {
+        SendIf* send = cn.node->As<SendIf>();
+        pred_node = send->predicate();
+      }
+      pred_expr = absl::get<Expression*>(node_exprs.at(pred_node));
+    }
+
+    // Create any external blocking signals
+
+    const bool is_receive = cn.node->Is<ReceiveIf>() || cn.node->Is<Receive>();
+    XLS_CHECK(is_receive || cn.node->Is<SendIf>() || cn.node->Is<Send>());
+
+    const char* ch_postfix = is_receive ? "_vld" : "_rdy";
+
+    XLS_ASSIGN_OR_RETURN(
+        Expression * external_not_blocking,
+        mb.AddInputPort(cn.channel->data_element(0).name + ch_postfix,
+                        single_bit_type));
+    sig_builder.AddDataInput(cn.channel->data_element(0).name + ch_postfix, 1);
+
+    Expression* not_blocking = nullptr;
+
+    if (pred_expr) {
+      not_blocking =
+          f.BitwiseOr(f.BitwiseNot(pred_expr), external_not_blocking);
+    } else {
+      not_blocking = external_not_blocking;
+    }
+
+    if (is_receive) {
+      receives_blocking.push_back(not_blocking);
+    } else {
+      sends_blocking.push_back(not_blocking);
+    }
+  }
+
+  verilog::LogicRef* all_active_outputs_ready = nullptr;
+
+  if (!sends_blocking.empty()) {
+    all_active_outputs_ready =
+        mb.DeclareVariable("all_active_outputs_ready", single_bit_type);
+    XLS_RETURN_IF_ERROR(mb.Assign(all_active_outputs_ready,
+                                  f.AndReduce(f.Concat(sends_blocking)),
+                                  single_bit_type));
+  }
+
+  verilog::LogicRef* all_active_inputs_valid = nullptr;
+
+  if (!receives_blocking.empty()) {
+    all_active_inputs_valid =
+        mb.DeclareVariable("all_active_inputs_valid", single_bit_type);
+    XLS_RETURN_IF_ERROR(mb.Assign(all_active_inputs_valid,
+                                  f.AndReduce(f.Concat(receives_blocking)),
+                                  single_bit_type));
+  }
+
+  // Add the outputs
+  for (const ChannelNode& cn : channel_nodes) {
+    // Data output if any kind of send
+    if (cn.node->Is<Send>() || cn.node->Is<SendIf>()) {
+      Expression* out_value = nullptr;
+
+      if (cn.node->Is<Send>()) {
+        Send* send = cn.node->As<Send>();
+        out_value =
+            absl::get<Expression*>(node_exprs.at(send->data_operands()[0]));
+      } else {
+        SendIf* sendif = cn.node->As<SendIf>();
+        out_value =
+            absl::get<Expression*>(node_exprs.at(sendif->data_operands()[0]));
+      }
+
+      XLS_RETURN_IF_ERROR(mb.AddOutputPort(cn.channel->data_element(0).name,
+                                           cn.channel->data_element(0).type,
+                                           out_value));
+      sig_builder.AddDataOutput(
+          cn.channel->data_element(0).name,
+          cn.channel->data_element(0).type->GetFlatBitCount());
+    }
+
+    XLS_CHECK(channel_gen_types.contains(cn.channel));
+    const ProcPortType port_type = channel_gen_types.at(cn.channel);
+
+    if (port_type != ProcPortType::kReadyValid) continue;
+
+    // Get the predicate
+    verilog::Expression* pred_expr = nullptr;
+
+    if (cn.node->Is<ReceiveIf>() || cn.node->Is<SendIf>()) {
+      Node* pred_node = nullptr;
+      if (cn.node->Is<ReceiveIf>()) {
+        ReceiveIf* recv = cn.node->As<ReceiveIf>();
+        pred_node = recv->predicate();
+      } else {
+        SendIf* send = cn.node->As<SendIf>();
+        pred_node = send->predicate();
+      }
+      pred_expr = absl::get<Expression*>(node_exprs.at(pred_node));
+    }
+
+    const bool is_receive = cn.node->Is<ReceiveIf>() || cn.node->Is<Receive>();
+    XLS_CHECK(is_receive || cn.node->Is<SendIf>() || cn.node->Is<Send>());
+
+    const char* ch_postfix = is_receive ? "_rdy" : "_vld";
+
+    Expression* external_not_blocking =
+        is_receive ? all_active_outputs_ready : all_active_inputs_valid;
+
+    if (external_not_blocking == nullptr) {
+      external_not_blocking = f.Literal(1, 1);
+    }
+
+    Expression* not_blocking = external_not_blocking;
+
+    if (pred_expr != nullptr) {
+      not_blocking = f.BitwiseAnd(pred_expr, external_not_blocking);
+    }
+
+    XLS_RETURN_IF_ERROR(
+        mb.AddOutputPort(cn.channel->data_element(0).name + ch_postfix,
+                         single_bit_type, not_blocking));
+    sig_builder.AddDataOutput(cn.channel->data_element(0).name + ch_postfix, 1);
+  }
+
   XLS_ASSIGN_OR_RETURN(ModuleSignature signature, sig_builder.Build());
 
   std::string text = f.Emit();

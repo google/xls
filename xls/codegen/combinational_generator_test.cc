@@ -20,6 +20,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/examples/sample_packages.h"
 #include "xls/interpreter/ir_interpreter.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
@@ -918,9 +919,16 @@ proc my_proc(my_token: token, my_state: (), init=()) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(ir_text));
 
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * in_ch, package->GetChannel("in"));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * out_ch, package->GetChannel("out"));
+
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
-  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModuleFromProc(
-                                            proc, UseSystemVerilog()));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModuleFromProc(
+                               proc,
+                               {{in_ch, xls::verilog::ProcPortType::kSimple},
+                                {out_ch, xls::verilog::ProcPortType::kSimple}},
+                               UseSystemVerilog()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -967,9 +975,20 @@ proc my_proc(my_token: token, my_state: (), init=()) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(ir_text));
 
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * in0_ch, package->GetChannel("in0"));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * in1_ch, package->GetChannel("in1"));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * in2_ch, package->GetChannel("in2"));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * out_ch, package->GetChannel("out"));
+
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
-  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModuleFromProc(
-                                            proc, UseSystemVerilog()));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModuleFromProc(
+                               proc,
+                               {{in0_ch, xls::verilog::ProcPortType::kSimple},
+                                {in1_ch, xls::verilog::ProcPortType::kSimple},
+                                {in2_ch, xls::verilog::ProcPortType::kSimple},
+                                {out_ch, xls::verilog::ProcPortType::kSimple}},
+                               UseSystemVerilog()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -980,269 +999,375 @@ proc my_proc(my_token: token, my_state: (), init=()) {
               IsOkAndHolds(UBits(87, 32)));
 }
 
-TEST_P(CombinationalGeneratorTest, ProcWithMultipleOutputChannels) {
+TEST_P(CombinationalGeneratorTest, ProcWithMultipleOutputChannels) {}
+
+TEST_P(CombinationalGeneratorTest, NToOneMuxProc) {
   const std::string ir_text = R"(package test
+chan dir(dir: bits[32], id=0, kind=single_value, ops=receive_only, metadata="""module_port { flopped: false port_order: 0 }""")
+chan in1(in1: bits[32], id=1, kind=single_value, ops=receive_only, metadata="""module_port { flopped: false port_order: 1 }""")
+chan in2(in2: bits[32], id=2, kind=single_value, ops=receive_only, metadata="""module_port { flopped: false port_order: 2 }""")
+chan out(out: bits[32], id=3, kind=single_value, ops=send_only, metadata="""module_port { flopped: false port_order: 3 }""")
 
-chan in(my_in: bits[32], id=0, kind=single_value, ops=receive_only,
-        metadata="""module_port { flopped: false,  port_order: 1 }""")
-chan out0(my_out0: bits[32], id=1, kind=single_value, ops=send_only,
-          metadata="""module_port { flopped: false,  port_order: 0 }""")
-chan out1(my_out1: bits[32], id=2, kind=single_value, ops=send_only,
-          metadata="""module_port { flopped: false,  port_order: 2 }""")
-
-proc my_proc(my_token: token, my_state: (), init=()) {
-  rcv: (token, bits[32]) = receive(my_token, channel_id=0)
-  data: bits[32] = tuple_index(rcv, index=1)
-  negate: bits[32] = neg(data)
-  rcv_token: token = tuple_index(rcv, index=0)
-  send0: token = send(rcv_token, data=[data], channel_id=1)
-  send1: token = send(send0, data=[negate], channel_id=2)
-  next (send1, my_state)
+proc my_proc(tkn: token, st: (), init=()) {
+  receive.27: (token, bits[32]) = receive(tkn, channel_id=0, id=27)
+  tuple_index.29: bits[32] = tuple_index(receive.27, index=1, id=29)
+  literal.58: bits[32] = literal(value=0, id=58, pos=1,13,7)
+  tuple_index.28: token = tuple_index(receive.27, index=0, id=28)
+  eq.59: bits[1] = eq(tuple_index.29, literal.58, id=59, pos=1,13,7)
+  receive_if.34: (token, bits[32]) = receive_if(tuple_index.28, eq.59, channel_id=1, id=34, pos=1,5,5)
+  literal.84: bits[32] = literal(value=0, id=84, pos=1,13,7)
+  tuple_index.35: token = tuple_index(receive_if.34, index=0, id=35)
+  ne.69: bits[1] = ne(tuple_index.29, literal.84, id=69)
+  receive_if.39: (token, bits[32]) = receive_if(tuple_index.35, ne.69, channel_id=2, id=39, pos=1,5,5)
+  tuple_index.41: bits[32] = tuple_index(receive_if.39, index=1, id=41)
+  tuple_index.36: bits[32] = tuple_index(receive_if.34, index=1, id=36)
+  tuple_index.40: token = tuple_index(receive_if.39, index=0, id=40)
+  literal.75: bits[1] = literal(value=1, id=75, pos=1,19,7)
+  sel.74: bits[32] = sel(eq.59, cases=[tuple_index.41, tuple_index.36], id=74)
+  send_if.46: token = send_if(tuple_index.40, literal.75, data=[sel.74], channel_id=3, id=46, pos=1,5,5)
+  next (send_if.46, st)
 }
+
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(ir_text));
 
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * dir_ch, package->GetChannel("dir"));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * in1_ch, package->GetChannel("in1"));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * in2_ch, package->GetChannel("in2"));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * out_ch, package->GetChannel("out"));
+
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
-  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModuleFromProc(
-                                            proc, UseSystemVerilog()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, GenerateCombinationalModuleFromProc(
+                       proc,
+                       {{dir_ch, xls::verilog::ProcPortType::kSimple},
+                        {in1_ch, xls::verilog::ProcPortType::kReadyValid},
+                        {in2_ch, xls::verilog::ProcPortType::kReadyValid},
+                        {out_ch, xls::verilog::ProcPortType::kReadyValid}},
+                       UseSystemVerilog()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
-  EXPECT_THAT(simulator.Run({{"my_in", SBits(10, 32)}}),
-              IsOkAndHolds(ModuleSimulator::BitsMap(
-                  {{"my_out0", SBits(10, 32)}, {"my_out1", SBits(-10, 32)}})));
-}
+  EXPECT_THAT(simulator.Run({{"dir", SBits(0, 32)},
+                             {"in1", SBits(10, 32)},
+                             {"in2", SBits(20, 32)},
+                             {"in1_vld", UBits(1, 1)},
+                             {"in2_vld", UBits(1, 1)},
+                             {"out_rdy", UBits(1, 1)}}),
+              IsOkAndHolds(ModuleSimulator::BitsMap({
+                  {"in1_rdy", UBits(1, 1)},
+                  {"in2_rdy", UBits(0, 1)},
+                  {"out", SBits(10, 32)},
+                  {"out_vld", UBits(1, 1)},
+              })));
 
-TEST_P(CombinationalGeneratorTest, NToOneMuxProc) {
-  Package package(TestBaseName());
-  ProcBuilder pb(TestBaseName(), /*init_value=*/Value::Tuple({}),
-                 /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  EXPECT_THAT(simulator.Run({{"dir", SBits(0, 32)},
+                             {"in1", SBits(10, 32)},
+                             {"in2", SBits(20, 32)},
+                             {"in1_vld", UBits(1, 1)},
+                             {"in2_vld", UBits(0, 1)},
+                             {"out_rdy", UBits(1, 1)}}),
+              IsOkAndHolds(ModuleSimulator::BitsMap({
+                  {"in1_rdy", UBits(1, 1)},
+                  {"in2_rdy", UBits(0, 1)},
+                  {"out", SBits(10, 32)},
+                  {"out_vld", UBits(1, 1)},
+              })));
 
-  const int64 kInputCount = 4;
-  const int64 kSelectorBitCount = 2;
+  EXPECT_THAT(simulator.Run({{"dir", SBits(1, 32)},
+                             {"in1", SBits(10, 32)},
+                             {"in2", SBits(20, 32)},
+                             {"in1_vld", UBits(1, 1)},
+                             {"in2_vld", UBits(1, 1)},
+                             {"out_rdy", UBits(1, 1)}}),
+              IsOkAndHolds(ModuleSimulator::BitsMap({
+                  {"in1_rdy", UBits(0, 1)},
+                  {"in2_rdy", UBits(1, 1)},
+                  {"out", SBits(20, 32)},
+                  {"out_vld", UBits(1, 1)},
+              })));
 
-  Type* data_type = package.GetBitsType(32);
-  Type* bit_type = package.GetBitsType(1);
-  Type* selector_type = package.GetBitsType(kSelectorBitCount);
+  EXPECT_THAT(simulator.Run({{"dir", SBits(1, 32)},
+                             {"in1", SBits(10, 32)},
+                             {"in2", SBits(20, 32)},
+                             {"in1_vld", UBits(0, 1)},
+                             {"in2_vld", UBits(1, 1)},
+                             {"out_rdy", UBits(1, 1)}}),
+              IsOkAndHolds(ModuleSimulator::BitsMap({
+                  {"in1_rdy", UBits(0, 1)},
+                  {"in2_rdy", UBits(1, 1)},
+                  {"out", SBits(20, 32)},
+                  {"out_vld", UBits(1, 1)},
+              })));
 
-  int64 port_order = 0;
-  auto make_channel_metadata = [&port_order]() {
-    ChannelMetadataProto metadata;
-    metadata.mutable_module_port()->set_flopped(false);
-    metadata.mutable_module_port()->set_port_order(port_order++);
-    return metadata;
-  };
+  EXPECT_THAT(simulator.Run({{"dir", SBits(1, 32)},
+                             {"in1", SBits(10, 32)},
+                             {"in2", SBits(20, 32)},
+                             {"in1_vld", UBits(0, 1)},
+                             {"in2_vld", UBits(0, 1)},
+                             {"out_rdy", UBits(1, 1)}}),
+              IsOkAndHolds(ModuleSimulator::BitsMap({
+                  {"in1_rdy", UBits(0, 1)},
+                  {"in2_rdy", UBits(1, 1)},
+                  {"out", SBits(20, 32)},
+                  {"out_vld", UBits(0, 1)},
+              })));
 
-  BValue token = pb.GetTokenParam();
-
-  // Sends the given data over the given channel. Threads 'token' through the
-  // Send operation.
-  auto make_send = [&](Channel* ch, BValue data) {
-    BValue send = pb.Send(ch, token, {data});
-    token = send;
-    return send;
-  };
-
-  // Adds a receive instruction and returns the data BValue. Threads 'token'
-  // through the Receive operation.
-  auto make_receive = [&](Channel* ch) {
-    BValue receive = pb.Receive(ch, token);
-    token = pb.TupleIndex(receive, 0);
-    return pb.TupleIndex(receive, 1);
-  };
-
-  // Add the selector module port which selects which input to forward.
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * selector_channel,
-      package.CreateSingleValueChannel(
-          "selector", Channel::SupportedOps::kReceiveOnly,
-          {DataElement{.name = "selector", .type = selector_type}},
-          /*id=*/absl::nullopt, make_channel_metadata()));
-  BValue selector = make_receive(selector_channel);
-
-  // Add the output ready channel. It's an input and will be used to generate
-  // the input ready outputs.
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * out_ready_channel,
-      package.CreateSingleValueChannel(
-          "out_rdy", Channel::SupportedOps::kReceiveOnly,
-          {DataElement{.name = "out_rdy", .type = bit_type}},
-          /*id=*/absl::nullopt, make_channel_metadata()));
-  BValue output_ready = make_receive(out_ready_channel);
-
-  // Generate all the input ports and their ready/valid signals.
-  std::vector<BValue> input_datas;
-  std::vector<BValue> input_valids;
-  for (int64 i = 0; i < kInputCount; ++i) {
-    XLS_ASSERT_OK_AND_ASSIGN(
-        Channel * data_channel,
-        package.CreateSingleValueChannel(
-            absl::StrFormat("in_%d", i), Channel::SupportedOps::kReceiveOnly,
-            {DataElement{.name = absl::StrFormat("in_%d", i),
-                         .type = data_type}},
-            /*id=*/absl::nullopt, make_channel_metadata()));
-    input_datas.push_back(make_receive(data_channel));
-
-    XLS_ASSERT_OK_AND_ASSIGN(
-        Channel * valid_channel,
-        package.CreateSingleValueChannel(
-            absl::StrFormat("in_%d_vld", i),
-            Channel::SupportedOps::kReceiveOnly,
-            {DataElement{.name = absl::StrFormat("in_%d_vld", i),
-                         .type = bit_type}},
-            /*id=*/absl::nullopt, make_channel_metadata()));
-    input_valids.push_back(make_receive(valid_channel));
-
-    BValue ready = pb.And(
-        output_ready, pb.Eq(selector, pb.Literal(UBits(i, kSelectorBitCount))));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        Channel * ready_channel,
-        package.CreateSingleValueChannel(
-            absl::StrFormat("in_%d_rdy", i), Channel::SupportedOps::kSendOnly,
-            {DataElement{.name = absl::StrFormat("in_%d_rdy", i),
-                         .type = bit_type}},
-            /*id=*/absl::nullopt, make_channel_metadata()));
-    make_send(ready_channel, ready);
-  }
-
-  // Output data is a select amongst the input data.
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * out_data_channel,
-                           package.CreateSingleValueChannel(
-                               "out", Channel::SupportedOps::kSendOnly,
-                               {DataElement{.name = "out", .type = data_type}},
-                               /*id=*/absl::nullopt, make_channel_metadata()));
-  make_send(out_data_channel, pb.Select(selector, /*cases=*/input_datas));
-
-  // Output valid is a select amongs the input valid signals.
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * out_valid_channel,
-      package.CreateSingleValueChannel(
-          "out_vld", Channel::SupportedOps::kSendOnly,
-          {DataElement{.name = "out_vld", .type = bit_type}},
-          /*id=*/absl::nullopt, make_channel_metadata()));
-  make_send(out_valid_channel, pb.Select(selector, /*cases=*/input_valids));
-
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(token, pb.GetStateParam()));
-  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModuleFromProc(
-                                            proc, UseSystemVerilog()));
-  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                 result.verilog_text);
+  EXPECT_THAT(simulator.Run({{"dir", SBits(0, 32)},
+                             {"in1", SBits(10, 32)},
+                             {"in2", SBits(20, 32)},
+                             {"in1_vld", UBits(1, 1)},
+                             {"in2_vld", UBits(1, 1)},
+                             {"out_rdy", UBits(0, 1)}}),
+              IsOkAndHolds(ModuleSimulator::BitsMap({
+                  {"in1_rdy", UBits(0, 1)},
+                  {"in2_rdy", UBits(0, 1)},
+                  {"out", SBits(10, 32)},
+                  {"out_vld", UBits(1, 1)},
+              })));
 }
 
 TEST_P(CombinationalGeneratorTest, OneToNMuxProc) {
-  Package package(TestBaseName());
-  ProcBuilder pb(TestBaseName(), /*init_value=*/Value::Tuple({}),
-                 /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  const std::string ir_text = R"(package test
+chan dir(dir: bits[32], id=0, kind=single_value, ops=receive_only, metadata="""module_port { flopped: false port_order: 0 }""")
+chan in(in: bits[32], id=1, kind=single_value, ops=receive_only, metadata="""module_port { flopped: false port_order: 1 }""")
+chan out1(out1: bits[32], id=2, kind=single_value, ops=send_only, metadata="""module_port { flopped: false port_order: 2 }""")
+chan out2(out2: bits[32], id=3, kind=single_value, ops=send_only, metadata="""module_port { flopped: false port_order: 3 }""")
 
-  const int64 kOutputCount = 4;
-  const int64 kSelectorBitCount = 2;
+proc my_proc(tkn: token, st: (), init=()) {
+  receive.24: (token, bits[32]) = receive(tkn, channel_id=0, id=24)
+  tuple_index.25: token = tuple_index(receive.24, index=0, id=25)
+  literal.46: bits[1] = literal(value=1, id=46, pos=1,11,7)
+  receive_if.30: (token, bits[32]) = receive_if(tuple_index.25, literal.46, channel_id=1, id=30, pos=1,5,5)
+  tuple_index.26: bits[32] = tuple_index(receive.24, index=1, id=26)
+  literal.50: bits[32] = literal(value=0, id=50, pos=1,13,7)
+  tuple_index.31: token = tuple_index(receive_if.30, index=0, id=31)
+  eq.51: bits[1] = eq(tuple_index.26, literal.50, id=51, pos=1,13,7)
+  tuple_index.32: bits[32] = tuple_index(receive_if.30, index=1, id=32)
+  literal.58: bits[32] = literal(value=0, id=58, pos=1,13,7)
+  send_if.37: token = send_if(tuple_index.31, eq.51, data=[tuple_index.32], channel_id=2, id=37, pos=1,5,5)
+  ne.52: bits[1] = ne(tuple_index.26, literal.58, id=52)
+  send_if.41: token = send_if(send_if.37, ne.52, data=[tuple_index.32], channel_id=3, id=41, pos=1,5,5)
+  next (send_if.41, st)
+}
 
-  Type* data_type = package.GetBitsType(32);
-  Type* bit_type = package.GetBitsType(1);
-  Type* selector_type = package.GetBitsType(kSelectorBitCount);
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
 
-  int64 port_order = 0;
-  auto make_channel_metadata = [&port_order]() {
-    ChannelMetadataProto metadata;
-    metadata.mutable_module_port()->set_flopped(false);
-    metadata.mutable_module_port()->set_port_order(port_order++);
-    return metadata;
-  };
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * dir_ch, package->GetChannel("dir"));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * in_ch, package->GetChannel("in"));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * out0_ch, package->GetChannel("out1"));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * out1_ch, package->GetChannel("out2"));
 
-  BValue token = pb.GetTokenParam();
-
-  // Sends the given data over the given channel. Threads 'token' through the
-  // Send operation.
-  auto make_send = [&](Channel* ch, BValue data) {
-    BValue send = pb.Send(ch, token, {data});
-    token = send;
-    return send;
-  };
-
-  // Adds a receive instruction and returns the data BValue. Threads 'token'
-  // through the Receive operation.
-  auto make_receive = [&](Channel* ch) {
-    BValue receive = pb.Receive(ch, token);
-    token = pb.TupleIndex(receive, 0);
-    return pb.TupleIndex(receive, 1);
-  };
-
-  // Add the selector module port which selects which input to forward.
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * selector_channel,
-      package.CreateSingleValueChannel(
-          "selector", Channel::SupportedOps::kReceiveOnly,
-          {DataElement{.name = "selector", .type = selector_type}},
-          /*id=*/absl::nullopt, make_channel_metadata()));
-  BValue selector = make_receive(selector_channel);
+      auto result, GenerateCombinationalModuleFromProc(
+                       proc,
+                       {{dir_ch, xls::verilog::ProcPortType::kSimple},
+                        {in_ch, xls::verilog::ProcPortType::kReadyValid},
+                        {out0_ch, xls::verilog::ProcPortType::kReadyValid},
+                        {out1_ch, xls::verilog::ProcPortType::kReadyValid}},
+                       UseSystemVerilog()));
 
-  // Add the input data channel.
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * input_data_channel,
-                           package.CreateSingleValueChannel(
-                               "in", Channel::SupportedOps::kReceiveOnly,
-                               {DataElement{.name = "in", .type = data_type}},
-                               /*id=*/absl::nullopt, make_channel_metadata()));
-  BValue input = make_receive(input_data_channel);
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(simulator.Run({{"dir", SBits(0, 32)},
+                             {"in", SBits(10, 32)},
+                             {"in_vld", UBits(1, 1)},
+                             {"out1_rdy", UBits(1, 1)},
+                             {"out2_rdy", UBits(1, 1)}}),
+              IsOkAndHolds(ModuleSimulator::BitsMap({
+                  {"in_rdy", UBits(1, 1)},
+                  {"out1", SBits(10, 32)},
+                  {"out1_vld", UBits(1, 1)},
+                  {"out2", SBits(10, 32)},
+                  {"out2_vld", UBits(0, 1)},
+              })));
 
-  // Add the input valid channel. It's an input and will be used to generate
-  // the output valid outputs.
+  EXPECT_THAT(simulator.Run({{"dir", SBits(1, 32)},
+                             {"in", SBits(5, 32)},
+                             {"in_vld", UBits(1, 1)},
+                             {"out1_rdy", UBits(1, 1)},
+                             {"out2_rdy", UBits(1, 1)}}),
+              IsOkAndHolds(ModuleSimulator::BitsMap({
+                  {"in_rdy", UBits(1, 1)},
+                  {"out1", SBits(5, 32)},
+                  {"out1_vld", UBits(0, 1)},
+                  {"out2", SBits(5, 32)},
+                  {"out2_vld", UBits(1, 1)},
+              })));
+
+  EXPECT_THAT(simulator.Run({{"dir", SBits(1, 32)},
+                             {"in", SBits(3, 32)},
+                             {"in_vld", UBits(0, 1)},
+                             {"out1_rdy", UBits(1, 1)},
+                             {"out2_rdy", UBits(1, 1)}}),
+              IsOkAndHolds(ModuleSimulator::BitsMap({
+                  {"in_rdy", UBits(1, 1)},
+                  {"out1", SBits(3, 32)},
+                  {"out1_vld", UBits(0, 1)},
+                  {"out2", SBits(3, 32)},
+                  {"out2_vld", UBits(0, 1)},
+              })));
+
+  EXPECT_THAT(simulator.Run({{"dir", SBits(1, 32)},
+                             {"in", SBits(3, 32)},
+                             {"in_vld", UBits(0, 1)},
+                             {"out1_rdy", UBits(0, 1)},
+                             {"out2_rdy", UBits(0, 1)}}),
+              IsOkAndHolds(ModuleSimulator::BitsMap({
+                  {"in_rdy", UBits(0, 1)},
+                  {"out1", SBits(3, 32)},
+                  {"out1_vld", UBits(0, 1)},
+                  {"out2", SBits(3, 32)},
+                  {"out2_vld", UBits(0, 1)},
+              })));
+
+  EXPECT_THAT(simulator.Run({{"dir", SBits(0, 32)},
+                             {"in", SBits(10, 32)},
+                             {"in_vld", UBits(1, 1)},
+                             {"out1_rdy", UBits(0, 1)},
+                             {"out2_rdy", UBits(1, 1)}}),
+              IsOkAndHolds(ModuleSimulator::BitsMap({
+                  {"in_rdy", UBits(0, 1)},
+                  {"out1", SBits(10, 32)},
+                  {"out1_vld", UBits(1, 1)},
+                  {"out2", SBits(10, 32)},
+                  {"out2_vld", UBits(0, 1)},
+              })));
+}
+
+TEST_P(CombinationalGeneratorTest, OnlyFIFOOutProc) {
+  const std::string ir_text = R"(package test
+chan in(in: bits[32], id=0, kind=single_value, ops=receive_only, metadata="""module_port { flopped: false port_order: 0 }""")
+chan out(out: bits[32], id=1, kind=single_value, ops=send_only, metadata="""module_port { flopped: false port_order: 1 }""")
+
+proc my_proc(tkn: token, st: (), init=()) {
+  receive.13: (token, bits[32]) = receive(tkn, channel_id=0, id=13)
+  tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
+  literal.21: bits[1] = literal(value=1, id=21, pos=1,8,3)
+  tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
+  send_if.20: token = send_if(tuple_index.14, literal.21, data=[tuple_index.15], channel_id=1, id=20, pos=1,5,1)
+  next (send_if.20, st)
+}
+
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * in_ch, package->GetChannel("in"));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * out_ch, package->GetChannel("out"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * input_valid_channel,
-      package.CreateSingleValueChannel(
-          "in_vld", Channel::SupportedOps::kReceiveOnly,
-          {DataElement{.name = "in_vld", .type = bit_type}},
-          /*id=*/absl::nullopt, make_channel_metadata()));
-  BValue input_valid = make_receive(input_valid_channel);
+      auto result, GenerateCombinationalModuleFromProc(
+                       proc,
+                       {{in_ch, xls::verilog::ProcPortType::kSimple},
+                        {out_ch, xls::verilog::ProcPortType::kReadyValid}},
+                       UseSystemVerilog()));
 
-  // Generate all the output ports and their ready/valid signals.
-  std::vector<BValue> output_readys;
-  for (int64 i = 0; i < kOutputCount; ++i) {
-    XLS_ASSERT_OK_AND_ASSIGN(
-        Channel * data_channel,
-        package.CreateSingleValueChannel(
-            absl::StrFormat("out_%d", i), Channel::SupportedOps::kSendOnly,
-            {DataElement{.name = absl::StrFormat("out_%d", i),
-                         .type = data_type}},
-            /*id=*/absl::nullopt, make_channel_metadata()));
-    make_send(data_channel, input);
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(simulator.Run({{"in", SBits(11, 32)}, {"out_rdy", UBits(1, 1)}}),
+              IsOkAndHolds(ModuleSimulator::BitsMap({
+                  {"out", SBits(11, 32)},
+                  {"out_vld", UBits(1, 1)},
+              })));
+  EXPECT_THAT(simulator.Run({{"in", SBits(11, 32)}, {"out_rdy", UBits(0, 1)}}),
+              IsOkAndHolds(ModuleSimulator::BitsMap({
+                  {"out", SBits(11, 32)},
+                  {"out_vld", UBits(1, 1)},
+              })));
+}
 
-    XLS_ASSERT_OK_AND_ASSIGN(
-        Channel * ready_channel,
-        package.CreateSingleValueChannel(
-            absl::StrFormat("out_%d_rdy", i),
-            Channel::SupportedOps::kReceiveOnly,
-            {DataElement{.name = absl::StrFormat("out_%d_rdy", i),
-                         .type = bit_type}},
-            /*id=*/absl::nullopt, make_channel_metadata()));
-    output_readys.push_back(make_receive(ready_channel));
+TEST_P(CombinationalGeneratorTest, OnlyFIFOInProc) {
+  const std::string ir_text = R"(package test
+chan in(in: bits[32], id=0, kind=single_value, ops=receive_only, metadata="""module_port { flopped: false port_order: 0 }""")
+chan out(out: bits[32], id=1, kind=single_value, ops=send_only, metadata="""module_port { flopped: false port_order: 1 }""")
 
-    BValue valid = pb.And(
-        input_valid, pb.Eq(selector, pb.Literal(UBits(i, kSelectorBitCount))));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        Channel * valid_channel,
-        package.CreateSingleValueChannel(
-            absl::StrFormat("out_%d_vld", i), Channel::SupportedOps::kSendOnly,
-            {DataElement{.name = absl::StrFormat("out_%d_vld", i),
-                         .type = bit_type}},
-            /*id=*/absl::nullopt, make_channel_metadata()));
-    make_send(valid_channel, valid);
-  }
+proc my_proc(tkn: token, st: (), init=()) {
+  literal.21: bits[1] = literal(value=1, id=21, pos=1,8,3)
+  receive_if.13: (token, bits[32]) = receive_if(tkn, literal.21, channel_id=0, id=13)
+  tuple_index.14: token = tuple_index(receive_if.13, index=0, id=14)
+  tuple_index.15: bits[32] = tuple_index(receive_if.13, index=1, id=15)
+  send.20: token = send(tuple_index.14, data=[tuple_index.15], channel_id=1, id=20, pos=1,5,1)
+  next (send.20, st)
+}
 
-  // Output ready is a select amongs the input ready signals.
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * in_ch, package->GetChannel("in"));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * out_ch, package->GetChannel("out"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * input_ready_channel,
-      package.CreateSingleValueChannel(
-          "in_rdy", Channel::SupportedOps::kSendOnly,
-          {DataElement{.name = "in_rdy", .type = bit_type}},
-          /*id=*/absl::nullopt, make_channel_metadata()));
-  make_send(input_ready_channel, pb.Select(selector, /*cases=*/output_readys));
+      auto result, GenerateCombinationalModuleFromProc(
+                       proc,
+                       {{in_ch, xls::verilog::ProcPortType::kReadyValid},
+                        {out_ch, xls::verilog::ProcPortType::kSimple}},
+                       UseSystemVerilog()));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(token, pb.GetStateParam()));
-  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModuleFromProc(
-                                            proc, UseSystemVerilog()));
-  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                 result.verilog_text);
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(simulator.Run({{"in", SBits(12, 32)}, {"in_vld", UBits(1, 1)}}),
+              IsOkAndHolds(ModuleSimulator::BitsMap({
+                  {"out", SBits(12, 32)},
+                  {"in_rdy", UBits(1, 1)},
+              })));
+  EXPECT_THAT(simulator.Run({{"in", SBits(13, 32)}, {"in_vld", UBits(0, 1)}}),
+              IsOkAndHolds(ModuleSimulator::BitsMap({
+                  {"out", SBits(13, 32)},
+                  {"in_rdy", UBits(1, 1)},
+              })));
+}
+
+TEST_P(CombinationalGeneratorTest, UnconditionalSendRdyVldProc) {
+  const std::string ir_text = R"(package test
+chan in(in: bits[32], id=0, kind=single_value, ops=receive_only, metadata="""module_port { flopped: false port_order: 0 }""")
+chan out(out: bits[32], id=1, kind=single_value, ops=send_only, metadata="""module_port { flopped: false port_order: 1 }""")
+
+proc my_proc(tkn: token, st: (), init=()) {
+  receive.13: (token, bits[32]) = receive(tkn, channel_id=0, id=13)
+  tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
+  tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
+  send.20: token = send(tuple_index.14, data=[tuple_index.15], channel_id=1, id=20, pos=1,5,1)
+  next (send.20, st)
+}
+
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * in_ch, package->GetChannel("in"));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * out_ch, package->GetChannel("out"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, GenerateCombinationalModuleFromProc(
+                       proc,
+                       {{in_ch, xls::verilog::ProcPortType::kSimple},
+                        {out_ch, xls::verilog::ProcPortType::kReadyValid}},
+                       UseSystemVerilog()));
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(simulator.Run({{"in", SBits(11, 32)}, {"out_rdy", UBits(1, 1)}}),
+              IsOkAndHolds(ModuleSimulator::BitsMap({
+                  {"out", SBits(11, 32)},
+                  {"out_vld", UBits(1, 1)},
+              })));
+  EXPECT_THAT(simulator.Run({{"in", SBits(11, 32)}, {"out_rdy", UBits(0, 1)}}),
+              IsOkAndHolds(ModuleSimulator::BitsMap({
+                  {"out", SBits(11, 32)},
+                  {"out_vld", UBits(1, 1)},
+              })));
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayIndexSimpleArray) {
