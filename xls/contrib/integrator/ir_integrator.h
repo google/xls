@@ -16,32 +16,19 @@
 #define XLS_INTEGRATOR_IR_INTEGRATOR_H_
 
 #include "absl/status/statusor.h"
+#include "xls/contrib/integrator/integration_options.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
 
 namespace xls {
 
-class IntegrationOptions {
- public:
-  // Whether we can program individual muxes with unique select signals
-  // or if we can configure the entire graph to match one of the input
-  // functions using a single select signal.
-  IntegrationOptions& unique_select_signal_per_mux(bool value) {
-    unique_select_signal_per_mux_ = value;
-    return *this;
-  }
-  bool unique_select_signal_per_mux() const {
-    return unique_select_signal_per_mux_;
-  }
-
- private:
-  bool unique_select_signal_per_mux_ = false;
-};
-
 // Class that represents an integration function i.e. a function combining the
 // IR of other functions. This class tracks which original function nodes are
 // mapped to which integration function nodes. It also provides some utilities
 // that are useful for constructing the integrated function.
+// TODO(jbaileyhandle): Consider breaking this up into 2 or more smaller
+// classes (e.g. could have a class for handling muxes, another for tracking
+// mappings etc). Should move these classes and their tests into a new file(s).
 class IntegrationFunction {
  public:
   IntegrationFunction(const IntegrationFunction& other) = delete;
@@ -56,6 +43,13 @@ class IntegrationFunction {
       Package* package, absl::Span<const Function* const> source_functions,
       const IntegrationOptions& options = IntegrationOptions(),
       std::string function_name = "IntegrationFunction");
+
+  // Create a tuple of the nodes that are the map targets of
+  // the return values of the source functions. Set this value
+  // as the return value of the integration function and return the tuple.
+  // Should not be called if a return value is already set for
+  // the integration function.
+  absl::StatusOr<Node*> MakeTupleReturnValue();
 
   Function* function() const { return function_.get(); }
   Node* global_mux_select() const { return global_mux_select_param_; }
@@ -147,6 +141,11 @@ class IntegrationFunction {
   absl::StatusOr<std::set<int64>> GetSourceFunctionIndexesOfNodesMappedToNode(
       const Node* map_target) const;
 
+  // Returns true if node_a and node_b are both map targets for nodes from a
+  // common source function (or are themselves in the common function).
+  absl::StatusOr<bool> NodeSourceFunctionsCollide(const Node* node_a,
+                                                  const Node* node_b) const;
+
   // Returns a vector of Nodes to which the operands of the node
   // 'node' map. If node is owned by the integrated function, these are just
   // node's operands. If an operand does not yet have a mapping, the operand is
@@ -157,6 +156,10 @@ class IntegrationFunction {
 
   // Returns true if 'node' is mapped to a node in the integrated function.
   bool HasMapping(const Node* node) const;
+
+  // Returns true if all operands of 'node' are mapped to a node in the
+  // integrated function.
+  bool AllOperandsHaveMapping(const Node* node) const;
 
   // Returns true if other nodes map to 'node'
   bool IsMappingTarget(const Node* node) const;
@@ -170,8 +173,8 @@ class IntegrationFunction {
   int64 GetNodeCost(const Node* node) const;
 
  private:
-  IntegrationFunction(const IntegrationOptions& options)
-      : integration_options_(options) {}
+  IntegrationFunction(Package* package, const IntegrationOptions& options)
+      : package_(package), integration_options_(options) {}
 
   // Helper function that implements the logic for merging nodes,
   // allowing for either the merge to be performed or for the cost
@@ -187,6 +190,8 @@ class IntegrationFunction {
   // 'other_added_nodes'.
   struct MergeNodesBackendResult {
     bool can_merge;
+    // Separate targets for node_a and node_b because we may derive
+    // map target nodes from the merged node;
     Node* target_a = nullptr;
     Node* target_b = nullptr;
     std::vector<UnifiedNode> changed_muxes;
@@ -281,70 +286,17 @@ class IntegrationFunction {
   // select signal.
   absl::flat_hash_map<Node*, GlobalMuxMetadata> global_mux_to_metadata_;
 
+  // Source function in the integration package.
+  std::vector<const Function*> source_functions_;
+
   // Maps each source function to a unique index.
   absl::flat_hash_map<const FunctionBase*, int64>
       source_function_base_to_index_;
 
   // Integrated function.
   std::unique_ptr<Function> function_;
-  const IntegrationOptions integration_options_;
   Package* package_;
-};
-
-// Class used to integrate separate functions into a combined, reprogrammable
-// circuit that can be configured to have the same functionality as the
-// input functions. The builder will attempt to construct the integrated
-// function such that hardware common to the input functions is consolidated.
-// Note that this is distinct from function inlining. With inlining, a function
-// call is replaced by the body of the function that is called.  With function
-// integration, we take separate functions that do not call each other and
-// combine the hardware used to implement the functions.
-class IntegrationBuilder {
- public:
-  // Creates an IntegrationBuilder and uses it to produce an integrated function
-  // implementing all functions in source_functions_.
-  static absl::StatusOr<std::unique_ptr<IntegrationBuilder>> Build(
-      absl::Span<const Function* const> input_functions,
-      const IntegrationOptions& options = IntegrationOptions());
-
-  Package* package() { return package_.get(); }
-  Function* integrated_function() { return integrated_function_; }
-  const IntegrationOptions* integration_options() {
-    return &integration_options_;
-  }
-
- private:
-  IntegrationBuilder(absl::Span<const Function* const> input_functions,
-                     const IntegrationOptions& options) {
-    original_package_source_functions_.insert(
-        original_package_source_functions_.end(), input_functions.begin(),
-        input_functions.end());
-    // TODO(jbaileyhandle): Make package name an optional argument.
-    package_ = absl::make_unique<Package>("IntegrationPackage");
-  }
-
-  // Copy the source functions into a common package.
-  absl::Status CopySourcesToIntegrationPackage();
-
-  // Recursively copy a function into the common package_.
-  absl::StatusOr<Function*> CloneFunctionRecursive(
-      const Function* function,
-      absl::flat_hash_map<const Function*, Function*>* call_remapping);
-
-  NameUniquer function_name_uniquer_ = NameUniquer(/*separator=*/"__");
-
   const IntegrationOptions integration_options_;
-
-  // Common package for to-be integrated functions
-  // and integrated function.
-  std::unique_ptr<Package> package_;
-
-  Function* integrated_function_;
-
-  // Functions to be integrated, in the integration package.
-  std::vector<Function*> source_functions_;
-  // Functions to be integrated, in their original packages.
-  std::vector<const Function*> original_package_source_functions_;
 };
 
 }  // namespace xls

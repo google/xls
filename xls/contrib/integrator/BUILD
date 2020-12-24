@@ -18,13 +18,22 @@ package(
 )
 
 cc_library(
+    name = "integration_options",
+    srcs = ["integration_options.cc"],
+    hdrs = ["integration_options.h"],
+    deps = [
+    ],
+)
+
+cc_library(
     name = "ir_integrator",
     srcs = ["ir_integrator.cc"],
     hdrs = ["ir_integrator.h"],
     deps = [
-        "@com_google_absl//absl/status:statusor",
+        ":integration_options",
         "//xls/ir",
         "//xls/ir:ir_parser",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
@@ -33,6 +42,33 @@ cc_test(
     srcs = ["ir_integrator_test.cc"],
     deps = [
         ":ir_integrator",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_parser",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "integration_builder",
+    srcs = ["integration_builder.cc"],
+    hdrs = ["integration_builder.h"],
+    deps = [
+        ":ir_integrator",
+        ":integration_options",
+        "//xls/contrib/integrator/integration_algorithms:basic_integration_algorithm",
+        "//xls/ir",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "integration_builder_test",
+    srcs = ["integration_builder_test.cc"],
+    deps = [
+        ":integration_builder",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:ir_matcher",
