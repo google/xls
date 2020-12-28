@@ -15,6 +15,7 @@
 #include "xls/contrib/integrator/ir_integrator.h"
 
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/node_iterator.h"
 
 namespace xls {
 
@@ -25,8 +26,7 @@ IntegrationFunction::MakeIntegrationFunctionWithParamTuples(
   // Create integration function object. Constructor is private so use
   // WrapUnique.
   auto integration_function =
-      absl::WrapUnique(new IntegrationFunction(options));
-  integration_function->package_ = package;
+      absl::WrapUnique(new IntegrationFunction(package, options));
 
   // Create ir function.
   integration_function->function_ =
@@ -35,8 +35,10 @@ IntegrationFunction::MakeIntegrationFunctionWithParamTuples(
   // Package source function parameters as tuple parameters to integration
   // function.
   int64 source_function_idx = 0;
+  integration_function->source_functions_.reserve(source_functions.size());
   for (const auto* source_func : source_functions) {
-    // Record function index.
+    // Record function and function index.
+    integration_function->source_functions_.push_back(source_func);
     integration_function->source_function_base_to_index_[source_func] =
         source_function_idx++;
 
@@ -46,7 +48,7 @@ IntegrationFunction::MakeIntegrationFunctionWithParamTuples(
       arg_types.push_back(param->GetType());
     }
     Type* args_tuple_type = package->GetTupleType(arg_types);
-    std::string tuple_name = source_func->name() + std::string("ParamTuple");
+    std::string tuple_name = source_func->name() + std::string("_ParamTuple");
     XLS_ASSIGN_OR_RETURN(
         Node * args_tuple,
         integration_function->function_->MakeNodeWithName<Param>(
@@ -77,6 +79,30 @@ IntegrationFunction::MakeIntegrationFunctionWithParamTuples(
   }
 
   return std::move(integration_function);
+}
+
+absl::StatusOr<Node*> IntegrationFunction::MakeTupleReturnValue() {
+  XLS_RET_CHECK_EQ(function_->return_value(), nullptr);
+
+  // Collect mappings of source function return values.
+  std::vector<Node*> source_return_mappings;
+  source_return_mappings.reserve(source_functions_.size());
+  for (const auto* func : source_functions_) {
+    Node* func_return = func->return_value();
+    XLS_RET_CHECK_NE(func_return, nullptr);
+    XLS_ASSIGN_OR_RETURN(Node * func_return_mapping,
+                         GetNodeMapping(func_return));
+    source_return_mappings.push_back(func_return_mapping);
+  }
+
+  // Make tuple.
+  XLS_ASSIGN_OR_RETURN(
+      Node * tuple,
+      function_->MakeNode<Tuple>(/*loc=*/std::nullopt, source_return_mappings));
+
+  // Set as integration return value.
+  XLS_RETURN_IF_ERROR(function_->set_return_value(tuple));
+  return tuple;
 }
 
 absl::Status IntegrationFunction::SetNodeMapping(const Node* source,
@@ -115,7 +141,7 @@ absl::StatusOr<Node*> IntegrationFunction::GetNodeMapping(
     const Node* original) const {
   XLS_RET_CHECK(!IntegrationFunctionOwnsNode(original));
   if (!HasMapping(original)) {
-    return absl::InternalError("No mapping found for original node");
+    return absl::FailedPreconditionError("No mapping found for original node");
   }
   return original_node_to_integrated_node_map_.at(original);
 }
@@ -124,7 +150,8 @@ absl::StatusOr<const absl::flat_hash_set<const Node*>*>
 IntegrationFunction::GetNodesMappedToNode(const Node* map_target) const {
   XLS_RET_CHECK(IntegrationFunctionOwnsNode(map_target));
   if (!IsMappingTarget(map_target)) {
-    return absl::InternalError("No mappings found for map target node");
+    return absl::FailedPreconditionError(
+        "No mappings found for map target node");
   }
   return &integrated_node_to_original_nodes_map_.at(map_target);
 }
@@ -164,6 +191,37 @@ IntegrationFunction::GetSourceFunctionIndexesOfNodesMappedToNode(
     source_indexes.insert(index);
   }
   return source_indexes;
+}
+
+absl::StatusOr<bool> IntegrationFunction::NodeSourceFunctionsCollide(
+    const Node* node_a, const Node* node_b) const {
+  // Get the index of the node's function if not owned by the integration
+  // function, otherwise get the source function indexes of the nodes mapped to
+  // the node.
+  auto get_node_source_indexes =
+      [this](const Node* node) -> absl::StatusOr<std::set<int64>> {
+    if (IntegrationFunctionOwnsNode(node)) {
+      return GetSourceFunctionIndexesOfNodesMappedToNode(node);
+    } else {
+      XLS_ASSIGN_OR_RETURN(int64 source_index,
+                           GetSourceFunctionIndexOfNode(node));
+      return std::set<int64>({source_index});
+    }
+  };
+
+  // Check for source function index collision.
+  XLS_ASSIGN_OR_RETURN(std::set<int64> node_a_sources,
+                       get_node_source_indexes(node_a));
+  XLS_ASSIGN_OR_RETURN(std::set<int64> node_b_sources,
+                       get_node_source_indexes(node_b));
+  for (auto a_src : node_a_sources) {
+    if (node_b_sources.find(a_src) != node_b_sources.end()) {
+      return true;
+    }
+  }
+
+  // No collision.
+  return false;
 }
 
 absl::StatusOr<std::vector<Node*>> IntegrationFunction::GetIntegratedOperands(
@@ -383,6 +441,9 @@ IntegrationFunction::UnifyNodeOperands(const Node* node_a, const Node* node_b) {
   XLS_ASSIGN_OR_RETURN(std::vector<Node*> a_ops, GetIntegratedOperands(node_a));
   XLS_ASSIGN_OR_RETURN(std::vector<Node*> b_ops, GetIntegratedOperands(node_b));
 
+  // TODO(jbaileyhandle): If op is commutative, rearrange node operands to
+  // minimize added muxes.
+
   // Unify operands.
   UnifiedOperands unify_result;
   unify_result.operands.reserve(a_ops.size());
@@ -485,6 +546,15 @@ bool IntegrationFunction::HasMapping(const Node* node) const {
   return original_node_to_integrated_node_map_.contains(node);
 }
 
+bool IntegrationFunction::AllOperandsHaveMapping(const Node* node) const {
+  for (const Node* op : node->operands()) {
+    if (!HasMapping(op)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool IntegrationFunction::IsMappingTarget(const Node* node) const {
   return integrated_node_to_original_nodes_map_.contains(node);
 }
@@ -508,31 +578,39 @@ absl::StatusOr<float> IntegrationFunction::GetInsertNodeCost(
 
 absl::StatusOr<IntegrationFunction::MergeNodesBackendResult>
 IntegrationFunction::MergeNodesBackend(const Node* node_a, const Node* node_b) {
+  // TODO(jbaileyhandle): If we add any more precondition checks, move
+  // precondition checks into a separate function.
   auto validate_node = [this](const Node* node) {
     if (IntegrationFunctionOwnsNode(node)) {
       if (!IsMappingTarget(node)) {
-        return absl::InternalError(
-            "Trying to merge non-mapping-target integration node.");
+        // TODO(jbaileyhandle): Relax this requirement so that
+        // it only applies to integration-generated muxes and params.
+        return absl::FailedPreconditionError(absl::StrCat(
+            "Trying to merge non-mapping-target integration node: ",
+            node->ToString()));
       }
     } else {
       if (HasMapping(node)) {
-        return absl::InternalError(
-            "Trying to merge non-integration node that already has mapping");
+        return absl::FailedPreconditionError(absl::StrCat(
+            "Trying to merge non-integration node that already has mapping: ",
+            node->ToString()));
       }
     }
     return absl::OkStatus();
   };
   XLS_RETURN_IF_ERROR(validate_node(node_a));
   XLS_RETURN_IF_ERROR(validate_node(node_b));
-  // Simple way to avoid situation where node_a depends on node_b or
-  // vice versa. If we later want to merge nodes from the same function,
-  // we can implement reaching analysis to check for dependencies.
-  if (node_a != node_b) {
-    XLS_RET_CHECK(node_a->function_base() != node_b->function_base());
-  }
 
-  // Separate targets for node_a and node_b because we may derive
-  // map target nodes from the merged node;
+  // Special cases that cannot be merged.
+  if (node_a != node_b) {
+    // Simple way to avoid situation where node_a depends on node_b or
+    // vice versa.
+    XLS_ASSIGN_OR_RETURN(bool nodes_collide,
+                         NodeSourceFunctionsCollide(node_a, node_b));
+    if (nodes_collide) {
+      return MergeNodesBackendResult{.can_merge = false};
+    }
+  }
 
   // Identical nodes can always be merged.
   if (node_a->IsDefinitelyEqualTo(node_b)) {
@@ -629,8 +707,10 @@ int64 IntegrationFunction::GetNodeCost(const Node* node) const {
     case Op::kZeroExt:
       return 0;
       break;
-    default:
+    case Op::kSel:
       return 1;
+    default:
+      return 3;
       break;
   }
 }
@@ -661,75 +741,6 @@ absl::StatusOr<std::vector<Node*>> IntegrationFunction::MergeNodes(
     result.push_back(merge_result.target_b);
   }
   return result;
-}
-
-absl::StatusOr<Function*> IntegrationBuilder::CloneFunctionRecursive(
-    const Function* function,
-    absl::flat_hash_map<const Function*, Function*>* call_remapping) {
-  // Collect callee functions.
-  std::vector<const Function*> callee_funcs;
-  for (const Node* node : function->nodes()) {
-    switch (node->op()) {
-      case Op::kCountedFor:
-        callee_funcs.push_back(node->As<CountedFor>()->body());
-        break;
-      case Op::kMap:
-        callee_funcs.push_back(node->As<Map>()->to_apply());
-        break;
-      case Op::kInvoke:
-        callee_funcs.push_back(node->As<Invoke>()->to_apply());
-        break;
-      default:
-        break;
-    }
-  }
-
-  // Clone and call_remapping callees.
-  for (const Function* callee : callee_funcs) {
-    if (!call_remapping->contains(callee)) {
-      XLS_ASSIGN_OR_RETURN(Function * callee_clone,
-                           CloneFunctionRecursive(callee, call_remapping));
-      (*call_remapping)[callee] = callee_clone;
-    }
-  }
-
-  std::string clone_name =
-      function_name_uniquer_.GetSanitizedUniqueName(function->name());
-  return function->Clone(clone_name, package_.get(), *call_remapping);
-}
-
-absl::Status IntegrationBuilder::CopySourcesToIntegrationPackage() {
-  source_functions_.reserve(original_package_source_functions_.size());
-  for (const Function* source : original_package_source_functions_) {
-    absl::flat_hash_map<const Function*, Function*> call_remapping;
-    XLS_ASSIGN_OR_RETURN(Function * clone_func,
-                         CloneFunctionRecursive(source, &call_remapping));
-    source_functions_.push_back(clone_func);
-  }
-  return absl::OkStatus();
-}
-
-absl::StatusOr<std::unique_ptr<IntegrationBuilder>> IntegrationBuilder::Build(
-    absl::Span<const Function* const> input_functions,
-    const IntegrationOptions& options) {
-  auto builder =
-      absl::WrapUnique(new IntegrationBuilder(input_functions, options));
-
-  // Add sources to common package.
-  XLS_RETURN_IF_ERROR(builder->CopySourcesToIntegrationPackage());
-
-  switch (builder->source_functions_.size()) {
-    case 0:
-      return absl::InternalError(
-          "No source functions provided for integration");
-    case 1:
-      builder->integrated_function_ = builder->source_functions_.front();
-      break;
-    default:
-      return absl::InternalError("Integration not yet implemented.");
-  }
-
-  return std::move(builder);
 }
 
 }  // namespace xls
