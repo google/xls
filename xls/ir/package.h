@@ -164,19 +164,23 @@ class Package {
   // Intended for use by the parser when node ids are suggested by the IR text.
   void set_next_node_id(int64 value) { next_node_id_ = value; }
 
-  // Create a streaming or single-value channel. Channels are used with
-  // send/receive nodes in communicate between procs or between procs and
-  // external (to XLS) components. If no channel ID is specified, a unique
-  // channel ID will be automatically allocated.  TODO(meheff): Consider using a
-  // builder for constructing a channel.
+  // Create a channel. Channels are used with send/receive nodes in communicate
+  // between procs or between procs and external (to XLS) components. If no
+  // channel ID is specified, a unique channel ID will be automatically
+  // allocated.
+  // TODO(meheff): Consider using a builder for constructing a channel.
   absl::StatusOr<StreamingChannel*> CreateStreamingChannel(
       absl::string_view name, Channel::SupportedOps supported_ops,
       absl::Span<const DataElement> data_elements,
       absl::optional<int64> id = absl::nullopt,
       const ChannelMetadataProto& metadata = ChannelMetadataProto());
-  absl::StatusOr<SingleValueChannel*> CreateSingleValueChannel(
+  absl::StatusOr<PortChannel*> CreatePortChannel(
       absl::string_view name, Channel::SupportedOps supported_ops,
       absl::Span<const DataElement> data_elements,
+      absl::optional<int64> id = absl::nullopt,
+      const ChannelMetadataProto& metadata = ChannelMetadataProto());
+  absl::StatusOr<RegisterChannel*> CreateRegisterChannel(
+      absl::string_view name, absl::Span<const DataElement> data_elements,
       absl::optional<int64> id = absl::nullopt,
       const ChannelMetadataProto& metadata = ChannelMetadataProto());
 

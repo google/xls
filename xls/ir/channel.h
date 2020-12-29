@@ -26,6 +26,25 @@
 
 namespace xls {
 
+// Enum for the various kinds of channels supported in XLS.
+enum ChannelKind {
+  //  A channel with FIFO semenatics.
+  kStreaming,
+
+  // A channel corresponding to a port in code-generated block.
+  kPort,
+
+  // A channel corresponding to a hardware register in codegen.
+  kRegister,
+
+  // An abstract channel gathering together a data port channel
+  // with flow control ports (e.g., ready and valid).
+  kLogical
+};
+
+std::string ChannelKindToString(ChannelKind kind);
+absl::StatusOr<ChannelKind> StringToChannelKind(absl::string_view str);
+
 // Describes a single data element conveyed by a channel. A channel can have
 // more than one data element.
 struct DataElement {
@@ -60,12 +79,13 @@ class Channel {
   enum class SupportedOps { kSendOnly, kReceiveOnly, kSendReceive };
 
   Channel(absl::string_view name, int64 id, SupportedOps supported_ops,
-          absl::Span<const DataElement> data_elements,
+          ChannelKind kind, absl::Span<const DataElement> data_elements,
           std::vector<ChannelData>&& initial_values,
           const ChannelMetadataProto& metadata)
       : name_(name),
         id_(id),
         supported_ops_(supported_ops),
+        kind_(kind),
         data_elements_(data_elements.begin(), data_elements.end()),
         initial_values_(std::move(initial_values)),
         metadata_(metadata) {}
@@ -113,14 +133,17 @@ class Channel {
   }
 
   bool IsStreaming() const;
-  bool IsSingleValue() const;
+  bool IsPort() const;
+  bool IsRegister() const;
+  bool IsLogical() const;
 
-  std::string ToString() const;
+  virtual std::string ToString() const;
 
  protected:
   std::string name_;
   int64 id_;
   SupportedOps supported_ops_;
+  ChannelKind kind_;
   std::vector<DataElement> data_elements_;
   std::vector<ChannelData> initial_values_;
   ChannelMetadataProto metadata_;
@@ -140,28 +163,76 @@ class StreamingChannel : public Channel {
                    absl::Span<const DataElement> data_elements,
                    std::vector<ChannelData>&& initial_values,
                    const ChannelMetadataProto& metadata)
-      : Channel(name, id, supported_ops, data_elements,
+      : Channel(name, id, supported_ops, ChannelKind::kStreaming, data_elements,
                 std::move(initial_values), metadata) {}
 };
 
-// A channel which can hold a single element. Send operations overwrite the
-// single element; receive operations non-destructively return the last value
-// sent over the channel.
-class SingleValueChannel : public Channel {
+// A channel representing a port in a generated block. PortChannels do not
+// support initial values.
+class PortChannel : public Channel {
  public:
-  static absl::StatusOr<std::unique_ptr<SingleValueChannel>> Create(
+  static absl::StatusOr<std::unique_ptr<PortChannel>> Create(
       absl::string_view name, int64 id, SupportedOps supported_ops,
       absl::Span<const DataElement> data_elements,
       const ChannelMetadataProto& metadata = ChannelMetadataProto());
 
  private:
-  SingleValueChannel(absl::string_view name, int64 id,
-                     SupportedOps supported_ops,
-                     absl::Span<const DataElement> data_elements,
-                     std::vector<ChannelData>&& initial_values,
-                     const ChannelMetadataProto& metadata)
-      : Channel(name, id, supported_ops, data_elements,
+  PortChannel(absl::string_view name, int64 id, SupportedOps supported_ops,
+              absl::Span<const DataElement> data_elements,
+              std::vector<ChannelData>&& initial_values,
+              const ChannelMetadataProto& metadata)
+      : Channel(name, id, supported_ops, ChannelKind::kPort, data_elements,
                 std::move(initial_values), metadata) {}
+};
+
+// A channel representing a register within a block. All register channels are
+// send/receive (SupportedOps::kSendReceive) and may have at most one initial
+// value.
+class RegisterChannel : public Channel {
+ public:
+  static absl::StatusOr<std::unique_ptr<RegisterChannel>> Create(
+      absl::string_view name, int64 id,
+      absl::Span<const DataElement> data_elements,
+      const ChannelMetadataProto& metadata = ChannelMetadataProto());
+
+ private:
+  RegisterChannel(absl::string_view name, int64 id,
+                  absl::Span<const DataElement> data_elements,
+                  std::vector<ChannelData>&& initial_values,
+                  const ChannelMetadataProto& metadata)
+      : Channel(name, id, SupportedOps::kSendReceive, ChannelKind::kRegister,
+                data_elements, std::move(initial_values), metadata) {}
+};
+
+// A channel representing a data port with ready/valid ports for flow control. A
+// logical channel is simply a logical grouping of these ports and does not have
+// directly associated send/receive nodes.
+class LogicalChannel : public Channel {
+ public:
+  static absl::StatusOr<std::unique_ptr<LogicalChannel>> Create(
+      absl::string_view name, int64 id, PortChannel* ready_channel,
+      PortChannel* valid_channel, PortChannel* data_channel,
+      const ChannelMetadataProto& metadata = ChannelMetadataProto());
+
+  PortChannel* ready_channel() const { return ready_channel_; }
+  PortChannel* valid_channel() const { return valid_channel_; }
+  PortChannel* data_channel() const { return data_channel_; }
+
+  std::string ToString() const override {
+    XLS_LOG(FATAL) << "LogicalChannel::ToString() not implemented.";
+  }
+
+ private:
+  LogicalChannel(absl::string_view name, int64 id, SupportedOps supported_ops,
+                 absl::Span<const DataElement> data_elements,
+                 std::vector<ChannelData>&& initial_values,
+                 const ChannelMetadataProto& metadata)
+      : Channel(name, id, supported_ops, ChannelKind::kLogical, data_elements,
+                std::move(initial_values), metadata) {}
+
+  PortChannel* ready_channel_;
+  PortChannel* valid_channel_;
+  PortChannel* data_channel_;
 };
 
 // Returns the string representation of a supported ops enum.

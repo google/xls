@@ -152,9 +152,9 @@ absl::Status SerialProcRuntime::Init() {
 
   // Enqueue initial values into channels.
   for (Channel* channel : package_->channels()) {
-    if (channel->IsSingleValue()) {
+    if (!channel->IsStreaming()) {
       return absl::UnimplementedError(
-          "Single-value channels not supported in serial proc runtime.");
+          "Only streaming channels are supported in serial proc runtime.");
     }
     for (const std::vector<Value>& values : channel->initial_values()) {
       XLS_RETURN_IF_ERROR(EnqueueValuesToChannel(channel, values));

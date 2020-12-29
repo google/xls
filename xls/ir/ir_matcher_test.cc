@@ -286,9 +286,9 @@ TEST(IrMatchersTest, SendOps) {
                                ChannelMetadataProto()));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch123,
-      p.CreateSingleValueChannel("ch123", Channel::SupportedOps::kSendReceive,
-                                 {DataElement{"data", p.GetBitsType(32)}}, 123,
-                                 ChannelMetadataProto()));
+      p.CreatePortChannel("ch123", Channel::SupportedOps::kSendReceive,
+                          {DataElement{"data", p.GetBitsType(32)}}, 123,
+                          ChannelMetadataProto()));
 
   ProcBuilder b("proc", Value(UBits(333, 32)), "my_token", "my_state", &p);
   auto send = b.Send(ch42, b.GetTokenParam(), {b.GetStateParam()});
@@ -318,9 +318,9 @@ TEST(IrMatchersTest, ReceiveOps) {
                                ChannelMetadataProto()));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch123,
-      p.CreateSingleValueChannel("ch123", Channel::SupportedOps::kSendReceive,
-                                 {DataElement{"data", p.GetBitsType(32)}}, 123,
-                                 ChannelMetadataProto()));
+      p.CreatePortChannel("ch123", Channel::SupportedOps::kSendReceive,
+                          {DataElement{"data", p.GetBitsType(32)}}, 123,
+                          ChannelMetadataProto()));
 
   ProcBuilder b("proc", Value(UBits(333, 32)), "my_token", "my_state", &p);
   auto receive = b.Receive(ch42, b.GetTokenParam());

@@ -301,7 +301,7 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModuleFromProc(
             absl::StrFormat("Only single data element channels supported: %s",
                             channel->ToString()));
       }
-      if (!channel->IsSingleValue()) {
+      if (!channel->IsPort()) {
         return absl::UnimplementedError(absl::StrFormat(
             "Only single-value channels supported: %s", channel->ToString()));
       }

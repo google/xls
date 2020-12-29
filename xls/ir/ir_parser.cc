@@ -1165,7 +1165,7 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
   absl::optional<ChannelMetadataProto> metadata;
   std::vector<DataElement> data_elements;
   bool must_end = false;
-  absl::optional<bool> is_single_value;
+  absl::optional<ChannelKind> kind;
   // Iterate through the comma-separated elements in the channel definition.
   // Examples:
   //
@@ -1208,16 +1208,14 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
       } else if (field_name.value() == "kind") {
         XLS_ASSIGN_OR_RETURN(Token kind_token, scanner_.PopTokenOrError(
                                                    LexicalTokenType::kIdent));
-        if (kind_token.value() == "single_value") {
-          is_single_value = true;
-        } else if (kind_token.value() == "streaming") {
-          is_single_value = false;
-        } else {
+        absl::StatusOr<ChannelKind> kind_status =
+            StringToChannelKind(kind_token.value());
+        if (!kind_status.ok()) {
           return absl::InvalidArgumentError(absl::StrFormat(
-              "Invalid channel kind \"%s\" @ %s. Expected: single_value, or "
-              "streaming",
-              kind_token.value(), field_name.pos().ToHumanString()));
+              "Invalid channel kind \"%s\" @ %s", kind_token.value(),
+              field_name.pos().ToHumanString()));
         }
+        kind = kind_status.value();
       } else if (field_name.value() == "ops") {
         XLS_ASSIGN_OR_RETURN(
             Token supported_ops_token,
@@ -1273,16 +1271,22 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
   if (data_elements.empty()) {
     return error("Channel has no data elements");
   }
-  if (!is_single_value.has_value()) {
+  if (!kind.has_value()) {
     return error("Missing channel kind");
   }
 
-  if (is_single_value.value()) {
-    return package->CreateSingleValueChannel(
-        channel_name.value(), *supported_ops, data_elements, *id, *metadata);
-  } else {
-    return package->CreateStreamingChannel(channel_name.value(), *supported_ops,
-                                           data_elements, *id, *metadata);
+  switch (kind.value()) {
+    case kStreaming:
+      return package->CreateStreamingChannel(
+          channel_name.value(), *supported_ops, data_elements, *id, *metadata);
+    case kPort:
+      return package->CreatePortChannel(channel_name.value(), *supported_ops,
+                                        data_elements, *id, *metadata);
+    case kRegister:
+      return package->CreateRegisterChannel(channel_name.value(), data_elements,
+                                            *id, *metadata);
+    case kLogical:
+      return absl::UnimplementedError("Logical channels not implemented.");
   }
 }
 

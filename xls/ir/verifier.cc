@@ -31,7 +31,6 @@
 namespace xls {
 namespace {
 
-using ::absl::StrCat;
 using ::absl::StrFormat;
 
 // Visitor which verifies various properties of Nodes including the types of the
@@ -1386,7 +1385,31 @@ absl::Status VerifyChannels(Package* package) {
           "Channel '%s' (id %d) cannot receive but has a receive node %s",
           channel->name(), channel->id(), receive_nodes.at(channel)->GetName());
     }
+
+    // Verify type-specific invariants of each channel.
+    if (channel->IsPort()) {
+      // Ports cannot have initial values.
+      XLS_RET_CHECK_EQ(channel->initial_values().size(), 0);
+      // TODO(meheff): Port channels should not support SendIf and ReceiveIf.
+      // Add check when such uses are removed.
+    } else if (channel->IsRegister()) {
+      // Registers have at most one initial value.
+      XLS_RET_CHECK_LE(channel->initial_values().size(), 1);
+      // Registers must be send/receive.
+      XLS_RET_CHECK_EQ(channel->supported_ops(),
+                       Channel::SupportedOps::kSendReceive);
+      // Send and receive must be in the same proc.
+      XLS_RET_CHECK_EQ(send_nodes.at(channel)->function_base(),
+                       receive_nodes.at(channel)->function_base());
+      // Registers do not support ReceiveIf.
+      XLS_RET_CHECK(!(receive_nodes.contains(channel) &&
+                      receive_nodes.at(channel)->Is<ReceiveIf>()))
+          << absl::StreamFormat(
+                 "Register channels do not support ReceiveIf operations: %s",
+                 channel->name());
+    }
   }
+
   return absl::OkStatus();
 }
 

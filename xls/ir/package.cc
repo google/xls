@@ -442,16 +442,27 @@ absl::StatusOr<StreamingChannel*> Package::CreateStreamingChannel(
   return channel_ptr;
 }
 
-absl::StatusOr<SingleValueChannel*> Package::CreateSingleValueChannel(
+absl::StatusOr<PortChannel*> Package::CreatePortChannel(
     absl::string_view name, Channel::SupportedOps supported_ops,
     absl::Span<const DataElement> data_elements, absl::optional<int64> id,
     const ChannelMetadataProto& metadata) {
   int64 actual_id = id.has_value() ? id.value() : next_channel_id_;
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<PortChannel> channel,
+                       PortChannel::Create(name, actual_id, supported_ops,
+                                           data_elements, metadata));
+  PortChannel* channel_ptr = channel.get();
+  XLS_RETURN_IF_ERROR(AddChannel(std::move(channel)));
+  return channel_ptr;
+}
+
+absl::StatusOr<RegisterChannel*> Package::CreateRegisterChannel(
+    absl::string_view name, absl::Span<const DataElement> data_elements,
+    absl::optional<int64> id, const ChannelMetadataProto& metadata) {
+  int64 actual_id = id.has_value() ? id.value() : next_channel_id_;
   XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<SingleValueChannel> channel,
-      SingleValueChannel::Create(name, actual_id, supported_ops, data_elements,
-                                 metadata));
-  SingleValueChannel* channel_ptr = channel.get();
+      std::unique_ptr<RegisterChannel> channel,
+      RegisterChannel::Create(name, actual_id, data_elements, metadata));
+  RegisterChannel* channel_ptr = channel.get();
   XLS_RETURN_IF_ERROR(AddChannel(std::move(channel)));
   return channel_ptr;
 }

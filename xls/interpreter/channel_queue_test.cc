@@ -217,13 +217,13 @@ TEST_F(ChannelQueueTest, ChannelQueueManagerNoChannels) {
   EXPECT_EQ(manager->queues().size(), 0);
 }
 
-TEST_F(ChannelQueueTest, ChannelQueueManagerSingleValueChannel) {
+TEST_F(ChannelQueueTest, ChannelQueueManagerPortChannel) {
   Package package(TestName());
-  XLS_ASSERT_OK(package
-                    .CreateSingleValueChannel(
-                        "ch", Channel::SupportedOps::kSendReceive,
-                        {DataElement{"data", package.GetBitsType(32)}})
-                    .status());
+  XLS_ASSERT_OK(
+      package
+          .CreatePortChannel("ch", Channel::SupportedOps::kSendReceive,
+                             {DataElement{"data", package.GetBitsType(32)}})
+          .status());
   EXPECT_THAT(
       ChannelQueueManager::Create(/*rx_only_queues=*/{}, &package).status(),
       StatusIs(absl::StatusCode::kUnimplemented,

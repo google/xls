@@ -21,6 +21,33 @@
 
 namespace xls {
 
+std::string ChannelKindToString(ChannelKind kind) {
+  switch (kind) {
+    case kStreaming:
+      return "streaming";
+    case kPort:
+      return "port";
+    case kRegister:
+      return "register";
+    case kLogical:
+      return "logical";
+  }
+}
+
+absl::StatusOr<ChannelKind> StringToChannelKind(absl::string_view str) {
+  if (str == "streaming") {
+    return kStreaming;
+  } else if (str == "port") {
+    return kPort;
+  } else if (str == "register") {
+    return kRegister;
+  } else if (str == "logical") {
+    return kLogical;
+  }
+  return absl::InvalidArgumentError(
+      absl::StrFormat("Invalid channel kind '%s'", str));
+}
+
 std::string DataElement::ToString() const {
   return absl::StrFormat("%s: %s", name, type->ToString());
 }
@@ -94,21 +121,22 @@ std::string Channel::ToString() const {
                                 [](std::string* out, const DataElement& e) {
                                   absl::StrAppend(out, e.ToString());
                                 }));
+  std::string type;
   absl::StrAppendFormat(
       &result, ", id=%d, kind=%s, ops=%s, metadata=\"\"\"%s\"\"\")", id(),
-      IsSingleValue() ? "single_value" : "streaming",
-      SupportedOpsToString(supported_ops()), metadata().ShortDebugString());
+      ChannelKindToString(kind_), SupportedOpsToString(supported_ops()),
+      metadata().ShortDebugString());
 
   return result;
 }
 
-bool Channel::IsStreaming() const {
-  return dynamic_cast<const StreamingChannel*>(this) != nullptr;
-}
+bool Channel::IsStreaming() const { return kind_ == ChannelKind::kStreaming; }
 
-bool Channel::IsSingleValue() const {
-  return dynamic_cast<const SingleValueChannel*>(this) != nullptr;
-}
+bool Channel::IsRegister() const { return kind_ == ChannelKind::kRegister; }
+
+bool Channel::IsPort() const { return kind_ == ChannelKind::kPort; }
+
+bool Channel::IsLogical() const { return kind_ == ChannelKind::kLogical; }
 
 /* static */ absl::StatusOr<std::unique_ptr<StreamingChannel>>
 StreamingChannel::Create(absl::string_view name, int64 id,
@@ -127,11 +155,28 @@ StreamingChannel::Create(absl::string_view name, int64 id,
                            std::move(initial_values), metadata));
 }
 
-/* static */ absl::StatusOr<std::unique_ptr<SingleValueChannel>>
-SingleValueChannel::Create(absl::string_view name, int64 id,
-                           Channel::SupportedOps supported_ops,
-                           absl::Span<const DataElement> data_elements,
-                           const ChannelMetadataProto& metadata) {
+/* static */ absl::StatusOr<std::unique_ptr<PortChannel>> PortChannel::Create(
+    absl::string_view name, int64 id, Channel::SupportedOps supported_ops,
+    absl::Span<const DataElement> data_elements,
+    const ChannelMetadataProto& metadata) {
+  if (data_elements.empty()) {
+    return absl::InvalidArgumentError(
+        "Channel must have at least one data element.");
+  }
+  if (std::any_of(
+          data_elements.begin(), data_elements.end(),
+          [](const DataElement& e) { return !e.initial_values.empty(); })) {
+    return absl::InvalidArgumentError(
+        "A port channel cannot have any initial values.");
+  }
+  return absl::WrapUnique(new PortChannel(
+      name, id, supported_ops, data_elements, /*initial_values=*/{}, metadata));
+}
+
+/* static */ absl::StatusOr<std::unique_ptr<RegisterChannel>>
+RegisterChannel::Create(absl::string_view name, int64 id,
+                        absl::Span<const DataElement> data_elements,
+                        const ChannelMetadataProto& metadata) {
   if (data_elements.empty()) {
     return absl::InvalidArgumentError(
         "Channel must have at least one data element.");
@@ -140,11 +185,22 @@ SingleValueChannel::Create(absl::string_view name, int64 id,
                        ExtractInitialValues(data_elements));
   if (initial_values.size() > 1) {
     return absl::InvalidArgumentError(
-        "A single value channel can not have more than one initial value.");
+        "A register channel can not have more than one initial value.");
   }
-  return absl::WrapUnique(
-      new SingleValueChannel(name, id, supported_ops, data_elements,
-                             std::move(initial_values), metadata));
+  return absl::WrapUnique(new RegisterChannel(
+      name, id, data_elements, std::move(initial_values), metadata));
+}
+
+/* static */ absl::StatusOr<std::unique_ptr<LogicalChannel>>
+LogicalChannel::Create(absl::string_view name, int64 id,
+                       PortChannel* ready_channel, PortChannel* valid_channel,
+                       PortChannel* data_channel,
+                       const ChannelMetadataProto& metadata) {
+  XLS_ASSIGN_OR_RETURN(std::vector<ChannelData> initial_values,
+                       ExtractInitialValues(data_channel->data_elements()));
+  return absl::WrapUnique(new LogicalChannel(
+      name, id, data_channel->supported_ops(), data_channel->data_elements(),
+      std::move(initial_values), metadata));
 }
 
 }  // namespace xls

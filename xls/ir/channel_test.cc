@@ -62,7 +62,9 @@ TEST(ChannelTest, ConstructStreamingChannel) {
 
   EXPECT_EQ(ch->name(), "my_channel");
   EXPECT_TRUE(ch->IsStreaming());
-  EXPECT_FALSE(ch->IsSingleValue());
+  EXPECT_FALSE(ch->IsPort());
+  EXPECT_FALSE(ch->IsRegister());
+  EXPECT_FALSE(ch->IsLogical());
   EXPECT_EQ(ch->id(), 42);
   EXPECT_EQ(ch->supported_ops(), Channel::SupportedOps::kReceiveOnly);
   EXPECT_EQ(ch->data_elements().size(), 2);
@@ -73,17 +75,60 @@ TEST(ChannelTest, ConstructStreamingChannel) {
   EXPECT_TRUE(ch->initial_values().empty());
 }
 
-TEST(ChannelTest, ConstructSingleValueChannel) {
+TEST(ChannelTest, ConstructPortChannel) {
   Package p("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<SingleValueChannel> ch,
-      SingleValueChannel::Create("my_channel", 42,
-                                 Channel::SupportedOps::kSendOnly,
-                                 {DataElement{"foo", p.GetBitsType(32)}}));
+      std::unique_ptr<PortChannel> ch,
+      PortChannel::Create("my_channel", 42, Channel::SupportedOps::kSendOnly,
+                          {DataElement{"foo", p.GetBitsType(32)}}));
 
   EXPECT_EQ(ch->name(), "my_channel");
   EXPECT_FALSE(ch->IsStreaming());
-  EXPECT_TRUE(ch->IsSingleValue());
+  EXPECT_TRUE(ch->IsPort());
+  EXPECT_FALSE(ch->IsRegister());
+  EXPECT_FALSE(ch->IsLogical());
+}
+
+TEST(ChannelTest, ConstructRegisterChannel) {
+  Package p("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<RegisterChannel> ch,
+      RegisterChannel::Create("my_channel", 42,
+                              {DataElement{"foo", p.GetBitsType(32)}}));
+
+  EXPECT_EQ(ch->name(), "my_channel");
+  EXPECT_FALSE(ch->IsStreaming());
+  EXPECT_FALSE(ch->IsPort());
+  EXPECT_TRUE(ch->IsRegister());
+  EXPECT_FALSE(ch->IsLogical());
+  EXPECT_EQ(ch->supported_ops(), Channel::SupportedOps::kSendReceive);
+}
+
+TEST(ChannelTest, ConstructLogicalChannel) {
+  Package p("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<PortChannel> rdy_ch,
+      PortChannel::Create("ready", 42, Channel::SupportedOps::kSendOnly,
+                          {DataElement{"rdy", p.GetBitsType(1)}}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<PortChannel> vld_ch,
+      PortChannel::Create("valid", 42, Channel::SupportedOps::kSendOnly,
+                          {DataElement{"vld", p.GetBitsType(1)}}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<PortChannel> data_ch,
+      PortChannel::Create("data", 42, Channel::SupportedOps::kSendOnly,
+                          {DataElement{"data", p.GetBitsType(1)}}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<LogicalChannel> ch,
+      LogicalChannel::Create("my_channel", 42, rdy_ch.get(), vld_ch.get(),
+                             data_ch.get()));
+
+  EXPECT_EQ(ch->name(), "my_channel");
+  EXPECT_FALSE(ch->IsStreaming());
+  EXPECT_FALSE(ch->IsPort());
+  EXPECT_FALSE(ch->IsRegister());
+  EXPECT_TRUE(ch->IsLogical());
 }
 
 TEST(ChannelTest, StreamingChannelWithInitialValues) {
@@ -141,18 +186,17 @@ TEST(ChannelTest, StreamingToStringParses) {
   EXPECT_EQ(parsed_ch->id(), 42);
 }
 
-TEST(ChannelTest, SingleValueToStringParses) {
+TEST(ChannelTest, PortToStringParses) {
   Package p("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<SingleValueChannel> ch,
-      SingleValueChannel::Create("my_channel", 42,
-                                 Channel::SupportedOps::kReceiveOnly,
-                                 {DataElement{"foo", p.GetBitsType(32)},
-                                  DataElement{"bar", p.GetBitsType(123)}}));
+      std::unique_ptr<PortChannel> ch,
+      PortChannel::Create("my_channel", 42, Channel::SupportedOps::kReceiveOnly,
+                          {DataElement{"foo", p.GetBitsType(32)},
+                           DataElement{"bar", p.GetBitsType(123)}}));
   std::string channel_str = ch->ToString();
   EXPECT_EQ(channel_str,
             "chan my_channel(foo: bits[32], bar: bits[123], id=42, "
-            "kind=single_value, ops=receive_only, "
+            "kind=port, ops=receive_only, "
             "metadata=\"\"\"\"\"\")");
 
   // Create another package and try to parse the channel into the other

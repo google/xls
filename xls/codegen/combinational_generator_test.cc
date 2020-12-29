@@ -902,9 +902,9 @@ TEST_P(CombinationalGeneratorTest, InterpretArrayConcatArraysOfArrays) {
 TEST_P(CombinationalGeneratorTest, SimpleProc) {
   const std::string ir_text = R"(package test
 
-chan in(my_in: bits[32], id=0, kind=single_value, ops=receive_only,
+chan in(my_in: bits[32], id=0, kind=port, ops=receive_only,
         metadata="""module_port { flopped: false,  port_order: 1 }""")
-chan out(my_out: bits[32], id=1, kind=single_value, ops=send_only,
+chan out(my_out: bits[32], id=1, kind=port, ops=send_only,
          metadata="""module_port { flopped: false,  port_order: 0 }""")
 
 proc my_proc(my_token: token, my_state: (), init=()) {
@@ -944,13 +944,13 @@ proc my_proc(my_token: token, my_state: (), init=()) {
 TEST_P(CombinationalGeneratorTest, ProcWithMultipleInputChannels) {
   const std::string ir_text = R"(package test
 
-chan in0(my_in0: bits[32], id=0, kind=single_value, ops=receive_only,
+chan in0(my_in0: bits[32], id=0, kind=port, ops=receive_only,
         metadata="""module_port { flopped: false,  port_order: 0 }""")
-chan in1(my_in1: bits[32], id=1, kind=single_value, ops=receive_only,
+chan in1(my_in1: bits[32], id=1, kind=port, ops=receive_only,
         metadata="""module_port { flopped: false,  port_order: 2 }""")
-chan in2(my_in2: bits[32], id=2, kind=single_value, ops=receive_only,
+chan in2(my_in2: bits[32], id=2, kind=port, ops=receive_only,
         metadata="""module_port { flopped: false,  port_order: 1 }""")
-chan out(my_out: bits[32], id=3, kind=single_value, ops=send_only,
+chan out(my_out: bits[32], id=3, kind=port, ops=send_only,
          metadata="""module_port { flopped: false,  port_order: 0 }""")
 
 proc my_proc(my_token: token, my_state: (), init=()) {
@@ -1003,10 +1003,10 @@ TEST_P(CombinationalGeneratorTest, ProcWithMultipleOutputChannels) {}
 
 TEST_P(CombinationalGeneratorTest, NToOneMuxProc) {
   const std::string ir_text = R"(package test
-chan dir(dir: bits[32], id=0, kind=single_value, ops=receive_only, metadata="""module_port { flopped: false port_order: 0 }""")
-chan in1(in1: bits[32], id=1, kind=single_value, ops=receive_only, metadata="""module_port { flopped: false port_order: 1 }""")
-chan in2(in2: bits[32], id=2, kind=single_value, ops=receive_only, metadata="""module_port { flopped: false port_order: 2 }""")
-chan out(out: bits[32], id=3, kind=single_value, ops=send_only, metadata="""module_port { flopped: false port_order: 3 }""")
+chan dir(dir: bits[32], id=0, kind=port, ops=receive_only, metadata="""module_port { flopped: false port_order: 0 }""")
+chan in1(in1: bits[32], id=1, kind=port, ops=receive_only, metadata="""module_port { flopped: false port_order: 1 }""")
+chan in2(in2: bits[32], id=2, kind=port, ops=receive_only, metadata="""module_port { flopped: false port_order: 2 }""")
+chan out(out: bits[32], id=3, kind=port, ops=send_only, metadata="""module_port { flopped: false port_order: 3 }""")
 
 proc my_proc(tkn: token, st: (), init=()) {
   receive.27: (token, bits[32]) = receive(tkn, channel_id=0, id=27)
@@ -1130,10 +1130,10 @@ proc my_proc(tkn: token, st: (), init=()) {
 
 TEST_P(CombinationalGeneratorTest, OneToNMuxProc) {
   const std::string ir_text = R"(package test
-chan dir(dir: bits[32], id=0, kind=single_value, ops=receive_only, metadata="""module_port { flopped: false port_order: 0 }""")
-chan in(in: bits[32], id=1, kind=single_value, ops=receive_only, metadata="""module_port { flopped: false port_order: 1 }""")
-chan out1(out1: bits[32], id=2, kind=single_value, ops=send_only, metadata="""module_port { flopped: false port_order: 2 }""")
-chan out2(out2: bits[32], id=3, kind=single_value, ops=send_only, metadata="""module_port { flopped: false port_order: 3 }""")
+chan dir(dir: bits[32], id=0, kind=port, ops=receive_only, metadata="""module_port { flopped: false port_order: 0 }""")
+chan in(in: bits[32], id=1, kind=port, ops=receive_only, metadata="""module_port { flopped: false port_order: 1 }""")
+chan out1(out1: bits[32], id=2, kind=port, ops=send_only, metadata="""module_port { flopped: false port_order: 2 }""")
+chan out2(out2: bits[32], id=3, kind=port, ops=send_only, metadata="""module_port { flopped: false port_order: 3 }""")
 
 proc my_proc(tkn: token, st: (), init=()) {
   receive.24: (token, bits[32]) = receive(tkn, channel_id=0, id=24)
@@ -1241,8 +1241,8 @@ proc my_proc(tkn: token, st: (), init=()) {
 
 TEST_P(CombinationalGeneratorTest, OnlyFIFOOutProc) {
   const std::string ir_text = R"(package test
-chan in(in: bits[32], id=0, kind=single_value, ops=receive_only, metadata="""module_port { flopped: false port_order: 0 }""")
-chan out(out: bits[32], id=1, kind=single_value, ops=send_only, metadata="""module_port { flopped: false port_order: 1 }""")
+chan in(in: bits[32], id=0, kind=port, ops=receive_only, metadata="""module_port { flopped: false port_order: 0 }""")
+chan out(out: bits[32], id=1, kind=port, ops=send_only, metadata="""module_port { flopped: false port_order: 1 }""")
 
 proc my_proc(tkn: token, st: (), init=()) {
   receive.13: (token, bits[32]) = receive(tkn, channel_id=0, id=13)
@@ -1285,8 +1285,8 @@ proc my_proc(tkn: token, st: (), init=()) {
 
 TEST_P(CombinationalGeneratorTest, OnlyFIFOInProc) {
   const std::string ir_text = R"(package test
-chan in(in: bits[32], id=0, kind=single_value, ops=receive_only, metadata="""module_port { flopped: false port_order: 0 }""")
-chan out(out: bits[32], id=1, kind=single_value, ops=send_only, metadata="""module_port { flopped: false port_order: 1 }""")
+chan in(in: bits[32], id=0, kind=port, ops=receive_only, metadata="""module_port { flopped: false port_order: 0 }""")
+chan out(out: bits[32], id=1, kind=port, ops=send_only, metadata="""module_port { flopped: false port_order: 1 }""")
 
 proc my_proc(tkn: token, st: (), init=()) {
   literal.21: bits[1] = literal(value=1, id=21, pos=1,8,3)
@@ -1296,8 +1296,6 @@ proc my_proc(tkn: token, st: (), init=()) {
   send.20: token = send(tuple_index.14, data=[tuple_index.15], channel_id=1, id=20, pos=1,5,1)
   next (send.20, st)
 }
-
-
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(ir_text));
@@ -1329,8 +1327,8 @@ proc my_proc(tkn: token, st: (), init=()) {
 
 TEST_P(CombinationalGeneratorTest, UnconditionalSendRdyVldProc) {
   const std::string ir_text = R"(package test
-chan in(in: bits[32], id=0, kind=single_value, ops=receive_only, metadata="""module_port { flopped: false port_order: 0 }""")
-chan out(out: bits[32], id=1, kind=single_value, ops=send_only, metadata="""module_port { flopped: false port_order: 1 }""")
+chan in(in: bits[32], id=0, kind=port, ops=receive_only, metadata="""module_port { flopped: false port_order: 0 }""")
+chan out(out: bits[32], id=1, kind=port, ops=send_only, metadata="""module_port { flopped: false port_order: 1 }""")
 
 proc my_proc(tkn: token, st: (), init=()) {
   receive.13: (token, bits[32]) = receive(tkn, channel_id=0, id=13)
@@ -1339,15 +1337,12 @@ proc my_proc(tkn: token, st: (), init=()) {
   send.20: token = send(tuple_index.14, data=[tuple_index.15], channel_id=1, id=20, pos=1,5,1)
   next (send.20, st)
 }
-
-
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(ir_text));
 
   XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * in_ch, package->GetChannel("in"));
   XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * out_ch, package->GetChannel("out"));
-
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
   XLS_ASSERT_OK_AND_ASSIGN(
       auto result, GenerateCombinationalModuleFromProc(

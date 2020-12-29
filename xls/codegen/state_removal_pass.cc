@@ -35,7 +35,7 @@ absl::StatusOr<bool> StateRemovalPass::RunOnProc(Proc* proc,
         "Unsupported state type: %s", proc->StateType()->ToString()));
   }
 
-  // Replace state param with single-value register channel.
+  // Replace state param with streaming channel.
   XLS_ASSIGN_OR_RETURN(
       Channel * state_channel,
       proc->package()->CreateStreamingChannel(
