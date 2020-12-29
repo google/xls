@@ -814,27 +814,6 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     return self._def(node, self.fb.add_map, arg,
                      self.package.get_function(mangled_name))
 
-  def _visit_update(self, node: ast.Invocation, args: Tuple[BValue,
-                                                            ...]) -> BValue:
-    array, target_index, update_value = args
-    return self._def(node, self.fb.add_array_update, array, update_value,
-                     [target_index])
-
-  def _visit_bitwise_reduction(self, node: ast.Invocation, args: Tuple[BValue,
-                                                                       ...],
-                               called_name: Text) -> BValue:
-    add_func = None
-    if called_name == 'and_reduce':
-      add_func = self.fb.add_and_reduce
-    elif called_name == 'or_reduce':
-      add_func = self.fb.add_or_reduce
-    elif called_name == 'xor_reduce':
-      add_func = self.fb.add_xor_reduce
-    else:
-      raise NotImplementedError(
-          'Unknown bitwise reduction: {}'.format(called_name))
-    return self._def(node, add_func, args[0])
-
   def _visit_bit_slice(self, node: ast.Invocation, args: Tuple[BValue,
                                                                ...]) -> BValue:
     lhs, _, width = args
@@ -842,27 +821,6 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     return self._def(node, self.fb.add_bit_slice, lhs,
                      self._get_const(node.args[1], signed=False),
                      width_type.get_bit_count())
-
-  def _visit_rev(self, node: ast.Invocation, args: Tuple[BValue,
-                                                         ...]) -> BValue:
-    arg, = args
-    return self._def(node, self.fb.add_reverse, arg)
-
-  def _visit_signex(self, node: ast.Invocation, args: Tuple[BValue,
-                                                            ...]) -> BValue:
-    lhs, rhs = args
-    rhs_type = rhs.get_type()
-    return self._def(node, self.fb.add_signext, lhs, rhs_type.get_bit_count())
-
-  def _visit_clz(self, node: ast.Invocation, args: Tuple[BValue,
-                                                         ...]) -> BValue:
-    lhs, = args
-    return self._def(node, self.fb.add_clz, lhs)
-
-  def _visit_ctz(self, node: ast.Invocation, args: Tuple[BValue,
-                                                         ...]) -> BValue:
-    lhs, = args
-    return self._def(node, self.fb.add_ctz, lhs)
 
   def _visit_one_hot(self, node: ast.Invocation, args: Tuple[BValue,
                                                              ...]) -> BValue:
@@ -907,13 +865,17 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
                                    'single argument; got: {!r}'.format(args))
       self._def(node, self.fb.add_identity, args[0])
     elif called_name == 'update':
-      self._visit_update(node, accept_args())
+      accept_args()
+      self.state.handle_builtin_update(node)
     elif called_name == 'signex':
-      self._visit_signex(node, accept_args())
+      accept_args()
+      self.state.handle_builtin_signex(node)
     elif called_name == 'clz':
-      self._visit_clz(node, accept_args())
+      accept_args()
+      self.state.handle_builtin_clz(node)
     elif called_name == 'ctz':
-      self._visit_ctz(node, accept_args())
+      accept_args()
+      self.state.handle_builtin_ctz(node)
     elif called_name == 'map':
       # Map needs special arg handling, so we handle that inside.
       self._visit_map(node)
@@ -924,11 +886,19 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     elif called_name == 'bit_slice':
       self._visit_bit_slice(node, accept_args())
     elif called_name == 'rev':
-      self._visit_rev(node, accept_args())
+      accept_args()
+      self.state.handle_builtin_rev(node)
     elif called_name in ('sgt', 'sge', 'slt', 'sle'):
       self._visit_scmp(node, accept_args(), called_name)
-    elif called_name in ('and_reduce', 'or_reduce', 'xor_reduce'):
-      self._visit_bitwise_reduction(node, accept_args(), called_name)
+    elif called_name == 'and_reduce':
+      accept_args()
+      self.state.handle_builtin_and_reduce(node)
+    elif called_name == 'or_reduce':
+      accept_args()
+      self.state.handle_builtin_or_reduce(node)
+    elif called_name == 'xor_reduce':
+      accept_args()
+      self.state.handle_builtin_xor_reduce(node)
     elif called_name == 'trace':
       self._visit_trace(node, accept_args())
     else:

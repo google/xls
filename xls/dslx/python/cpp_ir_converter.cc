@@ -208,9 +208,42 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
            [](IrConverter& self, ConstantArrayHolder node) {
              return self.HandleConstantArray(&node.deref());
            })
-      .def("handle_unop", [](IrConverter& self, UnopHolder node) {
-        return self.HandleUnop(&node.deref());
-      });
+      .def("handle_unop",
+           [](IrConverter& self, UnopHolder node) {
+             return self.HandleUnop(&node.deref());
+           })
+      .def("handle_builtin_and_reduce",
+           [](IrConverter& self, InvocationHolder node) {
+             return self.HandleBuiltinAndReduce(&node.deref());
+           })
+      .def("handle_builtin_clz",
+           [](IrConverter& self, InvocationHolder node) {
+             return self.HandleBuiltinClz(&node.deref());
+           })
+      .def("handle_builtin_ctz",
+           [](IrConverter& self, InvocationHolder node) {
+             return self.HandleBuiltinCtz(&node.deref());
+           })
+      .def("handle_builtin_or_reduce",
+           [](IrConverter& self, InvocationHolder node) {
+             return self.HandleBuiltinOrReduce(&node.deref());
+           })
+      .def("handle_builtin_rev",
+           [](IrConverter& self, InvocationHolder node) {
+             return self.HandleBuiltinRev(&node.deref());
+           })
+      .def("handle_builtin_signex",
+           [](IrConverter& self, InvocationHolder node) {
+             return self.HandleBuiltinSignex(&node.deref());
+           })
+      .def("handle_builtin_update",
+           [](IrConverter& self, InvocationHolder node) {
+             return self.HandleBuiltinUpdate(&node.deref());
+           })
+      .def("handle_builtin_xor_reduce",
+           [](IrConverter& self, InvocationHolder node) {
+             return self.HandleBuiltinXorReduce(&node.deref());
+           });
 
   m.def("mangle_dslx_name",
         [](absl::string_view function_name,

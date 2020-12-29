@@ -157,6 +157,16 @@ class IrConverter {
   absl::Status HandleConstantArray(ConstantArray* node);
   absl::Status HandleConcat(Binop* node, BValue lhs, BValue rhs);
 
+  // Builtin invocation handlers.
+  absl::Status HandleBuiltinAndReduce(Invocation* node);
+  absl::Status HandleBuiltinClz(Invocation* node);
+  absl::Status HandleBuiltinCtz(Invocation* node);
+  absl::Status HandleBuiltinOrReduce(Invocation* node);
+  absl::Status HandleBuiltinRev(Invocation* node);
+  absl::Status HandleBuiltinSignex(Invocation* node);
+  absl::Status HandleBuiltinUpdate(Invocation* node);
+  absl::Status HandleBuiltinXorReduce(Invocation* node);
+
  private:
   static std::string SpanToString(const absl::optional<Span>& span) {
     if (!span.has_value()) {

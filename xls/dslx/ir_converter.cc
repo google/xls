@@ -15,6 +15,7 @@
 #include "xls/dslx/ir_converter.h"
 
 #include "absl/strings/str_replace.h"
+#include "xls/dslx/cpp_ast.h"
 #include "xls/dslx/deduce_ctx.h"
 
 namespace xls::dslx {
@@ -324,6 +325,89 @@ absl::Status IrConverter::HandleTernary(Ternary* node) {
   XLS_ASSIGN_OR_RETURN(BValue arg2, Use(node->alternate()));
   Def(node, [&](absl::optional<SourceLocation> loc) {
     return function_builder_->Select(arg0, arg1, arg2, loc);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status IrConverter::HandleBuiltinAndReduce(Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 1);
+  XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
+  Def(node, [&](absl::optional<SourceLocation> loc) {
+    return function_builder_->AndReduce(arg, loc);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status IrConverter::HandleBuiltinClz(Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 1);
+  XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
+  Def(node, [&](absl::optional<SourceLocation> loc) {
+    return function_builder_->Clz(arg, loc);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status IrConverter::HandleBuiltinCtz(Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 1);
+  XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
+  Def(node, [&](absl::optional<SourceLocation> loc) {
+    return function_builder_->Ctz(arg, loc);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status IrConverter::HandleBuiltinOrReduce(Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 1);
+  XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
+  Def(node, [&](absl::optional<SourceLocation> loc) {
+    return function_builder_->OrReduce(arg, loc);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status IrConverter::HandleBuiltinRev(Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 1);
+  XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
+  Def(node, [&](absl::optional<SourceLocation> loc) {
+    return function_builder_->Reverse(arg, loc);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status IrConverter::HandleBuiltinUpdate(Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 3);
+  XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
+  XLS_ASSIGN_OR_RETURN(BValue index, Use(node->args()[1]));
+  XLS_ASSIGN_OR_RETURN(BValue new_value, Use(node->args()[2]));
+  Def(node, [&](absl::optional<SourceLocation> loc) {
+    return function_builder_->ArrayUpdate(arg, new_value, {index}, loc);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status IrConverter::HandleBuiltinXorReduce(Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 1);
+  XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
+  Def(node, [&](absl::optional<SourceLocation> loc) {
+    return function_builder_->XorReduce(arg, loc);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status IrConverter::HandleBuiltinSignex(Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 2);
+  XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
+
+  // Remember - it's the _type_ of the RHS of a signex that gives the new bit
+  // count, not the value!
+  auto* bit_count = dynamic_cast<Number*>(node->args()[1]);
+  XLS_RET_CHECK_NE(bit_count, nullptr);
+  XLS_RET_CHECK(bit_count->type());
+  auto* type_annot = dynamic_cast<BuiltinTypeAnnotation*>(bit_count->type());
+  int64 new_bit_count = type_annot->GetBitCount();
+
+  Def(node, [&](absl::optional<SourceLocation> loc) {
+    return function_builder_->SignExtend(arg, new_bit_count, loc);
   });
   return absl::OkStatus();
 }

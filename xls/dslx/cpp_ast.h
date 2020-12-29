@@ -1162,7 +1162,7 @@ class Invocation : public Expr {
                            FormatArgs());
   };
 
-  const std::vector<Expr*> args() const { return args_; }
+  const absl::Span<Expr* const> args() const { return args_; }
   Expr* callee() const { return callee_; }
   const std::vector<std::pair<std::string, int64>> symbolic_bindings() const {
     return symbolic_bindings_;
