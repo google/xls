@@ -183,6 +183,15 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
            })
       .def("get_and_bump_counted_for_count",
            &IrConverter::GetAndBumpCountedForCount)
+      .def("get_const_bits",
+           [](IrConverter& self, AstNodeHolder node) {
+             return self.GetConstBits(&node.deref());
+           })
+      .def("resolve_dim", &IrConverter::ResolveDim)
+      .def("resolve_type",
+           [](IrConverter& self, AstNodeHolder node) {
+             return self.ResolveType(&node.deref());
+           })
       .def("handle_attr",
            [](IrConverter& self, AttrHolder node) {
              return self.HandleAttr(&node.deref());
@@ -190,6 +199,10 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
       .def("handle_ternary",
            [](IrConverter& self, TernaryHolder node) {
              return self.HandleTernary(&node.deref());
+           })
+      .def("handle_constant_array",
+           [](IrConverter& self, ConstantArrayHolder node) {
+             return self.HandleConstantArray(&node.deref());
            })
       .def("handle_unop", [](IrConverter& self, UnopHolder node) {
         return self.HandleUnop(&node.deref());

@@ -888,6 +888,7 @@ cc_library(
     deps = [
         ":cpp_ast",
         ":cpp_type_info",
+        ":deduce_ctx",
         "//xls/ir",
         "//xls/ir:function_builder",
         "@com_google_absl//absl/container:btree",

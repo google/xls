@@ -24,7 +24,6 @@ from absl import logging
 from xls.common.xls_error import XlsError
 from xls.dslx import ast_helpers
 from xls.dslx import bit_helpers
-from xls.dslx import concrete_type_helpers
 from xls.dslx import extract_conversion_order
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_ast_visitor
@@ -39,7 +38,6 @@ from xls.dslx.python.cpp_concrete_type import ConcreteTypeDim
 from xls.dslx.python.cpp_concrete_type import EnumType
 from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.python.cpp_concrete_type import TupleType
-from xls.dslx.python.cpp_parametric_expression import ParametricExpression
 from xls.dslx.python.cpp_pos import Span
 from xls.dslx.python.cpp_type_info import SymbolicBindings
 from xls.dslx.span import PositionalError
@@ -52,7 +50,6 @@ from xls.ir.python import number_parser
 from xls.ir.python import package as ir_package
 from xls.ir.python import source_location
 from xls.ir.python import type as type_mod
-from xls.ir.python import value as ir_value
 from xls.ir.python import verifier as verifier_mod
 from xls.ir.python.function_builder import BValue
 
@@ -230,14 +227,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     return isinstance(record, tuple)
 
   def _get_const_bits(self, node: ast.AstNode) -> bits_mod.Bits:
-    """Retrieves the known-constant bits value associated with "node"."""
-    record = self.state.get_node_to_ir(node)
-    if not isinstance(record, tuple):
-      raise ConversionError(
-          'Expected a constant, but value does not appear constant.',
-          ast_helpers.get_span_or_fake(node))
-    assert isinstance(record[0], bits_mod.Bits), record[0]
-    return record[0]
+    return self.state.get_const_bits(node)
 
   def _get_const(self, node: ast.AstNode, *, signed: bool) -> int:
     """Retrieves the known-constant (int) value associated with "node".
@@ -269,30 +259,10 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     return self.state.def_alias(from_, to)
 
   def _resolve_dim(self, dim: ConcreteTypeDim) -> ConcreteTypeDim:
-    assert isinstance(dim, ConcreteTypeDim), dim
-    while isinstance(dim.value, ParametricExpression):
-      try:
-        orig = dim.value
-        assert isinstance(orig, ParametricExpression), orig
-        evaluated = orig.evaluate(
-            dict(self.state.get_symbolic_bindings_items()))
-        dim = ConcreteTypeDim(evaluated)
-      except KeyError:
-        return dim
-    return dim
+    return self.state.resolve_dim(dim)
 
   def _resolve_type(self, node: ast.AstNode) -> ConcreteType:
-    try:
-      concrete_type = self.type_info.get_type(node)
-    except type_info_mod.TypeMissingError:
-      raise ConversionError(
-          f'Failed to convert to IR because type was missing for AST node: '
-          f'{node} :: {node!r}', ast_helpers.get_span_or_fake(node))
-
-    assert isinstance(concrete_type, ConcreteType), concrete_type
-    result = concrete_type_helpers.map_size(concrete_type, self.module,
-                                            self._resolve_dim)
-    return result
+    return self.state.resolve_type(node)
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_TypeRef(self, node: ast.TypeRef) -> None:
@@ -543,16 +513,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
 
   # Note: need to traverse to define constants for members.
   def visit_ConstantArray(self, node: ast.ConstantArray) -> None:
-    array_type = self._resolve_type(node)
-    values = []
-    for n in node.members:
-      e = self._get_const_bits(n)
-      values.append(ir_value.Value(e))
-    if node.has_ellipsis:
-      while len(values) < array_type.size.value:
-        values.append(values[-1])
-    self._def(node, self.fb.add_literal_value,
-              ir_value.Value.make_array(values))
+    self.state.handle_constant_array(node)
 
   def _cast_to_array(self, node: ast.Cast, output_type: ConcreteType) -> None:
     bits = self._use(node.expr)

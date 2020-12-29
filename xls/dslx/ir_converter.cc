@@ -15,10 +15,12 @@
 #include "xls/dslx/ir_converter.h"
 
 #include "absl/strings/str_replace.h"
+#include "xls/dslx/deduce_ctx.h"
 
 namespace xls::dslx {
 
 using IrOp = xls::Op;
+using IrLiteral = xls::Value;
 
 /* static */ std::string IrConverter::ToString(const IrValue& value) {
   if (absl::holds_alternative<BValue>(value)) {
@@ -165,6 +167,68 @@ absl::Status IrConverter::HandleTernary(Ternary* node) {
   return absl::OkStatus();
 }
 
+absl::StatusOr<ConcreteTypeDim> IrConverter::ResolveDim(ConcreteTypeDim dim) {
+  while (
+      absl::holds_alternative<ConcreteTypeDim::OwnedParametric>(dim.value())) {
+    ParametricExpression& original =
+        *absl::get<ConcreteTypeDim::OwnedParametric>(dim.value());
+    ParametricExpression::Evaluated evaluated = original.Evaluate(
+        ToParametricEnv(SymbolicBindings(symbolic_binding_map_)));
+    dim = ConcreteTypeDim(std::move(evaluated));
+  }
+  return dim;
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> IrConverter::ResolveType(
+    AstNode* node) {
+  absl::optional<const ConcreteType*> t = type_info_->GetItem(node);
+  if (!t.has_value()) {
+    return ConversionErrorStatus(
+        node->GetSpan(),
+        absl::StrFormat(
+            "Failed to convert IR because type was missing for AST node: %s",
+            node->ToString()));
+  }
+
+  return t.value()->MapSize(
+      [this](ConcreteTypeDim dim) { return ResolveDim(dim); });
+}
+
+absl::StatusOr<Bits> IrConverter::GetConstBits(AstNode* node) const {
+  absl::optional<IrValue> ir_value = GetNodeToIr(node);
+  if (!ir_value.has_value()) {
+    return absl::InternalError(absl::StrFormat(
+        "AST node had no associated IR value: %s", node->ToString()));
+  }
+  if (!absl::holds_alternative<CValue>(*ir_value)) {
+    return absl::InternalError(absl::StrFormat(
+        "AST node had a non-const IR value: %s", node->ToString()));
+  }
+  return absl::get<CValue>(*ir_value).integral;
+}
+
+absl::Status IrConverter::HandleConstantArray(ConstantArray* node) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type, ResolveType(node));
+  auto* array_type = dynamic_cast<ArrayType*>(type.get());
+
+  std::vector<IrLiteral> values;
+  for (Expr* n : node->members()) {
+    XLS_ASSIGN_OR_RETURN(Bits e, GetConstBits(n));
+    values.push_back(IrLiteral(std::move(e)));
+  }
+  if (node->has_ellipsis()) {
+    while (values.size() < absl::get<int64>(array_type->size().value())) {
+      values.push_back(values.back());
+    }
+  }
+  using IrFunc = std::function<BValue(
+      FunctionBuilder&, absl::optional<SourceLocation>, IrLiteral)>;
+  IrFunc ir_func = [](FunctionBuilder& self, absl::optional<SourceLocation> loc,
+                      IrLiteral literal) { return self.Literal(literal, loc); };
+  Def(node, ir_func, IrLiteral::Array(std::move(values)).value());
+  return absl::OkStatus();
+}
+
 absl::StatusOr<std::string> MangleDslxName(
     absl::string_view function_name,
     const absl::btree_set<std::string>& free_keys, Module* module,
@@ -194,6 +258,13 @@ absl::StatusOr<std::string> MangleDslxName(
   }
   std::string suffix = absl::StrJoin(symbolic_bindings_values, "_");
   return absl::StrFormat("__%s__%s__%s", module_name, function_name, suffix);
+}
+
+absl::Status ConversionErrorStatus(const absl::optional<Span>& span,
+                                   absl::string_view message) {
+  return absl::InternalError(
+      absl::StrFormat("ConversionErrorStatus: %s %s",
+                      span ? span->ToString() : "<no span>", message));
 }
 
 }  // namespace xls::dslx

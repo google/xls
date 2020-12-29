@@ -77,6 +77,17 @@ class IrConverter {
   void SetNodeToIr(AstNode* node, IrValue value);
   absl::optional<IrValue> GetNodeToIr(AstNode* node) const;
 
+  // Returns the constant bits corresponding to the IrValue of "node", or
+  // returns an error if it is not present (or not constant).
+  absl::StatusOr<Bits> GetConstBits(AstNode* node) const;
+
+  // Resolves "dim" (from a possible parametric) against the
+  // symbolic_binding_map_.
+  absl::StatusOr<ConcreteTypeDim> ResolveDim(ConcreteTypeDim dim);
+
+  // Resolves node's type and resolves all of its dimensions via `ResolveDim()`.
+  absl::StatusOr<std::unique_ptr<ConcreteType>> ResolveType(AstNode* node);
+
   // -- Accessors
 
   // IR package being populated with IR entities as part of the conversion.
@@ -142,6 +153,7 @@ class IrConverter {
   absl::Status HandleUnop(Unop* node);
   absl::Status HandleAttr(Attr* node);
   absl::Status HandleTernary(Ternary* node);
+  absl::Status HandleConstantArray(ConstantArray* node);
 
  private:
   static std::string SpanToString(const absl::optional<Span>& span) {
@@ -229,6 +241,10 @@ absl::StatusOr<std::string> MangleDslxName(
     absl::string_view function_name,
     const absl::btree_set<std::string>& free_keys, Module* module,
     SymbolicBindings* symbolic_bindings = nullptr);
+
+// Returns a status that indicates an error in the IR conversion process.
+absl::Status ConversionErrorStatus(const absl::optional<Span>& span,
+                                   absl::string_view message);
 
 }  // namespace xls::dslx
 
