@@ -21,9 +21,9 @@ import sys
 import pycparser
 
 from google.protobuf import text_format
-from xls.contrib.xlscc.parse import ext_c_parser
-from xls.contrib.xlscc.translate import hls_types_pb2
-import xls.contrib.xlscc.translate.translator as xlscc_translator
+from xls.contrib.xlscc_obsolete.parse import ext_c_parser
+from xls.contrib.xlscc_obsolete.translate import hls_types_pb2
+import xls.contrib.xlscc_obsolete.translate.translator as xlscc_translator
 
 
 def main():

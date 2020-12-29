@@ -19,8 +19,8 @@ import collections
 import copy
 import re
 
-from xls.contrib.xlscc.parse import ext_c_ast as c_ast
-from xls.contrib.xlscc.translate import hls_types_pb2
+from xls.contrib.xlscc_obsolete.parse import ext_c_ast as c_ast
+from xls.contrib.xlscc_obsolete.translate import hls_types_pb2
 from xls.ir.python import bits as bits_mod
 from xls.ir.python import fileno as ir_fileno
 from xls.ir.python import function_builder

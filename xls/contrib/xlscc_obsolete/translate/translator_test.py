@@ -18,7 +18,7 @@
 # pylint: disable=eval-used
 # Disable no member error, linter seems confused.
 # Disable eval warning. This is just a test.
-"""Tests for xls.contrib.xlscc.translate.translator."""
+"""Tests for xls.contrib.xlscc_obsolete.translate.translator."""
 
 import ctypes
 import os
@@ -28,9 +28,9 @@ import pycparser
 
 from absl.testing import absltest
 from xls.common import runfiles
-from xls.contrib.xlscc.parse import ext_c_parser
-from xls.contrib.xlscc.translate import hls_types_pb2
-import xls.contrib.xlscc.translate.translator as xlscc_translator
+from xls.contrib.xlscc_obsolete.parse import ext_c_parser
+from xls.contrib.xlscc_obsolete.translate import hls_types_pb2
+import xls.contrib.xlscc_obsolete.translate.translator as xlscc_translator
 from xls.interpreter.python import ir_interpreter
 from xls.ir.python import bits as bits_mod
 from xls.ir.python import value as ir_value
@@ -498,9 +498,9 @@ class TranslatorTest(absltest.TestCase):
     my_parser = ext_c_parser.XLSccParser()
 
     source_path = runfiles.get_path(
-        "xls/contrib/xlscc/translate/testdata/mandelbrot_test.cc")
+        "xls/contrib/xlscc_obsolete/translate/testdata/mandelbrot_test.cc")
     binary_path = runfiles.get_path(
-        "xls/contrib/xlscc/translate/mandelbrot_test")
+        "xls/contrib/xlscc_obsolete/translate/mandelbrot_test")
 
     nx = 48
     ny = 32

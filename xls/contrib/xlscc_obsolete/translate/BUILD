@@ -16,7 +16,7 @@ load("@xls_pip_deps//:requirements.bzl", "requirement")
 load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
 
 package(
-    default_visibility = ["//xls/contrib/xlscc:xlscc_internal"],
+    default_visibility = ["//xls/contrib/xlscc_obsolete:xlscc_internal"],
     licenses = ["notice"],  # Apache 2.0
 )
 
@@ -41,7 +41,7 @@ py_library(
         ":hls_types_py_pb2",
         requirement("pycparser"),
         "//xls/common:runfiles",
-        "//xls/contrib/xlscc/parse:ext_c_ast",
+        "//xls/contrib/xlscc_obsolete/parse:ext_c_ast",
         "//xls/ir/python:bits",
         "//xls/ir/python:fileno",
         "//xls/ir/python:function_builder",
@@ -70,8 +70,8 @@ py_test(
     shard_count = 30,
     deps = [
         ":translator",
-        "//xls/contrib/xlscc/parse:ext_c_ast",
-        "//xls/contrib/xlscc/parse:ext_c_parser",
+        "//xls/contrib/xlscc_obsolete/parse:ext_c_ast",
+        "//xls/contrib/xlscc_obsolete/parse:ext_c_parser",
         "//xls/interpreter/python:ir_interpreter",
         "@com_google_absl_py//absl/testing:absltest",
     ],

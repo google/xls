@@ -17,7 +17,7 @@
 package_group(
     name = "xlscc_internal",
     packages = [
-        "//xls/contrib/xlscc/...",
+        "//xls/contrib/xlscc_obsolete/...",
     ],
 )
 

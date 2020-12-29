@@ -16,7 +16,7 @@ load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 package(
     default_visibility = [
-        "//xls/contrib/xlscc:xlscc_internal",
+        "//xls/contrib/xlscc_obsolete:xlscc_internal",
     ],
     licenses = ["notice"],  # Apache 2.0
 )

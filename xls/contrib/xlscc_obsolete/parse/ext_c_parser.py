@@ -24,8 +24,8 @@
 
 from pycparser import c_parser
 
-from xls.contrib.xlscc.parse import ext_c_ast as c_ast
-from xls.contrib.xlscc.parse import ext_c_lexer
+from xls.contrib.xlscc_obsolete.parse import ext_c_ast as c_ast
+from xls.contrib.xlscc_obsolete.parse import ext_c_lexer
 
 
 class CParserBase(c_parser.CParser):

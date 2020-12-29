@@ -25,7 +25,7 @@ py_binary(
     python_version = "PY3",
     deps = [
         requirement("pycparser"),
-        "//xls/contrib/xlscc/parse:ext_c_parser",
-        "//xls/contrib/xlscc/translate:translator",
+        "//xls/contrib/xlscc_obsolete/parse:ext_c_parser",
+        "//xls/contrib/xlscc_obsolete/translate:translator",
     ],
 )
