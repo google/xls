@@ -216,6 +216,10 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
            [](IrConverter& self, InvocationHolder node) {
              return self.HandleBuiltinAndReduce(&node.deref());
            })
+      .def("handle_builtin_bit_slice",
+           [](IrConverter& self, InvocationHolder node) {
+             return self.HandleBuiltinBitSlice(&node.deref());
+           })
       .def("handle_builtin_clz",
            [](IrConverter& self, InvocationHolder node) {
              return self.HandleBuiltinClz(&node.deref());
@@ -223,6 +227,14 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
       .def("handle_builtin_ctz",
            [](IrConverter& self, InvocationHolder node) {
              return self.HandleBuiltinCtz(&node.deref());
+           })
+      .def("handle_builtin_one_hot",
+           [](IrConverter& self, InvocationHolder node) {
+             return self.HandleBuiltinOneHot(&node.deref());
+           })
+      .def("handle_builtin_one_hot_sel",
+           [](IrConverter& self, InvocationHolder node) {
+             return self.HandleBuiltinOneHotSel(&node.deref());
            })
       .def("handle_builtin_or_reduce",
            [](IrConverter& self, InvocationHolder node) {

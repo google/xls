@@ -17,6 +17,7 @@
 #include "absl/strings/str_replace.h"
 #include "xls/dslx/cpp_ast.h"
 #include "xls/dslx/deduce_ctx.h"
+#include "xls/ir/lsb_or_msb.h"
 
 namespace xls::dslx {
 
@@ -338,6 +339,19 @@ absl::Status IrConverter::HandleBuiltinAndReduce(Invocation* node) {
   return absl::OkStatus();
 }
 
+absl::Status IrConverter::HandleBuiltinBitSlice(Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 3);
+  XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
+  XLS_ASSIGN_OR_RETURN(Bits start_bits, GetConstBits(node->args()[1]));
+  XLS_ASSIGN_OR_RETURN(uint64 start, start_bits.ToUint64());
+  XLS_ASSIGN_OR_RETURN(Bits width_bits, GetConstBits(node->args()[2]));
+  XLS_ASSIGN_OR_RETURN(uint64 width, width_bits.ToUint64());
+  Def(node, [&](absl::optional<SourceLocation> loc) {
+    return function_builder_->BitSlice(arg, start, width, loc);
+  });
+  return absl::OkStatus();
+}
+
 absl::Status IrConverter::HandleBuiltinClz(Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 1);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
@@ -356,6 +370,39 @@ absl::Status IrConverter::HandleBuiltinCtz(Invocation* node) {
   return absl::OkStatus();
 }
 
+absl::Status IrConverter::HandleBuiltinOneHot(Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 2);
+  XLS_ASSIGN_OR_RETURN(BValue input, Use(node->args()[0]));
+  XLS_ASSIGN_OR_RETURN(Bits lsb_prio, GetConstBits(node->args()[1]));
+  XLS_ASSIGN_OR_RETURN(uint64 lsb_prio_value, lsb_prio.ToUint64());
+
+  Def(node, [&](absl::optional<SourceLocation> loc) {
+    return function_builder_->OneHot(
+        input, lsb_prio_value ? LsbOrMsb::kLsb : LsbOrMsb::kMsb, loc);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status IrConverter::HandleBuiltinOneHotSel(Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 2);
+  XLS_ASSIGN_OR_RETURN(BValue selector, Use(node->args()[0]));
+
+  const Expr* cases_arg = node->args()[1];
+  std::vector<BValue> cases;
+  const auto* array = dynamic_cast<const Array*>(cases_arg);
+  XLS_RET_CHECK_NE(array, nullptr);
+  for (const auto& sel_case : array->members()) {
+    XLS_ASSIGN_OR_RETURN(BValue bvalue_case, Use(sel_case));
+    cases.push_back(bvalue_case);
+  }
+
+  Def(node, [&](absl::optional<SourceLocation> loc) {
+    return function_builder_->OneHotSelect(
+        selector, cases, loc);
+  });
+  return absl::OkStatus();
+}
+
 absl::Status IrConverter::HandleBuiltinOrReduce(Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 1);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
@@ -370,6 +417,24 @@ absl::Status IrConverter::HandleBuiltinRev(Invocation* node) {
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
   Def(node, [&](absl::optional<SourceLocation> loc) {
     return function_builder_->Reverse(arg, loc);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status IrConverter::HandleBuiltinSignex(Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 2);
+  XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
+
+  // Remember - it's the _type_ of the RHS of a signex that gives the new bit
+  // count, not the value!
+  auto* bit_count = dynamic_cast<Number*>(node->args()[1]);
+  XLS_RET_CHECK_NE(bit_count, nullptr);
+  XLS_RET_CHECK(bit_count->type());
+  auto* type_annot = dynamic_cast<BuiltinTypeAnnotation*>(bit_count->type());
+  int64 new_bit_count = type_annot->GetBitCount();
+
+  Def(node, [&](absl::optional<SourceLocation> loc) {
+    return function_builder_->SignExtend(arg, new_bit_count, loc);
   });
   return absl::OkStatus();
 }
@@ -394,23 +459,6 @@ absl::Status IrConverter::HandleBuiltinXorReduce(Invocation* node) {
   return absl::OkStatus();
 }
 
-absl::Status IrConverter::HandleBuiltinSignex(Invocation* node) {
-  XLS_RET_CHECK_EQ(node->args().size(), 2);
-  XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
-
-  // Remember - it's the _type_ of the RHS of a signex that gives the new bit
-  // count, not the value!
-  auto* bit_count = dynamic_cast<Number*>(node->args()[1]);
-  XLS_RET_CHECK_NE(bit_count, nullptr);
-  XLS_RET_CHECK(bit_count->type());
-  auto* type_annot = dynamic_cast<BuiltinTypeAnnotation*>(bit_count->type());
-  int64 new_bit_count = type_annot->GetBitCount();
-
-  Def(node, [&](absl::optional<SourceLocation> loc) {
-    return function_builder_->SignExtend(arg, new_bit_count, loc);
-  });
-  return absl::OkStatus();
-}
 
 absl::StatusOr<ConcreteTypeDim> IrConverter::ResolveDim(ConcreteTypeDim dim) {
   while (

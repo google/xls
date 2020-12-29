@@ -1405,14 +1405,10 @@ class IrConverterTest(test_base.TestCase):
         package test_module
 
         fn __test_module__main(s: bits[2]) -> bits[32] {
-          literal.4: bits[32][2] = literal(value=[2, 3], id=4)
-          literal.5: bits[32] = literal(value=0, id=5)
-          literal.7: bits[32] = literal(value=1, id=7)
-          array_index.6: bits[32] = array_index(literal.4, indices=[literal.5], id=6)
-          array_index.8: bits[32] = array_index(literal.4, indices=[literal.7], id=8)
           literal.2: bits[32] = literal(value=2, id=2)
           literal.3: bits[32] = literal(value=3, id=3)
-          ret one_hot_sel.9: bits[32] = one_hot_sel(s, cases=[array_index.6, array_index.8], id=9)
+          literal.4: bits[32][2] = literal(value=[2, 3], id=4)
+          ret one_hot_sel.5: bits[32] = one_hot_sel(s, cases=[literal.2, literal.3], id=5)
         }
         """)
 

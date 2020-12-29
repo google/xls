@@ -45,7 +45,6 @@ from xls.ir.python import bits as bits_mod
 from xls.ir.python import fileno as fileno_mod
 from xls.ir.python import function as ir_function
 from xls.ir.python import function_builder
-from xls.ir.python import lsb_or_msb
 from xls.ir.python import number_parser
 from xls.ir.python import package as ir_package
 from xls.ir.python import source_location
@@ -814,33 +813,6 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     return self._def(node, self.fb.add_map, arg,
                      self.package.get_function(mangled_name))
 
-  def _visit_bit_slice(self, node: ast.Invocation, args: Tuple[BValue,
-                                                               ...]) -> BValue:
-    lhs, _, width = args
-    width_type = width.get_type()
-    return self._def(node, self.fb.add_bit_slice, lhs,
-                     self._get_const(node.args[1], signed=False),
-                     width_type.get_bit_count())
-
-  def _visit_one_hot(self, node: ast.Invocation, args: Tuple[BValue,
-                                                             ...]) -> BValue:
-    lhs, _ = args
-    lsb_prio = self._get_const(node.args[1], signed=False)
-    return self._def(
-        node, self.fb.add_one_hot, lhs,
-        lsb_or_msb.LsbOrMsb.LSB if lsb_prio else lsb_or_msb.LsbOrMsb.MSB)
-
-  def _visit_one_hot_sel(self, node: ast.Invocation,
-                         args: Tuple[BValue, ...]) -> BValue:
-    lhs, array = args
-    array_type = array.get_type()
-    rhs_elements = []
-    for i in range(array_type.get_size()):
-      rhs_elements.append(
-          self.fb.add_array_index(
-              array, [self.fb.add_literal_bits(bits_mod.UBits(i, 32))]))
-    return self._def(node, self.fb.add_one_hot_sel, lhs, rhs_elements)
-
   def _visit_scmp(self, node: ast.Invocation, args: Tuple[BValue, ...],
                   which: Text) -> BValue:
     lhs, rhs = args
@@ -880,11 +852,14 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       # Map needs special arg handling, so we handle that inside.
       self._visit_map(node)
     elif called_name == 'one_hot':
-      self._visit_one_hot(node, accept_args())
+      accept_args()
+      self.state.handle_builtin_one_hot(node)
     elif called_name == 'one_hot_sel':
-      self._visit_one_hot_sel(node, accept_args())
+      accept_args()
+      self.state.handle_builtin_one_hot_sel(node)
     elif called_name == 'bit_slice':
-      self._visit_bit_slice(node, accept_args())
+      accept_args()
+      self.state.handle_builtin_bit_slice(node)
     elif called_name == 'rev':
       accept_args()
       self.state.handle_builtin_rev(node)
