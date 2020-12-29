@@ -196,6 +196,10 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
            [](IrConverter& self, AttrHolder node) {
              return self.HandleAttr(&node.deref());
            })
+      .def("handle_binop",
+           [](IrConverter& self, BinopHolder node) {
+             return self.HandleBinop(&node.deref());
+           })
       .def("handle_ternary",
            [](IrConverter& self, TernaryHolder node) {
              return self.HandleTernary(&node.deref());

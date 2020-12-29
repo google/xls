@@ -151,9 +151,11 @@ class IrConverter {
 
   // AstNode handlers.
   absl::Status HandleUnop(Unop* node);
+  absl::Status HandleBinop(Binop* node);
   absl::Status HandleAttr(Attr* node);
   absl::Status HandleTernary(Ternary* node);
   absl::Status HandleConstantArray(ConstantArray* node);
+  absl::Status HandleConcat(Binop* node, BValue lhs, BValue rhs);
 
  private:
   static std::string SpanToString(const absl::optional<Span>& span) {
@@ -165,36 +167,9 @@ class IrConverter {
 
   // Defines "node" to map the the result of running "ir_func" with "args" -- if
   // emit_positions is on grabs the span from the node and uses it in the call.
-  //
-  // Implementation note: it'd be a bit more natural to define the source
-  // location as the last argument in the lambda given how the FunctionBuilder
-  // method signatures look, but GCC (10.2 as of this writing) can't deduce the
-  // parameter pack unless it's at the end, and it also requires we explicitly
-  // type the std::function in callers.
-  template <typename... Args>
   BValue Def(
       AstNode* node,
-      const std::function<BValue(
-          FunctionBuilder&, absl::optional<SourceLocation>, Args...)>& ir_func,
-      Args... args) {
-    absl::optional<SourceLocation> loc;
-    absl::optional<Span> span = node->GetSpan();
-    if (emit_positions_ && span.has_value()) {
-      const Pos& start_pos = span->start();
-      Lineno lineno(start_pos.lineno());
-      Colno colno(start_pos.colno());
-      // TODO(leary): 2020-12-20 Figure out the fileno based on the module owner
-      // of node.
-      loc.emplace(fileno_, lineno, colno);
-    }
-
-    BValue result = ir_func(*function_builder_, loc, args...);
-    XLS_VLOG(4) << absl::StreamFormat("Define node '%s' (%s) to be %s @ %s",
-                                      node->ToString(), node->GetNodeTypeName(),
-                                      ToString(result), SpanToString(span));
-    SetNodeToIr(node, result);
-    return result;
-  }
+      const std::function<BValue(absl::optional<SourceLocation>)>& ir_func);
 
   // Package that IR is being generated into.
   std::shared_ptr<Package> package_;

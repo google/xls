@@ -289,73 +289,8 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
   def visit_Ternary(self, node: ast.Ternary):
     self.state.handle_ternary(node)
 
-  def _visit_concat(self, node: ast.Binop):
-    output_type = self._resolve_type(node)
-    lhs, rhs = self._use(node.lhs), self._use(node.rhs)
-    if isinstance(output_type, BitsType):
-      self._def(node, self.fb.add_concat, (lhs, rhs))
-      return
-
-    # Fallthrough case should be an ArrayType
-    assert isinstance(output_type, ArrayType), (
-        f'concat operator expected BitsType or ArrayType, got {output_type}')
-    self._def(node, self.fb.add_array_concat, (lhs, rhs))
-
   def visit_Binop(self, node: ast.Binop):
-    lhs_type = self.type_info.get_type(node.lhs)
-    signed_input = isinstance(lhs_type, BitsType) and lhs_type.signed
-
-    # Concat is handled specially since the array-typed operation has no
-    # directly corresponding IR operation.
-    # See https://github.com/google/xls/issues/72
-    if node.kind == ast.BinopKind.CONCAT:
-      return self._visit_concat(node)
-
-    f = {
-        # Arithmetic.
-        ast.BinopKind.ADD:
-            self.fb.add_add,
-        ast.BinopKind.SUB:
-            self.fb.add_sub,
-        ast.BinopKind.MUL:
-            self.fb.add_smul if signed_input else self.fb.add_umul,
-        ast.BinopKind.DIV:
-            self.fb.add_udiv,
-        # Comparisons.
-        ast.BinopKind.EQ:
-            self.fb.add_eq,
-        ast.BinopKind.NE:
-            self.fb.add_ne,
-        ast.BinopKind.GE:
-            self.fb.add_sge if signed_input else self.fb.add_uge,
-        ast.BinopKind.GT:
-            self.fb.add_sgt if signed_input else self.fb.add_ugt,
-        ast.BinopKind.LE:
-            self.fb.add_sle if signed_input else self.fb.add_ule,
-        ast.BinopKind.LT:
-            self.fb.add_slt if signed_input else self.fb.add_ult,
-        # Shifts.
-        ast.BinopKind.SHRL:
-            self.fb.add_shrl,
-        ast.BinopKind.SHLL:
-            self.fb.add_shll,
-        ast.BinopKind.SHRA:
-            self.fb.add_shra,
-        # Bitwise.
-        ast.BinopKind.XOR:
-            self.fb.add_xor,
-        ast.BinopKind.AND:
-            self.fb.add_and,
-        ast.BinopKind.OR:
-            self.fb.add_or,
-        # Logical.
-        ast.BinopKind.LOGICAL_AND:
-            self.fb.add_and,
-        ast.BinopKind.LOGICAL_OR:
-            self.fb.add_or,
-    }[node.kind]
-
-    self._def(node, f, self._use(node.lhs), self._use(node.rhs))
+    self.state.handle_binop(node)
 
   def _next_counted_for_ordinal(self) -> int:
     return self.state.get_and_bump_counted_for_count()
