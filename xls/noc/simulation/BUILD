@@ -64,3 +64,61 @@ cc_test(
         "@com_google_googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "parameters",
+    hdrs = ["parameters.h"],
+    deps = [
+        ":common",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:variant",
+        "//xls/common:integral_types",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "//xls/noc/config:network_config_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "parameters_test",
+    srcs = ["parameters_test.cc"],
+    deps = [
+        ":parameters",
+        "//xls/common/status:matchers",
+        "//xls/noc/config:network_config_cc_proto",
+        "//xls/noc/config:network_config_proto_builder",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "network_graph_builder",
+    srcs = ["network_graph_builder.cc"],
+    hdrs = ["network_graph_builder.h"],
+    deps = [
+        ":common",
+        ":network_graph",
+        ":parameters",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common:integral_types",
+        "//xls/common/status:ret_check",
+        "//xls/noc/config:network_config_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "network_graph_builder_test",
+    srcs = ["network_graph_builder_test.cc"],
+    deps = [
+        ":network_graph_builder",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/noc/config:network_config_cc_proto",
+        "//xls/noc/config:network_config_proto_builder",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
