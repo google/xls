@@ -444,7 +444,6 @@ cc_library(
     srcs = ["value_helpers.cc"],
     hdrs = ["value_helpers.h"],
     deps = [
-        ":ir",
         ":type",
         ":value",
         "//xls/common/logging",
@@ -886,6 +885,17 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "random_value",
+    srcs = ["random_value.cc"],
+    hdrs = ["random_value.h"],
+    deps = [
+        ":ir",
+        ":type",
+        ":value",
+    ],
+)
+
 cc_test(
     name = "value_view_test",
     srcs = ["value_view_test.cc"],
@@ -934,6 +944,7 @@ cc_test(
     deps = [
         ":bits_ops",
         ":ir",
+        ":ir_parser",
         ":value",
         ":value_helpers",
         "//xls/common/status:matchers",

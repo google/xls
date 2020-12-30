@@ -56,43 +56,9 @@ Value ZeroOfType(Type* type) {
 }
 
 Value AllOnesOfType(Type* type) {
-  return ValueOfType(
-      type, [](int64 bit_count) { return SBits(-1, /*bit_count=*/bit_count); });
-}
-
-Value RandomValue(Type* type, std::minstd_rand* engine) {
-  if (type->IsTuple()) {
-    TupleType* tuple_type = type->AsTupleOrDie();
-    std::vector<Value> elements;
-    for (int64 i = 0; i < tuple_type->size(); ++i) {
-      elements.push_back(RandomValue(tuple_type->element_type(i), engine));
-    }
-    return Value::Tuple(elements);
-  }
-  if (type->IsArray()) {
-    ArrayType* array_type = type->AsArrayOrDie();
-    std::vector<Value> elements;
-    for (int64 i = 0; i < array_type->size(); ++i) {
-      elements.push_back(RandomValue(array_type->element_type(), engine));
-    }
-    return Value::Array(elements).value();
-  }
-  int64 bit_count = type->AsBitsOrDie()->bit_count();
-  std::vector<uint8> bytes;
-  std::uniform_int_distribution<uint8> generator(0, 255);
-  for (int64 i = 0; i < bit_count; i += 8) {
-    bytes.push_back(generator(*engine));
-  }
-  return Value(Bits::FromBytes(bytes, bit_count));
-}
-
-std::vector<Value> RandomFunctionArguments(Function* f,
-                                           std::minstd_rand* engine) {
-  std::vector<Value> inputs;
-  for (Param* param : f->params()) {
-    inputs.push_back(RandomValue(param->GetType(), engine));
-  }
-  return inputs;
+  return ValueOfType(type, [](int64 bit_count) {
+    return bit_count == 0 ? Bits(0) : SBits(-1, /*bit_count=*/bit_count);
+  });
 }
 
 Value F32ToTuple(float value) {

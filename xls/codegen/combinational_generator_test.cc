@@ -14,6 +14,8 @@
 
 #include "xls/codegen/combinational_generator.h"
 
+#include <random>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
@@ -24,7 +26,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
-#include "xls/ir/value_helpers.h"
+#include "xls/ir/random_value.h"
 #include "xls/simulation/module_simulator.h"
 #include "xls/simulation/verilog_simulators.h"
 #include "xls/simulation/verilog_test_base.h"

@@ -28,7 +28,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/ir_parser.h"
-#include "xls/ir/value_helpers.h"
+#include "xls/ir/random_value.h"
 #include "xls/jit/ir_jit.h"
 #include "xls/passes/passes.h"
 #include "xls/passes/standard_pipeline.h"

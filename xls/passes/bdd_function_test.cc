@@ -14,6 +14,8 @@
 
 #include "xls/passes/bdd_function.h"
 
+#include <random>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
@@ -22,7 +24,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
-#include "xls/ir/value_helpers.h"
+#include "xls/ir/random_value.h"
 
 namespace xls {
 namespace {

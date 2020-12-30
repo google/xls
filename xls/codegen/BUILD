@@ -76,7 +76,7 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
-        "//xls/ir:value_helpers",
+        "//xls/ir:random_value",
         "//xls/simulation:module_simulator",
         "//xls/simulation:verilog_simulators",
         "//xls/simulation:verilog_test_base",

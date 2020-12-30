@@ -957,7 +957,7 @@ cc_test(
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
-        "//xls/ir:value_helpers",
+        "//xls/ir:random_value",
         "@com_google_googletest//:gtest_main",
     ],
 )

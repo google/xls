@@ -483,7 +483,7 @@ cc_binary(
         "//xls/common/status:status_macros",
         "//xls/interpreter:ir_interpreter",
         "//xls/ir:ir_parser",
-        "//xls/ir:value_helpers",
+        "//xls/ir:random_value",
         "//xls/jit:ir_jit",
         "//xls/passes",
         "//xls/passes:standard_pipeline",

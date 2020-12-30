@@ -15,12 +15,9 @@
 #ifndef XLS_IR_VALUE_HELPERS_H_
 #define XLS_IR_VALUE_HELPERS_H_
 
-#include <random>
-
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/logging/logging.h"
-#include "xls/ir/function.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
@@ -42,24 +39,15 @@ inline void ValueFormatterBinary(std::string* out, const Value& value) {
   absl::StrAppend(out, value.ToString(FormatPreference::kBinary));
 }
 
-// Returns a Value with random uniformly distributed bits using the given
-// engine.
-Value RandomValue(Type* type, std::minstd_rand* engine);
-
-// Returns a set of argument values for the given function with random uniformly
-// distributed bits using the given engine.
-std::vector<Value> RandomFunctionArguments(Function* f,
-                                           std::minstd_rand* engine);
-
 // Returns whether "value" conforms to type "type" -- this lets us avoid
 // constructing a Type and doing an equivalence check on hot paths.
-inline bool ValueConformsToType(const Value& value, const Type* type) {
+inline bool ValueConformsToType(const Value& value, Type* type) {
   switch (value.kind()) {
     case ValueKind::kBits:
       return type->IsBits() &&
              value.bits().bit_count() == type->AsBitsOrDie()->bit_count();
     case ValueKind::kArray:
-      return type->IsArray() &&
+      return type->IsArray() && type->AsArrayOrDie()->size() == value.size() &&
              ValueConformsToType(value.element(0),
                                  type->AsArrayOrDie()->element_type());
     case ValueKind::kTuple: {
