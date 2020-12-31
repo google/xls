@@ -43,8 +43,8 @@ ProcNetworkInterpreter::Create(
   // Inject initial values into channels.
   for (Channel* channel : package->channels()) {
     ChannelQueue& queue = interpreter->queue_manager().GetQueue(channel);
-    for (const std::vector<Value>& values : channel->initial_values()) {
-      XLS_RETURN_IF_ERROR(queue.Enqueue(values));
+    for (const Value& value : channel->initial_values()) {
+      XLS_RETURN_IF_ERROR(queue.Enqueue(value));
     }
   }
 

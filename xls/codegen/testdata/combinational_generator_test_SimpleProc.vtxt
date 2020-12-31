@@ -1,8 +1,8 @@
 module my_proc(
-  input wire [31:0] my_in,
-  output wire [31:0] my_out
+  input wire [31:0] in,
+  output wire [31:0] out
 );
   wire [31:0] negate;
-  assign negate = -my_in;
-  assign my_out = negate;
+  assign negate = -in;
+  assign out = negate;
 endmodule

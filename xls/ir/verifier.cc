@@ -93,7 +93,8 @@ class NodeChecker : public DfsVisitor {
     }
     XLS_ASSIGN_OR_RETURN(Channel * channel,
                          receive->package()->GetChannel(receive->channel_id()));
-    Type* expected_type = receive->package()->GetReceiveType(channel);
+    Type* expected_type = receive->package()->GetTupleType(
+        {receive->package()->GetTokenType(), channel->type()});
     if (receive->GetType() != expected_type) {
       return absl::InternalError(StrFormat(
           "Expected %s to have type %s, has type %s", receive->GetName(),
@@ -120,7 +121,8 @@ class NodeChecker : public DfsVisitor {
     }
     XLS_ASSIGN_OR_RETURN(Channel * channel, receive_if->package()->GetChannel(
                                                 receive_if->channel_id()));
-    Type* expected_type = receive_if->package()->GetReceiveType(channel);
+    Type* expected_type = receive_if->package()->GetTupleType(
+        {receive_if->package()->GetTokenType(), channel->type()});
     if (receive_if->GetType() != expected_type) {
       return absl::InternalError(StrFormat(
           "Expected %s to have type %s, has type %s", receive_if->GetName(),

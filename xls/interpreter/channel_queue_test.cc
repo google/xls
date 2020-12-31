@@ -28,7 +28,6 @@ namespace {
 
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
-using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 
 class ChannelQueueTest : public IrTestBase {};
@@ -38,48 +37,27 @@ TEST_F(ChannelQueueTest, SingleDataElementEnqueueDequeue) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * channel, package.CreateStreamingChannel(
                              "my_channel", Channel::SupportedOps::kSendReceive,
-                             {DataElement{"data", package.GetBitsType(32)}}));
+                             package.GetBitsType(32)));
   ChannelQueue queue(channel, &package);
   EXPECT_EQ(queue.channel(), channel);
   EXPECT_EQ(queue.size(), 0);
   EXPECT_TRUE(queue.empty());
 
-  XLS_ASSERT_OK(queue.Enqueue({Value(UBits(42, 32))}));
+  XLS_ASSERT_OK(queue.Enqueue(Value(UBits(42, 32))));
   EXPECT_EQ(queue.size(), 1);
   EXPECT_FALSE(queue.empty());
 
-  XLS_ASSERT_OK(queue.Enqueue({Value(UBits(123, 32))}));
+  XLS_ASSERT_OK(queue.Enqueue(Value(UBits(123, 32))));
   EXPECT_EQ(queue.size(), 2);
   EXPECT_FALSE(queue.empty());
 
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(ElementsAre(Value(UBits(42, 32)))));
+  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(42, 32))));
   EXPECT_EQ(queue.size(), 1);
   EXPECT_FALSE(queue.empty());
 
-  EXPECT_THAT(queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(123, 32)))));
+  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(123, 32))));
   EXPECT_EQ(queue.size(), 0);
   EXPECT_TRUE(queue.empty());
-}
-
-TEST_F(ChannelQueueTest, MultipleDataElementEnqueueDequeue) {
-  Package package(TestName());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * channel, package.CreateStreamingChannel(
-                             "my_channel", Channel::SupportedOps::kSendReceive,
-                             {DataElement{"bool", package.GetBitsType(1)},
-                              DataElement{"int", package.GetBitsType(32)}}));
-  ChannelQueue queue(channel, &package);
-  XLS_ASSERT_OK(queue.Enqueue({Value(UBits(0, 1)), Value(UBits(42, 32))}));
-  XLS_ASSERT_OK(queue.Enqueue({Value(UBits(1, 1)), Value(UBits(123, 32))}));
-  XLS_ASSERT_OK(queue.Enqueue({Value(UBits(1, 1)), Value(UBits(555, 32))}));
-
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(ElementsAre(Value(UBits(0, 1)),
-                                                        Value(UBits(42, 32)))));
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(ElementsAre(
-                                   Value(UBits(1, 1)), Value(UBits(123, 32)))));
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(ElementsAre(
-                                   Value(UBits(1, 1)), Value(UBits(555, 32)))));
 }
 
 TEST_F(ChannelQueueTest, ErrorConditions) {
@@ -87,8 +65,7 @@ TEST_F(ChannelQueueTest, ErrorConditions) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * channel, package.CreateStreamingChannel(
                              "my_channel", Channel::SupportedOps::kSendReceive,
-                             {DataElement{"bool", package.GetBitsType(1)},
-                              DataElement{"int", package.GetBitsType(32)}}));
+                             package.GetBitsType(1)));
 
   ChannelQueue queue(channel, &package);
 
@@ -99,15 +76,10 @@ TEST_F(ChannelQueueTest, ErrorConditions) {
           HasSubstr(
               "Attempting to dequeue data from empty channel my_channel")));
 
-  EXPECT_THAT(
-      queue.Enqueue({Value(UBits(1, 1))}),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Channel my_channel expects 2 data elements, got 1")));
-
-  EXPECT_THAT(queue.Enqueue({Value(UBits(1, 1)), Value(UBits(123, 555))}),
+  EXPECT_THAT(queue.Enqueue(Value(UBits(44, 123))),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Channel my_channel expects data element 1 to "
-                                 "have type bits[32], got bits[555]")));
+                       HasSubstr("Channel my_channel expects values to have "
+                                 "type bits[1], got: bits[123]:0x2c")));
 }
 
 TEST_F(ChannelQueueTest, InputQueue) {
@@ -115,22 +87,19 @@ TEST_F(ChannelQueueTest, InputQueue) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * channel, package.CreateStreamingChannel(
                              "my_channel", Channel::SupportedOps::kReceiveOnly,
-                             {DataElement{"int", package.GetBitsType(32)}}));
+                             package.GetBitsType(32)));
   int64 counter = 42;
-  RxOnlyChannelQueue queue(channel, &package,
-                           [&]() -> absl::StatusOr<ChannelData> {
-                             ChannelData data({Value(UBits(counter, 32))});
-                             ++counter;
-                             return std::move(data);
-                           });
+  RxOnlyChannelQueue queue(channel, &package, [&]() -> absl::StatusOr<Value> {
+    return Value(UBits(counter++, 32));
+  });
   EXPECT_FALSE(queue.empty());
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(ElementsAre(Value(UBits(42, 32)))));
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(ElementsAre(Value(UBits(43, 32)))));
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(ElementsAre(Value(UBits(44, 32)))));
+  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(42, 32))));
+  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(43, 32))));
+  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(44, 32))));
   EXPECT_FALSE(queue.empty());
 
   EXPECT_THAT(
-      queue.Enqueue(ChannelData({Value(UBits(22, 32))})),
+      queue.Enqueue(Value(UBits(22, 32))),
       StatusIs(
           absl::StatusCode::kUnimplemented,
           HasSubstr(
@@ -142,16 +111,15 @@ TEST_F(ChannelQueueTest, FixedInputQueue) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * channel, package.CreateStreamingChannel(
                              "my_channel", Channel::SupportedOps::kReceiveOnly,
-                             {DataElement{"int", package.GetBitsType(32)}}));
+                             package.GetBitsType(32)));
   FixedRxOnlyChannelQueue queue(
       channel, &package,
-      {ChannelData({Value(UBits(22, 32))}), ChannelData({Value(UBits(44, 32))}),
-       ChannelData({Value(UBits(55, 32))})});
+      {Value(UBits(22, 32)), Value(UBits(44, 32)), Value(UBits(55, 32))});
   EXPECT_EQ(queue.size(), 3);
   EXPECT_FALSE(queue.empty());
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(ElementsAre(Value(UBits(22, 32)))));
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(ElementsAre(Value(UBits(44, 32)))));
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(ElementsAre(Value(UBits(55, 32)))));
+  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(22, 32))));
+  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(44, 32))));
+  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(55, 32))));
   EXPECT_TRUE(queue.empty());
 }
 
@@ -160,7 +128,7 @@ TEST_F(ChannelQueueTest, EmptyFixedInputQueue) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * channel, package.CreateStreamingChannel(
                              "my_channel", Channel::SupportedOps::kReceiveOnly,
-                             {DataElement{"int", package.GetBitsType(32)}}));
+                             package.GetBitsType(32)));
   FixedRxOnlyChannelQueue queue(channel, &package, {});
   EXPECT_EQ(queue.size(), 0);
   EXPECT_TRUE(queue.empty());
@@ -168,27 +136,25 @@ TEST_F(ChannelQueueTest, EmptyFixedInputQueue) {
 
 TEST_F(ChannelQueueTest, SimpleChannelQueueManager) {
   Package package(TestName());
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * channel_a,
-                           package.CreateStreamingChannel(
-                               "a", Channel::SupportedOps::kReceiveOnly,
-                               {DataElement{"data", package.GetBitsType(32)}}));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * channel_b,
-                           package.CreateStreamingChannel(
-                               "b", Channel::SupportedOps::kReceiveOnly,
-                               {DataElement{"data", package.GetBitsType(32)}}));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * channel_c,
-                           package.CreateStreamingChannel(
-                               "c", Channel::SupportedOps::kSendReceive,
-                               {DataElement{"data", package.GetBitsType(32)}}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel_a,
+      package.CreateStreamingChannel("a", Channel::SupportedOps::kReceiveOnly,
+                                     package.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel_b,
+      package.CreateStreamingChannel("b", Channel::SupportedOps::kReceiveOnly,
+                                     package.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel_c,
+      package.CreateStreamingChannel("c", Channel::SupportedOps::kSendReceive,
+                                     package.GetBitsType(32)));
 
   std::vector<std::unique_ptr<RxOnlyChannelQueue>> rx_only_queues;
   rx_only_queues.push_back(absl::make_unique<RxOnlyChannelQueue>(
-      channel_a, &package, []() -> absl::StatusOr<ChannelData> {
-        return ChannelData({Value(UBits(42, 32))});
-      }));
-  std::vector<ChannelData> fixed_input = {ChannelData({Value(UBits(1, 32))}),
-                                          ChannelData({Value(UBits(2, 32))}),
-                                          ChannelData({Value(UBits(3, 32))})};
+      channel_a, &package,
+      []() -> absl::StatusOr<Value> { return Value(UBits(42, 32)); }));
+  std::vector<Value> fixed_input = {Value(UBits(1, 32)), Value(UBits(2, 32)),
+                                    Value(UBits(3, 32))};
   rx_only_queues.push_back(absl::make_unique<FixedRxOnlyChannelQueue>(
       channel_b, &package, fixed_input));
 
@@ -197,15 +163,15 @@ TEST_F(ChannelQueueTest, SimpleChannelQueueManager) {
       ChannelQueueManager::Create(std::move(rx_only_queues), &package));
   EXPECT_EQ(manager->queues().size(), 3);
   EXPECT_THAT(manager->GetQueue(channel_a).Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(42, 32)))));
+              IsOkAndHolds(Value(UBits(42, 32))));
   EXPECT_THAT(manager->GetQueue(channel_a).Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(42, 32)))));
+              IsOkAndHolds(Value(UBits(42, 32))));
   EXPECT_THAT(manager->GetQueue(channel_b).Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(1, 32)))));
+              IsOkAndHolds(Value(UBits(1, 32))));
   EXPECT_THAT(manager->GetQueue(channel_b).Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(2, 32)))));
+              IsOkAndHolds(Value(UBits(2, 32))));
   EXPECT_THAT(manager->GetQueue(channel_b).Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(3, 32)))));
+              IsOkAndHolds(Value(UBits(3, 32))));
   EXPECT_TRUE(manager->GetQueue(channel_c).empty());
 }
 
@@ -219,11 +185,11 @@ TEST_F(ChannelQueueTest, ChannelQueueManagerNoChannels) {
 
 TEST_F(ChannelQueueTest, ChannelQueueManagerPortChannel) {
   Package package(TestName());
-  XLS_ASSERT_OK(
-      package
-          .CreatePortChannel("ch", Channel::SupportedOps::kSendReceive,
-                             {DataElement{"data", package.GetBitsType(32)}})
-          .status());
+  XLS_ASSERT_OK(package
+                    .CreatePortChannel("ch",
+                                       Channel::SupportedOps::kSendReceive,
+                                       package.GetBitsType(32))
+                    .status());
   EXPECT_THAT(
       ChannelQueueManager::Create(/*rx_only_queues=*/{}, &package).status(),
       StatusIs(absl::StatusCode::kUnimplemented,
@@ -232,18 +198,18 @@ TEST_F(ChannelQueueTest, ChannelQueueManagerPortChannel) {
 
 TEST_F(ChannelQueueTest, ChannelQueueManagerErrorConditions) {
   Package package(TestName());
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * channel_a,
-                           package.CreateStreamingChannel(
-                               "a", Channel::SupportedOps::kReceiveOnly,
-                               {DataElement{"data", package.GetBitsType(32)}}));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * channel_b,
-                           package.CreateStreamingChannel(
-                               "b", Channel::SupportedOps::kReceiveOnly,
-                               {DataElement{"data", package.GetBitsType(32)}}));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * channel_c,
-                           package.CreateStreamingChannel(
-                               "c", Channel::SupportedOps::kSendReceive,
-                               {DataElement{"data", package.GetBitsType(32)}}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel_a,
+      package.CreateStreamingChannel("a", Channel::SupportedOps::kReceiveOnly,
+                                     package.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel_b,
+      package.CreateStreamingChannel("b", Channel::SupportedOps::kReceiveOnly,
+                                     package.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel_c,
+      package.CreateStreamingChannel("c", Channel::SupportedOps::kSendReceive,
+                                     package.GetBitsType(32)));
 
   EXPECT_THAT(
       ChannelQueueManager::Create(/*rx_only_queues=*/{}, &package).status(),
@@ -261,9 +227,8 @@ TEST_F(ChannelQueueTest, ChannelQueueManagerErrorConditions) {
   {
     std::vector<std::unique_ptr<RxOnlyChannelQueue>> rx_only_queues;
     rx_only_queues.push_back(absl::make_unique<RxOnlyChannelQueue>(
-        channel_a, &package, []() -> absl::StatusOr<ChannelData> {
-          return ChannelData({Value(UBits(42, 32))});
-        }));
+        channel_a, &package,
+        []() -> absl::StatusOr<Value> { return Value(UBits(42, 32)); }));
     EXPECT_THAT(
         ChannelQueueManager::Create(std::move(rx_only_queues), &package)
             .status(),
@@ -276,17 +241,14 @@ TEST_F(ChannelQueueTest, ChannelQueueManagerErrorConditions) {
   {
     std::vector<std::unique_ptr<RxOnlyChannelQueue>> rx_only_queues;
     rx_only_queues.push_back(absl::make_unique<RxOnlyChannelQueue>(
-        channel_a, &package, []() -> absl::StatusOr<ChannelData> {
-          return ChannelData({Value(UBits(42, 32))});
-        }));
+        channel_a, &package,
+        []() -> absl::StatusOr<Value> { return Value(UBits(42, 32)); }));
     rx_only_queues.push_back(absl::make_unique<RxOnlyChannelQueue>(
-        channel_a, &package, []() -> absl::StatusOr<ChannelData> {
-          return ChannelData({Value(UBits(42, 32))});
-        }));
+        channel_a, &package,
+        []() -> absl::StatusOr<Value> { return Value(UBits(42, 32)); }));
     rx_only_queues.push_back(absl::make_unique<RxOnlyChannelQueue>(
-        channel_b, &package, []() -> absl::StatusOr<ChannelData> {
-          return ChannelData({Value(UBits(42, 32))});
-        }));
+        channel_b, &package,
+        []() -> absl::StatusOr<Value> { return Value(UBits(42, 32)); }));
     EXPECT_THAT(
         ChannelQueueManager::Create(std::move(rx_only_queues), &package)
             .status(),
@@ -298,17 +260,14 @@ TEST_F(ChannelQueueTest, ChannelQueueManagerErrorConditions) {
   {
     std::vector<std::unique_ptr<RxOnlyChannelQueue>> rx_only_queues;
     rx_only_queues.push_back(absl::make_unique<RxOnlyChannelQueue>(
-        channel_a, &package, []() -> absl::StatusOr<ChannelData> {
-          return ChannelData({Value(UBits(42, 32))});
-        }));
+        channel_a, &package,
+        []() -> absl::StatusOr<Value> { return Value(UBits(42, 32)); }));
     rx_only_queues.push_back(absl::make_unique<RxOnlyChannelQueue>(
-        channel_b, &package, []() -> absl::StatusOr<ChannelData> {
-          return ChannelData({Value(UBits(42, 32))});
-        }));
+        channel_b, &package,
+        []() -> absl::StatusOr<Value> { return Value(UBits(42, 32)); }));
     rx_only_queues.push_back(absl::make_unique<RxOnlyChannelQueue>(
-        channel_c, &package, []() -> absl::StatusOr<ChannelData> {
-          return ChannelData({Value(UBits(42, 32))});
-        }));
+        channel_c, &package,
+        []() -> absl::StatusOr<Value> { return Value(UBits(42, 32)); }));
     EXPECT_THAT(
         ChannelQueueManager::Create(std::move(rx_only_queues), &package)
             .status(),

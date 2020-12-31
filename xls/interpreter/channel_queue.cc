@@ -20,80 +20,62 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value_helpers.h"
 
 namespace xls {
-namespace {
 
-std::string ToString(ChannelData data) {
-  return absl::StrJoin(data, "; ", [](std::string* out, const Value& v) {
-    return absl::StrAppend(out, v.ToString());
-  });
-}
-
-}  // namespace
-
-absl::Status ChannelQueue::Enqueue(const ChannelData& data) {
-  XLS_VLOG(4) << absl::StreamFormat("Enqueuing data on channel %s: { %s }",
-                                    channel_->name(), ToString(data));
-  if (data.size() != channel_->data_elements().size()) {
+absl::Status ChannelQueue::Enqueue(const Value& value) {
+  XLS_VLOG(4) << absl::StreamFormat("Enqueuing value on channel %s: { %s }",
+                                    channel_->name(), value.ToString());
+  if (!ValueConformsToType(value, channel_->type())) {
     return absl::InvalidArgumentError(absl::StrFormat(
-        "Channel %s expects %d data elements, got %d", channel_->name(),
-        channel_->data_elements().size(), data.size()));
-  }
-  for (int64 i = 0; i < data.size(); ++i) {
-    Type* expected_type = channel_->data_element(i).type;
-    Type* actual_type = package_->GetTypeForValue(data[i]);
-    if (expected_type != actual_type) {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Channel %s expects data element %d to have type %s, got %s",
-          channel_->name(), i, expected_type->ToString(),
-          actual_type->ToString()));
-    }
+        "Channel %s expects values to have type %s, got: %s", channel_->name(),
+        channel_->type()->ToString(), value.ToString()));
   }
 
   absl::MutexLock lock(&mutex_);
-  queue_.push_back(data);
+  queue_.push_back(value);
   XLS_VLOG(4) << absl::StreamFormat("Channel now has %d elements", size());
   return absl::OkStatus();
 }
 
-absl::StatusOr<ChannelData> ChannelQueue::Dequeue() {
+absl::StatusOr<Value> ChannelQueue::Dequeue() {
   if (empty()) {
     return absl::NotFoundError(
         absl::StrFormat("Attempting to dequeue data from empty channel %s (%d)",
                         channel_->name(), channel_->id()));
   }
   absl::MutexLock lock(&mutex_);
-  ChannelData data = queue_.front();
+  Value value = queue_.front();
   queue_.pop_front();
-  XLS_VLOG(4) << absl::StreamFormat("Dequeuing data on channel %s: { %s }",
-                                    channel_->name(), ToString(data));
+  XLS_VLOG(4) << absl::StreamFormat("Dequeuing data on channel %s: %s",
+                                    channel_->name(), value.ToString());
   XLS_VLOG(4) << absl::StreamFormat("Channel now has %d elements", size());
-  return std::move(data);
+  return std::move(value);
 }
 
-absl::Status RxOnlyChannelQueue::Enqueue(const ChannelData& data) {
+absl::Status RxOnlyChannelQueue::Enqueue(const Value& value) {
   return absl::UnimplementedError(
       absl::StrFormat("Cannot enqueue to RxOnlyChannelQueue on channel %s.",
                       channel()->name()));
 }
 
-absl::StatusOr<ChannelData> RxOnlyChannelQueue::Dequeue() {
-  XLS_ASSIGN_OR_RETURN(ChannelData data, generator_func_());
-  XLS_VLOG(4) << absl::StreamFormat("Dequeuing data on channel %s: { %s }",
-                                    channel()->name(), ToString(data));
-  return std::move(data);
+absl::StatusOr<Value> RxOnlyChannelQueue::Dequeue() {
+  XLS_ASSIGN_OR_RETURN(Value value, generator_func_());
+  XLS_VLOG(4) << absl::StreamFormat("Dequeuing data on channel %s: %s",
+                                    channel()->name(), value.ToString());
+  return std::move(value);
 }
 
-absl::StatusOr<ChannelData> FixedRxOnlyChannelQueue::GenerateData() {
-  if (data_.empty()) {
+absl::StatusOr<Value> FixedRxOnlyChannelQueue::GenerateValue() {
+  if (values_.empty()) {
     return absl::ResourceExhaustedError(
         absl::StrFormat("FixedInputChannel for channel %s (%d) is empty.",
                         channel()->name(), channel()->id()));
   }
-  ChannelData data = std::move(data_.front());
-  data_.pop_front();
-  return std::move(data);
+  Value value = std::move(values_.front());
+  values_.pop_front();
+  return std::move(value);
 }
 
 /* static */

@@ -177,6 +177,7 @@ cc_library(
         ":type",
         ":unwrapping_iterator",
         ":value",
+        ":value_helpers",
         "//xls/common:casts",
         "//xls/common:integral_types",
         "//xls/common:iterator_range",

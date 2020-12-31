@@ -173,6 +173,7 @@ cc_library(
         "//xls/ir:channel",
         "//xls/ir:type",
         "//xls/ir:value",
+        "//xls/ir:value_helpers",
     ],
 )
 

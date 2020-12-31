@@ -156,8 +156,8 @@ absl::Status SerialProcRuntime::Init() {
       return absl::UnimplementedError(
           "Only streaming channels are supported in serial proc runtime.");
     }
-    for (const std::vector<Value>& values : channel->initial_values()) {
-      XLS_RETURN_IF_ERROR(EnqueueValuesToChannel(channel, values));
+    for (const Value& value : channel->initial_values()) {
+      XLS_RETURN_IF_ERROR(EnqueueValueToChannel(channel, value));
     }
   }
 
@@ -217,18 +217,9 @@ absl::Status SerialProcRuntime::Tick() {
   return absl::OkStatus();
 }
 
-absl::Status SerialProcRuntime::EnqueueValuesToChannel(
-    Channel* channel, absl::Span<const Value> values) {
-  XLS_RET_CHECK_EQ(values.size(), channel->data_elements().size());
-  for (int64 i = 0; i < values.size(); ++i) {
-    XLS_RET_CHECK_EQ(package_->GetTypeForValue(values[i]),
-                     channel->data_element(i).type);
-  }
-  if (values.size() != 1) {
-    return absl::UnimplementedError(
-        "Multiple-element channels not supported in JIT.");
-  }
-  const Value& value = values.front();
+absl::Status SerialProcRuntime::EnqueueValueToChannel(Channel* channel,
+                                                      const Value& value) {
+  XLS_RET_CHECK_EQ(package_->GetTypeForValue(value), channel->type());
   Type* type = package_->GetTypeForValue(value);
 
   XLS_RET_CHECK(!threads_.empty());
@@ -244,13 +235,9 @@ absl::Status SerialProcRuntime::EnqueueValuesToChannel(
   return absl::OkStatus();
 }
 
-absl::StatusOr<std::vector<Value>> SerialProcRuntime::DequeueValuesFromChannel(
+absl::StatusOr<Value> SerialProcRuntime::DequeueValueFromChannel(
     Channel* channel) {
-  if (channel->data_elements().size() != 1) {
-    return absl::UnimplementedError(
-        "Multiple-element channels not supported in JIT.");
-  }
-  Type* type = channel->data_elements().front().type;
+  Type* type = channel->type();
 
   XLS_RET_CHECK(!threads_.empty());
   IrJit* jit = threads_.front()->jit.get();
@@ -261,7 +248,7 @@ absl::StatusOr<std::vector<Value>> SerialProcRuntime::DequeueValuesFromChannel(
                        queue_mgr()->GetQueueById(channel->id()));
   queue->Recv(buffer.get(), size);
 
-  return std::vector<Value>({jit->runtime()->UnpackBuffer(buffer.get(), type)});
+  return jit->runtime()->UnpackBuffer(buffer.get(), type);
 }
 
 }  // namespace xls

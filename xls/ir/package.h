@@ -170,19 +170,19 @@ class Package {
   // allocated.
   // TODO(meheff): Consider using a builder for constructing a channel.
   absl::StatusOr<StreamingChannel*> CreateStreamingChannel(
-      absl::string_view name, Channel::SupportedOps supported_ops,
-      absl::Span<const DataElement> data_elements,
-      absl::optional<int64> id = absl::nullopt,
-      const ChannelMetadataProto& metadata = ChannelMetadataProto());
+      absl::string_view name, Channel::SupportedOps supported_ops, Type* type,
+      absl::Span<const Value> initial_values = {},
+      const ChannelMetadataProto& metadata = ChannelMetadataProto(),
+      absl::optional<int64> id = absl::nullopt);
   absl::StatusOr<PortChannel*> CreatePortChannel(
-      absl::string_view name, Channel::SupportedOps supported_ops,
-      absl::Span<const DataElement> data_elements,
-      absl::optional<int64> id = absl::nullopt,
-      const ChannelMetadataProto& metadata = ChannelMetadataProto());
+      absl::string_view name, Channel::SupportedOps supported_ops, Type* type,
+      const ChannelMetadataProto& metadata = ChannelMetadataProto(),
+      absl::optional<int64> id = absl::nullopt);
   absl::StatusOr<RegisterChannel*> CreateRegisterChannel(
-      absl::string_view name, absl::Span<const DataElement> data_elements,
-      absl::optional<int64> id = absl::nullopt,
-      const ChannelMetadataProto& metadata = ChannelMetadataProto());
+      absl::string_view name, Type* type,
+      absl::optional<Value> reset_value = absl::nullopt,
+      const ChannelMetadataProto& metadata = ChannelMetadataProto(),
+      absl::optional<int64> id = absl::nullopt);
 
   // Returns a span of the channels owned by the package. Sorted by channel ID.
   absl::Span<Channel* const> channels() const { return channel_vec_; }
@@ -196,9 +196,6 @@ class Package {
   bool HasChannelWithId(int64 id) const {
     return channels_.find(id) != channels_.end();
   }
-
-  // Returns the type of a receive operation for the given channel.
-  Type* GetReceiveType(Channel* channel);
 
  private:
   // Adds the given channel to the package.

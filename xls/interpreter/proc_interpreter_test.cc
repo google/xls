@@ -34,10 +34,10 @@ class ProcInterpreterTest : public IrTestBase {};
 
 TEST_F(ProcInterpreterTest, ProcIota) {
   auto package = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * channel, package->CreateStreamingChannel(
-                             "iota_out", Channel::SupportedOps::kSendOnly,
-                             {DataElement{"data", package->GetBitsType(32)}}));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * channel,
+                           package->CreateStreamingChannel(
+                               "iota_out", Channel::SupportedOps::kSendOnly,
+                               package->GetBitsType(32)));
 
   // Create an output-only proc which counts up by 7 starting at 42.
   ProcBuilder pb("iota", /*init_value=*/Value(UBits(42, 32)),
@@ -64,8 +64,7 @@ TEST_F(ProcInterpreterTest, ProcIota) {
   EXPECT_TRUE(interpreter.IsIterationComplete());
   EXPECT_EQ(ch0_queue.size(), 1);
   EXPECT_FALSE(ch0_queue.empty());
-  EXPECT_THAT(ch0_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(42, 32)))));
+  EXPECT_THAT(ch0_queue.Dequeue(), IsOkAndHolds(Value(UBits(42, 32))));
   EXPECT_EQ(ch0_queue.size(), 0);
   EXPECT_TRUE(ch0_queue.empty());
 
@@ -88,12 +87,9 @@ TEST_F(ProcInterpreterTest, ProcIota) {
 
   EXPECT_EQ(ch0_queue.size(), 3);
 
-  EXPECT_THAT(ch0_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(49, 32)))));
-  EXPECT_THAT(ch0_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(56, 32)))));
-  EXPECT_THAT(ch0_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(63, 32)))));
+  EXPECT_THAT(ch0_queue.Dequeue(), IsOkAndHolds(Value(UBits(49, 32))));
+  EXPECT_THAT(ch0_queue.Dequeue(), IsOkAndHolds(Value(UBits(56, 32))));
+  EXPECT_THAT(ch0_queue.Dequeue(), IsOkAndHolds(Value(UBits(63, 32))));
 
   EXPECT_TRUE(ch0_queue.empty());
 }
@@ -102,14 +98,14 @@ TEST_F(ProcInterpreterTest, ProcWhichReturnsPreviousResults) {
   Package package(TestName());
   ProcBuilder pb("prev", /*init_value=*/Value(UBits(55, 32)),
                  /*token_name=*/"tok", /*state_name=*/"prev", &package);
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ch_in,
-                           package.CreateStreamingChannel(
-                               "in", Channel::SupportedOps::kSendReceive,
-                               {DataElement{"data", package.GetBitsType(32)}}));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ch_out,
-                           package.CreateStreamingChannel(
-                               "out", Channel::SupportedOps::kSendOnly,
-                               {DataElement{"data", package.GetBitsType(32)}}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", Channel::SupportedOps::kSendReceive,
+                                     package.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", Channel::SupportedOps::kSendOnly,
+                                     package.GetBitsType(32)));
 
   // Build a proc which receives a value and saves it, and sends the value
   // received in the previous iteration.
@@ -164,8 +160,7 @@ TEST_F(ProcInterpreterTest, ProcWhichReturnsPreviousResults) {
   EXPECT_TRUE(input_queue.empty());
   EXPECT_EQ(output_queue.size(), 1);
 
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(55, 32)))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(55, 32))));
   EXPECT_TRUE(output_queue.empty());
 
   // Now run the next iteration. It should spit out the value we fed in during
@@ -176,8 +171,7 @@ TEST_F(ProcInterpreterTest, ProcWhichReturnsPreviousResults) {
       IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
                                               .progress_made = true,
                                               .blocked_channels = {}}));
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(42, 32)))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(42, 32))));
 }
 
 TEST_F(ProcInterpreterTest, ReceiveIfProc) {
@@ -187,14 +181,14 @@ TEST_F(ProcInterpreterTest, ReceiveIfProc) {
   Package package(TestName());
   ProcBuilder pb("send_if", /*init_value=*/Value(UBits(1, 1)),
                  /*token_name=*/"tok", /*state_name=*/"st", &package);
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ch_in,
-                           package.CreateStreamingChannel(
-                               "in", Channel::SupportedOps::kSendReceive,
-                               {DataElement{"data", package.GetBitsType(32)}}));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ch_out,
-                           package.CreateStreamingChannel(
-                               "out", Channel::SupportedOps::kSendOnly,
-                               {DataElement{"data", package.GetBitsType(32)}}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", Channel::SupportedOps::kSendReceive,
+                                     package.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", Channel::SupportedOps::kSendOnly,
+                                     package.GetBitsType(32)));
 
   BValue receive_if = pb.ReceiveIf(ch_in, /*token=*/pb.GetTokenParam(),
                                    /*pred=*/pb.GetStateParam());
@@ -227,8 +221,7 @@ TEST_F(ProcInterpreterTest, ReceiveIfProc) {
       IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
                                               .progress_made = true,
                                               .blocked_channels = {}}));
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(42, 32)))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(42, 32))));
 
   // The second iteration should not dequeue anything as the receive_if
   // predicate is now false. The data value of the receive_if (which is sent
@@ -239,8 +232,7 @@ TEST_F(ProcInterpreterTest, ReceiveIfProc) {
       IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
                                               .progress_made = true,
                                               .blocked_channels = {}}));
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(0, 32)))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(0, 32))));
 
   // The third iteration should again dequeue a value.
   XLS_ASSERT_OK(input_queue.Enqueue({Value(UBits(123, 32))}));
@@ -249,8 +241,7 @@ TEST_F(ProcInterpreterTest, ReceiveIfProc) {
       IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
                                               .progress_made = true,
                                               .blocked_channels = {}}));
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(123, 32)))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(123, 32))));
 }
 
 TEST_F(ProcInterpreterTest, SendIfProc) {
@@ -260,7 +251,7 @@ TEST_F(ProcInterpreterTest, SendIfProc) {
   XLS_ASSERT_OK_AND_ASSIGN(Channel * channel,
                            package.CreateStreamingChannel(
                                "even_out", Channel::SupportedOps::kSendOnly,
-                               {DataElement{"data", package.GetBitsType(32)}}));
+                               package.GetBitsType(32)));
 
   ProcBuilder pb("even", /*init_value=*/Value(UBits(0, 32)),
                  /*token_name=*/"tok", /*state_name=*/"prev", &package);
@@ -281,19 +272,19 @@ TEST_F(ProcInterpreterTest, SendIfProc) {
 
   XLS_ASSERT_OK(interpreter.RunIterationUntilCompleteOrBlocked().status());
   EXPECT_EQ(queue.size(), 1);
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(ElementsAre(Value(UBits(0, 32)))));
+  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(0, 32))));
 
   XLS_ASSERT_OK(interpreter.RunIterationUntilCompleteOrBlocked().status());
   EXPECT_TRUE(queue.empty());
 
   XLS_ASSERT_OK(interpreter.RunIterationUntilCompleteOrBlocked().status());
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(ElementsAre(Value(UBits(2, 32)))));
+  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(2, 32))));
 
   XLS_ASSERT_OK(interpreter.RunIterationUntilCompleteOrBlocked().status());
   EXPECT_TRUE(queue.empty());
 
   XLS_ASSERT_OK(interpreter.RunIterationUntilCompleteOrBlocked().status());
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(ElementsAre(Value(UBits(4, 32)))));
+  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(4, 32))));
 }
 
 }  // namespace

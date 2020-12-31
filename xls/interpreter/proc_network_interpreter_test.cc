@@ -42,8 +42,7 @@ absl::StatusOr<Proc*> CreateIotaProc(absl::string_view proc_name,
                                      Channel* channel, Package* package) {
   ProcBuilder pb(proc_name, /*init_value=*/Value(UBits(starting_value, 32)),
                  /*token_name=*/"tok", /*state_name=*/"prev", package);
-  BValue send_token =
-      pb.Send(channel, pb.GetTokenParam(), {pb.GetStateParam()});
+  BValue send_token = pb.Send(channel, pb.GetTokenParam(), pb.GetStateParam());
 
   BValue new_value = pb.Add(pb.GetStateParam(), pb.Literal(UBits(step, 32)));
   return pb.Build(send_token, new_value);
@@ -60,7 +59,7 @@ absl::StatusOr<Proc*> CreateAccumProc(absl::string_view proc_name,
   BValue recv_token = pb.TupleIndex(token_input, 0);
   BValue input = pb.TupleIndex(token_input, 1);
   BValue accum = pb.Add(pb.GetStateParam(), input);
-  BValue send_token = pb.Send(out_channel, recv_token, {accum});
+  BValue send_token = pb.Send(out_channel, recv_token, accum);
   return pb.Build(send_token, accum);
 }
 
@@ -74,7 +73,7 @@ absl::StatusOr<Proc*> CreatePassThroughProc(absl::string_view proc_name,
   BValue token_input = pb.Receive(in_channel, pb.GetTokenParam());
   BValue recv_token = pb.TupleIndex(token_input, 0);
   BValue input = pb.TupleIndex(token_input, 1);
-  BValue send_token = pb.Send(out_channel, recv_token, {input});
+  BValue send_token = pb.Send(out_channel, recv_token, input);
   return pb.Build(send_token, pb.GetStateParam());
 }
 
@@ -96,13 +95,15 @@ absl::StatusOr<Proc*> CreateRunLengthDecoderProc(absl::string_view proc_name,
   BValue receive_next = pb.Eq(num_remaining, pb.Literal(UBits(0, 32)));
   BValue receive_if =
       pb.ReceiveIf(in_channel, pb.GetTokenParam(), receive_next);
-  BValue run_length = pb.Select(
-      receive_next, /*cases=*/{num_remaining, pb.TupleIndex(receive_if, 1)});
+  BValue receive_if_data = pb.TupleIndex(receive_if, 1);
+  BValue run_length =
+      pb.Select(receive_next,
+                /*cases=*/{num_remaining, pb.TupleIndex(receive_if_data, 0)});
   BValue this_char = pb.Select(
-      receive_next, /*cases=*/{last_char, pb.TupleIndex(receive_if, 2)});
+      receive_next, /*cases=*/{last_char, pb.TupleIndex(receive_if_data, 1)});
   BValue run_length_is_nonzero = pb.Ne(run_length, pb.Literal(UBits(0, 32)));
   BValue send = pb.SendIf(out_channel, pb.TupleIndex(receive_if, 0),
-                          run_length_is_nonzero, {this_char});
+                          run_length_is_nonzero, this_char);
   BValue next_state = pb.Tuple(
       {this_char,
        pb.Select(
@@ -115,10 +116,10 @@ absl::StatusOr<Proc*> CreateRunLengthDecoderProc(absl::string_view proc_name,
 
 TEST_F(ProcNetworkInterpreterTest, ProcIota) {
   auto package = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * channel, package->CreateStreamingChannel(
-                             "iota_out", Channel::SupportedOps::kSendOnly,
-                             {DataElement{"data", package->GetBitsType(32)}}));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * channel,
+                           package->CreateStreamingChannel(
+                               "iota_out", Channel::SupportedOps::kSendOnly,
+                               package->GetBitsType(32)));
   XLS_ASSERT_OK(CreateIotaProc("iota", /*starting_value=*/5, /*step=*/10,
                                channel, package.get())
                     .status());
@@ -133,7 +134,7 @@ TEST_F(ProcNetworkInterpreterTest, ProcIota) {
   XLS_ASSERT_OK(interpreter->Tick());
   EXPECT_EQ(queue.size(), 1);
 
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(ElementsAre(Value(UBits(5, 32)))));
+  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(5, 32))));
 
   XLS_ASSERT_OK(interpreter->Tick());
   XLS_ASSERT_OK(interpreter->Tick());
@@ -141,23 +142,22 @@ TEST_F(ProcNetworkInterpreterTest, ProcIota) {
 
   EXPECT_EQ(queue.size(), 3);
 
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(ElementsAre(Value(UBits(15, 32)))));
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(ElementsAre(Value(UBits(25, 32)))));
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(ElementsAre(Value(UBits(35, 32)))));
+  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(15, 32))));
+  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(25, 32))));
+  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(35, 32))));
 }
 
 TEST_F(ProcNetworkInterpreterTest, IotaFeedingAccumulator) {
   auto package = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * iota_accum_channel,
-      package->CreateStreamingChannel(
-          "iota_accum", Channel::SupportedOps::kSendReceive,
-          {DataElement{"data", package->GetBitsType(32)}}));
+      package->CreateStreamingChannel("iota_accum",
+                                      Channel::SupportedOps::kSendReceive,
+                                      package->GetBitsType(32)));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out_channel,
-      package->CreateStreamingChannel(
-          "out", Channel::SupportedOps::kSendOnly,
-          {DataElement{"data", package->GetBitsType(32)}}));
+      package->CreateStreamingChannel("out", Channel::SupportedOps::kSendOnly,
+                                      package->GetBitsType(32)));
   XLS_ASSERT_OK(CreateIotaProc("iota", /*starting_value=*/0, /*step=*/1,
                                iota_accum_channel, package.get())
                     .status());
@@ -175,7 +175,7 @@ TEST_F(ProcNetworkInterpreterTest, IotaFeedingAccumulator) {
 
   XLS_ASSERT_OK(interpreter->Tick());
 
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(ElementsAre(Value(UBits(0, 32)))));
+  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(0, 32))));
 
   XLS_ASSERT_OK(interpreter->Tick());
   XLS_ASSERT_OK(interpreter->Tick());
@@ -183,9 +183,9 @@ TEST_F(ProcNetworkInterpreterTest, IotaFeedingAccumulator) {
 
   EXPECT_EQ(queue.size(), 3);
 
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(ElementsAre(Value(UBits(1, 32)))));
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(ElementsAre(Value(UBits(3, 32)))));
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(ElementsAre(Value(UBits(6, 32)))));
+  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(1, 32))));
+  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(3, 32))));
+  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(6, 32))));
 }
 
 TEST_F(ProcNetworkInterpreterTest, DegenerateProc) {
@@ -208,26 +208,22 @@ TEST_F(ProcNetworkInterpreterTest, WrappedProc) {
   // Create a proc which receives a value, sends it the accumulator proc, and
   // sends the result.
   auto package = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * in_channel,
-      package->CreateStreamingChannel(
-          "input", Channel::SupportedOps::kReceiveOnly,
-          {DataElement{"data", package->GetBitsType(32)}}));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * in_accum_channel,
-      package->CreateStreamingChannel(
-          "accum_in", Channel::SupportedOps::kSendReceive,
-          {DataElement{"data", package->GetBitsType(32)}}));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * out_accum_channel,
-      package->CreateStreamingChannel(
-          "accum_out", Channel::SupportedOps::kSendReceive,
-          {DataElement{"data", package->GetBitsType(32)}}));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * in_channel,
+                           package->CreateStreamingChannel(
+                               "input", Channel::SupportedOps::kReceiveOnly,
+                               package->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * in_accum_channel,
+                           package->CreateStreamingChannel(
+                               "accum_in", Channel::SupportedOps::kSendReceive,
+                               package->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * out_accum_channel,
+                           package->CreateStreamingChannel(
+                               "accum_out", Channel::SupportedOps::kSendReceive,
+                               package->GetBitsType(32)));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out_channel,
-      package->CreateStreamingChannel(
-          "out", Channel::SupportedOps::kSendOnly,
-          {DataElement{"data", package->GetBitsType(32)}}));
+      package->CreateStreamingChannel("out", Channel::SupportedOps::kSendOnly,
+                                      package->GetBitsType(32)));
 
   ProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
                  /*token_name=*/"tok", /*state_name=*/"prev", package.get());
@@ -247,7 +243,7 @@ TEST_F(ProcNetworkInterpreterTest, WrappedProc) {
                     .status());
 
   std::vector<std::unique_ptr<RxOnlyChannelQueue>> rx_only_queues;
-  std::vector<ChannelData> inputs = {
+  std::vector<Value> inputs = {
       {Value(UBits(10, 32))}, {Value(UBits(20, 32))}, {Value(UBits(30, 32))}};
   rx_only_queues.push_back(absl::make_unique<FixedRxOnlyChannelQueue>(
       in_channel, package.get(), inputs));
@@ -261,12 +257,9 @@ TEST_F(ProcNetworkInterpreterTest, WrappedProc) {
 
   ChannelQueue& output_queue =
       interpreter->queue_manager().GetQueue(out_channel);
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(10, 32)))));
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(30, 32)))));
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(60, 32)))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(10, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(30, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(60, 32))));
 }
 
 TEST_F(ProcNetworkInterpreterTest, DeadlockedProc) {
@@ -276,7 +269,7 @@ TEST_F(ProcNetworkInterpreterTest, DeadlockedProc) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * channel, package->CreateStreamingChannel(
                              "my_channel", Channel::SupportedOps::kSendReceive,
-                             {DataElement{"data", package->GetBitsType(32)}}));
+                             package->GetBitsType(32)));
   XLS_ASSERT_OK(CreatePassThroughProc("feedback", /*in_channel=*/channel,
                                       /*out_channel=*/channel, package.get())
                     .status());
@@ -303,24 +296,24 @@ TEST_F(ProcNetworkInterpreterTest, RunLengthDecoding) {
       Channel * input_channel,
       package->CreateStreamingChannel(
           "in", Channel::SupportedOps::kReceiveOnly,
-          {DataElement{"length", package->GetBitsType(32)},
-           DataElement{"value", package->GetBitsType(8)}}));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * output_channel,
-                           package->CreateStreamingChannel(
-                               "output", Channel::SupportedOps::kSendOnly,
-                               {DataElement{"data", package->GetBitsType(8)}}));
+          package->GetTupleType(
+              {package->GetBitsType(32), package->GetBitsType(8)})));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * output_channel,
+      package->CreateStreamingChannel(
+          "output", Channel::SupportedOps::kSendOnly, package->GetBitsType(8)));
 
   XLS_ASSERT_OK(CreateRunLengthDecoderProc("decoder", input_channel,
                                            output_channel, package.get())
                     .status());
 
   std::vector<std::unique_ptr<RxOnlyChannelQueue>> rx_only_queues;
-  std::vector<ChannelData> inputs = {
-      {Value(UBits(1, 32)), Value(UBits(42, 8))},
-      {Value(UBits(3, 32)), Value(UBits(123, 8))},
-      {Value(UBits(0, 32)), Value(UBits(55, 8))},
-      {Value(UBits(0, 32)), Value(UBits(66, 8))},
-      {Value(UBits(2, 32)), Value(UBits(20, 8))}};
+  std::vector<Value> inputs = {
+      Value::Tuple({Value(UBits(1, 32)), Value(UBits(42, 8))}),
+      Value::Tuple({Value(UBits(3, 32)), Value(UBits(123, 8))}),
+      Value::Tuple({Value(UBits(0, 32)), Value(UBits(55, 8))}),
+      Value::Tuple({Value(UBits(0, 32)), Value(UBits(66, 8))}),
+      Value::Tuple({Value(UBits(2, 32)), Value(UBits(20, 8))})};
   rx_only_queues.push_back(absl::make_unique<FixedRxOnlyChannelQueue>(
       input_channel, package.get(), inputs));
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -333,18 +326,12 @@ TEST_F(ProcNetworkInterpreterTest, RunLengthDecoding) {
     XLS_ASSERT_OK(interpreter->Tick());
   }
 
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(42, 8)))));
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(123, 8)))));
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(123, 8)))));
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(123, 8)))));
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(20, 8)))));
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(20, 8)))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(42, 8))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(123, 8))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(123, 8))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(123, 8))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(20, 8))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(20, 8))));
 }
 
 TEST_F(ProcNetworkInterpreterTest, RunLengthDecodingFilter) {
@@ -355,16 +342,16 @@ TEST_F(ProcNetworkInterpreterTest, RunLengthDecodingFilter) {
       Channel * input_channel,
       package->CreateStreamingChannel(
           "in", Channel::SupportedOps::kReceiveOnly,
-          {DataElement{"length", package->GetBitsType(32)},
-           DataElement{"value", package->GetBitsType(8)}}));
+          package->GetTupleType(
+              {package->GetBitsType(32), package->GetBitsType(8)})));
   XLS_ASSERT_OK_AND_ASSIGN(Channel * decoded_channel,
                            package->CreateStreamingChannel(
                                "decoded", Channel::SupportedOps::kSendReceive,
-                               {DataElement{"data", package->GetBitsType(8)}}));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * output_channel,
-                           package->CreateStreamingChannel(
-                               "output", Channel::SupportedOps::kSendOnly,
-                               {DataElement{"data", package->GetBitsType(8)}}));
+                               package->GetBitsType(8)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * output_channel,
+      package->CreateStreamingChannel(
+          "output", Channel::SupportedOps::kSendOnly, package->GetBitsType(8)));
 
   XLS_ASSERT_OK(CreateRunLengthDecoderProc("decoder", input_channel,
                                            decoded_channel, package.get())
@@ -376,17 +363,16 @@ TEST_F(ProcNetworkInterpreterTest, RunLengthDecodingFilter) {
   BValue rx_value = pb.TupleIndex(receive, 1);
   BValue rx_value_even =
       pb.Not(pb.BitSlice(rx_value, /*start=*/0, /*width=*/1));
-  BValue send_if =
-      pb.SendIf(output_channel, rx_token, rx_value_even, {rx_value});
+  BValue send_if = pb.SendIf(output_channel, rx_token, rx_value_even, rx_value);
   XLS_ASSERT_OK(pb.Build(send_if, pb.GetStateParam()));
 
   std::vector<std::unique_ptr<RxOnlyChannelQueue>> rx_only_queues;
-  std::vector<ChannelData> inputs = {
-      {Value(UBits(1, 32)), Value(UBits(42, 8))},
-      {Value(UBits(3, 32)), Value(UBits(123, 8))},
-      {Value(UBits(0, 32)), Value(UBits(55, 8))},
-      {Value(UBits(0, 32)), Value(UBits(66, 8))},
-      {Value(UBits(2, 32)), Value(UBits(20, 8))}};
+  std::vector<Value> inputs = {
+      Value::Tuple({Value(UBits(1, 32)), Value(UBits(42, 8))}),
+      Value::Tuple({Value(UBits(3, 32)), Value(UBits(123, 8))}),
+      Value::Tuple({Value(UBits(0, 32)), Value(UBits(55, 8))}),
+      Value::Tuple({Value(UBits(0, 32)), Value(UBits(66, 8))}),
+      Value::Tuple({Value(UBits(2, 32)), Value(UBits(20, 8))})};
   rx_only_queues.push_back(absl::make_unique<FixedRxOnlyChannelQueue>(
       input_channel, package.get(), inputs));
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -400,12 +386,9 @@ TEST_F(ProcNetworkInterpreterTest, RunLengthDecodingFilter) {
   }
 
   // Only even values should make it through the filter.
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(42, 8)))));
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(20, 8)))));
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(20, 8)))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(42, 8))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(20, 8))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(20, 8))));
 }
 
 TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedge) {
@@ -416,24 +399,22 @@ TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedge) {
   ProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
                  /*token_name=*/"tok", /*state_name=*/"nil_state",
                  package.get());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * state_channel,
-      package->CreateStreamingChannel(
-          "backedge", Channel::SupportedOps::kSendReceive,
-          {DataElement{"state", package->GetBitsType(32),
-                       // Initial value of iota is 42.
-                       std::vector<Value>({Value(UBits(42, 32))})}}));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * output_channel,
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * state_channel,
                            package->CreateStreamingChannel(
-                               "out", Channel::SupportedOps::kSendOnly,
-                               {DataElement{"out", package->GetBitsType(32)}}));
+                               "state", Channel::SupportedOps::kSendReceive,
+                               package->GetBitsType(32),
+                               /*initial_values=*/{Value(UBits(42, 32))}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * output_channel,
+      package->CreateStreamingChannel("out", Channel::SupportedOps::kSendOnly,
+                                      package->GetBitsType(32)));
 
   BValue state_receive = pb.Receive(state_channel, pb.GetTokenParam());
   BValue receive_token = pb.TupleIndex(state_receive, /*idx=*/0);
   BValue state = pb.TupleIndex(state_receive, /*idx=*/1);
   BValue next_state = pb.Add(state, pb.Literal(UBits(1, 32)));
-  BValue out_send = pb.Send(output_channel, pb.GetTokenParam(), {state});
-  BValue state_send = pb.Send(state_channel, receive_token, {next_state});
+  BValue out_send = pb.Send(output_channel, pb.GetTokenParam(), state);
+  BValue state_send = pb.Send(state_channel, receive_token, next_state);
   XLS_ASSERT_OK(
       pb.Build(pb.AfterAll({out_send, state_send}), pb.GetStateParam())
           .status());
@@ -446,12 +427,9 @@ TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedge) {
     XLS_ASSERT_OK(interpreter->Tick());
   }
 
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(42, 32)))));
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(43, 32)))));
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(44, 32)))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(42, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(43, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(44, 32))));
 }
 
 TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedgeAndTwoInitialValues) {
@@ -466,25 +444,23 @@ TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedgeAndTwoInitialValues) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * state_channel,
       package->CreateStreamingChannel(
-          "backedge", Channel::SupportedOps::kSendReceive,
-          {DataElement{
-              "state", package->GetBitsType(32),
-              // Initial value of iotas are 42, 55, 100. Three sequences of
-              // interleaved numbers will be generated starting at these
-              // values.
-              std::vector<Value>({Value(UBits(42, 32)), Value(UBits(55, 32)),
-                                  Value(UBits(100, 32))})}}));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * output_channel,
-                           package->CreateStreamingChannel(
-                               "out", Channel::SupportedOps::kSendOnly,
-                               {DataElement{"out", package->GetBitsType(32)}}));
+          "state", Channel::SupportedOps::kSendReceive,
+          package->GetBitsType(32),
+          // Initial value of iotas are 42, 55, 100. Three sequences of
+          // interleaved numbers will be generated starting at these
+          // values.
+          {Value(UBits(42, 32)), Value(UBits(55, 32)), Value(UBits(100, 32))}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * output_channel,
+      package->CreateStreamingChannel("out", Channel::SupportedOps::kSendOnly,
+                                      package->GetBitsType(32)));
 
   BValue state_receive = pb.Receive(state_channel, pb.GetTokenParam());
   BValue receive_token = pb.TupleIndex(state_receive, /*idx=*/0);
   BValue state = pb.TupleIndex(state_receive, /*idx=*/1);
   BValue next_state = pb.Add(state, pb.Literal(UBits(1, 32)));
-  BValue out_send = pb.Send(output_channel, pb.GetTokenParam(), {state});
-  BValue state_send = pb.Send(state_channel, receive_token, {next_state});
+  BValue out_send = pb.Send(output_channel, pb.GetTokenParam(), state);
+  BValue state_send = pb.Send(state_channel, receive_token, next_state);
   XLS_ASSERT_OK(
       pb.Build(pb.AfterAll({out_send, state_send}), pb.GetStateParam())
           .status());
@@ -497,24 +473,15 @@ TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedgeAndTwoInitialValues) {
     XLS_ASSERT_OK(interpreter->Tick());
   }
 
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(42, 32)))));
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(55, 32)))));
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(100, 32)))));
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(43, 32)))));
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(56, 32)))));
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(101, 32)))));
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(44, 32)))));
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(57, 32)))));
-  EXPECT_THAT(output_queue.Dequeue(),
-              IsOkAndHolds(ElementsAre(Value(UBits(102, 32)))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(42, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(55, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(100, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(43, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(56, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(101, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(44, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(57, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(102, 32))));
 }
 
 }  // namespace

@@ -539,15 +539,13 @@ class BuilderBase {
                    absl::string_view name = "");
 
   // Add a send operation.
-  BValue Send(Channel* channel, BValue token,
-              absl::Span<const BValue> data_operands,
+  BValue Send(Channel* channel, BValue token, BValue data,
               absl::optional<SourceLocation> loc = absl::nullopt,
               absl::string_view name = "");
 
   // Add a send_if operation. The send executes conditionally on the value of
   // the predicate "pred".
-  BValue SendIf(Channel* channel, BValue token, BValue pred,
-                absl::Span<const BValue> data_operands,
+  BValue SendIf(Channel* channel, BValue token, BValue pred, BValue data,
                 absl::optional<SourceLocation> loc = absl::nullopt,
                 absl::string_view name = "");
 

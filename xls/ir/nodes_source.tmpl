@@ -130,29 +130,6 @@ absl::StatusOr<Node*> Array::CloneInNewFunction(absl::Span<Node* const> new_oper
                                       name_);
 }
 
-absl::StatusOr<Node*> Send::CloneInNewFunction(
-    absl::Span<Node* const> new_operands,
-    FunctionBase* new_function) const {
-  // TODO(meheff): Choose an appropriate name for the cloned node.
-  return new_function->MakeNodeWithName<Send>(loc(),
-                                      new_operands[0],
-                                      new_operands.subspan(1),
-                                      channel_id(),
-                                      name_);
-}
-
-absl::StatusOr<Node*> SendIf::CloneInNewFunction(
-    absl::Span<Node* const> new_operands,
-    FunctionBase* new_function) const {
-  // TODO(meheff): Choose an appropriate name for the cloned node.
-  return new_function->MakeNodeWithName<SendIf>(loc(),
-                                        new_operands[0],
-                                        new_operands[1],
-                                        new_operands.subspan(2),
-                                        channel_id(),
-                                        name_);
-}
-
 absl::StatusOr<Node*> CountedFor::CloneInNewFunction(
     absl::Span<Node* const> new_operands,
     FunctionBase* new_function) const {

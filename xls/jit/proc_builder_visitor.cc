@@ -149,9 +149,9 @@ absl::Status ProcBuilderVisitor::HandleReceiveIf(ReceiveIf* recv_if) {
   return StoreResult(recv_if, result);
 }
 
-absl::Status ProcBuilderVisitor::InvokeSendCallback(
-    llvm::IRBuilder<>* builder, JitChannelQueue* queue, Node* node,
-    absl::Span<Node* const> operands) {
+absl::Status ProcBuilderVisitor::InvokeSendCallback(llvm::IRBuilder<>* builder,
+                                                    JitChannelQueue* queue,
+                                                    Node* node, Node* data) {
   llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
   llvm::Type* int64_type = llvm::Type::getInt64Ty(ctx());
   llvm::Type* int8_ptr_type = llvm::Type::getInt8PtrTy(ctx(), 0);
@@ -172,17 +172,12 @@ absl::Status ProcBuilderVisitor::InvokeSendCallback(
   // the data anyway, since llvm::Values don't automatically correspond to
   // pointer-referencable storage; that's what allocas are for).
   std::vector<Type*> tuple_elems;
-  for (const Node* operand : operands) {
-    tuple_elems.push_back(operand->GetType());
-  }
+  tuple_elems.push_back(data->GetType());
   TupleType tuple_type(tuple_elems);
   llvm::Type* send_op_types = type_converter()->ConvertToLlvmType(&tuple_type);
   int64 send_type_size = type_converter()->GetTypeByteSize(&tuple_type);
   llvm::Value* tuple = CreateTypedZeroValue(send_op_types);
-  for (int i = 0; i < operands.size(); i++) {
-    tuple = builder->CreateInsertValue(tuple, node_map().at(operands[i]),
-                                       {static_cast<uint>(i)});
-  }
+  tuple = builder->CreateInsertValue(tuple, node_map().at(data), {0u});
   llvm::AllocaInst* alloca = builder->CreateAlloca(send_op_types);
   builder->CreateStore(tuple, alloca);
 
@@ -205,8 +200,7 @@ absl::Status ProcBuilderVisitor::InvokeSendCallback(
 absl::Status ProcBuilderVisitor::HandleSend(Send* send) {
   XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
                        queue_mgr_->GetQueueById(send->channel_id()));
-  XLS_RETURN_IF_ERROR(
-      InvokeSendCallback(builder(), queue, send, send->data_operands()));
+  XLS_RETURN_IF_ERROR(InvokeSendCallback(builder(), queue, send, send->data()));
   return StoreResult(send, type_converter()->GetToken());
 }
 
@@ -220,8 +214,8 @@ absl::Status ProcBuilderVisitor::HandleSendIf(SendIf* send_if) {
   llvm::IRBuilder<> true_builder(true_block);
   XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
                        queue_mgr_->GetQueueById(send_if->channel_id()));
-  XLS_RETURN_IF_ERROR(InvokeSendCallback(&true_builder, queue, send_if,
-                                         send_if->data_operands()));
+  XLS_RETURN_IF_ERROR(
+      InvokeSendCallback(&true_builder, queue, send_if, send_if->data()));
   llvm::Value* true_token = type_converter()->GetToken();
   true_builder.CreateBr(join_block);
 

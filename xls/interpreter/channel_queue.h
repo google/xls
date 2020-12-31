@@ -60,19 +60,19 @@ class ChannelQueue {
     return queue_.empty();
   }
 
-  // Enqueues the given data on to the channel.
-  virtual absl::Status Enqueue(const ChannelData& data);
+  // Enqueues the given value on to the channel.
+  virtual absl::Status Enqueue(const Value& value);
 
-  // Dequeues and returns data from the channel. Returns an error if the channel
-  // is empty.
-  virtual absl::StatusOr<ChannelData> Dequeue();
+  // Dequeues and returns a value from the channel. Returns an error if the
+  // channel is empty.
+  virtual absl::StatusOr<Value> Dequeue();
 
  private:
   Channel* channel_;
   Package* package_;
 
-  // Data values are enqueued to the back, and dequeued from the front.
-  std::deque<ChannelData> queue_ ABSL_GUARDED_BY(mutex_);
+  // Values are enqueued to the back, and dequeued from the front.
+  std::deque<Value> queue_ ABSL_GUARDED_BY(mutex_);
 
   mutable absl::Mutex mutex_;
 };
@@ -85,19 +85,18 @@ class RxOnlyChannelQueue : public ChannelQueue {
   // the channel. The generator_func may be called an arbitrary number of times
   // depending upon how many times the proc interpreter is ticked. The generator
   // function should return an error to terminate the interpreter session.
-  RxOnlyChannelQueue(
-      Channel* channel, Package* package,
-      std::function<absl::StatusOr<ChannelData>()> generator_func)
+  RxOnlyChannelQueue(Channel* channel, Package* package,
+                     std::function<absl::StatusOr<Value>()> generator_func)
       : ChannelQueue(channel, package),
         generator_func_(std::move(generator_func)) {}
   virtual ~RxOnlyChannelQueue() = default;
 
-  // RxOnlyChannelQueue::Enqueue returns an error unconditionally. Data in the
+  // RxOnlyChannelQueue::Enqueue returns an error unconditionally. Values in the
   // queue is generated from the generator function rather than being enqueued.
-  absl::Status Enqueue(const ChannelData& data) override;
+  absl::Status Enqueue(const Value& value) override;
 
   // Calls the generator function and returns the result.
-  absl::StatusOr<ChannelData> Dequeue() override;
+  absl::StatusOr<Value> Dequeue() override;
 
   // The number of elements is considered infinite as the generator function may
   // be called an arbitrary number of times.
@@ -105,29 +104,29 @@ class RxOnlyChannelQueue : public ChannelQueue {
   bool empty() const override { return false; }
 
  private:
-  std::function<absl::StatusOr<ChannelData>()> generator_func_;
+  std::function<absl::StatusOr<Value>()> generator_func_;
 };
 
-// An input channel queue which produces a fixed sequence of data. Once the
+// An input channel queue which produces a fixed sequence of values. Once the
 // sequence is exhausted, any further calls to Dequeue return an errored.
 class FixedRxOnlyChannelQueue : public RxOnlyChannelQueue {
  public:
   FixedRxOnlyChannelQueue(Channel* channel, Package* package,
-                          absl::Span<const ChannelData> data)
+                          absl::Span<const Value> values)
       : RxOnlyChannelQueue(
             channel, package,
-            [this]() -> absl::StatusOr<ChannelData> { return GenerateData(); }),
-        data_(data.begin(), data.end()) {}
+            [this]() -> absl::StatusOr<Value> { return GenerateValue(); }),
+        values_(values.begin(), values.end()) {}
   virtual ~FixedRxOnlyChannelQueue() = default;
 
-  int64 size() const override { return data_.size(); }
-  bool empty() const override { return data_.empty(); }
+  int64 size() const override { return values_.size(); }
+  bool empty() const override { return values_.empty(); }
 
  private:
-  // Pops and returns the next element out of the data deque.
-  absl::StatusOr<ChannelData> GenerateData();
+  // Pops and returns the next element out of the deque.
+  absl::StatusOr<Value> GenerateValue();
 
-  std::deque<ChannelData> data_;
+  std::deque<Value> values_;
 };
 
 // An abstraction holding a collection of channel queues for interpreting the

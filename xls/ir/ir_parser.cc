@@ -777,7 +777,8 @@ absl::StatusOr<BValue> Parser::ParseNode(
             absl::StrFormat("No such channel with channel ID %d", *channel_id));
       }
       XLS_ASSIGN_OR_RETURN(Channel * channel, package->GetChannel(*channel_id));
-      Type* expected_type = package->GetReceiveType(channel);
+      Type* expected_type =
+          package->GetTupleType({package->GetTokenType(), channel->type()});
       if (expected_type != type) {
         return absl::InvalidArgumentError(
             absl::StrFormat("Receive op type is type: %s. Expected: %s",
@@ -795,7 +796,8 @@ absl::StatusOr<BValue> Parser::ParseNode(
             absl::StrFormat("No such channel with channel ID %d", *channel_id));
       }
       XLS_ASSIGN_OR_RETURN(Channel * channel, package->GetChannel(*channel_id));
-      Type* expected_type = package->GetReceiveType(channel);
+      Type* expected_type =
+          package->GetTupleType({package->GetTokenType(), channel->type()});
       if (expected_type != type) {
         return absl::InvalidArgumentError(
             absl::StrFormat("Receive_if op type is type: %s. Expected: %s",
@@ -807,24 +809,6 @@ absl::StatusOr<BValue> Parser::ParseNode(
     }
     case Op::kSend: {
       int64* channel_id = arg_parser.AddKeywordArg<int64>("channel_id");
-      std::vector<BValue>* data_args =
-          arg_parser.AddKeywordArg<std::vector<BValue>>("data");
-      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
-      // Get the channel from the package.
-      if (!package->HasChannelWithId(*channel_id)) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("No such channel with channel ID %d", *channel_id));
-      }
-      XLS_ASSIGN_OR_RETURN(Channel * channel, package->GetChannel(*channel_id));
-      // The first operand is the token, and the remaining are the data
-      // values to send.
-      bvalue = fb->Send(channel, operands[0], *data_args, *loc, node_name);
-      break;
-    }
-    case Op::kSendIf: {
-      int64* channel_id = arg_parser.AddKeywordArg<int64>("channel_id");
-      std::vector<BValue>* data_args =
-          arg_parser.AddKeywordArg<std::vector<BValue>>("data");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
       // Get the channel from the package.
       if (!package->HasChannelWithId(*channel_id)) {
@@ -834,8 +818,22 @@ absl::StatusOr<BValue> Parser::ParseNode(
       XLS_ASSIGN_OR_RETURN(Channel * channel, package->GetChannel(*channel_id));
       // The first operand is the token, and the remaining are the data
       // values to send.
+      bvalue = fb->Send(channel, operands[0], {operands[1]}, *loc, node_name);
+      break;
+    }
+    case Op::kSendIf: {
+      int64* channel_id = arg_parser.AddKeywordArg<int64>("channel_id");
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/3));
+      // Get the channel from the package.
+      if (!package->HasChannelWithId(*channel_id)) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("No such channel with channel ID %d", *channel_id));
+      }
+      XLS_ASSIGN_OR_RETURN(Channel * channel, package->GetChannel(*channel_id));
+      // The first operand is the token, and the remaining are the data
+      // values to send.
       bvalue = fb->SendIf(channel, /*token=*/operands[0],
-                          /*pred=*/operands[1], *data_args, *loc, node_name);
+                          /*pred=*/operands[1], {operands[2]}, *loc, node_name);
       break;
     }
     default:
@@ -1163,18 +1161,21 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
   absl::optional<int64> id;
   absl::optional<Channel::SupportedOps> supported_ops;
   absl::optional<ChannelMetadataProto> metadata;
-  std::vector<DataElement> data_elements;
+  std::vector<Value> initial_values;
   bool must_end = false;
   absl::optional<ChannelKind> kind;
   // Iterate through the comma-separated elements in the channel definition.
   // Examples:
   //
   //  // No initial values.
-  //  chan my_channel(foo: bits[32], id=42, ...)
+  //  chan my_channel(bits[32], id=42, ...)
   //
   //  // Initial values.
-  //  chan my_channel(foo: bits[32] = {1, 2, 3}, id=42, ...)
+  //  chan my_channel(bits[32], initial_values={1, 2, 3}, id=42, ...)
   //
+  // First parse type.
+  XLS_ASSIGN_OR_RETURN(Type * type, ParseType(package));
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma));
   while (true) {
     if (must_end || scanner_.PeekTokenIs(LexicalTokenType::kParenClose)) {
       XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(
@@ -1183,12 +1184,9 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
     }
     XLS_ASSIGN_OR_RETURN(Token field_name,
                          scanner_.PopTokenOrError(LexicalTokenType::kIdent));
-    if (scanner_.PeekTokenIs(LexicalTokenType::kColon)) {
-      // Data element: "<name>: <type>"
-      XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kColon));
-      XLS_ASSIGN_OR_RETURN(Type * type, ParseType(package));
-      std::vector<Value> initial_values;
-      if (scanner_.TryDropToken(LexicalTokenType::kEquals)) {
+    if (scanner_.TryDropToken(LexicalTokenType::kEquals)) {
+      // Attribute: "<name>=<value>"
+      if (field_name.value() == "initial_values") {
         XLS_RETURN_IF_ERROR(
             scanner_.DropTokenOrError(LexicalTokenType::kCurlOpen));
         if (!scanner_.PeekTokenIs(LexicalTokenType::kCurlClose)) {
@@ -1196,12 +1194,7 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
         }
         XLS_RETURN_IF_ERROR(
             scanner_.DropTokenOrError(LexicalTokenType::kCurlClose));
-      }
-      data_elements.push_back(
-          DataElement{field_name.value(), type, initial_values});
-    } else if (scanner_.TryDropToken(LexicalTokenType::kEquals)) {
-      // Attribute: "<name>=<value>"
-      if (field_name.value() == "id") {
+      } else if (field_name.value() == "id") {
         XLS_ASSIGN_OR_RETURN(Token id_token, scanner_.PopTokenOrError(
                                                  LexicalTokenType::kLiteral));
         XLS_ASSIGN_OR_RETURN(id, id_token.GetValueInt64());
@@ -1268,23 +1261,38 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
   if (!metadata.has_value()) {
     return error("Missing channel metadata");
   }
-  if (data_elements.empty()) {
-    return error("Channel has no data elements");
-  }
   if (!kind.has_value()) {
     return error("Missing channel kind");
   }
 
   switch (kind.value()) {
     case kStreaming:
-      return package->CreateStreamingChannel(
-          channel_name.value(), *supported_ops, data_elements, *id, *metadata);
-    case kPort:
+      return package->CreateStreamingChannel(channel_name.value(),
+                                             *supported_ops, type,
+                                             initial_values, *metadata, *id);
+    case kPort: {
+      if (!initial_values.empty()) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Port channel %s cannot have initial value(s)",
+                            channel_name.value()));
+      }
       return package->CreatePortChannel(channel_name.value(), *supported_ops,
-                                        data_elements, *id, *metadata);
-    case kRegister:
-      return package->CreateRegisterChannel(channel_name.value(), data_elements,
-                                            *id, *metadata);
+                                        type, *metadata, *id);
+    }
+    case kRegister: {
+      absl::optional<Value> reset_value;
+      if (initial_values.size() == 1) {
+        reset_value = initial_values.front();
+      } else if (initial_values.size() > 1) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Register channel %s can have at most one initial "
+                            "value (the reset value), has %d",
+                            channel_name.value(), initial_values.size()));
+      }
+
+      return package->CreateRegisterChannel(channel_name.value(), type,
+                                            reset_value, *metadata, *id);
+    }
     case kLogical:
       return absl::UnimplementedError("Logical channels not implemented.");
   }

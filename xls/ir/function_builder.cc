@@ -1016,8 +1016,7 @@ BValue BuilderBase::ReceiveIf(Channel* channel, BValue token, BValue pred,
                                  name);
 }
 
-BValue BuilderBase::Send(Channel* channel, BValue token,
-                         absl::Span<const BValue> data_operands,
+BValue BuilderBase::Send(Channel* channel, BValue token, BValue data,
                          absl::optional<SourceLocation> loc,
                          absl::string_view name) {
   if (ErrorPending()) {
@@ -1029,20 +1028,12 @@ BValue BuilderBase::Send(Channel* channel, BValue token,
                   token.GetType()->ToString()),
         loc);
   }
-  if (data_operands.empty()) {
-    return SetError("Send must have at least one data operand", loc);
-  }
-  std::vector<Node*> data_operand_nodes;
-  for (const BValue& data_operand : data_operands) {
-    data_operand_nodes.push_back(data_operand.node());
-  }
-  return AddNode<xls::Send>(loc, token.node(), data_operand_nodes,
-                            channel->id(), name);
+  return AddNode<xls::Send>(loc, token.node(), data.node(), channel->id(),
+                            name);
 }
 
 BValue BuilderBase::SendIf(Channel* channel, BValue token, BValue pred,
-                           absl::Span<const BValue> data_operands,
-                           absl::optional<SourceLocation> loc,
+                           BValue data, absl::optional<SourceLocation> loc,
                            absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -1060,15 +1051,8 @@ BValue BuilderBase::SendIf(Channel* channel, BValue token, BValue pred,
                               pred.GetType()->ToString()),
                     loc);
   }
-  if (data_operands.empty()) {
-    return SetError("Send must have at least one data operand", loc);
-  }
-  std::vector<Node*> data_operand_nodes;
-  for (const BValue& data_operand : data_operands) {
-    data_operand_nodes.push_back(data_operand.node());
-  }
-  return AddNode<xls::SendIf>(loc, token.node(), pred.node(),
-                              data_operand_nodes, channel->id(), name);
+  return AddNode<xls::SendIf>(loc, token.node(), pred.node(), data.node(),
+                              channel->id(), name);
 }
 
 }  // namespace xls

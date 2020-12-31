@@ -86,7 +86,7 @@ class ProcBuilderVisitor : public FunctionBuilderVisitor {
 
   absl::Status InvokeSendCallback(llvm::IRBuilder<>* builder,
                                   JitChannelQueue* queue, Node* node,
-                                  absl::Span<Node* const> operands);
+                                  Node* data);
 
  public:
   JitChannelQueueManager* queue_mgr_;

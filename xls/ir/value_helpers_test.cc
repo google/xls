@@ -31,9 +31,11 @@ TEST(ValueHelperTest, GenerateValues) {
   Package p("test_package");
   EXPECT_EQ(ZeroOfType(p.GetBitsType(32)), Value(Bits(32)));
   EXPECT_EQ(ZeroOfType(p.GetBitsType(0)), Value(Bits(0)));
+  EXPECT_EQ(ZeroOfType(p.GetTokenType()), Value::Token());
 
   EXPECT_EQ(AllOnesOfType(p.GetBitsType(32)), Value(Bits::AllOnes(32)));
   EXPECT_EQ(AllOnesOfType(p.GetBitsType(0)), Value(Bits(0)));
+  EXPECT_EQ(AllOnesOfType(p.GetTokenType()), Value::Token());
 
   Type* tuple_type =
       p.GetTupleType({p.GetBitsType(0), p.GetBitsType(16),

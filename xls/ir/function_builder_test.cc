@@ -374,26 +374,26 @@ TEST(FunctionBuilderTest, SendAndReceive) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch0,
       p.CreateStreamingChannel("ch0", Channel::SupportedOps::kSendReceive,
-                               {DataElement{"data", p.GetBitsType(32)}}));
+                               p.GetBitsType(32)));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch1,
       p.CreateStreamingChannel("ch1", Channel::SupportedOps::kSendReceive,
-                               {DataElement{"data", p.GetBitsType(32)}}));
+                               p.GetBitsType(32)));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch2,
       p.CreateStreamingChannel("ch2", Channel::SupportedOps::kSendReceive,
-                               {DataElement{"data", p.GetBitsType(32)}}));
+                               p.GetBitsType(32)));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch3,
       p.CreateStreamingChannel("ch3", Channel::SupportedOps::kSendReceive,
-                               {DataElement{"data", p.GetBitsType(32)}}));
+                               p.GetBitsType(32)));
 
   ProcBuilder b("sending_receiving", Value(UBits(42, 32)),
                 /*token_name=*/"my_token", /*state_name=*/"my_state", &p);
-  BValue send = b.Send(ch0, b.GetTokenParam(), {b.GetStateParam()});
+  BValue send = b.Send(ch0, b.GetTokenParam(), b.GetStateParam());
   BValue receive = b.Receive(ch1, b.GetTokenParam());
   BValue pred = b.Literal(UBits(1, 1));
-  BValue send_if = b.SendIf(ch2, b.GetTokenParam(), pred, {b.GetStateParam()});
+  BValue send_if = b.SendIf(ch2, b.GetTokenParam(), pred, b.GetStateParam());
   BValue receive_if = b.ReceiveIf(ch3, b.GetTokenParam(), pred);
   BValue after_all = b.AfterAll(
       {send, b.TupleIndex(receive, 0), send_if, b.TupleIndex(receive_if, 0)});
@@ -415,8 +415,10 @@ TEST(FunctionBuilderTest, SendAndReceive) {
 
   EXPECT_EQ(send.node()->GetType(), p.GetTokenType());
   EXPECT_EQ(send_if.node()->GetType(), p.GetTokenType());
-  EXPECT_EQ(receive.node()->GetType(), p.GetReceiveType(ch1));
-  EXPECT_EQ(receive_if.node()->GetType(), p.GetReceiveType(ch3));
+  EXPECT_EQ(receive.node()->GetType(),
+            p.GetTupleType({p.GetTokenType(), ch1->type()}));
+  EXPECT_EQ(receive_if.node()->GetType(),
+            p.GetTupleType({p.GetTokenType(), ch3->type()}));
 }
 
 TEST(FunctionBuilderTest, WrongAddOpMethodBinOp) {

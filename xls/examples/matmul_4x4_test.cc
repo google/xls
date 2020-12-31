@@ -34,30 +34,24 @@ constexpr const char kIrPath[] = "xls/examples/matmul_4x4.ir";
 
 using status_testing::IsOkAndHolds;
 
-std::vector<Value> GetX0Value() {
+Value GetX0Value() {
   static int iter = 0;
   return {Value(UBits(111 + iter++, 32))};
 }
 
-std::vector<Value> GetX1Value() {
+Value GetX1Value() {
   static int iter = 0;
-  return {Value(UBits(2222 + iter++, 32))};
+  return Value(UBits(2222 + iter++, 32));
 }
 
-std::vector<Value> GetX2Value() {
+Value GetX2Value() {
   static int iter = 0;
-  return {Value(UBits(33333 + iter++, 32))};
+  return Value(UBits(33333 + iter++, 32));
 }
 
-std::vector<Value> GetX3Value() {
+Value GetX3Value() {
   static int iter = 0;
-  return {Value(UBits(444444 + iter++, 32))};
-}
-
-absl::StatusOr<int64> ChannelDataToInt(const ChannelData& data) {
-  XLS_RET_CHECK(data.size() == 1);
-  XLS_RET_CHECK(data.front().IsBits());
-  return data.front().bits().ToInt64();
+  return Value(UBits(444444 + iter++, 32));
 }
 
 // Straightforward test - can we correctly multiply a matrix against the
@@ -98,17 +92,17 @@ TEST(Matmul4x4Test, Works) {
     XLS_EXPECT_OK(interpreter->Tick());
   }
 
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelData channel_data, c30->Dequeue());
-  ASSERT_THAT(ChannelDataToInt(channel_data), IsOkAndHolds(222));
+  XLS_ASSERT_OK_AND_ASSIGN(Value value, c30->Dequeue());
+  ASSERT_THAT(value.bits().ToInt64(), IsOkAndHolds(222));
 
-  XLS_ASSERT_OK_AND_ASSIGN(channel_data, c31->Dequeue());
-  ASSERT_THAT(ChannelDataToInt(channel_data), IsOkAndHolds(4444));
+  XLS_ASSERT_OK_AND_ASSIGN(value, c31->Dequeue());
+  ASSERT_THAT(value.bits().ToInt64(), IsOkAndHolds(4444));
 
-  XLS_ASSERT_OK_AND_ASSIGN(channel_data, c32->Dequeue());
-  ASSERT_THAT(ChannelDataToInt(channel_data), IsOkAndHolds(66666));
+  XLS_ASSERT_OK_AND_ASSIGN(value, c32->Dequeue());
+  ASSERT_THAT(value.bits().ToInt64(), IsOkAndHolds(66666));
 
-  XLS_ASSERT_OK_AND_ASSIGN(channel_data, c33->Dequeue());
-  ASSERT_THAT(ChannelDataToInt(channel_data), IsOkAndHolds(888888));
+  XLS_ASSERT_OK_AND_ASSIGN(value, c33->Dequeue());
+  ASSERT_THAT(value.bits().ToInt64(), IsOkAndHolds(888888));
 }
 
 }  // namespace

@@ -34,42 +34,42 @@ package matmul_4x4
 
 // Each channel here is named as an input, i.e., "chan_1_3_x" is
 // the x input (the activation) coming into tile (1, 3).
-chan c_0_0_x(data: bits[32], id=0, kind=streaming, ops=receive_only, metadata="")
-chan c_0_1_x(data: bits[32], id=1, kind=streaming, ops=send_receive, metadata="")
-chan c_0_2_x(data: bits[32], id=2, kind=streaming, ops=send_receive, metadata="")
-chan c_0_3_x(data: bits[32], id=3, kind=streaming, ops=send_receive, metadata="")
+chan c_0_0_x(bits[32], id=0, kind=streaming, ops=receive_only, metadata="")
+chan c_0_1_x(bits[32], id=1, kind=streaming, ops=send_receive, metadata="")
+chan c_0_2_x(bits[32], id=2, kind=streaming, ops=send_receive, metadata="")
+chan c_0_3_x(bits[32], id=3, kind=streaming, ops=send_receive, metadata="")
 
-chan c_1_0_x(data: bits[32], id=10, kind=streaming, ops=receive_only, metadata="")
-chan c_1_1_x(data: bits[32], id=11, kind=streaming, ops=send_receive, metadata="")
-chan c_1_2_x(data: bits[32], id=12, kind=streaming, ops=send_receive, metadata="")
-chan c_1_3_x(data: bits[32], id=13, kind=streaming, ops=send_receive, metadata="")
-chan c_1_0_y(data: bits[32], id=14, kind=streaming, ops=send_receive, metadata="")
-chan c_1_1_y(data: bits[32], id=15, kind=streaming, ops=send_receive, metadata="")
-chan c_1_2_y(data: bits[32], id=16, kind=streaming, ops=send_receive, metadata="")
-chan c_1_3_y(data: bits[32], id=17, kind=streaming, ops=send_receive, metadata="")
+chan c_1_0_x(bits[32], id=10, kind=streaming, ops=receive_only, metadata="")
+chan c_1_1_x(bits[32], id=11, kind=streaming, ops=send_receive, metadata="")
+chan c_1_2_x(bits[32], id=12, kind=streaming, ops=send_receive, metadata="")
+chan c_1_3_x(bits[32], id=13, kind=streaming, ops=send_receive, metadata="")
+chan c_1_0_y(bits[32], id=14, kind=streaming, ops=send_receive, metadata="")
+chan c_1_1_y(bits[32], id=15, kind=streaming, ops=send_receive, metadata="")
+chan c_1_2_y(bits[32], id=16, kind=streaming, ops=send_receive, metadata="")
+chan c_1_3_y(bits[32], id=17, kind=streaming, ops=send_receive, metadata="")
 
-chan c_2_0_x(data: bits[32], id=20, kind=streaming, ops=receive_only, metadata="")
-chan c_2_1_x(data: bits[32], id=21, kind=streaming, ops=send_receive, metadata="")
-chan c_2_2_x(data: bits[32], id=22, kind=streaming, ops=send_receive, metadata="")
-chan c_2_3_x(data: bits[32], id=23, kind=streaming, ops=send_receive, metadata="")
-chan c_2_0_y(data: bits[32], id=24, kind=streaming, ops=send_receive, metadata="")
-chan c_2_1_y(data: bits[32], id=25, kind=streaming, ops=send_receive, metadata="")
-chan c_2_2_y(data: bits[32], id=26, kind=streaming, ops=send_receive, metadata="")
-chan c_2_3_y(data: bits[32], id=27, kind=streaming, ops=send_receive, metadata="")
+chan c_2_0_x(bits[32], id=20, kind=streaming, ops=receive_only, metadata="")
+chan c_2_1_x(bits[32], id=21, kind=streaming, ops=send_receive, metadata="")
+chan c_2_2_x(bits[32], id=22, kind=streaming, ops=send_receive, metadata="")
+chan c_2_3_x(bits[32], id=23, kind=streaming, ops=send_receive, metadata="")
+chan c_2_0_y(bits[32], id=24, kind=streaming, ops=send_receive, metadata="")
+chan c_2_1_y(bits[32], id=25, kind=streaming, ops=send_receive, metadata="")
+chan c_2_2_y(bits[32], id=26, kind=streaming, ops=send_receive, metadata="")
+chan c_2_3_y(bits[32], id=27, kind=streaming, ops=send_receive, metadata="")
 
-chan c_3_0_x(data: bits[32], id=30, kind=streaming, ops=receive_only, metadata="")
-chan c_3_1_x(data: bits[32], id=31, kind=streaming, ops=send_receive, metadata="")
-chan c_3_2_x(data: bits[32], id=32, kind=streaming, ops=send_receive, metadata="")
-chan c_3_3_x(data: bits[32], id=33, kind=streaming, ops=send_receive, metadata="")
-chan c_3_0_y(data: bits[32], id=34, kind=streaming, ops=send_receive, metadata="")
-chan c_3_1_y(data: bits[32], id=35, kind=streaming, ops=send_receive, metadata="")
-chan c_3_2_y(data: bits[32], id=36, kind=streaming, ops=send_receive, metadata="")
-chan c_3_3_y(data: bits[32], id=37, kind=streaming, ops=send_receive, metadata="")
+chan c_3_0_x(bits[32], id=30, kind=streaming, ops=receive_only, metadata="")
+chan c_3_1_x(bits[32], id=31, kind=streaming, ops=send_receive, metadata="")
+chan c_3_2_x(bits[32], id=32, kind=streaming, ops=send_receive, metadata="")
+chan c_3_3_x(bits[32], id=33, kind=streaming, ops=send_receive, metadata="")
+chan c_3_0_y(bits[32], id=34, kind=streaming, ops=send_receive, metadata="")
+chan c_3_1_y(bits[32], id=35, kind=streaming, ops=send_receive, metadata="")
+chan c_3_2_y(bits[32], id=36, kind=streaming, ops=send_receive, metadata="")
+chan c_3_3_y(bits[32], id=37, kind=streaming, ops=send_receive, metadata="")
 
-chan c_3_0_o(data: bits[32], id=44, kind=streaming, ops=send_only, metadata="")
-chan c_3_1_o(data: bits[32], id=45, kind=streaming, ops=send_only, metadata="")
-chan c_3_2_o(data: bits[32], id=46, kind=streaming, ops=send_only, metadata="")
-chan c_3_3_o(data: bits[32], id=47, kind=streaming, ops=send_only, metadata="")
+chan c_3_0_o(bits[32], id=44, kind=streaming, ops=send_only, metadata="")
+chan c_3_1_o(bits[32], id=45, kind=streaming, ops=send_only, metadata="")
+chan c_3_2_o(bits[32], id=46, kind=streaming, ops=send_only, metadata="")
+chan c_3_3_o(bits[32], id=47, kind=streaming, ops=send_only, metadata="")
 
 // Tile definitions.
 // For the most part, tile implementations are the same, except for edge
@@ -91,10 +91,10 @@ proc tile_0_0(my_token: token, state: (), init=()) {
   umul.5: bits[32] = umul(literal.1, tuple_index.4)
 
   // Send our partial sum south.
-  send.6: token = send(tuple_index.3, data=[umul.5], channel_id=14)
+  send.6: token = send(tuple_index.3, umul.5, channel_id=14)
 
   // Send our activation east.
-  send.7: token = send(send.6, data=[tuple_index.4], channel_id=1)
+  send.7: token = send(send.6, tuple_index.4, channel_id=1)
 
   next (send.7, state)
 }
@@ -105,8 +105,8 @@ proc tile_0_1(my_token: token, state: (), init=()) {
   tuple_index.103: token = tuple_index(receive.102, index=0)
   tuple_index.104: bits[32] = tuple_index(receive.102, index=1)
   umul.105: bits[32] = umul(literal.101, tuple_index.104)
-  send.106: token = send(tuple_index.103, data=[umul.105], channel_id=15)
-  send.107: token = send(send.106, data=[tuple_index.104], channel_id=2)
+  send.106: token = send(tuple_index.103, umul.105, channel_id=15)
+  send.107: token = send(send.106, tuple_index.104, channel_id=2)
   next (send.107, state)
 }
 
@@ -116,8 +116,8 @@ proc tile_0_2(my_token: token, state: (), init=()) {
   tuple_index.203: token = tuple_index(receive.202, index=0)
   tuple_index.204: bits[32] = tuple_index(receive.202, index=1)
   umul.205: bits[32] = umul(literal.201, tuple_index.204)
-  send.206: token = send(tuple_index.203, data=[umul.205], channel_id=16)
-  send.207: token = send(send.206, data=[tuple_index.204], channel_id=3)
+  send.206: token = send(tuple_index.203, umul.205, channel_id=16)
+  send.207: token = send(send.206, tuple_index.204, channel_id=3)
   next (send.207, state)
 }
 
@@ -127,7 +127,7 @@ proc tile_0_3(my_token: token, state: (), init=()) {
   tuple_index.303: token = tuple_index(receive.302, index=0)
   tuple_index.304: bits[32] = tuple_index(receive.302, index=1)
   umul.305: bits[32] = umul(literal.301, tuple_index.304)
-  send.306: token = send(tuple_index.303, data=[umul.305], channel_id=17)
+  send.306: token = send(tuple_index.303, umul.305, channel_id=17)
   // Eastern-most tiles don't send activations any further.
   next (send.306, state)
 }
@@ -142,8 +142,8 @@ proc tile_1_0(my_token: token, state: (), init=()) {
   tuple_index.1007: bits[32] = tuple_index(receive.1005, index=1)
   umul.1008: bits[32] = umul(literal.1001, tuple_index.1004)
   add.1009: bits[32] = add(umul.1008, tuple_index.1007)
-  send.1010: token = send(tuple_index.1006, data=[add.1009], channel_id=24)
-  send.1011: token = send(send.1010, data=[tuple_index.1004], channel_id=11)
+  send.1010: token = send(tuple_index.1006, add.1009, channel_id=24)
+  send.1011: token = send(send.1010, tuple_index.1004, channel_id=11)
   next (send.1011, state)
 }
 
@@ -157,8 +157,8 @@ proc tile_1_1(my_token: token, state: (), init=()) {
   tuple_index.1107: bits[32] = tuple_index(receive.1105, index=1)
   umul.1108: bits[32] = umul(literal.1101, tuple_index.1104)
   add.1109: bits[32] = add(umul.1108, tuple_index.1107)
-  send.1110: token = send(tuple_index.1106, data=[add.1109], channel_id=25)
-  send.1111: token = send(send.1110, data=[tuple_index.1104], channel_id=12)
+  send.1110: token = send(tuple_index.1106, add.1109, channel_id=25)
+  send.1111: token = send(send.1110, tuple_index.1104, channel_id=12)
   next (send.1111, state)
 }
 
@@ -172,8 +172,8 @@ proc tile_1_2(my_token: token, state: (), init=()) {
   tuple_index.1207: bits[32] = tuple_index(receive.1205, index=1)
   umul.1208: bits[32] = umul(literal.1201, tuple_index.1204)
   add.1209: bits[32] = add(umul.1208, tuple_index.1207)
-  send.1210: token = send(tuple_index.1206, data=[add.1209], channel_id=26)
-  send.1211: token = send(send.1210, data=[tuple_index.1204], channel_id=13)
+  send.1210: token = send(tuple_index.1206, add.1209, channel_id=26)
+  send.1211: token = send(send.1210, tuple_index.1204, channel_id=13)
   next (send.1211, state)
 }
 
@@ -187,7 +187,7 @@ proc tile_1_3(my_token: token, state: (), init=()) {
   tuple_index.1307: bits[32] = tuple_index(receive.1305, index=1)
   umul.1308: bits[32] = umul(literal.1301, tuple_index.1304)
   add.1309: bits[32] = add(umul.1308, tuple_index.1307)
-  send.1310: token = send(tuple_index.1306, data=[add.1309], channel_id=27)
+  send.1310: token = send(tuple_index.1306, add.1309, channel_id=27)
   // Eastern-most tiles don't send activations any further.
   next (send.1310, state)
 }
@@ -202,8 +202,8 @@ proc tile_2_0(my_token: token, state: (), init=()) {
   tuple_index.2007: bits[32] = tuple_index(receive.2005, index=1)
   umul.2008: bits[32] = umul(literal.2001, tuple_index.2004)
   add.2009: bits[32] = add(umul.2008, tuple_index.2007)
-  send.2010: token = send(tuple_index.2006, data=[add.2009], channel_id=34)
-  send.2011: token = send(send.2010, data=[tuple_index.2004], channel_id=21)
+  send.2010: token = send(tuple_index.2006, add.2009, channel_id=34)
+  send.2011: token = send(send.2010, tuple_index.2004, channel_id=21)
   next (send.2011, state)
 }
 
@@ -217,8 +217,8 @@ proc tile_2_1(my_token: token, state: (), init=()) {
   tuple_index.2107: bits[32] = tuple_index(receive.2105, index=1)
   umul.2108: bits[32] = umul(literal.2101, tuple_index.2104)
   add.2109: bits[32] = add(umul.2108, tuple_index.2107)
-  send.2110: token = send(tuple_index.2106, data=[add.2109], channel_id=35)
-  send.2111: token = send(send.2110, data=[tuple_index.2104], channel_id=22)
+  send.2110: token = send(tuple_index.2106, add.2109, channel_id=35)
+  send.2111: token = send(send.2110, tuple_index.2104, channel_id=22)
   next (send.2111, state)
 }
 
@@ -232,8 +232,8 @@ proc tile_2_2(my_token: token, state: (), init=()) {
   tuple_index.2207: bits[32] = tuple_index(receive.2205, index=1)
   umul.2208: bits[32] = umul(literal.2201, tuple_index.2204)
   add.2209: bits[32] = add(umul.2208, tuple_index.2207)
-  send.2210: token = send(tuple_index.2206, data=[add.2209], channel_id=36)
-  send.2211: token = send(send.2210, data=[tuple_index.2204], channel_id=23)
+  send.2210: token = send(tuple_index.2206, add.2209, channel_id=36)
+  send.2211: token = send(send.2210, tuple_index.2204, channel_id=23)
   next (send.2211, state)
 }
 
@@ -247,7 +247,7 @@ proc tile_2_3(my_token: token, state: (), init=()) {
   tuple_index.2307: bits[32] = tuple_index(receive.2305, index=1)
   umul.2308: bits[32] = umul(literal.2301, tuple_index.2304)
   add.2309: bits[32] = add(umul.2308, tuple_index.2307)
-  send.2310: token = send(tuple_index.2306, data=[add.2309], channel_id=37)
+  send.2310: token = send(tuple_index.2306, add.2309, channel_id=37)
   // Eastern-most tiles don't send activations any further.
   next (send.2310, state)
 }
@@ -262,8 +262,8 @@ proc tile_3_0(my_token: token, state: (), init=()) {
   tuple_index.3007: bits[32] = tuple_index(receive.3005, index=1)
   umul.3008: bits[32] = umul(literal.3001, tuple_index.3004)
   add.3009: bits[32] = add(umul.3008, tuple_index.3007)
-  send.3010: token = send(tuple_index.3006, data=[add.3009], channel_id=44)
-  send.3011: token = send(send.3010, data=[tuple_index.3004], channel_id=31)
+  send.3010: token = send(tuple_index.3006, add.3009, channel_id=44)
+  send.3011: token = send(send.3010, tuple_index.3004, channel_id=31)
   next (send.3011, state)
 }
 
@@ -277,8 +277,8 @@ proc tile_3_1(my_token: token, state: (), init=()) {
   tuple_index.3107: bits[32] = tuple_index(receive.3105, index=1)
   umul.3108: bits[32] = umul(literal.3101, tuple_index.3104)
   add.3109: bits[32] = add(umul.3108, tuple_index.3107)
-  send.3110: token = send(tuple_index.3106, data=[add.3109], channel_id=45)
-  send.3111: token = send(send.3110, data=[tuple_index.3104], channel_id=32)
+  send.3110: token = send(tuple_index.3106, add.3109, channel_id=45)
+  send.3111: token = send(send.3110, tuple_index.3104, channel_id=32)
   next (send.3111, state)
 }
 
@@ -292,8 +292,8 @@ proc tile_3_2(my_token: token, state: (), init=()) {
   tuple_index.3207: bits[32] = tuple_index(receive.3205, index=1)
   umul.3208: bits[32] = umul(literal.3201, tuple_index.3204)
   add.3209: bits[32] = add(umul.3208, tuple_index.3207)
-  send.3210: token = send(tuple_index.3206, data=[add.3209], channel_id=46)
-  send.3211: token = send(send.3210, data=[tuple_index.3204], channel_id=33)
+  send.3210: token = send(tuple_index.3206, add.3209, channel_id=46)
+  send.3211: token = send(send.3210, tuple_index.3204, channel_id=33)
   next (send.3211, state)
 }
 
@@ -307,7 +307,7 @@ proc tile_3_3(my_token: token, state: (), init=()) {
   tuple_index.3307: bits[32] = tuple_index(receive.3305, index=1)
   umul.3308: bits[32] = umul(literal.3301, tuple_index.3304)
   add.3309: bits[32] = add(umul.3308, tuple_index.3307)
-  send.3310: token = send(tuple_index.3306, data=[add.3309], channel_id=47)
+  send.3310: token = send(tuple_index.3306, add.3309, channel_id=47)
   // Eastern-most tiles don't send activations any further.
   next (send.3310, state)
 }

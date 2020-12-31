@@ -50,13 +50,12 @@ class SerialProcRuntime {
 
   // Enqueues the given set of values into the given channel. 'values' must
   // match the number and type of the data elements of the channel.
-  absl::Status EnqueueValuesToChannel(Channel* channel,
-                                      absl::Span<const Value> values);
+  absl::Status EnqueueValueToChannel(Channel* channel, const Value& value);
 
   // Dequeues a set of values into the given channel. The number and type of the
   // returned values matches the number and type of the data elements of the
   // channel.
-  absl::StatusOr<std::vector<Value>> DequeueValuesFromChannel(Channel* channel);
+  absl::StatusOr<Value> DequeueValueFromChannel(Channel* channel);
 
  private:
   // Utility structure to hold state needed by each proc thread.

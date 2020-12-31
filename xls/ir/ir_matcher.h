@@ -527,21 +527,14 @@ inline ::testing::Matcher<const ::xls::Node*> TupleIndex(
 //
 //   EXPECT_THAT(foo, op::Send());
 //   EXPECT_THAT(foo, op::Send(/*channel_id=*/42));
-//   EXPECT_THAT(foo, op::Send(/*token=*/op::Param(), /*data=*/{op::Param()},
+//   EXPECT_THAT(foo, op::Send(/*token=*/op::Param(), /*data=*/op::Param(),
 //                             /*channel_id=*/42));
 class SendMatcher : public NodeMatcher {
  public:
   explicit SendMatcher(::testing::Matcher<const Node*> token,
-                       std::vector<::testing::Matcher<const Node*>> data,
+                       ::testing::Matcher<const Node*> data,
                        absl::optional<int64> channel_id = absl::nullopt)
-      : NodeMatcher(Op::kSend,
-                    [&]() {
-                      std::vector<::testing::Matcher<const Node*>> operands;
-                      operands.push_back(token);
-                      operands.insert(operands.end(), data.begin(), data.end());
-                      return operands;
-                    }()),
-        channel_id_(channel_id) {}
+      : NodeMatcher(Op::kSend, {token, data}), channel_id_(channel_id) {}
   explicit SendMatcher(absl::optional<int64> channel_id = absl::nullopt)
       : NodeMatcher(Op::kSend, {}), channel_id_(channel_id) {}
 
@@ -560,7 +553,7 @@ inline ::testing::Matcher<const ::xls::Node*> Send(
 
 inline ::testing::Matcher<const ::xls::Node*> Send(
     ::testing::Matcher<const ::xls::Node*> token,
-    std::vector<::testing::Matcher<const Node*>> data,
+    ::testing::Matcher<const Node*> data,
     absl::optional<int64> channel_id = absl::nullopt) {
   return ::testing::MakeMatcher(
       new ::xls::op_matchers::SendMatcher(token, data, channel_id));
@@ -571,21 +564,14 @@ inline ::testing::Matcher<const ::xls::Node*> Send(
 //   EXPECT_THAT(foo, op::SendIf());
 //   EXPECT_THAT(foo, op::SendIf(/*channel_id=*/42));
 //   EXPECT_THAT(foo, op::SendIf(/*token=*/op::Param(), /*pred=*/op::Param(),
-//                               /*data=*/{op::Param()}, /*channel_id=*/42));
+//                               /*data=*/op::Param(), /*channel_id=*/42));
 class SendIfMatcher : public NodeMatcher {
  public:
   explicit SendIfMatcher(::testing::Matcher<const Node*> token,
                          ::testing::Matcher<const Node*> pred,
-                         std::vector<::testing::Matcher<const Node*>> data,
+                         ::testing::Matcher<const Node*> data,
                          absl::optional<int64> channel_id = absl::nullopt)
-      : NodeMatcher(Op::kSendIf,
-                    [&]() {
-                      std::vector<::testing::Matcher<const Node*>> operands;
-                      operands.push_back(token);
-                      operands.push_back(pred);
-                      operands.insert(operands.end(), data.begin(), data.end());
-                      return operands;
-                    }()),
+      : NodeMatcher(Op::kSendIf, {token, pred, data}),
         channel_id_(channel_id) {}
   explicit SendIfMatcher(absl::optional<int64> channel_id = absl::nullopt)
       : NodeMatcher(Op::kSendIf, {}), channel_id_(channel_id) {}
@@ -606,7 +592,7 @@ inline ::testing::Matcher<const ::xls::Node*> SendIf(
 inline ::testing::Matcher<const ::xls::Node*> SendIf(
     ::testing::Matcher<const ::xls::Node*> token,
     ::testing::Matcher<const ::xls::Node*> pred,
-    std::vector<::testing::Matcher<const Node*>> data,
+    ::testing::Matcher<const Node*> data,
     absl::optional<int64> channel_id = absl::nullopt) {
   return ::testing::MakeMatcher(
       new ::xls::op_matchers::SendIfMatcher(token, pred, data, channel_id));

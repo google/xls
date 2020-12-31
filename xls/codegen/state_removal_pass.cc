@@ -39,10 +39,8 @@ absl::StatusOr<bool> StateRemovalPass::RunOnProc(Proc* proc,
   XLS_ASSIGN_OR_RETURN(
       Channel * state_channel,
       proc->package()->CreateStreamingChannel(
-          kStateChannelName, Channel::SupportedOps::kSendReceive,
-          {DataElement{.name = proc->StateParam()->GetName(),
-                       .type = proc->StateType(),
-                       .initial_values = {proc->InitValue()}}}));
+          proc->StateParam()->GetName(), Channel::SupportedOps::kSendReceive,
+          proc->StateType(), {proc->InitValue()}));
 
   // Create a receive of the recurrent state and replace current uses of the
   // state param with the received state data.
@@ -63,7 +61,7 @@ absl::StatusOr<bool> StateRemovalPass::RunOnProc(Proc* proc,
   XLS_ASSIGN_OR_RETURN(
       Send * state_send,
       proc->MakeNode<Send>(/*loc=*/absl::nullopt, receive_token,
-                           /*args=*/std::vector<Node*>({proc->NextState()}),
+                           /*data=*/proc->NextState(),
                            /*channel_id=*/state_channel->id()));
 
   // Join the token from the send with the existing next token value.

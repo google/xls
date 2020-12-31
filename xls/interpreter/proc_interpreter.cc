@@ -35,54 +35,29 @@ class ProcIrInterpreter : public IrInterpreter {
   absl::Status HandleReceive(Receive* receive) override {
     XLS_ASSIGN_OR_RETURN(ChannelQueue * queue,
                          queue_manager_->GetQueueById(receive->channel_id()));
-    XLS_ASSIGN_OR_RETURN(ChannelData data, queue->Dequeue());
-    // Return value of a receive is a tuple containing:
-    //   (token, data-element-0, data-element-1, ... , data-element-n)
-    std::vector<Value> tuple_values;
-    tuple_values.push_back(Value::Token());
-    for (Value& value : data) {
-      tuple_values.push_back(std::move(value));
-    }
-    return SetValueResult(receive, Value::Tuple(tuple_values));
+    XLS_ASSIGN_OR_RETURN(Value value, queue->Dequeue());
+    return SetValueResult(receive, Value::Tuple({Value::Token(), value}));
   }
 
   absl::Status HandleReceiveIf(ReceiveIf* receive_if) override {
     const Bits& pred = ResolveAsBits(receive_if->predicate());
     if (pred.IsZero()) {
       // If the predicate is false, nothing is dequeued from the channel. Rather
-      // the data values of the receive_if are the zero values of the respective
-      // types.
-      std::vector<Value> tuple_values;
-      tuple_values.push_back(Value::Token());
-      for (int64 i = 1; i < receive_if->GetType()->AsTupleOrDie()->size();
-           ++i) {
-        tuple_values.push_back(
-            ZeroOfType(receive_if->GetType()->AsTupleOrDie()->element_type(i)));
-      }
-      return SetValueResult(receive_if, Value::Tuple(tuple_values));
+      // the result of the receive_if is the zero values of the respective
+      // type.
+      return SetValueResult(receive_if, ZeroOfType(receive_if->GetType()));
     }
 
     XLS_ASSIGN_OR_RETURN(ChannelQueue * queue, queue_manager_->GetQueueById(
                                                    receive_if->channel_id()));
-    XLS_ASSIGN_OR_RETURN(ChannelData data, queue->Dequeue());
-    // Return value of a receive_if is a tuple containing:
-    //   (token, data-element-0, data-element-1, ... , data-element-n)
-    std::vector<Value> tuple_values;
-    tuple_values.push_back(Value::Token());
-    for (Value& value : data) {
-      tuple_values.push_back(std::move(value));
-    }
-    return SetValueResult(receive_if, Value::Tuple(tuple_values));
+    XLS_ASSIGN_OR_RETURN(Value value, queue->Dequeue());
+    return SetValueResult(receive_if, Value::Tuple({Value::Token(), value}));
   }
 
   absl::Status HandleSend(Send* send) override {
     XLS_ASSIGN_OR_RETURN(ChannelQueue * queue,
                          queue_manager_->GetQueueById(send->channel_id()));
-    ChannelData to_send;
-    for (Node* data_operand : send->data_operands()) {
-      to_send.push_back(ResolveAsValue(data_operand));
-    }
-    XLS_RETURN_IF_ERROR(queue->Enqueue(to_send));
+    XLS_RETURN_IF_ERROR(queue->Enqueue(ResolveAsValue(send->data())));
 
     // The result of a send is simply a token.
     return SetValueResult(send, Value::Token());
@@ -93,11 +68,7 @@ class ProcIrInterpreter : public IrInterpreter {
     if (pred.IsOne()) {
       XLS_ASSIGN_OR_RETURN(ChannelQueue * queue,
                            queue_manager_->GetQueueById(send_if->channel_id()));
-      ChannelData to_send;
-      for (Node* data_operand : send_if->data_operands()) {
-        to_send.push_back(ResolveAsValue(data_operand));
-      }
-      XLS_RETURN_IF_ERROR(queue->Enqueue(to_send));
+      XLS_RETURN_IF_ERROR(queue->Enqueue(ResolveAsValue(send_if->data())));
     }
 
     // The result of a send_if is simply a token.

@@ -33,9 +33,6 @@ class StateRemovalPass : public ProcPass {
 
   absl::StatusOr<bool> RunOnProc(Proc* proc, const PassOptions& options,
                                  PassResults* results) const override;
-
-  // Name of the channel created to communicate the recurrent state.
-  static constexpr char kStateChannelName[] = "proc_state";
 };
 
 }  // namespace xls

@@ -290,13 +290,10 @@ TEST_F(PackageTest, CreateStreamingChannel) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch0,
       p.CreateStreamingChannel("ch0", Channel::SupportedOps::kSendOnly,
-                               {DataElement{"foo", p.GetBitsType(32)},
-                                DataElement{"bar", p.GetBitsType(111)}}));
+                               p.GetBitsType(32)));
   EXPECT_EQ(ch0->name(), "ch0");
   EXPECT_EQ(ch0->id(), 0);
-  EXPECT_EQ(ch0->data_elements().size(), 2);
-  EXPECT_EQ(ch0->data_element(0).name, "foo");
-  EXPECT_EQ(ch0->data_element(1).name, "bar");
+  EXPECT_EQ(ch0->type(), p.GetBitsType(32));
   EXPECT_EQ(ch0->supported_ops(), Channel::SupportedOps::kSendOnly);
   EXPECT_THAT(p.GetChannel(0), IsOkAndHolds(ch0));
 
@@ -306,7 +303,7 @@ TEST_F(PackageTest, CreateStreamingChannel) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch1,
       p.CreateStreamingChannel("ch1", Channel::SupportedOps::kReceiveOnly,
-                               {DataElement{"qux", p.GetBitsType(444)}}));
+                               p.GetBitsType(444)));
   EXPECT_EQ(ch1->name(), "ch1");
   EXPECT_EQ(ch1->id(), 1);
   EXPECT_EQ(ch1->supported_ops(), Channel::SupportedOps::kReceiveOnly);
@@ -316,7 +313,8 @@ TEST_F(PackageTest, CreateStreamingChannel) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch42,
       p.CreateStreamingChannel("ch42", Channel::SupportedOps::kReceiveOnly,
-                               {DataElement{"baz", p.GetBitsType(44)}}, 42));
+                               p.GetBitsType(44), /*initial_values=*/{},
+                               ChannelMetadataProto(), 42));
   EXPECT_EQ(ch42->id(), 42);
   EXPECT_THAT(p.GetChannel(42), IsOkAndHolds(ch42));
 
@@ -324,13 +322,14 @@ TEST_F(PackageTest, CreateStreamingChannel) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch43,
       p.CreateStreamingChannel("ch43", Channel::SupportedOps::kReceiveOnly,
-                               {DataElement{"baz", p.GetBitsType(44)}}));
+                               p.GetBitsType(44)));
   EXPECT_EQ(ch43->id(), 43);
 
   // Creating a channel with a duplicate ID is an error.
   EXPECT_THAT(
       p.CreateStreamingChannel("ch1_dup", Channel::SupportedOps::kReceiveOnly,
-                               {DataElement{"baz", p.GetBitsType(44)}}, 1)
+                               p.GetBitsType(44), /*initial_values=*/{},
+                               ChannelMetadataProto(), 1)
           .status(),
       StatusIs(absl::StatusCode::kInternal,
                HasSubstr("Channel already exists with id 1")));

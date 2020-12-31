@@ -1105,10 +1105,10 @@ fn foo(x: bits[32]) -> bits[32] {
 TEST(IrParserTest, ParseSimpleProc) {
   const std::string input = R"(package test
 
-chan ch(data: bits[32], id=0, kind=streaming, ops=send_receive, metadata="""""")
+chan ch(bits[32], id=0, kind=streaming, ops=send_receive, metadata="""""")
 
 proc my_proc(my_token: token, my_state: bits[32], init=42) {
-  send.1: token = send(my_token, data=[my_state], channel_id=0, id=1)
+  send.1: token = send(my_token, my_state, channel_id=0, id=1)
   receive.2: (token, bits[32]) = receive(send.1, channel_id=0, id=2)
   tuple_index.3: token = tuple_index(receive.2, index=0, id=3)
   next (tuple_index.3, my_state)
@@ -1809,7 +1809,7 @@ TEST(IrParserTest, ParseSendReceiveChannel) {
   Package p("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Channel * ch,
                            Parser::ParseChannel(
-                               R"(chan foo(foo_data: bits[32], id=42, kind=port,
+                               R"(chan foo(bits[32], id=42, kind=port,
                       ops=send_receive,
                       metadata="module_port { flopped: true }"))",
                                &p));
@@ -1817,10 +1817,8 @@ TEST(IrParserTest, ParseSendReceiveChannel) {
   EXPECT_EQ(ch->id(), 42);
   EXPECT_EQ(ch->supported_ops(), Channel::SupportedOps::kSendReceive);
   EXPECT_TRUE(ch->IsPort());
-  EXPECT_EQ(ch->data_elements().size(), 1);
-  EXPECT_EQ(ch->data_elements().front().name, "foo_data");
-  EXPECT_EQ(ch->data_elements().front().type, p.GetBitsType(32));
-  EXPECT_TRUE(ch->data_elements().front().initial_values.empty());
+  EXPECT_EQ(ch->type(), p.GetBitsType(32));
+  EXPECT_TRUE(ch->initial_values().empty());
   EXPECT_EQ(ch->metadata().channel_oneof_case(),
             ChannelMetadataProto::kModulePort);
   EXPECT_TRUE(ch->metadata().module_port().flopped());
@@ -1831,17 +1829,15 @@ TEST(IrParserTest, ParseSendReceiveChannelWithInitialValues) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch,
       Parser::ParseChannel(
-          R"(chan foo(foo_data: bits[32] = {2, 4, 5}, id=42, kind=streaming, ops=send_receive,
+          R"(chan foo(bits[32], initial_values={2, 4, 5}, id=42, kind=streaming, ops=send_receive,
                          metadata="module_port { flopped: true }"))",
           &p));
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_EQ(ch->id(), 42);
   EXPECT_EQ(ch->supported_ops(), Channel::SupportedOps::kSendReceive);
   EXPECT_TRUE(ch->IsStreaming());
-  EXPECT_EQ(ch->data_elements().size(), 1);
-  EXPECT_EQ(ch->data_elements().front().name, "foo_data");
-  EXPECT_EQ(ch->data_elements().front().type, p.GetBitsType(32));
-  EXPECT_THAT(ch->data_elements().front().initial_values,
+  EXPECT_EQ(ch->type(), p.GetBitsType(32));
+  EXPECT_THAT(ch->initial_values(),
               ElementsAre(Value(UBits(2, 32)), Value(UBits(4, 32)),
                           Value(UBits(5, 32))));
   EXPECT_EQ(ch->metadata().channel_oneof_case(),
@@ -1854,79 +1850,41 @@ TEST(IrParserTest, ParseSendReceiveChannelWithEmptyInitialValues) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch,
       Parser::ParseChannel(
-          R"(chan foo(foo_data: bits[32] = {}, id=42, kind=register,
+          R"(chan foo(bits[32], initial_values={}, id=42, kind=register,
                       ops=send_receive,
                       metadata="module_port { flopped: true }"))",
           &p));
   EXPECT_EQ(ch->name(), "foo");
-  EXPECT_EQ(ch->data_elements().size(), 1);
   EXPECT_TRUE(ch->IsRegister());
-  EXPECT_TRUE(ch->data_elements().front().initial_values.empty());
+  EXPECT_TRUE(ch->initial_values().empty());
 }
 
 TEST(IrParserTest, ParseSendReceiveChannelWithTupleType) {
   Package p("my_package");
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch,
-      Parser::ParseChannel(
-          R"(chan foo(foo_data: (bits[32], bits[1]) = {(123, 1), (42, 0)},
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * ch, Parser::ParseChannel(
+                                             R"(chan foo((bits[32], bits[1]),
+                      initial_values={(123, 1), (42, 0)},
                       id=42, kind=streaming,  ops=send_receive,
                       metadata="module_port { flopped: true }"))",
-          &p));
+                                             &p));
   EXPECT_EQ(ch->name(), "foo");
-  EXPECT_EQ(ch->data_elements().size(), 1);
   EXPECT_THAT(
-      ch->data_elements().front().initial_values,
+      ch->initial_values(),
       ElementsAre(Value::Tuple({Value(UBits(123, 32)), Value(UBits(1, 1))}),
                   Value::Tuple({Value(UBits(42, 32)), Value(UBits(0, 1))})));
 }
 
-TEST(IrParserTest, ParseMultipleDataSendReceiveChannelWithInitialValues) {
-  Package p("my_package");
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ch,
-                           Parser::ParseChannel(
-                               R"(chan foo(foo_data: bits[32] = {2, 4},
-                      bar_data: bits[8] = {0, 42},
-                      id=42, kind=streaming, ops=send_receive,
-                      metadata="module_port { flopped: true }"))",
-                               &p));
-  EXPECT_EQ(ch->name(), "foo");
-  EXPECT_EQ(ch->id(), 42);
-  EXPECT_EQ(ch->supported_ops(), Channel::SupportedOps::kSendReceive);
-  EXPECT_EQ(ch->data_elements().size(), 2);
-
-  EXPECT_EQ(ch->data_element(0).name, "foo_data");
-  EXPECT_EQ(ch->data_element(0).type, p.GetBitsType(32));
-  EXPECT_THAT(ch->data_element(0).initial_values,
-              ElementsAre(Value(UBits(2, 32)), Value(UBits(4, 32))));
-
-  EXPECT_EQ(ch->data_element(1).name, "bar_data");
-  EXPECT_EQ(ch->data_element(1).type, p.GetBitsType(8));
-  EXPECT_THAT(ch->data_element(1).initial_values,
-              ElementsAre(Value(UBits(0, 8)), Value(UBits(42, 8))));
-
-  EXPECT_EQ(ch->metadata().channel_oneof_case(),
-            ChannelMetadataProto::kModulePort);
-  EXPECT_TRUE(ch->metadata().module_port().flopped());
-}
-
 TEST(IrParserTest, ParseSendOnlyChannel) {
   Package p("my_package");
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch, Parser::ParseChannel(
-                        R"(chan bar(baz: (bits[32], bits[1]), qux: bits[123],
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * ch, Parser::ParseChannel(
+                                             R"(chan bar((bits[32], bits[1]),
                          id=7, kind=port, ops=send_only,
                          metadata="module_port { flopped: false }"))",
-                        &p));
+                                             &p));
   EXPECT_EQ(ch->name(), "bar");
   EXPECT_EQ(ch->id(), 7);
   EXPECT_EQ(ch->supported_ops(), Channel::SupportedOps::kSendOnly);
-  EXPECT_EQ(ch->data_elements().size(), 2);
-  EXPECT_EQ(ch->data_elements()[0].name, "baz");
-  EXPECT_EQ(ch->data_elements()[0].type,
-            p.GetTupleType({p.GetBitsType(32), p.GetBitsType(1)}));
-  EXPECT_EQ(ch->data_elements()[1].name, "qux");
-  EXPECT_EQ(ch->data_elements()[1].type, p.GetBitsType(123));
+  EXPECT_EQ(ch->type(), p.GetTupleType({p.GetBitsType(32), p.GetBitsType(1)}));
   EXPECT_EQ(ch->metadata().channel_oneof_case(),
             ChannelMetadataProto::kModulePort);
   EXPECT_FALSE(ch->metadata().module_port().flopped());
@@ -1935,17 +1893,14 @@ TEST(IrParserTest, ParseSendOnlyChannel) {
 TEST(IrParserTest, ParseReceiveOnlyChannel) {
   Package p("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Channel * ch, Parser::ParseChannel(
-                                             R"(chan meh(huh: bits[32][4], id=0,
+                                             R"(chan meh(bits[32][4], id=0,
                          kind=port, ops=receive_only,
                          metadata="module_port { flopped: true }"))",
                                              &p));
   EXPECT_EQ(ch->name(), "meh");
   EXPECT_EQ(ch->id(), 0);
   EXPECT_EQ(ch->supported_ops(), Channel::SupportedOps::kReceiveOnly);
-  EXPECT_EQ(ch->data_elements().size(), 1);
-  EXPECT_EQ(ch->data_elements().front().name, "huh");
-  EXPECT_EQ(ch->data_elements().front().type,
-            p.GetArrayType(4, p.GetBitsType(32)));
+  EXPECT_EQ(ch->type(), p.GetArrayType(4, p.GetBitsType(32)));
   EXPECT_EQ(ch->metadata().channel_oneof_case(),
             ChannelMetadataProto::kModulePort);
   EXPECT_TRUE(ch->metadata().module_port().flopped());
@@ -1954,7 +1909,7 @@ TEST(IrParserTest, ParseReceiveOnlyChannel) {
 TEST(IrParserTest, ChannelParsingErrors) {
   Package p("my_package");
   EXPECT_THAT(Parser::ParseChannel(
-                  R"(chan meh(huh: bits[32][4], kind=port,
+                  R"(chan meh(bits[32][4], kind=port,
                          ops=receive_only,
                          metadata="module_port { flopped: true }"))",
                   &p)
@@ -1963,7 +1918,7 @@ TEST(IrParserTest, ChannelParsingErrors) {
                        HasSubstr("Missing channel id")));
 
   EXPECT_THAT(Parser::ParseChannel(
-                  R"(chan meh(huh: bits[32][4], id=42, ops=receive_only,
+                  R"(chan meh(bits[32][4], id=42, ops=receive_only,
                          metadata="module_port { flopped: true }"))",
                   &p)
                   .status(),
@@ -1971,7 +1926,7 @@ TEST(IrParserTest, ChannelParsingErrors) {
                        HasSubstr("Missing channel kind")));
 
   EXPECT_THAT(Parser::ParseChannel(
-                  R"(chan meh(huh: bits[32][4], id=42, kind=bogus,
+                  R"(chan meh(bits[32][4], id=42, kind=bogus,
                          ops=receive_only,
                          metadata="module_port { flopped: true }"))",
                   &p)
@@ -1980,7 +1935,7 @@ TEST(IrParserTest, ChannelParsingErrors) {
                        HasSubstr("Invalid channel kind \"bogus\"")));
 
   EXPECT_THAT(Parser::ParseChannel(
-                  R"(chan meh(huh: bits[32][4], id=7, kind=streaming,
+                  R"(chan meh(bits[32][4], id=7, kind=streaming,
                          metadata="module_port { flopped: true }"))",
                   &p)
                   .status(),
@@ -1989,7 +1944,7 @@ TEST(IrParserTest, ChannelParsingErrors) {
 
   // Unrepresentable initial value.
   EXPECT_THAT(Parser::ParseChannel(
-                  R"(chan meh(huh: bits[4] = {128}, kind=streaming,
+                  R"(chan meh(bits[4], initial_values={128}, kind=streaming,
                          ops=send_receive, id=7,
                          metadata="module_port { flopped: true }"))",
                   &p)
@@ -1999,7 +1954,7 @@ TEST(IrParserTest, ChannelParsingErrors) {
 
   // Wrong initial value type.
   EXPECT_THAT(Parser::ParseChannel(
-                  R"(chan meh(huh: bits[4] = {(1, 2)}, kind=streaming,
+                  R"(chan meh(bits[4], initial_values={(1, 2)}, kind=streaming,
                          ops=send_receive, id=7
                          metadata="module_port { flopped: true }"))",
                   &p)
@@ -2008,7 +1963,7 @@ TEST(IrParserTest, ChannelParsingErrors) {
                        HasSubstr("Expected token of type \"literal\"")));
 
   EXPECT_THAT(Parser::ParseChannel(
-                  R"(chan meh(huh: bits[32][4], id=7, kind=streaming,
+                  R"(chan meh(bits[32][4], id=7, kind=streaming,
                      ops=receive_only))",
                   &p)
                   .status(),
@@ -2021,25 +1976,16 @@ TEST(IrParserTest, ChannelParsingErrors) {
                   &p)
                   .status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Channel has no data elements")));
+                       HasSubstr("Expected 'bits' keyword")));
 
   EXPECT_THAT(Parser::ParseChannel(
-                  R"(chan meh(foo: bits[32], id=44, kind=streaming,
+                  R"(chan meh(bits[32], id=44, kind=streaming,
                          ops=receive_only, bogus="totally!",
                          metadata="module_port { flopped: true }"))",
                   &p)
                   .status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Invalid channel attribute \"bogus\"")));
-
-  // Bad data element name.
-  EXPECT_THAT(Parser::ParseChannel(
-                  R"(chan meh(123badname: bits[32][4], id=7, kind=streaming,
-             ops=receive_only, metadata=""))",
-                  &p)
-                  .status(),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Expected token of type \"ident\"")));
 
   // Bad channel name.
   EXPECT_THAT(Parser::ParseChannel(
@@ -2055,9 +2001,9 @@ TEST(IrParserTest, PackageWithSingleDataElementChannels) {
   std::string program = R"(
 package test
 
-chan hbo(junk: bits[32], id=0, kind=streaming, ops=receive_only,
+chan hbo(bits[32], id=0, kind=streaming, ops=receive_only,
             metadata="module_port { flopped: true }")
-chan mtv(stuff: bits[32], id=1, kind=streaming, ops=send_only,
+chan mtv(bits[32], id=1, kind=streaming, ops=send_only,
             metadata="module_port { flopped: true }")
 
 proc my_proc(my_token: token, my_state: bits[32], init=42) {
@@ -2065,34 +2011,8 @@ proc my_proc(my_token: token, my_state: bits[32], init=42) {
   tuple_index.2: token = tuple_index(receive.1, index=0, id=2)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1, id=3)
   add.4: bits[32] = add(my_state, tuple_index.3, id=4)
-  send.5: token = send(tuple_index.2, data=[add.4], channel_id=1)
+  send.5: token = send(tuple_index.2, add.4, channel_id=1)
   next (send.5, add.4)
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
-  EXPECT_EQ(package->procs().size(), 1);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
-  EXPECT_EQ(proc->name(), "my_proc");
-}
-
-TEST(IrParserTest, PackageWithMultipleDataElementChannels) {
-  std::string program = R"(
-package test
-
-chan hbo(junk: bits[32], garbage: bits[1], kind=streaming, id=0,
-         ops=receive_only,
-         metadata="module_port { flopped: true }")
-chan mtv(stuff: bits[32], zzz: bits[1], kind=streaming, id=1, ops=send_only,
-          metadata="module_port { flopped: true }")
-
-proc my_proc(my_token: token, my_state: bits[32], init=42) {
-  literal.1: bits[1] = literal(value=1, id=1)
-  receive_if.2: (token, bits[32], bits[1]) = receive_if(my_token, literal.1, channel_id=0)
-  tuple_index.3: token = tuple_index(receive_if.2, index=0, id=3)
-  tuple_index.4: bits[32] = tuple_index(receive_if.2, index=1, id=4)
-  tuple_index.5: bits[1] = tuple_index(receive_if.2, index=2, id=5)
-  send_if.6: token = send_if(tuple_index.3, literal.1, data=[tuple_index.4, tuple_index.5], channel_id=1)
-  next (send_if.6, my_state)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));

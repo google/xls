@@ -43,7 +43,7 @@ Value ValueOfType(Type* type,
       return Value::Array(elements).value();
     }
     case TypeKind::kToken:
-      break;
+      return Value::Token();
   }
   XLS_LOG(FATAL) << "Invalid kind: " << type->kind();
 }

@@ -26,6 +26,7 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_helpers.h"
 
 namespace xls {
 namespace {
@@ -429,39 +430,54 @@ std::vector<std::string> Package::GetFunctionNames() const {
   return names;
 }
 
+namespace {
+
+absl::Status VerifyValuesAreType(absl::Span<const Value> values, Type* type) {
+  for (const Value& value : values) {
+    if (!ValueConformsToType(value, type)) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Initial value does not match channel type %s: %s",
+                          type->ToString(), value.ToString()));
+    }
+  }
+  return absl::OkStatus();
+}
+
+}  // namespace
+
 absl::StatusOr<StreamingChannel*> Package::CreateStreamingChannel(
-    absl::string_view name, Channel::SupportedOps supported_ops,
-    absl::Span<const DataElement> data_elements, absl::optional<int64> id,
-    const ChannelMetadataProto& metadata) {
+    absl::string_view name, Channel::SupportedOps supported_ops, Type* type,
+    absl::Span<const Value> initial_values,
+    const ChannelMetadataProto& metadata, absl::optional<int64> id) {
+  XLS_RETURN_IF_ERROR(VerifyValuesAreType(initial_values, type));
   int64 actual_id = id.has_value() ? id.value() : next_channel_id_;
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<StreamingChannel> channel,
-                       StreamingChannel::Create(name, actual_id, supported_ops,
-                                                data_elements, metadata));
+  auto channel = absl::make_unique<StreamingChannel>(
+      name, actual_id, supported_ops, type, initial_values, metadata);
   StreamingChannel* channel_ptr = channel.get();
   XLS_RETURN_IF_ERROR(AddChannel(std::move(channel)));
   return channel_ptr;
 }
 
 absl::StatusOr<PortChannel*> Package::CreatePortChannel(
-    absl::string_view name, Channel::SupportedOps supported_ops,
-    absl::Span<const DataElement> data_elements, absl::optional<int64> id,
-    const ChannelMetadataProto& metadata) {
+    absl::string_view name, Channel::SupportedOps supported_ops, Type* type,
+    const ChannelMetadataProto& metadata, absl::optional<int64> id) {
   int64 actual_id = id.has_value() ? id.value() : next_channel_id_;
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<PortChannel> channel,
-                       PortChannel::Create(name, actual_id, supported_ops,
-                                           data_elements, metadata));
+  auto channel = absl::make_unique<PortChannel>(name, actual_id, supported_ops,
+                                                type, metadata);
   PortChannel* channel_ptr = channel.get();
   XLS_RETURN_IF_ERROR(AddChannel(std::move(channel)));
   return channel_ptr;
 }
 
 absl::StatusOr<RegisterChannel*> Package::CreateRegisterChannel(
-    absl::string_view name, absl::Span<const DataElement> data_elements,
-    absl::optional<int64> id, const ChannelMetadataProto& metadata) {
+    absl::string_view name, Type* type, absl::optional<Value> reset_value,
+    const ChannelMetadataProto& metadata, absl::optional<int64> id) {
+  if (reset_value.has_value()) {
+    XLS_RETURN_IF_ERROR(VerifyValuesAreType({reset_value.value()}, type));
+  }
   int64 actual_id = id.has_value() ? id.value() : next_channel_id_;
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<RegisterChannel> channel,
-      RegisterChannel::Create(name, actual_id, data_elements, metadata));
+  auto channel = absl::make_unique<RegisterChannel>(name, actual_id, type,
+                                                    reset_value, metadata);
   RegisterChannel* channel_ptr = channel.get();
   XLS_RETURN_IF_ERROR(AddChannel(std::move(channel)));
   return channel_ptr;
@@ -488,13 +504,6 @@ absl::Status Package::AddChannel(std::unique_ptr<Channel> channel) {
   if (!NameUniquer::IsValidIdentifier(channel_ptr->name())) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Invalid channel name: \"%s\"", channel_ptr->name()));
-  }
-  for (const DataElement& data_element : channel_ptr->data_elements()) {
-    if (!NameUniquer::IsValidIdentifier(data_element.name)) {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Invalid data element name \"%s\" in channel \"%s\"",
-                          data_element.name, channel_ptr->name()));
-    }
   }
 
   // Add pointer to newly added channel to the channel vector and resort it by
@@ -525,15 +534,6 @@ absl::StatusOr<Channel*> Package::GetChannel(absl::string_view name) const {
   return absl::NotFoundError(
       absl::StrFormat("No channel with name '%s' (package has %d channels).",
                       name, channels().size()));
-}
-
-Type* Package::GetReceiveType(Channel* channel) {
-  std::vector<Type*> element_types;
-  element_types.push_back(GetTokenType());
-  for (const DataElement& data : channel->data_elements()) {
-    element_types.push_back(data.type);
-  }
-  return GetTupleType(element_types);
 }
 
 }  // namespace xls

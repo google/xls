@@ -296,18 +296,9 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModuleFromProc(
         node->Is<ReceiveIf>()) {
       XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
       XLS_CHECK(channel_gen_types.contains(channel));
-      if (channel->data_elements().size() != 1) {
-        return absl::UnimplementedError(
-            absl::StrFormat("Only single data element channels supported: %s",
-                            channel->ToString()));
-      }
       if (!channel->IsPort()) {
         return absl::UnimplementedError(absl::StrFormat(
-            "Only single-value channels supported: %s", channel->ToString()));
-      }
-      if (!channel->metadata().has_module_port()) {
-        return absl::UnimplementedError(absl::StrFormat(
-            "Only module port channels supported: %s", channel->ToString()));
+            "Only port channels supported: %s", channel->ToString()));
       }
       if (channel->metadata().module_port().flopped()) {
         return absl::UnimplementedError(absl::StrFormat(
@@ -336,18 +327,15 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModuleFromProc(
 
   // Add the data input ports
   for (const ChannelNode& cn : channel_nodes) {
-    XLS_RET_CHECK_EQ(cn.channel->data_elements().size(), 1);
-
     if (cn.node->Is<Receive>() || cn.node->Is<ReceiveIf>()) {
-      XLS_ASSIGN_OR_RETURN(Expression * input_port,
-                           mb.AddInputPort(cn.channel->data_element(0).name,
-                                           cn.channel->data_element(0).type));
+      XLS_ASSIGN_OR_RETURN(
+          Expression * input_port,
+          mb.AddInputPort(cn.channel->name(), cn.channel->type()));
 
       node_exprs[cn.node] = ReceiveData({input_port});
 
-      sig_builder.AddDataInput(
-          cn.channel->data_element(0).name,
-          cn.channel->data_element(0).type->GetFlatBitCount());
+      sig_builder.AddDataInput(cn.channel->name(),
+                               cn.channel->type()->GetFlatBitCount());
     }
   }
 
@@ -397,9 +385,8 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModuleFromProc(
 
     XLS_ASSIGN_OR_RETURN(
         Expression * external_not_blocking,
-        mb.AddInputPort(cn.channel->data_element(0).name + ch_postfix,
-                        single_bit_type));
-    sig_builder.AddDataInput(cn.channel->data_element(0).name + ch_postfix, 1);
+        mb.AddInputPort(cn.channel->name() + ch_postfix, single_bit_type));
+    sig_builder.AddDataInput(cn.channel->name() + ch_postfix, 1);
 
     Expression* not_blocking = nullptr;
 
@@ -445,20 +432,16 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModuleFromProc(
 
       if (cn.node->Is<Send>()) {
         Send* send = cn.node->As<Send>();
-        out_value =
-            absl::get<Expression*>(node_exprs.at(send->data_operands()[0]));
+        out_value = absl::get<Expression*>(node_exprs.at(send->data()));
       } else {
         SendIf* sendif = cn.node->As<SendIf>();
-        out_value =
-            absl::get<Expression*>(node_exprs.at(sendif->data_operands()[0]));
+        out_value = absl::get<Expression*>(node_exprs.at(sendif->data()));
       }
 
-      XLS_RETURN_IF_ERROR(mb.AddOutputPort(cn.channel->data_element(0).name,
-                                           cn.channel->data_element(0).type,
-                                           out_value));
-      sig_builder.AddDataOutput(
-          cn.channel->data_element(0).name,
-          cn.channel->data_element(0).type->GetFlatBitCount());
+      XLS_RETURN_IF_ERROR(
+          mb.AddOutputPort(cn.channel->name(), cn.channel->type(), out_value));
+      sig_builder.AddDataOutput(cn.channel->name(),
+                                cn.channel->type()->GetFlatBitCount());
     }
 
     XLS_CHECK(channel_gen_types.contains(cn.channel));
@@ -499,10 +482,9 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModuleFromProc(
       not_blocking = f.BitwiseAnd(pred_expr, external_not_blocking);
     }
 
-    XLS_RETURN_IF_ERROR(
-        mb.AddOutputPort(cn.channel->data_element(0).name + ch_postfix,
-                         single_bit_type, not_blocking));
-    sig_builder.AddDataOutput(cn.channel->data_element(0).name + ch_postfix, 1);
+    XLS_RETURN_IF_ERROR(mb.AddOutputPort(cn.channel->name() + ch_postfix,
+                                         single_bit_type, not_blocking));
+    sig_builder.AddDataOutput(cn.channel->name() + ch_postfix, 1);
   }
 
   XLS_ASSIGN_OR_RETURN(ModuleSignature signature, sig_builder.Build());

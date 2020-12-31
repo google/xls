@@ -440,23 +440,11 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
     }
     case Op::kSend: {
       const Send* send = As<Send>();
-      args = {operand(0)->GetName()};
-      args.push_back(absl::StrFormat(
-          "data=[%s]", absl::StrJoin(send->data_operands(), ", ",
-                                     [](std::string* out, const Node* node) {
-                                       absl::StrAppend(out, node->GetName());
-                                     })));
       args.push_back(absl::StrFormat("channel_id=%d", send->channel_id()));
       break;
     }
     case Op::kSendIf: {
       const SendIf* send_if = As<SendIf>();
-      args = {operand(0)->GetName(), operand(1)->GetName()};
-      args.push_back(absl::StrFormat(
-          "data=[%s]", absl::StrJoin(send_if->data_operands(), ", ",
-                                     [](std::string* out, const Node* node) {
-                                       absl::StrAppend(out, node->GetName());
-                                     })));
       args.push_back(absl::StrFormat("channel_id=%d", send_if->channel_id()));
       break;
     }

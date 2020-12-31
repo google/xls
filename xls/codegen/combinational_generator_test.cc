@@ -904,9 +904,9 @@ TEST_P(CombinationalGeneratorTest, InterpretArrayConcatArraysOfArrays) {
 TEST_P(CombinationalGeneratorTest, SimpleProc) {
   const std::string ir_text = R"(package test
 
-chan in(my_in: bits[32], id=0, kind=port, ops=receive_only,
+chan in(bits[32], id=0, kind=port, ops=receive_only,
         metadata="""module_port { flopped: false,  port_order: 1 }""")
-chan out(my_out: bits[32], id=1, kind=port, ops=send_only,
+chan out(bits[32], id=1, kind=port, ops=send_only,
          metadata="""module_port { flopped: false,  port_order: 0 }""")
 
 proc my_proc(my_token: token, my_state: (), init=()) {
@@ -914,7 +914,7 @@ proc my_proc(my_token: token, my_state: (), init=()) {
   data: bits[32] = tuple_index(rcv, index=1)
   negate: bits[32] = neg(data)
   rcv_token: token = tuple_index(rcv, index=0)
-  send: token = send(rcv_token, data=[negate], channel_id=1)
+  send: token = send(rcv_token, negate, channel_id=1)
   next (send, my_state)
 }
 )";
@@ -937,22 +937,22 @@ proc my_proc(my_token: token, my_state: (), init=()) {
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
-  EXPECT_THAT(simulator.RunAndReturnSingleOutput({{"my_in", SBits(10, 32)}}),
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput({{"in", SBits(10, 32)}}),
               IsOkAndHolds(SBits(-10, 32)));
-  EXPECT_THAT(simulator.RunAndReturnSingleOutput({{"my_in", SBits(0, 32)}}),
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput({{"in", SBits(0, 32)}}),
               IsOkAndHolds(SBits(0, 32)));
 }
 
 TEST_P(CombinationalGeneratorTest, ProcWithMultipleInputChannels) {
   const std::string ir_text = R"(package test
 
-chan in0(my_in0: bits[32], id=0, kind=port, ops=receive_only,
+chan in0(bits[32], id=0, kind=port, ops=receive_only,
         metadata="""module_port { flopped: false,  port_order: 0 }""")
-chan in1(my_in1: bits[32], id=1, kind=port, ops=receive_only,
+chan in1(bits[32], id=1, kind=port, ops=receive_only,
         metadata="""module_port { flopped: false,  port_order: 2 }""")
-chan in2(my_in2: bits[32], id=2, kind=port, ops=receive_only,
+chan in2(bits[32], id=2, kind=port, ops=receive_only,
         metadata="""module_port { flopped: false,  port_order: 1 }""")
-chan out(my_out: bits[32], id=3, kind=port, ops=send_only,
+chan out(bits[32], id=3, kind=port, ops=send_only,
          metadata="""module_port { flopped: false,  port_order: 0 }""")
 
 proc my_proc(my_token: token, my_state: (), init=()) {
@@ -970,7 +970,7 @@ proc my_proc(my_token: token, my_state: (), init=()) {
   data2_times_two: bits[32] = umul(data2, two)
   tmp: bits[32] = add(neg_data1, data2_times_two)
   sum: bits[32] = add(tmp, data0)
-  send: token = send(rcv2_token, data=[sum], channel_id=3)
+  send: token = send(rcv2_token, sum, channel_id=3)
   next (send, my_state)
 }
 )";
@@ -995,9 +995,9 @@ proc my_proc(my_token: token, my_state: (), init=()) {
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
   // The computed expression is: my_out = my_in0 - my_in1 + 2 * my_in2
-  EXPECT_THAT(simulator.RunAndReturnSingleOutput({{"my_in0", UBits(10, 32)},
-                                                  {"my_in1", SBits(7, 32)},
-                                                  {"my_in2", SBits(42, 32)}}),
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput({{"in0", UBits(10, 32)},
+                                                  {"in1", SBits(7, 32)},
+                                                  {"in2", SBits(42, 32)}}),
               IsOkAndHolds(UBits(87, 32)));
 }
 
@@ -1005,10 +1005,10 @@ TEST_P(CombinationalGeneratorTest, ProcWithMultipleOutputChannels) {}
 
 TEST_P(CombinationalGeneratorTest, NToOneMuxProc) {
   const std::string ir_text = R"(package test
-chan dir(dir: bits[32], id=0, kind=port, ops=receive_only, metadata="""module_port { flopped: false port_order: 0 }""")
-chan in1(in1: bits[32], id=1, kind=port, ops=receive_only, metadata="""module_port { flopped: false port_order: 1 }""")
-chan in2(in2: bits[32], id=2, kind=port, ops=receive_only, metadata="""module_port { flopped: false port_order: 2 }""")
-chan out(out: bits[32], id=3, kind=port, ops=send_only, metadata="""module_port { flopped: false port_order: 3 }""")
+chan dir(bits[32], id=0, kind=port, ops=receive_only, metadata="""module_port { flopped: false port_order: 0 }""")
+chan in1(bits[32], id=1, kind=port, ops=receive_only, metadata="""module_port { flopped: false port_order: 1 }""")
+chan in2(bits[32], id=2, kind=port, ops=receive_only, metadata="""module_port { flopped: false port_order: 2 }""")
+chan out(bits[32], id=3, kind=port, ops=send_only, metadata="""module_port { flopped: false port_order: 3 }""")
 
 proc my_proc(tkn: token, st: (), init=()) {
   receive.27: (token, bits[32]) = receive(tkn, channel_id=0, id=27)
@@ -1026,7 +1026,7 @@ proc my_proc(tkn: token, st: (), init=()) {
   tuple_index.40: token = tuple_index(receive_if.39, index=0, id=40)
   literal.75: bits[1] = literal(value=1, id=75, pos=1,19,7)
   sel.74: bits[32] = sel(eq.59, cases=[tuple_index.41, tuple_index.36], id=74)
-  send_if.46: token = send_if(tuple_index.40, literal.75, data=[sel.74], channel_id=3, id=46, pos=1,5,5)
+  send_if.46: token = send_if(tuple_index.40, literal.75, sel.74, channel_id=3, id=46, pos=1,5,5)
   next (send_if.46, st)
 }
 
@@ -1132,10 +1132,10 @@ proc my_proc(tkn: token, st: (), init=()) {
 
 TEST_P(CombinationalGeneratorTest, OneToNMuxProc) {
   const std::string ir_text = R"(package test
-chan dir(dir: bits[32], id=0, kind=port, ops=receive_only, metadata="""module_port { flopped: false port_order: 0 }""")
-chan in(in: bits[32], id=1, kind=port, ops=receive_only, metadata="""module_port { flopped: false port_order: 1 }""")
-chan out1(out1: bits[32], id=2, kind=port, ops=send_only, metadata="""module_port { flopped: false port_order: 2 }""")
-chan out2(out2: bits[32], id=3, kind=port, ops=send_only, metadata="""module_port { flopped: false port_order: 3 }""")
+chan dir(bits[32], id=0, kind=port, ops=receive_only, metadata="""module_port { flopped: false port_order: 0 }""")
+chan in(bits[32], id=1, kind=port, ops=receive_only, metadata="""module_port { flopped: false port_order: 1 }""")
+chan out1(bits[32], id=2, kind=port, ops=send_only, metadata="""module_port { flopped: false port_order: 2 }""")
+chan out2(bits[32], id=3, kind=port, ops=send_only, metadata="""module_port { flopped: false port_order: 3 }""")
 
 proc my_proc(tkn: token, st: (), init=()) {
   receive.24: (token, bits[32]) = receive(tkn, channel_id=0, id=24)
@@ -1148,9 +1148,9 @@ proc my_proc(tkn: token, st: (), init=()) {
   eq.51: bits[1] = eq(tuple_index.26, literal.50, id=51, pos=1,13,7)
   tuple_index.32: bits[32] = tuple_index(receive_if.30, index=1, id=32)
   literal.58: bits[32] = literal(value=0, id=58, pos=1,13,7)
-  send_if.37: token = send_if(tuple_index.31, eq.51, data=[tuple_index.32], channel_id=2, id=37, pos=1,5,5)
+  send_if.37: token = send_if(tuple_index.31, eq.51, tuple_index.32, channel_id=2, id=37, pos=1,5,5)
   ne.52: bits[1] = ne(tuple_index.26, literal.58, id=52)
-  send_if.41: token = send_if(send_if.37, ne.52, data=[tuple_index.32], channel_id=3, id=41, pos=1,5,5)
+  send_if.41: token = send_if(send_if.37, ne.52, tuple_index.32, channel_id=3, id=41, pos=1,5,5)
   next (send_if.41, st)
 }
 
@@ -1243,15 +1243,15 @@ proc my_proc(tkn: token, st: (), init=()) {
 
 TEST_P(CombinationalGeneratorTest, OnlyFIFOOutProc) {
   const std::string ir_text = R"(package test
-chan in(in: bits[32], id=0, kind=port, ops=receive_only, metadata="""module_port { flopped: false port_order: 0 }""")
-chan out(out: bits[32], id=1, kind=port, ops=send_only, metadata="""module_port { flopped: false port_order: 1 }""")
+chan in(bits[32], id=0, kind=port, ops=receive_only, metadata="""module_port { flopped: false port_order: 0 }""")
+chan out(bits[32], id=1, kind=port, ops=send_only, metadata="""module_port { flopped: false port_order: 1 }""")
 
 proc my_proc(tkn: token, st: (), init=()) {
   receive.13: (token, bits[32]) = receive(tkn, channel_id=0, id=13)
   tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
   literal.21: bits[1] = literal(value=1, id=21, pos=1,8,3)
   tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
-  send_if.20: token = send_if(tuple_index.14, literal.21, data=[tuple_index.15], channel_id=1, id=20, pos=1,5,1)
+  send_if.20: token = send_if(tuple_index.14, literal.21, tuple_index.15, channel_id=1, id=20, pos=1,5,1)
   next (send_if.20, st)
 }
 
@@ -1287,15 +1287,15 @@ proc my_proc(tkn: token, st: (), init=()) {
 
 TEST_P(CombinationalGeneratorTest, OnlyFIFOInProc) {
   const std::string ir_text = R"(package test
-chan in(in: bits[32], id=0, kind=port, ops=receive_only, metadata="""module_port { flopped: false port_order: 0 }""")
-chan out(out: bits[32], id=1, kind=port, ops=send_only, metadata="""module_port { flopped: false port_order: 1 }""")
+chan in(bits[32], id=0, kind=port, ops=receive_only, metadata="""module_port { flopped: false port_order: 0 }""")
+chan out(bits[32], id=1, kind=port, ops=send_only, metadata="""module_port { flopped: false port_order: 1 }""")
 
 proc my_proc(tkn: token, st: (), init=()) {
   literal.21: bits[1] = literal(value=1, id=21, pos=1,8,3)
   receive_if.13: (token, bits[32]) = receive_if(tkn, literal.21, channel_id=0, id=13)
   tuple_index.14: token = tuple_index(receive_if.13, index=0, id=14)
   tuple_index.15: bits[32] = tuple_index(receive_if.13, index=1, id=15)
-  send.20: token = send(tuple_index.14, data=[tuple_index.15], channel_id=1, id=20, pos=1,5,1)
+  send.20: token = send(tuple_index.14, tuple_index.15, channel_id=1, id=20, pos=1,5,1)
   next (send.20, st)
 }
 )";
@@ -1329,14 +1329,14 @@ proc my_proc(tkn: token, st: (), init=()) {
 
 TEST_P(CombinationalGeneratorTest, UnconditionalSendRdyVldProc) {
   const std::string ir_text = R"(package test
-chan in(in: bits[32], id=0, kind=port, ops=receive_only, metadata="""module_port { flopped: false port_order: 0 }""")
-chan out(out: bits[32], id=1, kind=port, ops=send_only, metadata="""module_port { flopped: false port_order: 1 }""")
+chan in(bits[32], id=0, kind=port, ops=receive_only, metadata="""module_port { flopped: false port_order: 0 }""")
+chan out(bits[32], id=1, kind=port, ops=send_only, metadata="""module_port { flopped: false port_order: 1 }""")
 
 proc my_proc(tkn: token, st: (), init=()) {
   receive.13: (token, bits[32]) = receive(tkn, channel_id=0, id=13)
   tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
   tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
-  send.20: token = send(tuple_index.14, data=[tuple_index.15], channel_id=1, id=20, pos=1,5,1)
+  send.20: token = send(tuple_index.14, tuple_index.15, channel_id=1, id=20, pos=1,5,1)
   next (send.20, st)
 }
 )";
