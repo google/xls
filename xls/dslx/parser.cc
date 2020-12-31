@@ -440,36 +440,32 @@ absl::StatusOr<TypeRef*> Parser::ParseTypeRef(Bindings* bindings,
   return module_->Make<TypeRef>(tok.span(), *tok.GetValue(), type_definition);
 }
 
-absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(Bindings* bindings,
-                                                            const Token* tok) {
-  absl::optional<Token> popped;
-  if (tok == nullptr) {
-    XLS_ASSIGN_OR_RETURN(popped, PopToken());
-    tok = &*popped;
-  }
+absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
+    Bindings* bindings) {
+  XLS_ASSIGN_OR_RETURN(Token tok, PopToken());
 
-  if (tok->IsTypeKeyword()) {  // Builtin types.
+  if (tok.IsTypeKeyword()) {  // Builtin types.
     std::vector<Expr*> dims;
     XLS_ASSIGN_OR_RETURN(bool peek_is_obrack, PeekTokenIs(TokenKind::kOBrack));
     if (peek_is_obrack) {
       XLS_ASSIGN_OR_RETURN(dims, ParseDims(bindings));
     }
-    return MakeBuiltinTypeAnnotation(Span(tok->span().start(), GetPos()), *tok,
+    return MakeBuiltinTypeAnnotation(Span(tok.span().start(), GetPos()), tok,
                                      dims);
   }
 
-  if (tok->kind() == TokenKind::kOParen) {  // Tuple of types.
+  if (tok.kind() == TokenKind::kOParen) {  // Tuple of types.
     auto parse_type_annotation = [this, bindings] {
       return ParseTypeAnnotation(bindings);
     };
     XLS_ASSIGN_OR_RETURN(std::vector<TypeAnnotation*> types,
                          ParseCommaSeq<TypeAnnotation*>(parse_type_annotation,
                                                         TokenKind::kCParen));
-    Span span(tok->span().start(), GetPos());
+    Span span(tok.span().start(), GetPos());
     return module_->Make<TupleTypeAnnotation>(span, std::move(types));
   }
 
-  XLS_ASSIGN_OR_RETURN(TypeRef * type_ref, ParseTypeRef(bindings, *tok));
+  XLS_ASSIGN_OR_RETURN(TypeRef * type_ref, ParseTypeRef(bindings, tok));
 
   XLS_ASSIGN_OR_RETURN(bool peek_is_oangle, PeekTokenIs(TokenKind::kOAngle));
 
@@ -489,7 +485,7 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(Bindings* bindings,
     XLS_ASSIGN_OR_RETURN(dims, ParseDims(bindings));
   }
 
-  Span span(tok->span().start(), GetPos());
+  Span span(tok.span().start(), GetPos());
   return MakeTypeRefTypeAnnotation(span, type_ref, std::move(dims),
                                    std::move(parametrics));
 }
@@ -536,21 +532,38 @@ absl::StatusOr<ColonRef*> Parser::ParseColonRef(Bindings* bindings,
 }
 
 absl::StatusOr<Expr*> Parser::ParseCastOrEnumRefOrStructInstance(
-    const Token& tok, Bindings* bindings) {
-  XLS_ASSIGN_OR_RETURN(bool peek_is_double_colon,
-                       PeekTokenIs(TokenKind::kDoubleColon));
-  if (peek_is_double_colon) {
-    XLS_ASSIGN_OR_RETURN(NameRef * subject, ParseNameRef(bindings, &tok));
-    XLS_ASSIGN_OR_RETURN(ColonRef * ref, ParseColonRef(bindings, subject));
-    return ref;
+    Bindings* bindings) {
+  {
+    // Put the first potential production in an isolated transaction; the other
+    // productions below want this first token to remain in the stream.
+    Transaction txn(this, bindings);
+    auto cleanup = xabsl::MakeCleanup([&txn]() { txn.Rollback(); });
+    Token tok = PopTokenOrDie();
+    XLS_ASSIGN_OR_RETURN(bool peek_is_double_colon,
+                         PeekTokenIs(TokenKind::kDoubleColon));
+    if (peek_is_double_colon) {
+      XLS_ASSIGN_OR_RETURN(NameRef * subject,
+                           ParseNameRef(txn.bindings(), &tok));
+      XLS_ASSIGN_OR_RETURN(ColonRef * ref,
+                           ParseColonRef(txn.bindings(), subject));
+      txn.CommitAndCancelCleanup(&cleanup);
+      return ref;
+    }
   }
+
+  Transaction txn(this, bindings);
+  auto cleanup = xabsl::MakeCleanup([&txn]() { txn.Rollback(); });
   XLS_ASSIGN_OR_RETURN(TypeAnnotation * type,
-                       ParseTypeAnnotation(bindings, &tok));
+                       ParseTypeAnnotation(txn.bindings()));
   XLS_ASSIGN_OR_RETURN(bool peek_is_obrace, PeekTokenIs(TokenKind::kOBrace));
+  Expr* expr;
   if (peek_is_obrace) {
-    return ParseStructInstance(bindings, type);
+    XLS_ASSIGN_OR_RETURN(expr, ParseStructInstance(txn.bindings(), type));
+  } else {
+    XLS_ASSIGN_OR_RETURN(expr, ParseCast(txn.bindings(), type));
   }
-  return ParseCast(bindings, type);
+  txn.CommitAndCancelCleanup(&cleanup);
+  return expr;
 }
 
 absl::StatusOr<Expr*> Parser::ParseStructInstance(Bindings* bindings,
@@ -1059,9 +1072,8 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
   } else if (peek->IsTypeKeyword() ||
              (peek->kind() == TokenKind::kIdentifier &&
               txn.bindings()->ResolveNodeIsTypeDefinition(*peek->GetValue()))) {
-    Token tok = PopTokenOrDie();
-    XLS_ASSIGN_OR_RETURN(
-        lhs, ParseCastOrEnumRefOrStructInstance(tok, txn.bindings()));
+    XLS_ASSIGN_OR_RETURN(lhs,
+                         ParseCastOrEnumRefOrStructInstance(txn.bindings()));
   } else if (peek->IsKeyword(Keyword::kNext)) {
     Token next = PopTokenOrDie();
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
@@ -1280,9 +1292,8 @@ absl::StatusOr<ConstantDef*> Parser::ParseConstantDef(bool is_public,
   }
 
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
-  XLS_ASSIGN_OR_RETURN(Token tok, PopToken());
   XLS_ASSIGN_OR_RETURN(Expr * expr,
-                       ParseCastOrEnumRefOrStructInstance(tok, bindings));
+                       ParseCastOrEnumRefOrStructInstance(bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
   if (!IsConstant(expr)) {
     return ParseError(expr->span(),

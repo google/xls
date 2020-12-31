@@ -168,8 +168,7 @@ class Parser : public TokenParser {
   // Parses an AST construct that refers to a type; e.g. a name or a colon-ref.
   absl::StatusOr<TypeRef*> ParseTypeRef(Bindings* bindings, const Token& tok);
 
-  absl::StatusOr<TypeAnnotation*> ParseTypeAnnotation(
-      Bindings* bindings, const Token* tok = nullptr);
+  absl::StatusOr<TypeAnnotation*> ParseTypeAnnotation(Bindings* bindings);
 
   absl::StatusOr<NameRef*> ParseNameRef(Bindings* bindings,
                                         const Token* tok = nullptr);
@@ -178,8 +177,7 @@ class Parser : public TokenParser {
   absl::StatusOr<ColonRef*> ParseColonRef(Bindings* bindings,
                                           ColonRef::Subject subject);
 
-  absl::StatusOr<Expr*> ParseCastOrEnumRefOrStructInstance(const Token& tok,
-                                                           Bindings* bindings);
+  absl::StatusOr<Expr*> ParseCastOrEnumRefOrStructInstance(Bindings* bindings);
 
   absl::StatusOr<Expr*> ParseStructInstance(Bindings* bindings,
                                             TypeAnnotation* type = nullptr);
