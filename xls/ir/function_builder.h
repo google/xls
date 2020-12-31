@@ -26,7 +26,6 @@
 namespace xls {
 
 class BuilderBase;
-class FunctionBuilder;
 class Node;
 
 // Represents a value for use in the function-definition building process,
@@ -120,6 +119,7 @@ class BuilderBase {
       : function_(std::move(function)),
         error_pending_(false),
         should_verify_(should_verify) {}
+  virtual ~BuilderBase() {}
 
   const std::string& name() const { return function_->name(); }
 
@@ -127,8 +127,8 @@ class BuilderBase {
   FunctionBase* function() const { return function_.get(); }
 
   // Declares a parameter to the function being built of type "type".
-  BValue Param(absl::string_view name, Type* type,
-               absl::optional<SourceLocation> loc = absl::nullopt);
+  virtual BValue Param(absl::string_view name, Type* type,
+                       absl::optional<SourceLocation> loc = absl::nullopt) = 0;
 
   // Shift right arithmetic.
   BValue Shra(BValue operand, BValue amount,
@@ -525,29 +525,30 @@ class BuilderBase {
       Op op, BValue arg, absl::optional<SourceLocation> loc = absl::nullopt,
       absl::string_view name = "");
 
-  // Add a receive operation. The type of the data elements received is
+  // Add a receive operation. The type of the data value received is
   // determined by the channel.
-  BValue Receive(Channel* channel, BValue token,
-                 absl::optional<SourceLocation> loc = absl::nullopt,
-                 absl::string_view name = "");
+  virtual BValue Receive(Channel* channel, BValue token,
+                         absl::optional<SourceLocation> loc = absl::nullopt,
+                         absl::string_view name = "") = 0;
 
   // Add a receive_if operation. The receive executes conditionally on the value
-  // of the predicate "pred". The type of the data elements received is
+  // of the predicate "pred". The type of the data value received is
   // determined by the channel.
-  BValue ReceiveIf(Channel* channel, BValue token, BValue pred,
-                   absl::optional<SourceLocation> loc = absl::nullopt,
-                   absl::string_view name = "");
+  virtual BValue ReceiveIf(Channel* channel, BValue token, BValue pred,
+                           absl::optional<SourceLocation> loc = absl::nullopt,
+                           absl::string_view name = "") = 0;
 
   // Add a send operation.
-  BValue Send(Channel* channel, BValue token, BValue data,
-              absl::optional<SourceLocation> loc = absl::nullopt,
-              absl::string_view name = "");
+  virtual BValue Send(Channel* channel, BValue token, BValue data,
+                      absl::optional<SourceLocation> loc = absl::nullopt,
+                      absl::string_view name = "") = 0;
 
   // Add a send_if operation. The send executes conditionally on the value of
   // the predicate "pred".
-  BValue SendIf(Channel* channel, BValue token, BValue pred, BValue data,
-                absl::optional<SourceLocation> loc = absl::nullopt,
-                absl::string_view name = "");
+  virtual BValue SendIf(Channel* channel, BValue token, BValue pred,
+                        BValue data,
+                        absl::optional<SourceLocation> loc = absl::nullopt,
+                        absl::string_view name = "") = 0;
 
   Package* package() const { return function_->package(); }
 
@@ -596,6 +597,22 @@ class FunctionBuilder : public BuilderBase {
                   bool should_verify = true)
       : BuilderBase(absl::make_unique<Function>(std::string(name), package),
                     should_verify) {}
+  virtual ~FunctionBuilder() {}
+
+  BValue Param(absl::string_view name, Type* type,
+               absl::optional<SourceLocation> loc = absl::nullopt) override;
+  BValue Receive(Channel* channel, BValue token,
+                 absl::optional<SourceLocation> loc = absl::nullopt,
+                 absl::string_view name = "") override;
+  BValue ReceiveIf(Channel* channel, BValue token, BValue pred,
+                   absl::optional<SourceLocation> loc = absl::nullopt,
+                   absl::string_view name = "") override;
+  BValue Send(Channel* channel, BValue token, BValue data,
+              absl::optional<SourceLocation> loc = absl::nullopt,
+              absl::string_view name = "") override;
+  BValue SendIf(Channel* channel, BValue token, BValue pred, BValue data,
+                absl::optional<SourceLocation> loc = absl::nullopt,
+                absl::string_view name = "") override;
 
   // Adds the function internally being built-up by this builder to the package
   // given at construction time, and returns a pointer to it (the function is
@@ -613,10 +630,9 @@ class ProcBuilder : public BuilderBase {
  public:
   // Builder for xls::Procs. 'should_verify' is a test-only argument which can
   // be set to false in tests that wish to build malformed IR.
-  explicit ProcBuilder(absl::string_view name, const Value& init_value,
-                       absl::string_view token_name,
-                       absl::string_view state_name, Package* package,
-                       bool should_verify = true)
+  ProcBuilder(absl::string_view name, const Value& init_value,
+              absl::string_view token_name, absl::string_view state_name,
+              Package* package, bool should_verify = true)
       : BuilderBase(absl::make_unique<Proc>(name, init_value, token_name,
                                             state_name, package),
                     should_verify),
@@ -625,6 +641,7 @@ class ProcBuilder : public BuilderBase {
         // expressions.
         token_param_(proc()->TokenParam(), this),
         state_param_(proc()->StateParam(), this) {}
+  virtual ~ProcBuilder() {}
 
   // Returns the Proc being constructed.
   Proc* proc() const { return down_cast<Proc*>(function()); }
@@ -640,6 +657,21 @@ class ProcBuilder : public BuilderBase {
   // respectively. The return value of the proc is constructed as a two-tuple
   // of the token and next-state.
   absl::StatusOr<Proc*> Build(BValue token, BValue next_state);
+
+  BValue Param(absl::string_view name, Type* type,
+               absl::optional<SourceLocation> loc = absl::nullopt) override;
+  BValue Receive(Channel* channel, BValue token,
+                 absl::optional<SourceLocation> loc = absl::nullopt,
+                 absl::string_view name = "") override;
+  BValue ReceiveIf(Channel* channel, BValue token, BValue pred,
+                   absl::optional<SourceLocation> loc = absl::nullopt,
+                   absl::string_view name = "") override;
+  BValue Send(Channel* channel, BValue token, BValue data,
+              absl::optional<SourceLocation> loc = absl::nullopt,
+              absl::string_view name = "") override;
+  BValue SendIf(Channel* channel, BValue token, BValue pred, BValue data,
+                absl::optional<SourceLocation> loc = absl::nullopt,
+                absl::string_view name = "") override;
 
  private:
   // The BValue of the token parameter (parameter 1).

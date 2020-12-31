@@ -816,9 +816,7 @@ absl::StatusOr<BValue> Parser::ParseNode(
             absl::StrFormat("No such channel with channel ID %d", *channel_id));
       }
       XLS_ASSIGN_OR_RETURN(Channel * channel, package->GetChannel(*channel_id));
-      // The first operand is the token, and the remaining are the data
-      // values to send.
-      bvalue = fb->Send(channel, operands[0], {operands[1]}, *loc, node_name);
+      bvalue = fb->Send(channel, operands[0], operands[1], *loc, node_name);
       break;
     }
     case Op::kSendIf: {
@@ -830,10 +828,8 @@ absl::StatusOr<BValue> Parser::ParseNode(
             absl::StrFormat("No such channel with channel ID %d", *channel_id));
       }
       XLS_ASSIGN_OR_RETURN(Channel * channel, package->GetChannel(*channel_id));
-      // The first operand is the token, and the remaining are the data
-      // values to send.
-      bvalue = fb->SendIf(channel, /*token=*/operands[0],
-                          /*pred=*/operands[1], {operands[2]}, *loc, node_name);
+      bvalue = fb->SendIf(channel, operands[0], operands[1], operands[2], *loc,
+                          node_name);
       break;
     }
     default:

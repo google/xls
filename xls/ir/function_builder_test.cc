@@ -107,6 +107,16 @@ TEST(FunctionBuilderTest, LiteralTupleTest) {
   EXPECT_TRUE(func->GetType()->return_type()->IsTuple());
 }
 
+TEST(FunctionBuilderTest, NonTupleValueToTupleIndex) {
+  Package p("p");
+  FunctionBuilder b("tuple_index_test", &p);
+  b.TupleIndex(b.Param("x", p.GetBitsType(32)), 0);
+  EXPECT_THAT(
+      b.Build().status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Operand of tuple-index must be tuple-typed")));
+}
+
 TEST(FunctionBuilderTest, LiteralArrayTest) {
   Package p("p");
   FunctionBuilder b("literal_array", &p);
@@ -646,6 +656,31 @@ TEST(FunctionBuilderTest, DynamicCountedForTest) {
               m::DynamicCountedFor(
                   m::Param("init"), m::Param("trip_count"), m::Param("stride"),
                   body, {m::Param("invariant_1"), m::Param("invariant_2")}));
+}
+
+TEST(FunctionBuilderTest, AddSendToFunction) {
+  Package p("p");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch0,
+      p.CreateStreamingChannel("ch0", Channel::SupportedOps::kSendReceive,
+                               p.GetBitsType(32)));
+
+  FunctionBuilder b("send_function", &p);
+  b.Send(ch0, b.AfterAll({}), b.Param("x", p.GetBitsType(32)));
+  EXPECT_THAT(
+      b.Build().status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Send operations not supported in functions")));
+}
+
+TEST(FunctionBuilderTest, AddParamToProc) {
+  Package p("p");
+  ProcBuilder b("param_proc", Value(UBits(42, 32)),
+                /*token_name=*/"my_token", /*state_name=*/"my_state", &p);
+  b.Param("x", p.GetBitsType(32));
+  EXPECT_THAT(b.Build(b.GetTokenParam(), b.GetStateParam()).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Cannot add parameters to procs")));
 }
 
 }  // namespace xls

@@ -47,19 +47,6 @@ BValue BuilderBase::SetError(absl::string_view msg,
   return BValue();
 }
 
-BValue BuilderBase::Param(absl::string_view name, Type* type,
-                          absl::optional<SourceLocation> loc) {
-  if (ErrorPending()) {
-    return BValue();
-  }
-  for (xls::Param* param : function()->params()) {
-    if (name == param->GetName()) {
-      return SetError(StrFormat("Parameter named \"%s\" already exists", name),
-                      loc);
-    }
-  }
-  return AddNode<xls::Param>(loc, name, type);
-}
 
 BValue BuilderBase::Literal(Value value, absl::optional<SourceLocation> loc,
                             absl::string_view name) {
@@ -294,6 +281,12 @@ BValue BuilderBase::TupleIndex(BValue arg, int64 idx,
                                absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
+  }
+  if (!GetType(arg)->IsTuple()) {
+    return SetError(
+        StrFormat("Operand of tuple-index must be tuple-typed, is type: %s",
+                  GetType(arg)->ToString()),
+        loc);
   }
   return AddNode<xls::TupleIndex>(loc, arg.node(), idx, name);
 }
@@ -803,6 +796,56 @@ BValue BuilderBase::Concat(absl::Span<const BValue> operands,
   return AddNode<xls::Concat>(loc, node_operands, name);
 }
 
+BValue FunctionBuilder::Param(absl::string_view name, Type* type,
+                              absl::optional<SourceLocation> loc) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  for (xls::Param* param : function()->params()) {
+    if (name == param->GetName()) {
+      return SetError(StrFormat("Parameter named \"%s\" already exists", name),
+                      loc);
+    }
+  }
+  return AddNode<xls::Param>(loc, name, type);
+}
+
+BValue FunctionBuilder::Receive(Channel* channel, BValue token,
+                                absl::optional<SourceLocation> loc,
+                                absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  return SetError("Receive operations not supported in functions", loc);
+}
+
+BValue FunctionBuilder::ReceiveIf(Channel* channel, BValue token, BValue pred,
+                                  absl::optional<SourceLocation> loc,
+                                  absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  return SetError("ReceiveIf operations not supported in functions", loc);
+}
+
+BValue FunctionBuilder::Send(Channel* channel, BValue token, BValue data,
+                             absl::optional<SourceLocation> loc,
+                             absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  return SetError("Send operations not supported in functions", loc);
+}
+
+BValue FunctionBuilder::SendIf(Channel* channel, BValue token, BValue pred,
+                               BValue data, absl::optional<SourceLocation> loc,
+                               absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  return SetError("SendIf operations not supported in functions", loc);
+}
+
 absl::StatusOr<Function*> FunctionBuilder::Build() {
   if (function_ == nullptr) {
     return absl::FailedPreconditionError(
@@ -874,6 +917,14 @@ absl::StatusOr<Proc*> ProcBuilder::Build(BValue token, BValue next_state) {
     XLS_RETURN_IF_ERROR(VerifyProc(proc));
   }
   return proc;
+}
+
+BValue ProcBuilder::Param(absl::string_view name, Type* type,
+                          absl::optional<SourceLocation> loc) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  return SetError("Cannot add parameters to procs", loc);
 }
 
 BValue BuilderBase::AddArithOp(Op op, BValue lhs, BValue rhs,
@@ -978,7 +1029,7 @@ BValue BuilderBase::AddBitwiseReductionOp(Op op, BValue arg,
   return AddNode<BitwiseReductionOp>(loc, arg.node(), op, name);
 }
 
-BValue BuilderBase::Receive(Channel* channel, BValue token,
+BValue ProcBuilder::Receive(Channel* channel, BValue token,
                             absl::optional<SourceLocation> loc,
                             absl::string_view name) {
   if (ErrorPending()) {
@@ -993,7 +1044,7 @@ BValue BuilderBase::Receive(Channel* channel, BValue token,
   return AddNode<xls::Receive>(loc, token.node(), channel->id(), name);
 }
 
-BValue BuilderBase::ReceiveIf(Channel* channel, BValue token, BValue pred,
+BValue ProcBuilder::ReceiveIf(Channel* channel, BValue token, BValue pred,
                               absl::optional<SourceLocation> loc,
                               absl::string_view name) {
   if (ErrorPending()) {
@@ -1016,7 +1067,7 @@ BValue BuilderBase::ReceiveIf(Channel* channel, BValue token, BValue pred,
                                  name);
 }
 
-BValue BuilderBase::Send(Channel* channel, BValue token, BValue data,
+BValue ProcBuilder::Send(Channel* channel, BValue token, BValue data,
                          absl::optional<SourceLocation> loc,
                          absl::string_view name) {
   if (ErrorPending()) {
@@ -1032,7 +1083,7 @@ BValue BuilderBase::Send(Channel* channel, BValue token, BValue data,
                             name);
 }
 
-BValue BuilderBase::SendIf(Channel* channel, BValue token, BValue pred,
+BValue ProcBuilder::SendIf(Channel* channel, BValue token, BValue pred,
                            BValue data, absl::optional<SourceLocation> loc,
                            absl::string_view name) {
   if (ErrorPending()) {
