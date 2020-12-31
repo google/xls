@@ -404,14 +404,14 @@ TEST(SerialProcRuntimeTest, ChannelInitValues) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * state_channel,
       p->CreateStreamingChannel(
-          "state", Channel::SupportedOps::kSendReceive, p->GetBitsType(32),
+          "state", ChannelOps::kSendReceive, p->GetBitsType(32),
           // Initial value of iotas are 42, 55, 100. Three sequences of
           // interleaved numbers will be generated starting at these
           // values.
           {Value(UBits(42, 32)), Value(UBits(55, 32)), Value(UBits(100, 32))}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * output_channel,
-      p->CreateStreamingChannel("out", Channel::SupportedOps::kSendOnly,
+      p->CreateStreamingChannel("out", ChannelOps::kSendOnly,
                                 p->GetBitsType(32)));
 
   BValue state_receive = pb.Receive(state_channel, pb.GetTokenParam());

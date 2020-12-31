@@ -39,7 +39,7 @@ absl::StatusOr<bool> StateRemovalPass::RunOnProc(Proc* proc,
   XLS_ASSIGN_OR_RETURN(
       Channel * state_channel,
       proc->package()->CreateStreamingChannel(
-          proc->StateParam()->GetName(), Channel::SupportedOps::kSendReceive,
+          proc->StateParam()->GetName(), ChannelOps::kSendReceive,
           proc->StateType(), {proc->InitValue()}));
 
   // Create a receive of the recurrent state and replace current uses of the

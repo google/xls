@@ -44,6 +44,19 @@ enum ChannelKind {
 
 std::string ChannelKindToString(ChannelKind kind);
 absl::StatusOr<ChannelKind> StringToChannelKind(absl::string_view str);
+std::ostream& operator<<(std::ostream& os, ChannelKind kind);
+
+// Indicates the type(s) of operations permitted on the channel. Send-only
+// channels can only have send operations (not receive) associated with the
+// channel as might be used for communicated to a component outside of
+// XLS. Receive-only channels are similarly defined. Send-receive channels can
+// have both send and receive operations and can be used for communicated
+// between procs.
+enum class ChannelOps { kSendOnly, kReceiveOnly, kSendReceive };
+
+std::string ChannelOpsToString(ChannelOps ops);
+absl::StatusOr<ChannelOps> StringToChannelOps(absl::string_view str);
+std::ostream& operator<<(std::ostream& os, ChannelOps ops);
 
 // Abstraction describing a channel in XLS IR. Channels are a mechanism for
 // communicating between procs or between procs and components outside of
@@ -52,15 +65,7 @@ absl::StatusOr<ChannelKind> StringToChannelKind(absl::string_view str);
 // communication occurs over the channel.
 class Channel {
  public:
-  // Indicates the type(s) of operations permitted on the channel. Send-only
-  // channels can only have send operations (not receive) associated with the
-  // channel as might be used for communicated to a component outside of
-  // XLS. Receive-only channels are similarly defined. Send-receive channels can
-  // have both send and receive operations and can be used for communicated
-  // between procs.
-  enum class SupportedOps { kSendOnly, kReceiveOnly, kSendReceive };
-
-  Channel(absl::string_view name, int64 id, SupportedOps supported_ops,
+  Channel(absl::string_view name, int64 id, ChannelOps supported_ops,
           ChannelKind kind, Type* type, absl::Span<const Value> initial_values,
           const ChannelMetadataProto& metadata)
       : name_(name),
@@ -82,7 +87,7 @@ class Channel {
 
   // Returns the suppored ops for the channel: send-only, receive-only, or
   // send-receive.
-  SupportedOps supported_ops() const { return supported_ops_; }
+  ChannelOps supported_ops() const { return supported_ops_; }
 
   Type* type() const { return type_; }
   absl::Span<const Value> initial_values() const { return initial_values_; }
@@ -92,12 +97,12 @@ class Channel {
 
   // Returns whether this channel can be used to send (receive) data.
   bool CanSend() const {
-    return supported_ops() == SupportedOps::kSendOnly ||
-           supported_ops() == SupportedOps::kSendReceive;
+    return supported_ops() == ChannelOps::kSendOnly ||
+           supported_ops() == ChannelOps::kSendReceive;
   }
   bool CanReceive() const {
-    return supported_ops() == SupportedOps::kReceiveOnly ||
-           supported_ops() == SupportedOps::kSendReceive;
+    return supported_ops() == ChannelOps::kReceiveOnly ||
+           supported_ops() == ChannelOps::kSendReceive;
   }
 
   bool IsStreaming() const;
@@ -110,7 +115,7 @@ class Channel {
  protected:
   std::string name_;
   int64 id_;
-  SupportedOps supported_ops_;
+  ChannelOps supported_ops_;
   ChannelKind kind_;
   Type* type_;
   std::vector<Value> initial_values_;
@@ -121,7 +126,7 @@ class Channel {
 // channel; receives remove an element from the channel with FIFO ordering.
 class StreamingChannel : public Channel {
  public:
-  StreamingChannel(absl::string_view name, int64 id, SupportedOps supported_ops,
+  StreamingChannel(absl::string_view name, int64 id, ChannelOps supported_ops,
                    Type* type, absl::Span<const Value> initial_values,
                    const ChannelMetadataProto& metadata)
       : Channel(name, id, supported_ops, ChannelKind::kStreaming, type,
@@ -132,14 +137,14 @@ class StreamingChannel : public Channel {
 // support initial values.
 class PortChannel : public Channel {
  public:
-  PortChannel(absl::string_view name, int64 id, SupportedOps supported_ops,
+  PortChannel(absl::string_view name, int64 id, ChannelOps supported_ops,
               Type* type, const ChannelMetadataProto& metadata)
       : Channel(name, id, supported_ops, ChannelKind::kPort, type,
                 /*initial_values=*/{}, metadata) {}
 };
 
 // A channel representing a register within a block. All register channels are
-// send/receive (SupportedOps::kSendReceive) and may have at most one initial
+// send/receive (ChannelOps::kSendReceive) and may have at most one initial
 // value (the reset value).
 class RegisterChannel : public Channel {
  public:
@@ -147,7 +152,7 @@ class RegisterChannel : public Channel {
                   absl::optional<Value> reset_value,
                   const ChannelMetadataProto& metadata)
       : Channel(
-            name, id, SupportedOps::kSendReceive, ChannelKind::kRegister, type,
+            name, id, ChannelOps::kSendReceive, ChannelKind::kRegister, type,
             reset_value.has_value() ? std::vector<Value>({reset_value.value()})
                                     : std::vector<Value>(),
             metadata) {}
@@ -186,16 +191,6 @@ class LogicalChannel : public Channel {
   PortChannel* valid_channel_;
   PortChannel* data_channel_;
 };
-
-// Returns the string representation of a supported ops enum.
-std::string SupportedOpsToString(Channel::SupportedOps supported_ops);
-
-// Converts the string representation of a channel to a SupportedOps. Returns an
-// error if the string is not a representation.
-absl::StatusOr<Channel::SupportedOps> StringToSupportedOps(
-    absl::string_view str);
-
-std::ostream& operator<<(std::ostream& os, Channel::SupportedOps supported_ops);
 
 }  // namespace xls
 

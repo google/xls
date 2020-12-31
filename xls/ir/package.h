@@ -170,12 +170,12 @@ class Package {
   // allocated.
   // TODO(meheff): Consider using a builder for constructing a channel.
   absl::StatusOr<StreamingChannel*> CreateStreamingChannel(
-      absl::string_view name, Channel::SupportedOps supported_ops, Type* type,
+      absl::string_view name, ChannelOps supported_ops, Type* type,
       absl::Span<const Value> initial_values = {},
       const ChannelMetadataProto& metadata = ChannelMetadataProto(),
       absl::optional<int64> id = absl::nullopt);
   absl::StatusOr<PortChannel*> CreatePortChannel(
-      absl::string_view name, Channel::SupportedOps supported_ops, Type* type,
+      absl::string_view name, ChannelOps supported_ops, Type* type,
       const ChannelMetadataProto& metadata = ChannelMetadataProto(),
       absl::optional<int64> id = absl::nullopt);
   absl::StatusOr<RegisterChannel*> CreateRegisterChannel(

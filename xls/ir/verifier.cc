@@ -1398,8 +1398,7 @@ absl::Status VerifyChannels(Package* package) {
       // Registers have at most one initial value.
       XLS_RET_CHECK_LE(channel->initial_values().size(), 1);
       // Registers must be send/receive.
-      XLS_RET_CHECK_EQ(channel->supported_ops(),
-                       Channel::SupportedOps::kSendReceive);
+      XLS_RET_CHECK_EQ(channel->supported_ops(), ChannelOps::kSendReceive);
       // Send and receive must be in the same proc.
       XLS_RET_CHECK_EQ(send_nodes.at(channel)->function_base(),
                        receive_nodes.at(channel)->function_base());

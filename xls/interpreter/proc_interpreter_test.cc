@@ -34,10 +34,10 @@ class ProcInterpreterTest : public IrTestBase {};
 
 TEST_F(ProcInterpreterTest, ProcIota) {
   auto package = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * channel,
-                           package->CreateStreamingChannel(
-                               "iota_out", Channel::SupportedOps::kSendOnly,
-                               package->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel,
+      package->CreateStreamingChannel("iota_out", ChannelOps::kSendOnly,
+                                      package->GetBitsType(32)));
 
   // Create an output-only proc which counts up by 7 starting at 42.
   ProcBuilder pb("iota", /*init_value=*/Value(UBits(42, 32)),
@@ -98,14 +98,12 @@ TEST_F(ProcInterpreterTest, ProcWhichReturnsPreviousResults) {
   Package package(TestName());
   ProcBuilder pb("prev", /*init_value=*/Value(UBits(55, 32)),
                  /*token_name=*/"tok", /*state_name=*/"prev", &package);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch_in,
-      package.CreateStreamingChannel("in", Channel::SupportedOps::kSendReceive,
-                                     package.GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch_out,
-      package.CreateStreamingChannel("out", Channel::SupportedOps::kSendOnly,
-                                     package.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * ch_in, package.CreateStreamingChannel(
+                                                "in", ChannelOps::kSendReceive,
+                                                package.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * ch_out, package.CreateStreamingChannel(
+                                                 "out", ChannelOps::kSendOnly,
+                                                 package.GetBitsType(32)));
 
   // Build a proc which receives a value and saves it, and sends the value
   // received in the previous iteration.
@@ -181,14 +179,12 @@ TEST_F(ProcInterpreterTest, ReceiveIfProc) {
   Package package(TestName());
   ProcBuilder pb("send_if", /*init_value=*/Value(UBits(1, 1)),
                  /*token_name=*/"tok", /*state_name=*/"st", &package);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch_in,
-      package.CreateStreamingChannel("in", Channel::SupportedOps::kSendReceive,
-                                     package.GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch_out,
-      package.CreateStreamingChannel("out", Channel::SupportedOps::kSendOnly,
-                                     package.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * ch_in, package.CreateStreamingChannel(
+                                                "in", ChannelOps::kSendReceive,
+                                                package.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * ch_out, package.CreateStreamingChannel(
+                                                 "out", ChannelOps::kSendOnly,
+                                                 package.GetBitsType(32)));
 
   BValue receive_if = pb.ReceiveIf(ch_in, /*token=*/pb.GetTokenParam(),
                                    /*pred=*/pb.GetStateParam());
@@ -248,10 +244,10 @@ TEST_F(ProcInterpreterTest, SendIfProc) {
   // Create an output-only proc with a by-one-counter which sends only
   // even values over a send_if.
   Package package(TestName());
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * channel,
-                           package.CreateStreamingChannel(
-                               "even_out", Channel::SupportedOps::kSendOnly,
-                               package.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel,
+      package.CreateStreamingChannel("even_out", ChannelOps::kSendOnly,
+                                     package.GetBitsType(32)));
 
   ProcBuilder pb("even", /*init_value=*/Value(UBits(0, 32)),
                  /*token_name=*/"tok", /*state_name=*/"prev", &package);

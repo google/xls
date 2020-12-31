@@ -1815,7 +1815,7 @@ TEST(IrParserTest, ParseSendReceiveChannel) {
                                &p));
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_EQ(ch->id(), 42);
-  EXPECT_EQ(ch->supported_ops(), Channel::SupportedOps::kSendReceive);
+  EXPECT_EQ(ch->supported_ops(), ChannelOps::kSendReceive);
   EXPECT_TRUE(ch->IsPort());
   EXPECT_EQ(ch->type(), p.GetBitsType(32));
   EXPECT_TRUE(ch->initial_values().empty());
@@ -1834,7 +1834,7 @@ TEST(IrParserTest, ParseSendReceiveChannelWithInitialValues) {
           &p));
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_EQ(ch->id(), 42);
-  EXPECT_EQ(ch->supported_ops(), Channel::SupportedOps::kSendReceive);
+  EXPECT_EQ(ch->supported_ops(), ChannelOps::kSendReceive);
   EXPECT_TRUE(ch->IsStreaming());
   EXPECT_EQ(ch->type(), p.GetBitsType(32));
   EXPECT_THAT(ch->initial_values(),
@@ -1883,7 +1883,7 @@ TEST(IrParserTest, ParseSendOnlyChannel) {
                                              &p));
   EXPECT_EQ(ch->name(), "bar");
   EXPECT_EQ(ch->id(), 7);
-  EXPECT_EQ(ch->supported_ops(), Channel::SupportedOps::kSendOnly);
+  EXPECT_EQ(ch->supported_ops(), ChannelOps::kSendOnly);
   EXPECT_EQ(ch->type(), p.GetTupleType({p.GetBitsType(32), p.GetBitsType(1)}));
   EXPECT_EQ(ch->metadata().channel_oneof_case(),
             ChannelMetadataProto::kModulePort);
@@ -1899,7 +1899,7 @@ TEST(IrParserTest, ParseReceiveOnlyChannel) {
                                              &p));
   EXPECT_EQ(ch->name(), "meh");
   EXPECT_EQ(ch->id(), 0);
-  EXPECT_EQ(ch->supported_ops(), Channel::SupportedOps::kReceiveOnly);
+  EXPECT_EQ(ch->supported_ops(), ChannelOps::kReceiveOnly);
   EXPECT_EQ(ch->type(), p.GetArrayType(4, p.GetBitsType(32)));
   EXPECT_EQ(ch->metadata().channel_oneof_case(),
             ChannelMetadataProto::kModulePort);

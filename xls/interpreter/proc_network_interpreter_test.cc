@@ -116,10 +116,10 @@ absl::StatusOr<Proc*> CreateRunLengthDecoderProc(absl::string_view proc_name,
 
 TEST_F(ProcNetworkInterpreterTest, ProcIota) {
   auto package = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * channel,
-                           package->CreateStreamingChannel(
-                               "iota_out", Channel::SupportedOps::kSendOnly,
-                               package->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel,
+      package->CreateStreamingChannel("iota_out", ChannelOps::kSendOnly,
+                                      package->GetBitsType(32)));
   XLS_ASSERT_OK(CreateIotaProc("iota", /*starting_value=*/5, /*step=*/10,
                                channel, package.get())
                     .status());
@@ -151,12 +151,11 @@ TEST_F(ProcNetworkInterpreterTest, IotaFeedingAccumulator) {
   auto package = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * iota_accum_channel,
-      package->CreateStreamingChannel("iota_accum",
-                                      Channel::SupportedOps::kSendReceive,
+      package->CreateStreamingChannel("iota_accum", ChannelOps::kSendReceive,
                                       package->GetBitsType(32)));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out_channel,
-      package->CreateStreamingChannel("out", Channel::SupportedOps::kSendOnly,
+      package->CreateStreamingChannel("out", ChannelOps::kSendOnly,
                                       package->GetBitsType(32)));
   XLS_ASSERT_OK(CreateIotaProc("iota", /*starting_value=*/0, /*step=*/1,
                                iota_accum_channel, package.get())
@@ -208,21 +207,21 @@ TEST_F(ProcNetworkInterpreterTest, WrappedProc) {
   // Create a proc which receives a value, sends it the accumulator proc, and
   // sends the result.
   auto package = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * in_channel,
-                           package->CreateStreamingChannel(
-                               "input", Channel::SupportedOps::kReceiveOnly,
-                               package->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * in_accum_channel,
-                           package->CreateStreamingChannel(
-                               "accum_in", Channel::SupportedOps::kSendReceive,
-                               package->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * out_accum_channel,
-                           package->CreateStreamingChannel(
-                               "accum_out", Channel::SupportedOps::kSendReceive,
-                               package->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_channel,
+      package->CreateStreamingChannel("input", ChannelOps::kReceiveOnly,
+                                      package->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_accum_channel,
+      package->CreateStreamingChannel("accum_in", ChannelOps::kSendReceive,
+                                      package->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_accum_channel,
+      package->CreateStreamingChannel("accum_out", ChannelOps::kSendReceive,
+                                      package->GetBitsType(32)));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out_channel,
-      package->CreateStreamingChannel("out", Channel::SupportedOps::kSendOnly,
+      package->CreateStreamingChannel("out", ChannelOps::kSendOnly,
                                       package->GetBitsType(32)));
 
   ProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
@@ -264,12 +263,12 @@ TEST_F(ProcNetworkInterpreterTest, WrappedProc) {
 
 TEST_F(ProcNetworkInterpreterTest, DeadlockedProc) {
   // Test a trivial deadlocked proc network. A single proc with a feedback edge
-  // from it's send operation to its receive.
+  // from its send operation to its receive.
   auto package = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * channel, package->CreateStreamingChannel(
-                             "my_channel", Channel::SupportedOps::kSendReceive,
-                             package->GetBitsType(32)));
+      Channel * channel,
+      package->CreateStreamingChannel("my_channel", ChannelOps::kSendReceive,
+                                      package->GetBitsType(32)));
   XLS_ASSERT_OK(CreatePassThroughProc("feedback", /*in_channel=*/channel,
                                       /*out_channel=*/channel, package.get())
                     .status());
@@ -279,7 +278,7 @@ TEST_F(ProcNetworkInterpreterTest, DeadlockedProc) {
       ProcNetworkInterpreter::Create(package.get(), /*rx_only_queues*/ {}));
 
   // The interpreter can tick once without deadlocking because some instructions
-  // can actually execute initially (e.g., the paramters). A subsequent call to
+  // can actually execute initially (e.g., the parameters). A subsequent call to
   // Tick() will detect the deadlock.
   XLS_ASSERT_OK(interpreter->Tick());
   EXPECT_THAT(
@@ -295,13 +294,13 @@ TEST_F(ProcNetworkInterpreterTest, RunLengthDecoding) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * input_channel,
       package->CreateStreamingChannel(
-          "in", Channel::SupportedOps::kReceiveOnly,
+          "in", ChannelOps::kReceiveOnly,
           package->GetTupleType(
               {package->GetBitsType(32), package->GetBitsType(8)})));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * output_channel,
-      package->CreateStreamingChannel(
-          "output", Channel::SupportedOps::kSendOnly, package->GetBitsType(8)));
+      package->CreateStreamingChannel("output", ChannelOps::kSendOnly,
+                                      package->GetBitsType(8)));
 
   XLS_ASSERT_OK(CreateRunLengthDecoderProc("decoder", input_channel,
                                            output_channel, package.get())
@@ -341,17 +340,17 @@ TEST_F(ProcNetworkInterpreterTest, RunLengthDecodingFilter) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * input_channel,
       package->CreateStreamingChannel(
-          "in", Channel::SupportedOps::kReceiveOnly,
+          "in", ChannelOps::kReceiveOnly,
           package->GetTupleType(
               {package->GetBitsType(32), package->GetBitsType(8)})));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * decoded_channel,
-                           package->CreateStreamingChannel(
-                               "decoded", Channel::SupportedOps::kSendReceive,
-                               package->GetBitsType(8)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * decoded_channel,
+      package->CreateStreamingChannel("decoded", ChannelOps::kSendReceive,
+                                      package->GetBitsType(8)));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * output_channel,
-      package->CreateStreamingChannel(
-          "output", Channel::SupportedOps::kSendOnly, package->GetBitsType(8)));
+      package->CreateStreamingChannel("output", ChannelOps::kSendOnly,
+                                      package->GetBitsType(8)));
 
   XLS_ASSERT_OK(CreateRunLengthDecoderProc("decoder", input_channel,
                                            decoded_channel, package.get())
@@ -399,14 +398,14 @@ TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedge) {
   ProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
                  /*token_name=*/"tok", /*state_name=*/"nil_state",
                  package.get());
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * state_channel,
-                           package->CreateStreamingChannel(
-                               "state", Channel::SupportedOps::kSendReceive,
-                               package->GetBitsType(32),
-                               /*initial_values=*/{Value(UBits(42, 32))}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * state_channel,
+      package->CreateStreamingChannel(
+          "state", ChannelOps::kSendReceive, package->GetBitsType(32),
+          /*initial_values=*/{Value(UBits(42, 32))}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * output_channel,
-      package->CreateStreamingChannel("out", Channel::SupportedOps::kSendOnly,
+      package->CreateStreamingChannel("out", ChannelOps::kSendOnly,
                                       package->GetBitsType(32)));
 
   BValue state_receive = pb.Receive(state_channel, pb.GetTokenParam());
@@ -444,15 +443,14 @@ TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedgeAndTwoInitialValues) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * state_channel,
       package->CreateStreamingChannel(
-          "state", Channel::SupportedOps::kSendReceive,
-          package->GetBitsType(32),
+          "state", ChannelOps::kSendReceive, package->GetBitsType(32),
           // Initial value of iotas are 42, 55, 100. Three sequences of
           // interleaved numbers will be generated starting at these
           // values.
           {Value(UBits(42, 32)), Value(UBits(55, 32)), Value(UBits(100, 32))}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * output_channel,
-      package->CreateStreamingChannel("out", Channel::SupportedOps::kSendOnly,
+      package->CreateStreamingChannel("out", ChannelOps::kSendOnly,
                                       package->GetBitsType(32)));
 
   BValue state_receive = pb.Receive(state_channel, pb.GetTokenParam());

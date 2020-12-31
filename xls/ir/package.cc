@@ -446,7 +446,7 @@ absl::Status VerifyValuesAreType(absl::Span<const Value> values, Type* type) {
 }  // namespace
 
 absl::StatusOr<StreamingChannel*> Package::CreateStreamingChannel(
-    absl::string_view name, Channel::SupportedOps supported_ops, Type* type,
+    absl::string_view name, ChannelOps supported_ops, Type* type,
     absl::Span<const Value> initial_values,
     const ChannelMetadataProto& metadata, absl::optional<int64> id) {
   XLS_RETURN_IF_ERROR(VerifyValuesAreType(initial_values, type));
@@ -459,7 +459,7 @@ absl::StatusOr<StreamingChannel*> Package::CreateStreamingChannel(
 }
 
 absl::StatusOr<PortChannel*> Package::CreatePortChannel(
-    absl::string_view name, Channel::SupportedOps supported_ops, Type* type,
+    absl::string_view name, ChannelOps supported_ops, Type* type,
     const ChannelMetadataProto& metadata, absl::optional<int64> id) {
   int64 actual_id = id.has_value() ? id.value() : next_channel_id_;
   auto channel = absl::make_unique<PortChannel>(name, actual_id, supported_ops,

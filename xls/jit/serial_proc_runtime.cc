@@ -192,7 +192,7 @@ absl::Status SerialProcRuntime::Tick() {
       if (thread->thread_state == ThreadData::State::kBlocked) {
         XLS_ASSIGN_OR_RETURN(Channel * chan,
                              package_->GetChannel(thread->blocking_channel));
-        if (chan->supported_ops() == Channel::SupportedOps::kReceiveOnly) {
+        if (chan->supported_ops() == ChannelOps::kReceiveOnly) {
           blocked_by_external = true;
         }
       }

@@ -382,21 +382,17 @@ TEST(FunctionBuilderTest, BuildTwiceFails) {
 TEST(FunctionBuilderTest, SendAndReceive) {
   Package p("p");
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch0,
-      p.CreateStreamingChannel("ch0", Channel::SupportedOps::kSendReceive,
-                               p.GetBitsType(32)));
+      Channel * ch0, p.CreateStreamingChannel("ch0", ChannelOps::kSendReceive,
+                                              p.GetBitsType(32)));
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch1,
-      p.CreateStreamingChannel("ch1", Channel::SupportedOps::kSendReceive,
-                               p.GetBitsType(32)));
+      Channel * ch1, p.CreateStreamingChannel("ch1", ChannelOps::kSendReceive,
+                                              p.GetBitsType(32)));
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch2,
-      p.CreateStreamingChannel("ch2", Channel::SupportedOps::kSendReceive,
-                               p.GetBitsType(32)));
+      Channel * ch2, p.CreateStreamingChannel("ch2", ChannelOps::kSendReceive,
+                                              p.GetBitsType(32)));
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch3,
-      p.CreateStreamingChannel("ch3", Channel::SupportedOps::kSendReceive,
-                               p.GetBitsType(32)));
+      Channel * ch3, p.CreateStreamingChannel("ch3", ChannelOps::kSendReceive,
+                                              p.GetBitsType(32)));
 
   ProcBuilder b("sending_receiving", Value(UBits(42, 32)),
                 /*token_name=*/"my_token", /*state_name=*/"my_state", &p);
@@ -661,9 +657,8 @@ TEST(FunctionBuilderTest, DynamicCountedForTest) {
 TEST(FunctionBuilderTest, AddSendToFunction) {
   Package p("p");
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch0,
-      p.CreateStreamingChannel("ch0", Channel::SupportedOps::kSendReceive,
-                               p.GetBitsType(32)));
+      Channel * ch0, p.CreateStreamingChannel("ch0", ChannelOps::kSendReceive,
+                                              p.GetBitsType(32)));
 
   FunctionBuilder b("send_function", &p);
   b.Send(ch0, b.AfterAll({}), b.Param("x", p.GetBitsType(32)));

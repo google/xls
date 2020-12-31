@@ -48,35 +48,37 @@ absl::StatusOr<ChannelKind> StringToChannelKind(absl::string_view str) {
       absl::StrFormat("Invalid channel kind '%s'", str));
 }
 
-std::string SupportedOpsToString(Channel::SupportedOps supported_ops) {
-  switch (supported_ops) {
-    case Channel::SupportedOps::kSendOnly:
+std::ostream& operator<<(std::ostream& os, ChannelKind kind) {
+  os << ChannelKindToString(kind);
+  return os;
+}
+
+std::string ChannelOpsToString(ChannelOps ops) {
+  switch (ops) {
+    case ChannelOps::kSendOnly:
       return "send_only";
-    case Channel::SupportedOps::kReceiveOnly:
+    case ChannelOps::kReceiveOnly:
       return "receive_only";
-    case Channel::SupportedOps::kSendReceive:
+    case ChannelOps::kSendReceive:
       return "send_receive";
   }
-  XLS_LOG(FATAL) << "Invalid channel kind: "
-                 << static_cast<int64>(supported_ops);
+  XLS_LOG(FATAL) << "Invalid channel kind: " << static_cast<int64>(ops);
 }
 
-absl::StatusOr<Channel::SupportedOps> StringToSupportedOps(
-    absl::string_view str) {
+absl::StatusOr<ChannelOps> StringToChannelOps(absl::string_view str) {
   if (str == "send_only") {
-    return Channel::SupportedOps::kSendOnly;
+    return ChannelOps::kSendOnly;
   } else if (str == "receive_only") {
-    return Channel::SupportedOps::kReceiveOnly;
+    return ChannelOps::kReceiveOnly;
   } else if (str == "send_receive") {
-    return Channel::SupportedOps::kSendReceive;
+    return ChannelOps::kSendReceive;
   }
   return absl::InvalidArgumentError(
-      absl::StrCat("Unknown channel kind: ", str));
+      absl::StrCat("Unknown channel ops value: ", str));
 }
 
-std::ostream& operator<<(std::ostream& os,
-                         Channel::SupportedOps supported_ops) {
-  os << SupportedOpsToString(supported_ops);
+std::ostream& operator<<(std::ostream& os, ChannelOps ops) {
+  os << ChannelOpsToString(ops);
   return os;
 }
 
@@ -93,7 +95,7 @@ std::string Channel::ToString() const {
   }
   absl::StrAppendFormat(
       &result, "id=%d, kind=%s, ops=%s, metadata=\"\"\"%s\"\"\")", id(),
-      ChannelKindToString(kind_), SupportedOpsToString(supported_ops()),
+      ChannelKindToString(kind_), ChannelOpsToString(supported_ops()),
       metadata().ShortDebugString());
 
   return result;

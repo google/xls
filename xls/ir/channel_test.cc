@@ -28,31 +28,28 @@ using status_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 
-TEST(ChannelTest, SupportedOpsToString) {
-  EXPECT_EQ(SupportedOpsToString(Channel::SupportedOps::kSendOnly),
-            "send_only");
-  EXPECT_EQ(SupportedOpsToString(Channel::SupportedOps::kReceiveOnly),
-            "receive_only");
-  EXPECT_EQ(SupportedOpsToString(Channel::SupportedOps::kSendReceive),
-            "send_receive");
+TEST(ChannelTest, ChannelOpsToString) {
+  EXPECT_EQ(ChannelOpsToString(ChannelOps::kSendOnly), "send_only");
+  EXPECT_EQ(ChannelOpsToString(ChannelOps::kReceiveOnly), "receive_only");
+  EXPECT_EQ(ChannelOpsToString(ChannelOps::kSendReceive), "send_receive");
 
-  EXPECT_THAT(StringToSupportedOps("send_only"),
-              IsOkAndHolds(Channel::SupportedOps::kSendOnly));
-  EXPECT_THAT(StringToSupportedOps("receive_only"),
-              IsOkAndHolds(Channel::SupportedOps::kReceiveOnly));
-  EXPECT_THAT(StringToSupportedOps("send_receive"),
-              IsOkAndHolds(Channel::SupportedOps::kSendReceive));
+  EXPECT_THAT(StringToChannelOps("send_only"),
+              IsOkAndHolds(ChannelOps::kSendOnly));
+  EXPECT_THAT(StringToChannelOps("receive_only"),
+              IsOkAndHolds(ChannelOps::kReceiveOnly));
+  EXPECT_THAT(StringToChannelOps("send_receive"),
+              IsOkAndHolds(ChannelOps::kSendReceive));
 
-  EXPECT_THAT(StringToSupportedOps("send"),
+  EXPECT_THAT(StringToChannelOps("send"),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Unknown channel kind")));
+                       HasSubstr("Unknown channel ops")));
 }
 
 TEST(ChannelTest, ConstructStreamingChannel) {
   Package p("my_package");
   ChannelMetadataProto metadata;
   metadata.mutable_module_port()->set_flopped(true);
-  StreamingChannel ch("my_channel", 42, Channel::SupportedOps::kReceiveOnly,
+  StreamingChannel ch("my_channel", 42, ChannelOps::kReceiveOnly,
                       p.GetBitsType(32), /*initial_values=*/{}, metadata);
 
   EXPECT_EQ(ch.name(), "my_channel");
@@ -61,15 +58,15 @@ TEST(ChannelTest, ConstructStreamingChannel) {
   EXPECT_FALSE(ch.IsRegister());
   EXPECT_FALSE(ch.IsLogical());
   EXPECT_EQ(ch.id(), 42);
-  EXPECT_EQ(ch.supported_ops(), Channel::SupportedOps::kReceiveOnly);
+  EXPECT_EQ(ch.supported_ops(), ChannelOps::kReceiveOnly);
   EXPECT_EQ(ch.type(), p.GetBitsType(32));
   EXPECT_TRUE(ch.initial_values().empty());
 }
 
 TEST(ChannelTest, ConstructPortChannel) {
   Package p("my_package");
-  PortChannel ch("foo", 42, Channel::SupportedOps::kSendOnly,
-                 p.GetBitsType(123), ChannelMetadataProto());
+  PortChannel ch("foo", 42, ChannelOps::kSendOnly, p.GetBitsType(123),
+                 ChannelMetadataProto());
 
   EXPECT_EQ(ch.name(), "foo");
   EXPECT_FALSE(ch.IsStreaming());
@@ -88,7 +85,7 @@ TEST(ChannelTest, ConstructRegisterChannel) {
   EXPECT_FALSE(ch.IsPort());
   EXPECT_TRUE(ch.IsRegister());
   EXPECT_FALSE(ch.IsLogical());
-  EXPECT_EQ(ch.supported_ops(), Channel::SupportedOps::kSendReceive);
+  EXPECT_EQ(ch.supported_ops(), ChannelOps::kSendReceive);
   EXPECT_EQ(ch.type(), p.GetBitsType(1));
   ASSERT_TRUE(ch.reset_value().has_value());
   EXPECT_EQ(ch.reset_value().value(), Value(UBits(1, 1)));
@@ -96,12 +93,12 @@ TEST(ChannelTest, ConstructRegisterChannel) {
 
 TEST(ChannelTest, ConstructLogicalChannel) {
   Package p("my_package");
-  PortChannel rdy_ch("ready", 42, Channel::SupportedOps::kSendOnly,
-                     p.GetBitsType(1), ChannelMetadataProto());
-  PortChannel vld_ch("valid", 43, Channel::SupportedOps::kReceiveOnly,
-                     p.GetBitsType(1), ChannelMetadataProto());
-  PortChannel data_ch("data", 44, Channel::SupportedOps::kReceiveOnly,
-                      p.GetBitsType(123), ChannelMetadataProto());
+  PortChannel rdy_ch("ready", 42, ChannelOps::kSendOnly, p.GetBitsType(1),
+                     ChannelMetadataProto());
+  PortChannel vld_ch("valid", 43, ChannelOps::kReceiveOnly, p.GetBitsType(1),
+                     ChannelMetadataProto());
+  PortChannel data_ch("data", 44, ChannelOps::kReceiveOnly, p.GetBitsType(123),
+                      ChannelMetadataProto());
   LogicalChannel ch("my_channel", 45, &rdy_ch, &vld_ch, &data_ch,
                     ChannelMetadataProto());
 
@@ -116,12 +113,12 @@ TEST(ChannelTest, ConstructLogicalChannel) {
 TEST(ChannelTest, StreamingChannelWithInitialValues) {
   Package p("my_package");
   StreamingChannel ch(
-      "my_channel", 42, Channel::SupportedOps::kSendReceive, p.GetBitsType(32),
+      "my_channel", 42, ChannelOps::kSendReceive, p.GetBitsType(32),
       {Value(UBits(11, 32)), Value(UBits(22, 32))}, ChannelMetadataProto());
 
   EXPECT_EQ(ch.name(), "my_channel");
   EXPECT_EQ(ch.id(), 42);
-  EXPECT_EQ(ch.supported_ops(), Channel::SupportedOps::kSendReceive);
+  EXPECT_EQ(ch.supported_ops(), ChannelOps::kSendReceive);
   EXPECT_EQ(ch.type(), p.GetBitsType(32));
   EXPECT_THAT(ch.initial_values(),
               ElementsAre(Value(UBits(11, 32)), Value(UBits(22, 32))));
@@ -132,7 +129,7 @@ TEST(ChannelTest, StreamingToStringParses) {
   std::vector<Value> initial_values = {
       Value::Tuple({Value(UBits(1234, 32)), Value(UBits(33, 23))}),
       Value::Tuple({Value(UBits(2222, 32)), Value(UBits(444, 23))})};
-  StreamingChannel ch("my_channel", 42, Channel::SupportedOps::kReceiveOnly,
+  StreamingChannel ch("my_channel", 42, ChannelOps::kReceiveOnly,
                       p.GetTypeForValue(initial_values.front()), initial_values,
                       ChannelMetadataProto());
   std::string channel_str = ch.ToString();
@@ -153,8 +150,8 @@ TEST(ChannelTest, StreamingToStringParses) {
 
 TEST(ChannelTest, PortToStringParses) {
   Package p("my_package");
-  PortChannel ch("my_channel", 42, Channel::SupportedOps::kReceiveOnly,
-                 p.GetBitsType(32), ChannelMetadataProto());
+  PortChannel ch("my_channel", 42, ChannelOps::kReceiveOnly, p.GetBitsType(32),
+                 ChannelMetadataProto());
   std::string channel_str = ch.ToString();
   EXPECT_EQ(channel_str,
             "chan my_channel(bits[32], id=42, kind=port, ops=receive_only, "

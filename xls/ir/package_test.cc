@@ -288,51 +288,46 @@ TEST_F(PackageTest, CreateStreamingChannel) {
   Package p("my_package");
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch0,
-      p.CreateStreamingChannel("ch0", Channel::SupportedOps::kSendOnly,
-                               p.GetBitsType(32)));
+      Channel * ch0, p.CreateStreamingChannel("ch0", ChannelOps::kSendOnly,
+                                              p.GetBitsType(32)));
   EXPECT_EQ(ch0->name(), "ch0");
   EXPECT_EQ(ch0->id(), 0);
   EXPECT_EQ(ch0->type(), p.GetBitsType(32));
-  EXPECT_EQ(ch0->supported_ops(), Channel::SupportedOps::kSendOnly);
+  EXPECT_EQ(ch0->supported_ops(), ChannelOps::kSendOnly);
   EXPECT_THAT(p.GetChannel(0), IsOkAndHolds(ch0));
 
   EXPECT_THAT(p.channels(), ElementsAre(ch0));
 
   // Next channel should get ID 1.
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch1,
-      p.CreateStreamingChannel("ch1", Channel::SupportedOps::kReceiveOnly,
-                               p.GetBitsType(444)));
+      Channel * ch1, p.CreateStreamingChannel("ch1", ChannelOps::kReceiveOnly,
+                                              p.GetBitsType(444)));
   EXPECT_EQ(ch1->name(), "ch1");
   EXPECT_EQ(ch1->id(), 1);
-  EXPECT_EQ(ch1->supported_ops(), Channel::SupportedOps::kReceiveOnly);
+  EXPECT_EQ(ch1->supported_ops(), ChannelOps::kReceiveOnly);
   EXPECT_THAT(p.GetChannel(1), IsOkAndHolds(ch1));
 
   // Create a channel with a specific ID.
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch42,
-      p.CreateStreamingChannel("ch42", Channel::SupportedOps::kReceiveOnly,
-                               p.GetBitsType(44), /*initial_values=*/{},
-                               ChannelMetadataProto(), 42));
+      Channel * ch42, p.CreateStreamingChannel(
+                          "ch42", ChannelOps::kReceiveOnly, p.GetBitsType(44),
+                          /*initial_values=*/{}, ChannelMetadataProto(), 42));
   EXPECT_EQ(ch42->id(), 42);
   EXPECT_THAT(p.GetChannel(42), IsOkAndHolds(ch42));
 
   // Next channel should get next sequential ID after highest ID so far.
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch43,
-      p.CreateStreamingChannel("ch43", Channel::SupportedOps::kReceiveOnly,
-                               p.GetBitsType(44)));
+      Channel * ch43, p.CreateStreamingChannel("ch43", ChannelOps::kReceiveOnly,
+                                               p.GetBitsType(44)));
   EXPECT_EQ(ch43->id(), 43);
 
   // Creating a channel with a duplicate ID is an error.
-  EXPECT_THAT(
-      p.CreateStreamingChannel("ch1_dup", Channel::SupportedOps::kReceiveOnly,
-                               p.GetBitsType(44), /*initial_values=*/{},
-                               ChannelMetadataProto(), 1)
-          .status(),
-      StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("Channel already exists with id 1")));
+  EXPECT_THAT(p.CreateStreamingChannel("ch1_dup", ChannelOps::kReceiveOnly,
+                                       p.GetBitsType(44), /*initial_values=*/{},
+                                       ChannelMetadataProto(), 1)
+                  .status(),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Channel already exists with id 1")));
 
   // Fetching a non-existent channel ID is an error.
   EXPECT_THAT(p.GetChannel(123), StatusIs(absl::StatusCode::kNotFound,

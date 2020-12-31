@@ -1155,7 +1155,7 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenOpen,
                                                 "'(' in channel definition"));
   absl::optional<int64> id;
-  absl::optional<Channel::SupportedOps> supported_ops;
+  absl::optional<ChannelOps> supported_ops;
   absl::optional<ChannelMetadataProto> metadata;
   std::vector<Value> initial_values;
   bool must_end = false;
@@ -1210,11 +1210,11 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
             Token supported_ops_token,
             scanner_.PopTokenOrError(LexicalTokenType::kIdent));
         if (supported_ops_token.value() == "send_only") {
-          supported_ops = Channel::SupportedOps::kSendOnly;
+          supported_ops = ChannelOps::kSendOnly;
         } else if (supported_ops_token.value() == "receive_only") {
-          supported_ops = Channel::SupportedOps::kReceiveOnly;
+          supported_ops = ChannelOps::kReceiveOnly;
         } else if (supported_ops_token.value() == "send_receive") {
-          supported_ops = Channel::SupportedOps::kSendReceive;
+          supported_ops = ChannelOps::kSendReceive;
         } else {
           return absl::InvalidArgumentError(absl::StrFormat(
               "Invalid channel attribute ops \"%s\" @ %s. Expected: send_only,"
