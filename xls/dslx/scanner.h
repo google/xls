@@ -25,7 +25,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/cpp_pos.h"
-#include "xls/dslx/cpp_scanner_keywords.inc"
+#include "xls/dslx/scanner_keywords.inc"
 
 namespace xls::dslx {
 

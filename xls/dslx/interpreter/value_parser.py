@@ -20,14 +20,14 @@ from typing import Optional
 
 from xls.common.xls_error import XlsError
 from xls.dslx import ast_helpers
-from xls.dslx.python import cpp_scanner as scanner_mod
-from xls.dslx.python.cpp_scanner import Keyword
-from xls.dslx.python.cpp_scanner import ScanError
-from xls.dslx.python.cpp_scanner import Scanner
-from xls.dslx.python.cpp_scanner import Token
-from xls.dslx.python.cpp_scanner import TokenKind
+from xls.dslx.python import scanner as scanner_mod
 from xls.dslx.python.interp_value import Tag
 from xls.dslx.python.interp_value import Value
+from xls.dslx.python.scanner import Keyword
+from xls.dslx.python.scanner import ScanError
+from xls.dslx.python.scanner import Scanner
+from xls.dslx.python.scanner import Token
+from xls.dslx.python.scanner import TokenKind
 from xls.ir.python import bits as ir_bits
 
 

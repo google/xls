@@ -66,13 +66,14 @@ py_library(
 )
 
 py_test(
-    name = "scanner_test",
+    name = "py_scanner_test",
     srcs = ["scanner_test.py"],
+    main = "scanner_test.py",
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
         "//xls/dslx/python:cpp_pos",
-        "//xls/dslx/python:cpp_scanner",
+        "//xls/dslx/python:scanner",
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )
@@ -83,7 +84,7 @@ py_binary(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        "//xls/dslx/python:cpp_scanner",
+        "//xls/dslx/python:scanner",
         "@com_google_absl_py//absl:app",
     ],
 )
@@ -111,7 +112,7 @@ py_test(
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_ast_visitor",
         "//xls/dslx/python:cpp_pos",
-        "//xls/dslx/python:cpp_scanner",
+        "//xls/dslx/python:scanner",
     ],
 )
 
@@ -135,7 +136,7 @@ py_library(
         requirement("termcolor"),
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_parser",
-        "//xls/dslx/python:cpp_scanner",
+        "//xls/dslx/python:scanner",
     ],
 )
 
@@ -150,7 +151,7 @@ py_test(
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_parser",
         "//xls/dslx/python:cpp_pos",
-        "//xls/dslx/python:cpp_scanner",
+        "//xls/dslx/python:scanner",
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )
@@ -359,7 +360,7 @@ py_binary(
     srcs_version = "PY3",
     deps = [
         requirement("termcolor"),
-        "//xls/dslx/python:cpp_scanner",
+        "//xls/dslx/python:scanner",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
     ],
@@ -451,7 +452,7 @@ py_library(
     deps = [
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_pos",
-        "//xls/dslx/python:cpp_scanner",
+        "//xls/dslx/python:scanner",
         "//xls/ir/python:bits",
     ],
 )
@@ -519,11 +520,11 @@ cc_test(
 )
 
 cc_library(
-    name = "cpp_scanner",
-    srcs = ["cpp_scanner.cc"],
+    name = "scanner",
+    srcs = ["scanner.cc"],
     hdrs = [
-        "cpp_scanner.h",
-        "cpp_scanner_keywords.inc",
+        "scanner.h",
+        "scanner_keywords.inc",
     ],
     deps = [
         ":cpp_pos",
@@ -539,10 +540,10 @@ cc_library(
 )
 
 cc_test(
-    name = "cpp_scanner_test",
-    srcs = ["cpp_scanner_test.cc"],
+    name = "scanner_test",
+    srcs = ["scanner_test.cc"],
     deps = [
-        ":cpp_scanner",
+        ":scanner",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
     ],
@@ -566,7 +567,7 @@ cc_library(
     hdrs = ["token_parser.h"],
     deps = [
         ":cpp_bindings",
-        ":cpp_scanner",
+        ":scanner",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/status:statusor",
@@ -750,8 +751,8 @@ cc_library(
     deps = [
         ":cpp_ast",
         ":cpp_parser",
-        ":cpp_scanner",
         ":cpp_type_info",
+        ":scanner",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:ret_check",
@@ -821,10 +822,10 @@ cc_library(
     deps = [
         ":cpp_concrete_type",
         ":cpp_parametric_instantiator",
-        ":cpp_scanner",
         ":deduce_ctx",
         ":import_routines",
         ":interp_bindings",
+        ":scanner",
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/strings",

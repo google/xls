@@ -39,7 +39,7 @@ py_library(
         "//xls/dslx:bit_helpers",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_pos",
-        "//xls/dslx/python:cpp_scanner",
+        "//xls/dslx/python:scanner",
     ],
 )
 
@@ -55,9 +55,9 @@ py_test(
         "//xls/dslx:fakefs_test_util",
         "//xls/dslx:parser_helpers",
         "//xls/dslx:span",
-        "//xls/dslx/python:cpp_scanner",
         "//xls/dslx/python:cpp_typecheck",
         "//xls/dslx/python:import_routines",
+        "//xls/dslx/python:scanner",
     ],
 )
 

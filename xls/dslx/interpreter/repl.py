@@ -31,10 +31,10 @@ from xls.dslx import span
 from xls.dslx.python import cpp_concrete_type as concrete_type_mod
 from xls.dslx.python import cpp_parser as parser
 from xls.dslx.python import cpp_pos
-from xls.dslx.python import cpp_scanner as scanner
 from xls.dslx.python import cpp_typecheck
 from xls.dslx.python import interp_value as value_mod
 from xls.dslx.python import interpreter as interpreter_mod
+from xls.dslx.python import scanner
 from xls.dslx.python.cpp_deduce import XlsTypeError
 
 FLAGS = flags.FLAGS

@@ -30,7 +30,7 @@ namespace xls::dslx {
 PYBIND11_MODULE(cpp_parser, m) {
   ImportStatusModule();
   py::module::import("xls.dslx.python.cpp_ast");
-  py::module::import("xls.dslx.python.cpp_scanner");
+  py::module::import("xls.dslx.python.scanner");
 
   static py::exception<CppParseError> parse_exc(m, "CppParseError");
   py::register_exception_translator([](std::exception_ptr p) {

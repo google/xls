@@ -23,9 +23,9 @@ from xls.dslx.python import cpp_ast_visitor
 from xls.dslx.python.cpp_ast_visitor import visit
 from xls.dslx.python.cpp_pos import Pos
 from xls.dslx.python.cpp_pos import Span
-from xls.dslx.python.cpp_scanner import Keyword
-from xls.dslx.python.cpp_scanner import Token
-from xls.dslx.python.cpp_scanner import TokenKind
+from xls.dslx.python.scanner import Keyword
+from xls.dslx.python.scanner import Token
+from xls.dslx.python.scanner import TokenKind
 
 
 class _Collector(cpp_ast_visitor.AstVisitor):

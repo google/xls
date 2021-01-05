@@ -19,7 +19,7 @@
 import pprint
 from absl import app
 
-from xls.dslx.python.cpp_scanner import Scanner
+from xls.dslx.python.scanner import Scanner
 
 
 def main(argv):

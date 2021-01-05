@@ -21,9 +21,9 @@ from typing import Text, Sequence, Any
 
 from absl.testing import absltest
 from xls.dslx.python import cpp_pos
-from xls.dslx.python import cpp_scanner as scanner
-from xls.dslx.python.cpp_scanner import TokenKind
-from xls.dslx.python.cpp_scanner import TokenKindFromString
+from xls.dslx.python import scanner
+from xls.dslx.python.scanner import TokenKind
+from xls.dslx.python.scanner import TokenKindFromString
 
 
 class ScannerTest(absltest.TestCase):

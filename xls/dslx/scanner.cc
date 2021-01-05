@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/cpp_scanner.h"
+#include "xls/dslx/scanner.h"
 
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"

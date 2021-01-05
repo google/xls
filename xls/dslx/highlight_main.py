@@ -28,7 +28,7 @@ from absl import app
 from absl import flags
 import termcolor
 
-from xls.dslx.python import cpp_scanner as scanner
+from xls.dslx.python import scanner
 
 FLAGS = flags.FLAGS
 

@@ -40,8 +40,8 @@ py_library(
     deps = [
         "//xls/common:xls_error",
         "//xls/dslx:ast_helpers",
-        "//xls/dslx/python:cpp_scanner",
         "//xls/dslx/python:interp_value",
+        "//xls/dslx/python:scanner",
         "//xls/ir/python:bits",
     ],
 )
@@ -78,8 +78,8 @@ py_library(
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_pos",
-        "//xls/dslx/python:cpp_scanner",
         "//xls/dslx/python:interp_value",
+        "//xls/dslx/python:scanner",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -151,9 +151,9 @@ py_library(
         "//xls/dslx:span",
         "//xls/dslx/python:cpp_deduce",
         "//xls/dslx/python:cpp_parser",
-        "//xls/dslx/python:cpp_scanner",
         "//xls/dslx/python:cpp_typecheck",
         "//xls/dslx/python:interpreter",
+        "//xls/dslx/python:scanner",
     ],
 )
 
@@ -217,10 +217,10 @@ py_binary(
         "//xls/dslx/python:cpp_deduce",
         "//xls/dslx/python:cpp_parser",
         "//xls/dslx/python:cpp_pos",
-        "//xls/dslx/python:cpp_scanner",
         "//xls/dslx/python:cpp_typecheck",
         "//xls/dslx/python:interp_value",
         "//xls/dslx/python:interpreter",
+        "//xls/dslx/python:scanner",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
     ],

@@ -24,7 +24,7 @@ from xls.common import memoize
 from xls.dslx import ast_helpers
 from xls.dslx import bit_helpers
 from xls.dslx.python import cpp_ast as ast
-from xls.dslx.python import cpp_scanner as scanner
+from xls.dslx.python import scanner
 from xls.dslx.python.cpp_pos import Pos
 from xls.dslx.python.cpp_pos import Span
 

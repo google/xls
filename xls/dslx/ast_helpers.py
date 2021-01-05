@@ -19,7 +19,7 @@
 from typing import Union, Callable, Tuple, Any, Optional, Sequence
 
 from xls.dslx.python import cpp_ast as ast
-from xls.dslx.python import cpp_scanner as scanner_mod
+from xls.dslx.python import scanner as scanner_mod
 from xls.dslx.python.cpp_pos import Pos
 from xls.dslx.python.cpp_pos import Span
 from xls.ir.python import bits as ir_bits

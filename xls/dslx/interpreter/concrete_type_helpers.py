@@ -23,10 +23,10 @@ from absl import logging
 from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType
 from xls.dslx.python.cpp_concrete_type import ConcreteType
-from xls.dslx.python.cpp_scanner import Keyword
-from xls.dslx.python.cpp_scanner import Token
-from xls.dslx.python.cpp_scanner import TokenKind
-from xls.dslx.python.cpp_scanner import TYPE_KEYWORDS_TO_SIGNEDNESS_AND_BITS
+from xls.dslx.python.scanner import Keyword
+from xls.dslx.python.scanner import Token
+from xls.dslx.python.scanner import TokenKind
+from xls.dslx.python.scanner import TYPE_KEYWORDS_TO_SIGNEDNESS_AND_BITS
 
 
 def concrete_type_from_element_type_and_dims(

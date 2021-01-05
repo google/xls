@@ -23,8 +23,8 @@ from xls.dslx import ast_helpers
 from xls.dslx import fakefs_test_util
 from xls.dslx import parser_helpers
 from xls.dslx.fuzzer import ast_generator
-from xls.dslx.python import cpp_scanner as scanner
 from xls.dslx.python import cpp_typecheck
+from xls.dslx.python import scanner
 from xls.dslx.python.import_routines import ImportCache
 from xls.dslx.span import PositionalError
 

@@ -17,7 +17,7 @@
 #include "absl/container/btree_set.h"
 #include "absl/strings/match.h"
 #include "xls/dslx/cpp_parametric_instantiator.h"
-#include "xls/dslx/cpp_scanner.h"
+#include "xls/dslx/scanner.h"
 
 namespace xls::dslx {
 namespace {

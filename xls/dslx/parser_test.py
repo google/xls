@@ -25,7 +25,7 @@ from xls.dslx import fakefs_test_util
 from xls.dslx import parser_helpers
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_parser as parser
-from xls.dslx.python import cpp_scanner as scanner
+from xls.dslx.python import scanner
 from xls.dslx.python.cpp_parser import CppParseError
 from xls.dslx.python.cpp_pos import Pos
 from xls.dslx.python.cpp_pos import Span

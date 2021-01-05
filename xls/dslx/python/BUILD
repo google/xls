@@ -100,8 +100,8 @@ py_test(
 )
 
 xls_pybind_extension(
-    name = "cpp_scanner",
-    srcs = ["cpp_scanner.cc"],
+    name = "scanner",
+    srcs = ["scanner.cc"],
     deps = [
         ":errors",
         "@com_google_absl//absl/base",
@@ -111,7 +111,7 @@ xls_pybind_extension(
         "//xls/common/status:statusor_pybind_caster",
         "//xls/dslx:cpp_ast_builtin_types",
         "//xls/dslx:cpp_pos",
-        "//xls/dslx:cpp_scanner",
+        "//xls/dslx:scanner",
     ],
 )
 
@@ -133,7 +133,7 @@ xls_pybind_extension(
     ],
     py_deps = [
         ":cpp_ast",  # build_cleaner: keep
-        ":cpp_scanner",  # build_cleaner: keep
+        ":scanner",  # build_cleaner: keep
     ],
     deps = [
         ":cpp_ast_header",

@@ -31,10 +31,10 @@ from xls.dslx.python.cpp_deduce import TypeInferenceError
 from xls.dslx.python.cpp_deduce import XlsTypeError
 from xls.dslx.python.cpp_parser import CppParseError
 from xls.dslx.python.cpp_parser import Parser
-from xls.dslx.python.cpp_scanner import ScanError
-from xls.dslx.python.cpp_scanner import Scanner
 from xls.dslx.python.interpreter import FailureError
 from xls.dslx.python.interpreter import Interpreter
+from xls.dslx.python.scanner import ScanError
+from xls.dslx.python.scanner import Scanner
 from xls.dslx.span import PositionalError
 
 
