@@ -20,7 +20,8 @@ fn main(x: MyEnum) -> bool {
   x == mod_simple_const_enum::MY_FOO
 }
 
-test main {
+#![test]
+fn main_test() {
   let _ = assert_eq(main(MyEnum::FOO), true);
   let _ = assert_eq(main(MyEnum::BAR), false);
   ()

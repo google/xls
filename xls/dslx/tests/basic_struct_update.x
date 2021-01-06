@@ -27,7 +27,8 @@ fn main() -> Point3 {
   update_y(p, u32:128)
 }
 
-test main {
+#![test]
+fn main_test() {
   let want = Point3 { x: u32:42, y: u32:128, z: u32:256 };
   assert_eq(want, main())
 }

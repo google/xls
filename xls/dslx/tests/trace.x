@@ -20,7 +20,8 @@ fn main() -> u3 {
   x0
 }
 
-test trace {
+#![test]
+fn trace_test() {
   let x0 = clz(u3:0b011);
   let _ = trace(x0);
   let x1 = (x0 as u8) * u8:3;

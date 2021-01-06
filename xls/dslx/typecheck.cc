@@ -127,7 +127,7 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
   return absl::OkStatus();
 }
 
-absl::Status CheckTest(Test* t, DeduceCtx* ctx) {
+absl::Status CheckTest(TestFunction* t, DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> body_return_type,
                        ctx->Deduce(t->body()));
   if (body_return_type->IsNil()) {
@@ -271,7 +271,7 @@ absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
 // its user (which would often be an invocation), which allows us to drive the
 // appropriate instantiation of that parametric.
 
-using TopNode = absl::variant<Function*, Test*, StructDef*, TypeDef*>;
+using TopNode = absl::variant<Function*, TestFunction*, StructDef*, TypeDef*>;
 struct WipRecord {
   TopNode f;
   bool wip;
@@ -297,8 +297,8 @@ struct TypecheckStackRecord {
 static absl::Status ProcessTopNode(TopNode f, DeduceCtx* ctx) {
   if (absl::holds_alternative<Function*>(f)) {
     XLS_RETURN_IF_ERROR(CheckFunction(absl::get<Function*>(f), ctx));
-  } else if (absl::holds_alternative<Test*>(f)) {
-    XLS_RETURN_IF_ERROR(CheckTest(absl::get<Test*>(f), ctx));
+  } else if (absl::holds_alternative<TestFunction*>(f)) {
+    XLS_RETURN_IF_ERROR(CheckTest(absl::get<TestFunction*>(f), ctx));
   } else {
     // Nothing special to do for these other variants, we just want to be able
     // to catch any TypeMissingErrors and try to resolve them.
@@ -311,8 +311,8 @@ static absl::Status ProcessTopNode(TopNode f, DeduceCtx* ctx) {
 static const std::string& Identifier(const TopNode& f) {
   if (absl::holds_alternative<Function*>(f)) {
     return absl::get<Function*>(f)->identifier();
-  } else if (absl::holds_alternative<Test*>(f)) {
-    return absl::get<Test*>(f)->identifier();
+  } else if (absl::holds_alternative<TestFunction*>(f)) {
+    return absl::get<TestFunction*>(f)->identifier();
   } else if (absl::holds_alternative<StructDef*>(f)) {
     return absl::get<StructDef*>(f)->identifier();
   } else {
@@ -600,20 +600,18 @@ absl::StatusOr<std::shared_ptr<TypeInfo>> CheckModule(
   }
 
   // Tests.
-  for (Test* test : ctx->module()->GetTests()) {
-    if (auto* test_function = dynamic_cast<TestFunction*>(test)) {
-      // New-style test constructs are specified using a function.
-      // This function shouldn't be parametric and shouldn't take any arguments.
-      if (!test_function->fn()->params().empty()) {
-        return TypeInferenceErrorStatus(
-            test_function->fn()->span(), nullptr,
-            "Test functions shouldn't take arguments.");
-      }
-      if (test_function->fn()->IsParametric()) {
-        return TypeInferenceErrorStatus(
-            test_function->fn()->span(), nullptr,
-            "Test functions shouldn't be parametric.");
-      }
+  for (TestFunction* test : ctx->module()->GetTests()) {
+    // New-style test constructs are specified using a function.
+    // This function shouldn't be parametric and shouldn't take any arguments.
+    if (!test->fn()->params().empty()) {
+      return TypeInferenceErrorStatus(
+          test->fn()->span(), nullptr,
+          "Test functions shouldn't take arguments.");
+    }
+    if (test->fn()->IsParametric()) {
+      return TypeInferenceErrorStatus(
+          test->fn()->span(), nullptr,
+          "Test functions shouldn't be parametric.");
     }
 
     // TODO(leary): 2020-12-19 Seems like we can collide with this, should use
@@ -622,11 +620,7 @@ absl::StatusOr<std::shared_ptr<TypeInfo>> CheckModule(
     ctx->fn_stack().push_back(FnStackEntry{
         absl::StrCat(test->identifier(), "_test"), SymbolicBindings()});
     XLS_VLOG(2) << "Typechecking test: " << test->ToString();
-    if (auto* test_function = dynamic_cast<TestFunction*>(test)) {
-      XLS_RETURN_IF_ERROR(CheckTopNodeInModule(test_function->fn(), ctx));
-    } else {
-      XLS_RETURN_IF_ERROR(CheckTopNodeInModule(test, ctx));
-    }
+    XLS_RETURN_IF_ERROR(CheckTopNodeInModule(test->fn(), ctx));
     XLS_VLOG(2) << "Finished typechecking test: " << test->ToString();
   }
 

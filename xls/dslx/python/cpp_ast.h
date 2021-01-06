@@ -58,7 +58,7 @@ class AstNodeHolder : public PointerOwnedByModule<AstNode> {
   X(QuickCheck)                         \
   X(Slice)                              \
   X(StructDef)                          \
-  X(Test)                               \
+  X(TestFunction)                       \
   X(TypeAnnotation)                     \
   X(TypeDef)                            \
   X(TypeRef)                            \
@@ -153,15 +153,6 @@ struct ConstRefHolder : public NameRefHolder {
       : NameRefHolder(pointer, owner) {}
   ConstRef& deref() const {
     return static_cast<ConstRef&>(NameRefHolder::deref());
-  }
-};
-
-struct TestFunctionHolder : public TestHolder {
-  TestFunctionHolder(TestFunction* pointer,
-                     const std::shared_ptr<Module>& owner)
-      : TestHolder(pointer, owner) {}
-  TestFunction& deref() const {
-    return static_cast<TestFunction&>(TestHolder::deref());
   }
 };
 

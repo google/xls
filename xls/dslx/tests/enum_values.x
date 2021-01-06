@@ -19,7 +19,8 @@ enum MyEnum : u2 {
   D = 3,
 }
 
-test enum_values {
+#![test]
+fn enum_values() {
   let a: MyEnum = MyEnum::A;
   // Cast some to unsigned.
   let b_u2: u2 = MyEnum::B as u2;
@@ -42,12 +43,14 @@ test enum_values {
   ()
 }
 
-test enum_values_widen_from_unsigned {
+#![test]
+fn enum_values_widen_from_unsigned() {
   let d_s4: s4 = MyEnum::D as s4;
   assert_eq(s4:0b0011, d_s4)
 }
 
-test enum_values_narrow_from_unsigned {
+#![test]
+fn enum_values_narrow_from_unsigned() {
   let d_s1: s1 = MyEnum::D as s1;
   assert_eq(s1:0b1, d_s1)
 }
@@ -59,12 +62,14 @@ enum MyEnumSigned : s2 {
   D = 3,
 }
 
-test enum_values_widen_from_signed {
+#![test]
+fn enum_values_widen_from_signed() {
   let d_s4: s4 = MyEnumSigned::D as s4;
   assert_eq(s4:0b1111, d_s4)
 }
 
-test enum_values_narrow_from_signed {
+#![test]
+fn enum_values_narrow_from_signed() {
   let d_s1: s1 = MyEnumSigned::D as s1;
   assert_eq(s1:0b1, d_s1)
 }

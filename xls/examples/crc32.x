@@ -28,6 +28,7 @@ fn main(message: u8) -> u32 {
   crc32_one_byte(message, u32:0xEDB88320, u32:-1) ^ u32:-1
 }
 
-test crc32_one_char {
+#![test]
+fn crc32_one_char() {
   assert_eq(u32:0x83DCEFB7, main('1'))
 }

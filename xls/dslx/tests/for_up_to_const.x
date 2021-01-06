@@ -25,6 +25,7 @@ fn f() -> u32 {
   }(u32:0)
 }
 
-test f {
+#![test]
+fn f_test() {
   assert_eq(f(), u32:3)
 }

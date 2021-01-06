@@ -22,7 +22,8 @@ fn id(x: u6[3][2]) -> u6[3][2] {
   x
 }
 
-test array_typedef {
+#![test]
+fn array_typedef() {
   let a : u6[3][2] = [[TypeX:1, TypeX:2, TypeX:3],
                       [TypeX:4, TypeX:5, TypeX:6]];
   let b : TypeX[3][2] = [[TypeX:1, TypeX:2, TypeX:3],

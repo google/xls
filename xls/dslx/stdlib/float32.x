@@ -63,7 +63,8 @@ pub fn tag(input_float: F32) -> FloatTag {
   }
 }
 
-test tag {
+#![test]
+fn tag_test() {
   let _ = assert_eq(tag(F32 { sign: u1:0, bexp: u8:0, sfd: u23:0 }), FloatTag::ZERO);
   let _ = assert_eq(tag(F32 { sign: u1:1, bexp: u8:0, sfd: u23:0 }), FloatTag::ZERO);
   let _ = assert_eq(tag(zero(u1:0)), FloatTag::ZERO);
@@ -140,7 +141,8 @@ pub fn is_nan(x: F32) -> u1 {
   (x.bexp == u8:255) & (x.sfd != u23:0)
 }
 
-test normalize {
+#![test]
+fn normalize_test() {
   let _ = assert_eq(normalize(u1:0, u8:0x12, u24:0xfe_dcba),
                     F32 { sign: u1:0, bexp: u8:0x12, sfd: u23:0x7e_dcba });
 

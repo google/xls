@@ -12,18 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-test narrow_signed_cast {
+#![test]
+fn narrow_signed_cast() {
   let negative_seven = s4:0b1001;
   assert_eq(negative_seven as s2, s2:1)
 }
 
-test widen_signed_cast {
+#![test]
+fn widen_signed_cast() {
   let negative_one = s2:0b11;
   let _ = assert_eq(negative_one, s2:-1);
   assert_eq(negative_one as s4, s4:-1)
 }
 
-test numerical_conversions {
+#![test]
+fn numerical_conversions() {
   let s8_m2 = s8:-2;
   // Sign extension (source type is signed).
   let _ = assert_eq(s32:-2, s8_m2 as s32);

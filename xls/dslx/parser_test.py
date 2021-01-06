@@ -353,7 +353,8 @@ class ParserTest(absltest.TestCase):
   def test_module(self):
     program = textwrap.dedent("""\
     fn id(x: u32) -> u32 { x }
-    test id_4 {
+    #![test]
+    fn id_4() {
       assert_eq(u32:4, id(u32:4))
     }
     """)
@@ -692,7 +693,7 @@ class ParserTest(absltest.TestCase):
   def test_unittest_directive(self):
     m = self.parse_module("""
         #![test]
-        example {
+        fn example() {
           ()
         }
         """)

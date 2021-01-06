@@ -186,7 +186,7 @@ absl::StatusOr<std::shared_ptr<Module>> Parser::ParseModule(
     if (dropped_hash) {
       XLS_ASSIGN_OR_RETURN(auto directive,
                            ParseDirective(&name_to_fn, bindings));
-      if (auto* t = TryGet<Test*>(directive)) {
+      if (auto* t = TryGet<TestFunction*>(directive)) {
         module_->mutable_top()->push_back(t);
       } else if (auto* qc = TryGet<QuickCheck*>(directive)) {
         module_->mutable_top()->push_back(qc);
@@ -213,12 +213,6 @@ absl::StatusOr<std::shared_ptr<Module>> Parser::ParseModule(
                              ParseFunction(
                                  /*is_public=*/false, bindings, &name_to_fn));
         module_->mutable_top()->push_back(fn);
-        break;
-      }
-      case Keyword::kTest: {
-        XLS_ASSIGN_OR_RETURN(
-            Test * test, ParseTestConstruct(bindings, /*is_directive=*/false));
-        module_->mutable_top()->push_back(test);
         break;
       }
       case Keyword::kImport: {
@@ -259,43 +253,30 @@ absl::StatusOr<std::shared_ptr<Module>> Parser::ParseModule(
   return module_;
 }
 
-absl::StatusOr<absl::variant<Test*, QuickCheck*, nullptr_t>>
+absl::StatusOr<absl::variant<TestFunction*, QuickCheck*, nullptr_t>>
 Parser::ParseDirective(absl::flat_hash_map<std::string, Function*>* name_to_fn,
                        Bindings* bindings) {
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kBang));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrack));
-  XLS_ASSIGN_OR_RETURN(bool peek_is_identifier,
-                       PeekTokenIs(TokenKind::kIdentifier));
-  absl::optional<Token> directive_tok;
-  std::string directive_name;
-  if (peek_is_identifier) {
-    directive_tok = PopTokenOrDie();
-    directive_name = *directive_tok->GetValue();
-  } else {
-    XLS_ASSIGN_OR_RETURN(directive_tok, PopKeywordOrError(Keyword::kTest));
-    directive_name = KeywordToString(directive_tok->GetKeyword());
-  }
+  XLS_ASSIGN_OR_RETURN(Token directive_tok,
+                       PopTokenOrError(TokenKind::kIdentifier));
+  const std::string& directive_name = directive_tok.GetStringValue();
 
   if (directive_name == "cfg") {
-    XLS_RETURN_IF_ERROR(ParseConfig(directive_tok->span()));
+    XLS_RETURN_IF_ERROR(ParseConfig(directive_tok.span()));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
     return nullptr;
   }
   if (directive_name == "test") {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
-    XLS_ASSIGN_OR_RETURN(bool peek_is_fn, PeekTokenIs(Keyword::kFn));
-    if (peek_is_fn) {
-      return ParseTestFunction(name_to_fn, bindings, directive_tok->span());
-    }
-    return ParseTestConstruct(bindings, /*is_directive=*/true);
+    return ParseTestFunction(name_to_fn, bindings, directive_tok.span());
   }
   if (directive_name == "quickcheck") {
-    XLS_ASSIGN_OR_RETURN(
-        QuickCheck * n,
-        ParseQuickCheck(name_to_fn, bindings, directive_tok->span()));
+    XLS_ASSIGN_OR_RETURN(QuickCheck * n, ParseQuickCheck(name_to_fn, bindings,
+                                                         directive_tok.span()));
     return n;
   }
-  return ParseError(directive_tok->span(),
+  return ParseError(directive_tok.span(),
                     absl::StrFormat("Unknown directive: '%s'", directive_name));
 }
 
@@ -1722,21 +1703,15 @@ absl::StatusOr<TestFunction*> Parser::ParseTestFunction(
     const Span& directive_span) {
   XLS_ASSIGN_OR_RETURN(Function * f,
                        ParseFunctionInternal(/*is_public=*/false, bindings));
-  return module_->Make<TestFunction>(f);
-}
-
-absl::StatusOr<Test*> Parser::ParseTestConstruct(Bindings* outer,
-                                                 bool is_directive) {
-  if (!is_directive) {
-    XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kTest));
+  if (absl::optional<ModuleMember*> member =
+          module_->FindMemberWithName(f->identifier())) {
+    return ParseError(
+        directive_span,
+        absl::StrFormat(
+            "Test function '%s' has same name as module member @ %s",
+            f->identifier(), ToAstNode(**member)->GetSpan()->ToString()));
   }
-  Bindings fake_bindings;
-  XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDef(&fake_bindings));
-  Bindings bindings(outer);
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
-  XLS_ASSIGN_OR_RETURN(Expr * body, ParseExpression(&bindings));
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrace));
-  return module_->Make<Test>(name_def, body);
+  return module_->Make<TestFunction>(f);
 }
 
 absl::Status Parser::ParseConfig(const Span& directive_span) {

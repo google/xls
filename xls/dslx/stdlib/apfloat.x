@@ -37,7 +37,8 @@ pub fn qnan<EXP_SZ:u32, SFD_SZ:u32>() -> APFloat<EXP_SZ, SFD_SZ> {
   }
 }
 
-test qnan {
+#![test]
+fn qnan_test() {
   let expected = APFloat<u32:8, u32:23> {
     sign: u1:0, bexp: u8:0xff, sfd: u23:0x400000,
   };
@@ -60,7 +61,8 @@ pub fn zero<EXP_SZ:u32, SFD_SZ:u32>(sign: bits[1])
     sfd: bits[SFD_SZ]:0 }
 }
 
-test zero {
+#![test]
+fn zero_test() {
   let expected = APFloat<u32:8, u32:23> {
     sign: u1:0, bexp: u8:0x0, sfd: u23:0x0,
   };
@@ -85,7 +87,8 @@ pub fn one<EXP_SZ:u32, SFD_SZ:u32, MASK_SZ:u32 = EXP_SZ - u32:1>(
   }
 }
 
-test one {
+#![test]
+fn one_test() {
   let expected = APFloat<u32:8, u32:23> {
     sign: u1:0, bexp: u8:0x7f, sfd: u23:0x0,
   };
@@ -108,7 +111,8 @@ pub fn inf<EXP_SZ:u32, SFD_SZ:u32>(sign: bits[1]) -> APFloat<EXP_SZ, SFD_SZ> {
   }
 }
 
-test inf {
+#![test]
+fn inf_test() {
   let expected = APFloat<u32:8, u32:23> {
     sign: u1:0, bexp: u8:0xff, sfd: u23:0x0,
   };
@@ -130,7 +134,8 @@ pub fn unbiased_exponent<EXP_SZ:u32, SFD_SZ:u32, UEXP_SZ:u32 = EXP_SZ + u32:1, M
   (f.bexp as bits[UEXP_SZ]) - (std::mask_bits<MASK_SZ>() as bits[UEXP_SZ])
 }
 
-test unbiased_exponent {
+#![test]
+fn unbiased_exponent_test() {
   let expected = u9:0x0;
   let actual = unbiased_exponent<u32:8, u32:23>(
       APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:0x7f, sfd: u23:0 });
@@ -183,7 +188,8 @@ pub fn normalize<EXP_SZ:u32, SFD_SZ:u32, WIDE_SFD:u32 = SFD_SZ + u32:1>(
   }
 }
 
-test normalize {
+#![test]
+fn normalize_test() {
   let expected = APFloat<u32:8, u32:23>{
       sign: u1:0, bexp: u8:0x12, sfd: u23:0x7e_dcba };
   let actual = normalize<u32:8, u32:23>(u1:0, u8:0x12, u24:0xfe_dcba);

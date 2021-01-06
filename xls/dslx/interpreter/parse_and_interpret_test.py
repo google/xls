@@ -28,7 +28,8 @@ class ParseAndInterpretTest(absltest.TestCase):
 
   def test_assertion_failure_prints_positionally(self):
     program = """
-    test foo {
+    #![test]
+    fn foo_test() {
       assert_eq(false, true)
     }
     """
@@ -39,7 +40,7 @@ class ParseAndInterpretTest(absltest.TestCase):
       with mock.patch('sys.stderr', mock_stderr):
         parse_and_interpret.parse_and_test(
             program, 'test_program', filename=filename, raise_on_error=False)
-    self.assertIn('* 0003:       assert_eq(false, true)',
+    self.assertIn('* 0004:       assert_eq(false, true)',
                   mock_stderr.getvalue())
     self.assertIn(
         '        ~~~~~~~~~~~~~~~^-----------^ The program being interpreted failed!',

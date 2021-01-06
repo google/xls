@@ -38,7 +38,8 @@ pub fn two_param_indirect<E:u32, F:u32>(value: bits[E]) -> Generic<E, F> {
   parameterized_zero<E, F>(value)
 }
 
-test generic {
+#![test]
+fn generic() {
   let actual = two_param_indirect<u32:1, u32:2>(u1:0);
   ()
 }

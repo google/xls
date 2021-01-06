@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-test one_hot {
+#![test]
+fn one_hot_test() {
   // LSb has priority.
   let _ = assert_eq(u4:0b1000, one_hot(u3:0b000, true));
   let _ = assert_eq(u4:0b0001, one_hot(u3:0b001, true));

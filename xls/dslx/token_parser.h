@@ -53,6 +53,10 @@ class TokenParser {
 
   bool AtEof() { return scanner_->AtEof(); }
 
+  // Attempts to pop an identifier-kind token from the head of the token stream.
+  //
+  // If the token at the head of the stream is not an identifier, returns
+  // nullopt.
   absl::StatusOr<absl::optional<Token>> TryPopIdentifierToken(
       absl::string_view target) {
     XLS_ASSIGN_OR_RETURN(const Token* tok, PeekToken());
@@ -102,6 +106,12 @@ class TokenParser {
     return false;
   }
 
+  // Returns a pointer to the token at the head of the token stream.
+  //
+  // Note: if there are no tokens in the token steam, a pointer to an EOF-kind
+  // token is returned.
+  //
+  // Returns an error status in the case of things like scan errors.
   absl::StatusOr<const Token*> PeekToken() {
     if (index_ >= tokens_.size()) {
       XLS_ASSIGN_OR_RETURN(Token token, scanner_->Pop());

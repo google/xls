@@ -35,7 +35,8 @@ fn main() -> u4[8] {
   map(map(map(x0, std::bounded_minus_1), umul_2), clz)
 }
 
-test maps {
+#![test]
+fn maps() {
   let x0 = u4[8]:[0, 1, 2, 3, 4, 5, 6, 7];
   let expected = u4[8]:[0, 2, 4, 6, 8, 10, 12, 14];
   let expected_u6 = u6[8]:[0, 2, 4, 6, 8, 10, 12, 14];

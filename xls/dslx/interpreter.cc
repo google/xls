@@ -122,7 +122,7 @@ absl::Status Interpreter::RunTest(absl::string_view name) {
   XLS_ASSIGN_OR_RETURN(
       std::shared_ptr<InterpBindings> bindings,
       MakeTopLevelBindings(module_->shared_from_this(), &callbacks_));
-  XLS_ASSIGN_OR_RETURN(Test * test, module_->GetTest(name));
+  XLS_ASSIGN_OR_RETURN(TestFunction * test, module_->GetTest(name));
   bindings->set_fn_ctx(
       FnCtx{module_->name(), absl::StrFormat("%s__test", name)});
   XLS_ASSIGN_OR_RETURN(

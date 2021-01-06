@@ -23,6 +23,7 @@ fn main() -> u32 {
   f(xs)
 }
 
-test main {
+#![test]
+fn main_test() {
   assert_eq(u32:3, main())
 }

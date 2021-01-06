@@ -19,7 +19,8 @@ fn match_multi(x: u32) -> u32 {
   }
 }
 
-test match_multi {
+#![test]
+fn match_multi_test() {
   let _ = assert_eq(u32:42, match_multi(u32:24));
   let _ = assert_eq(u32:42, match_multi(u32:42));
   let _ = assert_eq(u32:64, match_multi(u32:41));

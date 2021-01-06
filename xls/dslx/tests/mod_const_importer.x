@@ -20,7 +20,8 @@ fn main(x: u32) -> u32 {
   x + mod_simple_const::FOO
 }
 
-test main {
+#![test]
+fn main_test() {
   let _ = assert_eq(main(u32:0), u32:42);
   let _ = assert_eq(main(u32:1), u32:43);
   let _ = assert_eq(LOCAL_FOO, mod_simple_const::FOO);

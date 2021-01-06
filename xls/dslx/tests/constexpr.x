@@ -27,27 +27,29 @@ pub fn main() -> u32 {
   CONST_1 + CONST_2 + CONST_3 + CONST_4 + CONST_5
 }
 
-test can_reference_constants {
-  let _: () = assert_eq(bits[32]:666, CONST_1);
-  let _: () = assert_eq(bits[32]:666, CONST_2);
-  let _: () = assert_eq(bits[32]:1332, CONST_3);
-  let _: () = assert_eq(bits[32]:2664, CONST_4);
-  let _: () = assert_eq(CONST_4, CONST_4);
-  let _: () = assert_eq(bits[32]:2665, CONST_5);
-  let _: () = assert_eq(bits[32][4]:[u32:1, u32:2, u32:3, u32:4], CONST_ARRAY1);
-  let _: () = assert_eq(bits[32][4]:[u32:4, u32:3, u32:2, u32:1], CONST_ARRAY2);
-  let _: () = assert_eq((u16:1, u32:2, u64:3), CONST_TUPLE1);
-  let _: () = assert_eq((u16:4, u32:5, u64:6), CONST_TUPLE2);
+#![test]
+fn can_reference_constants_test() {
+  let _ = assert_eq(bits[32]:666, CONST_1);
+  let _ = assert_eq(bits[32]:666, CONST_2);
+  let _ = assert_eq(bits[32]:1332, CONST_3);
+  let _ = assert_eq(bits[32]:2664, CONST_4);
+  let _ = assert_eq(CONST_4, CONST_4);
+  let _ = assert_eq(bits[32]:2665, CONST_5);
+  let _ = assert_eq(bits[32][4]:[u32:1, u32:2, u32:3, u32:4], CONST_ARRAY1);
+  let _ = assert_eq(bits[32][4]:[u32:4, u32:3, u32:2, u32:1], CONST_ARRAY2);
+  let _ = assert_eq((u16:1, u32:2, u64:3), CONST_TUPLE1);
+  let _ = assert_eq((u16:4, u32:5, u64:6), CONST_TUPLE2);
   ()
 }
 
-test can_add_constants {
-  let _: () = assert_eq(bits[32]:1332, CONST_1 + CONST_1);
-  let _: () = assert_eq(bits[32]:1332, CONST_1 + CONST_2);
-  let _: () = assert_eq(bits[32]:1332, CONST_2 + CONST_2);
-  let _: () = assert_eq(bits[32]:1998, CONST_1 + CONST_3);
-  let _: () = assert_eq(bits[32]:1998, CONST_2 + CONST_3);
-  let _: () = assert_eq(bits[32]:2664, CONST_1 + CONST_2 + CONST_3);
+#![test]
+fn can_add_constants_test() {
+  let _ = assert_eq(bits[32]:1332, CONST_1 + CONST_1);
+  let _ = assert_eq(bits[32]:1332, CONST_1 + CONST_2);
+  let _ = assert_eq(bits[32]:1332, CONST_2 + CONST_2);
+  let _ = assert_eq(bits[32]:1998, CONST_1 + CONST_3);
+  let _ = assert_eq(bits[32]:1998, CONST_2 + CONST_3);
+  let _ = assert_eq(bits[32]:2664, CONST_1 + CONST_2 + CONST_3);
 
   // TODO(https://github.com/google/xls/issues/245): The interpreter does not
   // like these.

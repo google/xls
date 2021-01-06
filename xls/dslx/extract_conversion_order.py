@@ -76,7 +76,7 @@ class ConversionRecord(object):
         self.f.identifier, self.m, self.bindings, self.callees)
 
 
-def get_callees(func: Union[ast.Function, ast.Test], m: ast.Module,
+def get_callees(func: Union[ast.Function, ast.TestFunction], m: ast.Module,
                 type_info: type_info_mod.TypeInfo, imports: Dict[ast.Import,
                                                                  ImportedInfo],
                 bindings: SymbolicBindings) -> Tuple[Callee, ...]:
@@ -163,7 +163,7 @@ def _is_ready(ready: List[ConversionRecord], f: ast.Function, m: ast.Module,
 
 def _add_to_ready(ready: List[ConversionRecord], imports: Dict[ast.Import,
                                                                ImportedInfo],
-                  f: Union[ast.Function, ast.Test], m: ast.Module,
+                  f: Union[ast.Function, ast.TestFunction], m: ast.Module,
                   type_info: type_info_mod.TypeInfo,
                   bindings: SymbolicBindings) -> None:
   """Adds (f, bindings) to conversion order after deps have been added."""
@@ -190,7 +190,7 @@ def _add_to_ready(ready: List[ConversionRecord], imports: Dict[ast.Import,
   assert not _is_ready(ready, f, m, bindings)
 
   # We don't convert the bodies of test constructs to IR
-  if not isinstance(f, ast.Test):
+  if not isinstance(f, ast.TestFunction):
     logging.vlog(3, 'Adding to ready sequence: %s', f.name.identifier)
     ready.append(
         ConversionRecord(f, m, type_info, bindings, callees=orig_callees))

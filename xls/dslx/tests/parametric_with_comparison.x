@@ -17,7 +17,8 @@ fn foo<A: u32, B: u32, C: u32 = A if A > B else B>(x: bits[A], y: bits[B]) -> bi
   ((x + (y as bits[A])) as bits[C]) if use_a else (((x as bits[B]) + y) as bits[C])
 }
 
-test parametric_with_comparison {
+#![test]
+fn parametric_with_comparison() {
   let A = u32:8;
   let B = u32:16;
   let x = bits[8]:0xff;

@@ -342,10 +342,10 @@ absl::StatusOr<Function*> Module::GetFunction(absl::string_view target_name) {
       "No function in module %s with name \"%s\"", name_, target_name));
 }
 
-absl::StatusOr<Test*> Module::GetTest(absl::string_view target_name) {
+absl::StatusOr<TestFunction*> Module::GetTest(absl::string_view target_name) {
   for (ModuleMember& member : top_) {
-    if (absl::holds_alternative<Test*>(member)) {
-      Test* t = absl::get<Test*>(member);
+    if (absl::holds_alternative<TestFunction*>(member)) {
+      TestFunction* t = absl::get<TestFunction*>(member);
       if (t->identifier() == target_name) {
         return t;
       }
@@ -362,8 +362,8 @@ absl::optional<ModuleMember*> Module::FindMemberWithName(
       if (absl::get<Function*>(member)->identifier() == target) {
         return &member;
       }
-    } else if (absl::holds_alternative<Test*>(member)) {
-      if (absl::get<Test*>(member)->identifier() == target) {
+    } else if (absl::holds_alternative<TestFunction*>(member)) {
+      if (absl::get<TestFunction*>(member)->identifier() == target) {
         return &member;
       }
     } else if (absl::holds_alternative<QuickCheck*>(member)) {
@@ -455,14 +455,14 @@ absl::StatusOr<TypeDefinition> Module::GetTypeDefinition(
 
 absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node) {
   // clang-format off
-  if (auto* n = dynamic_cast<Function*   >(node)) { return ModuleMember(n); }
-  if (auto* n = dynamic_cast<Test*       >(node)) { return ModuleMember(n); }
-  if (auto* n = dynamic_cast<QuickCheck* >(node)) { return ModuleMember(n); }
-  if (auto* n = dynamic_cast<TypeDef*    >(node)) { return ModuleMember(n); }
-  if (auto* n = dynamic_cast<StructDef*  >(node)) { return ModuleMember(n); }
-  if (auto* n = dynamic_cast<ConstantDef*>(node)) { return ModuleMember(n); }
-  if (auto* n = dynamic_cast<EnumDef*    >(node)) { return ModuleMember(n); }
-  if (auto* n = dynamic_cast<Import*     >(node)) { return ModuleMember(n); }
+  if (auto* n = dynamic_cast<Function*    >(node)) { return ModuleMember(n); }
+  if (auto* n = dynamic_cast<TestFunction*>(node)) { return ModuleMember(n); }
+  if (auto* n = dynamic_cast<QuickCheck*  >(node)) { return ModuleMember(n); }
+  if (auto* n = dynamic_cast<TypeDef*     >(node)) { return ModuleMember(n); }
+  if (auto* n = dynamic_cast<StructDef*   >(node)) { return ModuleMember(n); }
+  if (auto* n = dynamic_cast<ConstantDef* >(node)) { return ModuleMember(n); }
+  if (auto* n = dynamic_cast<EnumDef*     >(node)) { return ModuleMember(n); }
+  if (auto* n = dynamic_cast<Import*      >(node)) { return ModuleMember(n); }
   // clang-format on
   return absl::InvalidArgumentError("AST node is not a module-level member: " +
                                     node->ToString());

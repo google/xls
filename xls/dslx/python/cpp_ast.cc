@@ -287,18 +287,20 @@ PYBIND11_MODULE(cpp_ast, m) {
                })
           .def("get_tests",
                [](ModuleHolder module) {
-                 return Wrap<Test*>(module.deref().GetTests(), module.module());
+                 return Wrap<TestFunction*>(module.deref().GetTests(),
+                                            module.module());
                })
           .def(
               "get_test_names",
               [](ModuleHolder module) { return module.deref().GetTestNames(); })
-          .def("get_test",
-               [](ModuleHolder module,
-                  absl::string_view name) -> absl::StatusOr<TestHolder> {
-                 XLS_ASSIGN_OR_RETURN(Test * test,
-                                      module.deref().GetTest(name));
-                 return TestHolder(test, module.module());
-               })
+          .def(
+              "get_test",
+              [](ModuleHolder module,
+                 absl::string_view name) -> absl::StatusOr<TestFunctionHolder> {
+                XLS_ASSIGN_OR_RETURN(TestFunction * test,
+                                     module.deref().GetTest(name));
+                return TestFunctionHolder(test, module.module());
+              })
           .def("add_top",
                [](ModuleHolder module, AstNodeHolder node) -> absl::Status {
                  XLS_ASSIGN_OR_RETURN(ModuleMember member,
@@ -881,30 +883,21 @@ PYBIND11_MODULE(cpp_ast, m) {
         return NameDefHolder(self.deref().name_def(), self.module());
       });
 
-  // class Test
-  py::class_<TestHolder, AstNodeHolder>(m, "Test")
-      .def(py::init(
-          [](ModuleHolder module, NameDefHolder name_def, ExprHolder body) {
-            auto* self =
-                module.deref().Make<Test>(&name_def.deref(), &body.deref());
-            return TestHolder(self, module.module());
-          }))
-      // TODO(leary): 2020-09-04 Rename to name_def.
-      .def_property_readonly("name",
-                             [](TestHolder self) {
-                               return NameDefHolder(self.deref().name_def(),
-                                                    self.module());
-                             })
-      .def_property_readonly("body", [](TestHolder self) {
-        return ExprHolder(self.deref().body(), self.module());
-      });
-
   // class TestFunction
-  py::class_<TestFunctionHolder, TestHolder>(m, "TestFunction")
+  py::class_<TestFunctionHolder, AstNodeHolder>(m, "TestFunction")
       .def(py::init([](ModuleHolder module, FunctionHolder f) {
         auto* self = module.deref().Make<TestFunction>(&f.deref());
         return TestFunctionHolder(self, module.module());
-      }));
+      }))
+      // TODO(leary): 2020-09-04 Rename to name_def.
+      .def_property_readonly("name",
+                             [](TestFunctionHolder self) {
+                               return NameDefHolder(self.deref().name_def(),
+                                                    self.module());
+                             })
+      .def_property_readonly("body", [](TestFunctionHolder self) {
+        return ExprHolder(self.deref().body(), self.module());
+      });
 
   // class QuickCheck
   py::class_<QuickCheckHolder, AstNodeHolder>(m, "QuickCheck")

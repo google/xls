@@ -25,6 +25,7 @@ fn f() -> u8 {
   }
 }
 
-test t {
+#![test]
+fn t() {
   assert_eq(u8:8, f())
 }

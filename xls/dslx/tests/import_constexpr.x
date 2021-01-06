@@ -11,22 +11,25 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 import xls.dslx.tests.constexpr
 
-pub const CONST_1 = constexpr::CONST_1;
-pub const CONST_2 = constexpr::CONST_1 + constexpr::CONST_2;
-pub const CONST_3 = CONST_2 + constexpr::CONST_2;
+const CONST_1 = constexpr::CONST_1;
+const CONST_2 = constexpr::CONST_1 + constexpr::CONST_2;
+const CONST_3 = CONST_2 + constexpr::CONST_2;
 
-pub fn main() -> bits[32] {
+fn main() -> bits[32] {
   CONST_1 + CONST_2 + CONST_3
 }
 
-test can_reference_constants {
+#![test]
+fn can_reference_constants_test() {
   let _ = assert_eq(CONST_1, constexpr::CONST_1);
   let _ = assert_eq(bits[32]:666, constexpr::CONST_1);
   ()
 }
 
-test can_add_constants {
+#![test]
+fn can_add_constants_test() {
   assert_eq(bits[32]:1332, constexpr::CONST_1 + CONST_1)
 }

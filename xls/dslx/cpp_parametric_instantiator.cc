@@ -193,7 +193,7 @@ absl::Status ParametricInstantiator::SymbolicBindTuple(
 
 absl::Status ParametricInstantiator::SymbolicBindBits(
     const ConcreteType& param_type, const ConcreteType& arg_type) {
-  if (auto* enum_type = dynamic_cast<const EnumType*>(&param_type)) {
+  if (dynamic_cast<const EnumType*>(&param_type) != nullptr) {
     return absl::OkStatus();  // Enums have no size, so nothing to bind.
   }
 

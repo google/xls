@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-test casts {
+#![test]
+fn casts() {
   let _ = assert_eq(s1:1, u1:1 as s1);
   let _ = assert_eq(u1:1, s1:1 as u1);
   // Trivial casts.

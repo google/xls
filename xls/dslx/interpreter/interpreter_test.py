@@ -50,7 +50,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_two_plus_two_module_test(self):
     program = textwrap.dedent("""\
-    test two_plus_two_is_four {
+    #![test]
+    fn two_plus_two_is_four_test() {
       let x: u32 = u32:2;
       let y: u32 = x + x;
       let expected: u32 = u32:4;
@@ -61,7 +62,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_two_plus_two_fail_module_test(self):
     program = textwrap.dedent("""\
-    test two_plus_two_is_four {
+    #![test]
+    fn two_plus_two_is_four_test() {
       let x: u32 = u32:2;
       let y: u32 = x + x;
       let expected: u32 = u32:5;
@@ -73,7 +75,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_pad_bits_via_concat(self):
     program = textwrap.dedent("""\
-    test pad_to_four_bits {
+    #![test]
+    fn pad_to_four_bits_test() {
       let x: bits[2] = bits[2]:0b10;
       let y: bits[4] = bits[2]:0 ++ x;
       let expected: bits[4] = bits[4]:0b0010;
@@ -85,7 +88,8 @@ class InterpreterTest(test_base.TestCase):
   def test_invocation(self):
     program = textwrap.dedent("""\
     fn id(x: u32) -> u32 { x }
-    test identity_invocation {
+    #![test]
+    fn identity_invocation_test() {
       assert_eq(u32:42, id(u32:42))
     }
     """)
@@ -93,7 +97,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_cast(self):
     program = textwrap.dedent("""\
-    test cast_to_u32 {
+    #![test]
+    fn cast_to_u32_test() {
       let x: bits[3] = bits[3]:0b010;
       assert_eq(u32:4, (x + x) as u32)
     }
@@ -103,7 +108,8 @@ class InterpreterTest(test_base.TestCase):
   def test_parametric_invocation(self):
     program = textwrap.dedent("""\
     fn id<N: u32>(x: bits[N]) -> bits[N] { x }
-    test different_parametric_invocations {
+    #![test]
+    fn different_parametric_invocations_test() {
       assert_eq(bits[5]:0b01111, id(bits[2]:0b01) ++ id(bits[3]:0b111))
     }
     """)
@@ -112,7 +118,8 @@ class InterpreterTest(test_base.TestCase):
   def test_parametric_binding(self):
     program = textwrap.dedent("""\
     fn add_num_bits<N: u32>(x: bits[N]) -> bits[N] { x+(N as bits[N]) }
-    test different_parametric_invocations {
+    #![test]
+    fn different_parametric_invocations_test() {
       assert_eq(bits[2]:3, add_num_bits(bits[2]:1))
     }
     """)
@@ -120,7 +127,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_simple_subtract(self):
     program = textwrap.dedent("""\
-    test simple_subtract {
+    #![test]
+    fn simple_subtract_test() {
       let x: u32 = u32:5;
       let y: u32 = u32:4;
       assert_eq(u32:1, x-y)
@@ -130,7 +138,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_subtract_a_negative_u32(self):
     program = textwrap.dedent("""\
-    test simple_subtract {
+    #![test]
+    fn simple_subtract_test() {
       let x: u32 = u32:5;
       let y: u32 = u32:-1;
       assert_eq(u32:6, x-y)
@@ -140,7 +149,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_add_a_negative_u32(self):
     program = textwrap.dedent("""\
-    test simple_add {
+    #![test]
+    fn simple_add_test() {
       let x: u32 = u32:0;
       let y: u32 = u32:-2;
       assert_eq(u32:-2, x+y)
@@ -150,7 +160,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_tree_binding(self):
     program = textwrap.dedent("""\
-    test tree_binding {
+    #![test]
+    fn tree_binding_test() {
       let (w, (x,), (y, (z,))): (u32, (u32,), (u32, (u32,))) =
         (u32:1, (u32:2,), (u32:3, (u32:4,)));
       assert_eq(u32:10, w+x+y+z)
@@ -160,7 +171,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_add_wraparound(self):
     program = textwrap.dedent("""\
-    test simple_add {
+    #![test]
+    fn simple_add_test() {
       let x: u32 = (u32:1<<u32:31)+((u32:1<<u32:31)-u32:1);
       let y: u32 = u32:1;
       assert_eq(u32:0, x+y)
@@ -170,7 +182,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_add_with_carry_u1(self):
     program = textwrap.dedent("""\
-    test simple_add {
+    #![test]
+    fn simple_add_test() {
       let x: u1 = u1:1;
       assert_eq((u1:1, u1:0), add_with_carry(x, x))
     }
@@ -179,7 +192,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_array_index(self):
     program = textwrap.dedent("""\
-    test indexing {
+    #![test]
+    fn indexing_test() {
       let x: u32[3] = u32[3]:[1, 2, 3];
       let y: u32 = u32:1;
       assert_eq(u32:2, x[y])
@@ -189,7 +203,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_tuple_index(self):
     program = textwrap.dedent("""\
-    test indexing {
+    #![test]
+    fn indexing_test() {
       let t = (u1:0, u8:1, u32:2);
       assert_eq(u32:2, t[2])
     }
@@ -198,7 +213,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_for_over_array(self):
     program = textwrap.dedent("""\
-    test for_over_array {
+                              #![test]
+                              fn for_over_array_test() {
       let a: u32[3] = u32[3]:[1, 2, 3];
       let result: u32 = for (value, accum): (u32, u32) in a {
         accum + value
@@ -210,7 +226,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_for_over_range(self):
     program = textwrap.dedent("""\
-    test for_over_array {
+                              #![test]
+                              fn for_over_array_test() {
       let result: u32 = for (value, accum): (u32, u32) in range(u32:1, u32:4) {
         accum + value
       }(u32:0);
@@ -221,7 +238,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_for_over_range_u8(self):
     program = textwrap.dedent("""\
-    test for_over_array {
+                              #![test]
+                              fn for_over_array_test() {
       let result: u8 = for (value, accum): (u8, u8) in range(u8:1, u8:4) {
         accum + value
       }(u8:0);
@@ -235,7 +253,8 @@ class InterpreterTest(test_base.TestCase):
     fn parametric<N: u32>(x: bits[N], y: bits[N]) -> bits[1] {
       x == bits[N]:1 && y == bits[N]:2
     }
-    test parametric_conflict {
+                              #![test]
+                              fn parametric_conflict_test() {
       let a: bits[2] = bits[2]:0b10;
       let b: bits[3] = bits[3]:0b110;
       parametric(a, b)
@@ -249,7 +268,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_inequality(self):
     program = textwrap.dedent("""
-    test not_equals {
+                              #![test]
+                              fn not_equals_test() {
       let _: () = assert_eq(false, u32:0 != u32:0);
       let _: () = assert_eq(true, u32:1 != u32:0);
       let _: () = assert_eq(true, u32:1 != u32:-1);
@@ -261,7 +281,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_array_equality(self):
     program = textwrap.dedent("""
-    test array_equality {
+                              #![test]
+                              fn array_equality_test() {
       let a: u8[4] = u8[4]:[1,2,3,4];
       assert_eq(a, a)
     }
@@ -274,7 +295,8 @@ class InterpreterTest(test_base.TestCase):
           x: bits[X]) -> (u32, u32, u32) {
       (X, Y, Z)
     }
-    test parametric {
+                              #![test]
+                              fn parametric_test() {
       assert_eq((u32:2, u32:4, u32:5), parametric(bits[2]:0))
     }
     """)
@@ -285,7 +307,8 @@ class InterpreterTest(test_base.TestCase):
     fn bool_not(x: bool) -> bool {
       !x
     }
-    test bool_not {
+    #![test]
+    fn bool_not_test() {
       let _: () = assert_eq(true, bool_not(false));
       let _: () = assert_eq(false, bool_not(true));
       ()
@@ -295,7 +318,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_fail_incomplete_match(self):
     program = textwrap.dedent("""\
-    test incomplete_match_failure {
+                              #![test]
+                              fn incomplete_match_failure_test() {
       let x: u32 = u32:42;
       let _: u32 = match x {
         u32:64 => u32:77
@@ -308,7 +332,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_while(self):
     program = """
-    test while_lt {
+    #![test]
+    fn while_lt_test() {
       let i: u32 = while carry < u32:9 {
         carry + u32:2
       }(u32:0);
@@ -322,7 +347,8 @@ class InterpreterTest(test_base.TestCase):
     fn returns_bool() -> bool {
       false
     }
-    test returns_bool {
+    #![test]
+    fn returns_bool_test() {
       assert_eq(false, returns_bool())
     }
     """
@@ -335,7 +361,8 @@ class InterpreterTest(test_base.TestCase):
         trace(carry + u32:1)
       }(u32:0)
     }
-    test while_lt {
+    #![test]
+    fn while_lt_test() {
       assert_eq(u32:2, fut())
     }
     """
@@ -348,7 +375,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_bitslice_syntax(self):
     program = """
-    test slice {
+    #![test]
+    fn slice_test() {
       let x = u4:0b1001;
       let _ = assert_eq(x[0:2], u2:0b01);
       let _ = assert_eq(x[2:4], u2:0b10);
@@ -362,7 +390,8 @@ class InterpreterTest(test_base.TestCase):
     fn non_test_slice(x: u8[4], start: u32) -> u8[3] {
       slice(x, start, u8[3]:[0, 0, 0])
     }
-    test slice {
+    #![test]
+    fn slice_test() {
       let a: u8[4] = u8[4]:[1, 2, 3, 4];
       let _: () = assert_eq(u8[2]:[1, 2], slice(a, u32:0, u8[2]:[0, 0]));
       let _: () = assert_eq(u8[2]:[3, 4], slice(a, u32:2, u8[2]:[0, 0]));
@@ -378,7 +407,8 @@ class InterpreterTest(test_base.TestCase):
     fn non_test_slice(x: u8[4], start: u32) -> u8[3] {
       slice(x, start, u8[3]:[0, ...])
     }
-    test slice {
+    #![test]
+    fn slice_test() {
       let a: u8[4] = u8[4]:[4, ...];
       let _: () = assert_eq(u8[3]:[4, 4, 4], non_test_slice(a, u32:1));
       let _: () = assert_eq(u8[3]:[4, 4, 4], u8[3]:[4, ...]);
@@ -390,7 +420,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_destructure(self):
     program = """
-    test destructure {
+    #![test]
+    fn destructure_test() {
       let t = (u32:2, u8:3);
       let (a, b) = t;
       let _ = assert_eq(u32:2, a);
@@ -401,7 +432,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_destructure_black_hole_identifier(self):
     program = """
-    test destructure {
+    #![test]
+    fn destructure_test() {
       let t = (u32:2, u8:3, true);
       let (_, _, v) = t;
       assert_eq(v, true)
@@ -419,7 +451,8 @@ class InterpreterTest(test_base.TestCase):
       let things: u32[THING_COUNT] = x[0];
       things[i]
     }
-    test foo {
+    #![test]
+    fn foo_test() {
       let foo: Foo = (u32[THING_COUNT]:[42, 64],);
       let _ = assert_eq(u32:42, get_thing(foo, u32:0));
       let _ = assert_eq(u32:64, get_thing(foo, u32:1));
@@ -430,7 +463,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_cast_array_to_wrong_bit_count(self):
     program = textwrap.dedent("""\
-    test cast_array_to_wrong_bit_count {
+                              #![test]
+                              fn cast_array_to_wrong_bit_count_test() {
       let x = u2[2]:[2, 3];
       assert_eq(u3:0, x as u3)
     }
@@ -449,7 +483,8 @@ class InterpreterTest(test_base.TestCase):
     fn f(x: u32) -> Foo {
       x as Foo
     }
-    test cast_enum_oob_causes_fail {
+                              #![test]
+                              fn cast_enum_oob_causes_fail_test() {
       let foo: Foo = f(u32:2);
       assert_eq(true, foo != Foo::FOO)
     }
@@ -464,7 +499,8 @@ class InterpreterTest(test_base.TestCase):
       BAR = 3,
     }
     const A = MyEnum[2]:[MyEnum::FOO, MyEnum::BAR];
-    test t {
+    #![test]
+    fn t_test() {
       let _ = assert_eq(MyEnum::FOO, A[u32:0]);
       let _ = assert_eq(MyEnum::BAR, A[u32:1]);
       ()
@@ -484,7 +520,8 @@ class InterpreterTest(test_base.TestCase):
       );
       updated
     }
-    test t {
+    #![test]
+    fn t_test() {
       let s: StructLike = (MyType[2]:[MyType:0, MyType:1],);
       let s_2 = f(s);
       assert_eq(s_2, (u2[2]:[u2:1, u2:2],))
@@ -496,7 +533,8 @@ class InterpreterTest(test_base.TestCase):
     # To test tracing output, we'll run a program, capture stderr, and make sure
     # that the desired traces (and _only_ the desired traces) are present.
     program = """
-    test t {
+    #![test]
+    fn t_test() {
       let x0 = u8:32;
       let _ = trace(x0);
       let x1 = clz(x0);
@@ -528,7 +566,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_assert_eq_failure_arrays(self):
     program = """
-    test t {
+    #![test]
+    fn t_test() {
       assert_eq(s32[2]:[1, 2], s32[2]:[3, 4])
     }
     """
@@ -539,9 +578,9 @@ class InterpreterTest(test_base.TestCase):
 
   def test_first_failing_test(self):
     program = textwrap.dedent("""\
-    test first { assert_eq(false, true) }
-    test second { assert_eq(true, true) }
-    test third { assert_eq(true, true) }
+    #![test] fn first_test() { assert_eq(false, true) }
+    #![test] fn second_test() { assert_eq(true, true) }
+    #![test] fn third_test() { assert_eq(true, true) }
     """)
     with self.assertRaises(FailureError) as cm:
       self._parse_and_test(program)
@@ -550,9 +589,9 @@ class InterpreterTest(test_base.TestCase):
 
   def test_second_failing_test(self):
     program = textwrap.dedent("""\
-    test first { assert_eq(true, true) }
-    test second { assert_eq(false, true) }
-    test third { assert_eq(true, true) }
+    #![test] fn first_test() { assert_eq(true, true) }
+    #![test] fn second_test() { assert_eq(false, true) }
+    #![test] fn third_test() { assert_eq(true, true) }
     """)
     with self.assertRaises(FailureError) as cm:
       self._parse_and_test(program)
@@ -561,9 +600,9 @@ class InterpreterTest(test_base.TestCase):
 
   def test_third_failing_test(self):
     program = textwrap.dedent("""\
-    test first { assert_eq(true, true) }
-    test second { assert_eq(true, true) }
-    test third { assert_eq(false, true) }
+    #![test] fn first_test() { assert_eq(true, true) }
+    #![test] fn second_test() { assert_eq(true, true) }
+    #![test] fn third_test() { assert_eq(false, true) }
     """)
     with self.assertRaises(FailureError) as cm:
       self._parse_and_test(program)
@@ -572,7 +611,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_wide_shifts(self):
     program = textwrap.dedent("""\
-    test simple_add {
+                              #![test]
+                              fn simple_add_test() {
       let x: uN[96] = uN[96]:0xaaaa_bbbb_cccc_dddd_eeee_ffff;
       let big: uN[96] = uN[96]:0x9999_9999_9999_9999_9999_9999;
       let four: uN[96] = uN[96]:0x4;
@@ -586,7 +626,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_wide_ashr(self):
     program = textwrap.dedent("""\
-    test simple_add {
+    #![test]
+    fn simple_add_test() {
       let x: sN[80] = sN[80]:0x8000_0000_0000_0000_0000 >>> sN[80]:0x0aaa_bbbb_cccc_dddd_eeee;
       assert_eq(sN[80]:0xffff_ffff_ffff_ffff_ffff, x)
     }

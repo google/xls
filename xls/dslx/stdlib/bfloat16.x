@@ -45,7 +45,8 @@ pub fn increment_sfd(input: BF16) -> BF16 {
   }
 }
 
-test increment_sfd_bf16 {
+#![test]
+fn increment_sfd_bf16_test() {
   // No normalization required.
   let _ = assert_eq(increment_sfd(BF16 { sign: u1:0, bexp: u8:42, sfd: u7:0 }),
                     BF16 { sign: u1:0, bexp: u8:42, sfd: u7:1 });

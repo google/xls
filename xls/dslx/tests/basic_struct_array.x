@@ -21,7 +21,8 @@ fn main(ps: Point[2], x: u1) -> Point {
   ps[x]
 }
 
-test main {
+#![test]
+fn main_test() {
   let p0 = Point { x: u32:42, y: u32:64 };
   let p1 = Point { y: u32:64, x: u32:42 };
   let ps: Point[2] = [p0, p1];

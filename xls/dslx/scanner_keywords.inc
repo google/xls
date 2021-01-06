@@ -33,7 +33,6 @@
   X(kPub, PUB, "pub")          \
   X(kProc, PROC, "proc")       \
   X(kStruct, STRUCT, "struct") \
-  X(kTest, TEST, "test")       \
   X(kTrue, TRUE, "true")       \
   X(kType, TYPE, "type")       \
   X(kWhile, WHILE, "while")    \

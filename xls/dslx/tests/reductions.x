@@ -20,7 +20,8 @@ fn main() -> uN[1] {
   xor_reduce(x2)
 }
 
-test reductions {
+#![test]
+fn reductions() {
   let and0 = uN[32]:0xffffffff;
   let _: () = assert_eq(uN[1]:1, and_reduce(and0));
 

@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-test signed_comparisons {
+#![test]
+fn signed_comparisons() {
   let _: () = assert_eq(true,  slt(u32:2, u32:3));
   let _: () = assert_eq(true,  sle(u32:2, u32:3));
   let _: () = assert_eq(false, sgt(u32:2, u32:3));

@@ -18,6 +18,7 @@ fn main() -> MyArray {
   MyArray:[0, 1]
 }
 
-test main {
+#![test]
+fn main_test() {
   assert_eq(main(), u32[2]:[0, 1])
 }

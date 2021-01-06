@@ -17,6 +17,7 @@ fn main() -> u32[3] {
   u32[3]:[1, 2, 3]
 }
 
-test main {
+#![test]
+fn main_test() {
   assert_eq(u32[3]:[u32:1, u32:2, u32:3], main())
 }

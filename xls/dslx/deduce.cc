@@ -549,7 +549,7 @@ static bool IsPublic(const ModuleMember& member) {
   if (absl::holds_alternative<EnumDef*>(member)) {
     return absl::get<EnumDef*>(member)->is_public();
   }
-  if (absl::holds_alternative<Test*>(member)) {
+  if (absl::holds_alternative<TestFunction*>(member)) {
     return false;
   }
   if (absl::holds_alternative<QuickCheck*>(member)) {
@@ -1837,7 +1837,6 @@ class DeduceVisitor : public AstNodeVisitor {
   void HandleProc(Proc* n) override { Fatal(n); }
   void HandleSlice(Slice* n) override { Fatal(n); }
   void HandleImport(Import* n) override { Fatal(n); }
-  void HandleTest(Test* n) override { Fatal(n); }
   void HandleFunction(Function* n) override { Fatal(n); }
   void HandleQuickCheck(QuickCheck* n) override { Fatal(n); }
   void HandleTestFunction(TestFunction* n) override { Fatal(n); }

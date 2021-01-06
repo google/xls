@@ -121,9 +121,15 @@ class Token {
     return absl::get<absl::optional<std::string>>(payload_);
   }
 
+  // Note: assumes that the payload is not a keyword.
+  const std::string& GetStringValue() const {
+    return *absl::get<absl::optional<std::string>>(payload_);
+  }
+
   absl::StatusOr<int64> GetValueAsInt64() const;
 
-  absl::variant<absl::optional<std::string>, Keyword> GetPayload() const {
+  const absl::variant<absl::optional<std::string>, Keyword>& GetPayload()
+      const {
     return payload_;
   }
 

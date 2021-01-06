@@ -21,7 +21,8 @@ fn main(xs: MyEnum[2], i: u1) -> MyEnum {
   xs[i]
 }
 
-test main {
+#![test]
+fn main_test() {
   let xs: MyEnum[2] = MyEnum[2]:[MyEnum::FOO, MyEnum::BAR];
   let _ = assert_eq(MyEnum::FOO, main(xs, u1:0));
   let _ = assert_eq(MyEnum::BAR, main(xs, u1:1));

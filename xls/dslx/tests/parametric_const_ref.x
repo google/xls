@@ -18,6 +18,7 @@ fn f<N: u32>(_: u32[N]) -> u32[DIM] {
   u32[DIM]:[N, N, N]
 }
 
-test f {
+#![test]
+fn f_test() {
   assert_eq(u32[3]:[2, 2, 2], f(u32[2]:[0, ...]))
 }

@@ -89,7 +89,6 @@ bool IsOneOf(ObjT* obj) {
   X(QuickCheck)                   \
   X(Slice)                        \
   X(StructDef)                    \
-  X(Test)                         \
   X(TestFunction)                 \
   X(TypeDef)                      \
   X(TypeRef)                      \
@@ -1523,61 +1522,42 @@ class Proc : public AstNode {
   bool is_public_;
 };
 
-// Represents a 'test' definition in the DSL.
+// Represents a unit test construct.
 //
-// TODO(leary): 2020-08-21 Delete this in favor of test directives on functions.
-class Test : public AstNode {
- public:
-  Test(Module* owner, NameDef* name_def, Expr* body)
-      : AstNode(owner), name_def_(name_def), body_(body) {}
-
-  void Accept(AstNodeVisitor* v) override { return v->HandleTest(this); }
-
-  absl::string_view GetNodeTypeName() const override { return "Test"; }
-  std::string ToString() const override {
-    return absl::StrFormat("test %s { ... }", name_def_->ToString());
-  }
-
-  NameDef* name_def() const { return name_def_; }
-
-  std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {name_def_, body_};
-  }
-
-  const std::string& identifier() const { return name_def_->identifier(); }
-  Expr* body() const { return body_; }
-  absl::optional<Span> GetSpan() const override { return body_->span(); }
-
- private:
-  NameDef* name_def_;
-  Expr* body_;
-};
-
-// Represents a new-style unit test construct.
-//
-// These are specified as follows:
+// These are specified with an annotation as follows:
 //
 // ```dslx
 // #![test]
 // fn test_foo() { ... }
 // ```
-//
-// We keep Test for backwards compatibility with old-style test constructs.
-class TestFunction : public Test {
+class TestFunction : public AstNode {
  public:
   explicit TestFunction(Module* owner, Function* fn)
-      : Test(owner, fn->name_def(), fn->body()), fn_(fn) {}
+      : AstNode(owner), name_def_(fn->name_def()), body_(fn->body()), fn_(fn) {}
 
   void Accept(AstNodeVisitor* v) override {
     return v->HandleTestFunction(this);
   }
 
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {name_def_, body_};
+  }
+
   absl::string_view GetNodeTypeName() const override { return "TestFunction"; }
+  std::string ToString() const override {
+    return absl::StrFormat("#![test]\n%s", fn_->ToString());
+  }
 
   Function* fn() const { return fn_; }
   absl::optional<Span> GetSpan() const override { return fn_->span(); }
 
+  NameDef* name_def() const { return name_def_; }
+  const std::string& identifier() const { return name_def_->identifier(); }
+  Expr* body() const { return body_; }
+
  private:
+  NameDef* name_def_;
+  Expr* body_;
   Function* fn_;
 };
 
@@ -1967,8 +1947,9 @@ class Let : public Expr {
   ConstantDef* constant_def_;
 };
 
-using ModuleMember = absl::variant<Function*, Test*, QuickCheck*, TypeDef*,
-                                   StructDef*, ConstantDef*, EnumDef*, Import*>;
+using ModuleMember =
+    absl::variant<Function*, TestFunction*, QuickCheck*, TypeDef*, StructDef*,
+                  ConstantDef*, EnumDef*, Import*>;
 
 absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node);
 
@@ -2026,7 +2007,7 @@ class Module : public AstNode, public std::enable_shared_from_this<Module> {
 
   // Gets a test construct in this module with the given "target_name", or
   // returns a NotFoundError.
-  absl::StatusOr<Test*> GetTest(absl::string_view target_name);
+  absl::StatusOr<TestFunction*> GetTest(absl::string_view target_name);
 
   absl::Span<ModuleMember const> top() const { return top_; }
   std::vector<ModuleMember>* mutable_top() { return &top_; }
@@ -2067,7 +2048,9 @@ class Module : public AstNode, public std::enable_shared_from_this<Module> {
   std::vector<Function*> GetFunctions() const {
     return GetTopWithT<Function>();
   }
-  std::vector<Test*> GetTests() const { return GetTopWithT<Test>(); }
+  std::vector<TestFunction*> GetTests() const {
+    return GetTopWithT<TestFunction>();
+  }
   std::vector<ConstantDef*> GetConstantDefs() const {
     return GetTopWithT<ConstantDef>();
   }
@@ -2075,8 +2058,8 @@ class Module : public AstNode, public std::enable_shared_from_this<Module> {
   std::vector<std::string> GetTestNames() const {
     std::vector<std::string> result;
     for (auto& member : top_) {
-      if (absl::holds_alternative<Test*>(member)) {
-        Test* t = absl::get<Test*>(member);
+      if (absl::holds_alternative<TestFunction*>(member)) {
+        TestFunction* t = absl::get<TestFunction*>(member);
         result.push_back(t->identifier());
       }
     }

@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-test numerical_conversions {
+#![test]
+fn numerical_conversions() {
   let s8_m2 = s8:-2;
   let u8_m2 = u8:-2;
   // Sign extension (source type is signed).

@@ -141,7 +141,8 @@ fn decode_r_instruction(ins: u32) -> (u7, u5, u5, u3, u5, u7) {
    (funct7 as u7, rs2 as u5, rs1 as u5, funct3 as u3, rd as u5, opcode as u7)
 }
 
-test decode_r_test_lsb {
+#![test]
+fn decode_r_test_lsb_test() {
    let (funct7, rs2, rs1, funct3, rd, opcode) = decode_r_instruction(
         u32:0b00000010000100001001000010000001);
    let _ = assert_eq(funct7, u7:1);
@@ -153,7 +154,8 @@ test decode_r_test_lsb {
    _
 }
 
-test decode_r_test_msb {
+#![test]
+fn decode_r_test_msb_test() {
    let (funct7, rs2, rs1, funct3, rd, opcode) = decode_r_instruction(
         u32:0b10000001000010000100100001000000);
    let _ = assert_eq(funct7, u7:0b1000000);
@@ -182,7 +184,8 @@ fn decode_i_instruction(ins: u32) -> (u12, u5, u3, u5, u7) {
    (imm_11_0 as u12, rs1 as u5, funct3 as u3, rd as u5, opcode as u7)
 }
 
-test decode_i_test_lsb {
+#![test]
+fn decode_i_test_lsb_test() {
    let (imm12, rs1, funct3, rd, opcode) = decode_i_instruction(
         u32:0b00000010000100001001000010000001);
    let _ = assert_eq(imm12, u12:0x21);  //0b0000 0010 0001
@@ -193,7 +196,8 @@ test decode_i_test_lsb {
    _
 }
 
-test decode_i_test_msb {
+#![test]
+fn decode_i_test_msb_test() {
    let (imm12, rs1, funct3, rd, opcode) = decode_i_instruction(
         u32:0b10000001000010000100100001000000);
    let _ = assert_eq(imm12, u12:0x810);  // 0b1000 0001 0000
@@ -223,7 +227,8 @@ fn decode_s_instruction(ins: u32) -> (u12, u5, u5, u3, u7) {
    (((imm_11_5 as u7) ++ (imm_4_0 as u5)) as u12, rs2 as u5, rs1 as u5, funct3 as u3, opcode as u7)
 }
 
-test decode_s_test_lsb {
+#![test]
+fn decode_s_test_lsb_test() {
    let (imm12, rs2, rs1, funct3, opcode) = decode_s_instruction(
         u32:0b00000010000100001001000010000001);
    let _ = assert_eq(imm12, u12:0x21);  //0b0000 0010 0001
@@ -234,7 +239,8 @@ test decode_s_test_lsb {
    _
 }
 
-test decode_s_test_msb {
+#![test]
+fn decode_s_test_msb_test() {
    let (imm12, rs2, rs1, funct3, opcode) = decode_s_instruction(
         u32:0b10000001000010000100100001000000);
    let _ = assert_eq(imm12, u12:0x810);  // 0b1000 0001 0000
@@ -259,7 +265,8 @@ fn decode_u_instruction(ins: u32) -> (u20, u5, u7) {
    (imm_31_12 as u20, rd as u5, opcode as u7)
 }
 
-test decode_u_test_lsb {
+#![test]
+fn decode_u_test_lsb_test() {
    let (imm20, rd, opcode) = decode_u_instruction(
         u32:0b00000000000000000001000010000001);
    let _ = assert_eq(imm20, u20:0x1);
@@ -268,7 +275,8 @@ test decode_u_test_lsb {
    _
 }
 
-test decode_u_test_msb {
+#![test]
+fn decode_u_test_msb_test() {
    let (imm20, rd, opcode) = decode_u_instruction(
         u32:0b10000000000000000000100001000000);
    let _ = assert_eq(imm20, u20:0x80000);
@@ -302,7 +310,8 @@ fn decode_b_instruction(ins: u32) -> (u12, u5, u5, u3, u7) {
     rs2 as u5, rs1 as u5, funct3 as u3, opcode as u7)
 }
 
-test decode_b_test {
+#![test]
+fn decode_b_test() {
    let (imm12, rs2, rs1, funct3, opcode) = decode_b_instruction(
         u32:0b10000010000100001001000110000001);
    let _ = assert_eq(imm12, (u1:1 ++ u1:1 ++ u6:1 ++ u4:1) as u12);
@@ -334,7 +343,8 @@ fn decode_j_instruction(ins: u32) -> (u20, u5, u7) {
          rd as u5, opcode as u7)
 }
 
-test decode_j_test {
+#![test]
+fn decode_j_test() {
    let (imm20, rd, opcode) = decode_j_instruction(
         u32:0b10000000001100000001000010000001);
    let _ = assert_eq(imm20, (u1:1 ++ u8:1 ++ u1:1 ++ u11:1) as u20);
@@ -595,7 +605,8 @@ fn make_uj_insn(rdest: u5, imm20: u20) -> u32 {
 // We construct and iterate over the instructions here, in a test(),
 // to make sure that above functions are not being inlined multiple
 // times.
-test risc_v_example {
+#![test]
+fn risc_v_example_test() {
   // Create an initial machine / process.
   //
   // Create an initial set of registers. All 0's except r1 and r2,

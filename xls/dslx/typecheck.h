@@ -31,7 +31,7 @@ namespace xls::dslx {
 absl::Status CheckFunction(Function* f, DeduceCtx* ctx);
 
 // Validates a test (body) within a module.
-absl::Status CheckTest(Test* t, DeduceCtx* ctx);
+absl::Status CheckTest(TestFunction* t, DeduceCtx* ctx);
 
 // Instantiates a builtin parametric invocation; e.g. `update()`.
 absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
@@ -39,7 +39,8 @@ absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
 
 // Type-checks function f in the given module.
 absl::Status CheckTopNodeInModule(
-    absl::variant<Function*, Test*, StructDef*, TypeDef*> f, DeduceCtx* ctx);
+    absl::variant<Function*, TestFunction*, StructDef*, TypeDef*> f,
+    DeduceCtx* ctx);
 
 // Validates type annotations on all functions within "module".
 //

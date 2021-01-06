@@ -70,7 +70,8 @@ pub fn rng_new(seed: u32) -> State {
   State{seed: rng_sanitize_seed(seed)}
 }
 
-test rng_next {
+#![test]
+fn rng_next_test() {
   let r = rng_new(rng_deterministic_seed());
   const expected = u64[20]:[
     0x002698ad4b48ead0, 0x1bfb1e0316f2d5de,  //
