@@ -576,13 +576,12 @@ absl::StatusOr<Expr*> Parser::ParseStructInstance(Bindings* bindings,
 
   XLS_ASSIGN_OR_RETURN(StructRef struct_ref, ResolveStruct(bindings, type));
 
-  Transaction txn(this, bindings);
-  auto status_or_parametrics = ParseParametrics(txn.bindings());
-  if (status_or_parametrics.ok()) {
-    txn.Commit();
-  } else {
-    txn.Rollback();
-  }
+  // TODO(https://github.com/google/xls/issues/247): If explicit parametrics
+  // are present, then they should be matched with the StructDef's to verify
+  // their types agree (a test should be written for this as well).
+  (void)TryOrRollback<std::vector<Expr*>>(bindings, [this](Bindings* bindings) {
+    return ParseParametrics(bindings);
+  });
 
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace, nullptr,
                                        "Opening brace for struct instance."));
@@ -1106,6 +1105,22 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
     }
     lhs = ToExprNode(nocr);
   } else if (peek->kind() == TokenKind::kOParen) {  // Parenthesized expression.
+    // An empty set of parenthesed could be either an empty tuple or an empty
+    // tuple _type_annotation_. We disambiguate the two by discounting the
+    // latter result if not followed by a colon.
+    {
+      Transaction inner_txn(this, txn.bindings());
+      auto cleanup =
+          xabsl::MakeCleanup([&inner_txn]() { inner_txn.Rollback(); });
+      auto status_or_annot = ParseTypeAnnotation(inner_txn.bindings());
+      if (status_or_annot.ok()) {
+        if (DropTokenOrError(TokenKind::kColon).ok()) {
+          inner_txn.CommitAndCancelCleanup(&cleanup);
+        }
+        // If there was no colon, then we'll try another production.
+      }
+    }
+
     Token oparen = PopTokenOrDie();
     XLS_ASSIGN_OR_RETURN(bool next_is_cparen, PeekTokenIs(TokenKind::kCParen));
     if (next_is_cparen) {  // Empty tuple.
@@ -1292,8 +1307,8 @@ absl::StatusOr<ConstantDef*> Parser::ParseConstantDef(bool is_public,
   }
 
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
-  XLS_ASSIGN_OR_RETURN(Expr * expr,
-                       ParseCastOrEnumRefOrStructInstance(bindings));
+  XLS_ASSIGN_OR_RETURN(Expr * expr, ParseExpression(bindings));
+
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
   if (!IsConstant(expr)) {
     return ParseError(expr->span(),
@@ -1682,24 +1697,16 @@ absl::StatusOr<std::vector<Expr*>> Parser::ParseParametrics(
     // We can't mess with the top-level transation, or else rolling back/trying
     // a different production would undo ALL updates, so we need to create a
     // sub-transaction in here.
-    {
-      Transaction sub_txn(this, txn.bindings());
-      auto status_or_cast = ParseCast(sub_txn.bindings());
-      if (status_or_cast.ok()) {
-        sub_txn.Commit();
-        return status_or_cast;
-      }
-      sub_txn.Rollback();
+    auto status_or_expr = TryOrRollback<Expr*>(
+        txn.bindings(),
+        [this](Bindings* bindings) { return ParseCast(bindings); });
+    if (status_or_expr.ok()) {
+      return status_or_expr;
     }
 
-    Transaction sub_txn(this, txn.bindings());
-    auto status_or_as = ParseCastAsExpression(sub_txn.bindings());
-    if (status_or_as.ok()) {
-      sub_txn.Commit();
-    } else {
-      sub_txn.Rollback();
-    }
-    return status_or_as;
+    return TryOrRollback<Expr*>(txn.bindings(), [this](Bindings* bindings) {
+      return ParseCastAsExpression(bindings);
+    });
   };
 
   auto status_or_exprs =

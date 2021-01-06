@@ -397,7 +397,7 @@ class SampleRunner:
     dslx_results = []
     f = m.get_function('main')
     for args in sign_convert_args_batch(f, m, args_batch):
-      dslx_results.append(interp.run_function('main', args))
+      dslx_results.append(interp.run_function('main', args, None))
     self._write_file('sample.x.results',
                      '\n'.join(str(r) for r in dslx_results))
     return tuple(dslx_results)

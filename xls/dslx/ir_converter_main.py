@@ -69,9 +69,11 @@ def main(argv):
     type_info = cpp_typecheck.check_module(module, importer.cache,
                                            importer.additional_search_paths)
     if FLAGS.entry:
-      print(ir_converter.convert_one_function(module, FLAGS.entry, type_info))
+      print(
+          ir_converter.convert_one_function(module, FLAGS.entry, type_info,
+                                            importer.cache))
     else:
-      print(ir_converter.convert_module(module, type_info))
+      print(ir_converter.convert_module(module, type_info, importer.cache))
   except (PositionalError, cpp_parser.CppParseError) as e:
     parser_helpers.pprint_positional_error(e)
     if FLAGS.raise_exception:

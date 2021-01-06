@@ -57,7 +57,7 @@ def convert_dslx_to_package(
       import_cache=import_cache,
       additional_search_paths=additional_search_paths,
       filename=filename)
-  p = ir_converter.convert_module_to_package(m, node_to_type)
+  p = ir_converter.convert_module_to_package(m, node_to_type, import_cache)
   return p
 
 

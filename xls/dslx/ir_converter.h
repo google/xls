@@ -39,7 +39,7 @@ class IrConverter {
   // An IR-conversion-time-constant value, decorates a BValue with its evaluated
   // constant form.
   struct CValue {
-    Bits integral;
+    Value ir_value;
     BValue value;
   };
 
@@ -182,6 +182,11 @@ class IrConverter {
   // emit_positions is on grabs the span from the node and uses it in the call.
   BValue Def(
       AstNode* node,
+      const std::function<BValue(absl::optional<SourceLocation>)>& ir_func);
+
+  // Def(), but for constant/constexpr values.
+  CValue DefConst(
+      AstNode* node, Value ir_value,
       const std::function<BValue(absl::optional<SourceLocation>)>& ir_func);
 
   // Package that IR is being generated into.

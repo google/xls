@@ -40,6 +40,10 @@ from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.dslx.python.cpp_pos import Span
 from xls.dslx.python.cpp_type_info import SymbolicBindings
+from xls.dslx.python.import_routines import ImportCache
+from xls.dslx.python.interp_value import Tag as InterpValueTag
+from xls.dslx.python.interp_value import Value as InterpValue
+from xls.dslx.python.interpreter import Interpreter
 from xls.dslx.span import PositionalError
 from xls.ir.python import bits as bits_mod
 from xls.ir.python import fileno as fileno_mod
@@ -51,6 +55,7 @@ from xls.ir.python import source_location
 from xls.ir.python import type as type_mod
 from xls.ir.python import verifier as verifier_mod
 from xls.ir.python.function_builder import BValue
+from xls.ir.python.value import Value as IrValue
 
 
 class ParametricConversionError(XlsError):
@@ -92,9 +97,11 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
   """
 
   def __init__(self, package: ir_package.Package, module: ast.Module,
-               type_info: type_info_mod.TypeInfo, emit_positions: bool):
+               type_info: type_info_mod.TypeInfo, import_cache: ImportCache,
+               emit_positions: bool):
     self.state = cpp_ir_converter.IrConverter(package, module, type_info,
                                               emit_positions)
+    self.import_cache = import_cache
 
   @property
   def fb(self):
@@ -217,7 +224,8 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
   def _def_const(self, node: ast.AstNode, value: int, bit_count: int) -> BValue:
     bits = _int_to_bits(value, bit_count)
     ir = self._def(node, self.fb.add_literal_bits, bits)
-    self.state.set_node_to_ir(node, (bits_mod.from_long(value, bit_count), ir))
+    self.state.set_node_to_ir(
+        node, (IrValue(bits_mod.from_long(value, bit_count)), ir))
     return ir
 
   def _is_const(self, node: ast.AstNode) -> bool:
@@ -445,7 +453,6 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
         members.append(members[-1])
     self._def(node, self.fb.add_array, members, members[0].get_type())
 
-  # Note: need to traverse to define constants for members.
   def visit_ConstantArray(self, node: ast.ConstantArray) -> None:
     self.state.handle_constant_array(node)
 
@@ -571,11 +578,23 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
   def visit_StructInstance(self, node: ast.StructInstance) -> None:
     operands = []
     struct = self._deref_struct(node.struct)
+    all_are_constant = True
+    const_operands = []
     for _, m in node.get_ordered_members(struct):
       visit(m, self)
       operands.append(self._use(m))
+      if not ast.is_constant(m):
+        all_are_constant = False
+
+      if all_are_constant:
+        const_operand = self.state.get_node_to_ir(m)
+        assert not isinstance(const_operand, BValue)
+        const_operands.append(const_operand[0])
     operands = tuple(operands)
-    self._def(node, self.fb.add_tuple, operands)
+
+    ir = self._def(node, self.fb.add_tuple, operands)
+    if all_are_constant:
+      self.state.set_node_to_ir(node, (IrValue.make_tuple(const_operands), ir))
 
   def _is_constant_zero(self, node: ast.AstNode) -> bool:
     return isinstance(node,
@@ -627,6 +646,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
         self.package,
         self.module,
         self.type_info,
+        self.import_cache,
         emit_positions=self.emit_positions)
     body_converter.state.set_symbolic_bindings(
         self.state.get_symbolic_bindings())
@@ -883,7 +903,107 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
         # TODO(leary): Switch to new pybind11 more-specific exception.
         raise ConversionError(
             'Failed to get function from invocation: {}'.format(e), node.span)
-      self._def(node, self.fb.add_invoke, accept_args(), f)
+
+      args = accept_args()
+      # An invocation is constexpr if all of its args are also constexpr
+      # (i.e., there's no global state in DSLX). We need this to know if we can
+      # constexpr-fold the invocation directly into its result below.
+      invocation_is_constexpr = True
+      for arg in node.args:
+        if not ast.is_constant(arg):
+          invocation_is_constexpr = False
+          break
+
+      if invocation_is_constexpr:
+        ir_value = self._evaluate_const_function(node)
+        ir_bvalue = self._def(node, self.fb.add_literal_value, ir_value)
+        self.state.set_node_to_ir(node, (ir_value, ir_bvalue))
+      else:
+        self._def(node, self.fb.add_invoke, accept_args(), f)
+
+  def _evaluate_const_function(self, node: ast.Invocation) -> IrValue:
+    """Evaluates a constexpr AST Invocation via the DSLX interpreter.
+
+    Evaluates an Invocation node whose argument values are all known at
+    compile/interpret time, yielding a constant value that can be inserted
+    into the IR.
+
+    Args:
+      node: The Invocation node to evaluate.
+
+    Returns:
+      The XLS IR Value containing the result.
+
+    """
+    module = self.module
+    if isinstance(node.callee, ast.NameRef):
+      fn_name = node.callee.identifier
+    elif isinstance(node.callee, ast.ColonRef):
+      imports = dict(self.type_info.get_imports())
+      module, _ = imports[node.callee.subject.name_def.definer]
+      fn_name = node.callee.attr
+    else:
+      raise TypeError(
+          'Expected NameRef or ColonRef for invocation callee; got {}'.format(
+              type(node.callee)))
+
+    # TODO(https://github.com/google/xls/issues/246) Move to typechecking time.
+    interp = Interpreter(
+        module=module,
+        type_info=self.type_info,
+        typecheck=None,
+        additional_search_paths=[],
+        import_cache=self.import_cache,
+        trace_all=False,
+        ir_package=None)
+
+    args = []
+    for arg in node.args:
+      cvalue = self.state.get_node_to_ir(arg)
+      assert isinstance(cvalue, tuple)
+      assert isinstance(cvalue[0], IrValue)
+      args.append(self._cvalue_to_interp_value(cvalue[0]))
+
+    interp_value = interp.run_function(
+        name=fn_name,
+        args=args,
+        symbolic_bindings=self._get_invocation_bindings(node))
+    ir_value = self._interp_value_to_ir_value(interp_value)
+    logging.vlog(3, '[Constexpr] Interpreted: %s with (%s): %s',
+                 module.get_function(fn_name),
+                 ','.join(str(x) for x in node.args), ir_value)
+    return ir_value
+
+  def _interp_value_to_ir_value(self, value: InterpValue) -> IrValue:
+    """Converts an InterpValue to an IR Value."""
+    if value.is_bits() or value.is_enum():
+      return IrValue(value.get_bits())
+    elif value.is_array():
+      elements = []
+      for element in value.get_elements():
+        elements.append(self._interp_value_to_ir_value(element))
+      return IrValue.make_array(elements)
+    elif value.is_tuple():
+      elements = []
+      for element in value.get_elements():
+        elements.append(self._interp_value_to_ir_value(element))
+      return IrValue.make_tuple(elements)
+    else:
+      raise NotImplementedError(f'Unknown/unsupported InterpValue: {value.tag}')
+
+  def _cvalue_to_interp_value(self, node: IrValue) -> InterpValue:
+    """Converts an Expr AST node into the corresponding InterpValue."""
+    if node.is_bits():
+      return InterpValue.make_bits(InterpValueTag.UBITS, node.get_bits())
+    elif node.is_array():
+      return InterpValue.make_array(
+          [self._cvalue_to_interp_value(x) for x in node.get_elements()])
+    elif node.is_tuple():
+      return InterpValue.make_tuple(
+          [self._cvalue_to_interp_value(x) for x in node.get_elements()])
+    else:
+      raise NotImplementedError(
+          'Unknown/unsupported IR value (not bits, array, or tuple).')
 
   def visit_ConstRef(self, node: ast.ConstRef) -> None:
     self._def_alias(node.name_def, to=node)
@@ -1026,6 +1146,7 @@ def _convert_one_function(package: ir_package.Package,
                           module: ast.Module,
                           function: ast.Function,
                           type_info: type_info_mod.TypeInfo,
+                          import_cache: ImportCache,
                           symbolic_bindings: Optional[SymbolicBindings] = None,
                           emit_positions: bool = True) -> Text:
   """Converts a single function into its emitted text form.
@@ -1035,6 +1156,7 @@ def _convert_one_function(package: ir_package.Package,
     module: Module we're converting a function within.
     function: Function we're converting.
     type_info: Type information about module from the typechecking phase.
+    import_cache: Cache of modules potentially referenced by "module" above.
     symbolic_bindings: Parametric bindings to use during conversion, if this
       function is parametric.
     emit_positions: Whether to emit position information into the IR based on
@@ -1048,7 +1170,7 @@ def _convert_one_function(package: ir_package.Package,
   type_definition_by_name = module.get_type_definition_by_name()
   import_by_name = module.get_import_by_name()
   converter = _IrConverterFb(
-      package, module, type_info, emit_positions=emit_positions)
+      package, module, type_info, import_cache, emit_positions=emit_positions)
 
   freevars = function.body.get_free_variables(
       function.span.start).get_name_def_tups(module)
@@ -1084,6 +1206,7 @@ def _convert_one_function(package: ir_package.Package,
 def convert_module_to_package(
     module: ast.Module,
     type_info: type_info_mod.TypeInfo,
+    import_cache: ImportCache,
     emit_positions: bool = True,
     traverse_tests: bool = False) -> ir_package.Package:
   """Converts the contents of a module to IR form.
@@ -1091,6 +1214,7 @@ def convert_module_to_package(
   Args:
     module: Module to convert.
     type_info: Concrete type information used in conversion.
+    import_cache: Cache of modules potentially referenced by "module" above.
     emit_positions: Whether to emit positional metadata into the output IR.
     traverse_tests: Whether to convert functions called in DSLX test constructs.
       Note that this does NOT convert the test constructs themselves.
@@ -1112,6 +1236,7 @@ def convert_module_to_package(
             record.m,
             record.f,
             record.type_info,
+            import_cache,
             symbolic_bindings=record.bindings,
             emit_positions=emit_positions))
 
@@ -1121,14 +1246,17 @@ def convert_module_to_package(
 
 def convert_module(module: ast.Module,
                    type_info: type_info_mod.TypeInfo,
+                   import_cache: ImportCache,
                    emit_positions: bool = True) -> Text:
   """Same as convert_module_to_package, but converts to IR text."""
-  return convert_module_to_package(module, type_info, emit_positions).dump_ir()
+  return convert_module_to_package(module, type_info, import_cache,
+                                   emit_positions).dump_ir()
 
 
 def convert_one_function(module: ast.Module,
                          entry_function_name: Text,
                          type_info: type_info_mod.TypeInfo,
+                         import_cache: ImportCache,
                          emit_positions: bool = True) -> Text:
   """Returns function named entry_function_name in module as IR text."""
   logging.vlog(1, 'IR-converting entry function: %r', entry_function_name)
@@ -1138,5 +1266,6 @@ def convert_one_function(module: ast.Module,
       module,
       module.get_function(entry_function_name),
       type_info,
+      import_cache,
       emit_positions=emit_positions)
   return package.dump_ir()

@@ -510,6 +510,10 @@ bool IsConstant(AstNode* node) {
   if (XlsTuple* n = dynamic_cast<XlsTuple*>(node)) {
     return std::all_of(n->members().begin(), n->members().end(), IsConstant);
   }
+  if (Expr* e = dynamic_cast<Expr*>(node)) {
+    auto children = e->GetChildren(/*want_types=*/false);
+    return std::all_of(children.begin(), children.end(), IsConstant);
+  }
   return false;
 }
 

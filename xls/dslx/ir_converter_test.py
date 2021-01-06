@@ -19,7 +19,7 @@
 import subprocess
 import sys
 import textwrap
-from typing import Text
+from typing import Optional, Text
 
 from xls.common import runfiles
 from xls.common import test_base
@@ -31,7 +31,7 @@ from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_parser
 from xls.dslx.python import cpp_type_info
 from xls.dslx.python import cpp_typecheck
-from xls.dslx.python.import_routines import ImportCache
+from xls.dslx.python import import_routines
 
 
 # IR parser binary. Reads from stdin and tries to parse the text as a package.
@@ -58,9 +58,9 @@ class IrConverterTest(test_base.TestCase):
             program, name='test_module', print_on_error=True, filename=filename)
         self.assertEqual(m.name, 'test_module')
         node_to_type = cpp_typecheck.check_module(
-            m, ImportCache(), additional_search_paths=())
+            m, import_routines.ImportCache(), additional_search_paths=())
         return ir_converter.convert_module(
-            m, node_to_type, emit_positions=False)
+            m, node_to_type, import_cache=None, emit_positions=False)
       except (span.PositionalError, cpp_parser.CppParseError) as e:
         parser_helpers.pprint_positional_error(e)
         raise
@@ -80,8 +80,12 @@ class IrConverterTest(test_base.TestCase):
       raise
     self.assertEqual(process.returncode, 0, pstderr.decode('utf-8'))
 
-  def _typecheck(self, m: ast.Module) -> cpp_type_info.TypeInfo:
-    import_cache = ImportCache()
+  def _typecheck(
+      self,
+      m: ast.Module,
+      cache: Optional[import_routines.ImportCache] = None
+  ) -> cpp_type_info.TypeInfo:
+    import_cache = cache if cache else import_routines.ImportCache()
     return cpp_typecheck.check_module(
         m, import_cache, additional_search_paths=())
 
@@ -91,8 +95,8 @@ class IrConverterTest(test_base.TestCase):
       u32:2 + u32:2
     }""")
     node_to_type = self._typecheck(m)
-    converted = ir_converter.convert_one_function(m, 'two_plus_two',
-                                                  node_to_type)
+    converted = ir_converter.convert_one_function(
+        m, 'two_plus_two', node_to_type, import_cache=None)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -110,7 +114,8 @@ class IrConverterTest(test_base.TestCase):
       -x
     }""")
     node_to_type = self._typecheck(m)
-    converted = ir_converter.convert_one_function(m, 'negate', node_to_type)
+    converted = ir_converter.convert_one_function(
+        m, 'negate', node_to_type, import_cache=None)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -127,7 +132,8 @@ class IrConverterTest(test_base.TestCase):
       x+x
     }""")
     node_to_type = self._typecheck(m)
-    converted = ir_converter.convert_one_function(m, 'f', node_to_type)
+    converted = ir_converter.convert_one_function(
+        m, 'f', node_to_type, import_cache=None)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -146,7 +152,8 @@ class IrConverterTest(test_base.TestCase):
       x+y
     }""")
     node_to_type = self._typecheck(m)
-    converted = ir_converter.convert_one_function(m, 'f', node_to_type)
+    converted = ir_converter.convert_one_function(
+        m, 'f', node_to_type, import_cache=None)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -170,7 +177,7 @@ class IrConverterTest(test_base.TestCase):
     }""")
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_one_function(
-        m, 'f', node_to_type, emit_positions=False)
+        m, 'f', node_to_type, emit_positions=False, import_cache=None)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -209,7 +216,7 @@ class IrConverterTest(test_base.TestCase):
     }""")
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_one_function(
-        m, 'f', node_to_type, emit_positions=False)
+        m, 'f', node_to_type, emit_positions=False, import_cache=None)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -236,7 +243,8 @@ class IrConverterTest(test_base.TestCase):
       bits[1]:1 ++ x
     }""")
     node_to_type = self._typecheck(m)
-    converted = ir_converter.convert_one_function(m, 'f', node_to_type)
+    converted = ir_converter.convert_one_function(
+        m, 'f', node_to_type, import_cache=None)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -253,7 +261,8 @@ class IrConverterTest(test_base.TestCase):
       (x, y)
     }""")
     node_to_type = self._typecheck(m)
-    converted = ir_converter.convert_one_function(m, 'f', node_to_type)
+    converted = ir_converter.convert_one_function(
+        m, 'f', node_to_type, import_cache=None)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -269,7 +278,8 @@ class IrConverterTest(test_base.TestCase):
       (u8:0xaa, u8:0x55)
     }""")
     node_to_type = self._typecheck(m)
-    converted = ir_converter.convert_one_function(m, 'f', node_to_type)
+    converted = ir_converter.convert_one_function(
+        m, 'f', node_to_type, import_cache=None)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -290,7 +300,7 @@ class IrConverterTest(test_base.TestCase):
     }""")
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_one_function(
-        m, 'f', node_to_type, emit_positions=False)
+        m, 'f', node_to_type, emit_positions=False, import_cache=None)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -316,7 +326,7 @@ class IrConverterTest(test_base.TestCase):
     }""")
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_one_function(
-        m, 'f', node_to_type, emit_positions=False)
+        m, 'f', node_to_type, emit_positions=False, import_cache=None)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -357,7 +367,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -374,7 +384,7 @@ class IrConverterTest(test_base.TestCase):
 
         fn __test_module__main() -> bits[32] {
           literal.8: bits[2] = literal(value=0, id=8)
-          ret invoke.9: bits[32] = invoke(literal.8, to_apply=__test_module__f__2, id=9)
+          ret literal.9: bits[32] = literal(value=1, id=9)
         }
         """)
 
@@ -388,7 +398,7 @@ class IrConverterTest(test_base.TestCase):
     }""")
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -398,14 +408,15 @@ class IrConverterTest(test_base.TestCase):
         }
 
         fn ____test_module__f_counted_for_0_body(i: bits[32], accum: bits[32]) -> bits[32] {
+          add.8: bits[32] = add(accum, i, id=8)
           add.7: bits[32] = add(accum, i, id=7)
-          ret invoke.8: bits[32] = invoke(add.7, to_apply=__test_module__my_id, id=8)
+          ret invoke.9: bits[32] = invoke(add.8, to_apply=__test_module__my_id, id=9)
         }
 
         fn __test_module__f() -> bits[32] {
           literal.3: bits[32] = literal(value=0, id=3)
           literal.4: bits[32] = literal(value=4, id=4)
-          ret counted_for.9: bits[32] = counted_for(literal.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, id=9)
+          ret counted_for.10: bits[32] = counted_for(literal.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, id=10)
         }
         """)
 
@@ -420,7 +431,7 @@ class IrConverterTest(test_base.TestCase):
     }""")
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_one_function(
-        m, 'f', node_to_type, emit_positions=False)
+        m, 'f', node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -449,7 +460,7 @@ class IrConverterTest(test_base.TestCase):
     }""")
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_one_function(
-        m, 'f', node_to_type, emit_positions=False)
+        m, 'f', node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -483,7 +494,8 @@ class IrConverterTest(test_base.TestCase):
       x[u32:0]
     }""")
     node_to_type = self._typecheck(m)
-    converted = ir_converter.convert_one_function(m, 'f', node_to_type)
+    converted = ir_converter.convert_one_function(
+        m, 'f', node_to_type, import_cache=None)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -503,7 +515,7 @@ class IrConverterTest(test_base.TestCase):
       callee()
     }""")
     node_to_type = self._typecheck(m)
-    converted = ir_converter.convert_module(m, node_to_type)
+    converted = ir_converter.convert_module(m, node_to_type, import_cache=None)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -513,7 +525,7 @@ class IrConverterTest(test_base.TestCase):
         }
 
         fn __test_module__caller() -> bits[32] {
-          ret invoke.2: bits[32] = invoke(to_apply=__test_module__callee, id=2, pos=0,4,8)
+          ret literal.2: bits[32] = literal(value=42, id=2, pos=0,4,8)
         }
         """)
 
@@ -526,7 +538,7 @@ class IrConverterTest(test_base.TestCase):
       callee(u32:2, u32:3)
     }""")
     node_to_type = self._typecheck(m)
-    converted = ir_converter.convert_module(m, node_to_type)
+    converted = ir_converter.convert_module(m, node_to_type, import_cache=None)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -538,7 +550,7 @@ class IrConverterTest(test_base.TestCase):
         fn __test_module__caller() -> bits[32] {
           literal.4: bits[32] = literal(value=2, id=4, pos=0,4,13)
           literal.5: bits[32] = literal(value=3, id=5, pos=0,4,20)
-          ret invoke.6: bits[32] = invoke(literal.4, literal.5, to_apply=__test_module__callee, id=6, pos=0,4,8)
+          ret literal.6: bits[32] = literal(value=5, id=6, pos=0,4,8)
         }
         """)
 
@@ -549,7 +561,7 @@ class IrConverterTest(test_base.TestCase):
     }""")
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -566,7 +578,7 @@ class IrConverterTest(test_base.TestCase):
       x
     }""")
     node_to_type = self._typecheck(m)
-    converted = ir_converter.convert_module(m, node_to_type)
+    converted = ir_converter.convert_module(m, node_to_type, import_cache=None)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -582,7 +594,7 @@ class IrConverterTest(test_base.TestCase):
       u8:42 if x else u8:24
     }""")
     node_to_type = self._typecheck(m)
-    converted = ir_converter.convert_module(m, node_to_type)
+    converted = ir_converter.convert_module(m, node_to_type, import_cache=None)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -602,25 +614,25 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
 
         fn __test_module__f() -> bits[8] {
-          FOO: bits[8][2] = literal(value=[1, 2], id=3)
+          literal.3: bits[8][2] = literal(value=[1, 2], id=3)
           literal.4: bits[32] = literal(value=0, id=4)
           literal.1: bits[8] = literal(value=1, id=1)
           literal.2: bits[8] = literal(value=2, id=2)
-          ret array_index.5: bits[8] = array_index(FOO, indices=[literal.4], id=5)
+          ret array_index.5: bits[8] = array_index(literal.3, indices=[literal.4], id=5)
         }
 
         fn __test_module__g() -> bits[8] {
-          FOO: bits[8][2] = literal(value=[1, 2], id=8)
+          literal.8: bits[8][2] = literal(value=[1, 2], id=8)
           literal.9: bits[32] = literal(value=1, id=9)
           literal.6: bits[8] = literal(value=1, id=6)
           literal.7: bits[8] = literal(value=2, id=7)
-          ret array_index.10: bits[8] = array_index(FOO, indices=[literal.9], id=10)
+          ret array_index.10: bits[8] = array_index(literal.8, indices=[literal.9], id=10)
         }
         """)
 
@@ -631,23 +643,23 @@ class IrConverterTest(test_base.TestCase):
     fn g() -> u8[2] { FOO }
     """)
     node_to_type = self._typecheck(m)
-    converted = ir_converter.convert_module(m, node_to_type)
+    converted = ir_converter.convert_module(m, node_to_type, import_cache=None)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
 
         fn __test_module__f() -> bits[8][2] {
-          FOO: bits[8][2] = literal(value=[1, 2], id=3, pos=0,0,18)
+          literal.3: bits[8][2] = literal(value=[1, 2], id=3, pos=0,0,18)
           literal.1: bits[8] = literal(value=1, id=1, pos=0,0,19)
           literal.2: bits[8] = literal(value=2, id=2, pos=0,0,22)
-          ret identity.4: bits[8][2] = identity(FOO, id=4, pos=0,1,18)
+          ret identity.4: bits[8][2] = identity(literal.3, id=4, pos=0,1,18)
         }
 
         fn __test_module__g() -> bits[8][2] {
-          FOO: bits[8][2] = literal(value=[1, 2], id=7, pos=0,0,18)
+          literal.7: bits[8][2] = literal(value=[1, 2], id=7, pos=0,0,18)
           literal.5: bits[8] = literal(value=1, id=5, pos=0,0,19)
           literal.6: bits[8] = literal(value=2, id=6, pos=0,0,22)
-          ret identity.8: bits[8][2] = identity(FOO, id=8, pos=0,2,18)
+          ret identity.8: bits[8][2] = identity(literal.7, id=8, pos=0,2,18)
         }
         """)
 
@@ -663,7 +675,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -696,7 +708,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -736,7 +748,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -771,7 +783,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -802,7 +814,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -831,7 +843,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -856,7 +868,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -881,7 +893,7 @@ class IrConverterTest(test_base.TestCase):
     }""")
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -910,7 +922,7 @@ class IrConverterTest(test_base.TestCase):
     }""")
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -940,7 +952,7 @@ class IrConverterTest(test_base.TestCase):
       parametric(bits[3]:0, bits[5]:1)
     }""")
     node_to_type = self._typecheck(m)
-    converted = ir_converter.convert_module(m, node_to_type)
+    converted = ir_converter.convert_module(m, node_to_type, import_cache=None)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -955,7 +967,7 @@ class IrConverterTest(test_base.TestCase):
         fn __test_module__main() -> bits[8] {
           literal.7: bits[3] = literal(value=0, id=7, pos=0,4,21)
           literal.8: bits[5] = literal(value=1, id=8, pos=0,4,32)
-          ret invoke.9: bits[8] = invoke(literal.7, literal.8, to_apply=__test_module__parametric__3_5_8, id=9, pos=0,4,12)
+          ret literal.9: bits[8] = literal(value=1, id=9, pos=0,4,12)
         }
         """)
 
@@ -969,7 +981,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -990,7 +1002,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -1009,7 +1021,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -1035,7 +1047,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -1061,7 +1073,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -1084,7 +1096,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -1100,11 +1112,11 @@ class IrConverterTest(test_base.TestCase):
         }
 
         fn __test_module__main() -> bits[32] {
+          literal.8: bits[32] = literal(value=2, id=8)
+          literal.10: bits[32] = literal(value=3, id=10)
           literal.7: bits[2] = literal(value=0, id=7)
           literal.9: bits[3] = literal(value=0, id=9)
-          invoke.8: bits[32] = invoke(literal.7, to_apply=__test_module__parametric__2, id=8)
-          invoke.10: bits[32] = invoke(literal.9, to_apply=__test_module__parametric__3, id=10)
-          ret add.11: bits[32] = add(invoke.8, invoke.10, id=11)
+          ret add.11: bits[32] = add(literal.8, literal.10, id=11)
         }
         """)
 
@@ -1116,7 +1128,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -1149,7 +1161,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -1172,7 +1184,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -1194,7 +1206,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -1237,7 +1249,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -1262,7 +1274,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -1279,7 +1291,7 @@ class IrConverterTest(test_base.TestCase):
 
         fn __test_module__main() -> bits[32] {
           literal.8: bits[32] = literal(value=0, id=8)
-          ret invoke.9: bits[32] = invoke(literal.8, to_apply=__test_module__f__32, id=9)
+          ret literal.9: bits[32] = literal(value=0, id=9)
         }
         """)
 
@@ -1291,7 +1303,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -1315,7 +1327,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -1339,7 +1351,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -1358,7 +1370,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -1377,7 +1389,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -1399,7 +1411,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -1425,7 +1437,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -1449,7 +1461,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -1471,7 +1483,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -1490,7 +1502,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -1508,7 +1520,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         textwrap.dedent("""\
         package test_module
@@ -1534,7 +1546,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         textwrap.dedent("""\
         package test_module
@@ -1560,7 +1572,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -1583,7 +1595,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -1603,7 +1615,7 @@ class IrConverterTest(test_base.TestCase):
     """)
     node_to_type = self._typecheck(m)
     converted = ir_converter.convert_module(
-        m, node_to_type, emit_positions=False)
+        m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
         package test_module
@@ -1612,6 +1624,158 @@ class IrConverterTest(test_base.TestCase):
           x: bits[32][4] = array_concat(in1, in1, id=2)
           literal.3: bits[32] = literal(value=0, id=3)
           ret array_index.4: bits[32] = array_index(x, indices=[literal.3], id=4)
+        }
+        """)
+
+  def test_constexpr_fn(self):
+    """Tests that a simple constexpr function can be evaluated at build time."""
+    m = self.parse_dsl_text("""\
+    pub const kConst = bits[32]:5;
+    fn constexpr_fn(arg: u32) -> u32 {
+      arg * kConst
+    }
+
+    fn f() -> u32 {
+      let x = constexpr_fn(kConst);
+      x
+    }
+    """)
+    node_to_type = self._typecheck(m)
+    converted = ir_converter.convert_module(
+        m, node_to_type, import_cache=None, emit_positions=False)
+    self.assert_ir_equals_and_parses(
+        converted, """\
+        package test_module
+
+        fn __test_module__constexpr_fn(arg: bits[32]) -> bits[32] {
+          literal.2: bits[32] = literal(value=5, id=2)
+          ret umul.3: bits[32] = umul(arg, literal.2, id=3)
+        }
+
+        fn __test_module__f() -> bits[32] {
+          literal.5: bits[32] = literal(value=25, id=5)
+          literal.4: bits[32] = literal(value=5, id=4)
+          ret identity.6: bits[32] = identity(literal.5, id=6)
+        }
+        """)
+
+  def test_constexpr_import(self):
+    """Tests that a simple constexpr function can be imported."""
+    import_cache = import_routines.ImportCache()
+    imported = self.parse_dsl_text("""\
+    pub const kConst = bits[32]:5;
+
+    pub fn constexpr_fn(arg: u32) -> u32 {
+      arg * kConst
+    }
+
+    """)
+    type_info = self._typecheck(imported, import_cache)
+    module_info = import_routines.ModuleInfo(imported, type_info)
+    import_tokens = import_routines.ImportTokens(['fake', 'imported', 'stuff'])
+    import_cache.put(import_tokens, module_info)
+
+    m = self.parse_dsl_text("""\
+    import fake.imported.stuff
+
+    fn f() -> u32 {
+      let x = stuff::constexpr_fn(stuff::kConst);
+      x
+    }
+    """)
+    node_to_type = self._typecheck(m, import_cache)
+    converted = ir_converter.convert_module(
+        m, node_to_type, import_cache=import_cache, emit_positions=False)
+    self.assert_ir_equals_and_parses(
+        converted, """\
+        package test_module
+
+        fn __test_module__constexpr_fn(arg: bits[32]) -> bits[32] {
+          literal.2: bits[32] = literal(value=5, id=2)
+          ret umul.3: bits[32] = umul(arg, literal.2, id=3)
+        }
+
+        fn __test_module__f() -> bits[32] {
+          literal.5: bits[32] = literal(value=25, id=5)
+          literal.4: bits[32] = literal(value=5, id=4)
+          ret identity.6: bits[32] = identity(literal.5, id=6)
+        }
+        """)
+
+  def test_parametric_constexpr_fn(self):
+    """Tests that a parametric constexpr fn can be evaluated at build time."""
+    m = self.parse_dsl_text("""\
+    pub const kConst = bits[32]:5;
+    fn constexpr_fn<N:u32>(arg: bits[N]) -> bits[N] {
+      arg * kConst
+    }
+
+    fn f() -> u32 {
+      let x = constexpr_fn(kConst);
+      x
+    }
+    """)
+    node_to_type = self._typecheck(m)
+    converted = ir_converter.convert_module(
+        m, node_to_type, import_cache=None, emit_positions=False)
+    self.assert_ir_equals_and_parses(
+        converted, """\
+        package test_module
+
+        fn __test_module__constexpr_fn__32(arg: bits[32]) -> bits[32] {
+          literal.3: bits[32] = literal(value=5, id=3)
+          literal.2: bits[32] = literal(value=32, id=2)
+          ret umul.4: bits[32] = umul(arg, literal.3, id=4)
+        }
+
+        fn __test_module__f() -> bits[32] {
+          literal.6: bits[32] = literal(value=25, id=6)
+          literal.5: bits[32] = literal(value=5, id=5)
+          ret identity.7: bits[32] = identity(literal.6, id=7)
+        }
+        """)
+
+  def test_parametric_constexpr_import(self):
+    """Tests that a parametric constexpr function can be imported."""
+    import_cache = import_routines.ImportCache()
+    imported = self.parse_dsl_text("""\
+    pub const kConst = bits[32]:5;
+
+    pub fn constexpr_fn<N:u32>(arg: bits[N]) -> bits[N] {
+      arg * kConst
+    }
+
+    """)
+    type_info = self._typecheck(imported, import_cache)
+    module_info = import_routines.ModuleInfo(imported, type_info)
+    import_tokens = import_routines.ImportTokens(['fake', 'imported', 'stuff'])
+    import_cache.put(import_tokens, module_info)
+
+    m = self.parse_dsl_text("""\
+    import fake.imported.stuff
+
+    fn f() -> u32 {
+      let x = stuff::constexpr_fn(stuff::kConst);
+      x
+    }
+    """)
+    node_to_type = self._typecheck(m, import_cache)
+    converted = ir_converter.convert_module(
+        m, node_to_type, import_cache=import_cache, emit_positions=False)
+    self.assert_ir_equals_and_parses(
+        converted, """\
+        package test_module
+
+        fn __test_module__constexpr_fn__32(arg: bits[32]) -> bits[32] {
+          literal.3: bits[32] = literal(value=5, id=3)
+          literal.2: bits[32] = literal(value=32, id=2)
+          ret umul.4: bits[32] = umul(arg, literal.3, id=4)
+        }
+
+        fn __test_module__f() -> bits[32] {
+          literal.6: bits[32] = literal(value=25, id=6)
+          literal.5: bits[32] = literal(value=5, id=5)
+          ret identity.7: bits[32] = identity(literal.6, id=7)
         }
         """)
 

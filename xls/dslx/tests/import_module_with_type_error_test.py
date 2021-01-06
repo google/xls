@@ -70,6 +70,15 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
                   str(cm.exception.span))
     self.assertIn("Builtin 'update' has no attributes", str(cm.exception))
 
+  def constant_without_type_annotation(self):
+    path = runfiles.get_path('xls/dslx/tests/constant_without_type_annot.x')
+    with self.assertRaises(TypeInferenceError) as cm:
+      parse_and_interpret.parse_and_test_path(path)
+
+    self.assertIn('xls/dslx/tests/constant_without_type_annot.x:2:13-2:15',
+                  str(cm.exception.span))
+    self.assertIn('please annotate a type.', str(cm.exception))
+
 
 if __name__ == '__main__':
   test_base.main()

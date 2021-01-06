@@ -94,7 +94,8 @@ def parse_and_test(program: Text,
 
     ir_package = (
         ir_converter.convert_module_to_package(
-            module, type_info, traverse_tests=True) if compare_jit else None)
+            module, type_info, importer.cache, traverse_tests=True)
+        if compare_jit else None)
 
     interpreter = Interpreter(
         module,

@@ -15,6 +15,7 @@
 #include "xls/dslx/ir_converter.h"
 
 #include "absl/strings/str_replace.h"
+#include "absl/types/variant.h"
 #include "xls/dslx/cpp_ast.h"
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/ir/lsb_or_msb.h"
@@ -97,6 +98,29 @@ BValue IrConverter::Def(
                                     ToString(result), SpanToString(span));
   SetNodeToIr(node, result);
   return result;
+}
+
+IrConverter::CValue IrConverter::DefConst(
+    AstNode* node, IrLiteral ir_value,
+    const std::function<BValue(absl::optional<SourceLocation>)>& ir_func) {
+  absl::optional<SourceLocation> loc;
+  absl::optional<Span> span = node->GetSpan();
+  if (emit_positions_ && span.has_value()) {
+    const Pos& start_pos = span->start();
+    Lineno lineno(start_pos.lineno());
+    Colno colno(start_pos.colno());
+    // TODO(leary): 2020-12-20 Figure out the fileno based on the module owner
+    // of node.
+    loc.emplace(fileno_, lineno, colno);
+  }
+
+  BValue result = ir_func(loc);
+  XLS_VLOG(4) << absl::StreamFormat("Define node '%s' (%s) to be %s @ %s",
+                                    node->ToString(), node->GetNodeTypeName(),
+                                    ToString(result), SpanToString(span));
+  CValue c_value{ir_value, result};
+  SetNodeToIr(node, c_value);
+  return c_value;
 }
 
 absl::StatusOr<BValue> IrConverter::Use(AstNode* node) const {
@@ -497,7 +521,7 @@ absl::StatusOr<Bits> IrConverter::GetConstBits(AstNode* node) const {
     return absl::InternalError(absl::StrFormat(
         "AST node had a non-const IR value: %s", node->ToString()));
   }
-  return absl::get<CValue>(*ir_value).integral;
+  return absl::get<CValue>(*ir_value).ir_value.GetBitsWithStatus();
 }
 
 absl::Status IrConverter::HandleConstantArray(ConstantArray* node) {
@@ -506,17 +530,21 @@ absl::Status IrConverter::HandleConstantArray(ConstantArray* node) {
 
   std::vector<IrLiteral> values;
   for (Expr* n : node->members()) {
-    XLS_ASSIGN_OR_RETURN(Bits e, GetConstBits(n));
-    values.push_back(IrLiteral(std::move(e)));
+    // All elements are invariants of the given ConstantArray node.
+    XLS_RET_CHECK(IsConstant(n));
+    auto ir_value = GetNodeToIr(n);
+    XLS_RET_CHECK(ir_value.has_value());
+    XLS_RET_CHECK(absl::holds_alternative<CValue>(ir_value.value()));
+    values.push_back(absl::get<CValue>(ir_value.value()).ir_value);
   }
   if (node->has_ellipsis()) {
     while (values.size() < absl::get<int64>(array_type->size().value())) {
       values.push_back(values.back());
     }
   }
-  Def(node, [&](absl::optional<SourceLocation> loc) {
-    return function_builder_->Literal(
-        IrLiteral::Array(std::move(values)).value(), loc);
+  Value ir_value = IrLiteral::Array(std::move(values)).value();
+  DefConst(node, ir_value, [&](absl::optional<SourceLocation> loc) {
+    return function_builder_->Literal(ir_value, loc);
   });
   return absl::OkStatus();
 }

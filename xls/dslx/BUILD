@@ -287,6 +287,9 @@ py_library(
         "//xls/dslx/python:cpp_parametric_expression",
         "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:cpp_type_info",
+        "//xls/dslx/python:import_routines",
+        "//xls/dslx/python:interp_value",
+        "//xls/dslx/python:interpreter",
         "//xls/ir/python:bits",
         "//xls/ir/python:fileno",
         "//xls/ir/python:function",
@@ -894,5 +897,6 @@ cc_library(
         "//xls/ir:function_builder",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:variant",
     ],
 )

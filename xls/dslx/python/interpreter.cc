@@ -21,9 +21,11 @@
 #include "pybind11/stl.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
+#include "xls/dslx/import_routines.h"
 #include "xls/dslx/python/callback_converters.h"
 #include "xls/dslx/python/cpp_ast.h"
 #include "xls/dslx/python/errors.h"
+#include "xls/dslx/symbolic_bindings.h"
 #include "xls/ir/python/wrapper_types.h"
 
 namespace py = pybind11;
@@ -80,12 +82,16 @@ PYBIND11_MODULE(interpreter, m) {
       .def(
           "run_function",
           [](Interpreter* self, absl::string_view name,
-             const std::vector<InterpValue>& args) {
-            auto statusor = self->RunFunction(name, args);
+             const std::vector<InterpValue>& args,
+             absl::optional<SymbolicBindings> symbolic_bindings) {
+            auto statusor = self->RunFunction(name, args,
+                                              symbolic_bindings.has_value()
+                                                  ? *symbolic_bindings
+                                                  : SymbolicBindings());
             TryThrowFailureError(statusor.status());
             return statusor;
           },
-          py::arg("name"), py::arg("args"))
+          py::arg("name"), py::arg("args"), py::arg("symbolic_bindings"))
       .def("run_test",
            [](Interpreter* self, absl::string_view name) {
              absl::Status result = self->RunTest(name);

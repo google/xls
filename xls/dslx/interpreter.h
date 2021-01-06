@@ -85,8 +85,11 @@ class Interpreter {
 
   // Runs a function with the given "name" from the module associated with the
   // interpreter, using the given "args" for the entry point invocation.
-  absl::StatusOr<InterpValue> RunFunction(absl::string_view name,
-                                          absl::Span<const InterpValue> args);
+  // If this function is parametric, then symbolic_bindings needs to contain an
+  // entry for each function parameter.
+  absl::StatusOr<InterpValue> RunFunction(
+      absl::string_view name, absl::Span<const InterpValue> args,
+      SymbolicBindings symbolic_bindings = SymbolicBindings());
 
   // Searches for a test function with the given name in this interpreter's
   // module and, if found, runs it.

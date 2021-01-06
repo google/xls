@@ -112,25 +112,26 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
            })
       .def("set_node_to_ir",
            [](IrConverter& self, AstNodeHolder node,
-              std::pair<Bits, BValueHolder> value) {
+              std::pair<Value, BValueHolder> value) {
              self.SetNodeToIr(
                  &node.deref(),
                  IrConverter::CValue{value.first, value.second.deref()});
            })
-      .def("get_node_to_ir",
-           [](IrConverter& self, AstNodeHolder node)
-               -> absl::optional<
-                   absl::variant<BValueHolder, std::pair<Bits, BValueHolder>>> {
-             absl::optional<IrValue> value = self.GetNodeToIr(&node.deref());
-             if (!value.has_value()) {
-               return absl::nullopt;
-             }
-             if (absl::holds_alternative<BValue>(*value)) {
-               return Wrap(self, absl::get<BValue>(*value));
-             }
-             const CValue& cvalue = absl::get<CValue>(*value);
-             return std::make_pair(cvalue.integral, Wrap(self, cvalue.value));
-           })
+      .def(
+          "get_node_to_ir",
+          [](IrConverter& self, AstNodeHolder node)
+              -> absl::optional<
+                  absl::variant<BValueHolder, std::pair<Value, BValueHolder>>> {
+            absl::optional<IrValue> value = self.GetNodeToIr(&node.deref());
+            if (!value.has_value()) {
+              return absl::nullopt;
+            }
+            if (absl::holds_alternative<BValue>(*value)) {
+              return Wrap(self, absl::get<BValue>(*value));
+            }
+            const CValue& cvalue = absl::get<CValue>(*value);
+            return std::make_pair(cvalue.ir_value, Wrap(self, cvalue.value));
+          })
       .def("add_constant_dep",
            [](IrConverter& self, ConstantDefHolder constant_def) {
              self.AddConstantDep(&constant_def.deref());

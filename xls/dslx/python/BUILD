@@ -298,8 +298,10 @@ xls_pybind_extension(
         "//xls/dslx:cpp_ast",
         "//xls/dslx:cpp_concrete_type",
         "//xls/dslx:cpp_evaluate",
+        "//xls/dslx:import_routines",
         "//xls/dslx:interp_bindings",
         "//xls/dslx:interpreter",
+        "//xls/dslx:symbolic_bindings",
         "//xls/ir/python:wrapper_types",
     ],
 )

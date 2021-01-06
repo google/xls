@@ -27,6 +27,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
+#include "xls/passes/dce_pass.h"
 #include "xls/passes/inlining_pass.h"
 #include "xls/passes/map_inlining_pass.h"
 #include "xls/passes/pass_base.h"
@@ -95,6 +96,7 @@ absl::Status RealMain(const std::vector<absl::string_view>& ir_paths,
   inlining_passes.Add<MapInliningPass>();
   inlining_passes.Add<UnrollPass>();
   inlining_passes.Add<InliningPass>();
+  inlining_passes.Add<DeadCodeEliminationPass>();
   PassOptions options;
   PassResults results;
   for (const auto& package : packages) {

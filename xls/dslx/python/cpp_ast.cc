@@ -472,7 +472,8 @@ PYBIND11_MODULE(cpp_ast, m) {
       .def_property_readonly(
           "identifier",
           [](ImportHolder self) { return self.deref().identifier(); })
-      // TODO(leary): 2020-11-02 Rename this attribute to "subject".
+      .def_property_readonly(
+          "subject", [](ImportHolder self) { return self.deref().subject(); })
       .def_property_readonly("name", [](ImportHolder self) {
         const std::vector<std::string>& subject = self.deref().subject();
         py::tuple t(subject.size());

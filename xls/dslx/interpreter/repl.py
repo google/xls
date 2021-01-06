@@ -101,7 +101,7 @@ def handle_line(line: str, stmt_index: int):
       import_cache=importer.cache,
       additional_search_paths=(),
       trace_all=False)
-  result = interpreter.run_function(fn_name, args=())
+  result = interpreter.run_function(fn_name, args=(), symbolic_bindings=None)
   print(result)
   type_info.clear_type_info_refs_for_gc()
   return result

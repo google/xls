@@ -34,6 +34,10 @@ PYBIND11_MODULE(import_routines, m) {
   ImportStatusModule();
 
   py::class_<ModuleInfo>(m, "ModuleInfo")
+      .def(py::init(
+          [](ModuleHolder module, std::shared_ptr<TypeInfo> type_info) {
+            return ModuleInfo{module.module(), type_info};
+          }))
       .def("__getitem__",
            [](const ModuleInfo& self, int64 index)
                -> absl::variant<ModuleHolder, std::shared_ptr<TypeInfo>> {
@@ -54,6 +58,10 @@ PYBIND11_MODULE(import_routines, m) {
 
   py::class_<ImportCache>(m, "ImportCache")
       .def(py::init())
+      .def("put",
+           [](ImportCache* self, ImportTokens subject, ModuleInfo module_info) {
+             return self->Put(subject, module_info).status();
+           })
       .def("clear", &ImportCache::Clear);
 
   m.def(

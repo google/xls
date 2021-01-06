@@ -192,6 +192,23 @@ class Parser : public TokenParser {
   absl::StatusOr<absl::variant<NameDef*, WildcardPattern*>>
   ParseNameDefOrWildcard(Bindings* bindings);
 
+  // TryOrRollback wraps straighforward transactions: call a function, and
+  // rollback or commit depending on the result. Just a shorthand to reduce
+  // transaction code footprint.
+  template <typename ReturnT>
+  absl::StatusOr<ReturnT> TryOrRollback(
+      Bindings* bindings,
+      std::function<absl::StatusOr<ReturnT>(Bindings* bindings)> fn) {
+    Transaction txn(this, bindings);
+    auto status_or_result = fn(bindings);
+    if (status_or_result.ok()) {
+      txn.Commit();
+    } else {
+      txn.Rollback();
+    }
+    return status_or_result;
+  }
+
   // Parses tree of name defs and returns it.
   //
   // For example, the left hand side of:

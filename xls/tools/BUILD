@@ -166,6 +166,7 @@ cc_binary(
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/passes",
+        "//xls/passes:dce_pass",
         "//xls/passes:inlining_pass",
         "//xls/passes:map_inlining_pass",
         "//xls/passes:pass_base",
