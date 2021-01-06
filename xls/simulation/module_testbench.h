@@ -38,10 +38,9 @@ class ModuleTestbench {
  public:
   // Constructor for testing a VAST-defined module with the given clock and
   // reset signal.
-  explicit ModuleTestbench(
-      Module* module, const VerilogSimulator* simulator,
-      absl::optional<absl::string_view> clk_name = absl::nullopt,
-      absl::optional<ResetProto> reset = absl::nullopt);
+  ModuleTestbench(Module* module, const VerilogSimulator* simulator,
+                  absl::optional<absl::string_view> clk_name = absl::nullopt,
+                  absl::optional<ResetProto> reset = absl::nullopt);
 
   // Constructor for testing a module defined in Verilog text with an interface
   // described with a ModuleSignature.

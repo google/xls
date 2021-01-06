@@ -697,7 +697,7 @@ absl::Status ModuleBuilder::Assign(LogicRef* lhs, Expression* rhs, Type* type) {
 }
 
 absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
-    absl::string_view name, Type* type, Expression* next,
+    absl::string_view name, Type* type, absl::optional<Expression*> next,
     absl::optional<Expression*> reset_value) {
   LogicRef* reg;
   if (type->IsArray()) {
@@ -711,18 +711,18 @@ absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
   }
   return Register{
       .ref = reg,
-      .next = next,
+      .next = next.has_value() ? next.value() : nullptr,
       .reset_value = reset_value.has_value() ? reset_value.value() : nullptr,
       .xls_type = type};
 }
 
 absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
-    absl::string_view name, int64 bit_count, Expression* next,
+    absl::string_view name, int64 bit_count, absl::optional<Expression*> next,
     absl::optional<Expression*> reset_value) {
   return Register{
       .ref = module_->AddReg(SanitizeIdentifier(name), bit_count,
                              /*init=*/absl::nullopt, declaration_section()),
-      .next = next,
+      .next = next.has_value() ? next.value() : nullptr,
       .reset_value = reset_value.has_value() ? reset_value.value() : nullptr,
       .xls_type = nullptr};
 }
@@ -776,6 +776,7 @@ absl::Status ModuleBuilder::AssignRegisters(
   // Assign registers to the next value for the non-reset case (either no
   // reset signal or reset signal is not asserted).
   for (const Register& reg : registers) {
+    XLS_RET_CHECK(reg.next != nullptr);
     XLS_RETURN_IF_ERROR(AddAssignment(
         reg.xls_type, reg.ref, reg.next, [&](Expression* lhs, Expression* rhs) {
           assignment_block->Add<NonblockingAssignment>(

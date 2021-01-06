@@ -74,6 +74,13 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::WithCombinationalInterface() {
   return *this;
 }
 
+ModuleSignatureBuilder& ModuleSignatureBuilder::WithUnknownInterface() {
+  XLS_CHECK_EQ(proto_.interface_oneof_case(),
+               ModuleSignatureProto::INTERFACE_ONEOF_NOT_SET);
+  proto_.mutable_unknown();
+  return *this;
+}
+
 ModuleSignatureBuilder& ModuleSignatureBuilder::WithPipelineInterface(
     int64 latency, int64 initiation_interval,
     absl::optional<PipelineControl> pipeline_control) {

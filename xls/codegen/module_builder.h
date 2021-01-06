@@ -123,7 +123,9 @@ class ModuleBuilder {
   // Declares a register of the given XLS type. Arguments:
   //   name: name of the declared Verilog register.
   //   type: XLS type of the register.
-  //   next: The expression to assign to the register each clock.
+  //   next: The expression to assign to the register each clock. If not
+  //     specified then the returned Register's 'next' field must be filled in
+  //     prior to calling AssignRegisters.
   //   reset_value: The value of the register on reset. Should be non-null iff
   //     the corresponding AssignRegisters call includes a non-null Reset
   //     argument.
@@ -131,12 +133,12 @@ class ModuleBuilder {
   // Declared registers must be passed to a subsequent AssignRegisters call for
   // assignment within an always block.
   absl::StatusOr<Register> DeclareRegister(
-      absl::string_view name, Type* type, Expression* next,
+      absl::string_view name, Type* type, absl::optional<Expression*> next,
       absl::optional<Expression*> reset_value = absl::nullopt);
 
   // As above, but declares a register of a given bit width.
   absl::StatusOr<Register> DeclareRegister(
-      absl::string_view name, int64 bit_count, Expression* next,
+      absl::string_view name, int64 bit_count, absl::optional<Expression*> next,
       absl::optional<Expression*> reset_value = absl::nullopt);
 
   // Construct an always block to assign values to the registers. Arguments:

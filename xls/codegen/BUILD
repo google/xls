@@ -352,6 +352,24 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "proc_generator",
+    srcs = ["proc_generator.cc"],
+    hdrs = ["proc_generator.h"],
+    data = glob([
+        "testdata/proc_generator_test_*",
+    ]),
+    deps = [
+        ":module_builder",
+        ":module_signature",
+        ":vast",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/logging:log_lines",
+        "//xls/ir",
+    ],
+)
+
 proto_library(
     name = "module_signature_proto",
     srcs = ["module_signature.proto"],
@@ -451,6 +469,24 @@ cc_test(
         "//xls/interpreter:proc_network_interpreter",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "proc_generator_test",
+    srcs = ["proc_generator_test.cc"],
+    deps = [
+        ":proc_generator",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/ir:channel_cc_proto",
+        "//xls/ir:function_builder",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "//xls/simulation:module_simulator",
+        "//xls/simulation:verilog_test_base",
         "@com_google_googletest//:gtest_main",
     ],
 )

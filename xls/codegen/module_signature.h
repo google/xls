@@ -67,6 +67,13 @@ class ModuleSignatureBuilder {
   // Defines the module interface as purely combinational.
   ModuleSignatureBuilder& WithCombinationalInterface();
 
+  // Defines the module interface with an unspecified or non-existent
+  // protocol. The code generator supports emission of arbitrary RTL and not all
+  // blocks conform to the predefined interfaces: feed-forward pipelines,
+  // ready/valid, fixed latency or purely combinational. This option is a
+  // catch-all for such nonconforming cases.
+  ModuleSignatureBuilder& WithUnknownInterface();
+
   // Sets the type of the function to the given string. The expected form is
   // defined by xls::FunctionType::ToString.
   ModuleSignatureBuilder& WithFunctionType(FunctionType* function_type);

@@ -97,6 +97,10 @@ message PipelineInterface {
 // Module with purely combinational logic.
 message CombinationalInterface {}
 
+// Module with an unknown interface protocol. The signature simply defines the
+// ports and perhaps clk/reset.
+message UnknownInterface {}
+
 message ResetProto {
   optional string name = 1;
   optional bool asynchronous = 2;
@@ -125,6 +129,7 @@ message ModuleSignatureProto {
     ReadyValidInterface ready_valid = 6;
     PipelineInterface pipeline = 7;
     CombinationalInterface combinational = 8;
+    UnknownInterface unknown = 10;
   }
 
   // The XLS function type that it generated a module for.
