@@ -438,6 +438,12 @@ dslx_test(
 )
 
 dslx_test(
+    name = "mod_enum_fully_qualified_match_importer",
+    srcs = ["mod_enum_fully_qualified_match_importer.x"],
+    deps = ["mod_simple_enum.x"],
+)
+
+dslx_test(
     name = "mod_const_importer",
     srcs = ["mod_const_importer.x"],
     deps = ["mod_simple_const.x"],

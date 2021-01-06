@@ -12,26 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Imports a module that holds an enum definition, and uses it inside of a match
-// expression inside of a for loop.
+// Regression test for https://github.com/google/xls/issues/206
+//
+// Uses module-qualified (imported) enum member references in a match
+// expression. In this case we do through an alias, just because it's more
+// interesting than without an alias.
 
-import xls.dslx.tests.mod_simple_enum
+import xls.dslx.tests.mod_simple_enum as exporter
 
-type EnumType = mod_simple_enum::EnumType;
-
-fn main(x: EnumType) -> bool {
-  for (i, accum): (u32, bool) in range(u32:0, u32:1) {
-    match x {
-      EnumType::FIRST => false,
-      EnumType::SECOND => true,
-      _ => false,
-    }
-  }(false)
+fn main(x: exporter::EnumType) -> u32 {
+  match x {
+    exporter::EnumType::FIRST => u32:0,
+    exporter::EnumType::SECOND => u32:1,
+    _ => fail!(u32:1),
+  }
 }
 
 #![test]
 fn test_main() {
-  let _ = assert_eq(false, main(EnumType::FIRST));
-  let _ = assert_eq(true, main(EnumType::SECOND));
+  let _ = assert_eq(u32:0, main(exporter::EnumType::FIRST));
+  let _ = assert_eq(u32:1, main(exporter::EnumType::SECOND));
   ()
 }
