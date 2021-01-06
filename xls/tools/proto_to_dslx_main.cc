@@ -41,6 +41,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/cpp_ast.h"
 
 ABSL_FLAG(std::string, proto_def_path, "",
           "Path to the [structure] definition of the proto "
@@ -299,38 +300,69 @@ absl::Status CollectStructureDefs(const Descriptor& descriptor,
 
 // Takes a collected structure/message definition (from above) and emits it as
 // DSLX.
-std::string EmitStruct(const ParsedMessage& message,
-                       const MessageMap& messages) {
-  std::vector<std::string> fields;
+absl::Status EmitStruct(
+    dslx::Module* module,
+    absl::flat_hash_map<std::string, dslx::TypeDefinition>* type_defs,
+    const ParsedMessage& message, const MessageMap& messages) {
   // Need to iterate in message-def order.
+  dslx::Span span(dslx::Pos{}, dslx::Pos{});
+  std::vector<std::pair<dslx::NameDef*, dslx::TypeAnnotation*>> members;
   for (int i = 0; i < message.descriptor->field_count(); i++) {
     const FieldDescriptor* fd = message.descriptor->field(i);
-    std::string field_name = fd->name();
+    auto* name_def = module->Make<dslx::NameDef>(span, fd->name(), nullptr);
     ParsedMessage::Element element = message.children.at(fd->name());
 
-    std::string field_type;
+    dslx::TypeAnnotation* type_annot;
     if (absl::holds_alternative<std::string>(element.type)) {
-      field_type = absl::get<std::string>(element.type);
+      std::string type_name = absl::get<std::string>(element.type);
+      auto* type_ref = module->Make<dslx::TypeRef>(span, type_name,
+                                                   type_defs->at(type_name));
+      type_annot = module->Make<dslx::TypeRefTypeAnnotation>(
+          span, type_ref, std::vector<dslx::Expr*>());
     } else {
-      field_type = absl::StrCat("bits[", absl::get<int>(element.type), "]");
+      auto* bits_type = module->Make<dslx::BuiltinTypeAnnotation>(
+          span, dslx::BuiltinType::kBits);
+      auto* array_size = module->Make<dslx::Number>(
+          span, absl::StrCat(absl::get<int>(element.type)),
+          dslx::NumberKind::kOther, /*type=*/nullptr);
+      type_annot =
+          module->Make<dslx::ArrayTypeAnnotation>(span, bits_type, array_size);
     }
 
     if (element.count == 1) {
-      fields.push_back(absl::StrFormat("  %s: %s,", field_name, field_type));
+      members.push_back(std::make_pair(name_def, type_annot));
     } else {
-      fields.push_back(absl::StrFormat("  %s: %s[%d],", field_name, field_type,
-                                       element.count));
-      // u32 is the default "count of populated elements" type.
-      fields.push_back(absl::StrFormat("  %s_count: u32,", field_name));
+      auto* array_size = module->Make<dslx::Number>(
+          span, absl::StrCat(element.count), dslx::NumberKind::kOther,
+          /*type=*/nullptr);
+      type_annot =
+          module->Make<dslx::ArrayTypeAnnotation>(span, type_annot, array_size);
+      members.push_back(std::make_pair(name_def, type_annot));
+
+      auto* name_def = module->Make<dslx::NameDef>(
+          span, absl::StrCat(fd->name(), "_count"), nullptr);
+      auto* u32_annot = module->Make<dslx::BuiltinTypeAnnotation>(
+          span, dslx::BuiltinType::kU32);
+      members.push_back({name_def, u32_annot});
     }
   }
 
-  return absl::StrFormat("struct %s {\n%s\n}\n", message.name,
-                         absl::StrJoin(fields, "\n"));
+  auto* name_def = module->Make<dslx::NameDef>(span, message.name, nullptr);
+  auto* struct_def = module->Make<dslx::StructDef>(
+      span, name_def, std::vector<dslx::ParametricBinding*>(), members,
+      /*is_public=*/true);
+  name_def->set_definer(struct_def);
+  module->AddTop(struct_def);
+  type_defs->insert({message.name, struct_def});
+
+  return absl::OkStatus();
 }
 
 // Basically a toposort of message decls.
-std::vector<std::string> EmitStructs(const MessageMap& messages) {
+absl::Status EmitStructs(
+    dslx::Module* module,
+    absl::flat_hash_map<std::string, dslx::TypeDefinition>* type_defs,
+    const MessageMap& messages) {
   // Map of ParsedMessage to the messages it depends on (but that have not yet
   // been emitted).
   using BlockingSet = absl::flat_hash_set<const ParsedMessage*>;
@@ -358,7 +390,7 @@ std::vector<std::string> EmitStructs(const MessageMap& messages) {
       }
 
       progress = true;
-      structs.push_back(EmitStruct(*message, messages));
+      XLS_RETURN_IF_ERROR(EmitStruct(module, type_defs, *message, messages));
       newly_done.insert(message);
     }
 
@@ -373,82 +405,190 @@ std::vector<std::string> EmitStructs(const MessageMap& messages) {
     }
 
     if (!progress) {
-      XLS_LOG(QFATAL) << "Infinite loop trying to emit struct defs.";
+      return absl::InternalError("Infinite loop trying to emit struct defs.");
     }
   }
-  return structs;
+  return absl::OkStatus();
+}
+
+// Creates a zero-valued element of the described type.
+absl::StatusOr<dslx::Expr*> MakeZeroValuedElement(
+    dslx::Module* module, dslx::TypeAnnotation* type_annot) {
+  dslx::Span span(dslx::Pos{}, dslx::Pos{});
+  if (dslx::TypeRefTypeAnnotation* typeref_type =
+          dynamic_cast<dslx::TypeRefTypeAnnotation*>(type_annot)) {
+    // TODO(rspringer): Could be enumdef or structdef!
+    dslx::StructDef* struct_def = absl::get<dslx::StructDef*>(
+        typeref_type->type_ref()->type_definition());
+    std::vector<std::pair<std::string, dslx::Expr*>> members;
+    for (const auto& child : struct_def->members()) {
+      XLS_ASSIGN_OR_RETURN(dslx::Expr * expr,
+                           MakeZeroValuedElement(module, child.second));
+      members.push_back({child.first->identifier(), expr});
+    }
+    return module->Make<dslx::StructInstance>(span, struct_def, members);
+  } else if (dslx::ArrayTypeAnnotation* array_type =
+                 dynamic_cast<dslx::ArrayTypeAnnotation*>(type_annot)) {
+    // Special case: when it's an array of bits, then we should really just
+    // return a number.
+    dslx::TypeAnnotation* element_type = array_type->element_type();
+    dslx::BuiltinTypeAnnotation* element_as_builtin =
+        dynamic_cast<dslx::BuiltinTypeAnnotation*>(element_type);
+    if (element_as_builtin->builtin_type() == dslx::BuiltinType::kBits) {
+      return module->Make<dslx::Number>(span, "0", dslx::NumberKind::kOther,
+                                        array_type);
+    }
+
+    XLS_ASSIGN_OR_RETURN(
+        dslx::Expr * member,
+        MakeZeroValuedElement(module, array_type->element_type()));
+    // Currently, the array size has to be a Number - think about how values
+    // must be specified in proto definitions.
+    auto* array_size = dynamic_cast<dslx::Number*>(array_type->dim());
+    XLS_RET_CHECK(array_size) << "Array size must be a simple number.";
+    XLS_ASSIGN_OR_RETURN(uint64 real_size, array_size->GetAsUint64());
+    return module->Make<dslx::ConstantArray>(
+        span, std::vector<dslx::Expr*>(real_size, member),
+        /*has_ellipsis=*/false);
+  } else {
+    dslx::BuiltinTypeAnnotation* builtin_type =
+        dynamic_cast<dslx::BuiltinTypeAnnotation*>(type_annot);
+    XLS_RET_CHECK(builtin_type);
+    return module->Make<dslx::Number>(span, "0", dslx::NumberKind::kOther,
+                                      builtin_type);
+  }
 }
 
 // Instantiate a message as a DSLX constant.
-std::string EmitData(const Message& message, const Descriptor& descriptor,
-                     const MessageMap& parsed_msgs, int indent_level = 0) {
-  std::string prefix(indent_level * 2, ' ');
-  std::string sub_prefix((indent_level + 1) * 2, ' ');
+absl::StatusOr<dslx::Expr*> EmitData(
+    dslx::Module* module,
+    absl::flat_hash_map<std::string, dslx::TypeDefinition>* type_defs,
+    const Message& message, const Descriptor& descriptor,
+    const MessageMap& parsed_msgs) {
   const Reflection* reflection = message.GetReflection();
   const ParsedMessage& parsed_msg = *parsed_msgs.at(descriptor.name());
 
-  std::vector<std::string> fields;
+  dslx::Span span(dslx::Pos{}, dslx::Pos{});
+  auto* struct_def =
+      absl::get<dslx::StructDef*>(type_defs->at(descriptor.name()));
+  std::vector<std::pair<std::string, dslx::Expr*>> members;
   for (int field_idx = 0; field_idx < descriptor.field_count(); field_idx++) {
     const FieldDescriptor* fd = descriptor.field(field_idx);
     std::string field_name = fd->name();
 
     if (fd->type() == FieldDescriptor::Type::TYPE_MESSAGE) {
-      std::string type_name = fd->message_type()->name();
       if (fd->is_repeated()) {
         int total_submsgs = parsed_msg.children.at(fd->name()).count;
         int num_submsgs = reflection->FieldSize(message, fd);
-        std::vector<std::string> values;
+        std::vector<dslx::Expr*> array_members;
+
         for (int submsg_idx = 0; submsg_idx < num_submsgs; submsg_idx++) {
           const Message& sub_message =
               reflection->GetRepeatedMessage(message, fd, submsg_idx);
-          values.push_back(EmitData(sub_message, *sub_message.GetDescriptor(),
-                                    parsed_msgs, indent_level + 2));
+          // Going to be either a struct instance or an integral type
+          XLS_ASSIGN_OR_RETURN(
+              dslx::Expr * expr,
+              EmitData(module, type_defs, sub_message,
+                       *sub_message.GetDescriptor(), parsed_msgs));
+          array_members.push_back(expr);
         }
 
+        bool has_ellipsis = false;
         if (num_submsgs != total_submsgs) {
-          values.push_back("...");
+          has_ellipsis = true;
+          // TODO(https://github.com/google/xls/issues/249): Marking an array
+          // as "has_ellipsis" seems to still require that we specify all
+          // members. Until resolved (?), we'll create fake, zero-valued,
+          // members.
+          // Fortunately, we have the _count member to indicate which are valid.
+          std::string type_name = fd->message_type()->name();
+          auto* type_ref = module->Make<dslx::TypeRef>(
+              span, type_name, type_defs->at(type_name));
+          auto* typeref_type = module->Make<dslx::TypeRefTypeAnnotation>(
+              span, type_ref, std::vector<dslx::Expr*>());
+          for (int i = 0; i < total_submsgs - num_submsgs; i++) {
+            XLS_ASSIGN_OR_RETURN(dslx::Expr * element,
+                                 MakeZeroValuedElement(module, typeref_type));
+            array_members.push_back(element);
+          }
         }
-        fields.push_back(absl::StrFormat(
-            "%s%s: %s[%d]:[\n%s\n%s]", sub_prefix, field_name, type_name,
-            total_submsgs, absl::StrJoin(values, ",\n"), sub_prefix));
-        // u32 is the default "count of populated elements" type.
-        fields.push_back(absl::StrFormat("%s%s_count: u32:0x%x", sub_prefix,
-                                         field_name, num_submsgs));
+
+        auto* array = module->Make<dslx::ConstantArray>(span, array_members,
+                                                        has_ellipsis);
+        members.push_back(std::make_pair(field_name, array));
+
+        auto* u32_type = module->Make<dslx::BuiltinTypeAnnotation>(
+            span, dslx::BuiltinType::kU32);
+        auto* num_array_members =
+            module->Make<dslx::Number>(span, absl::StrCat(num_submsgs),
+                                       dslx::NumberKind::kOther, u32_type);
+        members.push_back(std::make_pair(absl::StrCat(field_name, "_count"),
+                                         num_array_members));
       } else {
         const Message& sub_message = reflection->GetMessage(message, fd);
-        fields.push_back(
-            absl::StrFormat("%s%s:%s", sub_prefix, field_name,
-                            EmitData(sub_message, *sub_message.GetDescriptor(),
-                                     parsed_msgs, indent_level + 1)));
+        XLS_ASSIGN_OR_RETURN(
+            dslx::Expr * expr,
+            EmitData(module, type_defs, sub_message,
+                     *sub_message.GetDescriptor(), parsed_msgs));
+        members.push_back(std::make_pair(field_name, expr));
       }
     } else {  // If not a Message, than it's an integral type.
       int bit_width = absl::get<int>(parsed_msg.children.at(fd->name()).type);
+      auto* bits_type = module->Make<dslx::BuiltinTypeAnnotation>(
+          span, dslx::BuiltinType::kBits);
+      auto* array_dim = module->Make<dslx::Number>(
+          span, absl::StrCat(bit_width), dslx::NumberKind::kOther,
+          /*type=*/nullptr);
+      auto* array_elem_type =
+          module->Make<dslx::ArrayTypeAnnotation>(span, bits_type, array_dim);
+
       if (fd->is_repeated()) {
         int total_submsgs = parsed_msg.children.at(fd->name()).count;
         int num_submsgs = reflection->FieldSize(message, fd);
-        std::vector<std::string> values;
+        std::vector<dslx::Expr*> array_members;
         for (int submsg_idx = 0; submsg_idx < num_submsgs; submsg_idx++) {
           uint64 value = GetFieldValue(message, *reflection, *fd, submsg_idx);
-          values.push_back(absl::StrCat("bits[", bit_width, "]:", value));
+          array_members.push_back(module->Make<dslx::Number>(
+              span, absl::StrCat(value), dslx::NumberKind::kOther,
+              array_elem_type));
         }
+
+        bool has_ellipsis = false;
         if (num_submsgs != total_submsgs) {
-          values.push_back("...");
+          has_ellipsis = true;
+          // TODO(https://github.com/google/xls/issues/249): Marking an array
+          // as "has_ellipsis" seems to still require that we specify all
+          // members. Until resolved (?), we'll create fake, zero-valued,
+          // members.
+          // Fortunately, we have the _count member to indicate which are valid.
+          for (int i = 0; i < total_submsgs - num_submsgs; i++) {
+            array_members.push_back(module->Make<dslx::Number>(
+                span, "0", dslx::NumberKind::kOther, array_elem_type));
+          }
         }
-        fields.push_back(absl::StrFormat("%s%s: bits[%d][%d]:[%s]", sub_prefix,
-                                         field_name, bit_width, total_submsgs,
-                                         absl::StrJoin(values, ", ")));
-        fields.push_back(absl::StrFormat("%s%s_count: bits[32]:0x%x",
-                                         sub_prefix, field_name, num_submsgs));
+        auto* array = module->Make<dslx::ConstantArray>(span, array_members,
+                                                        has_ellipsis);
+        members.push_back(std::make_pair(field_name, array));
+
+        auto* u32_type = module->Make<dslx::BuiltinTypeAnnotation>(
+            span, dslx::BuiltinType::kU32);
+        auto* num_array_members =
+            module->Make<dslx::Number>(span, absl::StrCat(num_submsgs),
+                                       dslx::NumberKind::kOther, u32_type);
+        members.push_back(std::make_pair(absl::StrCat(field_name, "_count"),
+                                         num_array_members));
       } else {
         uint64 value = GetFieldValue(message, *reflection, *fd);
-        fields.push_back(absl::StrFormat("%s%s: bits[%d]: 0x%x", sub_prefix,
-                                         field_name, bit_width, value));
+        dslx::Number* number = module->Make<dslx::Number>(
+            span, absl::StrCat(value), dslx::NumberKind::kOther,
+            array_elem_type);
+        members.push_back(std::make_pair(field_name, number));
       }
     }
   }
 
-  return absl::StrFormat("%s%s {\n%s\n%s}", prefix, descriptor.name(),
-                         absl::StrJoin(fields, ",\n"), prefix);
+  // The caller assigns the name (decl'ed differently if top-level or member)
+  return module->Make<dslx::StructInstance>(span, struct_def, members);
 }
 
 absl::Status RealMain(const std::string& source_root_path,
@@ -476,18 +616,21 @@ absl::Status RealMain(const std::string& source_root_path,
   XLS_RETURN_IF_ERROR(
       CollectStructureDefs(*descriptor, *new_message, &parsed_messages));
 
-  std::vector<std::string> output = EmitStructs(parsed_messages);
+  dslx::Module module(var_name);
+  absl::flat_hash_map<std::string, dslx::TypeDefinition> type_defs;
+  XLS_RETURN_IF_ERROR(EmitStructs(&module, &type_defs, parsed_messages));
+  XLS_ASSIGN_OR_RETURN(dslx::Expr * expr,
+                       EmitData(&module, &type_defs, *new_message, *descriptor,
+                                parsed_messages));
+  dslx::Span span{dslx::Pos{}, dslx::Pos{}};
+  auto* name_def =
+      module.Make<dslx::NameDef>(span, var_name, /*definer=*/nullptr);
+  auto* constant_def =
+      module.Make<dslx::ConstantDef>(span, name_def, expr, /*is_public=*/true);
+  name_def->set_definer(constant_def);
+  module.AddTop(constant_def);
 
-  // Until we can export constant defs, delcare the result as a local var.
-  output.push_back(
-      absl::StrFormat("pub fn %s() -> %s {", var_name, descriptor->name()));
-  output.push_back(
-      absl::StrFormat("  let tmp: %s = %s;", descriptor->name(),
-                      EmitData(*new_message, *descriptor, parsed_messages, 1)));
-  output.push_back("  tmp");
-  output.push_back("}\n");
-
-  return SetFileContents(output_path, absl::StrJoin(output, "\n"));
+  return SetFileContents(output_path, module.ToString());
 }
 
 }  // namespace xls

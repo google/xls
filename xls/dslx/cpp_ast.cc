@@ -216,13 +216,20 @@ std::vector<AstNode*> StructInstance::GetChildren(bool want_types) const {
 }
 
 std::string StructInstance::ToString() const {
+  std::string type_name;
+  if (absl::holds_alternative<StructDef*>(struct_ref_)) {
+    type_name = absl::get<StructDef*>(struct_ref_)->identifier();
+  } else {
+    type_name = ToAstNode(struct_ref_)->ToString();
+  }
+
   std::string members_str = absl::StrJoin(
       members_, ", ",
       [](std::string* out, const std::pair<std::string, Expr*>& member) {
         absl::StrAppendFormat(out, "%s: %s", member.first,
                               member.second->ToString());
       });
-  return absl::StrFormat("%s { %s }", GetStructNode()->ToString(), members_str);
+  return absl::StrFormat("%s { %s }", type_name, members_str);
 }
 
 std::string For::ToString() const {
@@ -506,6 +513,14 @@ bool IsConstant(AstNode* node) {
   }
   if (Cast* n = dynamic_cast<Cast*>(node)) {
     return IsConstant(n->expr());
+  }
+  if (StructInstance* n = dynamic_cast<StructInstance*>(node)) {
+    for (const auto& [name, expr] : n->GetUnorderedMembers()) {
+      if (!IsConstant(expr)) {
+        return false;
+      }
+    }
+    return true;
   }
   if (XlsTuple* n = dynamic_cast<XlsTuple*>(node)) {
     return std::all_of(n->members().begin(), n->members().end(), IsConstant);

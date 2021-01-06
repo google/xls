@@ -280,6 +280,8 @@ cc_binary(
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/dslx:cpp_ast",
+        "//xls/dslx:cpp_pos",
         "@com_google_protobuf//:protobuf",
     ],
 )

@@ -266,6 +266,7 @@ class BuiltinTypeAnnotation : public TypeAnnotation {
 
   int64 GetBitCount() const;
   bool GetSignedness() const;
+  BuiltinType builtin_type() const { return builtin_type_; }
 
  private:
   BuiltinType builtin_type_;

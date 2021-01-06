@@ -8,6 +8,10 @@ fields {
   foo: 2
   foo: 3
   foo: 4
+  sub_fields: { sub_index: 1 }
+  sub_fields: { sub_index: 2 }
+  sub_fields: { sub_index: 3 }
+  sub_fields: { sub_index: 4 }
 }
 fields {
   index: 1
@@ -16,6 +20,9 @@ fields {
   foo: 1
   foo: 2
   foo: 3
+  sub_fields: { sub_index: 1 }
+  sub_fields: { sub_index: 2 }
+  sub_fields: { sub_index: 3 }
 }
 fields {
   index: 2
@@ -23,12 +30,20 @@ fields {
   width: 1000
   foo: 1
   foo: 2
+  sub_fields: { sub_index: 1 }
+  sub_fields: { sub_index: 2 }
 }
 fields {
   index: 3
   bit_offset: 1009
   width: 1
   foo: 1
+  sub_fields: { sub_index: 1 }
+}
+fields {
+  index: 4
+  bit_offset: 1010
+  width: 1
 }
 loner {
   index: 400
