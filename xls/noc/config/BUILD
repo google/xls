@@ -200,3 +200,157 @@ cc_proto_library(
         ":network_config_builder_options_proto",
     ],
 )
+
+cc_library(
+    name = "common_network_config_builder_options_proto_builder_h",
+    hdrs = ["common_network_config_builder_options_proto_builder.h"],
+    deps = [
+        ":network_config_builder_options_cc_proto",
+        ":network_config_cc_proto",
+        "//xls/common/logging",
+    ],
+)
+
+cc_library(
+    name = "endpoint_options_proto_builder",
+    srcs = ["endpoint_options_proto_builder.cc"],
+    deps = [
+        ":common_network_config_builder_options_proto_builder_h",
+    ],
+)
+
+cc_test(
+    name = "endpoint_options_proto_builder_test",
+    srcs = ["endpoint_options_proto_builder_test.cc"],
+    deps = [
+        ":common_network_config_builder_options_proto_builder_h",
+        ":endpoint_options_proto_builder",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "data_options_proto_builder",
+    srcs = ["data_options_proto_builder.cc"],
+    deps = [
+        ":common_network_config_builder_options_proto_builder_h",
+    ],
+)
+
+cc_test(
+    name = "data_options_proto_builder_test",
+    srcs = ["data_options_proto_builder_test.cc"],
+    deps = [
+        ":common_network_config_builder_options_proto_builder_h",
+        ":data_options_proto_builder",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "flow_control_options_proto_builder",
+    srcs = ["flow_control_options_proto_builder.cc"],
+    deps = [
+        ":common_network_config_builder_options_proto_builder_h",
+    ],
+)
+
+cc_test(
+    name = "flow_control_options_proto_builder_test",
+    srcs = ["flow_control_options_proto_builder_test.cc"],
+    deps = [
+        ":common_network_config_builder_options_proto_builder_h",
+        ":flow_control_options_proto_builder",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "link_options_proto_builder",
+    srcs = ["link_options_proto_builder.cc"],
+    deps = [
+        ":common_network_config_builder_options_proto_builder_h",
+    ],
+)
+
+cc_test(
+    name = "link_options_proto_builder_test",
+    srcs = ["link_options_proto_builder_test.cc"],
+    deps = [
+        ":common_network_config_builder_options_proto_builder_h",
+        ":link_options_proto_builder",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "virtual_channel_options_proto_builder",
+    srcs = ["virtual_channel_options_proto_builder.cc"],
+    deps = [
+        ":common_network_config_builder_options_proto_builder_h",
+    ],
+)
+
+cc_test(
+    name = "virtual_channel_options_proto_builder_test",
+    srcs = ["virtual_channel_options_proto_builder_test.cc"],
+    deps = [
+        ":common_network_config_builder_options_proto_builder_h",
+        ":virtual_channel_options_proto_builder",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "routing_scheme_options_proto_builder",
+    srcs = ["routing_scheme_options_proto_builder.cc"],
+    deps = [
+        ":common_network_config_builder_options_proto_builder_h",
+    ],
+)
+
+cc_test(
+    name = "routing_scheme_options_proto_builder_test",
+    srcs = ["routing_scheme_options_proto_builder_test.cc"],
+    deps = [
+        ":common_network_config_builder_options_proto_builder_h",
+        ":routing_scheme_options_proto_builder",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "arbiter_scheme_options_proto_builder",
+    srcs = ["arbiter_scheme_options_proto_builder.cc"],
+    deps = [
+        ":common_network_config_builder_options_proto_builder_h",
+    ],
+)
+
+cc_test(
+    name = "arbiter_scheme_options_proto_builder_test",
+    srcs = ["arbiter_scheme_options_proto_builder_test.cc"],
+    deps = [
+        ":arbiter_scheme_options_proto_builder",
+        ":common_network_config_builder_options_proto_builder_h",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "router_options_proto_builder",
+    srcs = ["router_options_proto_builder.cc"],
+    deps = [
+        ":common_network_config_builder_options_proto_builder_h",
+    ],
+)
+
+cc_test(
+    name = "router_options_proto_builder_test",
+    srcs = ["router_options_proto_builder_test.cc"],
+    deps = [
+        ":common_network_config_builder_options_proto_builder_h",
+        ":router_options_proto_builder",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
