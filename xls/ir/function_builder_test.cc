@@ -678,4 +678,38 @@ TEST(FunctionBuilderTest, AddParamToProc) {
                        HasSubstr("Cannot add parameters to procs")));
 }
 
+TEST(FunctionBuilderTest, TokenlessProcBuilder) {
+  Package p("p");
+  Type* u16 = p.GetBitsType(16);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * a_ch,
+      p.CreateStreamingChannel("a", ChannelOps::kReceiveOnly, u16));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * b_ch,
+      p.CreateStreamingChannel("b", ChannelOps::kReceiveOnly, u16));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_ch,
+      p.CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
+  TokenlessProcBuilder pb("the_proc", Value(UBits(42, 16)), "tkn", "st", &p);
+  BValue a_plus_b = pb.Add(pb.Receive(a_ch), pb.Receive(b_ch));
+  pb.Send(out_ch, pb.Add(pb.GetStateParam(), a_plus_b));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(a_plus_b));
+
+  EXPECT_THAT(proc->NextToken(),
+              m::AfterAll(m::TupleIndex(m::Receive(), 0),
+                          m::TupleIndex(m::Receive(), 0), m::Send()));
+  EXPECT_THAT(proc->NextState(),
+              m::Add(m::TupleIndex(m::Receive(a_ch->id()), 1),
+                     m::TupleIndex(m::Receive(b_ch->id()), 1)));
+}
+
+TEST(FunctionBuilderTest, TokenlessProcBuilderNoChannelOps) {
+  Package p("p");
+  TokenlessProcBuilder pb("the_proc", Value(UBits(42, 16)), "tkn", "st", &p);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+
+  EXPECT_THAT(proc->NextToken(), m::Param("tkn"));
+  EXPECT_THAT(proc->NextState(), m::Param("st"));
+}
+
 }  // namespace xls

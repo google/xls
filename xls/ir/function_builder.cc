@@ -1106,4 +1106,44 @@ BValue ProcBuilder::SendIf(Channel* channel, BValue token, BValue pred,
                               channel->id(), name);
 }
 
+BValue TokenlessProcBuilder::Receive(Channel* channel,
+                                     absl::optional<SourceLocation> loc,
+                                     absl::string_view name) {
+  BValue rcv = ProcBuilder::Receive(channel, GetTokenParam(), loc, name);
+  tokens_.push_back(TupleIndex(rcv, 0));
+  return TupleIndex(rcv, 1);
+}
+
+BValue TokenlessProcBuilder::ReceiveIf(Channel* channel, BValue pred,
+                                       absl::optional<SourceLocation> loc,
+                                       absl::string_view name) {
+  BValue rcv_if =
+      ProcBuilder::ReceiveIf(channel, GetTokenParam(), pred, loc, name);
+  tokens_.push_back(TupleIndex(rcv_if, 0));
+  return TupleIndex(rcv_if, 1);
+}
+
+void TokenlessProcBuilder::Send(Channel* channel, BValue data,
+                                absl::optional<SourceLocation> loc,
+                                absl::string_view name) {
+  BValue send = ProcBuilder::Send(channel, GetTokenParam(), data, loc, name);
+  tokens_.push_back(send);
+}
+
+void TokenlessProcBuilder::SendIf(Channel* channel, BValue pred, BValue data,
+                                  absl::optional<SourceLocation> loc,
+                                  absl::string_view name) {
+  BValue send_if =
+      ProcBuilder::SendIf(channel, GetTokenParam(), pred, data, loc, name);
+  tokens_.push_back(send_if);
+}
+
+absl::StatusOr<Proc*> TokenlessProcBuilder::Build(BValue next_state) {
+  if (tokens_.empty()) {
+    return ProcBuilder::Build(GetTokenParam(), next_state);
+  } else {
+    return ProcBuilder::Build(AfterAll(tokens_), next_state);
+  }
+}
+
 }  // namespace xls

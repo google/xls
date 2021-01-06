@@ -119,7 +119,7 @@ class BuilderBase {
       : function_(std::move(function)),
         error_pending_(false),
         should_verify_(should_verify) {}
-  virtual ~BuilderBase() {}
+  virtual ~BuilderBase() = default;
 
   const std::string& name() const { return function_->name(); }
 
@@ -597,7 +597,7 @@ class FunctionBuilder : public BuilderBase {
                   bool should_verify = true)
       : BuilderBase(absl::make_unique<Function>(std::string(name), package),
                     should_verify) {}
-  virtual ~FunctionBuilder() {}
+  virtual ~FunctionBuilder() = default;
 
   BValue Param(absl::string_view name, Type* type,
                absl::optional<SourceLocation> loc = absl::nullopt) override;
@@ -641,7 +641,7 @@ class ProcBuilder : public BuilderBase {
         // expressions.
         token_param_(proc()->TokenParam(), this),
         state_param_(proc()->StateParam(), this) {}
-  virtual ~ProcBuilder() {}
+  virtual ~ProcBuilder() = default;
 
   // Returns the Proc being constructed.
   Proc* proc() const { return down_cast<Proc*>(function()); }
@@ -679,6 +679,69 @@ class ProcBuilder : public BuilderBase {
 
   // The BValue of the state parameter (parameter 0).
   BValue state_param_;
+};
+
+// A derived ProcBuilder which automatically manages tokens internally.
+// This makes it much less verbose to construct procs with send and receive
+// operations. In the TokenlessProcBuilder, *all* send and receive operations
+// use GetTokenParam() as their token operand, and the recurrent token is an
+// AfterAll operation whose operands are the tokens from all of the send and
+// receive operations. The limitation of the TokenlessProcBuilder is that it
+// cannot be used if non-trivial ordering of send/receive nodes is required
+// (enforced via token data dependencies).
+//
+// Note: a proc built with the TokenlessProcBuilder still has token types
+// internally. "Tokenless" refers to the fact that token values are hidden from
+// the builder interface.
+class TokenlessProcBuilder : public ProcBuilder {
+ public:
+  TokenlessProcBuilder(absl::string_view name, const Value& init_value,
+                       absl::string_view token_name,
+                       absl::string_view state_name, Package* package,
+                       bool should_verify = true)
+      : ProcBuilder(name, init_value, token_name, state_name, package,
+                    should_verify) {}
+  virtual ~TokenlessProcBuilder() = default;
+
+  // Build the proc using the given BValue as the recurrent state
+  // respectively. The recurrent token value is a constructed as an AfterAll
+  // operation whose operands are all of the tokens from the
+  // send(if)/receive(if) operations in the proc.
+  absl::StatusOr<Proc*> Build(BValue next_state);
+
+  // Add a receive operation. The type of the data value received is determined
+  // by the channel. The returned BValue is the received data itself (not a
+  // tuple containing a token and the data).
+  using ProcBuilder::Receive;
+  BValue Receive(Channel* channel,
+                 absl::optional<SourceLocation> loc = absl::nullopt,
+                 absl::string_view name = "");
+
+  // Add a receive_if operation. The receive executes conditionally on the value
+  // of the predicate "pred". The type of the data value received is determined
+  // by the channel.  The returned BValue is the received data itself (not a
+  // tuple containing a token and the data).
+  using ProcBuilder::ReceiveIf;
+  BValue ReceiveIf(Channel* channel, BValue pred,
+                   absl::optional<SourceLocation> loc = absl::nullopt,
+                   absl::string_view name = "");
+
+  // Add a send operation.
+  using ProcBuilder::Send;
+  void Send(Channel* channel, BValue data,
+            absl::optional<SourceLocation> loc = absl::nullopt,
+            absl::string_view name = "");
+
+  // Add a send_if operation. The send executes conditionally on the value of
+  // the predicate "pred".
+  using ProcBuilder::SendIf;
+  void SendIf(Channel* channel, BValue pred, BValue data,
+              absl::optional<SourceLocation> loc = absl::nullopt,
+              absl::string_view name = "");
+
+ private:
+  // The tokens from any added send(if)/receive(if) nodes.
+  std::vector<BValue> tokens_;
 };
 
 }  // namespace xls
