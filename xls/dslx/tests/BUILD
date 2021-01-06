@@ -14,7 +14,6 @@
 
 # Interpreter-based standalone tests.
 
-# pytype tests are present in this file
 load("//xls/build_rules:build_defs.bzl", "dslx_test")
 
 package(
@@ -424,29 +423,6 @@ dslx_test(
 dslx_test(
     name = "array_with_binary_dim",
     srcs = ["array_with_binary_dim.x"],
-)
-
-py_test(
-    name = "import_module_with_type_error_test",
-    srcs = ["import_module_with_type_error_test.py"],
-    data = [
-        "colon_ref_builtin.x",
-        "has_type_error.x",
-        "imports_and_causes_ref_error.x",
-        "imports_and_typedefs_dne_type.x",
-        "imports_has_type_error.x",
-        "imports_private_enum.x",
-        "mod_private_enum.x",
-    ],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        "//xls/common:runfiles",
-        "//xls/common:test_base",
-        "//xls/dslx/interpreter:parse_and_interpret",
-        "//xls/dslx/python:cpp_deduce",
-        "//xls/dslx/python:cpp_parser",
-    ],
 )
 
 dslx_test(

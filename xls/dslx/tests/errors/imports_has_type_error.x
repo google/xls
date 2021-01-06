@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.tests.mod_private_enum
+// This import should blow up!
+import xls.dslx.tests.errors.has_type_error
 
-type Dne = mod_private_enum::ReallyDoesNotExist;  // Nonsenical!
+fn main(x: u32) -> u8 {
+  has_type_error::f(x)
+}

@@ -25,48 +25,52 @@ from xls.dslx.python.cpp_parser import CppParseError
 class ImportModuleWithTypeErrorTest(test_base.TestCase):
 
   def test_imports_module_with_type_error(self):
-    path = runfiles.get_path('xls/dslx/tests/imports_has_type_error.x')
+    path = runfiles.get_path('xls/dslx/tests/errors/imports_has_type_error.x')
     with self.assertRaises(Exception) as cm:
       parse_and_interpret.parse_and_test_path(path)
 
-    self.assertIn('xls/dslx/tests/has_type_error.x:16:3-16:4',
+    self.assertIn('xls/dslx/tests/errors/has_type_error.x:16:3-16:4',
                   str(cm.exception))
     self.assertIn('did not match the annotated return type', str(cm.exception))
 
   def test_imports_and_causes_ref_error(self):
-    path = runfiles.get_path('xls/dslx/tests/imports_and_causes_ref_error.x')
+    path = runfiles.get_path(
+        'xls/dslx/tests/errors/imports_and_causes_ref_error.x')
     with self.assertRaises(CppParseError) as cm:
       parse_and_interpret.parse_and_test_path(path)
 
     self.assertIn('ParseError', str(cm.exception.message))
-    self.assertIn('xls/dslx/tests/imports_and_causes_ref_error.x:17:29-17:31',
-                  str(cm.exception.message))
+    self.assertIn(
+        'xls/dslx/tests/errors/imports_and_causes_ref_error.x:17:29-17:31',
+        str(cm.exception.message))
 
   def test_imports_private_enum(self):
-    path = runfiles.get_path('xls/dslx/tests/imports_private_enum.x')
+    path = runfiles.get_path('xls/dslx/tests/errors/imports_private_enum.x')
     with self.assertRaises(TypeInferenceError) as cm:
       parse_and_interpret.parse_and_test_path(path)
 
-    self.assertIn('xls/dslx/tests/imports_private_enum.x:17:14-17:40',
+    self.assertIn('xls/dslx/tests/errors/imports_private_enum.x:17:14-17:40',
                   str(cm.exception.span))
 
   def test_imports_dne(self):
-    path = runfiles.get_path('xls/dslx/tests/imports_and_typedefs_dne_type.x')
+    path = runfiles.get_path(
+        'xls/dslx/tests/errors/imports_and_typedefs_dne_type.x')
     with self.assertRaises(TypeInferenceError) as cm:
       parse_and_interpret.parse_and_test_path(path)
 
-    self.assertIn('xls/dslx/tests/imports_and_typedefs_dne_type.x:17:12-17:48',
-                  str(cm.exception.span))
     self.assertIn(
-        "xls.dslx.tests.mod_private_enum member 'ReallyDoesNotExist' which does not exist",
+        'xls/dslx/tests/errors/imports_and_typedefs_dne_type.x:17:12-17:48',
+        str(cm.exception.span))
+    self.assertIn(
+        "xls.dslx.tests.errors.mod_private_enum member 'ReallyDoesNotExist' which does not exist",
         str(cm.exception))
 
   def test_colon_ref_builtin(self):
-    path = runfiles.get_path('xls/dslx/tests/colon_ref_builtin.x')
+    path = runfiles.get_path('xls/dslx/tests/errors/colon_ref_builtin.x')
     with self.assertRaises(TypeInferenceError) as cm:
       parse_and_interpret.parse_and_test_path(path)
 
-    self.assertIn('xls/dslx/tests/colon_ref_builtin.x:16:9-16:25',
+    self.assertIn('xls/dslx/tests/errors/colon_ref_builtin.x:16:9-16:25',
                   str(cm.exception.span))
     self.assertIn("Builtin 'update' has no attributes", str(cm.exception))
 

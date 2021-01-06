@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This import should blow up!
-import xls.dslx.tests.has_type_error
+import xls.dslx.tests.errors.mod_private_enum
 
-fn main(x: u32) -> u8 {
-  has_type_error::f(x)
+fn main() -> mod_private_enum::EnumType {
+  mod_private_enum::EnumType::SECOND
 }

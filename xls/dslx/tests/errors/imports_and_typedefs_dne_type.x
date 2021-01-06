@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.tests.mod_private_enum
+import xls.dslx.tests.errors.mod_private_enum
 
-fn main() -> mod_private_enum::EnumType {
-  mod_private_enum::EnumType::SECOND
-}
+type Dne = mod_private_enum::ReallyDoesNotExist;  // Nonsenical!
