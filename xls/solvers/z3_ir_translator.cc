@@ -198,16 +198,17 @@ class Z3OpTranslator {
 namespace {
 
 // Helper class for using the AbstractNodeEvaluator to enqueue Z3 expressions.
-class Z3AbstractEvaluator : public AbstractEvaluator<Z3_ast> {
+class Z3AbstractEvaluator
+    : public AbstractEvaluator<Z3_ast, Z3AbstractEvaluator> {
  public:
   explicit Z3AbstractEvaluator(Z3_context z3_ctx) : translator_(z3_ctx) {}
-  Element One() const override { return translator_.Fill(true, 1); }
-  Element Zero() const override { return translator_.Fill(false, 1); }
-  Element Not(const Element& a) const override { return translator_.Not(a); }
-  Element And(const Element& a, const Element& b) const override {
+  Element One() const { return translator_.Fill(true, 1); }
+  Element Zero() const { return translator_.Fill(false, 1); }
+  Element Not(const Element& a) const { return translator_.Not(a); }
+  Element And(const Element& a, const Element& b) const {
     return translator_.And(a, b);
   }
-  Element Or(const Element& a, const Element& b) const override {
+  Element Or(const Element& a, const Element& b) const {
     return translator_.Or(a, b);
   }
 

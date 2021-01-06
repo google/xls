@@ -77,17 +77,16 @@ BddNodeVector ToBddNodeVector(const SaturatingBddNodeVector& input) {
 
 // The abstract evaluator based on a BDD with minterm-saturating logic.
 class SaturatingBddEvaluator
-    : public AbstractEvaluator<SaturatingBddNodeIndex> {
+    : public AbstractEvaluator<SaturatingBddNodeIndex, SaturatingBddEvaluator> {
  public:
   SaturatingBddEvaluator(int64 minterm_limit, BinaryDecisionDiagram* bdd)
       : minterm_limit_(minterm_limit), bdd_(bdd) {}
 
-  SaturatingBddNodeIndex One() const override { return bdd_->one(); }
+  SaturatingBddNodeIndex One() const { return bdd_->one(); }
 
-  SaturatingBddNodeIndex Zero() const override { return bdd_->zero(); }
+  SaturatingBddNodeIndex Zero() const { return bdd_->zero(); }
 
-  SaturatingBddNodeIndex Not(
-      const SaturatingBddNodeIndex& input) const override {
+  SaturatingBddNodeIndex Not(const SaturatingBddNodeIndex& input) const {
     if (absl::holds_alternative<TooManyMinterms>(input)) {
       return TooManyMinterms();
     }
@@ -99,7 +98,7 @@ class SaturatingBddEvaluator
   }
 
   SaturatingBddNodeIndex And(const SaturatingBddNodeIndex& a,
-                             const SaturatingBddNodeIndex& b) const override {
+                             const SaturatingBddNodeIndex& b) const {
     if (absl::holds_alternative<TooManyMinterms>(a) ||
         absl::holds_alternative<TooManyMinterms>(b)) {
       return TooManyMinterms();
@@ -113,7 +112,7 @@ class SaturatingBddEvaluator
   }
 
   SaturatingBddNodeIndex Or(const SaturatingBddNodeIndex& a,
-                            const SaturatingBddNodeIndex& b) const override {
+                            const SaturatingBddNodeIndex& b) const {
     if (absl::holds_alternative<TooManyMinterms>(a) ||
         absl::holds_alternative<TooManyMinterms>(b)) {
       return TooManyMinterms();

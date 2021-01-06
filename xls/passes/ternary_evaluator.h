@@ -23,13 +23,14 @@
 
 namespace xls {
 
-class TernaryEvaluator : public AbstractEvaluator<TernaryValue> {
+class TernaryEvaluator
+    : public AbstractEvaluator<TernaryValue, TernaryEvaluator> {
  public:
-  TernaryValue One() const override { return TernaryValue::kKnownOne; }
+  TernaryValue One() const { return TernaryValue::kKnownOne; }
 
-  TernaryValue Zero() const override { return TernaryValue::kKnownZero; }
+  TernaryValue Zero() const { return TernaryValue::kKnownZero; }
 
-  TernaryValue Not(const TernaryValue& input) const override {
+  TernaryValue Not(const TernaryValue& input) const {
     switch (input) {
       case TernaryValue::kKnownZero:
         return TernaryValue::kKnownOne;
@@ -41,12 +42,11 @@ class TernaryEvaluator : public AbstractEvaluator<TernaryValue> {
     XLS_LOG(FATAL) << "Impossible ternary value: " << input;
   }
 
-  TernaryValue And(const TernaryValue& a,
-                   const TernaryValue& b) const override {
+  TernaryValue And(const TernaryValue& a, const TernaryValue& b) const {
     return ternary_ops::And(a, b);
   }
 
-  TernaryValue Or(const TernaryValue& a, const TernaryValue& b) const override {
+  TernaryValue Or(const TernaryValue& a, const TernaryValue& b) const {
     return ternary_ops::Or(a, b);
   }
 };

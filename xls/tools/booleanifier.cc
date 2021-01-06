@@ -32,7 +32,7 @@ namespace xls {
 
 // Evaluator for converting Nodes representing high-level Ops into
 // single-bit AND/OR/NOT-based ones.
-class BitEvaluator : public AbstractEvaluator<Node*> {
+class BitEvaluator : public AbstractEvaluator<Node*, BitEvaluator> {
  public:
   BitEvaluator(FunctionBuilder* builder)
       : builder_(builder),

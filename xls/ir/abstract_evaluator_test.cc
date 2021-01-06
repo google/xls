@@ -48,17 +48,16 @@ Bits FromBoxedVector(const std::vector<BoxedBool>& input) {
   return rope.Build();
 }
 
-class TestAbstractEvaluator : public AbstractEvaluator<BoxedBool> {
+class TestAbstractEvaluator
+    : public AbstractEvaluator<BoxedBool, TestAbstractEvaluator> {
  public:
-  BoxedBool One() const override { return {true}; }
-  BoxedBool Zero() const override { return {false}; }
-  BoxedBool Not(const BoxedBool& input) const override {
-    return {!input.value};
-  }
-  BoxedBool And(const BoxedBool& a, const BoxedBool& b) const override {
+  BoxedBool One() const { return {true}; }
+  BoxedBool Zero() const { return {false}; }
+  BoxedBool Not(const BoxedBool& input) const { return {!input.value}; }
+  BoxedBool And(const BoxedBool& a, const BoxedBool& b) const {
     return {static_cast<bool>(a.value & b.value)};
   }
-  BoxedBool Or(const BoxedBool& a, const BoxedBool& b) const override {
+  BoxedBool Or(const BoxedBool& a, const BoxedBool& b) const {
     return {static_cast<bool>(a.value | b.value)};
   }
 };

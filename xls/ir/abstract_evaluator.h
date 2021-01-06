@@ -36,19 +36,31 @@ namespace xls {
 // well as the one and zero values. The AbstractEvaluator base class provides
 // implementations of more complicated operations (for example, select or
 // one-hot) as compositions of these fundamental operations.
-template <typename ElementT>
+//
+// The AbstractEvaluator uses the curiously recurring template pattern to avoid
+// the overhead of virtual functions. Classes should be derived like so:
+//
+//   class FooEvaluator : public AbstractEvaluator<FooValue, FooEvaluator> {
+//     ...
+//
+// And define non-virtual methods One, Zero, Not, And, and Or.
+template <typename ElementT, typename EvaluatorT>
 class AbstractEvaluator {
  public:
   using Element = ElementT;
   using Vector = std::vector<Element>;
 
-  virtual ~AbstractEvaluator() = default;
-
-  virtual Element One() const = 0;
-  virtual Element Zero() const = 0;
-  virtual Element Not(const Element& input) const = 0;
-  virtual Element And(const Element& a, const Element& b) const = 0;
-  virtual Element Or(const Element& a, const Element& b) const = 0;
+  Element One() const { return static_cast<const EvaluatorT*>(this)->One(); }
+  Element Zero() const { return static_cast<const EvaluatorT*>(this)->Zero(); }
+  Element Not(const Element& input) const {
+    return static_cast<const EvaluatorT*>(this)->Not(input);
+  }
+  Element And(const Element& a, const Element& b) const {
+    return static_cast<const EvaluatorT*>(this)->And(a, b);
+  }
+  Element Or(const Element& a, const Element& b) const {
+    return static_cast<const EvaluatorT*>(this)->Or(a, b);
+  }
 
   // Returns the given bits value as a Vector type.
   Vector BitsToVector(const Bits& bits) {
@@ -149,27 +161,12 @@ class AbstractEvaluator {
 
   Vector OneHotSelect(const Vector& selector, absl::Span<const Vector> cases,
                       bool selector_can_be_zero) {
-    XLS_CHECK_EQ(selector.size(), cases.size());
-    XLS_CHECK_GT(selector.size(), 0);
-    int64 width = cases.front().size();
-    Vector result(width, Zero());
-    for (int64 i = 0; i < selector.size(); ++i) {
-      result =
-          BitwiseOr(result, BitwiseAnd(cases[i], Vector(width, selector[i])));
+    std::vector<absl::Span<const Element>> case_spans;
+    case_spans.reserve(cases.size());
+    for (const Vector& c : cases) {
+      case_spans.push_back(c);
     }
-    if (!selector_can_be_zero) {
-      // If the selector cannot be zero, then a bit of the output can only be
-      // zero if one of the respective bits of one of the cases is zero.
-      // Construct such a mask and or it with the result.
-      Vector and_reduction(width, One());
-      for (int64 i = 0; i < selector.size(); ++i) {
-        if (selector[i] != Zero()) {
-          and_reduction = BitwiseAnd(and_reduction, cases[i]);
-        }
-      }
-      result = BitwiseOr(and_reduction, result);
-    }
-    return result;
+    return OneHotSelectInternal(selector, case_spans, selector_can_be_zero);
   }
 
   Vector Select(const Vector& selector, absl::Span<const Vector> cases,
@@ -354,6 +351,38 @@ class AbstractEvaluator {
   }
 
  private:
+  // An implementation of OneHotSelect which takes a span of spans of Elements
+  // rather than a span of Vectors. This enables the cases to be overlapping
+  // spans of the same underlying vector as is used in the shift implementation.
+  Vector OneHotSelectInternal(absl::Span<const Element> selector,
+                              absl::Span<const absl::Span<const Element>> cases,
+                              bool selector_can_be_zero) {
+    XLS_CHECK_EQ(selector.size(), cases.size());
+    XLS_CHECK_GT(selector.size(), 0);
+    int64 width = cases.front().size();
+    Vector result(width, Zero());
+    for (int64 i = 0; i < selector.size(); ++i) {
+      for (int64 j = 0; j < width; ++j) {
+        result[j] = Or(result[j], And(cases[i][j], selector[i]));
+      }
+    }
+    if (!selector_can_be_zero) {
+      // If the selector cannot be zero, then a bit of the output can only be
+      // zero if one of the respective bits of one of the cases is zero.
+      // Construct such a mask and or it with the result.
+      Vector and_reduction(width, One());
+      for (int64 i = 0; i < selector.size(); ++i) {
+        if (selector[i] != Zero()) {
+          for (int64 j = 0; j < width; ++j) {
+            and_reduction[j] = And(and_reduction[j], cases[i][j]);
+          }
+        }
+      }
+      result = BitwiseOr(and_reduction, result);
+    }
+    return result;
+  }
+
   // Performs an N-ary logical operation on the given inputs. The operation is
   // defined by the given function.
   Vector NaryOp(absl::Span<const Vector> inputs,
@@ -400,31 +429,80 @@ class AbstractEvaluator {
       selector.push_back(Not(ULessThan(amount, bits_vector(input.size()))));
     }
 
-    // Create a vector of cases where the n-th cases is equal to the input
-    // shifted left by n. The special case of n == input.size() encompasses all
-    // instances of shifting by greater than or equal to the input width because
-    // of the way the selector is constructed.
-    std::vector<Vector> cases(selector.size());
-    for (int64 shift_amount = 0; shift_amount < cases.size(); ++shift_amount) {
+    // Create a span for each case in the one-hot-select. Each span corresponds
+    // to the input vector shifted by a particular amount. Because of this
+    // special structure of the spans, they may be represented a spans (slices)
+    // of the same underlying vector. This is much faster than creating a
+    // separate vector (and allocation) for each case.
+    //
+    // First create an extended version of the input vector where additional
+    // bits are added to the beginning or end of the the vector. These
+    // additional bits ensure that any shift amount corresponds to a particular
+    // slice of the extended vector.
+    //
+    // In the comments below, the input vector is assumed to have the value
+    // 'abcd' where 'a' through 'd' are the various bit values and 'd' is at
+    // index 0.
+    Vector extended;
+    extended.reserve(input.size() + selector.size() - 1);
+    std::vector<absl::Span<const Element>> cases;
+    cases.reserve(selector.size());
+    if (right) {
+      // Shifting right.
+      //
+      // The 'extended' vector and the corresponding slices forming the various
+      // cases are below.
+      //
+      // Arithmetic shift right ('a' is the sign bit):
+      //
+      //                 index
+      //                7......0
+      //  extended   =  aaaaabcd
+      //    cases[0] =      abcd  // shra abcd, 0
+      //    cases[1] =     aabc   // shra abcd, 1
+      //    cases[2] =    aaab    //  ...
+      //    cases[3] =   aaaa
+      //    cases[4] =  aaaa
+      //
+      // Logical shift right:
+      //
+      //  extended   = 0000abcd
+      //    cases[0] =     abcd   // shrl abcd, 0
+      //    cases[1] =    0abc    // shrl abcd, 1
+      //    cases[2] =   00ab     //  ...
+      //    cases[3] =  000a
+      //    cases[4] = 0000
+      extended.insert(extended.begin(), input.begin(), input.end());
+      for (int64 i = 0; i < selector.size() - 1; ++i) {
+        extended.push_back(arithmetic ? input.back() : Zero());
+      }
+      for (int64 i = 0; i < selector.size(); ++i) {
+        cases.push_back(absl::MakeConstSpan(&extended[i], input.size()));
+      }
+    } else {
+      // Logical shift left:
+      //
+      //                 index
+      //               7......0
+      //  extended   = abcd0000
+      //    cases[0] = abcd       // shll abcd, 0
+      //    cases[1] =  bcd0      // shll abcd, 1
+      //    cases[2] =   cd00     // ...
+      //    cases[3] =    c000
+      //    cases[4] =     0000
+      for (int64 i = 0; i < selector.size() - 1; ++i) {
+        extended.push_back(Zero());
+      }
       for (int64 i = 0; i < input.size(); ++i) {
-        if (right) {
-          // Shifting right.
-          if (i + shift_amount >= input.size()) {
-            cases[shift_amount].push_back(arithmetic ? input.back() : Zero());
-          } else {
-            cases[shift_amount].push_back(input[i + shift_amount]);
-          }
-        } else {
-          // Shifting left (necessarily logical).
-          if (shift_amount > i) {
-            cases[shift_amount].push_back(Zero());
-          } else {
-            cases[shift_amount].push_back(input[i - shift_amount]);
-          }
-        }
+        extended.push_back(input[i]);
+      }
+      for (int64 i = 0; i < selector.size(); ++i) {
+        cases.push_back(absl::MakeConstSpan(&extended[selector.size() - 1 - i],
+                                            input.size()));
       }
     }
-    return OneHotSelect(selector, cases, /*selector_can_be_zero=*/false);
+    return OneHotSelectInternal(selector, cases,
+                                /*selector_can_be_zero=*/false);
   }
 };
 
