@@ -2,8 +2,8 @@
 
 Note that right now the in-tree yosys and nextpnr-ice40 builds plugins aren't
 registering properly, see
-[issue #188](https://github.com/google/xls/issues/188). As a result,
-we have to use out-of-tree `yosys` and `nextpnr-ice40` builds for the moment.
+[issue #188](https://github.com/google/xls/issues/188). As a result, we have to
+use out-of-tree `yosys` and `nextpnr-ice40` builds for the moment.
 
 ```
 $ bazel build -c opt //xls/synthesis/yosys:yosys_server_main
@@ -18,9 +18,9 @@ The above runs a gRPC service, so in another terminal pane, we run the
 characterization driver:
 
 ```
-$ bazel run -c opt xls/synthesis:timing_characterization_client_main
+$ bazel run -c opt //xls/synthesis:timing_characterization_client_main
 $ ./bazel-bin/xls/synthesis/timing_characterization_client_main \
-    > xls/delay_model/models/ice40.textproto
+    > ./xls/delay_model/models/ice40.textproto
 ```
 
 This produces a textual representation of the delay model protobuf.

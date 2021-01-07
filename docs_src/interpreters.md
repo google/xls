@@ -32,7 +32,7 @@ To execute directly via the interpreter, you can instead run:
 ```
 bazel build -c opt //xls/dslx/interpreter:interpreter_main
 ./bazel-bin/xls/dslx/interpreter/interpreter_main \
-  xls/examples/adler32.x
+  ./xls/examples/adler32.x
 ```
 
 These two methods are equivalent.
@@ -55,7 +55,7 @@ one would run the following:
 bazel build -c opt //xls/tools:eval_ir_main
 ./bazel-bin/xls/tools/eval_ir_main \
   --input '(bits[1]: 0x0, bits[8]:0x7F, bits[23]:0x0); (bits[1]: 0x0, bits[8]:0x80, bits[23]:0x200000)' \
-  xls/modules/fpadd_2x32.x
+  ./xls/modules/fpadd_2x32.x
 ```
 
 By default, this runs via the JIT. To use the interpreter, add the

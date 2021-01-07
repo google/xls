@@ -70,7 +70,8 @@ _                 // valid
 &ade              // not valid
 ```
 
-However, we suggest the following **DSLX style rules**:
+However, we suggest the following **DSLX style rules**, which mirror the
+[Rust naming conventions](https://doc.rust-lang.org/1.0.0/style/style/naming/README.html).
 
 *   Functions are `written_like_this`
 
@@ -78,8 +79,17 @@ However, we suggest the following **DSLX style rules**:
 
 *   Constant bindings are `NAMES_LIKE_THIS`
 
-*   `_` is the black-hole identifier, as in Python. It should never be used in a
-    binding-reference.
+*   `_` is the "black hole" identifier -- a name that you can bind to but should
+    never read from, akin to Rust's wildcard pattern match or Python's "unused
+    identifier" convention. It should never be referred to in an expression
+    except as a "sink".
+
+NOTE Since mutable locals are not supported, there is also
+[support for "tick identifiers"](https://github.com/google/xls/issues/212),
+where a ' character may appear anywhere after the first character of an
+identifier to indicate "prime"; e.g. `let state' = update(state);`. By
+convention ticks usually come at the end of an identifier. Since this is not
+part of Rust's syntax, it is considered experimental at this time.
 
 ## Functions
 

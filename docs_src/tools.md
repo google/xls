@@ -111,7 +111,7 @@ or other behaviors requiring explanation:
     number of valid entries in an actual instance of `Foo::bar`.
 
     The "Fields" example in
-    `xls/tools/testdata/proto_to_dslx_main.*` demonstrates this
+    `./xls/tools/testdata/proto_to_dslx_main.*` demonstrates this
     behavior.
 
 ## [`simulate_module_main`](https://github.com/google/xls/tree/main/xls/tools/simulate_module_main.cc)

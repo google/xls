@@ -10,8 +10,8 @@ compiler intermediate representation (IR) at native machine speed.
 Given a DSLX file and build target, one can build and run it through the JIT by:
 
 1.  Declaring a
-    [`dslx_jit_wrapper`](http://cs/xls/build/build_defs.bzl) target
-    matching the DSLX build target.
+    [`dslx_jit_wrapper`](https://github.com/google/xls/tree/main/xls/build/build_defs.bzl)
+    target matching the DSLX build target.
 2.  Creating a JIT object and calling its `Run()` method. Using the 2-way
     floating-point adder as an example:
 
