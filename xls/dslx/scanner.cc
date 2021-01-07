@@ -122,9 +122,12 @@ absl::StatusOr<Token> Scanner::PopWhitespace(const Pos& start_pos) {
 
 absl::StatusOr<Token> Scanner::ScanIdentifierOrKeyword(char startc,
                                                        const Pos& start_pos) {
-  std::string s = ScanWhile(startc, [](char c) {
-    return std::isalpha(c) || std::isdigit(c) || c == '_' || c == '!';
-  });
+  // The leading character is `startc` so we scan out trailing identifiers.
+  auto is_trailing_identifier_char = [](char c) {
+    return std::isalpha(c) || std::isdigit(c) || c == '_' || c == '!' ||
+           c == '\'';
+  };
+  std::string s = ScanWhile(startc, is_trailing_identifier_char);
   Span span(start_pos, GetPos());
   if (absl::optional<Keyword> keyword = GetKeyword(s)) {
     return Token(span, *keyword);

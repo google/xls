@@ -522,3 +522,8 @@ dslx_test(
     name = "function_called_in_derived_parametric_struct_simple",
     srcs = ["function_called_in_derived_parametric_struct_simple.x"],
 )
+
+dslx_test(
+    name = "identifiers_with_ticks",
+    srcs = ["identifiers_with_ticks.x"],
+)

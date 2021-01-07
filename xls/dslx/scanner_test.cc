@@ -21,6 +21,9 @@
 namespace xls::dslx {
 namespace {
 
+using status_testing::StatusIs;
+using testing::HasSubstr;
+
 TEST(ScannerTest, SimpleTokens) {
   std::string text = "+ - ++ << >>";
   Scanner s("fake_file.x", text);
@@ -52,6 +55,28 @@ TEST(ScannerTest, BoolKeywords) {
   EXPECT_TRUE(tokens[1].IsKeyword(Keyword::kFalse));
   EXPECT_TRUE(tokens[2].IsKeyword(Keyword::kBool));
   EXPECT_EQ(tokens[0].ToErrorString(), "keyword:true");
+}
+
+TEST(ScannerTest, IdentifierWithTick) {
+  std::string text = "state state' state'' s'";
+  Scanner s("fake_file.x", text);
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Token> tokens, s.PopAll());
+  ASSERT_EQ(4, tokens.size());
+  EXPECT_TRUE(tokens[0].IsIdentifier("state"));
+  EXPECT_TRUE(tokens[1].IsIdentifier("state'"));
+  EXPECT_TRUE(tokens[2].IsIdentifier("state''"));
+  EXPECT_TRUE(tokens[3].IsIdentifier("s'"));
+}
+
+TEST(ScannerTest, TickCannotStartAnIdentifier) {
+  std::string text = "'state";
+  Scanner s("fake_file.x", text);
+  EXPECT_THAT(
+      s.PopAll(),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "Expected closing single quote for character literal; got t")));
 }
 
 }  // namespace
