@@ -926,6 +926,14 @@ TEST_P(IrEvaluatorTest, InterpretShll) {
   args = {{"a", Value(UBits(0b11111111, 8))}, {"b", Value(UBits(7, 8))}};
   EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
               IsOkAndHolds(Value(UBits(0b10000000, 8))));
+
+  // Overshift.
+  args = {{"a", Value(UBits(0b11111111, 8))}, {"b", Value(UBits(8, 8))}};
+  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+              IsOkAndHolds(Value(UBits(0, 8))));
+  args = {{"a", Value(UBits(0b11111111, 8))}, {"b", Value(UBits(128, 8))}};
+  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+              IsOkAndHolds(Value(UBits(0, 8))));
 }
 
 TEST_P(IrEvaluatorTest, InterpretShllNarrowShiftAmount) {
@@ -994,6 +1002,14 @@ TEST_P(IrEvaluatorTest, InterpretShrl) {
   args = {{"a", Value(UBits(0b11111111, 8))}, {"b", Value(UBits(7, 8))}};
   EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
               IsOkAndHolds(Value(UBits(0b00000001, 8))));
+
+  // Overshift.
+  args = {{"a", Value(UBits(0b11111111, 8))}, {"b", Value(UBits(8, 8))}};
+  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+              IsOkAndHolds(Value(UBits(0, 8))));
+  args = {{"a", Value(UBits(0b11111111, 8))}, {"b", Value(UBits(200, 8))}};
+  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+              IsOkAndHolds(Value(UBits(0, 8))));
 }
 
 TEST_P(IrEvaluatorTest, InterpretShrlBits64) {
@@ -1043,6 +1059,14 @@ TEST_P(IrEvaluatorTest, InterpretShra) {
   args = {{"a", Value(UBits(0b11111111, 8))}, {"b", Value(UBits(7, 8))}};
   EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
               IsOkAndHolds(Value(UBits(0b11111111, 8))));
+
+  // Overshift.
+  args = {{"a", Value(UBits(0b11111111, 8))}, {"b", Value(UBits(100, 8))}};
+  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+              IsOkAndHolds(Value(UBits(0b11111111, 8))));
+  args = {{"a", Value(UBits(0b01111111, 8))}, {"b", Value(UBits(100, 8))}};
+  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+              IsOkAndHolds(Value(UBits(0, 8))));
 }
 
 TEST_P(IrEvaluatorTest, InterpretShraNarrowShiftAmount) {

@@ -341,8 +341,13 @@ absl::Status FunctionBuilderVisitor::HandleDynamicBitSlice(
       llvm::Constant * zeros,
       type_converter_->ToLlvmConstant(return_type,
                                       Value(Bits(dynamic_bit_slice->width()))));
-  // Then shift and truncate the input value.
-  llvm::Value* shifted_value = builder_->CreateLShr(value_ext, start_ext);
+  // Then shift and truncate the input value. Set the shift amount to the 0 in
+  // the case of overshift to avoid creating a poisonous shift value which can
+  // run afoul of LLVM optimization bugs. The shifted value is not even used in
+  // this case.
+  llvm::Value* shift_amount = builder_->CreateSelect(
+      out_of_bounds, llvm::ConstantInt::get(max_width_type, 0), start_ext);
+  llvm::Value* shifted_value = builder_->CreateLShr(value_ext, shift_amount);
   llvm::Value* truncated_value =
       builder_->CreateTrunc(shifted_value, return_type);
   llvm::Value* result =
@@ -1132,28 +1137,36 @@ llvm::Value* FunctionBuilderVisitor::EmitShiftOp(Op op, llvm::Value* lhs,
   llvm::Type* dest_type = llvm::IntegerType::get(ctx_, common_width);
   lhs = builder_->CreateZExt(lhs, dest_type);
   rhs = builder_->CreateZExt(rhs, dest_type);
-  // In LLVM, shift overflow creates poison. In XLS, it creates zero.
-  llvm::Value* overflows = builder_->CreateICmpUGE(
+  // In LLVM, an overshifted shift creates poison.
+  llvm::Value* is_overshift = builder_->CreateICmpUGE(
       rhs, llvm::ConstantInt::get(dest_type, common_width));
 
   llvm::Value* inst;
   llvm::Value* zero = llvm::ConstantInt::get(dest_type, 0);
-  llvm::Value* overflow_value = zero;
+  llvm::Value* overshift_value = zero;
+  // In the event of potential overshift (shift amount >= width of operand)
+  // replace the shift amount with zero to avoid creating a poison value. The
+  // motiviation is that LLVM has buggy optimizations which sometimes improperly
+  // propagate poison values, particularly through selects. In the case where
+  // the shift amount is replaced with zero, the shift valued is not even used
+  // (selected in the Select instruction) so correctness is not affected.
+  llvm::Value* safe_rhs = builder_->CreateSelect(is_overshift, zero, rhs);
+
   if (op == Op::kShll) {
-    inst = builder_->CreateShl(lhs, rhs);
+    inst = builder_->CreateShl(lhs, safe_rhs);
   } else if (op == Op::kShra) {
     llvm::Value* high_bit = builder_->CreateLShr(
         lhs, llvm::ConstantInt::get(dest_type,
                                     lhs->getType()->getIntegerBitWidth() - 1));
     llvm::Value* high_bit_set =
         builder_->CreateICmpEQ(high_bit, llvm::ConstantInt::get(dest_type, 1));
-    overflow_value = builder_->CreateSelect(
+    overshift_value = builder_->CreateSelect(
         high_bit_set, llvm::ConstantInt::getSigned(dest_type, -1), zero);
-    inst = builder_->CreateAShr(lhs, rhs);
+    inst = builder_->CreateAShr(lhs, safe_rhs);
   } else {
-    inst = builder_->CreateLShr(lhs, rhs);
+    inst = builder_->CreateLShr(lhs, safe_rhs);
   }
-  return builder_->CreateSelect(overflows, overflow_value, inst);
+  return builder_->CreateSelect(is_overshift, overshift_value, inst);
 }
 
 llvm::Value* FunctionBuilderVisitor::EmitDiv(llvm::Value* lhs, llvm::Value* rhs,
