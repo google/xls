@@ -159,6 +159,7 @@ class IrConverter {
   absl::Status HandleTernary(Ternary* node);
   absl::Status HandleConstantArray(ConstantArray* node);
   absl::Status HandleConcat(Binop* node, BValue lhs, BValue rhs);
+  absl::Status HandleNumber(Number* node);
 
   // Builtin invocation handlers.
   absl::Status HandleBuiltinAndReduce(Invocation* node);
@@ -190,10 +191,9 @@ class IrConverter {
       AstNode* node,
       const std::function<BValue(absl::optional<SourceLocation>)>& ir_func);
 
-  // Def(), but for constant/constexpr values.
-  CValue DefConst(
-      AstNode* node, Value ir_value,
-      const std::function<BValue(absl::optional<SourceLocation>)>& ir_func);
+  // Def(), but for constant/constexpr values, adds a literal as the IR
+  // function.
+  CValue DefConst(AstNode* node, Value ir_value);
 
   // Package that IR is being generated into.
   std::shared_ptr<Package> package_;

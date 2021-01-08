@@ -220,6 +220,11 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
            [](IrConverter& self, UnopHolder node) {
              return self.HandleUnop(&node.deref());
            })
+      .def("handle_number",
+           [](IrConverter& self, NumberHolder node) {
+             return self.HandleNumber(&node.deref());
+           })
+      // -- Builtins
       .def("handle_builtin_and_reduce",
            [](IrConverter& self, InvocationHolder node) {
              return self.HandleBuiltinAndReduce(&node.deref());

@@ -101,23 +101,11 @@ BValue IrConverter::Def(
 }
 
 IrConverter::CValue IrConverter::DefConst(
-    AstNode* node, IrLiteral ir_value,
-    const std::function<BValue(absl::optional<SourceLocation>)>& ir_func) {
-  absl::optional<SourceLocation> loc;
-  absl::optional<Span> span = node->GetSpan();
-  if (emit_positions_ && span.has_value()) {
-    const Pos& start_pos = span->start();
-    Lineno lineno(start_pos.lineno());
-    Colno colno(start_pos.colno());
-    // TODO(leary): 2020-12-20 Figure out the fileno based on the module owner
-    // of node.
-    loc.emplace(fileno_, lineno, colno);
-  }
-
-  BValue result = ir_func(loc);
-  XLS_VLOG(4) << absl::StreamFormat("Define node '%s' (%s) to be %s @ %s",
-                                    node->ToString(), node->GetNodeTypeName(),
-                                    ToString(result), SpanToString(span));
+    AstNode* node, IrLiteral ir_value) {
+  auto ir_func = [&](absl::optional<SourceLocation> loc) {
+    return function_builder_->Literal(ir_value, loc);
+  };
+  BValue result = Def(node, ir_func);
   CValue c_value{ir_value, result};
   SetNodeToIr(node, c_value);
   return c_value;
@@ -191,6 +179,15 @@ absl::Status IrConverter::HandleConcat(Binop* node, BValue lhs, BValue rhs) {
   Def(node, [&](absl::optional<SourceLocation> loc) {
     return function_builder_->ArrayConcat(pieces, loc);
   });
+  return absl::OkStatus();
+}
+
+absl::Status IrConverter::HandleNumber(Number* node) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type, ResolveType(node));
+  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim dim, type->GetTotalBitCount());
+  int64 bit_count = absl::get<int64>(dim.value());
+  XLS_ASSIGN_OR_RETURN(Bits bits, node->GetBits(bit_count));
+  DefConst(node, Value(bits));
   return absl::OkStatus();
 }
 
@@ -543,9 +540,7 @@ absl::Status IrConverter::HandleConstantArray(ConstantArray* node) {
     }
   }
   Value ir_value = IrLiteral::Array(std::move(values)).value();
-  DefConst(node, ir_value, [&](absl::optional<SourceLocation> loc) {
-    return function_builder_->Literal(ir_value, loc);
-  });
+  DefConst(node, ir_value);
   return absl::OkStatus();
 }
 

@@ -551,19 +551,9 @@ class Number : public Expr {
   void AcceptExpr(ExprVisitor* v) override { v->HandleNumber(this); }
 
   absl::string_view GetNodeTypeName() const override { return "Number"; }
-  std::vector<AstNode*> GetChildren(bool want_types) const override {
-    if (type_ == nullptr) {
-      return {};
-    }
-    return {type_};
-  }
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
 
-  std::string ToString() const override {
-    if (type_ != nullptr) {
-      return absl::StrFormat("%s:%s", type_->ToString(), text_);
-    }
-    return text_;
-  }
+  std::string ToString() const override;
 
   TypeAnnotation* type() const { return type_; }
   void set_type(TypeAnnotation* type) { type_ = type; }

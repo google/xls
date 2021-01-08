@@ -392,10 +392,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
                 [self._use(node.index)])
 
   def visit_Number(self, node: ast.Number):
-    type_ = self._resolve_type(node)
-    bit_count = type_.get_total_bit_count().value
-    assert isinstance(bit_count, int), bit_count
-    self._def_const(node, ast_helpers.get_value_as_int(node), bit_count)
+    self.state.handle_number(node)
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Constant(self, node: ast.Constant) -> None:

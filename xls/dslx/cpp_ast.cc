@@ -996,12 +996,28 @@ std::string Let::ToString() const {
                          rhs_->ToString(), body_->ToString());
 }
 
+// -- class Number
+
 Number::Number(Module* owner, Span span, std::string text, NumberKind kind,
                TypeAnnotation* type)
     : Expr(owner, std::move(span)),
       text_(std::move(text)),
       kind_(kind),
       type_(type) {}
+
+std::vector<AstNode*> Number::GetChildren(bool want_types) const {
+  if (type_ == nullptr) {
+    return {};
+  }
+  return {type_};
+}
+
+std::string Number::ToString() const {
+  if (type_ != nullptr) {
+    return absl::StrFormat("%s:%s", type_->ToString(), text_);
+  }
+  return text_;
+}
 
 absl::StatusOr<Bits> Number::GetBits(int64 bit_count) const {
   switch (kind_) {
