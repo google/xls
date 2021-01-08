@@ -148,46 +148,8 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
   def add_constant_dep(self, constant: ast.Constant) -> None:
     self.state.add_constant_dep(constant)
 
-  def _type_to_ir(self, concrete_type: ConcreteType) -> type_mod.Type:
-    """Converts a concrete type to its corresponding IR representation."""
-    assert isinstance(concrete_type, ConcreteType), concrete_type
-    logging.vlog(4, 'Converting concrete type to IR: %s', concrete_type)
-    if isinstance(concrete_type, ArrayType):
-      element_type = self._type_to_ir(concrete_type.get_element_type())
-      element_count = concrete_type.size.value
-      if not isinstance(element_count, int):
-        raise ValueError(
-            'Expect array element count to be integer; got {!r}'.format(
-                element_count))
-      result = self.package.get_array_type(element_count, element_type)
-      logging.vlog(
-          4, 'Converted type to IR; concrete type: %s ir: %s element_count: %s',
-          concrete_type, result, concrete_type.size)
-      return result
-    elif isinstance(concrete_type, BitsType) or isinstance(
-        concrete_type, EnumType):
-      return self.package.get_bits_type(
-          concrete_type.get_total_bit_count().value)
-    else:
-      if not isinstance(concrete_type, TupleType):
-        raise ValueError(
-            'Expect type to be bits/enum, array, or tuple; got: '
-            f'{concrete_type} ({concrete_type!r})')
-      members = tuple(
-          self._type_to_ir(m) for m in concrete_type.get_unnamed_members())
-      return self.package.get_tuple_type(members)
-
   def _resolve_type_to_ir(self, node: ast.AstNode) -> type_mod.Type:
-    concrete_type = self._resolve_type(node)
-    assert isinstance(concrete_type, ConcreteType), concrete_type
-    try:
-      return self._type_to_ir(concrete_type)
-    except ValueError as e:
-      if 'Expect type to be' in str(e):
-        raise ConversionError(f'Could not resolve type: {e}', node.span)
-      if 'Expect array element count to be' in str(e):
-        raise ConversionError(f'Could not resolve type: {e}', node.span)
-      raise
+    return self.state.resolve_type_to_ir(node)
 
   def _def(self, node: ast.AstNode, ir_func: Callable[..., BValue], *args,
            **kwargs) -> BValue:

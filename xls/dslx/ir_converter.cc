@@ -587,4 +587,41 @@ absl::Status ConversionErrorStatus(const absl::optional<Span>& span,
                       span ? span->ToString() : "<no span>", message));
 }
 
+absl::StatusOr<xls::Type*> IrConverter::ResolveTypeToIr(AstNode* node) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> concrete_type,
+                       ResolveType(node));
+  return TypeToIr(*concrete_type);
+}
+
+absl::StatusOr<xls::Type*> IrConverter::TypeToIr(
+    const ConcreteType& concrete_type) {
+  XLS_VLOG(4) << "Converting concrete type to IR: " << concrete_type;
+  if (auto* array_type = dynamic_cast<const ArrayType*>(&concrete_type)) {
+    XLS_ASSIGN_OR_RETURN(xls::Type * element_type,
+                         TypeToIr(array_type->element_type()));
+    int64 element_count = absl::get<int64>(array_type->size().value());
+    xls::Type* result = package_->GetArrayType(element_count, element_type);
+    XLS_VLOG(4) << "Converted type to IR; concrete type: " << concrete_type
+                << " ir: " << result->ToString()
+                << " element_count: " << element_count;
+    return result;
+  }
+  if (auto* bits_type = dynamic_cast<const BitsType*>(&concrete_type)) {
+    int64 bit_count = absl::get<int64>(bits_type->size().value());
+    return package_->GetBitsType(bit_count);
+  }
+  if (auto* enum_type = dynamic_cast<const EnumType*>(&concrete_type)) {
+    int64 bit_count = absl::get<int64>(enum_type->size().value());
+    return package_->GetBitsType(bit_count);
+  }
+  auto* tuple_type = dynamic_cast<const TupleType*>(&concrete_type);
+  XLS_RET_CHECK(tuple_type != nullptr) << concrete_type;
+  std::vector<xls::Type*> members;
+  for (const ConcreteType* m : tuple_type->GetUnnamedMembers()) {
+    XLS_ASSIGN_OR_RETURN(xls::Type * type, TypeToIr(*m));
+    members.push_back(type);
+  }
+  return package_->GetTupleType(std::move(members));
+}
+
 }  // namespace xls::dslx

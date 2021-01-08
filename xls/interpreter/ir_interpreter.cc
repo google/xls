@@ -361,30 +361,14 @@ absl::Status IrInterpreter::HandleIdentity(UnOp* identity) {
   return SetValueResult(identity, ResolveAsValue(identity->operand(0)));
 }
 
-namespace {
-
-// Returns the tuple index value (tuple of bits values used in array
-// index/update operations) as a vector of bits values. Returns an error if
-// index_value is not a tuple of bits-typed values (array index/update
-// operations do no flattening in the case of a single element tuple index).
-absl::StatusOr<std::vector<Bits>> IndexValueToBitsVector(
-    const Value& index_value) {
-  XLS_RET_CHECK(index_value.IsTuple());
-  std::vector<Bits> bits_vec;
-  for (const Value& element : index_value.elements()) {
-    XLS_RET_CHECK(element.IsBits());
-    bits_vec.push_back(element.bits());
-  }
-  return bits_vec;
-}
-
 // Recursive function for setting an element of a multidimensional array to a
 // particular value. 'indices' is a multidimensional array index of type tuple
 // of bits. 'value' is what to assign at the array element at the particular
 // index. 'elements' is a vector of the outer-most elements of the array being
 // indexed into.
-absl::Status SetArrayElement(absl::Span<const Bits> indices, const Value& value,
-                             std::vector<Value>* elements) {
+static absl::Status SetArrayElement(absl::Span<const Bits> indices,
+                                    const Value& value,
+                                    std::vector<Value>* elements) {
   XLS_RET_CHECK(!indices.empty());
   uint64 index = BitsToBoundedUint64(indices.front(), elements->size());
   if (index >= elements->size()) {
@@ -408,8 +392,6 @@ absl::Status SetArrayElement(absl::Span<const Bits> indices, const Value& value,
   (*elements)[index] = array_element;
   return absl::OkStatus();
 }
-
-}  // namespace
 
 absl::Status IrInterpreter::HandleArrayIndex(ArrayIndex* index) {
   const Value* array = &ResolveAsValue(index->array());

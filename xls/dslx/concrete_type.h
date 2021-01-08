@@ -142,6 +142,11 @@ class ConcreteType {
   bool IsNil() const;
 };
 
+inline std::ostream& operator<<(std::ostream& os, const ConcreteType& t) {
+  os << t.ToString();
+  return os;
+}
+
 // Represents a tuple type.
 //
 // Tuples can have unnamed members or named members. In any case, you can

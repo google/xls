@@ -88,6 +88,9 @@ class IrConverter {
   // Resolves node's type and resolves all of its dimensions via `ResolveDim()`.
   absl::StatusOr<std::unique_ptr<ConcreteType>> ResolveType(AstNode* node);
 
+  // Helper that composes ResolveType() and TypeToIr().
+  absl::StatusOr<xls::Type*> ResolveTypeToIr(AstNode* node);
+
   // -- Accessors
 
   // IR package being populated with IR entities as part of the conversion.
@@ -171,6 +174,9 @@ class IrConverter {
   absl::Status HandleBuiltinXorReduce(Invocation* node);
 
  private:
+  // Converts a concrete type to its corresponding IR representation.
+  absl::StatusOr<xls::Type*> TypeToIr(const ConcreteType& concrete_type);
+
   static std::string SpanToString(const absl::optional<Span>& span) {
     if (!span.has_value()) {
       return "<no span>";

@@ -106,6 +106,13 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
           [](IrConverter& self, ExprHolder expr) {
             self.set_last_expression(&expr.deref());
           })
+      .def("resolve_type_to_ir",
+           [](IrConverter& self,
+              AstNodeHolder ast_node) -> absl::StatusOr<TypeHolder> {
+             XLS_ASSIGN_OR_RETURN(xls::Type * type,
+                                  self.ResolveTypeToIr(&ast_node.deref()));
+             return TypeHolder(type, self.package());
+           })
       .def("set_node_to_ir",
            [](IrConverter& self, AstNodeHolder node, BValueHolder value) {
              self.SetNodeToIr(&node.deref(), value.deref());
