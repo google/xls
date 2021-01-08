@@ -22,6 +22,7 @@
 #include "absl/types/optional.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/vast.h"
+#include "xls/common/proto_adaptor_utils.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
@@ -29,10 +30,6 @@ namespace xls {
 namespace verilog {
 
 class ModuleSignature;
-
-inline std::string ToProtoString(absl::string_view s) {
-  return std::string(s);
-}
 
 // A builder for constructing ModuleSignatures (descriptions of Verilog module
 // interfaces).

@@ -17,6 +17,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/module_signature.h"
+#include "xls/common/proto_adaptor_utils.h"
 #include "xls/ir/proc.h"
 
 namespace xls {
@@ -33,7 +34,7 @@ class GeneratorOptions {
   GeneratorOptions& reset(absl::string_view name, bool asynchronous,
                           bool active_low) {
     reset_proto_ = ResetProto();
-    reset_proto_->set_name(name);
+    reset_proto_->set_name(ToProtoString(name));
     reset_proto_->set_asynchronous(asynchronous);
     reset_proto_->set_active_low(active_low);
     return *this;
