@@ -52,7 +52,7 @@ def dslx_generated_rtl(
         name = name + "_ir",
         srcs = [src] + deps,
         outs = [name + ".ir"],
-        cmd = "$(location %s) $(SRCS) > $@" % _IR_CONVERTER_MAIN,
+        cmd = "$(location %s) --dslx_path=$(GENDIR) $(SRCS) > $@" % _IR_CONVERTER_MAIN,
         exec_tools = [_IR_CONVERTER_MAIN],
         tags = tags,
         **kwargs
