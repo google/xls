@@ -135,16 +135,6 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
   def set_last_expression(self, value):
     self.state.last_expression = value
 
-  def _extract_module_level_constants(self, m: ast.Module):
-    """Populates `self.symbolic_bindings` with module-level constant values."""
-    for constant in m.get_constants():
-      if isinstance(constant.value, ast.Number):
-        value = ast_helpers.get_value_as_int(constant.value)
-        logging.vlog(
-            3, 'Found module-level constant %s for symbolic bindings: %s',
-            constant.name.identifier, value)
-        self.state.set_symbolic_binding(constant.name.identifier, value)
-
   def add_constant_dep(self, constant: ast.Constant) -> None:
     self.state.add_constant_dep(constant)
 
@@ -1048,7 +1038,6 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       self, node: ast.Function,
       symbolic_bindings: Optional[SymbolicBindings]) -> ir_function.Function:
     self.state.set_symbolic_bindings(symbolic_bindings)
-    self._extract_module_level_constants(self.module)
     # We use a function builder for the duration of converting this
     # ast.Function. When it's done being built, we drop the reference to it (by
     # setting self.fb to None).
