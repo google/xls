@@ -182,6 +182,21 @@ absl::Status IrConverter::HandleConcat(Binop* node, BValue lhs, BValue rhs) {
   return absl::OkStatus();
 }
 
+SymbolicBindings IrConverter::GetSymbolicBindingsTuple() const {
+  absl::flat_hash_set<std::string> module_level_constant_identifiers;
+  for (const ConstantDef* constant : module_->GetConstantDefs()) {
+    module_level_constant_identifiers.insert(constant->identifier());
+  }
+  absl::flat_hash_map<std::string, int64> sans_module_level_constants;
+  for (const auto& item : symbolic_binding_map_) {
+    if (module_level_constant_identifiers.contains(item.first)) {
+      continue;
+    }
+    sans_module_level_constants[item.first] = item.second;
+  }
+  return SymbolicBindings(std::move(sans_module_level_constants));
+}
+
 absl::Status IrConverter::HandleNumber(Number* node) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type, ResolveType(node));
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim dim, type->GetTotalBitCount());

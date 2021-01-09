@@ -150,6 +150,32 @@ class IrConverter {
     return SymbolicBindings(symbolic_binding_map_);
   }
 
+  // Returns the symbolic bindings in symbolic_binding_map_ that are not
+  // module-level constants -- the typechecker doesn't care about module-level
+  // constants.
+  //
+  // TODO(leary): 2020-01-08 This seems broken, what if a local parametric
+  // shadows a module-level constant? We should use "stacked" bindings that look
+  // like a scope chain.
+  SymbolicBindings GetSymbolicBindingsTuple() const;
+
+  // Returns the symbolic bindings to be used in the callee for this invocation.
+  //
+  // We must provide the current evaluation context (module_name, function_name,
+  // caller_symbolic_bindings) in order to retrieve the correct symbolic
+  // bindings to use in the callee invocation.
+  //
+  // Args:
+  //  invocation: Invocation that the bindings are being retrieved for.
+  //
+  // Returns:
+  //  The symbolic bindings for the given invocation.
+  absl::optional<const SymbolicBindings*> GetInvocationBindings(
+      Invocation* invocation) const {
+    SymbolicBindings key = GetSymbolicBindingsTuple();
+    return type_info_->GetInvocationSymbolicBindings(invocation, key);
+  }
+
   const Fileno& fileno() const { return fileno_; }
 
   // AstNode handlers.

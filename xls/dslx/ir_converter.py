@@ -374,7 +374,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       assert isinstance(index_slice, ast.Slice), index_slice
 
       start, width = self.type_info.get_slice_start_width(
-          index_slice, self._get_symbolic_bindings_tuple())
+          index_slice, self.state.get_symbolic_bindings_tuple())
       self._def(node, self.fb.add_bit_slice, self._use(node.lhs), start, width)
     else:
       visit(node.index, self)
@@ -665,37 +665,6 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     self._def(node, self.fb.add_counted_for, self._use(node.init), trip_count,
               stride, body_function, invariant_args)
 
-  def _get_symbolic_bindings_tuple(self) -> SymbolicBindings:
-    # We only consider function symbolic bindings for invocations.
-    # The typechecker doesn't care about module-level constants.
-    module_level_constants = {
-        c.name.identifier
-        for c in self.module.get_constants()
-        if isinstance(c.value, ast.Number)
-    }
-    return SymbolicBindings(
-        tuple((k, v)
-              for k, v in self.state.get_symbolic_bindings_items()
-              if k not in module_level_constants))
-
-  def _get_invocation_bindings(self,
-                               invocation: ast.Invocation) -> SymbolicBindings:
-    """Returns the symbolic bindings of the invocation.
-
-    We must provide the current evaluation context (module name, function name,
-    symbolic bindings) in order to retrieve the correct symbolic bindings to use
-    in the invocation.
-
-    Args:
-      invocation: Invocation that the bindings are being retrieved for.
-
-    Returns:
-      The symbolic bindings for the given invocation.
-    """
-
-    key = self._get_symbolic_bindings_tuple()
-    return self.type_info.get_invocation_symbolic_bindings(invocation, key)
-
   def _get_callee_identifier(self, node: ast.Invocation) -> Text:
     logging.vlog(3, 'Getting callee identifier for invocation: %s', node)
     if isinstance(node.callee, ast.NameRef):
@@ -718,7 +687,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       return cpp_ir_converter.mangle_dslx_name(
           function.name.identifier, function.get_free_parametric_keys(), m,
           None)
-    resolved_symbolic_bindings = self._get_invocation_bindings(node)
+    resolved_symbolic_bindings = self.state.get_invocation_bindings(node)
     logging.vlog(2, 'Node %s @ %s symbolic bindings %r', node, node.span,
                  resolved_symbolic_bindings)
     assert resolved_symbolic_bindings, node
@@ -759,8 +728,9 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     if isinstance(fn_node, ast.NameRef):
       map_fn_name = fn_node.name_def.identifier
       if map_fn_name in cpp_dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
-        return self._def_map_with_builtin(node, fn_node, node.args[0],
-                                          self._get_invocation_bindings(node))
+        return self._def_map_with_builtin(
+            node, fn_node, node.args[0],
+            self.state.get_invocation_bindings(node))
       else:
         lookup_module = self.module
         fn = lookup_module.get_function(map_fn_name)
@@ -774,7 +744,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       raise NotImplementedError(
           'Unhandled function mapping: {!r}'.format(fn_node))
 
-    node_sym_bindings = self._get_invocation_bindings(node)
+    node_sym_bindings = self.state.get_invocation_bindings(node)
     mangled_name = cpp_ir_converter.mangle_dslx_name(
         fn.name.identifier, fn.get_free_parametric_keys(), lookup_module,
         node_sym_bindings)
@@ -916,7 +886,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     interp_value = interp.run_function(
         name=fn_name,
         args=args,
-        symbolic_bindings=self._get_invocation_bindings(node))
+        symbolic_bindings=self.state.get_invocation_bindings(node))
     ir_value = self._interp_value_to_ir_value(interp_value)
     logging.vlog(3, '[Constexpr] Interpreted: %s with (%s): %s',
                  module.get_function(fn_name),

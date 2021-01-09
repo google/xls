@@ -189,6 +189,18 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
              }
              return result;
            })
+      .def("get_symbolic_bindings_tuple",
+           &IrConverter::GetSymbolicBindingsTuple)
+      .def("get_invocation_bindings",
+           [](IrConverter& self, InvocationHolder invocation) {
+             absl::optional<const SymbolicBindings*> result =
+                 self.GetInvocationBindings(&invocation.deref());
+             if (result.has_value()) {
+               return **result;
+             }
+             throw py::key_error("Could not find bindings for invocation: " +
+                                 invocation.deref().ToString());
+           })
       .def("get_and_bump_counted_for_count",
            &IrConverter::GetAndBumpCountedForCount)
       .def("get_const_bits",
