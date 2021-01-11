@@ -594,35 +594,8 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     self._def(node, self.fb.add_counted_for, self._use(node.init), trip_count,
               stride, body_function, invariant_args)
 
-  def _get_callee_identifier(self, node: ast.Invocation) -> Text:
-    logging.vlog(3, 'Getting callee identifier for invocation: %s', node)
-    if isinstance(node.callee, ast.NameRef):
-      callee_name = node.callee.identifier
-      m = self.module
-    elif isinstance(node.callee, ast.ColonRef):
-      m = dict(
-          self.type_info.get_imports())[node.callee.subject.name_def.definer][0]
-      callee_name = node.callee.attr
-    else:
-      raise NotImplementedError('Callee not currently supported @ {}'.format(
-          node.span))
-    try:
-      function = m.get_function(callee_name)
-    except KeyError:
-      # For e.g. builtins that are not in the module we just provide the name
-      # directly.
-      return callee_name
-    if not function.is_parametric():
-      return cpp_ir_converter.mangle_dslx_name(
-          function.name.identifier, function.get_free_parametric_keys(), m,
-          None)
-    resolved_symbolic_bindings = self.state.get_invocation_bindings(node)
-    logging.vlog(2, 'Node %s @ %s symbolic bindings %r', node, node.span,
-                 resolved_symbolic_bindings)
-    assert resolved_symbolic_bindings, node
-    return cpp_ir_converter.mangle_dslx_name(
-        function.name.identifier, function.get_free_parametric_keys(), m,
-        resolved_symbolic_bindings)
+  def _get_callee_identifier(self, node: ast.Invocation) -> str:
+    return self.state.get_callee_identifier(node)
 
   def _def_map_with_builtin(self, parent_node: ast.Invocation,
                             node: ast.NameRef, arg: ast.AstNode,

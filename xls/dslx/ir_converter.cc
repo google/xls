@@ -218,6 +218,50 @@ absl::Status IrConverter::HandleXlsTuple(XlsTuple* node) {
   return absl::OkStatus();
 }
 
+absl::StatusOr<std::string> IrConverter::GetCalleeIdentifier(Invocation* node) {
+  XLS_VLOG(3) << "Getting callee identifier for invocation: "
+              << node->ToString();
+  Expr* callee = node->callee();
+  std::string callee_name;
+  Module* m;
+  if (auto* name_ref = dynamic_cast<NameRef*>(callee)) {
+    callee_name = name_ref->identifier();
+    m = module_;
+  } else if (auto* colon_ref = dynamic_cast<ColonRef*>(callee)) {
+    callee_name = colon_ref->attr();
+    absl::optional<Import*> import = colon_ref->ResolveImportSubject();
+    XLS_RET_CHECK(import.has_value());
+    absl::optional<const ImportedInfo*> info = type_info_->GetImported(*import);
+    m = (*info)->module.get();
+  } else {
+    return absl::InternalError("Invalid callee: " + callee->ToString());
+  }
+
+  absl::optional<Function*> f = m->GetFunction(callee_name);
+  if (!f.has_value()) {
+    // For e.g. builtins that are not in the module we just provide the name
+    // directly.
+    return callee_name;
+  }
+
+  std::vector<std::string> free_keys_vector = (*f)->GetFreeParametricKeys();
+  absl::btree_set<std::string> free_keys(free_keys_vector.begin(),
+                                         free_keys_vector.end());
+  if (!(*f)->IsParametric()) {
+    return MangleDslxName((*f)->identifier(), free_keys, m);
+  }
+
+  absl::optional<const SymbolicBindings*> resolved_symbolic_bindings =
+      GetInvocationBindings(node);
+  XLS_RET_CHECK(resolved_symbolic_bindings.has_value());
+  XLS_VLOG(2) << absl::StreamFormat("Node %s @ %s symbolic bindings %s",
+                                    node->ToString(), node->span().ToString(),
+                                    (*resolved_symbolic_bindings)->ToString());
+  XLS_RET_CHECK(!(*resolved_symbolic_bindings)->empty());
+  return MangleDslxName((*f)->identifier(), free_keys, m,
+                        resolved_symbolic_bindings.value());
+}
+
 absl::Status IrConverter::HandleBinop(Binop* node) {
   absl::optional<const ConcreteType*> lhs_type =
       type_info_->GetItem(node->lhs());
@@ -703,7 +747,7 @@ absl::Status IrConverter::HandleConstantArray(ConstantArray* node) {
 absl::StatusOr<std::string> MangleDslxName(
     absl::string_view function_name,
     const absl::btree_set<std::string>& free_keys, Module* module,
-    SymbolicBindings* symbolic_bindings) {
+    const SymbolicBindings* symbolic_bindings) {
   absl::btree_set<std::string> symbolic_bindings_keys;
   std::vector<int64> symbolic_bindings_values;
   if (symbolic_bindings != nullptr) {

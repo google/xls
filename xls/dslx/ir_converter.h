@@ -222,6 +222,8 @@ class IrConverter {
   absl::Status CastToArray(Cast* node, const ArrayType& output_type);
   absl::Status CastFromArray(Cast* node, const ConcreteType& output_type);
 
+  absl::StatusOr<std::string> GetCalleeIdentifier(Invocation* node);
+
  private:
   template <typename T>
   absl::StatusOr<T> DerefStructOrEnumFromNameRef(
@@ -303,7 +305,7 @@ class IrConverter {
 absl::StatusOr<std::string> MangleDslxName(
     absl::string_view function_name,
     const absl::btree_set<std::string>& free_keys, Module* module,
-    SymbolicBindings* symbolic_bindings = nullptr);
+    const SymbolicBindings* symbolic_bindings = nullptr);
 
 // Returns a status that indicates an error in the IR conversion process.
 absl::Status ConversionErrorStatus(const absl::optional<Span>& span,

@@ -1127,19 +1127,9 @@ class Invocation : public Expr {
   void AcceptExpr(ExprVisitor* v) override { v->HandleInvocation(this); }
 
   absl::string_view GetNodeTypeName() const override { return "Invocation"; }
-  std::vector<AstNode*> GetChildren(bool want_types) const override {
-    std::vector<AstNode*> results = {callee_};
-    for (Expr* arg : args_) {
-      results.push_back(arg);
-    }
-    return results;
-  }
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
 
-  std::string FormatArgs() const {
-    return absl::StrJoin(args_, ", ", [](std::string* out, Expr* e) {
-      absl::StrAppend(out, e->ToString());
-    });
-  }
+  std::string FormatArgs() const;
 
   std::string FormatParametrics() const;
 
@@ -1990,7 +1980,8 @@ class Module : public AstNode, public std::enable_shared_from_this<Module> {
 
   // Gets a function in this module with the given "target_name", or returns a
   // NotFoundError.
-  absl::StatusOr<Function*> GetFunction(absl::string_view target_name);
+  absl::optional<Function*> GetFunction(absl::string_view target_name);
+  absl::StatusOr<Function*> GetFunctionOrError(absl::string_view target_name);
 
   // Gets a test construct in this module with the given "target_name", or
   // returns a NotFoundError.

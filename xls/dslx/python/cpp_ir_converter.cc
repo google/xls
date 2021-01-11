@@ -249,6 +249,10 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
              return EnumDefHolder(enum_def,
                                   enum_def->owner()->shared_from_this());
            })
+      .def("get_callee_identifier",
+           [](IrConverter& self, InvocationHolder node) {
+             return self.GetCalleeIdentifier(&node.deref());
+           })
       .def("resolve_dim", &IrConverter::ResolveDim)
       .def("resolve_type",
            [](IrConverter& self, AstNodeHolder node) {

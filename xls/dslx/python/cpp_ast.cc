@@ -197,7 +197,7 @@ PYBIND11_MODULE(cpp_ast, m) {
                [](ModuleHolder module, absl::string_view target_name)
                    -> absl::StatusOr<FunctionHolder> {
                  absl::StatusOr<Function*> f =
-                     module.deref().GetFunction(target_name);
+                     module.deref().GetFunctionOrError(target_name);
                  if (!f.status().ok() &&
                      f.status().code() == absl::StatusCode::kNotFound) {
                    throw py::key_error(std::string(f.status().message()));

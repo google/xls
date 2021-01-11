@@ -1592,7 +1592,7 @@ static absl::StatusOr<Function*> ResolveColonRefToFn(ColonRef* ref,
   XLS_RET_CHECK(import != nullptr);
   absl::optional<const ImportedInfo*> imported_info =
       ctx->type_info()->GetImported(import);
-  return imported_info.value()->module->GetFunction(ref->attr());
+  return imported_info.value()->module->GetFunctionOrError(ref->attr());
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
@@ -1661,7 +1661,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
     auto* name_ref = dynamic_cast<NameRef*>(callee);
     XLS_RET_CHECK(name_ref != nullptr);
     callee_name = name_ref->identifier();
-    XLS_ASSIGN_OR_RETURN(callee_fn, ctx->module()->GetFunction(callee_name));
+    XLS_ASSIGN_OR_RETURN(callee_fn,
+                         ctx->module()->GetFunctionOrError(callee_name));
   }
 
   // We need to deduce the type of all Invocation parametrics so they're in the

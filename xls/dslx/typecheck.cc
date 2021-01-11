@@ -162,14 +162,15 @@ absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
       absl::optional<const ImportedInfo*> imported =
           ctx->type_info()->GetImported(import_node);
       XLS_RET_CHECK(imported.has_value());
-      XLS_ASSIGN_OR_RETURN(map_fn,
-                           (*imported)->module->GetFunction(*map_fn_name));
+      XLS_ASSIGN_OR_RETURN(
+          map_fn, (*imported)->module->GetFunctionOrError(*map_fn_name));
       higher_order_parametric_bindings = (*map_fn)->parametric_bindings();
     } else {
       auto* name_ref = dynamic_cast<NameRef*>(map_fn_ref);
       map_fn_name = name_ref->identifier();
       if (!GetParametricBuiltins().contains(*map_fn_name)) {
-        XLS_ASSIGN_OR_RETURN(map_fn, ctx->module()->GetFunction(*map_fn_name));
+        XLS_ASSIGN_OR_RETURN(map_fn,
+                             ctx->module()->GetFunctionOrError(*map_fn_name));
         higher_order_parametric_bindings = (*map_fn)->parametric_bindings();
       }
     }

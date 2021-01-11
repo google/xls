@@ -349,7 +349,7 @@ Param::Param(Module* owner, NameDef* name_def, TypeAnnotation* type)
 
 // -- class Module
 
-absl::StatusOr<Function*> Module::GetFunction(absl::string_view target_name) {
+absl::optional<Function*> Module::GetFunction(absl::string_view target_name) {
   for (ModuleMember& member : top_) {
     if (absl::holds_alternative<Function*>(member)) {
       Function* f = absl::get<Function*>(member);
@@ -357,6 +357,14 @@ absl::StatusOr<Function*> Module::GetFunction(absl::string_view target_name) {
         return f;
       }
     }
+  }
+  return absl::nullopt;
+}
+
+absl::StatusOr<Function*> Module::GetFunctionOrError(
+    absl::string_view target_name) {
+  if (absl::optional<Function*> f = GetFunction(target_name)) {
+    return f.value();
   }
   return absl::NotFoundError(absl::StrFormat(
       "No function in module %s with name \"%s\"", name_, target_name));
@@ -663,6 +671,20 @@ Invocation::Invocation(Module* owner, Span span, Expr* callee,
       callee_(callee),
       args_(std::move(args)),
       parametrics_(std::move(parametrics)) {}
+
+std::vector<AstNode*> Invocation::GetChildren(bool want_types) const {
+  std::vector<AstNode*> results = {callee_};
+  for (Expr* arg : args_) {
+    results.push_back(arg);
+  }
+  return results;
+}
+
+std::string Invocation::FormatArgs() const {
+  return absl::StrJoin(args_, ", ", [](std::string* out, Expr* e) {
+    absl::StrAppend(out, e->ToString());
+  });
+}
 
 std::string Invocation::FormatParametrics() const {
   if (parametrics_.empty()) {
