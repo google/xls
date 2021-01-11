@@ -206,6 +206,18 @@ absl::Status IrConverter::HandleNumber(Number* node) {
   return absl::OkStatus();
 }
 
+absl::Status IrConverter::HandleXlsTuple(XlsTuple* node) {
+  std::vector<BValue> operands;
+  for (Expr* o : node->members()) {
+    XLS_ASSIGN_OR_RETURN(BValue v, Use(o));
+    operands.push_back(v);
+  }
+  Def(node, [this, &operands](absl::optional<SourceLocation> loc) {
+    return function_builder_->Tuple(std::move(operands), loc);
+  });
+  return absl::OkStatus();
+}
+
 absl::Status IrConverter::HandleBinop(Binop* node) {
   absl::optional<const ConcreteType*> lhs_type =
       type_info_->GetItem(node->lhs());

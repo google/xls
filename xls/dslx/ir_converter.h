@@ -187,6 +187,7 @@ class IrConverter {
   absl::Status HandleConstantArray(ConstantArray* node);
   absl::Status HandleConcat(Binop* node, BValue lhs, BValue rhs);
   absl::Status HandleNumber(Number* node);
+  absl::Status HandleXlsTuple(XlsTuple* node);
 
   // Builtin invocation handlers.
   absl::Status HandleBuiltinAndReduce(Invocation* node);

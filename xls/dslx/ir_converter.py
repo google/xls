@@ -252,6 +252,9 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
   def _next_counted_for_ordinal(self) -> int:
     return self.state.get_and_bump_counted_for_count()
 
+  def _visit(self, node: ast.AstNode) -> None:
+    visit(node, self)
+
   def _visit_matcher(self, matcher: ast.NameDefTree, index: Tuple[int, ...],
                      matched_value: BValue,
                      matched_type: ConcreteType) -> BValue:
@@ -263,7 +266,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
         return self._def(matcher, self.fb.add_literal_bits,
                          bits_mod.UBits(1, 1))
       elif isinstance(leaf, (ast.Number, ast.ColonRef)):
-        visit(leaf, self)
+        self._visit(leaf)
         return self._def(matcher, self.fb.add_eq, self._use(leaf),
                          matched_value)
       elif isinstance(leaf, ast.NameRef):
@@ -297,7 +300,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
           'Only matches with trailing irrefutable patterns are currently handled.',
           node.span)
 
-    visit(node.matched, self)
+    self._visit(node.matched)
     matched = self._use(node.matched)
     matched_type = self._resolve_type(node.matched)
 
@@ -307,7 +310,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
         'conversion.')
     self._visit_matcher(default_arm.patterns[0], (len(node.arms) - 1,), matched,
                         matched_type)
-    visit(default_arm.expr, self)
+    self._visit(default_arm.expr)
 
     arm_selectors = []
     arm_values = []
@@ -324,7 +327,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
         arm_selectors.append(self.fb.add_nary_or(this_arm_selectors))
       else:
         arm_selectors.append(this_arm_selectors[0])
-      visit(arm.expr, self)
+      self._visit(arm.expr)
       arm_values.append(self._use(arm.expr))
 
     # So now we have the following representation of the match arms:
@@ -349,7 +352,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
 
   def _visit_width_slice(self, node: ast.Index, width_slice: ast.WidthSlice,
                          lhs_type: ConcreteType) -> None:
-    visit(width_slice.start, self)
+    self._visit(width_slice.start)
     self._def(node, self.fb.add_dynamic_bit_slice, self._use(node.lhs),
               self._use(width_slice.start),
               self._resolve_type(node).get_total_bit_count().value)
@@ -359,10 +362,10 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Index(self, node: ast.Index) -> None:
-    visit(node.lhs, self)
+    self._visit(node.lhs)
     lhs_type = self.type_info.get_type(node.lhs)
     if isinstance(lhs_type, TupleType):
-      visit(node.index, self)
+      self._visit(node.index)
       self._def(node, self.fb.add_tuple_index, self._use(node.lhs),
                 self._get_const(node.index, signed=False))
     elif isinstance(lhs_type, BitsType):
@@ -375,7 +378,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
           index_slice, self.state.get_symbolic_bindings_tuple())
       self._def(node, self.fb.add_bit_slice, self._use(node.lhs), start, width)
     else:
-      visit(node.index, self)
+      self._visit(node.index)
       self._def(node, self.fb.add_array_index, self._use(node.lhs),
                 [self._use(node.index)])
 
@@ -384,7 +387,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Constant(self, node: ast.Constant) -> None:
-    visit(node.value, self)
+    self._visit(node.value)
     logging.vlog(5, 'Aliasing NameDef for constant: %r', node.name)
     self._def_alias(node.value, to=node.name)
 
@@ -393,7 +396,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     array_type = self._resolve_type(node)
     members = []
     for member in node.members:
-      visit(member, self)
+      self._visit(member)
       members.append(self._use(member))
     if node.has_ellipsis:
       while len(members) < array_type.size.value:
@@ -405,7 +408,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Cast(self, node: ast.Cast) -> None:
-    visit(node.expr, self)
+    self._visit(node.expr)
     output_type = self._resolve_type(node)
     if isinstance(output_type, ArrayType):
       return self.state.cast_to_array(node, output_type)
@@ -429,16 +432,15 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       self._def(node, f, self._use(node.expr), new_bit_count)
 
   def visit_XlsTuple(self, node: ast.XlsTuple) -> None:
-    operands = tuple(self._use(o) for o in node.members)
-    self._def(node, self.fb.add_tuple, operands)
+    self.state.handle_xls_tuple(node)
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_SplatStructInstance(self, node: ast.SplatStructInstance) -> None:
-    visit(node.splatted, self)
+    self._visit(node.splatted)
     orig = self._use(node.splatted)
     updates = {}
     for k, e in node.members:
-      visit(e, self)
+      self._visit(e)
       updates[k] = self._use(e)
     struct = self.state.deref_struct(node.struct)
 
@@ -457,7 +459,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     all_are_constant = True
     const_operands = []
     for _, m in node.get_ordered_members(struct):
-      visit(m, self)
+      self._visit(m)
       operands.append(self._use(m))
       if not ast.is_constant(m):
         all_are_constant = False
@@ -478,7 +480,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_For(self, node: ast.For) -> None:
-    visit(node.init, self)
+    self._visit(node.init)
 
     def query_const_range_call() -> int:
       """Returns trip count if this is a `for ... in range(CONST)` construct."""
@@ -502,7 +504,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
             "'range(0, const)' call is supported, found inappropriate number "
             'of arguments.', node.span)
       arg = node.iterable.args[1]
-      visit(arg, self)
+      self._visit(arg)
       if not self._is_const(arg):
         raise ConversionError(
             'For-loop is of an unsupported form for IR conversion; only a '
@@ -580,7 +582,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
           body_converter.fb.add_param(name_def.identifier,
                                       self._resolve_type_to_ir(name_def)))
 
-    visit(node.body, body_converter)
+    body_converter._visit(node.body)  # pylint: disable=protected-access
     body_function = body_converter.fb.build()
     logging.vlog(3, 'Converted body function: %s', body_function.name)
 
@@ -648,7 +650,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
 
   def _visit_map(self, node: ast.Invocation) -> BValue:
     for arg in node.args[:-1]:
-      visit(arg, self)
+      self._visit(arg)
     arg = self._use(node.args[0])
     fn_node = node.args[1]
 
@@ -694,7 +696,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
 
     def accept_args() -> Tuple[BValue, ...]:
       for arg in node.args:
-        visit(arg, self)
+        self._visit(arg)
       return tuple(self._use(arg) for arg in node.args)
 
     if called_name == 'fail!':
@@ -850,15 +852,15 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
         return
       raise
     value = enum.get_value(node.attr)
-    visit(value, self)
+    self._visit(value)
     self._def_alias(from_=value, to=node)
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Let(self, node: ast.Let):
-    visit(node.rhs, self)
+    self._visit(node.rhs)
     if node.name_def_tree.is_leaf():
       self._def_alias(node.rhs, to=node.name_def_tree.get_leaf())
-      visit(node.body, self)
+      self._visit(node.body)
       self._def_alias(node.body, node)
     else:
       # Walk the tree performing tuple_index operations to get to the binding
@@ -889,7 +891,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
           self._def_alias(x, x.get_leaf())
 
       ast_helpers.do_preorder(node.name_def_tree, walk)
-      visit(node.body, self)
+      self._visit(node.body)
       self._def_alias(node.body, to=node)
 
     if self.state.last_expression is None:
@@ -913,7 +915,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     self.state.instantiate_function_builder(mangled_name)
 
     for param in node.params:
-      visit(param, self)
+      self._visit(param)
 
     for parametric_binding in node.parametric_bindings:
       logging.vlog(4, 'Resolving parametric binding %s', parametric_binding)
@@ -930,10 +932,10 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       self._def_alias(parametric_binding, to=parametric_binding.name)
 
     for dep in self.state.constant_deps:
-      visit(dep, self)
+      self._visit(dep)
     self.state.clear_constant_deps()
 
-    visit(node.body, self)
+    self._visit(node.body)
 
     last_expression = self.state.last_expression or node.body
     if isinstance(last_expression, ast.NameRef):

@@ -278,6 +278,10 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
            [](IrConverter& self, NumberHolder node) {
              return self.HandleNumber(&node.deref());
            })
+      .def("handle_xls_tuple",
+           [](IrConverter& self, XlsTupleHolder node) {
+             return self.HandleXlsTuple(&node.deref());
+           })
       // -- Builtins
       .def("handle_builtin_and_reduce",
            [](IrConverter& self, InvocationHolder node) {
