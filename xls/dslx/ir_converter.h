@@ -19,6 +19,7 @@
 
 #include "absl/container/btree_set.h"
 #include "xls/dslx/cpp_ast.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_info.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/package.h"
@@ -199,6 +200,9 @@ class IrConverter {
   absl::Status HandleBuiltinSignex(Invocation* node);
   absl::Status HandleBuiltinUpdate(Invocation* node);
   absl::Status HandleBuiltinXorReduce(Invocation* node);
+
+  static absl::StatusOr<Value> InterpValueToValue(const InterpValue& v);
+  static absl::StatusOr<InterpValue> ValueToInterpValue(const Value& v);
 
  private:
   // Converts a concrete type to its corresponding IR representation.

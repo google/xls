@@ -893,6 +893,7 @@ cc_library(
         ":cpp_ast",
         ":cpp_type_info",
         ":deduce_ctx",
+        ":interp_value",
         "//xls/ir",
         "//xls/ir:function_builder",
         "@com_google_absl//absl/container:btree",

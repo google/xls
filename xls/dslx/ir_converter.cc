@@ -495,6 +495,51 @@ absl::Status IrConverter::HandleBuiltinXorReduce(Invocation* node) {
   return absl::OkStatus();
 }
 
+/* static */ absl::StatusOr<Value> IrConverter::InterpValueToValue(
+    const InterpValue& iv) {
+  switch (iv.tag()) {
+    case InterpValueTag::kSBits:
+    case InterpValueTag::kUBits:
+    case InterpValueTag::kEnum:
+      return Value(iv.GetBitsOrDie());
+    case InterpValueTag::kTuple:
+    case InterpValueTag::kArray: {
+      std::vector<Value> ir_values;
+      for (const InterpValue& e : iv.GetValuesOrDie()) {
+        XLS_ASSIGN_OR_RETURN(Value ir_value, InterpValueToValue(e));
+        ir_values.push_back(std::move(ir_value));
+      }
+      if (iv.tag() == InterpValueTag::kTuple) {
+        return Value::Tuple(std::move(ir_values));
+      }
+      return Value::Array(std::move(ir_values));
+    }
+    default:
+      return absl::InvalidArgumentError(
+          "Cannot convert interpreter value with tag: " +
+          TagToString(iv.tag()));
+  }
+}
+
+/* static */ absl::StatusOr<InterpValue> IrConverter::ValueToInterpValue(
+    const Value& v) {
+  switch (v.kind()) {
+    case ValueKind::kBits:
+      return InterpValue::MakeBits(InterpValueTag::kUBits, v.bits());
+    case ValueKind::kArray:
+    case ValueKind::kTuple: {
+      std::vector<InterpValue> members;
+      for (const Value& e : v.elements()) {
+        XLS_ASSIGN_OR_RETURN(InterpValue iv, ValueToInterpValue(e));
+        members.push_back(iv);
+      }
+      return InterpValue::MakeTuple(std::move(members));
+    }
+    default:
+      return absl::InvalidArgumentError(
+          "Cannot convert IR value to interpreter value: " + v.ToString());
+  }
+}
 
 absl::StatusOr<ConcreteTypeDim> IrConverter::ResolveDim(ConcreteTypeDim dim) {
   while (

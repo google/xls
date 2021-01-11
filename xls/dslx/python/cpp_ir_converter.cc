@@ -47,6 +47,7 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
   py::module::import("xls.ir.python.package");
   py::module::import("xls.ir.python.function_builder");
   py::module::import("xls.dslx.python.cpp_ast");
+  py::module::import("xls.dslx.python.interp_value");
 
   py::class_<IrConverter>(m, "IrConverter")
       .def(py::init([](PackageHolder package, ModuleHolder module,
@@ -201,6 +202,8 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
              throw py::key_error("Could not find bindings for invocation: " +
                                  invocation.deref().ToString());
            })
+      .def_static("value_to_interp_value", &IrConverter::ValueToInterpValue)
+      .def_static("interp_value_to_value", &IrConverter::InterpValueToValue)
       .def("get_and_bump_counted_for_count",
            &IrConverter::GetAndBumpCountedForCount)
       .def("get_const_bits",

@@ -435,6 +435,7 @@ xls_pybind_extension(
         ":cpp_deduce",  # build_cleaner: keep
         ":cpp_type_info",  # build_cleaner: keep
         ":cpp_concrete_type",  # build_cleaner: keep
+        ":interp_value",  # build_cleaner: keep
         ":import_routines",  # build_cleaner: keep
     ],
     deps = [

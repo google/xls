@@ -41,8 +41,6 @@ from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.dslx.python.cpp_pos import Span
 from xls.dslx.python.cpp_type_info import SymbolicBindings
 from xls.dslx.python.import_routines import ImportCache
-from xls.dslx.python.interp_value import Tag as InterpValueTag
-from xls.dslx.python.interp_value import Value as InterpValue
 from xls.dslx.python.interpreter import Interpreter
 from xls.dslx.span import PositionalError
 from xls.ir.python import bits as bits_mod
@@ -454,10 +452,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       f = self.fb.add_signext if signed_input else self.fb.add_zeroext
       self._def(node, f, self._use(node.expr), new_bit_count)
 
-  @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_XlsTuple(self, node: ast.XlsTuple) -> None:
-    for o in node.members:
-      visit(o, self)
     operands = tuple(self._use(o) for o in node.members)
     self._def(node, self.fb.add_tuple, operands)
 
@@ -881,48 +876,17 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       cvalue = self.state.get_node_to_ir(arg)
       assert isinstance(cvalue, tuple)
       assert isinstance(cvalue[0], IrValue)
-      args.append(self._cvalue_to_interp_value(cvalue[0]))
+      args.append(self.state.value_to_interp_value(cvalue[0]))
 
     interp_value = interp.run_function(
         name=fn_name,
         args=args,
         symbolic_bindings=self.state.get_invocation_bindings(node))
-    ir_value = self._interp_value_to_ir_value(interp_value)
+    ir_value = self.state.interp_value_to_value(interp_value)
     logging.vlog(3, '[Constexpr] Interpreted: %s with (%s): %s',
                  module.get_function(fn_name),
                  ','.join(str(x) for x in node.args), ir_value)
     return ir_value
-
-  def _interp_value_to_ir_value(self, value: InterpValue) -> IrValue:
-    """Converts an InterpValue to an IR Value."""
-    if value.is_bits() or value.is_enum():
-      return IrValue(value.get_bits())
-    elif value.is_array():
-      elements = []
-      for element in value.get_elements():
-        elements.append(self._interp_value_to_ir_value(element))
-      return IrValue.make_array(elements)
-    elif value.is_tuple():
-      elements = []
-      for element in value.get_elements():
-        elements.append(self._interp_value_to_ir_value(element))
-      return IrValue.make_tuple(elements)
-    else:
-      raise NotImplementedError(f'Unknown/unsupported InterpValue: {value.tag}')
-
-  def _cvalue_to_interp_value(self, node: IrValue) -> InterpValue:
-    """Converts an Expr AST node into the corresponding InterpValue."""
-    if node.is_bits():
-      return InterpValue.make_bits(InterpValueTag.UBITS, node.get_bits())
-    elif node.is_array():
-      return InterpValue.make_array(
-          [self._cvalue_to_interp_value(x) for x in node.get_elements()])
-    elif node.is_tuple():
-      return InterpValue.make_tuple(
-          [self._cvalue_to_interp_value(x) for x in node.get_elements()])
-    else:
-      raise NotImplementedError(
-          'Unknown/unsupported IR value (not bits, array, or tuple).')
 
   def visit_ConstRef(self, node: ast.ConstRef) -> None:
     self._def_alias(node.name_def, to=node)
