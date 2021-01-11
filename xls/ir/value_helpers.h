@@ -73,11 +73,12 @@ inline bool ValueConformsToType(const Value& value, Type* type) {
   }
 }
 
-// Converts a float value in C++ to a 3-tuple suitable for feeding the XLS rsqrt
-// routine.
+// Converts a float value in C++ to a 3-tuple suitable for feeding DSLX F32
+// routines as the type is defined the standard library; see
+// `xls/dslx/stdlib/float32.x`.
 Value F32ToTuple(float value);
 
-// Converts a 3-tuple (XLS rsqrt routine float representation) into a C++ float.
+// Converts a 3-tuple F32 (as noted in F32ToTuple above) into a C++ float.
 absl::StatusOr<float> TupleToF32(const Value& v);
 
 }  // namespace xls
