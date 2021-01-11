@@ -521,6 +521,44 @@ absl::Status IrConverter::HandleBuiltinXorReduce(Invocation* node) {
   }
 }
 
+absl::Status IrConverter::CastToArray(Cast* node,
+                                      const ArrayType& output_type) {
+  XLS_ASSIGN_OR_RETURN(BValue bits, Use(node->expr()));
+  std::vector<BValue> slices;
+  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim element_bit_count_dim,
+                       output_type.element_type().GetTotalBitCount());
+  int64 element_bit_count = absl::get<int64>(element_bit_count_dim.value());
+  int64 array_size = absl::get<int64>(output_type.size().value());
+  // MSb becomes lowest-indexed array element.
+  for (int64 i = 0; i < array_size; ++i) {
+    slices.push_back(function_builder_->BitSlice(bits, i * element_bit_count,
+                                                 element_bit_count));
+  }
+  std::reverse(slices.begin(), slices.end());
+  xls::Type* element_type = package_->GetBitsType(element_bit_count);
+  Def(node, [this, &slices, element_type](absl::optional<SourceLocation> loc) {
+    return function_builder_->Array(std::move(slices), element_type, loc);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status IrConverter::CastFromArray(Cast* node,
+                                        const ConcreteType& output_type) {
+  XLS_ASSIGN_OR_RETURN(BValue array, Use(node->expr()));
+  XLS_ASSIGN_OR_RETURN(xls::Type * input_type, ResolveTypeToIr(node->expr()));
+  xls::ArrayType* array_type = input_type->AsArrayOrDie();
+  const int64 array_size = array_type->size();
+  std::vector<BValue> pieces;
+  for (int64 i = 0; i < array_size; ++i) {
+    BValue index = function_builder_->Literal(UBits(i, 32));
+    pieces.push_back(function_builder_->ArrayIndex(array, {index}));
+  }
+  Def(node, [this, &pieces](absl::optional<SourceLocation> loc) {
+    return function_builder_->Concat(std::move(pieces), loc);
+  });
+  return absl::OkStatus();
+}
+
 absl::StatusOr<IrConverter::DerefVariant> IrConverter::DerefStructOrEnum(
     TypeDefinition node) {
   while (absl::holds_alternative<TypeDef*>(node)) {

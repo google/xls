@@ -218,6 +218,9 @@ class IrConverter {
         name_ref, [this](TypeDefinition td) { return DerefEnum(td); });
   }
 
+  absl::Status CastToArray(Cast* node, const ArrayType& output_type);
+  absl::Status CastFromArray(Cast* node, const ConcreteType& output_type);
+
  private:
   template <typename T>
   absl::StatusOr<T> DerefStructOrEnumFromNameRef(

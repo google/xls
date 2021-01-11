@@ -204,6 +204,11 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
            })
       .def_static("value_to_interp_value", &IrConverter::ValueToInterpValue)
       .def_static("interp_value_to_value", &IrConverter::InterpValueToValue)
+      .def(
+          "cast_to_array",
+          [](IrConverter& self, CastHolder node, const ArrayType& output_type) {
+            return self.CastToArray(&node.deref(), output_type);
+          })
       .def("get_and_bump_counted_for_count",
            &IrConverter::GetAndBumpCountedForCount)
       .def("get_const_bits",

@@ -403,36 +403,12 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
   def visit_ConstantArray(self, node: ast.ConstantArray) -> None:
     self.state.handle_constant_array(node)
 
-  def _cast_to_array(self, node: ast.Cast, output_type: ConcreteType) -> None:
-    bits = self._use(node.expr)
-    slices = []
-    assert isinstance(output_type, ArrayType), output_type
-    element_bit_count = output_type.get_element_type().get_total_bit_count(
-    ).value
-    # MSb becomes lowest-indexed array element.
-    for i in range(0,
-                   output_type.get_total_bit_count().value, element_bit_count):
-      slices.append(self.fb.add_bit_slice(bits, i, element_bit_count))
-    slices.reverse()
-    element_type = self.package.get_bits_type(element_bit_count)
-    self._def(node, self.fb.add_array, slices, element_type)
-
-  def _cast_from_array(self, node: ast.Cast, output_type: ConcreteType) -> None:
-    array = self._use(node.expr)
-    array_type = self._resolve_type_to_ir(node.expr)
-    pieces = []
-    for i in range(array_type.get_size()):
-      pieces.append(
-          self.fb.add_array_index(
-              array, [self.fb.add_literal_bits(bits_mod.UBits(i, 32))]))
-    self._def(node, self.fb.add_concat, pieces)
-
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Cast(self, node: ast.Cast) -> None:
     visit(node.expr, self)
     output_type = self._resolve_type(node)
     if isinstance(output_type, ArrayType):
-      return self._cast_to_array(node, output_type)
+      return self.state.cast_to_array(node, output_type)
     if not (isinstance(output_type, BitsType) or
             isinstance(output_type, EnumType)):
       raise NotImplementedError(
@@ -440,7 +416,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
           f'{output_type} @ {node.span} ({output_type!r})')
     input_type = self._resolve_type(node.expr)
     if isinstance(input_type, ArrayType):
-      return self._cast_from_array(node, output_type)
+      return self.state.cast_from_array(node, output_type)
     new_bit_count = output_type.get_total_bit_count().value
     input_type = self._resolve_type(node.expr)
     if new_bit_count < input_type.get_total_bit_count().value:
