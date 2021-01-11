@@ -204,7 +204,37 @@ class IrConverter {
   static absl::StatusOr<Value> InterpValueToValue(const InterpValue& v);
   static absl::StatusOr<InterpValue> ValueToInterpValue(const Value& v);
 
+  // Derefences the type definition to a struct definition.
+  absl::StatusOr<StructDef*> DerefStruct(TypeDefinition node);
+  absl::StatusOr<StructDef*> DerefStruct(NameRef* name_ref) {
+    return DerefStructOrEnumFromNameRef<StructDef*>(
+        name_ref, [this](TypeDefinition td) { return DerefStruct(td); });
+  }
+
+  // Derefences the type definition to a enum definition.
+  absl::StatusOr<EnumDef*> DerefEnum(TypeDefinition node);
+  absl::StatusOr<EnumDef*> DerefEnum(NameRef* name_ref) {
+    return DerefStructOrEnumFromNameRef<EnumDef*>(
+        name_ref, [this](TypeDefinition td) { return DerefEnum(td); });
+  }
+
  private:
+  template <typename T>
+  absl::StatusOr<T> DerefStructOrEnumFromNameRef(
+      NameRef* name_ref,
+      const std::function<absl::StatusOr<T>(TypeDefinition)>& f) {
+    AnyNameDef any_name_def = name_ref->name_def();
+    auto* name_def = absl::get<NameDef*>(any_name_def);
+    AstNode* definer = name_def->definer();
+    XLS_ASSIGN_OR_RETURN(TypeDefinition td, ToTypeDefinition(definer));
+    return f(td);
+  }
+
+  // Dereferences a type definition to either a struct definition or enum
+  // definition.
+  using DerefVariant = absl::variant<StructDef*, EnumDef*>;
+  absl::StatusOr<DerefVariant> DerefStructOrEnum(TypeDefinition node);
+
   // Converts a concrete type to its corresponding IR representation.
   absl::StatusOr<xls::Type*> TypeToIr(const ConcreteType& concrete_type);
 

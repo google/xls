@@ -521,6 +521,52 @@ absl::Status IrConverter::HandleBuiltinXorReduce(Invocation* node) {
   }
 }
 
+absl::StatusOr<IrConverter::DerefVariant> IrConverter::DerefStructOrEnum(
+    TypeDefinition node) {
+  while (absl::holds_alternative<TypeDef*>(node)) {
+    auto* type_def = absl::get<TypeDef*>(node);
+    TypeAnnotation* annotation = type_def->type();
+    if (auto* type_ref_annotation =
+            dynamic_cast<TypeRefTypeAnnotation*>(annotation)) {
+      node = type_ref_annotation->type_ref()->type_definition();
+    } else {
+      return absl::UnimplementedError(
+          "Unhandled typedef for resolving to struct-or-enum: " +
+          annotation->ToString());
+    }
+  }
+
+  if (absl::holds_alternative<StructDef*>(node)) {
+    return absl::get<StructDef*>(node);
+  }
+  if (absl::holds_alternative<EnumDef*>(node)) {
+    return absl::get<EnumDef*>(node);
+  }
+
+  XLS_RET_CHECK(absl::holds_alternative<ColonRef*>(node));
+  auto* colon_ref = absl::get<ColonRef*>(node);
+  absl::optional<Import*> import = colon_ref->ResolveImportSubject();
+  XLS_RET_CHECK(import.has_value());
+  absl::optional<const ImportedInfo*> info = type_info_->GetImported(*import);
+  Module* imported_mod = (*info)->module.get();
+  XLS_ASSIGN_OR_RETURN(TypeDefinition td,
+                       imported_mod->GetTypeDefinition(colon_ref->attr()));
+  // Recurse to resolve the typedef within the imported module.
+  return DerefStructOrEnum(td);
+}
+
+absl::StatusOr<StructDef*> IrConverter::DerefStruct(TypeDefinition node) {
+  XLS_ASSIGN_OR_RETURN(DerefVariant v, DerefStructOrEnum(node));
+  XLS_RET_CHECK(absl::holds_alternative<StructDef*>(v));
+  return absl::get<StructDef*>(v);
+}
+
+absl::StatusOr<EnumDef*> IrConverter::DerefEnum(TypeDefinition node) {
+  XLS_ASSIGN_OR_RETURN(DerefVariant v, DerefStructOrEnum(node));
+  XLS_RET_CHECK(absl::holds_alternative<EnumDef*>(v));
+  return absl::get<EnumDef*>(v);
+}
+
 /* static */ absl::StatusOr<InterpValue> IrConverter::ValueToInterpValue(
     const Value& v) {
   switch (v.kind()) {

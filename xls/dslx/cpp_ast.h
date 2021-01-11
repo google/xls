@@ -405,11 +405,7 @@ class WildcardPattern : public AstNode {
 // Represents the definition of a name (identifier).
 class NameDef : public AstNode {
  public:
-  NameDef(Module* owner, Span span, std::string identifier, AstNode* definer)
-      : AstNode(owner),
-        span_(span),
-        identifier_(std::move(identifier)),
-        definer_(definer) {}
+  NameDef(Module* owner, Span span, std::string identifier, AstNode* definer);
 
   void Accept(AstNodeVisitor* v) override { v->HandleNameDef(this); }
 

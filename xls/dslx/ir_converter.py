@@ -17,7 +17,7 @@
 """Module for converting AST to IR text dumps."""
 
 import pprint
-from typing import Text, List, Optional, Tuple, Callable, Union
+from typing import Text, List, Optional, Tuple, Callable
 
 from absl import logging
 
@@ -456,50 +456,6 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     operands = tuple(self._use(o) for o in node.members)
     self._def(node, self.fb.add_tuple, operands)
 
-  def _deref_struct_or_enum(
-      self, node: Union[ast.StructDef, ast.TypeDef, ast.EnumDef]
-  ) -> Union[ast.StructDef, ast.EnumDef]:
-    while isinstance(node, ast.TypeDef):
-      annotation = node.type_
-      if not isinstance(annotation, ast.TypeRefTypeAnnotation):
-        raise NotImplementedError(
-            'Unhandled typedef for resolving to struct-or-enum: %s' %
-            annotation)
-      node = annotation.type_ref.type_def
-
-    if isinstance(node, (ast.StructDef, ast.EnumDef)):
-      return node
-
-    if isinstance(node, ast.NameRef):
-      logging.vlog(3, 'Resolving NameRef %s to struct or enum', node)
-      definer = node.name_def.definer
-      assert isinstance(
-          definer,
-          (ast.StructDef, ast.TypeDef, ast.EnumDef)), (definer, type(definer))
-      return self._deref_struct_or_enum(definer)
-
-    if not isinstance(node, ast.ColonRef):
-      raise TypeError(f'Cannot resolve enum for node: {node!r}')
-
-    import_node = node.subject.name_def.definer
-    imported_mod, _ = dict(self.type_info.get_imports())[import_node]
-    td = imported_mod.get_type_definition_by_name()[node.attr]
-    # Recurse to resolve the typedef within the imported module.
-    td = self._deref_struct_or_enum(td)
-    assert isinstance(td, (ast.StructDef, ast.EnumDef)), td
-    return td
-
-  def _deref_struct(self, node: Union[ast.StructDef,
-                                      ast.ColonRef]) -> ast.StructDef:
-    result = self._deref_struct_or_enum(node)
-    assert isinstance(result, ast.StructDef), result
-    return result
-
-  def _deref_enum(self, node: Union[ast.EnumDef, ast.ColonRef]) -> ast.EnumDef:
-    result = self._deref_struct_or_enum(node)
-    assert isinstance(result, ast.EnumDef), result
-    return result
-
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_SplatStructInstance(self, node: ast.SplatStructInstance) -> None:
     visit(node.splatted, self)
@@ -508,7 +464,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     for k, e in node.members:
       visit(e, self)
       updates[k] = self._use(e)
-    struct = self._deref_struct(node.struct)
+    struct = self.state.deref_struct(node.struct)
 
     members = []
     for i, k in enumerate(struct.member_names):
@@ -521,7 +477,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_StructInstance(self, node: ast.StructInstance) -> None:
     operands = []
-    struct = self._deref_struct(node.struct)
+    struct = self.state.deref_struct(node.struct)
     all_are_constant = True
     const_operands = []
     for _, m in node.get_ordered_members(struct):
@@ -911,7 +867,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       return
 
     try:
-      enum = self._deref_enum(node.subject)
+      enum = self.state.deref_enum(node.subject)
     except TypeError as e:
       logging.vlog(3, 'ColonRef was not an enum ref: %s @ %s', node, node.span)
       if 'Cannot resolve enum for node' in str(e):

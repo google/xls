@@ -47,7 +47,9 @@ absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node) {
   if (auto* n = dynamic_cast<ColonRef*>(node)) {
     return TypeDefinition(n);
   }
-  return absl::InvalidArgumentError("AST node is not a type definition.");
+  return absl::InvalidArgumentError(
+      absl::StrFormat("AST node is not a type definition: (%s) %s",
+                      node->GetNodeTypeName(), node->ToString()));
 }
 
 FreeVariables FreeVariables::DropBuiltinDefs() const {
@@ -184,6 +186,17 @@ std::string BinopKindFormat(BinopKind kind) {
   }
   return absl::StrFormat("<invalid BinopKind(%d)>", static_cast<int>(kind));
 }
+
+// -- class NameDef
+
+NameDef::NameDef(Module* owner, Span span, std::string identifier,
+                 AstNode* definer)
+    : AstNode(owner),
+      span_(span),
+      identifier_(std::move(identifier)),
+      definer_(definer) {}
+
+// -- class Ternary
 
 Ternary::Ternary(Module* owner, Span span, Expr* test, Expr* consequent,
                  Expr* alternate)

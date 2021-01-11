@@ -210,6 +210,40 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
            [](IrConverter& self, AstNodeHolder node) {
              return self.GetConstBits(&node.deref());
            })
+      .def("deref_struct",
+           [](IrConverter& self,
+              NameRefHolder name_ref) -> absl::StatusOr<StructDefHolder> {
+             XLS_ASSIGN_OR_RETURN(StructDef * struct_def,
+                                  self.DerefStruct(&name_ref.deref()));
+             return StructDefHolder(struct_def,
+                                    struct_def->owner()->shared_from_this());
+           })
+      .def("deref_struct",
+           [](IrConverter& self,
+              AstNodeHolder ast_node) -> absl::StatusOr<StructDefHolder> {
+             XLS_ASSIGN_OR_RETURN(TypeDefinition td,
+                                  ToTypeDefinition(&ast_node.deref()));
+             XLS_ASSIGN_OR_RETURN(StructDef * struct_def, self.DerefStruct(td));
+             return StructDefHolder(struct_def,
+                                    struct_def->owner()->shared_from_this());
+           })
+      .def("deref_enum",
+           [](IrConverter& self,
+              NameRefHolder name_ref) -> absl::StatusOr<EnumDefHolder> {
+             XLS_ASSIGN_OR_RETURN(EnumDef * enum_def,
+                                  self.DerefEnum(&name_ref.deref()));
+             return EnumDefHolder(enum_def,
+                                  enum_def->owner()->shared_from_this());
+           })
+      .def("deref_enum",
+           [](IrConverter& self,
+              AstNodeHolder ast_node) -> absl::StatusOr<EnumDefHolder> {
+             XLS_ASSIGN_OR_RETURN(TypeDefinition td,
+                                  ToTypeDefinition(&ast_node.deref()));
+             XLS_ASSIGN_OR_RETURN(EnumDef * enum_def, self.DerefEnum(td));
+             return EnumDefHolder(enum_def,
+                                  enum_def->owner()->shared_from_this());
+           })
       .def("resolve_dim", &IrConverter::ResolveDim)
       .def("resolve_type",
            [](IrConverter& self, AstNodeHolder node) {
