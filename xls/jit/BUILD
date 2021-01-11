@@ -124,7 +124,10 @@ cc_library(
 cc_test(
     name = "ir_jit_test",
     srcs = ["ir_jit_test.cc"],
-    shard_count = 8,
+    # 2020-01-08 xls/jit/ir_jit_test \
+    #               --gtest_list_tests 2>/dev/null | wc -l
+    # shows ~140
+    shard_count = 50,
     deps = [
         ":ir_jit",
         "@com_google_absl//absl/random",

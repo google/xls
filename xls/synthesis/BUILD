@@ -133,6 +133,8 @@ py_test(
         ":synthesis_client_main",
     ],
     python_version = "PY3",
+    # 2020-01-08: Two test cases at the moment.
+    shard_count = 2,
     srcs_version = "PY3",
     deps = [
         ":synthesis_py_pb2",

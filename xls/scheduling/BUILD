@@ -116,6 +116,10 @@ cc_test(
 cc_test(
     name = "function_partition_test",
     srcs = ["function_partition_test.cc"],
+    # 2020-01-08: xls/scheduling/function_partition_test \
+    #               --gtest_list_tests
+    # shows 5
+    shard_count = 5,
     deps = [
         ":function_partition",
         "@com_google_absl//absl/container:flat_hash_set",
