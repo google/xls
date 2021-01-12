@@ -1281,23 +1281,13 @@ class StructDef : public AstNode {
   const Span& span() const { return span_; }
   absl::optional<Span> GetSpan() const override { return span_; }
 
-  std::vector<std::string> GetMemberNames() const {
-    std::vector<std::string> names;
-    for (auto& item : members_) {
-      names.push_back(item.first->identifier());
-    }
-    return names;
+  const std::string& GetMemberName(int64 i) const {
+    return members_[i].first->identifier();
   }
+  std::vector<std::string> GetMemberNames() const;
 
   // Returns the index at which the member name is "name".
-  absl::optional<int64> GetMemberIndex(absl::string_view name) const {
-    for (int64 i = 0; i < members_.size(); ++i) {
-      if (members_[i].first->identifier() == name) {
-        return i;
-      }
-    }
-    return absl::nullopt;
-  }
+  absl::optional<int64> GetMemberIndex(absl::string_view name) const;
 
  private:
   Span span_;

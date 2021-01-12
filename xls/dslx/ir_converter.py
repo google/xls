@@ -436,21 +436,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_SplatStructInstance(self, node: ast.SplatStructInstance) -> None:
-    self._visit(node.splatted)
-    orig = self._use(node.splatted)
-    updates = {}
-    for k, e in node.members:
-      self._visit(e)
-      updates[k] = self._use(e)
-    struct = self.state.deref_struct(node.struct)
-
-    members = []
-    for i, k in enumerate(struct.member_names):
-      if k in updates:
-        members.append(updates[k])
-      else:
-        members.append(self.fb.add_tuple_index(orig, i))
-    self._def(node, self.fb.add_tuple, members)
+    self.state.handle_splat_struct_instance(node, self._visit)
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_StructInstance(self, node: ast.StructInstance) -> None:

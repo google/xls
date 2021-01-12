@@ -40,6 +40,20 @@ BValueHolder Wrap(IrConverter& self, const BValue& value) {
   return BValueHolder(value, self.package(), self.function_builder());
 }
 
+// Callback to visit a node (via the IR conversion "outer loop").
+using PyVisitFunc = std::function<void(AstNodeHolder)>;
+
+IrConverter::VisitFunc ToCppVisit(const PyVisitFunc& py_func) {
+  return [py_func](AstNode* node) -> absl::Status {
+    // Note: we don't catch any exceptions, we just let them propagate, they
+    // generally should not occur. (So maybe we can get to the full port being
+    // complete without needing any special handling like conversion from
+    // exception to absl::Status).
+    py_func(AstNodeHolder(node, node->owner()->shared_from_this()));
+    return absl::OkStatus();
+  };
+}
+
 }  // namespace
 
 PYBIND11_MODULE(cpp_ir_converter, m) {
@@ -285,6 +299,13 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
       .def("handle_xls_tuple",
            [](IrConverter& self, XlsTupleHolder node) {
              return self.HandleXlsTuple(&node.deref());
+           })
+      // AstNode handlers that take a visitation callback.
+      .def("handle_splat_struct_instance",
+           [](IrConverter& self, SplatStructInstanceHolder node,
+              const PyVisitFunc& py_visit) {
+             return self.HandleSplatStructInstance(&node.deref(),
+                                                   ToCppVisit(py_visit));
            })
       // -- Builtins
       .def("handle_builtin_and_reduce",

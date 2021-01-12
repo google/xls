@@ -744,6 +744,25 @@ std::string StructDef::ToString() const {
   return result;
 }
 
+std::vector<std::string> StructDef::GetMemberNames() const {
+  std::vector<std::string> names;
+  for (auto& item : members_) {
+    names.push_back(item.first->identifier());
+  }
+  return names;
+}
+
+absl::optional<int64> StructDef::GetMemberIndex(absl::string_view name) const {
+  for (int64 i = 0; i < members_.size(); ++i) {
+    if (members_[i].first->identifier() == name) {
+      return i;
+    }
+  }
+  return absl::nullopt;
+}
+
+// -- class StructInstance
+
 StructInstance::StructInstance(
     Module* owner, Span span, StructRef struct_ref,
     std::vector<std::pair<std::string, Expr*>> members)

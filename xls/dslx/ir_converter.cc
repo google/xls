@@ -218,6 +218,35 @@ absl::Status IrConverter::HandleXlsTuple(XlsTuple* node) {
   return absl::OkStatus();
 }
 
+absl::Status IrConverter::HandleSplatStructInstance(SplatStructInstance* node,
+                                                    const VisitFunc& visit) {
+  XLS_RETURN_IF_ERROR(visit(node->splatted()));
+  XLS_ASSIGN_OR_RETURN(BValue original, Use(node->splatted()));
+
+  absl::flat_hash_map<std::string, BValue> updates;
+  for (const auto& item : node->members()) {
+    XLS_RETURN_IF_ERROR(visit(item.second));
+    XLS_ASSIGN_OR_RETURN(updates[item.first], Use(item.second));
+  }
+
+  XLS_ASSIGN_OR_RETURN(StructDef * struct_def,
+                       DerefStruct(ToTypeDefinition(node->struct_ref())));
+  std::vector<BValue> members;
+  for (int64 i = 0; i < struct_def->members().size(); ++i) {
+    const std::string& k = struct_def->GetMemberName(i);
+    if (auto it = updates.find(k); it != updates.end()) {
+      members.push_back(it->second);
+    } else {
+      members.push_back(function_builder_->TupleIndex(original, i));
+    }
+  }
+
+  Def(node, [this, &members](absl::optional<SourceLocation> loc) {
+    return function_builder_->Tuple(std::move(members), loc);
+  });
+  return absl::OkStatus();
+}
+
 absl::StatusOr<std::string> IrConverter::GetCalleeIdentifier(Invocation* node) {
   XLS_VLOG(3) << "Getting callee identifier for invocation: "
               << node->ToString();

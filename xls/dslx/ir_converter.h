@@ -189,6 +189,14 @@ class IrConverter {
   absl::Status HandleNumber(Number* node);
   absl::Status HandleXlsTuple(XlsTuple* node);
 
+  // Callback signature to visit a node for IR conversion (e.g. used in handlers
+  // that employ a custom visitation order).
+  using VisitFunc = std::function<absl::Status(AstNode*)>;
+
+  // AstNode handlers that recur (via the "visit" callback).
+  absl::Status HandleSplatStructInstance(SplatStructInstance* node,
+                                         const VisitFunc& visit);
+
   // Builtin invocation handlers.
   absl::Status HandleBuiltinAndReduce(Invocation* node);
   absl::Status HandleBuiltinBitSlice(Invocation* node);
