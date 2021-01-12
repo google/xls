@@ -81,21 +81,11 @@ absl::StatusOr<BValue> IrConverter::DefAlias(AstNode* from, AstNode* to) {
 BValue IrConverter::Def(
     AstNode* node,
     const std::function<BValue(absl::optional<SourceLocation>)>& ir_func) {
-  absl::optional<SourceLocation> loc;
-  absl::optional<Span> span = node->GetSpan();
-  if (emit_positions_ && span.has_value()) {
-    const Pos& start_pos = span->start();
-    Lineno lineno(start_pos.lineno());
-    Colno colno(start_pos.colno());
-    // TODO(leary): 2020-12-20 Figure out the fileno based on the module owner
-    // of node.
-    loc.emplace(fileno_, lineno, colno);
-  }
-
+  absl::optional<SourceLocation> loc = ToSourceLocation(node->GetSpan());
   BValue result = ir_func(loc);
-  XLS_VLOG(4) << absl::StreamFormat("Define node '%s' (%s) to be %s @ %s",
-                                    node->ToString(), node->GetNodeTypeName(),
-                                    ToString(result), SpanToString(span));
+  XLS_VLOG(4) << absl::StreamFormat(
+      "Define node '%s' (%s) to be %s @ %s", node->ToString(),
+      node->GetNodeTypeName(), ToString(result), SpanToString(node->GetSpan()));
   SetNodeToIr(node, result);
   return result;
 }
@@ -224,6 +214,54 @@ absl::Status IrConverter::HandleConstantDef(ConstantDef* node,
   XLS_VLOG(5) << "Aliasing NameDef for constant: "
               << node->name_def()->ToString();
   return DefAlias(node->value(), /*to=*/node->name_def()).status();
+}
+
+absl::Status IrConverter::HandleLet(Let* node, const VisitFunc& visit) {
+  XLS_RETURN_IF_ERROR(visit(node->rhs()));
+  if (node->name_def_tree()->is_leaf()) {
+    XLS_RETURN_IF_ERROR(
+        DefAlias(node->rhs(), /*to=*/ToAstNode(node->name_def_tree()->leaf()))
+            .status());
+    XLS_RETURN_IF_ERROR(visit(node->body()));
+    XLS_RETURN_IF_ERROR(DefAlias(node->body(), node).status());
+  } else {
+    // Walk the tree of names we're trying to bind, performing tuple_index
+    // operations on the RHS to get to the values we want to bind to those
+    // names.
+    XLS_ASSIGN_OR_RETURN(BValue rhs, Use(node->rhs()));
+    std::vector<BValue> levels = {rhs};
+    // Invoked at each level of the NameDefTree: binds the name in the
+    // NameDefTree to the correponding value (being pattern matched).
+    //
+    // Args:
+    //  x: Current subtree of the NameDefTree.
+    //  level: Level (depth) in the NameDefTree, root is 0.
+    //  index: Index of node in the current tree level (e.g. leftmost is 0).
+    auto walk = [&](NameDefTree* x, int64 level, int64 index) -> absl::Status {
+      levels.resize(level);
+      levels.push_back(Def(x, [this, &levels, x,
+                               index](absl::optional<SourceLocation> loc) {
+        if (loc.has_value()) {
+          loc = ToSourceLocation(x->is_leaf() ? ToAstNode(x->leaf())->GetSpan()
+                                              : x->GetSpan());
+        }
+        return function_builder_->TupleIndex(levels.back(), index, loc);
+      }));
+      if (x->is_leaf()) {
+        XLS_RETURN_IF_ERROR(DefAlias(x, ToAstNode(x->leaf())).status());
+      }
+      return absl::OkStatus();
+    };
+
+    XLS_RETURN_IF_ERROR(node->name_def_tree()->DoPreorder(walk));
+    XLS_RETURN_IF_ERROR(visit(node->body()));
+    XLS_RETURN_IF_ERROR(DefAlias(node->body(), /*to=*/node).status());
+  }
+
+  if (last_expression_ == nullptr) {
+    last_expression_ = node->body();
+  }
+  return absl::OkStatus();
 }
 
 absl::Status IrConverter::HandleColonRef(ColonRef* node,

@@ -1773,13 +1773,7 @@ class NameDefTree : public AstNode {
   absl::string_view GetNodeTypeName() const override { return "NameDefTree"; }
   std::string ToString() const override;
 
-  std::vector<AstNode*> GetChildren(bool want_types) const override {
-    if (absl::holds_alternative<Leaf>(tree_)) {
-      return {ToAstNode(absl::get<Leaf>(tree_))};
-    }
-    const Nodes& nodes = absl::get<Nodes>(tree_);
-    return ToAstNodes<NameDefTree>(nodes);
-  }
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   bool is_leaf() const { return absl::holds_alternative<Leaf>(tree_); }
   Leaf leaf() const { return absl::get<Leaf>(tree_); }
@@ -1795,33 +1789,10 @@ class NameDefTree : public AstNode {
   // This is useful for flattening a tuple a single level; e.g. where a
   // NameDefTree is going to be used as variadic args in for-loop to function
   // conversion.
-  std::vector<absl::variant<Leaf, NameDefTree*>> Flatten1() {
-    if (is_leaf()) {
-      return {leaf()};
-    }
-    std::vector<absl::variant<Leaf, NameDefTree*>> result;
-    for (NameDefTree* ndt : nodes()) {
-      if (ndt->is_leaf()) {
-        result.push_back(ndt->leaf());
-      } else {
-        result.push_back(ndt);
-      }
-    }
-    return result;
-  }
+  std::vector<absl::variant<Leaf, NameDefTree*>> Flatten1();
 
   // Flattens the (recursive) NameDefTree into a list of leaves.
-  std::vector<Leaf> Flatten() const {
-    if (is_leaf()) {
-      return {leaf()};
-    }
-    std::vector<Leaf> results;
-    for (const NameDefTree* node : absl::get<Nodes>(tree_)) {
-      auto node_leaves = node->Flatten();
-      results.insert(results.end(), node_leaves.begin(), node_leaves.end());
-    }
-    return results;
-  }
+  std::vector<Leaf> Flatten() const;
 
   // A pattern is irrefutable if it always causes a successful match.
   //
@@ -1832,6 +1803,25 @@ class NameDefTree : public AstNode {
       return absl::holds_alternative<NameDef*>(leaf) ||
              absl::holds_alternative<WildcardPattern*>(leaf);
     });
+  }
+
+  // Performs a preorder traversal under this node in the NameDefTree.
+  //
+  // Args:
+  //  f: Callback invoked as `f(NameDefTree*, level, branchno)`.
+  //  level: Current level of the node.
+  absl::Status DoPreorder(
+      const std::function<absl::Status(NameDefTree*, int64, int64)>& f,
+      int64 level = 1) {
+    if (is_leaf()) {
+      return absl::OkStatus();
+    }
+    for (int64 i = 0; i < nodes().size(); ++i) {
+      NameDefTree* node = nodes()[i];
+      XLS_RETURN_IF_ERROR(f(node, level, i));
+      XLS_RETURN_IF_ERROR(node->DoPreorder(f, level + 1));
+    }
+    return absl::OkStatus();
   }
 
   const absl::variant<Nodes, Leaf>& tree() const { return tree_; }

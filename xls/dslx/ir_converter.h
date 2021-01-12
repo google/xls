@@ -203,6 +203,7 @@ class IrConverter {
                                     const VisitFunc& visit);
   absl::Status HandleColonRef(ColonRef* node, const VisitFunc& visit);
   absl::Status HandleConstantDef(ConstantDef* node, const VisitFunc& visit);
+  absl::Status HandleLet(Let* node, const VisitFunc& visit);
 
   // Builtin invocation handlers.
   absl::Status HandleBuiltinAndReduce(Invocation* node);
@@ -258,6 +259,19 @@ class IrConverter {
 
   // Converts a concrete type to its corresponding IR representation.
   absl::StatusOr<xls::Type*> TypeToIr(const ConcreteType& concrete_type);
+
+  absl::optional<SourceLocation> ToSourceLocation(
+      const absl::optional<Span>& span) {
+    if (!emit_positions_ || !span.has_value()) {
+      return absl::nullopt;
+    }
+    const Pos& start_pos = span->start();
+    Lineno lineno(start_pos.lineno());
+    Colno colno(start_pos.colno());
+    // TODO(leary): 2020-12-20 Figure out the fileno based on the module owner
+    // of node.
+    return SourceLocation{fileno_, lineno, colno};
+  }
 
   static std::string SpanToString(const absl::optional<Span>& span) {
     if (!span.has_value()) {

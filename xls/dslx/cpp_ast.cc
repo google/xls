@@ -1075,6 +1075,16 @@ std::string StructRefToText(const StructRef& struct_ref) {
       << "Unhandled alternative for converting struct reference to string.";
 }
 
+// -- class NameDefTree
+
+std::vector<AstNode*> NameDefTree::GetChildren(bool want_types) const {
+  if (absl::holds_alternative<Leaf>(tree_)) {
+    return {ToAstNode(absl::get<Leaf>(tree_))};
+  }
+  const Nodes& nodes = absl::get<Nodes>(tree_);
+  return ToAstNodes<NameDefTree>(nodes);
+}
+
 std::string NameDefTree::ToString() const {
   if (is_leaf()) {
     return ToAstNode(leaf())->ToString();
@@ -1086,6 +1096,36 @@ std::string NameDefTree::ToString() const {
     return absl::StrFormat("(%s)", guts);
   }
 }
+
+std::vector<NameDefTree::Leaf> NameDefTree::Flatten() const {
+  if (is_leaf()) {
+    return {leaf()};
+  }
+  std::vector<Leaf> results;
+  for (const NameDefTree* node : absl::get<Nodes>(tree_)) {
+    auto node_leaves = node->Flatten();
+    results.insert(results.end(), node_leaves.begin(), node_leaves.end());
+  }
+  return results;
+}
+
+std::vector<absl::variant<NameDefTree::Leaf, NameDefTree*>>
+NameDefTree::Flatten1() {
+  if (is_leaf()) {
+    return {leaf()};
+  }
+  std::vector<absl::variant<Leaf, NameDefTree*>> result;
+  for (NameDefTree* ndt : nodes()) {
+    if (ndt->is_leaf()) {
+      result.push_back(ndt->leaf());
+    } else {
+      result.push_back(ndt);
+    }
+  }
+  return result;
+}
+
+// -- class Let
 
 std::string Let::ToString() const {
   return absl::StrFormat("%s %s%s = %s;\n%s",

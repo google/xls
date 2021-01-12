@@ -773,45 +773,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Let(self, node: ast.Let):
-    self._visit(node.rhs)
-    if node.name_def_tree.is_leaf():
-      self._def_alias(node.rhs, to=node.name_def_tree.get_leaf())
-      self._visit(node.body)
-      self._def_alias(node.body, node)
-    else:
-      # Walk the tree performing tuple_index operations to get to the binding
-      # levels desired.
-
-      names = [self._use(node.rhs)]  # List[BValue]
-
-      def walk(x: ast.NameDefTree, level: int, index: int) -> None:
-        """Invoked at each level of the name def tree.
-
-        Binds the name in the name def tree to the corresponding value being
-        pattern matched.
-
-        Args:
-          x: The current level of the NameDefTree.
-          level: Level in the NameDefTree (root is 0).
-          index: Index of node in the current tree level (e.g. leftmost is 0).
-        """
-        del names[level:]
-        names.append(
-            self._def(
-                x,
-                self.fb.add_tuple_index,
-                names[-1],
-                index,
-                span=(x.get_leaf().span if x.is_leaf() else x.span)))
-        if x.is_leaf():
-          self._def_alias(x, x.get_leaf())
-
-      ast_helpers.do_preorder(node.name_def_tree, walk)
-      self._visit(node.body)
-      self._def_alias(node.body, to=node)
-
-    if self.state.last_expression is None:
-      self.state.last_expression = node.body
+    self.state.handle_let(node, self._visit)
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Param(self, node: ast.Param):

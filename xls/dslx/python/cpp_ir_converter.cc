@@ -323,6 +323,10 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
               const PyVisitFunc& py_visit) {
              return self.HandleColonRef(&node.deref(), ToCppVisit(py_visit));
            })
+      .def("handle_let",
+           [](IrConverter& self, LetHolder node, const PyVisitFunc& py_visit) {
+             return self.HandleLet(&node.deref(), ToCppVisit(py_visit));
+           })
       // -- Builtins
       .def("handle_builtin_and_reduce",
            [](IrConverter& self, InvocationHolder node) {
