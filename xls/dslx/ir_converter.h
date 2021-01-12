@@ -201,6 +201,8 @@ class IrConverter {
                                          const VisitFunc& visit);
   absl::Status HandleStructInstance(StructInstance* node,
                                     const VisitFunc& visit);
+  absl::Status HandleColonRef(ColonRef* node, const VisitFunc& visit);
+  absl::Status HandleConstantDef(ConstantDef* node, const VisitFunc& visit);
 
   // Builtin invocation handlers.
   absl::Status HandleBuiltinAndReduce(Invocation* node);

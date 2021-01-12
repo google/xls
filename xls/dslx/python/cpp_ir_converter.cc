@@ -313,6 +313,16 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
              return self.HandleStructInstance(&node.deref(),
                                               ToCppVisit(py_visit));
            })
+      .def("handle_constant_def",
+           [](IrConverter& self, ConstantDefHolder node,
+              const PyVisitFunc& py_visit) {
+             return self.HandleConstantDef(&node.deref(), ToCppVisit(py_visit));
+           })
+      .def("handle_colon_ref",
+           [](IrConverter& self, ColonRefHolder node,
+              const PyVisitFunc& py_visit) {
+             return self.HandleColonRef(&node.deref(), ToCppVisit(py_visit));
+           })
       // -- Builtins
       .def("handle_builtin_and_reduce",
            [](IrConverter& self, InvocationHolder node) {

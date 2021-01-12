@@ -1984,6 +1984,10 @@ class Module : public AstNode, public std::enable_shared_from_this<Module> {
   absl::StatusOr<TypeDefinition> GetTypeDefinition(
       absl::string_view name) const;
 
+  // Retrieves a constant node from this module with the target name as its
+  // identifier, or a NotFound error if none can be found.
+  absl::StatusOr<ConstantDef*> GetConstantDef(absl::string_view target);
+
   absl::flat_hash_map<std::string, ConstantDef*> GetConstantByName() const {
     return GetTopWithTByName<ConstantDef>();
   }
@@ -2012,16 +2016,9 @@ class Module : public AstNode, public std::enable_shared_from_this<Module> {
     return GetTopWithT<ConstantDef>();
   }
 
-  std::vector<std::string> GetTestNames() const {
-    std::vector<std::string> result;
-    for (auto& member : top_) {
-      if (absl::holds_alternative<TestFunction*>(member)) {
-        TestFunction* t = absl::get<TestFunction*>(member);
-        result.push_back(t->identifier());
-      }
-    }
-    return result;
-  }
+  // Returns the identifiers for all tests within this module (in the order in
+  // which they are defined).
+  std::vector<std::string> GetTestNames() const;
 
   const std::string& name() const { return name_; }
 

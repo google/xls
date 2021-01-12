@@ -218,6 +218,46 @@ absl::Status IrConverter::HandleXlsTuple(XlsTuple* node) {
   return absl::OkStatus();
 }
 
+absl::Status IrConverter::HandleConstantDef(ConstantDef* node,
+                                            const VisitFunc& visit) {
+  XLS_RETURN_IF_ERROR(visit(node->value()));
+  XLS_VLOG(5) << "Aliasing NameDef for constant: "
+              << node->name_def()->ToString();
+  return DefAlias(node->value(), /*to=*/node->name_def()).status();
+}
+
+absl::Status IrConverter::HandleColonRef(ColonRef* node,
+                                         const VisitFunc& visit) {
+  // Implementation note: ColonRef "invocation" are handled in Invocation (by
+  // resolving the mangled callee name, which should have been IR converted in
+  // dependency order).
+
+  if (absl::optional<Import*> import = node->ResolveImportSubject()) {
+    absl::optional<const ImportedInfo*> imported =
+        type_info_->GetImported(import.value());
+    XLS_RET_CHECK(imported.has_value());
+    Module* imported_mod = (*imported)->module.get();
+    XLS_ASSIGN_OR_RETURN(ConstantDef * constant_def,
+                         imported_mod->GetConstantDef(node->attr()));
+    XLS_RETURN_IF_ERROR(HandleConstantDef(constant_def, visit));
+    return DefAlias(constant_def->name_def(), /*to=*/node).status();
+  }
+
+  EnumDef* enum_def;
+  if (absl::holds_alternative<NameRef*>(node->subject())) {
+    XLS_ASSIGN_OR_RETURN(enum_def,
+                         DerefEnum(absl::get<NameRef*>(node->subject())));
+  } else {
+    XLS_ASSIGN_OR_RETURN(TypeDefinition type_definition,
+                         ToTypeDefinition(ToAstNode(node->subject())));
+    XLS_ASSIGN_OR_RETURN(enum_def, DerefEnum(type_definition));
+  }
+  XLS_ASSIGN_OR_RETURN(auto value, enum_def->GetValue(node->attr()));
+  Expr* value_expr = ToExprNode(value);
+  XLS_RETURN_IF_ERROR(visit(value_expr));
+  return DefAlias(/*from=*/value_expr, /*to=*/node).status();
+}
+
 absl::Status IrConverter::HandleSplatStructInstance(SplatStructInstance* node,
                                                     const VisitFunc& visit) {
   XLS_RETURN_IF_ERROR(visit(node->splatted()));

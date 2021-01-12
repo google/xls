@@ -383,6 +383,17 @@ absl::StatusOr<TestFunction*> Module::GetTest(absl::string_view target_name) {
       "No test in module %s with name \"%s\"", name_, target_name));
 }
 
+std::vector<std::string> Module::GetTestNames() const {
+  std::vector<std::string> result;
+  for (auto& member : top_) {
+    if (absl::holds_alternative<TestFunction*>(member)) {
+      TestFunction* t = absl::get<TestFunction*>(member);
+      result.push_back(t->identifier());
+    }
+  }
+  return result;
+}
+
 absl::optional<ModuleMember*> Module::FindMemberWithName(
     absl::string_view target) {
   for (ModuleMember& member : top_) {
@@ -424,6 +435,19 @@ absl::optional<ModuleMember*> Module::FindMemberWithName(
     }
   }
   return absl::nullopt;
+}
+
+absl::StatusOr<ConstantDef*> Module::GetConstantDef(absl::string_view target) {
+  absl::optional<ModuleMember*> member = FindMemberWithName(target);
+  if (!member.has_value()) {
+    return absl::NotFoundError(
+        absl::StrFormat("Could not find member named '%s' in module.", target));
+  }
+  if (!absl::holds_alternative<ConstantDef*>(*member.value())) {
+    return absl::NotFoundError(absl::StrFormat(
+        "Member named '%s' in module was not a constant.", target));
+  }
+  return absl::get<ConstantDef*>(*member.value());
 }
 
 absl::flat_hash_map<std::string, TypeDefinition>

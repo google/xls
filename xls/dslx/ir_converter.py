@@ -387,9 +387,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Constant(self, node: ast.Constant) -> None:
-    self._visit(node.value)
-    logging.vlog(5, 'Aliasing NameDef for constant: %r', node.name)
-    self._def_alias(node.value, to=node.name)
+    self.state.handle_constant_def(node, self._visit)
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Array(self, node: ast.Array) -> None:
@@ -771,30 +769,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_ColonRef(self, node: ast.ColonRef) -> None:
-    # Implementation note: ColonRef *invocations* are handled in Invocation (by
-    # resolving the mangled callee name, which should have been IR converted in
-    # dependency order).
-
-    if isinstance(node.subject, ast.NameRef) and isinstance(
-        node.subject.name_def.definer, ast.Import):
-      definer = node.subject.name_def.definer
-      imported_mod, _ = dict(self.type_info.get_imports())[definer]
-      constant_def = imported_mod.get_constant_by_name()[node.attr]
-      assert isinstance(constant_def, ast.Constant), repr(constant_def)
-      self.visit_Constant(constant_def)
-      self._def_alias(constant_def.name, to=node)
-      return
-
-    try:
-      enum = self.state.deref_enum(node.subject)
-    except TypeError as e:
-      logging.vlog(3, 'ColonRef was not an enum ref: %s @ %s', node, node.span)
-      if 'Cannot resolve enum for node' in str(e):
-        return
-      raise
-    value = enum.get_value(node.attr)
-    self._visit(value)
-    self._def_alias(from_=value, to=node)
+    self.state.handle_colon_ref(node, self._visit)
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Let(self, node: ast.Let):
