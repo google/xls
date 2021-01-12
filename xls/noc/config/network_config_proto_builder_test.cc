@@ -35,7 +35,7 @@ TEST(NetworkConfigBuilderTest, FieldValuesEmptyNetwork) {
 
 // Test the field values of a network.
 TEST(NetworkConfigBuilderTest, FieldValues) {
-  const char* kName = "Test";
+  constexpr absl::string_view kName = "Test";
   NetworkConfigProtoBuilder builder(kName);
   builder.WithDescription(kName);
   builder.WithPort(kName);
@@ -185,6 +185,48 @@ TEST(NetworkConfigBuilderTest, SimpleNetwork) {
   ASSERT_EQ(network.ports_size(), 2);
   ASSERT_EQ(network.routers_size(), 1);
   ASSERT_EQ(network.links_size(), 2);
+}
+
+// Test the default virtual channels for an input port.
+TEST(NetworkConfigBuilderTest, VirtualChannelsInputPortDefaultFields) {
+  constexpr absl::string_view kDefault = "Default";
+  const std::vector<std::string> kVirtualChannels = {std::string(kDefault)};
+  NetworkConfigProtoBuilder builder("Test");
+  RouterConfigProtoBuilder router_builder = builder.WithRouter("Test");
+  router_builder.WithInputPort("Test");
+  builder.SetDefaultVirtualChannelsForRouterInputPort(kVirtualChannels);
+  router_builder = builder.WithRouter("Test");
+  router_builder.WithInputPort("Test");
+
+  XLS_ASSERT_OK_AND_ASSIGN(NetworkConfigProto network, builder.Build());
+  EXPECT_EQ(network.routers_size(), 2);
+  EXPECT_EQ(network.routers(0).ports_size(), 1);
+  EXPECT_EQ(network.routers(0).ports(0).virtual_channels_size(), 0);
+  EXPECT_EQ(network.routers(1).ports_size(), 1);
+  EXPECT_EQ(network.routers(1).ports_size(), 1);
+  EXPECT_EQ(network.routers(1).ports(0).virtual_channels_size(), 1);
+  EXPECT_EQ(network.routers(1).ports(0).virtual_channels(0), kDefault);
+}
+
+// Test the default virtual channels for an output port.
+TEST(NetworkConfigBuilderTest, VirtualChannelsOutputPortDefaultFields) {
+  constexpr absl::string_view kDefault = "Default";
+  const std::vector<std::string> kVirtualChannels = {std::string(kDefault)};
+  NetworkConfigProtoBuilder builder("Test");
+  RouterConfigProtoBuilder router_builder = builder.WithRouter("Test");
+  router_builder.WithOutputPort("Test");
+  builder.SetDefaultVirtualChannelsForRouterOutputPort(kVirtualChannels);
+  router_builder = builder.WithRouter("Test");
+  router_builder.WithOutputPort("Test");
+
+  XLS_ASSERT_OK_AND_ASSIGN(NetworkConfigProto network, builder.Build());
+  EXPECT_EQ(network.routers_size(), 2);
+  EXPECT_EQ(network.routers(0).ports_size(), 1);
+  EXPECT_EQ(network.routers(0).ports(0).virtual_channels_size(), 0);
+  EXPECT_EQ(network.routers(1).ports_size(), 1);
+  EXPECT_EQ(network.routers(1).ports_size(), 1);
+  EXPECT_EQ(network.routers(1).ports(0).virtual_channels_size(), 1);
+  EXPECT_EQ(network.routers(1).ports(0).virtual_channels(0), kDefault);
 }
 
 }  // namespace xls::noc

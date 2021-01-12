@@ -57,6 +57,14 @@ class NetworkConfigProtoBuilder {
   // Adds a port to this object. Returns its builder.
   PortConfigProtoBuilder WithPort(absl::string_view name);
 
+  // Sets default Virtual Channels for input ports.
+  NetworkConfigProtoBuilder& SetDefaultVirtualChannelsForRouterInputPort(
+      absl::optional<std::vector<std::string>> virtual_channels);
+
+  // Sets default Virtual Channels for output ports.
+  NetworkConfigProtoBuilder& SetDefaultVirtualChannelsForRouterOutputPort(
+      absl::optional<std::vector<std::string>> virtual_channels);
+
   // Adds a router to this object. Returns its builder.
   RouterConfigProtoBuilder WithRouter(absl::string_view name);
 
@@ -79,6 +87,8 @@ class NetworkConfigProtoBuilder {
   absl::optional<int64> link_sink_source_pipeline_stage_;
   absl::optional<int64> virtual_channel_flit_bit_width_;
   absl::optional<int64> virtual_channel_depth_;
+  absl::optional<std::vector<std::string>> virtual_channels_for_input_;
+  absl::optional<std::vector<std::string>> virtual_channels_for_output_;
 };
 
 }  // namespace xls::noc

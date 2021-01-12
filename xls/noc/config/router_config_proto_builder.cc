@@ -29,6 +29,12 @@ PortConfigProtoBuilder RouterConfigProtoBuilder::WithInputPort(
   PortConfigProto* port = proto_->add_ports();
   port->set_name(xls::ToProtoString(name));
   port->set_direction(PortConfigProto::INPUT);
+  if (virtual_channels_for_input_.has_value()) {
+    for (const std::string& virtual_channel :
+         virtual_channels_for_input_.value()) {
+      port->add_virtual_channels(virtual_channel);
+    }
+  }
   return PortConfigProtoBuilder(port);
 }
 
@@ -37,7 +43,27 @@ PortConfigProtoBuilder RouterConfigProtoBuilder::WithOutputPort(
   PortConfigProto* port = proto_->add_ports();
   port->set_name(xls::ToProtoString(name));
   port->set_direction(PortConfigProto::OUTPUT);
+  if (virtual_channels_for_output_.has_value()) {
+    for (const std::string& virtual_channel :
+         virtual_channels_for_output_.value()) {
+      port->add_virtual_channels(virtual_channel);
+    }
+  }
   return PortConfigProtoBuilder(port);
+}
+
+RouterConfigProtoBuilder&
+RouterConfigProtoBuilder::SetDefaultVirtualChannelsForInputPort(
+    absl::optional<std::vector<std::string>> virtual_channels) {
+  virtual_channels_for_input_ = virtual_channels;
+  return *this;
+}
+
+RouterConfigProtoBuilder&
+RouterConfigProtoBuilder::SetDefaultVirtualChannelsForOutputPort(
+    absl::optional<std::vector<std::string>> virtual_channels) {
+  virtual_channels_for_output_ = virtual_channels;
+  return *this;
 }
 
 RoutingSchemeConfigProtoBuilder

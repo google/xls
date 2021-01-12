@@ -70,11 +70,29 @@ PortConfigProtoBuilder NetworkConfigProtoBuilder::WithPort(
   return PortConfigProtoBuilder(port);
 }
 
+NetworkConfigProtoBuilder&
+NetworkConfigProtoBuilder::SetDefaultVirtualChannelsForRouterInputPort(
+    absl::optional<std::vector<std::string>> virtual_channels) {
+  virtual_channels_for_input_ = virtual_channels;
+  return *this;
+}
+
+NetworkConfigProtoBuilder&
+NetworkConfigProtoBuilder::SetDefaultVirtualChannelsForRouterOutputPort(
+    absl::optional<std::vector<std::string>> virtual_channels) {
+  virtual_channels_for_output_ = virtual_channels;
+  return *this;
+}
+
 RouterConfigProtoBuilder NetworkConfigProtoBuilder::WithRouter(
     absl::string_view name) {
   RouterConfigProto* router = proto_.add_routers();
   router->set_name(xls::ToProtoString(name));
-  return RouterConfigProtoBuilder(router);
+  RouterConfigProtoBuilder router_builder(router);
+  router_builder
+      .SetDefaultVirtualChannelsForInputPort(virtual_channels_for_input_)
+      .SetDefaultVirtualChannelsForOutputPort(virtual_channels_for_output_);
+  return router_builder;
 }
 
 LinkConfigProtoBuilder NetworkConfigProtoBuilder::WithLink(

@@ -21,8 +21,8 @@ namespace xls::noc {
 
 // Test the field values of a router with an input port.
 TEST(RouterConfigBuilderTest, InputPortFieldValues) {
-  const char* kName = "Test";
-  const char* kRouterPortName = "RouterPort";
+  constexpr absl::string_view kName = "Test";
+  constexpr absl::string_view kRouterPortName = "RouterPort";
   RouterConfigProto proto;
   RouterConfigProtoBuilder builder(&proto);
   builder.WithName(kName);
@@ -48,8 +48,8 @@ TEST(RouterConfigBuilderTest, InputPortFieldValues) {
 
 // Test the field values of a router with an output port.
 TEST(RouterConfigBuilderTest, OutputPortFieldValues) {
-  const char* kName = "Test";
-  const char* kRouterPortName = "RouterPort";
+  constexpr absl::string_view kName = "Test";
+  constexpr absl::string_view kRouterPortName = "RouterPort";
   RouterConfigProto proto;
   RouterConfigProtoBuilder builder(&proto);
   builder.WithName(kName);
@@ -71,6 +71,58 @@ TEST(RouterConfigBuilderTest, OutputPortFieldValues) {
   EXPECT_TRUE(proto.has_routing_scheme());
   EXPECT_TRUE(proto.has_arbiter_scheme());
   EXPECT_THAT(proto.name(), kName);
+}
+
+// Test the default virtual channels for an input port. The test creates an
+// input port with non-default virtual channels, default virtual channels, then
+// non-default virtual channels (in that order).
+TEST(RouterConfigBuilderTest, VirtualChannelsInputPortDefaultFields) {
+  constexpr absl::string_view kNonDefault = "NonDefault";
+  constexpr absl::string_view kDefault = "Default";
+  const std::vector<std::string> kVirtualChannels = {std::string(kDefault)};
+  RouterConfigProto proto;
+  RouterConfigProtoBuilder builder(&proto);
+  PortConfigProtoBuilder port_builder = builder.WithInputPort("Test");
+  port_builder.WithVirtualChannel(kNonDefault);
+  builder.SetDefaultVirtualChannelsForInputPort(kVirtualChannels);
+  builder.WithInputPort("Test");
+  builder.SetDefaultVirtualChannelsForInputPort(absl::nullopt);
+  port_builder = builder.WithInputPort("Test");
+  port_builder.WithVirtualChannel(kNonDefault);
+
+  EXPECT_EQ(proto.ports_size(), 3);
+  EXPECT_EQ(proto.ports(0).virtual_channels_size(), 1);
+  EXPECT_EQ(proto.ports(0).virtual_channels(0), kNonDefault);
+  EXPECT_EQ(proto.ports(1).virtual_channels_size(), 1);
+  EXPECT_EQ(proto.ports(1).virtual_channels(0), kDefault);
+  EXPECT_EQ(proto.ports(2).virtual_channels_size(), 1);
+  EXPECT_EQ(proto.ports(2).virtual_channels(0), kNonDefault);
+}
+
+// Test the default virtual channels for an output port. The test creates an
+// output port with non-default virtual channels, default virtual channels, then
+// non-default virtual channels (in that order).
+TEST(RouterConfigBuilderTest, VirtualChannelsOutputPortDefaultFields) {
+  constexpr absl::string_view kNonDefault = "NonDefault";
+  constexpr absl::string_view kDefault = "Default";
+  const std::vector<std::string> kVirtualChannels = {std::string(kDefault)};
+  RouterConfigProto proto;
+  RouterConfigProtoBuilder builder(&proto);
+  PortConfigProtoBuilder port_builder = builder.WithOutputPort("Test");
+  port_builder.WithVirtualChannel(kNonDefault);
+  builder.SetDefaultVirtualChannelsForOutputPort(kVirtualChannels);
+  builder.WithOutputPort("Test");
+  builder.SetDefaultVirtualChannelsForOutputPort(absl::nullopt);
+  port_builder = builder.WithOutputPort("Test");
+  port_builder.WithVirtualChannel(kNonDefault);
+
+  EXPECT_EQ(proto.ports_size(), 3);
+  EXPECT_EQ(proto.ports(0).virtual_channels_size(), 1);
+  EXPECT_EQ(proto.ports(0).virtual_channels(0), kNonDefault);
+  EXPECT_EQ(proto.ports(1).virtual_channels_size(), 1);
+  EXPECT_EQ(proto.ports(1).virtual_channels(0), kDefault);
+  EXPECT_EQ(proto.ports(2).virtual_channels_size(), 1);
+  EXPECT_EQ(proto.ports(2).virtual_channels(0), kNonDefault);
 }
 
 }  // namespace xls::noc
