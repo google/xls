@@ -78,8 +78,11 @@ class IrConverter {
   void SetNodeToIr(AstNode* node, IrValue value);
   absl::optional<IrValue> GetNodeToIr(AstNode* node) const;
 
-  // Returns the constant bits corresponding to the IrValue of "node", or
+  // Returns the constant value corresponding to the IrValue of "node", or
   // returns an error if it is not present (or not constant).
+  absl::StatusOr<Value> GetConstValue(AstNode* node) const;
+
+  // As above, but also checks it is a constant Bits value.
   absl::StatusOr<Bits> GetConstBits(AstNode* node) const;
 
   // Resolves "dim" (from a possible parametric) against the
@@ -196,6 +199,8 @@ class IrConverter {
   // AstNode handlers that recur (via the "visit" callback).
   absl::Status HandleSplatStructInstance(SplatStructInstance* node,
                                          const VisitFunc& visit);
+  absl::Status HandleStructInstance(StructInstance* node,
+                                    const VisitFunc& visit);
 
   // Builtin invocation handlers.
   absl::Status HandleBuiltinAndReduce(Invocation* node);

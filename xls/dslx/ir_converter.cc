@@ -247,6 +247,36 @@ absl::Status IrConverter::HandleSplatStructInstance(SplatStructInstance* node,
   return absl::OkStatus();
 }
 
+absl::Status IrConverter::HandleStructInstance(StructInstance* node,
+                                               const VisitFunc& visit) {
+  std::vector<BValue> operands;
+  XLS_ASSIGN_OR_RETURN(StructDef * struct_def,
+                       DerefStruct(ToTypeDefinition(node->struct_def())));
+  bool all_are_constant = true;
+  std::vector<Value> const_operands;
+  for (auto [_, member_expr] : node->GetOrderedMembers(struct_def)) {
+    XLS_RETURN_IF_ERROR(visit(member_expr));
+    XLS_ASSIGN_OR_RETURN(BValue operand, Use(member_expr));
+    operands.push_back(operand);
+    if (!IsConstant(member_expr)) {
+      all_are_constant = false;
+    }
+    if (all_are_constant) {
+      XLS_ASSIGN_OR_RETURN(Value const_operand, GetConstValue(member_expr));
+      const_operands.push_back(std::move(const_operand));
+    }
+  }
+
+  BValue result =
+      Def(node, [this, &operands](absl::optional<SourceLocation> loc) {
+        return function_builder_->Tuple(std::move(operands), loc);
+      });
+  if (all_are_constant) {
+    SetNodeToIr(node, CValue{Value::Tuple(std::move(const_operands)), result});
+  }
+  return absl::OkStatus();
+}
+
 absl::StatusOr<std::string> IrConverter::GetCalleeIdentifier(Invocation* node) {
   XLS_VLOG(3) << "Getting callee identifier for invocation: "
               << node->ToString();
@@ -737,7 +767,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> IrConverter::ResolveType(
       [this](ConcreteTypeDim dim) { return ResolveDim(dim); });
 }
 
-absl::StatusOr<Bits> IrConverter::GetConstBits(AstNode* node) const {
+absl::StatusOr<Value> IrConverter::GetConstValue(AstNode* node) const {
   absl::optional<IrValue> ir_value = GetNodeToIr(node);
   if (!ir_value.has_value()) {
     return absl::InternalError(absl::StrFormat(
@@ -747,7 +777,12 @@ absl::StatusOr<Bits> IrConverter::GetConstBits(AstNode* node) const {
     return absl::InternalError(absl::StrFormat(
         "AST node had a non-const IR value: %s", node->ToString()));
   }
-  return absl::get<CValue>(*ir_value).ir_value.GetBitsWithStatus();
+  return absl::get<CValue>(*ir_value).ir_value;
+}
+
+absl::StatusOr<Bits> IrConverter::GetConstBits(AstNode* node) const {
+  XLS_ASSIGN_OR_RETURN(Value value, GetConstValue(node));
+  return value.GetBitsWithStatus();
 }
 
 absl::Status IrConverter::HandleConstantArray(ConstantArray* node) {

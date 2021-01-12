@@ -440,25 +440,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_StructInstance(self, node: ast.StructInstance) -> None:
-    operands = []
-    struct = self.state.deref_struct(node.struct)
-    all_are_constant = True
-    const_operands = []
-    for _, m in node.get_ordered_members(struct):
-      self._visit(m)
-      operands.append(self._use(m))
-      if not ast.is_constant(m):
-        all_are_constant = False
-
-      if all_are_constant:
-        const_operand = self.state.get_node_to_ir(m)
-        assert not isinstance(const_operand, BValue)
-        const_operands.append(const_operand[0])
-    operands = tuple(operands)
-
-    ir = self._def(node, self.fb.add_tuple, operands)
-    if all_are_constant:
-      self.state.set_node_to_ir(node, (IrValue.make_tuple(const_operands), ir))
+    self.state.handle_struct_instance(node, self._visit)
 
   def _is_constant_zero(self, node: ast.AstNode) -> bool:
     return isinstance(node,

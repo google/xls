@@ -307,6 +307,12 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
              return self.HandleSplatStructInstance(&node.deref(),
                                                    ToCppVisit(py_visit));
            })
+      .def("handle_struct_instance",
+           [](IrConverter& self, StructInstanceHolder node,
+              const PyVisitFunc& py_visit) {
+             return self.HandleStructInstance(&node.deref(),
+                                              ToCppVisit(py_visit));
+           })
       // -- Builtins
       .def("handle_builtin_and_reduce",
            [](IrConverter& self, InvocationHolder node) {

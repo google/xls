@@ -770,6 +770,27 @@ StructInstance::StructInstance(
       struct_ref_(struct_ref),
       members_(std::move(members)) {}
 
+std::vector<std::pair<std::string, Expr*>> StructInstance::GetOrderedMembers(
+    StructDef* struct_def) const {
+  std::vector<std::pair<std::string, Expr*>> result;
+  for (const std::string& name : struct_def->GetMemberNames()) {
+    result.push_back({name, GetExpr(name).value()});
+  }
+  return result;
+}
+
+absl::StatusOr<Expr*> StructInstance::GetExpr(absl::string_view name) const {
+  for (const auto& item : members_) {
+    if (item.first == name) {
+      return item.second;
+    }
+  }
+  return absl::NotFoundError(
+      absl::StrFormat("Name is not present in struct instance: \"%s\"", name));
+}
+
+// -- class SplatStructInstance
+
 SplatStructInstance::SplatStructInstance(
     Module* owner, Span span, StructRef struct_ref,
     std::vector<std::pair<std::string, Expr*>> members, Expr* splatted)

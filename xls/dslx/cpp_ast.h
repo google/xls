@@ -1333,24 +1333,13 @@ class StructInstance : public Expr {
   // Returns the members for the struct instance, ordered by the (resolved)
   // struct definition "struct_def".
   std::vector<std::pair<std::string, Expr*>> GetOrderedMembers(
-      StructDef* struct_def) const {
-    std::vector<std::pair<std::string, Expr*>> result;
-    for (std::string name : struct_def->GetMemberNames()) {
-      result.push_back({name, GetExpr(name).value()});
-    }
-    return result;
-  }
+      StructDef* struct_def) const;
 
-  absl::StatusOr<Expr*> GetExpr(absl::string_view name) const {
-    for (const auto& item : members_) {
-      if (item.first == name) {
-        return item.second;
-      }
-    }
-    return absl::NotFoundError(absl::StrFormat(
-        "Name is not present in struct instance: \"%s\"", name));
-  }
+  // Returns the expression associated with the member named "name", or a
+  // NotFound error status if none exists.
+  absl::StatusOr<Expr*> GetExpr(absl::string_view name) const;
 
+  // An AST node that refers to the struct being instantiated.
   StructRef struct_def() const { return struct_ref_; }
 
  private:
