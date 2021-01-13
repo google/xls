@@ -18,6 +18,7 @@
 #include "absl/types/variant.h"
 #include "xls/dslx/cpp_ast.h"
 #include "xls/dslx/deduce_ctx.h"
+#include "xls/dslx/dslx_builtins.h"
 #include "xls/ir/lsb_or_msb.h"
 
 namespace xls::dslx {
@@ -477,6 +478,53 @@ absl::StatusOr<BValue> IrConverter::DefMapWithBuiltin(
   XLS_ASSIGN_OR_RETURN(xls::Function * f, package_->GetFunction(mangled_name));
   return Def(parent_node, [&](absl::optional<SourceLocation> loc) {
     return function_builder_->Map(arg_value, f);
+  });
+}
+
+absl::StatusOr<BValue> IrConverter::HandleMap(Invocation* node,
+                                              const VisitFunc& visit) {
+  for (Expr* arg : node->args().subspan(0, node->args().size() - 1)) {
+    XLS_RETURN_IF_ERROR(visit(arg));
+  }
+  XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
+  Expr* fn_node = node->args()[1];
+  XLS_VLOG(5) << "Function being mapped AST: " << fn_node->ToString();
+  absl::optional<const SymbolicBindings*> node_sym_bindings =
+      GetInvocationBindings(node);
+
+  std::string map_fn_name;
+  Module* lookup_module = nullptr;
+  if (auto* name_ref = dynamic_cast<NameRef*>(fn_node)) {
+    map_fn_name = name_ref->identifier();
+    if (GetParametricBuiltins().contains(map_fn_name)) {
+      XLS_VLOG(5) << "Map of parametric builtin: " << map_fn_name;
+      return DefMapWithBuiltin(node, name_ref, node->args()[0],
+                               *node_sym_bindings.value());
+    }
+    lookup_module = module_;
+  } else if (auto* colon_ref = dynamic_cast<ColonRef*>(fn_node)) {
+    map_fn_name = colon_ref->attr();
+    absl::optional<Import*> import_node = colon_ref->ResolveImportSubject();
+    absl::optional<const ImportedInfo*> info =
+        type_info_->GetImported(*import_node);
+    lookup_module = (*info)->module.get();
+  } else {
+    return absl::UnimplementedError("Unhandled function mapping: " +
+                                    fn_node->ToString());
+  }
+
+  absl::optional<Function*> mapped_fn = lookup_module->GetFunction(map_fn_name);
+  std::vector<std::string> free = (*mapped_fn)->GetFreeParametricKeys();
+  absl::btree_set<std::string> free_set(free.begin(), free.end());
+  XLS_ASSIGN_OR_RETURN(
+      std::string mangled_name,
+      MangleDslxName((*mapped_fn)->identifier(), free_set, lookup_module,
+                     node_sym_bindings.value()));
+  XLS_VLOG(5) << "Getting function with mangled name: " << mangled_name
+              << " from package: " << package_->name();
+  XLS_ASSIGN_OR_RETURN(xls::Function * f, package_->GetFunction(mangled_name));
+  return Def(node, [&](absl::optional<SourceLocation> loc) -> BValue {
+    return function_builder_->Map(arg, f, loc);
   });
 }
 
@@ -1199,7 +1247,7 @@ absl::StatusOr<std::string> MangleDslxName(
   }
 
   std::string module_name = absl::StrReplaceAll(module->name(), {{".", "_"}});
-  if (symbolic_bindings == nullptr) {
+  if (symbolic_bindings_values.empty()) {
     return absl::StrFormat("__%s__%s", module_name, function_name);
   }
   std::string suffix = absl::StrJoin(symbolic_bindings_values, "_");

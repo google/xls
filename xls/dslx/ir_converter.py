@@ -27,7 +27,6 @@ from xls.dslx import bit_helpers
 from xls.dslx import extract_conversion_order
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_ast_visitor
-from xls.dslx.python import cpp_dslx_builtins
 from xls.dslx.python import cpp_ir_converter
 from xls.dslx.python import cpp_type_info as type_info_mod
 from xls.dslx.python.cpp_ast_visitor import visit
@@ -417,39 +416,6 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
   def _get_callee_identifier(self, node: ast.Invocation) -> str:
     return self.state.get_callee_identifier(node)
 
-  def _visit_map(self, node: ast.Invocation) -> BValue:
-    for arg in node.args[:-1]:
-      self._visit(arg)
-    arg = self._use(node.args[0])
-    fn_node = node.args[1]
-
-    if isinstance(fn_node, ast.NameRef):
-      map_fn_name = fn_node.name_def.identifier
-      if map_fn_name in cpp_dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
-        return self.state.def_map_with_builtin(
-            node, fn_node, node.args[0],
-            self.state.get_invocation_bindings(node))
-      else:
-        lookup_module = self.module
-        fn = lookup_module.get_function(map_fn_name)
-    elif isinstance(fn_node, ast.ColonRef):
-      map_fn_name = fn_node.attr
-      imports = dict(self.type_info.get_imports())
-      import_node = fn_node.subject.name_def.definer
-      lookup_module, _ = imports[import_node]
-      fn = lookup_module.get_function(map_fn_name)
-    else:
-      raise NotImplementedError(
-          'Unhandled function mapping: {!r}'.format(fn_node))
-
-    node_sym_bindings = self.state.get_invocation_bindings(node)
-    mangled_name = cpp_ir_converter.mangle_dslx_name(
-        fn.name.identifier, fn.get_free_parametric_keys(), lookup_module,
-        node_sym_bindings)
-
-    return self._def(node, self.fb.add_map, arg,
-                     self.package.get_function(mangled_name))
-
   def _visit_scmp(self, node: ast.Invocation, args: Tuple[BValue, ...],
                   which: Text) -> BValue:
     lhs, rhs = args
@@ -486,8 +452,8 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       accept_args()
       self.state.handle_builtin_ctz(node)
     elif called_name == 'map':
-      # Map needs special arg handling, so we handle that inside.
-      self._visit_map(node)
+      # Note: map needs special arg handling.
+      self.state.handle_map(node, self._visit)
     elif called_name == 'one_hot':
       accept_args()
       self.state.handle_builtin_one_hot(node)

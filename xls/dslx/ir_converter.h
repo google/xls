@@ -221,6 +221,8 @@ class IrConverter {
       Invocation* parent_node, NameRef* node, AstNode* arg,
       const SymbolicBindings& symbolic_bindings);
 
+  absl::StatusOr<BValue> HandleMap(Invocation* node, const VisitFunc& visit);
+
   // Builtin invocation handlers.
   absl::Status HandleBuiltinAndReduce(Invocation* node);
   absl::Status HandleBuiltinBitSlice(Invocation* node);
