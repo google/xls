@@ -1,11 +1,17 @@
 workspace(name = "com_google_xls")
 
+load("//dependency_support/systemlibs:syslibs_configure.bzl", "syslibs_configure")
+syslibs_configure(name = "local_config_syslibs")
+load("@local_config_syslibs//:build_defs.bzl", "SYSTEM_LIBS_LIST")
+
+print("Enabled external system libs: %s" % SYSTEM_LIBS_LIST)
+
 # Load and configure a hermetic LLVM based C/C++ toolchain. This is done here
 # and not in load_external.bzl because it requires several sequential steps of
 # declaring archives and using things in them, which is awkward to do in .bzl
 # files because it's not allowed to use `load` inside of a function.
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-http_archive(
+load("//dependency_support:repo.bzl", "xls_http_archive")
+xls_http_archive(
     name = "com_grail_bazel_toolchain",
     urls = [
         "https://github.com/grailbio/bazel-toolchain/archive/f4c17a3ae40f927ff62cc0fb8fe22b1530871807.zip",
@@ -13,6 +19,14 @@ http_archive(
     strip_prefix = "bazel-toolchain-f4c17a3ae40f927ff62cc0fb8fe22b1530871807",
     sha256 = "715fd98d566ed1304cb53e0c640427cf0916ec6db89588e3ac2b6a87632276d4",
     patches = ["//dependency_support/com_grail_bazel_toolchain:google_workstation_workaround.patch"],
+    system_build_file = "//dependency_support/com_grail_bazel_toolchain:BUILD",
+    system_link_files = {
+        "//dependency_support/systemlibs:com_grail_bazel_toolchain.toolchain.BUILD": "toolchain/BUILD",
+        "//dependency_support/systemlibs:com_grail_bazel_toolchain.toolchain.deps.bzl": "toolchain/deps.bzl",
+        "//dependency_support/systemlibs:com_grail_bazel_toolchain.toolchain.rules.bzl": "toolchain/rules.bzl",
+        "//dependency_support/systemlibs:com_grail_bazel_toolchain.internal.BUILD": "toolchain/internal/BUILD",
+        "//dependency_support/systemlibs:com_grail_bazel_toolchain.internal.configure.bzl": "toolchain/internal/configure.bzl",
+    },
 )
 load("@com_grail_bazel_toolchain//toolchain:deps.bzl", "bazel_toolchain_dependencies")
 bazel_toolchain_dependencies()
