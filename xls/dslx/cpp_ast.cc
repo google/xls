@@ -609,6 +609,16 @@ std::vector<AstNode*> MatchArm::GetChildren(bool want_types) const {
   return results;
 }
 
+// -- class Match
+
+std::vector<AstNode*> Match::GetChildren(bool want_types) const {
+  std::vector<AstNode*> results = {matched_};
+  for (MatchArm* arm : arms_) {
+    results.push_back(arm);
+  }
+  return results;
+}
+
 std::string Match::ToString() const {
   std::string result = absl::StrFormat("match %s {\n", matched_->ToString());
   for (MatchArm* arm : arms_) {

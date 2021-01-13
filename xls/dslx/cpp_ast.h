@@ -1060,6 +1060,11 @@ class MatchArm : public AstNode {
 };
 
 // Represents a match (pattern match) expression.
+//
+// A match expression has zero or more *arms*.
+// Each *arm* has a set of *patterns* that can cause a match, and a "right hand
+// side" *expression* to yield the value of if any of the patterns match
+// (prioritzed in sequential order from first arm to last arm).
 class Match : public Expr {
  public:
   Match(Module* owner, Span span, Expr* matched, std::vector<MatchArm*> arms);
@@ -1070,13 +1075,7 @@ class Match : public Expr {
   absl::string_view GetNodeTypeName() const override { return "Match"; }
   std::string ToString() const override;
 
-  std::vector<AstNode*> GetChildren(bool want_types) const override {
-    std::vector<AstNode*> results = {matched_};
-    for (MatchArm* arm : arms_) {
-      results.push_back(arm);
-    }
-    return results;
-  }
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   const std::vector<MatchArm*>& arms() const { return arms_; }
   Expr* matched() const { return matched_; }

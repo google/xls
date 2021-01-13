@@ -318,6 +318,79 @@ absl::Status IrConverter::HandleCast(Cast* node, const VisitFunc& visit) {
   return absl::OkStatus();
 }
 
+absl::Status IrConverter::HandleMatch(Match* node, const VisitFunc& visit) {
+  if (node->arms().empty() ||
+      !node->arms().back()->patterns()[0]->IsIrrefutable()) {
+    return absl::UnimplementedError(absl::StrFormat(
+        "ConversionError: %s Only matches with trailing irrefutable patterns "
+        "are currently supported for IR conversion.",
+        node->span().ToString()));
+  }
+
+  XLS_RETURN_IF_ERROR(visit(node->matched()));
+  XLS_ASSIGN_OR_RETURN(BValue matched, Use(node->matched()));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> matched_type,
+                       ResolveType(node->matched()));
+
+  MatchArm* default_arm = node->arms().back();
+  if (default_arm->patterns().size() != 1) {
+    return absl::UnimplementedError(
+        absl::StrFormat("ConversionError: %s Multiple patterns in default arm "
+                        "is not currently supported for IR conversion.",
+                        node->span().ToString()));
+  }
+  XLS_RETURN_IF_ERROR(
+      HandleMatcher(default_arm->patterns()[0],
+                    {static_cast<int64>(node->arms().size()) - 1}, matched,
+                    *matched_type, visit)
+          .status());
+  XLS_RETURN_IF_ERROR(visit(default_arm->expr()));
+
+  std::vector<BValue> arm_selectors;
+  std::vector<BValue> arm_values;
+  for (int64 i = 0; i < node->arms().size() - 1; ++i) {
+    MatchArm* arm = node->arms()[i];
+
+    // Visit all the MatchArm's patterns.
+    std::vector<BValue> this_arm_selectors;
+    for (NameDefTree* pattern : arm->patterns()) {
+      XLS_ASSIGN_OR_RETURN(
+          BValue selector,
+          HandleMatcher(pattern, {i}, matched, *matched_type, visit));
+      this_arm_selectors.push_back(selector);
+    }
+
+    // "Or" together the patterns in this arm, if necessary, to determine if the
+    // arm is selected.
+    if (this_arm_selectors.size() > 1) {
+      arm_selectors.push_back(function_builder_->AddNaryOp(
+          Op::kOr, this_arm_selectors, ToSourceLocation(arm->span())));
+    } else {
+      arm_selectors.push_back(this_arm_selectors[0]);
+    }
+    XLS_RETURN_IF_ERROR(visit(arm->expr()));
+    XLS_ASSIGN_OR_RETURN(BValue arm_rhs_value, Use(arm->expr()));
+    arm_values.push_back(arm_rhs_value);
+  }
+
+  // So now we have the following representation of the match arms:
+  //   match x {
+  //     42  => blah
+  //     64  => snarf
+  //     128 => yep
+  //     _   => burp
+  //   }
+  //
+  //   selectors:     [x==42, x==64, x==128]
+  //   values:        [blah,  snarf,    yep]
+  //   default_value: burp
+  XLS_ASSIGN_OR_RETURN(BValue default_value, Use(default_arm->expr()));
+  SetNodeToIr(node, function_builder_->MatchTrue(arm_selectors, arm_values,
+                                                 default_value));
+  last_expression_ = node;
+  return absl::OkStatus();
+}
+
 absl::StatusOr<BValue> IrConverter::HandleMatcher(
     NameDefTree* matcher, absl::Span<const int64> index,
     const BValue& matched_value, const ConcreteType& matched_type,

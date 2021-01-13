@@ -255,58 +255,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Match(self, node: ast.Match):
-    if (not node.arms or not node.arms[-1].patterns[0].is_irrefutable()):
-      raise ConversionError(
-          'Only matches with trailing irrefutable patterns are currently handled.',
-          node.span)
-
-    self._visit(node.matched)
-    matched = self._use(node.matched)
-    matched_type = self._resolve_type(node.matched)
-
-    default_arm = node.arms[-1]
-    assert len(default_arm.patterns) == 1, (
-        'Multiple patterns in default arm is not yet implemented for IR '
-        'conversion.')
-    self.state.handle_matcher(default_arm.patterns[0], (len(node.arms) - 1,),
-                              matched, matched_type, self._visit)
-    self._visit(default_arm.expr)
-
-    arm_selectors = []
-    arm_values = []
-    for i, arm in enumerate(node.arms[:-1]):
-      # Visit all the match patterns.
-      this_arm_selectors = []
-      for pattern in arm.patterns:
-        selector = self.state.handle_matcher(pattern, (i,), matched,
-                                             matched_type, self._visit)
-        this_arm_selectors.append(selector)
-
-      # "Or" together the patterns, if necessary, to determine if the arm is
-      # selected.
-      if len(this_arm_selectors) > 1:
-        arm_selectors.append(self.fb.add_nary_or(this_arm_selectors))
-      else:
-        arm_selectors.append(this_arm_selectors[0])
-      self._visit(arm.expr)
-      arm_values.append(self._use(arm.expr))
-
-    # So now we have the following representation of the match arms:
-    #   match x {
-    #     42  => blah
-    #     64  => snarf
-    #     128 => yep
-    #     _   => burp
-    #   }
-    #
-    #   selectors:     [x==42, x==64, x==128]
-    #   values:        [blah,  snarf,    yep]
-    #   default_value: burp
-    self.state.set_node_to_ir(
-        node,
-        self.fb.add_match_true(arm_selectors, arm_values,
-                               self._use(default_arm.expr)))
-    self.state.last_expression = node
+    self.state.handle_match(node, self._visit)
 
   def visit_Unop(self, node: ast.Unop):
     self.state.handle_unop(node)
