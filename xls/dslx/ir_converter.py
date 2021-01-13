@@ -253,44 +253,6 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
   def _visit(self, node: ast.AstNode) -> None:
     visit(node, self)
 
-  def _visit_matcher(self, matcher: ast.NameDefTree, index: Tuple[int, ...],
-                     matched_value: BValue,
-                     matched_type: ConcreteType) -> BValue:
-    assert isinstance(matched_value, BValue), matched_value
-    if matcher.is_leaf():
-      leaf = matcher.get_leaf()
-      logging.vlog(5, 'Matcher is leaf: %s (%s)', leaf, leaf.__class__.__name__)
-      if isinstance(leaf, ast.WildcardPattern):
-        return self._def(matcher, self.fb.add_literal_bits,
-                         bits_mod.UBits(1, 1))
-      elif isinstance(leaf, (ast.Number, ast.ColonRef)):
-        self._visit(leaf)
-        return self._def(matcher, self.fb.add_eq, self._use(leaf),
-                         matched_value)
-      elif isinstance(leaf, ast.NameRef):
-        result = self._def(matcher, self.fb.add_eq, self._use(leaf.name_def),
-                           matched_value)
-        self._def_alias(leaf.name_def, to=leaf)
-        return result
-      else:
-        assert isinstance(
-            leaf, ast.NameDef
-        ), 'Expected leaf to be wildcard, number, or name; got: {!r}'.format(
-            leaf)
-        ok = self._def(leaf, self.fb.add_literal_bits, bits_mod.UBits(1, 1))
-        self.state.set_node_to_ir(matcher, matched_value)
-        self.state.set_node_to_ir(leaf, matched_value)
-        return ok
-    else:
-      ok = self.fb.add_literal_bits(bits_mod.UBits(value=1, bit_count=1))
-      for i, (element, element_type) in enumerate(
-          zip(matcher.tree, matched_type.get_unnamed_members())):  # pytype: disable=attribute-error
-        # Extract the element.
-        member = self.fb.add_tuple_index(matched_value, i)
-        cond = self._visit_matcher(element, index + (i,), member, element_type)
-        ok = self.fb.add_and(ok, cond)
-      return ok
-
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Match(self, node: ast.Match):
     if (not node.arms or not node.arms[-1].patterns[0].is_irrefutable()):
@@ -306,8 +268,8 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     assert len(default_arm.patterns) == 1, (
         'Multiple patterns in default arm is not yet implemented for IR '
         'conversion.')
-    self._visit_matcher(default_arm.patterns[0], (len(node.arms) - 1,), matched,
-                        matched_type)
+    self.state.handle_matcher(default_arm.patterns[0], (len(node.arms) - 1,),
+                              matched, matched_type, self._visit)
     self._visit(default_arm.expr)
 
     arm_selectors = []
@@ -316,7 +278,8 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       # Visit all the match patterns.
       this_arm_selectors = []
       for pattern in arm.patterns:
-        selector = self._visit_matcher(pattern, (i,), matched, matched_type)
+        selector = self.state.handle_matcher(pattern, (i,), matched,
+                                             matched_type, self._visit)
         this_arm_selectors.append(selector)
 
       # "Or" together the patterns, if necessary, to determine if the arm is
@@ -500,8 +463,9 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       carry_type = self._resolve_type_to_ir(flat[1])
       carry = body_converter.fb.add_param('__loop_carry', carry_type)
       body_converter.state.set_node_to_ir(flat[1], carry)
-      body_converter._visit_matcher(  # pylint: disable=protected-access
-          flat[1], (), carry, self._resolve_type(flat[1]))
+      body_converter.state.handle_matcher(flat[1], (), carry,
+                                          self._resolve_type(flat[1]),
+                                          self._visit)
 
     # Free variables are suffixes on the function parameters.
     freevars = node.body.get_free_variables(node.span.start)

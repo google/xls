@@ -318,6 +318,63 @@ absl::Status IrConverter::HandleCast(Cast* node, const VisitFunc& visit) {
   return absl::OkStatus();
 }
 
+absl::StatusOr<BValue> IrConverter::HandleMatcher(
+    NameDefTree* matcher, absl::Span<const int64> index,
+    const BValue& matched_value, const ConcreteType& matched_type,
+    const VisitFunc& visit) {
+  if (matcher->is_leaf()) {
+    NameDefTree::Leaf leaf = matcher->leaf();
+    XLS_VLOG(5) << absl::StreamFormat("Matcher is leaf: %s (%s)",
+                                      ToAstNode(leaf)->ToString(),
+                                      ToAstNode(leaf)->GetNodeTypeName());
+    if (absl::holds_alternative<WildcardPattern*>(leaf)) {
+      return Def(matcher, [&](absl::optional<SourceLocation> loc) {
+        return function_builder_->Literal(UBits(1, 1), loc);
+      });
+    } else if (absl::holds_alternative<Number*>(leaf) ||
+               absl::holds_alternative<ColonRef*>(leaf)) {
+      XLS_RETURN_IF_ERROR(visit(ToAstNode(leaf)));
+      XLS_ASSIGN_OR_RETURN(BValue to_match, Use(ToAstNode(leaf)));
+      return Def(matcher, [&](absl::optional<SourceLocation> loc) {
+        return function_builder_->Eq(to_match, matched_value);
+      });
+    } else if (absl::holds_alternative<NameRef*>(leaf)) {
+      // Comparing for equivalence to a (referenced) name.
+      auto* name_ref = absl::get<NameRef*>(leaf);
+      auto* name_def = absl::get<NameDef*>(name_ref->name_def());
+      XLS_ASSIGN_OR_RETURN(BValue to_match, Use(name_def));
+      BValue result = Def(matcher, [&](absl::optional<SourceLocation> loc) {
+        return function_builder_->Eq(to_match, matched_value);
+      });
+      XLS_RETURN_IF_ERROR(DefAlias(name_def, name_ref).status());
+      return result;
+    } else {
+      XLS_RET_CHECK(absl::holds_alternative<NameDef*>(leaf));
+      auto* name_def = absl::get<NameDef*>(leaf);
+      BValue ok = Def(name_def, [&](absl::optional<SourceLocation> loc) {
+        return function_builder_->Literal(UBits(1, 1));
+      });
+      SetNodeToIr(matcher, matched_value);
+      SetNodeToIr(ToAstNode(leaf), matched_value);
+      return ok;
+    }
+  }
+
+  auto* matched_tuple_type = dynamic_cast<const TupleType*>(&matched_type);
+  BValue ok = function_builder_->Literal(UBits(/*value=*/1, /*bit_count=*/1));
+  for (int64 i = 0; i < matched_tuple_type->size(); ++i) {
+    const ConcreteType& element_type = matched_tuple_type->GetMemberType(i);
+    NameDefTree* element = matcher->nodes()[i];
+    BValue member = function_builder_->TupleIndex(matched_value, i);
+    std::vector<int64> sub_index(index.begin(), index.end());
+    sub_index.push_back(i);
+    XLS_ASSIGN_OR_RETURN(BValue cond, HandleMatcher(element, sub_index, member,
+                                                    element_type, visit));
+    ok = function_builder_->And(ok, cond);
+  }
+  return ok;
+}
+
 absl::Status IrConverter::HandleColonRef(ColonRef* node,
                                          const VisitFunc& visit) {
   // Implementation note: ColonRef "invocation" are handled in Invocation (by

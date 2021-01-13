@@ -331,6 +331,17 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
            [](IrConverter& self, CastHolder node, const PyVisitFunc& py_visit) {
              return self.HandleCast(&node.deref(), ToCppVisit(py_visit));
            })
+      .def("handle_matcher",
+           [](IrConverter& self, NameDefTreeHolder node,
+              const std::vector<int64>& index, BValueHolder matched,
+              const ConcreteType& matched_type,
+              const PyVisitFunc& py_visit) -> absl::StatusOr<BValueHolder> {
+             XLS_ASSIGN_OR_RETURN(
+                 BValue value,
+                 self.HandleMatcher(&node.deref(), index, matched.deref(),
+                                    matched_type, ToCppVisit(py_visit)));
+             return Wrap(self, value);
+           })
       // -- Builtins
       .def("handle_builtin_and_reduce",
            [](IrConverter& self, InvocationHolder node) {
