@@ -1423,6 +1423,12 @@ using IndexRhs = std::variant<Expr*, Slice*, WidthSlice*>;
 absl::StatusOr<IndexRhs> AstNodeToIndexRhs(AstNode* node);
 
 // Represents an index expression; e.g. `a[i]`
+//
+// * `lhs()` is the subject being indexed
+// * `rhs()` is the index specifier, can be either an:
+//   * expression (e.g. `i` in the `a[i]` example above)
+//   * slice (from compile-time-constant index to compile-time-constant index)
+//   * width slice (from start index a compile-time-constant number of bits)
 class Index : public Expr {
  public:
   Index(Module* owner, Span span, Expr* lhs, IndexRhs rhs)

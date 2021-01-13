@@ -448,6 +448,54 @@ absl::StatusOr<BValue> IrConverter::HandleMatcher(
   return ok;
 }
 
+absl::Status IrConverter::HandleIndex(Index* node, const VisitFunc& visit) {
+  XLS_RETURN_IF_ERROR(visit(node->lhs()));
+  XLS_ASSIGN_OR_RETURN(BValue lhs, Use(node->lhs()));
+
+  absl::optional<const ConcreteType*> lhs_type =
+      type_info_->GetItem(node->lhs());
+  XLS_RET_CHECK(lhs_type.has_value());
+  if (dynamic_cast<const TupleType*>(lhs_type.value()) != nullptr) {
+    // Tuple indexing requires a compile-time-constant RHS.
+    XLS_RETURN_IF_ERROR(visit(ToAstNode(node->rhs())));
+    XLS_ASSIGN_OR_RETURN(Bits rhs, GetConstBits(ToAstNode(node->rhs())));
+    XLS_ASSIGN_OR_RETURN(uint64 index, rhs.ToUint64());
+    Def(node, [&](absl::optional<SourceLocation> loc) {
+      return function_builder_->TupleIndex(lhs, index, loc);
+    });
+  } else if (dynamic_cast<const BitsType*>(lhs_type.value()) != nullptr) {
+    IndexRhs rhs = node->rhs();
+    if (absl::holds_alternative<WidthSlice*>(rhs)) {
+      auto* width_slice = absl::get<WidthSlice*>(rhs);
+      XLS_RETURN_IF_ERROR(visit(width_slice->start()));
+      XLS_ASSIGN_OR_RETURN(BValue start, Use(width_slice->start()));
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> output_type,
+                           ResolveType(node));
+      XLS_ASSIGN_OR_RETURN(ConcreteTypeDim output_type_dim,
+                           output_type->GetTotalBitCount());
+      int64 width = absl::get<int64>(output_type_dim.value());
+      Def(node, [&](absl::optional<SourceLocation> loc) {
+        return function_builder_->DynamicBitSlice(lhs, start, width, loc);
+      });
+    } else {
+      auto* slice = absl::get<Slice*>(rhs);
+      absl::optional<StartAndWidth> saw =
+          type_info_->GetSliceStartAndWidth(slice, GetSymbolicBindingsTuple());
+      XLS_RET_CHECK(saw.has_value());
+      Def(node, [&](absl::optional<SourceLocation> loc) {
+        return function_builder_->BitSlice(lhs, saw->start, saw->width, loc);
+      });
+    }
+  } else {
+    XLS_RETURN_IF_ERROR(visit(ToAstNode(node->rhs())));
+    XLS_ASSIGN_OR_RETURN(BValue index, Use(ToAstNode(node->rhs())));
+    Def(node, [&](absl::optional<SourceLocation> loc) {
+      return function_builder_->ArrayIndex(lhs, {index}, loc);
+    });
+  }
+  return absl::OkStatus();
+}
+
 absl::Status IrConverter::HandleColonRef(ColonRef* node,
                                          const VisitFunc& visit) {
   // Implementation note: ColonRef "invocation" are handled in Invocation (by

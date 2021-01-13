@@ -206,6 +206,7 @@ class IrConverter {
   absl::Status HandleLet(Let* node, const VisitFunc& visit);
   absl::Status HandleCast(Cast* node, const VisitFunc& visit);
   absl::Status HandleMatch(Match* node, const VisitFunc& visit);
+  absl::Status HandleIndex(Index* node, const VisitFunc& visit);
 
   // Handles an arm of a match expression.
   absl::StatusOr<BValue> HandleMatcher(NameDefTree* matcher,

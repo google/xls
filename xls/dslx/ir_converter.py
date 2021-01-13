@@ -31,11 +31,9 @@ from xls.dslx.python import cpp_dslx_builtins
 from xls.dslx.python import cpp_ir_converter
 from xls.dslx.python import cpp_type_info as type_info_mod
 from xls.dslx.python.cpp_ast_visitor import visit
-from xls.dslx.python.cpp_concrete_type import BitsType
 from xls.dslx.python.cpp_concrete_type import ConcreteType
 from xls.dslx.python.cpp_concrete_type import ConcreteTypeDim
 from xls.dslx.python.cpp_concrete_type import FunctionType
-from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.dslx.python.cpp_pos import Span
 from xls.dslx.python.cpp_type_info import SymbolicBindings
 from xls.dslx.python.import_routines import ImportCache
@@ -260,37 +258,12 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
   def visit_Unop(self, node: ast.Unop):
     self.state.handle_unop(node)
 
-  def _visit_width_slice(self, node: ast.Index, width_slice: ast.WidthSlice,
-                         lhs_type: ConcreteType) -> None:
-    self._visit(width_slice.start)
-    self._def(node, self.fb.add_dynamic_bit_slice, self._use(node.lhs),
-              self._use(width_slice.start),
-              self._resolve_type(node).get_total_bit_count().value)
-
   def visit_Attr(self, node: ast.Attr) -> None:
     self.state.handle_attr(node)
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Index(self, node: ast.Index) -> None:
-    self._visit(node.lhs)
-    lhs_type = self.type_info.get_type(node.lhs)
-    if isinstance(lhs_type, TupleType):
-      self._visit(node.index)
-      self._def(node, self.fb.add_tuple_index, self._use(node.lhs),
-                self._get_const(node.index, signed=False))
-    elif isinstance(lhs_type, BitsType):
-      index_slice = node.index
-      if isinstance(index_slice, ast.WidthSlice):
-        return self._visit_width_slice(node, index_slice, lhs_type)
-      assert isinstance(index_slice, ast.Slice), index_slice
-
-      start, width = self.type_info.get_slice_start_width(
-          index_slice, self.state.get_symbolic_bindings_tuple())
-      self._def(node, self.fb.add_bit_slice, self._use(node.lhs), start, width)
-    else:
-      self._visit(node.index)
-      self._def(node, self.fb.add_array_index, self._use(node.lhs),
-                [self._use(node.index)])
+    self.state.handle_index(node, self._visit)
 
   def visit_Number(self, node: ast.Number):
     self.state.handle_number(node)
