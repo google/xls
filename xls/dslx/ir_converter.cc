@@ -78,16 +78,26 @@ absl::StatusOr<BValue> IrConverter::DefAlias(AstNode* from, AstNode* to) {
   return Use(to);
 }
 
-BValue IrConverter::Def(
+absl::StatusOr<BValue> IrConverter::DefWithStatus(
     AstNode* node,
-    const std::function<BValue(absl::optional<SourceLocation>)>& ir_func) {
+    const std::function<absl::StatusOr<BValue>(absl::optional<SourceLocation>)>&
+        ir_func) {
   absl::optional<SourceLocation> loc = ToSourceLocation(node->GetSpan());
-  BValue result = ir_func(loc);
+  XLS_ASSIGN_OR_RETURN(BValue result, ir_func(loc));
   XLS_VLOG(4) << absl::StreamFormat(
       "Define node '%s' (%s) to be %s @ %s", node->ToString(),
       node->GetNodeTypeName(), ToString(result), SpanToString(node->GetSpan()));
   SetNodeToIr(node, result);
   return result;
+}
+
+BValue IrConverter::Def(
+    AstNode* node,
+    const std::function<BValue(absl::optional<SourceLocation>)>& ir_func) {
+  return DefWithStatus(node,
+                       [&ir_func](absl::optional<SourceLocation> loc)
+                           -> absl::StatusOr<BValue> { return ir_func(loc); })
+      .value();
 }
 
 IrConverter::CValue IrConverter::DefConst(
@@ -260,6 +270,50 @@ absl::Status IrConverter::HandleLet(Let* node, const VisitFunc& visit) {
 
   if (last_expression_ == nullptr) {
     last_expression_ = node->body();
+  }
+  return absl::OkStatus();
+}
+
+absl::Status IrConverter::HandleCast(Cast* node, const VisitFunc& visit) {
+  XLS_RETURN_IF_ERROR(visit(node->expr()));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> output_type,
+                       ResolveType(node));
+  if (auto* array_type = dynamic_cast<ArrayType*>(output_type.get())) {
+    return CastToArray(node, *array_type);
+  }
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> input_type,
+                       ResolveType(node->expr()));
+  if (dynamic_cast<ArrayType*>(input_type.get()) != nullptr) {
+    return CastFromArray(node, *output_type);
+  }
+  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim new_bit_count_ctd,
+                       output_type->GetTotalBitCount());
+  int64 new_bit_count = absl::get<int64>(new_bit_count_ctd.value());
+  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim input_bit_count_ctd,
+                       input_type->GetTotalBitCount());
+  int64 old_bit_count = absl::get<int64>(input_bit_count_ctd.value());
+  if (new_bit_count < old_bit_count) {
+    auto bvalue_status = DefWithStatus(
+        node,
+        [this, node, new_bit_count](
+            absl::optional<SourceLocation> loc) -> absl::StatusOr<BValue> {
+          XLS_ASSIGN_OR_RETURN(BValue input, Use(node->expr()));
+          return function_builder_->BitSlice(input, 0, new_bit_count);
+        });
+    XLS_RETURN_IF_ERROR(bvalue_status.status());
+  } else {
+    XLS_ASSIGN_OR_RETURN(bool signed_input, IsSigned(*input_type));
+    auto bvalue_status = DefWithStatus(
+        node,
+        [this, node, new_bit_count, signed_input](
+            absl::optional<SourceLocation> loc) -> absl::StatusOr<BValue> {
+          XLS_ASSIGN_OR_RETURN(BValue input, Use(node->expr()));
+          if (signed_input) {
+            return function_builder_->SignExtend(input, new_bit_count);
+          }
+          return function_builder_->ZeroExtend(input, new_bit_count);
+        });
+    XLS_RETURN_IF_ERROR(bvalue_status.status());
   }
   return absl::OkStatus();
 }

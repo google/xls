@@ -494,6 +494,10 @@ inline bool IsSBits(const ConcreteType& c) {
   return false;
 }
 
+// Returns whether the given type, which should be either a bits or an enum
+// type, is signed.
+absl::StatusOr<bool> IsSigned(const ConcreteType& c);
+
 // Parses the given string (that is expected to come from a
 // ConcreteType::ToString() invocation) back into a ConcreteType object.
 // Trailing text that is not part of the resulting parsed type is left in "s".

@@ -518,6 +518,22 @@ absl::StatusOr<ConcreteTypeDim> FunctionType::GetTotalBitCount() const {
   return sum;
 }
 
+absl::StatusOr<bool> IsSigned(const ConcreteType& c) {
+  if (auto* bits = dynamic_cast<const BitsType*>(&c)) {
+    return bits->is_signed();
+  }
+  if (auto* enum_type = dynamic_cast<const EnumType*>(&c)) {
+    absl::optional<bool> signedness = enum_type->signedness();
+    if (!signedness.has_value()) {
+      return absl::InvalidArgumentError(
+          "Signedness not present for EnumType: " + c.ToString());
+    }
+    return signedness.value();
+  }
+  return absl::InvalidArgumentError(
+      "Cannot determined signedness; type is neither enum nor bits.");
+}
+
 // -- ConcreteTypeFromString
 
 static absl::StatusOr<ConcreteTypeDim> ConsumeConcreteTypeDim(

@@ -31,11 +31,9 @@ from xls.dslx.python import cpp_dslx_builtins
 from xls.dslx.python import cpp_ir_converter
 from xls.dslx.python import cpp_type_info as type_info_mod
 from xls.dslx.python.cpp_ast_visitor import visit
-from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType
 from xls.dslx.python.cpp_concrete_type import ConcreteType
 from xls.dslx.python.cpp_concrete_type import ConcreteTypeDim
-from xls.dslx.python.cpp_concrete_type import EnumType
 from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.dslx.python.cpp_pos import Span
@@ -406,28 +404,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Cast(self, node: ast.Cast) -> None:
-    self._visit(node.expr)
-    output_type = self._resolve_type(node)
-    if isinstance(output_type, ArrayType):
-      return self.state.cast_to_array(node, output_type)
-    if not (isinstance(output_type, BitsType) or
-            isinstance(output_type, EnumType)):
-      raise NotImplementedError(
-          'Cast can only handle bits output types; got: '
-          f'{output_type} @ {node.span} ({output_type!r})')
-    input_type = self._resolve_type(node.expr)
-    if isinstance(input_type, ArrayType):
-      return self.state.cast_from_array(node, output_type)
-    new_bit_count = output_type.get_total_bit_count().value
-    input_type = self._resolve_type(node.expr)
-    if new_bit_count < input_type.get_total_bit_count().value:
-      self._def(node, self.fb.add_bit_slice, self._use(node.expr), 0,
-                new_bit_count)
-    else:
-      signed_input = input_type.signed
-      assert signed_input is not None, input_type
-      f = self.fb.add_signext if signed_input else self.fb.add_zeroext
-      self._def(node, f, self._use(node.expr), new_bit_count)
+    self.state.handle_cast(node, self._visit)
 
   def visit_XlsTuple(self, node: ast.XlsTuple) -> None:
     self.state.handle_xls_tuple(node)

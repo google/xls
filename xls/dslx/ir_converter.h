@@ -204,6 +204,7 @@ class IrConverter {
   absl::Status HandleColonRef(ColonRef* node, const VisitFunc& visit);
   absl::Status HandleConstantDef(ConstantDef* node, const VisitFunc& visit);
   absl::Status HandleLet(Let* node, const VisitFunc& visit);
+  absl::Status HandleCast(Cast* node, const VisitFunc& visit);
 
   // Builtin invocation handlers.
   absl::Status HandleBuiltinAndReduce(Invocation* node);
@@ -282,6 +283,11 @@ class IrConverter {
 
   // Defines "node" to map the the result of running "ir_func" with "args" -- if
   // emit_positions is on grabs the span from the node and uses it in the call.
+  absl::StatusOr<BValue> DefWithStatus(
+      AstNode* node, const std::function<absl::StatusOr<BValue>(
+                         absl::optional<SourceLocation>)>& ir_func);
+
+  // Specialization for Def() above when the "ir_func" is infallible.
   BValue Def(
       AstNode* node,
       const std::function<BValue(absl::optional<SourceLocation>)>& ir_func);
