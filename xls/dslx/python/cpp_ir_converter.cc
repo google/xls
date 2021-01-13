@@ -341,6 +341,11 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
           [](IrConverter& self, IndexHolder node, const PyVisitFunc& py_visit) {
             return self.HandleIndex(&node.deref(), ToCppVisit(py_visit));
           })
+      .def(
+          "handle_array",
+          [](IrConverter& self, ArrayHolder node, const PyVisitFunc& py_visit) {
+            return self.HandleArray(&node.deref(), ToCppVisit(py_visit));
+          })
       // Special helper for handling NameDefTree destructuring.
       .def("handle_matcher",
            [](IrConverter& self, NameDefTreeHolder node,

@@ -496,6 +496,31 @@ absl::Status IrConverter::HandleIndex(Index* node, const VisitFunc& visit) {
   return absl::OkStatus();
 }
 
+absl::Status IrConverter::HandleArray(Array* node, const VisitFunc& visit) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type, ResolveType(node));
+  const ArrayType* array_type = dynamic_cast<ArrayType*>(type.get());
+  XLS_RET_CHECK(array_type != nullptr);
+  std::vector<BValue> members;
+  for (Expr* member : node->members()) {
+    XLS_RETURN_IF_ERROR(visit(member));
+    XLS_ASSIGN_OR_RETURN(BValue member_value, Use(member));
+    members.push_back(member_value);
+  }
+
+  if (node->has_ellipsis()) {
+    ConcreteTypeDim array_size_ctd = array_type->size();
+    int64 array_size = absl::get<int64>(array_size_ctd.value());
+    while (members.size() < array_size) {
+      members.push_back(members.back());
+    }
+  }
+  Def(node, [&](absl::optional<SourceLocation> loc) {
+    xls::Type* type = members[0].GetType();
+    return function_builder_->Array(std::move(members), type, loc);
+  });
+  return absl::OkStatus();
+}
+
 absl::Status IrConverter::HandleColonRef(ColonRef* node,
                                          const VisitFunc& visit) {
   // Implementation note: ColonRef "invocation" are handled in Invocation (by

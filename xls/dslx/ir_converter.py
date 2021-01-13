@@ -274,15 +274,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Array(self, node: ast.Array) -> None:
-    array_type = self._resolve_type(node)
-    members = []
-    for member in node.members:
-      self._visit(member)
-      members.append(self._use(member))
-    if node.has_ellipsis:
-      while len(members) < array_type.size.value:
-        members.append(members[-1])
-    self._def(node, self.fb.add_array, members, members[0].get_type())
+    self.state.handle_array(node, self._visit)
 
   def visit_ConstantArray(self, node: ast.ConstantArray) -> None:
     self.state.handle_constant_array(node)
