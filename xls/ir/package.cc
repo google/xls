@@ -430,6 +430,15 @@ std::vector<std::string> Package::GetFunctionNames() const {
   return names;
 }
 
+bool Package::HasFunctionWithName(absl::string_view target) const {
+  for (const std::unique_ptr<Function>& function : functions_) {
+    if (function->name() == target) {
+      return true;
+    }
+  }
+  return false;
+}
+
 namespace {
 
 absl::Status VerifyValuesAreType(absl::Span<const Value> values, Type* type) {

@@ -159,6 +159,9 @@ class Package {
 
   std::vector<std::string> GetFunctionNames() const;
 
+  // Returns whether this package contains a function with the "target" name.
+  bool HasFunctionWithName(absl::string_view target) const;
+
   int64 next_node_id() const { return next_node_id_; }
 
   // Intended for use by the parser when node ids are suggested by the IR text.

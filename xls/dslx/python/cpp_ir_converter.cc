@@ -358,6 +358,17 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
                                     matched_type, ToCppVisit(py_visit)));
              return Wrap(self, value);
            })
+      .def("def_map_with_builtin",
+           [](IrConverter& self, InvocationHolder parent_node,
+              NameRefHolder node, AstNodeHolder arg,
+              const SymbolicBindings& symbolic_bindings)
+               -> absl::StatusOr<BValueHolder> {
+             XLS_ASSIGN_OR_RETURN(
+                 BValue value,
+                 self.DefMapWithBuiltin(&parent_node.deref(), &node.deref(),
+                                        &arg.deref(), symbolic_bindings));
+             return Wrap(self, value);
+           })
       // -- Builtins
       .def("handle_builtin_and_reduce",
            [](IrConverter& self, InvocationHolder node) {

@@ -448,6 +448,38 @@ absl::StatusOr<BValue> IrConverter::HandleMatcher(
   return ok;
 }
 
+absl::StatusOr<BValue> IrConverter::DefMapWithBuiltin(
+    Invocation* parent_node, NameRef* node, AstNode* arg,
+    const SymbolicBindings& symbolic_bindings) {
+  XLS_ASSIGN_OR_RETURN(
+      const std::string mangled_name,
+      MangleDslxName(node->identifier(), {}, module_, &symbolic_bindings));
+  XLS_ASSIGN_OR_RETURN(BValue arg_value, Use(arg));
+  XLS_VLOG(5) << "Mapping with builtin; arg: "
+              << arg_value.GetType()->ToString();
+  auto* array_type = arg_value.GetType()->AsArrayOrDie();
+  if (!package_->HasFunctionWithName(mangled_name)) {
+    FunctionBuilder fb(mangled_name, package_.get());
+    BValue param = fb.Param("arg", array_type->element_type());
+    const std::string& builtin_name = node->identifier();
+    BValue result;
+    if (builtin_name == "clz") {
+      result = fb.Clz(param);
+    } else if (builtin_name == "ctz") {
+      result = fb.Ctz(param);
+    } else {
+      return absl::InternalError("Invalid builtin name for map: " +
+                                 builtin_name);
+    }
+    XLS_RETURN_IF_ERROR(fb.Build().status());
+  }
+
+  XLS_ASSIGN_OR_RETURN(xls::Function * f, package_->GetFunction(mangled_name));
+  return Def(parent_node, [&](absl::optional<SourceLocation> loc) {
+    return function_builder_->Map(arg_value, f);
+  });
+}
+
 absl::Status IrConverter::HandleIndex(Index* node, const VisitFunc& visit) {
   XLS_RETURN_IF_ERROR(visit(node->lhs()));
   XLS_ASSIGN_OR_RETURN(BValue lhs, Use(node->lhs()));

@@ -42,7 +42,6 @@ from xls.dslx.span import PositionalError
 from xls.ir.python import bits as bits_mod
 from xls.ir.python import fileno as fileno_mod
 from xls.ir.python import function as ir_function
-from xls.ir.python import function_builder
 from xls.ir.python import number_parser
 from xls.ir.python import package as ir_package
 from xls.ir.python import source_location
@@ -418,30 +417,6 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
   def _get_callee_identifier(self, node: ast.Invocation) -> str:
     return self.state.get_callee_identifier(node)
 
-  def _def_map_with_builtin(self, parent_node: ast.Invocation,
-                            node: ast.NameRef, arg: ast.AstNode,
-                            symbolic_bindings: SymbolicBindings) -> BValue:
-    """Makes the specified builtin available to the package."""
-    assert isinstance(symbolic_bindings, SymbolicBindings), symbolic_bindings
-    mangled_name = cpp_ir_converter.mangle_dslx_name(node.name_def.identifier,
-                                                     set(), self.module,
-                                                     symbolic_bindings)
-
-    arg = self._use(arg)
-    if mangled_name not in self.package.get_function_names():
-      fb = function_builder.FunctionBuilder(mangled_name, self.package)
-      param = fb.add_param('arg', arg.get_type().get_element_type())
-      builtin_name = node.name_def.identifier
-      assert builtin_name in cpp_dslx_builtins.UNARY_PARAMETRIC_BUILTIN_NAMES, cpp_dslx_builtins.UNARY_PARAMETRIC_BUILTIN_NAMES
-      fbuilds = {'clz': fb.add_clz, 'ctz': fb.add_ctz}
-      assert set(fbuilds.keys()
-                ) == cpp_dslx_builtins.UNARY_PARAMETRIC_BUILTIN_NAMES, set(
-                    fbuilds.keys())
-      fbuilds[builtin_name](param)
-      fb.build()
-    return self._def(parent_node, self.fb.add_map, arg,
-                     self.package.get_function(mangled_name))
-
   def _visit_map(self, node: ast.Invocation) -> BValue:
     for arg in node.args[:-1]:
       self._visit(arg)
@@ -451,7 +426,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     if isinstance(fn_node, ast.NameRef):
       map_fn_name = fn_node.name_def.identifier
       if map_fn_name in cpp_dslx_builtins.PARAMETRIC_BUILTIN_NAMES:
-        return self._def_map_with_builtin(
+        return self.state.def_map_with_builtin(
             node, fn_node, node.args[0],
             self.state.get_invocation_bindings(node))
       else:

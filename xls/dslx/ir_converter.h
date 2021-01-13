@@ -216,6 +216,11 @@ class IrConverter {
                                        const ConcreteType& matched_type,
                                        const VisitFunc& visit);
 
+  // Makes the specified builtin available to the package.
+  absl::StatusOr<BValue> DefMapWithBuiltin(
+      Invocation* parent_node, NameRef* node, AstNode* arg,
+      const SymbolicBindings& symbolic_bindings);
+
   // Builtin invocation handlers.
   absl::Status HandleBuiltinAndReduce(Invocation* node);
   absl::Status HandleBuiltinBitSlice(Invocation* node);
