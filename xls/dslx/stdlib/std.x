@@ -106,7 +106,7 @@ fn find_index_test() {
   ()
 }
 
-// Concatenates 3 values of potentially different bitwidths to a single value.
+// Concatenates 3 values of arbitrary bitwidths to a single value.
 pub fn concat3<X: u32, Y: u32, Z: u32, R: u32 = X + Y + Z>(
     x: bits[X], y: bits[Y], z: bits[Z]) -> bits[R] {
   x ++ y ++ z
@@ -119,21 +119,35 @@ fn concat3_test() {
   ()
 }
 
-fn divceil(x: u32, y: u32) -> u32 {
-  (x-u32:1) / y + u32:1
+// Returns the ceiling of (x divided by y).
+pub fn ceil_div<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
+  let usual = (x - uN[N]:1) / y + uN[N]:1;
+  usual if x > uN[N]:0 else uN[N]:0
 }
 
 #![test]
-fn divceil_test() {
-  let _ = assert_eq(u32:3, divceil(u32:5, u32:2));
-  let _ = assert_eq(u32:2, divceil(u32:4, u32:2));
-  let _ = assert_eq(u32:2, divceil(u32:3, u32:2));
-  let _ = assert_eq(u32:1, divceil(u32:2, u32:2));
+fn ceil_div_test() {
+  let _ = assert_eq(ceil_div(u32:6, u32:2), u32:3);
+  let _ = assert_eq(ceil_div(u32:5, u32:2), u32:3);
+  let _ = assert_eq(ceil_div(u32:4, u32:2), u32:2);
+  let _ = assert_eq(ceil_div(u32:3, u32:2), u32:2);
+  let _ = assert_eq(ceil_div(u32:2, u32:2), u32:1);
+  let _ = assert_eq(ceil_div(u32:1, u32:2), u32:1);
+  let _ = assert_eq(ceil_div(u32:0, u32:2), u32:0);
+
+  let _ = assert_eq(ceil_div(u8:6, u8:3), u8:2);
+  let _ = assert_eq(ceil_div(u8:5, u8:3), u8:2);
+  let _ = assert_eq(ceil_div(u8:4, u8:3), u8:2);
+  let _ = assert_eq(ceil_div(u8:3, u8:3), u8:1);
+  let _ = assert_eq(ceil_div(u8:2, u8:3), u8:1);
+  let _ = assert_eq(ceil_div(u8:1, u8:3), u8:1);
+  let _ = assert_eq(ceil_div(u8:0, u8:3), u8:0);
+
   _
 }
 
 pub fn round_up_to_nearest(x: u32, y: u32) -> u32 {
-  (divceil(x, y) * y) as u32
+  (ceil_div(x, y) * y) as u32
 }
 
 #![test]
