@@ -52,12 +52,12 @@ message Operation {
     // array.
     int64 element_count = 2;
   }
-  repeated Operand operands = 3;
+  repeated Operand operands = 4;
 
   // The category of specialization of this operation, if any. For example, if
   // the operands of the xls::Node represented by this proto are all identical,
   // this field would be OPERANDS_IDENTICAL.
-  SpecializationKind specialization = 4;
+  SpecializationKind specialization = 5;
 }
 
 // Describes a measured data point of the delay of an operation.
@@ -88,19 +88,19 @@ message DelayFactor {
 
     // The bit count of a particular operand of the operation. The specific
     // operand is indicated by the field operand_number.
-    OPERAND_BIT_COUNT = 2;
+    OPERAND_BIT_COUNT = 3;
 
     // The total number of operands of the operation.
-    OPERAND_COUNT = 3;
+    OPERAND_COUNT = 4;
 
     // The number of element of a particular operand of the operation. The
     // operand must be array-typed. The specific operand is indicated by the
     // field operand_number.
-    OPERAND_ELEMENT_COUNT = 4;
+    OPERAND_ELEMENT_COUNT = 5;
 
     // The width of an element number in a particular array-typed operand of the
     // operation. The specific operand is indicated by the field operand_number.
-    OPERAND_ELEMENT_BIT_COUNT = 5;
+    OPERAND_ELEMENT_BIT_COUNT = 6;
   }
   Source source = 1;
 
@@ -109,10 +109,69 @@ message DelayFactor {
   int64 operand_number = 2;
 }
 
+// Describes a nested mathematical expression combining delay factors (and possibly
+// constants). Useful when data for an op cannot be described by a linear
+// combination of individual delay factors.
+message DelayExpression {
+  // The expression is a binary op combining
+  // two subexpressions.
+  enum BinaryOperation {
+    ADD = 0;
+    DIVIDE = 1;
+    MAX = 2;
+    MIN = 3;
+    MULTIPLY = 4;
+    POWER = 5;
+    SUB = 6;
+  }
+
+  // An expression can be either a BinaryOperation,
+  // a DelayFactor, or an int.
+  oneof expression_type {
+    BinaryOperation bin_op = 1;
+
+    // The expression is simply a delay factor.
+    DelayFactor factor = 2;
+
+    // The expression is a constant.
+    int64 constant = 3;
+  }
+
+  // Left and right hand side expressions combined by the BinaryOperation,
+  // if present.
+  DelayExpression lhs_expression = 4;
+  DelayExpression rhs_expression = 5;
+}
+
+// Settings used for K-fold cross-validation of a regression estimor.
+// A regression model will fail to build if it does not pass cross validation.
+message KFoldValidator {
+
+  // Note: oneof used here because proto3 does not support optional
+  // fields without experimental features enabled.
+  oneof optional_num_cross_validation_folds {
+    // The number of folds to use for cross validation.
+    // default = 5
+    int64 num_cross_validation_folds = 1;
+  }
+
+  oneof optional_max_data_point_error {
+    // The maximum allowable absolute error for any single data point.
+    // default = infinity
+    float max_data_point_error = 2;
+  }
+  oneof optional_max_fold_geomean_error {
+    // max_fold_geomean_error: The maximum allowable geomean absolute error over
+    // all data points in a given test set.
+    // default = infinity
+    float max_fold_geomean_error = 3;
+  }
+}
+
 // Describes a delay estimation model which fits a curve to the measured data
 // points for the operation. The function (curve) includes a constant term and
-// terms which are linear and logarithm functions of the indicated factors. For
-// example, if the factors are the result bit count and the operand count then
+// terms which are linear and logarithm functions of the indicated expressions. For
+// example, if the expressions are the result bit count and the operand count then
 // the function for the estimated delay has the form:
 //
 //   delay_est = P_0 + P_1 * result_bit_count + P_2 * log2(result_bit_count) +
@@ -120,11 +179,18 @@ message DelayFactor {
 //
 // Where P_i are learned parameters.
 message RegressionEstimator {
-  repeated DelayFactor factors = 1;
+  repeated DelayExpression expressions = 1;
+
+  // Note: oneof used here because proto3 does not support optional
+  // fields without experimental features enabled.
+  oneof optional_kfold_validator {
+    // K-Fold validation settings.
+    KFoldValidator kfold_validator = 2;
+  }
 }
 
 // Describes a delay estimation model in which the measured data points define
-// bounding boxes in the space of delay factors. The estimated delay for an
+// bounding boxes in the space of delay expressions. The estimated delay for an
 // operation X is equal to the delay of the first bounding box containing the
 // point defined by the operation. For example, suppose the factors of a
 // bounding box estimator are the result bit count and the operand count, and

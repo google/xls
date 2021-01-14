@@ -45,7 +45,6 @@ op_models { op: "kDecode" estimator { fixed: 5 } }
 op_models { op: "kDynamicBitSlice" estimator { fixed: 5 } }
 op_models { op: "kEncode" estimator { fixed: 5 } }
 op_models { op: "kEq" estimator { fixed: 5 } }
-# Note sure about these two...
 op_models { op: "kNand" estimator { fixed: 5 } }
 op_models { op: "kNe" estimator { fixed: 5 } }
 op_models { op: "kNeg" estimator { fixed: 5 } }
