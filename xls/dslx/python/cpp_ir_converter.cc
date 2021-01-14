@@ -66,9 +66,10 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
   py::class_<IrConverter>(m, "IrConverter")
       .def(py::init([](PackageHolder package, ModuleHolder module,
                        const std::shared_ptr<TypeInfo>& type_info,
-                       bool emit_positions) {
-        return absl::make_unique<IrConverter>(
-            package.package(), &module.deref(), type_info, emit_positions);
+                       ImportCache* import_cache, bool emit_positions) {
+        return absl::make_unique<IrConverter>(package.package(),
+                                              &module.deref(), type_info,
+                                              import_cache, emit_positions);
       }))
       .def("instantiate_function_builder",
            &IrConverter::InstantiateFunctionBuilder)
@@ -86,6 +87,8 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
                              })
       .def_property_readonly("type_info",
                              [](IrConverter& self) { return self.type_info(); })
+      .def_property_readonly(
+          "import_cache", [](IrConverter& self) { return self.import_cache(); })
       .def_property_readonly(
           "function_builder",
           [](IrConverter& self) -> absl::optional<FunctionBuilderHolder> {
@@ -376,6 +379,10 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
                  self.DefMapWithBuiltin(&parent_node.deref(), &node.deref(),
                                         &arg.deref(), symbolic_bindings));
              return Wrap(self, value);
+           })
+      .def("evaluate_const_function",
+           [](IrConverter& self, InvocationHolder node) {
+             return self.EvaluateConstFunction(&node.deref());
            })
       // -- Builtins
       .def("handle_builtin_and_reduce",

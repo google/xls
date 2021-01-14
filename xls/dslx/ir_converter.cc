@@ -19,6 +19,7 @@
 #include "xls/dslx/cpp_ast.h"
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/dslx_builtins.h"
+#include "xls/dslx/interpreter.h"
 #include "xls/ir/lsb_or_msb.h"
 
 namespace xls::dslx {
@@ -36,10 +37,11 @@ using IrLiteral = xls::Value;
 IrConverter::IrConverter(const std::shared_ptr<Package>& package,
                          Module* module,
                          const std::shared_ptr<TypeInfo>& type_info,
-                         bool emit_positions)
+                         ImportCache* import_cache, bool emit_positions)
     : package_(package),
       module_(module),
       type_info_(type_info),
+      import_cache_(import_cache),
       emit_positions_(emit_positions),
       // TODO(leary): 2019-07-19 Create a way to get the file path from the
       // module.
@@ -479,6 +481,50 @@ absl::StatusOr<BValue> IrConverter::DefMapWithBuiltin(
   return Def(parent_node, [&](absl::optional<SourceLocation> loc) {
     return function_builder_->Map(arg_value, f);
   });
+}
+
+absl::StatusOr<Value> IrConverter::EvaluateConstFunction(Invocation* node) {
+  Module* module = module_;
+  std::string fn_name;
+  if (auto* name_ref = dynamic_cast<NameRef*>(node->callee())) {
+    fn_name = name_ref->identifier();
+  } else if (auto* colon_ref = dynamic_cast<ColonRef*>(node->callee())) {
+    fn_name = colon_ref->attr();
+    absl::optional<Import*> import = colon_ref->ResolveImportSubject();
+    XLS_RET_CHECK(import.has_value());
+    absl::optional<const ImportedInfo*> imported =
+        type_info_->GetImported(import.value());
+    module = (*imported)->module.get();
+  } else {
+    return absl::InternalError(
+        "Expected NameRef or ColonRef for invocation callee; got " +
+        node->callee()->ToString());
+  }
+
+  // TODO(https://github.com/google/xls/issues/246) Move to typechecking time.
+  Interpreter interp(module, type_info_, /*typecheck=*/nullptr,
+                     /*additional_search_paths=*/{},
+                     /*import_cache=*/import_cache_);
+
+  std::vector<InterpValue> args;
+  for (Expr* arg : node->args()) {
+    XLS_ASSIGN_OR_RETURN(Value value, GetConstValue(arg));
+    XLS_ASSIGN_OR_RETURN(InterpValue interp_value, ValueToInterpValue(value));
+    args.push_back(interp_value);
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue interp_value,
+      interp.RunFunction(fn_name, args, **GetInvocationBindings(node)));
+  XLS_ASSIGN_OR_RETURN(Value ir_value, InterpValueToValue(interp_value));
+  XLS_VLOG(3) << absl::StreamFormat(
+      "[constexpr] Interpreted %s with (%s): %s", fn_name,
+      absl::StrJoin(args, ",",
+                    [](std::string* out, const InterpValue& v) {
+                      absl::StrAppend(out, v.ToString());
+                    }),
+      ir_value.ToString());
+  return ir_value;
 }
 
 absl::StatusOr<BValue> IrConverter::HandleMap(Invocation* node,

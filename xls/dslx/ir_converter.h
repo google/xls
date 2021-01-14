@@ -19,6 +19,7 @@
 
 #include "absl/container/btree_set.h"
 #include "xls/dslx/cpp_ast.h"
+#include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_info.h"
 #include "xls/ir/function_builder.h"
@@ -53,7 +54,8 @@ class IrConverter {
   static std::string ToString(const IrValue& value);
 
   IrConverter(const std::shared_ptr<Package>& package, Module* module,
-              const std::shared_ptr<TypeInfo>& type_info, bool emit_positions);
+              const std::shared_ptr<TypeInfo>& type_info,
+              ImportCache* import_cache, bool emit_positions);
 
   ~IrConverter() { XLS_VLOG(5) << "Destroying IR converter: " << this; }
 
@@ -106,6 +108,8 @@ class IrConverter {
   // Type information for this IR conversion process (e.g. that describes the
   // nodes in module()).
   const std::shared_ptr<TypeInfo>& type_info() const { return type_info_; }
+
+  ImportCache* import_cache() const { return import_cache_; }
 
   bool emit_positions() const { return emit_positions_; }
 
@@ -221,6 +225,19 @@ class IrConverter {
       Invocation* parent_node, NameRef* node, AstNode* arg,
       const SymbolicBindings& symbolic_bindings);
 
+  // Evaluates a constexpr AST Invocation via the DSLX interpreter.
+  //
+  // Evaluates an Invocation node whose argument values are all known at
+  // compile/interpret time, yielding a constant value that can be inserted
+  // into the IR.
+  //
+  // Args:
+  //  node: The Invocation node to evaluate.
+  //
+  // Returns:
+  //   The XLS (IR) Value containing the result.
+  absl::StatusOr<Value> EvaluateConstFunction(Invocation* node);
+
   absl::StatusOr<BValue> HandleMap(Invocation* node, const VisitFunc& visit);
 
   // Builtin invocation handlers.
@@ -322,6 +339,8 @@ class IrConverter {
   // Type information for this IR conversion (determined by the type inference
   // phase).
   std::shared_ptr<TypeInfo> type_info_;
+
+  ImportCache* import_cache_;
 
   // Whether or not to emit source code positions into the XLS IR.
   //

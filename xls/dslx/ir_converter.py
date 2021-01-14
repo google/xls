@@ -36,7 +36,6 @@ from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.python.cpp_pos import Span
 from xls.dslx.python.cpp_type_info import SymbolicBindings
 from xls.dslx.python.import_routines import ImportCache
-from xls.dslx.python.interpreter import Interpreter
 from xls.dslx.span import PositionalError
 from xls.ir.python import bits as bits_mod
 from xls.ir.python import fileno as fileno_mod
@@ -92,8 +91,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
                type_info: type_info_mod.TypeInfo, import_cache: ImportCache,
                emit_positions: bool):
     self.state = cpp_ir_converter.IrConverter(package, module, type_info,
-                                              emit_positions)
-    self.import_cache = import_cache
+                                              import_cache, emit_positions)
 
   @property
   def fb(self):
@@ -342,7 +340,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
         self.package,
         self.module,
         self.type_info,
-        self.import_cache,
+        self.state.import_cache,
         emit_positions=self.emit_positions)
     body_converter.state.set_symbolic_bindings(
         self.state.get_symbolic_bindings())
@@ -498,64 +496,11 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
           break
 
       if invocation_is_constexpr:
-        ir_value = self._evaluate_const_function(node)
+        ir_value = self.state.evaluate_const_function(node)
         ir_bvalue = self._def(node, self.fb.add_literal_value, ir_value)
         self.state.set_node_to_ir(node, (ir_value, ir_bvalue))
       else:
         self._def(node, self.fb.add_invoke, accept_args(), f)
-
-  def _evaluate_const_function(self, node: ast.Invocation) -> IrValue:
-    """Evaluates a constexpr AST Invocation via the DSLX interpreter.
-
-    Evaluates an Invocation node whose argument values are all known at
-    compile/interpret time, yielding a constant value that can be inserted
-    into the IR.
-
-    Args:
-      node: The Invocation node to evaluate.
-
-    Returns:
-      The XLS IR Value containing the result.
-
-    """
-    module = self.module
-    if isinstance(node.callee, ast.NameRef):
-      fn_name = node.callee.identifier
-    elif isinstance(node.callee, ast.ColonRef):
-      imports = dict(self.type_info.get_imports())
-      module, _ = imports[node.callee.subject.name_def.definer]
-      fn_name = node.callee.attr
-    else:
-      raise TypeError(
-          'Expected NameRef or ColonRef for invocation callee; got {}'.format(
-              type(node.callee)))
-
-    # TODO(https://github.com/google/xls/issues/246) Move to typechecking time.
-    interp = Interpreter(
-        module=module,
-        type_info=self.type_info,
-        typecheck=None,
-        additional_search_paths=[],
-        import_cache=self.import_cache,
-        trace_all=False,
-        ir_package=None)
-
-    args = []
-    for arg in node.args:
-      cvalue = self.state.get_node_to_ir(arg)
-      assert isinstance(cvalue, tuple)
-      assert isinstance(cvalue[0], IrValue)
-      args.append(self.state.value_to_interp_value(cvalue[0]))
-
-    interp_value = interp.run_function(
-        name=fn_name,
-        args=args,
-        symbolic_bindings=self.state.get_invocation_bindings(node))
-    ir_value = self.state.interp_value_to_value(interp_value)
-    logging.vlog(3, '[Constexpr] Interpreted: %s with (%s): %s',
-                 module.get_function(fn_name),
-                 ','.join(str(x) for x in node.args), ir_value)
-    return ir_value
 
   def visit_ConstRef(self, node: ast.ConstRef) -> None:
     self._def_alias(node.name_def, to=node)
