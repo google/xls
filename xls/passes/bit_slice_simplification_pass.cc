@@ -259,6 +259,28 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice,
     return true;
   }
 
+  // Hoist slices above selects and one-hot-selects if the slice is the sole
+  // user.
+  if ((operand->Is<Select>() || operand->Is<OneHotSelect>()) &&
+      operand->users().size() == 1) {
+    Node* select = operand;
+    std::vector<Node*> new_operands;
+    // Operand 0 is the selector in both Select and OneHotSelect operations and
+    // is unchanged.
+    new_operands.push_back(select->operand(0));
+    // The remaining operands are the cases and should all be sliced.
+    for (int64 i = 1; i < select->operand_count(); ++i) {
+      XLS_ASSIGN_OR_RETURN(
+          Node * sliced_operand,
+          make_bit_slice(operand->loc(), select->operand(i), bit_slice->start(),
+                         bit_slice->width()));
+
+      new_operands.push_back(sliced_operand);
+    }
+    XLS_ASSIGN_OR_RETURN(Node * new_select, select->Clone(new_operands));
+    return bit_slice->ReplaceUsesWith(new_select);
+  }
+
   return false;
 }
 

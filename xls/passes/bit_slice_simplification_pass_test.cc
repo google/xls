@@ -364,5 +364,70 @@ TEST_F(BitSliceSimplificationPassTest, SlicedShiftRightDoesNotEndAtMsb) {
   EXPECT_THAT(f->return_value(), m::BitSlice(m::Shrl()));
 }
 
+TEST_F(BitSliceSimplificationPassTest, SlicedOhs) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  Type* u2 = p->GetBitsType(2);
+  BValue ohs = fb.OneHotSelect(fb.Param("p", u2),
+                               {fb.Param("x", u32), fb.Param("y", u32)});
+  fb.BitSlice(ohs, /*start=*/10, /*width=*/7);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::OneHotSelect(m::Param("p"),
+                              /*cases=*/{m::BitSlice(m::Param("x"), 10, 7),
+                                         m::BitSlice(m::Param("y"), 10, 7)}));
+}
+
+TEST_F(BitSliceSimplificationPassTest, SlicedOhsWithMoreThanOneUser) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  Type* u2 = p->GetBitsType(2);
+  BValue ohs = fb.OneHotSelect(fb.Param("p", u2),
+                               {fb.Param("x", u32), fb.Param("y", u32)});
+  fb.BitSlice(ohs, /*start=*/10, /*width=*/7);
+  fb.BitSlice(ohs, /*start=*/12, /*width=*/15);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::BitSlice(m::OneHotSelect()));
+}
+
+TEST_F(BitSliceSimplificationPassTest, SlicedSelect) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  Type* u1 = p->GetBitsType(1);
+  BValue ohs =
+      fb.Select(fb.Param("p", u1), {fb.Param("x", u32), fb.Param("y", u32)});
+  fb.BitSlice(ohs, /*start=*/10, /*width=*/7);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::Param("p"),
+                        /*cases=*/{m::BitSlice(m::Param("x"), 10, 7),
+                                   m::BitSlice(m::Param("y"), 10, 7)}));
+}
+
+TEST_F(BitSliceSimplificationPassTest, SlicedSelectWithDefault) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  Type* u3 = p->GetBitsType(3);
+  BValue ohs =
+      fb.Select(fb.Param("p", u3), {fb.Param("x", u32), fb.Param("y", u32)},
+                fb.Param("default", u32));
+  fb.BitSlice(ohs, /*start=*/10, /*width=*/7);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::Param("p"),
+                        /*cases=*/
+                        {m::BitSlice(m::Param("x"), 10, 7),
+                         m::BitSlice(m::Param("y"), 10, 7)},
+                        m::BitSlice(m::Param("default"), 10, 7)));
+}
+
 }  // namespace
 }  // namespace xls

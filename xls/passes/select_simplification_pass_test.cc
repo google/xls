@@ -472,22 +472,6 @@ TEST_F(SelectSimplificationPassTest, OneHotSelectTree) {
                                  m::Param("y"), m::Param("z")}));
 }
 
-TEST_F(SelectSimplificationPassTest, OhsBitSlicePropagates) {
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-fn f(p: bits[2], x: bits[32], y: bits[32]) -> bits[8] {
-  one_hot_sel.3: bits[32] = one_hot_sel(p, cases=[x, y])
-  ret bit_slice.4: bits[8] = bit_slice(one_hot_sel.3, start=1, width=8)
-}
-  )",
-                                                       p.get()));
-  EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              m::OneHotSelect(m::Param("p"),
-                              /*cases=*/{m::BitSlice(m::Param("x")),
-                                         m::BitSlice(m::Param("y"))}));
-}
-
 TEST_F(SelectSimplificationPassTest, OneHotSelectWithLiteralZeroArms) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(

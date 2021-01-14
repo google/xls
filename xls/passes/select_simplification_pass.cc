@@ -492,21 +492,6 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     }
   }
 
-  // Hoist bit slice above OneHotSelect.
-  if (node->Is<OneHotSelect>() && SoleUserSatisfies(node, IsBitSlice)) {
-    std::vector<Node*> new_cases;
-    auto ohs = node->As<OneHotSelect>();
-    auto bit_slice = node->users()[0]->As<BitSlice>();
-    for (Node* ohs_case : ohs->cases()) {
-      XLS_ASSIGN_OR_RETURN(Node * sliced, bit_slice->Clone({ohs_case}));
-      new_cases.push_back(sliced);
-    }
-    XLS_RETURN_IF_ERROR(
-        bit_slice->ReplaceUsesWithNew<OneHotSelect>(ohs->selector(), new_cases)
-            .status());
-    return true;
-  }
-
   // Replace a select with a default which only handles a single value of the
   // selector with a select without a default.
   if (node->Is<Select>()) {
