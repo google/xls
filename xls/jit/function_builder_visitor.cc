@@ -1067,10 +1067,10 @@ absl::Status FunctionBuilderVisitor::HandleArithOp(ArithOp* arith_op) {
   }
   llvm::Type* result_type =
       type_converter_->ConvertToLlvmType(arith_op->GetType());
-  llvm::Value* lhs = builder_->CreateIntCast(
-      node_map_.at(arith_op->operands()[0]), result_type, is_signed);
-  llvm::Value* rhs = builder_->CreateIntCast(
-      node_map_.at(arith_op->operands()[1]), result_type, is_signed);
+  llvm::Value* lhs = builder_->CreateIntCast(node_map_.at(arith_op->operand(0)),
+                                             result_type, is_signed);
+  llvm::Value* rhs = builder_->CreateIntCast(node_map_.at(arith_op->operand(1)),
+                                             result_type, is_signed);
 
   llvm::Value* result;
   switch (arith_op->op()) {
@@ -1092,8 +1092,8 @@ absl::Status FunctionBuilderVisitor::HandleBinOp(BinOp* binop) {
                         binop->operand_count()));
   }
 
-  llvm::Value* lhs = node_map_.at(binop->operands()[0]);
-  llvm::Value* rhs = node_map_.at(binop->operands()[1]);
+  llvm::Value* lhs = node_map_.at(binop->operand(0));
+  llvm::Value* rhs = node_map_.at(binop->operand(1));
   llvm::Value* result;
   switch (binop->op()) {
     case Op::kAdd:
@@ -1135,11 +1135,13 @@ llvm::Value* FunctionBuilderVisitor::EmitShiftOp(Op op, llvm::Value* lhs,
   int common_width = std::max(lhs->getType()->getIntegerBitWidth(),
                               rhs->getType()->getIntegerBitWidth());
   llvm::Type* dest_type = llvm::IntegerType::get(ctx_, common_width);
-  lhs = builder_->CreateZExt(lhs, dest_type);
-  rhs = builder_->CreateZExt(rhs, dest_type);
+  llvm::Value* wide_lhs = op == Op::kShra
+                              ? builder_->CreateSExt(lhs, dest_type)
+                              : builder_->CreateZExt(lhs, dest_type);
+  llvm::Value* wide_rhs = builder_->CreateZExt(rhs, dest_type);
   // In LLVM, an overshifted shift creates poison.
   llvm::Value* is_overshift = builder_->CreateICmpUGE(
-      rhs, llvm::ConstantInt::get(dest_type, common_width));
+      wide_rhs, llvm::ConstantInt::get(dest_type, common_width));
 
   llvm::Value* inst;
   llvm::Value* zero = llvm::ConstantInt::get(dest_type, 0);
@@ -1150,23 +1152,31 @@ llvm::Value* FunctionBuilderVisitor::EmitShiftOp(Op op, llvm::Value* lhs,
   // propagate poison values, particularly through selects. In the case where
   // the shift amount is replaced with zero, the shift valued is not even used
   // (selected in the Select instruction) so correctness is not affected.
-  llvm::Value* safe_rhs = builder_->CreateSelect(is_overshift, zero, rhs);
+  llvm::Value* safe_rhs = builder_->CreateSelect(is_overshift, zero, wide_rhs);
 
   if (op == Op::kShll) {
-    inst = builder_->CreateShl(lhs, safe_rhs);
+    inst = builder_->CreateShl(wide_lhs, safe_rhs);
   } else if (op == Op::kShra) {
     llvm::Value* high_bit = builder_->CreateLShr(
-        lhs, llvm::ConstantInt::get(dest_type,
-                                    lhs->getType()->getIntegerBitWidth() - 1));
+        wide_lhs,
+        llvm::ConstantInt::get(dest_type,
+                               wide_lhs->getType()->getIntegerBitWidth() - 1));
     llvm::Value* high_bit_set =
         builder_->CreateICmpEQ(high_bit, llvm::ConstantInt::get(dest_type, 1));
     overshift_value = builder_->CreateSelect(
         high_bit_set, llvm::ConstantInt::getSigned(dest_type, -1), zero);
-    inst = builder_->CreateAShr(lhs, safe_rhs);
+    inst = builder_->CreateAShr(wide_lhs, safe_rhs);
   } else {
-    inst = builder_->CreateLShr(lhs, safe_rhs);
+    inst = builder_->CreateLShr(wide_lhs, safe_rhs);
   }
-  return builder_->CreateSelect(is_overshift, overshift_value, inst);
+  llvm::Value* result =
+      builder_->CreateSelect(is_overshift, overshift_value, inst);
+  // The expected return type is the same as the original lhs. The shifted value
+  // may be wider than this, so trucate in that case. This occurs if the
+  // original rhs is wider than the original lhs.
+  return result->getType() == lhs->getType()
+             ? result
+             : builder_->CreateTrunc(result, lhs->getType());
 }
 
 llvm::Value* FunctionBuilderVisitor::EmitDiv(llvm::Value* lhs, llvm::Value* rhs,

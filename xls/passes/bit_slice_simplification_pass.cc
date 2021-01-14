@@ -237,6 +237,28 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice,
       return true;
     }
   }
+
+  // Hoist slices above left shift if the slice starts at zero and above right
+  // shifts if the slice ends at the MSB. Only perform this if the slice is the
+  // sole user.
+  if (((bit_slice->start() == 0 && operand->op() == Op::kShll) ||
+       ((bit_slice->start() + bit_slice->width() == operand->BitCountOrDie()) &&
+        (operand->op() == Op::kShrl || operand->op() == Op::kShra))) &&
+      operand->users().size() == 1) {
+    Node* shift = operand;
+    Node* to_shift = shift->operand(0);
+    Node* shift_amount = shift->operand(1);
+    XLS_ASSIGN_OR_RETURN(
+        Node * sliced_to_shift,
+        make_bit_slice(operand->loc(), to_shift, bit_slice->start(),
+                       bit_slice->width()));
+    XLS_RETURN_IF_ERROR(bit_slice
+                            ->ReplaceUsesWithNew<BinOp>(
+                                sliced_to_shift, shift_amount, shift->op())
+                            .status());
+    return true;
+  }
+
   return false;
 }
 

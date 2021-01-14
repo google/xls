@@ -301,5 +301,68 @@ TEST_F(BitSliceSimplificationPassTest, DynamicBitSliceNonLiteral) {
   EXPECT_THAT(f->return_value(), m::DynamicBitSlice(m::Param(), m::Param()));
 }
 
+TEST_F(BitSliceSimplificationPassTest, SlicedShiftLeft) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  fb.BitSlice(fb.Shll(fb.Param("in", u32), fb.Param("amt", u32)), /*start=*/0,
+              /*width=*/10);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Shll(m::BitSlice(m::Param("in"), /*start=*/0,
+                                  /*width=*/10),
+                      m::Param("amt")));
+}
+
+TEST_F(BitSliceSimplificationPassTest, SlicedShiftLeftMultipleUsers) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue shift = fb.Shll(fb.Param("in", u32), fb.Param("amt", u32));
+  fb.Add(shift, shift);
+  fb.BitSlice(shift, /*start=*/0,
+              /*width=*/10);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::BitSlice(m::Shll()));
+}
+
+TEST_F(BitSliceSimplificationPassTest, SlicedShiftLeftStartNonzero) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  fb.BitSlice(fb.Shll(fb.Param("in", u32), fb.Param("amt", u32)), /*start=*/12,
+              /*width=*/10);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::BitSlice(m::Shll()));
+}
+
+TEST_F(BitSliceSimplificationPassTest, SlicedShiftRight) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  fb.BitSlice(fb.Shrl(fb.Param("in", u32), fb.Param("amt", u32)), /*start=*/22,
+              /*width=*/10);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Shrl(m::BitSlice(m::Param("in"), /*start=*/22,
+                                  /*width=*/10),
+                      m::Param("amt")));
+}
+
+TEST_F(BitSliceSimplificationPassTest, SlicedShiftRightDoesNotEndAtMsb) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  fb.BitSlice(fb.Shrl(fb.Param("in", u32), fb.Param("amt", u32)), /*start=*/16,
+              /*width=*/10);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::BitSlice(m::Shrl()));
+}
+
 }  // namespace
 }  // namespace xls
