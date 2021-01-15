@@ -318,6 +318,14 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
            [](IrConverter& self, ParamHolder node) {
              return self.HandleParam(&node.deref());
            })
+      .def("handle_name_ref",
+           [](IrConverter& self, NameRefHolder node) {
+             return self.HandleNameRef(&node.deref());
+           })
+      .def("handle_const_ref",
+           [](IrConverter& self, ConstRefHolder node) {
+             return self.HandleConstRef(&node.deref());
+           })
       // AstNode handlers that take a visitation callback.
       .def("handle_splat_struct_instance",
            [](IrConverter& self, SplatStructInstanceHolder node,

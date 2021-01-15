@@ -17,35 +17,23 @@
 """Module for converting AST to IR text dumps."""
 
 import pprint
-from typing import Text, List, Optional, Callable
+from typing import Text, List, Optional
 
 from absl import logging
 
 from xls.common.xls_error import XlsError
-from xls.dslx import ast_helpers
-from xls.dslx import bit_helpers
 from xls.dslx import extract_conversion_order
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_ast_visitor
 from xls.dslx.python import cpp_ir_converter
 from xls.dslx.python import cpp_type_info as type_info_mod
 from xls.dslx.python.cpp_ast_visitor import visit
-from xls.dslx.python.cpp_concrete_type import ConcreteType
-from xls.dslx.python.cpp_concrete_type import ConcreteTypeDim
-from xls.dslx.python.cpp_pos import Span
 from xls.dslx.python.cpp_type_info import SymbolicBindings
 from xls.dslx.python.import_routines import ImportCache
 from xls.dslx.span import PositionalError
-from xls.ir.python import bits as bits_mod
-from xls.ir.python import fileno as fileno_mod
 from xls.ir.python import function as ir_function
-from xls.ir.python import number_parser
 from xls.ir.python import package as ir_package
-from xls.ir.python import source_location
-from xls.ir.python import type as type_mod
 from xls.ir.python import verifier as verifier_mod
-from xls.ir.python.function_builder import BValue
-from xls.ir.python.value import Value as IrValue
 
 
 class ParametricConversionError(XlsError):
@@ -54,16 +42,6 @@ class ParametricConversionError(XlsError):
 
 class ConversionError(PositionalError):
   """Raised on an issue converting to IR at a particular file position."""
-
-
-def _int_to_bits(value: int, bit_count: int) -> bits_mod.Bits:
-  """Converts a Python arbitrary precision int to a Bits type."""
-  assert isinstance(bit_count, int), bit_count
-  if bit_count <= 64:
-    return bits_mod.UBits(value, bit_count) if value >= 0 else bits_mod.SBits(
-        value, bit_count)
-  return number_parser.bits_from_string(
-      bit_helpers.to_hex_string(value, bit_count), bit_count=bit_count)
 
 
 class _IrConverterFb(cpp_ast_visitor.AstVisitor):
@@ -101,125 +79,8 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
   def __init__(self, state: cpp_ir_converter.IrConverter):
     self.state = state
 
-  @property
-  def fb(self):
-    return self.state.function_builder
-
-  @property
-  def fileno(self):
-    return self.state.fileno
-
-  @property
-  def module(self):
-    return self.state.module
-
-  @property
-  def type_info(self):
-    return self.state.type_info
-
-  @property
-  def package(self):
-    return self.state.package
-
-  @property
-  def emit_positions(self):
-    return self.state.emit_positions
-
-  @property
-  def last_expression(self):
-    return self.state.last_expression
-
-  @last_expression.setter
-  def set_last_expression(self, value):
-    self.state.last_expression = value
-
   def add_constant_dep(self, constant: ast.Constant) -> None:
     self.state.add_constant_dep(constant)
-
-  def _resolve_type_to_ir(self, node: ast.AstNode) -> type_mod.Type:
-    return self.state.resolve_type_to_ir(node)
-
-  def _def(self, node: ast.AstNode, ir_func: Callable[..., BValue], *args,
-           **kwargs) -> BValue:
-    # TODO(leary): 2019-07-19 When everything is Python 3 we can switch to use a
-    # single kwarg "span" after vararg with a normal pytype annotation.
-    span = kwargs.pop('span', None)
-    assert not kwargs
-    assert isinstance(span,
-                      (type(None), Span)), 'Expect span kwarg as Span or None.'
-
-    if span is None and hasattr(node, 'span') and isinstance(node.span, Span):
-      span = node.span
-    loc = None
-    if span is not None and self.emit_positions:
-      start_pos = span.start
-      lineno = fileno_mod.Lineno(start_pos.lineno)
-      colno = fileno_mod.Colno(start_pos.colno)
-      loc = source_location.SourceLocation(self.fileno, lineno, colno)
-
-    try:
-      ir = ir_func(*args, loc=loc)
-    except TypeError:
-      logging.error('Failed to call IR-creating function %s with args: %s',
-                    ir_func, args)
-      raise
-    assert isinstance(
-        ir, BValue), 'Expect ir_func to return a BValue; got {!r}'.format(ir)
-    logging.vlog(4, 'Define node "%s" (%s) to be %s @ %s',
-                 node, node.__class__.__name__, ir,
-                 ast_helpers.get_span_or_fake(node))
-    self.state.set_node_to_ir(node, ir)
-    return ir
-
-  def _def_const(self, node: ast.AstNode, value: int, bit_count: int) -> BValue:
-    bits = _int_to_bits(value, bit_count)
-    ir = self._def(node, self.fb.add_literal_bits, bits)
-    self.state.set_node_to_ir(
-        node, (IrValue(bits_mod.from_long(value, bit_count)), ir))
-    return ir
-
-  def _is_const(self, node: ast.AstNode) -> bool:
-    """Returns whether "node" corresponds to a known-constant (int) value."""
-    record = self.state.get_node_to_ir(node)
-    return isinstance(record, tuple)
-
-  def _get_const_bits(self, node: ast.AstNode) -> bits_mod.Bits:
-    return self.state.get_const_bits(node)
-
-  def _get_const(self, node: ast.AstNode, *, signed: bool) -> int:
-    """Retrieves the known-constant (int) value associated with "node".
-
-    Args:
-      node: Node to retrieve the constant value for.
-      signed: Whether or not the constant value should be converted as a signed
-        number (to Python int type). That is, if all bits are set, should it be
-        -1 or a positive value?
-
-    Returns:
-      A Python integer representing the resulting value. If signed is False,
-      this value will always be >= 0.
-
-    Raises:
-      ConversionError: If the node was not registered as a constant during IR
-        conversion.
-    """
-    bits = self._get_const_bits(node)
-    result = bits.to_int() if signed else bits.to_uint()
-    if not signed:
-      assert result >= 0
-    return result
-
-  def _use(self, node: ast.AstNode) -> BValue:
-    return self.state.use(node)
-
-  def _def_alias(self, from_: ast.AstNode, to: ast.AstNode) -> BValue:
-    return self.state.def_alias(from_, to)
-
-  def _resolve_dim(self, dim: ConcreteTypeDim) -> ConcreteTypeDim:
-    return self.state.resolve_dim(dim)
-
-  def _resolve_type(self, node: ast.AstNode) -> ConcreteType:
-    return self.state.resolve_type(node)
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_TypeRef(self, node: ast.TypeRef) -> None:
@@ -248,9 +109,6 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
 
   def visit_Binop(self, node: ast.Binop):
     self.state.handle_binop(node)
-
-  def _next_counted_for_ordinal(self) -> int:
-    return self.state.get_and_bump_counted_for_count()
 
   def _visit(self, node: ast.AstNode) -> None:
     visit(node, self)
@@ -314,10 +172,10 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     self.state.handle_invocation(node, self._visit)
 
   def visit_ConstRef(self, node: ast.ConstRef) -> None:
-    self._def_alias(node.name_def, to=node)
+    self.state.handle_const_ref(node)
 
   def visit_NameRef(self, node: ast.NameRef) -> None:
-    self._def_alias(node.name_def, node)
+    self.state.handle_name_ref(node)
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_ColonRef(self, node: ast.ColonRef) -> None:
@@ -340,7 +198,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     return self.state.handle_function(node, symbolic_bindings, self._visit)
 
   def get_text(self) -> Text:
-    return self.package.dump_ir()
+    return self.state.package.dump_ir()
 
 
 def _convert_one_function(package: ir_package.Package,

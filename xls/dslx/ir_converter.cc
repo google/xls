@@ -229,6 +229,14 @@ absl::Status IrConverter::HandleParam(Param* node) {
   return absl::OkStatus();
 }
 
+absl::Status IrConverter::HandleConstRef(ConstRef* node) {
+  return DefAlias(node->name_def(), /*to=*/node).status();
+}
+
+absl::Status IrConverter::HandleNameRef(NameRef* node) {
+  return DefAlias(ToAstNode(node->name_def()), /*to=*/node).status();
+}
+
 absl::Status IrConverter::HandleConstantDef(ConstantDef* node,
                                             const VisitFunc& visit) {
   XLS_RETURN_IF_ERROR(visit(node->value()));
