@@ -688,7 +688,8 @@ absl::StatusOr<absl::variant<Number*, NameRef*>> EnumDef::GetValue(
 
 std::string EnumDef::ToString() const {
   std::string result =
-      absl::StrFormat("enum %s : %s {\n", identifier(), type_->ToString());
+      absl::StrFormat("%senum %s : %s {\n", is_public_ ? "pub " : "",
+                      identifier(), type_->ToString());
   for (const auto& item : values_) {
     absl::StrAppendFormat(&result, "  %s = %s,\n", item.name_def->identifier(),
                           ToAstNode(item.value)->ToString());
@@ -768,8 +769,8 @@ std::string StructDef::ToString() const {
                       });
     parametric_str = absl::StrFormat("[%s] ", guts);
   }
-  std::string result =
-      absl::StrFormat("struct %s%s {\n", parametric_str, identifier());
+  std::string result = absl::StrFormat(
+      "%sstruct %s%s {\n", public_ ? "pub " : "", parametric_str, identifier());
   for (const auto& item : members_) {
     absl::StrAppendFormat(&result, "  %s: %s,\n", item.first->ToString(),
                           item.second->ToString());

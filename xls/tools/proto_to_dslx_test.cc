@@ -36,7 +36,7 @@ syntax = "proto2";
 package xls;
 
 message SubField {
-  optional int32 sub_index = 1;
+  optional uint32 sub_index = 1;
 }
 
 message Field {
@@ -84,24 +84,24 @@ fields {
                                        "xls.Fields", textproto, "foo"));
 
   EXPECT_EQ(module->ToString(),
-            R"(struct SubField {
-  sub_index: bits[32],
+            R"(pub struct SubField {
+  sub_index: uN[32],
 }
-struct Field {
-  index: bits[32],
-  bit_offset: bits[32],
-  width: bits[32],
-  foo: bits[64][4],
+pub struct Field {
+  index: sN[32],
+  bit_offset: sN[32],
+  width: sN[32],
+  foo: sN[64][4],
   foo_count: u32,
   sub_fields: SubField[4],
   sub_fields_count: u32,
 }
-struct Fields {
+pub struct Fields {
   fields: Field[1],
   fields_count: u32,
   loner: Field,
 }
-pub const foo = Fields { fields: [Field { index: bits[32]:0, bit_offset: bits[32]:0, width: bits[32]:4, foo: [bits[64]:1, bits[64]:2, bits[64]:3, bits[64]:4], foo_count: u32:4, sub_fields: [SubField { sub_index: bits[32]:1 }, SubField { sub_index: bits[32]:2 }, SubField { sub_index: bits[32]:3 }, SubField { sub_index: bits[32]:4 }], sub_fields_count: u32:4 }], fields_count: u32:1, loner: Field { index: bits[32]:0, bit_offset: bits[32]:0, width: bits[32]:0, foo: [bits[64]:0, bits[64]:0, bits[64]:0, bits[64]:0], foo_count: u32:0, sub_fields: [SubField { sub_index: bits[32]:0 }, SubField { sub_index: bits[32]:0 }, SubField { sub_index: bits[32]:0 }, SubField { sub_index: bits[32]:0 }], sub_fields_count: u32:0 } };)");
+pub const foo = Fields { fields: [Field { index: sN[32]:0, bit_offset: sN[32]:0, width: sN[32]:4, foo: [sN[64]:1, sN[64]:2, sN[64]:3, sN[64]:4], foo_count: u32:4, sub_fields: [SubField { sub_index: uN[32]:1 }, SubField { sub_index: uN[32]:2 }, SubField { sub_index: uN[32]:3 }, SubField { sub_index: uN[32]:4 }], sub_fields_count: u32:4 }], fields_count: u32:1, loner: Field { index: sN[32]:0, bit_offset: sN[32]:0, width: sN[32]:0, foo: [sN[64]:0, sN[64]:0, sN[64]:0, sN[64]:0], foo_count: u32:0, sub_fields: [SubField { sub_index: uN[32]:0 }, SubField { sub_index: uN[32]:0 }, SubField { sub_index: uN[32]:0 }, SubField { sub_index: uN[32]:0 }], sub_fields_count: u32:0 } };)");
 }
 
 TEST(ProtoToDslxTest, CanImportProtos) {
@@ -142,6 +142,256 @@ imported_field { field_0: 0xfeed }
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<dslx::Module> module,
                            ProtoToDslx(tempdir.path(), schema_file.path(),
                                        "xls.Top", kTextproto, "foo"));
+  EXPECT_EQ(module->ToString(),
+            R"(pub struct imported_Field {
+  field_0: sN[32],
+}
+pub struct Top {
+  field_0: sN[32],
+  imported_field: imported_Field,
+}
+pub const foo = Top { field_0: sN[32]:48879, imported_field: imported_Field { field_0: sN[32]:65261 } };)");
+}
+
+// Basic test for enum support.
+TEST(ProtoToDslxTest, EnumSupport) {
+  const std::string kSchema = R"(
+syntax = "proto2";
+
+package xls;
+
+enum MyEnum {
+  VALUE_1 = 1;
+  VALUE_2 = 2;
+  VALUE_3 = 3;
+  VALUE_600 = 600;
+}
+
+message Top {
+  optional MyEnum my_scalar_enum = 1;
+  repeated MyEnum my_repeated_enum = 2;
+}
+)";
+
+  const std::string kTextproto = R"(
+my_scalar_enum: VALUE_1
+my_repeated_enum: VALUE_1
+my_repeated_enum: VALUE_2
+my_repeated_enum: VALUE_600
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto tempdir, TempDirectory::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto schema_file,
+      TempFile::CreateWithContentInDirectory(kSchema, tempdir.path()));
+  XLS_ASSERT_OK(SetFileContents(schema_file.path(), kSchema));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<dslx::Module> module,
+                           ProtoToDslx(tempdir.path(), schema_file.path(),
+                                       "xls.Top", kTextproto, "foo"));
+  EXPECT_EQ(module->ToString(),
+            R"(pub enum MyEnum : bits[11] {
+  VALUE_1 = 1,
+  VALUE_2 = 2,
+  VALUE_3 = 3,
+  VALUE_600 = 600,
+}
+pub struct Top {
+  my_scalar_enum: MyEnum,
+  my_repeated_enum: MyEnum[3],
+  my_repeated_enum_count: u32,
+}
+pub const foo = Top { my_scalar_enum: MyEnum::VALUE_1, my_repeated_enum: [MyEnum::VALUE_1, MyEnum::VALUE_2, MyEnum::VALUE_600], my_repeated_enum_count: u32:3 };)");
+}
+
+TEST(ProtoToDslxTest, CanImportEnums) {
+  const std::string kSchema = R"(
+syntax = "proto2";
+
+package xls;
+
+import "imported.proto";
+
+message EnumHolder {
+  repeated imported.Enum imported_enum = 1;
+}
+
+message Top {
+  optional int32 field_0 = 1;
+  repeated EnumHolder enum_holder = 2;
+}
+)";
+
+  const std::string kImportedSchema = R"(
+syntax = "proto2";
+
+package imported;
+
+enum Enum {
+  VALUE_1 = 1;
+  VALUE_2 = 2;
+  VALUE_3 = 3;
+  VALUE_600 = 600;
+}
+)";
+
+  const std::string kTextproto = R"(
+field_0: 0xbeef
+enum_holder {
+  imported_enum: VALUE_600
+  imported_enum: VALUE_3
+  imported_enum: VALUE_2
+  imported_enum: VALUE_1
+}
+enum_holder {
+  imported_enum: VALUE_3
+  imported_enum: VALUE_2
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto tempdir, TempDirectory::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto schema_file,
+      TempFile::CreateWithContentInDirectory(kSchema, tempdir.path()));
+  XLS_ASSERT_OK(SetFileContents(schema_file.path(), kSchema));
+  XLS_ASSERT_OK(
+      SetFileContents(tempdir.path() / "imported.proto", kImportedSchema));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<dslx::Module> module,
+                           ProtoToDslx(tempdir.path(), schema_file.path(),
+                                       "xls.Top", kTextproto, "foo"));
+  EXPECT_EQ(module->ToString(),
+            R"(pub enum imported_Enum : bits[11] {
+  VALUE_1 = 1,
+  VALUE_2 = 2,
+  VALUE_3 = 3,
+  VALUE_600 = 600,
+}
+pub struct EnumHolder {
+  imported_enum: imported_Enum[4],
+  imported_enum_count: u32,
+}
+pub struct Top {
+  field_0: sN[32],
+  enum_holder: EnumHolder[2],
+  enum_holder_count: u32,
+}
+pub const foo = Top { field_0: sN[32]:48879, enum_holder: [EnumHolder { imported_enum: [imported_Enum::VALUE_600, imported_Enum::VALUE_3, imported_Enum::VALUE_2, imported_Enum::VALUE_1], imported_enum_count: u32:4 }, EnumHolder { imported_enum: [imported_Enum::VALUE_3, imported_Enum::VALUE_2, imported_Enum::VALUE_1, imported_Enum::VALUE_1], imported_enum_count: u32:2 }], enum_holder_count: u32:2 };)");
+}
+
+TEST(ProtoToDslxTest, HandlesStrings) {
+  const std::string kSchema = R"(
+syntax = "proto2";
+
+package xls;
+
+message Top {
+  optional int64 my_int = 1;
+  repeated string my_string = 2;
+}
+)";
+
+  const std::string kTextproto = R"(
+my_int: 0xbeef
+my_string: "le boeuf"
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto tempdir, TempDirectory::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto schema_file,
+      TempFile::CreateWithContentInDirectory(kSchema, tempdir.path()));
+  XLS_ASSERT_OK(SetFileContents(schema_file.path(), kSchema));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<dslx::Module> module,
+                           ProtoToDslx(tempdir.path(), schema_file.path(),
+                                       "xls.Top", kTextproto, "foo"));
+  EXPECT_EQ(module->ToString(),
+            R"(pub struct Top {
+  my_int: sN[64],
+}
+pub const foo = Top { my_int: sN[64]:48879 };)");
+}
+
+TEST(ProtoToDslxTest, CanHandleUnusedRepeatedFields) {
+  const std::string kSchema = R"(
+syntax = "proto2";
+
+package xls;
+
+message SubMessage {
+  optional int64 my_int = 1;
+}
+
+message Top {
+  repeated int64 my_ints = 1;
+  optional int64 my_int = 2;
+  repeated SubMessage my_submessages = 3;
+  optional SubMessage my_submessage = 4;
+}
+)";
+
+  const std::string kTextproto = R"(
+my_int: 3
+my_submessage { my_int: 6 }
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto tempdir, TempDirectory::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto schema_file,
+      TempFile::CreateWithContentInDirectory(kSchema, tempdir.path()));
+  XLS_ASSERT_OK(SetFileContents(schema_file.path(), kSchema));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<dslx::Module> module,
+                           ProtoToDslx(tempdir.path(), schema_file.path(),
+                                       "xls.Top", kTextproto, "foo"));
+  EXPECT_EQ(module->ToString(),
+            R"(pub struct SubMessage {
+  my_int: sN[64],
+}
+pub struct Top {
+  my_int: sN[64],
+  my_submessage: SubMessage,
+}
+pub const foo = Top { my_int: sN[64]:3, my_submessage: SubMessage { my_int: sN[64]:6 } };)");
+}
+
+TEST(ProtoToDslxTest, CanHandleEmptyRepeatedFields) {
+  const std::string kSchema = R"(
+syntax = "proto2";
+
+package xls;
+
+message SubMessage {
+  repeated int64 my_ints = 1;
+}
+
+message Top {
+  repeated SubMessage submessage = 1;
+}
+)";
+
+  const std::string kTextproto = R"(
+submessage {
+  my_ints: 1
+  my_ints: 2
+  my_ints: 3
+  my_ints: 4
+}
+submessage {
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto tempdir, TempDirectory::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto schema_file,
+      TempFile::CreateWithContentInDirectory(kSchema, tempdir.path()));
+  XLS_ASSERT_OK(SetFileContents(schema_file.path(), kSchema));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<dslx::Module> module,
+                           ProtoToDslx(tempdir.path(), schema_file.path(),
+                                       "xls.Top", kTextproto, "foo"));
+  EXPECT_EQ(module->ToString(),
+            R"(pub struct SubMessage {
+  my_ints: sN[64][4],
+  my_ints_count: u32,
+}
+pub struct Top {
+  submessage: SubMessage[2],
+  submessage_count: u32,
+}
+pub const foo = Top { submessage: [SubMessage { my_ints: [sN[64]:1, sN[64]:2, sN[64]:3, sN[64]:4], my_ints_count: u32:4 }, SubMessage { my_ints: [sN[64]:0, sN[64]:0, sN[64]:0, sN[64]:0], my_ints_count: u32:0 }], submessage_count: u32:2 };)");
 }
 
 }  // namespace

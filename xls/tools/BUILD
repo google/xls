@@ -268,6 +268,7 @@ cc_library(
     hdrs = ["proto_to_dslx.h"],
     deps = [
         # protobuf compiler import
+        "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
