@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_AST_H_
 #define XLS_DSLX_AST_H_
 
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
@@ -1020,6 +1021,10 @@ class Function : public AstNode {
   TypeAnnotation* return_type() const { return return_type_; }
 
   std::vector<std::string> GetFreeParametricKeys() const;
+  absl::btree_set<std::string> GetFreeParametricKeySet() const {
+    std::vector<std::string> keys = GetFreeParametricKeys();
+    return absl::btree_set<std::string>(keys.begin(), keys.end());
+  }
 
  private:
   Span span_;

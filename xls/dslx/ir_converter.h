@@ -127,6 +127,14 @@ class IrConverter {
     return constant_deps_;
   }
 
+  void SetSymbolicBindings(const SymbolicBindings* value) {
+    if (value == nullptr) {
+      clear_symbolic_binding_map();
+    } else {
+      set_symbolic_binding_map(value->ToMap());
+    }
+  }
+
   // Gets the current counter of counted_for loops we've observed and bumps it.
   // This is useful for generating new symbols for the functions that serve as
   // XLS counted_for "bodies".
@@ -212,6 +220,10 @@ class IrConverter {
   absl::Status HandleMatch(Match* node, const VisitFunc& visit);
   absl::Status HandleIndex(Index* node, const VisitFunc& visit);
   absl::Status HandleArray(Array* node, const VisitFunc& visit);
+
+  absl::StatusOr<xls::Function*> HandleFunction(
+      Function* node, const SymbolicBindings* symbolic_bindings,
+      const VisitFunc& visit);
 
   // Handles an arm of a match expression.
   absl::StatusOr<BValue> HandleMatcher(NameDefTree* matcher,

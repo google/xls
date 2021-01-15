@@ -521,57 +521,13 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     self._def(node.name, self.fb.add_param, node.name.identifier,
               self._resolve_type_to_ir(node.type_))
 
-  def _visit_Function(
-      self, node: ast.Function,
-      symbolic_bindings: Optional[SymbolicBindings]) -> ir_function.Function:
-    self.state.set_symbolic_bindings(symbolic_bindings)
-    # We use a function builder for the duration of converting this
-    # ast.Function. When it's done being built, we drop the reference to it (by
-    # setting self.fb to None).
-    mangled_name = cpp_ir_converter.mangle_dslx_name(
-        node.name.identifier, node.get_free_parametric_keys(), self.module,
-        symbolic_bindings)
-    self.state.instantiate_function_builder(mangled_name)
-
-    for param in node.params:
-      self._visit(param)
-
-    for parametric_binding in node.parametric_bindings:
-      logging.vlog(4, 'Resolving parametric binding %s', parametric_binding)
-
-      sb_value = self.state.get_symbolic_binding(
-          parametric_binding.name.identifier)
-      value = self._resolve_dim(ConcreteTypeDim(sb_value))
-      assert isinstance(value.value, int), \
-          'Expect integral parametric binding; got {!r}'.format(value)
-      self._def_const(
-          parametric_binding, value.value,
-          self._resolve_type(
-              parametric_binding.type_).get_total_bit_count().value)
-      self._def_alias(parametric_binding, to=parametric_binding.name)
-
-    for dep in self.state.constant_deps:
-      self._visit(dep)
-    self.state.clear_constant_deps()
-
-    self._visit(node.body)
-
-    last_expression = self.state.last_expression or node.body
-    if isinstance(last_expression, ast.NameRef):
-      self._def(last_expression, self.fb.add_identity,
-                self._use(last_expression))
-    f = self.fb.build()
-    logging.vlog(3, 'Built function: %s', f.name)
-    verifier_mod.verify_function(f)
-    return f
-
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Function(
       self,
       node: ast.Function,
-      symbolic_bindings: Optional[SymbolicBindings] = None,
-      module: Optional[ast.Module] = None) -> ir_function.Function:
-    return self._visit_Function(node, symbolic_bindings)
+      symbolic_bindings: Optional[SymbolicBindings] = None
+  ) -> ir_function.Function:
+    return self.state.handle_function(node, symbolic_bindings, self._visit)
 
   def get_text(self) -> Text:
     return self.package.dump_ir()

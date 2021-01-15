@@ -647,6 +647,67 @@ absl::Status IrConverter::HandleArray(Array* node, const VisitFunc& visit) {
   return absl::OkStatus();
 }
 
+absl::StatusOr<xls::Function*> IrConverter::HandleFunction(
+    Function* node, const SymbolicBindings* symbolic_bindings,
+    const VisitFunc& visit) {
+  if (symbolic_bindings != nullptr) {
+    SetSymbolicBindings(symbolic_bindings);
+  }
+
+  // We use a function builder for the duration of converting this AST Function.
+  XLS_ASSIGN_OR_RETURN(
+      std::string mangled_name,
+      MangleDslxName(node->identifier(), node->GetFreeParametricKeySet(),
+                     module_, symbolic_bindings));
+  InstantiateFunctionBuilder(mangled_name);
+
+  for (Param* param : node->params()) {
+    XLS_RETURN_IF_ERROR(visit(param));
+  }
+
+  for (ParametricBinding* parametric_binding : node->parametric_bindings()) {
+    XLS_VLOG(4) << "Resolving parametric binding: "
+                << parametric_binding->ToString();
+
+    absl::optional<int64> sb_value =
+        get_symbolic_binding(parametric_binding->identifier());
+    XLS_RET_CHECK(sb_value.has_value());
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_type,
+                         ResolveType(parametric_binding->type()));
+    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim parametric_width_ctd,
+                         parametric_type->GetTotalBitCount());
+    int64 bit_count = absl::get<int64>(parametric_width_ctd.value());
+    DefConst(parametric_binding,
+             Value(UBits(*sb_value, /*bit_count=*/bit_count)));
+    XLS_RETURN_IF_ERROR(
+        DefAlias(parametric_binding, /*to=*/parametric_binding->name_def())
+            .status());
+  }
+
+  for (ConstantDef* dep : constant_deps_) {
+    XLS_RETURN_IF_ERROR(visit(dep));
+  }
+  ClearConstantDeps();
+
+  XLS_RETURN_IF_ERROR(visit(node->body()));
+  auto* last_expression =
+      last_expression_ == nullptr ? node->body() : last_expression_;
+
+  // If the last expression is a name reference, it may refer to
+  // not-the-last-thing-we-function-built, so we go retrieve it explicitly and
+  // make it the last thing.
+  if (auto* name_ref = dynamic_cast<NameRef*>(last_expression)) {
+    XLS_ASSIGN_OR_RETURN(BValue last_value, Use(name_ref));
+    Def(last_expression, [&](absl::optional<SourceLocation> loc) {
+      return function_builder_->Identity(last_value, loc);
+    });
+  }
+  XLS_ASSIGN_OR_RETURN(xls::Function * f, function_builder_->Build());
+  XLS_VLOG(3) << "Built function: " << f->name();
+  XLS_RETURN_IF_ERROR(VerifyFunction(f));
+  return f;
+}
+
 absl::Status IrConverter::HandleColonRef(ColonRef* node,
                                          const VisitFunc& visit) {
   // Implementation note: ColonRef "invocation" are handled in Invocation (by
@@ -764,9 +825,7 @@ absl::StatusOr<std::string> IrConverter::GetCalleeIdentifier(Invocation* node) {
     return callee_name;
   }
 
-  std::vector<std::string> free_keys_vector = (*f)->GetFreeParametricKeys();
-  absl::btree_set<std::string> free_keys(free_keys_vector.begin(),
-                                         free_keys_vector.end());
+  absl::btree_set<std::string> free_keys = (*f)->GetFreeParametricKeySet();
   if (!(*f)->IsParametric()) {
     return MangleDslxName((*f)->identifier(), free_keys, m);
   }

@@ -176,11 +176,8 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
            })
       .def("set_symbolic_bindings",
            [](IrConverter& self, absl::optional<SymbolicBindings> value) {
-             if (value) {
-               self.set_symbolic_binding_map(value->ToMap());
-             } else {
-               self.clear_symbolic_binding_map();
-             }
+             const SymbolicBindings* p = value ? &*value : nullptr;
+             self.SetSymbolicBindings(p);
            })
       .def("get_symbolic_binding",
            [](const IrConverter& self, absl::string_view identifier) {
@@ -356,6 +353,19 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
                  BValue value,
                  self.HandleMap(&node.deref(), ToCppVisit(py_visit)));
              return Wrap(self, value);
+           })
+      .def("handle_function",
+           [](IrConverter& self, FunctionHolder node,
+              absl::optional<const SymbolicBindings*> py_symbolic_bindings,
+              const PyVisitFunc& py_visit)
+               -> absl::StatusOr<xls::FunctionHolder> {
+             const SymbolicBindings* symbolic_bindings =
+                 py_symbolic_bindings ? *py_symbolic_bindings : nullptr;
+             XLS_ASSIGN_OR_RETURN(
+                 xls::Function * f,
+                 self.HandleFunction(&node.deref(), symbolic_bindings,
+                                     ToCppVisit(py_visit)));
+             return xls::FunctionHolder(f, self.package());
            })
       // Special helper for handling NameDefTree destructuring.
       .def("handle_matcher",
