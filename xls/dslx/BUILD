@@ -891,6 +891,7 @@ cc_library(
     srcs = ["ir_converter.cc"],
     hdrs = ["ir_converter.h"],
     deps = [
+        ":builtins",
         ":cpp_ast",
         ":cpp_dslx_builtins",
         ":cpp_type_info",

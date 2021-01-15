@@ -54,6 +54,20 @@ IrConverter::VisitFunc ToCppVisit(const PyVisitFunc& py_func) {
   };
 }
 
+using PyVisitIrConverterFunc = std::function<void(IrConverter*, AstNodeHolder)>;
+
+IrConverter::VisitIrConverterFunc ToCppVisitConverter(
+    const PyVisitIrConverterFunc& py_func) {
+  return [py_func](IrConverter* converter, AstNode* node) -> absl::Status {
+    // Note: we don't catch any exceptions, we just let them propagate, they
+    // generally should not occur. (So maybe we can get to the full port being
+    // complete without needing any special handling like conversion from
+    // exception to absl::Status).
+    py_func(converter, AstNodeHolder(node, node->owner()->shared_from_this()));
+    return absl::OkStatus();
+  };
+}
+
 }  // namespace
 
 PYBIND11_MODULE(cpp_ir_converter, m) {
@@ -372,6 +386,13 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
                                      ToCppVisit(py_visit)));
              return xls::FunctionHolder(f, self.package());
            })
+      .def(
+          "handle_for",
+          [](IrConverter& self, ForHolder node, const PyVisitFunc& py_visit,
+             const PyVisitIrConverterFunc& py_visit_converter) -> absl::Status {
+            return self.HandleFor(&node.deref(), ToCppVisit(py_visit),
+                                  ToCppVisitConverter(py_visit_converter));
+          })
       // Special helper for handling NameDefTree destructuring.
       .def("handle_matcher",
            [](IrConverter& self, NameDefTreeHolder node,

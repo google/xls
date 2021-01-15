@@ -303,18 +303,19 @@ class IrConverterTest(test_base.TestCase):
         m, 'f', node_to_type, emit_positions=False, import_cache=None)
     self.assert_ir_equals_and_parses(
         converted, """\
-        package test_module
+package test_module
 
-        fn ____test_module__f_counted_for_0_body(i: bits[32], accum: bits[32]) -> bits[32] {
-          ret add.5: bits[32] = add(accum, i, id=5)
-        }
+fn ____test_module__f_counted_for_0_body(i: bits[32], accum: bits[32]) -> bits[32] {
+  ret add.6: bits[32] = add(accum, i, id=6)
+}
 
-        fn __test_module__f() -> bits[32] {
-          literal.1: bits[32] = literal(value=0, id=1)
-          literal.2: bits[32] = literal(value=4, id=2)
-          ret counted_for.6: bits[32] = counted_for(literal.1, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, id=6)
-        }
-        """)
+fn __test_module__f() -> bits[32] {
+  literal.1: bits[32] = literal(value=0, id=1)
+  literal.2: bits[32] = literal(value=0, id=2)
+  literal.3: bits[32] = literal(value=4, id=3)
+  ret counted_for.7: bits[32] = counted_for(literal.1, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, id=7)
+}
+""")
 
   def test_counted_for_destructuring(self):
     m = self.parse_dsl_text("""\
@@ -329,30 +330,31 @@ class IrConverterTest(test_base.TestCase):
         m, 'f', node_to_type, emit_positions=False, import_cache=None)
     self.assert_ir_equals_and_parses(
         converted, """\
-        package test_module
+package test_module
 
-        fn ____test_module__f_counted_for_0_body(i: bits[32], __loop_carry: (bits[32], bits[8])) -> (bits[32], bits[8]) {
-          literal.7: bits[1] = literal(value=1, id=7)
-          literal.9: bits[1] = literal(value=1, id=9)
-          tuple_index.8: bits[32] = tuple_index(__loop_carry, index=0, id=8)
-          and.10: bits[1] = and(literal.7, literal.9, id=10)
-          literal.12: bits[1] = literal(value=1, id=12)
-          add.14: bits[32] = add(tuple_index.8, i, id=14)
-          tuple_index.11: bits[8] = tuple_index(__loop_carry, index=1, id=11)
-          and.13: bits[1] = and(and.10, literal.12, id=13)
-          ret tuple.15: (bits[32], bits[8]) = tuple(add.14, tuple_index.11, id=15)
-        }
+fn ____test_module__f_counted_for_0_body(i: bits[32], __loop_carry: (bits[32], bits[8])) -> (bits[32], bits[8]) {
+  literal.8: bits[1] = literal(value=1, id=8)
+  literal.10: bits[1] = literal(value=1, id=10)
+  tuple_index.9: bits[32] = tuple_index(__loop_carry, index=0, id=9)
+  and.11: bits[1] = and(literal.8, literal.10, id=11)
+  literal.13: bits[1] = literal(value=1, id=13)
+  add.15: bits[32] = add(tuple_index.9, i, id=15)
+  tuple_index.12: bits[8] = tuple_index(__loop_carry, index=1, id=12)
+  and.14: bits[1] = and(and.11, literal.13, id=14)
+  ret tuple.16: (bits[32], bits[8]) = tuple(add.15, tuple_index.12, id=16)
+}
 
-        fn __test_module__f() -> bits[32] {
-          literal.1: bits[32] = literal(value=0, id=1)
-          literal.2: bits[8] = literal(value=0, id=2)
-          tuple.3: (bits[32], bits[8]) = tuple(literal.1, literal.2, id=3)
-          t: (bits[32], bits[8]) = counted_for(tuple.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, id=16)
-          literal.4: bits[32] = literal(value=4, id=4)
-          literal.17: bits[32] = literal(value=0, id=17)
-          ret tuple_index.18: bits[32] = tuple_index(t, index=0, id=18)
-        }
-        """)
+fn __test_module__f() -> bits[32] {
+  literal.1: bits[32] = literal(value=0, id=1)
+  literal.2: bits[8] = literal(value=0, id=2)
+  tuple.3: (bits[32], bits[8]) = tuple(literal.1, literal.2, id=3)
+  t: (bits[32], bits[8]) = counted_for(tuple.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, id=17)
+  literal.4: bits[32] = literal(value=0, id=4)
+  literal.5: bits[32] = literal(value=4, id=5)
+  literal.18: bits[32] = literal(value=0, id=18)
+  ret tuple_index.19: bits[32] = tuple_index(t, index=0, id=19)
+}
+""")
 
   def test_counted_for_parametric_const(self):
     m = self.parse_dsl_text("""\
@@ -370,23 +372,24 @@ class IrConverterTest(test_base.TestCase):
         m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
-        package test_module
+package test_module
 
-        fn ____test_module__f__2_counted_for_0_body(i: bits[32], accum: bits[32]) -> bits[32] {
-          ret add.6: bits[32] = add(accum, i, id=6)
-        }
+fn ____test_module__f__2_counted_for_0_body(i: bits[32], accum: bits[32]) -> bits[32] {
+  ret add.7: bits[32] = add(accum, i, id=7)
+}
 
-        fn __test_module__f__2(x: bits[2]) -> bits[32] {
-          literal.3: bits[32] = literal(value=0, id=3)
-          literal.2: bits[32] = literal(value=2, id=2)
-          ret counted_for.7: bits[32] = counted_for(literal.3, trip_count=2, stride=1, body=____test_module__f__2_counted_for_0_body, id=7)
-        }
+fn __test_module__f__2(x: bits[2]) -> bits[32] {
+  literal.3: bits[32] = literal(value=0, id=3)
+  literal.2: bits[32] = literal(value=2, id=2)
+  literal.4: bits[32] = literal(value=0, id=4)
+  ret counted_for.8: bits[32] = counted_for(literal.3, trip_count=2, stride=1, body=____test_module__f__2_counted_for_0_body, id=8)
+}
 
-        fn __test_module__main() -> bits[32] {
-          literal.8: bits[2] = literal(value=0, id=8)
-          ret literal.9: bits[32] = literal(value=1, id=9)
-        }
-        """)
+fn __test_module__main() -> bits[32] {
+  literal.9: bits[2] = literal(value=0, id=9)
+  ret literal.10: bits[32] = literal(value=1, id=10)
+}
+""")
 
   def test_counted_for_invoking_function_from_body(self):
     m = self.parse_dsl_text("""\
@@ -401,23 +404,24 @@ class IrConverterTest(test_base.TestCase):
         m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
-        package test_module
+package test_module
 
-        fn __test_module__my_id(x: bits[32]) -> bits[32] {
-          ret identity.2: bits[32] = identity(x, id=2)
-        }
+fn __test_module__my_id(x: bits[32]) -> bits[32] {
+  ret identity.2: bits[32] = identity(x, id=2)
+}
 
-        fn ____test_module__f_counted_for_0_body(i: bits[32], accum: bits[32]) -> bits[32] {
-          add.7: bits[32] = add(accum, i, id=7)
-          ret invoke.8: bits[32] = invoke(add.7, to_apply=__test_module__my_id, id=8)
-        }
+fn ____test_module__f_counted_for_0_body(i: bits[32], accum: bits[32]) -> bits[32] {
+  add.8: bits[32] = add(accum, i, id=8)
+  ret invoke.9: bits[32] = invoke(add.8, to_apply=__test_module__my_id, id=9)
+}
 
-        fn __test_module__f() -> bits[32] {
-          literal.3: bits[32] = literal(value=0, id=3)
-          literal.4: bits[32] = literal(value=4, id=4)
-          ret counted_for.9: bits[32] = counted_for(literal.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, id=9)
-        }
-        """)
+fn __test_module__f() -> bits[32] {
+  literal.3: bits[32] = literal(value=0, id=3)
+  literal.4: bits[32] = literal(value=0, id=4)
+  literal.5: bits[32] = literal(value=4, id=5)
+  ret counted_for.10: bits[32] = counted_for(literal.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, id=10)
+}
+""")
 
   def test_counted_for_with_loop_invariants(self):
     m = self.parse_dsl_text("""\
@@ -433,22 +437,23 @@ class IrConverterTest(test_base.TestCase):
         m, 'f', node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
-        package test_module
+package test_module
 
-        fn ____test_module__f_counted_for_0_body(i: bits[32], accum: bits[32], other_outer_thing: bits[32], outer_thing: bits[32]) -> bits[32] {
-          add.9: bits[32] = add(accum, i, id=9)
-          add.10: bits[32] = add(add.9, outer_thing, id=10)
-          ret add.11: bits[32] = add(add.10, other_outer_thing, id=11)
-        }
+fn ____test_module__f_counted_for_0_body(i: bits[32], accum: bits[32], other_outer_thing: bits[32], outer_thing: bits[32]) -> bits[32] {
+  add.10: bits[32] = add(accum, i, id=10)
+  add.11: bits[32] = add(add.10, outer_thing, id=11)
+  ret add.12: bits[32] = add(add.11, other_outer_thing, id=12)
+}
 
-        fn __test_module__f() -> bits[32] {
-          literal.3: bits[32] = literal(value=0, id=3)
-          literal.2: bits[32] = literal(value=24, id=2)
-          literal.1: bits[32] = literal(value=42, id=1)
-          literal.4: bits[32] = literal(value=4, id=4)
-          ret counted_for.12: bits[32] = counted_for(literal.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, invariant_args=[literal.2, literal.1], id=12)
-        }
-        """)
+fn __test_module__f() -> bits[32] {
+  literal.3: bits[32] = literal(value=0, id=3)
+  literal.2: bits[32] = literal(value=24, id=2)
+  literal.1: bits[32] = literal(value=42, id=1)
+  literal.4: bits[32] = literal(value=0, id=4)
+  literal.5: bits[32] = literal(value=4, id=5)
+  ret counted_for.13: bits[32] = counted_for(literal.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, invariant_args=[literal.2, literal.1], id=13)
+}
+""")
 
   def test_counted_for_with_tuple_accumulator(self):
     m = self.parse_dsl_text("""\
@@ -462,30 +467,31 @@ class IrConverterTest(test_base.TestCase):
         m, 'f', node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
-        package test_module
+package test_module
 
-        fn ____test_module__f_counted_for_0_body(i: bits[32], __loop_carry: (bits[32], bits[32])) -> (bits[32], bits[32]) {
-          literal.7: bits[1] = literal(value=1, id=7)
-          literal.9: bits[1] = literal(value=1, id=9)
-          tuple_index.8: bits[32] = tuple_index(__loop_carry, index=0, id=8)
-          tuple_index.11: bits[32] = tuple_index(__loop_carry, index=1, id=11)
-          literal.15: bits[32] = literal(value=1, id=15)
-          and.10: bits[1] = and(literal.7, literal.9, id=10)
-          literal.12: bits[1] = literal(value=1, id=12)
-          add.14: bits[32] = add(tuple_index.8, tuple_index.11, id=14)
-          add.16: bits[32] = add(tuple_index.11, literal.15, id=16)
-          and.13: bits[1] = and(and.10, literal.12, id=13)
-          ret tuple.17: (bits[32], bits[32]) = tuple(add.14, add.16, id=17)
-        }
+fn ____test_module__f_counted_for_0_body(i: bits[32], __loop_carry: (bits[32], bits[32])) -> (bits[32], bits[32]) {
+  literal.8: bits[1] = literal(value=1, id=8)
+  literal.10: bits[1] = literal(value=1, id=10)
+  tuple_index.9: bits[32] = tuple_index(__loop_carry, index=0, id=9)
+  tuple_index.12: bits[32] = tuple_index(__loop_carry, index=1, id=12)
+  literal.16: bits[32] = literal(value=1, id=16)
+  and.11: bits[1] = and(literal.8, literal.10, id=11)
+  literal.13: bits[1] = literal(value=1, id=13)
+  add.15: bits[32] = add(tuple_index.9, tuple_index.12, id=15)
+  add.17: bits[32] = add(tuple_index.12, literal.16, id=17)
+  and.14: bits[1] = and(and.11, literal.13, id=14)
+  ret tuple.18: (bits[32], bits[32]) = tuple(add.15, add.17, id=18)
+}
 
-        fn __test_module__f() -> (bits[32], bits[32]) {
-          literal.1: bits[32] = literal(value=0, id=1)
-          literal.2: bits[32] = literal(value=1, id=2)
-          tuple.3: (bits[32], bits[32]) = tuple(literal.1, literal.2, id=3)
-          literal.4: bits[32] = literal(value=4, id=4)
-          ret counted_for.18: (bits[32], bits[32]) = counted_for(tuple.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, id=18)
-        }
-        """)
+fn __test_module__f() -> (bits[32], bits[32]) {
+  literal.1: bits[32] = literal(value=0, id=1)
+  literal.2: bits[32] = literal(value=1, id=2)
+  tuple.3: (bits[32], bits[32]) = tuple(literal.1, literal.2, id=3)
+  literal.4: bits[32] = literal(value=0, id=4)
+  literal.5: bits[32] = literal(value=4, id=5)
+  ret counted_for.19: (bits[32], bits[32]) = counted_for(tuple.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, id=19)
+}
+""")
 
   def test_index(self):
     m = self.parse_dsl_text("""\
@@ -1208,21 +1214,22 @@ class IrConverterTest(test_base.TestCase):
         m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
-        package test_module
+package test_module
 
-        fn ____test_module__main_counted_for_0_body(i: bits[32], accum: bits[8][2]) -> bits[8][2] {
-          bit_slice.7: bits[8] = bit_slice(i, start=0, width=8, id=7)
-          ret array_update.8: bits[8][2] = array_update(accum, bit_slice.7, indices=[i], id=8)
-        }
+fn ____test_module__main_counted_for_0_body(i: bits[32], accum: bits[8][2]) -> bits[8][2] {
+  bit_slice.8: bits[8] = bit_slice(i, start=0, width=8, id=8)
+  ret array_update.9: bits[8][2] = array_update(accum, bit_slice.8, indices=[i], id=9)
+}
 
-        fn __test_module__main() -> bits[8][2] {
-          literal.3: bits[8][2] = literal(value=[0, 0], id=3)
-          literal.1: bits[8] = literal(value=0, id=1)
-          literal.2: bits[8] = literal(value=0, id=2)
-          literal.4: bits[32] = literal(value=2, id=4)
-          ret counted_for.9: bits[8][2] = counted_for(literal.3, trip_count=2, stride=1, body=____test_module__main_counted_for_0_body, id=9)
-        }
-        """)
+fn __test_module__main() -> bits[8][2] {
+  literal.3: bits[8][2] = literal(value=[0, 0], id=3)
+  literal.1: bits[8] = literal(value=0, id=1)
+  literal.2: bits[8] = literal(value=0, id=2)
+  literal.4: bits[32] = literal(value=0, id=4)
+  literal.5: bits[32] = literal(value=2, id=5)
+  ret counted_for.10: bits[8][2] = counted_for(literal.3, trip_count=2, stride=1, body=____test_module__main_counted_for_0_body, id=10)
+}
+""")
 
   def test_array_ellipsis(self):
     converted = self.parse_and_convert("""
@@ -1276,23 +1283,24 @@ class IrConverterTest(test_base.TestCase):
         m, node_to_type, import_cache=None, emit_positions=False)
     self.assert_ir_equals_and_parses(
         converted, """\
-        package test_module
+package test_module
 
-        fn ____test_module__f__32_counted_for_0_body(i: bits[32], accum: bits[32]) -> bits[32] {
-          ret zero_ext.6: bits[32] = zero_ext(accum, new_bit_count=32, id=6)
-        }
+fn ____test_module__f__32_counted_for_0_body(i: bits[32], accum: bits[32]) -> bits[32] {
+  ret zero_ext.7: bits[32] = zero_ext(accum, new_bit_count=32, id=7)
+}
 
-        fn __test_module__f__32(init: bits[32]) -> bits[32] {
-          literal.2: bits[32] = literal(value=32, id=2)
-          literal.3: bits[32] = literal(value=4, id=3)
-          ret counted_for.7: bits[32] = counted_for(init, trip_count=4, stride=1, body=____test_module__f__32_counted_for_0_body, id=7)
-        }
+fn __test_module__f__32(init: bits[32]) -> bits[32] {
+  literal.2: bits[32] = literal(value=32, id=2)
+  literal.3: bits[32] = literal(value=0, id=3)
+  literal.4: bits[32] = literal(value=4, id=4)
+  ret counted_for.8: bits[32] = counted_for(init, trip_count=4, stride=1, body=____test_module__f__32_counted_for_0_body, id=8)
+}
 
-        fn __test_module__main() -> bits[32] {
-          literal.8: bits[32] = literal(value=0, id=8)
-          ret literal.9: bits[32] = literal(value=0, id=9)
-        }
-        """)
+fn __test_module__main() -> bits[32] {
+  literal.9: bits[32] = literal(value=0, id=9)
+  ret literal.10: bits[32] = literal(value=0, id=10)
+}
+""")
 
   def test_signed_comparisons(self):
     m = self.parse_dsl_text("""

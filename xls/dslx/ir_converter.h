@@ -92,6 +92,18 @@ class IrConverter {
   // symbolic_binding_map_.
   absl::StatusOr<ConcreteTypeDim> ResolveDim(ConcreteTypeDim dim);
 
+  // As above, does ResolveDim() but then accesses the dimension value as an
+  // expected int64.
+  absl::StatusOr<int64> ResolveDimToInt(const ConcreteTypeDim& dim) {
+    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim resolved, ResolveDim(dim));
+    if (absl::holds_alternative<int64>(resolved.value())) {
+      return absl::get<int64>(resolved.value());
+    }
+    return absl::InternalError(absl::StrFormat(
+        "Expected resolved dimension of %s to be an integer, got: %s",
+        dim.ToString(), resolved.ToString()));
+  }
+
   // Resolves node's type and resolves all of its dimensions via `ResolveDim()`.
   absl::StatusOr<std::unique_ptr<ConcreteType>> ResolveType(AstNode* node);
 
@@ -209,6 +221,11 @@ class IrConverter {
   // that employ a custom visitation order).
   using VisitFunc = std::function<absl::Status(AstNode*)>;
 
+  // Callback signature to visit a node for IR conversion given an IR converter.
+  // This is used, for example, when building a for loop's body function.
+  using VisitIrConverterFunc =
+      std::function<absl::Status(IrConverter*, AstNode*)>;
+
   // AstNode handlers that recur (via the "visit" callback).
   absl::Status HandleSplatStructInstance(SplatStructInstance* node,
                                          const VisitFunc& visit);
@@ -226,6 +243,9 @@ class IrConverter {
   absl::StatusOr<xls::Function*> HandleFunction(
       Function* node, const SymbolicBindings* symbolic_bindings,
       const VisitFunc& visit);
+
+  absl::Status HandleFor(For* node, const VisitFunc& visit,
+                         const VisitIrConverterFunc& visit_converter);
 
   // Handles an arm of a match expression.
   absl::StatusOr<BValue> HandleMatcher(NameDefTree* matcher,
@@ -305,6 +325,13 @@ class IrConverter {
   absl::StatusOr<std::string> GetCalleeIdentifier(Invocation* node);
 
  private:
+  // Determines whether the for loop node is of the general form:
+  //
+  //  `for ... in range(0, N)`
+  //
+  // Returns the value of N if so, or a conversion error if it is not.
+  absl::StatusOr<int64> QueryConstRangeCall(For* node, const VisitFunc& visit);
+
   template <typename T>
   absl::StatusOr<T> DerefStructOrEnumFromNameRef(
       NameRef* name_ref,

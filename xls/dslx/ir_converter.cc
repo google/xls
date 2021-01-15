@@ -394,6 +394,169 @@ absl::Status IrConverter::HandleMatch(Match* node, const VisitFunc& visit) {
   return absl::OkStatus();
 }
 
+absl::StatusOr<int64> IrConverter::QueryConstRangeCall(For* node,
+                                                       const VisitFunc& visit) {
+  auto error = [&] {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("ConversionError: %s For-loop is of an unsupported "
+                        "form for IR conversion; only a range(0, CONSTANT) "
+                        "call is supported; got iterable: %s",
+                        node->span().ToString(), node->iterable()->ToString()));
+  };
+  auto* iterable_call = dynamic_cast<Invocation*>(node->iterable());
+  if (iterable_call == nullptr) {
+    return error();
+  }
+  auto* callee_name_ref = dynamic_cast<NameRef*>(iterable_call->callee());
+  if (callee_name_ref == nullptr) {
+    return error();
+  }
+  if (!absl::holds_alternative<BuiltinNameDef*>(callee_name_ref->name_def())) {
+    return error();
+  }
+  auto* builtin_name_def =
+      absl::get<BuiltinNameDef*>(callee_name_ref->name_def());
+  if (builtin_name_def->identifier() != "range") {
+    return error();
+  }
+
+  XLS_RET_CHECK_EQ(iterable_call->args().size(), 2);
+  Expr* start = iterable_call->args()[0];
+  Expr* limit = iterable_call->args()[1];
+
+  XLS_RETURN_IF_ERROR(visit(start));
+  XLS_RETURN_IF_ERROR(visit(limit));
+
+  XLS_ASSIGN_OR_RETURN(Bits start_bits, GetConstBits(start));
+  if (!start_bits.IsZero()) {
+    return error();
+  }
+  XLS_ASSIGN_OR_RETURN(Bits limit_bits, GetConstBits(limit));
+  return limit_bits.ToUint64();
+}
+
+absl::Status IrConverter::HandleFor(
+    For* node, const VisitFunc& visit,
+    const VisitIrConverterFunc& visit_converter) {
+  XLS_RETURN_IF_ERROR(visit(node->init()));
+
+  // TODO(leary): We currently only support counted loops with fixed upper
+  // bounds that start at zero; i.e. those of the form like:
+  //
+  //  for (i, ...): (u32, ...) in range(u32:0, N) {
+  //    ...
+  //  }
+  XLS_ASSIGN_OR_RETURN(int64 trip_count, QueryConstRangeCall(node, visit));
+
+  XLS_VLOG(3) << "Converting for-loop @ " << node->span();
+  IrConverter body_converter(package_, module_, type_info_, import_cache_,
+                             emit_positions_);
+  body_converter.set_symbolic_binding_map(symbolic_binding_map_);
+
+  // Note: there should be no name collisions (i.e. this name is unique)
+  // because:
+  //
+  // a) Double underscore symbols are reserved for the compiler.
+  //    TODO(leary): document this in the DSL reference.
+  // b) The function name being built must be unique in the module.
+  // c) The loop number bumps for each loop in that function.
+  std::string body_fn_name =
+      absl::StrFormat("__%s_counted_for_%d_body", function_builder_->name(),
+                      GetAndBumpCountedForCount());
+  body_converter.InstantiateFunctionBuilder(body_fn_name);
+  std::vector<absl::variant<NameDefTree::Leaf, NameDefTree*>> flat =
+      node->names()->Flatten1();
+  if (flat.size() != 2) {
+    return absl::UnimplementedError(
+        "Expect for loop to have counter (induction variable) and carry data "
+        "for IR conversion.");
+  }
+
+  auto to_ast_node =
+      [](absl::variant<NameDefTree::Leaf, NameDefTree*> x) -> AstNode* {
+    if (absl::holds_alternative<NameDefTree*>(x)) {
+      return absl::get<NameDefTree*>(x);
+    }
+    return ToAstNode(absl::get<NameDefTree::Leaf>(x));
+  };
+
+  // Add the induction value.
+  AstNode* ivar = to_ast_node(flat[0]);
+  auto* name_def = dynamic_cast<NameDef*>(ivar);
+  XLS_RET_CHECK(name_def != nullptr);
+  XLS_ASSIGN_OR_RETURN(xls::Type * ivar_type, ResolveTypeToIr(name_def));
+  body_converter.SetNodeToIr(name_def, body_converter.function_builder()->Param(
+                                           name_def->identifier(), ivar_type));
+
+  // Add the loop carry value.
+  AstNode* carry = to_ast_node(flat[1]);
+  if (auto* name_def = dynamic_cast<NameDef*>(carry)) {
+    XLS_ASSIGN_OR_RETURN(xls::Type * type, ResolveTypeToIr(name_def));
+    BValue param =
+        body_converter.function_builder()->Param(name_def->identifier(), type);
+    body_converter.SetNodeToIr(name_def, param);
+  } else {
+    // For tuple loop carries we have to destructure names on entry.
+    NameDefTree* accum = absl::get<NameDefTree*>(flat[1]);
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> carry_type,
+                         ResolveType(accum));
+    XLS_ASSIGN_OR_RETURN(xls::Type * carry_ir_type, TypeToIr(*carry_type));
+    BValue carry =
+        body_converter.function_builder()->Param("__loop_carry", carry_ir_type);
+    body_converter.SetNodeToIr(accum, carry);
+    XLS_RETURN_IF_ERROR(
+        body_converter.HandleMatcher(accum, {}, carry, *carry_type, visit)
+            .status());
+  }
+
+  // We need to capture the lexical scope and pass it to his loop body function.
+  //
+  // So we suffix free variables for the function body onto the function
+  // parameters.
+  FreeVariables freevars = node->body()->GetFreeVariables(node->span().start());
+  freevars = freevars.DropBuiltinDefs();
+  std::vector<NameDef*> relevant_name_defs;
+  for (const auto& any_name_def : freevars.GetNameDefs()) {
+    auto* name_def = absl::get<NameDef*>(any_name_def);
+    absl::optional<const ConcreteType*> type = type_info_->GetItem(name_def);
+    if (!type.has_value()) {
+      continue;
+    }
+    if (dynamic_cast<const FunctionType*>(type.value()) != nullptr) {
+      continue;
+    }
+    AstNode* definer = name_def->definer();
+    if (dynamic_cast<EnumDef*>(definer) != nullptr ||
+        dynamic_cast<TypeDef*>(definer) != nullptr) {
+      continue;
+    }
+    relevant_name_defs.push_back(name_def);
+    XLS_VLOG(3) << "Converting freevar name: " << name_def->ToString();
+    XLS_ASSIGN_OR_RETURN(xls::Type * name_def_type, TypeToIr(**type));
+    body_converter.SetNodeToIr(name_def,
+                               body_converter.function_builder()->Param(
+                                   name_def->identifier(), name_def_type));
+  }
+
+  XLS_RETURN_IF_ERROR(visit_converter(&body_converter, node->body()));
+  XLS_ASSIGN_OR_RETURN(xls::Function * body_function,
+                       body_converter.function_builder()->Build());
+  XLS_VLOG(3) << "Converted body function: " << body_function->name();
+
+  std::vector<BValue> invariant_args;
+  for (NameDef* name_def : relevant_name_defs) {
+    XLS_ASSIGN_OR_RETURN(BValue value, Use(name_def));
+    invariant_args.push_back(value);
+  }
+
+  XLS_ASSIGN_OR_RETURN(BValue init, Use(node->init()));
+  Def(node, [&](absl::optional<SourceLocation> loc) {
+    return function_builder_->CountedFor(init, trip_count, /*stride=*/1,
+                                         body_function, invariant_args);
+  });
+  return absl::OkStatus();
+}
+
 absl::StatusOr<BValue> IrConverter::HandleMatcher(
     NameDefTree* matcher, absl::Span<const int64> index,
     const BValue& matched_value, const ConcreteType& matched_type,
@@ -1397,8 +1560,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> IrConverter::ResolveType(
 absl::StatusOr<Value> IrConverter::GetConstValue(AstNode* node) const {
   absl::optional<IrValue> ir_value = GetNodeToIr(node);
   if (!ir_value.has_value()) {
-    return absl::InternalError(absl::StrFormat(
-        "AST node had no associated IR value: %s", node->ToString()));
+    return absl::InternalError(
+        absl::StrFormat("AST node had no associated IR value: %s @ %s",
+                        node->ToString(), SpanToString(node->GetSpan())));
   }
   if (!absl::holds_alternative<CValue>(*ir_value)) {
     return absl::InternalError(absl::StrFormat(
@@ -1485,7 +1649,8 @@ absl::StatusOr<xls::Type*> IrConverter::TypeToIr(
   if (auto* array_type = dynamic_cast<const ArrayType*>(&concrete_type)) {
     XLS_ASSIGN_OR_RETURN(xls::Type * element_type,
                          TypeToIr(array_type->element_type()));
-    int64 element_count = absl::get<int64>(array_type->size().value());
+    XLS_ASSIGN_OR_RETURN(int64 element_count,
+                         ResolveDimToInt(array_type->size()));
     xls::Type* result = package_->GetArrayType(element_count, element_type);
     XLS_VLOG(4) << "Converted type to IR; concrete type: " << concrete_type
                 << " ir: " << result->ToString()
@@ -1493,10 +1658,11 @@ absl::StatusOr<xls::Type*> IrConverter::TypeToIr(
     return result;
   }
   if (auto* bits_type = dynamic_cast<const BitsType*>(&concrete_type)) {
-    int64 bit_count = absl::get<int64>(bits_type->size().value());
+    XLS_ASSIGN_OR_RETURN(int64 bit_count, ResolveDimToInt(bits_type->size()));
     return package_->GetBitsType(bit_count);
   }
   if (auto* enum_type = dynamic_cast<const EnumType*>(&concrete_type)) {
+    XLS_RET_CHECK(absl::holds_alternative<int64>(enum_type->size().value()));
     int64 bit_count = absl::get<int64>(enum_type->size().value());
     return package_->GetBitsType(bit_count);
   }

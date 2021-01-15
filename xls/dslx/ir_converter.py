@@ -17,7 +17,7 @@
 """Module for converting AST to IR text dumps."""
 
 import pprint
-from typing import Text, List, Optional, Tuple, Callable
+from typing import Text, List, Optional, Callable
 
 from absl import logging
 
@@ -32,7 +32,6 @@ from xls.dslx.python import cpp_type_info as type_info_mod
 from xls.dslx.python.cpp_ast_visitor import visit
 from xls.dslx.python.cpp_concrete_type import ConcreteType
 from xls.dslx.python.cpp_concrete_type import ConcreteTypeDim
-from xls.dslx.python.cpp_concrete_type import FunctionType
 from xls.dslx.python.cpp_pos import Span
 from xls.dslx.python.cpp_type_info import SymbolicBindings
 from xls.dslx.python.import_routines import ImportCache
@@ -87,11 +86,20 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
       node source positions.
   """
 
-  def __init__(self, package: ir_package.Package, module: ast.Module,
-               type_info: type_info_mod.TypeInfo, import_cache: ImportCache,
-               emit_positions: bool):
-    self.state = cpp_ir_converter.IrConverter(package, module, type_info,
-                                              import_cache, emit_positions)
+  @classmethod
+  def make(cls, package: ir_package.Package, module: ast.Module,
+           type_info: type_info_mod.TypeInfo, import_cache: ImportCache,
+           emit_positions: bool):
+    return cls.from_state(
+        cpp_ir_converter.IrConverter(package, module, type_info, import_cache,
+                                     emit_positions))
+
+  @classmethod
+  def from_state(cls, state: cpp_ir_converter.IrConverter):
+    return cls(state)
+
+  def __init__(self, state: cpp_ir_converter.IrConverter):
+    self.state = state
 
   @property
   def fb(self):
@@ -290,134 +298,16 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
   def visit_StructInstance(self, node: ast.StructInstance) -> None:
     self.state.handle_struct_instance(node, self._visit)
 
-  def _is_constant_zero(self, node: ast.AstNode) -> bool:
-    return isinstance(node,
-                      ast.Number) and ast_helpers.get_value_as_int(node) == 0
-
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_For(self, node: ast.For) -> None:
-    self._visit(node.init)
 
-    def query_const_range_call() -> int:
-      """Returns trip count if this is a `for ... in range(CONST)` construct."""
-      range_callee = (
-          isinstance(node.iterable, ast.Invocation) and
-          isinstance(node.iterable.callee, ast.NameRef) and
-          node.iterable.callee.identifier == 'range')
-      if not range_callee:
-        raise ConversionError(
-            'For-loop is of an unsupported form for IR conversion; only a '
-            "'range(0, const)' call is supported, found non-range callee.",
-            node.span)
-      if len(node.iterable.args) != 2:
-        raise ConversionError(
-            'For-loop is of an unsupported form for IR conversion; only a '
-            "'range(0, const)' call is supported, found inappropriate number "
-            'of arguments.', node.span)
-      if not self._is_constant_zero(node.iterable.args[0]):
-        raise ConversionError(
-            'For-loop is of an unsupported form for IR conversion; only a '
-            "'range(0, const)' call is supported, found inappropriate number "
-            'of arguments.', node.span)
-      arg = node.iterable.args[1]
-      self._visit(arg)
-      if not self._is_const(arg):
-        raise ConversionError(
-            'For-loop is of an unsupported form for IR conversion; only a '
-            "'range(const)' call is supported, did not find a const value "
-            f'for {arg} ({arg!r}).', node.span)
-      return self._get_const(arg, signed=False)
+    def visit_converter(state: cpp_ir_converter.IrConverter, node: ast.Expr):
+      assert isinstance(state, cpp_ir_converter.IrConverter), state
+      assert isinstance(node, ast.Expr), node
+      converter = _IrConverterFb.from_state(state)
+      converter._visit(node)  # pylint: disable=protected-access
 
-    # TODO(leary): We currently only support counted loops of the form:
-    #
-    #   for (i, ...): (u32, ...) in range(N) {
-    #      ...
-    #   }
-    trip_count = query_const_range_call()
-
-    logging.vlog(3, 'Converting for-loop @ %s', node.span)
-    body_converter = _IrConverterFb(
-        self.package,
-        self.module,
-        self.type_info,
-        self.state.import_cache,
-        emit_positions=self.emit_positions)
-    body_converter.state.set_symbolic_bindings(
-        self.state.get_symbolic_bindings())
-    body_fn_name = ('__' + self.fb.name + '_counted_for_{}_body').format(
-        self._next_counted_for_ordinal()).replace('.', '_')
-    body_converter.state.instantiate_function_builder(body_fn_name)
-    flat = node.names.flatten1()
-    assert len(
-        flat
-    ) == 2, 'Expect an induction binding and loop carry binding; got {!r}'.format(
-        flat)
-
-    # Add the induction value.
-    assert isinstance(
-        flat[0], ast.NameDef
-    ), 'Induction variable was not a NameDef: {0} ({0!r})'.format(flat[0])
-    body_converter.state.set_node_to_ir(
-        flat[0],
-        body_converter.fb.add_param(flat[0].identifier,
-                                    self._resolve_type_to_ir(flat[0])))
-
-    # Add the loop carry value.
-    if isinstance(flat[1], ast.NameDef):
-      body_converter.state.set_node_to_ir(
-          flat[1],
-          body_converter.fb.add_param(flat[1].identifier,
-                                      self._resolve_type_to_ir(flat[1])))
-    else:
-      # For tuple loop carries we have to destructure names on entry.
-      carry_type = self._resolve_type_to_ir(flat[1])
-      carry = body_converter.fb.add_param('__loop_carry', carry_type)
-      body_converter.state.set_node_to_ir(flat[1], carry)
-      body_converter.state.handle_matcher(flat[1], (), carry,
-                                          self._resolve_type(flat[1]),
-                                          self._visit)
-
-    # Free variables are suffixes on the function parameters.
-    freevars = node.body.get_free_variables(node.span.start)
-    freevars = freevars.drop_builtin_defs()
-    relevant_name_defs = []
-    for name_def in freevars.get_name_defs(self.module):
-      try:
-        type_ = self.type_info.get_type(name_def)
-      except type_info_mod.TypeMissingError:
-        continue
-      if isinstance(type_, FunctionType):
-        continue
-      if isinstance(name_def.definer, ast.EnumDef):
-        continue
-      if isinstance(name_def.definer, ast.TypeDef):
-        continue
-      relevant_name_defs.append(name_def)
-      logging.vlog(3, 'Converting freevar name: %s', name_def)
-      body_converter.state.set_node_to_ir(
-          name_def,
-          body_converter.fb.add_param(name_def.identifier,
-                                      self._resolve_type_to_ir(name_def)))
-
-    body_converter._visit(node.body)  # pylint: disable=protected-access
-    body_function = body_converter.fb.build()
-    logging.vlog(3, 'Converted body function: %s', body_function.name)
-
-    stride = 1
-    invariant_args = tuple(
-        self._use(name_def)
-        for name_def in relevant_name_defs
-        if not isinstance(self.type_info.get_type(name_def), FunctionType))
-    self._def(node, self.fb.add_counted_for, self._use(node.init), trip_count,
-              stride, body_function, invariant_args)
-
-  def _get_callee_identifier(self, node: ast.Invocation) -> str:
-    return self.state.get_callee_identifier(node)
-
-  def _visit_scmp(self, node: ast.Invocation, args: Tuple[BValue, ...],
-                  which: Text) -> BValue:
-    lhs, rhs = args
-    return self._def(node, getattr(self.fb, 'add_{}'.format(which)), lhs, rhs)
+    self.state.handle_for(node, self._visit, visit_converter)
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Invocation(self, node: ast.Invocation):
@@ -481,7 +371,7 @@ def _convert_one_function(package: ir_package.Package,
   constant_by_name = module.get_constant_by_name()
   type_definition_by_name = module.get_type_definition_by_name()
   import_by_name = module.get_import_by_name()
-  converter = _IrConverterFb(
+  converter = _IrConverterFb.make(
       package, module, type_info, import_cache, emit_positions=emit_positions)
 
   freevars = function.body.get_free_variables(
