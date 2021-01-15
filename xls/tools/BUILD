@@ -734,6 +734,7 @@ py_test(
 cc_binary(
     name = "codegen_main",
     srcs = ["codegen_main.cc"],
+    visibility = ["//xls:xls_users"],
     deps = [
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
