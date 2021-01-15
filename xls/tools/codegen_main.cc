@@ -164,9 +164,8 @@ absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
               sched_options.scheduling_options.pipeline_stages().value(),
               sched_options.scheduling_options.clock_period_ps().value());
         }
-
-        return scheduling_status;
       }
+      return scheduling_status;
     }
     XLS_RET_CHECK(scheduling_unit.schedule.has_value());
 
