@@ -1770,89 +1770,73 @@ class DeduceVisitor : public AstNodeVisitor {
  public:
   explicit DeduceVisitor(DeduceCtx* ctx) : ctx_(ctx) {}
 
-  void HandleUnop(Unop* n) override { result_ = DeduceUnop(n, ctx_); }
-  void HandleParam(Param* n) override { result_ = DeduceParam(n, ctx_); }
-  void HandleConstantDef(ConstantDef* n) override {
-    result_ = DeduceConstantDef(n, ctx_);
+#define DEDUCE_DISPATCH(__type)                     \
+  absl::Status Handle##__type(__type* n) override { \
+    result_ = Deduce##__type(n, ctx_);              \
+    return result_.status();                        \
   }
-  void HandleNumber(Number* n) override { result_ = DeduceNumber(n, ctx_); }
-  void HandleTypeRef(TypeRef* n) override { result_ = DeduceTypeRef(n, ctx_); }
-  void HandleTypeDef(TypeDef* n) override { result_ = DeduceTypeDef(n, ctx_); }
-  void HandleXlsTuple(XlsTuple* n) override {
-    result_ = DeduceXlsTuple(n, ctx_);
-  }
-  void HandleTernary(Ternary* n) override { result_ = DeduceTernary(n, ctx_); }
-  void HandleBinop(Binop* n) override { result_ = DeduceBinop(n, ctx_); }
-  void HandleEnumDef(EnumDef* n) override { result_ = DeduceEnumDef(n, ctx_); }
-  void HandleLet(Let* n) override { result_ = DeduceLet(n, ctx_); }
-  void HandleFor(For* n) override { result_ = DeduceFor(n, ctx_); }
-  void HandleCast(Cast* n) override { result_ = DeduceCast(n, ctx_); }
-  void HandleStructDef(StructDef* n) override {
-    result_ = DeduceStructDef(n, ctx_);
-  }
-  void HandleArray(Array* n) override { result_ = DeduceArray(n, ctx_); }
-  void HandleAttr(Attr* n) override { result_ = DeduceAttr(n, ctx_); }
-  void HandleConstantArray(ConstantArray* n) override {
-    result_ = DeduceConstantArray(n, ctx_);
-  }
-  void HandleColonRef(ColonRef* n) override {
-    result_ = DeduceColonRef(n, ctx_);
-  }
-  void HandleIndex(Index* n) override { result_ = DeduceIndex(n, ctx_); }
-  void HandleMatch(Match* n) override { result_ = DeduceMatch(n, ctx_); }
-  void HandleStructInstance(StructInstance* n) override {
-    result_ = DeduceStructInstance(n, ctx_);
-  }
-  void HandleSplatStructInstance(SplatStructInstance* n) override {
-    result_ = DeduceSplatStructInstance(n, ctx_);
-  }
-  void HandleBuiltinTypeAnnotation(BuiltinTypeAnnotation* n) override {
-    result_ = DeduceBuiltinTypeAnnotation(n, ctx_);
-  }
-  void HandleArrayTypeAnnotation(ArrayTypeAnnotation* n) override {
-    result_ = DeduceArrayTypeAnnotation(n, ctx_);
-  }
-  void HandleTupleTypeAnnotation(TupleTypeAnnotation* n) override {
-    result_ = DeduceTupleTypeAnnotation(n, ctx_);
-  }
-  void HandleTypeRefTypeAnnotation(TypeRefTypeAnnotation* n) override {
-    result_ = DeduceTypeRefTypeAnnotation(n, ctx_);
-  }
-  void HandleMatchArm(MatchArm* n) override {
-    result_ = DeduceMatchArm(n, ctx_);
-  }
-  void HandleWhile(While* n) override { result_ = DeduceWhile(n, ctx_); }
-  void HandleCarry(Carry* n) override { result_ = DeduceCarry(n, ctx_); }
-  void HandleInvocation(Invocation* n) override {
-    result_ = DeduceInvocation(n, ctx_);
-  }
-  void HandleConstRef(ConstRef* n) override {
-    result_ = DeduceConstRef(n, ctx_);
-  }
-  void HandleNameRef(NameRef* n) override { result_ = DeduceNameRef(n, ctx_); }
+
+  DEDUCE_DISPATCH(Unop)
+  DEDUCE_DISPATCH(Param)
+  DEDUCE_DISPATCH(ConstantDef)
+  DEDUCE_DISPATCH(Number)
+  DEDUCE_DISPATCH(TypeRef)
+  DEDUCE_DISPATCH(TypeDef)
+  DEDUCE_DISPATCH(XlsTuple)
+  DEDUCE_DISPATCH(Ternary)
+  DEDUCE_DISPATCH(Binop)
+  DEDUCE_DISPATCH(EnumDef)
+  DEDUCE_DISPATCH(Let)
+  DEDUCE_DISPATCH(For)
+  DEDUCE_DISPATCH(Cast)
+  DEDUCE_DISPATCH(StructDef)
+  DEDUCE_DISPATCH(Array)
+  DEDUCE_DISPATCH(Attr)
+  DEDUCE_DISPATCH(ConstantArray)
+  DEDUCE_DISPATCH(ColonRef)
+  DEDUCE_DISPATCH(Index)
+  DEDUCE_DISPATCH(Match)
+  DEDUCE_DISPATCH(StructInstance)
+  DEDUCE_DISPATCH(SplatStructInstance)
+  DEDUCE_DISPATCH(BuiltinTypeAnnotation)
+  DEDUCE_DISPATCH(ArrayTypeAnnotation)
+  DEDUCE_DISPATCH(TupleTypeAnnotation)
+  DEDUCE_DISPATCH(TypeRefTypeAnnotation)
+  DEDUCE_DISPATCH(MatchArm)
+  DEDUCE_DISPATCH(While)
+  DEDUCE_DISPATCH(Carry)
+  DEDUCE_DISPATCH(Invocation)
+  DEDUCE_DISPATCH(ConstRef)
+  DEDUCE_DISPATCH(NameRef)
 
   // Unhandled nodes for deduction, either they are custom visited or not
   // visited "automatically" in the traversal process (e.g. top level module
   // members).
-  void HandleNext(Next* n) override { Fatal(n); }
-  void HandleProc(Proc* n) override { Fatal(n); }
-  void HandleSlice(Slice* n) override { Fatal(n); }
-  void HandleImport(Import* n) override { Fatal(n); }
-  void HandleFunction(Function* n) override { Fatal(n); }
-  void HandleQuickCheck(QuickCheck* n) override { Fatal(n); }
-  void HandleTestFunction(TestFunction* n) override { Fatal(n); }
-  void HandleModule(Module* n) override { Fatal(n); }
-  void HandleWidthSlice(WidthSlice* n) override { Fatal(n); }
-  void HandleNameDefTree(NameDefTree* n) override { Fatal(n); }
-  void HandleNameDef(NameDef* n) override { Fatal(n); }
-  void HandleBuiltinNameDef(BuiltinNameDef* n) override { Fatal(n); }
-  void HandleParametricBinding(ParametricBinding* n) override { Fatal(n); }
-  void HandleWildcardPattern(WildcardPattern* n) override { Fatal(n); }
+  absl::Status HandleNext(Next* n) override { return Fatal(n); }
+  absl::Status HandleProc(Proc* n) override { return Fatal(n); }
+  absl::Status HandleSlice(Slice* n) override { return Fatal(n); }
+  absl::Status HandleImport(Import* n) override { return Fatal(n); }
+  absl::Status HandleFunction(Function* n) override { return Fatal(n); }
+  absl::Status HandleQuickCheck(QuickCheck* n) override { return Fatal(n); }
+  absl::Status HandleTestFunction(TestFunction* n) override { return Fatal(n); }
+  absl::Status HandleModule(Module* n) override { return Fatal(n); }
+  absl::Status HandleWidthSlice(WidthSlice* n) override { return Fatal(n); }
+  absl::Status HandleNameDefTree(NameDefTree* n) override { return Fatal(n); }
+  absl::Status HandleNameDef(NameDef* n) override { return Fatal(n); }
+  absl::Status HandleBuiltinNameDef(BuiltinNameDef* n) override {
+    return Fatal(n);
+  }
+  absl::Status HandleParametricBinding(ParametricBinding* n) override {
+    return Fatal(n);
+  }
+  absl::Status HandleWildcardPattern(WildcardPattern* n) override {
+    return Fatal(n);
+  }
 
   absl::StatusOr<std::unique_ptr<ConcreteType>>& result() { return result_; }
 
  private:
-  void Fatal(AstNode* n) {
+  absl::Status Fatal(AstNode* n) {
     XLS_LOG(FATAL) << "Got unhandled AST node for deduction: " << n->ToString();
   }
 
@@ -1863,7 +1847,7 @@ class DeduceVisitor : public AstNodeVisitor {
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInternal(AstNode* node,
                                                              DeduceCtx* ctx) {
   DeduceVisitor visitor(ctx);
-  node->Accept(&visitor);
+  XLS_RETURN_IF_ERROR(node->Accept(&visitor));
   return std::move(visitor.result());
 }
 
