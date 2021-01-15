@@ -216,6 +216,7 @@ class IrConverter {
   absl::Status HandleConcat(Binop* node, BValue lhs, BValue rhs);
   absl::Status HandleNumber(Number* node);
   absl::Status HandleXlsTuple(XlsTuple* node);
+  absl::Status HandleParam(Param* node);
 
   // Callback signature to visit a node for IR conversion (e.g. used in handlers
   // that employ a custom visitation order).

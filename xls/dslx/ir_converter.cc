@@ -221,6 +221,14 @@ absl::Status IrConverter::HandleXlsTuple(XlsTuple* node) {
   return absl::OkStatus();
 }
 
+absl::Status IrConverter::HandleParam(Param* node) {
+  XLS_ASSIGN_OR_RETURN(xls::Type * type, ResolveTypeToIr(node->type()));
+  Def(node->name_def(), [&](absl::optional<SourceLocation> loc) {
+    return function_builder_->Param(node->identifier(), type);
+  });
+  return absl::OkStatus();
+}
+
 absl::Status IrConverter::HandleConstantDef(ConstantDef* node,
                                             const VisitFunc& visit) {
   XLS_RETURN_IF_ERROR(visit(node->value()));

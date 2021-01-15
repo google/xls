@@ -314,6 +314,10 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
            [](IrConverter& self, XlsTupleHolder node) {
              return self.HandleXlsTuple(&node.deref());
            })
+      .def("handle_param",
+           [](IrConverter& self, ParamHolder node) {
+             return self.HandleParam(&node.deref());
+           })
       // AstNode handlers that take a visitation callback.
       .def("handle_splat_struct_instance",
            [](IrConverter& self, SplatStructInstanceHolder node,

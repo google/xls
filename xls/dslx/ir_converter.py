@@ -329,8 +329,7 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Param(self, node: ast.Param):
-    self._def(node.name, self.fb.add_param, node.name.identifier,
-              self._resolve_type_to_ir(node.type_))
+    self.state.handle_param(node)
 
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Function(
