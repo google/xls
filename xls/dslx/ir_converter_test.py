@@ -408,15 +408,14 @@ class IrConverterTest(test_base.TestCase):
         }
 
         fn ____test_module__f_counted_for_0_body(i: bits[32], accum: bits[32]) -> bits[32] {
-          add.8: bits[32] = add(accum, i, id=8)
           add.7: bits[32] = add(accum, i, id=7)
-          ret invoke.9: bits[32] = invoke(add.8, to_apply=__test_module__my_id, id=9)
+          ret invoke.8: bits[32] = invoke(add.7, to_apply=__test_module__my_id, id=8)
         }
 
         fn __test_module__f() -> bits[32] {
           literal.3: bits[32] = literal(value=0, id=3)
           literal.4: bits[32] = literal(value=4, id=4)
-          ret counted_for.10: bits[32] = counted_for(literal.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, id=10)
+          ret counted_for.9: bits[32] = counted_for(literal.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, id=9)
         }
         """)
 

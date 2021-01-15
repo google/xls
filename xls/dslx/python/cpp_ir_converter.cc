@@ -346,6 +346,11 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
           [](IrConverter& self, ArrayHolder node, const PyVisitFunc& py_visit) {
             return self.HandleArray(&node.deref(), ToCppVisit(py_visit));
           })
+      .def("handle_invocation",
+           [](IrConverter& self, InvocationHolder node,
+              const PyVisitFunc& py_visit) {
+             return self.HandleInvocation(&node.deref(), ToCppVisit(py_visit));
+           })
       .def("handle_map",
            [](IrConverter& self, InvocationHolder node,
               const PyVisitFunc& py_visit) -> absl::StatusOr<BValueHolder> {

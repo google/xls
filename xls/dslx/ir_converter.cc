@@ -647,6 +647,93 @@ absl::Status IrConverter::HandleArray(Array* node, const VisitFunc& visit) {
   return absl::OkStatus();
 }
 
+absl::Status IrConverter::HandleInvocation(Invocation* node,
+                                           const VisitFunc& visit) {
+  XLS_ASSIGN_OR_RETURN(std::string called_name, GetCalleeIdentifier(node));
+  auto accept_args = [&]() -> absl::StatusOr<std::vector<BValue>> {
+    std::vector<BValue> values;
+    for (Expr* arg : node->args()) {
+      XLS_RETURN_IF_ERROR(visit(arg));
+      XLS_ASSIGN_OR_RETURN(BValue value, Use(arg));
+      values.push_back(value);
+    }
+    return values;
+  };
+
+  if (package_->HasFunctionWithName(called_name)) {
+    XLS_ASSIGN_OR_RETURN(xls::Function * f, package_->GetFunction(called_name));
+    // An invocation is constexpr if all of its args are also constexpr (i.e.
+    // there's no global state in the DSL). We need this to know if we can
+    // constexpr-fold the invocation directly into its result below.
+    bool invocation_is_constexpr = true;
+    for (Expr* arg : node->args()) {
+      if (!IsConstant(arg)) {
+        invocation_is_constexpr = false;
+        break;
+      }
+    }
+
+    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
+
+    if (invocation_is_constexpr) {
+      XLS_ASSIGN_OR_RETURN(Value value, EvaluateConstFunction(node));
+      BValue bvalue = Def(node, [&](absl::optional<SourceLocation> loc) {
+        return function_builder_->Literal(value, loc);
+      });
+      SetNodeToIr(node, CValue{value, bvalue});
+      return absl::OkStatus();
+    }
+
+    Def(node, [&](absl::optional<SourceLocation> loc) {
+      return function_builder_->Invoke(args, f, loc);
+    });
+    return absl::OkStatus();
+  }
+
+  // A few builtins are handled specially.
+  if (called_name == "fail!" || called_name == "trace") {
+    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
+    XLS_RET_CHECK_EQ(args.size(), 1)
+        << called_name << " builtin only accepts a single argument";
+    Def(node, [&](absl::optional<SourceLocation> loc) {
+      return function_builder_->Identity(args[0]);
+    });
+    return absl::OkStatus();
+  }
+  if (called_name == "map") {
+    return HandleMap(node, visit).status();
+  }
+
+  // The rest of the builtins have "handle" methods we can resolve.
+  absl::flat_hash_map<std::string, decltype(&IrConverter::HandleBuiltinClz)>
+      map = {
+          {"clz", &IrConverter::HandleBuiltinClz},
+          {"ctz", &IrConverter::HandleBuiltinCtz},
+          {"sgt", &IrConverter::HandleBuiltinSGt},
+          {"sge", &IrConverter::HandleBuiltinSGe},
+          {"slt", &IrConverter::HandleBuiltinSLt},
+          {"sle", &IrConverter::HandleBuiltinSLe},
+          {"signex", &IrConverter::HandleBuiltinSignex},
+          {"one_hot", &IrConverter::HandleBuiltinOneHot},
+          {"one_hot_sel", &IrConverter::HandleBuiltinOneHotSel},
+          {"bit_slice", &IrConverter::HandleBuiltinBitSlice},
+          {"rev", &IrConverter::HandleBuiltinRev},
+          {"and_reduce", &IrConverter::HandleBuiltinAndReduce},
+          {"or_reduce", &IrConverter::HandleBuiltinOrReduce},
+          {"xor_reduce", &IrConverter::HandleBuiltinXorReduce},
+          {"update", &IrConverter::HandleBuiltinUpdate},
+      };
+  auto it = map.find(called_name);
+  if (it == map.end()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "ConversionError: %s Could not find name for invocation: %s",
+        node->span().ToString(), called_name));
+  }
+  XLS_RETURN_IF_ERROR(accept_args().status());
+  auto f = it->second;
+  return (this->*f)(node);
+}
+
 absl::StatusOr<xls::Function*> IrConverter::HandleFunction(
     Function* node, const SymbolicBindings* symbolic_bindings,
     const VisitFunc& visit) {
@@ -1126,6 +1213,26 @@ absl::Status IrConverter::HandleBuiltinXorReduce(Invocation* node) {
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
   Def(node, [&](absl::optional<SourceLocation> loc) {
     return function_builder_->XorReduce(arg, loc);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status IrConverter::HandleBuiltinScmp(SignedCmp cmp, Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 2);
+  XLS_ASSIGN_OR_RETURN(BValue lhs, Use(node->args()[0]));
+  XLS_ASSIGN_OR_RETURN(BValue rhs, Use(node->args()[1]));
+  Def(node, [&](absl::optional<SourceLocation> loc) {
+    switch (cmp) {
+      case SignedCmp::kLt:
+        return function_builder_->SLt(lhs, rhs, loc);
+      case SignedCmp::kGt:
+        return function_builder_->SGt(lhs, rhs, loc);
+      case SignedCmp::kLe:
+        return function_builder_->SLe(lhs, rhs, loc);
+      case SignedCmp::kGe:
+        return function_builder_->SGe(lhs, rhs, loc);
+    }
+    XLS_LOG(FATAL) << "Invalid signed comparison: " << cmp;
   });
   return absl::OkStatus();
 }

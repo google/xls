@@ -419,88 +419,9 @@ class _IrConverterFb(cpp_ast_visitor.AstVisitor):
     lhs, rhs = args
     return self._def(node, getattr(self.fb, 'add_{}'.format(which)), lhs, rhs)
 
-  def _visit_trace(self, node: ast.Invocation, args: Tuple[BValue,
-                                                           ...]) -> BValue:
-    return self._def(node, self.fb.add_identity, args[0])
-
   @cpp_ast_visitor.AstVisitor.no_auto_traverse
   def visit_Invocation(self, node: ast.Invocation):
-    called_name = self._get_callee_identifier(node)
-
-    def accept_args() -> Tuple[BValue, ...]:
-      for arg in node.args:
-        self._visit(arg)
-      return tuple(self._use(arg) for arg in node.args)
-
-    if called_name == 'fail!':
-      args = accept_args()
-      assert len(node.args) == 1, ('Expect fail! builtin to only accept a '
-                                   'single argument; got: {!r}'.format(args))
-      self._def(node, self.fb.add_identity, args[0])
-    elif called_name == 'update':
-      accept_args()
-      self.state.handle_builtin_update(node)
-    elif called_name == 'signex':
-      accept_args()
-      self.state.handle_builtin_signex(node)
-    elif called_name == 'clz':
-      accept_args()
-      self.state.handle_builtin_clz(node)
-    elif called_name == 'ctz':
-      accept_args()
-      self.state.handle_builtin_ctz(node)
-    elif called_name == 'map':
-      # Note: map needs special arg handling.
-      self.state.handle_map(node, self._visit)
-    elif called_name == 'one_hot':
-      accept_args()
-      self.state.handle_builtin_one_hot(node)
-    elif called_name == 'one_hot_sel':
-      accept_args()
-      self.state.handle_builtin_one_hot_sel(node)
-    elif called_name == 'bit_slice':
-      accept_args()
-      self.state.handle_builtin_bit_slice(node)
-    elif called_name == 'rev':
-      accept_args()
-      self.state.handle_builtin_rev(node)
-    elif called_name in ('sgt', 'sge', 'slt', 'sle'):
-      self._visit_scmp(node, accept_args(), called_name)
-    elif called_name == 'and_reduce':
-      accept_args()
-      self.state.handle_builtin_and_reduce(node)
-    elif called_name == 'or_reduce':
-      accept_args()
-      self.state.handle_builtin_or_reduce(node)
-    elif called_name == 'xor_reduce':
-      accept_args()
-      self.state.handle_builtin_xor_reduce(node)
-    elif called_name == 'trace':
-      self._visit_trace(node, accept_args())
-    else:
-      try:
-        f = self.package.get_function(called_name)
-      except Exception as e:
-        # TODO(leary): Switch to new pybind11 more-specific exception.
-        raise ConversionError(
-            'Failed to get function from invocation: {}'.format(e), node.span)
-
-      args = accept_args()
-      # An invocation is constexpr if all of its args are also constexpr
-      # (i.e., there's no global state in DSLX). We need this to know if we can
-      # constexpr-fold the invocation directly into its result below.
-      invocation_is_constexpr = True
-      for arg in node.args:
-        if not ast.is_constant(arg):
-          invocation_is_constexpr = False
-          break
-
-      if invocation_is_constexpr:
-        ir_value = self.state.evaluate_const_function(node)
-        ir_bvalue = self._def(node, self.fb.add_literal_value, ir_value)
-        self.state.set_node_to_ir(node, (ir_value, ir_bvalue))
-      else:
-        self._def(node, self.fb.add_invoke, accept_args(), f)
+    self.state.handle_invocation(node, self._visit)
 
   def visit_ConstRef(self, node: ast.ConstRef) -> None:
     self._def_alias(node.name_def, to=node)

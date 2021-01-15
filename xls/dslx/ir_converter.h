@@ -18,6 +18,7 @@
 #include <memory>
 
 #include "absl/container/btree_set.h"
+#include "xls/dslx/builtins.h"
 #include "xls/dslx/cpp_ast.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_value.h"
@@ -220,6 +221,7 @@ class IrConverter {
   absl::Status HandleMatch(Match* node, const VisitFunc& visit);
   absl::Status HandleIndex(Index* node, const VisitFunc& visit);
   absl::Status HandleArray(Array* node, const VisitFunc& visit);
+  absl::Status HandleInvocation(Invocation* node, const VisitFunc& visit);
 
   absl::StatusOr<xls::Function*> HandleFunction(
       Function* node, const SymbolicBindings* symbolic_bindings,
@@ -264,6 +266,21 @@ class IrConverter {
   absl::Status HandleBuiltinSignex(Invocation* node);
   absl::Status HandleBuiltinUpdate(Invocation* node);
   absl::Status HandleBuiltinXorReduce(Invocation* node);
+  absl::Status HandleBuiltinScmp(SignedCmp cmp, Invocation* node);
+
+  // Signed comparisons.
+  absl::Status HandleBuiltinSLt(Invocation* node) {
+    return HandleBuiltinScmp(SignedCmp::kLt, node);
+  }
+  absl::Status HandleBuiltinSLe(Invocation* node) {
+    return HandleBuiltinScmp(SignedCmp::kLe, node);
+  }
+  absl::Status HandleBuiltinSGe(Invocation* node) {
+    return HandleBuiltinScmp(SignedCmp::kGe, node);
+  }
+  absl::Status HandleBuiltinSGt(Invocation* node) {
+    return HandleBuiltinScmp(SignedCmp::kGt, node);
+  }
 
   static absl::StatusOr<Value> InterpValueToValue(const InterpValue& v);
   static absl::StatusOr<InterpValue> ValueToInterpValue(const Value& v);
