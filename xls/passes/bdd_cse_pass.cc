@@ -92,13 +92,8 @@ absl::StatusOr<std::vector<Node*>> GetNodeOrder(FunctionBase* f) {
 
 }  // namespace
 
-absl::StatusOr<bool> BddCsePass::RunOnFunctionBase(FunctionBase* f,
-                                                   const PassOptions& options,
-                                                   PassResults* results) const {
-  XLS_VLOG(2) << "Running BDD CSE on function " << f->name();
-  XLS_VLOG(3) << "Before:";
-  XLS_VLOG_LINES(3, f->DumpIr());
-
+absl::StatusOr<bool> BddCsePass::RunOnFunctionBaseInternal(
+    FunctionBase* f, const PassOptions& options, PassResults* results) const {
   // TODO(meheff): Try tuning the minterm limit.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<BddFunction> bdd_function,
                        BddFunction::Run(f, /*minterm_limit=*/4096));
@@ -159,9 +154,6 @@ absl::StatusOr<bool> BddCsePass::RunOnFunctionBase(FunctionBase* f,
       node_buckets[hash].push_back(node);
     }
   }
-
-  XLS_VLOG(3) << "After:";
-  XLS_VLOG_LINES(3, f->DumpIr());
 
   return changed;
 }

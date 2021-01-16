@@ -437,7 +437,7 @@ absl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
 
 }  // namespace
 
-absl::StatusOr<bool> NarrowingPass::RunOnFunctionBase(
+absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<TernaryQueryEngine> query_engine,
                        TernaryQueryEngine::Run(f));

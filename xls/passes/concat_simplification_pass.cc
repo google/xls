@@ -453,12 +453,8 @@ absl::StatusOr<bool> TryDistributeReducibleOperation(Node* node) {
 
 }  // namespace
 
-absl::StatusOr<bool> ConcatSimplificationPass::RunOnFunctionBase(
+absl::StatusOr<bool> ConcatSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
-  XLS_VLOG(2) << "Running concat simplifier on function " << f->name();
-  XLS_VLOG(3) << "Before:";
-  XLS_VLOG_LINES(3, f->DumpIr());
-
   // For optimizations which replace concats with other concats use a worklist
   // of unprocessed concats in the graphs. As new concats are created they are
   // added to the worklist.
@@ -493,9 +489,6 @@ absl::StatusOr<bool> ConcatSimplificationPass::RunOnFunctionBase(
       changed |= reduction_changed;
     }
   }
-
-  XLS_VLOG(3) << "After:";
-  XLS_VLOG_LINES(3, f->DumpIr());
 
   return changed;
 }

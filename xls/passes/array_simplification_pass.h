@@ -28,9 +28,10 @@ class ArraySimplificationPass : public FunctionBasePass {
   ArraySimplificationPass()
       : FunctionBasePass("array_simp", "Array Simplification") {}
 
-  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
-                                         const PassOptions& options,
-                                         PassResults* results) const override;
+ protected:
+  absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      FunctionBase* f, const PassOptions& options,
+      PassResults* results) const override;
 };
 
 }  // namespace xls

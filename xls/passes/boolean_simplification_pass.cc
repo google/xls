@@ -458,7 +458,7 @@ class BooleanFlowTracker : public DfsVisitorWithDefault {
 
 }  // namespace
 
-absl::StatusOr<bool> BooleanSimplificationPass::RunOnFunctionBase(
+absl::StatusOr<bool> BooleanSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
   BooleanFlowTracker visitor;
   XLS_RETURN_IF_ERROR(f->Accept(&visitor));

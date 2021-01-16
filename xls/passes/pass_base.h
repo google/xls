@@ -113,12 +113,27 @@ class PassBase {
   // Typically the "changed" indicator is used to determine when to terminate
   // fixed point computation.
   virtual absl::StatusOr<bool> Run(IrT* ir, const OptionsT& options,
-                                   ResultsT* results) const = 0;
+                                   ResultsT* results) const {
+    XLS_VLOG(2) << absl::StreamFormat("Running %s [pass #%d]", long_name(),
+                                      results->invocations.size());
+    XLS_VLOG(3) << "Before:";
+    XLS_VLOG_LINES(3, ir->DumpIr());
+
+    XLS_ASSIGN_OR_RETURN(bool changed, RunInternal(ir, options, results));
+
+    XLS_VLOG(3) << absl::StreamFormat("After [changed = %d]:", changed);
+    XLS_VLOG_LINES(3, ir->DumpIr());
+    return changed;
+  }
 
   // Returns true if this is a compound pass.
   virtual bool IsCompound() const { return false; }
 
  protected:
+  // Derived classes should override this function which is invoked from Run.
+  virtual absl::StatusOr<bool> RunInternal(IrT* ir, const OptionsT& options,
+                                           ResultsT* results) const = 0;
+
   const std::string short_name_;
   const std::string long_name_;
 };
@@ -182,22 +197,22 @@ class CompoundPassBase : public PassBase<IrT, OptionsT, ResultsT> {
     return checker;
   }
 
-  absl::StatusOr<bool> Run(IrT* ir, const OptionsT& options,
-                           ResultsT* results) const override {
+  absl::StatusOr<bool> RunInternal(IrT* ir, const OptionsT& options,
+                                   ResultsT* results) const override {
     if (!options.ir_dump_path.empty()) {
       // Start of the top-level pass. Dump IR.
       XLS_RETURN_IF_ERROR(DumpIr(options.ir_dump_path, ir, this->short_name(),
                                  "start",
                                  /*ordinal=*/0, /*changed=*/false));
     }
-    return RunInternal(ir, options, results, this->short_name(),
-                       /*invariant_checkers=*/{});
+    return RunNested(ir, options, results, this->short_name(),
+                     /*invariant_checkers=*/{});
   }
 
   // Internal implementation of Run for compound passes. Invoked when a compound
   // pass is nested within another compound pass. Enables passing of invariant
   // checkers and name of the top-level pass to nested compound passes.
-  virtual absl::StatusOr<bool> RunInternal(
+  virtual absl::StatusOr<bool> RunNested(
       IrT* ir, const OptionsT& options, ResultsT* results,
       absl::string_view top_level_name,
       absl::Span<const InvariantChecker* const> invariant_checkers) const;
@@ -235,7 +250,7 @@ class FixedPointCompoundPassBase
                              absl::string_view long_name)
       : CompoundPassBase<IrT, OptionsT, ResultsT>(short_name, long_name) {}
 
-  absl::StatusOr<bool> RunInternal(
+  absl::StatusOr<bool> RunNested(
       IrT* ir, const OptionsT& options, ResultsT* results,
       absl::string_view top_level_name,
       absl::Span<const typename CompoundPassBase<
@@ -246,7 +261,7 @@ class FixedPointCompoundPassBase
     while (local_changed) {
       XLS_ASSIGN_OR_RETURN(
           local_changed,
-          (CompoundPassBase<IrT, OptionsT, ResultsT>::RunInternal(
+          (CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
               ir, options, results, top_level_name, invariant_checkers)));
       global_changed = global_changed || local_changed;
     }
@@ -255,7 +270,7 @@ class FixedPointCompoundPassBase
 };
 
 template <typename IrT, typename OptionsT, typename ResultsT>
-absl::StatusOr<bool> CompoundPassBase<IrT, OptionsT, ResultsT>::RunInternal(
+absl::StatusOr<bool> CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
     IrT* ir, const OptionsT& options, ResultsT* results,
     absl::string_view top_level_name,
     absl::Span<const InvariantChecker* const> invariant_checkers) const {
@@ -319,7 +334,7 @@ absl::StatusOr<bool> CompoundPassBase<IrT, OptionsT, ResultsT>::RunInternal(
       XLS_ASSIGN_OR_RETURN(
           pass_changed,
           (down_cast<CompoundPassBase<IrT, OptionsT, ResultsT>*>(pass.get())
-               ->RunInternal(ir, options, results, top_level_name, checkers)));
+               ->RunNested(ir, options, results, top_level_name, checkers)));
     } else {
       XLS_ASSIGN_OR_RETURN(pass_changed, pass->Run(ir, options, results));
     }

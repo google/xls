@@ -341,7 +341,7 @@ bool IsInChain(Select* select, const std::vector<SelectChain>& chains) {
   return false;
 }
 
-absl::StatusOr<bool> TableSwitchPass::RunOnFunctionBase(
+absl::StatusOr<bool> TableSwitchPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
   // Find all candidate starts - sel(eq, sel, lit). Walk up from each (I guess);
   // but we only need the first in each chain, so let's reverse toposort,

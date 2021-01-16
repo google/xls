@@ -61,7 +61,7 @@ Node* FindEquivalentTuple(Tuple* tuple) {
   return common_subject;
 }
 
-absl::StatusOr<bool> TupleSimplificationPass::RunOnFunctionBase(
+absl::StatusOr<bool> TupleSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
   // Replace TupleIndex(Tuple(i{0}, i{1}, ..., i{N}), index=k) with i{k}
   bool changed = false;

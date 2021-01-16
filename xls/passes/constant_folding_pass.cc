@@ -22,11 +22,8 @@
 
 namespace xls {
 
-absl::StatusOr<bool> ConstantFoldingPass::RunOnFunctionBase(
+absl::StatusOr<bool> ConstantFoldingPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
-  XLS_VLOG(2) << "Running constant folding on function " << f->name();
-  XLS_VLOG(3) << "Before:";
-  XLS_VLOG_LINES(3, f->DumpIr());
   bool changed = false;
   for (Node* node : TopoSort(f)) {
     // TODO(meheff): 2019/6/26 Consider not folding loops with large trip counts
@@ -41,9 +38,6 @@ absl::StatusOr<bool> ConstantFoldingPass::RunOnFunctionBase(
       changed = true;
     }
   }
-
-  XLS_VLOG(3) << "After:";
-  XLS_VLOG_LINES(3, f->DumpIr());
 
   return changed;
 }

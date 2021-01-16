@@ -32,10 +32,11 @@ class DeadCodeEliminationPass : public FunctionBasePass {
       : FunctionBasePass("dce", "Dead Code Elimination") {}
   ~DeadCodeEliminationPass() override {}
 
+ protected:
   // Iterate all nodes, mark and eliminate the unvisited nodes.
-  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
-                                         const PassOptions& options,
-                                         PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      FunctionBase* f, const PassOptions& options,
+      PassResults* results) const override;
 };
 
 }  // namespace xls

@@ -43,8 +43,8 @@ class DummyPass : public Pass {
   DummyPass(std::string short_name, std::string long_name)
       : Pass(short_name, long_name) {}
 
-  absl::StatusOr<bool> Run(Package* p, const PassOptions& options,
-                           PassResults* results) const override {
+  absl::StatusOr<bool> RunInternal(Package* p, const PassOptions& options,
+                                   PassResults* results) const override {
     return false;
   }
 };
@@ -215,8 +215,8 @@ class FunctionAdderPass : public Pass {
         name_(name) {}
 
   // Adds a function named 'str_' to the package.
-  absl::StatusOr<bool> Run(Package* package, const PassOptions& options,
-                           PassResults* results) const override {
+  absl::StatusOr<bool> RunInternal(Package* package, const PassOptions& options,
+                                   PassResults* results) const override {
     const char format_string[] =
         R"(
 fn %s() -> bits[32] {
@@ -257,8 +257,8 @@ class RecordingPass : public Pass {
   RecordingPass(std::string name, std::vector<std::string>* record)
       : Pass(name, name), record_(record) {}
 
-  absl::StatusOr<bool> Run(Package* p, const PassOptions& options,
-                           PassResults* results) const override {
+  absl::StatusOr<bool> RunInternal(Package* p, const PassOptions& options,
+                                   PassResults* results) const override {
     record_->push_back(short_name());
     return false;
   }

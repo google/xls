@@ -28,6 +28,7 @@
 #include "absl/time/time.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -40,35 +41,65 @@ using FixedPointCompoundPass = FixedPointCompoundPassBase<Package>;
 using InvariantChecker = CompoundPass::InvariantChecker;
 
 // Abstract base class for passes operate at function/proc scope. The derived
-// class must define RunOnFunctionBase.
+// class must define RunOnFunctionBaseInternal.
 class FunctionBasePass : public Pass {
  public:
   FunctionBasePass(absl::string_view short_name, absl::string_view long_name)
       : Pass(short_name, long_name) {}
 
-  virtual absl::StatusOr<bool> RunOnFunctionBase(
+  // Runs the pass on a single function/proc.
+  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
+                                         const PassOptions& options,
+                                         PassResults* results) const;
+
+ protected:
+  // Iterates over each function and proc in the package calling
+  // RunOnFunctionBase.
+  absl::StatusOr<bool> RunInternal(Package* p, const PassOptions& options,
+                                   PassResults* results) const override;
+
+  virtual absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const PassOptions& options,
       PassResults* results) const = 0;
 
-  // Iterates over each function and proc in the package calling
-  // RunOnFunctionBase.
-  absl::StatusOr<bool> Run(Package* p, const PassOptions& options,
-                           PassResults* results) const override;
+  // Calls the given function for every node in the graph in a loop
+  // until no further simplifications are possible.  Contract for simplify_f:
+  //
+  //  (1) Returns true iff the given node was "simplified" where simplified
+  //      means all uses of the node in the graph were replaced by a different
+  //      expression.
+  //
+  //  (2) If simplify_f returns true, the given node must have no users in the
+  //      graph.
+  //
+  //  (3) simplify_f must not remove nodes from the graph. Adding nodes is
+  //      fine. This constraint is necessary to avoid iterator invalidation.
+  //
+  // TransformNodesToFixedPoint returns true iff any invocations of simplify_f
+  // returned true.
+  absl::StatusOr<bool> TransformNodesToFixedPoint(
+      FunctionBase* f,
+      std::function<absl::StatusOr<bool>(Node*)> simplify_f) const;
 };
 
 // Abstract base class for passes operate on procs. The derived
-// class must define RunOnProc.
+// class must define RunOnProcInternal.
 class ProcPass : public Pass {
  public:
   ProcPass(absl::string_view short_name, absl::string_view long_name)
       : Pass(short_name, long_name) {}
 
-  virtual absl::StatusOr<bool> RunOnProc(Proc* proc, const PassOptions& options,
-                                         PassResults* results) const = 0;
+  // Proc the pass on a single proc.
+  absl::StatusOr<bool> RunOnProc(Proc* proc, const PassOptions& options,
+                                 PassResults* results) const;
 
+ protected:
   // Iterates over each proc in the package calling RunOnProc.
-  absl::StatusOr<bool> Run(Package* p, const PassOptions& options,
-                           PassResults* results) const override;
+  absl::StatusOr<bool> RunInternal(Package* p, const PassOptions& options,
+                                   PassResults* results) const override;
+
+  virtual absl::StatusOr<bool> RunOnProcInternal(
+      Proc* proc, const PassOptions& options, PassResults* results) const = 0;
 };
 
 }  // namespace xls

@@ -29,9 +29,10 @@ class PipelineSchedulingPass : public SchedulingPass {
       : SchedulingPass("pipesched", "Pipeline Scheduling") {}
   ~PipelineSchedulingPass() override {}
 
-  absl::StatusOr<bool> Run(SchedulingUnit* unit,
-                           const SchedulingPassOptions& options,
-                           SchedulingPassResults* results) const override;
+ protected:
+  absl::StatusOr<bool> RunInternal(
+      SchedulingUnit* unit, const SchedulingPassOptions& options,
+      SchedulingPassResults* results) const override;
 };
 
 }  // namespace xls

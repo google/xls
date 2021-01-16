@@ -903,13 +903,9 @@ absl::StatusOr<bool> SimplifyBinarySelect(Select* select,
 
 }  // namespace
 
-absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBase(
+absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* func, const PassOptions& options,
     PassResults* results) const {
-  XLS_VLOG(2) << "Running array simplifier on function " << func->name();
-  XLS_VLOG(3) << "Before:";
-  XLS_VLOG_LINES(3, func->DumpIr());
-
   bool changed = false;
 
   XLS_ASSIGN_OR_RETURN(bool clamp_changed, ClampArrayIndexIndices(func));
@@ -943,10 +939,6 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBase(
 
   XLS_ASSIGN_OR_RETURN(bool flatten_changed, FlattenSequentialUpdates(func));
   changed = changed | flatten_changed;
-
-  XLS_VLOG(3) << "After:";
-  XLS_VLOG_LINES(3, func->DumpIr());
-
   return changed;
 }
 

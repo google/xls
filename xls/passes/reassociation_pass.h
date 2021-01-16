@@ -30,9 +30,10 @@ class ReassociationPass : public FunctionBasePass {
   ReassociationPass() : FunctionBasePass("reassociation", "Reassociation") {}
   ~ReassociationPass() override {}
 
-  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
-                                         const PassOptions& options,
-                                         PassResults* results) const override;
+ protected:
+  absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      FunctionBase* f, const PassOptions& options,
+      PassResults* results) const override;
 };
 
 }  // namespace xls

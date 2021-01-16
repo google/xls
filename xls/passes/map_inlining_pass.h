@@ -26,11 +26,12 @@ namespace xls {
 class MapInliningPass : public FunctionBasePass {
  public:
   MapInliningPass();
-  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* function,
-                                         const PassOptions& options,
-                                         PassResults* results) const override;
 
- private:
+ protected:
+  absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      FunctionBase* function, const PassOptions& options,
+      PassResults* results) const override;
+
   // Replaces a single Map node with a CountedFor operation.
   absl::Status ReplaceMap(Map* map) const;
 };

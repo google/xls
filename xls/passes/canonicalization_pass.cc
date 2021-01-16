@@ -68,7 +68,9 @@ absl::StatusOr<bool> CanonicalizeNode(Node* n) {
   if (OpIsCommutative(op) && n->operand_count() == 2) {
     if (n->operand(0)->Is<Literal>() && !n->operand(1)->Is<Literal>()) {
       XLS_VLOG(2) << "Replaced 'op(literal, x) with op(x, literal)";
-      n->SwapOperands(0, 1);
+      XLS_ASSIGN_OR_RETURN(Node * replacement,
+                           n->Clone({n->operand(1), n->operand(0)}));
+      XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(replacement).status());
       return true;
     }
   }
@@ -122,15 +124,10 @@ absl::StatusOr<bool> CanonicalizeNode(Node* n) {
   return false;
 }
 
-absl::StatusOr<bool> CanonicalizationPass::RunOnFunctionBase(
+absl::StatusOr<bool> CanonicalizationPass::RunOnFunctionBaseInternal(
     FunctionBase* func, const PassOptions& options,
     PassResults* results) const {
-  bool changed = false;
-  for (Node* node : TopoSort(func)) {
-    XLS_ASSIGN_OR_RETURN(bool node_changed, CanonicalizeNode(node));
-    changed = changed | node_changed;
-  }
-  return changed;
+  return TransformNodesToFixedPoint(func, CanonicalizeNode);
 }
 
 }  // namespace xls

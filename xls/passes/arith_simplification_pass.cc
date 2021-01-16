@@ -60,7 +60,8 @@ Op CompareOpInverse(Op op) {
 // MatchArithPatterns matches simple tree patterns to find opportunities
 // for simplification, such as adding a zero, multiplying by 1, etc.
 //
-// Return 'true' if the IR was modified.
+// Return 'true' if the IR was modified (uses of node was replaced with a
+// different expression).
 absl::StatusOr<bool> MatchArithPatterns(Node* n) {
   // Pattern: Add/Sub/Or/Xor/Shift a value with 0 on the RHS.
   if ((n->op() == Op::kAdd || n->op() == Op::kSub || n->op() == Op::kShll ||
@@ -583,15 +584,9 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
 
 }  // namespace
 
-absl::StatusOr<bool> ArithSimplificationPass::RunOnFunctionBase(
+absl::StatusOr<bool> ArithSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
-  bool modified = false;
-  bool local_modified = false;
-  for (Node* node : TopoSort(f)) {
-    XLS_ASSIGN_OR_RETURN(local_modified, MatchArithPatterns(node));
-    modified |= local_modified;
-  }
-  return modified;
+  return TransformNodesToFixedPoint(f, MatchArithPatterns);
 }
 
 }  // namespace xls

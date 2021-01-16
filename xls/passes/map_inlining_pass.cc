@@ -29,7 +29,7 @@ namespace xls {
 MapInliningPass::MapInliningPass()
     : FunctionBasePass("map_inlining", "Inline map operations") {}
 
-absl::StatusOr<bool> MapInliningPass::RunOnFunctionBase(
+absl::StatusOr<bool> MapInliningPass::RunOnFunctionBaseInternal(
     FunctionBase* function, const PassOptions& options,
     PassResults* results) const {
   bool changed = false;

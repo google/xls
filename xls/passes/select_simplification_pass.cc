@@ -1079,13 +1079,9 @@ absl::StatusOr<bool> SpecializeSelectArms(FunctionBase* func) {
 
 }  // namespace
 
-absl::StatusOr<bool> SelectSimplificationPass::RunOnFunctionBase(
+absl::StatusOr<bool> SelectSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* func, const PassOptions& options,
     PassResults* results) const {
-  XLS_VLOG(2) << "Running select simplifier on function " << func->name();
-  XLS_VLOG(3) << "Before:";
-  XLS_VLOG_LINES(3, func->DumpIr());
-
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<TernaryQueryEngine> query_engine,
                        TernaryQueryEngine::Run(func));
   bool changed = false;
@@ -1122,9 +1118,6 @@ absl::StatusOr<bool> SelectSimplificationPass::RunOnFunctionBase(
       }
     }
   }
-  XLS_VLOG(3) << "After:";
-  XLS_VLOG_LINES(3, func->DumpIr());
-
   return changed;
 }
 

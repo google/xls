@@ -32,10 +32,11 @@ class BddSimplificationPass : public FunctionBasePass {
         split_ops_(split_ops) {}
   ~BddSimplificationPass() override {}
 
+ protected:
   // Run all registered passes in order of registration.
-  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
-                                         const PassOptions& options,
-                                         PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      FunctionBase* f, const PassOptions& options,
+      PassResults* results) const override;
 
  private:
   bool split_ops_;

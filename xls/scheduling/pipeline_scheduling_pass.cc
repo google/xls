@@ -20,7 +20,7 @@
 
 namespace xls {
 
-absl::StatusOr<bool> PipelineSchedulingPass::Run(
+absl::StatusOr<bool> PipelineSchedulingPass::RunInternal(
     SchedulingUnit* unit, const SchedulingPassOptions& options,
     SchedulingPassResults* results) const {
   XLS_RET_CHECK(!unit->schedule.has_value())

@@ -1152,8 +1152,9 @@ absl::Status VerifyNodeIdUnique(
 
 // Verify common invariants to procs and functions.
 absl::Status VerifyFunctionOrProc(FunctionBase* function) {
-  XLS_VLOG(2) << "Verifying function:\n";
-  XLS_VLOG_LINES(2, function->DumpIr());
+  XLS_VLOG(2) << absl::StreamFormat("Verifying function %s:\n",
+                                    function->name());
+  XLS_VLOG_LINES(4, function->DumpIr());
 
   // Verify all types are owned by package.
   for (Node* node : function->nodes()) {
@@ -1417,8 +1418,8 @@ absl::Status VerifyChannels(Package* package) {
 }  // namespace
 
 absl::Status VerifyPackage(Package* package) {
-  XLS_VLOG(2) << "Verifying package:\n";
-  XLS_VLOG_LINES(2, package->DumpIr());
+  XLS_VLOG(4) << absl::StreamFormat("Verifying package %s:\n", package->name());
+  XLS_VLOG_LINES(4, package->DumpIr());
 
   for (auto& function : package->functions()) {
     XLS_RETURN_IF_ERROR(VerifyFunction(function.get()));
@@ -1474,8 +1475,8 @@ absl::Status VerifyPackage(Package* package) {
 }
 
 absl::Status VerifyFunction(Function* function) {
-  XLS_VLOG(2) << "Verifying function:\n";
-  XLS_VLOG_LINES(2, function->DumpIr());
+  XLS_VLOG(4) << "Verifying function:\n";
+  XLS_VLOG_LINES(4, function->DumpIr());
 
   XLS_RETURN_IF_ERROR(VerifyFunctionOrProc(function));
 
@@ -1491,8 +1492,8 @@ absl::Status VerifyFunction(Function* function) {
 }
 
 absl::Status VerifyProc(Proc* proc) {
-  XLS_VLOG(2) << "Verifying proc:\n";
-  XLS_VLOG_LINES(2, proc->DumpIr());
+  XLS_VLOG(4) << "Verifying proc:\n";
+  XLS_VLOG_LINES(4, proc->DumpIr());
 
   XLS_RETURN_IF_ERROR(VerifyFunctionOrProc(proc));
 
@@ -1528,7 +1529,7 @@ absl::Status VerifyProc(Proc* proc) {
 }
 
 absl::Status VerifyNode(Node* node) {
-  XLS_VLOG(2) << "Verifying node: " << node->ToString();
+  XLS_VLOG(4) << "Verifying node: " << node->ToString();
 
   for (Node* operand : node->operands()) {
     XLS_RET_CHECK(operand->HasUser(node))

@@ -31,8 +31,8 @@ class StateRemovalPass : public ProcPass {
   StateRemovalPass() : ProcPass("state_removal", "State removal") {}
   ~StateRemovalPass() override {}
 
-  absl::StatusOr<bool> RunOnProc(Proc* proc, const PassOptions& options,
-                                 PassResults* results) const override;
+  absl::StatusOr<bool> RunOnProcInternal(Proc* proc, const PassOptions& options,
+                                         PassResults* results) const override;
 };
 
 }  // namespace xls

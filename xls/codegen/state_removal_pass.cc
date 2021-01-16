@@ -22,9 +22,8 @@
 
 namespace xls {
 
-absl::StatusOr<bool> StateRemovalPass::RunOnProc(Proc* proc,
-                                                 const PassOptions& options,
-                                                 PassResults* results) const {
+absl::StatusOr<bool> StateRemovalPass::RunOnProcInternal(
+    Proc* proc, const PassOptions& options, PassResults* results) const {
   // If state is empty then just return.
   if (proc->StateType() == proc->package()->GetTupleType({})) {
     return false;

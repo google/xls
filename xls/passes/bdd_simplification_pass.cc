@@ -436,12 +436,8 @@ absl::StatusOr<bool> SimplifyOneHotMsb(FunctionBase* f) {
 
 }  // namespace
 
-absl::StatusOr<bool> BddSimplificationPass::RunOnFunctionBase(
+absl::StatusOr<bool> BddSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
-  XLS_VLOG(2) << "Running BDD simplifier on function " << f->name();
-  XLS_VLOG(3) << "Before:";
-  XLS_VLOG_LINES(3, f->DumpIr());
-
   bool one_hot_modified = false;
   if (split_ops_) {
     XLS_ASSIGN_OR_RETURN(one_hot_modified, SimplifyOneHotMsb(f));
@@ -460,9 +456,6 @@ absl::StatusOr<bool> BddSimplificationPass::RunOnFunctionBase(
 
   XLS_ASSIGN_OR_RETURN(bool selects_collapsed,
                        CollapseSelectChains(f, *query_engine));
-
-  XLS_VLOG(3) << "After:";
-  XLS_VLOG_LINES(3, f->DumpIr());
 
   return modified || one_hot_modified || selects_collapsed;
 }

@@ -16,30 +16,18 @@
 
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/ir/node_iterator.h"
 
 namespace xls {
 
-// Identity Removal performs one forward pass over the TopoSort'ed nodes
-// and replaces identities with their respective operands.
-absl::StatusOr<bool> IdentityRemovalPass::RunOnFunctionBase(
+// Identity Removal performs one forward pass over the nodes and replaces
+// identities with their respective operands.
+absl::StatusOr<bool> IdentityRemovalPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
   bool changed = false;
-  absl::flat_hash_map<Node*, Node*> identity_map;
-  auto get_src_value = [&](Node* n) {
-    return n->op() == Op::kIdentity ? identity_map.at(n) : n;
-  };
-  for (Node* node : TopoSort(f)) {
+  for (Node* node : f->nodes()) {
     if (node->op() == Op::kIdentity) {
-      identity_map[node] = node->operand(0);
-    }
-  }
-  for (Node* node : TopoSort(f)) {
-    if (node->op() == Op::kIdentity) {
-      identity_map[node] = get_src_value(node->operand(0));
-      XLS_ASSIGN_OR_RETURN(bool node_changed,
-                           node->ReplaceUsesWith(identity_map.at(node)));
-      changed |= node_changed;
+      XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(node->operand(0)).status());
+      changed = true;
     }
   }
   return changed;

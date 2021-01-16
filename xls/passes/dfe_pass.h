@@ -32,9 +32,10 @@ class DeadFunctionEliminationPass : public Pass {
       : Pass("dfe", "Dead Function Elimination") {}
   ~DeadFunctionEliminationPass() override {}
 
+ protected:
   // Iterate all nodes and mark and eliminate unreachable functions.
-  absl::StatusOr<bool> Run(Package* p, const PassOptions& options,
-                           PassResults* results) const override;
+  absl::StatusOr<bool> RunInternal(Package* p, const PassOptions& options,
+                                   PassResults* results) const override;
 };
 
 }  // namespace xls

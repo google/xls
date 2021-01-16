@@ -49,9 +49,8 @@ absl::Span<Node* const> GetOperandsForCse(
 
 }  // namespace
 
-absl::StatusOr<bool> CsePass::RunOnFunctionBase(FunctionBase* f,
-                                                const PassOptions& options,
-                                                PassResults* results) const {
+absl::StatusOr<bool> CsePass::RunOnFunctionBaseInternal(
+    FunctionBase* f, const PassOptions& options, PassResults* results) const {
   // To improve efficiency, bucket potentially common nodes together. The
   // bucketing is done via an int64 hash value which is constructed from the
   // op() of the node and the uid's of the node's operands.

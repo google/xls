@@ -325,7 +325,7 @@ absl::StatusOr<bool> StrengthReduceNode(
 
 }  // namespace
 
-absl::StatusOr<bool> StrengthReductionPass::RunOnFunctionBase(
+absl::StatusOr<bool> StrengthReductionPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<TernaryQueryEngine> query_engine,
                        TernaryQueryEngine::Run(f));
@@ -337,7 +337,7 @@ absl::StatusOr<bool> StrengthReductionPass::RunOnFunctionBase(
   //
   // TODO(leary): 2019-09-05: We can eventually implement incremental
   // recomputation of the bit tracking data for newly introduced nodes so the
-  // information is always fresh and precise..
+  // information is always fresh and precise.
   bool modified = false;
   for (Node* node : TopoSort(f)) {
     XLS_ASSIGN_OR_RETURN(

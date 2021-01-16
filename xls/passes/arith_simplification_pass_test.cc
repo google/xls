@@ -108,8 +108,7 @@ TEST_F(ArithSimplificationPassTest, SMulBy1SignExtendedResult) {
   )",
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              m::Shll(m::SignExt(m::Param("x")), m::Literal(0)));
+  EXPECT_THAT(f->return_value(), m::SignExt(m::Param("x")));
 }
 
 TEST_F(ArithSimplificationPassTest, SMulBy16SignExtendedResult) {
@@ -123,7 +122,8 @@ TEST_F(ArithSimplificationPassTest, SMulBy16SignExtendedResult) {
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
-              m::Shll(m::SignExt(m::Param("x")), m::Literal(4)));
+              m::Concat(m::BitSlice(m::SignExt(m::Param("x"))),
+                        m::Literal(UBits(0, 4))));
 }
 
 TEST_F(ArithSimplificationPassTest, UMulBy1ZeroExtendedResult) {
@@ -136,8 +136,7 @@ TEST_F(ArithSimplificationPassTest, UMulBy1ZeroExtendedResult) {
   )",
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              m::Shll(m::ZeroExt(m::Param("x")), m::Literal(0)));
+  EXPECT_THAT(f->return_value(), m::ZeroExt(m::Param("x")));
 }
 
 TEST_F(ArithSimplificationPassTest, UMulBy256ZeroExtendedResult) {
@@ -151,7 +150,8 @@ TEST_F(ArithSimplificationPassTest, UMulBy256ZeroExtendedResult) {
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
-              m::Shll(m::ZeroExt(m::Param("x")), m::Literal(8)));
+              m::Concat(m::BitSlice(m::ZeroExt(m::Param("x"))),
+                        m::Literal(UBits(0, 8))));
 }
 
 TEST_F(ArithSimplificationPassTest, UModBy4) {
@@ -177,7 +177,7 @@ TEST_F(ArithSimplificationPassTest, UModBy1) {
   )",
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(), m::And(m::Param("x"), m::Literal(0)));
+  EXPECT_THAT(f->return_value(), m::Literal(0));
 }
 
 TEST_F(ArithSimplificationPassTest, UModBy512) {
@@ -229,7 +229,8 @@ TEST_F(ArithSimplificationPassTest, UDivBy4) {
   )",
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(), m::Shrl(m::Param("x"), m::Literal(2)));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Literal(UBits(0, 2)), m::BitSlice(m::Param("x"))));
 }
 
 TEST_F(ArithSimplificationPassTest, SDivBy2) {
@@ -242,7 +243,9 @@ TEST_F(ArithSimplificationPassTest, SDivBy2) {
   )",
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(), m::Shra(m::Param("x"), m::Literal(1)));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::SignExt(),
+                        m::BitSlice(m::Param("x"), /*start=*/1, /*width=*/15)));
 }
 
 TEST_F(ArithSimplificationPassTest, MulBy1NarrowedResult) {
@@ -256,8 +259,7 @@ TEST_F(ArithSimplificationPassTest, MulBy1NarrowedResult) {
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
-              m::Shll(m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/3),
-                      m::Literal(0)));
+              m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/3));
 }
 
 TEST_F(ArithSimplificationPassTest, UMulByMaxPowerOfTwo) {
@@ -270,7 +272,8 @@ TEST_F(ArithSimplificationPassTest, UMulByMaxPowerOfTwo) {
   )",
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(), m::Shll(m::Param("x"), m::Literal(7)));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::BitSlice(m::Param("x")), m::Literal(UBits(0, 7))));
 }
 
 TEST_F(ArithSimplificationPassTest, SMulByMinNegative) {
@@ -313,7 +316,7 @@ TEST_F(ArithSimplificationPassTest, UDivBy1) {
   )",
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(), m::Shrl(m::Param(), m::Literal(0)));
+  EXPECT_THAT(f->return_value(), m::Param("x"));
 }
 
 TEST_F(ArithSimplificationPassTest, MulBy1) {
@@ -326,7 +329,7 @@ TEST_F(ArithSimplificationPassTest, MulBy1) {
   )",
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(), m::Shll(m::Param(), m::Literal(0)));
+  EXPECT_THAT(f->return_value(), m::Param("x"));
 }
 
 TEST_F(ArithSimplificationPassTest, CanonicalizeXorAllOnes) {
@@ -479,9 +482,8 @@ TEST_F(ArithSimplificationPassTest, NaryFlattening) {
   )",
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              m::And(m::Param("x"), m::Param("y"), m::Literal(15),
-                     m::Param("z"), m::Literal(31)));
+  EXPECT_THAT(f->return_value(), m::And(m::Param("x"), m::Param("y"),
+                                        m::Param("z"), m::Literal(15)));
 }
 
 TEST_F(ArithSimplificationPassTest, NaryLiteralConsolidation) {

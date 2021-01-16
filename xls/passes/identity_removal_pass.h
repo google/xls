@@ -32,10 +32,11 @@ class IdentityRemovalPass : public FunctionBasePass {
       : FunctionBasePass("ident_remove", "Identity Removal") {}
   ~IdentityRemovalPass() override {}
 
+ protected:
   // Iterate all nodes and eliminate identities.
-  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
-                                         const PassOptions& options,
-                                         PassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      FunctionBase* f, const PassOptions& options,
+      PassResults* results) const override;
 };
 
 }  // namespace xls

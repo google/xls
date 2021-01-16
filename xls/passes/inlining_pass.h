@@ -25,9 +25,10 @@ class InliningPass : public FunctionBasePass {
  public:
   InliningPass() : FunctionBasePass("inlining", "Inlines invocations") {}
 
-  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
-                                         const PassOptions& options,
-                                         PassResults* results) const override;
+ protected:
+  absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      FunctionBase* f, const PassOptions& options,
+      PassResults* results) const override;
 };
 
 }  // namespace xls

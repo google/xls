@@ -21,7 +21,7 @@
 
 namespace xls {
 
-absl::StatusOr<bool> LiteralUncommoningPass::RunOnFunctionBase(
+absl::StatusOr<bool> LiteralUncommoningPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
   // Construct separate list of the initial literals to avoid iterator
   // invalidation problems because we will be adding additional nodes during

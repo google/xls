@@ -28,9 +28,10 @@ class NarrowingPass : public FunctionBasePass {
   NarrowingPass() : FunctionBasePass("narrow", "Narrowing") {}
   ~NarrowingPass() override {}
 
-  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
-                                         const PassOptions& options,
-                                         PassResults* results) const override;
+ protected:
+  absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      FunctionBase* f, const PassOptions& options,
+      PassResults* results) const override;
 };
 
 }  // namespace xls

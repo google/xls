@@ -55,11 +55,11 @@ class SimplificationPass : public FixedPointCompoundPass {
     Add<DeadCodeEliminationPass>();
     Add<CanonicalizationPass>();
     Add<DeadCodeEliminationPass>();
+    Add<ArithSimplificationPass>();
+    Add<DeadCodeEliminationPass>();
     Add<TableSwitchPass>();
     Add<DeadCodeEliminationPass>();
     Add<SelectSimplificationPass>(split_ops);
-    Add<DeadCodeEliminationPass>();
-    Add<ArithSimplificationPass>();
     Add<DeadCodeEliminationPass>();
     Add<ReassociationPass>();
     Add<DeadCodeEliminationPass>();

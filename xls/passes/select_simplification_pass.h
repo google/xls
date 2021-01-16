@@ -33,9 +33,10 @@ class SelectSimplificationPass : public FunctionBasePass {
         split_ops_(split_ops) {}
   ~SelectSimplificationPass() override {}
 
-  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
-                                         const PassOptions& options,
-                                         PassResults* results) const override;
+ protected:
+  absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      FunctionBase* f, const PassOptions& options,
+      PassResults* results) const override;
 
  private:
   bool split_ops_;

@@ -63,9 +63,8 @@ absl::Status UnrollCountedFor(CountedFor* loop) {
 
 }  // namespace
 
-absl::StatusOr<bool> UnrollPass::RunOnFunctionBase(FunctionBase* f,
-                                                   const PassOptions& options,
-                                                   PassResults* results) const {
+absl::StatusOr<bool> UnrollPass::RunOnFunctionBaseInternal(
+    FunctionBase* f, const PassOptions& options, PassResults* results) const {
   bool changed = false;
   while (true) {
     CountedFor* loop = FindCountedFor(f);

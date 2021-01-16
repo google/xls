@@ -286,12 +286,8 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice,
 
 }  // namespace
 
-absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBase(
+absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
-  XLS_VLOG(2) << "Running bit-slice simplifier on function " << f->name();
-  XLS_VLOG(3) << "Before:";
-  XLS_VLOG_LINES(3, f->DumpIr());
-
   std::deque<BitSlice*> worklist;
   for (Node* node : f->nodes()) {
     if (node->Is<BitSlice>()) {
@@ -326,9 +322,6 @@ absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBase(
       }
     }
   }
-
-  XLS_VLOG(3) << "After:";
-  XLS_VLOG_LINES(3, f->DumpIr());
 
   return changed;
 }

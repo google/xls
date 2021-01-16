@@ -148,7 +148,7 @@ absl::Status InlineInvoke(Invoke* invoke) {
 
 }  // namespace
 
-absl::StatusOr<bool> InliningPass::RunOnFunctionBase(
+absl::StatusOr<bool> InliningPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
   bool changed = false;
   while (true) {
