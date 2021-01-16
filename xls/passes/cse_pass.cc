@@ -84,9 +84,8 @@ absl::StatusOr<bool> CsePass::RunOnFunctionBaseInternal(
       if (node_operands_for_cse ==
               GetOperandsForCse(candidate, &candidate_span_backing_store) &&
           node->IsDefinitelyEqualTo(candidate)) {
-        XLS_ASSIGN_OR_RETURN(bool node_changed,
-                             node->ReplaceUsesWith(candidate));
-        changed |= node_changed;
+        XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(candidate));
+        changed = true;
         replaced = true;
         break;
       }

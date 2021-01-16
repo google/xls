@@ -68,13 +68,15 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
        n->op() == Op::kShrl || n->op() == Op::kShra) &&
       IsLiteralZero(n->operand(1))) {
     XLS_VLOG(2) << "FOUND: Useless operation of value with zero";
-    return n->ReplaceUsesWith(n->operand(0));
+    XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
+    return true;
   }
 
   const Op op = n->op();
   if (n->Is<NaryOp>() && (op == Op::kAnd || op == Op::kOr || op == Op::kXor) &&
       n->operand_count() == 1) {
-    return n->ReplaceUsesWith(n->operand(0));
+    XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
+    return true;
   }
 
   // Replaces uses of n with a new node by eliminating operands for which the
@@ -158,7 +160,7 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
       }
     }
     if (all_the_same) {
-      XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)).status());
+      XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
       return true;
     }
   }
@@ -250,7 +252,8 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
       case Op::kAnd:
       case Op::kOr:
       case Op::kXor:
-        return n->ReplaceUsesWith(n->operand(0));
+        XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
+        break;
       case Op::kNand:
       case Op::kNor:
         XLS_RETURN_IF_ERROR(
@@ -359,7 +362,8 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
 
   // Pattern: Not(Not(x)) => x
   if (n->op() == Op::kNot && n->operand(0)->op() == Op::kNot) {
-    return n->ReplaceUsesWith(n->operand(0)->operand(0));
+    XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)->operand(0)));
+    return true;
   }
 
   // Logical shift by a constant can be replaced by a slice and concat.
@@ -377,7 +381,8 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
     const Bits& shift_bits = n->operand(1)->As<Literal>()->value().bits();
     if (shift_bits.IsZero()) {
       // A shift by zero is a nop.
-      return n->ReplaceUsesWith(n->operand(0));
+      XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
+      return true;
     }
     if (bits_ops::UGreaterThanOrEqual(shift_bits, bit_count)) {
       // Replace with zero.
@@ -427,7 +432,8 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
     const Bits& shift_bits = n->operand(1)->As<Literal>()->value().bits();
     if (shift_bits.IsZero()) {
       // A shift by zero is a nop.
-      return n->ReplaceUsesWith(n->operand(0));
+      XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
+      return true;
     }
     XLS_ASSIGN_OR_RETURN(
         Node * sign_bit,
@@ -458,7 +464,8 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
   //   -(-expr)
   if (n->op() == Op::kNeg && n->operand(0)->op() == Op::kNeg) {
     XLS_VLOG(2) << "FOUND: Double negative";
-    return n->ReplaceUsesWith(n->operand(0)->operand(0));
+    XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)->operand(0)));
+    return true;
   }
 
   // Patterns (where x is a bits[1] type):
@@ -475,7 +482,8 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
       return true;
     }
     XLS_RET_CHECK(IsLiteralUnsignedOne(n->operand(1)));
-    return n->ReplaceUsesWith(n->operand(0));
+    XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
+    return true;
   }
 
   // Or(Or(x, y), z) => NaryOr(x, y, z)
@@ -574,7 +582,7 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
     } else if (n->op() == Op::kUGt) {
       XLS_ASSIGN_OR_RETURN(Node * or_red,
                            OrReduceLeading(n->operand(0), leading_zeros));
-      XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(or_red).status());
+      XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(or_red));
       return true;
     }
   }

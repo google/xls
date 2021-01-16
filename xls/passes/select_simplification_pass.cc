@@ -289,10 +289,10 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     if (bits_ops::UGreaterThan(
             selector, UBits(sel->cases().size() - 1, selector.bit_count()))) {
       XLS_RET_CHECK(sel->default_value().has_value());
-      XLS_RETURN_IF_ERROR(sel->ReplaceUsesWith(*sel->default_value()).status());
+      XLS_RETURN_IF_ERROR(sel->ReplaceUsesWith(*sel->default_value()));
     } else {
       XLS_ASSIGN_OR_RETURN(uint64 i, selector.ToUint64());
-      XLS_RETURN_IF_ERROR(sel->ReplaceUsesWith(sel->get_case(i)).status());
+      XLS_RETURN_IF_ERROR(sel->ReplaceUsesWith(sel->get_case(i)));
     }
     return true;
   }
@@ -348,7 +348,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
           node->function_base()->MakeNode<Literal>(
               node->loc(), Value(UBits(0, node->BitCountOrDie()))));
     }
-    XLS_RETURN_IF_ERROR(sel->ReplaceUsesWith(replacement).status());
+    XLS_RETURN_IF_ERROR(sel->ReplaceUsesWith(replacement));
     return true;
   }
 
@@ -357,7 +357,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     Select* sel = node->As<Select>();
     if (sel->AllCases(
             [&](Node* other_case) { return other_case == sel->any_case(); })) {
-      return node->ReplaceUsesWith(sel->any_case());
+      XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(sel->any_case()));
+      return true;
     }
   }
 
@@ -690,7 +691,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     if (nonzero_indices.empty()) {
       // If all cases were literal zeros, just replace with literal zero (chosen
       // arbitrarily as the first case).
-      return node->ReplaceUsesWith(select->cases().front());
+      XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(select->cases().front()));
+      return true;
     }
     XLS_ASSIGN_OR_RETURN(Node * new_selector,
                          GatherBits(select->selector(), nonzero_indices));

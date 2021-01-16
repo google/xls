@@ -91,10 +91,8 @@ class Node {
 
   // Replace all uses of this node with 'replacement'. If this node is the
   // return value of the function, then 'replacement' is made the return
-  // value. This node is not deleted and remains in the graph. Returns true if
-  // the graph was changed, equivalently, whether 'this' has any users or is the
-  // return value of the function.
-  absl::StatusOr<bool> ReplaceUsesWith(Node* replacement);
+  // value. This node is not deleted and remains in the graph.
+  absl::Status ReplaceUsesWith(Node* replacement);
 
   // Constructs a new node and replaces all uses of 'this' with the newly
   // constructed node. NodeT is the node subclass (e.g., 'Param') and the

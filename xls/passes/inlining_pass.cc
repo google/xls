@@ -139,10 +139,8 @@ absl::Status InlineInvoke(Invoke* invoke) {
     }
   }
 
-  XLS_RETURN_IF_ERROR(invoke
-                          ->ReplaceUsesWith(invoked_node_to_replacement.at(
-                              invoked->return_value()))
-                          .status());
+  XLS_RETURN_IF_ERROR(invoke->ReplaceUsesWith(
+      invoked_node_to_replacement.at(invoked->return_value())));
   return invoke->function_base()->RemoveNode(invoke);
 }
 

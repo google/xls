@@ -57,7 +57,7 @@ absl::Status UnrollCountedFor(CountedFor* loop) {
         f->MakeNode<Invoke>(loop->loc(), absl::MakeSpan(invoke_args),
                             loop->body()));
   }
-  XLS_RETURN_IF_ERROR(loop->ReplaceUsesWith(loop_carry).status());
+  XLS_RETURN_IF_ERROR(loop->ReplaceUsesWith(loop_carry));
   return f->RemoveNode(loop);
 }
 

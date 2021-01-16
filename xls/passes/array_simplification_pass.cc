@@ -154,7 +154,8 @@ absl::StatusOr<bool> SimplifyArrayIndex(ArrayIndex* array_index,
   //   array_index(A, {}) => A
   //
   if (array_index->indices().empty()) {
-    return array_index->ReplaceUsesWith(array_index->array());
+    XLS_RETURN_IF_ERROR(array_index->ReplaceUsesWith(array_index->array()));
+    return true;
   }
 
   // An array index which indexes into a kArray operation and whose first
@@ -362,7 +363,9 @@ absl::StatusOr<bool> SimplifyArrayUpdate(ArrayUpdate* array_update,
   //   array_update(A, v, {}) => v
   //
   if (array_update->indices().empty()) {
-    return array_update->ReplaceUsesWith(array_update->update_value());
+    XLS_RETURN_IF_ERROR(
+        array_update->ReplaceUsesWith(array_update->update_value()));
+    return true;
   }
 
   // Try to simplify a kArray operation followed by an ArrayUpdate operation
@@ -419,7 +422,7 @@ absl::StatusOr<bool> SimplifyArrayUpdate(ArrayUpdate* array_update,
       }
       XLS_RETURN_IF_ERROR(
           array->ReplaceOperandNumber(operand_no, replacement_array_operand));
-      XLS_RETURN_IF_ERROR(array_update->ReplaceUsesWith(array).status());
+      XLS_RETURN_IF_ERROR(array_update->ReplaceUsesWith(array));
       return true;
     }
   }
@@ -641,7 +644,7 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update,
                            array_elements.front()->GetType()));
 
   if (common_index_prefix->empty()) {
-    XLS_RETURN_IF_ERROR(array_update->ReplaceUsesWith(array).status());
+    XLS_RETURN_IF_ERROR(array_update->ReplaceUsesWith(array));
   } else {
     XLS_RETURN_IF_ERROR(
         array_update
@@ -755,7 +758,8 @@ absl::StatusOr<bool> SimplifyArray(Array* array,
                                              common_index_prefix->size()));
   if (array->GetType() == origin_array_subtype) {
     if (common_index_prefix->empty()) {
-      return array->ReplaceUsesWith(origin_array);
+      XLS_RETURN_IF_ERROR(array->ReplaceUsesWith(origin_array));
+      return true;
     }
     XLS_RETURN_IF_ERROR(array
                             ->ReplaceUsesWithNew<ArrayIndex>(
@@ -812,7 +816,8 @@ absl::StatusOr<bool> SimplifyConditionalAssign(Select* select) {
           /*default_value=*/absl::nullopt));
 
   XLS_RETURN_IF_ERROR(array_update->ReplaceOperandNumber(1, selected_value));
-  return select->ReplaceUsesWith(array_update);
+  XLS_RETURN_IF_ERROR(select->ReplaceUsesWith(array_update));
+  return true;
 }
 
 // Simplify a select of arrays to an array of select.

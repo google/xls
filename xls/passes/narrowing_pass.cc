@@ -161,7 +161,7 @@ absl::StatusOr<bool> MaybeNarrowShiftAmount(Node* shift,
   if (leading_zeros == shift->operand(1)->BitCountOrDie()) {
     // Shift amount is zero. Replace with (slice of) input operand of shift.
     if (shift->BitCountOrDie() == shift->operand(0)->BitCountOrDie()) {
-      XLS_RETURN_IF_ERROR(shift->ReplaceUsesWith(shift->operand(0)).status());
+      XLS_RETURN_IF_ERROR(shift->ReplaceUsesWith(shift->operand(0)));
     } else {
       // Shift instruction is narrower than its input operand. Replace with
       // slice of input.
@@ -341,7 +341,8 @@ absl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
             /*width=*/lhs_bit_count + rhs_bit_count, mul->op()));
     XLS_ASSIGN_OR_RETURN(Node * replacement,
                          maybe_extend(narrowed_mul, result_bit_count));
-    return mul->ReplaceUsesWith(replacement);
+    XLS_RETURN_IF_ERROR(mul->ReplaceUsesWith(replacement));
+    return true;
   }
 
   // The operands can be unconditionally narrowed to the result width.

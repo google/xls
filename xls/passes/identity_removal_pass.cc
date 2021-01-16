@@ -26,7 +26,7 @@ absl::StatusOr<bool> IdentityRemovalPass::RunOnFunctionBaseInternal(
   bool changed = false;
   for (Node* node : f->nodes()) {
     if (node->op() == Op::kIdentity) {
-      XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(node->operand(0)).status());
+      XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(node->operand(0)));
       changed = true;
     }
   }

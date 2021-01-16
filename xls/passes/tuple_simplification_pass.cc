@@ -84,9 +84,8 @@ absl::StatusOr<bool> TupleSimplificationPass::RunOnFunctionBaseInternal(
       }
       Node* tuple_element =
           tuple_index->operand(0)->operand(tuple_index->index());
-      XLS_ASSIGN_OR_RETURN(bool node_changed,
-                           tuple_index->ReplaceUsesWith(tuple_element));
-      changed |= node_changed;
+      XLS_RETURN_IF_ERROR(tuple_index->ReplaceUsesWith(tuple_element));
+      changed = true;
 
       // Simplifying this tuple index instruction may expose opportunities for
       // more simplifications.
@@ -101,9 +100,8 @@ absl::StatusOr<bool> TupleSimplificationPass::RunOnFunctionBaseInternal(
       Tuple* tuple = absl::get<Tuple*>(index);
       Node* common_subject = FindEquivalentTuple(tuple);
       if (common_subject != nullptr) {
-        XLS_ASSIGN_OR_RETURN(bool node_changed,
-                             tuple->ReplaceUsesWith(common_subject));
-        changed |= node_changed;
+        XLS_RETURN_IF_ERROR(tuple->ReplaceUsesWith(common_subject));
+        changed = true;
       }
     } else {
       return absl::InternalError("Unknown index type in worklist.");

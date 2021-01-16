@@ -227,7 +227,7 @@ absl::StatusOr<bool> ReassociationPass::RunOnFunctionBaseInternal(
       }
       inputs = std::move(next_inputs);
     }
-    XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(inputs[0]).status());
+    XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(inputs[0]));
     changed = true;
   }
 

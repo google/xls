@@ -115,7 +115,8 @@ absl::StatusOr<bool> SimplifyConcat(Concat* concat,
 
   // Concat with a single operand can be replaced with its operand.
   if (concat->operand_count() == 1) {
-    return concat->ReplaceUsesWith(operands[0]);
+    XLS_RETURN_IF_ERROR(concat->ReplaceUsesWith(operands[0]));
+    return true;
   }
 
   // Tree of concats can be flattened to a single concat.
@@ -447,7 +448,7 @@ absl::StatusOr<bool> TryDistributeReducibleOperation(Node* node) {
     }
   }
 
-  XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(result).status());
+  XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(result));
   return true;
 }
 

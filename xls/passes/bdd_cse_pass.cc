@@ -140,12 +140,11 @@ absl::StatusOr<bool> BddCsePass::RunOnFunctionBaseInternal(
     bool replaced = false;
     for (Node* candidate : node_buckets.at(hash)) {
       if (is_same_value(node, candidate)) {
-        XLS_ASSIGN_OR_RETURN(bool node_changed,
-                             node->ReplaceUsesWith(candidate));
+        XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(candidate));
         XLS_VLOG(4) << "Found identical value:";
         XLS_VLOG(4) << "  Node: " << node->ToString();
         XLS_VLOG(4) << "  Replacement: " << candidate->ToString();
-        changed |= node_changed;
+        changed = true;
         replaced = true;
         break;
       }

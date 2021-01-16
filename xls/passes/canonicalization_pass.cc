@@ -70,7 +70,7 @@ absl::StatusOr<bool> CanonicalizeNode(Node* n) {
       XLS_VLOG(2) << "Replaced 'op(literal, x) with op(x, literal)";
       XLS_ASSIGN_OR_RETURN(Node * replacement,
                            n->Clone({n->operand(1), n->operand(0)}));
-      XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(replacement).status());
+      XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(replacement));
       return true;
     }
   }
@@ -101,7 +101,8 @@ absl::StatusOr<bool> CanonicalizeNode(Node* n) {
 
   if (n->Is<ExtendOp>() &&
       n->BitCountOrDie() == n->operand(0)->BitCountOrDie()) {
-    return n->ReplaceUsesWith(n->operand(0));
+    XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
+    return true;
   }
 
   // Replace zero-extend operations with concat with zero.

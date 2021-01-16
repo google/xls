@@ -466,7 +466,7 @@ absl::StatusOr<bool> BooleanSimplificationPass::RunOnFunctionBaseInternal(
     Node* node = pair.first;
     Node* replacement = pair.second;
     XLS_VLOG(3) << "Replacing " << node << " with " << replacement;
-    XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(replacement).status());
+    XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(replacement));
   }
   return !visitor.node_replacements().empty();
 }

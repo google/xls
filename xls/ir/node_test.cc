@@ -342,13 +342,11 @@ fn ReplaceUses(x: bits[8], y: bits[8]) -> bits[8] {
               UnorderedElementsAre(FindNode("or.2", f), FindNode("add.3", f)));
   EXPECT_TRUE(FindNode("literal.4", f)->users().empty());
 
-  ASSERT_THAT(FindNode("and.1", f)->ReplaceUsesWith(FindNode("literal.4", f)),
-              IsOkAndHolds(true));
+  XLS_ASSERT_OK(
+      FindNode("and.1", f)->ReplaceUsesWith(FindNode("literal.4", f)));
 
-  // Now and.1 has no uses so any futher calls to ReplaceUsesWith should return
-  // false.
-  ASSERT_THAT(FindNode("and.1", f)->ReplaceUsesWith(FindNode("literal.5", f)),
-              IsOkAndHolds(false));
+  XLS_ASSERT_OK(
+      FindNode("and.1", f)->ReplaceUsesWith(FindNode("literal.5", f)));
 
   EXPECT_THAT(FindNode("literal.4", f)->users(),
               UnorderedElementsAre(FindNode("or.2", f), FindNode("add.3", f)));
@@ -365,8 +363,7 @@ fn ReplaceUses(x: bits[8], y: bits[8]) -> bits[8] {
 )",
                                                        p.get()));
   EXPECT_EQ(FindNode("and.2", f), f->return_value());
-  ASSERT_THAT(FindNode("and.2", f)->ReplaceUsesWith(FindNode("and.1", f)),
-              IsOkAndHolds(true));
+  XLS_ASSERT_OK(FindNode("and.2", f)->ReplaceUsesWith(FindNode("and.1", f)));
   EXPECT_EQ(FindNode("and.1", f), f->return_value());
 }
 

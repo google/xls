@@ -728,7 +728,7 @@ absl::StatusOr<std::vector<Node*>> IntegrationFunction::MergeNodes(
   auto commit_new_node = [this](Node* original, Node* target) -> absl::Status {
     XLS_RETURN_IF_ERROR(SetNodeMapping(original, target));
     if (IntegrationFunctionOwnsNode(original)) {
-      XLS_RETURN_IF_ERROR(original->ReplaceUsesWith(target).status());
+      XLS_RETURN_IF_ERROR(original->ReplaceUsesWith(target));
       XLS_RETURN_IF_ERROR(function()->RemoveNode(original));
     }
     return absl::OkStatus();

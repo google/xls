@@ -65,7 +65,7 @@ absl::Status Node::AddNodeToFunctionAndReplace(
     std::unique_ptr<Node> replacement) {
   Node* replacement_ptr = function_base()->AddNode(std::move(replacement));
   XLS_RETURN_IF_ERROR(VerifyNode(replacement_ptr));
-  return ReplaceUsesWith(replacement_ptr).status();
+  return ReplaceUsesWith(replacement_ptr);
 }
 
 void Node::AddUser(Node* user) {
@@ -607,22 +607,18 @@ absl::Status Node::ReplaceOperandNumber(int64 operand_no, Node* new_operand) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<bool> Node::ReplaceUsesWith(Node* replacement) {
+absl::Status Node::ReplaceUsesWith(Node* replacement) {
   XLS_RET_CHECK(GetType() == replacement->GetType())
       << "type was: " << GetType()->ToString()
       << " replacement: " << replacement->GetType()->ToString();
-  bool changed = false;
   std::vector<Node*> orig_users(users().begin(), users().end());
   for (Node* user : orig_users) {
     XLS_RET_CHECK(user->ReplaceOperand(this, replacement));
-    changed = true;
   }
 
   // Handle replacement of nodes which have special positions within the
   // enclosed FunctionBase (function return value, proc next state, etc).
-  XLS_ASSIGN_OR_RETURN(bool implicit_uses_changed,
-                       ReplaceImplicitUsesWith(replacement));
-  changed |= implicit_uses_changed;
+  XLS_RETURN_IF_ERROR(ReplaceImplicitUsesWith(replacement).status());
 
   // If the replacement does not have an assigned name but this node does, move
   // the name over to preserve the name. If this is a parameter node then don't
@@ -633,7 +629,7 @@ absl::StatusOr<bool> Node::ReplaceUsesWith(Node* replacement) {
     replacement->name_ = name_;
     ClearName();
   }
-  return changed;
+  return absl::OkStatus();
 }
 
 absl::StatusOr<bool> Node::ReplaceImplicitUsesWith(Node* replacement) {

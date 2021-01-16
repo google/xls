@@ -46,7 +46,8 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice,
   // A full width slice is a nop.
   if (bit_slice->start() == 0 &&
       bit_slice->width() == operand_type->bit_count()) {
-    return bit_slice->ReplaceUsesWith(operand);
+    XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(operand));
+    return true;
   }
 
   // A slice of a slice can be replaced by a single slice.
@@ -154,7 +155,7 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice,
         sliced_operands.push_back(new_operand);
       }
       XLS_ASSIGN_OR_RETURN(Node * pre_sliced, operand->Clone(sliced_operands));
-      XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(pre_sliced).status());
+      XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(pre_sliced));
       return true;
     }
   }
@@ -206,7 +207,7 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice,
           Node * replacement,
           make_bit_slice(bit_slice->loc(), x, bit_slice->start(),
                          bit_slice->width()));
-      XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(replacement).status());
+      XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(replacement));
       return true;
     } else if (ext->users().size() == 1) {
       if (bit_slice->start() < x_bit_count) {
@@ -278,7 +279,8 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice,
       new_operands.push_back(sliced_operand);
     }
     XLS_ASSIGN_OR_RETURN(Node * new_select, select->Clone(new_operands));
-    return bit_slice->ReplaceUsesWith(new_select);
+    XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(new_select));
+    return true;
   }
 
   return false;

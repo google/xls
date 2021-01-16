@@ -402,7 +402,7 @@ absl::StatusOr<SimplificationResult> Simplify(
 
     // If the chosen operand is the same type, just replace it.
     if (operand->GetType() == n->GetType()) {
-      XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(operand).status());
+      XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(operand));
       *which_transform = "random replace with operand: " + n->GetName();
       return SimplificationResult::kDidChange;
     }
