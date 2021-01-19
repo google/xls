@@ -24,10 +24,10 @@ from typing import Optional, Text
 from xls.common import runfiles
 from xls.common import test_base
 from xls.dslx import fakefs_test_util
-from xls.dslx import ir_converter
 from xls.dslx import parser_helpers
 from xls.dslx import span
 from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python import cpp_ir_converter as ir_converter
 from xls.dslx.python import cpp_parser
 from xls.dslx.python import cpp_type_info
 from xls.dslx.python import cpp_typecheck

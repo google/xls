@@ -23,9 +23,9 @@ import time
 from typing import Text, Optional, cast, Tuple
 
 from xls.dslx import import_helpers
-from xls.dslx import ir_converter
 from xls.dslx import parser_helpers
 from xls.dslx.interpreter import quickcheck_helpers
+from xls.dslx.python import cpp_ir_converter
 from xls.dslx.python import cpp_typecheck
 from xls.dslx.python.cpp_deduce import TypeInferenceError
 from xls.dslx.python.cpp_deduce import XlsTypeError
@@ -93,7 +93,7 @@ def parse_and_test(program: Text,
                                            importer.additional_search_paths)
 
     ir_package = (
-        ir_converter.convert_module_to_package(
+        cpp_ir_converter.convert_module_to_package(
             module, type_info, importer.cache, traverse_tests=True)
         if compare_jit else None)
 

@@ -17,6 +17,7 @@
 #include "absl/strings/str_replace.h"
 #include "absl/types/variant.h"
 #include "xls/dslx/cpp_ast.h"
+#include "xls/dslx/cpp_extract_conversion_order.h"
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/dslx_builtins.h"
 #include "xls/dslx/interpreter.h"
@@ -1805,43 +1806,12 @@ absl::StatusOr<xls::Type*> IrConverter::TypeToIr(
   return package_->GetTupleType(std::move(members));
 }
 
-}  // namespace internal
-
-absl::StatusOr<std::string> MangleDslxName(
-    absl::string_view function_name,
-    const absl::btree_set<std::string>& free_keys, Module* module,
-    const SymbolicBindings* symbolic_bindings) {
-  absl::btree_set<std::string> symbolic_bindings_keys;
-  std::vector<int64> symbolic_bindings_values;
-  if (symbolic_bindings != nullptr) {
-    for (const SymbolicBinding& item : symbolic_bindings->bindings()) {
-      symbolic_bindings_keys.insert(item.identifier);
-      symbolic_bindings_values.push_back(item.value);
-    }
-  }
-  absl::btree_set<std::string> difference;
-  absl::c_set_difference(free_keys, symbolic_bindings_keys,
-                         std::inserter(difference, difference.begin()));
-  if (!difference.empty()) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Not enough symbolic bindings to convert function "
-                        "'%s'; need {%s} got {%s}",
-                        function_name, absl::StrJoin(free_keys, ", "),
-                        absl::StrJoin(symbolic_bindings_keys, ", ")));
-  }
-
-  std::string module_name = absl::StrReplaceAll(module->name(), {{".", "_"}});
-  if (symbolic_bindings_values.empty()) {
-    return absl::StrFormat("__%s__%s", module_name, function_name);
-  }
-  std::string suffix = absl::StrJoin(symbolic_bindings_values, "_");
-  return absl::StrFormat("__%s__%s__%s", module_name, function_name, suffix);
-}
-
-absl::StatusOr<std::string> ConvertOneFunction(
-    Package* package, Module* module, Function* function,
-    const std::shared_ptr<TypeInfo>& type_info, ImportCache* import_cache,
-    const SymbolicBindings* symbolic_bindings, bool emit_positions) {
+absl::Status ConvertOneFunction(Package* package, Module* module,
+                                Function* function,
+                                const std::shared_ptr<TypeInfo>& type_info,
+                                ImportCache* import_cache,
+                                const SymbolicBindings* symbolic_bindings,
+                                bool emit_positions) {
   absl::flat_hash_map<std::string, Function*> function_by_name =
       module->GetFunctionByName();
   absl::flat_hash_map<std::string, ConstantDef*> constant_by_name =
@@ -1904,9 +1874,81 @@ absl::StatusOr<std::string> ConvertOneFunction(
 
   XLS_VLOG(3) << absl::StreamFormat("Converting function: %s",
                                     function->ToString());
-  XLS_ASSIGN_OR_RETURN(xls::Function * f,
-                       converter.VisitFunction(function, symbolic_bindings));
-  return f->DumpIr(/*recursive=*/false);
+  XLS_RETURN_IF_ERROR(
+      converter.VisitFunction(function, symbolic_bindings).status());
+  return absl::OkStatus();
+}
+
+}  // namespace internal
+
+absl::StatusOr<std::string> MangleDslxName(
+    absl::string_view function_name,
+    const absl::btree_set<std::string>& free_keys, Module* module,
+    const SymbolicBindings* symbolic_bindings) {
+  absl::btree_set<std::string> symbolic_bindings_keys;
+  std::vector<int64> symbolic_bindings_values;
+  if (symbolic_bindings != nullptr) {
+    for (const SymbolicBinding& item : symbolic_bindings->bindings()) {
+      symbolic_bindings_keys.insert(item.identifier);
+      symbolic_bindings_values.push_back(item.value);
+    }
+  }
+  absl::btree_set<std::string> difference;
+  absl::c_set_difference(free_keys, symbolic_bindings_keys,
+                         std::inserter(difference, difference.begin()));
+  if (!difference.empty()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Not enough symbolic bindings to convert function "
+                        "'%s'; need {%s} got {%s}",
+                        function_name, absl::StrJoin(free_keys, ", "),
+                        absl::StrJoin(symbolic_bindings_keys, ", ")));
+  }
+
+  std::string module_name = absl::StrReplaceAll(module->name(), {{".", "_"}});
+  if (symbolic_bindings_values.empty()) {
+    return absl::StrFormat("__%s__%s", module_name, function_name);
+  }
+  std::string suffix = absl::StrJoin(symbolic_bindings_values, "_");
+  return absl::StrFormat("__%s__%s__%s", module_name, function_name, suffix);
+}
+
+absl::StatusOr<std::unique_ptr<Package>> ConvertModuleToPackage(
+    Module* module, const std::shared_ptr<TypeInfo>& type_info,
+    ImportCache* import_cache, bool emit_positions, bool traverse_tests) {
+  XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> order,
+                       GetOrder(module, type_info, traverse_tests));
+  auto package = absl::make_unique<Package>(module->name());
+  for (const ConversionRecord& record : order) {
+    XLS_VLOG(1) << "Converting to IR: " << record.ToString();
+    XLS_RETURN_IF_ERROR(internal::ConvertOneFunction(
+        package.get(), record.m, record.f, record.type_info, import_cache,
+        &record.bindings, emit_positions));
+  }
+
+  XLS_RETURN_IF_ERROR(VerifyPackage(package.get()));
+  return std::move(package);
+}
+
+absl::StatusOr<std::string> ConvertModule(
+    Module* module, const std::shared_ptr<TypeInfo>& type_info,
+    ImportCache* import_cache, bool emit_positions) {
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<Package> package,
+      ConvertModuleToPackage(module, type_info, import_cache, emit_positions));
+  return package->DumpIr();
+}
+
+absl::StatusOr<std::string> ConvertOneFunction(
+    Module* module, absl::string_view entry_function_name,
+    const std::shared_ptr<TypeInfo>& type_info, ImportCache* import_cache,
+    const SymbolicBindings* symbolic_bindings, bool emit_positions) {
+  Package package(module->name());
+  absl::optional<Function*> f = module->GetFunction(entry_function_name);
+  XLS_RET_CHECK(f.has_value());
+  XLS_RETURN_IF_ERROR(internal::ConvertOneFunction(
+      &package, module, *f, type_info, import_cache,
+      /*symbolic_bindings=*/nullptr, emit_positions));
+  return package.DumpIr();
 }
 
 }  // namespace xls::dslx

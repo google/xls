@@ -18,8 +18,8 @@
 
 from typing import Text, Optional, Tuple
 
-from xls.dslx import ir_converter
 from xls.dslx import parse_and_typecheck
+from xls.dslx.python import cpp_ir_converter as ir_converter
 from xls.dslx.python.import_routines import ImportCache
 from xls.ir.python import package as ir_package_mod
 from xls.passes.python import standard_pipeline as standard_pipeline_mod

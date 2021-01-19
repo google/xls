@@ -146,10 +146,10 @@ py_library(
     deps = [
         ":quickcheck_helpers",
         "//xls/dslx:import_helpers",
-        "//xls/dslx:ir_converter",
         "//xls/dslx:parser_helpers",
         "//xls/dslx:span",
         "//xls/dslx/python:cpp_deduce",
+        "//xls/dslx/python:cpp_ir_converter",
         "//xls/dslx/python:cpp_parser",
         "//xls/dslx/python:cpp_typecheck",
         "//xls/dslx/python:interpreter",

@@ -412,14 +412,6 @@ class IrConverter {
 absl::Status ConversionErrorStatus(const absl::optional<Span>& span,
                                    absl::string_view message);
 
-}  // namespace internal
-
-// Returns the mangled name of function with the given parametric bindings.
-absl::StatusOr<std::string> MangleDslxName(
-    absl::string_view function_name,
-    const absl::btree_set<std::string>& free_keys, Module* module,
-    const SymbolicBindings* symbolic_bindings = nullptr);
-
 // Converts a single function into its emitted text form.
 //
 // Args:
@@ -433,10 +425,51 @@ absl::StatusOr<std::string> MangleDslxName(
 //   emit_positions: Whether to emit position information into the IR based on
 //     the AST's source positions.
 //
+// Returns an error status that indicates whether the conversion was successful.
+// On success there will be a corresponding (built) function inside of
+// "package".
+absl::Status ConvertOneFunction(Package* package, Module* module,
+                                Function* function,
+                                const std::shared_ptr<TypeInfo>& type_info,
+                                ImportCache* import_cache,
+                                const SymbolicBindings* symbolic_bindings,
+                                bool emit_positions);
+
+}  // namespace internal
+
+// Returns the mangled name of function with the given parametric bindings.
+absl::StatusOr<std::string> MangleDslxName(
+    absl::string_view function_name,
+    const absl::btree_set<std::string>& free_keys, Module* module,
+    const SymbolicBindings* symbolic_bindings = nullptr);
+
+// Converts the contents of a module to IR form.
+//
+// Args:
+//   module: Module to convert.
+//   type_info: Concrete type information used in conversion.
+//   import_cache: Cache of modules potentially referenced by "module" above.
+//   emit_positions: Whether to emit positional metadata into the output IR.
+//   traverse_tests: Whether to convert functions called in DSLX test
+//   constructs.
+//     Note that this does NOT convert the test constructs themselves.
+//
 // Returns:
-//   The converted IR function text.
+//   The IR package that corresponds to this module.
+absl::StatusOr<std::unique_ptr<xls::Package>> ConvertModuleToPackage(
+    Module* module, const std::shared_ptr<TypeInfo>& type_info,
+    ImportCache* import_cache, bool emit_positions = true,
+    bool traverse_tests = false);
+
+// Wrapper around ConvertModuleToPackage that converts to IR text.
+absl::StatusOr<std::string> ConvertModule(
+    Module* module, const std::shared_ptr<TypeInfo>& type_info,
+    ImportCache* import_cache, bool emit_positions = true);
+
+// As with internal::ConvertOneFunction above, but takes an entry_function_name
+// and creates a temporary IR package based on module's name.
 absl::StatusOr<std::string> ConvertOneFunction(
-    Package* package, Module* module, Function* function,
+    Module* module, absl::string_view entry_function_name,
     const std::shared_ptr<TypeInfo>& type_info, ImportCache* import_cache,
     const SymbolicBindings* symbolic_bindings, bool emit_positions);
 

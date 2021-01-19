@@ -53,23 +53,47 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
         });
 
   m.def(
-      "convert_one_function",
-      [](PackageHolder package, ModuleHolder module, FunctionHolder function,
-         const std::shared_ptr<TypeInfo>& type_info,
-         absl::optional<ImportCache*> py_import_cache,
-         absl::optional<const SymbolicBindings*> py_symbolic_bindings,
-         bool emit_positions) {
-        const SymbolicBindings* symbolic_bindings =
-            py_symbolic_bindings ? *py_symbolic_bindings : nullptr;
+      "convert_module_to_package",
+      [](ModuleHolder module, const std::shared_ptr<TypeInfo>& type_info,
+         ImportCache* import_cache, bool emit_positions,
+         bool traverse_tests) -> absl::StatusOr<PackageHolder> {
+        XLS_ASSIGN_OR_RETURN(
+            std::unique_ptr<Package> package,
+            ConvertModuleToPackage(&module.deref(), type_info, import_cache,
+                                   emit_positions, traverse_tests));
+        std::shared_ptr<Package> shared(std::move(package));
+        return PackageHolder(shared.get(), std::move(shared));
+      },
+      py::arg("module"), py::arg("type_info"), py::arg("import_cacche"),
+      py::arg("emit_positions") = true, py::arg("traverse_tests") = false);
+
+  m.def(
+      "convert_module",
+      [](ModuleHolder module, const std::shared_ptr<TypeInfo>& type_info,
+         absl::optional<ImportCache*> py_import_cache, bool emit_positions) {
         ImportCache* import_cache =
             py_import_cache ? *py_import_cache : nullptr;
-        return ConvertOneFunction(&package.deref(), &module.deref(),
-                                  &function.deref(), type_info, import_cache,
-                                  symbolic_bindings, emit_positions);
+        return ConvertModule(&module.deref(), type_info, import_cache,
+                             emit_positions);
       },
-      py::arg("package"), py::arg("module"), py::arg("function"),
-      py::arg("type_info"), py::arg("import_cache"),
-      py::arg("symbolic_bindings"), py::arg("emit_positions"));
+      py::arg("module"), py::arg("type_info"),
+      py::arg("import_cache") = absl::nullopt,
+      py::arg("emit_positions") = true);
+
+  m.def(
+      "convert_one_function",
+      [](ModuleHolder module, absl::string_view entry_function_name,
+         const std::shared_ptr<TypeInfo>& type_info,
+         absl::optional<ImportCache*> py_import_cache, bool emit_positions) {
+        ImportCache* import_cache =
+            py_import_cache ? *py_import_cache : nullptr;
+        SymbolicBindings empty;
+        return ConvertOneFunction(&module.deref(), entry_function_name,
+                                  type_info, import_cache, &empty,
+                                  emit_positions);
+      },
+      py::arg("module"), py::arg("entry_function_name"), py::arg("type_info"),
+      py::arg("import_cache"), py::arg("emit_positions") = true);
 
   py::class_<ConversionRecord>(m, "ConversionRecord")
       .def_property_readonly("f",

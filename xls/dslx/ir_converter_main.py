@@ -27,8 +27,8 @@ from absl import flags
 
 from xls.common.python import init_xls
 from xls.dslx import import_helpers
-from xls.dslx import ir_converter
 from xls.dslx import parser_helpers
+from xls.dslx.python import cpp_ir_converter as ir_converter
 from xls.dslx.python import cpp_parser
 from xls.dslx.python import cpp_typecheck
 from xls.dslx.span import PositionalError

@@ -907,8 +907,8 @@ py_library(
     srcs = ["convert_helpers.py"],
     srcs_version = "PY3",
     deps = [
-        "//xls/dslx:ir_converter",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/python:cpp_ir_converter",
         "//xls/dslx/python:import_routines",
         "//xls/ir/python:package",
         "//xls/passes/python:standard_pipeline",
