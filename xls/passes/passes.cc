@@ -53,26 +53,38 @@ absl::StatusOr<bool> FunctionBasePass::RunInternal(Package* p,
 absl::StatusOr<bool> FunctionBasePass::TransformNodesToFixedPoint(
     FunctionBase* f,
     std::function<absl::StatusOr<bool>(Node*)> simplify_f) const {
-  absl::flat_hash_set<Node*> simplified_nodes;
-  bool simplified_this_time = false;
+  // Store nodes by id to avoid running afoul of Node* pointer values being
+  // reused.
+  absl::flat_hash_set<int64> simplified_node_ids;
+  bool changed = false;
+  bool changed_this_time = false;
   do {
-    simplified_this_time = false;
-    for (Node* node : f->nodes()) {
-      if (simplified_nodes.contains(node)) {
-        // Since this pass runs to fixed point, avoid optimizing the same node
-        // more than once.
-        continue;
+    changed_this_time = false;
+    auto node_it = f->nodes().begin();
+    while (node_it != f->nodes().end()) {
+      // Save the next iterator because node_it may be invalidated by the call
+      // to simplify_f if simpplify_f ends up deleting 'node'.
+      auto next_it = std::next(node_it);
+      Node* node = *node_it;
+      // If the node was previously simplified and is now dead, avoid running
+      // simplification on it again to avoid inf-looping while simplifying the
+      // same node over and over again.
+      if (!node->IsDead() || !simplified_node_ids.contains(node->id())) {
+        // Grab the node ID before simplifying because the node might be
+        // removed when simplifying.
+        int64 node_id = node->id();
+        XLS_ASSIGN_OR_RETURN(bool node_changed, simplify_f(node));
+        if (node_changed) {
+          simplified_node_ids.insert(node_id);
+          changed_this_time = true;
+          changed = true;
+        }
       }
-      XLS_ASSIGN_OR_RETURN(bool simplified, simplify_f(node));
-      if (simplified) {
-        XLS_RET_CHECK(node->IsDead());
-        simplified_nodes.insert(node);
-        simplified_this_time = true;
-      }
+      node_it = next_it;
     }
-  } while (simplified_this_time);
+  } while (changed_this_time);
 
-  return !simplified_nodes.empty();
+  return changed;
 }
 
 absl::StatusOr<bool> ProcPass::RunOnProc(Proc* proc, const PassOptions& options,

@@ -62,18 +62,10 @@ class FunctionBasePass : public Pass {
       FunctionBase* f, const PassOptions& options,
       PassResults* results) const = 0;
 
-  // Calls the given function for every node in the graph in a loop
-  // until no further simplifications are possible.  Contract for simplify_f:
-  //
-  //  (1) Returns true iff the given node was "simplified" where simplified
-  //      means all uses of the node in the graph were replaced by a different
-  //      expression.
-  //
-  //  (2) If simplify_f returns true, the given node must have no users in the
-  //      graph.
-  //
-  //  (3) simplify_f must not remove nodes from the graph. Adding nodes is
-  //      fine. This constraint is necessary to avoid iterator invalidation.
+  // Calls the given function for every node in the graph in a loop until no
+  // further simplifications are possible.  simplify_f should return true if the
+  // IR was modified. simplify_f can add or remove nodes including the node
+  // passed to it.
   //
   // TransformNodesToFixedPoint returns true iff any invocations of simplify_f
   // returned true.

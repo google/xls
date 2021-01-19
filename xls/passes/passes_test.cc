@@ -396,5 +396,41 @@ TEST(PassesTest, RunOnlyAndSkipPassesOption) {
   }
 }
 
+class NaiveDcePass : public FunctionBasePass {
+ public:
+  NaiveDcePass() : FunctionBasePass("naive_dce", "naive dce") {}
+
+ protected:
+  absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      FunctionBase* f, const PassOptions& options,
+      PassResults* results) const override {
+    return TransformNodesToFixedPoint(f, [](Node* n) -> absl::StatusOr<bool> {
+      if (!n->Is<Param>() && n->IsDead()) {
+        XLS_RETURN_IF_ERROR(n->function_base()->RemoveNode(n));
+        return true;
+      }
+      return false;
+    });
+  }
+};
+
+TEST(PassesTest, TestTransformNodesToFixedPointWhileRemovingNodes) {
+  auto m = absl::make_unique<Package>("m");
+  FunctionBuilder fb("test", m.get());
+  BValue x = fb.Param("x", m->GetBitsType(32));
+  BValue a = fb.Not(fb.Add(x, x));
+  BValue b = fb.Concat({x, x, x, x, x, x});
+  fb.Tuple({a, b, fb.Concat({a, x})});
+  // Make paramter x the return value which means everything is dead but x.
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(x));
+  PassResults results;
+  EXPECT_EQ(f->node_count(), 6);
+  ASSERT_THAT(NaiveDcePass().RunOnFunctionBase(f, PassOptions(), &results),
+              IsOkAndHolds(true));
+  EXPECT_EQ(f->node_count(), 1);
+  ASSERT_THAT(NaiveDcePass().RunOnFunctionBase(f, PassOptions(), &results),
+              IsOkAndHolds(false));
+}
+
 }  // namespace
 }  // namespace xls
