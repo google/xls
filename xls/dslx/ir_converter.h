@@ -27,6 +27,7 @@
 #include "xls/ir/package.h"
 
 namespace xls::dslx {
+namespace internal {
 
 // Helper type that creates XLS IR in a Package, given a DSLX AST, its type
 // information, and an entry point function.
@@ -54,7 +55,7 @@ class IrConverter {
   // debugging.
   static std::string ToString(const IrValue& value);
 
-  IrConverter(const std::shared_ptr<Package>& package, Module* module,
+  IrConverter(Package* package, Module* module,
               const std::shared_ptr<TypeInfo>& type_info,
               ImportCache* import_cache, bool emit_positions);
 
@@ -116,30 +117,6 @@ class IrConverter {
   absl::StatusOr<xls::Type*> ResolveTypeToIr(AstNode* node);
 
   // -- Accessors
-
-  // IR package being populated with IR entities as part of the conversion.
-  const std::shared_ptr<Package>& package() const { return package_; }
-
-  // The AST module wherein things are being converted to IR.
-  Module* module() const { return module_; }
-
-  // Type information for this IR conversion process (e.g. that describes the
-  // nodes in module()).
-  const std::shared_ptr<TypeInfo>& type_info() const { return type_info_; }
-
-  ImportCache* import_cache() const { return import_cache_; }
-
-  bool emit_positions() const { return emit_positions_; }
-
-  const std::shared_ptr<FunctionBuilder>& function_builder() const {
-    return function_builder_;
-  }
-
-  Expr* last_expression() const { return last_expression_; }
-  void set_last_expression(Expr* e) {
-    XLS_CHECK_EQ(e->owner(), module_);
-    last_expression_ = e;
-  }
 
   const std::vector<ConstantDef*>& constant_deps() const {
     return constant_deps_;
@@ -390,7 +367,7 @@ class IrConverter {
   CValue DefConst(AstNode* node, Value ir_value);
 
   // Package that IR is being generated into.
-  std::shared_ptr<Package> package_;
+  Package* package_;
 
   // Module that contains the entry point function being converted.
   Module* module_;
@@ -414,7 +391,7 @@ class IrConverter {
   std::vector<ConstantDef*> constant_deps_;
 
   // Function builder being used to create BValues.
-  std::shared_ptr<FunctionBuilder> function_builder_;
+  absl::optional<FunctionBuilder> function_builder_;
 
   // Mapping of symbolic bindings active in this translation (e.g. what integral
   // values parametrics are taking on).
@@ -431,15 +408,37 @@ class IrConverter {
   Expr* last_expression_ = nullptr;
 };
 
+// Returns a status that indicates an error in the IR conversion process.
+absl::Status ConversionErrorStatus(const absl::optional<Span>& span,
+                                   absl::string_view message);
+
+}  // namespace internal
+
 // Returns the mangled name of function with the given parametric bindings.
 absl::StatusOr<std::string> MangleDslxName(
     absl::string_view function_name,
     const absl::btree_set<std::string>& free_keys, Module* module,
     const SymbolicBindings* symbolic_bindings = nullptr);
 
-// Returns a status that indicates an error in the IR conversion process.
-absl::Status ConversionErrorStatus(const absl::optional<Span>& span,
-                                   absl::string_view message);
+// Converts a single function into its emitted text form.
+//
+// Args:
+//   package: IR package we're converting the function into.
+//   module: Module we're converting a function within.
+//   function: Function we're converting.
+//   type_info: Type information about module from the typechecking phase.
+//   import_cache: Cache of modules potentially referenced by "module" above.
+//   symbolic_bindings: Parametric bindings to use during conversion, if this
+//     function is parametric.
+//   emit_positions: Whether to emit position information into the IR based on
+//     the AST's source positions.
+//
+// Returns:
+//   The converted IR function text.
+absl::StatusOr<std::string> ConvertOneFunction(
+    Package* package, Module* module, Function* function,
+    const std::shared_ptr<TypeInfo>& type_info, ImportCache* import_cache,
+    const SymbolicBindings* symbolic_bindings, bool emit_positions);
 
 }  // namespace xls::dslx
 

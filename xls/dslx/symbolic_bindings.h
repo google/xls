@@ -18,6 +18,7 @@
 #include <ostream>
 #include <string>
 
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/types/span.h"
 #include "xls/common/integral_types.h"
@@ -83,26 +84,20 @@ class SymbolicBindings {
   // for debugging.
   std::string ToString() const;
 
-  absl::flat_hash_map<std::string, int64> ToMap() const {
-    absl::flat_hash_map<std::string, int64> map;
-    for (const SymbolicBinding& binding : bindings_) {
-      map.insert({binding.identifier, binding.value});
-    }
-    return map;
-  }
+  // Returns a map representation of these symbolic bindings.
+  absl::flat_hash_map<std::string, int64> ToMap() const;
+
+  // Returns the set of keys in these symbolic bindings. A btree is given for
+  // ease of range-based comparisons.
+  absl::btree_set<std::string> GetKeySet() const;
 
   int64 size() const { return bindings_.size(); }
   const std::vector<SymbolicBinding>& bindings() const { return bindings_; }
 
  private:
-  void Sort() {
-    std::sort(
-        bindings_.begin(), bindings_.end(),
-        [](const auto& lhs, const auto& rhs) {
-          return lhs.identifier < rhs.identifier ||
-                 (lhs.identifier == rhs.identifier && lhs.value < rhs.value);
-        });
-  }
+  // Sorts all of the bindings_ elements (to maintain the sorted-order invariant
+  // of this data structure).
+  void Sort();
 
   std::vector<SymbolicBinding> bindings_;
 };

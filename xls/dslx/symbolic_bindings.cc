@@ -43,4 +43,28 @@ std::string SymbolicBindings::ToString() const {
                             }));
 }
 
+absl::flat_hash_map<std::string, int64> SymbolicBindings::ToMap() const {
+  absl::flat_hash_map<std::string, int64> map;
+  for (const SymbolicBinding& binding : bindings_) {
+    map.insert({binding.identifier, binding.value});
+  }
+  return map;
+}
+
+absl::btree_set<std::string> SymbolicBindings::GetKeySet() const {
+  absl::btree_set<std::string> set;
+  for (const SymbolicBinding& binding : bindings_) {
+    set.insert(binding.identifier);
+  }
+  return set;
+}
+
+void SymbolicBindings::Sort() {
+  std::sort(
+      bindings_.begin(), bindings_.end(), [](const auto& lhs, const auto& rhs) {
+        return lhs.identifier < rhs.identifier ||
+               (lhs.identifier == rhs.identifier && lhs.value < rhs.value);
+      });
+}
+
 }  // namespace xls::dslx

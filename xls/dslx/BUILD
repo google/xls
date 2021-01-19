@@ -199,6 +199,7 @@ cc_library(
     hdrs = ["symbolic_bindings.h"],
     deps = [
         "//xls/common:integral_types",
+        "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",

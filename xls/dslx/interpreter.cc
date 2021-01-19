@@ -102,7 +102,9 @@ Interpreter::Interpreter(Module* module,
                                absl::optional<InterpValue> value) {
     return NoteWip(c, std::move(value));
   };
-  callbacks_.get_type_info = [this] { return type_info_; };
+  callbacks_.get_type_info = [this]() -> const std::shared_ptr<TypeInfo>& {
+    return type_info_;
+  };
   callbacks_.cache = import_cache;
   callbacks_.additional_search_paths = std::vector(
       additional_search_paths.begin(), additional_search_paths.end());

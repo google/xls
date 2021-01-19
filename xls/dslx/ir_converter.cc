@@ -31,7 +31,7 @@ static std::string SpanToString(const absl::optional<Span>& span) {
   return span->ToString();
 }
 
-using IrOp = xls::Op;
+namespace internal {
 
 // Helper that dispatches to the appropriate handler in the AST
 class IrConverterVisitor : public AstNodeVisitor {
@@ -165,8 +165,7 @@ class IrConverterVisitor : public AstNodeVisitor {
   return absl::StrFormat("%p", absl::get<CValue>(value).value.node());
 }
 
-IrConverter::IrConverter(const std::shared_ptr<Package>& package,
-                         Module* module,
+IrConverter::IrConverter(Package* package, Module* module,
                          const std::shared_ptr<TypeInfo>& type_info,
                          ImportCache* import_cache, bool emit_positions)
     : package_(package),
@@ -190,9 +189,8 @@ absl::StatusOr<xls::Function*> IrConverter::VisitFunction(
 }
 
 void IrConverter::InstantiateFunctionBuilder(absl::string_view mangled_name) {
-  XLS_CHECK(function_builder_ == nullptr);
-  function_builder_ =
-      std::make_shared<FunctionBuilder>(mangled_name, package_.get());
+  XLS_CHECK(!function_builder_.has_value());
+  function_builder_.emplace(mangled_name, package_);
 }
 
 void IrConverter::AddConstantDep(ConstantDef* constant_def) {
@@ -289,13 +287,13 @@ absl::Status IrConverter::HandleUnop(Unop* node) {
   switch (node->kind()) {
     case UnopKind::kNegate: {
       Def(node, [&](absl::optional<SourceLocation> loc) {
-        return function_builder_->AddUnOp(IrOp::kNeg, operand, loc);
+        return function_builder_->AddUnOp(xls::Op::kNeg, operand, loc);
       });
       return absl::OkStatus();
     }
     case UnopKind::kInvert: {
       Def(node, [&](absl::optional<SourceLocation> loc) {
-        return function_builder_->AddUnOp(IrOp::kNot, operand, loc);
+        return function_builder_->AddUnOp(xls::Op::kNot, operand, loc);
       });
       return absl::OkStatus();
     }
@@ -641,7 +639,7 @@ absl::Status IrConverter::HandleFor(
   auto* name_def = dynamic_cast<NameDef*>(ivar);
   XLS_RET_CHECK(name_def != nullptr);
   XLS_ASSIGN_OR_RETURN(xls::Type * ivar_type, ResolveTypeToIr(name_def));
-  body_converter.SetNodeToIr(name_def, body_converter.function_builder()->Param(
+  body_converter.SetNodeToIr(name_def, body_converter.function_builder_->Param(
                                            name_def->identifier(), ivar_type));
 
   // Add the loop carry value.
@@ -649,7 +647,7 @@ absl::Status IrConverter::HandleFor(
   if (auto* name_def = dynamic_cast<NameDef*>(carry)) {
     XLS_ASSIGN_OR_RETURN(xls::Type * type, ResolveTypeToIr(name_def));
     BValue param =
-        body_converter.function_builder()->Param(name_def->identifier(), type);
+        body_converter.function_builder_->Param(name_def->identifier(), type);
     body_converter.SetNodeToIr(name_def, param);
   } else {
     // For tuple loop carries we have to destructure names on entry.
@@ -658,7 +656,7 @@ absl::Status IrConverter::HandleFor(
                          ResolveType(accum));
     XLS_ASSIGN_OR_RETURN(xls::Type * carry_ir_type, TypeToIr(*carry_type));
     BValue carry =
-        body_converter.function_builder()->Param("__loop_carry", carry_ir_type);
+        body_converter.function_builder_->Param("__loop_carry", carry_ir_type);
     body_converter.SetNodeToIr(accum, carry);
     XLS_RETURN_IF_ERROR(
         body_converter.HandleMatcher(accum, {}, carry, *carry_type, visit)
@@ -690,13 +688,13 @@ absl::Status IrConverter::HandleFor(
     XLS_VLOG(5) << "Converting freevar name: " << name_def->ToString();
     XLS_ASSIGN_OR_RETURN(xls::Type * name_def_type, TypeToIr(**type));
     body_converter.SetNodeToIr(name_def,
-                               body_converter.function_builder()->Param(
+                               body_converter.function_builder_->Param(
                                    name_def->identifier(), name_def_type));
   }
 
   XLS_RETURN_IF_ERROR(visit_converter(&body_converter, node->body()));
   XLS_ASSIGN_OR_RETURN(xls::Function * body_function,
-                       body_converter.function_builder()->Build());
+                       body_converter.function_builder_->Build());
   XLS_VLOG(5) << "Converted body function: " << body_function->name();
 
   std::vector<BValue> invariant_args;
@@ -781,7 +779,7 @@ absl::StatusOr<BValue> IrConverter::DefMapWithBuiltin(
               << arg_value.GetType()->ToString();
   auto* array_type = arg_value.GetType()->AsArrayOrDie();
   if (!package_->HasFunctionWithName(mangled_name)) {
-    FunctionBuilder fb(mangled_name, package_.get());
+    FunctionBuilder fb(mangled_name, package_);
     BValue param = fb.Param("arg", array_type->element_type());
     const std::string& builtin_name = node->identifier();
     BValue result;
@@ -1383,7 +1381,7 @@ absl::Status IrConverter::HandleBinop(Binop* node) {
 absl::Status IrConverter::HandleAttr(Attr* node, const VisitFunc& visit) {
   XLS_RETURN_IF_ERROR(visit(node->lhs()));
   absl::optional<const ConcreteType*> lhs_type =
-      type_info()->GetItem(node->lhs());
+      type_info_->GetItem(node->lhs());
   XLS_RET_CHECK(lhs_type.has_value());
   auto* tuple_type = dynamic_cast<const TupleType*>(lhs_type.value());
   const std::string& identifier = node->attr()->identifier();
@@ -1759,37 +1757,6 @@ absl::Status IrConverter::HandleConstantArray(ConstantArray* node) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<std::string> MangleDslxName(
-    absl::string_view function_name,
-    const absl::btree_set<std::string>& free_keys, Module* module,
-    const SymbolicBindings* symbolic_bindings) {
-  absl::btree_set<std::string> symbolic_bindings_keys;
-  std::vector<int64> symbolic_bindings_values;
-  if (symbolic_bindings != nullptr) {
-    for (const SymbolicBinding& item : symbolic_bindings->bindings()) {
-      symbolic_bindings_keys.insert(item.identifier);
-      symbolic_bindings_values.push_back(item.value);
-    }
-  }
-  absl::btree_set<std::string> difference;
-  absl::c_set_difference(free_keys, symbolic_bindings_keys,
-                         std::inserter(difference, difference.begin()));
-  if (!difference.empty()) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Not enough symbolic bindings to convert function "
-                        "'%s'; need {%s} got {%s}",
-                        function_name, absl::StrJoin(free_keys, ", "),
-                        absl::StrJoin(symbolic_bindings_keys, ", ")));
-  }
-
-  std::string module_name = absl::StrReplaceAll(module->name(), {{".", "_"}});
-  if (symbolic_bindings_values.empty()) {
-    return absl::StrFormat("__%s__%s", module_name, function_name);
-  }
-  std::string suffix = absl::StrJoin(symbolic_bindings_values, "_");
-  return absl::StrFormat("__%s__%s__%s", module_name, function_name, suffix);
-}
-
 absl::Status ConversionErrorStatus(const absl::optional<Span>& span,
                                    absl::string_view message) {
   return absl::InternalError(
@@ -1834,6 +1801,110 @@ absl::StatusOr<xls::Type*> IrConverter::TypeToIr(
     members.push_back(type);
   }
   return package_->GetTupleType(std::move(members));
+}
+
+}  // namespace internal
+
+absl::StatusOr<std::string> MangleDslxName(
+    absl::string_view function_name,
+    const absl::btree_set<std::string>& free_keys, Module* module,
+    const SymbolicBindings* symbolic_bindings) {
+  absl::btree_set<std::string> symbolic_bindings_keys;
+  std::vector<int64> symbolic_bindings_values;
+  if (symbolic_bindings != nullptr) {
+    for (const SymbolicBinding& item : symbolic_bindings->bindings()) {
+      symbolic_bindings_keys.insert(item.identifier);
+      symbolic_bindings_values.push_back(item.value);
+    }
+  }
+  absl::btree_set<std::string> difference;
+  absl::c_set_difference(free_keys, symbolic_bindings_keys,
+                         std::inserter(difference, difference.begin()));
+  if (!difference.empty()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Not enough symbolic bindings to convert function "
+                        "'%s'; need {%s} got {%s}",
+                        function_name, absl::StrJoin(free_keys, ", "),
+                        absl::StrJoin(symbolic_bindings_keys, ", ")));
+  }
+
+  std::string module_name = absl::StrReplaceAll(module->name(), {{".", "_"}});
+  if (symbolic_bindings_values.empty()) {
+    return absl::StrFormat("__%s__%s", module_name, function_name);
+  }
+  std::string suffix = absl::StrJoin(symbolic_bindings_values, "_");
+  return absl::StrFormat("__%s__%s__%s", module_name, function_name, suffix);
+}
+
+absl::StatusOr<std::string> ConvertOneFunction(
+    Package* package, Module* module, Function* function,
+    const std::shared_ptr<TypeInfo>& type_info, ImportCache* import_cache,
+    const SymbolicBindings* symbolic_bindings, bool emit_positions) {
+  absl::flat_hash_map<std::string, Function*> function_by_name =
+      module->GetFunctionByName();
+  absl::flat_hash_map<std::string, ConstantDef*> constant_by_name =
+      module->GetConstantByName();
+  absl::flat_hash_map<std::string, TypeDefinition> type_definition_by_name =
+      module->GetTypeDefinitionByName();
+  absl::flat_hash_map<std::string, Import*> import_by_name =
+      module->GetImportByName();
+
+  internal::IrConverter converter(package, module, type_info, import_cache,
+                                  emit_positions);
+
+  FreeVariables free_variables =
+      function->body()->GetFreeVariables(function->span().start());
+  std::vector<std::pair<std::string, AnyNameDef>> freevars =
+      free_variables.GetNameDefTuples();
+  for (const auto& [identifier, any_name_def] : freevars) {
+    if (function_by_name.contains(identifier) ||
+        type_definition_by_name.contains(identifier) ||
+        import_by_name.contains(identifier) ||
+        absl::holds_alternative<BuiltinNameDef*>(any_name_def)) {
+      continue;
+    } else if (auto it = constant_by_name.find(identifier);
+               it != constant_by_name.end()) {
+      converter.AddConstantDep(it->second);
+    } else {
+      return absl::UnimplementedError(absl::StrFormat(
+          "Cannot convert free variable: %s; not a function nor constant",
+          identifier));
+    }
+  }
+
+  auto set_to_string = [](const absl::btree_set<std::string>& s) {
+    return absl::StrCat("{", absl::StrJoin(s, ", "), "}");
+  };
+  // TODO(leary): 2020-11-19 We use btrees in particular so this could use dual
+  // iterators via the sorted property for O(n) superset comparison, but this
+  // was easier to write and know it was correct on a first cut (couldn't find a
+  // superset helper in absl's container algorithms at a first pass).
+  auto is_superset = [](absl::btree_set<std::string> lhs,
+                        const absl::btree_set<std::string>& rhs) {
+    for (const auto& item : rhs) {
+      lhs.erase(item);
+    }
+    return !lhs.empty();
+  };
+
+  absl::btree_set<std::string> symbolic_binding_keys;
+  if (symbolic_bindings != nullptr) {
+    symbolic_binding_keys = symbolic_bindings->GetKeySet();
+  }
+  absl::btree_set<std::string> f_parametric_keys =
+      function->GetFreeParametricKeySet();
+  if (is_superset(f_parametric_keys, symbolic_binding_keys)) {
+    return absl::InternalError(absl::StrFormat(
+        "Not enough symbolic bindings to convert function: %s; need %s got %s",
+        function->identifier(), set_to_string(f_parametric_keys),
+        set_to_string(symbolic_binding_keys)));
+  }
+
+  XLS_VLOG(3) << absl::StreamFormat("Converting function: %s",
+                                    function->ToString());
+  XLS_ASSIGN_OR_RETURN(xls::Function * f,
+                       converter.VisitFunction(function, symbolic_bindings));
+  return f->DumpIr(/*recursive=*/false);
 }
 
 }  // namespace xls::dslx

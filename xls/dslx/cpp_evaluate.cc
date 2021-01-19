@@ -889,10 +889,12 @@ absl::StatusOr<InterpValue> EvaluateAttr(Attr* expr, InterpBindings* bindings,
                                          ConcreteType* type_context,
                                          InterpCallbackData* callbacks) {
   XLS_ASSIGN_OR_RETURN(InterpValue lhs, callbacks->Eval(expr->lhs(), bindings));
-  std::shared_ptr<TypeInfo> type_info = callbacks->get_type_info();
-  absl::optional<ConcreteType*> maybe_type = type_info->GetItem(expr->lhs());
+  const std::shared_ptr<TypeInfo>& type_info = callbacks->get_type_info();
+  XLS_RET_CHECK(type_info != nullptr);
+  absl::optional<const ConcreteType*> maybe_type =
+      type_info->GetItem(expr->lhs());
   XLS_RET_CHECK(maybe_type.has_value()) << "LHS of attr should have type info";
-  TupleType* tuple_type = dynamic_cast<TupleType*>(maybe_type.value());
+  auto* tuple_type = dynamic_cast<const TupleType*>(maybe_type.value());
   XLS_RET_CHECK(tuple_type != nullptr) << (*maybe_type)->ToString();
   absl::optional<int64> index;
   for (int64 i = 0; i < tuple_type->size(); ++i) {
@@ -917,7 +919,7 @@ static absl::StatusOr<InterpValue> EvaluateIndexBitSlice(
 
   const SymbolicBindings& sym_bindings = bindings->fn_ctx()->sym_bindings;
 
-  std::shared_ptr<TypeInfo> type_info = callbacks->get_type_info();
+  const std::shared_ptr<TypeInfo>& type_info = callbacks->get_type_info();
   absl::optional<StartAndWidth> maybe_saw =
       type_info->GetSliceStartAndWidth(index_slice, sym_bindings);
   XLS_RET_CHECK(maybe_saw.has_value())

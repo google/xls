@@ -38,29 +38,6 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
   py::module::import("xls.dslx.python.cpp_ast");
   py::module::import("xls.dslx.python.interp_value");
 
-  py::class_<IrConverter>(m, "IrConverter")
-      .def(py::init([](PackageHolder package, ModuleHolder module,
-                       const std::shared_ptr<TypeInfo>& type_info,
-                       ImportCache* import_cache, bool emit_positions) {
-        return absl::make_unique<IrConverter>(package.package(),
-                                              &module.deref(), type_info,
-                                              import_cache, emit_positions);
-      }))
-      .def("add_constant_dep",
-           [](IrConverter& self, ConstantDefHolder constant_def) {
-             self.AddConstantDep(&constant_def.deref());
-           })
-      .def("visit_function",
-           [](IrConverter& self, FunctionHolder fn,
-              absl::optional<const SymbolicBindings*> symbolic_bindings)
-               -> absl::StatusOr<xls::FunctionHolder> {
-             const SymbolicBindings* p =
-                 symbolic_bindings ? *symbolic_bindings : nullptr;
-             XLS_ASSIGN_OR_RETURN(xls::Function * f,
-                                  self.VisitFunction(&fn.deref(), p));
-             return xls::FunctionHolder(f, self.package());
-           });
-
   m.def("mangle_dslx_name",
         [](absl::string_view function_name,
            const std::set<std::string>& free_keys, ModuleHolder m,
@@ -73,6 +50,25 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
                   ? &*symbolic_bindings
                   : nullptr);
         });
+
+  m.def(
+      "convert_one_function",
+      [](PackageHolder package, ModuleHolder module, FunctionHolder function,
+         const std::shared_ptr<TypeInfo>& type_info,
+         absl::optional<ImportCache*> py_import_cache,
+         absl::optional<const SymbolicBindings*> py_symbolic_bindings,
+         bool emit_positions) {
+        const SymbolicBindings* symbolic_bindings =
+            py_symbolic_bindings ? *py_symbolic_bindings : nullptr;
+        ImportCache* import_cache =
+            py_import_cache ? *py_import_cache : nullptr;
+        return ConvertOneFunction(&package.deref(), &module.deref(),
+                                  &function.deref(), type_info, import_cache,
+                                  symbolic_bindings, emit_positions);
+      },
+      py::arg("package"), py::arg("module"), py::arg("function"),
+      py::arg("type_info"), py::arg("import_cache"),
+      py::arg("symbolic_bindings"), py::arg("emit_positions"));
 }
 
 }  // namespace xls::dslx
