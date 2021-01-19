@@ -50,6 +50,7 @@ cc_library(
 cc_binary(
     name = "jit_wrapper_generator_main",
     srcs = ["jit_wrapper_generator_main.cc"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":jit_wrapper_generator",
         "@com_google_absl//absl/flags:flag",
@@ -79,6 +80,7 @@ cc_library(
     name = "ir_jit",
     srcs = ["ir_jit.cc"],
     hdrs = ["ir_jit.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":function_builder_visitor",
         ":jit_channel_queue",

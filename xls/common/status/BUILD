@@ -111,6 +111,7 @@ cc_test(
 cc_library(
     name = "status_macros",
     hdrs = ["status_macros.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":status_builder",
         "@com_google_absl//absl/base:core_headers",

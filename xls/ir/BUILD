@@ -49,6 +49,7 @@ cc_library(
     name = "bits",
     srcs = ["bits.cc"],
     hdrs = ["bits.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":bit_push_buffer",
         ":format_preference",
@@ -167,6 +168,7 @@ cc_library(
         "proc.h",
         "verifier.h",
     ],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":bits",
         ":channel",
@@ -293,6 +295,7 @@ cc_library(
     name = "ir_parser",
     srcs = ["ir_parser.cc"],
     hdrs = ["ir_parser.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":bits_ops",
         ":channel",
@@ -425,6 +428,7 @@ cc_library(
     name = "value",
     srcs = ["value.cc"],
     hdrs = ["value.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":bits",
         ":xls_type_cc_proto",
@@ -837,6 +841,7 @@ cc_library(
 cc_library(
     name = "value_view",
     hdrs = ["value_view.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":ir",
         ":type",
