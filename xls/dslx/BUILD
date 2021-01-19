@@ -870,3 +870,29 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
     ],
 )
+
+cc_library(
+    name = "error_printer",
+    srcs = ["error_printer.cc"],
+    hdrs = ["error_printer.h"],
+    deps = [
+        ":cpp_pos",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:ret_check",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_test(
+    name = "error_printer_test",
+    srcs = ["error_printer_test.cc"],
+    deps = [
+        ":error_printer",
+        "//xls/common/file:temp_file",
+        "//xls/common/status:matchers",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
