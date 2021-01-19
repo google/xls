@@ -506,5 +506,28 @@ fn main(index: bits[128]) -> bits[128] {
   XLS_ASSERT_OK(CompareBeforeAfter(f, before_data));
 }
 
+TEST_F(TableSwitchPassTest, Crasher70d2fb09) {
+  // Minimized example extracted from the optimization pipeline right before
+  // TableSwitchPass is run.
+  std::string program = R"(
+package sample
+
+fn main(x0: bits[53]) -> bits[53] {
+  x1: bits[1] = eq(x0, x0, id=2, pos=0,3,20)
+  literal.31: bits[53] = literal(value=0, id=31, pos=0,18,28)
+  x12: bits[53] = sel(x1, cases=[x0, literal.31], id=42, pos=0,18,28)
+  ret x15: bits[53] = sel(x1, cases=[x12, literal.31], id=43, pos=0,21,28)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<VerifiedPackage> p,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("main"));
+  PassResults results;
+  TableSwitchPass pass;
+  ASSERT_THAT(pass.RunOnFunctionBase(f, PassOptions(), &results),
+              IsOkAndHolds(false));
+}
+
 }  // namespace
 }  // namespace xls

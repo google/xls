@@ -124,6 +124,14 @@ class SelectChain {
       return absl::InvalidArgumentError("Chains only match on equality");
     }
 
+    // Selector must have exactly a single literal operand.
+    if ((selector->operand(0)->Is<Literal>() &&
+         selector->operand(1)->Is<Literal>()) ||
+        (!selector->operand(0)->Is<Literal>() &&
+         !selector->operand(1)->Is<Literal>())) {
+      return false;
+    }
+
     // The variable arg of the select comparison; must be the same for all
     // elements in the chain.
     XLS_ASSIGN_OR_RETURN(eq_var_, GetNonliteralArg(selector));
@@ -292,8 +300,8 @@ class SelectChain {
     } else if (!eq_lhs->Is<Literal>() && eq_rhs->Is<Literal>()) {
       return eq_rhs->As<Literal>();
     } else {
-      return absl::InvalidArgumentError(
-          "Op either has no or both literal operands.");
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Op either has no or both literal operands: %s", op->ToString()));
     }
   }
 
@@ -306,8 +314,8 @@ class SelectChain {
     } else if (!eq_lhs->Is<Literal>() && eq_rhs->Is<Literal>()) {
       return eq_lhs;
     } else {
-      return absl::InvalidArgumentError(
-          "Op either has no or both literal operands.");
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Op either has no or both literal operands: %s", op->ToString()));
     }
   }
 
