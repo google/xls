@@ -21,6 +21,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
 #include "xls/dslx/concrete_type.h"
+#include "xls/dslx/cpp_extract_conversion_order.h"
 #include "xls/dslx/deduce.h"
 #include "xls/dslx/ir_converter.h"
 #include "xls/dslx/python/cpp_ast.h"
@@ -69,6 +70,36 @@ PYBIND11_MODULE(cpp_ir_converter, m) {
       py::arg("package"), py::arg("module"), py::arg("function"),
       py::arg("type_info"), py::arg("import_cache"),
       py::arg("symbolic_bindings"), py::arg("emit_positions"));
+
+  py::class_<ConversionRecord>(m, "ConversionRecord")
+      .def_property_readonly("f",
+                             [](ConversionRecord& self) -> FunctionHolder {
+                               return FunctionHolder(
+                                   self.f, self.f->owner()->shared_from_this());
+                             })
+      .def_property_readonly("m",
+                             [](ConversionRecord& self) -> ModuleHolder {
+                               return ModuleHolder(self.m,
+                                                   self.m->shared_from_this());
+                             })
+      .def_property_readonly(
+          "type_info",
+          [](ConversionRecord& self) -> std::shared_ptr<TypeInfo> {
+            return self.type_info;
+          })
+      .def_property_readonly("bindings",
+                             [](ConversionRecord& self) -> SymbolicBindings {
+                               return self.bindings;
+                             });
+
+  m.def(
+      "get_conversion_order",
+      [](ModuleHolder module, const std::shared_ptr<TypeInfo>& type_info,
+         bool traverse_tests) {
+        return GetOrder(&module.deref(), type_info, traverse_tests);
+      },
+      py::arg("module"), py::arg("type_info"),
+      py::arg("traverse_tests") = false);
 }
 
 }  // namespace xls::dslx

@@ -64,15 +64,10 @@ struct InvocationData {
   absl::flat_hash_map<SymbolicBindings, std::shared_ptr<TypeInfo>>
       instantiations;
 
-  void Update(const InvocationData& other) {
-    XLS_CHECK_EQ(node, other.node);
-    for (const auto& item : other.symbolic_bindings_map) {
-      symbolic_bindings_map.insert(item);
-    }
-    for (const auto& item : other.instantiations) {
-      instantiations.insert(item);
-    }
-  }
+  // Adds all of the information in "other" to this InvocationData.
+  void Update(const InvocationData& other);
+
+  std::string ToString() const;
 };
 
 class TypeInfo {

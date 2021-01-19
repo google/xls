@@ -1042,9 +1042,11 @@ absl::Status IrConverter::HandleInvocation(Invocation* node,
       };
   auto it = map.find(called_name);
   if (it == map.end()) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "ConversionError: %s Could not find name for invocation: %s",
-        node->span().ToString(), called_name));
+    return absl::InvalidArgumentError(
+        absl::StrFormat("ConversionError: %s Could not find name for "
+                        "invocation: %s; available: [%s]",
+                        node->span().ToString(), called_name,
+                        absl::StrJoin(module_->GetFunctionNames(), ", ")));
   }
   XLS_RETURN_IF_ERROR(accept_args().status());
   auto f = it->second;

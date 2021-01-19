@@ -276,7 +276,6 @@ py_library(
         ":ast_helpers",
         ":bit_helpers",
         ":concrete_type_helpers",
-        ":extract_conversion_order",
         ":ir_name_mangler",
         ":span",
         "//xls/common:xls_error",
@@ -370,31 +369,17 @@ py_binary(
     ],
 )
 
-py_library(
-    name = "extract_conversion_order",
-    srcs = ["extract_conversion_order.py"],
-    srcs_version = "PY3",
-    deps = [
-        "//xls/dslx/python:cpp_ast",
-        "//xls/dslx/python:cpp_ast_visitor",
-        "//xls/dslx/python:cpp_dslx_builtins",
-        "//xls/dslx/python:cpp_parametric_instantiator",
-        "//xls/dslx/python:cpp_type_info",
-        "@com_google_absl_py//absl/logging",
-    ],
-)
-
 py_test(
     name = "extract_conversion_order_test",
     srcs = ["extract_conversion_order_test.py"],
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":extract_conversion_order",
         ":fakefs_test_util",
         ":parse_and_typecheck",
         "//xls/common:test_base",
         "//xls/dslx/python:cpp_ast",
+        "//xls/dslx/python:cpp_ir_converter",
         "//xls/dslx/python:cpp_type_info",
         "//xls/dslx/python:import_routines",
         "@com_google_absl_py//absl/testing:absltest",
@@ -905,5 +890,19 @@ cc_library(
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:variant",
+    ],
+)
+
+cc_library(
+    name = "cpp_extract_conversion_order",
+    srcs = ["cpp_extract_conversion_order.cc"],
+    hdrs = ["cpp_extract_conversion_order.h"],
+    deps = [
+        ":cpp_ast",
+        ":cpp_dslx_builtins",
+        ":cpp_type_info",
+        ":symbolic_bindings",
+        "//xls/common/status:ret_check",
+        "@com_google_absl//absl/container:flat_hash_map",
     ],
 )

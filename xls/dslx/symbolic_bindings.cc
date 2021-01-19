@@ -36,7 +36,7 @@ bool SymbolicBindings::operator!=(const SymbolicBindings& other) const {
 
 std::string SymbolicBindings::ToString() const {
   return absl::StrFormat(
-      "(%s)", absl::StrJoin(bindings_, ", ",
+      "{%s}", absl::StrJoin(bindings_, ", ",
                             [](std::string* out, const SymbolicBinding& sb) {
                               absl::StrAppendFormat(out, "%s: %d",
                                                     sb.identifier, sb.value);

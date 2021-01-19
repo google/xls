@@ -23,6 +23,14 @@
 
 namespace xls::dslx {
 
+absl::Status WalkPostOrder(AstNode* root, AstNodeVisitor* visitor,
+                           bool want_types) {
+  for (AstNode* child : root->GetChildren(want_types)) {
+    XLS_RETURN_IF_ERROR(WalkPostOrder(child, visitor, want_types));
+  }
+  return root->Accept(visitor);
+}
+
 absl::StatusOr<ColonRef::Subject> ToColonRefSubject(Expr* e) {
   if (auto* n = dynamic_cast<NameRef*>(e)) {
     return ColonRef::Subject(n);
@@ -389,6 +397,17 @@ std::vector<std::string> Module::GetTestNames() const {
     if (absl::holds_alternative<TestFunction*>(member)) {
       TestFunction* t = absl::get<TestFunction*>(member);
       result.push_back(t->identifier());
+    }
+  }
+  return result;
+}
+
+std::vector<std::string> Module::GetFunctionNames() const {
+  std::vector<std::string> result;
+  for (auto& member : top_) {
+    if (absl::holds_alternative<Function*>(member)) {
+      Function* f = absl::get<Function*>(member);
+      result.push_back(f->identifier());
     }
   }
   return result;

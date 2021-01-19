@@ -437,6 +437,8 @@ xls_pybind_extension(
         ":cpp_concrete_type",  # build_cleaner: keep
         ":interp_value",  # build_cleaner: keep
         ":import_routines",  # build_cleaner: keep
+        "//xls/ir/python:package",  # build_cleaner: keep
+        "//xls/ir/python:function_builder",  # build_cleaner: keep
     ],
     deps = [
         ":callback_converters",
@@ -451,6 +453,7 @@ xls_pybind_extension(
         "//xls/dslx:cpp_concrete_type",
         "//xls/dslx:cpp_deduce",
         "//xls/dslx:cpp_evaluate",
+        "//xls/dslx:cpp_extract_conversion_order",
         "//xls/dslx:cpp_ir_converter",
         "//xls/dslx:cpp_typecheck",
         "//xls/dslx:import_routines",

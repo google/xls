@@ -16,6 +16,27 @@
 
 namespace xls::dslx {
 
+void InvocationData::Update(const InvocationData& other) {
+  XLS_CHECK_EQ(node, other.node);
+  for (const auto& item : other.symbolic_bindings_map) {
+    symbolic_bindings_map.insert(item);
+  }
+  for (const auto& item : other.instantiations) {
+    instantiations.insert(item);
+  }
+}
+
+std::string InvocationData::ToString() const {
+  return absl::StrCat("[",
+                      absl::StrJoin(symbolic_bindings_map, ", ",
+                                    [](std::string* out, const auto& item) {
+                                      absl::StrAppendFormat(
+                                          out, "%s: %s", item.first.ToString(),
+                                          item.second.ToString());
+                                    }),
+                      "]");
+}
+
 void TypeInfo::Update(const TypeInfo& other) {
   for (const auto& [node, type] : other.dict_) {
     dict_[node] = type->CloneToUnique();
@@ -92,9 +113,14 @@ absl::optional<std::shared_ptr<TypeInfo>> TypeInfo::GetInstantiation(
   const TypeInfo* top = GetTop();
   auto it = top->invocations_.find(invocation);
   if (it == top->invocations_.end()) {
+    XLS_VLOG(5) << "Could not find instantiation for invocation: "
+                << invocation->ToString();
     return absl::nullopt;
   }
   const InvocationData& data = it->second;
+  XLS_VLOG(5) << "Invocation " << invocation->ToString()
+              << " caller bindings: " << caller
+              << " invocation data: " << data.ToString();
   auto it2 = data.instantiations.find(caller);
   if (it2 == data.instantiations.end()) {
     return absl::nullopt;

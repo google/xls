@@ -14,16 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for xls.frontend.dslx.extract_conversion_order."""
+"""Tests for xls.dslx.extract_conversion_order."""
 
 from typing import Text, Tuple
 
-from xls.dslx.python import cpp_ast as ast
 from absl.testing import absltest
 from xls.common import test_base
-from xls.dslx import extract_conversion_order
 from xls.dslx import fakefs_test_util
 from xls.dslx import parse_and_typecheck
+from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python import cpp_ir_converter
 from xls.dslx.python import cpp_type_info as type_info_mod
 from xls.dslx.python.cpp_type_info import SymbolicBindings
 from xls.dslx.python.import_routines import ImportCache
@@ -44,22 +44,6 @@ class ExtractConversionOrderTest(absltest.TestCase):
           filename=filename)
       return m, type_info
 
-  def test_get_callees(self):
-    program = """
-    fn f() -> u32 { u32:42 }
-    fn main() -> u32 { f() }
-    """
-    m, type_info = self._get_module(program)
-    callee = extract_conversion_order.Callee(
-        m.get_function('f'), m, type_info, SymbolicBindings())
-    self.assertEqual((callee,),
-                     extract_conversion_order.get_callees(
-                         m.get_function('main'),
-                         m,
-                         type_info,
-                         imports={},
-                         bindings=SymbolicBindings()))
-
   def test_simple_linear_callgraph(self):
     program = """
     fn g() -> u32 { u32:42 }
@@ -67,7 +51,7 @@ class ExtractConversionOrderTest(absltest.TestCase):
     fn main() -> u32 { f() }
     """
     m, type_info = self._get_module(program)
-    order = extract_conversion_order.get_order(m, type_info, imports={})
+    order = cpp_ir_converter.get_conversion_order(m, type_info)
     self.assertLen(order, 3)
     self.assertEqual(order[0].f.identifier, 'g')
     self.assertEqual(order[1].f.identifier, 'f')
@@ -79,17 +63,12 @@ class ExtractConversionOrderTest(absltest.TestCase):
     fn main() -> u32 { f(u2:0) }
     """
     m, type_info = self._get_module(program)
-    order = extract_conversion_order.get_order(m, type_info, imports={})
+    order = cpp_ir_converter.get_conversion_order(m, type_info)
     self.assertLen(order, 2)
     self.assertEqual(order[0].f.identifier, 'f')
     self.assertEqual(order[0].bindings, SymbolicBindings([('N', 2)]))
-    self.assertEqual(order[0].callees, ())
     self.assertEqual(order[1].f.identifier, 'main')
     self.assertEqual(order[1].bindings, SymbolicBindings())
-    f = m.get_function('f')
-    self.assertEqual(
-        tuple((c.f, c.m, c.sym_bindings) for c in order[1].callees),
-        ((f, m, SymbolicBindings([('N', 2)])),))
 
   def test_transitive_parametric(self):
     program = """
@@ -98,7 +77,7 @@ class ExtractConversionOrderTest(absltest.TestCase):
     fn main() -> u32 { f(u2:0) }
     """
     m, type_info = self._get_module(program)
-    order = extract_conversion_order.get_order(m, type_info, imports={})
+    order = cpp_ir_converter.get_conversion_order(m, type_info)
     self.assertLen(order, 3)
     self.assertEqual(order[0].f.identifier, 'g')
     self.assertEqual(order[0].bindings, SymbolicBindings([('M', 2)]))
@@ -112,7 +91,7 @@ class ExtractConversionOrderTest(absltest.TestCase):
     fn main() -> u32 { fail!(u32:0) }
     """
     m, type_info = self._get_module(program)
-    order = extract_conversion_order.get_order(m, type_info, imports={})
+    order = cpp_ir_converter.get_conversion_order(m, type_info)
     self.assertLen(order, 1)
     self.assertEqual(order[0].f.identifier, 'main')
     self.assertEqual(order[0].bindings, SymbolicBindings())

@@ -121,6 +121,18 @@ class AstNodeVisitor {
 #undef DECLARE_HANDLER
 };
 
+// Subtype of abstract AstNodeVisitor that returns ok status (does nothing) for
+// every node type.
+class AstNodeVisitorWithDefault : public AstNodeVisitor {
+ public:
+  ~AstNodeVisitorWithDefault() override = default;
+
+#define DECLARE_HANDLER(__type) \
+  absl::Status Handle##__type(__type* n) override { return absl::OkStatus(); }
+  XLS_DSLX_AST_NODE_EACH(DECLARE_HANDLER)
+#undef DECLARE_HANDLER
+};
+
 // Name definitions can be either built in (BuiltinNameDef, in which case they
 // have no effective position) or defined in the user AST (NameDef).
 using AnyNameDef = absl::variant<NameDef*, BuiltinNameDef*>;
@@ -196,6 +208,11 @@ class AstNode {
  private:
   Module* owner_;
 };
+
+// Visits transitively from the root down using post-order visitation (visit
+// children, then node). want_types is as in AstNode::GetChildren().
+absl::Status WalkPostOrder(AstNode* root, AstNodeVisitor* visitor,
+                           bool want_types);
 
 // Helpers for converting variants of "AstNode subtype" pointers and their
 // variants to the base `AstNode*`.
@@ -2092,6 +2109,10 @@ class Module : public AstNode, public std::enable_shared_from_this<Module> {
   std::vector<ConstantDef*> GetConstantDefs() const {
     return GetTopWithT<ConstantDef>();
   }
+
+  // Returns the identifiers for all functions within this module (in the order
+  // in which they are defined).
+  std::vector<std::string> GetFunctionNames() const;
 
   // Returns the identifiers for all tests within this module (in the order in
   // which they are defined).

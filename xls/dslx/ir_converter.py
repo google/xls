@@ -21,7 +21,6 @@ from typing import Text, List
 
 from absl import logging
 
-from xls.dslx import extract_conversion_order
 from xls.dslx.python import cpp_ast as ast
 from xls.dslx.python import cpp_ir_converter
 from xls.dslx.python import cpp_type_info as type_info_mod
@@ -51,9 +50,8 @@ def convert_module_to_package(
   """
   emitted = []  # type: List[Text]
   package = ir_package.Package(module.name)
-  order = extract_conversion_order.get_order(module, type_info,
-                                             dict(type_info.get_imports()),
-                                             traverse_tests)
+  order = cpp_ir_converter.get_conversion_order(module, type_info,
+                                                traverse_tests)
   logging.vlog(3, 'Convert order: %s', pprint.pformat(order))
   for record in order:
     logging.vlog(1, 'Converting to IR: %r', record)
