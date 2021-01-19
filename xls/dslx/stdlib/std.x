@@ -211,6 +211,37 @@ fn clog2_test() {
   ()
 }
 
+// Returns true when x is a non-zero power-of-two.
+pub fn is_pow2<N: u32>(x: uN[N]) -> bool {
+  x > uN[N]:0 && (x & (x - uN[N]:1) == uN[N]:0)
+}
+
+#![test]
+fn is_pow2_test() {
+  let _ = assert_eq(is_pow2(u32: 0), false);
+  let _ = assert_eq(is_pow2(u32: 1), true);
+  let _ = assert_eq(is_pow2(u32: 2), true);
+  let _ = assert_eq(is_pow2(u32: 3), false);
+  let _ = assert_eq(is_pow2(u32: 4), true);
+  let _ = assert_eq(is_pow2(u32: 5), false);
+  let _ = assert_eq(is_pow2(u32: 6), false);
+  let _ = assert_eq(is_pow2(u32: 7), false);
+  let _ = assert_eq(is_pow2(u32: 8), true);
+
+  // Test parametric bitwidth.
+  let _ = assert_eq(is_pow2(u8: 0), false);
+  let _ = assert_eq(is_pow2(u8: 1), true);
+  let _ = assert_eq(is_pow2(u8: 2), true);
+  let _ = assert_eq(is_pow2(u8: 3), false);
+  let _ = assert_eq(is_pow2(u8: 4), true);
+  let _ = assert_eq(is_pow2(u8: 5), false);
+  let _ = assert_eq(is_pow2(u8: 6), false);
+  let _ = assert_eq(is_pow2(u8: 7), false);
+  let _ = assert_eq(is_pow2(u8: 8), true);
+
+  ()
+}
+
 // Returns x % y where y must be a non-zero power-of-two.
 pub fn mod_pow2<N: u32>(x: bits[N], y: bits[N]) -> bits[N] {
   // TODO(leary): 2020-06-11 Add assertion y is a power of two and non-zero.
