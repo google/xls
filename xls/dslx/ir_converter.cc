@@ -24,8 +24,139 @@
 
 namespace xls::dslx {
 
+static std::string SpanToString(const absl::optional<Span>& span) {
+  if (!span.has_value()) {
+    return "<no span>";
+  }
+  return span->ToString();
+}
+
 using IrOp = xls::Op;
-using IrLiteral = xls::Value;
+
+// Helper that dispatches to the appropriate handler in the AST
+class IrConverterVisitor : public AstNodeVisitor {
+ public:
+  explicit IrConverterVisitor(IrConverter* converter) : converter_(converter) {}
+
+  // Causes node "n" to accept this visitor (basic double-dispatch).
+  absl::Status Visit(AstNode* n) {
+    XLS_VLOG(5) << this << " visiting: " << n->ToString() << "("
+                << n->GetNodeTypeName() << ")";
+    return n->Accept(this);
+  }
+
+  // Causes all children of "node" to accept this visitor.
+  absl::Status VisitChildren(AstNode* node) {
+    for (AstNode* child : node->GetChildren(/*want_types=*/false)) {
+      XLS_RETURN_IF_ERROR(Visit(child));
+    }
+    return absl::OkStatus();
+  }
+
+  // A macro used for AST types where we want to visit all children, then call
+  // the IrConverter handler (i.e. postorder traversal).
+#define TRAVERSE_DISPATCH(__type)                      \
+  absl::Status Handle##__type(__type* node) override { \
+    XLS_RETURN_IF_ERROR(VisitChildren(node));          \
+    return converter_->Handle##__type(node);           \
+  }
+
+  TRAVERSE_DISPATCH(Unop)
+  TRAVERSE_DISPATCH(Binop)
+  TRAVERSE_DISPATCH(Ternary)
+  TRAVERSE_DISPATCH(ConstantArray)
+  TRAVERSE_DISPATCH(XlsTuple)
+
+  absl::Status HandleFor(For* node) override {
+    auto visit = [this](AstNode* n) { return Visit(n); };
+    auto visit_converter = [](IrConverter* converter,
+                              AstNode* n) -> absl::Status {
+      IrConverterVisitor visitor(converter);
+      return visitor.Visit(n);
+    };
+    return converter_->HandleFor(node, visit, visit_converter);
+  }
+
+  // A macro used for AST types where we don't want to visit any children, just
+  // call the IrConverter handler.
+#define NO_TRAVERSE_DISPATCH(__type)                   \
+  absl::Status Handle##__type(__type* node) override { \
+    return converter_->Handle##__type(node);           \
+  }
+
+  NO_TRAVERSE_DISPATCH(Param)
+  NO_TRAVERSE_DISPATCH(NameRef)
+  NO_TRAVERSE_DISPATCH(ConstRef)
+  NO_TRAVERSE_DISPATCH(Number)
+
+  // A macro used for AST types where we don't want to visit any children, just
+  // call the IrConverter handler (which accepts a "visit" callback).
+#define NO_TRAVERSE_DISPATCH_VISIT(__type)                \
+  absl::Status Handle##__type(__type* node) override {    \
+    auto visit = [this](AstNode* n) { return Visit(n); }; \
+    return converter_->Handle##__type(node, visit);       \
+  }
+
+  NO_TRAVERSE_DISPATCH_VISIT(Attr)
+  NO_TRAVERSE_DISPATCH_VISIT(Array)
+  NO_TRAVERSE_DISPATCH_VISIT(Cast)
+  NO_TRAVERSE_DISPATCH_VISIT(ColonRef)
+  NO_TRAVERSE_DISPATCH_VISIT(ConstantDef)
+  NO_TRAVERSE_DISPATCH_VISIT(Index)
+  NO_TRAVERSE_DISPATCH_VISIT(Invocation)
+  NO_TRAVERSE_DISPATCH_VISIT(Let)
+  NO_TRAVERSE_DISPATCH_VISIT(Match)
+  NO_TRAVERSE_DISPATCH_VISIT(SplatStructInstance)
+  NO_TRAVERSE_DISPATCH_VISIT(StructInstance)
+
+  // A macro used for AST types that we never expect to visit (if we do we
+  // provide an error message noting it was unexpected).
+#define INVALID(__type) \
+  absl::Status Handle##__type(__type* node) { return Invalid(node); }
+
+  // These are always custom-visited (i.e. traversed to in a specialized way
+  // from their parent nodes).
+  INVALID(NameDefTree)
+  INVALID(ParametricBinding)
+  INVALID(MatchArm)
+  INVALID(WildcardPattern)
+  INVALID(WidthSlice)
+  INVALID(Slice)
+  INVALID(NameDef)
+  INVALID(TypeRef)
+  INVALID(ArrayTypeAnnotation)
+  INVALID(BuiltinTypeAnnotation)
+  INVALID(TupleTypeAnnotation)
+  INVALID(TypeRefTypeAnnotation)
+  INVALID(TestFunction)
+
+  // The visitor operates within a function, so none of these should be visible.
+  INVALID(BuiltinNameDef)
+  INVALID(EnumDef)
+  INVALID(Import)
+  INVALID(Function)
+  INVALID(TypeDef)
+  INVALID(Proc)
+  INVALID(Module)
+  INVALID(QuickCheck)
+  INVALID(StructDef)
+
+  // Unsupported for IR emission.
+  INVALID(While)
+  INVALID(Next)
+  INVALID(Carry)
+
+ private:
+  // Called when we visit a node we don't expect to observe in the traversal.
+  absl::Status Invalid(AstNode* node) {
+    return absl::UnimplementedError(absl::StrFormat(
+        "AST node unsupported for IR conversion: %s @ %s",
+        node->GetNodeTypeName(), SpanToString(node->GetSpan())));
+  }
+
+  // The converter object we call back to for node handling.
+  IrConverter* converter_;
+};
 
 /* static */ std::string IrConverter::ToString(const IrValue& value) {
   if (absl::holds_alternative<BValue>(value)) {
@@ -47,6 +178,15 @@ IrConverter::IrConverter(const std::shared_ptr<Package>& package,
       // module.
       fileno_(package->GetOrCreateFileno("fake_file.x")) {
   XLS_VLOG(5) << "Constructed IR converter: " << this;
+}
+
+absl::StatusOr<xls::Function*> IrConverter::VisitFunction(
+    Function* f, const SymbolicBindings* symbolic_bindings) {
+  IrConverterVisitor visitor(this);
+  auto visit = [&](AstNode* node) -> absl::Status {
+    return node->Accept(&visitor);
+  };
+  return HandleFunction(f, symbolic_bindings, visit);
 }
 
 void IrConverter::InstantiateFunctionBuilder(absl::string_view mangled_name) {
@@ -103,8 +243,7 @@ BValue IrConverter::Def(
       .value();
 }
 
-IrConverter::CValue IrConverter::DefConst(
-    AstNode* node, IrLiteral ir_value) {
+IrConverter::CValue IrConverter::DefConst(AstNode* node, xls::Value ir_value) {
   auto ir_func = [&](absl::optional<SourceLocation> loc) {
     return function_builder_->Literal(ir_value, loc);
   };
@@ -118,7 +257,7 @@ absl::StatusOr<BValue> IrConverter::Use(AstNode* node) const {
   auto it = node_to_ir_.find(node);
   if (it == node_to_ir_.end()) {
     return absl::NotFoundError(
-        absl::StrFormat("Exception resolving %s node: %s",
+        absl::StrFormat("Could not resolve IR value for %s node: %s",
                         node->GetNodeTypeName(), node->ToString()));
   }
   const IrValue& ir_value = it->second;
@@ -222,6 +361,7 @@ absl::Status IrConverter::HandleXlsTuple(XlsTuple* node) {
 }
 
 absl::Status IrConverter::HandleParam(Param* node) {
+  XLS_VLOG(5) << "HandleParam: " << node->ToString();
   XLS_ASSIGN_OR_RETURN(xls::Type * type, ResolveTypeToIr(node->type()));
   Def(node->name_def(), [&](absl::optional<SourceLocation> loc) {
     return function_builder_->Param(node->identifier(), type);
@@ -464,7 +604,7 @@ absl::Status IrConverter::HandleFor(
   //  }
   XLS_ASSIGN_OR_RETURN(int64 trip_count, QueryConstRangeCall(node, visit));
 
-  XLS_VLOG(3) << "Converting for-loop @ " << node->span();
+  XLS_VLOG(5) << "Converting for-loop @ " << node->span();
   IrConverter body_converter(package_, module_, type_info_, import_cache_,
                              emit_positions_);
   body_converter.set_symbolic_binding_map(symbolic_binding_map_);
@@ -547,7 +687,7 @@ absl::Status IrConverter::HandleFor(
       continue;
     }
     relevant_name_defs.push_back(name_def);
-    XLS_VLOG(3) << "Converting freevar name: " << name_def->ToString();
+    XLS_VLOG(5) << "Converting freevar name: " << name_def->ToString();
     XLS_ASSIGN_OR_RETURN(xls::Type * name_def_type, TypeToIr(**type));
     body_converter.SetNodeToIr(name_def,
                                body_converter.function_builder()->Param(
@@ -557,7 +697,7 @@ absl::Status IrConverter::HandleFor(
   XLS_RETURN_IF_ERROR(visit_converter(&body_converter, node->body()));
   XLS_ASSIGN_OR_RETURN(xls::Function * body_function,
                        body_converter.function_builder()->Build());
-  XLS_VLOG(3) << "Converted body function: " << body_function->name();
+  XLS_VLOG(5) << "Converted body function: " << body_function->name();
 
   std::vector<BValue> invariant_args;
   for (NameDef* name_def : relevant_name_defs) {
@@ -696,7 +836,7 @@ absl::StatusOr<Value> IrConverter::EvaluateConstFunction(Invocation* node) {
       InterpValue interp_value,
       interp.RunFunction(fn_name, args, **GetInvocationBindings(node)));
   XLS_ASSIGN_OR_RETURN(Value ir_value, InterpValueToValue(interp_value));
-  XLS_VLOG(3) << absl::StreamFormat(
+  XLS_VLOG(5) << absl::StreamFormat(
       "[constexpr] Interpreted %s with (%s): %s", fn_name,
       absl::StrJoin(args, ",",
                     [](std::string* out, const InterpValue& v) {
@@ -916,6 +1056,7 @@ absl::Status IrConverter::HandleInvocation(Invocation* node,
 absl::StatusOr<xls::Function*> IrConverter::HandleFunction(
     Function* node, const SymbolicBindings* symbolic_bindings,
     const VisitFunc& visit) {
+  XLS_VLOG(5) << "HandleFunction: " << node->ToString();
   if (symbolic_bindings != nullptr) {
     SetSymbolicBindings(symbolic_bindings);
   }
@@ -955,6 +1096,7 @@ absl::StatusOr<xls::Function*> IrConverter::HandleFunction(
   }
   ClearConstantDeps();
 
+  XLS_VLOG(5) << "body: " << node->body()->ToString();
   XLS_RETURN_IF_ERROR(visit(node->body()));
   auto* last_expression =
       last_expression_ == nullptr ? node->body() : last_expression_;
@@ -969,7 +1111,7 @@ absl::StatusOr<xls::Function*> IrConverter::HandleFunction(
     });
   }
   XLS_ASSIGN_OR_RETURN(xls::Function * f, function_builder_->Build());
-  XLS_VLOG(3) << "Built function: " << f->name();
+  XLS_VLOG(5) << "Built function: " << f->name();
   XLS_RETURN_IF_ERROR(VerifyFunction(f));
   return f;
 }
@@ -1066,7 +1208,7 @@ absl::Status IrConverter::HandleStructInstance(StructInstance* node,
 }
 
 absl::StatusOr<std::string> IrConverter::GetCalleeIdentifier(Invocation* node) {
-  XLS_VLOG(3) << "Getting callee identifier for invocation: "
+  XLS_VLOG(5) << "Getting callee identifier for invocation: "
               << node->ToString();
   Expr* callee = node->callee();
   std::string callee_name;
@@ -1108,6 +1250,7 @@ absl::StatusOr<std::string> IrConverter::GetCalleeIdentifier(Invocation* node) {
 }
 
 absl::Status IrConverter::HandleBinop(Binop* node) {
+  XLS_VLOG(5) << "HandleBinop: " << node->ToString();
   absl::optional<const ConcreteType*> lhs_type =
       type_info_->GetItem(node->lhs());
   XLS_RET_CHECK(lhs_type.has_value());
@@ -1237,7 +1380,8 @@ absl::Status IrConverter::HandleBinop(Binop* node) {
   return absl::OkStatus();
 }
 
-absl::Status IrConverter::HandleAttr(Attr* node) {
+absl::Status IrConverter::HandleAttr(Attr* node, const VisitFunc& visit) {
+  XLS_RETURN_IF_ERROR(visit(node->lhs()));
   absl::optional<const ConcreteType*> lhs_type =
       type_info()->GetItem(node->lhs());
   XLS_RET_CHECK(lhs_type.has_value());
@@ -1596,7 +1740,7 @@ absl::Status IrConverter::HandleConstantArray(ConstantArray* node) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type, ResolveType(node));
   auto* array_type = dynamic_cast<ArrayType*>(type.get());
 
-  std::vector<IrLiteral> values;
+  std::vector<xls::Value> values;
   for (Expr* n : node->members()) {
     // All elements are invariants of the given ConstantArray node.
     XLS_RET_CHECK(IsConstant(n));
@@ -1610,7 +1754,7 @@ absl::Status IrConverter::HandleConstantArray(ConstantArray* node) {
       values.push_back(values.back());
     }
   }
-  Value ir_value = IrLiteral::Array(std::move(values)).value();
+  Value ir_value = xls::Value::Array(std::move(values)).value();
   DefConst(node, ir_value);
   return absl::OkStatus();
 }

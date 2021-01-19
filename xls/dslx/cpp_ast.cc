@@ -1217,7 +1217,7 @@ std::string Array::ToString() const {
 
 std::vector<AstNode*> Array::GetChildren(bool want_types) const {
   std::vector<AstNode*> results;
-  if (type_ != nullptr) {
+  if (want_types && type_ != nullptr) {
     results.push_back(type_);
   }
   for (Expr* member : members_) {

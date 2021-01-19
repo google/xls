@@ -60,6 +60,11 @@ class IrConverter {
 
   ~IrConverter() { XLS_VLOG(5) << "Destroying IR converter: " << this; }
 
+  // Main entry point to request conversion of the DSLX function "f" to an IR
+  // function.
+  absl::StatusOr<xls::Function*> VisitFunction(
+      Function* f, const SymbolicBindings* symbolic_bindings = nullptr);
+
   void InstantiateFunctionBuilder(absl::string_view mangled_name);
 
   // Notes a constant-definition dependency for the converted IR.
@@ -208,17 +213,17 @@ class IrConverter {
   const Fileno& fileno() const { return fileno_; }
 
   // AstNode handlers.
-  absl::Status HandleUnop(Unop* node);
   absl::Status HandleBinop(Binop* node);
-  absl::Status HandleAttr(Attr* node);
-  absl::Status HandleTernary(Ternary* node);
   absl::Status HandleConstantArray(ConstantArray* node);
-  absl::Status HandleConcat(Binop* node, BValue lhs, BValue rhs);
-  absl::Status HandleNumber(Number* node);
-  absl::Status HandleXlsTuple(XlsTuple* node);
-  absl::Status HandleParam(Param* node);
   absl::Status HandleConstRef(ConstRef* node);
   absl::Status HandleNameRef(NameRef* node);
+  absl::Status HandleNumber(Number* node);
+  absl::Status HandleParam(Param* node);
+  absl::Status HandleTernary(Ternary* node);
+  absl::Status HandleUnop(Unop* node);
+  absl::Status HandleXlsTuple(XlsTuple* node);
+
+  absl::Status HandleConcat(Binop* node, BValue lhs, BValue rhs);
 
   // Callback signature to visit a node for IR conversion (e.g. used in handlers
   // that employ a custom visitation order).
@@ -229,7 +234,9 @@ class IrConverter {
   using VisitIrConverterFunc =
       std::function<absl::Status(IrConverter*, AstNode*)>;
 
-  // AstNode handlers that recur (via the "visit" callback).
+  // AstNode handlers that recur "manually" internal to the handler (via the
+  // "visit" callback).
+  absl::Status HandleAttr(Attr* node, const VisitFunc& visit);
   absl::Status HandleSplatStructInstance(SplatStructInstance* node,
                                          const VisitFunc& visit);
   absl::Status HandleStructInstance(StructInstance* node,
@@ -365,13 +372,6 @@ class IrConverter {
     // TODO(leary): 2020-12-20 Figure out the fileno based on the module owner
     // of node.
     return SourceLocation{fileno_, lineno, colno};
-  }
-
-  static std::string SpanToString(const absl::optional<Span>& span) {
-    if (!span.has_value()) {
-      return "<no span>";
-    }
-    return span->ToString();
   }
 
   // Defines "node" to map the the result of running "ir_func" with "args" -- if
