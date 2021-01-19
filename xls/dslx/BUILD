@@ -298,27 +298,6 @@ py_test(
     ],
 )
 
-# TODO(b/136618878): 2019-07-08 Switching this to PY3 causes ASAN to fail
-# because of the CLIF module.
-py_binary(
-    name = "ir_converter_main",
-    srcs = ["ir_converter_main.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    visibility = ["//xls:xls_users"],
-    deps = [
-        ":import_helpers",
-        ":parser_helpers",
-        ":span",
-        "//xls/common/python:init_xls",
-        "//xls/dslx/python:cpp_ir_converter",
-        "//xls/dslx/python:cpp_parser",
-        "//xls/dslx/python:cpp_typecheck",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
-    ],
-)
-
 py_binary(
     name = "highlight_main",
     srcs = ["highlight_main.py"],
@@ -510,8 +489,19 @@ cc_library(
         ":cpp_ast",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
+        "@com_github_google_re2//:re2",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "cpp_bindings_test",
+    srcs = ["cpp_bindings_test.cc"],
+    deps = [
+        ":cpp_bindings",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -894,5 +884,23 @@ cc_test(
         "//xls/common/status:matchers",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_binary(
+    name = "cpp_ir_converter_main",
+    srcs = ["ir_converter_main.cc"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        ":cpp_ir_converter",
+        ":cpp_parser",
+        ":cpp_typecheck",
+        ":error_printer",
+        ":scanner",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
     ],
 )

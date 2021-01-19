@@ -20,7 +20,6 @@
 
 #include "absl/status/statusor.h"
 #include "xls/dslx/deduce_ctx.h"
-#include "xls/dslx/python/cpp_ast.h"
 
 namespace xls::dslx {
 

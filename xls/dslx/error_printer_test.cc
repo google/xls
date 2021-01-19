@@ -39,8 +39,8 @@ line 7)",
   const Pos limit_pos(filename, 5, 4);
   const Span error_span(start_pos, limit_pos);
   std::stringstream ss;
-  XLS_ASSERT_OK(PrintPositionalError(error_span, "my error message", filename,
-                                     ss, /*color=*/false,
+  XLS_ASSERT_OK(PrintPositionalError(error_span, "my error message", ss,
+                                     /*color=*/false,
                                      /*error_context_line_count=*/3));
   std::string output = ss.str();
   std::vector<absl::string_view> output_lines = absl::StrSplit(output, '\n');

@@ -35,7 +35,6 @@ namespace xls::dslx {
 //   from (for printing).
 absl::Status PrintPositionalError(const Span& error_span,
                                   absl::string_view error_message,
-                                  absl::string_view error_filename,
                                   std::ostream& os,
                                   absl::optional<bool> color = absl::nullopt,
                                   int64 error_context_line_count = 5);

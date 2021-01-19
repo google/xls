@@ -186,7 +186,7 @@ def dslx_codegen(
             srcs = ["//xls/tools:benchmark_test_sh"],
             args = codegen_benchmark_args,
             data = [
-                "//xls/dslx:ir_converter_main",
+                "//xls/dslx:cpp_ir_converter_main",
                 "//xls/tools:benchmark_main",
                 "//xls/tools:opt_main",
                 dslx_dep + "_all_ir",

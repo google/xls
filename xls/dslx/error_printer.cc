@@ -22,12 +22,12 @@ namespace xls::dslx {
 
 absl::Status PrintPositionalError(const Span& error_span,
                                   absl::string_view error_message,
-                                  absl::string_view error_filename,
                                   std::ostream& os, absl::optional<bool> color,
                                   int64 error_context_line_count) {
   XLS_RET_CHECK_EQ(error_context_line_count % 2, 1);
 
-  XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(error_filename));
+  XLS_ASSIGN_OR_RETURN(std::string contents,
+                       GetFileContents(error_span.filename()));
   std::vector<absl::string_view> lines = absl::StrSplit(contents, '\n');
 
   int64 line_count_each_side = error_context_line_count / 2;
@@ -70,7 +70,7 @@ absl::Status PrintPositionalError(const Span& error_span,
   };
 
   // Emit an indicator of what we're displaying.
-  os << absl::StreamFormat("%s:%d-%d\n", error_filename, low_lineno + 1,
+  os << absl::StreamFormat("%s:%d-%d\n", error_span.filename(), low_lineno + 1,
                            high_lineno);
 
   // Emit the lines that come before.

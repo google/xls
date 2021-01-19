@@ -13,4 +13,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-./xls/dslx/ir_converter_main "$@"
+./xls/dslx/cpp_ir_converter_main "$@"

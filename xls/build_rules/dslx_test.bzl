@@ -37,7 +37,7 @@ def _convert_ir(
         srcs = ["//xls/dslx:ir_converter_test_sh"],
         args = [native.package_name() + "/" + src] + args,
         data = [
-            "//xls/dslx:ir_converter_main",
+            "//xls/dslx:cpp_ir_converter_main",
         ] + srcs + deps,
         tags = tags,
     )
@@ -45,8 +45,8 @@ def _convert_ir(
         name = name + "_ir",
         srcs = srcs + deps,
         outs = [name + ".ir"],
-        cmd = "$(location //xls/dslx:ir_converter_main) --dslx_path=$(GENDIR) $(SRCS) > $@",
-        exec_tools = ["//xls/dslx:ir_converter_main"],
+        cmd = "$(location //xls/dslx:cpp_ir_converter_main) --dslx_path=$(GENDIR) $(SRCS) > $@",
+        exec_tools = ["//xls/dslx:cpp_ir_converter_main"],
         tags = tags,
         **kwargs
     )
@@ -54,11 +54,11 @@ def _convert_ir(
         name = name + "_opt_ir",
         srcs = srcs + deps,
         outs = [name + ".opt.ir"],
-        cmd = ("$(location //xls/dslx:ir_converter_main) --dslx_path=$(GENDIR) $(SRCS) " +
+        cmd = ("$(location //xls/dslx:cpp_ir_converter_main) --dslx_path=$(GENDIR) $(SRCS) " +
                " | $(location //xls/tools:opt_main) --entry=%s - " +
                " > $@") % (entry or ""),
         exec_tools = [
-            "//xls/dslx:ir_converter_main",
+            "//xls/dslx:cpp_ir_converter_main",
             "//xls/tools:opt_main",
         ],
         tags = tags,

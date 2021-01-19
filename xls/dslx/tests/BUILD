@@ -119,6 +119,14 @@ dslx_test(
 )
 
 dslx_test(
+    name = "array_of_tuple",
+    srcs = ["array_of_tuple.x"],
+    # Only a test function.
+    generate_benchmark = False,
+    prove_unopt_eq_opt = False,
+)
+
+dslx_test(
     name = "parametric_array_of_tuples",
     srcs = ["parametric_array_of_tuples.x"],
     # TODO(leary): 2019-07-24 Missing support for array of tuples eliding cast

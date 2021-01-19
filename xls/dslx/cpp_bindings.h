@@ -52,7 +52,8 @@ inline absl::Status ParseError(const Span& span, absl::string_view message) {
 // Returns (span, message), or an error status if "status" is not a valid
 // ParseError.
 absl::StatusOr<std::pair<Span, std::string>> ParseErrorGetData(
-    const absl::Status& status, absl::string_view prefix = "ParseError: ");
+    const absl::Status& status,
+    absl::optional<absl::string_view> target_type = absl::nullopt);
 
 // Maps identifiers to the AST node that bound that identifier (also known as
 // the lexical environment).

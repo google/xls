@@ -206,8 +206,7 @@ class ArgCountMismatchError : public std::exception {
 inline void TryThrowFailureError(const absl::Status& status) {
   if (status.code() == absl::StatusCode::kInternal &&
       absl::StartsWith(status.message(), "FailureError")) {
-    std::pair<Span, std::string> data =
-        ParseErrorGetData(status, "FailureError: ").value();
+    std::pair<Span, std::string> data = ParseErrorGetData(status).value();
     throw FailureError(data.second, data.first);
   }
 }
@@ -215,8 +214,7 @@ inline void TryThrowFailureError(const absl::Status& status) {
 inline void TryThrowArgCountMismatchError(const absl::Status& status) {
   if (!status.ok() &&
       absl::StartsWith(status.message(), "ArgCountMismatchError")) {
-    auto [span, message] =
-        ParseErrorGetData(status, "ArgCountMismatchError: ").value();
+    auto [span, message] = ParseErrorGetData(status).value();
     throw ArgCountMismatchError(span, message);
   }
 }

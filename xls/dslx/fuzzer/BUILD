@@ -186,7 +186,7 @@ py_library(
     name = "sample_runner",
     srcs = ["sample_runner.py"],
     data = [
-        "//xls/dslx:ir_converter_main",
+        "//xls/dslx:cpp_ir_converter_main",
         "//xls/tools:codegen_main",
         "//xls/tools:eval_ir_main",
         "//xls/tools:opt_main",

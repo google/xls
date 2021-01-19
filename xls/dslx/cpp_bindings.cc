@@ -18,24 +18,33 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/strip.h"
 #include "xls/common/status/status_macros.h"
+#include "re2/re2.h"
 
 namespace xls::dslx {
 
 absl::StatusOr<std::pair<Span, std::string>> ParseErrorGetData(
-    const absl::Status& status, absl::string_view prefix) {
+    const absl::Status& status, absl::optional<absl::string_view> target_type) {
+  auto error = [&] {
+    return absl::InvalidArgumentError(
+        "Provided status is not in recognized error form: " +
+        status.ToString());
+  };
   absl::string_view s = status.message();
-  if (absl::ConsumePrefix(&s, prefix)) {
-    std::vector<absl::string_view> pieces =
-        absl::StrSplit(s, absl::MaxSplits(' ', 1));
-    if (pieces.size() < 2) {
-      return absl::InvalidArgumentError(
-          "Provided status does not have a standard error message");
-    }
-    XLS_ASSIGN_OR_RETURN(Span span, Span::FromString(pieces[0]));
-    return std::make_pair(span, std::string(pieces[1]));
+  std::string type_indicator;
+  if (!RE2::Consume(&s, "(\\w+): ", &type_indicator)) {
+    return error();
   }
-  return absl::InvalidArgumentError(
-      "Provided status is not in recognized error form: " + status.ToString());
+  if (target_type.has_value() && type_indicator != *target_type) {
+    return error();
+  }
+  std::vector<absl::string_view> pieces =
+      absl::StrSplit(s, absl::MaxSplits(' ', 1));
+  if (pieces.size() < 2) {
+    return absl::InvalidArgumentError(
+        "Provided status does not have a standard error message");
+  }
+  XLS_ASSIGN_OR_RETURN(Span span, Span::FromString(pieces[0]));
+  return std::make_pair(span, std::string(pieces[1]));
 }
 
 AnyNameDef BoundNodeToAnyNameDef(BoundNode bn) {

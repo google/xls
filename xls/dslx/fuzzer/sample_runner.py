@@ -44,7 +44,7 @@ from xls.ir.python import ir_parser
 from xls.ir.python import value as ir_value_mod
 from xls.ir.python.format_preference import FormatPreference
 
-IR_CONVERTER_MAIN_PATH = runfiles.get_path('xls/dslx/ir_converter_main')
+IR_CONVERTER_MAIN_PATH = runfiles.get_path('xls/dslx/cpp_ir_converter_main')
 EVAL_IR_MAIN_PATH = runfiles.get_path('xls/tools/eval_ir_main')
 IR_OPT_MAIN_PATH = runfiles.get_path('xls/tools/opt_main')
 CODEGEN_MAIN_PATH = runfiles.get_path('xls/tools/codegen_main')
