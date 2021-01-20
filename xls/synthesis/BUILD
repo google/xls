@@ -102,6 +102,7 @@ py_binary(
         ":synthesis_service_py_pb2_grpc",
         "//xls/delay_model:delay_model_py_pb2",
         "//xls/delay_model:op_module_generator",
+        "//xls/ir:op_specification_typechecked",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
         "@com_google_absl_py//absl/logging",
