@@ -125,7 +125,6 @@ absl::StatusOr<bool> ParseAndTest(
     absl::optional<absl::string_view> test_filter = absl::nullopt,
     bool trace_all = false, bool compare_jit = true,
     absl::optional<int64> seed = absl::nullopt) {
-  bool did_fail = false;
   int64 ran = 0;
   int64 failed = 0;
   int64 skipped = 0;
@@ -222,8 +221,9 @@ absl::StatusOr<bool> ParseAndTest(
           RunQuickCheck(&interpreter, ir_package.get(), quickcheck, *seed);
       if (!status.ok()) {
         handle_error(status, test_name);
+      } else {
+        std::cerr << "[                    OK ] " << test_name << std::endl;
       }
-      std::cerr << "[                    OK ] " << test_name << std::endl;
     }
     std::cerr << absl::StreamFormat(
                      "[=======================] %d quickcheck(s) ran.",
@@ -232,7 +232,7 @@ absl::StatusOr<bool> ParseAndTest(
   }
 
   type_info->ClearTypeInfoRefsForGc();
-  return did_fail;
+  return failed != 0;
 }
 
 absl::Status RealMain(absl::string_view entry_module_path,

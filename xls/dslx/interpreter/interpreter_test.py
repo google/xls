@@ -354,6 +354,66 @@ class InterpreterTest(test_base.TestCase):
     """
     self._parse_and_test(program)
 
+  def test_failing_test_gives_error_retcode(self):
+    program = """
+    #![test]
+    fn failing_test() {
+      assert_eq(false, true)
+    }
+    """
+    program_file = self.create_tempfile(content=program)
+    cmd = [INTERP_PATH, program_file.full_path]
+    p = subprocess.run(
+        cmd, stderr=subprocess.PIPE, encoding='utf-8', check=False, env={})
+    self.assertNotEqual(p.returncode, 0)
+
+  def test_passing_then_failing_test_gives_error_retcode(self):
+    program = """
+    #![test]
+    fn passing_test() {
+      assert_eq(true, true)
+    }
+    #![test]
+    fn failing_test() {
+      assert_eq(false, true)
+    }
+    """
+    program_file = self.create_tempfile(content=program)
+    cmd = [INTERP_PATH, program_file.full_path]
+    p = subprocess.run(
+        cmd, stderr=subprocess.PIPE, encoding='utf-8', check=False, env={})
+    self.assertNotEqual(p.returncode, 0)
+
+  def test_failing_then_passing_test_gives_error_retcode(self):
+    program = """
+    #![test]
+    fn failing_test() {
+      assert_eq(false, true)
+    }
+    #![test]
+    fn passing_test() {
+      assert_eq(true, true)
+    }
+    """
+    program_file = self.create_tempfile(content=program)
+    cmd = [INTERP_PATH, program_file.full_path]
+    p = subprocess.run(
+        cmd, stderr=subprocess.PIPE, encoding='utf-8', check=False, env={})
+    self.assertNotEqual(p.returncode, 0)
+
+  def test_passing_test_returncode(self):
+    program = """
+    #![test]
+    fn passing_test() {
+      assert_eq(true, true)
+    }
+    """
+    program_file = self.create_tempfile(content=program)
+    cmd = [INTERP_PATH, program_file.full_path]
+    p = subprocess.run(
+        cmd, stderr=subprocess.PIPE, encoding='utf-8', check=False, env={})
+    self.assertEqual(p.returncode, 0)
+
   def test_trace(self):
     program = """
     fn fut() -> u32 {
