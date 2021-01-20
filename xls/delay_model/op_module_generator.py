@@ -103,9 +103,31 @@ def generate_ir_package(op: str,
     args = args[0:2]
     args.append('indices=[%s]' % ', '.join(indices))
   elif op == 'sel':
+    # Determine number of selector bits.
+    selector_type = operand_types[0]
+    m = re.match(r'bits\[(\d+)\]$', selector_type)
+    if not m:
+      raise ValueError('Invalid or unsupported type for'
+                       'sel op selector {selector_type}')
+    num_selector_bits = int(m.group(1))
+
+    # Set default operand as necessary.
+    num_addressable_cases = 2**num_selector_bits
+    if num_addressable_cases > len(args) - 1:
+      cases = args[1:-1]
+      default = args[-1]
+      args = args[0:1]
+      args.append('cases=[%s]' % ', '.join(cases))
+      args.append('default=%s' % default)
+    else:
+      cases = args[1:]
+      args = args[0:1]
+      args.append('cases=[%s]' % ', '.join(cases))
+  elif op == 'one_hot_sel':
     cases = args[1:]
     args = args[0:1]
     args.append('cases=[%s]' % ', '.join(cases))
+
   args.extend(f'{k}={v}' for k, v in attributes)
 
   if literal_operand is None:

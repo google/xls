@@ -105,8 +105,9 @@ def _run_binop_and_add(
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
   """Runs characterization for the given binop and adds it to the model."""
   add_op_model = model.op_models.add(op=kop)
-  add_op_model.estimator.regression.factors.add(
-      source=delay_model_pb2.DelayFactor.OPERAND_BIT_COUNT, operand_number=0)
+  expression = add_op_model.estimator.regression.expressions.add()
+  expression.factor.source = delay_model_pb2.DelayFactor.OPERAND_BIT_COUNT
+  expression.factor.operand_number = 0
   model.data_points.extend(_run_binop(op, kop, stub))
 
 

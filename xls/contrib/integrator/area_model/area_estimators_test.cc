@@ -1,4 +1,4 @@
-// Copyright 2020 The XLS Authors
+// Copyright 2020 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ using status_testing::IsOkAndHolds;
 
 class AreaEstimatorTest : public IrTestBase {};
 
-TEST_F(AreaEstimatorTest, GetAndUseModelByName) {
+TEST_F(AreaEstimatorTest, AreaModelTesting2Point5MuxPerNode) {
   auto p = CreatePackage();
   FunctionBuilder fb("func", p.get());
   auto in1 = fb.Param("in1", p->GetBitsType(2));
@@ -47,6 +47,35 @@ TEST_F(AreaEstimatorTest, GetAndUseModelByName) {
       GetAreaEstimatorByName("area_model_testing_2_point_5_mux_per_node"));
   EXPECT_THAT(area_estimator->GetOperationArea(add_node), IsOkAndHolds(5));
   EXPECT_THAT(area_estimator->GetOperationArea(mux_node), IsOkAndHolds(2));
+}
+
+TEST_F(AreaEstimatorTest, AreaModelIce40Multiply) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("func", p.get());
+  auto in1 = fb.Param("in1", p->GetBitsType(16));
+  auto in2 = fb.Param("in2", p->GetBitsType(32));
+  fb.UMul(in1, in2, /*result_width=*/16, /*loc=*/absl::nullopt, "mul_c");
+  fb.UMul(in1, in2, /*result_width=*/32, /*loc=*/absl::nullopt, "mul_b");
+  fb.UMul(in1, in2, /*result_width=*/100, /*loc=*/absl::nullopt, "mul_a");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+  Node* mul_c = FindNode("mul_c", func);
+  Node* mul_b = FindNode("mul_b", func);
+  Node* mul_a = FindNode("mul_a", func);
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<AreaEstimator> area_estimator,
+                           GetAreaEstimatorByName("ice40_lut4"));
+  XLS_ASSERT_OK_AND_ASSIGN(int64 mul_c_area,
+                           area_estimator->GetOperationArea(mul_c));
+  XLS_ASSERT_OK_AND_ASSIGN(int64 mul_b_area,
+                           area_estimator->GetOperationArea(mul_b));
+  XLS_ASSERT_OK_AND_ASSIGN(int64 mul_a_area,
+                           area_estimator->GetOperationArea(mul_a));
+
+  // Nearly all cpp delay expression components must work to
+  // get multiplier area (and these ratios) correct.
+  EXPECT_NEAR(mul_c_area * 3, mul_b_area, 0.01 * mul_b_area);
+  EXPECT_NEAR(mul_c_area * 4, mul_a_area, 0.01 * mul_a_area);
 }
 
 }  // namespace

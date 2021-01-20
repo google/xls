@@ -14,11 +14,31 @@
 
 # Delay models.
 
+# pytype binary only
 load("//xls/delay_model:build_defs.bzl", "delay_model")
 
 package(
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
+)
+
+py_binary(
+    name = "area_characterization_client_main",
+    srcs = ["area_characterization_client_main.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_absl_py//absl/logging",
+        "//xls/delay_model",
+        "//xls/delay_model:delay_model_py_pb2",
+        "//xls/delay_model:op_module_generator",
+        "//xls/ir/python:bits",
+        "//xls/synthesis:client_credentials",
+        "//xls/synthesis:synthesis_py_pb2",
+        "//xls/synthesis:synthesis_service_py_pb2_grpc",
+    ],
 )
 
 cc_library(
@@ -34,8 +54,8 @@ cc_library(
 )
 
 cc_test(
-    name = "area_estimator_test",
-    srcs = ["area_estimator_test.cc"],
+    name = "area_estimators_test",
+    srcs = ["area_estimators_test.cc"],
     deps = [
         ":area_estimator",
         "//xls/common/status:matchers",
@@ -53,6 +73,7 @@ cc_library(
     name = "models",
     srcs = [],
     deps = [
+        "area_model_ice40_lut4",  # build_cleaner: keep
         "area_model_testing_2_point_5_mux_per_node",  # build_cleaner: keep
     ],
 )
@@ -62,4 +83,11 @@ delay_model(
     srcs = ["area_model_testing_2_point_5_mux_per_node.textproto"],
     model_name = "area_model_testing_2_point_5_mux_per_node",
     precedence = "kLow",
+)
+
+delay_model(
+    name = "area_model_ice40_lut4",
+    srcs = ["ice40_lut4.textproto"],
+    model_name = "ice40_lut4",
+    precedence = "kHigh",
 )

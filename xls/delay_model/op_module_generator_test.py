@@ -86,6 +86,37 @@ fn main(op0: bits[1], op1: bits[32], op2: bits[32]) -> bits[32] {
             output_type='bits[32]',
             operand_types=('bits[1]', 'bits[32]', 'bits[32]')))
 
+  def test_select_with_default(self):
+    self.assertEqual(
+        """package sel_characterization
+
+fn main(op0: bits[2], op1: bits[32], op2: bits[32], op3: bits[32]) -> bits[32] {
+  ret result: bits[32] = sel(op0, cases=[op1, op2], default=op3)
+}""",
+        opgen.generate_ir_package(
+            'sel',
+            output_type='bits[32]',
+            operand_types=('bits[2]', 'bits[32]', 'bits[32]', 'bits[32]')))
+
+  def test_select_invalid_selector_type(self):
+    with self.assertRaises(ValueError):
+      opgen.generate_ir_package(
+          'sel',
+          output_type='bits[32]',
+          operand_types=('bits[1][2]', 'bits[32]', 'bits[32]'))
+
+  def test_one_hot_select(self):
+    self.assertEqual(
+        """package one_hot_sel_characterization
+
+fn main(op0: bits[2], op1: bits[32], op2: bits[32]) -> bits[32] {
+  ret result: bits[32] = one_hot_sel(op0, cases=[op1, op2])
+}""",
+        opgen.generate_ir_package(
+            'one_hot_sel',
+            output_type='bits[32]',
+            operand_types=('bits[2]', 'bits[32]', 'bits[32]')))
+
   def test_sign_extend(self):
     self.assertEqual(
         """package sign_ext_characterization
