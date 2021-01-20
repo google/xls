@@ -17,7 +17,7 @@
 load("//xls/build_rules:genrule_wrapper.bzl", "genrule_wrapper")
 load("//xls/build_rules:dslx_codegen.bzl", "make_benchmark_args")
 
-_INTERPRETER_MAIN = "//xls/dslx/interpreter:interpreter_main"
+_INTERPRETER_MAIN = "//xls/dslx:cpp_interpreter_main"
 _DSLX_TEST = "//xls/dslx/interpreter:dslx_test"
 
 # TODO(meheff): Move this to a different internal-only bzl file.

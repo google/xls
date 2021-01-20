@@ -28,7 +28,7 @@ from xls.dslx.interpreter import parse_and_interpret
 from xls.dslx.python.cpp_deduce import XlsTypeError
 from xls.dslx.python.interpreter import FailureError
 
-INTERP_PATH = runfiles.get_path('xls/dslx/interpreter/interpreter_main')
+INTERP_PATH = runfiles.get_path('xls/dslx/cpp_interpreter_main')
 
 
 class InterpreterTest(test_base.TestCase):

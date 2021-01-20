@@ -862,11 +862,31 @@ cc_test(
     ],
 )
 
+# -- Command line utilities.
+
+cc_library(
+    name = "command_line_utils",
+    srcs = ["command_line_utils.cc"],
+    hdrs = ["command_line_utils.h"],
+    deps = [
+        ":cpp_bindings",
+        ":cpp_pos",
+        ":error_printer",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
 cc_binary(
     name = "cpp_ir_converter_main",
     srcs = ["ir_converter_main.cc"],
     visibility = ["//xls:xls_users"],
     deps = [
+        ":command_line_utils",
         ":cpp_ir_converter",
         ":cpp_parser",
         ":cpp_typecheck",
@@ -874,6 +894,28 @@ cc_binary(
         ":scanner",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_binary(
+    name = "cpp_interpreter_main",
+    srcs = ["interpreter_main.cc"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        ":builtins",
+        ":command_line_utils",
+        ":cpp_ir_converter",
+        ":cpp_parser",
+        ":cpp_typecheck",
+        ":error_printer",
+        ":interpreter",
+        ":scanner",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/jit:ir_jit",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",

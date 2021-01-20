@@ -19,6 +19,7 @@
 #include "absl/strings/str_split.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
+#include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/error_printer.h"
 #include "xls/dslx/ir_converter.h"
 #include "xls/dslx/parser.h"
@@ -48,27 +49,6 @@ If no entry point is given all functions within the module are converted:
 
   ir_converter_main path/to/frobulator.x
 )";
-
-bool TryPrintError(const absl::Status& status) {
-  if (status.ok()) {
-    return false;
-  }
-  absl::StatusOr<std::pair<Span, std::string>> data_or =
-      ParseErrorGetData(status);
-  if (!data_or.ok()) {
-    XLS_LOG(ERROR)
-        << "Could not extract a textual position from error message: " << status
-        << ": " << data_or.status();
-    return false;
-  }
-  auto& data = data_or.value();
-  absl::Status print_status =
-      PrintPositionalError(data.first, data.second, std::cerr);
-  if (!print_status.ok()) {
-    XLS_LOG(ERROR) << "Could not print positional error: " << print_status;
-  }
-  return print_status.ok();
-}
 
 absl::StatusOr<std::shared_ptr<Module>> ParseText(absl::string_view text,
                                                   absl::string_view module_name,

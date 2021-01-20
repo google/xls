@@ -156,6 +156,11 @@ absl::StatusOr<InterpValue> BuiltinSignex(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
     const SymbolicBindings* symbolic_bindings);
 
+// Helper that creates a stylized error status that represents a FailureError --
+// when it propagates to the pybind11 boundary it should be thrown as an
+// exception.
+absl::Status FailureErrorStatus(const Span& span, absl::string_view message);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_BUILTINS_H_

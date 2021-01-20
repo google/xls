@@ -99,6 +99,7 @@ class Interpreter {
 
   Module* module() const { return module_; }
   Package* ir_package() const { return ir_package_; }
+  TypeInfo* type_info() const { return type_info_.get(); }
 
  private:
   friend struct TypeInfoSwap;

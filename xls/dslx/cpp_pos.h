@@ -124,6 +124,14 @@ inline std::ostream& operator<<(std::ostream& os, const Span& span) {
   return os;
 }
 
+// Helper that allows conversion of optional Spans to strings.
+inline std::string SpanToString(const absl::optional<Span>& span) {
+  if (!span.has_value()) {
+    return "<no span>";
+  }
+  return span->ToString();
+}
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_CPP_POS_H_

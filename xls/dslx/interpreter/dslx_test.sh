@@ -13,4 +13,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-./xls/dslx/interpreter/interpreter_main "$@"
+./xls/dslx/cpp_interpreter_main "$@"

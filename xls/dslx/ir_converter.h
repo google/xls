@@ -289,9 +289,6 @@ class IrConverter {
     return HandleBuiltinScmp(SignedCmp::kGt, node);
   }
 
-  static absl::StatusOr<Value> InterpValueToValue(const InterpValue& v);
-  static absl::StatusOr<InterpValue> ValueToInterpValue(const Value& v);
-
   // Derefences the type definition to a struct definition.
   absl::StatusOr<StructDef*> DerefStruct(TypeDefinition node);
   absl::StatusOr<StructDef*> DerefStruct(NameRef* name_ref) {
@@ -472,6 +469,13 @@ absl::StatusOr<std::string> ConvertOneFunction(
     Module* module, absl::string_view entry_function_name,
     const std::shared_ptr<TypeInfo>& type_info, ImportCache* import_cache,
     const SymbolicBindings* symbolic_bindings, bool emit_positions);
+
+// Converts an interpreter value to an IR value.
+absl::StatusOr<Value> InterpValueToValue(const InterpValue& v);
+
+// Converts an (IR) value to an interpreter value.
+absl::StatusOr<InterpValue> ValueToInterpValue(
+    const Value& v, const ConcreteType* type = nullptr);
 
 }  // namespace xls::dslx
 

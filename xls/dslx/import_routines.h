@@ -116,7 +116,7 @@ class ImportCache {
 
 // Type-checking callback lambda.
 using TypecheckFn = std::function<absl::StatusOr<std::shared_ptr<TypeInfo>>(
-    std::shared_ptr<Module>)>;
+    const std::shared_ptr<Module>&)>;
 
 // Imports the module identified (globally) by 'subject'.
 //

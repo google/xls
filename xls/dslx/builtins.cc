@@ -72,20 +72,11 @@ class ArgChecker {
   absl::Status status_;
 };
 
-// Helper that creates a stylized error status that represents a FailureError --
-// when it propagates to the pybind11 boundary it should be thrown as an
-// exception.
-absl::Status FailureError(const Span& span, absl::string_view message) {
-  return absl::InternalError(absl::StrFormat(
-      "FailureError: %s The program being interpreted failed! %s",
-      span.ToString(), message));
-}
-
 // Helper that returns a failure error if pred (predicated) is false.
 absl::StatusOr<InterpValue> FailUnless(const InterpValue& pred,
                                        std::string message, const Span& span) {
   if (pred.IsFalse()) {
-    return FailureError(span, message);
+    return FailureErrorStatus(span, message);
   }
   return InterpValue::MakeNil();
 }
@@ -211,7 +202,7 @@ absl::StatusOr<InterpValue> BuiltinFail(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
     const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("fail!", args).size(1).status());
-  return FailureError(span, args[0].ToString());
+  return FailureErrorStatus(span, args[0].ToString());
 }
 
 absl::StatusOr<InterpValue> BuiltinUpdate(
@@ -250,7 +241,7 @@ absl::StatusOr<InterpValue> BuiltinAssertEq(
                                rhs_values[*i].ToHumanString());
   }
 
-  return FailureError(span, message);
+  return FailureErrorStatus(span, message);
 }
 
 absl::StatusOr<InterpValue> BuiltinAssertLt(
@@ -455,6 +446,12 @@ absl::StatusOr<InterpValue> BuiltinSignex(
   XLS_ASSIGN_OR_RETURN(Bits lhs_bits, lhs.GetBits());
   return InterpValue::MakeBits(rhs.tag(),
                                bits_ops::SignExtend(lhs_bits, new_bit_count));
+}
+
+absl::Status FailureErrorStatus(const Span& span, absl::string_view message) {
+  return absl::InternalError(absl::StrFormat(
+      "FailureError: %s The program being interpreted failed! %s",
+      span.ToString(), message));
 }
 
 }  // namespace xls::dslx

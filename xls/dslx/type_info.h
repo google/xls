@@ -157,6 +157,16 @@ class TypeInfo {
   // Attempts to resolve AST node 'key' in the node-to-type dictionary.
   absl::optional<ConcreteType*> GetItem(AstNode* key) const;
 
+  // Attempts to resolve AST node 'key' to a type with subtype T; e.g:
+  //
+  //    absl::StatusOr<FunctionType*> f_type =
+  //        type_info.GetItemAs<FunctionType>(my_func);
+  //
+  // If the value is not present, or it is not of the expected type, returns an
+  // error status.
+  template <typename T>
+  absl::StatusOr<T*> GetItemAs(AstNode* key) const;
+
   bool Contains(AstNode* key) const;
 
   // Import AST node based information.
@@ -215,6 +225,26 @@ class TypeInfo {
   absl::flat_hash_map<Slice*, SliceData> slices_;
   std::shared_ptr<TypeInfo> parent_;  // Note: may be nullptr.
 };
+
+// -- Inlines
+
+template <typename T>
+inline absl::StatusOr<T*> TypeInfo::GetItemAs(AstNode* key) const {
+  absl::optional<ConcreteType*> t = GetItem(key);
+  if (!t.has_value()) {
+    return absl::NotFoundError(
+        absl::StrFormat("No type found for AST node: %s @ %s", key->ToString(),
+                        SpanToString(key->GetSpan())));
+  }
+  XLS_DCHECK(t.value() != nullptr);
+  auto* target = dynamic_cast<T*>(t.value());
+  if (target == nullptr) {
+    return absl::FailedPreconditionError(absl::StrFormat(
+        "AST node (%s) @ %s did not have expected ConcreteType subtype.",
+        key->GetNodeTypeName(), SpanToString(key->GetSpan())));
+  }
+  return target;
+}
 
 }  // namespace xls::dslx
 

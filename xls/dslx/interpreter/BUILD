@@ -173,7 +173,7 @@ py_test(
     name = "interpreter_test",
     srcs = ["interpreter_test.py"],
     data = [
-        ":interpreter_main",
+        "//xls/dslx:cpp_interpreter_main",
     ],
     python_version = "PY3",
     srcs_version = "PY3",
@@ -184,20 +184,6 @@ py_test(
         "//xls/common:test_base",
         "//xls/dslx/python:cpp_deduce",
         "//xls/dslx/python:interpreter",
-    ],
-)
-
-py_binary(
-    name = "interpreter_main",
-    srcs = ["interpreter_main.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    visibility = ["//xls:xls_users"],
-    deps = [
-        ":parse_and_interpret",
-        "//xls/common/python:init_xls",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
     ],
 )
 
