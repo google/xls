@@ -78,17 +78,6 @@ py_test(
     ],
 )
 
-py_binary(
-    name = "scanner_main",
-    srcs = ["scanner_main.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        "//xls/dslx/python:scanner",
-        "@com_google_absl_py//absl:app",
-    ],
-)
-
 py_test(
     name = "parametric_expression_test",
     srcs = ["parametric_expression_test.py"],
@@ -170,20 +159,6 @@ py_library(
         "//xls/dslx/python:cpp_typecheck",
         "//xls/dslx/python:import_routines",
         "@com_google_absl_py//absl/logging",
-    ],
-)
-
-py_binary(
-    name = "parser_main",
-    srcs = ["parser_main.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        ":import_helpers",
-        ":parse_and_typecheck",
-        "//xls/common/python:init_xls",
-        "//xls/dslx/python:import_routines",
-        "@com_google_absl_py//absl:app",
     ],
 )
 
