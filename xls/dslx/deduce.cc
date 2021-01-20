@@ -601,8 +601,8 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRefImport(
       std::shared_ptr<DeduceCtx> imported_ctx =
           ctx->MakeCtx(imported_type_info, imported_module);
       const FnStackEntry& peek_entry = ctx->fn_stack().back();
-      imported_ctx->fn_stack().push_back(
-          FnStackEntry{peek_entry.name, peek_entry.symbolic_bindings});
+      imported_ctx->fn_stack().push_back(FnStackEntry{
+          peek_entry.name, peek_entry.module, peek_entry.symbolic_bindings});
       XLS_RETURN_IF_ERROR(
           ctx->typecheck_function()(function, imported_ctx.get()));
       ctx->type_info()->Update(*imported_ctx->type_info());
@@ -1457,8 +1457,9 @@ static absl::Status CheckParametricInvocation(
         (*imported)->module, /*parent=*/(*imported)->type_info);
     std::shared_ptr<DeduceCtx> imported_ctx =
         ctx->MakeCtx(invocation_imported_type_info, (*imported)->module);
-    imported_ctx->fn_stack().push_back(
-        FnStackEntry{parametric_fn->identifier(), symbolic_bindings});
+    imported_ctx->fn_stack().push_back(FnStackEntry{parametric_fn->identifier(),
+                                                    parametric_fn->owner(),
+                                                    symbolic_bindings});
 
     XLS_VLOG(5) << "Typechecking parametric function: "
                 << parametric_fn->identifier() << " via " << symbolic_bindings;
@@ -1484,8 +1485,9 @@ static absl::Status CheckParametricInvocation(
     // Typecheck this parametric function using the symbolic bindings we just
     // derived to make sure they check out ok.
     AstNode* type_missing_error_node = ToAstNode(name_ref->name_def());
-    ctx->fn_stack().push_back(
-        FnStackEntry{parametric_fn->identifier(), symbolic_bindings});
+    ctx->fn_stack().push_back(FnStackEntry{parametric_fn->identifier(),
+                                           parametric_fn->owner(),
+                                           symbolic_bindings});
     ctx->AddDerivedTypeInfo();
     XLS_VLOG(5) << "Throwing to typecheck parametric function: "
                 << parametric_fn->identifier() << " via " << symbolic_bindings;

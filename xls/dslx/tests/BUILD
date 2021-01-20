@@ -97,6 +97,14 @@ dslx_test(
 )
 
 dslx_test(
+    name = "parametric_importer",
+    srcs = ["parametric_importer.x"],
+    generate_benchmark = False,
+    prove_unopt_eq_opt = False,
+    deps = ["parametric_import.x"],
+)
+
+dslx_test(
     name = "signed_comparisons",
     srcs = ["signed_comparisons.x"],
     generate_benchmark = False,

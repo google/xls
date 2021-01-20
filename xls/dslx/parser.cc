@@ -448,19 +448,22 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
 
   XLS_ASSIGN_OR_RETURN(TypeRef * type_ref, ParseTypeRef(bindings, tok));
 
-  XLS_ASSIGN_OR_RETURN(bool peek_is_oangle, PeekTokenIs(TokenKind::kOAngle));
-
   std::vector<Expr*> parametrics;
-  std::vector<Expr*> dims;
+  XLS_ASSIGN_OR_RETURN(bool peek_is_oangle, PeekTokenIs(TokenKind::kOAngle));
   if (peek_is_oangle) {
-    XLS_ASSIGN_OR_RETURN(
-        BoundNode type,
-        bindings->ResolveNodeOrError(type_ref->text(), type_ref->span()));
-    if (absl::holds_alternative<StructDef*>(type) &&
-        absl::get<StructDef*>(type)->IsParametric()) {
-      XLS_ASSIGN_OR_RETURN(parametrics, ParseParametrics(bindings));
+    // Try to capture parametrics, if they're present. Capture in a transaction
+    // so we can move on if they're not.
+    auto status_or_parametrics = TryOrRollback<std::vector<Expr*>>(
+        bindings,
+        [this](Bindings* bindings) -> absl::StatusOr<std::vector<Expr*>> {
+          return ParseParametrics(bindings);
+        });
+    if (status_or_parametrics.ok()) {
+      parametrics = status_or_parametrics.value();
     }
   }
+
+  std::vector<Expr*> dims;
   XLS_ASSIGN_OR_RETURN(bool peek_is_obrack, PeekTokenIs(TokenKind::kOBrack));
   if (peek_is_obrack) {
     XLS_ASSIGN_OR_RETURN(dims, ParseDims(bindings));

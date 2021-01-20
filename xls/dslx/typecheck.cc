@@ -15,6 +15,7 @@
 #include "xls/dslx/typecheck.h"
 
 #include "xls/dslx/deduce.h"
+#include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/dslx_builtins.h"
 #include "xls/dslx/import_routines.h"
 
@@ -53,13 +54,13 @@ CheckFunctionParams(Function* f, DeduceCtx* ctx) {
 }
 
 absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
-  const std::string& fn_name = ctx->fn_stack().back().name;
+  const FnStackEntry& entry = ctx->fn_stack().back();
 
   std::vector<std::unique_ptr<ConcreteType>> param_types;
   std::unique_ptr<ConcreteType> annotated_return_type;
 
   // First, get the types of the function's parametrics, args, and return type.
-  if (f->IsParametric() && f->identifier() == fn_name) {
+  if (f->IsParametric() && entry.Matches(f)) {
     // Parametric functions are evaluated per invocation. If we're currently
     // inside of this function, it just means that we already have the type
     // signature, and now we just need to evaluate the body.
@@ -72,6 +73,7 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
   } else {
     XLS_VLOG(1) << "Type-checking signature for function: " << f->identifier();
     XLS_ASSIGN_OR_RETURN(param_types, CheckFunctionParams(f, ctx));
+
     if (f->IsParametric()) {
       // We just needed the type signature so that we can instantiate this
       // invocation. Let's return this for now, and typecheck the body once we
@@ -227,8 +229,8 @@ absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
           (*import_info)->module, /*parent=*/(*import_info)->type_info);
       std::shared_ptr<DeduceCtx> imported_ctx =
           ctx->MakeCtx(invocation_imported_type_info, (*import_info)->module);
-      imported_ctx->fn_stack().push_back(
-          FnStackEntry{*map_fn_name, tab.symbolic_bindings});
+      imported_ctx->fn_stack().push_back(FnStackEntry{
+          *map_fn_name, map_fn.value()->owner(), tab.symbolic_bindings});
       // We need to typecheck this imported function with respect to its module.
       XLS_RETURN_IF_ERROR(
           ctx->typecheck_function()(map_fn.value(), imported_ctx.get()));
@@ -237,8 +239,8 @@ absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
     } else {
       // If the higher-order parametric fn is in this module, let's try to push
       // it onto the typechecking stack.
-      ctx->fn_stack().push_back(
-          FnStackEntry{*map_fn_name, tab.symbolic_bindings});
+      ctx->fn_stack().push_back(FnStackEntry{
+          *map_fn_name, map_fn.value()->owner(), tab.symbolic_bindings});
 
       // Create a "derived" type info (a child type info with the current type
       // info as a parent), and note that it exists for an instantiation (in the
@@ -407,7 +409,7 @@ static absl::Status HandleMissingType(
       break;
     }
 
-    // Refering to a parametric builtin.
+    // Referring to a parametric builtin.
     if (auto* builtin_name_def = dynamic_cast<BuiltinNameDef*>(e.node);
         builtin_name_def != nullptr &&
         GetParametricBuiltins().contains(builtin_name_def->identifier())) {
@@ -522,7 +524,7 @@ absl::StatusOr<std::shared_ptr<TypeInfo>> CheckModule(
   DeduceCtx* ctx = ctx_shared.get();
 
   // First, populate type info with constants, enums, and resolved imports.
-  ctx->fn_stack().push_back(FnStackEntry{"top", SymbolicBindings()});
+  ctx->fn_stack().push_back(FnStackEntry{"top", module, SymbolicBindings()});
   for (ModuleMember& member : *ctx->module()->mutable_top()) {
     if (absl::holds_alternative<Import*>(member)) {
       Import* import = absl::get<Import*>(member);
@@ -554,7 +556,7 @@ absl::StatusOr<std::shared_ptr<TypeInfo>> CheckModule(
 
     XLS_VLOG(2) << "Typechecking function: " << f->ToString();
     ctx->fn_stack().push_back(
-        FnStackEntry{f->identifier(), SymbolicBindings()});
+        FnStackEntry{f->identifier(), module, SymbolicBindings()});
     XLS_RETURN_IF_ERROR(CheckTopNodeInModule(f, ctx));
     absl::optional<const ConcreteType*> quickcheck_f_body_type =
         ctx->type_info()->GetItem(f->body());
@@ -572,7 +574,7 @@ absl::StatusOr<std::shared_ptr<TypeInfo>> CheckModule(
   // typecheck function calls in parametric bindings, if there are any.
   for (StructDef* struct_def : module->GetStructDefs()) {
     XLS_VLOG(2) << "Typechecking struct: " << struct_def->ToString();
-    ctx->fn_stack().push_back(FnStackEntry{"top", SymbolicBindings()});
+    ctx->fn_stack().push_back(FnStackEntry{"top", module, SymbolicBindings()});
     XLS_RETURN_IF_ERROR(CheckTopNodeInModule(struct_def, ctx));
     XLS_VLOG(2) << "Finished typechecking struct: " << struct_def->ToString();
   }
@@ -580,7 +582,7 @@ absl::StatusOr<std::shared_ptr<TypeInfo>> CheckModule(
   // Typedefs.
   for (TypeDef* type_def : module->GetTypeDefs()) {
     XLS_VLOG(2) << "Typechecking typedef: " << type_def->ToString();
-    ctx->fn_stack().push_back(FnStackEntry{"top", SymbolicBindings()});
+    ctx->fn_stack().push_back(FnStackEntry{"top", module, SymbolicBindings()});
     XLS_RETURN_IF_ERROR(CheckTopNodeInModule(type_def, ctx));
     XLS_VLOG(2) << "Finished typechecking typedef: " << type_def->ToString();
   }
@@ -595,7 +597,7 @@ absl::StatusOr<std::shared_ptr<TypeInfo>> CheckModule(
 
     XLS_VLOG(2) << "Typechecking function: " << f->ToString();
     ctx->fn_stack().push_back(
-        FnStackEntry{f->identifier(), SymbolicBindings()});
+        FnStackEntry{f->identifier(), module, SymbolicBindings()});
     XLS_RETURN_IF_ERROR(CheckTopNodeInModule(f, ctx));
     XLS_VLOG(2) << "Finished typechecking function: " << f->ToString();
   }
@@ -619,7 +621,7 @@ absl::StatusOr<std::shared_ptr<TypeInfo>> CheckModule(
     // some symbol that can't appear in a valid identifier. Need a test to
     // demonstrate.
     ctx->fn_stack().push_back(FnStackEntry{
-        absl::StrCat(test->identifier(), "_test"), SymbolicBindings()});
+        absl::StrCat(test->identifier(), "_test"), module, SymbolicBindings()});
     XLS_VLOG(2) << "Typechecking test: " << test->ToString();
     XLS_RETURN_IF_ERROR(CheckTopNodeInModule(test->fn(), ctx));
     XLS_VLOG(2) << "Finished typechecking test: " << test->ToString();

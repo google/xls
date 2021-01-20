@@ -25,10 +25,14 @@ namespace xls::dslx {
 // An entry on the "stack of functions currently being deduced".
 struct FnStackEntry {
   std::string name;
+  const Module* module;
   SymbolicBindings symbolic_bindings;
 
   // Represents a "representation" string for use in debugging, as in Python.
   std::string ToReprString() const;
+
+  // Returns true if this entry describes the given function.
+  bool Matches(const Function* f) const;
 };
 
 class DeduceCtx;  // Forward decl.

@@ -26,6 +26,10 @@ std::string FnStackEntry::ToReprString() const {
                          symbolic_bindings.ToString());
 }
 
+bool FnStackEntry::Matches(const Function* f) const {
+  return f->identifier() == name && f->owner() == module;
+}
+
 DeduceCtx::DeduceCtx(const std::shared_ptr<TypeInfo>& type_info,
                      const std::shared_ptr<Module>& module,
                      DeduceFn deduce_function,
