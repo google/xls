@@ -853,7 +853,7 @@ genrule(
     name = "vpi__vpi_config_h",
     srcs = ["vpi/vpi_config.h.in"],
     outs = ["vpi/vpi_config.h"],
-    cmd = "perl -p -e 's/# undef (\w+)/#define $$1 1/' $< > $@",
+    cmd = r"perl -p -e 's/# undef (\w+)/#define $$1 1/' $< > $@",
     message = "Configuring vpi/vpi_config.h.in",
 )
 
