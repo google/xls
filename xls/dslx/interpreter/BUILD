@@ -14,7 +14,7 @@
 
 # Reference interpreter executor for XLS syntax.
 
-# pytype binary, test, library
+# pytype test and library
 
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 
@@ -112,43 +112,6 @@ py_test(
         "//xls/common:test_base",
         "//xls/dslx/python:cpp_deduce",
         "//xls/dslx/python:interpreter",
-    ],
-)
-
-py_binary(
-    name = "repl",
-    srcs = ["repl.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        requirement("pyfakefs"),
-        "//xls/common/python:init_xls",
-        "//xls/dslx:bit_helpers",
-        "//xls/dslx:import_helpers",
-        "//xls/dslx:parser_helpers",
-        "//xls/dslx:span",
-        "//xls/dslx/python:cpp_concrete_type",
-        "//xls/dslx/python:cpp_deduce",
-        "//xls/dslx/python:cpp_parser",
-        "//xls/dslx/python:cpp_pos",
-        "//xls/dslx/python:cpp_typecheck",
-        "//xls/dslx/python:interp_value",
-        "//xls/dslx/python:interpreter",
-        "//xls/dslx/python:scanner",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
-    ],
-)
-
-py_test(
-    name = "repl_test",
-    srcs = ["repl_test.py"],
-    data = [":repl"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        "//xls/common:runfiles",
-        "//xls/common:test_base",
     ],
 )
 

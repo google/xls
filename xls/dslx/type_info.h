@@ -185,7 +185,7 @@ class TypeInfo {
 
   const std::shared_ptr<Module>& module() const { return module_; }
 
-  // Returns the text that corresponds to a const int value.
+  // Returns the expression for a ConstantDef that has the given name_def..
   absl::optional<Expr*> GetConstInt(NameDef* name_def) const;
 
   // Clears out references to other TypeInfos to avoid circular references
