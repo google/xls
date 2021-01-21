@@ -560,6 +560,7 @@ cc_test(
 py_library(
     name = "concrete_type_helpers",
     srcs = ["concrete_type_helpers.py"],
+    srcs_version = "PY2AND3",
     deps = [
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_concrete_type",
