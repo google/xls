@@ -22,7 +22,7 @@
 
 namespace xls::dslx {
 
-absl::StatusOr<std::pair<Span, std::string>> ParseErrorGetData(
+absl::StatusOr<PositionalErrorData> GetPositionalErrorData(
     const absl::Status& status, absl::optional<absl::string_view> target_type) {
   auto error = [&] {
     return absl::InvalidArgumentError(
@@ -44,7 +44,7 @@ absl::StatusOr<std::pair<Span, std::string>> ParseErrorGetData(
         "Provided status does not have a standard error message");
   }
   XLS_ASSIGN_OR_RETURN(Span span, Span::FromString(pieces[0]));
-  return std::make_pair(span, std::string(pieces[1]));
+  return PositionalErrorData{span, std::string(pieces[1]), type_indicator};
 }
 
 AnyNameDef BoundNodeToAnyNameDef(BoundNode bn) {

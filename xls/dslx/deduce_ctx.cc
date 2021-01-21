@@ -71,7 +71,7 @@ absl::Status TypeInferenceErrorStatus(const Span& span,
 absl::Status XlsTypeErrorStatus(const Span& span, const ConcreteType& lhs,
                                 const ConcreteType& rhs,
                                 absl::string_view message) {
-  return absl::InternalError(absl::StrFormat("XlsTypeError: %s %s %s %s",
+  return absl::InternalError(absl::StrFormat("XlsTypeError: %s %s vs %s: %s",
                                              span.ToString(), lhs.ToString(),
                                              rhs.ToString(), message));
 }

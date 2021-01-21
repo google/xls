@@ -55,9 +55,6 @@ PYBIND11_MODULE(interpreter, m) {
     }
   });
 
-  m.def("throw_fail_error",
-        [](Span span, const std::string& s) { throw FailureError(s, span); });
-
   py::class_<Interpreter>(m, "Interpreter")
       .def(
           py::init([](ModuleHolder module,

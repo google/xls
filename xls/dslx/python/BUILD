@@ -215,24 +215,6 @@ xls_pybind_extension(
     ],
 )
 
-xls_pybind_extension(
-    name = "interp_bindings",
-    srcs = [
-        "interp_bindings.cc",
-    ],
-    py_deps = [
-        ":cpp_ast",  # build_cleaner: keep
-    ],
-    deps = [
-        ":cpp_ast_header",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/strings",
-        "//xls/common/status:status_macros",
-        "//xls/common/status:statusor_pybind_caster",
-        "//xls/dslx:interp_bindings",
-    ],
-)
-
 cc_library(
     name = "callback_converters",
     srcs = ["callback_converters.cc"],
@@ -283,7 +265,6 @@ xls_pybind_extension(
     py_deps = [
         ":cpp_ast",  # build_cleaner: keep
         ":interp_value",  # build_cleaner: keep
-        ":interp_bindings",  # build_cleaner: keep
         ":cpp_concrete_type",  # build_cleaner: keep
     ],
     deps = [

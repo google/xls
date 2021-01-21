@@ -25,11 +25,11 @@ TEST(CppBindingsTest, ParseErrorGetData) {
   Pos start_pos("fake_file.x", 42, 64);
   Pos limit_pos("fake_file.x", 43, 65);
   Span span(start_pos, limit_pos);
-  absl::Status status = ParseError(span, "my message");
-  XLS_ASSERT_OK_AND_ASSIGN(auto got, ParseErrorGetData(status));
-  const auto& [got_span, got_message] = got;
-  EXPECT_EQ(got_span, span);
-  EXPECT_EQ(got_message, "my message");
+  absl::Status status = ParseErrorStatus(span, "my message");
+  XLS_ASSERT_OK_AND_ASSIGN(auto got, GetPositionalErrorData(status));
+  EXPECT_EQ(got.span, span);
+  EXPECT_EQ(got.message, "my message");
+  EXPECT_EQ(got.error_type, "ParseError");
 }
 
 }  // namespace

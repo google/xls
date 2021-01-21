@@ -45,7 +45,7 @@ line 7)",
   std::string output = ss.str();
   std::vector<absl::string_view> output_lines = absl::StrSplit(output, '\n');
   ASSERT_EQ(output_lines.size(), 6);
-  EXPECT_THAT(output_lines[0], testing::HasSubstr("some_file.x:5-7"));
+  EXPECT_THAT(output_lines[0], testing::HasSubstr("some_file.x:6:1-6:5"));
   EXPECT_EQ(output_lines[1], "  0005: line 5");
   EXPECT_EQ(output_lines[2], "* 0006: line 6");
   EXPECT_EQ(output_lines[3], "  ~~~~~~^--^ my error message");

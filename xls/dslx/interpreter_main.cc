@@ -131,12 +131,12 @@ absl::StatusOr<bool> ParseAndTest(
 
   auto handle_error = [&](const absl::Status& status,
                           absl::string_view test_name) {
-    absl::StatusOr<std::pair<Span, std::string>> parsed_or =
-        ParseErrorGetData(status);
-    if (parsed_or.ok()) {
-      const auto& parsed = parsed_or.value();
-      XLS_CHECK_OK(
-          PrintPositionalError(parsed.first, parsed.second, std::cerr));
+    absl::StatusOr<PositionalErrorData> data_or =
+        GetPositionalErrorData(status);
+    if (data_or.ok()) {
+      const auto& data = data_or.value();
+      XLS_CHECK_OK(PrintPositionalError(data.span, data.GetMessageWithType(),
+                                        std::cerr));
     }
     std::cerr << "[          FAILED ]" << test_name << std::endl;
     failed += 1;

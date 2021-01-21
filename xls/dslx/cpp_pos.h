@@ -36,6 +36,9 @@ class Pos {
   std::string ToString() const {
     return absl::StrFormat("%s:%d:%d", filename_, lineno_ + 1, colno_ + 1);
   }
+  std::string ToStringNoFile() const {
+    return absl::StrFormat("%d:%d", lineno_ + 1, colno_ + 1);
+  }
 
   std::string ToRepr() const {
     return absl::StrFormat("Pos(\"%s\", %d, %d)", filename_, lineno_, colno_);

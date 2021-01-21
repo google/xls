@@ -28,8 +28,7 @@ bool TryPrintError(const absl::Status& status) {
   if (status.ok()) {
     return false;
   }
-  absl::StatusOr<std::pair<Span, std::string>> data_or =
-      ParseErrorGetData(status);
+  absl::StatusOr<PositionalErrorData> data_or = GetPositionalErrorData(status);
   if (!data_or.ok()) {
     XLS_LOG(ERROR)
         << "Could not extract a textual position from error message: " << status
@@ -37,8 +36,9 @@ bool TryPrintError(const absl::Status& status) {
     return false;
   }
   auto& data = data_or.value();
-  absl::Status print_status =
-      PrintPositionalError(data.first, data.second, std::cerr);
+  absl::Status print_status = PrintPositionalError(
+      data.span, absl::StrFormat("%s: %s", data.error_type, data.message),
+      std::cerr);
   if (!print_status.ok()) {
     XLS_LOG(ERROR) << "Could not print positional error: " << print_status;
   }

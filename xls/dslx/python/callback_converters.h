@@ -31,32 +31,11 @@
 
 namespace xls::dslx {
 
-class DeduceCtx;
-
 using PyTypecheckFn =
     std::function<std::shared_ptr<TypeInfo>(ModuleHolder module)>;
 
-using PyTypecheckFunctionFn =
-    std::function<void(FunctionHolder module, DeduceCtx*)>;
-
-// Implementation note: we take a pybind11 object as the retval here so we can
-// retain the reference to the unique ConcreteType (and clone it to unique) in
-// our callback wrapper.
-using PyDeduceFn = std::function<pybind11::object(AstNodeHolder, DeduceCtx*)>;
-
 // Converts a Python typecheck callback into a "C++ signature" function.
 XLS_DSLX_PY_PUBLIC TypecheckFn ToCppTypecheck(const PyTypecheckFn& py);
-
-// Converts a Python deduce callback into a "C++ signature" function.
-XLS_DSLX_PY_PUBLIC DeduceFn ToCppDeduce(const PyDeduceFn& py);
-
-// Converts a C++ typecheck callback into a "Python signature" function.
-XLS_DSLX_PY_PUBLIC PyTypecheckFn ToPyTypecheck(const TypecheckFn& cpp);
-
-// Converts a Python "typecheck function" callback into a "C++ signature"
-// function.
-XLS_DSLX_PY_PUBLIC TypecheckFunctionFn
-ToCppTypecheckFunction(const PyTypecheckFunctionFn& py);
 
 }  // namespace xls::dslx
 

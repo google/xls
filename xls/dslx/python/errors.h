@@ -206,16 +206,16 @@ class ArgCountMismatchError : public std::exception {
 inline void TryThrowFailureError(const absl::Status& status) {
   if (status.code() == absl::StatusCode::kInternal &&
       absl::StartsWith(status.message(), "FailureError")) {
-    std::pair<Span, std::string> data = ParseErrorGetData(status).value();
-    throw FailureError(data.second, data.first);
+    PositionalErrorData data = GetPositionalErrorData(status).value();
+    throw FailureError(data.message, data.span);
   }
 }
 
 inline void TryThrowArgCountMismatchError(const absl::Status& status) {
   if (!status.ok() &&
       absl::StartsWith(status.message(), "ArgCountMismatchError")) {
-    auto [span, message] = ParseErrorGetData(status).value();
-    throw ArgCountMismatchError(span, message);
+    PositionalErrorData data = GetPositionalErrorData(status).value();
+    throw ArgCountMismatchError(data.span, data.message);
   }
 }
 
@@ -238,12 +238,12 @@ inline void TryThrowScanError(const absl::Status& status) {
 // checks for ScanErrors via TryThrowScanError.
 inline void TryThrowCppParseError(const absl::Status& status) {
   TryThrowScanError(status);
-  auto data_status = ParseErrorGetData(status);
+  auto data_status = GetPositionalErrorData(status);
   if (!data_status.ok()) {
     return;
   }
-  auto [span, unused] = data_status.value();
-  throw CppParseError(std::move(span), std::string(status.message()));
+  PositionalErrorData& data = data_status.value();
+  throw CppParseError(std::move(data.span), data.message);
 }
 
 // If the status is "not found" throws a key error with the given status
@@ -307,6 +307,8 @@ inline void TryThrowXlsTypeError(const absl::Status& status) {
 
     rest = absl::StripAsciiWhitespace(rest);
 
+    XLS_CHECK(absl::ConsumePrefix(&rest, "vs "));
+
     absl::StatusOr<std::unique_ptr<ConcreteType>> rhs;
     if (absl::ConsumePrefix(&rest, "<none>")) {
       rhs = nullptr;
@@ -315,6 +317,7 @@ inline void TryThrowXlsTypeError(const absl::Status& status) {
     }
 
     rest = absl::StripAsciiWhitespace(rest);
+    XLS_CHECK(absl::ConsumePrefix(&rest, ": "));
 
     XLS_CHECK(span.ok() && lhs.ok() && rhs.ok())
         << "Could not parse type inference error string: \"" << status.message()

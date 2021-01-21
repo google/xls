@@ -24,8 +24,6 @@ from absl import logging
 from xls.common import test_base
 from xls.dslx import fakefs_test_util
 from xls.dslx import parser_helpers
-from xls.dslx import span
-from xls.dslx.python import cpp_parser
 from xls.dslx.python import cpp_typecheck
 from xls.dslx.python.cpp_deduce import TypeInferenceError
 from xls.dslx.python.cpp_deduce import XlsTypeError
@@ -48,12 +46,8 @@ class TypecheckTest(test_base.TestCase):
     """
     filename = '/fake/test_module.x'
     with fakefs_test_util.scoped_fakefs(filename, text):
-      try:
-        m = parser_helpers.parse_text(
-            text, 'test_module', print_on_error=True, filename=filename)
-      except cpp_parser.CppParseError as e:
-        parser_helpers.pprint_positional_error(e)
-        raise
+      m = parser_helpers.parse_text(
+          text, 'test_module', print_on_error=True, filename=filename)
 
       import_cache = ImportCache()
       additional_search_paths = ()
@@ -63,11 +57,7 @@ class TypecheckTest(test_base.TestCase):
           cpp_typecheck.check_module(m, import_cache, additional_search_paths)
         self.assertIn(error, str(cm.exception))
       else:
-        try:
-          cpp_typecheck.check_module(m, import_cache, additional_search_paths)
-        except (span.PositionalError, cpp_parser.CppParseError) as e:
-          parser_helpers.pprint_positional_error(e)
-          raise
+        cpp_typecheck.check_module(m, import_cache, additional_search_paths)
 
   def test_typecheck_identity(self):
     self._typecheck('fn f(x: u32) -> u32 { x }')

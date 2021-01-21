@@ -71,20 +71,6 @@ py_test(
 )
 
 py_library(
-    name = "concrete_type_helpers",
-    srcs = ["concrete_type_helpers.py"],
-    srcs_version = "PY3",
-    deps = [
-        "//xls/dslx/python:cpp_ast",
-        "//xls/dslx/python:cpp_concrete_type",
-        "//xls/dslx/python:cpp_pos",
-        "//xls/dslx/python:interp_value",
-        "//xls/dslx/python:scanner",
-        "@com_google_absl_py//absl/logging",
-    ],
-)
-
-py_library(
     name = "jit_comparison",
     srcs = ["jit_comparison.py"],
     srcs_version = "PY3",
@@ -112,63 +98,6 @@ py_test(
     ],
 )
 
-py_library(
-    name = "interpreter_helpers",
-    srcs = ["interpreter_helpers.py"],
-    srcs_version = "PY3",
-    deps = [
-        "//xls/dslx/python:cpp_ast",
-        "//xls/dslx/python:cpp_type_info",
-        "//xls/dslx/python:import_routines",
-        "//xls/dslx/python:interp_bindings",
-        "//xls/dslx/python:interpreter",
-    ],
-)
-
-py_library(
-    name = "quickcheck_helpers",
-    srcs = ["quickcheck_helpers.py"],
-    srcs_version = "PY3",
-    deps = [
-        ":jit_comparison",
-        "//xls/dslx:ir_name_mangler",
-        "//xls/dslx/python:cpp_ast",
-        "//xls/dslx/python:interpreter",
-        "//xls/ir/python:package",
-        "//xls/jit/python:ir_jit",
-    ],
-)
-
-py_library(
-    name = "parse_and_interpret",
-    srcs = ["parse_and_interpret.py"],
-    srcs_version = "PY3",
-    deps = [
-        ":quickcheck_helpers",
-        "//xls/dslx:import_helpers",
-        "//xls/dslx:parser_helpers",
-        "//xls/dslx:span",
-        "//xls/dslx/python:cpp_deduce",
-        "//xls/dslx/python:cpp_ir_converter",
-        "//xls/dslx/python:cpp_parser",
-        "//xls/dslx/python:cpp_typecheck",
-        "//xls/dslx/python:interpreter",
-        "//xls/dslx/python:scanner",
-    ],
-)
-
-py_test(
-    name = "parse_and_interpret_test",
-    srcs = ["parse_and_interpret_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        ":parse_and_interpret",
-        requirement("pyfakefs"),  # unittest
-        "@com_google_absl_py//absl/testing:absltest",
-    ],
-)
-
 py_test(
     name = "interpreter_test",
     srcs = ["interpreter_test.py"],
@@ -178,7 +107,6 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":parse_and_interpret",
         requirement("pyfakefs"),  # unittest
         "//xls/common:runfiles",
         "//xls/common:test_base",

@@ -16,19 +16,14 @@
 
 """Tests for xls.dslx.interpreter."""
 
-import subprocess
+import subprocess as subp
 import textwrap
 from typing import Text
 
-from pyfakefs import fake_filesystem_unittest as ffu
-
 from xls.common import runfiles
 from xls.common import test_base
-from xls.dslx.interpreter import parse_and_interpret
-from xls.dslx.python.cpp_deduce import XlsTypeError
-from xls.dslx.python.interpreter import FailureError
 
-INTERP_PATH = runfiles.get_path('xls/dslx/cpp_interpreter_main')
+_INTERP_PATH = runfiles.get_path('xls/dslx/cpp_interpreter_main')
 
 
 class InterpreterTest(test_base.TestCase):
@@ -36,17 +31,18 @@ class InterpreterTest(test_base.TestCase):
   def _parse_and_test(self,
                       program: Text,
                       trace_all: bool = False,
-                      compare_jit: bool = True) -> None:
-    with ffu.Patcher() as patcher:
-      filename = '/fake/test_module.x'
-      patcher.fs.CreateFile(filename, contents=program)
-      self.assertFalse(
-          parse_and_interpret.parse_and_test(
-              program,
-              'test_module',
-              trace_all=trace_all,
-              filename=filename,
-              compare_jit=compare_jit))
+                      compare_jit: bool = True,
+                      want_error: bool = False) -> str:
+    path = self.create_tempfile(content=program)
+    cmd = [_INTERP_PATH, path]
+    cmd.append('--trace_all=%s' % str(trace_all).lower())
+    cmd.append('--compare_jit=%s' % str(compare_jit).lower())
+    p = subp.run(cmd, check=False, stderr=subp.PIPE, encoding='utf-8')
+    if want_error:
+      self.assertNotEqual(p.returncode, 0)
+    else:
+      self.assertEqual(p.returncode, 0)
+    return p.stderr
 
   def test_two_plus_two_module_test(self):
     program = textwrap.dedent("""\
@@ -70,8 +66,8 @@ class InterpreterTest(test_base.TestCase):
       assert_eq(y, expected)
     }
     """)
-    with self.assertRaises(FailureError):
-      self._parse_and_test(program)
+    stderr = self._parse_and_test(program, want_error=True)
+    self.assertIn(':6:12-6:25', stderr)
 
   def test_pad_bits_via_concat(self):
     program = textwrap.dedent("""\
@@ -226,8 +222,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_for_over_range(self):
     program = textwrap.dedent("""\
-                              #![test]
-                              fn for_over_array_test() {
+    #![test]
+    fn for_over_array_test() {
       let result: u32 = for (value, accum): (u32, u32) in range(u32:1, u32:4) {
         accum + value
       }(u32:0);
@@ -238,8 +234,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_for_over_range_u8(self):
     program = textwrap.dedent("""\
-                              #![test]
-                              fn for_over_array_test() {
+    #![test]
+    fn for_over_array_test() {
       let result: u8 = for (value, accum): (u8, u8) in range(u8:1, u8:4) {
         accum + value
       }(u8:0);
@@ -253,23 +249,22 @@ class InterpreterTest(test_base.TestCase):
     fn parametric<N: u32>(x: bits[N], y: bits[N]) -> bits[1] {
       x == bits[N]:1 && y == bits[N]:2
     }
-                              #![test]
-                              fn parametric_conflict_test() {
+    #![test]
+    fn parametric_conflict_test() {
       let a: bits[2] = bits[2]:0b10;
       let b: bits[3] = bits[3]:0b110;
       parametric(a, b)
     }
     """)
-    with self.assertRaises(XlsTypeError) as cm:
-      self._parse_and_test(program)
+    stderr = self._parse_and_test(program, want_error=True)
     self.assertIn(
         'Parametric value N was bound to different values at different places in invocation; saw: 2; then: 3',
-        str(cm.exception))
+        stderr)
 
   def test_inequality(self):
     program = textwrap.dedent("""
-                              #![test]
-                              fn not_equals_test() {
+    #![test]
+    fn not_equals_test() {
       let _: () = assert_eq(false, u32:0 != u32:0);
       let _: () = assert_eq(true, u32:1 != u32:0);
       let _: () = assert_eq(true, u32:1 != u32:-1);
@@ -318,8 +313,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_fail_incomplete_match(self):
     program = textwrap.dedent("""\
-                              #![test]
-                              fn incomplete_match_failure_test() {
+    #![test]
+    fn incomplete_match_failure_test() {
       let x: u32 = u32:42;
       let _: u32 = match x {
         u32:64 => u32:77
@@ -327,8 +322,10 @@ class InterpreterTest(test_base.TestCase):
       ()
     }
     """)
-    with self.assertRaises(FailureError):
-      self._parse_and_test(program)
+    stderr = self._parse_and_test(program, want_error=True)
+    self.assertIn(
+        ':4:16-6:4 The program being interpreted failed with an incomplete match',
+        stderr)
 
   def test_while(self):
     program = """
@@ -362,9 +359,8 @@ class InterpreterTest(test_base.TestCase):
     }
     """
     program_file = self.create_tempfile(content=program)
-    cmd = [INTERP_PATH, program_file.full_path]
-    p = subprocess.run(
-        cmd, stderr=subprocess.PIPE, encoding='utf-8', check=False, env={})
+    cmd = [_INTERP_PATH, program_file.full_path]
+    p = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False, env={})
     self.assertNotEqual(p.returncode, 0)
 
   def test_passing_then_failing_test_gives_error_retcode(self):
@@ -379,9 +375,8 @@ class InterpreterTest(test_base.TestCase):
     }
     """
     program_file = self.create_tempfile(content=program)
-    cmd = [INTERP_PATH, program_file.full_path]
-    p = subprocess.run(
-        cmd, stderr=subprocess.PIPE, encoding='utf-8', check=False, env={})
+    cmd = [_INTERP_PATH, program_file.full_path]
+    p = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False, env={})
     self.assertNotEqual(p.returncode, 0)
 
   def test_failing_then_passing_test_gives_error_retcode(self):
@@ -396,9 +391,8 @@ class InterpreterTest(test_base.TestCase):
     }
     """
     program_file = self.create_tempfile(content=program)
-    cmd = [INTERP_PATH, program_file.full_path]
-    p = subprocess.run(
-        cmd, stderr=subprocess.PIPE, encoding='utf-8', check=False, env={})
+    cmd = [_INTERP_PATH, program_file.full_path]
+    p = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False, env={})
     self.assertNotEqual(p.returncode, 0)
 
   def test_passing_test_returncode(self):
@@ -409,9 +403,8 @@ class InterpreterTest(test_base.TestCase):
     }
     """
     program_file = self.create_tempfile(content=program)
-    cmd = [INTERP_PATH, program_file.full_path]
-    p = subprocess.run(
-        cmd, stderr=subprocess.PIPE, encoding='utf-8', check=False, env={})
+    cmd = [_INTERP_PATH, program_file.full_path]
+    p = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False, env={})
     self.assertEqual(p.returncode, 0)
 
   def test_trace(self):
@@ -427,9 +420,9 @@ class InterpreterTest(test_base.TestCase):
     }
     """
     program_file = self.create_tempfile(content=program)
-    cmd = [INTERP_PATH, '--compare_jit=false', program_file.full_path]
-    result = subprocess.run(
-        cmd, stderr=subprocess.PIPE, encoding='utf-8', check=True, env={})
+    cmd = [_INTERP_PATH, '--compare_jit=false', program_file.full_path]
+    result = subp.run(
+        cmd, stderr=subp.PIPE, encoding='utf-8', check=True, env={})
     self.assertIn('4:14-4:29: bits[32]:0x1', result.stderr)
     self.assertIn('4:14-4:29: bits[32]:0x2', result.stderr)
 
@@ -523,17 +516,16 @@ class InterpreterTest(test_base.TestCase):
 
   def test_cast_array_to_wrong_bit_count(self):
     program = textwrap.dedent("""\
-                              #![test]
-                              fn cast_array_to_wrong_bit_count_test() {
+    #![test]
+    fn cast_array_to_wrong_bit_count_test() {
       let x = u2[2]:[2, 3];
       assert_eq(u3:0, x as u3)
     }
     """)
-    with self.assertRaises(XlsTypeError) as cm:
-      self._parse_and_test(program)
+    stderr = self._parse_and_test(program, want_error=True)
     self.assertIn(
         'uN[2][2] vs uN[3]: Cannot cast from expression type uN[2][2] to uN[3].',
-        str(cm.exception))
+        stderr)
 
   def test_cast_enum_oob_causes_fail(self):
     program = textwrap.dedent("""\
@@ -543,14 +535,14 @@ class InterpreterTest(test_base.TestCase):
     fn f(x: u32) -> Foo {
       x as Foo
     }
-                              #![test]
-                              fn cast_enum_oob_causes_fail_test() {
+    #![test]
+    fn cast_enum_oob_causes_fail_test() {
       let foo: Foo = f(u32:2);
       assert_eq(true, foo != Foo::FOO)
     }
     """)
-    with self.assertRaises(FailureError):
-      self._parse_and_test(program)
+    stderr = self._parse_and_test(program, want_error=True)
+    self.assertIn(':5:3-6:1', stderr)
 
   def test_const_array_of_enum_refs(self):
     program = """
@@ -604,12 +596,12 @@ class InterpreterTest(test_base.TestCase):
     """
     program_file = self.create_tempfile(content=program)
     cmd = [
-        INTERP_PATH, '--compare_jit=false', '--trace_all=true',
+        _INTERP_PATH, '--compare_jit=false', '--trace_all=true',
         program_file.full_path
     ]
-    result = subprocess.run(
+    result = subp.run(
         cmd,
-        stderr=subprocess.PIPE,  # Only capture stderr
+        stderr=subp.PIPE,  # Only capture stderr
         encoding='utf-8',
         check=True,
         env={})
@@ -631,10 +623,9 @@ class InterpreterTest(test_base.TestCase):
       assert_eq(s32[2]:[1, 2], s32[2]:[3, 4])
     }
     """
-    with self.assertRaises(FailureError) as cm:
-      self._parse_and_test(program)
-    self.assertIn('lhs: [1, 2]\n', cm.exception.message)
-    self.assertIn('first differing index: 0', cm.exception.message)
+    stderr = self._parse_and_test(program, want_error=True)
+    self.assertIn('lhs: [1, 2]\n', stderr)
+    self.assertIn('first differing index: 0', stderr)
 
   def test_first_failing_test(self):
     program = textwrap.dedent("""\
@@ -642,10 +633,9 @@ class InterpreterTest(test_base.TestCase):
     #![test] fn second_test() { assert_eq(true, true) }
     #![test] fn third_test() { assert_eq(true, true) }
     """)
-    with self.assertRaises(FailureError) as cm:
-      self._parse_and_test(program)
-    self.assertEqual(cm.exception.span.start.lineno, 0)
-    self.assertIn('were not equal', cm.exception.message)
+    stderr = self._parse_and_test(program, want_error=True)
+    self.assertIn(':1:37-1:50', stderr)
+    self.assertIn('were not equal', stderr)
 
   def test_second_failing_test(self):
     program = textwrap.dedent("""\
@@ -653,10 +643,9 @@ class InterpreterTest(test_base.TestCase):
     #![test] fn second_test() { assert_eq(false, true) }
     #![test] fn third_test() { assert_eq(true, true) }
     """)
-    with self.assertRaises(FailureError) as cm:
-      self._parse_and_test(program)
-    self.assertEqual(cm.exception.span.start.lineno, 1)
-    self.assertIn('were not equal', cm.exception.message)
+    stderr = self._parse_and_test(program, want_error=True)
+    self.assertIn(':2:38-2:51', stderr)
+    self.assertIn('were not equal', stderr)
 
   def test_third_failing_test(self):
     program = textwrap.dedent("""\
@@ -664,10 +653,9 @@ class InterpreterTest(test_base.TestCase):
     #![test] fn second_test() { assert_eq(true, true) }
     #![test] fn third_test() { assert_eq(false, true) }
     """)
-    with self.assertRaises(FailureError) as cm:
-      self._parse_and_test(program)
-    self.assertEqual(cm.exception.span.start.lineno, 2)
-    self.assertIn('were not equal', cm.exception.message)
+    stderr = self._parse_and_test(program, want_error=True)
+    self.assertIn(':3:37-3:50', stderr)
+    self.assertIn('were not equal', stderr)
 
   def test_wide_shifts(self):
     program = textwrap.dedent("""\

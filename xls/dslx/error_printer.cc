@@ -33,8 +33,6 @@ absl::Status PrintPositionalError(const Span& error_span,
   int64 line_count_each_side = error_context_line_count / 2;
   int64 target_lineno = error_span.start().lineno();
   int64 low_lineno = std::max(target_lineno - line_count_each_side, int64{0});
-  int64 high_lineno = std::min(target_lineno + line_count_each_side + 1,
-                               static_cast<int64>(lines.size()));
   absl::Span<const absl::string_view> lines_before =
       absl::MakeSpan(lines).subspan(low_lineno, target_lineno - low_lineno);
   absl::string_view target_line = lines[error_span.start().lineno()];
@@ -70,8 +68,9 @@ absl::Status PrintPositionalError(const Span& error_span,
   };
 
   // Emit an indicator of what we're displaying.
-  os << absl::StreamFormat("%s:%d-%d\n", error_span.filename(), low_lineno + 1,
-                           high_lineno);
+  os << absl::StreamFormat("%s:%s-%s\n", error_span.filename(),
+                           error_span.start().ToStringNoFile(),
+                           error_span.limit().ToStringNoFile());
 
   // Emit the lines that come before.
   for (int64 i = 0; i < lines_before.size(); ++i) {

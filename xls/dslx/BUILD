@@ -106,21 +106,10 @@ py_test(
 )
 
 py_library(
-    name = "parse_error",
-    srcs = ["parse_error.py"],
-    srcs_version = "PY3",
-    deps = [
-        ":span",
-        "//xls/dslx/python:cpp_pos",
-    ],
-)
-
-py_library(
     name = "parser_helpers",
     srcs = ["parser_helpers.py"],
     srcs_version = "PY3",
     deps = [
-        ":parse_error",
         ":span",
         requirement("termcolor"),
         "//xls/dslx/python:cpp_ast",
@@ -160,12 +149,6 @@ py_library(
         "//xls/dslx/python:import_routines",
         "@com_google_absl_py//absl/logging",
     ],
-)
-
-py_library(
-    name = "math_helpers",
-    srcs = ["math_helpers.py"],
-    srcs_version = "PY3",
 )
 
 cc_library(
@@ -243,15 +226,6 @@ py_test(
     ],
 )
 
-py_library(
-    name = "ir_name_mangler",
-    srcs = ["ir_name_mangler.py"],
-    srcs_version = "PY3",
-    deps = [
-        "//xls/dslx/python:cpp_ast",
-    ],
-)
-
 py_test(
     name = "ir_converter_test",
     srcs = ["ir_converter_test.py"],
@@ -310,15 +284,6 @@ filegroup(
 )
 
 py_library(
-    name = "debug_utils",
-    srcs = ["debug_utils.py"],
-    srcs_version = "PY3",
-    deps = [
-        "@com_google_absl_py//absl/logging",
-    ],
-)
-
-py_library(
     name = "fakefs_util",
     srcs = ["fakefs_util.py"],
     srcs_version = "PY3",
@@ -338,16 +303,6 @@ py_library(
     deps = [
         ":fakefs_util",
         requirement("pyfakefs"),  # unittest
-    ],
-)
-
-py_library(
-    name = "import_fn",
-    srcs = ["import_fn.py"],
-    srcs_version = "PY3",
-    deps = [
-        "//xls/dslx/python:cpp_ast",
-        "//xls/dslx/python:cpp_type_info",
     ],
 )
 
@@ -554,16 +509,6 @@ cc_test(
         ":cpp_concrete_type",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
-    ],
-)
-
-py_library(
-    name = "concrete_type_helpers",
-    srcs = ["concrete_type_helpers.py"],
-    srcs_version = "PY2AND3",
-    deps = [
-        "//xls/dslx/python:cpp_ast",
-        "//xls/dslx/python:cpp_concrete_type",
     ],
 )
 

@@ -197,7 +197,7 @@ class TokenParser {
     if (!context.empty()) {
       msg = absl::StrCat(msg, ": ", context);
     }
-    return ParseError(tok->span(), msg);
+    return ParseErrorStatus(tok->span(), msg);
   }
 
   // Wrapper around PopTokenOrError that does not return the token. Helps
@@ -221,7 +221,7 @@ class TokenParser {
     if (!context.empty()) {
       msg = absl::StrCat(msg, ": ", context);
     }
-    return ParseError(tok.span(), msg);
+    return ParseErrorStatus(tok.span(), msg);
   }
 
   absl::Status DropKeywordOrError(Keyword target) {

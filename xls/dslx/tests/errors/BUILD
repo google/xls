@@ -32,14 +32,12 @@ py_test(
         "imports_has_type_error.x",
         "imports_private_enum.x",
         "mod_private_enum.x",
+        "//xls/dslx:cpp_interpreter_main",
     ],
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",
-        "//xls/dslx/interpreter:parse_and_interpret",
-        "//xls/dslx/python:cpp_deduce",
-        "//xls/dslx/python:cpp_parser",
     ],
 )

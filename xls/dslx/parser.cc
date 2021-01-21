@@ -116,7 +116,7 @@ absl::StatusOr<Function*> Parser::ParseFunction(
   }
   auto [item, inserted] = name_to_fn->insert({f->identifier(), f});
   if (!inserted) {
-    return ParseError(
+    return ParseErrorStatus(
         f->name_def()->span(),
         absl::StrFormat("Function '%s' is defined in this module multiple "
                         "times; previously @ %s'",
@@ -177,7 +177,7 @@ absl::StatusOr<std::shared_ptr<Module>> Parser::ParseModule(
         continue;
       }
       // TODO(leary): 2020-09-11 Also support `pub const`.
-      return ParseError(
+      return ParseErrorStatus(
           peek->span(),
           "Expect a function, struct, enum, or type after 'pub' keyword.");
     }
@@ -198,7 +198,7 @@ absl::StatusOr<std::shared_ptr<Module>> Parser::ParseModule(
 
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
     auto top_level_error = [peek] {
-      return ParseError(
+      return ParseErrorStatus(
           peek->span(),
           absl::StrFormat("Expected start of top-level construct; got: %s'",
                           peek->ToString()));
@@ -276,8 +276,9 @@ Parser::ParseDirective(absl::flat_hash_map<std::string, Function*>* name_to_fn,
                                                          directive_tok.span()));
     return n;
   }
-  return ParseError(directive_tok.span(),
-                    absl::StrFormat("Unknown directive: '%s'", directive_name));
+  return ParseErrorStatus(
+      directive_tok.span(),
+      absl::StrFormat("Unknown directive: '%s'", directive_name));
 }
 
 absl::StatusOr<Expr*> Parser::ParseExpression(Bindings* bindings) {
@@ -349,8 +350,8 @@ absl::StatusOr<Expr*> Parser::ParseDim(Bindings* bindings) {
   if (peek->kind() == TokenKind::kNumber) {
     return TokenToNumber(PopTokenOrDie());
   }
-  return ParseError(peek->span(),
-                    absl::StrFormat("Expected number or identifier; got %s",
+  return ParseErrorStatus(
+      peek->span(), absl::StrFormat("Expected number or identifier; got %s",
                                     TokenKindToString(peek->kind())));
 }
 
@@ -396,8 +397,8 @@ static absl::StatusOr<TypeDefinition> BoundNodeToTypeDefinition(BoundNode bn) {
 absl::StatusOr<TypeRef*> Parser::ParseTypeRef(Bindings* bindings,
                                               const Token& tok) {
   if (tok.kind() != TokenKind::kIdentifier) {
-    return ParseError(tok.span(), absl::StrFormat("Expected type; got %s",
-                                                  tok.ToErrorString()));
+    return ParseErrorStatus(tok.span(), absl::StrFormat("Expected type; got %s",
+                                                        tok.ToErrorString()));
   }
 
   XLS_ASSIGN_OR_RETURN(bool peek_is_double_colon,
@@ -408,7 +409,7 @@ absl::StatusOr<TypeRef*> Parser::ParseTypeRef(Bindings* bindings,
   XLS_ASSIGN_OR_RETURN(BoundNode type_def, bindings->ResolveNodeOrError(
                                                *tok.GetValue(), tok.span()));
   if (!IsOneOf<TypeDef, EnumDef, StructDef>(ToAstNode(type_def))) {
-    return ParseError(
+    return ParseErrorStatus(
         tok.span(),
         absl::StrFormat(
             "Expected a type, but identifier '%s' doesn't resolve to "
@@ -695,8 +696,8 @@ absl::StatusOr<Array*> Parser::ParseArray(Bindings* bindings) {
         has_trailing_ellipsis = true;
         members.pop_back();
       } else {
-        return ParseError(get_span(member),
-                          "Ellipsis may only be in trailing position.");
+        return ParseErrorStatus(get_span(member),
+                                "Ellipsis may only be in trailing position.");
       }
     } else {
       exprs.push_back(absl::get<Expr*>(member));
@@ -718,10 +719,12 @@ absl::StatusOr<Expr*> Parser::ParseCast(Bindings* bindings,
     if (type_status.status().ok()) {
       type = type_status.value();
     } else {
-      auto [span, text] = ParseErrorGetData(type_status.status()).value();
-      return ParseError(
-          span, absl::StrFormat(
-                    "Expected a type as part of a cast expression: %s", text));
+      PositionalErrorData data =
+          GetPositionalErrorData(type_status.status()).value();
+      return ParseErrorStatus(
+          data.span,
+          absl::StrFormat("Expected a type as part of a cast expression: %s",
+                          data.message));
     }
   }
 
@@ -742,9 +745,10 @@ absl::StatusOr<Expr*> Parser::ParseCast(Bindings* bindings,
                 tuple->members().begin(), tuple->members().end(), IsConstant)) {
     return term;
   }
-  return ParseError(type->span(),
-                    "Old-style cast only permitted for constant arrays/tuples "
-                    "and literal numbers.");
+  return ParseErrorStatus(
+      type->span(),
+      "Old-style cast only permitted for constant arrays/tuples "
+      "and literal numbers.");
 }
 
 absl::StatusOr<Expr*> Parser::ParseBinopChain(
@@ -854,8 +858,9 @@ absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings* bindings) {
     return module_->Make<NameDefTree>(number->span(), number);
   }
 
-  return ParseError(peek->span(), absl::StrFormat("Expected pattern; got %s",
-                                                  peek->ToErrorString()));
+  return ParseErrorStatus(
+      peek->span(),
+      absl::StrFormat("Expected pattern; got %s", peek->ToErrorString()));
 }
 
 absl::StatusOr<Match*> Parser::ParseMatch(Bindings* bindings) {
@@ -889,8 +894,9 @@ absl::StatusOr<Match*> Parser::ParseMatch(Bindings* bindings) {
       if (arm_bindings.HasLocalBindings()) {
         // TODO(leary): 2020-09-12 Loosen this restriction? They just have to
         // bind the same exact set of names.
-        return ParseError(first_pattern->span(),
-                          "Cannot have multiple patterns that bind names.");
+        return ParseErrorStatus(
+            first_pattern->span(),
+            "Cannot have multiple patterns that bind names.");
       }
       XLS_ASSIGN_OR_RETURN(NameDefTree * pattern, ParsePattern(&arm_bindings));
       patterns.push_back(pattern);
@@ -985,14 +991,14 @@ absl::StatusOr<QuickCheck*> Parser::ParseQuickCheck(
                            PopTokenOrError(TokenKind::kNumber));
       XLS_ASSIGN_OR_RETURN(test_count, count_token.GetValueAsInt64());
       if (test_count <= 0) {
-        return ParseError(
+        return ParseErrorStatus(
             count_token.span(),
             absl::StrFormat("Number of tests should be > 0, got %d",
                             *test_count));
       }
       XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
     } else {
-      return ParseError(
+      return ParseErrorStatus(
           directive_span,
           absl::StrFormat("Unknown configuration key in directive: '%s'",
                           config_name));
@@ -1034,8 +1040,8 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
   } else if (peek->IsKeyword(Keyword::kCarry)) {
     Token tok = PopTokenOrDie();
     if (loop_stack_.empty()) {
-      return ParseError(tok.span(),
-                        "Carry keyword encountered outside of a while loop.");
+      return ParseErrorStatus(
+          tok.span(), "Carry keyword encountered outside of a while loop.");
     }
     lhs = module_->Make<Carry>(tok.span(), loop_stack_.back());
   } else if (peek->IsKindIn({TokenKind::kBang, TokenKind::kMinus})) {
@@ -1127,7 +1133,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
   } else if (peek->kind() == TokenKind::kOBrack) {  // Array expression.
     XLS_ASSIGN_OR_RETURN(lhs, ParseArray(txn.bindings()));
   } else {
-    return ParseError(
+    return ParseErrorStatus(
         peek->span(),
         absl::StrFormat("Expected start of an expression; got: %s",
                         peek->ToErrorString()));
@@ -1218,8 +1224,8 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
         // If we're a term followed by an arrow...then we followed the wrong
         // production, as arrows are only allowed after fn decls. Rewind.
         // Should this be something else, like a "wrong production" error?
-        return ParseError(lhs->span(),
-                          "Parenthesized expression cannot precede an arrow.");
+        return ParseErrorStatus(
+            lhs->span(), "Parenthesized expression cannot precede an arrow.");
       default:
         goto done;
     }
@@ -1243,13 +1249,13 @@ absl::StatusOr<Index*> Parser::ParseBitSlice(const Pos& start_pos, Expr* lhs,
 
   Number* start_num = dynamic_cast<Number*>(start);
   if (start_num == nullptr && start != nullptr) {
-    return ParseError(
+    return ParseErrorStatus(
         start->span(),
         "Only constant numbers are currently allowed in slice expressions.");
   }
 
   if (limit_expr != nullptr && dynamic_cast<Number*>(limit_expr) == nullptr) {
-    return ParseError(
+    return ParseErrorStatus(
         Span(start_pos, GetPos()),
         "Only constant numbers are currently allowed in slice expressions.");
   }
@@ -1283,7 +1289,7 @@ absl::StatusOr<ConstantDef*> Parser::ParseConstantDef(bool is_public,
   if (bindings->HasName(name_def->identifier())) {
     Span span =
         BoundNodeGetSpan(bindings->ResolveNode(name_def->identifier()).value());
-    return ParseError(
+    return ParseErrorStatus(
         name_def->span(),
         absl::StrFormat(
             "Constant definition is shadowing an existing definition from %s",
@@ -1295,8 +1301,8 @@ absl::StatusOr<ConstantDef*> Parser::ParseConstantDef(bool is_public,
 
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
   if (!IsConstant(expr)) {
-    return ParseError(expr->span(),
-                      absl::StrFormat("Value is not considered constant: '%s'",
+    return ParseErrorStatus(
+        expr->span(), absl::StrFormat("Value is not considered constant: '%s'",
                                       expr->ToString()));
   }
   Span span(start_pos, GetPos());
@@ -1369,7 +1375,7 @@ absl::StatusOr<TypeRef*> Parser::ParseModTypeRef(Bindings* bindings,
       BoundNode bn,
       bindings->ResolveNodeOrError(*start_tok.GetValue(), start_tok.span()));
   if (!absl::holds_alternative<Import*>(bn)) {
-    return ParseError(
+    return ParseErrorStatus(
         start_tok.span(),
         absl::StrFormat("Expected module for module-reference; got %s",
                         ToAstNode(bn)->ToString()));
@@ -1394,10 +1400,11 @@ absl::StatusOr<Let*> Parser::ParseLet(Bindings* bindings) {
   } else if (start_tok.IsKeyword(Keyword::kConst)) {
     const_ = true;
   } else {
-    return ParseError(start_tok.span(),
-                      absl::StrFormat("Expected 'let' or 'const'; got %s @ %s",
-                                      start_tok.ToErrorString(),
-                                      start_tok.span().ToString()));
+    return ParseErrorStatus(
+        start_tok.span(),
+        absl::StrFormat("Expected 'let' or 'const'; got %s @ %s",
+                        start_tok.ToErrorString(),
+                        start_tok.span().ToString()));
   }
 
   NameDef* name_def;
@@ -1481,7 +1488,7 @@ absl::StatusOr<EnumDef*> Parser::ParseEnumDef(bool is_public,
     XLS_ASSIGN_OR_RETURN(auto nocr, ParseNumOrConstRef(&enum_bindings));
     if (Number* n = TryGet<Number*>(nocr)) {
       if (n->type() != nullptr) {
-        return ParseError(
+        return ParseErrorStatus(
             n->type()->span(),
             "Type is annotated in enum value, but enum defines a type. "
             "Please remove the leading type-annotation.");
@@ -1573,10 +1580,10 @@ absl::StatusOr<Number*> Parser::ParseNumber(Bindings* bindings) {
     return dynamic_cast<Number*>(cast.value());
   }
 
-  return ParseError(peek->span(),
-                    absl::StrFormat("Expected number; got %s @ %s",
-                                    TokenKindToString(peek->kind()),
-                                    peek->span().ToString()));
+  return ParseErrorStatus(peek->span(),
+                          absl::StrFormat("Expected number; got %s @ %s",
+                                          TokenKindToString(peek->kind()),
+                                          peek->span().ToString()));
 }
 
 absl::StatusOr<StructDef*> Parser::ParseStruct(bool is_public,
@@ -1708,7 +1715,7 @@ absl::StatusOr<TestFunction*> Parser::ParseTestFunction(
                        ParseFunctionInternal(/*is_public=*/false, bindings));
   if (absl::optional<ModuleMember*> member =
           module_->FindMemberWithName(f->identifier())) {
-    return ParseError(
+    return ParseErrorStatus(
         directive_span,
         absl::StrFormat(
             "Test function '%s' has same name as module member @ %s",
@@ -1724,7 +1731,7 @@ absl::Status Parser::ParseConfig(const Span& directive_span) {
   XLS_ASSIGN_OR_RETURN(Token config_value,
                        PopTokenOrError(TokenKind::kKeyword));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
-  return ParseError(
+  return ParseErrorStatus(
       directive_span,
       absl::StrFormat("Unknown configuration key in directive: '%s'",
                       config_name));
