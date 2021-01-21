@@ -33,8 +33,8 @@ class InterpreterTest(test_base.TestCase):
                       trace_all: bool = False,
                       compare_jit: bool = True,
                       want_error: bool = False) -> str:
-    path = self.create_tempfile(content=program)
-    cmd = [_INTERP_PATH, path]
+    temp_file = self.create_tempfile(content=program)
+    cmd = [_INTERP_PATH, temp_file.full_path]
     cmd.append('--trace_all=%s' % str(trace_all).lower())
     cmd.append('--compare_jit=%s' % str(compare_jit).lower())
     p = subp.run(cmd, check=False, stderr=subp.PIPE, encoding='utf-8')
@@ -360,7 +360,7 @@ class InterpreterTest(test_base.TestCase):
     """
     program_file = self.create_tempfile(content=program)
     cmd = [_INTERP_PATH, program_file.full_path]
-    p = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False, env={})
+    p = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False)
     self.assertNotEqual(p.returncode, 0)
 
   def test_passing_then_failing_test_gives_error_retcode(self):
@@ -376,7 +376,7 @@ class InterpreterTest(test_base.TestCase):
     """
     program_file = self.create_tempfile(content=program)
     cmd = [_INTERP_PATH, program_file.full_path]
-    p = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False, env={})
+    p = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False)
     self.assertNotEqual(p.returncode, 0)
 
   def test_failing_then_passing_test_gives_error_retcode(self):
@@ -392,7 +392,7 @@ class InterpreterTest(test_base.TestCase):
     """
     program_file = self.create_tempfile(content=program)
     cmd = [_INTERP_PATH, program_file.full_path]
-    p = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False, env={})
+    p = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False)
     self.assertNotEqual(p.returncode, 0)
 
   def test_passing_test_returncode(self):
@@ -404,7 +404,7 @@ class InterpreterTest(test_base.TestCase):
     """
     program_file = self.create_tempfile(content=program)
     cmd = [_INTERP_PATH, program_file.full_path]
-    p = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False, env={})
+    p = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False)
     self.assertEqual(p.returncode, 0)
 
   def test_trace(self):
@@ -421,8 +421,7 @@ class InterpreterTest(test_base.TestCase):
     """
     program_file = self.create_tempfile(content=program)
     cmd = [_INTERP_PATH, '--compare_jit=false', program_file.full_path]
-    result = subp.run(
-        cmd, stderr=subp.PIPE, encoding='utf-8', check=True, env={})
+    result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=True)
     self.assertIn('4:14-4:29: bits[32]:0x1', result.stderr)
     self.assertIn('4:14-4:29: bits[32]:0x2', result.stderr)
 
