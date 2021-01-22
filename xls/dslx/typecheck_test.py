@@ -976,6 +976,17 @@ enum Foo : u1 {
     }
     """)
 
+  def test_bad_array_addition(self):
+    program = """
+    fn f(a: bits[32][4], b: bits[32][4]) -> bits[32][4] {
+      a + b
+    }
+    """
+    self._typecheck(
+        program,
+        error_type=TypeInferenceError,
+        error='Binary operations can only be applied')
+
   def test_index(self):
     self._typecheck("""\
     fn f(x: uN[32][4]) -> u32 {

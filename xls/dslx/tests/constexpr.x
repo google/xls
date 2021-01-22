@@ -50,12 +50,6 @@ fn can_add_constants_test() {
   let _ = assert_eq(bits[32]:1998, CONST_1 + CONST_3);
   let _ = assert_eq(bits[32]:1998, CONST_2 + CONST_3);
   let _ = assert_eq(bits[32]:2664, CONST_1 + CONST_2 + CONST_3);
-
-  // TODO(https://github.com/google/xls/issues/245): The interpreter does not
-  // like these.
-  // let expected_array_sum = bits[32][4]:[u32:5, u32:5, u32:5, u32:5];
-  // let _: () = assert_eq(expected_array_sum, CONST_ARRAY1 + CONST_ARRAY2);
-  // let _: () = assert_eq((u16:5, u32:7, u64:9), CONST_TUPLE1 + CONST_TUPLE2);
   ()
 }
 

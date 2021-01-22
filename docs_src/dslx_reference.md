@@ -807,8 +807,8 @@ DSLX supports three types of unary expressions:
 ### Binary Expressions
 
 DSLX support a familiar set of binary expressions. For those, both operands to
-the expression must have the same type. This is true even for the shift
-operators.
+the expression must be of the same bit type (i.e., not arrays or tuples). This
+is true even for the shift operators.
 
 *   shift-right (`>>`)
 *   shift-right arithmetic (`>>>`)

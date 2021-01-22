@@ -225,6 +225,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBinop(Binop* node,
     return BitsType::MakeU1();
   }
 
+  if (dynamic_cast<BitsType*>(lhs.get()) == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->span(), lhs.get(),
+        "Binary operations can only be applied to bits-typed operands.");
+  }
+
   return lhs;
 }
 
