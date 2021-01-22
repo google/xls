@@ -19,13 +19,8 @@ from typing import Tuple, Text
 
 from xls.common import check_simulator
 from xls.common import test_base
-from xls.dslx import fakefs_test_util
-from xls.dslx import parser_helpers
 from xls.dslx.fuzzer import sample
 from xls.dslx.fuzzer import sample_runner
-from xls.dslx.python.cpp_concrete_type import ArrayType
-from xls.dslx.python.cpp_concrete_type import BitsType
-from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.dslx.python.interp_value import Tag
 from xls.dslx.python.interp_value import Value
 from xls.ir.python import bits as ir_bits
@@ -336,52 +331,6 @@ class SampleRunnerTest(test_base.TestCase):
     self.assertRegex(
         _read_file(sample_dir, 'exception.txt'),
         '.*opt_main.*returned non-zero exit status')
-
-  def test_sign_convert_args_batch(self):
-    dslx_text = 'fn main(y: s8) -> s8 { y }'
-    filename = '/fake/test_module.x'
-    with fakefs_test_util.scoped_fakefs(filename, dslx_text):
-      m = parser_helpers.parse_text(
-          dslx_text, 'test_module', print_on_error=True, filename=filename)
-
-    f = m.get_function('main')
-    self.assertEqual(
-        sample_runner.sign_convert_args_batch(f, m,
-                                              ((Value.make_ubits(8, 2),),)),
-        ((Value.make_sbits(8, 2),),))
-    # Converting a value which is already signed is no problem.
-    self.assertEqual(
-        sample_runner.sign_convert_args_batch(f, m,
-                                              ((Value.make_sbits(8, 2),),)),
-        ((Value.make_sbits(8, 2),),))
-
-  def test_sign_convert_tuple_value(self):
-    # type is (u8, (u16, s8)
-    t = TupleType(
-        (BitsType(signed=False, size=8),
-         TupleType(
-             (BitsType(signed=False, size=16), BitsType(signed=True, size=8)))))
-    self.assertEqual(
-        sample_runner.sign_convert_value(
-            t,
-            Value.make_tuple((Value.make_ubits(8, 0x42),
-                              Value.make_tuple((Value.make_ubits(16, 0x33),
-                                                Value.make_ubits(8, 0x44)))))),
-        Value.make_tuple(
-            (Value.make_ubits(8, 0x42),
-             Value.make_tuple(
-                 (Value.make_ubits(16, 0x33), Value.make_sbits(8, 0x44))))))
-
-  def test_sign_convert_array_value(self):
-    t = ArrayType(BitsType(signed=True, size=8), 3)
-    self.assertEqual(
-        sample_runner.sign_convert_value(
-            t,
-            Value.make_array((Value.make_ubits(8,
-                                               0x42), Value.make_ubits(8, 0x43),
-                              Value.make_ubits(8, 0x44)))),
-        Value.make_array((Value.make_sbits(8, 0x42), Value.make_sbits(8, 0x43),
-                          Value.make_sbits(8, 0x44))))
 
 
 if __name__ == '__main__':

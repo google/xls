@@ -28,18 +28,11 @@ from xls.common import check_simulator
 from xls.common import revision
 from xls.common import runfiles
 from xls.common.xls_error import XlsError
-from xls.dslx import parse_and_typecheck
 from xls.dslx.fuzzer import sample
 from xls.dslx.interpreter.value_parser import value_from_string
-from xls.dslx.python import cpp_ast as ast
-from xls.dslx.python import cpp_concrete_type as concrete_type_mod
-from xls.dslx.python import cpp_type_info as type_info_mod
-from xls.dslx.python import cpp_typecheck
-from xls.dslx.python.cpp_concrete_type import ConcreteType
-from xls.dslx.python.import_routines import ImportCache
+from xls.dslx.python import interpreter
 from xls.dslx.python.interp_value import Tag
 from xls.dslx.python.interp_value import Value
-from xls.dslx.python.interpreter import Interpreter
 from xls.ir.python import ir_parser
 from xls.ir.python import value as ir_value_mod
 from xls.ir.python.format_preference import FormatPreference
@@ -76,72 +69,6 @@ def ir_value_to_interpreter_value(value: ir_value_mod.Value) -> Value:
     assert value.is_tuple()
     return Value.make_tuple(
         tuple(ir_value_to_interpreter_value(e) for e in value.get_elements()))
-
-
-def sign_convert_value(concrete_type: ConcreteType, value: Value) -> Value:
-  """Converts the values to matched the signedness of the concrete type.
-
-  Converts bits-typed Values contained within the given Value to match the
-  signedness of the ConcreteType. Examples:
-
-  invocation: sign_convert_value(s8, u8:64)
-  returns: s8:64
-
-  invocation: sign_convert_value(s3, u8:7)
-  returns: s3:-1
-
-  invocation: sign_convert_value((s8, u8), (u8:42, u8:10))
-  returns: (s8:42, u8:10)
-
-  This conversion functionality is required because the Values used in the DSLX
-  may be signed while Values in IR interpretation and Verilog simulation are
-  always unsigned.
-
-  This function is idempotent.
-
-  Args:
-    concrete_type: ConcreteType to match.
-    value: Input value.
-
-  Returns:
-    Sign-converted value.
-  """
-  if isinstance(concrete_type, concrete_type_mod.TupleType):
-    assert value.is_tuple()
-    assert len(value.get_elements()) == concrete_type.get_tuple_length()
-    return Value.make_tuple(
-        tuple(
-            sign_convert_value(t, a) for t, a in zip(
-                concrete_type.get_unnamed_members(), value.get_elements())))
-  elif isinstance(concrete_type, concrete_type_mod.ArrayType):
-    assert value.is_array()
-    assert len(value.get_elements()) == concrete_type.size
-    return Value.make_array(
-        tuple(
-            sign_convert_value(concrete_type.get_element_type(), v)
-            for v in value.get_elements()))
-  elif concrete_type_mod.is_sbits(concrete_type):
-    return Value.make_bits(Tag.SBITS, value.get_bits())
-  else:
-    assert concrete_type_mod.is_ubits(concrete_type)
-    return value
-
-
-def sign_convert_args_batch(f: ast.Function, m: ast.Module,
-                            args_batch: sample.ArgsBatch) -> sample.ArgsBatch:
-  """Sign-converts ArgsBatch to match the signedness of function arguments."""
-  f = m.get_function('main')
-  import_cache = ImportCache()
-  additional_search_paths = ()
-  type_info = cpp_typecheck.check_module(m, import_cache,
-                                         additional_search_paths)
-  arg_types = tuple(type_info.get_type(p.type_) for p in f.params)
-  converted_batch = []
-  for args in args_batch:
-    assert len(arg_types) == len(args)
-    converted_batch.append(
-        tuple(sign_convert_value(t, a) for t, a in zip(arg_types, args)))
-  return tuple(converted_batch)
 
 
 class SampleRunner:
@@ -212,28 +139,17 @@ class SampleRunner:
     # Gather results in an OrderedDict because the first entered result is used
     # as a reference.
     results = collections.OrderedDict()  # type: Dict[Text, Sequence[Value]]
-    import_cache = ImportCache()
 
     try:
       logging.vlog(1, 'Parsing DSLX file.')
       start = time.time()
       if options.input_is_dslx:
-        m, type_info = parse_and_typecheck.parse_text_fakefs(
-            input_text,
-            'test_module',
-            import_cache=import_cache,
-            additional_search_paths=(),
-            print_on_error=True,
-            filename='/fake/test_module.x')
-        logging.vlog(1, 'Parsing DSLX file complete, elapsed %0.2fs',
-                     time.time() - start)
-
         if args_batch is not None:
           logging.vlog(1, 'Interpreting DSLX file.')
           start = time.time()
           results['interpreted DSLX'] = self._interpret_dslx(
-              m, type_info, args_batch)
-          logging.vlog(1, 'Parsing DSLX file complete, elapsed %0.2fs',
+              input_text, 'main', args_batch)
+          logging.vlog(1, 'Interpreting DSLX complete, elapsed %0.2fs',
                        time.time() - start)
 
         if not options.convert_to_ir:
@@ -385,19 +301,10 @@ class SampleRunner:
                               f'\n{reference:40} = {ref_result}'
                               f'\n{name:40} = {values[i]}')
 
-  def _interpret_dslx(self, m: ast.Module, type_info: type_info_mod.TypeInfo,
+  def _interpret_dslx(self, text: str, function_name: str,
                       args_batch: sample.ArgsBatch) -> Tuple[Value, ...]:
     """Interprets the DSLX module returns the result Values."""
-    interp = Interpreter(
-        m,
-        type_info,
-        typecheck=None,
-        additional_search_paths=(),
-        import_cache=None)
-    dslx_results = []
-    f = m.get_function('main')
-    for args in sign_convert_args_batch(f, m, args_batch):
-      dslx_results.append(interp.run_function('main', args, None))
+    dslx_results = interpreter.run_batched(text, function_name, args_batch)
     self._write_file('sample.x.results',
                      '\n'.join(str(r) for r in dslx_results))
     return tuple(dslx_results)

@@ -53,7 +53,11 @@ CheckFunctionParams(Function* f, DeduceCtx* ctx) {
   return param_types;
 }
 
-absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
+// Validates type annotations on parameters / return type of `f` are consistent.
+//
+// Returns a XlsTypeErrorStatus when the return type deduced is inconsistent
+// with the return type annotation on `f`.
+static absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
   const FnStackEntry& entry = ctx->fn_stack().back();
 
   std::vector<std::unique_ptr<ConcreteType>> param_types;
@@ -129,7 +133,8 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
   return absl::OkStatus();
 }
 
-absl::Status CheckTest(TestFunction* t, DeduceCtx* ctx) {
+// Validates a test (body) within a module.
+static absl::Status CheckTest(TestFunction* t, DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> body_return_type,
                        ctx->Deduce(t->body()));
   if (body_return_type->IsNil()) {

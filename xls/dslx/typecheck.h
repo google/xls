@@ -23,15 +23,6 @@
 
 namespace xls::dslx {
 
-// Validates type annotations on parameters / return type of `f` are consistent.
-//
-// Returns a XlsTypeErrorStatus when the return type deduced is inconsistent
-// with the return type annotation on `f`.
-absl::Status CheckFunction(Function* f, DeduceCtx* ctx);
-
-// Validates a test (body) within a module.
-absl::Status CheckTest(TestFunction* t, DeduceCtx* ctx);
-
 // Instantiates a builtin parametric invocation; e.g. `update()`.
 absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
     BuiltinNameDef* builtin_name, Invocation* invocation, DeduceCtx* ctx);

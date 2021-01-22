@@ -22,10 +22,13 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
 #include "xls/dslx/import_routines.h"
+#include "xls/dslx/parser.h"
 #include "xls/dslx/python/callback_converters.h"
 #include "xls/dslx/python/cpp_ast.h"
 #include "xls/dslx/python/errors.h"
+#include "xls/dslx/scanner.h"
 #include "xls/dslx/symbolic_bindings.h"
+#include "xls/dslx/typecheck.h"
 #include "xls/ir/python/wrapper_types.h"
 
 namespace py = pybind11;
@@ -55,49 +58,40 @@ PYBIND11_MODULE(interpreter, m) {
     }
   });
 
-  py::class_<Interpreter>(m, "Interpreter")
-      .def(
-          py::init([](ModuleHolder module,
-                      const std::shared_ptr<TypeInfo>& type_info,
-                      absl::optional<PyTypecheckFn> typecheck,
-                      const std::vector<std::string>& additional_search_paths,
-                      absl::optional<ImportCache*> import_cache, bool trace_all,
-                      absl::optional<PackageHolder> ir_package) {
-            Package* package = ir_package ? &ir_package->deref() : nullptr;
-            ImportCache* pimport_cache = import_cache ? *import_cache : nullptr;
-            TypecheckFn typecheck_fn;
-            if (typecheck) {
-              typecheck_fn = ToCppTypecheck(*typecheck);
-            }
-            return absl::make_unique<Interpreter>(
-                &module.deref(), type_info, typecheck_fn,
-                additional_search_paths, pimport_cache, trace_all, package);
-          }),
-          py::arg("module"), py::arg("type_info"), py::arg("typecheck"),
-          py::arg("additional_search_paths"), py::arg("import_cache"),
-          py::arg("trace_all") = false, py::arg("ir_package") = absl::nullopt)
-      .def(
-          "run_function",
-          [](Interpreter* self, absl::string_view name,
-             const std::vector<InterpValue>& args,
-             absl::optional<SymbolicBindings> symbolic_bindings) {
-            auto statusor = self->RunFunction(name, args,
-                                              symbolic_bindings.has_value()
-                                                  ? *symbolic_bindings
-                                                  : SymbolicBindings());
-            TryThrowFailureError(statusor.status());
-            return statusor;
-          },
-          py::arg("name"), py::arg("args"), py::arg("symbolic_bindings"))
-      .def("run_test",
-           [](Interpreter* self, absl::string_view name) {
-             absl::Status result = self->RunTest(name);
-             TryThrowFailureError(result);
-             return result;
-           })
-      .def_property_readonly("module", [](Interpreter* self) {
-        return ModuleHolder(self->module(), self->module()->shared_from_this());
-      });
+  m.def(
+      "run_batched",
+      [](absl::string_view text, absl::string_view function_name,
+         const std::vector<std::vector<InterpValue>> args_batch)
+          -> absl::StatusOr<std::vector<InterpValue>> {
+        ImportCache import_cache;
+        Scanner scanner{"batched.x", std::string{text}};
+        Parser parser("batched", &scanner);
+        XLS_ASSIGN_OR_RETURN(std::shared_ptr<Module> module,
+                             parser.ParseModule());
+        XLS_ASSIGN_OR_RETURN(
+            std::shared_ptr<TypeInfo> type_info,
+            CheckModule(module.get(), &import_cache, /*dslx_paths=*/{}));
+
+        XLS_ASSIGN_OR_RETURN(Function * f,
+                             module->GetFunctionOrError(function_name));
+        XLS_ASSIGN_OR_RETURN(FunctionType * fn_type,
+                             type_info->GetItemAs<FunctionType>(f));
+
+        Interpreter interpreter(module.get(), type_info, nullptr,
+                                /*additional_search_paths=*/{}, &import_cache,
+                                /*trace_all=*/false, /*package=*/nullptr);
+        std::vector<InterpValue> results;
+        results.reserve(args_batch.size());
+        for (const std::vector<InterpValue>& unsigned_args : args_batch) {
+          XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> args,
+                               SignConvertArgs(*fn_type, unsigned_args));
+          XLS_ASSIGN_OR_RETURN(InterpValue result,
+                               interpreter.RunFunction(function_name, args));
+          results.push_back(result);
+        }
+        return results;
+      },
+      py::arg("text"), py::arg("function_name"), py::arg("args_batch"));
 }
 
 }  // namespace xls::dslx
