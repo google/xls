@@ -24,18 +24,6 @@ package(
 )
 
 py_library(
-    name = "import_helpers",
-    srcs = ["import_helpers.py"],
-    srcs_version = "PY3",
-    deps = [
-        "//xls/dslx/python:cpp_ast",
-        "//xls/dslx/python:cpp_type_info",
-        "//xls/dslx/python:cpp_typecheck",
-        "//xls/dslx/python:import_routines",
-    ],
-)
-
-py_library(
     name = "bit_helpers",
     srcs = ["bit_helpers.py"],
     srcs_version = "PY3",

@@ -26,7 +26,7 @@ from absl import app
 from absl import flags
 
 from xls.common import runfiles
-from xls.dslx import import_helpers
+from xls.dslx.python.import_routines import ImportCache
 from xls.tools import convert_helpers
 
 FLAGS = flags.FLAGS
@@ -37,14 +37,11 @@ def main(argv):
   if len(argv) != 2:
     raise app.UsageError('Too many command-line arguments.')
 
-  importer = import_helpers.Importer()
+  import_cache = ImportCache()
 
   text = argv[1]
   p = convert_helpers.convert_dslx_to_package(
-      text,
-      name='cli',
-      import_cache=importer.cache,
-      additional_search_paths=importer.additional_search_paths)
+      text, name='cli', import_cache=import_cache, additional_search_paths=())
   entry = p.get_function_names()[0]
   opt_ir = convert_helpers.optimize_and_dump(p)
   benchmark_main_path = runfiles.get_path(BENCHMARK_MAIN_PATH)
