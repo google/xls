@@ -1,0 +1,40 @@
+// Copyright 2021 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef XLS_DSLX_PARSE_AND_TYPECHECK_H_
+#define XLS_DSLX_PARSE_AND_TYPECHECK_H_
+
+#include "xls/dslx/cpp_ast.h"
+#include "xls/dslx/import_routines.h"
+#include "xls/dslx/type_info.h"
+
+namespace xls::dslx {
+
+struct TypecheckedModule {
+  std::shared_ptr<Module> module;
+  std::shared_ptr<TypeInfo> type_info;
+};
+
+// Helper that parses and typechecks the given "text" for a module.
+//
+// "path" is used for error reporting (`Span`s) and module_name is the name
+// given to the returned `TypecheckedModule::module`. "import_cache" is used to
+// get-or-insert any imported modules.
+absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
+    absl::string_view text, absl::string_view path,
+    absl::string_view module_name, ImportCache* import_cache);
+
+}  // namespace xls::dslx
+
+#endif  // XLS_DSLX_PARSE_AND_TYPECHECK_H_

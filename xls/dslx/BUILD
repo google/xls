@@ -214,24 +214,15 @@ py_test(
     ],
 )
 
-py_test(
-    name = "ir_converter_test",
-    srcs = ["ir_converter_test.py"],
-    data = [
-        "//xls/tools:parse_ir",
-    ],
-    python_version = "PY3",
-    srcs_version = "PY3",
+cc_test(
+    name = "cpp_ir_converter_test",
+    srcs = ["ir_converter_test.cc"],
     deps = [
-        ":fakefs_test_util",
-        ":parser_helpers",
-        ":span",
-        "//xls/common:runfiles",
-        "//xls/common:test_base",
-        "//xls/dslx/python:cpp_ir_converter",
-        "//xls/dslx/python:cpp_parser",
-        "//xls/dslx/python:cpp_typecheck",
-        "//xls/dslx/python:import_routines",
+        ":cpp_ir_converter",
+        ":cpp_parse_and_typecheck",
+        "//xls/common:init_xls",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -853,5 +844,19 @@ cc_binary(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "cpp_parse_and_typecheck",
+    srcs = ["parse_and_typecheck.cc"],
+    hdrs = ["parse_and_typecheck.h"],
+    deps = [
+        ":cpp_ast",
+        ":cpp_parser",
+        ":cpp_type_info",
+        ":cpp_typecheck",
+        ":import_routines",
+        ":scanner",
     ],
 )

@@ -116,12 +116,13 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
 
     absl::optional<std::shared_ptr<TypeInfo>> invocation_type_info;
     XLS_VLOG(5) << "Getting callee bindings for invocation: "
-                << node->ToString()
+                << node->ToString() << " @ " << node->span()
                 << " caller bindings: " << bindings_.ToString();
     absl::optional<const SymbolicBindings*> callee_bindings =
         type_info_->GetInvocationSymbolicBindings(node, bindings_);
     if (callee_bindings.has_value()) {
       XLS_RET_CHECK(*callee_bindings != nullptr);
+      XLS_VLOG(5) << "Found callee bindings: " << **callee_bindings;
       invocation_type_info =
           type_info_->GetInstantiation(node, **callee_bindings);
     }

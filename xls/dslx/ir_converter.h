@@ -409,29 +409,6 @@ class IrConverter {
 absl::Status ConversionErrorStatus(const absl::optional<Span>& span,
                                    absl::string_view message);
 
-// Converts a single function into its emitted text form.
-//
-// Args:
-//   package: IR package we're converting the function into.
-//   module: Module we're converting a function within.
-//   function: Function we're converting.
-//   type_info: Type information about module from the typechecking phase.
-//   import_cache: Cache of modules potentially referenced by "module" above.
-//   symbolic_bindings: Parametric bindings to use during conversion, if this
-//     function is parametric.
-//   emit_positions: Whether to emit position information into the IR based on
-//     the AST's source positions.
-//
-// Returns an error status that indicates whether the conversion was successful.
-// On success there will be a corresponding (built) function inside of
-// "package".
-absl::Status ConvertOneFunction(Package* package, Module* module,
-                                Function* function,
-                                const std::shared_ptr<TypeInfo>& type_info,
-                                ImportCache* import_cache,
-                                const SymbolicBindings* symbolic_bindings,
-                                bool emit_positions);
-
 }  // namespace internal
 
 // Returns the mangled name of function with the given parametric bindings.

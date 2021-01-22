@@ -1752,12 +1752,28 @@ absl::StatusOr<xls::Type*> IrConverter::TypeToIr(
   return package_->GetTupleType(std::move(members));
 }
 
-absl::Status ConvertOneFunction(Package* package, Module* module,
-                                Function* function,
-                                const std::shared_ptr<TypeInfo>& type_info,
-                                ImportCache* import_cache,
-                                const SymbolicBindings* symbolic_bindings,
-                                bool emit_positions) {
+}  // namespace internal
+
+// Converts a single function into its emitted text form.
+//
+// Args:
+//   package: IR package we're converting the function into.
+//   module: Module we're converting a function within.
+//   function: Function we're converting.
+//   type_info: Type information about module from the typechecking phase.
+//   import_cache: Cache of modules potentially referenced by "module" above.
+//   symbolic_bindings: Parametric bindings to use during conversion, if this
+//     function is parametric.
+//   emit_positions: Whether to emit position information into the IR based on
+//     the AST's source positions.
+//
+// Returns an error status that indicates whether the conversion was successful.
+// On success there will be a corresponding (built) function inside of
+// "package".
+static absl::Status ConvertOneFunctionInternal(
+    Package* package, Module* module, Function* function,
+    const std::shared_ptr<TypeInfo>& type_info, ImportCache* import_cache,
+    const SymbolicBindings* symbolic_bindings, bool emit_positions) {
   absl::flat_hash_map<std::string, Function*> function_by_name =
       module->GetFunctionByName();
   absl::flat_hash_map<std::string, ConstantDef*> constant_by_name =
@@ -1825,8 +1841,6 @@ absl::Status ConvertOneFunction(Package* package, Module* module,
   return absl::OkStatus();
 }
 
-}  // namespace internal
-
 absl::StatusOr<std::string> MangleDslxName(
     absl::string_view function_name,
     const absl::btree_set<std::string>& free_keys, Module* module,
@@ -1863,14 +1877,22 @@ absl::StatusOr<std::unique_ptr<Package>> ConvertModuleToPackage(
     ImportCache* import_cache, bool emit_positions, bool traverse_tests) {
   XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> order,
                        GetOrder(module, type_info, traverse_tests));
+  XLS_VLOG(3) << "Conversion order: ["
+              << absl::StrJoin(
+                     order, ", ",
+                     [](std::string* out, const ConversionRecord& record) {
+                       absl::StrAppend(out, record.ToString());
+                     })
+              << "]";
   auto package = absl::make_unique<Package>(module->name());
   for (const ConversionRecord& record : order) {
-    XLS_VLOG(1) << "Converting to IR: " << record.ToString();
-    XLS_RETURN_IF_ERROR(internal::ConvertOneFunction(
+    XLS_VLOG(3) << "Converting to IR: " << record.ToString();
+    XLS_RETURN_IF_ERROR(ConvertOneFunctionInternal(
         package.get(), record.m, record.f, record.type_info, import_cache,
         &record.bindings, emit_positions));
   }
 
+  XLS_VLOG(3) << "Verifying converted package";
   XLS_RETURN_IF_ERROR(VerifyPackage(package.get()));
   return std::move(package);
 }
@@ -1891,7 +1913,7 @@ absl::StatusOr<std::string> ConvertOneFunction(
   Package package(module->name());
   absl::optional<Function*> f = module->GetFunction(entry_function_name);
   XLS_RET_CHECK(f.has_value());
-  XLS_RETURN_IF_ERROR(internal::ConvertOneFunction(
+  XLS_RETURN_IF_ERROR(ConvertOneFunctionInternal(
       &package, module, *f, type_info, import_cache,
       /*symbolic_bindings=*/nullptr, emit_positions));
   return package.DumpIr();

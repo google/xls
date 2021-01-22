@@ -279,6 +279,7 @@ xls_pybind_extension(
         "//xls/dslx:cpp_ast",
         "//xls/dslx:cpp_concrete_type",
         "//xls/dslx:cpp_evaluate",
+        "//xls/dslx:cpp_parse_and_typecheck",
         "//xls/dslx:cpp_parser",
         "//xls/dslx:cpp_typecheck",
         "//xls/dslx:import_routines",

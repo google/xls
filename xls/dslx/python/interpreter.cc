@@ -22,6 +22,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
 #include "xls/dslx/import_routines.h"
+#include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/parser.h"
 #include "xls/dslx/python/callback_converters.h"
 #include "xls/dslx/python/cpp_ast.h"
@@ -64,20 +65,15 @@ PYBIND11_MODULE(interpreter, m) {
          const std::vector<std::vector<InterpValue>> args_batch)
           -> absl::StatusOr<std::vector<InterpValue>> {
         ImportCache import_cache;
-        Scanner scanner{"batched.x", std::string{text}};
-        Parser parser("batched", &scanner);
-        XLS_ASSIGN_OR_RETURN(std::shared_ptr<Module> module,
-                             parser.ParseModule());
         XLS_ASSIGN_OR_RETURN(
-            std::shared_ptr<TypeInfo> type_info,
-            CheckModule(module.get(), &import_cache, /*dslx_paths=*/{}));
-
+            TypecheckedModule tm,
+            ParseAndTypecheck(text, "batched.x", "batched", &import_cache));
         XLS_ASSIGN_OR_RETURN(Function * f,
-                             module->GetFunctionOrError(function_name));
+                             tm.module->GetFunctionOrError(function_name));
         XLS_ASSIGN_OR_RETURN(FunctionType * fn_type,
-                             type_info->GetItemAs<FunctionType>(f));
+                             tm.type_info->GetItemAs<FunctionType>(f));
 
-        Interpreter interpreter(module.get(), type_info, nullptr,
+        Interpreter interpreter(tm.module.get(), tm.type_info, nullptr,
                                 /*additional_search_paths=*/{}, &import_cache,
                                 /*trace_all=*/false, /*package=*/nullptr);
         std::vector<InterpValue> results;
