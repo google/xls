@@ -72,10 +72,46 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
     return true;
   }
 
+  // Returns true if all operands of 'node' are the same.
+  auto all_operands_same = [](Node* node) {
+    return std::all_of(node->operands().begin(), node->operands().end(),
+                       [node](Node* op) { return op == node->operand(0); });
+  };
+
+  // All operands the same for a non-inverting logical op (AND, OR):
+  //
+  //   Op(x, x, ...)  =>  x
   const Op op = n->op();
-  if (n->Is<NaryOp>() && (op == Op::kAnd || op == Op::kOr || op == Op::kXor) &&
-      n->operand_count() == 1) {
+  if (n->Is<NaryOp>() && (op == Op::kAnd || op == Op::kOr) &&
+      all_operands_same(n)) {
     XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
+    return true;
+  }
+
+  // All operands the same for inverting logical op (NOR, NAND):
+  //
+  //   Op(x, x, ...)  =>  Not(x)
+  if (n->Is<NaryOp>() && (op == Op::kNor || op == Op::kNand) &&
+      all_operands_same(n)) {
+    XLS_RETURN_IF_ERROR(
+        n->ReplaceUsesWithNew<UnOp>(n->operand(0), Op::kNot).status());
+    return true;
+  }
+
+  // All operands the same for XOR:
+  //
+  //   XOR(x, x, ...)  =>  x  // Odd number of operands.
+  //   XOR(x, x, ...)  =>  0  // Even number of operands.
+  if (op == Op::kXor && all_operands_same(n)) {
+    if (n->operand_count() % 2 == 0) {
+      // Even number of operands. Replace with zero.
+      XLS_RETURN_IF_ERROR(
+          n->ReplaceUsesWithNew<Literal>(Value(UBits(0, n->BitCountOrDie())))
+              .status());
+    } else {
+      // Odd number of operands. Replace with XOR operand.
+      XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
+    }
     return true;
   }
 
@@ -148,23 +184,6 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
     return true;
   }
 
-  // And(x, x) => x
-  // Or(x, x) => x
-  // TODO(rhundt): This should be subsumed by BDD-based optimizations.
-  if (n->op() == Op::kAnd || n->op() == Op::kOr) {
-    bool all_the_same = true;
-    for (int i = 1; i < n->operand_count(); ++i) {
-      if (n->operand(0) != n->operand(i)) {
-        all_the_same = false;
-        break;
-      }
-    }
-    if (all_the_same) {
-      XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
-      return true;
-    }
-  }
-
   // Nand(x, 0) => 1
   if (n->op() == Op::kNand && AnyOperandWhere(n, IsLiteralZero)) {
     XLS_RETURN_IF_ERROR(
@@ -206,7 +225,9 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
 
   auto is_same_opcode = [&](Node* other) { return n->op() == other->op(); };
 
-  // Flatten nested associative nary ops into their "dependent" op.
+  // Flatten nested associative nary ops into their root op:
+  //
+  //   Op(Op(x, y), z)  =>  Op(x, y, z)
   if (OpIsAssociative(n->op()) && n->Is<NaryOp>() &&
       AnyOperandWhere(n, is_same_opcode)) {
     std::vector<Node*> new_operands;
@@ -225,6 +246,8 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
   }
 
   // Fold the literal values presented to the nary op.
+  //
+  //   Op(C0, x, C1)  =>  Op(C2, x) where C2 == Op(C0, C1)
   if (OpIsCommutative(n->op()) && OpIsAssociative(n->op()) && n->Is<NaryOp>() &&
       AnyTwoOperandsWhere(n, IsLiteral)) {
     std::vector<Node*> new_operands;
@@ -242,26 +265,6 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
     new_operands.push_back(literal);
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<NaryOp>(new_operands, n->op()).status());
-    return true;
-  }
-
-  // Replace Nary ops with a single-operand with their operand (or inverse in
-  // the case of nand and nor).
-  if (n->Is<NaryOp>() && n->operand_count() == 1) {
-    switch (n->op()) {
-      case Op::kAnd:
-      case Op::kOr:
-      case Op::kXor:
-        XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
-        break;
-      case Op::kNand:
-      case Op::kNor:
-        XLS_RETURN_IF_ERROR(
-            n->ReplaceUsesWithNew<UnOp>(n->operand(0), Op::kNot).status());
-        break;
-      default:
-        XLS_LOG(FATAL) << "Expected nary op op: " << OpToString(n->op());
-    }
     return true;
   }
 
@@ -483,32 +486,6 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
     }
     XLS_RET_CHECK(IsLiteralUnsignedOne(n->operand(1)));
     XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
-    return true;
-  }
-
-  // Or(Or(x, y), z) => NaryOr(x, y, z)
-  // Or(x, Or(y, z)) => NaryOr(x, y, z)
-  // Or(Or(x, y), Or(z, a)) => NaryOr(x, y, z, a)
-  auto has_operand_with_same_opcode = [&](Op op) {
-    return n->op() == op &&
-           std::any_of(n->operands().begin(), n->operands().end(),
-                       [op](Node* node) { return node->op() == op; });
-  };
-  if (has_operand_with_same_opcode(Op::kOr) ||
-      has_operand_with_same_opcode(Op::kAnd) ||
-      has_operand_with_same_opcode(Op::kXor)) {
-    std::vector<Node*> new_operands;
-    for (Node* operand : n->operands()) {
-      if (operand->op() == n->op()) {
-        for (Node* sub_operand : operand->operands()) {
-          new_operands.push_back(sub_operand);
-        }
-      } else {
-        new_operands.push_back(operand);
-      }
-    }
-    XLS_RETURN_IF_ERROR(
-        n->ReplaceUsesWithNew<NaryOp>(new_operands, n->op()).status());
     return true;
   }
 

@@ -549,46 +549,6 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     return true;
   }
 
-  {
-    // Detects whether an operation is a select that effectively acts like a
-    // sign extension (or a invert-then-sign-extension); i.e. if the selector is
-    // one yields all ones when the selector is 1 and all zeros when the
-    // selector is 0.
-    // TODO(meheff) 2019-9-17 Add the respective optimization for
-    // one-hot-select.
-    auto is_signext_mux = [&](bool* invert_selector) {
-      bool ok = node->Is<Select>() && node->GetType()->IsBits() &&
-                node->operand(0)->BitCountOrDie() == 1;
-      if (!ok) {
-        return false;
-      }
-      if (IsLiteralAllOnes(node->operand(2)) &&
-          IsLiteralZero(node->operand(1))) {
-        *invert_selector = false;
-        return true;
-      }
-      if (IsLiteralAllOnes(node->operand(1)) &&
-          IsLiteralZero(node->operand(2))) {
-        *invert_selector = true;
-        return true;
-      }
-      return false;
-    };
-
-    bool invert_selector;
-    if (is_signext_mux(&invert_selector)) {
-      Node* selector = node->operand(0);
-      if (invert_selector) {
-        XLS_ASSIGN_OR_RETURN(selector, node->function_base()->MakeNode<UnOp>(
-                                           node->loc(), selector, Op::kNot));
-      }
-      XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<ExtendOp>(
-                                  selector, node->BitCountOrDie(), Op::kSignExt)
-                              .status());
-      return true;
-    }
-  }
-
   // Merge consecutive one-hot-select instructions if the predecessor operation
   // has only a single use.
   if (node->Is<OneHotSelect>()) {

@@ -640,6 +640,42 @@ TEST_F(ArithSimplificationPassTest, RedundantOr) {
   EXPECT_THAT(f->return_value(), m::Param("x"));
 }
 
+TEST_F(ArithSimplificationPassTest, NandWithSameOperands) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+    fn id_or(x: bits[32], y: bits[32]) -> bits[32] {
+       ret result: bits[32] = nand(x, x, x, pos=0,1,5)
+    }
+)",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Not(m::Param("x")));
+}
+
+TEST_F(ArithSimplificationPassTest, XorWithSameOperandsEven) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+    fn id_or(x: bits[32], y: bits[32]) -> bits[32] {
+       ret result: bits[32] = xor(x, x, pos=0,1,5)
+    }
+)",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal(0));
+}
+
+TEST_F(ArithSimplificationPassTest, XorWithSameOperandsOdd) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+    fn id_or(x: bits[32], y: bits[32]) -> bits[32] {
+       ret result: bits[32] = xor(x, x, x, pos=0,1,5)
+    }
+)",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Param("x"));
+}
+
 TEST_F(ArithSimplificationPassTest, AddWithZero) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(

@@ -300,42 +300,6 @@ TEST_F(SelectSimplificationPassTest, OneBitMux) {
                     m::And(m::Not(m::Param("s")), m::Param("s"))));
 }
 
-TEST_F(SelectSimplificationPassTest, SignExtMux) {
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-     fn func(s: bits[1]) -> bits[16] {
-       literal.2: bits[16] = literal(value=0)
-       literal.3: bits[16] = literal(value=0xffff)
-       ret sel.4: bits[16] = sel(s, cases=[literal.2, literal.3])
-     }
-  )",
-                                                       p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kSel);
-
-  EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              //              m::SignExt(m::Param("s"), /*new_bit_count=*/16));
-              m::SignExt(m::Param("s")));
-}
-
-TEST_F(SelectSimplificationPassTest, SignExtMuxNegated) {
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-     fn func(s: bits[1]) -> bits[16] {
-       literal.2: bits[16] = literal(value=0)
-       literal.3: bits[16] = literal(value=0xffff)
-       ret sel.4: bits[16] = sel(s, cases=[literal.3, literal.2])
-     }
-  )",
-                                                       p.get()));
-  EXPECT_EQ(f->return_value()->op(), Op::kSel);
-
-  EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              //              m::SignExt(m::Param("s"), /*new_bit_count=*/16));
-              m::SignExt(m::Not(m::Param("s"))));
-}
-
 TEST_F(SelectSimplificationPassTest, SelSqueezing) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
