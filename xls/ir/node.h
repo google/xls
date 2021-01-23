@@ -87,7 +87,8 @@ class Node {
   bool ReplaceOperand(Node* old_operand, Node* new_operand);
 
   // Replaces the existing operand at position 'operand_no' with 'new_operand'.
-  absl::Status ReplaceOperandNumber(int64 operand_no, Node* new_operand);
+  absl::Status ReplaceOperandNumber(int64 operand_no, Node* new_operand,
+                                    bool type_must_match = true);
 
   // Replace all uses of this node with 'replacement'. If this node is the
   // return value of the function, then 'replacement' is made the return

@@ -57,6 +57,12 @@ Op CompareOpInverse(Op op) {
   }
 }
 
+// Returns true if the node and its operands are all the same type.
+bool NodeAndOperandsSameType(Node* n) {
+  return std::all_of(n->operands().begin(), n->operands().end(),
+                     [n](Node* o) { return o->GetType() == n->GetType(); });
+}
+
 // MatchArithPatterns matches simple tree patterns to find opportunities
 // for simplification, such as adding a zero, multiplying by 1, etc.
 //
@@ -419,13 +425,10 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
     return true;
   }
 
-  // An arithmetic shift right by a constant can be replaced by slice, concat,
-  // and a sequence of sign bits of the input.
+  // An arithmetic shift right by a constant can be replaced by sign-extended
+  // slice of the to-shift operand.
   //
-  //    (val >>> lit) -> Concat({sign_extend(sign_bit), BitSlice(val, ...)})
-  //
-  // If the shift amount is greater than or equal to the bit width the
-  // expression can be replaced with the sign-extended sign bit.
+  //    (val >>> lit) -> sign_extend(BitSlice(val, ...))
   //
   // This simplification is desirable because in the canonical lower-level IR a
   // shift implies a barrel shifter which is not necessary for a shift by a
@@ -438,28 +441,20 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
       XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
       return true;
     }
-    XLS_ASSIGN_OR_RETURN(
-        Node * sign_bit,
-        n->function_base()->MakeNode<BitSlice>(
-            n->loc(), n->operand(0), /*start=*/bit_count - 1, /*width=*/1));
+    int64 slice_width;
     if (bits_ops::UGreaterThanOrEqual(shift_bits, bit_count)) {
-      // Replace with all sign bits.
-      XLS_RETURN_IF_ERROR(
-          n->ReplaceUsesWithNew<ExtendOp>(sign_bit, bit_count, Op::kSignExt)
-              .status());
-      return true;
+      slice_width = 1;
+    } else {
+      XLS_ASSIGN_OR_RETURN(uint64 shift_amount, shift_bits.ToUint64());
+      slice_width = bit_count - shift_amount;
     }
-    XLS_ASSIGN_OR_RETURN(uint64 shift_amount, shift_bits.ToUint64());
-    XLS_RET_CHECK_LT(shift_amount, bit_count);
-    XLS_ASSIGN_OR_RETURN(Node * all_sign_bits,
-                         n->function_base()->MakeNode<ExtendOp>(
-                             n->loc(), sign_bit, shift_amount, Op::kSignExt));
-    XLS_ASSIGN_OR_RETURN(Node * slice,
-                         n->function_base()->MakeNode<BitSlice>(
-                             n->loc(), n->operand(0), /*start=*/shift_amount,
-                             /*width=*/bit_count - shift_amount));
-    std::vector<Node*> concat_args = {all_sign_bits, slice};
-    XLS_RETURN_IF_ERROR(n->ReplaceUsesWithNew<Concat>(concat_args).status());
+    XLS_ASSIGN_OR_RETURN(Node * slice, n->function_base()->MakeNode<BitSlice>(
+                                           n->loc(), n->operand(0),
+                                           /*start=*/bit_count - slice_width,
+                                           /*width=*/slice_width));
+    XLS_RETURN_IF_ERROR(
+        n->ReplaceUsesWithNew<ExtendOp>(slice, bit_count, Op::kSignExt)
+            .status());
     return true;
   }
 
@@ -487,6 +482,51 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
     XLS_RET_CHECK(IsLiteralUnsignedOne(n->operand(1)));
     XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
     return true;
+  }
+
+  // A nested subtract expression can be simplified to an add and a
+  // subtract. The motivation is that adds a easier to transform because
+  // addition is commutative so having one add and one subtraction is better
+  // than two subtractions.
+  //
+  //   a - (b - c) =>  a + (c - b)
+  if (n->op() == Op::kSub && n->operand(1)->op() == Op::kSub &&
+      NodeAndOperandsSameType(n) && NodeAndOperandsSameType(n->operand(1))) {
+    // Name variables according to comment above.
+    Node* a = n->operand(0);
+    Node* b = n->operand(1)->operand(0);
+    Node* c = n->operand(1)->operand(1);
+    XLS_ASSIGN_OR_RETURN(Node * c_minus_b, n->function_base()->MakeNode<BinOp>(
+                                               n->loc(), c, b, Op::kSub));
+    XLS_RETURN_IF_ERROR(
+        n->ReplaceUsesWithNew<BinOp>(a, c_minus_b, Op::kAdd).status());
+    return true;
+  }
+
+  // Shift amounts from the front-end are often unnecessarily zero
+  // extended. Strip the zero-extension (canonicalized to concat with zero):
+  //
+  //   a << {0, b} => a << b
+  if (n->op() == Op::kShll || n->op() == Op::kShrl || n->op() == Op::kShra) {
+    if (n->operand(1)->Is<Concat>()) {
+      Concat* concat = n->operand(1)->As<Concat>();
+      if (IsLiteralZero(concat->operand(0))) {
+        Node* new_shift_amount;
+        if (concat->operand_count() == 1) {
+          new_shift_amount = concat->operand(0);
+        } else if (concat->operand_count() == 2) {
+          new_shift_amount = concat->operand(1);
+        } else {
+          XLS_ASSIGN_OR_RETURN(
+              new_shift_amount,
+              n->function_base()->MakeNode<Concat>(
+                  concat->loc(), concat->operands().subspan(1)));
+        }
+        XLS_RETURN_IF_ERROR(n->ReplaceOperandNumber(1, new_shift_amount,
+                                                    /*type_must_match=*/false));
+        return true;
+      }
+    }
   }
 
   // If either x or y is zero width:

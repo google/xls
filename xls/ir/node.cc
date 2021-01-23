@@ -586,11 +586,14 @@ bool Node::ReplaceOperand(Node* old_operand, Node* new_operand) {
   return did_replace;
 }
 
-absl::Status Node::ReplaceOperandNumber(int64 operand_no, Node* new_operand) {
+absl::Status Node::ReplaceOperandNumber(int64 operand_no, Node* new_operand,
+                                        bool type_must_match) {
   Node* old_operand = operands_[operand_no];
-  XLS_RET_CHECK(old_operand->GetType() == new_operand->GetType())
-      << "old operand type: " << old_operand->GetType()->ToString()
-      << " new operand type: " << new_operand->GetType()->ToString();
+  if (type_must_match) {
+    XLS_RET_CHECK(old_operand->GetType() == new_operand->GetType())
+        << "old operand type: " << old_operand->GetType()->ToString()
+        << " new operand type: " << new_operand->GetType()->ToString();
+  }
 
   // AddUser is idempotent so even if the new operand is already used by this
   // node in another operand slot, it is safe to call.

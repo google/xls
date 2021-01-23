@@ -198,6 +198,21 @@ TEST_F(NodeTest, ReplaceOperandNumberNoLongerUser) {
   EXPECT_TRUE(literal2.node()->HasUser(add.node()));
 }
 
+TEST_F(NodeTest, ReplaceOperandNumber) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto x = fb.Param("x", p->GetBitsType(32));
+  fb.Param("y", p->GetBitsType(32));
+  fb.Param("z", p->GetBitsType(8));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Shll(x, x)));
+  XLS_ASSERT_OK(f->return_value()->ReplaceOperandNumber(1, FindNode("y", f)));
+  ASSERT_THAT(f->return_value()->ReplaceOperandNumber(1, FindNode("z", f)),
+              StatusIs(absl::StatusCode::kInternal));
+  XLS_ASSERT_OK(f->return_value()->ReplaceOperandNumber(
+      1, FindNode("z", f), /*type_must_match=*/false));
+}
+
 TEST_F(NodeTest, IsDefinitelyEqualTo) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(

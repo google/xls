@@ -243,9 +243,9 @@ TEST_F(ArithSimplificationPassTest, SDivBy2) {
   )",
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              m::Concat(m::SignExt(),
-                        m::BitSlice(m::Param("x"), /*start=*/1, /*width=*/15)));
+  EXPECT_THAT(
+      f->return_value(),
+      m::SignExt(m::BitSlice(m::Param("x"), /*start=*/1, /*width=*/15)));
 }
 
 TEST_F(ArithSimplificationPassTest, MulBy1NarrowedResult) {
@@ -369,7 +369,9 @@ TEST_F(ArithSimplificationPassTest, ShiftRightArithmeticByLiteral) {
   )",
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(), m::Concat(m::SignExt(), m::BitSlice()));
+  EXPECT_THAT(
+      f->return_value(),
+      m::SignExt(m::BitSlice(m::Param("x"), /*start=*/13, /*width=*/3)));
 }
 
 TEST_F(ArithSimplificationPassTest, OverlargeShiftRightArithmeticByLiteral) {
@@ -803,6 +805,42 @@ TEST_F(ArithSimplificationPassTest, UGtMaskAllOnes) {
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Literal(0));
+}
+
+TEST_F(ArithSimplificationPassTest, ShiftByConcatWithZeroValue) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Shll(fb.Param("x", p->GetBitsType(32)),
+          fb.Concat({fb.Literal(Value(UBits(0, 24))),
+                     fb.Param("y", p->GetBitsType(8))}));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Shll(m::Param("x"), m::Param("y")));
+}
+
+TEST_F(ArithSimplificationPassTest, ShiftByConcatWithZeroValueAndOthers) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Shll(fb.Param("x", p->GetBitsType(32)),
+          fb.Concat({fb.Literal(Value(UBits(0, 16))),
+                     fb.Param("y", p->GetBitsType(8)),
+                     fb.Param("z", p->GetBitsType(8))}));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Shll(m::Param("x"), m::Concat(m::Param("y"), m::Param("z"))));
+}
+
+TEST_F(ArithSimplificationPassTest, SubOfSub) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Subtract(fb.Param("x", p->GetBitsType(32)),
+              fb.Subtract(fb.Param("y", p->GetBitsType(32)),
+                          fb.Param("z", p->GetBitsType(32))));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Add(m::Param("x"), m::Sub(m::Param("z"), m::Param("y"))));
 }
 
 }  // namespace
