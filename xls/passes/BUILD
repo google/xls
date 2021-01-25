@@ -150,6 +150,7 @@ cc_test(
         ":canonicalization_pass",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/status:matchers",
+        "//xls/interpreter:ir_interpreter",
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
@@ -362,6 +363,7 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:bits_ops",
     ],
 )
 
