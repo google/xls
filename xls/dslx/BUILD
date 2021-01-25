@@ -239,23 +239,6 @@ py_binary(
     ],
 )
 
-py_test(
-    name = "extract_conversion_order_test",
-    srcs = ["extract_conversion_order_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        ":fakefs_test_util",
-        ":parse_and_typecheck",
-        "//xls/common:test_base",
-        "//xls/dslx/python:cpp_ast",
-        "//xls/dslx/python:cpp_ir_converter",
-        "//xls/dslx/python:cpp_type_info",
-        "//xls/dslx/python:import_routines",
-        "@com_google_absl_py//absl/testing:absltest",
-    ],
-)
-
 filegroup(
     name = "ir_converter_test_sh",
     srcs = ["ir_converter_test.sh"],
@@ -758,6 +741,17 @@ cc_library(
         ":symbolic_bindings",
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/container:flat_hash_map",
+    ],
+)
+
+cc_test(
+    name = "cpp_extract_conversion_order_test",
+    srcs = ["cpp_extract_conversion_order_test.cc"],
+    deps = [
+        ":cpp_extract_conversion_order",
+        ":cpp_parse_and_typecheck",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest_main",
     ],
 )
 
