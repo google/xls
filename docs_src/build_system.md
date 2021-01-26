@@ -23,12 +23,21 @@ This macro generates Verilog from an DSLX target (currently given as a
 `dslx_test` target). This target also accepts several key/value parameters (as
 `configs` for generation:
 
-*   `clock_period_ps`: The target clock period in picoseconds.
-*   `pipeline_stages`: The desired number of pipeline stages.
+*   `clock_period_ps`: The target clock period in picoseconds. Only used with
+    the pipeline generator.
+*   `clock_margin_percent`: The percent of the target clock period to reserve as
+    "margin". Only used with the pipeline generator.
 *   `entry`: The DSLX function to synthesize. If not given, a "best guess" will
     be made.
-*   `clock_margin_percent`: The percent of the target clock period to reserve as
-    "margin".
+*   `flop_inputs`, `flop_outputs`: Whether to add flops at the inputs/outputs of
+    the generated module. Only used with the pipeline generator.
+*   `generator`: The code generator to be used. Can be either `combinational` or
+    `pipeline`.
+*   `module_name`: The desired name of the generated Verilog module.
+*   `pipeline_stages`: The desired number of pipeline stages.
+*   `reset`: The name of the reset signal to use, if any.
+*   `reset_active_low`: Whether the reset signal is active low. Must also
+    specify `reset` option. Only used with the pipeline generator.
 
 ### `dslx_jit_wrapper`
 

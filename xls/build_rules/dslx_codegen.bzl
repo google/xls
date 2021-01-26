@@ -70,6 +70,7 @@ def codegen(
         "entry",
         "flop_inputs",
         "flop_outputs",
+        "generator",
         "input_valid_signal",
         "module_name",
         "output_valid_signal",
@@ -78,32 +79,54 @@ def codegen(
         "reset_active_low",
         "reset_asynchronous",
     )
+    uses_combinational_generator = False
     for flag_name in CODEGEN_FLAGS:
         if flag_name in codegen_params:
             codegen_flags.append("--{}={}".format(
                 flag_name,
                 codegen_params[flag_name],
             ))
+            if flag_name == "generator" and codegen_params[flag_name] == "combinational":
+                uses_combinational_generator = True
     verilog_file = name + ".v"
     module_sig_file = name + ".sig.textproto"
-    schedule_file = name + ".schedule.textproto"
-    genrule_wrapper(
-        name = name,
-        srcs = srcs,
-        outs = [verilog_file, module_sig_file, schedule_file],
-        cmd = ("$(location %s) %s --output_signature_path=$(@D)/%s " +
-               "--output_verilog_path=$(@D)/%s " +
-               "--output_schedule_path=$(@D)/%s $<") % (
-            _CODEGEN_MAIN,
-            " ".join(codegen_flags),
-            module_sig_file,
-            verilog_file,
-            schedule_file,
-        ),
-        exec_tools = [_CODEGEN_MAIN],
-        tags = tags,
-        **kwargs
-    )
+    if uses_combinational_generator:
+        # Combinational generator produces no schedule artifact.
+        genrule_wrapper(
+            name = name,
+            srcs = srcs,
+            outs = [verilog_file, module_sig_file],
+            cmd = ("$(location %s) %s --output_signature_path=$(@D)/%s " +
+                   "--output_verilog_path=$(@D)/%s  $<") % (
+                _CODEGEN_MAIN,
+                " ".join(codegen_flags),
+                module_sig_file,
+                verilog_file,
+            ),
+            exec_tools = [_CODEGEN_MAIN],
+            tags = tags,
+            **kwargs
+        )
+    else:
+        # Pipeline generator produces a schedule artifact.
+        schedule_file = name + ".schedule.textproto"
+        genrule_wrapper(
+            name = name,
+            srcs = srcs,
+            outs = [verilog_file, module_sig_file, schedule_file],
+            cmd = ("$(location %s) %s --output_signature_path=$(@D)/%s " +
+                   "--output_verilog_path=$(@D)/%s " +
+                   "--output_schedule_path=$(@D)/%s $<") % (
+                _CODEGEN_MAIN,
+                " ".join(codegen_flags),
+                module_sig_file,
+                verilog_file,
+                schedule_file,
+            ),
+            exec_tools = [_CODEGEN_MAIN],
+            tags = tags,
+            **kwargs
+        )
 
 def make_benchmark_args(package_name, name, entry, args):
     """Helper for creating benchmark executable args.

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//xls/build_rules:build_defs.bzl", "dslx_test")
+load("//xls/build_rules:build_defs.bzl", "dslx_generated_rtl", "dslx_test")
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -44,4 +44,36 @@ dslx_test(
     deps = [
         "generated.x",
     ],
+)
+
+# Check that we can generate a block a couple different ways.
+dslx_generated_rtl(
+    name = "add_one_pipeline_rtl",
+    srcs = ["add_one.x"],
+    codegen_params = {
+        "pipeline_stages": 2,
+        "delay_model": "unit",
+    },
+)
+
+sh_test(
+    name = "add_one_pipeline_rtl_has_clk_test",
+    srcs = ["has_clk.sh"],
+    args = ["$(rootpath :add_one_pipeline_rtl.v)"],
+    data = [":add_one_pipeline_rtl.v"],
+)
+
+dslx_generated_rtl(
+    name = "add_one_combinational_rtl",
+    srcs = ["add_one.x"],
+    codegen_params = {
+        "generator": "combinational",
+    },
+)
+
+sh_test(
+    name = "add_one_combinational_rtl_has_clk_test",
+    srcs = ["not_has_clk.sh"],
+    args = ["$(rootpath :add_one_combinational_rtl.v)"],
+    data = [":add_one_combinational_rtl.v"],
 )
