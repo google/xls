@@ -179,25 +179,6 @@ xls_pybind_extension(
 )
 
 xls_pybind_extension(
-    name = "cpp_type_info",
-    srcs = [
-        "cpp_type_info.cc",
-    ],
-    py_deps = [
-        ":cpp_ast",  # build_cleaner: keep
-    ],
-    deps = [
-        ":cpp_ast_header",
-        ":errors",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/strings",
-        "//xls/common/status:status_macros",
-        "//xls/common/status:statusor_pybind_caster",
-        "//xls/dslx:cpp_type_info",
-    ],
-)
-
-xls_pybind_extension(
     name = "interp_value",
     srcs = [
         "interp_value.cc",
@@ -239,7 +220,6 @@ xls_pybind_extension(
     ],
     py_deps = [
         ":cpp_ast",  # build_cleaner: keep
-        ":cpp_type_info",  # build_cleaner: keep
         ":interp_value",  # build_cleaner: keep
     ],
     deps = [
@@ -296,7 +276,6 @@ xls_pybind_extension(
     srcs = ["cpp_deduce.cc"],
     py_deps = [
         ":cpp_ast",  # build_cleaner: keep
-        ":cpp_type_info",  # build_cleaner: keep
         ":cpp_concrete_type",  # build_cleaner: keep
         ":import_routines",  # build_cleaner: keep
     ],
@@ -325,7 +304,6 @@ xls_pybind_extension(
     srcs = ["cpp_parametric_instantiator.cc"],
     py_deps = [
         ":cpp_ast",  # build_cleaner: keep
-        ":cpp_type_info",  # build_cleaner: keep
         ":cpp_concrete_type",  # build_cleaner: keep
         ":import_routines",  # build_cleaner: keep
     ],
@@ -356,7 +334,6 @@ xls_pybind_extension(
     py_deps = [
         ":cpp_ast",  # build_cleaner: keep
         ":cpp_deduce",  # build_cleaner: keep
-        ":cpp_type_info",  # build_cleaner: keep
         ":cpp_concrete_type",  # build_cleaner: keep
         ":import_routines",  # build_cleaner: keep
     ],
@@ -387,7 +364,6 @@ xls_pybind_extension(
     py_deps = [
         ":cpp_ast",  # build_cleaner: keep
         ":cpp_deduce",  # build_cleaner: keep
-        ":cpp_type_info",  # build_cleaner: keep
         ":cpp_concrete_type",  # build_cleaner: keep
         ":interp_value",  # build_cleaner: keep
         ":import_routines",  # build_cleaner: keep

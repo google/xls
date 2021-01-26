@@ -202,7 +202,6 @@ py_library(
         "//xls/dslx/interpreter:value_parser",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_concrete_type",
-        "//xls/dslx/python:cpp_type_info",
         "//xls/dslx/python:cpp_typecheck",
         "//xls/dslx/python:import_routines",
         "//xls/dslx/python:interp_value",

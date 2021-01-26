@@ -44,19 +44,18 @@ static absl::Status TryThrowErrors(const absl::Status& status) {
 
 PYBIND11_MODULE(cpp_typecheck, m) {
   ImportStatusModule();
-  py::module::import("xls.dslx.python.cpp_type_info");
 
   m.def(
       "check_module",
       [](ModuleHolder module, absl::optional<ImportCache*> import_cache,
          const std::vector<std::string>& additional_search_paths)
-          -> absl::StatusOr<std::shared_ptr<TypeInfo>> {
+          -> absl::Status {
         ImportCache* pimport_cache =
             import_cache.has_value() ? import_cache.value() : nullptr;
         auto statusor = CheckModule(&module.deref(), pimport_cache,
                                     additional_search_paths);
         (void)TryThrowErrors(statusor.status());
-        return statusor;
+        return statusor.status();
       },
       py::arg("module"), py::arg("import_cache"),
       py::arg("additional_search_paths"));
