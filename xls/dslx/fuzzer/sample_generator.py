@@ -19,14 +19,13 @@
 import random
 from typing import Tuple, Text, Sequence
 
-from xls.dslx import parse_and_typecheck
 from xls.dslx.fuzzer import ast_generator
 from xls.dslx.fuzzer import sample
+from xls.dslx.python import interpreter
 from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType
 from xls.dslx.python.cpp_concrete_type import ConcreteType
 from xls.dslx.python.cpp_concrete_type import TupleType
-from xls.dslx.python.import_routines import ImportCache
 from xls.dslx.python.interp_value import Tag
 from xls.dslx.python.interp_value import Value
 from xls.ir.python import bits as ir_bits
@@ -146,22 +145,15 @@ def generate_sample(rng: Random, ast_options: ast_generator.AstGeneratorOptions,
   """Generates and returns a random Sample with the given options."""
   ast_gen = ast_generator.AstGenerator(
       rng, ast_options, codegen_ops_only=default_options.codegen)
-  f, m = ast_gen.generate_function_in_module(fname='main', mname='test')
+  function_name = 'main'
+  _, m = ast_gen.generate_function_in_module(fname=function_name, mname='test')
   dslx_text = str(m)
 
-  # Re-parse so we can get real positions in error messages.
-  m, type_info = parse_and_typecheck.parse_text_fakefs(
-      dslx_text,
-      m.name,
-      print_on_error=True,
-      import_cache=ImportCache(),
-      additional_search_paths=(),
-      filename='/fake/test.x')
-  f = m.get_function('main')
+  # Note: we also re-parse here so we can get real positions in error messages.
+  fn_type = interpreter.get_function_type(dslx_text, function_name)
 
-  arg_types = tuple(type_info.get_type(p.type_) for p in f.params)
   args_batch = tuple(
-      generate_arguments(arg_types, rng) for _ in range(calls_per_sample))
+      generate_arguments(fn_type.params, rng) for _ in range(calls_per_sample))
   # The generated sample is DSLX so input_is_dslx must be true.
   options = default_options._replace(input_is_dslx=True)
   if options.codegen and not options.codegen_args:

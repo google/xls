@@ -59,6 +59,21 @@ PYBIND11_MODULE(interpreter, m) {
     }
   });
 
+  m.def("get_function_type",
+        [](absl::string_view text, absl::string_view function_name)
+            -> absl::StatusOr<std::unique_ptr<ConcreteType>> {
+          ImportCache import_cache;
+          XLS_ASSIGN_OR_RETURN(
+              TypecheckedModule tm,
+              ParseAndTypecheck(text, "get_function_type.x",
+                                "get_function_type", &import_cache));
+          XLS_ASSIGN_OR_RETURN(Function * f,
+                               tm.module->GetFunctionOrError(function_name));
+          XLS_ASSIGN_OR_RETURN(FunctionType * fn_type,
+                               tm.type_info->GetItemAs<FunctionType>(f));
+          return fn_type->CloneToUnique();
+        });
+
   m.def(
       "run_batched",
       [](absl::string_view text, absl::string_view function_name,
