@@ -15,13 +15,14 @@
 #include "xls/common/strerror.h"
 
 #include <stdio.h>
+#include <string.h>
 
 namespace xls {
 
 std::string Strerror(int error_num) {
-  // Use sys_errlist API that was deprecated in favor of strerror, because at
-  // least it's thread safe.
-  return sys_errlist[error_num];
+  char err_txt[1024]; // 1024 is the libc max error size (no define?)
+  strerror_r(error_num, err_txt, 1024);
+  return std::string(err_txt);
 }
 
 }  // namespace xls
