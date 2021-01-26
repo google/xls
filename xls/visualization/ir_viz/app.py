@@ -18,7 +18,10 @@ Exposes a text box to edit or cut-and-paste XLS IR to render as a graph.
 """
 
 import json
+import os
 import sys
+
+from typing import List, Tuple
 
 from absl import app
 from absl import flags
@@ -34,7 +37,7 @@ flags.DEFINE_bool('use_ipv6', False, 'Whether to use IPv6.')
 flags.DEFINE_integer('port', None, 'Port to serve on.')
 flags.DEFINE_string('delay_model', None, 'Delay model to use.')
 # TODO(meheff): Remove this flag and figure out a better way getting the actual
-# schedule used in the benchmarks and/or surface the scheduling options in the
+# schedule used in the examples and/or surface the scheduling options in the
 # UI.
 flags.DEFINE_integer(
     'pipeline_stages', None,
@@ -42,8 +45,12 @@ flags.DEFINE_integer(
     'delay model. This influence the rendering graph by changing '
     'cycle-spanning edges to dotted style')
 flags.DEFINE_string(
-    'ir_path', None, 'Path to local IR file to render on startup. If "-" then '
-    'read from stdin.')
+    'preload_ir_path', None, 'Path to local IR file to render on startup. If '
+    '"-" then read from stdin.')
+flags.DEFINE_string(
+    'example_ir_dir', None, 'Path to directory containing IR files to use as '
+    'precanned examples available in the UI via the "Examples" drop down menu. '
+    'All files ending in ".ir" in the directory are used.')
 flags.mark_flag_as_required('delay_model')
 
 IR_EXAMPLES_FILE_LIST = 'xls/visualization/ir_viz/ir_examples_file_list.txt'
@@ -51,12 +58,20 @@ IR_EXAMPLES_FILE_LIST = 'xls/visualization/ir_viz/ir_examples_file_list.txt'
 webapp = flask.Flask('XLS UI')
 webapp.debug = True
 
-benchmarks = []
+# Set of pre-canned examples as a list of (name, IR text) tuples. By default
+# these are loaded from IR_EXAMPLES_FILE_LIST unless --example_ir_dir is given.
+examples = []
 
 
-def load_benchmarks():
-  """Returns a list of benchmarks as tuples of (name, IR text)."""
-  bms = []
+def load_precanned_examples() -> List[Tuple[str, str]]:
+  """Returns a list of examples as tuples of (name, IR text).
+
+  Examples are loaded from the list of files in IR_EXAMPLES_FILE_LIST.
+
+  Returns:
+    List of tuples containing (name, IR text).
+  """
+  irs = []
   for ir_path in runfiles.get_contents_as_text(IR_EXAMPLES_FILE_LIST).split():
     if '.opt.ir' not in ir_path:
       continue
@@ -67,7 +82,7 @@ def load_benchmarks():
       return s
 
     # Strip off path prefix up to 'examples/' or 'modules/' to create the
-    # benchmark name.
+    # example name.
     if 'examples/' in ir_path:
       name = strip_up_to(ir_path, 'examples/')
     elif 'modules/' in ir_path:
@@ -75,9 +90,34 @@ def load_benchmarks():
     else:
       name = ir_path
     name = name[:-len('.opt.ir')]
-    bms.append((name, runfiles.get_contents_as_text(ir_path)))
-  bms.sort()
-  return bms
+    irs.append((name, runfiles.get_contents_as_text(ir_path)))
+  irs.sort()
+  return irs
+
+
+def load_examples_from_dir(examples_dir):
+  """Returns a list of examples as tuples of (name, IR text).
+
+  Examples are loaded from the given directory and include all files ending with
+  '.ir'.
+
+  Args:
+    examples_dir: Directory to read IR examples from.
+
+  Returns:
+    List of tuples containing (name, IR text).
+
+  """
+  irs = []
+  for ir_filename in os.listdir(examples_dir):
+    if not ir_filename.endswith('.ir'):
+      continue
+
+    with open(os.path.join(examples_dir, ir_filename)) as f:
+      irs.append((ir_filename, f.read()))
+
+  irs.sort()
+  return irs
 
 
 def get_third_party_js():
@@ -92,9 +132,9 @@ def splash():
   return flask.render_template_string(
       runfiles.get_contents_as_text(
           'xls/visualization/ir_viz/templates/splash.tmpl'),
-      benchmarks=[name for name, _ in benchmarks],
+      examples=[name for name, _ in examples],
       third_party_scripts=get_third_party_js(),
-      load_default=FLAGS.ir_path is not None)
+      load_default=FLAGS.preload_ir_path is not None)
 
 
 @webapp.route('/static/<filename>')
@@ -123,18 +163,18 @@ def static_handler(filename):
   return flask.Response(response=content, content_type=ctype)
 
 
-@webapp.route('/benchmarks/<path:filename>')
-def benchmark_handler(filename):
+@webapp.route('/examples/<path:filename>')
+def example_handler(filename):
   """Reads and returns example IR files."""
-  if filename == 'default' and FLAGS.ir_path:
-    if FLAGS.ir_path == '-':
+  if filename == 'default' and FLAGS.preload_ir_path:
+    if FLAGS.preload_ir_path == '-':
       contents = sys.stdin.read()
     else:
-      with open(FLAGS.ir_path) as f:
+      with open(FLAGS.preload_ir_path) as f:
         contents = f.read()
     return flask.Response(response=contents, content_type='text/plain')
   try:
-    for name, content in benchmarks:
+    for name, content in examples:
       if filename == name:
         return flask.Response(response=content, content_type='text/plain')
   except IOError:
@@ -164,8 +204,12 @@ def main(argv):
   # This is required so that module initializers are called including those
   # which register delay models.
   init_xls.init_xls(sys.argv)
-  global benchmarks
-  benchmarks = load_benchmarks()
+  global examples
+  if FLAGS.example_ir_dir is not None:
+    examples = load_examples_from_dir(FLAGS.example_ir_dir)
+  else:
+    examples = load_precanned_examples()
+
   webapp.run(host='::' if FLAGS.use_ipv6 else '0.0.0.0', port=FLAGS.port)
 
 

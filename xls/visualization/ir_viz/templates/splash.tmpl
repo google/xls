@@ -99,11 +99,11 @@
             <div class="col col-md-auto">
               <div class="dropdown show">
                 <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenu2" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                  Benchmarks
+                  Examples
                 </button>
                 <div class="dropdown-menu" aria-labelledby="dropdownMenu2">
-                  {% for benchmark in benchmarks %}
-                  <button class="dropdown-item" id="{{ benchmark.replace('/', '_')  }}-load-btn" type="button">{{ benchmark }}</button>
+                  {% for example in examples %}
+                  <button class="dropdown-item" id="example-{{loop.index}}-load-btn" type="button" data-name="{{example}}">{{example}}</button>
                   {% endfor %}
                 </div>
               </div>
@@ -152,16 +152,18 @@
   <script src="/static/js_compiled.js"></script>
   <script>
     $(document).ready(function() {
-      function loadBenchmark(name, cb) {
-        $.get(`/benchmarks/${name}`, function(data) {
+      function loadExample(name, cb) {
+        $.get(`/examples/${name}`, function(data) {
           $('#ir-source-text').text(data);
           inputChangeHandler(cb);
         });
       }
-      {% for benchmark in benchmarks %}
-      $('#{{ benchmark.replace('/', '_') }}-load-btn').click(loadBenchmark.bind(null, '{{ benchmark }}', undefined));
+      {% for example in examples %}
+      $('#example-{{loop.index}}-load-btn').click(loadExample.bind(
+        null,
+        '{{example}}',
+        () => { visualizer.draw(showOnlySelectedState()); }));
       {% endfor %}
-
       $('#ir-upload').change(function() {
         if (this.files.length > 0) {
           this.files[0].text().then(function (text) {
@@ -193,9 +195,9 @@
       });
 
       function inputChangeHandler(cb) {
-         $('#view-graph-btn').prop('disabled', true);
-         $('#view-critical-path-btn').prop('disabled', true);
-         visualizer.parseAndHighlightIr(cb);
+        $('#view-graph-btn').prop('disabled', true);
+        $('#view-critical-path-btn').prop('disabled', true);
+        visualizer.parseAndHighlightIr(cb);
       }
 
       $('#ir-source-text').on('input', (e) => inputChangeHandler());
@@ -211,7 +213,7 @@
       });
 
       {% if load_default %}
-      loadBenchmark('default', function() {
+      loadExample('default', function() {
         visualizer.selectCriticalPath();
         visualizer.draw(showOnlySelectedState());
       });
