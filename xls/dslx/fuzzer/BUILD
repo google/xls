@@ -199,7 +199,6 @@ py_library(
         "//xls/common:revision",
         "//xls/common:runfiles",
         "//xls/common:xls_error",
-        "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/interpreter:value_parser",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_concrete_type",
@@ -272,7 +271,6 @@ py_library(
     deps = [
         ":ast_generator",
         ":sample",
-        "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:import_routines",
         "//xls/dslx/python:interp_value",

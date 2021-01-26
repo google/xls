@@ -122,23 +122,6 @@ py_test(
     ],
 )
 
-py_library(
-    name = "parse_and_typecheck",
-    srcs = ["parse_and_typecheck.py"],
-    srcs_version = "PY3",
-    deps = [
-        ":fakefs_util",
-        ":parser_helpers",
-        requirement("pyfakefs"),
-        "//xls/dslx/python:cpp_ast",
-        "//xls/dslx/python:cpp_deduce",
-        "//xls/dslx/python:cpp_type_info",
-        "//xls/dslx/python:cpp_typecheck",
-        "//xls/dslx/python:import_routines",
-        "@com_google_absl_py//absl/logging",
-    ],
-)
-
 cc_library(
     name = "symbolic_bindings",
     srcs = ["symbolic_bindings.cc"],

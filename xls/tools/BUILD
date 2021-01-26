@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pytype binary, test, library
+# pytype binary and test
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -899,34 +899,6 @@ cc_binary(
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/solvers:z3_ir_translator",
-    ],
-)
-
-py_library(
-    name = "convert_helpers",
-    srcs = ["convert_helpers.py"],
-    srcs_version = "PY3",
-    deps = [
-        "//xls/dslx:parse_and_typecheck",
-        "//xls/dslx/python:cpp_ir_converter",
-        "//xls/dslx/python:import_routines",
-        "//xls/ir/python:package",
-        "//xls/passes/python:standard_pipeline",
-    ],
-)
-
-py_binary(
-    name = "dslx_benchmark",
-    srcs = ["dslx_benchmark.py"],
-    data = [":benchmark_main"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        ":convert_helpers",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
-        "//xls/common:runfiles",
-        "//xls/dslx/python:import_routines",
     ],
 )
 
