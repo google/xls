@@ -843,5 +843,68 @@ TEST_F(ArithSimplificationPassTest, SubOfSub) {
               m::Add(m::Param("x"), m::Sub(m::Param("z"), m::Param("y"))));
 }
 
+TEST_F(ArithSimplificationPassTest, GuardedShiftOperation) {
+  // Test that a shift amount clamped to the shift's width is removed.
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(100));
+  BValue amt = fb.Param("amt", p->GetBitsType(32));
+  BValue limit = fb.Literal(Value(UBits(100, 32)));
+  BValue clamped_amt =
+      fb.Select(fb.UGt(amt, limit), /*on_true=*/limit, /*on_false=*/amt);
+  fb.Shll(x, clamped_amt);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Shll(m::Param("x"), m::Param("amt")));
+}
+
+TEST_F(ArithSimplificationPassTest, GuardedArithShiftOperation) {
+  // Test that a shift amount clamped to the shift's width is removed for
+  // arithmetic shift right.
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(100));
+  BValue amt = fb.Param("amt", p->GetBitsType(32));
+  BValue limit = fb.Literal(Value(UBits(100, 32)));
+  BValue clamped_amt =
+      fb.Select(fb.UGt(amt, limit), /*on_true=*/limit, /*on_false=*/amt);
+  fb.Shra(x, clamped_amt);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Shra(m::Param("x"), m::Param("amt")));
+}
+
+TEST_F(ArithSimplificationPassTest, GuardedShiftOperationHighLimit) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(100));
+  BValue amt = fb.Param("amt", p->GetBitsType(32));
+  // Set a clamp limit higher than the width of the shift, the end result is the
+  // same as if the limit were the shift amount.
+  BValue limit = fb.Literal(Value(UBits(1234, 32)));
+  BValue clamped_amt =
+      fb.Select(fb.UGt(amt, limit), /*on_true=*/limit, /*on_false=*/amt);
+  fb.Shrl(x, clamped_amt);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Shrl(m::Param("x"), m::Param("amt")));
+}
+
+TEST_F(ArithSimplificationPassTest, GuardedShiftOperationLowLimit) {
+  // Test that a shift amount clamped to a value less that the shift's width is
+  // not removed.
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(100));
+  BValue amt = fb.Param("amt", p->GetBitsType(32));
+  BValue limit = fb.Literal(Value(UBits(99, 32)));
+  BValue clamped_amt =
+      fb.Select(fb.UGt(amt, limit), /*on_true=*/limit, /*on_false=*/amt);
+  fb.Shll(x, clamped_amt);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::Shll(m::Param("x"), m::Select()));
+}
+
 }  // namespace
 }  // namespace xls

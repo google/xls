@@ -63,6 +63,31 @@ bool NodeAndOperandsSameType(Node* n) {
                      [n](Node* o) { return o->GetType() == n->GetType(); });
 }
 
+// Matches the given node to the following expression:
+//
+//  Select(UGt(x, LIMIT), cases=[x, LIMIT])
+//
+// Where LIMIT is a literal. Returns a ClampExpr containing 'x' and 'LIMIT'
+// values.
+struct ClampExpr {
+  Node* node;
+  Bits upper_limit;
+};
+std::optional<ClampExpr> MatchClampUpperLimit(Node* n) {
+  if (!n->Is<Select>()) {
+    return absl::nullopt;
+  }
+  Select* select = n->As<Select>();
+  Node* cmp = select->selector();
+  if (select->selector()->op() == Op::kUGt && cmp->operand(1)->Is<Literal>() &&
+      cmp->operand(1) == select->get_case(1) &&
+      cmp->operand(0) == select->get_case(0)) {
+    return ClampExpr{cmp->operand(0),
+                     select->get_case(1)->As<Literal>()->value().bits()};
+  }
+  return absl::nullopt;
+}
+
 // MatchArithPatterns matches simple tree patterns to find opportunities
 // for simplification, such as adding a zero, multiplying by 1, etc.
 //
@@ -526,6 +551,27 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
                                                     /*type_must_match=*/false));
         return true;
       }
+    }
+  }
+
+  // Guards to prevent overshifting can be removed:
+  //
+  //   shift(x, clamp(amt, LIMIT))  =>  shift(x, amt) if LIMIT >= width(x)
+  //
+  // Where clamp(amt, LIMIT) is Sel(UGt(x, LIMIT), [x, LIMIT]).
+  // This is legal because the following identity holds:
+  //
+  //   shift(x, K) = shift(x, width(x)) for all K >= width(x).
+  //
+  // This transformation can be performed for any value of LIMIT greater than or
+  // equal to width(x).
+  if (n->op() == Op::kShll || n->op() == Op::kShrl || n->op() == Op::kShra) {
+    std::optional<ClampExpr> clamp_expr = MatchClampUpperLimit(n->operand(1));
+    if (clamp_expr.has_value() &&
+        bits_ops::UGreaterThanOrEqual(clamp_expr->upper_limit,
+                                      n->BitCountOrDie())) {
+      XLS_RETURN_IF_ERROR(n->ReplaceOperandNumber(1, clamp_expr->node));
+      return true;
     }
   }
 

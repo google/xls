@@ -48,14 +48,21 @@ class DslxOptimizationTest : public IrTestBase {
     return ParsePackage(stdout_stderr.first);
   }
 
-  // Returns true if the given IR function has a node with the given op.
-  bool FunctionHasOp(Function* function, Op op) {
+  // Returns the number of operations with one of the given opcodes in the
+  // function.
+  int64 OpCount(Function* function, absl::Span<const Op> ops) {
+    int64 count = 0;
     for (Node* node : function->nodes()) {
-      if (node->op() == op) {
-        return true;
+      if (std::find(ops.begin(), ops.end(), node->op()) != ops.end()) {
+        ++count;
       }
     }
-    return false;
+    return count;
+  }
+
+  // Returns true if the given IR function has a node with the given op.
+  bool FunctionHasOp(Function* function, Op op) {
+    return OpCount(function, {op}) != 0;
   }
 };
 
@@ -110,6 +117,68 @@ fn main(foo: S, foo_bar: S) -> u8 {
   XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
   EXPECT_THAT(entry->return_value(),
               m::Add(m::Name("foo_zub"), m::Name("foo_bar_qux")));
+}
+
+TEST_F(DslxOptimizationTest, UpdateSliceOfWideVector) {
+  std::string input = R"(
+pub fn make_mask
+  <N : u32, B : u32, N_PLUS_1: u32 = N + u32:1, MAX_N_B:u32 = N if N > B else B>
+  (num_ones : uN[B])
+  -> uN[N] {
+  let num_bits_clamped =
+    (N as uN[MAX_N_B])
+    if (num_ones as uN[MAX_N_B]) > (N as uN[MAX_N_B])
+    else num_ones as uN[MAX_N_B];
+  let wider = (uN[N_PLUS_1]:1 << (num_bits_clamped as uN[N_PLUS_1]))
+              - uN[N_PLUS_1]:1;
+  wider as uN[N]
+}
+
+pub fn update_slice<N : u32, NUpdate : u32>(
+  original : uN[N],
+  offset : u32,
+  length : u32,
+  update : uN[NUpdate])
+  -> uN[N] {
+  let ms_shift = offset + length;
+  let ms_mask = make_mask<N>(N - ms_shift) << (ms_shift as uN[N]);
+  let msbits = original & ms_mask;
+
+  let lsbits = original & make_mask<N>(offset);
+
+  let update_clamped = (update as uN[N]) & make_mask<N>(length);
+  let update_shifted = update_clamped << (offset as uN[N]);
+
+  msbits | update_shifted | lsbits
+}
+
+// Update 32-bit wide slice of 320-bit vector. The slice is in one of 10 slots
+// as indicated by idx.
+fn main(idx: u4, update: u32, original: bits[320]) -> bits[320] {
+  let offset: u32 = idx as u32 * u32:32;
+  let length: u32 = u32: 32;
+  update_slice(original, offset, length, update)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package, DslxToIr(input));
+  XLS_ASSERT_OK(RunStandardPassPipeline(package.get()).status());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
+
+  // The optimized block could look like a concat of selects:
+  //
+  //   { idx == 9 ? update : original[288:319],
+  //     idx == 8 ? update : original[256:277],
+  //     ....
+  //     idx == 0 ? update : original[0:31] }
+  //
+  // However, the optimizer is not there yet. Instead check that some of the ops
+  // are eliminated.
+  //
+  // All compares should be eliminated.
+  EXPECT_EQ(OpCount(entry, {Op::kUGt, Op::kUGe, Op::kULt, Op::kULe}), 0);
+
+  // The original has five shifts. Verify that only four remain.
+  EXPECT_EQ(OpCount(entry, {Op::kShll, Op::kShrl, Op::kShra}), 4);
 }
 
 }  // namespace
