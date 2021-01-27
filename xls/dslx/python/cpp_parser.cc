@@ -55,85 +55,12 @@ PYBIND11_MODULE(cpp_parser, m) {
              return Parser(module_name, scanner);
            }),
            py::keep_alive<1, 2>())
-      .def(
-          "parse_module",
-          [](Parser* self, Bindings* bindings) -> absl::StatusOr<ModuleHolder> {
-            absl::StatusOr<std::shared_ptr<Module>> module =
-                self->ParseModule(bindings);
-            TryThrowCppParseError(module.status());
-            XLS_RETURN_IF_ERROR(module.status());
-            return ModuleHolder(module.value().get(), module.value());
-          },
-          py::arg("bindings") = nullptr)
-      .def(
-          "parse_function",
-          [](Parser* self, Bindings* bindings,
-             bool is_public) -> absl::StatusOr<FunctionHolder> {
-            absl::StatusOr<Function*> f_or =
-                self->ParseFunction(is_public, bindings);
-            TryThrowCppParseError(f_or.status());
-            XLS_RETURN_IF_ERROR(f_or.status());
-            return FunctionHolder(f_or.value(), self->module());
-          },
-          py::arg("outer_bindings") = nullptr, py::arg("is_public") = false)
-      .def(
-          "parse_proc",
-          [](Parser* self, Bindings* bindings,
-             bool is_public) -> absl::StatusOr<ProcHolder> {
-            absl::StatusOr<Proc*> p_or = self->ParseProc(is_public, bindings);
-            TryThrowCppParseError(p_or.status());
-            XLS_RETURN_IF_ERROR(p_or.status());
-            return ProcHolder(p_or.value(), self->module());
-          },
-          py::arg("outer_bindings") = nullptr, py::arg("is_public") = false)
-      .def("parse_expression",
-           [](Parser* self, Bindings* bindings) -> absl::StatusOr<ExprHolder> {
-             absl::StatusOr<Expr*> e_or = self->ParseExpression(bindings);
-             TryThrowCppParseError(e_or.status());
-             XLS_RETURN_IF_ERROR(e_or.status());
-             return ExprHolder(e_or.value(), self->module());
-           });
-
-  py::class_<Bindings>(m, "Bindings")
-      .def(py::init([](Bindings* parent) { return Bindings(parent); }),
-           py::arg("parent") = nullptr)
-      // Note: returns an AnyNameDef.
-      .def("resolve",
-           [](Bindings& self, ModuleHolder module, absl::string_view name,
-              const Span& span) -> absl::StatusOr<AstNodeHolder> {
-             absl::StatusOr<AnyNameDef> name_def =
-                 self.ResolveNameOrError(name, span);
-             TryThrowCppParseError(name_def.status());
-             XLS_RETURN_IF_ERROR(name_def.status());
-             return AstNodeHolder(ToAstNode(name_def.value()), module.module());
-           })
-      // Note: returns an arbitrary BoundNode.
-      .def("resolve_node",
-           [](Bindings& self, ModuleHolder module, absl::string_view name,
-              const Span& span) -> absl::StatusOr<AstNodeHolder> {
-             absl::StatusOr<BoundNode> bn = self.ResolveNodeOrError(name, span);
-             TryThrowCppParseError(bn.status());
-             XLS_RETURN_IF_ERROR(bn.status());
-             return AstNodeHolder(ToAstNode(bn.value()), module.module());
-           })
-      .def("resolve_node_or_none",
-           [](Bindings& self, ModuleHolder module,
-              absl::string_view name) -> absl::optional<AstNodeHolder> {
-             absl::optional<BoundNode> result = self.ResolveNode(name);
-             if (!result) {
-               return absl::nullopt;
-             }
-             return AstNodeHolder(ToAstNode(*result), module.module());
-           })
-      .def("add",
-           [](Bindings& bindings, std::string name,
-              AstNodeHolder binding) -> absl::Status {
-             absl::StatusOr<BoundNode> bn = ToBoundNode(&binding.deref());
-             TryThrowCppParseError(bn.status());
-             XLS_RETURN_IF_ERROR(bn.status());
-             bindings.Add(std::move(name), bn.value());
-             return absl::OkStatus();
-           });
+      .def("parse_module", [](Parser* self) -> absl::StatusOr<ModuleHolder> {
+        absl::StatusOr<std::shared_ptr<Module>> module = self->ParseModule();
+        TryThrowCppParseError(module.status());
+        XLS_RETURN_IF_ERROR(module.status());
+        return ModuleHolder(module.value().get(), module.value());
+      });
 }
 
 }  // namespace xls::dslx

@@ -27,7 +27,7 @@ namespace xls::dslx {
 struct Callee {
   Function* f;
   Module* m;
-  std::shared_ptr<TypeInfo> type_info;
+  TypeInfo* type_info;
   SymbolicBindings sym_bindings;
 
   std::string ToString() const;
@@ -50,7 +50,7 @@ struct Callee {
 struct ConversionRecord {
   Function* f;
   Module* m;
-  std::shared_ptr<TypeInfo> type_info;
+  TypeInfo* type_info;
   SymbolicBindings bindings;
   std::vector<Callee> callees;
 
@@ -70,8 +70,7 @@ struct ConversionRecord {
 //    be set if we intend to run functions only called from test constructs
 //    through the JIT.
 absl::StatusOr<std::vector<ConversionRecord>> GetOrder(
-    Module* module, const std::shared_ptr<TypeInfo>& type_info,
-    bool traverse_tests = false);
+    Module* module, TypeInfo* type_info, bool traverse_tests = false);
 
 }  // namespace xls::dslx
 

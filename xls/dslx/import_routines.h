@@ -20,9 +20,10 @@
 
 namespace xls::dslx {
 
+// An entry that goes into the ImportCache.
 struct ModuleInfo {
-  std::shared_ptr<Module> module;
-  std::shared_ptr<TypeInfo> type_info;
+  std::unique_ptr<Module> module;
+  TypeInfoOwner type_info;
 };
 
 // Immutable "tuple" of tokens that name an absolute import location.
@@ -32,6 +33,8 @@ struct ModuleInfo {
 // Hashable (usable in a flat hash map).
 class ImportTokens {
  public:
+  static absl::StatusOr<ImportTokens> FromString(absl::string_view module_name);
+
   explicit ImportTokens(std::vector<std::string> pieces)
       : pieces_(std::move(pieces)) {}
 
@@ -74,7 +77,6 @@ class ImportCache {
 
   ~ImportCache() {
     XLS_VLOG(3) << "Destroying ImportCache @ " << this;
-    Clear();
   }
 
   bool Contains(const ImportTokens& target) const {
@@ -102,21 +104,12 @@ class ImportCache {
     return &it.first->second;
   }
 
-  // Explicit clear operation: we do this to break shared_ptr<TypeInfo> circular
-  // references if need be.
-  void Clear() {
-    for (auto& [subject, module_info] : cache_) {
-      module_info.type_info->ClearTypeInfoRefsForGc();
-    }
-  }
-
  private:
   absl::flat_hash_map<ImportTokens, ModuleInfo> cache_;
 };
 
 // Type-checking callback lambda.
-using TypecheckFn = std::function<absl::StatusOr<std::shared_ptr<TypeInfo>>(
-    const std::shared_ptr<Module>&)>;
+using TypecheckFn = std::function<absl::StatusOr<TypeInfoOwner>(Module*)>;
 
 // Imports the module identified (globally) by 'subject'.
 //

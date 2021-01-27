@@ -44,8 +44,7 @@ class Interpreter {
   // a Python API, we can likely eliminate it when everything is ported over to
   // C++, or at least consolidate the env/bit_widths maps.
   static absl::StatusOr<int64> InterpretExpr(
-      Module* entry_module, const std::shared_ptr<TypeInfo>& type_info,
-      TypecheckFn typecheck,
+      Module* entry_module, TypeInfo* type_info, TypecheckFn typecheck,
       absl::Span<std::string const> additional_search_path,
       ImportCache* import_cache,
       const absl::flat_hash_map<std::string, int64>& env,
@@ -71,8 +70,7 @@ class Interpreter {
   //    the interpreter evaluation.
   //  ir_package: IR-converted form of the given module, used for JIT execution
   //    engine comparison purposes when provided.
-  Interpreter(Module* module, const std::shared_ptr<TypeInfo>& type_info,
-              TypecheckFn typecheck,
+  Interpreter(Module* module, TypeInfo* type_info, TypecheckFn typecheck,
               absl::Span<std::string const> additional_search_paths,
               ImportCache* import_cache, bool trace_all = false,
               Package* ir_package = nullptr);
@@ -99,15 +97,14 @@ class Interpreter {
 
   Module* module() const { return module_; }
   Package* ir_package() const { return ir_package_; }
-  TypeInfo* type_info() const { return type_info_.get(); }
+  TypeInfo* type_info() const { return type_info_; }
 
  private:
   friend struct TypeInfoSwap;
   friend class Evaluator;
 
   struct TypeInfoSwap {
-    TypeInfoSwap(Interpreter* parent,
-                 const absl::optional<std::shared_ptr<TypeInfo>>& new_type_info)
+    TypeInfoSwap(Interpreter* parent, absl::optional<TypeInfo*> new_type_info)
         : parent_(parent), old_type_info_(parent->type_info_) {
       if (new_type_info.has_value()) {
         parent->type_info_ = new_type_info.value();
@@ -117,7 +114,7 @@ class Interpreter {
     ~TypeInfoSwap() { parent_->type_info_ = old_type_info_; }
 
     Interpreter* parent_;
-    std::shared_ptr<TypeInfo> old_type_info_;
+    TypeInfo* old_type_info_;
   };
 
   // Entry point for evaluating an expression to a value.
@@ -197,7 +194,7 @@ class Interpreter {
                                       absl::optional<InterpValue> value);
 
   Module* module_;
-  std::shared_ptr<TypeInfo> type_info_;
+  TypeInfo* type_info_;
   TypecheckFn typecheck_;
   ImportCache* import_cache_;
   bool trace_all_;

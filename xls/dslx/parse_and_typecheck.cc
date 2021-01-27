@@ -25,11 +25,18 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
     absl::string_view module_name, ImportCache* import_cache) {
   Scanner scanner{std::string{path}, std::string{text}};
   Parser parser(std::string{module_name}, &scanner);
-  XLS_ASSIGN_OR_RETURN(std::shared_ptr<Module> module, parser.ParseModule());
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module, parser.ParseModule());
   XLS_ASSIGN_OR_RETURN(
-      std::shared_ptr<TypeInfo> type_info,
+      TypeInfoOwner type_info,
       CheckModule(module.get(), import_cache, /*additional_search_paths=*/{}));
-  return TypecheckedModule{std::move(module), std::move(type_info)};
+  TypecheckedModule result{module.get(), type_info.primary()};
+  XLS_ASSIGN_OR_RETURN(ImportTokens subject,
+                       ImportTokens::FromString(module_name));
+  XLS_RETURN_IF_ERROR(
+      import_cache
+          ->Put(subject, ModuleInfo{std::move(module), std::move(type_info)})
+          .status());
+  return result;
 }
 
 }  // namespace xls::dslx

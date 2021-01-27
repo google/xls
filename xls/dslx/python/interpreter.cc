@@ -88,7 +88,7 @@ PYBIND11_MODULE(interpreter, m) {
         XLS_ASSIGN_OR_RETURN(FunctionType * fn_type,
                              tm.type_info->GetItemAs<FunctionType>(f));
 
-        Interpreter interpreter(tm.module.get(), tm.type_info, nullptr,
+        Interpreter interpreter(tm.module, tm.type_info, nullptr,
                                 /*additional_search_paths=*/{}, &import_cache,
                                 /*trace_all=*/false, /*package=*/nullptr);
         std::vector<InterpValue> results;

@@ -50,7 +50,7 @@ using CallValueFn = std::function<absl::StatusOr<InterpValue>(
     const SymbolicBindings*)>;
 
 // Callback used to retrieve type information (from the interpreter state).
-using GetTypeFn = std::function<const std::shared_ptr<TypeInfo>&()>;
+using GetTypeFn = std::function<TypeInfo*()>;
 
 // Bundles up the above callbacks so they can be passed around as a unit.
 struct InterpCallbackData {

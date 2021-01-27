@@ -126,7 +126,7 @@ absl::StatusOr<Function*> Parser::ParseFunction(
   return f;
 }
 
-absl::StatusOr<std::shared_ptr<Module>> Parser::ParseModule(
+absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
     Bindings* bindings) {
   absl::optional<Bindings> stack_bindings;
   if (bindings == nullptr) {
@@ -251,7 +251,7 @@ absl::StatusOr<std::shared_ptr<Module>> Parser::ParseModule(
     }
   }
 
-  return module_;
+  return std::move(module_);
 }
 
 absl::StatusOr<absl::variant<TestFunction*, QuickCheck*, nullptr_t>>

@@ -19,7 +19,6 @@
 #include "xls/common/status/matchers.h"
 
 namespace xls::dslx {
-namespace {
 
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
@@ -50,7 +49,7 @@ class ParserTest : public ::testing::Test {
     parser_.emplace("test", &*scanner_);
     Bindings b;
     for (const std::string& s : predefine) {
-      b.Add(s, parser_->module()->Make<BuiltinNameDef>(s));
+      b.Add(s, parser_->module_->Make<BuiltinNameDef>(s));
     }
     XLS_ASSERT_OK_AND_ASSIGN(Expr * e,
                              parser_->ParseExpression(/*bindings=*/&b));
@@ -614,5 +613,4 @@ fn my_fun() -> MyEnum {
                                       "a definition for name: 'FOO'"));
 }
 
-}  // namespace
 }  // namespace xls::dslx

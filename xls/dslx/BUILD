@@ -549,6 +549,7 @@ cc_library(
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:ret_check",
+        "@com_google_absl//absl/strings",
     ],
 )
 

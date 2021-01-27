@@ -158,8 +158,7 @@ class IrConverterVisitor : public AstNodeVisitor {
   return absl::StrFormat("%p", absl::get<CValue>(value).value.node());
 }
 
-IrConverter::IrConverter(Package* package, Module* module,
-                         const std::shared_ptr<TypeInfo>& type_info,
+IrConverter::IrConverter(Package* package, Module* module, TypeInfo* type_info,
                          ImportCache* import_cache, bool emit_positions)
     : package_(package),
       module_(module),
@@ -804,7 +803,7 @@ absl::StatusOr<Value> IrConverter::EvaluateConstFunction(Invocation* node) {
     XLS_RET_CHECK(import.has_value());
     absl::optional<const ImportedInfo*> imported =
         type_info_->GetImported(import.value());
-    module = (*imported)->module.get();
+    module = (*imported)->module;
   } else {
     return absl::InternalError(
         "Expected NameRef or ColonRef for invocation callee; got " +
@@ -863,7 +862,7 @@ absl::StatusOr<BValue> IrConverter::HandleMap(Invocation* node,
     absl::optional<Import*> import_node = colon_ref->ResolveImportSubject();
     absl::optional<const ImportedInfo*> info =
         type_info_->GetImported(*import_node);
-    lookup_module = (*info)->module.get();
+    lookup_module = (*info)->module;
   } else {
     return absl::UnimplementedError("Unhandled function mapping: " +
                                     fn_node->ToString());
@@ -1119,7 +1118,7 @@ absl::Status IrConverter::HandleColonRef(ColonRef* node,
     absl::optional<const ImportedInfo*> imported =
         type_info_->GetImported(import.value());
     XLS_RET_CHECK(imported.has_value());
-    Module* imported_mod = (*imported)->module.get();
+    Module* imported_mod = (*imported)->module;
     XLS_ASSIGN_OR_RETURN(ConstantDef * constant_def,
                          imported_mod->GetConstantDef(node->attr()));
     XLS_RETURN_IF_ERROR(HandleConstantDef(constant_def, visit));
@@ -1214,7 +1213,7 @@ absl::StatusOr<std::string> IrConverter::GetCalleeIdentifier(Invocation* node) {
     absl::optional<Import*> import = colon_ref->ResolveImportSubject();
     XLS_RET_CHECK(import.has_value());
     absl::optional<const ImportedInfo*> info = type_info_->GetImported(*import);
-    m = (*info)->module.get();
+    m = (*info)->module;
   } else {
     return absl::InternalError("Invalid callee: " + callee->ToString());
   }
@@ -1618,7 +1617,7 @@ absl::StatusOr<IrConverter::DerefVariant> IrConverter::DerefStructOrEnum(
   absl::optional<Import*> import = colon_ref->ResolveImportSubject();
   XLS_RET_CHECK(import.has_value());
   absl::optional<const ImportedInfo*> info = type_info_->GetImported(*import);
-  Module* imported_mod = (*info)->module.get();
+  Module* imported_mod = (*info)->module;
   XLS_ASSIGN_OR_RETURN(TypeDefinition td,
                        imported_mod->GetTypeDefinition(colon_ref->attr()));
   // Recurse to resolve the typedef within the imported module.
@@ -1771,9 +1770,9 @@ absl::StatusOr<xls::Type*> IrConverter::TypeToIr(
 // On success there will be a corresponding (built) function inside of
 // "package".
 static absl::Status ConvertOneFunctionInternal(
-    Package* package, Module* module, Function* function,
-    const std::shared_ptr<TypeInfo>& type_info, ImportCache* import_cache,
-    const SymbolicBindings* symbolic_bindings, bool emit_positions) {
+    Package* package, Module* module, Function* function, TypeInfo* type_info,
+    ImportCache* import_cache, const SymbolicBindings* symbolic_bindings,
+    bool emit_positions) {
   absl::flat_hash_map<std::string, Function*> function_by_name =
       module->GetFunctionByName();
   absl::flat_hash_map<std::string, ConstantDef*> constant_by_name =
@@ -1873,8 +1872,8 @@ absl::StatusOr<std::string> MangleDslxName(
 }
 
 absl::StatusOr<std::unique_ptr<Package>> ConvertModuleToPackage(
-    Module* module, const std::shared_ptr<TypeInfo>& type_info,
-    ImportCache* import_cache, bool emit_positions, bool traverse_tests) {
+    Module* module, TypeInfo* type_info, ImportCache* import_cache,
+    bool emit_positions, bool traverse_tests) {
   XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> order,
                        GetOrder(module, type_info, traverse_tests));
   XLS_VLOG(3) << "Conversion order: ["
@@ -1897,9 +1896,9 @@ absl::StatusOr<std::unique_ptr<Package>> ConvertModuleToPackage(
   return std::move(package);
 }
 
-absl::StatusOr<std::string> ConvertModule(
-    Module* module, const std::shared_ptr<TypeInfo>& type_info,
-    ImportCache* import_cache, bool emit_positions) {
+absl::StatusOr<std::string> ConvertModule(Module* module, TypeInfo* type_info,
+                                          ImportCache* import_cache,
+                                          bool emit_positions) {
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<Package> package,
       ConvertModuleToPackage(module, type_info, import_cache, emit_positions));
@@ -1907,9 +1906,9 @@ absl::StatusOr<std::string> ConvertModule(
 }
 
 absl::StatusOr<std::string> ConvertOneFunction(
-    Module* module, absl::string_view entry_function_name,
-    const std::shared_ptr<TypeInfo>& type_info, ImportCache* import_cache,
-    const SymbolicBindings* symbolic_bindings, bool emit_positions) {
+    Module* module, absl::string_view entry_function_name, TypeInfo* type_info,
+    ImportCache* import_cache, const SymbolicBindings* symbolic_bindings,
+    bool emit_positions) {
   Package package(module->name());
   absl::optional<Function*> f = module->GetFunction(entry_function_name);
   XLS_RET_CHECK(f.has_value());

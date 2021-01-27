@@ -37,6 +37,16 @@ std::string InvocationData::ToString() const {
                       "]");
 }
 
+// -- class TypeInfoOwner
+
+TypeInfo* TypeInfoOwner::New(Module* module, TypeInfo* parent) {
+  // Note: private constructor so not using make_unique.
+  type_infos_.push_back(absl::WrapUnique(new TypeInfo(this, module, parent)));
+  return type_infos_.back().get();
+}
+
+// -- class typeInfo
+
 void TypeInfo::Update(const TypeInfo& other) {
   for (const auto& [node, type] : other.dict_) {
     dict_[node] = type->CloneToUnique();
@@ -108,7 +118,7 @@ bool TypeInfo::HasInstantiation(Invocation* invocation,
   return GetInstantiation(invocation, caller).has_value();
 }
 
-absl::optional<std::shared_ptr<TypeInfo>> TypeInfo::GetInstantiation(
+absl::optional<TypeInfo*> TypeInfo::GetInstantiation(
     Invocation* invocation, const SymbolicBindings& caller) const {
   const TypeInfo* top = GetTop();
   auto it = top->invocations_.find(invocation);
@@ -129,7 +139,7 @@ absl::optional<std::shared_ptr<TypeInfo>> TypeInfo::GetInstantiation(
 }
 
 void TypeInfo::AddInstantiation(Invocation* invocation, SymbolicBindings caller,
-                                const std::shared_ptr<TypeInfo>& type_info) {
+                                TypeInfo* type_info) {
   TypeInfo* top = GetTop();
   InvocationData& data = top->invocations_[invocation];
   data.instantiations[caller] = type_info;
@@ -192,8 +202,7 @@ absl::optional<StartAndWidth> TypeInfo::GetSliceStartAndWidth(
   return it2->second;
 }
 
-void TypeInfo::AddImport(Import* import, const std::shared_ptr<Module>& module,
-                         const std::shared_ptr<TypeInfo>& type_info) {
+void TypeInfo::AddImport(Import* import, Module* module, TypeInfo* type_info) {
   imports_[import] = ImportedInfo{module, type_info};
   Update(*type_info);
 }

@@ -230,7 +230,7 @@ absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
           ctx->type_info()->GetImported(*import);
       XLS_RET_CHECK(import_info.has_value());
 
-      auto invocation_imported_type_info = std::make_shared<TypeInfo>(
+      TypeInfo* invocation_imported_type_info = ctx->type_info_owner()->New(
           (*import_info)->module, /*parent=*/(*import_info)->type_info);
       std::shared_ptr<DeduceCtx> imported_ctx =
           ctx->MakeCtx(invocation_imported_type_info, (*import_info)->module);
@@ -250,7 +250,7 @@ absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
       // Create a "derived" type info (a child type info with the current type
       // info as a parent), and note that it exists for an instantiation (in the
       // parent type info).
-      std::shared_ptr<TypeInfo> parent_type_info = ctx->type_info();
+      TypeInfo* parent_type_info = ctx->type_info();
       ctx->AddDerivedTypeInfo();
       parent_type_info->AddInstantiation(invocation, tab.symbolic_bindings,
                                          ctx->type_info());
@@ -510,19 +510,19 @@ absl::Status CheckTopNodeInModule(TopNode f, DeduceCtx* ctx) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<std::shared_ptr<TypeInfo>> CheckModule(
+absl::StatusOr<TypeInfoOwner> CheckModule(
     Module* module, ImportCache* import_cache,
     absl::Span<const std::string> additional_search_paths) {
   std::vector<std::string> additional_search_paths_copy(
       additional_search_paths.begin(), additional_search_paths.end());
-  auto type_info = std::make_shared<TypeInfo>(module->shared_from_this());
-  auto ftypecheck = [import_cache,
-                     additional_search_paths_copy](std::shared_ptr<Module> m)
-      -> absl::StatusOr<std::shared_ptr<TypeInfo>> {
-    return CheckModule(m.get(), import_cache, additional_search_paths_copy);
+  TypeInfoOwner type_info_owner;
+  TypeInfo* type_info = type_info_owner.New(module);
+  auto ftypecheck = [import_cache, additional_search_paths_copy](
+                        Module* module) -> absl::StatusOr<TypeInfoOwner> {
+    return CheckModule(module, import_cache, additional_search_paths_copy);
   };
   auto ctx_shared = std::make_shared<DeduceCtx>(
-      type_info, module->shared_from_this(),
+      &type_info_owner, type_info, module,
       /*deduce_function=*/&Deduce,
       /*typecheck_function=*/&CheckTopNodeInModule,
       /*typecheck_module=*/ftypecheck, additional_search_paths, import_cache);
@@ -536,8 +536,8 @@ absl::StatusOr<std::shared_ptr<TypeInfo>> CheckModule(
       XLS_ASSIGN_OR_RETURN(const ModuleInfo* imported,
                            DoImport(ftypecheck, ImportTokens(import->subject()),
                                     additional_search_paths, import_cache));
-      ctx->type_info()->AddImport(import, imported->module,
-                                  imported->type_info);
+      ctx->type_info()->AddImport(import, imported->module.get(),
+                                  imported->type_info.primary());
     } else if (absl::holds_alternative<ConstantDef*>(member) ||
                absl::holds_alternative<EnumDef*>(member)) {
       XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(member)).status());
@@ -632,7 +632,8 @@ absl::StatusOr<std::shared_ptr<TypeInfo>> CheckModule(
     XLS_VLOG(2) << "Finished typechecking test: " << test->ToString();
   }
 
-  return ctx->type_info();
+  XLS_RET_CHECK_EQ(type_info_owner.primary(), ctx->type_info());
+  return std::move(type_info_owner);
 }
 
 }  // namespace xls::dslx

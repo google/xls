@@ -75,8 +75,7 @@ class Evaluator : public ExprVisitor {
   absl::StatusOr<InterpValue> value_;
 };
 
-Interpreter::Interpreter(Module* module,
-                         const std::shared_ptr<TypeInfo>& type_info,
+Interpreter::Interpreter(Module* module, TypeInfo* type_info,
                          TypecheckFn typecheck,
                          absl::Span<std::string const> additional_search_paths,
                          ImportCache* import_cache, bool trace_all,
@@ -102,9 +101,7 @@ Interpreter::Interpreter(Module* module,
                                absl::optional<InterpValue> value) {
     return NoteWip(c, std::move(value));
   };
-  callbacks_.get_type_info = [this]() -> const std::shared_ptr<TypeInfo>& {
-    return type_info_;
-  };
+  callbacks_.get_type_info = [this]() -> TypeInfo* { return type_info_; };
   callbacks_.cache = import_cache;
   callbacks_.additional_search_paths = std::vector(
       additional_search_paths.begin(), additional_search_paths.end());
@@ -121,9 +118,8 @@ absl::StatusOr<InterpValue> Interpreter::RunFunction(
 }
 
 absl::Status Interpreter::RunTest(absl::string_view name) {
-  XLS_ASSIGN_OR_RETURN(
-      std::shared_ptr<InterpBindings> bindings,
-      MakeTopLevelBindings(module_->shared_from_this(), &callbacks_));
+  XLS_ASSIGN_OR_RETURN(std::shared_ptr<InterpBindings> bindings,
+                       MakeTopLevelBindings(module_, &callbacks_));
   XLS_ASSIGN_OR_RETURN(TestFunction * test, module_->GetTest(name));
   bindings->set_fn_ctx(
       FnCtx{module_->name(), absl::StrFormat("%s__test", name)});
@@ -165,8 +161,7 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
 }
 
 /* static */ absl::StatusOr<int64> Interpreter::InterpretExpr(
-    Module* entry_module, const std::shared_ptr<TypeInfo>& type_info,
-    TypecheckFn typecheck,
+    Module* entry_module, TypeInfo* type_info, TypecheckFn typecheck,
     absl::Span<std::string const> additional_search_paths,
     ImportCache* import_cache,
     const absl::flat_hash_map<std::string, int64>& env,
@@ -178,8 +173,7 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
   Interpreter interp(entry_module, type_info, typecheck,
                      additional_search_paths, import_cache);
   XLS_ASSIGN_OR_RETURN(std::shared_ptr<InterpBindings> bindings,
-                       MakeTopLevelBindings(entry_module->shared_from_this(),
-                                            &interp.callbacks_));
+                       MakeTopLevelBindings(entry_module, &interp.callbacks_));
   bindings->set_fn_ctx(fn_ctx);
   for (const auto& [identifier, value] : env) {
     XLS_VLOG(3) << "Adding to bindings; identifier: " << identifier
@@ -289,7 +283,7 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateAndCompare(
     Invocation* expr, const SymbolicBindings* symbolic_bindings) {
   bool has_child_type_info =
       expr != nullptr && type_info_->HasInstantiation(expr, *symbolic_bindings);
-  absl::optional<std::shared_ptr<TypeInfo>> invocation_type_info;
+  absl::optional<TypeInfo*> invocation_type_info;
   if (has_child_type_info) {
     invocation_type_info =
         type_info_->GetInstantiation(expr, *symbolic_bindings);

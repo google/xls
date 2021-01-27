@@ -21,9 +21,10 @@ namespace xls::dslx {
 namespace {
 
 TEST(TypeInfoTest, Instantiate) {
-  auto module = std::make_shared<Module>("test");
-  TypeInfo type_info(module);
-  EXPECT_EQ(type_info.parent(), nullptr);
+  Module module("test");
+  TypeInfoOwner owner;
+  TypeInfo* type_info = owner.New(&module);
+  EXPECT_EQ(type_info->parent(), nullptr);
 }
 
 }  // namespace

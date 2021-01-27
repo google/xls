@@ -55,8 +55,7 @@ class IrConverter {
   // debugging.
   static std::string ToString(const IrValue& value);
 
-  IrConverter(Package* package, Module* module,
-              const std::shared_ptr<TypeInfo>& type_info,
+  IrConverter(Package* package, Module* module, TypeInfo* type_info,
               ImportCache* import_cache, bool emit_positions);
 
   ~IrConverter() { XLS_VLOG(5) << "Destroying IR converter: " << this; }
@@ -371,7 +370,7 @@ class IrConverter {
 
   // Type information for this IR conversion (determined by the type inference
   // phase).
-  std::shared_ptr<TypeInfo> type_info_;
+  TypeInfo* type_info_;
 
   ImportCache* import_cache_;
 
@@ -431,21 +430,20 @@ absl::StatusOr<std::string> MangleDslxName(
 // Returns:
 //   The IR package that corresponds to this module.
 absl::StatusOr<std::unique_ptr<xls::Package>> ConvertModuleToPackage(
-    Module* module, const std::shared_ptr<TypeInfo>& type_info,
-    ImportCache* import_cache, bool emit_positions = true,
-    bool traverse_tests = false);
+    Module* module, TypeInfo* type_info, ImportCache* import_cache,
+    bool emit_positions = true, bool traverse_tests = false);
 
 // Wrapper around ConvertModuleToPackage that converts to IR text.
-absl::StatusOr<std::string> ConvertModule(
-    Module* module, const std::shared_ptr<TypeInfo>& type_info,
-    ImportCache* import_cache, bool emit_positions = true);
+absl::StatusOr<std::string> ConvertModule(Module* module, TypeInfo* type_info,
+                                          ImportCache* import_cache,
+                                          bool emit_positions = true);
 
 // As with internal::ConvertOneFunction above, but takes an entry_function_name
 // and creates a temporary IR package based on module's name.
 absl::StatusOr<std::string> ConvertOneFunction(
-    Module* module, absl::string_view entry_function_name,
-    const std::shared_ptr<TypeInfo>& type_info, ImportCache* import_cache,
-    const SymbolicBindings* symbolic_bindings, bool emit_positions);
+    Module* module, absl::string_view entry_function_name, TypeInfo* type_info,
+    ImportCache* import_cache, const SymbolicBindings* symbolic_bindings,
+    bool emit_positions);
 
 // Converts an interpreter value to an IR value.
 absl::StatusOr<Value> InterpValueToValue(const InterpValue& v);

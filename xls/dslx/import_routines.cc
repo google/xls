@@ -14,6 +14,7 @@
 
 #include "xls/dslx/import_routines.h"
 
+#include "absl/strings/str_split.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/ret_check.h"
@@ -21,6 +22,11 @@
 #include "xls/dslx/scanner.h"
 
 namespace xls::dslx {
+
+/* static */ absl::StatusOr<ImportTokens> ImportTokens::FromString(
+    absl::string_view module_name) {
+  return ImportTokens(absl::StrSplit(module_name, '.'));
+}
 
 static absl::StatusOr<std::filesystem::path> FindExistingPath(
     const ImportTokens& subject,
@@ -132,8 +138,8 @@ absl::StatusOr<const ModuleInfo*> DoImport(
 
   Scanner scanner(found_path, contents);
   Parser parser(/*module_name=*/fully_qualified_name, &scanner);
-  XLS_ASSIGN_OR_RETURN(std::shared_ptr<Module> module, parser.ParseModule());
-  XLS_ASSIGN_OR_RETURN(std::shared_ptr<TypeInfo> type_info, ftypecheck(module));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module, parser.ParseModule());
+  XLS_ASSIGN_OR_RETURN(TypeInfoOwner type_info, ftypecheck(module.get()));
   return cache->Put(subject,
                     ModuleInfo{std::move(module), std::move(type_info)});
 }

@@ -92,7 +92,7 @@ inline std::ostream& operator<<(std::ostream& os, InterpValueTag tag) {
 class InterpValue {
  public:
   struct UserFnData {
-    std::shared_ptr<Module> module;
+    Module* module;
     Function* function;
   };
   using FnData = absl::variant<Builtin, UserFnData>;

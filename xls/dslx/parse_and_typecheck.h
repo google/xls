@@ -21,9 +21,10 @@
 
 namespace xls::dslx {
 
+// Note: these will be owned by the import_cache used in ParseAndTypecheck().
 struct TypecheckedModule {
-  std::shared_ptr<Module> module;
-  std::shared_ptr<TypeInfo> type_info;
+  Module* module;
+  TypeInfo* type_info;
 };
 
 // Helper that parses and typechecks the given "text" for a module.

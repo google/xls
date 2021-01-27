@@ -36,8 +36,8 @@ absl::StatusOr<std::string> ConvertOneFunctionForTest(
   XLS_ASSIGN_OR_RETURN(TypecheckedModule tm,
                        ParseAndTypecheck(program, "test_module.x",
                                          "test_module", &import_cache));
-  return ConvertOneFunction(tm.module.get(), fn_name, tm.type_info,
-                            &import_cache, /*symbolic_bindings=*/nullptr,
+  return ConvertOneFunction(tm.module, fn_name, tm.type_info, &import_cache,
+                            /*symbolic_bindings=*/nullptr,
                             /*emit_positions=*/emit_positions);
 }
 
@@ -52,10 +52,9 @@ absl::StatusOr<std::string> ConvertModuleForTest(
   XLS_ASSIGN_OR_RETURN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test_module.x", "test_module", import_cache));
-  XLS_ASSIGN_OR_RETURN(
-      std::string converted,
-      ConvertModule(tm.module.get(), tm.type_info, import_cache,
-                    /*emit_positions=*/emit_positions));
+  XLS_ASSIGN_OR_RETURN(std::string converted,
+                       ConvertModule(tm.module, tm.type_info, import_cache,
+                                     /*emit_positions=*/emit_positions));
   tm.type_info->ClearTypeInfoRefsForGc();
   return converted;
 }
@@ -1681,8 +1680,8 @@ pub fn constexpr_fn(arg: u32) -> u32 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(imported_program, "fake/imported/stuff.x", "stuff",
-                        &import_cache));
+      ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
+                        "fake.imported.stuff", &import_cache));
   const char* importer_program = R"(
 import fake.imported.stuff
 
@@ -1691,8 +1690,7 @@ fn f() -> u32 {
   x
 }
 )";
-  XLS_ASSERT_OK(import_cache.Put(ImportTokens({"fake", "imported", "stuff"}),
-                                 ModuleInfo{tm.module, tm.type_info}));
+  (void)tm;  // Module is in the import cache.
 
   // Convert the *importer* module to IR.
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1701,7 +1699,7 @@ fn f() -> u32 {
                            &import_cache));
   EXPECT_EQ(converted, R"(package test_module
 
-fn __stuff__constexpr_fn(arg: bits[32]) -> bits[32] {
+fn __fake_imported_stuff__constexpr_fn(arg: bits[32]) -> bits[32] {
   literal.2: bits[32] = literal(value=5, id=2)
   ret umul.3: bits[32] = umul(arg, literal.2, id=3)
 }
@@ -1728,8 +1726,8 @@ pub fn constexpr_fn<N:u32>(arg: bits[N]) -> bits[N] {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(imported_program, "fake/imported/stuff.x", "stuff",
-                        &import_cache));
+      ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
+                        "fake.imported.stuff", &import_cache));
   const char* importer_program = R"(
 import fake.imported.stuff
 
@@ -1738,8 +1736,7 @@ fn f() -> u32 {
   x
 }
 )";
-  XLS_ASSERT_OK(import_cache.Put(ImportTokens({"fake", "imported", "stuff"}),
-                                 ModuleInfo{tm.module, tm.type_info}));
+  (void)tm;  // Already placed in import cache.
 
   // Convert the *importer* module to IR.
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1748,7 +1745,7 @@ fn f() -> u32 {
                            &import_cache));
   EXPECT_EQ(converted, R"(package test_module
 
-fn __stuff__constexpr_fn__32(arg: bits[32]) -> bits[32] {
+fn __fake_imported_stuff__constexpr_fn__32(arg: bits[32]) -> bits[32] {
   literal.3: bits[32] = literal(value=5, id=3)
   literal.2: bits[32] = literal(value=32, id=2)
   ret umul.4: bits[32] = umul(arg, literal.3, id=4)

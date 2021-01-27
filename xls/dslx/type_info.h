@@ -27,8 +27,8 @@ class TypeInfo;
 
 // Information associated with an import node in the AST.
 struct ImportedInfo {
-  std::shared_ptr<Module> module;
-  std::shared_ptr<TypeInfo> type_info;
+  Module* module;
+  TypeInfo* type_info;
 };
 
 // Represents a (start, width) pair used for a bit-slice operation, as
@@ -61,8 +61,7 @@ struct InvocationData {
   absl::flat_hash_map<SymbolicBindings, SymbolicBindings> symbolic_bindings_map;
   // Type information that is specialized for a particular parametric
   // instantiation of an invocation.
-  absl::flat_hash_map<SymbolicBindings, std::shared_ptr<TypeInfo>>
-      instantiations;
+  absl::flat_hash_map<SymbolicBindings, TypeInfo*> instantiations;
 
   // Adds all of the information in "other" to this InvocationData.
   void Update(const InvocationData& other);
@@ -70,24 +69,36 @@ struct InvocationData {
   std::string ToString() const;
 };
 
-class TypeInfo {
+// Owns "type information" objects created during the type checking process.
+//
+// In the process of type checking we may instantiate "sub type-infos" for
+// things like particular parametric instantiations, that have
+// parametric-independent type information as a parent (see TypeInfo::parent()).
+//
+// Since we decide to create these "sub type-infos" in a way that is driven by
+// the program at type checking time, we place all type info objects into this
+// owned pool (arena style ownership to avoid circular references or leaks or
+// any other sort of lifetime issues).
+class TypeInfoOwner {
  public:
-  // Args:
-  //  module: The module that owns the AST nodes referenced in the (member)
-  //    maps.
-  //  parent: Type information that should be queried from the same scope (i.e.
-  //    if an AST node is not resolved in the local member maps, the lookup is
-  //    then performed in the parent, and so on transitively).
-  explicit TypeInfo(const std::shared_ptr<Module>& module,
-                    std::shared_ptr<TypeInfo> parent = nullptr)
-      : module_(module), parent_(parent) {
-    XLS_VLOG(3) << "Created type info for module \"" << module_->name()
-                << "\" @ " << this << " parent " << parent.get();
+  TypeInfo* New(Module* module, TypeInfo* parent = nullptr);
+
+  // The type owner also includes a notion of a "main" type info, which is the
+  // first one created. Generally this one serves as the root for all type infos
+  // created during type inference.
+  TypeInfo* primary() const {
+    return type_infos_.empty() ? nullptr : type_infos_[0].get();
   }
 
+ private:
+  std::vector<std::unique_ptr<TypeInfo>> type_infos_;
+};
+
+class TypeInfo {
+ public:
   ~TypeInfo() {
     XLS_VLOG(3) << "Destroying type info for module \"" << module_->name()
-                << "\" @ " << this << " parent " << parent_.get();
+                << "\" @ " << this << " parent " << parent_;
   }
 
   // Type information can be "differential"; e.g. when we obtain type
@@ -95,7 +106,7 @@ class TypeInfo {
   // is backed by the enclosing type information for the module. Therefore, type
   // information objects can have a "parent" they delegate queries to if they
   // can't satisfy the information from their local mappings.
-  const std::shared_ptr<TypeInfo>& parent() const { return parent_; }
+  TypeInfo* parent() const { return parent_; }
 
   // Updates this type information object with data from 'other'.
   void Update(const TypeInfo& other);
@@ -142,7 +153,7 @@ class TypeInfo {
   //   type_info: The type information that has been determined for this
   //     instantiation.
   void AddInstantiation(Invocation* invocation, SymbolicBindings caller,
-                        const std::shared_ptr<TypeInfo>& type_info);
+                        TypeInfo* type_info);
 
   // Notes a constant definition associated with a given NameDef AST node.
   void NoteConstant(NameDef* name_def, ConstantDef* constant_def) {
@@ -170,20 +181,22 @@ class TypeInfo {
   bool Contains(AstNode* key) const;
 
   // Import AST node based information.
-  void AddImport(Import* import, const std::shared_ptr<Module>& module,
-                 const std::shared_ptr<TypeInfo>& type_info);
+  //
+  // Note that added type information and such will generally be owned by the
+  // import cache.
+  void AddImport(Import* import, Module* module, TypeInfo* type_info);
   absl::optional<const ImportedInfo*> GetImported(Import* import) const;
   const absl::flat_hash_map<Import*, ImportedInfo>& imports() const {
     return imports_;
   }
 
   // Invocation AST node based information.
-  absl::optional<std::shared_ptr<TypeInfo>> GetInstantiation(
+  absl::optional<TypeInfo*> GetInstantiation(
       Invocation* invocation, const SymbolicBindings& caller) const;
   absl::optional<const SymbolicBindings*> GetInvocationSymbolicBindings(
       Invocation* invocation, const SymbolicBindings& caller) const;
 
-  const std::shared_ptr<Module>& module() const { return module_; }
+  Module* module() const { return module_; }
 
   // Returns the expression for a ConstantDef that has the given name_def..
   absl::optional<Expr*> GetConstInt(NameDef* name_def) const;
@@ -202,6 +215,21 @@ class TypeInfo {
   }
 
  private:
+  friend class TypeInfoOwner;
+
+  // Args:
+  //  module: The module that owns the AST nodes referenced in the (member)
+  //    maps.
+  //  parent: Type information that should be queried from the same scope (i.e.
+  //    if an AST node is not resolved in the local member maps, the lookup is
+  //    then performed in the parent, and so on transitively).
+  explicit TypeInfo(TypeInfoOwner* owner, Module* module,
+                    TypeInfo* parent = nullptr)
+      : owner_(owner), module_(module), parent_(parent) {
+    XLS_VLOG(3) << "Created type info for module \"" << module_->name()
+                << "\" @ " << this << " parent " << parent;
+  }
+
   // Traverses to the 'most parent' TypeInfo. This is a place to stash
   // context-free information (e.g. that is found in a parametric instantiation
   // context, but that we want to be accessible to other parametric
@@ -209,7 +237,7 @@ class TypeInfo {
   TypeInfo* GetTop() {
     TypeInfo* t = this;
     while (t->parent_ != nullptr) {
-      t = t->parent_.get();
+      t = t->parent_;
     }
     return t;
   }
@@ -217,13 +245,14 @@ class TypeInfo {
     return const_cast<TypeInfo*>(this)->GetTop();
   }
 
-  std::shared_ptr<Module> module_;
+  TypeInfoOwner* owner_;
+  Module* module_;
   absl::flat_hash_map<AstNode*, std::unique_ptr<ConcreteType>> dict_;
   absl::flat_hash_map<Import*, ImportedInfo> imports_;
   absl::flat_hash_map<NameDef*, ConstantDef*> name_to_const_;
   absl::flat_hash_map<Invocation*, InvocationData> invocations_;
   absl::flat_hash_map<Slice*, SliceData> slices_;
-  std::shared_ptr<TypeInfo> parent_;  // Note: may be nullptr.
+  TypeInfo* parent_;  // Note: may be nullptr.
 };
 
 // -- Inlines

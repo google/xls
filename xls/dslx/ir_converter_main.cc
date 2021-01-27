@@ -50,14 +50,14 @@ If no entry point is given all functions within the module are converted:
   ir_converter_main path/to/frobulator.x
 )";
 
-absl::StatusOr<std::shared_ptr<Module>> ParseText(absl::string_view text,
+absl::StatusOr<std::unique_ptr<Module>> ParseText(absl::string_view text,
                                                   absl::string_view module_name,
                                                   bool print_on_error,
                                                   absl::string_view filename,
                                                   bool* printed_error) {
   Scanner scanner{std::string(filename), std::string(text)};
   Parser parser(std::string(module_name), &scanner);
-  absl::StatusOr<std::shared_ptr<Module>> module_or = parser.ParseModule();
+  absl::StatusOr<std::unique_ptr<Module>> module_or = parser.ParseModule();
   *printed_error = TryPrintError(module_or.status());
   return module_or;
 }
@@ -81,18 +81,18 @@ absl::Status RealMain(absl::string_view path,
   XLS_ASSIGN_OR_RETURN(std::string text, GetFileContents(path));
 
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(path));
-  XLS_ASSIGN_OR_RETURN(std::shared_ptr<Module> module,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
                        ParseText(text, module_name, /*print_on_error=*/true,
                                  /*filename=*/path, printed_error));
 
   ImportCache import_cache;
-  absl::StatusOr<std::shared_ptr<TypeInfo>> type_info_or =
+  absl::StatusOr<TypeInfoOwner> type_info_or =
       CheckModule(module.get(), &import_cache, dslx_paths);
   if (!type_info_or.ok()) {
     *printed_error = TryPrintError(type_info_or.status());
     return type_info_or.status();
   }
-  const std::shared_ptr<TypeInfo>& type_info = type_info_or.value();
+  TypeInfo* type_info = type_info_or.value().primary();
 
   std::string converted;
   if (entry.has_value()) {
@@ -106,9 +106,6 @@ absl::Status RealMain(absl::string_view path,
   }
   std::cout << converted;
 
-  // There can be circular refcounts so we have to manually clear here. This
-  // will go away when we eliminate all need for shared_ptrs.
-  type_info->ClearTypeInfoRefsForGc();
   return absl::OkStatus();
 }
 

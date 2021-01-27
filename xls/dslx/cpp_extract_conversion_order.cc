@@ -52,7 +52,7 @@ std::string ConversionRecord::ToString() const {
 
 class InvocationVisitor : public AstNodeVisitorWithDefault {
  public:
-  InvocationVisitor(Module* module, const std::shared_ptr<TypeInfo>& type_info,
+  InvocationVisitor(Module* module, TypeInfo* type_info,
                     const SymbolicBindings& bindings)
       : module_(module), type_info_(type_info), bindings_(bindings) {}
 
@@ -67,7 +67,7 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
       absl::optional<const ImportedInfo*> info =
           type_info_->GetImported(*import);
       XLS_RET_CHECK(info.has_value());
-      this_m = (*info)->module.get();
+      this_m = (*info)->module;
       f = this_m->GetFunction(colon_ref->attr()).value();
     } else if (auto* name_ref = dynamic_cast<NameRef*>(node->callee())) {
       this_m = module_;
@@ -88,7 +88,7 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
           absl::optional<const ImportedInfo*> info =
               type_info_->GetImported(*import);
           XLS_RET_CHECK(info.has_value());
-          this_m = (*info)->module.get();
+          this_m = (*info)->module;
         } else {
           XLS_VLOG(5) << "map() invoking NameRef";
           auto* mapped_name_ref = dynamic_cast<NameRef*>(fn_node);
@@ -114,7 +114,7 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
           node->callee()->ToString());
     }
 
-    absl::optional<std::shared_ptr<TypeInfo>> invocation_type_info;
+    absl::optional<TypeInfo*> invocation_type_info;
     XLS_VLOG(5) << "Getting callee bindings for invocation: "
                 << node->ToString() << " @ " << node->span()
                 << " caller bindings: " << bindings_.ToString();
@@ -140,7 +140,7 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
 
  private:
   Module* module_;
-  const std::shared_ptr<TypeInfo>& type_info_;
+  TypeInfo* type_info_;
   const SymbolicBindings& bindings_;
   std::vector<Callee> callees_;
 };
@@ -159,8 +159,7 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
 //   those invocations.
 static absl::StatusOr<std::vector<Callee>> GetCallees(
     absl::variant<Function*, TestFunction*> func, Module* m,
-    const std::shared_ptr<TypeInfo>& type_info,
-    const SymbolicBindings& bindings) {
+    TypeInfo* type_info, const SymbolicBindings& bindings) {
   InvocationVisitor visitor(m, type_info, bindings);
   XLS_RETURN_IF_ERROR(
       WalkPostOrder(ToAstNode(func), &visitor, /*want_types=*/true));
@@ -186,8 +185,7 @@ static bool IsReady(absl::variant<Function*, TestFunction*> f, Module* m,
 
 // Adds (f, bindings) to conversion order after deps have been added.
 static absl::Status AddToReady(absl::variant<Function*, TestFunction*> f,
-                               Module* m,
-                               const std::shared_ptr<TypeInfo>& type_info,
+                               Module* m, TypeInfo* type_info,
                                const SymbolicBindings& bindings,
                                std::vector<ConversionRecord>* ready) {
   if (IsReady(f, m, bindings, ready)) {
@@ -230,9 +228,9 @@ static absl::Status AddToReady(absl::variant<Function*, TestFunction*> f,
   return absl::OkStatus();
 }
 
-absl::StatusOr<std::vector<ConversionRecord>> GetOrder(
-    Module* module, const std::shared_ptr<TypeInfo>& type_info,
-    bool traverse_tests) {
+absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
+                                                       TypeInfo* type_info,
+                                                       bool traverse_tests) {
   std::vector<ConversionRecord> ready;
 
   // Functions in the module should become ready in dependency order (they

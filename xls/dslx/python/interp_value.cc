@@ -149,31 +149,6 @@ PYBIND11_MODULE(interp_value, m) {
            })
       .def("get_elements", &InterpValue::GetValues)
       .def("is_builtin_function", &InterpValue::IsBuiltinFunction)
-      .def("get_builtin_fn",
-           [](const InterpValue& self) -> absl::StatusOr<Builtin> {
-             XLS_ASSIGN_OR_RETURN(const InterpValue::FnData* data,
-                                  self.GetFunction());
-             if (absl::holds_alternative<Builtin>(*data)) {
-               return absl::get<Builtin>(*data);
-             }
-             return absl::InvalidArgumentError(
-                 "Function is user defined, not builtin");
-           })
-      .def("get_user_fn_data",
-           [](const InterpValue& self)
-               -> absl::StatusOr<std::pair<ModuleHolder, FunctionHolder>> {
-             XLS_ASSIGN_OR_RETURN(const InterpValue::FnData* data,
-                                  self.GetFunction());
-             if (absl::holds_alternative<InterpValue::UserFnData>(*data)) {
-               const auto& user_data =
-                   absl::get<InterpValue::UserFnData>(*data);
-               return std::make_pair(
-                   ModuleHolder(user_data.module.get(), user_data.module),
-                   FunctionHolder(user_data.function, user_data.module));
-             }
-             return absl::InvalidArgumentError(
-                 "Function is builtin, not user defined");
-           })
       .def_property_readonly("tag", &InterpValue::tag)
       .def("is_bits", &InterpValue::IsBits)
       .def("is_ubits", &InterpValue::IsUBits)
@@ -200,14 +175,7 @@ PYBIND11_MODULE(interp_value, m) {
                   [](Bits value, EnumDefHolder enum_ast) {
                     return InterpValue::MakeEnum(value, &enum_ast.deref());
                   })
-      .def_static("make_nil", []() { return InterpValue::MakeTuple({}); })
-      .def_static("make_function",
-                  [](ModuleHolder m, FunctionHolder f) {
-                    return InterpValue::MakeFunction(
-                        InterpValue::UserFnData{m.module(), &f.deref()});
-                  })
-      .def_static("make_function",
-                  [](Builtin b) { return InterpValue::MakeFunction(b); });
+      .def_static("make_nil", []() { return InterpValue::MakeTuple({}); });
 }
 
 }  // namespace xls::dslx

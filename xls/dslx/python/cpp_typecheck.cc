@@ -43,6 +43,7 @@ static absl::Status TryThrowErrors(const absl::Status& status) {
 
 PYBIND11_MODULE(cpp_typecheck, m) {
   ImportStatusModule();
+  py::module::import("xls.dslx.python.cpp_parser");
 
   m.def(
       "check_module",

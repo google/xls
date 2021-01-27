@@ -42,7 +42,7 @@ absl::Status CheckTopNodeInModule(
 //
 // Returns type information mapping from AST nodes in the module to their
 //  deduced/checked type.
-absl::StatusOr<std::shared_ptr<TypeInfo>> CheckModule(
+absl::StatusOr<TypeInfoOwner> CheckModule(
     Module* module, ImportCache* import_cache,
     absl::Span<const std::string> additional_search_paths);
 

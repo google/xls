@@ -575,7 +575,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRefImport(
   absl::optional<const ImportedInfo*> imported =
       ctx->type_info()->GetImported(import);
   XLS_RET_CHECK(imported.has_value());
-  const std::shared_ptr<Module>& imported_module = (*imported)->module;
+  Module* imported_module = (*imported)->module;
   absl::optional<ModuleMember*> elem =
       imported_module->FindMemberWithName(node->attr());
   if (!elem.has_value()) {
@@ -593,7 +593,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRefImport(
                         ToAstNode(*elem.value())->ToString()));
   }
 
-  std::shared_ptr<TypeInfo> imported_type_info = (*imported)->type_info;
+  TypeInfo* imported_type_info = (*imported)->type_info;
   if (absl::holds_alternative<Function*>(*elem.value())) {
     auto* function = absl::get<Function*>(*elem.value());
     if (!imported_type_info->Contains(function->name_def())) {
@@ -1076,11 +1076,11 @@ static absl::StatusOr<StructDef*> DerefToStruct(
       absl::optional<const ImportedInfo*> imported =
           type_info->GetImported(import);
       XLS_RET_CHECK(imported.has_value());
-      const std::shared_ptr<Module>& module = imported.value()->module;
+      Module* module = imported.value()->module;
       XLS_ASSIGN_OR_RETURN(current,
                            module->GetTypeDefinition(colon_ref->attr()));
       return DerefToStruct(span, original_ref_text, current,
-                           imported.value()->type_info.get());
+                           imported.value()->type_info);
     }
     XLS_RET_CHECK(absl::holds_alternative<EnumDef*>(current));
     auto* enum_def = absl::get<EnumDef*>(current);
@@ -1129,7 +1129,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructInstance(
   XLS_ASSIGN_OR_RETURN(
       StructDef * struct_def,
       DerefToStruct(node->span(), StructRefToText(struct_ref),
-                    ToTypeDefinition(struct_ref), ctx->type_info().get()));
+                    ToTypeDefinition(struct_ref), ctx->type_info()));
 
   XLS_ASSIGN_OR_RETURN(
       TypeAndBindings tab,
@@ -1194,7 +1194,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSplatStructInstance(
   XLS_ASSIGN_OR_RETURN(
       StructDef * struct_def,
       DerefToStruct(node->span(), StructRefToText(struct_ref),
-                    ToTypeDefinition(struct_ref), ctx->type_info().get()));
+                    ToTypeDefinition(struct_ref), ctx->type_info()));
 
   XLS_ASSIGN_OR_RETURN(
       TypeAndBindings tab,
@@ -1389,15 +1389,14 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeRefTypeAnnotation(
                        ctx->Deduce(node->type_ref()));
   TypeRef* type_ref = node->type_ref();
   TypeDefinition type_definition = type_ref->type_definition();
-  absl::StatusOr<StructDef*> struct_def_or =
-      DerefToStruct(node->span(), type_ref->ToString(), type_definition,
-                    ctx->type_info().get());
+  absl::StatusOr<StructDef*> struct_def_or = DerefToStruct(
+      node->span(), type_ref->ToString(), type_definition, ctx->type_info());
   if (struct_def_or.ok()) {
     auto* struct_def = struct_def_or.value();
     if (struct_def->IsParametric() && !node->parametrics().empty()) {
-      XLS_ASSIGN_OR_RETURN(base_type,
-                           ConcretizeStructAnnotation(ctx->module().get(), node,
-                                                      struct_def, *base_type));
+      XLS_ASSIGN_OR_RETURN(
+          base_type, ConcretizeStructAnnotation(ctx->module(), node, struct_def,
+                                                *base_type));
     }
   }
   return base_type;
@@ -1459,7 +1458,7 @@ static absl::Status CheckParametricInvocation(
     absl::optional<const ImportedInfo*> imported =
         ctx->type_info()->GetImported(import_node);
     XLS_RET_CHECK(imported.has_value());
-    auto invocation_imported_type_info = std::make_shared<TypeInfo>(
+    auto* invocation_imported_type_info = ctx->type_info_owner()->New(
         (*imported)->module, /*parent=*/(*imported)->type_info);
     std::shared_ptr<DeduceCtx> imported_ctx =
         ctx->MakeCtx(invocation_imported_type_info, (*imported)->module);
@@ -1628,7 +1627,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
           GetParametricBuiltinNames().contains(arg_name_ref->identifier());
       if (callee_is_map && arg_is_builtin_parametric) {
         Invocation* invocation = CreateElementInvocation(
-            ctx->module().get(), node->span(), arg_name_ref, node->args()[0]);
+            ctx->module(), node->span(), arg_name_ref, node->args()[0]);
         XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> invocation_type,
                              DeduceAndResolve(invocation, ctx));
         arg_types.push_back(std::move(invocation_type));

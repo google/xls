@@ -33,7 +33,7 @@ fn main() -> u32 { f() }
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test.x", "test", &import_cache));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
-                           GetOrder(tm.module.get(), tm.type_info));
+                           GetOrder(tm.module, tm.type_info));
   ASSERT_EQ(3, order.size());
   EXPECT_EQ(order[0].f->identifier(), "g");
   EXPECT_EQ(order[1].f->identifier(), "f");
@@ -50,7 +50,7 @@ fn main() -> u32 { f(u2:0) }
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test.x", "test", &import_cache));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
-                           GetOrder(tm.module.get(), tm.type_info));
+                           GetOrder(tm.module, tm.type_info));
   ASSERT_EQ(2, order.size());
   EXPECT_EQ(order[0].f->identifier(), "f");
   EXPECT_EQ(
@@ -72,7 +72,7 @@ fn main() -> u32 { f(u2:0) }
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test.x", "test", &import_cache));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
-                           GetOrder(tm.module.get(), tm.type_info));
+                           GetOrder(tm.module, tm.type_info));
   ASSERT_EQ(3, order.size());
   EXPECT_EQ(order[0].f->identifier(), "g");
   EXPECT_EQ(
@@ -96,7 +96,7 @@ fn main() -> u32 { fail!(u32:0) }
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test.x", "test", &import_cache));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
-                           GetOrder(tm.module.get(), tm.type_info));
+                           GetOrder(tm.module, tm.type_info));
   ASSERT_EQ(1, order.size());
   EXPECT_EQ(order[0].f->identifier(), "main");
   EXPECT_EQ(order[0].bindings, SymbolicBindings());

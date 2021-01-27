@@ -22,7 +22,7 @@ namespace xls::dslx {
 namespace {
 
 TEST(InterpreterTest, RunIdentityFn) {
-  auto module = std::make_shared<Module>("test");
+  auto module = absl::make_unique<Module>("test");
   Pos fake_pos("<fake>", 0, 0);
   Span fake_span(fake_pos, fake_pos);
   auto* u32 = module->Make<BuiltinTypeAnnotation>(fake_span, BuiltinType::kU32);
@@ -36,7 +36,8 @@ TEST(InterpreterTest, RunIdentityFn) {
 
   module->AddTop(function);
 
-  auto type_info = std::make_shared<TypeInfo>(/*parent=*/nullptr);
+  TypeInfoOwner type_info_owner;
+  TypeInfo* type_info = type_info_owner.New(/*module=*/nullptr);
   Interpreter interp(module.get(), type_info, /*typecheck=*/nullptr,
                      /*additional_search_paths=*/{}, /*import_cache=*/nullptr);
   InterpValue mol = InterpValue::MakeU32(42);

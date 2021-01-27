@@ -30,14 +30,14 @@ bool FnStackEntry::Matches(const Function* f) const {
   return f->identifier() == name && f->owner() == module;
 }
 
-DeduceCtx::DeduceCtx(const std::shared_ptr<TypeInfo>& type_info,
-                     const std::shared_ptr<Module>& module,
-                     DeduceFn deduce_function,
+DeduceCtx::DeduceCtx(TypeInfoOwner* type_info_owner, TypeInfo* type_info,
+                     Module* module, DeduceFn deduce_function,
                      TypecheckFunctionFn typecheck_function,
                      TypecheckFn typecheck_module,
                      absl::Span<std::string const> additional_search_paths,
                      ImportCache* import_cache)
-    : type_info_(type_info),
+    : type_info_owner_(XLS_DIE_IF_NULL(type_info_owner)),
+      type_info_(type_info),
       module_(module),
       deduce_function_(std::move(XLS_DIE_IF_NULL(deduce_function))),
       typecheck_function_(std::move(typecheck_function)),

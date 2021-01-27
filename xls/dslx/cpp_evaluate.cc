@@ -382,7 +382,7 @@ absl::StatusOr<InterpValue> EvaluateFunction(
 
   Module* m = f->owner();
   XLS_ASSIGN_OR_RETURN(std::shared_ptr<InterpBindings> bindings,
-                       MakeTopLevelBindings(m->shared_from_this(), callbacks));
+                       MakeTopLevelBindings(m, callbacks));
   XLS_RETURN_IF_ERROR(EvaluateDerivedParametrics(f, bindings.get(), callbacks,
                                                  symbolic_bindings.ToMap()));
 
@@ -691,8 +691,7 @@ static absl::StatusOr<InterpValue> EvaluateEnumRefHelper(
   TypeAnnotation* underlying_type = enum_def->type();
   XLS_ASSIGN_OR_RETURN(
       std::shared_ptr<InterpBindings> fresh_bindings,
-      MakeTopLevelBindings(underlying_type->owner()->shared_from_this(),
-                           callbacks));
+      MakeTopLevelBindings(underlying_type->owner(), callbacks));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> concrete_type,
                        ConcretizeTypeAnnotation(
                            underlying_type, fresh_bindings.get(), callbacks));
@@ -754,9 +753,8 @@ static absl::StatusOr<absl::variant<EnumDef*, Module*>> ResolveColonRefSubject(
 
   XLS_ASSIGN_OR_RETURN(TypeDefinition type_definition,
                        subject_module->GetTypeDefinition(subject->attr()));
-  XLS_ASSIGN_OR_RETURN(
-      std::shared_ptr<InterpBindings> fresh_bindings,
-      MakeTopLevelBindings(subject_module->shared_from_this(), callbacks));
+  XLS_ASSIGN_OR_RETURN(std::shared_ptr<InterpBindings> fresh_bindings,
+                       MakeTopLevelBindings(subject_module, callbacks));
   XLS_ASSIGN_OR_RETURN(
       EnumDef * enum_def,
       EvaluateToEnum(type_definition, fresh_bindings.get(), callbacks));
@@ -782,14 +780,12 @@ absl::StatusOr<InterpValue> EvaluateColonRef(ColonRef* expr,
   XLS_RET_CHECK(member.has_value());
   if (absl::holds_alternative<Function*>(*member.value())) {
     auto* f = absl::get<Function*>(*member.value());
-    return InterpValue::MakeFunction(
-        InterpValue::UserFnData{f->owner()->shared_from_this(), f});
+    return InterpValue::MakeFunction(InterpValue::UserFnData{f->owner(), f});
   }
   if (absl::holds_alternative<ConstantDef*>(*member.value())) {
     auto* cd = absl::get<ConstantDef*>(*member.value());
-    XLS_ASSIGN_OR_RETURN(
-        std::shared_ptr<InterpBindings> module_top,
-        MakeTopLevelBindings(module->shared_from_this(), callbacks));
+    XLS_ASSIGN_OR_RETURN(std::shared_ptr<InterpBindings> module_top,
+                         MakeTopLevelBindings(module, callbacks));
     return callbacks->Eval(cd->value(), module_top.get());
   }
   return absl::InternalError(
@@ -889,7 +885,7 @@ absl::StatusOr<InterpValue> EvaluateAttr(Attr* expr, InterpBindings* bindings,
                                          ConcreteType* type_context,
                                          InterpCallbackData* callbacks) {
   XLS_ASSIGN_OR_RETURN(InterpValue lhs, callbacks->Eval(expr->lhs(), bindings));
-  const std::shared_ptr<TypeInfo>& type_info = callbacks->get_type_info();
+  TypeInfo* type_info = callbacks->get_type_info();
   XLS_RET_CHECK(type_info != nullptr);
   absl::optional<const ConcreteType*> maybe_type =
       type_info->GetItem(expr->lhs());
@@ -919,7 +915,7 @@ static absl::StatusOr<InterpValue> EvaluateIndexBitSlice(
 
   const SymbolicBindings& sym_bindings = bindings->fn_ctx()->sym_bindings;
 
-  const std::shared_ptr<TypeInfo>& type_info = callbacks->get_type_info();
+  TypeInfo* type_info = callbacks->get_type_info();
   absl::optional<StartAndWidth> maybe_saw =
       type_info->GetSliceStartAndWidth(index_slice, sym_bindings);
   XLS_RET_CHECK(maybe_saw.has_value())
@@ -1082,7 +1078,7 @@ absl::StatusOr<InterpValue> EvaluateMatch(Match* expr, InterpBindings* bindings,
 }
 
 absl::StatusOr<std::shared_ptr<InterpBindings>> MakeTopLevelBindings(
-    const std::shared_ptr<Module>& module, InterpCallbackData* callbacks) {
+    Module* module, InterpCallbackData* callbacks) {
   XLS_VLOG(4) << "Making top level bindings for module: " << module->name();
   auto b = std::make_shared<InterpBindings>(/*parent=*/nullptr);
 
@@ -1239,9 +1235,8 @@ absl::StatusOr<DerefVariant> EvaluateToStructOrEnumOrAnnotation(
                        bindings->ResolveModule(identifier));
   XLS_ASSIGN_OR_RETURN(TypeDefinition td,
                        imported_module->GetTypeDefinition(attr));
-  XLS_ASSIGN_OR_RETURN(
-      std::shared_ptr<InterpBindings> imported_bindings,
-      MakeTopLevelBindings(imported_module->shared_from_this(), callbacks));
+  XLS_ASSIGN_OR_RETURN(std::shared_ptr<InterpBindings> imported_bindings,
+                       MakeTopLevelBindings(imported_module, callbacks));
   return EvaluateToStructOrEnumOrAnnotation(td, imported_bindings.get(),
                                             callbacks);
 }
@@ -1342,9 +1337,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
     std::shared_ptr<InterpBindings> derefd_top_level;
     Module* derefd_module = ToAstNode(deref)->owner();
     if (derefd_module != type->owner()) {
-      XLS_ASSIGN_OR_RETURN(
-          derefd_top_level,
-          MakeTopLevelBindings(derefd_module->shared_from_this(), callbacks));
+      XLS_ASSIGN_OR_RETURN(derefd_top_level,
+                           MakeTopLevelBindings(derefd_module, callbacks));
       bindings = derefd_top_level.get();
     }
     return ConcretizeType(deref, bindings, callbacks);

@@ -41,7 +41,7 @@ class Parser : public TokenParser {
 
   absl::StatusOr<Proc*> ParseProc(bool is_public, Bindings* outer_bindings);
 
-  absl::StatusOr<std::shared_ptr<Module>> ParseModule(
+  absl::StatusOr<std::unique_ptr<Module>> ParseModule(
       Bindings* bindings = nullptr);
 
   // Parses an expression out of the token stream.
@@ -51,11 +51,9 @@ class Parser : public TokenParser {
   absl::StatusOr<TypeDef*> ParseTypeDefinition(bool is_public,
                                                Bindings* bindings);
 
-  // TODO(leary): 2021-01-24 Remove ability to access this in the middle of
-  // construction -- when  Python bindings are removed should be possible.
-  const std::shared_ptr<Module>& module() const { return module_; }
-
  private:
+  friend class ParserTest;
+
   // Simple helper class to wrap the operations necessary to evaluate [parser]
   // productions as transactions - with "Commit" or "Rollback" operations.
   class Transaction {
@@ -494,7 +492,7 @@ class Parser : public TokenParser {
   ParseDirective(absl::flat_hash_map<std::string, Function*>* name_to_fn,
                  Bindings* bindings);
 
-  std::shared_ptr<Module> module_;
+  std::unique_ptr<Module> module_;
 
   // Stack of loops being parsed -- this is primarily kept so that 'carry' nodes
   // can keep a back-reference to which while node they're retrieving carry data
