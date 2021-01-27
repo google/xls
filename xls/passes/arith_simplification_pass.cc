@@ -509,25 +509,6 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
     return true;
   }
 
-  // A nested subtract expression can be simplified to an add and a
-  // subtract. The motivation is that adds a easier to transform because
-  // addition is commutative so having one add and one subtraction is better
-  // than two subtractions.
-  //
-  //   a - (b - c) =>  a + (c - b)
-  if (n->op() == Op::kSub && n->operand(1)->op() == Op::kSub &&
-      NodeAndOperandsSameType(n) && NodeAndOperandsSameType(n->operand(1))) {
-    // Name variables according to comment above.
-    Node* a = n->operand(0);
-    Node* b = n->operand(1)->operand(0);
-    Node* c = n->operand(1)->operand(1);
-    XLS_ASSIGN_OR_RETURN(Node * c_minus_b, n->function_base()->MakeNode<BinOp>(
-                                               n->loc(), c, b, Op::kSub));
-    XLS_RETURN_IF_ERROR(
-        n->ReplaceUsesWithNew<BinOp>(a, c_minus_b, Op::kAdd).status());
-    return true;
-  }
-
   // Shift amounts from the front-end are often unnecessarily zero
   // extended. Strip the zero-extension (canonicalized to concat with zero):
   //

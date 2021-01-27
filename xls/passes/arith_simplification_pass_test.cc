@@ -831,18 +831,6 @@ TEST_F(ArithSimplificationPassTest, ShiftByConcatWithZeroValueAndOthers) {
               m::Shll(m::Param("x"), m::Concat(m::Param("y"), m::Param("z"))));
 }
 
-TEST_F(ArithSimplificationPassTest, SubOfSub) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  fb.Subtract(fb.Param("x", p->GetBitsType(32)),
-              fb.Subtract(fb.Param("y", p->GetBitsType(32)),
-                          fb.Param("z", p->GetBitsType(32))));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              m::Add(m::Param("x"), m::Sub(m::Param("z"), m::Param("y"))));
-}
-
 TEST_F(ArithSimplificationPassTest, GuardedShiftOperation) {
   // Test that a shift amount clamped to the shift's width is removed.
   auto p = CreatePackage();

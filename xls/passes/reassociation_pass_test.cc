@@ -196,5 +196,85 @@ TEST_F(ReassociationPassTest, SingleLiteralNoReassociate) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
+TEST_F(ReassociationPassTest, SingleSubtract) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  fb.Subtract(fb.Param("a", u32), fb.Param("b", u32));
+  XLS_ASSERT_OK(fb.Build().status());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
+TEST_F(ReassociationPassTest, SingleSubtractOfLiteral) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  fb.Subtract(fb.Param("a", u32), fb.Literal(Value(UBits(42, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Add(m::Param("a"), m::Literal(SBits(-42, 32))));
+}
+
+TEST_F(ReassociationPassTest, TreeOfSubtracts) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  fb.Subtract(fb.Subtract(fb.Param("a", u32), fb.Param("b", u32)),
+              fb.Subtract(fb.Param("c", u32), fb.Param("d", u32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Sub(m::Add(m::Param("a"), m::Param("d")),
+                                        m::Add(m::Param("b"), m::Param("c"))));
+}
+
+TEST_F(ReassociationPassTest, AddOfSubtracts) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  fb.Add(fb.Subtract(fb.Param("a", u32), fb.Param("b", u32)),
+         fb.Subtract(fb.Param("c", u32), fb.Param("d", u32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Sub(m::Add(m::Param("a"), m::Param("c")),
+                                        m::Add(m::Param("b"), m::Param("d"))));
+}
+
+TEST_F(ReassociationPassTest, SubtractOfAdds) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  fb.Subtract(fb.Add(fb.Param("a", u32), fb.Param("b", u32)),
+              fb.Add(fb.Param("c", u32), fb.Param("d", u32)));
+  XLS_ASSERT_OK(fb.Build().status());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
+TEST_F(ReassociationPassTest, SubtractOfAddsWithLiterals) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  fb.Subtract(fb.Add(fb.Param("a", u32), fb.Literal(Value(UBits(100, 32)))),
+              fb.Add(fb.Literal(Value(UBits(42, 32))), fb.Param("b", u32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Sub(m::Add(m::Param("a"), m::Add(m::Literal(UBits(100, 32)),
+                                                  m::Literal(SBits(-42, 32)))),
+                     m::Param("b")));
+}
+
+TEST_F(ReassociationPassTest, SubOfSub) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Subtract(fb.Param("x", p->GetBitsType(32)),
+              fb.Subtract(fb.Param("y", p->GetBitsType(32)),
+                          fb.Param("z", p->GetBitsType(32))));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Sub(m::Add(m::Param("x"), m::Param("z")), m::Param("y")));
+}
+
 }  // namespace
 }  // namespace xls
