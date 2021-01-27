@@ -74,17 +74,24 @@ class TokenParser {
     return absl::nullopt;
   }
 
-  absl::StatusOr<absl::optional<Token>> TryPopKeyword(Keyword target) {
+  absl::StatusOr<absl::optional<Token>> TryPopKeyword(Keyword target,
+                                                      Pos* pos = nullptr) {
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
     if (peek->IsKeyword(target)) {
+      if (pos != nullptr) {
+        *pos = peek->span().limit();
+      }
       return PopTokenOrDie();
     }
     return absl::nullopt;
   }
 
-  absl::StatusOr<bool> TryDropToken(TokenKind target) {
+  absl::StatusOr<bool> TryDropToken(TokenKind target, Pos* pos = nullptr) {
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
     if (peek->kind() == target) {
+      if (pos != nullptr) {
+        *pos = peek->span().limit();
+      }
       DropTokenOrDie();
       return true;
     }
@@ -97,9 +104,12 @@ class TokenParser {
     return maybe_tok != absl::nullopt;
   }
 
-  absl::StatusOr<bool> TryDropKeyword(Keyword target) {
+  absl::StatusOr<bool> TryDropKeyword(Keyword target, Pos* pos = nullptr) {
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
     if (peek->IsKeyword(target)) {
+      if (pos != nullptr) {
+        *pos = peek->span().limit();
+      }
       DropTokenOrDie();
       return true;
     }
@@ -147,87 +157,28 @@ class TokenParser {
 
   void DropTokenOrDie() { XLS_CHECK_OK(DropToken()); }
 
-  absl::StatusOr<bool> PeekTokenIs(TokenKind target) {
-    XLS_ASSIGN_OR_RETURN(const Token* tok, PeekToken());
-    return tok->kind() == target;
-  }
-  absl::StatusOr<bool> PeekTokenIs(Keyword target) {
-    XLS_ASSIGN_OR_RETURN(const Token* tok, PeekToken());
-    return tok->IsKeyword(target);
-  }
-  absl::StatusOr<bool> PeekTokenIn(absl::Span<TokenKind const> targets) {
-    XLS_ASSIGN_OR_RETURN(const Token* tok, PeekToken());
-    for (TokenKind target : targets) {
-      if (target == tok->kind()) {
-        return true;
-      }
-    }
-    return false;
-  }
-  absl::StatusOr<bool> PeekKeywordIn(absl::Span<Keyword const> targets) {
-    XLS_ASSIGN_OR_RETURN(const Token* tok, PeekToken());
-    if (tok->kind() != TokenKind::kKeyword) {
-      return false;
-    }
-    for (Keyword target : targets) {
-      if (target == tok->GetKeyword()) {
-        return true;
-      }
-    }
-    return false;
-  }
+  absl::StatusOr<bool> PeekTokenIs(TokenKind target);
+  absl::StatusOr<bool> PeekTokenIs(Keyword target);
+  absl::StatusOr<bool> PeekTokenIn(absl::Span<TokenKind const> targets);
+  absl::StatusOr<bool> PeekKeywordIn(absl::Span<Keyword const> targets);
 
   absl::StatusOr<Token> PopTokenOrError(TokenKind target,
                                         const Token* start = nullptr,
-                                        absl::string_view context = "") {
-    XLS_ASSIGN_OR_RETURN(const Token* tok, PeekToken());
-    if (tok->kind() == target) {
-      return PopToken();
-    }
-    std::string msg;
-    if (start == nullptr) {
-      msg = absl::StrFormat("Expected '%s', got '%s'",
-                            TokenKindToString(target), tok->ToErrorString());
-    } else {
-      msg = absl::StrFormat(
-          "Expected '%s' for construct starting with '%s' @ %s, got '%s'",
-          TokenKindToString(target), start->ToErrorString(),
-          start->span().ToString(), tok->ToErrorString());
-    }
-    if (!context.empty()) {
-      msg = absl::StrCat(msg, ": ", context);
-    }
-    return ParseErrorStatus(tok->span(), msg);
-  }
+                                        absl::string_view context = "",
+                                        Pos* limit_pos = nullptr);
 
   // Wrapper around PopTokenOrError that does not return the token. Helps
   // signify that the intent was to drop the token in the caller code vs
   // 'forgetting' to do something with the popped token.
   absl::Status DropTokenOrError(TokenKind target, const Token* start = nullptr,
-                                absl::string_view context = "") {
-    XLS_ASSIGN_OR_RETURN(Token token, PopTokenOrError(target, start, context));
-    return absl::OkStatus();
-  }
+                                absl::string_view context = "",
+                                Pos* limit_pos = nullptr);
 
   absl::StatusOr<Token> PopKeywordOrError(Keyword keyword,
-                                          absl::string_view context = "") {
-    XLS_ASSIGN_OR_RETURN(Token tok, PopToken());
-    if (tok.IsKeyword(keyword)) {
-      return std::move(tok);
-    }
-    std::string msg =
-        absl::StrFormat("Expected keyword '%s', got %s'",
-                        KeywordToString(keyword), tok.ToErrorString());
-    if (!context.empty()) {
-      msg = absl::StrCat(msg, ": ", context);
-    }
-    return ParseErrorStatus(tok.span(), msg);
-  }
+                                          absl::string_view context = "",
+                                          Pos* limit_pos = nullptr);
 
-  absl::Status DropKeywordOrError(Keyword target) {
-    XLS_ASSIGN_OR_RETURN(Token token, PopKeywordOrError(target));
-    return absl::OkStatus();
-  }
+  absl::Status DropKeywordOrError(Keyword target, Pos* limit_pos = nullptr);
 
  private:
   Scanner* scanner_;

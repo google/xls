@@ -106,22 +106,6 @@ py_library(
     ],
 )
 
-py_test(
-    name = "parser_test",
-    srcs = ["parser_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        ":fakefs_test_util",
-        ":parser_helpers",
-        "//xls/dslx/python:cpp_ast",
-        "//xls/dslx/python:cpp_parser",
-        "//xls/dslx/python:cpp_pos",
-        "//xls/dslx/python:scanner",
-        "@com_google_absl_py//absl/testing:absltest",
-    ],
-)
-
 cc_library(
     name = "symbolic_bindings",
     srcs = ["symbolic_bindings.cc"],
@@ -382,6 +366,7 @@ cc_test(
 
 cc_library(
     name = "cpp_token_parser",
+    srcs = ["token_parser.cc"],
     hdrs = ["token_parser.h"],
     deps = [
         ":cpp_bindings",

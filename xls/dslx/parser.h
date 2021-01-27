@@ -51,6 +51,8 @@ class Parser : public TokenParser {
   absl::StatusOr<TypeDef*> ParseTypeDefinition(bool is_public,
                                                Bindings* bindings);
 
+  // TODO(leary): 2021-01-24 Remove ability to access this in the middle of
+  // construction -- when  Python bindings are removed should be possible.
   const std::shared_ptr<Module>& module() const { return module_; }
 
  private:
@@ -72,7 +74,9 @@ class Parser : public TokenParser {
     // transaction to the parent bindings.
     void Commit() {
       XLS_CHECK(!completed_) << "Doubly-completed transaction!";
-      parent_bindings_->ConsumeChild(&child_bindings_);
+      if (parent_bindings_ != nullptr) {
+        parent_bindings_->ConsumeChild(&child_bindings_);
+      }
       completed_ = true;
     }
 
@@ -120,18 +124,22 @@ class Parser : public TokenParser {
   template <typename T>
   absl::StatusOr<std::vector<T>> ParseCommaSeq(
       const std::function<absl::StatusOr<T>()>& fparse,
-      absl::variant<TokenKind, Keyword> terminator) {
-    auto try_pop_terminator = [this, terminator]() -> absl::StatusOr<bool> {
+      absl::variant<TokenKind, Keyword> terminator,
+      Pos* terminator_limit = nullptr) {
+    auto try_pop_terminator = [&]() -> absl::StatusOr<bool> {
       if (absl::holds_alternative<TokenKind>(terminator)) {
-        return TryDropToken(absl::get<TokenKind>(terminator));
+        return TryDropToken(absl::get<TokenKind>(terminator), terminator_limit);
       }
-      return TryDropKeyword(absl::get<Keyword>(terminator));
+      return TryDropKeyword(absl::get<Keyword>(terminator), terminator_limit);
     };
-    auto drop_terminator_or_error = [this, terminator]() -> absl::Status {
+    auto drop_terminator_or_error = [&]() -> absl::Status {
       if (absl::holds_alternative<TokenKind>(terminator)) {
-        return DropTokenOrError(absl::get<TokenKind>(terminator));
+        return DropTokenOrError(absl::get<TokenKind>(terminator),
+                                /*start=*/nullptr, /*context=*/"",
+                                /*limit_pos=*/terminator_limit);
       }
-      return DropKeywordOrError(absl::get<Keyword>(terminator));
+      return DropKeywordOrError(absl::get<Keyword>(terminator),
+                                terminator_limit);
     };
 
     std::vector<T> parsed;
@@ -157,7 +165,8 @@ class Parser : public TokenParser {
 
   // Parses dimension on a type; e.g. `u32[3]` => `(3,)`; `uN[2][3]` => `(3,
   // 2)`.
-  absl::StatusOr<std::vector<Expr*>> ParseDims(Bindings* bindings);
+  absl::StatusOr<std::vector<Expr*>> ParseDims(Bindings* bindings,
+                                               Pos* limit_pos = nullptr);
 
   absl::StatusOr<TypeRef*> ParseModTypeRef(Bindings* bindings,
                                            const Token& start_tok);

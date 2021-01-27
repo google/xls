@@ -195,6 +195,17 @@ std::string BinopKindFormat(BinopKind kind) {
   return absl::StrFormat("<invalid BinopKind(%d)>", static_cast<int>(kind));
 }
 
+std::string BinopKindToString(BinopKind kind) {
+  switch (kind) {
+#define CASIFY(__enum, __str, ...) \
+  case BinopKind::__enum:          \
+    return __str;
+    XLS_DSLX_BINOP_KIND_EACH(CASIFY)
+#undef CASIFY
+  }
+  return absl::StrFormat("<invalid BinopKind(%d)>", static_cast<int>(kind));
+}
+
 // -- class NameDef
 
 NameDef::NameDef(Module* owner, Span span, std::string identifier,
@@ -641,7 +652,7 @@ std::vector<AstNode*> Match::GetChildren(bool want_types) const {
 std::string Match::ToString() const {
   std::string result = absl::StrFormat("match %s {\n", matched_->ToString());
   for (MatchArm* arm : arms_) {
-    absl::StrAppend(&result, arm->ToString(), "\n");
+    absl::StrAppend(&result, "  ", arm->ToString(), ",\n");
   }
   absl::StrAppend(&result, "}");
   return result;
@@ -709,9 +720,17 @@ std::string EnumDef::ToString() const {
   std::string result =
       absl::StrFormat("%senum %s : %s {\n", is_public_ ? "pub " : "",
                       identifier(), type_->ToString());
+
+  auto value_to_string = [](Expr* value) -> std::string {
+    if (Number* number = dynamic_cast<Number*>(value)) {
+      return number->ToStringNoType();
+    }
+    return value->ToString();
+  };
+
   for (const auto& item : values_) {
     absl::StrAppendFormat(&result, "  %s = %s,\n", item.name_def->identifier(),
-                          ToAstNode(item.value)->ToString());
+                          value_to_string(ToExprNode(item.value)));
   }
   absl::StrAppend(&result, "}");
   return result;
@@ -963,7 +982,7 @@ std::string Function::Format(bool include_body) const {
   std::string parametric_str;
   if (!parametric_bindings_.empty()) {
     parametric_str = absl::StrFormat(
-        " [%s] ",
+        "<%s>",
         absl::StrJoin(
             parametric_bindings_, ", ",
             [](std::string* out, ParametricBinding* parametric_binding) {
@@ -974,15 +993,15 @@ std::string Function::Format(bool include_body) const {
       absl::StrJoin(params_, ", ", [](std::string* out, Param* param) {
         absl::StrAppend(out, param->ToString());
       });
-  std::string return_type_str;
+  std::string return_type_str = " ";
   if (return_type_ != nullptr) {
     return_type_str = " -> " + return_type_->ToString() + " ";
   }
   std::string pub_str = is_public_ ? "pub " : "";
   std::string name_str = name_def_->ToString();
   std::string body_str = Indent(body_->ToString());
-  return absl::StrFormat("%sfn %s%s(%s)%s{\n%s\n}", pub_str, parametric_str,
-                         name_str, params_str, return_type_str, body_str);
+  return absl::StrFormat("%sfn %s%s(%s)%s{\n%s\n}", pub_str, name_str,
+                         parametric_str, params_str, return_type_str, body_str);
 }
 
 MatchArm::MatchArm(Module* owner, Span span, std::vector<NameDefTree*> patterns,
@@ -1072,12 +1091,20 @@ std::string TupleTypeAnnotation::ToString() const {
   return absl::StrFormat("(%s%s)", guts, members_.size() == 1 ? "," : "");
 }
 
+// -- class QuickCheck
+
 QuickCheck::QuickCheck(Module* owner, Span span, Function* f,
                        absl::optional<int64> test_count)
-    : AstNode(owner),
-      span_(span),
-      f_(f),
-      test_count_(test_count ? *test_count : kDefaultTestCount) {}
+    : AstNode(owner), span_(span), f_(f), test_count_(std::move(test_count)) {}
+
+std::string QuickCheck::ToString() const {
+  std::string test_count_str;
+  if (test_count_.has_value()) {
+    test_count_str = absl::StrFormat("(test_count=%d)", *test_count_);
+  }
+  return absl::StrFormat("#![quickcheck%s]\n%s", test_count_str,
+                         f_->ToString());
+}
 
 std::string XlsTuple::ToString() const {
   std::string result = "(";
@@ -1198,6 +1225,8 @@ std::string Number::ToString() const {
   return text_;
 }
 
+std::string Number::ToStringNoType() const { return text_; }
+
 absl::StatusOr<Bits> Number::GetBits(int64 bit_count) const {
   switch (kind_) {
     case NumberKind::kBool: {
@@ -1238,10 +1267,16 @@ TypeDef::TypeDef(Module* owner, Span span, NameDef* name_def,
       is_public_(is_public) {}
 
 std::string Array::ToString() const {
-  return absl::StrFormat(
-      "[%s]", absl::StrJoin(members_, ", ", [](std::string* out, Expr* expr) {
-        absl::StrAppend(out, expr->ToString());
-      }));
+  std::string type_prefix;
+  if (type_ != nullptr) {
+    type_prefix = absl::StrCat(type_->ToString(), ":");
+  }
+  return absl::StrFormat("%s[%s%s]", type_prefix,
+                         absl::StrJoin(members_, ", ",
+                                       [](std::string* out, Expr* expr) {
+                                         absl::StrAppend(out, expr->ToString());
+                                       }),
+                         has_ellipsis_ ? ", ..." : "");
 }
 
 std::vector<AstNode*> Array::GetChildren(bool want_types) const {

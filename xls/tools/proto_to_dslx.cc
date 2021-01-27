@@ -639,12 +639,12 @@ absl::Status EmitArray(
   int num_submsgs = reflection->FieldSize(message, fd);
   bool has_ellipsis = false;
   if (num_submsgs != total_submsgs) {
-    has_ellipsis = true;
     // TODO(https://github.com/google/xls/issues/249): Marking an array
     // as "has_ellipsis" seems to still require that we specify all
     // members. Until resolved (?), we'll create fake, zero-valued,
     // members.
     // Fortunately, we have the _count member to indicate which are valid.
+    has_ellipsis = false;
     for (int i = 0; i < total_submsgs - num_submsgs; i++) {
       XLS_ASSIGN_OR_RETURN(dslx::Expr * element, make_zero_valued_element());
       array_elements->push_back(element);

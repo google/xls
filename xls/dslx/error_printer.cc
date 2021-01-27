@@ -83,8 +83,8 @@ absl::Status PrintPositionalError(const Span& error_span,
   // Emit error indicator.
   std::string squiggles(error_span.start().colno() + 6, '~');
   int64 width = std::max(
-      int64{0}, error_span.limit().colno() - error_span.start().colno() - 2);
-  std::string dashes(width, '-');
+      int64{1}, error_span.limit().colno() - error_span.start().colno() - 1);
+  std::string dashes(width - 1, '-');
   os << absl::StreamFormat("%s  %s^%s^ %s%s\n", red_color_leader, squiggles,
                            dashes, error_message, color_reset);
 

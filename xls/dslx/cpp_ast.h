@@ -582,6 +582,10 @@ class Number : public Expr {
 
   std::string ToString() const override;
 
+  // Returns this number without a leading type AST node prefix (even if it is
+  // present).
+  std::string ToStringNoType() const;
+
   TypeAnnotation* type() const { return type_; }
   void set_type(TypeAnnotation* type) { type_ = type; }
 
@@ -901,6 +905,15 @@ absl::StatusOr<BinopKind> BinopKindFromString(absl::string_view s);
 // for kAdd.
 std::string BinopKindFormat(BinopKind kind);
 
+// Returns a string representation of the given binary operation kind; e.g.
+// "LOGICAL_AND".
+std::string BinopKindToString(BinopKind kind);
+
+inline std::ostream& operator<<(std::ostream& os, BinopKind kind) {
+  os << BinopKindToString(kind);
+  return os;
+}
+
 // Represents a binary operation expression; e.g. `x + y`.
 class Binop : public Expr {
  public:
@@ -1004,7 +1017,7 @@ class ParametricBinding : public AstNode {
   std::string ToString() const override {
     std::string suffix;
     if (expr_ != nullptr) {
-      suffix = absl::StrFormat("= %s", expr_->ToString());
+      suffix = absl::StrFormat(" = %s", expr_->ToString());
     }
     return absl::StrFormat("%s: %s%s", name_def_->ToString(), type_->ToString(),
                            suffix);
@@ -1616,9 +1629,7 @@ class QuickCheck : public AstNode {
   }
 
   absl::string_view GetNodeTypeName() const override { return "QuickCheck"; }
-  std::string ToString() const override {
-    return absl::StrFormat("#![quickcheck]\n%s", f_->ToString());
-  }
+  std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {f_};
@@ -1627,13 +1638,15 @@ class QuickCheck : public AstNode {
   const std::string& identifier() const { return f_->identifier(); }
 
   Function* f() const { return f_; }
-  int64 test_count() const { return test_count_; }
+  int64 test_count() const {
+    return test_count_ ? *test_count_ : kDefaultTestCount;
+  }
   absl::optional<Span> GetSpan() const override { return f_->span(); }
 
  private:
   Span span_;
   Function* f_;
-  int64 test_count_;
+  absl::optional<int64> test_count_;
 };
 
 // Represents an XLS tuple expression.
@@ -1649,6 +1662,8 @@ class XlsTuple : public Expr {
 
   absl::string_view GetNodeTypeName() const override { return "XlsTuple"; }
   absl::Span<Expr* const> members() const { return members_; }
+  int64 size() const { return members_.size(); }
+  bool empty() const { return members_.empty(); }
 
   std::string ToString() const override;
 

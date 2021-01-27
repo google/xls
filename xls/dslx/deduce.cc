@@ -316,7 +316,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceLet(Let* node,
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> annotated,
                          DeduceAndResolve(node->type(), ctx));
     if (*rhs != *annotated) {
-      return XlsTypeErrorStatus(node->span(), *annotated, *rhs,
+      return XlsTypeErrorStatus(node->type()->span(), *annotated, *rhs,
                                 "Annotated type did not match inferred type "
                                 "of right hand side expression.");
     }

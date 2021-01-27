@@ -109,6 +109,7 @@ absl::StatusOr<BuiltinType> Parser::TokenToBuiltinType(const Token& tok) {
 absl::StatusOr<Function*> Parser::ParseFunction(
     bool is_public, Bindings* bindings,
     absl::flat_hash_map<std::string, Function*>* name_to_fn) {
+  XLS_RET_CHECK(bindings != nullptr);
   XLS_ASSIGN_OR_RETURN(Function * f,
                        ParseFunctionInternal(is_public, bindings));
   if (name_to_fn == nullptr) {
@@ -427,12 +428,13 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
   XLS_ASSIGN_OR_RETURN(Token tok, PopToken());
 
   if (tok.IsTypeKeyword()) {  // Builtin types.
+    Pos limit_pos = tok.span().limit();
     std::vector<Expr*> dims;
     XLS_ASSIGN_OR_RETURN(bool peek_is_obrack, PeekTokenIs(TokenKind::kOBrack));
     if (peek_is_obrack) {
-      XLS_ASSIGN_OR_RETURN(dims, ParseDims(bindings));
+      XLS_ASSIGN_OR_RETURN(dims, ParseDims(bindings, &limit_pos));
     }
-    return MakeBuiltinTypeAnnotation(Span(tok.span().start(), GetPos()), tok,
+    return MakeBuiltinTypeAnnotation(Span(tok.span().start(), limit_pos), tok,
                                      dims);
   }
 
@@ -1367,19 +1369,25 @@ absl::StatusOr<While*> Parser::ParseWhile(Bindings* bindings) {
   return w;
 }
 
-absl::StatusOr<std::vector<Expr*>> Parser::ParseDims(Bindings* bindings) {
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrack));
+absl::StatusOr<std::vector<Expr*>> Parser::ParseDims(Bindings* bindings,
+                                                     Pos* limit_pos) {
+  XLS_ASSIGN_OR_RETURN(Token obrack, PopTokenOrError(TokenKind::kOBrack));
   XLS_ASSIGN_OR_RETURN(Expr * dim, ParseDim(bindings));
   std::vector<Expr*> dims = {dim};
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
+  const char* const kContext = "at end of type dimensions";
+  XLS_RETURN_IF_ERROR(
+      DropTokenOrError(TokenKind::kCBrack, &obrack, kContext, limit_pos));
   while (true) {
-    XLS_ASSIGN_OR_RETURN(bool dropped_obrack, TryDropToken(TokenKind::kOBrack));
+    XLS_ASSIGN_OR_RETURN(bool dropped_obrack,
+                         TryDropToken(TokenKind::kOBrack, limit_pos));
     if (!dropped_obrack) {
       break;
     }
     XLS_ASSIGN_OR_RETURN(Expr * dim, ParseDim(bindings));
     dims.push_back(dim);
-    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack, /*start=*/&obrack,
+                                         /*context=*/kContext,
+                                         /*limit_pos=*/limit_pos));
   }
   return dims;
 }
