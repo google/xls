@@ -1896,6 +1896,9 @@ class NameDefTree : public AstNode {
   // Flattens the (recursive) NameDefTree into a list of leaves.
   std::vector<Leaf> Flatten() const;
 
+  // Filters the values from Flatten() to just NameDef leaves.
+  std::vector<NameDef*> GetNameDefs() const;
+
   // A pattern is irrefutable if it always causes a successful match.
   //
   // Returns whether this NameDefTree is known-irrefutable.

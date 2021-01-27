@@ -66,11 +66,18 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
                   stderr)
     self.assertIn("Builtin 'update' has no attributes", stderr)
 
-  def constant_without_type_annotation(self):
-    stderr = self._run('xls/dslx/tests/constant_without_type_annot.x')
-    self.assertIn('xls/dslx/tests/constant_without_type_annot.x:2:13-2:15',
-                  stderr)
+  def test_constant_without_type_annotation(self):
+    stderr = self._run('xls/dslx/tests/errors/constant_without_type_annot.x')
+    self.assertIn(
+        'xls/dslx/tests/errors/constant_without_type_annot.x:15:13-15:15',
+        stderr)
     self.assertIn('please annotate a type.', stderr)
+
+  def test_let_destructure_same_name(self):
+    stderr = self._run('xls/dslx/tests/errors/let_destructure_same_name.x')
+    self.assertIn(
+        'xls/dslx/tests/errors/let_destructure_same_name.x:17:11-17:12', stderr)
+    self.assertIn("Name 'i' is defined twice in this pattern", stderr)
 
 
 if __name__ == '__main__':

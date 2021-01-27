@@ -26,11 +26,13 @@ py_test(
     srcs = ["error_modules_test.py"],
     data = [
         "colon_ref_builtin.x",
+        "constant_without_type_annot.x",
         "has_type_error.x",
         "imports_and_causes_ref_error.x",
         "imports_and_typedefs_dne_type.x",
         "imports_has_type_error.x",
         "imports_private_enum.x",
+        "let_destructure_same_name.x",
         "mod_private_enum.x",
         "//xls/dslx:cpp_interpreter_main",
     ],

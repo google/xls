@@ -459,23 +459,6 @@ class ParserTest(absltest.TestCase):
       x * y
     }
 
-    // Unclear semantics in tuple assignments
-    //
-    // This code is probably legal, but it is not clear which value
-    // will be assigned to i in the end.
-    //
-
-    // Note that types have to be defined globally (we should probably change that
-    // and allow function-scoped types. Also, it is weird that 'type' needs a
-    // semicolon.
-    //
-    type Tuple2 = (u32, u32);
-
-    fn tuple_assign(x: u32, y: u32) -> (u32) {
-      let (i, i): Tuple2 = (x, y);
-      i
-    }
-
     // Invalid init expression size
     //
     // It is not clear whether or not this should be caught in the front-end,

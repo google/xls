@@ -655,8 +655,24 @@ absl::StatusOr<NameDefTree*> Parser::ParseNameDefTree(Bindings* bindings) {
   XLS_ASSIGN_OR_RETURN(
       std::vector<NameDefTree*> branches,
       ParseCommaSeq<NameDefTree*>(parse_name_def_or_tree, TokenKind::kCParen));
-  return module_->Make<NameDefTree>(Span(start.span().start(), GetPos()),
-                                    std::move(branches));
+  NameDefTree* ndt = module_->Make<NameDefTree>(
+      Span(start.span().start(), GetPos()), std::move(branches));
+
+  // Check that the name definitions are unique -- can't bind the same name
+  // multiple times in one destructuring assignment.
+  std::vector<NameDef*> name_defs = ndt->GetNameDefs();
+  absl::flat_hash_map<absl::string_view, NameDef*> seen;
+  for (NameDef* name_def : name_defs) {
+    if (!seen.insert({name_def->identifier(), name_def}).second) {
+      return ParseErrorStatus(
+          name_def->span(),
+          absl::StrFormat(
+              "Name '%s' is defined twice in this pattern; previously @ %s",
+              name_def->identifier(),
+              seen[name_def->identifier()]->span().ToString()));
+    }
+  }
+  return ndt;
 }
 
 absl::StatusOr<Array*> Parser::ParseArray(Bindings* bindings) {

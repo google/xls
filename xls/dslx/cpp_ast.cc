@@ -1139,6 +1139,16 @@ std::vector<NameDefTree::Leaf> NameDefTree::Flatten() const {
   return results;
 }
 
+std::vector<NameDef*> NameDefTree::GetNameDefs() const {
+  std::vector<NameDef*> results;
+  for (Leaf leaf : Flatten()) {
+    if (absl::holds_alternative<NameDef*>(leaf)) {
+      results.push_back(absl::get<NameDef*>(leaf));
+    }
+  }
+  return results;
+}
+
 std::vector<absl::variant<NameDefTree::Leaf, NameDefTree*>>
 NameDefTree::Flatten1() {
   if (is_leaf()) {
