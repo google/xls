@@ -105,8 +105,8 @@ bool IsTypeMissingErrorStatus(const absl::Status& status) {
 
 absl::Status ArgCountMismatchErrorStatus(const Span& span,
                                          absl::string_view message) {
-  return absl::InternalError(absl::StrFormat("ArgCountMismatchError: %s %s",
-                                             span.ToString(), message));
+  return absl::InvalidArgumentError(absl::StrFormat(
+      "ArgCountMismatchError: %s %s", span.ToString(), message));
 }
 
 }  // namespace xls::dslx

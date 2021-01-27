@@ -24,7 +24,6 @@
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/parser.h"
-#include "xls/dslx/python/callback_converters.h"
 #include "xls/dslx/python/cpp_ast.h"
 #include "xls/dslx/python/errors.h"
 #include "xls/dslx/scanner.h"
@@ -44,6 +43,7 @@ absl::flat_hash_map<K, V> ToAbsl(const std::unordered_map<K, V>& m) {
 PYBIND11_MODULE(interpreter, m) {
   ImportStatusModule();
   py::module::import("xls.dslx.python.cpp_ast");
+  py::module::import("xls.dslx.python.cpp_concrete_type");
 
   static py::exception<FailureError> failure_exc(m, "FailureError");
 

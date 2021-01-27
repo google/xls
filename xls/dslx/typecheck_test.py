@@ -27,7 +27,6 @@ from xls.dslx import parser_helpers
 from xls.dslx.python import cpp_typecheck
 from xls.dslx.python.cpp_deduce import TypeInferenceError
 from xls.dslx.python.cpp_deduce import XlsTypeError
-from xls.dslx.python.cpp_parametric_instantiator import ArgCountMismatchError
 from xls.dslx.python.import_routines import ImportCache
 
 
@@ -144,15 +143,6 @@ class TypecheckTest(test_base.TestCase):
     """,
         error='different kinds')
 
-  def test_typecheck_parametric_wrong_argc(self):
-    self._typecheck(
-        """
-    fn id<N: u32>(x: bits[N]) -> bits[N] { x }
-    fn f() -> u32 { id(u8:3, u8:4) }
-    """,
-        error='Expected 1 parameter(s) but got 2 argument(s)',
-        error_type=ArgCountMismatchError)
-
   def test_typecheck_parametric_wrong_number_of_dims(self):
     self._typecheck(
         textwrap.dedent("""\
@@ -168,15 +158,6 @@ class TypecheckTest(test_base.TestCase):
     """,
         error='Recursion detected while typechecking',
         error_type=TypeInferenceError)
-
-  def test_typecheck_parametric_too_many_explicit_supplied(self):
-    self._typecheck(
-        """
-    fn id<X: u32>(x: bits[X]) -> bits[X] { x }
-    fn main() -> u32 { id<u32:32, u32:64>(u32:5) }
-    """,
-        error='Too many parametric values supplied; limit: 1 given: 2',
-        error_type=ArgCountMismatchError)
 
   def test_typecheck_parametric_recursion_causes_error(self):
     self._typecheck(

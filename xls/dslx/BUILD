@@ -160,7 +160,6 @@ py_test(
         ":span",
         "//xls/common:test_base",
         "//xls/dslx/python:cpp_deduce",
-        "//xls/dslx/python:cpp_parametric_instantiator",
         "//xls/dslx/python:cpp_parser",
         "//xls/dslx/python:cpp_typecheck",
         "@com_google_absl_py//absl/logging",
@@ -658,6 +657,16 @@ cc_library(
         ":import_routines",
         "//xls/dslx/python:cpp_ast_header",
         "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "cpp_typecheck_test",
+    srcs = ["typecheck_test.cc"],
+    deps = [
+        ":cpp_parse_and_typecheck",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest_main",
     ],
 )
 

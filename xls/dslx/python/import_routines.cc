@@ -21,7 +21,6 @@
 #include "pybind11/stl.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
-#include "xls/dslx/python/callback_converters.h"
 #include "xls/dslx/python/cpp_ast.h"
 #include "xls/dslx/python/errors.h"
 #include "xls/dslx/type_info.h"
@@ -33,54 +32,7 @@ namespace xls::dslx {
 PYBIND11_MODULE(import_routines, m) {
   ImportStatusModule();
 
-  py::class_<ModuleInfo>(m, "ModuleInfo")
-      .def(py::init(
-          [](ModuleHolder module, std::shared_ptr<TypeInfo> type_info) {
-            return ModuleInfo{module.module(), type_info};
-          }))
-      .def("__getitem__",
-           [](const ModuleInfo& self, int64 index)
-               -> absl::variant<ModuleHolder, std::shared_ptr<TypeInfo>> {
-             switch (index) {
-               case 0:
-                 return ModuleHolder(self.module.get(), self.module);
-               case 1:
-                 return self.type_info;
-               default:
-                 throw py::index_error("Index out of bounds");
-             }
-           });
-
-  py::class_<ImportTokens>(m, "ImportTokens")
-      .def(py::init([](std::vector<std::string> pieces) {
-        return absl::make_unique<ImportTokens>(std::move(pieces));
-      }));
-
-  py::class_<ImportCache>(m, "ImportCache")
-      .def(py::init())
-      .def("put",
-           [](ImportCache* self, ImportTokens subject, ModuleInfo module_info) {
-             return self->Put(subject, module_info).status();
-           })
-      .def("clear", &ImportCache::Clear);
-
-  m.def(
-      "do_import",
-      [](PyTypecheckFn py_typecheck, const ImportTokens& subject,
-         const std::vector<std::string>& additional_search_paths,
-         ImportCache* cache) -> absl::StatusOr<ModuleInfo> {
-        // With the appropriately typed callback we can now call DoImport().
-        absl::StatusOr<const ModuleInfo*> info_or =
-            DoImport(ToCppTypecheck(py_typecheck), subject,
-                     additional_search_paths, cache);
-        TryThrowKeyError(info_or.status());
-        TryThrowTypeMissingError(info_or.status());
-        XLS_VLOG(5) << "do_import status: " << info_or.status();
-        XLS_RETURN_IF_ERROR(info_or.status());
-        return *info_or.value();
-      },
-      py::arg("typecheck"), py::arg("subject"),
-      py::arg("additional_search_paths"), py::arg("cache"));
+  py::class_<ImportCache>(m, "ImportCache").def(py::init());
 }
 
 }  // namespace xls::dslx

@@ -196,23 +196,6 @@ xls_pybind_extension(
     ],
 )
 
-cc_library(
-    name = "callback_converters",
-    srcs = ["callback_converters.cc"],
-    hdrs = ["callback_converters.h"],
-    copts = ["-fexceptions"],
-    features = ["-use_header_modules"],
-    deps = [
-        ":cpp_ast_header",
-        ":errors",
-        "//xls/dslx:cpp_deduce",
-        "//xls/dslx:cpp_evaluate",
-        "//xls/dslx:cpp_type_info",
-        "//xls/dslx:interp_value",
-        "@pybind11",
-    ],
-)
-
 xls_pybind_extension(
     name = "import_routines",
     srcs = [
@@ -223,7 +206,6 @@ xls_pybind_extension(
         ":interp_value",  # build_cleaner: keep
     ],
     deps = [
-        ":callback_converters",
         ":cpp_ast_header",
         ":errors",
         "@com_google_absl//absl/base",
@@ -248,7 +230,6 @@ xls_pybind_extension(
         ":cpp_concrete_type",  # build_cleaner: keep
     ],
     deps = [
-        ":callback_converters",
         ":cpp_ast_header",
         ":errors",
         "@com_google_absl//absl/base",
@@ -280,7 +261,6 @@ xls_pybind_extension(
         ":import_routines",  # build_cleaner: keep
     ],
     deps = [
-        ":callback_converters",
         ":cpp_ast_header",
         ":errors",
         "@com_google_absl//absl/base",
@@ -292,35 +272,6 @@ xls_pybind_extension(
         "//xls/dslx:cpp_concrete_type",
         "//xls/dslx:cpp_deduce",
         "//xls/dslx:cpp_evaluate",
-        "//xls/dslx:import_routines",
-        "//xls/dslx:interp_bindings",
-        "//xls/dslx:interpreter",
-        "//xls/ir/python:wrapper_types",
-    ],
-)
-
-xls_pybind_extension(
-    name = "cpp_parametric_instantiator",
-    srcs = ["cpp_parametric_instantiator.cc"],
-    py_deps = [
-        ":cpp_ast",  # build_cleaner: keep
-        ":cpp_concrete_type",  # build_cleaner: keep
-        ":import_routines",  # build_cleaner: keep
-    ],
-    deps = [
-        ":callback_converters",
-        ":cpp_ast_header",
-        ":errors",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "//xls/common/status:status_macros",
-        "//xls/common/status:statusor_pybind_caster",
-        "//xls/dslx:cpp_ast",
-        "//xls/dslx:cpp_concrete_type",
-        "//xls/dslx:cpp_deduce",
-        "//xls/dslx:cpp_evaluate",
-        "//xls/dslx:cpp_parametric_instantiator",
         "//xls/dslx:import_routines",
         "//xls/dslx:interp_bindings",
         "//xls/dslx:interpreter",
@@ -338,7 +289,6 @@ xls_pybind_extension(
         ":import_routines",  # build_cleaner: keep
     ],
     deps = [
-        ":callback_converters",
         ":cpp_ast_header",
         ":errors",
         "@com_google_absl//absl/base",
@@ -350,41 +300,6 @@ xls_pybind_extension(
         "//xls/dslx:cpp_concrete_type",
         "//xls/dslx:cpp_deduce",
         "//xls/dslx:cpp_evaluate",
-        "//xls/dslx:cpp_typecheck",
-        "//xls/dslx:import_routines",
-        "//xls/dslx:interp_bindings",
-        "//xls/dslx:interpreter",
-        "//xls/ir/python:wrapper_types",
-    ],
-)
-
-xls_pybind_extension(
-    name = "cpp_ir_converter",
-    srcs = ["cpp_ir_converter.cc"],
-    py_deps = [
-        ":cpp_ast",  # build_cleaner: keep
-        ":cpp_deduce",  # build_cleaner: keep
-        ":cpp_concrete_type",  # build_cleaner: keep
-        ":interp_value",  # build_cleaner: keep
-        ":import_routines",  # build_cleaner: keep
-        "//xls/ir/python:package",  # build_cleaner: keep
-        "//xls/ir/python:function_builder",  # build_cleaner: keep
-    ],
-    deps = [
-        ":callback_converters",
-        ":cpp_ast_header",
-        ":errors",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "//xls/common/status:status_macros",
-        "//xls/common/status:statusor_pybind_caster",
-        "//xls/dslx:cpp_ast",
-        "//xls/dslx:cpp_concrete_type",
-        "//xls/dslx:cpp_deduce",
-        "//xls/dslx:cpp_evaluate",
-        "//xls/dslx:cpp_extract_conversion_order",
-        "//xls/dslx:cpp_ir_converter",
         "//xls/dslx:cpp_typecheck",
         "//xls/dslx:import_routines",
         "//xls/dslx:interp_bindings",

@@ -55,8 +55,7 @@ py_test(
         "//xls/dslx:fakefs_test_util",
         "//xls/dslx:parser_helpers",
         "//xls/dslx:span",
-        "//xls/dslx/python:cpp_typecheck",
-        "//xls/dslx/python:import_routines",
+        "//xls/dslx/python:interpreter",
         "//xls/dslx/python:scanner",
     ],
 )

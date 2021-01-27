@@ -20,13 +20,9 @@ import random
 
 from xls.common import test_base
 from xls.dslx import ast_helpers
-from xls.dslx import fakefs_test_util
-from xls.dslx import parser_helpers
 from xls.dslx.fuzzer import ast_generator
-from xls.dslx.python import cpp_typecheck
+from xls.dslx.python import interpreter
 from xls.dslx.python import scanner
-from xls.dslx.python.import_routines import ImportCache
-from xls.dslx.span import PositionalError
 
 
 class AstGeneratorTest(test_base.TestCase):
@@ -38,18 +34,8 @@ class AstGeneratorTest(test_base.TestCase):
       print('Generating sample', i)
       _, m = g.generate_function_in_module('main', 'test')
       text = str(m)
-      filename = '/fake/test_sample.x'
-      import_cache = ImportCache()
-      additional_search_paths = ()
-      with fakefs_test_util.scoped_fakefs(filename, text):
-        try:
-          module = parser_helpers.parse_text(
-              text, name='test_sample', print_on_error=True, filename=filename)
-          cpp_typecheck.check_module(module, import_cache,
-                                     additional_search_paths)
-        except PositionalError as e:
-          parser_helpers.pprint_positional_error(e)
-          raise
+      # Parses/typechecks as well, which is primarily what we're testing here.
+      self.assertIsNotNone(interpreter.get_function_type(text, 'main'))
 
   def _test_repeatable(self, seed: int) -> None:
 
