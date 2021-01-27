@@ -360,7 +360,7 @@ let (_, _, v) = t;
 assert_eq(v, true)
 ```
 
-### Struct Type
+### Struct Types
 
 Structures are similar to tuples, but provide two additional capabilities: we
 name the slots (i.e. struct fields have names while tuple elements only have
@@ -457,6 +457,8 @@ fn main {
 }
 ```
 
+#### Struct Update Syntax
+
 The DSL has syntax for conveniently producing a new value with a subset of
 fields updated to reduce verbosity. The "struct update" syntax is:
 
@@ -469,6 +471,30 @@ fn update_x_and_y(p: Point3) -> Point3 {
   Point3 { x: u32:42, y: u32:42, ..p }
 }
 ```
+
+#### Parametric Structs
+
+DSLX also supports parametric structs. For more information on how
+type-parametricity works, see the [parametric functions](#parametric-functions)
+section.
+
+```
+fn double(n: u32) -> u32 { n * u32:2 }
+
+struct Point<N: u32, M: u32 = double(N)> Point { x: bits[N], y: bits[M], }
+
+fn make_point<A: u32, B: u32> make_point(x: bits[A], y: bits[B]) -> Point[A, B] {
+  Point{ x, y }
+}
+
+#![test]
+fn struct_construction {
+  let p = make_point(u16:42, u32:42);
+  assert_eq(u16:42, p.x)
+}
+```
+
+#### Understanding Nominal Typing
 
 As mentioned above, a struct definition introduces a new type. Structs are
 nominally typed, as opposed to structurally typed (note that tuples are
@@ -500,26 +526,6 @@ fn ok {
 #![test]
 fn type_checker_error {
   assert_eq(f(Coordinate { x: u32:42, y: u32:64 }), u32:106)
-}
-```
-
-DSLX also supports parametric structs. For more information on how
-type-parametricity works, see the [parametric functions](#parametric-functions)
-section.
-
-```
-fn double(n: u32) -> u32 { n * u32:2 }
-
-struct Point<N: u32, M: u32 = double(N)> Point { x: bits[N], y: bits[M], }
-
-fn make_point<A: u32, B: u32> make_point(x: bits[A], y: bits[B]) -> Point[A, B] {
-  Point{ x, y }
-}
-
-#![test]
-fn struct_construction {
-  let p = make_point(u16:42, u32:42);
-  assert_eq(u16:42, p.x)
 }
 ```
 
