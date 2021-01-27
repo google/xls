@@ -803,11 +803,10 @@ functional stack, from input DSLX down to the netlist level.</p>
 </ul>
 </div>
 <h2 id="dslx">DSLX</h2>
-<p>The
-<a href="https://github.com/google/xls/tree/main/xls/dslx/interpreter/interpreter_main.py">DSLX interpreter</a>
-operates on DSLX <code>.x</code> files that contain both the design and samples to execute
-(present as 'tests'). The
-<a href="https://github.com/google/xls/tree/main/xls/examples/adler32.x">adler32</a> example
+<p>The DSLX interpreter (<code>//xls/dslx:cpp_interpreter_main</code>) operates on
+DSLX <code>.x</code> files that contain both the design and unit tests to execute (present
+as <code>#![test]</code> annotated functions).</p>
+<p>The <a href="https://github.com/google/xls/tree/main/xls/examples/adler32.x">adler32</a> example
 demonstrates this: the design is encapsulated in the <code>main</code>, <code>adler32_seq</code>, and
 <code>mod</code> functions, and the samples are present in the test <code>adler32_one_char</code>
 (note that unit-style tests/interpretations of <code>adler32_seq</code> and <code>mod</code> could
@@ -822,7 +821,7 @@ special declarations are necessary to wrap DSLX code.</p>
 <p>To execute directly via the interpreter, you can instead run:</p>
 <pre><code>bazel build -c opt //xls/dslx/interpreter:interpreter_main
 ./bazel-bin/xls/dslx/interpreter/interpreter_main \
-  xls/examples/adler32.x
+  ./xls/examples/adler32.x
 </code></pre>
 
 <p>These two methods are equivalent.</p>
@@ -840,7 +839,7 @@ one would run the following:</p>
 <pre><code>bazel build -c opt //xls/tools:eval_ir_main
 ./bazel-bin/xls/tools/eval_ir_main \
   --input '(bits[1]: 0x0, bits[8]:0x7F, bits[23]:0x0); (bits[1]: 0x0, bits[8]:0x80, bits[23]:0x200000)' \
-  xls/modules/fpadd_2x32.x
+  ./xls/modules/fpadd_2x32.x
 </code></pre>
 
 <p>By default, this runs via the JIT. To use the interpreter, add the

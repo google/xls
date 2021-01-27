@@ -920,12 +920,21 @@ available in
 <code>dslx_test</code> target). This target also accepts several key/value parameters (as
 <code>configs</code> for generation:</p>
 <ul>
-<li><code>clock_period_ps</code>: The target clock period in picoseconds.</li>
-<li><code>pipeline_stages</code>: The desired number of pipeline stages.</li>
+<li><code>clock_period_ps</code>: The target clock period in picoseconds. Only used with
+    the pipeline generator.</li>
+<li><code>clock_margin_percent</code>: The percent of the target clock period to reserve as
+    "margin". Only used with the pipeline generator.</li>
 <li><code>entry</code>: The DSLX function to synthesize. If not given, a "best guess" will
     be made.</li>
-<li><code>clock_margin_percent</code>: The percent of the target clock period to reserve as
-    "margin".</li>
+<li><code>flop_inputs</code>, <code>flop_outputs</code>: Whether to add flops at the inputs/outputs of
+    the generated module. Only used with the pipeline generator.</li>
+<li><code>generator</code>: The code generator to be used. Can be either <code>combinational</code> or
+    <code>pipeline</code>.</li>
+<li><code>module_name</code>: The desired name of the generated Verilog module.</li>
+<li><code>pipeline_stages</code>: The desired number of pipeline stages.</li>
+<li><code>reset</code>: The name of the reset signal to use, if any.</li>
+<li><code>reset_active_low</code>: Whether the reset signal is active low. Must also
+    specify <code>reset</code> option. Only used with the pipeline generator.</li>
 </ul>
 <h3 id="dslx_jit_wrapper"><code>dslx_jit_wrapper</code></h3>
 <p>Generates a source/header file pair to wrap invocation of a DSLX function by the

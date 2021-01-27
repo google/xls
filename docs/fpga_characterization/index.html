@@ -720,8 +720,8 @@
                 <h1 id="fpga-characterization">FPGA Characterization</h1>
 <p>Note that right now the in-tree yosys and nextpnr-ice40 builds plugins aren't
 registering properly, see
-<a href="https://github.com/google/xls/issues/188">issue #188</a>. As a result,
-we have to use out-of-tree <code>yosys</code> and <code>nextpnr-ice40</code> builds for the moment.</p>
+<a href="https://github.com/google/xls/issues/188">issue #188</a>. As a result, we have to
+use out-of-tree <code>yosys</code> and <code>nextpnr-ice40</code> builds for the moment.</p>
 <pre><code>$ bazel build -c opt //xls/synthesis/yosys:yosys_server_main
 $ ./bazel-bin/xls/synthesis/yosys/yosys_server_main \
     --yosys_path $(which yosys) \
@@ -732,9 +732,9 @@ $ ./bazel-bin/xls/synthesis/yosys/yosys_server_main \
 
 <p>The above runs a gRPC service, so in another terminal pane, we run the
 characterization driver:</p>
-<pre><code>$ bazel run -c opt xls/synthesis:timing_characterization_client_main
+<pre><code>$ bazel run -c opt //xls/synthesis:timing_characterization_client_main
 $ ./bazel-bin/xls/synthesis/timing_characterization_client_main \
-    &gt; xls/delay_model/models/ice40.textproto
+    &gt; ./xls/delay_model/models/ice40.textproto
 </code></pre>
 
 <p>This produces a textual representation of the delay model protobuf.</p>

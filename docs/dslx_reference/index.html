@@ -523,9 +523,36 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#struct-type" class="md-nav__link">
-    Struct Type
+  <a href="#struct-types" class="md-nav__link">
+    Struct Types
   </a>
+  
+    <nav class="md-nav" aria-label="Struct Types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#struct-update-syntax" class="md-nav__link">
+    Struct Update Syntax
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#parametric-structs" class="md-nav__link">
+    Parametric Structs
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#understanding-nominal-typing" class="md-nav__link">
+    Understanding Nominal Typing
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
         
@@ -1258,9 +1285,36 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#struct-type" class="md-nav__link">
-    Struct Type
+  <a href="#struct-types" class="md-nav__link">
+    Struct Types
   </a>
+  
+    <nav class="md-nav" aria-label="Struct Types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#struct-update-syntax" class="md-nav__link">
+    Struct Update Syntax
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#parametric-structs" class="md-nav__link">
+    Parametric Structs
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#understanding-nominal-typing" class="md-nav__link">
+    Understanding Nominal Typing
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
         
@@ -1656,7 +1710,12 @@
 <li><a href="#bit-type">Bit Type</a></li>
 <li><a href="#enum-types">Enum Types</a></li>
 <li><a href="#tuple-type">Tuple Type</a></li>
-<li><a href="#struct-type">Struct Type</a></li>
+<li><a href="#struct-types">Struct Types</a><ul>
+<li><a href="#struct-update-syntax">Struct Update Syntax</a></li>
+<li><a href="#parametric-structs">Parametric Structs</a></li>
+<li><a href="#understanding-nominal-typing">Understanding Nominal Typing</a></li>
+</ul>
+</li>
 <li><a href="#array-type">Array Type</a></li>
 <li><a href="#type-aliases">Type Aliases</a></li>
 <li><a href="#type-casting">Type Casting</a></li>
@@ -1786,7 +1845,8 @@ _                 // valid
 &amp;ade              // not valid
 </code></pre>
 
-<p>However, we suggest the following <strong>DSLX style rules</strong>:</p>
+<p>However, we suggest the following <strong>DSLX style rules</strong>, which mirror the
+<a href="https://doc.rust-lang.org/1.0.0/style/style/naming/README.html">Rust naming conventions</a>.</p>
 <ul>
 <li>Functions are <code>written_like_this</code></li>
 </ul>
@@ -1797,9 +1857,17 @@ _                 // valid
 <li>Constant bindings are <code>NAMES_LIKE_THIS</code></li>
 </ul>
 <ul>
-<li><code>_</code> is the black-hole identifier, as in Python. It should never be used in a
-    binding-reference.</li>
+<li><code>_</code> is the "black hole" identifier -- a name that you can bind to but should
+    never read from, akin to Rust's wildcard pattern match or Python's "unused
+    identifier" convention. It should never be referred to in an expression
+    except as a "sink".</li>
 </ul>
+<p>NOTE Since mutable locals are not supported, there is also
+<a href="https://github.com/google/xls/issues/212">support for "tick identifiers"</a>,
+where a ' character may appear anywhere after the first character of an
+identifier to indicate "prime"; e.g. <code>let state' = update(state);</code>. By
+convention ticks usually come at the end of an identifier. Since this is not
+part of Rust's syntax, it is considered experimental at this time.</p>
 <h2 id="functions">Functions</h2>
 <p>Function definitions begin with the keyword <code>fn</code>, followed by the function name,
 a parameter list to the function in parenthesis, followed by an <code>-&gt;</code> and the
@@ -2018,7 +2086,7 @@ let (_, _, v) = t;
 assert_eq(v, true)
 </code></pre>
 
-<h3 id="struct-type">Struct Type</h3>
+<h3 id="struct-types">Struct Types</h3>
 <p>Structures are similar to tuples, but provide two additional capabilities: we
 name the slots (i.e. struct fields have names while tuple elements only have
 positions), and we introduce a new type.</p>
@@ -2103,6 +2171,7 @@ fn main {
 }
 </code></pre>
 
+<h4 id="struct-update-syntax">Struct Update Syntax</h4>
 <p>The DSL has syntax for conveniently producing a new value with a subset of
 fields updated to reduce verbosity. The "struct update" syntax is:</p>
 <pre><code>fn update_y(p: Point3) -&gt; Point3 {
@@ -2114,6 +2183,26 @@ fn update_x_and_y(p: Point3) -&gt; Point3 {
 }
 </code></pre>
 
+<h4 id="parametric-structs">Parametric Structs</h4>
+<p>DSLX also supports parametric structs. For more information on how
+type-parametricity works, see the <a href="#parametric-functions">parametric functions</a>
+section.</p>
+<pre><code>fn double(n: u32) -&gt; u32 { n * u32:2 }
+
+struct Point&lt;N: u32, M: u32 = double(N)&gt; Point { x: bits[N], y: bits[M], }
+
+fn make_point&lt;A: u32, B: u32&gt; make_point(x: bits[A], y: bits[B]) -&gt; Point[A, B] {
+  Point{ x, y }
+}
+
+#![test]
+fn struct_construction {
+  let p = make_point(u16:42, u32:42);
+  assert_eq(u16:42, p.x)
+}
+</code></pre>
+
+<h4 id="understanding-nominal-typing">Understanding Nominal Typing</h4>
 <p>As mentioned above, a struct definition introduces a new type. Structs are
 nominally typed, as opposed to structurally typed (note that tuples are
 structurally typed). This means that structs with different names have different
@@ -2142,24 +2231,6 @@ fn ok {
 #![test]
 fn type_checker_error {
   assert_eq(f(Coordinate { x: u32:42, y: u32:64 }), u32:106)
-}
-</code></pre>
-
-<p>DSLX also supports parametric structs. For more information on how
-type-parametricity works, see the <a href="#parametric-functions">parametric functions</a>
-section.</p>
-<pre><code>fn double(n: u32) -&gt; u32 { n * u32:2 }
-
-struct Point&lt;N: u32, M: u32 = double(N)&gt; Point { x: bits[N], y: bits[M], }
-
-fn make_point&lt;A: u32, B: u32&gt; make_point(x: bits[A], y: bits[B]) -&gt; Point[A, B] {
-  Point{ x, y }
-}
-
-#![test]
-fn struct_construction {
-  let p = make_point(u16:42, u32:42);
-  assert_eq(u16:42, p.x)
 }
 </code></pre>
 
@@ -2390,8 +2461,8 @@ which can be combined with a mapping from AST node to its deduced type
 </ul>
 <h3 id="binary-expressions">Binary Expressions</h3>
 <p>DSLX support a familiar set of binary expressions. For those, both operands to
-the expression must have the same type. This is true even for the shift
-operators.</p>
+the expression must be of the same bit type (i.e., not arrays or tuples). This
+is true even for the shift operators.</p>
 <ul>
 <li>shift-right (<code>&gt;&gt;</code>)</li>
 <li>shift-right arithmetic (<code>&gt;&gt;&gt;</code>)</li>

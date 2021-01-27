@@ -969,8 +969,8 @@ compiler intermediate representation (IR) at native machine speed.</p>
 <p>Given a DSLX file and build target, one can build and run it through the JIT by:</p>
 <ol>
 <li>Declaring a
-    <a href="http://cs/xls/build/build_defs.bzl"><code>dslx_jit_wrapper</code></a> target
-    matching the DSLX build target.</li>
+    <a href="https://github.com/google/xls/tree/main/xls/build/build_defs.bzl"><code>dslx_jit_wrapper</code></a>
+    target matching the DSLX build target.</li>
 <li>Creating a JIT object and calling its <code>Run()</code> method. Using the 2-way
     floating-point adder as an example:<p>```c
    # include "xls/modules/fpadd_2x24_jit_wrapper.h"</p>
