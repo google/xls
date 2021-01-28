@@ -25,10 +25,12 @@ namespace xls {
 // ArrayIndex.
 class ArraySimplificationPass : public FunctionBasePass {
  public:
-  ArraySimplificationPass()
-      : FunctionBasePass("array_simp", "Array Simplification") {}
+  ArraySimplificationPass(int64 opt_level = kMaxOptLevel)
+      : FunctionBasePass("array_simp", "Array Simplification"),
+        opt_level_(opt_level) {}
 
  protected:
+  int64 opt_level_;
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const PassOptions& options,
       PassResults* results) const override;

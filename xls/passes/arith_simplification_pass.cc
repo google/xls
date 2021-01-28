@@ -93,7 +93,7 @@ std::optional<ClampExpr> MatchClampUpperLimit(Node* n) {
 //
 // Return 'true' if the IR was modified (uses of node was replaced with a
 // different expression).
-absl::StatusOr<bool> MatchArithPatterns(Node* n) {
+absl::StatusOr<bool> MatchArithPatterns(int64 opt_level, Node* n) {
   // Pattern: Add/Sub/Or/Xor/Shift a value with 0 on the RHS.
   if ((n->op() == Op::kAdd || n->op() == Op::kSub || n->op() == Op::kShll ||
        n->op() == Op::kShrl || n->op() == Op::kShra) &&
@@ -574,7 +574,9 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
   // SGe(x, 0) -> not(msb(x))
   //
   // Canonicalization puts the literal on the right for comparisons.
-  if (OpIsCompare(n->op()) && IsLiteralZero(n->operand(1))) {
+  //
+  if (NarrowingEnabled(opt_level) && OpIsCompare(n->op()) &&
+      IsLiteralZero(n->operand(1))) {
     if (n->op() == Op::kSLt) {
       XLS_VLOG(2) << "FOUND: SLt(x, 0)";
       XLS_RETURN_IF_ERROR(n->ReplaceUsesWithNew<BitSlice>(
@@ -608,8 +610,13 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
     return true;
   }
 
+  // A ULt or UGt comparison against a literal mask of LSBs (e.g., 0b0001111)
+  // can be simplified:
+  //
+  //   x < 0b0001111  =>  or_reduce(msb_slice(x)) NOR and_reduce(lsb_slice(x))
+  //   x > 0b0001111  =>  or_reduce(msb_slice(x))
   int64 leading_zeros, trailing_ones;
-  if (OpIsCompare(n->op()) &&
+  if (NarrowingEnabled(opt_level) && OpIsCompare(n->op()) &&
       IsLiteralMask(n->operand(1), &leading_zeros, &trailing_ones)) {
     XLS_VLOG(2) << "Found comparison to literal mask; leading zeros: "
                 << leading_zeros << " trailing ones: " << trailing_ones
@@ -638,7 +645,8 @@ absl::StatusOr<bool> MatchArithPatterns(Node* n) {
 
 absl::StatusOr<bool> ArithSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
-  return TransformNodesToFixedPoint(f, MatchArithPatterns);
+  return TransformNodesToFixedPoint(
+      f, [this](Node* n) { return MatchArithPatterns(opt_level_, n); });
 }
 
 }  // namespace xls

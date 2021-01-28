@@ -41,16 +41,16 @@ using status_testing::IsOkAndHolds;
 class BddSimplificationPassTest : public IrTestBase {
  protected:
   absl::StatusOr<bool> Run(Function* f, bool run_cleanup_passes = false,
-                           bool split_opts = true) {
+                           int64 opt_level = kMaxOptLevel) {
     PassResults results;
     XLS_ASSIGN_OR_RETURN(bool changed,
-                         BddSimplificationPass(/*split_ops=*/split_opts)
-                             .RunOnFunctionBase(f, PassOptions(), &results));
+                         BddSimplificationPass(opt_level).RunOnFunctionBase(
+                             f, PassOptions(), &results));
     if (run_cleanup_passes) {
       XLS_RETURN_IF_ERROR(BitSliceSimplificationPass()
                               .RunOnFunctionBase(f, PassOptions(), &results)
                               .status());
-      XLS_RETURN_IF_ERROR(SelectSimplificationPass(/*split_ops=*/split_opts)
+      XLS_RETURN_IF_ERROR(SelectSimplificationPass()
                               .RunOnFunctionBase(f, PassOptions(), &results)
                               .status());
       XLS_RETURN_IF_ERROR(
@@ -416,9 +416,9 @@ TEST_F(
   fb.Select(eq_test, literal_zero2, encode);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  ASSERT_THAT(Run(f, /*run_cleanup_passes=*/false, /*split_opts=*/false),
+  ASSERT_THAT(Run(f, /*run_cleanup_passes=*/false, /*opt_level=*/2),
               IsOkAndHolds(true));
-  ASSERT_THAT(Run(f, /*run_cleanup_passes=*/true, /*split_opts=*/true),
+  ASSERT_THAT(Run(f, /*run_cleanup_passes=*/true, /*opt_level=*/3),
               IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),

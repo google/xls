@@ -109,7 +109,7 @@ absl::StatusOr<Concat*> FlattenConcatTree(Concat* concat) {
 
 // Attempts to replace the given concat with a simpler or more canonical
 // form. Returns true if the concat was replaced.
-absl::StatusOr<bool> SimplifyConcat(Concat* concat,
+absl::StatusOr<bool> SimplifyConcat(Concat* concat, int64 opt_level,
                                     std::deque<Concat*>* worklist) {
   absl::Span<Node* const> operands = concat->operands();
 
@@ -175,7 +175,8 @@ absl::StatusOr<bool> SimplifyConcat(Concat* concat,
   }
   // If there are multiple reverse users, common-subexpression elimination
   // should combine them later. We can apply the optimization after this.
-  if (num_reverse_users == 1 && !concat_has_nonreversible_user) {
+  if (NarrowingEnabled(opt_level) && num_reverse_users == 1 &&
+      !concat_has_nonreversible_user) {
     // Get reversed operands in reverse order.  Simplification should eliminate
     // any reversals of single-bit inputs that we produce here, so we do not
     // check for this case.
@@ -200,7 +201,7 @@ absl::StatusOr<bool> SimplifyConcat(Concat* concat,
   }
 
   // If consecutive concat inputs are consecutive bit slices, create a new,
-  // merged bit slice and a new concat that consumees the merged bit slice.
+  // merged bit slice and a new concat that consumes the merged bit slice.
   for (int64 idx = 0; idx < concat->operand_count() - 1; ++idx) {
     // Check if consecutive operands are bit slices.
     const Node* higher_op = concat->operands().at(idx);
@@ -469,25 +470,28 @@ absl::StatusOr<bool> ConcatSimplificationPass::RunOnFunctionBaseInternal(
   while (!worklist.empty()) {
     Concat* concat = worklist.front();
     worklist.pop_front();
-    XLS_ASSIGN_OR_RETURN(bool node_changed, SimplifyConcat(concat, &worklist));
+    XLS_ASSIGN_OR_RETURN(bool node_changed,
+                         SimplifyConcat(concat, opt_level_, &worklist));
     changed = changed || node_changed;
   }
 
   // For optimizations which optimize around concats, just iterate through once
   // and find all opportunities.
-  for (Node* node : TopoSort(f)) {
-    if (OpIsBitWise(node->op())) {
-      XLS_ASSIGN_OR_RETURN(bool bitwise_changed,
-                           TryHoistBitWiseOperation(node));
-      changed |= bitwise_changed;
-    } else {
-      XLS_ASSIGN_OR_RETURN(bool distribute_changed,
-                           TryDistributeReducibleOperation(node));
-      changed |= distribute_changed;
+  if (NarrowingEnabled(opt_level_)) {
+    for (Node* node : TopoSort(f)) {
+      if (OpIsBitWise(node->op())) {
+        XLS_ASSIGN_OR_RETURN(bool bitwise_changed,
+                             TryHoistBitWiseOperation(node));
+        changed |= bitwise_changed;
+      } else {
+        XLS_ASSIGN_OR_RETURN(bool distribute_changed,
+                             TryDistributeReducibleOperation(node));
+        changed |= distribute_changed;
 
-      XLS_ASSIGN_OR_RETURN(bool reduction_changed,
-                           TryBypassReductionOfConcatenation(node));
-      changed |= reduction_changed;
+        XLS_ASSIGN_OR_RETURN(bool reduction_changed,
+                             TryBypassReductionOfConcatenation(node));
+        changed |= reduction_changed;
+      }
     }
   }
 

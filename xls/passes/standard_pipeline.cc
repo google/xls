@@ -49,33 +49,33 @@ namespace xls {
 
 class SimplificationPass : public FixedPointCompoundPass {
  public:
-  explicit SimplificationPass(bool split_ops)
+  explicit SimplificationPass(int64 opt_level)
       : FixedPointCompoundPass("simp", "Simplification") {
     Add<ConstantFoldingPass>();
     Add<DeadCodeEliminationPass>();
     Add<CanonicalizationPass>();
     Add<DeadCodeEliminationPass>();
-    Add<ArithSimplificationPass>();
+    Add<ArithSimplificationPass>(/*opt_level=*/3);
     Add<DeadCodeEliminationPass>();
     Add<TableSwitchPass>();
     Add<DeadCodeEliminationPass>();
-    Add<SelectSimplificationPass>(split_ops);
+    Add<SelectSimplificationPass>(opt_level);
     Add<DeadCodeEliminationPass>();
     Add<ReassociationPass>();
     Add<DeadCodeEliminationPass>();
     Add<ConstantFoldingPass>();
     Add<DeadCodeEliminationPass>();
-    Add<BitSliceSimplificationPass>();
+    Add<BitSliceSimplificationPass>(/*opt_level=*/3);
     Add<DeadCodeEliminationPass>();
-    Add<ConcatSimplificationPass>();
+    Add<ConcatSimplificationPass>(/*opt_level=*/3);
     Add<DeadCodeEliminationPass>();
     Add<TupleSimplificationPass>();
     Add<DeadCodeEliminationPass>();
-    Add<StrengthReductionPass>(split_ops);
+    Add<StrengthReductionPass>(opt_level);
     Add<DeadCodeEliminationPass>();
-    Add<ArraySimplificationPass>();
+    Add<ArraySimplificationPass>(/*opt_level=*/3);
     Add<DeadCodeEliminationPass>();
-    Add<NarrowingPass>();
+    Add<NarrowingPass>(/*opt_level=*/3);
     Add<DeadCodeEliminationPass>();
     Add<BooleanSimplificationPass>();
     Add<DeadCodeEliminationPass>();
@@ -90,22 +90,22 @@ std::unique_ptr<CompoundPass> CreateStandardPassPipeline() {
   top->Add<DeadFunctionEliminationPass>();
   top->Add<DeadCodeEliminationPass>();
   top->Add<IdentityRemovalPass>();
-  top->Add<SimplificationPass>(/*split_ops=*/false);
+  top->Add<SimplificationPass>(/*opt_level=*/2);
   top->Add<UnrollPass>();
   top->Add<MapInliningPass>();
   top->Add<InliningPass>();
   top->Add<DeadFunctionEliminationPass>();
-  top->Add<BddSimplificationPass>(/*split_ops=*/false);
+  top->Add<BddSimplificationPass>(/*opt_level=*/2);
   top->Add<DeadCodeEliminationPass>();
   top->Add<BddCsePass>();
   top->Add<DeadCodeEliminationPass>();
-  top->Add<SimplificationPass>(/*split_ops=*/false);
+  top->Add<SimplificationPass>(/*opt_level=*/2);
 
-  top->Add<BddSimplificationPass>(/*split_ops=*/true);
+  top->Add<BddSimplificationPass>(/*opt_level=*/3);
   top->Add<DeadCodeEliminationPass>();
   top->Add<BddCsePass>();
   top->Add<DeadCodeEliminationPass>();
-  top->Add<SimplificationPass>(/*split_ops=*/true);
+  top->Add<SimplificationPass>(/*opt_level=*/3);
   top->Add<LiteralUncommoningPass>();
   top->Add<DeadFunctionEliminationPass>();
   return top;

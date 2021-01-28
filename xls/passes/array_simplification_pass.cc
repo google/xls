@@ -248,7 +248,7 @@ absl::StatusOr<bool> SimplifyArrayIndex(ArrayIndex* array_index,
     return true;
   }
 
-  // Convert a select of arrays to an array of selects:
+  // Convert an array_index of a select into a select of array_indexes:
   //
   //   array_index(select(p, cases=[A0, A1]), {idx})
   //     => select(p, array_index(A0, {idx}), array_index(A1, {idx}))

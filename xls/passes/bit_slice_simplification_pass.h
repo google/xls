@@ -25,11 +25,13 @@ namespace xls {
 // bit-slices, eliminating degenerate full-width slices, and others.
 class BitSliceSimplificationPass : public FunctionBasePass {
  public:
-  BitSliceSimplificationPass()
-      : FunctionBasePass("bitslice_simp", "Bit-slice simplification") {}
+  BitSliceSimplificationPass(int64 opt_level = kMaxOptLevel)
+      : FunctionBasePass("bitslice_simp", "Bit-slice simplification"),
+        opt_level_(opt_level) {}
   ~BitSliceSimplificationPass() override {}
 
  protected:
+  int64 opt_level_;
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const PassOptions& options,
       PassResults* results) const override;

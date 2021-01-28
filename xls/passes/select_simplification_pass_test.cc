@@ -37,8 +37,8 @@ class SelectSimplificationPassTest : public IrTestBase {
   absl::StatusOr<bool> Run(Function* f) {
     PassResults results;
     XLS_ASSIGN_OR_RETURN(bool changed,
-                         SelectSimplificationPass(/*split_ops=*/true)
-                             .RunOnFunctionBase(f, PassOptions(), &results));
+                         SelectSimplificationPass().RunOnFunctionBase(
+                             f, PassOptions(), &results));
     return changed;
   }
 };

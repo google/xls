@@ -38,9 +38,9 @@ class StrengthReductionPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Function* f) {
     PassResults results;
-    XLS_ASSIGN_OR_RETURN(bool changed,
-                         StrengthReductionPass(/*split_ops=*/true)
-                             .RunOnFunctionBase(f, PassOptions(), &results));
+    XLS_ASSIGN_OR_RETURN(
+        bool changed,
+        StrengthReductionPass().RunOnFunctionBase(f, PassOptions(), &results));
     // Run dce to clean things up.
     XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
                             .RunOnFunctionBase(f, PassOptions(), &results)

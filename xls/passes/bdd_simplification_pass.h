@@ -27,9 +27,9 @@ namespace xls {
 // TODO(meheff): Add more BDD-based optimizations.
 class BddSimplificationPass : public FunctionBasePass {
  public:
-  explicit BddSimplificationPass(bool split_ops)
+  explicit BddSimplificationPass(int64 opt_level)
       : FunctionBasePass("bdd_simp", "BDD-based Simplification"),
-        split_ops_(split_ops) {}
+        opt_level_(opt_level) {}
   ~BddSimplificationPass() override {}
 
  protected:
@@ -39,7 +39,7 @@ class BddSimplificationPass : public FunctionBasePass {
       PassResults* results) const override;
 
  private:
-  bool split_ops_;
+  int64 opt_level_;
 };
 
 }  // namespace xls

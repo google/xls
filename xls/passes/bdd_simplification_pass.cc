@@ -177,7 +177,7 @@ absl::StatusOr<bool> CollapseSelectChains(FunctionBase* f,
 }
 
 absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
-                                  bool split_ops) {
+                                  int64 opt_level) {
   // Replace a sequence of known bits at the least-significant (suffix) or
   // most-significant (prefix) bits of a value.
   if (!node->Is<Literal>() && node->GetType()->IsBits()) {
@@ -238,7 +238,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
         XLS_RETURN_IF_ERROR(
             node->ReplaceUsesWithNew<Literal>(Value(Bits(known_prefix)))
                 .status());
-      } else if (split_ops) {
+      } else if (SplitsEnabled(opt_level)) {
         std::vector<Node*> old_users(node->users().begin(),
                                      node->users().end());
         std::vector<Node*> concat_elements;
@@ -280,7 +280,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 
   // Replace two-way kOneHotSelect that has an actual one-hot selector with a
   // kSelect. This can only be done if the selector is one-hot.
-  if (split_ops && node->Is<OneHotSelect>() &&
+  if (SplitsEnabled(opt_level) && node->Is<OneHotSelect>() &&
       node->As<OneHotSelect>()->selector()->BitCountOrDie() == 2) {
     OneHotSelect* ohs = node->As<OneHotSelect>();
     if (query_engine.AtLeastOneBitTrue(ohs->selector()) &&
@@ -302,7 +302,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   // Remove kOneHot operations with an input that is already one-hot.
   // Require split ops to ensure this optimizations isn't applied before
   // SimplifyOneHotMsb.
-  if (split_ops) {
+  if (SplitsEnabled(opt_level)) {
     if (node->Is<OneHot>() && query_engine.AtMostOneBitTrue(node->operand(0))) {
       XLS_ASSIGN_OR_RETURN(
           Node * zero,
@@ -439,7 +439,7 @@ absl::StatusOr<bool> SimplifyOneHotMsb(FunctionBase* f) {
 absl::StatusOr<bool> BddSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
   bool one_hot_modified = false;
-  if (split_ops_) {
+  if (SplitsEnabled(opt_level_)) {
     XLS_ASSIGN_OR_RETURN(one_hot_modified, SimplifyOneHotMsb(f));
   }
 
@@ -450,7 +450,7 @@ absl::StatusOr<bool> BddSimplificationPass::RunOnFunctionBaseInternal(
   bool modified = false;
   for (Node* node : TopoSort(f)) {
     XLS_ASSIGN_OR_RETURN(bool node_modified,
-                         SimplifyNode(node, *query_engine, split_ops_));
+                         SimplifyNode(node, *query_engine, opt_level_));
     modified |= node_modified;
   }
 

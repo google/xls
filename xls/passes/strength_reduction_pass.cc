@@ -61,9 +61,9 @@ absl::StatusOr<absl::flat_hash_set<Node*>> FindReducibleAdds(
 // with an OR.
 absl::StatusOr<bool> StrengthReduceNode(
     Node* node, const absl::flat_hash_set<Node*>& reducible_adds,
-    const QueryEngine& query_engine, bool split_ops) {
-  if (!node->Is<Literal>() && node->GetType()->IsBits() &&
-      query_engine.AllBitsKnown(node)) {
+    const QueryEngine& query_engine, int64 opt_level) {
+  if (NarrowingEnabled(opt_level) && !node->Is<Literal>() &&
+      node->GetType()->IsBits() && query_engine.AllBitsKnown(node)) {
     XLS_VLOG(2) << "Replacing node with its (entirely known) bits: " << node
                 << " as "
                 << query_engine.GetKnownBitsValues(node).ToString(
@@ -106,7 +106,8 @@ absl::StatusOr<bool> StrengthReduceNode(
     }
     return false;
   };
-  if (is_bitslice_and(&leading_zeros, &selected_bits, &trailing_zeros)) {
+  if (NarrowingEnabled(opt_level) &&
+      is_bitslice_and(&leading_zeros, &selected_bits, &trailing_zeros)) {
     XLS_CHECK_GE(leading_zeros, 0);
     XLS_CHECK_GE(selected_bits, 0);
     XLS_CHECK_GE(trailing_zeros, 0);
@@ -139,7 +140,7 @@ absl::StatusOr<bool> StrengthReduceNode(
     return node->Is<Select>() && node->GetType()->IsBits() &&
            node->BitCountOrDie() == 1 && node->operand(0)->BitCountOrDie() == 1;
   };
-  if (split_ops && is_one_bit_mux() &&
+  if (SplitsEnabled(opt_level) && is_one_bit_mux() &&
       (node->operand(1)->Is<Literal>() || node->operand(2)->Is<Literal>() ||
        (node->operand(0) == node->operand(1) ||
         node->operand(0) == node->operand(2)))) {
@@ -239,7 +240,8 @@ absl::StatusOr<bool> StrengthReduceNode(
   // leading bits, but please note the comparison operators. Eg.:
   //   x:10 >= 256:10  ->  bit_slice(x, 9, 2) != 0b00  or
   //   x:10 <  256:10  ->  bit_slice(x, 9, 2) == 0b00
-  if ((node->op() == Op::kUGe || node->op() == Op::kULt) &&
+  if (NarrowingEnabled(opt_level) &&
+      (node->op() == Op::kUGe || node->op() == Op::kULt) &&
       node->operand(1)->Is<Literal>()) {
     const Bits& op1_literal_bits =
       node->operand(1)->As<Literal>()->value().bits();
@@ -265,7 +267,8 @@ absl::StatusOr<bool> StrengthReduceNode(
 
   // Eq(x, 0b00) => x_0 == 0 & x_1 == 0 => ~x_0 & ~x_1 => ~(x_0 | x_1)
   //  where bits(x) <= 2
-  if (node->op() == Op::kEq && node->operand(0)->BitCountOrDie() == 2 &&
+  if (NarrowingEnabled(opt_level) && node->op() == Op::kEq &&
+      node->operand(0)->BitCountOrDie() == 2 &&
       IsLiteralZero(node->operand(1))) {
     FunctionBase* f = node->function_base();
     XLS_ASSIGN_OR_RETURN(
@@ -283,7 +286,7 @@ absl::StatusOr<bool> StrengthReduceNode(
 
   // If a string of least-significant bits of an operand of an add is zero the
   // add can be narrowed.
-  if (split_ops && node->op() == Op::kAdd) {
+  if (SplitsEnabled(opt_level) && node->op() == Op::kAdd) {
     auto lsb_known_zero_count = [&](Node* n) {
       for (int64 i = 0; i < n->BitCountOrDie(); ++i) {
         if (!query_engine.IsZero(BitLocation(n, i))) {
@@ -342,7 +345,7 @@ absl::StatusOr<bool> StrengthReductionPass::RunOnFunctionBaseInternal(
   for (Node* node : TopoSort(f)) {
     XLS_ASSIGN_OR_RETURN(
         bool node_modified,
-        StrengthReduceNode(node, reducible_adds, *query_engine, split_ops_));
+        StrengthReduceNode(node, reducible_adds, *query_engine, opt_level_));
     modified |= node_modified;
   }
   return modified;

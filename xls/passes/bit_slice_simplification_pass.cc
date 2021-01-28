@@ -27,7 +27,7 @@ namespace {
 // Attempts to replace the given bit slice with a simpler or more canonical
 // form. Returns true if the bit slice was replaced. Any newly created
 // bit-slices are added to the worklist.
-absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice,
+absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64 opt_level,
                                       std::deque<BitSlice*>* worklist) {
   Node* operand = bit_slice->operand(0);
   BitsType* operand_type = operand->GetType()->AsBitsOrDie();
@@ -70,7 +70,7 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice,
   //
   //   BitSlice(Concat(a, b, c, d), ..) -> Concat(BitSlice(b), c, BitSlice(d))
   //
-  if (operand->Is<Concat>()) {
+  if (NarrowingEnabled(opt_level) && operand->Is<Concat>()) {
     Concat* concat = operand->As<Concat>();
     std::vector<Node*> new_operands;
     // Inclusive bounds of the start/end of the bit slice. Values are bit
@@ -125,7 +125,7 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice,
 
   // Bit slice that is the sole consumer of an op can often lead the slice to
   // propagate into the operands to reduce the work the op has to do.
-  if (operand->users().size() <= 1) {
+  if (NarrowingEnabled(opt_level) && operand->users().size() <= 1) {
     // For bitwise operations we can always slice the operands (because it's a
     // bit-parallel operation).
     //
@@ -197,7 +197,8 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice,
   //
   // To avoid introducing an additional sign-extension cases (2) and (3) should
   // only be performed if the bit-slice is the only user of the sign-extend.
-  if (bit_slice->operand(0)->op() == Op::kSignExt) {
+  if (NarrowingEnabled(opt_level) &&
+      bit_slice->operand(0)->op() == Op::kSignExt) {
     ExtendOp* ext = bit_slice->operand(0)->As<ExtendOp>();
     Node* x = ext->operand(0);
     int64 x_bit_count = x->BitCountOrDie();
@@ -262,7 +263,8 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice,
 
   // Hoist slices above selects and one-hot-selects if the slice is the sole
   // user.
-  if ((operand->Is<Select>() || operand->Is<OneHotSelect>()) &&
+  if (NarrowingEnabled(opt_level) &&
+      (operand->Is<Select>() || operand->Is<OneHotSelect>()) &&
       operand->users().size() == 1) {
     Node* select = operand;
     std::vector<Node*> new_operands;
@@ -301,7 +303,7 @@ absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBaseInternal(
     BitSlice* bit_slice = worklist.front();
     worklist.pop_front();
     XLS_ASSIGN_OR_RETURN(bool node_changed,
-                         SimplifyBitSlice(bit_slice, &worklist));
+                         SimplifyBitSlice(bit_slice, opt_level_, &worklist));
     changed = changed || node_changed;
   }
 
@@ -312,6 +314,7 @@ absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBaseInternal(
       int64 result_width = node->BitCountOrDie();
       int64 operand_width = node->operand(0)->BitCountOrDie();
       const Bits& start_bits = node->operand(1)->As<Literal>()->value().bits();
+      // TODO(meheff): Handle OOB case.
       if (bits_ops::ULessThanOrEqual(start_bits,
                                      operand_width - result_width)) {
         XLS_ASSIGN_OR_RETURN(uint64 start, start_bits.ToUint64());

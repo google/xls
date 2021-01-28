@@ -280,7 +280,7 @@ absl::StatusOr<std::vector<OneHotSelect*>> MaybeSplitOneHotSelect(
 }
 
 absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
-                                  bool split_ops) {
+                                  int64 opt_level) {
   // Select with a constant selector can be replaced with the respective
   // case.
   if (node->Is<Select>() && node->As<Select>()->selector()->Is<Literal>()) {
@@ -450,7 +450,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   }
 
   // Common out equivalent cases in a one hot select.
-  if (node->Is<OneHotSelect>()) {
+  if (NarrowingEnabled(opt_level) && node->Is<OneHotSelect>()) {
     FunctionBase* f = node->function_base();
     OneHotSelect* sel = node->As<OneHotSelect>();
     if (!sel->cases().empty() &&
@@ -522,7 +522,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     return node->Is<Select>() && node->GetType()->IsBits() &&
            node->BitCountOrDie() == 1 && node->operand(0)->BitCountOrDie() == 1;
   };
-  if (is_one_bit_mux() &&
+  if (NarrowingEnabled(opt_level) && is_one_bit_mux() &&
       (node->operand(1)->Is<Literal>() || node->operand(2)->Is<Literal>() ||
        (node->operand(0) == node->operand(1) ||
         node->operand(0) == node->operand(2)))) {
@@ -551,7 +551,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 
   // Merge consecutive one-hot-select instructions if the predecessor operation
   // has only a single use.
-  if (node->Is<OneHotSelect>()) {
+  if (NarrowingEnabled(opt_level) && node->Is<OneHotSelect>()) {
     OneHotSelect* select = node->As<OneHotSelect>();
     absl::Span<Node* const> cases = select->cases();
     auto is_single_user_ohs = [](Node* n) {
@@ -640,7 +640,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   }
 
   // Literal zero cases can be removed from OneHotSelects.
-  if (split_ops && node->Is<OneHotSelect>() &&
+  if (SplitsEnabled(opt_level) && node->Is<OneHotSelect>() &&
       std::any_of(node->As<OneHotSelect>()->cases().begin(),
                   node->As<OneHotSelect>()->cases().end(),
                   [](Node* n) { return IsLiteralZero(n); })) {
@@ -703,7 +703,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   // the operation.
   //
   // Sel(...) => Concat(Known, Sel(...), Known)
-  if (split_ops) {
+  if (SplitsEnabled(opt_level)) {
     auto is_squeezable_mux = [&](Bits* msb, Bits* lsb) {
       if (!node->Is<Select>() || !node->GetType()->IsBits() ||
           !query_engine.IsTracked(node)) {
@@ -897,8 +897,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   }
 
   // Decompose single-bit, two-way OneHotSelects into ANDs and ORs.
-  if (split_ops && node->Is<OneHotSelect>() && node->GetType()->IsBits() &&
-      node->BitCountOrDie() == 1 &&
+  if (SplitsEnabled(opt_level) && node->Is<OneHotSelect>() &&
+      node->GetType()->IsBits() && node->BitCountOrDie() == 1 &&
       node->As<OneHotSelect>()->cases().size() == 2) {
     OneHotSelect* ohs = node->As<OneHotSelect>();
     XLS_ASSIGN_OR_RETURN(Node * sel0,
@@ -925,7 +925,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 
   // Replace a single-bit input kOneHot with the concat of the input and its
   // inverse.
-  if (node->Is<OneHot>() && node->BitCountOrDie() == 2) {
+  if (NarrowingEnabled(opt_level) && node->Is<OneHot>() &&
+      node->BitCountOrDie() == 2) {
     XLS_ASSIGN_OR_RETURN(Node * inv_operand,
                          node->function_base()->MakeNode<UnOp>(
                              node->loc(), node->operand(0), Op::kNot));
@@ -1049,17 +1050,20 @@ absl::StatusOr<bool> SelectSimplificationPass::RunOnFunctionBaseInternal(
   bool changed = false;
   for (Node* node : TopoSort(func)) {
     XLS_ASSIGN_OR_RETURN(bool node_changed,
-                         SimplifyNode(node, *query_engine, split_ops_));
+                         SimplifyNode(node, *query_engine, opt_level_));
     changed = changed | node_changed;
   }
 
-  XLS_ASSIGN_OR_RETURN(bool specialization_changed, SpecializeSelectArms(func));
-  changed |= specialization_changed;
+  if (NarrowingEnabled(opt_level_)) {
+    XLS_ASSIGN_OR_RETURN(bool specialization_changed,
+                         SpecializeSelectArms(func));
+    changed |= specialization_changed;
+  }
 
   // Use a worklist to split OneHotSelects based on common bits in the cases
   // because this transformation creates many more OneHotSelects exposing
   // further opportunities for optimizations.
-  if (split_ops_) {
+  if (SplitsEnabled(opt_level_)) {
     std::deque<OneHotSelect*> worklist;
     for (Node* node : func->nodes()) {
       if (node->Is<OneHotSelect>()) {

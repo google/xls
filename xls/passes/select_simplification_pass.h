@@ -25,21 +25,16 @@ namespace xls {
 // include removing dead arms and eliminating selects with constant selectors.
 class SelectSimplificationPass : public FunctionBasePass {
  public:
-  // 'split_ops' indicates whether to perform optimizations which split
-  // operations into smaller operations. Typically splitting optimizations
-  // should be performed later in the optimization pipeline.
-  explicit SelectSimplificationPass(bool split_ops)
+  explicit SelectSimplificationPass(int64 opt_level = kMaxOptLevel)
       : FunctionBasePass("select_simp", "Select Simplification"),
-        split_ops_(split_ops) {}
+        opt_level_(opt_level) {}
   ~SelectSimplificationPass() override {}
 
  protected:
+  int64 opt_level_;
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const PassOptions& options,
       PassResults* results) const override;
-
- private:
-  bool split_ops_;
 };
 
 }  // namespace xls

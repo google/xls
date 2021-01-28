@@ -25,10 +25,12 @@ namespace xls {
 // bits.
 class NarrowingPass : public FunctionBasePass {
  public:
-  NarrowingPass() : FunctionBasePass("narrow", "Narrowing") {}
+  NarrowingPass(int64 opt_level = kMaxOptLevel)
+      : FunctionBasePass("narrow", "Narrowing"), opt_level_(opt_level) {}
   ~NarrowingPass() override {}
 
  protected:
+  int64 opt_level_;
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const PassOptions& options,
       PassResults* results) const override;
