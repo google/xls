@@ -562,3 +562,15 @@ dslx_test(
     name = "identifiers_with_ticks",
     srcs = ["identifiers_with_ticks.x"],
 )
+
+# TODO(https://github.com/google/xls/issues/246) Need const values to be
+# evaluated at typechecking time so they can interact with the type system.
+#dslx_test(
+#    name = "bitslice_with_constexpr_bounds",
+#    srcs = ["bitslice_with_constexpr_bounds.x"],
+#)
+
+dslx_test(
+    name = "enum_value_from_const",
+    srcs = ["enum_value_from_const.x"],
+)

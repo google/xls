@@ -590,7 +590,7 @@ build_test(
 genrule(
     name = "op_header",
     outs = ["op.h"],
-    cmd = "$(location :render_specification_against_template) xls/ir/op_header.tmpl" +
+    cmd = "$(location :render_specification_against_template) ./xls/ir/op_header.tmpl" +
           " | $(location @llvm_toolchain//:bin/clang-format)" +
           " > $(OUTS)",
     exec_tools = [
@@ -602,7 +602,7 @@ genrule(
 genrule(
     name = "gen_op_proto",
     outs = ["op.proto"],
-    cmd = "$(location :render_specification_against_template) xls/ir/op_proto.tmpl > $(OUTS)",
+    cmd = "$(location :render_specification_against_template) ./xls/ir/op_proto.tmpl > $(OUTS)",
     exec_tools = [
         ":render_specification_against_template",
         "@llvm_toolchain//:bin/clang-format",
@@ -612,7 +612,7 @@ genrule(
 genrule(
     name = "op_source",
     outs = ["op.cc"],
-    cmd = "$(location :render_specification_against_template) xls/ir/op_source.tmpl" +
+    cmd = "$(location :render_specification_against_template) ./xls/ir/op_source.tmpl" +
           " | $(location @llvm_toolchain//:bin/clang-format)" +
           " > $(OUTS)",
     exec_tools = [
@@ -624,7 +624,7 @@ genrule(
 genrule(
     name = "nodes_header",
     outs = ["nodes.h"],
-    cmd = "$(location :render_specification_against_template) xls/ir/nodes_header.tmpl" +
+    cmd = "$(location :render_specification_against_template) ./xls/ir/nodes_header.tmpl" +
           " | $(location @llvm_toolchain//:bin/clang-format)" +
           " > $(OUTS)",
     exec_tools = [
@@ -636,7 +636,7 @@ genrule(
 genrule(
     name = "nodes_source",
     outs = ["nodes.cc"],
-    cmd = "$(location :render_specification_against_template) xls/ir/nodes_source.tmpl" +
+    cmd = "$(location :render_specification_against_template) ./xls/ir/nodes_source.tmpl" +
           " | $(location @llvm_toolchain//:bin/clang-format)" +
           " > $(OUTS)",
     exec_tools = [

@@ -239,10 +239,6 @@ class Parser : public TokenParser {
   // Returns a parsed number (literal number) expression.
   absl::StatusOr<Number*> ParseNumber(Bindings* bindings);
 
-  absl::StatusOr<NameRef*> ParseConstRef(Bindings* bindings) {
-    return absl::UnimplementedError("Parse ConstRef");
-  }
-
   absl::StatusOr<absl::variant<Number*, NameRef*>> ParseNumOrConstRef(
       Bindings* bindings);
 

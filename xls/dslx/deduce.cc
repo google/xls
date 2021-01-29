@@ -253,7 +253,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(EnumDef* node,
   for (const EnumMember& member : node->values()) {
     // Note: the parser places the type from the enum on the value when it is a
     // number, so this deduction flags inappropriate numbers.
-    XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(member.value)).status());
+    XLS_RETURN_IF_ERROR(ctx->Deduce(member.value).status());
     ctx->type_info()->SetItem(ToAstNode(member.value), *result);
     ctx->type_info()->SetItem(member.name_def, *result);
   }

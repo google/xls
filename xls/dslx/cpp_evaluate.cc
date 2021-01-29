@@ -533,7 +533,7 @@ static absl::StatusOr<absl::optional<std::vector<InterpValue>>> GetEnumValues(
   std::vector<InterpValue> result;
   for (const EnumMember& member : enum_def->values()) {
     XLS_ASSIGN_OR_RETURN(InterpValue value,
-                         callbacks->Eval(ToExprNode(member.value), bindings));
+                         callbacks->Eval(member.value, bindings));
     result.push_back(std::move(value));
   }
   return absl::make_optional(std::move(result));
@@ -714,9 +714,8 @@ static absl::StatusOr<InterpValue> EvaluateEnumRefHelper(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> concrete_type,
                        ConcretizeTypeAnnotation(
                            underlying_type, fresh_bindings.get(), callbacks));
-  Expr* value_expr = ToExprNode(value_node);
   XLS_ASSIGN_OR_RETURN(InterpValue raw_value,
-                       callbacks->Eval(value_expr, fresh_bindings.get()));
+                       callbacks->Eval(value_node, fresh_bindings.get()));
   return InterpValue::MakeEnum(raw_value.GetBitsOrDie(), enum_def);
 }
 

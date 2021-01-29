@@ -126,7 +126,7 @@ cc_library(
 cc_test(
     name = "ir_jit_test",
     srcs = ["ir_jit_test.cc"],
-    # 2020-01-08 xls/jit/ir_jit_test \
+    # 2020-01-08 //xls/jit/ir_jit_test \
     #               --gtest_list_tests 2>/dev/null | wc -l
     # shows ~140
     shard_count = 50,

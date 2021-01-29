@@ -705,8 +705,7 @@ bool EnumDef::HasValue(absl::string_view name) const {
   return false;
 }
 
-absl::StatusOr<absl::variant<Number*, NameRef*>> EnumDef::GetValue(
-    absl::string_view name) const {
+absl::StatusOr<Expr*> EnumDef::GetValue(absl::string_view name) const {
   for (const EnumMember& item : values_) {
     if (item.name_def->identifier() == name) {
       return item.value;
@@ -730,7 +729,7 @@ std::string EnumDef::ToString() const {
 
   for (const auto& item : values_) {
     absl::StrAppendFormat(&result, "  %s = %s,\n", item.name_def->identifier(),
-                          value_to_string(ToExprNode(item.value)));
+                          value_to_string(item.value));
   }
   absl::StrAppend(&result, "}");
   return result;

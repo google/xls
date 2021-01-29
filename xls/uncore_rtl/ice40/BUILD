@@ -141,7 +141,7 @@ genrule(
     ],
     outs = ["wrap_io_ice40_add1_8b.v"],
     cmd = """$(location //xls/tools:wrap_io_main) \\
-        -include xls/uncore_rtl/ice40/add1_8b.v \\
+        -include ./xls/uncore_rtl/ice40/add1_8b.v \\
         -signature_proto_path $(location add1_8b.add1_8b.sig) \\
         -wrapped_module_name add1_8b \\
         -target_device ice40 > $(OUTS)
@@ -208,7 +208,7 @@ genrule(
     ],
     outs = ["wrap_io_ice40_repeat_byte_4.v"],
     cmd = """$(location //xls/tools:wrap_io_main) \\
-        -include xls/uncore_rtl/ice40/repeat_byte_4.v \\
+        -include ./xls/uncore_rtl/ice40/repeat_byte_4.v \\
         -signature_proto_path $(location repeat_byte_4.repeat_byte_4.sig) \\
         -wrapped_module_name repeat_byte_4 \\
         -target_device ice40 > $(OUTS)

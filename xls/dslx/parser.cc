@@ -1504,17 +1504,20 @@ absl::StatusOr<EnumDef*> Parser::ParseEnumDef(bool is_public,
                            type]() -> absl::StatusOr<EnumMember> {
     XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDef(&enum_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
-    XLS_ASSIGN_OR_RETURN(auto nocr, ParseNumOrConstRef(&enum_bindings));
-    if (Number* n = TryGet<Number*>(nocr)) {
-      if (n->type() != nullptr) {
+    XLS_ASSIGN_OR_RETURN(Expr * expr, ParseExpression(&enum_bindings));
+    // Propagate type annotation to un-annotated enum entries -- this is a
+    // convenience until we have proper unifying type inference.
+    if (auto* number = dynamic_cast<Number*>(expr); number != nullptr) {
+      if (number->type() == nullptr) {
+        number->set_type(type);
+      } else {
         return ParseErrorStatus(
-            n->type()->span(),
-            "Type is annotated in enum value, but enum defines a type. "
-            "Please remove the leading type-annotation.");
+            number->type()->span(),
+            "A type is annotated on this enum value, but the enum defines a "
+            "type, so this is not necessary: please remove it.");
       }
-      n->set_type(type);
     }
-    return EnumMember{name_def, nocr};
+    return EnumMember{name_def, expr};
   };
 
   XLS_ASSIGN_OR_RETURN(
@@ -1547,16 +1550,6 @@ absl::StatusOr<TypeAnnotation*> Parser::MakeTypeRefTypeAnnotation(
     elem_type = module_->Make<ArrayTypeAnnotation>(span, elem_type, dim);
   }
   return elem_type;
-}
-
-absl::StatusOr<absl::variant<Number*, NameRef*>> Parser::ParseNumOrConstRef(
-    Bindings* bindings) {
-  XLS_ASSIGN_OR_RETURN(bool peek_is_identifier,
-                       PeekTokenIs(TokenKind::kIdentifier));
-  if (peek_is_identifier) {
-    return ParseConstRef(bindings);
-  }
-  return ParseNumber(bindings);
 }
 
 absl::StatusOr<Expr*> Parser::ParseCastOrStructInstance(Bindings* bindings) {

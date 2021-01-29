@@ -1266,9 +1266,8 @@ class Slice : public AstNode {
 
 // Helper struct for members items defined inside of enums.
 struct EnumMember {
-  NameDef* name_def;
-  // TODO(leary): 2020-09-14 This should be ConstRef*.
-  absl::variant<Number*, NameRef*> value;
+  NameDef* name_def;  // The name being bound in the enum.
+  Expr* value;  // The expression on the right hand side of `ENUM_VAL = $expr`
 };
 
 // Represents a user-defined enum definition; e.g.
@@ -1295,9 +1294,8 @@ class EnumDef : public AstNode {
 
   // Returns the value bound to the given enum definition name.
   //
-  // Currently, a value can either be a number literal or a name reference.
-  absl::StatusOr<absl::variant<Number*, NameRef*>> GetValue(
-      absl::string_view name) const;
+  // These must be constexprs, which will be computed at type checking time.
+  absl::StatusOr<Expr*> GetValue(absl::string_view name) const;
 
   std::string ToString() const override;
 
