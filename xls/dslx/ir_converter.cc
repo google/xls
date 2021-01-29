@@ -33,7 +33,7 @@ class IrConverterVisitor : public AstNodeVisitor {
 
   // Causes node "n" to accept this visitor (basic double-dispatch).
   absl::Status Visit(AstNode* n) {
-    XLS_VLOG(5) << this << " visiting: " << n->ToString() << "("
+    XLS_VLOG(5) << this << " visiting: `" << n->ToString() << "` ("
                 << n->GetNodeTypeName() << ")";
     return n->Accept(this);
   }
@@ -57,7 +57,6 @@ class IrConverterVisitor : public AstNodeVisitor {
   TRAVERSE_DISPATCH(Unop)
   TRAVERSE_DISPATCH(Binop)
   TRAVERSE_DISPATCH(Ternary)
-  TRAVERSE_DISPATCH(ConstantArray)
   TRAVERSE_DISPATCH(XlsTuple)
 
   absl::Status HandleFor(For* node) override {
@@ -92,6 +91,7 @@ class IrConverterVisitor : public AstNodeVisitor {
 
   NO_TRAVERSE_DISPATCH_VISIT(Attr)
   NO_TRAVERSE_DISPATCH_VISIT(Array)
+  NO_TRAVERSE_DISPATCH_VISIT(ConstantArray)
   NO_TRAVERSE_DISPATCH_VISIT(Cast)
   NO_TRAVERSE_DISPATCH_VISIT(ColonRef)
   NO_TRAVERSE_DISPATCH_VISIT(ConstantDef)
@@ -186,15 +186,19 @@ void IrConverter::InstantiateFunctionBuilder(absl::string_view mangled_name) {
 }
 
 void IrConverter::AddConstantDep(ConstantDef* constant_def) {
-  XLS_VLOG(2) << "Adding consatnt dep: " << constant_def->ToString();
+  XLS_VLOG(2) << "Adding constant dep: " << constant_def->ToString();
   constant_deps_.push_back(constant_def);
 }
 
 absl::StatusOr<BValue> IrConverter::DefAlias(AstNode* from, AstNode* to) {
+  XLS_RET_CHECK_NE(from, to);
   auto it = node_to_ir_.find(from);
   if (it == node_to_ir_.end()) {
     return absl::InternalError(absl::StrFormat(
-        "Could not find AST node for aliasing: %s", from->ToString()));
+        "TypeAliasError: %s Internal error: could not find AST node for "
+        "aliasing: %s (%s) to: %s (%s)",
+        SpanToString(from->GetSpan()), from->ToString(),
+        from->GetNodeTypeName(), to->ToString(), to->GetNodeTypeName()));
   }
   IrValue value = it->second;
   XLS_VLOG(5) << absl::StreamFormat("Aliased node '%s' to be same as '%s': %s",
@@ -369,6 +373,7 @@ absl::Status IrConverter::HandleNameRef(NameRef* node) {
 
 absl::Status IrConverter::HandleConstantDef(ConstantDef* node,
                                             const VisitFunc& visit) {
+  XLS_VLOG(5) << "Visiting ConstantDef expr: " << node->value()->ToString();
   XLS_RETURN_IF_ERROR(visit(node->value()));
   XLS_VLOG(5) << "Aliasing NameDef for constant: "
               << node->name_def()->ToString();
@@ -792,50 +797,6 @@ absl::StatusOr<BValue> IrConverter::DefMapWithBuiltin(
   });
 }
 
-absl::StatusOr<Value> IrConverter::EvaluateConstFunction(Invocation* node) {
-  Module* module = module_;
-  std::string fn_name;
-  if (auto* name_ref = dynamic_cast<NameRef*>(node->callee())) {
-    fn_name = name_ref->identifier();
-  } else if (auto* colon_ref = dynamic_cast<ColonRef*>(node->callee())) {
-    fn_name = colon_ref->attr();
-    absl::optional<Import*> import = colon_ref->ResolveImportSubject();
-    XLS_RET_CHECK(import.has_value());
-    absl::optional<const ImportedInfo*> imported =
-        type_info_->GetImported(import.value());
-    module = (*imported)->module;
-  } else {
-    return absl::InternalError(
-        "Expected NameRef or ColonRef for invocation callee; got " +
-        node->callee()->ToString());
-  }
-
-  // TODO(https://github.com/google/xls/issues/246) Move to typechecking time.
-  Interpreter interp(module, type_info_, /*typecheck=*/nullptr,
-                     /*additional_search_paths=*/{},
-                     /*import_cache=*/import_cache_);
-
-  std::vector<InterpValue> args;
-  for (Expr* arg : node->args()) {
-    XLS_ASSIGN_OR_RETURN(Value value, GetConstValue(arg));
-    XLS_ASSIGN_OR_RETURN(InterpValue interp_value, ValueToInterpValue(value));
-    args.push_back(interp_value);
-  }
-
-  XLS_ASSIGN_OR_RETURN(
-      InterpValue interp_value,
-      interp.RunFunction(fn_name, args, **GetInvocationBindings(node)));
-  XLS_ASSIGN_OR_RETURN(Value ir_value, InterpValueToValue(interp_value));
-  XLS_VLOG(5) << absl::StreamFormat(
-      "[constexpr] Interpreted %s with (%s): %s", fn_name,
-      absl::StrJoin(args, ",",
-                    [](std::string* out, const InterpValue& v) {
-                      absl::StrAppend(out, v.ToString());
-                    }),
-      ir_value.ToString());
-  return ir_value;
-}
-
 absl::StatusOr<BValue> IrConverter::HandleMap(Invocation* node,
                                               const VisitFunc& visit) {
   for (Expr* arg : node->args().subspan(0, node->args().size() - 1)) {
@@ -971,27 +932,7 @@ absl::Status IrConverter::HandleInvocation(Invocation* node,
 
   if (package_->HasFunctionWithName(called_name)) {
     XLS_ASSIGN_OR_RETURN(xls::Function * f, package_->GetFunction(called_name));
-    // An invocation is constexpr if all of its args are also constexpr (i.e.
-    // there's no global state in the DSL). We need this to know if we can
-    // constexpr-fold the invocation directly into its result below.
-    bool invocation_is_constexpr = true;
-    for (Expr* arg : node->args()) {
-      if (!IsConstant(arg)) {
-        invocation_is_constexpr = false;
-        break;
-      }
-    }
-
     XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
-
-    if (invocation_is_constexpr) {
-      XLS_ASSIGN_OR_RETURN(Value value, EvaluateConstFunction(node));
-      BValue bvalue = Def(node, [&](absl::optional<SourceLocation> loc) {
-        return function_builder_->Literal(value, loc);
-      });
-      SetNodeToIr(node, CValue{value, bvalue});
-      return absl::OkStatus();
-    }
 
     Def(node, [&](absl::optional<SourceLocation> loc) {
       return function_builder_->Invoke(args, f, loc);
@@ -1083,7 +1024,9 @@ absl::StatusOr<xls::Function*> IrConverter::HandleFunction(
             .status());
   }
 
+  XLS_VLOG(3) << "Function has " << constant_deps_.size() << " constant deps";
   for (ConstantDef* dep : constant_deps_) {
+    XLS_VLOG(4) << "Visiting constant dep: " << dep->ToString();
     XLS_RETURN_IF_ERROR(visit(dep));
   }
   ClearConstantDeps();
@@ -1174,28 +1117,16 @@ absl::Status IrConverter::HandleStructInstance(StructInstance* node,
   std::vector<BValue> operands;
   XLS_ASSIGN_OR_RETURN(StructDef * struct_def,
                        DerefStruct(ToTypeDefinition(node->struct_def())));
-  bool all_are_constant = true;
   std::vector<Value> const_operands;
   for (auto [_, member_expr] : node->GetOrderedMembers(struct_def)) {
     XLS_RETURN_IF_ERROR(visit(member_expr));
     XLS_ASSIGN_OR_RETURN(BValue operand, Use(member_expr));
     operands.push_back(operand);
-    if (!IsConstant(member_expr)) {
-      all_are_constant = false;
-    }
-    if (all_are_constant) {
-      XLS_ASSIGN_OR_RETURN(Value const_operand, GetConstValue(member_expr));
-      const_operands.push_back(std::move(const_operand));
-    }
   }
 
-  BValue result =
-      Def(node, [this, &operands](absl::optional<SourceLocation> loc) {
-        return function_builder_->Tuple(std::move(operands), loc);
-      });
-  if (all_are_constant) {
-    SetNodeToIr(node, CValue{Value::Tuple(std::move(const_operands)), result});
-  }
+  Def(node, [this, &operands](absl::optional<SourceLocation> loc) {
+    return function_builder_->Tuple(std::move(operands), loc);
+  });
   return absl::OkStatus();
 }
 
@@ -1233,8 +1164,9 @@ absl::StatusOr<std::string> IrConverter::GetCalleeIdentifier(Invocation* node) {
   absl::optional<const SymbolicBindings*> resolved_symbolic_bindings =
       GetInvocationBindings(node);
   XLS_RET_CHECK(resolved_symbolic_bindings.has_value());
-  XLS_VLOG(2) << absl::StreamFormat("Node %s @ %s symbolic bindings %s",
-                                    node->ToString(), node->span().ToString(),
+  XLS_VLOG(2) << absl::StreamFormat("Node `%s` (%s) @ %s symbolic bindings %s",
+                                    node->ToString(), node->GetNodeTypeName(),
+                                    node->span().ToString(),
                                     (*resolved_symbolic_bindings)->ToString());
   XLS_RET_CHECK(!(*resolved_symbolic_bindings)->empty());
   return MangleDslxName((*f)->identifier(), free_keys, m,
@@ -1682,27 +1614,13 @@ absl::StatusOr<Bits> IrConverter::GetConstBits(AstNode* node) const {
   return value.GetBitsWithStatus();
 }
 
-absl::Status IrConverter::HandleConstantArray(ConstantArray* node) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type, ResolveType(node));
-  auto* array_type = dynamic_cast<ArrayType*>(type.get());
-
-  std::vector<xls::Value> values;
-  for (Expr* n : node->members()) {
-    // All elements are invariants of the given ConstantArray node.
-    XLS_RET_CHECK(IsConstant(n));
-    auto ir_value = GetNodeToIr(n);
-    XLS_RET_CHECK(ir_value.has_value());
-    XLS_RET_CHECK(absl::holds_alternative<CValue>(ir_value.value()));
-    values.push_back(absl::get<CValue>(ir_value.value()).ir_value);
-  }
-  if (node->has_ellipsis()) {
-    while (values.size() < absl::get<int64>(array_type->size().value())) {
-      values.push_back(values.back());
-    }
-  }
-  Value ir_value = xls::Value::Array(std::move(values)).value();
-  DefConst(node, ir_value);
-  return absl::OkStatus();
+absl::Status IrConverter::HandleConstantArray(ConstantArray* node,
+                                              const VisitFunc& visit) {
+  // Note: previously we would force constant evaluation here, but because all
+  // constexprs should be evaluated during typechecking, we shouldn't need to
+  // forcibly do constant evaluation at IR conversion time; therefore, we just
+  // build BValues and let XLS opt constant fold them.
+  return HandleArray(node, visit);
 }
 
 absl::Status ConversionErrorStatus(const absl::optional<Span>& span,
@@ -1751,6 +1669,36 @@ absl::StatusOr<xls::Type*> IrConverter::TypeToIr(
   return package_->GetTupleType(std::move(members));
 }
 
+// Notes that "constant_def" is a dependency on "converter", but first traverses
+// to all free variables referred to by "constant_def"'s expression and adds
+// them as dependencies first. This lets us constant expressions that refer to
+// other constant expressions, since we can make sure that transitive dependency
+// chain is all converted to IR.
+static absl::Status AddConstantAndTransitives(ConstantDef* constant_def,
+                                              IrConverter* converter) {
+  FreeVariables free_variables =
+      constant_def->value()->GetFreeVariables(constant_def->span().start());
+  XLS_VLOG(4) << "Free variables of `" << constant_def->ToString() << "`: {"
+              << absl::StrJoin(free_variables.Keys(), ", ") << "}";
+  std::vector<std::pair<std::string, AnyNameDef>> freevars =
+      free_variables.GetNameDefTuples();
+  for (const auto& [identifier, any_name_def] : freevars) {
+    if (absl::holds_alternative<BuiltinNameDef*>(any_name_def)) {
+      continue;
+    }
+    auto* name_def = absl::get<NameDef*>(any_name_def);
+    AstNode* definer = name_def->definer();
+    XLS_VLOG(5) << "Definer of " << name_def->ToString() << ": "
+                << (definer == nullptr ? std::string{"(nil)"}
+                                       : definer->ToString());
+    if (auto* constant_def = dynamic_cast<ConstantDef*>(definer)) {
+      XLS_RETURN_IF_ERROR(AddConstantAndTransitives(constant_def, converter));
+    }
+  }
+  converter->AddConstantDep(constant_def);
+  return absl::OkStatus();
+}
+
 }  // namespace internal
 
 // Converts a single function into its emitted text form.
@@ -1797,7 +1745,7 @@ static absl::Status ConvertOneFunctionInternal(
       continue;
     } else if (auto it = constant_by_name.find(identifier);
                it != constant_by_name.end()) {
-      converter.AddConstantDep(it->second);
+      XLS_RETURN_IF_ERROR(AddConstantAndTransitives(it->second, &converter));
     } else {
       return absl::UnimplementedError(absl::StrFormat(
           "Cannot convert free variable: %s; not a function nor constant",

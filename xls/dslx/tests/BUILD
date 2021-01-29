@@ -45,6 +45,17 @@ dslx_test(
 )
 
 dslx_test(
+    name = "constexpr_clog2",
+    srcs = ["constexpr_clog2.x"],
+)
+
+dslx_test(
+    name = "constexpr_imported_clog2",
+    srcs = ["constexpr_imported_clog2.x"],
+    deps = ["constexpr.x"],
+)
+
+dslx_test(
     name = "explicit_parametric",
     srcs = ["explicit_parametric.x"],
     generate_benchmark = False,
@@ -94,6 +105,14 @@ dslx_test(
 dslx_test(
     name = "match_multi",
     srcs = ["match_multi.x"],
+)
+
+dslx_test(
+    name = "type_aliasing_importer",
+    srcs = ["type_aliasing_importer.x"],
+    generate_benchmark = False,
+    prove_unopt_eq_opt = False,
+    deps = ["mod_struct_point.x"],
 )
 
 dslx_test(

@@ -342,12 +342,29 @@ absl::StatusOr<bool> ConcreteTypeAcceptsValue(const ConcreteType& type,
                    static_cast<int64>(value.tag())));
 }
 
-absl::Status EvaluateDerivedParametrics(
+// Evaluates the parametric values derived from other parametric values.
+//
+// Populates the "bindings" mapping with results computed by the typechecker.
+//
+// For example, in:
+//
+//  fn [X: u32, Y: u32 = X+X] f(x: bits[X]) { ... }
+//
+// Args:
+//  fn: Function to evaluate parametric bindings for.
+//  bindings: Bindings mapping to populate with newly evaluated parametric
+//    binding names.
+//  bound_dims: Parametric bindings computed by the typechecker.
+static absl::Status EvaluateDerivedParametrics(
     Function* fn, InterpBindings* bindings, InterpCallbackData* callbacks,
     const absl::flat_hash_map<std::string, int64>& bound_dims) {
-  XLS_VLOG(5) << "fn: " << fn->identifier() << " bound_dims: "
+  XLS_VLOG(5) << "EvaluateDerivedParametrics; fn: " << fn->identifier()
+              << " bound_dims: "
               << absl::StrJoin(bound_dims, ", ", absl::PairFormatter(":"));
-  XLS_RET_CHECK_EQ(bound_dims.size(), fn->parametric_bindings().size());
+  XLS_RET_CHECK_EQ(bound_dims.size(), fn->parametric_bindings().size())
+      << "bound dims: ["
+      << absl::StrJoin(bound_dims, ", ", absl::PairFormatter(":"))
+      << "] fn: " << fn->ToString();
   for (ParametricBinding* parametric : fn->parametric_bindings()) {
     if (bindings->Contains(parametric->identifier())) {
       continue;  // Already bound.
@@ -383,6 +400,8 @@ absl::StatusOr<InterpValue> EvaluateFunction(
   Module* m = f->owner();
   XLS_ASSIGN_OR_RETURN(std::shared_ptr<InterpBindings> bindings,
                        MakeTopLevelBindings(m, callbacks));
+  XLS_VLOG(5) << "Evaluated top level bindings for module: " << m->name()
+              << "; keys: {" << absl::StrJoin(bindings->GetKeys(), ", ") << "}";
   XLS_RETURN_IF_ERROR(EvaluateDerivedParametrics(f, bindings.get(), callbacks,
                                                  symbolic_bindings.ToMap()));
 
@@ -1110,8 +1129,8 @@ absl::StatusOr<std::shared_ptr<InterpBindings>> MakeTopLevelBindings(
 
   // Add constants/imports present at the top level to the bindings.
   for (ModuleMember member : module->top()) {
-    XLS_VLOG(3) << "Evaluating module member: "
-                << ToAstNode(member)->ToString();
+    XLS_VLOG(3) << "Evaluating module member: " << ToAstNode(member)->ToString()
+                << " (" << ToAstNode(member)->GetNodeTypeName() << ")";
     if (absl::holds_alternative<ConstantDef*>(member)) {
       auto* constant_def = absl::get<ConstantDef*>(member);
       if (callbacks->is_wip(constant_def)) {

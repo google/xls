@@ -79,23 +79,31 @@ absl::Status XlsTypeErrorStatus(const Span& span, const ConcreteType& lhs,
 NodeAndUser ParseTypeMissingErrorMessage(absl::string_view s) {
   (void)absl::ConsumePrefix(&s, "TypeMissingError: ");
   std::vector<absl::string_view> pieces =
-      absl::StrSplit(s, absl::MaxSplits(' ', 2));
-  XLS_CHECK_EQ(pieces.size(), 3);
+      absl::StrSplit(s, absl::MaxSplits(' ', 3));
+  XLS_CHECK_EQ(pieces.size(), 4);
   int64 node = 0;
-  if (pieces[0] != "(nil)") {
-    node = StrTo64Base(pieces[0], 16).value();
+  if (pieces[1] != "(nil)") {
+    node = StrTo64Base(pieces[1], 16).value();
   }
   int64 user = 0;
-  if (pieces[1] != "(nil)") {
-    user = StrTo64Base(pieces[1], 16).value();
+  if (pieces[2] != "(nil)") {
+    user = StrTo64Base(pieces[2], 16).value();
   }
   return {absl::bit_cast<AstNode*>(node), absl::bit_cast<AstNode*>(user)};
 }
 
 absl::Status TypeMissingErrorStatus(AstNode* node, AstNode* user) {
-  return absl::InternalError(absl::StrFormat(
-      "TypeMissingError: %p %p AST node is missing a corresponding type: %s",
-      node, user, node->ToString()));
+  std::string span_string;
+  if (user != nullptr) {
+    span_string = SpanToString(user->GetSpan()) + " ";
+  } else if (node != nullptr) {
+    span_string = SpanToString(node->GetSpan()) + " ";
+  }
+  return absl::InternalError(
+      absl::StrFormat("TypeMissingError: %s%p %p internal error: AST node is "
+                      "missing a corresponding type: %s (%s) defined @ %s",
+                      span_string, node, user, node->ToString(),
+                      node->GetNodeTypeName(), SpanToString(node->GetSpan())));
 }
 
 bool IsTypeMissingErrorStatus(const absl::Status& status) {

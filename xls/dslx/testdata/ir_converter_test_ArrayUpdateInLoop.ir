@@ -1,0 +1,15 @@
+package test_module
+
+fn ____test_module__main_counted_for_0_body(i: bits[32], accum: bits[8][2]) -> bits[8][2] {
+  bit_slice.8: bits[8] = bit_slice(i, start=0, width=8, id=8)
+  ret array_update.9: bits[8][2] = array_update(accum, bit_slice.8, indices=[i], id=9)
+}
+
+fn __test_module__main() -> bits[8][2] {
+  literal.1: bits[8] = literal(value=0, id=1)
+  literal.2: bits[8] = literal(value=0, id=2)
+  array.3: bits[8][2] = array(literal.1, literal.2, id=3)
+  literal.4: bits[32] = literal(value=0, id=4)
+  literal.5: bits[32] = literal(value=2, id=5)
+  ret counted_for.10: bits[8][2] = counted_for(array.3, trip_count=2, stride=1, body=____test_module__main_counted_for_0_body, id=10)
+}

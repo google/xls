@@ -190,7 +190,6 @@ class IrConverter {
 
   // AstNode handlers.
   absl::Status HandleBinop(Binop* node);
-  absl::Status HandleConstantArray(ConstantArray* node);
   absl::Status HandleConstRef(ConstRef* node);
   absl::Status HandleNameRef(NameRef* node);
   absl::Status HandleNumber(Number* node);
@@ -223,6 +222,7 @@ class IrConverter {
   absl::Status HandleCast(Cast* node, const VisitFunc& visit);
   absl::Status HandleMatch(Match* node, const VisitFunc& visit);
   absl::Status HandleIndex(Index* node, const VisitFunc& visit);
+  absl::Status HandleConstantArray(ConstantArray* node, const VisitFunc& visit);
   absl::Status HandleArray(Array* node, const VisitFunc& visit);
   absl::Status HandleInvocation(Invocation* node, const VisitFunc& visit);
 

@@ -1316,15 +1316,10 @@ absl::StatusOr<ConstantDef*> Parser::ParseConstantDef(bool is_public,
 
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
   XLS_ASSIGN_OR_RETURN(Expr * expr, ParseExpression(bindings));
-
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
-  if (!IsConstant(expr)) {
-    return ParseErrorStatus(
-        expr->span(), absl::StrFormat("Value is not considered constant: '%s'",
-                                      expr->ToString()));
-  }
   Span span(start_pos, GetPos());
   auto* result = module_->Make<ConstantDef>(span, name_def, expr, is_public);
+  name_def->set_definer(result);
   bindings->Add(name_def->identifier(), result);
   return result;
 }

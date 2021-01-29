@@ -282,7 +282,10 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateAndCompare(
     Function* f, absl::Span<const InterpValue> args, const Span& span,
     Invocation* expr, const SymbolicBindings* symbolic_bindings) {
   bool has_child_type_info =
-      expr != nullptr && type_info_->HasInstantiation(expr, *symbolic_bindings);
+      expr != nullptr &&
+      type_info_->HasInstantiation(expr, symbolic_bindings == nullptr
+                                             ? SymbolicBindings()
+                                             : *symbolic_bindings);
   absl::optional<TypeInfo*> invocation_type_info;
   if (has_child_type_info) {
     invocation_type_info =
@@ -295,7 +298,10 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateAndCompare(
 
   XLS_ASSIGN_OR_RETURN(
       InterpValue interpreter_value,
-      EvaluateFunction(f, args, span, *symbolic_bindings, &callbacks_));
+      EvaluateFunction(f, args, span,
+                       symbolic_bindings == nullptr ? SymbolicBindings()
+                                                    : *symbolic_bindings,
+                       &callbacks_));
 
   XLS_RETURN_IF_ERROR(RunJitComparison(f, args, symbolic_bindings));
 
@@ -304,6 +310,8 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateAndCompare(
 
 absl::StatusOr<InterpValue> Interpreter::EvaluateInvocation(
     Invocation* expr, InterpBindings* bindings, ConcreteType* type_context) {
+  XLS_VLOG(3) << absl::StreamFormat("EvaluateInvocation: `%s` @ %s",
+                                    expr->ToString(), expr->span().ToString());
   std::vector<InterpValue> arg_values;
   for (Expr* arg : expr->args()) {
     XLS_ASSIGN_OR_RETURN(InterpValue arg_value,
@@ -341,6 +349,14 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateInvocation(
                           expr->span().ToString()));
     }
     fn_symbolic_bindings = callee_bindings.value();
+  } else {
+    // Note, when there's no function context we may be in a ConstantDef doing
+    // e.g. a parametric invocation.
+    absl::optional<const SymbolicBindings*> callee_bindings =
+        type_info_->GetInvocationSymbolicBindings(expr, SymbolicBindings());
+    if (callee_bindings.has_value()) {
+      fn_symbolic_bindings = callee_bindings.value();
+    }
   }
   return CallFnValue(callee_value, arg_values, expr->span(), expr,
                      fn_symbolic_bindings);

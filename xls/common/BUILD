@@ -342,6 +342,12 @@ py_library(
     ],
 )
 
+cc_library(
+    name = "update_golden_files",
+    testonly = True,
+    hdrs = ["update_golden_files.inc"],
+)
+
 py_library(
     name = "gfile",
     srcs = ["gfile.py"],

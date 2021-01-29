@@ -183,11 +183,16 @@ py_test(
 cc_test(
     name = "cpp_ir_converter_test",
     srcs = ["ir_converter_test.cc"],
+    data = glob(["testdata/*.ir"]),
     deps = [
         ":cpp_ir_converter",
         ":cpp_parse_and_typecheck",
         "//xls/common:init_xls",
+        "//xls/common:update_golden_files",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_googletest//:gtest",
     ],
 )

@@ -22,12 +22,39 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/flags/flag.h"
+#include "xls/common/file/filesystem.h"
+#include "xls/common/file/get_runfile_path.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/update_golden_files.inc"
 #include "xls/dslx/parse_and_typecheck.h"
+
+ABSL_FLAG(std::string, xls_source_dir, "",
+          "Absolute path to root of XLS source directory to modify when "
+          "--test_update_golden_files is given");
 
 namespace xls::dslx {
 namespace {
+
+void ExpectIr(absl::string_view got, absl::string_view test_name) {
+  std::string suffix =
+      absl::StrCat("dslx/testdata/ir_converter_test_", test_name, ".ir");
+  if (absl::GetFlag(FLAGS_test_update_golden_files)) {
+    std::string path =
+        absl::StrCat(absl::GetFlag(FLAGS_xls_source_dir), "/", suffix);
+    XLS_ASSERT_OK(SetFileContents(path, got));
+    return;
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path runfile,
+                           GetXlsRunfilePath(absl::StrCat("xls/", suffix)));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string want, GetFileContents(runfile));
+  EXPECT_EQ(got, want);
+}
+
+std::string TestName() {
+  return ::testing::UnitTest::GetInstance()->current_test_info()->name();
+}
 
 absl::StatusOr<std::string> ConvertOneFunctionForTest(
     absl::string_view program, absl::string_view fn_name,
@@ -347,24 +374,7 @@ fn main() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/false));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn ____test_module__f__2_counted_for_0_body(i: bits[32], accum: bits[32]) -> bits[32] {
-  ret add.7: bits[32] = add(accum, i, id=7)
-}
-
-fn __test_module__f__2(x: bits[2]) -> bits[32] {
-  literal.3: bits[32] = literal(value=0, id=3)
-  literal.2: bits[32] = literal(value=2, id=2)
-  literal.4: bits[32] = literal(value=0, id=4)
-  ret counted_for.8: bits[32] = counted_for(literal.3, trip_count=2, stride=1, body=____test_module__f__2_counted_for_0_body, id=8)
-}
-
-fn __test_module__main() -> bits[32] {
-  literal.9: bits[2] = literal(value=0, id=9)
-  ret literal.10: bits[32] = literal(value=1, id=10)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, CountedForInvokingFunctionFromBody) {
@@ -477,16 +487,7 @@ fn caller() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/true));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn __test_module__callee() -> bits[32] {
-  ret literal.1: bits[32] = literal(value=42, id=1, pos=0,1,6)
-}
-
-fn __test_module__caller() -> bits[32] {
-  ret literal.2: bits[32] = literal(value=42, id=2, pos=0,4,8)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, Match) {
@@ -593,13 +594,7 @@ fn main() -> u8[2] {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/false));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn __test_module__main() -> bits[8][2] {
-  literal.1: bits[8] = literal(value=0, id=1)
-  ret literal.2: bits[8][2] = literal(value=[0, 0], id=2)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, NonConstArrayEllipsis) {
@@ -1018,18 +1013,7 @@ fn caller() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/true));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn __test_module__callee(x: bits[32], y: bits[32]) -> bits[32] {
-  ret add.3: bits[32] = add(x, y, id=3, pos=0,1,4)
-}
-
-fn __test_module__caller() -> bits[32] {
-  literal.4: bits[32] = literal(value=2, id=4, pos=0,4,13)
-  literal.5: bits[32] = literal(value=3, id=5, pos=0,4,20)
-  ret literal.6: bits[32] = literal(value=5, id=6, pos=0,4,8)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, CastOfAdd) {
@@ -1148,15 +1132,7 @@ fn main(s: u2) -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/false));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn __test_module__main(s: bits[2]) -> bits[32] {
-  literal.2: bits[32] = literal(value=2, id=2)
-  literal.3: bits[32] = literal(value=3, id=3)
-  literal.4: bits[32][2] = literal(value=[2, 3], id=4)
-  ret one_hot_sel.5: bits[32] = one_hot_sel(s, cases=[literal.2, literal.3], id=5)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, BitSliceSyntax) {
@@ -1197,21 +1173,7 @@ fn main() -> u8 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/true));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn __test_module__parametric__3_5_8(x: bits[3], y: bits[5]) -> bits[8] {
-  literal.3: bits[32] = literal(value=3, id=3, pos=0,0,14)
-  literal.4: bits[32] = literal(value=5, id=4, pos=0,0,22)
-  literal.5: bits[32] = literal(value=8, id=5, pos=0,0,30)
-  ret concat.6: bits[8] = concat(x, y, id=6, pos=0,1,4)
-}
-
-fn __test_module__main() -> bits[8] {
-  literal.7: bits[3] = literal(value=0, id=7, pos=0,4,21)
-  literal.8: bits[5] = literal(value=1, id=8, pos=0,4,32)
-  ret literal.9: bits[8] = literal(value=1, id=9, pos=0,4,12)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, ArrayConcat0) {
@@ -1244,22 +1206,7 @@ fn g() -> u8[2] { FOO }
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/true));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn __test_module__f() -> bits[8][2] {
-  literal.3: bits[8][2] = literal(value=[1, 2], id=3, pos=0,0,18)
-  literal.1: bits[8] = literal(value=1, id=1, pos=0,0,19)
-  literal.2: bits[8] = literal(value=2, id=2, pos=0,0,22)
-  ret identity.4: bits[8][2] = identity(literal.3, id=4, pos=0,1,18)
-}
-
-fn __test_module__g() -> bits[8][2] {
-  literal.7: bits[8][2] = literal(value=[1, 2], id=7, pos=0,0,18)
-  literal.5: bits[8] = literal(value=1, id=5, pos=0,0,19)
-  literal.6: bits[8] = literal(value=2, id=6, pos=0,0,22)
-  ret identity.8: bits[8][2] = identity(literal.7, id=8, pos=0,2,18)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, MatchWithlet) {
@@ -1343,7 +1290,7 @@ fn __test_module__get_thing(x: (bits[32][2]), i: bits[32]) -> bits[32] {
 TEST(IrConverterTest, ConstexprFunction) {
   const char* program =
       R"(
-const MY_CONST = bits[32]:5;
+const MY_CONST = u32:5;
 fn constexpr_fn(arg: u32) -> u32 {
   arg * MY_CONST
 }
@@ -1356,19 +1303,7 @@ fn f() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/false));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn __test_module__constexpr_fn(arg: bits[32]) -> bits[32] {
-  literal.2: bits[32] = literal(value=5, id=2)
-  ret umul.3: bits[32] = umul(arg, literal.2, id=3)
-}
-
-fn __test_module__f() -> bits[32] {
-  literal.5: bits[32] = literal(value=25, id=5)
-  literal.4: bits[32] = literal(value=5, id=4)
-  ret identity.6: bits[32] = identity(literal.5, id=6)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, NestedTupleSignature) {
@@ -1420,22 +1355,7 @@ fn main() -> u8[2] {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/false));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn ____test_module__main_counted_for_0_body(i: bits[32], accum: bits[8][2]) -> bits[8][2] {
-  bit_slice.8: bits[8] = bit_slice(i, start=0, width=8, id=8)
-  ret array_update.9: bits[8][2] = array_update(accum, bit_slice.8, indices=[i], id=9)
-}
-
-fn __test_module__main() -> bits[8][2] {
-  literal.3: bits[8][2] = literal(value=[0, 0], id=3)
-  literal.1: bits[8] = literal(value=0, id=1)
-  literal.2: bits[8] = literal(value=0, id=2)
-  literal.4: bits[32] = literal(value=0, id=4)
-  literal.5: bits[32] = literal(value=2, id=5)
-  ret counted_for.10: bits[8][2] = counted_for(literal.3, trip_count=2, stride=1, body=____test_module__main_counted_for_0_body, id=10)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, Identity) {
@@ -1464,24 +1384,7 @@ fn g() -> u8 { FOO[u32:1] }
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/false));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn __test_module__f() -> bits[8] {
-  literal.3: bits[8][2] = literal(value=[1, 2], id=3)
-  literal.4: bits[32] = literal(value=0, id=4)
-  literal.1: bits[8] = literal(value=1, id=1)
-  literal.2: bits[8] = literal(value=2, id=2)
-  ret array_index.5: bits[8] = array_index(literal.3, indices=[literal.4], id=5)
-}
-
-fn __test_module__g() -> bits[8] {
-  literal.8: bits[8][2] = literal(value=[1, 2], id=8)
-  literal.9: bits[32] = literal(value=1, id=9)
-  literal.6: bits[8] = literal(value=1, id=6)
-  literal.7: bits[8] = literal(value=2, id=7)
-  ret array_index.10: bits[8] = array_index(literal.8, indices=[literal.9], id=10)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, TransitiveParametricInvocation) {
@@ -1533,26 +1436,7 @@ fn main() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/false));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn __test_module__parametric__2(x: bits[2]) -> bits[32] {
-  literal.2: bits[32] = literal(value=2, id=2)
-  ret identity.3: bits[32] = identity(literal.2, id=3)
-}
-
-fn __test_module__parametric__3(x: bits[3]) -> bits[32] {
-  literal.5: bits[32] = literal(value=3, id=5)
-  ret identity.6: bits[32] = identity(literal.5, id=6)
-}
-
-fn __test_module__main() -> bits[32] {
-  literal.8: bits[32] = literal(value=2, id=8)
-  literal.10: bits[32] = literal(value=3, id=10)
-  literal.7: bits[2] = literal(value=0, id=7)
-  literal.9: bits[3] = literal(value=0, id=9)
-  ret add.11: bits[32] = add(literal.8, literal.10, id=11)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, FailIsElided) {
@@ -1590,24 +1474,7 @@ fn main() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/false));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn ____test_module__f__32_counted_for_0_body(i: bits[32], accum: bits[32]) -> bits[32] {
-  ret zero_ext.7: bits[32] = zero_ext(accum, new_bit_count=32, id=7)
-}
-
-fn __test_module__f__32(init: bits[32]) -> bits[32] {
-  literal.2: bits[32] = literal(value=32, id=2)
-  literal.3: bits[32] = literal(value=0, id=3)
-  literal.4: bits[32] = literal(value=4, id=4)
-  ret counted_for.8: bits[32] = counted_for(init, trip_count=4, stride=1, body=____test_module__f__32_counted_for_0_body, id=8)
-}
-
-fn __test_module__main() -> bits[32] {
-  literal.9: bits[32] = literal(value=0, id=9)
-  ret literal.10: bits[32] = literal(value=0, id=10)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, SignedComparisonsViaSignedNumbers) {
@@ -1639,33 +1506,20 @@ fn __test_module__main(x: bits[32], y: bits[32]) -> bits[1] {
 TEST(IrConverterTest, ParametricConstexprFn) {
   const char* program =
       R"(
-pub const kConst = bits[32]:5;
+pub const MY_CONST = u32:5;
 fn constexpr_fn<N:u32>(arg: bits[N]) -> bits[N] {
-  arg * kConst
+  arg * MY_CONST
 }
 
 fn f() -> u32 {
-  let x = constexpr_fn(kConst);
+  let x = constexpr_fn(MY_CONST);
   x
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/false));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn __test_module__constexpr_fn__32(arg: bits[32]) -> bits[32] {
-  literal.3: bits[32] = literal(value=5, id=3)
-  literal.2: bits[32] = literal(value=32, id=2)
-  ret umul.4: bits[32] = umul(arg, literal.3, id=4)
-}
-
-fn __test_module__f() -> bits[32] {
-  literal.6: bits[32] = literal(value=25, id=6)
-  literal.5: bits[32] = literal(value=5, id=5)
-  ret identity.7: bits[32] = identity(literal.6, id=7)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, ConstexprImport) {
@@ -1697,19 +1551,7 @@ fn f() -> u32 {
       std::string converted,
       ConvertModuleForTest(importer_program, /*emit_positions=*/false,
                            &import_cache));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn __fake_imported_stuff__constexpr_fn(arg: bits[32]) -> bits[32] {
-  literal.2: bits[32] = literal(value=5, id=2)
-  ret umul.3: bits[32] = umul(arg, literal.2, id=3)
-}
-
-fn __test_module__f() -> bits[32] {
-  literal.5: bits[32] = literal(value=25, id=5)
-  literal.4: bits[32] = literal(value=5, id=4)
-  ret identity.6: bits[32] = identity(literal.5, id=6)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 // Tests that a parametric constexpr function can be imported.
@@ -1743,35 +1585,8 @@ fn f() -> u32 {
       std::string converted,
       ConvertModuleForTest(importer_program, /*emit_positions=*/false,
                            &import_cache));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn __fake_imported_stuff__constexpr_fn__32(arg: bits[32]) -> bits[32] {
-  literal.3: bits[32] = literal(value=5, id=3)
-  literal.2: bits[32] = literal(value=32, id=2)
-  ret umul.4: bits[32] = umul(arg, literal.3, id=4)
+  ExpectIr(converted, TestName());
 }
-
-fn __test_module__f() -> bits[32] {
-  literal.6: bits[32] = literal(value=25, id=6)
-  literal.5: bits[32] = literal(value=5, id=5)
-  ret identity.7: bits[32] = identity(literal.6, id=7)
-}
-)");
-}
-
-#if 0
-TEST(IrConverterTest, ChangeMe) {
-  const char* program =
-R"(
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
-  EXPECT_EQ(converted, R"(package test_module
-
-)");
-}
-#endif
 
 }  // namespace
 }  // namespace xls::dslx

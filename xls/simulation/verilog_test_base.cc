@@ -27,7 +27,7 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
-#include "xls/simulation/update_golden_files.inc"
+#include "xls/common/update_golden_files.inc"
 #include "xls/simulation/verilog_simulators.h"
 
 ABSL_FLAG(std::string, xls_source_dir, "",

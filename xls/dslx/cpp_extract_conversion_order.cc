@@ -148,7 +148,7 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
 // Traverses the definition of f to find callees.
 //
 // Args:
-//   func: Function/test construct to inspect for calls.
+//   node: AST construct to inspect for calls.
 //   m: Module that f resides in.
 //   type_info: Node to type mapping that should be used with f.
 //   imports: Mapping of modules imported by m.
@@ -158,11 +158,11 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
 //   Callee functions invoked by f, and the parametric bindings used in each of
 //   those invocations.
 static absl::StatusOr<std::vector<Callee>> GetCallees(
-    absl::variant<Function*, TestFunction*> func, Module* m,
-    TypeInfo* type_info, const SymbolicBindings& bindings) {
+    AstNode* node, Module* m, TypeInfo* type_info,
+    const SymbolicBindings& bindings) {
   InvocationVisitor visitor(m, type_info, bindings);
   XLS_RETURN_IF_ERROR(
-      WalkPostOrder(ToAstNode(func), &visitor, /*want_types=*/true));
+      WalkPostOrder(ToAstNode(node), &visitor, /*want_types=*/true));
   return std::move(visitor.callees());
 }
 
@@ -183,25 +183,18 @@ static bool IsReady(absl::variant<Function*, TestFunction*> f, Module* m,
   return false;
 }
 
-// Adds (f, bindings) to conversion order after deps have been added.
+// Forward decl.
 static absl::Status AddToReady(absl::variant<Function*, TestFunction*> f,
                                Module* m, TypeInfo* type_info,
                                const SymbolicBindings& bindings,
-                               std::vector<ConversionRecord>* ready) {
-  if (IsReady(f, m, bindings, ready)) {
-    return absl::OkStatus();
-  }
+                               std::vector<ConversionRecord>* ready);
 
+static absl::Status ProcessCallees(absl::Span<const Callee> orig_callees,
+                                   std::vector<ConversionRecord>* ready) {
   // Knock out all callees that are already in the (ready) order.
   std::vector<Callee> non_ready;
-  XLS_ASSIGN_OR_RETURN(const std::vector<Callee> orig_callees,
-                       GetCallees(f, m, type_info, bindings));
-
-  XLS_VLOG(5) << "Original callees of " << absl::get<Function*>(f)->identifier()
-              << ": " << CalleesToString(orig_callees);
-
   {
-    for (const Callee& callee : std::vector<Callee>(orig_callees)) {
+    for (const Callee& callee : orig_callees) {
       if (!IsReady(callee.f, callee.m, callee.sym_bindings, ready)) {
         non_ready.push_back(callee);
       }
@@ -215,6 +208,24 @@ static absl::Status AddToReady(absl::variant<Function*, TestFunction*> f,
         AddToReady(absl::variant<Function*, TestFunction*>(callee.f), callee.m,
                    callee.type_info, callee.sym_bindings, ready));
   }
+
+  return absl::OkStatus();
+}
+
+// Adds (f, bindings) to conversion order after deps have been added.
+static absl::Status AddToReady(absl::variant<Function*, TestFunction*> f,
+                               Module* m, TypeInfo* type_info,
+                               const SymbolicBindings& bindings,
+                               std::vector<ConversionRecord>* ready) {
+  if (IsReady(f, m, bindings, ready)) {
+    return absl::OkStatus();
+  }
+
+  XLS_ASSIGN_OR_RETURN(const std::vector<Callee> orig_callees,
+                       GetCallees(ToAstNode(f), m, type_info, bindings));
+  XLS_VLOG(5) << "Original callees of " << absl::get<Function*>(f)->identifier()
+              << ": " << CalleesToString(orig_callees);
+  XLS_RETURN_IF_ERROR(ProcessCallees(orig_callees, ready));
 
   XLS_RET_CHECK(!IsReady(f, m, bindings, ready));
 
@@ -233,23 +244,29 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
                                                        bool traverse_tests) {
   std::vector<ConversionRecord> ready;
 
-  // Functions in the module should become ready in dependency order (they
-  // referred to each other's names).
-  for (QuickCheck* quickcheck : module->GetQuickChecks()) {
-    Function* function = quickcheck->f();
-    XLS_RET_CHECK(!function->IsParametric()) << function->ToString();
+  for (ModuleMember member : module->top()) {
+    if (absl::holds_alternative<QuickCheck*>(member)) {
+      auto* quickcheck = absl::get<QuickCheck*>(member);
+      Function* function = quickcheck->f();
+      XLS_RET_CHECK(!function->IsParametric()) << function->ToString();
 
-    XLS_RETURN_IF_ERROR(
-        AddToReady(function, module, type_info, SymbolicBindings(), &ready));
-  }
+      XLS_RETURN_IF_ERROR(
+          AddToReady(function, module, type_info, SymbolicBindings(), &ready));
+    } else if (absl::holds_alternative<Function*>(member)) {
+      auto* function = absl::get<Function*>(member);
+      if (function->IsParametric()) {
+        continue;
+      }
 
-  for (Function* function : module->GetFunctions()) {
-    if (function->IsParametric()) {
-      continue;
+      XLS_RETURN_IF_ERROR(
+          AddToReady(function, module, type_info, SymbolicBindings(), &ready));
+    } else if (absl::holds_alternative<ConstantDef*>(member)) {
+      auto* constant_def = absl::get<ConstantDef*>(member);
+      XLS_ASSIGN_OR_RETURN(
+          const std::vector<Callee> callees,
+          GetCallees(constant_def, module, type_info, SymbolicBindings()));
+      XLS_RETURN_IF_ERROR(ProcessCallees(callees, &ready));
     }
-
-    XLS_RETURN_IF_ERROR(
-        AddToReady(function, module, type_info, SymbolicBindings(), &ready));
   }
 
   if (traverse_tests) {

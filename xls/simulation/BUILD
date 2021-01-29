@@ -137,10 +137,7 @@ cc_test(
 cc_library(
     name = "verilog_test_base",
     testonly = True,
-    srcs = [
-        "update_golden_files.inc",
-        "verilog_test_base.cc",
-    ],
+    srcs = ["verilog_test_base.cc"],
     hdrs = [
         "simulation_targets.inc",
         "verilog_test_base.h",
@@ -155,6 +152,7 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "//xls/codegen:vast",
+        "//xls/common:update_golden_files",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/logging",
