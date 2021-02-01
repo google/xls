@@ -30,6 +30,7 @@ namespace xls::dslx {
 template <typename UnwrappedT, typename IterableHolderT>
 std::vector<UnwrappedT> Unwrap(IterableHolderT& held) {
   std::vector<UnwrappedT> results;
+  results.reserve(held.size());
   for (auto& item : held) {
     results.push_back(&item.deref());
   }
@@ -40,6 +41,7 @@ template <typename UnwrappedT0, typename UnwrappedT1, typename HolderPairT>
 std::vector<std::pair<UnwrappedT0, UnwrappedT1>> UnwrapPair(
     const std::vector<HolderPairT>& held) {
   std::vector<std::pair<UnwrappedT0, UnwrappedT1>> results;
+  results.reserve(held.size());
   for (const HolderPairT& item : held) {
     results.push_back({&item.first.deref(), &item.second.deref()});
   }
@@ -964,6 +966,7 @@ PYBIND11_MODULE(cpp_ast, m) {
           py::init([](ModuleHolder module, Span span, StructDefHolder struct_,
                       std::vector<std::pair<std::string, ExprHolder>> members) {
             std::vector<std::pair<std::string, Expr*>> member_ptrs;
+            member_ptrs.reserve(members.size());
             for (auto& item : members) {
               member_ptrs.push_back({item.first, &item.second.deref()});
             }
@@ -1001,6 +1004,7 @@ PYBIND11_MODULE(cpp_ast, m) {
                        std::vector<std::pair<std::string, ExprHolder>> members,
                        ExprHolder splatted) {
         std::vector<std::pair<std::string, Expr*>> member_ptrs;
+        member_ptrs.reserve(members.size());
         for (auto& item : members) {
           member_ptrs.push_back({item.first, &item.second.deref()});
         }

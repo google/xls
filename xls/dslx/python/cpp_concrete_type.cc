@@ -83,6 +83,7 @@ PYBIND11_MODULE(cpp_concrete_type, m) {
       // UnnamedMembers
       .def(py::init([](const std::vector<const ConcreteType*>& unnamed) {
              std::vector<std::unique_ptr<ConcreteType>> members;
+             members.reserve(unnamed.size());
              for (const auto* type : unnamed) {
                members.push_back(type->CloneToUnique());
              }
@@ -99,6 +100,7 @@ PYBIND11_MODULE(cpp_concrete_type, m) {
                      named,
                  absl::optional<StructDefHolder> struct_def) {
                 std::vector<TupleType::NamedMember> members;
+                members.reserve(named.size());
                 for (const auto& [name, type] : named) {
                   members.push_back(
                       TupleType::NamedMember{name, type->CloneToUnique()});
@@ -247,6 +249,7 @@ PYBIND11_MODULE(cpp_concrete_type, m) {
       .def(py::init([](const std::vector<const ConcreteType*>& params,
                        const ConcreteType* return_type) {
              std::vector<std::unique_ptr<ConcreteType>> owned_params;
+             owned_params.reserve(params.size());
              for (const ConcreteType* param : params) {
                owned_params.push_back(param->CloneToUnique());
              }
