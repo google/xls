@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for xls.dslx.fuzzer.run_fuzz."""
+"""Tests for xls.fuzzer.run_fuzz."""
 
 import os
 import random
@@ -22,13 +22,13 @@ import subprocess
 
 from absl import flags
 
-from xls.dslx.fuzzer import ast_generator
-from xls.dslx.fuzzer import run_fuzz
-from xls.dslx.fuzzer import sample
-from xls.dslx.fuzzer import sample_runner
+from absl.testing import parameterized
 from xls.common import runfiles
 from xls.common import test_base
-from absl.testing import parameterized
+from xls.fuzzer import ast_generator
+from xls.fuzzer import run_fuzz
+from xls.fuzzer import sample
+from xls.fuzzer import sample_runner
 
 flags.DEFINE_boolean('codegen', True,
                      'Whether to generate Verilog for generated samples.')
@@ -61,7 +61,7 @@ class RunFuzzTest(parameterized.TestCase):
       'return_samples': True,
       'codegen': True
   }
-  GOLDEN_REFERENCE_FMT = 'xls/dslx/fuzzer/testdata/run_fuzz_test{codegen}.seed_{seed}_sample_{sample}.x'
+  GOLDEN_REFERENCE_FMT = 'xls/fuzzer/testdata/run_fuzz_test{codegen}.seed_{seed}_sample_{sample}.x'
   SEED_TO_CHECK_LIMIT = 2
   SAMPLE_TO_CHECK_LIMIT = 1
 

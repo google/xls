@@ -14,15 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for xls.dslx.fuzzer.ast_generator."""
+"""Tests for xls.fuzzer.ast_generator."""
 
 import random
 
 from xls.common import test_base
 from xls.dslx import ast_helpers
-from xls.dslx.fuzzer import ast_generator
 from xls.dslx.python import interpreter
 from xls.dslx.python import scanner
+from xls.fuzzer import ast_generator
 
 
 class AstGeneratorTest(test_base.TestCase):

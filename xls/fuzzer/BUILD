@@ -15,7 +15,7 @@
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 # pytype binary, test, library
-load("//xls/dslx/fuzzer:build_defs.bzl", "generate_crasher_regression_tests")
+load("//xls/fuzzer:build_defs.bzl", "generate_crasher_regression_tests")
 # cc_proto_library is used in this file
 
 package(

@@ -23,11 +23,11 @@ from typing import Text
 from absl import app
 from absl import flags
 
-from xls.dslx.fuzzer import ast_generator
-from xls.dslx.fuzzer import run_fuzz
-from xls.dslx.fuzzer import sample
-from xls.dslx.fuzzer import sample_generator
-from xls.dslx.fuzzer.run_fuzz_multiprocess import do_generator_task
+from xls.fuzzer import ast_generator
+from xls.fuzzer import run_fuzz
+from xls.fuzzer import sample
+from xls.fuzzer import sample_generator
+from xls.fuzzer.run_fuzz_multiprocess import do_generator_task
 
 flags.DEFINE_enum(
     'mode',

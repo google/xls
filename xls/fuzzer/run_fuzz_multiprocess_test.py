@@ -13,7 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for xls.dslx.fuzzer.run_fuzz_multiprocess."""
+"""Tests for xls.fuzzer.run_fuzz_multiprocess."""
 
 import os
 import subprocess
@@ -22,7 +22,7 @@ from xls.common import runfiles
 from xls.common import test_base
 
 RUN_FUZZ_MULTIPROCESS_PATH = runfiles.get_path(
-    'xls/dslx/fuzzer/run_fuzz_multiprocess')
+    'xls/fuzzer/run_fuzz_multiprocess')
 
 
 class RunFuzzMultiprocessTest(test_base.TestCase):

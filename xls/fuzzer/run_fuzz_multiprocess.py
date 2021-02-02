@@ -34,12 +34,12 @@ import termcolor
 
 from xls.common import gfile
 from xls.common import multiprocess
-from xls.dslx.fuzzer import ast_generator
-from xls.dslx.fuzzer import run_fuzz
-from xls.dslx.fuzzer import sample_generator
-from xls.dslx.fuzzer import sample_runner
-from xls.dslx.fuzzer.sample import Sample
-from xls.dslx.fuzzer.sample import SampleOptions
+from xls.fuzzer import ast_generator
+from xls.fuzzer import run_fuzz
+from xls.fuzzer import sample_generator
+from xls.fuzzer import sample_runner
+from xls.fuzzer.sample import Sample
+from xls.fuzzer.sample import SampleOptions
 
 
 class Command(enum.Enum):

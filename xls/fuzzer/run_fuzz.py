@@ -28,17 +28,16 @@ from absl import logging
 import termcolor
 
 from xls.common import runfiles
-from xls.dslx.fuzzer import ast_generator
-from xls.dslx.fuzzer import sample
-from xls.dslx.fuzzer import sample_generator
-from xls.dslx.fuzzer import sample_runner
+from xls.fuzzer import ast_generator
+from xls.fuzzer import sample
+from xls.fuzzer import sample_generator
+from xls.fuzzer import sample_runner
 
-SAMPLE_RUNNER_MAIN_PATH = runfiles.get_path(
-    'xls/dslx/fuzzer/sample_runner_main')
+SAMPLE_RUNNER_MAIN_PATH = runfiles.get_path('xls/fuzzer/sample_runner_main')
 IR_MINIMIZER_MAIN_PATH = runfiles.get_path('xls/tools/ir_minimizer_main')
-SUMMARIZE_IR_MAIN_PATH = runfiles.get_path('xls/dslx/fuzzer/summarize_ir_main')
+SUMMARIZE_IR_MAIN_PATH = runfiles.get_path('xls/fuzzer/summarize_ir_main')
 FIND_FAILING_INPUT_MAIN = runfiles.get_path(
-    'xls/dslx/fuzzer/find_failing_input_main')
+    'xls/fuzzer/find_failing_input_main')
 
 
 def _write_to_file(dir_path: Text,

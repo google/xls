@@ -49,10 +49,10 @@ def generate_crasher_regression_tests(name, srcs, prefix, failing = None, tags =
         fullpath = prefix + "/" + f
         native.sh_test(
             name = test_name,
-            srcs = ["//xls/dslx/fuzzer:run_crasher_sh"],
+            srcs = ["//xls/fuzzer:run_crasher_sh"],
             args = [fullpath],
             data = [
-                "//xls/dslx/fuzzer:run_crasher",
+                "//xls/fuzzer:run_crasher",
                 f,
             ],
             tags = tags.get(f, []),

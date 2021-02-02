@@ -22,7 +22,7 @@ from xls.common import runfiles
 from xls.common import test_base
 
 FIND_FAILING_INPUT_MAIN = runfiles.get_path(
-    'xls/dslx/fuzzer/find_failing_input_main')
+    'xls/fuzzer/find_failing_input_main')
 
 ADD_IR = """package foo
 

@@ -34,7 +34,7 @@ from typing import Text
 from absl import app
 from absl import flags
 
-from xls.dslx.fuzzer import sample_runner
+from xls.fuzzer import sample_runner
 
 FLAGS = flags.FLAGS
 

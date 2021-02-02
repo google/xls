@@ -13,6 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-BINPATH=./xls/dslx/fuzzer/run_crasher
+BINPATH=./xls/fuzzer/run_crasher
 $BINPATH --alsologtostderr "$@" || exit -1
 echo "PASS!"

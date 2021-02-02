@@ -28,11 +28,11 @@ from xls.common import check_simulator
 from xls.common import revision
 from xls.common import runfiles
 from xls.common.xls_error import XlsError
-from xls.dslx.fuzzer import sample
 from xls.dslx.interpreter.value_parser import value_from_string
 from xls.dslx.python import interpreter
 from xls.dslx.python.interp_value import Tag
 from xls.dslx.python.interp_value import Value
+from xls.fuzzer import sample
 from xls.ir.python import ir_parser
 from xls.ir.python import value as ir_value_mod
 from xls.ir.python.format_preference import FormatPreference

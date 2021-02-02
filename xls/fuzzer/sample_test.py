@@ -17,7 +17,7 @@
 import json
 import textwrap
 
-from xls.dslx.fuzzer import sample
+from xls.fuzzer import sample
 from absl.testing import absltest
 from xls.dslx.python.interp_value import Value
 

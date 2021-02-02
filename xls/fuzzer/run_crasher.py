@@ -23,9 +23,9 @@ from absl import app
 from absl import flags
 
 from xls.common import gfile
-from xls.dslx.fuzzer import run_fuzz
-from xls.dslx.fuzzer import sample
-from xls.dslx.fuzzer import sample_runner
+from xls.fuzzer import run_fuzz
+from xls.fuzzer import sample
+from xls.fuzzer import sample_runner
 
 flags.DEFINE_string(
     'run_dir', None, help='The directory to run the crasher in.')

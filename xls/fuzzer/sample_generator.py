@@ -19,8 +19,6 @@
 import random
 from typing import Tuple, Text, Sequence
 
-from xls.dslx.fuzzer import ast_generator
-from xls.dslx.fuzzer import sample
 from xls.dslx.python import interpreter
 from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType
@@ -28,6 +26,8 @@ from xls.dslx.python.cpp_concrete_type import ConcreteType
 from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.dslx.python.interp_value import Tag
 from xls.dslx.python.interp_value import Value
+from xls.fuzzer import ast_generator
+from xls.fuzzer import sample
 from xls.ir.python import bits as ir_bits
 
 Random = random.Random

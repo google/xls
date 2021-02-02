@@ -123,7 +123,7 @@ purpose, and correspond to the components in this XLS stack diagram:
     entirely fixed size objects, fully analyzeable call graph. XLS team has found
     dataflow DSLs are a good fit to describe hardware as compared to languages
     designed assume von Neumann style computation.
-  * [`dslx/fuzzer`](https://github.com/google/xls/tree/main/xls/dslx/fuzzer): A
+  * [`fuzzer`](https://github.com/google/xls/tree/main/xls/fuzzer): A
     whole-stack multiprocess fuzzer that generates programs at the DSL level and
     cross-compares different execution engines (DSL interpreter, IR interpreter,
     IR JIT, code-generated-Verilog simulator). Designed so that it can easily be

@@ -18,8 +18,8 @@
 
 import random
 
-from xls.dslx.fuzzer import ast_generator
-from xls.dslx.fuzzer import run_fuzz
+from xls.fuzzer import ast_generator
+from xls.fuzzer import run_fuzz
 from absl.testing import absltest
 
 

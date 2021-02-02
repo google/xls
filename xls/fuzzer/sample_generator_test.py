@@ -18,12 +18,12 @@ import collections
 import random
 
 from xls.common import test_base
-from xls.dslx.fuzzer import ast_generator
-from xls.dslx.fuzzer import sample_generator
-from xls.dslx.fuzzer.sample import SampleOptions
 from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType
 from xls.dslx.python.cpp_concrete_type import TupleType
+from xls.fuzzer import ast_generator
+from xls.fuzzer import sample_generator
+from xls.fuzzer.sample import SampleOptions
 
 
 class SampleGeneratorTest(test_base.TestCase):

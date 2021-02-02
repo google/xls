@@ -19,10 +19,10 @@ from typing import Tuple, Text
 
 from xls.common import check_simulator
 from xls.common import test_base
-from xls.dslx.fuzzer import sample
-from xls.dslx.fuzzer import sample_runner
 from xls.dslx.python.interp_value import Tag
 from xls.dslx.python.interp_value import Value
+from xls.fuzzer import sample
+from xls.fuzzer import sample_runner
 from xls.ir.python import bits as ir_bits
 
 
