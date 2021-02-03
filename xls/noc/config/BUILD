@@ -354,3 +354,75 @@ cc_test(
         "@com_google_googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "custom_network_config_builder_options_proto_builder_h",
+    hdrs = ["custom_network_config_builder_options_proto_builder.h"],
+    deps = [
+        ":network_config_builder_options_cc_proto",
+        "//xls/common/logging",
+    ],
+)
+
+cc_library(
+    name = "grid_network_config_options_proto_builder",
+    srcs = ["grid_network_config_options_proto_builder.cc"],
+    deps = [
+        ":custom_network_config_builder_options_proto_builder_h",
+    ],
+)
+
+cc_test(
+    name = "grid_network_config_options_proto_builder_test",
+    srcs = ["grid_network_config_options_proto_builder_test.cc"],
+    deps = [
+        ":custom_network_config_builder_options_proto_builder_h",
+        ":grid_network_config_options_proto_builder",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "unidirectional_tree_network_config_options_proto_builder",
+    srcs = ["unidirectional_tree_network_config_options_proto_builder.cc"],
+    deps = [
+        ":custom_network_config_builder_options_proto_builder_h",
+    ],
+)
+
+cc_test(
+    name = "unidirectional_tree_network_config_options_proto_builder_test",
+    srcs = ["unidirectional_tree_network_config_options_proto_builder_test.cc"],
+    deps = [
+        ":custom_network_config_builder_options_proto_builder_h",
+        ":unidirectional_tree_network_config_options_proto_builder",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "bidirectional_tree_network_config_options_proto_builder",
+    srcs = ["bidirectional_tree_network_config_options_proto_builder.cc"],
+    deps = [
+        ":custom_network_config_builder_options_proto_builder_h",
+    ],
+)
+
+cc_test(
+    name = "bidirectional_tree_network_config_options_proto_builder_test",
+    srcs = ["bidirectional_tree_network_config_options_proto_builder_test.cc"],
+    deps = [
+        ":bidirectional_tree_network_config_options_proto_builder",
+        ":custom_network_config_builder_options_proto_builder_h",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "custom_network_config_builder_options_proto_builder",
+    deps = [
+        ":bidirectional_tree_network_config_options_proto_builder",
+        ":grid_network_config_options_proto_builder",
+        ":unidirectional_tree_network_config_options_proto_builder",
+    ],
+)
