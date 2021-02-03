@@ -22,12 +22,16 @@ namespace py = pybind11;
 
 namespace xls {
 
+absl::StatusOr<bool> RunPipelineAtMaxOptLevel(Package *p) {
+  return RunStandardPassPipeline(p, kMaxOptLevel);
+}
+
 PYBIND11_MODULE(standard_pipeline, m) {
   ImportStatusModule();
 
   py::module::import("xls.ir.python.package");
 
-  m.def("run_standard_pass_pipeline", PyWrap(&RunStandardPassPipeline),
+  m.def("run_standard_pass_pipeline", PyWrap(&RunPipelineAtMaxOptLevel),
         py::arg("package"));
 }
 

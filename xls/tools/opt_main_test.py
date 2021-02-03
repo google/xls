@@ -44,6 +44,14 @@ fn main(x: bits[32]) -> bits[32] {
 }
 """
 
+ADD_LITERAL_IR = """package add_literal
+
+fn add_zero(x: bits[32]) -> bits[32] {
+  literal.1: bits[32] = literal(value=0xfff_0000)
+  ret add.2: bits[32] = add(x, literal.1)
+}
+"""
+
 
 class OptMainTest(test_base.TestCase):
 
@@ -67,7 +75,7 @@ class OptMainTest(test_base.TestCase):
     self.assertIn('ret x', optimized_ir)
 
   def test_run_only_arith_simp_and_dce_passes(self):
-    ir_file = self.create_tempfile(content=ADD_ZERO_IR)
+    ir_file = self.create_tempfile(content=DEAD_FUNCTION_IR)
 
     optimized_ir = subprocess.check_output(
         [OPT_MAIN_PATH, '--run_only_passes=arith_simp,dce',
@@ -76,6 +84,9 @@ class OptMainTest(test_base.TestCase):
     # The add with zero should be eliminated.
     self.assertIn('add(', ADD_ZERO_IR)
     self.assertNotIn('add(', optimized_ir)
+
+    # Without running DFE, the dead function should remain in the IR.
+    self.assertIn('dead_function', optimized_ir)
 
   def test_skip_dfe(self):
     ir_file = self.create_tempfile(content=DEAD_FUNCTION_IR)
@@ -91,6 +102,32 @@ class OptMainTest(test_base.TestCase):
 
     # Skipping DFE should leave the dead function in the IR.
     self.assertIn('dead_function', optimized_ir)
+
+  def test_opt_level(self):
+    ir_file = self.create_tempfile(content=ADD_LITERAL_IR)
+
+    # Without specifying opt-level, the optimizer should run at maximum level
+    # and convert the add with literal 0xffff_0000 into something like:
+    #
+    #   concat(add(0xffff, x[16:32]), x[0:16])
+    #
+    optimized_ir = subprocess.check_output([OPT_MAIN_PATH,
+                                            ir_file.full_path]).decode('utf-8')
+    self.assertIn('bits[16] = add', optimized_ir)
+    self.assertIn('concat', optimized_ir)
+
+    # Opt_level 3 should produce the same results as without opt_level
+    # specified.
+    optimized_ir = subprocess.check_output(
+        [OPT_MAIN_PATH, '--opt_level=3', ir_file.full_path]).decode('utf-8')
+    self.assertIn('bits[16] = add', optimized_ir)
+    self.assertIn('concat', optimized_ir)
+
+    # At opt_level 1 the full width add should remain.
+    optimized_ir = subprocess.check_output(
+        [OPT_MAIN_PATH, '--opt_level=1', ir_file.full_path]).decode('utf-8')
+    self.assertIn('bits[32] = add', optimized_ir)
+    self.assertNotIn('concat', optimized_ir)
 
 
 if __name__ == '__main__':

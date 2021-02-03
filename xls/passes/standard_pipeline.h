@@ -23,11 +23,13 @@ namespace xls {
 
 // CreateStandardPassPipeline connects together the various optimization
 // and analysis passes in the order of execution.
-std::unique_ptr<CompoundPass> CreateStandardPassPipeline();
+std::unique_ptr<CompoundPass> CreateStandardPassPipeline(
+    int64 opt_level = kMaxOptLevel);
 
 // Creates and runs the standard pipeline on the given package with default
 // options.
-absl::StatusOr<bool> RunStandardPassPipeline(Package* package);
+absl::StatusOr<bool> RunStandardPassPipeline(Package* package,
+                                             int64 opt_level = kMaxOptLevel);
 
 // Creates a pipeline for constructing a schedule for a feedforward pipeline.
 std::unique_ptr<SchedulingCompoundPass> CreateStandardSchedulingPassPipeline();
